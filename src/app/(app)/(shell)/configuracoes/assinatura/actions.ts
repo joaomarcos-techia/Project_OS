@@ -8,10 +8,15 @@ import { buildRequestContext } from '@/lib/audit/request-context';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { requireClinicId, requireFreshPermission, requireUser } from '@/lib/auth/tenant-context';
 import { idempotentMutation } from '@/lib/idempotency/mutation';
+import { removeSubscriptionCharges } from '@/contexts/billing/internal/cancellation-charges';
+import { reopenClinicAfterReactivation } from '@/contexts/billing/internal/clinic-status';
 import { ensureUpgradePayment } from '@/contexts/billing/internal/plan-change-payment';
 import { asaasProvider } from '@/lib/payments/asaas';
+import { metrics } from '@/lib/observability/metrics';
 import {
+  getSubscriptionCancellationContext,
   getSubscriptionReactivationContext,
+  getSubscriptionRevocationContext,
   PlanChangeError,
   reactivateSubscription,
   requestPlanChange,
@@ -120,6 +125,39 @@ export async function requestPlanChangeAction(
   }
 }
 
+/**
+ * Mensagens de quando o lado Asaas não terminou. Nas duas, NADA foi gravado no
+ * Qoro, e repetir é seguro: pausar e apagar são idempotentes no Asaas.
+ */
+const CANCELLATION_INCOMPLETE = {
+  in_flight:
+    'Há um pagamento com cartão sendo analisado agora e ele não pode ser apagado. Tente cancelar de novo em alguns minutos.',
+  provider_unavailable:
+    'Não foi possível confirmar no Asaas que todas as cobranças foram apagadas. Tente cancelar de novo em instantes.',
+} as const;
+
+/**
+ * Datas de ciclo são datas de calendário gravadas como meia-noite UTC — a mesma
+ * data do vencimento no Asaas. Formatar no fuso local mostra o dia ANTERIOR no
+ * Brasil ("acesso até 09/10" para um ciclo que vai até 10/10).
+ */
+function formatDate(date: Date): string {
+  return new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC' }).format(date);
+}
+
+/**
+ * Cancelar = parar de cobrar AGORA, e perder o acesso só quando ele acabaria.
+ *
+ * A ordem é a do resto da saga de billing: remoto antes do local. Primeiro a
+ * recorrência é pausada e toda cobrança ainda não paga é apagada no Asaas — com
+ * releitura provando que não sobrou nada. Só então o cancelamento é registrado.
+ * Se o Asaas falhar no meio, nada é gravado aqui, e a próxima tentativa termina
+ * o trabalho do lado de lá.
+ *
+ * Antes deste desenho, o botão só agendava no banco e o cron pausava a
+ * recorrência no dia do vencimento, sem apagar a cobrança já gerada — que era
+ * cobrada no mesmo dia.
+ */
 export async function requestSubscriptionCancellationAction(
   _previous: PlanChangeState,
   formData: FormData,
@@ -133,6 +171,13 @@ export async function requestSubscriptionCancellationAction(
   const hdrs = await headers();
   const requestContext = buildRequestContext(hdrs);
   try {
+    const context = await getSubscriptionCancellationContext(clinicId);
+    const removal = await removeSubscriptionCharges(asaasProvider, {
+      asaasSubscriptionId: context.asaasSubscriptionId,
+      extraPaymentIds: context.extraPaymentIds,
+    });
+    if (!removal.ok) return { error: CANCELLATION_INCOMPLETE[removal.reason] };
+
     const cancellation = await idempotentMutation(
       {
         idempotency: {
@@ -158,19 +203,34 @@ export async function requestSubscriptionCancellationAction(
             origin: hdrs.get('origin'),
             requestId: requestContext.requestId,
           },
+          removedPaymentIds: removal.removedPaymentIds,
+          paidPaymentIds: removal.paidPaymentIds,
         }),
     );
     revalidatePath('/configuracoes/assinatura');
+    const effectiveAt = new Date(cancellation.effectiveAt);
+    const acesso =
+      effectiveAt.getTime() > Date.now()
+        ? `O acesso continua até ${formatDate(effectiveAt)}.`
+        : 'O acesso é encerrado em até um dia.';
     return {
       error: null,
       success: 'cancellation_scheduled',
-      message: `Cancelamento agendado para ${new Intl.DateTimeFormat('pt-BR').format(cancellation.effectiveAt)}.`,
+      message: `Assinatura cancelada. Nenhuma nova cobrança será feita e as cobranças em aberto foram apagadas no Asaas. ${acesso}`,
     };
   } catch (err) {
     return { error: err instanceof PlanChangeError ? err.message : INITIAL_ERROR };
   }
 }
 
+/**
+ * "Manter assinatura" desfaz um cancelamento que ainda não entrou em vigor.
+ *
+ * O cancelamento já pausou a recorrência no Asaas. Revogar só no banco deixaria
+ * a clínica ativa e o provedor parado — serviço sem cobrança, para sempre. Por
+ * isso a recorrência é religada ANTES, com vencimento na data em que o
+ * cancelamento valeria; se o Asaas falhar, o cancelamento continua de pé.
+ */
 export async function revokeSubscriptionCancellationAction(
   _previous: PlanChangeState,
   formData: FormData,
@@ -184,6 +244,15 @@ export async function revokeSubscriptionCancellationAction(
   const hdrs = await headers();
   const requestContext = buildRequestContext(hdrs);
   try {
+    const providerContext = await getSubscriptionRevocationContext(clinicId);
+    if (providerContext.asaasSubscriptionId) {
+      await asaasProvider.updateSubscription(providerContext.asaasSubscriptionId, {
+        value: providerContext.value,
+        status: 'ACTIVE',
+        nextDueDate: providerContext.nextDueDate,
+        updatePendingPayments: false,
+      });
+    }
     await idempotentMutation(
       {
         idempotency: {
@@ -215,7 +284,7 @@ export async function revokeSubscriptionCancellationAction(
     return {
       error: null,
       success: 'cancellation_revoked',
-      message: 'Cancelamento revogado. Sua assinatura seguirá ativa.',
+      message: `Cancelamento revogado. A assinatura segue ativa, com a próxima cobrança em ${formatDate(new Date(`${providerContext.nextDueDate}T12:00:00Z`))}.`,
     };
   } catch (err) {
     return { error: err instanceof PlanChangeError ? err.message : INITIAL_ERROR };
@@ -260,6 +329,15 @@ export async function reactivateSubscriptionAction(
       },
       (tx) => reactivateSubscription(tx, { clinicId, requestedBy: user.userId, now }),
     );
+    // `clinics` não aceita UPDATE do tenant (RLS casa zero linhas), então o
+    // `setClinicAccess` dentro da transação acima não reabre nada. Se esta
+    // etapa falhar, o cron diário reabre — a cobrança já foi religada e a
+    // clínica não pode ficar paga e bloqueada.
+    try {
+      await reopenClinicAfterReactivation(clinicId);
+    } catch (error) {
+      metrics.emit('billing.reactivation.reopen_failed', { clinicId, error });
+    }
     revalidatePath('/configuracoes/assinatura');
     return {
       error: null,

@@ -121,11 +121,20 @@ describe('state machine (monotônica; webhook fora de ordem)', () => {
     expect(canTransitionInvoice('cancelled', 'open')).toBe(false);
     expect(canTransitionInvoice('paid', 'paid')).toBe(true); // idempotente
   });
-  it('billing: reativação comercial pode sair de cancelled', () => {
+  it('billing: transições genéricas entre os estados vivos', () => {
     expect(canTransitionBilling('trial', 'active')).toBe(true);
     expect(canTransitionBilling('active', 'past_due')).toBe(true);
     expect(canTransitionBilling('past_due', 'active')).toBe(true);
-    expect(canTransitionBilling('cancelled', 'active')).toBe(true);
+  });
+  it('billing: cancelled é TERMINAL para transições genéricas', () => {
+    // A aresta cancelled -> active existia "para a reativação", mas quem a usava
+    // era `activateSubscription`, disparado por QUALQUER pagamento confirmado:
+    // uma parcela que sobrava no Asaas depois do cancelamento desfazia o
+    // cancelamento sozinha. A reativação legítima grava o estado diretamente.
+    expect(canTransitionBilling('cancelled', 'active')).toBe(false);
+    expect(canTransitionBilling('cancelled', 'past_due')).toBe(false);
+    expect(canTransitionBilling('cancelled', 'trial')).toBe(false);
+    expect(canTransitionBilling('cancelled', 'cancelled')).toBe(true); // idempotente
   });
 });
 

@@ -812,3 +812,47 @@ describe('estorno e cancelamento de cobrança (ADR-049 1.5)', () => {
     expect((error as BillingProviderError).httpStatus).toBe(404);
   });
 });
+
+describe('listUnpaidSubscriptionPayments', () => {
+  function page(data: unknown[], hasMore = false): Response {
+    return Response.json({ data, hasMore, limit: 100, offset: 0 });
+  }
+  const raw = (id: string, status: string, deleted = false) => ({
+    id,
+    status,
+    value: 149,
+    dueDate: '2026-09-28',
+    billingType: 'CREDIT_CARD',
+    deleted,
+  });
+
+  it('pede cada status em aberto, em todas as páginas, e descarta cobrança apagada', async () => {
+    fetchMock
+      // PENDING: duas páginas
+      .mockResolvedValueOnce(page([raw('pay_p1', 'PENDING')], true))
+      .mockResolvedValueOnce(page([raw('pay_p2', 'PENDING'), raw('pay_morta', 'PENDING', true)]))
+      // OVERDUE
+      .mockResolvedValueOnce(page([raw('pay_o1', 'OVERDUE')]))
+      // AWAITING_RISK_ANALYSIS
+      .mockResolvedValueOnce(page([]));
+
+    const unpaid = await asaasProvider.listUnpaidSubscriptionPayments('sub_1');
+
+    expect(unpaid.map((p) => p.paymentId)).toEqual(['pay_p1', 'pay_p2', 'pay_o1']);
+    const urls = fetchMock.mock.calls.map(([url]) => String(url));
+    expect(urls).toEqual([
+      'https://sandbox.asaas.com/api/v3/subscriptions/sub_1/payments?status=PENDING&limit=100&offset=0',
+      'https://sandbox.asaas.com/api/v3/subscriptions/sub_1/payments?status=PENDING&limit=100&offset=100',
+      'https://sandbox.asaas.com/api/v3/subscriptions/sub_1/payments?status=OVERDUE&limit=100&offset=0',
+      'https://sandbox.asaas.com/api/v3/subscriptions/sub_1/payments?status=AWAITING_RISK_ANALYSIS&limit=100&offset=0',
+    ]);
+  });
+
+  it('paginação que não termina vira erro — lista incompleta não pode virar "sem sobra"', async () => {
+    fetchMock.mockImplementation(async () => page([raw('pay_x', 'PENDING')], true));
+
+    await expect(asaasProvider.listUnpaidSubscriptionPayments('sub_1')).rejects.toMatchObject({
+      code: 'unpaid_listing_truncated',
+    });
+  });
+});

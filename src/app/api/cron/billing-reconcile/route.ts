@@ -17,6 +17,8 @@ import { withCron } from '@/lib/http/cron';
 import { metrics } from '@/lib/observability/metrics';
 
 import { asaasProvider, BillingProviderError } from '@/lib/payments/asaas';
+import { removeSubscriptionCharges } from '@/contexts/billing/internal/cancellation-charges';
+import { reopenReactivatedClinics } from '@/contexts/billing/internal/clinic-status';
 import { applyScheduledPlanChange } from '@/contexts/billing/internal/plan-changes';
 import { providerStatusToInvoiceStatus } from '@/contexts/billing/internal/provider-sync';
 import {
@@ -232,18 +234,37 @@ export const GET = withCron(
               updatePendingPayments: false,
             });
           } else {
-            // Preserva a recorrência no Asaas como INACTIVE; a reativação
-            // posterior restaura ACTIVE sem recolher PAN/CVV novamente.
-            await asaasProvider.updateSubscription(change.asaasSubscriptionId, {
-              status: 'INACTIVE',
-              updatePendingPayments: false,
+            // O pedido já pausou a recorrência e apagou as cobranças no Asaas.
+            // Aqui é o backstop: repete os dois (idempotentes) e só aplica o
+            // cancelamento local se a releitura provar que não sobrou cobrança.
+            // Antes, este ponto só pausava — e a parcela que vencia HOJE, criada
+            // 40 dias antes, continuava viva e era cobrada.
+            const removal = await removeSubscriptionCharges(asaasProvider, {
+              asaasSubscriptionId: change.asaasSubscriptionId,
+              extraPaymentIds: [],
             });
+            if (!removal.ok) {
+              metrics.emit('billing.plan_change.cancellation_charges_pending', {
+                changeId: change.id,
+                reason: removal.reason,
+              });
+              continue;
+            }
           }
           const result = await dbAdmin.transaction((tx) => applyScheduledPlanChange(tx, change.id));
           if (result.applied) scheduledChangesApplied++;
         } catch (err) {
           metrics.emit('billing.plan_change.apply_error', { changeId: change.id, error: err });
         }
+      }
+
+      // Clínicas que ficaram fechadas depois de uma reativação (a reabertura
+      // imediata roda após o commit e pode falhar). Pagas e bloqueadas não.
+      try {
+        const reopened = await reopenReactivatedClinics();
+        if (reopened > 0) metrics.emit('billing.reactivation.reopened_by_cron', { reopened });
+      } catch (err) {
+        metrics.emit('billing.reactivation.reopen_cron_error', { error: err });
       }
 
       const rows = (await dbAdmin

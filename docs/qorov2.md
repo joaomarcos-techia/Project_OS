@@ -7052,3 +7052,94 @@ de cleanup sem usuário Auth, `signup_session`, fixture ou lock residual.
 Esses quatro documentos devem ser atualizados juntos quando a execução real ocorrer. Um PASS na
 suíte local não promove automaticamente o E2E externo, o Preview, a caixa de entrada, o billing ou o
 aceite humano.
+## 38. Cancelar a assinatura passou a parar a cobrança de verdade — 28/09/2026
+
+A pergunta era direta: um cliente que cancela em `/configuracoes/assinatura` nunca mais é cobrado
+indevidamente? Na `main` de 28/09 a resposta era **não**, e por cinco motivos. Os cinco foram
+medidos antes de corrigir, e cada correção tem um teste que falha quando o defeito volta.
+
+### 38.1 O que estava errado
+
+| # | Defeito | Como foi provado |
+| - | ------- | ---------------- |
+| 1 | **A cobrança já gerada continuava viva.** O botão só agendava o cancelamento no banco; no dia da vigência o cron punha a assinatura em `INACTIVE`. `INACTIVE` impede cobranças NOVAS, mas "as cobranças já existentes permanecem inalteradas", e o Asaas cria cada cobrança **40 dias antes** do vencimento. A parcela do mês seguinte, que vence no próprio dia do cancelamento, era cobrada — no cartão, para clínicas que entraram pelo convite `/join` | sandbox: depois do `INACTIVE` a cobrança seguiu `PENDING`; o `DELETE` a removeu da listagem |
+| 2 | **Esse pagamento desfazia o cancelamento.** O webhook de pagamento confirmado chamava `activateSubscription`, e a máquina de estados aceitava `cancelled → active` para qualquer chamador. O comentário dizia que só a reativação usava a aresta; quem usava era qualquer pagamento | leitura do código + teste |
+| 3 | **Quem estava no teste não conseguia cancelar.** A tela dizia "não há assinatura ativa para cancelar", mas o cadastro autônomo cria uma assinatura mensal no Asaas com a primeira cobrança no fim dos 7 dias; o backend também recusava `trial` e `past_due` | leitura do código + teste |
+| 4 | **A régua de cobrança não ignorava clínica cancelada.** O cron `billing-dunning` pegava toda invoice vencida sem olhar o estado da assinatura | teste sobre o SQL |
+| 5 | **Reativar não reabria a clínica.** `reactivateSubscription` roda dentro de `withTenant`, e `clinics` só tem policy de UPDATE para super_admin: o `UPDATE` casa **zero linhas**, sem erro. A reativação religava a cobrança no Asaas e a clínica continuava `cancelled` — `requireActiveClinic` bloqueava escrita. Pagava e ficava bloqueada | Postgres DEV, transação desfeita: 0 linhas afetadas |
+
+Um sexto apareceu no caminho: a tela formatava datas de ciclo (meia-noite UTC) no fuso do navegador,
+e no Brasil elas apareciam **um dia antes** ("ciclo encerra em 09/10" para vencimento em 10/10).
+
+O sétimo só apareceu na jornada pela tela, e já existia na `main`: **reativar nunca funcionou**. A
+reativação religava a recorrência com vencimento "hoje", e o Asaas recusa com
+`400 invalid_nextDueDate` ("a data do próximo vencimento [deve] ser maior que hoje"). O mesmo valia
+para "Manter assinatura" de um cancelamento com vigência imediata. Os testes de unidade usavam um
+provider falso que aceitava qualquer data, então nada acusava.
+
+### 38.2 O que mudou
+
+**Cancelar para de cobrar agora e só tira o acesso quando ele acabaria.** O pedido primeiro pausa a
+recorrência (`INACTIVE`) e depois apaga, com `DELETE /payments/{id}`, toda cobrança ainda não paga: as
+da assinatura, em todas as páginas da listagem, e as avulsas que o sistema conhece (rateio de upgrade
+aguardando pagamento e invoice local em aberto). Só depois de uma **releitura** provar que não sobrou
+cobrança viva o cancelamento é gravado no Qoro. Se o Asaas falhar no meio, nada é gravado aqui e
+repetir é seguro — pausar e apagar são idempotentes. O núcleo é
+`src/contexts/billing/internal/cancellation-charges.ts`.
+
+A vigência depende do estado: `active` vai até o fim do ciclo já pago; `trial`, até o fim do teste;
+`past_due`, agora — e as vencidas são apagadas junto, que é o que "apagar todas as cobranças"
+significa. Um cancelamento supera upgrade/downgrade pendente em vez de ser recusado.
+
+**"Manter assinatura" religa o Asaas antes de revogar.** Revogar só no banco deixaria a clínica ativa
+e o provedor parado para sempre. A recorrência volta com vencimento na data em que o cancelamento
+valeria, e nunca antes de amanhã (UTC): é o mínimo que o Asaas aceita. Reativar uma assinatura já
+cancelada também pede vencimento amanhã. Pelo mesmo motivo, **trocar de plano com cancelamento agendado passou a ser recusado** — antes
+o upgrade revogava o cancelamento só no banco.
+
+**Pagamento de assinatura cancelada não reabre nada.** A invoice fica `paid` (o dinheiro entrou), mas
+não há ciclo novo, billing ativo nem acesso liberado; o caso vira evento
+`invoice.paid_after_cancellation` para estorno humano. `cancelled` passou a ser terminal na máquina de
+estados — a reativação legítima grava o estado diretamente e não depende da aresta.
+
+**Reativar reabre a clínica por um comando privilegiado e estreito**
+(`src/contexts/billing/internal/clinic-status.ts`, mesmo padrão de `session-epoch.ts`): só
+`cancelled → active`, só com billing ativo e só quando o último evento do histórico é a reativação. O
+cron diário reabre o que a etapa imediata não conseguiu.
+
+O cron de vigência continua como backstop: repete a remoção e **não aplica o cancelamento local
+enquanto sobrar cobrança viva** — aplicar tiraria a assinatura da varredura diária e a sobra nunca
+mais seria apagada.
+
+### 38.3 O que ficou provado
+
+| Item | Estado |
+| ---- | ------ |
+| Comportamento do Asaas (`INACTIVE` mantém `PENDING`; `DELETE` remove; filtro `?status=` funciona; reativar não gera cobrança na hora) | **PASS** — sandbox, cliente e assinatura descartáveis removidos |
+| Código real de cancelamento contra o Asaas | **PASS 9/9** — `scripts/security/subscription-cancellation-sandbox.ts`: recorrência `INACTIVE`, cobrança da recorrência e avulsa apagadas, zero cobrança viva, repetir é seguro, "Manter" religa, limpeza sem resíduo |
+| SQL de reabrir a clínica | **PASS** — Postgres DEV em transação desfeita: reabre só o caso certo (1 linha), recusa billing cancelado e último evento diferente de reativação (0 linhas); resíduo zero |
+| Testes direcionados | **PASS** — núcleo de remoção 11, saga 18 (4 do vencimento ao religar), pagamento após cancelamento 3, actions 6, tela 9 (no fuso de Brasília), régua 1, SQL de reabertura 4, provider 2, cron 3 novos, máquina de estados 1 |
+| Os testes detectam o defeito | **PASS 14/14** — cada defeito foi reintroduzido e o teste direcionado falhou; árvore restaurada idêntica. O 14º é o vencimento "hoje": 4 testes falham |
+| Suíte, lint, typecheck, formato, `arch:db-check` | **PASS** — 4.436/4.436 |
+| Jornada pela tela com uma clínica de verdade | **PASS** — `e2e/subscription-cancellation.spec.ts` (opt-in `E2E_SUBSCRIPTION_CANCEL=1`, só localhost, recusa o projeto de produção): app local ligado ao DEV e ao Asaas sandbox. Cancelar no teste → "Manter" → cancelar de novo → cancelamento aplicado → "Reativar", com a clínica voltando a `active`. Cada etapa confere o Asaas e o banco. Roda sobre uma assinatura sandbox **temporária**, apagada no fim |
+| Build de produção | **PASS** — `next build` isolado; a rota `/configuracoes/assinatura` sai no build |
+
+**Incidente no caminho (só sandbox).** A primeira versão do E2E trocava a assinatura sandbox da conta
+de teste pela original ao terminar e, na limpeza, apagava toda cobrança pendente dela — inclusive as
+que já existiam antes do teste. Nenhum dado real foi tocado: era o Asaas sandbox do DEV, a assinatura
+seguiu `ACTIVE` e o Asaas volta a gerar as cobranças pelo calendário. O spec foi reescrito para criar
+e apagar uma assinatura própria, sem mexer nas cobranças da original.
+
+### 38.4 O que exige decisão humana
+
+- **Cobrança paga no mesmo instante do cancelamento.** Se o cartão for processado entre a listagem e o
+  `DELETE`, o Asaas recusa apagar. O cancelamento segue, e o caso vira
+  `subscription.cancellation.paid_charge_detected` ou `invoice.paid_after_cancellation`. Estornar é
+  decisão humana: o código não estorna sozinho.
+- **Cancelamento em `past_due` perdoa a dívida.** É o pedido explícito de apagar todas as cobranças.
+  Se o produto preferir cobrar o período usado, a mudança é só a lista de status apagados.
+- **Cancelamentos feitos antes desta versão.** Os já efetivados (`cancelled`) podem ter uma cobrança
+  pendente sobrando no Asaas, e nada nesta versão varre assinaturas já canceladas. Os agendados e ainda
+  não efetivados serão varridos pelo cron no dia da vigência — que é o dia do vencimento, então a
+  varredura pode chegar depois do cartão. Para os dois grupos, e para qualquer cancelamento até o
+  deploy, o caminho é manual: excluir no painel do Asaas as cobranças pendentes da assinatura.

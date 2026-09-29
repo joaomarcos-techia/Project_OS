@@ -95,6 +95,10 @@ const ALLOWED_DB_VALUE_IMPORTS: Record<string, Set<string>> = {
     // ENABLE+FORCE sem policy, grant só a service_role e REVOKE de
     // anon/authenticated na 0096. withTenant não se aplica.
     'src/contexts/onboarding/internal/signup-session.ts',
+    // Reabrir clínica após reativação: `clinics` não tem UPDATE para o tenant —
+    // via RLS casaria zero linhas (medido em 28/09). Comando estreito, guardado
+    // por billing ativo + reativação como último evento do histórico.
+    'src/contexts/billing/internal/clinic-status.ts',
     // ADR-060 §1.c.1: as quatro perguntas escrevem na MESMA tabela global
     // pré-tenant. Irmão do arquivo acima, mesma justificativa.
     'src/contexts/onboarding/internal/signup-answers.ts',

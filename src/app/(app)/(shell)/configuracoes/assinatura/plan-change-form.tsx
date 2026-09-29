@@ -7,6 +7,7 @@ import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { uuidv4 } from '@/lib/ui/uuid';
 
 import {
@@ -34,8 +35,39 @@ function formatMoney(amount: string): string {
   );
 }
 
+/**
+ * Fim de ciclo, fim de teste e vigência de cancelamento são datas de calendário
+ * gravadas como meia-noite UTC — a data do vencimento no Asaas. No fuso do
+ * navegador brasileiro elas apareciam um dia antes ("ciclo encerra em 09/10"
+ * para vencimento em 10/10).
+ */
+function formatCycleDate(value: Date): string {
+  return new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC' }).format(value);
+}
+
 function cycleLabel(cycle: 'monthly' | 'annual'): string {
   return cycle === 'annual' ? 'por ano' : 'por mês';
+}
+
+/**
+ * O que a pessoa precisa saber ANTES de confirmar — o que acontece com o
+ * dinheiro e até quando o acesso dura. Cada estado tem uma resposta diferente
+ * para a segunda pergunta, e dizer a errada é prometer o que não vai acontecer.
+ */
+function cancellationDescription(
+  status: 'trial' | 'active' | 'past_due' | 'cancelled',
+  periodEnd: string | null,
+  trialEnd: string | null,
+): string {
+  const cobrancas =
+    'A recorrência para agora e todas as cobranças em aberto no Asaas são apagadas — nenhuma nova será feita.';
+  if (status === 'active') {
+    return `${cobrancas} ${periodEnd ? `O acesso continua até ${periodEnd}, o fim do período já pago.` : 'O acesso é encerrado em até um dia.'}`;
+  }
+  if (status === 'trial') {
+    return `${cobrancas} ${trialEnd ? `O acesso continua até ${trialEnd}, o fim do período de teste.` : 'O acesso é encerrado em até um dia.'}`;
+  }
+  return `${cobrancas} Isso inclui as cobranças vencidas. O acesso é encerrado em até um dia.`;
 }
 
 export function PlanChangeForm({
@@ -52,6 +84,7 @@ export function PlanChangeForm({
     billingCycle: 'monthly' | 'annual';
     billingStatus: 'trial' | 'active' | 'past_due' | 'cancelled';
     periodEnd: string | null;
+    trialEndsAt?: string | null;
   };
   plans: Plan[];
   activeUsers: number;
@@ -75,9 +108,8 @@ export function PlanChangeForm({
   const revocationKey = useMemo(() => uuidv4(), []);
   const reactivationKey = useMemo(() => uuidv4(), []);
   const currentRank = RANK[current.planCode] ?? 0;
-  const end = current.periodEnd
-    ? new Intl.DateTimeFormat('pt-BR').format(new Date(current.periodEnd))
-    : null;
+  const end = current.periodEnd ? formatCycleDate(new Date(current.periodEnd)) : null;
+  const trialEnd = current.trialEndsAt ? formatCycleDate(new Date(current.trialEndsAt)) : null;
 
   return (
     <div className="flex flex-col gap-(--sp-5)">
@@ -89,8 +121,8 @@ export function PlanChangeForm({
           {pending.status === 'pending_payment'
             ? 'Seu upgrade aguarda a confirmação do pagamento proporcional.'
             : pending.kind === 'cancellation'
-              ? `Seu cancelamento está agendado para ${new Intl.DateTimeFormat('pt-BR').format(new Date(pending.effectiveAt))}.`
-              : `Seu downgrade está agendado para ${new Intl.DateTimeFormat('pt-BR').format(new Date(pending.effectiveAt))}.`}
+              ? `Assinatura cancelada: nenhuma nova cobrança será feita. O acesso segue até ${formatCycleDate(new Date(pending.effectiveAt))}.`
+              : `Seu downgrade está agendado para ${formatCycleDate(new Date(pending.effectiveAt))}.`}
           {pending.paymentUrl ? (
             <Link
               className="ml-1 font-semibold underline"
@@ -213,25 +245,28 @@ export function PlanChangeForm({
             Manter assinatura
           </Button>
         </form>
-      ) : !pending && current.billingStatus === 'active' ? (
-        /* UX-002 — o ramo do cancelamento testava apenas `!pending`, enquanto
-           `requestSubscriptionCancellation()` exige `billingStatus === 'active'`.
-           Em trial o botão aparecia habilitado e as duas tentativas voltavam com
-           "O cancelamento exige uma assinatura ativa." A habilitação agora deriva
-           do MESMO estado que o backend aceita — é o critério que os botões de
-           plano logo acima já usavam. */
-        <form action={cancellationAction}>
-          <input type="hidden" name="idempotencyKey" value={cancellationKey} />
-          <Button type="submit" variant="ghost" loading={cancelling}>
-            Cancelar assinatura ao fim do ciclo
-          </Button>
-        </form>
-      ) : !pending && current.billingStatus === 'trial' ? (
-        <p className="text-(length:--fs-xs) text-fg-subtle">
-          O período de teste termina sozinho no fim do ciclo — não há assinatura ativa para
-          cancelar.
-        </p>
-      ) : null}
+      ) : (
+        /* Cancelar tem de ser SEMPRE possível — em teste, ativa ou inadimplente, e
+           mesmo com um upgrade/downgrade pendente (o cancelamento o supera). Antes
+           o botão só existia em `active`: quem estava no teste lia que "não há
+           assinatura para cancelar" enquanto o Asaas já tinha a primeira cobrança
+           marcada para o fim do teste. */
+        <ConfirmDialog
+          trigger={
+            <Button type="button" variant="ghost" loading={cancelling}>
+              Cancelar assinatura
+            </Button>
+          }
+          title="Cancelar assinatura"
+          description={cancellationDescription(current.billingStatus, end, trialEnd)}
+          confirmLabel="Cancelar assinatura"
+          cancelLabel="Manter assinatura"
+          tone="danger"
+          action={cancellationAction}
+          loading={cancelling}
+          formFields={<input type="hidden" name="idempotencyKey" value={cancellationKey} />}
+        />
+      )}
       <p className="text-(length:--fs-xs) text-fg-subtle">
         Mensagens de IA, agendamentos e pacientes nunca são removidos nem bloqueiam esta alteração.
         Apenas o limite de usuários é aplicado.
