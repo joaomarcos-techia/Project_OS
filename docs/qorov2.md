@@ -7146,8 +7146,9 @@ e apagar uma assinatura própria, sem mexer nas cobranças da original.
 
 ## 39. "Esqueci a senha" terminava sempre em "link inválido" — 29/09/2026
 
-Um cliente relatou que o link de troca de senha dizia ser inválido. Não era o link dele: era **todo**
-link de redefinição pedido na tela de login.
+Um cliente relatou que o link de troca de senha dizia ser inválido. A primeira investigação (39.1 a
+39.3) achou um defeito real no template do repositório, mas **não era a causa do cliente**: o template
+instalado no painel de produção já apontava para `/auth/confirm`. A causa dele está em 39.4.
 
 ### 39.1 A causa, reproduzida
 
@@ -7191,3 +7192,57 @@ desligado em todos os projetos. O teto da rota continua sendo o rate limit por I
 | Os testes detectam a volta do defeito | **PASS 5/5** — inclusive voltar a chamar `resetPasswordForEmail` |
 | Suíte, lint, typecheck, formato | **PASS** — 4.399/4.399 |
 | Em produção | **NOT TESTED** — depende do merge e do deploy |
+
+### 39.4 Correção: a causa em produção era a senha recusada
+
+O e-mail que o cliente recebeu trazia `https://app.qoro.dev/auth/confirm?token_hash=pkce_…&type=recovery&next=/reset-password`:
+o template do painel de produção já usava `{{ .TokenHash }}` e `/auth/confirm`, e não o
+`ConfirmationURL` do repositório. Esse formato funciona. Reproduzido no DEV com um token `pkce_` igual,
+o link abre o formulário. O trilho de Auth de produção confirmou: o token dele foi verificado com
+sucesso às 02:04:51 UTC (`last_sign_in_at`), e depois todas as sessões dele sumiram, o que casa com o
+`signOut({ scope: 'global' })` do caminho de falha.
+
+A falha estava **no envio da nova senha**. Produção tem o HIBP ligado: o Auth recusa senha que aparece
+em vazamentos conhecidos (sonda sem mutação, e-mail e telefone juntos: `422 weak_password`,
+`reasons: ["pwned"]`). No ramo `profile` de `resetPasswordAction`, que é o de toda clínica existente, a
+ordem era:
+
+1. CAS no `claims_version` (consome o link) e remoção do cookie do grant;
+2. `updateUser` → `422 weak_password`;
+3. `signOut` global e "Solicite um novo link"; a página, sem grant, virava **"Link inválido ou
+   expirado"**.
+
+A pessoa pedia outro link, escolhia a mesma senha e caía no mesmo lugar, para sempre. Os ramos
+`pretenant` e `pretenant_orphan` já checavam o HIBP antes de consumir; o ramo `profile`, não. O mesmo
+valia para `same_password` (nova senha igual à atual), que não tem como ser checado antes.
+
+Reproduzido no DEV pela tela: senha vazada no formulário → "Link inválido ou expirado. Volte ao login e
+solicite um novo link de redefinição.", o texto exato do relato, com `reset_password.update_failed` no
+log.
+
+### 39.5 O conserto da senha recusada
+
+- O ramo `profile` checa o HIBP **antes** do CAS, com as mesmas mensagens dos ramos `pretenant`. Senha
+  vazada ou HIBP fora do ar não consomem o link.
+- Se o Auth ainda recusar pela senha (`weak_password` numa corrida com o HIBP, ou `same_password`), o
+  grant é **reemitido no epoch N+1 com o mesmo prazo** e a sessão fica. O CAS já consumiu o epoch N,
+  então continua valendo uma única prova, sem estender a janela de 15 min. Qualquer outra falha do Auth
+  mantém o comportamento anterior.
+- O formulário avisa antes: "Senhas comuns ou que já apareceram em vazamentos são recusadas."
+
+### 39.6 O que ficou provado na correção
+
+| Item | Estado |
+| ---- | ------ |
+| Causa reproduzida pela tela, com token `pkce_` no formato do e-mail de produção | **PASS** — DEV |
+| HIBP ligado em produção | **PASS** — sonda que não cria usuário |
+| **E2E real**: e-mail do Resend → link → senha vazada (recusada, formulário de pé) → senha atual duas vezes (recusada as duas; a segunda só passa pelo CAS com o grant reemitido) | **PASS** — `e2e/password-reset.spec.ts`; nenhuma senha foi trocada |
+| Testes direcionados | **PASS** — 6 novos no ramo `profile`, 1 do cookie reemitido |
+| Os testes detectam a volta do defeito | **PASS 4/4** — sem a checagem prévia, sem reemissão, reemissão no epoch antigo, `same_password` como falha genérica |
+| Suíte, cobertura, lint, typecheck, formato, gates estáticos do CI | **PASS** — 4.406/4.406 |
+| Em produção | **NOT TESTED** — depende do merge e do deploy |
+
+**Limite a observar.** A conclusão do reset aceita **3 tentativas por hora por e-mail** (10 por IP), e a
+senha recusada conta. Quem tentar três senhas vazadas espera até uma hora. Afrouxar é decisão de
+produto.
+
