@@ -150,6 +150,24 @@ cobrança efetivamente paga, porque a conta de sandbox recusa simular recebiment
 Ele não conta como falha (vermelho permanente treina todo mundo a ignorar vermelho)
 e **não vira verde** (check verde forjado é pior: passa a impressão de prova).
 
+### E-mail recebido pelo Resend em DEV
+
+Os runners abaixo exigem `SUPABASE_PROJECT_ENV=dev`, a chave Resend de DEV e
+`E2E_RESEND_INBOX_ADDRESS` apontando para um inbound address consentido do
+Resend. Valores nunca devem ser impressos nem versionados.
+
+```powershell
+npx tsx --conditions=react-server scripts/resend-inbox-check.ts
+npx tsx --conditions=react-server scripts/team-invite-inbox-check.ts
+```
+
+`email:inbox-check` prova envio, evento `delivered`, recebimento e conteúdo.
+`email:team-invite-e2e` também exige `DATABASE_URL_DEV` e um app atual em
+`APP_BASE_URL`/`E2E_BASE_URL`; ele cria um convidado sintético, lê os dois
+e-mails, prova rotação, aceite, tenant e replay, e remove Auth/profile/fixture.
+O alvo deve ser localhost ou Preview isolado. Preview protegido exige
+`VERCEL_AUTOMATION_BYPASS_SECRET`.
+
 ## Testes focados
 
 ```bash
@@ -173,7 +191,7 @@ Eles consultam o banco PROD, autenticam fixtures operacionais e comparam `app.qo
 pnpm test:e2e e2e/login-and-navigation.spec.ts
 ```
 
-`test:e2e:prod` pode operar em produção e exige autorização, contas/fixtures descartáveis e cleanup estrito. E2E não faz parte do CI atual.
+`test:e2e:prod` pode operar em produção e exige autorização, contas/fixtures descartáveis e cleanup estrito. O CI atual executa somente a suíte pública segura `test:e2e:ci` e `security:browser-session`; os specs autenticados e `production-*` continuam fora do CI automático.
 
 ### Execução read-only em produção — 2026-08-18
 

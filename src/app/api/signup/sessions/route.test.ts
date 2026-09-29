@@ -95,6 +95,26 @@ describe('POST signup sessions', () => {
     });
   });
 
+  it('prefere o Host recebido quando o runtime reconstrói req.url com outra autoridade', async () => {
+    const localRequest = new Request('http://localhost:3217/api/signup/sessions', {
+      method: 'POST',
+      headers: {
+        host: '127.0.0.1:3217',
+        origin: 'http://127.0.0.1:3217',
+        'content-type': 'application/json',
+      },
+      body: '{}',
+    });
+
+    expect((await POST(localRequest)).status).toBe(201);
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        origin: 'http://127.0.0.1:3217',
+        expectedHost: '127.0.0.1:3217',
+      }),
+    );
+  });
+
   it.each([
     ['rate_limited', 429],
     ['at_capacity', 503],

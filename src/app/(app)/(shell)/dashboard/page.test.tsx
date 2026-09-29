@@ -119,7 +119,7 @@ describe('DashboardPage', () => {
       docsVisitedAt: null,
       checklistDismissedAt: null,
       rowVersion: 0,
-      shouldAutoOpenTour: true,
+      shouldAutoOpenTour: false,
     });
     getCashFlowToday.mockResolvedValue({
       receber: 42_000,

@@ -18,7 +18,6 @@ import {
 import {
   CreateMedicalDocumentSchema,
   CreatePrescriptionSchema,
-  ProntuarioContentSchema,
   type ProntuarioContent,
 } from '@/contexts/clinical/types';
 
@@ -70,8 +69,10 @@ export async function autosaveProntuario(
   expectedRowVersion: number,
 ): Promise<AutosaveResult> {
   try {
-    const parsed = ProntuarioContentSchema.parse(content);
-    const r = await updateProntuario(pid, parsed, expectedRowVersion);
+    // `updateProntuario` autentica e autoriza antes de validar estes argumentos.
+    // Validar também no adaptador faria um request sem sessão alcançar o Zod e
+    // devolver seus detalhes antes da negativa de autenticação.
+    const r = await updateProntuario(pid, content, expectedRowVersion);
     return { ok: true, rowVersion: r.rowVersion };
   } catch (err) {
     const name =

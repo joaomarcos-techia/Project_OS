@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useActionState, useMemo } from 'react';
+import { useActionState, useEffect, useMemo, useState } from 'react';
 
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -103,6 +103,7 @@ export function PlanChangeForm({
     reactivateSubscriptionAction,
     INITIAL,
   );
+  const [cancellationDialogOpen, setCancellationDialogOpen] = useState(false);
   const keys = useMemo(() => new Map(plans.map((plan) => [plan.id, uuidv4()])), [plans]);
   const cancellationKey = useMemo(() => uuidv4(), []);
   const revocationKey = useMemo(() => uuidv4(), []);
@@ -111,12 +112,28 @@ export function PlanChangeForm({
   const end = current.periodEnd ? formatCycleDate(new Date(current.periodEnd)) : null;
   const trialEnd = current.trialEndsAt ? formatCycleDate(new Date(current.trialEndsAt)) : null;
 
+  // O Alert com o resultado fica fora do diálogo. Fechá-lo quando a ação termina
+  // torna a confirmação (ou a falha) visível imediatamente, mesmo antes de a
+  // revalidação da página devolver o novo estado da assinatura.
+  useEffect(() => {
+    if (cancellationState.success || cancellationState.error) {
+      setCancellationDialogOpen(false);
+    }
+  }, [cancellationState.error, cancellationState.success]);
+
   return (
     <div className="flex flex-col gap-(--sp-5)">
-      {pending ? (
+      {current.billingStatus === 'cancelled' ? (
+        <Alert variant="success" title="Assinatura cancelada">
+          Esta assinatura já está cancelada e não gera novas cobranças. Para voltar a usar o Qoro,
+          reative-a abaixo.
+        </Alert>
+      ) : pending ? (
         <Alert
           variant={pending.status === 'pending_payment' ? 'warning' : 'info'}
-          title="Alteração em andamento"
+          title={
+            pending.kind === 'cancellation' ? 'Assinatura cancelada' : 'Alteração em andamento'
+          }
         >
           {pending.status === 'pending_payment'
             ? 'Seu upgrade aguarda a confirmação do pagamento proporcional.'
@@ -252,6 +269,8 @@ export function PlanChangeForm({
            assinatura para cancelar" enquanto o Asaas já tinha a primeira cobrança
            marcada para o fim do teste. */
         <ConfirmDialog
+          open={cancellationDialogOpen}
+          onOpenChange={setCancellationDialogOpen}
           trigger={
             <Button type="button" variant="ghost" loading={cancelling}>
               Cancelar assinatura

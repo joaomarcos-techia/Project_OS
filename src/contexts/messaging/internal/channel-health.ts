@@ -66,6 +66,7 @@ export const CHANNEL_HEALTH_REASONS = [
   'phone_unreachable',
   'waba_unreachable',
   'app_not_subscribed',
+  'webhook_callback_mismatch',
   'phone_not_connected',
   'account_rejected',
   'probe_unavailable',
@@ -101,11 +102,16 @@ const CHECK_ORDER: Array<{ key: keyof MetaChannelProbe; reason: ChannelHealthRea
  * outra sonda tenha ficado `unknown` (token inválido explica os `unknown`
  * seguintes e não deve ser rebaixado a "não consegui verificar").
  */
-export function evaluateChannelHealth(probe: MetaChannelProbe): ChannelHealth {
+export function evaluateChannelHealth(
+  probe: MetaChannelProbe,
+  appWebhook: MetaProbeOutcome = 'ok',
+): ChannelHealth {
   const failed = CHECK_ORDER.filter(({ key }) => probe[key] === 'failed').map((c) => c.reason);
+  if (appWebhook === 'failed') failed.push('webhook_callback_mismatch');
   if (failed.length > 0) return { verdict: 'broken', reasons: failed };
 
-  const unknown = CHECK_ORDER.some(({ key }) => probe[key] === 'unknown');
+  const unknown =
+    CHECK_ORDER.some(({ key }) => probe[key] === 'unknown') || appWebhook === 'unknown';
   if (unknown) return { verdict: 'indeterminate', reasons: ['probe_unavailable'] };
 
   return { verdict: 'healthy', reasons: [] };
@@ -138,6 +144,8 @@ export function describeChannelHealthReason(reason: ChannelHealthReason): string
       return 'O número conectado não está mais acessível por esta conexão.';
     case 'app_not_subscribed':
       return 'A Meta não está entregando mensagens para o ClinicaOS: as mensagens recebidas não chegam até a clínica.';
+    case 'webhook_callback_mismatch':
+      return 'O app da Meta está entregando mensagens para outro ambiente do Qoro. Reconecte usando a configuração deste ambiente.';
     case 'phone_not_connected':
       return 'O número não está ativo na Meta: ele não envia nem recebe mensagens neste estado.';
     case 'account_rejected':

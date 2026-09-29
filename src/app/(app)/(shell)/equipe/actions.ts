@@ -152,12 +152,15 @@ export async function resendInviteAction(input: { userId: string }): Promise<Res
   if (!rl.ok) return { error: RESEND_RATE_LIMITED };
 
   try {
+    const identity = await getShellIdentity();
     const hdrs = await headers();
     const { link } = await resendClinicInvite({
       clinicId,
       userId: parsed.data.userId,
       inviterRole: user.role,
       invitedBy: user.userId,
+      clinicName: identity.clinicName,
+      inviterNome: identity.userName,
       requestContext: buildRequestContext(hdrs),
     });
     return { ok: true, link };

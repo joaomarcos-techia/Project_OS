@@ -235,6 +235,11 @@ export async function cancelarSerieRecorrenteAction(
   formData: FormData,
 ): Promise<AgendaOperationState> {
   try {
+    // A negativa de sessão/permissão precisa acontecer antes de tocar a entrada.
+    // Além de evitar trabalho desnecessário, isso impede que um request sem o
+    // payload esperado devolva detalhes internos antes de autenticar o ator.
+    await requireUser();
+    await requireCachedPermission(PERMISSIONS.EDIT_AGENDA);
     const result = await cancelRecurringSeries(
       String(formData.get('seriesId') ?? ''),
       String(formData.get('reason') ?? ''),

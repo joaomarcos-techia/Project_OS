@@ -832,7 +832,11 @@ async function openOnPhone(
       { timeout: 90_000 },
     );
   } catch {
-    throw new Error('callback não terminou na confirmação sanitizada');
+    const observed = new URL(page.url());
+    const searchKeys = [...new Set(observed.searchParams.keys())].sort().join(',') || 'none';
+    throw new Error(
+      `callback não terminou na confirmação sanitizada (path=${observed.pathname}; searchKeys=${searchKeys}; fragment=${observed.hash ? 'present' : 'absent'})`,
+    );
   }
   await expect(page.getByRole('heading', { name: 'E-mail confirmado' })).toBeVisible();
   if (bridgeGets !== 1 || bridgePosts !== 1 || bridgeViolations.length > 0) {

@@ -2,7 +2,7 @@
 
 import { listOpenHandoffs, type PendingHandoff } from '@/contexts/ai-agent/queries';
 import { PERMISSIONS } from '@/lib/auth/permissions';
-import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
+import { getCurrentUser } from '@/lib/auth/tenant-context';
 
 /**
  * Handoffs abertos para a notificação do shell.
@@ -14,8 +14,10 @@ import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
  * permissão em toast de falha.
  */
 export async function fetchOpenHandoffs(): Promise<PendingHandoff[]> {
-  const user = await requireUser();
+  const user = await getCurrentUser();
+  if (!user) return [];
   if (!user.permissions.includes(PERMISSIONS.VIEW_CONVERSATIONS)) return [];
-  const clinicId = await requireClinicId();
+  const clinicId = user.session?.impersonation?.clinicId ?? user.clinicId;
+  if (!clinicId) return [];
   return listOpenHandoffs(clinicId);
 }

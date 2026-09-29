@@ -11,9 +11,6 @@ const sharedPassword = process.env.E2E_TENANT_PASSWORD;
 
 test.use({
   storageState: { cookies: [], origins: [] },
-  trace: 'off',
-  video: 'off',
-  screenshot: 'off',
   actionTimeout: 30_000,
   navigationTimeout: 60_000,
 });
@@ -149,12 +146,12 @@ test.describe('produção: RBAC financeiro do Dashboard', () => {
           hasViewFinancial: false,
           authoritativeReceivablesNonZero: true,
           authoritativeSevenDayRollupNonZero: true,
-          dashboardReceivablesMatched: true,
-          dashboardFinancialChartVisible: true,
+          dashboardReceivablesHidden: true,
+          dashboardFinancialChartHidden: true,
           financialRouteDenied: true,
           reportsFinancialCardHidden: true,
           reportPdfReadable: true,
-          result: 'dashboard-financial-data-exposed-without-permission',
+          result: 'dashboard-financial-data-hidden-without-permission',
         })}`,
       );
     } finally {

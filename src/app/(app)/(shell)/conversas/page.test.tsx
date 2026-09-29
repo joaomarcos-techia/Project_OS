@@ -4,23 +4,16 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AIConversationListItem, AIConversationThread } from '@/contexts/ai-agent/types';
 
-const {
-  listConversations,
-  getConversationThread,
-  countOpenHandoffs,
-  getProfileNames,
-  requireClinicId,
-  requireUser,
-} = vi.hoisted(() => ({
-  listConversations: vi.fn(),
-  getConversationThread: vi.fn(),
-  countOpenHandoffs: vi.fn(),
-  getProfileNames: vi.fn(),
-  requireClinicId: vi.fn(),
-  requireUser: vi.fn(),
-}));
+const { listConversations, getConversationThread, countOpenHandoffs, getProfileNames, pageGate } =
+  vi.hoisted(() => ({
+    listConversations: vi.fn(),
+    getConversationThread: vi.fn(),
+    countOpenHandoffs: vi.fn(),
+    getProfileNames: vi.fn(),
+    pageGate: vi.fn(),
+  }));
 vi.mock('next/link', () => ({ default: (props: ComponentProps<'a'>) => <a {...props} /> }));
-vi.mock('@/lib/auth/tenant-context', () => ({ requireClinicId, requireUser }));
+vi.mock('@/lib/auth/page-guard', () => ({ pageGate }));
 vi.mock('@/contexts/ai-agent/queries', () => ({
   listConversations,
   getConversationThread,
@@ -72,11 +65,14 @@ function thread(item: AIConversationListItem): AIConversationThread {
 }
 beforeEach(() => {
   vi.clearAllMocks();
-  requireUser.mockResolvedValue({
-    userId: 'user-1',
-    permissions: ['view:conversations', 'manage:conversations'],
+  pageGate.mockResolvedValue({
+    allowed: true,
+    clinicId: 'clinic-1',
+    user: {
+      userId: 'user-1',
+      permissions: ['view:conversations', 'manage:conversations'],
+    },
   });
-  requireClinicId.mockResolvedValue('clinic-1');
   listConversations.mockResolvedValue({ items: [first, second], total: 2, page: 1, pageSize: 30 });
   getConversationThread.mockImplementation(async (_clinicId: string, id: string) =>
     thread(id === firstId ? first : second),
@@ -162,16 +158,19 @@ describe('inbox de conversas', () => {
   });
 
   it('mantém leitura sem composer para quem não pode gerenciar', async () => {
-    requireUser.mockResolvedValue({ userId: 'user-2', permissions: ['view:conversations'] });
+    pageGate.mockResolvedValue({
+      allowed: true,
+      clinicId: 'clinic-1',
+      user: { userId: 'user-2', permissions: ['view:conversations'] },
+    });
     render(await ConversasPage({ searchParams: Promise.resolve({}) }));
     expect(screen.getByRole('region', { name: 'Histórico da conversa' })).toBeTruthy();
     expect(screen.queryByRole('form', { name: 'Responder ao contato' })).toBeNull();
   });
 
   it('nega acesso antes de consultar ou decifrar contatos', async () => {
-    requireUser.mockResolvedValue({ userId: 'user-2', permissions: [] });
+    pageGate.mockResolvedValue({ allowed: false });
     render(await ConversasPage({ searchParams: Promise.resolve({}) }));
-    expect(requireClinicId).not.toHaveBeenCalled();
     expect(listConversations).not.toHaveBeenCalled();
     expect(getConversationThread).not.toHaveBeenCalled();
   });

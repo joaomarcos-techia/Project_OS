@@ -1,5 +1,5 @@
 /**
- * `pnpm tsx scripts/seed-super-admin.ts [--reset-mfa]`
+ * `pnpm tsx scripts/seed-super-admin.ts [--sync-password] [--reset-mfa]`
  *
  * Cria/atualiza o profile super_admin do founder. Idempotente.
  *
@@ -9,6 +9,8 @@
  *   - NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SECRET_KEY (já no .env.local)
  *
  * Flags:
+ *   --sync-password  Alinha a senha da conta de TESTE existente com
+ *                    SUPER_ADMIN_PASSWORD_DEV. Só é aceito pelo guard DEV.
  *   --reset-mfa  Remove todos os factors TOTP do super_admin (recovery "perdi
  *                meu celular"). Idempotente — sem factors, no-op.
  *
@@ -35,6 +37,7 @@ console.log(`[seed-super-admin] target: ${redact(databaseUrl)}`);
 
 const email = process.env.SUPER_ADMIN_EMAIL;
 const password = process.env.SUPER_ADMIN_PASSWORD;
+const syncPassword = process.argv.includes('--sync-password');
 const resetMfa = process.argv.includes('--reset-mfa');
 
 if (!email) {
@@ -54,6 +57,17 @@ const existing = listed.users.find((u) => u.email?.toLowerCase() === email.toLow
 if (existing) {
   userId = existing.id;
   console.log(`[seed-super-admin] user existente: ${email} (${userId})`);
+  if (syncPassword) {
+    if (!password) {
+      console.error(
+        '[seed-super-admin] --sync-password exige SUPER_ADMIN_PASSWORD_DEV configurada.',
+      );
+      process.exit(1);
+    }
+    const { error: updateError } = await supabase.auth.admin.updateUserById(userId, { password });
+    if (updateError) throw updateError;
+    console.log('[seed-super-admin] credencial da conta de teste alinhada (valor não exibido).');
+  }
 } else {
   if (!password) {
     console.error(

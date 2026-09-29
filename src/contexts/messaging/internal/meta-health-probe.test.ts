@@ -20,7 +20,11 @@ vi.mock('@/lib/env', () => ({
 }));
 
 import { evaluateChannelHealth } from './channel-health';
-import { probeMetaChannel } from './meta-onboarding';
+import {
+  assertMetaAppWebhookTarget,
+  probeMetaAppWebhook,
+  probeMetaChannel,
+} from './meta-onboarding';
 
 type Body = Record<string, unknown>;
 const res = (body: Body, ok = true, status = 200) => ({ ok, status, json: async () => body });
@@ -45,6 +49,77 @@ beforeEach(() => {
   vi.stubGlobal('fetch', fetchMock);
 });
 afterEach(() => vi.unstubAllGlobals());
+
+describe('probeMetaAppWebhook — callback pertence ao ambiente atual', () => {
+  const expected = 'https://preview.qoro.test/api/webhooks/meta?x-vercel-protection-bypass=test';
+
+  it('aprova somente o callback exato, ativo e inscrito em messages', async () => {
+    fetchMock.mockResolvedValueOnce(
+      res({
+        data: [
+          {
+            object: 'whatsapp_business_account',
+            callback_url: expected,
+            active: true,
+            fields: [{ name: 'messages' }],
+          },
+        ],
+      }),
+    );
+
+    await expect(probeMetaAppWebhook(expected)).resolves.toBe('ok');
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(String(url)).not.toContain('secret-xyz');
+    expect((init as RequestInit).headers).toEqual({ authorization: 'Bearer app-123|secret-xyz' });
+  });
+
+  it('detecta callback de produção quando a conexão está em Preview', async () => {
+    fetchMock.mockResolvedValueOnce(
+      res({
+        data: [
+          {
+            object: 'whatsapp_business_account',
+            callback_url: 'https://app.qoro.dev/api/webhooks/meta',
+            active: true,
+            fields: [{ name: 'messages' }],
+          },
+        ],
+      }),
+    );
+
+    await expect(probeMetaAppWebhook(expected)).resolves.toBe('failed');
+  });
+
+  it('recusa assinatura sem messages e o connect falha fechado', async () => {
+    fetchMock.mockResolvedValueOnce(
+      res({
+        data: [
+          {
+            object: 'whatsapp_business_account',
+            callback_url: expected,
+            active: true,
+            fields: [{ name: 'message_template_status_update' }],
+          },
+        ],
+      }),
+    );
+    await expect(assertMetaAppWebhookTarget(expected)).rejects.toMatchObject({
+      name: 'MetaConnectError',
+      stage: 'webhook_subscription',
+    });
+  });
+
+  it('rate limit permanece indeterminado, mas não autoriza nova conexão', async () => {
+    fetchMock.mockResolvedValueOnce(res({ error: { code: 4 } }, false, 429));
+    await expect(probeMetaAppWebhook(expected)).resolves.toBe('unknown');
+
+    fetchMock.mockResolvedValueOnce(res({ error: { code: 4 } }, false, 429));
+    await expect(assertMetaAppWebhookTarget(expected)).rejects.toMatchObject({
+      name: 'MetaConnectError',
+      stage: 'webhook_subscription',
+    });
+  });
+});
 
 describe('probeMetaChannel — leitura do estado externo', () => {
   it('1. tudo válido: token, escopos, número e app inscrito', async () => {

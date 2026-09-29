@@ -7,7 +7,7 @@
  * escrita roteia por `dbAdmin` (BYPASSRLS) com colunas fixas e clinic_id do request
  * — mesma exceção da saga (allowlist em eslint.config.mjs + scripts/arch-db-check.ts).
  *
- * inviteUserByEmail é EXTERNO à tx (chamada HTTP ao Auth). Se a tx falhar depois,
+ * createUser/generateLink/Resend são EXTERNOS à tx. Se a tx falhar depois,
  * o auth user fica órfão → compensa com deleteUser (best-effort; débito de
  * reconciliação auth↔profile registrado, review #6).
  *
@@ -22,7 +22,6 @@ import type { RequestContext } from '@/lib/audit/types';
 import type { Role } from '@/lib/auth/roles';
 import { createAdminClient } from '@/lib/auth/supabase-admin';
 import { dbAdmin } from '@/lib/db';
-import { createAuthConfirmationUrl, createAuthRedirectUrl } from '@/lib/http/application-url';
 import { idempotencyKeys } from '@/lib/db/schema/infra/idempotency';
 import { payloadHash } from '@/lib/idempotency/hash';
 import { logger } from '@/lib/observability/logger';
@@ -39,6 +38,7 @@ import {
 import { profiles } from '../schema';
 import { normalizeCrm, normalizeCrmUf } from './normalize-crm';
 import { assertCanAssignRole } from './role-matrix';
+import { deliverTeamInviteEmail } from './team-invite-email';
 
 export interface InviteClinicMemberArgs {
   clinicId: string;
@@ -85,6 +85,29 @@ function isEmailExists(
   );
 }
 
+const MEMBER_ROLE_LABEL: Partial<Record<Role, string>> = {
+  gestor: 'Gestor',
+  doctor: 'Médico',
+  attendant: 'Atendente',
+  financial: 'Financeiro',
+};
+
+async function deleteCreatedAuthUser(
+  admin: ReturnType<typeof createAdminClient>,
+  userId: string,
+  event: string,
+): Promise<void> {
+  try {
+    const deleted = await admin.auth.admin.deleteUser(userId);
+    if (deleted.error) logger.error(event, { userId, code: deleted.error.code ?? 'unknown' });
+  } catch (error) {
+    logger.error(event, {
+      userId,
+      code: error instanceof Error ? error.name : 'unknown',
+    });
+  }
+}
+
 export async function inviteClinicMember(
   args: InviteClinicMemberArgs,
 ): Promise<InviteClinicMemberResult> {
@@ -101,16 +124,19 @@ export async function inviteClinicMember(
     .limit(1);
   if (cached?.response) return cached.response as InviteClinicMemberResult;
 
-  // 1. Cria o auth user + dispara o convite (EXTERNO à tx). `data` popula o e-mail
-  //    (condicionais do template) e a tela de aceite; redirectTo → /convite.
-  const { data, error } = await admin.auth.admin.inviteUserByEmail(args.email, {
-    data: {
+  // 1. Cria a conta passwordless, pede somente o token ao GoTrue e entrega o
+  //    template versionado pelo Resend. `inviteUserByEmail` não serve aqui: o
+  //    link padrão consome o OTP em /auth/v1/verify antes de /auth/confirm e o
+  //    convite termina no login sem grant de aceite.
+  const { data, error } = await admin.auth.admin.createUser({
+    email: args.email,
+    email_confirm: false,
+    user_metadata: {
       nome: args.nome,
       clinica: args.clinicName,
       funcao: args.funcaoLabel,
       convidado_por: args.inviterNome,
     },
-    redirectTo: createAuthRedirectUrl(),
   });
   if (error || !data?.user) {
     if (isEmailExists(error)) throw new EmailAlreadyMemberError();
@@ -118,6 +144,32 @@ export async function inviteClinicMember(
   }
   const userId = data.user.id;
   const result: InviteClinicMemberResult = { userId, role: args.role };
+
+  try {
+    const generated = await admin.auth.admin.generateLink({ type: 'recovery', email: args.email });
+    const linkedUserId = generated.data?.user?.id;
+    const tokenHash = generated.data?.properties?.hashed_token;
+    if (
+      generated.error ||
+      linkedUserId !== userId ||
+      typeof tokenHash !== 'string' ||
+      tokenHash.length === 0
+    ) {
+      throw new Error('team invite link generation failed');
+    }
+    await deliverTeamInviteEmail({
+      email: args.email,
+      tokenHash,
+      stage: 'initial',
+      inviteeName: args.nome,
+      clinicName: args.clinicName,
+      roleLabel: args.funcaoLabel,
+      inviterName: args.inviterNome,
+    });
+  } catch {
+    await deleteCreatedAuthUser(admin, userId, 'identity.invite_delivery.delete_user_failed');
+    throw new Error('Falha ao enviar convite. Tente novamente.');
+  }
 
   // 2. Profile + auditoria + finalização da chave numa micro-tx (dbAdmin).
   try {
@@ -183,11 +235,7 @@ export async function inviteClinicMember(
   } catch (err) {
     // Compensação: o convite já criou o auth user; a tx falhou → deleta o órfão
     // (best-effort COM visibilidade — débito de reconciliação auth↔profile, review #6).
-    await admin.auth.admin
-      .deleteUser(userId)
-      .catch((e: unknown) =>
-        logger.error('identity.invite_compensation.delete_user_failed', { userId, err: String(e) }),
-      );
+    await deleteCreatedAuthUser(admin, userId, 'identity.invite_compensation.delete_user_failed');
     if (isUniqueViolation(err)) throw new CrmConflictError();
     throw err;
   }
@@ -210,6 +258,8 @@ export interface ResendClinicInviteArgs {
   userId: string;
   inviterRole: Role;
   invitedBy: string;
+  clinicName: string;
+  inviterNome: string;
   requestContext: RequestContext;
 }
 
@@ -220,8 +270,8 @@ export interface ResendClinicInviteArgs {
  * ⚠️ tipo `recovery`, não `invite`: o alvo é um user que JÁ existe (o pendente).
  * `inviteUserByEmail`/`generateLink({type:'invite'})` erram em user existente, e
  * magiclink tem semântica de LOGIN. `recovery` = "definir senha", alinhado ao aceite
- * em /convite (que define a senha). A UI COPIA este link;
- * o owner entrega (WhatsApp/e-mail) — não dependemos de auto-send (ADR-034).
+ * em /convite. O Resend entrega o template versionado e a UI também copia o link
+ * como fallback operacional.
  */
 export async function resendClinicInvite(args: ResendClinicInviteArgs): Promise<{ link: string }> {
   const admin = createAdminClient();
@@ -229,7 +279,11 @@ export async function resendClinicInvite(args: ResendClinicInviteArgs): Promise<
   // 1. Re-valida: pertence à clínica + ainda pendente (autoridade server-side; a UI
   //    só oferece a ação em linhas pendentes, mas não confiamos no cliente).
   const [p] = await dbAdmin
-    .select({ role: profiles.role, inviteAcceptedAt: profiles.inviteAcceptedAt })
+    .select({
+      nome: profiles.nome,
+      role: profiles.role,
+      inviteAcceptedAt: profiles.inviteAcceptedAt,
+    })
     .from(profiles)
     .where(
       and(
@@ -251,17 +305,28 @@ export async function resendClinicInvite(args: ResendClinicInviteArgs): Promise<
     throw new Error(`Falha ao localizar o convite: ${uErr?.message ?? 'usuário sem e-mail'}`);
   }
 
-  // 4. Link novo (recovery — ver docstring). Devolvemos a confirmação SSR canônica,
-  // não o action_link bruto: ela troca o hash one-time pela sessão SSR antes de
-  // redirecionar para /convite, sem expor bearer credentials no fragmento da URL.
+  const roleLabel = MEMBER_ROLE_LABEL[p.role];
+  if (!roleLabel) throw new Error('Função do convite inválida.');
+
+  // 4. Link novo (recovery — ver docstring), entregue pelo Resend e também
+  // devolvido para o fallback de clipboard da UI.
   const { data: link, error: lErr } = await admin.auth.admin.generateLink({
     type: 'recovery',
     email: u.user.email,
-    options: { redirectTo: createAuthRedirectUrl() },
   });
   if (lErr || !link?.properties?.hashed_token) {
     throw new Error(`Não foi possível gerar um novo convite: ${lErr?.message ?? 'desconhecido'}`);
   }
+
+  const delivered = await deliverTeamInviteEmail({
+    email: u.user.email,
+    tokenHash: link.properties.hashed_token,
+    stage: 'resend',
+    inviteeName: p.nome,
+    clinicName: args.clinicName,
+    roleLabel,
+    inviterName: args.inviterNome,
+  });
 
   // 5. Auditoria (matriz gap 13).
   await dbAdmin.transaction((tx) =>
@@ -277,7 +342,7 @@ export async function resendClinicInvite(args: ResendClinicInviteArgs): Promise<
     }),
   );
 
-  return { link: createAuthConfirmationUrl(link.properties.hashed_token, 'recovery') };
+  return delivered;
 }
 
 export interface CancelClinicInviteArgs {

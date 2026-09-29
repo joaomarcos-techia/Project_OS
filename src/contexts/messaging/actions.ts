@@ -41,6 +41,7 @@ import {
 import { decryptForTenant, encryptForTenant } from '@/lib/crypto';
 import { assertWhatsappOnboardingReady } from '@/lib/env';
 import { maskPhone } from '@/lib/format';
+import { createMetaWebhookUrl } from '@/lib/http/application-url';
 import { logger } from '@/lib/observability/logger';
 import { metrics } from '@/lib/observability/metrics';
 import {
@@ -61,6 +62,7 @@ import {
 import { MessagingRateLimitedError, MetaConnectError, NumberNotConnectedError } from './errors';
 import { getBusinessProfile, updateBusinessProfile } from './internal/meta-business-profile';
 import {
+  assertMetaAppWebhookTarget,
   exchangeCodeForToken,
   registerPhoneNumber,
   resolveWabaAndPhone,
@@ -249,6 +251,10 @@ export async function connectMyClinicWhatsapp(
         stage: 'signup_incomplete',
       });
     }
+    // O app Meta tem UM callback por objeto. Sem este preflight, Preview/DEV
+    // consegue assinar a WABA e persistir “connected”, mas cada mensagem segue
+    // para o callback de produção e vira órfã em outro banco.
+    await assertMetaAppWebhookTarget(createMetaWebhookUrl());
     const token = await exchangeCodeForToken(data.code);
     const grant = await validateTokenScopes(token);
     const waba = await resolveWabaAndPhone(

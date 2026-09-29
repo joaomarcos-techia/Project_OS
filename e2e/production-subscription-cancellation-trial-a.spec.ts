@@ -13,9 +13,6 @@ const sharedPassword = process.env.E2E_TENANT_PASSWORD;
 
 test.use({
   storageState: { cookies: [], origins: [] },
-  trace: 'off',
-  video: 'off',
-  screenshot: 'off',
   actionTimeout: 30_000,
   navigationTimeout: 60_000,
 });
@@ -59,10 +56,12 @@ async function signInContext(
   );
 }
 
-test.describe('produção: negativa de cancelamento durante trial', () => {
+test.describe('produção: disponibilidade do cancelamento durante trial', () => {
   test.describe.configure({ retries: 0 });
 
-  test('UI nao oferece a acao durante o trial e nada persiste', async ({ browser }) => {
+  test('owner pode iniciar a confirmação, doctor não pode e nada persiste sem o clique', async ({
+    browser,
+  }) => {
     test.setTimeout(180_000);
     test.skip(!authorized, 'Exige autorização explícita para a negativa controlada de assinatura.');
     if (!baseUrl || new URL(baseUrl).hostname !== 'app.qoro.dev') {
@@ -128,24 +127,24 @@ test.describe('produção: negativa de cancelamento durante trial', () => {
         doctorPage.goto('/configuracoes/assinatura'),
       ]);
       await expect(doctorPage.getByText('Sem acesso', { exact: true })).toBeVisible();
-      await expect(
-        doctorPage.getByRole('button', { name: 'Cancelar assinatura ao fim do ciclo' }),
-      ).toHaveCount(0);
+      await expect(doctorPage.getByRole('button', { name: 'Cancelar assinatura' })).toHaveCount(0);
 
-      // UX-002 — o achado: a assinatura em `trial` OFERECIA o botao de
-      // cancelamento, o owner clicava, recebia 200 controlado com "O
-      // cancelamento exige uma assinatura ativa." e nada acontecia. O backend
-      // sempre esteve fail-closed; o defeito era a UI prometer uma acao
-      // impossivel. Agora o botao so aparece com `billingStatus === 'active'`.
+      // O contrato atual permite cancelar durante o trial: a recorrência para
+      // imediatamente no Asaas, cobranças abertas são apagadas e o acesso segue
+      // até o fim do teste. Este probe de produção é deliberadamente read-only:
+      // prova apenas que o owner pode abrir a confirmação e não envia o form.
       const cancelButton = ownerPage.getByRole('button', {
-        name: 'Cancelar assinatura ao fim do ciclo',
+        name: 'Cancelar assinatura',
       });
-      await expect(cancelButton).toHaveCount(0);
-      const cancellationButtonVisible = false;
+      await expect(cancelButton).toBeVisible();
+      await cancelButton.click();
+      const dialog = ownerPage.getByRole('dialog');
+      await expect(dialog).toContainText('todas as cobranças em aberto no Asaas são apagadas');
+      await expect(dialog.getByRole('button', { name: 'Cancelar assinatura' })).toBeVisible();
+      await dialog.getByRole('button', { name: 'Manter assinatura' }).click();
+      const cancellationButtonVisible = true;
 
-      // A verificacao que continua importando: nada mudou no estado da
-      // assinatura. O gate de backend (`billingStatus === 'active'`) segue
-      // coberto por teste unitario.
+      // Abrir e fechar o diálogo não pode mutar assinatura, provider ou trilha.
       const idempotencyKey = 'billing:cancellation:nao-houve-tentativa';
       const [after] = await sql.begin(async (tx) => {
         await tx.unsafe('RESET ROLE');

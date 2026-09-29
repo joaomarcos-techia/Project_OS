@@ -12,6 +12,14 @@ const m = vi.hoisted(() => ({
   updateSubscription: vi.fn(),
   reopen: vi.fn(),
   idempotent: vi.fn(),
+  PlanChangeError: class PlanChangeError extends Error {
+    constructor(
+      message: string,
+      readonly code: string,
+    ) {
+      super(message);
+    }
+  },
 }));
 
 vi.mock('next/headers', () => ({
@@ -47,14 +55,7 @@ vi.mock('@/contexts/billing/internal/clinic-status', () => ({
   reopenClinicAfterReactivation: m.reopen,
 }));
 vi.mock('@/contexts/billing/internal/plan-changes', () => ({
-  PlanChangeError: class PlanChangeError extends Error {
-    constructor(
-      message: string,
-      readonly code: string,
-    ) {
-      super(message);
-    }
-  },
+  PlanChangeError: m.PlanChangeError,
   getSubscriptionCancellationContext: m.cancellationContext,
   getSubscriptionRevocationContext: m.revocationContext,
   getSubscriptionReactivationContext: m.reactivationContext,
@@ -137,6 +138,29 @@ describe('cancelar assinatura', () => {
     expect(m.requestCancellation).not.toHaveBeenCalled();
     expect(result.error).toMatch(texto);
   });
+
+  it.each([
+    ['subscription_already_cancelled', 'A assinatura já está cancelada.', /já estava cancelada/u],
+    [
+      'cancellation_already_scheduled',
+      'O cancelamento desta assinatura já está agendado.',
+      /já estava confirmado/u,
+    ],
+  ] as const)(
+    'uma repetição idempotente (%s) volta como confirmação visual',
+    async (code, message, expected) => {
+      m.cancellationContext.mockRejectedValue(new m.PlanChangeError(message, code));
+
+      const result = await requestSubscriptionCancellationAction({ error: null }, form());
+
+      expect(m.removeCharges).not.toHaveBeenCalled();
+      expect(result).toMatchObject({
+        error: null,
+        success: 'cancellation_already_applied',
+        message: expect.stringMatching(expected),
+      });
+    },
+  );
 });
 
 describe('manter assinatura', () => {

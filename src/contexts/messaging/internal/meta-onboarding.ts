@@ -475,6 +475,71 @@ export async function subscribeAppToWaba(wabaId: string, token: string): Promise
   });
 }
 
+interface MetaAppSubscription {
+  object?: string;
+  callback_url?: string;
+  active?: boolean;
+  fields?: Array<{ name?: string }>;
+}
+
+function sameWebhookTarget(actual: string, expected: string): boolean {
+  try {
+    const actualUrl = new URL(actual);
+    const expectedUrl = new URL(expected);
+    return actualUrl.toString() === expectedUrl.toString();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Confirma que o app Meta entrega `messages` ao deployment que está executando.
+ *
+ * Assinar a WABA ao app não basta: o app possui um único callback por objeto. Se
+ * Preview/DEV reutilizar o app de produção, a Meta aceita a assinatura e envia
+ * tudo para produção, onde o `phone_number_id` do banco DEV vira órfão.
+ */
+export async function probeMetaAppWebhook(
+  expectedWebhookUrl: string | null,
+): Promise<MetaProbeOutcome> {
+  if (!expectedWebhookUrl) return 'unknown';
+  try {
+    const { appId, appSecret } = onboardingEnv();
+    const response = await graphFetch<{ data?: MetaAppSubscription[] }>(
+      `${encodeURIComponent(appId)}/subscriptions`,
+      {
+        method: 'GET',
+        stage: 'webhook_subscription',
+        token: `${appId}|${appSecret}`,
+      },
+    );
+    const subscription = (response.data ?? []).find(
+      (item) => item.object === 'whatsapp_business_account',
+    );
+    if (!subscription || subscription.active === false) return 'failed';
+    if (!(subscription.fields ?? []).some((field) => field.name === 'messages')) return 'failed';
+    return typeof subscription.callback_url === 'string' &&
+      sameWebhookTarget(subscription.callback_url, expectedWebhookUrl)
+      ? 'ok'
+      : 'failed';
+  } catch (error) {
+    return outcomeFromGraphError(error);
+  }
+}
+
+/** Fail-closed no connect: não registra um número que a Meta entregará a outro ambiente. */
+export async function assertMetaAppWebhookTarget(expectedWebhookUrl: string): Promise<void> {
+  const outcome = await probeMetaAppWebhook(expectedWebhookUrl);
+  if (outcome !== 'ok') {
+    throw new MetaConnectError(
+      outcome === 'failed'
+        ? '[meta] callback de mensagens aponta para outro ambiente'
+        : '[meta] não foi possível confirmar o callback de mensagens',
+      { stage: 'webhook_subscription' },
+    );
+  }
+}
+
 export interface TemplateProvisionOutcome {
   name: string;
   status: 'created' | 'already_exists' | 'failed';

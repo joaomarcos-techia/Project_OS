@@ -1483,6 +1483,11 @@ globalThis.fetch = (input, init) => {
         2,
       ),
     );
+    // Os cenários HTTP anteriores exercitam o mesmo limiter em loopback. A
+    // jornada anônima abaixo mede a abertura de uma sessão nova e precisa de um
+    // orçamento próprio; herdar o balde sintético já consumido a transformava
+    // num falso negativo antes de a primeira pergunta renderizar.
+    await controlRedis('clear');
     const context = await browser.newContext({ baseURL: baseUrl });
     try {
       const [before] = await sql`SELECT count(*)::int AS n FROM signup_sessions`;

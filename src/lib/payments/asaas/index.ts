@@ -18,6 +18,7 @@
 import { safeEqual } from '@/lib/auth/secret-compare';
 import { assertBillingRuntimeReady, env } from '@/lib/env';
 import { metrics } from '@/lib/observability/metrics';
+import { redactOpaqueId } from '@/lib/sanitize/redact';
 
 // --- erros -----------------------------------------------------------------
 
@@ -461,6 +462,33 @@ function asStr(v: unknown): string | null {
   return typeof v === 'string' && v.length > 0 ? v : null;
 }
 
+const ASAAS_RESOURCE_SEGMENTS = new Set([
+  'customers',
+  'subscriptions',
+  'payments',
+  'checkouts',
+  'webhooks',
+]);
+
+/**
+ * Mantém método/recurso úteis para diagnóstico sem mandar IDs de provider ou
+ * externalReference para stdout/Sentry por meio da mensagem do erro.
+ */
+function safeRequestPath(path: string): string {
+  const parsed = new URL(path, 'https://asaas.invalid');
+  const segments = parsed.pathname.split('/');
+  for (let index = 1; index < segments.length; index += 1) {
+    if (ASAAS_RESOURCE_SEGMENTS.has(segments[index - 1] ?? '') && segments[index]) {
+      segments[index] = redactOpaqueId(decodeURIComponent(segments[index]!));
+    }
+  }
+  for (const key of parsed.searchParams.keys()) {
+    if (key !== 'offset' && key !== 'limit') parsed.searchParams.set(key, '[REDACTED]');
+  }
+  const query = parsed.searchParams.toString();
+  return `${segments.join('/')}${query ? `?${query}` : ''}`;
+}
+
 /**
  * Estados em que uma cobrança de assinatura ainda pode virar dinheiro. Tudo o que
  * não está aqui já foi pago, devolvido ou disputado — e não é o que um
@@ -570,33 +598,40 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
       signal: AbortSignal.timeout(env.ASAAS_HTTP_TIMEOUT_MS),
     };
     if (body !== undefined) init.body = JSON.stringify(body);
+    const observablePath = safeRequestPath(path);
     let res: Response;
     try {
       res = await fetch(url, init);
     } catch (err) {
       // timeout/abort/connection reset → indeterminado.
-      metrics.emit('billing.asaas.unreachable', { method, path, error: err });
-      throw new BillingProviderUnreachableError(`asaas ${method} ${path} unreachable`, {
+      metrics.emit('billing.asaas.unreachable', { method, path: observablePath, error: err });
+      throw new BillingProviderUnreachableError(`asaas ${method} ${observablePath} unreachable`, {
         cause: err,
       });
     }
 
     if (res.status >= 500) {
-      metrics.emit('billing.asaas.http_5xx', { method, path, status: res.status });
-      throw new BillingProviderUnreachableError(`asaas ${method} ${path} → HTTP ${res.status}`);
+      metrics.emit('billing.asaas.http_5xx', {
+        method,
+        path: observablePath,
+        status: res.status,
+      });
+      throw new BillingProviderUnreachableError(
+        `asaas ${method} ${observablePath} → HTTP ${res.status}`,
+      );
     }
     if (res.status >= 400) {
       const providerErrorCodes = await getSafeProviderErrorCodes(res);
       metrics.emit('billing.asaas.http_4xx', {
         method,
-        path,
+        path: observablePath,
         status: res.status,
         providerErrorCodes,
       });
       // Nunca propague o corpo do provedor: em checkout transparente ele pode
       // refletir campos sensíveis da requisição e acabar em logs/Sentry.
       throw new BillingProviderError(
-        `asaas ${method} ${path} → HTTP ${res.status}`,
+        `asaas ${method} ${observablePath} → HTTP ${res.status}`,
         'billing_provider_error',
         res.status,
         providerErrorCodes,
@@ -688,13 +723,13 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
         mobilePhone: input.phone ?? undefined,
       };
       const res = (await request('POST', '/customers', body)) as { id: string };
-      metrics.emit('billing.asaas.customer_created', { customerId: res.id });
+      metrics.emit('billing.asaas.customer_created', { customerId: redactOpaqueId(res.id) });
       return { customerId: res.id };
     },
 
     async deleteCustomer(id) {
       await request('DELETE', `/customers/${encodeURIComponent(id)}`);
-      metrics.emit('billing.asaas.customer_deleted', { customerId: id });
+      metrics.emit('billing.asaas.customer_deleted', { customerId: redactOpaqueId(id) });
     },
 
     async createSubscription(input) {
@@ -708,7 +743,9 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
         externalReference: input.externalReference,
       };
       const res = (await request('POST', '/subscriptions', body)) as { id: string };
-      metrics.emit('billing.asaas.subscription_created', { subscriptionId: res.id });
+      metrics.emit('billing.asaas.subscription_created', {
+        subscriptionId: redactOpaqueId(res.id),
+      });
       return { subscriptionId: res.id };
     },
 
@@ -743,7 +780,7 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
         creditCard?: { creditCardToken?: string };
       };
       metrics.emit('billing.asaas.subscription_created', {
-        subscriptionId: res.id,
+        subscriptionId: redactOpaqueId(res.id),
         withCard: true,
       });
       return { subscriptionId: res.id, creditCardToken: res.creditCard?.creditCardToken ?? null };
@@ -751,7 +788,9 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
 
     async cancelSubscription(id) {
       await request('DELETE', `/subscriptions/${id}`);
-      metrics.emit('billing.asaas.subscription_cancelled', { subscriptionId: id });
+      metrics.emit('billing.asaas.subscription_cancelled', {
+        subscriptionId: redactOpaqueId(id),
+      });
     },
 
     async updateSubscription(id, input) {
@@ -767,7 +806,9 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
         nextDueDate: input.nextDueDate,
         updatePendingPayments: input.updatePendingPayments ?? false,
       });
-      metrics.emit('billing.asaas.subscription_updated', { subscriptionId: id });
+      metrics.emit('billing.asaas.subscription_updated', {
+        subscriptionId: redactOpaqueId(id),
+      });
     },
 
     async generateInvoice(input) {
@@ -833,7 +874,7 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
 
     async cancelCheckout(id) {
       await request('POST', `/checkouts/${encodeURIComponent(id)}/cancel`);
-      metrics.emit('billing.asaas.checkout_cancelled', { checkoutId: id });
+      metrics.emit('billing.asaas.checkout_cancelled', { checkoutId: redactOpaqueId(id) });
     },
 
     async getSubscription(id) {
@@ -984,7 +1025,7 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
         `/payments/${encodeURIComponent(id)}/refund`,
         body,
       )) as Record<string, unknown>;
-      metrics.emit('billing.asaas.payment_refunded', { paymentId: id });
+      metrics.emit('billing.asaas.payment_refunded', { paymentId: redactOpaqueId(id) });
       return {
         // A resposta é o pagamento atualizado; `r.id` pertence à cobrança.
         // O endpoint não fornece um identificador autoritativo do refund. A
@@ -1021,7 +1062,7 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
         string,
         unknown
       > | null;
-      metrics.emit('billing.asaas.payment_cancelled', { paymentId: id });
+      metrics.emit('billing.asaas.payment_cancelled', { paymentId: redactOpaqueId(id) });
       // O Asaas devolve `{ deleted: true, id }`. Um 204 (corpo vazio) também é
       // sucesso — a cobrança deixou de existir, que é a única coisa que importa.
       return { deleted: r === null ? true : r.deleted !== false };

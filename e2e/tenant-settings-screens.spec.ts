@@ -115,38 +115,54 @@ test.describe.serial('telas de configuração do tenant', () => {
     // O editor fica atrás de "Novo modelo" — o formulário não existe no DOM
     // antes disso. Mesmo desenho do impersonate: o teste abre pelo caminho que a
     // pessoa usa, em vez de contornar.
-    await page.getByRole('button', { name: 'Novo modelo' }).click();
-    await page.getByPlaceholder('Nome *').fill(nome);
-    await page.getByPlaceholder('Medicamento *').first().fill('Medicamento de teste');
-    await page.getByRole('button', { name: 'Salvar' }).click();
+    const linhaDoModelo = () =>
+      page.getByTestId('prescription-template-row').filter({ hasText: nome }).first();
 
-    // Aparece na lista…
-    await expect(page.getByText(nome), 'o modelo não apareceu depois de salvar').toBeVisible({
-      timeout: 30_000,
-    });
+    let primaryError: unknown;
+    try {
+      await page.getByRole('button', { name: 'Novo modelo' }).click();
+      await page.getByPlaceholder('Nome *').fill(nome);
+      await page.getByPlaceholder('Medicamento *').first().fill('Medicamento de teste');
+      await page.getByRole('button', { name: 'Salvar' }).click();
 
-    // …e PERSISTE. Sem o reload, isto provaria estado de React, não gravação.
-    await page.reload();
-    await expect(page.getByText(nome), 'o modelo não sobreviveu ao reload').toBeVisible({
-      timeout: 30_000,
-    });
+      await expect(linhaDoModelo(), 'o modelo não apareceu depois de salvar').toBeVisible({
+        timeout: 30_000,
+      });
 
-    // Excluir é confirmado por `DestructiveAction` — o teste passa pela
-    // confirmação em vez de contorná-la, porque a confirmação É parte do
-    // contrato de uma exclusão.
-    const linha = page.locator('.listrow').filter({ hasText: nome }).first();
-    await linha.getByRole('button', { name: 'Excluir' }).click();
-    await page.getByRole('button', { name: 'Excluir modelo' }).click();
+      await page.reload();
+      await expect(linhaDoModelo(), 'o modelo não sobreviveu ao reload').toBeVisible({
+        timeout: 30_000,
+      });
+    } catch (error) {
+      primaryError = error;
+    }
 
-    // Cleanup É a asserção de exclusão: o registro some de verdade, e o ambiente
-    // volta ao estado em que foi encontrado.
-    await expect(page.getByText(nome), 'o modelo continuou na lista após excluir').toHaveCount(0, {
-      timeout: 30_000,
-    });
+    let cleanupError: unknown;
+    try {
+      await page.goto('/modelos-receita');
+      const linha = linhaDoModelo();
+      if ((await linha.count()) > 0) {
+        await linha.getByRole('button', { name: 'Excluir' }).click();
+        await page.getByRole('button', { name: 'Excluir modelo' }).click();
+        await expect(linhaDoModelo(), 'o modelo continuou na lista após excluir').toHaveCount(0, {
+          timeout: 30_000,
+        });
+      }
+      await page.reload();
+      await expect(linhaDoModelo(), 'a exclusão não persistiu').toHaveCount(0, {
+        timeout: 30_000,
+      });
+    } catch (error) {
+      cleanupError = error;
+    }
 
-    await page.reload();
-    await expect(page.getByText(nome), 'a exclusão não persistiu').toHaveCount(0, {
-      timeout: 30_000,
-    });
+    if (primaryError && cleanupError) {
+      throw new AggregateError(
+        [primaryError, cleanupError],
+        'O CRUD do modelo falhou e a remoção da fixture também falhou.',
+      );
+    }
+    if (cleanupError) throw cleanupError;
+    if (primaryError) throw primaryError;
   });
 });

@@ -57,7 +57,19 @@ const ADMIN_ROUTES = [
  * "escapou alguma coisa". Um cabeçalho é suficiente para confirmar.
  */
 const ADMIN_ONLY_CONTENT =
-  /Clínicas da plataforma|Kill-switch|Impersonar|Assinaturas da plataforma|Anúncio global/i;
+  /Visão geral|Auditoria|Pagamentos|Clínicas|Configurações da plataforma|Conversas IA|Feedbacks|Métricas|Saúde da plataforma|Kill-switch|Impersonar|Anúncio global/iu;
+const ADMIN_SENSITIVE_RSC_CONTENT =
+  /Configurações da plataforma|Saúde da plataforma|Kill-switch|Impersonar|Anúncio global|Trilha cross-tenant/iu;
+
+const DASHBOARD_ROUTER_STATE = encodeURIComponent(
+  JSON.stringify([
+    '',
+    { children: ['dashboard', { children: ['__PAGE__', {}, null, null] }, null, null] },
+    null,
+    null,
+    true,
+  ]),
+);
 
 test.describe('fronteira de /admin para sessão de clínica', () => {
   /**
@@ -82,51 +94,104 @@ test.describe('fronteira de /admin para sessão de clínica', () => {
       'Defina E2E_USER_EMAIL e E2E_USER_PASSWORD de uma conta de clínica descartável.',
     );
 
-    // O login pode ser recusado pelo rate limit DUAL do produto (IP + e-mail) —
-    // a conta é compartilhada, e repetir a suíte dentro da janela de 15 min
-    // esgota o balde. Isso é o produto funcionando, não regressão.
-    let autenticado = true;
-    try {
-      await authenticate(page);
-      await page.goto('/dashboard');
-      autenticado = /\/dashboard(?:\?|$)/.test(page.url());
-    } catch {
-      autenticado = false;
-    }
-
-    // Skip ANOTADO, nunca verde. Sem sessão válida, todo caso abaixo "passaria"
-    // pelo motivo errado: o teste diria "admin protegido" quando na verdade
-    // ninguém tinha entrado. É a diferença entre negar e não ter entrado — e é
-    // exatamente o falso positivo que a auditoria manda evitar.
-    test.skip(
-      !autenticado,
-      'Não foi possível estabelecer sessão de clínica (rate limit de login, provável). ' +
-        'Aguarde a janela de 15 min ou use E2E_AUTH_REUSE=1 — isto NÃO é aprovação.',
-    );
+    await authenticate(page);
+    const control = await page.goto('/dashboard');
+    expect(control?.status(), 'o controle positivo autenticado não respondeu 200').toBe(200);
+    await expect(page).toHaveURL(/\/dashboard(?:\?|$)/);
+    await expect(page.locator('main')).toBeVisible();
 
     const leaked: string[] = [];
+    const cookieHeader = (await page.context().cookies())
+      .map(({ name, value }) => `${name}=${value}`)
+      .join('; ');
+    expect(
+      cookieHeader,
+      'a sessão autenticada não produziu cookies para os probes diretos',
+    ).not.toBe('');
+    const rscHeaders = {
+      Accept: 'text/x-component',
+      Cookie: cookieHeader,
+      RSC: '1',
+      'Next-Router-State-Tree': DASHBOARD_ROUTER_STATE,
+      'Next-Url': '/dashboard',
+    };
 
     // UUID inventado no deep-link: o ponto não é existir, é que a ROTA seja
     // negada antes de qualquer consulta. Um 404 vindo de DENTRO do painel já
     // teria provado que a página carregou para quem não podia.
-    const alvos = [...ADMIN_ROUTES, '/admin/clinicas/00000000-0000-4000-8000-000000000000'];
+    const alvos = [
+      ...ADMIN_ROUTES,
+      '/admin/clinicas/00000000-0000-4000-8000-000000000000',
+      '/admin/feedbacks/00000000-0000-4000-8000-000000000000',
+    ];
 
     for (const route of alvos) {
-      await page.goto(route, { waitUntil: 'domcontentloaded' });
+      const response = await page.goto(route, { waitUntil: 'domcontentloaded' });
 
       const finalPath = new URL(page.url()).pathname;
-      const body = await page.content();
+      const visibleText = await page.locator('body').innerText();
 
-      // Dois desfechos aceitáveis: sair de /admin (redirect) ou ficar e mostrar
-      // negativa. O que NÃO é aceitável é ficar e renderizar o painel — nem
-      // entregar o conteúdo no corpo de um redirect, que já teria vazado.
-      if (ADMIN_ONLY_CONTENT.test(body)) {
+      expect(response?.status(), `${route} não aplicou a negativa 404 anti-enumeração`).toBe(404);
+      expect(finalPath, `${route} redirecionou e revelou um destino alternativo`).toBe(route);
+      await expect(page.getByText('Página não encontrada', { exact: true })).toBeVisible();
+
+      if (ADMIN_ONLY_CONTENT.test(visibleText)) {
         leaked.push(`${route} → conteúdo de plataforma (destino ${finalPath})`);
+      }
+
+      const rsc = await page.context().request.get(route, {
+        headers: rscHeaders,
+      });
+      const rscBody = await rsc.text();
+      expect(rsc.status(), `${route} devolveu transporte RSC inesperado`).toBe(200);
+      expect(rsc.headers()['content-type']).toContain('text/x-component');
+      expect(rscBody, `${route} não carregou a negativa 404 no payload RSC`).toContain(
+        'NEXT_HTTP_ERROR_FALLBACK;404',
+      );
+      if (ADMIN_SENSITIVE_RSC_CONTENT.test(rscBody)) {
+        leaked.push(`${route} → conteúdo de plataforma no payload RSC`);
       }
     }
 
     // Lista inteira de uma vez: falhar na primeira esconderia quantas outras
     // também vazam, e num achado destes é isso que se quer saber.
     expect(leaked, 'rotas de plataforma alcançáveis por sessão de clínica').toEqual([]);
+
+    const routeHandlers = [
+      {
+        method: 'get' as const,
+        route: '/admin/feedbacks/export',
+        expected: 404,
+      },
+      {
+        method: 'post' as const,
+        route:
+          '/admin/clinicas/00000000-0000-4000-8000-000000000000/audit/export?from=2026-01-01&to=2026-01-02',
+        expected: 404,
+      },
+      { method: 'get' as const, route: '/api/health', expected: 401 },
+      { method: 'get' as const, route: '/api/health/outbox', expected: 401 },
+    ];
+
+    for (const handler of routeHandlers) {
+      const response =
+        handler.method === 'post'
+          ? await page.context().request.post(handler.route, {
+              headers: { Cookie: cookieHeader },
+              maxRedirects: 0,
+            })
+          : await page.context().request.get(handler.route, {
+              headers: { Cookie: cookieHeader },
+              maxRedirects: 0,
+            });
+      const responseBody = await response.text();
+      expect(
+        response.status(),
+        `${handler.method.toUpperCase()} ${handler.route} não bloqueou a sessão tenant (url=${new URL(response.url()).pathname}; contentType=${response.headers()['content-type'] ?? 'ausente'}; disposition=${response.headers()['content-disposition'] ?? 'ausente'}; csv=${responseBody.includes('clinica,autor,titulo,descricao')}; admin=${ADMIN_ONLY_CONTENT.test(responseBody)}; bytes=${Buffer.byteLength(responseBody)})`,
+      ).toBe(handler.expected);
+      expect(responseBody, `${handler.route} vazou conteúdo administrativo`).not.toMatch(
+        ADMIN_ONLY_CONTENT,
+      );
+    }
   });
 });

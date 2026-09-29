@@ -6,7 +6,7 @@ Canonical — ambiente de desenvolvimento.
 
 ## Requisitos
 
-- Node.js 22.x (`package.json` e CI são autoridade; `.nvmrc` 20 está obsoleto)
+- Node.js 22.x (`package.json` e CI são autoridade; `.nvmrc` ainda diverge em 20)
 - pnpm 11.17
 - acesso a um projeto Supabase/Postgres de desenvolvimento
 

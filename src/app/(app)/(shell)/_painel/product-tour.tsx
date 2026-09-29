@@ -26,10 +26,9 @@ import { fetchOnboardingProgress, submitOnboardingAction } from './onboarding-ac
  * o tour dentro de uma página.
  *
  * A AUTORIDADE É O SERVIDOR, e por isso não existe um `open` independente: a
- * janela está aberta exatamente quando o estado persistido é não-terminal. É
- * essa escolha que faz o refresh no meio do tour voltar no mesmo passo, e que
- * faz uma segunda aba enxergar o mesmo tour — memória de componente não
- * atravessa nem um F5.
+ * janela abre somente no estado persistido `in_progress`. O primeiro login fica
+ * livre de interrupção; quem iniciar o tour pela Ajuda pode retomá-lo depois de
+ * um refresh, em outra aba ou em outro navegador.
  *
  * FECHAR É PULAR. Não são dois estados: se fechar deixasse `in_progress`, ou o
  * tour reabriria na próxima navegação (e fechar não significaria nada), ou não
@@ -76,11 +75,10 @@ export function ProductTour({
   const current = steps[step];
   if (!current) return null;
 
-  // `shouldAutoOpenTour` é a MESMA regra do servidor (estado não-terminal);
+  // `shouldAutoOpenTour` é a MESMA regra do servidor (`in_progress`);
   // recalculá-la aqui abriria espaço para as duas versões divergirem.
   const open = progress.shouldAutoOpenTour && !closing;
   const isLast = step >= lastStep;
-  const started = progress.tourState === 'in_progress';
 
   /** X, Esc e clique no scrim entram por aqui — todos significam "pular". */
   const dismiss = () => {
@@ -118,7 +116,7 @@ export function ProductTour({
           <Button
             variant="secondary"
             type="button"
-            disabled={pending || step === 0 || !started}
+            disabled={pending || step === 0}
             data-testid="tour-previous"
             onClick={() => send({ action: 'tour_previous', fromStep: step })}
           >
@@ -141,13 +139,9 @@ export function ProductTour({
               type="button"
               loading={pending}
               data-testid="tour-next"
-              onClick={() =>
-                // Fora de `in_progress` o avanço não teria pré-condição para
-                // casar no servidor: a primeira ação precisa ser começar.
-                send(started ? { action: 'tour_next', fromStep: step } : { action: 'tour_start' })
-              }
+              onClick={() => send({ action: 'tour_next', fromStep: step })}
             >
-              {started ? 'Próximo' : 'Começar'}
+              Próximo
             </Button>
           )}
         </DialogFooter>
@@ -168,5 +162,5 @@ const progressFallback: OnboardingProgressState = {
   docsVisitedAt: null,
   checklistDismissedAt: null,
   rowVersion: 0,
-  shouldAutoOpenTour: true,
+  shouldAutoOpenTour: false,
 };

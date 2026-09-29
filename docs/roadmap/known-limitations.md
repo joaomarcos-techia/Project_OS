@@ -12,9 +12,9 @@ Canonical — fatos confirmados no código e bordas que não podem ser inferidas
 | OpenAI | `NOT_IMPLEMENTED` | placeholder lança `openai_not_implemented` |
 | Compensação do onboarding | `PARTIALLY_IMPLEMENTED` | cancelamento Asaas best-effort; não existe cron `onboarding-reconcile` |
 | Secret Manager GCP | `PARTIALLY_IMPLEMENTED` | loader existe, mas SDK não está declarado em `package.json`/lockfile |
-| Checkout de cartão | `IMPLEMENTED_WITH_CONSTRAINT` | PAN/CVV passam pelo Server Action; sem tokenização client-side/hosted checkout |
-| CSP | `IMPLEMENTED_WITH_CONSTRAINT` | header atual é `Content-Security-Policy-Report-Only` |
-| E2E no CI | `NOT_IMPLEMENTED` | workflow executa Vitest/build, não Playwright |
+| Checkout de cartão do convite (`/join`) | `IMPLEMENTED_WITH_CONSTRAINT` | PAN/CVV passam pelo Server Action e ficam apenas em memória; este fluxo legado não usa tokenização client-side/checkout hospedado. Não confundir com o cadastro autônomo planejado pela ADR-053. |
+| CSP | `IMPLEMENTED` | `Content-Security-Policy` bloqueante; testes e gate HTTP impedem regressão para `Report-Only` |
+| E2E no CI | `PARTIALLY_IMPLEMENTED` | workflow executa `test:e2e:ci` e `security:browser-session`; specs autenticados e `production-*` continuam fora do CI automático |
 | Playwright local completo | `KNOWN_LIMITATION` | três specs `production-*` lançam guard de host em localhost em vez de fazer `skip` |
 | Logs de dois specs PROD | `STALE_TEST_DIAGNOSTIC` | `dashboard-financial-rbac` e `whatsapp-settings-rbac` passam pelas assertivas corretas, mas imprimem flags/resultados legados invertidos |
 | Node local | `INCONSISTENT_CONFIG` | `.nvmrc` diz 20; `package.json` e CI exigem 22 |

@@ -39,6 +39,21 @@ describe('evaluateChannelHealth (META-001) — o veredito', () => {
     expect(evaluateChannelHealth(probe({ appSubscription: 'failed' })).verdict).toBe('broken');
   });
 
+  it('callback do app em outro ambiente → broken mesmo com WABA inscrita', () => {
+    expect(evaluateChannelHealth(probe(), 'failed')).toEqual({
+      verdict: 'broken',
+      reasons: ['webhook_callback_mismatch'],
+    });
+    expect(describeChannelHealthReason('webhook_callback_mismatch')).toMatch(/outro ambiente/u);
+  });
+
+  it('callback não verificável preserva o estado anterior', () => {
+    expect(evaluateChannelHealth(probe(), 'unknown')).toEqual({
+      verdict: 'indeterminate',
+      reasons: ['probe_unavailable'],
+    });
+  });
+
   it('2. token inválido → broken', () => {
     const health = evaluateChannelHealth(probe({ token: 'failed' }));
     expect(health.verdict).toBe('broken');
@@ -114,6 +129,7 @@ describe('describeChannelHealthReason — o que o operador lê', () => {
       'phone_unreachable',
       'waba_unreachable',
       'app_not_subscribed',
+      'webhook_callback_mismatch',
       'probe_unavailable',
     ] as const) {
       expect(describeChannelHealthReason(reason).length).toBeGreaterThan(20);

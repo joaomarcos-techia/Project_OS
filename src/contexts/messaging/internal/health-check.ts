@@ -15,6 +15,7 @@ import 'server-only';
 import { requestContext } from '@/lib/audit/request-context-from-headers';
 import { decryptForTenant } from '@/lib/crypto';
 import { env } from '@/lib/env';
+import { createMetaWebhookUrl } from '@/lib/http/application-url';
 import {
   listActiveConnectionsForHealth,
   loadConnectionForHealth,
@@ -28,7 +29,7 @@ import {
   evaluateChannelHealth,
   type ChannelHealth,
 } from './channel-health';
-import { probeMetaChannel } from './meta-onboarding';
+import { probeMetaAppWebhook, probeMetaChannel } from './meta-onboarding';
 
 export interface ChannelHealthResult extends ChannelHealth {
   /** Status efetivo após a verificação (o anterior, quando indeterminado). */
@@ -52,13 +53,16 @@ async function checkConnection(
   let health: ChannelHealth;
   try {
     const token = await decryptForTenant(connection.clinicId, connection.tokenCiphertext);
-    const probe = await probeMetaChannel({
-      token,
-      wabaId: connection.metaBusinessId,
-      phoneNumberId: connection.metaPhoneId,
-      expectedAppId: env.META_APP_ID ?? null,
-    });
-    health = evaluateChannelHealth(probe);
+    const [probe, appWebhook] = await Promise.all([
+      probeMetaChannel({
+        token,
+        wabaId: connection.metaBusinessId,
+        phoneNumberId: connection.metaPhoneId,
+        expectedAppId: env.META_APP_ID ?? null,
+      }),
+      probeMetaAppWebhook(createMetaWebhookUrl()),
+    ]);
+    health = evaluateChannelHealth(probe, appWebhook);
   } catch {
     // Credencial indecifrável / erro inesperado do probe. Sem evidência sobre a
     // Meta, não se rebaixa a conexão — mas o operador precisa ver que a

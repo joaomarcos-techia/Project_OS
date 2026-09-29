@@ -17,9 +17,6 @@ type ProntuarioSample = { id: string; patient_id: string };
 
 test.use({
   storageState: { cookies: [], origins: [] },
-  trace: 'off',
-  video: 'off',
-  screenshot: 'off',
   actionTimeout: 30_000,
   navigationTimeout: 60_000,
 });

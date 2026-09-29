@@ -23,20 +23,28 @@ import { expect, test } from '@playwright/test';
  *   E2E_PASSWORD_RESET=1                     opt-in (envia e-mail de verdade)
  *   E2E_USER_EMAIL                           conta de teste com perfil de clínica
  *   E2E_RESEND_API_KEY                       chave do Resend usada pelo app local
- *   E2E_USER_PASSWORD                        opcional: senha atual (prova same_password)
+ *   E2E_USER_PASSWORD                        opcional: senha atual de fixture sem MFA
+ *                                            (prova same_password)
+ *   E2E_PASSWORD_RESET_MFA=1                 com senha atual, prova o fallback
+ *                                            de recovery de uma conta com MFA
  */
 
 const baseUrl = process.env.E2E_BASE_URL ?? '';
 const email = process.env.E2E_USER_EMAIL ?? '';
 const resendKey = process.env.E2E_RESEND_API_KEY ?? '';
-/** Opcional: a senha ATUAL da conta de teste, para provar a recusa `same_password`. */
+/** Opcional: senha ATUAL de uma fixture sem MFA, para provar `same_password`. */
 const currentPassword = process.env.E2E_USER_PASSWORD ?? '';
+const expectMfaRecovery = process.env.E2E_PASSWORD_RESET_MFA === '1';
+const clientIp = process.env.E2E_CLIENT_IP ?? '';
 
 function skipReason(): string | null {
   if (process.env.E2E_PASSWORD_RESET !== '1') return 'E2E_PASSWORD_RESET != 1';
   if (!email || !resendKey) return 'e-mail de teste ou chave do Resend ausentes';
   if (!baseUrl || !['localhost', '127.0.0.1'].includes(new URL(baseUrl).hostname)) {
     return 'só roda contra o app em localhost';
+  }
+  if (clientIp && !/^203\.0\.113\.(?:[1-9]|[1-9]\d|1\d\d|2[0-4]\d|25[0-4])$/u.test(clientIp)) {
+    return 'E2E_CLIENT_IP precisa pertencer ao bloco TEST-NET 203.0.113.0/24';
   }
   return null;
 }
@@ -71,6 +79,7 @@ test('esqueci a senha: o link do e-mail real abre o formulário de nova senha', 
   const skip = skipReason();
   test.skip(skip !== null, skip ?? '');
   test.setTimeout(8 * 60_000);
+  if (clientIp) await page.setExtraHTTPHeaders({ 'x-forwarded-for': clientIp });
 
   const since = Date.now();
   await page.goto('/login', { timeout: 180_000 });
@@ -114,6 +123,14 @@ test('esqueci a senha: o link do e-mail real abre o formulário de nova senha', 
   await expect(page.getByText('Link inválido ou expirado')).toHaveCount(0);
 
   if (currentPassword) {
+    if (expectMfaRecovery) {
+      // A sessão emitida por recovery tem aal1. Em conta com TOTP, o GoTrue
+      // recusa updateUser com insufficient_aal; o servidor conclui a troca pela
+      // prova one-time já validada. Reutilizar a senha atual não muda a fixture.
+      await submit(currentPassword);
+      await expect(page).toHaveURL(/\/login\?reason=password_updated$/u, { timeout: 60_000 });
+      return;
+    }
     // A mesma senha passa pelo CAS e só o Auth a recusa. Duas vezes seguidas: a
     // segunda só chega à mesma mensagem se o grant reemitido passou pelo CAS.
     for (let attempt = 0; attempt < 2; attempt++) {

@@ -115,7 +115,21 @@ export async function resetPasswordAction(
     }
     jar.delete(RECOVERY_GRANT_COOKIE);
 
-    const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
+    const update = await supabase.auth.updateUser({ password: parsed.data.password });
+    let error = update.error;
+    if (error?.code === 'insufficient_aal') {
+      // Recovery comprova posse do e-mail, mas uma conta com TOTP recebe do
+      // GoTrue uma sessão aal1. `updateUser` exige aal2 e tornava impossível
+      // redefinir a senha justamente quando o segundo fator não está disponível.
+      // Neste ponto a prova one-time, o userId e o epoch já foram validados e o
+      // CAS acima já revogou sessões antigas; a Admin API só conclui essa mesma
+      // operação para a identidade comprovada.
+      const adminUpdate = await createAdminClient().auth.admin.updateUserById(userId, {
+        password: parsed.data.password,
+      });
+      error = adminUpdate.error;
+      if (!error) logger.warn('reset_password.insufficient_aal_recovered', { kind: grant.kind });
+    }
     if (error) {
       const rejection = passwordRejection(error);
       const remainingSeconds = Math.floor((grant.expiresAt - Date.now()) / 1000);

@@ -21,12 +21,11 @@ function state(over: Partial<OnboardingProgressState> = {}): OnboardingProgressS
     docsVisitedAt: null,
     checklistDismissedAt: null,
     rowVersion: 1,
-    shouldAutoOpenTour: true,
+    shouldAutoOpenTour: false,
   };
   const merged = { ...base, ...over };
   // Mantém a regra do servidor coerente no fixture: quem é terminal não reabre.
-  merged.shouldAutoOpenTour =
-    over.shouldAutoOpenTour ?? (merged.tourState !== 'completed' && merged.tourState !== 'skipped');
+  merged.shouldAutoOpenTour = over.shouldAutoOpenTour ?? merged.tourState === 'in_progress';
   return merged;
 }
 
@@ -38,11 +37,9 @@ describe('ProductTour', () => {
     submitOnboardingAction.mockResolvedValue({ ok: true, progress: state(), changed: true });
   });
 
-  it('abre na primeira visita mostrando o primeiro passo', () => {
+  it('não abre na primeira visita', () => {
     render(<ProductTour steps={TOUR_STEPS} initial={state()} />);
-    expect(screen.getByTestId('product-tour')).toBeTruthy();
-    expect(screen.getByText(TOUR_STEPS[0]!.title)).toBeTruthy();
-    expect(screen.getByText(`Passo 1 de ${TOUR_STEPS.length}`)).toBeTruthy();
+    expect(screen.queryByTestId('product-tour')).toBeNull();
   });
 
   it('não abre para quem já concluiu', () => {
@@ -60,16 +57,6 @@ describe('ProductTour', () => {
       <ProductTour steps={TOUR_STEPS} initial={state({ tourState: 'skipped', tourStep: 2 })} />,
     );
     expect(screen.queryByTestId('product-tour')).toBeNull();
-  });
-
-  it('a primeira ação é começar, não avançar', async () => {
-    render(<ProductTour steps={TOUR_STEPS} initial={state()} />);
-    await act(async () => {
-      fireEvent.click(screen.getByTestId('tour-next'));
-    });
-    // Avançar exigiria `in_progress` no servidor; mandar `tour_next` aqui
-    // gastaria um round-trip que não casaria com nenhuma pré-condição.
-    expect(submitOnboardingAction).toHaveBeenCalledWith({ action: 'tour_start' });
   });
 
   it('avança mandando o passo de onde o cliente pensa estar', async () => {

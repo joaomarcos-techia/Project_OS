@@ -198,6 +198,10 @@ export function collectInventory(root: string): Inventory {
 
   // These are reviewed entrypoints with another trust boundary; none authorizes tenant CRUD.
   const publicPolicies: Record<string, { guard: string; call: string }> = {
+    'src/app/(app)/(shell)/_painel/handoff-actions.ts#fetchOpenHandoffs': {
+      guard: 'optional-session-read',
+      call: 'getCurrentUser',
+    },
     'src/app/(app)/login/actions.ts#loginAction': {
       guard: 'public-login',
       call: 'supabase.auth.signInWithPassword',

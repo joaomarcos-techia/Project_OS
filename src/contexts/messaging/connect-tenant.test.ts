@@ -30,12 +30,16 @@ vi.mock('@/lib/env', async (importActual) => {
   const actual = await importActual<typeof EnvModule>();
   return { ...actual, assertWhatsappOnboardingReady: vi.fn() };
 });
+vi.mock('@/lib/http/application-url', () => ({
+  createMetaWebhookUrl: vi.fn(() => 'https://preview.qoro.test/api/webhooks/meta'),
+}));
 // Ciphertext fixo que NÃO embute o plaintext (o token real é 'SECRET_TOKEN_VALUE').
 vi.mock('@/lib/crypto', () => ({
   encryptForTenant: vi.fn(async () => 'CIPHERTEXT_BLOB'),
   decryptForTenant: vi.fn(async () => 'plain-token'),
 }));
 vi.mock('./internal/meta-onboarding', () => ({
+  assertMetaAppWebhookTarget: vi.fn(async () => {}),
   exchangeCodeForToken: vi.fn(async () => 'SECRET_TOKEN_VALUE'),
   validateTokenScopes: vi.fn(async () => ({ wabaIds: ['waba-1'] })),
   resolveWabaAndPhone: vi.fn(async () => ({
@@ -81,6 +85,7 @@ beforeEach(() => {
     tokenCiphertext: null,
   });
   vi.mocked(onboarding.exchangeCodeForToken).mockResolvedValue('SECRET_TOKEN_VALUE');
+  vi.mocked(onboarding.assertMetaAppWebhookTarget).mockResolvedValue();
   vi.mocked(onboarding.resolveWabaAndPhone).mockResolvedValue({
     wabaId: 'waba-1',
     phoneNumberId: 'phone-1',
@@ -105,6 +110,9 @@ describe('connectMyClinicWhatsapp', () => {
       '123456',
     );
     // webhook assinado
+    expect(onboarding.assertMetaAppWebhookTarget).toHaveBeenCalledWith(
+      'https://preview.qoro.test/api/webhooks/meta',
+    );
     expect(onboarding.subscribeAppToWaba).toHaveBeenCalledWith('waba-1', 'SECRET_TOKEN_VALUE');
 
     expect(upsertTenantConnection).toHaveBeenCalledTimes(1);
@@ -162,6 +170,28 @@ describe('connectMyClinicWhatsapp', () => {
     expect(recordConnectionFailure).toHaveBeenCalledTimes(1);
     expect(recordConnectionFailure).toHaveBeenCalledWith(
       expect.objectContaining({ errorCode: 'META_AUTH_FAILED', errorStage: 'authorization' }),
+    );
+  });
+
+  it('callback Meta em outro ambiente bloqueia antes de trocar code, registrar ou persistir', async () => {
+    vi.mocked(onboarding.assertMetaAppWebhookTarget).mockRejectedValueOnce(
+      new MetaConnectError('[meta] callback de mensagens aponta para outro ambiente', {
+        stage: 'webhook_subscription',
+      }),
+    );
+
+    await expect(
+      connectMyClinicWhatsapp({ code: 'CODE', registrationPin: '123456', wabaId: 'waba-1' }),
+    ).rejects.toMatchObject({
+      name: 'MetaConnectError',
+      stage: 'webhook_subscription',
+    });
+    expect(onboarding.exchangeCodeForToken).not.toHaveBeenCalled();
+    expect(onboarding.registerPhoneNumber).not.toHaveBeenCalled();
+    expect(onboarding.subscribeAppToWaba).not.toHaveBeenCalled();
+    expect(upsertTenantConnection).not.toHaveBeenCalled();
+    expect(recordConnectionFailure).toHaveBeenCalledWith(
+      expect.objectContaining({ errorStage: 'webhook_subscription' }),
     );
   });
 

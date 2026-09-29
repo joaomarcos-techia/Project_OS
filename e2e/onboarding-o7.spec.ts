@@ -80,9 +80,9 @@ test.describe('O-7 — onboarding operacional autenticado', () => {
    * migration 0104, o tour simplesmente não aparece, e um teste que só
    * verificasse "o tour não está na tela" passaria NO VAZIO.
    *
-   * O sinal de que a máquina está viva: ou o tour aparece (estado não-terminal),
-   * ou a central de ajuda oferece "Refazer o tour" (estado terminal). Nenhum dos
-   * dois significa que a leitura devolveu `null`.
+   * O sinal de que a máquina está viva: ou um tour já iniciado aparece, ou a
+   * central de ajuda oferece iniciar/refazer. Nenhum dos dois existe quando a
+   * leitura degrada para `null`.
    */
   async function onboardingDisponivel(page: Page): Promise<boolean> {
     if (await page.getByTestId('product-tour').count()) return true;
@@ -90,7 +90,7 @@ test.describe('O-7 — onboarding operacional autenticado', () => {
     return (await page.getByTestId('restart-tour').count()) > 0;
   }
 
-  test('o tour some ao ser dispensado e não reabre sozinho', async ({ page }) => {
+  test('o tour só abre por escolha e não reabre depois de dispensado', async ({ page }) => {
     const { erros } = vigiar(page);
     await authenticate(page);
 
@@ -101,15 +101,19 @@ test.describe('O-7 — onboarding operacional autenticado', () => {
         'o shell degrada e não há tour para exercitar. Skip anotado, nunca verde vazio.',
     );
 
-    await page.goto('/dashboard');
     const tour = page.getByTestId('product-tour');
     if (await tour.count()) {
       await page.getByTestId('tour-skip').click();
       await expect(tour).toBeHidden();
     }
 
-    // Recarregar é o teste real: se "fechar" fosse memória de componente, o
-    // tour voltaria aqui.
+    await page.goto('/documentacao');
+    await page.getByTestId('restart-tour').click();
+    await expect(tour).toBeVisible();
+    await page.getByTestId('tour-skip').click();
+    await expect(tour).toBeHidden();
+
+    // Recarregar é o teste real: o estado persistido precisa respeitar a escolha.
     await page.reload();
     await expect(page.getByTestId('product-tour')).toHaveCount(0);
     expect(erros, erros.join(' | ')).toEqual([]);
@@ -126,15 +130,19 @@ test.describe('O-7 — onboarding operacional autenticado', () => {
         !(await onboardingDisponivel(abaA)),
         'onboarding indisponível neste ambiente (banco sem a migration 0104).',
       );
-      await abaA.goto('/dashboard');
+      const tourA = abaA.getByTestId('product-tour');
+      if (await tourA.count()) await abaA.getByTestId('tour-skip').click();
+      await abaA.goto('/documentacao');
+      await abaA.getByTestId('restart-tour').click();
+      await expect(tourA).toBeVisible();
 
       const abaB = await contexto.newPage();
       await abaB.goto('/dashboard');
+      await expect(abaB.getByTestId('product-tour')).toBeVisible();
 
       // Dispensar em A; B tem de concordar depois de recarregar, porque a
       // autoridade é o servidor e não a aba.
-      const tourA = abaA.getByTestId('product-tour');
-      if (await tourA.count()) await abaA.getByTestId('tour-skip').click();
+      await abaA.getByTestId('tour-skip').click();
       await abaA.reload();
 
       await abaB.reload();
