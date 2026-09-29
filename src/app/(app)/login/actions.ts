@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import { z } from 'zod';
 
+import { sendPasswordResetEmail } from '@/contexts/identity/internal/password-reset-email';
 import {
   ensurePasswordAuthenticatedSignupAuthBinding,
   readSignupAuthBinding,
@@ -23,7 +24,6 @@ import { postLoginRedirect } from '@/lib/auth/policies';
 import { resolvePreTenantOnboarding } from '@/lib/auth/pretenant-onboarding';
 import { getAal } from '@/lib/auth/mfa';
 import { isRole } from '@/lib/auth/roles';
-import { createPasswordResetRedirectUrl } from '@/lib/http/application-url';
 import { logger } from '@/lib/observability/logger';
 import { metrics } from '@/lib/observability/metrics';
 
@@ -66,24 +66,18 @@ export async function forgotPasswordAction(
     return { error: null, sent: true };
   }
 
+  // O e-mail sai pelo Resend com link no formato que `/auth/confirm` verifica.
+  // Antes, `resetPasswordForEmail` mandava o template do painel, cujo
+  // `{{ .ConfirmationURL }}` terminava SEMPRE em "Link inválido ou expirado"
+  // (ver `password-reset-email.ts`). O desfecho só vira métrica: a resposta
+  // continua a mesma para conta inexistente, limite e falha do provedor.
+  //
+  // O `captchaToken` do formulário deixou de ser repassado: ele ia para o
+  // GoTrue, cujo captcha está desligado em todos os projetos — ninguém o
+  // verificava. O teto que protege esta rota é o rate limit acima.
   try {
-    const supabase = await createServerClient();
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: createPasswordResetRedirectUrl(),
-      // Presente só quando o widget produziu um token. Com o captcha desligado
-      // no projeto, o GoTrue ignora o campo.
-      ...captchaOptions(readCaptchaToken(formData)),
-    });
-    if (error) {
-      // O motivo distingue desafio reprovado de rejeição do provedor — são
-      // incidentes diferentes e o conserto de cada um é outro. A RESPOSTA ao
-      // usuário continua idêntica nos dois casos: esta action nunca revela se
-      // o endereço existe, e um erro visível de captcha aqui seria um oráculo
-      // a menos de ruído para quem enumera contas.
-      logger.warn('forgot_password.request_failed', {
-        reason: isCaptchaError(error) ? 'captcha_failed' : 'provider_rejected',
-      });
-    }
+    const outcome = await sendPasswordResetEmail(email);
+    if (outcome === 'failed') logger.warn('forgot_password.request_failed', { reason: 'delivery' });
   } catch (error) {
     logger.error('forgot_password.request_failed', {
       reason: error instanceof Error ? error.name : 'unknown',

@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   bumpEpochIfCurrent: vi.fn(),
   clearSelector: vi.fn(),
   cookieDelete: vi.fn(),
+  cookieSet: vi.fn(),
   cookieGet: vi.fn(),
   cookies: vi.fn(),
   createServerClient: vi.fn(),
@@ -26,6 +27,7 @@ const mocks = vi.hoisted(() => ({
   readPasswordState: vi.fn(),
   readProfile: vi.fn(),
   redirect: vi.fn(),
+  signGrant: vi.fn(),
   signOut: vi.fn(),
   updateAdminUser: vi.fn(),
   updateUser: vi.fn(),
@@ -48,6 +50,14 @@ vi.mock('@/lib/auth/rate-limit', () => ({
 vi.mock('@/lib/auth/recovery-grant', () => ({
   RECOVERY_GRANT_COOKIE: 'qoro_rcv',
   readRecoveryGrant: mocks.readGrant,
+  signRecoveryGrant: mocks.signGrant,
+  recoveryGrantCookieOptions: (maxAge: number) => ({
+    httpOnly: true,
+    secure: true,
+    sameSite: 'lax',
+    path: '/',
+    maxAge,
+  }),
 }));
 vi.mock('@/lib/auth/recovery-consumption', () => ({
   isOrphanRecoveryEpochConsumed: mocks.isOrphanConsumed,
@@ -107,7 +117,11 @@ beforeEach(() => {
   mocks.redirect.mockImplementation((destination: string) => {
     throw new Error(`REDIRECT:${destination}`);
   });
-  mocks.cookies.mockResolvedValue({ get: mocks.cookieGet, delete: mocks.cookieDelete });
+  mocks.cookies.mockResolvedValue({
+    get: mocks.cookieGet,
+    delete: mocks.cookieDelete,
+    set: mocks.cookieSet,
+  });
   mocks.cookieGet.mockReturnValue({ value: 'signed-grant' });
   mocks.headers.mockResolvedValue(new Headers());
   mocks.createServerClient.mockResolvedValue(supabase);
@@ -150,6 +164,7 @@ beforeEach(() => {
   mocks.clearSelector.mockResolvedValue(undefined);
   mocks.updateUser.mockResolvedValue({ error: null });
   mocks.bumpEpochIfCurrent.mockResolvedValue(true);
+  mocks.signGrant.mockReturnValue('reissued-grant');
 });
 
 describe('resetPasswordAction', () => {
@@ -514,5 +529,104 @@ describe('resetPasswordAction', () => {
       expect.objectContaining({ error: expect.stringContaining('inválido') }),
     );
     expect(mocks.advanceEpoch).not.toHaveBeenCalled();
+  });
+});
+
+// 29/09/2026: um cliente com clínica (grant `profile`) escolhia uma senha vazada.
+// O Auth a recusava DEPOIS do CAS, o link morria, a tela dizia "link inválido" e
+// o novo link terminava igual. A senha recusada não pode consumir o link.
+describe('resetPasswordAction — senha recusada no ramo profile', () => {
+  const expiresAt = Date.now() + 60_000;
+
+  beforeEach(() => {
+    mocks.readGrant.mockReturnValue({ kind: 'profile', userId, epoch: 4, expiresAt });
+    mocks.readProfile.mockResolvedValue({ claimsVersion: 4 });
+  });
+
+  it('senha vazada é recusada antes do CAS e o link continua valendo', async () => {
+    mocks.checkExposure.mockResolvedValue('pwned');
+
+    const result = await resetPasswordAction({ error: null }, form());
+
+    expect(result.error).toBe('Escolha uma senha que não apareceu em vazamentos conhecidos.');
+    expect(mocks.checkExposure).toHaveBeenCalledWith('SenhaForte7');
+    expect(mocks.bumpEpochIfCurrent).not.toHaveBeenCalled();
+    expect(mocks.updateUser).not.toHaveBeenCalled();
+    expect(mocks.cookieDelete).not.toHaveBeenCalled();
+    expect(mocks.signOut).not.toHaveBeenCalled();
+  });
+
+  it('HIBP indisponível também não consome o link', async () => {
+    mocks.checkExposure.mockResolvedValue('unavailable');
+
+    const result = await resetPasswordAction({ error: null }, form());
+
+    expect(result.error).toBe('Não foi possível validar a senha agora. Tente novamente.');
+    expect(mocks.bumpEpochIfCurrent).not.toHaveBeenCalled();
+    expect(mocks.cookieDelete).not.toHaveBeenCalled();
+  });
+
+  it('same_password do Auth reemite o grant no epoch seguinte, com o mesmo prazo', async () => {
+    mocks.updateUser.mockResolvedValue({
+      error: { code: 'same_password', message: 'New password should be different' },
+    });
+
+    const result = await resetPasswordAction({ error: null }, form());
+
+    expect(result.error).toBe('A nova senha precisa ser diferente da senha atual.');
+    expect(mocks.bumpEpochIfCurrent).toHaveBeenCalledWith(userId, 4, 'password_reset');
+    expect(mocks.signGrant).toHaveBeenCalledWith({ kind: 'profile', userId, epoch: 5, expiresAt });
+    const [name, value, options] = mocks.cookieSet.mock.calls[0]!;
+    expect(name).toBe('qoro_rcv');
+    expect(value).toBe('reissued-grant');
+    expect(options).toMatchObject({ httpOnly: true, sameSite: 'lax', path: '/' });
+    expect(options.maxAge).toBeGreaterThan(0);
+    expect(options.maxAge).toBeLessThanOrEqual(60);
+    // A reemissão vem depois da remoção: o cookie final é o do epoch novo.
+    expect(mocks.cookieDelete.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.cookieSet.mock.invocationCallOrder[0]!,
+    );
+    expect(mocks.signOut).not.toHaveBeenCalled();
+  });
+
+  it('weak_password do Auth (HIBP mudou entre a checagem e o update) preserva a tentativa', async () => {
+    mocks.updateUser.mockResolvedValue({
+      error: { code: 'weak_password', message: 'Password is known to be weak' },
+    });
+
+    const result = await resetPasswordAction({ error: null }, form());
+
+    expect(result.error).toBe('Escolha uma senha que não apareceu em vazamentos conhecidos.');
+    expect(mocks.signGrant).toHaveBeenCalledWith({ kind: 'profile', userId, epoch: 5, expiresAt });
+    expect(mocks.signOut).not.toHaveBeenCalled();
+  });
+
+  it('recusa de senha com o grant já no fim do prazo exige link novo', async () => {
+    mocks.readGrant.mockReturnValue({
+      kind: 'profile',
+      userId,
+      epoch: 4,
+      expiresAt: Date.now() + 500,
+    });
+    mocks.updateUser.mockResolvedValue({
+      error: { code: 'same_password', message: 'New password should be different' },
+    });
+
+    const result = await resetPasswordAction({ error: null }, form());
+
+    expect(result.error).toContain('novo link');
+    expect(mocks.signGrant).not.toHaveBeenCalled();
+    expect(mocks.cookieSet).not.toHaveBeenCalled();
+    expect(mocks.signOut).toHaveBeenCalledWith({ scope: 'global' });
+  });
+
+  it('outra falha do Auth continua consumindo o grant', async () => {
+    mocks.updateUser.mockResolvedValue({ error: { code: 'unexpected_failure', message: 'x' } });
+
+    const result = await resetPasswordAction({ error: null }, form());
+
+    expect(result.error).toContain('novo link');
+    expect(mocks.signGrant).not.toHaveBeenCalled();
+    expect(mocks.signOut).toHaveBeenCalledWith({ scope: 'global' });
   });
 });

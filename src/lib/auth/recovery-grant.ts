@@ -8,6 +8,20 @@ import { env } from '@/lib/env';
 export const RECOVERY_GRANT_COOKIE = 'qoro_rcv';
 export const RECOVERY_GRANT_TTL_SECONDS = 15 * 60;
 
+/**
+ * Atributos do cookie na reemissão feita pelo reset. Iguais aos que
+ * `/auth/confirm` grava na emissão (travados em `route.test.ts`).
+ */
+export function recoveryGrantCookieOptions(maxAgeSeconds: number) {
+  return {
+    httpOnly: true,
+    secure: env.NODE_ENV === 'production',
+    sameSite: 'lax' as const,
+    path: '/',
+    maxAge: maxAgeSeconds,
+  };
+}
+
 const VERSION = 'v2';
 const SEP = '.';
 const SIGNUP_REFERENCE_PATTERN = /^[a-f0-9]{64}$/u;

@@ -17,7 +17,12 @@ import {
   isOrphanRecoveryEpochConsumed,
   markOrphanRecoveryEpochConsumed,
 } from '@/lib/auth/recovery-consumption';
-import { RECOVERY_GRANT_COOKIE, readRecoveryGrant } from '@/lib/auth/recovery-grant';
+import {
+  RECOVERY_GRANT_COOKIE,
+  readRecoveryGrant,
+  recoveryGrantCookieOptions,
+  signRecoveryGrant,
+} from '@/lib/auth/recovery-grant';
 import { bumpSessionEpochIfCurrent, withOrphanRecoveryLock } from '@/lib/auth/session-epoch';
 import { signupPasswordSchema } from '@/lib/auth/signup-password';
 import { createAdminClient } from '@/lib/auth/supabase-admin';
@@ -31,6 +36,19 @@ export type ResetState = { error: string | null };
 
 const INVALID_GRANT =
   'Link de redefinição inválido, expirado ou já utilizado. Peça um novo ao administrador.';
+const PWNED_PASSWORD = 'Escolha uma senha que não apareceu em vazamentos conhecidos.';
+const EXPOSURE_UNAVAILABLE = 'Não foi possível validar a senha agora. Tente novamente.';
+const SAME_PASSWORD = 'A nova senha precisa ser diferente da senha atual.';
+
+/**
+ * Recusas do Auth que dizem respeito à SENHA escolhida, não ao link. Nelas o
+ * Auth não gravou nada, e a pessoa só precisa escolher outra senha.
+ */
+function passwordRejection(error: { code?: string | undefined }): string | null {
+  if (error.code === 'weak_password') return PWNED_PASSWORD;
+  if (error.code === 'same_password') return SAME_PASSWORD;
+  return null;
+}
 
 export async function resetPasswordAction(
   _prev: ResetState,
@@ -71,6 +89,14 @@ export async function resetPasswordAction(
   }
 
   if (grant.kind === 'profile') {
+    // O Auth recusa senha vazada (HIBP ligado em produção), mas só DEPOIS do CAS
+    // abaixo, que consome o link. Sem esta checagem a pessoa via "link inválido",
+    // pedia outro, escolhia a mesma senha e caía no mesmo lugar para sempre
+    // (29/09/2026). Os ramos pretenant já checavam antes; o de profile, não.
+    const exposure = await checkSignupPasswordExposure(parsed.data.password);
+    if (exposure === 'pwned') return { error: PWNED_PASSWORD };
+    if (exposure === 'unavailable') return { error: EXPOSURE_UNAVAILABLE };
+
     let consumed = false;
     try {
       // CAS antes do Auth I/O: só uma requisição que carrega este epoch pode
@@ -91,6 +117,25 @@ export async function resetPasswordAction(
 
     const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
     if (error) {
+      const rejection = passwordRejection(error);
+      const remainingSeconds = Math.floor((grant.expiresAt - Date.now()) / 1000);
+      if (rejection && remainingSeconds > 0) {
+        // A senha foi recusada, o link não. O CAS já consumiu o epoch N; a única
+        // prova que volta a valer é a do epoch N+1, com o MESMO prazo. Continua
+        // de uso único e sem estender a janela.
+        jar.set(
+          RECOVERY_GRANT_COOKIE,
+          signRecoveryGrant({
+            kind: 'profile',
+            userId,
+            epoch: grant.epoch + 1,
+            expiresAt: grant.expiresAt,
+          }),
+          recoveryGrantCookieOptions(remainingSeconds),
+        );
+        logger.warn('reset_password.password_rejected', { kind: grant.kind, code: error.code });
+        return { error: rejection };
+      }
       logger.warn('reset_password.update_failed', { kind: grant.kind });
       await supabase.auth.signOut({ scope: 'global' }).catch(() => undefined);
       await clearSupabaseSessionSelector();
@@ -105,10 +150,10 @@ export async function resetPasswordAction(
   if (grant.kind === 'pretenant_orphan') {
     const exposure = await checkSignupPasswordExposure(parsed.data.password);
     if (exposure === 'pwned') {
-      return { error: 'Escolha uma senha que não apareceu em vazamentos conhecidos.' };
+      return { error: PWNED_PASSWORD };
     }
     if (exposure === 'unavailable') {
-      return { error: 'Não foi possível validar a senha agora. Tente novamente.' };
+      return { error: EXPOSURE_UNAVAILABLE };
     }
 
     jar.delete(RECOVERY_GRANT_COOKIE);
@@ -175,10 +220,10 @@ export async function resetPasswordAction(
     // ramo. Só o retry de continuação com a MESMA senha evita uma nova consulta.
     const exposure = await checkSignupPasswordExposure(parsed.data.password);
     if (exposure === 'pwned') {
-      return { error: 'Escolha uma senha que não apareceu em vazamentos conhecidos.' };
+      return { error: PWNED_PASSWORD };
     }
     if (exposure === 'unavailable') {
-      return { error: 'Não foi possível validar a senha agora. Tente novamente.' };
+      return { error: EXPOSURE_UNAVAILABLE };
     }
 
     let expectedRowVersion = grant.epoch;

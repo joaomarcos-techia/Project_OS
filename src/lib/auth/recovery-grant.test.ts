@@ -5,7 +5,7 @@ vi.mock('@/lib/env', () => ({
   env: { SUPABASE_SECRET_KEY: 'test-secret-key-with-enough-entropy-000000' },
 }));
 
-import { readRecoveryGrant, signRecoveryGrant } from './recovery-grant';
+import { readRecoveryGrant, recoveryGrantCookieOptions, signRecoveryGrant } from './recovery-grant';
 
 const profile = {
   kind: 'profile' as const,
@@ -62,5 +62,17 @@ describe('recovery grant v2 (AUTH-006)', () => {
     expect(() => signRecoveryGrant({ ...pretenant, signupRef: 'curta' })).toThrow(
       'invalid signup reference',
     );
+  });
+});
+
+describe('recoveryGrantCookieOptions', () => {
+  it('reemite com os mesmos atributos da emissão em /auth/confirm', () => {
+    expect(recoveryGrantCookieOptions(120)).toEqual({
+      httpOnly: true,
+      secure: false,
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 120,
+    });
   });
 });
