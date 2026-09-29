@@ -127,3 +127,28 @@ export function createSignupConfirmationUrl(
   }).toString();
   return url.toString();
 }
+
+/**
+ * Link de redefinição de senha pedido em "Esqueci a senha".
+ *
+ * Existe porque o e-mail de recovery deixou de ser o template do painel do
+ * Supabase. Aquele template usava `{{ .ConfirmationURL }}`: o GoTrue consumia o
+ * token no `/auth/v1/verify` dele e devolvia a sessão na URL, e `/reset-password`
+ * — que desde a AUTH-006 só aceita a prova emitida por `/auth/confirm` —
+ * respondia "Link inválido ou expirado" em TODO pedido. Medido em 29/09/2026.
+ *
+ * O formato é o mesmo dos outros links de e-mail: token no fragmento (não vai ao
+ * servidor no GET, ao Referer nem ao log), `type=recovery` e destino fixo.
+ */
+export function createPasswordResetConfirmationUrl(tokenHash: string): string {
+  if (!tokenHash.trim()) {
+    throw new Error('[app-url] password reset token hash is required');
+  }
+  const url = new URL(configuredApplicationUrl('/auth/confirm'));
+  url.hash = new URLSearchParams({
+    token_hash: tokenHash,
+    type: 'recovery',
+    next: '/reset-password',
+  }).toString();
+  return url.toString();
+}

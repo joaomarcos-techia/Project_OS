@@ -285,6 +285,10 @@ const config = [
       // não abre banco nenhum (nada de dbAdmin), só fala com o GoTrue e com o
       // Resend. Por isso ele não entra na allowlist do arch:db-check.
       'src/contexts/onboarding/internal/signup-confirmation-email.ts',
+      // Esqueci a senha (29/09/2026): o token de recovery vem de
+      // `auth.admin.generateLink`, que só existe na Admin API. Mesma exceção
+      // estreita do e-mail de cadastro: só GoTrue e Resend, nenhum banco.
+      'src/contexts/identity/internal/password-reset-email.ts',
       // Cadastro self-service: estes tres pontos executam transicoes Auth que
       // nao existem no client comum. Todos derivam user/ref do banco ou de um
       // grant assinado e usam CAS antes de instalar a senha.
