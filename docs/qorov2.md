@@ -7300,3 +7300,39 @@ loop.
 - **Mínimo, em qualquer caso: acabar com o loop mudo.** `/cadastro/continuar` encerra a sessão e manda
   para `/login` com um motivo explícito ("Seu cadastro expirou antes de ser concluído…"), e a tela de
   login mostra o que fazer. Sozinho, isso não devolve o acesso: precisa de uma das duas saídas acima.
+
+## 41. Tela de nova senha: motivo da recusa e senha salva desatualizada — 29/09/2026
+
+Dois relatos do teste da tela de nova senha, depois da §39.
+
+### 41.1 "A única mensagem é que não há 8 caracteres"
+
+A regra da senha (`signupPasswordSchema`) exige de 8 a 72 caracteres, sem espaços, com letra
+maiúscula, minúscula e número. Símbolos são opcionais. Mas `resetPasswordAction` respondia **sempre**
+"Senha deve ter ao menos 8 caracteres.", e o campo tinha `minLength={8}`, que abria o balão genérico
+do navegador. Quem digitava 12 caracteres sem número lia que faltavam caracteres.
+
+Agora `signupPasswordProblems`/`signupPasswordMessage` (em `src/lib/auth/signup-password.ts`, a
+mesma fonte do schema) dizem exatamente o que falta ("A senha precisa ter uma letra maiúscula e um
+número."). A tela mostra as regras antes do erro e checa no navegador antes de enviar, e o servidor
+repete a mesma mensagem. Senha fora da regra não chega ao servidor e não gasta tentativa do limite
+(§39.6).
+
+### 41.2 "A senha antiga era preenchida depois de trocar"
+
+O formulário de nova senha não tinha campo de usuário. Sem ele, o gerenciador de senhas do navegador
+não sabe de que conta é a senha nova, não atualiza a salva e, no login seguinte, preenche a antiga. A
+página agora lê o e-mail da sessão de recovery (só quando o usuário da sessão é o do grant) e o
+formulário leva um campo oculto `autocomplete="username"` com ele, ao lado do
+`autocomplete="new-password"`. É o padrão que o Chrome documenta para formulário de troca de senha.
+
+### 41.3 O que ficou provado
+
+| Item | Estado |
+| ---- | ------ |
+| Mensagem específica (maiúscula, minúscula, número, tamanho, espaços) | **PASS** — unidade; a mensagem é nula exatamente quando o schema aceita |
+| Tela: regras visíveis, recusa sem enviar, envio de senha válida, campo de usuário oculto | **PASS** — componente |
+| **E2E real** (`e2e/password-reset.spec.ts`): campo de usuário com o e-mail da conta; senha sem maiúscula nem número mostra o motivo; senha vazada e senha atual recusadas | **PASS** — DEV local; nenhuma senha trocada |
+| Os testes detectam a volta dos defeitos | **PASS 3/3** — mensagem fixa, envio de senha inválida, campo sem `autocomplete="username"` |
+| Suíte, cobertura e gates estáticos do CI | **PASS** — 4.475/4.475 |
+| O gerenciador de senhas oferecer "atualizar senha" e parar de preencher a antiga | **NOT TESTED** — depende do navegador e do gerenciador de cada pessoa; o que o código controla (campo de usuário e `new-password`) está coberto |

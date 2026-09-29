@@ -27,6 +27,7 @@ import { Logo } from '@/components/shared/logo';
 import { Alert } from '@/components/ui/alert';
 import { Card, CardContent } from '@/components/ui/card';
 import { RECOVERY_GRANT_COOKIE, readRecoveryGrant } from '@/lib/auth/recovery-grant';
+import { createServerClient } from '@/lib/auth/supabase-server';
 
 import { ResetPasswordForm } from './reset-password-form';
 
@@ -50,6 +51,17 @@ export default async function ResetPasswordPage({
     );
   }
 
+  // O e-mail só alimenta o campo oculto de usuário do formulário: sem ele, o
+  // gerenciador de senhas não sabe de que conta é a senha nova, não atualiza a
+  // salva e, no login seguinte, preenche a ANTIGA. Não decide nada: quem mostra
+  // o formulário continua sendo o grant.
+  let username: string | null = null;
+  if (grant) {
+    const supabase = await createServerClient();
+    const { data } = await supabase.auth.getUser();
+    if (data.user?.id === grant.userId && data.user.email) username = data.user.email;
+  }
+
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-canvas px-4 py-12">
       <div className="w-full max-w-sm">
@@ -62,7 +74,7 @@ export default async function ResetPasswordPage({
           <CardContent className="flex flex-col gap-4">
             <h1 className="text-base font-semibold">Nova senha</h1>
             {grant ? (
-              <ResetPasswordForm />
+              <ResetPasswordForm username={username} />
             ) : (
               <Alert variant="danger" title="Link inválido ou expirado">
                 Volte ao login e solicite um novo link de redefinição.

@@ -174,6 +174,13 @@ describe('resetPasswordAction', () => {
     expect(mocks.createServerClient).not.toHaveBeenCalled();
   });
 
+  it('diz o que falta na senha, não só o tamanho', async () => {
+    const result = await resetPasswordAction({ error: null }, form('senhasemnumero'));
+    expect(result.error).toBe('A senha precisa ter uma letra maiúscula e um número.');
+    expect(result.error).not.toContain('8 caracteres');
+    expect(mocks.createServerClient).not.toHaveBeenCalled();
+  });
+
   it('preserva recovery de profile por claims_version e bump de sessao', async () => {
     mocks.readGrant.mockReturnValue({
       kind: 'profile',
