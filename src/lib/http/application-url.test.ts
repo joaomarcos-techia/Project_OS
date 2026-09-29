@@ -7,6 +7,7 @@ vi.mock('@/lib/env', () => ({
 import {
   buildApplicationUrl,
   createAuthConfirmationUrl,
+  createPasswordResetConfirmationUrl,
   createSignupConfirmationUrl,
   createOnboardingInviteUrl,
   createPasswordResetRedirectUrl,
@@ -62,6 +63,21 @@ describe('buildApplicationUrl', () => {
     expect(() => createSignupConfirmationUrl('hash', 'recovery', 'draft-em-claro')).toThrow(
       '[app-url]',
     );
+  });
+
+  it('monta o link de redefinição de senha com o token no fragmento e destino fixo', () => {
+    const url = new URL(createPasswordResetConfirmationUrl('hash-de-teste'));
+    expect(url.origin + url.pathname).toBe('https://app.qoro.test/auth/confirm');
+    expect(url.search).toBe('');
+    expect(Object.fromEntries(new URLSearchParams(url.hash.slice(1)))).toEqual({
+      token_hash: 'hash-de-teste',
+      type: 'recovery',
+      next: '/reset-password',
+    });
+  });
+
+  it('recusa token vazio no link de redefinição', () => {
+    expect(() => createPasswordResetConfirmationUrl('  ')).toThrow('[app-url]');
   });
 
   it('constrói o destino allowlisted da recuperação de senha', () => {

@@ -21,11 +21,15 @@ const mocks = vi.hoisted(() => ({
   recordLoginAttempt: vi.fn(),
   redirect: vi.fn(),
   resetPasswordForEmail: vi.fn(),
+  sendPasswordResetEmail: vi.fn(),
   signInWithPassword: vi.fn(),
   signOut: vi.fn(),
 }));
 
 vi.mock('next/headers', () => ({ headers: mocks.headers }));
+vi.mock('@/contexts/identity/internal/password-reset-email', () => ({
+  sendPasswordResetEmail: mocks.sendPasswordResetEmail,
+}));
 vi.mock('next/navigation', () => ({ redirect: mocks.redirect }));
 vi.mock('@/contexts/onboarding', () => ({
   ensurePasswordAuthenticatedSignupAuthBinding: mocks.ensurePasswordAuthenticatedSignupAuthBinding,
@@ -76,6 +80,7 @@ beforeEach(() => {
   mocks.assertPasswordResetAllowed.mockResolvedValue({ ok: true });
   mocks.createPasswordResetRedirectUrl.mockReturnValue('https://app.qoro.test/reset-password');
   mocks.resetPasswordForEmail.mockResolvedValue({ error: null });
+  mocks.sendPasswordResetEmail.mockResolvedValue('sent');
   mocks.createServerClient.mockResolvedValue({
     auth: { resetPasswordForEmail: mocks.resetPasswordForEmail },
   });
@@ -87,19 +92,29 @@ describe('forgotPasswordAction', () => {
 
     expect(result).toEqual({ error: 'Informe um e-mail válido.', sent: false });
     expect(mocks.assertPasswordResetAllowed).not.toHaveBeenCalled();
-    expect(mocks.createServerClient).not.toHaveBeenCalled();
+    expect(mocks.sendPasswordResetEmail).not.toHaveBeenCalled();
   });
 
-  it('normaliza o e-mail e solicita recovery com o redirect allowlisted', async () => {
+  it('normaliza o e-mail e envia o link pelo caminho próprio, não pelo template do painel', async () => {
     const result = await forgotPasswordAction(PREVIOUS, form('  PESSOA@EXAMPLE.TEST  '));
 
     expect(mocks.assertPasswordResetAllowed).toHaveBeenCalledWith('203.0.113.7', 'email-hash');
     expect(mocks.hashEmail).toHaveBeenCalledWith('pessoa@example.test');
-    expect(mocks.resetPasswordForEmail).toHaveBeenCalledWith('pessoa@example.test', {
-      redirectTo: 'https://app.qoro.test/reset-password',
-    });
+    expect(mocks.sendPasswordResetEmail).toHaveBeenCalledWith('pessoa@example.test');
+    // `resetPasswordForEmail` mandava o template do painel, cujo link sempre
+    // terminava em "Link inválido ou expirado" (29/09/2026). Não pode voltar.
+    expect(mocks.resetPasswordForEmail).not.toHaveBeenCalled();
     expect(result).toEqual({ error: null, sent: true });
   });
+
+  it.each(['sent', 'no_account', 'failed'] as const)(
+    'resposta idêntica em qualquer desfecho (%s) — não revela se a conta existe',
+    async (outcome) => {
+      mocks.sendPasswordResetEmail.mockResolvedValue(outcome);
+      const result = await forgotPasswordAction(PREVIOUS, form('pessoa@example.test'));
+      expect(result).toEqual({ error: null, sent: true });
+    },
+  );
 
   it('responde genericamente quando o limite está esgotado', async () => {
     mocks.assertPasswordResetAllowed.mockResolvedValue({
@@ -110,27 +125,25 @@ describe('forgotPasswordAction', () => {
     const result = await forgotPasswordAction(PREVIOUS, form('pessoa@example.test'));
 
     expect(result).toEqual({ error: null, sent: true });
-    expect(mocks.createServerClient).not.toHaveBeenCalled();
+    expect(mocks.sendPasswordResetEmail).not.toHaveBeenCalled();
     expect(mocks.metricsEmit).toHaveBeenCalledWith('auth.ratelimit.tripped', {
       route: 'forgot-password',
     });
   });
 
-  it('não expõe erro devolvido pelo provedor', async () => {
-    mocks.resetPasswordForEmail.mockResolvedValue({
-      error: { message: 'smtp unavailable' },
-    });
+  it('não expõe falha de envio', async () => {
+    mocks.sendPasswordResetEmail.mockResolvedValue('failed');
 
     const result = await forgotPasswordAction(PREVIOUS, form('pessoa@example.test'));
 
     expect(result).toEqual({ error: null, sent: true });
     expect(mocks.loggerWarn).toHaveBeenCalledWith('forgot_password.request_failed', {
-      reason: 'provider_rejected',
+      reason: 'delivery',
     });
   });
 
   it('não expõe exceção operacional nem dados pessoais no log', async () => {
-    mocks.createServerClient.mockRejectedValue(new Error('auth unavailable'));
+    mocks.sendPasswordResetEmail.mockRejectedValue(new Error('auth unavailable'));
 
     const result = await forgotPasswordAction(PREVIOUS, form('pessoa@example.test'));
 
@@ -223,26 +236,16 @@ describe('repasse do captchaToken', () => {
     expect(result).toEqual({ error: 'Email ou senha inválidos.' });
   });
 
-  it('recuperação repassa o token e mantém a resposta indistinguível', async () => {
-    mocks.resetPasswordForEmail.mockResolvedValue({
-      error: { code: 'captcha_failed', message: 'captcha protection: request disallowed' },
-    });
-
+  it('recuperação mantém a resposta indistinguível mesmo com captcha no formulário', async () => {
+    // O token ia para o GoTrue, cujo captcha está desligado — ninguém o
+    // verificava. O envio agora é nosso; o que protege a rota é o rate limit.
     const data = new FormData();
     data.set('email', 'pessoa@example.test');
     data.set('captchaToken', '0.tok-recovery');
     const result = await forgotPasswordAction(PREVIOUS, data);
 
-    expect(mocks.resetPasswordForEmail).toHaveBeenCalledWith(
-      'pessoa@example.test',
-      expect.objectContaining({ captchaToken: '0.tok-recovery' }),
-    );
-    // Resposta idêntica ao sucesso: um erro visível de captcha aqui seria um
-    // oráculo a menos de ruído para quem enumera contas.
+    expect(mocks.sendPasswordResetEmail).toHaveBeenCalledWith('pessoa@example.test');
     expect(result).toEqual({ error: null, sent: true });
-    expect(mocks.loggerWarn).toHaveBeenCalledWith('forgot_password.request_failed', {
-      reason: 'captcha_failed',
-    });
   });
 });
 

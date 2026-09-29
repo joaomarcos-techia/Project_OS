@@ -7143,3 +7143,51 @@ e apagar uma assinatura própria, sem mexer nas cobranças da original.
   não efetivados serão varridos pelo cron no dia da vigência — que é o dia do vencimento, então a
   varredura pode chegar depois do cartão. Para os dois grupos, e para qualquer cancelamento até o
   deploy, o caminho é manual: excluir no painel do Asaas as cobranças pendentes da assinatura.
+
+## 39. "Esqueci a senha" terminava sempre em "link inválido" — 29/09/2026
+
+Um cliente relatou que o link de troca de senha dizia ser inválido. Não era o link dele: era **todo**
+link de redefinição pedido na tela de login.
+
+### 39.1 A causa, reproduzida
+
+`forgotPasswordAction` chamava `supabase.auth.resetPasswordForEmail`, e o GoTrue mandava o template
+"Reset Password" do painel. O template do próprio repositório (`design_system/email-reset-senha.html`)
+usava `{{ .ConfirmationURL }}` — um link para o `/auth/v1/verify` do GoTrue, que **consome o token** e
+redireciona para `/reset-password` com a sessão na URL (fragmento com `access_token`, ou `?code=` no
+fluxo PKCE). Desde a AUTH-006, `/reset-password` só aceita a prova de recovery que `/auth/confirm`
+emite depois de `verifyOtp`; qualquer outra coisa cai em "Link inválido ou expirado". O contrato da
+página mudou e o e-mail não acompanhou — nenhum template baseado em `ConfirmationURL` funcionaria,
+instalado ou não.
+
+Reproduzido no DEV com o código da `main`, com a conta de teste (que tem perfil de clínica):
+
+| Link | Resultado |
+| ---- | --------- |
+| Formato `ConfirmationURL` (o GoTrue respondeu 303 com `access_token`, `refresh_token`… na URL) | **Link inválido ou expirado** |
+| Variante PKCE, `?code=` | **Link inválido ou expirado** |
+| `/auth/confirm#token_hash=…&type=recovery&next=/reset-password` | **formulário de nova senha** |
+
+### 39.2 O conserto
+
+O mesmo desenho que o e-mail de confirmação de cadastro já usa: `generateLink({ type: 'recovery' })`
+devolve só o token (não envia nada), o link sai no formato que `/auth/confirm` verifica (token no
+fragmento, fora da query, do Referer e do log) e o Resend entrega um template que agora mora no
+código (`src/lib/email/templates/password-reset.ts`), validado antes de sair. O template do painel foi
+absorvido e removido do `design_system`, como o de cadastro. A resposta da tela continua idêntica para
+conta existente, inexistente, limite atingido e falha de envio. A chave de idempotência enviada ao
+Resend é um HMAC — o token não sai dali.
+
+O `captchaToken` do formulário deixou de ser repassado: ele ia para o GoTrue, cujo captcha está
+desligado em todos os projetos. O teto da rota continua sendo o rate limit por IP e por e-mail.
+
+### 39.3 O que ficou provado
+
+| Item | Estado |
+| ---- | ------ |
+| Causa reproduzida no DEV com o código da `main` | **PASS** |
+| **E2E real**: "Esqueci a senha" na tela → e-mail lido no Resend → link dele → formulário de nova senha | **PASS** — `e2e/password-reset.spec.ts`, opt-in, só em localhost; não troca a senha da conta de teste |
+| Testes direcionados (envio, template, URL, action) | **PASS** |
+| Os testes detectam a volta do defeito | **PASS 5/5** — inclusive voltar a chamar `resetPasswordForEmail` |
+| Suíte, lint, typecheck, formato | **PASS** — 4.399/4.399 |
+| Em produção | **NOT TESTED** — depende do merge e do deploy |
