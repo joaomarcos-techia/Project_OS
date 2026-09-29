@@ -362,6 +362,23 @@ export interface PaymentProvider {
     asaasSubscriptionId: string,
     opts?: { attempts?: number },
   ): Promise<ProviderPayment[]>;
+  /**
+   * Cobranças da assinatura que AINDA PODEM virar dinheiro: `PENDING`, `OVERDUE`
+   * e `AWAITING_RISK_ANALYSIS` (cartão em análise), em todas as páginas.
+   *
+   * Existe para o cancelamento. `listSubscriptionPayments` lê só a primeira
+   * página, sem filtro — suficiente para materializar, insuficiente para
+   * afirmar "não sobrou cobrança": uma assinatura antiga tem mais de dez
+   * cobranças pagas, e a pendente pode estar na página seguinte.
+   *
+   * Cobrança apagada não vem: medido no sandbox em 28/09/2026, ela some da
+   * listagem (o `GET` direto ainda responde 200 com `deleted: true`). O filtro
+   * por `deleted` abaixo é defesa, não suposição.
+   *
+   * Lança `unpaid_listing_truncated` se a paginação não terminar dentro do teto:
+   * uma lista incompleta aqui viraria "cancelado sem sobra" com cobrança viva.
+   */
+  listUnpaidSubscriptionPayments(asaasSubscriptionId: string): Promise<ProviderPayment[]>;
   /** `attempts` aperta o orçamento de retry (webhook usa 1 — ver [asaas/route.ts]). */
   getPayment(asaasPaymentId: string, opts?: { attempts?: number }): Promise<ProviderPayment>;
   /** Recupera uma cobrança de operação local após timeout de POST. */
@@ -442,6 +459,38 @@ function asNum(v: unknown): number {
 }
 function asStr(v: unknown): string | null {
   return typeof v === 'string' && v.length > 0 ? v : null;
+}
+
+/**
+ * Estados em que uma cobrança de assinatura ainda pode virar dinheiro. Tudo o que
+ * não está aqui já foi pago, devolvido ou disputado — e não é o que um
+ * cancelamento precisa apagar.
+ */
+export const UNPAID_SUBSCRIPTION_PAYMENT_STATUSES = [
+  'PENDING',
+  'OVERDUE',
+  'AWAITING_RISK_ANALYSIS',
+] as const;
+const UNPAID_LISTING_PAGE_SIZE = 100;
+/** 2.000 cobranças abertas por status: muito além de qualquer assinatura real. */
+const UNPAID_LISTING_MAX_PAGES = 20;
+
+function listedSubscriptionPayment(payment: unknown, subscriptionId: string): ProviderPayment {
+  const p = payment as Record<string, unknown>;
+  return {
+    paymentId: String(p.id),
+    status: asStr(p.status) ?? 'UNKNOWN',
+    value: asNum(p.value),
+    dueDate: asStr(p.dueDate) ?? '',
+    invoiceUrl: asStr(p.invoiceUrl),
+    // A resposta pertence à assinatura consultada. O fallback mantém a
+    // correlação mesmo se a API omitir o campo `subscription` na listagem.
+    subscriptionId: asStr(p.subscription) ?? subscriptionId,
+    billingType: asStr(p.billingType),
+    externalReference: asStr(p.externalReference),
+    checkoutSessionId: asStr(p.checkoutSession),
+    deleted: p.deleted === true,
+  };
 }
 
 function chargebackFields(
@@ -823,23 +872,37 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
         opts,
       )) as { data?: unknown };
       const payments = Array.isArray(r.data) ? r.data : [];
-      return payments.map((payment) => {
-        const p = payment as Record<string, unknown>;
-        return {
-          paymentId: String(p.id),
-          status: asStr(p.status) ?? 'UNKNOWN',
-          value: asNum(p.value),
-          dueDate: asStr(p.dueDate) ?? '',
-          invoiceUrl: asStr(p.invoiceUrl),
-          // A resposta pertence à assinatura consultada. O fallback mantém a
-          // correlação mesmo se a API omitir o campo `subscription` na listagem.
-          subscriptionId: asStr(p.subscription) ?? id,
-          billingType: asStr(p.billingType),
-          externalReference: asStr(p.externalReference),
-          checkoutSessionId: asStr(p.checkoutSession),
-          deleted: p.deleted === true,
-        };
-      });
+      return payments.map((payment) => listedSubscriptionPayment(payment, id));
+    },
+
+    async listUnpaidSubscriptionPayments(id) {
+      const found: ProviderPayment[] = [];
+      for (const status of UNPAID_SUBSCRIPTION_PAYMENT_STATUSES) {
+        for (let page = 0; ; page++) {
+          if (page >= UNPAID_LISTING_MAX_PAGES) {
+            throw new BillingProviderError(
+              'Listagem de cobranças em aberto não terminou dentro do teto de páginas.',
+              'unpaid_listing_truncated',
+            );
+          }
+          const query = new URLSearchParams({
+            status,
+            limit: String(UNPAID_LISTING_PAGE_SIZE),
+            offset: String(page * UNPAID_LISTING_PAGE_SIZE),
+          });
+          const r = (await request(
+            'GET',
+            `/subscriptions/${encodeURIComponent(id)}/payments?${query.toString()}`,
+          )) as { data?: unknown; hasMore?: unknown };
+          const payments = Array.isArray(r.data) ? r.data : [];
+          for (const payment of payments) {
+            const mapped = listedSubscriptionPayment(payment, id);
+            if (!mapped.deleted) found.push(mapped);
+          }
+          if (r.hasMore !== true) break;
+        }
+      }
+      return found;
     },
 
     async getPayment(id, opts) {

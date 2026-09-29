@@ -412,6 +412,44 @@ export async function markInvoicePaid(
     });
     await recordBillingEvent(tx, clinicId, 'invoice.paid', { invoiceId: invoice.id });
   }
+  // Pagamento de uma assinatura CANCELADA não reabre nada. Antes, o caminho
+  // abaixo avançava o ciclo, voltava o billing para `active` e liberava o
+  // acesso: uma parcela que sobrava no Asaas depois do cancelamento era
+  // cobrada E desfazia o cancelamento — a pessoa pedia para sair, pagava e
+  // encontrava a assinatura de volta. Reativar é decisão explícita, pelo fluxo
+  // auditado de /configuracoes/assinatura. O dinheiro entrou, então a invoice
+  // fica `paid` (acima) e o caso vira evento para estorno humano.
+  const [sub] = await tx
+    .select({
+      billingStatus: subscriptions.billingStatus,
+      cancelAtPeriodEnd: subscriptions.cancelAtPeriodEnd,
+    })
+    .from(subscriptions)
+    .where(eq(subscriptions.clinicId, clinicId))
+    .limit(1);
+  if (sub?.billingStatus === 'cancelled') {
+    await recordBillingEvent(tx, clinicId, 'invoice.paid_after_cancellation', {
+      invoiceId: invoice.id,
+      providerPaymentId: opts.providerPaymentId,
+    });
+    metrics.emit('billing.invoice.paid_after_cancellation', { clinicId, invoiceId: invoice.id });
+    return;
+  }
+  // Cancelamento agendado e ainda assim uma cobrança paga: o cancelamento já
+  // devia ter apagado tudo em aberto, então isto é um cartão processado no
+  // mesmo instante. Segue o caminho normal (a clínica ainda está ativa), mas
+  // sinaliza — ela pagou por um ciclo que o cancelamento não vai entregar.
+  if (sub?.cancelAtPeriodEnd) {
+    await recordBillingEvent(tx, clinicId, 'invoice.paid_during_scheduled_cancellation', {
+      invoiceId: invoice.id,
+      providerPaymentId: opts.providerPaymentId,
+    });
+    metrics.emit('billing.invoice.paid_during_scheduled_cancellation', {
+      clinicId,
+      invoiceId: invoice.id,
+    });
+  }
+
   // BILLING-001 — abre o período que esta cobrança pagou. Roda ANTES de ativar:
   // quem lê a subscription no evento de ativação já vê o ciclo novo, não o
   // trial encerrado.

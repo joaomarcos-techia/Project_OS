@@ -44,6 +44,10 @@ export const GET = withCron(
             FROM invoices i
             JOIN subscriptions s ON s.clinic_id = i.clinic_id
            WHERE i.status = 'overdue'
+             -- Assinatura cancelada não é inadimplente: não se persegue quem
+             -- saiu. Antes deste filtro, uma parcela que sobrava no Asaas após o
+             -- cancelamento vencia e levava a clínica cancelada pela régua.
+             AND s.billing_status <> 'cancelled'
            GROUP BY i.clinic_id, s.id, s.dunning_stage, s.grace_period_until`,
     )) as unknown as Array<{
       clinic_id: string;

@@ -10,6 +10,9 @@ const {
   markInvoiceRefunded,
   syncInvoiceFromProviderPayment,
   updateSubscription,
+  listUnpaidSubscriptionPayments,
+  cancelPayment,
+  reopenReactivatedClinics,
   applyScheduledPlanChange,
   emit,
 } = vi.hoisted(() => ({
@@ -22,6 +25,9 @@ const {
   markInvoiceRefunded: vi.fn(),
   syncInvoiceFromProviderPayment: vi.fn(),
   updateSubscription: vi.fn(),
+  listUnpaidSubscriptionPayments: vi.fn(),
+  cancelPayment: vi.fn(),
+  reopenReactivatedClinics: vi.fn(),
   applyScheduledPlanChange: vi.fn(),
   emit: vi.fn(),
 }));
@@ -49,7 +55,13 @@ vi.mock('@/lib/db', () => ({
   },
 }));
 vi.mock('@/lib/payments/asaas', () => ({
-  asaasProvider: { listSubscriptionPayments, getPayment, updateSubscription },
+  asaasProvider: {
+    listSubscriptionPayments,
+    getPayment,
+    updateSubscription,
+    listUnpaidSubscriptionPayments,
+    cancelPayment,
+  },
   // BILLING-002 — a rota distingue 404 (cobranca removida) de indisponibilidade.
   BillingProviderError: class BillingProviderError extends Error {
     constructor(
@@ -63,6 +75,7 @@ vi.mock('@/lib/payments/asaas', () => ({
   },
 }));
 vi.mock('@/contexts/billing/internal/plan-changes', () => ({ applyScheduledPlanChange }));
+vi.mock('@/contexts/billing/internal/clinic-status', () => ({ reopenReactivatedClinics }));
 vi.mock('@/contexts/billing/internal/subscriptions', () => ({
   ensureInvoiceForPayment,
   markInvoicePaid,
@@ -79,6 +92,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   selectResults.length = 0;
   listSubscriptionPayments.mockResolvedValue([]);
+  listUnpaidSubscriptionPayments.mockResolvedValue([]);
+  cancelPayment.mockResolvedValue({ deleted: true });
+  reopenReactivatedClinics.mockResolvedValue(0);
   applyScheduledPlanChange.mockResolvedValue({ applied: true, kind: 'cancellation' });
   // BILLING-002 — por padrão local e provedor concordam: a reconciliação é
   // no-op e devolve a mesma invoice para a transição seguinte.
@@ -136,7 +152,7 @@ describe('billing reconcile', () => {
     );
   });
 
-  it('pausa no Asaas antes de aplicar o cancelamento local agendado', async () => {
+  function cancelamentoVencido() {
     selectResults.push(
       [],
       [
@@ -150,6 +166,22 @@ describe('billing reconcile', () => {
       ],
       [],
     );
+  }
+  const pendenteHoje = {
+    paymentId: 'pay_hoje',
+    status: 'PENDING',
+    value: 149,
+    dueDate: '2026-09-28',
+    invoiceUrl: null,
+    subscriptionId: 'sub_1',
+    billingType: 'CREDIT_CARD',
+    externalReference: null,
+    checkoutSessionId: null,
+    deleted: false,
+  };
+
+  it('pausa no Asaas antes de aplicar o cancelamento local agendado', async () => {
+    cancelamentoVencido();
 
     const response = await GET(new Request('http://localhost/api/cron/billing-reconcile'));
 
@@ -164,6 +196,50 @@ describe('billing reconcile', () => {
       fixed: 0,
       scheduledChangesApplied: 1,
     });
+  });
+
+  it('apaga a parcela que vence no dia do cancelamento ANTES de aplicá-lo', async () => {
+    // O defeito medido: o Asaas cria a cobrança 40 dias antes; `INACTIVE` a deixa
+    // viva, e ela vence exatamente no dia em que o cancelamento entra em vigor.
+    cancelamentoVencido();
+    listUnpaidSubscriptionPayments.mockResolvedValueOnce([pendenteHoje]).mockResolvedValueOnce([]);
+
+    await GET(new Request('http://localhost/api/cron/billing-reconcile'));
+
+    expect(cancelPayment).toHaveBeenCalledWith('pay_hoje');
+    expect(updateSubscription.mock.invocationCallOrder[0]).toBeLessThan(
+      cancelPayment.mock.invocationCallOrder[0]!,
+    );
+    expect(cancelPayment.mock.invocationCallOrder[0]).toBeLessThan(
+      applyScheduledPlanChange.mock.invocationCallOrder[0]!,
+    );
+  });
+
+  it('NÃO aplica o cancelamento local enquanto sobrar cobrança viva no Asaas', async () => {
+    // Aplicar aqui tiraria a assinatura da varredura diária (que só olha
+    // trial/active/past_due) — e a cobrança que sobrou nunca mais seria apagada.
+    cancelamentoVencido();
+    listUnpaidSubscriptionPayments.mockResolvedValue([pendenteHoje]);
+    cancelPayment.mockRejectedValue(new Error('asaas fora'));
+    getPayment.mockResolvedValue(pendenteHoje);
+
+    const response = await GET(new Request('http://localhost/api/cron/billing-reconcile'));
+
+    expect(applyScheduledPlanChange).not.toHaveBeenCalled();
+    expect(emit).toHaveBeenCalledWith(
+      'billing.plan_change.cancellation_charges_pending',
+      expect.objectContaining({ changeId: 'change_cancel_1', reason: 'provider_unavailable' }),
+    );
+    expect((await response.json()).scheduledChangesApplied).toBe(0);
+  });
+
+  it('reabre clínicas que ficaram fechadas depois de uma reativação', async () => {
+    reopenReactivatedClinics.mockResolvedValue(2);
+
+    await GET(new Request('http://localhost/api/cron/billing-reconcile'));
+
+    expect(reopenReactivatedClinics).toHaveBeenCalledTimes(1);
+    expect(emit).toHaveBeenCalledWith('billing.reactivation.reopened_by_cron', { reopened: 2 });
   });
 });
 

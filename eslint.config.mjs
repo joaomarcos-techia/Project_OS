@@ -278,6 +278,12 @@ const config = [
       // O-6: provisionamento a partir do cadastro pré-tenant. Lê/apaga
       // signup_sessions e cria o tenant na MESMA tx — irmão da saga de convite.
       'src/contexts/onboarding/internal/signup-provision.ts',
+      // Reabrir a clínica depois de reativar a assinatura. `clinics` só tem UPDATE
+      // para super_admin: dentro de withTenant o UPDATE casa ZERO linhas (medido
+      // em 28/09) e a clínica pagava continuando bloqueada. Comando estreito: só
+      // `cancelled` → `active`, e só com billing ativo e reativação como último
+      // evento do histórico. Mesmo padrão de session-epoch.ts.
+      'src/contexts/billing/internal/clinic-status.ts',
       // O-3b (22/09/2026): o e-mail de confirmação passou a ser NOSSO. Emitir o
       // token de confirmação é `auth.admin.generateLink`, que só existe na Admin
       // API — a chave anônima não a alcança, e não há caminho de menor

@@ -24,7 +24,7 @@ import {
   subscriptions,
 } from '../schema';
 import { toCents, toReais, toReaisString } from './money';
-import { setClinicAccess } from './subscriptions';
+import { setClinicAccess, syncInvoiceFromProviderPayment } from './subscriptions';
 
 const PLAN_RANK: Readonly<Record<string, number>> = { solo: 1, clinica: 2, pro: 3 };
 export const PLAN_CHANGE_EXTERNAL_REFERENCE_PREFIX = 'plan-change:';
@@ -65,11 +65,38 @@ export type CancellationRequestInput = {
   now?: Date;
 };
 
+/**
+ * O registro local de um cancelamento cujo lado Asaas JÁ foi feito.
+ *
+ * Os ids vêm de `removeSubscriptionCharges`, e só dele: é a prova de que a
+ * recorrência parou e de que aquelas cobranças deixaram de existir. O registro
+ * local nunca é gravado antes disso — um cancelamento "só no app" era o defeito.
+ */
+export type ConfirmedCancellationInput = CancellationRequestInput & {
+  removedPaymentIds: readonly string[];
+  paidPaymentIds: readonly string[];
+};
+
 export type RequestedCancellation = {
   id: string;
   kind: 'cancellation';
   status: 'scheduled';
   effectiveAt: Date;
+  removedCharges: number;
+};
+
+/** O que o lado Asaas do cancelamento precisa, lido antes de qualquer chamada remota. */
+export type SubscriptionCancellationContext = {
+  asaasSubscriptionId: string | null;
+  /** Cobranças avulsas conhecidas: rateio de upgrade pendente e invoices em aberto. */
+  extraPaymentIds: string[];
+  effectiveAt: Date;
+};
+
+export type SubscriptionRevocationContext = {
+  asaasSubscriptionId: string | null;
+  value: number;
+  nextDueDate: string;
 };
 
 export type SubscriptionReactivationContext = {
@@ -91,6 +118,7 @@ type CurrentSubscription = {
   billingStatus: 'trial' | 'active' | 'past_due' | 'cancelled';
   currentPeriodStart: Date | null;
   currentPeriodEnd: Date | null;
+  trialEndsAt: Date | null;
   asaasSubscriptionId: string | null;
 };
 
@@ -148,6 +176,7 @@ async function readCurrentSubscription(tx: Tx, clinicId: string): Promise<Curren
       billingStatus: subscriptions.billingStatus,
       currentPeriodStart: subscriptions.currentPeriodStart,
       currentPeriodEnd: subscriptions.currentPeriodEnd,
+      trialEndsAt: subscriptions.trialEndsAt,
       asaasSubscriptionId: subscriptions.asaasSubscriptionId,
     })
     .from(subscriptions)
@@ -271,6 +300,30 @@ function dateOnly(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
+/**
+ * O vencimento mais cedo que o Asaas aceita ao RELIGAR uma recorrência.
+ *
+ * Medido no sandbox em 28/09/2026: `PUT /subscriptions/{id}` com `status:
+ * 'ACTIVE'` e vencimento hoje (ou antes) responde `400 invalid_nextDueDate` —
+ * "Para reativar a assinatura, é necessário que a data do próximo vencimento
+ * seja maior que hoje". A reativação usava "hoje" e por isso NUNCA funcionou
+ * contra o Asaas de verdade; só o E2E de ponta a ponta mostrou.
+ *
+ * Amanhã em UTC é sempre maior que "hoje" tanto em UTC quanto no Brasil (o dia
+ * UTC nunca está atrás do dia de Brasília), então serve qualquer que seja o
+ * relógio que o Asaas usa.
+ */
+export function earliestReactivationDueDate(now: Date): string {
+  return dateOnly(new Date(now.getTime() + 86_400_000));
+}
+
+/** O maior entre uma data desejada e o mínimo que o Asaas aceita ao religar. */
+function reactivationDueDate(desired: Date, now: Date): string {
+  const minimum = earliestReactivationDueDate(now);
+  const wanted = dateOnly(desired);
+  return wanted > minimum ? wanted : minimum;
+}
+
 /** Mantém o dia do mês quando possível (31/01 -> 28/02, nunca março). */
 export function nextPeriodEnd(start: Date, billingCycle: 'monthly' | 'annual'): Date {
   const months = billingCycle === 'annual' ? 12 : 1;
@@ -329,9 +382,18 @@ export async function requestPlanChange(
     .orderBy(desc(subscriptionChangeRequests.createdAt))
     .limit(1);
   if (existing) {
+    // Um cancelamento agendado já pausou a recorrência e apagou as cobranças no
+    // Asaas. Revogá-lo aqui, só no banco, deixaria a clínica ativa no Qoro e
+    // SEM cobrança nenhuma no provedor. Quem desfaz um cancelamento é o
+    // "Manter assinatura", que reativa o lado Asaas antes.
+    if (existing.kind === 'cancellation') {
+      throw new PlanChangeError(
+        'Há um cancelamento agendado. Use "Manter assinatura" antes de trocar de plano.',
+        'cancellation_scheduled',
+      );
+    }
     if (direction === 1 && existing.status === 'scheduled') {
       if (existing.kind === 'downgrade') await cancelScheduledDowngrade(tx, current.id);
-      if (existing.kind === 'cancellation') await cancelScheduledCancellation(tx, current.id);
     } else {
       throw new PlanChangeError(
         'Já existe uma alteração de plano em andamento.',
@@ -408,42 +470,162 @@ export async function requestPlanChange(
   };
 }
 
-/** Agenda o cancelamento apenas para o fim do ciclo vigente. */
-export async function requestSubscriptionCancellation(
-  tx: Tx,
-  input: CancellationRequestInput,
-): Promise<RequestedCancellation> {
-  const current = await readCurrentSubscription(tx, input.clinicId);
-  if (current.billingStatus !== 'active') {
+const CANCELLABLE: ReadonlySet<CurrentSubscription['billingStatus']> = new Set([
+  'trial',
+  'active',
+  'past_due',
+]);
+
+/**
+ * Quando o cancelamento passa a valer.
+ *
+ *   - `active`: no fim do ciclo JÁ PAGO. Apagar a cobrança do próximo ciclo não
+ *     tira da clínica o que ela pagou.
+ *   - `trial`: no fim do teste. O teste foi prometido; só a cobrança que viria
+ *     depois dele é apagada.
+ *   - `past_due`: agora. Não há período pago a honrar, e a dívida em aberto é
+ *     apagada junto — é o que "apagar todas as cobranças" significa.
+ *
+ * Datas no passado viram `now`: um ciclo já vencido não é prazo a esperar.
+ */
+export function cancellationEffectiveAt(
+  current: Pick<CurrentSubscription, 'billingStatus' | 'currentPeriodEnd' | 'trialEndsAt'>,
+  now: Date,
+): Date {
+  const candidate =
+    current.billingStatus === 'active'
+      ? current.currentPeriodEnd
+      : current.billingStatus === 'trial'
+        ? current.trialEndsAt
+        : null;
+  return candidate && candidate.getTime() > now.getTime() ? candidate : now;
+}
+
+function assertCancellable(current: CurrentSubscription): void {
+  if (current.billingStatus === 'cancelled') {
+    throw new PlanChangeError('A assinatura já está cancelada.', 'subscription_already_cancelled');
+  }
+  if (!CANCELLABLE.has(current.billingStatus)) {
     throw new PlanChangeError(
-      'O cancelamento exige uma assinatura ativa.',
-      'subscription_not_active',
+      'Não foi possível cancelar esta assinatura.',
+      'subscription_not_cancellable',
     );
   }
-  if (!current.currentPeriodEnd) {
+}
+
+async function findScheduledCancellation(
+  tx: Tx,
+  subscriptionId: string,
+): Promise<{ id: string; effectiveAt: Date } | null> {
+  const [row] = await tx
+    .select({
+      id: subscriptionChangeRequests.id,
+      effectiveAt: subscriptionChangeRequests.effectiveAt,
+    })
+    .from(subscriptionChangeRequests)
+    .where(
+      and(
+        eq(subscriptionChangeRequests.subscriptionId, subscriptionId),
+        eq(subscriptionChangeRequests.kind, 'cancellation'),
+        eq(subscriptionChangeRequests.status, 'scheduled'),
+      ),
+    )
+    .limit(1);
+  return row ?? null;
+}
+
+/**
+ * Lê, sem gravar nada, o que o lado Asaas do cancelamento precisa.
+ *
+ * Roda ANTES da chamada remota. As cobranças avulsas entram aqui porque são
+ * justamente as que a listagem da recorrência não enxerga: o rateio de um
+ * upgrade aguardando pagamento e qualquer invoice local ainda em aberto.
+ */
+export async function getSubscriptionCancellationContext(
+  clinicId: string,
+  now: Date = new Date(),
+): Promise<SubscriptionCancellationContext> {
+  return withTenant(clinicId, async (tx) => {
+    const current = await readCurrentSubscription(tx, clinicId);
+    assertCancellable(current);
+    if (await findScheduledCancellation(tx, current.id)) {
+      throw new PlanChangeError(
+        'O cancelamento desta assinatura já está agendado.',
+        'cancellation_already_scheduled',
+      );
+    }
+
+    const pendingUpgrades = await tx
+      .select({ paymentId: subscriptionChangeRequests.providerPaymentId })
+      .from(subscriptionChangeRequests)
+      .where(
+        and(
+          eq(subscriptionChangeRequests.subscriptionId, current.id),
+          eq(subscriptionChangeRequests.status, 'pending_payment'),
+        ),
+      );
+    const openInvoices = await tx
+      .select({ paymentId: invoices.asaasPaymentId })
+      .from(invoices)
+      .where(
+        and(
+          eq(invoices.clinicId, clinicId),
+          inArray(invoices.status, ['open', 'overdue', 'partial']),
+        ),
+      );
+    const extraPaymentIds = [
+      ...new Set(
+        [...pendingUpgrades, ...openInvoices]
+          .map((row) => row.paymentId)
+          .filter((id): id is string => typeof id === 'string' && id.length > 0),
+      ),
+    ];
+
+    return {
+      asaasSubscriptionId: current.asaasSubscriptionId,
+      extraPaymentIds,
+      effectiveAt: cancellationEffectiveAt(current, now),
+    };
+  });
+}
+
+/**
+ * Registra o cancelamento cujo lado Asaas JÁ foi confirmado.
+ *
+ * O que muda em relação ao desenho anterior:
+ *   - aceita trial e inadimplência, não só `active` (antes a pessoa em teste
+ *     não tinha como cancelar, e a primeira cobrança vinha no fim do teste);
+ *   - supera qualquer upgrade/downgrade pendente, em vez de recusar — cancelar
+ *     tem de ser sempre possível, e a cobrança do upgrade já foi apagada;
+ *   - marca como canceladas as invoices locais das cobranças apagadas, para que
+ *     tela, régua de cobrança e relatórios não sigam uma cobrança que não existe.
+ */
+export async function requestSubscriptionCancellation(
+  tx: Tx,
+  input: ConfirmedCancellationInput,
+): Promise<RequestedCancellation> {
+  const now = input.now ?? new Date();
+  const current = await readCurrentSubscription(tx, input.clinicId);
+  assertCancellable(current);
+  if (await findScheduledCancellation(tx, current.id)) {
     throw new PlanChangeError(
-      'A assinatura ainda não possui um ciclo de cobrança válido.',
-      'period_unavailable',
+      'O cancelamento desta assinatura já está agendado.',
+      'cancellation_already_scheduled',
     );
   }
 
-  const [existing] = await tx
-    .select({ id: subscriptionChangeRequests.id })
-    .from(subscriptionChangeRequests)
+  const superseded = await tx
+    .update(subscriptionChangeRequests)
+    .set({ status: 'cancelled', cancelledAt: sql`now()` })
     .where(
       and(
         eq(subscriptionChangeRequests.subscriptionId, current.id),
         inArray(subscriptionChangeRequests.status, ['pending_payment', 'scheduled']),
       ),
     )
-    .limit(1);
-  if (existing) {
-    throw new PlanChangeError(
-      'Já existe uma alteração de assinatura em andamento.',
-      'change_already_pending',
-    );
-  }
+    .returning({ id: subscriptionChangeRequests.id, kind: subscriptionChangeRequests.kind });
 
+  const effectiveAt = cancellationEffectiveAt(current, now);
   const [created] = await tx
     .insert(subscriptionChangeRequests)
     .values({
@@ -453,7 +635,7 @@ export async function requestSubscriptionCancellation(
       status: 'scheduled',
       fromPlanId: current.planId,
       fromPriceId: current.priceId,
-      effectiveAt: current.currentPeriodEnd,
+      effectiveAt,
       idempotencyKey: input.idempotencyKey,
       requestedBy: input.requestedBy,
       requestedIp: input.request.ip,
@@ -468,20 +650,95 @@ export async function requestSubscriptionCancellation(
     .update(subscriptions)
     .set({ cancelAtPeriodEnd: true })
     .where(eq(subscriptions.id, current.id));
+
+  // As invoices locais das cobranças apagadas. O webhook PAYMENT_DELETED faria o
+  // mesmo depois, mas a tela desta clínica não pode ficar dependendo dele para
+  // parar de mostrar uma cobrança que já não existe.
+  if (input.removedPaymentIds.length > 0) {
+    const locais = await tx
+      .select()
+      .from(invoices)
+      .where(
+        and(
+          eq(invoices.clinicId, input.clinicId),
+          inArray(invoices.asaasPaymentId, [...input.removedPaymentIds]),
+        ),
+      );
+    for (const invoice of locais) {
+      await syncInvoiceFromProviderPayment(
+        tx,
+        input.clinicId,
+        invoice,
+        { exists: false },
+        {
+          idemSuffix: `cancellation:${created.id}:${invoice.asaasPaymentId}`,
+          providerConfirmedMissing: true,
+        },
+      );
+    }
+  }
+
   await tx.insert(billingEvents).values({
     clinicId: input.clinicId,
     type: 'subscription.cancellation.requested',
     payload: {
       changeId: created.id,
-      effectiveAt: current.currentPeriodEnd.toISOString(),
+      effectiveAt: effectiveAt.toISOString(),
+      fromStatus: current.billingStatus,
+      removedCharges: input.removedPaymentIds.length,
+      supersededChanges: superseded.map((row) => ({ id: row.id, kind: row.kind })),
     } as never,
   });
+  // Cobrança que já estava paga quando o cancelamento chegou (em geral um
+  // cartão processado no mesmo instante). O cancelamento segue; o dinheiro
+  // entrou e precisa de decisão humana — por isso vira evento próprio.
+  if (input.paidPaymentIds.length > 0) {
+    await tx.insert(billingEvents).values({
+      clinicId: input.clinicId,
+      type: 'subscription.cancellation.paid_charge_detected',
+      payload: { changeId: created.id, paymentIds: [...input.paidPaymentIds] } as never,
+    });
+  }
   return {
     id: created.id,
     kind: 'cancellation',
     status: 'scheduled',
-    effectiveAt: current.currentPeriodEnd,
+    effectiveAt,
+    removedCharges: input.removedPaymentIds.length,
   };
+}
+
+/**
+ * O que "Manter assinatura" precisa para religar a recorrência no Asaas.
+ *
+ * O cancelamento pausou a recorrência e apagou as cobranças NA HORA. Revogar só
+ * no banco deixaria a clínica ativa e o Asaas parado — serviço sem cobrança.
+ * `nextDueDate` é a data em que o cancelamento valeria: a cobrança volta a
+ * existir exatamente onde a pessoa estaria pagando de novo.
+ */
+export async function getSubscriptionRevocationContext(
+  clinicId: string,
+  now: Date = new Date(),
+): Promise<SubscriptionRevocationContext> {
+  return withTenant(clinicId, async (tx) => {
+    const current = await readCurrentSubscription(tx, clinicId);
+    const scheduled = await findScheduledCancellation(tx, current.id);
+    if (!scheduled) {
+      throw new PlanChangeError(
+        'Nenhum cancelamento agendado foi encontrado.',
+        'cancellation_not_scheduled',
+      );
+    }
+    const value = Number(current.priceAmount);
+    if (!Number.isFinite(value) || value <= 0) {
+      throw new PlanChangeError('Valor da assinatura inválido para reativação.', 'invalid_price');
+    }
+    return {
+      asaasSubscriptionId: current.asaasSubscriptionId,
+      value,
+      nextDueDate: reactivationDueDate(scheduled.effectiveAt, now),
+    };
+  });
 }
 
 /** Revoga um cancelamento antes de sua efetivação no provedor. */
@@ -556,7 +813,8 @@ export async function getSubscriptionReactivationContext(
     return {
       asaasSubscriptionId: current.asaasSubscriptionId,
       value,
-      nextDueDate: dateOnly(now),
+      // A cobrança da reativação vence amanhã, não hoje: o Asaas recusa hoje.
+      nextDueDate: earliestReactivationDueDate(now),
     };
   });
 }
@@ -1036,6 +1294,7 @@ export type PlanChangeOverview = {
     billingCycle: 'monthly' | 'annual';
     billingStatus: 'trial' | 'active' | 'past_due' | 'cancelled';
     periodEnd: string | null;
+    trialEndsAt: string | null;
   };
   plans: Array<{
     id: string;
@@ -1129,6 +1388,7 @@ export async function getPlanChangeOverview(clinicId: string): Promise<PlanChang
         billingCycle: current.billingCycle,
         billingStatus: current.billingStatus,
         periodEnd: current.currentPeriodEnd?.toISOString() ?? null,
+        trialEndsAt: current.trialEndsAt?.toISOString() ?? null,
       },
       plans: planRows.map((plan) => ({
         ...plan,
