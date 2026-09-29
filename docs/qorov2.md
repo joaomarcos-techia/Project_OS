@@ -7246,3 +7246,57 @@ log.
 senha recusada conta. Quem tentar três senhas vazadas espera até uma hora. Afrouxar é decisão de
 produto.
 
+## 40. Gap: conta de cadastro que expira antes do pagamento entra em loop no login — 29/09/2026
+
+**Estado: aberto.** Documentado, sem correção. A correção depende de decisão de produto (40.4).
+
+### 40.1 O sintoma
+
+A pessoa digita e-mail e senha corretos, clica em "Entrar" e volta para a tela de login, **sem
+nenhuma mensagem**. Parece senha errada, mas não é: o Auth aceita a senha e cria a sessão.
+
+Achado em 29/09/2026 com uma conta de teste do próprio time (`2c1411d1…`, criada em 22/09 por cadastro
+autônomo). Em produção: `login_attempts` registrou sucesso às 02:03:22 e 02:03:36 BRT, e
+`auth.sessions` ganhou duas sessões `aal1` que nunca foram usadas. Os avisos no console do navegador
+(`normal?lang=auto`, WOFF, WebGPU) eram do iframe do Cloudflare Turnstile e não tinham relação com o
+problema.
+
+### 40.2 A causa
+
+1. O cadastro autônomo cria o usuário no Auth e grava em `app_metadata.qoro_self_service_signup` o
+   vínculo com o rascunho (`signup_ref`, `password_state = set`). A clínica (profile) só nasce no
+   provisionamento, depois do pagamento.
+2. O rascunho (`signup_sessions`) vence em **15 min parado ou 1 h no total**
+   (`SIGNUP_IDLE_TTL_SECONDS`, `SIGNUP_ABSOLUTE_TTL_SECONDS`). O cron `signup-sessions-cleanup`
+   (a cada 10 min) apaga os vencidos sem rastro de cobrança. **O usuário no Auth nunca é apagado.**
+3. No login, `loginAction` não acha profile → `resolvePreTenantOnboarding` devolve `pretenant` → o
+   vínculo diz `password_state = set` → `redirect('/cadastro/continuar')`.
+4. `/cadastro/continuar` chama `resolveReadyOwnedSignupOnboarding`, que procura o rascunho em
+   `signup_sessions`. Sem a linha, devolve `credentials_invalid`, e a página faz
+   **`redirect('/login')` sem motivo na URL**. Volta ao passo 3 a cada tentativa.
+
+Quem cai nisso: qualquer pessoa que confirmou o e-mail e criou a senha, mas não iniciou o pagamento
+antes de o rascunho vencer. Refazer o cadastro com o mesmo e-mail não resolve: o Auth responde
+`email_exists`, que o cadastro converte no desfecho ofuscado (§37), e nenhum e-mail sai. Redefinir a
+senha funciona (o grant `pretenant_orphan` existe para esse caso), mas o login seguinte cai no mesmo
+loop.
+
+### 40.3 Tamanho hoje
+
+| Item | Estado |
+| ---- | ------ |
+| Contas de cadastro autônomo sem clínica em produção, depois da limpeza | **0** — leitura em transação `READ ONLY` |
+| Conta de teste `2c1411d1…` | **Apagada** a pedido, pela Admin API. Antes, conferido: nenhuma referência fora do schema `auth` (sem profile, clínica ou assinatura) e nenhum cliente no Asaas de produção com o e-mail. Depois: usuário, identidades, sessões e refresh tokens em 0; `GET admin/users` → 404. Ficaram 2 linhas em `login_attempts` (só hash do e-mail), que a retenção remove |
+| Correção do loop | **NOT TESTED** — não implementada |
+
+### 40.4 O que precisa ser decidido
+
+- **Retomar o cadastro na mesma conta.** O login reconhece a conta órfã, pede de novo só o que se
+  perdeu com o rascunho e cria um rascunho novo ligado ao usuário existente. É o melhor para quem quer
+  assinar, e o mais caro: mexe no desenho de vínculo rascunho ↔ usuário.
+- **Apagar a conta junto com o rascunho.** O cron que apaga o rascunho vencido apaga também o usuário
+  do Auth sem profile e sem rastro de cobrança. O e-mail volta a servir para um cadastro do zero. É
+  simples, mas quem só demorou perde a senha que criou.
+- **Mínimo, em qualquer caso: acabar com o loop mudo.** `/cadastro/continuar` encerra a sessão e manda
+  para `/login` com um motivo explícito ("Seu cadastro expirou antes de ser concluído…"), e a tela de
+  login mostra o que fazer. Sozinho, isso não devolve o acesso: precisa de uma das duas saídas acima.
