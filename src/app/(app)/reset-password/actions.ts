@@ -24,7 +24,7 @@ import {
   signRecoveryGrant,
 } from '@/lib/auth/recovery-grant';
 import { bumpSessionEpochIfCurrent, withOrphanRecoveryLock } from '@/lib/auth/session-epoch';
-import { signupPasswordSchema } from '@/lib/auth/signup-password';
+import { signupPasswordMessage, signupPasswordSchema } from '@/lib/auth/signup-password';
 import { createAdminClient } from '@/lib/auth/supabase-admin';
 import { clearSupabaseSessionSelector, createServerClient } from '@/lib/auth/supabase-server';
 import { readAuthoritativeProfile } from '@/lib/auth/tenant-context';
@@ -54,8 +54,17 @@ export async function resetPasswordAction(
   _prev: ResetState,
   formData: FormData,
 ): Promise<ResetState> {
-  const parsed = Schema.safeParse({ password: formData.get('password') });
-  if (!parsed.success) return { error: 'Senha deve ter ao menos 8 caracteres.' };
+  const rawPassword = formData.get('password');
+  const parsed = Schema.safeParse({ password: rawPassword });
+  if (!parsed.success) {
+    // A mensagem diz o que falta (maiúscula, número...). Antes era sempre
+    // "ao menos 8 caracteres", mesmo com 12 caracteres sem número.
+    return {
+      error:
+        signupPasswordMessage(typeof rawPassword === 'string' ? rawPassword : '') ??
+        'Senha inválida.',
+    };
+  }
 
   const supabase = await createServerClient({ cookieWrites: 'required' });
   const { data: userData } = await supabase.auth.getUser();

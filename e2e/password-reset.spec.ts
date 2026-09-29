@@ -107,6 +107,17 @@ test('esqueci a senha: o link do e-mail real abre o formulário de nova senha', 
     await page.getByRole('button', { name: 'Atualizar senha' }).click();
   };
 
+  // O gerenciador de senhas só atualiza a senha salva se souber de que conta ela
+  // é; sem isso, o login seguinte vinha preenchido com a senha antiga.
+  await expect(page.locator('input[autocomplete="username"]')).toHaveValue(email);
+
+  // Fora da regra: a tela diz o que falta (antes, sempre "8 caracteres") e nem
+  // chega ao servidor, então não gasta tentativa.
+  await submit('senhasemnumero');
+  await expect(
+    page.getByText('A senha precisa ter uma letra maiúscula e um número.'),
+  ).toBeVisible();
+
   await submit('Senha1234');
   await expect(
     page.getByText('Escolha uma senha que não apareceu em vazamentos conhecidos.'),
