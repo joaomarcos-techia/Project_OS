@@ -19,7 +19,6 @@ import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { PageHeader } from '@/components/ui/page-header';
 import { Separator } from '@/components/ui/separator';
-import type { EmbeddedSignupVersion } from '@/lib/env';
 import { formatDatePt } from '@/lib/format';
 
 import { connectWhatsappAction, disconnectWhatsappAction } from './actions';
@@ -168,33 +167,31 @@ function sanitizeMetaErrorRef(value: unknown): string | null {
 const ALLOWED_FB_ORIGINS = new Set(['https://www.facebook.com', 'https://web.facebook.com']);
 
 /**
- * `extras` do `FB.login` por formato de configuração.
+ * `extras` do `FB.login` no Embedded Signup **v4**.
  *
- * Na v4, produtos, permissões e ativos moram na própria configuração do
- * Facebook Login for Business, e o objeto fica só com `setup`. O legado
- * (v2/v3) ainda pedia o formato do evento por `sessionInfoVersion`. Os eventos
- * que o `postMessage` entrega — `FINISH`, `FINISH_ONLY_WABA`, `CANCEL` — e o
- * `waba_id`/`phone_number_id` em `data` são os mesmos nos dois formatos.
+ * `META_CONFIG_ID` aponta para uma configuração v4 (Facebook Login for
+ * Business → Cadastro incorporado do WhatsApp, produto WhatsApp Cloud API,
+ * criada em 30/09/2026). Na v4, produtos, permissões e ativos moram na própria
+ * configuração, e o objeto fica só com `setup`. O `sessionInfoVersion: '3'` que
+ * havia aqui era o formato do v2, que a Meta descontinua em 15/10/2026.
+ *
+ * Os eventos do `postMessage` — `FINISH`, `FINISH_ONLY_WABA`, `CANCEL`, com
+ * `waba_id`/`phone_number_id` em `data` — são os mesmos, então o tratamento
+ * abaixo não muda.
  * https://developers.facebook.com/documentation/business-messaging/whatsapp/embedded-signup/version-4
  */
-const SIGNUP_EXTRAS: Record<EmbeddedSignupVersion, Record<string, unknown>> = {
-  v4: { setup: {} },
-  legacy: { setup: {}, sessionInfoVersion: '3' },
-};
+const SIGNUP_EXTRAS = { setup: {} } as const;
 
 export function WhatsappConnect({
   status,
   appId,
   configId,
-  signupVersion = 'legacy',
   graphVersion,
   ready,
 }: {
   status: WhatsappStatusDTO;
   appId: string | null;
   configId: string | null;
-  /** Formato da configuração em `configId` — ver `embeddedSignupConfig()`. */
-  signupVersion?: EmbeddedSignupVersion;
   graphVersion: string;
   ready: boolean;
 }) {
@@ -501,7 +498,7 @@ export function WhatsappConnect({
         config_id: configId,
         response_type: 'code',
         override_default_response_type: true,
-        extras: SIGNUP_EXTRAS[signupVersion],
+        extras: SIGNUP_EXTRAS,
       },
     );
   };

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { __internal, embeddedSignupConfig } from './env';
+import { __internal } from './env';
 
 const { loadEnv } = __internal;
 
@@ -230,30 +230,5 @@ describe('env validation (C1 contract)', () => {
     expect(() => loadEnv(asEnv({ ...baseValid, SUPABASE_PROJECT_ENV: 'staging' }))).toThrow(
       /SUPABASE_PROJECT_ENV/,
     );
-  });
-});
-
-describe('embeddedSignupConfig — configuração do Embedded Signup', () => {
-  it('META_CONFIG_ID2 é a configuração v4 e vence a legada', () => {
-    const parsed = loadEnv(
-      asEnv({ ...baseValid, META_CONFIG_ID: 'config-legada', META_CONFIG_ID2: 'config-v4' }),
-    );
-    expect(embeddedSignupConfig(parsed)).toEqual({ configId: 'config-v4', version: 'v4' });
-  });
-
-  it('sem META_CONFIG_ID2, cai na legada no formato legado', () => {
-    const parsed = loadEnv(asEnv({ ...baseValid, META_CONFIG_ID: 'config-legada' }));
-    expect(embeddedSignupConfig(parsed)).toEqual({ configId: 'config-legada', version: 'legacy' });
-  });
-
-  it('META_CONFIG_ID2 vazia não liga a v4 — string vazia vira ausência', () => {
-    const parsed = loadEnv(
-      asEnv({ ...baseValid, META_CONFIG_ID: 'config-legada', META_CONFIG_ID2: '' }),
-    );
-    expect(embeddedSignupConfig(parsed)).toEqual({ configId: 'config-legada', version: 'legacy' });
-  });
-
-  it('sem nenhuma das duas, não há configuração', () => {
-    expect(embeddedSignupConfig(loadEnv(asEnv(baseValid)))).toBeNull();
   });
 });

@@ -236,14 +236,11 @@ const EnvSchema = z
     // Opcionais no parse (next build verde antes do setup); assertWhatsappOnboarding
     // Ready() exige em runtime. Chegam ao browser via props do Server Component
     // (sem NEXT_PUBLIC_ — um único ponto de leitura de env).
+    // META_CONFIG_ID precisa ser uma configuração **v4** do Embedded Signup: o
+    // cliente abre o FB.login só com `extras: { setup: {} }` (ver
+    // whatsapp-connect.tsx). O v2/v3 é descontinuado pela Meta em 15/10/2026.
     META_APP_ID: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
     META_CONFIG_ID: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
-    // Configuration ID do Embedded Signup **v4** (criada em 30/09/2026). Quando
-    // presente, tem precedência sobre META_CONFIG_ID e liga o formato v4 do
-    // FB.login — ver `embeddedSignupConfig()`. TRANSITÓRIA: a Meta descontinua
-    // o v2/v3 em 15/10/2026; validada a v4, o valor vai para META_CONFIG_ID e
-    // esta variável e o formato legado saem juntos.
-    META_CONFIG_ID2: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
 
     // --- C11: AI Agent (Gemini) ---
     // API key do Google AI Studio. Optional no parse (next build verde antes
@@ -540,34 +537,11 @@ export function assertMessagingRuntimeReady(): void {
  * (next build verde antes do setup). META_APP_SECRET reusa o secret do webhook.
  */
 export function assertWhatsappOnboardingReady(): void {
-  if (!env.META_APP_ID || !embeddedSignupConfig() || !env.META_APP_SECRET) {
+  if (!env.META_APP_ID || !env.META_CONFIG_ID || !env.META_APP_SECRET) {
     throw new Error(
-      '[env] META_APP_ID, META_CONFIG_ID (ou META_CONFIG_ID2) e META_APP_SECRET são obrigatórios para a conexão self-service do WhatsApp (Embedded Signup)',
+      '[env] META_APP_ID, META_CONFIG_ID e META_APP_SECRET são obrigatórios para a conexão self-service do WhatsApp (Embedded Signup)',
     );
   }
-}
-
-/** Formato do `FB.login` que a configuração do Embedded Signup espera. */
-export type EmbeddedSignupVersion = 'v4' | 'legacy';
-
-/**
- * Qual configuração do Embedded Signup usar, e em qual formato.
- *
- * `META_CONFIG_ID2` é a configuração v4 e tem precedência. A versão vem da
- * configuração, e não de uma flag separada, de propósito: na v4 os produtos e
- * permissões moram na própria configuração do Facebook Login for Business, e
- * mandar os `extras` do v2 para uma configuração v4 (ou o contrário) é um par
- * incoerente que só apareceria no pop-up da Meta, na frente da clínica.
- *
- * Transitório — ver o comentário de `META_CONFIG_ID2` no schema. O parâmetro
- * existe para o teste; em runtime é sempre o `env` carregado.
- */
-export function embeddedSignupConfig(
-  source: Pick<Env, 'META_CONFIG_ID' | 'META_CONFIG_ID2'> = env,
-): { configId: string; version: EmbeddedSignupVersion } | null {
-  if (source.META_CONFIG_ID2) return { configId: source.META_CONFIG_ID2, version: 'v4' };
-  if (source.META_CONFIG_ID) return { configId: source.META_CONFIG_ID, version: 'legacy' };
-  return null;
 }
 
 /**

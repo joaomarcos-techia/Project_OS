@@ -945,42 +945,32 @@ describe('WhatsappConnect', () => {
     expect(screen.getByRole('button', { name: 'Desconectar' })).toBeTruthy();
   });
 
-  // ==== Embedded Signup v4 — o formato do FB.login acompanha a configuração ====
+  // ==== Embedded Signup v4 ===================================================
 
-  describe('formato do FB.login por configuração', () => {
-    /** Dispara a conexão e devolve as opções com que o `FB.login` foi chamado. */
-    function launch(signupVersion?: 'v4' | 'legacy') {
-      const login = vi.fn();
-      window.FB = { init: vi.fn(), login };
-      render(
-        <WhatsappConnect
-          status={status}
-          appId="app-id"
-          configId="config-v4"
-          {...(signupVersion ? { signupVersion } : {})}
-          graphVersion="v23.0"
-          ready={true}
-        />,
-      );
-      fireEvent.change(screen.getByLabelText(/PIN de ativação do WhatsApp/), {
-        target: { value: '123456' },
-      });
-      fireEvent.click(screen.getByRole('button', { name: 'Conectar WhatsApp' }));
-      expect(login).toHaveBeenCalledTimes(1);
-      return login.mock.calls[0]?.[1] as Record<string, unknown>;
-    }
-
-    it('v4: `extras` só com `setup`, sem `sessionInfoVersion`', () => {
-      expect(launch('v4')).toEqual({
-        config_id: 'config-v4',
-        response_type: 'code',
-        override_default_response_type: true,
-        extras: { setup: {} },
-      });
+  it('abre o Embedded Signup no formato v4: `extras` só com `setup`', () => {
+    // O v2 (`sessionInfoVersion: '3'`) é descontinuado pela Meta em 15/10/2026.
+    const login = vi.fn();
+    window.FB = { init: vi.fn(), login };
+    render(
+      <WhatsappConnect
+        status={status}
+        appId="app-id"
+        configId="config-v4"
+        graphVersion="v23.0"
+        ready={true}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText(/PIN de ativação do WhatsApp/), {
+      target: { value: '123456' },
     });
+    fireEvent.click(screen.getByRole('button', { name: 'Conectar WhatsApp' }));
 
-    it('sem formato informado, mantém o legado com `sessionInfoVersion: "3"`', () => {
-      expect(launch().extras).toEqual({ setup: {}, sessionInfoVersion: '3' });
+    expect(login).toHaveBeenCalledTimes(1);
+    expect(login.mock.calls[0]?.[1]).toEqual({
+      config_id: 'config-v4',
+      response_type: 'code',
+      override_default_response_type: true,
+      extras: { setup: {} },
     });
   });
 
