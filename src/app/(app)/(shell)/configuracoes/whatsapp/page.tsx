@@ -1,4 +1,4 @@
-import { env } from '@/lib/env';
+import { embeddedSignupConfig, env } from '@/lib/env';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { pageGate } from '@/lib/auth/page-guard';
 import { PageNoAccess } from '@/components/shared/page-no-access';
@@ -45,7 +45,8 @@ export default async function WhatsappSettingsPage() {
   const perfil: PerfilCarregado | null = status.hasActiveNumber ? await carregarPerfil() : null;
 
   const appId = env.META_APP_ID ?? null;
-  const configId = env.META_CONFIG_ID ?? null;
+  const signup = embeddedSignupConfig();
+  const configId = signup?.configId ?? null;
   const ready = Boolean(appId && configId && env.META_APP_SECRET);
 
   return (
@@ -56,6 +57,7 @@ export default async function WhatsappSettingsPage() {
         status={status}
         appId={appId}
         configId={configId}
+        signupVersion={signup?.version ?? 'legacy'}
         graphVersion={env.META_GRAPH_API_VERSION}
         ready={ready}
       />

@@ -19,6 +19,7 @@ import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { PageHeader } from '@/components/ui/page-header';
 import { Separator } from '@/components/ui/separator';
+import type { EmbeddedSignupVersion } from '@/lib/env';
 import { formatDatePt } from '@/lib/format';
 
 import { connectWhatsappAction, disconnectWhatsappAction } from './actions';
@@ -166,16 +167,34 @@ function sanitizeMetaErrorRef(value: unknown): string | null {
 // token OAuth — isto é defesa adicional na fronteira do cliente.)
 const ALLOWED_FB_ORIGINS = new Set(['https://www.facebook.com', 'https://web.facebook.com']);
 
+/**
+ * `extras` do `FB.login` por formato de configuração.
+ *
+ * Na v4, produtos, permissões e ativos moram na própria configuração do
+ * Facebook Login for Business, e o objeto fica só com `setup`. O legado
+ * (v2/v3) ainda pedia o formato do evento por `sessionInfoVersion`. Os eventos
+ * que o `postMessage` entrega — `FINISH`, `FINISH_ONLY_WABA`, `CANCEL` — e o
+ * `waba_id`/`phone_number_id` em `data` são os mesmos nos dois formatos.
+ * https://developers.facebook.com/documentation/business-messaging/whatsapp/embedded-signup/version-4
+ */
+const SIGNUP_EXTRAS: Record<EmbeddedSignupVersion, Record<string, unknown>> = {
+  v4: { setup: {} },
+  legacy: { setup: {}, sessionInfoVersion: '3' },
+};
+
 export function WhatsappConnect({
   status,
   appId,
   configId,
+  signupVersion = 'legacy',
   graphVersion,
   ready,
 }: {
   status: WhatsappStatusDTO;
   appId: string | null;
   configId: string | null;
+  /** Formato da configuração em `configId` — ver `embeddedSignupConfig()`. */
+  signupVersion?: EmbeddedSignupVersion;
   graphVersion: string;
   ready: boolean;
 }) {
@@ -482,7 +501,7 @@ export function WhatsappConnect({
         config_id: configId,
         response_type: 'code',
         override_default_response_type: true,
-        extras: { setup: {}, sessionInfoVersion: '3' },
+        extras: SIGNUP_EXTRAS[signupVersion],
       },
     );
   };
