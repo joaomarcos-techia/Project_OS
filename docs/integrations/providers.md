@@ -45,18 +45,25 @@ Detalhes datados: [evidence snapshots](../archive/evidence-snapshots.md). Evidê
 - sender usa reserva → I/O Meta → finalização, com idempotência persistente local;
 - um refresh de credencial é tentado após 401/403;
 - formatos funcionais: texto e template. Mídia não está implementada;
-- conexão usa Embedded Signup e health check a cada seis horas; falha não troca provider automaticamente.
+- conexão usa Embedded Signup v4 e health check a cada seis horas; falha não troca provider automaticamente;
+- coexistência com o app WhatsApp Business (0107): ver [whatsapp-connection-flow.md](../whatsapp-connection-flow.md#coexistência-app-whatsapp-business).
 
-Templates observados no WABA em 2026-08-18:
+Templates no WABA conferidos pelo fundador em 2026-09-30 (todos ativos, qualidade pendente por ainda
+não terem envio):
 
-| Nome configurado | Estado Meta | Categoria Meta |
+| Variável | Template | Categoria Meta |
 | --- | --- | --- |
-| `lembrete_confirmacao` | `APPROVED` | `MARKETING` |
-| `cobranca_amigavel` | ausente | — |
-| `lista_espera_oferta` | `APPROVED` | `UTILITY` |
-| `retorno_consulta` | `APPROVED` | `MARKETING` |
+| `META_TEMPLATE_CONFIRMATION_REMINDER_ID` | `confirmacao_consulta` | `UTILITY` |
+| `META_TEMPLATE_DUNNING_FRIENDLY_ID` | `amigavel_cobranca` | `UTILITY` |
+| `META_TEMPLATE_FOLLOWUP_RETURN_ID` | `acompanhamento_tratamento` | `UTILITY` |
+| `META_TEMPLATE_NO_SHOW_FOLLOWUP_ID` | `atualizacao_agendamento` | `UTILITY` |
+| `META_TEMPLATE_WAITLIST_OFFER_ID` | `lista_espera_oferta` | `UTILITY` |
+| `META_TEMPLATE_DEPOSIT_LINK_ID` | `link_deposito` | `UTILITY` |
+| `META_TEMPLATE_REMAINDER_LINK_ID` | `restante_link_pagamento` | `UTILITY` |
 
-O catálogo local solicita `UTILITY` para os quatro. A classificação efetiva do provider vence para operação/custo; não trate template aprovado como equivalente a categoria esperada.
+`lembrete_confirmacao`, `retorno_consulta` e `qoro_no_show_followup` continuam no WABA como
+`MARKETING`, mas não são mais referenciados. A classificação efetiva do provider vence para
+operação/custo; não trate template aprovado como equivalente a categoria esperada.
 
 `MessagingProviderName` aceita `meta | zapi` para compatibilidade de schema. O `ZApiProvider` implementa a interface apenas para falhar explicitamente; não há endpoint, credencial, parser ou envio Z-API funcional.
 

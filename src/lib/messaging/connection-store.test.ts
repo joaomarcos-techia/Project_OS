@@ -47,6 +47,7 @@ const baseInput: UpsertTenantConnectionInput = {
   metaPhoneId: 'phone-1',
   metaBusinessId: 'waba-1',
   tokenEncrypted: 'enc(TOKEN)',
+  coexistence: false,
   requestContext: ctx,
 };
 

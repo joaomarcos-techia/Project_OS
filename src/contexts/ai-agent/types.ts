@@ -151,10 +151,11 @@ export interface AIConversationListResult {
 }
 
 /**
- * Autoria da mensagem. `direction` sozinho não basta: 'out' pode ser o agente
- * ou um humano do painel — quem separa é `sent_by_user_id` (ADR-047).
+ * Autoria da mensagem. `direction` sozinho não basta: 'out' pode ser o agente,
+ * um humano do painel (`sent_by_user_id`, ADR-047) ou a recepção pelo app
+ * WhatsApp Business do celular (`sent_via_business_app`, coexistência — 0107).
  */
-export type AIMessageAuthor = 'patient' | 'agent' | 'human';
+export type AIMessageAuthor = 'patient' | 'agent' | 'human' | 'business_app';
 
 /**
  * Estado de ENTREGA da mensagem manual. `null` para inbound e para mensagens do

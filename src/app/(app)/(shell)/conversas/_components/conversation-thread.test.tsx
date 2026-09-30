@@ -103,3 +103,34 @@ describe('reenvio no histórico compartilhado', () => {
     expect(screen.getByText('Mensagem de teste')).toBeTruthy();
   });
 });
+
+describe('resposta da recepção pelo app do celular (coexistência)', () => {
+  it('aparece como Recepção pelo celular, e não como a IA nem como o responsável', () => {
+    render(
+      <ConversationThread
+        thread={{
+          ...original,
+          messages: [
+            {
+              id: 'message-app',
+              direction: 'out',
+              author: 'business_app',
+              text: 'Oi, já te retorno',
+              createdAt: '2026-09-09T12:05:00Z',
+              meta: null,
+              delivery: null,
+            },
+          ],
+        }}
+        canManage
+        currentUserId="user-1"
+        assignedToName="Recepção"
+      />,
+    );
+    expect(screen.getByText('Recepção pelo celular')).toBeTruthy();
+    expect(screen.getByText('Celular')).toBeTruthy();
+    expect(screen.queryByText('Agente Qoro')).toBeNull();
+    // Não foi a Qoro que enviou: não há entrega a acompanhar nem o que reenviar.
+    expect(screen.queryByRole('button', { name: 'Reenviar' })).toBeNull();
+  });
+});

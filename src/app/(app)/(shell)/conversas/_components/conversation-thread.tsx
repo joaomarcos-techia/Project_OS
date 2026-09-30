@@ -25,6 +25,7 @@ const AUTHOR_CHIP: Record<AIThreadMessage['author'], string> = {
   patient: 'Paciente',
   agent: 'IA',
   human: 'Equipe',
+  business_app: 'Celular',
 };
 const DELIVERY_LABEL = {
   pending: 'Enviando…',
@@ -129,7 +130,9 @@ export function ConversationThread({
                       ? (thread.patientDisplayName ?? 'Paciente')
                       : message.author === 'agent'
                         ? 'Agente Qoro'
-                        : (assignedToName ?? 'Equipe')}
+                        : message.author === 'business_app'
+                          ? 'Recepção pelo celular'
+                          : (assignedToName ?? 'Equipe')}
                   </strong>
                   <span className={styles.authorChip}>{AUTHOR_CHIP[message.author]}</span>
                   <time dateTime={message.createdAt}>{hora(message.createdAt)}</time>

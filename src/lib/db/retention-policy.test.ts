@@ -21,6 +21,9 @@ describe('retention-policy — registro é a fonte única', () => {
     expect(tables).toContain('inbound_messages_raw');
     expect(tables).toContain('outbound_messages');
     expect(tables).toContain('provider_status_events_raw');
+    // 0107 — o eco do app WhatsApp Business (coexistência) é raw de mensageria
+    // com conteúdo de paciente; nasce com teto, não entra depois.
+    expect(tables).toContain('whatsapp_business_app_echoes');
     // A5 — a retenção de 30d da IA que era só comentário de schema.
     expect(tables).toContain('ai_conversations');
     expect(tables).toContain('ai_messages');

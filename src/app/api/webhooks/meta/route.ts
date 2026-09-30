@@ -19,16 +19,22 @@ import { readWebhookBodyCapped } from '@/lib/http/webhook-body';
 import { captureBackgroundError } from '@/lib/observability/capture';
 import { runWithContext } from '@/lib/observability/context';
 import {
+  deactivateConnectionsForRemovedPartner,
   getMessagingProvider,
   quarantineOrphan,
   resolveClinicByPhoneId,
+  type ParsedBusinessAppEcho,
   type ParsedInboundMessage,
   type ParsedStatusEvent,
 } from '@/lib/messaging';
 import { metrics } from '@/lib/observability/metrics';
 import { after } from 'next/server';
 
-import { persistInbound, persistStatusEvents } from '@/contexts/messaging/internal/inbound';
+import {
+  persistBusinessAppEcho,
+  persistInbound,
+  persistStatusEvents,
+} from '@/contexts/messaging/internal/inbound';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -37,24 +43,30 @@ export const maxDuration = 60;
 const MAX_WEBHOOK_BYTES = 1_000_000;
 const PROVIDER = 'meta' as const;
 
+interface PhoneGroup {
+  messages: ParsedInboundMessage[];
+  statuses: ParsedStatusEvent[];
+  /** Coexistência: respostas da recepção pelo app do celular. */
+  echoes: ParsedBusinessAppEcho[];
+}
+
 function groupByPhoneId(
   messages: ParsedInboundMessage[],
   statuses: ParsedStatusEvent[],
-): Map<string, { messages: ParsedInboundMessage[]; statuses: ParsedStatusEvent[] }> {
-  const map = new Map<
-    string,
-    { messages: ParsedInboundMessage[]; statuses: ParsedStatusEvent[] }
-  >();
+  echoes: ParsedBusinessAppEcho[] = [],
+): Map<string, PhoneGroup> {
+  const map = new Map<string, PhoneGroup>();
   const ensure = (phoneId: string) => {
     let g = map.get(phoneId);
     if (!g) {
-      g = { messages: [], statuses: [] };
+      g = { messages: [], statuses: [], echoes: [] };
       map.set(phoneId, g);
     }
     return g;
   };
   for (const m of messages) ensure(m.toPhoneId).messages.push(m);
   for (const s of statuses) ensure(s.toPhoneId).statuses.push(s);
+  for (const e of echoes) ensure(e.fromPhoneId).echoes.push(e);
   return map;
 }
 
@@ -142,9 +154,37 @@ async function handleWebhook(req: Request): Promise<Response> {
   // 2. parse.
   const parsed = provider.parseWebhook(raw);
 
+  // Coexistência: histórico e contatos chegam, são contados e DESCARTADOS —
+  // a Qoro pede a sincronização porque a Meta exige, mas não guarda o conteúdo
+  // (decisão de 30/09/2026). Nada disso passa pela quarentena abaixo.
+  if (
+    parsed.discarded &&
+    (parsed.discarded.historyMessages > 0 || parsed.discarded.stateSyncItems > 0)
+  ) {
+    metrics.emit('messaging.webhook.coexistence_sync_discarded', parsed.discarded);
+  }
+
   // 3. resolve tenant + persistir / quarentena.
   try {
-    for (const [phoneId, group] of groupByPhoneId(parsed.messages, parsed.statuses)) {
+    for (const removal of parsed.partnerRemovals ?? []) {
+      const { deactivated } = await deactivateConnectionsForRemovedPartner({
+        wabaId: removal.wabaId,
+        reason: removal.reason,
+        initiatedBy: removal.initiatedBy,
+        requestContext: buildRequestContext(req.headers),
+      });
+      metrics.emit('messaging.webhook.partner_removed', {
+        deactivated,
+        reason: removal.reason ?? 'unknown',
+        initiatedBy: removal.initiatedBy ?? 'unknown',
+      });
+    }
+
+    for (const [phoneId, group] of groupByPhoneId(
+      parsed.messages,
+      parsed.statuses,
+      parsed.echoes,
+    )) {
       const clinicId = await resolveClinicByPhoneId(phoneId);
       if (!clinicId) {
         await quarantineOrphan(PROVIDER, phoneId, raw);
@@ -152,6 +192,9 @@ async function handleWebhook(req: Request): Promise<Response> {
       }
       for (const msg of group.messages) {
         await persistInbound(clinicId, PROVIDER, msg);
+      }
+      for (const echo of group.echoes) {
+        await persistBusinessAppEcho(clinicId, PROVIDER, echo);
       }
       if (group.statuses.length > 0) {
         await persistStatusEvents(clinicId, PROVIDER, group.statuses);
@@ -173,7 +216,11 @@ async function handleWebhook(req: Request): Promise<Response> {
   after(triggerOutboxAfterMetaIngress);
 
   return Response.json(
-    { received: parsed.messages.length, statuses: parsed.statuses.length },
+    {
+      received: parsed.messages.length,
+      statuses: parsed.statuses.length,
+      echoes: parsed.echoes?.length ?? 0,
+    },
     { status: 200 },
   );
 }

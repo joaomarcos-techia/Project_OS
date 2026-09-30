@@ -37,6 +37,12 @@ export interface UpsertTenantConnectionInput {
   metaBusinessId: string | null;
   /** Token JÁ cifrado (encryptForTenant) — nunca em claro aqui. */
   tokenEncrypted: string;
+  /**
+   * Conectado por coexistência (0107): o número continua no app WhatsApp
+   * Business do celular. Reconectar o mesmo número pelo fluxo comum volta para
+   * false — o valor é sempre o do ÚLTIMO onboarding.
+   */
+  coexistence: boolean;
   requestContext: RequestContext;
 }
 
@@ -71,6 +77,7 @@ export async function upsertTenantConnection(
           verified_at = now(),
           active = true,
           connection_status = 'connected',
+          coexistence = ${input.coexistence},
           updated_at = now()
         WHERE id = ${foundId}
       `);
@@ -91,10 +98,11 @@ export async function upsertTenantConnection(
       const inserted = await tx.execute<{ id: string }>(sql`
         INSERT INTO clinic_whatsapp_numbers
           (clinic_id, provider, phone_number, meta_phone_id, meta_business_id,
-           token_encrypted, verified_at, active, connection_status)
+           token_encrypted, verified_at, active, connection_status, coexistence)
         VALUES
           (${input.clinicId}, ${input.provider}, ${input.phoneNumber}, ${input.metaPhoneId},
-           ${input.metaBusinessId}, ${input.tokenEncrypted}, now(), true, 'connected')
+           ${input.metaBusinessId}, ${input.tokenEncrypted}, now(), true, 'connected',
+           ${input.coexistence})
         RETURNING id
       `);
       id = inserted[0]!.id;
@@ -107,7 +115,11 @@ export async function upsertTenantConnection(
       resourceType: 'whatsapp_number',
       resourceId: id,
       before: null,
-      after: { provider: input.provider, phoneNumberMasked: maskPhone(input.phoneNumber) },
+      after: {
+        provider: input.provider,
+        phoneNumberMasked: maskPhone(input.phoneNumber),
+        coexistence: input.coexistence,
+      },
       requestContext: input.requestContext,
     });
     return { id };
@@ -154,6 +166,52 @@ export async function deactivateTenantConnection(input: {
       metaBusinessId: deactivated?.meta_business_id ?? null,
       tokenCiphertext: deactivated?.token_encrypted ?? null,
     };
+  });
+}
+
+/**
+ * A Meta avisou (`account_update` / `PARTNER_REMOVED`) que a Qoro saiu da WABA:
+ * a clínica desconectou pelo app WhatsApp Business ("Plataforma empresarial"),
+ * ou a Meta desconectou por inatividade do celular (`PRIMARY_INACTIVITY`).
+ *
+ * Daqui em diante qualquer envio por aquele número falharia; desativar agora
+ * faz a tela mostrar "desconectado" em vez de "conectado" com canal morto. Sem
+ * usuário: quem agiu foi a Meta ou a clínica fora da Qoro, e a auditoria diz
+ * isso em `after`.
+ *
+ * Resolve pela WABA porque o evento é de CONTA — não traz `phone_number_id`.
+ * Idempotente: um reenvio encontra nada ativo e não audita de novo.
+ */
+export async function deactivateConnectionsForRemovedPartner(input: {
+  wabaId: string;
+  reason: string | null;
+  initiatedBy: string | null;
+  requestContext: RequestContext;
+}): Promise<{ deactivated: number }> {
+  return dbAdmin.transaction(async (tx: Tx) => {
+    const rows = await tx.execute<{ id: string; clinic_id: string; coexistence: boolean }>(sql`
+      UPDATE clinic_whatsapp_numbers SET
+        active = false, connection_status = 'disconnected', updated_at = now()
+      WHERE meta_business_id = ${input.wabaId} AND active = true
+      RETURNING id, clinic_id, coexistence
+    `);
+    for (const row of rows) {
+      await logAudit(tx, {
+        clinicId: row.clinic_id,
+        userId: null,
+        action: 'messaging.whatsapp.partner_removed',
+        resourceType: 'whatsapp_number',
+        resourceId: row.id,
+        before: null,
+        after: {
+          reason: input.reason,
+          initiatedBy: input.initiatedBy,
+          coexistence: row.coexistence,
+        },
+        requestContext: input.requestContext,
+      });
+    }
+    return { deactivated: rows.length };
   });
 }
 

@@ -415,6 +415,7 @@ export async function getConversationThread(
         costUsd: aiMessages.costUsd,
         eventId: aiMessages.eventId,
         sentByUserId: aiMessages.sentByUserId,
+        sentViaBusinessApp: aiMessages.sentViaBusinessApp,
         createdAt: aiMessages.createdAt,
       })
       .from(aiMessages)
@@ -441,8 +442,16 @@ export async function getConversationThread(
 
     const messages = await Promise.all(
       rows.map(async (r): Promise<AIThreadMessage> => {
+        // Sem o `sentViaBusinessApp`, a resposta da recepção pelo celular
+        // cairia no último ramo e apareceria assinada pela IA.
         const author: AIMessageAuthor =
-          r.direction === 'in' ? 'patient' : r.sentByUserId ? 'human' : 'agent';
+          r.direction === 'in'
+            ? 'patient'
+            : r.sentByUserId
+              ? 'human'
+              : r.sentViaBusinessApp
+                ? 'business_app'
+                : 'agent';
         return {
           id: r.id,
           direction: r.direction,

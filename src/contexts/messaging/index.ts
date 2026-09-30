@@ -15,12 +15,12 @@ export {
 } from './schema';
 
 export { MESSAGING_EVENTS } from './events';
-export type { InboundReceivedPayload } from './events';
+export type { InboundReceivedPayload, BusinessAppEchoReceivedPayload } from './events';
 
 // API interna versionada (M14) — consumida pelo AI Agent (C11): ler/marcar
 // inbound (tx-aware, decrypt DENTRO do messaging) e enviar texto outbound.
 export { messagingApiV1 } from './api';
-export type { MessagingApiV1, InboundForAgent } from './api';
+export type { MessagingApiV1, InboundForAgent, BusinessAppEchoForAgent } from './api';
 export { SuppressedRecipientError, NumberNotConnectedError } from './errors';
 
 // META-001 — saúde REAL do canal. A tela e o cron precisam disso para não

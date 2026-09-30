@@ -137,6 +137,7 @@ flowchart LR
   app_api --> lib_cron_heartbeat
   app_api --> lib_db
   app_api --> lib_env
+  app_api --> lib_env_coherence
   app_api --> lib_http
   app_api --> lib_messaging
   app_api --> lib_observability
@@ -216,6 +217,8 @@ flowchart LR
   context_identity --> lib_audit
   context_identity --> lib_auth
   context_identity --> lib_db
+  context_identity --> lib_email
+  context_identity --> lib_env
   context_identity --> lib_http
   context_identity --> lib_idempotency
   context_identity --> lib_observability
@@ -239,7 +242,9 @@ flowchart LR
   context_onboarding --> lib_auth
   context_onboarding --> lib_crypto
   context_onboarding --> lib_db
+  context_onboarding --> lib_email
   context_onboarding --> lib_env
+  context_onboarding --> lib_http
   context_onboarding --> lib_observability
   context_onboarding --> lib_outbox
   context_onboarding --> lib_payments

@@ -51,11 +51,27 @@ interface SessionInfo {
  * lista `ERROR` na mesma enum de `FINISH*`; outra página oficial mostra o erro
  * chegando como `CANCEL` com `error_message`/`error_code`. As duas formas são
  * suportadas de propósito — o contrato publicado é ambíguo neste ponto e
- * escolher uma só faria a tela mentir na outra. Os `FINISH_*` de outros fluxos
- * (app do WhatsApp Business, migração OBO, grant-only) não pertencem a esta
+ * escolher uma só faria a tela mentir na outra.
+ *
+ * `FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING` é o fim da coexistência (0107): a
+ * clínica conectou o número que já usa no app WhatsApp Business. Só vem
+ * quando o cadastro foi aberto com `featureType` — ver `SIGNUP_EXTRAS`. Os
+ * demais `FINISH_*` (migração OBO, grant-only) não pertencem a esta
  * configuração e não são tratados.
  */
-type EmbeddedSignupEvent = 'CANCEL' | 'ERROR' | 'FINISH' | 'FINISH_ONLY_WABA';
+type EmbeddedSignupEvent =
+  | 'CANCEL'
+  | 'ERROR'
+  | 'FINISH'
+  | 'FINISH_ONLY_WABA'
+  | 'FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING';
+
+/**
+ * `cloud_api`: número novo, com PIN e `/register`. `coexistence`: o número que
+ * a clínica já usa no app WhatsApp Business — sem PIN, porque ele já está
+ * registrado.
+ */
+type SignupMode = 'cloud_api' | 'coexistence';
 
 /**
  * D78 — janela de tolerância entre os DOIS canais independentes do Embedded
@@ -117,6 +133,8 @@ type SignupPhase =
  */
 interface SignupAttempt {
   id: number;
+  /** Qual botão abriu a janela — decide o `featureType` e o evento de fim aceito. */
+  mode: SignupMode;
   phase: SignupPhase;
   code: string | null;
   session: SessionInfo | null;
@@ -135,9 +153,10 @@ interface SignupAttempt {
   };
 }
 
-function newAttempt(id: number): SignupAttempt {
+function newAttempt(id: number, mode: SignupMode = 'cloud_api'): SignupAttempt {
   return {
     id,
+    mode,
     phase: 'idle',
     code: null,
     session: null,
@@ -179,8 +198,16 @@ const ALLOWED_FB_ORIGINS = new Set(['https://www.facebook.com', 'https://web.fac
  * `waba_id`/`phone_number_id` em `data` — são os mesmos, então o tratamento
  * abaixo não muda.
  * https://developers.facebook.com/documentation/business-messaging/whatsapp/embedded-signup/version-4
+ *
+ * Coexistência (0107): o `featureType` troca a tela de escolha de conta por
+ * uma que oferece conectar o app WhatsApp Business já em uso. O fim chega como
+ * `FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING`, só com `waba_id`.
+ * https://developers.facebook.com/documentation/business-messaging/whatsapp/embedded-signup/onboarding-business-app-users/
  */
-const SIGNUP_EXTRAS = { setup: {} } as const;
+const SIGNUP_EXTRAS: Record<SignupMode, Record<string, unknown>> = {
+  cloud_api: { setup: {} },
+  coexistence: { setup: {}, featureType: 'whatsapp_business_app_onboarding' },
+};
 
 export function WhatsappConnect({
   status,
@@ -296,12 +323,15 @@ export function WhatsappConnect({
       // A action pode responder depois de o abandono já ter liberado o fluxo;
       // sem o id, a resposta atrasada corromperia o estado da tentativa nova.
       const attemptId = attempt.current.id;
+      const mode = attempt.current.mode;
       beginClosing();
       startTransition(async () => {
         try {
           const r = await connectWhatsappAction({
             code,
-            registrationPin: registrationPinRef.current,
+            mode,
+            // Coexistência não tem PIN: o número já está registrado no app.
+            ...(mode === 'cloud_api' ? { registrationPin: registrationPinRef.current } : {}),
             wabaId: session.wabaId,
             phoneNumberId: session.phoneNumberId,
           });
@@ -373,7 +403,25 @@ export function WhatsappConnect({
           settle('CANCELLED', 'Conexão cancelada. Nenhuma alteração foi feita.');
           return;
         }
-        if (parsed.event === 'FINISH' || parsed.event === 'FINISH_ONLY_WABA') {
+        const cloudFinish = parsed.event === 'FINISH' || parsed.event === 'FINISH_ONLY_WABA';
+        const businessAppFinish = parsed.event === 'FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING';
+        if (cloudFinish || businessAppFinish) {
+          // O desfecho precisa ser o do botão que abriu a janela. Com
+          // `featureType`, a Meta ainda deixa escolher um número novo lá
+          // dentro — e aí o servidor precisaria de um PIN que não foi pedido.
+          // No sentido inverso, registrar com PIN um número que já está no app
+          // seria o `/register` que a Meta manda pular. Nos dois casos, nada é
+          // enviado ao servidor.
+          const expected = attempt.current.mode === 'coexistence' ? businessAppFinish : cloudFinish;
+          if (!expected) {
+            settle(
+              'SIGNUP_MODE_MISMATCH',
+              attempt.current.mode === 'coexistence'
+                ? 'Na janela da Meta foi escolhido um número novo. Para um número novo, use "Conectar WhatsApp" e informe o PIN.'
+                : 'Na janela da Meta foi escolhido o WhatsApp Business do celular. Para esse caso, use "Conectar meu WhatsApp Business".',
+            );
+            return;
+          }
           const wabaId = parsed.data?.waba_id;
           if (!wabaId) {
             // Sem `waba_id` o servidor não tem como resolver a conta sem pedir
@@ -415,13 +463,13 @@ export function WhatsappConnect({
     setSdkReady(true);
   };
 
-  const launchSignup = () => {
+  const launchSignup = (mode: SignupMode) => {
     // Single-flight. O `disabled` do botão não basta: um clique duplo dispara os
     // dois handlers antes do re-render, e duas janelas simultâneas produziriam
     // `postMessage` de duas origens sem nenhum jeito de saber a qual pertencem.
     if (attempt.current.phase !== 'idle') return;
     setError(null);
-    if (!/^\d{6}$/.test(registrationPin)) {
+    if (mode === 'cloud_api' && !/^\d{6}$/.test(registrationPin)) {
       setError({
         code: 'REGISTRATION_PIN',
         message: 'Informe um PIN numérico de 6 dígitos para ativar o número na Meta.',
@@ -435,7 +483,7 @@ export function WhatsappConnect({
     }
     // Tentativa nova não herda estado nem timer da anterior.
     clearAllTimers();
-    const current = newAttempt(attempt.current.id + 1);
+    const current = newAttempt(attempt.current.id + 1, mode);
     current.phase = 'running';
     attempt.current = current;
     setSignupInFlight(true);
@@ -498,7 +546,7 @@ export function WhatsappConnect({
         config_id: configId,
         response_type: 'code',
         override_default_response_type: true,
-        extras: SIGNUP_EXTRAS,
+        extras: SIGNUP_EXTRAS[mode],
       },
     );
   };
@@ -588,7 +636,9 @@ export function WhatsappConnect({
             pending={signupBusy}
             registrationPin={registrationPin}
             onRegistrationPinChange={setPin}
-            onReconnect={launchSignup}
+            // Reconecta pelo mesmo caminho da conexão que quebrou: um número em
+            // coexistência não tem PIN nem aceita `/register`.
+            onReconnect={() => launchSignup(status.coexistence ? 'coexistence' : 'cloud_api')}
             onDisconnect={disconnect}
             disconnecting={disconnecting}
           />
@@ -599,7 +649,8 @@ export function WhatsappConnect({
             pending={signupBusy}
             registrationPin={registrationPin}
             onRegistrationPinChange={setPin}
-            onConnect={launchSignup}
+            onConnect={() => launchSignup('cloud_api')}
+            onConnectBusinessApp={() => launchSignup('coexistence')}
           />
         )}
       </Card>
@@ -658,6 +709,12 @@ function ConnectionDetails({ status }: { status: WhatsappStatusDTO }) {
       <div className="min-w-0">
         <dt className="text-(length:--fs-xs) font-medium text-fg-subtle">Conectado em</dt>
         <dd className="mt-1 font-mono text-fg">{formatDatePt(status.verifiedAt)}</dd>
+      </div>
+      <div className="min-w-0 sm:col-span-2">
+        <dt className="text-(length:--fs-xs) font-medium text-fg-subtle">Forma de conexão</dt>
+        <dd className="mt-1 text-fg">
+          {status.coexistence ? 'App WhatsApp Business do celular' : 'Número dedicado'}
+        </dd>
       </div>
     </dl>
   );
@@ -732,6 +789,14 @@ function ConnectedView({
       />
       <div className="grid gap-4 p-(--card-pad)">
         <ConnectionDetails status={status} />
+        {status.coexistence ? (
+          <Alert variant="info" title="A recepção continua usando o app">
+            <p className="text-pretty">
+              Quando a recepção responde um paciente pelo celular, a IA pausa naquela conversa até
+              alguém devolvê-la ao agente em Conversas.
+            </p>
+          </Alert>
+        ) : null}
         {verificationPending ? (
           <Alert variant="warning" title="Verificação temporariamente indisponível">
             <ul className="grid list-disc gap-1 pl-4">
@@ -749,7 +814,9 @@ function ConnectedView({
       </div>
       <div className="flex flex-col gap-3 border-t border-border bg-surface-2 px-(--card-pad) py-4 sm:flex-row sm:items-center sm:justify-between">
         <p className="max-w-[48ch] text-pretty text-(length:--fs-xs) text-fg-subtle">
-          Desconectar interrompe o atendimento automatizado neste número.
+          {status.coexistence
+            ? 'Desconectar interrompe o atendimento automatizado. O número continua no app do celular; para tirar a Qoro da conta, desconecte também no app WhatsApp Business, em Configurações > Conta.'
+            : 'Desconectar interrompe o atendimento automatizado neste número.'}
         </p>
         <Button
           type="button"
@@ -822,12 +889,15 @@ function DegradedView({
             Refaça a conexão para voltar a receber mensagens dos pacientes.
           </p>
           {ready ? (
-            <RegistrationPinField
-              id="whatsapp-reconnect-pin"
-              value={registrationPin}
-              onChange={onRegistrationPinChange}
-              disabled={busy}
-            />
+            // Coexistência não tem PIN: o número já está registrado no app.
+            status.coexistence ? null : (
+              <RegistrationPinField
+                id="whatsapp-reconnect-pin"
+                value={registrationPin}
+                onChange={onRegistrationPinChange}
+                disabled={busy}
+              />
+            )
           ) : (
             <Alert variant="warning" title="Reconexão automática indisponível">
               Esta instância não está configurada para iniciar a reconexão. Fale com o suporte para
@@ -840,10 +910,16 @@ function DegradedView({
                 type="button"
                 loading={pending}
                 onClick={onReconnect}
-                disabled={busy || !sdkReady || registrationPin.length !== 6}
+                disabled={
+                  busy || !sdkReady || (!status.coexistence && registrationPin.length !== 6)
+                }
                 className="min-h-(--hit-target) w-full sm:w-auto"
               >
-                {sdkReady ? 'Reconectar WhatsApp' : 'Carregando integração…'}
+                {!sdkReady
+                  ? 'Carregando integração…'
+                  : status.coexistence
+                    ? 'Reconectar meu WhatsApp Business'
+                    : 'Reconectar WhatsApp'}
               </Button>
             ) : null}
             <Button
@@ -878,6 +954,7 @@ function DisconnectedView({
   registrationPin,
   onRegistrationPinChange,
   onConnect,
+  onConnectBusinessApp,
 }: {
   ready: boolean;
   sdkReady: boolean;
@@ -885,6 +962,8 @@ function DisconnectedView({
   registrationPin: string;
   onRegistrationPinChange: (pin: string) => void;
   onConnect: () => void;
+  /** Coexistência: conectar o número que já está no app WhatsApp Business. */
+  onConnectBusinessApp: () => void;
 }) {
   return (
     <>
@@ -920,6 +999,12 @@ function DisconnectedView({
         <Separator />
         {ready ? (
           <div className="grid gap-4">
+            <div>
+              <h3 className="text-(length:--fs-sm) font-semibold">Número novo</h3>
+              <p className="mt-0.5 text-pretty text-(length:--fs-sm) text-fg-muted">
+                Um número que ainda não está em uso no WhatsApp.
+              </p>
+            </div>
             <RegistrationPinField
               id="whatsapp-registration-pin"
               value={registrationPin}
@@ -935,6 +1020,30 @@ function DisconnectedView({
                 className="min-h-(--hit-target) w-full sm:w-auto"
               >
                 {sdkReady ? 'Conectar WhatsApp' : 'Carregando integração…'}
+              </Button>
+            </div>
+            <Separator />
+            {/* Coexistência (0107): o mesmo número continua no app do celular. */}
+            <div>
+              <h3 className="text-(length:--fs-sm) font-semibold">
+                Já usa o WhatsApp Business no celular?
+              </h3>
+              <p className="mt-0.5 max-w-[60ch] text-pretty text-(length:--fs-sm) text-fg-muted">
+                Conecte o mesmo número, sem PIN. A recepção continua usando o app; quando ela
+                responder um paciente por lá, a IA pausa naquela conversa. Requer o app WhatsApp
+                Business atualizado.
+              </p>
+            </div>
+            <div>
+              <Button
+                type="button"
+                variant="subtle"
+                loading={pending}
+                onClick={onConnectBusinessApp}
+                disabled={pending || !sdkReady}
+                className="min-h-(--hit-target) w-full sm:w-auto"
+              >
+                {sdkReady ? 'Conectar meu WhatsApp Business' : 'Carregando integração…'}
               </Button>
             </div>
             <span className="sr-only" role="status" aria-live="polite">

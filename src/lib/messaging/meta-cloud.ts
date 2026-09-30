@@ -22,7 +22,9 @@ import { ProviderSendError, ProviderUnreachableError } from './errors';
 import type {
   MessageRef,
   MessagingProvider,
+  ParsedBusinessAppEcho,
   ParsedInboundMessage,
+  ParsedPartnerRemoval,
   ParsedStatusEvent,
   ParsedWebhookEvent,
   SendTemplateArgs,
@@ -34,15 +36,35 @@ interface MetaWebhookBody {
   entry?: MetaEntry[];
 }
 interface MetaEntry {
+  /** Id da WABA nos webhooks de conta (`account_update`). */
+  id?: string;
   changes?: MetaChange[];
 }
 interface MetaChange {
+  /** Qual assinatura de webhook produziu esta mudança. Ausente = legado (`messages`). */
+  field?: string;
   value?: MetaValue;
 }
 interface MetaValue {
   metadata?: { phone_number_id?: string; display_phone_number?: string };
   messages?: MetaMessage[];
   statuses?: MetaStatus[];
+  // Coexistência (Embedded Signup com app WhatsApp Business).
+  message_echoes?: MetaEcho[];
+  history?: { threads?: { messages?: unknown[] }[] }[];
+  state_sync?: unknown[];
+  // account_update
+  event?: string;
+  waba_info?: { waba_id?: string };
+  disconnection_info?: { reason?: string; initiated_by?: string };
+}
+interface MetaEcho {
+  id?: string;
+  from?: string;
+  to?: string;
+  type?: string;
+  text?: { body?: string };
+  timestamp?: string;
 }
 interface MetaMessage {
   id?: string;
@@ -59,6 +81,10 @@ interface MetaStatus {
 
 interface MetaSendResponse {
   messages?: { id?: string }[];
+}
+
+function stringOrNull(v: unknown): string | null {
+  return typeof v === 'string' && v.length > 0 ? v : null;
 }
 
 export class MetaCloudProvider implements MessagingProvider {
@@ -137,6 +163,9 @@ export class MetaCloudProvider implements MessagingProvider {
   parseWebhook(rawBody: string): ParsedWebhookEvent {
     const messages: ParsedInboundMessage[] = [];
     const statuses: ParsedStatusEvent[] = [];
+    const echoes: ParsedBusinessAppEcho[] = [];
+    const partnerRemovals: ParsedPartnerRemoval[] = [];
+    const discarded = { historyMessages: 0, stateSyncItems: 0 };
 
     let body: MetaWebhookBody;
     try {
@@ -144,14 +173,68 @@ export class MetaCloudProvider implements MessagingProvider {
     } catch {
       // Corpo não-parseável: a assinatura já validou; tratamos como vazio
       // (a rota colocará o raw em quarentena se não houver phone_id resolvível).
-      return { messages, statuses };
+      return { messages, statuses, echoes, partnerRemovals, discarded };
     }
 
     for (const entry of body.entry ?? []) {
       for (const change of entry.changes ?? []) {
+        // O `field` decide o que a mudança é. Antes ele era ignorado e só se
+        // lia `messages`/`statuses` — o que servia enquanto a única assinatura
+        // era `messages`. Com a coexistência chegam outras, e um payload de
+        // histórico lido como inbound faria a IA responder mensagens de meses
+        // atrás. Sem `field` = legado, tratado como `messages`.
+        const field = change.field ?? 'messages';
         const value = change.value;
+
+        if (field === 'account_update') {
+          if (value?.event === 'PARTNER_REMOVED') {
+            const wabaId = value.waba_info?.waba_id ?? entry.id;
+            if (typeof wabaId === 'string' && wabaId.length > 0) {
+              partnerRemovals.push({
+                wabaId,
+                reason: stringOrNull(value.disconnection_info?.reason),
+                initiatedBy: stringOrNull(value.disconnection_info?.initiated_by),
+              });
+            }
+          }
+          continue;
+        }
+
+        // Histórico e contatos da coexistência: contados e descartados. A Qoro
+        // pede a sincronização porque a Meta exige, mas não guarda o conteúdo
+        // (decisão de 30/09/2026 — minimização, LGPD). Nada daqui é persistido
+        // nem vai para quarentena.
+        if (field === 'history') {
+          for (const chunk of value?.history ?? []) {
+            for (const thread of chunk.threads ?? []) {
+              discarded.historyMessages += thread.messages?.length ?? 0;
+            }
+          }
+          continue;
+        }
+        if (field === 'smb_app_state_sync') {
+          discarded.stateSyncItems += value?.state_sync?.length ?? 0;
+          continue;
+        }
+
         const phoneId = value?.metadata?.phone_number_id;
         if (typeof phoneId !== 'string') continue;
+
+        if (field === 'smb_message_echoes') {
+          for (const e of value?.message_echoes ?? []) {
+            if (typeof e.id !== 'string' || typeof e.to !== 'string') continue;
+            echoes.push({
+              providerMessageId: e.id,
+              toNumber: e.to,
+              fromPhoneId: phoneId,
+              text: e.type === 'text' && typeof e.text?.body === 'string' ? e.text.body : null,
+              timestamp: typeof e.timestamp === 'string' ? e.timestamp : '',
+            });
+          }
+          continue;
+        }
+
+        if (field !== 'messages') continue;
         const displayNumber = value?.metadata?.display_phone_number ?? null;
 
         for (const m of value?.messages ?? []) {
@@ -178,7 +261,7 @@ export class MetaCloudProvider implements MessagingProvider {
         }
       }
     }
-    return { messages, statuses };
+    return { messages, statuses, echoes, partnerRemovals, discarded };
   }
 
   validateSignature(rawBody: string, signatureHeader: string | null, appSecret: string): boolean {

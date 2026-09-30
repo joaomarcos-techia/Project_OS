@@ -76,6 +76,9 @@ flowchart LR
   ev_financial_patient_refund_requested["financial.patient_refund.requested"]
   context_financial --> ev_financial_patient_refund_requested
   ev_financial_patient_refund_requested --> context_payments
+  ev_messaging_business_app_echo_received["messaging.business_app_echo.received"]
+  context_messaging --> ev_messaging_business_app_echo_received
+  ev_messaging_business_app_echo_received --> context_ai_agent
   ev_messaging_inbound_received["messaging.inbound.received"]
   context_messaging --> ev_messaging_inbound_received
   ev_messaging_inbound_received --> context_ai_agent

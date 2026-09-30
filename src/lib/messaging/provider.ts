@@ -80,10 +80,49 @@ export interface ParsedStatusEvent {
   raw: unknown;
 }
 
+/**
+ * Coexistência — mensagem que a recepção ENVIOU pelo app WhatsApp Business do
+ * celular (webhook field `smb_message_echoes`). Não é inbound: o remetente é a
+ * própria clínica e o destinatário é o paciente.
+ */
+export interface ParsedBusinessAppEcho {
+  providerMessageId: string;
+  /** Destinatário (o paciente), dígitos — hashed/cifrado antes de persistir. */
+  toNumber: string;
+  /** `phone_number_id` da clínica (roteamento de tenant). */
+  fromPhoneId: string;
+  /** Texto, ou null para mídia e outros tipos. */
+  text: string | null;
+  /** Epoch em segundos, como string (formato da Meta). */
+  timestamp: string;
+}
+
+/**
+ * `account_update` com `event: PARTNER_REMOVED`: a clínica (ou a Meta, por
+ * inatividade do celular) tirou a Qoro da conta. A partir daqui a Qoro não
+ * consegue mais enviar por aquela WABA.
+ */
+export interface ParsedPartnerRemoval {
+  wabaId: string;
+  /** Ex.: `PRIMARY_INACTIVITY`, `ACCOUNT_DISCONNECTED` — null se a Meta não informou. */
+  reason: string | null;
+  /** `USER` ou `SYSTEM` — null se a Meta não informou. */
+  initiatedBy: string | null;
+}
+
 /** Normalized webhook parse result (text messages + status callbacks). */
 export interface ParsedWebhookEvent {
   messages: ParsedInboundMessage[];
   statuses: ParsedStatusEvent[];
+  /** Coexistência: respostas da recepção pelo celular. */
+  echoes?: ParsedBusinessAppEcho[];
+  partnerRemovals?: ParsedPartnerRemoval[];
+  /**
+   * Histórico (`history`) e contatos (`smb_app_state_sync`) da coexistência:
+   * a Qoro pede a sincronização (a Meta exige) mas NÃO guarda o conteúdo —
+   * decisão de produto/LGPD de 30/09/2026. Só a contagem sobe, para métrica.
+   */
+  discarded?: { historyMessages: number; stateSyncItems: number };
 }
 
 export interface MessagingProvider {

@@ -57,6 +57,10 @@ import '@/contexts/billing/internal/handlers/conversation-completed';
 // (a Server Action persistiu a mensagem + publicou o evento atomicamente).
 import '@/contexts/ai-agent/internal/handlers/manual-reply-requested';
 
+// Coexistência (0107) — AI Agent: a recepção respondeu pelo app WhatsApp
+// Business do celular → a mensagem entra na conversa e a IA pausa (handoff).
+import '@/contexts/ai-agent/internal/handlers/business-app-echo';
+
 // C14 — Proactive Jobs: prontuário assinado com needs_return → agenda followup.
 // (reminder/dunning NÃO são handlers — são cron-scan dos read-models das origens.)
 import '@/contexts/ai-agent/proactive-jobs/internal/handlers/prontuario-signed';

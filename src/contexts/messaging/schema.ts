@@ -85,6 +85,10 @@ export const clinicWhatsappNumbers = pgTable(
     // Aditivo (F2): estado de conexão. Default 'connected' preserva o INSERT do
     // connect super_admin e os SELECTs de coluna explícita do number-store.
     connectionStatus: whatsappConnectionStatus('connection_status').notNull().default('connected'),
+    // Migration 0107: conectado por coexistência — o número continua no app
+    // WhatsApp Business do celular. Não participa do roteamento; muda o que a
+    // tela diz ao desconectar (a Meta não aceita deregister nesse número).
+    coexistence: boolean('coexistence').notNull().default(false),
     ...timestampsPattern(),
   },
   (t) => ({
@@ -243,9 +247,49 @@ export const inboundMessagesOrphaned = pgTable(
   }),
 );
 
+// --- whatsapp_business_app_echoes (coexistência — migration 0107) ------------
+
+/**
+ * O que a recepção enviou pelo app WhatsApp Business do celular num número em
+ * coexistência (webhook `smb_message_echoes`). Papel de raw, como
+ * `inbound_messages_raw`: dedup pelo wamid e o evento do outbox só carrega o id
+ * — ciphertext no payload mudaria a cada cifragem e o outbox trataria o reenvio
+ * da Meta como colisão. Append-only; retenção de 90 dias.
+ */
+export const whatsappBusinessAppEchoes = pgTable(
+  'whatsapp_business_app_echoes',
+  {
+    id: uuidPk(),
+    clinicId: tenantIdRef(),
+    provider: messagingProvider('provider').notNull(),
+    providerMessageId: text('provider_message_id').notNull(),
+    toNumberHash: text('to_number_hash').notNull(),
+    toNumberEncrypted: text('to_number_encrypted').notNull(),
+    // '' quando o eco não era texto.
+    contentEncrypted: text('content_encrypted').notNull(),
+    hasText: boolean('has_text').notNull(),
+    payloadHash: text('payload_hash').notNull(),
+    sentAt: timestamp('sent_at', { withTimezone: true })
+      .notNull()
+      .default(sql`now()`),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .default(sql`now()`),
+  },
+  (t) => ({
+    clinicIdx: index('whatsapp_business_app_echoes_clinic_id_idx').on(t.clinicId),
+    createdAtIdx: index('whatsapp_business_app_echoes_created_at_idx').on(t.createdAt),
+    providerMsgUniq: uniqueIndex('whatsapp_business_app_echoes_provider_msg_uniq').on(
+      t.provider,
+      t.providerMessageId,
+    ),
+  }),
+);
+
 // --- inferred row types ----------------------------------------------------
 
 export type ClinicWhatsappNumberRow = typeof clinicWhatsappNumbers.$inferSelect;
+export type WhatsappBusinessAppEchoRow = typeof whatsappBusinessAppEchoes.$inferSelect;
 export type InboundMessageRawRow = typeof inboundMessagesRaw.$inferSelect;
 export type OutboundMessageRow = typeof outboundMessages.$inferSelect;
 export type ProviderStatusEventRawRow = typeof providerStatusEventsRaw.$inferSelect;

@@ -1,11 +1,11 @@
 {
   "_comment": "GERADO por `pnpm arch:graphs`. Baseline do Gate de Complexidade (qorov2 §11).",
   "totals": {
-    "modules": 787,
+    "modules": 807,
     "elements": 56,
-    "importEdges": 298,
+    "importEdges": 303,
     "moduleCycles": 0,
-    "events": 67,
+    "events": 68,
     "eventsWithoutConsumer": 42
   },
   "elements": [
@@ -87,7 +87,7 @@
       "id": "app:api",
       "kind": "app",
       "fanIn": 0,
-      "fanOut": 22,
+      "fanOut": 23,
       "dependsOn": [
         "context:ai-agent",
         "context:billing",
@@ -103,6 +103,7 @@
         "lib:cron-heartbeat",
         "lib:db",
         "lib:env",
+        "lib:env-coherence",
         "lib:http",
         "lib:messaging",
         "lib:observability",
@@ -293,12 +294,14 @@
       "id": "context:identity",
       "kind": "context",
       "fanIn": 7,
-      "fanOut": 8,
+      "fanOut": 10,
       "dependsOn": [
         "context:tenancy",
         "lib:audit",
         "lib:auth",
         "lib:db",
+        "lib:email",
+        "lib:env",
         "lib:http",
         "lib:idempotency",
         "lib:observability",
@@ -329,7 +332,7 @@
       "id": "context:onboarding",
       "kind": "context",
       "fanIn": 4,
-      "fanOut": 11,
+      "fanOut": 13,
       "dependsOn": [
         "context:ai-agent",
         "context:billing",
@@ -338,7 +341,9 @@
         "lib:auth",
         "lib:crypto",
         "lib:db",
+        "lib:email",
         "lib:env",
+        "lib:http",
         "lib:observability",
         "lib:outbox",
         "lib:payments"
@@ -516,7 +521,7 @@
     {
       "id": "lib:email",
       "kind": "lib",
-      "fanIn": 2,
+      "fanIn": 4,
       "fanOut": 2,
       "dependsOn": [
         "lib:auth",
@@ -526,7 +531,7 @@
     {
       "id": "lib:env",
       "kind": "lib",
-      "fanIn": 19,
+      "fanIn": 20,
       "fanOut": 2,
       "dependsOn": [
         "lib:env-aliases",
@@ -543,7 +548,7 @@
     {
       "id": "lib:env-coherence",
       "kind": "lib",
-      "fanIn": 1,
+      "fanIn": 2,
       "fanOut": 0,
       "dependsOn": []
     },
@@ -568,7 +573,7 @@
     {
       "id": "lib:http",
       "kind": "lib",
-      "fanIn": 5,
+      "fanIn": 6,
       "fanOut": 5,
       "dependsOn": [
         "lib:audit",
