@@ -39,7 +39,8 @@ no app e passa a operar também pela Cloud API. Decisões de produto de 30/09/20
   `whatsapp_business_app_echoes` (raw, 90 dias) e publicada como
   `messaging.business_app_echo.received`. O agente grava a mensagem na conversa com
   `ai_messages.sent_via_business_app` (o painel mostra "Recepção pelo celular") e põe a conversa em
-  `handoff` com motivo `business_app_reply`. A IA só volta com "Devolver ao agente".
+  `handoff` com motivo `business_app_reply`. A IA só volta com "Devolver ao agente",
+  que aparece já em "Aguardando responsável", sem precisar assumir antes.
 - **`account_update` / `PARTNER_REMOVED`** desativa a conexão da WABA
   (`messaging.whatsapp.partner_removed` na auditoria), seja por desconexão no app, seja por
   inatividade do celular (~14 dias, `PRIMARY_INACTIVITY`).

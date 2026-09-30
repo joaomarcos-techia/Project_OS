@@ -90,11 +90,18 @@ async function lockConversation(
   return row;
 }
 
+/**
+ * `allowUnassigned` vale só para DEVOLVER: um handoff que ninguém assumiu não tem
+ * atendimento humano a atropelar. É o caso da recepção que respondeu pelo app
+ * WhatsApp Business (coexistência) e quer a IA de volta sem "assumir" no painel.
+ * Atribuído a OUTRA pessoa continua exigindo reatribuir antes.
+ */
 async function assertAssignedTo(
   tx: Parameters<Parameters<typeof idempotentMutation>[1]>[0],
   clinicId: string,
   conversationId: string,
   userId: string,
+  { allowUnassigned = false }: { allowUnassigned?: boolean } = {},
 ): Promise<void> {
   const [handoff] = await tx
     .select({ assignedTo: aiHandoffQueue.assignedTo })
@@ -108,9 +115,10 @@ async function assertAssignedTo(
     )
     .for('update')
     .limit(1);
-  if (!handoff || handoff.assignedTo !== userId) {
-    throw new ConversationAssignmentRequiredError();
-  }
+  if (!handoff) throw new ConversationAssignmentRequiredError();
+  if (handoff.assignedTo === userId) return;
+  if (allowUnassigned && handoff.assignedTo === null) return;
+  throw new ConversationAssignmentRequiredError();
 }
 
 // --- assumir conversa --------------------------------------------------------
@@ -204,7 +212,7 @@ export async function devolverAoAgente(
       if (conv.status !== 'handoff') {
         throw new InvalidConversationTransitionError(conv.status, 'active');
       }
-      await assertAssignedTo(tx, clinicId, id, user.userId);
+      await assertAssignedTo(tx, clinicId, id, user.userId, { allowUnassigned: true });
       await returnToAgent(tx, clinicId, id);
       metrics.emit('ai_agent.conversation.returned', { clinicId, conversationId: id });
       return { conversationId: id };
