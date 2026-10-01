@@ -5,6 +5,8 @@ const { mockEnv } = vi.hoisted(() => ({
     APP_BASE_URL: 'https://app.qoro.test',
     NODE_ENV: 'test',
     VERCEL_ENV: undefined as 'preview' | undefined,
+    VERCEL_URL: undefined as string | undefined,
+    VERCEL_BRANCH_URL: undefined as string | undefined,
     VERCEL_AUTOMATION_BYPASS_SECRET: undefined as string | undefined,
   },
 }));
@@ -19,6 +21,7 @@ import {
   createSignupConfirmationUrl,
   createOnboardingInviteUrl,
   createPasswordResetRedirectUrl,
+  resolveTrustedApplicationOrigin,
 } from './application-url';
 
 describe('buildApplicationUrl', () => {
@@ -26,6 +29,8 @@ describe('buildApplicationUrl', () => {
     mockEnv.APP_BASE_URL = 'https://app.qoro.test';
     mockEnv.NODE_ENV = 'test';
     mockEnv.VERCEL_ENV = undefined;
+    mockEnv.VERCEL_URL = undefined;
+    mockEnv.VERCEL_BRANCH_URL = undefined;
     mockEnv.VERCEL_AUTOMATION_BYPASS_SECRET = undefined;
   });
 
@@ -51,6 +56,52 @@ describe('buildApplicationUrl', () => {
     ).toBe('http://localhost:3000/convite');
   });
 
+  it('aceita a origem canonica configurada', () => {
+    const request = new Request('https://app.qoro.test/api/signup/draft', {
+      headers: { origin: 'https://app.qoro.test', 'sec-fetch-site': 'same-origin' },
+    });
+    expect(resolveTrustedApplicationOrigin(request)).toBe('https://app.qoro.test');
+  });
+
+  it.each(['VERCEL_URL', 'VERCEL_BRANCH_URL'] as const)(
+    'aceita somente o hostname auto-injetado no Preview: %s',
+    (key) => {
+      mockEnv.VERCEL_ENV = 'preview';
+      mockEnv[key] = `${key.toLowerCase()}.vercel.app`;
+      const origin = `https://${mockEnv[key]}`;
+      const request = new Request(`${origin}/api/signup/draft`, {
+        headers: { origin, 'sec-fetch-site': 'same-origin' },
+      });
+      expect(resolveTrustedApplicationOrigin(request)).toBe(origin);
+    },
+  );
+
+  it.each([
+    ['host Vercel nao allowlisted', 'preview-atacante.vercel.app', 'same-origin'],
+    ['origem diferente da URL', 'preview-outro.vercel.app', 'same-origin'],
+    ['requisicao cross-site', 'preview-branch.vercel.app', 'cross-site'],
+  ])('recusa %s', (_label, hostname, fetchSite) => {
+    mockEnv.VERCEL_ENV = 'preview';
+    mockEnv.VERCEL_BRANCH_URL = 'preview-branch.vercel.app';
+    const requestOrigin = `https://${hostname}`;
+    const headerOrigin =
+      _label === 'origem diferente da URL' ? 'https://preview-branch.vercel.app' : requestOrigin;
+    const request = new Request(`${requestOrigin}/api/signup/draft`, {
+      headers: { origin: headerOrigin, 'sec-fetch-site': fetchSite },
+    });
+    expect(resolveTrustedApplicationOrigin(request)).toBeNull();
+  });
+
+  it('nao amplia a allowlist Vercel fora de Preview', () => {
+    mockEnv.VERCEL_BRANCH_URL = 'preview-branch.vercel.app';
+    const origin = 'https://preview-branch.vercel.app';
+    expect(
+      resolveTrustedApplicationOrigin(
+        new Request(`${origin}/api/signup/draft`, { headers: { origin } }),
+      ),
+    ).toBeNull();
+  });
+
   it('mantém o token de confirmação fora do GET inicial', () => {
     expect(createAuthConfirmationUrl('token-hash-de-teste', 'recovery')).toBe(
       'https://app.qoro.test/auth/confirm#token_hash=token-hash-de-teste&type=recovery&next=%2Fconvite',
@@ -69,6 +120,17 @@ describe('buildApplicationUrl', () => {
       expect(new URL(createSignupConfirmationUrl('hash', type, 'a'.repeat(64))).search).toBe('');
     },
   );
+
+  it('usa a origem Preview ja validada no link de confirmacao', () => {
+    expect(
+      createSignupConfirmationUrl(
+        'hash',
+        'recovery',
+        'a'.repeat(64),
+        'https://preview-branch.vercel.app',
+      ),
+    ).toContain('https://preview-branch.vercel.app/auth/confirm#');
+  });
 
   it('recusa token vazio em vez de montar um link que não confirma nada', () => {
     expect(() => createSignupConfirmationUrl('   ', 'signup', 'a'.repeat(64))).toThrow('[app-url]');

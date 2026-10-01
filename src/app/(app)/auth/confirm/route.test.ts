@@ -24,6 +24,8 @@ const mocks = vi.hoisted(() => ({
     NODE_ENV: 'test',
     APP_BASE_URL: 'https://app.qoro.test',
     VERCEL_ENV: undefined as 'preview' | undefined,
+    VERCEL_URL: undefined as string | undefined,
+    VERCEL_BRANCH_URL: undefined as string | undefined,
   },
 }));
 
@@ -111,6 +113,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.env.APP_BASE_URL = origin;
   mocks.env.VERCEL_ENV = undefined;
+  mocks.env.VERCEL_URL = undefined;
+  mocks.env.VERCEL_BRANCH_URL = undefined;
   mocks.cookies.mockResolvedValue({ set: mocks.cookieSet });
   mocks.createServerClient.mockResolvedValue(client);
   mocks.verifyOtp.mockResolvedValue({
@@ -180,6 +184,7 @@ describe('POST /auth/confirm — envelope estrito', () => {
     mocks.env.VERCEL_ENV = 'preview';
     mocks.env.APP_BASE_URL = 'https://preview-antigo.vercel.app';
     const previewOrigin = 'https://project-os-git-branch-owner.vercel.app';
+    mocks.env.VERCEL_BRANCH_URL = new URL(previewOrigin).hostname;
     const request = new NextRequest(`${previewOrigin}/auth/confirm`, {
       method: 'POST',
       headers: {

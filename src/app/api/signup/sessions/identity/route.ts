@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { hashSignupToken, recordSignupIdentity, signupIdentitySchema } from '@/contexts/onboarding';
 import { assertSignupIdentityAllowed, getClientIp } from '@/lib/auth/rate-limit';
 import { env } from '@/lib/env';
-import { buildApplicationUrl } from '@/lib/http/application-url';
+import { resolveTrustedApplicationOrigin } from '@/lib/http/application-url';
 import { readWebhookBodyCapped } from '@/lib/http/webhook-body';
 
 import { readSignupCookie, SIGNUP_COOKIE_CLEAR_OPTIONS, SIGNUP_SESSION_COOKIE } from '../../cookie';
@@ -23,19 +23,9 @@ function error(reason: string, status: number): NextResponse {
 
 export async function POST(req: Request): Promise<Response> {
   if (!env.SIGNUP_IDENTITY_ENABLED) return error('unavailable', 503);
-  let origin: string;
-  try {
-    origin = new URL(
-      buildApplicationUrl(env.APP_BASE_URL ?? '', '/', {
-        allowInsecureLocalhost: env.NODE_ENV !== 'production',
-      }),
-    ).origin;
-  } catch {
-    return error('unavailable', 503);
-  }
-  if (req.headers.get('origin') !== origin || req.headers.get('sec-fetch-site') === 'cross-site') {
-    return error('blocked', 403);
-  }
+  const publicOrigin = resolveTrustedApplicationOrigin(req);
+  if (publicOrigin === undefined) return error('unavailable', 503);
+  if (publicOrigin === null) return error('blocked', 403);
   const token = readSignupCookie(req);
   if (!token || !SIGNUP_TOKEN_PATTERN.test(token)) return error('gone', 410);
   try {

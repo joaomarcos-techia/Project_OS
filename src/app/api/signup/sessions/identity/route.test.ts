@@ -8,6 +8,9 @@ const { record, limit, config, hash } = vi.hoisted(() => ({
     SIGNUP_IDENTITY_ENABLED: true,
     APP_BASE_URL: 'https://app.qoro.test',
     NODE_ENV: 'test',
+    VERCEL_ENV: undefined as 'preview' | undefined,
+    VERCEL_URL: undefined as string | undefined,
+    VERCEL_BRANCH_URL: undefined as string | undefined,
   },
 }));
 vi.mock('@/contexts/onboarding', async () => {
@@ -46,6 +49,9 @@ describe('POST signup identity', () => {
     config.SIGNUP_IDENTITY_ENABLED = true;
     config.APP_BASE_URL = 'https://app.qoro.test';
     config.NODE_ENV = 'test';
+    config.VERCEL_ENV = undefined;
+    config.VERCEL_URL = undefined;
+    config.VERCEL_BRANCH_URL = undefined;
     limit.mockResolvedValue({ ok: true });
     hash.mockReturnValue('a'.repeat(64));
     record.mockResolvedValue({ ok: true, rowVersion: 2 });
@@ -71,6 +77,24 @@ describe('POST signup identity', () => {
     config.NODE_ENV = 'production';
     expect((await POST(request())).status).toBe(503);
     config.NODE_ENV = 'test';
+  });
+  it('aceita o alias auto-injetado da branch Preview mesmo com APP_BASE_URL antigo', async () => {
+    const previewOrigin = 'https://project-os-git-branch-owner.vercel.app';
+    config.VERCEL_ENV = 'preview';
+    config.VERCEL_BRANCH_URL = new URL(previewOrigin).hostname;
+    config.APP_BASE_URL = 'https://preview-antigo.vercel.app';
+    const req = new Request(`${previewOrigin}/api/signup/sessions/identity`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+      headers: {
+        origin: previewOrigin,
+        'sec-fetch-site': 'same-origin',
+        cookie: `__Host-qoro_signup=${token}`,
+      },
+    });
+
+    expect((await POST(req)).status).toBe(200);
+    expect(record).toHaveBeenCalledWith(token, data);
   });
   it.each(['missing', 'foreign', 'cross-site', 'spoofed-host'])(
     'blocks %s origin before body/limiter/writer',

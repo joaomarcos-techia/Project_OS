@@ -54,6 +54,81 @@ function configuredApplicationUrl(pathname: string): string {
   });
 }
 
+function vercelHostname(raw: string | undefined): string | null {
+  if (!raw) return null;
+  try {
+    const url = new URL(raw.includes('://') ? raw : `https://${raw}`);
+    if (
+      url.protocol !== 'https:' ||
+      url.username ||
+      url.password ||
+      url.port ||
+      url.pathname !== '/' ||
+      url.search ||
+      url.hash ||
+      !url.hostname.endsWith('.vercel.app') ||
+      url.hostname === 'vercel.app'
+    ) {
+      return null;
+    }
+    return url.hostname;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Resolve a origem publica desta requisicao sem confiar em Host/Origin livres.
+ *
+ * Em producao e local, somente APP_BASE_URL e aceito. Em Preview, a Vercel pode
+ * servir o mesmo deployment pela URL imutavel ou pelo alias da branch; ambas
+ * entram pela allowlist das variaveis auto-injetadas pela plataforma.
+ * `undefined` indica configuracao indisponivel; `null`, requisicao bloqueada.
+ */
+export function resolveTrustedApplicationOrigin(request: Request): string | null | undefined {
+  const suppliedOrigin = request.headers.get('origin');
+  let configuredOrigin: string | undefined;
+  try {
+    configuredOrigin = new URL(
+      buildApplicationUrl(env.APP_BASE_URL ?? '', '/', {
+        allowInsecureLocalhost: env.NODE_ENV !== 'production',
+      }),
+    ).origin;
+  } catch {
+    configuredOrigin = undefined;
+  }
+
+  const allowed = new Set(
+    env.VERCEL_ENV === 'preview'
+      ? [vercelHostname(env.VERCEL_URL), vercelHostname(env.VERCEL_BRANCH_URL)].filter(
+          (hostname): hostname is string => hostname !== null,
+        )
+      : [],
+  );
+  if (!configuredOrigin && allowed.size === 0) return undefined;
+  if (!suppliedOrigin || request.headers.get('sec-fetch-site') === 'cross-site') return null;
+
+  let requestUrl: URL;
+  let originUrl: URL;
+  try {
+    requestUrl = new URL(request.url);
+    originUrl = new URL(suppliedOrigin);
+  } catch {
+    return null;
+  }
+  if (originUrl.origin !== suppliedOrigin) return null;
+  if (suppliedOrigin === configuredOrigin) return configuredOrigin;
+  if (
+    env.VERCEL_ENV === 'preview' &&
+    requestUrl.protocol === 'https:' &&
+    requestUrl.origin === suppliedOrigin &&
+    allowed.has(requestUrl.hostname)
+  ) {
+    return requestUrl.origin;
+  }
+  return null;
+}
+
 export function createOnboardingInviteUrl(rawToken: string): string {
   if (!isOnboardingInviteToken(rawToken)) {
     throw new Error('[app-url] onboarding invite token is invalid');
@@ -126,6 +201,7 @@ export function createSignupConfirmationUrl(
   tokenHash: string,
   type: 'signup' | 'magiclink' | 'recovery',
   signupRef: string,
+  publicOrigin?: string,
 ): string {
   if (!tokenHash.trim()) {
     throw new Error('[app-url] signup confirmation token hash is required');
@@ -133,7 +209,13 @@ export function createSignupConfirmationUrl(
   if (!/^[a-f0-9]{64}$/u.test(signupRef)) {
     throw new Error('[app-url] signup confirmation ref is invalid');
   }
-  const url = new URL(configuredApplicationUrl('/auth/confirm'));
+  const url = new URL(
+    publicOrigin
+      ? buildApplicationUrl(publicOrigin, '/auth/confirm', {
+          allowInsecureLocalhost: env.NODE_ENV !== 'production',
+        })
+      : configuredApplicationUrl('/auth/confirm'),
+  );
   url.hash = new URLSearchParams({
     token_hash: tokenHash,
     type,

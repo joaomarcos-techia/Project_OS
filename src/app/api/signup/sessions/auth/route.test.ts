@@ -96,6 +96,7 @@ describe('POST signup auth', () => {
       password: input.password,
       signupRef: 'a'.repeat(64),
       attemptEpoch: 1_795_000_000_000,
+      publicOrigin: 'https://app.qoro.test',
     });
     expect(finish).toHaveBeenCalledWith(token, 4, 'completed');
   });

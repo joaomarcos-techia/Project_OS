@@ -29,7 +29,7 @@ import {
   AUTH_CONFIRM_BRIDGE_STYLE,
   AUTH_CONFIRM_CONTENT_SECURITY_POLICY,
 } from '@/lib/http/auth-confirm-security';
-import { buildApplicationUrl } from '@/lib/http/application-url';
+import { resolveTrustedApplicationOrigin } from '@/lib/http/application-url';
 import { readWebhookBodyCapped } from '@/lib/http/webhook-body';
 import { logger } from '@/lib/observability/logger';
 
@@ -119,40 +119,8 @@ export async function GET(_request?: NextRequest): Promise<Response> {
   return applyPrivateHeaders(response);
 }
 
-function previewRequestOrigin(request: NextRequest): string | null {
-  if (env.VERCEL_ENV !== 'preview') return null;
-  try {
-    const url = new URL(request.url);
-    if (
-      url.protocol !== 'https:' ||
-      !url.hostname.endsWith('.vercel.app') ||
-      url.hostname === 'vercel.app' ||
-      url.port ||
-      url.username ||
-      url.password
-    ) {
-      return null;
-    }
-    return url.origin;
-  } catch {
-    return null;
-  }
-}
-
-function resolveConfirmationPublicOrigin(request: NextRequest): string | null {
-  const previewOrigin = previewRequestOrigin(request);
-  if (previewOrigin) return previewOrigin;
-  try {
-    return new URL(
-      buildApplicationUrl(env.APP_BASE_URL ?? '', '/', {
-        // O gate executa o build de produção em loopback sem TLS. A opção só
-        // admite localhost/127.0.0.1/[::1]; hosts externos continuam HTTPS-only.
-        allowInsecureLocalhost: true,
-      }),
-    ).origin;
-  } catch {
-    return null;
-  }
+function resolveConfirmationPublicOrigin(request: NextRequest): string | null | undefined {
+  return resolveTrustedApplicationOrigin(request);
 }
 
 type ConfirmationInput = {
@@ -325,7 +293,10 @@ async function confirmOtp(publicOrigin: string, input: ConfirmationInput): Promi
 
 export async function POST(request: NextRequest): Promise<Response> {
   const publicOrigin = resolveConfirmationPublicOrigin(request);
-  if (!publicOrigin) return applyPrivateHeaders(new Response(null, { status: 503 }));
+  if (publicOrigin === undefined) {
+    return applyPrivateHeaders(new Response(null, { status: 503 }));
+  }
+  if (publicOrigin === null) return rejectRequest(403);
   const fetchSite = request.headers.get('sec-fetch-site');
   if (
     request.headers.get('origin') !== publicOrigin ||

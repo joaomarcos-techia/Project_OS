@@ -202,6 +202,7 @@ export async function sendSignupConfirmation(input: {
   password: string;
   signupRef: string;
   attemptEpoch: number;
+  publicOrigin: string;
 }): Promise<SignupConfirmationOutcome> {
   const exposure = await checkSignupPasswordExposure(input.password);
   if (exposure === 'pwned') return { kind: 'weak_password' };
@@ -308,7 +309,14 @@ export async function sendSignupConfirmation(input: {
     ) {
       return { kind: 'uncertain' };
     }
-    return entregar(input.email, tokenHash, input.signupRef, input.attemptEpoch, 'initial');
+    return entregar(
+      input.email,
+      tokenHash,
+      input.signupRef,
+      input.attemptEpoch,
+      'initial',
+      input.publicOrigin,
+    );
   } catch {
     return { kind: 'uncertain' };
   }
@@ -322,6 +330,7 @@ export async function resendSignupConfirmation(input: {
   email: string;
   signupRef: string;
   attemptEpoch: number;
+  publicOrigin: string;
 }): Promise<SignupConfirmationOutcome> {
   try {
     const admin = createAdminClient();
@@ -429,7 +438,14 @@ export async function resendSignupConfirmation(input: {
     ) {
       return { kind: 'uncertain' };
     }
-    return entregar(input.email, tokenHash, input.signupRef, input.attemptEpoch, 'resend');
+    return entregar(
+      input.email,
+      tokenHash,
+      input.signupRef,
+      input.attemptEpoch,
+      'resend',
+      input.publicOrigin,
+    );
   } catch {
     return { kind: 'uncertain' };
   }
@@ -443,12 +459,13 @@ async function entregar(
   signupRef: string,
   attemptEpoch: number,
   stage: DeliveryStage,
+  publicOrigin: string,
 ): Promise<SignupConfirmationOutcome> {
   try {
     const first = stage === 'initial';
     const conteudo = renderSignupConfirmationEmail({
-      confirmUrl: createSignupConfirmationUrl(tokenHash, 'recovery', signupRef),
-      expectedOrigin: env.APP_BASE_URL ?? '',
+      confirmUrl: createSignupConfirmationUrl(tokenHash, 'recovery', signupRef, publicOrigin),
+      expectedOrigin: publicOrigin,
       verificationCode: deriveSignupHandoffCode(signupRef, attemptEpoch),
       first,
     });

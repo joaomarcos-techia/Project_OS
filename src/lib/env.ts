@@ -60,6 +60,11 @@ const EnvSchema = z
       emptyToUndefined,
       z.enum(['production', 'preview', 'development']).optional(),
     ),
+    // Hostnames auto-injetados pela Vercel. Em Preview eles formam a allowlist
+    // das duas URLs do deployment (imutavel e da branch); nunca sao aceitos como
+    // URL arbitraria vinda do browser.
+    VERCEL_URL: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+    VERCEL_BRANCH_URL: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
     // Gerado pela Vercel quando Protection Bypass for Automation está ativo.
     // Em Preview protegido, acompanha SOMENTE URLs de webhook server-to-server;
     // nunca vai para o browser, log ou resposta. Opcional porque produção/dev

@@ -13,7 +13,7 @@ import { hashEmail } from '@/lib/auth/email-hash';
 import { assertSignupAuthAllowed, getClientIp } from '@/lib/auth/rate-limit';
 import { settleSignupAccountResponse } from '@/lib/auth/signup-response-timing';
 import { env } from '@/lib/env';
-import { buildApplicationUrl } from '@/lib/http/application-url';
+import { resolveTrustedApplicationOrigin } from '@/lib/http/application-url';
 import { readWebhookBodyCapped } from '@/lib/http/webhook-body';
 
 import { readSignupCookie, SIGNUP_COOKIE_CLEAR_OPTIONS, SIGNUP_SESSION_COOKIE } from '../../cookie';
@@ -37,20 +37,9 @@ export async function POST(req: Request): Promise<Response> {
   let accountOperationStartedAt: number | undefined;
   if (!env.SIGNUP_AUTH_ENABLED || !env.SIGNUP_IDENTITY_ENABLED)
     return json({ error: 'unavailable' }, 503);
-  let redirectUrl: string;
-  try {
-    redirectUrl = buildApplicationUrl(env.APP_BASE_URL ?? '', '/auth/confirm', {
-      allowInsecureLocalhost: env.NODE_ENV !== 'production',
-    });
-  } catch {
-    return json({ error: 'unavailable' }, 503);
-  }
-  if (
-    req.headers.get('origin') !== new URL(redirectUrl).origin ||
-    req.headers.get('sec-fetch-site') === 'cross-site'
-  ) {
-    return json({ error: 'blocked' }, 403);
-  }
+  const publicOrigin = resolveTrustedApplicationOrigin(req);
+  if (publicOrigin === undefined) return json({ error: 'unavailable' }, 503);
+  if (publicOrigin === null) return json({ error: 'blocked' }, 403);
   const token = readSignupCookie(req);
   if (!token || !/^[A-Za-z0-9_-]{43}$/u.test(token)) return json({ error: 'gone' }, 410);
   try {
@@ -110,6 +99,7 @@ export async function POST(req: Request): Promise<Response> {
       password,
       signupRef: hashSignupToken(token),
       attemptEpoch,
+      publicOrigin,
     }).catch(() => ({ kind: 'uncertain' }) as const);
     const retryable = outcome.kind === 'weak_password' || outcome.kind === 'retryable';
     // `obfuscated` conta como concluído de propósito: é o desfecho que depende

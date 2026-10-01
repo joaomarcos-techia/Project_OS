@@ -89,6 +89,7 @@ describe('POST /api/signup/checkout', () => {
     });
     expect(mocks.start).toHaveBeenCalledWith({
       userId: USER_ID,
+      publicOrigin: 'https://app.qoro.test',
     });
     expect(mocks.provision).not.toHaveBeenCalled();
   });
