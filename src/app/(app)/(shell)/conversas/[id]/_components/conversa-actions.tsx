@@ -111,11 +111,12 @@ function AssumePanel({
   );
 
   const key = useIdempotencyKey(state?.ok === true);
+  // Ninguém assumiu: não há atendimento humano a atropelar, então dá para
+  // devolver direto — é o caso de quem respondeu pelo app WhatsApp Business.
+  const canReturn = handoff !== null && handoff.assignedToUserId === null;
 
   return (
-    <form action={action} className="flex flex-col gap-(--sp-3)">
-      <input type="hidden" name="conversationId" value={conversationId} />
-      <input type="hidden" name="idempotencyKey" value={key} />
+    <div className="flex flex-col gap-(--sp-3)">
       {handoff ? (
         <Alert
           variant={handoff.overdue ? 'danger' : 'warning'}
@@ -132,12 +133,44 @@ function AssumePanel({
           ele responderia junto e o paciente receberia duas respostas.
         </Alert>
       )}
-      <Button type="submit" disabled={pending} className="self-start">
-        {pending
-          ? 'Assumindo…'
-          : handoff?.assignedToUserId
-            ? 'Reatribuir para mim'
-            : 'Assumir atendimento'}
+      <div className="flex flex-wrap items-center gap-(--sp-2)">
+        <form action={action}>
+          <input type="hidden" name="conversationId" value={conversationId} />
+          <input type="hidden" name="idempotencyKey" value={key} />
+          <Button type="submit" disabled={pending}>
+            {pending
+              ? 'Assumindo…'
+              : handoff?.assignedToUserId
+                ? 'Reatribuir para mim'
+                : 'Assumir atendimento'}
+          </Button>
+        </form>
+        {canReturn ? <DevolverAoAgenteForm conversationId={conversationId} /> : null}
+      </div>
+    </div>
+  );
+}
+
+function DevolverAoAgenteForm({ conversationId, size }: { conversationId: string; size?: 'sm' }) {
+  const [state, action, pending] = useActionState<ConversaActionState, FormData>(
+    devolverAoAgenteAction,
+    null,
+  );
+  useActionFeedback(state, (s) =>
+    s === null
+      ? null
+      : s.ok
+        ? { type: 'success', title: 'Conversa devolvida ao agente' }
+        : { type: 'error', title: 'Não foi possível devolver', description: s.message },
+  );
+  const key = useIdempotencyKey(state?.ok === true);
+
+  return (
+    <form action={action}>
+      <input type="hidden" name="conversationId" value={conversationId} />
+      <input type="hidden" name="idempotencyKey" value={key} />
+      <Button type="submit" variant="secondary" size={size} disabled={pending}>
+        {pending ? 'Devolvendo…' : 'Devolver ao agente'}
       </Button>
     </form>
   );
@@ -160,10 +193,6 @@ function HandoffPanel({
     responderAction,
     null,
   );
-  const [returnState, returnAction, returning] = useActionState<ConversaActionState, FormData>(
-    devolverAoAgenteAction,
-    null,
-  );
   const [priorityState, priorityAction, prioritizing] = useActionState<
     ConversaActionState,
     FormData
@@ -177,13 +206,6 @@ function HandoffPanel({
       : s.ok
         ? { type: 'success', title: 'Mensagem na fila de envio' }
         : { type: 'error', title: 'Não foi possível enviar', description: s.message },
-  );
-  useActionFeedback(returnState, (s) =>
-    s === null
-      ? null
-      : s.ok
-        ? { type: 'success', title: 'Conversa devolvida ao agente' }
-        : { type: 'error', title: 'Não foi possível devolver', description: s.message },
   );
   useActionFeedback(priorityState, (s) =>
     s === null
@@ -200,7 +222,6 @@ function HandoffPanel({
   }, [replyState]);
 
   const replyKey = useIdempotencyKey(replyState?.ok === true);
-  const returnKey = useIdempotencyKey(returnState?.ok === true);
   const priorityKey = useIdempotencyKey(priorityState?.ok === true);
 
   return (
@@ -280,13 +301,7 @@ function HandoffPanel({
         </Button>
       </form>
 
-      <form action={returnAction}>
-        <input type="hidden" name="conversationId" value={conversationId} />
-        <input type="hidden" name="idempotencyKey" value={returnKey} />
-        <Button type="submit" variant="secondary" size="sm" disabled={returning}>
-          {returning ? 'Devolvendo…' : 'Devolver ao agente'}
-        </Button>
-      </form>
+      <DevolverAoAgenteForm conversationId={conversationId} size="sm" />
     </div>
   );
 }

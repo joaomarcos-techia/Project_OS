@@ -44,6 +44,7 @@ vi.mock('./internal/meta-onboarding', () => ({
     phoneNumber: '+5511999991234',
   })),
   registerPhoneNumber: vi.fn(async () => {}),
+  requestBusinessAppSync: vi.fn(async () => 'requested'),
   subscribeAppToWaba: vi.fn(async () => {}),
   ensureMessageTemplates: vi.fn(async () => []),
   unsubscribeAppFromWaba: vi.fn(async () => {}),
@@ -472,5 +473,66 @@ describe('connect — provisionamento dos templates', () => {
     });
     expect(mocks.after).not.toHaveBeenCalled();
     expect(onboarding.ensureMessageTemplates).not.toHaveBeenCalled();
+  });
+});
+
+describe('connectMyClinicWhatsapp — coexistência (app WhatsApp Business)', () => {
+  it('não registra o número nem exige PIN, e grava a conexão como coexistência', async () => {
+    await connectMyClinicWhatsapp({ code: 'CODE', mode: 'coexistence', wabaId: 'waba-1' });
+
+    expect(onboarding.registerPhoneNumber).not.toHaveBeenCalled();
+    expect(onboarding.subscribeAppToWaba).toHaveBeenCalledWith('waba-1', 'SECRET_TOKEN_VALUE');
+    expect(vi.mocked(upsertTenantConnection).mock.calls[0]![0]).toMatchObject({
+      coexistence: true,
+    });
+  });
+
+  it('pede contatos e depois histórico, antes dos templates, depois da resposta', async () => {
+    await connectMyClinicWhatsapp({ code: 'CODE', mode: 'coexistence', wabaId: 'waba-1' });
+    expect(onboarding.requestBusinessAppSync).not.toHaveBeenCalled();
+
+    await mocks.after.mock.calls[0]![0]();
+
+    expect(vi.mocked(onboarding.requestBusinessAppSync).mock.calls).toEqual([
+      ['phone-1', 'SECRET_TOKEN_VALUE', 'smb_app_state_sync'],
+      ['phone-1', 'SECRET_TOKEN_VALUE', 'history'],
+    ]);
+    expect(vi.mocked(onboarding.requestBusinessAppSync).mock.invocationCallOrder[1]).toBeLessThan(
+      vi.mocked(onboarding.ensureMessageTemplates).mock.invocationCallOrder[0]!,
+    );
+  });
+
+  it('falha na sincronização não derruba o resto nem lança depois da resposta', async () => {
+    vi.mocked(onboarding.requestBusinessAppSync)
+      .mockRejectedValueOnce(new MetaConnectError('boom', { stage: 'coexistence_sync' }))
+      .mockResolvedValueOnce('declined');
+    await connectMyClinicWhatsapp({ code: 'CODE', mode: 'coexistence', wabaId: 'waba-1' });
+
+    await expect(mocks.after.mock.calls[0]![0]()).resolves.toBeUndefined();
+    // O histórico é pedido mesmo com a falha nos contatos.
+    expect(onboarding.requestBusinessAppSync).toHaveBeenCalledTimes(2);
+    expect(onboarding.ensureMessageTemplates).toHaveBeenCalledTimes(1);
+  });
+
+  it('fluxo comum não pede sincronização e grava coexistence=false', async () => {
+    await connectMyClinicWhatsapp({
+      code: 'CODE',
+      registrationPin: '123456',
+      wabaId: 'waba-1',
+      phoneNumberId: 'phone-1',
+    });
+    await mocks.after.mock.calls[0]![0]();
+
+    expect(onboarding.requestBusinessAppSync).not.toHaveBeenCalled();
+    expect(vi.mocked(upsertTenantConnection).mock.calls[0]![0]).toMatchObject({
+      coexistence: false,
+    });
+  });
+
+  it('fluxo comum sem PIN é recusado antes de qualquer chamada à Meta', async () => {
+    await expect(
+      connectMyClinicWhatsapp({ code: 'CODE', wabaId: 'waba-1', phoneNumberId: 'phone-1' }),
+    ).rejects.toThrow(/PIN do WhatsApp/);
+    expect(onboarding.exchangeCodeForToken).not.toHaveBeenCalled();
   });
 });

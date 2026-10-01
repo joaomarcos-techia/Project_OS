@@ -111,6 +111,16 @@ export const RETENTION_POLICIES: readonly RetentionPolicy[] = [
     why: 'Raw do webhook; o conteúdo útil já foi promovido no ingest. 90d cobre suporte/forense.',
   },
   {
+    // Coexistência (0107): o que a recepção enviou pelo app do celular. Mesmo
+    // papel e mesma janela do inbound raw — o texto útil já foi promovido para
+    // ai_messages pelo handler do agente.
+    table: 'whatsapp_business_app_echoes',
+    idColumns: ['id'],
+    days: INBOUND_RAW_DAYS,
+    expired: () => sql`created_at < now() - make_interval(days => ${INBOUND_RAW_DAYS})`,
+    why: 'Raw do eco do app WhatsApp Business; o texto útil já foi promovido para a conversa. 90d, como o inbound.',
+  },
+  {
     table: 'outbound_messages',
     idColumns: ['id'],
     days: OUTBOUND_DAYS,

@@ -21,6 +21,7 @@ import {
   ensureMessageTemplates,
   exchangeCodeForToken,
   registerPhoneNumber,
+  requestBusinessAppSync,
   resolveWabaAndPhone,
   subscribeAppToWaba,
   unsubscribeAppFromWaba,
@@ -797,5 +798,51 @@ describe('ensureMessageTemplates', () => {
     fetchMock.mockResolvedValueOnce(res({ error: { code: 100 } }, false, 400));
     const outcomes = await ensureMessageTemplates('waba-1', 'SEGREDO', [definition('x', 1)]);
     expect(JSON.stringify(outcomes)).not.toContain('SEGREDO');
+  });
+});
+
+describe('requestBusinessAppSync — coexistência', () => {
+  it('pede contatos e histórico em POST /{phone}/smb_app_data, com bearer', async () => {
+    fetchMock.mockResolvedValue(res({ messaging_product: 'whatsapp', request_id: 'req-1' }));
+
+    expect(await requestBusinessAppSync('phone-1', 'TOK', 'smb_app_state_sync')).toBe('requested');
+    expect(await requestBusinessAppSync('phone-1', 'TOK', 'history')).toBe('requested');
+
+    const [contacts, history] = fetchMock.mock.calls;
+    expect(new URL(urlOf(contacts!)).pathname).toContain('/phone-1/smb_app_data');
+    expect(optOf(contacts!).method).toBe('POST');
+    expect(optOf(contacts!).headers?.authorization).toBe('Bearer TOK');
+    expect(JSON.parse(optOf(contacts!).body ?? '{}')).toEqual({
+      messaging_product: 'whatsapp',
+      sync_type: 'smb_app_state_sync',
+    });
+    expect(JSON.parse(optOf(history!).body ?? '{}')).toEqual({
+      messaging_product: 'whatsapp',
+      sync_type: 'history',
+    });
+  });
+
+  it('clínica que recusou compartilhar o histórico (2593109) não é falha', async () => {
+    fetchMock.mockResolvedValueOnce(res({ error: { code: 2593109 } }, false, 400));
+
+    expect(await requestBusinessAppSync('phone-1', 'TOK', 'history')).toBe('declined');
+  });
+
+  it('2593109 só é recusa no histórico; nos contatos continua sendo erro', async () => {
+    fetchMock.mockResolvedValueOnce(res({ error: { code: 2593109 } }, false, 400));
+
+    const err = await requestBusinessAppSync('phone-1', 'TOK', 'smb_app_state_sync').catch(
+      (error) => error,
+    );
+    expect(err).toBeInstanceOf(MetaConnectError);
+  });
+
+  it('recusa documentada preserva a etapa coexistence_sync e não vaza o token', async () => {
+    fetchMock.mockResolvedValueOnce(res({ error: { code: 190 } }, false, 400));
+
+    const err = await requestBusinessAppSync('phone-1', 'TOK', 'history').catch((error) => error);
+
+    expect(err).toMatchObject({ name: 'MetaConnectError', stage: 'coexistence_sync' });
+    expect(err.message).not.toContain('TOK');
   });
 });

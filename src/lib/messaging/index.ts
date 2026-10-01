@@ -35,6 +35,7 @@ export {
 export {
   upsertTenantConnection,
   deactivateTenantConnection,
+  deactivateConnectionsForRemovedPartner,
   recordConnectionFailure,
   recordProfileUpdated,
   loadConnectionForHealth,
@@ -55,4 +56,6 @@ export type {
   ParsedInboundMessage,
   ParsedStatusEvent,
   ParsedWebhookEvent,
+  ParsedBusinessAppEcho,
+  ParsedPartnerRemoval,
 } from './provider';

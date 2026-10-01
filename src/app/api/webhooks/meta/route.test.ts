@@ -10,6 +10,8 @@ const {
   resolveClinicByPhoneId,
   persistInbound,
   persistStatusEvents,
+  persistBusinessAppEcho,
+  deactivateConnectionsForRemovedPartner,
   quarantineOrphan,
   runOutboxOnce,
   captureBackgroundError,
@@ -21,6 +23,8 @@ const {
   resolveClinicByPhoneId: vi.fn(),
   persistInbound: vi.fn(),
   persistStatusEvents: vi.fn(),
+  persistBusinessAppEcho: vi.fn(),
+  deactivateConnectionsForRemovedPartner: vi.fn(),
   quarantineOrphan: vi.fn(),
   runOutboxOnce: vi.fn(),
   captureBackgroundError: vi.fn(),
@@ -47,8 +51,13 @@ vi.mock('@/lib/messaging', () => ({
   getMessagingProvider: () => ({ validateSignature, parseWebhook }),
   resolveClinicByPhoneId,
   quarantineOrphan,
+  deactivateConnectionsForRemovedPartner,
 }));
-vi.mock('@/contexts/messaging/internal/inbound', () => ({ persistInbound, persistStatusEvents }));
+vi.mock('@/contexts/messaging/internal/inbound', () => ({
+  persistInbound,
+  persistStatusEvents,
+  persistBusinessAppEcho,
+}));
 
 import { POST, triggerOutboxAfterMetaIngress } from './route';
 
@@ -173,5 +182,104 @@ describe('Meta webhook immediate outbox trigger', () => {
     expect(emit).toHaveBeenCalledWith('messaging.webhook.outbox_trigger_failed', {
       error: workerError,
     });
+  });
+});
+
+describe('Meta webhook — coexistência com o app WhatsApp Business', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    validateSignature.mockReturnValue(true);
+    resolveClinicByPhoneId.mockResolvedValue('clinic-1');
+    persistBusinessAppEcho.mockResolvedValue({ deduped: false });
+    deactivateConnectionsForRemovedPartner.mockResolvedValue({ deactivated: 1 });
+  });
+
+  it('grava a resposta da recepção pela clínica do número que a enviou', async () => {
+    parseWebhook.mockReturnValue({
+      messages: [],
+      statuses: [],
+      echoes: [
+        {
+          providerMessageId: 'wamid-echo',
+          toNumber: '5511988887777',
+          fromPhoneId: 'phone-1',
+          text: 'Oi, já te retorno',
+          timestamp: '1790000000',
+        },
+      ],
+    });
+
+    const response = await POST(webhookRequest());
+
+    expect(response.status).toBe(200);
+    expect(resolveClinicByPhoneId).toHaveBeenCalledWith('phone-1');
+    expect(persistBusinessAppEcho).toHaveBeenCalledWith(
+      'clinic-1',
+      'meta',
+      expect.objectContaining({ providerMessageId: 'wamid-echo' }),
+    );
+    expect(persistInbound).not.toHaveBeenCalled();
+    expect(await response.json()).toEqual({ received: 0, statuses: 0, echoes: 1 });
+  });
+
+  it('eco de número não provisionado vai para a quarentena, como o inbound', async () => {
+    resolveClinicByPhoneId.mockResolvedValue(null);
+    parseWebhook.mockReturnValue({
+      messages: [],
+      statuses: [],
+      echoes: [
+        {
+          providerMessageId: 'wamid-echo',
+          toNumber: '5511988887777',
+          fromPhoneId: 'phone-x',
+          text: null,
+          timestamp: '',
+        },
+      ],
+    });
+
+    expect((await POST(webhookRequest())).status).toBe(200);
+    expect(quarantineOrphan).toHaveBeenCalledWith('meta', 'phone-x', expect.any(String));
+    expect(persistBusinessAppEcho).not.toHaveBeenCalled();
+  });
+
+  it('PARTNER_REMOVED desativa a conexão da WABA e registra o motivo', async () => {
+    parseWebhook.mockReturnValue({
+      messages: [],
+      statuses: [],
+      partnerRemovals: [{ wabaId: 'waba-1', reason: 'PRIMARY_INACTIVITY', initiatedBy: 'SYSTEM' }],
+    });
+
+    expect((await POST(webhookRequest())).status).toBe(200);
+    expect(deactivateConnectionsForRemovedPartner).toHaveBeenCalledWith(
+      expect.objectContaining({
+        wabaId: 'waba-1',
+        reason: 'PRIMARY_INACTIVITY',
+        initiatedBy: 'SYSTEM',
+      }),
+    );
+    expect(emit).toHaveBeenCalledWith('messaging.webhook.partner_removed', {
+      deactivated: 1,
+      reason: 'PRIMARY_INACTIVITY',
+      initiatedBy: 'SYSTEM',
+    });
+  });
+
+  it('histórico e contatos só viram métrica: nada é gravado nem vai para a quarentena', async () => {
+    parseWebhook.mockReturnValue({
+      messages: [],
+      statuses: [],
+      discarded: { historyMessages: 42, stateSyncItems: 7 },
+    });
+
+    expect((await POST(webhookRequest())).status).toBe(200);
+    expect(emit).toHaveBeenCalledWith('messaging.webhook.coexistence_sync_discarded', {
+      historyMessages: 42,
+      stateSyncItems: 7,
+    });
+    expect(resolveClinicByPhoneId).not.toHaveBeenCalled();
+    expect(quarantineOrphan).not.toHaveBeenCalled();
+    expect(persistInbound).not.toHaveBeenCalled();
+    expect(persistBusinessAppEcho).not.toHaveBeenCalled();
   });
 });

@@ -33,6 +33,8 @@ Nunca se envia com `status='active'`. Assumir a conversa **reusa `escalateToHuma
 
 Devolver ao agente (`handoff → active`) **resolve a linha da fila** (`resolved_at = now()`). Isso não é limpeza cosmética: o dedup de `escalateToHuman` é `ON CONFLICT (conversation_id) WHERE resolved_at IS NULL`, então uma linha aberta esquecida faria toda escalação futura daquela conversa cair no `DO NOTHING` — o status viraria `handoff` e a conversa nunca mais apareceria na fila.
 
+Quem pode devolver (30/09/2026): quem assumiu, ou qualquer membro com `manage:conversations` quando **ninguém** assumiu — não há atendimento humano a atropelar. É o caso da recepção que respondeu pelo app WhatsApp Business (coexistência) e quer a IA de volta sem assumir no painel. Atribuída a outra pessoa, exige "Reatribuir para mim" antes.
+
 ### Janela de 24h — primeira implementação
 
 `isWindowOpen(lastInboundAt, now)`, pura, em `internal/meta-window.ts`. Duas fronteiras decididas na direção segura: **sem inbound algum → fechada**; **exatamente 24h → fechada** (comparação estrita). Falso-negativo custa uma espera; falso-positivo custa uma mensagem rejeitada e um operador enganado.

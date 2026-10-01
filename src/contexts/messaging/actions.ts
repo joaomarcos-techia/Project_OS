@@ -63,6 +63,7 @@ import { getBusinessProfile, updateBusinessProfile } from './internal/meta-busin
 import {
   exchangeCodeForToken,
   registerPhoneNumber,
+  requestBusinessAppSync,
   resolveWabaAndPhone,
   ensureMessageTemplates,
   subscribeAppToWaba,
@@ -199,21 +200,39 @@ export async function rotateWhatsappToken(
 // proíbe dbAdmin no contexto). O token NUNCA chega ao client.
 // ===========================================================================
 
+const PIN_MESSAGE = 'O PIN do WhatsApp deve ter 6 dígitos.';
+
 /** Input do connect self-service. NÃO há `clinicId` — vem de requireClinicId(). */
-const ConnectMyClinicSchema = z.object({
-  code: z.string().min(1),
-  /** PIN de 2FA da Cloud API; usado uma única vez no Graph e nunca persistido. */
-  registrationPin: z.string().regex(/^\d{6}$/, 'O PIN do WhatsApp deve ter 6 dígitos.'),
-  /**
-   * D78 — ids do evento oficial `WA_EMBEDDED_SIGNUP`. `wabaId` deixou de ser
-   * uma sugestão opcional: sem ele não há caminho de menor privilégio para
-   * descobrir a WABA. Continua `.optional()` no schema apenas para que a
-   * ausência vire `MetaConnectError('signup_incomplete')` — auditada e com
-   * mensagem específica — em vez de um `ZodError` genérico na tela.
-   */
-  wabaId: z.string().min(1).optional(),
-  phoneNumberId: z.string().min(1).optional(),
-});
+const ConnectMyClinicSchema = z
+  .object({
+    code: z.string().min(1),
+    /**
+     * `cloud_api` = número novo, Embedded Signup comum. `coexistence` = o número
+     * que a clínica já usa no app WhatsApp Business (0107): ele já está
+     * registrado, então não há PIN nem `/register`.
+     */
+    mode: z.enum(['cloud_api', 'coexistence']).default('cloud_api'),
+    /** PIN de 2FA da Cloud API; usado uma única vez no Graph e nunca persistido. */
+    registrationPin: z
+      .string()
+      .regex(/^\d{6}$/, PIN_MESSAGE)
+      .optional(),
+    /**
+     * D78 — ids do evento oficial `WA_EMBEDDED_SIGNUP`. `wabaId` deixou de ser
+     * uma sugestão opcional: sem ele não há caminho de menor privilégio para
+     * descobrir a WABA. Continua `.optional()` no schema apenas para que a
+     * ausência vire `MetaConnectError('signup_incomplete')` — auditada e com
+     * mensagem específica — em vez de um `ZodError` genérico na tela.
+     */
+    wabaId: z.string().min(1).optional(),
+    phoneNumberId: z.string().min(1).optional(),
+  })
+  .superRefine((v, ctx) => {
+    // O PIN só existe no fluxo comum: é ele que o `/register` usa.
+    if (v.mode === 'cloud_api' && !v.registrationPin) {
+      ctx.addIssue({ code: 'custom', path: ['registrationPin'], message: PIN_MESSAGE });
+    }
+  });
 export type ConnectMyClinicInput = z.input<typeof ConnectMyClinicSchema>;
 
 function isUniqueViolation(err: unknown): boolean {
@@ -256,7 +275,17 @@ export async function connectMyClinicWhatsapp(
       { wabaId: data.wabaId, phoneNumberId: data.phoneNumberId },
       grant,
     );
-    await registerPhoneNumber(waba.phoneNumberId, token, data.registrationPin);
+    // Coexistência: o número já está registrado no app do celular e a Meta
+    // manda pular o `/register` — que exigiria um PIN que a clínica não tem.
+    if (data.mode === 'cloud_api') {
+      if (!data.registrationPin) {
+        // Inalcançável: o schema já exige o PIN no fluxo comum.
+        throw new MetaConnectError('[meta] PIN ausente no fluxo comum', {
+          stage: 'phone_registration',
+        });
+      }
+      await registerPhoneNumber(waba.phoneNumberId, token, data.registrationPin);
+    }
     await subscribeAppToWaba(waba.wabaId, token);
     meta = { token, waba };
   } catch (err) {
@@ -292,13 +321,17 @@ export async function connectMyClinicWhatsapp(
       metaPhoneId: meta.waba.phoneNumberId,
       metaBusinessId: meta.waba.wabaId,
       tokenEncrypted,
+      coexistence: data.mode === 'coexistence',
       requestContext: ctx,
     });
     // Provisionamento dos templates proativos: roda DEPOIS da resposta. São até
     // cinco chamadas ao Graph e a clínica não pode ficar esperando por elas —
     // a conexão já está válida e persistida neste ponto.
     const { token, waba } = meta;
+    const coexistence = data.mode === 'coexistence';
     after(async () => {
+      // Antes dos templates, por causa do prazo de 24h da Meta.
+      if (coexistence) await requestCoexistenceSyncs(waba.phoneNumberId, token);
       const outcomes = await ensureMessageTemplates(
         waba.wabaId,
         token,
@@ -358,6 +391,34 @@ export async function connectMyClinicWhatsapp(
       requestContext: ctx,
     }).catch(() => {});
     throw metaError;
+  }
+}
+
+/**
+ * Coexistência — os dois pedidos de sincronização que a Meta exige em até 24h
+ * depois do onboarding: contatos e histórico. O conteúdo que vier é descartado
+ * pelo webhook (decisão de 30/09/2026); o pedido é o que mantém a clínica
+ * conectada.
+ *
+ * Nunca lança: roda depois da resposta. Falha vira log + métrica com a etapa,
+ * para o suporte agir dentro do prazo — a saída que a Meta oferece é refazer o
+ * cadastro. Sem repetição automática: é POST, `history` só pode ser pedido uma
+ * vez, e repetir às cegas depois de resultado indeterminado é o que D78 proíbe.
+ */
+async function requestCoexistenceSyncs(phoneNumberId: string, token: string): Promise<void> {
+  for (const syncType of ['smb_app_state_sync', 'history'] as const) {
+    try {
+      const result = await requestBusinessAppSync(phoneNumberId, token, syncType);
+      metrics.emit('messaging.whatsapp.coexistence_sync', { syncType, result });
+    } catch (err) {
+      const stage = err instanceof MetaConnectError ? err.stage : 'unknown';
+      metrics.emit('messaging.whatsapp.coexistence_sync_failed', { syncType, stage });
+      logger.error('messaging.whatsapp.coexistence_sync_failed', {
+        syncType,
+        stage,
+        error: err,
+      });
+    }
   }
 }
 

@@ -161,6 +161,11 @@ export const aiMessages = pgTable(
     // FK -> profiles(id) ON DELETE RESTRICT na migration 0051 (Drizzle não emite
     // FK em tabela particionada — mesmo motivo de clinic_id/conversation_id).
     sentByUserId: uuid('sent_by_user_id'),
+    // Migration 0107: a recepção respondeu pelo app WhatsApp Business do
+    // celular (coexistência, webhook `smb_message_echoes`). Com isto o agente
+    // passa a ser `sent_by_user_id IS NULL AND NOT sent_via_business_app`; um
+    // CHECK garante que as duas marcas de autoria humana não se misturam.
+    sentViaBusinessApp: boolean('sent_via_business_app').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .default(sql`now()`),

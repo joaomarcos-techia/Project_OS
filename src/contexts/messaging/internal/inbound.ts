@@ -22,6 +22,7 @@ import { withTenant } from '@/lib/db/tenant';
 import { payloadHash } from '@/lib/idempotency/hash';
 import type {
   MessagingProviderName,
+  ParsedBusinessAppEcho,
   ParsedInboundMessage,
   ParsedStatusEvent,
 } from '@/lib/messaging';
@@ -29,7 +30,7 @@ import { metrics } from '@/lib/observability/metrics';
 import { publishEvent } from '@/lib/outbox/publish';
 
 import { MESSAGING_EVENTS } from '../events';
-import { inboundMessagesRaw, providerStatusEventsRaw } from '../schema';
+import { inboundMessagesRaw, providerStatusEventsRaw, whatsappBusinessAppEchoes } from '../schema';
 import { normalizeProviderDeliveryStatus } from './delivery-status';
 import { applyProviderDeliveryStatus } from './status-reconciler';
 
@@ -120,6 +121,87 @@ export async function persistInbound(
       idempotencyKey: `inbound:${provider}:${msg.providerMessageId}`,
     });
     metrics.emit('messaging.inbound.received', { clinicId, provider });
+    return { deduped: false };
+  });
+}
+
+/**
+ * Coexistência — persiste o que a recepção enviou pelo app WhatsApp Business do
+ * celular e publica `messaging.business_app_echo.received` na MESMA tx, com a
+ * mesma garantia do inbound: nunca há eco salvo sem evento, e um reenvio da Meta
+ * cai no UNIQUE(provider, provider_message_id) em vez de duplicar a mensagem na
+ * conversa. O evento carrega só o id; o texto fica cifrado aqui.
+ */
+export async function persistBusinessAppEcho(
+  clinicId: string,
+  provider: MessagingProviderName,
+  echo: ParsedBusinessAppEcho,
+): Promise<{ deduped: boolean }> {
+  const toNumber = normalizePhone(echo.toNumber);
+  const toNumberHash = await hashForLookup(toNumber);
+  const toNumberEncrypted = await encryptForTenant(clinicId, toNumber);
+  const contentEncrypted = await encryptForTenant(clinicId, echo.text ?? '');
+  const pHash = payloadHash({
+    providerMessageId: echo.providerMessageId,
+    to: echo.toNumber,
+    text: echo.text,
+    ts: echo.timestamp,
+  });
+  const sentAt = epochToDate(echo.timestamp);
+
+  return withTenant(clinicId, async (tx) => {
+    const inserted = await tx
+      .insert(whatsappBusinessAppEchoes)
+      .values({
+        clinicId,
+        provider,
+        providerMessageId: echo.providerMessageId,
+        toNumberHash,
+        toNumberEncrypted,
+        contentEncrypted,
+        hasText: echo.text !== null,
+        payloadHash: pHash,
+        ...(sentAt ? { sentAt } : {}),
+      })
+      .onConflictDoNothing({
+        target: [whatsappBusinessAppEchoes.provider, whatsappBusinessAppEchoes.providerMessageId],
+      })
+      .returning({ id: whatsappBusinessAppEchoes.id });
+
+    if (inserted.length === 0) {
+      const [existing] = await tx
+        .select({ payloadHash: whatsappBusinessAppEchoes.payloadHash })
+        .from(whatsappBusinessAppEchoes)
+        .where(
+          and(
+            eq(whatsappBusinessAppEchoes.provider, provider),
+            eq(whatsappBusinessAppEchoes.providerMessageId, echo.providerMessageId),
+          ),
+        )
+        .limit(1);
+      const incident = existing !== undefined && existing.payloadHash !== pHash;
+      metrics.emit(
+        incident ? 'messaging.business_app_echo.conflict' : 'messaging.business_app_echo.duplicate',
+        { clinicId, provider, providerMessageId: echo.providerMessageId },
+      );
+      return { deduped: true };
+    }
+
+    await publishEvent(tx, {
+      clinicId,
+      eventType: MESSAGING_EVENTS.BUSINESS_APP_ECHO_RECEIVED,
+      payload: {
+        clinicId,
+        echoId: inserted[0]!.id,
+        providerMessageId: echo.providerMessageId,
+        provider,
+        toNumberHash,
+        hasText: echo.text !== null,
+        sentAt: epochToIso(echo.timestamp),
+      },
+      idempotencyKey: `business_app_echo:${provider}:${echo.providerMessageId}`,
+    });
+    metrics.emit('messaging.business_app_echo.received', { clinicId, provider });
     return { deduped: false };
   });
 }

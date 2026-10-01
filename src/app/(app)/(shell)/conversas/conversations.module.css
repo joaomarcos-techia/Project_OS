@@ -292,7 +292,10 @@
   border-color: var(--ai-border);
   color: var(--text);
 }
-.bubble[data-author='human'] {
+/* A recepção pelo celular (coexistência) é gente da equipe: mesmo tratamento
+   visual da resposta do painel — o chip de autor é que diz de onde veio. */
+.bubble[data-author='human'],
+.bubble[data-author='business_app'] {
   background: var(--primary-soft);
   border-color: color-mix(in oklch, var(--primary) 25%, var(--border));
   color: var(--primary-active);
