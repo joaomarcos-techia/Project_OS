@@ -1,51 +1,36 @@
 /**
- * POST /api/signup/checkout — O-5 + O-6, na ordem que a decisão de 02/09 exige.
+ * POST /api/signup/checkout — cria uma jornada recorrente hospedada no Asaas.
  *
- * O corpo carrega EXATAMENTE um campo: o CPF/CNPJ do responsável pela cobrança.
- * Ele está aqui porque o contrato do Asaas exige documento para assinar — medido
- * no sandbox, não suposto (ADR-053). E ele não é uma afirmação de autoridade: é
- * dado da própria pessoa. O browser continua sem escolher plano, valor, ciclo,
- * trial, `clinic_id` ou papel — tudo isso vem do draft verificado ou do servidor,
- * e a identidade de quem pede vem de `getUser()`.
- *
- * O documento NÃO é persistido nesta etapa. Ele atravessa a requisição em
- * memória e só descansa cifrado por tenant em `billing_customers`, no
- * provisionamento. Antes disso não existe chave de tenant para cifrá-lo.
- *
- * A rota é idempotente por construção. Chamada de novo depois de a assinatura
- * existir, `reserveSignupBillingAttempt` devolve `already_active` e o
- * provisionamento é tentado de novo — é assim que uma resposta perdida, um
- * refresh ou uma segunda aba se recuperam sem criar a segunda assinatura.
+ * O browser não escolhe nem envia dados de cobrança. Plano, preço, ciclo,
+ * trial, tenant e papel continuam resolvidos no servidor, e o Asaas coleta os
+ * dados do pagador na página hospedada. Um 200 desta rota
+ * significa apenas "Checkout criado"; o tenant nasce somente na rota de status,
+ * depois do readback autoritativo da assinatura.
  */
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import {
   provisionTenantFromSignup,
+  readSignupBilling,
   reconcileSignupSubscription,
   resolveReadyOwnedSignupOnboarding,
-  startSignupSubscription,
-  type StartSignupSubscriptionOutcome,
+  startSignupHostedCheckout,
+  type StartSignupHostedCheckoutOutcome,
 } from '@/contexts/onboarding';
 import { assertSignupDraftWriteAllowed, getClientIp } from '@/lib/auth/rate-limit';
-import { parseDocument } from '@/lib/validation/document';
 import { hashSignupUserId } from '@/lib/auth/signup-user-hash';
 import { env } from '@/lib/env';
 import { buildApplicationUrl } from '@/lib/http/application-url';
 import { readWebhookBodyCapped } from '@/lib/http/webhook-body';
+import { asaasProvider } from '@/lib/payments/asaas';
+import { parseDocument } from '@/lib/validation/document';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/** Um documento com máscara cabe folgado; o resto é cliente tentando opinar. */
 const MAX_CHECKOUT_BODY_BYTES = 256;
-
-/**
- * `.strict()` recusa qualquer campo extra em vez de ignorar. Ignorar ensinaria
- * o cliente a mandar `planId`/`priceCents`/`clinicId` e esconderia a divergência
- * na fatia seguinte.
- */
-const checkoutBodySchema = z.object({ cpfCnpj: z.string().min(1).max(32) }).strict();
+const checkoutBodySchema = z.object({}).strict();
 
 function json(body: object, status = 200): NextResponse {
   return NextResponse.json(body, { status, headers: { 'Cache-Control': 'no-store' } });
@@ -63,46 +48,78 @@ function authFailure(reason: string): NextResponse {
   return json({ error: 'unauthorized' }, 401);
 }
 
-/** Cada motivo tem um status próprio porque a UI reage diferente a cada um. */
-function billingFailure(reason: Extract<StartSignupSubscriptionOutcome, { ok: false }>['reason']) {
+function billingFailure(
+  reason: Extract<StartSignupHostedCheckoutOutcome, { ok: false }>['reason'],
+) {
   switch (reason) {
     case 'gone':
       return json({ error: 'gone' }, 410);
     case 'no_plan':
-      return json({ error: 'no_plan' }, 409);
     case 'invalid_plan':
-      return json({ error: 'invalid_plan' }, 409);
     case 'conflict':
-      return json({ error: 'conflict' }, 409);
+      return json({ error: reason }, 409);
     case 'declined':
-      // 402: o provedor recusou. É definitivo e retentável com outros dados —
-      // não é erro nosso nem indisponibilidade.
       return json({ error: 'declined' }, 402);
     case 'reconcile_required':
-      // 409 e não 503: o estado é conhecido e exige conciliação, não espera.
       return json({ error: 'reconcile_required' }, 409);
     case 'provider_unreachable':
     case 'unavailable':
+    case 'already_active':
     default:
       return json({ error: 'unavailable' }, 503);
   }
 }
 
-export async function POST(req: Request): Promise<Response> {
-  if (!env.SIGNUP_AUTH_ENABLED || !env.SIGNUP_IDENTITY_ENABLED)
-    return json({ error: 'unavailable' }, 503);
-
-  let origin: string;
+function expectedOrigin(): string | null {
   try {
-    origin = new URL(
+    return new URL(
       buildApplicationUrl(env.APP_BASE_URL ?? '', '/', {
         allowInsecureLocalhost: env.NODE_ENV !== 'production',
       }),
     ).origin;
   } catch {
+    return null;
+  }
+}
+
+async function provisionLegacyActiveDraft(input: {
+  userId: string;
+  email: string;
+}): Promise<Response> {
+  const billing = await readSignupBilling(input.userId);
+  if (!billing.ok || !billing.snapshot.asaasCustomerId) {
     return json({ error: 'unavailable' }, 503);
   }
-  if (req.headers.get('origin') !== origin || req.headers.get('sec-fetch-site') === 'cross-site') {
+  const customer = await asaasProvider.getCustomer(billing.snapshot.asaasCustomerId, {
+    attempts: 1,
+  });
+  const document =
+    customer.customerId === billing.snapshot.asaasCustomerId
+      ? parseDocument(customer.cpfCnpj ?? '')
+      : null;
+  if (!document) return json({ error: 'conflict' }, 409);
+  const provisioned = await provisionTenantFromSignup({
+    userId: input.userId,
+    verifiedEmail: input.email,
+    cpfCnpj: document.digits,
+  });
+  if (provisioned.ok || provisioned.reason === 'gone') {
+    return json({ state: 'provisioned' });
+  }
+  return json({ error: provisioned.reason }, provisioned.reason === 'unavailable' ? 503 : 409);
+}
+
+export async function POST(req: Request): Promise<Response> {
+  if (!env.SIGNUP_AUTH_ENABLED || !env.SIGNUP_IDENTITY_ENABLED) {
+    return json({ error: 'unavailable' }, 503);
+  }
+
+  const origin = expectedOrigin();
+  if (
+    !origin ||
+    req.headers.get('origin') !== origin ||
+    req.headers.get('sec-fetch-site') === 'cross-site'
+  ) {
     return json({ error: 'blocked' }, 403);
   }
 
@@ -134,57 +151,30 @@ export async function POST(req: Request): Promise<Response> {
     const body = checkoutBodySchema.safeParse(parsed);
     if (!body.success) return json({ error: 'invalid_body' }, 400);
 
-    // Validação no SERVIDOR, com dígitos verificadores. O campo é do usuário,
-    // mas a aceitação não: um documento inválido vira 422 aqui, antes de gastar
-    // uma chamada ao provedor e antes de reservar a tentativa.
-    const document = parseDocument(body.data.cpfCnpj);
-    if (!document) return json({ error: 'invalid_document' }, 422);
-
-    const subscription = await startSignupSubscription({
+    const checkout = await startSignupHostedCheckout({
       userId: onboarding.userId,
-      verifiedEmail: onboarding.email,
-      cpfCnpj: document.digits,
     });
+    if (checkout.ok) {
+      return json({ state: checkout.state, checkoutUrl: checkout.checkoutUrl });
+    }
 
-    if (!subscription.ok && subscription.reason === 'reconcile_required') {
-      // A tentativa anterior morreu em timeout e a assinatura pode existir do
-      // outro lado. Conciliar é PERGUNTAR, não criar — e é o único caminho de
-      // saída desse estado. Sem isto, quem cai nele fica preso para sempre.
+    // Compatibilidade de recuperação para drafts criados pelo contrato anterior.
+    if (checkout.reason === 'already_active') {
+      return provisionLegacyActiveDraft({
+        userId: onboarding.userId,
+        email: onboarding.email,
+      });
+    }
+    if (checkout.reason === 'reconcile_required') {
       const reconciled = await reconcileSignupSubscription({ userId: onboarding.userId });
       if (!reconciled.ok) return billingFailure('unavailable');
-      if (reconciled.state === 'not_found') {
-        // O provedor não tem nada com esta referência. Não liberamos nova
-        // criação automaticamente: a decisão é da operação, com o runbook.
-        return json({ error: 'reconcile_required' }, 409);
-      }
-      // Encontrou: o estado virou `active` e o fluxo segue para o tenant.
-    } else if (!subscription.ok && subscription.reason !== 'already_active') {
-      // `already_active` não é falha: é a resposta perdida voltando. Segue para
-      // o provisionamento, que é quem sabe se o tenant já nasceu.
-      return billingFailure(subscription.reason);
+      if (reconciled.state === 'not_found') return billingFailure('reconcile_required');
+      return provisionLegacyActiveDraft({
+        userId: onboarding.userId,
+        email: onboarding.email,
+      });
     }
-
-    const provisioned = await provisionTenantFromSignup({
-      userId: onboarding.userId,
-      verifiedEmail: onboarding.email,
-      cpfCnpj: document.digits,
-    });
-    if (!provisioned.ok) {
-      if (provisioned.reason === 'gone') {
-        // A sessão sumiu porque o provisionamento anterior a consumiu. Para quem
-        // chamou, isto é sucesso: a clínica existe e o destino é o dashboard.
-        return json({ state: 'provisioned' });
-      }
-      const status =
-        provisioned.reason === 'not_paid' || provisioned.reason === 'no_plan'
-          ? 409
-          : provisioned.reason === 'slug_unavailable'
-            ? 409
-            : 503;
-      return json({ error: provisioned.reason }, status);
-    }
-
-    return json({ state: 'provisioned' });
+    return billingFailure(checkout.reason);
   } catch {
     return json({ error: 'unavailable' }, 503);
   }

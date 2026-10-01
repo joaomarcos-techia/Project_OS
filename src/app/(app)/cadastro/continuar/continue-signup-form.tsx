@@ -9,6 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { fieldControlClassName, Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { SignupAnswerValues, SignupDraftState } from '@/contexts/onboarding';
+import { SIGNUP_INPUT_LIMITS } from '@/contexts/onboarding/signup-input-limits';
 
 type Phase = 'loading' | 'form' | 'owned' | 'unavailable' | 'signed_out';
 
@@ -275,7 +276,7 @@ export function ContinueSignupForm() {
             id="continue-owner"
             name="ownerName"
             autoComplete="name"
-            maxLength={120}
+            maxLength={SIGNUP_INPUT_LIMITS.personName}
             required
           />
         </div>
@@ -285,7 +286,7 @@ export function ContinueSignupForm() {
             id="continue-clinic"
             name="clinicName"
             autoComplete="organization"
-            maxLength={120}
+            maxLength={SIGNUP_INPUT_LIMITS.clinicName}
             required
           />
         </div>

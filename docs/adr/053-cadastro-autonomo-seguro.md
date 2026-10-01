@@ -251,3 +251,48 @@ A consequência operacional: qualquer caminho futuro que chame o provedor **sem*
 reintroduz cobrança duplicada. O CAS não é otimização; é o mecanismo.
 
 Continuam pendentes para Accepted: E2E da jornada completa e Product Acceptance humano.
+
+---
+
+## Emenda de 26/09/2026 — Checkout recorrente hospedado do Asaas
+
+Esta emenda substitui as seções 1, 1.a, 3 e 7 da emenda de 18/09 no caminho de cadastro autônomo. O
+contrato direto `createCustomer` + `createSubscription(UNDEFINED)` foi removido do fluxo novo porque
+ativava o tenant antes de o pagador passar pelo Checkout e reproduzia exatamente o desvio observado
+por uma pessoa: plano + CPF levavam direto ao dashboard.
+
+O contrato vigente é:
+
+1. o browser salva o `planId` no passo próprio; `POST /api/signup/checkout` recebe corpo estritamente
+   vazio e resolve plano, preço, ciclo, trial e primeiro vencimento no servidor;
+2. após reservar a intenção por CAS, o servidor cria Checkout com `billingTypes: [CREDIT_CARD]`,
+   `chargeTypes: [RECURRENT]` e `subscription: { cycle: MONTHLY, nextDueDate }`;
+3. o Qoro não envia `customer` nem `customerData`. Documento, telefone, endereço e cartão são
+   coletados na página hospedada. Antes da conclusão, a sessão guarda somente id e URL do Checkout;
+4. `successUrl` não confirma pagamento. A rota de status procura cobrança pelo id do Checkout, relê
+   a assinatura e valida customer, estado `ACTIVE`, cartão, ciclo, valor e vencimento;
+5. somente depois do readback a tentativa passa a `active` por CAS e
+   `provisionTenantFromSignup` pode criar tenant, owner, customer local e assinatura local na mesma
+   transação que consome o draft;
+6. cancelamento ou expiração relê o provider, cancela o Checkout e só então muda a tentativa para
+   `failed`, limpando id e URL por CAS. Uma conclusão concorrente vence e segue para validação;
+7. os Checkouts expiram em 60 minutos. Reabrir a mesma URL cancelada/expirada é proibido; após
+   encerramento confirmado, uma nova tentativa cria um novo Checkout.
+
+### Evidência e estado da decisão
+
+- migrations 0105–0106 aplicadas e relidas no banco DEV;
+- criação recorrente real aceita no Sandbox sem PII no payload; cleanup confirmado;
+- `items[].name` usa identificador técnico limitado a 30 caracteres; a descrição completa fica em
+  `items[].description`, conforme defeito encontrado pelo primeiro E2E do Preview;
+- customer mínimo e `customerData` parcial recusados pelo Asaas, confirmando que o pagador precisa
+  completar os dados na página hospedada;
+- contrato, retorno autoritativo, corrida de cancelamento e UI cobertos por testes locais;
+- E2E Preview 5/5, incluindo confirmação entre aparelhos, código fixo, abertura do Checkout Sandbox e
+  readback de `checkout_pending` antes do cleanup;
+- conclusão externa permanece pendente porque o POST final do Checkout exigiu reCAPTCHA. Ela será
+  julgada pelo roteiro humano no Preview HTTPS.
+
+O ADR permanece **Proposed** até o Checkout ser concluído no Sandbox pelo roteiro humano e o retorno
+provisionar a clínica. As provas do contrato direto continuam históricas; não descrevem mais o
+runtime do cadastro autônomo.

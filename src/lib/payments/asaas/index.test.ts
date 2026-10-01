@@ -130,6 +130,9 @@ describe('reconciliação de assinatura', () => {
       status: 'ACTIVE',
       value: 149,
       externalReference: 'onboarding:00000000-0000-0000-0000-000000000001',
+      cycle: null,
+      nextDueDate: null,
+      billingType: null,
     });
     expect(fetchMock).toHaveBeenCalledWith(
       'https://sandbox.asaas.com/api/v3/subscriptions?externalReference=onboarding%3A00000000-0000-0000-0000-000000000001&limit=1',
@@ -393,15 +396,56 @@ describe('Checkout hospedado de paciente (D24)', () => {
   });
 
   it('não aceita uma cobrança de outra sessão retornada pelo provider', async () => {
-    fetchMock.mockResolvedValue(
-      Response.json({ data: [{ id: 'pay_other', checkoutSession: 'checkout_other' }] }),
-    );
+    fetchMock
+      .mockResolvedValueOnce(
+        Response.json({ data: [{ id: 'pay_other', checkoutSession: 'checkout_other' }] }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({ data: [{ id: 'pay_other', checkoutSession: 'checkout_other' }] }),
+      );
 
     await expect(
       createAsaasClient({ apiKey: 'k' }).findPaymentByCheckoutSession('checkout_1', {
         attempts: 1,
       }),
     ).resolves.toBeNull();
+  });
+
+  it('recupera por listagem limitada quando o filtro do provider omite a sessão exata', async () => {
+    fetchMock.mockResolvedValueOnce(Response.json({ data: [] })).mockResolvedValueOnce(
+      Response.json({
+        data: [
+          { id: 'pay_other', checkoutSession: 'checkout_other' },
+          {
+            id: 'pay_1',
+            status: 'PENDING',
+            value: 149,
+            dueDate: '2026-10-03',
+            billingType: 'CREDIT_CARD',
+            subscription: 'sub_1',
+            checkoutSession: 'checkout_1',
+          },
+        ],
+      }),
+    );
+
+    await expect(
+      createAsaasClient({ apiKey: 'k' }).findPaymentByCheckoutSession('checkout_1', {
+        attempts: 1,
+        createdSince: '2026-09-26',
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        paymentId: 'pay_1',
+        subscriptionId: 'sub_1',
+        checkoutSessionId: 'checkout_1',
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      'https://sandbox.asaas.com/api/v3/payments?limit=100&offset=0&dateCreated%5Bge%5D=2026-09-26',
+      expect.objectContaining({ method: 'GET' }),
+    );
   });
 });
 

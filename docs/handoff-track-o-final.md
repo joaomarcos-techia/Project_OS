@@ -231,3 +231,37 @@ pessoal foi inserido e o funil não foi avançado além da primeira tela.
 **A partir daqui há dinheiro real em jogo.** O cadastro aberto cria assinatura de verdade no Asaas de
 produção no passo de checkout. O `ASAAS_API_KEY` de Production tem 94 dias e já atende clientes
 pagantes; o webhook de assinatura responde 401 sem token no alias estável, que é a recusa correta.
+
+## Atualização de billing — 26/09/2026
+
+O contrato direto que pedia CPF no Qoro e criava assinatura `UNDEFINED` foi substituído por Checkout
+recorrente hospedado. O defeito observado era real: a própria rota considerava o readback da
+assinatura direta suficiente e provisionava imediatamente; o E2E de confirmação terminava em
+`/cadastro/plano`, então o botão final nunca havia sido exercitado.
+
+Estado atual:
+
+- 0105–0106 aplicadas e relidas em DEV e produção; em produção houve backup de 2.741.328 bytes,
+  advisory lock 4242 adquirido/liberado, journal em 0106, constraints/RLS/grants conferidos, zero
+  estado inválido e zero lock residual;
+- Checkout real criado no Sandbox, com dados do pagador e cartão coletados no domínio do Asaas;
+- o primeiro E2E do Preview encontrou o limite real de 30 caracteres em `items[].name`; o nome técnico
+  foi separado da descrição, um probe externo passou de 400 para 200 e o recurso foi cancelado;
+- rerun externo no Preview: **5/5 PASS**; o cenário principal chegou ao Asaas Sandbox e provou no DEV
+  `checkout_pending` sem customer/assinatura, com cleanup exato ao final;
+- o primeiro CI detectou as três rotas fora do inventário de segurança; o mapa foi atualizado para os
+  guards atuais e o gate local terminou com zero `REVIEW_REQUIRED` (14/14 testes focados);
+- o rerun do CI no commit `6ec03d0` terminou completamente verde no run `36274393423`: 4.399 testes
+  com cobertura, inventário de segurança, isolamento entre tenants, build Next, bundle e E2E público;
+  Vercel, Semgrep e Snyk também passaram;
+- retorno de sucesso faz polling autoritativo e só libera dashboard após readback e provisionamento;
+- cancelado/expirado encerra o Checkout antes de liberar nova tentativa;
+- conclusão automatizada ficou bloqueada no reCAPTCHA do Asaas. O roteiro humano deve concluir o
+  cartão de teste no Preview e observar o redirecionamento ao dashboard;
+- a primeira conclusão humana criou cobrança e assinatura reais no Sandbox, mas o retorno ficou preso:
+  o polling consumia o limite de escrita, o filtro `checkoutSession` omitiu a cobrança e a assinatura
+  já expunha o vencimento do ciclo seguinte. O corretivo está no PR #18, com testes locais e readback
+  externo. O reteste da mesma tentativa passou: status 200, assinatura/trial publicados,
+  `signup.provisioned`, sessão renovada e dashboard 200. O gate é **PASS em DEV/Preview**;
+- o gate de schema de produção está fechado. O PR #18 permanece sem merge/publicação até autorização
+  explícita do owner; o Preview com banco DEV continua sendo o alvo do roteiro humano.

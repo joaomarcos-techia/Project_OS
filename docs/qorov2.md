@@ -7336,3 +7336,153 @@ formulário leva um campo oculto `autocomplete="username"` com ele, ao lado do
 | Os testes detectam a volta dos defeitos | **PASS 3/3** — mensagem fixa, envio de senha inválida, campo sem `autocomplete="username"` |
 | Suíte, cobertura e gates estáticos do CI | **PASS** — 4.475/4.475 |
 | O gerenciador de senhas oferecer "atualizar senha" e parar de preencher a antiga | **NOT TESTED** — depende do navegador e do gerenciador de cada pessoa; o que o código controla (campo de usuário e `new-password`) está coberto |
+
+## 42. Checkout recorrente hospedado e limites do cadastro — 26/09/2026
+
+### 42.1 O defeito observado e por que os testes anteriores passaram
+
+O relato “escolhi o plano, informei o CPF e fui ao dashboard sem Checkout” estava correto. O contrato
+implementado em O-5 criava customer e assinatura `UNDEFINED` diretamente, fazia readback e
+provisionava o tenant no mesmo request. A interface, portanto, obedecia ao código ao pular a página
+de pagamento. Os verdes anteriores não contradiziam esse comportamento: os testes de unidade
+esperavam `{ state: provisioned }`, e o E2E de confirmação parava ao abrir `/cadastro/plano`. Nenhum
+deles clicava no botão final e exigia navegação para o domínio do Asaas.
+
+### 42.2 Contrato que substitui o O-5 direto
+
+O cadastro autônomo agora cria Checkout hospedado `CREDIT_CARD` + `RECURRENT`. O body da rota é `{}`
+estrito. Plano e preço vêm do draft e do catálogo; ciclo mensal, trial de sete dias e vencimento vêm
+do servidor. O payload não contém customer nem PII: documento, telefone, endereço e cartão ficam no
+Asaas. As migrations 0105–0106 adicionam id/URL do Checkout e fecham o estado
+`checkout_pending` sem customer ou assinatura.
+
+O sucesso do browser é apenas navegação. `/api/signup/checkout/status` procura a cobrança pelo
+`checkoutSession`, relê a assinatura exata e confere customer, `ACTIVE`, `CREDIT_CARD`, `MONTHLY`,
+valor e vencimento. Depois disso o CAS grava customer/assinatura e o provisionamento transacional
+consome o draft. Só então a sessão é renovada e o dashboard abre.
+
+Cancelamento e expiração também não são autoridade. “Voltar ao plano” relê o Asaas, cancela o
+Checkout e limpa a tentativa por CAS. Se uma assinatura apareceu na corrida, ela não é apagada: a
+tela muda para a validação de sucesso. Timeout conserva o estado pendente e não cria nova cobrança.
+
+### 42.3 Limites de entrada
+
+O código de handoff tem exatamente oito dígitos. O input aceita apenas dígitos, tem `minLength`,
+`maxLength` e `size` oito e corta qualquer excesso na digitação. Nome da pessoa e da clínica têm 120
+caracteres, e-mail 160 e senha 72 nas telas em que podem ser digitados ou redigitados. As quatro
+perguntas são escolhas fechadas e não têm texto livre para limitar.
+
+### 42.4 Medição externa e bancos
+
+O Sandbox aceitou a criação recorrente real e devolveu URL oficial. Enviar um customer criado só com
+nome/e-mail/documento foi recusado por falta de telefone e endereço; `customerData` parcial também
+foi recusado. Sem ambos, o Checkout abriu e exibiu os campos do pagador e do cartão, que é o contrato
+adotado. A automação preencheu as etapas, mas o POST final respondeu com reCAPTCHA habilitado; não
+houve bypass. Conclusão, callback, readback e provisionamento externos permanecem pendentes do roteiro
+humano.
+
+O primeiro E2E do Preview encontrou uma segunda diferença de contrato: `items[].name` reutilizava a
+descrição completa com o nome da clínica, e o Asaas respondeu `400 invalid_object` porque esse campo
+aceita no máximo 30 caracteres. O adapter agora recebe um nome técnico curto, limita-o a 30 e conserva
+a descrição completa em `items[].description`. A reprodução externa com os mesmos callbacks passou de
+400 para 200 e o Checkout criado foi cancelado com 200; há regressão de contrato dedicada.
+
+Depois do corretivo, o E2E de confirmação executou **5/5 PASS** contra o Preview HTTPS. O cenário
+principal criou conta e mensagem reais em DEV/Resend, confirmou em outro contexto de navegador,
+concluiu o handoff com o código de oito dígitos, salvou o plano, navegou para
+`sandbox.asaas.com/checkoutSession/show` e conferiu no banco `checkout_pending`, id/URL presentes e
+customer/assinatura nulos. O `finally` cancelou o Checkout e removeu conta, draft e lock sintéticos.
+Isso prova a abertura do Checkout; o pagamento final continua humano por causa do reCAPTCHA.
+
+O primeiro CI do PR reprovou corretamente o inventário de segurança: ele ainda procurava a função
+direta removida e não conhecia as rotas de status/cancelamento. As três superfícies foram revisadas e
+registradas com origem, identidade pré-tenant, HMAC, limite, body estrito, readback/cancelamento no
+provider e CAS. O gate passou localmente com zero `REVIEW_REQUIRED`; os testes do inventário e da
+catraca de rotas passaram 14/14.
+
+O rerun remoto no commit `6ec03d0` encerrou o pipeline completo com **PASS** no
+[run 36274393423](https://github.com/joaomarcos-techia/Project_OS/actions/runs/36274393423): auditoria de
+dependências, TypeScript, ESLint, arquitetura, migrations, observabilidade, registry, 4.399 testes com
+cobertura, inventário de segurança, isolamento entre tenants, build Next, inspeção do bundle e E2E
+público. Vercel, Semgrep e Snyk também terminaram verdes no PR #18. Esse verde prova o código e o
+Preview; não substitui a conclusão humana do cartão/reCAPTCHA no Sandbox.
+
+As migrations 0105–0106 foram aplicadas e relidas em **DEV e produção**. Em produção, o migrador
+protegido criou `prod-pre-migration-2026-09-26T23-42-32.sql` (**2.741.328 bytes**), adquiriu e liberou
+o advisory lock `4242` e terminou `DONE`, exit 0. O readback independente encontrou o journal em
+`0106` (107 migrations), as versões `signup-hosted-checkout` e
+`signup-checkout-collects-payer`, as colunas `asaas_checkout_id`/`asaas_checkout_url`, o `UNIQUE` do
+checkout, os CHECKs fechados de estado, RLS `ENABLE` + `FORCE`, ausência de privilégios para `anon` e
+`authenticated`, zero linha inválida e zero advisory lock residual. O gate de schema de produção está
+**PASS**; o PR #18 continua sem merge por decisão explícita do owner.
+
+### 42.5 Documentos sincronizados
+
+- [ADR-053](adr/053-cadastro-autonomo-seguro.md) registra a decisão que substitui a emenda direta;
+- [matriz Track O](evidence/track-o.md) separa as provas históricas do contrato atual;
+- [handoff final](handoff-track-o-final.md) registra o gate de release e a causa da divergência;
+- [roteiro humano](runbooks/aceitacao-humana-cadastro.md) passa a exigir o Checkout Sandbox e o
+  retorno ao dashboard.
+
+### 42.6 Primeiro pagamento humano: falha medida e corretivo — 26/09/2026
+
+O roteiro humano avançou além do ponto que a automação não atravessava: o cartão de teste foi concluído
+no Checkout Sandbox e o Asaas criou uma cobrança `PENDING` de R$ 149, vinculada ao `checkoutSession`, e
+uma assinatura `ACTIVE`, mensal e em cartão. O botão final exibido pelo Checkout é “Acompanhar pedido”;
+esse texto pertence ao produto hospedado do Asaas. O schema vigente de `CheckoutSessionCallbackDTO`
+expõe somente `successUrl`, `cancelUrl` e `expiredUrl`, sem opção de rótulo ou `autoRedirect`.
+
+Ao voltar a `/cadastro/pagamento?resultado=success`, o dashboard não abriu. Os logs do Preview mostraram
+três respostas `202` seguidas por `429`: plano e criação do Checkout já consumiam duas das cinco escritas
+permitidas por usuário em 15 minutos, e três polls consumiam as restantes. A rota de status é readback
+autenticado, portanto passou para o orçamento de leitura de 60 requisições por usuário em 15 minutos.
+
+O readback independente encontrou outras duas divergências do Sandbox. `GET /payments` com o filtro
+documentado `checkoutSession` retornou zero, embora a listagem limitada expusesse uma cobrança com o ID
+exato. O adapter agora tenta primeiro o filtro oficial e, se ele omitir o resultado, lista no máximo 100
+cobranças desde a data da tentativa e exige igualdade exata de `checkoutSession`; data, valor ou posição
+na lista nunca servem como identidade. Além disso, a primeira cobrança conservou vencimento em 03/10,
+mas a assinatura `ACTIVE` já expunha 03/11, o próximo ciclo mensal. A validação passou a aceitar somente
+o primeiro vencimento ou seu sucessor mensal, preservando as demais conferências de customer, cartão,
+ciclo e valor.
+
+As três causas têm regressões focadas e o readback real do Sandbox confirmou o caso observado. No reteste
+humano do novo Preview, a mesma tentativa já paga saiu da espera e entrou no sistema. Os logs confirmaram
+`POST /api/signup/checkout/status` 200, eventos `billing.subscription.created` e
+`billing.trial.started`, `signup.provisioned` no plano `solo`, refresh de sessão e `GET /dashboard` 200.
+O tour iniciou e avançou no tenant provisionado. O retorno, a conciliação, o provisionamento e a entrada
+no dashboard passam a **PASS em DEV/Preview**.
+
+Validação local do corretivo: **4.402/4.402 testes em 419 arquivos**, TypeScript, ESLint, Prettier,
+inventário de segurança sem pendências e build Next de produção com `NODE_ENV=production`, todos com
+exit 0. A primeira tentativa de build, herdando um `NODE_ENV` não padrão do arquivo local, compilou mas
+falhou no prerender de `/404`; a repetição no ambiente de produção usado pela Vercel passou por inteiro.
+O CI remoto do commit `a417619` também passou integralmente em 12m33s, junto de Vercel, Semgrep e Snyk.
+
+### 42.7 Aceite humano, acabamento da entrada e estado demonstrativo — 27/09/2026
+
+O roteiro humano concluiu cadastro, confirmação, seleção de plano, Checkout Sandbox, retorno,
+reconciliação e entrada no dashboard. O Asaas mantém o botão **“Acompanhar pedido”** como ação de
+retorno: o contrato público usado pelo adapter oferece `successUrl`, `cancelUrl` e `expiredUrl`, mas
+não oferece `autoRedirect`. Enquanto a pessoa permanece na página hospedada, o Qoro não controla a
+navegação. Ao apertar o botão, `/cadastro/pagamento?resultado=success` faz o readback autoritativo e
+redireciona para o dashboard quando o tenant está provisionado.
+
+O acabamento posterior ao aceite deixou o código de oito dígitos centralizado no campo de largura
+fixa. A tela de plano passou a usar largura maior e três cards lado a lado a partir do desktop, com o
+preço mensal como informação principal. Clínica, espaçamentos, confirmação e ações foram compactados;
+depois de salvar, o botão de Checkout ocupa a mesma faixa de ações, sem criar um segundo card abaixo.
+No dashboard, a saudação usa o nome completo do profile: `Dr. Matheus` deixa de ser reduzido a `Dr.`.
+
+Para material de demonstração, somente no banco DEV, o usuário
+`4fe6ea1f-aed2-4232-88f5-1600513a3b4e` recebeu dados sintéticos idempotentes em sua clínica: CRM
+marcado como demonstração (`000000/SP`), especialidade, cinco pacientes fictícios, dois procedimentos,
+agenda de segunda a sexta, oito consultas do dia, seis lançamentos financeiros, três recebimentos,
+seis dias de série financeira e cinco atividades de auditoria. O tour foi marcado como concluído e o
+checklist dispensado para não cobrir o dashboard na captura. Nenhuma linha foi criada em produção e
+nenhuma conexão fictícia de WhatsApp foi adicionada. O readback pelas mesmas queries da tela mediu 7
+consultas, 1 aguardando, 1 em atendimento, 2 finalizadas, 1 falta, 1 cancelamento, R$ 910 recebidos no
+dia, R$ 460 a receber, R$ 420 a pagar e cinco atividades recentes.
+
+Validação local: **56/56 testes focados**, suíte integral **4.403/4.403 em 419 arquivos**, TypeScript,
+ESLint integral, Prettier dos arquivos tocados e build otimizado do Next 15.5.24, todos com exit 0.

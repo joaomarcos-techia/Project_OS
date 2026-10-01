@@ -156,7 +156,7 @@ export default async function DashboardPage() {
     );
   const horaLocal = Number(relogio({ hour: '2-digit' }));
   const periodo = horaLocal < 12 ? 'Bom dia' : horaLocal < 18 ? 'Boa tarde' : 'Boa noite';
-  const primeiroNome = (user.name ?? '').trim().split(/\s+/)[0] ?? '';
+  const nomeCompleto = (user.name ?? '').trim();
   const atualizadoEm = relogio({ hour: '2-digit', minute: '2-digit' });
 
   // Quem ja chegou e ainda espera — o nome que o cartao "Aguardando" anuncia.
@@ -166,7 +166,7 @@ export default async function DashboardPage() {
     <>
       <PageHeader
         crumbs={[{ label: 'Dashboard' }, { label: `Hoje · ${hoje}` }]}
-        title={primeiroNome ? `${periodo}, ${primeiroNome}` : periodo}
+        title={nomeCompleto ? `${periodo}, ${nomeCompleto}` : periodo}
         description="O pulso da clínica agora"
         meta={<span className="font-mono tabular-nums">atualizado {atualizadoEm}</span>}
         actions={

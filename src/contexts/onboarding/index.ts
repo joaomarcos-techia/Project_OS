@@ -121,13 +121,21 @@ export {
    reconciliação de linha são passos INTERNOS de `signup-checkout`, e expô-los
    convidaria a chamar um deles fora de ordem — que é exatamente como se cria
    assinatura duplicada. O tipo do estado sai porque a UI precisa nomeá-lo. */
-export type { SignupBillingAttemptState } from './internal/signup-billing';
+export { readSignupBilling, type SignupBillingAttemptState } from './internal/signup-billing';
 export {
   startSignupSubscription,
   reconcileSignupSubscription,
   type StartSignupSubscriptionOutcome,
   type ReconcileSignupSubscriptionOutcome,
 } from './internal/signup-checkout';
+export {
+  abandonSignupHostedCheckout,
+  startSignupHostedCheckout,
+  completeSignupHostedCheckout,
+  type AbandonSignupHostedCheckoutOutcome,
+  type StartSignupHostedCheckoutOutcome,
+  type CompleteSignupHostedCheckoutOutcome,
+} from './internal/signup-hosted-checkout';
 export {
   provisionTenantFromSignup,
   type ProvisionSignupOutcome,

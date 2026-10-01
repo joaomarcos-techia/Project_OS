@@ -91,6 +91,7 @@ function currentUser(permissions: string[]) {
   return {
     userId: 'user-1',
     clinicId,
+    name: 'Dr. Matheus Silva',
     role: 'owner',
     permissions,
     granularPermissionsEnabled: true,
@@ -162,6 +163,16 @@ describe('DashboardPage', () => {
     expect(screen.getByRole('region', { name: 'Sala de espera e atendimento' })).toBeTruthy();
     expect(screen.getByRole('region', { name: 'Operação do turno' })).toBeTruthy();
     expect(screen.getByRole('region', { name: 'Resumo financeiro' })).toBeTruthy();
+  });
+
+  it('mantém o nome completo do usuário na saudação do cabeçalho', async () => {
+    render(await DashboardPage());
+
+    expect(
+      screen.getByRole('heading', {
+        name: /^(?:Bom dia|Boa tarde|Boa noite), Dr\. Matheus Silva$/u,
+      }),
+    ).toBeTruthy();
   });
 
   it('formata Hoje no fuso da clínica durante a virada do dia em UTC', async () => {

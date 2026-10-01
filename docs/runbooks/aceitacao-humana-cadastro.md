@@ -29,8 +29,9 @@ trabalho — não vira "conhecido".
 ## Onde rodar, e por que não em produção
 
 **Rode no Preview.** O Preview usa o **Sandbox** do Asaas e o banco DEV, então você pode percorrer o
-funil inteiro sem criar assinatura em produção. O cadastro atual não solicita cartão: a primeira
-fatura vence ao fim dos sete dias e o pagamento é hospedado pelo Asaas.
+funil inteiro sem criar assinatura em produção. O Qoro não coleta cartão: depois da escolha do plano,
+o Checkout hospedado do Asaas solicita os dados sintéticos do pagador e o cartão de teste. A primeira
+fatura vence ao fim dos sete dias.
 
 Em produção cada passagem cria **uma clínica de verdade e uma assinatura cobrada de verdade**. Não
 use produção para aceitação, e se algum dia precisar, trate como operação com dinheiro: cancele a
@@ -38,20 +39,21 @@ assinatura e remova o tenant depois, com autorização e registro.
 
 ### Endereço
 
-O Preview vigente da emenda, no
-[PR #15](https://github.com/joaomarcos-techia/Project_OS/pull/15), é:
+O Preview vigente do Checkout hospedado, no
+[PR #18](https://github.com/joaomarcos-techia/Project_OS/pull/18), é:
 
 ```
-https://project-os-git-docs-funil-com-entrada-clinic-os-v2-s-projects.vercel.app/cadastro
+https://project-os-git-fix-signup-hosted-9ea790-clinic-os-v2-s-projects.vercel.app/cadastro
 ```
 
-O E2E automatizado executou os cinco cenários nesse alias em 4,9 min no SHA `9608e1e`, com um worker,
-zero retry, fingerprint do Auth e banco DEV e cleanup Auth/DB/fixture/lock zero. Isso torna o alvo
-válido para o roteiro; não substitui a inspeção humana do inbox nem o julgamento de produto.
+O E2E automatizado executou os cinco cenários nesse alias em 4,9 min, com um worker, zero retry,
+fingerprint do Auth e banco DEV e cleanup Auth/DB/fixture/lock zero. O cenário principal chegou à
+página de assinatura no Sandbox e comprovou `checkout_pending`; o cartão/reCAPTCHA e o retorno ao
+dashboard continuam sendo esta prova humana. Isso torna o alvo válido para o roteiro, sem substituir
+a inspeção humana do inbox nem o julgamento de produto.
 
-O PR #15 já foi mesclado na `main` em `193ce31`, depois de o E2E e todos os checks ficarem verdes. O
-aceite humano continua obrigatório antes de declarar o fluxo aceito como produto; use o Preview acima
-e nunca produção. As flags
+O PR #18 continua em draft, com CI e Preview verdes, até este aceite humano comprovar a conclusão do
+Checkout e o retorno ao dashboard. Use o Preview acima e nunca produção. As flags
 `SIGNUP_IDENTITY_ENABLED` e `SIGNUP_AUTH_ENABLED` já estão no escopo **Preview** do projeto
 `project-os`; confira também que Supabase é DEV e Asaas é Sandbox antes do cadastro.
 
@@ -60,8 +62,9 @@ e nunca produção. As flags
 - **Login da Vercel** — o Preview é protegido; a primeira visita pede autenticação.
 - **Um e-mail que você consiga abrir.** Use um alias consentido (`voce+aceite1@…`) e confirme pelo
   link recebido. **Não use e-mail de cliente.**
-- **CPF/CNPJ sintético válido para o Sandbox.** Use a fixture aprovada do ambiente de teste.
-  Não é necessário cartão para concluir o cadastro e iniciar o trial.
+- **Dados sintéticos completos do pagador e um cartão de teste do Asaas Sandbox.** Documento,
+  telefone, endereço e cartão são informados somente na página hospedada pelo Asaas. O Qoro não
+  coleta nem transporta esses campos.
 
 ## O roteiro
 
@@ -121,14 +124,25 @@ cadastro” no computador ficou clara sem explicar a implementação?
 
 ### 2. Plano e billing
 
-Escolha o plano, informe CPF/CNPJ sintético e conclua a criação da assinatura.
+Escolha o plano e confirme. O navegador deve sair do Qoro e abrir uma URL HTTPS em
+`sandbox.asaas.com/checkoutSession/show`. Preencha ali os dados sintéticos do pagador e o cartão de
+teste e conclua a assinatura recorrente. O plano, o valor, o ciclo e o primeiro vencimento não podem
+ser campos editáveis no Qoro.
 
-Esta parte é deliberadamente humana e separada: o E2E técnico de confirmação para quando
-`/cadastro/plano` abre. Um PASS naquele spec não diz que checkout, Asaas, webhook, reconciliação ou
-provisionamento funcionaram nesta execução.
+Esta parte é deliberadamente humana e separada: a prova automatizada chega ao Checkout hospedado e
+confirma a reserva persistida, mas a conclusão interativa depende do reCAPTCHA do Asaas. Um PASS de
+confirmação de e-mail não prova pagamento, retorno, reconciliação ou provisionamento.
 
-**Esperado:** nenhuma tela pede dado de cartão **dentro** do Qoro — quem coleta é o Asaas. Se você vir
-um campo de cartão com a cara do Qoro, isso é um achado, e é grave.
+**Esperado:** nenhuma tela pede CPF/CNPJ, telefone, endereço ou cartão **dentro** do Qoro — quem
+coleta é o Asaas. O Checkout hospedado pode exibir o botão “Acompanhar pedido”; esse rótulo é controlado
+pelo Asaas. Ao acioná-lo, deve abrir `/cadastro/pagamento?resultado=success`; essa
+tela consulta o provedor e só segue para o dashboard depois de confirmar customer, assinatura
+`ACTIVE`, cartão, ciclo mensal, valor e vencimento. O callback sozinho não concede acesso.
+
+Se cancelar ou deixar o Checkout expirar, use “Voltar ao plano”. A aplicação precisa encerrar ou
+confirmar o encerramento daquele Checkout no Asaas antes de liberar outro. Ela não pode reabrir a URL
+expirada nem criar duas assinaturas. Se você vir um campo financeiro com a cara do Qoro, chegar ao
+dashboard antes de concluir o Checkout ou ficar preso na URL antiga, registre como **FAIL**.
 
 **Julgue:** o preço e o que está incluído ficam claros antes de confirmar? Dá para saber o que
 acontece no fim do trial?
@@ -193,8 +207,9 @@ Não registre o e-mail usado, o código recebido, nem nada do cartão.
 
 ## Medição da campanha, fora deste roteiro
 
-O Google Ads da landing está ligado. O tag carrega em `/comecar`, o evento de conversão é enfileirado
-e a requisição sai para o Google antes da navegação. O encaminhamento automático por
+O tag do Google Ads na landing está configurado, mas a campanha permanece pausada por decisão do
+fundador até o produto ser aceito. Em `/comecar`, o evento de conversão é enfileirado e a requisição
+sai para o Google antes da navegação. O encaminhamento automático por
 `location.replace` não recebe `_gl`; o clique real na âncora de fallback recebe. Isso não afeta a
 conversão registrada na landing hoje, porque o app ainda não carrega tag Google.
 
