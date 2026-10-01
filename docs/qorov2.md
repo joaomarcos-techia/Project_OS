@@ -8057,6 +8057,12 @@ eco do Business App, handoff, retenção, migration e v4 passou **268/268**. O
 build Next de produção passou e a regressão integral terminou com **4.576/4.576
 testes em 442 arquivos**.
 
+O primeiro CI do PR integrado parou antes dos testes no gate
+`pnpm audit --prod --audit-level high`: duas advisories novas de DoS atingiam
+`brace-expansion` 5.0.9, transitivo de Sentry → glob → minimatch. O override foi
+elevado para 5.0.11, o lockfile foi regenerado e o mesmo audit passou com exit 0;
+restou uma advisory moderada, abaixo do threshold high do gate.
+
 O readback do banco DEV confirmou as três estruturas da migration 0107:
 
 - `clinic_whatsapp_numbers.coexistence boolean NOT NULL`;
