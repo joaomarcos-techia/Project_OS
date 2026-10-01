@@ -366,3 +366,19 @@ arquivos geram 47 casos porque `production-role-journeys-a` possui quatro.
 O estado `PASS` do probe Supavisor significa saúde no momento da medição. Ele não
 é evidência da causa raiz dos incidentes históricos nem de que uma falha externa
 de conexão não possa reaparecer.
+
+## 16. Integração WhatsApp e Google Ads — 01/10/2026
+
+| Domínio | Execução | PASS | FAIL | BLOCKED | SKIP | Evidência |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| WhatsApp v4/coexistência, regressão direcionada | Vitest local integrado | 268 | 0 | 0 | 0 | webhook por field, ecos, handoff, v4, retenção e journal |
+| WhatsApp Preview sem número ativo | Playwright autenticado | 2 | 0 | 0 | 4 | tela sem 5xx e estado desconectado; casos de perfil não aplicáveis |
+| WhatsApp real nesta rodada | Meta + Preview | 0 | 0 | 0 | 0 | **NOT RUN**: conexão de teste havia sido desconectada após a prova anterior |
+| Google Ads, sinal técnico | produção `qoro.dev` | 1 | 0 | 0 | 0 | gtag carregado, request de conversão observado e chegada em `/cadastro` |
+| Google Ads, crédito da ação | painel Ads | 0 | 0 | 1 | 0 | campanha inativa |
+| Regressão global | Vitest | 4576 | 0 | 0 | 0 | 442 arquivos, exit 0 |
+
+O resultado do Playwright não substitui a jornada real da Meta: quatro casos
+foram pulados porque não havia número conectado. A prova externa do agente
+anterior é mantida como evidência histórica separada, sem ser recontada como uma
+execução desta rodada.

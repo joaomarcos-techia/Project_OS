@@ -8038,3 +8038,88 @@ de rede.
 - executar build/regressão integral depois da integração de WhatsApp;
 - repetir manualmente `/cadastro`, conforme roteiro humano, depois do Preview
   final.
+
+## 49. Integração final de WhatsApp e revalidação do Google Ads — 01/10/2026
+
+### 49.1 Integração preservando os dois trabalhos
+
+As branches `feat/embedded-signup-v4` (`017c415`, `5afcd05`) e
+`feat/whatsapp-coexistence` (`3e7d98f`, `13e931b`) foram mescladas, nessa ordem,
+na branch isolada `integration/2e2-final-20260930`. Não houve merge na `main`.
+O único conflito foi o journal do Drizzle: a resolução manteve 0105 e 0106 e
+acrescentou 0107 com `idx=107` e `when=1790781546069`. Nenhum dos dois lados foi
+descartado.
+
+O inventário de segurança foi regenerado depois das Server Actions: 180 actions,
+51 route methods, 16 props, 272 acessos a `process.env`, zero gaps de rota e zero
+variáveis públicas não registradas. A suíte direcionada de conexão, webhook,
+eco do Business App, handoff, retenção, migration e v4 passou **268/268**. O
+build Next de produção passou e a regressão integral terminou com **4.576/4.576
+testes em 442 arquivos**.
+
+O readback do banco DEV confirmou as três estruturas da migration 0107:
+
+- `clinic_whatsapp_numbers.coexistence boolean NOT NULL`;
+- `ai_messages.sent_via_business_app boolean NOT NULL`;
+- `whatsapp_business_app_echoes` existente, com duas policies.
+
+A migration 0107 **não foi aplicada em produção** nesta rodada. Ela continua
+pendente do merge e do procedimento de migration aprovado para produção.
+
+### 49.2 Preview e limite da nova execução WhatsApp
+
+O commit integrado `f8caa05` foi publicado com sucesso no Preview:
+
+`https://project-os-git-integration-2e2-f-d89837-clinic-os-v2-s-projects.vercel.app`
+
+O E2E autenticado `whatsapp-profile.spec.ts` contra esse Preview terminou em
+**2 PASS + 4 SKIP** em 43,5 s. Os passes provaram que a tela abre sem 5xx/erro de
+página e que o estado sem número conectado não oferece um formulário que o
+servidor recusaria. Os quatro casos dependentes de número conectado foram
+corretamente pulados; não viraram PASS.
+
+O banco explica o estado: a única conexão de coexistência foi conectada em
+30/09 às 23:01 UTC e desconectada às 23:29 UTC, depois da prova externa do outro
+agente. Portanto, esta rodada não repetiu mensagem real nem alterou subscription.
+A evidência fornecida pelo agente anterior relata a jornada completa
+`paciente → webhook → IA → outbound delivered`, a pausa por resposta do celular
+e a devolução ao agente. Nesta integração foram comprovados código, schema,
+testes, build e Preview; a jornada Meta real não foi reexecutada e permanece
+classificada separadamente como evidência anterior.
+
+### 49.3 Google Ads
+
+Na landing `qoro.dev`, os gates atuais passaram:
+
+- `npm run conversao`: **2/2 PASS**, medição ligada;
+- `npm run comecar`: **27/27 PASS**;
+- lint e TypeScript: exit 0;
+- build integral: exit 0, 53 rotas prerenderizadas, 20 verificações de segurança.
+
+Uma travessia real e somente de leitura operacional por
+`https://qoro.dev/comecar` carregou `www.googletagmanager.com/gtag/js`, emitiu
+requisições de conversão para endpoints do Google Ads e terminou em
+`https://app.qoro.dev/cadastro`. Isso comprova a emissão técnica do sinal. Não
+comprova que o Google Ads atribuiu crédito à ação `Cadastro iniciado`; com a
+campanha desativada, essa confirmação continua **BLOCKED** até uma visita real
+atribuível depois da ativação.
+
+### 49.4 Estado final desta integração
+
+| Área | Estado | Evidência |
+| --- | --- | --- |
+| Embedded Signup v4 + coexistência | **PASS de integração** | merge ordenado, 268/268, build e regressão global |
+| Migration 0107 em DEV | **PASS** | readback das três estruturas e duas policies |
+| Migration 0107 em produção | **NOT RUN** | não autorizada nem necessária antes do merge |
+| WhatsApp no Preview sem conexão | **2 PASS / 4 SKIP** | E2E autenticado, 43,5 s |
+| WhatsApp → IA → resposta real nesta rodada | **NOT RUN** | fixture desconectada após a prova anterior |
+| Google Ads, emissão do evento | **PASS** | tag carregado, request de conversão observado, destino correto |
+| Google Ads, crédito final | **BLOCKED** | campanha inativa |
+| Build Next | **PASS** | build completo, exit 0 |
+| Regressão Vitest | **PASS** | 442 arquivos, 4.576 testes |
+
+Permanecem fora da `main`: os commits deste worktree isolado. Permanecem como
+ações externas/manuais: concluir o refund PIX pendente no painel Sandbox,
+reexecutar `/cadastro`, ativar a campanha antes da prova de atribuição, aplicar
+0107 em produção somente depois do merge e, se for desejada uma nova prova Meta,
+refazer o Embedded Signup no número consentido de teste.

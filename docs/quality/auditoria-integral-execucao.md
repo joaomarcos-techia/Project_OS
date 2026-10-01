@@ -399,3 +399,16 @@ O coletor de `production-team-lifecycle` deixou de carregar um storage state
 inexistente antes do `skip`; a repetição sem opt-in terminou em um skip e exit 0.
 A decomposição vigente substitui a contagem histórica de quatro passes, pois
 `production-unauthenticated-boundary` não pôde executar sem uma conversa real.
+
+## Adendo — integração WhatsApp e regressão final em 01/10/2026
+
+As branches de Embedded Signup v4 e coexistência foram integradas na branch de
+auditoria sem tocar a `main`. O conflito único do journal manteve 0105–0107. O
+readback DEV confirmou a 0107, a suíte direcionada passou 268/268, o build Next
+passou e a regressão global passou 4.576/4.576 em 442 arquivos.
+
+No Preview consolidado, `whatsapp-profile.spec.ts` obteve **2 PASS + 4 SKIP**:
+a conexão de coexistência havia sido desconectada após o teste real do outro
+agente. Por isso, não há nova prova externa Meta nesta rodada. Na landing, os
+gates de conversão passaram e a navegação real gerou request de conversão; a
+atribuição final permanece bloqueada enquanto a campanha estiver inativa.
