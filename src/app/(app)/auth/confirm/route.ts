@@ -119,7 +119,29 @@ export async function GET(_request?: NextRequest): Promise<Response> {
   return applyPrivateHeaders(response);
 }
 
-function resolveConfirmationPublicOrigin(): string | null {
+function previewRequestOrigin(request: NextRequest): string | null {
+  if (env.VERCEL_ENV !== 'preview') return null;
+  try {
+    const url = new URL(request.url);
+    if (
+      url.protocol !== 'https:' ||
+      !url.hostname.endsWith('.vercel.app') ||
+      url.hostname === 'vercel.app' ||
+      url.port ||
+      url.username ||
+      url.password
+    ) {
+      return null;
+    }
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
+function resolveConfirmationPublicOrigin(request: NextRequest): string | null {
+  const previewOrigin = previewRequestOrigin(request);
+  if (previewOrigin) return previewOrigin;
   try {
     return new URL(
       buildApplicationUrl(env.APP_BASE_URL ?? '', '/', {
@@ -302,7 +324,7 @@ async function confirmOtp(publicOrigin: string, input: ConfirmationInput): Promi
 }
 
 export async function POST(request: NextRequest): Promise<Response> {
-  const publicOrigin = resolveConfirmationPublicOrigin();
+  const publicOrigin = resolveConfirmationPublicOrigin(request);
   if (!publicOrigin) return applyPrivateHeaders(new Response(null, { status: 503 }));
   const fetchSite = request.headers.get('sec-fetch-site');
   if (

@@ -1,7 +1,8 @@
-import { expect, test, type BrowserContext, type Page } from '@playwright/test';
-import { createServerClient as createSsrClient } from '@supabase/ssr';
+import { expect, test, type Page } from '@playwright/test';
 import { config as loadDotenv } from 'dotenv';
 import postgres from 'postgres';
+
+import { authenticate } from './auth';
 
 loadDotenv({ path: '.env.local' });
 
@@ -29,34 +30,16 @@ function productionConfig(): { databaseUrl: string; url: string; secretKey: stri
   return { databaseUrl, url: `https://${projectRef}.supabase.co`, secretKey };
 }
 
-async function signInContext(context: BrowserContext, email: string, password: string) {
-  if (!baseUrl) throw new Error('E2E_BASE_URL ausente.');
-  const { url, secretKey } = productionConfig();
-  let nextCookies: Array<{ name: string; value: string }> = [];
-  const client = createSsrClient(url, secretKey, {
-    cookies: {
-      getAll: () => [],
-      setAll: (items) => {
-        nextCookies = items.map(({ name, value }) => ({ name, value }));
-      },
-    },
-    auth: { autoRefreshToken: false, persistSession: true },
-  });
-  const { data, error } = await client.auth.signInWithPassword({ email, password });
-  if (error || !data.session || nextCookies.length === 0) {
-    throw new Error(error?.message ?? 'Login não produziu sessão.');
-  }
-  await context.addCookies(
-    nextCookies
-      .filter(({ value }) => value !== '')
-      .map(({ name, value }) => ({ name, value, url: baseUrl })),
-  );
-}
-
 async function expectStat(page: Page, label: string, value: number): Promise<void> {
-  const card = page.getByText(label, { exact: true }).locator('../..');
+  const card = statCard(page, label);
   await expect(card).toBeVisible();
   await expect(card.getByText(String(value), { exact: true })).toBeVisible();
+}
+
+function statCard(page: Page, label: string) {
+  return page
+    .locator('[data-slot="stat-card"]')
+    .filter({ has: page.getByText(label, { exact: true }) });
 }
 
 type DashboardState = {
@@ -241,17 +224,17 @@ test.describe('produção: Dashboard não-zero sintético na Clínica A', () => 
         fixture_upcoming: 3,
       });
 
-      await signInContext(context, ownerEmail, ownerPassword);
+      await authenticate(page);
       await page.goto('/dashboard');
 
       await expectStat(page, 'Consultas hoje', fixture.after.consultas_hoje);
       await expectStat(page, 'Aguardando', fixture.after.aguardando);
       await expectStat(page, 'Em atendimento', fixture.after.em_atendimento);
+      const completedLabel = `${fixture.after.finalizadas} ${
+        fixture.after.finalizadas === 1 ? 'finalizada' : 'finalizadas'
+      }`;
       await expect(
-        page
-          .getByText('Consultas hoje', { exact: true })
-          .locator('../..')
-          .getByText(`${fixture.after.finalizadas} finalizadas`, { exact: true }),
+        statCard(page, 'Consultas hoje').getByText(completedLabel, { exact: true }),
       ).toBeVisible();
 
       const upcomingPanel = page.getByText('Próximos na agenda', { exact: true }).locator('../..');
@@ -260,9 +243,9 @@ test.describe('produção: Dashboard não-zero sintético na Clínica A', () => 
         fixture.after.upcoming_walkins,
       );
       const statusLabels: Record<string, string> = {
-        agendado: 'Agendado',
-        confirmado: 'Confirmado',
-        chegou: 'Chegou',
+        agendado: 'Agendada',
+        confirmado: 'Confirmada',
+        chegou: 'Aguardando',
       };
       for (const [status, label] of Object.entries(statusLabels)) {
         const expected = fixture.after.upcoming_statuses.filter((item) => item === status).length;
