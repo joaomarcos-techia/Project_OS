@@ -8373,3 +8373,20 @@ completa. Não houve alteração da regra de produto sem reprodução. O runner 
 repete apenas falhas transitórias idempotentes da rede do Supabase, reconcilia a
 criação Auth antes de tentar novamente e, se o 409 reaparecer, registra somente
 estado CAS sanitizado — sem e-mail, senha, cookie ou token.
+
+## 53. Readback final do refund PIX Sandbox — 01/10/2026
+
+Depois da autorização manual informada no painel, o runner oficial foi retomado
+com o manifesto já existente e `ASAAS_CHAVE_TESTE_2`, restrito ao Sandbox e ao
+método PIX. Ele reconheceu a mesma conta e a mesma cobrança antes de qualquer
+mutação e terminou com **FAIL externo**: o provider marcou o refund como
+`CANCELLED`, sem devolver o valor.
+
+Um GET independente confirmou pagamento `RECEIVED` de R$ 10 e **dois refunds de
+R$ 10, ambos `CANCELLED`**. A API não fornece motivo, `failureReason` ou
+`cancellationReason` nesses objetos. Esta retomada não fez um terceiro POST: o
+runner encontrou o refund existente, classificou o estado terminal de falha e
+preservou o manifesto. Portanto o estado deixou de ser `BLOCKED aguardando
+autorização`; ele é **FAIL do resultado externo**, com causa específica ainda
+dependente do suporte/diagnóstico do Asaas. O código continua correto ao exigir
+`DONE` antes de projetar devolução e ao não repetir o refund automaticamente.

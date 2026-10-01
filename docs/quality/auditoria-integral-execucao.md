@@ -390,7 +390,7 @@ vídeo.
 | Área | Evidência atual | Veredito |
 | --- | --- | --- |
 | Refund cartão Sandbox | pagamento `CONFIRMED`, um refund terminal e replay HTTP 400 sem segunda devolução | **PASS** |
-| Refund PIX Sandbox | pagamento `RECEIVED`, um refund em `AWAITING_CRITICAL_ACTION_AUTHORIZATION`; manifesto preservado | **BLOCKED** até aprovação no painel + `DONE` |
+| Refund PIX Sandbox | pagamento `RECEIVED`; dois refunds de R$ 10 terminaram `CANCELLED`; a retomada pelo manifesto não criou terceiro POST | **FAIL externo** — nenhum valor foi devolvido |
 | `production-*` | 44 arquivos/47 casos coletados no host correto; três specs isolados passaram e a fronteira anônima ficou sem conversa fixture | **3 PASS, 4 PRECONDITION BLOCKED, 40 SKIP** por caso |
 | Supavisor atual | 48/48 conexões graváveis, dois backends, zero recovery/read-only; p95 2,6 s | **PASS atual**, causa histórica externa desconhecida |
 | Cron/DB defensivo | 23/23 em ratchet de sessão, pool, deadline e captura do cron | **PASS de mitigação**, sem retry estrutural do tick inteiro |
@@ -449,10 +449,10 @@ e os seletores foram reconciliados com as tabelas e a paginação atuais. A
 fixture sintética foi removida externamente e o readback deu zero. Estado atual
 por caso: **5 PASS, 0 FAIL, 4 PRECONDITION BLOCKED e 38 SKIP**.
 
-Continuam bloqueados externamente: autorização crítica do refund PIX, checkout
-pago sob reCAPTCHA do Asaas, crédito final do Google Ads com campanha inativa e
-a reexecução integrada WhatsApp → IA → resposta sob responsabilidade do agente
-concorrente.
+Continuam pendentes externamente: causa do cancelamento dos refunds PIX pelo
+Asaas, checkout pago sob reCAPTCHA, crédito final do Google Ads com campanha
+inativa e a reexecução integrada WhatsApp → IA → resposta sob responsabilidade
+do agente concorrente.
 
 ## Adendo — MFA, financeiro, transições de role e fronteira anônima em 01/10/2026
 
