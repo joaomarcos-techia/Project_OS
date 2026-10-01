@@ -1,5 +1,6 @@
 const CONFIRMED_REFUND_STATUSES = new Set(['REFUNDED', 'DONE', 'CONFIRMED', 'COMPLETED']);
 const CRITICAL_ACTION_STATUS = 'AWAITING_CRITICAL_ACTION_AUTHORIZATION';
+const CANCELLED_REFUND_STATUS = 'CANCELLED';
 const IN_FLIGHT_PAYMENT_STATUSES = new Set(['REFUND_REQUESTED', 'REFUND_IN_PROGRESS']);
 
 export interface CheckoutCleanupRefund {
@@ -10,6 +11,7 @@ export interface CheckoutCleanupRefund {
 export type CheckoutCleanupReadback =
   | { state: 'complete' }
   | { state: 'pending-critical-action' }
+  | { state: 'cancelled' }
   | { state: 'pending' };
 
 export function retainCheckoutForChargeback(input: {
@@ -57,6 +59,10 @@ export function classifyCheckoutCleanup(input: {
 
   if (input.refunds.some((refund) => refund.status === CRITICAL_ACTION_STATUS)) {
     return { state: 'pending-critical-action' };
+  }
+
+  if (input.refunds.some((refund) => refund.status === CANCELLED_REFUND_STATUS)) {
+    return { state: 'cancelled' };
   }
 
   return { state: 'pending' };

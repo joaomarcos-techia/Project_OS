@@ -299,6 +299,11 @@ async function waitForRefundCompletion(
         '[asaas-checkout-e2e] cleanup bloqueado: o estorno aguarda autorizacao de acao critica no painel Asaas Sandbox.',
       );
     }
+    if (readback.state === 'cancelled') {
+      throw new Error(
+        '[asaas-checkout-e2e] cleanup falhou: o provider cancelou o estorno e o valor nao foi devolvido.',
+      );
+    }
     if (attempt < REFUND_POLL_ATTEMPTS - 1) {
       await new Promise((resolve) => setTimeout(resolve, PAYMENT_POLL_INTERVAL_MS));
     }
@@ -453,6 +458,11 @@ async function cleanupFixture(
   if (existingReadback.state === 'pending-critical-action') {
     throw new Error(
       '[asaas-checkout-e2e] cleanup bloqueado: o estorno aguarda autorizacao de acao critica no painel Asaas Sandbox.',
+    );
+  }
+  if (existingReadback.state === 'cancelled') {
+    throw new Error(
+      '[asaas-checkout-e2e] cleanup falhou: o provider cancelou o estorno e o valor nao foi devolvido.',
     );
   }
   if (hasCheckoutRefundInFlight({ paymentStatus: current.status, refunds: existingRefunds })) {

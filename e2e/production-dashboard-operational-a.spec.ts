@@ -1,3 +1,5 @@
+import { randomBytes } from 'node:crypto';
+
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 import { createServerClient as createSsrClient } from '@supabase/ssr';
 import { config as loadDotenv } from 'dotenv';
@@ -8,7 +10,8 @@ loadDotenv({ path: '.env.local' });
 const baseUrl = process.env.E2E_BASE_URL;
 const ownerEmail = process.env.E2E_OWNER_EMAIL;
 const doctorEmail = process.env.E2E_DOCTOR_EMAIL;
-const sharedPassword = process.env.E2E_TENANT_PASSWORD;
+const ownerPassword = process.env.E2E_OWNER_PASSWORD ?? process.env.E2E_TENANT_PASSWORD;
+const doctorPassword = process.env.E2E_DOCTOR_PASSWORD ?? process.env.E2E_TENANT_PASSWORD;
 
 test.use({
   storageState: { cookies: [], origins: [] },
@@ -30,6 +33,9 @@ function productionConfig(): { databaseUrl: string; url: string; secretKey: stri
 async function signInContext(context: BrowserContext, email: string, password: string) {
   if (!baseUrl) throw new Error('E2E_BASE_URL ausente.');
   const { url, secretKey } = productionConfig();
+  const generation = randomBytes(16).toString('hex');
+  const projectRef = new URL(url).hostname.split('.')[0]!;
+  const cookieName = `sb-${projectRef}-auth-token-v2-${generation}`;
   let nextCookies: Array<{ name: string; value: string }> = [];
   const client = createSsrClient(url, secretKey, {
     cookies: {
@@ -38,17 +44,33 @@ async function signInContext(context: BrowserContext, email: string, password: s
         nextCookies = items.map(({ name, value }) => ({ name, value }));
       },
     },
+    cookieOptions: { name: cookieName, httpOnly: true, sameSite: 'lax', secure: true },
     auth: { autoRefreshToken: false, persistSession: true },
   });
   const { data, error } = await client.auth.signInWithPassword({ email, password });
   if (error || !data.session || nextCookies.length === 0) {
     throw new Error(error?.message ?? 'Login não produziu sessão.');
   }
-  await context.addCookies(
-    nextCookies
+  await context.addCookies([
+    ...nextCookies
       .filter(({ value }) => value !== '')
-      .map(({ name, value }) => ({ name, value, url: baseUrl })),
-  );
+      .map(({ name, value }) => ({
+        name,
+        value,
+        url: baseUrl,
+        httpOnly: true,
+        secure: true,
+        sameSite: 'Lax' as const,
+      })),
+    {
+      name: 'qoro-auth-session',
+      value: generation,
+      url: baseUrl,
+      httpOnly: true,
+      secure: true,
+      sameSite: 'Lax' as const,
+    },
+  ]);
 }
 
 async function expectStat(page: Page, label: string, value: number): Promise<void> {
@@ -65,7 +87,7 @@ test.describe('produção: reconciliação operacional do Dashboard', () => {
     if (!baseUrl || new URL(baseUrl).hostname !== 'app.qoro.dev') {
       throw new Error('O teste read-only só pode apontar para app.qoro.dev.');
     }
-    if (!ownerEmail || !doctorEmail || !sharedPassword) {
+    if (!ownerEmail || !doctorEmail || !ownerPassword || !doctorPassword) {
       throw new Error('Credenciais da Clínica A ausentes.');
     }
 
@@ -84,6 +106,7 @@ test.describe('produção: reconciliação operacional do Dashboard', () => {
             clinic_id: string;
             timezone: string;
             owner_can_audit: boolean;
+            doctor_found: boolean;
             doctor_can_audit: boolean;
             consultas_hoje: number;
             aguardando: number;
@@ -117,6 +140,9 @@ test.describe('produção: reconciliação operacional do Dashboard', () => {
               from identity i
           )
           select b.clinic_id::text, b.timezone, b.owner_can_audit,
+                 exists(select 1 from auth.users du join effective_permissions_v d on d.user_id=du.id
+                   where lower(du.email)=${doctorEmail.toLowerCase()}
+                     and d.clinic_id=b.clinic_id and d.ativo=true and d.deleted_at is null) doctor_found,
                  coalesce(b.doctor_can_audit,false) doctor_can_audit,
                  (select count(*)::int from appointments a where a.clinic_id=b.clinic_id
                    and a.scheduled_at>=b.day_from and a.scheduled_at<b.day_to
@@ -146,13 +172,14 @@ test.describe('produção: reconciliação operacional do Dashboard', () => {
         `;
       });
       if (!state) throw new Error('Estado autoritativo do Dashboard ausente.');
+      if (!state.doctor_found) throw new Error('Médico A não encontrado na mesma clínica.');
       expect(state.owner_can_audit).toBe(true);
       expect(state.doctor_can_audit).toBe(false);
       expect(state.consultas_hoje).toBeLessThanOrEqual(200);
 
       await Promise.all([
-        signInContext(ownerContext, ownerEmail, sharedPassword),
-        signInContext(doctorContext, doctorEmail, sharedPassword),
+        signInContext(ownerContext, ownerEmail, ownerPassword),
+        signInContext(doctorContext, doctorEmail, doctorPassword),
       ]);
       await Promise.all([ownerPage.goto('/dashboard'), doctorPage.goto('/dashboard')]);
 

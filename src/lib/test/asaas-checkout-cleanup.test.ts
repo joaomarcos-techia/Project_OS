@@ -45,6 +45,17 @@ describe('classifyCheckoutCleanup', () => {
     ).toEqual({ state: 'pending-critical-action' });
   });
 
+  it('separa estorno cancelado de processamento pendente', () => {
+    expect(
+      classifyCheckoutCleanup({
+        paymentStatus: 'RECEIVED',
+        paymentDeleted: false,
+        expectedRefundValue: 10,
+        refunds: [{ status: 'CANCELLED', value: 10 }],
+      }),
+    ).toEqual({ state: 'cancelled' });
+  });
+
   it.each(['PENDING', 'REFUND_REQUESTED', 'REFUND_IN_PROGRESS', 'DENIED'])(
     'nao declara o estorno %s como concluido',
     (status) => {

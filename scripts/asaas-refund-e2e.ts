@@ -289,6 +289,7 @@ async function waitForRefund(
 ): Promise<
   | { state: 'complete'; payment: ProviderPayment; refunds: ProviderRefund[] }
   | { state: 'pending-critical-action'; payment: ProviderPayment; refunds: ProviderRefund[] }
+  | { state: 'cancelled'; payment: ProviderPayment; refunds: ProviderRefund[] }
 > {
   for (let attempt = 0; attempt < POLL_ATTEMPTS; attempt += 1) {
     const [payment, refunds] = await Promise.all([
@@ -304,6 +305,9 @@ async function waitForRefund(
     if (state.state === 'complete') return { state: 'complete', payment, refunds };
     if (state.state === 'pending-critical-action') {
       return { state: 'pending-critical-action', payment, refunds };
+    }
+    if (state.state === 'cancelled') {
+      return { state: 'cancelled', payment, refunds };
     }
     if (attempt < POLL_ATTEMPTS - 1) {
       await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
@@ -454,6 +458,11 @@ async function runMethod(input: {
         );
         return 'blocked';
       }
+      if (existing.state === 'cancelled') {
+        throw new Error(
+          `[asaas-refund-e2e] FAIL ${method}: provider cancelou o estorno; o valor nao foi devolvido`,
+        );
+      }
       throw new Error(`[asaas-refund-e2e] ${method} ja possui estorno nao terminal`);
     }
   } else {
@@ -486,6 +495,11 @@ async function runMethod(input: {
       `[asaas-refund-e2e] BLOCKED ${method}: estorno aguarda autorizacao de acao critica; id=${paymentFingerprint(payment.paymentId)}.`,
     );
     return 'blocked';
+  }
+  if (completed.state === 'cancelled') {
+    throw new Error(
+      `[asaas-refund-e2e] FAIL ${method}: provider cancelou o estorno; o valor nao foi devolvido`,
+    );
   }
   await assertDuplicateRefundRejected(client, payment.paymentId, PAYMENT_VALUE, completed.refunds);
   console.log(
