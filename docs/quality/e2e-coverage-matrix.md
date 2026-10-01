@@ -41,7 +41,7 @@ _poderiam_ estar.
 | Recuperação de senha | solicitar                               | qualquer    | sim      | anti-enumeração                | `production-password-recovery-a`                    | —                                    | Coberto |
 | Recuperação de senha | prova de recovery, uso único, revogação | owner       | sim      | replay, token inválido         | `production-password-recovery-a`                    | —                                    | Coberto |
 | Logout               | revogar refresh, dois dispositivos      | owner       | sim      | replay do cookie               | `production-session-logout-replay-a`                | —                                    | Coberto |
-| Fronteira sem sessão | 22 rotas protegidas                     | anônimo     | —        | sim                            | `production-unauthenticated-boundary` (só prod)     | `public-surface` (qualquer ambiente) | Coberto |
+| Fronteira sem sessão | 28 rotas + deep-links reais             | anônimo     | —        | sim                            | `production-unauthenticated-boundary` (só prod)     | `public-surface` (qualquer ambiente) | Coberto |
 | Cabeçalhos           | CSP, sem curinga, Turnstile             | anônimo     | sim      | —                              | `headers-gate.test.ts` (unitário)                   | `public-surface` (HTTP real)         | Coberto |
 
 ## 2. Cadastro autônomo (ADR-060)
@@ -402,3 +402,19 @@ espera a hidratação das telas cliente e usa os contratos atuais da agenda e do
 caixa. A execução real terminou 1/1 PASS e a limpeza transacional posterior
 removeu paciente, atendimentos, prontuários, documentos, lançamentos e eventos
 sintéticos; o readback final encontrou zero resíduo atual.
+
+## 18. Execução adicional das suítes de produção — 01/10/2026
+
+| Domínio | Execução | PASS | FAIL | BLOCKED | SKIP | Evidência |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| MFA | produção, conta E2E owner | 1 | 0 | 0 | 0 | TOTP ativado, AAL2 comprovado, fator removido e readback zero |
+| Financeiro | produção, fixture sintética isolada | 1 | 0 | 0 | 0 | inválidos, arredondamento, cancelamento, duas parcelas, dois estornos, filtros e cleanup zero |
+| Transições de role | produção, membro sintético convidado | 1 | 0 | 0 | 0 | 12 transições/ponte, sessão antiga recusada e claims/bundle atuais; cleanup zero |
+| Fronteira anônima | produção | 2 | 0 | 0 | 1 | 28 rotas estáticas + 5 deep-links negados; conversa sem fixture ficou SKIP |
+| `production-*` consolidado | 44 arquivos / 49 casos | 10 | 0 | 3 | 36 | 8 arquivos PASS integral, 1 PARTIAL, 3 PRECONDITION BLOCKED e 32 SKIP |
+
+A coleta conjunta sem opt-ins produziu **46 SKIP + 3 PRECONDITION BLOCKED** e
+zero PASS. Os dez PASS do consolidado pertencem a execuções isoladas com os
+guardas satisfeitos; não foram inferidos da coleta. Os três bloqueios continuam
+sendo credenciais doctor/owner específicas ausentes. O caso de conversa é SKIP
+justificado pela inexistência de `ai_conversations` em produção.

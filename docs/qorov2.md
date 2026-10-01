@@ -8267,3 +8267,67 @@ Riscos ainda sem comprovação final:
    concorrente e não é inferido dos testes de perfil;
 6. o roteiro humano final de `/cadastro` permanece manual;
 7. o PR #26 aguarda decisão de merge.
+
+## 51. Evidência adicional de produção e correção da própria suíte — 01/10/2026
+
+Esta continuação preservou o worktree concorrente de WhatsApp e alterou somente
+três specs `production-*` no worktree isolado, além da documentação. Dois
+contratos dos testes estavam envelhecidos: o helper fabricava o cookie legado
+`sb-<ref>-auth-token`, enquanto a aplicação exige a geração HttpOnly v2
+selecionada por `qoro-auth-session`; e o link de recovery ainda esperava o token
+na query, embora o contrato atual o coloque no fragmento. Os helpers exercitados
+passaram a emitir o formato vigente. Não houve mudança no código de produto.
+
+### 51.1 Execuções funcionais
+
+- `production-mfa-lifecycle`: **1/1 PASS em 16,9 s**. TOTP ativado, AAL2
+  comprovado, fator removido; readback final sem fator verificado ou pendente;
+- `production-financial-lifecycle-a`: **1/1 PASS em 53,4 s**. Quatro entradas
+  inválidas não persistiram; 10,005 virou 10,01; uma despesa foi cancelada; o
+  recebimento ocorreu em 3,33 + 6,67; dois estornos e duas compensações somaram
+  10; filtros e estado `estornado` foram conferidos. O cleanup removeu todos os
+  registros marcados e o readback final deu zero;
+- `production-role-transition-matrix-a`: **1/1 PASS em 1,2 min**. Nove
+  transições exigidas e três pontes produziram 12 recusas de sessão antiga, 12
+  claims novas e 12 bundles de banco corretos. Convite, usuário, auditoria,
+  idempotência e outbox sintéticos foram removidos;
+- `production-unauthenticated-boundary`: **2 PASS + 1 SKIP em 9,0 s**. As 28
+  rotas estáticas e cinco deep-links com IDs reais redirecionaram para `/login`;
+  HSTS, CSP, `nosniff` e `frame deny` estavam presentes. O caso isolado de
+  `/conversas/[id]` foi pulado porque produção possui zero conversa real.
+
+### 51.2 Consolidação honesta das 44 suítes
+
+A coleta fresca encontrou **44 arquivos e 49 casos**. Sem opt-ins ela terminou
+em **46 SKIP + 3 PRECONDITION BLOCKED**, zero PASS. Os três bloqueios são
+credenciais específicas de doctor/owner exigidas por
+`production-dashboard-financial-rbac`, `production-dashboard-operational-a` e
+`production-whatsapp-settings-rbac`.
+
+Somando somente execuções funcionais isoladas, o retrato atual por caso é **10
+PASS, 0 FAIL, 3 PRECONDITION BLOCKED e 36 SKIP**. Por arquivo: **8 PASS
+integrais, 1 PARTIAL, 3 PRECONDITION BLOCKED e 32 SKIP**. O PARTIAL é a
+fronteira anônima, porque dois casos executaram e o deep-link de conversa não
+tinha fixture. A decomposição completa está em
+[`quality/production-44-execution.md`](quality/production-44-execution.md).
+
+Os bloqueios externos da §50.5 permanecem: autorização crítica do refund PIX no
+Asaas Sandbox, reCAPTCHA do checkout hospedado, campanha Google Ads inativa,
+causa histórica externa de Supavisor/`CONNECT_TIMEOUT`, jornada WhatsApp → IA →
+resposta sob o agente concorrente e roteiro humano final de `/cadastro`. O PR
+#26 continua sem autorização de merge.
+
+### 51.3 Regressão desta versão
+
+- `npx vitest run`: **4.583/4.583 PASS em 442 arquivos**, exit 0, 221,97 s;
+- `npx tsc --noEmit`: PASS;
+- `npx eslint .`: PASS;
+- Prettier nos sete arquivos alterados: PASS;
+- build Next 15.5.24 com `NODE_ENV=production`: PASS, exit 0, 18 páginas
+  estáticas.
+
+A primeira chamada do build no worktree isolado parou antes de compilar porque
+esse worktree não possui `.env.local`: o validador reportou as duas variáveis
+obrigatórias ausentes. A repetição carregou o arquivo local do worktree principal
+no processo sem imprimir ou copiar valores e concluiu toda a compilação. Isso é
+uma pré-condição local do build, não uma falha do candidato.

@@ -453,3 +453,26 @@ Continuam bloqueados externamente: autorização crítica do refund PIX, checkou
 pago sob reCAPTCHA do Asaas, crédito final do Google Ads com campanha inativa e
 a reexecução integrada WhatsApp → IA → resposta sob responsabilidade do agente
 concorrente.
+
+## Adendo — MFA, financeiro, transições de role e fronteira anônima em 01/10/2026
+
+Quatro runners `production-*` adicionais foram executados isoladamente com seus
+guardas legítimos. MFA terminou 1/1 PASS em 16,9 s e removeu o fator criado. O
+ciclo financeiro terminou 1/1 PASS em 53,4 s, incluindo valores inválidos,
+arredondamento, cancelamento, pagamento parcial, quitação, dois estornos,
+compensações, filtros e cleanup com readback zero. A matriz de role terminou 1/1
+PASS em 1,2 min: nove transições exigidas, três pontes, 12 sessões antigas
+recusadas e cleanup zero.
+
+A fronteira anônima foi decomposta para não esconder provas independentes atrás
+da ausência de uma conversa em produção. O resultado foi **2 PASS + 1 SKIP**:
+28 rotas estáticas e cinco deep-links com IDs clínicos reais redirecionaram para
+`/login`, e os cabeçalhos de segurança foram conferidos. Somente
+`/conversas/[id]` ficou sem execução por `ai_conversations=0`.
+
+A coleta fresca dos 44 arquivos agora contém 49 casos e, sem opt-ins, terminou
+em **46 SKIP + 3 PRECONDITION BLOCKED**, zero PASS. Combinando somente as
+execuções funcionais isoladas, o estado é **10 PASS, 0 FAIL, 3 PRECONDITION
+BLOCKED e 36 SKIP**; por arquivo: **8 PASS integrais, 1 PARTIAL, 3
+PRECONDITION BLOCKED e 32 SKIP**. A tabela autoritativa por suíte está em
+[`production-44-execution.md`](production-44-execution.md).

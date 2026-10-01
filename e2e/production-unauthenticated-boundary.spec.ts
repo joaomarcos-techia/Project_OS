@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type APIRequestContext } from '@playwright/test';
 import { config as loadDotenv } from 'dotenv';
 import postgres from 'postgres';
 
@@ -38,26 +38,76 @@ const STATIC_PROTECTED_ROUTES = [
   '/admin/clinicas',
 ] as const;
 
-test.use({
-  storageState: { cookies: [], origins: [] },
-});
+test.use({ storageState: { cookies: [], origins: [] } });
+
+function assertPreconditions(): { baseUrl: string; databaseUrl: string } {
+  test.skip(
+    !authorized,
+    'Exige E2E_PRODUCTION_UNAUTHENTICATED=ALLOW_READ_ONLY para consultar fixtures de PROD.',
+  );
+  if (!baseUrl || new URL(baseUrl).hostname !== 'app.qoro.dev') {
+    throw new Error('O teste sem sessão só pode apontar para app.qoro.dev.');
+  }
+  const databaseUrl = process.env.DATABASE_URL_PROD;
+  if (!databaseUrl) throw new Error('DATABASE_URL_PROD ausente.');
+  return { baseUrl, databaseUrl };
+}
+
+async function assertLoginRedirects(
+  request: APIRequestContext,
+  routes: readonly string[],
+  expectedBaseUrl: string,
+): Promise<void> {
+  for (const route of routes) {
+    const response = await request.get(route, { failOnStatusCode: false, maxRedirects: 0 });
+    const status = response.status();
+    const location = response.headers().location ?? '';
+    expect([302, 303, 307, 308], `${route} respondeu ${status}`).toContain(status);
+    expect(
+      new URL(location, expectedBaseUrl).pathname,
+      `${route} redirecionou para ${location}`,
+    ).toBe('/login');
+    await response.dispose();
+  }
+}
 
 test.describe('produção: fronteira sem autenticação', () => {
   test.describe.configure({ retries: 0 });
 
-  test('redireciona rotas estáticas e IDs reais antes de expor conteúdo', async ({ request }) => {
+  test('redireciona todas as rotas estáticas e mantém headers de segurança', async ({
+    request,
+  }) => {
     test.setTimeout(180_000);
-    test.skip(
-      !authorized,
-      'Exige E2E_PRODUCTION_UNAUTHENTICATED=ALLOW_READ_ONLY para consultar fixtures de PROD.',
-    );
-    if (!baseUrl || new URL(baseUrl).hostname !== 'app.qoro.dev') {
-      throw new Error('O teste sem sessão só pode apontar para app.qoro.dev.');
-    }
-    const databaseUrl = process.env.DATABASE_URL_PROD;
-    if (!databaseUrl) throw new Error('DATABASE_URL_PROD ausente.');
+    const config = assertPreconditions();
+    await assertLoginRedirects(request, STATIC_PROTECTED_ROUTES, config.baseUrl);
 
-    const sql = postgres(databaseUrl, { max: 1, ssl: 'require', prepare: false });
+    const loginResponse = await request.get('/login', { failOnStatusCode: false });
+    expect(loginResponse.status()).toBe(200);
+    const headers = loginResponse.headers();
+    expect(headers['strict-transport-security']).toBeTruthy();
+    expect(headers['x-content-type-options']?.toLowerCase()).toBe('nosniff');
+    expect(headers['x-frame-options']?.toUpperCase()).toBe('DENY');
+    console.log(
+      `[unauthenticated-boundary-static] ${JSON.stringify({
+        routes: STATIC_PROTECTED_ROUTES.length,
+        redirects: STATIC_PROTECTED_ROUTES.length,
+        securityHeaders: {
+          hsts: Boolean(headers['strict-transport-security']),
+          noSniff: true,
+          frameDeny: true,
+          cspEnforced: Boolean(headers['content-security-policy']),
+          cspReportOnly: Boolean(headers['content-security-policy-report-only']),
+        },
+        result: 'blocked-correctly',
+      })}`,
+    );
+    await loginResponse.dispose();
+  });
+
+  test('redireciona deep-links com IDs clínicos reais disponíveis', async ({ request }) => {
+    test.setTimeout(120_000);
+    const config = assertPreconditions();
+    const sql = postgres(config.databaseUrl, { max: 1, ssl: 'require', prepare: false });
     try {
       const fixtures = await sql.begin(async (tx) => {
         await tx.unsafe('RESET ROLE');
@@ -73,64 +123,44 @@ test.describe('produção: fronteira sem autenticação', () => {
         const [document] = await tx<{ id: string }[]>`
           select id::text from medical_documents where pdf_storage_path is not null order by created_at limit 1
         `;
-        const [conversation] = await tx<{ id: string }[]>`
-          select id::text from ai_conversations order by created_at limit 1
-        `;
         const [clinic] = await tx<{ id: string }[]>`
           select id::text from clinics order by created_at limit 1
         `;
-        if (!patient || !prontuario || !prescription || !document || !conversation || !clinic) {
-          throw new Error('Fixtures reais insuficientes para o boundary sem sessão.');
+        if (!patient || !prontuario || !prescription || !document || !clinic) {
+          throw new Error('Fixtures clínicas reais insuficientes para os deep-links sem sessão.');
         }
-        return { patient, prontuario, prescription, document, conversation, clinic };
+        return { patient, prontuario, prescription, document, clinic };
       });
-
       const routes = [
-        ...STATIC_PROTECTED_ROUTES,
         `/pacientes/${fixtures.patient.id}`,
         `/pacientes/${fixtures.prontuario.patient_id}/prontuarios/${fixtures.prontuario.id}`,
         `/prescricoes/${fixtures.prescription.id}/pdf`,
         `/documentos/${fixtures.document.id}/pdf`,
-        `/conversas/${fixtures.conversation.id}`,
         `/admin/clinicas/${fixtures.clinic.id}`,
       ];
-      const outcomes: Array<{ route: string; status: number; location: string }> = [];
-
-      for (const route of routes) {
-        const response = await request.get(route, { failOnStatusCode: false, maxRedirects: 0 });
-        const status = response.status();
-        const location = response.headers().location ?? '';
-        expect([302, 303, 307, 308], `${route} respondeu ${status}`).toContain(status);
-        expect(new URL(location, baseUrl).pathname, `${route} redirecionou para ${location}`).toBe(
-          '/login',
-        );
-        outcomes.push({ route, status, location: '/login' });
-        await response.dispose();
-      }
-
-      const loginResponse = await request.get('/login', { failOnStatusCode: false });
-      expect(loginResponse.status()).toBe(200);
-      const headers = loginResponse.headers();
-      expect(headers['strict-transport-security']).toBeTruthy();
-      expect(headers['x-content-type-options']?.toLowerCase()).toBe('nosniff');
-      expect(headers['x-frame-options']?.toUpperCase()).toBe('DENY');
-
+      await assertLoginRedirects(request, routes, config.baseUrl);
       console.log(
-        `[unauthenticated-boundary] ${JSON.stringify({
-          routes: outcomes.length,
-          redirects: outcomes.filter((outcome) => outcome.location === '/login').length,
-          statusCodes: [...new Set(outcomes.map((outcome) => outcome.status))],
-          securityHeaders: {
-            hsts: Boolean(headers['strict-transport-security']),
-            noSniff: headers['x-content-type-options']?.toLowerCase() === 'nosniff',
-            frameDeny: headers['x-frame-options']?.toUpperCase() === 'DENY',
-            cspEnforced: Boolean(headers['content-security-policy']),
-            cspReportOnly: Boolean(headers['content-security-policy-report-only']),
-          },
-          result: 'blocked-correctly',
-        })}`,
+        `[unauthenticated-boundary-clinical] ${JSON.stringify({ routes: routes.length, result: 'blocked-correctly' })}`,
       );
-      await loginResponse.dispose();
+    } finally {
+      await sql.end();
+    }
+  });
+
+  test('redireciona conversa real quando existe fixture em produção', async ({ request }) => {
+    test.setTimeout(60_000);
+    const config = assertPreconditions();
+    const sql = postgres(config.databaseUrl, { max: 1, ssl: 'require', prepare: false });
+    try {
+      const [conversation] = await sql<{ id: string }[]>`
+        select id::text from ai_conversations order by created_at limit 1
+      `;
+      test.skip(!conversation, 'Produção não possui conversa real para validar /conversas/[id].');
+      const route = `/conversas/${conversation!.id}`;
+      await assertLoginRedirects(request, [route], config.baseUrl);
+      console.log(
+        '[unauthenticated-boundary-conversation] {"routes":1,"result":"blocked-correctly"}',
+      );
     } finally {
       await sql.end();
     }

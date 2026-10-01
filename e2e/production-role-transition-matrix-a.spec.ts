@@ -53,8 +53,11 @@ async function signInContext(
 ): Promise<void> {
   if (!baseUrl) throw new Error('E2E_BASE_URL ausente.');
   await context.clearCookies();
+  const generation = randomBytes(16).toString('hex');
   let nextCookies: Array<{ name: string; value: string }> = [];
   const { url, key } = productionConfig();
+  const projectRef = new URL(url).hostname.split('.')[0]!;
+  const cookieName = `sb-${projectRef}-auth-token-v2-${generation}`;
   const client = createSsrClient(url, key, {
     cookies: {
       getAll: () => [],
@@ -62,17 +65,33 @@ async function signInContext(
         nextCookies = items.map(({ name, value }) => ({ name, value }));
       },
     },
+    cookieOptions: { name: cookieName, httpOnly: true, sameSite: 'lax', secure: true },
     auth: { autoRefreshToken: false, persistSession: true },
   });
   const { data, error } = await client.auth.signInWithPassword({ email, password });
   if (error || !data.session || nextCookies.length === 0) {
     throw new Error(error?.message ?? 'Login não produziu sessão.');
   }
-  await context.addCookies(
-    nextCookies
+  await context.addCookies([
+    ...nextCookies
       .filter(({ value }) => value !== '')
-      .map(({ name, value }) => ({ name, value, url: baseUrl })),
-  );
+      .map(({ name, value }) => ({
+        name,
+        value,
+        url: baseUrl,
+        httpOnly: true,
+        secure: true,
+        sameSite: 'Lax' as const,
+      })),
+    {
+      name: 'qoro-auth-session',
+      value: generation,
+      url: baseUrl,
+      httpOnly: true,
+      secure: true,
+      sameSite: 'Lax' as const,
+    },
+  ]);
 }
 
 function sessionClaims(cookies: Array<{ name: string; value: string }>): Record<string, unknown> {
@@ -95,10 +114,11 @@ function assertConfirmationUrl(link: string): void {
   const parsed = new URL(link);
   expect(parsed.origin).toBe('https://app.qoro.dev');
   expect(parsed.pathname).toBe('/auth/confirm');
-  expect(parsed.searchParams.has('token_hash')).toBe(true);
-  expect(parsed.searchParams.get('type')).toBe('recovery');
-  expect(parsed.searchParams.get('next')).toBe('/convite');
-  expect(parsed.hash).toBe('');
+  expect(parsed.search).toBe('');
+  const fragment = new URLSearchParams(parsed.hash.slice(1));
+  expect(fragment.has('token_hash')).toBe(true);
+  expect(fragment.get('type')).toBe('recovery');
+  expect(fragment.get('next')).toBe('/convite');
 }
 
 async function acceptInvite(
@@ -108,6 +128,7 @@ async function acceptInvite(
 ): Promise<Page> {
   const page = await context.newPage();
   await page.goto(link);
+  await expect(page).toHaveURL(/\/convite(?:\?|$)/u, { timeout: 60_000 });
   const destination = new URL(page.url());
   expect(destination.origin).toBe('https://app.qoro.dev');
   expect(destination.pathname).toBe('/convite');
@@ -138,7 +159,7 @@ test.describe('produção: matriz de transições de role na Clínica A', () => 
   test('cobre todas as nove transições exigidas, invalida sessão e restaura attendant', async ({
     browser,
     page,
-  }, testInfo) => {
+  }) => {
     test.setTimeout(900_000);
     test.skip(!authorized, 'Exige E2E_PRODUCTION_ROLE_MATRIX=ALLOW_SYNTHETIC_CLINIC_A.');
     if (!baseUrl || new URL(baseUrl).hostname !== 'app.qoro.dev') {
@@ -154,7 +175,9 @@ test.describe('produção: matriz de transições de role na Clínica A', () => 
     const sql = postgres(databaseUrl, { max: 2, ssl: 'require', prepare: false });
     const runId = String(Date.now()).slice(-10);
     const memberName = `[E2E-ROLE-MATRIX-A-${runId}] Colaborador`;
-    const memberEmail = `e2e-role-matrix-a-${runId}@example.test`;
+    const [ownerLocal, ownerDomain] = ownerEmail.toLowerCase().split('@');
+    if (!ownerLocal || !ownerDomain) throw new Error('E-mail do owner A inválido.');
+    const memberEmail = `${ownerLocal.split('+')[0]}+e2e-role-matrix-a-${runId}@${ownerDomain}`;
     const memberPassword = `Aa1!${randomBytes(24).toString('base64url')}`;
     let clinicId: string | undefined;
     let memberId: string | undefined;
@@ -205,15 +228,16 @@ test.describe('produção: matriz de transições de role na Clínica A', () => 
         throw generated.error ?? new Error('Não foi possível gerar a fixture de aceite.');
       }
       const link = new URL('https://app.qoro.dev/auth/confirm');
-      link.searchParams.set('token_hash', generated.data.properties.hashed_token);
-      link.searchParams.set('type', 'recovery');
-      link.searchParams.set('next', '/convite');
+      link.hash = new URLSearchParams({
+        token_hash: generated.data.properties.hashed_token,
+        type: 'recovery',
+        next: '/convite',
+      }).toString();
       assertConfirmationUrl(link.toString());
 
       memberContext = await browser.newContext({
         baseURL: baseUrl,
         storageState: { cookies: [], origins: [] },
-        recordVideo: { dir: testInfo.outputPath('member-video') },
       });
       const memberPage = await acceptInvite(memberContext, link.toString(), memberPassword);
       const initialClaims = sessionClaims(await memberContext.cookies());

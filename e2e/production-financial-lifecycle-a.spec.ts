@@ -1,3 +1,5 @@
+import { randomBytes } from 'node:crypto';
+
 import { expect, test, type BrowserContext, type Locator, type Page } from '@playwright/test';
 import { createServerClient as createSsrClient } from '@supabase/ssr';
 import { config as loadDotenv } from 'dotenv';
@@ -33,8 +35,11 @@ async function signInContext(
   password: string,
 ): Promise<void> {
   if (!baseUrl) throw new Error('E2E_BASE_URL ausente.');
-  let nextCookies: Array<{ name: string; value: string }> = [];
   const { url, key } = productionSupabaseConfig();
+  const projectRef = new URL(url).hostname.split('.')[0]!;
+  const generation = randomBytes(16).toString('hex');
+  const cookieName = `sb-${projectRef}-auth-token-v2-${generation}`;
+  let nextCookies: Array<{ name: string; value: string }> = [];
   const client = createSsrClient(url, key, {
     cookies: {
       getAll: () => [],
@@ -42,23 +47,52 @@ async function signInContext(
         nextCookies = items.map(({ name, value }) => ({ name, value }));
       },
     },
+    cookieOptions: { name: cookieName, httpOnly: true, sameSite: 'lax', secure: true },
     auth: { autoRefreshToken: false, persistSession: true },
   });
   const { data, error } = await client.auth.signInWithPassword({ email, password });
   if (error || !data.session || nextCookies.length === 0) {
     throw new Error(error?.message ?? 'Login não produziu sessão.');
   }
-  await context.addCookies(
-    nextCookies
+  await context.addCookies([
+    ...nextCookies
       .filter(({ value }) => value !== '')
-      .map(({ name, value }) => ({ name, value, url: baseUrl })),
-  );
+      .map(({ name, value }) => ({
+        name,
+        value,
+        url: baseUrl,
+        httpOnly: true,
+        secure: true,
+        sameSite: 'Lax' as const,
+      })),
+    {
+      name: 'qoro-auth-session',
+      value: generation,
+      url: baseUrl,
+      httpOnly: true,
+      secure: true,
+      sameSite: 'Lax' as const,
+    },
+  ]);
 }
 
-function financialCard(page: Page, description: string): Locator {
-  return page
-    .getByText(description, { exact: true })
-    .locator('xpath=ancestor::div[contains(@class,"rounded-(--card-radius)")][1]');
+async function financialCard(
+  page: Page,
+  description: string,
+  queue: 'A receber' | 'Recebidos hoje' | 'A pagar',
+): Promise<Locator> {
+  const region = page.getByRole('region', { name: queue });
+  await expect(region).toBeVisible({ timeout: 30_000 });
+  const item =
+    queue === 'A receber'
+      ? region.locator('div[data-status]').filter({ hasText: description })
+      : region.getByText(description, { exact: true }).locator('xpath=ancestor::div[.//button][1]');
+  for (let pageIndex = 0; pageIndex < 10 && (await item.count()) === 0; pageIndex += 1) {
+    const next = region.getByRole('button', { name: `Próxima página de ${queue}` });
+    if ((await next.count()) === 0 || (await next.isDisabled())) break;
+    await next.click();
+  }
+  return item;
 }
 
 async function clickServerAction(page: Page, button: Locator): Promise<number> {
@@ -188,14 +222,14 @@ test.describe('produção: ciclo financeiro e caixa na Clínica A', () => {
         tipo: 'pagar',
       });
       expect(roundedCreateStatus).toBeLessThan(500);
-      await expect(page).toHaveURL(/\/financeiro$/u);
+      await expect(page).toHaveURL(/\/financeiro$/u, { timeout: 60_000 });
 
       const mainCreateStatus = await createLancamento(page, {
         description: mainDescription,
         value: '10,00',
       });
       expect(mainCreateStatus).toBeLessThan(500);
-      await expect(page).toHaveURL(/\/financeiro$/u);
+      await expect(page).toHaveURL(/\/financeiro$/u, { timeout: 60_000 });
 
       const created = await sql.begin(async (tx) => {
         await tx.unsafe('RESET ROLE');
@@ -216,9 +250,17 @@ test.describe('produção: ciclo financeiro e caixa na Clínica A', () => {
       expect(cancelTarget).toMatchObject({ tipo: 'pagar', valor: '10.01', status: 'pendente' });
 
       await page.goto('/caixa');
-      const cancelCard = financialCard(page, cancelDescription);
+      const cancelCard = await financialCard(page, cancelDescription, 'A pagar');
       await expect(cancelCard).toBeVisible();
-      await cancelCard.getByRole('button', { name: 'Cancelar' }).click();
+      const receivedRegion = page.getByRole('region', { name: 'Recebidos hoje' });
+      expect(
+        await receivedRegion.getByRole('button', { name: 'Reembolsar' }).count(),
+        'a conta E2E deve iniciar sem recebimento reembolsável hoje',
+      ).toBe(0);
+      await cancelCard.getByRole('button', { name: 'Pagar', exact: true }).click();
+      await cancelCard
+        .getByRole('button', { name: `Cancelar conta de ${cancelDescription}`, exact: true })
+        .click();
       const cancelStatus = await clickServerAction(
         page,
         cancelCard.getByRole('button', { name: 'Sim, cancelar' }),
@@ -235,7 +277,7 @@ test.describe('produção: ciclo financeiro e caixa na Clínica A', () => {
         .toBe('cancelado');
 
       await page.reload();
-      let mainCard = financialCard(page, mainDescription);
+      let mainCard = await financialCard(page, mainDescription, 'A receber');
       await expect(mainCard).toBeVisible();
       await mainCard.getByRole('button', { name: 'Confirmar pagamento' }).click();
       await mainCard.getByLabel('Valor recebido').fill('3,33');
@@ -255,8 +297,8 @@ test.describe('produção: ciclo financeiro e caixa na Clínica A', () => {
         .toBe('parcial:3.33');
 
       await page.reload();
-      mainCard = financialCard(page, mainDescription);
-      await mainCard.getByRole('button', { name: 'Confirmar pagamento' }).click();
+      mainCard = await financialCard(page, mainDescription, 'A receber');
+      await mainCard.getByRole('button', { name: 'Receber saldo', exact: true }).click();
       await mainCard.getByLabel('Valor recebido').fill('6,67');
       const secondPaymentStatus = await clickServerAction(
         page,
@@ -288,14 +330,19 @@ test.describe('produção: ciclo financeiro e caixa na Clínica A', () => {
 
       for (const [index, payment] of payments.entries()) {
         await page.reload();
-        mainCard = financialCard(page, mainDescription);
-        await expect(mainCard).toBeVisible();
-        await mainCard.getByRole('button', { name: 'Reembolsar' }).click();
-        await mainCard.getByLabel('Pagamento original').selectOption(payment.id);
-        await mainCard.getByLabel('Motivo do reembolso').fill(`${marker} estorno ${index + 1}`);
+        await page.waitForLoadState('networkidle');
+        const refundButton = receivedRegion.getByRole('button', { name: 'Reembolsar' });
+        await expect(refundButton).toHaveCount(1);
+        await refundButton.click();
+        const originalPayment = receivedRegion.getByLabel('Pagamento original');
+        await expect(originalPayment).toBeVisible({ timeout: 30_000 });
+        await originalPayment.selectOption(payment.id);
+        await receivedRegion
+          .getByLabel('Motivo do reembolso')
+          .fill(`${marker} estorno ${index + 1}`);
         const refundStatus = await clickServerAction(
           page,
-          mainCard.getByRole('button', { name: 'Confirmar reembolso' }),
+          receivedRegion.getByRole('button', { name: 'Confirmar reembolso' }),
         );
         expect(refundStatus).toBeLessThan(500);
         await expect
