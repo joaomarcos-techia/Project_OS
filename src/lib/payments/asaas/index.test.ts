@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { fetchMock } = vi.hoisted(() => ({ fetchMock: vi.fn() }));
+const { fetchMock, metricsEmitMock } = vi.hoisted(() => ({
+  fetchMock: vi.fn(),
+  metricsEmitMock: vi.fn(),
+}));
 
 vi.mock('@/lib/env', () => ({
   assertBillingRuntimeReady: vi.fn(),
@@ -11,7 +14,7 @@ vi.mock('@/lib/env', () => ({
     ASAAS_WEBHOOK_TOKEN: 'webhook-token',
   },
 }));
-vi.mock('@/lib/observability/metrics', () => ({ metrics: { emit: vi.fn() } }));
+vi.mock('@/lib/observability/metrics', () => ({ metrics: { emit: metricsEmitMock } }));
 
 import {
   __testing__,
@@ -24,6 +27,7 @@ import {
 beforeEach(() => {
   __testing__.resetCircuit();
   fetchMock.mockReset();
+  metricsEmitMock.mockReset();
   vi.stubGlobal('fetch', fetchMock);
 });
 
@@ -41,6 +45,9 @@ describe('compensacao de cliente de checkout', () => {
         access_token: 'test-key',
       }),
     );
+    expect(metricsEmitMock).toHaveBeenCalledWith('billing.asaas.customer_created', {
+      customerId: '[REDACTED]',
+    });
   });
 
   it('remove cliente pelo endpoint do Asaas sem incluir dados de cartao', async () => {
@@ -160,13 +167,44 @@ describe('erros HTTP do Asaas', () => {
     expect(error).toEqual(
       expect.objectContaining({
         name: 'BillingProviderError',
-        message: 'asaas GET /payments/pay_1 → HTTP 400',
+        message: 'asaas GET /payments/[REDACTED] → HTTP 400',
         providerErrorCodes: [],
       }),
     );
     if (!(error instanceof BillingProviderError)) throw new Error('expected BillingProviderError');
     expect(error.message).not.toContain(pan);
     expect(error.message).not.toContain(cvv);
+    expect(metricsEmitMock).toHaveBeenCalledWith(
+      'billing.asaas.http_4xx',
+      expect.objectContaining({ path: '/payments/[REDACTED]' }),
+    );
+  });
+
+  it('redige ID e externalReference nos erros e métricas do provider', async () => {
+    const paymentId = 'pay_sensitive_identifier_123456';
+    const externalReference = 'onboarding:00000000-0000-0000-0000-000000000001';
+    fetchMock.mockResolvedValue(new Response(null, { status: 500 }));
+
+    const client = createAsaasClient({ apiKey: 'test-key' });
+    const error = await client
+      .findPaymentByExternalReference(externalReference, { attempts: 1 })
+      .then(
+        () => null,
+        (reason: unknown) => reason,
+      );
+
+    expect(error).toBeInstanceOf(Error);
+    expect(String(error)).not.toContain(externalReference);
+    expect(metricsEmitMock).toHaveBeenCalledWith(
+      'billing.asaas.http_5xx',
+      expect.objectContaining({ path: '/payments?externalReference=%5BREDACTED%5D&limit=1' }),
+    );
+
+    fetchMock.mockResolvedValue(new Response(null, { status: 500 }));
+    await client.getPayment(paymentId, { attempts: 1 }).catch(() => undefined);
+    const serializedCalls = JSON.stringify(metricsEmitMock.mock.calls);
+    expect(serializedCalls).not.toContain(paymentId);
+    expect(serializedCalls).toContain('pay_…3456');
   });
 
   it('preserva apenas códigos seguros do provedor para diagnóstico', async () => {

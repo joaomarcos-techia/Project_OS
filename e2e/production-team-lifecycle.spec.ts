@@ -23,9 +23,6 @@ test.use({
   storageState: '.playwright/.auth/user.json',
   // Trace includes navigation URLs and could retain bearer magic links. Video
   // does not record the browser chrome and preserves safe visual evidence.
-  trace: 'off',
-  video: 'on',
-  screenshot: 'off',
   actionTimeout: 30_000,
   navigationTimeout: 60_000,
 });
@@ -91,10 +88,11 @@ function assertConfirmationUrl(link: string): void {
   expect(parsed.protocol).toBe('https:');
   expect(parsed.origin).toBe('https://app.qoro.dev');
   expect(parsed.pathname).toBe('/auth/confirm');
-  expect(parsed.searchParams.has('token_hash')).toBe(true);
-  expect(parsed.searchParams.get('type')).toBe('recovery');
-  expect(parsed.searchParams.get('next')).toBe('/convite');
-  expect(parsed.hash).toBe('');
+  expect(parsed.search).toBe('');
+  const fragment = new URLSearchParams(parsed.hash.slice(1));
+  expect(fragment.has('token_hash')).toBe(true);
+  expect(fragment.get('type')).toBe('recovery');
+  expect(fragment.get('next')).toBe('/convite');
 }
 
 async function responseFailureDetail(response: Awaited<ReturnType<Page['goto']>>): Promise<string> {
@@ -169,7 +167,9 @@ async function resendInvite(page: Page, member: Member): Promise<string> {
   const row = page.getByText(member.name, { exact: true }).locator('xpath=ancestor::tr[1]');
   await row.getByRole('button', { name: `Ações do convite de ${member.name}` }).click();
   await page.getByRole('menuitem', { name: 'Reenviar convite' }).click();
-  await expect(page.getByText('Link copiado', { exact: true })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText('Convite reenviado', { exact: true })).toBeVisible({
+    timeout: 30_000,
+  });
   const link = await page.evaluate(() => navigator.clipboard.readText());
   assertConfirmationUrl(link);
   return link;
@@ -190,9 +190,11 @@ async function generateFixtureRecoveryLink(admin: SupabaseClient, email: string)
     throw error ?? new Error('Não foi possível gerar a fixture de aceite.');
   }
   const link = new URL('https://app.qoro.dev/auth/confirm');
-  link.searchParams.set('token_hash', data.properties.hashed_token);
-  link.searchParams.set('type', 'recovery');
-  link.searchParams.set('next', '/convite');
+  link.hash = new URLSearchParams({
+    token_hash: data.properties.hashed_token,
+    type: 'recovery',
+    next: '/convite',
+  }).toString();
   assertConfirmationUrl(link.toString());
   return link.toString();
 }

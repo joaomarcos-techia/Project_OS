@@ -88,7 +88,7 @@ try {
     const state = await readOnboardingProgress(clinicId, userId);
     assert.equal(state.tourState, 'not_started');
     assert.equal(state.tourStep, 0);
-    assert.equal(state.shouldAutoOpenTour, true);
+    assert.equal(state.shouldAutoOpenTour, false);
     // Ler não escreve. Se isto virar 1, todo GET de dashboard passou a gravar.
     assert.equal(await rowCount(clinicId, userId), 0, 'a leitura criou linha');
   });

@@ -39,6 +39,7 @@ export type PlanChangeState = {
     | 'upgrade_pending_payment'
     | 'downgrade_scheduled'
     | 'cancellation_scheduled'
+    | 'cancellation_already_applied'
     | 'cancellation_revoked'
     | 'subscription_reactivated';
   message?: string;
@@ -219,6 +220,21 @@ export async function requestSubscriptionCancellationAction(
       message: `Assinatura cancelada. Nenhuma nova cobrança será feita e as cobranças em aberto foram apagadas no Asaas. ${acesso}`,
     };
   } catch (err) {
+    if (
+      err instanceof PlanChangeError &&
+      (err.code === 'subscription_already_cancelled' ||
+        err.code === 'cancellation_already_scheduled')
+    ) {
+      revalidatePath('/configuracoes/assinatura');
+      return {
+        error: null,
+        success: 'cancellation_already_applied',
+        message:
+          err.code === 'subscription_already_cancelled'
+            ? 'Esta assinatura já estava cancelada. Nenhuma nova cobrança será feita.'
+            : 'O cancelamento desta assinatura já estava confirmado. Nenhuma nova cobrança será feita.',
+      };
+    }
     return { error: err instanceof PlanChangeError ? err.message : INITIAL_ERROR };
   }
 }

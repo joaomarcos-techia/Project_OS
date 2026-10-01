@@ -99,10 +99,9 @@ export interface OnboardingProgressState {
   checklistDismissedAt: string | null;
   rowVersion: number;
   /**
-   * A janela do tour está aberta exatamente quando o estado NÃO é terminal.
-   * Fechar grava `skipped`, então fechar tem efeito observável e o refresh no
-   * meio do tour volta no mesmo passo — não existe um "aberto" que só o
-   * componente conheça.
+   * A janela abre somente depois de a pessoa iniciar o tour. `not_started` não
+   * interrompe o primeiro acesso; `in_progress` sobrevive a refresh e troca de
+   * dispositivo até a conclusão ou dispensa.
    */
   shouldAutoOpenTour: boolean;
 }
@@ -115,7 +114,7 @@ const NEVER_STARTED: OnboardingProgressState = {
   docsVisitedAt: null,
   checklistDismissedAt: null,
   rowVersion: 0,
-  shouldAutoOpenTour: true,
+  shouldAutoOpenTour: false,
 };
 
 /**
@@ -169,7 +168,7 @@ function toState(row: OnboardingProgressRow): OnboardingProgressState {
     docsVisitedAt: iso(row.docsVisitedAt),
     checklistDismissedAt: iso(row.checklistDismissedAt),
     rowVersion: row.rowVersion,
-    shouldAutoOpenTour: tourState !== 'completed' && tourState !== 'skipped',
+    shouldAutoOpenTour: tourState === 'in_progress',
   };
 }
 

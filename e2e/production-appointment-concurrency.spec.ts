@@ -13,9 +13,6 @@ const sharedPassword = process.env.E2E_TENANT_PASSWORD;
 
 test.use({
   storageState: { cookies: [], origins: [] },
-  trace: 'off',
-  video: 'off',
-  screenshot: 'off',
   actionTimeout: 30_000,
   navigationTimeout: 60_000,
 });

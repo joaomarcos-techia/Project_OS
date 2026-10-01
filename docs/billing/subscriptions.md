@@ -27,13 +27,17 @@ Somente **assentos** bloqueiam operação. Agendamentos e IA são contadores/mé
 - ciclos: `monthly`, `annual`;
 - assinatura: `trial`, `active`, `past_due`, `cancelled`;
 - invoice: `open`, `partial`, `paid`, `overdue`, `cancelled`;
-- trial de onboarding: 14 dias.
+- trial do onboarding por convite (`/join`): 14 dias. O cadastro autônomo é um
+  fluxo separado e sua regra de trial não deve ser inferida desta constante.
 
 Transições são monotônicas para tolerar webhook fora de ordem. `paid`/`cancelled` de invoice são terminais; refund vive em payment attempts. Assinatura `cancelled → active` só ocorre no fluxo auditado de reativação após aceite Asaas.
 
 ## Checkout e cobrança
 
-Onboarding cria customer/cartão/assinatura Asaas antes da transação local. Webhook `/api/webhooks/asaas` valida token, deduplica em `processed_webhooks` e consulta o payment no provider antes de aplicar a mudança; notificação não é tratada como verdade suficiente.
+O onboarding por convite (`/join`) cria customer/assinatura com cartão antes da
+transação local. Webhook `/api/webhooks/asaas` valida token, deduplica em
+`processed_webhooks` e consulta o payment no provider antes de aplicar a
+mudança; notificação não é tratada como verdade suficiente.
 
 Reconciliação diária lista/consulta pagamentos e corrige invoices/assinatura/trocas agendadas ausentes. Resultados ambíguos falham fechados e são registrados; não repetir cobrança financeira sem confirmar o estado do provider.
 
@@ -49,7 +53,17 @@ Agenda para o fim do ciclo. Solo exige exatamente um usuário ativo e não exclu
 
 ### Cancelamento
 
-Pode ser agendado para o fim do período, revogado antes da aplicação e reativado por fluxo explícito que primeiro sincroniza com Asaas.
+Pode ser solicitado em `trial`, `active` ou `past_due`. A recorrência é pausada
+imediatamente no Asaas e as cobranças abertas são apagadas com releitura antes
+de o Qoro registrar o cancelamento. O acesso segue até o fim do período já pago
+ou do trial; em inadimplência, encerra em até um dia.
+
+A tela mantém uma confirmação visível tanto no cancelamento agendado quanto no
+estado final `cancelled`. Uma repetição idempotente retorna confirmação de que a
+assinatura já estava cancelada/agendada, sem nova chamada ao Asaas. Enquanto a
+mudança ainda não entrou em vigor, “Manter assinatura” religa a recorrência
+antes de revogar o registro local. Depois do estado final, “Reativar assinatura”
+sincroniza primeiro com o Asaas e reabre a clínica pelo caminho privilegiado.
 
 ## Inadimplência e acesso
 

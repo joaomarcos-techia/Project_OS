@@ -31,9 +31,6 @@ const TRANSITIONS: ReadonlyArray<{ from: Role; to: Role; required: boolean }> = 
 
 test.use({
   storageState: { cookies: [], origins: [] },
-  trace: 'off',
-  video: 'on',
-  screenshot: 'only-on-failure',
   actionTimeout: 30_000,
   navigationTimeout: 60_000,
 });

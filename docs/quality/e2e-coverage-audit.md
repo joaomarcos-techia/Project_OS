@@ -7,6 +7,12 @@ Canonical — retrato de 2026-09-13, derivado do código, não de suposição.
 > **Adendo de 14/09/2026:** a nova tela `/cadastro` e a persistência de `/answers` estão descritas
 > em §D.6. O retrato e as contagens anteriores permanecem históricos; a matriz canônica incorpora
 > a cobertura nova sem reinterpretar execuções de Preview como prova atual.
+>
+> **Adendo de 28/09/2026:** as contagens e conclusões abaixo são históricas. O checkout atual tem
+> 58 specs, sendo 44 `production-*`, e o CI versionado executa `test:e2e:ci` e
+> `security:browser-session`. A execução corrente, seus FAIL/PARTIAL e as correções de harness ficam
+> em [`auditoria-integral-execucao.md`](auditoria-integral-execucao.md). Q1/Q2 foram corrigidos no
+> código, mas aguardam execução autenticada atual antes de virarem PASS.
 
 ## Ordem de autoridade
 

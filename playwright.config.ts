@@ -61,9 +61,11 @@ export default defineConfig({
     baseURL,
     extraHTTPHeaders: vercelBypassHeaders(),
     ...(reuseAuthenticatedState ? { storageState: '.playwright/.auth/user.json' } : {}),
-    trace: retainAllArtifacts ? 'on' : 'retain-on-failure',
-    screenshot: retainAllArtifacts ? 'on' : 'only-on-failure',
-    video: retainAllArtifacts ? 'on' : 'retain-on-failure',
+    // Specs autenticados podem registrar cookies e PII. O padrão é não criar
+    // artefato algum; a captura exige opt-in consciente com E2E_ARTIFACTS=1.
+    trace: retainAllArtifacts ? 'on' : 'off',
+    screenshot: retainAllArtifacts ? 'on' : 'off',
+    video: retainAllArtifacts ? 'on' : 'off',
   },
   ...(process.env.E2E_BASE_URL
     ? {}

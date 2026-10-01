@@ -2,8 +2,14 @@
 
 ## Status
 
-Canonical — atualizado em 2026-09-15. Companheira de
+Canonical histórica — base atualizada em 2026-09-15, com adendo de execução em
+28/09/2026. Companheira de
 [`e2e-coverage-audit.md`](e2e-coverage-audit.md).
+
+Resultados atuais usam `PASS`, `FAIL`, `PARTIAL`, `BLOCKED`, `NOT TESTED` e
+`ADIADO_WHATSAPP`. As categorias antigas de cobertura abaixo continuam úteis
+para localizar specs, mas não equivalem a resultado atual. Evidência corrente:
+[`auditoria-integral-execucao.md`](auditoria-integral-execucao.md).
 
 ## Como ler
 
@@ -177,7 +183,7 @@ nunca verde.
 
 | Funcionalidade                         | Ação                                      | Roles                   | Positivo | Negativo      | E2E existente                                  | Status            |
 | -------------------------------------- | ----------------------------------------- | ----------------------- | -------- | ------------- | ---------------------------------------------- | ----------------- |
-| Cancelamento na trial                  | UI não oferece                            | owner, doctor           | —        | sim           | `production-subscription-cancellation-trial-a` | Coberto           |
+| Cancelamento no trial                  | owner abre confirmação; doctor é negado; abrir/fechar não muta | owner, doctor           | sim      | sim           | `production-subscription-cancellation-trial-a`, `subscription-cancellation` | Coberto em código; produção não executada |
 | Troca de plano / reativação            | —                                         | não                     | não      | —             | —                                              | **Não coberto**   |
 | Webhook Asaas (billing)                | pago, dunning, suspensão                  | —                       | sim      | sim           | `smoke:c13`, `billing:live-roundtrip`          | Fora do navegador |
 | Sugestões                              | enviar, autor privado, A↔B, replay        | owner, doctor, tenant B | sim      | sim           | `production-feedback-privacy-a`                | Coberto           |
@@ -253,3 +259,94 @@ escrevendo mais teste:
 
 (²) Provedor é stub local com SDK real; **contrato do Asaas Sandbox continua NOT TESTED**.
 (³) A transação existe e tem teste de unidade do slug; falta exercício contra Postgres com as tabelas de tenant (clinics/profiles/ai_clinic_config/billing_customers/subscriptions/outbox), que o harness de cadastro ainda não cria.
+
+## 12. Matriz corrente — lote de harness e fronteiras (28/09/2026)
+
+O denominador deste lote é 10 contratos auditados. Esta tabela não declara a
+auditoria integral concluída; ela separa implementação, execução e lacuna.
+
+| ID | Domínio | Funcionalidade / ação | Contrato e fonte | Ator / tenant | Pré-condição e estado inicial | Resultado e efeitos esperados |
+| --- | --- | --- | --- | --- | --- | --- |
+| AIT-M01 | shell | abrir 26 rotas estáticas | página real deve responder 200 e renderizar heading próprio | owner descartável no próprio tenant | sessão válida e permissões operacionais | UI própria; sem login, 404 ou “Sem acesso”; nenhuma escrita |
+| AIT-M02 | pacientes/conversas | abrir primeiro deep-link | rota dinâmica só conta com fixture real; vazio é cenário separado | owner descartável no próprio tenant | ao menos um paciente e uma conversa próprios | detalhe 200; sem negativa/404; zero escrita |
+| AIT-M03 | plataforma | tenant acessa `/admin/*` | ADR-037 + guard único: 404 anti-enumeração | owner tenant, não super_admin | controle `/dashboard` 200 | HTML 404; RSC transporta `NEXT_HTTP_ERROR_FALLBACK;404`; nenhum dado admin |
+| AIT-M04 | pagamentos | chave Asaas inválida | segredo não persiste nem volta ao cliente | `manage:financial`, tenant próprio | Preview DEV isolado; estado conhecido | alerta; campo/HTML sem chave; estado preservado |
+| AIT-M05 | pagamentos | conectar e desconectar conta sandbox | persistência cifrada e restauração obrigatória | `manage:financial`, tenant próprio | Preview DEV + Sandbox + opt-in; começa vazio | conecta, persiste, não expõe chave, desconecta; cleanup verificado |
+| AIT-M06 | clínico | criar e apagar modelo | mutação persiste e fixture sempre é removida | owner no próprio tenant | Preview isolado | aparece após reload e some após exclusão/reload |
+| AIT-M07 | agenda | request inválido para cancelar série | autenticar e autorizar antes de ler entrada | cookie inválido | nenhuma sessão e payload ausente | negativa controlada; domínio/DB não chamados; sem detalhe interno |
+| AIT-M08 | harness | artefatos autenticados | captura somente com opt-in explícito | operador E2E | `E2E_ARTIFACTS` ausente/0 | nenhum trace, vídeo ou screenshot |
+| AIT-M09 | clínico | autosave com cookie inválido e entrada ausente | autenticar antes de validar conteúdo clínico | cookie inválido | nenhuma sessão | negativa genérica; sem lista Zod; zero escrita |
+| AIT-M10 | cadastro | abrir sessão na autoridade solicitada pelo navegador | origem same-site deve ser comparada ao `Host` efetivo | anônimo | Next pode reconstruir `req.url` com hostname interno diferente | 201 e cookie `__Host-`; origem realmente divergente continua 403 |
+| AIT-M11 | pagamentos | ciclo direto no adapter Sandbox | criação, estado e cleanup precisam de readback | runner com credencial de homologação | host/path oficiais Sandbox e fixtures próprias | 18 passos; três cobranças, webhook/customer ausentes/deleted; baixa desfeita; IDs sanitizados |
+| AIT-M12 | billing SaaS | criar e cancelar assinatura Sandbox | nenhum recurso live pode sobreviver ao runner | runner com credencial de homologação | host oficial Sandbox e customer descartável | assinatura `ACTIVE` → `INACTIVE`; customer ausente |
+| AIT-M13 | IA/e-mail | comprovar comportamento live sem promover configuração a resultado | cada provider tem veredito próprio | runner externo sanitizado | classificação DEV positiva quando houver envio | Gemini feliz PASS; adversarial/quota e Resend registrados separadamente |
+
+| ID | Teste / asserção | Ambiente executado | Persistência / proibidos | Lacuna | Evidência | Status atual |
+| --- | --- | --- | --- | --- | --- | --- |
+| AIT-M01 | `authenticated-readonly-routes.spec.ts` | build local + DEV | read-only | owner practitioner sintético | 26/26 rotas 200 com heading; 1/1 caso | PASS DEV |
+| AIT-M02 | mesmo spec, helper dinâmico fail-closed | build local + DEV | paciente e conversa reais; ausência de fixture não passa | fixtures cifradas e browser | `/pacientes/[id]` e `/conversas/[id]` 200; cleanup 0/0/0/0 | PASS DEV |
+| AIT-M03 | `admin-boundary-rbac.spec.ts` | build local + DEV | nenhum body/RSC admin; quatro handlers negados | owner sintético com sessão real | 1/1 em 50,2 s; cleanup SQL/Auth zero | PASS DEV |
+| AIT-M04 | `payments-account-lifecycle.spec.ts` | descoberta/typecheck somente | chave ausente do campo/HTML; estado igual | Preview isolado | source + lint/typecheck | NOT TESTED |
+| AIT-M05 | mesmo spec, cleanup agregado | nenhuma chamada externa | sem webhook/config residual | alvo DEV/Sandbox confirmado | opt-in versionado | BLOCKED |
+| AIT-M06 | `tenant-settings-screens.spec.ts` | build local + DEV | modelo sintético criado e removido; readback 0/0/0 | nenhuma no escopo executado | CSV real, fila LGPD e CRUD de modelo | PASS DEV 3/3 |
+| AIT-M07 | `actions-auth-order.test.ts` + `security:http` | Vitest + build/HTTP local | zero chamada ao domínio; sem erro JS | nenhuma local | 2/2 + 306 requests | PASS |
+| AIT-M08 | `e2e-artifact-policy.test.ts` | Vitest local + Playwright final | nenhum artefato automático | nenhuma local | 2/2; 6 browser PASS; 6 CI PASS e 2 skips declarados | PASS |
+| AIT-M09 | `prontuarios/actions-auth-order.test.ts` + ratchet HTTP | Vitest + build/HTTP local | zero validação pré-auth; sem detalhe Zod | nenhuma local | 1/1 + 306 requests | PASS |
+| AIT-M10 | `route.test.ts`, `signup-risk.test.ts`, `signup-regression.ts --browser` | Postgres descartável + Next + Chromium + fixtures loopback | cross-site negado; cleanup zero | providers externos continuam fora desta prova | 25 focais + 24 checks da jornada | PASS local |
+| AIT-M11 | `payments:live-check` | Asaas Sandbox | cleanup obrigatório e readback; nenhuma produção | refund após pagamento real | 1 → 0 por DELETE 500 transitório; final 18/18; um cenário não verificável | PARTIAL |
+| AIT-M12 | `billing:live-check` | Asaas Sandbox | assinatura `INACTIVE`; customer ausente | checkout/settlement não faz parte deste runner | exit 0 + readback | PASS Sandbox |
+| AIT-M13 | `ai:live-check`, `ai:adversarial`, `email:live-check` | providers externos | sem persistência; uma mensagem para caixa consentida | Gemini adversarial bloqueado por 429; inbox não observado | Gemini/Resend exit 0; adversarial exit 1 explícito | PARTIAL |
+
+## 13. Estado de execução independente — 29/09/2026
+
+Esta fotografia separa **teste existente**, **teste executado** e **resultado**.
+Ela prevalece sobre a coluna histórica “Coberto” quando a pergunta for se o
+comportamento foi realmente comprovado nesta auditoria.
+
+| Domínio | Existe teste | Executado agora | Resultado medido |
+| --- | --- | --- | --- |
+| `/admin`, caminho positivo | sim | sim | **PASS 12/12** nos cenários super_admin executados |
+| `/admin`, negativa com tenant | sim | sim | **PASS 1/1**: 11 páginas/deep-links, RSC e quatro handlers negados; fixture DEV removida com readback zero |
+| Shell autenticado read-only | sim | sim | **PASS 2/2**: 26 rotas estáticas e dois deep-links com fixtures reais; cleanup clínica/Auth/paciente/conversa zero |
+| Resend / inbox | sim, incluindo inspector por API | sim | **PASS**: envio, `delivered`, leitura inbound e conteúdo/nonce; nenhum secret ou corpo impresso |
+| Cadastro por e-mail | sim | local completo; Preview tentado | **5/5 PASS local**; Preview atual **BLOCKED** por deployment sem a correção de autoridade `Host` |
+| Recovery por e-mail com TOTP | sim | sim, DEV | **PASS**: mensagem recebida, link real, HIBP, `insufficient_aal` recuperado após grant/CAS, retorno ao login e fixture preservada |
+| Convite de equipe recebido | sim | sim, DEV local | **PASS**: inicial/reenvio recebidos, rotação, aceite, tenant, replay e cleanup; Preview antigo **BLOCKED** |
+| Gemini, corpus original 3–50 | sim | 3–28 | **25 PASS (3–27), 1 BLOCKED (28 por provider 429), 22 NOT RUN (29–50)** |
+| Turnstile condicional | sim | sim | **PASS 2/2** com as chaves oficiais de teste, cobrindo token aceito e token recusado |
+| Supabase Storage externo DEV | sim | sim | **PASS** para upload/leitura/alteração/remoção próprios, signed URL e expiração; anônimo, role inadequada e cross-tenant negados; cleanup zero |
+| Checkout/estorno PIX e cartão | sim | sim até o provider | **BLOCKED** pelo reCAPTCHA do checkout hospedado; tentativas canceladas no Sandbox, sem cobrança residual |
+| 44 arquivos `production-*` | sim | todos invocados; quatro reexecutados com pré-condições legítimas | **4 PASS funcionais; 37 suítes com SKIP; 3 PRECONDITION BLOCKED**. Em 47 casos: 4 PASS, 40 SKIP e 3 bloqueios; ver `production-44-execution.md` |
+| WhatsApp → IA → resposta real | sim para partes internas | não ponta a ponta | **BLOCKED**: callback do app Meta compartilhado aponta para PROD enquanto número/tenant autorizado é DEV; guarda fail-closed impede cruzar ambientes |
+| RBAC DEV, bundles de 5 roles | sim | sim | **PASS 1/1**: bundles reais conferem com `role_permissions` |
+| RBAC DEV, 5 roles × 15 áreas | sim | sim | **PASS 1/1** contra `next start`: 75 combinações percorridas com pathname exato e gate permitido/negado comparado ao bundle efetivo do banco |
+| RBAC dinâmico, grant/revoke e sessão antiga | sim | sim | **PASS 1/1**: owner concedeu e removeu `manage:procedures`; a sessão antiga foi revogada nas duas transições de `claims_version` |
+| Feedback de assinatura já cancelada | sim | sim | **PASS 47/47** focados; aviso persistente, fechamento do diálogo e repetição idempotente cobertos |
+
+As fixtures RBAC interrompidas e a fixture da prova dinâmica foram removidas com
+readback: zero clínicas e zero perfis residuais ao final.
+
+## 14. Atualização medida — 30/09/2026
+
+| Domínio | Existe teste | Executado nesta rodada | PASS | FAIL | BLOCKED | SKIP | NOT RUN |
+| --- | --- | --- | ---: | ---: | ---: | ---: | ---: |
+| Regressão Vitest | sim | integral | 4.507 | 0 | 0 | 0 | 0 |
+| Build/type/lint | sim | integral | 3 gates | 0 | 0 | 0 | 0 |
+| Playwright CI local | sim | 8 casos coletados | 6 | 0 | 0 | 2 | 0 |
+| Gemini 3–50 | sim | 3–28 | 25 | 0 | 1 | 0 | 22 |
+| `production-*` | sim | 47 casos invocados e quatro habilitados legitimamente | 4 | 0 | 3 | 40 | 0 |
+| Conta de pagamentos Preview | sim | dois casos | 1 | 0 | 1 | 0 | 0 |
+| Resend recebido | sim | envio, entrega e inbound | 1 | 0 | 0 | 0 | 0 |
+| Cadastro por e-mail | sim | local completo; Preview antigo tentado | 5 local | 0 | 1 Preview | 0 | 0 |
+| Recovery TOTP por e-mail | sim | DEV completo | 1 | 0 | 0 | 0 | 0 |
+| Convite de equipe por e-mail | sim | DEV local completo; Preview antigo tentado | 1 local | 0 | 1 Preview | 0 | 0 |
+| Asaas PIX | sim | pagamento confirmado; refund iniciado | 1 | 0 | 1 | 0 | 0 |
+| Asaas cartão | sim | pagamento confirmado; refund recusado | 1 | 0 | 1 | 0 | 0 |
+| Google Ads | sim na landing | 49 gates locais | 49 | 0 | 1 final externo | 0 | 0 |
+| WhatsApp real | parcial | não, reservado ao agente concorrente | 0 | 0 | 0 | 0 | 1 |
+| Política de artefatos | sim | configs principal + CI e readback de arquivos | 2 | 0 | 0 | 0 | 0 |
+
+`production-*` continua sendo contado por **caso**, não apenas por arquivo: 44
+arquivos geram 47 casos porque `production-role-journeys-a` possui quatro.
+`PRECONDITION BLOCKED` não é convertido em `SKIP` mesmo quando o Playwright usa
+`test.skip` para impedir uma mutação sem fixture segura.

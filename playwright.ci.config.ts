@@ -37,6 +37,7 @@ const APP_DIR = path.join(process.cwd(), 'dist/security-local/app');
 const RUNTIME_ENV = path.join(process.cwd(), 'dist/security-local/runtime-env.json');
 const PORT = 3218;
 const baseURL = `http://127.0.0.1:${PORT}`;
+const retainAllArtifacts = process.env.E2E_ARTIFACTS === '1';
 
 /**
  * Ambiente do build isolado. Falhar aqui com mensagem clara é melhor que o
@@ -67,9 +68,11 @@ export default defineConfig({
   expect: { timeout: 15_000 },
   use: {
     baseURL,
-    trace: 'retain-on-failure',
-    screenshot: 'only-on-failure',
-    video: 'off',
+    // Mesmo o spec público pode carregar IDs e respostas internas. Artefatos
+    // exigem o mesmo opt-in explícito da suíte principal.
+    trace: retainAllArtifacts ? 'on' : 'off',
+    screenshot: retainAllArtifacts ? 'on' : 'off',
+    video: retainAllArtifacts ? 'on' : 'off',
   },
   webServer: {
     command: `node ${path.join(process.cwd(), 'node_modules/next/dist/bin/next')} start -p ${PORT} -H 127.0.0.1`,

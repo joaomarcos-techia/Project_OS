@@ -31,8 +31,8 @@ import { cancelInviteAction, resendInviteAction } from './actions';
  * Ações de linha para convites PENDENTES (spec convite §Fase 2a). Renderizado só
  * quando `pending` pela Equipe.
  *
- * - Reenviar: gera um link novo (recovery) e COPIA para o clipboard; o owner
- *   entrega no WhatsApp/e-mail (ADR-034). Sem clipboard → Dialog com o link à mão.
+ * - Reenviar: envia um e-mail novo e também copia o link recovery para o clipboard.
+ *   Sem clipboard → Dialog com o link à mão.
  * - Cancelar: hard delete do convite (libera vaga + e-mail) via ConfirmDialog.
  */
 export function InviteRowActions({ userId, nome }: { userId: string; nome: string }) {
@@ -54,8 +54,8 @@ export function InviteRowActions({ userId, nome }: { userId: string; nome: strin
       try {
         await navigator.clipboard.writeText(res.link);
         toast.success(
-          'Link copiado',
-          `Cole no WhatsApp ou e-mail de ${nome} para reenviar o convite.`,
+          'Convite reenviado',
+          `O e-mail foi enviado para ${nome} e o link também foi copiado.`,
         );
       } catch {
         // Sem clipboard (permissão / contexto inseguro) → mostra o link para copiar à mão.

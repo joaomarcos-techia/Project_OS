@@ -44,6 +44,7 @@ loadDotenv({ path: '.env.local' });
 
 const baseUrl = process.env.E2E_BASE_URL;
 const sandboxKey = process.env.ASAAS_CLINIC_SANDBOX_KEY;
+const paymentAccountMutation = process.env.E2E_PAYMENT_ACCOUNT_MUTATION;
 
 /** Aborta se o alvo for produção. Erro, não skip — ver cabeçalho. */
 function assertPreviewOnly(): void {
@@ -57,10 +58,25 @@ function assertPreviewOnly(): void {
   }
 }
 
+/** O ciclo externo exige opt-in próprio além da chave sandbox. */
+function assertPaymentMutationOptIn(): void {
+  if (paymentAccountMutation !== 'dev-sandbox') {
+    throw new Error(
+      'O ciclo de conta Asaas exige E2E_PAYMENT_ACCOUNT_MUTATION=dev-sandbox. ' +
+        'A variável confirma que o Preview usa banco DEV e conta Asaas Sandbox dedicados.',
+    );
+  }
+}
+
 /** Estado do painel, lido do texto — é o que o usuário vê. */
 async function lerEstado(page: import('@playwright/test').Page): Promise<'conectada' | 'vazia'> {
-  const texto = await page.locator('main').innerText();
-  return texto.includes('Nenhuma conta conectada') ? 'vazia' : 'conectada';
+  const conectada = await page.getByText('Conectada', { exact: true }).count();
+  const vazia = await page.getByText(/Nenhuma conta conectada/).count();
+  if (conectada === 1 && vazia === 0) return 'conectada';
+  if (vazia === 1 && conectada === 0) return 'vazia';
+  throw new Error(
+    `Estado desconhecido da conta Asaas: marcadores conectada=${conectada}, vazia=${vazia}.`,
+  );
 }
 
 test.describe.serial('conta de pagamento da clínica (Preview)', () => {
@@ -71,19 +87,10 @@ test.describe.serial('conta de pagamento da clínica (Preview)', () => {
     test.skip(!hasE2ECredentials(), 'Defina E2E_USER_EMAIL e E2E_USER_PASSWORD.');
     assertPreviewOnly();
 
-    let autenticado = true;
-    try {
-      await authenticate(page);
-      await page.goto('/configuracoes/pagamentos');
-      autenticado = !/\/login(?:\?|$)/.test(page.url());
-    } catch {
-      autenticado = false;
-    }
-    test.skip(
-      !autenticado,
-      'Não foi possível estabelecer sessão (rate limit de login, provável). ' +
-        'Use E2E_AUTH_REUSE=1 — isto NÃO é aprovação.',
-    );
+    await authenticate(page);
+    const response = await page.goto('/configuracoes/pagamentos');
+    expect(response?.status(), 'a tela de pagamentos não respondeu 200').toBe(200);
+    await expect(page).not.toHaveURL(/\/login(?:\?|$)/);
 
     const campo = page.locator('#asaas-api-key');
     // Sem `manage:financial` a tela não oferece o formulário. Dizer isso é
@@ -95,12 +102,15 @@ test.describe.serial('conta de pagamento da clínica (Preview)', () => {
 
     const antes = await lerEstado(page);
 
-    await campo.fill('$aact_chave_invalida_de_teste_0000');
+    const invalidKey = '$aact_chave_invalida_de_teste_0000';
+    await campo.fill(invalidKey);
     await page.getByRole('button', { name: /Conectar conta|Trocar chave/ }).click();
 
     // A recusa tem de ser VISÍVEL. Um erro que some deixando a tela como estava
     // é indistinguível de sucesso para quem opera.
     await expect(page.getByRole('alert')).toBeVisible({ timeout: 90_000 });
+    await expect(campo, 'a chave inválida permaneceu no campo após a resposta').toHaveValue('');
+    expect(await page.content(), 'a chave inválida permaneceu no HTML').not.toContain(invalidKey);
 
     // E o estado tem de ser o MESMO de antes — em particular, uma chave
     // inválida não pode derrubar uma conta que já estava conectada.
@@ -113,16 +123,12 @@ test.describe.serial('conta de pagamento da clínica (Preview)', () => {
     test.skip(!hasE2ECredentials(), 'Defina E2E_USER_EMAIL e E2E_USER_PASSWORD.');
     test.skip(!sandboxKey, 'Defina ASAAS_CLINIC_SANDBOX_KEY (conta sandbox DA CLÍNICA).');
     assertPreviewOnly();
+    assertPaymentMutationOptIn();
 
-    let autenticado = true;
-    try {
-      await authenticate(page);
-      await page.goto('/configuracoes/pagamentos');
-      autenticado = !/\/login(?:\?|$)/.test(page.url());
-    } catch {
-      autenticado = false;
-    }
-    test.skip(!autenticado, 'Sem sessão (rate limit de login?) — isto NÃO é aprovação.');
+    await authenticate(page);
+    const response = await page.goto('/configuracoes/pagamentos');
+    expect(response?.status(), 'a tela de pagamentos não respondeu 200').toBe(200);
+    await expect(page).not.toHaveURL(/\/login(?:\?|$)/);
 
     const campo = page.locator('#asaas-api-key');
     test.skip((await campo.count()) === 0, 'A conta de teste não tem manage:financial.');
@@ -136,28 +142,47 @@ test.describe.serial('conta de pagamento da clínica (Preview)', () => {
         'Para exercitar o ciclo, desconecte pela tela antes — isto NÃO é aprovação do ciclo.',
     );
 
-    await campo.fill(sandboxKey!);
-    await page.getByRole('button', { name: 'Conectar conta' }).click();
-    await expect(page.getByText('Conectada', { exact: true })).toBeVisible({ timeout: 90_000 });
+    let primaryError: unknown;
+    try {
+      await campo.fill(sandboxKey!);
+      await page.getByRole('button', { name: 'Conectar conta' }).click();
+      await expect(page.getByText('Conectada', { exact: true })).toBeVisible({ timeout: 90_000 });
 
-    // O DTO carrega só `hasApiKey`. Se a chave aparecer no HTML, ela vazou para
-    // o cliente — e uma chave de Asaas movimenta dinheiro.
-    expect(await page.content(), 'a chave da clínica apareceu no HTML').not.toContain(sandboxKey!);
+      // O DTO carrega só `hasApiKey`. Se a chave aparecer no HTML, ela vazou para
+      // o cliente — e uma chave de Asaas movimenta dinheiro.
+      expect(await page.content(), 'a chave da clínica apareceu no HTML').not.toContain(
+        sandboxKey!,
+      );
 
-    await page.reload();
-    await expect(
-      page.getByText('Conectada', { exact: true }),
-      'o estado não persistiu — era estado de React, não do banco',
-    ).toBeVisible({ timeout: 60_000 });
+      await page.reload();
+      expect(
+        await lerEstado(page),
+        'o estado não persistiu — era estado de React, não do banco',
+      ).toBe('conectada');
+    } catch (error) {
+      primaryError = error;
+    }
 
-    // Desconectar é a asserção final E o cleanup: devolve o ambiente ao estado
-    // em que foi encontrado.
-    await page.getByRole('button', { name: 'Desconectar' }).click();
-    await expect(page.getByText(/Nenhuma conta conectada/)).toBeVisible({ timeout: 60_000 });
-    await page.reload();
-    await expect(
-      page.getByText(/Nenhuma conta conectada/),
-      'a desconexão não persistiu',
-    ).toBeVisible({ timeout: 60_000 });
+    let cleanupError: unknown;
+    try {
+      await page.goto('/configuracoes/pagamentos');
+      if ((await lerEstado(page)) === 'conectada') {
+        await page.getByRole('button', { name: 'Desconectar' }).click();
+        await expect(page.getByText(/Nenhuma conta conectada/)).toBeVisible({ timeout: 60_000 });
+      }
+      await page.reload();
+      expect(await lerEstado(page), 'a desconexão não persistiu').toBe('vazia');
+    } catch (error) {
+      cleanupError = error;
+    }
+
+    if (primaryError && cleanupError) {
+      throw new AggregateError(
+        [primaryError, cleanupError],
+        'O ciclo Asaas falhou e a restauração do estado também falhou.',
+      );
+    }
+    if (cleanupError) throw cleanupError;
+    if (primaryError) throw primaryError;
   });
 });

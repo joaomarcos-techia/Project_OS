@@ -37,6 +37,31 @@ Adapters em `src/contexts`, `src/lib`, schemas de env e Route Handlers. Dashboar
 
 Detalhes datados: [evidence snapshots](../archive/evidence-snapshots.md). Evidência externa envelhece; revalide antes de release.
 
+## Evidência externa sanitizada — 2026-09-28
+
+- Asaas Sandbox, pagamentos: 18/18 passos aprovados na repetição final. Três
+  cobranças, webhook e customer terminaram ausentes/deleted no readback, e a
+  baixa manual foi desfeita antes da remoção. Uma execução intermediária recebeu
+  HTTP 500 no primeiro DELETE, foi marcada FAIL e ainda concluiu o cleanup. Refund
+  de PIX/cartão realmente pago permaneceu `NOT TESTED` por exigir checkout
+  liquidado. IDs e paths dinâmicos saíram redigidos na execução final.
+- Asaas Sandbox, billing SaaS: assinatura relida como `ACTIVE`, cancelada e
+  relida como `INACTIVE`; customer ausente ao final. O runner aceita somente o
+  host HTTPS oficial do Sandbox e credencial marcada como homologação.
+- Gemini live: catálogo de 15 tools e dois cenários de function calling passaram.
+  A suíte adversarial executou 2/50 e ficou `BLOCKED` por 429 também após retry;
+  o smoke feliz não prova resiliência à quota.
+- Resend: o provider aceitou uma mensagem DEV para a caixa de teste consentida.
+  A chegada ao inbox e o fluxo de confirmação de cadastro permanecem
+  `NOT TESTED`; aceite da API não foi convertido em entrega.
+- Supabase Auth DEV: login com claims customizadas, refresh e revogação global
+  passaram; o readback encontrou zero fixture SQL e zero usuário Auth do smoke.
+- Upstash DEV: `PING` autenticado read-only respondeu `PONG` em host HTTPS
+  allowlisted. Credenciais específicas de Preview/PROD não foram inferidas.
+- Supabase Storage: sem probe externo atual nesta execução.
+
+IDs de provider, chaves, destinatários e payloads não fazem parte deste registro.
+
 ## Meta WhatsApp
 
 - webhook GET valida `META_WEBHOOK_VERIFY_TOKEN`;

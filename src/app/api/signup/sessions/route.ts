@@ -42,11 +42,14 @@ const bodySchema = z.object({ turnstileToken: z.string().min(1).max(2048).option
 /**
  * Host que esperamos para nós mesmos, usado no sinal cross-site do O-2b.
  *
- * `APP_BASE_URL` quando configurado — valor de confiança, vindo do ambiente.
- * Sem ele, cai no `Host` da requisição, que é o que permite o Preview funcionar
- * (cada deployment tem host próprio e um valor fixo recusaria todos).
+ * O `Host` recebido representa a autoridade realmente acessada pelo browser.
+ * Isso evita falso `cross-site` quando o runtime reconstrói `req.url` com outro
+ * hostname (por exemplo, `localhost` no lugar de `127.0.0.1`). Em requests
+ * sintéticos sem `Host`, usamos a origem configurada e por fim a URL recebida.
  */
 function expectedHostOf(req: Request): string {
+  const requestedHost = req.headers.get('host')?.trim();
+  if (requestedHost) return requestedHost;
   if (env.APP_BASE_URL) {
     try {
       return new URL(env.APP_BASE_URL).host;
@@ -54,7 +57,7 @@ function expectedHostOf(req: Request): string {
       // URL malformada no ambiente não derruba a rota — cai no Host.
     }
   }
-  return req.headers.get('host') ?? '';
+  return new URL(req.url).host;
 }
 
 export async function POST(req: Request): Promise<Response> {

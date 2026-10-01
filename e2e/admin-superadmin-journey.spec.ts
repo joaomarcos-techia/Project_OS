@@ -1,4 +1,4 @@
-import { createHmac } from 'node:crypto';
+import { createHmac, randomUUID } from 'node:crypto';
 
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 import { config as loadDotenv } from 'dotenv';
@@ -41,8 +41,9 @@ const baseUrl = process.env.E2E_BASE_URL;
 const email = process.env.SUPER_ADMIN_EMAIL_DEV;
 const password = process.env.SUPER_ADMIN_PASSWORD_DEV;
 const databaseUrl = process.env.DATABASE_URL;
+const DEV_PROJECT_REF = 'pqhkirrszzpwezdaqrai';
 
-test.use({ storageState: { cookies: [], origins: [] }, trace: 'retain-on-failure', video: 'off' });
+test.use({ storageState: { cookies: [], origins: [] } });
 
 /** Aborta se o alvo for produção. Erro, não skip — ver cabeçalho. */
 function assertPreviewOnly(): void {
@@ -52,6 +53,14 @@ function assertPreviewOnly(): void {
     throw new Error(
       `Este spec muta estado GLOBAL e só roda contra Preview. Host recusado: ${host}.`,
     );
+  }
+}
+
+function assertDevDatabase(): void {
+  if (!databaseUrl) throw new Error('DATABASE_URL ausente — o spec confere efeitos no banco.');
+  const parsed = new URL(databaseUrl);
+  if (!`${parsed.username}@${parsed.hostname}`.includes(DEV_PROJECT_REF)) {
+    throw new Error('Este spec mutável aceita exclusivamente o banco DEV conhecido.');
   }
 }
 
@@ -108,6 +117,10 @@ async function proximoCodigoInedito(secret: string, jaUsados: Set<string>): Prom
 }
 
 test.describe.serial('jornada do super_admin (Preview)', () => {
+  // Páginas administrativas agregam várias consultas e, no `next dev`, cada
+  // rota ainda paga a compilação inicial. O timeout é por caso, não uma espera
+  // cega: as asserções mantêm seus próprios limites menores.
+  test.setTimeout(180_000);
   let sql: ReturnType<typeof postgres>;
   let context: BrowserContext;
   let page: Page;
@@ -115,13 +128,27 @@ test.describe.serial('jornada do super_admin (Preview)', () => {
   let secret = '';
   let superAdminId = '';
   let clinicaAlvo: { id: string; nome: string } | null = null;
+  const runId = randomUUID();
+  const feedbackTitle = `E2E admin feedback ${runId}`;
+  const feedbackNote = `E2E admin note ${runId}`;
+  const inviteNote = `E2E admin invite ${runId}`;
+  const announcementTitle = `E2E admin announcement ${runId}`;
+  const announcementMessage = `Aviso sintético do teste administrativo ${runId}`;
+  let feedbackId: string | null = null;
+  let inviteId: string | null = null;
+  let announcementId: string | null = null;
 
   /** Valor do kill-switch ANTES do teste, para restaurar sem adivinhar. */
   let modoOriginal: string = 'normal';
   let flagFoiAlterada = false;
 
-  test.beforeAll(async ({ browser }) => {
+  test.beforeAll(async ({ browser }, testInfo) => {
+    // Primeiro acesso num `next dev` frio compila /login e /admin. O hook padrão
+    // de 30 s encerrava a navegação no meio e classificava cold start como falha
+    // funcional. O orçamento continua finito e inclui login + step-up AAL2.
+    testInfo.setTimeout(180_000);
     assertPreviewOnly();
+    assertDevDatabase();
     if (!email || !password) {
       throw new Error('SUPER_ADMIN_EMAIL_DEV e SUPER_ADMIN_PASSWORD_DEV são obrigatórios.');
     }
@@ -148,6 +175,20 @@ test.describe.serial('jornada do super_admin (Preview)', () => {
     const clinicas = await sql<{ id: string; nome: string }[]>`
       SELECT id, nome FROM clinics WHERE nome LIKE 'Smoke %' ORDER BY created_at DESC LIMIT 1`;
     clinicaAlvo = clinicas[0] ?? null;
+
+    if (clinicaAlvo) {
+      const [feedback] = await sql<{ id: string }[]>`
+        INSERT INTO feedback_suggestions
+          (clinic_id, user_id, title, description, category, priority, status,
+           attachments, browser, platform, app_version)
+        VALUES
+          (${clinicaAlvo.id}::uuid, NULL, ${feedbackTitle},
+           ${'Descrição sintética criada exclusivamente pelo E2E administrativo.'},
+           'improvement', 'medium', 'received', '[]'::jsonb,
+           'Playwright', 'E2E', 'admin-audit')
+        RETURNING id`;
+      feedbackId = feedback?.id ?? null;
+    }
 
     const [flag] = await sql<{ value: string | null }[]>`
       SELECT value FROM platform_settings WHERE key = 'ai_agent.mode' LIMIT 1`;
@@ -191,6 +232,24 @@ test.describe.serial('jornada do super_admin (Preview)', () => {
           VALUES ('ai_agent.mode', ${sql.json(modoOriginal)})
           ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`;
       }
+
+      if (sql) {
+        if (announcementId) {
+          await sql`DELETE FROM platform_announcements WHERE id = ${announcementId}::uuid`;
+        } else {
+          await sql`DELETE FROM platform_announcements WHERE title = ${announcementTitle}`;
+        }
+        if (inviteId) {
+          await sql`DELETE FROM clinic_invites WHERE id = ${inviteId}::uuid`;
+        } else {
+          await sql`DELETE FROM clinic_invites WHERE metadata->>'note' = ${inviteNote}`;
+        }
+        if (feedbackId) {
+          await sql`DELETE FROM feedback_suggestions WHERE id = ${feedbackId}::uuid`;
+        } else {
+          await sql`DELETE FROM feedback_suggestions WHERE title = ${feedbackTitle}`;
+        }
+      }
     } finally {
       await context?.close();
       await sql?.end();
@@ -198,6 +257,13 @@ test.describe.serial('jornada do super_admin (Preview)', () => {
   });
 
   test('o painel de plataforma abre com AAL2 e mostra conteúdo real', async () => {
+    await page.goto('/admin');
+
+    await expect(page.getByRole('heading', { level: 1, name: 'Visão geral' })).toBeVisible({
+      timeout: 30_000,
+    });
+    await expect(page.getByText('Distribuição de clínicas')).toBeVisible();
+
     await page.goto('/admin/clinicas');
 
     // Conteúdo que SÓ existe no painel — a contraparte exata do que o
@@ -206,6 +272,168 @@ test.describe.serial('jornada do super_admin (Preview)', () => {
       timeout: 30_000,
     });
     expect(new URL(page.url()).pathname, 'foi expulso do painel').toBe('/admin/clinicas');
+  });
+
+  test('busca e filtros de clínicas refletem a consulta no resultado', async () => {
+    test.skip(clinicaAlvo === null, 'Nenhuma clínica `Smoke %` no banco DEV.');
+    await page.goto('/admin/clinicas');
+    await page.getByLabel('Buscar clínicas').fill(clinicaAlvo!.nome);
+    await page.getByRole('button', { name: 'Filtrar' }).click();
+
+    await expect(page).toHaveURL(/\/admin\/clinicas\?q=/u);
+    await expect(
+      page.locator(`a[href="/admin/clinicas/${clinicaAlvo!.id}"]`),
+      'o resultado exato identificado no banco não apareceu após a busca',
+    ).toBeVisible();
+  });
+
+  test('as seis seções de configuração renderizam conteúdo próprio', async () => {
+    const tabs = [
+      { id: 'operacao', anchor: 'Kill-switches operacionais' },
+      { id: 'saude', anchor: 'Saúde dos jobs' },
+      { id: 'broadcast', anchor: 'Novo aviso' },
+      { id: 'integracoes', anchor: 'WhatsApp (Meta)' },
+      { id: 'prompt', anchor: 'Prompt do sistema · global' },
+      { id: 'emails', anchor: 'Lembrete (confirmação)' },
+    ] as const;
+
+    for (const tab of tabs) {
+      await page.goto(`/admin/config?tab=${tab.id}`);
+      await expect(page.getByText(tab.anchor, { exact: true }).first()).toBeVisible({
+        timeout: 30_000,
+      });
+    }
+  });
+
+  test('publica e desativa aviso global com persistência e auditoria', async () => {
+    const marcoTemporal = new Date();
+    await page.goto('/admin/config?tab=broadcast');
+    await page.getByPlaceholder(/Título/u).fill(announcementTitle);
+    await page.getByPlaceholder(/Mensagem do aviso/u).fill(announcementMessage);
+    await page.getByRole('button', { name: 'Publicar aviso' }).click();
+
+    await expect(page.getByText(announcementTitle, { exact: true })).toBeVisible({
+      timeout: 30_000,
+    });
+    const [row] = await sql<{ id: string; active: boolean }[]>`
+      SELECT id, active FROM platform_announcements WHERE title = ${announcementTitle} LIMIT 1`;
+    expect(row?.active, 'o aviso não ficou ativo no banco').toBe(true);
+    announcementId = row?.id ?? null;
+
+    const publishAudit = await sql<{ n: number }[]>`
+      SELECT count(*)::int AS n FROM super_admin_actions
+       WHERE action = 'announcement_publish'
+         AND super_admin_id = ${superAdminId}::uuid
+         AND created_at >= ${marcoTemporal}`;
+    expect(publishAudit[0]?.n ?? 0, 'publicação sem auditoria').toBeGreaterThan(0);
+
+    const item = page.locator('li').filter({ hasText: announcementTitle });
+    await item.getByRole('button', { name: 'Desativar' }).click();
+    await expect(page.getByText(announcementTitle, { exact: true })).toHaveCount(0);
+
+    const [after] = await sql<{ active: boolean }[]>`
+      SELECT active FROM platform_announcements WHERE id = ${announcementId!}::uuid`;
+    expect(after?.active, 'o aviso continuou ativo no banco').toBe(false);
+  });
+
+  test('cria convite sem e-mail, exibe o token uma vez e cancela pela UI', async () => {
+    await page.goto('/admin/clinicas');
+    await page.getByRole('button', { name: 'Nova Clínica' }).click();
+    await page.getByLabel('Observação interna').fill(inviteNote);
+    await page.getByRole('button', { name: 'Criar convite' }).click();
+
+    await expect(page.getByText(/Convite criado · expira em 24h/u)).toBeVisible({
+      timeout: 30_000,
+    });
+    const oneTimeLink = page.locator('p.font-mono').filter({ hasText: '/join#invite=' });
+    await expect(
+      oneTimeLink,
+      'o token cru não foi apresentado no único momento permitido',
+    ).toBeVisible();
+
+    const [invite] = await sql<{ id: string; token_hash: string; status: string }[]>`
+      SELECT id, token_hash, status FROM clinic_invites
+       WHERE metadata->>'note' = ${inviteNote}
+       ORDER BY created_at DESC LIMIT 1`;
+    expect(invite?.status).toBe('pending');
+    expect(invite?.token_hash.length ?? 0, 'o banco deve guardar apenas o HMAC').toBeGreaterThan(
+      40,
+    );
+    expect(
+      await oneTimeLink.textContent(),
+      'o token cru vazou para a coluna persistida',
+    ).not.toContain(invite?.token_hash ?? 'hash-ausente');
+    inviteId = invite?.id ?? null;
+
+    await page
+      .locator('button')
+      .filter({ hasText: /^Fechar$/u })
+      .click();
+    await expect(page.locator(`form:has(input[name="id"][value="${inviteId}"])`)).toBeVisible();
+    await page
+      .locator(`form:has(input[name="id"][value="${inviteId}"])`)
+      .getByRole('button', { name: 'Cancelar' })
+      .click();
+
+    await expect
+      .poll(async () => {
+        const [row] = await sql<{ status: string }[]>`
+          SELECT status FROM clinic_invites WHERE id = ${inviteId!}::uuid`;
+        return row?.status;
+      })
+      .toBe('cancelled');
+  });
+
+  test('feedback: filtra, exporta, altera, arquiva e exclui com trilha', async () => {
+    test.setTimeout(180_000);
+    test.skip(feedbackId === null, 'Sem clínica sintética para o feedback.');
+
+    await page.goto('/admin/feedbacks');
+    await page.getByLabel('Buscar feedbacks').fill(feedbackTitle);
+    await page.getByRole('button', { name: 'Filtrar' }).click();
+    await expect(page.getByText(feedbackTitle, { exact: true })).toBeVisible();
+
+    const exportResponse = await page.request.get(
+      `/admin/feedbacks/export?q=${encodeURIComponent(feedbackTitle)}`,
+    );
+    expect(exportResponse.status()).toBe(200);
+    expect(exportResponse.headers()['content-type']).toContain('text/csv');
+    expect(await exportResponse.text()).toContain(feedbackTitle);
+
+    await page.goto(`/admin/feedbacks/${feedbackId}`);
+    await page.getByLabel('Status do feedback').selectOption('under_review');
+    await page.getByLabel('Nota interna').fill(feedbackNote);
+    await page.getByRole('button', { name: 'Salvar status' }).click();
+    await expect(page.getByText('Alteração registrada.')).toBeVisible();
+
+    let [row] = await sql<{ status: string; admin_notes: string | null }[]>`
+      SELECT status, admin_notes FROM feedback_suggestions WHERE id = ${feedbackId!}::uuid`;
+    expect(row).toMatchObject({ status: 'under_review', admin_notes: feedbackNote });
+
+    await page.getByRole('button', { name: 'Arquivar' }).click();
+    await expect
+      .poll(async () => {
+        [row] = await sql<{ status: string; admin_notes: string | null }[]>`
+          SELECT status, admin_notes FROM feedback_suggestions WHERE id = ${feedbackId!}::uuid`;
+        return row?.status;
+      })
+      .toBe('archived');
+
+    await page.getByRole('button', { name: 'Excluir' }).click();
+    await expect
+      .poll(async () => {
+        const [deleted] = await sql<{ deleted: boolean }[]>`
+          SELECT deleted_at IS NOT NULL AS deleted FROM feedback_suggestions
+           WHERE id = ${feedbackId!}::uuid`;
+        return deleted?.deleted;
+      })
+      .toBe(true);
+
+    const history = await sql<{ action: string }[]>`
+      SELECT action::text AS action FROM feedback_history WHERE feedback_id = ${feedbackId!}::uuid`;
+    expect(history.map((item) => item.action)).toEqual(
+      expect.arrayContaining(['status_changed', 'archived', 'deleted']),
+    );
   });
 
   test('as seis telas de leitura do painel renderizam conteúdo próprio', async () => {
@@ -247,6 +475,45 @@ test.describe.serial('jornada do super_admin (Preview)', () => {
     // Lista inteira: falhar na primeira esconderia quantas outras também estão
     // quebradas, e num painel de plataforma é isso que se quer saber.
     expect(quebradas, 'telas do painel sem conteúdo próprio').toEqual([]);
+  });
+
+  test('detalhe da clínica e endpoints operacionais exigem e aceitam o super_admin AAL2', async () => {
+    test.skip(clinicaAlvo === null, 'Nenhuma clínica `Smoke %` no banco DEV.');
+
+    await page.goto(`/admin/clinicas/${clinicaAlvo!.id}`);
+    await expect(page.getByRole('heading', { name: clinicaAlvo!.nome })).toBeVisible({
+      timeout: 30_000,
+    });
+    await expect(page.getByText('WhatsApp (Meta)', { exact: true })).toBeVisible();
+    await expect(page.getByText('Asaas', { exact: true })).toBeVisible();
+
+    const health = await page.request.get('/api/health');
+    expect(health.status()).toBe(200);
+    const healthBody = (await health.json()) as {
+      status?: string;
+      checks?: unknown;
+      sli?: unknown;
+    };
+    expect(healthBody.status).toMatch(/^(?:ok|degraded|down)$/u);
+    expect(healthBody.checks).toBeTruthy();
+    expect(healthBody.sli, 'o detalhe de super_admin não veio no healthcheck').toBeTruthy();
+
+    const outbox = await page.request.get('/api/health/outbox');
+    expect(outbox.status()).toBe(200);
+    const outboxBody = (await outbox.json()) as { ok?: boolean; failures_by_type?: unknown };
+    expect(outboxBody.ok).toBe(true);
+    expect(
+      Object.prototype.hasOwnProperty.call(outboxBody, 'failures_by_type'),
+      'o healthcheck de outbox devolveu a visão reduzida de monitoring para um super_admin',
+    ).toBe(true);
+
+    const invalidExport = await page.request.post(
+      `/admin/clinicas/${clinicaAlvo!.id}/audit/export?from=2026-02-02&to=2026-01-01`,
+    );
+    expect(invalidExport.status()).toBe(400);
+    const invalidBody = (await invalidExport.json()) as { code?: string; trace_id?: string };
+    expect(invalidBody.code).toBe('periodo_invertido');
+    expect(invalidBody.trace_id).toBeTruthy();
   });
 
   test('kill-switch grava a flag E a auditoria — as duas, ou nenhuma', async () => {
