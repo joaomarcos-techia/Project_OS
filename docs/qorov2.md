@@ -8122,7 +8122,7 @@ atribuível depois da ativação.
 | Google Ads, emissão do evento | **PASS** | tag carregado, request de conversão observado, destino correto |
 | Google Ads, crédito final | **BLOCKED** | campanha inativa |
 | Build Next | **PASS** | build completo, exit 0 |
-| Regressão Vitest | **PASS** | 442 arquivos, 4.576 testes |
+| Regressão Vitest | **PASS** | 442 arquivos, 4.577 testes no CI final |
 
 Permanecem fora da `main`: os commits deste worktree isolado. Permanecem como
 ações externas/manuais: concluir o refund PIX pendente no painel Sandbox,
@@ -8142,7 +8142,9 @@ A Server Action passou a usar `authorizeAction` e um resultado discriminado:
 `{ ok: true, data }` ou `{ ok: false, error }`. O watcher continua sem exibir
 toast para expiração/revogação, zera o badge e reinicia seu baseline. A
 regressão direcionada passou **20/20**. O build isolado passou e os gates
-`security:bundle`/`security:http` observaram **177 arquivos de cliente sem
-segredo**, **328 requests de Server Actions** e **52 respostas `200` com negativa
-explícita**, incluindo `fetchOpenHandoffs`. O inventário regenerado manteve 180
-actions, 51 route methods e zero gaps.
+`security:bundle`/`security:http` observaram **177 arquivos de cliente no build
+local** e **175 no CI Linux**, ambos sem segredo, além de **328 requests de Server
+Actions** e **52 respostas `200` com negativa explícita**, incluindo
+`fetchOpenHandoffs`. A regressão final do CI passou **4.577/4.577 em 442
+arquivos** e o E2E público terminou em **6 PASS + 2 SKIP condicionais**. O
+inventário regenerado manteve 180 actions, 51 route methods e zero gaps.

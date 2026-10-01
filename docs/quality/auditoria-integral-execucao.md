@@ -422,5 +422,7 @@ Na reexecução, o build passou, mas `security:http` detectou que
 `NO_PROFILE`, porém convertia uma negativa em sucesso implícito. A action agora
 devolve resultado discriminado e o watcher limpa seu estado sem toast. Os testes
 direcionados passaram 20/20; o build isolado e a repetição dos gates passaram
-com 177 arquivos de bundle sem segredo e 328 requests HTTP, dos quais 52
-respostas `200` continham negativa explícita.
+com 177 arquivos de bundle local/175 no CI, sem segredo, e 328 requests HTTP,
+dos quais 52 respostas `200` continham negativa explícita. O CI final passou
+4.577/4.577 testes em 442 arquivos e o E2E público passou 6 casos, com dois
+skips condicionais declarados.
