@@ -4,8 +4,7 @@ Em 01/10, os 44 arquivos e 47 casos foram coletados novamente contra
 `https://app.qoro.dev`, sem habilitar opt-ins mutáveis. A coleta terminou com
 **44 SKIP + 3 PRECONDITION BLOCKED**: os três bloqueios são credenciais de contas
 de teste ausentes, e não host incorreto. Seis specs foram então habilitados
-isoladamente com pré-condições legítimas: quatro passaram; uma falhou por timeout
-do próprio runner durante o cleanup, e a fronteira anônima ficou bloqueada
+isoladamente com pré-condições legítimas: cinco passaram, e a fronteira anônima ficou bloqueada
 porque produção não possui uma conversa fixture. `SKIP` não é
 `PASS`, e o consolidado abaixo usa somente a medição mais recente.
 
@@ -15,7 +14,7 @@ porque produção não possui uma conversa fixture. `SKIP` não é
 | `production-appointment-concurrency.spec.ts` | 1 | **SKIP** | 6 ms | Exige E2E_PRODUCTION_SCHEDULING_CONCURRENCY=ALLOW_SYNTHETIC_APPOINTMENT. |
 | `production-appointment-import-a.spec.ts` | 1 | **SKIP** | 10 ms | Exige autorização explícita para importação histórica sintética na Clínica A. |
 | `production-appointment-recovery-a.spec.ts` | 1 | **SKIP** | 261 ms | Exige E2E_PRODUCTION_APPOINTMENT_RECOVERY=ALLOW_SYNTHETIC_CLINIC_A. |
-| `production-authorized-mutations.spec.ts` | 1 | **FAIL — infraestrutura do teste** | 900 s | Executou com autorização e fixture sintética, mas o timeout global fechou a página no `finally`; resíduo exato removido externamente, readback zero. Aumentar o timeout não resolveu. |
+| `production-authorized-mutations.spec.ts` | 1 | **PASS funcional isolado** | 59,2 s | Paciente, edição, procedimento, agenda, cancelamento excepcional, consultório, prontuário, prescrição, documento, assinatura, encerramento, recebimento, reembolso e LGPD. Cleanup externo da fixture sintética com readback zero. |
 | `production-clinic-profile-a.spec.ts` | 1 | **SKIP** | 1 ms | Exige autorização explícita para dados inválidos na Clínica A. |
 | `production-collection-case-a.spec.ts` | 1 | **SKIP** | 62 ms | Exige autorização explícita para dados sintéticos na Clínica A. |
 | `production-consultorio-attendant-integrity-a.spec.ts` | 1 | **SKIP** | 67 ms | Exige E2E_PRODUCTION_CONSULTORIO_INTEGRITY=ALLOW_SYNTHETIC_CLINIC_A. |
@@ -56,9 +55,9 @@ porque produção não possui uma conversa fixture. `SKIP` não é
 | `production-waitlist-a.spec.ts` | 1 | **SKIP** | 1 ms | Exige autorização explícita para lista de espera sintética na Clínica A. |
 | `production-whatsapp-settings-rbac.spec.ts` | 1 | **PRECONDITION BLOCKED** | 1 ms | `E2E_DOCTOR_EMAIL` e `E2E_TENANT_PASSWORD` ausentes |
 
-Consolidado por arquivo: **44 esperadas → 44 invocadas → 4 com PASS funcional → 1 FAIL de infraestrutura do teste → 0 FAIL de produto → 4 PRECONDITION BLOCKED → 35 SKIP**.
+Consolidado por arquivo: **44 esperadas → 44 invocadas → 5 com PASS funcional → 0 FAIL → 4 PRECONDITION BLOCKED → 35 SKIP**.
 
-Consolidado por caso: **47 casos → 4 PASS → 1 FAIL de infraestrutura do teste → 0 FAIL de produto → 4 PRECONDITION BLOCKED → 38 SKIP**.
+Consolidado por caso: **47 casos → 5 PASS → 0 FAIL → 4 PRECONDITION BLOCKED → 38 SKIP**.
 
 As 35 suítes ainda em `SKIP` exigem uma ou mais destas pré-condições: opt-in
 exato, senha comum de contas E2E, identidades owner/doctor/attendant/financial em

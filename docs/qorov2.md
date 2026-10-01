@@ -8229,14 +8229,17 @@ pré-condições legítimas acrescentaram evidência sem reclassificar essa cole
 - preço fundador: PASS na repetição, 1/1 em 6,7 s;
 - dashboard com dados não zero: **PASS 1/1 em 9,6 s**, após corrigir no teste a
   autenticação por cookie fabricado e rótulos seletores já desatualizados;
-- mutações autorizadas: **FAIL de infraestrutura do teste** após 900 s. A
-  jornada chegou ao `finally`, mas o timeout global fechou a página durante o
-  cleanup. O resíduo sintético exato foi removido externamente e o readback
-  confirmou zero. Aumentar o timeout não resolveu e foi revertido.
+- mutações autorizadas: **PASS 1/1 em 59,2 s**. A jornada percorreu paciente,
+  edição, procedimento, agenda, cancelamento excepcional, consultório,
+  prontuário, prescrição, documento, assinatura, encerramento, recebimento,
+  reembolso manual e pedido LGPD. O teste passou a dar ao `afterEach` um
+  orçamento próprio, esperar a hidratação antes das ações cliente e usar os
+  contratos atuais de tabela/paginação. O cleanup externo removeu somente a
+  fixture marcada e o readback confirmou zero resíduo atual.
 
-O estado por arquivo passa a ser: **4 PASS funcionais, 1 FAIL do teste, 4
-PRECONDITION BLOCKED e 35 SKIP**. Por caso: **4 PASS, 1 FAIL, 4 PRECONDITION
-BLOCKED e 38 SKIP**. Trinta e um specs ainda duplicam a fabricação manual de
+O estado por arquivo passa a ser: **5 PASS funcionais, 0 FAIL, 4 PRECONDITION
+BLOCKED e 35 SKIP**. Por caso: **5 PASS, 0 FAIL, 4 PRECONDITION BLOCKED e 38
+SKIP**. Trinta e um specs ainda duplicam a fabricação manual de
 cookie Supabase; apenas o spec efetivamente reproduzido foi corrigido nesta
 rodada, evitando uma refatoração ampla sem prova.
 

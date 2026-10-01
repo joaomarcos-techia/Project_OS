@@ -441,12 +441,13 @@ Asaas Sandbox. O Gemini real passou **48/48** no corpus 3–50. A regressão glo
 passou **4.583/4.583 em 442 arquivos**, TypeScript passou e o build Next em
 `NODE_ENV=production` terminou com exit 0 e 18 páginas estáticas.
 
-Nas suítes `production-*`, o dashboard com dados não zero passou e elevou a
-evidência isolada para quatro arquivos funcionais. O runner de mutações
-autorizadas falhou por timeout global durante o próprio `finally`; aumentar o
-timeout não resolveu. A fixture residual exata foi removida e o readback deu
-zero. Estado atual por caso: **4 PASS, 1 FAIL de infraestrutura do teste, 4
-PRECONDITION BLOCKED e 38 SKIP**.
+Nas suítes `production-*`, o dashboard com dados não zero e o runner de
+mutações autorizadas passaram, elevando a evidência isolada para cinco arquivos
+funcionais. O runner percorreu paciente, procedimento, agenda, clínica,
+financeiro, reembolso e LGPD em 59,2 s. O `afterEach` recebeu orçamento próprio,
+e os seletores foram reconciliados com as tabelas e a paginação atuais. A
+fixture sintética foi removida externamente e o readback deu zero. Estado atual
+por caso: **5 PASS, 0 FAIL, 4 PRECONDITION BLOCKED e 38 SKIP**.
 
 Continuam bloqueados externamente: autorização crítica do refund PIX, checkout
 pago sob reCAPTCHA do Asaas, crédito final do Google Ads com campanha inativa e
