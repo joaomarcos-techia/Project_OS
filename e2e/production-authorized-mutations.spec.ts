@@ -40,7 +40,10 @@ test.describe('produção: mutações autorizadas em conta de teste', () => {
   }, testInfo) => {
     // A jornada abre dois PDFs, assina o prontuário e roda o cleanup LGPD;
     // deixa margem para o finally completar sem encerrar o browser no meio.
-    test.setTimeout(600_000);
+    // Em produção, a jornada percorre várias Functions frias e o cleanup
+    // também conta no timeout do teste. Dez minutos encerraram o browser quando
+    // o fluxo já havia chegado ao `finally`, deixando a fixture sem remoção.
+    test.setTimeout(900_000);
     test.skip(
       !productionMutationAuthorized || !hasE2ECredentials(),
       'Exige E2E_PRODUCTION_MUTATION=ALLOW_TEST_ACCOUNT e credenciais da conta de teste.',
