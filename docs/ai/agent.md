@@ -11,7 +11,7 @@ Canonical — runtime, tools, segurança conversacional e persistência.
 ## Runtime atual
 
 - provider: Gemini;
-- modelo padrão: `gemini-2.5-flash`;
+- modelo padrão: `gemini-3.8-flash`;
 - OpenAI: placeholder `NOT_IMPLEMENTED`;
 - máximo de três rodadas de tools e uma mutation por mensagem;
 - contexto recente: até 10 mensagens; inbound limitado a 4.000 caracteres; prompt limitado a 10.000;

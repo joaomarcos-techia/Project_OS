@@ -20,7 +20,7 @@ import { decryptForTenant } from '@/lib/crypto';
 import type { Tx } from '@/lib/db';
 
 import { sendOutbound } from './internal/sender';
-import { inboundMessagesRaw, outboundMessages } from './schema';
+import { inboundMessagesRaw, outboundMessages, whatsappBusinessAppEchoes } from './schema';
 import type { OutboundResult, SendOutboundInput } from './types';
 
 /** Mensagem irmã absorvida pelo turno corrente (C12/F-08). */
@@ -44,6 +44,21 @@ export interface InboundForAgent {
   receivedAt: Date;
   /** Marcador de consumo do C11 — dedup at-least-once do handler. */
   processedAt: Date | null;
+}
+
+/**
+ * Coexistência — o que a recepção enviou pelo app WhatsApp Business do celular,
+ * decifrado para o consumidor de `messaging.business_app_echo.received`.
+ */
+export interface BusinessAppEchoForAgent {
+  id: string;
+  /** Conteúdo decifrado ('' quando o eco não era texto). */
+  text: string;
+  hasText: boolean;
+  toNumberHash: string;
+  /** Telefone do paciente decifrado (normalizado, dígitos). */
+  toNumber: string;
+  sentAt: Date;
 }
 
 /**
@@ -71,6 +86,11 @@ export interface MessagingApiV1 {
     inboundMessageId: string,
   ): Promise<InboundForAgent | null>;
   markInboundProcessed(tx: Tx, clinicId: string, inboundMessageId: string): Promise<void>;
+  getBusinessAppEchoForAgent(
+    tx: Tx,
+    clinicId: string,
+    echoId: string,
+  ): Promise<BusinessAppEchoForAgent | null>;
   /**
    * C12/F-08 — RECLAMA as mensagens ainda não consumidas do mesmo contato para
    * que o turno corrente as trate como uma só.
@@ -199,9 +219,37 @@ async function getOutboundStatuses(
   return new Map(rows.map((r) => [r.key, r.status]));
 }
 
+async function getBusinessAppEchoForAgent(
+  tx: Tx,
+  clinicId: string,
+  echoId: string,
+): Promise<BusinessAppEchoForAgent | null> {
+  const [row] = await tx
+    .select()
+    .from(whatsappBusinessAppEchoes)
+    .where(
+      and(
+        eq(whatsappBusinessAppEchoes.id, echoId),
+        eq(whatsappBusinessAppEchoes.clinicId, clinicId),
+      ),
+    )
+    .limit(1);
+  if (!row) return null;
+
+  return {
+    id: row.id,
+    text: await decryptForTenant(clinicId, row.contentEncrypted),
+    hasText: row.hasText,
+    toNumberHash: row.toNumberHash,
+    toNumber: await decryptForTenant(clinicId, row.toNumberEncrypted),
+    sentAt: row.sentAt,
+  };
+}
+
 export const messagingApiV1: MessagingApiV1 = {
   getInboundForAgent,
   markInboundProcessed,
+  getBusinessAppEchoForAgent,
   claimPendingSiblings,
   getOutboundStatuses,
   sendText: (input) => sendOutbound(input),

@@ -475,6 +475,53 @@ export async function subscribeAppToWaba(wabaId: string, token: string): Promise
   });
 }
 
+/**
+ * Código da Meta quando a clínica recusou, no pop-up, compartilhar o histórico
+ * de conversas do app WhatsApp Business.
+ * https://developers.facebook.com/documentation/business-messaging/whatsapp/embedded-signup/onboarding-business-app-users/
+ */
+export const HISTORY_SHARING_DECLINED_CODE = 2593109;
+
+/** Contatos (`smb_app_state_sync`) ou histórico de conversas (`history`). */
+export type BusinessAppSyncType = 'smb_app_state_sync' | 'history';
+
+/**
+ * Coexistência — pede à Meta a sincronização do app WhatsApp Business.
+ *
+ * A Meta exige os dois pedidos em até 24h depois do onboarding; sem eles a
+ * clínica é desconectada e precisa refazer o cadastro. O conteúdo chega depois
+ * pelos webhooks `smb_app_state_sync` e `history`, que a Qoro conta e descarta
+ * (decisão de produto/LGPD de 30/09/2026 — ver o parser em `meta-cloud.ts`).
+ *
+ * `history` só pode ser pedido UMA vez. A recusa da clínica em compartilhar o
+ * histórico volta como erro 2593109 e não é falha: é a escolha dela, e o
+ * número continua conectado.
+ */
+export async function requestBusinessAppSync(
+  phoneNumberId: string,
+  token: string,
+  syncType: BusinessAppSyncType,
+): Promise<'requested' | 'declined'> {
+  try {
+    await graphFetch<{ request_id?: string }>(`${encodeURIComponent(phoneNumberId)}/smb_app_data`, {
+      method: 'POST',
+      stage: 'coexistence_sync',
+      token,
+      body: { messaging_product: 'whatsapp', sync_type: syncType },
+    });
+    return 'requested';
+  } catch (err) {
+    if (
+      syncType === 'history' &&
+      err instanceof MetaConnectError &&
+      err.graphCode === HISTORY_SHARING_DECLINED_CODE
+    ) {
+      return 'declined';
+    }
+    throw err;
+  }
+}
+
 export interface TemplateProvisionOutcome {
   name: string;
   status: 'created' | 'already_exists' | 'failed';

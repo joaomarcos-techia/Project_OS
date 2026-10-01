@@ -62,6 +62,15 @@ function cookieValue(setCookie: string): string {
  * montado para teste, e só nele.
  */
 const DUMMY_TURNSTILE_TOKEN = 'XXXX.DUMMY.TOKEN.XXXX';
+const TURNSTILE_ALWAYS_PASSES_SECRET = '1x0000000000000000000000000000000AA';
+
+function usesTurnstileTestSecret(): boolean {
+  return [
+    process.env.TURNSTILE_SECRET_KEY_LOCAL,
+    process.env.TURNSTILE_SECRET_KEY_DEV,
+    process.env.TURNSTILE_SECRET_KEY,
+  ].includes(TURNSTILE_ALWAYS_PASSES_SECRET);
+}
 
 /**
  * Abre uma sessão lidando com o orçamento de IP.
@@ -284,30 +293,61 @@ test.describe('cadastro anônimo — classificação de risco (O-2b)', () => {
     }
   });
 
-  test('token de Turnstile forjado nunca vira 201 sem sessão', async ({ playwright }) => {
+  test('token dummy válido permite a operação quando o ambiente usa o par de teste', async ({
+    playwright,
+  }) => {
+    test.skip(
+      !usesTurnstileTestSecret(),
+      'Este cenário exige a secret dummy oficial da Cloudflare no ambiente de teste.',
+    );
+
+    const anon = await playwright.request.newContext({ baseURL: baseUrl! });
+    try {
+      // Sem Origin força risco moderado: o token precisa ser validado de verdade.
+      // Com Origin same-site o caminho seria de risco baixo e o servidor não
+      // consultaria o siteverify, produzindo um PASS que não mede o captcha.
+      const response = await anon.post('/api/signup/sessions', {
+        headers: { 'content-type': 'application/json' },
+        data: { turnstileToken: DUMMY_TURNSTILE_TOKEN },
+      });
+
+      skipIfRateLimited(response.status());
+      expect(response.status(), await response.text()).toBe(201);
+      expect(
+        signupCookie(await response.headersArray()),
+        'token validado não abriu a sessão protegida',
+      ).toBeTruthy();
+    } finally {
+      await anon.dispose();
+    }
+  });
+
+  test('token inválido é recusado quando a secret do ambiente não é always-pass', async ({
+    playwright,
+  }) => {
+    test.skip(
+      usesTurnstileTestSecret(),
+      'A secret dummy always-pass aceita qualquer resposta; execute este caso com a secret always-fail ou uma secret real.',
+    );
+
     const anon = await playwright.request.newContext({ baseURL: baseUrl! });
     try {
       const response = await anon.post('/api/signup/sessions', {
-        headers: { origin: `https://${expectedHost()}`, 'content-type': 'application/json' },
+        // Origin ausente força a faixa que exige o desafio e impede que o
+        // caminho same-site de risco baixo torne o token irrelevante.
+        headers: { 'content-type': 'application/json' },
         data: { turnstileToken: 'token-forjado-que-a-cloudflare-nunca-emitiu' },
       });
 
-      // CONSEQUÊNCIA DECLARADA DAS CHAVES DE TESTE: a secret de teste da
-      // Cloudflare (`1x0000…`) aprova QUALQUER token, de propósito — é o que
-      // mantém o E2E verde exercitando o caminho do desafio. Num ambiente com
-      // chave de teste este caso devolve 201 e NÃO prova rejeição; com chave
-      // real devolve 401 (`invalid-input-response`).
-      //
-      // O teste aceita os dois e proíbe o resto: 5xx, 403, um 201 que não abriu
-      // sessão, ou um 401 que abriu.
+      // A secret always-fail e as secrets reais recusam uma resposta que não foi
+      // emitida pelo widget. A secret de teste always-pass é excluída acima por
+      // contrato: ela serve apenas ao caminho feliz automatizado.
       skipIfRateLimited(response.status());
-      expect([201, 401]).toContain(response.status());
-      const cookie = signupCookie(await response.headersArray());
-      if (response.status() === 201) {
-        expect(cookie, '201 sem cookie: aceitou o token e não abriu sessão').toBeTruthy();
-      } else {
-        expect(cookie, '401 com cookie: recusou e abriu sessão mesmo assim').toBeNull();
-      }
+      expect(response.status()).toBe(401);
+      expect((await response.json()) as SessionBody).toMatchObject({
+        error: 'challenge_required',
+      });
+      expect(signupCookie(await response.headersArray())).toBeNull();
     } finally {
       await anon.dispose();
     }

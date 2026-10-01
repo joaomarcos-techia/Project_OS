@@ -24,9 +24,6 @@ const periods = [
 
 test.use({
   storageState: { cookies: [], origins: [] },
-  trace: 'retain-on-failure',
-  video: 'off',
-  screenshot: 'only-on-failure',
   actionTimeout: 30_000,
   navigationTimeout: 60_000,
 });

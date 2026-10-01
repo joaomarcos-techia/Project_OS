@@ -736,6 +736,27 @@
       "when": 1789767364000,
       "tag": "0104_onboarding_progress",
       "breakpoints": true
+    },
+    {
+      "idx": 105,
+      "version": "7",
+      "when": 1790394660472,
+      "tag": "0105_signup_hosted_checkout",
+      "breakpoints": true
+    },
+    {
+      "idx": 106,
+      "version": "7",
+      "when": 1790452800000,
+      "tag": "0106_signup_checkout_collects_payer",
+      "breakpoints": true
+    },
+    {
+      "idx": 107,
+      "version": "7",
+      "when": 1790781546069,
+      "tag": "0107_whatsapp_coexistence",
+      "breakpoints": true
     }
   ]
 }

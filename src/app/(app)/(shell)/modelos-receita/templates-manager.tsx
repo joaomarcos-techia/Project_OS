@@ -238,7 +238,7 @@ export function TemplatesManager({ initial }: { initial: PrescriptionTemplateSum
         <div className="cardblock">
           <div className="listrows">
             {filtered.map((t) => (
-              <div key={t.id} className="listrow">
+              <div key={t.id} className="listrow" data-testid="prescription-template-row">
                 <div className="lr-main">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-medium">{t.nome}</span>

@@ -4,20 +4,18 @@ import type { ComponentProps } from 'react';
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { getConversationThread, getProfileNames, notFound, requireClinicId, requireUser } =
-  vi.hoisted(() => ({
-    getConversationThread: vi.fn(),
-    getProfileNames: vi.fn(),
-    notFound: vi.fn(),
-    requireClinicId: vi.fn(),
-    requireUser: vi.fn(),
-  }));
+const { getConversationThread, getProfileNames, notFound, pageGate } = vi.hoisted(() => ({
+  getConversationThread: vi.fn(),
+  getProfileNames: vi.fn(),
+  notFound: vi.fn(),
+  pageGate: vi.fn(),
+}));
 
 vi.mock('next/navigation', () => ({ notFound }));
 vi.mock('next/link', () => ({
   default: (props: ComponentProps<'a'>) => <a {...props} />,
 }));
-vi.mock('@/lib/auth/tenant-context', () => ({ requireClinicId, requireUser }));
+vi.mock('@/lib/auth/page-guard', () => ({ pageGate }));
 vi.mock('@/contexts/ai-agent/queries', () => ({ getConversationThread }));
 vi.mock('@/contexts/identity/queries', () => ({ getProfileNames }));
 vi.mock('./_components/conversa-actions', () => ({
@@ -36,10 +34,13 @@ const conversationId = '11111111-1111-4111-8111-111111111111';
 
 beforeEach(() => {
   vi.clearAllMocks();
-  requireClinicId.mockResolvedValue('clinic-1');
-  requireUser.mockResolvedValue({
-    userId: 'user-1',
-    permissions: ['view:conversations', 'manage:conversations'],
+  pageGate.mockResolvedValue({
+    allowed: true,
+    clinicId: 'clinic-1',
+    user: {
+      userId: 'user-1',
+      permissions: ['view:conversations', 'manage:conversations'],
+    },
   });
   getProfileNames.mockResolvedValue(new Map([['user-1', 'Ana Costa']]));
   getConversationThread.mockResolvedValue({
@@ -108,12 +109,11 @@ describe('workspace da conversa', () => {
   });
 
   it('nega antes de consultar ou decifrar a thread sem view:conversations', async () => {
-    requireUser.mockResolvedValue({ userId: 'user-2', permissions: [] });
+    pageGate.mockResolvedValue({ allowed: false });
 
     render(await ConversaThreadPage({ params: Promise.resolve({ id: conversationId }) }));
 
     expect(screen.getByText('Sem acesso às conversas')).toBeTruthy();
-    expect(requireClinicId).not.toHaveBeenCalled();
     expect(getConversationThread).not.toHaveBeenCalled();
   });
 });

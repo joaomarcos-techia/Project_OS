@@ -245,6 +245,12 @@ try {
     const line = item.body.split('\n').find((part) => part.startsWith('1:'));
     assert.ok(line, `200 sem envelope reconhecido: ${item.test}`);
     const result: unknown = JSON.parse(line.slice(2));
+    const serializedResult = JSON.stringify(result);
+    assert.doesNotMatch(
+      serializedResult,
+      /Cannot read properties|TypeError|ReferenceError|SyntaxError|ZodError|invalid_type.*expected.*received|\bat .+\(.+:[0-9]+:[0-9]+\)/u,
+      `200 revelou detalhe interno antes da negativa: ${item.test}`,
+    );
     const denied =
       typeof result === 'object' &&
       result !== null &&

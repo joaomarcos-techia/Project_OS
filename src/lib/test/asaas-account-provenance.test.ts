@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+
 import { describe, expect, it } from 'vitest';
 
 import { assertAsaasFixtureAccount, fingerprintAsaasAccount } from './asaas-account-provenance';
@@ -24,5 +26,27 @@ describe('proveniencia de fixtures Asaas Sandbox', () => {
     expect(() =>
       assertAsaasFixtureAccount('conta-a@example.com', { email: 'a@example.com' }),
     ).toThrow('malformado');
+  });
+
+  it('mantém os runners live presos ao Sandbox e com cleanup comprovável', () => {
+    for (const file of [
+      'scripts/asaas-live-check.ts',
+      'scripts/payments-live-check.ts',
+      'scripts/asaas-refund-e2e.ts',
+    ]) {
+      const source = readFileSync(file, 'utf8');
+      expect(source, `${file} perdeu a allowlist do Sandbox`).toContain('api-sandbox.asaas.com');
+      expect(source, `${file} perdeu o readback de cleanup`).toMatch(/readback/u);
+      expect(source, `${file} passou a aceitar produção`).not.toContain("'api.asaas.com'");
+    }
+
+    const paymentsSource = readFileSync('scripts/payments-live-check.ts', 'utf8');
+    expect(paymentsSource).toContain('undoReceivedInCash');
+    expect(paymentsSource).toContain('notifyCustomer: false');
+
+    const refundSource = readFileSync('scripts/asaas-refund-e2e.ts', 'utf8');
+    expect(refundSource).toContain('ALLOW_SANDBOX_REFUND');
+    expect(refundSource).toContain('classifyCheckoutCleanup');
+    expect(refundSource).toContain('repeticao alterou o conjunto de estornos');
   });
 });

@@ -39,7 +39,12 @@ import { QORO_SELF_SERVICE_TRIAL_DAYS } from '../trial';
 const userIdSchema = z.string().uuid();
 
 /** Estados possíveis da tentativa, espelhando o CHECK da migration 0103. */
-export type SignupBillingAttemptState = 'reserved' | 'active' | 'creation_unknown' | 'failed';
+export type SignupBillingAttemptState =
+  | 'reserved'
+  | 'checkout_pending'
+  | 'active'
+  | 'creation_unknown'
+  | 'failed';
 
 export interface SignupBillingIntent {
   /** Chave estável de reconciliação. O Asaas devolve isto em consultas. */
@@ -59,6 +64,8 @@ export interface SignupBillingIntent {
 export interface SignupBillingSnapshot {
   state: SignupBillingAttemptState | null;
   asaasCustomerId: string | null;
+  asaasCheckoutId: string | null;
+  asaasCheckoutUrl: string | null;
   asaasSubscriptionId: string | null;
   failureCode: string | null;
   rowVersion: number;
@@ -66,6 +73,7 @@ export interface SignupBillingSnapshot {
 
 type ReserveOutcome =
   | { ok: true; rowVersion: number; intent: SignupBillingIntent }
+  | { ok: false; reason: 'checkout_pending'; checkoutUrl: string }
   | {
       ok: false;
       reason:
@@ -145,6 +153,7 @@ export async function reserveSignupBillingAttempt(userId: string): Promise<Reser
         clinicName: signupSessions.clinicName,
         selectedPlanId: signupSessions.selectedPlanId,
         attemptState: signupSessions.billingAttemptState,
+        checkoutUrl: signupSessions.asaasCheckoutUrl,
       })
       .from(signupSessions)
       .where(ownerDraftCondition(userId))
@@ -153,6 +162,11 @@ export async function reserveSignupBillingAttempt(userId: string): Promise<Reser
 
     if (!draft) return { ok: false, reason: 'gone' };
     if (draft.attemptState === 'active') return { ok: false, reason: 'already_active' };
+    if (draft.attemptState === 'checkout_pending') {
+      return draft.checkoutUrl
+        ? { ok: false, reason: 'checkout_pending', checkoutUrl: draft.checkoutUrl }
+        : { ok: false, reason: 'conflict' };
+    }
     if (draft.attemptState === 'creation_unknown')
       return { ok: false, reason: 'reconcile_required' };
     if (draft.attemptState === 'reserved') return { ok: false, reason: 'conflict' };
@@ -207,6 +221,10 @@ export async function reserveSignupBillingAttempt(userId: string): Promise<Reser
         billingAttemptState: 'reserved',
         billingAttemptedAt: sql`now()`,
         billingFailureCode: null,
+        asaasCustomerId: null,
+        asaasCheckoutId: null,
+        asaasCheckoutUrl: null,
+        asaasSubscriptionId: null,
         rowVersion: sql`${signupSessions.rowVersion} + 1`,
       })
       .where(
@@ -219,8 +237,12 @@ export async function reserveSignupBillingAttempt(userId: string): Promise<Reser
           ),
         ),
       )
-      .returning({ rowVersion: signupSessions.rowVersion });
+      .returning({
+        rowVersion: signupSessions.rowVersion,
+        billingAttemptedAt: signupSessions.billingAttemptedAt,
+      });
     if (!reserved) return { ok: false, reason: 'conflict' };
+    if (!reserved.billingAttemptedAt) throw new Error('[signup] missing_billing_clock');
 
     return {
       ok: true,
@@ -234,10 +256,86 @@ export async function reserveSignupBillingAttempt(userId: string): Promise<Reser
         clinicName: draft.clinicName,
         ownerName: draft.ownerName,
         trialDays: QORO_SELF_SERVICE_TRIAL_DAYS,
-        nextDueDate: dueDateAfterTrial(QORO_SELF_SERVICE_TRIAL_DAYS, new Date()),
+        nextDueDate: dueDateAfterTrial(QORO_SELF_SERVICE_TRIAL_DAYS, reserved.billingAttemptedAt),
       },
     };
   });
+}
+
+/** Persiste o Checkout antes de entregar sua URL ao navegador. */
+export async function recordSignupHostedCheckout(input: {
+  userId: string;
+  reservedVersion: number;
+  asaasCheckoutId: string;
+  checkoutUrl: string;
+}): Promise<SettleOutcome> {
+  if (!userIdSchema.safeParse(input.userId).success)
+    throw new Error('[signup] invalid_billing_owner');
+  if (!input.asaasCheckoutId.trim() || !URL.canParse(input.checkoutUrl)) {
+    throw new Error('[signup] invalid_checkout_result');
+  }
+
+  const [recorded] = await dbAdmin
+    .update(signupSessions)
+    .set({
+      billingAttemptState: 'checkout_pending',
+      asaasCheckoutId: input.asaasCheckoutId,
+      asaasCheckoutUrl: input.checkoutUrl,
+      billingFailureCode: null,
+      rowVersion: sql`${signupSessions.rowVersion} + 1`,
+    })
+    .where(
+      and(
+        eq(signupSessions.authUserId, input.userId),
+        eq(signupSessions.status, 'email_verified'),
+        eq(signupSessions.billingAttemptState, 'reserved'),
+        eq(signupSessions.rowVersion, input.reservedVersion),
+      ),
+    )
+    .returning({ rowVersion: signupSessions.rowVersion });
+
+  return recorded
+    ? { ok: true, rowVersion: recorded.rowVersion }
+    : { ok: false, reason: 'conflict' };
+}
+
+/** Promove somente um Checkout pendente para assinatura confirmada. */
+export async function activateSignupHostedCheckout(input: {
+  userId: string;
+  expectedVersion: number;
+  asaasCheckoutId: string;
+  asaasCustomerId: string;
+  asaasSubscriptionId: string;
+}): Promise<SettleOutcome> {
+  if (!userIdSchema.safeParse(input.userId).success)
+    throw new Error('[signup] invalid_billing_owner');
+
+  const [activated] = await dbAdmin
+    .update(signupSessions)
+    .set({
+      billingAttemptState: 'active',
+      asaasCustomerId: input.asaasCustomerId,
+      asaasSubscriptionId: input.asaasSubscriptionId,
+      billingFailureCode: null,
+      rowVersion: sql`${signupSessions.rowVersion} + 1`,
+    })
+    .where(
+      and(
+        ownerDraftCondition(input.userId),
+        eq(signupSessions.billingAttemptState, 'checkout_pending'),
+        eq(signupSessions.rowVersion, input.expectedVersion),
+        eq(signupSessions.asaasCheckoutId, input.asaasCheckoutId),
+        or(
+          isNull(signupSessions.asaasCustomerId),
+          eq(signupSessions.asaasCustomerId, input.asaasCustomerId),
+        ),
+      ),
+    )
+    .returning({ rowVersion: signupSessions.rowVersion });
+
+  return activated
+    ? { ok: true, rowVersion: activated.rowVersion }
+    : { ok: false, reason: 'conflict' };
 }
 
 /**
@@ -326,6 +424,83 @@ export async function markSignupBillingIssue(input: {
   return marked ? { ok: true, rowVersion: marked.rowVersion } : { ok: false, reason: 'conflict' };
 }
 
+export interface SignupHostedCheckoutTarget {
+  state: 'checkout_pending' | 'active';
+  rowVersion: number;
+  externalReference: string;
+  priceCents: number;
+  trialDays: number;
+  attemptedOn: string;
+  nextDueDate: string;
+  asaasCustomerId: string | null;
+  asaasCheckoutId: string;
+  asaasSubscriptionId: string | null;
+}
+
+/** Alvo fechado da conciliação do retorno do Checkout, sem PII. */
+export async function readSignupHostedCheckoutTarget(
+  userId: string,
+): Promise<SignupHostedCheckoutTarget | null> {
+  if (!enabled() || !userIdSchema.safeParse(userId).success) return null;
+
+  const [row] = await dbAdmin
+    .select({
+      id: signupSessions.id,
+      state: signupSessions.billingAttemptState,
+      attemptedAt: signupSessions.billingAttemptedAt,
+      rowVersion: signupSessions.rowVersion,
+      asaasCustomerId: signupSessions.asaasCustomerId,
+      asaasCheckoutId: signupSessions.asaasCheckoutId,
+      asaasSubscriptionId: signupSessions.asaasSubscriptionId,
+      amount: prices.amount,
+    })
+    .from(signupSessions)
+    .innerJoin(plans, and(eq(plans.id, signupSessions.selectedPlanId), eq(plans.ativo, true)))
+    .innerJoin(
+      prices,
+      and(
+        eq(prices.planId, plans.id),
+        eq(prices.billingCycle, 'monthly'),
+        eq(prices.currency, 'BRL'),
+        lte(prices.activeFrom, sql`now()`),
+        isNull(prices.activeUntil),
+        isNull(prices.campaignCode),
+      ),
+    )
+    .where(
+      and(
+        ownerDraftCondition(userId),
+        or(
+          eq(signupSessions.billingAttemptState, 'checkout_pending'),
+          eq(signupSessions.billingAttemptState, 'active'),
+        ),
+      ),
+    )
+    .limit(1);
+
+  if (
+    !row ||
+    (row.state !== 'checkout_pending' && row.state !== 'active') ||
+    !row.attemptedAt ||
+    !row.asaasCheckoutId
+  ) {
+    return null;
+  }
+
+  return {
+    state: row.state,
+    rowVersion: row.rowVersion,
+    externalReference: `signup:${row.id}`,
+    priceCents: priceToCents(row.amount),
+    trialDays: QORO_SELF_SERVICE_TRIAL_DAYS,
+    attemptedOn: row.attemptedAt.toISOString().slice(0, 10),
+    nextDueDate: dueDateAfterTrial(QORO_SELF_SERVICE_TRIAL_DAYS, row.attemptedAt),
+    asaasCustomerId: row.asaasCustomerId,
+    asaasCheckoutId: row.asaasCheckoutId,
+    asaasSubscriptionId: row.asaasSubscriptionId,
+  };
+}
+
 /**
  * Reconciliação: promove `creation_unknown` a `active` quando a consulta ao
  * provedor por `externalReference` encontrou a assinatura que o timeout escondeu.
@@ -333,6 +508,46 @@ export async function markSignupBillingIssue(input: {
  * É a ÚNICA saída de `creation_unknown` para `active`, e ela não cria nada — só
  * registra o que já existe do outro lado.
  */
+/**
+ * Libera uma tentativa cujo Checkout foi cancelado ou expirou.
+ *
+ * O caller precisa cancelar (ou confirmar o cancelamento) no Asaas antes de
+ * chegar aqui. O CAS impede que um retorno antigo apague uma assinatura que
+ * outra aba acabou de confirmar.
+ */
+export async function resetSignupHostedCheckout(input: {
+  userId: string;
+  expectedVersion: number;
+  asaasCheckoutId: string;
+  reason: 'cancelled' | 'expired';
+}): Promise<SettleOutcome> {
+  if (!userIdSchema.safeParse(input.userId).success)
+    throw new Error('[signup] invalid_billing_owner');
+
+  const [reset] = await dbAdmin
+    .update(signupSessions)
+    .set({
+      billingAttemptState: 'failed',
+      billingFailureCode: input.reason === 'cancelled' ? 'checkout_cancelled' : 'checkout_expired',
+      asaasCustomerId: null,
+      asaasCheckoutId: null,
+      asaasCheckoutUrl: null,
+      asaasSubscriptionId: null,
+      rowVersion: sql`${signupSessions.rowVersion} + 1`,
+    })
+    .where(
+      and(
+        ownerDraftCondition(input.userId),
+        eq(signupSessions.billingAttemptState, 'checkout_pending'),
+        eq(signupSessions.rowVersion, input.expectedVersion),
+        eq(signupSessions.asaasCheckoutId, input.asaasCheckoutId),
+      ),
+    )
+    .returning({ rowVersion: signupSessions.rowVersion });
+
+  return reset ? { ok: true, rowVersion: reset.rowVersion } : { ok: false, reason: 'conflict' };
+}
+
 export async function reconcileSignupBillingAttempt(input: {
   userId: string;
   expectedVersion: number;
@@ -424,6 +639,8 @@ export async function readSignupBilling(userId: string): Promise<ReadOutcome> {
     .select({
       state: signupSessions.billingAttemptState,
       asaasCustomerId: signupSessions.asaasCustomerId,
+      asaasCheckoutId: signupSessions.asaasCheckoutId,
+      asaasCheckoutUrl: signupSessions.asaasCheckoutUrl,
       asaasSubscriptionId: signupSessions.asaasSubscriptionId,
       failureCode: signupSessions.billingFailureCode,
       rowVersion: signupSessions.rowVersion,
@@ -438,6 +655,8 @@ export async function readSignupBilling(userId: string): Promise<ReadOutcome> {
     snapshot: {
       state: (row.state as SignupBillingAttemptState | null) ?? null,
       asaasCustomerId: row.asaasCustomerId,
+      asaasCheckoutId: row.asaasCheckoutId,
+      asaasCheckoutUrl: row.asaasCheckoutUrl,
       asaasSubscriptionId: row.asaasSubscriptionId,
       failureCode: row.failureCode,
       rowVersion: row.rowVersion,

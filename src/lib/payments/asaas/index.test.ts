@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { fetchMock } = vi.hoisted(() => ({ fetchMock: vi.fn() }));
+const { fetchMock, metricsEmitMock } = vi.hoisted(() => ({
+  fetchMock: vi.fn(),
+  metricsEmitMock: vi.fn(),
+}));
 
 vi.mock('@/lib/env', () => ({
   assertBillingRuntimeReady: vi.fn(),
@@ -11,7 +14,7 @@ vi.mock('@/lib/env', () => ({
     ASAAS_WEBHOOK_TOKEN: 'webhook-token',
   },
 }));
-vi.mock('@/lib/observability/metrics', () => ({ metrics: { emit: vi.fn() } }));
+vi.mock('@/lib/observability/metrics', () => ({ metrics: { emit: metricsEmitMock } }));
 
 import {
   __testing__,
@@ -24,6 +27,7 @@ import {
 beforeEach(() => {
   __testing__.resetCircuit();
   fetchMock.mockReset();
+  metricsEmitMock.mockReset();
   vi.stubGlobal('fetch', fetchMock);
 });
 
@@ -41,6 +45,9 @@ describe('compensacao de cliente de checkout', () => {
         access_token: 'test-key',
       }),
     );
+    expect(metricsEmitMock).toHaveBeenCalledWith('billing.asaas.customer_created', {
+      customerId: '[REDACTED]',
+    });
   });
 
   it('remove cliente pelo endpoint do Asaas sem incluir dados de cartao', async () => {
@@ -130,6 +137,9 @@ describe('reconciliação de assinatura', () => {
       status: 'ACTIVE',
       value: 149,
       externalReference: 'onboarding:00000000-0000-0000-0000-000000000001',
+      cycle: null,
+      nextDueDate: null,
+      billingType: null,
     });
     expect(fetchMock).toHaveBeenCalledWith(
       'https://sandbox.asaas.com/api/v3/subscriptions?externalReference=onboarding%3A00000000-0000-0000-0000-000000000001&limit=1',
@@ -157,13 +167,44 @@ describe('erros HTTP do Asaas', () => {
     expect(error).toEqual(
       expect.objectContaining({
         name: 'BillingProviderError',
-        message: 'asaas GET /payments/pay_1 → HTTP 400',
+        message: 'asaas GET /payments/[REDACTED] → HTTP 400',
         providerErrorCodes: [],
       }),
     );
     if (!(error instanceof BillingProviderError)) throw new Error('expected BillingProviderError');
     expect(error.message).not.toContain(pan);
     expect(error.message).not.toContain(cvv);
+    expect(metricsEmitMock).toHaveBeenCalledWith(
+      'billing.asaas.http_4xx',
+      expect.objectContaining({ path: '/payments/[REDACTED]' }),
+    );
+  });
+
+  it('redige ID e externalReference nos erros e métricas do provider', async () => {
+    const paymentId = 'pay_sensitive_identifier_123456';
+    const externalReference = 'onboarding:00000000-0000-0000-0000-000000000001';
+    fetchMock.mockResolvedValue(new Response(null, { status: 500 }));
+
+    const client = createAsaasClient({ apiKey: 'test-key' });
+    const error = await client
+      .findPaymentByExternalReference(externalReference, { attempts: 1 })
+      .then(
+        () => null,
+        (reason: unknown) => reason,
+      );
+
+    expect(error).toBeInstanceOf(Error);
+    expect(String(error)).not.toContain(externalReference);
+    expect(metricsEmitMock).toHaveBeenCalledWith(
+      'billing.asaas.http_5xx',
+      expect.objectContaining({ path: '/payments?externalReference=%5BREDACTED%5D&limit=1' }),
+    );
+
+    fetchMock.mockResolvedValue(new Response(null, { status: 500 }));
+    await client.getPayment(paymentId, { attempts: 1 }).catch(() => undefined);
+    const serializedCalls = JSON.stringify(metricsEmitMock.mock.calls);
+    expect(serializedCalls).not.toContain(paymentId);
+    expect(serializedCalls).toContain('pay_…3456');
   });
 
   it('preserva apenas códigos seguros do provedor para diagnóstico', async () => {
@@ -393,15 +434,56 @@ describe('Checkout hospedado de paciente (D24)', () => {
   });
 
   it('não aceita uma cobrança de outra sessão retornada pelo provider', async () => {
-    fetchMock.mockResolvedValue(
-      Response.json({ data: [{ id: 'pay_other', checkoutSession: 'checkout_other' }] }),
-    );
+    fetchMock
+      .mockResolvedValueOnce(
+        Response.json({ data: [{ id: 'pay_other', checkoutSession: 'checkout_other' }] }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({ data: [{ id: 'pay_other', checkoutSession: 'checkout_other' }] }),
+      );
 
     await expect(
       createAsaasClient({ apiKey: 'k' }).findPaymentByCheckoutSession('checkout_1', {
         attempts: 1,
       }),
     ).resolves.toBeNull();
+  });
+
+  it('recupera por listagem limitada quando o filtro do provider omite a sessão exata', async () => {
+    fetchMock.mockResolvedValueOnce(Response.json({ data: [] })).mockResolvedValueOnce(
+      Response.json({
+        data: [
+          { id: 'pay_other', checkoutSession: 'checkout_other' },
+          {
+            id: 'pay_1',
+            status: 'PENDING',
+            value: 149,
+            dueDate: '2026-10-03',
+            billingType: 'CREDIT_CARD',
+            subscription: 'sub_1',
+            checkoutSession: 'checkout_1',
+          },
+        ],
+      }),
+    );
+
+    await expect(
+      createAsaasClient({ apiKey: 'k' }).findPaymentByCheckoutSession('checkout_1', {
+        attempts: 1,
+        createdSince: '2026-09-26',
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        paymentId: 'pay_1',
+        subscriptionId: 'sub_1',
+        checkoutSessionId: 'checkout_1',
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      'https://sandbox.asaas.com/api/v3/payments?limit=100&offset=0&dateCreated%5Bge%5D=2026-09-26',
+      expect.objectContaining({ method: 'GET' }),
+    );
   });
 });
 

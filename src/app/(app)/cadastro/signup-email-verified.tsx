@@ -8,6 +8,7 @@ import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { SIGNUP_INPUT_LIMITS } from '@/contexts/onboarding/signup-input-limits';
 import { signupPasswordSchema } from '@/lib/auth/signup-password';
 
 type PreparedCredentials = {
@@ -198,7 +199,7 @@ export function SignupEmailVerified({
               type="email"
               autoComplete="email"
               required
-              maxLength={160}
+              maxLength={SIGNUP_INPUT_LIMITS.email}
               disabled={saving}
             />
           </div>
@@ -213,7 +214,7 @@ export function SignupEmailVerified({
                 type={senhaVisivel ? 'text' : 'password'}
                 autoComplete="new-password"
                 required
-                maxLength={72}
+                maxLength={SIGNUP_INPUT_LIMITS.password}
                 disabled={saving}
                 aria-describedby="signup-continue-password-help"
                 className="pr-11"
@@ -244,7 +245,7 @@ export function SignupEmailVerified({
 
         <div className="space-y-2">
           <Label htmlFor="signup-verification-code">Código do e-mail</Label>
-          <div className="relative">
+          <div className="relative w-full max-w-[13rem]">
             <KeyRound
               aria-hidden="true"
               className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-fg-subtle"
@@ -256,16 +257,17 @@ export function SignupEmailVerified({
               inputMode="numeric"
               autoComplete="one-time-code"
               pattern="[0-9]{8}"
-              minLength={8}
-              maxLength={8}
+              minLength={SIGNUP_INPUT_LIMITS.verificationCode}
+              maxLength={SIGNUP_INPUT_LIMITS.verificationCode}
+              size={SIGNUP_INPUT_LIMITS.verificationCode}
               required
               disabled={saving}
               aria-describedby="signup-verification-code-help"
-              className="pl-10 font-mono text-base tracking-[0.18em] tabular-nums"
+              className="px-10 text-center font-mono text-base tracking-[0.18em] tabular-nums"
               onInput={(event) => {
                 event.currentTarget.value = event.currentTarget.value
                   .replace(/\D/gu, '')
-                  .slice(0, 8);
+                  .slice(0, SIGNUP_INPUT_LIMITS.verificationCode);
               }}
             />
           </div>

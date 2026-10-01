@@ -70,6 +70,10 @@ const META_FAILURE_MESSAGES: Record<MetaConnectFailureStage, string> = {
   // best-effort). A mensagem existe só para a exaustividade do Record.
   template_provisioning:
     'O número foi conectado, mas os modelos de mensagem não puderam ser criados. Cadastre-os na WhatsApp Manager.',
+  // Coexistência — como o provisionamento de template, roda depois da resposta
+  // e nunca aborta o connect. A mensagem existe para a exaustividade do Record.
+  coexistence_sync:
+    'O WhatsApp Business foi conectado, mas a sincronização com o app do celular não foi confirmada. Fale com o suporte em até 24 horas.',
   // §33 — só chegam aqui quando a classe é `denied`, ou seja, a Meta recusou de
   // verdade. Indeterminação e throttling viram as etapas de provedor acima.
   // Na LEITURA é seguro afirmar que nada mudou, e é obrigatório dizer para a

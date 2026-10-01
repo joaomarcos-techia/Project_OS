@@ -33,6 +33,7 @@ import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 
 import { createAdminClient } from '@/lib/auth/supabase-admin';
+import { computeCostUsd } from '@/lib/ai/cost';
 import { encryptForTenant, hashForLookup, normalizeCpf } from '@/lib/crypto';
 import { dbAdmin } from '@/lib/db';
 
@@ -41,7 +42,7 @@ assertDevContext();
 const MARCA = '[demo]';
 const BUCKET_PDF = 'clinical-pdfs';
 /** O agente roda em Gemini (src/lib/ai/gemini.ts) — não em Claude. */
-const MODELO_IA = 'gemini-2.5-flash';
+const MODELO_IA = 'gemini-3.8-flash';
 
 /** Pacientes da referência, com os vínculos que a tela de Pacientes mostra. */
 // Tabela de fixture: uma LINHA por estado. Explodida em um campo por linha, a
@@ -376,13 +377,12 @@ function listaIn(valores: readonly string[]) {
 }
 
 /**
- * Custo do turno pela MESMA tabela do app (`AI_PRICE_TABLE_USD_PER_1M`, Gemini
- * 2.5 Flash: US$ 0,30/1M entrada e US$ 2,50/1M saída), arredondado a 6 casas
- * como manda `cost_usd numeric(10,6)`. O "Diagnóstico do agente" mostra tokens e
- * dólares na mesma linha: um custo inventado desmentiria os tokens ao lado.
+ * Custo do turno pela MESMA tabela do app, arredondado a 6 casas como manda
+ * `cost_usd numeric(10,6)`. O "Diagnóstico do agente" mostra tokens e dólares
+ * na mesma linha: um custo inventado desmentiria os tokens ao lado.
  */
 function custoGemini(entrada: number, saida: number): string {
-  return ((entrada / 1_000_000) * 0.3 + (saida / 1_000_000) * 2.5).toFixed(6);
+  return computeCostUsd({ tokensInput: entrada, tokensOutput: saida, model: MODELO_IA }).toFixed(6);
 }
 
 /** `now() - N minutos` sem o `timestamp + unknown` que o Postgres recusa. */

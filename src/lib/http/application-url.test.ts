@@ -1,12 +1,20 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/lib/env', () => ({
-  env: { APP_BASE_URL: 'https://app.qoro.test', NODE_ENV: 'test' },
+const { mockEnv } = vi.hoisted(() => ({
+  mockEnv: {
+    APP_BASE_URL: 'https://app.qoro.test',
+    NODE_ENV: 'test',
+    VERCEL_ENV: undefined as 'preview' | undefined,
+    VERCEL_AUTOMATION_BYPASS_SECRET: undefined as string | undefined,
+  },
 }));
+
+vi.mock('@/lib/env', () => ({ env: mockEnv }));
 
 import {
   buildApplicationUrl,
   createAuthConfirmationUrl,
+  createMetaWebhookUrl,
   createPasswordResetConfirmationUrl,
   createSignupConfirmationUrl,
   createOnboardingInviteUrl,
@@ -14,6 +22,13 @@ import {
 } from './application-url';
 
 describe('buildApplicationUrl', () => {
+  beforeEach(() => {
+    mockEnv.APP_BASE_URL = 'https://app.qoro.test';
+    mockEnv.NODE_ENV = 'test';
+    mockEnv.VERCEL_ENV = undefined;
+    mockEnv.VERCEL_AUTOMATION_BYPASS_SECRET = undefined;
+  });
+
   it('constrói um link HTTPS canônico sem aceitar caminhos do valor configurado', () => {
     expect(buildApplicationUrl('https://app.qoro.test/', '/join/token-seguro')).toBe(
       'https://app.qoro.test/join/token-seguro',
@@ -82,6 +97,19 @@ describe('buildApplicationUrl', () => {
 
   it('constrói o destino allowlisted da recuperação de senha', () => {
     expect(createPasswordResetRedirectUrl()).toBe('https://app.qoro.test/reset-password');
+  });
+
+  it('gera callback Meta no ambiente atual sem parâmetro controlado pelo usuário', () => {
+    expect(createMetaWebhookUrl()).toBe('https://app.qoro.test/api/webhooks/meta');
+  });
+
+  it('inclui o bypass server-to-server somente no callback de Preview protegido', () => {
+    mockEnv.VERCEL_ENV = 'preview';
+    mockEnv.VERCEL_AUTOMATION_BYPASS_SECRET = 'preview-bypass-secret';
+
+    expect(createMetaWebhookUrl()).toBe(
+      'https://app.qoro.test/api/webhooks/meta?x-vercel-protection-bypass=preview-bypass-secret',
+    );
   });
 
   it('mantém o token pré-clínica no fragmento, fora da requisição inicial', () => {

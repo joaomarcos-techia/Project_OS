@@ -40,9 +40,6 @@ const STATIC_PROTECTED_ROUTES = [
 
 test.use({
   storageState: { cookies: [], origins: [] },
-  trace: 'off',
-  video: 'off',
-  screenshot: 'off',
 });
 
 test.describe('produção: fronteira sem autenticação', () => {

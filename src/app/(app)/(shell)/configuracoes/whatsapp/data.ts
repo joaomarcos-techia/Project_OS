@@ -35,6 +35,12 @@ export interface WhatsappStatusDTO {
   connectionStatus: string | null;
   /** ISO string ou null. */
   verifiedAt: string | null;
+  /**
+   * Conectado por coexistência (0107): o número continua no app WhatsApp
+   * Business do celular. A tela avisa que desconectar aqui não tira o número
+   * do app — isso a clínica faz no próprio aplicativo.
+   */
+  coexistence: boolean;
   health: WhatsappHealthDTO;
 }
 
@@ -46,7 +52,7 @@ export async function getClinicWhatsappStatus(
 ): Promise<WhatsappStatusDTO> {
   const rows = (await withTenant(clinicId, (tx) =>
     tx.execute(sql`
-      SELECT phone_number, active, connection_status, verified_at
+      SELECT phone_number, active, connection_status, verified_at, coexistence
       FROM clinic_whatsapp_numbers
       WHERE active = true
       LIMIT 1`),
@@ -55,6 +61,7 @@ export async function getClinicWhatsappStatus(
     active: boolean;
     connection_status: string;
     verified_at: string | null;
+    coexistence: boolean;
   }>;
   const r = rows[0];
   if (!r) {
@@ -65,6 +72,7 @@ export async function getClinicWhatsappStatus(
       phoneNumberMasked: null,
       connectionStatus: null,
       verifiedAt: null,
+      coexistence: false,
       health: UNKNOWN_HEALTH,
     };
   }
@@ -78,6 +86,7 @@ export async function getClinicWhatsappStatus(
     phoneNumberMasked: maskPhone(r.phone_number),
     connectionStatus: r.connection_status,
     verifiedAt: r.verified_at,
+    coexistence: r.coexistence,
     health,
   };
 }

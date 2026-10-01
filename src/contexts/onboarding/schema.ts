@@ -99,6 +99,8 @@ export const signupSessions = pgTable('signup_sessions', {
   billingAttemptState: text('billing_attempt_state'),
   billingAttemptedAt: timestamp('billing_attempted_at', { withTimezone: true }),
   asaasCustomerId: text('asaas_customer_id'),
+  asaasCheckoutId: text('asaas_checkout_id'),
+  asaasCheckoutUrl: text('asaas_checkout_url'),
   /** UNIQUE: uma assinatura pertence a no máximo um cadastro. */
   asaasSubscriptionId: text('asaas_subscription_id'),
   /** Código sanitizado. NUNCA corpo do provedor — um 4xx pode refletir o request. */

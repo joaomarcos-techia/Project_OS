@@ -566,6 +566,11 @@ describe('cadastro — conta e espera O-3b.5', () => {
     expect(screen.getByLabelText('Código do e-mail').getAttribute('autocomplete')).toBe(
       'one-time-code',
     );
+    const confirmationCode = screen.getByLabelText(/digo do e-mail/u);
+    expect(confirmationCode.getAttribute('minlength')).toBe('8');
+    expect(confirmationCode.getAttribute('maxlength')).toBe('8');
+    expect(confirmationCode.getAttribute('size')).toBe('8');
+    expect(confirmationCode.className).toContain('text-center');
     fireEvent.click(screen.getByRole('button', { name: 'Mostrar senha' }));
     expect(password.getAttribute('type')).toBe('text');
     fireEvent.click(screen.getByRole('button', { name: 'Ocultar senha' }));

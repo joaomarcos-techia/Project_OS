@@ -34,6 +34,8 @@ const expectedEmailFrom = firstEnv('EMAIL_FROM_DEV');
 const databaseUrl = firstEnv('DATABASE_URL_DEV');
 const magicTokenSecret = firstEnv(...SIGNUP_E2E_ENV_ALIASES.magicTokenSecret);
 const loginHashPepper = firstEnv(...SIGNUP_E2E_ENV_ALIASES.loginHashPepper);
+const asaasBaseUrl = firstEnv('ASAAS_BASE_URL_DEV', 'ASAAS_BASE_URL');
+const asaasApiKey = firstEnv('ASAAS_API_KEY_DEV', 'ASAAS_API_KEY');
 const expectedProjectRef = SIGNUP_E2E_DEV_PROJECT_REF;
 const productionDatabaseUrl = firstEnv('DATABASE_URL_PROD');
 const productionSupabaseSecret = firstEnv(
@@ -133,7 +135,9 @@ function skipReason(): string | null {
     !expectedEmailFrom ||
     !databaseUrl ||
     !magicTokenSecret ||
-    !loginHashPepper
+    !loginHashPepper ||
+    !asaasBaseUrl ||
+    !asaasApiKey
   ) {
     return 'credenciais de DEV incompletas para execução e limpeza';
   }
@@ -164,6 +168,17 @@ function skipReason(): string | null {
     (productionSupabaseSecret && supabaseSecret === productionSupabaseSecret)
   ) {
     return 'guard recusou credenciais de produção';
+  }
+  try {
+    const asaas = new URL(asaasBaseUrl);
+    if (
+      asaas.protocol !== 'https:' ||
+      !['api-sandbox.asaas.com', 'sandbox.asaas.com'].includes(asaas.hostname)
+    ) {
+      return 'Asaas não corresponde ao Sandbox esperado';
+    }
+  } catch {
+    return 'ASAAS_BASE_URL do Sandbox é inválida';
   }
   if (
     process.env.SUPABASE_PROJECT_ENV !== 'dev' ||
@@ -381,6 +396,19 @@ async function cleanupFixture(fixture: Fixture): Promise<void> {
   const sql = postgres(databaseUrl!, { max: 1, ssl: 'require', prepare: false });
   try {
     const mailHash = emailHash(fixture.email);
+    const resources = await sql<
+      {
+        asaas_checkout_id: string | null;
+      }[]
+    >`
+      select asaas_checkout_id
+        from signup_sessions
+       where email_hash = ${mailHash}
+         and asaas_checkout_id is not null
+    `;
+    for (const resource of resources) {
+      await cancelSandboxCheckout(resource.asaas_checkout_id!);
+    }
     const tokenHashes = [fixture.tokenHash, ...(fixture.tokenHashes ?? [])].filter(
       (value, index, values): value is string => Boolean(value) && values.indexOf(value) === index,
     );
@@ -418,6 +446,66 @@ async function cleanupFixture(fixture: Fixture): Promise<void> {
   }
   if (await findUser(fixture.email)) throw new Error('usuário Auth persistiu após cleanup');
   await rm(FIXTURE_PATH, { force: true });
+}
+
+async function cancelSandboxCheckout(checkoutId: string): Promise<void> {
+  const base = new URL(asaasBaseUrl!);
+  if (
+    base.protocol !== 'https:' ||
+    !['api-sandbox.asaas.com', 'sandbox.asaas.com'].includes(base.hostname)
+  ) {
+    throw new Error('cleanup recusou host fora do Asaas Sandbox');
+  }
+  const endpoint = new URL(
+    `${base.toString().replace(/\/$/u, '')}/checkouts/${encodeURIComponent(checkoutId)}/cancel`,
+  );
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      accept: 'application/json',
+      access_token: asaasApiKey!,
+      'content-type': 'application/json',
+    },
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!response.ok && response.status !== 400 && response.status !== 404) {
+    throw new Error(`cleanup do Checkout Sandbox falhou (${response.status})`);
+  }
+  await response.body?.cancel().catch(() => undefined);
+}
+
+async function assertHostedCheckoutPersisted(tokenHash: string): Promise<void> {
+  const sql = postgres(databaseUrl!, { max: 1, ssl: 'require', prepare: false });
+  try {
+    const [row] = await sql<
+      {
+        billing_attempt_state: string | null;
+        asaas_checkout_id: string | null;
+        asaas_checkout_url: string | null;
+        asaas_customer_id: string | null;
+        asaas_subscription_id: string | null;
+      }[]
+    >`
+      select billing_attempt_state,
+             asaas_checkout_id,
+             asaas_checkout_url,
+             asaas_customer_id,
+             asaas_subscription_id
+        from signup_sessions
+       where token_hash = ${tokenHash}
+    `;
+    if (
+      row?.billing_attempt_state !== 'checkout_pending' ||
+      !row.asaas_checkout_id ||
+      !row.asaas_checkout_url ||
+      row.asaas_customer_id !== null ||
+      row.asaas_subscription_id !== null
+    ) {
+      throw new Error('draft não persistiu o Checkout hospedado pendente antes da navegação');
+    }
+  } finally {
+    await sql.end({ timeout: 5 });
+  }
 }
 
 async function assertExactDraftReferences(email: string, expectedRefs: readonly string[]) {
@@ -832,7 +920,11 @@ async function openOnPhone(
       { timeout: 90_000 },
     );
   } catch {
-    throw new Error('callback não terminou na confirmação sanitizada');
+    const observed = new URL(page.url());
+    const searchKeys = [...new Set(observed.searchParams.keys())].sort().join(',') || 'none';
+    throw new Error(
+      `callback não terminou na confirmação sanitizada (path=${observed.pathname}; searchKeys=${searchKeys}; fragment=${observed.hash ? 'present' : 'absent'})`,
+    );
   }
   await expect(page.getByRole('heading', { name: 'E-mail confirmado' })).toBeVisible();
   if (bridgeGets !== 1 || bridgePosts !== 1 || bridgeViolations.length > 0) {
@@ -856,7 +948,7 @@ async function openOnPhone(
     const response = await fetch('/api/signup/checkout', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ cpfCnpj: '24971563792' }),
+      body: JSON.stringify({}),
     });
     return response.status;
   });
@@ -1008,6 +1100,22 @@ test.describe('cadastro — confirmação real via Resend', () => {
       if (!(await passwordSignInSucceeds(email, signup.password))) {
         throw new Error('a senha instalada pelo handoff não autenticou');
       }
+
+      await signup.page.locator('[data-slot="option-card-group"] label').first().click();
+      await signup.page.getByRole('button', { name: 'Salvar plano' }).click();
+      await expect(signup.page.getByText('Plano salvo')).toBeVisible();
+      await signup.page.getByRole('button', { name: 'Continuar no Checkout Asaas' }).click();
+      await signup.page.waitForURL(
+        (url) =>
+          url.protocol === 'https:' &&
+          url.hostname === 'sandbox.asaas.com' &&
+          url.pathname.startsWith('/checkoutSession/show'),
+        { timeout: 90_000 },
+      );
+      await expect(signup.page.getByText('Informações da assinatura')).toBeVisible({
+        timeout: 30_000,
+      });
+      await assertHostedCheckoutPersisted(fixture.tokenHash!);
     } finally {
       await Promise.allSettled([phone?.close(), desktop?.close()]);
       await cleanupFixture(fixture);

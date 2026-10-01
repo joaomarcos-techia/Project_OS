@@ -10,8 +10,8 @@ import {
 import type { AIConversationStatus } from '@/contexts/ai-agent/types';
 import { getProfileNames } from '@/contexts/identity/queries';
 import { PERMISSIONS } from '@/lib/auth/permissions';
+import { pageGate } from '@/lib/auth/page-guard';
 import { cn } from '@/lib/ui/cn';
-import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { buttonVariants } from '@/components/ui/button';
@@ -38,9 +38,9 @@ function qstring(sp: SP, extra: { [K in keyof SP]?: string | undefined }): strin
   return params.size ? `?${params.toString()}` : '';
 }
 export default async function ConversasPage({ searchParams }: { searchParams: Promise<SP> }) {
-  const user = await requireUser();
-  if (!user.permissions.includes(PERMISSIONS.VIEW_CONVERSATIONS)) return <ConversasNoAccess />;
-  const clinicId = await requireClinicId();
+  const gate = await pageGate([PERMISSIONS.VIEW_CONVERSATIONS]);
+  if (!gate.allowed) return <ConversasNoAccess />;
+  const { user, clinicId } = gate;
   const sp = await searchParams;
   const status = isStatus(sp.status) ? sp.status : undefined;
   const parsedPage = Number(sp.page ?? '1');

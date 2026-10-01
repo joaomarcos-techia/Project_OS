@@ -20,6 +20,12 @@ import { registerEventSchema } from '@/lib/outbox/catalog';
 export const MESSAGING_EVENTS = {
   INBOUND_RECEIVED: 'messaging.inbound.received',
   OUTBOUND_STATUS_UPDATED: 'messaging.outbound.status_updated',
+  /**
+   * Coexistência: a recepção respondeu o paciente pelo app WhatsApp Business
+   * do celular. O agente de IA reage registrando a mensagem na conversa e
+   * pausando o atendimento automático.
+   */
+  BUSINESS_APP_ECHO_RECEIVED: 'messaging.business_app_echo.received',
 } as const;
 
 const uuid = z.string().uuid();
@@ -44,5 +50,22 @@ export const OutboundStatusUpdatedSchema = z.object({
 });
 export type OutboundStatusUpdatedPayload = z.infer<typeof OutboundStatusUpdatedSchema>;
 
+/**
+ * Só ids e o hash do destinatário — nunca texto nem telefone, nem cifrados: o
+ * ciphertext muda a cada cifragem e o outbox trataria o reenvio da Meta como
+ * colisão de chave. O handler lê o conteúdo por `messagingApiV1`.
+ */
+export const BusinessAppEchoReceivedSchema = z.object({
+  clinicId: uuid,
+  echoId: uuid,
+  providerMessageId: z.string(),
+  provider: z.enum(['meta', 'zapi']),
+  toNumberHash: z.string(),
+  hasText: z.boolean(),
+  sentAt: z.string(),
+});
+export type BusinessAppEchoReceivedPayload = z.infer<typeof BusinessAppEchoReceivedSchema>;
+
 registerEventSchema(MESSAGING_EVENTS.INBOUND_RECEIVED, InboundReceivedSchema);
+registerEventSchema(MESSAGING_EVENTS.BUSINESS_APP_ECHO_RECEIVED, BusinessAppEchoReceivedSchema);
 registerEventSchema(MESSAGING_EVENTS.OUTBOUND_STATUS_UPDATED, OutboundStatusUpdatedSchema);

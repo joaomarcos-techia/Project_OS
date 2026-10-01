@@ -42,15 +42,21 @@ export function HandoffWatcher() {
 
     const check = async () => {
       if (document.visibilityState !== 'visible') return;
-      let pending;
+      let result;
       try {
-        pending = await fetchOpenHandoffs();
+        result = await fetchOpenHandoffs();
       } catch {
         // Rede instável não pode virar toast de erro: quem atende não tem o que
         // fazer com isso, e o próximo ciclo tenta de novo.
         return;
       }
       if (cancelled) return;
+      if (!result.ok) {
+        setOpenHandoffCount(0);
+        seen.current = null;
+        return;
+      }
+      const pending = result.data;
       // O badge reflete a fila SEMPRE, inclusive na primeira carga e quando ela
       // esvazia — é o que sustenta quem não viu o toast passar.
       setOpenHandoffCount(pending.length);

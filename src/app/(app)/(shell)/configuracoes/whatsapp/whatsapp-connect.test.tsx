@@ -40,6 +40,7 @@ const status: WhatsappStatusDTO = {
   phoneNumberMasked: null,
   connectionStatus: null,
   verifiedAt: null,
+  coexistence: false,
   health: { verdict: 'indeterminate', messages: [] },
 };
 
@@ -199,6 +200,7 @@ describe('WhatsappConnect', () => {
     await waitFor(() => expect(mocks.connectWhatsappAction).toHaveBeenCalledTimes(1));
     expect(mocks.connectWhatsappAction).toHaveBeenCalledWith({
       code: 'oauth-code',
+      mode: 'cloud_api',
       registrationPin: '123456',
       wabaId: 'waba-id',
       phoneNumberId: 'phone-id',
@@ -439,6 +441,7 @@ describe('WhatsappConnect', () => {
     expect(mocks.connectWhatsappAction).toHaveBeenCalledTimes(1);
     expect(mocks.connectWhatsappAction).toHaveBeenCalledWith({
       code: 'code-2',
+      mode: 'cloud_api',
       registrationPin: '123456',
       wabaId: 'waba-2',
       phoneNumberId: 'phone-2',
@@ -558,6 +561,7 @@ describe('WhatsappConnect', () => {
       expect(mocks.connectWhatsappAction).toHaveBeenCalledTimes(1);
       expect(mocks.connectWhatsappAction).toHaveBeenCalledWith({
         code: 'code-2',
+        mode: 'cloud_api',
         registrationPin: '123456',
         wabaId: 'waba-2',
         phoneNumberId: 'phone-2',
@@ -678,6 +682,7 @@ describe('WhatsappConnect', () => {
     await waitFor(() => expect(mocks.connectWhatsappAction).toHaveBeenCalledTimes(1));
     expect(mocks.connectWhatsappAction).toHaveBeenCalledWith({
       code: 'oauth-code',
+      mode: 'cloud_api',
       registrationPin: '123456',
       wabaId: 'waba-id',
       phoneNumberId: undefined,
@@ -697,6 +702,7 @@ describe('WhatsappConnect', () => {
     await waitFor(() => expect(mocks.connectWhatsappAction).toHaveBeenCalledTimes(1));
     expect(mocks.connectWhatsappAction).toHaveBeenCalledWith({
       code: 'oauth-code',
+      mode: 'cloud_api',
       registrationPin: '123456',
       wabaId: 'waba-id',
       phoneNumberId: 'phone-id',
@@ -945,6 +951,35 @@ describe('WhatsappConnect', () => {
     expect(screen.getByRole('button', { name: 'Desconectar' })).toBeTruthy();
   });
 
+  // ==== Embedded Signup v4 ===================================================
+
+  it('abre o Embedded Signup no formato v4: `extras` só com `setup`', () => {
+    // O v2 (`sessionInfoVersion: '3'`) é descontinuado pela Meta em 15/10/2026.
+    const login = vi.fn();
+    window.FB = { init: vi.fn(), login };
+    render(
+      <WhatsappConnect
+        status={status}
+        appId="app-id"
+        configId="config-v4"
+        graphVersion="v23.0"
+        ready={true}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText(/PIN de ativação do WhatsApp/), {
+      target: { value: '123456' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Conectar WhatsApp' }));
+
+    expect(login).toHaveBeenCalledTimes(1);
+    expect(login.mock.calls[0]?.[1]).toEqual({
+      config_id: 'config-v4',
+      response_type: 'code',
+      override_default_response_type: true,
+      extras: { setup: {} },
+    });
+  });
+
   it('não reintroduz estilos inline nem as classes legadas da tela', () => {
     const source = readFileSync(
       resolve(process.cwd(), 'src/app/(app)/(shell)/configuracoes/whatsapp/whatsapp-connect.tsx'),
@@ -956,5 +991,115 @@ describe('WhatsappConnect', () => {
     expect(source).toContain('<PageHeader');
     expect(source).toContain('<Card');
     expect(source).toContain('<Alert');
+  });
+});
+
+// ==== Coexistência (0107) — conectar o app WhatsApp Business já em uso ========
+
+describe('WhatsappConnect — coexistência', () => {
+  function launchBusinessApp() {
+    let loginCallback: ((response: FbLoginResult) => void) | undefined;
+    const login = vi.fn((callback: (response: FbLoginResult) => void, _opts: unknown) => {
+      loginCallback = callback;
+    });
+    window.FB = { init: vi.fn(), login };
+    render(
+      <WhatsappConnect
+        status={status}
+        appId="app-id"
+        configId="config-v4"
+        graphVersion="v23.0"
+        ready={true}
+      />,
+    );
+    // Sem preencher PIN: a coexistência não usa.
+    fireEvent.click(screen.getByRole('button', { name: 'Conectar meu WhatsApp Business' }));
+    return { login, callback: (r: FbLoginResult) => loginCallback?.(r) };
+  }
+
+  it('abre a Meta com o featureType da coexistência e sem exigir PIN', () => {
+    const { login } = launchBusinessApp();
+
+    expect(login).toHaveBeenCalledTimes(1);
+    expect(login.mock.calls[0]?.[1]).toEqual({
+      config_id: 'config-v4',
+      response_type: 'code',
+      override_default_response_type: true,
+      extras: { setup: {}, featureType: 'whatsapp_business_app_onboarding' },
+    });
+  });
+
+  it('FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING conecta em modo coexistência, sem PIN', async () => {
+    mocks.connectWhatsappAction.mockResolvedValueOnce({
+      ok: true,
+      data: { id: 'num-1', phoneNumberMasked: '+55 ** *****-1234' },
+    });
+    const signup = launchBusinessApp();
+
+    postSignupMessage({
+      type: 'WA_EMBEDDED_SIGNUP',
+      event: 'FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING',
+      data: { waba_id: 'waba-app' },
+    });
+    signup.callback({ authResponse: { code: 'oauth-code' } });
+
+    await waitFor(() => expect(mocks.connectWhatsappAction).toHaveBeenCalledTimes(1));
+    expect(mocks.connectWhatsappAction).toHaveBeenCalledWith({
+      code: 'oauth-code',
+      mode: 'coexistence',
+      wabaId: 'waba-app',
+      phoneNumberId: undefined,
+    });
+  });
+
+  it('número novo escolhido dentro da janela da coexistência não chama o servidor', () => {
+    const signup = launchBusinessApp();
+
+    postSignupMessage({
+      type: 'WA_EMBEDDED_SIGNUP',
+      event: 'FINISH',
+      data: { waba_id: 'waba-id', phone_number_id: 'phone-id' },
+    });
+    signup.callback({ authResponse: { code: 'oauth-code' } });
+
+    expect(mocks.connectWhatsappAction).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert').textContent).toContain('Código: SIGNUP_MODE_MISMATCH');
+  });
+
+  it('o botão de número novo não aceita o fim da coexistência', () => {
+    const signup = startSignup();
+
+    postSignupMessage({
+      type: 'WA_EMBEDDED_SIGNUP',
+      event: 'FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING',
+      data: { waba_id: 'waba-app' },
+    });
+    signup.login({ authResponse: { code: 'oauth-code' } });
+
+    expect(mocks.connectWhatsappAction).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert').textContent).toContain('Código: SIGNUP_MODE_MISMATCH');
+  });
+
+  it('conectado por coexistência: mostra a forma de conexão e como desligar no app', () => {
+    render(
+      <WhatsappConnect
+        status={{
+          ...status,
+          connected: true,
+          hasActiveNumber: true,
+          phoneNumberMasked: '+55 ** *****-1234',
+          connectionStatus: 'connected',
+          coexistence: true,
+        }}
+        appId="app-id"
+        configId="config-v4"
+        graphVersion="v23.0"
+        ready={true}
+      />,
+    );
+
+    expect(screen.getByText('App WhatsApp Business do celular')).toBeTruthy();
+    expect(screen.getByText('A recepção continua usando o app')).toBeTruthy();
+    expect(screen.getByText(/desconecte também no app WhatsApp Business/)).toBeTruthy();
   });
 });

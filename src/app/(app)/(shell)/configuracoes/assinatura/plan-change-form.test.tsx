@@ -1,11 +1,15 @@
 // @vitest-environment happy-dom
 
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('./actions', () => ({
   requestPlanChangeAction: vi.fn(async () => ({ error: null })),
-  requestSubscriptionCancellationAction: vi.fn(async () => ({ error: null })),
+  requestSubscriptionCancellationAction: vi.fn(async () => ({
+    error: null,
+    success: 'cancellation_scheduled',
+    message: 'Assinatura cancelada.',
+  })),
   revokeSubscriptionCancellationAction: vi.fn(async () => ({ error: null })),
   reactivateSubscriptionAction: vi.fn(async () => ({ error: null })),
 }));
@@ -73,6 +77,17 @@ describe('cancelar assinatura na tela', () => {
     expect(dialog.textContent).toContain('O acesso continua até 02/10/2026');
   });
 
+  it('fecha o diálogo e mostra a confirmação quando o cancelamento termina', async () => {
+    renderForm('active', { periodEnd: '2026-10-02T00:00:00.000Z' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar assinatura' }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancelar assinatura' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(screen.getByRole('alert').textContent).toContain('Assinatura cancelada');
+  });
+
   it('inadimplente: a confirmação avisa que as vencidas também são apagadas', async () => {
     renderForm('past_due');
 
@@ -86,6 +101,8 @@ describe('cancelar assinatura na tela', () => {
     renderForm('cancelled');
     expect(screen.queryByRole('button', { name: 'Cancelar assinatura' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Reativar assinatura' })).toBeTruthy();
+    expect(screen.getByRole('alert').textContent).toContain('Assinatura cancelada');
+    expect(screen.getByRole('alert').textContent).toContain('não gera novas cobranças');
   });
 
   it('cancelamento agendado: oferece manter, e diz que não haverá nova cobrança', () => {
@@ -99,6 +116,7 @@ describe('cancelar assinatura na tela', () => {
     });
     expect(screen.getByRole('button', { name: 'Manter assinatura' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Cancelar assinatura' })).toBeNull();
+    expect(screen.getByRole('alert').textContent).toContain('Assinatura cancelada');
     expect(
       screen.getByText(/nenhuma nova cobrança será feita. O acesso segue até 10\/10\/2026/u),
     ).toBeTruthy();

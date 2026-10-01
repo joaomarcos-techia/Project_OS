@@ -14,13 +14,26 @@ abaixo.
 | `payments-account-lifecycle.spec.ts` | `E2E_BASE_URL` **de Preview** + `ASAAS_CLINIC_SANDBOX_KEY` | não (cria estado no Asaas) |
 | `admin-superadmin-journey.spec.ts` | `E2E_BASE_URL` **de Preview** + `SUPER_ADMIN_*_DEV` + `DATABASE_URL` | não (muta estado GLOBAL) |
 | `tenant-settings-screens.spec.ts` | `E2E_BASE_URL` + conta de clínica descartável | não (cria e apaga modelo de receita) |
-| `production-*.spec.ts` (40) | variável de autorização + credenciais de clínica sintética + `DATABASE_URL_PROD` | não, por design |
+| `production-*.spec.ts` (44) | variável de autorização + credenciais de clínica sintética + `DATABASE_URL_PROD` | não, por design |
 | mutáveis locais | `E2E_MUTATION=1` + banco de desenvolvimento | não |
 
 **Regra do fundador (13/09): escrita e alteração acontecem SOMENTE em Preview.**
 `payments-account-lifecycle` e `admin-superadmin-journey` recusam `app.qoro.dev`
 com **erro**, não com skip: o primeiro pode registrar webhook no Asaas, o segundo
 muta o kill-switch GLOBAL e cria sessão de impersonate.
+
+O ciclo mutável de `payments-account-lifecycle` exige ainda
+`E2E_PAYMENT_ACCOUNT_MUTATION=dev-sandbox`. Esse opt-in declara que o Preview foi
+conferido como isolado no banco DEV e na conta Asaas Sandbox. A URL, sozinha, não
+faz essa prova. Falha de autenticação também não vira skip: só um 429 observado
+pode ser classificado como rate limit.
+
+Quando não houver uma conta de clínica descartável, o modo
+`E2E_PAYMENT_ACCOUNT_ISOLATED=1` cria um tenant e um owner exclusivos no DEV,
+confere que Database e Auth pertencem ao mesmo projeto, executa os dois casos e
+remove clínica e usuário com readback zero. A senha é aleatória, existe apenas na
+memória do processo e nunca é registrada. Esse modo continua exigindo o opt-in,
+um Preview apontado para DEV e a chave da conta Asaas Sandbox da clínica.
 
 O `admin-superadmin-journey` precisa de uma conta de plataforma própria, e ela se
 prepara sozinha — sem passo manual:
@@ -50,6 +63,23 @@ uma **ferramenta de auditoria operada por gente** — o gate automático é só 
 O Playwright inicia a aplicação local em modo de desenvolvimento quando
 `E2E_BASE_URL` não foi definida.
 
+## E-mail real em DEV
+
+Há dois runners fora da suíte Playwright padrão porque usam o Resend e criam
+fixtures externas:
+
+```powershell
+npx tsx --conditions=react-server scripts/resend-inbox-check.ts
+npx tsx --conditions=react-server scripts/team-invite-inbox-check.ts
+```
+
+Ambos recusam ambiente diferente de DEV e exigem
+`E2E_RESEND_INBOX_ADDRESS`. O primeiro prova a cadeia enviada/entregue/recebida.
+O segundo atravessa convite inicial, reenvio, link antigo negado, aceite no
+tenant e replay, com cleanup obrigatório. Para Preview, informe `E2E_BASE_URL`
+e o bypass da Vercel; sem deployment do mesmo source, o resultado é bloqueio de
+versão e não prova remota.
+
 ## Validar rotas autenticadas
 
 Use uma conta de uma clínica descartável, nunca uma conta operacional:
@@ -67,11 +97,11 @@ $env:E2E_BASE_URL = 'https://seu-preview.vercel.app'
 pnpm test:e2e
 ```
 
-Os artefatos de falha (trace, vídeo e relatório) são locais e ficam ignorados
-no Git, mas podem registrar o DOM e os valores digitados. Use somente credenciais
-descartáveis. Depois de uma falha de autenticação, mantenha `E2E_ARTIFACTS=0`,
-remova os artefatos gerados e rotacione a credencial antes de repetir. Nunca
-publique, anexe ou abra trace/relatório autenticado sem sanitização.
+Trace, screenshot e vídeo ficam desligados por padrão porque podem registrar
+cookies, DOM e valores digitados. Para uma investigação local controlada, use
+`E2E_ARTIFACTS=1` somente com credenciais descartáveis; remova os artefatos e
+rotacione a credencial depois. Nunca publique, anexe ou abra trace/relatório
+autenticado sem sanitização.
 
 Para uma auditoria autenticada ampla contra ambiente remoto, reutilize uma única
 sessão. Assim cada spec não consome uma nova tentativa de login nem aciona o

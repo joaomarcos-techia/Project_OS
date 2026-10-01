@@ -7,6 +7,7 @@ import type { FormEvent } from 'react';
 import { Alert } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { SIGNUP_INPUT_LIMITS } from '@/contexts/onboarding/signup-input-limits';
 
 type Props = {
   rowVersion: number;
@@ -149,7 +150,7 @@ export function SignupEmailPending({ rowVersion, email, onUpdated, onReconcile, 
               type="email"
               autoComplete="email"
               required
-              maxLength={160}
+              maxLength={SIGNUP_INPUT_LIMITS.email}
               disabled={saving}
             />
           </div>

@@ -198,6 +198,10 @@ export function collectInventory(root: string): Inventory {
 
   // These are reviewed entrypoints with another trust boundary; none authorizes tenant CRUD.
   const publicPolicies: Record<string, { guard: string; call: string }> = {
+    'src/app/(app)/(shell)/_painel/handoff-actions.ts#fetchOpenHandoffs': {
+      guard: 'optional-session-read',
+      call: 'getCurrentUser',
+    },
     'src/app/(app)/login/actions.ts#loginAction': {
       guard: 'public-login',
       call: 'supabase.auth.signInWithPassword',
@@ -280,7 +284,15 @@ export function collectInventory(root: string): Inventory {
     },
     'src/app/api/signup/checkout/route.ts#POST': {
       guard: 'origin-verified-pretenant-user-hmac-write-limit-empty-body-cas',
-      call: 'startSignupSubscription',
+      call: 'startSignupHostedCheckout',
+    },
+    'src/app/api/signup/checkout/status/route.ts#POST': {
+      guard: 'origin-verified-pretenant-user-hmac-read-limit-provider-readback-cas',
+      call: 'completeSignupHostedCheckout',
+    },
+    'src/app/api/signup/checkout/cancel/route.ts#POST': {
+      guard: 'origin-verified-pretenant-user-hmac-write-limit-strict-body-provider-cancel-cas',
+      call: 'abandonSignupHostedCheckout',
     },
     'src/app/api/signup/plan/route.ts#GET': {
       guard: 'verified-pretenant-user-hmac-read-limit',

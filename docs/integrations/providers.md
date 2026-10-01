@@ -30,12 +30,37 @@ Adapters em `src/contexts`, `src/lib`, schemas de env e Route Handlers. Dashboar
 - Supabase Storage PROD: `clinical-pdfs`, `lgpd-exports` e `admin-exports` privados; os dois primeiros têm objetos reais;
 - Meta PROD: um canal ativo, token válido com os dois scopes exigidos, número `CONNECTED`, WABA `APPROVED` e app correto em `subscribed_apps`;
 - mensagens em sete dias: 94 inbound processadas e 87 outbound em `delivered`/`read`; callbacks reais cobrem `sent`, `delivered` e `read`;
-- Gemini `gemini-2.5-flash`: 15 tools iguais ao runtime, function calling e cenário de cadastro antes do agendamento aprovados;
+- Gemini `gemini-3.8-flash`: 15 tools iguais ao runtime, function calling e cenário de cadastro antes do agendamento aprovados;
 - Asaas: API key aceita, webhook ativo/não interrompido no endpoint canônico, sete eventos configurados e reconcile sem divergência;
 - Resend acessível pela credencial DEV: domínio `qoro.dev` verificado, envio habilitado; dos 100 envios mais recentes, 67 estavam `delivered` e 33 `bounced`;
 - Sentry não pôde ser inventariado: um token respondeu 401 e o token de build 403. Better Stack não possui credencial local.
 
 Detalhes datados: [evidence snapshots](../archive/evidence-snapshots.md). Evidência externa envelhece; revalide antes de release.
+
+## Evidência externa sanitizada — 2026-09-28
+
+- Asaas Sandbox, pagamentos: 18/18 passos aprovados na repetição final. Três
+  cobranças, webhook e customer terminaram ausentes/deleted no readback, e a
+  baixa manual foi desfeita antes da remoção. Uma execução intermediária recebeu
+  HTTP 500 no primeiro DELETE, foi marcada FAIL e ainda concluiu o cleanup. Refund
+  de PIX/cartão realmente pago permaneceu `NOT TESTED` por exigir checkout
+  liquidado. IDs e paths dinâmicos saíram redigidos na execução final.
+- Asaas Sandbox, billing SaaS: assinatura relida como `ACTIVE`, cancelada e
+  relida como `INACTIVE`; customer ausente ao final. O runner aceita somente o
+  host HTTPS oficial do Sandbox e credencial marcada como homologação.
+- Gemini live: catálogo de 15 tools e dois cenários de function calling passaram.
+  A suíte adversarial executou 2/50 e ficou `BLOCKED` por 429 também após retry;
+  o smoke feliz não prova resiliência à quota.
+- Resend: o provider aceitou uma mensagem DEV para a caixa de teste consentida.
+  A chegada ao inbox e o fluxo de confirmação de cadastro permanecem
+  `NOT TESTED`; aceite da API não foi convertido em entrega.
+- Supabase Auth DEV: login com claims customizadas, refresh e revogação global
+  passaram; o readback encontrou zero fixture SQL e zero usuário Auth do smoke.
+- Upstash DEV: `PING` autenticado read-only respondeu `PONG` em host HTTPS
+  allowlisted. Credenciais específicas de Preview/PROD não foram inferidas.
+- Supabase Storage: sem probe externo atual nesta execução.
+
+IDs de provider, chaves, destinatários e payloads não fazem parte deste registro.
 
 ## Meta WhatsApp
 
@@ -45,18 +70,25 @@ Detalhes datados: [evidence snapshots](../archive/evidence-snapshots.md). Evidê
 - sender usa reserva → I/O Meta → finalização, com idempotência persistente local;
 - um refresh de credencial é tentado após 401/403;
 - formatos funcionais: texto e template. Mídia não está implementada;
-- conexão usa Embedded Signup e health check a cada seis horas; falha não troca provider automaticamente.
+- conexão usa Embedded Signup v4 e health check a cada seis horas; falha não troca provider automaticamente;
+- coexistência com o app WhatsApp Business (0107): ver [whatsapp-connection-flow.md](../whatsapp-connection-flow.md#coexistência-app-whatsapp-business).
 
-Templates observados no WABA em 2026-08-18:
+Templates no WABA conferidos pelo fundador em 2026-09-30 (todos ativos, qualidade pendente por ainda
+não terem envio):
 
-| Nome configurado | Estado Meta | Categoria Meta |
+| Variável | Template | Categoria Meta |
 | --- | --- | --- |
-| `lembrete_confirmacao` | `APPROVED` | `MARKETING` |
-| `cobranca_amigavel` | ausente | — |
-| `lista_espera_oferta` | `APPROVED` | `UTILITY` |
-| `retorno_consulta` | `APPROVED` | `MARKETING` |
+| `META_TEMPLATE_CONFIRMATION_REMINDER_ID` | `confirmacao_consulta` | `UTILITY` |
+| `META_TEMPLATE_DUNNING_FRIENDLY_ID` | `amigavel_cobranca` | `UTILITY` |
+| `META_TEMPLATE_FOLLOWUP_RETURN_ID` | `acompanhamento_tratamento` | `UTILITY` |
+| `META_TEMPLATE_NO_SHOW_FOLLOWUP_ID` | `atualizacao_agendamento` | `UTILITY` |
+| `META_TEMPLATE_WAITLIST_OFFER_ID` | `lista_espera_oferta` | `UTILITY` |
+| `META_TEMPLATE_DEPOSIT_LINK_ID` | `link_deposito` | `UTILITY` |
+| `META_TEMPLATE_REMAINDER_LINK_ID` | `restante_link_pagamento` | `UTILITY` |
 
-O catálogo local solicita `UTILITY` para os quatro. A classificação efetiva do provider vence para operação/custo; não trate template aprovado como equivalente a categoria esperada.
+`lembrete_confirmacao`, `retorno_consulta` e `qoro_no_show_followup` continuam no WABA como
+`MARKETING`, mas não são mais referenciados. A classificação efetiva do provider vence para
+operação/custo; não trate template aprovado como equivalente a categoria esperada.
 
 `MessagingProviderName` aceita `meta | zapi` para compatibilidade de schema. O `ZApiProvider` implementa a interface apenas para falhar explicitamente; não há endpoint, credencial, parser ou envio Z-API funcional.
 

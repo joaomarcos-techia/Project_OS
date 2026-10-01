@@ -7336,3 +7336,815 @@ formulário leva um campo oculto `autocomplete="username"` com ele, ao lado do
 | Os testes detectam a volta dos defeitos | **PASS 3/3** — mensagem fixa, envio de senha inválida, campo sem `autocomplete="username"` |
 | Suíte, cobertura e gates estáticos do CI | **PASS** — 4.475/4.475 |
 | O gerenciador de senhas oferecer "atualizar senha" e parar de preencher a antiga | **NOT TESTED** — depende do navegador e do gerenciador de cada pessoa; o que o código controla (campo de usuário e `new-password`) está coberto |
+
+## 42. Checkout recorrente hospedado e limites do cadastro — 26/09/2026
+
+### 42.1 O defeito observado e por que os testes anteriores passaram
+
+O relato “escolhi o plano, informei o CPF e fui ao dashboard sem Checkout” estava correto. O contrato
+implementado em O-5 criava customer e assinatura `UNDEFINED` diretamente, fazia readback e
+provisionava o tenant no mesmo request. A interface, portanto, obedecia ao código ao pular a página
+de pagamento. Os verdes anteriores não contradiziam esse comportamento: os testes de unidade
+esperavam `{ state: provisioned }`, e o E2E de confirmação parava ao abrir `/cadastro/plano`. Nenhum
+deles clicava no botão final e exigia navegação para o domínio do Asaas.
+
+### 42.2 Contrato que substitui o O-5 direto
+
+O cadastro autônomo agora cria Checkout hospedado `CREDIT_CARD` + `RECURRENT`. O body da rota é `{}`
+estrito. Plano e preço vêm do draft e do catálogo; ciclo mensal, trial de sete dias e vencimento vêm
+do servidor. O payload não contém customer nem PII: documento, telefone, endereço e cartão ficam no
+Asaas. As migrations 0105–0106 adicionam id/URL do Checkout e fecham o estado
+`checkout_pending` sem customer ou assinatura.
+
+O sucesso do browser é apenas navegação. `/api/signup/checkout/status` procura a cobrança pelo
+`checkoutSession`, relê a assinatura exata e confere customer, `ACTIVE`, `CREDIT_CARD`, `MONTHLY`,
+valor e vencimento. Depois disso o CAS grava customer/assinatura e o provisionamento transacional
+consome o draft. Só então a sessão é renovada e o dashboard abre.
+
+Cancelamento e expiração também não são autoridade. “Voltar ao plano” relê o Asaas, cancela o
+Checkout e limpa a tentativa por CAS. Se uma assinatura apareceu na corrida, ela não é apagada: a
+tela muda para a validação de sucesso. Timeout conserva o estado pendente e não cria nova cobrança.
+
+### 42.3 Limites de entrada
+
+O código de handoff tem exatamente oito dígitos. O input aceita apenas dígitos, tem `minLength`,
+`maxLength` e `size` oito e corta qualquer excesso na digitação. Nome da pessoa e da clínica têm 120
+caracteres, e-mail 160 e senha 72 nas telas em que podem ser digitados ou redigitados. As quatro
+perguntas são escolhas fechadas e não têm texto livre para limitar.
+
+### 42.4 Medição externa e bancos
+
+O Sandbox aceitou a criação recorrente real e devolveu URL oficial. Enviar um customer criado só com
+nome/e-mail/documento foi recusado por falta de telefone e endereço; `customerData` parcial também
+foi recusado. Sem ambos, o Checkout abriu e exibiu os campos do pagador e do cartão, que é o contrato
+adotado. A automação preencheu as etapas, mas o POST final respondeu com reCAPTCHA habilitado; não
+houve bypass. Conclusão, callback, readback e provisionamento externos permanecem pendentes do roteiro
+humano.
+
+O primeiro E2E do Preview encontrou uma segunda diferença de contrato: `items[].name` reutilizava a
+descrição completa com o nome da clínica, e o Asaas respondeu `400 invalid_object` porque esse campo
+aceita no máximo 30 caracteres. O adapter agora recebe um nome técnico curto, limita-o a 30 e conserva
+a descrição completa em `items[].description`. A reprodução externa com os mesmos callbacks passou de
+400 para 200 e o Checkout criado foi cancelado com 200; há regressão de contrato dedicada.
+
+Depois do corretivo, o E2E de confirmação executou **5/5 PASS** contra o Preview HTTPS. O cenário
+principal criou conta e mensagem reais em DEV/Resend, confirmou em outro contexto de navegador,
+concluiu o handoff com o código de oito dígitos, salvou o plano, navegou para
+`sandbox.asaas.com/checkoutSession/show` e conferiu no banco `checkout_pending`, id/URL presentes e
+customer/assinatura nulos. O `finally` cancelou o Checkout e removeu conta, draft e lock sintéticos.
+Isso prova a abertura do Checkout; o pagamento final continua humano por causa do reCAPTCHA.
+
+O primeiro CI do PR reprovou corretamente o inventário de segurança: ele ainda procurava a função
+direta removida e não conhecia as rotas de status/cancelamento. As três superfícies foram revisadas e
+registradas com origem, identidade pré-tenant, HMAC, limite, body estrito, readback/cancelamento no
+provider e CAS. O gate passou localmente com zero `REVIEW_REQUIRED`; os testes do inventário e da
+catraca de rotas passaram 14/14.
+
+O rerun remoto no commit `6ec03d0` encerrou o pipeline completo com **PASS** no
+[run 36274393423](https://github.com/joaomarcos-techia/Project_OS/actions/runs/36274393423): auditoria de
+dependências, TypeScript, ESLint, arquitetura, migrations, observabilidade, registry, 4.399 testes com
+cobertura, inventário de segurança, isolamento entre tenants, build Next, inspeção do bundle e E2E
+público. Vercel, Semgrep e Snyk também terminaram verdes no PR #18. Esse verde prova o código e o
+Preview; não substitui a conclusão humana do cartão/reCAPTCHA no Sandbox.
+
+As migrations 0105–0106 foram aplicadas e relidas em **DEV e produção**. Em produção, o migrador
+protegido criou `prod-pre-migration-2026-09-26T23-42-32.sql` (**2.741.328 bytes**), adquiriu e liberou
+o advisory lock `4242` e terminou `DONE`, exit 0. O readback independente encontrou o journal em
+`0106` (107 migrations), as versões `signup-hosted-checkout` e
+`signup-checkout-collects-payer`, as colunas `asaas_checkout_id`/`asaas_checkout_url`, o `UNIQUE` do
+checkout, os CHECKs fechados de estado, RLS `ENABLE` + `FORCE`, ausência de privilégios para `anon` e
+`authenticated`, zero linha inválida e zero advisory lock residual. O gate de schema de produção está
+**PASS**; o PR #18 continua sem merge por decisão explícita do owner.
+
+### 42.5 Documentos sincronizados
+
+- [ADR-053](adr/053-cadastro-autonomo-seguro.md) registra a decisão que substitui a emenda direta;
+- [matriz Track O](evidence/track-o.md) separa as provas históricas do contrato atual;
+- [handoff final](handoff-track-o-final.md) registra o gate de release e a causa da divergência;
+- [roteiro humano](runbooks/aceitacao-humana-cadastro.md) passa a exigir o Checkout Sandbox e o
+  retorno ao dashboard.
+
+### 42.6 Primeiro pagamento humano: falha medida e corretivo — 26/09/2026
+
+O roteiro humano avançou além do ponto que a automação não atravessava: o cartão de teste foi concluído
+no Checkout Sandbox e o Asaas criou uma cobrança `PENDING` de R$ 149, vinculada ao `checkoutSession`, e
+uma assinatura `ACTIVE`, mensal e em cartão. O botão final exibido pelo Checkout é “Acompanhar pedido”;
+esse texto pertence ao produto hospedado do Asaas. O schema vigente de `CheckoutSessionCallbackDTO`
+expõe somente `successUrl`, `cancelUrl` e `expiredUrl`, sem opção de rótulo ou `autoRedirect`.
+
+Ao voltar a `/cadastro/pagamento?resultado=success`, o dashboard não abriu. Os logs do Preview mostraram
+três respostas `202` seguidas por `429`: plano e criação do Checkout já consumiam duas das cinco escritas
+permitidas por usuário em 15 minutos, e três polls consumiam as restantes. A rota de status é readback
+autenticado, portanto passou para o orçamento de leitura de 60 requisições por usuário em 15 minutos.
+
+O readback independente encontrou outras duas divergências do Sandbox. `GET /payments` com o filtro
+documentado `checkoutSession` retornou zero, embora a listagem limitada expusesse uma cobrança com o ID
+exato. O adapter agora tenta primeiro o filtro oficial e, se ele omitir o resultado, lista no máximo 100
+cobranças desde a data da tentativa e exige igualdade exata de `checkoutSession`; data, valor ou posição
+na lista nunca servem como identidade. Além disso, a primeira cobrança conservou vencimento em 03/10,
+mas a assinatura `ACTIVE` já expunha 03/11, o próximo ciclo mensal. A validação passou a aceitar somente
+o primeiro vencimento ou seu sucessor mensal, preservando as demais conferências de customer, cartão,
+ciclo e valor.
+
+As três causas têm regressões focadas e o readback real do Sandbox confirmou o caso observado. No reteste
+humano do novo Preview, a mesma tentativa já paga saiu da espera e entrou no sistema. Os logs confirmaram
+`POST /api/signup/checkout/status` 200, eventos `billing.subscription.created` e
+`billing.trial.started`, `signup.provisioned` no plano `solo`, refresh de sessão e `GET /dashboard` 200.
+O tour iniciou e avançou no tenant provisionado. O retorno, a conciliação, o provisionamento e a entrada
+no dashboard passam a **PASS em DEV/Preview**.
+
+Validação local do corretivo: **4.402/4.402 testes em 419 arquivos**, TypeScript, ESLint, Prettier,
+inventário de segurança sem pendências e build Next de produção com `NODE_ENV=production`, todos com
+exit 0. A primeira tentativa de build, herdando um `NODE_ENV` não padrão do arquivo local, compilou mas
+falhou no prerender de `/404`; a repetição no ambiente de produção usado pela Vercel passou por inteiro.
+O CI remoto do commit `a417619` também passou integralmente em 12m33s, junto de Vercel, Semgrep e Snyk.
+
+### 42.7 Aceite humano, acabamento da entrada e estado demonstrativo — 27/09/2026
+
+O roteiro humano concluiu cadastro, confirmação, seleção de plano, Checkout Sandbox, retorno,
+reconciliação e entrada no dashboard. O Asaas mantém o botão **“Acompanhar pedido”** como ação de
+retorno: o contrato público usado pelo adapter oferece `successUrl`, `cancelUrl` e `expiredUrl`, mas
+não oferece `autoRedirect`. Enquanto a pessoa permanece na página hospedada, o Qoro não controla a
+navegação. Ao apertar o botão, `/cadastro/pagamento?resultado=success` faz o readback autoritativo e
+redireciona para o dashboard quando o tenant está provisionado.
+
+O acabamento posterior ao aceite deixou o código de oito dígitos centralizado no campo de largura
+fixa. A tela de plano passou a usar largura maior e três cards lado a lado a partir do desktop, com o
+preço mensal como informação principal. Clínica, espaçamentos, confirmação e ações foram compactados;
+depois de salvar, o botão de Checkout ocupa a mesma faixa de ações, sem criar um segundo card abaixo.
+No dashboard, a saudação usa o nome completo do profile: `Dr. Matheus` deixa de ser reduzido a `Dr.`.
+
+Para material de demonstração, somente no banco DEV, o usuário
+`4fe6ea1f-aed2-4232-88f5-1600513a3b4e` recebeu dados sintéticos idempotentes em sua clínica: CRM
+marcado como demonstração (`000000/SP`), especialidade, cinco pacientes fictícios, dois procedimentos,
+agenda de segunda a sexta, oito consultas do dia, seis lançamentos financeiros, três recebimentos,
+seis dias de série financeira e cinco atividades de auditoria. O tour foi marcado como concluído e o
+checklist dispensado para não cobrir o dashboard na captura. Nenhuma linha foi criada em produção e
+nenhuma conexão fictícia de WhatsApp foi adicionada. O readback pelas mesmas queries da tela mediu 7
+consultas, 1 aguardando, 1 em atendimento, 2 finalizadas, 1 falta, 1 cancelamento, R$ 910 recebidos no
+dia, R$ 460 a receber, R$ 420 a pagar e cinco atividades recentes.
+
+Validação local: **56/56 testes focados**, suíte integral **4.403/4.403 em 419 arquivos**, TypeScript,
+ESLint integral, Prettier dos arquivos tocados e build otimizado do Next 15.5.24, todos com exit 0.
+
+## 43. Auditoria integral de funcionalidade e testes — iniciada em 28/09/2026
+
+Esta auditoria iniciou **PARCIAL** em `snapshot/estado-atual-2026-09-27`, base
+`7d6032dd98e03be53b1f86105dcdd9ce1c5079be`. Em 29/09/2026, o trabalho foi
+reaplicado sobre a `main` `5c6f5503d4a356b19bd594a00c3079b63613d74a`, já com os PRs #20–#23.
+Não houve push, deploy, migration ou acesso a produção. Houve Asaas Sandbox com cleanup confirmado, chamadas
+Gemini de baixo custo e uma mensagem Resend DEV para caixa consentida. O prompt
+não rastreado já presente foi preservado.
+O relatório reproduzível é
+[`quality/auditoria-integral-execucao.md`](quality/auditoria-integral-execucao.md),
+com adendos na [matriz](quality/e2e-coverage-matrix.md), na
+[auditoria E2E](quality/e2e-coverage-audit.md) e no
+[discovery log](discovery-log.md).
+
+A baseline segura passou em formato, tipos, lint, migrations, observabilidade,
+registry, arquitetura, cobertura (3.763/3.763 em 384 arquivos), segurança
+unitária (332/332), isolamento tenant com teardown zero e build Next 15.5.24.
+O browser HttpOnly passou 6/6. O E2E público teve 6 PASS e 2 skips condicionais
+de Turnstile, portanto é `PARTIAL`, não 8/8. O inventário inicialmente falhou por
+drift do documento gerado; depois do readback ficou PASS em 174 actions e 43
+métodos, sem gaps.
+
+Os falsos verdes apontados no prompt foram removidos: a navegação autenticada
+exige 200 e conteúdo por rota; deep-link sem fixture falha depois de comprovar o
+estado vazio; `/admin` exige 404 no HTML e o fallback 404 explícito no transporte
+RSC após controle positivo; falha de
+login não vira “rate limit provável”; o estado Asaas é fechado e sua limpeza
+preserva a falha original; modelo de receita usa seletor estável e cleanup
+garantido. O ciclo Asaas mutável exige o opt-in
+`E2E_PAYMENT_ACCOUNT_MUTATION=dev-sandbox`.
+
+O gate HTTP encontrou um defeito real apesar do exit 0: cancelar série recorrente
+lia `FormData` antes de autenticar e devolvia detalhe interno para cookie inválido.
+O wrapper agora autentica e autoriza antes da entrada, mantendo a permissão fresh
+do domínio; 2/2 regressões focadas passaram. A política de artefatos também foi
+fechada: sem `E2E_ARTIFACTS=1`, trace, screenshot e vídeo ficam desligados, e um
+ratchet impede overrides nos specs; 2/2 passaram.
+
+O rebuild encontrou outra exposição: `autosaveProntuario` executava o Zod antes
+da autenticação e devolvia sua estrutura para cookie inválido. A validação
+duplicada saiu do adaptador; o domínio continua sendo a fonte do schema e agora
+autentica primeiro. A regressão focal e o gate HTTP final passaram.
+
+O harness completo de cadastro também mordeu um 403 real: em `next start`, a URL
+interna podia ser reconstruída com `localhost` enquanto o browser solicitava
+`127.0.0.1`. A origem legítima era comparada à autoridade errada. A rota agora
+usa o `Host` efetivamente solicitado, com fallback para a URL. Vinte e cinco
+testes focais e os 24 checks do percurso Postgres/Next/Chromium passaram, com
+cleanup zero; Auth, Redis e envio de e-mail externos continuam fora dessa prova.
+
+O candidato final voltou a passar build, bundle, HTTP (306 requests), browser
+HttpOnly 6/6 e E2E público 6 PASS + 2 skips condicionais. Depois do hardening
+final do adapter, o build normal passou novamente e a regressão integral fechou
+3.771/3.771 em 387 arquivos, em 112,49 s.
+
+O build normal de produção também saiu 0. A carga isolada passou com 500
+consultas, 5.000 jobs, 1.000 webhooks 2xx, 20 reconciliações concorrentes, zero
+deadlock e cleanup completo do PostgreSQL scratch. No Asaas Sandbox, pagamentos
+passaram 18/18: baixa em dinheiro desfeita e três cobranças, webhook e customer
+ausentes/deleted no readback. Uma execução intermediária capturou HTTP 500 do
+provider no DELETE, falhou honestamente e ainda limpou tudo; a repetição passou.
+Billing provou `ACTIVE` → `INACTIVE`, com customer ausente no fim. O cenário de
+refund após pagamento real ficou `NOT TESTED`.
+
+Essa repetição mostrou IDs completos saindo pelas métricas do adapter, apesar da
+redação do runner. O adapter agora redige IDs do Asaas e `externalReference` nos
+campos e mensagens observáveis sem alterar a URL real; 43/43 testes focados e a
+saída live final passaram sanitizados.
+
+O Gemini live passou o inventário de 15 tools e os dois function calls esperados.
+O adversarial rodou 2/50 e ficou `BLOCKED` por 429, inclusive após retry. O
+primeiro Resend foi bloqueado antes do envio porque faltava classificação
+positiva. Na repetição com DEV explícito e caixa consentida, o provider aceitou
+a mensagem; chegada ao inbox continua `NOT TESTED`.
+
+O Supabase Auth DEV passou login, claims, refresh e revogação global, seguido de
+readback com zero fixture SQL/Auth. O Upstash DEV respondeu `PONG` autenticado
+em host HTTPS allowlisted. Ainda faltam os E2E autenticados contra Preview DEV
+isolado, leitura do inbox/fluxo de cadastro, Storage e as credenciais específicas de Preview/PROD. Os
+44 `production-*` não foram executados.
+Meta/WhatsApp externo permanece `ADIADO_WHATSAPP`; lógica interna determinística
+continua no denominador.
+
+## 44. Continuação da auditoria e feedback idempotente de assinatura — 29–30/09/2026
+
+O relatório detalhado e a separação entre **existe**, **executou** e **passou**
+foram atualizados em
+[`quality/auditoria-integral-execucao.md`](quality/auditoria-integral-execucao.md)
+e [`quality/e2e-coverage-matrix.md`](quality/e2e-coverage-matrix.md). O inventário
+dos 75 arquivos permanece em
+[`quality/e2e-75-files-inventory.md`](quality/e2e-75-files-inventory.md).
+
+Nesta continuação, `/admin` positivo passou 12/12 e a fronteira negativa passou
+1/1 com owner DEV sintético: 11 páginas/deep-links, RSC e quatro handlers foram
+negados, seguidos de cleanup zero. O teste foi corrigido porque o Flight carrega
+`NEXT_HTTP_ERROR_FALLBACK;404` em um envelope HTTP 200, o HTML bruto contém o
+nome da rota em scripts e probes diretos precisavam enviar explicitamente o
+cookie `Secure` do contexto. Turnstile condicional passou
+2/2; o probe externo de Storage DEV passou com isolamento e cleanup; o corpus
+Gemini original executou 10/48 antes de a quota diária bloquear os 38 restantes;
+e os 44 `production-*` foram coletados/invocados, mas nenhum cenário funcional
+recebeu PASS (44 skips e três bloqueios de pré-condição em 47 casos). PIX e
+cartão no checkout hospedado ficaram bloqueados pelo reCAPTCHA e foram limpos no
+Sandbox. O inbox Resend foi preparado e a API localizou a mensagem, mas a
+leitura final depende do endereço consentido configurado.
+
+A matriz RBAC DEV criou cinco usuários distintos e comprovou os bundles reais.
+A navegação foi endurecida porque podia aceitar `/login` como falso sucesso e
+porque aguardava recursos externos depois de a página estar pronta. Após duas
+tentativas inválidas no modo dev por timeout/restart do Next, o build atual
+passou e a execução contra `next start` percorreu as 75 combinações de cinco
+roles por quinze áreas: **PASS 1/1**. Em execução isolada, o cenário dinâmico
+também passou 1/1: o owner concedeu e removeu `manage:procedures`, e a sessão
+antiga foi revogada nas duas transições de `claims_version`. As fixtures foram
+removidas com readback zero. O
+WhatsApp real continua bloqueado pela divergência entre callback Meta PROD e o
+número/tenant DEV; não foi atravessado ambiente para produzir uma prova falsa.
+
+A auditoria autenticada somente leitura também saiu da lista pendente. Com owner
+practitioner, paciente e conversa sintéticos, o browser comprovou 26/26 rotas
+estáticas em HTTP 200 com o heading correto e abriu os deep-links reais de
+paciente e conversa. O teste de conversas foi alinhado à seleção atual por
+`?conversation=` sem abandonar a prova de `/conversas/[id]`. Resultado 2/2 e
+cleanup final de clínica, Auth, paciente e conversa em zero.
+
+O cancelamento de assinatura recebeu a confirmação visual que faltava. Ao
+terminar, o diálogo fecha e o alerta fica visível; após reload, o estado
+`cancelled` mostra um aviso persistente; repetir cancelamento já aplicado ou já
+agendado devolve confirmação idempotente e não chama o Asaas outra vez. O probe
+de produção desatualizado também foi alinhado ao contrato vigente: cancelamento
+é permitido em trial, porém o probe só abre e fecha o diálogo, sem submeter
+mutação. A validação focada passou 47/47, com TypeScript, ESLint, inventário de
+segurança, `diff --check` e build Next 15.5.24 verdes.
+
+### Incidentes Sentry de 30/09/2026
+
+Doze eventos anexados foram confrontados com source, testes e readbacks atuais.
+Três `NO_PROFILE` eram sessões locais de fixture ainda ativas depois da remoção
+do profile; Conversas passou a usar `pageGate` e o polling de handoff trata a
+identidade ausente como fila vazia, com regressões focadas. Dois erros de schema
+eram releases históricas: PROD atual tem 107 migrations, a coluna 0103, a tabela
+0104 e suas três policies. Quatro falhas read-only confirmaram recorrência do
+D88 em 28/09, embora 48/48 amostras atuais estejam graváveis e os quatro crons
+tenham heartbeat posterior `success`. Três `CONNECT_TIMEOUT` foram transitórios;
+health estrito atual respondeu HTTP 200. O detalhamento e os IDs estão em
+[`quality/auditoria-integral-execucao.md`](quality/auditoria-integral-execucao.md).
+
+Na mesma repetição, `tenant-settings-screens` passou **3/3** contra build local
+e DEV: CSV real de auditoria, fila LGPD e CRUD completo de modelo de receita,
+com cleanup 0/0/0. O falso negativo anterior vinha de alternar
+`127.0.0.1`/`localhost`, separando o escopo dos cookies `Secure`; alinhar o host
+do harness bastou, sem mudar o produto.
+
+## 45. Revalidação independente do 2e2 — 30/09/2026
+
+Esta rodada partiu do worktree real `snapshot/estado-atual-2026-09-27`, em
+`5c6f550`, preservando 102 arquivos modificados e 11 arquivos novos de trabalhos
+concorrentes. Nenhum reset, clean, checkout, merge ou rebase foi executado. Os
+arquivos da investigação WhatsApp foram mantidos intactos.
+
+### 45.1 Regressão do checkout atual
+
+| Evidência | Resultado |
+| --- | --- |
+| `npx tsc --noEmit` | **PASS**, exit 0 |
+| `npx eslint .` | **PASS**, exit 0 |
+| `npx vitest run` | **PASS**, 431 arquivos e 4.496 testes, zero falha, 116,16 s |
+| incidentes `NO_PROFILE` + journal + Supavisor ratchet | **PASS**, 5 arquivos e 19 testes |
+| `npx next build` | **PASS**, Next 15.5.24, compilação otimizada em 4,6 min e 18 páginas estáticas |
+| `E2E_ARTIFACTS=0 npx playwright test --config=playwright.ci.config.ts --reporter=line` | **PASS parcial**, 6 casos executados e aprovados, 2 skips condicionais declarados, exit 0 em 26,3 s |
+
+Esses resultados validam somente o conteúdo deste worktree. Eles não provam
+paridade com o deployment nem com o schema de produção.
+
+### 45.2 Divergência crítica entre source e banco
+
+O readback somente leitura de `drizzle.__drizzle_migrations` encontrou **107**
+entradas em produção contra **105** migrations neste checkout. A comparação por
+hash encontrou 13 hashes locais ausentes no banco e 15 hashes do banco ausentes
+no checkout. As duas versões finais registradas em `_schema_version` são
+`signup-hosted-checkout` e `signup-checkout-collects-payer`, correspondentes às
+migrations `0105–0106`; esses arquivos não existem nesta branch nem em
+`origin/main`, mas existem em `integration/estado-completo-atual-2026-09-27`.
+
+Veredito: **FAIL de consistência source ↔ banco para este checkout**. O banco
+contém as estruturas aplicadas, mas não é possível afirmar que esta branch
+reproduz produção. Nenhuma migration foi aplicada ou revertida nesta auditoria.
+O build reforça a diferença: ele não contém a página hospedada
+`/cadastro/pagamento` presente na branch de integração.
+
+### 45.3 Evidência externa desta rodada
+
+- `payments-account-lifecycle` em Preview: **1 PASS + 1 SKIP por pré-condição**.
+  A chave inválida foi recusada sem vazamento e sem mudar o estado. O ciclo
+  conectar/desconectar não foi forçado porque a clínica já estava conectada e
+  reutilizar a mesma conta Sandbox poderia substituir o webhook vigente.
+- Resend DEV: **PARTIAL**. O provider aceitou a mensagem e a cópia enviada foi
+  recuperada por API (`queued`). A API de recebidos retornou zero mensagens e
+  `E2E_RESEND_INBOX_ADDRESS` está ausente; leitura do inbox, clique recebido,
+  replay, expiração e cleanup do fluxo recebido continuam `BLOCKED`.
+- Gemini, corpus original 3–50: **14 PASS** (3–16). O cenário 17 recebeu três
+  HTTP 429 consecutivos; ele é `BLOCKED — provider`. Os cenários 18–50 são
+  **NOT RUN** nesta rodada, pois o runner encerra no primeiro bloqueio externo.
+- Produção `production-*`: quatro casos têm PASS funcional nesta auditoria:
+  fronteira anônima, RLS read-only, RLS de mutações com rollback e preço de
+  fundador. Consolidado atual dos 47 casos: **4 PASS, 40 SKIP e 3
+  PRECONDITION BLOCKED**. Logout/replay e recovery não foram forçados: não
+  existe owner sintético elegível com o baseline de quatro membros ativos.
+- Landing/Google Ads: `comecar` **27/27**, `conversao` **2/2** e `seguranca`
+  **20/20**. Captura, allowlist, destino fixo e configuração estão provados;
+  crédito final no Google Ads continua `BLOCKED` pela campanha inativa.
+
+### 45.4 Asaas Sandbox
+
+O bloqueio anterior por reCAPTCHA não descreve todo o Sandbox atual. O endpoint
+oficial `POST /sandbox/payment/{id}/confirm` confirmou uma cobrança PIX, cujo
+readback chegou a `RECEIVED`. Uma cobrança com o cartão oficial de teste foi
+processada diretamente e chegou a `CONFIRMED`. Não houve dinheiro real.
+
+O refund terminal continua aberto. No PIX, o refund integral foi recusado por
+`invalid_action`; o parcial foi aceito, porém permaneceu em
+`AWAITING_CRITICAL_ACTION_AUTHORIZATION`, sem chegar a `DONE`. No cartão, a
+solicitação de refund foi recusada por `invalid_action`. Os customers sintéticos
+foram removidos; cobranças pagas/refund pendente são registros terminais que o
+provider recusou apagar e ficaram identificadas por `externalReference` E2E.
+Os dois webhooks da conta continuaram `enabled=true` e `interrupted=false` antes
+e depois, mas isso não é prova individual de entrega HTTP 2xx.
+
+### 45.5 Incidentes e risco remanescente
+
+- `NO_PROFILE`: **corrigido e com regressão**, inclusive Conversas e polling de
+  handoff (19/19 no lote de incidente).
+- migrations ausentes em releases históricas: o banco tem 107 entradas, porém
+  a divergência de source acima impede declarar paridade desta branch.
+- Supavisor read-only: existe ratchet e a recuperação atual foi observada; a
+  origem externa permanece desconhecida, portanto **mitigado**, não resolvido.
+- `CONNECT_TIMEOUT`: o cliente falha em até 10 s; `withCron` captura no Sentry,
+  emite métrica, grava heartbeat de erro e devolve 500. Não existe retry interno
+  nem circuit breaker de conexão. A execução seguinte do cron é a recuperação
+  operacional; a causa raiz externa continua desconhecida.
+- WhatsApp → IA → resposta real: **NOT RUN** por esta rodada; pertence ao agente
+  concorrente e não foi duplicado.
+
+## 46. Fechamento de e-mail recebido e continuação do corpus — 30/09/2026
+
+Esta continuação preservou o mesmo worktree compartilhado, sem reset, clean,
+checkout, merge ou rebase. As alterações da investigação WhatsApp foram mantidas
+fora desta frente. A evidência abaixo vale para o source local atual e para o
+Supabase/Resend de DEV; ela não promove automaticamente o Preview antigo nem a
+`main` a PASS.
+
+### 46.1 Inbox Resend real
+
+`E2E_RESEND_INBOX_ADDRESS` foi configurado com um inbound address consentido. O
+runner `email:inbox-check` executou a cadeia Qoro → Resend enviado → evento
+`delivered` → inbox recebido → conteúdo/nonce, sem imprimir endereço, corpo,
+token ou identificador completo. Resultado: **PASS**.
+
+O inspector passou a esperar um evento terminal positivo (`delivered`, `opened`
+ou `clicked`) e a falhar explicitamente em `bounced`, `complained`, `canceled` ou
+`failed`. Cinco testes focados travam paginação, leitura enviada/recebida,
+timeout e rejeição.
+
+### 46.2 Cadastro e redefinição de senha
+
+O cadastro atual executou cinco contratos no build local: negativa sem sessão,
+jornada telefone → e-mail → código → senha, compatibilidade legada, callback
+genérico e reenvio antigo/novo. Todos passaram. O Preview existente respondeu
+403 no bootstrap porque ainda não contém a correção local de autoridade `Host`;
+portanto o resultado remoto permanece **BLOCKED por deployment desatualizado**.
+
+O reset de senha por e-mail real revelou um defeito novo em conta com TOTP. O
+link de recovery produz sessão AAL1; o GoTrue recusava `updateUser` com
+`insufficient_aal`, mesmo depois de a aplicação validar o grant one-time e
+revogar o epoch anterior. A Server Action agora usa a Admin API somente nesse
+ramo, depois da prova, da identidade autoritativa e do CAS. Falha da Admin API
+consome a prova e exige link novo; `weak_password` e `same_password` continuam
+com as regras anteriores.
+
+O E2E DEV executou pedido na UI, mensagem recebida no Resend, link real, rejeição
+HIBP, recovery da conta TOTP e retorno a
+`/login?reason=password_updated`; a senha da fixture foi preservada e o cleanup
+terminou completo. Regressão focada: **25/25** na action.
+
+### 46.3 Convite de equipe recebido e aceito
+
+Um E2E anterior à correção provou a falha: o auto-send do Supabase entregou um
+link que consumiu o OTP em `/auth/v1/verify` e terminou em `/login`, sem abrir
+`/convite`. O convite inicial e o reenvio agora pedem ao GoTrue somente o
+`token_hash`, renderizam o template versionado
+`team-invite.v1` e enviam pelo Resend. O link canônico usa fragmento
+`/auth/confirm#token_hash=…&type=recovery&next=/convite`; a UI mantém a cópia do
+link como fallback.
+
+O runner `email:team-invite-e2e` comprovou no DEV local:
+
+1. convite inicial recebido;
+2. reenvio recebido e com token diferente;
+3. link antigo recusado;
+4. link novo abriu `/convite`;
+5. senha criada e aceite persistido no tenant correto;
+6. replay recusado;
+7. profile/Auth/idempotência da fixture removidos por readback.
+
+Resultado: **PASS ponta a ponta local**. A repetição contra o Preview antigo não
+chegou ao aceite e é **BLOCKED por deployment desatualizado**, não PASS remoto.
+A [ADR-034](adr/034-invite-resend-copy-link.md) foi reconciliada: Resend é o
+canal primário e o clipboard é fallback.
+
+### 46.4 Gemini e gates focados
+
+O corpus original continua sendo 48 cenários, numerados de 3 a 50. Nesta rodada,
+os cenários 17–29 foram executados; 21 e 22 passaram após retry de timeout, 28
+passou após um timeout e 29 passou após dois HTTP 429. O cenário 30 recebeu três
+HTTP 429 consecutivos e encerrou a execução com exit 1. Fotografia atual:
+
+| Faixa | Estado |
+| --- | --- |
+| 3–29 | **27 PASS** funcionais |
+| 30 | **BLOCKED — provider 429** |
+| 31–50 | **20 NOT RUN**, preservados para a próxima janela de quota |
+
+Não houve mock, troca silenciosa de provider ou redução do denominador. Os
+relatórios isolados desta continuação estão em
+`docs/audits/C11_ADVERSARIAL_17_17.md`, `C11_ADVERSARIAL_21_21.md`,
+`C11_ADVERSARIAL_22_22.md` e `C11_ADVERSARIAL_28_28.md`; os demais resultados
+foram observados pelo runner, que não grava relatório quando o lote encerra em
+falha externa.
+
+Os quatro lotes focados de e-mail/reset passaram **38/38**. O TypeScript passou
+com exit 0. O inventário de segurança foi regenerado depois das Server Actions:
+**180 actions, 49 métodos de rota, zero unresolved, zero gaps de teste de rota e
+zero variável pública fora do registro**.
+
+### 46.5 Regressão integrada do worktree compartilhado
+
+Depois das correções, a validação integral foi refeita sobre o estado combinado
+do worktree:
+
+| Gate | Resultado |
+| --- | --- |
+| `npx vitest run` | **PASS**, 433 arquivos e 4.507 testes, zero falha, 270,56 s |
+| `npx eslint .` | **PASS**, exit 0 |
+| `npx tsc --noEmit` | **PASS**, exit 0 |
+| `npx prettier --check .` | **PASS**, exit 0 após formatar dois runners da auditoria |
+| `npx next build` | **PASS**, Next 15.5.24, 18 páginas estáticas |
+| `local-build.ts` | **PASS**, build isolado atual recompilado para o gate CI |
+| Playwright público | **6 PASS + 2 SKIP condicionais**, exit 0 em 29,6 s |
+
+A primeira tentativa do Playwright usou um `dist/security-local` anterior e
+falhou com `ECONNRESET` na primeira rota. Ela também revelou que
+`playwright.ci.config.ts` retinha trace mesmo com `E2E_ARTIFACTS=0`. O config de
+CI passou a usar o mesmo opt-in explícito da suíte principal, e o teste de
+política passou a verificar ambos os configs. Após rebuild isolado, a repetição
+passou; o readback de `test-results` mostrou apenas `.last-run.json`, sem trace,
+screenshot ou vídeo. Regressão focal do ratchet: **2/2**.
+
+### 46.6 Estado honesto que permanece aberto
+
+- as 44 suítes `production-*` continuam em **4 PASS, 40 SKIP e 3
+  PRECONDITION BLOCKED** nos 47 casos; invocação ou skip não virou PASS. A linha
+  por suíte está em
+  [`quality/production-44-execution.md`](quality/production-44-execution.md);
+- Gemini 3–29 está em **27 PASS**; o cenário 30 continua **BLOCKED** por HTTP
+  429 do provider e 31–50 permanecem **NOT RUN**;
+- `payments-account-lifecycle` em Preview continua em **1 PASS + 1 PRECONDITION
+  BLOCKED**, pois falta uma segunda conta Sandbox dedicada para não substituir o
+  webhook vigente;
+- refund PIX/cartão continua bloqueado antes do estado terminal `DONE` no Asaas;
+- o Preview ainda precisa receber o source atual para provar cadastro e convite
+  neste deployment;
+- a divergência de 105 migrations no checkout contra 107 no banco continua
+  **FAIL de reprodutibilidade** até integrar 0105–0106 com segurança;
+- crédito final de Google Ads continua bloqueado pela campanha inativa;
+- causa externa do Supavisor read-only e mitigação estrutural do
+  `CONNECT_TIMEOUT` continuam não comprovadas;
+- WhatsApp → tenant → IA → outbound real continua sob responsabilidade do agente
+  concorrente e não recebeu PASS artificial nesta rodada.
+
+### 46.7 Fronteira de integração com a `main`
+
+O `fetch` final encontrou este worktree em `5c6f550` e `origin/main` em
+`39902ba`. A diferença é o PR #24 (`d95a692`), que melhora o feedback de senha
+e o preenchimento por gerenciadores. Cinco dos dez arquivos desse PR também
+estão modificados neste worktree (`docs/qorov2.md`, `docs/security/acoes.md`,
+`e2e/password-reset.spec.ts`, `reset-password/actions.ts` e seu teste), inclusive
+com a correção independente de recovery para conta TOTP.
+
+Nenhum merge ou rebase foi executado sobre a árvore compartilhada e suja. Fazer
+isso agora misturaria as alterações desta auditoria, o PR #24 e o trabalho
+concorrente de WhatsApp sem uma fronteira revisável. A integração final deve ser
+feita em worktree limpo, preservando os dois comportamentos de senha e repetindo
+Vitest, ESLint, TypeScript, Prettier, build e os E2E de recovery. Portanto, a
+regressão da § 46.5 é evidência do worktree atual; ela não declara que esta
+rodada já está publicada na `main`.
+
+## 47. Integração isolada e fechamento de Gemini/conta de pagamentos — 01/10/2026
+
+A integração foi feita fora do worktree concorrente, na branch
+`integration/2e2-final-20260930`, partindo de `origin/main=39902ba`. Ela preserva
+o PR #24, incorpora o checkout hospedado e as migrations 0105–0106, e traz o
+source auditado das §§ 43–46 sem os arquivos de WhatsApp. O commit `1a59491` foi
+publicado no Preview da branch antes das provas remotas. A `main` ainda não foi
+alterada por esta rodada.
+
+### 47.1 `payments-account-lifecycle` em Preview
+
+O runner ganhou um modo de fixture isolada, ativado somente com
+`E2E_PAYMENT_ACCOUNT_ISOLATED=1` e o opt-in já existente
+`E2E_PAYMENT_ACCOUNT_MUTATION=dev-sandbox`. Ele:
+
+1. recusa produção e confere que Database e Auth apontam ao mesmo projeto DEV;
+2. cria tenant, assinatura ativa e owner exclusivos;
+3. usa uma senha aleatória mantida somente na memória;
+4. exercita a tela real do Preview com a conta Asaas Sandbox autorizada;
+5. remove clínica e Auth no `afterAll` e exige readback zero.
+
+Execução funcional contra o Preview da branch: **2/2 PASS em 39,9 s**. O primeiro
+caso recusou chave inválida, limpou o campo e não devolveu o segredo no HTML. O
+segundo conectou, comprovou persistência, desconectou e terminou sem resíduos da
+fixture. O bloqueio anterior por clínica já conectada está encerrado sem tocar a
+conta de outro tenant.
+
+### 47.2 Gemini 3–50
+
+O modelo configurado anteriormente, `gemini-2.5-flash`, foi listado pelo
+endpoint de modelos, mas a geração real passou a responder HTTP 404 informando
+que ele não estava disponível para esta conta. O default foi migrado para
+`gemini-3.8-flash`; tabela de preço, limite horário, smoke, seeds e documentação
+foram atualizados em conjunto. A linha histórica do 2.5 permanece na tabela para
+calcular mensagens antigas.
+
+O corpus original foi reexecutado com o provider real, sem mock e sem reduzir o
+denominador:
+
+| Faixa | Chamadas | Resultado | Custo calculado |
+| --- | ---: | --- | ---: |
+| 3–29 | 27 | **27 PASS** | US$ 0,054204 |
+| 30 | 1 | **1 PASS** | US$ 0,002006 |
+| 31–50 | 20 | **20 PASS** | US$ 0,040200 |
+| **Total** | **48** | **48/48 PASS**, zero resposta final insegura | **US$ 0,096410** |
+
+Os relatórios estão em `docs/audits/C11_ADVERSARIAL_3_29.md`,
+`C11_ADVERSARIAL_30_30.md` e `C11_ADVERSARIAL_31_50.md`. A regressão focada de
+custo/provider/env/quota passou **44/44**; TypeScript e ESLint passaram. Essa
+prova encerra o bloqueio de quota/modelo desta rodada, mas não comprova por si só
+o fluxo WhatsApp real, reservado à integração do agente concorrente.
+
+O primeiro smoke C11 expôs um defeito do harness: ele consumia a fila global em
+lotes de dois e podia marcar eventos de outros tenants antes de alcançar a
+fixture. Os eventos da fixture foram processados depois, mas seis asserções já
+tinham expirado. O runner passou a priorizar apenas seu próprio evento e executar
+um slot do worker por vez. Na repetição, `smoke-c11` passou **18/18** e o readback
+encontrou zero clínicas `Smoke C11` residuais.
+
+## 48. Refund Sandbox, produção e incidentes de conexão — 01/10/2026
+
+Esta continuação ocorreu na branch isolada
+`integration/2e2-final-20260930`, sobre o commit `17e45a4`. O worktree
+concorrente e os arquivos de WhatsApp permaneceram intocados.
+
+### 48.1 Refund real no Asaas Sandbox
+
+Foi criado o runner opt-in `payments:refund-e2e`, preso no código ao host
+`api-sandbox.asaas.com`. Ele usa manifesto ignorado em `.playwright/`, confere a
+proveniência da conta por fingerprint, retoma os mesmos IDs e só remove o
+manifesto depois de ambos os métodos chegarem a estado terminal. Chaves, dados
+de cartão, PII e IDs integrais não entram no log.
+
+Com `ASAAS_CHAVE_TESTE_2`, a execução real obteve:
+
+| Método | Pagamento | Refund | Veredito |
+| --- | --- | --- | --- |
+| PIX | `RECEIVED`, R$ 10 | um refund existente em `AWAITING_CRITICAL_ACTION_AUTHORIZATION` | **BLOCKED** até autorização no painel e readback `DONE` |
+| cartão | `CONFIRMED`, R$ 10 | um refund terminal; replay recusado com HTTP 400 sem criar segunda devolução | **PASS** |
+
+O primeiro POST de PIX havia sido recusado com `invalid_action`; depois da
+autorização, o provider aceitou a solicitação e criou o refund pendente. O runner
+foi corrigido para tratar essa pendência como bloqueio, não como falha nem como
+sucesso, e continuar o cartão. Não haverá segundo POST de PIX: a próxima
+execução fará somente readback da mesma fixture. O customer e a fixture PIX
+permanecem preservados até o estado terminal, de propósito. Nenhuma API de
+produção foi chamada. Os contratos de proveniência/cleanup passaram **21/21**.
+
+A documentação oficial expõe o token Sandbox `000000` para ações críticas, mas
+a referência do endpoint de refund não define campo ou etapa para enviá-lo. Não
+foi inventado header nem bypass; a aprovação pendente continua manual no painel.
+
+### 48.2 Reexecução das 44 suítes `production-*`
+
+Os 44 arquivos continuam gerando 47 casos. A coleta conjunta contra
+`https://app.qoro.dev`, com todos os opt-ins mutáveis desligados, executou em
+8,8 s e produziu **44 SKIP + 3 PRECONDITION BLOCKED**. Os bloqueios são ausência
+das credenciais E2E de owner/doctor/senha compartilhada; o host está correto.
+
+Quatro specs foram habilitados isoladamente:
+
+- matriz RLS read-only: **PASS** em 6,1 s, 109 tabelas descobertas e zero leak;
+- matriz RLS de mutações com rollback: **PASS** em 2,0 min, 150/150 tentativas
+  cross-tenant negadas e nenhuma persistência;
+- preço fundador: **PASS** em 10,7 s, sem billing/Asaas;
+- fronteira anônima: **PRECONDITION BLOCKED** em 2,3 s porque produção tem
+  pacientes, prontuários e PDFs, mas zero `ai_conversations` para fornecer o ID
+  real exigido pelo teste.
+
+Consolidado atual por caso: **3 PASS, 0 FAIL de produto, 4 PRECONDITION BLOCKED e
+40 SKIP**. Por arquivo: **3 PASS, 4 PRECONDITION BLOCKED e 37 SKIP**. A tabela
+por suíte está em
+[`quality/production-44-execution.md`](quality/production-44-execution.md).
+
+O `production-team-lifecycle` tinha um defeito no próprio coletor: tentava abrir
+`.playwright/.auth/user.json` antes de avaliar o `skip`. O storage state agora é
+carregado somente com opt-in e sem owner override; a repetição sem autorização
+terminou em **1 SKIP, exit 0**. Nenhum cenário funcional foi promovido a PASS.
+
+A clínica nominalmente de teste possui três perfis ativos. Os specs de recovery
+e logout exigem quatro antes de criarem o próprio usuário sintético; portanto
+eles permanecem `SKIP`/pré-condição insatisfeita. Criar uma role ou selecionar
+usuário real apenas para executar a suíte não seria evidência legítima.
+
+### 48.3 Supavisor read-only e `CONNECT_TIMEOUT`
+
+Um probe atual abriu 48 conexões independentes pelo Transaction Pooler de
+produção: **48/48 responderam**, zero `transaction_read_only` ou
+`default_transaction_read_only`, zero recovery, dois backends, latência mínima
+1,1 s, p95 2,6 s e máxima 3,3 s. No mesmo instante, `pg_stat_activity` mostrou
+10/60 conexões, uma ativa e zero esperando lock. `outbox` e
+`signup-sessions-cleanup` tinham heartbeat recente `success`.
+
+Os ratchets de sessão, pool, deadline e cron passaram **23/23**. O código proíbe
+estado read-only persistente, falha conexão em 10 s, captura no Sentry, emite
+métrica, registra heartbeat de erro e devolve 500. Ele não repete o cron inteiro
+após erro ambíguo, pois handlers podem conter efeitos externos.
+
+O veredito permanece limitado: **recuperação e mitigação comprovadas; causa raiz
+externa desconhecida**. O probe saudável não explica qual cliente contaminou o
+backend Supavisor histórico nem elimina estruturalmente uma futura indisponibilidade
+de rede.
+
+### 48.4 Risco remanescente desta rodada
+
+- refund PIX: aprovar a ação crítica no painel Sandbox e reexecutar o mesmo
+  runner até o readback `DONE`;
+- 37 suítes de produção: fornecer contas E2E descartáveis, senha compartilhada e
+  fixtures próprias; quatro casos hoje têm pré-condição bloqueada;
+- WhatsApp real: integrar e revalidar as branches do agente concorrente somente
+  na etapa penúltima;
+- Google Ads: crédito final continua dependente da campanha ativa;
+- executar build/regressão integral depois da integração de WhatsApp;
+- repetir manualmente `/cadastro`, conforme roteiro humano, depois do Preview
+  final.
+
+## 49. Integração final de WhatsApp e revalidação do Google Ads — 01/10/2026
+
+### 49.1 Integração preservando os dois trabalhos
+
+As branches `feat/embedded-signup-v4` (`017c415`, `5afcd05`) e
+`feat/whatsapp-coexistence` (`3e7d98f`, `13e931b`) foram mescladas, nessa ordem,
+na branch isolada `integration/2e2-final-20260930`. Não houve merge na `main`.
+O único conflito foi o journal do Drizzle: a resolução manteve 0105 e 0106 e
+acrescentou 0107 com `idx=107` e `when=1790781546069`. Nenhum dos dois lados foi
+descartado.
+
+O inventário de segurança foi regenerado depois das Server Actions: 180 actions,
+51 route methods, 16 props, 272 acessos a `process.env`, zero gaps de rota e zero
+variáveis públicas não registradas. A suíte direcionada de conexão, webhook,
+eco do Business App, handoff, retenção, migration e v4 passou **268/268**. O
+build Next de produção passou e a regressão integral terminou com **4.576/4.576
+testes em 442 arquivos**.
+
+O primeiro CI do PR integrado parou antes dos testes no gate
+`pnpm audit --prod --audit-level high`: duas advisories novas de DoS atingiam
+`brace-expansion` 5.0.9, transitivo de Sentry → glob → minimatch. O override foi
+elevado para 5.0.11, o lockfile foi regenerado e o mesmo audit passou com exit 0;
+restou uma advisory moderada, abaixo do threshold high do gate.
+
+O readback do banco DEV confirmou as três estruturas da migration 0107:
+
+- `clinic_whatsapp_numbers.coexistence boolean NOT NULL`;
+- `ai_messages.sent_via_business_app boolean NOT NULL`;
+- `whatsapp_business_app_echoes` existente, com duas policies.
+
+A migration 0107 **não foi aplicada em produção** nesta rodada. Ela continua
+pendente do merge e do procedimento de migration aprovado para produção.
+
+### 49.2 Preview e limite da nova execução WhatsApp
+
+O commit integrado `f8caa05` foi publicado com sucesso no Preview:
+
+`https://project-os-git-integration-2e2-f-d89837-clinic-os-v2-s-projects.vercel.app`
+
+O E2E autenticado `whatsapp-profile.spec.ts` contra esse Preview terminou em
+**2 PASS + 4 SKIP** em 43,5 s. Os passes provaram que a tela abre sem 5xx/erro de
+página e que o estado sem número conectado não oferece um formulário que o
+servidor recusaria. Os quatro casos dependentes de número conectado foram
+corretamente pulados; não viraram PASS.
+
+O banco explica o estado: a única conexão de coexistência foi conectada em
+30/09 às 23:01 UTC e desconectada às 23:29 UTC, depois da prova externa do outro
+agente. Portanto, esta rodada não repetiu mensagem real nem alterou subscription.
+A evidência fornecida pelo agente anterior relata a jornada completa
+`paciente → webhook → IA → outbound delivered`, a pausa por resposta do celular
+e a devolução ao agente. Nesta integração foram comprovados código, schema,
+testes, build e Preview; a jornada Meta real não foi reexecutada e permanece
+classificada separadamente como evidência anterior.
+
+### 49.3 Google Ads
+
+Na landing `qoro.dev`, os gates atuais passaram:
+
+- `npm run conversao`: **2/2 PASS**, medição ligada;
+- `npm run comecar`: **27/27 PASS**;
+- lint e TypeScript: exit 0;
+- build integral: exit 0, 53 rotas prerenderizadas, 20 verificações de segurança.
+
+Uma travessia real e somente de leitura operacional por
+`https://qoro.dev/comecar` carregou `www.googletagmanager.com/gtag/js`, emitiu
+requisições de conversão para endpoints do Google Ads e terminou em
+`https://app.qoro.dev/cadastro`. Isso comprova a emissão técnica do sinal. Não
+comprova que o Google Ads atribuiu crédito à ação `Cadastro iniciado`; com a
+campanha desativada, essa confirmação continua **BLOCKED** até uma visita real
+atribuível depois da ativação.
+
+### 49.4 Estado final desta integração
+
+| Área | Estado | Evidência |
+| --- | --- | --- |
+| Embedded Signup v4 + coexistência | **PASS de integração** | merge ordenado, 268/268, build e regressão global |
+| Migration 0107 em DEV | **PASS** | readback das três estruturas e duas policies |
+| Migration 0107 em produção | **NOT RUN** | não autorizada nem necessária antes do merge |
+| WhatsApp no Preview sem conexão | **2 PASS / 4 SKIP** | E2E autenticado, 43,5 s |
+| WhatsApp → IA → resposta real nesta rodada | **NOT RUN** | fixture desconectada após a prova anterior |
+| Google Ads, emissão do evento | **PASS** | tag carregado, request de conversão observado, destino correto |
+| Google Ads, crédito final | **BLOCKED** | campanha inativa |
+| Build Next | **PASS** | build completo, exit 0 |
+| Regressão Vitest | **PASS** | 442 arquivos, 4.577 testes no CI final |
+
+Permanecem fora da `main`: os commits deste worktree isolado. Permanecem como
+ações externas/manuais: concluir o refund PIX pendente no painel Sandbox,
+reexecutar `/cadastro`, ativar a campanha antes da prova de atribuição, aplicar
+0107 em produção somente depois do merge e, se for desejada uma nova prova Meta,
+refazer o Embedded Signup no número consentido de teste.
+
+### 49.5 Regressão do gate HTTP do CI
+
+O segundo CI integrado passou por audit de dependências, TypeScript, lint,
+arquitetura, migrations, observabilidade, registry, cobertura, inventário,
+isolamento de tenants e build, mas encontrou uma violação no gate HTTP:
+`fetchOpenHandoffs` respondia `200` com `[]` quando não havia sessão. O retorno
+vazio evitava o incidente `NO_PROFILE`, mas ocultava a negativa como sucesso.
+
+A Server Action passou a usar `authorizeAction` e um resultado discriminado:
+`{ ok: true, data }` ou `{ ok: false, error }`. O watcher continua sem exibir
+toast para expiração/revogação, zera o badge e reinicia seu baseline. A
+regressão direcionada passou **20/20**. O build isolado passou e os gates
+`security:bundle`/`security:http` observaram **177 arquivos de cliente no build
+local** e **175 no CI Linux**, ambos sem segredo, além de **328 requests de Server
+Actions** e **52 respostas `200` com negativa explícita**, incluindo
+`fetchOpenHandoffs`. A regressão final do CI passou **4.577/4.577 em 442
+arquivos** e o E2E público terminou em **6 PASS + 2 SKIP condicionais**. O
+inventário regenerado manteve 180 actions, 51 route methods e zero gaps.

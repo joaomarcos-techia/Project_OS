@@ -90,7 +90,7 @@ desse estoque.
 | --------- | ----------------------------------------------------------------------------------- |
 | `LOCAL`   | vitest, sem rede                                                                      |
 | `SCRATCH` | Postgres 17 efêmero sob o TEMP do SO, destruído ao fim                                |
-| `SCHEMA`  | `SCRATCH` com as **105 migrations reais** aplicadas em ordem + scaffolding Supabase    |
+| `SCHEMA`  | `SCRATCH` com as migrations reais da ponta aplicadas em ordem + scaffolding Supabase; resultados antigos registram explicitamente o total daquele SHA |
 | `SANDBOX` | Asaas sandbox real (`sandbox.asaas.com`), adapter de produção                          |
 | `BROWSER` | Chromium real contra o build de produção servido em loopback                           |
 | `DEV`     | projeto DEV compartilhado (nunca produção)                                             |
@@ -102,14 +102,15 @@ desse estoque.
 
 | Requisito                              | Código                           | Unit                           | Integração            | Contrato externo        | Resultado |
 | -------------------------------------- | -------------------------------- | ------------------------------ | --------------------- | ----------------------- | --------- |
-| Checkout hospedado, sem cartão no Qoro  | `signup-checkout.ts`             | `signup-checkout.test.ts` (27) | —                     | `SANDBOX` P1            | **PASS**  |
-| Plano/preço resolvidos no servidor      | `signup-billing.ts`              | `checkout/route.test.ts` (33)  | `SCRATCH` billing O-5 | —                       | **PASS**  |
-| Trial 7d, 1ª cobrança no fim            | `signup-checkout.ts`             | `signup-checkout.test.ts`      | —                     | `SANDBOX` P2            | **PASS**  |
+| Checkout recorrente hospedado, sem PII/cartão no Qoro | `signup-hosted-checkout.ts` + migrations 0105–0106 | `signup-hosted-checkout.test.ts` + `checkout-recurring.test.ts` | DEV: schema/readback 0105–0106 | criação real no `SANDBOX` | **PASS parcial** |
+| Plano/preço resolvidos no servidor      | `signup-billing.ts`              | `checkout/route.test.ts`       | `SCRATCH` billing O-5 | —                       | **PASS**  |
+| Trial 7d, 1ª cobrança no fim            | `signup-hosted-checkout.ts`      | contrato recorrente + readback | —                     | criação real no `SANDBOX` | **PASS parcial** |
 | Intenção antes do I/O + lease/CAS       | `signup-billing.ts`              | ordem de invocação asseverada  | `SCRATCH` billing O-5 | —                       | **PASS**  |
 | `creation_unknown` sem retry cego       | `signup-billing.ts` + CHECK 0103 | `signup-checkout.test.ts`      | `SCRATCH` billing O-5 | `SANDBOX` P3            | **PASS**  |
 | Reconcile por `externalReference`       | `signup-checkout.ts`             | `signup-checkout.test.ts`      | `SCRATCH` billing O-5 | `SANDBOX` P3            | **PASS**  |
 | Sem assinatura duplicada                | CAS + `UNIQUE` 0103              | —                              | `SCRATCH` billing O-5 | `SANDBOX` P4 (ver nota) | **PASS**  |
-| Documento exigido pelo provedor         | `validation/document.ts`         | `document.test.ts` (23)        | —                     | `SANDBOX` P1 (matriz)   | **PASS**  |
+| Dados do pagador coletados pelo Asaas   | body `{}` estrito; sem `customer/customerData` | rota recusa CPF/PII extra | DEV: `checkout_pending` sem customer | criação real aceita no `SANDBOX` | **PASS** |
+| Retorno, readback e provisionamento após cartão | rota de status + correlação exata | regressões de limite, fallback e ciclo | cobrança/assinatura reais relidas em DEV/Sandbox | reteste humano entrou no dashboard | **PASS DEV/Preview** |
 | Webhook da assinatura **do cadastro**   | rota `/api/webhooks/asaas`       | —                              | `SCHEMA`              | `SANDBOX` W1–W4         | **PASS**  |
 
 **Nota P4.** O sandbox provou que **o Asaas não tem idempotência**: duas criações concorrentes com a
@@ -176,6 +177,64 @@ Asaas não é a verdade sobre o estado**. A limpeza deste runner passou a ser ve
 
 ---
 
+### Emenda de Checkout recorrente hospedado — 26/09/2026
+
+A prova P1–P4 acima é histórica para o contrato substituído de `POST /subscriptions` direto. Ela
+continua válida como evidência de ausência de idempotência no provedor e da necessidade do CAS, mas
+**não prova** o Checkout recorrente atual.
+
+O contrato vigente cria `POST /checkouts` com `CREDIT_CARD` + `RECURRENT`, sem `customer` e sem
+`customerData`; o Asaas coleta documento, telefone, endereço e cartão. O Qoro persiste somente id e
+URL do Checkout até o retorno. A criação real no Sandbox passou e o cleanup foi relido. Tentativas
+com customer mínimo ou `customerData` parcial foram recusadas pelo próprio Asaas, o que determinou o
+payload atual. O preenchimento automatizado chegou ao POST final do Asaas, mas o Sandbox exigiu
+reCAPTCHA. A execução humana posterior concluiu o cartão e provou cobrança/assinatura no provider,
+porém o retorno não provisionou o tenant; esse resultado substitui o `NOT TESTED` anterior por **FAIL
+em reteste**.
+
+Na primeira execução do E2E no Preview, o clique final reproduziu `HTTP 400 invalid_object`: o
+adapter usava a descrição completa como `items[].name`, cujo limite real é 30 caracteres. Um probe com
+o mesmo payload isolou a mensagem do provider. Separar o nome técnico curto da descrição mudou a
+mesma criação de 400 para 200; o Checkout sintético foi cancelado com 200. O teste de contrato agora
+trava essa separação.
+
+O rerun automatizado contra o Preview HTTPS terminou **5/5 PASS**. No caso principal, a automação chegou
+ao domínio `sandbox.asaas.com`, encontrou a página de assinatura e releu no DEV o estado
+`checkout_pending` com id/URL e sem customer/assinatura. A limpeza cancelou o recurso externo e
+removeu a conta/draft. A conclusão com cartão foi exercitada depois e falhou no retorno ao Qoro.
+
+Os logs mostraram `202, 202, 202` e depois `429`: o polling usava o orçamento de escrita de 5/15 min,
+já parcialmente consumido pelo plano e pela criação do Checkout. O provider também omitiu a cobrança
+quando filtrada por `checkoutSession`, apesar de devolvê-la com o ID exato numa listagem limitada, e
+avançou `nextDueDate` da assinatura `ACTIVE` para o ciclo seguinte. O corretivo usa orçamento de leitura,
+fallback limitado com igualdade exata do checkout e aceita apenas a primeira data ou o próximo ciclo.
+O readback real confirmou a cobrança e a assinatura. No reteste humano, a mesma tentativa já paga
+produziu status 200, eventos de assinatura e trial, `signup.provisioned`, refresh de sessão e dashboard
+200. Provisionamento e dashboard passam a **PASS em DEV/Preview**.
+
+O corretivo passou localmente em 4.402 testes/419 arquivos, TypeScript, ESLint, Prettier, inventário de
+segurança e build Next de produção. Esses gates não promovem o resultado humano para PASS; a promoção
+acima vem do reteste separado no navegador e dos logs do Preview.
+O CI remoto do commit `a417619` passou em 12m33s; Vercel, Semgrep e Snyk também ficaram verdes.
+
+No retorno de sucesso, o Qoro não confia na URL: consulta a cobrança pelo `checkoutSession`, relê a
+assinatura e valida customer, `ACTIVE`, cartão, ciclo mensal, valor e vencimento antes de provisionar.
+Cancelamento/expiração também não confiam no callback: primeiro verificam ausência de assinatura,
+cancelam o Checkout no provider e só então limpam a tentativa por CAS. A migration 0106 foi aplicada
+ao DEV; readback confirmou as duas versões, as colunas e um único CHECK exigindo customer nulo em
+`checkout_pending`.
+
+Em 26/09/2026, 0105–0106 também foram aplicadas em produção com o migrador protegido: backup
+pré-migration de **2.741.328 bytes**, advisory lock `4242` adquirido/liberado e `DONE`, exit 0. O
+readback independente confirmou journal em 0106 (107 migrations), versões, colunas, `UNIQUE`, CHECKs,
+RLS `ENABLE` + `FORCE`, privilégios `anon`/`authenticated` ausentes, zero estado inválido e zero lock
+residual. Isso fecha o gate de schema; não publica nem mescla o runtime do PR #18.
+
+O pipeline remoto final do PR #18 passou integralmente no commit `6ec03d0` (run `36274393423`):
+4.399 testes com cobertura, inventário de segurança, isolamento entre tenants, build Next, inspeção do
+bundle e E2E público, além dos checks Vercel, Semgrep e Snyk. A prova financeira após reCAPTCHA segue
+separada e `NOT TESTED` até a execução humana no Checkout Sandbox.
+
 ## O-6 — provisionamento
 
 Artefato: `dist/track-o-provision/results.json`. Ambiente `SCHEMA`. **12/12 PASS em 21/09**, exit 0.
@@ -186,7 +245,7 @@ permaneceram até a destruição desse cluster; o runner não cria recursos exte
 | ------------------------------------------ | ----------------------------------------------------------------------------- | ----------- |
 | Tenant/owner/config/customer/assinatura 1×  | readback de cardinalidade nas 5 tabelas reais + ≥ 2 eventos de outbox          | **PASS**    |
 | Papel decidido no servidor                  | `profiles.role = 'owner'` lido do banco                                       | **PASS**    |
-| `clinic_id` nunca vem do browser            | rota com `.strict()`; corpo só aceita `cpfCnpj`                               | **PASS**    |
+| `clinic_id` nunca vem do browser            | rota `.strict()` aceita apenas `{}`; plano já está no draft verificado         | **PASS**    |
 | Slug respeita `clinics_slug_format`         | readback com regex `^[a-z0-9-]{3,30}$` + 13 casos adversariais em unit         | **PASS**    |
 | Documento cifrado por tenant                | `document_encrypted` presente e **não contém** o CPF em claro                  | **PASS**    |
 | Transação: rollback sem tenant parcial      | erro SQL no outbox após as entidades e DELETE do draft; seis contagens iguais e draft restaurado, depois retomada | **PASS** |

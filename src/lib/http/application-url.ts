@@ -73,6 +73,21 @@ export function createPasswordResetRedirectUrl(): string {
 }
 
 /**
+ * Callback público esperado para o app Meta deste ambiente.
+ *
+ * Em Preview usa o hostname imutável da branch, como os links de Auth. Quando a
+ * Vercel protege o deployment, o bypass fica somente na URL server-to-server;
+ * ele nunca é devolvido ao browser nem deve aparecer em logs.
+ */
+export function createMetaWebhookUrl(): string {
+  const url = new URL(configuredApplicationUrl('/api/webhooks/meta'));
+  if (env.VERCEL_ENV === 'preview' && env.VERCEL_AUTOMATION_BYPASS_SECRET) {
+    url.searchParams.set('x-vercel-protection-bypass', env.VERCEL_AUTOMATION_BYPASS_SECRET);
+  }
+  return url.toString();
+}
+
+/**
  * Creates the server-side confirmation URL for a one-time Supabase email token.
  *
  * O token fica no fragmento: o primeiro GET não o envia ao servidor, ao

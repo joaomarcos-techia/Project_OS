@@ -60,6 +60,10 @@ export const META_CONNECT_FAILURE_STAGES = [
   // Provisionamento de template no connect. Nunca aborta a conexao: so aparece
   // em log/metrica, porque o canal serve conversa de servico sem template.
   'template_provisioning',
+  // Coexistencia (0107): pedido de sincronizacao de contatos/historico ao app
+  // WhatsApp Business. Roda depois da resposta, como o provisionamento de
+  // template: so aparece em log/metrica. A Meta da 24h para o pedido existir.
+  'coexistence_sync',
   // §33 — perfil publico do numero (`/{phone-number-id}/whatsapp_business_profile`).
   // Leitura e escrita sao etapas SEPARADAS de proposito: a acao do operador e
   // diferente em cada uma. Numa leitura recusada nada mudou e a tela nao pode

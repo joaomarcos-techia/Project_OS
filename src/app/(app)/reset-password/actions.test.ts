@@ -596,6 +596,42 @@ describe('resetPasswordAction — senha recusada no ramo profile', () => {
     expect(mocks.signOut).not.toHaveBeenCalled();
   });
 
+  it('conta com MFA conclui o recovery pela Admin API depois da prova e do CAS', async () => {
+    mocks.updateUser.mockResolvedValue({
+      error: { code: 'insufficient_aal', message: 'AAL2 required' },
+    });
+
+    await expect(resetPasswordAction({ error: null }, form())).rejects.toThrow(
+      'REDIRECT:/login?reason=password_updated',
+    );
+
+    expect(mocks.bumpEpochIfCurrent).toHaveBeenCalledWith(userId, 4, 'password_reset');
+    expect(mocks.bumpEpochIfCurrent.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.updateUser.mock.invocationCallOrder[0]!,
+    );
+    expect(mocks.updateAdminUser).toHaveBeenCalledWith(userId, { password: 'SenhaForte7' });
+    expect(mocks.signOut).toHaveBeenCalledWith({ scope: 'global' });
+    expect(mocks.clearSelector).toHaveBeenCalled();
+    expect(mocks.signGrant).not.toHaveBeenCalled();
+  });
+
+  it('falha da Admin API após insufficient_aal consome a prova e exige link novo', async () => {
+    mocks.updateUser.mockResolvedValue({
+      error: { code: 'insufficient_aal', message: 'AAL2 required' },
+    });
+    mocks.updateAdminUser.mockResolvedValue({
+      data: { user: null },
+      error: { code: 'provider_failure', message: 'provider unavailable' },
+    });
+
+    const result = await resetPasswordAction({ error: null }, form());
+
+    expect(result.error).toContain('novo link');
+    expect(mocks.updateAdminUser).toHaveBeenCalledTimes(1);
+    expect(mocks.signGrant).not.toHaveBeenCalled();
+    expect(mocks.signOut).toHaveBeenCalledWith({ scope: 'global' });
+  });
+
   it('weak_password do Auth (HIBP mudou entre a checagem e o update) preserva a tentativa', async () => {
     mocks.updateUser.mockResolvedValue({
       error: { code: 'weak_password', message: 'Password is known to be weak' },

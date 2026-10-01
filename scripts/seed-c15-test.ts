@@ -17,6 +17,7 @@ import { assertDevContext } from './_env';
 
 import { sql } from 'drizzle-orm';
 
+import { computeCostUsd } from '@/lib/ai/cost';
 import { encryptForTenant, hashForLookup } from '@/lib/crypto';
 import { dbAdmin } from '@/lib/db';
 
@@ -115,7 +116,9 @@ await dbAdmin.execute(sql`
     (clinic_id, conversation_id, direction, content_encrypted, tokens_input, tokens_output, cost_usd, model)
   VALUES
     (${clinicId}::uuid, ${convId}::uuid, 'in',  ${msgIn},  18, 0,  '0.000000', NULL),
-    (${clinicId}::uuid, ${convId}::uuid, 'out', ${msgOut}, 0,  42, '0.000189', 'gemini-2.5-flash')
+    (${clinicId}::uuid, ${convId}::uuid, 'out', ${msgOut}, 0,  42,
+     ${computeCostUsd({ tokensInput: 0, tokensOutput: 42, model: 'gemini-3.8-flash' }).toFixed(6)},
+     'gemini-3.8-flash')
 `);
 console.log('[seed-c15] conversa de IA + 2 mensagens cifradas criadas.');
 
