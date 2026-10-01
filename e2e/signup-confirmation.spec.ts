@@ -203,38 +203,81 @@ function skipReason(): string | null {
   return null;
 }
 
+function isTransientNetworkError(error: unknown): boolean {
+  const code =
+    error instanceof Error && 'code' in error && typeof error.code === 'string' ? error.code : '';
+  return (
+    ['ECONNRESET', 'CONNECT_TIMEOUT', 'ETIMEDOUT', 'EPIPE'].includes(code) ||
+    (error instanceof Error &&
+      /(?:ECONNRESET|CONNECT_TIMEOUT|ETIMEDOUT|EPIPE)/u.test(error.message))
+  );
+}
+
 async function admin(apiPath: string, init: { method?: 'GET' | 'DELETE' } = {}): Promise<Response> {
-  return fetch(`${supabaseUrl}/auth/v1${apiPath}`, {
-    method: init.method ?? 'GET',
-    headers: {
-      apikey: supabaseSecret!,
-      Authorization: `Bearer ${supabaseSecret!}`,
-    },
-    signal: AbortSignal.timeout(15_000),
-  });
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const response = await fetch(`${supabaseUrl}/auth/v1${apiPath}`, {
+        method: init.method ?? 'GET',
+        headers: {
+          apikey: supabaseSecret!,
+          Authorization: `Bearer ${supabaseSecret!}`,
+        },
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (![502, 503, 504].includes(response.status) || attempt === 3) return response;
+      await response.body?.cancel().catch(() => undefined);
+    } catch (error) {
+      if (!isTransientNetworkError(error) || attempt === 3) throw error;
+    }
+    await new Promise((resolve) => setTimeout(resolve, attempt * 250));
+  }
+  throw new Error('Supabase Admin esgotou tentativas idempotentes');
 }
 
 async function createLegacyUnconfirmedUser(email: string, password: string): Promise<AuthUser> {
-  const response = await fetch(`${supabaseUrl}/auth/v1/admin/users`, {
-    method: 'POST',
-    headers: {
-      apikey: supabaseSecret!,
-      Authorization: `Bearer ${supabaseSecret!}`,
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify({
-      email,
-      password,
-      email_confirm: false,
-    }),
-    signal: AbortSignal.timeout(15_000),
-  });
-  if (!response.ok) throw new Error('Supabase Admin não criou a conta legada sintética');
-  const user = (await response.json()) as AuthUser;
-  if (!user.id || user.email?.toLowerCase() !== email.toLowerCase()) {
-    throw new Error('Supabase Admin devolveu identidade divergente para a conta legada');
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const response = await fetch(`${supabaseUrl}/auth/v1/admin/users`, {
+        method: 'POST',
+        headers: {
+          apikey: supabaseSecret!,
+          Authorization: `Bearer ${supabaseSecret!}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          password,
+          email_confirm: false,
+        }),
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!response.ok) {
+        await response.body?.cancel().catch(() => undefined);
+        const existing = await findUser(email);
+        if (existing && !existing.email_confirmed_at && !hasSelfServiceMarker(existing)) {
+          return existing;
+        }
+        if (![502, 503, 504].includes(response.status) || attempt === 3) {
+          throw new Error('Supabase Admin não criou a conta legada sintética');
+        }
+      } else {
+        const user = (await response.json()) as AuthUser;
+        if (!user.id || user.email?.toLowerCase() !== email.toLowerCase()) {
+          throw new Error('Supabase Admin devolveu identidade divergente para a conta legada');
+        }
+        return user;
+      }
+    } catch (error) {
+      if (!isTransientNetworkError(error)) throw error;
+      const existing = await findUser(email);
+      if (existing && !existing.email_confirmed_at && !hasSelfServiceMarker(existing)) {
+        return existing;
+      }
+      if (attempt === 3) throw error;
+    }
+    await new Promise((resolve) => setTimeout(resolve, attempt * 250));
   }
-  return user;
+  throw new Error('Supabase Admin esgotou a criação reconciliada da conta legada');
 }
 
 function hasSelfServiceMarker(user: AuthUser | null): boolean {
@@ -393,56 +436,71 @@ async function cleanupFixture(fixture: Fixture): Promise<void> {
     throw new Error('fixture anterior pertence a outro projeto; limpeza recusada');
   }
 
-  const sql = postgres(databaseUrl!, { max: 1, ssl: 'require', prepare: false });
-  try {
-    const mailHash = emailHash(fixture.email);
-    const resources = await sql<
-      {
-        asaas_checkout_id: string | null;
-      }[]
-    >`
-      select asaas_checkout_id
-        from signup_sessions
-       where email_hash = ${mailHash}
-         and asaas_checkout_id is not null
-    `;
-    for (const resource of resources) {
-      await cancelSandboxCheckout(resource.asaas_checkout_id!);
-    }
-    const tokenHashes = [fixture.tokenHash, ...(fixture.tokenHashes ?? [])].filter(
-      (value, index, values): value is string => Boolean(value) && values.indexOf(value) === index,
-    );
-    for (const tokenHash of tokenHashes) {
-      await sql`delete from signup_sessions where token_hash = ${tokenHash}`;
-    }
-    await sql`delete from signup_sessions where email_hash = ${mailHash}`;
-    if (tokenHashes.length > 0) {
-      for (const tokenHash of tokenHashes) {
-        const [remainingByToken] = await sql<{ n: number }[]>`
-          select count(*)::int as n from signup_sessions where token_hash = ${tokenHash}
-        `;
-        if ((remainingByToken?.n ?? 1) !== 0) {
-          throw new Error('cleanup de signup_sessions por referência incompleto');
-        }
+  const mailHash = emailHash(fixture.email);
+  const tokenHashes = [fixture.tokenHash, ...(fixture.tokenHashes ?? [])].filter(
+    (value, index, values): value is string => Boolean(value) && values.indexOf(value) === index,
+  );
+
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const sql = postgres(databaseUrl!, { max: 1, ssl: 'require', prepare: false });
+    try {
+      const resources = await sql<
+        {
+          asaas_checkout_id: string | null;
+        }[]
+      >`
+        select asaas_checkout_id
+          from signup_sessions
+         where email_hash = ${mailHash}
+           and asaas_checkout_id is not null
+      `;
+      for (const resource of resources) {
+        await cancelSandboxCheckout(resource.asaas_checkout_id!);
       }
-      const [remaining] = await sql<{ n: number }[]>`
-        select count(*)::int as n from signup_sessions where email_hash = ${mailHash}
-      `;
-      if ((remaining?.n ?? 1) !== 0) throw new Error('cleanup de signup_sessions incompleto');
-    } else {
-      const [remaining] = await sql<{ n: number }[]>`
-        select count(*)::int as n from signup_sessions where email_hash = ${mailHash}
-      `;
-      if ((remaining?.n ?? 1) !== 0) throw new Error('cleanup por e-mail incompleto');
+      for (const tokenHash of tokenHashes) {
+        await sql`delete from signup_sessions where token_hash = ${tokenHash}`;
+      }
+      await sql`delete from signup_sessions where email_hash = ${mailHash}`;
+      if (tokenHashes.length > 0) {
+        for (const tokenHash of tokenHashes) {
+          const [remainingByToken] = await sql<{ n: number }[]>`
+            select count(*)::int as n from signup_sessions where token_hash = ${tokenHash}
+          `;
+          if ((remainingByToken?.n ?? 1) !== 0) {
+            throw new Error('cleanup de signup_sessions por referência incompleto');
+          }
+        }
+        const [remaining] = await sql<{ n: number }[]>`
+          select count(*)::int as n from signup_sessions where email_hash = ${mailHash}
+        `;
+        if ((remaining?.n ?? 1) !== 0) throw new Error('cleanup de signup_sessions incompleto');
+      } else {
+        const [remaining] = await sql<{ n: number }[]>`
+          select count(*)::int as n from signup_sessions where email_hash = ${mailHash}
+        `;
+        if ((remaining?.n ?? 1) !== 0) throw new Error('cleanup por e-mail incompleto');
+      }
+      break;
+    } catch (error) {
+      const code =
+        error instanceof Error && 'code' in error && typeof error.code === 'string'
+          ? error.code
+          : '';
+      const transient =
+        ['ECONNRESET', 'CONNECT_TIMEOUT', 'ETIMEDOUT', 'EPIPE'].includes(code) ||
+        (error instanceof Error &&
+          /(?:ECONNRESET|CONNECT_TIMEOUT|ETIMEDOUT|EPIPE)/u.test(error.message));
+      if (!transient || attempt === 3) throw error;
+      await new Promise((resolve) => setTimeout(resolve, attempt * 250));
+    } finally {
+      await sql.end({ timeout: 5 }).catch(() => undefined);
     }
-  } finally {
-    await sql.end({ timeout: 5 });
   }
 
   const user = await findUser(fixture.email);
   if (user) {
     const deleted = await admin(`/admin/users/${user.id}`, { method: 'DELETE' });
-    if (!deleted.ok) throw new Error('cleanup do usuário Auth falhou');
+    if (!deleted.ok && deleted.status !== 404) throw new Error('cleanup do usuário Auth falhou');
   }
   if (await findUser(fixture.email)) throw new Error('usuário Auth persistiu após cleanup');
   await rm(FIXTURE_PATH, { force: true });
@@ -545,6 +603,33 @@ async function assertDraftStatuses(expected: Readonly<Record<string, string>>): 
     ) {
       throw new Error('o estado final dos drafts não preservou o isolamento');
     }
+  } finally {
+    await sql.end({ timeout: 5 });
+  }
+}
+
+async function readSafeContinuationDiagnostic(tokenHash: string): Promise<string> {
+  const sql = postgres(databaseUrl!, { max: 1, ssl: 'require', prepare: false });
+  try {
+    const [row] = await sql<
+      {
+        status: string;
+        row_version: number;
+        auth_attempt_state: string | null;
+        auth_bound: boolean;
+        consumed: boolean;
+      }[]
+    >`
+      select status,
+             row_version,
+             auth_attempt_state,
+             auth_user_id is not null as auth_bound,
+             consumed_at is not null as consumed
+        from signup_sessions
+       where token_hash = ${tokenHash}
+       limit 1
+    `;
+    return row ? JSON.stringify(row) : 'draft_missing';
   } finally {
     await sql.end({ timeout: 5 });
   }
@@ -986,7 +1071,7 @@ async function waitForOriginalHandoff(page: Page): Promise<void> {
 
 async function completeHandoffAfterRefresh(
   page: Page,
-  input: { email: string; password: string; verificationCode: string },
+  input: { email: string; password: string; verificationCode: string; tokenHash?: string },
 ): Promise<void> {
   await page.reload({ waitUntil: 'domcontentloaded' });
   await expect(page).toHaveURL(/\/cadastro$/u);
@@ -1005,7 +1090,22 @@ async function completeHandoffAfterRefresh(
   await page.getByLabel('E-mail usado no cadastro').fill(input.email);
   await page.getByLabel('Crie sua senha').fill(input.password);
   await page.getByLabel('Código do e-mail').fill(input.verificationCode);
+  const continuation = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      new URL(response.url()).pathname === '/api/signup/sessions/continue',
+  );
   await page.getByRole('button', { name: 'Continuar', exact: true }).click();
+  const response = await continuation;
+  if (!response.ok()) {
+    const body = await response.text();
+    const diagnostic = input.tokenHash
+      ? await readSafeContinuationDiagnostic(input.tokenHash)
+      : 'not_requested';
+    throw new Error(
+      `continuação respondeu ${response.status()} ${body}; estado sanitizado: ${diagnostic}`,
+    );
+  }
   await expect(page).toHaveURL(/\/cadastro\/plano$/u, { timeout: 120_000 });
   await expect(page.getByRole('heading', { name: 'Escolha seu plano' })).toBeVisible();
 }
@@ -1096,6 +1196,7 @@ test.describe('cadastro — confirmação real via Resend', () => {
         email,
         password: signup.password,
         verificationCode: proof.verificationCode,
+        tokenHash: fixture.tokenHash,
       });
       if (!(await passwordSignInSucceeds(email, signup.password))) {
         throw new Error('a senha instalada pelo handoff não autenticou');
@@ -1189,6 +1290,7 @@ test.describe('cadastro — confirmação real via Resend', () => {
         email,
         password: signup.password,
         verificationCode: proof.verificationCode,
+        tokenHash: fixture.tokenHash,
       });
       if (!(await passwordSignInSucceeds(email, signup.password))) {
         throw new Error('senha da conta legada não autenticou depois do handoff');

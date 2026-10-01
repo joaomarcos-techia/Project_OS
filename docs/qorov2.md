@@ -8331,3 +8331,45 @@ esse worktree não possui `.env.local`: o validador reportou as duas variáveis
 obrigatórias ausentes. A repetição carregou o arquivo local do worktree principal
 no processo sem imprimir ou copiar valores e concluiu toda a compilação. Isso é
 uma pré-condição local do build, não uma falha do candidato.
+
+## 52. Cadastro no alias atual do Preview — 01/10/2026
+
+O roteiro manual encontrou `GET /api/signup/sessions/me` 410 seguido de
+`POST /api/signup/sessions/identity` 403. O 410 é o contrato esperado quando o
+navegador ainda não possui uma sessão anônima utilizável: a tela o usa para criar
+uma sessão nova. O 403 era o defeito real. As mutações do funil comparavam o
+`Origin` somente com um `APP_BASE_URL` antigo e, por isso, recusavam o alias atual
+do próprio Preview depois de a criação da sessão já ter sido aceita por outro
+gate.
+
+O commit `62028d0` centralizou a origem pública confiável. O `APP_BASE_URL`
+configurado continua aceito; em `VERCEL_ENV=preview`, somente as origens HTTPS
+exatas injetadas pela Vercel em `VERCEL_URL` ou `VERCEL_BRANCH_URL` também são
+aceitas. Um subdomínio arbitrário de `vercel.app`, origem externa ou requisição
+cross-site continua bloqueado. A mesma origem validada passou a formar os links
+do Resend e os retornos do Checkout hospedado, evitando que a jornada volte para
+um deployment antigo.
+
+Evidência funcional no Preview do PR #26, com Supabase DEV, Resend real e Asaas
+Sandbox, em 01/10/2026:
+
+- regressão focada: **409/409 PASS em 13 arquivos**;
+- TypeScript e ESLint focado: **PASS**;
+- regressão integral: **4.594/4.594 PASS em 442 arquivos**, exit 0, 152,68 s;
+- ESLint global e build Next 15.5.24 de produção: **PASS**, com 18 páginas
+  estáticas geradas;
+- `e2e/signup-confirmation.spec.ts`: **5/5 PASS em 5,3 min**, um worker e zero
+  retry;
+- o fluxo comum percorreu tela → identidade → Resend entregue e lido → link em
+  outro contexto → código na aba original → senha → plano → Checkout hospedado;
+- a conta Auth legada não confirmada preservou a senha anterior até o handoff e
+  terminou vinculada ao mesmo draft com a senha nova;
+- dois drafts, reenvio, invalidação do link anterior e replay foram exercitados;
+- o cleanup cancelou os checkouts Sandbox e removeu as fixtures de Auth e banco.
+
+Uma execução anterior do cenário legado recebeu 409 durante o handoff, mas a
+falha não se repetiu nem no cenário isolado (**1/1 PASS em 59,8 s**) nem na suíte
+completa. Não houve alteração da regra de produto sem reprodução. O runner agora
+repete apenas falhas transitórias idempotentes da rede do Supabase, reconcilia a
+criação Auth antes de tentar novamente e, se o 409 reaparecer, registra somente
+estado CAS sanitizado — sem e-mail, senha, cookie ou token.
