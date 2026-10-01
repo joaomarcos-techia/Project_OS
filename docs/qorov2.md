@@ -7882,3 +7882,62 @@ feita em worktree limpo, preservando os dois comportamentos de senha e repetindo
 Vitest, ESLint, TypeScript, Prettier, build e os E2E de recovery. Portanto, a
 regressão da § 46.5 é evidência do worktree atual; ela não declara que esta
 rodada já está publicada na `main`.
+
+## 47. Integração isolada e fechamento de Gemini/conta de pagamentos — 01/10/2026
+
+A integração foi feita fora do worktree concorrente, na branch
+`integration/2e2-final-20260930`, partindo de `origin/main=39902ba`. Ela preserva
+o PR #24, incorpora o checkout hospedado e as migrations 0105–0106, e traz o
+source auditado das §§ 43–46 sem os arquivos de WhatsApp. O commit `1a59491` foi
+publicado no Preview da branch antes das provas remotas. A `main` ainda não foi
+alterada por esta rodada.
+
+### 47.1 `payments-account-lifecycle` em Preview
+
+O runner ganhou um modo de fixture isolada, ativado somente com
+`E2E_PAYMENT_ACCOUNT_ISOLATED=1` e o opt-in já existente
+`E2E_PAYMENT_ACCOUNT_MUTATION=dev-sandbox`. Ele:
+
+1. recusa produção e confere que Database e Auth apontam ao mesmo projeto DEV;
+2. cria tenant, assinatura ativa e owner exclusivos;
+3. usa uma senha aleatória mantida somente na memória;
+4. exercita a tela real do Preview com a conta Asaas Sandbox autorizada;
+5. remove clínica e Auth no `afterAll` e exige readback zero.
+
+Execução funcional contra o Preview da branch: **2/2 PASS em 39,9 s**. O primeiro
+caso recusou chave inválida, limpou o campo e não devolveu o segredo no HTML. O
+segundo conectou, comprovou persistência, desconectou e terminou sem resíduos da
+fixture. O bloqueio anterior por clínica já conectada está encerrado sem tocar a
+conta de outro tenant.
+
+### 47.2 Gemini 3–50
+
+O modelo configurado anteriormente, `gemini-2.5-flash`, foi listado pelo
+endpoint de modelos, mas a geração real passou a responder HTTP 404 informando
+que ele não estava disponível para esta conta. O default foi migrado para
+`gemini-3.8-flash`; tabela de preço, limite horário, smoke, seeds e documentação
+foram atualizados em conjunto. A linha histórica do 2.5 permanece na tabela para
+calcular mensagens antigas.
+
+O corpus original foi reexecutado com o provider real, sem mock e sem reduzir o
+denominador:
+
+| Faixa | Chamadas | Resultado | Custo calculado |
+| --- | ---: | --- | ---: |
+| 3–29 | 27 | **27 PASS** | US$ 0,054204 |
+| 30 | 1 | **1 PASS** | US$ 0,002006 |
+| 31–50 | 20 | **20 PASS** | US$ 0,040200 |
+| **Total** | **48** | **48/48 PASS**, zero resposta final insegura | **US$ 0,096410** |
+
+Os relatórios estão em `docs/audits/C11_ADVERSARIAL_3_29.md`,
+`C11_ADVERSARIAL_30_30.md` e `C11_ADVERSARIAL_31_50.md`. A regressão focada de
+custo/provider/env/quota passou **44/44**; TypeScript e ESLint passaram. Essa
+prova encerra o bloqueio de quota/modelo desta rodada, mas não comprova por si só
+o fluxo WhatsApp real, reservado à integração do agente concorrente.
+
+O primeiro smoke C11 expôs um defeito do harness: ele consumia a fila global em
+lotes de dois e podia marcar eventos de outros tenants antes de alcançar a
+fixture. Os eventos da fixture foram processados depois, mas seis asserções já
+tinham expirado. O runner passou a priorizar apenas seu próprio evento e executar
+um slot do worker por vez. Na repetição, `smoke-c11` passou **18/18** e o readback
+encontrou zero clínicas `Smoke C11` residuais.

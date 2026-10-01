@@ -243,11 +243,11 @@ const EnvSchema = z
     // API key do Google AI Studio. Optional no parse (next build verde antes
     // do secret existir); assertAiRuntimeReady() exige em runtime no handler.
     GEMINI_API_KEY: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
-    // Modelo default (decisão sólida §11.17: Gemini Flash 2.5). Trocar exige
+    // Modelo default (decisão sólida §11.17: Gemini Flash). Trocar exige
     // entrada correspondente na tabela de preços de src/lib/ai/cost.ts.
     GEMINI_MODEL: z.preprocess(
       emptyToUndefined,
-      z.string().min(1).optional().default('gemini-2.5-flash'),
+      z.string().min(1).optional().default('gemini-3.8-flash'),
     ),
     // Timeout (ms) de cada chamada ao LLM (AbortController) — mesmo racional
     // do META_HTTP_TIMEOUT_MS: sem teto, um request lento trava o worker.

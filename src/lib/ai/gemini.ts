@@ -3,7 +3,7 @@
  *
  * Implementa `AIProvider` direto via fetch cru (mesmo padrão do
  * MetaCloudProvider — sem SDK, sem dependência nova). Modelo default
- * gemini-2.5-flash (env.GEMINI_MODEL).
+ * gemini-3.8-flash (env.GEMINI_MODEL).
  *
  * Timeout: todo fetch usa `AbortSignal.timeout` (env.AI_HTTP_TIMEOUT_MS,
  * default 15s). Sem o teto, um request lento segura o worker do outbox.

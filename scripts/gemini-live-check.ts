@@ -1,5 +1,5 @@
 /**
- * Gemini LIVE check (C11) — chamadas REAIS ao gemini-2.5-flash provando o
+ * Gemini LIVE check (C11) — chamadas REAIS ao modelo de GEMINI_MODEL provando o
  * wire format do GeminiProvider de ponta a ponta: tool calling (functionCall),
  * re-chamada com functionResponse e usageMetadata, incluindo o início de
  * cadastro exigido por prepare_appointment. Custo ≈ $0.003.

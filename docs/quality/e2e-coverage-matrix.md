@@ -286,8 +286,8 @@ auditoria integral concluída; ela separa implementação, execução e lacuna.
 | AIT-M01 | `authenticated-readonly-routes.spec.ts` | build local + DEV | read-only | owner practitioner sintético | 26/26 rotas 200 com heading; 1/1 caso | PASS DEV |
 | AIT-M02 | mesmo spec, helper dinâmico fail-closed | build local + DEV | paciente e conversa reais; ausência de fixture não passa | fixtures cifradas e browser | `/pacientes/[id]` e `/conversas/[id]` 200; cleanup 0/0/0/0 | PASS DEV |
 | AIT-M03 | `admin-boundary-rbac.spec.ts` | build local + DEV | nenhum body/RSC admin; quatro handlers negados | owner sintético com sessão real | 1/1 em 50,2 s; cleanup SQL/Auth zero | PASS DEV |
-| AIT-M04 | `payments-account-lifecycle.spec.ts` | descoberta/typecheck somente | chave ausente do campo/HTML; estado igual | Preview isolado | source + lint/typecheck | NOT TESTED |
-| AIT-M05 | mesmo spec, cleanup agregado | nenhuma chamada externa | sem webhook/config residual | alvo DEV/Sandbox confirmado | opt-in versionado | BLOCKED |
+| AIT-M04 | `payments-account-lifecycle.spec.ts` | Preview publicado + DEV | chave inválida ausente do campo/HTML; estado igual | nenhuma | Playwright funcional, caso 1/2 | PASS Preview |
+| AIT-M05 | mesmo spec, fixture isolada e cleanup agregado | Preview publicado + DEV + Asaas Sandbox | clínica/Auth removidos com readback zero; conta desconectada | nenhuma | Playwright funcional, caso 2/2 | PASS Preview |
 | AIT-M06 | `tenant-settings-screens.spec.ts` | build local + DEV | modelo sintético criado e removido; readback 0/0/0 | nenhuma no escopo executado | CSV real, fila LGPD e CRUD de modelo | PASS DEV 3/3 |
 | AIT-M07 | `actions-auth-order.test.ts` + `security:http` | Vitest + build/HTTP local | zero chamada ao domínio; sem erro JS | nenhuma local | 2/2 + 306 requests | PASS |
 | AIT-M08 | `e2e-artifact-policy.test.ts` | Vitest local + Playwright final | nenhum artefato automático | nenhuma local | 2/2; 6 browser PASS; 6 CI PASS e 2 skips declarados | PASS |

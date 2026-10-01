@@ -344,6 +344,31 @@ um timeout e o 29 passou depois de dois retries por HTTP 429. O cenário 30 fico
 código 1. Os cenários 31–50 permanecem **NOT RUN**. O denominador original de
 48 foi preservado.
 
+## Adendo — Preview isolado e Gemini atual em 01/10/2026
+
+A integração foi reconstruída num worktree limpo sobre `origin/main`, recebeu
+as migrations 0105–0106 e o source auditado, e foi publicada no Preview da
+branch `integration/2e2-final-20260930`. O fluxo
+`payments-account-lifecycle` foi reexecutado com uma fixture exclusiva em DEV:
+o runner criou tenant e owner, comprovou Database/Auth no mesmo projeto,
+recusou uma chave inválida sem devolvê-la ao browser, conectou e desconectou a
+conta Sandbox e removeu clínica/Auth com readback zero. Resultado funcional:
+**2/2 PASS em 39,9 s**.
+
+O modelo configurado anteriormente, `gemini-2.5-flash`, passou a devolver HTTP
+404 com a indicação do próprio provider de que não estava disponível para esta
+conta. A aplicação foi atualizada para `gemini-3.8-flash`, incluindo default,
+tabela de custo, fixtures, scripts e documentação. O corpus original foi
+reexecutado sem mocks: **48/48 PASS**, zero resposta final insegura, 48 chamadas
+reais e custo calculado de **US$ 0,096410**. Evidências:
+`C11_ADVERSARIAL_3_29.md`, `C11_ADVERSARIAL_30_30.md` e
+`C11_ADVERSARIAL_31_50.md`.
+
+O smoke C11 falhou primeiro porque percorria a fila global em lotes e eventos
+antigos de outros tenants ocupavam os slots. A correção limita cada tick ao
+evento priorizado da própria fixture. A repetição passou **18/18** e o readback
+terminou com zero clínicas de smoke residuais.
+
 ### Regressão integrada final do worktree
 
 `npx vitest run` terminou com **433 arquivos e 4.507 testes PASS** em 270,56 s.

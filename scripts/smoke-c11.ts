@@ -23,9 +23,11 @@ import { gunzipSync } from 'node:zlib';
 import { sql } from 'drizzle-orm';
 
 import { __testing__ as aiCircuitTesting } from '@/lib/ai/circuit-breaker';
+import { computeCostUsd } from '@/lib/ai/cost';
 import { decryptForTenant, encryptForTenant } from '@/lib/crypto';
 import { dbAdmin } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
+import { env } from '@/lib/env';
 import type { ParsedInboundMessage } from '@/lib/messaging';
 import { runOutboxOnce } from '@/lib/outbox/worker';
 
@@ -163,6 +165,34 @@ function makeMsg(phoneId: string, from: string, text: string): ParsedInboundMess
   };
 }
 
+/**
+ * Coloca somente o evento da fixture na frente da fila global e executa um
+ * único slot. Assim o smoke atravessa o worker real sem consumir eventos de
+ * outros tenants de um DEV populado.
+ */
+async function runFixtureEvent(clinicId: string, eventId: string): Promise<void> {
+  const prioritized = await dbAdmin.execute<{ id: string }>(sql`
+    UPDATE outbox
+       SET next_attempt_at = '2000-01-01T00:00:00Z'::timestamptz
+     WHERE id = ${eventId}
+       AND clinic_id = ${clinicId}
+       AND status = 'pending'
+    RETURNING id
+  `);
+  assert(prioritized.length === 1, 'evento da fixture não estava pending para priorização');
+  await runOutboxOnce({ batchSize: 1, parallelism: 1 });
+  if (await getProcessedAt(clinicId, eventId)) return;
+
+  const state = await dbAdmin.execute<{ status: string; attempts: number }>(sql`
+    SELECT status, attempts
+      FROM outbox
+     WHERE id = ${eventId} AND clinic_id = ${clinicId}
+  `);
+  throw new Error(
+    `worker não processou o evento priorizado (status=${state[0]?.status ?? 'ausente'}, attempts=${state[0]?.attempts ?? 0})`,
+  );
+}
+
 /** Entrega o inbound e aguarda o worker processar exatamente esse evento. */
 async function deliverTurn(
   clinicId: string,
@@ -177,15 +207,8 @@ async function deliverTurn(
         AND idempotency_key = ${`inbound:meta:${msg.providerMessageId}`}`,
   );
   const eventId = ev[0]!.id;
-  // A outbox é global: em um DEV populado, eventos anteriores podem ocupar o
-  // primeiro lote. O smoke precisa aguardar o evento que acabou de publicar,
-  // sem pressupor que um único tick sempre o reivindicará.
-  for (let attempt = 0; attempt < 6; attempt += 1) {
-    await runOutboxOnce({ batchSize: 2, parallelism: 1 });
-    if (await getProcessedAt(clinicId, eventId)) return eventId;
-  }
-
-  throw new Error(`worker não processou o evento ${eventId} após 6 ticks`);
+  await runFixtureEvent(clinicId, eventId);
+  return eventId;
 }
 
 // --- leitura de resultados --------------------------------------------------------
@@ -405,16 +428,21 @@ async function main(): Promise<void> {
   await tryStep('5 (11.6.5) custo registrado + prompt_version/hash (G8/R6)', async () => {
     const out = await getOutRow(evA1t1);
     assert(out !== null, 'out row do turno A1-t1 deveria existir');
-    // 2 chamadas Gemini × (1200 in + 150 out) → (2400×0.30 + 300×2.50)/1M
+    // Duas chamadas; o preço vem da mesma tabela versionada do runtime.
+    const expectedCost = computeCostUsd({
+      tokensInput: 2400,
+      tokensOutput: 300,
+      model: env.GEMINI_MODEL,
+    });
     assert(
-      Number(out!.cost_usd) === 0.00147,
-      `cost_usd deveria ser 0.001470, foi ${out!.cost_usd}`,
+      Number(out!.cost_usd) === expectedCost,
+      `cost_usd deveria ser ${expectedCost.toFixed(6)}, foi ${out!.cost_usd}`,
     );
     assert(
       out!.tokens_input === 2400 && out!.tokens_output === 300,
       'tokens agregados das 2 chamadas',
     );
-    assert(out!.model === 'gemini-2.5-flash', 'model registrado');
+    assert(out!.model === env.GEMINI_MODEL, 'model registrado');
     assert(out!.prompt_version === PROMPT_VERSION, 'prompt_version (G8)');
     assert(/^[a-f0-9]{64}$/.test(out!.prompt_hash ?? ''), 'prompt_hash sha256 (R6)');
     assert(out!.ai_request_id !== null, 'ai_request_id (R7)');
@@ -668,7 +696,7 @@ async function main(): Promise<void> {
       });
     });
     const before = geminiCallCount();
-    await runOutboxOnce({ batchSize: 2, parallelism: 1 });
+    await runFixtureEvent(clinicA, eventId);
     assert(geminiCallCount() === before, 'replay NÃO pode re-chamar o LLM');
     assert(
       (await getSentText(clinicA, eventId)) === 'RESPOSTA-REPLAY-DETERMINISTICA',

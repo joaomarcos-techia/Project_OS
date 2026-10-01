@@ -30,7 +30,7 @@ Adapters em `src/contexts`, `src/lib`, schemas de env e Route Handlers. Dashboar
 - Supabase Storage PROD: `clinical-pdfs`, `lgpd-exports` e `admin-exports` privados; os dois primeiros têm objetos reais;
 - Meta PROD: um canal ativo, token válido com os dois scopes exigidos, número `CONNECTED`, WABA `APPROVED` e app correto em `subscribed_apps`;
 - mensagens em sete dias: 94 inbound processadas e 87 outbound em `delivered`/`read`; callbacks reais cobrem `sent`, `delivered` e `read`;
-- Gemini `gemini-2.5-flash`: 15 tools iguais ao runtime, function calling e cenário de cadastro antes do agendamento aprovados;
+- Gemini `gemini-3.8-flash`: 15 tools iguais ao runtime, function calling e cenário de cadastro antes do agendamento aprovados;
 - Asaas: API key aceita, webhook ativo/não interrompido no endpoint canônico, sete eventos configurados e reconcile sem divergência;
 - Resend acessível pela credencial DEV: domínio `qoro.dev` verificado, envio habilitado; dos 100 envios mais recentes, 67 estavam `delivered` e 33 `bounced`;
 - Sentry não pôde ser inventariado: um token respondeu 401 e o token de build 403. Better Stack não possui credencial local.

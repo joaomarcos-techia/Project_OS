@@ -28,6 +28,13 @@ conferido como isolado no banco DEV e na conta Asaas Sandbox. A URL, sozinha, n�
 faz essa prova. Falha de autenticação também não vira skip: só um 429 observado
 pode ser classificado como rate limit.
 
+Quando não houver uma conta de clínica descartável, o modo
+`E2E_PAYMENT_ACCOUNT_ISOLATED=1` cria um tenant e um owner exclusivos no DEV,
+confere que Database e Auth pertencem ao mesmo projeto, executa os dois casos e
+remove clínica e usuário com readback zero. A senha é aleatória, existe apenas na
+memória do processo e nunca é registrada. Esse modo continua exigindo o opt-in,
+um Preview apontado para DEV e a chave da conta Asaas Sandbox da clínica.
+
 O `admin-superadmin-journey` precisa de uma conta de plataforma própria, e ela se
 prepara sozinha — sem passo manual:
 
