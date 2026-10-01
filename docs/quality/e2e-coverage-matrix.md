@@ -383,3 +383,21 @@ O resultado do Playwright não substitui a jornada real da Meta: quatro casos
 foram pulados porque não havia número conectado. A prova externa do agente
 anterior é mantida como evidência histórica separada, sem ser recontada como uma
 execução desta rodada.
+
+## 17. Fechamento do Preview — 01/10/2026
+
+| Domínio | Execução | PASS | FAIL | BLOCKED | SKIP | Evidência |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| Convite por e-mail | Preview + Resend inbound + Auth DEV | 1 | 0 | 0 | 0 | inicial e reenvio recebidos; token antigo negado; novo aceito; tenant e replay conferidos; cleanup completo |
+| Conta de pagamentos | Preview + DEV + Asaas Sandbox | 2 | 0 | 0 | 0 | chave inválida negada; conectar, persistir e desconectar; fixture removida |
+| Gemini 3–50 | provider real | 48 | 0 | 0 | 0 | 48 chamadas, zero resposta final insegura; custo US$ 0,096414 |
+| WhatsApp perfil em coexistência | Preview autenticado | 4 | 0 | 0 | 3 | leitura funcional; escrita não aplicável porque Graph devolve 403 nesse modo |
+| `production-*` | 44 arquivos / 47 casos | 4 | 1 do teste | 4 | 38 | quatro provas funcionais; mutações autorizadas excederam timeout no cleanup; zero resíduo |
+| Refund PIX | Asaas Sandbox | 0 | 0 | 1 | 0 | refund novo aguarda autorização crítica; execução fez somente readback |
+| Regressão global | Vitest | 4583 | 0 | 0 | 0 | 442 arquivos, exit 0 |
+| Build Next | modo production | 1 | 0 | 0 | 0 | 18 páginas estáticas, exit 0; mesmo commit verde no CI/Vercel |
+
+O FAIL de `production-authorized-mutations` é da infraestrutura do spec: o
+timeout global também inclui o `finally` e fechou a página durante a limpeza.
+Ele não foi contado como defeito funcional, não foi convertido em PASS e o
+resíduo sintético foi removido com readback zero.

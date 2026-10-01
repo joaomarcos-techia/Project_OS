@@ -8148,3 +8148,119 @@ Actions** e **52 respostas `200` com negativa explícita**, incluindo
 `fetchOpenHandoffs`. A regressão final do CI passou **4.577/4.577 em 442
 arquivos** e o E2E público terminou em **6 PASS + 2 SKIP condicionais**. O
 inventário regenerado manteve 180 actions, 51 route methods e zero gaps.
+
+## 50. Fechamento do Preview, e-mail recebido e regressão — 01/10/2026
+
+Esta rodada foi executada no worktree isolado
+`C:\dev\ClinicaOS_V2_2e2_integration`, branch
+`fix/post-merge-validation-20261001`. O worktree compartilhado do agente de
+WhatsApp permaneceu intocado. O PR #25 já havia sido mesclado na `main` em
+`b6fc136`; o source adicional desta rodada está no PR #26, commit `9316495`, e
+**não foi mesclado**.
+
+### 50.1 Migration 0107 e perfil de coexistência
+
+A migration 0107 foi aplicada em produção após backup, advisory lock e leitura
+de retorno. O backup ficou em
+`backups/prod-pre-migration-2026-10-01T14-01-24.sql` (2.209.892 bytes). O
+readback confirmou uma entrada 0107 no journal, as colunas de coexistência, RLS
+`FORCE`, policies, constraints, índices e grants esperados.
+
+O Graph da Meta permite ler o perfil do número conectado em coexistência, mas
+recusou a escrita com HTTP 403. A tela e o servidor passaram a tratar esse modo
+como somente leitura, sem oferecer um formulário que o provider rejeita. No
+Preview do PR #26, o E2E autenticado do perfil terminou com **4 PASS e 3 SKIP**:
+os skips são operações de escrita deliberadamente não aplicáveis à conexão de
+coexistência. Essa prova não substitui a jornada externa
+WhatsApp → webhook → IA → resposta, mantida com o agente concorrente.
+
+### 50.2 Confirmação no Preview e inbox Resend
+
+O convite recebido por Resend expôs um defeito real do Preview. O Route Handler
+comparava o `Origin` do navegador com o `APP_BASE_URL` fixo de outro deployment;
+por isso o token válido chegava a `POST /auth/confirm`, recebia 403 e a ponte o
+convertia em `invalid_token`. A correção aceita a origem da própria requisição
+somente quando `VERCEL_ENV=preview`, o esquema é HTTPS e o host é um subdomínio
+não raiz de `vercel.app`. Produção e desenvolvimento continuam presos ao
+`APP_BASE_URL`; host externo continua recusado.
+
+Evidências depois do redeploy do commit `9316495`:
+
+- regressão da rota: **32/32 PASS**, incluindo Preview confiável e host externo
+  403;
+- probe mínimo com OTP novo: `POST /auth/confirm` respondeu 303 e terminou em
+  `/convite`; cleanup completo;
+- jornada completa: e-mail inicial recebido, reenvio recebido, link anterior
+  recusado, link novo aceito, tenant correto, replay recusado e cleanup de Auth,
+  perfil e idempotência completo;
+- transporte isolado Resend: evento `delivered`, mensagem inbound localizada e
+  nonce/conteúdo conferidos sem imprimir corpo ou segredo.
+
+Portanto, convite está **PASS ponta a ponta no Preview**. “Mensagem encontrada”
+não foi usada como substituto do aceite e do estado final.
+
+### 50.3 Conta de pagamentos, Gemini e refund
+
+`payments-account-lifecycle.spec.ts` foi reexecutado no mesmo Preview com tenant
+e owner exclusivos no DEV e a conta Asaas Sandbox autorizada. Resultado:
+**2/2 PASS em 48,3 s** — chave inválida recusada sem alteração e ciclo real
+conectar → persistir → desconectar. O `afterAll` removeu clínica e usuário e o
+processo terminou com exit 0.
+
+O corpus original Gemini 3–50 foi repetido no provider real, sem mock:
+**48/48 PASS**, 48 chamadas, zero resposta final insegura e custo calculado de
+US$ 0,096414. A evidência consolidada está em
+`docs/audits/C11_ADVERSARIAL_3_50.md`.
+
+O refund PIX permanece **BLOCKED**. O pagamento está `RECEIVED`; o refund mais
+novo está `AWAITING_CRITICAL_ACTION_AUTHORIZATION` e o anterior está
+`CANCELLED`. A reexecução fez somente readback e não criou uma terceira
+solicitação. É necessário aprovar a ação mais recente no painel Sandbox e
+reexecutar o mesmo runner até `DONE`.
+
+### 50.4 Produção e honestidade da suíte
+
+A coleta conjunta dos 44 arquivos `production-*` continua sem PASS funcional:
+**44 SKIP + 3 PRECONDITION BLOCKED** nos 47 casos. Execuções isoladas com
+pré-condições legítimas acrescentaram evidência sem reclassificar essa coleta:
+
+- RLS read-only: PASS;
+- RLS com rollback: PASS;
+- preço fundador: PASS na repetição, 1/1 em 6,7 s;
+- dashboard com dados não zero: **PASS 1/1 em 9,6 s**, após corrigir no teste a
+  autenticação por cookie fabricado e rótulos seletores já desatualizados;
+- mutações autorizadas: **FAIL de infraestrutura do teste** após 900 s. A
+  jornada chegou ao `finally`, mas o timeout global fechou a página durante o
+  cleanup. O resíduo sintético exato foi removido externamente e o readback
+  confirmou zero. Aumentar o timeout não resolveu e foi revertido.
+
+O estado por arquivo passa a ser: **4 PASS funcionais, 1 FAIL do teste, 4
+PRECONDITION BLOCKED e 35 SKIP**. Por caso: **4 PASS, 1 FAIL, 4 PRECONDITION
+BLOCKED e 38 SKIP**. Trinta e um specs ainda duplicam a fabricação manual de
+cookie Supabase; apenas o spec efetivamente reproduzido foi corrigido nesta
+rodada, evitando uma refatoração ampla sem prova.
+
+### 50.5 Regressão e riscos restantes
+
+- `npx tsc --noEmit`: PASS;
+- `npx vitest run`: **4.583/4.583 PASS em 442 arquivos**, 125,18 s;
+- `npx next build` com `NODE_ENV=production`: PASS, 18 páginas estáticas;
+- CI do PR #26: lint, TypeScript, testes, build, Semgrep, Snyk, arquitetura e
+  Vercel Preview PASS;
+- a primeira tentativa local de build, com `NODE_ENV` não padrão herdado do
+  arquivo local, falhou no prerender de `/404`; a repetição no modo real de
+  produção passou e o CI confirmou o mesmo commit.
+
+Riscos ainda sem comprovação final:
+
+1. refund PIX depende da autorização manual crítica no Asaas Sandbox;
+2. checkout PIX/cartão pago continua limitado pelo reCAPTCHA do checkout
+   hospedado;
+3. a causa externa histórica do Supavisor read-only e do `CONNECT_TIMEOUT` não
+   foi eliminada, embora recuperação, observabilidade e probes atuais estejam
+   verdes;
+4. crédito final do Google Ads depende de campanha ativa;
+5. WhatsApp → IA → resposta real desta integração pertence ao trabalho
+   concorrente e não é inferido dos testes de perfil;
+6. o roteiro humano final de `/cadastro` permanece manual;
+7. o PR #26 aguarda decisão de merge.

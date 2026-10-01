@@ -426,3 +426,29 @@ com 177 arquivos de bundle local/175 no CI, sem segredo, e 328 requests HTTP,
 dos quais 52 respostas `200` continham negativa explícita. O CI final passou
 4.577/4.577 testes em 442 arquivos e o E2E público passou 6 casos, com dois
 skips condicionais declarados.
+
+## Adendo — confirmação real no Preview e regressão final em 01/10/2026
+
+O fluxo de convite foi repetido no Preview após corrigir a validação de origem
+de `/auth/confirm`. O erro não estava no token: o Preview comparava seu `Origin`
+com o `APP_BASE_URL` de outro deployment e devolvia 403. Após o redeploy, a
+jornada terminou com e-mail inicial e reenvio recebidos, link anterior recusado,
+link novo aceito, tenant correto, replay recusado e cleanup completo. A regressão
+da rota passou 32/32 e mantém host externo em 403.
+
+`payments-account-lifecycle` passou **2/2** no Preview com fixture DEV isolada e
+Asaas Sandbox. O Gemini real passou **48/48** no corpus 3–50. A regressão global
+passou **4.583/4.583 em 442 arquivos**, TypeScript passou e o build Next em
+`NODE_ENV=production` terminou com exit 0 e 18 páginas estáticas.
+
+Nas suítes `production-*`, o dashboard com dados não zero passou e elevou a
+evidência isolada para quatro arquivos funcionais. O runner de mutações
+autorizadas falhou por timeout global durante o próprio `finally`; aumentar o
+timeout não resolveu. A fixture residual exata foi removida e o readback deu
+zero. Estado atual por caso: **4 PASS, 1 FAIL de infraestrutura do teste, 4
+PRECONDITION BLOCKED e 38 SKIP**.
+
+Continuam bloqueados externamente: autorização crítica do refund PIX, checkout
+pago sob reCAPTCHA do Asaas, crédito final do Google Ads com campanha inativa e
+a reexecução integrada WhatsApp → IA → resposta sob responsabilidade do agente
+concorrente.
