@@ -236,6 +236,9 @@ const EnvSchema = z
     // Opcionais no parse (next build verde antes do setup); assertWhatsappOnboarding
     // Ready() exige em runtime. Chegam ao browser via props do Server Component
     // (sem NEXT_PUBLIC_ — um único ponto de leitura de env).
+    // META_CONFIG_ID precisa ser uma configuração **v4** do Embedded Signup: o
+    // cliente abre o FB.login só com `extras: { setup: {} }` (ver
+    // whatsapp-connect.tsx). O v2/v3 é descontinuado pela Meta em 15/10/2026.
     META_APP_ID: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
     META_CONFIG_ID: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
 

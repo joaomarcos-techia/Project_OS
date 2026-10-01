@@ -945,6 +945,35 @@ describe('WhatsappConnect', () => {
     expect(screen.getByRole('button', { name: 'Desconectar' })).toBeTruthy();
   });
 
+  // ==== Embedded Signup v4 ===================================================
+
+  it('abre o Embedded Signup no formato v4: `extras` só com `setup`', () => {
+    // O v2 (`sessionInfoVersion: '3'`) é descontinuado pela Meta em 15/10/2026.
+    const login = vi.fn();
+    window.FB = { init: vi.fn(), login };
+    render(
+      <WhatsappConnect
+        status={status}
+        appId="app-id"
+        configId="config-v4"
+        graphVersion="v23.0"
+        ready={true}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText(/PIN de ativação do WhatsApp/), {
+      target: { value: '123456' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Conectar WhatsApp' }));
+
+    expect(login).toHaveBeenCalledTimes(1);
+    expect(login.mock.calls[0]?.[1]).toEqual({
+      config_id: 'config-v4',
+      response_type: 'code',
+      override_default_response_type: true,
+      extras: { setup: {} },
+    });
+  });
+
   it('não reintroduz estilos inline nem as classes legadas da tela', () => {
     const source = readFileSync(
       resolve(process.cwd(), 'src/app/(app)/(shell)/configuracoes/whatsapp/whatsapp-connect.tsx'),

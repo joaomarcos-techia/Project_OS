@@ -166,6 +166,22 @@ function sanitizeMetaErrorRef(value: unknown): string | null {
 // token OAuth — isto é defesa adicional na fronteira do cliente.)
 const ALLOWED_FB_ORIGINS = new Set(['https://www.facebook.com', 'https://web.facebook.com']);
 
+/**
+ * `extras` do `FB.login` no Embedded Signup **v4**.
+ *
+ * `META_CONFIG_ID` aponta para uma configuração v4 (Facebook Login for
+ * Business → Cadastro incorporado do WhatsApp, produto WhatsApp Cloud API,
+ * criada em 30/09/2026). Na v4, produtos, permissões e ativos moram na própria
+ * configuração, e o objeto fica só com `setup`. O `sessionInfoVersion: '3'` que
+ * havia aqui era o formato do v2, que a Meta descontinua em 15/10/2026.
+ *
+ * Os eventos do `postMessage` — `FINISH`, `FINISH_ONLY_WABA`, `CANCEL`, com
+ * `waba_id`/`phone_number_id` em `data` — são os mesmos, então o tratamento
+ * abaixo não muda.
+ * https://developers.facebook.com/documentation/business-messaging/whatsapp/embedded-signup/version-4
+ */
+const SIGNUP_EXTRAS = { setup: {} } as const;
+
 export function WhatsappConnect({
   status,
   appId,
@@ -482,7 +498,7 @@ export function WhatsappConnect({
         config_id: configId,
         response_type: 'code',
         override_default_response_type: true,
-        extras: { setup: {}, sessionInfoVersion: '3' },
+        extras: SIGNUP_EXTRAS,
       },
     );
   };
