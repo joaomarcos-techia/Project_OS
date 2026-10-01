@@ -8129,3 +8129,20 @@ ações externas/manuais: concluir o refund PIX pendente no painel Sandbox,
 reexecutar `/cadastro`, ativar a campanha antes da prova de atribuição, aplicar
 0107 em produção somente depois do merge e, se for desejada uma nova prova Meta,
 refazer o Embedded Signup no número consentido de teste.
+
+### 49.5 Regressão do gate HTTP do CI
+
+O segundo CI integrado passou por audit de dependências, TypeScript, lint,
+arquitetura, migrations, observabilidade, registry, cobertura, inventário,
+isolamento de tenants e build, mas encontrou uma violação no gate HTTP:
+`fetchOpenHandoffs` respondia `200` com `[]` quando não havia sessão. O retorno
+vazio evitava o incidente `NO_PROFILE`, mas ocultava a negativa como sucesso.
+
+A Server Action passou a usar `authorizeAction` e um resultado discriminado:
+`{ ok: true, data }` ou `{ ok: false, error }`. O watcher continua sem exibir
+toast para expiração/revogação, zera o badge e reinicia seu baseline. A
+regressão direcionada passou **20/20**. O build isolado passou e os gates
+`security:bundle`/`security:http` observaram **177 arquivos de cliente sem
+segredo**, **328 requests de Server Actions** e **52 respostas `200` com negativa
+explícita**, incluindo `fetchOpenHandoffs`. O inventário regenerado manteve 180
+actions, 51 route methods e zero gaps.

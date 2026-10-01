@@ -416,3 +416,11 @@ atribuição final permanece bloqueada enquanto a campanha estiver inativa.
 O CI inicialmente falhou no audit de dependências antes dos testes por duas
 advisories high em `brace-expansion` 5.0.9. A resolução transitiva foi atualizada
 para 5.0.11; `pnpm audit --prod --audit-level high` passou em seguida.
+
+Na reexecução, o build passou, mas `security:http` detectou que
+`fetchOpenHandoffs` devolvia uma lista vazia sem sessão. Isso evitava o erro
+`NO_PROFILE`, porém convertia uma negativa em sucesso implícito. A action agora
+devolve resultado discriminado e o watcher limpa seu estado sem toast. Os testes
+direcionados passaram 20/20; o build isolado e a repetição dos gates passaram
+com 177 arquivos de bundle sem segredo e 328 requests HTTP, dos quais 52
+respostas `200` continham negativa explícita.

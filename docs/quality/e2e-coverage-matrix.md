@@ -377,6 +377,7 @@ de conexão não possa reaparecer.
 | Google Ads, sinal técnico | produção `qoro.dev` | 1 | 0 | 0 | 0 | gtag carregado, request de conversão observado e chegada em `/cadastro` |
 | Google Ads, crédito da ação | painel Ads | 0 | 0 | 1 | 0 | campanha inativa |
 | Regressão global | Vitest | 4576 | 0 | 0 | 0 | 442 arquivos, exit 0 |
+| Fronteira HTTP de Server Actions | build isolado + HTTP local | 328 requests | 0 | 0 | 0 | 52 respostas `200` com negativa explícita; `fetchOpenHandoffs` coberto |
 
 O resultado do Playwright não substitui a jornada real da Meta: quatro casos
 foram pulados porque não havia número conectado. A prova externa do agente
