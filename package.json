@@ -78,6 +78,7 @@
     "test:load": "tsx --conditions=react-server scripts/load-test.ts",
     "billing:card-live-check": "tsx --conditions=react-server scripts/asaas-card-live-check.ts",
     "payments:checkout-e2e": "tsx --conditions=react-server scripts/asaas-checkout-e2e.ts",
+    "payments:refund-e2e": "tsx --conditions=react-server scripts/asaas-refund-e2e.ts",
     "payments:meta-e2e": "tsx --conditions=react-server scripts/payments-meta-e2e.ts",
     "billing:live-roundtrip": "tsx --conditions=react-server scripts/asaas-live-roundtrip.ts",
     "billing:delete-restore-e2e": "tsx --conditions=react-server scripts/asaas-delete-restore-e2e.ts",

@@ -7941,3 +7941,100 @@ fixture. Os eventos da fixture foram processados depois, mas seis asserções j�
 tinham expirado. O runner passou a priorizar apenas seu próprio evento e executar
 um slot do worker por vez. Na repetição, `smoke-c11` passou **18/18** e o readback
 encontrou zero clínicas `Smoke C11` residuais.
+
+## 48. Refund Sandbox, produção e incidentes de conexão — 01/10/2026
+
+Esta continuação ocorreu na branch isolada
+`integration/2e2-final-20260930`, sobre o commit `17e45a4`. O worktree
+concorrente e os arquivos de WhatsApp permaneceram intocados.
+
+### 48.1 Refund real no Asaas Sandbox
+
+Foi criado o runner opt-in `payments:refund-e2e`, preso no código ao host
+`api-sandbox.asaas.com`. Ele usa manifesto ignorado em `.playwright/`, confere a
+proveniência da conta por fingerprint, retoma os mesmos IDs e só remove o
+manifesto depois de ambos os métodos chegarem a estado terminal. Chaves, dados
+de cartão, PII e IDs integrais não entram no log.
+
+Com `ASAAS_CHAVE_TESTE_2`, a execução real obteve:
+
+| Método | Pagamento | Refund | Veredito |
+| --- | --- | --- | --- |
+| PIX | `RECEIVED`, R$ 10 | um refund existente em `AWAITING_CRITICAL_ACTION_AUTHORIZATION` | **BLOCKED** até autorização no painel e readback `DONE` |
+| cartão | `CONFIRMED`, R$ 10 | um refund terminal; replay recusado com HTTP 400 sem criar segunda devolução | **PASS** |
+
+O primeiro POST de PIX havia sido recusado com `invalid_action`; depois da
+autorização, o provider aceitou a solicitação e criou o refund pendente. O runner
+foi corrigido para tratar essa pendência como bloqueio, não como falha nem como
+sucesso, e continuar o cartão. Não haverá segundo POST de PIX: a próxima
+execução fará somente readback da mesma fixture. O customer e a fixture PIX
+permanecem preservados até o estado terminal, de propósito. Nenhuma API de
+produção foi chamada. Os contratos de proveniência/cleanup passaram **21/21**.
+
+A documentação oficial expõe o token Sandbox `000000` para ações críticas, mas
+a referência do endpoint de refund não define campo ou etapa para enviá-lo. Não
+foi inventado header nem bypass; a aprovação pendente continua manual no painel.
+
+### 48.2 Reexecução das 44 suítes `production-*`
+
+Os 44 arquivos continuam gerando 47 casos. A coleta conjunta contra
+`https://app.qoro.dev`, com todos os opt-ins mutáveis desligados, executou em
+8,8 s e produziu **44 SKIP + 3 PRECONDITION BLOCKED**. Os bloqueios são ausência
+das credenciais E2E de owner/doctor/senha compartilhada; o host está correto.
+
+Quatro specs foram habilitados isoladamente:
+
+- matriz RLS read-only: **PASS** em 6,1 s, 109 tabelas descobertas e zero leak;
+- matriz RLS de mutações com rollback: **PASS** em 2,0 min, 150/150 tentativas
+  cross-tenant negadas e nenhuma persistência;
+- preço fundador: **PASS** em 10,7 s, sem billing/Asaas;
+- fronteira anônima: **PRECONDITION BLOCKED** em 2,3 s porque produção tem
+  pacientes, prontuários e PDFs, mas zero `ai_conversations` para fornecer o ID
+  real exigido pelo teste.
+
+Consolidado atual por caso: **3 PASS, 0 FAIL de produto, 4 PRECONDITION BLOCKED e
+40 SKIP**. Por arquivo: **3 PASS, 4 PRECONDITION BLOCKED e 37 SKIP**. A tabela
+por suíte está em
+[`quality/production-44-execution.md`](quality/production-44-execution.md).
+
+O `production-team-lifecycle` tinha um defeito no próprio coletor: tentava abrir
+`.playwright/.auth/user.json` antes de avaliar o `skip`. O storage state agora é
+carregado somente com opt-in e sem owner override; a repetição sem autorização
+terminou em **1 SKIP, exit 0**. Nenhum cenário funcional foi promovido a PASS.
+
+A clínica nominalmente de teste possui três perfis ativos. Os specs de recovery
+e logout exigem quatro antes de criarem o próprio usuário sintético; portanto
+eles permanecem `SKIP`/pré-condição insatisfeita. Criar uma role ou selecionar
+usuário real apenas para executar a suíte não seria evidência legítima.
+
+### 48.3 Supavisor read-only e `CONNECT_TIMEOUT`
+
+Um probe atual abriu 48 conexões independentes pelo Transaction Pooler de
+produção: **48/48 responderam**, zero `transaction_read_only` ou
+`default_transaction_read_only`, zero recovery, dois backends, latência mínima
+1,1 s, p95 2,6 s e máxima 3,3 s. No mesmo instante, `pg_stat_activity` mostrou
+10/60 conexões, uma ativa e zero esperando lock. `outbox` e
+`signup-sessions-cleanup` tinham heartbeat recente `success`.
+
+Os ratchets de sessão, pool, deadline e cron passaram **23/23**. O código proíbe
+estado read-only persistente, falha conexão em 10 s, captura no Sentry, emite
+métrica, registra heartbeat de erro e devolve 500. Ele não repete o cron inteiro
+após erro ambíguo, pois handlers podem conter efeitos externos.
+
+O veredito permanece limitado: **recuperação e mitigação comprovadas; causa raiz
+externa desconhecida**. O probe saudável não explica qual cliente contaminou o
+backend Supavisor histórico nem elimina estruturalmente uma futura indisponibilidade
+de rede.
+
+### 48.4 Risco remanescente desta rodada
+
+- refund PIX: aprovar a ação crítica no painel Sandbox e reexecutar o mesmo
+  runner até o readback `DONE`;
+- 37 suítes de produção: fornecer contas E2E descartáveis, senha compartilhada e
+  fixtures próprias; quatro casos hoje têm pré-condição bloqueada;
+- WhatsApp real: integrar e revalidar as branches do agente concorrente somente
+  na etapa penúltima;
+- Google Ads: crédito final continua dependente da campanha ativa;
+- executar build/regressão integral depois da integração de WhatsApp;
+- repetir manualmente `/cadastro`, conforme roteiro humano, depois do Preview
+  final.

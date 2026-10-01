@@ -133,6 +133,7 @@ com os mesmos guards. Precisa de `pnpm build` antes.
 ```bash
 pnpm billing:live-check     # assinatura, na conta do Qoro
 pnpm payments:live-check    # cobrança de PACIENTE, com chave de clínica (modelo B)
+pnpm payments:refund-e2e    # PIX + cartão pagos e estornados, somente Sandbox e opt-in
 ```
 
 Não rodam no CI (precisam de credencial). São o único jeito de pegar regra de
@@ -144,9 +145,22 @@ congelado no que era antes. Rode-os **antes de qualquer release que toque pagame
 
 `payments:live-check` recusa chave que não seja de sandbox: ele CRIA cobranças.
 
-Um passo pode aparecer como **`n/v`** (não verificável) em vez de `ok` ou `FALHA`:
-é o caso em que o ambiente não permite provar o caminho — hoje, o estorno de uma
-cobrança efetivamente paga, porque a conta de sandbox recusa simular recebimento.
+`payments:refund-e2e` exige `ASAAS_REFUND_E2E=ALLOW_SANDBOX_REFUND` e uma chave
+Sandbox em `ASAAS_REFUND_E2E_API_KEY` (ou no alias canônico `ASAAS_API_KEY`). A URL
+fica presa no código a `https://api-sandbox.asaas.com/v3`. O runner
+cria fixtures sintéticas para PIX e cartão, confirma o PIX pela ação oficial do
+Sandbox, faz um único estorno por cobrança, espera o readback terminal e prova que
+uma repetição não cria outra devolução. Um manifesto ignorado em `.playwright/`
+fica preservado se a execução não chegar ao estado terminal; a execução seguinte
+retoma exatamente esses IDs. `ASAAS_REFUND_E2E_METHOD=PIX|CREDIT_CARD` permite
+continuar um método independente sem repetir o outro.
+
+Um passo pode aparecer como **`BLOCKED`** em vez de `PASS` ou `FAIL`: o pagamento
+foi exercitado, mas o provider ainda exige uma ação externa. Em 01/10/2026, o
+cartão chegou a refund terminal; o PIX ficou em
+`AWAITING_CRITICAL_ACTION_AUTHORIZATION`. Nunca repita o POST quando o manifesto
+já contém esse refund: autorize a ação no Sandbox e execute o mesmo runner para
+fazer apenas o readback.
 Ele não conta como falha (vermelho permanente treina todo mundo a ignorar vermelho)
 e **não vira verde** (check verde forjado é pior: passa a impressão de prova).
 

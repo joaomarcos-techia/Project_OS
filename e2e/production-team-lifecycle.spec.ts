@@ -20,7 +20,10 @@ test.use({
   // Este gate de producao reutiliza deliberadamente a sessao autenticada do
   // owner descartavel. Ele nunca deve iniciar login interativo nem exigir
   // credenciais na linha de comando.
-  storageState: '.playwright/.auth/user.json',
+  storageState:
+    authorized && !ownerOverrideEmail
+      ? '.playwright/.auth/user.json'
+      : { cookies: [], origins: [] },
   // Trace includes navigation URLs and could retain bearer magic links. Video
   // does not record the browser chrome and preserves safe visual evidence.
   actionTimeout: 30_000,

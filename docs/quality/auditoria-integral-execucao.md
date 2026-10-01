@@ -384,3 +384,18 @@ config foi alinhado à política global e o ratchet passou a ler os dois configs
 com **6 PASS + 2 SKIP condicionais**, exit 0 em 29,6 s. O readback do diretório
 de resultados encontrou somente `.last-run.json`, sem trace, screenshot ou
 vídeo.
+
+## Adendo — refund e reexecução de produção em 01/10/2026
+
+| Área | Evidência atual | Veredito |
+| --- | --- | --- |
+| Refund cartão Sandbox | pagamento `CONFIRMED`, um refund terminal e replay HTTP 400 sem segunda devolução | **PASS** |
+| Refund PIX Sandbox | pagamento `RECEIVED`, um refund em `AWAITING_CRITICAL_ACTION_AUTHORIZATION`; manifesto preservado | **BLOCKED** até aprovação no painel + `DONE` |
+| `production-*` | 44 arquivos/47 casos coletados no host correto; três specs isolados passaram e a fronteira anônima ficou sem conversa fixture | **3 PASS, 4 PRECONDITION BLOCKED, 40 SKIP** por caso |
+| Supavisor atual | 48/48 conexões graváveis, dois backends, zero recovery/read-only; p95 2,6 s | **PASS atual**, causa histórica externa desconhecida |
+| Cron/DB defensivo | 23/23 em ratchet de sessão, pool, deadline e captura do cron | **PASS de mitigação**, sem retry estrutural do tick inteiro |
+
+O coletor de `production-team-lifecycle` deixou de carregar um storage state
+inexistente antes do `skip`; a repetição sem opt-in terminou em um skip e exit 0.
+A decomposição vigente substitui a contagem histórica de quatro passes, pois
+`production-unauthenticated-boundary` não pôde executar sem uma conversa real.
