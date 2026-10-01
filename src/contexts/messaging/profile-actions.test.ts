@@ -48,6 +48,7 @@ vi.mock('@/lib/messaging', () => ({
     metaBusinessId: 'waba-1',
     tokenCiphertext: 'CIPHERTEXT_BLOB',
     connectionStatus: 'connected',
+    coexistence: false,
   })),
   loadActiveNumberForSend: vi.fn(async () => null),
 }));
@@ -107,6 +108,7 @@ beforeEach(() => {
     metaBusinessId: 'waba-1',
     tokenCiphertext: 'CIPHERTEXT_BLOB',
     connectionStatus: 'connected',
+    coexistence: false,
   });
   vi.mocked(getBusinessProfile).mockResolvedValue(lido());
 });
@@ -155,6 +157,46 @@ describe('sem número conectado', () => {
     await expect(getMyClinicWhatsappProfile()).rejects.toMatchObject({
       name: 'NumberNotConnectedError',
     });
+  });
+});
+
+describe('perfil em coexistência', () => {
+  it('recusa escrita antes de decifrar o token ou chamar a Meta', async () => {
+    vi.mocked(loadConnectionForHealth).mockResolvedValue({
+      id: 'conn-1',
+      clinicId: 'clinic-da-sessao',
+      metaPhoneId: 'phone-da-clinica',
+      metaBusinessId: 'waba-1',
+      tokenCiphertext: 'CIPHERTEXT_BLOB',
+      connectionStatus: 'connected',
+      coexistence: true,
+    });
+
+    await expect(updateMyClinicWhatsappProfile(entrada({ about: 'depois' }))).rejects.toMatchObject(
+      {
+        name: 'WhatsappProfileManagedInBusinessAppError',
+        code: 'profile_managed_in_business_app',
+      },
+    );
+    expect(decryptForTenant).not.toHaveBeenCalled();
+    expect(getBusinessProfile).not.toHaveBeenCalled();
+    expect(updateBusinessProfile).not.toHaveBeenCalled();
+  });
+
+  it('mantém a leitura para mostrar o estado informado pela Meta', async () => {
+    vi.mocked(loadConnectionForHealth).mockResolvedValue({
+      id: 'conn-1',
+      clinicId: 'clinic-da-sessao',
+      metaPhoneId: 'phone-da-clinica',
+      metaBusinessId: 'waba-1',
+      tokenCiphertext: 'CIPHERTEXT_BLOB',
+      connectionStatus: 'connected',
+      coexistence: true,
+    });
+
+    await getMyClinicWhatsappProfile();
+
+    expect(getBusinessProfile).toHaveBeenCalledWith('phone-da-clinica', 'token-em-claro');
   });
 });
 

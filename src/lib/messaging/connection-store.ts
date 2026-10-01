@@ -232,6 +232,7 @@ export interface ConnectionForHealth {
   /** Ciphertext — o decrypt acontece no contexto, com a chave do tenant. */
   tokenCiphertext: string;
   connectionStatus: string;
+  coexistence: boolean;
 }
 
 /** Conexão ATIVA da clínica, com a credencial cifrada, para sondar a Meta. */
@@ -245,8 +246,10 @@ export async function loadConnectionForHealth(
     meta_business_id: string | null;
     token_encrypted: string;
     connection_status: string;
+    coexistence: boolean;
   }>(sql`
-    SELECT id, clinic_id, meta_phone_id, meta_business_id, token_encrypted, connection_status
+    SELECT id, clinic_id, meta_phone_id, meta_business_id, token_encrypted, connection_status,
+           coexistence
       FROM clinic_whatsapp_numbers
      WHERE clinic_id = ${clinicId} AND active = true
      LIMIT 1
@@ -260,6 +263,7 @@ export async function loadConnectionForHealth(
     metaBusinessId: r.meta_business_id,
     tokenCiphertext: r.token_encrypted,
     connectionStatus: r.connection_status,
+    coexistence: r.coexistence,
   };
 }
 
@@ -274,8 +278,10 @@ export async function listActiveConnectionsForHealth(
     meta_business_id: string | null;
     token_encrypted: string;
     connection_status: string;
+    coexistence: boolean;
   }>(sql`
-    SELECT id, clinic_id, meta_phone_id, meta_business_id, token_encrypted, connection_status
+    SELECT id, clinic_id, meta_phone_id, meta_business_id, token_encrypted, connection_status,
+           coexistence
       FROM clinic_whatsapp_numbers
      WHERE active = true
      ORDER BY updated_at ASC
@@ -288,6 +294,7 @@ export async function listActiveConnectionsForHealth(
     metaBusinessId: r.meta_business_id,
     tokenCiphertext: r.token_encrypted,
     connectionStatus: r.connection_status,
+    coexistence: r.coexistence,
   }));
 }
 

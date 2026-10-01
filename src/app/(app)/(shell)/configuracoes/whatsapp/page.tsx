@@ -59,7 +59,7 @@ export default async function WhatsappSettingsPage() {
         graphVersion={env.META_GRAPH_API_VERSION}
         ready={ready}
       />
-      {perfil ? <WhatsappProfile inicial={perfil} /> : null}
+      {perfil ? <WhatsappProfile inicial={perfil} somenteLeitura={status.coexistence} /> : null}
     </div>
   );
 }

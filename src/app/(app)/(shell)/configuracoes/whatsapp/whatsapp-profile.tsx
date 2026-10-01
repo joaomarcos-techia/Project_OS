@@ -116,7 +116,13 @@ function iguais(a: Formulario, b: Formulario): boolean {
   );
 }
 
-export function WhatsappProfile({ inicial }: { inicial: PerfilCarregado }) {
+export function WhatsappProfile({
+  inicial,
+  somenteLeitura = false,
+}: {
+  inicial: PerfilCarregado;
+  somenteLeitura?: boolean;
+}) {
   const id = useId();
   const [lido, setLido] = useState<PerfilLido | null>(inicial.ok ? inicial.lido : null);
   const [erroLeitura, setErroLeitura] = useState<string | null>(
@@ -194,6 +200,7 @@ export function WhatsappProfile({ inicial }: { inicial: PerfilCarregado }) {
       aria-labelledby={`${id}-titulo`}
       data-slot="whatsapp-profile"
       data-profile-state={lido ? 'carregado' : 'erro-leitura'}
+      data-profile-read-only={somenteLeitura ? 'true' : 'false'}
       className="mt-(--sp-4) max-w-190 p-(--card-pad)"
     >
       <div className="mb-(--sp-3) flex items-center justify-between gap-(--sp-3)">
@@ -233,6 +240,16 @@ export function WhatsappProfile({ inicial }: { inicial: PerfilCarregado }) {
             <p className="text-pretty">{PERFIL_AVISO_PUBLICO}</p>
           </Alert>
 
+          {somenteLeitura ? (
+            <Alert variant="info" title="Gerenciado no WhatsApp Business" className="mb-(--sp-4)">
+              <p className="text-pretty">
+                Como este número está conectado por coexistência, altere nome, foto e dados públicos
+                diretamente no aplicativo WhatsApp Business do celular. O Qoro mostra aqui o perfil
+                que a Meta informa, sem tentar sobrescrevê-lo.
+              </p>
+            </Alert>
+          ) : null}
+
           {lido?.verticalDesconhecida ? (
             <Alert variant="info" title="Categoria definida fora do Qoro" className="mb-(--sp-4)">
               <p className="text-pretty">
@@ -252,7 +269,7 @@ export function WhatsappProfile({ inicial }: { inicial: PerfilCarregado }) {
             </Alert>
           ) : null}
 
-          <div className="flex flex-col gap-(--sp-4)">
+          <fieldset disabled={somenteLeitura} className="flex flex-col gap-(--sp-4)">
             <Field
               label="Recado"
               htmlFor={`${id}-about`}
@@ -376,18 +393,20 @@ export function WhatsappProfile({ inicial }: { inicial: PerfilCarregado }) {
                 ))}
               </Select>
             </Field>
-          </div>
+          </fieldset>
 
-          <div className="mt-(--sp-5) flex items-center gap-(--sp-3)">
-            <Button type="button" onClick={salvar} disabled={pendente || !alterado}>
-              {pendente ? 'Salvando…' : 'Salvar perfil'}
-            </Button>
-            {alterado ? (
-              <span className="text-(length:--fs-xs) text-fg-muted">
-                Alterações ainda não publicadas.
-              </span>
-            ) : null}
-          </div>
+          {somenteLeitura ? null : (
+            <div className="mt-(--sp-5) flex items-center gap-(--sp-3)">
+              <Button type="button" onClick={salvar} disabled={pendente || !alterado}>
+                {pendente ? 'Salvando…' : 'Salvar perfil'}
+              </Button>
+              {alterado ? (
+                <span className="text-(length:--fs-xs) text-fg-muted">
+                  Alterações ainda não publicadas.
+                </span>
+              ) : null}
+            </div>
+          )}
         </>
       )}
     </Card>

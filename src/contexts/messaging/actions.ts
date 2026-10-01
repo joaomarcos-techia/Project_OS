@@ -58,7 +58,12 @@ import {
   type PerfilLido,
   type PerfilWhatsappInput,
 } from './business-profile-contract';
-import { MessagingRateLimitedError, MetaConnectError, NumberNotConnectedError } from './errors';
+import {
+  MessagingRateLimitedError,
+  MetaConnectError,
+  NumberNotConnectedError,
+  WhatsappProfileManagedInBusinessAppError,
+} from './errors';
 import { getBusinessProfile, updateBusinessProfile } from './internal/meta-business-profile';
 import {
   exchangeCodeForToken,
@@ -482,9 +487,13 @@ export async function disconnectMyClinicWhatsapp(): Promise<{ disconnected: bool
  */
 async function resolverConexaoDoPerfil(
   clinicId: string,
+  operacao: 'read' | 'write' = 'read',
 ): Promise<{ connectionId: string; phoneNumberId: string; token: string }> {
   const conn = await loadConnectionForHealth(clinicId);
   if (!conn) throw new NumberNotConnectedError(clinicId);
+  if (operacao === 'write' && conn.coexistence) {
+    throw new WhatsappProfileManagedInBusinessAppError();
+  }
   return {
     connectionId: conn.id,
     phoneNumberId: conn.metaPhoneId,
@@ -541,7 +550,7 @@ export async function updateMyClinicWhatsappProfile(
   // Parse ANTES de qualquer I/O: entrada inválida não gasta decrypt nem Graph.
   const desejado = PerfilWhatsappSchema.parse(input);
   const ctx = await requestContext();
-  const { connectionId, phoneNumberId, token } = await resolverConexaoDoPerfil(clinicId);
+  const { connectionId, phoneNumberId, token } = await resolverConexaoDoPerfil(clinicId, 'write');
 
   const antes = await getBusinessProfile(phoneNumberId, token);
   const alterados = camposAlterados(antes.perfil, desejado);

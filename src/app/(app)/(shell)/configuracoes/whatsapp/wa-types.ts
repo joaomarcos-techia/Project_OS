@@ -9,6 +9,7 @@ import {
   MessagingRateLimitedError,
   MetaConnectError,
   NumberNotConnectedError,
+  WhatsappProfileManagedInBusinessAppError,
   type MetaConnectFailureStage,
 } from '@/contexts/messaging/errors';
 
@@ -144,6 +145,14 @@ export function fail(err: unknown): ActionResult<never> {
       ok: false,
       code: 'number_not_connected',
       message: 'Nenhum número de WhatsApp está conectado nesta clínica.',
+    };
+  }
+  if (err instanceof WhatsappProfileManagedInBusinessAppError) {
+    return {
+      ok: false,
+      code: err.code,
+      message:
+        'Este perfil é gerenciado no aplicativo WhatsApp Business do celular. Faça a alteração por lá.',
     };
   }
   if (err instanceof MetaConnectError) {

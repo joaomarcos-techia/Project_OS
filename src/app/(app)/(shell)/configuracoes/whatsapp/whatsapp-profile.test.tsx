@@ -95,6 +95,23 @@ describe('leitura falha', () => {
 });
 
 describe('leitura bem-sucedida', () => {
+  it('em coexistência mostra o perfil sem oferecer escrita', () => {
+    const { container } = render(<WhatsappProfile inicial={carregado()} somenteLeitura />);
+
+    expect(
+      container
+        .querySelector('[data-slot="whatsapp-profile"]')
+        ?.getAttribute('data-profile-read-only'),
+    ).toBe('true');
+    expect(screen.getByText('Gerenciado no WhatsApp Business')).toBeTruthy();
+    expect(screen.getByText(/altere nome, foto e dados públicos/u)).toBeTruthy();
+    expect(
+      (screen.getByLabelText('Recado').closest('fieldset') as HTMLFieldSetElement).disabled,
+    ).toBe(true);
+    expect(screen.queryByRole('button', { name: 'Salvar perfil' })).toBeNull();
+    expect(mocks.salvar).not.toHaveBeenCalled();
+  });
+
   it('preenche os campos com o que a Meta reporta', () => {
     render(<WhatsappProfile inicial={carregado()} />);
 

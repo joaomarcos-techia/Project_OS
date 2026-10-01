@@ -5,6 +5,7 @@ import {
   MessagingRateLimitedError,
   MetaConnectError,
   NumberNotConnectedError,
+  WhatsappProfileManagedInBusinessAppError,
 } from '@/contexts/messaging/errors';
 
 import { fail } from './wa-types';
@@ -105,6 +106,14 @@ describe('fail', () => {
 });
 
 describe('fail — §33, perfil público', () => {
+  it('orienta editar no aplicativo quando o número usa coexistência', () => {
+    const r = fail(new WhatsappProfileManagedInBusinessAppError());
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.code).toBe('profile_managed_in_business_app');
+    expect(r.message).toContain('aplicativo WhatsApp Business');
+  });
+
   it('distingue o teto de LEITURA do de escrita', () => {
     // A frase do teto de escrita, dita a quem só abriu a tela, mandaria a
     // pessoa procurar uma alteração que ela não fez.
