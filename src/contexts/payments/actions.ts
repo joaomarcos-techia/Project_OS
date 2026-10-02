@@ -333,20 +333,17 @@ export async function connectPaymentAccount(
     requestContext: ctx,
   });
 
-  // Reenviar a MESMA chave com webhook já confirmado é um no-op real. Além de
-  // poupar uma chamada, impede criar webhooks duplicados com o mesmo token.
-  const unchangedStatus = result.changed ? null : await getPaymentAccountStatus(clinicId);
-  const webhookResult = unchangedStatus?.webhookConfigured
-    ? { ok: true as const, issue: null }
-    : await tryConfigureWebhook(clinicId, accountEmail);
+  // `webhook_configured_at` prova apenas que o Asaas aceitou a configuração no
+  // passado. O recurso pode ter sido removido no provider depois disso. Sempre
+  // reconcilia ao reenviar a chave: `createWebhook` faz upsert por nome +
+  // pathname/ref, atualiza o existente sem duplicar e recria somente quando sumiu.
+  const webhookResult = await tryConfigureWebhook(clinicId, accountEmail);
 
   // Sem chave, sem hash, sem nome de conta: só o suficiente para ver adoção e
   // investigar volume. `changed:false` = reenvio da mesma chave.
   metrics.emit('payments.account.connected', { clinicId, changed: result.changed });
 
-  const status = unchangedStatus?.webhookConfigured
-    ? unchangedStatus
-    : await getPaymentAccountStatus(clinicId);
+  const status = await getPaymentAccountStatus(clinicId);
   return { ...status, webhookConfigurationIssue: webhookResult.issue };
 }
 

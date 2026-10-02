@@ -569,7 +569,7 @@ describe('criação de webhook', () => {
     );
   });
 
-  it('atualiza a mesma rota quando o webhook já existe', async () => {
+  it('atualiza a mesma rota quando host e bypass do Preview mudam', async () => {
     fetchMock
       .mockResolvedValueOnce(
         Response.json({
@@ -577,7 +577,7 @@ describe('criação de webhook', () => {
             {
               id: 'wh_existing',
               name: 'Qoro — cobranca de paciente',
-              url: 'https://preview.qoro.test/api/webhooks/asaas/patient/ref-1?x-vercel-protection-bypass=segredo-antigo',
+              url: 'https://preview-antigo.qoro.test/api/webhooks/asaas/patient/ref-1?x-vercel-protection-bypass=segredo-antigo',
             },
           ],
         }),
@@ -588,7 +588,7 @@ describe('criação de webhook', () => {
     await expect(
       clinica.createWebhook({
         name: 'Qoro — cobranca de paciente',
-        url: 'https://preview.qoro.test/api/webhooks/asaas/patient/ref-1?x-vercel-protection-bypass=segredo-atual',
+        url: 'https://preview-atual.qoro.test/api/webhooks/asaas/patient/ref-1?x-vercel-protection-bypass=segredo-atual',
         email: 'gestor@example.test',
         authToken: 'token-atual-com-mais-de-32-caracteres',
         events: ['PAYMENT_RECEIVED'],
@@ -602,7 +602,7 @@ describe('criação de webhook', () => {
         method: 'PUT',
         body: JSON.stringify({
           name: 'Qoro — cobranca de paciente',
-          url: 'https://preview.qoro.test/api/webhooks/asaas/patient/ref-1?x-vercel-protection-bypass=segredo-atual',
+          url: 'https://preview-atual.qoro.test/api/webhooks/asaas/patient/ref-1?x-vercel-protection-bypass=segredo-atual',
           enabled: true,
           interrupted: false,
           authToken: 'token-atual-com-mais-de-32-caracteres',

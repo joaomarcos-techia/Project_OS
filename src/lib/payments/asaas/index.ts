@@ -701,9 +701,10 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
   function webhookTarget(url: string): string | null {
     try {
       const parsed = new URL(url);
-      // O bypass de Preview pode ser rotacionado. A identidade operacional do
-      // webhook é origem + rota; a query será substituída pelo valor atual no PUT.
-      return `${parsed.origin}${parsed.pathname}`;
+      // A ref no pathname identifica a conta da clínica. Host de Preview e bypass
+      // mudam entre deploys; incluí-los na identidade criava outro webhook em vez
+      // de mover o existente para o deploy atual.
+      return parsed.pathname;
     } catch {
       return null;
     }

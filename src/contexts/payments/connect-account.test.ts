@@ -232,12 +232,13 @@ describe('connectPaymentAccount', () => {
     expect(JSON.stringify(result)).not.toContain('timeout interno');
   });
 
-  it('não cria webhook duplicado ao reenviar a mesma chave já configurada', async () => {
+  it('reconcilia o webhook ao reenviar a mesma chave já configurada', async () => {
     vi.mocked(upsertPaymentAccount).mockResolvedValue({ id: 'acc-1', changed: false });
 
     const result = await connectPaymentAccount({ apiKey: SECRET });
 
-    expect(mocks.createWebhook).not.toHaveBeenCalled();
+    expect(mocks.createWebhook).toHaveBeenCalledOnce();
+    expect(mocks.markWebhookConfigured).toHaveBeenCalledWith('clinic-1');
     expect(result.webhookConfigured).toBe(true);
     expect(result.webhookConfigurationIssue).toBeNull();
   });

@@ -390,7 +390,7 @@ vídeo.
 | Área | Evidência atual | Veredito |
 | --- | --- | --- |
 | Refund cartão Sandbox | pagamento `CONFIRMED`, um refund terminal e replay HTTP 400 sem segunda devolução | **PASS** |
-| Refund PIX Sandbox | pagamento `RECEIVED`; dois refunds de R$ 10 terminaram `CANCELLED`; a retomada pelo manifesto não criou terceiro POST | **FAIL externo** — nenhum valor foi devolvido |
+| Refund PIX Sandbox | pagamento `RECEIVED`; dois refunds de R$ 10 terminaram `CANCELLED`; as transações Pix ficaram `CREDIT_REFUND/REFUSED` com motivo genérico do provider; a retomada pelo manifesto não criou terceiro POST | **FAIL externo** — nenhum valor foi devolvido |
 | `production-*` | 44 arquivos/47 casos coletados no host correto; três specs isolados passaram e a fronteira anônima ficou sem conversa fixture | **3 PASS, 4 PRECONDITION BLOCKED, 40 SKIP** por caso |
 | Supavisor atual | 48/48 conexões graváveis, dois backends, zero recovery/read-only; p95 2,6 s | **PASS atual**, causa histórica externa desconhecida |
 | Cron/DB defensivo | 23/23 em ratchet de sessão, pool, deadline e captura do cron | **PASS de mitigação**, sem retry estrutural do tick inteiro |

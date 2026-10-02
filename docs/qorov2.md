@@ -8256,7 +8256,9 @@ rodada, evitando uma refatoração ampla sem prova.
 
 Riscos ainda sem comprovação final:
 
-1. refund PIX depende da autorização manual crítica no Asaas Sandbox;
+1. refund PIX foi aprovado manualmente, mas os dois processamentos terminaram
+   recusados no Asaas Sandbox; a causa detalhada ainda depende do painel de
+   mecanismos de segurança ou do suporte do provider;
 2. checkout PIX/cartão pago continua limitado pelo reCAPTCHA do checkout
    hospedado;
 3. a causa externa histórica do Supavisor read-only e do `CONNECT_TIMEOUT` não
@@ -8311,8 +8313,8 @@ fronteira anônima, porque dois casos executaram e o deep-link de conversa não
 tinha fixture. A decomposição completa está em
 [`quality/production-44-execution.md`](quality/production-44-execution.md).
 
-Os bloqueios externos da §50.5 permanecem: autorização crítica do refund PIX no
-Asaas Sandbox, reCAPTCHA do checkout hospedado, campanha Google Ads inativa,
+Os bloqueios externos da §50.5 permanecem: diagnóstico da recusa do refund PIX
+no Asaas Sandbox, reCAPTCHA do checkout hospedado, campanha Google Ads inativa,
 causa histórica externa de Supavisor/`CONNECT_TIMEOUT`, jornada WhatsApp → IA →
 resposta sob o agente concorrente e roteiro humano final de `/cadastro`. O PR
 #26 continua sem autorização de merge.
@@ -8383,10 +8385,56 @@ mutação e terminou com **FAIL externo**: o provider marcou o refund como
 `CANCELLED`, sem devolver o valor.
 
 Um GET independente confirmou pagamento `RECEIVED` de R$ 10 e **dois refunds de
-R$ 10, ambos `CANCELLED`**. A API não fornece motivo, `failureReason` ou
-`cancellationReason` nesses objetos. Esta retomada não fez um terceiro POST: o
+R$ 10, ambos `CANCELLED`**. Os objetos de refund não fornecem `failureReason` ou
+`cancellationReason`; a consulta separada de transações Pix encontrou as duas
+operações `CREDIT_REFUND` em `REFUSED`, ambas com o motivo genérico do provider
+`Falha ao processar a transferência.`. O extrato registrou, para cada tentativa,
+R$ 10 de `PAYMENT_REVERSAL` e depois R$ 10 de `PAYMENT_REFUND_CANCELLED`. Esta
+retomada não fez um terceiro POST: o
 runner encontrou o refund existente, classificou o estado terminal de falha e
 preservou o manifesto. Portanto o estado deixou de ser `BLOCKED aguardando
 autorização`; ele é **FAIL do resultado externo**, com causa específica ainda
 dependente do suporte/diagnóstico do Asaas. O código continua correto ao exigir
 `DONE` antes de projetar devolução e ao não repetir o refund automaticamente.
+
+## 54. Reconciliação do webhook Asaas entre Previews — 02/10/2026
+
+A investigação dos refunds separou duas contas Sandbox. `ASAAS_CHAVE_TESTE_2`,
+usada pelo runner de refund, **não** corresponde à credencial cifrada da conta
+conectada ao DEV. Os webhooks órfãos encontrados naquela conta de teste são
+resíduos de fixtures e não participaram da decisão financeira do provider.
+Nenhuma configuração foi aplicada à conta errada; o guard comparou as
+credenciais e abortou antes da mutação.
+
+Na conta efetivamente conectada ao DEV, a ref ativa existia no Asaas e a fila
+estava saudável, mas a URL ainda apontava para um Preview antigo. O código tinha
+duas causas de drift: reenviar a mesma chave pulava toda reconciliação quando
+`webhook_configured_at` já estava preenchido, e o upsert identificava o recurso
+por origem + pathname. Como o host e o bypass mudam a cada Preview, o mesmo
+webhook podia ser duplicado em vez de movido.
+
+A correção mantém o contrato público e não adiciona dependência:
+
+- reenviar a mesma chave sempre reconcilia o webhook no provider;
+- o adapter identifica o recurso por nome + pathname/ref, ignorando host e
+  query rotativos;
+- o PUT existente continua reativando a fila, substituindo URL, token e eventos;
+- o teste de regressão muda simultaneamente host e bypass e exige PUT, não POST.
+
+Evidência: **59/59 testes focados PASS**, **311/311 na regressão de pagamentos**
+e **4.594/4.594 na regressão integral em 442 arquivos** (exit 0, 160,63 s).
+TypeScript, ESLint global, Prettier, inventário de segurança e build Next 15.5.24
+de produção também passaram; o build gerou 18 páginas estáticas. No Sandbox
+ligado ao DEV, o recurso existente foi atualizado para o Preview atual; o total
+de webhooks permaneceu 2 antes/depois, o readback encontrou exatamente uma URL
+para a ref ativa e um probe autenticado, sem pagamento nem dado clínico, recebeu
+**HTTP 200**. O webhook órfão de outra ref foi preservado: removê-lo é uma
+operação destrutiva separada e não é necessária para provar a correção.
+
+Para o refund PIX, o mecanismo especial de autorização de saques continua uma
+configuração distinta dos webhooks listados por `GET /webhooks`. A checagem
+manual pendente é: Asaas Sandbox → **Integrações → Mecanismos de segurança** →
+verificar se **Ativar autorização de saque para estornos Pix** está ligado e,
+se estiver, conferir URL e histórico de falhas. Sem essa leitura ou resposta do
+suporte, a causa raiz externa permanece **não comprovada**; nenhum terceiro
+refund deve ser criado.
