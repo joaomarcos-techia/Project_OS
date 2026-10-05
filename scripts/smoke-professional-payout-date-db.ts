@@ -8,7 +8,10 @@ import { randomUUID } from 'node:crypto';
 
 import { sql } from 'drizzle-orm';
 
-import { createProfessionalPayoutSnapshot } from '@/contexts/financial/internal/professional-payout';
+import {
+  createProfessionalPayoutSnapshot,
+  refreshProfessionalPayout,
+} from '@/contexts/financial/internal/professional-payout';
 import { dbAdmin } from '@/lib/db';
 
 const DEV_PROJECT_REF = 'pqhkirrszzpwezdaqrai';
@@ -24,6 +27,7 @@ const oldRuleId = randomUUID();
 const newRuleId = randomUUID();
 const oldPolicyId = randomUUID();
 const newPolicyId = randomUUID();
+const reversedChargeId = randomUUID();
 const email = `e2e-payout-${runId}@example.invalid`;
 const password = `Qoro${runId.replaceAll('-', '')}Aa1!`;
 const rollbackMarker = new Error('rollback da fixture de repasse');
@@ -273,6 +277,46 @@ async function main(): Promise<void> {
             rescheduled.status === 'pending_economics',
           'Remarcação não usou regra/base da nova data, ou calculou NET sem líquido.',
         );
+
+        stage = 'auditoria da suspensão por perda';
+        await tx.execute(sql`
+          INSERT INTO patient_credits
+            (clinic_id, patient_id, appointment_id, patient_charge_id, amount,
+             kind, status, dispute_status)
+          VALUES (${clinicId}, ${patientId}, ${lateAppointmentId}, ${reversedChargeId},
+                  150, 'deposit', 'available', 'lost')
+        `);
+        const firstSuspension = await refreshProfessionalPayout(tx, {
+          clinicId,
+          appointmentId: lateAppointmentId,
+        });
+        const replaySuspension = await refreshProfessionalPayout(tx, {
+          clinicId,
+          appointmentId: lateAppointmentId,
+        });
+        assert(
+          firstSuspension === 'cancelled' && replaySuspension === 'cancelled',
+          'Perda não suspendeu o repasse GROSS de modo idempotente.',
+        );
+        const [audit] = await tx.execute<{
+          count: number;
+          original_amount: string | null;
+          new_status: string | null;
+        }>(sql`
+          SELECT count(*)::int AS count,
+                 max(before->>'payoutAmount') AS original_amount,
+                 max(after->>'status') AS new_status
+            FROM audit_events
+           WHERE clinic_id = ${clinicId}
+             AND resource_id = ${lateId}
+             AND action = 'financial.professional_payout.suspended'
+        `);
+        assert(
+          audit?.count === 1 &&
+            Number(audit.original_amount) === 75 &&
+            audit.new_status === 'cancelled',
+          'Auditoria não preservou o cálculo original uma única vez.',
+        );
         throw rollbackMarker;
       });
     } catch (error) {
@@ -285,12 +329,14 @@ async function main(): Promise<void> {
       payouts: number;
       rules: number;
       appointments: number;
+      audits: number;
     }>(sql`
       SELECT
         (SELECT count(*)::int FROM clinics WHERE id = ${clinicId}) AS clinics,
         (SELECT count(*)::int FROM professional_payouts WHERE clinic_id = ${clinicId}) AS payouts,
         (SELECT count(*)::int FROM professional_payout_rules WHERE clinic_id = ${clinicId}) AS rules,
-        (SELECT count(*)::int FROM appointments WHERE clinic_id = ${clinicId}) AS appointments
+        (SELECT count(*)::int FROM appointments WHERE clinic_id = ${clinicId}) AS appointments,
+        (SELECT count(*)::int FROM audit_events WHERE clinic_id = ${clinicId}) AS audits
     `);
     assert(
       residue && Object.values(residue).every((count) => count === 0),
@@ -314,7 +360,7 @@ async function main(): Promise<void> {
     throw new Error(`[payout-date-db] ${stage}: ${detail}`);
   }
   console.log(
-    '[payout-date-db] PASS: atraso, remarcação, regra/base histórica, NET pendente, replay e cleanup.',
+    '[payout-date-db] PASS: regra temporal, reversão auditada sem duplicar, rollback e cleanup.',
   );
 }
 

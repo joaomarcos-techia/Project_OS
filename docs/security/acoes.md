@@ -572,8 +572,8 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/smoke-payments-post-recovery.ts:118`              | `ASAAS_BASE_URL`                       | `process.env.ASAAS_BASE_URL`                       |
 | `scripts/smoke-payments-post-recovery.ts:119`              | `ASAAS_BASE_URL_DEV`                   | `process.env.ASAAS_BASE_URL_DEV`                   |
 | `scripts/smoke-payments-post-recovery.ts:122`              | `APP_BASE_URL`                         | `process.env.APP_BASE_URL`                         |
-| `scripts/smoke-professional-payout-date-db.ts:74`          | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`             |
-| `scripts/smoke-professional-payout-date-db.ts:75`          | `SUPABASE_SECRET_KEY`                  | `process.env.SUPABASE_SECRET_KEY`                  |
+| `scripts/smoke-professional-payout-date-db.ts:78`          | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`             |
+| `scripts/smoke-professional-payout-date-db.ts:79`          | `SUPABASE_SECRET_KEY`                  | `process.env.SUPABASE_SECRET_KEY`                  |
 | `scripts/storage-authorization-check.ts:84`                | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`             |
 | `scripts/storage-authorization-check.ts:86`                | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` |
 | `scripts/storage-authorization-check.ts:86`                | `NEXT_PUBLIC_SUPABASE_ANON_KEY`        | `process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY`        |

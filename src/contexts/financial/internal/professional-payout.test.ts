@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({ hasAdvancedFinancialPolicies: vi.fn() }));
+const mocks = vi.hoisted(() => ({ hasAdvancedFinancialPolicies: vi.fn(), logAudit: vi.fn() }));
 
 vi.mock('server-only', () => ({}));
 vi.mock('@/contexts/billing/api', () => ({
   billingApiV1: { hasAdvancedFinancialPolicies: mocks.hasAdvancedFinancialPolicies },
 }));
+vi.mock('@/lib/audit/log', () => ({ logAudit: mocks.logAudit }));
 vi.mock('@/lib/observability/metrics', () => ({ metrics: { emit: vi.fn() } }));
 
 import type { Tx } from '@/lib/db';
@@ -68,6 +69,7 @@ const refreshInput = { clinicId: 'clinic-1', appointmentId: 'appointment-1' };
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.hasAdvancedFinancialPolicies.mockResolvedValue(false);
+  mocks.logAudit.mockResolvedValue('audit-1');
 });
 
 describe('snapshot profissional por plano', () => {
@@ -193,6 +195,61 @@ describe('reconciliação de repasse após reversão', () => {
       basisAmount: null,
       payoutAmount: null,
     });
+  });
+
+  it('preserva cálculo anterior em auditoria na primeira suspensão, sem duplicar no replay', async () => {
+    const calculated = {
+      ...payout,
+      calculationBasis: 'gross' as const,
+      basisAmount: '100.00',
+      payoutAmount: '50.00',
+      providerFeeAmount: '2.00',
+      netAmount: '98.00',
+    };
+    const { tx, updates } = refreshTx([
+      [calculated],
+      [{ status: 'pago' }],
+      [],
+      [{ transactionKind: 'refund' }],
+      [{ ...calculated, status: 'cancelled', basisAmount: null, payoutAmount: null }],
+      [{ status: 'pago' }],
+      [],
+      [{ transactionKind: 'refund' }],
+    ]);
+
+    await expect(refreshProfessionalPayout(tx, refreshInput)).resolves.toBe('cancelled');
+    expect(mocks.logAudit).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        clinicId: 'clinic-1',
+        action: 'financial.professional_payout.suspended',
+        resourceId: 'payout-1',
+        before: expect.objectContaining({
+          basisAmount: '100.00',
+          payoutAmount: '50.00',
+          providerFeeAmount: '2.00',
+          netAmount: '98.00',
+        }),
+        after: { status: 'cancelled', reason: 'payment_reversed' },
+      }),
+    );
+    expect(updates[0]).toMatchObject({ status: 'cancelled', payoutAmount: null });
+
+    await expect(refreshProfessionalPayout(tx, refreshInput)).resolves.toBe('cancelled');
+    expect(mocks.logAudit).toHaveBeenCalledTimes(1);
+  });
+
+  it('não suspende o repasse se a auditoria da reversão falhar', async () => {
+    const { tx, updates } = refreshTx([
+      [{ ...payout, payoutAmount: '50.00' }],
+      [{ status: 'pago' }],
+      [],
+      [{ transactionKind: 'refund' }],
+    ]);
+    mocks.logAudit.mockRejectedValueOnce(new Error('audit indisponível'));
+
+    await expect(refreshProfessionalPayout(tx, refreshInput)).rejects.toThrow('audit indisponível');
+    expect(updates).toHaveLength(0);
   });
 
   it('suspende GROSS quando há perda do provedor mesmo com recebível parcial', async () => {

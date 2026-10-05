@@ -426,7 +426,7 @@ justificado pela inexistência de `ai_conversations` em produção.
 | Cadastro e Checkout SaaS | Preview HTTPS + Supabase DEV + Resend + Asaas Sandbox | 1 | 0 | 0 | 0 | Abriu Checkout e persistiu `checkout_pending`; pagamento/webhook não executados |
 | Conta Asaas, política e Caixa | Preview HTTPS + fixture DEV/Sandbox; `payments-account-lifecycle.spec.ts` | 5 | 0 | 0 | 0 | Chave inválida, conexão/desconexão, preços Pro, bloqueio Solo na UI e Action, retorno Clínica; Caixa Solo com economia parcialmente desconhecida e Caixa Pro com NET/repasse de R$ 70,80 sintéticos; fixture eliminada |
 | Guardas de preço e Checkout no PostgreSQL | DEV; dois smokes isolados | 2 | 0 | 0 | 0 | Segundo smoke usa provider sintético e handler da fixture, sem worker global |
-| Regra temporal do repasse | PostgreSQL DEV + Auth DEV; `smoke-professional-payout-date-db.ts` | 1 | 0 | 0 | 0 | Atraso, remarcação, versão da regra/base, NET pendente, replay e rollback; integração de serviço, ainda sem UI/provider |
+| Regra temporal e suspensão auditada do repasse | PostgreSQL DEV + Auth DEV; `smoke-professional-payout-date-db.ts` | 1 | 0 | 0 | 0 | Atraso, remarcação, regra/base, NET pendente; perda sintética suspende GROSS e preserva R$ 75,00 uma vez em `audit_events`; rollback e cleanup; ainda sem revisão humana/UI/provider |
 | `production-*` | 44 arquivos / 50 casos na coleta atual | 3 | 0 | 1 | 46 | A maioria continuou sem pré-condição de execução; ver [relatório específico](production-44-execution.md) |
 
 Os resultados de 01/10 acima são fotografias históricas, não os totais da coleta

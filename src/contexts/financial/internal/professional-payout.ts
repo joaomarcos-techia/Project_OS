@@ -1,9 +1,12 @@
 import 'server-only';
 
+import { randomUUID } from 'node:crypto';
+
 import { and, desc, eq, gt, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 
 // eslint-disable-next-line boundaries/element-types -- billingApiV1 é a API versionada de entitlement; o contexto não lê o schema de billing.
 import { billingApiV1 } from '@/contexts/billing/api';
+import { logAudit } from '@/lib/audit/log';
 import type { Tx } from '@/lib/db';
 import { metrics } from '@/lib/observability/metrics';
 
@@ -325,6 +328,30 @@ export async function refreshProfessionalPayout(
       return 'calculated';
     }
     const nextStatus = payout.calculationBasis === 'gross' ? 'cancelled' : 'pending_economics';
+    if (result.status === 'reversed' && payout.status === 'calculated') {
+      await logAudit(tx, {
+        clinicId: input.clinicId,
+        userId: null,
+        action: 'financial.professional_payout.suspended',
+        resourceType: 'professional_payout',
+        resourceId: payout.id,
+        before: {
+          status: payout.status,
+          calculationBasis: payout.calculationBasis,
+          basisAmount: payout.basisAmount,
+          payoutAmount: payout.payoutAmount,
+          providerFeeAmount: payout.providerFeeAmount,
+          netAmount: payout.netAmount,
+          calculatedAt: payout.calculatedAt,
+        },
+        after: { status: nextStatus, reason: 'payment_reversed' },
+        requestContext: {
+          ip: null,
+          userAgent: 'clinicaos-financial-worker',
+          requestId: randomUUID(),
+        },
+      });
+    }
     await tx
       .update(professionalPayouts)
       .set({
