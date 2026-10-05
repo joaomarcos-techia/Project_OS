@@ -1268,8 +1268,8 @@ test.describe('cadastro — confirmação real via Resend', () => {
         (url) =>
           url.protocol === 'https:' &&
           url.hostname === 'sandbox.asaas.com' &&
-          url.pathname.startsWith('/checkoutSession/show'),
-        { timeout: 90_000 },
+          /^\/(?:\d+\/)?checkoutSession\/show(?:\/|$)/u.test(url.pathname),
+        { timeout: 90_000, waitUntil: 'domcontentloaded' },
       );
       await expect(signup.page.getByText('Informações da assinatura')).toBeVisible({
         timeout: 30_000,

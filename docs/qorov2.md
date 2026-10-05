@@ -8538,10 +8538,10 @@ WhatsApp → IA. A política financeira permanece na
 Na revisão do cadastro da conta Asaas, foi encontrado um defeito no gerador do
 token do webhook: o regex continha um caractere de controle no lugar da
 referência ao caractere anterior e, portanto, não rejeitava sequências repetidas.
-A correção local aplica a regra atual de quatro caracteres iguais ou cinco
-dígitos consecutivos; o teste força as duas amostras inválidas antes de aceitar
-a terceira. A regressão dirigida passou 18/18. Essa correção ainda não foi
-publicada.
+A correção aplica a regra atual de quatro caracteres iguais ou cinco dígitos
+consecutivos; o teste força as duas amostras inválidas antes de aceitar a
+terceira. A regressão dirigida passou 18/18. Ela foi publicada somente na
+branch/Preview do PR #26, ainda não na `main` ou em produção.
 
 Dois webhooks da conta `ASAAS_CHAVE_TESTE_2` no **Asaas Sandbox** estavam
 `enabled=true` e `interrupted=true`, ambos apontando para o Preview antigo
@@ -8589,3 +8589,6 @@ A tentativa interrompida deixou uma sessão anônima sem e-mail porque o helper
 antigo não havia capturado seu hash. O readback localizou exatamente uma linha
 com estado `initiated`, sem identidade, respostas ou Checkout, no segundo da
 criação; ela foi removida em DEV sob lock e o cleanup retornou uma linha.
+
+Os E2E posteriores no Preview HTTPS e as pendências atuais da política financeira
+estão no [registro por camadas](specs/politica-financeira-camadas.md).

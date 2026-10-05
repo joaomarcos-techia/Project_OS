@@ -292,10 +292,9 @@ test.describe.serial('conta de pagamento da clínica (Preview)', () => {
 
     // A recusa tem de ser VISÍVEL. Um erro que some deixando a tela como estava
     // é indistinguível de sucesso para quem opera.
-    const feedback = page
-      .getByRole('alert')
-      .filter({ hasNotText: /Nenhuma conta conectada/u })
-      .filter({ hasText: /\S/u });
+    const feedback = page.getByRole('alert').filter({
+      hasText: 'O Asaas não aceitou essa chave.',
+    });
     await expect(feedback).toBeVisible({ timeout: 90_000 });
     await expect(campo, 'a chave inválida permaneceu no campo após a resposta').toHaveValue('');
     expect(await page.content(), 'a chave inválida permaneceu no HTML').not.toContain(invalidKey);
