@@ -290,6 +290,9 @@ export async function refreshProfessionalPayout(
     .for('update')
     .limit(1);
   if (!payout) return 'missing';
+  // A reversão exige decisão humana. Uma leitura posterior sem o marcador de
+  // perda não pode recalcular automaticamente um valor que já foi suspenso.
+  if (payout.status === 'cancelled') return 'cancelled';
 
   const result = await collectPaymentEconomics(tx, input);
   const rule =
@@ -327,7 +330,7 @@ export async function refreshProfessionalPayout(
         );
       return 'calculated';
     }
-    const nextStatus = payout.calculationBasis === 'gross' ? 'cancelled' : 'pending_economics';
+    const nextStatus = result.status === 'reversed' ? 'cancelled' : 'pending_economics';
     if (result.status === 'reversed' && payout.status === 'calculated') {
       await logAudit(tx, {
         clinicId: input.clinicId,

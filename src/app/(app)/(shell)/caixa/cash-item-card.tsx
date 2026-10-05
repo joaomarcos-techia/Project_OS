@@ -82,11 +82,18 @@ function FinancialComposition({
             </dd>
             <dt className="font-medium text-fg">Repasse profissional</dt>
             <dd className="font-mono font-semibold tabular-nums">
-              {value(economics.payout.payoutAmount, 'Não informado')}
+              {economics.payout.status === 'cancelled'
+                ? 'Suspenso'
+                : value(economics.payout.payoutAmount, 'Não informado')}
             </dd>
           </>
         ) : null}
       </dl>
+      {showAdvancedFinancialDetails && economics?.payout?.status === 'cancelled' ? (
+        <p className="mt-2 text-(length:--fs-xs) font-medium text-fg">
+          Repasse suspenso após reversão. Revise o valor devido antes de pagar o profissional.
+        </p>
+      ) : null}
       {item.chargeEconomics?.length ? (
         <div className="mt-3 border-t border-border pt-2">
           <h4 className="text-(length:--fs-xs) font-semibold text-fg">Cada cobrança Asaas</h4>

@@ -28,6 +28,7 @@ const newRuleId = randomUUID();
 const oldPolicyId = randomUUID();
 const newPolicyId = randomUUID();
 const reversedChargeId = randomUUID();
+const netReversedChargeId = randomUUID();
 const email = `e2e-payout-${runId}@example.invalid`;
 const password = `Qoro${runId.replaceAll('-', '')}Aa1!`;
 const rollbackMarker = new Error('rollback da fixture de repasse');
@@ -290,6 +291,10 @@ async function main(): Promise<void> {
           clinicId,
           appointmentId: lateAppointmentId,
         });
+        await tx.execute(sql`
+          UPDATE patient_credits SET dispute_status = 'reversed'
+           WHERE clinic_id = ${clinicId} AND patient_charge_id = ${reversedChargeId}
+        `);
         const replaySuspension = await refreshProfessionalPayout(tx, {
           clinicId,
           appointmentId: lateAppointmentId,
@@ -316,6 +321,42 @@ async function main(): Promise<void> {
             Number(audit.original_amount) === 75 &&
             audit.new_status === 'cancelled',
           'Auditoria não preservou o cálculo original uma única vez.',
+        );
+
+        stage = 'suspensão NET sem recálculo automático';
+        await tx.execute(sql`
+          INSERT INTO patient_credits
+            (clinic_id, patient_id, appointment_id, patient_charge_id, amount,
+             kind, status, dispute_status)
+          VALUES (${clinicId}, ${patientId}, ${rescheduledAppointmentId},
+                  ${netReversedChargeId}, 150, 'deposit', 'available', 'lost')
+        `);
+        const netSuspension = await refreshProfessionalPayout(tx, {
+          clinicId,
+          appointmentId: rescheduledAppointmentId,
+        });
+        await tx.execute(sql`
+          UPDATE patient_credits SET dispute_status = 'reversed'
+           WHERE clinic_id = ${clinicId} AND patient_charge_id = ${netReversedChargeId}
+        `);
+        const netReplay = await refreshProfessionalPayout(tx, {
+          clinicId,
+          appointmentId: rescheduledAppointmentId,
+        });
+        const payoutStates = await tx.execute<{
+          appointment_id: string;
+          status: string;
+          payout_amount: string | null;
+        }>(sql`
+          SELECT appointment_id::text, status, payout_amount::text
+            FROM professional_payouts WHERE clinic_id = ${clinicId}
+        `);
+        assert(
+          netSuspension === 'cancelled' &&
+            netReplay === 'cancelled' &&
+            payoutStates.length === 2 &&
+            payoutStates.every((row) => row.status === 'cancelled' && row.payout_amount === null),
+          'Suspensão GROSS/NET foi reaberta automaticamente após a perda desaparecer.',
         );
         throw rollbackMarker;
       });
@@ -360,7 +401,7 @@ async function main(): Promise<void> {
     throw new Error(`[payout-date-db] ${stage}: ${detail}`);
   }
   console.log(
-    '[payout-date-db] PASS: regra temporal, reversão auditada sem duplicar, rollback e cleanup.',
+    '[payout-date-db] PASS: regra temporal, suspensão GROSS/NET persistente, auditoria, rollback e cleanup.',
   );
 }
 

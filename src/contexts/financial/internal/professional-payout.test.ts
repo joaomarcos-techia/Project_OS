@@ -167,7 +167,7 @@ describe('reconciliação de repasse após reversão', () => {
 
   it('preserva o repasse GROSS de atendimento concluído durante pagamento parcial sem estorno', async () => {
     const { tx, updates } = refreshTx([
-      [{ ...payout, calculationBasis: 'gross', status: 'cancelled', calculatedAt: null }],
+      [{ ...payout, calculationBasis: 'gross' }],
       [{ status: 'parcial' }],
       [],
       [],
@@ -212,9 +212,6 @@ describe('reconciliação de repasse após reversão', () => {
       [],
       [{ transactionKind: 'refund' }],
       [{ ...calculated, status: 'cancelled', basisAmount: null, payoutAmount: null }],
-      [{ status: 'pago' }],
-      [],
-      [{ transactionKind: 'refund' }],
     ]);
 
     await expect(refreshProfessionalPayout(tx, refreshInput)).resolves.toBe('cancelled');
@@ -237,6 +234,16 @@ describe('reconciliação de repasse após reversão', () => {
 
     await expect(refreshProfessionalPayout(tx, refreshInput)).resolves.toBe('cancelled');
     expect(mocks.logAudit).toHaveBeenCalledTimes(1);
+    expect(tx.select).toHaveBeenCalledTimes(5);
+  });
+
+  it('não reabre repasse suspenso quando uma leitura posterior não encontra mais a perda', async () => {
+    const { tx, updates } = refreshTx([[{ ...payout, status: 'cancelled' }]]);
+
+    await expect(refreshProfessionalPayout(tx, refreshInput)).resolves.toBe('cancelled');
+    expect(tx.select).toHaveBeenCalledTimes(1);
+    expect(updates).toHaveLength(0);
+    expect(mocks.logAudit).not.toHaveBeenCalled();
   });
 
   it('não suspende o repasse se a auditoria da reversão falhar', async () => {
@@ -322,9 +329,9 @@ describe('reconciliação de repasse após reversão', () => {
       ],
     ]);
 
-    await expect(refreshProfessionalPayout(tx, refreshInput)).resolves.toBe('pending');
+    await expect(refreshProfessionalPayout(tx, refreshInput)).resolves.toBe('cancelled');
     expect(updates[0]).toMatchObject({
-      status: 'pending_economics',
+      status: 'cancelled',
       payoutAmount: null,
       netAmount: null,
     });
@@ -354,9 +361,9 @@ describe('reconciliação de repasse após reversão', () => {
       ],
     ]);
 
-    await expect(refreshProfessionalPayout(tx, refreshInput)).resolves.toBe('pending');
+    await expect(refreshProfessionalPayout(tx, refreshInput)).resolves.toBe('cancelled');
     expect(updates[0]).toMatchObject({
-      status: 'pending_economics',
+      status: 'cancelled',
       netAmount: null,
       basisAmount: null,
       payoutAmount: null,
@@ -388,8 +395,8 @@ describe('reconciliação de repasse após reversão', () => {
       ],
     ]);
 
-    await expect(refreshProfessionalPayout(tx, refreshInput)).resolves.toBe('pending');
-    expect(updates[0]).toMatchObject({ status: 'pending_economics', payoutAmount: null });
+    await expect(refreshProfessionalPayout(tx, refreshInput)).resolves.toBe('cancelled');
+    expect(updates[0]).toMatchObject({ status: 'cancelled', payoutAmount: null });
   });
 
   it('suspende repasse quando perda alocada ficou em revisão manual sem vínculo legado', async () => {
@@ -399,8 +406,8 @@ describe('reconciliação de repasse após reversão', () => {
       [{ id: 'credit-without-ledger-link' }],
     ]);
 
-    await expect(refreshProfessionalPayout(tx, refreshInput)).resolves.toBe('pending');
-    expect(updates[0]).toMatchObject({ status: 'pending_economics', payoutAmount: null });
+    await expect(refreshProfessionalPayout(tx, refreshInput)).resolves.toBe('cancelled');
+    expect(updates[0]).toMatchObject({ status: 'cancelled', payoutAmount: null });
     expect(tx.select).toHaveBeenCalledTimes(3);
   });
 });

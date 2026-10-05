@@ -715,9 +715,7 @@ test.describe.serial('conta de pagamento da clínica (Preview)', () => {
     fixtureAuthCookies = await page.context().cookies();
   });
 
-  test('Caixa Pro mostra base NET e repasse do profissional sem confundir tarifa', async ({
-    page,
-  }) => {
+  test('Caixa Pro mostra base NET, repasse e suspensão sem confundir tarifa', async ({ page }) => {
     test.setTimeout(180_000);
     test.skip(!isolatedFixture, 'Exige fixture isolada em DEV para criar repasse sintético.');
     assertPreviewOnly();
@@ -892,5 +890,36 @@ test.describe.serial('conta de pagamento da clínica (Preview)', () => {
        where clinic_id = ${fixtureClinicId}::uuid and appointment_id = ${appointmentId}::uuid
     `;
     expect(persisted).toEqual({ status: 'calculated', payout_amount: '70.80' });
+
+    // O smoke PostgreSQL separado exercita o serviço que suspende a obrigação;
+    // aqui a fixture confirma que o estado persistido chega ao navegador.
+    await fixtureSql!`
+      update professional_payouts
+         set status = 'cancelled', basis_amount = null, payout_amount = null,
+             calculated_at = null, updated_at = now()
+       where clinic_id = ${fixtureClinicId}::uuid
+         and appointment_id = ${appointmentId}::uuid
+    `;
+    await page.reload();
+    await page.waitForLoadState('networkidle');
+    const suspendedPatient = page
+      .locator('section[aria-label="Recebidos hoje"]')
+      .getByText(patientName, { exact: true });
+    const suspendedComposition = suspendedPatient.locator('xpath=../..').locator('details');
+    await suspendedComposition.locator('summary').click();
+    await expect(
+      suspendedComposition
+        .locator('dt')
+        .filter({ hasText: 'Repasse profissional' })
+        .locator('xpath=following-sibling::dd[1]'),
+    ).toHaveText('Suspenso');
+    await expect(
+      suspendedComposition.getByText('Revise o valor devido antes de pagar o profissional.'),
+    ).toBeVisible();
+    const [suspended] = await fixtureSql!<{ status: string; payout_amount: string | null }[]>`
+      select status, payout_amount::text from professional_payouts
+       where clinic_id = ${fixtureClinicId}::uuid and appointment_id = ${appointmentId}::uuid
+    `;
+    expect(suspended).toEqual({ status: 'cancelled', payout_amount: null });
   });
 });

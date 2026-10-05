@@ -284,6 +284,33 @@ describe('CaixaView — work queue, rótulos e RBAC', () => {
     expect(screen.getByText(/R\$\s*125,00/)).toBeTruthy();
   });
 
+  it('identifica o repasse suspenso após reversão sem apresentar valor a pagar', () => {
+    const pago = item({
+      status: 'pago',
+      paidAt: '2026-06-06T10:00:00.000Z',
+      valor: 250,
+      valorPago: 250,
+      paymentEconomics: {
+        appointmentId: 'a1',
+        providerGrossAmount: 250,
+        providerFeeAmount: 5,
+        earlySettlementFeeAmount: null,
+        providerNetAmount: 245,
+        payout: {
+          calculationBasis: 'net',
+          basisAmount: null,
+          payoutAmount: null,
+          status: 'cancelled',
+        },
+      },
+    });
+
+    render(<CaixaView {...base} showAdvancedFinancialDetails pagosHoje={[pago]} />);
+
+    expect(screen.getByText('Suspenso')).toBeTruthy();
+    expect(screen.getByText(/Revise o valor devido antes de pagar o profissional/)).toBeTruthy();
+  });
+
   it('mostra bruto, tarifa e líquido reais no Solo sem seção de repasse', () => {
     render(
       <CaixaView
