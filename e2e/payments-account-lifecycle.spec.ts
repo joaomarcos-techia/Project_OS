@@ -57,6 +57,7 @@ const fixtureEmail = `e2e-payments-${fixtureRunId}@example.invalid`;
 const fixturePassword = `Qoro${fixtureRunId.replaceAll('-', '')}Aa1!`;
 let fixtureClinicId = '';
 let fixtureUserId = '';
+let fixtureDoctorId = '';
 let fixtureSql: ReturnType<typeof postgres> | null = null;
 let fixtureAuthCookies: Awaited<
   ReturnType<import('@playwright/test').BrowserContext['cookies']>
@@ -176,16 +177,15 @@ async function cleanupIsolatedFixture(): Promise<void> {
       cleanupErrors.push(error instanceof Error ? error.message : 'falha ao remover clínica');
     }
   }
-  if (fixtureUserId) {
-    const response = await fetch(
-      `${config.supabaseUrl}/auth/v1/admin/users/${encodeURIComponent(fixtureUserId)}`,
-      {
-        method: 'DELETE',
-        headers: { apikey: config.secretKey, authorization: `Bearer ${config.secretKey}` },
-      },
-    );
-    if (!response.ok && response.status !== 404) {
-      cleanupErrors.push(`Auth cleanup HTTP ${response.status}`);
+  for (const userId of [fixtureDoctorId, fixtureUserId].filter(Boolean)) {
+    const url = `${config.supabaseUrl}/auth/v1/admin/users/${encodeURIComponent(userId)}`;
+    const headers = { apikey: config.secretKey, authorization: `Bearer ${config.secretKey}` };
+    const response = await fetch(url, { method: 'DELETE', headers });
+    const readback = await fetch(url, { method: 'GET', headers });
+    if ((!response.ok && response.status !== 404) || readback.status !== 404) {
+      cleanupErrors.push(
+        `Auth cleanup incompleto (DELETE ${response.status}, GET ${readback.status})`,
+      );
     }
   }
   const [remaining] = await fixtureSql<{ clinics: number; profiles: number }[]>`
@@ -712,5 +712,185 @@ test.describe.serial('conta de pagamento da clínica (Preview)', () => {
         .filter({ hasText: 'Líquido real alocado' })
         .locator('xpath=following-sibling::dd[1]'),
     ).toHaveText('R$ 147,00');
+    fixtureAuthCookies = await page.context().cookies();
+  });
+
+  test('Caixa Pro mostra base NET e repasse do profissional sem confundir tarifa', async ({
+    page,
+  }) => {
+    test.setTimeout(180_000);
+    test.skip(!isolatedFixture, 'Exige fixture isolada em DEV para criar repasse sintético.');
+    assertPreviewOnly();
+    await authenticateForTest(page);
+
+    const [pro] = await fixtureSql!<{ plan_id: string; price_id: string }[]>`
+      select p.id::text plan_id, pr.id::text price_id
+        from plans p join prices pr on pr.plan_id = p.id
+       where p.code = 'pro' and p.ativo = true
+         and pr.billing_cycle = 'monthly' and pr.active_until is null
+         and pr.campaign_code is null
+       order by pr.active_from desc limit 1
+    `;
+    if (!pro) throw new Error('Plano Pro mensal vigente ausente no DEV.');
+    await fixtureSql!`
+      update subscriptions set plan_id = ${pro.plan_id}::uuid, price_id = ${pro.price_id}::uuid
+       where clinic_id = ${fixtureClinicId}::uuid
+    `;
+
+    const config = isolatedFixtureConfig();
+    const doctorEmail = `e2e-payout-doctor-${fixtureRunId}@example.invalid`;
+    const doctorResponse = await fetch(`${config.supabaseUrl}/auth/v1/admin/users`, {
+      method: 'POST',
+      headers: {
+        apikey: config.secretKey,
+        authorization: `Bearer ${config.secretKey}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ email: doctorEmail, password: fixturePassword, email_confirm: true }),
+    });
+    const doctorBody = (await doctorResponse.json().catch(() => null)) as { id?: unknown } | null;
+    if (!doctorResponse.ok || typeof doctorBody?.id !== 'string') {
+      throw new Error(`Auth DEV recusou o médico sintético (HTTP ${doctorResponse.status}).`);
+    }
+    fixtureDoctorId = doctorBody.id;
+    await fixtureSql!`
+      insert into profiles (id, clinic_id, nome, role, ativo, invite_accepted_at)
+      values (${fixtureDoctorId}::uuid, ${fixtureClinicId}::uuid,
+              'Médico E2E de repasse', 'doctor'::role_enum, true, now())
+    `;
+
+    const [procedure] = await fixtureSql!<{ id: string }[]>`
+      select id::text from procedures where clinic_id = ${fixtureClinicId}::uuid limit 1
+    `;
+    const [price] = await fixtureSql!<{ id: string }[]>`
+      select id::text from procedure_payment_prices
+       where clinic_id = ${fixtureClinicId}::uuid
+         and procedure_id = ${procedure?.id ?? null}::uuid
+         and payment_method = 'pix' and gross_amount = 240 and active = true
+       limit 1
+    `;
+    const [policyVersion] = await fixtureSql!<{ id: string }[]>`
+      select id::text from clinic_financial_policy_versions
+       where clinic_id = ${fixtureClinicId}::uuid
+         and professional_payout_basis = 'net'
+       order by effective_from desc limit 1
+    `;
+    if (!procedure || !price || !policyVersion) {
+      throw new Error('Preço PIX ou versão NET da fixture Pro não persistiu.');
+    }
+
+    const patientId = randomUUID();
+    const appointmentId = randomUUID();
+    const lancamentoId = randomUUID();
+    const chargeId = randomUUID();
+    const ruleId = randomUUID();
+    const patientName = `Paciente repasse ${fixtureRunId.slice(0, 8)}`;
+    await fixtureSql!`
+      insert into patients (id, clinic_id, nome, cpf_encrypted, cpf_hash)
+      values (${patientId}::uuid, ${fixtureClinicId}::uuid, ${patientName},
+              'fixture', ${randomUUID().replaceAll('-', '').padEnd(64, '0')})
+    `;
+    await fixtureSql!`
+      insert into appointments
+        (id, clinic_id, doctor_id, patient_id, procedure_id, scheduled_at,
+         duration_min, status, valor, snapshot_procedure_name,
+         snapshot_procedure_valor, snapshot_procedure_duracao_min,
+         snapshot_doctor_nome, created_via, pricing_policy_mode,
+         commercial_payment_method, commercial_price_id)
+      values (${appointmentId}::uuid, ${fixtureClinicId}::uuid, ${fixtureDoctorId}::uuid,
+              ${patientId}::uuid, ${procedure.id}::uuid, now(), 30, 'atendido', 240,
+              'Consulta sintética', 240, 30, 'Médico E2E de repasse', 'attendant',
+              'payment_method_pricing', 'pix', ${price.id}::uuid)
+    `;
+    await fixtureSql!`
+      insert into lancamentos
+        (id, clinic_id, tipo, descricao, valor, valor_pago, status, paid_at,
+         appointment_id, patient_id, created_via)
+      values (${lancamentoId}::uuid, ${fixtureClinicId}::uuid, 'receber',
+              'Consulta sintética', 240, 240, 'pago', now(),
+              ${appointmentId}::uuid, ${patientId}::uuid, 'auto')
+    `;
+    await fixtureSql!`
+      insert into patient_charges
+        (id, clinic_id, appointment_id, patient_id, kind, status, amount,
+         provider, external_reference, paid_at, provider_gross_amount,
+         provider_fee_amount, provider_net_amount, economics_reconciled_at)
+      values (${chargeId}::uuid, ${fixtureClinicId}::uuid, ${appointmentId}::uuid,
+              ${patientId}::uuid, 'remainder', 'paid', 240, 'asaas',
+              ${`remainder:${appointmentId}`}, now(), 240, 4, 236, now())
+    `;
+    await fixtureSql!`
+      insert into patient_credits
+        (clinic_id, patient_id, appointment_id, patient_charge_id, amount,
+         allocated_amount, allocated_lancamento_id, kind, status, payment_method,
+         provider_gross_amount, provider_fee_amount, provider_net_amount,
+         provider_economics_reconciled_at)
+      values (${fixtureClinicId}::uuid, ${patientId}::uuid, ${appointmentId}::uuid,
+              ${chargeId}::uuid, 240, 240, ${lancamentoId}::uuid,
+              'remaining_payment', 'allocated', 'pix', 240, 4, 236, now())
+    `;
+    await fixtureSql!`
+      insert into professional_payout_rules
+        (id, clinic_id, professional_id, procedure_id, kind, percentage, effective_from)
+      values (${ruleId}::uuid, ${fixtureClinicId}::uuid, ${fixtureDoctorId}::uuid,
+              ${procedure.id}::uuid, 'percentage', 30, now() - interval '1 hour')
+    `;
+    await fixtureSql!`
+      insert into professional_payouts
+        (clinic_id, appointment_id, professional_id, procedure_id,
+         policy_version_id, rule_id, calculation_basis, rule_kind,
+         rule_percentage, gross_amount, provider_fee_amount, net_amount,
+         basis_amount, payout_amount, status, calculated_at)
+      values (${fixtureClinicId}::uuid, ${appointmentId}::uuid,
+              ${fixtureDoctorId}::uuid, ${procedure.id}::uuid,
+              ${policyVersion.id}::uuid, ${ruleId}::uuid, 'net', 'percentage',
+              30, 240, 4, 236, 236, 70.80, 'calculated', now())
+    `;
+
+    await page.goto('/auth/session-refresh?next=/caixa');
+    await expect(page).toHaveURL(/\/caixa(?:\?|$)/u);
+    const received = page.locator('section[aria-label="Recebidos hoje"]');
+    const patient = received.getByText(patientName, { exact: true });
+    await expect(patient).toBeVisible();
+    const composition = patient.locator('xpath=../..').locator('details');
+    await page.waitForLoadState('networkidle');
+    await composition.locator('summary').click();
+    await expect(composition).toHaveAttribute('open', '');
+    await expect(composition.getByText('Base do repasse')).toBeVisible();
+    await expect(
+      composition
+        .locator('dt')
+        .filter({ hasText: 'Valor do atendimento' })
+        .locator('xpath=following-sibling::dd[1]'),
+    ).toHaveText('R$ 240,00');
+    await expect(
+      composition
+        .locator('dt')
+        .filter({ hasText: 'Tarifa real alocada' })
+        .locator('xpath=following-sibling::dd[1]'),
+    ).toHaveText('− R$ 4,00');
+    await expect(
+      composition
+        .locator('dt')
+        .filter({ hasText: 'Líquido real alocado' })
+        .locator('xpath=following-sibling::dd[1]'),
+    ).toHaveText('R$ 236,00');
+    await expect(
+      composition
+        .locator('dt')
+        .filter({ hasText: 'Base do repasse' })
+        .locator('xpath=following-sibling::dd[1]'),
+    ).toHaveText('Líquido');
+    await expect(
+      composition
+        .locator('dt')
+        .filter({ hasText: 'Repasse profissional' })
+        .locator('xpath=following-sibling::dd[1]'),
+    ).toHaveText('R$ 70,80');
+    const [persisted] = await fixtureSql!<{ status: string; payout_amount: string }[]>`
+      select status, payout_amount::text from professional_payouts
+       where clinic_id = ${fixtureClinicId}::uuid and appointment_id = ${appointmentId}::uuid
+    `;
+    expect(persisted).toEqual({ status: 'calculated', payout_amount: '70.80' });
   });
 });
