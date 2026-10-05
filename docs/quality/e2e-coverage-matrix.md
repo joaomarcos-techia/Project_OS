@@ -358,7 +358,7 @@ arquivos geram 47 casos porque `production-role-journeys-a` possui quatro.
 | Gemini 3–50 | provider real, 48 chamadas | 48 | 0 | 0 | 0 | zero resposta final insegura; custo calculado US$ 0,096410 |
 | Conta de pagamentos | Preview + DEV + Asaas Sandbox | 2 | 0 | 0 | 0 | chave inválida negada; conectar/desconectar; cleanup Auth/DB zero |
 | Refund cartão | Asaas Sandbox | 1 | 0 | 0 | 0 | `CONFIRMED` → refund terminal; replay sem duplicata |
-| Refund PIX | Asaas Sandbox | 0 | 1 | 0 | 0 | `RECEIVED`; dois refunds de R$ 10 terminaram `CANCELLED`; transações Pix `CREDIT_REFUND/REFUSED` com motivo genérico do provider; retomada não criou terceiro POST |
+| Refund PIX | Asaas Sandbox | 0 | 1 | 0 | 0 | `RECEIVED`; readback pontual de 05/10 em `/payments/{id}/refunds` confirmou zero `DONE`: um `CANCELLED` numa cobrança e dois noutra; transações Pix `CREDIT_REFUND/REFUSED` com motivo genérico do provider; retomada não criou terceiro POST |
 | `production-*` | 44 arquivos / 47 casos | 3 | 0 | 4 | 40 | RLS leitura, RLS rollback e founder PASS; credenciais/conversa bloqueiam quatro |
 | Supavisor atual | 48 conexões PROD read-only probe | 48 | 0 | 0 | 0 | zero sessão contaminada; dois backends; p95 2,6 s |
 | Incidentes de conexão | ratchets locais | 23 | 0 | 0 | 0 | mitigação/observabilidade PASS; causa externa continua não comprovada |
