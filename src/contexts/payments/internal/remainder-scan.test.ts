@@ -34,6 +34,8 @@ const candidate = (over: Record<string, unknown> = {}) => ({
   patientId: 'pac-1',
   scheduledAt: '2026-08-25T13:00:00.000Z',
   valor: 200,
+  commercialPaymentMethod: null,
+  commercialInstallmentCount: null,
   ...over,
 });
 
@@ -60,6 +62,37 @@ describe('runRemainderScan', () => {
       charged: 1,
       failed: 0,
     });
+  });
+
+  it.each([
+    ['pix', null],
+    ['credit_card', 3],
+  ] as const)('repassa %s e parcelas ao criar o restante', async (method, installments) => {
+    mocks.listRemainderCandidates.mockResolvedValue([
+      candidate({
+        commercialPaymentMethod: method,
+        commercialInstallmentCount: installments,
+      }),
+    ]);
+
+    await runRemainderScan();
+
+    expect(mocks.createRemainderCharge).toHaveBeenCalledWith({
+      clinicId: 'clinic-1',
+      appointment: expect.objectContaining({
+        commercialPaymentMethod: method,
+        commercialInstallmentCount: installments,
+      }),
+    });
+  });
+
+  it('dinheiro não cria Checkout nem conta como restante cobrado', async () => {
+    mocks.listRemainderCandidates.mockResolvedValue([
+      candidate({ commercialPaymentMethod: 'cash' }),
+    ]);
+
+    await expect(runRemainderScan()).resolves.toMatchObject({ charged: 0, failed: 0 });
+    expect(mocks.createRemainderCharge).not.toHaveBeenCalled();
   });
 
   it('filtra por cobrança de RESTANTE, não pelo sinal', async () => {

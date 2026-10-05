@@ -19,6 +19,7 @@
 import { revalidatePath } from 'next/cache';
 
 import { getPatientSummaryById, listPatients } from '@/contexts/patient/queries';
+import { resolveConfiguredProcedurePaymentPrice } from '@/contexts/payments/pricing-queries';
 import {
   cancelRecurringSeries,
   createAppointment,
@@ -27,7 +28,7 @@ import {
   createWalkInAppointment,
   recoverAppointment,
 } from '@/contexts/scheduling/actions';
-import { listAppointments } from '@/contexts/scheduling/queries';
+import { getProcedure, listAppointments } from '@/contexts/scheduling/queries';
 import { zonedWallToUtc } from '@/contexts/scheduling/slot-resolver';
 import { getClinicTimezone } from '@/contexts/tenancy/queries';
 import { PERMISSIONS } from '@/lib/auth/permissions';
@@ -40,6 +41,8 @@ export type CriarAtendimentoInput = {
   urgencia?: boolean;
   observacoes?: string;
   resourceIds?: string[];
+  paymentMethod?: 'pix' | 'cash' | 'credit_card';
+  installmentCount?: number;
 } & (
   | { modo: 'agora' }
   | {
@@ -133,12 +136,39 @@ export async function criarAtendimento(
     const pat = await getPatientSummaryById(clinicId, input.patientId);
     if (!pat) return { ok: false, message: 'Paciente inválido para esta clínica.' };
 
+    const procedure = await getProcedure(clinicId, input.procedureId);
+    if (!procedure) return { ok: false, message: 'Procedimento inválido para esta clínica.' };
+    const commercialPrice = await resolveConfiguredProcedurePaymentPrice({
+      clinicId,
+      procedureId: input.procedureId,
+      standardGrossAmount: procedure.valorPadrao,
+      paymentMethod: input.paymentMethod ?? null,
+      installmentCount: input.installmentCount ?? null,
+    });
+    if (!commercialPrice) {
+      return {
+        ok: false,
+        message: 'Selecione uma forma de pagamento com preço configurado.',
+      };
+    }
+
     const key = crypto.randomUUID();
     const common = {
       doctorId: input.doctorId,
       patientId: input.patientId,
       procedureId: input.procedureId,
       resourceIds: input.resourceIds ?? [],
+      pricingPolicyMode: commercialPrice.mode,
+      commercialPaymentMethod: commercialPrice.paymentMethod,
+      commercialInstallmentCount: commercialPrice.installmentCount,
+      commercialPriceId: commercialPrice.priceId,
+      ...(commercialPrice.source === 'explicit_method_price'
+        ? {
+            valorAjustado: true,
+            valor: commercialPrice.grossAmount,
+            valorAjusteMotivo: 'Preço por meio de pagamento',
+          }
+        : {}),
       ...(input.urgencia ? { urgencia: true } : {}),
       ...(input.observacoes?.trim() ? { observacoes: input.observacoes.trim() } : {}),
     };

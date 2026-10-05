@@ -223,6 +223,10 @@ interface CreateCheckoutBaseInput {
     cancelUrl: string;
     expiredUrl: string;
   };
+  /** Ausente = o pagador escolhe entre PIX e cartão. */
+  billingTypes?: readonly ('PIX' | 'CREDIT_CARD')[];
+  /** Parcelamento máximo do Checkout de cartão, entre 2 e 21. */
+  maxInstallmentCount?: number;
 }
 
 /** Checkout hospedado: o Asaas coleta o meio, nunca o Qoro. */
@@ -250,7 +254,17 @@ export interface ProviderCheckout {
 export interface ProviderPayment {
   paymentId: string;
   status: string; // PENDING|RECEIVED|OVERDUE|REFUNDED|CONFIRMED...
+  /** Valor bruto da cobrança, como devolvido pelo Asaas. */
   value: number;
+  /**
+   * Valor líquido autoritativo do pagamento. Ausente enquanto o provedor ainda
+   * não o conhece; nunca é estimado por tabela de tarifas do Qoro.
+   */
+  netValue?: number | null;
+  /** Parcelamento ao qual esta cobrança pertence, quando aplicável. */
+  installmentId?: string | null;
+  /** Número da parcela dentro do parcelamento, quando o Asaas o informar. */
+  installmentNumber?: number | null;
   dueDate: string;
   invoiceUrl: string | null;
   /**
@@ -409,7 +423,10 @@ export interface PaymentProvider {
    */
   listUnpaidSubscriptionPayments(asaasSubscriptionId: string): Promise<ProviderPayment[]>;
   /** `attempts` aperta o orçamento de retry (webhook usa 1 — ver [asaas/route.ts]). */
-  getPayment(asaasPaymentId: string, opts?: { attempts?: number }): Promise<ProviderPayment>;
+  getPayment(
+    asaasPaymentId: string,
+    opts?: { attempts?: number; timeoutMs?: number },
+  ): Promise<ProviderPayment>;
   /** Recupera uma cobrança de operação local após timeout de POST. */
   findPaymentByExternalReference(
     externalReference: string,
@@ -537,6 +554,7 @@ function listedSubscriptionPayment(payment: unknown, subscriptionId: string): Pr
     paymentId: String(p.id),
     status: asStr(p.status) ?? 'UNKNOWN',
     value: asNum(p.value),
+    ...paymentEconomicsFields(p),
     dueDate: asStr(p.dueDate) ?? '',
     invoiceUrl: asStr(p.invoiceUrl),
     // A resposta pertence à assinatura consultada. O fallback mantém a
@@ -546,6 +564,20 @@ function listedSubscriptionPayment(payment: unknown, subscriptionId: string): Pr
     externalReference: asStr(p.externalReference),
     checkoutSessionId: asStr(p.checkoutSession),
     deleted: p.deleted === true,
+  };
+}
+
+function paymentEconomicsFields(
+  value: Record<string, unknown>,
+): Pick<ProviderPayment, 'netValue' | 'installmentId' | 'installmentNumber'> {
+  return {
+    netValue:
+      typeof value.netValue === 'number' && Number.isFinite(value.netValue) ? value.netValue : null,
+    installmentId: asStr(value.installment),
+    installmentNumber:
+      typeof value.installmentNumber === 'number' && Number.isInteger(value.installmentNumber)
+        ? value.installmentNumber
+        : null,
   };
 }
 
@@ -611,7 +643,12 @@ export interface AsaasClient extends PaymentProvider {
 export function createAsaasClient(credential: AsaasCredential): AsaasClient {
   const circuit = new CircuitBreaker();
 
-  async function rawRequest(method: string, path: string, body?: unknown): Promise<unknown> {
+  async function rawRequest(
+    method: string,
+    path: string,
+    body?: unknown,
+    timeoutMs?: number,
+  ): Promise<unknown> {
     const apiKey = resolveValue(credential.apiKey);
     const url = `${resolveValue(credential.baseUrl) ?? env.ASAAS_BASE_URL}${path}`;
     const init: RequestInit = {
@@ -623,7 +660,11 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
         'User-Agent': ASAAS_USER_AGENT,
         access_token: apiKey,
       },
-      signal: AbortSignal.timeout(env.ASAAS_HTTP_TIMEOUT_MS),
+      signal: AbortSignal.timeout(
+        timeoutMs == null || !Number.isFinite(timeoutMs)
+          ? env.ASAAS_HTTP_TIMEOUT_MS
+          : Math.max(1000, Math.min(timeoutMs, env.ASAAS_HTTP_TIMEOUT_MS)),
+      ),
     };
     if (body !== undefined) init.body = JSON.stringify(body);
     const observablePath = safeRequestPath(path);
@@ -673,7 +714,7 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
     method: 'GET' | 'POST' | 'PUT' | 'DELETE',
     path: string,
     body?: unknown,
-    opts?: { attempts?: number },
+    opts?: { attempts?: number; timeoutMs?: number },
   ): Promise<unknown> {
     // GET re-tenta por default (idempotente). `opts.attempts` permite ao caller
     // apertar o orçamento: o webhook verifica o pagamento DENTRO da janela de 30s
@@ -685,7 +726,7 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
     let lastErr: unknown;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        return await circuit.exec(() => rawRequest(method, path, body));
+        return await circuit.exec(() => rawRequest(method, path, body, opts?.timeoutMs));
       } catch (err) {
         lastErr = err;
         // Só re-tenta erro indeterminado de GET; 4xx e circuito aberto sobem na hora.
@@ -854,6 +895,7 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
         paymentId: String(r.id),
         status: asStr(r.status) ?? 'PENDING',
         value: asNum(r.value),
+        ...paymentEconomicsFields(r),
         dueDate: asStr(r.dueDate) ?? input.dueDate,
         invoiceUrl: asStr(r.invoiceUrl),
         subscriptionId: asStr(r.subscription),
@@ -878,6 +920,18 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
       }
 
       const recurrent = input.kind === 'recurrent';
+      const installment = !recurrent && (input.maxInstallmentCount ?? 1) > 1;
+      if (
+        input.maxInstallmentCount !== undefined &&
+        (!Number.isInteger(input.maxInstallmentCount) ||
+          input.maxInstallmentCount < 2 ||
+          input.maxInstallmentCount > 21)
+      ) {
+        throw new BillingProviderError(
+          'Checkout parcelado exige entre 2 e 21 parcelas.',
+          'checkout_installment_invalid',
+        );
+      }
       const itemName = (input.itemName ?? input.description)
         .trim()
         .slice(0, ASAAS_CHECKOUT_ITEM_NAME_MAX_LENGTH);
@@ -885,8 +939,8 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
         throw new BillingProviderError('checkout item name ausente', 'invalid_checkout_item_name');
       }
       const r = (await request('POST', '/checkouts', {
-        billingTypes: recurrent ? ['CREDIT_CARD'] : ['PIX', 'CREDIT_CARD'],
-        chargeTypes: recurrent ? ['RECURRENT'] : ['DETACHED'],
+        billingTypes: recurrent ? ['CREDIT_CARD'] : (input.billingTypes ?? ['PIX', 'CREDIT_CARD']),
+        chargeTypes: recurrent ? ['RECURRENT'] : installment ? ['INSTALLMENT'] : ['DETACHED'],
         minutesToExpire: input.minutesToExpire,
         externalReference: input.externalReference,
         callback: input.callback,
@@ -899,6 +953,7 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
           },
         ],
         ...(recurrent ? { subscription: input.subscription } : {}),
+        ...(installment ? { installment: { maxInstallmentCount: input.maxInstallmentCount } } : {}),
       })) as Record<string, unknown>;
 
       const checkoutId = String(r.id);
@@ -931,6 +986,7 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
         subscriptionId: String(r.id),
         status: asStr(r.status) ?? 'UNKNOWN',
         value: asNum(r.value),
+        ...paymentEconomicsFields(r),
         customerId: asStr(r.customer),
         externalReference: asStr(r.externalReference),
         cycle: asStr(r.cycle),
@@ -1022,6 +1078,7 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
         paymentId: String(r.id),
         status: asStr(r.status) ?? 'UNKNOWN',
         value: asNum(r.value),
+        ...paymentEconomicsFields(r),
         dueDate: asStr(r.dueDate) ?? '',
         invoiceUrl: asStr(r.invoiceUrl),
         subscriptionId: asStr(r.subscription),
@@ -1045,6 +1102,7 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
         paymentId: String(p.id),
         status: asStr(p.status) ?? 'UNKNOWN',
         value: asNum(p.value),
+        ...paymentEconomicsFields(p),
         dueDate: asStr(p.dueDate) ?? '',
         invoiceUrl: asStr(p.invoiceUrl),
         subscriptionId: asStr(p.subscription),
@@ -1093,6 +1151,7 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
         paymentId: String(p.id),
         status: asStr(p.status) ?? 'UNKNOWN',
         value: asNum(p.value),
+        ...paymentEconomicsFields(p),
         dueDate: asStr(p.dueDate) ?? '',
         invoiceUrl: asStr(p.invoiceUrl),
         subscriptionId: asStr(p.subscription),

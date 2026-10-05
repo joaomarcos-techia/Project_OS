@@ -91,6 +91,8 @@ import '@/contexts/scheduling/internal/handlers/patient-charge-paid';
 // handler detached, preservando TX curta antes da chamada externa ao Asaas.
 import './appointment-no-show-handler';
 import '@/contexts/payments/internal/handlers/appointment-cancelled';
+// Agendamento pela IA confirmado -> tenta criar o sinal sem aguardar o scan de 15 min.
+import '@/contexts/payments/internal/handlers/appointment-deposit-requested';
 // ADR-049 1.5 — desfecho da cobrança projetado na agenda (R3: o Payments publica,
 // a agenda escreve a própria coluna).
 import '@/contexts/scheduling/internal/handlers/patient-charge-closed';
@@ -105,6 +107,7 @@ import '@/contexts/ai-agent/proactive-jobs/internal/handlers/patient-charge-link
 // da cobranca: `patient_charge.paid`/`.closed` ja tem dono no Scheduling, e os
 // dois pares significam coisas diferentes para dominios diferentes.
 import '@/contexts/financial/internal/handlers/patient-credit-granted';
+import '@/contexts/financial/internal/handlers/patient-payment-economics-reconciled';
 import '@/contexts/financial/internal/handlers/patient-credit-released';
 
 // D50 — Financial detecta excedente; Payments executa o estorno fora da TX do worker.

@@ -220,6 +220,7 @@ async function reconcilePayment(args: {
   chargeId: string;
   providerPaymentId: string;
   suffix: string;
+  amount: number;
 }): Promise<void> {
   const eventA = `evt-sim-${stamp}-${args.scenario.day}-${args.suffix}-a`;
   const eventB = `evt-sim-${stamp}-${args.scenario.day}-${args.suffix}-b`;
@@ -230,6 +231,8 @@ async function reconcilePayment(args: {
       asaasEventId: eventA,
       eventType: args.scenario.day % 2 === 0 ? 'PAYMENT_CONFIRMED' : 'PAYMENT_RECEIVED',
       paidAt: args.scenario.scheduledAt,
+      providerGrossAmount: args.amount,
+      providerNetAmount: args.amount,
       billingType: 'PIX',
     }),
     markDepositPaid({
@@ -238,6 +241,8 @@ async function reconcilePayment(args: {
       asaasEventId: eventB,
       eventType: args.scenario.day % 2 === 0 ? 'PAYMENT_RECEIVED' : 'PAYMENT_CONFIRMED',
       paidAt: args.scenario.scheduledAt,
+      providerGrossAmount: args.amount,
+      providerNetAmount: args.amount,
       billingType: 'PIX',
     }),
   ]);
@@ -256,6 +261,8 @@ async function reconcilePayment(args: {
     asaasEventId: eventA,
     eventType: args.scenario.day % 2 === 0 ? 'PAYMENT_CONFIRMED' : 'PAYMENT_RECEIVED',
     paidAt: args.scenario.scheduledAt,
+    providerGrossAmount: args.amount,
+    providerNetAmount: args.amount,
     billingType: 'PIX',
   });
   assert(replay === 'ignored', `${args.chargeId}: replay devolveu ${replay}`);
@@ -269,6 +276,7 @@ async function accumulatePayments(): Promise<void> {
         chargeId: scenario.depositChargeId,
         providerPaymentId: scenario.depositProviderId,
         suffix: 'deposit',
+        amount: DEPOSIT_AMOUNT,
       });
     }
     if (scenario.remainderChargeId && scenario.remainderProviderId) {
@@ -277,6 +285,7 @@ async function accumulatePayments(): Promise<void> {
         chargeId: scenario.remainderChargeId,
         providerPaymentId: scenario.remainderProviderId,
         suffix: 'remainder',
+        amount: REMAINDER_AMOUNT,
       });
     }
 

@@ -3,16 +3,43 @@
  * do teste ao vivo: paciente diz "cardiologia", procedimento é "Consulta
  * Cardiológica"; substring simples não casava e o agendamento falhava.
  */
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Tx } from '@/lib/db';
+import type * as PendingActionModule from '../internal/pending-action';
 
 import { __testing__ } from './prepare-appointment';
 import { getTool, type ToolContext } from './registry';
 
+const mocks = vi.hoisted(() => ({
+  listProcedures: vi.fn(),
+  listSlots: vi.fn(),
+  getPaymentPricingPolicy: vi.fn(),
+  listProcedurePaymentPrices: vi.fn(),
+  resolveConfiguredProcedurePaymentPrice: vi.fn(),
+  proposePendingAction: vi.fn(),
+}));
+
+vi.mock('@/contexts/scheduling', () => ({
+  schedulingApiV1: { listProcedures: mocks.listProcedures, listSlots: mocks.listSlots },
+}));
+vi.mock('@/contexts/payments', () => ({
+  getPaymentPricingPolicy: mocks.getPaymentPricingPolicy,
+  listProcedurePaymentPrices: mocks.listProcedurePaymentPrices,
+  resolveConfiguredProcedurePaymentPrice: mocks.resolveConfiguredProcedurePaymentPrice,
+}));
+vi.mock('../internal/pending-action', async (importOriginal) => ({
+  ...(await importOriginal<typeof PendingActionModule>()),
+  proposePendingAction: mocks.proposePendingAction,
+}));
+
 const { matchesProcedure } = __testing__;
 const cardio = { descricao: 'Consulta Cardiológica', categoria: 'consulta' };
 const dermato = { descricao: 'Consulta Dermatológica', categoria: 'consulta' };
+const PROCEDURE_ID = '55555555-5555-5555-5555-555555555555';
+const DOCTOR_ID = '66666666-6666-6666-6666-666666666666';
+const PRICE_ID = '77777777-7777-7777-7777-777777777777';
+const APPOINTMENT_ACTION_ID = '88888888-8888-8888-8888-888888888888';
 
 const unregisteredPatientContext: ToolContext = {
   tx: {} as Tx,
@@ -31,6 +58,57 @@ const unregisteredPatientContext: ToolContext = {
   pendingAppointmentProcedureName: null,
   canDisclosePayments: false,
 };
+
+const registeredPatientContext: ToolContext = {
+  ...unregisteredPatientContext,
+  patientId: '99999999-9999-9999-9999-999999999999',
+};
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  mocks.listProcedures.mockResolvedValue([
+    {
+      id: PROCEDURE_ID,
+      descricao: 'Consulta Cardiológica',
+      categoria: 'consulta',
+      valorPadrao: 250,
+    },
+  ]);
+  mocks.listSlots.mockImplementation(async () => [
+    { startAt: new Date(Date.now() + 86_400_000).toISOString(), doctorId: DOCTOR_ID },
+  ]);
+  mocks.getPaymentPricingPolicy.mockResolvedValue({ mode: 'payment_method_pricing' });
+  mocks.listProcedurePaymentPrices.mockResolvedValue([
+    {
+      id: PRICE_ID,
+      procedureId: PROCEDURE_ID,
+      paymentMethod: 'pix',
+      installmentCount: null,
+      grossAmount: 180,
+    },
+    {
+      id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+      procedureId: PROCEDURE_ID,
+      paymentMethod: 'credit_card',
+      installmentCount: 1,
+      grossAmount: 200,
+    },
+  ]);
+  mocks.resolveConfiguredProcedurePaymentPrice.mockResolvedValue({
+    mode: 'payment_method_pricing',
+    paymentMethod: 'pix',
+    installmentCount: null,
+    priceId: PRICE_ID,
+    grossAmount: 180,
+    source: 'explicit_method_price',
+  });
+  mocks.proposePendingAction.mockImplementation(async (_tx, args: { summary: string }) => ({
+    id: APPOINTMENT_ACTION_ID,
+    action: 'schedule_appointment',
+    summary: args.summary,
+    expiresAt: new Date(Date.now() + 600_000).toISOString(),
+  }));
+});
 
 describe('matchesProcedure (tolerante a especialidade vs nome)', () => {
   it('casa especialidade com o nome do procedimento (cardiologia ↔ Cardiológica)', () => {
@@ -71,5 +149,150 @@ describe('prepare_appointment para contato sem cadastro', () => {
       status: 'patient_registration_required',
       required_fields: ['nome', 'cpf', 'motivo'],
     });
+  });
+});
+
+describe('prepare_appointment com preço por meio de pagamento', () => {
+  it('pede escolha do paciente e mostra apenas opções com link disponível', async () => {
+    const response = await getTool('prepare_appointment')!.handler({}, registeredPatientContext);
+    expect(response).toMatchObject({ status: 'appointment_information_required' });
+    expect(response.patient_message).toContain('Pix: R$ 180,00');
+    expect(response.patient_message).toContain('cartão de crédito em 1x: R$ 200,00');
+    expect(mocks.listSlots).not.toHaveBeenCalled();
+    expect(mocks.proposePendingAction).not.toHaveBeenCalled();
+  });
+
+  it('não oferece cartão quando só há preço Pix configurado', async () => {
+    mocks.listProcedurePaymentPrices.mockResolvedValue([
+      { procedureId: PROCEDURE_ID, paymentMethod: 'pix', installmentCount: null, grossAmount: 180 },
+    ]);
+    const response = await getTool('prepare_appointment')!.handler({}, registeredPatientContext);
+    expect(response.patient_message).toContain('Pix: R$ 180,00');
+    expect(response.patient_message).not.toContain('cartão');
+  });
+
+  it('salva preço Pix consultado no servidor e o apresenta no resumo', async () => {
+    const response = await getTool('prepare_appointment')!.handler(
+      { payment_method: 'pix' },
+      { ...registeredPatientContext, currentMessage: 'Quero pagar no Pix' },
+    );
+    expect(response).toMatchObject({ status: 'appointment_prepared' });
+    expect(response.summary).toContain('valor total R$ 180,00 via Pix');
+    expect(mocks.resolveConfiguredProcedurePaymentPrice).toHaveBeenCalledWith({
+      clinicId: registeredPatientContext.clinicId,
+      procedureId: PROCEDURE_ID,
+      standardGrossAmount: 250,
+      paymentMethod: 'pix',
+      installmentCount: null,
+    });
+    expect(mocks.proposePendingAction).toHaveBeenCalledWith(
+      registeredPatientContext.tx,
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          commercialPrice: {
+            paymentMethod: 'pix',
+            installmentCount: null,
+            priceId: PRICE_ID,
+            grossAmount: 180,
+          },
+        }),
+      }),
+    );
+  });
+
+  it('pede parcelas para cartão, sem assumir pagamento em 1x', async () => {
+    const response = await getTool('prepare_appointment')!.handler(
+      { payment_method: 'credit_card' },
+      { ...registeredPatientContext, currentMessage: 'Quero pagar no cartão' },
+    );
+    expect(response.patient_message).toContain('responda "cartão em 1x"');
+    expect(mocks.proposePendingAction).not.toHaveBeenCalled();
+  });
+
+  it('prepara cartão em 1x com o preço configurado', async () => {
+    mocks.resolveConfiguredProcedurePaymentPrice.mockResolvedValue({
+      mode: 'payment_method_pricing',
+      paymentMethod: 'credit_card',
+      installmentCount: 1,
+      priceId: PRICE_ID,
+      grossAmount: 200,
+      source: 'explicit_method_price',
+    });
+    const response = await getTool('prepare_appointment')!.handler(
+      { payment_method: 'credit_card', installment_count: 1 },
+      { ...registeredPatientContext, currentMessage: 'Vou pagar no cartão em 1x' },
+    );
+    expect(response.summary).toContain('valor total R$ 200,00 via cartão de crédito em 1x');
+    expect(mocks.proposePendingAction).toHaveBeenCalledWith(
+      registeredPatientContext.tx,
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          commercialPrice: expect.objectContaining({
+            paymentMethod: 'credit_card',
+            installmentCount: 1,
+            grossAmount: 200,
+          }),
+        }),
+      }),
+    );
+  });
+
+  it('não prepara cartão parcelado nem inventa preço indisponível', async () => {
+    const tool = getTool('prepare_appointment')!;
+    const parcelado = await tool.handler(
+      { payment_method: 'credit_card', installment_count: 3 },
+      { ...registeredPatientContext, currentMessage: 'Vou pagar no cartão em 3x' },
+    );
+    expect(parcelado.patient_message).toContain('não consigo gerar link de cartão parcelado');
+    expect(mocks.resolveConfiguredProcedurePaymentPrice).not.toHaveBeenCalled();
+
+    mocks.resolveConfiguredProcedurePaymentPrice.mockResolvedValue(null);
+    const semPreco = await tool.handler(
+      { payment_method: 'pix' },
+      { ...registeredPatientContext, currentMessage: 'Pix' },
+    );
+    expect(semPreco.patient_message).toContain('preço dessa forma de pagamento mudou');
+    expect(mocks.proposePendingAction).not.toHaveBeenCalled();
+  });
+
+  it('preserva o agendamento com preço padrão quando a política explícita não está ativa', async () => {
+    mocks.getPaymentPricingPolicy.mockResolvedValue({ mode: 'absorb_fees' });
+    const response = await getTool('prepare_appointment')!.handler({}, registeredPatientContext);
+    expect(response).toMatchObject({ status: 'appointment_prepared' });
+    expect(mocks.proposePendingAction).toHaveBeenCalledWith(
+      registeredPatientContext.tx,
+      expect.objectContaining({
+        payload: expect.not.objectContaining({ commercialPrice: expect.anything() }),
+      }),
+    );
+  });
+
+  it('não aceita meio nem parcelas inventados pelo modelo', async () => {
+    const tool = getTool('prepare_appointment')!;
+    const semEscolha = await tool.handler({ payment_method: 'pix' }, registeredPatientContext);
+    expect(semEscolha.patient_message).toContain('Como prefere pagar');
+
+    const metodoDivergente = await tool.handler(
+      { payment_method: 'credit_card', installment_count: 1 },
+      { ...registeredPatientContext, currentMessage: 'Vou pagar no Pix' },
+    );
+    expect(metodoDivergente.patient_message).toContain('não corresponde à sua mensagem');
+
+    const parcelaInventada = await tool.handler(
+      { payment_method: 'credit_card', installment_count: 1 },
+      { ...registeredPatientContext, currentMessage: 'Vou pagar no cartão' },
+    );
+    expect(parcelaInventada.patient_message).toContain('responda "cartão em 1x"');
+    expect(mocks.proposePendingAction).not.toHaveBeenCalled();
+  });
+
+  it('pede escolha quando o paciente menciona Pix e cartão na mesma mensagem', async () => {
+    const response = await getTool('prepare_appointment')!.handler(
+      { payment_method: 'pix' },
+      { ...registeredPatientContext, currentMessage: 'Pode ser Pix ou cartão?' },
+    );
+    expect(response.patient_message).toContain('Você mencionou Pix e cartão');
+    expect(mocks.resolveConfiguredProcedurePaymentPrice).not.toHaveBeenCalled();
+    expect(mocks.proposePendingAction).not.toHaveBeenCalled();
   });
 });

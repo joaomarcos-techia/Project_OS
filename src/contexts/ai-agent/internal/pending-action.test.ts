@@ -147,6 +147,39 @@ describe('confirmação server-side de ações da IA', () => {
     ).toMatchObject({ type: 'cancel_appointment' });
     expect(() => parsePendingActionPayload({ type: 'delete_patient', patientId: 'x' })).toThrow();
   });
+
+  it('mantém payload de agendamento antigo e valida preço comercial novo', () => {
+    const legacy = {
+      type: 'schedule_appointment',
+      patientId: '33333333-3333-3333-3333-333333333333',
+      doctorId: '44444444-4444-4444-4444-444444444444',
+      procedureId: '55555555-5555-5555-5555-555555555555',
+      scheduledAt: '2026-10-04T12:00:00.000Z',
+    };
+    expect(parsePendingActionPayload(legacy)).toEqual(legacy);
+    expect(
+      parsePendingActionPayload({
+        ...legacy,
+        commercialPrice: {
+          paymentMethod: 'pix',
+          installmentCount: null,
+          priceId: '77777777-7777-7777-7777-777777777777',
+          grossAmount: 180,
+        },
+      }),
+    ).toMatchObject({ commercialPrice: { paymentMethod: 'pix', grossAmount: 180 } });
+    expect(() =>
+      parsePendingActionPayload({
+        ...legacy,
+        commercialPrice: {
+          paymentMethod: 'credit_card',
+          installmentCount: 3,
+          priceId: '77777777-7777-7777-7777-777777777777',
+          grossAmount: 200,
+        },
+      }),
+    ).toThrow();
+  });
 });
 
 describe('idempotência da execução (R1 + emenda F-05)', () => {

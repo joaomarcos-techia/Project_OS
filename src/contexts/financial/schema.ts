@@ -90,6 +90,10 @@ export const collectionCaseStage = pgEnum('collection_case_stage', ['d15_review'
 
 export const collectionCaseStatus = pgEnum('collection_case_status', ['open', 'resolved']);
 
+export type ProfessionalPayoutBasis = 'gross' | 'net';
+export type ProfessionalPayoutRuleKind = 'percentage' | 'fixed';
+export type ProfessionalPayoutStatus = 'pending_economics' | 'calculated' | 'cancelled';
+
 // --- payment_methods (catálogo GLOBAL — sem clinic_id) ---------------------
 
 export const paymentMethods = pgTable('payment_methods', {
@@ -143,6 +147,12 @@ export const lancamentos = pgTable(
     patientId: uuid('patient_id'), // FK patients SET NULL via migration
     supplierId: uuid('supplier_id').references(() => suppliers.id, { onDelete: 'set null' }),
     appointmentId: uuid('appointment_id'), // FK appointments SET NULL via migration
+    /**
+     * Linhagem opaca de uma despesa automática originada no Payments. Sem FK
+     * cross-context; a UNIQUE abaixo é a trava de idempotência.
+     */
+    sourcePatientChargeId: uuid('source_patient_charge_id'),
+    financialExpenseKind: text('financial_expense_kind'),
     paymentMethod: text('payment_method').references(() => paymentMethods.code),
     createdVia: lancamentoCreatedVia('created_via').notNull(),
     // Lineage do estorno (append-only): aponta para o lançamento original.
@@ -177,6 +187,9 @@ export const lancamentos = pgTable(
     appointmentUniq: uniqueIndex('lancamentos_appointment_uniq')
       .on(t.appointmentId)
       .where(sql`appointment_id IS NOT NULL`),
+    providerExpenseUniq: uniqueIndex('lancamentos_provider_expense_uniq')
+      .on(t.clinicId, t.sourcePatientChargeId, t.financialExpenseKind)
+      .where(sql`${t.sourcePatientChargeId} is not null`),
     valorChk: check('lancamentos_valor_chk', sql`${t.valor} >= 0`),
     valorPagoChk: check(
       'lancamentos_valor_pago_chk',
@@ -185,7 +198,17 @@ export const lancamentos = pgTable(
     // Origem obrigatória — proíbe lançamento órfão (REGRA do spec).
     autoOriginChk: check(
       'lancamentos_auto_origin_chk',
-      sql`${t.createdVia} <> 'auto' OR ${t.appointmentId} IS NOT NULL`,
+      sql`${t.createdVia} <> 'auto'
+          OR ${t.appointmentId} IS NOT NULL
+          OR (${t.sourcePatientChargeId} IS NOT NULL AND ${t.financialExpenseKind} IS NOT NULL)`,
+    ),
+    providerExpenseCoherenceChk: check(
+      'lancamentos_provider_expense_coherence_chk',
+      sql`(${t.sourcePatientChargeId} IS NULL AND ${t.financialExpenseKind} IS NULL)
+          OR (${t.sourcePatientChargeId} IS NOT NULL
+            AND ${t.financialExpenseKind} IS NOT NULL
+            AND ${t.financialExpenseKind} IN ('payment_processing_fee', 'early_settlement_fee')
+            AND ${t.tipo} = 'pagar')`,
     ),
     estornoOriginChk: check(
       'lancamentos_estorno_origin_chk',
@@ -200,6 +223,180 @@ export const lancamentos = pgTable(
 
 export type LancamentoRow = typeof lancamentos.$inferSelect;
 export type LancamentoInsert = typeof lancamentos.$inferInsert;
+
+// --- professional payouts -------------------------------------------------
+
+/** Default por tenant. Ausência de linha equivale a `gross`. */
+export const clinicFinancialPolicies = pgTable(
+  'clinic_financial_policies',
+  {
+    clinicId: tenantIdRef().primaryKey(),
+    professionalPayoutBasis: text('professional_payout_basis')
+      .$type<ProfessionalPayoutBasis>()
+      .notNull()
+      .default('gross'),
+    updatedBy: uuid('updated_by'),
+    ...timestampsPattern(),
+  },
+  (t) => ({
+    basisCheck: check(
+      'clinic_financial_policies_basis_chk',
+      sql`${t.professionalPayoutBasis} IN ('gross', 'net')`,
+    ),
+  }),
+);
+
+/** Histórico append-only usado para resolver a base vigente na data do atendimento. */
+export const clinicFinancialPolicyVersions = pgTable(
+  'clinic_financial_policy_versions',
+  {
+    id: uuidPk(),
+    clinicId: tenantIdRef(),
+    professionalPayoutBasis: text('professional_payout_basis')
+      .$type<ProfessionalPayoutBasis>()
+      .notNull(),
+    effectiveFrom: timestamp('effective_from', { withTimezone: true }).notNull().defaultNow(),
+    createdBy: uuid('created_by'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    clinicEffectiveIdx: index('clinic_financial_policy_versions_effective_idx').on(
+      t.clinicId,
+      t.effectiveFrom,
+    ),
+    basisCheck: check(
+      'clinic_financial_policy_versions_basis_chk',
+      sql`${t.professionalPayoutBasis} IN ('gross', 'net')`,
+    ),
+  }),
+);
+
+/**
+ * Regra comercial vigente para um profissional, opcionalmente especializada
+ * por procedimento. O histórico não depende desta linha: cada atendimento
+ * copia a regra aplicável para `professional_payouts`.
+ */
+export const professionalPayoutRules = pgTable(
+  'professional_payout_rules',
+  {
+    id: uuidPk(),
+    clinicId: tenantIdRef(),
+    professionalId: uuid('professional_id').notNull(),
+    procedureId: uuid('procedure_id'),
+    kind: text('kind').$type<ProfessionalPayoutRuleKind>().notNull(),
+    percentage: numeric('percentage', { precision: 7, scale: 4 }),
+    fixedAmount: numeric('fixed_amount', { precision: 12, scale: 2 }),
+    effectiveFrom: timestamp('effective_from', { withTimezone: true }).notNull().defaultNow(),
+    effectiveTo: timestamp('effective_to', { withTimezone: true }),
+    createdBy: uuid('created_by'),
+    ...timestampsPattern(),
+  },
+  (t) => ({
+    clinicProfessionalIdx: index('professional_payout_rules_clinic_professional_idx').on(
+      t.clinicId,
+      t.professionalId,
+    ),
+    activeUniq: uniqueIndex('professional_payout_rules_active_uniq')
+      .on(
+        t.clinicId,
+        t.professionalId,
+        sql`coalesce(${t.procedureId}, '00000000-0000-0000-0000-000000000000'::uuid)`,
+      )
+      .where(sql`${t.effectiveTo} IS NULL`),
+    ruleShapeChk: check(
+      'professional_payout_rules_shape_chk',
+      sql`(${t.kind} = 'percentage' AND ${t.percentage} IS NOT NULL AND ${t.percentage} > 0
+            AND ${t.percentage} <= 100 AND ${t.fixedAmount} IS NULL)
+          OR (${t.kind} = 'fixed' AND ${t.fixedAmount} IS NOT NULL
+            AND ${t.fixedAmount} >= 0 AND ${t.percentage} IS NULL)`,
+    ),
+    effectiveWindowChk: check(
+      'professional_payout_rules_effective_window_chk',
+      sql`${t.effectiveTo} IS NULL OR ${t.effectiveTo} > ${t.effectiveFrom}`,
+    ),
+  }),
+);
+
+/**
+ * Snapshot imutável do cálculo de um atendimento. `pending_economics` preserva
+ * o caso em que a base escolhida é líquida, mas o provedor ainda não informou
+ * os fatos econômicos reais.
+ */
+export const professionalPayouts = pgTable(
+  'professional_payouts',
+  {
+    id: uuidPk(),
+    clinicId: tenantIdRef(),
+    appointmentId: uuid('appointment_id').notNull(),
+    professionalId: uuid('professional_id').notNull(),
+    procedureId: uuid('procedure_id').notNull(),
+    policyVersionId: uuid('policy_version_id').references(() => clinicFinancialPolicyVersions.id, {
+      onDelete: 'restrict',
+    }),
+    ruleId: uuid('rule_id').references(() => professionalPayoutRules.id, { onDelete: 'restrict' }),
+    calculationBasis: text('calculation_basis').$type<ProfessionalPayoutBasis>().notNull(),
+    ruleKind: text('rule_kind').$type<ProfessionalPayoutRuleKind>().notNull(),
+    rulePercentage: numeric('rule_percentage', { precision: 7, scale: 4 }),
+    ruleFixedAmount: numeric('rule_fixed_amount', { precision: 12, scale: 2 }),
+    grossAmount: numeric('gross_amount', { precision: 12, scale: 2 }).notNull(),
+    providerFeeAmount: numeric('provider_fee_amount', { precision: 12, scale: 2 }),
+    earlySettlementFeeAmount: numeric('early_settlement_fee_amount', {
+      precision: 12,
+      scale: 2,
+    }),
+    netAmount: numeric('net_amount', { precision: 12, scale: 2 }),
+    basisAmount: numeric('basis_amount', { precision: 12, scale: 2 }),
+    payoutAmount: numeric('payout_amount', { precision: 12, scale: 2 }),
+    status: text('status').$type<ProfessionalPayoutStatus>().notNull().default('pending_economics'),
+    calculatedAt: timestamp('calculated_at', { withTimezone: true }),
+    ...timestampsPattern(),
+  },
+  (t) => ({
+    appointmentUniq: unique('professional_payouts_appointment_uniq').on(t.appointmentId),
+    clinicProfessionalIdx: index('professional_payouts_clinic_professional_idx').on(
+      t.clinicId,
+      t.professionalId,
+    ),
+    basisCheck: check(
+      'professional_payouts_basis_chk',
+      sql`${t.calculationBasis} IN ('gross', 'net')`,
+    ),
+    amountChk: check(
+      'professional_payouts_amount_chk',
+      sql`${t.grossAmount} >= 0
+          AND (${t.providerFeeAmount} IS NULL OR (${t.providerFeeAmount} >= 0 AND ${t.providerFeeAmount} <= ${t.grossAmount}))
+          AND (${t.earlySettlementFeeAmount} IS NULL OR ${t.earlySettlementFeeAmount} >= 0)
+          AND (${t.netAmount} IS NULL OR (${t.netAmount} >= 0 AND ${t.netAmount} <= ${t.grossAmount}))
+          AND (${t.basisAmount} IS NULL OR ${t.basisAmount} >= 0)
+          AND (${t.payoutAmount} IS NULL OR ${t.payoutAmount} >= 0)`,
+    ),
+    basisAmountChk: check(
+      'professional_payouts_basis_amount_chk',
+      sql`${t.status} <> 'calculated'
+          OR (${t.calculationBasis} = 'gross' AND ${t.basisAmount} = ${t.grossAmount})
+          OR (${t.calculationBasis} = 'net' AND ${t.netAmount} IS NOT NULL AND ${t.basisAmount} = ${t.netAmount})`,
+    ),
+    snapshotShapeChk: check(
+      'professional_payouts_rule_shape_chk',
+      sql`(${t.ruleKind} = 'percentage' AND ${t.rulePercentage} IS NOT NULL
+            AND ${t.rulePercentage} > 0 AND ${t.rulePercentage} <= 100
+            AND ${t.ruleFixedAmount} IS NULL)
+          OR (${t.ruleKind} = 'fixed' AND ${t.ruleFixedAmount} IS NOT NULL
+            AND ${t.ruleFixedAmount} >= 0 AND ${t.rulePercentage} IS NULL)`,
+    ),
+    statusChk: check(
+      'professional_payouts_status_chk',
+      sql`(${t.status} = 'pending_economics' AND ${t.calculationBasis} = 'net' AND ${t.basisAmount} IS NULL AND ${t.payoutAmount} IS NULL AND ${t.calculatedAt} IS NULL)
+          OR (${t.status} = 'calculated' AND ${t.basisAmount} IS NOT NULL AND ${t.payoutAmount} IS NOT NULL AND ${t.calculatedAt} IS NOT NULL)
+          OR ${t.status} = 'cancelled'`,
+    ),
+  }),
+);
+
+export type ClinicFinancialPolicyRow = typeof clinicFinancialPolicies.$inferSelect;
+export type ClinicFinancialPolicyVersionRow = typeof clinicFinancialPolicyVersions.$inferSelect;
+export type ProfessionalPayoutRuleRow = typeof professionalPayoutRules.$inferSelect;
+export type ProfessionalPayoutRow = typeof professionalPayouts.$inferSelect;
 
 // --- patient_credits (ADR-051 1.5b.1) ------------------------------------
 
@@ -236,6 +433,17 @@ export const patientCredits = pgTable(
     appointmentId: uuid('appointment_id'),
     patientChargeId: uuid('patient_charge_id').notNull(),
     amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
+    /** Fatos do provedor; NULL em legado ou enquanto a conciliação estiver incompleta. */
+    providerGrossAmount: numeric('provider_gross_amount', { precision: 12, scale: 2 }),
+    providerFeeAmount: numeric('provider_fee_amount', { precision: 12, scale: 2 }),
+    providerNetAmount: numeric('provider_net_amount', { precision: 12, scale: 2 }),
+    earlySettlementFeeAmount: numeric('early_settlement_fee_amount', {
+      precision: 12,
+      scale: 2,
+    }),
+    providerEconomicsReconciledAt: timestamp('provider_economics_reconciled_at', {
+      withTimezone: true,
+    }),
     allocatedAmount: numeric('allocated_amount', { precision: 12, scale: 2 })
       .notNull()
       .default('0'),
@@ -294,6 +502,18 @@ export const patientCredits = pgTable(
     allocatedPaymentIdx: uniqueIndex('patient_credits_allocated_payment_transaction_idx')
       .on(t.allocatedPaymentTransactionId)
       .where(sql`${t.allocatedPaymentTransactionId} is not null`),
+    economicsChk: check(
+      'patient_credits_economics_nonnegative_chk',
+      sql`(${t.providerGrossAmount} IS NULL OR (${t.providerGrossAmount} >= 0 AND ${t.providerGrossAmount} = ${t.amount}))
+          AND (${t.providerFeeAmount} IS NULL OR (${t.providerGrossAmount} IS NOT NULL AND ${t.providerFeeAmount} >= 0 AND ${t.providerFeeAmount} <= ${t.providerGrossAmount}))
+          AND (${t.providerNetAmount} IS NULL OR (${t.providerGrossAmount} IS NOT NULL AND ${t.providerNetAmount} >= 0 AND ${t.providerNetAmount} <= ${t.providerGrossAmount}))
+          AND (${t.earlySettlementFeeAmount} IS NULL OR ${t.earlySettlementFeeAmount} >= 0)
+          AND (${t.providerEconomicsReconciledAt} IS NULL OR (
+            ${t.providerGrossAmount} IS NOT NULL
+            AND ${t.providerFeeAmount} IS NOT NULL
+            AND ${t.providerNetAmount} IS NOT NULL
+          ))`,
+    ),
   }),
 );
 

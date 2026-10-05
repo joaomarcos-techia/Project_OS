@@ -118,6 +118,7 @@ test.describe('produção: reconciliação operacional do Dashboard', () => {
             has_patient: boolean;
             has_procedure: boolean;
             has_whatsapp: boolean;
+            checklist_dismissed: boolean;
             activity_items: number;
           }[]
         >`
@@ -166,6 +167,11 @@ test.describe('produção: reconciliação operacional do Dashboard', () => {
                  exists(select 1 from procedures p where p.clinic_id=b.clinic_id and p.ativo=true) has_procedure,
                  exists(select 1 from clinic_whatsapp_numbers w where w.clinic_id=b.clinic_id
                    and w.active=true and w.connection_status='connected') has_whatsapp,
+                 exists(select 1 from onboarding_progress op
+                   join auth.users owner on owner.id=op.user_id
+                   where op.clinic_id=b.clinic_id
+                     and lower(owner.email)=${ownerEmail.toLowerCase()}
+                     and op.checklist_dismissed_at is not null) checklist_dismissed,
                  least(5, (select count(*)::int from audit_events a
                    where a.clinic_id=b.clinic_id)) activity_items
             from bounds b
@@ -197,7 +203,10 @@ test.describe('produção: reconciliação operacional do Dashboard', () => {
         .getByText('Próximos na agenda', { exact: true })
         .locator('../..');
       if (state.proximos === 0) {
-        await expect(upcomingPanel.getByText('Nada para hoje.', { exact: true })).toBeVisible();
+        await expect(upcomingPanel.getByText('Agenda livre hoje', { exact: true })).toBeVisible();
+        await expect(
+          upcomingPanel.getByText('Nenhum atendimento está agendado para hoje.', { exact: true }),
+        ).toBeVisible();
       } else {
         await expect(upcomingPanel.getByRole('listitem')).toHaveCount(state.proximos);
       }
@@ -210,13 +219,14 @@ test.describe('produção: reconciliação operacional do Dashboard', () => {
         state.has_whatsapp,
       ];
       const checklistDone = checklistFlags.filter(Boolean).length;
-      if (checklistDone === checklistFlags.length) {
-        await expect(ownerPage.getByText('Primeiros passos', { exact: true })).toHaveCount(0);
+      if (checklistDone === checklistFlags.length || state.checklist_dismissed) {
+        await expect(ownerPage.getByText('Ativação da clínica', { exact: true })).toHaveCount(0);
       } else {
-        await expect(ownerPage.getByText('Primeiros passos', { exact: true })).toBeVisible();
-        await expect(
-          ownerPage.getByText(`${checklistDone}/5 concluídos`, { exact: true }),
-        ).toBeVisible();
+        await expect(ownerPage.getByText('Ativação da clínica', { exact: true })).toBeVisible();
+        await expect(ownerPage.getByRole('progressbar')).toHaveAttribute(
+          'aria-valuenow',
+          String(checklistDone),
+        );
       }
 
       const ownerActivityPanel = ownerPage
@@ -224,22 +234,24 @@ test.describe('produção: reconciliação operacional do Dashboard', () => {
         .locator('../..');
       if (state.activity_items === 0) {
         await expect(
-          ownerActivityPanel.getByText('Nenhuma atividade registrada ainda.', { exact: true }),
+          ownerActivityPanel.getByText('Sem atividade recente', { exact: true }),
         ).toBeVisible();
       } else {
         await expect(ownerActivityPanel.getByRole('listitem')).toHaveCount(state.activity_items);
       }
-      await expect(
-        doctorPage.getByText('A trilha de atividade fica disponível para gestores.', {
-          exact: true,
-        }),
-      ).toBeVisible();
+      await expect(doctorPage.getByRole('region', { name: 'Atividade recente' })).toHaveCount(0);
 
-      await ownerPage.getByRole('link', { name: 'Atualizar' }).click();
+      await ownerPage.getByRole('button', { name: 'Atualizar os dados do turno' }).click();
       await expect(ownerPage).toHaveURL(/\/dashboard(?:\?|$)/u);
       await expectStat(ownerPage, 'Consultas hoje', state.consultas_hoje);
-      await expect(ownerPage.getByText('Ocupação por profissional', { exact: true })).toBeVisible();
-      await expect(ownerPage.getByText('Alertas da IA', { exact: true })).toBeVisible();
+      await expect(
+        ownerPage.getByText(
+          'Ocupação por profissional ainda não tem fonte de dados nesta clínica.',
+          {
+            exact: true,
+          },
+        ),
+      ).toBeVisible();
 
       console.log(
         `[dashboard-operational-a] ${JSON.stringify({
@@ -251,13 +263,14 @@ test.describe('produção: reconciliação operacional do Dashboard', () => {
           proximos: state.proximos,
           checklistDone,
           checklistTotal: checklistFlags.length,
-          checklistHiddenWhenComplete: checklistDone === checklistFlags.length,
+          checklistHiddenWhenCompleteOrDismissed:
+            checklistDone === checklistFlags.length || state.checklist_dismissed,
           ownerActivityItems: state.activity_items,
           ownerCanAudit: state.owner_can_audit,
           doctorCanAudit: state.doctor_can_audit,
           doctorActivityHidden: true,
           refreshLinkPreservedState: true,
-          placeholdersDeclaredAsComingSoon: 2,
+          placeholdersDeclaredAsComingSoon: 1,
           mutation: false,
         })}`,
       );

@@ -28,6 +28,10 @@ import { FINANCIAL_EVENTS } from '../../events';
 import { allocateCreditsTo, atendimentoDescricao, round2, statusAoCriar } from '../../logic';
 import { faturamentoPendencias, lancamentos, paymentTransactions } from '../../schema';
 import { allocateCredit, listAvailableCredits } from '../credit-store';
+import {
+  createProfessionalPayoutSnapshot,
+  refreshProfessionalPayout,
+} from '../professional-payout';
 
 // Timeout do handler (spec: 5s). Aplicado como `statement_timeout` no nível do
 // banco (SET LOCAL na TX do worker) em vez de um Promise.race em JS. Motivo: o
@@ -182,6 +186,23 @@ async function faturarAtendimento(ctx: {
     if (!consumed) {
       throw new Error(`crédito ${alloc.id} não estava disponível ao alocar em ${row.id}`);
     }
+  }
+
+  await createProfessionalPayoutSnapshot(tx, {
+    clinicId,
+    appointmentId: payload.appointmentId,
+    professionalId: payload.doctorId,
+    procedureId: payload.procedureId,
+    grossAmount: valorBruto,
+    occurredAt: new Date(payload.scheduledAt),
+  });
+  // Se o atendimento já nasceu quitado com créditos, completa também os fatos
+  // econômicos e um eventual repasse NET nesta mesma transação.
+  if (status === 'pago') {
+    await refreshProfessionalPayout(tx, {
+      clinicId,
+      appointmentId: payload.appointmentId,
+    });
   }
 
   // Resolve qualquer pendência aberta deste atendimento (recuperação de falha anterior).

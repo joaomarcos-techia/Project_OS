@@ -1,13 +1,10 @@
 /**
  * Caso de uso: agendamento criado → cobra o sinal (ADR-049 1.3 + ADR-050).
  *
- * ⚠️ **AINDA NÃO TEM GATILHO LIGADO.** A intenção original era um handler de
- * `scheduling.appointment.created`, mas esse evento **já tem dono**: o handler de
- * metering do Billing. O registry do outbox é estritamente 1 handler por evento
- * (`assertUnregistered` em `lib/outbox/registry.ts`) — não existe fan-out. Escolher
- * o gatilho é decisão arquitetural aberta (cron-scan, como reminder/dunning; ou
- * chamada a partir do core de agendamento). O CORPO abaixo é o mesmo nos dois
- * caminhos, e é por isso que ele já existe e já é testado.
+ * Gatilhos: varredura periódica para agendamentos elegíveis e evento próprio
+ * `scheduling.appointment.deposit_requested` para antecipar os criados pela IA.
+ * Ambos usam este caso de uso e seu claim idempotente; o evento de criação
+ * continua reservado ao metering do Billing.
  *
  * **Transações curtas, efeito externo primeiro:** criar a cobrança envolve duas
  * chamadas HTTP ao Asaas. Segurar transação aberta durante chamada externa prende
@@ -93,6 +90,8 @@ export interface DepositChargeInput {
   valor: number;
   /** Instante da consulta (ISO). */
   scheduledAt: string;
+  commercialPaymentMethod?: 'pix' | 'cash' | 'credit_card' | null;
+  commercialInstallmentCount?: number | null;
 }
 
 /**
@@ -108,6 +107,8 @@ export async function createDepositCharge(ctx: {
 
   // Agendamento sem paciente (encaixe/walk-in) não tem a quem cobrar.
   if (!patientId) return;
+  // Dinheiro é recebido e baixado manualmente no Caixa; nunca cria Checkout.
+  if (payload.commercialPaymentMethod === 'cash') return;
 
   const policy = await getDepositPolicy(clinicId);
   if (!policy.enabled) return;
@@ -160,6 +161,8 @@ export async function createDepositCharge(ctx: {
       holdExpiresAt,
       collectionExpiresAt: holdExpiresAt,
       now,
+      paymentMethod: payload.commercialPaymentMethod ?? null,
+      installmentCount: payload.commercialInstallmentCount ?? null,
     });
 
     if (outcome === 'created') {

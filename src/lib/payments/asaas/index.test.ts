@@ -10,7 +10,7 @@ vi.mock('@/lib/env', () => ({
   env: {
     ASAAS_BASE_URL: 'https://sandbox.asaas.com/api/v3',
     ASAAS_API_KEY: 'test-key',
-    ASAAS_HTTP_TIMEOUT_MS: 1_000,
+    ASAAS_HTTP_TIMEOUT_MS: 10_000,
     ASAAS_WEBHOOK_TOKEN: 'webhook-token',
   },
 }));
@@ -91,6 +91,9 @@ describe('listSubscriptionPayments', () => {
           paymentId: 'pay_1',
           status: 'CONFIRMED',
           value: 149,
+          netValue: null,
+          installmentId: null,
+          installmentNumber: null,
           dueDate: '2026-08-02',
           invoiceUrl: 'https://asaas.test/invoice',
           subscriptionId: 'sub_1',
@@ -380,6 +383,53 @@ describe('Checkout hospedado de paciente (D24)', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('restringe o Checkout ao cartão e ao parcelamento comercial escolhido', async () => {
+    fetchMock.mockResolvedValue(
+      Response.json({ id: 'checkout_card', status: 'ACTIVE', externalReference: 'order-card' }),
+    );
+
+    await createAsaasClient({ apiKey: 'k' }).createCheckout({
+      value: 260,
+      description: 'Restante do atendimento',
+      externalReference: 'order-card',
+      minutesToExpire: 60,
+      billingTypes: ['CREDIT_CARD'],
+      maxInstallmentCount: 3,
+      callback: {
+        successUrl: 'https://qoro.example/sucesso',
+        cancelUrl: 'https://qoro.example/cancelado',
+        expiredUrl: 'https://qoro.example/expirado',
+      },
+    });
+
+    const [, request] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(String(request.body))).toMatchObject({
+      billingTypes: ['CREDIT_CARD'],
+      chargeTypes: ['INSTALLMENT'],
+      installment: { maxInstallmentCount: 3 },
+      items: [{ value: 260 }],
+    });
+  });
+
+  it('rejeita parcelamento inválido antes da rede', async () => {
+    await expect(
+      createAsaasClient({ apiKey: 'k' }).createCheckout({
+        value: 260,
+        description: 'Restante do atendimento',
+        externalReference: 'order-card',
+        minutesToExpire: 60,
+        billingTypes: ['CREDIT_CARD'],
+        maxInstallmentCount: 22,
+        callback: {
+          successUrl: 'https://qoro.example/sucesso',
+          cancelUrl: 'https://qoro.example/cancelado',
+          expiredUrl: 'https://qoro.example/expirado',
+        },
+      }),
+    ).rejects.toMatchObject({ code: 'checkout_installment_invalid' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('cancela sem retry e escapa o id do Checkout', async () => {
     fetchMock.mockResolvedValue(Response.json({ id: 'checkout_1', status: 'CANCELED' }));
 
@@ -401,6 +451,9 @@ describe('Checkout hospedado de paciente (D24)', () => {
             id: 'pay_1',
             status: 'RECEIVED',
             value: 75,
+            netValue: 72.51,
+            installment: 'ins_1',
+            installmentNumber: 2,
             dueDate: '2026-08-30',
             invoiceUrl: 'https://asaas.test/i/pay_1',
             billingType: 'PIX',
@@ -419,6 +472,9 @@ describe('Checkout hospedado de paciente (D24)', () => {
       paymentId: 'pay_1',
       status: 'RECEIVED',
       value: 75,
+      netValue: 72.51,
+      installmentId: 'ins_1',
+      installmentNumber: 2,
       dueDate: '2026-08-30',
       invoiceUrl: 'https://asaas.test/i/pay_1',
       subscriptionId: null,
@@ -766,6 +822,39 @@ describe('getMyAccount — validação de credencial', () => {
     expect(error).toBeInstanceOf(BillingProviderError);
     expect((error as BillingProviderError).providerErrorCodes).toEqual(['invalid_apiKey']);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('getPayment economics', () => {
+  it('limits one reconciliation read to the caller budget', async () => {
+    const timeout = vi.spyOn(AbortSignal, 'timeout');
+    fetchMock.mockResolvedValue(Response.json({ id: 'pay_1', status: 'CONFIRMED', value: 150 }));
+
+    await createAsaasClient({ apiKey: 'k' }).getPayment('pay_1', {
+      attempts: 1,
+      timeoutMs: 4_000,
+    });
+
+    expect(timeout).toHaveBeenCalledWith(4_000);
+    timeout.mockRestore();
+  });
+
+  it('preserves net value and installments from the authoritative GET', async () => {
+    fetchMock.mockResolvedValue(
+      Response.json({
+        id: 'pay_1',
+        status: 'RECEIVED',
+        value: 150,
+        netValue: 145.49,
+        installment: 'ins_1',
+        installmentNumber: 2,
+        billingType: 'CREDIT_CARD',
+      }),
+    );
+
+    await expect(
+      createAsaasClient({ apiKey: 'k' }).getPayment('pay_1', { attempts: 1 }),
+    ).resolves.toMatchObject({ netValue: 145.49, installmentId: 'ins_1', installmentNumber: 2 });
   });
 });
 

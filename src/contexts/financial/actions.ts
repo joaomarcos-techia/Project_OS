@@ -21,6 +21,7 @@ import {
   requireClinicId,
   requireUser,
 } from '@/lib/auth/tenant-context';
+import type { Tx } from '@/lib/db';
 import { matchesExpectedVersion } from '@/lib/db/optimistic-lock';
 import { idempotentMutation } from '@/lib/idempotency/mutation';
 import { MUTATION_IDEM_TTL_SECONDS } from '@/lib/idempotency/ttl';
@@ -33,6 +34,7 @@ import {
   PaymentTransactionNotFoundError,
   SupplierNotFoundError,
 } from './errors';
+import { catalogPaymentMethodForCommercial } from './commercial-method';
 import { FINANCIAL_EVENTS } from './events';
 import { idemKey, jsonSafe, requestContext } from './internal/action-helpers';
 import { assertFinancialReferencesInClinic } from './internal/tenant-references';
@@ -53,6 +55,7 @@ import {
   toPaymentTransactionSummary,
   toSupplierSummary,
 } from './queries';
+import { refreshProfessionalPayout } from './internal/professional-payout';
 import { lancamentos, paymentProofs, paymentTransactions, suppliers } from './schema';
 
 /**
@@ -78,6 +81,37 @@ import {
 } from './types';
 
 const money = (n: number): string => round2(n).toFixed(2);
+
+async function assertAppointmentPaymentMethod(
+  tx: Tx,
+  clinicId: string,
+  appointmentId: string,
+  paymentMethod: string,
+): Promise<void> {
+  const rows = await tx.execute<{
+    pricingPolicyMode: string;
+    commercialPaymentMethod: string | null;
+  }>(sql`
+    SELECT pricing_policy_mode AS "pricingPolicyMode",
+           commercial_payment_method AS "commercialPaymentMethod"
+    FROM appointments
+    WHERE id = ${appointmentId} AND clinic_id = ${clinicId}
+    LIMIT 1
+  `);
+  const appointment = rows[0];
+  if (!appointment) throw new FinancialValidationError('atendimento não encontrado nesta clínica');
+  if (appointment.pricingPolicyMode === 'absorb_fees') return;
+
+  const expected = catalogPaymentMethodForCommercial(appointment.commercialPaymentMethod);
+  if (appointment.pricingPolicyMode !== 'payment_method_pricing' || !expected) {
+    throw new FinancialValidationError('condição comercial inválida para este atendimento');
+  }
+  if (paymentMethod !== expected) {
+    throw new FinancialValidationError(
+      'A forma de pagamento difere da condição comercial acordada para este atendimento.',
+    );
+  }
+}
 
 // --- createLancamento (manual) ---------------------------------------------
 
@@ -185,6 +219,10 @@ export async function confirmPayment(
         .limit(1);
       if (!lanc) throw new LancamentoNotFoundError(data.lancamentoId);
 
+      if (lanc.tipo === 'receber' && lanc.appointmentId) {
+        await assertAppointmentPaymentMethod(tx, clinicId, lanc.appointmentId, data.paymentMethod);
+      }
+
       const valorTotal = Number(lanc.valor);
       const novoPago = assertPaymentFitsBalance(valorTotal, Number(lanc.valorPago), data.valorPago);
       const novoStatus = calcStatusPagamento(valorTotal, novoPago);
@@ -250,6 +288,12 @@ export async function confirmPayment(
         },
         idempotencyKey: `${idempotencyKey}:paid`,
       });
+      if (novoStatus === 'pago' && lanc.appointmentId) {
+        await refreshProfessionalPayout(tx, {
+          clinicId,
+          appointmentId: lanc.appointmentId,
+        });
+      }
       return toLancamentoSummary(updated!);
     },
   );
@@ -385,31 +429,26 @@ export async function createEstorno(
       // transação de pagamento trouxe. Continua olhando só esta parcela.
       assertRefundFitsPayment(Number(payment.amount), valorJaEstornado, data.valor);
 
-      // DATA-003 — invariante 2, que faltava: TOTAL GLOBAL do lançamento.
-      //
-      // O cálculo antigo reusava o subtotal da parcela (`valorJaEstornado`)
-      // para decidir a terminalização. Com mais de uma transação de pagamento,
-      // nenhum subtotal individual alcança `valorPago`, então o ramo que marca
-      // original e compensações como `estornado` NUNCA rodava. Foi o que o
-      // pentest mediu: R$ 3,33 + R$ 6,67 recebidos, os dois integralmente
-      // reembolsados, ledger líquido zerado — e o lançamento seguiu `pago`,
-      // dentro do filtro "Pago", fora de "Estornado", sem ação restante.
-      //
-      // As duas somas respondem perguntas diferentes e por isso são duas
-      // queries: uma limita o reembolso da parcela, a outra decide o estado do
-      // lançamento. Ambas rodam sob o `FOR UPDATE` do original, que serializa.
-      const [globalRefunds] = await tx
-        .select({ total: sql<string>`coalesce(sum(${paymentTransactions.amount}), 0)` })
+      // Invariante 2: só terminaliza quando todas as baixas deste lançamento
+      // foram estornadas. Após perda parcial e nova baixa, `valorPago` volta ao
+      // bruto, mas o total histórico de pagamentos é maior. Comparar os refunds
+      // ao saldo atual encerraria o lançamento com dinheiro ainda no ledger.
+      // O `FOR UPDATE` do original serializa ambas as consultas e o novo refund.
+      const [ledgerTotals] = await tx
+        .select({
+          payments: sql<string>`coalesce(sum(case when ${paymentTransactions.kind} = 'payment' then ${paymentTransactions.amount} else 0 end), 0)`,
+          refunds: sql<string>`coalesce(sum(case when ${paymentTransactions.kind} = 'refund' then ${paymentTransactions.amount} else 0 end), 0)`,
+        })
         .from(paymentTransactions)
         .where(
           and(
             eq(paymentTransactions.clinicId, clinicId),
             eq(paymentTransactions.lancamentoId, orig.id),
-            eq(paymentTransactions.kind, 'refund'),
           ),
         );
-      const valorEstornado = round2(Number(globalRefunds?.total ?? 0) + data.valor);
-      const estornoIntegral = isEstornoIntegral(Number(orig.valorPago), valorEstornado);
+      const valorEstornado = round2(Number(ledgerTotals?.refunds ?? 0) + data.valor);
+      const totalPagoNoLedger = Number(ledgerTotals?.payments ?? 0);
+      const estornoIntegral = isEstornoIntegral(totalPagoNoLedger, valorEstornado);
 
       const [refund] = await tx
         .insert(paymentTransactions)
@@ -495,6 +534,12 @@ export async function createEstorno(
         },
         idempotencyKey: `${idempotencyKey}:estornado`,
       });
+      if (orig.tipo === 'receber' && orig.appointmentId) {
+        await refreshProfessionalPayout(tx, {
+          clinicId,
+          appointmentId: orig.appointmentId,
+        });
+      }
       return {
         original: toLancamentoSummary(original),
         estorno: toLancamentoSummary(compensacao!),

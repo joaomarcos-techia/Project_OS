@@ -145,6 +145,12 @@ describe('versionamento (G8/R6)', () => {
     expect(prompt).toContain('Nunca use confirm_pending_action na mesma mensagem');
   });
 
+  it('orienta cobrança apenas do sinal configurado, sem prometer link no mesmo turno', () => {
+    const prompt = buildSystemPrompt(makeCtx());
+    expect(prompt).toContain('link de pagamento apenas do sinal no meio escolhido');
+    expect(prompt).toContain('Não prometa link imediato, prazo exato nem cobrança integral');
+  });
+
   it('obriga consulta autoritativa e não transforma lista vazia em negativa', () => {
     const prompt = buildSystemPrompt(makeCtx());
     expect(prompt).toContain('Para informar convênios, use provide_clinic_info');

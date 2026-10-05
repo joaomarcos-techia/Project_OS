@@ -5,6 +5,11 @@ import { sql } from 'drizzle-orm';
 import { practitionerSql, profiles } from '@/contexts/identity';
 import { getCurrentPractitioner } from '@/contexts/identity/internal/practitioner';
 import { listPatientCards } from '@/contexts/patient/queries';
+import {
+  getPaymentPricingPolicy,
+  listProcedurePaymentPrices,
+} from '@/contexts/payments/pricing-queries';
+import type { ProcedurePaymentPriceDTO } from '@/contexts/payments/pricing-types';
 import { ageFromBirthdate } from '../consultorio/board-logic';
 import {
   listAppointments,
@@ -75,6 +80,7 @@ export interface AgendaAppt {
 export interface ProcedureOption {
   id: string;
   descricao: string;
+  valorPadrao: number;
 }
 export interface DoctorOption {
   id: string;
@@ -104,6 +110,8 @@ export interface AgendaData {
   procedures: ProcedureOption[];
   doctors: DoctorOption[];
   resources: ResourceOption[];
+  paymentPricingMode: 'absorb_fees' | 'payment_method_pricing';
+  paymentPrices: ProcedurePaymentPriceDTO[];
   /** Fuso da clínica + faixa atual (item 12 — Mês/Semana/Dia). */
   tz: string;
   view: AgendaView;
@@ -124,6 +132,8 @@ const EMPTY: AgendaData = {
   procedures: [],
   doctors: [],
   resources: [],
+  paymentPricingMode: 'absorb_fees',
+  paymentPrices: [],
   tz: DEFAULT_TZ,
   view: 'day',
   ymd: '',
@@ -173,7 +183,15 @@ export async function getAgendaData(query: AgendaQuery = { view: 'day' }): Promi
   //   1. o que não depende de nada (inclusive o fuso, que a faixa de datas usa);
   //   2. os atendimentos, que precisam da faixa;
   //   3. o que se resolve a partir dos atendimentos.
-  const [isPractitioner, tzRaw, proceduresRaw, resourcesRaw, docRows] = await Promise.all([
+  const [
+    isPractitioner,
+    tzRaw,
+    proceduresRaw,
+    resourcesRaw,
+    docRows,
+    pricingPolicy,
+    paymentPrices,
+  ] = await Promise.all([
     getCurrentPractitioner(),
     getClinicTimezone(clinicId),
     listProcedures(clinicId, { onlyActive: true }),
@@ -186,6 +204,8 @@ export async function getAgendaData(query: AgendaQuery = { view: 'day' }): Promi
           ORDER BY nome`,
       ),
     ) as Promise<unknown> as Promise<Array<{ id: string; nome: string }>>,
+    getPaymentPricingPolicy(clinicId),
+    listProcedurePaymentPrices(clinicId),
   ]);
 
   const tz = tzRaw ?? DEFAULT_TZ;
@@ -216,7 +236,11 @@ export async function getAgendaData(query: AgendaQuery = { view: 'day' }): Promi
 
   const nameOf = new Map(cards.map((c) => [c.id, c.nome]));
   const birthOf = new Map(cards.map((c) => [c.id, c.dataNascimento]));
-  const procedures = proceduresRaw.map((p) => ({ id: p.id, descricao: p.descricao }));
+  const procedures = proceduresRaw.map((p) => ({
+    id: p.id,
+    descricao: p.descricao,
+    valorPadrao: p.valorPadrao,
+  }));
   const resources = resourcesRaw.map((resource) => ({
     id: resource.id,
     name: resource.name,
@@ -260,6 +284,8 @@ export async function getAgendaData(query: AgendaQuery = { view: 'day' }): Promi
     procedures,
     doctors,
     resources,
+    paymentPricingMode: pricingPolicy.mode,
+    paymentPrices,
     tz,
     view: query.view,
     ymd,

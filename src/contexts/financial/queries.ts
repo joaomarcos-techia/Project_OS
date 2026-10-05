@@ -16,8 +16,10 @@ import {
   collectionCases,
   faturamentoPendencias,
   lancamentos,
+  patientCredits,
   paymentMethods,
   paymentTransactions,
+  professionalPayouts,
   suppliers,
   type LancamentoRow,
   type PaymentTransactionRow,
@@ -25,6 +27,7 @@ import {
 } from './schema';
 import type {
   AccountingMovementDTO,
+  AppointmentFinancialEconomics,
   CashFlowDTO,
   CollectionCaseDTO,
   FaturamentoPendenciaDTO,
@@ -136,6 +139,173 @@ export async function listPaymentTransactionsForLancamentos(
           : 0,
       ),
     );
+  });
+}
+
+/**
+ * Composição econômica dos atendimentos exibidos no Caixa.
+ *
+ * Valores do provedor são agregados em centavos e só se tornam conhecidos se
+ * TODAS as cobranças do atendimento tiverem aquele fato. Um `NULL` tardio não
+ * vira zero e não esconde uma conciliação ainda incompleta.
+ */
+export async function listAppointmentFinancialEconomics(
+  clinicId: string,
+  appointmentIds: readonly string[],
+): Promise<AppointmentFinancialEconomics[]> {
+  if (appointmentIds.length === 0) return [];
+  return withTenant(clinicId, async (tx) => {
+    const credits = await tx
+      .select({
+        appointmentId: patientCredits.appointmentId,
+        allocatedAmount: patientCredits.allocatedAmount,
+        allocatedReversedAmount: patientCredits.allocatedReversedAmount,
+        allocatedPaymentTransactionId: patientCredits.allocatedPaymentTransactionId,
+        providerGrossAmount: patientCredits.providerGrossAmount,
+        providerFeeAmount: patientCredits.providerFeeAmount,
+        earlySettlementFeeAmount: patientCredits.earlySettlementFeeAmount,
+        providerNetAmount: patientCredits.providerNetAmount,
+      })
+      .from(patientCredits)
+      .where(
+        and(
+          eq(patientCredits.clinicId, clinicId),
+          inArray(patientCredits.appointmentId, [...appointmentIds]),
+        ),
+      );
+    const refunds = await tx
+      .select({
+        originalPaymentId: paymentTransactions.originalPaymentId,
+        amount: paymentTransactions.amount,
+      })
+      .from(paymentTransactions)
+      .innerJoin(lancamentos, eq(lancamentos.id, paymentTransactions.lancamentoId))
+      .where(
+        and(
+          eq(paymentTransactions.clinicId, clinicId),
+          eq(lancamentos.clinicId, clinicId),
+          eq(lancamentos.tipo, 'receber'),
+          eq(paymentTransactions.kind, 'refund'),
+          inArray(lancamentos.appointmentId, [...appointmentIds]),
+        ),
+      );
+    const payouts = await tx
+      .select({
+        appointmentId: professionalPayouts.appointmentId,
+        calculationBasis: professionalPayouts.calculationBasis,
+        basisAmount: professionalPayouts.basisAmount,
+        payoutAmount: professionalPayouts.payoutAmount,
+        status: professionalPayouts.status,
+      })
+      .from(professionalPayouts)
+      .where(
+        and(
+          eq(professionalPayouts.clinicId, clinicId),
+          inArray(professionalPayouts.appointmentId, [...appointmentIds]),
+        ),
+      );
+
+    type Aggregate = {
+      count: number;
+      grossCount: number;
+      grossCents: number;
+      feeCount: number;
+      feeCents: number;
+      earlyFeeCount: number;
+      earlyFeeCents: number;
+      netCount: number;
+      netCents: number;
+    };
+    const aggregates = new Map<string, Aggregate>();
+    const refundByPayment = new Map<string, number>();
+    for (const refund of refunds) {
+      if (!refund.originalPaymentId) continue;
+      refundByPayment.set(
+        refund.originalPaymentId,
+        (refundByPayment.get(refund.originalPaymentId) ?? 0) +
+          Math.round(Number(refund.amount) * 100),
+      );
+    }
+    for (const credit of credits) {
+      if (!credit.appointmentId) continue;
+      const allocatedCents = Math.round(Number(credit.allocatedAmount) * 100);
+      const reversedCents = Math.max(
+        Math.round(Number(credit.allocatedReversedAmount) * 100),
+        credit.allocatedPaymentTransactionId
+          ? (refundByPayment.get(credit.allocatedPaymentTransactionId) ?? 0)
+          : 0,
+      );
+      const activeCents = Math.max(0, allocatedCents - reversedCents);
+      if (activeCents === 0) continue;
+      const originalGrossCents =
+        credit.providerGrossAmount === null
+          ? null
+          : Math.round(Number(credit.providerGrossAmount) * 100);
+      const ratio = originalGrossCents ? activeCents / originalGrossCents : 0;
+      const addAllocated = (value: string | null, current: number): number =>
+        current + (value === null ? 0 : Math.round(Number(value) * 100 * ratio));
+      const current = aggregates.get(credit.appointmentId) ?? {
+        count: 0,
+        grossCount: 0,
+        grossCents: 0,
+        feeCount: 0,
+        feeCents: 0,
+        earlyFeeCount: 0,
+        earlyFeeCents: 0,
+        netCount: 0,
+        netCents: 0,
+      };
+      current.count += 1;
+      current.grossCents += originalGrossCents === null ? 0 : activeCents;
+      if (originalGrossCents !== null) current.grossCount += 1;
+      // O principal remanescente é observado no ledger; a devolução de taxa e
+      // o líquido final não são conhecidos até o provedor conciliá-los.
+      if (reversedCents === 0) {
+        current.feeCents = addAllocated(credit.providerFeeAmount, current.feeCents);
+        current.earlyFeeCents = addAllocated(
+          credit.earlySettlementFeeAmount,
+          current.earlyFeeCents,
+        );
+        current.netCents = addAllocated(credit.providerNetAmount, current.netCents);
+        if (credit.providerFeeAmount !== null) current.feeCount += 1;
+        if (credit.earlySettlementFeeAmount !== null) current.earlyFeeCount += 1;
+        if (credit.providerNetAmount !== null) current.netCount += 1;
+      }
+      aggregates.set(credit.appointmentId, current);
+    }
+
+    const payoutByAppointment = new Map(payouts.map((payout) => [payout.appointmentId, payout]));
+    const ids = new Set([...aggregates.keys(), ...payoutByAppointment.keys()]);
+    const moneyWhenComplete = (sum: number, known: number, total: number): number | null =>
+      total > 0 && known === total ? sum / 100 : null;
+    return [...ids].map((appointmentId) => {
+      const aggregate = aggregates.get(appointmentId);
+      const payout = payoutByAppointment.get(appointmentId);
+      const count = aggregate?.count ?? 0;
+      return {
+        appointmentId,
+        providerGrossAmount: aggregate
+          ? moneyWhenComplete(aggregate.grossCents, aggregate.grossCount, count)
+          : null,
+        providerFeeAmount: aggregate
+          ? moneyWhenComplete(aggregate.feeCents, aggregate.feeCount, count)
+          : null,
+        earlySettlementFeeAmount: aggregate
+          ? moneyWhenComplete(aggregate.earlyFeeCents, aggregate.earlyFeeCount, count)
+          : null,
+        providerNetAmount: aggregate
+          ? moneyWhenComplete(aggregate.netCents, aggregate.netCount, count)
+          : null,
+        payout: payout
+          ? {
+              calculationBasis: payout.calculationBasis,
+              basisAmount: payout.basisAmount === null ? null : Number(payout.basisAmount),
+              payoutAmount: payout.payoutAmount === null ? null : Number(payout.payoutAmount),
+              status: payout.status,
+            }
+          : null,
+      };
+    });
   });
 }
 

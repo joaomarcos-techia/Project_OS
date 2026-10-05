@@ -16,6 +16,7 @@ import { and, eq, gt, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 
 import type { Tx } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
+import { metrics } from '@/lib/observability/metrics';
 import { publishEvent } from '@/lib/outbox/publish';
 
 import {
@@ -25,6 +26,7 @@ import {
   type PatientChargeLinkReadyPayload,
   type PatientChargePaidPayload,
   type PatientCreditGrantedPayload,
+  type PatientPaymentEconomicsReconciledPayload,
   type PatientCreditReleasedPayload,
 } from '../events';
 import {
@@ -163,6 +165,8 @@ export async function claimInitialCheckoutCharge(input: {
   collectionExpiresAt: Date;
   checkoutExpiresAt: Date;
   leaseUntil: Date;
+  requestedPaymentMethod?: 'pix' | 'credit_card' | null;
+  requestedInstallmentCount?: number | null;
 }): Promise<InitialCheckoutClaim> {
   return withTenant(input.clinicId, async (tx) => {
     const chargeExternalReference =
@@ -189,6 +193,8 @@ export async function claimInitialCheckoutCharge(input: {
         holdExpiresAt: input.holdExpiresAt,
         checkoutGeneration: generation,
         collectionExpiresAt: input.collectionExpiresAt,
+        requestedPaymentMethod: input.requestedPaymentMethod ?? null,
+        requestedInstallmentCount: input.requestedInstallmentCount ?? null,
       })
       .onConflictDoNothing()
       .returning({ id: patientCharges.id });
@@ -399,6 +405,8 @@ export interface RemainderCheckoutRenewalCandidate {
   generation: number;
   providerCheckoutId: string;
   collectionExpiresAt: Date;
+  requestedPaymentMethod: 'pix' | 'credit_card' | null;
+  requestedInstallmentCount: number | null;
 }
 
 /** Links vencidos dentro da promessa de 7 dias, tenant-scoped. */
@@ -417,6 +425,8 @@ export async function listRemainderCheckoutRenewalCandidates(
         generation: patientCharges.checkoutGeneration,
         providerCheckoutId: patientCharges.providerCheckoutId,
         collectionExpiresAt: patientCharges.collectionExpiresAt,
+        requestedPaymentMethod: patientCharges.requestedPaymentMethod,
+        requestedInstallmentCount: patientCharges.requestedInstallmentCount,
       })
       .from(patientCharges)
       .where(
@@ -441,6 +451,11 @@ export async function listRemainderCheckoutRenewalCandidates(
             generation: row.generation,
             providerCheckoutId: row.providerCheckoutId,
             collectionExpiresAt: row.collectionExpiresAt,
+            requestedPaymentMethod:
+              row.requestedPaymentMethod === 'pix' || row.requestedPaymentMethod === 'credit_card'
+                ? row.requestedPaymentMethod
+                : null,
+            requestedInstallmentCount: row.requestedInstallmentCount,
           },
         ]
       : [],
@@ -757,7 +772,202 @@ export async function findChargedAppointmentIds(
 
 // --- conciliação (1.4) -------------------------------------------------------
 
-export type ReconcileOutcome = 'paid' | 'already_paid' | 'unknown_charge' | 'ignored';
+export type ReconcileOutcome =
+  | 'paid'
+  | 'economics_reconciled'
+  | 'already_paid'
+  | 'unknown_charge'
+  | 'amount_mismatch'
+  | 'method_mismatch'
+  | 'installment_mismatch'
+  | 'ignored';
+
+export interface ProviderPaymentEconomics {
+  grossAmount: number;
+  netAmount: number | null;
+  feeAmount: number | null;
+}
+
+/**
+ * Usa apenas valores reais devolvidos pelo provedor. A taxa é a diferença exata
+ * entre bruto e líquido, nunca uma porcentagem estimada. Se o líquido ainda não
+ * existe ou está fora do intervalo aceito pelo modelo, ambos ficam pendentes.
+ * Isso nunca impede o reconhecimento do pagamento confirmado pelo provedor.
+ */
+export function reconcileProviderPaymentEconomics(
+  grossAmount: number,
+  netAmount: number | null | undefined,
+): ProviderPaymentEconomics {
+  const grossCents = Math.round(grossAmount * 100);
+  const netCents = netAmount == null ? null : Math.round(netAmount * 100);
+  const validNetCents =
+    netAmount != null &&
+    Number.isFinite(netAmount) &&
+    netAmount >= 0 &&
+    netAmount <= grossAmount &&
+    netCents != null &&
+    Number.isFinite(netCents) &&
+    netCents >= 0 &&
+    netCents <= grossCents
+      ? netCents
+      : null;
+  return {
+    grossAmount: grossCents / 100,
+    netAmount: validNetCents == null ? null : validNetCents / 100,
+    feeAmount: validNetCents == null ? null : (grossCents - validNetCents) / 100,
+  };
+}
+
+function reportProviderNetOutOfRange(input: {
+  clinicId: string;
+  chargeId: string;
+  grossAmount: number;
+  netAmount: number;
+}): void {
+  metrics.emit('payments.economics.net_out_of_range', {
+    clinicId: input.clinicId,
+    chargeId: input.chargeId,
+    direction:
+      input.netAmount < 0
+        ? 'negative'
+        : input.netAmount > input.grossAmount
+          ? 'above_gross'
+          : 'non_finite',
+  });
+}
+
+async function reconcilePaidChargeEconomicsInTransaction(
+  tx: Tx,
+  input: {
+    clinicId: string;
+    charge: {
+      id: string;
+      appointmentId: string;
+      amount: string;
+      paidAt: Date | null;
+      economicsReconciledAt: Date | null;
+    };
+    reconciledAt: Date;
+    providerGrossAmount: number;
+    providerNetAmount: number | null;
+    billingType?: string | null | undefined;
+    providerInstallmentId?: string | null | undefined;
+    providerInstallmentNumber?: number | null | undefined;
+  },
+): Promise<'economics_reconciled' | 'already_paid' | 'amount_mismatch'> {
+  if (input.charge.economicsReconciledAt || input.providerNetAmount == null) {
+    return 'already_paid';
+  }
+
+  const expectedCents = Math.round(Number(input.charge.amount) * 100);
+  const providerCents = Math.round(input.providerGrossAmount * 100);
+  if (expectedCents !== providerCents) return 'amount_mismatch';
+
+  const economics = reconcileProviderPaymentEconomics(
+    input.providerGrossAmount,
+    input.providerNetAmount,
+  );
+  if (economics.netAmount == null || economics.feeAmount == null) {
+    reportProviderNetOutOfRange({
+      clinicId: input.clinicId,
+      chargeId: input.charge.id,
+      grossAmount: input.providerGrossAmount,
+      netAmount: input.providerNetAmount,
+    });
+    return 'already_paid';
+  }
+  const updated = await tx
+    .update(patientCharges)
+    .set({
+      providerGrossAmount: economics.grossAmount.toFixed(2),
+      providerFeeAmount: economics.feeAmount.toFixed(2),
+      providerNetAmount: economics.netAmount.toFixed(2),
+      providerBillingType: input.billingType ?? null,
+      providerInstallmentId: input.providerInstallmentId ?? null,
+      providerInstallmentNumber: input.providerInstallmentNumber ?? null,
+      economicsReconciledAt: input.reconciledAt,
+      updatedAt: sql`now()`,
+    })
+    .where(
+      and(
+        eq(patientCharges.id, input.charge.id),
+        eq(patientCharges.status, 'paid'),
+        isNull(patientCharges.economicsReconciledAt),
+      ),
+    )
+    .returning({ id: patientCharges.id });
+  if (updated.length === 0) return 'already_paid';
+
+  const paidAt = input.charge.paidAt ?? input.reconciledAt;
+  const payload: PatientPaymentEconomicsReconciledPayload = {
+    chargeId: input.charge.id,
+    clinicId: input.clinicId,
+    appointmentId: input.charge.appointmentId,
+    providerGrossAmount: economics.grossAmount,
+    providerFeeAmount: economics.feeAmount,
+    providerNetAmount: economics.netAmount,
+    earlySettlementFeeAmount: null,
+    installmentNumber: input.providerInstallmentNumber ?? null,
+    paidAt: paidAt.toISOString(),
+    paymentMethod: toPaymentMethodCode(input.billingType),
+  };
+  await publishEvent(tx, {
+    clinicId: input.clinicId,
+    eventType: PAYMENTS_EVENTS.PAYMENT_ECONOMICS_RECONCILED,
+    payload,
+    idempotencyKey: `payment-economics:${input.charge.id}`,
+  });
+  return 'economics_reconciled';
+}
+
+/**
+ * Backstop para cobrança paga cujo `netValue` ainda não existia no primeiro
+ * readback. Atualiza apenas fatos ausentes e publica uma complementação do
+ * crédito; nunca republica o pagamento nem confirma a agenda outra vez.
+ */
+export async function reconcilePaidChargeEconomics(input: {
+  clinicId: string;
+  chargeId: string;
+  providerPaymentId: string;
+  reconciledAt: Date;
+  providerGrossAmount: number;
+  providerNetAmount: number | null;
+  billingType?: string | null;
+  providerInstallmentId?: string | null;
+  providerInstallmentNumber?: number | null;
+}): Promise<'economics_reconciled' | 'already_paid' | 'unknown_charge' | 'amount_mismatch'> {
+  return withTenant(input.clinicId, async (tx) => {
+    const [charge] = await tx
+      .select({
+        id: patientCharges.id,
+        status: patientCharges.status,
+        appointmentId: patientCharges.appointmentId,
+        amount: patientCharges.amount,
+        providerPaymentId: patientCharges.providerPaymentId,
+        paidAt: patientCharges.paidAt,
+        economicsReconciledAt: patientCharges.economicsReconciledAt,
+      })
+      .from(patientCharges)
+      .where(
+        and(
+          eq(patientCharges.id, input.chargeId),
+          eq(patientCharges.providerPaymentId, input.providerPaymentId),
+        ),
+      )
+      .limit(1);
+    if (!charge || charge.status !== 'paid') return 'unknown_charge';
+    return reconcilePaidChargeEconomicsInTransaction(tx, {
+      clinicId: input.clinicId,
+      charge,
+      reconciledAt: input.reconciledAt,
+      providerGrossAmount: input.providerGrossAmount,
+      providerNetAmount: input.providerNetAmount,
+      billingType: input.billingType,
+      providerInstallmentId: input.providerInstallmentId,
+      providerInstallmentNumber: input.providerInstallmentNumber,
+    });
+  });
+}
 
 /**
  * Marca o sinal como pago e publica `payments.patient_charge.paid` na MESMA
@@ -777,23 +987,17 @@ export async function markDepositPaid(input: {
   asaasEventId: string;
   eventType: string;
   paidAt: Date;
+  /** Valores do `getPayment`, nunca do corpo do webhook. */
+  providerGrossAmount: number;
+  providerNetAmount: number | null;
   /** Do `getPayment` — vira a forma de pagamento da baixa no Financial. */
   billingType?: string | null;
   /** Do `getPayment`, nunca do corpo do webhook. */
   checkoutSessionId?: string | null;
+  providerInstallmentId?: string | null;
+  providerInstallmentNumber?: number | null;
 }): Promise<ReconcileOutcome> {
   return withTenant(input.clinicId, async (tx) => {
-    const dedup = await tx
-      .insert(patientWebhookEvents)
-      .values({
-        clinicId: input.clinicId,
-        asaasEventId: input.asaasEventId,
-        eventType: input.eventType,
-      })
-      .onConflictDoNothing()
-      .returning({ id: patientWebhookEvents.id });
-    if (dedup.length === 0) return 'ignored';
-
     let checkoutChargeId: string | null = null;
     if (input.checkoutSessionId) {
       const [generation] = await tx
@@ -814,6 +1018,10 @@ export async function markDepositPaid(input: {
         kind: patientCharges.kind,
         amount: patientCharges.amount,
         providerPaymentId: patientCharges.providerPaymentId,
+        requestedPaymentMethod: patientCharges.requestedPaymentMethod,
+        requestedInstallmentCount: patientCharges.requestedInstallmentCount,
+        paidAt: patientCharges.paidAt,
+        economicsReconciledAt: patientCharges.economicsReconciledAt,
       })
       .from(patientCharges)
       .where(
@@ -826,13 +1034,104 @@ export async function markDepositPaid(input: {
     if (charge.providerPaymentId && charge.providerPaymentId !== input.providerPaymentId) {
       return 'unknown_charge';
     }
-    if (charge.status === 'paid') return 'already_paid';
+    let mismatch: 'method_mismatch' | 'installment_mismatch' | 'amount_mismatch' | null = null;
+    if (
+      (charge.requestedPaymentMethod === 'pix' && input.billingType !== 'PIX') ||
+      (charge.requestedPaymentMethod === 'credit_card' && input.billingType !== 'CREDIT_CARD')
+    ) {
+      mismatch = 'method_mismatch';
+    }
+    if (
+      !mismatch &&
+      charge.requestedPaymentMethod === 'credit_card' &&
+      charge.requestedInstallmentCount === 1 &&
+      (input.providerInstallmentId != null ||
+        (input.providerInstallmentNumber != null && input.providerInstallmentNumber !== 1))
+    ) {
+      mismatch = 'installment_mismatch';
+    }
+    const expectedCents = Math.round(Number(charge.amount) * 100);
+    const providerCents = Math.round(input.providerGrossAmount * 100);
+    if (!mismatch && expectedCents !== providerCents) mismatch = 'amount_mismatch';
+    if (mismatch) {
+      if (charge.status === 'pending') {
+        const [quarantined] = await tx
+          .update(patientCharges)
+          .set({
+            providerPaymentId: input.providerPaymentId,
+            providerBillingType: input.billingType ?? null,
+            failureCode: `payment_${mismatch}`,
+            updatedAt: sql`now()`,
+          })
+          .where(
+            and(
+              eq(patientCharges.id, charge.id),
+              eq(patientCharges.status, 'pending'),
+              or(
+                isNull(patientCharges.providerPaymentId),
+                eq(patientCharges.providerPaymentId, input.providerPaymentId),
+              ),
+            ),
+          )
+          .returning({ id: patientCharges.id });
+        if (!quarantined) return 'already_paid';
+      }
+      return mismatch;
+    }
+
+    const dedup = await tx
+      .insert(patientWebhookEvents)
+      .values({
+        clinicId: input.clinicId,
+        asaasEventId: input.asaasEventId,
+        eventType: input.eventType,
+      })
+      .onConflictDoNothing()
+      .returning({ id: patientWebhookEvents.id });
+    if (dedup.length === 0) return 'ignored';
+
+    if (charge.status === 'paid') {
+      return reconcilePaidChargeEconomicsInTransaction(tx, {
+        clinicId: input.clinicId,
+        charge,
+        reconciledAt: input.paidAt,
+        providerGrossAmount: input.providerGrossAmount,
+        providerNetAmount: input.providerNetAmount,
+        billingType: input.billingType,
+        providerInstallmentId: input.providerInstallmentId,
+        providerInstallmentNumber: input.providerInstallmentNumber,
+      });
+    }
+
+    const economics = reconcileProviderPaymentEconomics(
+      input.providerGrossAmount,
+      input.providerNetAmount,
+    );
+    if (input.providerNetAmount != null && economics.netAmount == null) {
+      reportProviderNetOutOfRange({
+        clinicId: input.clinicId,
+        chargeId: charge.id,
+        grossAmount: input.providerGrossAmount,
+        netAmount: input.providerNetAmount,
+      });
+    }
 
     const updated = await tx
       .update(patientCharges)
       .set({
         status: 'paid',
         providerPaymentId: input.providerPaymentId,
+        providerGrossAmount: economics.grossAmount.toFixed(2),
+        providerFeeAmount: economics.feeAmount == null ? null : economics.feeAmount.toFixed(2),
+        providerNetAmount: economics.netAmount == null ? null : economics.netAmount.toFixed(2),
+        // Antecipação tem ciclo próprio no Asaas; não é inferida do pagamento.
+        earlySettlementFeeAmount: null,
+        providerBillingType: input.billingType ?? null,
+        providerInstallmentId: input.providerInstallmentId ?? null,
+        providerInstallmentNumber: input.providerInstallmentNumber ?? null,
+        failureCode: null,
+        economicsReconciledAt:
+          economics.netAmount == null || economics.feeAmount == null ? null : input.paidAt,
         paidAt: input.paidAt,
         holdExpiresAt: null,
         updatedAt: sql`now()`,
@@ -889,6 +1188,11 @@ export async function markDepositPaid(input: {
       patientId: charge.patientId,
       kind: charge.kind === 'remainder' ? 'remaining_payment' : 'deposit',
       amount: Number(charge.amount),
+      providerGrossAmount: economics.grossAmount,
+      providerFeeAmount: economics.feeAmount,
+      providerNetAmount: economics.netAmount,
+      earlySettlementFeeAmount: null,
+      installmentNumber: input.providerInstallmentNumber ?? null,
       paidAt: input.paidAt.toISOString(),
       paymentMethod: toPaymentMethodCode(input.billingType),
     };
@@ -915,6 +1219,28 @@ export interface OpenCharge {
   amount: number;
   providerPaymentId: string | null;
   providerCheckoutId: string | null;
+}
+
+/** Mantém uma cobrança paga sem ID do provedor visível para investigação no Caixa. */
+export async function flagPaidChargeMissingPaymentId(
+  clinicId: string,
+  chargeId: string,
+): Promise<boolean> {
+  const rows = await withTenant(clinicId, (tx) =>
+    tx
+      .update(patientCharges)
+      .set({ failureCode: 'refund_missing_provider_payment_id', updatedAt: sql`now()` })
+      .where(
+        and(
+          eq(patientCharges.clinicId, clinicId),
+          eq(patientCharges.id, chargeId),
+          eq(patientCharges.status, 'paid'),
+          isNull(patientCharges.providerPaymentId),
+        ),
+      )
+      .returning({ id: patientCharges.id }),
+  );
+  return rows.length > 0;
 }
 
 /**

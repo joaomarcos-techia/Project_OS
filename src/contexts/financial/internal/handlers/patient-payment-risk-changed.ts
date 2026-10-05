@@ -8,6 +8,7 @@ import { PAYMENTS_EVENTS, type PatientPaymentRiskChangedPayload } from '@/contex
 /* eslint-enable boundaries/element-types */
 
 import { applyPatientPaymentRisk } from '../patient-credit-adjustment';
+import { refreshProfessionalPayout } from '../professional-payout';
 
 registerHandler<PatientPaymentRiskChangedPayload>(
   PAYMENTS_EVENTS.PATIENT_PAYMENT_RISK_CHANGED,
@@ -20,10 +21,16 @@ registerHandler<PatientPaymentRiskChangedPayload>(
     if (ctx.payload.clinicId !== ctx.clinicId) {
       throw new PoisonPillError('clinicId divergente no risco de pagamento', 'clinic_mismatch');
     }
-    await applyPatientPaymentRisk(ctx.tx, {
+    const outcome = await applyPatientPaymentRisk(ctx.tx, {
       clinicId: ctx.clinicId,
       payload: ctx.payload,
       sourceEventId: ctx.eventId,
     });
+    if (outcome === 'loss_recorded' || outcome === 'manual_review') {
+      await refreshProfessionalPayout(ctx.tx, {
+        clinicId: ctx.clinicId,
+        appointmentId: ctx.payload.appointmentId,
+      });
+    }
   },
 );

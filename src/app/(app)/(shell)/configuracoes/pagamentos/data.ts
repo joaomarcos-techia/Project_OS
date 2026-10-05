@@ -1,11 +1,25 @@
 import 'server-only';
 
+import { billingApiV1 } from '@/contexts/billing/api';
 import {
   getDepositPolicy,
   getPaymentAccountStatus,
   type DepositPolicyDTO,
   type PaymentAccountStatusDTO,
 } from '@/contexts/payments';
+import {
+  getPaymentPricingPolicy,
+  listProcedurePaymentPrices,
+} from '@/contexts/payments/pricing-queries';
+import type { PaymentPricingPolicyDTO, ProcedurePaymentPriceDTO } from '@/contexts/payments';
+import {
+  getProfessionalPayoutPolicy,
+  listActiveProfessionalPayoutRules,
+} from '@/contexts/financial/payout-queries';
+import type { ProfessionalPayoutPolicyDTO, ProfessionalPayoutRuleDTO } from '@/contexts/financial';
+import { isPractitioner } from '@/contexts/identity';
+import { listEmployees } from '@/contexts/identity/queries';
+import { schedulingApiV1, type ProcedureSummary } from '@/contexts/scheduling';
 import { requireClinicId } from '@/lib/auth/tenant-context';
 
 /**
@@ -15,6 +29,13 @@ import { requireClinicId } from '@/lib/auth/tenant-context';
 export interface PagamentosPageData {
   account: PaymentAccountStatusDTO;
   policy: DepositPolicyDTO;
+  advancedPoliciesEnabled: boolean;
+  pricingPolicy: PaymentPricingPolicyDTO;
+  methodPrices: ProcedurePaymentPriceDTO[];
+  payoutPolicy: ProfessionalPayoutPolicyDTO;
+  payoutRules: ProfessionalPayoutRuleDTO[];
+  professionals: Array<{ id: string; name: string }>;
+  procedures: ProcedureSummary[];
 }
 
 /**
@@ -24,9 +45,51 @@ export interface PagamentosPageData {
  */
 export async function loadPagamentosPage(): Promise<PagamentosPageData> {
   const clinicId = await requireClinicId();
-  const [account, policy] = await Promise.all([
+  const [account, policy, advancedPoliciesEnabled] = await Promise.all([
     getPaymentAccountStatus(clinicId),
     getDepositPolicy(clinicId),
+    billingApiV1.hasAdvancedFinancialPolicies(clinicId),
   ]);
-  return { account, policy };
+  if (!advancedPoliciesEnabled) {
+    return {
+      account,
+      policy,
+      advancedPoliciesEnabled,
+      pricingPolicy: { mode: 'absorb_fees', updatedAt: null },
+      methodPrices: [],
+      payoutPolicy: { basis: 'gross', updatedAt: null },
+      payoutRules: [],
+      professionals: [],
+      procedures: [],
+    };
+  }
+  const [pricingPolicy, methodPrices, payoutPolicy, payoutRules, employees, procedures] =
+    await Promise.all([
+      getPaymentPricingPolicy(clinicId),
+      listProcedurePaymentPrices(clinicId),
+      getProfessionalPayoutPolicy(clinicId),
+      listActiveProfessionalPayoutRules(clinicId),
+      listEmployees(clinicId),
+      schedulingApiV1.listProcedures(clinicId, { limit: 200 }),
+    ]);
+  const professionals = employees
+    .filter(
+      (employee) =>
+        employee.ativo &&
+        !employee.pending &&
+        employee.role !== 'owner' &&
+        isPractitioner({ role: employee.role, crm: employee.crm }),
+    )
+    .map((employee) => ({ id: employee.id, name: employee.nome }));
+  return {
+    account,
+    policy,
+    advancedPoliciesEnabled,
+    pricingPolicy,
+    methodPrices,
+    payoutPolicy,
+    payoutRules,
+    professionals,
+    procedures,
+  };
 }

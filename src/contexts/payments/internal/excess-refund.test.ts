@@ -22,16 +22,14 @@ vi.mock('./charge-store', () => ({
   closeChargeInTransaction: mocks.closeChargeInTransaction,
 }));
 
-import { BillingProviderError, BillingProviderUnreachableError } from '@/lib/payments/asaas';
-
 import { patientCharges, patientRefundIntents } from '../schema';
 import {
   confirmRefundIntentFromReadback,
   confirmedRefundTotal,
+  queueManualDepositRefund,
+  queueManualExcessRefund,
   reconcileRefundIntentsForPayment,
   rejectedRefundCount,
-  requestDepositRefund,
-  requestExcessRefund,
 } from './excess-refund';
 
 const CLINIC = '11111111-1111-4111-8111-111111111111';
@@ -64,10 +62,10 @@ let chargeAmount: string;
 function transitionAllowed(current: IntentStatus, next: IntentStatus): boolean {
   if (next === 'submitting') return current === 'pending';
   if (next === 'confirmation_pending') {
-    return current === 'submitting' || current === 'confirmation_pending';
+    return current === 'pending' || current === 'submitting' || current === 'confirmation_pending';
   }
   if (next === 'confirmed') {
-    return current === 'submitting' || current === 'confirmation_pending';
+    return current === 'submitting' || current === 'confirmation_pending' || current === 'failed';
   }
   if (next === 'failed') {
     return current === 'pending' || current === 'submitting' || current === 'confirmation_pending';
@@ -195,6 +193,254 @@ beforeEach(() => {
   mocks.closeChargeInTransaction.mockResolvedValue(true);
 });
 
+describe('devolução assistida pela clínica', () => {
+  it('reconcilia sinal legado falhado só após refund integral DONE externo', async () => {
+    intent = pendingIntent({
+      purpose: 'deposit_closeout',
+      amount: '150.00',
+      status: 'failed',
+      failureCode: 'refund_cancelled',
+      providerRefundId: 'old-cancelled',
+    });
+    chargeKind = 'deposit';
+    chargeAmount = '150.00';
+
+    await expect(
+      confirmRefundIntentFromReadback({
+        clinicId: CLINIC,
+        intentId: INTENT,
+        refunds: [{ refundId: 'old-cancelled', status: 'CANCELLED', value: 150 }],
+      }),
+    ).resolves.toBe('failed');
+    expect(mocks.closeChargeInTransaction).not.toHaveBeenCalled();
+
+    await expect(
+      confirmRefundIntentFromReadback({
+        clinicId: CLINIC,
+        intentId: INTENT,
+        refunds: [
+          { refundId: 'old-cancelled', status: 'CANCELLED', value: 150 },
+          { refundId: null, status: 'DONE', value: 150 },
+        ],
+      }),
+    ).resolves.toBe('confirmed');
+    expect(mocks.closeChargeInTransaction).toHaveBeenCalledOnce();
+  });
+
+  it('mantém excedente legado falhado sem atribuir outro refund à intenção', async () => {
+    intent = pendingIntent({ status: 'failed', failureCode: 'refund_cancelled' });
+
+    await expect(
+      confirmRefundIntentFromReadback({
+        clinicId: CLINIC,
+        intentId: INTENT,
+        refunds: [{ refundId: null, status: 'DONE', value: 30 }],
+      }),
+    ).resolves.toBe('failed');
+    expect(mocks.publishEvent).not.toHaveBeenCalled();
+  });
+
+  it('registra o excedente com baseline e não envia POST ao Asaas, mesmo em reentrega', async () => {
+    mocks.client.listPaymentRefunds.mockResolvedValue([]);
+
+    await expect(
+      queueManualExcessRefund({ clinicId: CLINIC, payload, sourceEventId: EVENT }),
+    ).resolves.toBe('queued');
+    expect(intent).toMatchObject({
+      purpose: 'excess',
+      status: 'confirmation_pending',
+      baselineRefundedAmount: '0.00',
+      baselineRefundCount: 0,
+      failureCode: 'manual_action_required',
+    });
+    expect(mocks.client.refundPayment).not.toHaveBeenCalled();
+
+    await expect(
+      queueManualExcessRefund({ clinicId: CLINIC, payload, sourceEventId: EVENT }),
+    ).resolves.toBe('already_started');
+    expect(mocks.client.listPaymentRefunds).toHaveBeenCalledTimes(1);
+    expect(mocks.client.refundPayment).not.toHaveBeenCalled();
+  });
+
+  it('falha de readback mantém tarefa pendente e visível para nova tentativa, sem POST', async () => {
+    mocks.client.listPaymentRefunds.mockRejectedValue(new Error('GET indisponível'));
+
+    await expect(
+      queueManualExcessRefund({ clinicId: CLINIC, payload, sourceEventId: EVENT }),
+    ).rejects.toThrow('GET indisponível');
+    expect(intent).toMatchObject({
+      status: 'pending',
+      baselineRefundedAmount: null,
+      failureCode: 'provider_readback_unavailable',
+    });
+    expect(mocks.client.refundPayment).not.toHaveBeenCalled();
+
+    mocks.client.listPaymentRefunds.mockResolvedValue([]);
+    await expect(
+      queueManualExcessRefund({ clinicId: CLINIC, payload, sourceEventId: EVENT }),
+    ).resolves.toBe('queued');
+    expect(intent).toMatchObject({
+      status: 'confirmation_pending',
+      failureCode: 'manual_action_required',
+    });
+  });
+
+  it('preserva a pendência do sinal se a conta estiver desconectada e prepara readback após reconexão', async () => {
+    chargeKind = 'deposit';
+    chargeAmount = '150.00';
+    const input = {
+      clinicId: CLINIC,
+      chargeId: CHARGE,
+      amount: 150,
+      sourceEventId: EVENT,
+    };
+    await expect(queueManualDepositRefund({ ...input, client: null })).resolves.toBe('queued');
+    expect(intent).toMatchObject({
+      status: 'pending',
+      failureCode: 'payment_account_unavailable',
+    });
+    expect(mocks.client.refundPayment).not.toHaveBeenCalled();
+
+    mocks.client.listPaymentRefunds.mockResolvedValue([]);
+    await expect(queueManualDepositRefund({ ...input, client: mocks.client })).resolves.toBe(
+      'queued',
+    );
+    expect(intent).toMatchObject({
+      status: 'confirmation_pending',
+      failureCode: 'manual_action_required',
+    });
+    expect(mocks.client.refundPayment).not.toHaveBeenCalled();
+  });
+
+  it('só fecha o sinal após readback de estorno DONE realizado pela clínica', async () => {
+    chargeKind = 'deposit';
+    chargeAmount = '150.00';
+    mocks.client.listPaymentRefunds.mockResolvedValue([]);
+    await queueManualDepositRefund({
+      clinicId: CLINIC,
+      chargeId: CHARGE,
+      amount: 150,
+      sourceEventId: EVENT,
+      client: mocks.client,
+    });
+
+    await expect(
+      confirmRefundIntentFromReadback({
+        clinicId: CLINIC,
+        intentId: INTENT,
+        refunds: [{ refundId: null, status: 'PENDING', value: 150 }],
+      }),
+    ).resolves.toBe('pending');
+    expect(mocks.closeChargeInTransaction).not.toHaveBeenCalled();
+
+    await expect(
+      confirmRefundIntentFromReadback({
+        clinicId: CLINIC,
+        intentId: INTENT,
+        refunds: [{ refundId: null, status: 'DONE', value: 150 }],
+      }),
+    ).resolves.toBe('confirmed');
+    expect(mocks.closeChargeInTransaction).toHaveBeenCalledOnce();
+    expect(mocks.client.refundPayment).not.toHaveBeenCalled();
+  });
+
+  it('intenção criada quando o Asaas já informa DONE integral converge sem novo POST', async () => {
+    chargeKind = 'deposit';
+    chargeAmount = '150.00';
+    const refunds = [{ refundId: null, status: 'DONE', value: 150 }];
+    mocks.client.listPaymentRefunds.mockResolvedValue(refunds);
+
+    await queueManualDepositRefund({
+      clinicId: CLINIC,
+      chargeId: CHARGE,
+      amount: 150,
+      sourceEventId: EVENT,
+      client: mocks.client,
+    });
+    await expect(
+      confirmRefundIntentFromReadback({ clinicId: CLINIC, intentId: INTENT, refunds }),
+    ).resolves.toBe('confirmed');
+
+    expect(mocks.closeChargeInTransaction).toHaveBeenCalledOnce();
+    expect(mocks.client.refundPayment).not.toHaveBeenCalled();
+  });
+
+  it('uma tentativa manual CANCELLED continua pendente da clínica e pode confirmar uma posterior DONE', async () => {
+    chargeKind = 'deposit';
+    chargeAmount = '150.00';
+    mocks.client.listPaymentRefunds.mockResolvedValue([]);
+    await queueManualDepositRefund({
+      clinicId: CLINIC,
+      chargeId: CHARGE,
+      amount: 150,
+      sourceEventId: EVENT,
+      client: mocks.client,
+    });
+
+    await expect(
+      confirmRefundIntentFromReadback({
+        clinicId: CLINIC,
+        intentId: INTENT,
+        refunds: [{ refundId: null, status: 'CANCELLED', value: 150 }],
+      }),
+    ).resolves.toBe('failed');
+    expect(intent).toMatchObject({ status: 'failed', failureCode: 'manual_refund_cancelled' });
+    expect(mocks.closeChargeInTransaction).not.toHaveBeenCalled();
+
+    await expect(
+      confirmRefundIntentFromReadback({
+        clinicId: CLINIC,
+        intentId: INTENT,
+        refunds: [
+          { refundId: null, status: 'CANCELLED', value: 150 },
+          { refundId: null, status: 'DONE', value: 150 },
+        ],
+      }),
+    ).resolves.toBe('confirmed');
+    expect(intent?.status).toBe('confirmed');
+    expect(mocks.closeChargeInTransaction).toHaveBeenCalledOnce();
+  });
+
+  it('sinal parcialmente devolvido só fecha quando o total DONE alcança o valor original', async () => {
+    chargeKind = 'deposit';
+    chargeAmount = '150.00';
+    mocks.client.listPaymentRefunds.mockResolvedValue([
+      { refundId: null, status: 'DONE', value: 50 },
+    ]);
+    await queueManualDepositRefund({
+      clinicId: CLINIC,
+      chargeId: CHARGE,
+      amount: 150,
+      sourceEventId: EVENT,
+      client: mocks.client,
+    });
+
+    await expect(
+      confirmRefundIntentFromReadback({
+        clinicId: CLINIC,
+        intentId: INTENT,
+        refunds: [
+          { refundId: null, status: 'DONE', value: 50 },
+          { refundId: null, status: 'DONE', value: 90 },
+        ],
+      }),
+    ).resolves.toBe('pending');
+    expect(mocks.closeChargeInTransaction).not.toHaveBeenCalled();
+
+    await expect(
+      confirmRefundIntentFromReadback({
+        clinicId: CLINIC,
+        intentId: INTENT,
+        refunds: [
+          { refundId: null, status: 'DONE', value: 50 },
+          { refundId: null, status: 'DONE', value: 100 },
+        ],
+      }),
+    ).resolves.toBe('confirmed');
+    expect(mocks.closeChargeInTransaction).toHaveBeenCalledOnce();
+  });
+});
+
 describe('contrato autoritativo do estorno', () => {
   it('soma somente DONE; a existência do refund ou status parecido não confirma devolução', () => {
     expect(
@@ -228,90 +474,6 @@ describe('contrato autoritativo do estorno', () => {
       }),
     ).resolves.toBe(0);
     expect(loadRefunds).not.toHaveBeenCalled();
-  });
-});
-
-describe('D50 — estorno exato do excedente', () => {
-  it('persiste antes do POST, grava baseline e confirma por DONE no read-back', async () => {
-    mocks.client.listPaymentRefunds
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ refundId: 'ref_1', status: 'DONE', value: 30 }]);
-    mocks.client.refundPayment.mockResolvedValue({
-      refundId: 'ref_1',
-      status: 'PENDING',
-      value: 30,
-    });
-
-    await expect(
-      requestExcessRefund({ clinicId: CLINIC, payload, sourceEventId: EVENT }),
-    ).resolves.toBe('submitted');
-
-    expect(mocks.client.refundPayment).toHaveBeenCalledWith('pay_1', {
-      value: 30,
-      description: 'Estorno de valor pago acima do saldo do atendimento',
-    });
-    expect(intent).toMatchObject({
-      status: 'confirmed',
-      baselineRefundedAmount: '0.00',
-      baselineRefundCount: 0,
-      baselineRejectedRefundCount: 0,
-      providerRefundId: 'ref_1',
-    });
-    expect(mocks.publishEvent).toHaveBeenCalledOnce();
-  });
-
-  it('falha no GET anterior ao POST deixa pending e permite retry seguro', async () => {
-    mocks.client.listPaymentRefunds
-      .mockRejectedValueOnce(new Error('get timeout'))
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([]);
-    mocks.client.refundPayment.mockResolvedValue({
-      refundId: 'ref_1',
-      status: 'PENDING',
-      value: 30,
-    });
-
-    await expect(
-      requestExcessRefund({ clinicId: CLINIC, payload, sourceEventId: EVENT }),
-    ).rejects.toThrow('get timeout');
-    expect(intent).toMatchObject({ status: 'pending', baselineRefundedAmount: null });
-
-    await expect(
-      requestExcessRefund({ clinicId: CLINIC, payload, sourceEventId: EVENT }),
-    ).resolves.toBe('submitted');
-    expect(mocks.client.refundPayment).toHaveBeenCalledTimes(1);
-  });
-
-  it('timeout depois do POST não repete cegamente o estorno', async () => {
-    mocks.client.listPaymentRefunds.mockResolvedValue([]);
-    mocks.client.refundPayment.mockRejectedValue(new BillingProviderUnreachableError('timeout'));
-
-    await expect(
-      requestExcessRefund({ clinicId: CLINIC, payload, sourceEventId: EVENT }),
-    ).resolves.toBe('submitted');
-    await expect(
-      requestExcessRefund({ clinicId: CLINIC, payload, sourceEventId: EVENT }),
-    ).resolves.toBe('already_started');
-
-    expect(mocks.client.refundPayment).toHaveBeenCalledTimes(1);
-    expect(intent).toMatchObject({
-      status: 'confirmation_pending',
-      baselineRefundCount: 0,
-      baselineRejectedRefundCount: 0,
-    });
-  });
-
-  it('recusa 4xx encerra a intenção sem publicar confirmação falsa', async () => {
-    mocks.client.listPaymentRefunds.mockResolvedValue([]);
-    mocks.client.refundPayment.mockRejectedValue(
-      new BillingProviderError('recusado', 'billing_provider_error', 400, ['invalid_value']),
-    );
-
-    await expect(
-      requestExcessRefund({ clinicId: CLINIC, payload, sourceEventId: EVENT }),
-    ).resolves.toBe('failed');
-    expect(intent).toMatchObject({ status: 'failed', failureCode: 'invalid_value' });
-    expect(mocks.publishEvent).not.toHaveBeenCalled();
   });
 });
 
@@ -520,7 +682,7 @@ describe('D77 — estado terminal e closeout do sinal', () => {
     expect(mocks.publishEvent).not.toHaveBeenCalled();
   });
 
-  it('payment REFUNDED confirma mesmo se o array ainda estiver defasado', async () => {
+  it('estorno PENDING não confirma a devolução', async () => {
     intent = pendingIntent({ purpose: 'deposit_closeout', amount: '150.00' });
     chargeKind = 'deposit';
     chargeAmount = '150.00';
@@ -530,76 +692,47 @@ describe('D77 — estado terminal e closeout do sinal', () => {
         clinicId: CLINIC,
         intentId: INTENT,
         refunds: [{ refundId: 'ref_1', status: 'PENDING', value: 150 }],
-        providerPaymentStatus: 'REFUNDED',
       }),
-    ).resolves.toBe('confirmed');
+    ).resolves.toBe('pending');
 
-    expect(mocks.closeChargeInTransaction).toHaveBeenCalledOnce();
-  });
-
-  it('dois workers concorrentes produzem no máximo um POST', async () => {
-    chargeKind = 'deposit';
-    chargeAmount = '150.00';
-    mocks.client.listPaymentRefunds.mockResolvedValue([]);
-    mocks.client.refundPayment.mockResolvedValue({
-      refundId: null,
-      status: 'PENDING',
-      value: 150,
-    });
-
-    const results = await Promise.all([
-      requestDepositRefund({
-        clinicId: CLINIC,
-        chargeId: CHARGE,
-        amount: 150,
-        sourceEventId: EVENT,
-        client: mocks.client,
-      }),
-      requestDepositRefund({
-        clinicId: CLINIC,
-        chargeId: CHARGE,
-        amount: 150,
-        sourceEventId: EVENT,
-        client: mocks.client,
-      }),
-    ]);
-
-    expect(results).toContain('already_started');
-    expect(mocks.client.refundPayment).toHaveBeenCalledTimes(1);
-  });
-
-  it('replay após CANCELLED não dispara segundo POST', async () => {
-    chargeKind = 'deposit';
-    chargeAmount = '150.00';
-    mocks.client.listPaymentRefunds
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ refundId: null, status: 'CANCELLED', value: 150 }]);
-    mocks.client.refundPayment.mockResolvedValue({
-      refundId: null,
-      status: 'PENDING',
-      value: 150,
-    });
-
-    await expect(
-      requestDepositRefund({
-        clinicId: CLINIC,
-        chargeId: CHARGE,
-        amount: 150,
-        sourceEventId: EVENT,
-        client: mocks.client,
-      }),
-    ).resolves.toBe('failed');
-    await expect(
-      requestDepositRefund({
-        clinicId: CLINIC,
-        chargeId: CHARGE,
-        amount: 150,
-        sourceEventId: EVENT,
-        client: mocks.client,
-      }),
-    ).resolves.toBe('failed');
-
-    expect(mocks.client.refundPayment).toHaveBeenCalledTimes(1);
     expect(mocks.closeChargeInTransaction).not.toHaveBeenCalled();
+    expect(intent?.status).toBe('confirmation_pending');
+  });
+
+  it('estorno DONE de valor menor não confirma o total solicitado', async () => {
+    intent = pendingIntent({ purpose: 'deposit_closeout', amount: '150.00' });
+    chargeKind = 'deposit';
+    chargeAmount = '150.00';
+
+    await expect(
+      confirmRefundIntentFromReadback({
+        clinicId: CLINIC,
+        intentId: INTENT,
+        refunds: [{ refundId: 'ref_1', status: 'DONE', value: 10 }],
+      }),
+    ).resolves.toBe('pending');
+
+    expect(mocks.closeChargeInTransaction).not.toHaveBeenCalled();
+    expect(intent?.status).toBe('confirmation_pending');
+  });
+
+  it('outro estorno DONE não substitui o estorno identificado ainda PENDING', async () => {
+    intent = pendingIntent({ purpose: 'deposit_closeout', amount: '150.00' });
+    chargeKind = 'deposit';
+    chargeAmount = '150.00';
+
+    await expect(
+      confirmRefundIntentFromReadback({
+        clinicId: CLINIC,
+        intentId: INTENT,
+        refunds: [
+          { refundId: 'ref_1', status: 'PENDING', value: 150 },
+          { refundId: 'ref_other', status: 'DONE', value: 150 },
+        ],
+      }),
+    ).resolves.toBe('pending');
+
+    expect(mocks.closeChargeInTransaction).not.toHaveBeenCalled();
+    expect(intent?.status).toBe('confirmation_pending');
   });
 });

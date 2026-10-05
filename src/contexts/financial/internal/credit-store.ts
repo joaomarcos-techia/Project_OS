@@ -30,6 +30,10 @@ export interface GrantCreditInput {
   appointmentId: string;
   patientId: string | null;
   amount: number;
+  providerGrossAmount: number | null;
+  providerFeeAmount: number | null;
+  providerNetAmount: number | null;
+  earlySettlementFeeAmount: number | null;
   kind: 'deposit' | 'remaining_payment';
   paymentMethod: string | null;
   grantedAt: Date;
@@ -48,6 +52,20 @@ export async function grantCredit(tx: Tx, input: GrantCreditInput): Promise<stri
       appointmentId: input.appointmentId,
       patientChargeId: input.patientChargeId,
       amount: input.amount.toFixed(2),
+      providerGrossAmount:
+        input.providerGrossAmount == null ? null : input.providerGrossAmount.toFixed(2),
+      providerFeeAmount:
+        input.providerFeeAmount == null ? null : input.providerFeeAmount.toFixed(2),
+      providerNetAmount:
+        input.providerNetAmount == null ? null : input.providerNetAmount.toFixed(2),
+      earlySettlementFeeAmount:
+        input.earlySettlementFeeAmount == null ? null : input.earlySettlementFeeAmount.toFixed(2),
+      providerEconomicsReconciledAt:
+        input.providerGrossAmount != null &&
+        input.providerFeeAmount != null &&
+        input.providerNetAmount != null
+          ? input.grantedAt
+          : null,
       allocatedAmount: '0',
       kind: input.kind,
       status: 'available',
@@ -57,6 +75,62 @@ export async function grantCredit(tx: Tx, input: GrantCreditInput): Promise<stri
     .onConflictDoNothing()
     .returning({ id: patientCredits.id });
   return rows[0]?.id ?? null;
+}
+
+export type ReconcileCreditEconomicsOutcome = 'reconciled' | 'already_reconciled' | 'not_found';
+
+/**
+ * Completa fatos do provedor que chegaram depois da baixa original. Não cria
+ * crédito e não altera alocação: o dinheiro já existia; apenas bruto, taxa e
+ * líquido passam a ter uma fonte autoritativa.
+ */
+export async function reconcileCreditEconomics(
+  tx: Tx,
+  input: {
+    clinicId: string;
+    patientChargeId: string;
+    providerGrossAmount: number;
+    providerFeeAmount: number | null;
+    providerNetAmount: number;
+    earlySettlementFeeAmount: number | null;
+    paymentMethod: string | null;
+    reconciledAt: Date;
+  },
+): Promise<ReconcileCreditEconomicsOutcome> {
+  const [existing] = await tx
+    .select({
+      id: patientCredits.id,
+      providerEconomicsReconciledAt: patientCredits.providerEconomicsReconciledAt,
+    })
+    .from(patientCredits)
+    .where(
+      and(
+        eq(patientCredits.clinicId, input.clinicId),
+        eq(patientCredits.patientChargeId, input.patientChargeId),
+      ),
+    )
+    .limit(1);
+  if (!existing) return 'not_found';
+  if (existing.providerEconomicsReconciledAt) return 'already_reconciled';
+
+  const updated = await tx
+    .update(patientCredits)
+    .set({
+      providerGrossAmount: input.providerGrossAmount.toFixed(2),
+      providerFeeAmount:
+        input.providerFeeAmount == null ? null : input.providerFeeAmount.toFixed(2),
+      providerNetAmount: input.providerNetAmount.toFixed(2),
+      earlySettlementFeeAmount:
+        input.earlySettlementFeeAmount == null ? null : input.earlySettlementFeeAmount.toFixed(2),
+      providerEconomicsReconciledAt: input.providerFeeAmount === null ? null : input.reconciledAt,
+      ...(input.paymentMethod ? { paymentMethod: input.paymentMethod } : {}),
+      updatedAt: sql`now()`,
+    })
+    .where(
+      and(eq(patientCredits.id, existing.id), isNull(patientCredits.providerEconomicsReconciledAt)),
+    )
+    .returning({ id: patientCredits.id });
+  return updated.length > 0 ? 'reconciled' : 'already_reconciled';
 }
 
 export type ReleaseOutcome = 'released' | 'not_found' | 'already_resolved';

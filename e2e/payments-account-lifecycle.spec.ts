@@ -6,6 +6,7 @@ import postgres from 'postgres';
 
 import { authenticate, hasE2ECredentials } from './auth';
 import { assertDevContext } from '../scripts/_env';
+import { cleanupSandboxFixtureWebhook } from '../src/lib/test/asaas-fixture-webhook-cleanup';
 
 loadDotenv({ path: '.env.local' });
 
@@ -139,6 +140,26 @@ async function createIsolatedFixture(): Promise<void> {
 async function cleanupIsolatedFixture(): Promise<void> {
   if (!fixtureSql) return;
   const config = isolatedFixtureConfig();
+  if (fixtureClinicId) {
+    const [account] = await fixtureSql<{ webhook_ref: string }[]>`
+      select webhook_ref::text from clinic_payment_accounts
+       where clinic_id = ${fixtureClinicId}::uuid
+    `;
+    if (account) {
+      if (!sandboxKey || !baseUrl) {
+        throw new Error(
+          'Fixture com conta Asaas sem chave Sandbox ou URL de Preview para cleanup.',
+        );
+      }
+      // Externo primeiro: se o Asaas recusar, preserve a fixture para investigação.
+      // Apagar a clínica antes deixaria um webhook ativo apontando para ref inexistente.
+      await cleanupSandboxFixtureWebhook({
+        apiKey: sandboxKey,
+        webhookRef: account.webhook_ref,
+        previewUrl: baseUrl,
+      });
+    }
+  }
   const cleanupErrors: string[] = [];
   if (fixtureClinicId) {
     try {
@@ -191,11 +212,10 @@ async function authenticateForTest(page: import('@playwright/test').Page): Promi
 /** Aborta se o alvo for produção. Erro, não skip — ver cabeçalho. */
 function assertPreviewOnly(): void {
   if (!baseUrl) throw new Error('E2E_BASE_URL ausente.');
-  const host = new URL(baseUrl).hostname;
-  if (host === 'app.qoro.dev' || host === 'qoro.dev') {
+  const url = new URL(baseUrl);
+  if (url.protocol !== 'https:' || !url.hostname.endsWith('.vercel.app')) {
     throw new Error(
-      'Este spec pode criar estado externo (webhook no Asaas) e só roda contra Preview. ' +
-        `Host recusado: ${host}.`,
+      'Este spec pode criar estado externo (webhook no Asaas) e só roda contra Preview Vercel.',
     );
   }
 }
@@ -230,7 +250,15 @@ test.describe.serial('conta de pagamento da clínica (Preview)', () => {
   });
 
   test.afterAll(async () => {
-    if (isolatedFixture) await cleanupIsolatedFixture();
+    if (!isolatedFixture) return;
+    try {
+      await cleanupIsolatedFixture();
+    } finally {
+      if (fixtureSql) {
+        await fixtureSql.end({ timeout: 5 });
+        fixtureSql = null;
+      }
+    }
   });
 
   test('chave inválida é recusada sem alterar o estado, e nunca volta ao browser', async ({

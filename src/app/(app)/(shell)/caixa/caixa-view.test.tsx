@@ -25,7 +25,7 @@ vi.mock('./actions', () => ({
 }));
 
 import { cancelLancamentoAction } from './actions';
-import { CaixaView, type FailedChargeItem } from './caixa-view';
+import { CaixaView, type FailedChargeItem, type ManualRefundItem } from './caixa-view';
 
 const METHODS = [{ code: 'pix', label: 'PIX' }];
 const PAYMENT: PaymentTransactionSummary = {
@@ -64,6 +64,7 @@ function item(overrides: Partial<CaixaItem> = {}): CaixaItem {
     snapshotDoctorNome: 'Dra. Smoke',
     createdAt: '2026-06-06T00:00:00.000Z',
     pacienteNome: 'João Silva',
+    paymentEconomics: null,
     ...overrides,
   };
 }
@@ -95,10 +96,12 @@ const base = {
   aPagar: [] as CaixaItem[],
   pendencias: [] as FaturamentoPendenciaDTO[],
   failedCharges: [] as FailedChargeItem[],
+  manualRefundTasks: [] as ManualRefundItem[],
   excessRefundStatuses: [] as ExcessRefundStatus[],
   collectionCases: [] as CollectionCaseDTO[],
   methods: METHODS,
   paymentTransactions: [] as PaymentTransactionSummary[],
+  showAdvancedFinancialDetails: false,
   canOperate: true,
   canRefund: true,
 };
@@ -131,6 +134,25 @@ describe('CaixaView — work queue, rótulos e RBAC', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Pagar' }));
     expect(screen.getByLabelText('Valor pago')).toBeTruthy();
     expect(screen.getByRole('button', { name: /Pagar R\$\s*1\.200,00/ })).toBeTruthy();
+  });
+
+  it('oferece somente a forma comercial acordada no recebível do atendimento', () => {
+    render(
+      <CaixaView
+        {...base}
+        methods={[
+          { code: 'pix', label: 'PIX' },
+          { code: 'dinheiro', label: 'Dinheiro' },
+          { code: 'cartao_credito', label: 'Cartão de crédito' },
+        ]}
+        pendentes={[item({ commercialPaymentMethod: 'cash' })]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar pagamento' }));
+    const select = screen.getByLabelText('Forma de pagamento');
+    expect(within(select).getAllByRole('option')).toHaveLength(1);
+    expect(within(select).getByRole('option', { name: 'Dinheiro' })).toBeTruthy();
   });
 
   it('operate:caixa mostra ações de receber/cancelar; sem permissão não mostra', () => {
@@ -226,6 +248,156 @@ describe('CaixaView — work queue, rótulos e RBAC', () => {
     expect(screen.queryByRole('button', { name: 'Reembolsar' })).toBeNull();
   });
 
+  it('expõe bruto, taxa, líquido e snapshot do repasse sem inventar antecipação', () => {
+    const pago = item({
+      status: 'pago',
+      paidAt: '2026-06-06T10:00:00.000Z',
+      valor: 250,
+      valorPago: 250,
+      paymentMethod: 'pix',
+      paymentEconomics: {
+        appointmentId: 'a1',
+        providerGrossAmount: 250,
+        providerFeeAmount: 5,
+        earlySettlementFeeAmount: null,
+        providerNetAmount: 245,
+        payout: {
+          calculationBasis: 'gross',
+          basisAmount: 250,
+          payoutAmount: 125,
+          status: 'calculated',
+        },
+      },
+    });
+
+    render(<CaixaView {...base} showAdvancedFinancialDetails pagosHoje={[pago]} />);
+
+    expect(screen.getByText('Composição do atendimento')).toBeTruthy();
+    expect(screen.getByText('Valor do atendimento')).toBeTruthy();
+    expect(screen.getByText('Valor recebido alocado')).toBeTruthy();
+    expect(screen.getByText('Tarifa real alocada')).toBeTruthy();
+    expect(screen.getByText('Custo de antecipação')).toBeTruthy();
+    expect(screen.getByText('Não informado')).toBeTruthy();
+    expect(screen.getByText('Base do repasse')).toBeTruthy();
+    expect(screen.getByText('Bruto')).toBeTruthy();
+    expect(screen.getByText('Repasse profissional')).toBeTruthy();
+    expect(screen.getByText(/R\$\s*125,00/)).toBeTruthy();
+  });
+
+  it('mostra bruto, tarifa e líquido reais no Solo sem seção de repasse', () => {
+    render(
+      <CaixaView
+        {...base}
+        pagosHoje={[
+          item({
+            status: 'pago',
+            paidAt: '2026-06-06T10:00:00.000Z',
+            valor: 250,
+            valorPago: 250,
+            paymentMethod: 'pix',
+            paymentEconomics: {
+              appointmentId: 'a1',
+              providerGrossAmount: 255,
+              providerFeeAmount: 5,
+              earlySettlementFeeAmount: 2,
+              providerNetAmount: 250,
+              payout: null,
+            },
+          }),
+        ]}
+      />,
+    );
+
+    expect(screen.getByText('Valor recebido alocado')).toBeTruthy();
+    expect(screen.getByText('Tarifa real alocada')).toBeTruthy();
+    expect(screen.getByText('Líquido real alocado')).toBeTruthy();
+    expect(screen.getByText(/R\$\s*255,00/)).toBeTruthy();
+    expect(screen.getByText('− R$ 5,00')).toBeTruthy();
+    expect(screen.queryByText('Custo de antecipação')).toBeNull();
+    expect(screen.queryByText('Repasse profissional')).toBeNull();
+    expect(screen.queryByText('Sem repasse separado')).toBeNull();
+  });
+
+  it('discrimina sinal e restante no Solo sem converter fato ausente em tarifa zero', () => {
+    render(
+      <CaixaView
+        {...base}
+        pagosHoje={[
+          item({
+            status: 'pago',
+            paidAt: '2026-06-06T10:00:00.000Z',
+            chargeEconomics: [
+              {
+                chargeId: 'c1',
+                appointmentId: 'a1',
+                kind: 'deposit',
+                status: 'paid',
+                requestedAmount: 50,
+                providerGrossAmount: 50,
+                providerFeeAmount: 0,
+                providerNetAmount: 50,
+              },
+              {
+                chargeId: 'c2',
+                appointmentId: 'a1',
+                kind: 'remainder',
+                status: 'pending',
+                requestedAmount: 150,
+                providerGrossAmount: null,
+                providerFeeAmount: null,
+                providerNetAmount: null,
+              },
+            ],
+          }),
+        ]}
+      />,
+    );
+
+    expect(screen.getByText('Cada cobrança Asaas')).toBeTruthy();
+    expect(screen.getByText('Sinal')).toBeTruthy();
+    expect(screen.getByText('Restante')).toBeTruthy();
+    expect(screen.getByText('Pendente')).toBeTruthy();
+    expect(screen.getByText('− R$ 0,00')).toBeTruthy();
+    expect(screen.getAllByText('Não informado').length).toBeGreaterThanOrEqual(3);
+    expect(screen.queryByText('Repasse profissional')).toBeNull();
+  });
+
+  it('mantém o detalhe de antecipação no premium mesmo sem repasse profissional', () => {
+    render(
+      <CaixaView
+        {...base}
+        showAdvancedFinancialDetails
+        pagosHoje={[
+          item({
+            status: 'pago',
+            paidAt: '2026-06-06T10:00:00.000Z',
+            paymentMethod: 'pix',
+            paymentEconomics: {
+              appointmentId: 'a1',
+              providerGrossAmount: 200,
+              providerFeeAmount: 5,
+              earlySettlementFeeAmount: 2,
+              providerNetAmount: 193,
+              payout: null,
+            },
+          }),
+        ]}
+      />,
+    );
+
+    expect(screen.getByText('Custo de antecipação')).toBeTruthy();
+    expect(screen.getByText('− R$ 2,00')).toBeTruthy();
+    expect(screen.queryByText('Repasse profissional')).toBeNull();
+  });
+
+  it('mostra valores desconhecidos como não informados, inclusive sem linha econômica', () => {
+    render(<CaixaView {...base} pendentes={[item({ paymentEconomics: null })]} />);
+
+    expect(screen.getByText('Composição do atendimento')).toBeTruthy();
+    expect(screen.getAllByText('Não informado')).toHaveLength(3);
+    expect(screen.queryByText('Repasse profissional')).toBeNull();
+  });
+
   it('preserva os cálculos de saldo dos três totais executivos', () => {
     const partial = item({ id: 'partial', valor: 300, valorPago: 125, status: 'parcial' });
     const paid = item({ id: 'paid', valor: 200, valorPago: 200, status: 'pago' });
@@ -268,10 +440,11 @@ describe('CaixaView — work queue, rótulos e RBAC', () => {
   });
 
   it.each([
+    ['manual', /pendente de ação da clínica/i],
     ['waiting', /aguardando confirmação da devolução/i],
     ['confirmed', /estorno confirmado pelo Asaas/i],
     ['cancelled', /valor não foi devolvido/i],
-    ['failed', /não foi concluído/i],
+    ['failed', /devolução não foi concluída/i],
   ] as const)('explica o estado de estorno %s sem expor identificadores', (state, copy) => {
     const pendingBilling: FaturamentoPendenciaDTO = {
       id: 'fp-refund',
@@ -296,6 +469,53 @@ describe('CaixaView — work queue, rótulos e RBAC', () => {
 
     expect(screen.getByText(copy)).toBeTruthy();
     expect(screen.queryByText(/pay_|refund id|provider/i)).toBeNull();
+  });
+
+  it('mostra ao operador a devolução manual sem afirmar que o paciente já recebeu', () => {
+    render(
+      <CaixaView
+        {...base}
+        manualRefundTasks={[
+          {
+            id: 'intent-1',
+            appointmentId: 'apt-1',
+            patientId: 'patient-1',
+            providerPaymentId: 'pay_1',
+            amount: 150,
+            purpose: 'deposit_closeout',
+            state: 'action_required',
+            pacienteNome: 'Paciente de teste',
+          },
+        ]}
+      />,
+    );
+    fireEvent.click(screen.getByText(/1 devolução de paciente pendente de verificação/i));
+    expect(screen.getByText(/Confira se já há estorno em andamento/i)).toBeTruthy();
+    expect(screen.getByText(/Cobrança Asaas:/i)).toBeTruthy();
+    expect(screen.queryByText(/estorno confirmado pelo Asaas/i)).toBeNull();
+  });
+
+  it('avisa quando o Qoro não conseguiu ler o Asaas antes da ação humana', () => {
+    render(
+      <CaixaView
+        {...base}
+        manualRefundTasks={[
+          {
+            id: 'intent-readback',
+            appointmentId: 'apt-1',
+            patientId: 'patient-1',
+            providerPaymentId: 'pay_1',
+            amount: 30,
+            purpose: 'excess',
+            state: 'readback_unavailable',
+            pacienteNome: 'Paciente de teste',
+          },
+        ]}
+      />,
+    );
+    fireEvent.click(screen.getByText(/1 devolução de paciente pendente de verificação/i));
+    expect(screen.getByText(/ainda não conseguiu verificar esta cobrança no Asaas/i)).toBeTruthy();
+    expect(screen.queryByText(/faça a devolução na conta Asaas/i)).toBeNull();
   });
 
   it('exibe fila humana de cobrança antiga com atraso e saldo residual', () => {

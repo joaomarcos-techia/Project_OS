@@ -10,7 +10,16 @@ import 'server-only';
 
 import { findPayableCharge, type PayableCharge } from './internal/charge-store';
 import { listFailedCharges, type FailedChargeDTO } from './internal/failed-charges';
-import { listExcessRefundStatuses, type ExcessRefundStatus } from './internal/refund-status';
+import {
+  listExcessRefundStatuses,
+  listManualRefundTasks,
+  type ExcessRefundStatus,
+  type ManualRefundTask,
+} from './internal/refund-status';
+import {
+  listPatientChargeEconomics,
+  type PatientChargeEconomicsDTO,
+} from './internal/charge-economics';
 
 export interface PaymentsApiV1 {
   /**
@@ -32,18 +41,33 @@ export interface PaymentsApiV1 {
     clinicId: string,
     appointmentIds: readonly string[],
   ): Promise<ExcessRefundStatus[]>;
+  /** Devoluções de pacientes que a clínica deve conferir e executar na própria conta. */
+  listManualRefundTasks(clinicId: string): Promise<ManualRefundTask[]>;
 
   /**
    * Cobranças que falharam ao ser criadas — o paciente nunca recebeu link.
    * Falha silenciosa que só aparece se alguém a mostrar; o Caixa mostra.
    */
   listFailedCharges(clinicId: string): Promise<FailedChargeDTO[]>;
+  /** Fatos individuais da cobrança para a transparência do Caixa em todos os planos. */
+  listPatientChargeEconomics(
+    clinicId: string,
+    appointmentIds: readonly string[],
+  ): Promise<PatientChargeEconomicsDTO[]>;
 }
 
 export const paymentsApiV1: PaymentsApiV1 = {
   getPayableCharge: (clinicId, chargeId) => findPayableCharge(clinicId, chargeId),
   listExcessRefundStatuses,
+  listManualRefundTasks,
   listFailedCharges,
+  listPatientChargeEconomics,
 };
 
-export type { ExcessRefundStatus, FailedChargeDTO, PayableCharge };
+export type {
+  ExcessRefundStatus,
+  FailedChargeDTO,
+  ManualRefundTask,
+  PatientChargeEconomicsDTO,
+  PayableCharge,
+};

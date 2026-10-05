@@ -21,6 +21,22 @@ const PendingActionPayloadSchema = z.discriminatedUnion('type', [
     doctorId: z.string().uuid(),
     procedureId: z.string().uuid(),
     scheduledAt: z.string().datetime({ offset: true }),
+    commercialPrice: z
+      .object({
+        paymentMethod: z.enum(['pix', 'credit_card']),
+        installmentCount: z.number().int().min(1).max(12).nullable(),
+        priceId: z.string().uuid(),
+        grossAmount: z.number().finite().positive(),
+      })
+      .strict()
+      .refine(
+        (price) =>
+          price.paymentMethod === 'pix'
+            ? price.installmentCount === null
+            : price.installmentCount === 1,
+        { message: 'condição de pagamento inválida para o link disponível' },
+      )
+      .optional(),
   }),
   z.object({
     type: z.literal('confirm_appointment'),
@@ -514,6 +530,17 @@ export async function executePendingAction(
         procedureId: payload.procedureId,
         patientId: payload.patientId,
         scheduledAt: payload.scheduledAt,
+        ...(payload.commercialPrice
+          ? {
+              pricingPolicyMode: 'payment_method_pricing',
+              commercialPaymentMethod: payload.commercialPrice.paymentMethod,
+              commercialInstallmentCount: payload.commercialPrice.installmentCount,
+              commercialPriceId: payload.commercialPrice.priceId,
+              valorAjustado: true,
+              valor: payload.commercialPrice.grossAmount,
+              valorAjusteMotivo: 'Preço por meio de pagamento',
+            }
+          : {}),
       },
       idempotencyKey,
     );

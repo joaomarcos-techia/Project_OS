@@ -8,6 +8,7 @@ import type {
   PaymentMethodDTO,
   PaymentTransactionSummary,
 } from '@/contexts/financial/types';
+import { catalogPaymentMethodForCommercial } from '@/contexts/financial/commercial-method';
 import { Button } from '@/components/ui/button';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
@@ -40,12 +41,19 @@ export function ConfirmPaymentPanel({
   onRequestCancel?: (() => void) | undefined;
   onSubmit: (valorPago: number, method: string, comprovante: string) => void;
 }) {
+  const commercialMethod = catalogPaymentMethodForCommercial(item.commercialPaymentMethod ?? null);
+  const availableMethods = item.commercialPaymentMethod
+    ? methods.filter((paymentMethod) => paymentMethod.code === commercialMethod)
+    : methods;
   const [valor, setValor] = useState(String(outstandingBalance(item).toFixed(2)));
-  const [method, setMethod] = useState(methods[0]?.code ?? '');
+  const [method, setMethod] = useState(availableMethods[0]?.code ?? '');
   const [comprovante, setComprovante] = useState('');
 
   const valorNum = Number(valor.replace(',', '.'));
-  const valid = method && valorNum > 0 && valorNum <= outstandingBalance(item) + 1e-9;
+  const valid =
+    availableMethods.some((paymentMethod) => paymentMethod.code === method) &&
+    valorNum > 0 &&
+    valorNum <= outstandingBalance(item) + 1e-9;
   const actionLabel = item.tipo === 'pagar' ? 'Pagar' : 'Receber';
 
   return (
@@ -63,7 +71,7 @@ export function ConfirmPaymentPanel({
           value={method}
           onChange={(event) => setMethod(event.target.value)}
         >
-          {methods.map((paymentMethod) => (
+          {availableMethods.map((paymentMethod) => (
             <option key={paymentMethod.code} value={paymentMethod.code}>
               {paymentMethod.label}
             </option>

@@ -1,10 +1,13 @@
 import { listPatientCards } from '@/contexts/patient/queries';
+import { billingApiV1 } from '@/contexts/billing/api';
 import { paymentsApiV1 } from '@/contexts/payments';
+import { listAppointmentCommercialPaymentMethods } from '@/contexts/scheduling/queries';
 import { getClinicTimezone } from '@/contexts/tenancy/queries';
 import { clinicDayBounds } from '@/contexts/financial/logic';
 import {
   getCaixaLancamentos,
   getCaixaPagaveis,
+  listAppointmentFinancialEconomics,
   listOpenCollectionCases,
   listPaymentTransactionsForLancamentos,
   listPaymentMethods,
@@ -54,18 +57,28 @@ export default async function CaixaPage() {
   //
   // Rodada 1: tudo que não depende de nada — inclusive o fuso e as cobranças
   // falhas, que antes esperavam sem precisar.
-  const [tz, pagaveis, pendencias, methods, collectionCases, failedCharges] =
-    await withQueryDeadline(
-      'caixa.load',
-      Promise.all([
-        getClinicTimezone(clinicId),
-        getCaixaPagaveis(clinicId),
-        listPendenciasAbertas(clinicId),
-        listPaymentMethods(clinicId),
-        listOpenCollectionCases(clinicId),
-        paymentsApiV1.listFailedCharges(clinicId),
-      ]),
-    );
+  const [
+    tz,
+    pagaveis,
+    pendencias,
+    methods,
+    collectionCases,
+    failedCharges,
+    manualRefundTasks,
+    advancedPoliciesEnabled,
+  ] = await withQueryDeadline(
+    'caixa.load',
+    Promise.all([
+      getClinicTimezone(clinicId),
+      getCaixaPagaveis(clinicId),
+      listPendenciasAbertas(clinicId),
+      listPaymentMethods(clinicId),
+      listOpenCollectionCases(clinicId),
+      paymentsApiV1.listFailedCharges(clinicId),
+      paymentsApiV1.listManualRefundTasks(clinicId),
+      billingApiV1.hasAdvancedFinancialPolicies(clinicId),
+    ]),
+  );
 
   const { from, to } = clinicDayBounds(tz);
 
@@ -89,24 +102,56 @@ export default async function CaixaPage() {
     ...new Set([
       ...all.filter((l) => l.patientId).map((l) => l.patientId!),
       ...failedCharges.filter((c) => c.patientId).map((c) => c.patientId!),
+      ...manualRefundTasks.filter((task) => task.patientId).map((task) => task.patientId!),
     ]),
   ];
 
-  // Rodada 3: transações e fichas saem dos lançamentos, mas não uma da outra.
-  const [paymentTransactions, cards] = await withQueryDeadline(
-    'caixa.enrich',
-    Promise.all([
-      listPaymentTransactionsForLancamentos(
-        clinicId,
-        all.map((l) => l.id),
-      ) as Promise<PaymentTransactionSummary[]>,
-      listPatientCards(clinicId, patientIds),
+  const appointmentIds = [
+    ...new Set(all.flatMap((item) => (item.appointmentId ? [item.appointmentId] : []))),
+  ];
+
+  // Rodada 3: transações, fichas e economia financeira saem dos lançamentos,
+  // mas nenhuma dessas leituras depende do resultado das outras.
+  const [paymentTransactions, cards, economics, commercialMethods, chargeEconomics] =
+    await withQueryDeadline(
+      'caixa.enrich',
+      Promise.all([
+        listPaymentTransactionsForLancamentos(
+          clinicId,
+          all.map((l) => l.id),
+        ) as Promise<PaymentTransactionSummary[]>,
+        listPatientCards(clinicId, patientIds),
+        listAppointmentFinancialEconomics(clinicId, appointmentIds),
+        listAppointmentCommercialPaymentMethods(clinicId, appointmentIds),
+        paymentsApiV1.listPatientChargeEconomics(clinicId, appointmentIds),
+      ]),
+    );
+  const nameById = new Map(cards.map((c) => [c.id, c.nome]));
+  const commercialMethodByAppointment = new Map(
+    commercialMethods.map((item) => [item.appointmentId, item.commercialPaymentMethod]),
+  );
+  const economicsByAppointment = new Map(
+    economics.map((item) => [
+      item.appointmentId,
+      advancedPoliciesEnabled ? item : { ...item, earlySettlementFeeAmount: null, payout: null },
     ]),
   );
-  const nameById = new Map(cards.map((c) => [c.id, c.nome]));
+  const chargesByAppointment = new Map<string, typeof chargeEconomics>();
+  for (const charge of chargeEconomics) {
+    const current = chargesByAppointment.get(charge.appointmentId) ?? [];
+    current.push(charge);
+    chargesByAppointment.set(charge.appointmentId, current);
+  }
   const enrich = (l: LancamentoSummary): CaixaItem => ({
     ...l,
     pacienteNome: l.patientId ? (nameById.get(l.patientId) ?? null) : null,
+    paymentEconomics: l.appointmentId
+      ? (economicsByAppointment.get(l.appointmentId) ?? null)
+      : null,
+    chargeEconomics: l.appointmentId ? (chargesByAppointment.get(l.appointmentId) ?? []) : [],
+    commercialPaymentMethod: l.appointmentId
+      ? (commercialMethodByAppointment.get(l.appointmentId) ?? null)
+      : null,
   });
 
   const canOperate =
@@ -138,10 +183,15 @@ export default async function CaixaPage() {
         ...charge,
         pacienteNome: charge.patientId ? (nameById.get(charge.patientId) ?? null) : null,
       }))}
+      manualRefundTasks={manualRefundTasks.map((task) => ({
+        ...task,
+        pacienteNome: task.patientId ? (nameById.get(task.patientId) ?? null) : null,
+      }))}
       excessRefundStatuses={excessRefundStatuses}
       collectionCases={collectionCases}
       methods={methods}
       paymentTransactions={paymentTransactions}
+      showAdvancedFinancialDetails={advancedPoliciesEnabled}
       canOperate={canOperate}
       canRefund={canRefund}
     />

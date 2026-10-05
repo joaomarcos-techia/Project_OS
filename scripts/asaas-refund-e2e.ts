@@ -27,7 +27,7 @@ import {
   assertAsaasFixtureAccount,
   fingerprintAsaasAccount,
 } from '@/lib/test/asaas-account-provenance';
-import { classifyCheckoutCleanup } from '@/lib/test/asaas-checkout-cleanup';
+import { classifyCheckoutCleanup, completedRefundValue } from '@/lib/test/asaas-checkout-cleanup';
 
 const OPT_IN = 'ALLOW_SANDBOX_REFUND';
 const API_BASE_URL = 'https://api-sandbox.asaas.com/v3';
@@ -38,7 +38,6 @@ const MINIMUM_BALANCE = 25;
 const POLL_ATTEMPTS = 30;
 const POLL_INTERVAL_MS = 2_000;
 const SETTLED_PAYMENT_STATUSES = new Set(['CONFIRMED', 'RECEIVED', 'RECEIVED_IN_CASH']);
-const TERMINAL_REFUND_STATUSES = new Set(['DONE', 'REFUNDED', 'CONFIRMED', 'COMPLETED']);
 
 const SYNTHETIC_CARD = {
   holderName: 'Paciente E2E Sandbox',
@@ -271,15 +270,6 @@ async function waitForSettled(client: AsaasClient, paymentId: string): Promise<P
     }
   }
   throw new Error('[asaas-refund-e2e] cobranca nao atingiu estado pago no prazo');
-}
-
-function completedRefundValue(refunds: readonly ProviderRefund[]): number {
-  return Number(
-    refunds
-      .filter((refund) => TERMINAL_REFUND_STATUSES.has(refund.status))
-      .reduce((total, refund) => total + refund.value, 0)
-      .toFixed(2),
-  );
 }
 
 async function waitForRefund(

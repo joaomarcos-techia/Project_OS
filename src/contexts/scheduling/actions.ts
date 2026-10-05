@@ -45,6 +45,7 @@ import { assertCanCompleteClinically } from './internal/clinical-completion';
 import { assertNoDailyDuplicate, readClinicTimeZone } from './internal/daily-duplicate';
 import {
   assertActiveDoctorInClinic,
+  assertCommercialPriceInput,
   assertPatientInClinic,
   buildSnapshot,
   createAppointmentCore,
@@ -413,6 +414,7 @@ export async function createWalkInAppointment(
         },
       },
       async (tx) => {
+        await assertCommercialPriceInput(tx, clinicId, data);
         if (data.patientId) await assertPatientInClinic(tx, clinicId, data.patientId);
         const snap = await buildSnapshot(tx, clinicId, data.procedureId, data.doctorId);
         await assertWalkInOperationalCapacity(tx, {
@@ -432,7 +434,13 @@ export async function createWalkInAppointment(
             scheduledAt: sql`now()`, // microssegundos → nunca colide na UNIQUE; isento do EXCLUDE
             durationMin: snap.duracaoMin,
             status: 'chegou',
-            valor: snap.valorPadrao,
+            valor: data.valorAjustado ? data.valor!.toFixed(2) : snap.valorPadrao,
+            valorAjustado: data.valorAjustado ?? false,
+            valorAjusteMotivo: data.valorAjustado ? (data.valorAjusteMotivo ?? null) : null,
+            pricingPolicyMode: data.pricingPolicyMode ?? 'absorb_fees',
+            commercialPaymentMethod: data.commercialPaymentMethod ?? null,
+            commercialInstallmentCount: data.commercialInstallmentCount ?? null,
+            commercialPriceId: data.commercialPriceId ?? null,
             snapshotProcedureName: snap.nome,
             snapshotProcedureCodigo: snap.codigo,
             snapshotProcedureCategoria: snap.categoria,

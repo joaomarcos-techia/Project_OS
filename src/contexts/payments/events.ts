@@ -74,6 +74,12 @@ export const PAYMENTS_EVENTS = {
    */
   CREDIT_GRANTED: 'payments.patient_credit.granted',
   /**
+   * O Asaas passou a informar o líquido depois de a cobrança já ter sido
+   * reconhecida. Não é um novo crédito: é a complementação autoritativa dos
+   * fatos econômicos usados pelo Caixa e pelo repasse profissional.
+   */
+  PAYMENT_ECONOMICS_RECONCILED: 'payments.patient_payment.economics_reconciled',
+  /**
    * O credito saiu de `available` sem ter sido alocado a um lancamento.
    *
    * O payload carrega `disposition` EXPLICITA, nunca implicita no nome: em
@@ -164,7 +170,7 @@ export type PatientChargeLinkReadyPayload = z.infer<typeof PatientChargeLinkRead
 // --- patient_credit.granted / .released (ADR-051) ---------------------------
 const creditKind = z.enum(['deposit', 'remaining_payment']);
 
-export const PatientCreditGrantedSchema = z.object({
+const PatientCreditGrantedCurrentSchema = z.object({
   /** Id da COBRANCA. E a chave de idempotencia do lado do Financial. */
   chargeId: uuid,
   clinicId: uuid,
@@ -172,6 +178,15 @@ export const PatientCreditGrantedSchema = z.object({
   patientId: uuid.nullable(),
   kind: creditKind,
   amount: z.number().positive(),
+  /** Valor bruto confirmado pelo readback no provedor. */
+  providerGrossAmount: z.number().positive(),
+  /** Taxa efetiva derivada dos valores bruto/líquido autoritativos; NULL se desconhecida. */
+  providerFeeAmount: z.number().nonnegative().nullable(),
+  /** Valor líquido informado pelo Asaas; NULL enquanto indisponível. */
+  providerNetAmount: z.number().nonnegative().nullable(),
+  /** Despesa de antecipação é outro fato; não é inferida a partir do pagamento. */
+  earlySettlementFeeAmount: z.number().nonnegative().nullable(),
+  installmentNumber: z.number().int().positive().nullable(),
   paidAt: z.string().datetime(),
   /**
    * Codigo do catalogo `payment_methods` (`pix` | `cartao_credito`), derivado do
@@ -180,7 +195,41 @@ export const PatientCreditGrantedSchema = z.object({
    */
   paymentMethod: z.string().nullable(),
 });
-export type PatientCreditGrantedPayload = z.infer<typeof PatientCreditGrantedSchema>;
+/** O produtor sempre emite os campos economicos, inclusive NULL quando desconhecidos. */
+export type PatientCreditGrantedPayload = z.infer<typeof PatientCreditGrantedCurrentSchema>;
+
+// Eventos ja persistidos antes dos campos economicos continuam no outbox. O
+// strict impede que um evento novo com apenas parte desses campos caia no ramo
+// legado e perca dados silenciosamente durante o parse.
+const PatientCreditGrantedLegacySchema = PatientCreditGrantedCurrentSchema.omit({
+  providerGrossAmount: true,
+  providerFeeAmount: true,
+  providerNetAmount: true,
+  earlySettlementFeeAmount: true,
+  installmentNumber: true,
+}).strict();
+
+export const PatientCreditGrantedSchema = z.union([
+  PatientCreditGrantedCurrentSchema,
+  PatientCreditGrantedLegacySchema,
+]);
+
+export const PatientPaymentEconomicsReconciledSchema = z.object({
+  chargeId: uuid,
+  clinicId: uuid,
+  appointmentId: uuid,
+  providerGrossAmount: z.number().positive(),
+  providerFeeAmount: z.number().nonnegative().nullable(),
+  providerNetAmount: z.number().nonnegative(),
+  /** Antecipação continua sendo um fato separado; NULL quando não informado. */
+  earlySettlementFeeAmount: z.number().nonnegative().nullable(),
+  installmentNumber: z.number().int().positive().nullable(),
+  paidAt: z.string().datetime(),
+  paymentMethod: z.string().nullable(),
+});
+export type PatientPaymentEconomicsReconciledPayload = z.infer<
+  typeof PatientPaymentEconomicsReconciledSchema
+>;
 
 export const PatientCreditReleasedSchema = z.object({
   chargeId: uuid,
@@ -223,6 +272,10 @@ export type PatientPaymentRiskChangedPayload = z.infer<typeof PatientPaymentRisk
 
 registerEventSchema(PAYMENTS_EVENTS.CHARGE_PAID, PatientChargePaidSchema);
 registerEventSchema(PAYMENTS_EVENTS.CREDIT_GRANTED, PatientCreditGrantedSchema);
+registerEventSchema(
+  PAYMENTS_EVENTS.PAYMENT_ECONOMICS_RECONCILED,
+  PatientPaymentEconomicsReconciledSchema,
+);
 registerEventSchema(PAYMENTS_EVENTS.CREDIT_RELEASED, PatientCreditReleasedSchema);
 registerEventSchema(PAYMENTS_EVENTS.CHARGE_LINK_READY, PatientChargeLinkReadySchema);
 registerEventSchema(PAYMENTS_EVENTS.CHARGE_CLOSED, PatientChargeClosedSchema);

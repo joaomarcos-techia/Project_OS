@@ -11,7 +11,14 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type * as CryptoModule from 'node:crypto';
 import type * as AsaasModule from '@/lib/payments/asaas';
+
+const cryptoMocks = vi.hoisted(() => ({ randomBytes: vi.fn() }));
+vi.mock('node:crypto', async (importActual) => {
+  const actual = await importActual<typeof CryptoModule>();
+  return { ...actual, randomBytes: cryptoMocks.randomBytes.mockImplementation(actual.randomBytes) };
+});
 
 const mocks = vi.hoisted(() => ({
   getMyAccount: vi.fn(),
@@ -74,6 +81,7 @@ vi.mock('./queries', () => ({
 }));
 
 import { metrics } from '@/lib/observability/metrics';
+import { encryptForTenant } from '@/lib/crypto';
 import {
   BillingCircuitOpenError,
   BillingProviderError,
@@ -105,6 +113,27 @@ beforeEach(() => {
 });
 
 describe('connectPaymentAccount', () => {
+  it('descarta token do webhook com quatro caracteres iguais ou sequência numérica', async () => {
+    const repeated = Buffer.from(
+      'AQEBAQEB' + 'AAAA' + 'BAQEBAQE'.repeat(3) + 'BAQEBAQ',
+      'base64url',
+    );
+    const numeric = Buffer.from(
+      'AQEBAQEB' + '12345' + 'BAQEBAQE'.repeat(3) + 'BAQEBA',
+      'base64url',
+    );
+    const valid = Buffer.alloc(32, 1);
+    cryptoMocks.randomBytes
+      .mockReturnValueOnce(repeated)
+      .mockReturnValueOnce(numeric)
+      .mockReturnValueOnce(valid);
+
+    await connectPaymentAccount({ apiKey: SECRET });
+
+    expect(cryptoMocks.randomBytes).toHaveBeenCalledTimes(3);
+    expect(encryptForTenant).toHaveBeenCalledWith('clinic-1', valid.toString('base64url'));
+  });
+
   it('valida no Asaas com a chave recebida e grava apenas o ciphertext', async () => {
     await connectPaymentAccount({ apiKey: SECRET });
 

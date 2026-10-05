@@ -21,6 +21,8 @@ const mocks = vi.hoisted(() => ({
   publishEvent: vi.fn(),
   listAvailableCredits: vi.fn(),
   allocateCredit: vi.fn(),
+  createProfessionalPayoutSnapshot: vi.fn(),
+  refreshProfessionalPayout: vi.fn(),
   lancamentoValues: vi.fn(),
   paymentValues: vi.fn(),
   pendenciaValues: vi.fn(),
@@ -35,6 +37,10 @@ vi.mock('@/contexts/scheduling', () => ({
 vi.mock('../credit-store', () => ({
   listAvailableCredits: mocks.listAvailableCredits,
   allocateCredit: mocks.allocateCredit,
+}));
+vi.mock('../professional-payout', () => ({
+  createProfessionalPayoutSnapshot: mocks.createProfessionalPayoutSnapshot,
+  refreshProfessionalPayout: mocks.refreshProfessionalPayout,
 }));
 vi.mock('../../schema', () => ({
   lancamentos: { __t: 'lancamentos', appointmentId: 'l.appointment_id', id: 'l.id' },
@@ -110,6 +116,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.listAvailableCredits.mockResolvedValue([]);
   mocks.allocateCredit.mockResolvedValue(true);
+  mocks.createProfessionalPayoutSnapshot.mockResolvedValue(null);
+  mocks.refreshProfessionalPayout.mockResolvedValue('missing');
 });
 
 describe('faturamento do atendimento — sem sinal (o caso da maioria)', () => {
@@ -134,6 +142,19 @@ describe('faturamento do atendimento — sem sinal (o caso da maioria)', () => {
 
     const evento = mocks.publishEvent.mock.calls[0]![1] as { eventType: string };
     expect(evento.eventType).toBe('financial.lancamento.created');
+  });
+
+  it('tenta criar exatamente um snapshot de repasse com a regra vigente', async () => {
+    await run();
+
+    expect(mocks.createProfessionalPayoutSnapshot).toHaveBeenCalledWith(expect.anything(), {
+      clinicId: 'clinic-1',
+      appointmentId: 'apt-1',
+      professionalId: 'doc-1',
+      procedureId: 'proc-1',
+      grossAmount: 200,
+      occurredAt: new Date('2026-08-25T13:00:00.000Z'),
+    });
   });
 });
 
@@ -196,6 +217,10 @@ describe('faturamento com sinal já pago (ADR-051 1.5b.2)', () => {
       status: 'pago',
       paidAt: expect.anything(),
     });
+    expect(mocks.refreshProfessionalPayout).toHaveBeenCalledWith(expect.anything(), {
+      clinicId: 'clinic-1',
+      appointmentId: 'apt-1',
+    });
   });
 
   it('crédito MAIOR que o valor não infla o valorPago', async () => {
@@ -236,6 +261,7 @@ describe('idempotência e falhas', () => {
     await run({}, { lancamentoRow: [] }); // UNIQUE(appointment_id) barrou
 
     expect(mocks.allocateCredit).not.toHaveBeenCalled();
+    expect(mocks.createProfessionalPayoutSnapshot).not.toHaveBeenCalled();
     expect(mocks.publishEvent).not.toHaveBeenCalled();
   });
 

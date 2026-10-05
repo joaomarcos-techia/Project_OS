@@ -67,7 +67,58 @@ ausentes. A clínica nominalmente de teste possui hoje três perfis ativos, mas 
 specs de recovery/logout exigem quatro; criar uma role ou escolher um usuário
 real só para obter verde alteraria a natureza da prova.
 
+### Reexecução das três pré-condições de RBAC em 04/10/2026
+
+As variáveis `E2E_TESTE_PROD_EMAIL`, `E2E_TESTE_PROD_PASSWORD`,
+`E2E_TESTE_PROD_EMAIL_DOCTOR` e `E2E_TESTE_PROD_PASSWORD_DOCTOR` estavam presentes e foram
+mapeadas apenas no processo para os aliases exigidos pelos três specs. O alvo foi
+`https://app.qoro.dev`; os specs inspecionados fazem login de teste, SELECT e GET, sem mutação
+de negócio. A invocação única dos specs `production-dashboard-financial-rbac`,
+`production-dashboard-operational-a` e `production-whatsapp-settings-rbac` terminou exit 1:
+os três interromperam antes das assertions funcionais porque o médico configurado não foi
+encontrado. Uma transação `READ ONLY` independente no banco de produção confirmou, sem expor
+identidades: a conta owner configurada existe e tem role `owner` ativa; o e-mail configurado
+como médico **não existe em `auth.users` de produção** e não compartilha clínica ativa com o
+owner. Classificação: **3 PRECONDITION BLOCKED, 0 PASS funcional, 0 FAIL de produto** nesta
+reexecução. Para reexecutar, usar uma conta de médico de teste realmente existente na mesma
+clínica e com credencial válida; não criar usuário em produção só para tornar a suíte verde.
+
 A coleta conjunta sem opt-ins continua deliberadamente sem prova funcional:
 **46 SKIP + 3 falhas de pré-condição e zero PASS**. Os dez PASS acima vieram de
 execuções isoladas que satisfizeram os respectivos guardas. Essa separação evita
 atribuir à coleta um resultado que ela não produziu.
+
+### Revalidação em 05/10/2026 — médico existente, UI atual e 44 arquivos
+
+As quatro variáveis `E2E_TESTE_PROD_EMAIL`, `E2E_TESTE_PROD_PASSWORD`,
+`E2E_TESTE_PROD_EMAIL_DOCTOR` e `E2E_TESTE_PROD_PASSWORD_DOCTOR` foram carregadas
+somente no processo de teste e mapeadas para os aliases esperados. Um `SELECT` em
+transação `READ ONLY` no projeto Auth de produção confirmou que a conta de médico
+**agora existe**, está ativa e tem role `doctor`. Portanto, o bloqueio por conta
+inexistente registrado acima é histórico e não representa o estado de 05/10.
+Nenhum valor de credencial nem identidade foi registrado.
+
+As três suítes read-only antes bloqueadas foram executadas contra
+`https://app.qoro.dev`: `production-dashboard-financial-rbac` **1 PASS**;
+`production-dashboard-operational-a` **1 PASS** depois de corrigir expectativas
+do próprio teste que ainda exigiam textos removidos da UI; e
+`production-whatsapp-settings-rbac` **1 PASS** para negar as três páginas ao
+médico sem `manage:settings`, mais **1 PRECONDITION BLOCKED** para comprovar
+ocultação de metadados de um número efetivamente conectado. O `SELECT` de
+pré-condição desse último caso contou **zero conexões ativas** na clínica do
+médico. Não criar conexão em produção apenas para obter um verde.
+
+Depois dessas correções de teste, os **44 arquivos** foram invocados novamente,
+com todos os opt-ins de mutação `E2E_PRODUCTION_*` removidos do processo. A coleta
+teve **50 casos: 3 PASS funcionais, 46 SKIP deliberados e 1 PRECONDITION BLOCKED**;
+exit 1 decorre exclusivamente da asserção de fixture de conexão ativa. `SKIP`
+não é PASS e a precondição não é bug de autorização do produto. A suíte
+`production-unauthenticated-boundary` também foi reexecutada isoladamente com o
+seu opt-in **somente leitura**: **2 PASS** (28 rotas estáticas, cinco deep-links,
+headers de segurança) e **1 SKIP** porque não havia conversa real na fixture;
+exit 0. Essa execução isolada não altera a contagem da coleta conjunta.
+
+As 46 omissões da coleta conjunta continuam ligadas aos guardas individuais
+descritos na tabela histórica. Não foram ativados os cenários que escrevem em
+produção. A matriz ainda não comprova essas funcionalidades na versão atual; os
+PASS históricos isolados não são reclassificados como PASS desta rodada.

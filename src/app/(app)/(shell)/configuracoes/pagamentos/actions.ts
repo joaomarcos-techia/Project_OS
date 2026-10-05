@@ -19,6 +19,28 @@ import type {
   PaymentAccountStatusDTO,
   SaveDepositPolicyInput,
 } from '@/contexts/payments';
+import {
+  removeProcedurePaymentPrice,
+  savePaymentPricingPolicy,
+  saveProcedurePaymentPrice,
+} from '@/contexts/payments/pricing-actions';
+import type {
+  PaymentPricingPolicyDTO,
+  ProcedurePaymentPriceDTO,
+  SavePaymentPricingPolicyInput,
+  SaveProcedurePaymentPriceInput,
+} from '@/contexts/payments';
+import {
+  removeProfessionalPayoutRule,
+  saveProfessionalPayoutPolicy,
+  saveProfessionalPayoutRule,
+} from '@/contexts/financial/payout-actions';
+import type {
+  ProfessionalPayoutPolicyDTO,
+  ProfessionalPayoutRuleDTO,
+  SaveProfessionalPayoutPolicyInput,
+  SaveProfessionalPayoutRuleInput,
+} from '@/contexts/financial';
 
 import { fail, ok, type ActionResult } from './pagamentos-types';
 
@@ -47,6 +69,72 @@ export async function saveDepositPolicyAction(
 ): Promise<ActionResult<DepositPolicyDTO>> {
   try {
     return ok(await saveDepositPolicy(input));
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+export async function saveProfessionalPayoutPolicyAction(
+  input: SaveProfessionalPayoutPolicyInput,
+  idempotencyKey: string,
+): Promise<ActionResult<ProfessionalPayoutPolicyDTO>> {
+  try {
+    return ok(await saveProfessionalPayoutPolicy(input, idempotencyKey));
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+export async function saveProfessionalPayoutRuleAction(
+  input: SaveProfessionalPayoutRuleInput,
+  idempotencyKey: string,
+): Promise<ActionResult<ProfessionalPayoutRuleDTO>> {
+  try {
+    return ok(await saveProfessionalPayoutRule(input, idempotencyKey));
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+export async function removeProfessionalPayoutRuleAction(
+  ruleId: string,
+  idempotencyKey: string,
+): Promise<ActionResult<{ removed: boolean }>> {
+  try {
+    return ok(await removeProfessionalPayoutRule({ ruleId }, idempotencyKey));
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+export async function savePaymentPricingPolicyAction(
+  input: SavePaymentPricingPolicyInput,
+  idempotencyKey: string,
+): Promise<ActionResult<PaymentPricingPolicyDTO>> {
+  try {
+    return ok(await savePaymentPricingPolicy(input, idempotencyKey));
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+export async function saveProcedurePaymentPriceAction(
+  input: SaveProcedurePaymentPriceInput,
+  idempotencyKey: string,
+): Promise<ActionResult<ProcedurePaymentPriceDTO>> {
+  try {
+    return ok(await saveProcedurePaymentPrice(input, idempotencyKey));
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+export async function removeProcedurePaymentPriceAction(
+  priceId: string,
+  idempotencyKey: string,
+): Promise<ActionResult<{ removed: boolean }>> {
+  try {
+    return ok(await removeProcedurePaymentPrice({ priceId }, idempotencyKey));
   } catch (err) {
     return fail(err);
   }

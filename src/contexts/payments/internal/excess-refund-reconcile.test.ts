@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   getPayment: vi.fn(),
   listRefunds: vi.fn(),
   confirm: vi.fn(),
+  prepareManual: vi.fn(),
   emit: vi.fn(),
 }));
 
@@ -17,6 +18,7 @@ vi.mock('./deposit-scan', () => ({ listClinicsWithPendingRefundIntents: mocks.li
 vi.mock('./excess-refund', () => ({
   listRefundIntentReconcileCandidates: mocks.listCandidates,
   confirmRefundIntentFromReadback: mocks.confirm,
+  prepareDisconnectedManualRefund: mocks.prepareManual,
 }));
 
 import { runExcessRefundReconcile } from './excess-refund-reconcile';
@@ -50,7 +52,7 @@ describe('runExcessRefundReconcile', () => {
     expect(mocks.getPayment).toHaveBeenCalledTimes(2);
     expect(mocks.listRefunds).toHaveBeenCalledWith('pay-1', { attempts: 1 });
     expect(mocks.confirm).toHaveBeenCalledWith(
-      expect.objectContaining({ providerPaymentStatus: 'RECEIVED' }),
+      expect.objectContaining({ clinicId: 'clinic-a', refunds: expect.any(Array) }),
     );
   });
 
@@ -81,5 +83,32 @@ describe('runExcessRefundReconcile', () => {
       failed: 2,
     });
     expect(mocks.listRefunds).not.toHaveBeenCalled();
+  });
+
+  it('prepara baseline de pendência manual após reconexão antes do readback', async () => {
+    const manualPreparation = {
+      chargeId: 'charge-1',
+      amount: 150,
+      purpose: 'deposit_closeout',
+      sourceEventId: 'event-1',
+    };
+    mocks.listCandidates.mockResolvedValue([
+      { id: 'intent-1', providerPaymentId: 'pay-1', manualPreparation },
+    ]);
+    mocks.confirm.mockReset().mockResolvedValue('pending');
+
+    await expect(runExcessRefundReconcile()).resolves.toEqual({
+      clinics: 1,
+      candidates: 1,
+      confirmed: 0,
+      pending: 1,
+      failed: 0,
+    });
+    expect(mocks.prepareManual).toHaveBeenCalledWith(
+      expect.objectContaining({ clinicId: 'clinic-a', manualPreparation }),
+    );
+    expect(mocks.prepareManual.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.confirm.mock.invocationCallOrder[0]!,
+    );
   });
 });

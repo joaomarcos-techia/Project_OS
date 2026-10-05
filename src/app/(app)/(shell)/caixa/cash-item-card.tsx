@@ -19,6 +19,113 @@ import {
 import { outstandingBalance } from './caixa-money';
 import type { CashPanelMode } from './caixa-types';
 
+function FinancialComposition({
+  item,
+  showAdvancedFinancialDetails,
+}: {
+  item: CaixaItem;
+  showAdvancedFinancialDetails: boolean;
+}) {
+  const economics = item.paymentEconomics;
+  if (item.tipo !== 'receber' || !item.appointmentId) return null;
+  const value = (amount: number | null, unknownLabel: string) =>
+    amount === null ? unknownLabel : formatBRL(amount);
+  const fee = (amount: number | null, unknownLabel: string) =>
+    amount === null ? unknownLabel : `− ${formatBRL(amount)}`;
+  const chargeKind = { deposit: 'Sinal', remainder: 'Restante' } as const;
+  const chargeStatus = {
+    pending: 'Pendente',
+    paid: 'Pago',
+    expired: 'Expirado',
+    cancelled: 'Cancelado',
+    refunded: 'Estornado',
+    failed: 'Falhou',
+  } as const;
+
+  return (
+    <details className="border-t border-border bg-surface-2 px-3.5 py-2.5">
+      <summary className="cursor-pointer text-(length:--fs-xs) font-semibold text-fg-muted">
+        Composição do atendimento
+      </summary>
+      <dl className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1 text-(length:--fs-xs)">
+        <dt className="text-fg-muted">Valor do atendimento</dt>
+        <dd className="font-mono tabular-nums">{formatBRL(item.valor)}</dd>
+        <dt className="text-fg-muted">Valor recebido alocado</dt>
+        <dd className="font-mono tabular-nums">
+          {value(economics?.providerGrossAmount ?? null, 'Não informado')}
+        </dd>
+        <dt className="text-fg-muted">Tarifa real alocada</dt>
+        <dd className="font-mono tabular-nums">
+          {fee(economics?.providerFeeAmount ?? null, 'Não informado')}
+        </dd>
+        {showAdvancedFinancialDetails ? (
+          <>
+            <dt className="text-fg-muted">Custo de antecipação</dt>
+            <dd className="font-mono tabular-nums">
+              {fee(economics?.earlySettlementFeeAmount ?? null, 'Não informado')}
+            </dd>
+          </>
+        ) : null}
+        <dt className="font-medium text-fg">Líquido real alocado</dt>
+        <dd className="font-mono font-semibold tabular-nums">
+          {value(economics?.providerNetAmount ?? null, 'Não informado')}
+        </dd>
+        {showAdvancedFinancialDetails && economics?.payout ? (
+          <>
+            <dt className="mt-1 border-t border-border pt-2 text-fg-muted">Base do repasse</dt>
+            <dd className="mt-1 border-t border-border pt-2 text-right font-medium">
+              {economics.payout.calculationBasis === 'gross' ? 'Bruto' : 'Líquido'}
+            </dd>
+            <dt className="text-fg-muted">Valor da base</dt>
+            <dd className="font-mono tabular-nums">
+              {value(economics.payout.basisAmount, 'Não informado')}
+            </dd>
+            <dt className="font-medium text-fg">Repasse profissional</dt>
+            <dd className="font-mono font-semibold tabular-nums">
+              {value(economics.payout.payoutAmount, 'Não informado')}
+            </dd>
+          </>
+        ) : null}
+      </dl>
+      {item.chargeEconomics?.length ? (
+        <div className="mt-3 border-t border-border pt-2">
+          <h4 className="text-(length:--fs-xs) font-semibold text-fg">Cada cobrança Asaas</h4>
+          <p className="mt-1 text-(length:--fs-2xs) text-fg-muted">
+            Bruto, tarifa e líquido são fatos do pagamento original. Após estorno, confira o saldo
+            atual do atendimento.
+          </p>
+          <div className="mt-2 space-y-2">
+            {item.chargeEconomics.map((charge) => (
+              <div key={charge.chargeId} className="rounded-md border border-border px-2.5 py-2">
+                <div className="flex justify-between gap-3 text-(length:--fs-xs) font-medium">
+                  <span>{chargeKind[charge.kind]}</span>
+                  <span>{chargeStatus[charge.status]}</span>
+                </div>
+                <dl className="mt-1.5 grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1 text-(length:--fs-xs)">
+                  <dt className="text-fg-muted">Valor solicitado</dt>
+                  <dd className="font-mono tabular-nums">{formatBRL(charge.requestedAmount)}</dd>
+                  <dt className="text-fg-muted">Bruto no pagamento</dt>
+                  <dd className="font-mono tabular-nums">
+                    {value(charge.providerGrossAmount, 'Não informado')}
+                  </dd>
+                  <dt className="text-fg-muted">Tarifa real da cobrança</dt>
+                  <dd className="font-mono tabular-nums">
+                    {fee(charge.providerFeeAmount, 'Não informado')}
+                  </dd>
+                  <dt className="text-fg-muted">Líquido no pagamento</dt>
+                  <dd className="font-mono tabular-nums">
+                    {value(charge.providerNetAmount, 'Não informado')}
+                  </dd>
+                </dl>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </details>
+  );
+}
+
 /** Data local de hoje em `YYYY-MM-DD`, para comparar com `dueDate`. */
 function todayYmd(): string {
   return new Intl.DateTimeFormat('en-CA').format(new Date());
@@ -66,6 +173,7 @@ export function CashItemCard({
   pending,
   methods,
   paymentTransactions,
+  showAdvancedFinancialDetails,
   panelMode,
   onOpenPanel,
   onClosePanel,
@@ -80,6 +188,7 @@ export function CashItemCard({
   pending: boolean;
   methods: PaymentMethodDTO[];
   paymentTransactions: PaymentTransactionSummary[];
+  showAdvancedFinancialDetails: boolean;
   panelMode: CashPanelMode | null;
   onOpenPanel: (mode: CashPanelMode) => void;
   onClosePanel: () => void;
@@ -243,6 +352,10 @@ export function CashItemCard({
           ) : null}
           {acoes}
         </div>
+        <FinancialComposition
+          item={item}
+          showAdvancedFinancialDetails={showAdvancedFinancialDetails}
+        />
         {painel}
       </div>
     );
@@ -299,6 +412,11 @@ export function CashItemCard({
           </div>
         </div>
       ) : null}
+
+      <FinancialComposition
+        item={item}
+        showAdvancedFinancialDetails={showAdvancedFinancialDetails}
+      />
 
       {painel}
     </div>

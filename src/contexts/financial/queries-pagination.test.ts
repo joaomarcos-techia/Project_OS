@@ -61,6 +61,8 @@ function lancamento(index: number, clinicId = 'clinic-a'): LancamentoRow {
     patientId: null,
     supplierId: null,
     appointmentId: null,
+    sourcePatientChargeId: null,
+    financialExpenseKind: null,
     paymentMethod: null,
     createdVia: 'manual',
     reversesLancamentoId: null,

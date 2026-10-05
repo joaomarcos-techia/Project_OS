@@ -1,12 +1,11 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({ redirect: vi.fn(), resolve: vi.fn(), claim: vi.fn() }));
+const mocks = vi.hoisted(() => ({ redirect: vi.fn(), resolve: vi.fn() }));
 
 vi.mock('next/navigation', () => ({ redirect: mocks.redirect }));
 vi.mock('@/contexts/onboarding', () => ({
-  claimSignupDraftByVerifiedEmail: mocks.claim,
-  resolveReadyOwnedSignupOnboarding: mocks.resolve,
+  resolveSignupDraftEntry: mocks.resolve,
 }));
 
 import ContinueSignupPage from './page';
@@ -22,7 +21,6 @@ beforeEach(() => {
     userId: '11111111-1111-4111-8111-111111111111',
     email: 'private@example.invalid',
   });
-  mocks.claim.mockResolvedValue({ ok: true, rowVersion: 6 });
 });
 
 describe('/cadastro/continuar', () => {
@@ -34,21 +32,39 @@ describe('/cadastro/continuar', () => {
     expect(html).not.toContain('11111111-1111-4111-8111-111111111111');
   });
 
-  it('não vincula draft durante o render: o vínculo é do endpoint limitado', async () => {
+  it('não escreve no banco durante o render', async () => {
     renderToStaticMarkup(await ContinueSignupPage());
-    expect(mocks.claim).not.toHaveBeenCalled();
+    expect(mocks.resolve).toHaveBeenCalledTimes(1);
+  });
+
+  it('permite recomeçar com a mesma conta quando o draft expirou', async () => {
+    mocks.resolve.mockResolvedValue({
+      ok: true,
+      kind: 'restart',
+      userId: '11111111-1111-4111-8111-111111111111',
+      email: 'private@example.invalid',
+    });
+    const html = renderToStaticMarkup(await ContinueSignupPage());
+    expect(html).toContain('Revise seu cadastro');
+    expect(mocks.redirect).not.toHaveBeenCalled();
+    expect(html).not.toContain('private@example.invalid');
+  });
+
+  it('mostra recuperação explícita se o vínculo não pôde ser confirmado', async () => {
+    mocks.resolve.mockResolvedValue({ ok: false, reason: 'credentials_invalid' });
+    const html = renderToStaticMarkup(await ContinueSignupPage());
+    expect(html).toContain('Não foi possível retomar o cadastro');
+    expect(html).toContain('Ir para o login');
+    expect(mocks.redirect).not.toHaveBeenCalled();
   });
 
   it.each([
     [{ ok: false, reason: 'invalid_session' }, '/login'],
     [{ ok: false, reason: 'email_unverified' }, '/login'],
-    [{ ok: false, reason: 'credentials_pending' }, '/login'],
-    [{ ok: false, reason: 'credentials_invalid' }, '/login'],
     [{ ok: true, kind: 'redirect', route: '/login/mfa' }, '/login/mfa'],
     [{ ok: true, kind: 'redirect', route: '/convite' }, '/convite'],
   ])('redireciona estados que não são pré-tenant %#', async (result, destination) => {
     mocks.resolve.mockResolvedValue(result);
     await expect(ContinueSignupPage()).rejects.toThrow(`REDIRECT:${destination}`);
-    expect(mocks.claim).not.toHaveBeenCalled();
   });
 });

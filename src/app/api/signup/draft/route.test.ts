@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   writeLimit: vi.fn(),
   readDraft: vi.fn(),
   writeDraft: vi.fn(),
+  ensureBinding: vi.fn(),
 }));
 vi.mock('@/lib/env', () => ({ env: mocks.env }));
 vi.mock('@/lib/auth/signup-user-hash', () => ({ hashSignupUserId: mocks.hashUser }));
@@ -28,7 +29,8 @@ vi.mock('@/contexts/onboarding', async () => {
     signupDraftMutationSchema,
     readSignupDraft: mocks.readDraft,
     writeSignupDraft: mocks.writeDraft,
-    resolveReadyOwnedSignupOnboarding: mocks.resolve,
+    resolveSignupDraftEntry: mocks.resolve,
+    ensurePasswordAuthenticatedSignupAuthBinding: mocks.ensureBinding,
   };
 });
 
@@ -94,9 +96,22 @@ beforeEach(() => {
   mocks.writeLimit.mockResolvedValue({ ok: true });
   mocks.readDraft.mockResolvedValue({ ok: true, draft });
   mocks.writeDraft.mockResolvedValue({ ok: true, rowVersion: 6 });
+  mocks.ensureBinding.mockResolvedValue({ ok: true });
 });
 
 describe('GET /api/signup/draft', () => {
+  it('mostra recomeço autenticado somente após aplicar rate limit', async () => {
+    mocks.resolve.mockResolvedValue({
+      ok: true,
+      kind: 'restart',
+      userId: USER_ID,
+      email: 'verified@example.invalid',
+    });
+    const response = await GET(request('GET', undefined, null));
+    expect(response.status).toBe(410);
+    expect(mocks.readLimit).toHaveBeenCalledOnce();
+    expect(mocks.readDraft).not.toHaveBeenCalled();
+  });
   it('revalida owner, limita por HMAC e retorna somente o draft sanitizado sem renovar TTL', async () => {
     const response = await GET(request('GET'));
     expect(response.status).toBe(200);
@@ -174,6 +189,39 @@ describe('GET /api/signup/draft', () => {
 });
 
 describe('POST /api/signup/draft', () => {
+  it('recria o draft expirado na mesma identidade e reata Auth antes de responder', async () => {
+    mocks.resolve.mockResolvedValue({
+      ok: true,
+      kind: 'restart',
+      userId: USER_ID,
+      email: 'verified@example.invalid',
+    });
+    const response = await POST(request('POST', JSON.stringify(restart), null));
+    expect(response.status).toBe(200);
+    expect(mocks.writeDraft).toHaveBeenCalledWith({
+      userId: USER_ID,
+      email: 'verified@example.invalid',
+      input: restart,
+    });
+    expect(mocks.ensureBinding).toHaveBeenCalledWith({
+      userId: USER_ID,
+      email: 'verified@example.invalid',
+    });
+  });
+
+  it('não limpa o cookie nem anuncia sucesso se o rebind Auth falhar após o commit', async () => {
+    mocks.resolve.mockResolvedValue({
+      ok: true,
+      kind: 'restart',
+      userId: USER_ID,
+      email: 'verified@example.invalid',
+    });
+    mocks.ensureBinding.mockResolvedValue({ ok: false, reason: 'unavailable' });
+    const response = await POST(request('POST'));
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ error: 'binding_unavailable' });
+    expect(response.headers.get('set-cookie')).toBeNull();
+  });
   it('cria o draft do usuário verificado e limpa o bootstrap só depois do commit', async () => {
     const response = await POST(request('POST'));
     expect(response.status).toBe(200);

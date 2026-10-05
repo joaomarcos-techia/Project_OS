@@ -103,15 +103,15 @@ async function validateCredential(
  * há de onde relê-lo depois.
  *
  * O laço existe por uma regra REAL do Asaas, descoberta ao vivo em 2026-08-24:
- * *"o token não pode conter mais de 4 caracteres iguais consecutivos"*. Um token
- * aleatório viola isso raramente — o que é pior do que violar sempre: a conexão
+ * O token não pode conter 4 caracteres iguais nem sequências numéricas simples.
+ * Um token aleatório viola isso raramente — o que é pior do que violar sempre: a conexão
  * de uma clínica falharia de vez em quando, sem padrão, e pareceria instabilidade
  * do gateway. Gerar de novo é mais barato que investigar isso depois.
  */
 function generateWebhookToken(): string {
   for (let attempt = 0; attempt < 8; attempt++) {
     const candidate = randomBytes(32).toString('base64url');
-    if (!/(.){4,}/.test(candidate)) return candidate;
+    if (!/(.)\1{3,}/.test(candidate) && !/\d{5}/.test(candidate)) return candidate;
   }
   // 8 tentativas seguidas com repetição é indistinguível de RNG quebrado.
   throw new Error('[payments] não foi possível gerar um token de webhook válido');

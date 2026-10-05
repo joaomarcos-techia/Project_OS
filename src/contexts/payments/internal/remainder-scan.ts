@@ -71,6 +71,7 @@ export async function runRemainderScan(opts?: {
 
     for (const item of items) {
       if (alreadyCharged.has(item.appointmentId)) continue;
+      if (item.commercialPaymentMethod === 'cash') continue;
       try {
         await createRemainderCharge({
           clinicId,
@@ -78,6 +79,8 @@ export async function runRemainderScan(opts?: {
             appointmentId: item.appointmentId,
             patientId: item.patientId,
             valor: item.valor,
+            commercialPaymentMethod: item.commercialPaymentMethod,
+            commercialInstallmentCount: item.commercialInstallmentCount,
           },
         });
         summary.charged += 1;

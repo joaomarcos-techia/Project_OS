@@ -71,7 +71,39 @@ export async function resolveReadyOwnedSignupOnboarding(existingClient?: Supabas
           : ('credentials_invalid' as const),
     };
   }
-  if (owned.signupRef !== onboarding.signupRef || owned.credentialState !== 'completed') {
+  // Um draft recriado pela própria conta verificada não repete a tentativa de
+  // envio de e-mail: auth_attempt_state é NULL, mas a senha já está `set` no Auth.
+  if (
+    owned.signupRef !== onboarding.signupRef ||
+    (owned.credentialState !== 'completed' && owned.credentialState !== null)
+  ) {
+    return { ok: false as const, reason: 'credentials_invalid' as const };
+  }
+  return { ...onboarding, signupRef: owned.signupRef };
+}
+
+/** Só a revisão do cadastro pode oferecer um novo draft após a expiração. */
+export async function resolveSignupDraftEntry(existingClient?: SupabaseClient) {
+  const onboarding = await resolveReadyPreTenantOnboarding(existingClient);
+  if (!onboarding.ok || onboarding.kind !== 'pretenant') return onboarding;
+  if (!onboarding.signupRef) return { ok: false as const, reason: 'credentials_invalid' as const };
+
+  const owned = await readOwnedSignupReference(onboarding.userId, onboarding.email);
+  if (!owned.ok) {
+    if (owned.reason === 'gone') {
+      return {
+        ok: true as const,
+        kind: 'restart' as const,
+        userId: onboarding.userId,
+        email: onboarding.email,
+      };
+    }
+    return { ok: false as const, reason: 'unavailable' as const };
+  }
+  if (
+    owned.signupRef !== onboarding.signupRef ||
+    (owned.credentialState !== 'completed' && owned.credentialState !== null)
+  ) {
     return { ok: false as const, reason: 'credentials_invalid' as const };
   }
   return { ...onboarding, signupRef: owned.signupRef };
@@ -273,7 +305,12 @@ export async function ensurePasswordAuthenticatedSignupAuthBinding(input: {
     if (!owned.ok && owned.reason === 'unavailable') {
       return { ok: false, reason: 'unavailable' };
     }
-    if (owned.ok && current?.passwordState === 'set' && current.signupRef !== owned.signupRef) {
+    if (
+      owned.ok &&
+      current?.passwordState === 'set' &&
+      current.signupRef !== owned.signupRef &&
+      owned.credentialState !== null
+    ) {
       return { ok: false, reason: 'obfuscated' };
     }
     // Uma conta antiga pode ter confirmado o Auth sem o callback conseguir

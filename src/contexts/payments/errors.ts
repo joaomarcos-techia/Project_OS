@@ -26,3 +26,12 @@ export class PaymentProviderUnavailableError extends Error {
     this.name = 'PaymentProviderUnavailableError';
   }
 }
+
+export class PaymentValidationError extends Error {
+  readonly code = 'payment_validation';
+  readonly httpStatus = 422;
+  constructor(message: string) {
+    super(message);
+    this.name = 'PaymentValidationError';
+  }
+}

@@ -133,6 +133,30 @@ export async function getAppointmentOrThrow(
   return row;
 }
 
+/** Condições comerciais dos atendimentos visíveis no Caixa, em uma leitura tenant-scoped. */
+export async function listAppointmentCommercialPaymentMethods(
+  clinicId: string,
+  appointmentIds: readonly string[],
+): Promise<
+  Array<{
+    appointmentId: string;
+    commercialPaymentMethod: AppointmentRow['commercialPaymentMethod'];
+  }>
+> {
+  if (appointmentIds.length === 0) return [];
+  return withTenant(clinicId, (tx) =>
+    tx
+      .select({
+        appointmentId: appointments.id,
+        commercialPaymentMethod: appointments.commercialPaymentMethod,
+      })
+      .from(appointments)
+      .where(
+        and(eq(appointments.clinicId, clinicId), inArray(appointments.id, [...appointmentIds])),
+      ),
+  );
+}
+
 /**
  * UX-003 — resumo das séries recorrentes visíveis na Agenda.
  *

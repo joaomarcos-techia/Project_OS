@@ -234,6 +234,12 @@ O webhook de **assinatura** (conta do Qoro) permanece **intocado**.
 > bloqueada até haver ADR complementar.
 
 #### 1.5a — Falta e estorno (entregue)
+
+**Decisão posterior de 04/10/2026, ainda local:** a clínica executa a devolução de
+sinal pago em sua própria conta Asaas; o Qoro registra a obrigação, mostra a
+pendência no Caixa e só projeta `refunded` após readback de estorno `DONE` com
+valor suficiente. O texto histórico abaixo descreve a automação anterior. A
+mudança e seus limites estão em [política financeira em camadas](../specs/politica-financeira-camadas.md).
 - **Escopo:** handler de `scheduling.appointment.no_show` → sinal pago vira receita retida (taxa),
   sem débito; handler de `scheduling.appointment.cancelled` → dentro da janela **estorna**, fora dela
   retém, e **sem pagamento apaga o link no gateway**.

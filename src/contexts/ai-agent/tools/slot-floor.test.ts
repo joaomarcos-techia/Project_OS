@@ -15,11 +15,14 @@ import type { Tx } from '@/lib/db';
 
 import type * as PendingActionModule from '../internal/pending-action';
 
-const { listSlots, listProcedures, proposePendingAction } = vi.hoisted(() => ({
-  listSlots: vi.fn(),
-  listProcedures: vi.fn(),
-  proposePendingAction: vi.fn(),
-}));
+const { listSlots, listProcedures, getPaymentPricingPolicy, proposePendingAction } = vi.hoisted(
+  () => ({
+    listSlots: vi.fn(),
+    listProcedures: vi.fn(),
+    getPaymentPricingPolicy: vi.fn(),
+    proposePendingAction: vi.fn(),
+  }),
+);
 
 // Só a PERSISTÊNCIA da ação pendente é substituída: ela cifra o payload e grava
 // no banco, e nada disso é o que está sob teste aqui. As validações de
@@ -31,6 +34,7 @@ vi.mock('../internal/pending-action', async (orig) => ({
 
 // `vi.mock` é chamada, não import — não cruza fronteira de contexto.
 vi.mock('@/contexts/scheduling', () => ({ schedulingApiV1: { listSlots, listProcedures } }));
+vi.mock('@/contexts/payments', () => ({ getPaymentPricingPolicy }));
 
 import { AGENT_MIN_LEAD_MINUTES } from '../limits';
 import { agentSlotFloor } from './list-slots';
@@ -144,6 +148,7 @@ describe('list_slots pede o piso ao Scheduling', () => {
 describe('prepare_appointment pede o piso nos DOIS caminhos', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getPaymentPricingPolicy.mockResolvedValue({ mode: 'absorb_fees', updatedAt: null });
     proposePendingAction.mockImplementation(async (_tx, args: { summary: string }) => ({
       id: '88888888-8888-8888-8888-888888888888',
       action: 'schedule_appointment' as const,
@@ -263,11 +268,7 @@ describe('prepare_appointment pede o piso nos DOIS caminhos', () => {
       { doctorId: DOCTOR, startAt: at.toISOString(), endAt: at.toISOString(), durationMin: 60 },
     ]);
     const before = Date.now();
-    await getTool('prepare_appointment')!
-      .handler({ scheduled_at: at.toISOString() }, ctx)
-      .catch(
-        () => undefined, // proposePendingAction precisa de tx; o que importa é o argumento acima
-      );
+    await getTool('prepare_appointment')!.handler({ scheduled_at: at.toISOString() }, ctx);
     expect(lastNotBefore()!.getTime()).toBeGreaterThanOrEqual(
       before + AGENT_MIN_LEAD_MINUTES * 60_000,
     );

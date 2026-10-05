@@ -5,19 +5,18 @@
  *   - o agendamento morreu e o sinal **nunca foi pago** → o link precisa MORRER
  *     junto. Sem isto, o paciente abre um link de dias atrás e paga por uma vaga
  *     que a clínica já deu para outra pessoa;
- *   - o agendamento morreu e o sinal **foi pago** → o dinheiro volta (cancelou
- *     dentro da janela) ou fica (faltou, ou cancelou em cima da hora — é a taxa
- *     que o sinal existe para cobrar).
+ *   - o agendamento morreu e o sinal **foi pago** → registra a obrigação de
+ *     devolução para a clínica (cancelou dentro da janela) ou retém o valor
+ *     (faltou, ou cancelou em cima da hora — é a taxa que o sinal cobra).
  *
  * **Retenção não escreve nada.** É o estado que já existe: cobrança `paid` +
  * agendamento `faltou`/`cancelado`. Um status `retained` seria um fato derivado
  * gravado — e ele passaria a mentir no dia em que a agenda for reaberta
  * (`recovery-policy`: `faltou → agendado`). O que fica é métrica.
  *
- * **Sempre olha antes de agir.** Toda operação irreversível no gateway é
- * precedida de um `getPayment`: é a mesma doutrina do `findPaymentByExternalReference`
- * na criação. O Asaas não tem idempotency-key, e o worker entrega at-least-once —
- * sem a leitura, uma reentrega estornaria duas vezes.
+ * **Sempre olha antes de agir.** A leitura de `getPayment` confirma que houve
+ * pagamento antes de registrar a obrigação; a clínica executa a devolução no
+ * Asaas. O worker não envia POST de estorno em reentregas.
  *
  * **Ownership (R3):** nada aqui escreve `appointments`. Publica-se
  * `payments.patient_charge.closed`; quem projeta na agenda é o Scheduling.
@@ -34,11 +33,16 @@ import { isRefundableCancellation } from '../policy';
 import { getDepositPolicy } from '../queries';
 import {
   closeCharge,
+  flagPaidChargeMissingPaymentId,
   findOpenCharge,
   releaseCreditAsRetained,
   type OpenCharge,
 } from './charge-store';
-import { requestDepositRefund } from './excess-refund';
+import {
+  confirmedRefundTotal,
+  queueManualDepositRefund,
+  reconcileRefundIntentsForPayment,
+} from './excess-refund';
 
 /**
  * Status do Asaas em que o dinheiro do paciente REALMENTE entrou. Só a partir
@@ -49,19 +53,6 @@ const SETTLED_STATUSES = new Set(['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH']);
 
 /** Estados não terminais: já existe estorno em curso, mas o dinheiro ainda não voltou. */
 const REFUND_IN_PROGRESS_STATUSES = new Set(['REFUND_REQUESTED', 'REFUND_IN_PROGRESS']);
-
-/**
- * Formas de pagamento que o Asaas sabe estornar pela API. Verificado ao vivo em
- * 2026-08-24, e a mensagem é literal: *"Somente é possível estornar cobranças
- * cuja a forma de pagamento seja cartão de crédito ou Pix."*
- *
- * Importa porque o sinal nasce como `UNDEFINED` — quem escolhe é o paciente, na
- * página do Asaas. Se ele pagar por boleto (ou se a clínica marcar como recebido
- * em dinheiro no painel), o estorno automático é IMPOSSÍVEL. Sem esta guarda o
- * handler tomaria 400 do gateway, o worker retentaria até desistir, e o
- * cancelamento apareceria como falha genérica em vez de tarefa para uma pessoa.
- */
-const REFUNDABLE_BILLING_TYPES = new Set(['PIX', 'CREDIT_CARD']);
 
 /**
  * Cancelamentos que devolvem o sinal **independentemente da janela**, porque em
@@ -304,7 +295,7 @@ async function voidCharge(args: {
   }
 }
 
-/** Devolve o sinal ao paciente. */
+/** Registra a devolução devida para execução pela clínica. */
 async function refundCharge(args: {
   client: AsaasClient | null;
   clinicId: string;
@@ -314,15 +305,27 @@ async function refundCharge(args: {
 }): Promise<void> {
   const { client, clinicId, appointmentId, charge, sourceEventId } = args;
 
-  if (!client || !charge.providerPaymentId) {
-    // Sem chave (conta desconectada) ou sem id no gateway não há como devolver.
+  if (!charge.providerPaymentId) {
+    await flagPaidChargeMissingPaymentId(clinicId, charge.id);
+    // Sem id no gateway não há como acompanhar a devolução pela conta Asaas.
     // NÃO se fecha a cobrança: marcar `refunded` sem ter estornado seria o
     // sistema mentindo que o paciente recebeu o dinheiro de volta.
     metrics.emit('payments.deposit.refund_skipped', {
       clinicId,
       appointmentId,
       chargeId: charge.id,
-      reason: client ? 'sem_provider_payment_id' : 'conta_desconectada',
+      reason: 'sem_provider_payment_id',
+    });
+    return;
+  }
+
+  if (!client) {
+    await queueManualDepositRefund({
+      clinicId,
+      chargeId: charge.id,
+      amount: charge.amount,
+      sourceEventId,
+      client: null,
     });
     return;
   }
@@ -333,31 +336,32 @@ async function refundCharge(args: {
     .catch((err: unknown) => rethrowGatewayError(err, gateway));
 
   if (payment.status === 'REFUNDED') {
-    // Fonte autoritativa: uma execução anterior (ou ação manual) concluiu o
-    // estorno. Fechar agora é seguro e não dispara um segundo POST.
-    const closed = await closeCharge({
-      clinicId,
-      chargeId: charge.id,
-      from: 'paid',
-      outcome: 'refunded',
-      kind: charge.kind,
-      appointmentId,
-      amount: charge.amount,
-      closedAt: new Date(),
-    });
-    if (closed) {
-      metrics.emit('payments.deposit.refunded', {
+    const refunds = await client
+      .listPaymentRefunds(charge.providerPaymentId, { attempts: 1 })
+      .catch((err: unknown) => rethrowGatewayError(err, gateway));
+    if (confirmedRefundTotal(refunds) + 1e-9 >= charge.amount) {
+      // O estado da cobrança sozinho não prova devolução. Somente os itens DONE
+      // com valor suficiente permitem confirmar a intenção. Não fecha direto:
+      // uma intenção antiga pode apontar para um refund ainda PENDING enquanto
+      // outro item DONE pertence a uma operação externa distinta.
+      await queueManualDepositRefund({
         clinicId,
-        appointmentId,
         chargeId: charge.id,
         amount: charge.amount,
+        sourceEventId,
+        client,
       });
+      await reconcileRefundIntentsForPayment({
+        clinicId,
+        providerPaymentId: charge.providerPaymentId,
+        loadRefunds: async () => refunds,
+      });
+      return;
     }
-    return;
   }
 
   if (REFUND_IN_PROGRESS_STATUSES.has(payment.status)) {
-    // Sem correlação local não é seguro iniciar outro estorno em paralelo.
+    // Acompanhamos a devolução em curso, mas não iniciamos outra.
     metrics.emit('payments.deposit.refund_skipped', {
       clinicId,
       appointmentId,
@@ -365,10 +369,13 @@ async function refundCharge(args: {
       reason: 'provider_refund_in_progress',
       providerStatus: payment.status,
     });
-    return;
   }
 
-  if (!SETTLED_STATUSES.has(payment.status)) {
+  if (
+    !SETTLED_STATUSES.has(payment.status) &&
+    payment.status !== 'REFUNDED' &&
+    !REFUND_IN_PROGRESS_STATUSES.has(payment.status)
+  ) {
     // Nosso banco diz `paid`, o Asaas diz que não recebeu. Divergência que uma
     // pessoa precisa olhar — estornar dinheiro que não entrou é pior que não
     // estornar.
@@ -381,23 +388,9 @@ async function refundCharge(args: {
     });
     return;
   }
-  if (!REFUNDABLE_BILLING_TYPES.has(payment.billingType ?? '')) {
-    // Pago por boleto ou marcado como recebido em dinheiro: a devolução existe,
-    // mas quem a faz é uma pessoa, pelo painel. Deixar a cobrança `paid` é o
-    // registro honesto — `refunded` diria que o paciente já recebeu de volta.
-    metrics.emit('payments.deposit.refund_skipped', {
-      clinicId,
-      appointmentId,
-      chargeId: charge.id,
-      reason: 'forma_de_pagamento_nao_estornavel',
-      billingType: payment.billingType,
-    });
-    return;
-  }
-
-  let outcome: Awaited<ReturnType<typeof requestDepositRefund>>;
+  let outcome: Awaited<ReturnType<typeof queueManualDepositRefund>>;
   try {
-    outcome = await requestDepositRefund({
+    outcome = await queueManualDepositRefund({
       clinicId,
       chargeId: charge.id,
       amount: charge.amount,

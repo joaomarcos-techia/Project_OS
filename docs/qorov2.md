@@ -7248,7 +7248,7 @@ produto.
 
 ## 40. Gap: conta de cadastro que expira antes do pagamento entra em loop no login — 29/09/2026
 
-**Estado: aberto.** Documentado, sem correção. A correção depende de decisão de produto (40.4).
+**Estado atual: correção implementada e testada localmente; E2E funcional no Auth/PostgreSQL DEV aprovado para o estado pós-expiração. Cron temporal e Preview ainda pendentes.** O relato e a medição de produção abaixo são históricos. A decisão adotada está em 40.5.
 
 ### 40.1 O sintoma
 
@@ -7287,7 +7287,7 @@ loop.
 | ---- | ------ |
 | Contas de cadastro autônomo sem clínica em produção, depois da limpeza | **0** — leitura em transação `READ ONLY` |
 | Conta de teste `2c1411d1…` | **Apagada** a pedido, pela Admin API. Antes, conferido: nenhuma referência fora do schema `auth` (sem profile, clínica ou assinatura) e nenhum cliente no Asaas de produção com o e-mail. Depois: usuário, identidades, sessões e refresh tokens em 0; `GET admin/users` → 404. Ficaram 2 linhas em `login_attempts` (só hash do e-mail), que a retenção remove |
-| Correção do loop | **NOT TESTED** — não implementada |
+| Correção do loop no estado de 29/09 | **NOT TESTED** — não implementada naquele momento; ver 40.5 para o estado atual |
 
 ### 40.4 O que precisa ser decidido
 
@@ -7300,6 +7300,44 @@ loop.
 - **Mínimo, em qualquer caso: acabar com o loop mudo.** `/cadastro/continuar` encerra a sessão e manda
   para `/login` com um motivo explícito ("Seu cadastro expirou antes de ser concluído…"), e a tela de
   login mostra o que fazer. Sozinho, isso não devolve o acesso: precisa de uma das duas saídas acima.
+
+### 40.5 Decisão e implementação local — 04/10/2026
+
+Foi escolhida a **retomada na mesma conta Auth**. Após login com senha e e-mail confirmado, se não há
+rascunho vivo, `/cadastro/continuar` oferece novo preenchimento dos dados perdidos. O POST limitado de
+`/api/signup/draft` grava uma nova linha vinculada ao mesmo `auth_user_id` e só anuncia sucesso depois
+de reatar em `app_metadata` a referência nova. Plano e checkout continuam exigindo concordância entre
+o Auth e a linha viva no banco. Nenhum profile, clínica, papel ou plano é criado por esse recomeço.
+Uma linha vencida que tenha iniciado billing ou tenha IDs do Asaas não é apagada automaticamente: o
+POST devolve conflito e a tela orienta verificar o pagamento em processamento. Se a gravação SQL
+concluir mas o rebind do Auth falhar, a tela informa que o vínculo está pendente e pede novo login;
+esse login tenta reparar o vínculo, sem conceder acesso às etapas seguintes antes da concordância.
+Estados sem vínculo válido exibem erro explícito em vez do redirecionamento circular silencioso.
+
+**Evidência:** `npx vitest run` passou 4.828/4.828 em 469 arquivos, exit 0, neste worktree. Os
+118 testes direcionados em cinco arquivos cobrem retorno com a mesma conta, recomeço, fronteira de
+Auth, falha parcial, conflito e feedback da tela. O cenário novo em
+`e2e/signup-confirmation.spec.ts` passou **1/1 no navegador Chromium contra aplicação local + Auth
+e PostgreSQL DEV**, com guarda de fingerprint para o projeto DEV: conta confirmada com marker antigo e
+sem linha `signup_sessions` → login → novo rascunho → readback de identidade e referência no Auth e
+banco → refresh → `/cadastro/plano`. O teste fez cleanup, e fixture/lock locais ficaram ausentes.
+Esse cenário reproduz o **estado após a limpeza**, mas não espera uma hora nem executa o cron real;
+a expiração temporal, entrega de e-mail, Preview e pagamento Asaas continuam **NOT TESTED** para esta
+correção. A primeira tentativa não chegou ao app porque o runner não subiu o servidor ao receber
+`E2E_BASE_URL`; depois de subir o servidor, uma tentativa falhou na espera padrão durante a compilação
+fria de `/api/signup/draft`. O mesmo teste passou sem aumentar timeouts após aquecer a rota.
+
+**Regressão do cadastro em 04/10/2026:** uma execução única de
+`e2e/signup-confirmation.spec.ts` contra o app local, Auth/PostgreSQL DEV e Resend real terminou
+com **6 PASS, 1 SKIP, exit 0, em 7,9 min**. Passaram confirmação em outro aparelho, código e
+handoff, retomada da mesma conta após expiração, conta legada, segundo draft e reenvio que invalida
+o link anterior. O único SKIP é o Checkout hospedado: a criação recorrente no Asaas rejeita os
+três callbacks `http://localhost` e esse teste exige Preview HTTPS; não foi contado como PASS.
+Uma tentativa consolidada anterior falhou durante o callback e deixou os casos seguintes sem
+execução. O servidor `next dev` reiniciou por limite de memória logo após registrar
+`POST /auth/confirm` 303 e `GET /cadastro/confirmado` 200; o cenário passou isolado e na suíte
+completa após iniciar o servidor com mais memória. Esta correlação aponta para instabilidade do
+ambiente local, não prova uma correção do produto nem elimina a necessidade do E2E em Preview.
 
 ## 41. Tela de nova senha: motivo da recusa e senha salva desatualizada — 29/09/2026
 
@@ -7386,6 +7424,16 @@ descrição completa com o nome da clínica, e o Asaas respondeu `400 invalid_ob
 aceita no máximo 30 caracteres. O adapter agora recebe um nome técnico curto, limita-o a 30 e conserva
 a descrição completa em `items[].description`. A reprodução externa com os mesmos callbacks passou de
 400 para 200 e o Checkout criado foi cancelado com 200; há regressão de contrato dedicada.
+
+**Nova medição em 04/10/2026, limitada ao Sandbox:** o E2E desta branch chegou ao plano em
+`http://localhost:3000`, mas `POST /api/signup/checkout` respondeu 402 depois de o Asaas recusar
+`POST /checkouts` com 400 `invalid_object`. Um probe isolado, com `ASAAS_CHAVE_TESTE_2` e sem
+pagamento, recebeu do Asaas três erros específicos: `successUrl`, `cancelUrl` e `expiredUrl`
+inválidos quando apontavam para HTTP local. O mesmo payload sintético, alterando somente os três
+callbacks para HTTPS, recebeu 200; o Checkout criado foi cancelado com 200. Logo, a suíte local
+não comprova a abertura do Checkout nesta versão: esse trecho requer Preview HTTPS atualizado.
+O resultado histórico de 5/5 no Preview descrito abaixo não substitui uma nova execução da branch
+atual.
 
 Depois do corretivo, o E2E de confirmação executou **5/5 PASS** contra o Preview HTTPS. O cenário
 principal criou conta e mensagem reais em DEV/Resend, confirmou em outro contexto de navegador,
@@ -8433,8 +8481,111 @@ operação destrutiva separada e não é necessária para provar a correção.
 
 Para o refund PIX, o mecanismo especial de autorização de saques continua uma
 configuração distinta dos webhooks listados por `GET /webhooks`. A checagem
-manual pendente é: Asaas Sandbox → **Integrações → Mecanismos de segurança** →
-verificar se **Ativar autorização de saque para estornos Pix** está ligado e,
-se estiver, conferir URL e histórico de falhas. Sem essa leitura ou resposta do
-suporte, a causa raiz externa permanece **não comprovada**; nenhum terceiro
-refund deve ser criado.
+manual então pendente era: Asaas Sandbox → **Integrações → Mecanismos de
+segurança** → verificar se **Ativar autorização de saque para estornos Pix**
+estava ligado. Em 04/10, o operador informou que a opção está desligada na
+conta Sandbox deste diagnóstico (registro atualizado na §55 e na especificação
+financeira). Portanto, esse mecanismo não explica os refunds desta conta;
+a causa raiz externa ainda não foi comprovada e nenhum terceiro refund deve ser
+criado antes da resposta do suporte.
+
+## 55. Política financeira em camadas — 02/10/2026
+
+A especificação, as decisões de plano, o registro de progresso, as evidências
+e as pendências desta frente ficam em
+[política financeira em camadas](specs/politica-financeira-camadas.md). A
+camada 1 havia passado nos testes locais; naquele checkpoint a migration 0108
+e o E2E real ainda não tinham sido executados. O progresso atual fica no
+documento específico.
+
+Em 04/10, a auditoria dos estornos PIX e do código de aprovação do Asaas foi
+registrada na seção “auditoria da autorização do estorno PIX” da especificação.
+O aceite do código não concluiu os refunds observados, que terminaram
+`CANCELLED`. O operador confirmou que a configuração opcional do webhook especial
+`PIX_REFUND` está desligada na conta Sandbox deste diagnóstico; a hipótese foi
+descartada para essa conta, mas o motivo interno da recusa permanece desconhecido.
+A conciliação local foi
+endurecida para não confirmar um item `PENDING` ou um `DONE` de valor insuficiente;
+isso não resolve a recusa do provedor nem libera a nova política para produção.
+
+Decisão posterior de 04/10: a devolução do sinal e do excedente passa a ser
+executada pela clínica na própria conta Asaas; o Qoro registra a pendência,
+mostra-a no Caixa e só a confirma após readback `DONE`. O código e os testes
+locais foram atualizados, sem deploy nem nova prova externa. Detalhes, operação e
+limites estão na seção “devolução assistida pela clínica” da especificação acima.
+
+## 56. Revalidação independente das suítes de produção — 05/10/2026
+
+O médico de teste configurado agora existe no Auth de produção, está ativo e tem
+role `doctor`; a ausência registrada em 04/10 deixou de ser a pré-condição real.
+As três suítes de RBAC foram reexecutadas em leitura: Dashboard financeiro **PASS**,
+Dashboard operacional **PASS** após atualizar expectativas obsoletas do teste para
+a UI efetivamente servida, e páginas de configuração do WhatsApp **PASS** para
+negação básica. O cenário adicional que exige ocultar metadados de um número
+conectado permanece **PRECONDITION BLOCKED**, porque a clínica desse médico não
+possui conexão ativa. Nenhuma conexão foi criada em produção para o teste.
+
+A coleta integral dos **44 arquivos `production-*`**, sem opt-ins de mutação,
+encontrou **50 casos: 3 PASS funcionais, 46 SKIP, 1 PRECONDITION BLOCKED**.
+A execução separada da fronteira anônima, com opt-in exclusivamente de leitura,
+encontrou **2 PASS e 1 SKIP** por ausência de conversa real. O detalhamento e as
+pré-condições estão em [production-44-execution.md](quality/production-44-execution.md).
+Esta fotografia não valida as 46 omissões nem substitui o Checkout no Preview
+HTTPS, o refund terminal `DONE` no Asaas, a correção de tarifa tardia ou a cadeia
+WhatsApp → IA. A política financeira permanece na
+[especificação por camadas](specs/politica-financeira-camadas.md).
+
+Na revisão do cadastro da conta Asaas, foi encontrado um defeito no gerador do
+token do webhook: o regex continha um caractere de controle no lugar da
+referência ao caractere anterior e, portanto, não rejeitava sequências repetidas.
+A correção local aplica a regra atual de quatro caracteres iguais ou cinco
+dígitos consecutivos; o teste força as duas amostras inválidas antes de aceitar
+a terceira. A regressão dirigida passou 18/18. Essa correção ainda não foi
+publicada.
+
+Dois webhooks da conta `ASAAS_CHAVE_TESTE_2` no **Asaas Sandbox** estavam
+`enabled=true` e `interrupted=true`, ambos apontando para o Preview antigo
+`project-os-git-integration-estad-04a442-…` que devolvia 404. Os respectivos
+`webhook_ref` não constam em `clinic_payment_accounts` nem no DEV nem na produção
+(consultas somente de leitura). Após conferir nome, host, pathname e estado de
+cada registro, os dois webhooks foram **desativados**, sem excluí-los nem
+reativar a fila; GET posterior confirmou `enabled=false`, `interrupted=true`
+para ambos (sufixos dos IDs `611c` e `0ddd`). Essa operação resolveu apenas
+esses destinos órfãos do Sandbox. A desconexão de uma conta ativa ainda apaga
+a chave local sem desabilitar seu webhook remoto e pode interromper a
+reconciliação de cobranças preexistentes; continua um bloqueio arquitetural
+para a promoção financeira.
+
+Readback Asaas somente GET no mesmo Sandbox manteve as duas cobranças PIX
+diagnósticas em `RECEIVED`: uma tem um refund `CANCELLED`, a outra dois
+`CANCELLED`, sem qualquer item `DONE`. A devolução PIX não foi comprovada;
+nenhum novo POST de refund foi feito.
+
+O E2E de devolução assistida foi repetido contra app local, Auth e banco DEV.
+A primeira invocação falhou na infraestrutura de teste por falta da condição
+`react-server` ao importar `server-only`; não chegou às assertions financeiras
+e fez cleanup completo. Com `NODE_OPTIONS=--conditions=react-server`, passou
+**1/1 em 2,2 min**; readback final dos prefixos da fixture: zero clínicas e
+zero usuários Auth. O readback de refund desse spec é sintético e não valida a
+devolução real do Asaas.
+
+O cadastro foi reexecutado em `next dev` local contra Supabase DEV e Resend real
+com `npx tsx scripts/run-signup-confirmation-e2e.ts`, um worker e zero retry:
+**6 PASS, 1 SKIP, exit 0 em 6,4 min**. Os PASS incluem e-mail entregue e lido,
+confirmação em outro aparelho, código na aba original, senha, plano, retomada
+após expiração, conta legada, dois drafts, reenvio e invalidação do link anterior.
+O único SKIP é o Checkout hospedado: o alvo local usa HTTP e o Asaas Sandbox
+exige callback HTTPS; não equivale a uma prova de Checkout em Preview. O runner
+terminou sem fixture ou lock de cadastro persistidos.
+
+A primeira tentativa falhou **antes** da jornada de e-mail: `POST
+/api/signup/sessions` respondeu 201 com `Set-Cookie` válido, mas o helper E2E
+procurava o cookie `Secure` com `context.cookies('http://127.0.0.1:3000')`.
+Um probe isolado confirmou que o Chromium guardava o cookie, enquanto esse
+filtro de URL do Playwright retornava lista vazia. O helper passou a ler os
+cookies do contexto isolado e conferir o host exato. Portanto, essa falha foi
+do teste, não do produto; o cadastro só recebeu PASS após a reexecução real.
+A tentativa interrompida deixou uma sessão anônima sem e-mail porque o helper
+antigo não havia capturado seu hash. O readback localizou exatamente uma linha
+com estado `initiated`, sem identidade, respostas ou Checkout, no segundo da
+criação; ela foi removida em DEV sob lock e o cleanup retornou uma linha.

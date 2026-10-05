@@ -74,6 +74,9 @@ beforeEach(() => {
     paymentId: 'pay_1',
     status: 'RECEIVED',
     value: 150,
+    netValue: 145,
+    installmentId: null,
+    installmentNumber: null,
     dueDate: '2026-09-01',
     invoiceUrl: null,
     subscriptionId: null,
@@ -189,7 +192,6 @@ describe('estorno e risco financeiro', () => {
       clinicId: 'clinic-1',
       providerPaymentId: 'pay_1',
       loadRefunds: expect.any(Function),
-      providerPaymentStatus: 'REFUNDED',
     });
     expect(mocks.markDepositPaid).not.toHaveBeenCalled();
   });
@@ -344,11 +346,15 @@ describe('conciliação', () => {
       asaasEventId: 'evt_1',
       eventType: 'PAYMENT_RECEIVED',
       paidAt: expect.any(Date),
+      providerGrossAmount: 150,
+      providerNetAmount: 145,
       // ADR-051 1.5b.1 — a forma de pagamento vem do `getPayment` (fonte da
       // verdade), NUNCA do corpo do webhook: é ela que vira a forma da baixa no
       // Caixa, e o corpo é forjável por quem tiver o token.
       billingType: 'PIX',
       checkoutSessionId: null,
+      providerInstallmentId: null,
+      providerInstallmentNumber: null,
     });
   });
 
@@ -429,6 +435,26 @@ describe('conciliação', () => {
     mocks.markDepositPaid.mockResolvedValue('unknown_charge');
     const res = await POST(request(), params());
     expect(res.status).toBe(200);
+  });
+
+  it('metodo do provedor divergente fica em quarentena sem provocar retry do webhook', async () => {
+    mocks.markDepositPaid.mockResolvedValue('method_mismatch');
+    const res = await POST(request(), params());
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ outcome: 'method_mismatch' });
+    expect(metrics.emit).toHaveBeenCalledWith('payments.webhook.method_mismatch', {
+      clinicId: 'clinic-1',
+    });
+  });
+
+  it('parcelas divergentes ficam sem credito e geram metrica', async () => {
+    mocks.markDepositPaid.mockResolvedValue('installment_mismatch');
+    const res = await POST(request(), params());
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ outcome: 'installment_mismatch' });
+    expect(metrics.emit).toHaveBeenCalledWith('payments.webhook.installment_mismatch', {
+      clinicId: 'clinic-1',
+    });
   });
 
   it('erro ao conciliar devolve 500 para o Asaas re-entregar', async () => {

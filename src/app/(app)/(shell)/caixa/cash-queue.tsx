@@ -83,6 +83,7 @@ export function CashQueue({
   aPagar,
   methods,
   paymentTransactionsByLancamento,
+  showAdvancedFinancialDetails,
   canOperate,
   canRefund,
   pending,
@@ -101,6 +102,7 @@ export function CashQueue({
   aPagar: CaixaItem[];
   methods: PaymentMethodDTO[];
   paymentTransactionsByLancamento: ReadonlyMap<string, PaymentTransactionSummary[]>;
+  showAdvancedFinancialDetails: boolean;
   canOperate: boolean;
   canRefund: boolean;
   pending: boolean;
@@ -188,6 +190,7 @@ export function CashQueue({
                   pending={pending}
                   methods={methods}
                   paymentTransactions={paymentTransactionsByLancamento.get(item.id) ?? []}
+                  showAdvancedFinancialDetails={showAdvancedFinancialDetails}
                   panelMode={panel?.id === item.id ? panel.mode : null}
                   onOpenPanel={(panelMode) => onOpenPanel(item.id, panelMode)}
                   onClosePanel={onClosePanel}

@@ -407,6 +407,17 @@ export const appointments = pgTable(
     valor: numeric('valor', { precision: 12, scale: 2 }).notNull(),
     valorAjustado: boolean('valor_ajustado').notNull().default(false),
     valorAjusteMotivo: text('valor_ajuste_motivo'),
+    /** Snapshot da política comercial usada para definir `valor`. */
+    pricingPolicyMode: text('pricing_policy_mode')
+      .$type<'absorb_fees' | 'payment_method_pricing'>()
+      .notNull()
+      .default('absorb_fees'),
+    commercialPaymentMethod: text('commercial_payment_method').$type<
+      'pix' | 'cash' | 'credit_card'
+    >(),
+    commercialInstallmentCount: integer('commercial_installment_count'),
+    /** ID opaco da versão de preço no Payments; sem FK entre contexts. */
+    commercialPriceId: uuid('commercial_price_id'),
     // --- snapshot imutável (REGRA 4) ---
     snapshotProcedureName: text('snapshot_procedure_name').notNull(),
     snapshotProcedureCodigo: text('snapshot_procedure_codigo'),
@@ -489,6 +500,21 @@ export const appointments = pgTable(
     valorAjusteChk: check(
       'appointments_valor_ajuste_chk',
       sql`${t.valorAjustado} = false OR ${t.valorAjusteMotivo} IS NOT NULL`,
+    ),
+    commercialPriceSnapshotChk: check(
+      'appointments_commercial_price_snapshot_chk',
+      sql`(${t.pricingPolicyMode} = 'absorb_fees'
+            AND ${t.commercialPaymentMethod} IS NULL
+            AND ${t.commercialInstallmentCount} IS NULL
+            AND ${t.commercialPriceId} IS NULL)
+          OR (${t.pricingPolicyMode} = 'payment_method_pricing'
+            AND ${t.commercialPriceId} IS NOT NULL
+            AND ${t.commercialPaymentMethod} IS NOT NULL
+            AND ((${t.commercialPaymentMethod} IN ('pix', 'cash')
+                  AND ${t.commercialInstallmentCount} IS NULL)
+              OR (${t.commercialPaymentMethod} = 'credit_card'
+                  AND ${t.commercialInstallmentCount} IS NOT NULL
+                  AND ${t.commercialInstallmentCount} BETWEEN 1 AND 12)))`,
     ),
     rescheduleSelfChk: check(
       'appointments_reschedule_self_chk',

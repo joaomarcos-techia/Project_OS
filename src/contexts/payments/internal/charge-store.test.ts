@@ -14,11 +14,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   withTenant: vi.fn(),
   publishEvent: vi.fn(),
+  emit: vi.fn(),
+  updateSet: vi.fn(),
+  insert: vi.fn(),
 }));
 
 vi.mock('server-only', () => ({}));
 vi.mock('@/lib/db/tenant', () => ({ withTenant: mocks.withTenant }));
 vi.mock('@/lib/outbox/publish', () => ({ publishEvent: mocks.publishEvent }));
+vi.mock('@/lib/observability/metrics', () => ({ metrics: { emit: mocks.emit } }));
 
 import {
   closeCharge,
@@ -26,6 +30,8 @@ import {
   findPayableCharge,
   insertDepositCharge,
   markDepositPaid,
+  reconcilePaidChargeEconomics,
+  reconcileProviderPaymentEconomics,
   toPaymentMethodCode,
 } from './charge-store';
 
@@ -44,18 +50,22 @@ const CHARGE = {
  */
 function stubTx(opts: { dedup?: unknown[]; charge?: unknown[]; updated?: unknown[] }) {
   const tx = {
-    insert: () => ({
-      values: () => ({
-        onConflictDoNothing: () => ({ returning: async () => opts.dedup ?? [{ id: 'evt-row' }] }),
-      }),
-    }),
+    insert: () => {
+      mocks.insert();
+      return {
+        values: () => ({
+          onConflictDoNothing: () => ({ returning: async () => opts.dedup ?? [{ id: 'evt-row' }] }),
+        }),
+      };
+    },
     select: () => ({
       from: () => ({ where: () => ({ limit: async () => opts.charge ?? [CHARGE] }) }),
     }),
     update: () => ({
-      set: () => ({
-        where: () => ({ returning: async () => opts.updated ?? [{ id: CHARGE.id }] }),
-      }),
+      set: (values: unknown) => {
+        mocks.updateSet(values);
+        return { where: () => ({ returning: async () => opts.updated ?? [{ id: CHARGE.id }] }) };
+      },
     }),
   };
   mocks.withTenant.mockImplementation((async (_c: string, fn: (t: unknown) => unknown) =>
@@ -68,6 +78,8 @@ const input = {
   asaasEventId: 'evt_1',
   eventType: 'PAYMENT_RECEIVED',
   paidAt: new Date('2026-09-01T12:00:00.000Z'),
+  providerGrossAmount: 150,
+  providerNetAmount: 145,
 };
 
 beforeEach(() => vi.clearAllMocks());
@@ -89,6 +101,112 @@ describe('markDepositPaid', () => {
     expect(published.idempotencyKey).toBe(`charge-paid:${CHARGE.id}`);
   });
 
+  it.each([
+    ['pix', 'CREDIT_CARD'],
+    ['credit_card', 'PIX'],
+    ['pix', 'UNDEFINED'],
+  ] as const)(
+    'isola pagamento com metodo %s diferente do readback %s',
+    async (requested, actual) => {
+      stubTx({ charge: [{ ...CHARGE, requestedPaymentMethod: requested }] });
+
+      await expect(markDepositPaid({ ...input, billingType: actual })).resolves.toBe(
+        'method_mismatch',
+      );
+      expect(mocks.updateSet).toHaveBeenCalledWith(
+        expect.objectContaining({
+          providerPaymentId: input.providerPaymentId,
+          providerBillingType: actual,
+          failureCode: 'payment_method_mismatch',
+        }),
+      );
+      expect(mocks.insert).not.toHaveBeenCalled();
+      expect(mocks.publishEvent).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    ['installment id', 'ins_1', null],
+    ['installment number', null, 2],
+  ] as const)(
+    'does not settle a card 1x charge when readback reports %s',
+    async (_case, providerInstallmentId, providerInstallmentNumber) => {
+      stubTx({
+        charge: [
+          { ...CHARGE, requestedPaymentMethod: 'credit_card', requestedInstallmentCount: 1 },
+        ],
+      });
+
+      await expect(
+        markDepositPaid({
+          ...input,
+          billingType: 'CREDIT_CARD',
+          providerInstallmentId,
+          providerInstallmentNumber,
+        }),
+      ).resolves.toBe('installment_mismatch');
+      expect(mocks.updateSet).toHaveBeenCalledWith(
+        expect.objectContaining({
+          providerPaymentId: input.providerPaymentId,
+          failureCode: 'payment_installment_mismatch',
+        }),
+      );
+      expect(mocks.insert).not.toHaveBeenCalled();
+      expect(mocks.publishEvent).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    ['acima do bruto', 151, 'above_gross'],
+    ['negativo', -1, 'negative'],
+  ])(
+    'confirma pagamento com líquido %s e mantém a economia pendente',
+    async (_case, net, direction) => {
+      stubTx({});
+
+      await expect(markDepositPaid({ ...input, providerNetAmount: net })).resolves.toBe('paid');
+      expect(mocks.updateSet).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'paid',
+          providerGrossAmount: '150.00',
+          providerFeeAmount: null,
+          providerNetAmount: null,
+          economicsReconciledAt: null,
+        }),
+      );
+      expect(mocks.publishEvent.mock.calls.map(([, event]) => event.eventType)).toEqual([
+        'payments.patient_charge.paid',
+        'payments.patient_credit.granted',
+      ]);
+      expect(mocks.publishEvent.mock.calls[1]?.[1].payload).toMatchObject({
+        providerGrossAmount: 150,
+        providerFeeAmount: null,
+        providerNetAmount: null,
+      });
+      expect(mocks.emit).toHaveBeenCalledWith('payments.economics.net_out_of_range', {
+        clinicId: input.clinicId,
+        chargeId: CHARGE.id,
+        direction,
+      });
+    },
+  );
+
+  it('não reconhece como paga uma cobrança cujo bruto diverge do provider', async () => {
+    stubTx({});
+
+    await expect(markDepositPaid({ ...input, providerGrossAmount: 149.99 })).resolves.toBe(
+      'amount_mismatch',
+    );
+    expect(mocks.updateSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerPaymentId: input.providerPaymentId,
+        failureCode: 'payment_amount_mismatch',
+      }),
+    );
+    expect(mocks.insert).not.toHaveBeenCalled();
+    expect(mocks.publishEvent).not.toHaveBeenCalled();
+  });
+
   it('re-entrega do mesmo evento não reprocessa nem republica', async () => {
     stubTx({ dedup: [] });
 
@@ -103,11 +221,76 @@ describe('markDepositPaid', () => {
     expect(mocks.publishEvent).not.toHaveBeenCalled();
   });
 
-  it('cobrança já paga não publica o evento de novo', async () => {
-    stubTx({ charge: [{ ...CHARGE, status: 'paid' }] });
+  it('cobrança já paga e conciliada não publica o evento de novo', async () => {
+    stubTx({
+      charge: [
+        {
+          ...CHARGE,
+          status: 'paid',
+          paidAt: input.paidAt,
+          economicsReconciledAt: input.paidAt,
+        },
+      ],
+    });
 
     await expect(markDepositPaid(input)).resolves.toBe('already_paid');
     expect(mocks.publishEvent).not.toHaveBeenCalled();
+  });
+
+  it('completa a economia tardia sem republicar pagamento ou crédito', async () => {
+    stubTx({
+      charge: [{ ...CHARGE, status: 'paid', paidAt: input.paidAt, economicsReconciledAt: null }],
+    });
+
+    await expect(markDepositPaid(input)).resolves.toBe('economics_reconciled');
+    expect(mocks.publishEvent).toHaveBeenCalledTimes(1);
+    expect(mocks.publishEvent).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        eventType: 'payments.patient_payment.economics_reconciled',
+        idempotencyKey: `payment-economics:${CHARGE.id}`,
+        payload: expect.objectContaining({
+          providerGrossAmount: 150,
+          providerFeeAmount: 5,
+          providerNetAmount: 145,
+        }),
+      }),
+    );
+  });
+
+  it.each([
+    ['acima do bruto', 151, 'above_gross'],
+    ['negativo', -1, 'negative'],
+  ])('não concilia economia tardia com líquido %s', async (_case, net, direction) => {
+    stubTx({
+      charge: [
+        {
+          ...CHARGE,
+          status: 'paid',
+          providerPaymentId: input.providerPaymentId,
+          paidAt: input.paidAt,
+          economicsReconciledAt: null,
+        },
+      ],
+    });
+
+    await expect(
+      reconcilePaidChargeEconomics({
+        clinicId: input.clinicId,
+        chargeId: CHARGE.id,
+        providerPaymentId: input.providerPaymentId,
+        reconciledAt: input.paidAt,
+        providerGrossAmount: 150,
+        providerNetAmount: net,
+      }),
+    ).resolves.toBe('already_paid');
+    expect(mocks.updateSet).not.toHaveBeenCalled();
+    expect(mocks.publishEvent).not.toHaveBeenCalled();
+    expect(mocks.emit).toHaveBeenCalledWith('payments.economics.net_out_of_range', {
+      clinicId: input.clinicId,
+      chargeId: CHARGE.id,
+      direction,
+    });
   });
 
   it('perder a corrida do UPDATE não republica — quem ganhou já publicou', async () => {
@@ -356,6 +539,8 @@ describe('markDepositPaid — evento de crédito para o Financial', () => {
     asaasEventId: 'evt_1',
     eventType: 'PAYMENT_RECEIVED',
     paidAt: new Date('2026-08-25T12:00:00.000Z'),
+    providerGrossAmount: 150,
+    providerNetAmount: 145,
   };
 
   const publicados = () =>
@@ -386,6 +571,10 @@ describe('markDepositPaid — evento de crédito para o Financial', () => {
       appointmentId: CHARGE.appointmentId,
       kind: 'deposit',
       amount: 150,
+      providerGrossAmount: 150,
+      providerFeeAmount: 5,
+      providerNetAmount: 145,
+      earlySettlementFeeAmount: null,
       paymentMethod: 'cartao_credito',
     });
   });
@@ -466,4 +655,52 @@ describe('toPaymentMethodCode — gateway → catálogo do Financial', () => {
       expect(toPaymentMethodCode(billingType)).toBeNull();
     },
   );
+});
+
+describe('reconcileProviderPaymentEconomics', () => {
+  it.each([
+    [250, 245, 5],
+    [0.1, 0.05, 0.05],
+    [99.99, 97.5, 2.49],
+  ])('preserva centavos reais: bruto %s, líquido %s, taxa %s', (gross, net, fee) => {
+    expect(reconcileProviderPaymentEconomics(gross, net)).toEqual({
+      grossAmount: gross,
+      netAmount: net,
+      feeAmount: fee,
+    });
+  });
+
+  it('não fabrica taxa quando o líquido ainda é desconhecido', () => {
+    expect(reconcileProviderPaymentEconomics(250, null)).toEqual({
+      grossAmount: 250,
+      netAmount: null,
+      feeAmount: null,
+    });
+  });
+
+  it('deixa pendente líquido acima do bruto sem inventar taxa', () => {
+    expect(reconcileProviderPaymentEconomics(250, 251)).toEqual({
+      grossAmount: 250,
+      netAmount: null,
+      feeAmount: null,
+    });
+    expect(reconcileProviderPaymentEconomics(250, 250.001)).toEqual({
+      grossAmount: 250,
+      netAmount: null,
+      feeAmount: null,
+    });
+  });
+
+  it('deixa pendente líquido negativo sem inventar taxa', () => {
+    expect(reconcileProviderPaymentEconomics(250, -1)).toEqual({
+      grossAmount: 250,
+      netAmount: null,
+      feeAmount: null,
+    });
+    expect(reconcileProviderPaymentEconomics(250, -0.001)).toEqual({
+      grossAmount: 250,
+      netAmount: null,
+      feeAmount: null,
+    });
+  });
 });

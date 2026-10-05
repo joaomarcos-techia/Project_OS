@@ -72,6 +72,8 @@ function renew() {
       generation: 1,
       providerCheckoutId: 'checkout-1',
       collectionExpiresAt: COLLECTION_END,
+      requestedPaymentMethod: null,
+      requestedInstallmentCount: null,
     },
     now: NOW,
   });
@@ -166,6 +168,66 @@ describe('createInitialHostedCheckout', () => {
     expect(mocks.activate).not.toHaveBeenCalled();
   });
 
+  it('leva cartão em 1x ao lease e ao Checkout sem prometer parcelas variáveis', async () => {
+    await createInitialHostedCheckout({
+      client: client(),
+      clinicId: 'clinic-1',
+      appointmentId: 'appointment-1',
+      patientId: 'patient-1',
+      kind: 'remainder',
+      amount: 260,
+      description: 'Restante do atendimento',
+      holdExpiresAt: null,
+      collectionExpiresAt: COLLECTION_END,
+      paymentMethod: 'credit_card',
+      installmentCount: 1,
+      now: NOW,
+    });
+
+    expect(mocks.claim).toHaveBeenCalledWith(
+      expect.objectContaining({
+        amount: 260,
+        requestedPaymentMethod: 'credit_card',
+        requestedInstallmentCount: 1,
+      }),
+    );
+    expect(mocks.createCheckout).toHaveBeenCalledWith(
+      expect.objectContaining({
+        value: 260,
+        billingTypes: ['CREDIT_CARD'],
+      }),
+    );
+    expect(mocks.createCheckout.mock.calls[0]?.[0]).not.toHaveProperty('maxInstallmentCount');
+  });
+
+  it.each([
+    ['cartão parcelado', 'credit_card' as const, 3],
+    ['cartão sem parcelas explícitas', 'credit_card' as const, null],
+    ['Pix com parcelas', 'pix' as const, 2],
+  ])(
+    'bloqueia %s antes do lease e do provider',
+    async (_label, paymentMethod, installmentCount) => {
+      await expect(
+        createInitialHostedCheckout({
+          client: client(),
+          clinicId: 'clinic-1',
+          appointmentId: 'appointment-1',
+          patientId: 'patient-1',
+          kind: 'remainder',
+          amount: 260,
+          description: 'Restante do atendimento',
+          holdExpiresAt: null,
+          collectionExpiresAt: COLLECTION_END,
+          paymentMethod,
+          installmentCount,
+          now: NOW,
+        }),
+      ).resolves.toBe('unsupported_condition');
+      expect(mocks.claim).not.toHaveBeenCalled();
+      expect(mocks.createCheckout).not.toHaveBeenCalled();
+    },
+  );
+
   it('4xx marca falha definitiva antes de propagar', async () => {
     const error = new BillingProviderError('recusado', 'billing_provider_error', 400, [
       'invalid_customer',
@@ -224,6 +286,30 @@ describe('createInitialHostedCheckout', () => {
 });
 
 describe('renewRemainderHostedCheckout', () => {
+  it('não consulta o provider nem renova Checkout parcelado sem quantidade exata', async () => {
+    await expect(
+      renewRemainderHostedCheckout({
+        client: client(),
+        clinicId: 'clinic-1',
+        candidate: {
+          chargeId: 'charge-1',
+          appointmentId: 'appointment-1',
+          patientId: 'patient-1',
+          amount: 260,
+          generation: 1,
+          providerCheckoutId: 'checkout-1',
+          collectionExpiresAt: COLLECTION_END,
+          requestedPaymentMethod: 'credit_card',
+          requestedInstallmentCount: 3,
+        },
+        now: NOW,
+      }),
+    ).resolves.toBe('unsupported_condition');
+    expect(mocks.findPaymentByCheckoutSession).not.toHaveBeenCalled();
+    expect(mocks.claimRenewal).not.toHaveBeenCalled();
+    expect(mocks.createCheckout).not.toHaveBeenCalled();
+  });
+
   it('confere se a geração anterior criou payment antes de reservar a próxima', async () => {
     await expect(renew()).resolves.toBe('created');
 

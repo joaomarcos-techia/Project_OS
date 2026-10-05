@@ -20,6 +20,7 @@
  */
 import {
   boolean,
+  check,
   index,
   integer,
   numeric,
@@ -111,6 +112,73 @@ export const clinicDepositPolicy = pgTable('clinic_deposit_policy', {
 
 export type ClinicDepositPolicyRow = typeof clinicDepositPolicy.$inferSelect;
 
+export type ClinicPricingPolicyMode = 'absorb_fees' | 'payment_method_pricing';
+export type ProcedurePaymentMethod = 'pix' | 'cash' | 'credit_card';
+
+/** Ausência de linha equivale ao default seguro `absorb_fees`. */
+export const clinicPaymentPricingPolicies = pgTable(
+  'clinic_payment_pricing_policies',
+  {
+    clinicId: tenantIdRef().primaryKey(),
+    mode: text('mode').$type<ClinicPricingPolicyMode>().notNull().default('absorb_fees'),
+    updatedBy: uuid('updated_by'),
+    ...timestampsPattern(),
+  },
+  (t) => ({
+    modeCheck: check(
+      'clinic_payment_pricing_policies_mode_chk',
+      sql`${t.mode} IN ('absorb_fees', 'payment_method_pricing')`,
+    ),
+  }),
+);
+
+/**
+ * Preço comercial explícito por procedimento e forma. Não é tabela de tarifa
+ * do Asaas e nunca serve para estimar taxa ou líquido do provedor.
+ */
+export const procedurePaymentPrices = pgTable(
+  'procedure_payment_prices',
+  {
+    id: uuidPk(),
+    clinicId: tenantIdRef(),
+    procedureId: uuid('procedure_id').notNull(),
+    paymentMethod: text('payment_method').$type<ProcedurePaymentMethod>().notNull(),
+    installmentCount: integer('installment_count'),
+    grossAmount: numeric('gross_amount', { precision: 12, scale: 2 }).notNull(),
+    active: boolean('active').notNull().default(true),
+    effectiveFrom: timestamp('effective_from', { withTimezone: true }).notNull().defaultNow(),
+    effectiveTo: timestamp('effective_to', { withTimezone: true }),
+    updatedBy: uuid('updated_by'),
+    ...timestampsPattern(),
+  },
+  (t) => ({
+    methodCheck: check(
+      'procedure_payment_prices_method_chk',
+      sql`${t.paymentMethod} IN ('pix', 'cash', 'credit_card')`,
+    ),
+    installmentCheck: check(
+      'procedure_payment_prices_installment_chk',
+      sql`(${t.paymentMethod} = 'credit_card' AND ${t.installmentCount} IS NOT NULL
+            AND ${t.installmentCount} BETWEEN 1 AND 12)
+          OR (${t.paymentMethod} IN ('pix', 'cash') AND ${t.installmentCount} IS NULL)`,
+    ),
+    amountCheck: check('procedure_payment_prices_amount_chk', sql`${t.grossAmount} > 0`),
+    effectiveWindowCheck: check(
+      'procedure_payment_prices_effective_window_chk',
+      sql`(${t.active} = true AND ${t.effectiveTo} IS NULL)
+          OR (${t.active} = false
+              AND ${t.effectiveTo} IS NOT NULL
+              AND ${t.effectiveTo} >= ${t.effectiveFrom})`,
+    ),
+    procedureMethodUniq: uniqueIndex('procedure_payment_prices_active_method_uniq')
+      .on(t.clinicId, t.procedureId, t.paymentMethod, sql`coalesce(${t.installmentCount}, 0)`)
+      .where(sql`${t.active} = true`),
+  }),
+);
+
+export type ClinicPaymentPricingPolicyRow = typeof clinicPaymentPricingPolicies.$inferSelect;
+export type ProcedurePaymentPriceRow = typeof procedurePaymentPrices.$inferSelect;
+
 // --- patient_charges (1.3) ---------------------------------------------------
 
 export const patientChargeStatus = pgEnum('patient_charge_status', [
@@ -175,6 +243,23 @@ export const patientCharges = pgTable(
     provider: text('provider').notNull().default('asaas'),
     /** Id da cobrança no Asaas. Público (não é credencial). */
     providerPaymentId: text('provider_payment_id'),
+    /** Snapshot econômico autoritativo, preenchido somente após readback no Asaas. */
+    providerGrossAmount: numeric('provider_gross_amount', { precision: 12, scale: 2 }),
+    providerFeeAmount: numeric('provider_fee_amount', { precision: 12, scale: 2 }),
+    providerNetAmount: numeric('provider_net_amount', { precision: 12, scale: 2 }),
+    earlySettlementFeeAmount: numeric('early_settlement_fee_amount', {
+      precision: 12,
+      scale: 2,
+    }),
+    providerBillingType: text('provider_billing_type'),
+    providerInstallmentId: text('provider_installment_id'),
+    providerInstallmentNumber: integer('provider_installment_number'),
+    /** Condição comercial escolhida antes do Checkout; snapshot auditável. */
+    requestedPaymentMethod: text('requested_payment_method').$type<ProcedurePaymentMethod>(),
+    requestedInstallmentCount: integer('requested_installment_count'),
+    economicsReconciledAt: timestamp('economics_reconciled_at', { withTimezone: true }),
+    /** Ultima tentativa do backstop, para alternar candidatos sem bloquear a fila. */
+    providerReconcileCheckedAt: timestamp('provider_reconcile_checked_at', { withTimezone: true }),
     /** Geração corrente do Checkout hospedado; não é a dívida nem o payment. */
     providerCheckoutId: text('provider_checkout_id'),
     checkoutGeneration: integer('checkout_generation').notNull().default(0),
@@ -214,6 +299,38 @@ export const patientCharges = pgTable(
     checkoutRenewalIdx: index('patient_charges_checkout_renewal_idx')
       .on(t.checkoutExpiresAt, t.collectionExpiresAt)
       .where(sql`${t.status} = 'pending' and ${t.providerCheckoutId} is not null`),
+    pendingEconomicsScanIdx: index('patient_charges_pending_economics_scan_idx')
+      .on(t.providerReconcileCheckedAt.asc().nullsFirst(), t.paidAt.asc().nullsFirst(), t.id)
+      .where(
+        sql`${t.status} = 'paid' and ${t.providerPaymentId} is not null and ${t.economicsReconciledAt} is null`,
+      ),
+    pendingMismatchScanIdx: index('patient_charges_pending_mismatch_scan_idx')
+      .on(t.providerReconcileCheckedAt.asc().nullsFirst(), t.updatedAt, t.id)
+      .where(
+        sql`${t.status} = 'pending' and ${t.providerPaymentId} is not null and ${t.failureCode} in ('payment_method_mismatch', 'payment_installment_mismatch', 'payment_amount_mismatch')`,
+      ),
+    requestedPaymentChk: check(
+      'patient_charges_requested_payment_chk',
+      sql`(${t.requestedPaymentMethod} IS NULL AND ${t.requestedInstallmentCount} IS NULL)
+          OR (${t.requestedPaymentMethod} IS NOT NULL AND (
+            (${t.requestedPaymentMethod} = 'pix' AND ${t.requestedInstallmentCount} IS NULL)
+            OR (${t.requestedPaymentMethod} = 'credit_card'
+              AND ${t.requestedInstallmentCount} IS NOT NULL
+              AND ${t.requestedInstallmentCount} BETWEEN 1 AND 12)))`,
+    ),
+    economicsChk: check(
+      'patient_charges_economics_nonnegative_chk',
+      sql`(${t.providerGrossAmount} IS NULL OR (${t.providerGrossAmount} >= 0 AND ${t.providerGrossAmount} = ${t.amount}))
+          AND (${t.providerFeeAmount} IS NULL OR (${t.providerGrossAmount} IS NOT NULL AND ${t.providerFeeAmount} >= 0 AND ${t.providerFeeAmount} <= ${t.providerGrossAmount}))
+          AND (${t.providerNetAmount} IS NULL OR (${t.providerGrossAmount} IS NOT NULL AND ${t.providerNetAmount} >= 0 AND ${t.providerNetAmount} <= ${t.providerGrossAmount}))
+          AND (${t.earlySettlementFeeAmount} IS NULL OR ${t.earlySettlementFeeAmount} >= 0)
+          AND (${t.providerInstallmentNumber} IS NULL OR ${t.providerInstallmentNumber} > 0)
+          AND (${t.economicsReconciledAt} IS NULL OR (
+            ${t.providerGrossAmount} IS NOT NULL
+            AND ${t.providerFeeAmount} IS NOT NULL
+            AND ${t.providerNetAmount} IS NOT NULL
+          ))`,
+    ),
   }),
 );
 
@@ -271,10 +388,11 @@ export type PatientCheckoutGenerationRow = typeof patientCheckoutGenerations.$in
 // --- patient_refund_intents (D50) -----------------------------------------
 
 /**
- * Intenção persistida antes do POST de estorno parcial.
+ * Intenção persistida antes de solicitar ou acompanhar uma devolução.
  *
  * `submitting`/`confirmation_pending` nunca voltam automaticamente a `pending`:
- * um timeout pode esconder um POST aceito e repetir seria devolver duas vezes.
+ * no fluxo legado, um timeout pode esconder um POST aceito e repetir seria
+ * devolver duas vezes. No fluxo manual, a clínica age na própria conta Asaas.
  */
 export const patientRefundIntents = pgTable(
   'patient_refund_intents',

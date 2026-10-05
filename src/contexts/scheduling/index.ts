@@ -39,6 +39,7 @@ export type {
   CreatedVia,
   CancelReason,
   AppointmentCreatedPayload,
+  AppointmentDepositRequestedPayload,
   AppointmentConfirmedPayload,
   AppointmentCheckedInPayload,
   AppointmentStartedPayload,

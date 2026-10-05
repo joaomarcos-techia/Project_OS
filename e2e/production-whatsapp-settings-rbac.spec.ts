@@ -78,6 +78,33 @@ async function signInContext(
 test.describe('produção: RBAC das configurações do WhatsApp', () => {
   test.describe.configure({ retries: 0 });
 
+  test('médico sem manage:settings não abre as páginas protegidas', async ({ browser }) => {
+    test.setTimeout(180_000);
+    if (!baseUrl || new URL(baseUrl).hostname !== 'app.qoro.dev') {
+      throw new Error('O teste read-only só pode apontar para app.qoro.dev.');
+    }
+    if (!doctorEmail || !doctorPassword) throw new Error('Credencial do médico A ausente.');
+
+    const context = await browser.newContext({ baseURL: baseUrl });
+    try {
+      await signInContext(context, doctorEmail, doctorPassword);
+      const page = await context.newPage();
+      for (const path of [
+        '/configuracoes/perfil',
+        '/configuracoes/assinatura',
+        '/configuracoes/whatsapp',
+      ]) {
+        await page.goto(path);
+        await expect(page.getByText('Sem acesso', { exact: true })).toBeVisible();
+      }
+      await expect(page.getByText('WhatsApp conectado', { exact: true })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Desconectar' })).toHaveCount(0);
+      await expect(page.locator('[data-slot="whatsapp-profile"]')).toHaveCount(0);
+    } finally {
+      await context.close();
+    }
+  });
+
   test('não deve expor estado nem controles da integração sem manage:settings', async ({
     browser,
   }) => {

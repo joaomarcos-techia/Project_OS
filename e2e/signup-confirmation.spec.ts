@@ -641,9 +641,15 @@ async function rememberCookie(context: BrowserContext, fixture: Fixture): Promis
   // exato: sem ele teríamos apenas uma sessão anônima recém-criada, sem PII nem
   // identificador seguro para apagar.
   const deadline = Date.now() + 120_000;
+  const expectedHost = new URL(baseUrl!).hostname;
   while (Date.now() < deadline) {
-    const cookies = await context.cookies(baseUrl);
-    const cookie = cookies.find((item) => item.name === '__Host-qoro_signup');
+    // Playwright omite cookies Secure ao filtrar por uma URL http://, mesmo
+    // quando o Chromium os aceita no loopback. A sessão é isolada; conferir o
+    // host preserva a prova de que o cookie pertence ao alvo do E2E.
+    const cookies = await context.cookies();
+    const cookie = cookies.find(
+      (item) => item.name === '__Host-qoro_signup' && item.domain === expectedHost,
+    );
     if (cookie?.value) {
       fixture.tokenHash = signupTokenHash(cookie.value);
       fixture.tokenHashes = [...new Set([...(fixture.tokenHashes ?? []), fixture.tokenHash])];
@@ -976,6 +982,7 @@ async function openOnPhone(
   if (!expectedToken) throw new Error('callback do telefone sem token no fragmento');
   let bridgeGets = 0;
   let bridgePosts = 0;
+  const bridgeResponses: string[] = [];
   const bridgeViolations: string[] = [];
   page.on('request', (request) => {
     const url = new URL(request.url());
@@ -994,6 +1001,11 @@ async function openOnPhone(
       }
     }
   });
+  page.on('response', (response) => {
+    const url = new URL(response.url());
+    if (url.pathname !== '/auth/confirm') return;
+    bridgeResponses.push(`${response.request().method()}:${response.status()}`);
+  });
   try {
     await page.goto(rawUrl, { waitUntil: 'domcontentloaded', timeout: 90_000 });
   } catch {
@@ -1004,11 +1016,12 @@ async function openOnPhone(
       (url) => url.pathname === '/cadastro/confirmado' && url.search === '' && url.hash === '',
       { timeout: 90_000 },
     );
-  } catch {
+  } catch (error) {
     const observed = new URL(page.url());
     const searchKeys = [...new Set(observed.searchParams.keys())].sort().join(',') || 'none';
+    const failure = error instanceof Error ? error.name : 'unknown';
     throw new Error(
-      `callback não terminou na confirmação sanitizada (path=${observed.pathname}; searchKeys=${searchKeys}; fragment=${observed.hash ? 'present' : 'absent'})`,
+      `callback não terminou na confirmação sanitizada (path=${observed.pathname}; searchKeys=${searchKeys}; fragment=${observed.hash ? 'present' : 'absent'}; GET=${bridgeGets}; POST=${bridgePosts}; responses=${bridgeResponses.join(',') || 'none'}; pageClosed=${page.isClosed()}; failure=${failure})`,
     );
   }
   await expect(page.getByRole('heading', { name: 'E-mail confirmado' })).toBeVisible();
@@ -1205,6 +1218,51 @@ test.describe('cadastro — confirmação real via Resend', () => {
       await signup.page.locator('[data-slot="option-card-group"] label').first().click();
       await signup.page.getByRole('button', { name: 'Salvar plano' }).click();
       await expect(signup.page.getByText('Plano salvo')).toBeVisible();
+      await expect(signup.page).toHaveURL(/\/cadastro\/plano$/u);
+    } finally {
+      await Promise.allSettled([phone?.close(), desktop?.close()]);
+      await cleanupFixture(fixture);
+    }
+  });
+
+  test('checkout recorrente abre no Asaas e fica persistido após a confirmação', async ({
+    browser,
+  }) => {
+    const reason = skipReason();
+    test.skip(!writeEnabled, 'E2E_SIGNUP_WRITE != 1');
+    if (reason) throw new Error(`guard recusou a escrita: ${reason}`);
+    test.skip(
+      new URL(baseUrl!).protocol !== 'https:',
+      'Asaas Sandbox recusa callbacks HTTP; este cenário exige Preview HTTPS',
+    );
+    test.setTimeout(420_000);
+
+    const email = `checkout+qoro-signup-${Date.now()}-${randomBytes(4).toString('hex')}@resend.dev`;
+    let desktop: BrowserContext | null = null;
+    let phone: BrowserContext | null = null;
+    let fixture: Fixture = { projectRef: expectedProjectRef!, email };
+    try {
+      const signup = await startSignup(browser, email);
+      desktop = signup.context;
+      fixture = signup.fixture;
+      const message = await waitForMessage({
+        email,
+        subject: INITIAL_SUBJECT,
+        after: signup.startedAt,
+      });
+      if (!fixture.tokenHash) throw new Error('fixture sem hash do draft');
+      const proof = confirmationProof(message, fixture.tokenHash);
+      phone = (await openOnPhone(browser, proof.url)).context;
+      await waitForOriginalHandoff(signup.page);
+      await completeHandoffAfterRefresh(signup.page, {
+        email,
+        password: signup.password,
+        verificationCode: proof.verificationCode,
+        tokenHash: fixture.tokenHash,
+      });
+      await signup.page.locator('[data-slot="option-card-group"] label').first().click();
+      await signup.page.getByRole('button', { name: 'Salvar plano' }).click();
+      await expect(signup.page.getByText('Plano salvo')).toBeVisible();
       await signup.page.getByRole('button', { name: 'Continuar no Checkout Asaas' }).click();
       await signup.page.waitForURL(
         (url) =>
@@ -1220,6 +1278,134 @@ test.describe('cadastro — confirmação real via Resend', () => {
     } finally {
       await Promise.allSettled([phone?.close(), desktop?.close()]);
       await cleanupFixture(fixture);
+    }
+  });
+
+  test('cadastro expirado retoma a mesma conta após login, sem criar novo usuário', async ({
+    browser,
+  }) => {
+    const reason = skipReason();
+    test.skip(!writeEnabled, 'E2E_SIGNUP_WRITE != 1');
+    if (reason) throw new Error(`guard recusou a escrita: ${reason}`);
+    test.setTimeout(180_000);
+
+    const email = `expired+qoro-${Date.now()}-${randomBytes(4).toString('hex')}@resend.dev`;
+    const password = `QoroE2e7${randomBytes(12).toString('base64url')}`;
+    const expiredRef = randomBytes(32).toString('hex');
+    const fixture: Fixture = { projectRef: expectedProjectRef, email };
+    let context: BrowserContext | null = null;
+    await saveFixture(fixture);
+    try {
+      const created = await fetch(`${supabaseUrl}/auth/v1/admin/users`, {
+        method: 'POST',
+        headers: {
+          apikey: supabaseSecret!,
+          Authorization: `Bearer ${supabaseSecret!}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ email, password, email_confirm: true }),
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!created.ok) throw new Error(`Auth DEV não criou a fixture (${created.status})`);
+      const user = (await created.json()) as AuthUser;
+      if (!user.id || user.email?.toLowerCase() !== email) {
+        throw new Error('Auth DEV criou identidade divergente');
+      }
+      const marked = await fetch(`${supabaseUrl}/auth/v1/admin/users/${user.id}`, {
+        method: 'PUT',
+        headers: {
+          apikey: supabaseSecret!,
+          Authorization: `Bearer ${supabaseSecret!}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          app_metadata: {
+            qoro_self_service_signup: {
+              version: 1,
+              kind: 'self_service',
+              signup_ref: expiredRef,
+              password_state: 'set',
+            },
+          },
+        }),
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!marked.ok) throw new Error(`Auth DEV não gravou o marker (${marked.status})`);
+      const ready = await findUser(email);
+      if (ready?.id !== user.id || !ready.email_confirmed_at) {
+        throw new Error('fixture não tem conta confirmada');
+      }
+      const initialBinding = selfServiceBinding(ready);
+      if (initialBinding?.signupRef !== expiredRef || initialBinding.state !== 'set') {
+        throw new Error('fixture não reproduziu o marker órfão');
+      }
+
+      context = await browser.newContext({
+        baseURL: baseUrl!,
+        storageState: { cookies: [], origins: [] },
+        extraHTTPHeaders: vercelBypassHeaders(),
+      });
+      const page = await context.newPage();
+      await page.goto('/login');
+      await page.locator('#email').fill(email);
+      await page.getByLabel('Senha', { exact: true }).fill(password);
+      await page.getByRole('button', { name: 'Entrar', exact: true }).click();
+      await expect(page).toHaveURL(/\/cadastro\/continuar$/u, { timeout: 60_000 });
+      await expect(page.getByText(/Não encontramos um cadastro em andamento/u)).toBeVisible();
+
+      await page.getByLabel('Seu nome').fill('Ana Expirada');
+      await page.getByLabel('Nome da clínica').fill('Clínica Retomada E2E');
+      await page.getByLabel('Profissionais').selectOption('2_5');
+      await page.getByLabel('Atendimentos por semana').selectOption('21_50');
+      await page.getByLabel('Organização atual').selectOption('outro_sistema');
+      await page.getByLabel('Como conheceu a Qoro').selectOption('indicacao_colega');
+      await page.getByRole('checkbox').click();
+      await page.getByRole('button', { name: 'Confirmar e continuar' }).click();
+      await expect(page.getByText('Cadastro recuperado na conta verificada')).toBeVisible({
+        timeout: 60_000,
+      });
+
+      const rebound = await findUser(email);
+      const binding = selfServiceBinding(rebound);
+      if (rebound?.id !== user.id || !binding || binding.signupRef === expiredRef) {
+        throw new Error('Auth não reatou o mesmo usuário ao novo draft');
+      }
+      const sql = postgres(databaseUrl!, { max: 1, ssl: 'require', prepare: false });
+      try {
+        const rows = await sql<
+          {
+            token_hash: string;
+            auth_attempt_state: string | null;
+            billing_attempt_state: string | null;
+          }[]
+        >`
+          select token_hash, auth_attempt_state, billing_attempt_state
+            from signup_sessions
+           where auth_user_id = ${user.id}
+        `;
+        if (
+          rows.length !== 1 ||
+          rows[0]?.token_hash !== binding.signupRef ||
+          rows[0]?.auth_attempt_state !== null ||
+          rows[0]?.billing_attempt_state !== null
+        ) {
+          throw new Error('draft recriado não corresponde ao Auth ou iniciou cobrança');
+        }
+      } finally {
+        await sql.end({ timeout: 5 });
+      }
+
+      await page.reload();
+      await expect(page.getByText('Cadastro recuperado na conta verificada')).toBeVisible();
+      await page.getByRole('link', { name: 'Escolher plano' }).click();
+      await expect(page).toHaveURL(/\/cadastro\/plano$/u);
+      await expect(page.getByRole('heading', { name: 'Escolha seu plano' })).toBeVisible();
+    } finally {
+      try {
+        await context?.close();
+      } finally {
+        await cleanupFixture(fixture);
+      }
     }
   });
 

@@ -172,7 +172,6 @@ async function handlePatientWebhook(
           account.client.listPaymentRefunds(providerPaymentId, {
             attempts: 1,
           }),
-        providerPaymentStatus: payment.status,
       });
       metrics.emit('payments.webhook.refund_reconciled', {
         clinicId: account.clinicId,
@@ -237,12 +236,25 @@ async function handlePatientWebhook(
       asaasEventId: parsed.eventId,
       eventType: parsed.event,
       paidAt: new Date(),
+      providerGrossAmount: payment.value,
+      providerNetAmount: payment.netValue ?? null,
       // ADR-051 — vem do `getPayment` (fonte da verdade), nunca do corpo do
       // webhook: é ele que vira a forma de pagamento da baixa no Caixa.
       billingType: payment.billingType,
       checkoutSessionId: payment.checkoutSessionId,
+      providerInstallmentId: payment.installmentId ?? null,
+      providerInstallmentNumber: payment.installmentNumber ?? null,
     });
     metrics.emit('payments.webhook.processed', { clinicId: account.clinicId, outcome });
+    if (outcome === 'amount_mismatch') {
+      metrics.emit('payments.webhook.amount_mismatch', { clinicId: account.clinicId });
+    }
+    if (outcome === 'method_mismatch') {
+      metrics.emit('payments.webhook.method_mismatch', { clinicId: account.clinicId });
+    }
+    if (outcome === 'installment_mismatch') {
+      metrics.emit('payments.webhook.installment_mismatch', { clinicId: account.clinicId });
+    }
     return Response.json({ received: true, outcome }, { status: 200 });
   } catch (err) {
     captureBackgroundError(err, { flow: FLOW });

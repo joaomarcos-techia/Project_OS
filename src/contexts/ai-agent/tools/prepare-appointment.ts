@@ -18,6 +18,13 @@ import { z } from 'zod';
 /* eslint-disable boundaries/element-types -- schedulingApiV1 é a API interna pública (M14), mesma exceção das outras tools de agenda. */
 import { schedulingApiV1 } from '@/contexts/scheduling';
 /* eslint-enable boundaries/element-types */
+/* eslint-disable boundaries/element-types -- catálogo e resolução comerciais vêm da API pública de Payments. */
+import {
+  getPaymentPricingPolicy,
+  listProcedurePaymentPrices,
+  resolveConfiguredProcedurePaymentPrice,
+} from '@/contexts/payments';
+/* eslint-enable boundaries/element-types */
 
 import {
   assertAgentSchedulePolicy,
@@ -45,6 +52,17 @@ const InputSchema = z.object({
     .datetime({ offset: true })
     .optional()
     .describe('Horário desejado (ISO 8601 com offset). Omita para pegar o primeiro horário livre.'),
+  payment_method: z
+    .enum(['pix', 'credit_card'])
+    .optional()
+    .describe('Forma de pagamento explicitamente escolhida pelo paciente: pix ou credit_card.'),
+  installment_count: z
+    .number()
+    .int()
+    .min(1)
+    .max(12)
+    .optional()
+    .describe('Quantidade de parcelas escolhida pelo paciente no cartão. Para Pix, omita.'),
 });
 
 const PreparedOutputSchema = z.object({
@@ -110,6 +128,44 @@ function matchesProcedure(
 }
 
 const HOUR_MS = 60 * 60 * 1000;
+const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+const moneyForMessage = (value: number): string => money.format(value).replace(/\u00a0/g, ' ');
+
+function patientPaymentChoice(message: string): {
+  method: 'pix' | 'credit_card' | null;
+  ambiguous: boolean;
+  cardOneTime: boolean;
+  cardInstallmentsRequested: boolean;
+} {
+  const normalized = message
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+  const pix = /\bpix\b/.test(normalized);
+  const card = /\b(?:cartao|credito)\b/.test(normalized);
+  const ambiguous = pix && card;
+  const denied =
+    /\b(?:nao|sem)\s+(?:(?:quero|vou|prefiro|pagar|pago)\s+)?(?:no|via|com)?\s*(?:pix|cartao|credito)\b/.test(
+      normalized,
+    );
+  const debit = /\bdebito\b/.test(normalized);
+  return {
+    method:
+      ambiguous || denied || debit || /\?/.test(normalized)
+        ? null
+        : pix
+          ? 'pix'
+          : card
+            ? 'credit_card'
+            : null,
+    ambiguous,
+    cardOneTime: /\b1\s*x\b|\buma\s+vez\b|\ba\s+vista\b/.test(normalized),
+    cardInstallmentsRequested:
+      /\b(?:[2-9]|1[0-2])\s*x\b|\b(?:duas|tres|quatro|cinco|seis|sete|oito|nove|dez|onze|doze)\s+vezes\b/.test(
+        normalized,
+      ),
+  };
+}
 
 /**
  * F-04 (auditoria 2026-08-14): a resolução de data/hora saiu daqui para
@@ -190,6 +246,111 @@ registerTool({
       return {
         status: 'appointment_information_required' as const,
         patient_message: 'Informe qual atendimento ou serviço você deseja agendar.',
+      };
+    }
+
+    // A condição comercial é decidida pela escolha do paciente e pelo catálogo
+    // da clínica. O modelo nunca fornece preço ou identificador de versão.
+    const pricingPolicy = await getPaymentPricingPolicy(ctx.clinicId);
+    let commercialPrice: {
+      paymentMethod: 'pix' | 'credit_card';
+      installmentCount: number | null;
+      priceId: string;
+      grossAmount: number;
+    } | null = null;
+    if (pricingPolicy.mode === 'payment_method_pricing') {
+      const patientChoice = patientPaymentChoice(ctx.currentMessage);
+      const availablePrices = (await listProcedurePaymentPrices(ctx.clinicId)).filter(
+        (price) =>
+          price.procedureId === procedure!.id &&
+          (price.paymentMethod === 'pix' ||
+            (price.paymentMethod === 'credit_card' && price.installmentCount === 1)),
+      );
+      const options = availablePrices
+        .map(
+          (price) =>
+            `${price.paymentMethod === 'pix' ? 'Pix' : 'cartão de crédito em 1x'}: ${moneyForMessage(price.grossAmount)}`,
+        )
+        .join('; ');
+      if (patientChoice.ambiguous) {
+        return {
+          status: 'appointment_information_required' as const,
+          patient_message: 'Você mencionou Pix e cartão. Qual deles escolhe para este atendimento?',
+        };
+      }
+      if (!patientChoice.method) {
+        return {
+          status: 'appointment_information_required' as const,
+          patient_message: options
+            ? `Como prefere pagar ${procedure!.descricao}? ${options}. Informe uma das opções disponíveis.`
+            : 'Não há preço com link de pagamento disponível para este atendimento. Solicite ajuda à clínica.',
+        };
+      }
+      if (input.payment_method && input.payment_method !== patientChoice.method) {
+        return {
+          status: 'appointment_information_required' as const,
+          patient_message:
+            'A forma de pagamento informada não corresponde à sua mensagem. Confirme se escolhe Pix ou cartão.',
+        };
+      }
+      if (patientChoice.method === 'pix' && input.installment_count !== undefined) {
+        return {
+          status: 'appointment_information_required' as const,
+          patient_message: 'Pix não tem parcelas. Confirme se deseja pagar via Pix.',
+        };
+      }
+      if (patientChoice.method === 'credit_card' && patientChoice.cardInstallmentsRequested) {
+        return {
+          status: 'appointment_information_required' as const,
+          patient_message:
+            'Ainda não consigo gerar link de cartão parcelado com esse preço. Escolha Pix ou cartão em 1x, se disponíveis.',
+        };
+      }
+      if (patientChoice.method === 'credit_card' && !patientChoice.cardOneTime) {
+        return {
+          status: 'appointment_information_required' as const,
+          patient_message: availablePrices.some((price) => price.paymentMethod === 'credit_card')
+            ? 'Para pagar no cartão, responda "cartão em 1x" se desejar pagar à vista. O link de cartão parcelado ainda não está disponível.'
+            : 'Não há preço para cartão em 1x neste atendimento. Escolha outra forma de pagamento disponível.',
+        };
+      }
+      if (
+        patientChoice.method === 'credit_card' &&
+        input.installment_count !== undefined &&
+        input.installment_count !== 1
+      ) {
+        return {
+          status: 'appointment_information_required' as const,
+          patient_message:
+            'A quantidade de parcelas não corresponde à sua mensagem. Confirme "cartão em 1x".',
+        };
+      }
+      const resolved = await resolveConfiguredProcedurePaymentPrice({
+        clinicId: ctx.clinicId,
+        procedureId: procedure!.id,
+        standardGrossAmount: procedure!.valorPadrao,
+        paymentMethod: patientChoice.method,
+        installmentCount: patientChoice.method === 'credit_card' ? 1 : null,
+      });
+      if (
+        !resolved ||
+        resolved.mode !== 'payment_method_pricing' ||
+        resolved.source !== 'explicit_method_price' ||
+        !resolved.priceId ||
+        resolved.paymentMethod !== patientChoice.method ||
+        resolved.installmentCount !== (patientChoice.method === 'credit_card' ? 1 : null)
+      ) {
+        return {
+          status: 'appointment_information_required' as const,
+          patient_message:
+            'O preço dessa forma de pagamento mudou ou não está disponível. Confirme novamente a forma de pagamento com a clínica.',
+        };
+      }
+      commercialPrice = {
+        paymentMethod: patientChoice.method,
+        installmentCount: resolved.installmentCount,
+        priceId: resolved.priceId,
+        grossAmount: resolved.grossAmount,
       };
     }
 
@@ -347,11 +508,12 @@ registerTool({
         doctorId,
         procedureId: procedure!.id,
         scheduledAt,
+        ...(commercialPrice ? { commercialPrice } : {}),
       },
       summary: `Agendar ${procedure!.descricao} para ${appointmentTimeForPatient(
         scheduledAt,
         ctx.clinicTimeZone,
-      )}`,
+      )}${commercialPrice ? `; valor total ${moneyForMessage(commercialPrice.grossAmount)} via ${commercialPrice.paymentMethod === 'pix' ? 'Pix' : 'cartão de crédito em 1x'}` : ''}`,
     });
     return {
       status: 'appointment_prepared' as const,

@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import type { SignupAnswerValues, SignupDraftState } from '@/contexts/onboarding';
 import { SIGNUP_INPUT_LIMITS } from '@/contexts/onboarding/signup-input-limits';
 
-type Phase = 'loading' | 'form' | 'owned' | 'unavailable' | 'signed_out';
+type Phase = 'loading' | 'form' | 'owned' | 'unavailable' | 'signed_out' | 'relogin';
 
 const LABELS = {
   professionalsBand: {
@@ -190,6 +190,7 @@ export function ContinueSignupForm() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body),
       });
+      const errorBody = response.ok ? null : await responseJson(response);
       if (response.ok) {
         if (!(await loadOwnedAfterWrite())) {
           setMessage('Os dados foram aceitos, mas a revisão não pôde ser carregada agora.');
@@ -197,8 +198,16 @@ export function ContinueSignupForm() {
         }
       } else if (response.status === 409) {
         if (!(await loadOwnedAfterWrite())) {
-          setMessage('Outra aba concluiu o cadastro primeiro. Recarregue para ver o resultado.');
+          setMessage(
+            'Não foi possível reiniciar este cadastro. Pode haver um pagamento em processamento. Entre novamente; se o problema persistir, fale com o suporte.',
+          );
         }
+      } else if (
+        response.status === 503 &&
+        isRecord(errorBody) &&
+        errorBody.error === 'binding_unavailable'
+      ) {
+        setPhase('relogin');
       } else if (response.status === 401 || response.status === 403) {
         setPhase('signed_out');
       } else if (response.status === 429) {
@@ -230,6 +239,17 @@ export function ContinueSignupForm() {
     return (
       <Alert variant="warning" title="Sessão encerrada">
         <p>Entre novamente para continuar com a conta verificada.</p>
+        <a href="/login" className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
+          Ir para o login
+        </a>
+      </Alert>
+    );
+  }
+
+  if (phase === 'relogin') {
+    return (
+      <Alert variant="warning" title="Cadastro salvo; vínculo pendente">
+        <p>Entre novamente com a mesma conta para concluir o vínculo do cadastro.</p>
         <a href="/login" className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
           Ir para o login
         </a>
