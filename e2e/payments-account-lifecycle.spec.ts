@@ -555,5 +555,162 @@ test.describe.serial('conta de pagamento da clínica (Preview)', () => {
     await expect(page.getByRole('heading', { name: 'Política financeira' })).toBeVisible();
     await expect(page.getByRole('radio', { name: /Preço por meio de pagamento/u })).toBeChecked();
     await expect(page.getByRole('radio', { name: /Valor líquido/u })).toBeChecked();
+    fixtureAuthCookies = await page.context().cookies();
+  });
+
+  test('Caixa Solo distingue economia alocada e fatos de cada cobrança', async ({ page }) => {
+    test.setTimeout(180_000);
+    test.skip(!isolatedFixture, 'Exige fixture isolada em DEV para criar cobrança sintética.');
+    assertPreviewOnly();
+    await authenticateForTest(page);
+
+    const [solo] = await fixtureSql!<{ plan_id: string; price_id: string }[]>`
+      select p.id::text plan_id, pr.id::text price_id
+        from plans p join prices pr on pr.plan_id = p.id
+       where p.code = 'solo' and p.ativo = true
+         and pr.billing_cycle = 'monthly' and pr.active_until is null
+         and pr.campaign_code is null
+       order by pr.active_from desc limit 1
+    `;
+    if (!solo) throw new Error('Plano Solo mensal vigente ausente no DEV.');
+    await fixtureSql!`
+      update subscriptions set plan_id = ${solo.plan_id}::uuid, price_id = ${solo.price_id}::uuid
+       where clinic_id = ${fixtureClinicId}::uuid
+    `;
+
+    const patientId = randomUUID();
+    const appointmentId = randomUUID();
+    const lancamentoId = randomUUID();
+    const depositChargeId = randomUUID();
+    const remainderChargeId = randomUUID();
+    const patientName = `Paciente economia ${fixtureRunId.slice(0, 8)}`;
+    const [procedure] = await fixtureSql!<{ id: string }[]>`
+      select id::text from procedures where clinic_id = ${fixtureClinicId}::uuid limit 1
+    `;
+    if (!procedure) throw new Error('Procedimento da fixture financeira não encontrado.');
+    await fixtureSql!`
+      insert into patients (id, clinic_id, nome, cpf_encrypted, cpf_hash)
+      values (${patientId}::uuid, ${fixtureClinicId}::uuid, ${patientName},
+              'fixture', ${fixtureRunId.replaceAll('-', '').padEnd(64, '0')})
+    `;
+    await fixtureSql!`
+      insert into appointments
+        (id, clinic_id, doctor_id, patient_id, procedure_id, scheduled_at,
+         duration_min, status, valor, snapshot_procedure_name,
+         snapshot_procedure_valor, snapshot_procedure_duracao_min,
+         snapshot_doctor_nome, created_via)
+      values (${appointmentId}::uuid, ${fixtureClinicId}::uuid, ${fixtureUserId}::uuid,
+              ${patientId}::uuid, ${procedure.id}::uuid, now(), 30, 'atendido', 150,
+              'Consulta sintética', 150, 30, 'Profissional E2E', 'attendant')
+    `;
+    await fixtureSql!`
+      insert into lancamentos
+        (id, clinic_id, tipo, descricao, valor, valor_pago, status, paid_at,
+         appointment_id, patient_id, created_via)
+      values (${lancamentoId}::uuid, ${fixtureClinicId}::uuid, 'receber',
+              'Consulta sintética', 150, 150, 'pago', now(),
+              ${appointmentId}::uuid, ${patientId}::uuid, 'auto')
+    `;
+    await fixtureSql!`
+      insert into patient_charges
+        (id, clinic_id, appointment_id, patient_id, kind, status, amount,
+         provider, external_reference, paid_at, provider_gross_amount,
+         provider_fee_amount, provider_net_amount, economics_reconciled_at, created_at)
+      values
+        (${depositChargeId}::uuid, ${fixtureClinicId}::uuid, ${appointmentId}::uuid,
+         ${patientId}::uuid, 'deposit', 'paid', 50, 'asaas',
+         ${`deposit:${appointmentId}`}, now(), 50, 1, 49, now(), now() - interval '1 second'),
+        (${remainderChargeId}::uuid, ${fixtureClinicId}::uuid, ${appointmentId}::uuid,
+         ${patientId}::uuid, 'remainder', 'paid', 100, 'asaas',
+         ${`remainder:${appointmentId}`}, now(), 100, null, null, null, now())
+    `;
+    await fixtureSql!`
+      insert into patient_credits
+        (clinic_id, patient_id, appointment_id, patient_charge_id, amount,
+         allocated_amount, allocated_lancamento_id, kind, status, payment_method,
+         provider_gross_amount, provider_fee_amount, provider_net_amount,
+         provider_economics_reconciled_at)
+      values
+        (${fixtureClinicId}::uuid, ${patientId}::uuid, ${appointmentId}::uuid,
+         ${depositChargeId}::uuid, 50, 50, ${lancamentoId}::uuid,
+         'deposit', 'allocated', 'pix', 50, 1, 49, now()),
+        (${fixtureClinicId}::uuid, ${patientId}::uuid, ${appointmentId}::uuid,
+         ${remainderChargeId}::uuid, 100, 100, ${lancamentoId}::uuid,
+         'remaining_payment', 'allocated', 'cartao_credito', 100, null, null, null)
+    `;
+
+    await page.goto('/auth/session-refresh?next=/caixa');
+    await expect(page).toHaveURL(/\/caixa(?:\?|$)/u);
+    const received = page.locator('section[aria-label="Recebidos hoje"]');
+    await expect(received.getByText(patientName)).toBeVisible();
+    const composition = received.locator('details').first();
+    await page.waitForLoadState('networkidle');
+    await composition.locator('summary').click();
+    await expect(composition).toHaveAttribute('open', '');
+    await expect(composition.getByText('Cada cobrança Asaas')).toBeVisible();
+    await expect(
+      composition
+        .locator('dt')
+        .filter({ hasText: 'Valor recebido alocado' })
+        .locator('xpath=following-sibling::dd[1]'),
+    ).toHaveText('R$ 150,00');
+    await expect(
+      composition
+        .locator('dt')
+        .filter({ hasText: 'Tarifa real alocada' })
+        .locator('xpath=following-sibling::dd[1]'),
+    ).toHaveText('Não informado');
+    await expect(
+      composition
+        .locator('dt')
+        .filter({ hasText: 'Líquido real alocado' })
+        .locator('xpath=following-sibling::dd[1]'),
+    ).toHaveText('Não informado');
+    await expect(composition.getByText('Repasse profissional')).toHaveCount(0);
+    const deposit = composition.locator('dl').nth(1);
+    const remainder = composition.locator('dl').nth(2);
+    await expect(deposit.locator('dd')).toHaveText([
+      'R$ 50,00',
+      'R$ 50,00',
+      '− R$ 1,00',
+      'R$ 49,00',
+    ]);
+    await expect(remainder.locator('dd')).toHaveText([
+      'R$ 100,00',
+      'R$ 100,00',
+      'Não informado',
+      'Não informado',
+    ]);
+
+    await fixtureSql!`
+      update patient_charges
+         set provider_fee_amount = 2, provider_net_amount = 98,
+             economics_reconciled_at = now()
+       where id = ${remainderChargeId}::uuid and clinic_id = ${fixtureClinicId}::uuid
+    `;
+    await fixtureSql!`
+      update patient_credits
+         set provider_fee_amount = 2, provider_net_amount = 98,
+             provider_economics_reconciled_at = now()
+       where patient_charge_id = ${remainderChargeId}::uuid
+         and clinic_id = ${fixtureClinicId}::uuid
+    `;
+    await page.reload();
+    const reconciled = page.locator('section[aria-label="Recebidos hoje"] details').first();
+    await page.waitForLoadState('networkidle');
+    await reconciled.locator('summary').click();
+    await expect(reconciled).toHaveAttribute('open', '');
+    await expect(
+      reconciled
+        .locator('dt')
+        .filter({ hasText: 'Tarifa real alocada' })
+        .locator('xpath=following-sibling::dd[1]'),
+    ).toHaveText('− R$ 3,00');
+    await expect(
+      reconciled
+        .locator('dt')
+        .filter({ hasText: 'Líquido real alocado' })
+        .locator('xpath=following-sibling::dd[1]'),
+    ).toHaveText('R$ 147,00');
   });
 });
