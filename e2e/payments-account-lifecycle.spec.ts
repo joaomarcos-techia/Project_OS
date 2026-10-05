@@ -58,6 +58,9 @@ const fixturePassword = `Qoro${fixtureRunId.replaceAll('-', '')}Aa1!`;
 let fixtureClinicId = '';
 let fixtureUserId = '';
 let fixtureSql: ReturnType<typeof postgres> | null = null;
+let fixtureAuthCookies: Awaited<
+  ReturnType<import('@playwright/test').BrowserContext['cookies']>
+> | null = null;
 
 function isolatedFixtureConfig(): {
   databaseUrl: string;
@@ -128,6 +131,11 @@ async function createIsolatedFixture(): Promise<void> {
     values
       (${fixtureClinicId}::uuid, ${catalog.plan_id}::uuid, ${catalog.price_id}::uuid,
        'active', now(), now(), now() + interval '1 month')
+  `;
+  await fixtureSql`
+    insert into procedures (clinic_id, codigo, descricao, valor_padrao, duracao_padrao_min)
+    values (${fixtureClinicId}::uuid, ${`E2E-${fixtureRunId.slice(0, 8)}`},
+      'Consulta E2E financeira', 240, 30)
   `;
   await fixtureSql`
     insert into profiles (id, clinic_id, nome, role, ativo, invite_accepted_at)
@@ -202,11 +210,20 @@ async function cleanupIsolatedFixture(): Promise<void> {
 
 async function authenticateForTest(page: import('@playwright/test').Page): Promise<void> {
   if (!isolatedFixture) return authenticate(page);
+  if (fixtureAuthCookies) {
+    await page.context().addCookies(fixtureAuthCookies);
+    await page.goto('/dashboard');
+    await expect(page).toHaveURL(/\/dashboard(?:\?|$)/, { timeout: 30_000 });
+    return;
+  }
   await page.goto('/login');
   await page.locator('#email').fill(fixtureEmail);
   await page.locator('input[name="password"]').fill(fixturePassword);
   await page.getByRole('button', { name: 'Entrar' }).click();
   await expect(page).toHaveURL(/\/dashboard(?:\?|$)/, { timeout: 90_000 });
+  // Só em memória deste worker: reutiliza a sessão da fixture entre os testes
+  // de Payments sem consumir o orçamento de 10 logins/IP/15 min do Preview.
+  fixtureAuthCookies = await page.context().cookies();
 }
 
 /** Aborta se o alvo for produção. Erro, não skip — ver cabeçalho. */
@@ -374,5 +391,169 @@ test.describe.serial('conta de pagamento da clínica (Preview)', () => {
     }
     if (cleanupError) throw cleanupError;
     if (primaryError) throw primaryError;
+  });
+
+  test('Pro e Clínica exibem preço/repasse; Solo bloqueia UI e ação direta', async ({ page }) => {
+    test.setTimeout(180_000);
+    test.skip(
+      !isolatedFixture,
+      'Exige fixture isolada em DEV para não alterar política de clínica real.',
+    );
+    assertPreviewOnly();
+    await authenticateForTest(page);
+    const response = await page.goto('/configuracoes/pagamentos');
+    expect(response?.status()).toBe(200);
+
+    const explicitPricing = page.getByRole('radio', { name: /Preço por meio de pagamento/u });
+    await expect(explicitPricing).toBeVisible();
+    await page.getByText('Preço por meio de pagamento', { exact: true }).click();
+    await expect(explicitPricing).toBeChecked();
+    const actionRequestPromise = page.waitForRequest(
+      (request) =>
+        request.method() === 'POST' &&
+        request.url().includes('/configuracoes/pagamentos') &&
+        Boolean(request.headers()['next-action']),
+    );
+    await page.getByRole('button', { name: 'Salvar política de preço' }).click();
+    const policyAction = await actionRequestPromise;
+    const policyActionBody = policyAction.postDataBuffer();
+    if (!policyActionBody) throw new Error('Server Action de política sem corpo capturável.');
+    const actionHeaders = policyAction.headers();
+    const replayHeaders = Object.fromEntries(
+      [
+        'accept',
+        'content-type',
+        'next-action',
+        'next-router-state-tree',
+        'next-url',
+        'origin',
+        'referer',
+      ].flatMap((name) => (actionHeaders[name] ? [[name, actionHeaders[name]]] : [])),
+    );
+    await expect(
+      page.getByRole('alert').filter({
+        hasText: 'Cadastre ao menos um preço por método antes de ativar esta política.',
+      }),
+    ).toBeVisible();
+    expect(
+      await fixtureSql!<{ mode: string }[]>`
+      select mode from clinic_payment_pricing_policies where clinic_id = ${fixtureClinicId}::uuid
+    `,
+    ).toHaveLength(0);
+
+    await page.locator('#price-gross').fill('240');
+    await page.getByRole('button', { name: 'Salvar preço' }).click();
+    await expect(
+      page.getByRole('alert').filter({ hasText: 'Preço por método salvo.' }),
+    ).toBeVisible();
+    await page.locator('#price-method').selectOption('credit_card');
+    await page.locator('#price-gross').fill('260');
+    await page.getByRole('button', { name: 'Salvar preço' }).click();
+    await expect(page.getByText('R$ 260,00', { exact: true })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Salvar política de preço' }).click();
+    await expect(
+      page.getByRole('alert').filter({ hasText: 'Política de preço salva.' }),
+    ).toBeVisible();
+    await page.getByText('Valor líquido', { exact: true }).click();
+    await expect(page.getByRole('radio', { name: /Valor líquido/u })).toBeChecked();
+    await page.getByRole('button', { name: 'Salvar base de repasse' }).click();
+    await expect(
+      page.getByRole('alert').filter({
+        hasText: 'Base de repasse salva para os próximos atendimentos.',
+      }),
+    ).toBeVisible();
+
+    await page.reload();
+    await expect(page.getByRole('radio', { name: /Preço por meio de pagamento/u })).toBeChecked();
+    await expect(page.getByRole('radio', { name: /Valor líquido/u })).toBeChecked();
+    await expect(page.getByText('R$ 240,00', { exact: true })).toBeVisible();
+    await expect(page.getByText('R$ 260,00', { exact: true })).toBeVisible();
+
+    const [policy] = await fixtureSql!<{ mode: string }[]>`
+      select mode from clinic_payment_pricing_policies where clinic_id = ${fixtureClinicId}::uuid
+    `;
+    expect(policy?.mode).toBe('payment_method_pricing');
+    const prices = await fixtureSql!<{ payment_method: string; gross_amount: string }[]>`
+      select payment_method, gross_amount from procedure_payment_prices
+       where clinic_id = ${fixtureClinicId}::uuid and active = true
+       order by payment_method
+    `;
+    expect(prices).toEqual([
+      { payment_method: 'credit_card', gross_amount: '260.00' },
+      { payment_method: 'pix', gross_amount: '240.00' },
+    ]);
+    const [payout] = await fixtureSql!<{ professional_payout_basis: string }[]>`
+      select professional_payout_basis from clinic_financial_policies
+       where clinic_id = ${fixtureClinicId}::uuid
+    `;
+    expect(payout?.professional_payout_basis).toBe('net');
+
+    const [solo] = await fixtureSql!<{ plan_id: string; price_id: string }[]>`
+      select p.id::text plan_id, pr.id::text price_id
+        from plans p join prices pr on pr.plan_id = p.id
+       where p.code = 'solo' and p.ativo = true
+         and pr.billing_cycle = 'monthly' and pr.active_until is null
+         and pr.campaign_code is null
+       order by pr.active_from desc limit 1
+    `;
+    if (!solo) throw new Error('Plano Solo mensal vigente ausente no DEV.');
+    const switched = await fixtureSql!<{ clinic_id: string }[]>`
+      update subscriptions set plan_id = ${solo.plan_id}::uuid, price_id = ${solo.price_id}::uuid
+       where clinic_id = ${fixtureClinicId}::uuid returning clinic_id::text
+    `;
+    expect(switched).toHaveLength(1);
+    // A troca do plano incrementa claims_version. A sessão antiga deve perder
+    // acesso; depois a rota própria renova o JWT sem gastar outro login/IP.
+    const stale = await page.request.get('/configuracoes/pagamentos', {
+      maxRedirects: 0,
+      failOnStatusCode: false,
+    });
+    expect([303, 307, 308], 'a sessão antiga não foi recusada após downgrade').toContain(
+      stale.status(),
+    );
+    expect(new URL(stale.headers()['location'] ?? '', baseUrl).pathname).toBe('/login');
+    await page.goto('/auth/session-refresh?next=/configuracoes/pagamentos');
+    await expect(page).toHaveURL(/\/configuracoes\/pagamentos(?:\?|$)/u);
+    await expect(
+      page.getByRole('alert').filter({
+        hasText:
+          'Preços por meio de pagamento e regras de repasse estão disponíveis nos planos Clínica e Pro.',
+      }),
+    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Política financeira' })).toHaveCount(0);
+
+    const replay = await page.request.fetch(policyAction.url(), {
+      method: 'POST',
+      headers: replayHeaders,
+      data: policyActionBody,
+      failOnStatusCode: false,
+    });
+    expect(replay.status(), 'a ação direta com sessão Solo falhou antes de chegar ao backend').toBe(
+      200,
+    );
+    expect(await replay.text(), 'o backend aceitou configuração Pro no plano Solo').toContain(
+      'Preço por meio de pagamento está disponível nos planos Clínica e Pro.',
+    );
+
+    const [clinicPlan] = await fixtureSql!<{ plan_id: string; price_id: string }[]>`
+      select p.id::text plan_id, pr.id::text price_id
+        from plans p join prices pr on pr.plan_id = p.id
+       where p.code = 'clinica' and p.ativo = true
+         and pr.billing_cycle = 'monthly' and pr.active_until is null
+         and pr.campaign_code is null
+       order by pr.active_from desc limit 1
+    `;
+    if (!clinicPlan) throw new Error('Plano Clínica mensal vigente ausente no DEV.');
+    await fixtureSql!`
+      update subscriptions set plan_id = ${clinicPlan.plan_id}::uuid,
+        price_id = ${clinicPlan.price_id}::uuid
+       where clinic_id = ${fixtureClinicId}::uuid
+    `;
+    await page.goto('/auth/session-refresh?next=/configuracoes/pagamentos');
+    await expect(page).toHaveURL(/\/configuracoes\/pagamentos(?:\?|$)/u);
+    await expect(page.getByRole('heading', { name: 'Política financeira' })).toBeVisible();
+    await expect(page.getByRole('radio', { name: /Preço por meio de pagamento/u })).toBeChecked();
+    await expect(page.getByRole('radio', { name: /Valor líquido/u })).toBeChecked();
   });
 });

@@ -418,3 +418,17 @@ zero PASS. Os dez PASS do consolidado pertencem a execuções isoladas com os
 guardas satisfeitos; não foram inferidos da coleta. Os três bloqueios continuam
 sendo credenciais doctor/owner específicas ausentes. O caso de conversa é SKIP
 justificado pela inexistência de `ai_conversations` em produção.
+
+## 19. Fotografia funcional adicional — 05/10/2026
+
+| Domínio | Ambiente e execução | PASS | FAIL | BLOCKED | SKIP | Limite da prova |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| Cadastro e Checkout SaaS | Preview HTTPS + Supabase DEV + Resend + Asaas Sandbox | 1 | 0 | 0 | 0 | Abriu Checkout e persistiu `checkout_pending`; pagamento/webhook não executados |
+| Conta Asaas e política financeira | Preview HTTPS + fixture DEV/Sandbox; `payments-account-lifecycle.spec.ts` | 3 | 0 | 0 | 0 | Chave inválida, conexão/desconexão, preços e repasse Pro, bloqueio Solo na UI e Action, retorno Clínica; fixture eliminada |
+| Guardas de preço e Checkout no PostgreSQL | DEV; dois smokes isolados | 2 | 0 | 0 | 0 | Segundo smoke usa provider sintético e handler da fixture, sem worker global |
+| `production-*` | 44 arquivos / 50 casos na coleta atual | 3 | 0 | 1 | 46 | A maioria continuou sem pré-condição de execução; ver [relatório específico](production-44-execution.md) |
+
+Os resultados de 01/10 acima são fotografias históricas, não os totais da coleta
+de 05/10. A [especificação financeira](../specs/politica-financeira-camadas.md)
+registra as falhas de teste corrigidas, os comandos, a limpeza e as pendências
+externas sem converter um Checkout aberto em pagamento concluído.
