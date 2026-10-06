@@ -259,6 +259,86 @@ describe('markDepositPaid', () => {
   });
 
   it.each([
+    [5, 145, 143, 2, 7],
+    [7, 143, 145, 3, 5],
+    [7, 143, 141, 3, 9],
+  ])(
+    'revisa tarifa %s sem recriar crédito ou cobrança',
+    async (oldFee, oldNet, newNet, revision, newFee) => {
+      const previous = new Date('2026-10-05T12:00:00Z');
+      const observedAt = new Date('2026-10-06T12:00:00Z');
+      stubTx({
+        charge: [
+          {
+            ...CHARGE,
+            status: 'paid',
+            providerPaymentId: input.providerPaymentId,
+            paidAt: input.paidAt,
+            economicsReconciledAt: previous,
+            providerFeeAmount: oldFee.toFixed(2),
+            providerNetAmount: oldNet.toFixed(2),
+            providerEconomicsRevision: revision - 1,
+          },
+        ],
+      });
+      await expect(
+        reconcilePaidChargeEconomics({
+          clinicId: input.clinicId,
+          chargeId: CHARGE.id,
+          providerPaymentId: input.providerPaymentId,
+          reconciledAt: observedAt,
+          providerGrossAmount: 150,
+          providerNetAmount: newNet,
+        }),
+      ).resolves.toBe('economics_corrected');
+      expect(mocks.updateSet).toHaveBeenCalledWith(
+        expect.objectContaining({
+          providerFeeAmount: newFee.toFixed(2),
+          providerEconomicsRevision: revision,
+        }),
+      );
+      expect(mocks.publishEvent).toHaveBeenCalledTimes(1);
+      expect(mocks.publishEvent).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          eventType: 'payments.patient_payment.economics_corrected',
+          idempotencyKey: `payment-economics-correction:${CHARGE.id}:${revision}`,
+          payload: expect.objectContaining({ revision, providerFeeAmount: newFee }),
+        }),
+      );
+    },
+  );
+
+  it('ignora readback antigo, repetição e CAS perdido sem publicar correção', async () => {
+    const previous = new Date('2026-10-06T12:00:00Z');
+    const charge = {
+      ...CHARGE,
+      status: 'paid',
+      providerPaymentId: input.providerPaymentId,
+      paidAt: input.paidAt,
+      economicsReconciledAt: previous,
+      providerFeeAmount: '7.00',
+      providerEconomicsRevision: 2,
+    };
+    stubTx({ charge: [charge] });
+    const attempt = (reconciledAt: Date, providerNetAmount: number) =>
+      reconcilePaidChargeEconomics({
+        clinicId: input.clinicId,
+        chargeId: CHARGE.id,
+        providerPaymentId: input.providerPaymentId,
+        reconciledAt,
+        providerGrossAmount: 150,
+        providerNetAmount,
+      });
+    await expect(attempt(new Date('2026-10-05T12:00:00Z'), 145)).resolves.toBe('already_paid');
+    await expect(attempt(new Date('2026-10-07T12:00:00Z'), 143)).resolves.toBe('already_paid');
+    expect(mocks.publishEvent).not.toHaveBeenCalled();
+    stubTx({ charge: [charge], updated: [] });
+    await expect(attempt(new Date('2026-10-07T12:00:00Z'), 141)).resolves.toBe('already_paid');
+    expect(mocks.publishEvent).not.toHaveBeenCalled();
+  });
+
+  it.each([
     ['acima do bruto', 151, 'above_gross'],
     ['negativo', -1, 'negative'],
   ])('não concilia economia tardia com líquido %s', async (_case, net, direction) => {

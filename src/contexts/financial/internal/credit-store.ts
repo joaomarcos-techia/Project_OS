@@ -66,6 +66,12 @@ export async function grantCredit(tx: Tx, input: GrantCreditInput): Promise<stri
         input.providerNetAmount != null
           ? input.grantedAt
           : null,
+      providerEconomicsRevision:
+        input.providerGrossAmount != null &&
+        input.providerFeeAmount != null &&
+        input.providerNetAmount != null
+          ? 1
+          : 0,
       allocatedAmount: '0',
       kind: input.kind,
       status: 'available',
@@ -123,6 +129,7 @@ export async function reconcileCreditEconomics(
       earlySettlementFeeAmount:
         input.earlySettlementFeeAmount == null ? null : input.earlySettlementFeeAmount.toFixed(2),
       providerEconomicsReconciledAt: input.providerFeeAmount === null ? null : input.reconciledAt,
+      providerEconomicsRevision: input.providerFeeAmount === null ? 0 : 1,
       ...(input.paymentMethod ? { paymentMethod: input.paymentMethod } : {}),
       updatedAt: sql`now()`,
     })
@@ -131,6 +138,64 @@ export async function reconcileCreditEconomics(
     )
     .returning({ id: patientCredits.id });
   return updated.length > 0 ? 'reconciled' : 'already_reconciled';
+}
+
+/** Projeta a última revisão do provedor sob lock da linha do crédito. */
+export async function correctCreditEconomics(
+  tx: Tx,
+  input: {
+    clinicId: string;
+    patientChargeId: string;
+    appointmentId: string;
+    revision: number;
+    grossAmount: number;
+    feeAmount: number;
+    netAmount: number;
+    observedAt: Date;
+  },
+): Promise<
+  | { outcome: 'corrected'; deltaCents: number }
+  | { outcome: 'already_applied' }
+  | { outcome: 'pending' }
+> {
+  const [credit] = await tx
+    .select({
+      id: patientCredits.id,
+      appointmentId: patientCredits.appointmentId,
+      amount: patientCredits.amount,
+      feeAmount: patientCredits.providerFeeAmount,
+      revision: patientCredits.providerEconomicsRevision,
+    })
+    .from(patientCredits)
+    .where(
+      and(
+        eq(patientCredits.clinicId, input.clinicId),
+        eq(patientCredits.patientChargeId, input.patientChargeId),
+      ),
+    )
+    .for('update')
+    .limit(1);
+  if (!credit || credit.revision === 0) return { outcome: 'pending' };
+  if (
+    credit.appointmentId !== input.appointmentId ||
+    Math.round(Number(credit.amount) * 100) !== Math.round(input.grossAmount * 100) ||
+    Math.round((input.grossAmount - input.feeAmount) * 100) !== Math.round(input.netAmount * 100)
+  ) {
+    throw new Error('[financial] revisão econômica divergente do crédito original');
+  }
+  if (credit.revision >= input.revision) return { outcome: 'already_applied' };
+  const deltaCents = Math.round(input.feeAmount * 100) - Math.round(Number(credit.feeAmount) * 100);
+  await tx
+    .update(patientCredits)
+    .set({
+      providerFeeAmount: input.feeAmount.toFixed(2),
+      providerNetAmount: input.netAmount.toFixed(2),
+      providerEconomicsRevision: input.revision,
+      providerEconomicsReconciledAt: input.observedAt,
+      updatedAt: sql`now()`,
+    })
+    .where(eq(patientCredits.id, credit.id));
+  return { outcome: 'corrected', deltaCents };
 }
 
 export type ReleaseOutcome = 'released' | 'not_found' | 'already_resolved';

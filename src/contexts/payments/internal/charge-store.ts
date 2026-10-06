@@ -12,7 +12,7 @@
  */
 import 'server-only';
 
-import { and, eq, gt, inArray, isNull, lte, or, sql } from 'drizzle-orm';
+import { and, eq, gt, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm';
 
 import type { Tx } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
@@ -27,6 +27,7 @@ import {
   type PatientChargePaidPayload,
   type PatientCreditGrantedPayload,
   type PatientPaymentEconomicsReconciledPayload,
+  type PatientPaymentEconomicsCorrectedPayload,
   type PatientCreditReleasedPayload,
 } from '../events';
 import {
@@ -775,6 +776,7 @@ export async function findChargedAppointmentIds(
 export type ReconcileOutcome =
   | 'paid'
   | 'economics_reconciled'
+  | 'economics_corrected'
   | 'already_paid'
   | 'unknown_charge'
   | 'amount_mismatch'
@@ -846,7 +848,11 @@ async function reconcilePaidChargeEconomicsInTransaction(
       amount: string;
       paidAt: Date | null;
       economicsReconciledAt: Date | null;
+      providerFeeAmount: string | null;
+      providerEconomicsRevision: number;
     };
+    providerPaymentId: string;
+    allowCorrection?: boolean;
     reconciledAt: Date;
     providerGrossAmount: number;
     providerNetAmount: number | null;
@@ -854,8 +860,8 @@ async function reconcilePaidChargeEconomicsInTransaction(
     providerInstallmentId?: string | null | undefined;
     providerInstallmentNumber?: number | null | undefined;
   },
-): Promise<'economics_reconciled' | 'already_paid' | 'amount_mismatch'> {
-  if (input.charge.economicsReconciledAt || input.providerNetAmount == null) {
+): Promise<'economics_reconciled' | 'economics_corrected' | 'already_paid' | 'amount_mismatch'> {
+  if (input.providerNetAmount == null) {
     return 'already_paid';
   }
 
@@ -876,6 +882,56 @@ async function reconcilePaidChargeEconomicsInTransaction(
     });
     return 'already_paid';
   }
+  if (input.charge.economicsReconciledAt) {
+    if (!input.allowCorrection || input.reconciledAt <= input.charge.economicsReconciledAt) {
+      return 'already_paid';
+    }
+    if (
+      Math.round(Number(input.charge.providerFeeAmount) * 100) ===
+      Math.round(economics.feeAmount * 100)
+    ) {
+      return 'already_paid';
+    }
+    const revision = input.charge.providerEconomicsRevision + 1;
+    const updated = await tx
+      .update(patientCharges)
+      .set({
+        providerFeeAmount: economics.feeAmount.toFixed(2),
+        providerNetAmount: economics.netAmount.toFixed(2),
+        providerEconomicsRevision: revision,
+        economicsReconciledAt: input.reconciledAt,
+        updatedAt: sql`now()`,
+      })
+      .where(
+        and(
+          eq(patientCharges.id, input.charge.id),
+          eq(patientCharges.status, 'paid'),
+          eq(patientCharges.providerEconomicsRevision, input.charge.providerEconomicsRevision),
+          lt(patientCharges.economicsReconciledAt, input.reconciledAt),
+        ),
+      )
+      .returning({ id: patientCharges.id });
+    if (updated.length === 0) return 'already_paid';
+
+    const payload: PatientPaymentEconomicsCorrectedPayload = {
+      chargeId: input.charge.id,
+      clinicId: input.clinicId,
+      appointmentId: input.charge.appointmentId,
+      providerPaymentId: input.providerPaymentId,
+      revision,
+      providerGrossAmount: economics.grossAmount,
+      providerFeeAmount: economics.feeAmount,
+      providerNetAmount: economics.netAmount,
+      observedAt: input.reconciledAt.toISOString(),
+    };
+    await publishEvent(tx, {
+      clinicId: input.clinicId,
+      eventType: PAYMENTS_EVENTS.PAYMENT_ECONOMICS_CORRECTED,
+      payload,
+      idempotencyKey: `payment-economics-correction:${input.charge.id}:${revision}`,
+    });
+    return 'economics_corrected';
+  }
   const updated = await tx
     .update(patientCharges)
     .set({
@@ -886,6 +942,7 @@ async function reconcilePaidChargeEconomicsInTransaction(
       providerInstallmentId: input.providerInstallmentId ?? null,
       providerInstallmentNumber: input.providerInstallmentNumber ?? null,
       economicsReconciledAt: input.reconciledAt,
+      providerEconomicsRevision: 1,
       updatedAt: sql`now()`,
     })
     .where(
@@ -893,6 +950,7 @@ async function reconcilePaidChargeEconomicsInTransaction(
         eq(patientCharges.id, input.charge.id),
         eq(patientCharges.status, 'paid'),
         isNull(patientCharges.economicsReconciledAt),
+        eq(patientCharges.providerEconomicsRevision, 0),
       ),
     )
     .returning({ id: patientCharges.id });
@@ -935,7 +993,13 @@ export async function reconcilePaidChargeEconomics(input: {
   billingType?: string | null;
   providerInstallmentId?: string | null;
   providerInstallmentNumber?: number | null;
-}): Promise<'economics_reconciled' | 'already_paid' | 'unknown_charge' | 'amount_mismatch'> {
+}): Promise<
+  | 'economics_reconciled'
+  | 'economics_corrected'
+  | 'already_paid'
+  | 'unknown_charge'
+  | 'amount_mismatch'
+> {
   return withTenant(input.clinicId, async (tx) => {
     const [charge] = await tx
       .select({
@@ -946,6 +1010,8 @@ export async function reconcilePaidChargeEconomics(input: {
         providerPaymentId: patientCharges.providerPaymentId,
         paidAt: patientCharges.paidAt,
         economicsReconciledAt: patientCharges.economicsReconciledAt,
+        providerFeeAmount: patientCharges.providerFeeAmount,
+        providerEconomicsRevision: patientCharges.providerEconomicsRevision,
       })
       .from(patientCharges)
       .where(
@@ -959,6 +1025,8 @@ export async function reconcilePaidChargeEconomics(input: {
     return reconcilePaidChargeEconomicsInTransaction(tx, {
       clinicId: input.clinicId,
       charge,
+      providerPaymentId: input.providerPaymentId,
+      allowCorrection: true,
       reconciledAt: input.reconciledAt,
       providerGrossAmount: input.providerGrossAmount,
       providerNetAmount: input.providerNetAmount,
@@ -1022,6 +1090,8 @@ export async function markDepositPaid(input: {
         requestedInstallmentCount: patientCharges.requestedInstallmentCount,
         paidAt: patientCharges.paidAt,
         economicsReconciledAt: patientCharges.economicsReconciledAt,
+        providerFeeAmount: patientCharges.providerFeeAmount,
+        providerEconomicsRevision: patientCharges.providerEconomicsRevision,
       })
       .from(patientCharges)
       .where(
@@ -1094,6 +1164,7 @@ export async function markDepositPaid(input: {
       return reconcilePaidChargeEconomicsInTransaction(tx, {
         clinicId: input.clinicId,
         charge,
+        providerPaymentId: input.providerPaymentId,
         reconciledAt: input.paidAt,
         providerGrossAmount: input.providerGrossAmount,
         providerNetAmount: input.providerNetAmount,
@@ -1132,6 +1203,8 @@ export async function markDepositPaid(input: {
         failureCode: null,
         economicsReconciledAt:
           economics.netAmount == null || economics.feeAmount == null ? null : input.paidAt,
+        providerEconomicsRevision:
+          economics.netAmount == null || economics.feeAmount == null ? 0 : 1,
         paidAt: input.paidAt,
         holdExpiresAt: null,
         updatedAt: sql`now()`,

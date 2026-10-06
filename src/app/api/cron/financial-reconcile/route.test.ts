@@ -48,7 +48,7 @@ describe('financial reconcile', () => {
       paymentEconomicsReconciled: 0,
     });
     expect(transactionMock).toHaveBeenCalledTimes(2);
-    expect(execute).toHaveBeenCalledTimes(6);
+    expect(execute).toHaveBeenCalledTimes(7);
 
     const statements = execute.mock.calls.map(([query]) => dialect.sqlToQuery(query as SQL).sql);
     expect(statements[0]).toMatch(/^RESET ROLE$/i);
@@ -62,7 +62,8 @@ describe('financial reconcile', () => {
     expect(statements[3]).toMatch(/^RESET ROLE$/i);
     expect(statements[4]).toMatch(/from patient_charges/i);
     expect(statements[4]).toMatch(/economics_reconciled_at is null/i);
-    expect(statements[5]).toMatch(/payment_method_mismatch/i);
+    expect(statements[5]).toMatch(/economics_reconciled_at IS NOT NULL/i);
+    expect(statements[6]).toMatch(/payment_method_mismatch/i);
     expect(emit).toHaveBeenCalledWith('financial.reconcile.run', {
       opened: 0,
       clinics: 0,
@@ -74,6 +75,9 @@ describe('financial reconcile', () => {
       paymentEconomicsSkipped: 0,
       paymentEconomicsMismatched: 0,
       paymentEconomicsFailed: 0,
+      paymentCorrectionCandidates: 0,
+      paymentCorrectionsApplied: 0,
+      paymentCorrectionsFailed: 0,
       paymentAnomalyCandidates: 0,
       paymentAnomalyRecovered: 0,
       paymentAnomalyMismatched: 0,
@@ -122,6 +126,9 @@ describe('financial reconcile', () => {
       paymentEconomicsSkipped: 0,
       paymentEconomicsMismatched: 0,
       paymentEconomicsFailed: 0,
+      paymentCorrectionCandidates: 0,
+      paymentCorrectionsApplied: 0,
+      paymentCorrectionsFailed: 0,
       paymentAnomalyCandidates: 0,
       paymentAnomalyRecovered: 0,
       paymentAnomalyMismatched: 0,

@@ -62,6 +62,7 @@ export type {
   PatientPaymentRiskChangedPayload,
 } from './events';
 export type { PatientPaymentEconomicsReconciledPayload } from './events';
+export type { PatientPaymentEconomicsCorrectedPayload } from './events';
 export {
   paymentsApiV1,
   type ExcessRefundStatus,

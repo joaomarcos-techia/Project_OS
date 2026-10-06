@@ -12,7 +12,13 @@ import {
   createProfessionalPayoutSnapshot,
   refreshProfessionalPayout,
 } from '@/contexts/financial/internal/professional-payout';
+import { recordProviderExpense } from '@/contexts/financial/internal/provider-expense';
+import { PAYMENTS_EVENTS } from '@/contexts/payments';
 import { dbAdmin } from '@/lib/db';
+import { publishEvent } from '@/lib/outbox/publish';
+import { getHandler } from '@/lib/outbox/registry';
+
+import '@/contexts/financial/internal/handlers/patient-payment-economics-corrected';
 
 const DEV_PROJECT_REF = 'pqhkirrszzpwezdaqrai';
 const DAY_MS = 86_400_000;
@@ -29,6 +35,9 @@ const oldPolicyId = randomUUID();
 const newPolicyId = randomUUID();
 const reversedChargeId = randomUUID();
 const netReversedChargeId = randomUUID();
+const feeChargeId = randomUUID();
+const feeReceivableId = randomUUID();
+const feePaymentTransactionId = randomUUID();
 const email = `e2e-payout-${runId}@example.invalid`;
 const password = `Qoro${runId.replaceAll('-', '')}Aa1!`;
 const rollbackMarker = new Error('rollback da fixture de repasse');
@@ -279,6 +288,197 @@ async function main(): Promise<void> {
           'Remarcação não usou regra/base da nova data, ou calculou NET sem líquido.',
         );
 
+        stage = 'tarifa original, correções e projeção do repasse NET';
+        await tx.execute(sql`
+          INSERT INTO lancamentos
+            (id, clinic_id, appointment_id, tipo, descricao, valor, valor_pago,
+             status, paid_at, created_via)
+          VALUES (${feeReceivableId}, ${clinicId}, ${rescheduledAppointmentId},
+                  'receber', 'Atendimento sintético pago', 150, 150,
+                  'pago', now(), 'auto')
+        `);
+        await tx.execute(sql`
+          INSERT INTO payment_transactions
+            (id, clinic_id, lancamento_id, kind, amount, occurred_at)
+          VALUES (${feePaymentTransactionId}, ${clinicId}, ${feeReceivableId},
+                  'payment', 150, now())
+        `);
+        await tx.execute(sql`
+          INSERT INTO patient_credits
+            (clinic_id, patient_id, appointment_id, patient_charge_id, amount,
+             provider_gross_amount, provider_fee_amount, provider_net_amount,
+             provider_economics_reconciled_at, provider_economics_revision,
+             allocated_amount, allocated_lancamento_id,
+             allocated_payment_transaction_id, kind, status)
+          VALUES (${clinicId}, ${patientId}, ${rescheduledAppointmentId},
+                  ${feeChargeId}, 150, 150, 5, 145, now(), 1,
+                  150, ${feeReceivableId}, ${feePaymentTransactionId},
+                  'deposit', 'allocated')
+        `);
+        const baseExpense = await recordProviderExpense(tx, {
+          clinicId,
+          patientChargeId: feeChargeId,
+          kind: 'payment_processing_fee',
+          amount: 5,
+          occurredAt: new Date(),
+        });
+        assert(baseExpense, 'Tarifa original não entrou no ledger.');
+        const initialPayout = await refreshProfessionalPayout(tx, {
+          clinicId,
+          appointmentId: rescheduledAppointmentId,
+        });
+        assert(initialPayout === 'calculated', 'Repasse NET inicial não calculado.');
+
+        const correctionHandler = getHandler(PAYMENTS_EVENTS.PAYMENT_ECONOMICS_CORRECTED);
+        assert(
+          correctionHandler?.execution === 'transactional',
+          'Handler da revisão não registrado.',
+        );
+        const events: Array<{
+          id: string;
+          payload: {
+            chargeId: string;
+            clinicId: string;
+            appointmentId: string;
+            providerPaymentId: string;
+            revision: number;
+            providerGrossAmount: number;
+            providerFeeAmount: number;
+            providerNetAmount: number;
+            observedAt: string;
+          };
+        }> = [];
+        for (const [revision, fee] of [
+          [2, 7],
+          [3, 5],
+          [4, 7],
+          [5, 9],
+        ] as const) {
+          const payload = {
+            chargeId: feeChargeId,
+            clinicId,
+            appointmentId: rescheduledAppointmentId,
+            providerPaymentId: 'pay_e2e_fee_synthetic',
+            revision,
+            providerGrossAmount: 150,
+            providerFeeAmount: fee,
+            providerNetAmount: 150 - fee,
+            observedAt: new Date().toISOString(),
+          };
+          const key = `smoke-fee-correction:${feeChargeId}:${revision}`;
+          await publishEvent(tx, {
+            clinicId,
+            eventType: PAYMENTS_EVENTS.PAYMENT_ECONOMICS_CORRECTED,
+            payload,
+            idempotencyKey: key,
+          });
+          const [event] = await tx.execute<{ id: string }>(sql`
+            SELECT id::text FROM outbox
+             WHERE event_type = ${PAYMENTS_EVENTS.PAYMENT_ECONOMICS_CORRECTED}
+               AND idempotency_key = ${key}
+          `);
+          assert(event, `Revisão ${revision} não foi publicada atomicamente.`);
+          events.push({ id: event.id, payload });
+          if (revision === 2) {
+            const failedAttempt = new Error('falha sintética após projeção');
+            try {
+              await tx.transaction(async (savepoint) => {
+                await correctionHandler.handler({
+                  tx: savepoint,
+                  clinicId,
+                  payload,
+                  eventId: event.id,
+                  attempt: 1,
+                });
+                throw failedAttempt;
+              });
+            } catch (error) {
+              if (error !== failedAttempt) throw error;
+            }
+            const [rolledBack] = await tx.execute<{
+              fee: string;
+              adjustments: number;
+            }>(sql`
+              SELECT provider_fee_amount::text AS fee,
+                     (SELECT count(*)::int FROM lancamentos
+                       WHERE clinic_id = ${clinicId}
+                         AND source_patient_charge_id = ${feeChargeId}
+                         AND provider_economics_revision = 2) AS adjustments
+                FROM patient_credits
+               WHERE clinic_id = ${clinicId} AND patient_charge_id = ${feeChargeId}
+            `);
+            assert(
+              rolledBack && Number(rolledBack.fee) === 5 && rolledBack.adjustments === 0,
+              'Falha intermediária deixou dinheiro duplicável.',
+            );
+          }
+          await correctionHandler.handler({
+            tx,
+            clinicId,
+            payload,
+            eventId: event.id,
+            attempt: revision === 2 ? 2 : 1,
+          });
+          const [adjustment] = await tx.execute<{ tipo: string; valor: string }>(sql`
+            SELECT tipo::text, valor::text FROM lancamentos
+             WHERE clinic_id = ${clinicId} AND source_patient_charge_id = ${feeChargeId}
+               AND provider_economics_revision = ${revision}
+          `);
+          assert(
+            adjustment &&
+              Number(adjustment.valor) === 2 &&
+              adjustment.tipo === (revision === 3 ? 'receber' : 'pagar'),
+            `Ajuste imutável da revisão ${revision} incorreto.`,
+          );
+        }
+        for (let attempt = 0; attempt < 10; attempt += 1) {
+          const event = attempt === 0 ? events[1] : events[3];
+          assert(event, 'Evento sintético não encontrado.');
+          await correctionHandler.handler({
+            tx,
+            clinicId,
+            payload: event.payload,
+            eventId: event.id,
+            attempt: attempt + 2,
+          });
+        }
+        const [economics] = await tx.execute<{
+          fee: string;
+          net: string;
+          revision: number;
+          payable: string;
+          expense: string;
+          recovery: string;
+          adjustment_count: number;
+        }>(sql`
+          SELECT c.provider_fee_amount::text AS fee,
+                 c.provider_net_amount::text AS net,
+                 c.provider_economics_revision AS revision,
+                 p.payout_amount::text AS payable,
+                 (SELECT COALESCE(sum(valor), 0)::text FROM lancamentos
+                   WHERE clinic_id = ${clinicId} AND source_patient_charge_id = ${feeChargeId}
+                     AND tipo = 'pagar') AS expense,
+                 (SELECT COALESCE(sum(valor), 0)::text FROM lancamentos
+                   WHERE clinic_id = ${clinicId} AND source_patient_charge_id = ${feeChargeId}
+                     AND tipo = 'receber') AS recovery,
+                 (SELECT count(*)::int FROM lancamentos
+                   WHERE clinic_id = ${clinicId} AND source_patient_charge_id = ${feeChargeId}
+                     AND provider_economics_revision IS NOT NULL) AS adjustment_count
+            FROM patient_credits c JOIN professional_payouts p
+              ON p.clinic_id = c.clinic_id AND p.appointment_id = c.appointment_id
+           WHERE c.clinic_id = ${clinicId} AND c.patient_charge_id = ${feeChargeId}
+        `);
+        assert(
+          economics &&
+            Number(economics.fee) === 9 &&
+            Number(economics.net) === 141 &&
+            economics.revision === 5 &&
+            Number(economics.expense) - Number(economics.recovery) === 9 &&
+            economics.adjustment_count === 4 &&
+            Number(economics.payable) === 42.3,
+          'Crédito, ledger e repasse divergiram após correções de tarifa.',
+        );
+
         stage = 'auditoria da suspensão por perda';
         await tx.execute(sql`
           INSERT INTO patient_credits
@@ -401,7 +601,7 @@ async function main(): Promise<void> {
     throw new Error(`[payout-date-db] ${stage}: ${detail}`);
   }
   console.log(
-    '[payout-date-db] PASS: regra temporal, suspensão GROSS/NET persistente, auditoria, rollback e cleanup.',
+    '[payout-date-db] PASS: regra temporal, correção de tarifa/outbox/ledger/repasse, suspensão, rollback e cleanup.',
   );
 }
 

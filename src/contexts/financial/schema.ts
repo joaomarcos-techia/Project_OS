@@ -153,6 +153,10 @@ export const lancamentos = pgTable(
      */
     sourcePatientChargeId: uuid('source_patient_charge_id'),
     financialExpenseKind: text('financial_expense_kind'),
+    /** Só ajustes posteriores: revisão da cobrança e evento que originou o fato. */
+    providerEconomicsRevision: integer('provider_economics_revision'),
+    sourceEventId: uuid('source_event_id'),
+    providerPaymentId: text('provider_payment_id'),
     paymentMethod: text('payment_method').references(() => paymentMethods.code),
     createdVia: lancamentoCreatedVia('created_via').notNull(),
     // Lineage do estorno (append-only): aponta para o lançamento original.
@@ -189,7 +193,12 @@ export const lancamentos = pgTable(
       .where(sql`appointment_id IS NOT NULL`),
     providerExpenseUniq: uniqueIndex('lancamentos_provider_expense_uniq')
       .on(t.clinicId, t.sourcePatientChargeId, t.financialExpenseKind)
-      .where(sql`${t.sourcePatientChargeId} is not null`),
+      .where(
+        sql`${t.sourcePatientChargeId} is not null and ${t.providerEconomicsRevision} is null`,
+      ),
+    providerExpenseAdjustmentUniq: uniqueIndex('lancamentos_provider_expense_adjustment_uniq')
+      .on(t.clinicId, t.sourcePatientChargeId, t.providerEconomicsRevision)
+      .where(sql`${t.providerEconomicsRevision} is not null`),
     valorChk: check('lancamentos_valor_chk', sql`${t.valor} >= 0`),
     valorPagoChk: check(
       'lancamentos_valor_pago_chk',
@@ -204,11 +213,17 @@ export const lancamentos = pgTable(
     ),
     providerExpenseCoherenceChk: check(
       'lancamentos_provider_expense_coherence_chk',
-      sql`(${t.sourcePatientChargeId} IS NULL AND ${t.financialExpenseKind} IS NULL)
+      sql`(${t.sourcePatientChargeId} IS NULL AND ${t.financialExpenseKind} IS NULL
+              AND ${t.providerEconomicsRevision} IS NULL AND ${t.sourceEventId} IS NULL
+              AND ${t.providerPaymentId} IS NULL)
           OR (${t.sourcePatientChargeId} IS NOT NULL
-            AND ${t.financialExpenseKind} IS NOT NULL
             AND ${t.financialExpenseKind} IN ('payment_processing_fee', 'early_settlement_fee')
-            AND ${t.tipo} = 'pagar')`,
+            AND ${t.tipo} = 'pagar' AND ${t.providerEconomicsRevision} IS NULL
+            AND ${t.sourceEventId} IS NULL AND ${t.providerPaymentId} IS NULL)
+          OR (${t.sourcePatientChargeId} IS NOT NULL
+            AND ${t.financialExpenseKind} = 'payment_processing_fee_adjustment'
+            AND ${t.providerEconomicsRevision} >= 2
+            AND ${t.sourceEventId} IS NOT NULL AND ${t.providerPaymentId} IS NOT NULL)`,
     ),
     estornoOriginChk: check(
       'lancamentos_estorno_origin_chk',
@@ -444,6 +459,7 @@ export const patientCredits = pgTable(
     providerEconomicsReconciledAt: timestamp('provider_economics_reconciled_at', {
       withTimezone: true,
     }),
+    providerEconomicsRevision: integer('provider_economics_revision').notNull().default(0),
     allocatedAmount: numeric('allocated_amount', { precision: 12, scale: 2 })
       .notNull()
       .default('0'),

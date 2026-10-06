@@ -258,6 +258,8 @@ export const patientCharges = pgTable(
     requestedPaymentMethod: text('requested_payment_method').$type<ProcedurePaymentMethod>(),
     requestedInstallmentCount: integer('requested_installment_count'),
     economicsReconciledAt: timestamp('economics_reconciled_at', { withTimezone: true }),
+    /** 0 = desconhecido; 1 = primeira leitura; cada correção autoritativa incrementa. */
+    providerEconomicsRevision: integer('provider_economics_revision').notNull().default(0),
     /** Ultima tentativa do backstop, para alternar candidatos sem bloquear a fila. */
     providerReconcileCheckedAt: timestamp('provider_reconcile_checked_at', { withTimezone: true }),
     /** Geração corrente do Checkout hospedado; não é a dívida nem o payment. */

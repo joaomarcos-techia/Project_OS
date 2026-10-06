@@ -15,6 +15,8 @@ export interface PendingPaymentEconomics {
   chargeId: string;
   clinicId: string;
   providerPaymentId: string;
+  /** Início do readback registrado pelo relógio do banco, quando disponível. */
+  observedAt?: Date;
 }
 
 export interface QuarantinedPatientPayment extends PendingPaymentEconomics {
@@ -108,6 +110,7 @@ export async function reconcileQuarantinedPatientPayments(
 export interface PaymentEconomicsReconcileSummary {
   candidates: number;
   reconciled: number;
+  corrected: number;
   pending: number;
   skipped: number;
   mismatched: number;
@@ -147,6 +150,41 @@ export async function scanPendingPaymentEconomics(
   return rows as unknown as PendingPaymentEconomics[];
 }
 
+/** Revisita pagamentos já conciliados para detectar tarifa corrigida pelo Asaas. */
+export async function scanReconciledPaymentEconomics(
+  tx: Tx,
+  limit: number,
+): Promise<PendingPaymentEconomics[]> {
+  const rows = await tx.execute<{
+    chargeId: string;
+    clinicId: string;
+    providerPaymentId: string;
+    observedAt: Date;
+  }>(sql`
+    WITH candidates AS (
+      SELECT id
+      FROM patient_charges
+      WHERE status = 'paid'
+        AND provider_payment_id IS NOT NULL
+        AND economics_reconciled_at IS NOT NULL
+        AND (provider_reconcile_checked_at IS NULL
+          OR provider_reconcile_checked_at < now() - interval '1 day')
+      ORDER BY provider_reconcile_checked_at ASC NULLS FIRST, paid_at ASC NULLS FIRST, id ASC
+      LIMIT ${limit}
+      FOR UPDATE SKIP LOCKED
+    )
+    UPDATE patient_charges charge
+       SET provider_reconcile_checked_at = now()
+      FROM candidates
+     WHERE charge.id = candidates.id
+    RETURNING charge.id::text AS "chargeId",
+              charge.clinic_id::text AS "clinicId",
+              charge.provider_payment_id AS "providerPaymentId",
+              charge.provider_reconcile_checked_at AS "observedAt"
+  `);
+  return rows as unknown as PendingPaymentEconomics[];
+}
+
 /**
  * Relê o pagamento na conta Asaas da própria clínica. Uma falha de tenant não
  * impede os demais candidatos; o próximo tick tenta novamente.
@@ -158,6 +196,7 @@ export async function reconcilePendingPaymentEconomics(
   const summary: PaymentEconomicsReconcileSummary = {
     candidates: candidates.length,
     reconciled: 0,
+    corrected: 0,
     pending: 0,
     skipped: 0,
     mismatched: 0,
@@ -188,7 +227,7 @@ export async function reconcilePendingPaymentEconomics(
         clinicId: candidate.clinicId,
         chargeId: candidate.chargeId,
         providerPaymentId: candidate.providerPaymentId,
-        reconciledAt: now,
+        reconciledAt: candidate.observedAt ?? now,
         providerGrossAmount: payment.value,
         providerNetAmount: payment.netValue,
         billingType: payment.billingType,
@@ -196,6 +235,7 @@ export async function reconcilePendingPaymentEconomics(
         providerInstallmentNumber: payment.installmentNumber ?? null,
       });
       if (outcome === 'economics_reconciled') summary.reconciled++;
+      else if (outcome === 'economics_corrected') summary.corrected++;
       else if (outcome === 'amount_mismatch') summary.mismatched++;
       else summary.skipped++;
     } catch (error) {

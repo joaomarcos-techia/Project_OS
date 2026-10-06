@@ -23,6 +23,7 @@ import {
   reconcilePendingPaymentEconomics,
   scanQuarantinedPatientPayments,
   scanPendingPaymentEconomics,
+  scanReconciledPaymentEconomics,
 } from './payment-economics-reconcile';
 
 const candidate = {
@@ -124,6 +125,7 @@ describe('reconcilePendingPaymentEconomics', () => {
     await expect(reconcilePendingPaymentEconomics([candidate], now)).resolves.toEqual({
       candidates: 1,
       reconciled: 1,
+      corrected: 0,
       pending: 0,
       skipped: 0,
       mismatched: 0,
@@ -171,6 +173,42 @@ describe('reconcilePendingPaymentEconomics', () => {
     expect(mocks.emit).toHaveBeenCalledWith(
       'financial.reconcile.payment_economics_error',
       expect.objectContaining({ clinicId: 'clinic-1' }),
+    );
+  });
+});
+
+describe('scanReconciledPaymentEconomics', () => {
+  it('seleciona apenas pagamentos conciliados vencidos para nova leitura, com lock', async () => {
+    const observedAt = new Date('2026-10-06T12:00:00Z');
+    const execute = vi.fn().mockResolvedValue([{ ...candidate, observedAt }]);
+    await expect(scanReconciledPaymentEconomics({ execute } as never, 4)).resolves.toEqual([
+      { ...candidate, observedAt },
+    ]);
+    const query = new PgDialect().sqlToQuery(execute.mock.calls[0]![0] as SQL);
+    expect(query.sql).toMatch(/economics_reconciled_at IS NOT NULL/i);
+    expect(query.sql).toMatch(/provider_reconcile_checked_at < now\(\) - interval '1 day'/i);
+    expect(query.sql).toMatch(/FOR UPDATE SKIP LOCKED/i);
+    expect(query.sql).toMatch(/AS "observedAt"/i);
+  });
+
+  it('registra a correção sem contar novo crédito e usa a hora da reserva no banco', async () => {
+    const observedAt = new Date('2026-10-06T12:00:00Z');
+    mocks.getClinicAsaasClient.mockResolvedValue({
+      getPayment: vi.fn().mockResolvedValue({
+        status: 'RECEIVED',
+        value: 150,
+        netValue: 143,
+        billingType: 'PIX',
+      }),
+    });
+    mocks.reconcilePaidChargeEconomics.mockResolvedValue('economics_corrected');
+    const result = await reconcilePendingPaymentEconomics(
+      [{ ...candidate, observedAt }],
+      new Date('2026-10-06T12:01:00Z'),
+    );
+    expect(result).toMatchObject({ candidates: 1, reconciled: 0, corrected: 1, failed: 0 });
+    expect(mocks.reconcilePaidChargeEconomics).toHaveBeenCalledWith(
+      expect.objectContaining({ reconciledAt: observedAt }),
     );
   });
 });

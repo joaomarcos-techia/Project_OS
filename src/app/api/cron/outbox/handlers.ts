@@ -108,6 +108,7 @@ import '@/contexts/ai-agent/proactive-jobs/internal/handlers/patient-charge-link
 // dois pares significam coisas diferentes para dominios diferentes.
 import '@/contexts/financial/internal/handlers/patient-credit-granted';
 import '@/contexts/financial/internal/handlers/patient-payment-economics-reconciled';
+import '@/contexts/financial/internal/handlers/patient-payment-economics-corrected';
 import '@/contexts/financial/internal/handlers/patient-credit-released';
 
 // D50 — Financial detecta excedente; Payments executa o estorno fora da TX do worker.

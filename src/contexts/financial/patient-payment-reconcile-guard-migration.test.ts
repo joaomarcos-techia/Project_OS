@@ -77,11 +77,16 @@ describe('0109 — integridade comercial e varredura de pagamentos', () => {
     const journal = JSON.parse(
       readFileSync(resolve(process.cwd(), 'drizzle/migrations/meta/_journal.json'), 'utf8'),
     ) as { entries: Array<{ idx: number; tag: string; when: number }> };
-    expect(journal.entries.at(-2)?.tag).toBe('0108_patient_payment_economics');
-    expect(journal.entries.at(-1)).toMatchObject({
+    const economicsIndex = journal.entries.findIndex(
+      (entry) => entry.tag === '0108_patient_payment_economics',
+    );
+    expect(economicsIndex).toBeGreaterThanOrEqual(0);
+    expect(journal.entries[economicsIndex + 1]).toMatchObject({
       idx: 109,
       tag: '0109_patient_payment_reconcile_guard',
     });
-    expect(journal.entries.at(-1)!.when).toBeGreaterThan(journal.entries.at(-2)!.when);
+    expect(journal.entries[economicsIndex + 1]!.when).toBeGreaterThan(
+      journal.entries[economicsIndex]!.when,
+    );
   });
 });

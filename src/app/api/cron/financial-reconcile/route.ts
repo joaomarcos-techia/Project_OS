@@ -32,6 +32,7 @@ import {
   reconcilePendingPaymentEconomics,
   scanQuarantinedPatientPayments,
   scanPendingPaymentEconomics,
+  scanReconciledPaymentEconomics,
 } from './payment-economics-reconcile';
 
 export const runtime = 'nodejs';
@@ -40,8 +41,9 @@ export const maxDuration = 60;
 
 const DEFAULT_LIMIT = 200;
 const MAX_LIMIT = 1000;
-// Cada leitura externa tem teto de 4 s. Três leituras cabem no orçamento do cron.
+// Cada leitura externa tem teto de 4 s; no máximo sete cabem no orçamento de 60 s.
 const PAYMENT_ECONOMICS_LIMIT = 2;
+const PAYMENT_CORRECTION_LIMIT = 4;
 const PAYMENT_ANOMALY_LIMIT = 1;
 const PAYMENT_BACKSTOP_START_DEADLINE_MS = 30_000;
 const GRACE = "interval '15 minutes'";
@@ -180,15 +182,23 @@ export const GET = withCron(
             tx,
             Math.min(limit, PAYMENT_ECONOMICS_LIMIT),
           );
+          const correctionCandidates = await scanReconciledPaymentEconomics(
+            tx,
+            Math.min(limit, PAYMENT_CORRECTION_LIMIT),
+          );
           const quarantinedPayments = await scanQuarantinedPatientPayments(
             tx,
             Math.min(limit, PAYMENT_ANOMALY_LIMIT),
           );
-          return { pendingPaymentEconomics, quarantinedPayments };
+          return { pendingPaymentEconomics, correctionCandidates, quarantinedPayments };
         })
-      : { pendingPaymentEconomics: [], quarantinedPayments: [] };
+      : { pendingPaymentEconomics: [], correctionCandidates: [], quarantinedPayments: [] };
     const paymentEconomics = await reconcilePendingPaymentEconomics(
       paymentScan.pendingPaymentEconomics,
+      new Date(),
+    );
+    const paymentCorrections = await reconcilePendingPaymentEconomics(
+      paymentScan.correctionCandidates,
       new Date(),
     );
     const paymentAnomalies = await reconcileQuarantinedPatientPayments(
@@ -216,6 +226,9 @@ export const GET = withCron(
       paymentEconomicsSkipped: paymentEconomics.skipped,
       paymentEconomicsMismatched: paymentEconomics.mismatched,
       paymentEconomicsFailed: paymentEconomics.failed,
+      paymentCorrectionCandidates: paymentCorrections.candidates,
+      paymentCorrectionsApplied: paymentCorrections.corrected,
+      paymentCorrectionsFailed: paymentCorrections.failed,
       paymentAnomalyCandidates: paymentScan.quarantinedPayments.length,
       paymentAnomalyRecovered: paymentAnomalies.recovered,
       paymentAnomalyMismatched: paymentAnomalies.mismatched,

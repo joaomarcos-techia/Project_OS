@@ -79,6 +79,8 @@ export const PAYMENTS_EVENTS = {
    * fatos econômicos usados pelo Caixa e pelo repasse profissional.
    */
   PAYMENT_ECONOMICS_RECONCILED: 'payments.patient_payment.economics_reconciled',
+  /** Readback posterior mudou a tarifa efetiva; não concede crédito outra vez. */
+  PAYMENT_ECONOMICS_CORRECTED: 'payments.patient_payment.economics_corrected',
   /**
    * O credito saiu de `available` sem ter sido alocado a um lancamento.
    *
@@ -231,6 +233,21 @@ export type PatientPaymentEconomicsReconciledPayload = z.infer<
   typeof PatientPaymentEconomicsReconciledSchema
 >;
 
+export const PatientPaymentEconomicsCorrectedSchema = z.object({
+  chargeId: uuid,
+  clinicId: uuid,
+  appointmentId: uuid,
+  providerPaymentId: z.string().min(1),
+  revision: z.number().int().min(2),
+  providerGrossAmount: z.number().positive(),
+  providerFeeAmount: z.number().nonnegative(),
+  providerNetAmount: z.number().nonnegative(),
+  observedAt: z.string().datetime(),
+});
+export type PatientPaymentEconomicsCorrectedPayload = z.infer<
+  typeof PatientPaymentEconomicsCorrectedSchema
+>;
+
 export const PatientCreditReleasedSchema = z.object({
   chargeId: uuid,
   clinicId: uuid,
@@ -275,6 +292,10 @@ registerEventSchema(PAYMENTS_EVENTS.CREDIT_GRANTED, PatientCreditGrantedSchema);
 registerEventSchema(
   PAYMENTS_EVENTS.PAYMENT_ECONOMICS_RECONCILED,
   PatientPaymentEconomicsReconciledSchema,
+);
+registerEventSchema(
+  PAYMENTS_EVENTS.PAYMENT_ECONOMICS_CORRECTED,
+  PatientPaymentEconomicsCorrectedSchema,
 );
 registerEventSchema(PAYMENTS_EVENTS.CREDIT_RELEASED, PatientCreditReleasedSchema);
 registerEventSchema(PAYMENTS_EVENTS.CHARGE_LINK_READY, PatientChargeLinkReadySchema);

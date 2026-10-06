@@ -56,3 +56,54 @@ export async function recordProviderExpense(
   });
   return expense.id;
 }
+
+/** Ajuste posterior: um lançamento novo, nunca alteração da despesa original. */
+export async function recordProviderFeeAdjustment(
+  tx: Tx,
+  input: {
+    clinicId: string;
+    patientChargeId: string;
+    providerPaymentId: string;
+    revision: number;
+    sourceEventId: string;
+    deltaCents: number;
+    occurredAt: Date;
+  },
+): Promise<string | null> {
+  if (!Number.isInteger(input.deltaCents) || input.revision < 2) {
+    throw new Error('[financial] revisão de tarifa inválida');
+  }
+  if (input.deltaCents === 0) return null;
+  const amount = (Math.abs(input.deltaCents) / 100).toFixed(2);
+  const [adjustment] = await tx
+    .insert(lancamentos)
+    .values({
+      clinicId: input.clinicId,
+      tipo: input.deltaCents > 0 ? 'pagar' : 'receber',
+      descricao:
+        input.deltaCents > 0
+          ? 'Ajuste de taxa Asaas — cobrança de paciente'
+          : 'Reversão de taxa Asaas — cobrança de paciente',
+      valor: amount,
+      valorPago: amount,
+      status: 'pago',
+      paidAt: input.occurredAt,
+      sourcePatientChargeId: input.patientChargeId,
+      financialExpenseKind: 'payment_processing_fee_adjustment',
+      providerEconomicsRevision: input.revision,
+      sourceEventId: input.sourceEventId,
+      providerPaymentId: input.providerPaymentId,
+      createdVia: 'auto',
+    })
+    .onConflictDoNothing()
+    .returning({ id: lancamentos.id });
+  if (!adjustment) return null;
+  await tx.insert(paymentTransactions).values({
+    clinicId: input.clinicId,
+    lancamentoId: adjustment.id,
+    kind: 'payment',
+    amount,
+    occurredAt: input.occurredAt,
+  });
+  return adjustment.id;
+}
