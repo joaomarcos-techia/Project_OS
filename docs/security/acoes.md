@@ -308,7 +308,7 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `src/lib/auth/supabase-session-cookie.ts:5`                | `NODE_ENV`                             | `process.env.NODE_ENV`                             |
 | `src/lib/db/index.ts:39`                                   | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                 |
 | `src/lib/db/index.ts:53`                                   | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                 |
-| `src/lib/env.ts:448`                                       | `<object>`                             | `process.env`                                      |
+| `src/lib/env.ts:451`                                       | `<object>`                             | `process.env`                                      |
 | `src/lib/impersonation/index.ts:64`                        | `NODE_ENV`                             | `process.env.NODE_ENV`                             |
 | `src/middleware.ts:82`                                     | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`             |
 | `src/middleware.ts:88`                                     | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`             |
