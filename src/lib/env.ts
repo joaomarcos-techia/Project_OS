@@ -65,6 +65,9 @@ const EnvSchema = z
     // URL arbitraria vinda do browser.
     VERCEL_URL: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
     VERCEL_BRANCH_URL: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+    // Opt-in para uma única conta de teste: dados ilustrativos apenas no dashboard.
+    DASHBOARD_DEMO_USER_ID: z.preprocess(emptyToUndefined, z.string().uuid().optional()),
+    DASHBOARD_DEMO_CLINIC_ID: z.preprocess(emptyToUndefined, z.string().uuid().optional()),
     // Gerado pela Vercel quando Protection Bypass for Automation está ativo.
     // Em Preview protegido, acompanha SOMENTE URLs de webhook server-to-server;
     // nunca vai para o browser, log ou resposta. Opcional porque produção/dev

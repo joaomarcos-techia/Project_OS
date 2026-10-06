@@ -2,7 +2,10 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { Env } from '@/lib/env';
+
 const {
+  demoEnv,
   getActivationChecklist,
   getCashFlowToday,
   getClinicTimezone,
@@ -15,6 +18,10 @@ const {
   countOpenHandoffs,
   currentOnboardingProgress,
 } = vi.hoisted(() => ({
+  demoEnv: {
+    DASHBOARD_DEMO_USER_ID: undefined as string | undefined,
+    DASHBOARD_DEMO_CLINIC_ID: undefined as string | undefined,
+  },
   getActivationChecklist: vi.fn(),
   getCashFlowToday: vi.fn(),
   getClinicTimezone: vi.fn(),
@@ -34,6 +41,19 @@ const {
 vi.mock('next/navigation', () => ({ redirect, useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock('@/contexts/ai-agent/queries', () => ({ countOpenHandoffs }));
 vi.mock('@/lib/auth/tenant-context', () => ({ getCurrentUser }));
+vi.mock('@/lib/env', async (importOriginal) => {
+  const actual = await importOriginal<{ env: Env }>();
+  return {
+    ...actual,
+    env: new Proxy(actual.env, {
+      get(target, property, receiver) {
+        if (property === 'DASHBOARD_DEMO_USER_ID') return demoEnv.DASHBOARD_DEMO_USER_ID;
+        if (property === 'DASHBOARD_DEMO_CLINIC_ID') return demoEnv.DASHBOARD_DEMO_CLINIC_ID;
+        return Reflect.get(target, property, receiver);
+      },
+    }),
+  };
+});
 vi.mock('@/contexts/tenancy/queries', () => ({ getClinicTimezone }));
 vi.mock('@/contexts/identity/queries', () => ({ getProfileNames }));
 vi.mock('@/contexts/financial/queries', () => ({ getCashFlowToday, listCashFlowDaily }));
@@ -107,6 +127,8 @@ describe('DashboardPage', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    demoEnv.DASHBOARD_DEMO_USER_ID = undefined;
+    demoEnv.DASHBOARD_DEMO_CLINIC_ID = undefined;
     getCurrentUser.mockResolvedValue(currentUser(['view:financial', 'view:audit']));
     getClinicTimezone.mockResolvedValue('America/Sao_Paulo');
     getDashboard.mockResolvedValue(dashboard);
@@ -173,6 +195,65 @@ describe('DashboardPage', () => {
         name: /^(?:Bom dia|Boa tarde|Boa noite), Dr\. Matheus Silva$/u,
       }),
     ).toBeTruthy();
+  });
+
+  it('mostra a prévia apenas ao usuário configurado, sem escrever ou ler métricas reais', async () => {
+    demoEnv.DASHBOARD_DEMO_USER_ID = 'demo-user';
+    demoEnv.DASHBOARD_DEMO_CLINIC_ID = clinicId;
+    getCurrentUser.mockResolvedValue({
+      ...currentUser(['view:financial', 'view:audit', 'view:conversations']),
+      userId: 'demo-user',
+      name: 'Dr. Matheus Pereira',
+    });
+
+    render(await DashboardPage());
+
+    expect(screen.getByText(/Dados ilustrativos somente nesta página/u)).toBeTruthy();
+    expect(screen.getAllByText('Paciente ilustrativo A').length).toBeGreaterThan(0);
+    expect(screen.getByText('R$ 1.820,00')).toBeTruthy();
+    expect(screen.queryByText('Ativação da clínica')).toBeNull();
+    expect(getDashboard).not.toHaveBeenCalled();
+    expect(getCashFlowToday).not.toHaveBeenCalled();
+    expect(listCashFlowDaily).not.toHaveBeenCalled();
+    expect(getRecentActivity).not.toHaveBeenCalled();
+    expect(getProfileNames).not.toHaveBeenCalled();
+    expect(countOpenHandoffs).not.toHaveBeenCalled();
+  });
+
+  it('mantém os dados reais para qualquer outro usuário', async () => {
+    demoEnv.DASHBOARD_DEMO_USER_ID = 'demo-user';
+    demoEnv.DASHBOARD_DEMO_CLINIC_ID = clinicId;
+
+    render(await DashboardPage());
+
+    expect(screen.queryByText(/Dados ilustrativos somente nesta página/u)).toBeNull();
+    expect(getDashboard).toHaveBeenCalledWith(clinicId, 'America/Sao_Paulo');
+    expect(getCashFlowToday).toHaveBeenCalled();
+    expect(getRecentActivity).toHaveBeenCalled();
+  });
+
+  it('não aplica a prévia quando a conta de teste está em outra clínica', async () => {
+    demoEnv.DASHBOARD_DEMO_USER_ID = 'user-1';
+    demoEnv.DASHBOARD_DEMO_CLINIC_ID = '22222222-2222-2222-2222-222222222222';
+
+    render(await DashboardPage());
+
+    expect(screen.queryByText(/Dados ilustrativos somente nesta página/u)).toBeNull();
+    expect(getDashboard).toHaveBeenCalledWith(clinicId, 'America/Sao_Paulo');
+  });
+
+  it('mantém os gates financeiros e de auditoria também na prévia', async () => {
+    demoEnv.DASHBOARD_DEMO_USER_ID = 'demo-user';
+    demoEnv.DASHBOARD_DEMO_CLINIC_ID = clinicId;
+    getCurrentUser.mockResolvedValue({ ...currentUser([]), userId: 'demo-user' });
+
+    const { container } = render(await DashboardPage());
+
+    expect(container.innerHTML).not.toContain('R$ 1.820,00');
+    expect(screen.queryByText('Atividade recente')).toBeNull();
+    expect(screen.queryByText('Faturamento recebido')).toBeNull();
+    expect(getCashFlowToday).not.toHaveBeenCalled();
+    expect(getRecentActivity).not.toHaveBeenCalled();
   });
 
   it('formata Hoje no fuso da clínica durante a virada do dia em UTC', async () => {

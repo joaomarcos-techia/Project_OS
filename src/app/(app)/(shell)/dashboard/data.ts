@@ -11,7 +11,8 @@ import { withTenant } from '@/lib/db/tenant';
 /**
  * Dados do dashboard (Visão operacional). Apenas o que é REAL hoje: o pulso de
  * agendamentos do dia (C6) + nomes dos pacientes (C5). Métricas de faturamento /
- * IA são placeholders honestos na UI (C9/C11), nunca dados mockados (ADR-018).
+ * IA são placeholders honestos na UI (C9/C11). A única prévia ilustrativa fica
+ * restrita à composição da página para a conta de teste configurada no servidor.
  */
 
 export interface DashboardUpcoming {

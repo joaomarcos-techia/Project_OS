@@ -32,6 +32,7 @@ import { countOpenHandoffs, type HandoffPulse } from '@/contexts/ai-agent/querie
 import { getRecentActivity, type AuditActivity } from '@/lib/audit/recent';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { getCurrentUser } from '@/lib/auth/tenant-context';
+import { env } from '@/lib/env';
 import { formatBRL } from '@/lib/format';
 
 import { currentOnboardingProgress } from '../_painel/onboarding-progress';
@@ -41,6 +42,7 @@ import { ActivityFeed } from './_components/activity-feed';
 import { RefreshButton } from './_components/refresh-button';
 import { RevenueChart } from './_components/revenue-chart';
 import { getActivationChecklist, getDashboard } from './data';
+import { dashboardDemoData } from './demo-data';
 import styles from './dashboard.module.css';
 
 export const dynamic = 'force-dynamic';
@@ -97,6 +99,10 @@ export default async function DashboardPage() {
   const tz = await getClinicTimezone(clinicId);
   const { from, to } = clinicDayBounds(tz);
   const dias = Array.from({ length: 7 }, (_, i) => ymd(tz, i - 6));
+  const demoMode = Boolean(
+    env.DASHBOARD_DEMO_USER_ID === user.userId && env.DASHBOARD_DEMO_CLINIC_ID === clinicId,
+  );
+  const demoData = demoMode ? dashboardDemoData(user.userId, dias) : null;
   const canAudit = user.permissions.includes(PERMISSIONS.VIEW_AUDIT);
   // AUTHZ-005 — o Dashboard era a única tela que lia caixa sem gate: os cards
   // "A receber"/"Faturado hoje" e a série de 7 dias iam para o RSC de qualquer
@@ -114,18 +120,32 @@ export default async function DashboardPage() {
   // consolidado diário (cash_flow_daily); "hoje" usa o valor ao vivo (o rollup
   // roda 1x/dia, então ainda não fechou o dia corrente).
   const [d, checklist, onboarding, flow, serie, activity, handoff] = await Promise.all([
-    getDashboard(clinicId, tz),
+    demoData ? Promise.resolve(demoData.dashboard) : getDashboard(clinicId, tz),
     getActivationChecklist(clinicId),
     // Memoizado por request: o layout já leu esta linha para montar o tour.
     currentOnboardingProgress(),
     // DTO neutro em vez da query: o zero aqui nunca é renderizado (os blocos
     // financeiros somem abaixo), ele só mantém o tipo sem consultar o caixa.
-    canViewFinancial ? getCashFlowToday(clinicId, from, to) : Promise.resolve(NO_CASH_FLOW),
     canViewFinancial
-      ? listCashFlowDaily(clinicId, dias[0]!, ymd(tz, 1))
+      ? demoData
+        ? Promise.resolve(demoData.flow)
+        : getCashFlowToday(clinicId, from, to)
+      : Promise.resolve(NO_CASH_FLOW),
+    canViewFinancial
+      ? demoData
+        ? Promise.resolve(demoData.serie)
+        : listCashFlowDaily(clinicId, dias[0]!, ymd(tz, 1))
       : Promise.resolve<Awaited<ReturnType<typeof listCashFlowDaily>>>([]),
-    canAudit ? getRecentActivity(clinicId, 7) : Promise.resolve<AuditActivity[]>([]),
-    canViewConversations ? countOpenHandoffs(clinicId) : Promise.resolve(NO_HANDOFF),
+    canAudit
+      ? demoData
+        ? Promise.resolve(demoData.activity)
+        : getRecentActivity(clinicId, 7)
+      : Promise.resolve<AuditActivity[]>([]),
+    canViewConversations
+      ? demoData
+        ? Promise.resolve(demoData.handoff)
+        : countOpenHandoffs(clinicId)
+      : Promise.resolve(NO_HANDOFF),
   ]);
   const recByDate = new Map(serie.map((s) => [s.date, s.totalRecebido]));
   const chart = dias.map((date, i) => ({
@@ -137,7 +157,9 @@ export default async function DashboardPage() {
 
   // Atividade recente (audit) — feed sensível, gateado em view:audit (gestor/owner).
   const actorNames = canAudit
-    ? await getProfileNames(clinicId, activity.map((a) => a.userId ?? '').filter(Boolean))
+    ? demoData
+      ? new Map([[user.userId, user.name ?? 'Conta de demonstração']])
+      : await getProfileNames(clinicId, activity.map((a) => a.userId ?? '').filter(Boolean))
     : new Map<string, string>();
 
   const hoje = new Intl.DateTimeFormat('pt-BR', {
@@ -167,7 +189,11 @@ export default async function DashboardPage() {
       <PageHeader
         crumbs={[{ label: 'Dashboard' }, { label: `Hoje · ${hoje}` }]}
         title={nomeCompleto ? `${periodo}, ${nomeCompleto}` : periodo}
-        description="O pulso da clínica agora"
+        description={
+          demoMode
+            ? 'Dados ilustrativos somente nesta página. As demais áreas mostram dados reais.'
+            : 'O pulso da clínica agora'
+        }
         meta={<span className="font-mono tabular-nums">atualizado {atualizadoEm}</span>}
         actions={
           <>
@@ -183,9 +209,14 @@ export default async function DashboardPage() {
       {/* Antes do resto: enquanto a ativação não fecha, ela É a prioridade da
           tela — e no rodapé ninguém a encontrava. Não polui o dashboard maduro
           porque o componente se remove sozinho quando os passos terminam. */}
-      <ActivationChecklist data={checklist} dismissed={Boolean(onboarding?.checklistDismissedAt)} />
+      {!demoMode ? (
+        <ActivationChecklist
+          data={checklist}
+          dismissed={Boolean(onboarding?.checklistDismissedAt)}
+        />
+      ) : null}
 
-      {/* ---- stat tiles (dados reais) ---- */}
+      {/* ---- stat tiles (reais, exceto na prévia identificada acima) ---- */}
       <PanelCard
         title="Agora"
         regionLabel="Sala de espera e atendimento"
