@@ -644,11 +644,9 @@ async function crossTenantSnapshot(): Promise<Record<string, number>> {
 /**
  * Caso de uso e despachante rodam em `scripts/e2e-paid-pause-ops.ts` via tsx:
  * o carregador ESM do Playwright não resolve os imports `next/*` dessa cadeia.
- * O processo herda o ambiente DEV/Sandbox deste runner.
- */
-/**
- * Repete só falha de rede. `create-deposit` é idempotente (cobrança existente ou
- * conta pausada não fazem novo POST) e o despachante só pega eventos `pending`.
+ * O processo herda o ambiente DEV/Sandbox deste runner. Repete só falha de rede:
+ * `create-deposit` é idempotente (cobrança existente ou conta pausada não fazem
+ * novo POST) e o despachante só pega eventos `pending`.
  */
 async function runOps(args: string[]): Promise<Record<string, unknown>> {
   for (let attempt = 1; ; attempt++) {

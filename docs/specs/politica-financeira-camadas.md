@@ -2,7 +2,7 @@
 
 **Registro principal desta implementação.** As decisões, mudanças, provas, falhas e bloqueios de cada camada devem ser atualizados aqui durante o desenvolvimento. `docs/qorov2.md` permanece apenas como índice e fotografia histórica desta frente; não acrescentar nele novas entradas de progresso da política financeira.
 
-**Estado em 07/10/2026:** especificação e implementação em camadas. As migrations 0108–0113 foram aplicadas e lidas de volta **somente em DEV** (a 0113, revisão humana do repasse, com backup completo e restore dirigido testado antes); houve backup completo anterior à 0110 e cópia binária da tabela de contas de pagamento anterior à 0111, mas a cópia binária **não é um backup completo do banco**. RLS e guardas SQL foram exercitados em transações revertidas. A correção tardia de tarifa já possui lançamento de delta imutável e foi exercitada no PostgreSQL DEV com evento de outbox e handler reais, crash/retry e replay; ainda não foi observada uma **correção tardia real** no Asaas nem feita a jornada completa provider → webhook → Caixa no navegador. O Checkout hospedado foi exercitado no Sandbox com intervenção humana: cartão teve estorno terminal confirmado pelo runner; PIX gerou cobrança paga, mas o estorno solicitado terminou `CANCELLED`, sem devolução comprovada. O Preview com banco DEV exibiu configurações, fatos econômicos sintéticos no Caixa e o ciclo de pausa/desconexão da conta no Sandbox em 6/6 E2E; a serialização pausa × reserva de Checkout entre dois processos foi provada no PostgreSQL DEV (seção de 07/10, retomada). As camadas 2–5 **não estão aceitas para produção**: faltam a prova externa da correção de tarifa, o E2E da revisão humana do repasse (implementada e provada localmente), o evento real de cobrança chegando a uma conta pausada e a prova completa da IA até o link. Revalidar o estado antes de cada promoção.
+**Estado em 07/10/2026:** especificação e implementação em camadas. As migrations 0108–0113 foram aplicadas e lidas de volta **somente em DEV** (a 0113, revisão humana do repasse, com backup completo e restore dirigido testado antes); houve backup completo anterior à 0110 e cópia binária da tabela de contas de pagamento anterior à 0111, mas a cópia binária **não é um backup completo do banco**. RLS e guardas SQL foram exercitados em transações revertidas. A correção tardia de tarifa já possui lançamento de delta imutável e foi exercitada no PostgreSQL DEV com evento de outbox e handler reais, crash/retry e replay; ainda não foi observada uma **correção tardia real** no Asaas nem feita a jornada completa provider → webhook → Caixa no navegador. O Checkout hospedado foi exercitado no Sandbox com intervenção humana: cartão teve estorno terminal confirmado pelo runner; PIX gerou cobrança paga, mas o estorno solicitado terminou `CANCELLED`, sem devolução comprovada. O Preview com banco DEV exibiu configurações, fatos econômicos sintéticos no Caixa e o ciclo de pausa/desconexão da conta no Sandbox em 6/6 E2E; a serialização pausa × reserva de Checkout entre dois processos foi provada no PostgreSQL DEV (seção de 07/10, retomada). Ainda em 07/10, um pagamento Pix real no Sandbox foi feito por pessoa num Checkout criado antes da pausa. O webhook chegou com a conta pausada e foi conciliado pelo Preview deste PR. Bruto, tarifa e líquido coincidiram em `GET /payments`, extrato, banco e Caixa (9ª execução do runner). As camadas 2–5 **não estão aceitas para produção**: faltam a prova externa da correção de tarifa, o E2E da revisão humana do repasse (implementada e provada localmente) e a prova completa da IA até o link. Revalidar o estado antes de cada promoção.
 
 ## 1. Decisão de produto e disponibilidade
 
@@ -81,7 +81,7 @@ Contrato a estabilizar antes do rollout: `payments.patient_credit.granted` deve 
 
 ### Camada 5 — UI, migração e promoção
 
-1. Configurações: mostrar política de preço, base de repasse e regras somente a `MANAGE_FINANCIAL` **e** plano Clínica/Pro. Textos devem dizer que a taxa é despesa da clínica e que NET é opção explícita. Caixa: em **todos** os planos, mostrar fatos conhecidos de bruto/tarifa/líquido com `desconhecido/pendente` quando o provider não informar, sem substituir `NULL` por R$ 0,00; apenas Clínica/Pro recebem base/regra de repasse, antecipação detalhada e relatórios avançados. `listAppointmentFinancialEconomics` agrega a **parte alocada ao atendimento**, não o bruto total de cada cobrança quando há múltiplas cobranças ou alocação parcial; a UI conserva esse rótulo e agora traz, em bloco separado, os fatos individuais das `patient_charges` via leitura tenant-scoped de Payments. A lista individual cobre somente os atendimentos carregados no Caixa do dia; consulta histórica por cobrança continua fora deste checkpoint. `requestedAmount` não é apresentado como dinheiro recebido. Após estorno, os valores do provedor continuam rotulados como fatos do pagamento original, não saldo atual. Os E2E do Caixa Solo e Pro com fatos sintéticos estão registrados abaixo; ainda falta o readback econômico do Asaas na tela. Na comparação de planos do cadastro e da landing, anunciar as **configurações avançadas** apenas em Clínica/Pro **depois** de sua validação funcional e promoção; não criar promessa comercial enquanto as camadas 2–4 estão abertas.
+1. Configurações: mostrar política de preço, base de repasse e regras somente a `MANAGE_FINANCIAL` **e** plano Clínica/Pro. Textos devem dizer que a taxa é despesa da clínica e que NET é opção explícita. Caixa: em **todos** os planos, mostrar fatos conhecidos de bruto/tarifa/líquido com `desconhecido/pendente` quando o provider não informar, sem substituir `NULL` por R$ 0,00; apenas Clínica/Pro recebem base/regra de repasse, antecipação detalhada e relatórios avançados. `listAppointmentFinancialEconomics` agrega a **parte alocada ao atendimento**, não o bruto total de cada cobrança quando há múltiplas cobranças ou alocação parcial; a UI conserva esse rótulo e agora traz, em bloco separado, os fatos individuais das `patient_charges` via leitura tenant-scoped de Payments. A lista individual cobre somente os atendimentos carregados no Caixa do dia; consulta histórica por cobrança continua fora deste checkpoint. `requestedAmount` não é apresentado como dinheiro recebido. Após estorno, os valores do provedor continuam rotulados como fatos do pagamento original, não saldo atual. Os E2E do Caixa Solo e Pro com fatos sintéticos estão registrados abaixo. O readback econômico do Asaas na tela passou em 07/10 com um pagamento Pix real (9ª execução do runner); cartão e múltiplas cobranças por atendimento seguem sem prova visual. Na comparação de planos do cadastro e da landing, anunciar as **configurações avançadas** apenas em Clínica/Pro **depois** de sua validação funcional e promoção; não criar promessa comercial enquanto as camadas 2–4 estão abertas.
 2. A migration `0108_patient_payment_economics.sql` contém colunas e tabelas de várias camadas. Antes de aplicá-la, verificar journal, backup, `check:migrations`, SQL `CHECK` com `NULL`, RLS `ENABLE+FORCE`, grants, funções/triggers, FKs tenant, índices únicos e readback em DEV. **Não** preencher taxa/líquido de pagamentos antigos por estimativa. Não aplicar em produção nesta fase.
 3. Rodar testes de domínio, webhook, cron, RLS/cross-tenant, autenticação direta, plano Solo/Clínica/Pro e E2E real em Preview/DEV com Asaas Sandbox. Usar fixture isolada e limpar somente ela. Separar `PASS`, `FAIL`, `BLOCKED` e `NOT TESTED`; provider aceitando um request não prova webhooks, saldo nem UI.
 4. Revalidar TypeScript, ESLint, Prettier, build Next, suíte integral, migrations e inventário de Server Actions. Promover só com diff revisado, migration no ambiente-alvo ordenada e confirmação dos cenários externos. Após release, monitorar duplicidade, pendências econômicas, valor bruto divergente e falhas do outbox; rollback de app não deve apagar dados.
@@ -107,7 +107,7 @@ Contrato a estabilizar antes do rollout: `payments.patient_credit.granted` deve 
 
 - **Parcelamento com preço específico fica bloqueado:** o Checkout hospedado recebe `DETACHED` para cartão 1x e PIX sem parcelas; preço de cartão 2–12x é recusado na gravação nova e no core, opção histórica 2–12x aparece desabilitada na Agenda, e a ativação do modo explícito ignora preço que não é utilizável. `maxInstallmentCount` é apenas um teto, não uma escolha exata. O readback agora rejeita `installmentId` ou número incompatível com 1x, mas ainda falta pagamento real no Sandbox para comprovar o comportamento do formulário.
 - **Corrigido apenas localmente:** a criação do atendimento lê o modo efetivo na mesma transação, considera o entitlement e rejeita cotação ausente, alterada ou forjada antes de gravar atendimento/outbox. A IA agora consulta o catálogo, exige escolha explícita, resume o preço do servidor e carrega a cotação na ação pendente para revalidação na confirmação. A automação do sinal e do restante carrega método e parcelas do atendimento até o Checkout; dinheiro não entra na fila de cobrança por link. Recorrência e aceite da lista de espera ainda não coletam a condição comercial e devem falhar fechados no modo explícito; não podem ser apresentados como fluxos disponíveis. A importação histórica ainda precisa de proveniência interna e valor histórico próprio, sem reprificação pelo catálogo. Essas barreiras têm testes locais, mas não foram exercitadas em PostgreSQL/Preview.
-- **Link após escolha do paciente: decisão de valor fechada, jornada externa ainda não comprovada.** A primeira cobrança é o sinal percentual configurado sobre o preço do PIX ou cartão 1x escolhido. A confirmação do agendamento pela IA agora publica `scheduling.appointment.deposit_requested` na mesma transação da criação. Um handler detached relê o agendamento no tenant e tenta a criação existente do sinal fora da transação do outbox; o cron de 15 minutos permanece como backstop. O evento não contém link, CPF ou dado clínico. A fila C14 envia o link por template depois de `payments.patient_charge.link_ready`, respeitando a janela e guardas de envio. Sem sinal ativo ou elegibilidade, não há link; não se cria cobrança integral substituta. O campo da ferramenta permanece `hosted_checkout_supports_option` porque compatibilidade técnica não significa link emitido. A sequência real IA → Asaas → fila → Meta → paciente e o pagamento continuam `NOT TESTED`/`BLOCKED` pelo Sandbox; não prometer entrega no mesmo turno.
+- **Link após escolha do paciente: decisão de valor fechada, jornada externa ainda não comprovada.** A primeira cobrança é o sinal percentual configurado sobre o preço do PIX ou cartão 1x escolhido. A confirmação do agendamento pela IA agora publica `scheduling.appointment.deposit_requested` na mesma transação da criação. Um handler detached relê o agendamento no tenant e tenta a criação existente do sinal fora da transação do outbox; o cron de 15 minutos permanece como backstop. O evento não contém link, CPF ou dado clínico. A fila C14 envia o link por template depois de `payments.patient_charge.link_ready`, respeitando a janela e guardas de envio. Sem sinal ativo ou elegibilidade, não há link; não se cria cobrança integral substituta. O campo da ferramenta permanece `hosted_checkout_supports_option` porque compatibilidade técnica não significa link emitido. A sequência real IA → Asaas → fila → Meta → paciente continua `NOT TESTED`. O pagamento real de um Checkout de sinal passou no Preview em 07/10, mas fora dessa sequência. Não prometer entrega no mesmo turno.
 - **Migrations 0108–0109 em DEV:** a 0108 impede snapshot explícito com preço inativo/futuro, política incompatível ou plano inelegível. A revisão encontrou que ela ainda permitia `absorb_fees` por INSERT direto sob política explícita; a 0109 acrescentou esse ramo e preservou remarcação histórica exata. O readback e a prova transacional DEV desse ramo passaram, com rollback sem resíduos. A mesma prova não foi feita em Preview/produção.
 - O painel básico do Caixa usa economia **alocada por atendimento** e agora identifica os fatos de cada cobrança em um bloco separado, sem somá-los ao total alocado. Essa distinção passou nos testes locais e no readback DEV com fixture sintética; ainda falta E2E visual em Preview, inclusive com mais de uma cobrança por atendimento.
 - **Antecipação ainda não tem produtor real:** a camada de Payments grava/emite `earlySettlementFeeAmount: null` nos caminhos atuais de readback. Coluna, evento e consumer preparados não comprovam custo de antecipação separado. Identificar fato autoritativo no Asaas Sandbox, correlacionar à cobrança e provar evento → despesa → Caixa antes de anunciar essa parte.
@@ -121,7 +121,7 @@ Contrato a estabilizar antes do rollout: `payments.patient_credit.granted` deve 
 - **Sondagem do extrato Sandbox em 04/10, somente leitura:** `GET /v3/financialTransactions` com `ASAAS_CHAVE_TESTE_2` retornou exit 0 nos períodos fechados consultados. Em 01/10 havia 8 transações, 2 `PAYMENT_FEE`; em 04/10 havia 4 transações, 1 `PAYMENT_FEE`. A resposta trouxe `paymentId`, e os pagamentos de teste conhecidos tiveram correspondência com uma transação de tarifa cada. Isso comprova a chave de correlação disponível nesse Sandbox, **não** a estabilidade definitiva da tarifa, uma correção tardia real, a ausência de outras tarifas/estornos em páginas adicionais nem qualquer projeção contábil no Qoro. A pendência de versionar o fato e contabilizar o delta permanece aberta.
 - **Divergência de pagamento:** `getPayment` agora preserva `netValue` e parcelas. Método, parcelas ou bruto divergentes ficam em `failure_code` com ID do pagamento; o evento não consome dedup, não concede crédito e o cron relê o provedor. Um readback corrigido recuperou uma cobrança sintética no PostgreSQL DEV. Divergência persistente continua exigindo resolução operacional/refund; métrica e reconsulta não provam conciliação de dinheiro divergente.
 - **Sandbox hospedado, checkpoint automatizado anterior:** tentativas separadas de cartão e PIX com `ASAAS_CHAVE_TESTE_2` retornaram `recaptchaV2Enabled: true` e “Tente novamente e verifique o recaptcha.” Na reexecução não interativa de 04/10, o runner exigiu a resposta do Asaas com o mesmo ID e `status: CANCELED` para cada Checkout; não houve GET independente. Nesse checkpoint ainda não havia pagamento, webhook nem refund. A intervenção humana posterior está registrada na seção de 04/10 abaixo.
-- Ainda faltam E2E provider → webhook → crédito → Caixa → repasse e regressão de plano após downgrade. Até essa prova, as camadas 2–5 permanecem em desenvolvimento.
+- O E2E provider → webhook → crédito → Caixa passou no Preview em 07/10 (Pix, conta pausada, 9ª execução do runner). Ainda faltam o trecho até o repasse e a regressão de plano após downgrade. Até essa prova, as camadas 2–5 permanecem em desenvolvimento.
 
 ## 6. Procedimento de verificação e promoção
 
@@ -407,11 +407,11 @@ Cleanup: outbox, auditoria e clínica da fixture removidos; usuário Auth com DE
 | Frente | Resultado | Motivo |
 | --- | --- | --- |
 | 1 — elegibilidade | PASS local e CI em `85c59466`; PASS E2E de plano no Preview de `1cc90e69` | rollout NOT RUN |
-| 2 — fatos do Asaas e ledger | PASS DEV com fatos sintéticos; correção tardia real NOT RUN; pagamento real → webhook → crédito BLOCKED | não houve evento real; reCAPTCHA humano e escopo do outbox |
-| 3 — preço por método | PASS local/DEV da guarda; pagamento com preço de catálogo BLOCKED | mesmo bloqueio do pagamento real |
+| 2 — fatos do Asaas e ledger | PASS DEV com fatos sintéticos; pagamento Pix real → webhook → crédito → tarifa → Caixa PASS no Preview (9ª execução); correção tardia real NOT RUN | o provedor não produziu correção tardia; antecipação sem produtor |
+| 3 — preço por método | PASS local/DEV da guarda; pagamento com preço de catálogo NOT RUN | o pagamento real usou o preço do agendamento, sem método comercial; falta cenário no modo explícito |
 | 4 — repasse | suspensão conservadora PASS em DEV/Preview sintético; revisão humana implementada, PASS local e no Postgres descartável (8/8), 0113 aplicada no DEV; E2E no Preview NOT RUN | contrato decidido em 07/10 (teto no valor original, motivo, `MANAGE_FINANCIAL`, versões imutáveis); falta E2E com papéis reais |
-| 5 — UI, E2E e promoção | Preview 6/6 PASS em `1cc90e69` (fatos sintéticos); promoção NOT RUN | backup restaurável e plano de rollout ainda sem decisão |
-| Conta pausada | ciclo de configuração PASS no Sandbox; concorrência PASS no DEV; Checkout real + pausa PASS no runner; evento real tardio BLOCKED | passo humano não concluído: Checkout não abriu sob rede instável (seção do runner abaixo) |
+| 5 — UI, E2E e promoção | Preview 6/6 PASS em `1cc90e69` (fatos sintéticos); Caixa com fatos reais do Sandbox PASS (9ª execução); promoção NOT RUN | backup restaurável e plano de rollout ainda sem decisão |
+| Conta pausada | ciclo de configuração PASS no Sandbox; concorrência PASS no DEV; evento real de cobrança antiga com a conta pausada PASS no Preview (9ª execução) | no ciclo 6/6 de `1cc90e69`, o webhook apontava para outro deploy (`APP_BASE_URL`); a 9ª execução refez conexão e pausa com o host correto |
 | Refund PIX | BLOCKED BY ASAAS | `CREDIT_REFUND/REFUSED` sem causa; nenhum `DONE` |
 | IA → Asaas → Meta | NOT RUN | integração WhatsApp do outro agente e pagamento real pendentes |
 
@@ -472,6 +472,68 @@ Não é defeito do PR, mas **invalida como prova de Preview** tudo o que depende
 - O pagamento Sandbox `pay_pvm1h4gtsf49te26` (R$ 10,00 `RECEIVED`) permanece na conta Sandbox da clínica como resíduo inevitável: não há exclusão de pagamento recebido, e o estorno Pix deste Sandbox termina `REFUSED`.
 
 **Próxima condição:** corrigir o `APP_BASE_URL` do Preview desta branch na Vercel e repetir o pagamento. A alternativa só de teste é o runner redirecionar o webhook da fixture para o Preview testado. Até lá, "evento real chegando à conta pausada **e conciliado pelo código deste PR**" segue BLOCKED.
+
+**Correção aplicada pelo usuário em 07/10:** na Vercel, `APP_BASE_URL` do ambiente Preview, só para a branch `fix/post-merge-validation-20261001`, passou a `https://project-os-git-fix-post-merge-va-5fdd7c-clinic-os-v2-s-projects.vercel.app`; a entrada geral de Preview e a de Production ficaram como estavam.
+
+- Logo após o redeploy, uma sondagem ainda viu o host antigo.
+- Depois do deploy do commit `54c3e92d` (status Vercel `success` às 18:23:56 UTC), a sondagem sem pagamento registrou `webhookHostIsTestedPreview: true`.
+- O passo 1 do runner passou a **exigir** isso antes de qualquer pagamento humano.
+- Na mesma sondagem, a reserva pós-pausa caiu de novo por falha de rede no helper (`Failed query` no primeiro `SELECT`). O helper passou a expor o código da causa, e o runner repete até duas vezes as operações em erro de rede. A repetição é segura: o caso de uso é idempotente e o despachante só pega eventos `pending`.
+
+**8ª execução (Preview do `54c3e92d`):** passos 1–3 **PASS**, com o webhook no Preview testado. Às 18:31 UTC o link Pix foi entregue. O operador ficou indisponível naquele momento, e a espera foi encerrada pelo arquivo de parada: passo 4 **BLOCKED**, sem pagamento. Cleanup verificado de forma independente: Checkout sem pagamento associado, webhook da fixture removido, zero clínicas e zero usuários `e2e-paid-pause-%` no DEV, e só os dois webhooks pré-existentes no Sandbox. Repetida na 9ª execução, abaixo.
+
+### 07/10/2026 — 9ª execução: pagamento real em conta pausada conciliado por este PR
+
+**Alvo:**
+
+- runner no commit `283039d1`, que desde `54c3e92d` só mudou `e2e/` e `scripts/`;
+- Preview do commit `54c3e92d`, no alias da branch (`project-os-git-fix-post-merge-va-5fdd7c-…vercel.app`);
+- Auth e banco DEV `pqhkirrszzpwezdaqrai`;
+- conta Sandbox da clínica (`ASAAS_CLINIC_SANDBOX_KEY`).
+
+**Comando:** launcher local que injeta o ambiente DEV só em memória e roda `playwright test e2e/payments-paused-account-real-payment.spec.ts --project=chromium --workers=1`. Variáveis: `E2E_BASE_URL` (o Preview), `E2E_PAYMENT_ACCOUNT_MUTATION=dev-sandbox`, `E2E_REAL_PAYMENT=human`, `E2E_CHECKOUT_LINK_FILE`, `E2E_REAL_PAYMENT_WAIT_MIN=60` e `E2E_PAID_PAUSE_ABORT_FILE`.
+
+**Estado inicial (readback):** zero clínicas e zero usuários `e2e-paid-pause-%` no DEV. Na conta Sandbox, só os webhooks `…f85a` (desativado) e `…1e3a` (da `clinica-a`, habilitado).
+
+**Resultado: exit 0, 7/7 PASS em 16,5 min.**
+
+1. Conexão pela UI. O webhook da fixture ficou habilitado e apontando para o **Preview testado** (`webhookHostIsTestedPreview: true`), e a chave cifrada pelo Preview decifrou localmente.
+2. `createDepositCharge` real criou o Checkout de R$ 10,00 (sinal de 50% sobre R$ 20,00), geração `active`.
+3. Pausa pela UI: credencial preservada, webhook habilitado, e a reserva do segundo agendamento não criou cobrança.
+4. Link entregue às 18:47 UTC. A pessoa escolheu Pix e resolveu o reCAPTCHA, e o runner liquidou pelo endpoint de simulação.
+   - `PAYMENT_RECEIVED` chegou às 18:59:46 UTC e `CHECKOUT_PAID` às 18:59:47 UTC, **com a conta pausada o tempo todo** (`accountPausedThroughout: true`).
+   - Banco: cobrança `paid` com `pay_28prjdjknecjvnl0`, PIX, bruto 10,00, tarifa 0,99, líquido 9,01, revisão 1.
+   - Outbox no instante do pagamento: `patient_charge.created`, `link_ready`, `paid` e `patient_credit.granted` pendentes; o último já levava o bruto 10.
+   - Nas outras clínicas do DEV, cobranças, créditos e eventos de webhook ficaram iguais antes e depois (2/2/39).
+5. Revisão econômica externa: `GET /payments/{id}` deu `RECEIVED`, `value` 10 e `netValue` 9,01; `GET /financialTransactions` deu `PAYMENT_RECEIVED` +10,00 e `PAYMENT_FEE` −0,99; o banco bateu com ambos.
+6. O despachante da fixture processou `created`, `paid` e `credit.granted`, e o replay dos três não duplicou nada. Resultado:
+   - um crédito de 10,00 alocado (bruto 10,00, tarifa 0,99, líquido 9,01) e uma despesa de tarifa de 0,99;
+   - recebível manual de R$ 20,00 `parcial`, com 10,00 pago;
+   - sinal `paid` e agendamento `confirmado`.
+7. Caixa do Preview: solicitado R$ 10,00, bruto R$ 10,00, tarifa − R$ 0,99, líquido R$ 9,01.
+
+**Cleanup e readback independente:** o runner removeu o webhook da fixture e apagou clínica, outbox, auditoria e usuário Auth. A releitura separada (DEV em transação somente leitura, Sandbox só com GET) mostrou:
+
+- zero clínicas e zero usuários `e2e-paid-pause-%`;
+- nenhuma cobrança com `pay_28prjdjknecjvnl0` e nenhuma conta pausada no DEV;
+- nenhum evento de webhook gravado em outra clínica nas últimas 3 h. O webhook `…1e3a`, da `clinica-a`, fica na mesma conta Sandbox e assina os mesmos eventos;
+- só os dois webhooks pré-existentes no Sandbox, nenhum interrompido.
+
+**Resíduo:** o pagamento `pay_28prjdjknecjvnl0` (R$ 10,00 `RECEIVED`, sem estorno) fica na conta Sandbox da clínica, como o `pay_pvm1h4gtsf49te26` da 6ª execução. Não houve tentativa de estorno: o Pix deste Sandbox termina `REFUSED`, e repetir a mesma falha não acrescenta prova.
+
+**Alcance da prova.** No Preview deste PR e contra o Asaas Sandbox, ficou comprovado que:
+
+- um Checkout criado antes da pausa continua pagável;
+- o webhook real chega e é conciliado enquanto `accept_new_charges=false`;
+- bruto, tarifa e líquido coincidem entre provider, extrato, banco e Caixa.
+
+Fica **sem prova**:
+
+- correção tardia real de tarifa, antecipação, cartão e estorno `DONE`;
+- preço de catálogo por método: o sinal usou o preço do agendamento, sem método comercial;
+- worker e cron do Preview: o despachante é restrito à fixture e deixa de fora `link_ready` e a mensageria;
+- a jornada IA → link → Meta;
+- o repasse: a fixture não tem regra de profissional nem atendimento concluído.
 
 ### 07/10/2026 — camada 4: revisão humana do repasse (implementação, prova local e 0113 no DEV)
 
