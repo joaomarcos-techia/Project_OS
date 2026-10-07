@@ -26,8 +26,9 @@ import { sql } from 'drizzle-orm';
 import { logAudit } from '@/lib/audit/log';
 import type { RequestContext } from '@/lib/audit/types';
 import { decryptForTenant } from '@/lib/crypto';
-import { dbAdmin, dbWorker } from '@/lib/db';
+import { dbAdmin } from '@/lib/db';
 import type { Tx } from '@/lib/db';
+import { withTenant } from '@/lib/db/tenant';
 
 import { createAsaasClient, type AsaasClient } from './asaas';
 import { PAYMENT_ACCOUNT_LOCK_NAMESPACE } from './account-lock';
@@ -37,14 +38,14 @@ export const PAYMENT_PROVIDER = 'asaas' as const;
 
 /**
  * Impede configurar um webhook depois que a desconexão o desativou. O lock fica
- * no pool separado do worker: a operação usa dbAdmin internamente, e segurar
+ * no pool tenant separado: a operação usa dbAdmin internamente, e segurar
  * uma conexão do próprio dbAdmin aqui poderia esgotá-lo sob concorrência.
  */
 export async function withPaymentWebhookLock<T>(
   clinicId: string,
   operation: () => Promise<T>,
 ): Promise<T> {
-  return dbWorker.transaction(async (tx: Tx) => {
+  return withTenant(clinicId, async (tx: Tx) => {
     await tx.execute(
       sql`SELECT pg_advisory_xact_lock(${PAYMENT_ACCOUNT_LOCK_NAMESPACE}, hashtext(${clinicId}::text))`,
     );

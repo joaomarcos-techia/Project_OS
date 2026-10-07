@@ -4,7 +4,7 @@
  * `dbAdmin`/`logAudit` mockados; o `sql` real é compilado para texto (PgDialect)
  * para asserir as garantias que NÃO dá para verificar por tipo:
  *   - todo comando é escopado por `clinic_id` (dbAdmin ignora RLS);
- *   - desconectar APAGA a chave, não só marca inativo;
+ *   - desconectar só apaga a chave após desativar o webhook sem histórico;
  *   - o audit nunca recebe a chave nem o hash;
  *   - reenviar a mesma chave não escreve nada.
  */
@@ -14,15 +14,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // vi.hoisted: a fábrica do vi.mock é içada acima dos imports; expor o spy por aqui
 // evita um `import { dbAdmin }` (origem de conexão proibida pelo arch:db-check).
-const { transactionMock, workerTransactionMock, disableWebhookMock } = vi.hoisted(() => ({
+const { transactionMock, withTenantMock, disableWebhookMock } = vi.hoisted(() => ({
   transactionMock: vi.fn(),
-  workerTransactionMock: vi.fn(),
+  withTenantMock: vi.fn(),
   disableWebhookMock: vi.fn(),
 }));
 vi.mock('@/lib/db', () => ({
   dbAdmin: { transaction: transactionMock },
-  dbWorker: { transaction: workerTransactionMock },
 }));
+vi.mock('@/lib/db/tenant', () => ({ withTenant: withTenantMock }));
 vi.mock('@/lib/audit/log', () => ({ logAudit: vi.fn(async () => 'audit-1') }));
 vi.mock('@/lib/crypto', () => ({ decryptForTenant: vi.fn(async () => 'test-key') }));
 vi.mock('./asaas', () => ({ createAsaasClient: () => ({ disableWebhook: disableWebhookMock }) }));
@@ -51,7 +51,7 @@ function makeTx(returns: unknown[][]) {
 
 function runWithTx(tx: unknown) {
   transactionMock.mockImplementation(((fn: (t: unknown) => unknown) => fn(tx)) as never);
-  workerTransactionMock.mockImplementation(((fn: (t: unknown) => unknown) =>
+  withTenantMock.mockImplementation(((_clinicId: string, fn: (t: unknown) => unknown) =>
     fn({ execute: vi.fn(async () => []) })) as never);
 }
 
@@ -186,11 +186,12 @@ describe('upsertPaymentAccount', () => {
 
 it('serializa a configuração remota do webhook com a pausa da conta', async () => {
   const { tx, sqls } = makeTx([[]]);
-  workerTransactionMock.mockImplementation(((fn: (t: unknown) => unknown) => fn(tx)) as never);
+  withTenantMock.mockImplementation(((_clinicId: string, fn: (t: unknown) => unknown) =>
+    fn(tx)) as never);
   const operation = vi.fn(async () => 'configured');
   await expect(withPaymentWebhookLock('clinic-1', operation)).resolves.toBe('configured');
   expect(sqls[0]).toContain('pg_advisory_xact_lock');
-  expect(workerTransactionMock).toHaveBeenCalledOnce();
+  expect(withTenantMock).toHaveBeenCalledWith('clinic-1', expect.any(Function));
   expect(transactionMock).not.toHaveBeenCalled();
   expect(operation).toHaveBeenCalledOnce();
 });
@@ -252,7 +253,7 @@ describe('deactivatePaymentAccount', () => {
     });
     expect(sqls[4]).toContain('api_key_encrypted = NULL');
     expect(sqls[4]).toContain('webhook_token_encrypted = NULL');
-    expect(workerTransactionMock).toHaveBeenCalledOnce();
+    expect(withTenantMock).toHaveBeenCalledOnce();
     expect(logAudit).toHaveBeenCalledTimes(2);
   });
 
