@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 192 actions (0 inline); 51 métodos em 47 handlers; 22 props com referência de action; 277 acessos diretos a process.env; 9 nomes NEXT_PUBLIC.
+Contagem: 192 actions (0 inline); 51 métodos em 47 handlers; 22 props com referência de action; 279 acessos diretos a process.env; 9 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -405,6 +405,8 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/e2e-mutation-fixture.ts:55`                       | `E2E_MUTATION`                         | `process.env.E2E_MUTATION`                         |
 | `scripts/e2e-mutation-fixture.ts:58`                       | `E2E_USER_EMAIL`                       | `process.env.E2E_USER_EMAIL`                       |
 | `scripts/e2e-mutation-fixture.ts:206`                      | `E2E_USER_EMAIL`                       | `process.env.E2E_USER_EMAIL`                       |
+| `scripts/e2e-paid-pause-ops.ts:54`                         | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`             |
+| `scripts/e2e-paid-pause-ops.ts:55`                         | `ASAAS_BASE_URL`                       | `process.env.ASAAS_BASE_URL`                       |
 | `scripts/gemini-live-check.ts:50`                          | `GEMINI_API_KEY`                       | `process.env.GEMINI_API_KEY`                       |
 | `scripts/load-signup-degraded.ts:111`                      | `LOAD_SIGNUP_CONFIRM`                  | `process.env.LOAD_SIGNUP_CONFIRM`                  |
 | `scripts/load-signup-degraded.ts:118`                      | `UPSTASH_REDIS_REST_URL`               | `process.env.UPSTASH_REDIS_REST_URL`               |

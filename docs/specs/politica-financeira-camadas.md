@@ -411,6 +411,42 @@ Cleanup: outbox, auditoria e clínica da fixture removidos; usuário Auth com DE
 | 3 — preço por método | PASS local/DEV da guarda; pagamento com preço de catálogo BLOCKED | mesmo bloqueio do pagamento real |
 | 4 — repasse | suspensão conservadora PASS em DEV/Preview sintético; revisão humana NOT RUN | contrato decidido em 07/10 (teto no valor original, motivo, `MANAGE_FINANCIAL`, versões imutáveis); implementação pendente |
 | 5 — UI, E2E e promoção | Preview 6/6 PASS em `1cc90e69` (fatos sintéticos); promoção NOT RUN | backup restaurável e plano de rollout ainda sem decisão |
-| Conta pausada | ciclo de configuração PASS no Sandbox; concorrência PASS no DEV; evento real tardio BLOCKED | depende do pagamento real e do despachante do outbox |
+| Conta pausada | ciclo de configuração PASS no Sandbox; concorrência PASS no DEV; Checkout real + pausa PASS no runner; evento real tardio BLOCKED | passo humano não concluído: Checkout não abriu sob rede instável (seção do runner abaixo) |
 | Refund PIX | BLOCKED BY ASAAS | `CREDIT_REFUND/REFUSED` sem causa; nenhum `DONE` |
 | IA → Asaas → Meta | NOT RUN | integração WhatsApp do outro agente e pagamento real pendentes |
+
+### 07/10/2026 — runner do pagamento real em conta pausada
+
+**Runner:** `e2e/payments-paused-account-real-payment.spec.ts`, com humano no circuito e opt-in triplo (`E2E_PAYMENT_ACCOUNT_MUTATION=dev-sandbox`, `E2E_REAL_PAYMENT=human`, `E2E_CHECKOUT_LINK_FILE`). Ele usa o Preview do PR com Auth/banco DEV, prova assinada do runtime, a conta Sandbox da clínica e uma fixture DEV isolada: owner Auth, plano Pro, política de sinal de 50%, dois pacientes com CPF sintético válido, dois agendamentos e um recebível em aberto criado pela fixture. Esse recebível equivale a um lançamento manual; concluir o atendimento exigiria prontuário. A sequência é:
+
+1. conexão pela UI do Preview;
+2. `createDepositCharge` real criando o Checkout no Sandbox;
+3. pausa pela UI e nova reserva bloqueada;
+4. pessoa abre o link, escolhe Pix e resolve o reCAPTCHA, e o runner liquida pelo endpoint de simulação `POST /v3/sandbox/payment/{id}/confirm`;
+5. readback banco × `GET /payments/{id}` × `GET /financialTransactions`;
+6. despachante restrito à fixture e aos eventos `patient_charge.created/paid`, `patient_credit.granted` e `economics_reconciled`, com replay — `link_ready` e a mensageria ficam de fora;
+7. Caixa no Preview.
+
+O caso de uso e o despachante rodam em `scripts/e2e-paid-pause-ops.ts` via tsx: o carregador ESM do Playwright não resolve `next/headers` nessa cadeia. O helper recusa clínica fora do prefixo `e2e-paid-pause-` e Asaas fora do Sandbox. O link de pagamento vai para um arquivo local, nunca para o log. Um arquivo de parada (`E2E_PAID_PAUSE_ABORT_FILE`) encerra a espera sem pular o cleanup. A retomada (`E2E_PAID_PAUSE_RESUME_CLINIC`) continua uma fixture preservada a partir do passo 4.
+
+**Execuções em 07/10, todas contra o Preview do commit `cb898599`:**
+
+- **1ª:** passo 1 **PASS**, com conexão pela UI, webhook habilitado e a chave mestra local decifrando a credencial gravada pelo Preview — precondição do Checkout local. O passo 2 falhou antes de chamar o Asaas por `Cannot find module next/headers` no carregador do Playwright; foi um defeito do runner, corrigido com o helper tsx. Cleanup PASS.
+- **2ª:** passos 1–3 **PASS**:
+  - o caso de uso real fez o `POST /checkouts` no Sandbox e gravou cobrança de R$ 10,00, geração `active` e link;
+  - a pausa pela UI manteve `active=true`, `accept_new_charges=false`, credencial e token idênticos e o webhook habilitado no Sandbox;
+  - a nova reserva para o segundo agendamento criou **zero** cobranças.
+
+  No passo 4, após 13,9 min de espera, um `GET /payments` ao Sandbox falhou com `ConnectTimeoutError`, e o loop não tolerava falha transitória. O cleanup falhou com `ECONNRESET` na conexão de banco ociosa, e a fixture ficou preservada para investigação. Correção: leituras do Sandbox com nova tentativa em erro de rede; o POST de liquidação só se repete após releitura; o cliente Postgres recicla conexões ociosas e o cleanup repete operações de banco.
+- **3ª, retomada da mesma fixture:** a espera de 60 min absorveu **7** falhas transitórias de rede e terminou **BLOCKED**, sem pagamento iniciado. O operador relatou que o Checkout do app abria com "erro desconhecido" e pedia recarga. Depois do cancelamento, a recarga mostrou "Página não encontrada", o que é esperado. Cleanup PASS: Checkout `CANCELED`, webhook da fixture removido com GET 404, clínica, outbox, auditoria e usuário Auth em zero, e só os dois webhooks pré-existentes no Sandbox.
+- **4ª e 5ª:** abortadas na criação da fixture por falha de rede local (`ENOTFOUND` no DNS do pooler Supabase; `ConnectTimeoutError` para o Supabase Auth). Readback: zero clínicas e zero usuários `e2e-paid-pause-%`.
+
+**Diagnóstico do Checkout que não abriu.**
+
+- **Configuração da conta descartada:** `GET /myAccount/status` deu `APPROVED` em geral, informações comerciais, conta bancária e documentação, e há uma chave Pix EVP `ACTIVE`, igual à conta de teste 2, onde o pagamento humano funcionou em 04/10.
+- **Rede do operador instável no mesmo período:** DNS levando 0,4–2,1 s, `ENOTFOUND` e timeouts para os IPs de `sandbox.asaas.com`. Esta é a hipótese principal.
+- **Hipótese de produto ainda aberta:** o Checkout de sinal do app não envia `customerData`, e um Checkout `DETACHED` assim nunca tinha sido aberto por um humano. O runner de 04/10 sempre enviou `customerData`; o Checkout de assinatura, também sem ele, renderizou em 05/10, mas é `RECURRENT`. Para separar as hipóteses, foi criado na mesma conta um Checkout de controle com o corpo idêntico ao do app mais `customerData`. O Asaas recusou o controle enquanto `customerData` vinha incompleto: com ele exige `phone`, `address`, `addressNumber`, `postalCode` e `province`. O controle completo nasceu `ACTIVE` e foi cancelado com readback `CANCELED`, sem ser aberto, porque a rede seguia instável.
+
+Na próxima tentativa, entregar ao operador os dois links ao mesmo tempo. Se só o controle renderizar, o Checkout de sinal do app tem defeito de produto e precisa enviar dados do pagador ou adotar outro fluxo.
+
+**Resultado:** a conexão, a criação real do Checkout e a pausa com bloqueio de nova cobrança estão **PASS** contra o Asaas Sandbox. O evento real de cobrança antiga chegando à conta pausada, a conferência econômica externa e o Caixa com fatos reais continuam **BLOCKED**, por rede instável no operador e pelo passo humano do reCAPTCHA. Nenhum dado de produção foi tocado. A cobrança paga ainda não existe, então não há pagamento Sandbox residual desta frente.
