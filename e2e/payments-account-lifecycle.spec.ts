@@ -1040,6 +1040,7 @@ test.describe.serial('conta de pagamento da clínica (Preview)', () => {
     test.skip(!sandboxKey, 'Exige a chave da conta Asaas Sandbox da clínica.');
     assertPreviewOnly();
     assertPaymentMutationOptIn();
+    if (!sandboxKey) throw new Error('Chave Asaas Sandbox ausente após a precondição.');
     await authenticateForTest(page);
 
     const [history] = await fixtureSql!<{ total: number }[]>`
@@ -1050,7 +1051,7 @@ test.describe.serial('conta de pagamento da clínica (Preview)', () => {
 
     await page.goto('/configuracoes/pagamentos');
     await expect(page.getByText(/Nenhuma conta conectada/)).toBeVisible();
-    await page.locator('#asaas-api-key').fill(sandboxKey!);
+    await page.locator('#asaas-api-key').fill(sandboxKey);
     await page.getByRole('button', { name: 'Conectar conta' }).click();
     await expect(page.getByText('Conectada', { exact: true })).toBeVisible({ timeout: 90_000 });
 
@@ -1096,7 +1097,7 @@ test.describe.serial('conta de pagamento da clínica (Preview)', () => {
     const remoteResponse = await fetch(
       'https://api-sandbox.asaas.com/v3/webhooks?offset=0&limit=100',
       {
-        headers: { access_token: sandboxKey! },
+        headers: { access_token: sandboxKey },
       },
     );
     expect(remoteResponse.status, 'Asaas não permitiu ler os webhooks da fixture').toBe(200);
@@ -1122,7 +1123,7 @@ test.describe.serial('conta de pagamento da clínica (Preview)', () => {
     expect(matches).toHaveLength(1);
     expect(matches[0]).toMatchObject({ enabled: true });
 
-    await page.locator('#asaas-api-key').fill(sandboxKey!);
+    await page.locator('#asaas-api-key').fill(sandboxKey);
     await page.getByRole('button', { name: 'Conectar ou retomar' }).click();
     await expect(page.getByText('Conectada', { exact: true })).toBeVisible({ timeout: 90_000 });
     const [resumed] = await fixtureSql!<
