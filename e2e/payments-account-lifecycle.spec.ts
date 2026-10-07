@@ -250,8 +250,10 @@ async function authenticateForTest(page: import('@playwright/test').Page): Promi
   if (fixtureAuthCookies) {
     await page.context().addCookies(fixtureAuthCookies);
     await page.goto('/dashboard');
-    await expect(page).toHaveURL(/\/dashboard(?:\?|$)/, { timeout: 30_000 });
-    return;
+    if (/\/dashboard(?:\?|$)/u.test(page.url())) return;
+    if (!/\/login(?:\?|$)/u.test(page.url())) {
+      throw new Error('A sessão da fixture não abriu dashboard nem solicitou login.');
+    }
   }
   await page.goto('/login');
   await page.locator('#email').fill(fixtureEmail);
@@ -719,28 +721,29 @@ test.describe.serial('conta de pagamento da clínica (Preview)', () => {
       insert into patient_charges
         (id, clinic_id, appointment_id, patient_id, kind, status, amount,
          provider, external_reference, paid_at, provider_gross_amount,
-         provider_fee_amount, provider_net_amount, economics_reconciled_at, created_at)
+          provider_fee_amount, provider_net_amount, economics_reconciled_at,
+          provider_economics_revision, created_at)
       values
         (${depositChargeId}::uuid, ${fixtureClinicId}::uuid, ${appointmentId}::uuid,
          ${patientId}::uuid, 'deposit', 'paid', 50, 'asaas',
-         ${`deposit:${appointmentId}`}, now(), 50, 1, 49, now(), now() - interval '1 second'),
+          ${`deposit:${appointmentId}`}, now(), 50, 1, 49, now(), 1, now() - interval '1 second'),
         (${remainderChargeId}::uuid, ${fixtureClinicId}::uuid, ${appointmentId}::uuid,
          ${patientId}::uuid, 'remainder', 'paid', 100, 'asaas',
-         ${`remainder:${appointmentId}`}, now(), 100, null, null, null, now())
+          ${`remainder:${appointmentId}`}, now(), 100, null, null, null, 0, now())
     `;
     await fixtureSql!`
       insert into patient_credits
         (clinic_id, patient_id, appointment_id, patient_charge_id, amount,
          allocated_amount, allocated_lancamento_id, kind, status, payment_method,
          provider_gross_amount, provider_fee_amount, provider_net_amount,
-         provider_economics_reconciled_at)
+          provider_economics_reconciled_at, provider_economics_revision)
       values
         (${fixtureClinicId}::uuid, ${patientId}::uuid, ${appointmentId}::uuid,
          ${depositChargeId}::uuid, 50, 50, ${lancamentoId}::uuid,
-         'deposit', 'allocated', 'pix', 50, 1, 49, now()),
+          'deposit', 'allocated', 'pix', 50, 1, 49, now(), 1),
         (${fixtureClinicId}::uuid, ${patientId}::uuid, ${appointmentId}::uuid,
          ${remainderChargeId}::uuid, 100, 100, ${lancamentoId}::uuid,
-         'remaining_payment', 'allocated', 'cartao_credito', 100, null, null, null)
+          'remaining_payment', 'allocated', 'cartao_credito', 100, null, null, null, 0)
     `;
 
     await page.goto('/auth/session-refresh?next=/caixa');
@@ -789,13 +792,13 @@ test.describe.serial('conta de pagamento da clínica (Preview)', () => {
     await fixtureSql!`
       update patient_charges
          set provider_fee_amount = 2, provider_net_amount = 98,
-             economics_reconciled_at = now()
+              economics_reconciled_at = now(), provider_economics_revision = 1
        where id = ${remainderChargeId}::uuid and clinic_id = ${fixtureClinicId}::uuid
     `;
     await fixtureSql!`
       update patient_credits
          set provider_fee_amount = 2, provider_net_amount = 98,
-             provider_economics_reconciled_at = now()
+              provider_economics_reconciled_at = now(), provider_economics_revision = 1
        where patient_charge_id = ${remainderChargeId}::uuid
          and clinic_id = ${fixtureClinicId}::uuid
     `;
@@ -916,20 +919,21 @@ test.describe.serial('conta de pagamento da clínica (Preview)', () => {
       insert into patient_charges
         (id, clinic_id, appointment_id, patient_id, kind, status, amount,
          provider, external_reference, paid_at, provider_gross_amount,
-         provider_fee_amount, provider_net_amount, economics_reconciled_at)
+          provider_fee_amount, provider_net_amount, economics_reconciled_at,
+          provider_economics_revision)
       values (${chargeId}::uuid, ${fixtureClinicId}::uuid, ${appointmentId}::uuid,
               ${patientId}::uuid, 'remainder', 'paid', 240, 'asaas',
-              ${`remainder:${appointmentId}`}, now(), 240, 4, 236, now())
+          ${`remainder:${appointmentId}`}, now(), 240, 4, 236, now(), 1)
     `;
     await fixtureSql!`
       insert into patient_credits
         (clinic_id, patient_id, appointment_id, patient_charge_id, amount,
          allocated_amount, allocated_lancamento_id, kind, status, payment_method,
          provider_gross_amount, provider_fee_amount, provider_net_amount,
-         provider_economics_reconciled_at)
+          provider_economics_reconciled_at, provider_economics_revision)
       values (${fixtureClinicId}::uuid, ${patientId}::uuid, ${appointmentId}::uuid,
               ${chargeId}::uuid, 240, 240, ${lancamentoId}::uuid,
-              'remaining_payment', 'allocated', 'pix', 240, 4, 236, now())
+          'remaining_payment', 'allocated', 'pix', 240, 4, 236, now(), 1)
     `;
     await fixtureSql!`
       insert into professional_payout_rules
@@ -1025,5 +1029,124 @@ test.describe.serial('conta de pagamento da clínica (Preview)', () => {
        where clinic_id = ${fixtureClinicId}::uuid and appointment_id = ${appointmentId}::uuid
     `;
     expect(suspended).toEqual({ status: 'cancelled', payout_amount: null });
+    fixtureAuthCookies = await page.context().cookies();
+  });
+
+  test('com cobrança histórica, pausa preserva credencial e webhook; mesma chave retoma', async ({
+    page,
+  }) => {
+    test.setTimeout(180_000);
+    test.skip(!isolatedFixture, 'Exige cobranças sintéticas da fixture isolada em DEV.');
+    test.skip(!sandboxKey, 'Exige a chave da conta Asaas Sandbox da clínica.');
+    assertPreviewOnly();
+    assertPaymentMutationOptIn();
+    await authenticateForTest(page);
+
+    const [history] = await fixtureSql!<{ total: number }[]>`
+      select count(*)::int total from patient_charges
+       where clinic_id = ${fixtureClinicId}::uuid
+    `;
+    expect(history?.total, 'a fixture não tem cobrança histórica').toBeGreaterThan(0);
+
+    await page.goto('/configuracoes/pagamentos');
+    await expect(page.getByText(/Nenhuma conta conectada/)).toBeVisible();
+    await page.locator('#asaas-api-key').fill(sandboxKey!);
+    await page.getByRole('button', { name: 'Conectar conta' }).click();
+    await expect(page.getByText('Conectada', { exact: true })).toBeVisible({ timeout: 90_000 });
+
+    const [connected] = await fixtureSql!<
+      {
+        webhook_ref: string;
+        webhook_token_encrypted: string | null;
+        api_key_encrypted: string | null;
+      }[]
+    >`
+      select webhook_ref::text, webhook_token_encrypted, api_key_encrypted
+        from clinic_payment_accounts where clinic_id = ${fixtureClinicId}::uuid
+    `;
+    expect(
+      Boolean(
+        connected?.webhook_ref && connected.webhook_token_encrypted && connected.api_key_encrypted,
+      ),
+    ).toBe(true);
+
+    await page.getByRole('button', { name: 'Pausar ou desconectar' }).click();
+    await expect(page.getByText('Pausada', { exact: true })).toBeVisible({ timeout: 60_000 });
+    await page.reload();
+    await expect(page.getByText('Novas cobranças pausadas')).toBeVisible();
+    const [paused] = await fixtureSql!<
+      {
+        active: boolean;
+        accept_new_charges: boolean;
+        webhook_ref: string;
+        webhook_token_encrypted: string | null;
+        api_key_encrypted: string | null;
+      }[]
+    >`
+      select active, accept_new_charges, webhook_ref::text,
+             webhook_token_encrypted, api_key_encrypted
+        from clinic_payment_accounts where clinic_id = ${fixtureClinicId}::uuid
+    `;
+    expect(paused?.active).toBe(true);
+    expect(paused?.accept_new_charges).toBe(false);
+    expect(Boolean(paused?.api_key_encrypted && paused.webhook_token_encrypted)).toBe(true);
+    expect(paused?.webhook_ref === connected?.webhook_ref).toBe(true);
+    expect(paused?.webhook_token_encrypted === connected?.webhook_token_encrypted).toBe(true);
+
+    const remoteResponse = await fetch(
+      'https://api-sandbox.asaas.com/v3/webhooks?offset=0&limit=100',
+      {
+        headers: { access_token: sandboxKey! },
+      },
+    );
+    expect(remoteResponse.status, 'Asaas não permitiu ler os webhooks da fixture').toBe(200);
+    const remoteBody: unknown = await remoteResponse.json();
+    if (
+      !remoteBody ||
+      typeof remoteBody !== 'object' ||
+      !('data' in remoteBody) ||
+      !Array.isArray(remoteBody.data)
+    ) {
+      throw new Error('Listagem de webhooks Sandbox malformada.');
+    }
+    const expectedPath = `/api/webhooks/asaas/patient/${paused?.webhook_ref}`;
+    const matches = remoteBody.data.filter((item: unknown) => {
+      if (!item || typeof item !== 'object' || !('url' in item) || typeof item.url !== 'string')
+        return false;
+      try {
+        return new URL(item.url).pathname === expectedPath;
+      } catch {
+        return false;
+      }
+    });
+    expect(matches).toHaveLength(1);
+    expect(matches[0]).toMatchObject({ enabled: true });
+
+    await page.locator('#asaas-api-key').fill(sandboxKey!);
+    await page.getByRole('button', { name: 'Conectar ou retomar' }).click();
+    await expect(page.getByText('Conectada', { exact: true })).toBeVisible({ timeout: 90_000 });
+    const [resumed] = await fixtureSql!<
+      {
+        accept_new_charges: boolean;
+        webhook_ref: string;
+        webhook_token_encrypted: string | null;
+      }[]
+    >`
+      select accept_new_charges, webhook_ref::text, webhook_token_encrypted
+        from clinic_payment_accounts where clinic_id = ${fixtureClinicId}::uuid
+    `;
+    expect(resumed?.accept_new_charges).toBe(true);
+    expect(resumed?.webhook_ref === paused?.webhook_ref).toBe(true);
+    expect(resumed?.webhook_token_encrypted === paused?.webhook_token_encrypted).toBe(true);
+
+    await page.getByRole('button', { name: 'Pausar ou desconectar' }).click();
+    await expect(page.getByText('Pausada', { exact: true })).toBeVisible({ timeout: 60_000 });
+    await page.getByRole('button', { name: 'Tentar desconexão' }).click();
+    await expect(page.getByText('Pausada', { exact: true })).toBeVisible();
+    const [final] = await fixtureSql!<{ active: boolean; accept_new_charges: boolean }[]>`
+      select active, accept_new_charges from clinic_payment_accounts
+       where clinic_id = ${fixtureClinicId}::uuid
+    `;
+    expect(final).toMatchObject({ active: true, accept_new_charges: false });
   });
 });
