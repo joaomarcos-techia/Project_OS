@@ -18,13 +18,16 @@ import {
 } from './cash-action-panels';
 import { outstandingBalance } from './caixa-money';
 import type { CashPanelMode } from './caixa-types';
+import { PayoutReviewForm } from './payout-review-form';
 
 function FinancialComposition({
   item,
   showAdvancedFinancialDetails,
+  canReviewPayout,
 }: {
   item: CaixaItem;
   showAdvancedFinancialDetails: boolean;
+  canReviewPayout: boolean;
 }) {
   const economics = item.paymentEconomics;
   if (item.tipo !== 'receber' || !item.appointmentId) return null;
@@ -93,6 +96,33 @@ function FinancialComposition({
         <p className="mt-2 text-(length:--fs-xs) font-medium text-fg">
           Repasse suspenso após reversão. Revise o valor devido antes de pagar o profissional.
         </p>
+      ) : null}
+      {showAdvancedFinancialDetails &&
+      economics?.payout?.status === 'reviewed' &&
+      economics.payout.review ? (
+        <p className="mt-2 text-pretty text-(length:--fs-xs) font-medium text-fg">
+          Repasse revisado na versão {economics.payout.review.version}:{' '}
+          {formatBRL(economics.payout.review.decidedAmount)}. Uma nova reversão suspende o repasse
+          até outra revisão.
+        </p>
+      ) : null}
+      {showAdvancedFinancialDetails &&
+      canReviewPayout &&
+      economics?.payout &&
+      (economics.payout.status === 'cancelled' || economics.payout.status === 'reviewed') ? (
+        economics.payout.reviewBounds ? (
+          <PayoutReviewForm
+            payoutId={economics.payout.id}
+            ceilingAmount={economics.payout.reviewBounds.ceilingAmount}
+            referenceAmount={economics.payout.reviewBounds.referenceAmount}
+            nextVersion={(economics.payout.review?.version ?? 0) + 1}
+          />
+        ) : (
+          <p className="mt-2 text-pretty text-(length:--fs-xs) text-fg-muted">
+            O teto da revisão depende do líquido original informado pelo provedor; a revisão fica
+            disponível quando ele chegar.
+          </p>
+        )
       ) : null}
       {item.chargeEconomics?.length ? (
         <div className="mt-3 border-t border-border pt-2">
@@ -181,6 +211,7 @@ export function CashItemCard({
   methods,
   paymentTransactions,
   showAdvancedFinancialDetails,
+  canReviewPayout = false,
   panelMode,
   onOpenPanel,
   onClosePanel,
@@ -196,6 +227,8 @@ export function CashItemCard({
   methods: PaymentMethodDTO[];
   paymentTransactions: PaymentTransactionSummary[];
   showAdvancedFinancialDetails: boolean;
+  /** MANAGE_FINANCIAL: registra a revisão humana de repasse suspenso. */
+  canReviewPayout?: boolean;
   panelMode: CashPanelMode | null;
   onOpenPanel: (mode: CashPanelMode) => void;
   onClosePanel: () => void;
@@ -362,6 +395,7 @@ export function CashItemCard({
         <FinancialComposition
           item={item}
           showAdvancedFinancialDetails={showAdvancedFinancialDetails}
+          canReviewPayout={canReviewPayout}
         />
         {painel}
       </div>
@@ -423,6 +457,7 @@ export function CashItemCard({
       <FinancialComposition
         item={item}
         showAdvancedFinancialDetails={showAdvancedFinancialDetails}
+        canReviewPayout={canReviewPayout}
       />
 
       {painel}

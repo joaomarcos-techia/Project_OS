@@ -38,6 +38,39 @@ export type SaveProfessionalPayoutRuleInput = z.infer<typeof SaveProfessionalPay
 
 export const RemoveProfessionalPayoutRuleSchema = z.object({ ruleId: uuid }).strict();
 
+/**
+ * Revisão humana de repasse suspenso (decisão de 07/10/2026). O teto (cálculo
+ * original) é validado no servidor, sob lock; aqui só forma e limites gerais.
+ */
+export const ReviewProfessionalPayoutSchema = z
+  .object({
+    payoutId: uuid,
+    amount: z
+      .number()
+      .finite()
+      .nonnegative()
+      .max(99_999_999.99)
+      .refine((value) => Math.abs(value * 100 - Math.round(value * 100)) < 1e-6, {
+        message: 'Use no máximo duas casas decimais.',
+      }),
+    reason: z
+      .string()
+      .trim()
+      .min(3, 'Informe o motivo da revisão.')
+      .max(500, 'Use no máximo 500 caracteres no motivo.'),
+  })
+  .strict();
+export type ReviewProfessionalPayoutInput = z.infer<typeof ReviewProfessionalPayoutSchema>;
+
+export interface ProfessionalPayoutReviewDTO {
+  payoutId: string;
+  version: number;
+  decidedAmount: number;
+  ceilingAmount: number;
+  referenceAmount: number | null;
+  decidedAt: string;
+}
+
 export interface ProfessionalPayoutPolicyDTO {
   basis: ProfessionalPayoutBasis;
   updatedAt: string | null;
@@ -66,5 +99,5 @@ export interface ProfessionalPayoutDTO {
   netAmount: number | null;
   basisAmount: number | null;
   payoutAmount: number | null;
-  status: 'pending_economics' | 'calculated' | 'cancelled';
+  status: 'pending_economics' | 'calculated' | 'cancelled' | 'reviewed';
 }

@@ -22,9 +22,10 @@ vi.mock('./actions', () => ({
   confirmPaymentAction: vi.fn(),
   cancelLancamentoAction: vi.fn(),
   createEstornoAction: vi.fn(),
+  reviewProfessionalPayoutAction: vi.fn(),
 }));
 
-import { cancelLancamentoAction } from './actions';
+import { cancelLancamentoAction, reviewProfessionalPayoutAction } from './actions';
 import { CaixaView, type FailedChargeItem, type ManualRefundItem } from './caixa-view';
 
 const METHODS = [{ code: 'pix', label: 'PIX' }];
@@ -262,10 +263,13 @@ describe('CaixaView — work queue, rótulos e RBAC', () => {
         earlySettlementFeeAmount: null,
         providerNetAmount: 245,
         payout: {
+          id: 'payout-1',
           calculationBasis: 'gross',
           basisAmount: 250,
           payoutAmount: 125,
           status: 'calculated',
+          review: null,
+          reviewBounds: null,
         },
       },
     });
@@ -297,10 +301,13 @@ describe('CaixaView — work queue, rótulos e RBAC', () => {
         earlySettlementFeeAmount: null,
         providerNetAmount: 245,
         payout: {
+          id: 'payout-1',
           calculationBasis: 'net',
           basisAmount: null,
           payoutAmount: null,
           status: 'cancelled',
+          review: null,
+          reviewBounds: null,
         },
       },
     });
@@ -309,6 +316,127 @@ describe('CaixaView — work queue, rótulos e RBAC', () => {
 
     expect(screen.getByText('Suspenso')).toBeTruthy();
     expect(screen.getByText(/Revise o valor devido antes de pagar o profissional/)).toBeTruthy();
+  });
+
+  describe('revisão humana do repasse suspenso', () => {
+    const suspended = (
+      payout: Partial<NonNullable<NonNullable<CaixaItem['paymentEconomics']>['payout']>> = {},
+    ) =>
+      item({
+        status: 'pago',
+        paidAt: '2026-06-06T10:00:00.000Z',
+        valor: 150,
+        valorPago: 100,
+        paymentEconomics: {
+          appointmentId: 'a1',
+          providerGrossAmount: 100,
+          providerFeeAmount: null,
+          earlySettlementFeeAmount: null,
+          providerNetAmount: null,
+          payout: {
+            id: 'payout-1',
+            calculationBasis: 'gross',
+            basisAmount: null,
+            payoutAmount: null,
+            status: 'cancelled',
+            review: null,
+            reviewBounds: { ceilingAmount: 75, referenceAmount: 50 },
+            ...payout,
+          },
+        },
+      });
+
+    it('MANAGE_FINANCIAL registra a versão 1 com teto e referência só informativa', async () => {
+      vi.mocked(reviewProfessionalPayoutAction).mockResolvedValue({
+        ok: true,
+        data: {
+          payoutId: 'payout-1',
+          version: 1,
+          decidedAmount: 60,
+          ceilingAmount: 75,
+          referenceAmount: 50,
+          decidedAt: '2026-10-07T15:00:00.000Z',
+        },
+      });
+      render(
+        <CaixaView
+          {...base}
+          showAdvancedFinancialDetails
+          canReviewPayout
+          pagosHoje={[suspended()]}
+        />,
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'Revisar repasse' }));
+      expect(screen.getByText(/Teto:\s*R\$\s*75,00, o cálculo original\./)).toBeTruthy();
+      expect(screen.getByText(/R\$\s*50,00 \(não é aplicada sozinha\)/)).toBeTruthy();
+      const submit = screen.getByRole('button', { name: 'Registrar versão 1' });
+      expect((submit as HTMLButtonElement).disabled).toBe(true);
+
+      fireEvent.change(screen.getByLabelText('Valor devido ao profissional'), {
+        target: { value: '75,01' },
+      });
+      expect(screen.getByText('Valor fora do limite permitido.')).toBeTruthy();
+      fireEvent.change(screen.getByLabelText('Valor devido ao profissional'), {
+        target: { value: '60,00' },
+      });
+      fireEvent.change(screen.getByLabelText('Motivo da decisão'), {
+        target: { value: 'Devolução parcial acordada com o profissional.' },
+      });
+      expect((submit as HTMLButtonElement).disabled).toBe(false);
+      fireEvent.click(submit);
+
+      await waitFor(() =>
+        expect(reviewProfessionalPayoutAction).toHaveBeenCalledWith(
+          {
+            payoutId: 'payout-1',
+            amount: 60,
+            reason: 'Devolução parcial acordada com o profissional.',
+          },
+          expect.any(String),
+        ),
+      );
+    });
+
+    it('sem MANAGE_FINANCIAL mostra a suspensão, mas não oferece revisar', () => {
+      render(<CaixaView {...base} showAdvancedFinancialDetails pagosHoje={[suspended()]} />);
+      expect(screen.getByText('Suspenso')).toBeTruthy();
+      expect(screen.queryByRole('button', { name: 'Revisar repasse' })).toBeNull();
+    });
+
+    it('exibe a versão vigente e permite registrar a seguinte', () => {
+      render(
+        <CaixaView
+          {...base}
+          showAdvancedFinancialDetails
+          canReviewPayout
+          pagosHoje={[
+            suspended({
+              status: 'reviewed',
+              basisAmount: 150,
+              payoutAmount: 60,
+              review: { version: 1, decidedAmount: 60, decidedAt: '2026-10-07T15:00:00.000Z' },
+            }),
+          ]}
+        />,
+      );
+      expect(screen.getByText(/Repasse revisado na versão 1:\s*R\$\s*60,00/)).toBeTruthy();
+      fireEvent.click(screen.getByRole('button', { name: 'Registrar nova revisão' }));
+      expect(screen.getByRole('button', { name: 'Registrar versão 2' })).toBeTruthy();
+    });
+
+    it('sem líquido original não abre formulário nem inventa teto', () => {
+      render(
+        <CaixaView
+          {...base}
+          showAdvancedFinancialDetails
+          canReviewPayout
+          pagosHoje={[suspended({ calculationBasis: 'net', reviewBounds: null })]}
+        />,
+      );
+      expect(screen.getByText(/depende do líquido original informado pelo provedor/)).toBeTruthy();
+      expect(screen.queryByRole('button', { name: 'Revisar repasse' })).toBeNull();
+    });
   });
 
   it('mostra bruto, tarifa e líquido reais no Solo sem seção de repasse', () => {

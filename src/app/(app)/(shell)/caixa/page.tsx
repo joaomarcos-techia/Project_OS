@@ -158,6 +158,9 @@ export default async function CaixaPage() {
     user.permissions.includes(PERMISSIONS.OPERATE_CAIXA) ||
     user.permissions.includes(PERMISSIONS.MANAGE_FINANCIAL);
   const canRefund = user.permissions.includes(PERMISSIONS.REFUND_FINANCIAL);
+  // A action revalida permissão, plano, teto e estado; isto só decide exibir o formulário.
+  const canReviewPayout =
+    advancedPoliciesEnabled && user.permissions.includes(PERMISSIONS.MANAGE_FINANCIAL);
 
   return (
     <CaixaView
@@ -194,6 +197,7 @@ export default async function CaixaPage() {
       showAdvancedFinancialDetails={advancedPoliciesEnabled}
       canOperate={canOperate}
       canRefund={canRefund}
+      canReviewPayout={canReviewPayout}
     />
   );
 }

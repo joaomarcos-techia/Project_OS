@@ -14,13 +14,17 @@ import { metrics } from '@/lib/observability/metrics';
 import { FinancialValidationError } from './errors';
 import { idemKey, jsonSafe, requestContext } from './internal/action-helpers';
 import { isEligiblePayoutProfessional } from './internal/payout-professional-eligibility';
+import { recordProfessionalPayoutReview } from './internal/payout-review';
 import { getProfessionalPayoutPolicy } from './payout-queries';
 import {
   RemoveProfessionalPayoutRuleSchema,
+  ReviewProfessionalPayoutSchema,
   SaveProfessionalPayoutPolicySchema,
   SaveProfessionalPayoutRuleSchema,
   type ProfessionalPayoutPolicyDTO,
+  type ProfessionalPayoutReviewDTO,
   type ProfessionalPayoutRuleDTO,
+  type ReviewProfessionalPayoutInput,
   type SaveProfessionalPayoutPolicyInput,
   type SaveProfessionalPayoutRuleInput,
 } from './payout-types';
@@ -204,6 +208,55 @@ export async function saveProfessionalPayoutRule(
     professionalId: result.professionalId,
     procedureScoped: result.procedureId !== null,
     kind: result.kind,
+  });
+  return result;
+}
+
+/**
+ * Revisão humana do repasse suspenso após estorno ou perda. Qualquer usuário com
+ * MANAGE_FINANCIAL em Clínica/Pro registra a decisão; cada uma é uma versão nova
+ * e imutável. O teto e o estado do repasse são conferidos sob lock no servidor.
+ */
+export async function reviewProfessionalPayout(
+  input: ReviewProfessionalPayoutInput,
+  idempotencyKey: string,
+): Promise<ProfessionalPayoutReviewDTO> {
+  const user = await requireUser();
+  await requirePayoutAdmin();
+  const clinicId = await requireClinicId();
+  await requirePayoutPlan(clinicId);
+  const data = ReviewProfessionalPayoutSchema.parse(input);
+  const ctx = await requestContext();
+
+  const result = await idempotentMutation(
+    {
+      idempotency: {
+        key: idemKey('review_payout', idempotencyKey),
+        payload: jsonSafe(data),
+        ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
+      },
+      audit: {
+        action: 'financial.professional_payout.reviewed',
+        resourceType: 'professional_payout',
+        resourceId: data.payoutId,
+        before: null,
+        requestContext: ctx,
+      },
+    },
+    (tx) =>
+      recordProfessionalPayoutReview(tx, {
+        clinicId,
+        payoutId: data.payoutId,
+        amount: data.amount,
+        reason: data.reason,
+        decidedBy: user.userId,
+      }),
+  );
+
+  metrics.emit('financial.professional_payout.reviewed', {
+    clinicId,
+    payoutId: result.payoutId,
+    version: result.version,
   });
   return result;
 }

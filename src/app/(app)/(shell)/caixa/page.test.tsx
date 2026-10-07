@@ -86,10 +86,13 @@ const economics: AppointmentFinancialEconomics = {
   earlySettlementFeeAmount: 2,
   providerNetAmount: 248,
   payout: {
+    id: 'payout-1',
     calculationBasis: 'gross',
     basisAmount: 250,
     payoutAmount: 125,
     status: 'calculated',
+    review: null,
+    reviewBounds: null,
   },
 };
 

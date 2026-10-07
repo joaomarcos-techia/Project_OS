@@ -399,6 +399,81 @@ describe('reconciliação de repasse após reversão', () => {
     expect(updates[0]).toMatchObject({ status: 'cancelled', payoutAmount: null });
   });
 
+  it('mantém a revisão humana enquanto a reversão considerada não muda', async () => {
+    const reviewed = {
+      ...payout,
+      calculationBasis: 'gross' as const,
+      status: 'reviewed',
+      basisAmount: '100.00',
+      payoutAmount: '40.00',
+    };
+    const { tx, updates } = refreshTx([
+      [reviewed],
+      [
+        {
+          payoutId: 'payout-1',
+          version: 1,
+          decidedAmount: '40.00',
+          createdAt: new Date('2026-10-07T15:00:00Z'),
+          reversalRefundedAmount: '30.00',
+          reversalLoss: false,
+        },
+      ],
+      [{ total: '30.00' }],
+      [],
+    ]);
+
+    await expect(refreshProfessionalPayout(tx, refreshInput)).resolves.toBe('reviewed');
+    expect(updates).toHaveLength(0);
+    expect(mocks.logAudit).not.toHaveBeenCalled();
+  });
+
+  it('suspende de novo, com auditoria, quando surge reversão depois da revisão', async () => {
+    const reviewed = {
+      ...payout,
+      calculationBasis: 'gross' as const,
+      status: 'reviewed',
+      basisAmount: '100.00',
+      payoutAmount: '40.00',
+    };
+    const { tx, updates } = refreshTx([
+      [reviewed],
+      [
+        {
+          payoutId: 'payout-1',
+          version: 2,
+          decidedAmount: '40.00',
+          createdAt: new Date('2026-10-07T15:00:00Z'),
+          reversalRefundedAmount: '30.00',
+          reversalLoss: false,
+        },
+      ],
+      [{ total: '30.00' }],
+      [{ id: 'lost-credit' }],
+    ]);
+
+    await expect(refreshProfessionalPayout(tx, refreshInput)).resolves.toBe('cancelled');
+    expect(mocks.logAudit).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        action: 'financial.professional_payout.suspended',
+        resourceId: 'payout-1',
+        before: expect.objectContaining({
+          status: 'reviewed',
+          payoutAmount: '40.00',
+          reviewVersion: 2,
+        }),
+        after: { status: 'cancelled', reason: 'payment_reversed_after_review' },
+      }),
+    );
+    expect(updates[0]).toMatchObject({
+      status: 'cancelled',
+      basisAmount: null,
+      payoutAmount: null,
+      calculatedAt: null,
+    });
+  });
+
   it('suspende repasse quando perda alocada ficou em revisão manual sem vínculo legado', async () => {
     const { tx, updates } = refreshTx([
       [payout],

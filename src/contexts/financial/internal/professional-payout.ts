@@ -27,6 +27,11 @@ import {
   type ProfessionalPayoutRuleRow,
 } from '../schema';
 import { isEligiblePayoutProfessional } from './payout-professional-eligibility';
+import {
+  collectReversalFingerprint,
+  listLatestPayoutReviews,
+  reviewStillMatches,
+} from './payout-review';
 
 function ruleFromRow(row: ProfessionalPayoutRuleRow) {
   return row.kind === 'percentage'
@@ -276,7 +281,7 @@ async function collectPaymentEconomics(
 export async function refreshProfessionalPayout(
   tx: Tx,
   input: { clinicId: string; appointmentId: string },
-): Promise<'missing' | 'pending' | 'calculated' | 'cancelled'> {
+): Promise<'missing' | 'pending' | 'calculated' | 'cancelled' | 'reviewed'> {
   const [payout] = await tx
     .select()
     .from(professionalPayouts)
@@ -284,7 +289,12 @@ export async function refreshProfessionalPayout(
       and(
         eq(professionalPayouts.clinicId, input.clinicId),
         eq(professionalPayouts.appointmentId, input.appointmentId),
-        inArray(professionalPayouts.status, ['pending_economics', 'calculated', 'cancelled']),
+        inArray(professionalPayouts.status, [
+          'pending_economics',
+          'calculated',
+          'cancelled',
+          'reviewed',
+        ]),
       ),
     )
     .for('update')
@@ -293,6 +303,52 @@ export async function refreshProfessionalPayout(
   // A reversão exige decisão humana. Uma leitura posterior sem o marcador de
   // perda não pode recalcular automaticamente um valor que já foi suspenso.
   if (payout.status === 'cancelled') return 'cancelled';
+  if (payout.status === 'reviewed') {
+    // A decisão humana vale para a reversão que ela considerou. Estorno ou
+    // perda posterior (ou desfeita) suspende de novo até nova versão.
+    const latest = (await listLatestPayoutReviews(tx, input.clinicId, [payout.id])).get(payout.id);
+    const current = await collectReversalFingerprint(tx, input);
+    if (latest && reviewStillMatches(latest, current)) return 'reviewed';
+    await logAudit(tx, {
+      clinicId: input.clinicId,
+      userId: null,
+      action: 'financial.professional_payout.suspended',
+      resourceType: 'professional_payout',
+      resourceId: payout.id,
+      before: {
+        status: payout.status,
+        calculationBasis: payout.calculationBasis,
+        basisAmount: payout.basisAmount,
+        payoutAmount: payout.payoutAmount,
+        reviewVersion: latest?.version ?? null,
+      },
+      after: { status: 'cancelled', reason: 'payment_reversed_after_review' },
+      requestContext: {
+        ip: null,
+        userAgent: 'clinicaos-financial-worker',
+        requestId: randomUUID(),
+      },
+    });
+    await tx
+      .update(professionalPayouts)
+      .set({
+        providerFeeAmount: null,
+        earlySettlementFeeAmount: null,
+        netAmount: null,
+        basisAmount: null,
+        payoutAmount: null,
+        status: 'cancelled',
+        calculatedAt: null,
+        updatedAt: sql`now()`,
+      })
+      .where(
+        and(
+          eq(professionalPayouts.id, payout.id),
+          eq(professionalPayouts.clinicId, input.clinicId),
+        ),
+      );
+    return 'cancelled';
+  }
 
   const result = await collectPaymentEconomics(tx, input);
   const rule =

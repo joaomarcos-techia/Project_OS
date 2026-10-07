@@ -40,6 +40,8 @@ import type {
   SupplierSummary,
 } from './types';
 import { accountingCashEffect } from './accounting-export';
+import { computePayoutReviewBounds, listLatestPayoutReviews } from './internal/payout-review';
+import { centsToMoney } from './payout';
 
 const toIso = (v: Date | string | null | undefined): string | null =>
   v == null ? null : v instanceof Date ? v.toISOString() : v;
@@ -191,8 +193,14 @@ export async function listAppointmentFinancialEconomics(
       );
     const payouts = await tx
       .select({
+        id: professionalPayouts.id,
+        clinicId: professionalPayouts.clinicId,
         appointmentId: professionalPayouts.appointmentId,
         calculationBasis: professionalPayouts.calculationBasis,
+        grossAmount: professionalPayouts.grossAmount,
+        ruleKind: professionalPayouts.ruleKind,
+        rulePercentage: professionalPayouts.rulePercentage,
+        ruleFixedAmount: professionalPayouts.ruleFixedAmount,
         basisAmount: professionalPayouts.basisAmount,
         payoutAmount: professionalPayouts.payoutAmount,
         status: professionalPayouts.status,
@@ -204,6 +212,32 @@ export async function listAppointmentFinancialEconomics(
           inArray(professionalPayouts.appointmentId, [...appointmentIds]),
         ),
       );
+    // Só repasse suspenso ou revisado tem revisão a exibir ou a registrar.
+    const reviewable = payouts.filter(
+      (payout) => payout.status === 'cancelled' || payout.status === 'reviewed',
+    );
+    const latestReviews = await listLatestPayoutReviews(
+      tx,
+      clinicId,
+      reviewable.map((payout) => payout.id),
+    );
+    const reviewBounds = new Map<
+      string,
+      { ceilingAmount: number; referenceAmount: number | null } | null
+    >();
+    for (const payout of reviewable) {
+      const bounds = await computePayoutReviewBounds(tx, payout);
+      reviewBounds.set(
+        payout.id,
+        bounds
+          ? {
+              ceilingAmount: centsToMoney(bounds.ceilingCents),
+              referenceAmount:
+                bounds.referenceCents === null ? null : centsToMoney(bounds.referenceCents),
+            }
+          : null,
+      );
+    }
 
     type Aggregate = {
       count: number;
@@ -298,10 +332,22 @@ export async function listAppointmentFinancialEconomics(
           : null,
         payout: payout
           ? {
+              id: payout.id,
               calculationBasis: payout.calculationBasis,
               basisAmount: payout.basisAmount === null ? null : Number(payout.basisAmount),
               payoutAmount: payout.payoutAmount === null ? null : Number(payout.payoutAmount),
               status: payout.status,
+              review: (() => {
+                const latest = latestReviews.get(payout.id);
+                return latest
+                  ? {
+                      version: latest.version,
+                      decidedAmount: latest.decidedAmount,
+                      decidedAt: latest.decidedAt,
+                    }
+                  : null;
+              })(),
+              reviewBounds: reviewBounds.get(payout.id) ?? null,
             }
           : null,
       };

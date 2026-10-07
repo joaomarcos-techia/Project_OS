@@ -86,6 +86,7 @@ export function CashQueue({
   showAdvancedFinancialDetails,
   canOperate,
   canRefund,
+  canReviewPayout = false,
   pending,
   panel,
   onOpenPanel,
@@ -105,6 +106,8 @@ export function CashQueue({
   showAdvancedFinancialDetails: boolean;
   canOperate: boolean;
   canRefund: boolean;
+  /** MANAGE_FINANCIAL: revisão humana de repasse suspenso no cartão. */
+  canReviewPayout?: boolean;
   pending: boolean;
   panel: { id: string; mode: CashPanelMode } | null;
   onOpenPanel: (id: string, mode: CashPanelMode) => void;
@@ -191,6 +194,7 @@ export function CashQueue({
                   methods={methods}
                   paymentTransactions={paymentTransactionsByLancamento.get(item.id) ?? []}
                   showAdvancedFinancialDetails={showAdvancedFinancialDetails}
+                  canReviewPayout={canReviewPayout}
                   panelMode={panel?.id === item.id ? panel.mode : null}
                   onOpenPanel={(panelMode) => onOpenPanel(item.id, panelMode)}
                   onClosePanel={onClosePanel}

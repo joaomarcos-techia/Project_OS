@@ -61,6 +61,7 @@ export function CaixaView({
   paymentTransactions,
   showAdvancedFinancialDetails,
   canRefund,
+  canReviewPayout = false,
 }: {
   /** "7 de setembro", já no fuso da clínica. */
   hoje: string;
@@ -78,6 +79,8 @@ export function CaixaView({
   methods: PaymentMethodDTO[];
   paymentTransactions: PaymentTransactionSummary[];
   showAdvancedFinancialDetails: boolean;
+  /** MANAGE_FINANCIAL: registra revisão humana de repasse suspenso. */
+  canReviewPayout?: boolean;
   canOperate: boolean;
   canRefund: boolean;
 }) {
@@ -415,6 +418,7 @@ export function CaixaView({
           methods={methods}
           paymentTransactionsByLancamento={paymentTransactionsByLancamento}
           showAdvancedFinancialDetails={showAdvancedFinancialDetails}
+          canReviewPayout={canReviewPayout}
           canOperate={canOperate}
           canRefund={canRefund}
           pending={pending}
@@ -437,6 +441,7 @@ export function CaixaView({
             methods={methods}
             paymentTransactionsByLancamento={paymentTransactionsByLancamento}
             showAdvancedFinancialDetails={showAdvancedFinancialDetails}
+            canReviewPayout={canReviewPayout}
             canOperate={canOperate}
             canRefund={canRefund}
             pending={pending}
@@ -458,6 +463,7 @@ export function CaixaView({
             methods={methods}
             paymentTransactionsByLancamento={paymentTransactionsByLancamento}
             showAdvancedFinancialDetails={showAdvancedFinancialDetails}
+            canReviewPayout={canReviewPayout}
             canOperate={canOperate}
             canRefund={canRefund}
             pending={pending}

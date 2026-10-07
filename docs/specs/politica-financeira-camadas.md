@@ -2,7 +2,7 @@
 
 **Registro principal desta implementação.** As decisões, mudanças, provas, falhas e bloqueios de cada camada devem ser atualizados aqui durante o desenvolvimento. `docs/qorov2.md` permanece apenas como índice e fotografia histórica desta frente; não acrescentar nele novas entradas de progresso da política financeira.
 
-**Estado em 07/10/2026:** especificação e implementação em camadas. As migrations 0108–0112 foram aplicadas e lidas de volta **somente em DEV**; houve backup completo anterior à 0110 e cópia binária da tabela de contas de pagamento anterior à 0111, mas a cópia binária **não é um backup completo do banco**. RLS e guardas SQL foram exercitados em transações revertidas. A correção tardia de tarifa já possui lançamento de delta imutável e foi exercitada no PostgreSQL DEV com evento de outbox e handler reais, crash/retry e replay; ainda não foi observada uma **correção tardia real** no Asaas nem feita a jornada completa provider → webhook → Caixa no navegador. O Checkout hospedado foi exercitado no Sandbox com intervenção humana: cartão teve estorno terminal confirmado pelo runner; PIX gerou cobrança paga, mas o estorno solicitado terminou `CANCELLED`, sem devolução comprovada. O Preview com banco DEV exibiu configurações, fatos econômicos sintéticos no Caixa e o ciclo de pausa/desconexão da conta no Sandbox em 6/6 E2E; a serialização pausa × reserva de Checkout entre dois processos foi provada no PostgreSQL DEV (seção de 07/10, retomada). As camadas 2–5 **não estão aceitas para produção**: faltam a prova externa da correção de tarifa, revisão humana do repasse, evento real de cobrança chegando a uma conta pausada e prova completa da IA até o link. Revalidar o estado antes de cada promoção.
+**Estado em 07/10/2026:** especificação e implementação em camadas. As migrations 0108–0113 foram aplicadas e lidas de volta **somente em DEV** (a 0113, revisão humana do repasse, com backup completo e restore dirigido testado antes); houve backup completo anterior à 0110 e cópia binária da tabela de contas de pagamento anterior à 0111, mas a cópia binária **não é um backup completo do banco**. RLS e guardas SQL foram exercitados em transações revertidas. A correção tardia de tarifa já possui lançamento de delta imutável e foi exercitada no PostgreSQL DEV com evento de outbox e handler reais, crash/retry e replay; ainda não foi observada uma **correção tardia real** no Asaas nem feita a jornada completa provider → webhook → Caixa no navegador. O Checkout hospedado foi exercitado no Sandbox com intervenção humana: cartão teve estorno terminal confirmado pelo runner; PIX gerou cobrança paga, mas o estorno solicitado terminou `CANCELLED`, sem devolução comprovada. O Preview com banco DEV exibiu configurações, fatos econômicos sintéticos no Caixa e o ciclo de pausa/desconexão da conta no Sandbox em 6/6 E2E; a serialização pausa × reserva de Checkout entre dois processos foi provada no PostgreSQL DEV (seção de 07/10, retomada). As camadas 2–5 **não estão aceitas para produção**: faltam a prova externa da correção de tarifa, o E2E da revisão humana do repasse (implementada e provada localmente), o evento real de cobrança chegando a uma conta pausada e a prova completa da IA até o link. Revalidar o estado antes de cada promoção.
 
 ## 1. Decisão de produto e disponibilidade
 
@@ -409,7 +409,7 @@ Cleanup: outbox, auditoria e clínica da fixture removidos; usuário Auth com DE
 | 1 — elegibilidade | PASS local e CI em `85c59466`; PASS E2E de plano no Preview de `1cc90e69` | rollout NOT RUN |
 | 2 — fatos do Asaas e ledger | PASS DEV com fatos sintéticos; correção tardia real NOT RUN; pagamento real → webhook → crédito BLOCKED | não houve evento real; reCAPTCHA humano e escopo do outbox |
 | 3 — preço por método | PASS local/DEV da guarda; pagamento com preço de catálogo BLOCKED | mesmo bloqueio do pagamento real |
-| 4 — repasse | suspensão conservadora PASS em DEV/Preview sintético; revisão humana NOT RUN | contrato decidido em 07/10 (teto no valor original, motivo, `MANAGE_FINANCIAL`, versões imutáveis); implementação pendente |
+| 4 — repasse | suspensão conservadora PASS em DEV/Preview sintético; revisão humana implementada, PASS local e no Postgres descartável (8/8), 0113 aplicada no DEV; E2E no Preview NOT RUN | contrato decidido em 07/10 (teto no valor original, motivo, `MANAGE_FINANCIAL`, versões imutáveis); falta E2E com papéis reais |
 | 5 — UI, E2E e promoção | Preview 6/6 PASS em `1cc90e69` (fatos sintéticos); promoção NOT RUN | backup restaurável e plano de rollout ainda sem decisão |
 | Conta pausada | ciclo de configuração PASS no Sandbox; concorrência PASS no DEV; Checkout real + pausa PASS no runner; evento real tardio BLOCKED | passo humano não concluído: Checkout não abriu sob rede instável (seção do runner abaixo) |
 | Refund PIX | BLOCKED BY ASAAS | `CREDIT_REFUND/REFUSED` sem causa; nenhum `DONE` |
@@ -450,3 +450,74 @@ O caso de uso e o despachante rodam em `scripts/e2e-paid-pause-ops.ts` via tsx: 
 Na próxima tentativa, entregar ao operador os dois links ao mesmo tempo. Se só o controle renderizar, o Checkout de sinal do app tem defeito de produto e precisa enviar dados do pagador ou adotar outro fluxo.
 
 **Resultado:** a conexão, a criação real do Checkout e a pausa com bloqueio de nova cobrança estão **PASS** contra o Asaas Sandbox. O evento real de cobrança antiga chegando à conta pausada, a conferência econômica externa e o Caixa com fatos reais continuam **BLOCKED**, por rede instável no operador e pelo passo humano do reCAPTCHA. Nenhum dado de produção foi tocado. A cobrança paga ainda não existe, então não há pagamento Sandbox residual desta frente.
+
+### 07/10/2026 — camada 4: revisão humana do repasse (implementação, prova local e 0113 no DEV)
+
+**Contrato implementado**, conforme a decisão de 07/10 acima:
+
+- **Teto:** o valor que a regra do snapshot produzia sobre o pagamento original. Em `GROSS`, a base é o bruto do snapshot. Em `NET`, é o líquido original das cobranças alocadas ao atendimento, sem descontar a reversão; sem esse líquido não há teto e a revisão fica bloqueada com aviso.
+- **Referência:** proporção do teto pelo dinheiro que ficou com a clínica, teto × (pago − estornado) ÷ pago, e zero quando há perda do provedor. Aparece só como informação e nunca é aplicada sozinha.
+- **Decisão:** valor entre R$ 0,00 e o teto, com motivo de 3 a 500 caracteres. Fica registrada em `professional_payout_reviews` como versão `máx + 1`, sob `FOR UPDATE` do repasse. O repasse passa a `reviewed`, com o valor decidido.
+- **Estado da reversão:** cada versão grava o total estornado e a perda considerados. `refreshProfessionalPayout` mantém `reviewed` enquanto esse estado não muda. Estorno novo, perda nova ou perda desfeita re-suspendem o repasse para `cancelled`, com auditoria `payment_reversed_after_review`, até nova versão.
+
+**Código:**
+
+- `drizzle/migrations/0113_professional_payout_reviews.sql` e journal;
+- `src/contexts/financial/internal/payout-review.ts`;
+- `refreshProfessionalPayout`;
+- Server Action `reviewProfessionalPayout`, com a ordem usuário → `MANAGE_FINANCIAL` → clínica da sessão → plano Clínica/Pro → Zod estrito sem `clinicId` do navegador → `idempotentMutation` com auditoria `financial.professional_payout.reviewed`;
+- wrapper `reviewProfessionalPayoutAction` no Caixa;
+- formulário `payout-review-form.tsx`, exibido só a `MANAGE_FINANCIAL` em Clínica/Pro.
+
+A leitura do Caixa passa a entregar o `id` do repasse, a versão vigente e os limites. O texto do motivo fica apenas na versão: o resultado auditado e a resposta idempotente levam só valores.
+
+**Migration 0113:**
+
+- o CHECK de status ganha o ramo `reviewed`, que exige base, valor e instante;
+- a tabela de versões tem teto, decisão, motivo e estado da reversão, com `UNIQUE (payout_id, version)`;
+- trigger confere que a clínica da versão é a do repasse; trigger bloqueia qualquer `UPDATE`;
+- RLS `ENABLE+FORCE` com policies só de `SELECT` e `INSERT`;
+- `authenticated` recebe só `SELECT, INSERT`; `anon` nada;
+- `decided_by` é snapshot opaco, sem FK;
+- marcador `0113-professional-payout-reviews`.
+
+**Provas locais:**
+
+- **Testes dirigidos:**
+  - `payout-review.test.ts` 13/13, com o exemplo de R$ 150 (teto R$ 75, referência R$ 50), base NET pelo líquido original, NET sem líquido bloqueado, perda com referência zero, versões, valor acima do teto, status inválido, outra clínica e motivo vazio;
+  - `professional-payout.test.ts` 17/17, incluindo `reviewed` mantido e re-suspensão auditada;
+  - `payout-actions.test.ts` 11/11, com Solo bloqueado, sem `MANAGE_FINANCIAL` sem consulta nem gravação, cinco entradas inválidas recusadas como `ZodError` antes da mutação, clínica e autor da sessão e motivo fora do resultado;
+  - `caixa-view.test.tsx` 29/29, com formulário com teto e referência, recusa visual acima do teto, chamada da action, ocultação sem permissão, versão vigente e NET sem teto;
+  - `page.test.tsx` 3/3 e teste estático da migration 5/5.
+- **`scripts/security/payout-review-db.ts`:** Postgres local descartável com **todas** as migrations reais até a 0113 e código de produção por `withTenant`, **8/8 PASS**, exit 0, em 47 s:
+  1. exemplo decidido, com versão 1 e repasse `reviewed` de R$ 60,00 sobre base R$ 150,00;
+  2. R$ 75,01 recusado sem nova versão;
+  3. versão 2 de R$ 0,00 preservando a 1;
+  4. `UPDATE` negado (42501) para `authenticated` e bloqueado pela trigger até para o dono da tabela;
+  5. outra clínica não lê, não grava (RLS 42501 e trigger de tenant) e não revisa;
+  6. estorno posterior re-suspende com auditoria, a versão 3 volta a valer com referência R$ 45,00 e o refresh seguinte mantém `reviewed`;
+  7. CHECK recusa `reviewed` sem valor;
+  8. a leitura do Caixa entrega versão e limites, sem cruzar tenant.
+
+**DEV, somente o projeto `pqhkirrszzpwezdaqrai`:**
+
+- **Backup completo antes da migration:** `pg_dump -Fc` pelo pooler em modo sessão, com credenciais só em variáveis do processo, exit 0, 1.586.821 bytes, 250 s. Arquivo `C:\Users\joaom\.codex\backups\qoro-dev-pre-0113-2026-10-07T17-22-46-702Z.dump`, não versionado. O índice do `pg_restore --list` tem 2.612 entradas e 180 blocos de dados.
+- **Teste de restore dirigido em cluster local descartável:** exit 0. `professional_payouts` restaurou 0 linhas, igual ao DEV, e `_schema_version` restaurou 92, igual ao DEV; o cluster foi removido. É um restore **dirigido**, não do banco inteiro.
+- **Migration:** `scripts/db-migrate-dev.ts`, exit 0.
+- **Readback `READ ONLY`:**
+  - marcador presente e ledger com 114 linhas (último `when` 1791436800000);
+  - RLS `ENABLE+FORCE`, policies `SELECT` e `INSERT`;
+  - triggers `immutable` e `validate`;
+  - `authenticated` com `SELECT/INSERT` e sem `UPDATE/DELETE`; `anon` sem privilégios;
+  - `professional_payouts_status_chk` validada e com `reviewed`;
+  - zero versões e zero repasses no DEV.
+
+**Rollback, enquanto não houver repasse `reviewed`:** `DROP TABLE public.professional_payout_reviews` e recriar `professional_payouts_status_chk` com o corpo da 0108. Com versões já gravadas, não fazer rollback destrutivo; reverter o app e manter a tabela.
+
+**Ainda não comprovado:**
+
+- E2E do formulário no Preview com papéis reais (owner, financeiro e profissional) e sessão revogada;
+- re-suspensão disparada por estorno ou chargeback reais do Asaas;
+- regra fixa acima da base: o teto segue o cálculo original e a decisão de produto continua aberta.
+
+A camada 4 continua **não aceita para produção** até o E2E no Preview e a promoção das migrations 0108–0113 no ambiente-alvo.

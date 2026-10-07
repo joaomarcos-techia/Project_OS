@@ -92,7 +92,15 @@ export const collectionCaseStatus = pgEnum('collection_case_status', ['open', 'r
 
 export type ProfessionalPayoutBasis = 'gross' | 'net';
 export type ProfessionalPayoutRuleKind = 'percentage' | 'fixed';
-export type ProfessionalPayoutStatus = 'pending_economics' | 'calculated' | 'cancelled';
+/**
+ * `cancelled` é a suspensão após reversão (estorno/perda): nada é devido até a
+ * revisão humana. `reviewed` guarda o valor decidido na versão de revisão vigente.
+ */
+export type ProfessionalPayoutStatus =
+  | 'pending_economics'
+  | 'calculated'
+  | 'cancelled'
+  | 'reviewed';
 
 // --- payment_methods (catálogo GLOBAL — sem clinic_id) ---------------------
 
@@ -403,7 +411,59 @@ export const professionalPayouts = pgTable(
       'professional_payouts_status_chk',
       sql`(${t.status} = 'pending_economics' AND ${t.calculationBasis} = 'net' AND ${t.basisAmount} IS NULL AND ${t.payoutAmount} IS NULL AND ${t.calculatedAt} IS NULL)
           OR (${t.status} = 'calculated' AND ${t.basisAmount} IS NOT NULL AND ${t.payoutAmount} IS NOT NULL AND ${t.calculatedAt} IS NOT NULL)
-          OR ${t.status} = 'cancelled'`,
+          OR ${t.status} = 'cancelled'
+          OR (${t.status} = 'reviewed' AND ${t.basisAmount} IS NOT NULL AND ${t.payoutAmount} IS NOT NULL AND ${t.calculatedAt} IS NOT NULL)`,
+    ),
+  }),
+);
+
+/**
+ * Decisões humanas sobre um repasse suspenso após estorno ou perda (decisão de
+ * produto de 07/10/2026). Append-only: cada decisão é uma versão nova; corrigir
+ * é registrar outra versão. O teto é o valor que a regra produzia sobre o
+ * pagamento original; a referência proporcional é só informativa. O estado da
+ * reversão considerado na decisão fica gravado para detectar reversão posterior.
+ * `decided_by` é snapshot opaco do ator, sem FK, como nas versões de política.
+ */
+export const professionalPayoutReviews = pgTable(
+  'professional_payout_reviews',
+  {
+    id: uuidPk(),
+    clinicId: tenantIdRef(),
+    payoutId: uuid('payout_id')
+      .notNull()
+      .references(() => professionalPayouts.id, { onDelete: 'cascade' }),
+    version: integer('version').notNull(),
+    ceilingAmount: numeric('ceiling_amount', { precision: 12, scale: 2 }).notNull(),
+    referenceAmount: numeric('reference_amount', { precision: 12, scale: 2 }),
+    decidedAmount: numeric('decided_amount', { precision: 12, scale: 2 }).notNull(),
+    reason: text('reason').notNull(),
+    reversalRefundedAmount: numeric('reversal_refunded_amount', {
+      precision: 12,
+      scale: 2,
+    }).notNull(),
+    reversalLoss: boolean('reversal_loss').notNull(),
+    decidedBy: uuid('decided_by').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    versionUniq: unique('professional_payout_reviews_version_uniq').on(t.payoutId, t.version),
+    clinicPayoutIdx: index('professional_payout_reviews_clinic_payout_idx').on(
+      t.clinicId,
+      t.payoutId,
+      t.version,
+    ),
+    versionChk: check('professional_payout_reviews_version_chk', sql`${t.version} >= 1`),
+    amountChk: check(
+      'professional_payout_reviews_amount_chk',
+      sql`${t.ceilingAmount} >= 0
+          AND ${t.decidedAmount} >= 0 AND ${t.decidedAmount} <= ${t.ceilingAmount}
+          AND (${t.referenceAmount} IS NULL OR (${t.referenceAmount} >= 0 AND ${t.referenceAmount} <= ${t.ceilingAmount}))
+          AND ${t.reversalRefundedAmount} >= 0`,
+    ),
+    reasonChk: check(
+      'professional_payout_reviews_reason_chk',
+      sql`char_length(btrim(${t.reason})) BETWEEN 3 AND 500`,
     ),
   }),
 );
@@ -412,6 +472,7 @@ export type ClinicFinancialPolicyRow = typeof clinicFinancialPolicies.$inferSele
 export type ClinicFinancialPolicyVersionRow = typeof clinicFinancialPolicyVersions.$inferSelect;
 export type ProfessionalPayoutRuleRow = typeof professionalPayoutRules.$inferSelect;
 export type ProfessionalPayoutRow = typeof professionalPayouts.$inferSelect;
+export type ProfessionalPayoutReviewRow = typeof professionalPayoutReviews.$inferSelect;
 
 // --- patient_credits (ADR-051 1.5b.1) ------------------------------------
 

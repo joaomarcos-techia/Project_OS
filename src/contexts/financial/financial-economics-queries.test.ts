@@ -9,10 +9,17 @@ import { listAppointmentFinancialEconomics } from './queries';
 
 function queryResolving(rows: unknown[]) {
   const promise = Promise.resolve(rows);
-  const query = Object.assign(promise, { from: vi.fn(), innerJoin: vi.fn(), where: vi.fn() });
-  query.from.mockReturnValue(query);
-  query.innerJoin.mockReturnValue(query);
-  query.where.mockReturnValue(query);
+  const query = Object.assign(promise, {
+    from: vi.fn(),
+    innerJoin: vi.fn(),
+    leftJoin: vi.fn(),
+    where: vi.fn(),
+    orderBy: vi.fn(),
+    limit: vi.fn(),
+  });
+  for (const method of ['from', 'innerJoin', 'leftJoin', 'where', 'orderBy', 'limit'] as const) {
+    query[method].mockReturnValue(query);
+  }
   return query;
 }
 
@@ -46,6 +53,7 @@ describe('listAppointmentFinancialEconomics', () => {
       [],
       [
         {
+          id: 'payout-1',
           appointmentId: 'appointment-1',
           calculationBasis: 'gross',
           basisAmount: '250.00',
@@ -53,6 +61,8 @@ describe('listAppointmentFinancialEconomics', () => {
           status: 'calculated',
         },
       ],
+      // Repasse calculado não é revisável: nenhuma versão é consultada.
+      [],
     ];
     withTenantMock.mockImplementation(
       async (_clinicId: string, operation: (tx: unknown) => unknown) =>
@@ -68,10 +78,13 @@ describe('listAppointmentFinancialEconomics', () => {
           earlySettlementFeeAmount: null,
           providerNetAmount: 244,
           payout: {
+            id: 'payout-1',
             calculationBasis: 'gross',
             basisAmount: 250,
             payoutAmount: 125,
             status: 'calculated',
+            review: null,
+            reviewBounds: null,
           },
         },
       ],
@@ -111,6 +124,7 @@ describe('listAppointmentFinancialEconomics', () => {
       [{ originalPaymentId: 'payment-1', amount: '30.00' }],
       [
         {
+          id: 'payout-1',
           appointmentId: 'appointment-1',
           calculationBasis: 'net',
           basisAmount: null,
@@ -118,6 +132,7 @@ describe('listAppointmentFinancialEconomics', () => {
           status: 'pending_economics',
         },
       ],
+      [],
     ];
     withTenantMock.mockImplementation(
       async (_clinicId: string, operation: (tx: unknown) => unknown) =>
@@ -133,10 +148,13 @@ describe('listAppointmentFinancialEconomics', () => {
           earlySettlementFeeAmount: null,
           providerNetAmount: null,
           payout: {
+            id: 'payout-1',
             calculationBasis: 'net',
             basisAmount: null,
             payoutAmount: null,
             status: 'pending_economics',
+            review: null,
+            reviewBounds: null,
           },
         },
       ],
@@ -160,11 +178,30 @@ describe('listAppointmentFinancialEconomics', () => {
       [{ originalPaymentId: 'payment-1', amount: '100.00' }],
       [
         {
+          id: 'payout-1',
+          clinicId: 'clinic-1',
           appointmentId: 'appointment-1',
           calculationBasis: 'gross',
+          grossAmount: '100.00',
+          ruleKind: 'percentage',
+          rulePercentage: '50.0000',
+          ruleFixedAmount: null,
           basisAmount: null,
           payoutAmount: null,
           status: 'cancelled',
+        },
+      ],
+      // Repasse suspenso: versões vigentes, estorno, perda e pagamento original.
+      [],
+      [{ total: '100.00' }],
+      [],
+      [
+        {
+          transactionAmount: '100.00',
+          createdBy: null,
+          creditAmount: '100.00',
+          providerGrossAmount: '100.00',
+          providerNetAmount: '98.00',
         },
       ],
     ];
@@ -182,10 +219,14 @@ describe('listAppointmentFinancialEconomics', () => {
           earlySettlementFeeAmount: null,
           providerNetAmount: null,
           payout: {
+            id: 'payout-1',
             calculationBasis: 'gross',
             basisAmount: null,
             payoutAmount: null,
             status: 'cancelled',
+            review: null,
+            // Teto: 50% do bruto original; estorno integral deixa referência zero.
+            reviewBounds: { ceilingAmount: 50, referenceAmount: 0 },
           },
         },
       ],

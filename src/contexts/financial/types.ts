@@ -44,10 +44,18 @@ export interface AppointmentFinancialEconomics {
   earlySettlementFeeAmount: number | null;
   providerNetAmount: number | null;
   payout: {
+    id: string;
     calculationBasis: 'gross' | 'net';
     basisAmount: number | null;
     payoutAmount: number | null;
-    status: 'pending_economics' | 'calculated' | 'cancelled';
+    status: 'pending_economics' | 'calculated' | 'cancelled' | 'reviewed';
+    /** Versão vigente da revisão humana, quando houver. */
+    review: { version: number; decidedAmount: number; decidedAt: string } | null;
+    /**
+     * Limites da próxima revisão, só para repasse suspenso ou revisado. `null`
+     * quando a base NET ainda depende do líquido original do provedor.
+     */
+    reviewBounds: { ceilingAmount: number; referenceAmount: number | null } | null;
   } | null;
 }
 
