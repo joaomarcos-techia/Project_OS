@@ -37,6 +37,7 @@ O gate `check:observability` exige que esta lista acompanhe `vercel.json`:
 - `/api/cron/metrics-rollup`
 - `/api/cron/financial-reconcile`
 - `/api/cron/payments-deposit`
+- `/api/cron/payments-account-closure`
 - `/api/cron/data-retention`
 - `/api/cron/invites-cleanup`
 - `/api/cron/signup-sessions-cleanup`

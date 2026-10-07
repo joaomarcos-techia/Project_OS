@@ -147,6 +147,11 @@ export function createPasswordResetRedirectUrl(): string {
   return configuredApplicationUrl('/reset-password');
 }
 
+/** Tela de Pagamentos da clínica — destino do aviso de encerramento da conta Asaas. */
+export function createPaymentSettingsUrl(): string {
+  return configuredApplicationUrl('/configuracoes/pagamentos');
+}
+
 /**
  * Callback público esperado para o app Meta deste ambiente.
  *

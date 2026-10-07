@@ -30,10 +30,22 @@ import type {
 } from '@/contexts/payments';
 import { formatDatePt } from '@/lib/format';
 
-import { connectPaymentAccountAction, disconnectPaymentAccountAction } from './actions';
+import {
+  closePaymentAccountAction,
+  connectPaymentAccountAction,
+  disconnectPaymentAccountAction,
+} from './actions';
 
 interface Props {
   status: PaymentAccountStatusDTO;
+}
+
+function plural(count: number, one: string, many: string): string {
+  return `${count} ${count === 1 ? one : many}`;
+}
+
+function openLinksText(count: number): string {
+  return plural(count, 'link de pagamento aberto', 'links de pagamento abertos');
 }
 
 export function PaymentAccountPanel({ status }: Props) {
@@ -42,6 +54,7 @@ export function PaymentAccountPanel({ status }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [webhookIssue, setWebhookIssue] = useState<PaymentWebhookConfigurationIssue | null>(null);
+  const [confirmClose, setConfirmClose] = useState(false);
   const [pending, startTransition] = useTransition();
 
   function handleConnect(event: React.FormEvent<HTMLFormElement>) {
@@ -92,6 +105,46 @@ export function PaymentAccountPanel({ status }: Props) {
       router.refresh();
     });
   }
+
+  function handleClose() {
+    setError(null);
+    setNotice(null);
+    setWebhookIssue(null);
+    startTransition(async () => {
+      const result = await closePaymentAccountAction();
+      setConfirmClose(false);
+      if (!result.ok) {
+        setError(result.message);
+        router.refresh();
+        return;
+      }
+      setNotice(
+        'Conta encerrada. O webhook foi desativado no Asaas e a chave foi apagada do sistema.',
+      );
+      router.refresh();
+    });
+  }
+
+  const closure = status.closure;
+  const closureBlockers = closure
+    ? [
+        closure.blockers.openLinks ? openLinksText(closure.blockers.openLinks) : null,
+        closure.blockers.pendingRefunds
+          ? plural(
+              closure.blockers.pendingRefunds,
+              'devolução sem confirmação',
+              'devoluções sem confirmação',
+            )
+          : null,
+        closure.blockers.openDisputes
+          ? plural(
+              closure.blockers.openDisputes,
+              'contestação em andamento',
+              'contestações em andamento',
+            )
+          : null,
+      ].filter((item): item is string => item !== null)
+    : [];
 
   return (
     <div className="flex flex-col gap-6">
@@ -153,8 +206,20 @@ export function PaymentAccountPanel({ status }: Props) {
 
           {status.hasApiKey && !status.acceptNewCharges ? (
             <Alert variant="warning" title="Novas cobranças pausadas">
-              A conta continua conectada somente para conciliar cobranças e estornos já existentes.
-              Para voltar a cobrar, reenvie a chave da conta Asaas.
+              <div className="flex flex-col gap-2 text-pretty">
+                <p>
+                  A conta continua conectada somente para conciliar cobranças e estornos já
+                  existentes. Para voltar a cobrar, reenvie a chave da conta Asaas.
+                </p>
+                {status.openLinks > 0 ? (
+                  <p>
+                    {openLinksText(status.openLinks)} antes da pausa ainda{' '}
+                    {status.openLinks === 1 ? 'pode' : 'podem'} ser{' '}
+                    {status.openLinks === 1 ? 'pago' : 'pagos'}. O Qoro concilia esses pagamentos
+                    normalmente.
+                  </p>
+                ) : null}
+              </div>
             </Alert>
           ) : null}
 
@@ -205,15 +270,79 @@ export function PaymentAccountPanel({ status }: Props) {
               <Button type="submit" disabled={pending || apiKey.trim().length === 0}>
                 {status.hasApiKey ? 'Conectar ou retomar' : 'Conectar conta'}
               </Button>
-              {status.hasApiKey ? (
+              {status.hasApiKey && status.acceptNewCharges ? (
                 <Button type="button" variant="ghost" disabled={pending} onClick={handleDisconnect}>
-                  {status.acceptNewCharges ? 'Pausar ou desconectar' : 'Tentar desconexão'}
+                  Pausar ou desconectar
                 </Button>
               ) : null}
             </div>
+            {status.acceptNewCharges && status.openLinks > 0 ? (
+              <p className="text-pretty text-(length:--fs-sm) text-fg-muted">
+                Há {openLinksText(status.openLinks)}. Se você pausar, eles continuam pagáveis e o
+                Qoro concilia o pagamento.
+              </p>
+            ) : null}
           </form>
         </CardContent>
       </Card>
+
+      {closure ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Encerrar definitivamente</CardTitle>
+            <CardDescription>
+              Desativa o webhook no Asaas e apaga a chave do sistema. Depois disso, pagamentos,
+              estornos e contestações desta conta não são mais conciliados pelo Qoro.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3 text-pretty text-(length:--fs-sm)">
+            {closure.canClose ? (
+              confirmClose ? (
+                <div className="flex flex-col gap-3 rounded-(--r-md) border border-border p-3">
+                  <p className="font-medium text-fg">
+                    Encerrar a conta Asaas da clínica? Esta ação não pode ser desfeita; para voltar
+                    a cobrar, será preciso conectar a conta de novo.
+                  </p>
+                  <div className="flex flex-wrap gap-3">
+                    <Button type="button" variant="danger" loading={pending} onClick={handleClose}>
+                      Confirmar encerramento
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      disabled={pending}
+                      onClick={() => setConfirmClose(false)}
+                    >
+                      Voltar
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={pending}
+                    onClick={() => setConfirmClose(true)}
+                  >
+                    Encerrar definitivamente
+                  </Button>
+                </div>
+              )
+            ) : (
+              <p>Para encerrar, resolva antes: {closureBlockers.join(', ')}.</p>
+            )}
+            <p className="text-fg-muted">
+              Sem movimentação e sem pendências, a conta será encerrada automaticamente em{' '}
+              {formatDatePt(closure.autoCloseAt)}. O dono da clínica recebe um aviso por e-mail 30
+              dias antes.
+              {closure.noticeSentAt
+                ? ` Aviso enviado em ${formatDatePt(closure.noticeSentAt)}.`
+                : ''}
+            </p>
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   );
 }

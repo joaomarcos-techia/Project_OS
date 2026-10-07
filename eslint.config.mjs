@@ -295,6 +295,10 @@ const config = [
       // `auth.admin.generateLink`, que só existe na Admin API. Mesma exceção
       // estreita do e-mail de cadastro: só GoTrue e Resend, nenhum banco.
       'src/contexts/identity/internal/password-reset-email.ts',
+      // Aviso de encerramento da conta de pagamento (07/10/2026): o e-mail do dono
+      // vive no Auth (D7) e só a Admin API o lê. Exceção estreita: somente
+      // `getUserById` dos donos que a RLS devolveu; nenhuma escrita, nenhum banco.
+      'src/contexts/identity/internal/owner-contacts.ts',
       // Cadastro self-service: estes tres pontos executam transicoes Auth que
       // nao existem no client comum. Todos derivam user/ref do banco ou de um
       // grant assinado e usam CAS antes de instalar a senha.

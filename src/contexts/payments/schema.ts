@@ -74,6 +74,12 @@ export const clinicPaymentAccounts = pgTable(
     connectedAt: timestamp('connected_at', { withTimezone: true }),
     connectedBy: uuid('connected_by'),
     disconnectedAt: timestamp('disconnected_at', { withTimezone: true }),
+    /**
+     * Migration 0115 — quando saiu o aviso de encerramento automático da conta
+     * pausada. Só vale se for posterior à última movimentação. Fora do grant de
+     * `authenticated`: lida e escrita só pelo account-store.
+     */
+    closureNoticeSentAt: timestamp('closure_notice_sent_at', { withTimezone: true }),
     ...timestampsPattern(),
   },
   (t) => ({

@@ -31,6 +31,7 @@ export {
   type ConnectPaymentAccountResult,
   type ConnectPaymentAccountInput,
   type DepositPolicyDTO,
+  type PaymentAccountClosureDTO,
   type PaymentAccountStatusDTO,
   type PaymentWebhookConfigurationIssue,
   type SaveDepositPolicyInput,

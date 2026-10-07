@@ -30,6 +30,11 @@ import { dbAdmin } from '@/lib/db';
 import type { Tx } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
 
+import {
+  closureSchedule,
+  hasClosureBlockers,
+  type PaymentAccountClosureBlockers,
+} from './account-closure';
 import { createAsaasClient, type AsaasClient } from './asaas';
 import { PAYMENT_ACCOUNT_LOCK_NAMESPACE } from './account-lock';
 
@@ -106,7 +111,7 @@ export async function upsertPaymentAccount(
       if (current.accept_new_charges) return { id: current.id, changed: false };
       await tx.execute(sql`
         UPDATE clinic_payment_accounts
-        SET accept_new_charges = true, updated_at = now()
+        SET accept_new_charges = true, closure_notice_sent_at = NULL, updated_at = now()
         WHERE id = ${current.id} AND clinic_id = ${input.clinicId}
       `);
       await logAudit(tx, {
@@ -148,6 +153,8 @@ export async function upsertPaymentAccount(
         connected_at      = now(),
         connected_by      = EXCLUDED.connected_by,
         disconnected_at   = NULL,
+        -- 0115: conta reconectada não está mais a caminho do encerramento.
+        closure_notice_sent_at = NULL,
         updated_at        = now()
       RETURNING id, key_version
     `);
@@ -270,6 +277,199 @@ export async function deactivatePaymentAccount(input: {
       return { changed: true, state: 'disconnected' as const };
     });
   });
+}
+
+// --- encerramento da conta pausada (0115, decisão de 07/10/2026) -------------
+
+export interface PaymentAccountClosureState {
+  /** Conta ativa com novas cobranças pausadas. */
+  paused: boolean;
+  /** Conta ativa (pausada ou não). */
+  active: boolean;
+  blockers: PaymentAccountClosureBlockers;
+  /** Maior instante entre a conta, as cobranças e os eventos do webhook. */
+  lastActivityAt: Date;
+  noticeSentAt: Date | null;
+}
+
+const OPEN_DISPUTE = sql`('requested', 'in_dispute', 'awaiting_reversal')`;
+
+async function selectClosureState(
+  tx: Tx,
+  clinicId: string,
+): Promise<PaymentAccountClosureState | null> {
+  const [row] = await tx.execute<{
+    active: boolean;
+    accept_new_charges: boolean;
+    closure_notice_sent_at: string | Date | null;
+    last_activity_at: string | Date;
+    open_links: number;
+    pending_refunds: number;
+    open_disputes: number;
+  }>(sql`
+    SELECT a.active, a.accept_new_charges, a.closure_notice_sent_at,
+           greatest(
+             a.updated_at,
+             (SELECT max(updated_at) FROM patient_charges WHERE clinic_id = ${clinicId}),
+             (SELECT max(processed_at) FROM patient_webhook_events WHERE clinic_id = ${clinicId})
+           ) AS last_activity_at,
+           (SELECT count(*)::int FROM patient_charges
+             WHERE clinic_id = ${clinicId} AND status = 'pending') AS open_links,
+           (SELECT count(*)::int FROM patient_refund_intents
+             WHERE clinic_id = ${clinicId} AND status <> 'confirmed') AS pending_refunds,
+           (SELECT count(*)::int FROM patient_charges
+             WHERE clinic_id = ${clinicId} AND dispute_status IN ${OPEN_DISPUTE})
+           + (SELECT count(*)::int FROM patient_credits
+             WHERE clinic_id = ${clinicId} AND dispute_status IN ${OPEN_DISPUTE}) AS open_disputes
+      FROM clinic_payment_accounts a
+     WHERE a.clinic_id = ${clinicId} AND a.provider = ${PAYMENT_PROVIDER}
+     LIMIT 1
+  `);
+  if (!row) return null;
+  return {
+    active: row.active,
+    paused: row.active && !row.accept_new_charges,
+    blockers: {
+      openLinks: Number(row.open_links),
+      pendingRefunds: Number(row.pending_refunds),
+      openDisputes: Number(row.open_disputes),
+    },
+    lastActivityAt: new Date(row.last_activity_at),
+    noticeSentAt: row.closure_notice_sent_at ? new Date(row.closure_notice_sent_at) : null,
+  };
+}
+
+/** Estado lido para a tela de Pagamentos e para o cron de encerramento. */
+export async function readPaymentAccountClosureState(
+  clinicId: string,
+): Promise<PaymentAccountClosureState | null> {
+  return dbAdmin.transaction((tx: Tx) => selectClosureState(tx, clinicId));
+}
+
+/** Contas pausadas — a fila do cron de encerramento, mais antigas primeiro. */
+export async function listPausedPaymentAccounts(
+  limit: number,
+): Promise<Array<{ clinicId: string; clinicName: string }>> {
+  const rows = await dbAdmin.execute<{ clinic_id: string; clinic_name: string }>(sql`
+    SELECT a.clinic_id::text AS clinic_id, c.nome AS clinic_name
+      FROM clinic_payment_accounts a JOIN clinics c ON c.id = a.clinic_id
+     WHERE a.provider = ${PAYMENT_PROVIDER} AND a.active = true AND a.accept_new_charges = false
+     ORDER BY a.updated_at
+     LIMIT ${limit}
+  `);
+  return rows.map((row) => ({ clinicId: row.clinic_id, clinicName: row.clinic_name }));
+}
+
+/** Grava que o aviso de encerramento saiu, enquanto a conta continua pausada. */
+export async function recordPaymentAccountClosureNotice(input: {
+  clinicId: string;
+  recipients: number;
+  closeAt: Date;
+  requestContext: RequestContext;
+}): Promise<boolean> {
+  return dbAdmin.transaction(async (tx: Tx) => {
+    const [account] = await tx.execute<{ id: string }>(sql`
+      UPDATE clinic_payment_accounts SET closure_notice_sent_at = now()
+       WHERE clinic_id = ${input.clinicId} AND provider = ${PAYMENT_PROVIDER}
+         AND active = true AND accept_new_charges = false
+      RETURNING id
+    `);
+    if (!account) return false;
+    await logAudit(tx, {
+      clinicId: input.clinicId,
+      userId: null,
+      action: 'payments.account.closure_notice_sent',
+      resourceType: 'clinic_payment_account',
+      resourceId: account.id,
+      before: null,
+      after: { recipients: input.recipients, closeAt: input.closeAt.toISOString() },
+      requestContext: input.requestContext,
+    });
+    return true;
+  });
+}
+
+export type PaymentAccountClosureOutcome =
+  | { outcome: 'closed' }
+  | { outcome: 'not_paused' }
+  | { outcome: 'blocked'; blockers: PaymentAccountClosureBlockers }
+  | { outcome: 'not_due' };
+
+/**
+ * Encerra a conta PAUSADA: desativa o webhook no Asaas e, só depois disso, apaga
+ * chave e token. Exige que nada esteja em aberto. Pelo cron (`inactivity`) exige
+ * também o prazo de 180 dias e o aviso enviado 30 dias antes. Roda sob o mesmo
+ * lock da pausa e da reserva de Checkout; falha externa não apaga nada.
+ */
+export async function closePausedPaymentAccount(input: {
+  clinicId: string;
+  userId: string | null;
+  trigger: 'manual' | 'inactivity';
+  now: Date;
+  requestContext: RequestContext;
+}): Promise<PaymentAccountClosureOutcome> {
+  return withPaymentWebhookLock(input.clinicId, () =>
+    dbAdmin.transaction(async (tx: Tx): Promise<PaymentAccountClosureOutcome> => {
+      const [account] = await tx.execute<{
+        id: string;
+        active: boolean;
+        accept_new_charges: boolean;
+        api_key_encrypted: string | null;
+        webhook_ref: string;
+      }>(sql`
+        SELECT id, active, accept_new_charges, api_key_encrypted, webhook_ref::text AS webhook_ref
+          FROM clinic_payment_accounts
+         WHERE clinic_id = ${input.clinicId} AND provider = ${PAYMENT_PROVIDER}
+         LIMIT 1 FOR UPDATE
+      `);
+      if (!account?.active || account.accept_new_charges) return { outcome: 'not_paused' };
+      const state = await selectClosureState(tx, input.clinicId);
+      if (!state) return { outcome: 'not_paused' };
+      if (hasClosureBlockers(state.blockers)) {
+        return { outcome: 'blocked', blockers: state.blockers };
+      }
+      if (
+        input.trigger === 'inactivity' &&
+        !closureSchedule({ ...state, now: input.now }).closeDue
+      ) {
+        return { outcome: 'not_due' };
+      }
+      if (!account.api_key_encrypted) throw new Error('conta ativa sem credencial cifrada');
+
+      const apiKey = await decryptForTenant(input.clinicId, account.api_key_encrypted);
+      const client = createAsaasClient({ apiKey });
+      await client.disableWebhook({
+        pathname: `/api/webhooks/asaas/patient/${account.webhook_ref}`,
+      });
+
+      await tx.execute(sql`
+        UPDATE clinic_payment_accounts SET
+          active = false, accept_new_charges = false,
+          api_key_encrypted = NULL, api_key_hash = NULL,
+          webhook_token_encrypted = NULL, webhook_configured_at = NULL,
+          closure_notice_sent_at = NULL,
+          disconnected_at = now(), updated_at = now()
+        WHERE id = ${account.id} AND clinic_id = ${input.clinicId}
+          AND active = true AND accept_new_charges = false
+      `);
+      await logAudit(tx, {
+        clinicId: input.clinicId,
+        userId: input.userId,
+        action: 'payments.account.closed',
+        resourceType: 'clinic_payment_account',
+        resourceId: account.id,
+        before: null,
+        after: {
+          provider: PAYMENT_PROVIDER,
+          trigger: input.trigger,
+          remoteWebhookDisabled: true,
+          lastActivityAt: state.lastActivityAt.toISOString(),
+        },
+        requestContext: input.requestContext,
+      });
+      return { outcome: 'closed' };
+    }),
+  );
 }
 
 // --- leitura da credencial (1.3) ---------------------------------------------

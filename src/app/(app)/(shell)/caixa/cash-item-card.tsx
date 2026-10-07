@@ -98,6 +98,20 @@ function FinancialComposition({
         </p>
       ) : null}
       {showAdvancedFinancialDetails &&
+      economics?.payout &&
+      economics.payout.status !== 'cancelled' &&
+      economics.payout.basisAmount !== null &&
+      economics.payout.payoutAmount !== null &&
+      economics.payout.payoutAmount > economics.payout.basisAmount ? (
+        // Decisão de 07/10/2026: regra fixa acima do valor é permitida, mas não
+        // pode passar despercebida na hora de pagar o profissional.
+        <p className="mt-2 text-pretty text-(length:--fs-xs) font-medium text-warning-700">
+          Repasse acima do recebido: {formatBRL(economics.payout.payoutAmount)} para uma base de{' '}
+          {formatBRL(economics.payout.basisAmount)}. A regra fixa paga o valor inteiro; confira
+          antes de pagar o profissional.
+        </p>
+      ) : null}
+      {showAdvancedFinancialDetails &&
       economics?.payout?.status === 'reviewed' &&
       economics.payout.review ? (
         <p className="mt-2 text-pretty text-(length:--fs-xs) font-medium text-fg">

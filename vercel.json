@@ -79,6 +79,10 @@
     {
       "path": "/api/cron/signup-sessions-cleanup",
       "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/cron/payments-account-closure",
+      "schedule": "0 10 * * *"
     }
   ],
   "outputDirectory": ".next"

@@ -44,17 +44,24 @@ import {
   BillingProviderUnreachableError,
   createAsaasClient,
 } from '@/lib/payments/asaas';
+import type { PaymentAccountClosureBlockers } from '@/lib/payments/account-closure';
 import {
+  closePausedPaymentAccount,
   deactivatePaymentAccount,
   getWebhookSetupTarget,
   markWebhookConfigured,
   upsertPaymentAccount,
   withPaymentWebhookLock,
+  type PaymentAccountClosureOutcome,
 } from '@/lib/payments/account-store';
 import { env } from '@/lib/env';
 import { buildApplicationUrl } from '@/lib/http/application-url';
 
-import { PaymentCredentialRejectedError, PaymentProviderUnavailableError } from './errors';
+import {
+  PaymentCredentialRejectedError,
+  PaymentProviderUnavailableError,
+  PaymentValidationError,
+} from './errors';
 import { getDepositPolicy, getPaymentAccountStatus } from './queries';
 import { clinicDepositPolicy } from './schema';
 import {
@@ -371,6 +378,68 @@ export async function disconnectPaymentAccount(): Promise<PaymentAccountStatusDT
     { clinicId, changed: result.changed },
   );
 
+  return getPaymentAccountStatus(clinicId);
+}
+
+function closureBlockedMessage(blockers: PaymentAccountClosureBlockers): string {
+  const plural = (count: number, one: string, many: string) =>
+    `${count} ${count === 1 ? one : many}`;
+  const parts = [
+    blockers.openLinks
+      ? plural(blockers.openLinks, 'link de pagamento aberto', 'links de pagamento abertos')
+      : null,
+    blockers.pendingRefunds
+      ? plural(blockers.pendingRefunds, 'devolução sem confirmação', 'devoluções sem confirmação')
+      : null,
+    blockers.openDisputes
+      ? plural(blockers.openDisputes, 'contestação em andamento', 'contestações em andamento')
+      : null,
+  ].filter((part): part is string => part !== null);
+  return `Ainda há ${parts.join(', ')}. Resolva antes de encerrar a conta.`;
+}
+
+/**
+ * Encerramento definitivo da conta PAUSADA (decisão de 07/10/2026). Só com nada
+ * em aberto: link pagável, devolução sem confirmação ou contestação em
+ * andamento. Desativa o webhook no Asaas antes de apagar chave e token; falha
+ * externa desfaz tudo e a conta segue pausada.
+ */
+export async function closePaymentAccount(): Promise<PaymentAccountStatusDTO> {
+  const user = await requireUser();
+  await requirePaymentAdmin();
+  const clinicId = await requireClinicId();
+  const ctx = await requestContext();
+
+  let result: PaymentAccountClosureOutcome;
+  try {
+    result = await closePausedPaymentAccount({
+      clinicId,
+      userId: user.userId,
+      trigger: 'manual',
+      now: new Date(),
+      requestContext: ctx,
+    });
+  } catch (err) {
+    if (
+      err instanceof BillingProviderError ||
+      err instanceof BillingProviderUnreachableError ||
+      err instanceof BillingCircuitOpenError
+    ) {
+      throw new PaymentValidationError(
+        'O Asaas não confirmou a desativação do webhook agora. Nada foi apagado; tente de novo em instantes.',
+      );
+    }
+    throw err;
+  }
+  if (result.outcome === 'blocked') {
+    throw new PaymentValidationError(closureBlockedMessage(result.blockers));
+  }
+  if (result.outcome !== 'closed') {
+    throw new PaymentValidationError(
+      'Só uma conta pausada pode ser encerrada. Pause as novas cobranças primeiro.',
+    );
+  }
+  metrics.emit('payments.account.closed', { clinicId, trigger: 'manual' });
   return getPaymentAccountStatus(clinicId);
 }
 

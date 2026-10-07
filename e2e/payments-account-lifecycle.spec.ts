@@ -1142,12 +1142,85 @@ test.describe.serial('conta de pagamento da clínica (Preview)', () => {
 
     await page.getByRole('button', { name: 'Pausar ou desconectar' }).click();
     await expect(page.getByText('Pausada', { exact: true })).toBeVisible({ timeout: 60_000 });
-    await page.getByRole('button', { name: 'Tentar desconexão' }).click();
-    await expect(page.getByText('Pausada', { exact: true })).toBeVisible();
-    const [final] = await fixtureSql!<{ active: boolean; accept_new_charges: boolean }[]>`
-      select active, accept_new_charges from clinic_payment_accounts
-       where clinic_id = ${fixtureClinicId}::uuid
+    // Decisão de 07/10/2026: com histórico, o caminho deixa de ser "Tentar
+    // desconexão" (que não fazia nada) e passa a ser o encerramento definitivo.
+    await expect(page.getByRole('button', { name: 'Tentar desconexão' })).toHaveCount(0);
+    await expect(page.getByText(/encerrada automaticamente em/u)).toBeVisible();
+
+    // Contestação em andamento impede o encerramento: a tela explica e não oferece o botão.
+    const [disputed] = await fixtureSql!<{ id: string }[]>`
+      update patient_charges set dispute_status = 'in_dispute'
+       where id = (select id from patient_charges
+                    where clinic_id = ${fixtureClinicId}::uuid and status = 'paid'
+                    order by created_at limit 1)
+      returning id::text
     `;
-    expect(final).toMatchObject({ active: true, accept_new_charges: false });
+    expect(disputed, 'a fixture não tem cobrança paga para contestar').toBeTruthy();
+    await page.reload();
+    await expect(
+      page.getByText('Para encerrar, resolva antes: 1 contestação em andamento.'),
+    ).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Encerrar definitivamente' })).toHaveCount(0);
+    await fixtureSql!`
+      update patient_charges set dispute_status = null where id = ${disputed!.id}::uuid
+    `;
+
+    await page.reload();
+    await page.getByRole('button', { name: 'Encerrar definitivamente' }).click();
+    await page.getByRole('button', { name: 'Confirmar encerramento' }).click();
+    await expect(page.getByText(/Conta encerrada\./u)).toBeVisible({ timeout: 90_000 });
+    await expect(page.getByText(/Nenhuma conta conectada/)).toBeVisible();
+
+    const [closed] = await fixtureSql!<
+      {
+        active: boolean;
+        accept_new_charges: boolean;
+        has_key: boolean;
+        has_token: boolean;
+        notice: string | null;
+        disconnected: boolean;
+      }[]
+    >`
+      select active, accept_new_charges,
+             api_key_encrypted is not null has_key,
+             webhook_token_encrypted is not null has_token,
+             closure_notice_sent_at::text notice,
+             disconnected_at is not null disconnected
+        from clinic_payment_accounts where clinic_id = ${fixtureClinicId}::uuid
+    `;
+    expect(closed).toEqual({
+      active: false,
+      accept_new_charges: false,
+      has_key: false,
+      has_token: false,
+      notice: null,
+      disconnected: true,
+    });
+    const audits = await fixtureSql!<
+      { after: { trigger?: string; remoteWebhookDisabled?: boolean } }[]
+    >`
+      select after from audit_events
+       where clinic_id = ${fixtureClinicId}::uuid and action = 'payments.account.closed'
+    `;
+    expect(audits).toHaveLength(1);
+    expect(audits[0]?.after).toMatchObject({ trigger: 'manual', remoteWebhookDisabled: true });
+
+    const afterClose = await fetch('https://api-sandbox.asaas.com/v3/webhooks?offset=0&limit=100', {
+      headers: { access_token: sandboxKey },
+    });
+    expect(afterClose.status, 'Asaas não permitiu reler os webhooks da fixture').toBe(200);
+    const afterBody = (await afterClose.json()) as {
+      data?: Array<{ url?: string; enabled?: boolean }>;
+    };
+    const remaining = (afterBody.data ?? []).filter((item) => {
+      try {
+        return new URL(item.url ?? '').pathname === expectedPath;
+      } catch {
+        return false;
+      }
+    });
+    // Desativado, não apagado: o cleanup da fixture remove o recurso depois.
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0]?.enabled).toBe(false);
   });
 });

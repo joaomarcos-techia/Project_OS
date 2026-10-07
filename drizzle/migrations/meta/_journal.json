@@ -806,6 +806,13 @@
       "when": 1791523200000,
       "tag": "0114_whatsapp_contact_name",
       "breakpoints": true
+    },
+    {
+      "idx": 115,
+      "version": "7",
+      "when": 1791609600000,
+      "tag": "0115_payment_account_closure",
+      "breakpoints": true
     }
   ]
 }

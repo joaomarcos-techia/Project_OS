@@ -66,6 +66,7 @@ vi.mock('@/lib/payments/asaas', async (importActual) => {
 vi.mock('@/lib/payments/account-store', () => ({
   upsertPaymentAccount: vi.fn(async () => ({ id: 'acc-1', changed: true })),
   deactivatePaymentAccount: vi.fn(async () => ({ changed: true, state: 'disconnected' })),
+  closePausedPaymentAccount: vi.fn(async () => ({ outcome: 'closed' })),
   withPaymentWebhookLock: vi.fn(async (_clinicId: string, operation: () => Promise<unknown>) =>
     operation(),
   ),
@@ -92,12 +93,13 @@ import {
   BillingProviderUnreachableError,
 } from '@/lib/payments/asaas';
 import {
+  closePausedPaymentAccount,
   deactivatePaymentAccount,
   upsertPaymentAccount,
   withPaymentWebhookLock,
 } from '@/lib/payments/account-store';
 
-import { connectPaymentAccount, disconnectPaymentAccount } from './actions';
+import { closePaymentAccount, connectPaymentAccount, disconnectPaymentAccount } from './actions';
 import { PaymentCredentialRejectedError, PaymentProviderUnavailableError } from './errors';
 
 const SECRET = '$aact_chave_secreta_da_clinica';
@@ -391,5 +393,60 @@ describe('disconnectPaymentAccount', () => {
 
     await expect(disconnectPaymentAccount()).rejects.toBe(authError);
     expect(deactivatePaymentAccount).not.toHaveBeenCalled();
+  });
+});
+
+describe('closePaymentAccount — encerramento da conta pausada (07/10/2026)', () => {
+  it('encerra pelo seam privilegiado, como gatilho manual do usuário da sessão', async () => {
+    await closePaymentAccount();
+
+    expect(closePausedPaymentAccount).toHaveBeenCalledWith(
+      expect.objectContaining({ clinicId: 'clinic-1', userId: 'user-1', trigger: 'manual' }),
+    );
+    expect(metrics.emit).toHaveBeenCalledWith('payments.account.closed', {
+      clinicId: 'clinic-1',
+      trigger: 'manual',
+    });
+  });
+
+  it('com pendência, diz exatamente o que impede e não emite métrica de encerramento', async () => {
+    vi.mocked(closePausedPaymentAccount).mockResolvedValueOnce({
+      outcome: 'blocked',
+      blockers: { openLinks: 2, pendingRefunds: 1, openDisputes: 1 },
+    });
+
+    await expect(closePaymentAccount()).rejects.toMatchObject({
+      name: 'PaymentValidationError',
+      message:
+        'Ainda há 2 links de pagamento abertos, 1 devolução sem confirmação, 1 contestação em andamento. Resolva antes de encerrar a conta.',
+    });
+    expect(metrics.emit).not.toHaveBeenCalledWith('payments.account.closed', expect.anything());
+  });
+
+  it('conta que não está pausada não é encerrada por este caminho', async () => {
+    vi.mocked(closePausedPaymentAccount).mockResolvedValueOnce({ outcome: 'not_paused' });
+    await expect(closePaymentAccount()).rejects.toMatchObject({
+      name: 'PaymentValidationError',
+      message: 'Só uma conta pausada pode ser encerrada. Pause as novas cobranças primeiro.',
+    });
+  });
+
+  it('falha do Asaas vira mensagem acionável de que nada foi apagado', async () => {
+    vi.mocked(closePausedPaymentAccount).mockRejectedValueOnce(
+      new BillingProviderUnreachableError('down'),
+    );
+    await expect(closePaymentAccount()).rejects.toMatchObject({
+      name: 'PaymentValidationError',
+      message:
+        'O Asaas não confirmou a desativação do webhook agora. Nada foi apagado; tente de novo em instantes.',
+    });
+  });
+
+  it('exige a mesma permissão do connect, antes de qualquer leitura', async () => {
+    const authError = Object.assign(new Error('forbidden'), { name: 'AuthError' });
+    mocks.requireCachedPermission.mockRejectedValue(authError);
+
+    await expect(closePaymentAccount()).rejects.toBe(authError);
+    expect(closePausedPaymentAccount).not.toHaveBeenCalled();
   });
 });

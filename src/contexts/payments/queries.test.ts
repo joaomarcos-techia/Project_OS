@@ -10,9 +10,17 @@ import type { SQL } from 'drizzle-orm';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { withTenantMock } = vi.hoisted(() => ({ withTenantMock: vi.fn() }));
+const { withTenantMock, closureStateMock } = vi.hoisted(() => ({
+  withTenantMock: vi.fn(),
+  closureStateMock: vi.fn(),
+}));
 vi.mock('server-only', () => ({}));
 vi.mock('@/lib/db/tenant', () => ({ withTenant: withTenantMock }));
+// Contagens e data do aviso vêm do seam privilegiado (a coluna do aviso fica fora
+// do grant de `authenticated`, como a credencial).
+vi.mock('@/lib/payments/account-store', () => ({
+  readPaymentAccountClosureState: closureStateMock,
+}));
 
 import { DEPOSIT_POLICY_OFF } from './policy';
 import { getDepositPolicy, getPaymentAccountStatus } from './queries';
@@ -33,7 +41,16 @@ function stubTenantRead(rows: unknown[]): { sqls: string[] } {
   return { sqls };
 }
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  closureStateMock.mockResolvedValue({
+    active: true,
+    paused: false,
+    blockers: { openLinks: 0, pendingRefunds: 0, openDisputes: 0 },
+    lastActivityAt: new Date('2026-10-07T12:00:00.000Z'),
+    noticeSentAt: null,
+  });
+});
 
 describe('getPaymentAccountStatus', () => {
   it('NUNCA pede as colunas do segredo (nem por SELECT *)', async () => {
@@ -85,6 +102,8 @@ describe('getPaymentAccountStatus', () => {
       accountName: 'Clínica Exemplo',
       keyVersion: 3,
       connectedAt: '2026-08-24T00:00:00.000Z',
+      openLinks: 0,
+      closure: null,
     });
   });
 
@@ -103,6 +122,71 @@ describe('getPaymentAccountStatus', () => {
 
     const status = await getPaymentAccountStatus('clinic-1');
     expect(status.hasApiKey).toBe(false);
+    expect(status).toMatchObject({ openLinks: 0, closure: null });
+    expect(closureStateMock).not.toHaveBeenCalled();
+  });
+
+  it('conta conectada informa links abertos, sem oferecer encerramento', async () => {
+    stubTenantRead([
+      {
+        provider: 'asaas',
+        account_name: null,
+        key_version: 1,
+        active: true,
+        accept_new_charges: true,
+        connected_at: '2026-08-24T00:00:00.000Z',
+        webhook_configured_at: '2026-08-24T00:00:00.000Z',
+      },
+    ]);
+    closureStateMock.mockResolvedValue({
+      active: true,
+      paused: false,
+      blockers: { openLinks: 3, pendingRefunds: 0, openDisputes: 0 },
+      lastActivityAt: new Date('2026-10-07T12:00:00.000Z'),
+      noticeSentAt: null,
+    });
+
+    const status = await getPaymentAccountStatus('clinic-1');
+    expect(status).toMatchObject({ openLinks: 3, closure: null });
+    expect(closureStateMock).toHaveBeenCalledWith('clinic-1');
+  });
+
+  it('conta pausada traz o que impede o encerramento e a previsão automática', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-08T12:00:00.000Z'));
+    try {
+      stubTenantRead([
+        {
+          provider: 'asaas',
+          account_name: null,
+          key_version: 1,
+          active: true,
+          accept_new_charges: false,
+          connected_at: '2026-08-24T00:00:00.000Z',
+          webhook_configured_at: '2026-08-24T00:00:00.000Z',
+        },
+      ]);
+      closureStateMock.mockResolvedValue({
+        active: true,
+        paused: true,
+        blockers: { openLinks: 1, pendingRefunds: 1, openDisputes: 0 },
+        lastActivityAt: new Date('2026-10-07T12:00:00.000Z'),
+        // Aviso ANTERIOR à última movimentação não vale e não aparece.
+        noticeSentAt: new Date('2026-09-01T12:00:00.000Z'),
+      });
+
+      const status = await getPaymentAccountStatus('clinic-1');
+      expect(status.openLinks).toBe(1);
+      expect(status.closure).toEqual({
+        blockers: { openLinks: 1, pendingRefunds: 1, openDisputes: 0 },
+        canClose: false,
+        lastActivityAt: '2026-10-07T12:00:00.000Z',
+        autoCloseAt: '2027-04-05T12:00:00.000Z',
+        noticeSentAt: null,
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('conta pausada mantém integração para conciliar e bloqueia novas cobranças', async () => {

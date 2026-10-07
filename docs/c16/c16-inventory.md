@@ -4,7 +4,7 @@
 
 Reference — inventário verificado por `pnpm check:observability`.
 
-## Crons (19)
+## Crons (20)
 
 | Rota | Owner funcional |
 | --- | --- |
@@ -15,6 +15,7 @@ Reference — inventário verificado por `pnpm check:observability`.
 | `/api/cron/metrics-rollup` | observabilidade |
 | `/api/cron/financial-reconcile` | financial |
 | `/api/cron/payments-deposit` | payments |
+| `/api/cron/payments-account-closure` | payments |
 | `/api/cron/data-retention` | plataforma |
 | `/api/cron/invites-cleanup` | onboarding |
 | `/api/cron/signup-sessions-cleanup` | onboarding |

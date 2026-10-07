@@ -346,6 +346,46 @@ describe('CaixaView — work queue, rótulos e RBAC', () => {
         },
       });
 
+    it('sinaliza repasse fixo acima da base sem impedir nem recalcular (decisão de 07/10)', () => {
+      render(
+        <CaixaView
+          {...base}
+          showAdvancedFinancialDetails
+          pagosHoje={[
+            suspended({
+              status: 'calculated',
+              basisAmount: 80,
+              payoutAmount: 100,
+              reviewBounds: null,
+            }),
+          ]}
+        />,
+      );
+      expect(
+        screen.getByText(
+          /Repasse acima do recebido: R\$\s*100,00 para uma base de R\$\s*80,00\. A regra fixa paga o valor inteiro/u,
+        ),
+      ).toBeTruthy();
+    });
+
+    it('repasse dentro da base não ganha aviso', () => {
+      render(
+        <CaixaView
+          {...base}
+          showAdvancedFinancialDetails
+          pagosHoje={[
+            suspended({
+              status: 'calculated',
+              basisAmount: 150,
+              payoutAmount: 75,
+              reviewBounds: null,
+            }),
+          ]}
+        />,
+      );
+      expect(screen.queryByText(/Repasse acima do recebido/u)).toBeNull();
+    });
+
     it('MANAGE_FINANCIAL registra a versão 1 com teto e referência só informativa', async () => {
       vi.mocked(reviewProfessionalPayoutAction).mockResolvedValue({
         ok: true,

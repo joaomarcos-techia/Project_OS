@@ -14,11 +14,17 @@ import 'server-only';
 import { sql } from 'drizzle-orm';
 
 import { withTenant } from '@/lib/db/tenant';
+import { closureSchedule, hasClosureBlockers } from '@/lib/payments/account-closure';
+import {
+  readPaymentAccountClosureState,
+  type PaymentAccountClosureState,
+} from '@/lib/payments/account-store';
 
 import { DEPOSIT_POLICY_OFF } from './policy';
 import {
   EMPTY_PAYMENT_ACCOUNT,
   type DepositPolicyDTO,
+  type PaymentAccountClosureDTO,
   type PaymentAccountStatusDTO,
 } from './types';
 
@@ -45,6 +51,11 @@ export async function getPaymentAccountStatus(clinicId: string): Promise<Payment
   const row = rows[0];
   if (!row) return EMPTY_PAYMENT_ACCOUNT;
 
+  // Contagens e prazos do encerramento vêm do seam privilegiado: a data do aviso
+  // fica fora do grant de `authenticated`, como a credencial.
+  const closureState = row.active ? await readPaymentAccountClosureState(clinicId) : null;
+  const paused = row.active && !row.accept_new_charges;
+
   return {
     provider: 'asaas',
     // Invariante do CHECK da 0081: ativa ⇒ existe chave. Ver types.ts.
@@ -54,6 +65,19 @@ export async function getPaymentAccountStatus(clinicId: string): Promise<Payment
     accountName: row.account_name,
     keyVersion: row.key_version,
     connectedAt: row.connected_at,
+    openLinks: closureState?.blockers.openLinks ?? 0,
+    closure: paused && closureState ? toClosureDTO(closureState, new Date()) : null,
+  };
+}
+
+function toClosureDTO(state: PaymentAccountClosureState, now: Date): PaymentAccountClosureDTO {
+  const schedule = closureSchedule({ ...state, now });
+  return {
+    blockers: state.blockers,
+    canClose: !hasClosureBlockers(state.blockers),
+    lastActivityAt: state.lastActivityAt.toISOString(),
+    autoCloseAt: schedule.closeAt.toISOString(),
+    noticeSentAt: schedule.noticeValid ? (state.noticeSentAt?.toISOString() ?? null) : null,
   };
 }
 

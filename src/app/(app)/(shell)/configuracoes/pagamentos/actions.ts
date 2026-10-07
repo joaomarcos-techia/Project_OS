@@ -9,6 +9,7 @@
  * retorna: o DTO de resposta carrega apenas o indicador `hasApiKey`.
  */
 import {
+  closePaymentAccount,
   connectPaymentAccount,
   disconnectPaymentAccount,
   saveDepositPolicy,
@@ -59,6 +60,14 @@ export async function disconnectPaymentAccountAction(): Promise<
 > {
   try {
     return ok(await disconnectPaymentAccount());
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+export async function closePaymentAccountAction(): Promise<ActionResult<PaymentAccountStatusDTO>> {
+  try {
+    return ok(await closePaymentAccount());
   } catch (err) {
     return fail(err);
   }
