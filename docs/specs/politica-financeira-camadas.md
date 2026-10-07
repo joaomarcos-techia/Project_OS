@@ -2,7 +2,7 @@
 
 **Registro principal desta implementação.** As decisões, mudanças, provas, falhas e bloqueios de cada camada devem ser atualizados aqui durante o desenvolvimento. `docs/qorov2.md` permanece apenas como índice e fotografia histórica desta frente; não acrescentar nele novas entradas de progresso da política financeira.
 
-**Estado em 07/10/2026:** especificação e implementação em camadas. As migrations 0108–0113 foram aplicadas e lidas de volta **somente em DEV** (a 0113, revisão humana do repasse, com backup completo e restore dirigido testado antes); houve backup completo anterior à 0110 e cópia binária da tabela de contas de pagamento anterior à 0111, mas a cópia binária **não é um backup completo do banco**. RLS e guardas SQL foram exercitados em transações revertidas. A correção tardia de tarifa já possui lançamento de delta imutável e foi exercitada no PostgreSQL DEV com evento de outbox e handler reais, crash/retry e replay; ainda não foi observada uma **correção tardia real** no Asaas nem feita a jornada completa provider → webhook → Caixa no navegador. O Checkout hospedado foi exercitado no Sandbox com intervenção humana: cartão teve estorno terminal confirmado pelo runner; PIX gerou cobrança paga, mas o estorno solicitado terminou `CANCELLED`, sem devolução comprovada. O Preview com banco DEV exibiu configurações, fatos econômicos sintéticos no Caixa e o ciclo de pausa/desconexão da conta no Sandbox em 6/6 E2E; a serialização pausa × reserva de Checkout entre dois processos foi provada no PostgreSQL DEV (seção de 07/10, retomada). Ainda em 07/10, um pagamento Pix real no Sandbox foi feito por pessoa num Checkout criado antes da pausa. O webhook chegou com a conta pausada e foi conciliado pelo Preview deste PR. Bruto, tarifa e líquido coincidiram em `GET /payments`, extrato, banco e Caixa (9ª execução do runner). As camadas 2–5 **não estão aceitas para produção**: faltam a prova externa da correção de tarifa, o E2E da revisão humana do repasse (implementada e provada localmente) e a prova completa da IA até o link. Revalidar o estado antes de cada promoção.
+**Estado em 07/10/2026:** especificação e implementação em camadas. As migrations 0108–0113 foram aplicadas e lidas de volta **somente em DEV** (a 0113, revisão humana do repasse, com backup completo e restore dirigido testado antes); houve backup completo anterior à 0110 e cópia binária da tabela de contas de pagamento anterior à 0111, mas a cópia binária **não é um backup completo do banco**. RLS e guardas SQL foram exercitados em transações revertidas. A correção tardia de tarifa já possui lançamento de delta imutável e foi exercitada no PostgreSQL DEV com evento de outbox e handler reais, crash/retry e replay; ainda não foi observada uma **correção tardia real** no Asaas nem feita a jornada completa provider → webhook → Caixa no navegador. O Checkout hospedado foi exercitado no Sandbox com intervenção humana: cartão teve estorno terminal confirmado pelo runner; PIX gerou cobrança paga, mas o estorno solicitado terminou `CANCELLED`, sem devolução comprovada. O Preview com banco DEV exibiu configurações, fatos econômicos sintéticos no Caixa e o ciclo de pausa/desconexão da conta no Sandbox em 6/6 E2E; a serialização pausa × reserva de Checkout entre dois processos foi provada no PostgreSQL DEV (seção de 07/10, retomada). Ainda em 07/10, um pagamento Pix real no Sandbox foi feito por pessoa num Checkout criado antes da pausa. O webhook chegou com a conta pausada e foi conciliado pelo Preview deste PR. Bruto, tarifa e líquido coincidiram em `GET /payments`, extrato, banco e Caixa (9ª execução do runner). A revisão humana do repasse passou no E2E do Preview com papéis reais (5/5). As camadas 2–5 **não estão aceitas para produção**: faltam a prova externa da correção de tarifa, a prova completa da IA até o link e a promoção das migrations 0108–0113 no ambiente-alvo. Revalidar o estado antes de cada promoção.
 
 ## 1. Decisão de produto e disponibilidade
 
@@ -77,7 +77,7 @@ Contrato a estabilizar antes do rollout: `payments.patient_credit.granted` deve 
 1. Versionar a base `gross|net` e as regras `percentage|fixed`, por profissional e opcionalmente procedimento. Apenas profissional ativo/elegível da mesma clínica; owner não é alvo de repasse automático. Validar essa elegibilidade **novamente ao criar o snapshot**, pois uma regra criada quando o profissional era elegível pode sobreviver à desativação ou mudança de papel. Regra ausente significa ausência de passivo, não repasse de 100%.
 2. **Decisão aceita em 04/10/2026:** na conclusão do atendimento, resolver a regra e a base pelo instante `scheduledAt` do agendamento que efetivamente foi concluído. Remarcação cria novo agendamento com novo `scheduledAt` e preserva o preço comercial já escolhido; a regra de repasse acompanha o novo horário. Atraso na conclusão não altera a regra. Uma regra alterada antes da conclusão pode alcançar atendimentos já reservados para uma data futura; após o snapshot, mudança posterior não recalcula o passado. O timestamp tem fuso (`timestamptz`); comparar instantes, não apenas o dia no calendário. Criar um único snapshot por appointment, com regra, versão, bruto e status. `GROSS` pode calcular antes do líquido; `NET` permanece `pending_economics` até receber o líquido real. **Código:** `transitionPayload` lê o `scheduledAt` da linha concluída; o handler o passa a `createProfessionalPayoutSnapshot`; a consulta compara `effective_from <= scheduledAt < effective_to`. **Prova DEV:** o smoke transacional descrito abaixo cobre remarcação, atraso e mudança de regra/base. Ainda falta a jornada pelo navegador até a conclusão real do atendimento e o readback de tarifa/líquido do Asaas.
 3. Cálculo puro recebe valores/regra explícitos e usa centavos com arredondamento uma vez no resultado final. Taxa de antecipação é despesa da clínica e não entra automaticamente na base. Não chamar `payout_amount` de transferência efetivamente realizada: o rascunho calcula uma obrigação, não executa split/transferência ao médico.
-4. **Decisão aceita em 04/10/2026:** após estorno parcial ou perda, suspender o repasse automático e exigir revisão humana do valor devido; não calcular proporção automática nem transferir enquanto pendente. O cálculo original e a reversão devem permanecer auditáveis. A contenção local já distingue pagamento parcial sem reversão, que preserva `GROSS` e deixa `NET` pendente, de estorno/perda explícitos, que suspendem GROSS e NET em `cancelled` até decisão humana. `pending_economics` fica reservado ao NET sem fatos suficientes do provedor. Esses estados ainda **não representam** uma tarefa de revisão nem uma decisão final; implementar estado/ação de revisão autorizada, persistência da decisão e UI antes de aceitar a camada. Desde 05/10, a primeira suspensão de um repasse calculado por estorno/perda grava o valor anterior em `audit_events` na mesma transação, antes de limpar `basis_amount`/`payout_amount`; o replay não duplica o registro. Ainda faltam o histórico da decisão de revisão e a ação autorizada que possa reabrir a suspensão explicitamente; reconciliações posteriores já não a reabrem sozinhas. Eventos de reversão chamam o refresh na mesma transação, e a projeção do Caixa subtrai principal revertido sem inventar tarifa devolvida. Provar idempotência, concorrência, crédito misto, owner, múltiplos profissionais, regra fixa acima da base (decidir se é permitido), mudança GROSS→NET e downgrade.
+4. **Decisão aceita em 04/10/2026:** após estorno parcial ou perda, suspender o repasse automático e exigir revisão humana do valor devido; não calcular proporção automática nem transferir enquanto pendente. O cálculo original e a reversão devem permanecer auditáveis. A contenção local já distingue pagamento parcial sem reversão, que preserva `GROSS` e deixa `NET` pendente, de estorno/perda explícitos, que suspendem GROSS e NET em `cancelled` até decisão humana. `pending_economics` fica reservado ao NET sem fatos suficientes do provedor. Esses estados sozinhos **não representam** uma tarefa de revisão nem uma decisão final. Desde 07/10, o estado `reviewed`, as versões imutáveis da decisão, a action autorizada e a UI do Caixa existem e passaram no E2E do Preview (seções da camada 4 de 07/10). Desde 05/10, a primeira suspensão de um repasse calculado por estorno/perda grava o valor anterior em `audit_events` na mesma transação, antes de limpar `basis_amount`/`payout_amount`; o replay não duplica o registro. A decisão de revisão é a ação autorizada que tira o repasse da suspensão, e cada uma vira uma versão no histórico; reconciliações posteriores não a reabrem sozinhas. Eventos de reversão chamam o refresh na mesma transação, e a projeção do Caixa subtrai principal revertido sem inventar tarifa devolvida. Provar idempotência, concorrência, crédito misto, owner, múltiplos profissionais, regra fixa acima da base (decidir se é permitido), mudança GROSS→NET e downgrade.
 
 ### Camada 5 — UI, migração e promoção
 
@@ -111,7 +111,7 @@ Contrato a estabilizar antes do rollout: `payments.patient_credit.granted` deve 
 - **Migrations 0108–0109 em DEV:** a 0108 impede snapshot explícito com preço inativo/futuro, política incompatível ou plano inelegível. A revisão encontrou que ela ainda permitia `absorb_fees` por INSERT direto sob política explícita; a 0109 acrescentou esse ramo e preservou remarcação histórica exata. O readback e a prova transacional DEV desse ramo passaram, com rollback sem resíduos. A mesma prova não foi feita em Preview/produção.
 - O painel básico do Caixa usa economia **alocada por atendimento** e agora identifica os fatos de cada cobrança em um bloco separado, sem somá-los ao total alocado. Essa distinção passou nos testes locais e no readback DEV com fixture sintética; ainda falta E2E visual em Preview, inclusive com mais de uma cobrança por atendimento.
 - **Antecipação ainda não tem produtor real:** a camada de Payments grava/emite `earlySettlementFeeAmount: null` nos caminhos atuais de readback. Coluna, evento e consumer preparados não comprovam custo de antecipação separado. Identificar fato autoritativo no Asaas Sandbox, correlacionar à cobrança e provar evento → despesa → Caixa antes de anunciar essa parte.
-- O repasse após refund/perda tem contenção local: a existência de reversão suspende a obrigação sem estimar proporção, mesmo que um novo pagamento deixe o recebível `pago`. A decisão de produto é revisão humana do valor final após estorno parcial; **a ação, persistência e UI dessa revisão ainda faltam**. Até lá o status conservador não pode ser anunciado como reconciliação concluída. A UI precisa explicar que `cancelled` em GROSS significa obrigação suspensa por reversão, não transferência realizada.
+- O repasse após refund/perda tem contenção local: a existência de reversão suspende a obrigação sem estimar proporção, mesmo que um novo pagamento deixe o recebível `pago`. A decisão de produto é revisão humana do valor final após estorno parcial. Ação, persistência e UI dessa revisão foram implementadas em 07/10 e passaram no E2E do Preview com papéis reais (5/5). Sem uma versão registrada, o status conservador não pode ser anunciado como reconciliação concluída. A UI precisa explicar que `cancelled` em GROSS significa obrigação suspensa por reversão, não transferência realizada.
 - A criação do snapshot agora revalida o profissional na mesma transação, com o mesmo predicado da criação da regra e bloqueio `FOR SHARE`; regra antiga de profissional desativado/owner/inelegível deixa de criar novo passivo. Falta prova com perfil real em DEV e concorrência de desativação.
 - A seleção da versão da regra usa `scheduledAt` do agendamento concluído, inclusive após remarcação; atraso na conclusão não o altera. A decisão de 04/10 fechou a semântica, mas o teste de integração entre reserva, remarcação, conclusão e snapshot ainda falta.
 - O parser do evento e o consumer aceitam payloads legados **inteiros** sem campos econômicos, gravando valores desconhecidos como `NULL`; payload moderno parcialmente preenchido continua recusado. Regressões locais passaram; replay de eventos persistidos em outbox DEV continua `NOT TESTED`.
@@ -409,11 +409,11 @@ Cleanup: outbox, auditoria e clínica da fixture removidos; usuário Auth com DE
 | 1 — elegibilidade | PASS local e CI em `85c59466`; PASS E2E de plano no Preview de `1cc90e69` | rollout NOT RUN |
 | 2 — fatos do Asaas e ledger | PASS DEV com fatos sintéticos; pagamento Pix real → webhook → crédito → tarifa → Caixa PASS no Preview (9ª execução); correção tardia real NOT RUN | o provedor não produziu correção tardia; antecipação sem produtor |
 | 3 — preço por método | PASS local/DEV da guarda; pagamento com preço de catálogo NOT RUN | o pagamento real usou o preço do agendamento, sem método comercial; falta cenário no modo explícito |
-| 4 — repasse | suspensão conservadora PASS em DEV/Preview sintético; revisão humana implementada, PASS local e no Postgres descartável (8/8), 0113 aplicada no DEV; E2E no Preview NOT RUN | contrato decidido em 07/10 (teto no valor original, motivo, `MANAGE_FINANCIAL`, versões imutáveis); falta E2E com papéis reais |
+| 4 — repasse | suspensão conservadora PASS; revisão humana PASS local, no Postgres descartável (8/8) e no E2E do Preview com papéis reais (5/5, `e1aae7c7`); 0113 só no DEV | sem prova no Preview: base NET, perda/chargeback e dois revisores simultâneos; regra fixa acima da base sem decisão |
 | 5 — UI, E2E e promoção | Preview 6/6 PASS em `1cc90e69` (fatos sintéticos); Caixa com fatos reais do Sandbox PASS (9ª execução); promoção NOT RUN | backup restaurável e plano de rollout ainda sem decisão |
 | Conta pausada | ciclo de configuração PASS no Sandbox; concorrência PASS no DEV; evento real de cobrança antiga com a conta pausada PASS no Preview (9ª execução) | no ciclo 6/6 de `1cc90e69`, o webhook apontava para outro deploy (`APP_BASE_URL`); a 9ª execução refez conexão e pausa com o host correto |
 | Refund PIX | BLOCKED BY ASAAS | `CREDIT_REFUND/REFUSED` sem causa; nenhum `DONE` |
-| IA → Asaas → Meta | NOT RUN | integração WhatsApp do outro agente e pagamento real pendentes |
+| IA → Asaas → Meta | NOT RUN | `feat/whatsapp-coexistence` já está em `main` e nesta branch (verificado em 07/10); faltam número de teste Meta numa clínica DEV, webhook Meta para o Preview e uma pessoa no circuito |
 
 ### 07/10/2026 — runner do pagamento real em conta pausada
 
@@ -605,3 +605,66 @@ A leitura do Caixa passa a entregar o `id` do repasse, a versão vigente e os li
 - regra fixa acima da base: o teto segue o cálculo original e a decisão de produto continua aberta.
 
 A camada 4 continua **não aceita para produção** até o E2E no Preview e a promoção das migrations 0108–0113 no ambiente-alvo.
+
+### 07/10/2026 — camada 4: E2E da revisão humana do repasse no Preview
+
+**Alvo:**
+
+- spec novo `e2e/payout-review-preview.spec.ts`, mais o helper `e2e/preview-dev-runtime.ts` com a prova assinada do runtime, executados antes do commit que os versiona e sem alteração depois da execução;
+- Preview do commit `e1aae7c7`, no alias da branch, com deploy Vercel `success` às 19:08 UTC e CI do mesmo SHA verde (lint, typecheck, testes, build, Semgrep e Snyk);
+- Auth e banco DEV `pqhkirrszzpwezdaqrai`.
+
+**Comando:** o mesmo launcher local, que injeta o ambiente DEV só em memória, com `E2E_BASE_URL` (o Preview) e `E2E_PAYOUT_REVIEW_MUTATION=dev`. Roda `playwright test e2e/payout-review-preview.spec.ts --project=chromium --workers=1`. O spec aborta sem o opt-in, fora de Preview Vercel, fora do projeto DEV ou sem a prova assinada do próprio Preview.
+
+**Estado inicial (readback):** zero clínicas e zero usuários `e2e-payout-review-%`, zero versões de revisão e zero repasses `reviewed` no DEV.
+
+**Fixture:**
+
+- duas clínicas Pro, A e B;
+- cinco usuários Auth com papéis reais: `owner`, `financial`, `attendant` e `doctor` em A, e `financial` em B;
+- procedimento de R$ 150, política `GROSS` e regra de 50% para a médica;
+- atendimento `atendido` com recebível pendente de R$ 150;
+- snapshot do repasse `calculated` de R$ 75. É o único dado que nasce por INSERT, porque o Preview não roda o worker do atendimento concluído.
+
+**Resultado: exit 0, 5/5 PASS em 4,7 min, na primeira execução.**
+
+1. **Pagamento e primeiro estorno.** O dono confirmou R$ 150 e reembolsou R$ 50 pelo Caixa. Depois do pagamento, o repasse seguiu `calculated` em R$ 75. O estorno o suspendeu na mesma transação: `cancelled`, com base e valor nulos e auditoria `suspended` (antes 75,00, motivo `payment_reversed`). A composição mostrou "Suspenso" e o botão de revisão.
+2. **Versão 1 pelo financeiro.** O usuário `financial` abriu a revisão e viu teto de R$ 75,00 e referência de R$ 50,00.
+   - Com R$ 80, o campo deu erro e o botão ficou desabilitado.
+   - Registrou R$ 60,00, e o Caixa passou a mostrar o valor revisado com base de R$ 150,00.
+   - No banco, a versão 1 gravou teto 75, referência 50, decisão 60, estorno 50, sem perda e o financeiro como autor; o repasse ficou `reviewed` em 60.
+   - A auditoria `reviewed` é única, tem o financeiro como autor e traz os valores **sem o motivo**. Nenhuma resposta idempotente da clínica contém o motivo.
+3. **Negativas.** Nenhuma gravou versão.
+   - **Atendente:** vê o Caixa e o valor revisado, mas não o formulário. A action direta respondeu "Você não tem permissão para esta ação.".
+   - **Médica, beneficiária do repasse:** o Caixa mostra "Sem acesso", e a action direta teve a mesma recusa.
+   - **Financeiro de A:**
+     - R$ 80 enviado direto à action foi recusado com "O valor revisado não pode passar de R$ 75,00, o cálculo original.";
+     - motivo de dois caracteres teve recusa genérica.
+   - **Financeiro da clínica B:**
+     - com o ID do repasse de A, a action respondeu "Repasse não encontrado nesta clínica.";
+     - com a mesma chave de idempotência usada em A, houve recusa (`retry`), sem devolver a resposta guardada de A.
+   - **Banco:** uma versão em A, nenhuma em B e uma auditoria `reviewed`.
+4. **Versão 2, re-suspensão e planos.**
+   - O dono registrou a versão 2, de R$ 55,00. A versão 1 ficou intacta, e um `UPDATE` direto nela foi recusado pela trigger.
+   - Um novo estorno de R$ 20 pelo Caixa suspendeu o repasse de novo: `payment_reversed_after_review`, com antes `reviewed`, 55,00 e versão 2.
+   - No plano Clínica, o financeiro viu a referência recalculada (R$ 40,00) e registrou a versão 3, de R$ 40,00, com estorno de 70.
+   - No plano Solo, a composição perdeu o detalhe de repasse e o formulário. A action respondeu "Políticas de repasse estão disponíveis nos planos Clínica e Pro.".
+5. **Sessão revogada.** O plano voltou a Pro. Com a sessão viva, a action chegou ao domínio e o teto recusou o valor. Depois do "Sair", o cookie copiado antes recebeu "Sua sessão expirou. Entre novamente." e nada foi gravado.
+
+**Cleanup e readback independente:** o spec apagou repasses (e, em cascata, as versões), outbox, auditoria e clínicas, e removeu os usuários Auth com GET 404 depois do DELETE. O readback do próprio spec deu zero. A releitura separada também deu zero clínicas e usuários `e2e-payout-review-%`, zero versões e zero repasses `reviewed` no DEV.
+
+**Alcance da prova.** No Preview, com papéis reais, ficaram comprovados:
+
+- permissão por papel, gate de plano Solo/Clínica/Pro e isolamento entre clínicas;
+- sessão revogada pelo "Sair";
+- versões imutáveis e auditoria sem o motivo;
+- re-suspensão por um estorno novo.
+
+Ficam **sem prova no Preview**:
+
+- base `NET`, inclusive o bloqueio quando falta o líquido original;
+- perda ou chargeback como gatilho;
+- dois revisores simultâneos (lock `FOR UPDATE`);
+- o papel `gestor`, que também tem `MANAGE_FINANCIAL`.
+
+Esses pontos estão cobertos só pelos testes locais e pelo Postgres descartável. O snapshot inicial é sintético, e o pagamento foi manual, não Asaas. A camada 4 segue **não aceita para produção** até a promoção da 0113 e das migrations anteriores no ambiente-alvo e a decisão sobre regra fixa acima da base.
