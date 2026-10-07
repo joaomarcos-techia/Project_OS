@@ -412,8 +412,8 @@ Cleanup: outbox, auditoria e clínica da fixture removidos; usuário Auth com DE
 | 4 — repasse | suspensão conservadora PASS; revisão humana PASS local, no Postgres descartável (8/8) e no E2E do Preview com papéis reais (5/5, `e1aae7c7`); 0113 só no DEV | sem prova no Preview: base NET, perda/chargeback e dois revisores simultâneos; regra fixa acima da base sem decisão |
 | 5 — UI, E2E e promoção | Preview 6/6 PASS em `1cc90e69` (fatos sintéticos); Caixa com fatos reais do Sandbox PASS (9ª execução); promoção NOT RUN | backup restaurável e plano de rollout ainda sem decisão |
 | Conta pausada | ciclo de configuração PASS no Sandbox; concorrência PASS no DEV; evento real de cobrança antiga com a conta pausada PASS no Preview (9ª execução) | no ciclo 6/6 de `1cc90e69`, o webhook apontava para outro deploy (`APP_BASE_URL`); a 9ª execução refez conexão e pausa com o host correto |
-| Refund PIX | BLOCKED BY ASAAS | `CREDIT_REFUND/REFUSED` sem causa; nenhum `DONE` |
-| IA → Asaas → Meta | NOT RUN | `feat/whatsapp-coexistence` já está em `main` e nesta branch (verificado em 07/10); faltam número de teste Meta numa clínica DEV, webhook Meta para o Preview e uma pessoa no circuito |
+| Estorno | fora do escopo agora | decisão de 04/10, reafirmada em 07/10: a clínica devolve ao paciente pela própria conta Asaas; a automação vem depois. O `CREDIT_REFUND/REFUSED` do Sandbox fica como histórico |
+| IA → Asaas → Meta | NOT RUN | `feat/whatsapp-coexistence` já está em `main` e nesta branch. Em 07/10, a pedido do usuário, as duas conexões reais do DEV foram desativadas para reconexão limpa (detalhe no prompt de retomada). Faltam conectar o número de teste a uma clínica DEV pelo Preview, levar o webhook Meta até o Preview e uma pessoa no circuito |
 
 ### 07/10/2026 — runner do pagamento real em conta pausada
 
