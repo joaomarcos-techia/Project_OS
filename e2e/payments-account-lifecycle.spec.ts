@@ -1,10 +1,11 @@
-import { randomUUID } from 'node:crypto';
+import { createHmac, randomBytes, randomUUID } from 'node:crypto';
 
 import { expect, test } from '@playwright/test';
 import { config as loadDotenv } from 'dotenv';
 import postgres from 'postgres';
 
 import { authenticate, hasE2ECredentials } from './auth';
+import { vercelBypassHeaders } from './vercel-bypass';
 import { assertDevContext } from '../scripts/_env';
 import { cleanupSandboxFixtureWebhook } from '../src/lib/test/asaas-fixture-webhook-cleanup';
 
@@ -52,6 +53,7 @@ const sandboxKey = process.env.ASAAS_CLINIC_SANDBOX_KEY;
 const paymentAccountMutation = process.env.E2E_PAYMENT_ACCOUNT_MUTATION;
 const isolatedFixture = process.env.E2E_PAYMENT_ACCOUNT_ISOLATED === '1';
 const fixtureRunId = randomUUID();
+const EXPECTED_DEV_PROJECT_REF = 'pqhkirrszzpwezdaqrai';
 const fixtureSlug = `e2e-payments-${fixtureRunId.slice(0, 8)}`;
 const fixtureEmail = `e2e-payments-${fixtureRunId}@example.invalid`;
 const fixturePassword = `Qoro${fixtureRunId.replaceAll('-', '')}Aa1!`;
@@ -76,10 +78,45 @@ function isolatedFixtureConfig(): {
   }
   const databaseRef = decodeURIComponent(new URL(databaseUrl).username).split('.').at(-1);
   const authRef = new URL(supabaseUrl).hostname.split('.')[0];
-  if (!databaseRef || databaseRef !== authRef) {
-    throw new Error('Fixture isolada recusou Database e Auth de projetos diferentes.');
+  if (databaseRef !== EXPECTED_DEV_PROJECT_REF || authRef !== EXPECTED_DEV_PROJECT_REF) {
+    throw new Error('Fixture isolada exige Database e Auth no projeto DEV fixado.');
   }
   return { databaseUrl, supabaseUrl, secretKey };
+}
+
+async function assertPreviewRuntimeIsDev(): Promise<void> {
+  const secret = process.env.MAGIC_TOKEN_SECRET_DEV ?? process.env.MAGIC_TOKEN_SECRET;
+  if (!baseUrl || !secret) throw new Error('Prova assinada do runtime Preview indisponível.');
+  const timestamp = Date.now();
+  const nonce = randomBytes(32).toString('base64url');
+  const signature = createHmac('sha256', secret)
+    .update(`POST\n/api/signup/runtime-fingerprint\n${timestamp}\n${nonce}`)
+    .digest('hex');
+  const response = await fetch(new URL('/api/signup/runtime-fingerprint', baseUrl), {
+    method: 'POST',
+    headers: {
+      ...vercelBypassHeaders(),
+      'content-type': 'application/json',
+      'x-qoro-e2e-signature': signature,
+    },
+    body: JSON.stringify({ timestamp, nonce }),
+    cache: 'no-store',
+    signal: AbortSignal.timeout(45_000),
+  });
+  if (!response.ok) throw new Error(`Preview recusou a prova do projeto DEV (${response.status}).`);
+  const result: unknown = await response.json();
+  if (
+    !result ||
+    typeof result !== 'object' ||
+    !('environment' in result) ||
+    !('authProjectRef' in result) ||
+    !('databaseProjectRef' in result) ||
+    result.environment !== 'preview' ||
+    result.authProjectRef !== EXPECTED_DEV_PROJECT_REF ||
+    result.databaseProjectRef !== EXPECTED_DEV_PROJECT_REF
+  ) {
+    throw new Error('Preview não comprovou Auth e banco no projeto DEV esperado.');
+  }
 }
 
 async function createIsolatedFixture(): Promise<void> {
@@ -263,6 +300,8 @@ test.describe.serial('conta de pagamento da clínica (Preview)', () => {
     if (!isolatedFixture) return;
     assertPreviewOnly();
     assertPaymentMutationOptIn();
+    isolatedFixtureConfig();
+    await assertPreviewRuntimeIsDev();
     await createIsolatedFixture();
   });
 
