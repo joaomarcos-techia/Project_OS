@@ -27,6 +27,7 @@ interface AccountRow {
   account_name: string | null;
   key_version: number;
   active: boolean;
+  accept_new_charges: boolean;
   connected_at: string | null;
   webhook_configured_at: string | null;
 }
@@ -34,7 +35,8 @@ interface AccountRow {
 export async function getPaymentAccountStatus(clinicId: string): Promise<PaymentAccountStatusDTO> {
   const rows = (await withTenant(clinicId, (tx) =>
     tx.execute(sql`
-      SELECT provider, account_name, key_version, active, connected_at, webhook_configured_at
+      SELECT provider, account_name, key_version, active, accept_new_charges,
+             connected_at, webhook_configured_at
       FROM clinic_payment_accounts
       WHERE provider = 'asaas'
       LIMIT 1`),
@@ -47,6 +49,7 @@ export async function getPaymentAccountStatus(clinicId: string): Promise<Payment
     provider: 'asaas',
     // Invariante do CHECK da 0081: ativa ⇒ existe chave. Ver types.ts.
     hasApiKey: row.active,
+    acceptNewCharges: row.active && row.accept_new_charges,
     webhookConfigured: row.webhook_configured_at !== null,
     accountName: row.account_name,
     keyVersion: row.key_version,

@@ -49,6 +49,7 @@ import {
   getWebhookSetupTarget,
   markWebhookConfigured,
   upsertPaymentAccount,
+  withPaymentWebhookLock,
 } from '@/lib/payments/account-store';
 import { env } from '@/lib/env';
 import { buildApplicationUrl } from '@/lib/http/application-url';
@@ -323,21 +324,23 @@ export async function connectPaymentAccount(
     encryptForTenant(clinicId, webhookToken),
   ]);
 
-  const result = await upsertPaymentAccount({
-    clinicId,
-    userId: user.userId,
-    apiKeyEncrypted,
-    apiKeyHash,
-    accountName,
-    webhookTokenEncrypted,
-    requestContext: ctx,
-  });
-
   // `webhook_configured_at` prova apenas que o Asaas aceitou a configuração no
   // passado. O recurso pode ter sido removido no provider depois disso. Sempre
-  // reconcilia ao reenviar a chave: `createWebhook` faz upsert por nome +
-  // pathname/ref, atualiza o existente sem duplicar e recria somente quando sumiu.
-  const webhookResult = await tryConfigureWebhook(clinicId, accountEmail);
+  // reconcilia ao reenviar a chave: `createWebhook` faz upsert por pathname/ref,
+  // atualiza o existente sem duplicar e recria somente quando sumiu.
+  const { result, webhookResult } = await withPaymentWebhookLock(clinicId, async () => {
+    const result = await upsertPaymentAccount({
+      clinicId,
+      userId: user.userId,
+      apiKeyEncrypted,
+      apiKeyHash,
+      accountName,
+      webhookTokenEncrypted,
+      requestContext: ctx,
+    });
+    const webhookResult = await tryConfigureWebhook(clinicId, accountEmail);
+    return { result, webhookResult };
+  });
 
   // Sem chave, sem hash, sem nome de conta: só o suficiente para ver adoção e
   // investigar volume. `changed:false` = reenvio da mesma chave.
@@ -348,8 +351,9 @@ export async function connectPaymentAccount(
 }
 
 /**
- * Desconecta a conta. A chave é APAGADA (não escondida) — ver `account-store`.
- * Idempotente: desconectar o que já estava desconectado não é erro.
+ * Pausa novas cobranças antes de tentar desconectar. Com histórico financeiro,
+ * a chave permanece cifrada para reconciliar estornos e correções posteriores.
+ * Sem histórico, o webhook é desativado no Asaas e só então a chave é apagada.
  */
 export async function disconnectPaymentAccount(): Promise<PaymentAccountStatusDTO> {
   const user = await requireUser();
@@ -362,7 +366,10 @@ export async function disconnectPaymentAccount(): Promise<PaymentAccountStatusDT
     userId: user.userId,
     requestContext: ctx,
   });
-  metrics.emit('payments.account.disconnected', { clinicId, changed: result.changed });
+  metrics.emit(
+    result.state === 'paused' ? 'payments.account.paused' : 'payments.account.disconnected',
+    { clinicId, changed: result.changed },
+  );
 
   return getPaymentAccountStatus(clinicId);
 }

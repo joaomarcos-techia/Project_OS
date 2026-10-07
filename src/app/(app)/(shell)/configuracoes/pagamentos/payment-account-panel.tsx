@@ -81,9 +81,14 @@ export function PaymentAccountPanel({ status }: Props) {
       const result = await disconnectPaymentAccountAction();
       if (!result.ok) {
         setError(result.message);
+        router.refresh();
         return;
       }
-      setNotice('Conta desconectada. A chave foi apagada do sistema.');
+      setNotice(
+        result.data.hasApiKey
+          ? 'Novas cobranças foram pausadas. A chave e o webhook ficam ativos para conciliar pagamentos e estornos existentes.'
+          : 'Conta desconectada. Não há webhook ativo para esta conta no Asaas, e a chave foi apagada do sistema.',
+      );
       router.refresh();
     });
   }
@@ -146,11 +151,20 @@ export function PaymentAccountPanel({ status }: Props) {
             </Alert>
           ) : null}
 
+          {status.hasApiKey && !status.acceptNewCharges ? (
+            <Alert variant="warning" title="Novas cobranças pausadas">
+              A conta continua conectada somente para conciliar cobranças e estornos já existentes.
+              Para voltar a cobrar, reenvie a chave da conta Asaas.
+            </Alert>
+          ) : null}
+
           {status.hasApiKey ? (
             <div className="flex flex-wrap items-center gap-3">
-              <Badge tone="green">
-                <CircleCheck aria-hidden="true" className="size-4" />
-                Conectada
+              <Badge tone={status.acceptNewCharges ? 'green' : 'amber'}>
+                {status.acceptNewCharges ? (
+                  <CircleCheck aria-hidden="true" className="size-4" />
+                ) : null}
+                {status.acceptNewCharges ? 'Conectada' : 'Pausada'}
               </Badge>
               {status.accountName ? (
                 <span className="text-(length:--fs-sm)">{status.accountName}</span>
@@ -189,11 +203,11 @@ export function PaymentAccountPanel({ status }: Props) {
 
             <div className="flex flex-wrap gap-3">
               <Button type="submit" disabled={pending || apiKey.trim().length === 0}>
-                {status.hasApiKey ? 'Trocar chave' : 'Conectar conta'}
+                {status.hasApiKey ? 'Conectar ou retomar' : 'Conectar conta'}
               </Button>
               {status.hasApiKey ? (
                 <Button type="button" variant="ghost" disabled={pending} onClick={handleDisconnect}>
-                  Desconectar
+                  {status.acceptNewCharges ? 'Pausar ou desconectar' : 'Tentar desconexão'}
                 </Button>
               ) : null}
             </div>

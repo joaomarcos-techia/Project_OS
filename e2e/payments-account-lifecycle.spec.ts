@@ -305,7 +305,7 @@ test.describe.serial('conta de pagamento da clínica (Preview)', () => {
 
     const invalidKey = '$aact_chave_invalida_de_teste_0000';
     await campo.fill(invalidKey);
-    await page.getByRole('button', { name: /Conectar conta|Trocar chave/ }).click();
+    await page.getByRole('button', { name: /Conectar conta|Conectar ou retomar/ }).click();
 
     // A recusa tem de ser VISÍVEL. Um erro que some deixando a tela como estava
     // é indistinguível de sucesso para quem opera.
@@ -324,10 +324,7 @@ test.describe.serial('conta de pagamento da clínica (Preview)', () => {
 
   test('ciclo completo: conecta, persiste e desconecta', async ({ page }) => {
     test.setTimeout(300_000);
-    test.skip(
-      !isolatedFixture && !hasE2ECredentials(),
-      'Defina E2E_USER_EMAIL e E2E_USER_PASSWORD.',
-    );
+    test.skip(!isolatedFixture, 'O ciclo mutante exige clínica isolada no DEV.');
     test.skip(!sandboxKey, 'Defina ASAAS_CLINIC_SANDBOX_KEY (conta sandbox DA CLÍNICA).');
     assertPreviewOnly();
     assertPaymentMutationOptIn();
@@ -349,6 +346,7 @@ test.describe.serial('conta de pagamento da clínica (Preview)', () => {
         'Para exercitar o ciclo, desconecte pela tela antes — isto NÃO é aprovação do ciclo.',
     );
 
+    let webhookRef = '';
     let primaryError: unknown;
     try {
       await campo.fill(sandboxKey!);
@@ -366,6 +364,13 @@ test.describe.serial('conta de pagamento da clínica (Preview)', () => {
         await lerEstado(page),
         'o estado não persistiu — era estado de React, não do banco',
       ).toBe('conectada');
+      const [account] = await fixtureSql!<{ webhook_ref: string; accept_new_charges: boolean }[]>`
+        select webhook_ref::text, accept_new_charges
+          from clinic_payment_accounts where clinic_id = ${fixtureClinicId}::uuid
+      `;
+      expect(account?.accept_new_charges, 'a conexão não habilitou novas cobranças').toBe(true);
+      if (!account?.webhook_ref) throw new Error('Conta conectada sem referência do webhook.');
+      webhookRef = account.webhook_ref;
     } catch (error) {
       primaryError = error;
     }
@@ -374,11 +379,71 @@ test.describe.serial('conta de pagamento da clínica (Preview)', () => {
     try {
       await page.goto('/configuracoes/pagamentos');
       if ((await lerEstado(page)) === 'conectada') {
-        await page.getByRole('button', { name: 'Desconectar' }).click();
+        await page.getByRole('button', { name: 'Pausar ou desconectar' }).click();
         await expect(page.getByText(/Nenhuma conta conectada/)).toBeVisible({ timeout: 60_000 });
       }
       await page.reload();
       expect(await lerEstado(page), 'a desconexão não persistiu').toBe('vazia');
+      if (webhookRef) {
+        const [account] = await fixtureSql!<
+          {
+            active: boolean;
+            accept_new_charges: boolean;
+            api_key_encrypted: string | null;
+            webhook_token_encrypted: string | null;
+          }[]
+        >`
+          select active, accept_new_charges, api_key_encrypted, webhook_token_encrypted
+            from clinic_payment_accounts where clinic_id = ${fixtureClinicId}::uuid
+        `;
+        expect(account).toMatchObject({
+          active: false,
+          accept_new_charges: false,
+          api_key_encrypted: null,
+          webhook_token_encrypted: null,
+        });
+        const headers = { access_token: sandboxKey! };
+        const list = await fetch('https://api-sandbox.asaas.com/v3/webhooks?offset=0&limit=100', {
+          headers,
+        });
+        expect(list.status, 'Asaas não permitiu ler os webhooks da fixture').toBe(200);
+        const body: unknown = await list.json();
+        if (!body || typeof body !== 'object' || !('data' in body) || !Array.isArray(body.data)) {
+          throw new Error('Listagem de webhooks Sandbox malformada.');
+        }
+        const expectedPath = `/api/webhooks/asaas/patient/${webhookRef}`;
+        const matches = body.data.filter((item: unknown) => {
+          if (!item || typeof item !== 'object' || !('url' in item)) return false;
+          if (typeof item.url !== 'string') return false;
+          try {
+            return new URL(item.url).pathname === expectedPath;
+          } catch {
+            return false;
+          }
+        });
+        expect(
+          matches,
+          'o webhook da fixture não existe mais para confirmar enabled=false',
+        ).toHaveLength(1);
+        const remote = matches[0];
+        if (
+          !remote ||
+          typeof remote !== 'object' ||
+          !('id' in remote) ||
+          typeof remote.id !== 'string'
+        ) {
+          throw new Error('Webhook da fixture sem ID no readback.');
+        }
+        const detail = await fetch(
+          `https://api-sandbox.asaas.com/v3/webhooks/${encodeURIComponent(remote.id)}`,
+          { headers },
+        );
+        expect(detail.status, 'Asaas não permitiu confirmar o webhook da fixture').toBe(200);
+        const remoteDetail: unknown = await detail.json();
+        expect(remoteDetail, 'o webhook da fixture não foi desativado').toMatchObject({
+          enabled: false,
+        });
+      }
     } catch (error) {
       cleanupError = error;
     }

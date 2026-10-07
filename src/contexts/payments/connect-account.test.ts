@@ -65,7 +65,10 @@ vi.mock('@/lib/payments/asaas', async (importActual) => {
 });
 vi.mock('@/lib/payments/account-store', () => ({
   upsertPaymentAccount: vi.fn(async () => ({ id: 'acc-1', changed: true })),
-  deactivatePaymentAccount: vi.fn(async () => ({ changed: true })),
+  deactivatePaymentAccount: vi.fn(async () => ({ changed: true, state: 'disconnected' })),
+  withPaymentWebhookLock: vi.fn(async (_clinicId: string, operation: () => Promise<unknown>) =>
+    operation(),
+  ),
   getWebhookSetupTarget: mocks.getWebhookSetupTarget,
   markWebhookConfigured: mocks.markWebhookConfigured,
 }));
@@ -73,6 +76,7 @@ vi.mock('./queries', () => ({
   getPaymentAccountStatus: vi.fn(async () => ({
     provider: 'asaas',
     hasApiKey: true,
+    acceptNewCharges: true,
     webhookConfigured: true,
     accountName: 'Clínica Exemplo',
     keyVersion: 1,
@@ -87,7 +91,11 @@ import {
   BillingProviderError,
   BillingProviderUnreachableError,
 } from '@/lib/payments/asaas';
-import { deactivatePaymentAccount, upsertPaymentAccount } from '@/lib/payments/account-store';
+import {
+  deactivatePaymentAccount,
+  upsertPaymentAccount,
+  withPaymentWebhookLock,
+} from '@/lib/payments/account-store';
 
 import { connectPaymentAccount, disconnectPaymentAccount } from './actions';
 import { PaymentCredentialRejectedError, PaymentProviderUnavailableError } from './errors';
@@ -113,6 +121,28 @@ beforeEach(() => {
 });
 
 describe('connectPaymentAccount', () => {
+  it('mantém gravação e configuração remota sob o mesmo lock da desconexão', async () => {
+    const stages: string[] = [];
+    vi.mocked(withPaymentWebhookLock).mockImplementationOnce(async (_clinicId, operation) => {
+      stages.push('lock');
+      const result = await operation();
+      stages.push('unlock');
+      return result;
+    });
+    vi.mocked(upsertPaymentAccount).mockImplementationOnce(async () => {
+      stages.push('upsert');
+      return { id: 'acc-1', changed: true };
+    });
+    mocks.createWebhook.mockImplementationOnce(async () => {
+      stages.push('webhook');
+      return { webhookId: 'webhook-1' };
+    });
+
+    await connectPaymentAccount({ apiKey: SECRET });
+
+    expect(stages).toEqual(['lock', 'upsert', 'webhook', 'unlock']);
+  });
+
   it('descarta token do webhook com quatro caracteres iguais ou sequência numérica', async () => {
     const repeated = Buffer.from(
       'AQEBAQEB' + 'AAAA' + 'BAQEBAQE'.repeat(3) + 'BAQEBAQ',
@@ -340,6 +370,19 @@ describe('disconnectPaymentAccount', () => {
       clinicId: 'clinic-1',
       changed: true,
     });
+  });
+
+  it('distingue pausa para reconciliação de desconexão efetiva', async () => {
+    vi.mocked(deactivatePaymentAccount).mockResolvedValueOnce({ changed: true, state: 'paused' });
+    await disconnectPaymentAccount();
+    expect(metrics.emit).toHaveBeenCalledWith('payments.account.paused', {
+      clinicId: 'clinic-1',
+      changed: true,
+    });
+    expect(metrics.emit).not.toHaveBeenCalledWith(
+      'payments.account.disconnected',
+      expect.anything(),
+    );
   });
 
   it('exige a mesma permissão do connect', async () => {

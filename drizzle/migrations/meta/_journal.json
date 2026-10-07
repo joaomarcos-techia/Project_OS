@@ -778,6 +778,20 @@
       "when": 1791177600000,
       "tag": "0110_patient_payment_fee_corrections",
       "breakpoints": true
+    },
+    {
+      "idx": 111,
+      "version": "7",
+      "when": 1791264000000,
+      "tag": "0111_payment_account_pause",
+      "breakpoints": true
+    },
+    {
+      "idx": 112,
+      "version": "7",
+      "when": 1791350400000,
+      "tag": "0112_payment_account_pause_default",
+      "breakpoints": true
     }
   ]
 }

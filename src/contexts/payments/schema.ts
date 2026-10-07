@@ -59,6 +59,8 @@ export const clinicPaymentAccounts = pgTable(
     /** Nome da conta como o Asaas devolve — confirmação visual, sem PII de terceiro. */
     accountName: text('account_name'),
     active: boolean('active').notNull().default(false),
+    /** Pausa novas cobranças; chave/webhook permanecem para conciliar obrigações. */
+    acceptNewCharges: boolean('accept_new_charges').notNull().default(false),
     /**
      * ADR-049 1.4 — ENDEREÇO do webhook desta clínica, não segredo. Vai na URL
      * (`/api/webhooks/asaas/patient/<ref>`) para resolver qual clínica sem

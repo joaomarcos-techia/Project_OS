@@ -670,6 +670,71 @@ describe('criação de webhook', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it('retoma webhook renomeado sem criar uma segunda inscrição para a mesma ref', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        Response.json({
+          data: [
+            {
+              id: 'wh_renamed',
+              name: 'Nome alterado no painel',
+              url: 'https://preview-antigo.qoro.test/api/webhooks/asaas/patient/ref-1',
+              enabled: false,
+            },
+          ],
+          hasMore: false,
+        }),
+      )
+      .mockResolvedValueOnce(Response.json({ id: 'wh_renamed', enabled: true }));
+    const client = createAsaasClient({ apiKey: 'chave-da-clinica' });
+
+    await expect(
+      client.createWebhook({
+        name: 'Qoro — cobrança de paciente',
+        url: 'https://preview-atual.qoro.test/api/webhooks/asaas/patient/ref-1',
+        email: 'gestor@example.test',
+        authToken: 'token-atual-com-mais-de-32-caracteres',
+        events: ['PAYMENT_RECEIVED'],
+      }),
+    ).resolves.toEqual({ webhookId: 'wh_renamed' });
+    expect(fetchMock.mock.calls.map(([, init]) => (init as RequestInit).method)).toEqual([
+      'GET',
+      'PUT',
+    ]);
+  });
+
+  it('não cria webhook se o Asaas devolver uma lista incompleta', async () => {
+    fetchMock.mockResolvedValueOnce(Response.json({ data: [], hasMore: true }));
+    const client = createAsaasClient({ apiKey: 'chave-da-clinica' });
+    await expect(
+      client.createWebhook({
+        name: 'Qoro — cobrança de paciente',
+        url: 'https://preview.qoro.test/api/webhooks/asaas/patient/ref-1',
+        email: 'gestor@example.test',
+        authToken: 'token-atual-com-mais-de-32-caracteres',
+        events: ['PAYMENT_RECEIVED'],
+      }),
+    ).rejects.toThrow('lista incompleta');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('não cria webhook quando uma linha da lista perdeu ID ou URL', async () => {
+    fetchMock.mockResolvedValueOnce(
+      Response.json({ data: [{ id: 'wh_sem_url', enabled: true }], hasMore: false }),
+    );
+    const client = createAsaasClient({ apiKey: 'chave-da-clinica' });
+    await expect(
+      client.createWebhook({
+        name: 'Qoro — cobrança de paciente',
+        url: 'https://preview.qoro.test/api/webhooks/asaas/patient/ref-1',
+        email: 'gestor@example.test',
+        authToken: 'token-atual-com-mais-de-32-caracteres',
+        events: ['PAYMENT_RECEIVED'],
+      }),
+    ).rejects.toThrow('linha inválida');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('converge por PUT quando outro request cria o webhook entre GET e POST', async () => {
     fetchMock
       .mockResolvedValueOnce(Response.json({ data: [] }))
@@ -709,6 +774,90 @@ describe('criação de webhook', () => {
       'GET',
       'PUT',
     ]);
+  });
+});
+
+describe('desativação de webhook de paciente', () => {
+  const input = {
+    pathname: '/api/webhooks/asaas/patient/ref-1',
+  };
+
+  it('desativa só a ref exata e confirma por GET antes de retornar', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        Response.json({
+          data: [
+            {
+              id: 'wh_other',
+              name: 'Outro webhook',
+              url: 'https://old.test/api/webhooks/asaas/patient/ref-2',
+              enabled: true,
+            },
+            {
+              id: 'wh_target',
+              name: 'Webhook renomeado no painel',
+              url: `https://old.test${input.pathname}?x-vercel-protection-bypass=hidden`,
+              enabled: true,
+            },
+          ],
+          hasMore: false,
+        }),
+      )
+      .mockResolvedValueOnce(Response.json({ id: 'wh_target', enabled: false }))
+      .mockResolvedValueOnce(
+        Response.json({
+          id: 'wh_target',
+          url: `https://old.test${input.pathname}`,
+          enabled: false,
+        }),
+      );
+    const client = createAsaasClient({ apiKey: 'test-key' });
+    await expect(client.disableWebhook(input)).resolves.toEqual({ matched: 1 });
+    expect(fetchMock.mock.calls.map(([url, init]) => [url, (init as RequestInit).method])).toEqual([
+      ['https://sandbox.asaas.com/api/v3/webhooks?offset=0&limit=100', 'GET'],
+      ['https://sandbox.asaas.com/api/v3/webhooks/wh_target', 'PUT'],
+      ['https://sandbox.asaas.com/api/v3/webhooks/wh_target', 'GET'],
+    ]);
+    expect((fetchMock.mock.calls[1]![1] as RequestInit).body).toBe(
+      JSON.stringify({ enabled: false }),
+    );
+  });
+
+  it('falha fechada se o readback não confirmar enabled=false', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        Response.json({
+          data: [
+            {
+              id: 'wh_target',
+              name: 'Webhook renomeado no painel',
+              url: `https://old.test${input.pathname}`,
+              enabled: true,
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(Response.json({ id: 'wh_target', enabled: false }))
+      .mockResolvedValueOnce(
+        Response.json({ id: 'wh_target', url: `https://old.test${input.pathname}`, enabled: true }),
+      );
+    const client = createAsaasClient({ apiKey: 'test-key' });
+    await expect(client.disableWebhook(input)).rejects.toThrow('desativação não confirmada');
+  });
+
+  it('não desativa nada quando a ref não existe e recusa lista incompleta', async () => {
+    const client = createAsaasClient({ apiKey: 'test-key' });
+    fetchMock.mockResolvedValueOnce(Response.json({ data: [], hasMore: false }));
+    await expect(client.disableWebhook(input)).resolves.toEqual({ matched: 0 });
+    fetchMock.mockResolvedValueOnce(Response.json({ data: [], hasMore: true }));
+    await expect(client.disableWebhook(input)).rejects.toThrow('lista incompleta');
+    fetchMock.mockResolvedValueOnce(Response.json({ unexpected: true }));
+    await expect(client.disableWebhook(input)).rejects.toThrow('lista incompleta');
+    fetchMock.mockResolvedValueOnce(Response.json({ data: [{ url: 'https://old.test/other' }] }));
+    await expect(client.disableWebhook(input)).rejects.toThrow('linha inválida');
+    expect(fetchMock.mock.calls.every(([, init]) => (init as RequestInit).method === 'GET')).toBe(
+      true,
+    );
   });
 });
 

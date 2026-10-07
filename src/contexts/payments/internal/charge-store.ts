@@ -16,6 +16,7 @@ import { and, eq, gt, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm';
 
 import type { Tx } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
+import { PAYMENT_ACCOUNT_LOCK_NAMESPACE } from '@/lib/payments/account-lock';
 import { metrics } from '@/lib/observability/metrics';
 import { publishEvent } from '@/lib/outbox/publish';
 
@@ -31,6 +32,7 @@ import {
   type PatientCreditReleasedPayload,
 } from '../events';
 import {
+  clinicPaymentAccounts,
   patientCharges,
   patientCheckoutGenerations,
   patientPaymentCustomers,
@@ -147,7 +149,23 @@ export type InitialCheckoutClaim =
       externalReference: string;
       expiresAt: Date;
     }
-  | { state: 'existing'; chargeId: string };
+  | { state: 'existing'; chargeId: string }
+  | { state: 'account_paused' };
+
+/** Serializa a reserva de Checkout com a pausa da conta, antes de qualquer POST. */
+async function mayCreateCheckout(tx: Tx, clinicId: string): Promise<boolean> {
+  await tx.execute(
+    sql`SELECT pg_advisory_xact_lock(${PAYMENT_ACCOUNT_LOCK_NAMESPACE}, hashtext(${clinicId}::text))`,
+  );
+  const [account] = await tx
+    .select({ acceptNewCharges: clinicPaymentAccounts.acceptNewCharges })
+    .from(clinicPaymentAccounts)
+    .where(
+      and(eq(clinicPaymentAccounts.clinicId, clinicId), eq(clinicPaymentAccounts.active, true)),
+    )
+    .limit(1);
+  return account?.acceptNewCharges === true;
+}
 
 /**
  * Persiste a dívida e adquire o lease ANTES de `POST /checkouts`.
@@ -170,6 +188,7 @@ export async function claimInitialCheckoutCharge(input: {
   requestedInstallmentCount?: number | null;
 }): Promise<InitialCheckoutClaim> {
   return withTenant(input.clinicId, async (tx) => {
+    if (!(await mayCreateCheckout(tx, input.clinicId))) return { state: 'account_paused' };
     const chargeExternalReference =
       input.kind === 'deposit'
         ? depositExternalReference(input.appointmentId)
@@ -471,7 +490,8 @@ export type CheckoutRenewalClaim =
       generation: number;
       externalReference: string;
     }
-  | { state: 'lost' };
+  | { state: 'lost' }
+  | { state: 'account_paused' };
 
 /** Troca a geração expirada por um lease novo; um único worker vence. */
 export async function claimRemainderCheckoutRenewal(input: {
@@ -482,6 +502,7 @@ export async function claimRemainderCheckoutRenewal(input: {
   now: Date;
 }): Promise<CheckoutRenewalClaim> {
   return withTenant(input.clinicId, async (tx) => {
+    if (!(await mayCreateCheckout(tx, input.clinicId))) return { state: 'account_paused' };
     const [charge] = await tx
       .select({
         id: patientCharges.id,

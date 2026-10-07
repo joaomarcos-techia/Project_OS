@@ -26,13 +26,31 @@ import { sql } from 'drizzle-orm';
 import { logAudit } from '@/lib/audit/log';
 import type { RequestContext } from '@/lib/audit/types';
 import { decryptForTenant } from '@/lib/crypto';
-import { dbAdmin } from '@/lib/db';
+import { dbAdmin, dbWorker } from '@/lib/db';
 import type { Tx } from '@/lib/db';
 
 import { createAsaasClient, type AsaasClient } from './asaas';
+import { PAYMENT_ACCOUNT_LOCK_NAMESPACE } from './account-lock';
 
 /** Único provider suportado — single-gateway por desenho (ADR-049 / §13.15). */
 export const PAYMENT_PROVIDER = 'asaas' as const;
+
+/**
+ * Impede configurar um webhook depois que a desconexão o desativou. O lock fica
+ * no pool separado do worker: a operação usa dbAdmin internamente, e segurar
+ * uma conexão do próprio dbAdmin aqui poderia esgotá-lo sob concorrência.
+ */
+export async function withPaymentWebhookLock<T>(
+  clinicId: string,
+  operation: () => Promise<T>,
+): Promise<T> {
+  return dbWorker.transaction(async (tx: Tx) => {
+    await tx.execute(
+      sql`SELECT pg_advisory_xact_lock(${PAYMENT_ACCOUNT_LOCK_NAMESPACE}, hashtext(${clinicId}::text))`,
+    );
+    return operation();
+  });
+}
 
 export interface UpsertPaymentAccountInput {
   clinicId: string;
@@ -66,28 +84,51 @@ export async function upsertPaymentAccount(
   input: UpsertPaymentAccountInput,
 ): Promise<UpsertPaymentAccountResult> {
   return dbAdmin.transaction(async (tx: Tx) => {
-    const existing = await tx.execute<{ id: string; api_key_hash: string | null; active: boolean }>(
+    const existing = await tx.execute<{
+      id: string;
+      api_key_hash: string | null;
+      key_version: number;
+      active: boolean;
+      accept_new_charges: boolean;
+    }>(
       sql`
-        SELECT id, api_key_hash, active
+        SELECT id, api_key_hash, key_version, active, accept_new_charges
         FROM clinic_payment_accounts
         WHERE clinic_id = ${input.clinicId} AND provider = ${PAYMENT_PROVIDER}
         LIMIT 1
+        FOR UPDATE
       `,
     );
     const current = existing[0] ?? null;
 
-    if (current && current.active && current.api_key_hash === input.apiKeyHash) {
-      return { id: current.id, changed: false };
+    if (current?.active && current.api_key_hash === input.apiKeyHash) {
+      if (current.accept_new_charges) return { id: current.id, changed: false };
+      await tx.execute(sql`
+        UPDATE clinic_payment_accounts
+        SET accept_new_charges = true, updated_at = now()
+        WHERE id = ${current.id} AND clinic_id = ${input.clinicId}
+      `);
+      await logAudit(tx, {
+        clinicId: input.clinicId,
+        userId: input.userId,
+        action: 'payments.account.resumed',
+        resourceType: 'clinic_payment_account',
+        resourceId: current.id,
+        before: null,
+        after: { provider: PAYMENT_PROVIDER, acceptNewCharges: true },
+        requestContext: input.requestContext,
+      });
+      return { id: current.id, changed: true };
     }
 
     const rows = await tx.execute<{ id: string; key_version: number }>(sql`
       INSERT INTO clinic_payment_accounts
         (clinic_id, provider, api_key_encrypted, api_key_hash, key_version,
-         account_name, active, connected_at, connected_by, disconnected_at,
+         account_name, active, accept_new_charges, connected_at, connected_by, disconnected_at,
          webhook_token_encrypted, webhook_configured_at)
       VALUES
         (${input.clinicId}, ${PAYMENT_PROVIDER}, ${input.apiKeyEncrypted}, ${input.apiKeyHash}, 1,
-         ${input.accountName}, true, now(), ${input.userId}, NULL,
+        ${input.accountName}, true, true, now(), ${input.userId}, NULL,
          ${input.webhookTokenEncrypted}, NULL)
       ON CONFLICT (clinic_id, provider) DO UPDATE SET
         api_key_encrypted = EXCLUDED.api_key_encrypted,
@@ -102,6 +143,7 @@ export async function upsertPaymentAccount(
         key_version       = clinic_payment_accounts.key_version + 1,
         account_name      = EXCLUDED.account_name,
         active            = true,
+        accept_new_charges = true,
         connected_at      = now(),
         connected_by      = EXCLUDED.connected_by,
         disconnected_at   = NULL,
@@ -131,49 +173,101 @@ export async function upsertPaymentAccount(
 }
 
 /**
- * Desconecta a conta: **apaga** a chave (NULL), não apenas marca inativa. Segredo
- * que não existe mais não vaza em backup, dump ou bug de leitura futuro. O CHECK
- * `active = false OR api_key_encrypted IS NOT NULL` (0081) garante que o par
- * "ativa sem chave" seja impossível.
- *
- * Idempotente: desconectar uma conta já desconectada não audita nada.
+ * Primeiro pausa novas reservas de Checkout; a chave e o webhook permanecem
+ * enquanto existir qualquer cobrança da clínica. Sem histórico financeiro,
+ * desativa o webhook remoto com readback antes de apagar os segredos locais.
+ * Falha externa deixa a conta pausada e pronta para nova tentativa.
  */
 export async function deactivatePaymentAccount(input: {
   clinicId: string;
   userId: string;
   requestContext: RequestContext;
-}): Promise<{ changed: boolean }> {
-  return dbAdmin.transaction(async (tx: Tx) => {
-    const rows = await tx.execute<{ id: string }>(sql`
-      UPDATE clinic_payment_accounts SET
-        active = false,
-        api_key_encrypted = NULL,
-        api_key_hash = NULL,
-        -- O token do webhook morre junto: sem conta, nenhum webhook daquela
-        -- clinica deve ser aceito.
-        webhook_token_encrypted = NULL,
-        webhook_configured_at = NULL,
-        disconnected_at = now(),
-        updated_at = now()
-      WHERE clinic_id = ${input.clinicId}
-        AND provider = ${PAYMENT_PROVIDER}
-        AND active = true
-      RETURNING id
+}): Promise<{ changed: boolean; state: 'paused' | 'disconnected' }> {
+  return withPaymentWebhookLock(input.clinicId, async () => {
+    const pause = await dbAdmin.transaction(async (tx: Tx) => {
+      // Mesmo lock dos claims de Checkout: a pausa vence antes de qualquer POST
+      // novo, ou aguarda a intenção que já foi persistida.
+      const [account] = await tx.execute<{
+        id: string;
+        active: boolean;
+        accept_new_charges: boolean;
+      }>(sql`
+      SELECT id, active, accept_new_charges FROM clinic_payment_accounts
+      WHERE clinic_id = ${input.clinicId} AND provider = ${PAYMENT_PROVIDER}
+      LIMIT 1 FOR UPDATE
     `);
-    const row = rows[0];
-    if (!row) return { changed: false };
-
-    await logAudit(tx, {
-      clinicId: input.clinicId,
-      userId: input.userId,
-      action: 'payments.account.disconnected',
-      resourceType: 'clinic_payment_account',
-      resourceId: row.id,
-      before: null,
-      after: { provider: PAYMENT_PROVIDER },
-      requestContext: input.requestContext,
+      if (!account?.active) return { changed: false, state: 'disconnected' as const };
+      if (!account.accept_new_charges) return { changed: false, state: 'paused' as const };
+      await tx.execute(sql`
+      UPDATE clinic_payment_accounts SET accept_new_charges = false, updated_at = now()
+      WHERE id = ${account.id} AND clinic_id = ${input.clinicId}
+    `);
+      await logAudit(tx, {
+        clinicId: input.clinicId,
+        userId: input.userId,
+        action: 'payments.account.paused',
+        resourceType: 'clinic_payment_account',
+        resourceId: account.id,
+        before: null,
+        after: { provider: PAYMENT_PROVIDER, acceptNewCharges: false },
+        requestContext: input.requestContext,
+      });
+      return { changed: true, state: 'paused' as const };
     });
-    return { changed: true };
+    if (pause.state === 'disconnected') return pause;
+
+    return dbAdmin.transaction(async (tx: Tx) => {
+      const [account] = await tx.execute<{
+        id: string;
+        active: boolean;
+        accept_new_charges: boolean;
+        api_key_encrypted: string | null;
+        webhook_ref: string;
+      }>(sql`
+      SELECT id, active, accept_new_charges, api_key_encrypted, webhook_ref::text AS webhook_ref
+      FROM clinic_payment_accounts
+      WHERE clinic_id = ${input.clinicId} AND provider = ${PAYMENT_PROVIDER}
+      LIMIT 1 FOR UPDATE
+    `);
+      if (!account?.active) return { changed: pause.changed, state: 'disconnected' as const };
+      if (account.accept_new_charges) return { changed: pause.changed, state: 'paused' as const };
+
+      // Histórico pago ainda pode produzir estorno/chargeback ou correção de tarifa.
+      // A conta permanece pausada e conciliável; nenhuma credencial é perdida.
+      const [obligation] = await tx.execute<{ present: number }>(sql`
+      SELECT 1 AS present FROM patient_charges
+      WHERE clinic_id = ${input.clinicId} LIMIT 1
+    `);
+      if (obligation) return { changed: pause.changed, state: 'paused' as const };
+      if (!account.api_key_encrypted) throw new Error('conta ativa sem credencial cifrada');
+
+      const apiKey = await decryptForTenant(input.clinicId, account.api_key_encrypted);
+      const client = createAsaasClient({ apiKey });
+      await client.disableWebhook({
+        pathname: `/api/webhooks/asaas/patient/${account.webhook_ref}`,
+      });
+
+      await tx.execute(sql`
+      UPDATE clinic_payment_accounts SET
+        active = false, accept_new_charges = false,
+        api_key_encrypted = NULL, api_key_hash = NULL,
+        webhook_token_encrypted = NULL, webhook_configured_at = NULL,
+        disconnected_at = now(), updated_at = now()
+      WHERE id = ${account.id} AND clinic_id = ${input.clinicId}
+        AND active = true AND accept_new_charges = false
+    `);
+      await logAudit(tx, {
+        clinicId: input.clinicId,
+        userId: input.userId,
+        action: 'payments.account.disconnected',
+        resourceType: 'clinic_payment_account',
+        resourceId: account.id,
+        before: null,
+        after: { provider: PAYMENT_PROVIDER, remoteWebhookDisabled: true },
+        requestContext: input.requestContext,
+      });
+      return { changed: true, state: 'disconnected' as const };
+    });
   });
 }
 

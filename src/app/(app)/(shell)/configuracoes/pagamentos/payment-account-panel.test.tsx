@@ -20,6 +20,7 @@ import { PaymentAccountPanel } from './payment-account-panel';
 const STATUS = {
   provider: 'asaas' as const,
   hasApiKey: true,
+  acceptNewCharges: true,
   webhookConfigured: false,
   accountName: 'Clínica Exemplo',
   keyVersion: 2,
@@ -56,7 +57,7 @@ describe('PaymentAccountPanel', () => {
     fireEvent.change(screen.getByLabelText('Trocar a chave de API'), {
       target: { value: '$aact_segundo_valor' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Trocar chave' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Conectar ou retomar' }));
 
     await waitFor(() =>
       expect(screen.getByText(/API do Asaas, durante POST \/webhooks/u)).toBeTruthy(),
@@ -65,5 +66,12 @@ describe('PaymentAccountPanel', () => {
     expect(screen.getByText('asaas_webhook_rejected')).toBeTruthy();
     expect(screen.queryByDisplayValue('$aact_segundo_valor')).toBeNull();
     expect(mocks.refresh).toHaveBeenCalledOnce();
+  });
+
+  it('identifica conta pausada sem afirmar que a chave foi apagada', () => {
+    render(<PaymentAccountPanel status={{ ...STATUS, acceptNewCharges: false }} />);
+    expect(screen.getByText('Novas cobranças pausadas')).toBeTruthy();
+    expect(screen.getByText('Pausada')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Tentar desconexão' })).toBeTruthy();
   });
 });

@@ -494,6 +494,8 @@ export interface PaymentProvider {
    * lado (cifrado): não há de onde relê-lo depois.
    */
   createWebhook(input: CreateWebhookInput): Promise<{ webhookId: string }>;
+  /** Desativa somente a ref aleatória desta clínica, com GET de confirmação. */
+  disableWebhook(input: { pathname: string }): Promise<{ matched: number }>;
   /** Lança se o corpo não trouxer `body.id` (chave de dedup do provider). */
   parseWebhook(raw: string): ParsedWebhook;
   /** Valida o header `asaas-access-token` em constant-time. */
@@ -751,23 +753,45 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
     }
   }
 
+  function listedWebhooks(
+    response: unknown,
+  ): Array<Record<string, unknown> & { id: string; url: string }> {
+    if (!response || typeof response !== 'object') {
+      throw new BillingProviderUnreachableError('asaas GET /webhooks → lista incompleta');
+    }
+    const list = response as { data?: unknown; hasMore?: boolean };
+    if (
+      list.hasMore ||
+      !Array.isArray(list.data) ||
+      (list.data.length >= 100 && list.hasMore !== false)
+    ) {
+      throw new BillingProviderUnreachableError('asaas GET /webhooks → lista incompleta');
+    }
+    return list.data.map((raw: unknown) => {
+      if (!raw || typeof raw !== 'object') {
+        throw new BillingProviderUnreachableError('asaas GET /webhooks → linha inválida');
+      }
+      const webhook = raw as Record<string, unknown>;
+      const id = asStr(webhook.id);
+      const url = asStr(webhook.url);
+      if (!id || !url || !webhookTarget(url)) {
+        throw new BillingProviderUnreachableError('asaas GET /webhooks → linha inválida');
+      }
+      return { ...webhook, id, url };
+    });
+  }
+
   async function findExistingWebhook(input: CreateWebhookInput): Promise<string | null> {
     const desiredTarget = webhookTarget(input.url);
     if (!desiredTarget) return null;
 
     // O Asaas permite no máximo 10 webhooks por conta. O limite 100 mantém a
     // busca em uma chamada e segue o máximo documentado do endpoint.
-    const response = (await request('GET', '/webhooks?offset=0&limit=100', undefined, {
+    const response = await request('GET', '/webhooks?offset=0&limit=100', undefined, {
       attempts: 1,
-    })) as { data?: unknown };
-    const webhooks = Array.isArray(response.data) ? response.data : [];
-    for (const raw of webhooks) {
-      if (!raw || typeof raw !== 'object') continue;
-      const webhook = raw as Record<string, unknown>;
-      if (asStr(webhook.name) !== input.name) continue;
-      const existingUrl = asStr(webhook.url);
-      const id = asStr(webhook.id);
-      if (existingUrl && id && webhookTarget(existingUrl) === desiredTarget) return id;
+    });
+    for (const webhook of listedWebhooks(response)) {
+      if (webhookTarget(webhook.url) === desiredTarget) return webhook.id;
     }
     return null;
   }
@@ -1252,6 +1276,37 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
         }
         throw error;
       }
+    },
+
+    async disableWebhook(input) {
+      const response = await request('GET', '/webhooks?offset=0&limit=100', undefined, {
+        attempts: 1,
+      });
+      let matched = 0;
+      for (const webhook of listedWebhooks(response)) {
+        if (webhookTarget(webhook.url) !== input.pathname) continue;
+        matched += 1;
+        if (webhook.enabled !== false) {
+          await request('PUT', `/webhooks/${encodeURIComponent(webhook.id)}`, { enabled: false });
+        }
+        const readback = (await request(
+          'GET',
+          `/webhooks/${encodeURIComponent(webhook.id)}`,
+          undefined,
+          {
+            attempts: 1,
+          },
+        )) as Record<string, unknown>;
+        if (
+          readback.enabled !== false ||
+          webhookTarget(asStr(readback.url) ?? '') !== input.pathname
+        ) {
+          throw new BillingProviderUnreachableError(
+            'asaas GET /webhooks/{id} → desativação não confirmada',
+          );
+        }
+      }
+      return { matched };
     },
 
     async getMyAccount(opts) {

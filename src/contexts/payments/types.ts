@@ -44,6 +44,8 @@ export type ConnectPaymentAccountInput = z.infer<typeof ConnectPaymentAccountSch
 export interface PaymentAccountStatusDTO {
   provider: 'asaas';
   hasApiKey: boolean;
+  /** false = cobrança nova bloqueada; chave retida só para reconciliação. */
+  acceptNewCharges: boolean;
   /**
    * ADR-049 1.4 — o Asaas confirmou o registro do webhook desta clínica.
    * **`false` com conta conectada é o estado que a tela precisa gritar:** as
@@ -84,6 +86,7 @@ export interface ConnectPaymentAccountResult extends PaymentAccountStatusDTO {
 export const EMPTY_PAYMENT_ACCOUNT: PaymentAccountStatusDTO = {
   provider: 'asaas',
   hasApiKey: false,
+  acceptNewCharges: false,
   webhookConfigured: false,
   accountName: null,
   keyVersion: 0,

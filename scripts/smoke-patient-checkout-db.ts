@@ -62,6 +62,12 @@ async function createFixtures(): Promise<void> {
       (${clinicA}, ${`checkout-a-${run.slice(0, 12)}`}, 'Checkout DB A', 'Sintética', 'active', 'America/Sao_Paulo'),
       (${clinicB}, ${`checkout-b-${run.slice(0, 12)}`}, 'Checkout DB B', 'Sintética', 'active', 'America/Sao_Paulo')
   `);
+  // Chave sintética: esta prova exercita somente a reserva local, nunca o Asaas.
+  await dbAdmin.execute(sql`
+    INSERT INTO clinic_payment_accounts
+      (clinic_id, provider, api_key_encrypted, active, accept_new_charges)
+    VALUES (${clinicA}, 'asaas', 'fixture-sem-provider', true, true)
+  `);
   await dbAdmin.execute(sql`
     INSERT INTO patients (id, clinic_id, nome, cpf_encrypted, cpf_hash)
     VALUES (${patientId}, ${clinicA}, 'Paciente Checkout Sintético', 'fixture', ${run.padEnd(64, '0').slice(0, 64)})
@@ -228,17 +234,34 @@ async function main(): Promise<void> {
 
     const now = new Date();
     const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-    const first = await claimInitialCheckoutCharge({
+    const chargeRequest = {
       clinicId: clinicA,
       appointmentId,
       patientId,
-      kind: 'remainder',
+      kind: 'remainder' as const,
       amount: 75,
       holdExpiresAt: null,
       collectionExpiresAt: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000),
       checkoutExpiresAt: expiresAt,
       leaseUntil: new Date(now.getTime() + 2 * 60 * 1000),
-      requestedPaymentMethod: 'pix',
+      requestedPaymentMethod: 'pix' as const,
+    };
+    await dbAdmin.execute(sql`
+      UPDATE clinic_payment_accounts SET accept_new_charges = false
+      WHERE clinic_id = ${clinicA}
+    `);
+    const paused = await claimInitialCheckoutCharge(chargeRequest);
+    assert(paused.state === 'account_paused', 'conta pausada reservou cobrança nova');
+    const [pausedCount] = await dbAdmin.execute<{ count: number }>(sql`
+      SELECT count(*)::int AS count FROM patient_charges WHERE clinic_id = ${clinicA}
+    `);
+    assert(pausedCount?.count === 0, 'conta pausada gravou cobrança');
+    await dbAdmin.execute(sql`
+      UPDATE clinic_payment_accounts SET accept_new_charges = true
+      WHERE clinic_id = ${clinicA}
+    `);
+    const first = await claimInitialCheckoutCharge({
+      ...chargeRequest,
     });
     assert(first.state === 'claimed', 'primeiro worker não adquiriu o lease');
     const replay = await claimInitialCheckoutCharge({
@@ -468,7 +491,9 @@ async function main(): Promise<void> {
     // monopolizar todos os ticks do cron e impedir que o outro seja consultado.
     const secondChargeId = randomUUID();
     await dbAdmin.execute(sql`
-      UPDATE patient_charges SET economics_reconciled_at = NULL WHERE id = ${first.chargeId}
+      UPDATE patient_charges
+         SET economics_reconciled_at = NULL, provider_economics_revision = 0
+       WHERE id = ${first.chargeId}
     `);
     await dbAdmin.execute(sql`
       INSERT INTO patient_charges (

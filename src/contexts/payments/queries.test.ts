@@ -44,7 +44,9 @@ describe('getPaymentAccountStatus', () => {
     const query = sqls[0] ?? '';
     expect(query).not.toContain('*');
     expect(query).not.toContain('api_key');
-    expect(query).toContain('SELECT provider, account_name, key_version, active, connected_at');
+    expect(query).toContain(
+      'SELECT provider, account_name, key_version, active, accept_new_charges',
+    );
   });
 
   it('lê pelo caminho tenant (RLS), não por dbAdmin', async () => {
@@ -69,6 +71,7 @@ describe('getPaymentAccountStatus', () => {
         account_name: 'Clínica Exemplo',
         key_version: 3,
         active: true,
+        accept_new_charges: true,
         connected_at: '2026-08-24T00:00:00.000Z',
         webhook_configured_at: '2026-08-24T00:00:00.000Z',
       },
@@ -77,6 +80,7 @@ describe('getPaymentAccountStatus', () => {
     await expect(getPaymentAccountStatus('clinic-1')).resolves.toEqual({
       provider: 'asaas',
       hasApiKey: true,
+      acceptNewCharges: true,
       webhookConfigured: true,
       accountName: 'Clínica Exemplo',
       keyVersion: 3,
@@ -91,6 +95,7 @@ describe('getPaymentAccountStatus', () => {
         account_name: 'Clínica Exemplo',
         key_version: 3,
         active: false,
+        accept_new_charges: false,
         connected_at: null,
         webhook_configured_at: null,
       },
@@ -98,6 +103,25 @@ describe('getPaymentAccountStatus', () => {
 
     const status = await getPaymentAccountStatus('clinic-1');
     expect(status.hasApiKey).toBe(false);
+  });
+
+  it('conta pausada mantém integração para conciliar e bloqueia novas cobranças', async () => {
+    stubTenantRead([
+      {
+        provider: 'asaas',
+        account_name: 'Clínica Exemplo',
+        key_version: 3,
+        active: true,
+        accept_new_charges: false,
+        connected_at: '2026-08-24T00:00:00.000Z',
+        webhook_configured_at: '2026-08-24T00:00:00.000Z',
+      },
+    ]);
+
+    const status = await getPaymentAccountStatus('clinic-1');
+    expect(status.hasApiKey).toBe(true);
+    expect(status.acceptNewCharges).toBe(false);
+    expect(status.webhookConfigured).toBe(true);
   });
 });
 
@@ -151,6 +175,7 @@ describe('estado do webhook', () => {
         account_name: 'Clínica Exemplo',
         key_version: 1,
         active: true,
+        accept_new_charges: true,
         connected_at: '2026-08-24T00:00:00.000Z',
         webhook_configured_at: null,
       },

@@ -131,6 +131,11 @@ describe('resolveCheckoutWindow', () => {
 });
 
 describe('createInitialHostedCheckout', () => {
+  it('não chama Asaas quando a reserva encontra a conta pausada', async () => {
+    mocks.claim.mockResolvedValue({ state: 'account_paused' });
+    await expect(run()).resolves.toBe('account_paused');
+    expect(mocks.createCheckout).not.toHaveBeenCalled();
+  });
   it('persiste o lease antes do POST e ativa a mesma geração', async () => {
     await expect(run()).resolves.toBe('created');
 
@@ -286,6 +291,11 @@ describe('createInitialHostedCheckout', () => {
 });
 
 describe('renewRemainderHostedCheckout', () => {
+  it('não cria nova geração no Asaas após a pausa', async () => {
+    mocks.claimRenewal.mockResolvedValue({ state: 'account_paused' });
+    await expect(renew()).resolves.toBe('account_paused');
+    expect(mocks.createCheckout).not.toHaveBeenCalled();
+  });
   it('não consulta o provider nem renova Checkout parcelado sem quantidade exata', async () => {
     await expect(
       renewRemainderHostedCheckout({

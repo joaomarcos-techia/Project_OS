@@ -70,6 +70,7 @@ function checkoutCallbacks(): {
 export type CreateHostedCheckoutOutcome =
   | 'created'
   | 'existing'
+  | 'account_paused'
   | 'window_too_short'
   | 'unsupported_condition';
 
@@ -222,6 +223,7 @@ export async function createInitialHostedCheckout(input: {
     requestedPaymentMethod: input.paymentMethod ?? null,
     requestedInstallmentCount: input.installmentCount ?? null,
   });
+  if (claim.state === 'account_paused') return 'account_paused';
   if (claim.state === 'existing') return 'existing';
   return provisionClaimedCheckout({
     client: input.client,
@@ -238,6 +240,7 @@ export async function createInitialHostedCheckout(input: {
 export type RenewHostedCheckoutOutcome =
   | 'created'
   | 'lost'
+  | 'account_paused'
   | 'payment_exists'
   | 'window_ended'
   | 'unsupported_condition';
@@ -281,6 +284,7 @@ export async function renewRemainderHostedCheckout(input: {
     leaseUntil: new Date(now.getTime() + CHECKOUT_LEASE_MS),
     now,
   });
+  if (claim.state === 'account_paused') return 'account_paused';
   if (claim.state === 'lost') return 'lost';
 
   const outcome = await provisionClaimedCheckout({
