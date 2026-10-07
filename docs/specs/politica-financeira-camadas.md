@@ -717,4 +717,15 @@ Esses pontos estão cobertos só pelos testes locais e pelo Postgres descartáve
 - Caixa: 2 testes novos;
 - teste estático da 0115: 3 testes.
 
-**E2E de Preview:** `e2e/payments-account-lifecycle.spec.ts` passou a provar o encerramento manual contra o Asaas Sandbox. Uma contestação em andamento bloqueia, na tela e sem botão; sem pendência, o encerramento desativa o webhook remoto (`enabled=false`), apaga chave e token e grava a auditoria. A execução no Preview fica registrada abaixo quando ocorrer. O encerramento automático depende do cron de produção: aviso e encerramento reais seguem **NOT RUN**.
+**E2E de Preview:** `e2e/payments-account-lifecycle.spec.ts` passou a provar o encerramento manual contra o Asaas Sandbox. Uma contestação em andamento bloqueia, na tela e sem botão; sem pendência, o encerramento desativa o webhook remoto (`enabled=false`), apaga chave e token e grava a auditoria. **Execução em 07/10/2026:**
+
+- **Alvo:** Preview do commit `2ba6466b`, com deploy Vercel `success` às 22:48 UTC; fixture isolada em DEV; conta Sandbox da clínica; opt-ins `E2E_PAYMENT_ACCOUNT_ISOLATED=1` e `E2E_PAYMENT_ACCOUNT_MUTATION=dev-sandbox`.
+- **Resultado:** **6/6 PASS na primeira execução, exit 0, 3,9 min.** O 6º caso provou, nesta ordem:
+  - pausa com o cartão de encerramento e sem "Tentar desconexão";
+  - contestação em andamento bloqueando, na tela e sem botão;
+  - encerramento confirmado: conta inativa, chave e token nulos, aviso nulo e `disconnected_at` gravado;
+  - uma auditoria `payments.account.closed` com `trigger: manual` e `remoteWebhookDisabled: true`;
+  - o webhook da fixture no Sandbox com `enabled=false`.
+- **Estado inicial e final, relidos à parte:** no Sandbox, só os webhooks pré-existentes `…f85a` (desativado) e `…1e3a` (ativo, da `clinica-a`). O cleanup removeu o da fixture. No DEV, zero fixtures `e2e-payments-%`, uma conta de pagamento e nenhuma pausada.
+
+O encerramento automático depende do cron de produção: aviso e encerramento reais por inatividade seguem **NOT RUN**.
