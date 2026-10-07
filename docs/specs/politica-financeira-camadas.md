@@ -451,6 +451,28 @@ Na próxima tentativa, entregar ao operador os dois links ao mesmo tempo. Se só
 
 **Resultado:** a conexão, a criação real do Checkout e a pausa com bloqueio de nova cobrança estão **PASS** contra o Asaas Sandbox. O evento real de cobrança antiga chegando à conta pausada, a conferência econômica externa e o Caixa com fatos reais continuam **BLOCKED**, por rede instável no operador e pelo passo humano do reCAPTCHA. Nenhum dado de produção foi tocado. A cobrança paga ainda não existe, então não há pagamento Sandbox residual desta frente.
 
+### 07/10/2026 — pagamento humano concluído; webhook entregue a outro Preview
+
+**6ª execução do runner (Preview do commit `fcb47071`):**
+
+- Os passos 1–3 passaram de novo.
+- O operador abriu o link do app, escolheu Pix e resolveu o reCAPTCHA. O Checkout renderizou normalmente, sem repetir o "erro desconhecido", com a rede local estável naquele momento. O link de controle não precisou ser aberto e foi cancelado com readback `CANCELED`. A hipótese de defeito por falta de `customerData` não se confirmou.
+- O runner encontrou o pagamento `pay_pvm1h4gtsf49te26` e o liquidou pela simulação do Sandbox. `GET /payments/{id}` mostrou `RECEIVED`, `value` 10, `netValue` 9,01 e PIX.
+- O banco DEV registrou a cobrança `paid` com o `provider_payment_id` correto **enquanto a conta estava pausada**.
+- A asserção seguinte **falhou**: `provider_gross_amount` nulo ou zero, em vez de R$ 10,00.
+
+**Causa, comprovada sem novo pagamento:** a 7ª execução rodou só os passos 1–3 e parou no 4 pelo arquivo de parada, sem pagamento. Ela registrou o host do webhook que a UI do Preview cadastrou: `project-os-git-integration-estad-04a442-…vercel.app`, com `webhookHostIsTestedPreview: false`. O `APP_BASE_URL` do Preview desta branch aponta para o Preview da branch `integration/estado-completo-atual-2026-09-27` (`49b677f1`, 28/09). Esse deploy usa o mesmo banco DEV, não contém os commits de pagamento deste PR e seu `charge-store.ts` não grava `providerGrossAmount`. Logo, o webhook real foi conciliado por código antigo.
+
+Não é defeito do PR, mas **invalida como prova de Preview** tudo o que depende do destino do webhook: o pagamento desta rodada e o "webhook preservado/habilitado" do E2E de ciclo da conta, cujo recurso existe e está ativo, mas aponta para outro deploy. A mesma configuração afeta outros usos de `APP_BASE_URL` no Preview: callbacks de Checkout criados pelo próprio Preview, links transacionais e redirecionamentos de Auth.
+
+**Efeitos e cleanup:**
+
+- O deploy antigo marcou a cobrança da fixture como paga sem fatos econômicos.
+- O cleanup removeu clínica, outbox, auditoria, webhook (com GET 404) e usuário Auth; o readback mostrou zero `e2e-paid-pause-%`.
+- O pagamento Sandbox `pay_pvm1h4gtsf49te26` (R$ 10,00 `RECEIVED`) permanece na conta Sandbox da clínica como resíduo inevitável: não há exclusão de pagamento recebido, e o estorno Pix deste Sandbox termina `REFUSED`.
+
+**Próxima condição:** corrigir o `APP_BASE_URL` do Preview desta branch na Vercel e repetir o pagamento. A alternativa só de teste é o runner redirecionar o webhook da fixture para o Preview testado. Até lá, "evento real chegando à conta pausada **e conciliado pelo código deste PR**" segue BLOCKED.
+
 ### 07/10/2026 — camada 4: revisão humana do repasse (implementação, prova local e 0113 no DEV)
 
 **Contrato implementado**, conforme a decisão de 07/10 acima:

@@ -620,6 +620,14 @@ async function fixtureWebhookEnabled(webhookRef: string): Promise<boolean> {
     }
   });
   expect(matches, 'o webhook da fixture deve existir exatamente uma vez').toHaveLength(1);
+  // Só o hostname: a query do webhook carrega o bypass da Vercel e nunca vai ao log.
+  try {
+    evidence.webhookHost = new URL(matches[0]?.url ?? '').hostname;
+    evidence.webhookHostIsTestedPreview =
+      Boolean(baseUrl) && evidence.webhookHost === new URL(baseUrl!).hostname;
+  } catch {
+    evidence.webhookHost = 'unparseable';
+  }
   return matches[0]?.enabled === true;
 }
 
@@ -857,6 +865,21 @@ test.describe.serial('pagamento real em conta pausada (Preview + Sandbox, humano
       await sleep(5_000);
     }
     if (!paid) throw new Error('O webhook real não marcou a cobrança como paga no DEV.');
+    // Forense antes das asserções: o cleanup apaga a fixture mesmo se algo falhar.
+    evidence.paidRow = paid;
+    evidence.webhookEventsAtPaid = (
+      await db()<{ event_type: string; processed_at: string }[]>`
+        select event_type, processed_at::text from patient_webhook_events
+         where clinic_id = ${clinicId}::uuid order by processed_at
+      `
+    ).map((row) => `${row.event_type}@${row.processed_at}`);
+    evidence.outboxAtPaid = await db()<
+      { event_type: string; status: string; has_gross: boolean; gross: string | null }[]
+    >`
+      select event_type, status, payload ? 'providerGrossAmount' has_gross,
+             payload->>'providerGrossAmount' gross
+        from outbox where clinic_id = ${clinicId}::uuid order by created_at
+    `;
     const account = await readAccount();
     expect(account, 'a conta mudou durante a conciliação').toMatchObject({
       active: true,
