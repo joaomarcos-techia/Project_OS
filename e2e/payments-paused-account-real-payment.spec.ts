@@ -646,7 +646,28 @@ async function crossTenantSnapshot(): Promise<Record<string, number>> {
  * o carregador ESM do Playwright não resolve os imports `next/*` dessa cadeia.
  * O processo herda o ambiente DEV/Sandbox deste runner.
  */
-function runOps(args: string[]): Promise<Record<string, unknown>> {
+/**
+ * Repete só falha de rede. `create-deposit` é idempotente (cobrança existente ou
+ * conta pausada não fazem novo POST) e o despachante só pega eventos `pending`.
+ */
+async function runOps(args: string[]): Promise<Record<string, unknown>> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await runOpsOnce(args);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const transient =
+        /ECONNRESET|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|CONNECT_TIMEOUT|CONNECTION_(?:CLOSED|ENDED|DESTROYED)|Connection terminated|connect timeout/iu.test(
+          message,
+        );
+      if (!transient || attempt >= 3) throw error;
+      evidence.opsTransientRetries = Number(evidence.opsTransientRetries ?? 0) + 1;
+      await sleep(5_000 * attempt);
+    }
+  }
+}
+
+function runOpsOnce(args: string[]): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
     const child = spawn(
       process.execPath,
@@ -716,6 +737,12 @@ test.describe.serial('pagamento real em conta pausada (Preview + Sandbox, humano
     state.apiKeyEncrypted = account.api_key_encrypted;
     state.webhookTokenEncrypted = account.webhook_token_encrypted;
     expect(await fixtureWebhookEnabled(account.webhook_ref)).toBe(true);
+    // Sem isto, o pagamento humano seria conciliado por outro deploy (APP_BASE_URL
+    // do Preview apontando para outra branch, observado em 07/10).
+    expect(
+      evidence.webhookHostIsTestedPreview,
+      'o webhook da fixture aponta para outro deploy; corrija APP_BASE_URL do Preview',
+    ).toBe(true);
 
     // O Checkout nasce neste processo (o Preview não roda cron nem worker por
     // clínica). Sem a mesma chave mestra, ele não leria a credencial do Preview.

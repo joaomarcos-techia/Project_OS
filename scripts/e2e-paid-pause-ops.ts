@@ -214,7 +214,14 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
+  // A causa (código de rede ou do Postgres) vem primeiro: o drizzle embrulha
+  // falhas de conexão em "Failed query", que sozinho não diz se é transitório.
+  const cause = error instanceof Error && error.cause instanceof Error ? error.cause : null;
+  const causeCode =
+    cause && 'code' in cause && typeof cause.code === 'string' ? cause.code : (cause?.name ?? '');
   const message = error instanceof Error ? error.message : String(error);
-  process.stderr.write(`${message.replace(/\b[a-z]+:\/\/\S+/gi, '<url>').slice(0, 240)}\n`);
+  process.stderr.write(
+    `${causeCode ? `[${causeCode}] ` : ''}${message.replace(/\b[a-z]+:\/\/\S+/gi, '<url>').slice(0, 240)}\n`,
+  );
   process.exit(1);
 });
