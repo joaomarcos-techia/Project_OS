@@ -41,6 +41,12 @@ export interface InboundForAgent {
    * anteriores à migration 0024 (coluna aditiva) — sem ele não há resposta.
    */
   fromNumber: string | null;
+  /**
+   * 0114 — nome do perfil do WhatsApp, AINDA CIFRADO com a chave da mesma
+   * clínica: a conversa o guarda como veio, sem decifrar. NULL quando a Meta
+   * não o enviou ou a linha é anterior à 0114.
+   */
+  contactNameEncrypted: string | null;
   receivedAt: Date;
   /** Marcador de consumo do C11 — dedup at-least-once do handler. */
   processedAt: Date | null;
@@ -134,6 +140,7 @@ async function getInboundForAgent(
     fromNumber: row.fromNumberEncrypted
       ? await decryptForTenant(clinicId, row.fromNumberEncrypted)
       : null,
+    contactNameEncrypted: row.fromNameEncrypted ?? null,
     receivedAt: row.receivedAt,
     processedAt: row.processedAt,
   };

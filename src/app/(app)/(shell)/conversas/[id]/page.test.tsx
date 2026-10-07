@@ -94,7 +94,7 @@ describe('workspace da conversa', () => {
     const history = screen.getByRole('region', { name: 'Histórico da conversa' });
 
     expect(history.compareDocumentPosition(aside) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(screen.getByText('+55 (11) 99999-1234')).toBeTruthy();
+    expect(screen.getByText('+55 11 99999-1234')).toBeTruthy();
     expect(screen.getByRole('form', { name: 'Composer persistente' })).toBeTruthy();
     expect(container.textContent).toContain('Posso ajudar com o agendamento.');
   });

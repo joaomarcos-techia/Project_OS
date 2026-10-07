@@ -56,7 +56,14 @@ export async function findOrCreateConversation(
   clinicId: string,
   phoneHash: string,
   phoneEncrypted: string,
+  /**
+   * 0114 — nome do perfil do WhatsApp, cifrado per-tenant. Quando presente,
+   * vira o nome atual do contato; ausente (eco do celular, linha antiga) não
+   * apaga o que já existe.
+   */
+  contactNameEncrypted?: string | null,
 ): Promise<ActiveConversation> {
+  const nameUpdate = contactNameEncrypted ? { contactNameEncrypted } : {};
   // Paciente cadastrado com este telefone? (leitura por hash, sem JOIN)
   const patientMatches = await tx
     .select({ id: patients.id, nome: patients.nome })
@@ -93,6 +100,7 @@ export async function findOrCreateConversation(
         lastMessageAt: sql`now()`,
         // Um match único é seguro; zero/múltiplos removem associação stale.
         patientId: patient?.id ?? null,
+        ...nameUpdate,
       })
       .where(eq(aiConversations.id, existing.id));
     return {
@@ -113,6 +121,7 @@ export async function findOrCreateConversation(
       patientId: patient?.id ?? null,
       patientPhoneHash: phoneHash,
       patientPhoneEncrypted: phoneEncrypted,
+      contactNameEncrypted: contactNameEncrypted ?? null,
     })
     .onConflictDoNothing({
       target: [aiConversations.clinicId, aiConversations.patientPhoneHash],
@@ -145,6 +154,9 @@ export async function findOrCreateConversation(
     )
     .limit(1);
   if (!raced) throw new Error('[ai-agent] upsert de conversa falhou sem ativa existente');
+  if (contactNameEncrypted) {
+    await tx.update(aiConversations).set(nameUpdate).where(eq(aiConversations.id, raced.id));
+  }
   return {
     id: raced.id,
     patientId: raced.patientId,

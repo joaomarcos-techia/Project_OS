@@ -88,6 +88,10 @@ export const aiConversations = pgTable(
     // Telefone de RESPOSTA cifrado per-tenant (VisãoGeral §6) — único lugar de
     // onde o agente recupera o número para sendText.
     patientPhoneEncrypted: text('patient_phone_encrypted').notNull(),
+    // Migration 0114: nome do perfil do WhatsApp do contato, cifrado per-tenant
+    // e regravado a cada mensagem que o traz. Identifica quem ainda não tem
+    // cadastro; NULL até a primeira mensagem posterior à 0114.
+    contactNameEncrypted: text('contact_name_encrypted'),
     startedAt: timestamp('started_at', { withTimezone: true })
       .notNull()
       .default(sql`now()`),

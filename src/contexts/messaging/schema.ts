@@ -122,6 +122,9 @@ export const inboundMessagesRaw = pgTable(
     // per-tenant — sem ele o AI Agent não tem como RESPONDER (o hash não é
     // reversível). Nullable: rows anteriores à 0024 não o possuem.
     fromNumberEncrypted: text('from_number_encrypted'),
+    // Migration 0114: nome do perfil do WhatsApp do remetente, cifrado
+    // per-tenant. NULL quando a Meta não o enviou ou a linha é anterior à 0114.
+    fromNameEncrypted: text('from_name_encrypted'),
     toNumber: text('to_number'),
     contentEncrypted: text('content_encrypted').notNull(),
     // Canônico (payloadHash) — distingue duplicate (igual) vs conflict (diferente).

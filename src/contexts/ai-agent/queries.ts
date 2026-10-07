@@ -53,6 +53,21 @@ function preview(text: string): string {
   return flat.length <= PREVIEW_CHARS ? flat : `${flat.slice(0, PREVIEW_CHARS)}…`;
 }
 
+/**
+ * Nome do perfil do WhatsApp (0114). É só exibição: um valor que não decifra
+ * vira `null` e a inbox continua de pé, com o telefone como identidade.
+ */
+async function contactNameOf(clinicId: string, encrypted: string | null): Promise<string | null> {
+  if (!encrypted) return null;
+  try {
+    const name = (await decryptForTenant(clinicId, encrypted)).trim();
+    return name.length > 0 ? name : null;
+  } catch {
+    metrics.emit('ai_agent.contact_name.unreadable', { clinicId });
+    return null;
+  }
+}
+
 /** Só dígitos e comprimento plausível de telefone → busca por hash. */
 function looksLikePhone(term: string): boolean {
   const digits = term.replace(/\D/g, '');
@@ -189,6 +204,7 @@ export async function listConversations(
           patientId: aiConversations.patientId,
           patientName: patients.nome,
           patientPhoneEncrypted: aiConversations.patientPhoneEncrypted,
+          contactNameEncrypted: aiConversations.contactNameEncrypted,
           status: aiConversations.status,
           intentAtual: aiConversations.intentAtual,
           startedAt: aiConversations.startedAt,
@@ -301,6 +317,7 @@ export async function listConversations(
           // Preserva o fallback mascarado; a UI autorizada usa o contato separado.
           maskedPhone: nome ? null : maskPhone(contactPhone),
           contactPhone: contactPhone || null,
+          contactName: await contactNameOf(clinicId, r.contactNameEncrypted),
           lastMessagePreview: lastMessage
             ? preview(await decryptForTenant(clinicId, lastMessage))
             : null,
@@ -378,6 +395,7 @@ export async function getConversationThread(
         patientId: aiConversations.patientId,
         patientName: patients.nome,
         patientPhoneEncrypted: aiConversations.patientPhoneEncrypted,
+        contactNameEncrypted: aiConversations.contactNameEncrypted,
         status: aiConversations.status,
         intentAtual: aiConversations.intentAtual,
         startedAt: aiConversations.startedAt,
@@ -490,6 +508,7 @@ export async function getConversationThread(
       patientDisplayName: nome,
       maskedPhone: maskPhone(contactPhone),
       contactPhone: contactPhone || null,
+      contactName: await contactNameOf(clinicId, conv.contactNameEncrypted),
       status: conv.status,
       intentAtual: conv.intentAtual,
       startedAt: toIso(conv.startedAt)!,

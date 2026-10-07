@@ -57,6 +57,11 @@ export async function persistInbound(
   // continua sem plaintext).
   const fromNumberEncrypted = await encryptForTenant(clinicId, normalizePhone(msg.fromNumber));
   const contentEncrypted = await encryptForTenant(clinicId, msg.text ?? '');
+  // 0114: nome do perfil, cifrado como o telefone. Fica fora do payload_hash:
+  // um reenvio da Meta com o perfil renomeado não é conflito de conteúdo.
+  const fromNameEncrypted = msg.contactName
+    ? await encryptForTenant(clinicId, msg.contactName)
+    : null;
   const pHash = payloadHash({
     providerMessageId: msg.providerMessageId,
     from: msg.fromNumber,
@@ -74,6 +79,7 @@ export async function persistInbound(
         provider,
         fromNumberHash,
         fromNumberEncrypted,
+        fromNameEncrypted,
         toNumber: msg.toNumber,
         contentEncrypted,
         payloadHash: pHash,

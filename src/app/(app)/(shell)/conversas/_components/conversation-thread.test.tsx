@@ -18,6 +18,7 @@ const original: AIConversationThread = {
   patientDisplayName: 'Paciente Teste',
   contactPhone: '+5511999991234',
   maskedPhone: '+5511*****1234',
+  contactName: null,
   status: 'handoff',
   intentAtual: null,
   startedAt: '2026-09-09T12:00:00Z',
@@ -132,5 +133,71 @@ describe('resposta da recepção pelo app do celular (coexistência)', () => {
     expect(screen.queryByText('Agente Qoro')).toBeNull();
     // Não foi a Qoro que enviou: não há entrega a acompanhar nem o que reenviar.
     expect(screen.queryByRole('button', { name: 'Reenviar' })).toBeNull();
+  });
+});
+
+describe('identidade do contato na conversa', () => {
+  const inbound = {
+    id: 'message-in',
+    direction: 'in' as const,
+    author: 'patient' as const,
+    text: 'Quero marcar uma consulta',
+    createdAt: '2026-09-09T12:01:00Z',
+    meta: null,
+    delivery: null,
+  };
+
+  it('assina a mensagem com o nome do WhatsApp quando não há cadastro', () => {
+    render(
+      <ConversationThread
+        thread={{
+          ...original,
+          patientDisplayName: null,
+          contactName: 'Maria do WhatsApp',
+          contactPhone: '558897168587',
+          messages: [inbound],
+        }}
+        canManage
+        currentUserId="user-1"
+        assignedToName="Recepção"
+      />,
+    );
+    expect(screen.getByRole('heading', { name: 'Maria do WhatsApp' })).toBeTruthy();
+    expect(screen.getByText('+55 88 9716-8587')).toBeTruthy();
+    // O chip continua dizendo o papel; o nome substitui o "Paciente" repetido.
+    expect(screen.getByText('Maria do WhatsApp', { selector: 'strong' })).toBeTruthy();
+    expect(screen.getAllByText('Paciente')).toHaveLength(1);
+  });
+
+  it('sem nome nenhum, assina com o telefone formatado', () => {
+    render(
+      <ConversationThread
+        thread={{
+          ...original,
+          patientDisplayName: null,
+          contactName: null,
+          contactPhone: '558897168587',
+          messages: [inbound],
+        }}
+        canManage
+        currentUserId="user-1"
+        assignedToName="Recepção"
+      />,
+    );
+    expect(screen.getByText('+55 88 9716-8587', { selector: 'strong' })).toBeTruthy();
+    expect(screen.getAllByText('Paciente')).toHaveLength(1);
+  });
+
+  it('o nome do cadastro tem precedência sobre o do WhatsApp', () => {
+    render(
+      <ConversationThread
+        thread={{ ...original, contactName: 'Apelido no WhatsApp', messages: [inbound] }}
+        canManage
+        currentUserId="user-1"
+        assignedToName="Recepção"
+      />,
+    );
+    expect(screen.getByRole('heading', { name: 'Paciente Teste' })).toBeTruthy();
+    expect(screen.queryByText('Apelido no WhatsApp')).toBeNull();
   });
 });

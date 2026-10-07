@@ -64,6 +64,12 @@ export interface ParsedInboundMessage {
   text: string | null;
   /** Provider-reported timestamp (epoch seconds as string). */
   timestamp: string;
+  /**
+   * WhatsApp profile name of the sender (`contacts[].profile.name`), already
+   * sanitized; null/absent when the provider does not send it. Personal data:
+   * encrypted before persist, never logged nor put in an outbox payload.
+   */
+  contactName?: string | null;
 }
 
 /** One delivery/read status callback extracted from a webhook. */

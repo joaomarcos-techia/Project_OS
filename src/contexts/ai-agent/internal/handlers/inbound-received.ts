@@ -578,6 +578,7 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
       clinicId,
       inbound.fromNumberHash,
       await encryptForTenant(clinicId, fromNumber),
+      inbound.contactNameEncrypted,
     );
     const turn = await findTurnMessages(tx, clinicId, eventId);
     if (turn.inRow) {

@@ -120,3 +120,84 @@ describe('MetaCloudProvider.parseWebhook — campos de webhook', () => {
     expect(parsed.messages).toEqual([]);
   });
 });
+
+describe('MetaCloudProvider.parseWebhook — nome do perfil do contato (0114)', () => {
+  const message = { id: 'wamid-9', from: '558897168587', type: 'text', text: { body: 'oi' } };
+
+  it('casa o nome do perfil com o remetente pelo wa_id', () => {
+    const parsed = provider.parseWebhook(
+      webhook('messages', {
+        metadata,
+        contacts: [
+          { wa_id: '5511000000000', profile: { name: 'Outra Pessoa' } },
+          { wa_id: '558897168587', profile: { name: 'Maria do WhatsApp' } },
+        ],
+        messages: [message],
+      }),
+    );
+    expect(parsed.messages[0]?.contactName).toBe('Maria do WhatsApp');
+  });
+
+  it('com um contato só, ele é o remetente mesmo com wa_id em outro formato', () => {
+    const parsed = provider.parseWebhook(
+      webhook('messages', {
+        metadata,
+        contacts: [{ wa_id: '5588997168587', profile: { name: 'Maria' } }],
+        messages: [message],
+      }),
+    );
+    expect(parsed.messages[0]?.contactName).toBe('Maria');
+  });
+
+  it('sem contato, ou com vários que não casam, o nome fica nulo', () => {
+    const semContato = provider.parseWebhook(
+      webhook('messages', { metadata, messages: [message] }),
+    );
+    expect(semContato.messages[0]?.contactName).toBeNull();
+    const ambiguo = provider.parseWebhook(
+      webhook('messages', {
+        metadata,
+        contacts: [
+          { wa_id: '1', profile: { name: 'A' } },
+          { wa_id: '2', profile: { name: 'B' } },
+        ],
+        messages: [message],
+      }),
+    );
+    expect(ambiguo.messages[0]?.contactName).toBeNull();
+  });
+
+  it('remove controle e direção de texto, colapsa espaços e limita o tamanho', () => {
+    const parsed = provider.parseWebhook(
+      webhook('messages', {
+        metadata,
+        contacts: [
+          {
+            wa_id: '558897168587',
+            profile: { name: '  Maria\u0000\n do‮  Zap⁦  ' },
+          },
+        ],
+        messages: [message],
+      }),
+    );
+    expect(parsed.messages[0]?.contactName).toBe('Maria do Zap');
+
+    const longo = provider.parseWebhook(
+      webhook('messages', {
+        metadata,
+        contacts: [{ wa_id: '558897168587', profile: { name: 'x'.repeat(300) } }],
+        messages: [message],
+      }),
+    );
+    expect(longo.messages[0]?.contactName).toHaveLength(120);
+
+    const vazio = provider.parseWebhook(
+      webhook('messages', {
+        metadata,
+        contacts: [{ wa_id: '558897168587', profile: { name: ' ‮ ' } }],
+        messages: [message],
+      }),
+    );
+    expect(vazio.messages[0]?.contactName).toBeNull();
+  });
+});
