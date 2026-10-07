@@ -8592,3 +8592,18 @@ criação; ela foi removida em DEV sob lock e o cleanup retornou uma linha.
 
 Os E2E posteriores no Preview HTTPS e as pendências atuais da política financeira
 estão no [registro por camadas](specs/politica-financeira-camadas.md).
+
+## 57. Inbox do WhatsApp: nome do contato e número formatado — 07/10/2026
+
+No teste da jornada com o número autorizado, a inbox mostrava só os dígitos crus na lista e "Paciente" duas vezes na conversa. A causa tinha duas partes:
+
+- o formatador só reconhecia celular brasileiro com o nono dígito, e o WhatsApp entrega muitos celulares no formato antigo, com 12 dígitos;
+- o parser do webhook da Meta descartava `contacts[].profile.name`.
+
+Correção no PR #26 (`63253e75`):
+
+- números com DDI 55 aparecem como `+55 88 9716-8587`, e os nacionais mantêm `(DD)`;
+- o nome do perfil é saneado e guardado cifrado por clínica;
+- lista, cabeçalho e rótulo das mensagens usam o nome do cadastro, depois o do WhatsApp, depois o telefone.
+
+A migration 0114 (`inbound_messages_raw.from_name_encrypted` e `ai_conversations.contact_name_encrypted`, anuláveis) foi aplicada **só no DEV**, com backup completo antes e readback de colunas e privilégios. Conversas antigas ganham o nome na próxima mensagem recebida. Detalhes de prova estão no histórico do PR; não foi aplicada em produção.

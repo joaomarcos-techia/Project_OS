@@ -411,7 +411,7 @@ Cleanup: outbox, auditoria e clínica da fixture removidos; usuário Auth com DE
 | 3 — preço por método | PASS local/DEV da guarda; pagamento com preço de catálogo NOT RUN | o pagamento real usou o preço do agendamento, sem método comercial; falta cenário no modo explícito |
 | 4 — repasse | suspensão conservadora PASS; revisão humana PASS local, no Postgres descartável (8/8) e no E2E do Preview com papéis reais (5/5, `e1aae7c7`); 0113 só no DEV | sem prova no Preview: base NET, perda/chargeback e dois revisores simultâneos; regra fixa acima da base sem decisão |
 | 5 — UI, E2E e promoção | Preview 6/6 PASS em `1cc90e69` (fatos sintéticos); Caixa com fatos reais do Sandbox PASS (9ª execução); promoção NOT RUN | backup restaurável e plano de rollout ainda sem decisão |
-| Conta pausada | ciclo de configuração PASS no Sandbox; concorrência PASS no DEV; evento real de cobrança antiga com a conta pausada PASS no Preview (9ª execução) | no ciclo 6/6 de `1cc90e69`, o webhook apontava para outro deploy (`APP_BASE_URL`); a 9ª execução refez conexão e pausa com o host correto |
+| Conta pausada | ciclo de configuração PASS no Sandbox; concorrência PASS no DEV; evento real de cobrança antiga com a conta pausada PASS no Preview (9ª execução); encerramento definitivo implementado (0115 no DEV), E2E manual na seção final; cron de inatividade NOT RUN | no ciclo 6/6 de `1cc90e69`, o webhook apontava para outro deploy (`APP_BASE_URL`); a 9ª execução refez conexão e pausa com o host correto |
 | Estorno | fora do escopo agora | decisão de 04/10, reafirmada em 07/10: a clínica devolve ao paciente pela própria conta Asaas; a automação vem depois. O `CREDIT_REFUND/REFUSED` do Sandbox fica como histórico |
 | IA → Asaas → Meta | NOT RUN | `feat/whatsapp-coexistence` já está em `main` e nesta branch. Em 07/10, a pedido do usuário, as duas conexões reais do DEV foram desativadas para reconexão limpa (detalhe no prompt de retomada). Faltam conectar o número de teste a uma clínica DEV pelo Preview, levar o webhook Meta até o Preview e uma pessoa no circuito |
 
@@ -668,3 +668,53 @@ Ficam **sem prova no Preview**:
 - o papel `gestor`, que também tem `MANAGE_FINANCIAL`.
 
 Esses pontos estão cobertos só pelos testes locais e pelo Postgres descartável. O snapshot inicial é sintético, e o pagamento foi manual, não Asaas. A camada 4 segue **não aceita para produção** até a promoção da 0113 e das migrations anteriores no ambiente-alvo e a decisão sobre regra fixa acima da base.
+
+### 07/10/2026 — decisões da conta pausada, da regra fixa e do encerramento
+
+**Decisão do usuário em 07/10/2026:** adotar as três recomendações.
+
+- **A, link emitido antes da pausa:** continua pagável e é conciliado. A tela de Pagamentos mostra quantos links seguem abertos ao lado do botão de pausar e no aviso de conta pausada. Não há cancelamento automático na pausa.
+- **B, regra fixa acima da base:** é permitida, e o cálculo não muda. O Caixa mostra "Repasse acima do recebido: R$ X para uma base de R$ Y", sempre que o repasse calculado ou revisado passa da base.
+- **C, encerramento definitivo:**
+  - Uma conta pausada pode ser encerrada pela clínica quando nada está em aberto: nenhum link pagável (`patient_charges.status = 'pending'`), nenhuma devolução sem confirmação (`patient_refund_intents.status <> 'confirmed'`) e nenhuma contestação em andamento (`requested`, `in_dispute` ou `awaiting_reversal`, em cobranças ou créditos).
+  - Sem movimentação por 180 dias, ela é encerrada automaticamente, com aviso por e-mail aos donos 30 dias antes.
+  - Movimentação nova invalida o aviso e reinicia a contagem. Retomar ou reconectar zera o aviso.
+
+**Implementação:**
+
+- `src/lib/payments/account-closure.ts`: prazos e bloqueios em funções puras.
+- `src/lib/payments/account-store.ts`:
+  - `readPaymentAccountClosureState` lê bloqueios, última movimentação (maior instante entre conta, cobranças e eventos do webhook) e aviso;
+  - `closePausedPaymentAccount` roda sob o mesmo lock da pausa e da reserva de Checkout. Desativa o webhook no Asaas e só então apaga chave e token, com auditoria `payments.account.closed` (`trigger` manual ou de inatividade). Falha externa desfaz tudo e a conta segue pausada;
+  - `recordPaymentAccountClosureNotice` grava o aviso com auditoria `payments.account.closure_notice_sent`.
+- Action `closePaymentAccount`, com a mesma permissão de conectar e desconectar. Pendência vira mensagem que lista o que impede; falha do Asaas vira "Nada foi apagado; tente de novo".
+- Tela de Pagamentos:
+  - contagem de links abertos;
+  - cartão "Encerrar definitivamente" com confirmação, o que impede o encerramento, a data prevista do automático e a data do aviso;
+  - o botão "Tentar desconexão" saiu, porque com histórico não fazia nada.
+- Cron diário `/api/cron/payments-account-closure` (10:00 UTC, só em produção pela Vercel):
+  - aos 150 dias envia o aviso, com chave idempotente por janela de inatividade e destinatário;
+  - aos 180 dias encerra, se o aviso saiu há 30 dias;
+  - falha numa clínica não interrompe as outras.
+- E-mail `payment-account-closure-notice`; donos ativos lidos por `identity/internal/owner-contacts.ts`. Esse arquivo é uma exceção estreita registrada no ESLint: só `getUserById` no Auth, sem escrita.
+
+**Migration 0115, só no projeto DEV `pqhkirrszzpwezdaqrai`:**
+
+- Adiciona `clinic_payment_accounts.closure_notice_sent_at timestamptz`, anulável e sem grant para `authenticated`.
+- Backup completo antes: `qoro-dev-pre-0115-2026-10-07T22-27-11-988Z.dump`, 1.607.072 bytes, 151 s, exit 0, fora do repositório.
+- Migração por `scripts/db-migrate-dev.ts`, exit 0.
+- Readback `READ ONLY`: marcador presente; ledger com 116 linhas (último `when` 1791609600000); coluna `timestamptz` anulável sem default; `authenticated` e `anon` sem SELECT ou UPDATE na coluna; nenhuma conta com aviso.
+
+**Provas locais:**
+
+- regra de prazos: 8 testes, incluindo aviso atrasado, aviso sem encerramento e movimentação que invalida o aviso;
+- action: 5 testes novos (encerra, pendência listada, conta não pausada, falha do Asaas, permissão);
+- cron: 6 testes (sem segredo, aviso aos 150 dias, encerramento aos 180, pendência, sem destinatário, falha isolada);
+- e-mail: 3 testes;
+- status: 2 testes novos e 1 ajustado (conta conectada com links, conta pausada com bloqueios e previsão, conta inativa sem leitura privilegiada);
+- donos: 2 testes;
+- tela de Pagamentos: 5 testes novos e 1 ajustado, 8 no arquivo;
+- Caixa: 2 testes novos;
+- teste estático da 0115: 3 testes.
+
+**E2E de Preview:** `e2e/payments-account-lifecycle.spec.ts` passou a provar o encerramento manual contra o Asaas Sandbox. Uma contestação em andamento bloqueia, na tela e sem botão; sem pendência, o encerramento desativa o webhook remoto (`enabled=false`), apaga chave e token e grava a auditoria. A execução no Preview fica registrada abaixo quando ocorrer. O encerramento automático depende do cron de produção: aviso e encerramento reais seguem **NOT RUN**.
