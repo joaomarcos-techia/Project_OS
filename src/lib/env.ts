@@ -251,9 +251,12 @@ const EnvSchema = z
     GEMINI_API_KEY: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
     // Modelo default (decisão sólida §11.17: Gemini Flash). Trocar exige
     // entrada correspondente na tabela de preços de src/lib/ai/cost.ts.
+    // 08/10/2026: 3.6 no lugar do 3.8 — mesmo preço, e o 3.8 levava 13–60 s por
+    // chamada (prompt trivial: 13–27 s) contra 1,5–4 s do 3.6, com o timeout
+    // de 15 s derrubando o turno no fallback (docs/ai/agent.md).
     GEMINI_MODEL: z.preprocess(
       emptyToUndefined,
-      z.string().min(1).optional().default('gemini-3.8-flash'),
+      z.string().min(1).optional().default('gemini-3.6-flash'),
     ),
     // Timeout (ms) de cada chamada ao LLM (AbortController) — mesmo racional
     // do META_HTTP_TIMEOUT_MS: sem teto, um request lento trava o worker.

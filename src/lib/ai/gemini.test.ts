@@ -55,6 +55,20 @@ describe('GeminiProvider', () => {
     expect(Object.keys(res).sort()).toEqual(['text', 'toolCalls', 'usage'].sort());
   });
 
+  it('soma os tokens de raciocínio à saída: o Gemini os cobra pelo preço de saída', async () => {
+    // Medido em 08/10/2026: 10 tokens visíveis e ~500 de raciocínio por chamada.
+    stubFetch({
+      candidates: [{ content: { parts: [{ text: 'ok' }] } }],
+      usageMetadata: { promptTokenCount: 3076, candidatesTokenCount: 10, thoughtsTokenCount: 567 },
+    });
+    const provider = new GeminiProvider('gemini-3.6-flash');
+    const res = await provider.generateWithTools({
+      systemPrompt: 's',
+      messages: [{ role: 'user', text: 'oi' }],
+    });
+    expect(res.usage).toEqual({ tokensInput: 3076, tokensOutput: 577, model: 'gemini-3.6-flash' });
+  });
+
   it('mapeia functionCall → toolCalls com args unknown', async () => {
     stubFetch({
       candidates: [

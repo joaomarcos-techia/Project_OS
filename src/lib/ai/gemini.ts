@@ -3,7 +3,7 @@
  *
  * Implementa `AIProvider` direto via fetch cru (mesmo padrão do
  * MetaCloudProvider — sem SDK, sem dependência nova). Modelo default
- * gemini-3.8-flash (env.GEMINI_MODEL).
+ * gemini-3.6-flash (env.GEMINI_MODEL).
  *
  * Timeout: todo fetch usa `AbortSignal.timeout` (env.AI_HTTP_TIMEOUT_MS,
  * default 15s). Sem o teto, um request lento segura o worker do outbox.
@@ -45,6 +45,8 @@ interface GeminiResponseBody {
   usageMetadata?: {
     promptTokenCount?: number;
     candidatesTokenCount?: number;
+    /** Tokens de raciocínio — cobrados pelo preço de SAÍDA. */
+    thoughtsTokenCount?: number;
   };
 }
 interface GeminiCandidate {
@@ -181,7 +183,12 @@ export class GeminiProvider implements AIProvider {
       toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
       usage: {
         tokensInput: parsed.usageMetadata?.promptTokenCount ?? 0,
-        tokensOutput: parsed.usageMetadata?.candidatesTokenCount ?? 0,
+        // O Gemini cobra o raciocínio como saída. Sem `thoughtsTokenCount`, um
+        // turno de 10 tokens visíveis e ~500 de raciocínio (medido em 08/10/2026)
+        // era contabilizado como 10: custo e teto por clínica (R4) subestimados.
+        tokensOutput:
+          (parsed.usageMetadata?.candidatesTokenCount ?? 0) +
+          (parsed.usageMetadata?.thoughtsTokenCount ?? 0),
         model: this.model,
       },
     };
