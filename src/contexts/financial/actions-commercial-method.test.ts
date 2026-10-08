@@ -163,6 +163,39 @@ describe('confirmPayment e condição comercial do atendimento', () => {
     },
   );
 
+  it.each(['pix', 'credit_card'])(
+    'dinheiro na recepção quita o atendimento combinado em %s (08/10/2026)',
+    async (commercialPaymentMethod) => {
+      const tx = stubTransaction({ pricingPolicyMode: 'payment_method_pricing', commercialPaymentMethod });
+      await expect(
+        confirmPayment(
+          { lancamentoId: LANCAMENTO_ID, valorPago: 75, paymentMethod: 'dinheiro' },
+          'idem-restante-dinheiro',
+        ),
+      ).resolves.toEqual({ id: LANCAMENTO_ID });
+      expect(tx.insert).toHaveBeenCalledOnce();
+      // O Payments usa atendimento + origem para fechar o link do restante.
+      expect(mocks.publishEvent).toHaveBeenCalledWith(
+        tx,
+        expect.objectContaining({
+          payload: expect.objectContaining({ appointmentId: APPOINTMENT_ID, source: 'manual', paymentMethod: 'dinheiro' }),
+        }),
+      );
+    },
+  );
+
+  it('dinheiro sempre vale, mas outro meio fora do combinado segue recusado', async () => {
+    const tx = stubTransaction({ pricingPolicyMode: 'payment_method_pricing', commercialPaymentMethod: 'pix' });
+    await expect(
+      confirmPayment(
+        { lancamentoId: LANCAMENTO_ID, valorPago: 25, paymentMethod: 'cartao_credito' },
+        'idem-cartao-no-pix',
+      ),
+    ).rejects.toThrow('difere da condição comercial');
+    expect(tx.insert).not.toHaveBeenCalled();
+    expect(mocks.publishEvent).not.toHaveBeenCalled();
+  });
+
   it('falha fechado se o atendimento referenciado não pertence à clínica', async () => {
     const tx = stubTransaction(null);
     await expect(

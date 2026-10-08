@@ -127,6 +127,8 @@ export async function applyCreditToExistingReceivable(
       valorPago: newPaid,
       status: newStatus,
       paymentMethod: input.paymentMethod,
+      appointmentId: input.appointmentId,
+      source: 'gateway' as const,
     },
     idempotencyKey: `patient-credit-applied:${input.patientChargeId}`,
     correlationId: input.correlationId,

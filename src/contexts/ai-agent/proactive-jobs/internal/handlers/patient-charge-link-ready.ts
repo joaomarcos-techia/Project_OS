@@ -35,6 +35,16 @@ import { PAYMENTS_EVENTS, type PatientChargeLinkReadyPayload } from '@/contexts/
 import type { DepositLinkPayload, RemainderLinkPayload } from '../../domain/types';
 import { insertJobTx } from '../../infra/repository';
 
+/**
+ * O link do RESTANTE espera 2 h (08/10/2026). O restante pode ser pago na
+ * clínica, inclusive em dinheiro: a cobrança nasce quando o atendimento é
+ * concluído, e o paciente costuma acertar na recepção logo depois. A espera
+ * dá tempo de a recepção registrar o pagamento — o que fecha o link antes do
+ * envio — em vez de o paciente receber um link pelo que acabou de pagar. O
+ * sinal não espera: cada hora sem o link é uma hora a menos do hold.
+ */
+export const REMAINDER_LINK_DELAY_MS = 2 * 60 * 60 * 1000;
+
 async function enqueuePaymentLink(ctx: {
   tx: Tx;
   clinicId: string;
@@ -68,7 +78,7 @@ async function enqueuePaymentLink(ctx: {
   await insertJobTx(tx, {
     clinicId,
     type,
-    scheduledFor: new Date(),
+    scheduledFor: kind === 'deposit' ? new Date() : new Date(Date.now() + REMAINDER_LINK_DELAY_MS),
     payload: job,
     dedupKey: `${type}:${payload.chargeId}`,
   });

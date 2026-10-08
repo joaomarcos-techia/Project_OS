@@ -23,7 +23,7 @@ vi.mock('../../infra/repository', () => ({ insertJobTx: mocks.insertJobTx }));
 
 import { metrics } from '@/lib/observability/metrics';
 
-import './patient-charge-link-ready';
+import { REMAINDER_LINK_DELAY_MS } from './patient-charge-link-ready';
 
 // Capturado no LOAD: `clearAllMocks` apagaria o registro.
 const registration = mocks.registerHandler.mock.calls[0]!;
@@ -99,6 +99,16 @@ describe('handler dos links de pagamento', () => {
     await run();
 
     expect((inserted().scheduledFor as Date).getTime()).toBeGreaterThanOrEqual(before);
+  });
+
+  it('o link do restante espera 2 h: a recepção registra o dinheiro antes do envio (08/10/2026)', async () => {
+    const before = Date.now();
+    await run({ kind: 'remainder' });
+
+    const scheduledFor = (inserted().scheduledFor as Date).getTime();
+    expect(scheduledFor).toBeGreaterThanOrEqual(before + REMAINDER_LINK_DELAY_MS);
+    expect(scheduledFor).toBeLessThan(before + REMAINDER_LINK_DELAY_MS + 60_000);
+    expect(REMAINDER_LINK_DELAY_MS).toBe(2 * 60 * 60 * 1000);
   });
 
   it('remainder vira remainder_link sem URL nem prazo de hold', async () => {
