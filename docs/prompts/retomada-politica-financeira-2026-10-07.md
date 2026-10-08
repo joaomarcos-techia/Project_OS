@@ -64,6 +64,14 @@ Copie este documento inteiro como instrução para o próximo agente. Trabalhe e
 
    Em 07/10, a pedido do usuário, as duas conexões reais do DEV foram desativadas, sem chamada à Meta e do mesmo jeito que o botão "Desconectar": `active=false`, `connection_status='disconnected'`, histórico preservado e auditoria `messaging.whatsapp.disconnected` com `claude-code-operator`. Eram a coexistência na `clinica-a` e a API Cloud na `ervevevev`. Depois disso não restou nenhum número real ativo no DEV; as linhas "ativas" restantes são fixtures sintéticas de 13/08, com IDs falsos da Meta.
 
+   Em 08/10, com autorização do usuário:
+
+   - um override de callback foi configurado só na WABA do número de teste, apontando para o Preview da PR #26;
+   - a jornada Meta → Preview → IA passou;
+   - foram corrigidos a `thoughtSignature` do Gemini 3 (toda rechamada pós-tool dava 400) e a escolha de procedimento por nome exato.
+
+   Sinal, link e pagamento pela jornada seguem NOT RUN: o Preview não processa o próprio outbox e a C14 só envia em produção. Detalhes em `docs/qorov2.md` §58.
+
    Só existe um app Meta configurado (`META_APP_ID`), e `subscribeAppToWaba` não usa `override_callback_uri`. Por isso, trocar o callback do app desvia o webhook de **todos** os ambientes que usam esse app. Para testar no Preview, prefira um override por WABA, ou confirme antes que produção não depende desse callback. Testar mensagem consentida → Meta → webhook → tenant → IA → escolha de método/preço do servidor → sinal/link Asaas → Meta outbound → pagamento Sandbox → webhook Asaas → crédito/Caixa/repasse. Outros worktrees, Meta e números de teste precisam de verificação atual; não inventar PASS a partir de unidades. Google Ads final depende de campanha ativa e cadastro humano é o último roteiro manual combinado com o usuário.
 9. **Promoção:** só depois de diff revisado, Preview E2E, CI, backup restaurável adequado, plano de rollback e migrations ordenadas/readback no ambiente-alvo. Não mesclar por impulso só porque os testes locais estão verdes. Se a pessoa autorizar promoção e as condições estiverem atendidas, faça uma vez, confirme banco, app, webhook, métricas e sem resíduos da fixture.
 

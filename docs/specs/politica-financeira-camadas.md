@@ -413,7 +413,7 @@ Cleanup: outbox, auditoria e clínica da fixture removidos; usuário Auth com DE
 | 5 — UI, E2E e promoção | Preview 6/6 PASS em `1cc90e69` (fatos sintéticos); Caixa com fatos reais do Sandbox PASS (9ª execução); promoção NOT RUN | backup restaurável e plano de rollout ainda sem decisão |
 | Conta pausada | ciclo de configuração PASS no Sandbox; concorrência PASS no DEV; evento real de cobrança antiga com a conta pausada PASS no Preview (9ª execução); encerramento definitivo implementado (0115 no DEV), E2E manual na seção final; cron de inatividade NOT RUN | no ciclo 6/6 de `1cc90e69`, o webhook apontava para outro deploy (`APP_BASE_URL`); a 9ª execução refez conexão e pausa com o host correto |
 | Estorno | fora do escopo agora | decisão de 04/10, reafirmada em 07/10: a clínica devolve ao paciente pela própria conta Asaas; a automação vem depois. O `CREDIT_REFUND/REFUSED` do Sandbox fica como histórico |
-| IA → Asaas → Meta | NOT RUN | `feat/whatsapp-coexistence` já está em `main` e nesta branch. Em 07/10, a pedido do usuário, as duas conexões reais do DEV foram desativadas para reconexão limpa (detalhe no prompt de retomada). Faltam conectar o número de teste a uma clínica DEV pelo Preview, levar o webhook Meta até o Preview e uma pessoa no circuito |
+| IA → Asaas → Meta | PARCIAL: Meta → Preview → IA PASS em 08/10 (override por WABA); sinal, link e pagamento pela jornada NOT RUN | o Preview não processa o próprio outbox (sem cron) e a C14 só envia em produção, das 8h às 20h. Corrigidos no caminho: `thoughtSignature` do Gemini 3 e nome exato de procedimento (`docs/qorov2.md` §58) |
 
 ### 07/10/2026 — runner do pagamento real em conta pausada
 

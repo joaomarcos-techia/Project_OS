@@ -8607,3 +8607,27 @@ Correção no PR #26 (`63253e75`):
 - lista, cabeçalho e rótulo das mensagens usam o nome do cadastro, depois o do WhatsApp, depois o telefone.
 
 A migration 0114 (`inbound_messages_raw.from_name_encrypted` e `ai_conversations.contact_name_encrypted`, anuláveis) foi aplicada **só no DEV**, com backup completo antes e readback de colunas e privilégios. Conversas antigas ganham o nome na próxima mensagem recebida. Detalhes de prova estão no histórico do PR; não foi aplicada em produção.
+
+## 58. Jornada WhatsApp → IA no Preview — 08/10/2026
+
+Teste da jornada integrada com o número de teste em coexistência (final 2198) na `clinica-a` do DEV e o número autorizado do lado do paciente.
+
+**Achados e ações:**
+
+1. **O webhook da Meta ia para produção.** O app Meta (final 6678) entrega `whatsapp_business_account` em `app.qoro.dev/api/webhooks/meta`, e a mensagem real foi para produção, onde o número não está conectado. Com autorização do usuário, um `override_callback_uri` foi configurado **só na WABA do número de teste** (final 3643), apontando para o Preview da PR #26. A verificação da Meta passou no Preview e a releitura confirmou o destino. Para desfazer, `POST /{waba}/subscribed_apps` sem override.
+2. **O Preview não processa o próprio outbox.** Sem cron, o tick depois do ingresso da rota Meta processa um único evento, o mais antigo do outbox global, e o DEV tinha 57 pendentes na frente. A mensagem chegou ao DEV com o nome do perfil (0114 provada), mas o turno da IA não rodou.
+3. **Gemini 3 exige `thoughtSignature` (corrigido).**
+   - **Problema:** com `gemini-3.8-flash`, o padrão do env, toda rechamada depois de uma tool respondia HTTP 400 ("Function call is missing a thought_signature"). O turno caía no texto da tool ou no fallback "Um atendente vai te responder em breve".
+   - **Prova:** uma sonda direta na API deu 400 sem a assinatura e 200 com ela.
+   - **Correção:** `ToolCall.signature`/`ToolResult.signature` opacos; o Gemini lê a `thoughtSignature` e a devolve no `functionCall` da rechamada.
+   - **Resultado:** zero 400 nos turnos seguintes.
+4. **Procedimento contido em outro (corrigido).** Com "Consulta" e "Consulta [demo]", o casamento tolerante casava os dois, e "Consulta" nunca era escolhida. O nome exato agora vence.
+5. **Especialidades da IA diferentes dos procedimentos (dado da `clinica-a`).** A IA ofereceu "Pediatria ou Cardiologia", que não casam com os procedimentos cadastrados. Pede ajuste de cadastro, não de código.
+6. **Agendamento anônimo com sinal ligado.** Com `can_schedule_anonymous=true`, a IA agenda sem paciente e o sinal não é cobrado. Decisão de produto pendente.
+7. **Entrega do link do sinal.** Ela depende da fila C14 (cron `proactive-deposit-link`, só em produção, janela de 8h a 20h). No Preview o link não sai pelo WhatsApp.
+8. **Artefato de teste, não defeito.** Para destravar, os turnos foram processados por um processador local restrito à `clinica-a`. O salt do hash de lookup local difere do Preview, e o paciente cadastrado localmente não casava com a conversa (laço de cadastro). Os artefatos foram removidos (agendamento anônimo, paciente sintético, estado de cadastro), a configuração da clínica foi restaurada e o readback deu zero.
+
+**Estado da jornada:**
+
+- **PASS:** Meta → Preview → DEV com o nome do perfil; resposta da IA enviada pela Cloud API; agendamento e cadastro conduzidos pela IA (desfeitos no cleanup).
+- **NOT RUN:** sinal, link, pagamento e Caixa pela jornada. Exigem um worker de outbox no Preview, ou produção, e a C14 no horário dela.
