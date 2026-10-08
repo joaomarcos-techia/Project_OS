@@ -111,6 +111,17 @@ function procTokens(s: string): string[] {
 }
 
 /**
+ * Nome EXATO do procedimento (sem caixa, acento nem espaço extra). Vence o
+ * matching tolerante: com "Consulta" e "Consulta [demo]" cadastrados, o
+ * tolerante casa os dois para "Consulta" e o paciente nunca conseguia escolher
+ * o primeiro (visto no DEV em 08/10/2026).
+ */
+function isSameProcedureName(query: string, p: { descricao: string }): boolean {
+  const normalized = (value: string) => fold(value).replace(/\s+/g, ' ').trim();
+  return normalized(query) === normalized(p.descricao);
+}
+
+/**
  * Matching TOLERANTE de procedimento por nome/especialidade. Substring simples
  * falhava em casos reais (o paciente diz "cardiologia", o procedimento é
  * "Consulta Cardiológica"). Casa por token: inclusão em qualquer direção OU
@@ -182,6 +193,7 @@ function appointmentTimeForPatient(iso: string, timeZone: string): string {
 /** Test-only: matcher puro exposto p/ cobertura (bug real cardiologia↔cardiológica). */
 export const __testing__ = {
   matchesProcedure,
+  isSameProcedureName,
   appointmentTimeForPatient,
 };
 
@@ -221,7 +233,11 @@ registerTool({
     let procedure: (typeof procedures)[number] | undefined;
     const requestedProcedureName = input.procedure_name ?? ctx.pendingAppointmentProcedureName;
     if (requestedProcedureName) {
-      const matches = procedures.filter((p) => matchesProcedure(requestedProcedureName, p));
+      const exact = procedures.filter((p) => isSameProcedureName(requestedProcedureName, p));
+      const matches =
+        exact.length === 1
+          ? exact
+          : procedures.filter((p) => matchesProcedure(requestedProcedureName, p));
       if (matches.length === 1) procedure = matches[0];
       else if (matches.length === 0) {
         // Sem match mas só há um procedimento → é ele (evita fricção boba).

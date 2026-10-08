@@ -128,6 +128,43 @@ describe('matchesProcedure (tolerante a especialidade vs nome)', () => {
   });
 });
 
+describe('nome exato do procedimento vence o matching tolerante', () => {
+  it('compara sem caixa, acento nem espaço extra', () => {
+    expect(__testing__.isSameProcedureName('  consulta ', { descricao: 'Consulta' })).toBe(true);
+    expect(
+      __testing__.isSameProcedureName('Consulta [demo]', { descricao: 'Consulta [demo]' }),
+    ).toBe(true);
+    expect(__testing__.isSameProcedureName('Consulta', { descricao: 'Consulta [demo]' })).toBe(
+      false,
+    );
+  });
+
+  it('com "Consulta" e "Consulta [demo]", pedir "Consulta" escolhe a primeira em vez de travar', async () => {
+    // Caso do DEV em 08/10/2026: o tolerante casava os dois e o paciente recebia
+    // "Encontrei mais de um atendimento parecido" para sempre.
+    mocks.listProcedures.mockResolvedValue([
+      { id: PROCEDURE_ID, descricao: 'Consulta', categoria: null, valorPadrao: 150 },
+      {
+        id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+        descricao: 'Consulta [demo]',
+        categoria: null,
+        valorPadrao: 380,
+      },
+    ]);
+    mocks.getPaymentPricingPolicy.mockResolvedValue({ mode: 'absorb_fees' });
+
+    const response = await getTool('prepare_appointment')!.handler(
+      { procedure_name: 'Consulta' },
+      registeredPatientContext,
+    );
+
+    expect(response.patient_message ?? '').not.toContain('mais de um atendimento');
+    expect(mocks.listSlots).toHaveBeenCalledWith(
+      expect.objectContaining({ procedureId: PROCEDURE_ID }),
+    );
+  });
+});
+
 describe('horário relativo no fuso da clínica', () => {
   // A resolução em si mora em internal/relative-datetime.test.ts (55 casos).
   // Aqui fica só o que esta tool ainda faz: apresentar o horário ao paciente.
