@@ -107,6 +107,53 @@ describe('GeminiProvider', () => {
     });
   });
 
+  it('Gemini 3: devolve a thoughtSignature do functionCall como assinatura opaca', async () => {
+    stubFetch({
+      candidates: [
+        {
+          content: {
+            parts: [
+              {
+                functionCall: { name: 'prepare_appointment', args: { procedure_name: 'x' } },
+                thoughtSignature: 'sig-opaca-1',
+              },
+            ],
+          },
+        },
+      ],
+      usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 5 },
+    });
+    const res = await new GeminiProvider('gemini-3.8-flash').generateWithTools({
+      systemPrompt: 's',
+      messages: [{ role: 'user', text: 'quero marcar' }],
+    });
+    expect(res.toolCalls).toEqual([
+      { name: 'prepare_appointment', args: { procedure_name: 'x' }, signature: 'sig-opaca-1' },
+    ]);
+  });
+
+  it('Gemini 3: reenvia a thoughtSignature junto do functionCall na re-chamada', async () => {
+    // Sem ela a API responde 400 ("Function call is missing a thought_signature")
+    // e todo turno com tool cai no fallback — observado no DEV em 08/10/2026.
+    const { requests } = stubFetch(GEMINI_OK);
+    await new GeminiProvider('gemini-3.8-flash').generateWithTools({
+      systemPrompt: 's',
+      messages: [{ role: 'user', text: 'SIM' }],
+      tools: [{ name: 't1', description: 'd1', parameters: { type: 'object' } }],
+      toolResults: [
+        { name: 't1', args: { a: 1 }, response: { ok: true }, signature: 'sig-opaca-1' },
+      ],
+    });
+    const sent = requests[0]!.body as {
+      contents: { role: string; parts: Record<string, unknown>[] }[];
+    };
+    const [modelTurn] = sent.contents.slice(-2);
+    expect(modelTurn!.parts[0]).toEqual({
+      functionCall: { name: 't1', args: { a: 1 } },
+      thoughtSignature: 'sig-opaca-1',
+    });
+  });
+
   it('HTTP 503 → AIProviderError (definitivo, sem corpo vazado)', async () => {
     stubFetch({ error: { message: 'overloaded' } }, 503);
     await expect(
