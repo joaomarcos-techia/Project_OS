@@ -103,6 +103,26 @@ export function DepositPolicyForm({ policy, hasAccount }: Props) {
           </Alert>
         ) : null}
 
+        {/* 08/10/2026 — o modelo de pagamento, dito uma vez e no lugar da decisão. */}
+        <div className="rounded-(--r-md) border border-border bg-surface-2 p-3 text-(length:--fs-sm) text-fg-muted">
+          <p className="font-medium text-fg">Como o paciente paga</p>
+          <ul className="mt-1 flex list-disc flex-col gap-1 pl-5">
+            <li>
+              Com o sinal ligado, o horário só é confirmado depois que o paciente paga o sinal pelo
+              link de pagamento que chega no WhatsApp. Sem o pagamento no prazo (até 24 horas), o
+              horário é liberado.
+            </li>
+            <li>
+              O restante pode ser pago na clínica, inclusive em dinheiro. No Caixa, use “Pagou o
+              restante em dinheiro”: se o link do restante já tiver sido enviado, ele deixa de valer.
+            </li>
+            <li>
+              Com o sinal desligado, o agendamento não exige pagamento antecipado. No Caixa, use
+              “Pagou em dinheiro” quando o paciente pagar na recepção.
+            </li>
+          </ul>
+        </div>
+
         <form className="flex flex-col gap-5" onSubmit={handleSubmit}>
           <label className="flex items-center justify-between gap-4">
             <span className="flex flex-col">

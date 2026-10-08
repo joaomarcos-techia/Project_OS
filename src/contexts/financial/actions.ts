@@ -101,6 +101,11 @@ async function assertAppointmentPaymentMethod(
   const appointment = rows[0];
   if (!appointment) throw new FinancialValidationError('atendimento não encontrado nesta clínica');
   if (appointment.pricingPolicyMode === 'absorb_fees') return;
+  // 08/10/2026 (decisão do usuário) — dinheiro na recepção sempre quita o
+  // atendimento: "pagou o restante em dinheiro" depois do sinal pelo link, e
+  // "pagou em dinheiro" sem sinal. A condição comercial continua valendo para
+  // os outros meios — cartão no lugar do Pix acordado segue recusado.
+  if (paymentMethod === catalogPaymentMethodForCommercial('cash')) return;
 
   const expected = catalogPaymentMethodForCommercial(appointment.commercialPaymentMethod);
   if (appointment.pricingPolicyMode !== 'payment_method_pricing' || !expected) {
@@ -285,6 +290,8 @@ export async function confirmPayment(
           valorPago: novoPago,
           status: novoStatus,
           paymentMethod: data.paymentMethod,
+          appointmentId: lanc.appointmentId ?? null,
+          source: 'manual' as const,
         },
         idempotencyKey: `${idempotencyKey}:paid`,
       });

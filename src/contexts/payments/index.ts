@@ -70,6 +70,7 @@ export {
   type FailedChargeDTO,
   type ManualRefundTask,
   type PatientChargeEconomicsDTO,
+  type PatientChargeStatus,
   type PayableCharge,
   type PaymentsApiV1,
 } from './api';

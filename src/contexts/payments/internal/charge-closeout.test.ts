@@ -58,7 +58,11 @@ import { metrics } from '@/lib/observability/metrics';
 import { PoisonPillError } from '@/lib/outbox/errors';
 import { BillingProviderError } from '@/lib/payments/asaas';
 
-import { closeChargeForCancellation, closeChargeForNoShow } from './charge-closeout';
+import {
+  closeChargeForCancellation,
+  closeChargeForNoShow,
+  closeRemainderAfterManualPayment,
+} from './charge-closeout';
 
 const CLINIC = 'clinic-1';
 const APPOINTMENT = 'apt-1';
@@ -691,6 +695,41 @@ describe('retenção libera o crédito no Financial', () => {
 
     expect(mocks.releaseCreditAsRetained).not.toHaveBeenCalled();
     expect(mocks.queueManualDepositRefund).toHaveBeenCalledOnce();
+    expect(mocks.closeCharge).not.toHaveBeenCalled();
+  });
+});
+
+describe('restante pago na recepção (08/10/2026)', () => {
+  it('fecha o link do restante ainda aberto, pela cobrança do RESTANTE', async () => {
+    mocks.findOpenCharge.mockResolvedValue(charge({ id: 'remainder-1', kind: 'remainder', amount: 75 }));
+
+    await closeRemainderAfterManualPayment({ clinicId: CLINIC, appointmentId: APPOINTMENT });
+
+    expect(mocks.findOpenCharge).toHaveBeenCalledWith(CLINIC, APPOINTMENT, 'remainder');
+    expect(mocks.cancelPayment).toHaveBeenCalledWith('pay_1');
+    expect(mocks.closeCharge).toHaveBeenCalledWith(
+      expect.objectContaining({ chargeId: 'remainder-1', from: 'pending', outcome: 'cancelled', kind: 'remainder' }),
+    );
+  });
+
+  it('restante já pago ou inexistente: não toca no gateway', async () => {
+    mocks.findOpenCharge.mockResolvedValue(charge({ kind: 'remainder', status: 'paid' }));
+    await closeRemainderAfterManualPayment({ clinicId: CLINIC, appointmentId: APPOINTMENT });
+    mocks.findOpenCharge.mockResolvedValue(null);
+    await closeRemainderAfterManualPayment({ clinicId: CLINIC, appointmentId: APPOINTMENT });
+
+    expect(mocks.getClinicAsaasClient).not.toHaveBeenCalled();
+    expect(mocks.closeCharge).not.toHaveBeenCalled();
+  });
+
+  it('o paciente pagou o link na mesma hora: não apaga um pagamento real, devolve retentável', async () => {
+    mocks.findOpenCharge.mockResolvedValue(charge({ kind: 'remainder' }));
+    mocks.getPayment.mockResolvedValue({ paymentId: 'pay_1', status: 'RECEIVED', deleted: false });
+
+    await expect(
+      closeRemainderAfterManualPayment({ clinicId: CLINIC, appointmentId: APPOINTMENT }),
+    ).rejects.toThrow();
+    expect(mocks.cancelPayment).not.toHaveBeenCalled();
     expect(mocks.closeCharge).not.toHaveBeenCalled();
   });
 });

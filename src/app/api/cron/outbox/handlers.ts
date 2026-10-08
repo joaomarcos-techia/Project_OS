@@ -116,6 +116,10 @@ import '@/contexts/financial/internal/handlers/patient-payment-economics-reconci
 import '@/contexts/financial/internal/handlers/patient-payment-economics-corrected';
 import '@/contexts/financial/internal/handlers/patient-credit-released';
 
+// 08/10/2026 — a recepção registrou pagamento do atendimento no Caixa (o
+// restante em dinheiro, por exemplo) → o Payments fecha o link do restante.
+import '@/contexts/payments/internal/handlers/lancamento-paid';
+
 // D50 — Financial detecta excedente; Payments executa o estorno fora da TX do worker.
 import '@/contexts/payments/internal/handlers/excess-refund-requested';
 import '@/contexts/financial/internal/handlers/excess-refund-confirmed';

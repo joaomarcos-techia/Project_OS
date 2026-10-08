@@ -8,7 +8,8 @@
  * `cash-queue`, porque a fila e o cartão precisam do mesmo tipo — tê-lo na fila
  * fazia o cartão importar de quem o importa (ciclo pego por `arch:check`).
  */
-export type CashPanelMode = 'confirm' | 'cancel' | 'estorno';
+/** `cash`: "Pagou em dinheiro" — o painel de confirmação só com dinheiro (08/10/2026). */
+export type CashPanelMode = 'confirm' | 'cash' | 'cancel' | 'estorno';
 
 export type ActionResult<T = undefined> =
   | { ok: true; data: T }

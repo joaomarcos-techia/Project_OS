@@ -22,7 +22,29 @@ describe('MetaCloudProvider.parseWebhook — campos de webhook', () => {
       }),
     );
     expect(parsed.messages).toHaveLength(1);
-    expect(parsed.messages[0]).toMatchObject({ providerMessageId: 'wamid-1', text: 'oi' });
+    expect(parsed.messages[0]).toMatchObject({
+      providerMessageId: 'wamid-1',
+      text: 'oi',
+      messageType: 'text',
+    });
+  });
+
+  it('áudio e arquivo chegam sem texto, mas com o tipo (08/10/2026, W18)', () => {
+    const parsed = provider.parseWebhook(
+      webhook('messages', {
+        metadata,
+        messages: [
+          { id: 'wamid-audio', from: '5511999990000', type: 'audio', audio: { voice: true } },
+          { id: 'wamid-doc', from: '5511999990000', type: 'document', document: {} },
+          { id: 'wamid-sem-tipo', from: '5511999990000' },
+        ],
+      }),
+    );
+    expect(parsed.messages.map((m) => [m.providerMessageId, m.text, m.messageType])).toEqual([
+      ['wamid-audio', null, 'audio'],
+      ['wamid-doc', null, 'document'],
+      ['wamid-sem-tipo', null, null],
+    ]);
   });
 
   it('`smb_message_echoes` vira eco da recepção, não inbound', () => {

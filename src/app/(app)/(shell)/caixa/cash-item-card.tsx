@@ -12,6 +12,8 @@ import { cn } from '@/lib/ui/cn';
 
 import {
   CancelPaymentPanel,
+  canMarkPaidInCash,
+  cashActionLabel,
   ConfirmPaymentPanel,
   RefundPaymentPanel,
   type RefundInput,
@@ -311,6 +313,20 @@ export function CashItemCard({
           {actionLabel}
         </Button>
       ) : null}
+      {canOperate && canMarkPaidInCash(item, methods) ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          className="min-h-(--hit-target)"
+          aria-expanded={panelMode === 'cash'}
+          aria-controls={panelMode === 'cash' ? panelId : undefined}
+          onClick={() => onOpenPanel('cash')}
+          disabled={pending}
+        >
+          {cashActionLabel(item)}
+        </Button>
+      ) : null}
       {canRefund && refundablePayments.length > 0 ? (
         <Button
           type="button"
@@ -337,6 +353,18 @@ export function CashItemCard({
           pending={pending}
           onClose={onClosePanel}
           onRequestCancel={canOperate ? () => onOpenPanel('cancel') : undefined}
+          onSubmit={(valorPago, method, comprovante) =>
+            onConfirm(item, valorPago, method, comprovante)
+          }
+        />
+      ) : null}
+      {panelMode === 'cash' ? (
+        <ConfirmPaymentPanel
+          item={item}
+          methods={methods}
+          pending={pending}
+          cashOnly
+          onClose={onClosePanel}
           onSubmit={(valorPago, method, comprovante) =>
             onConfirm(item, valorPago, method, comprovante)
           }

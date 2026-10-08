@@ -110,6 +110,31 @@ export function detectHumanHandoffRequest(text: string): boolean {
 const INFORMATION_QUESTION_RE =
   /\b(endereco|onde (fica|ficam)|como (chego|chegar)|localizacao|horario de (funcionamento|atendimento)|que horas (voces )?(abre|abrem|fecha|fecham)|quanto custa|qual (o|e o) (preco|valor)|preco da consulta|valor da consulta|aceita(m)? (convenio|plano|cartao|pix)|tem estacionamento|estacionamento)\b/;
 
+/**
+ * "Já paguei" (08/10/2026, EC-22). O paciente AFIRMA que pagou — o servidor
+ * responde com o status real da cobrança, sem LLM, e nunca dá nada como pago
+ * pela palavra dele. Pergunta e futuro ("posso pagar em dinheiro?", "vou pagar
+ * amanhã") não casam: seguem para o fluxo normal. Negação ("ainda não paguei")
+ * também não.
+ *
+ * `cash` separa o pagamento em dinheiro: ele não passa pelo Asaas, quem
+ * confirma é a equipe da clínica.
+ */
+const PAYMENT_CLAIM_RE =
+  /\b(ja paguei|paguei|ja fiz o (pix|pagamento)|fiz o (pix|pagamento)|ja transferi|transferi|ja foi pago|pagamento (feito|realizado|efetuado|concluido)|(efetuei|realizei|conclui) o pagamento|(mandei|enviei|segue) o comprovante)\b/;
+const PAYMENT_CLAIM_NEGATION_RE =
+  /\b(nao|ainda nao|nunca)\s+(paguei|fiz o (pix|pagamento)|transferi|foi pago)\b/;
+const PAYMENT_CASH_RE =
+  /\b(em dinheiro|no dinheiro|em especie|na especie|na recepcao|no balcao|pessoalmente|no caixa da clinica|na clinica)\b/;
+
+export function detectPaymentClaim(text: string): { claimed: boolean; cash: boolean } {
+  const normalized = normalize(text);
+  if (!PAYMENT_CLAIM_RE.test(normalized) || PAYMENT_CLAIM_NEGATION_RE.test(normalized)) {
+    return { claimed: false, cash: false };
+  }
+  return { claimed: true, cash: PAYMENT_CASH_RE.test(normalized) };
+}
+
 export function detectInformationQuestion(text: string): boolean {
   return INFORMATION_QUESTION_RE.test(normalize(text));
 }

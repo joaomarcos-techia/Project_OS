@@ -42,10 +42,12 @@ const OutputSchema = z.object({
       duracao_min: z.number(),
       payment_options: z.array(
         z.object({
-          payment_method: z.enum(['pix', 'credit_card']),
+          payment_method: z.enum(['pix', 'credit_card', 'cash']),
           installment_count: z.number().int().nullable(),
           gross_amount: z.number(),
           hosted_checkout_supports_option: z.boolean(),
+          /** Dinheiro: pago na recepção, nunca por link (08/10/2026). */
+          paid_at_clinic: z.boolean(),
         }),
       ),
     }),
@@ -60,7 +62,7 @@ function fold(s: string): string {
 registerTool({
   name: 'provide_procedure_price',
   description:
-    'Lista procedimentos da clínica com procedure_id, duração e preços em BRL. Em preço por forma de pagamento, valor é nulo e payment_options traz os preços configurados por Pix/cartão e parcelas; hosted_checkout_supports_option indica apenas compatibilidade técnica do Checkout, não promessa de link imediato. O envio depende da política de cobrança e da elegibilidade do atendimento. Passe procedure_name para filtrar; sem filtro retorna o catálogo (top 20). Para agendar, use prepare_appointment com o NOME do procedimento.',
+    'Lista procedimentos da clínica com procedure_id, duração e preços em BRL. Em preço por forma de pagamento, valor é nulo e payment_options traz os preços configurados por Pix, cartão e dinheiro; paid_at_clinic indica pagamento na recepção (dinheiro), nunca por link; hosted_checkout_supports_option indica apenas compatibilidade técnica do Checkout, não promessa de link imediato. Quando a clínica cobra sinal, quem decide se o dinheiro vale para o agendamento é prepare_appointment. Passe procedure_name para filtrar; sem filtro retorna o catálogo (top 20). Para agendar, use prepare_appointment com o NOME do procedimento.',
   inputSchema: InputSchema,
   outputSchema: OutputSchema,
   handler: async (input, ctx) => {
@@ -81,19 +83,16 @@ registerTool({
         valor: pricingPolicy.mode === 'absorb_fees' ? p.valorPadrao : null,
         duracao_min: p.duracaoPadraoMin,
         payment_options: prices.flatMap((price) => {
-          if (
-            price.procedureId !== p.id ||
-            (price.paymentMethod !== 'pix' && price.paymentMethod !== 'credit_card')
-          ) {
-            return [];
-          }
+          if (price.procedureId !== p.id) return [];
           return [
             {
               payment_method: price.paymentMethod,
               installment_count: price.installmentCount,
               gross_amount: price.grossAmount,
               hosted_checkout_supports_option:
-                price.paymentMethod === 'pix' || price.installmentCount === 1,
+                price.paymentMethod === 'pix' ||
+                (price.paymentMethod === 'credit_card' && price.installmentCount === 1),
+              paid_at_clinic: price.paymentMethod === 'cash',
             },
           ];
         }),

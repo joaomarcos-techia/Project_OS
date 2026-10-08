@@ -295,6 +295,35 @@ async function voidCharge(args: {
   }
 }
 
+/**
+ * A recepção registrou pagamento do atendimento no Caixa (08/10/2026): o link
+ * do RESTANTE, se ainda aberto, é fechado.
+ *
+ * Decisão do usuário: o restante pode ser pago na clínica, inclusive em
+ * dinheiro. Sem isto, quem pagou em dinheiro seguia com um link pagável no
+ * WhatsApp, e pagar duas vezes vira devolução manual. Depois de um registro
+ * manual, a cobrança do saldo é da recepção: o link não volta (a criação é
+ * idempotente por atendimento), e um saldo parcial segue em aberto no Caixa.
+ *
+ * Corrida com o paciente pagando o link na mesma hora: o `voidCharge` vê o
+ * pagamento e devolve erro retentável; o webhook concilia, e o excedente segue
+ * o fluxo de devolução que já existe.
+ */
+export async function closeRemainderAfterManualPayment(ctx: {
+  clinicId: string;
+  appointmentId: string;
+}): Promise<void> {
+  const charge = await findOpenCharge(ctx.clinicId, ctx.appointmentId, 'remainder');
+  if (!charge || charge.status !== 'pending') return;
+  await voidCharge({
+    client: await getClinicAsaasClient(ctx.clinicId),
+    clinicId: ctx.clinicId,
+    appointmentId: ctx.appointmentId,
+    charge,
+    outcome: 'cancelled',
+  });
+}
+
 /** Registra a devolução devida para execução pela clínica. */
 async function refundCharge(args: {
   client: AsaasClient | null;

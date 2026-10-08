@@ -753,3 +753,50 @@ O encerramento automático depende do cron de produção: aviso e encerramento r
   continuava `sent` (EC-32). Corrigido em `84b3b413`: uma nova recusa leva o job a `failed` com o
   código da Meta (`meta_131042`).
 - Registro completo: [`docs/quality/whatsapp-ai-hardening-2026-10-08.md`](../quality/whatsapp-ai-hardening-2026-10-08.md).
+
+### 08/10/2026 — dinheiro na recepção, sinal pelo link e "já paguei"
+
+**Decisão do usuário em 08/10/2026:** "quando o sinal está ativo, ele só confirma agendamento mediante
+o pagamento pix do sinal, o restante pode ser entregue em dinheiro. quando ele está desativado, o
+agendamento pode ser feito sem o sinal. em ambas as opções, deve haver a opção de pagou o restante em
+dinheiro ou pagou em dinheiro no sistema" — e "isso deve ficar claro para o usuário na UI". Junto, para
+o "já paguei": fazer o recomendado e "adicionar a lógica de pago com dinheiro".
+
+- **Agendamento pelo WhatsApp (`prepare_appointment`):**
+  - **Com sinal aplicável** (política ligada, tipo de consulta no escopo, valor acima do mínimo do
+    gateway): "tudo em dinheiro" não vale para marcar. O agente oferece os preços com link e diz que o
+    restante pode ser pago na clínica, inclusive em dinheiro.
+  - O resumo traz o sinal e o restante com valores. Eles vêm de uma prévia sem efeito
+    (`previewDepositForBooking`), que repete a decisão do `createDepositCharge`.
+  - A confirmação diz que o horário fica reservado por até 24 horas até o pagamento do sinal.
+  - **Sem sinal:** dinheiro aparece como opção, com o preço configurado. O agendamento sai com
+    `commercial_payment_method = cash`: sem Checkout e sem link do restante, como a recepção já fazia.
+  - **Cartão em 1x continua** onde a clínica tem preço de cartão. A frase do usuário fala em "pix do
+    sinal"; restringir o sinal só a Pix é decisão em aberto.
+- **Caixa:**
+  - Dinheiro sempre quita o recebível do atendimento, pelos botões "Pagou em dinheiro" e "Pagou o
+    restante em dinheiro" (`assertAppointmentPaymentMethod`).
+  - A condição comercial continua valendo para os outros meios: cartão no lugar do Pix combinado segue
+    recusado.
+  - O recebível só nasce com o atendimento concluído, então o botão nunca aparece com o sinal ainda
+    pendente.
+- **Link do restante:**
+  - Um registro manual no Caixa (`financial.lancamento.paid` com `source: manual`) fecha o link do
+    restante que ainda estiver aberto (`closeRemainderAfterManualPayment`).
+  - Se o paciente pagar o link no mesmo instante, o erro é retentável: nenhum pagamento real é apagado,
+    e o excedente segue o fluxo de devolução existente.
+  - Depois de um registro manual, a cobrança do saldo é da recepção e o link não volta.
+  - O envio do link do restante agora espera 2 horas depois da conclusão (`REMAINDER_LINK_DELAY_MS`),
+    para a recepção registrar o dinheiro antes. O link do sinal continua imediato.
+- **"Já paguei":** o servidor responde pelo status real da cobrança (`listPatientChargeStatuses`):
+  - paga: confirma, com o valor;
+  - pendente: diz que a confirmação ainda não chegou; se o paciente insiste, vai para a equipe;
+  - pagamento em dinheiro: vai para a equipe (o sinal é só pelo link);
+  - sem cobrança: vai para a equipe.
+
+  Nunca dá nada como pago pela palavra do paciente nem por foto de comprovante. Arquivo recebido vai
+  para a equipe.
+- **Na tela:** o quadro "Como o paciente paga" na configuração do sinal, e os botões de dinheiro no
+  Caixa.
+- **Fora do modelo:** sinal pago em dinheiro antes da consulta. Não há como registrar; a equipe orienta
+  o pagamento pelo link.

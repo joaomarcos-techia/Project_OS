@@ -30,6 +30,8 @@ import { formatBRL, formatDatePt } from '@/lib/format';
 
 import {
   CancelPaymentPanel,
+  canMarkPaidInCash,
+  cashActionLabel,
   ConfirmPaymentPanel,
   RefundPaymentPanel,
   type RefundInput,
@@ -429,6 +431,21 @@ function ItemRows({
                 >
                   {actionLabel}
                 </Button>
+                {canMarkPaidInCash(item, methods) ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    className="min-h-(--hit-target)"
+                    aria-label={`${cashActionLabel(item)}: ${subject}`}
+                    aria-expanded={panelMode === 'cash'}
+                    aria-controls={panelMode === 'cash' ? panelId : undefined}
+                    onClick={() => onOpenPanel('cash')}
+                    disabled={pending}
+                  >
+                    {cashActionLabel(item)}
+                  </Button>
+                ) : null}
                 <Button
                   type="button"
                   size="sm"
@@ -474,6 +491,18 @@ function ItemRows({
                 item={item}
                 methods={methods}
                 pending={pending}
+                onSubmit={(valorPago, method, comprovante) =>
+                  onConfirm(item, valorPago, method, comprovante)
+                }
+              />
+            ) : null}
+
+            {panelMode === 'cash' ? (
+              <ConfirmPaymentPanel
+                item={item}
+                methods={methods}
+                pending={pending}
+                cashOnly
                 onSubmit={(valorPago, method, comprovante) =>
                   onConfirm(item, valorPago, method, comprovante)
                 }

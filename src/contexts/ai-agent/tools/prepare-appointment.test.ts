@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   listProcedurePaymentPrices: vi.fn(),
   resolveConfiguredProcedurePaymentPrice: vi.fn(),
   getDepositPolicy: vi.fn(),
+  previewDepositForBooking: vi.fn(),
   proposePendingAction: vi.fn(),
 }));
 
@@ -29,6 +30,7 @@ vi.mock('@/contexts/payments', () => ({
   getPaymentPricingPolicy: mocks.getPaymentPricingPolicy,
   listProcedurePaymentPrices: mocks.listProcedurePaymentPrices,
   resolveConfiguredProcedurePaymentPrice: mocks.resolveConfiguredProcedurePaymentPrice,
+  paymentsApiV1: { previewDepositForBooking: mocks.previewDepositForBooking },
 }));
 vi.mock('../internal/pending-action', async (importOriginal) => ({
   ...(await importOriginal<typeof PendingActionModule>()),
@@ -81,6 +83,7 @@ beforeEach(() => {
   ]);
   mocks.getPaymentPricingPolicy.mockResolvedValue({ mode: 'payment_method_pricing' });
   mocks.getDepositPolicy.mockResolvedValue({ enabled: false });
+  mocks.previewDepositForBooking.mockResolvedValue(null);
   mocks.listProcedurePaymentPrices.mockResolvedValue([
     {
       id: PRICE_ID,
@@ -393,8 +396,98 @@ describe('prepare_appointment com preço por meio de pagamento', () => {
       { payment_method: 'pix' },
       { ...registeredPatientContext, currentMessage: 'Pode ser Pix ou cartão?' },
     );
-    expect(response.patient_message).toContain('Você mencionou Pix e cartão');
+    expect(response.patient_message).toContain('Você mencionou mais de uma forma de pagamento');
     expect(mocks.resolveConfiguredProcedurePaymentPrice).not.toHaveBeenCalled();
     expect(mocks.proposePendingAction).not.toHaveBeenCalled();
+  });
+});
+
+describe('dinheiro e sinal (decisão do usuário, 08/10/2026)', () => {
+  const CASH_PRICE_ID = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+
+  beforeEach(() => {
+    mocks.listProcedurePaymentPrices.mockResolvedValue([
+      { id: PRICE_ID, procedureId: PROCEDURE_ID, paymentMethod: 'pix', installmentCount: null, grossAmount: 180 },
+      { id: CASH_PRICE_ID, procedureId: PROCEDURE_ID, paymentMethod: 'cash', installmentCount: null, grossAmount: 170 },
+    ]);
+  });
+
+  it('sem sinal, oferece dinheiro na clínica entre as opções', async () => {
+    const response = await getTool('prepare_appointment')!.handler({}, registeredPatientContext);
+    expect(response.patient_message).toContain('Pix: R$ 180,00');
+    expect(response.patient_message).toContain('dinheiro na clínica: R$ 170,00');
+    expect(response.patient_message).not.toContain('sinal');
+  });
+
+  it('sem sinal, prepara em dinheiro com o preço configurado e sem linha de sinal', async () => {
+    mocks.resolveConfiguredProcedurePaymentPrice.mockResolvedValue({
+      mode: 'payment_method_pricing',
+      paymentMethod: 'cash',
+      installmentCount: null,
+      priceId: CASH_PRICE_ID,
+      grossAmount: 170,
+      source: 'explicit_method_price',
+    });
+    const response = await getTool('prepare_appointment')!.handler(
+      { payment_method: 'cash' },
+      { ...registeredPatientContext, currentMessage: 'vou pagar em dinheiro' },
+    );
+    expect(response).toMatchObject({ status: 'appointment_prepared' });
+    expect(response.summary).toContain('valor total R$ 170,00 em dinheiro, pago na clínica');
+    expect(response.summary).not.toContain('sinal');
+    expect(mocks.previewDepositForBooking).toHaveBeenCalledTimes(1); // só a sonda das opções
+    expect(mocks.proposePendingAction).toHaveBeenCalledWith(
+      registeredPatientContext.tx,
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          commercialPrice: {
+            paymentMethod: 'cash',
+            installmentCount: null,
+            priceId: CASH_PRICE_ID,
+            grossAmount: 170,
+          },
+        }),
+      }),
+    );
+    const payload = mocks.proposePendingAction.mock.calls[0]![1].payload as Record<string, unknown>;
+    expect(payload).not.toHaveProperty('depositAmount');
+  });
+
+  it('com sinal, esconde "tudo em dinheiro" e explica que o restante pode ser em dinheiro', async () => {
+    mocks.previewDepositForBooking.mockResolvedValue({ amount: 90 });
+    const response = await getTool('prepare_appointment')!.handler({}, registeredPatientContext);
+    expect(response.patient_message).toContain('Pix: R$ 180,00');
+    expect(response.patient_message).not.toContain('dinheiro na clínica: R$ 170,00');
+    expect(response.patient_message).toContain(
+      'O horário é confirmado com o sinal pago pelo link que enviamos por aqui; o restante pode ser pago na clínica, inclusive em dinheiro.',
+    );
+  });
+
+  it('com sinal, recusa agendar em dinheiro e pede a forma do sinal', async () => {
+    mocks.previewDepositForBooking.mockResolvedValue({ amount: 90 });
+    const response = await getTool('prepare_appointment')!.handler(
+      { payment_method: 'cash' },
+      { ...registeredPatientContext, currentMessage: 'quero pagar tudo em dinheiro' },
+    );
+    expect(response).toMatchObject({ status: 'appointment_information_required' });
+    expect(response.patient_message).toContain('Para confirmar o horário, o sinal é pago pelo link');
+    expect(response.patient_message).toContain('Pix: R$ 180,00');
+    expect(mocks.resolveConfiguredProcedurePaymentPrice).not.toHaveBeenCalled();
+    expect(mocks.proposePendingAction).not.toHaveBeenCalled();
+  });
+
+  it('"Pix e o restante em dinheiro" escolhe o Pix e o resumo traz sinal e restante', async () => {
+    mocks.previewDepositForBooking.mockResolvedValue({ amount: 90 });
+    const response = await getTool('prepare_appointment')!.handler(
+      { payment_method: 'pix' },
+      { ...registeredPatientContext, currentMessage: 'pix, e o restante pago em dinheiro aí' },
+    );
+    expect(response).toMatchObject({ status: 'appointment_prepared' });
+    expect(response.summary).toContain('valor total R$ 180,00 via Pix');
+    expect(response.summary).toContain(
+      'Para confirmar o horário, o sinal de R$ 90,00 é pago pelo link que vamos enviar por aqui (o horário fica reservado por até 24 horas). O restante, R$ 90,00, pode ser pago na clínica, inclusive em dinheiro',
+    );
+    const payload = mocks.proposePendingAction.mock.calls[0]![1].payload as Record<string, unknown>;
+    expect(payload.depositAmount).toBe(90);
   });
 });

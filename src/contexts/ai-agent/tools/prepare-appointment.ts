@@ -22,6 +22,7 @@ import { schedulingApiV1 } from '@/contexts/scheduling';
 import {
   getPaymentPricingPolicy,
   listProcedurePaymentPrices,
+  paymentsApiV1,
   resolveConfiguredProcedurePaymentPrice,
 } from '@/contexts/payments';
 /* eslint-enable boundaries/element-types */
@@ -54,9 +55,11 @@ const InputSchema = z.object({
     .optional()
     .describe('Horário desejado (ISO 8601 com offset). Omita para pegar o primeiro horário livre.'),
   payment_method: z
-    .enum(['pix', 'credit_card'])
+    .enum(['pix', 'credit_card', 'cash'])
     .optional()
-    .describe('Forma de pagamento explicitamente escolhida pelo paciente: pix ou credit_card.'),
+    .describe(
+      'Forma de pagamento explicitamente escolhida pelo paciente: pix, credit_card ou cash (dinheiro na clínica).',
+    ),
   installment_count: z
     .number()
     .int()
@@ -143,8 +146,20 @@ const HOUR_MS = 60 * 60 * 1000;
 const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 const moneyForMessage = (value: number): string => money.format(value).replace(/\u00a0/g, ' ');
 
+function paymentOptionLabel(method: 'pix' | 'cash' | 'credit_card'): string {
+  if (method === 'pix') return 'Pix';
+  if (method === 'cash') return 'dinheiro na clínica';
+  return 'cartão de crédito em 1x';
+}
+
+function commercialPriceLabel(method: 'pix' | 'cash' | 'credit_card'): string {
+  if (method === 'pix') return 'via Pix';
+  if (method === 'cash') return 'em dinheiro, pago na clínica';
+  return 'via cartão de crédito em 1x';
+}
+
 function patientPaymentChoice(message: string): {
-  method: 'pix' | 'credit_card' | null;
+  method: 'pix' | 'credit_card' | 'cash' | null;
   ambiguous: boolean;
   cardOneTime: boolean;
   cardInstallmentsRequested: boolean;
@@ -155,9 +170,14 @@ function patientPaymentChoice(message: string): {
     .toLowerCase();
   const pix = /\bpix\b/.test(normalized);
   const card = /\b(?:cartao|credito)\b/.test(normalized);
-  const ambiguous = pix && card;
+  // 08/10/2026 — "Pix e o restante em dinheiro" escolhe o Pix: o dinheiro é do
+  // RESTANTE, que a clínica recebe na recepção, e não a forma do agendamento.
+  const cashWord = /\b(?:dinheiro|especie)\b/.test(normalized);
+  const remainderInCash = cashWord && /\b(?:restante|resto|saldo)\b/.test(normalized);
+  const cash = cashWord && !remainderInCash;
+  const ambiguous = [pix, card, cash].filter(Boolean).length > 1;
   const denied =
-    /\b(?:nao|sem)\s+(?:(?:quero|vou|prefiro|pagar|pago)\s+)?(?:no|via|com)?\s*(?:pix|cartao|credito)\b/.test(
+    /\b(?:nao|sem)\s+(?:(?:quero|vou|prefiro|pagar|pago)\s+)?(?:no|via|com|em)?\s*(?:pix|cartao|credito|dinheiro)\b/.test(
       normalized,
     );
   const debit = /\bdebito\b/.test(normalized);
@@ -169,7 +189,9 @@ function patientPaymentChoice(message: string): {
           ? 'pix'
           : card
             ? 'credit_card'
-            : null,
+            : cash
+              ? 'cash'
+              : null,
     ambiguous,
     cardOneTime: /\b1\s*x\b|\buma\s+vez\b|\ba\s+vista\b/.test(normalized),
     cardInstallmentsRequested:
@@ -264,44 +286,74 @@ registerTool({
     // da clínica. O modelo nunca fornece preço ou identificador de versão.
     const pricingPolicy = await getPaymentPricingPolicy(ctx.clinicId);
     let commercialPrice: {
-      paymentMethod: 'pix' | 'credit_card';
+      paymentMethod: 'pix' | 'credit_card' | 'cash';
       installmentCount: number | null;
       priceId: string;
       grossAmount: number;
     } | null = null;
     if (pricingPolicy.mode === 'payment_method_pricing') {
       const patientChoice = patientPaymentChoice(ctx.currentMessage);
-      const availablePrices = (await listProcedurePaymentPrices(ctx.clinicId)).filter(
+      const configuredPrices = (await listProcedurePaymentPrices(ctx.clinicId)).filter(
         (price) =>
           price.procedureId === procedure!.id &&
           (price.paymentMethod === 'pix' ||
+            price.paymentMethod === 'cash' ||
             (price.paymentMethod === 'credit_card' && price.installmentCount === 1)),
       );
+      // 08/10/2026 (decisão do usuário) — com sinal, o horário só se confirma
+      // com o sinal pago pelo link; o restante pode ser em dinheiro na clínica.
+      // "Tudo em dinheiro" só aparece quando NÃO há sinal: a mesma regra do
+      // `createDepositCharge`, consultada sem efeito.
+      const onlinePrices = configuredPrices.filter((price) => price.paymentMethod !== 'cash');
+      const depositApplies =
+        (await paymentsApiV1.previewDepositForBooking({
+          clinicId: ctx.clinicId,
+          patientId: ctx.patientId,
+          basePrice: onlinePrices[0]?.grossAmount ?? procedure!.valorPadrao ?? 0,
+        })) !== null;
+      const availablePrices = depositApplies ? onlinePrices : configuredPrices;
       const options = availablePrices
-        .map(
-          (price) =>
-            `${price.paymentMethod === 'pix' ? 'Pix' : 'cartão de crédito em 1x'}: ${moneyForMessage(price.grossAmount)}`,
-        )
+        .map((price) => `${paymentOptionLabel(price.paymentMethod)}: ${moneyForMessage(price.grossAmount)}`)
         .join('; ');
+      const depositNote = depositApplies
+        ? ' O horário é confirmado com o sinal pago pelo link que enviamos por aqui; o restante pode ser pago na clínica, inclusive em dinheiro.'
+        : '';
       if (patientChoice.ambiguous) {
         return {
           status: 'appointment_information_required' as const,
-          patient_message: 'Você mencionou Pix e cartão. Qual deles escolhe para este atendimento?',
+          patient_message:
+            'Você mencionou mais de uma forma de pagamento. Qual delas escolhe para este atendimento?',
         };
       }
       if (!patientChoice.method) {
         return {
           status: 'appointment_information_required' as const,
           patient_message: options
-            ? `Como prefere pagar ${procedure!.descricao}? ${options}. Informe uma das opções disponíveis.`
+            ? `Como prefere pagar ${procedure!.descricao}? ${options}.${depositNote} Informe uma das opções disponíveis.`
             : 'Não há preço com link de pagamento disponível para este atendimento. Solicite ajuda à clínica.',
+        };
+      }
+      if (patientChoice.method === 'cash' && depositApplies) {
+        return {
+          status: 'appointment_information_required' as const,
+          patient_message: options
+            ? `Para confirmar o horário, o sinal é pago pelo link que enviamos por aqui; o restante pode ser pago na clínica, inclusive em dinheiro. Como prefere pagar o sinal? ${options}.`
+            : 'Para confirmar o horário, o sinal é pago pelo link, e não há preço com link para este atendimento. Solicite ajuda à clínica.',
+        };
+      }
+      if (patientChoice.method === 'cash' && !configuredPrices.some((price) => price.paymentMethod === 'cash')) {
+        return {
+          status: 'appointment_information_required' as const,
+          patient_message: options
+            ? `Não há preço em dinheiro para este atendimento. Escolha uma das opções: ${options}.`
+            : 'Não há preço configurado para este atendimento. Solicite ajuda à clínica.',
         };
       }
       if (input.payment_method && input.payment_method !== patientChoice.method) {
         return {
           status: 'appointment_information_required' as const,
           patient_message:
-            'A forma de pagamento informada não corresponde à sua mensagem. Confirme se escolhe Pix ou cartão.',
+            'A forma de pagamento informada não corresponde à sua mensagem. Confirme se escolhe Pix, cartão ou dinheiro.',
         };
       }
       if (patientChoice.method === 'pix' && input.installment_count !== undefined) {
@@ -323,6 +375,12 @@ registerTool({
           patient_message: availablePrices.some((price) => price.paymentMethod === 'credit_card')
             ? 'Para pagar no cartão, responda "cartão em 1x" se desejar pagar à vista. O link de cartão parcelado ainda não está disponível.'
             : 'Não há preço para cartão em 1x neste atendimento. Escolha outra forma de pagamento disponível.',
+        };
+      }
+      if (patientChoice.method === 'cash' && input.installment_count !== undefined) {
+        return {
+          status: 'appointment_information_required' as const,
+          patient_message: 'Dinheiro não tem parcelas. Confirme se deseja pagar em dinheiro na clínica.',
         };
       }
       if (
@@ -508,6 +566,20 @@ registerTool({
       doctorId = slots[0]!.doctorId;
     }
 
+    // 08/10/2026 — o resumo diz, com valores, que o horário só se confirma com o
+    // sinal pago pelo link e quanto fica para pagar na clínica. Mesma decisão do
+    // `createDepositCharge`, sem efeito; dinheiro nunca tem sinal.
+    const basePrice = commercialPrice?.grossAmount ?? procedure!.valorPadrao ?? 0;
+    const deposit =
+      commercialPrice?.paymentMethod === 'cash'
+        ? null
+        : await paymentsApiV1.previewDepositForBooking({
+            clinicId: ctx.clinicId,
+            patientId: ctx.patientId,
+            basePrice,
+            scheduledAt: new Date(scheduledAt),
+          });
+
     // 3. Prepara (mesma trilha do schedule_appointment: pending action + confirmação).
     const pending = await proposePendingAction(ctx.tx, {
       clinicId: ctx.clinicId,
@@ -520,11 +592,20 @@ registerTool({
         procedureId: procedure!.id,
         scheduledAt,
         ...(commercialPrice ? { commercialPrice } : {}),
+        ...(deposit ? { depositAmount: deposit.amount } : {}),
       },
       summary: `Agendar ${procedure!.descricao} para ${appointmentTimeForPatient(
         scheduledAt,
         ctx.clinicTimeZone,
-      )}${commercialPrice ? `; valor total ${moneyForMessage(commercialPrice.grossAmount)} via ${commercialPrice.paymentMethod === 'pix' ? 'Pix' : 'cartão de crédito em 1x'}` : ''}`,
+      )}${commercialPrice ? `; valor total ${moneyForMessage(commercialPrice.grossAmount)} ${commercialPriceLabel(commercialPrice.paymentMethod)}` : ''}${
+        deposit
+          ? `. Para confirmar o horário, o sinal de ${moneyForMessage(deposit.amount)} é pago pelo link que vamos enviar por aqui (o horário fica reservado por até 24 horas). O restante${
+              basePrice > deposit.amount
+                ? `, ${moneyForMessage(Math.round((basePrice - deposit.amount) * 100) / 100)},`
+                : ''
+            } pode ser pago na clínica, inclusive em dinheiro`
+          : ''
+      }`,
     });
     return {
       status: 'appointment_prepared' as const,

@@ -1347,6 +1347,7 @@ export async function flagPaidChargeMissingPaymentId(
 export async function findOpenCharge(
   clinicId: string,
   appointmentId: string,
+  kind: 'deposit' | 'remainder' = 'deposit',
 ): Promise<OpenCharge | null> {
   const rows = await withTenant(clinicId, (tx) =>
     tx
@@ -1360,7 +1361,7 @@ export async function findOpenCharge(
       })
       .from(patientCharges)
       .where(
-        and(eq(patientCharges.appointmentId, appointmentId), eq(patientCharges.kind, 'deposit')),
+        and(eq(patientCharges.appointmentId, appointmentId), eq(patientCharges.kind, kind)),
       )
       .limit(1),
   );

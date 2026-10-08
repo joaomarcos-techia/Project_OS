@@ -36,6 +36,11 @@ export const InboundReceivedSchema = z.object({
   fromNumberHash: z.string(),
   toPhoneId: z.string(),
   hasText: z.boolean(),
+  /**
+   * `type` da Meta (08/10/2026). Aditivo e opcional: eventos anteriores seguem
+   * válidos e são tratados como hoje (sem texto = sem resposta).
+   */
+  messageType: z.string().max(40).optional(),
   receivedAt: z.string(),
 });
 export type InboundReceivedPayload = z.infer<typeof InboundReceivedSchema>;

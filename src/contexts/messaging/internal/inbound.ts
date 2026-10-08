@@ -98,6 +98,7 @@ export async function persistInbound(
         toNumber: msg.toNumber,
         contentEncrypted,
         payloadHash: pHash,
+        messageType: msg.messageType ?? null,
         ...(receivedAt ? { receivedAt } : {}),
       })
       .onConflictDoNothing({
@@ -137,6 +138,7 @@ export async function persistInbound(
         fromNumberHash,
         toPhoneId: msg.toPhoneId,
         hasText: msg.text !== null,
+        ...(msg.messageType ? { messageType: msg.messageType } : {}),
         receivedAt: epochToIso(msg.timestamp),
       },
       idempotencyKey: inboundEventKey(provider, msg.providerMessageId),

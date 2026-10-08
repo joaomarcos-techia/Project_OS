@@ -156,6 +156,68 @@ describe('CaixaView — work queue, rótulos e RBAC', () => {
     expect(within(select).getByRole('option', { name: 'Dinheiro' })).toBeTruthy();
   });
 
+  it('dinheiro aparece ao lado da forma acordada, e só ele (08/10/2026)', () => {
+    render(
+      <CaixaView
+        {...base}
+        methods={[
+          { code: 'pix', label: 'PIX' },
+          { code: 'dinheiro', label: 'Dinheiro' },
+          { code: 'cartao_credito', label: 'Cartão de crédito' },
+        ]}
+        pendentes={[item({ commercialPaymentMethod: 'pix' })]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar pagamento' }));
+    const select = screen.getByLabelText('Forma de pagamento');
+    expect(within(select).getAllByRole('option').map((o) => o.textContent)).toEqual(['PIX', 'Dinheiro']);
+  });
+
+  it('Pagou em dinheiro: painel só com dinheiro e o saldo inteiro', () => {
+    render(
+      <CaixaView
+        {...base}
+        canOperate
+        methods={[
+          { code: 'pix', label: 'PIX' },
+          { code: 'dinheiro', label: 'Dinheiro' },
+          { code: 'cartao_credito', label: 'Cartão de crédito' },
+        ]}
+        pendentes={[item({ commercialPaymentMethod: 'pix' })]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Pagou em dinheiro' }));
+    const select = screen.getByLabelText('Forma de pagamento');
+    expect(within(select).getAllByRole('option').map((o) => o.textContent)).toEqual(['Dinheiro']);
+    expect((screen.getByLabelText('Valor recebido') as HTMLInputElement).value).toBe('200.00');
+    expect(screen.getByText(/Se o link do restante já foi enviado ao paciente, ele deixa de valer/)).toBeTruthy();
+  });
+
+  it('com o sinal pago, a ação vira Pagou o restante em dinheiro', () => {
+    render(
+      <CaixaView
+        {...base}
+        canOperate
+        methods={[
+          { code: 'pix', label: 'PIX' },
+          { code: 'dinheiro', label: 'Dinheiro' },
+          { code: 'cartao_credito', label: 'Cartão de crédito' },
+        ]}
+        pendentes={[item({ commercialPaymentMethod: 'pix', status: 'parcial', valorPago: 100 })]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Pagou o restante em dinheiro' }));
+    expect((screen.getByLabelText('Valor recebido') as HTMLInputElement).value).toBe('100.00');
+  });
+
+  it('sem dinheiro no catálogo, nem conta a pagar, não há botão de dinheiro', () => {
+    render(<CaixaView {...base} canOperate pendentes={[item(), payable()]} />);
+    expect(screen.queryByRole('button', { name: /Pagou (o restante )?em dinheiro/ })).toBeNull();
+  });
+
   it('operate:caixa mostra ações de receber/cancelar; sem permissão não mostra', () => {
     // Cancelar vive DENTRO do painel de confirmação (uma ação por linha na
     // fila) — por isso o teste abre o painel antes de procurá-lo.
