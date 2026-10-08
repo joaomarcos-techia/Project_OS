@@ -5,7 +5,8 @@ import { agentIdemKey } from '@/lib/agent/actor';
 import { decryptForTenant, encryptForTenant } from '@/lib/crypto';
 import type { Tx } from '@/lib/db';
 import { metrics } from '@/lib/observability/metrics';
-/* eslint-disable boundaries/element-types -- schedulingApiV1 é a API pública entre contextos. */
+/* eslint-disable boundaries/element-types -- schedulingApiV1 e a política de sinal são as APIs públicas entre contextos. */
+import { getDepositPolicy } from '@/contexts/payments';
 import { schedulingApiV1 } from '@/contexts/scheduling';
 /* eslint-enable boundaries/element-types */
 
@@ -340,6 +341,54 @@ export function assertAgentSchedulingIdentity(args: {
   }
 }
 
+/**
+ * O agente pode marcar para um contato SEM cadastro?
+ *
+ * Só quando a clínica permite E o sinal está desligado ("com o sinal ligado
+ * exige o cadastro", decisão de 08/10/2026). O sinal é cobrado de um paciente
+ * com CPF; com a política ligada, a marcação anônima virava consulta sem sinal,
+ * em silêncio — a falha que a política existe para evitar. Lida no instante da
+ * decisão (preparar e confirmar), porque a clínica pode ligar o sinal no meio
+ * da conversa.
+ */
+export async function anonymousSchedulingAllowed(
+  ctx: Pick<ToolContext, 'clinicId' | 'canScheduleAnonymous'>,
+): Promise<boolean> {
+  if (!ctx.canScheduleAnonymous) return false;
+  const deposit = await getDepositPolicy(ctx.clinicId);
+  return !deposit.enabled;
+}
+
+/**
+ * A confirmação vale para QUEM preparou e para o estado de AGORA.
+ *
+ * O resumo foi preparado num turno anterior; entre ele e o "SIM" o telefone pode
+ * ter passado a casar com outro cadastro (ou com nenhum), a consulta pode ter
+ * mudado de paciente e a política de sinal pode ter sido ligada. O servidor
+ * re-checa tudo isso aqui, sem depender do que o modelo decidiu.
+ */
+async function assertPendingActionStillValid(
+  ctx: ToolContext,
+  payload: PendingActionPayload,
+): Promise<void> {
+  if (ctx.identityAmbiguous) {
+    throw new Error('telefone associado a mais de um paciente; requer desambiguação humana');
+  }
+  if (payload.type === 'schedule_appointment') {
+    if (payload.patientId !== ctx.patientId) {
+      throw new Error('a identidade do contato mudou desde a preparação; prepare novamente');
+    }
+    if (!payload.patientId && !(await anonymousSchedulingAllowed(ctx))) {
+      throw new Error('paciente não identificado: cadastre/identifique antes de agendar');
+    }
+    return;
+  }
+  const appointment = await schedulingApiV1.lookupAppointment(ctx.clinicId, payload.appointmentId);
+  if (!appointment || !ctx.patientId || appointment.patientId !== ctx.patientId) {
+    throw new Error('consulta não pertence ao paciente verificado');
+  }
+}
+
 export function parsePendingActionPayload(value: unknown): PendingActionPayload {
   return PendingActionPayloadSchema.parse(value);
 }
@@ -511,6 +560,7 @@ export async function executePendingAction(
     JSON.parse(await decryptForTenant(ctx.clinicId, row.payloadEncrypted)) as unknown,
   );
   if (payload.type !== row.actionName) throw new Error('ação pendente inconsistente');
+  await assertPendingActionStillValid(ctx, payload);
 
   const actor = {
     clinicId: ctx.clinicId,

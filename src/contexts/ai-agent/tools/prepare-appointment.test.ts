@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   getPaymentPricingPolicy: vi.fn(),
   listProcedurePaymentPrices: vi.fn(),
   resolveConfiguredProcedurePaymentPrice: vi.fn(),
+  getDepositPolicy: vi.fn(),
   proposePendingAction: vi.fn(),
 }));
 
@@ -24,6 +25,7 @@ vi.mock('@/contexts/scheduling', () => ({
   schedulingApiV1: { listProcedures: mocks.listProcedures, listSlots: mocks.listSlots },
 }));
 vi.mock('@/contexts/payments', () => ({
+  getDepositPolicy: mocks.getDepositPolicy,
   getPaymentPricingPolicy: mocks.getPaymentPricingPolicy,
   listProcedurePaymentPrices: mocks.listProcedurePaymentPrices,
   resolveConfiguredProcedurePaymentPrice: mocks.resolveConfiguredProcedurePaymentPrice,
@@ -78,6 +80,7 @@ beforeEach(() => {
     { startAt: new Date(Date.now() + 86_400_000).toISOString(), doctorId: DOCTOR_ID },
   ]);
   mocks.getPaymentPricingPolicy.mockResolvedValue({ mode: 'payment_method_pricing' });
+  mocks.getDepositPolicy.mockResolvedValue({ enabled: false });
   mocks.listProcedurePaymentPrices.mockResolvedValue([
     {
       id: PRICE_ID,
@@ -186,6 +189,68 @@ describe('prepare_appointment para contato sem cadastro', () => {
       status: 'patient_registration_required',
       required_fields: ['nome', 'cpf', 'motivo'],
     });
+  });
+});
+
+describe('com o sinal ligado exige o cadastro (decisão de 08/10/2026)', () => {
+  const anonymousAllowedContext: ToolContext = {
+    ...unregisteredPatientContext,
+    canScheduleAnonymous: true,
+    currentMessage: 'Quero marcar uma consulta amanhã, pago no pix',
+  };
+
+  it('contato sem cadastro e sinal ligado: pede o cadastro mesmo com agendamento anônimo permitido', async () => {
+    // Antes: a marcação anônima era preparada e o sinal nunca era cobrado, porque
+    // createDepositCharge sai sem paciente.
+    mocks.getDepositPolicy.mockResolvedValue({ enabled: true });
+
+    const response = await getTool('prepare_appointment')!.handler({}, anonymousAllowedContext);
+
+    expect(response).toEqual({
+      status: 'patient_registration_required',
+      required_fields: ['nome', 'cpf', 'motivo'],
+    });
+    expect(mocks.getDepositPolicy).toHaveBeenCalledWith(anonymousAllowedContext.clinicId);
+    expect(mocks.listSlots).not.toHaveBeenCalled();
+    expect(mocks.proposePendingAction).not.toHaveBeenCalled();
+  });
+
+  it('contato sem cadastro e sinal desligado: segue a opção da clínica e prepara sem paciente', async () => {
+    mocks.getDepositPolicy.mockResolvedValue({ enabled: false });
+
+    const response = await getTool('prepare_appointment')!.handler({}, anonymousAllowedContext);
+
+    expect(response).toMatchObject({ status: 'appointment_prepared' });
+    expect(mocks.proposePendingAction).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        payload: expect.objectContaining({ type: 'schedule_appointment', patientId: null }),
+      }),
+    );
+  });
+
+  it('paciente identificado não depende da política de sinal para agendar', async () => {
+    mocks.getDepositPolicy.mockResolvedValue({ enabled: true });
+
+    const response = await getTool('prepare_appointment')!.handler(
+      {},
+      { ...registeredPatientContext, currentMessage: 'Quero marcar amanhã, pago no pix' },
+    );
+
+    expect(response).toMatchObject({ status: 'appointment_prepared' });
+    expect(mocks.getDepositPolicy).not.toHaveBeenCalled();
+  });
+
+  it('telefone compartilhado continua bloqueado, com ou sem sinal', async () => {
+    mocks.getDepositPolicy.mockResolvedValue({ enabled: false });
+
+    await expect(
+      getTool('prepare_appointment')!.handler(
+        {},
+        { ...anonymousAllowedContext, identityAmbiguous: true },
+      ),
+    ).rejects.toThrow('mais de um paciente');
+    expect(mocks.proposePendingAction).not.toHaveBeenCalled();
   });
 });
 

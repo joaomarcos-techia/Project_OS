@@ -27,6 +27,7 @@ import {
 /* eslint-enable boundaries/element-types */
 
 import {
+  anonymousSchedulingAllowed,
   assertAgentSchedulePolicy,
   assertAgentSchedulingIdentity,
   proposePendingAction,
@@ -207,8 +208,11 @@ registerTool({
   handler: async (input, ctx) => {
     // Cadastro é pré-condição do agendamento. É um estado recuperável da conversa,
     // não uma falha operacional: o resultado orienta o modelo a iniciar a coleta
-    // em vez de cair no fallback que promete atendimento humano.
-    if (!ctx.patientId && !ctx.identityAmbiguous && !ctx.canScheduleAnonymous) {
+    // em vez de cair no fallback que promete atendimento humano. Com o sinal
+    // ligado, o cadastro é obrigatório mesmo que a clínica permita marcar sem ele.
+    const unidentified = !ctx.patientId && !ctx.identityAmbiguous;
+    const anonymousAllowed = unidentified && (await anonymousSchedulingAllowed(ctx));
+    if (unidentified && !anonymousAllowed) {
       return {
         status: 'patient_registration_required' as const,
         required_fields: REGISTRATION_REQUIRED_FIELDS,
@@ -218,7 +222,7 @@ registerTool({
     assertAgentSchedulingIdentity({
       patientId: ctx.patientId,
       identityAmbiguous: ctx.identityAmbiguous,
-      canScheduleAnonymous: ctx.canScheduleAnonymous,
+      canScheduleAnonymous: anonymousAllowed,
     });
 
     // 1. Resolve o procedimento (server-side; nunca confia num id do LLM).
