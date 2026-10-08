@@ -729,3 +729,26 @@ Esses pontos estão cobertos só pelos testes locais e pelo Postgres descartáve
 - **Estado inicial e final, relidos à parte:** no Sandbox, só os webhooks pré-existentes `…f85a` (desativado) e `…1e3a` (ativo, da `clinica-a`). O cleanup removeu o da fixture. No DEV, zero fixtures `e2e-payments-%`, uma conta de pagamento e nenhuma pausada.
 
 O encerramento automático depende do cron de produção: aviso e encerramento reais por inatividade seguem **NOT RUN**.
+
+### 08/10/2026 — sinal ligado exige cadastro no agente do WhatsApp
+
+**Decisão do usuário em 08/10/2026:** "com o sinal ligado exige o cadastro".
+
+- **Problema:** com `ai_clinic_config.can_schedule_anonymous = true`, o agente marcava consulta para um
+  contato sem cadastro. O sinal só pode ser cobrado de paciente identificado com CPF
+  (`createDepositCharge` sai sem paciente), então a consulta ficava sem sinal, em silêncio. Visto no
+  DEV em 08/10 às 02:24 UTC.
+- **Regra:** a opção "agendar sem cadastro" só vale com a política de sinal desligada. É lida no
+  instante da decisão, ao preparar e de novo no "SIM", porque a clínica pode ligar o sinal no meio da
+  conversa (`anonymousSchedulingAllowed` em `src/contexts/ai-agent/internal/pending-action.ts`).
+- **Junto:** o paciente já cadastrado passa a ser reconhecido em qualquer grafia do número (com ou sem
+  55, com ou sem o nono dígito). Antes, o cadastro era pedido de novo e falhava no CPF já existente.
+- **Prova no Preview, 08/10 (WA-sim→real, conta Sandbox `…08d70a`):** cadastro exigido com o sinal
+  ligado; nome, CPF e motivo conduzidos pelo servidor; consulta de 12/10 às 10:00 marcada com o
+  paciente; sinal de **R$ 75,00** (50% de R$ 150) criado no Sandbox (cobrança `30e72c2f`) e job
+  `deposit_link` enfileirado. No reagendamento, o sinal antigo foi fechado no Sandbox e a varredura
+  criou o novo (`cd1c2e3c`). O tick da C14 às 08:01 locais enviou o template do link, mas a Meta o recusou
+  com 131042 (moeda/pagamento da WABA de teste não configurados): **BLOCKED** até configurar o Billing da
+  Meta. O pagamento segue **NOT RUN**. Achado aberto: a recusa posterior da Meta não volta ao job da C14
+  (fica `sent`).
+- Registro completo: [`docs/quality/whatsapp-ai-hardening-2026-10-08.md`](../quality/whatsapp-ai-hardening-2026-10-08.md).

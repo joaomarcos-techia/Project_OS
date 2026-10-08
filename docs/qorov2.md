@@ -8631,3 +8631,38 @@ Teste da jornada integrada com o número de teste em coexistência (final 2198) 
 
 - **PASS:** Meta → Preview → DEV com o nome do perfil; resposta da IA enviada pela Cloud API; agendamento e cadastro conduzidos pela IA (desfeitos no cleanup).
 - **NOT RUN:** sinal, link, pagamento e Caixa pela jornada. Exigem um worker de outbox no Preview, ou produção, e a C14 no horário dela.
+
+## 59. Hardening do agente de IA do WhatsApp — 08/10/2026
+
+Registro canônico: [`docs/quality/whatsapp-ai-hardening-2026-10-08.md`](quality/whatsapp-ai-hardening-2026-10-08.md).
+
+**Problema reportado — "com o sinal ligado exige o cadastro":** duas causas, ambas corrigidas.
+
+1. Com o sinal ligado e o agendamento anônimo permitido, a IA marcava sem cadastro e o sinal nunca era
+   cobrado. Decisão do usuário: com o sinal ligado, o cadastro é obrigatório.
+2. O paciente cadastrado pela clínica (número nacional) não era reconhecido pelo `wa_id` do WhatsApp
+   (55, às vezes sem o nono dígito): a IA pedia cadastro de novo e falhava no CPF já existente.
+
+**Também corrigidos:**
+
+- `gemini-3.8-flash` levando 13–60 s com timeout de 15 s → padrão `gemini-3.6-flash`, mesmo preço;
+- ingress da Meta processando o evento mais antigo da fila global;
+- rajada de mensagens com várias respostas;
+- "SIM" dependente da tool escolhida pelo modelo;
+- relato urgente recebendo oferta de consulta;
+- supressão ignorada no WhatsApp;
+- horários em UTC;
+- reagendamento fora da agenda;
+- custo sem tokens de raciocínio;
+- 5xx sem retry;
+- lacunas do pré-filtro clínico.
+
+**Estado:** 12 commits na PR #26, que segue draft. Gates locais e CI verdes no último commit. A prova
+ao vivo no Preview, com webhook assinado vindo do número autorizado e envio real pela Cloud API, está
+detalhada no registro canônico.
+
+**Pendências:**
+
+- link do sinal pelo WhatsApp: o tick da C14 enviou, mas a Meta recusou o template com 131042 (moeda/pagamento da WABA de teste não configurados) — BLOCKED até o Billing da Meta; e a recusa não volta ao job (EC-32, aberto);
+- pagamento do sinal no Sandbox: NOT RUN, depende do usuário;
+- decisões de produto sobre mídia e formatação.
