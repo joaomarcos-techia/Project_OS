@@ -62,6 +62,12 @@ export interface ParsedInboundMessage {
   toNumber: string | null;
   /** Text body, or null for unsupported (media) types — not processed in C10. */
   text: string | null;
+  /**
+   * Meta message `type` (`text`, `audio`, `image`, `document`, `video`, `sticker`…).
+   * Lets the AI agent answer a voice note or a file instead of staying silent
+   * (08/10/2026). Not personal data; null when the provider does not send it.
+   */
+  messageType?: string | null;
   /** Provider-reported timestamp (epoch seconds as string). */
   timestamp: string;
   /**

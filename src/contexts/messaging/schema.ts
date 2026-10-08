@@ -131,6 +131,11 @@ export const inboundMessagesRaw = pgTable(
     payloadHash: text('payload_hash').notNull(),
     // Coluna existe por contrato; SEMPRE NULL em C10 (proibição de mídia).
     mediaUrl: text('media_url'),
+    // Migration 0117: o `type` da Meta (`text`, `audio`, `image`…). O agente
+    // responde a áudio e arquivo pelo tipo, e o coalescing só junta TEXTO — um
+    // áudio absorvido por uma mensagem de texto sumia sem resposta. NULL nas
+    // linhas anteriores à 0117.
+    messageType: text('message_type'),
     receivedAt: timestamp('received_at', { withTimezone: true })
       .notNull()
       .default(sql`now()`),

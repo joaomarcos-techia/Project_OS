@@ -201,6 +201,11 @@ async function claimPendingSiblings(
           AND id <> ${args.excludeId}
           AND processed_at IS NULL
           AND received_at >= ${args.notBefore.toISOString()}
+          -- 08/10/2026: só TEXTO entra no turno de outra mensagem. Um áudio ou
+          -- arquivo absorvido aqui sumia sem resposta; com o próprio turno, ele
+          -- recebe o aviso de áudio ou vai para a equipe. NULL = linha anterior
+          -- à 0117, tratada como antes.
+          AND (message_type IS NULL OR message_type = 'text')
         ORDER BY received_at
         LIMIT ${args.limit}
         FOR UPDATE SKIP LOCKED

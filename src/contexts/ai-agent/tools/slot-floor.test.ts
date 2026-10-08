@@ -34,7 +34,11 @@ vi.mock('../internal/pending-action', async (orig) => ({
 
 // `vi.mock` é chamada, não import — não cruza fronteira de contexto.
 vi.mock('@/contexts/scheduling', () => ({ schedulingApiV1: { listSlots, listProcedures } }));
-vi.mock('@/contexts/payments', () => ({ getPaymentPricingPolicy }));
+// Sem sinal: o resumo não ganha a linha do sinal (08/10/2026).
+vi.mock('@/contexts/payments', () => ({
+  getPaymentPricingPolicy,
+  paymentsApiV1: { previewDepositForBooking: async () => null },
+}));
 
 import { AGENT_MIN_LEAD_MINUTES } from '../limits';
 import { agentSlotFloor } from './list-slots';

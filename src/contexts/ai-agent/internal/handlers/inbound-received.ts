@@ -91,6 +91,7 @@ import {
   decideTurnGuard,
   detectHumanHandoffRequest,
   detectInformationQuestion,
+  detectPaymentClaim,
   detectPromptInjection,
 } from '../../guards/semantic-guard';
 import { aiAgentFailures, aiConversations } from '../../schema';
@@ -122,6 +123,8 @@ import {
 } from '../conversation';
 import type { ActiveConversation } from '../conversation';
 import { buildContext, patientRegistrationState } from '../context-builder';
+import { inboundMedia } from '../inbound-media';
+import { paymentClaimTurn } from '../payment-claim-turn';
 import {
   classifyConfirmation,
   executePendingAction,
@@ -133,6 +136,7 @@ import { appointmentTimeForPatient } from '../relative-datetime';
 import { checkQuota, type QuotaCheck } from '../quota';
 import { sanitizeAiFailurePayload } from '../sanitize';
 import { toToolCallRecords } from '../tool-call-record';
+import { toWhatsAppFormatting } from '../whatsapp-format';
 import {
   patientRegistrationMessage,
   registrationFieldFromMessage,
@@ -331,14 +335,19 @@ async function runRegistrationTurnServerSide(args: {
  * (08/10/2026). Data e hora no fuso da clínica, como no resumo que ele leu.
  */
 export function pendingConfirmationReply(
-  result: Pick<PendingActionExecutionResult, 'action' | 'scheduledAt'>,
+  result: Pick<PendingActionExecutionResult, 'action' | 'scheduledAt' | 'depositAmount'>,
   timeZone: string,
 ): string {
   const when = result.scheduledAt ? appointmentTimeForPatient(result.scheduledAt, timeZone) : null;
   const at = when ? ` de ${when}` : '';
   switch (result.action) {
-    case 'schedule_appointment':
-      return when ? `Pronto! Consulta agendada para ${when}.` : 'Pronto! Consulta agendada.';
+    case 'schedule_appointment': {
+      const booked = when ? `Pronto! Consulta agendada para ${when}.` : 'Pronto! Consulta agendada.';
+      // 08/10/2026 — com sinal, o horário só se confirma com o pagamento pelo link.
+      return result.depositAmount
+        ? `${booked} Para confirmar o horário, pague o sinal de ${brlForReply(result.depositAmount)} pelo link que vou te enviar por aqui. O horário fica reservado por até 24 horas.`
+        : booked;
+    }
     case 'reschedule_appointment':
       return when ? `Pronto! Consulta reagendada para ${when}.` : 'Pronto! Consulta reagendada.';
     case 'confirm_appointment':
@@ -347,6 +356,9 @@ export function pendingConfirmationReply(
       return `Pronto! A consulta${at} foi cancelada.`;
   }
 }
+
+const brlFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+const brlForReply = (value: number): string => brlFormatter.format(value).replace(/\u00a0/g, ' ');
 
 /**
  * Por que a execução de uma ação confirmada falhou, na língua do paciente.
@@ -640,9 +652,12 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
   if (inbound.processedAt !== null) return; // turno já concluído (re-entrega)
 
   const text = inbound.text.trim();
-  if (!payload.hasText || text.length === 0 || inbound.fromNumber === null) {
-    // Sem texto (mídia proibida em C10/C11) ou row pré-0024 sem telefone
-    // cifrado: nada a responder — marca consumido e encerra.
+  // W18 (08/10/2026) — áudio e arquivo têm resposta própria. O resto sem texto
+  // (figurinha, reação, localização, tipo desconhecido) segue sem resposta.
+  const media = payload.hasText ? null : inboundMedia(payload.messageType);
+  if ((!media && (!payload.hasText || text.length === 0)) || inbound.fromNumber === null) {
+    // Sem texto nem mídia tratada, ou row pré-0024 sem telefone cifrado: nada a
+    // responder — marca consumido e encerra.
     await phase(clinicId, (tx) => messagingApiV1.markInboundProcessed(tx, clinicId, inbound.id));
     metrics.emit('ai_agent.turn.skipped', {
       clinicId,
@@ -710,15 +725,20 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
       // não foram consumidas. A reivindicação é atômica (ver claimPendingSiblings),
       // então o evento de outbox de cada irmã vira no-op no guard de
       // `processed_at` em vez de virar um turno concorrente.
-      const siblings = await messagingApiV1.claimPendingSiblings(tx, clinicId, {
-        fromNumberHash: inbound.fromNumberHash,
-        excludeId: inbound.id,
-        notBefore: new Date(Date.now() - COALESCE_MAX_AGE_MS),
-        limit: COALESCE_MAX_MESSAGES - 1,
-      });
-      const joined = [text, ...siblings.map((s) => s.text.trim()).filter((t) => t.length > 0)].join(
-        '\n',
-      );
+      //
+      // W18 — áudio ou arquivo tem turno próprio e não absorve nada: a resposta
+      // dele é só o aviso de mídia, e um texto absorvido ficaria sem resposta.
+      const siblings = media
+        ? []
+        : await messagingApiV1.claimPendingSiblings(tx, clinicId, {
+            fromNumberHash: inbound.fromNumberHash,
+            excludeId: inbound.id,
+            notBefore: new Date(Date.now() - COALESCE_MAX_AGE_MS),
+            limit: COALESCE_MAX_MESSAGES - 1,
+          });
+      const joined = media
+        ? media.turnText
+        : [text, ...siblings.map((s) => s.text.trim()).filter((t) => t.length > 0)].join('\n');
       const turnText = truncateInbound(joined);
       await appendInboundMessage(tx, {
         clinicId,
@@ -851,6 +871,9 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
       collectedForGuard,
     ).status,
   });
+  // EC-22 (08/10/2026) — "já paguei" é respondido pelo servidor com o status
+  // REAL da cobrança. Mídia nunca é afirmação de pagamento (o texto é o rótulo).
+  const paymentClaim = media ? { claimed: false, cash: false } : detectPaymentClaim(turnText);
   // C12 (ADR-023) — injection é AUDIT-ONLY: não bloqueia (RLS + whitelist de
   // tools + recusa do LLM são a defesa real); só dá visibilidade.
   const injection = detectPromptInjection(turnText);
@@ -871,6 +894,20 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
     costUsd = replayedOut.costUsd ? Number(replayedOut.costUsd) : 0;
     alreadyPersisted = true;
     metrics.emit('ai_agent.turn.replayed', { clinicId, eventId, aiRequestId });
+  } else if (media) {
+    // W18 (08/10/2026) — texto FIXO do servidor, sem LLM e sem custo. Áudio pede
+    // a mensagem escrita; arquivo vai para a equipe, que o vê no app do WhatsApp
+    // Business (coexistência) — um comprovante ou uma guia precisam de gente.
+    responseText = media.reply;
+    if (media.kind === 'file') {
+      await phase(clinicId, (tx) =>
+        escalateToHuman(tx, clinicId, conversation.id, 'media_received'),
+      );
+      outcome = 'handoff';
+    } else {
+      outcome = 'replied';
+    }
+    metrics.emit('ai_agent.turn.media', { clinicId, aiRequestId, kind: media.kind });
   } else if (guard.kind === 'emergency') {
     // Sinal de urgência (08/10/2026): orientação de emergência FIXA e um humano
     // da clínica na conversa — antes, o fallback clínico oferecia "marcar para
@@ -910,6 +947,36 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
       matched: guard.matched,
       mode: guard.kind,
       escalated,
+    });
+  } else if (paymentClaim.claimed && conversation.patientId) {
+    // EC-22 (08/10/2026) — texto FIXO do servidor a partir do status real: pago
+    // confirma; pendente avisa que a confirmação não chegou; dinheiro e
+    // insistência vão para a equipe. Nunca dá nada como pago pela palavra do
+    // paciente. Sem cadastro não há cobrança a consultar: segue o fluxo normal.
+    const patientId = conversation.patientId;
+    const decision = await paymentClaimTurn({
+      clinicId,
+      conversationId: conversation.id,
+      patientId,
+      cash: paymentClaim.cash,
+      eventId,
+      read: (fn) => phase(clinicId, fn),
+    });
+    responseText = decision.text;
+    const handoffReason = decision.handoffReason;
+    if (handoffReason) {
+      await phase(clinicId, (tx) =>
+        escalateToHuman(tx, clinicId, conversation.id, handoffReason),
+      );
+      outcome = 'handoff';
+    } else {
+      outcome = 'replied';
+    }
+    metrics.emit('ai_agent.payment_claim', {
+      clinicId,
+      aiRequestId,
+      cash: paymentClaim.cash,
+      handoffReason,
     });
   } else if ((await getAiAgentMode()) === 'fallback_only') {
     // Kill-switch global (platform_settings): agente em degradação MANUAL.
@@ -1383,6 +1450,11 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
       return;
     }
   }
+
+  // EC-24 (08/10/2026) — o modelo escreve Markdown e o WhatsApp mostrava os
+  // asteriscos dobrados. Converte ANTES de gravar: o que fica na conversa é o
+  // que o paciente recebeu. Replay reusa o texto já gravado.
+  if (!alreadyPersisted) responseText = toWhatsAppFormatting(responseText);
 
   // FASE D — persiste a resposta (checkpoint 'out' por eventId).
   if (!alreadyPersisted) {

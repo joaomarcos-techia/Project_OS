@@ -9,6 +9,11 @@
 import 'server-only';
 
 import { findPayableCharge, type PayableCharge } from './internal/charge-store';
+import { previewDepositForBooking } from './internal/deposit-charge';
+import {
+  listPatientChargeStatuses,
+  type PatientChargeStatus,
+} from './internal/patient-charge-status';
 import { listFailedCharges, type FailedChargeDTO } from './internal/failed-charges';
 import {
   listExcessRefundStatuses,
@@ -54,6 +59,22 @@ export interface PaymentsApiV1 {
     clinicId: string,
     appointmentIds: readonly string[],
   ): Promise<PatientChargeEconomicsDTO[]>;
+  /**
+   * O sinal que um agendamento novo vai cobrar, sem efeito (08/10/2026). O
+   * agente explica no resumo que o horário só se confirma com o sinal pago pelo
+   * link e não oferece "tudo em dinheiro" quando há sinal.
+   */
+  previewDepositForBooking(input: {
+    clinicId: string;
+    patientId: string | null;
+    basePrice: number;
+    scheduledAt?: Date;
+  }): Promise<{ amount: number } | null>;
+  /**
+   * Status real das cobranças recentes do paciente, para o agente responder
+   * "já paguei" (08/10/2026). Sem link e sem dado do provedor.
+   */
+  listPatientChargeStatuses(clinicId: string, patientId: string): Promise<PatientChargeStatus[]>;
 }
 
 export const paymentsApiV1: PaymentsApiV1 = {
@@ -62,6 +83,8 @@ export const paymentsApiV1: PaymentsApiV1 = {
   listManualRefundTasks,
   listFailedCharges,
   listPatientChargeEconomics,
+  previewDepositForBooking,
+  listPatientChargeStatuses: (clinicId, patientId) => listPatientChargeStatuses(clinicId, patientId),
 };
 
 export type {
@@ -69,5 +92,6 @@ export type {
   FailedChargeDTO,
   ManualRefundTask,
   PatientChargeEconomicsDTO,
+  PatientChargeStatus,
   PayableCharge,
 };

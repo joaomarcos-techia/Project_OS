@@ -69,7 +69,7 @@ beforeEach(() => {
 });
 
 describe('provide_procedure_price por meio de pagamento', () => {
-  it('mostra preços configurados e não apresenta o preço padrão como preço cobrável', async () => {
+  it('mostra preços configurados, inclusive dinheiro na clínica, e não apresenta o preço padrão como preço cobrável', async () => {
     const result = await getTool('provide_procedure_price')!.handler({}, context);
     expect(result.procedures).toEqual([
       {
@@ -84,18 +84,28 @@ describe('provide_procedure_price por meio de pagamento', () => {
             installment_count: null,
             gross_amount: 180,
             hosted_checkout_supports_option: true,
+            paid_at_clinic: false,
           },
           {
             payment_method: 'credit_card',
             installment_count: 1,
             gross_amount: 200,
             hosted_checkout_supports_option: true,
+            paid_at_clinic: false,
           },
           {
             payment_method: 'credit_card',
             installment_count: 3,
             gross_amount: 220,
             hosted_checkout_supports_option: false,
+            paid_at_clinic: false,
+          },
+          {
+            payment_method: 'cash',
+            installment_count: null,
+            gross_amount: 170,
+            hosted_checkout_supports_option: false,
+            paid_at_clinic: true,
           },
         ],
       },

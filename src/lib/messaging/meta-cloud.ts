@@ -285,6 +285,7 @@ export class MetaCloudProvider implements MessagingProvider {
             toPhoneId: phoneId,
             toNumber: typeof displayNumber === 'string' ? displayNumber : null,
             text: m.type === 'text' && typeof m.text?.body === 'string' ? m.text.body : null,
+            messageType: typeof m.type === 'string' ? m.type.slice(0, 40) : null,
             timestamp: typeof m.timestamp === 'string' ? m.timestamp : '',
             contactName: contactNameFor(value?.contacts, m.from),
           });

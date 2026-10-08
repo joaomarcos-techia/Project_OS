@@ -24,7 +24,7 @@ const PendingActionPayloadSchema = z.discriminatedUnion('type', [
     scheduledAt: z.string().datetime({ offset: true }),
     commercialPrice: z
       .object({
-        paymentMethod: z.enum(['pix', 'credit_card']),
+        paymentMethod: z.enum(['pix', 'credit_card', 'cash']),
         installmentCount: z.number().int().min(1).max(12).nullable(),
         priceId: z.string().uuid(),
         grossAmount: z.number().finite().positive(),
@@ -32,12 +32,17 @@ const PendingActionPayloadSchema = z.discriminatedUnion('type', [
       .strict()
       .refine(
         (price) =>
-          price.paymentMethod === 'pix'
-            ? price.installmentCount === null
-            : price.installmentCount === 1,
+          price.paymentMethod === 'credit_card'
+            ? price.installmentCount === 1
+            : price.installmentCount === null,
         { message: 'condição de pagamento inválida para o link disponível' },
       )
       .optional(),
+    /**
+     * Sinal previsto no resumo (08/10/2026). Só informa a resposta da
+     * confirmação; quem decide e cobra continua sendo o Payments, depois.
+     */
+    depositAmount: z.number().finite().positive().optional(),
   }),
   z.object({
     type: z.literal('confirm_appointment'),
@@ -513,6 +518,8 @@ export interface PendingActionExecutionResult {
   appointmentId: string;
   status: string;
   scheduledAt?: string;
+  /** Sinal previsto quando o agendamento foi preparado (só `schedule_appointment`). */
+  depositAmount?: number;
 }
 
 export async function executePendingAction(
@@ -638,5 +645,8 @@ export async function executePendingAction(
     appointmentId: appointment.id,
     status: appointment.status,
     scheduledAt: appointment.scheduledAt,
+    ...(payload.type === 'schedule_appointment' && payload.depositAmount
+      ? { depositAmount: payload.depositAmount }
+      : {}),
   };
 }
