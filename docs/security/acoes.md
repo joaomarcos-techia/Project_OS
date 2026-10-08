@@ -331,7 +331,7 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `src/lib/auth/supabase-session-cookie.ts:5`                | `NODE_ENV`                             | `process.env.NODE_ENV`                             |
 | `src/lib/db/index.ts:39`                                   | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                 |
 | `src/lib/db/index.ts:53`                                   | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                 |
-| `src/lib/env.ts:456`                                       | `<object>`                             | `process.env`                                      |
+| `src/lib/env.ts:459`                                       | `<object>`                             | `process.env`                                      |
 | `src/lib/impersonation/index.ts:64`                        | `NODE_ENV`                             | `process.env.NODE_ENV`                             |
 | `src/middleware.ts:82`                                     | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`             |
 | `src/middleware.ts:88`                                     | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`             |
@@ -379,7 +379,7 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/_env.ts:111`                                      | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                 |
 | `scripts/_env.ts:174`                                      | `USER`                                 | `process.env.USER`                                 |
 | `scripts/_env.ts:174`                                      | `USERNAME`                             | `process.env.USERNAME`                             |
-| `scripts/ai-adversarial-check.ts:253`                      | `GEMINI_API_KEY`                       | `process.env.GEMINI_API_KEY`                       |
+| `scripts/ai-adversarial-check.ts:260`                      | `GEMINI_API_KEY`                       | `process.env.GEMINI_API_KEY`                       |
 | `scripts/asaas-card-live-check.ts:28`                      | `ASAAS_BASE_URL`                       | `process.env.ASAAS_BASE_URL`                       |
 | `scripts/asaas-checkout-e2e.ts:94`                         | `ASAAS_CHECKOUT_E2E`                   | `process.env.ASAAS_CHECKOUT_E2E`                   |
 | `scripts/asaas-checkout-e2e.ts:100`                        | `ASAAS_BASE_URL`                       | `process.env.ASAAS_BASE_URL`                       |
