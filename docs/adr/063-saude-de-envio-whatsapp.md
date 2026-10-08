@@ -51,9 +51,15 @@ O EC-32 (`84b3b413`) já marca cada recusa no job da C14 **depois** que ela acon
 5. **Superfícies:** alerta no card da conexão em `/configuracoes/whatsapp` (o selo deixa de dizer
    "Ativo" com os envios bloqueados) e uma faixa no painel para quem tem `manage:settings`. Ação para
    141006/131042: "Adicione uma forma de pagamento à sua conta do WhatsApp Business na Meta." A faixa
-   do painel é a **única** superfície de mensagens automáticas que não chegam: ela tem o espaço
-   `refusals` para as recusas por mensagem, que a sessão "Mostrar à clínica a recusa de mensagem
-   proativa" preenche.
+   do painel é o **único** aviso de mensagens automáticas que não chegam. Divisão combinada em
+   08/10 com a sessão "Mostrar à clínica a recusa de mensagem proativa":
+   - esta faixa e a tela de WhatsApp são donas do aviso da conta. O espaço `refusals` recebe a
+     contagem de jobs `failed` (`countRecentProactiveFailures`), que inclui falhas que não são
+     recusa da Meta, por isso o texto diz "não chegaram aos pacientes";
+   - sem pendência da conta, a faixa leva à Agenda ("Ver na Agenda"), onde aquela sessão mostra
+     cada paciente e a ação; com pendência, leva à tela de WhatsApp;
+   - a Agenda não repete o aviso da conta. Quando o motivo é de conta (131042), ela aponta para
+     Configurações › WhatsApp.
 6. **A C14 continua enviando com a conta BLOCKED.** Nenhuma mudança de semântica em
    `proactive-jobs/application/process.ts`.
 

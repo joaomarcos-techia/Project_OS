@@ -393,24 +393,36 @@ describe('DashboardPage — mensagens automáticas do WhatsApp', () => {
     expect(link.getAttribute('data-whatsapp-send-alert')).toBe('limited');
   });
 
-  it('a mesma faixa leva as recusas por mensagem, com ou sem pendência da conta', async () => {
+  it('só mensagens que não chegaram: a faixa leva à Agenda, onde estão os pacientes', async () => {
     getWhatsappSendAlert.mockResolvedValue({
       account: null,
       refusals: { count: 2, since: 'nas últimas 24 h' },
     });
-    const { unmount } = render(await DashboardPage());
-    expect(
-      screen.getByRole('link', {
-        name: /2 mensagens automáticas recusadas pela Meta nas últimas 24 h/u,
-      }),
-    ).toBeTruthy();
-    unmount();
 
-    getWhatsappSendAlert.mockResolvedValue({ ...blocked, refusals: { count: 1, since: '' } });
     render(await DashboardPage());
-    const links = screen.getAllByRole('link', { name: /recusada pela Meta/u });
-    expect(links).toHaveLength(1);
-    expect(links[0]!.textContent).toContain('A Meta bloqueou');
+
+    const link = screen.getByRole('link', {
+      name: /2 mensagens automáticas não chegaram aos pacientes nas últimas 24 h/u,
+    });
+    expect(link.getAttribute('href')).toBe('/agenda');
+    expect(link.getAttribute('data-whatsapp-send-alert')).toBe('refusals');
+    expect(link.textContent).toContain('Ver na Agenda');
+    // A contagem inclui falhas que não são recusa da Meta.
+    expect(link.textContent).not.toMatch(/recusad/u);
+  });
+
+  it('pendência da conta e mensagens perdidas: uma faixa só, para a tela de WhatsApp', async () => {
+    getWhatsappSendAlert.mockResolvedValue({ ...blocked, refusals: { count: 1, since: '' } });
+
+    const { container } = render(await DashboardPage());
+
+    const strips = container.querySelectorAll('[data-whatsapp-send-alert]');
+    expect(strips).toHaveLength(1);
+    expect(strips[0]!.getAttribute('href')).toBe('/configuracoes/whatsapp');
+    expect(strips[0]!.textContent).toContain('A Meta bloqueou');
+    // O aviso da conta já diz que não chegam; a contagem só se soma a ele.
+    expect(strips[0]!.textContent).toContain('· 1 não chegou');
+    expect(strips[0]!.textContent).toContain('Ver o que fazer');
   });
 
   it('nada pendente: nenhuma faixa', async () => {

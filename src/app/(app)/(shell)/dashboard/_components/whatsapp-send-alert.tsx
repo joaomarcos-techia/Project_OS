@@ -11,9 +11,14 @@ import styles from '../dashboard.module.css';
  * concorrentes:
  *  - a CONTA (0116): a Meta bloqueia ou limita todos os envios iniciados pela
  *    clínica — lembrete, link do sinal, cobrança, oferta de vaga;
- *  - as RECUSAS por mensagem (jobs da C14 recusados pela Meta), que a sessão
- *    "Mostrar à clínica a recusa de mensagem proativa" preenche.
- * A pendência da conta vem primeiro porque ela explica as recusas.
+ *  - as mensagens que NÃO CHEGARAM, uma a uma (jobs da C14 em `failed`), que a
+ *    sessão "Mostrar à clínica a recusa de mensagem proativa" preenche. A conta
+ *    inclui falhas que não são recusa da Meta (número desconectado, template
+ *    não configurado, resultado desconhecido), por isso o texto não diz
+ *    "recusadas pela Meta".
+ * A pendência da conta vem primeiro porque ela explica as falhas, e leva à tela
+ * de WhatsApp, onde se resolve. Sem pendência da conta, a faixa leva à Agenda,
+ * onde está cada paciente que ficou sem a mensagem e a ação para ele.
  */
 export interface WhatsappSendAlertData {
   account: { state: 'blocked' | 'limited'; headline: string } | null;
@@ -21,12 +26,24 @@ export interface WhatsappSendAlertData {
   refusals: { count: number; since: string } | null;
 }
 
-function refusalsLabel(refusals: { count: number; since: string }): string {
-  const what =
-    refusals.count === 1
-      ? '1 mensagem automática recusada pela Meta'
-      : `${refusals.count} mensagens automáticas recusadas pela Meta`;
-  return refusals.since ? `${what} ${refusals.since}` : what;
+type Refusals = NonNullable<WhatsappSendAlertData['refusals']>;
+
+function withSince(what: string, since: string): string {
+  return since ? `${what} ${since}` : what;
+}
+
+function refusalsLabel({ count, since }: Refusals): string {
+  return withSince(
+    count === 1
+      ? '1 mensagem automática não chegou ao paciente'
+      : `${count} mensagens automáticas não chegaram aos pacientes`,
+    since,
+  );
+}
+
+/** Depois do aviso da conta, que já diz que não chegam: só a contagem. */
+function refusalsSuffix({ count, since }: Refusals): string {
+  return withSince(count === 1 ? '1 não chegou' : `${count} não chegaram`, since);
 }
 
 export function WhatsappSendAlert({ account, refusals }: WhatsappSendAlertData) {
@@ -35,12 +52,12 @@ export function WhatsappSendAlert({ account, refusals }: WhatsappSendAlertData) 
 
   const text = account
     ? refused
-      ? `${account.headline} · ${refusalsLabel(refused)}`
+      ? `${account.headline} · ${refusalsSuffix(refused)}`
       : account.headline
     : refusalsLabel(refused!);
   return (
     <Link
-      href="/configuracoes/whatsapp"
+      href={account ? '/configuracoes/whatsapp' : '/agenda'}
       className={cn(
         styles.alert,
         account?.state === 'blocked' ? styles.alertDanger : styles.alertWarning,
@@ -49,7 +66,7 @@ export function WhatsappSendAlert({ account, refusals }: WhatsappSendAlertData) 
     >
       <MessageCircleWarning aria-hidden="true" />
       <span className={styles.alertText ?? ''}>{text}</span>
-      <span className={styles.alertCta ?? ''}>Ver o que fazer</span>
+      <span className={styles.alertCta ?? ''}>{account ? 'Ver o que fazer' : 'Ver na Agenda'}</span>
       <ChevronRight aria-hidden="true" />
     </Link>
   );
