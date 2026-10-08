@@ -234,8 +234,9 @@ async function handleWebhook(req: Request): Promise<Response> {
 
   // The provider receives 200 immediately after the transactional persistence.
   // `after` lets the same invocation process its own events without turning a
-  // temporary worker/LLM failure into a duplicate Meta delivery. Statuses alone
-  // publish nothing, so they schedule nothing.
+  // temporary worker/LLM failure into a duplicate Meta delivery. Statuses publish
+  // `messaging.outbound.status_updated`, which no reply waits on: the minute cron
+  // drains it (a `failed` closes the C14 job — EC-32).
   if (ingress.inboundKeys.length > 0 || ingress.echoKeys.length > 0) {
     after(() => triggerOutboxAfterMetaIngress(ingress));
   }

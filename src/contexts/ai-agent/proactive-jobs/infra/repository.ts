@@ -19,6 +19,7 @@ import {
   aiProactiveJobs,
   type ProactiveJobInsert,
   type ProactiveJobRow,
+  type ProactiveJobStatus,
   type ProactiveJobType,
 } from '../schema';
 
@@ -211,4 +212,58 @@ export function cancel(
     lastAttemptAt: new Date(),
     failedReason: reason,
   });
+}
+
+export type DeliveryFailureOutcome =
+  | { kind: 'failed'; type: ProactiveJobType; previousStatus: 'sent' | 'pending' }
+  /** O processor ainda segura o lease (entre o aceite da Cloud API e o finalize). */
+  | { kind: 'in_flight'; type: ProactiveJobType }
+  /** Já terminal (`failed`/`cancelled`): reentrega do evento é no-op. */
+  | { kind: 'unchanged'; type: ProactiveJobType; status: ProactiveJobStatus }
+  /** O envio não é de job desta clínica (resposta da IA, manual, outro tenant). */
+  | { kind: 'not_found' };
+
+/**
+ * EC-32 — a Meta recusou o envio DEPOIS de aceitá-lo (callback `failed`). Roda
+ * na TX do worker (handler `messaging.outbound.status_updated`).
+ *
+ * Transições: `sent` → `failed` e `pending` → `failed`. O `pending` aparece
+ * quando uma tentativa obteve o wamid mas não chegou a finalizar e o job voltou
+ * à fila: como a chave de envio é o job.id, a próxima tentativa só reencontraria
+ * o mesmo envio `failed` no dedup do sender e terminaria `meta_failed`, sem o
+ * código. Nada volta a `pending` — reenviar exigiria outra chave, e a chave
+ * estável é a garantia at-most-once da fila.
+ *
+ * `FOR UPDATE` serializa com o `claimDue` (SKIP LOCKED pula a linha travada) e
+ * com o finalize do processor; o UPDATE ainda confere o status lido.
+ */
+export async function markDeliveryFailedTx(
+  tx: Tx,
+  clinicId: string,
+  jobId: string,
+  reason: string,
+): Promise<DeliveryFailureOutcome> {
+  const [job] = await tx
+    .select({ type: aiProactiveJobs.type, status: aiProactiveJobs.status })
+    .from(aiProactiveJobs)
+    .where(and(eq(aiProactiveJobs.id, jobId), eq(aiProactiveJobs.clinicId, clinicId)))
+    .limit(1)
+    .for('update');
+  if (!job) return { kind: 'not_found' };
+  if (job.status === 'processing') return { kind: 'in_flight', type: job.type };
+  if (job.status !== 'sent' && job.status !== 'pending') {
+    return { kind: 'unchanged', type: job.type, status: job.status };
+  }
+
+  await tx
+    .update(aiProactiveJobs)
+    .set({ status: 'failed', failedReason: reason })
+    .where(
+      and(
+        eq(aiProactiveJobs.id, jobId),
+        eq(aiProactiveJobs.clinicId, clinicId),
+        eq(aiProactiveJobs.status, job.status),
+      ),
+    );
+  return { kind: 'failed', type: job.type, previousStatus: job.status };
 }

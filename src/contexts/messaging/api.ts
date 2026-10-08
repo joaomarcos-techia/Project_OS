@@ -116,6 +116,16 @@ export interface MessagingApiV1 {
     clinicId: string,
     idempotencyKeys: readonly string[],
   ): Promise<Map<string, OutboundDeliveryStatus>>;
+  /**
+   * EC-32 — o caminho inverso: de um envio (id do `status_updated`) à chave que
+   * o remetente passou ao `sendText`. É ela que liga a recusa da Meta ao job da
+   * C14 (chave = job.id). Só desta clínica; null se o envio não existe aqui.
+   */
+  getOutboundIdempotencyKey(
+    tx: Tx,
+    clinicId: string,
+    outboundMessageId: string,
+  ): Promise<string | null>;
   sendText(input: SendOutboundInput): Promise<OutboundResult>;
 }
 
@@ -226,6 +236,19 @@ async function getOutboundStatuses(
   return new Map(rows.map((r) => [r.key, r.status]));
 }
 
+async function getOutboundIdempotencyKey(
+  tx: Tx,
+  clinicId: string,
+  outboundMessageId: string,
+): Promise<string | null> {
+  const [row] = await tx
+    .select({ key: outboundMessages.idempotencyKey })
+    .from(outboundMessages)
+    .where(and(eq(outboundMessages.id, outboundMessageId), eq(outboundMessages.clinicId, clinicId)))
+    .limit(1);
+  return row?.key ?? null;
+}
+
 async function getBusinessAppEchoForAgent(
   tx: Tx,
   clinicId: string,
@@ -259,5 +282,6 @@ export const messagingApiV1: MessagingApiV1 = {
   getBusinessAppEchoForAgent,
   claimPendingSiblings,
   getOutboundStatuses,
+  getOutboundIdempotencyKey,
   sendText: (input) => sendOutbound(input),
 };

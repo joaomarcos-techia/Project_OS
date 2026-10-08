@@ -31,7 +31,7 @@ import { publishEvent } from '@/lib/outbox/publish';
 
 import { MESSAGING_EVENTS } from '../events';
 import { inboundMessagesRaw, providerStatusEventsRaw, whatsappBusinessAppEchoes } from '../schema';
-import { normalizeProviderDeliveryStatus } from './delivery-status';
+import { normalizeProviderDeliveryStatus, providerFailureCode } from './delivery-status';
 import { applyProviderDeliveryStatus } from './status-reconciler';
 
 /** Epoch-seconds string → Date (ou null se inválido → coluna usa default now()). */
@@ -228,10 +228,11 @@ export async function persistBusinessAppEcho(
 }
 
 /**
- * Persiste callbacks de status (sent/delivered/read/failed) CRUS, append-only,
- * sem consumidor (drena em C14). Dedup por (provider, payload_hash) tolera os
- * reenvios da Meta (3ª#1+2). Independente da existência da mensagem (3ª#8) —
- * pode chegar antes do inbound/outbound; SEM FK.
+ * Persiste callbacks de status (sent/delivered/read/failed) CRUS, append-only, e
+ * os aplica ao envio, publicando `messaging.outbound.status_updated` (com o
+ * código da recusa, se houver) — a C14 o consome. Dedup por (provider,
+ * payload_hash) tolera os reenvios da Meta (3ª#1+2). Independente da existência
+ * da mensagem (3ª#8) — pode chegar antes do inbound/outbound; SEM FK.
  */
 export async function persistStatusEvents(
   clinicId: string,
@@ -270,6 +271,7 @@ export async function persistStatusEvents(
           providerMessageId: row.providerMessageId,
           status: normalized,
           sourceId: inserted.id,
+          errorCode: providerFailureCode(row.raw),
         });
       }
     }

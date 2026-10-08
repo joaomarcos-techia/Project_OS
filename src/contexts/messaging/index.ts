@@ -15,7 +15,11 @@ export {
 } from './schema';
 
 export { MESSAGING_EVENTS } from './events';
-export type { InboundReceivedPayload, BusinessAppEchoReceivedPayload } from './events';
+export type {
+  InboundReceivedPayload,
+  BusinessAppEchoReceivedPayload,
+  OutboundStatusUpdatedPayload,
+} from './events';
 
 // API interna versionada (M14) — consumida pelo AI Agent (C11): ler/marcar
 // inbound (tx-aware, decrypt DENTRO do messaging) e enviar texto outbound.

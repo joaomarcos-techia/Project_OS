@@ -20,6 +20,7 @@ message.event:"outbox.lost_race"
 message.event:"outbox.skipped_no_handler"
 message.event:"outbox.skipped_missing_clinic"
 message.event:"messaging.whatsapp.template_category_drift"
+message.event:"proactive.job.failed"
 ```
 
 `template_category_drift` (D104) aparece quando a Meta reclassificou um template
@@ -29,6 +30,13 @@ continua respondendo `accepted` e o job termina `sent`, mas passa a valer o
 opt-in de marketing, que o Qoro não enxerga — a mensagem pode nunca chegar.
 Editar não muda a categoria; a correção é criar outro template, com nome novo.
 O log traz `nome:esperada->atual`.
+
+`proactive.job.failed` com `stage:"delivery"` (EC-32) é a Meta recusando uma
+mensagem proativa **depois** de aceitá-la: o job da C14 sai de `sent` para
+`failed` e o `reason` traz o código da Meta. Exemplo: `meta_131042` indica a WABA
+sem moeda ou forma de pagamento no Billing. O paciente não recebeu a mensagem e
+nada a reenvia sozinho. Sem `stage`, a falha aconteceu no envio: template não
+configurado, número desconectado ou tentativas esgotadas.
 
 Consultas acima são verificadas contra strings emitidas no código por `pnpm check:observability`. Acrescentar evento inexistente cria falsa cobertura e falha o gate.
 

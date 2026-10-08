@@ -8,6 +8,7 @@ import { outboundMessages, providerStatusEventsRaw } from '../schema';
 import {
   advanceDeliveryStatus,
   normalizeProviderDeliveryStatus,
+  providerFailureCode,
   type ProviderDeliveryStatus,
 } from './delivery-status';
 
@@ -18,6 +19,8 @@ export async function applyProviderDeliveryStatus(
     providerMessageId: string;
     status: ProviderDeliveryStatus;
     sourceId: string;
+    /** `providerFailureCode` do callback; só viaja no evento quando `failed`. */
+    errorCode?: string | null;
   },
 ): Promise<boolean> {
   const [outbound] = await tx
@@ -61,6 +64,7 @@ export async function applyProviderDeliveryStatus(
       outboundMessageId: outbound.id,
       providerMessageId: input.providerMessageId,
       status: input.status,
+      ...(input.status === 'failed' && input.errorCode ? { errorCode: input.errorCode } : {}),
     },
     idempotencyKey: `provider-status:${input.sourceId}`,
   });
@@ -73,7 +77,11 @@ export async function reconcileStoredProviderStatuses(
   providerMessageId: string,
 ): Promise<void> {
   const statuses = await tx
-    .select({ id: providerStatusEventsRaw.id, status: providerStatusEventsRaw.statusText })
+    .select({
+      id: providerStatusEventsRaw.id,
+      status: providerStatusEventsRaw.statusText,
+      raw: providerStatusEventsRaw.raw,
+    })
     .from(providerStatusEventsRaw)
     .where(
       and(
@@ -90,6 +98,7 @@ export async function reconcileStoredProviderStatuses(
         providerMessageId,
         status: normalized,
         sourceId: row.id,
+        errorCode: providerFailureCode(row.raw),
       });
     }
   }

@@ -50,9 +50,8 @@ const PRODUCER_AHEAD = new Set<string>([
   // sinal de observabilidade (métrica + poison pill), e o worker marca `skipped`,
   // que é terminal legítimo. (`created` saiu daqui ao ganhar handler no Scheduling.)
   'payments.patient_charge.failed',
-  // C10 — callback de entrega atualiza a mensagem e emite métrica; não há
-  // consumidor assíncrono enquanto não existir projeção de status.
-  'messaging.outbound.status_updated',
+  // (messaging.outbound.status_updated saiu daqui: EC-32 ligou o handler da C14
+  // que leva a recusa da Meta ao job proativo — F-14.)
   // C11/C14/C15 — consumidores de ciclo de vida do paciente (IA, jobs proativos)
   'patient.core.created',
   'patient.core.updated',
