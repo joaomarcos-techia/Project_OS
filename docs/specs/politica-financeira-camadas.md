@@ -749,6 +749,7 @@ O encerramento automático depende do cron de produção: aviso e encerramento r
   `deposit_link` enfileirado. No reagendamento, o sinal antigo foi fechado no Sandbox e a varredura
   criou o novo (`cd1c2e3c`). O tick da C14 às 08:01 locais enviou o template do link, mas a Meta o recusou
   com 131042 (moeda/pagamento da WABA de teste não configurados): **BLOCKED** até configurar o Billing da
-  Meta. O pagamento segue **NOT RUN**. Achado aberto: a recusa posterior da Meta não volta ao job da C14
-  (fica `sent`).
+  Meta. O pagamento segue **NOT RUN**. A recusa posterior da Meta ficava sem retorno ao job da C14, que
+  continuava `sent` (EC-32). Corrigido em `84b3b413`: uma nova recusa leva o job a `failed` com o
+  código da Meta (`meta_131042`).
 - Registro completo: [`docs/quality/whatsapp-ai-hardening-2026-10-08.md`](../quality/whatsapp-ai-hardening-2026-10-08.md).

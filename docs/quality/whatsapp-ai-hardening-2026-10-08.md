@@ -87,18 +87,23 @@ identidade, e as duas foram corrigidas.
 | 10 | 503 transitório do Gemini virava fallback | Só a resposta vazia era repetida | 5xx repete até 3 vezes com espera curta; timeout e 4xx não (`d3a220df`) |
 | 11 | "Tosse/xarope/posso tomar" e "peito dói" passavam do pré-filtro | Termos ausentes da blacklist | Termos incluídos; pré-filtro agora barra 46/50 do corpus (`f3601c63`) |
 | 12 | Scripts de verificação davam 400 no Gemini 3 | Rechamada sem `thoughtSignature` (o handler já fora corrigido) | Scripts espelham o handler (`851cdf2b`) |
+| 13 | Link do sinal recusado pela Meta depois do aceite deixava o job `sent` (11:01, EC-32) | O `status_updated: failed` não tinha consumidor | Handler da C14 leva a recusa ao job, com o código da Meta e métrica (`84b3b413`) |
 
 ### Riscos residuais
 
-- **Produção continua com os defeitos 1–12 até a promoção**, que o usuário reservou ("ainda não").
+- **Produção continua com os defeitos 1–13 até a promoção**, que o usuário reservou ("ainda não").
   Em especial, o reconhecimento de paciente por telefone e a latência do modelo.
 - **Modelo em produção:** se o ambiente de produção fixa `GEMINI_MODEL=gemini-3.8-flash`, o padrão
   novo não vale lá. Não foi possível ler o ambiente de produção.
 - **Link do sinal pelo WhatsApp:** o pipeline da C14 funcionou (tick das 11:01 UTC), mas a Meta recusou o
   template com 131042: a WABA de teste não tem moeda/pagamento configurado. BLOCKED até configurar o
   Billing da Meta.
-- **Falha de entrega silenciosa (EC-32):** quando a Meta recusa um template depois de aceitá-lo, o job da
-  C14 fica `sent`. Ninguém consome `messaging.outbound.status_updated`; a clínica não fica sabendo.
+- **Falha de entrega depois do aceite (EC-32, corrigido em `84b3b413`):** quando a Meta recusa um
+  template depois de aceitá-lo, o job da C14 agora vai de `sent` para `failed`, com o código da Meta no
+  motivo (`meta_131042`) e a métrica `proactive.job.failed` (`stage: delivery`). Continuam abertos:
+  - nenhuma tela da clínica mostra o status dos jobs proativos, então a recusa aparece no banco e nos
+    logs, mas não no painel;
+  - não há reenvio automático, e o job não volta para a fila (ver EC-32 em D).
 - **Pagamento do sinal e conciliação pela jornada:** dependem de pagar o checkout no Sandbox. NOT RUN.
 - **Mídia (áudio, imagem, documento):** é descartada sem resposta. Decisão de produto pendente.
 - **Formatação:** a IA usa `**negrito**` (Markdown), que o WhatsApp não renderiza. Ajuste de prompt pendente.
@@ -255,11 +260,37 @@ principal quebra), **Média** (degradação com contorno), **Baixa** (cosmético
 | EC-29 | — | Reagendamento com sinal em aberto | "SIM" ao reagendar | Sinal antigo fechado; novo sinal na nova consulta | `30e72c2f` cancelado no Sandbox; `cd1c2e3c` criado | PASS | — | handlers reais (ADR-049) |
 | EC-30 | — | Consulta cancelada com pedido de sinal na fila | Processar `deposit_requested` | Nenhuma cobrança | Inelegível, nenhuma cobrança | PASS | — | handler real |
 | EC-31 | Média | Cadastro em andamento | "qual o endereço de vocês?" no passo do motivo; "quanto custa?" no do CPF | Não gravar; pedir o mesmo campo | Gravado como `motivo`; "CPF inválido" (sonda do parser real) | FAIL → corrigido (unitário; ao vivo exige um número novo autorizado) | `2d9ee2ad` | `semantic-guard.test.ts` (+13), `registration-reply.test.ts` (+2) |
-| EC-32 | Alta | Template proativo aceito pela Cloud API e depois recusado pela Meta | Link do sinal (C14) | Job marcado como falha e visível para a clínica; retentativa quando couber | Job ficou `sent`; o `status_updated: failed` não tem consumidor (11:01) | FAIL, aberto | proposta: consumidor de `messaging.outbound.status_updated` que leva `failed` ao job (por `idempotency_key` = id do job), com motivo e métrica | — |
+| EC-32 | Alta | Template proativo aceito pela Cloud API e depois recusado pela Meta | Link do sinal (C14) | Job marcado como falha e visível para a clínica; retentativa quando couber | Job ficou `sent`; o `status_updated: failed` não tem consumidor (11:01) | FAIL → corrigido (unitário). O job vai a `failed` com `meta_<código>` e métrica. Painel e reenvio ficam abertos (ver abaixo) | `84b3b413` | `outbound-status-updated.test.ts` (12), `delivery-failure.test.ts` (6), `status-reconciler.test.ts` (5), `inbound-status.test.ts` (2), `events.test.ts` (4), `api.test.ts` (2), `delivery-status.test.ts` (+3) |
+
+**EC-32 — como ficou:**
+
+- **Causa:** a C14 finaliza o job como `sent` quando a Cloud API devolve o `wamid`. A recusa vem depois,
+  pelo callback `failed`. `applyProviderDeliveryStatus` atualizava `outbound_messages` e publicava
+  `messaging.outbound.status_updated`, mas o evento não tinha consumidor: o worker o marcava `skipped`.
+- **Correção:**
+  - o evento ganhou `errorCode`, opcional e aditivo, lido de `errors[0].code` do callback cru. Isso
+    vale tanto no webhook quanto na reconciliação depois do envio;
+  - um handler da C14 lê a `idempotency_key` do envio pelo seam do Messaging. Essa chave é o id do job.
+    O handler procura o job com esse id na mesma clínica, com predicado explícito e a RLS do worker.
+- **Transições:**
+  - `sent` → `failed` e `pending` → `failed`, com o motivo `meta_<código>` (`meta_failed` sem código);
+  - `processing` volta ao outbox para nova tentativa: o processor ainda segura o lease;
+  - `failed` e `cancelled` não mudam, então a reentrega do evento não faz nada;
+  - resposta da IA e resposta manual não têm job e também não mudam nada.
+- **Sem reagendamento, nem para código transitório:** o envio usa `idempotencyKey = job.id`, que garante no
+  máximo um envio por job. Um job devolvido a `pending` reencontraria o mesmo envio `failed` no dedup
+  do sender e terminaria `meta_failed`, sem enviar nada e perdendo o código. Reenviar exige uma nova
+  chave por recusa definitiva, e isso muda o contrato de envio. Fica como decisão à parte. O 131042
+  observado também não se resolve reenviando: depende do Billing da Meta.
+- **Ainda aberto:**
+  - mostrar a recusa à clínica, já que nenhuma tela lê o status dos jobs proativos;
+  - provar ao vivo, o que depende de uma nova recusa real da Meta. O job de `cd1c2e3c` no DEV segue
+    `sent`: o evento das 11:01 terminou `skipped`, e a fila antiga do outbox não foi reprocessada.
 
 ## E. Alterações implementadas
 
-Nenhuma migration. Nenhuma mudança de contrato de evento. 15 commits na branch (após `1ac32356`):
+Nenhuma migration. Uma mudança de contrato de evento, aditiva: `errorCode` opcional em
+`messaging.outbound.status_updated` (EC-32). 16 commits de código na branch (após `1ac32356`):
 
 | Commit | Arquivos de produção | Testes |
 | --- | --- | --- |
@@ -278,6 +309,7 @@ Nenhuma migration. Nenhuma mudança de contrato de evento. 15 commits na branch 
 | `bf41896f` hora sem data mantém a data da conversa | `internal/relative-datetime.ts` (`reconcileRequestedTime`) | `relative-datetime.test.ts` (+6) |
 | `f34a28be` reagendar lê o destino, nunca a origem | `tools/reschedule-appointment.ts` | `appointment-summaries.test.ts` (+3, relógio fixo) |
 | `2d9ee2ad` pergunta no meio do cadastro não vira o campo | `guards/semantic-guard.ts` (`detectInformationQuestion`); `handlers/inbound-received.ts` | `semantic-guard.test.ts` (+13), `registration-reply.test.ts` (+2) |
+| `84b3b413` recusa da Meta depois do aceite fecha o job da C14 (EC-32) | `messaging/events.ts` (`errorCode`); `internal/delivery-status.ts` (`providerFailureCode`); `internal/status-reconciler.ts`; `internal/inbound.ts`; `messaging/api.ts` (`getOutboundIdempotencyKey`); `proactive-jobs/infra/repository.ts` (`markDeliveryFailedTx`); `proactive-jobs/internal/handlers/outbound-status-updated.ts`; boot do outbox; `check-handler-registry.ts`; `docs/runbooks/log-search.md` | `outbound-status-updated.test.ts` (12), `delivery-failure.test.ts` (6), `status-reconciler.test.ts` (5), `inbound-status.test.ts` (2), `events.test.ts` (4), `api.test.ts` (2), `delivery-status.test.ts` (+3) |
 
 **Justificativas técnicas resumidas:**
 
@@ -293,14 +325,14 @@ Nenhuma migration. Nenhuma mudança de contrato de evento. 15 commits na branch 
 
 | Camada | Ambiente | PASS | FAIL | SKIP | BLOCKED / NOT RUN | Observação |
 | --- | --- | ---: | ---: | ---: | ---: | --- |
-| Unitário + regressão (Vitest) | local | 5070 | 0 | 0 | 0 | 484 arquivos; suíte inteira no HEAD final `2d9ee2ad` (antes da rodada: 4957) |
+| Unitário + regressão (Vitest) | local | 5104 | 0 | 0 | 0 | 490 arquivos, com cobertura; suíte inteira no `84b3b413` (EC-32). Antes: 5070 no `2d9ee2ad` e 4957 antes da rodada |
 | Contrato do webhook | Preview | 2 | 0 | 0 | 0 | assinatura forjada; número sem clínica |
 | Integração no banco (concorrência e isolamento) | DEV | 6 | 0 | 0 | 0 | mesmo horário com dois pacientes (4/4); identidade entre clínicas (2/2) |
 | Adversarial clínico/injeção (LLM real) | LLM | 50 | 0 | 0 | 0 | `gemini-3.6-flash`, 52 chamadas, US$ 0,18 |
 | WhatsApp, jornada (WA-sim→real) | Preview | 27 | 2 | 0 | 0 | 29 cenários. 7 FAIL observados; 5 corrigidos e retestados ao vivo (W01, W14, W15, W23, W25). Abertos: W18 áudio e W28 política inventada |
 | WhatsApp digitado no aparelho (WA-real) | Preview | 1 | 0 | 0 | 0 | 02:03 UTC: entrega, resposta e leitura |
 | Financeiro (sinal, link, reagendamento) | DEV + Sandbox + Cloud API | 6 | 0 | 0 | 2 | F01–F05 e o pipeline da C14 PASS; entrega do link BLOCKED (Meta 131042); pagamento NOT RUN |
-| Gates estáticos | local | 11 | 0 | 0 | 0 | tsc, ESLint, madge, arch-db, migrations, observabilidade, registry, Prettier, inventário, build, diff-check |
+| Gates estáticos | local | 11 | 0 | 0 | 0 | tsc, ESLint, madge, arch-db, migrations, observabilidade, registry, Prettier, inventário, build, diff-check. Repetidos no `84b3b413`: registry com 30 handlers e 41 producer-ahead; build isolado do CI |
 | Checks da PR #26 | CI | 6 | 0 | 0 | 0 | lint/typecheck/test/build, ADR, Vercel, Snyk, Semgrep no `f34a28be` |
 
 **Cobertura medida:** 29 cenários de conversa no WhatsApp real (saída) e 1 com entrada digitada.
@@ -332,7 +364,7 @@ segue draft e sem merge.
    - **(b)** fazer um teste com mensagens digitadas no aparelho depois do deploy: saudação, marcar,
      SIM, cancelar e SIM;
    - **(c)** configurar moeda e forma de pagamento da WABA no Billing da Meta (sem isso nenhum template sai) e acompanhar o primeiro link de sinal real;
-   - **(d)** decidir a correção do EC-32 (falha de entrega do template sem retorno ao job) antes de depender da C14 em escala.
+   - **(d)** EC-32 corrigido no código (`84b3b413`): a recusa da Meta depois do aceite leva o job a `failed`, com o código. Antes de depender da C14 em escala, ainda falta mostrar a recusa à clínica e acompanhar a primeira recusa real até o job.
 3. **Riscos abertos aceitáveis com acompanhamento:**
    - áudio sem resposta (W18);
    - política inventada em mensagem longa (W28);
