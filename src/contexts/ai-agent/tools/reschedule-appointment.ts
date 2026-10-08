@@ -51,6 +51,19 @@ const OutputSchema = z.discriminatedUnion('status', [
 const HOUR_MS = 60 * 60 * 1000;
 const MINUTE_MS = 60 * 1000;
 
+/**
+ * O destino de "remarcar de sexta às 10h para sábado às 17h30" é a oração depois
+ * do ÚLTIMO "para"/"pra". O resolvedor lê a frase inteira e, com duas datas e
+ * duas horas, montava um instante híbrido (data da origem + hora do destino).
+ */
+function rescheduleTargetClause(text: string): string | null {
+  const matches = [...text.matchAll(/\b(?:para|pra)\b/gi)];
+  const last = matches.at(-1);
+  if (!last || last.index === undefined) return null;
+  const tail = text.slice(last.index + last[0].length).trim();
+  return tail.length > 0 ? tail : null;
+}
+
 const unavailable = {
   status: 'appointment_unavailable' as const,
   patient_message:
@@ -71,15 +84,38 @@ registerTool({
     }
 
     const now = new Date();
-    const requested = reconcileRequestedTime({
-      resolved: resolveRequestedDateTime({
-        text: ctx.currentMessage,
+    const resolve = (text: string) =>
+      resolveRequestedDateTime({
+        text,
         now,
         timeZone: ctx.clinicTimeZone,
         maxDaysAhead: ctx.maxDaysAhead,
-      }),
+      });
+    const target = rescheduleTargetClause(ctx.currentMessage);
+    const targetResolved = target ? resolve(target) : null;
+    const reconciled = reconcileRequestedTime({
+      resolved:
+        targetResolved && targetResolved.kind !== 'none'
+          ? targetResolved
+          : resolve(ctx.currentMessage),
       modelIso: input.new_scheduled_at,
     });
+    // "Remarcar de segunda às 10h para segunda às 11h": a frase traz os DOIS
+    // horários e o resolvedor lê o primeiro — o de origem (visto ao vivo em
+    // 08/10/2026: "horário indisponível", porque a origem está ocupada pela
+    // própria consulta). O destino de um reagendamento nunca é a origem: nesse
+    // caso vale o destino proposto pelo modelo, conferido na agenda igual.
+    const origin = new Date(appt.scheduledAt).getTime();
+    const isOrigin = (iso: string) => Math.abs(new Date(iso).getTime() - origin) < MINUTE_MS;
+    const readTheOrigin =
+      (reconciled.mode === 'instant' && isOrigin(reconciled.atIso)) ||
+      (reconciled.mode === 'candidates' && reconciled.candidatesIso.some(isOrigin));
+    const modelAt = new Date(input.new_scheduled_at);
+    const requested: typeof reconciled = !readTheOrigin
+      ? reconciled
+      : !Number.isNaN(modelAt.getTime()) && !isOrigin(input.new_scheduled_at)
+        ? { mode: 'instant', atIso: modelAt.toISOString() }
+        : { mode: 'none' };
     if (requested.mode === 'none') {
       return {
         status: 'appointment_information_required' as const,

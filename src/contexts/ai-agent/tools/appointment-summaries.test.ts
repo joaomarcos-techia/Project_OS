@@ -168,6 +168,55 @@ describe('reagendar confere o novo horário na agenda real (08/10/2026)', () => 
     });
   });
 
+  it('frase com origem E destino ("de sexta às 10h para sábado às 17h30") usa o destino', async () => {
+    // Ao vivo em 08/10/2026 o resolvedor leu o PRIMEIRO horário da frase — o da
+    // própria consulta, ocupado — e o paciente recebeu "indisponível".
+    vi.useFakeTimers({ now: new Date('2026-10-08T10:03:00.000Z'), toFake: ['Date'] });
+    try {
+      await expect(
+        reschedule(
+          '2026-10-10T17:30:00-03:00',
+          'quero remarcar a consulta de sexta às 10h para sábado às 17h30',
+        ),
+      ).resolves.toMatchObject({
+        status: 'appointment_prepared',
+        summary: 'Reagendar consulta de 09/10/2026 às 10:00 para 10/10/2026 às 17:30',
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('mesmo dia na origem e no destino ("de sexta às 10h para sexta às 11h") — o caso ao vivo', async () => {
+    vi.useFakeTimers({ now: new Date('2026-10-08T10:03:00.000Z'), toFake: ['Date'] });
+    mocks.listSlots.mockResolvedValue([{ startAt: '2026-10-09T14:00:00.000Z', doctorId: DOCTOR }]);
+    try {
+      await expect(
+        reschedule(
+          '2026-10-09T11:00:00-03:00',
+          'quero remarcar a consulta de sexta às 10h para sexta às 11h',
+        ),
+      ).resolves.toMatchObject({
+        status: 'appointment_prepared',
+        summary: 'Reagendar consulta de 09/10/2026 às 10:00 para 09/10/2026 às 11:00',
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('o destino nunca é a própria origem', async () => {
+    vi.useFakeTimers({ now: new Date('2026-10-08T10:03:00.000Z'), toFake: ['Date'] });
+    try {
+      await expect(
+        reschedule('2026-10-09T10:00:00-03:00', 'pode ser sexta às 10h?'),
+      ).resolves.toMatchObject({ status: 'appointment_information_required' });
+      expect(mocks.proposePendingAction).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('a consulta de outro paciente continua recusada antes de olhar a agenda', async () => {
     mocks.lookupAppointment.mockResolvedValue({ ...upcoming, patientId: 'outro' });
     await expect(reschedule('2026-10-10T17:30:00-03:00')).rejects.toThrow('não pertence');
