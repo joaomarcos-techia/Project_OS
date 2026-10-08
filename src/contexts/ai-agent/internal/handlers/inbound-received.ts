@@ -98,6 +98,7 @@ import {
   listToolDeclarations,
   preflightToolCalls,
   validateAndExecute,
+  type ToolContext,
 } from '../../tools/registry';
 // Side-effect: registra as tools no registry (whitelist G9). FONTE ÚNICA da
 // whitelist (3 da C11 + 12 da C12) — compartilhada com os scripts de verificação
@@ -120,7 +121,14 @@ import {
 } from '../conversation';
 import type { ActiveConversation } from '../conversation';
 import { buildContext, patientRegistrationState } from '../context-builder';
-import { isExplicitConfirmation } from '../pending-action';
+import {
+  classifyConfirmation,
+  executePendingAction,
+  findPendingActionSummary,
+  isExplicitConfirmation,
+  type PendingActionExecutionResult,
+} from '../pending-action';
+import { appointmentTimeForPatient } from '../relative-datetime';
 import { checkQuota, type QuotaCheck } from '../quota';
 import { sanitizeAiFailurePayload } from '../sanitize';
 import { toToolCallRecords } from '../tool-call-record';
@@ -296,6 +304,47 @@ async function runRegistrationTurnServerSide(args: {
       confirmed: false,
     }),
   };
+}
+
+/**
+ * Resposta do SERVIDOR para uma ação preparada que o paciente confirmou
+ * (08/10/2026). Data e hora no fuso da clínica, como no resumo que ele leu.
+ */
+export function pendingConfirmationReply(
+  result: Pick<PendingActionExecutionResult, 'action' | 'scheduledAt'>,
+  timeZone: string,
+): string {
+  const when = result.scheduledAt ? appointmentTimeForPatient(result.scheduledAt, timeZone) : null;
+  const at = when ? ` de ${when}` : '';
+  switch (result.action) {
+    case 'schedule_appointment':
+      return when ? `Pronto! Consulta agendada para ${when}.` : 'Pronto! Consulta agendada.';
+    case 'reschedule_appointment':
+      return when ? `Pronto! Consulta reagendada para ${when}.` : 'Pronto! Consulta reagendada.';
+    case 'confirm_appointment':
+      return `Pronto! Presença confirmada na consulta${at}.`;
+    case 'cancel_appointment':
+      return `Pronto! A consulta${at} foi cancelada.`;
+  }
+}
+
+/**
+ * Por que a execução de uma ação confirmada falhou, na língua do paciente.
+ * `null` = falha sem explicação útil: segue o fallback operacional.
+ */
+export function pendingConfirmationFailureReply(err: unknown): string | null {
+  const name = err instanceof Error ? err.name : '';
+  const message = err instanceof Error ? err.message : '';
+  if (message.includes('expirou')) {
+    return 'O resumo expirou antes da confirmação. Me diga de novo o que deseja e preparo outro para você confirmar.';
+  }
+  if (name === 'SchedulingConflictError') {
+    return 'Esse horário acabou de ser ocupado. Me diga outro dia ou horário que eu verifico a agenda.';
+  }
+  if (message.includes('identidade do contato mudou') || message.includes('cadastre/identifique')) {
+    return 'Não consegui confirmar com os dados atuais do seu cadastro. Me diga de novo o que deseja e preparo um novo resumo.';
+  }
+  return null;
 }
 
 function registrationWasRequired(toolResults: ToolResult[]): boolean {
@@ -914,7 +963,73 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
       });
     }
 
+    // Contexto autoritativo das tools — uma definição para o loop do LLM e
+    // para a confirmação conduzida pelo servidor.
+    const toolContext = (tx: Tx): ToolContext => ({
+      tx,
+      clinicId,
+      conversationId: conversation.id,
+      eventId,
+      aiRequestId,
+      // C12 — identidade verificada por telefone (anti-spoofing).
+      patientId: conversation.patientId,
+      patientNome: conversation.patientNome,
+      identityAmbiguous: conversation.identityAmbiguous,
+      verifiedPhone: fromNumber,
+      currentMessage: turnText,
+      canScheduleAnonymous: promptCtx.aiConfig.canScheduleAnonymous,
+      maxDaysAhead: promptCtx.aiConfig.maxDaysAhead,
+      clinicTimeZone: promptCtx.clinic.timezone,
+      pendingAppointmentProcedureName: promptCtx.pendingAppointmentProcedureName,
+      canDisclosePayments: promptCtx.aiConfig.canDisclosePayments,
+    });
+
+    // 08/10/2026 — o "SIM" a uma ação PREPARADA é um gate do servidor, como a
+    // confirmação do cadastro. Ao vivo, o modelo respondeu a um "SIM" chamando
+    // confirm_appointment em vez de confirm_pending_action, com scheduled_at
+    // inválido: a tool falhou e o paciente recebeu "um atendente vai te
+    // responder" depois de confirmar. A pendência e a confirmação explícita
+    // (classifyConfirmation, pela AÇÃO preparada) bastam; o modelo não decide.
+    let serverConfirmationReply: string | null = null;
     if (!serverRegistrationReply && !confirmedRegistrationServerSide && !registrationHandoff) {
+      const pending = await phase(clinicId, (tx) =>
+        findPendingActionSummary(tx, clinicId, conversation.id),
+      );
+      if (pending && classifyConfirmation(turnText, pending.actionName).confirmed) {
+        toolCallCount += 1;
+        toolCallsRecord = toToolCallRecords([{ name: 'confirm_pending_action', args: {} }]);
+        try {
+          const executed = await phase(clinicId, (tx) => executePendingAction(toolContext(tx)));
+          serverConfirmationReply = pendingConfirmationReply(executed, promptCtx.clinic.timezone);
+          metrics.emit('ai_agent.pending_action.confirmed_server_side', {
+            clinicId,
+            conversationId: conversation.id,
+            aiRequestId,
+            action: executed.action,
+          });
+        } catch (err) {
+          await recordFailure({
+            clinicId,
+            conversationId: conversation.id,
+            eventId,
+            aiRequestId,
+            stage: 'tool_invalid',
+            error: err,
+            toolName: 'confirm_pending_action',
+          });
+          serverConfirmationReply = pendingConfirmationFailureReply(err);
+          if (!serverConfirmationReply) fallback = true;
+        }
+      }
+    }
+
+    if (
+      !serverRegistrationReply &&
+      !confirmedRegistrationServerSide &&
+      !registrationHandoff &&
+      !serverConfirmationReply &&
+      !fallback
+    ) {
       try {
         result = await aiCircuit.exec(() =>
           generateWithTransientRetry(provider, { systemPrompt, messages, tools: declarations }),
@@ -1003,24 +1118,7 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
         const roundResults = await phase(clinicId, async (tx) => {
           const acc: ToolResult[] = [];
           for (const call of calls) {
-            const exec = await validateAndExecute(call, {
-              tx,
-              clinicId,
-              conversationId: conversation.id,
-              eventId,
-              aiRequestId,
-              // C12 — identidade verificada por telefone (anti-spoofing).
-              patientId: conversation.patientId,
-              patientNome: conversation.patientNome,
-              identityAmbiguous: conversation.identityAmbiguous,
-              verifiedPhone: fromNumber,
-              currentMessage: turnText,
-              canScheduleAnonymous: promptCtx.aiConfig.canScheduleAnonymous,
-              maxDaysAhead: promptCtx.aiConfig.maxDaysAhead,
-              clinicTimeZone: promptCtx.clinic.timezone,
-              pendingAppointmentProcedureName: promptCtx.pendingAppointmentProcedureName,
-              canDisclosePayments: promptCtx.aiConfig.canDisclosePayments,
-            });
+            const exec = await validateAndExecute(call, toolContext(tx));
             if (!exec.ok) {
               const stage: FailureStage =
                 exec.kind === 'unknown_tool'
@@ -1131,6 +1229,7 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
     }
 
     const operationalReply =
+      serverConfirmationReply ??
       appointmentReplyFromToolResults(toolResults) ??
       serverRegistrationReply ??
       registrationReplyFromToolResults(toolResults) ??
