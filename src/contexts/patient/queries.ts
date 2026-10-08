@@ -20,7 +20,7 @@ import {
   decryptForTenant,
   hashForLookup,
   normalizeCpf,
-  normalizePhone,
+  phoneLookupHashes,
   validateCpf,
 } from '@/lib/crypto';
 import { redactCpf } from '@/lib/format';
@@ -383,17 +383,17 @@ export async function findPatientByCpf(
   });
 }
 
-/** Lookup by phone via the HMAC hash. */
+/** Lookup by phone via the HMAC hash, in every spelling of the same line. */
 export async function findPatientByPhone(
   clinicId: string,
   phone: string,
 ): Promise<PatientSummary | null> {
-  const telefoneHash = await hashForLookup(normalizePhone(phone));
+  const telefoneHashes = await phoneLookupHashes(phone);
   return withTenant(clinicId, async (tx) => {
     const rows = await tx
       .select()
       .from(patients)
-      .where(and(eq(patients.telefoneHash, telefoneHash), patientsActiveFilter()))
+      .where(and(inArray(patients.telefoneHash, telefoneHashes), patientsActiveFilter()))
       .limit(2);
     // Telefone compartilhado não identifica uma pessoa de forma inequívoca.
     return rows.length === 1 ? toPatientSummary(rows[0]!) : null;
@@ -649,17 +649,23 @@ export async function getProactiveContact(
       .orderBy(desc(patientConsents.versao))
       .limit(1);
 
-    // suppression_list.contact_hash é o MESMO HMAC de patients.telefone_hash.
+    // suppression_list.contact_hash é o MESMO HMAC de patients.telefone_hash —
+    // na grafia em que o número estava quando a supressão foi gravada. Regravar
+    // o telefone em outra grafia (com 55, sem o nono dígito) não pode desfazer
+    // um opt-out, então a busca cobre todas as grafias da mesma linha.
     let suppressedWhatsapp = false;
     let suppressedWhatsappPurposes: ProactiveContact['suppressedWhatsappPurposes'] = [];
     if (row.telefoneHash) {
+      const contactHashes = phone ? await phoneLookupHashes(phone) : [];
       const supp = await tx
         .select({ id: suppressionList.id, purpose: suppressionList.purpose })
         .from(suppressionList)
         .where(
           and(
             eq(suppressionList.clinicId, clinicId),
-            eq(suppressionList.contactHash, row.telefoneHash),
+            inArray(suppressionList.contactHash, [
+              ...new Set([row.telefoneHash, ...contactHashes]),
+            ]),
             eq(suppressionList.channel, 'whatsapp'),
           ),
         );

@@ -24,7 +24,7 @@ import { sql } from 'drizzle-orm';
 
 import { __testing__ as aiCircuitTesting } from '@/lib/ai/circuit-breaker';
 import { computeCostUsd } from '@/lib/ai/cost';
-import { decryptForTenant, encryptForTenant } from '@/lib/crypto';
+import { decryptForTenant, encryptForTenant, phoneLookupHashes } from '@/lib/crypto';
 import { dbAdmin } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
 import { env } from '@/lib/env';
@@ -679,6 +679,7 @@ async function main(): Promise<void> {
           )
         )[0]!.h,
         await encryptForTenant(clinicA, A11),
+        await phoneLookupHashes(A11),
       );
       await appendInboundMessage(tx, {
         clinicId: clinicA,

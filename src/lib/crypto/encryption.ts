@@ -125,6 +125,59 @@ export function normalizePhone(phone: string): string {
   return phone.replace(/\D/g, '');
 }
 
+/** Brazilian national number (DDD + subscriber), or null when it is not one. */
+function brazilianNationalNumber(digits: string): string | null {
+  let national = digits;
+  if ((digits.length === 12 || digits.length === 13) && digits.startsWith('55')) {
+    national = digits.slice(2);
+  } else if ((digits.length === 11 || digits.length === 12) && digits.startsWith('0')) {
+    national = digits.slice(1); // long-distance trunk prefix: "0 88 99716-8587"
+  }
+  return /^[1-9]{2}(?:9\d{8}|[2-9]\d{7})$/.test(national) ? national : null;
+}
+
+/**
+ * Every spelling of the SAME Brazilian line that a phone lookup must accept
+ * (digits only, input spelling first).
+ *
+ * The clinic types the national number — "(88) 99716-8587" → 88997168587 — while
+ * the WhatsApp Cloud API reports the sender's wa_id with the country code and,
+ * for lines older than the ninth-digit migration, without the mobile ninth
+ * digit: 558897168587. `hashForLookup` is exact, so each spelling hashed to a
+ * different value and a registered patient was never recognized on WhatsApp.
+ *
+ * Only unambiguous equivalences are produced:
+ *   - with or without the 55 country code or a leading long-distance 0;
+ *   - a mobile with or without the ninth digit, ONLY when the eight-digit form
+ *     starts with 6–9, the pre-migration mobile range. "9 4xxx-xxxx" never maps
+ *     to "4xxx-xxxx": an eight-digit number starting with 2–5 is a landline and
+ *     can belong to someone else.
+ * Every spelling of a line yields the same set, so the comparison does not
+ * depend on which side (clinic record or WhatsApp) holds which spelling.
+ * Anything that is not a recognizable Brazilian number yields only itself.
+ */
+export function phoneLookupVariants(phone: string): string[] {
+  const digits = normalizePhone(phone);
+  const national = brazilianNationalNumber(digits);
+  if (!national) return [digits];
+
+  const ddd = national.slice(0, 2);
+  const subscriber = national.slice(2);
+  const nationals = [national];
+  if (subscriber.length === 9 && /^9[6-9]/.test(subscriber)) {
+    nationals.push(`${ddd}${subscriber.slice(1)}`);
+  } else if (subscriber.length === 8 && /^[6-9]/.test(subscriber)) {
+    nationals.push(`${ddd}9${subscriber}`);
+  }
+  const spellings = nationals.flatMap((value) => [value, `55${value}`, `0${value}`]);
+  return [...new Set([digits, ...spellings])];
+}
+
+/** Lookup hashes of every spelling of the phone (see `phoneLookupVariants`). */
+export async function phoneLookupHashes(phone: string): Promise<string[]> {
+  return Promise.all(phoneLookupVariants(phone).map((variant) => hashForLookup(variant)));
+}
+
 /** lowercase + trim — the single email normalization (prevents dup rows). */
 export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();

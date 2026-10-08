@@ -21,7 +21,7 @@
  */
 import { and, eq, gte, sql } from 'drizzle-orm';
 
-import { encryptForTenant } from '@/lib/crypto';
+import { encryptForTenant, phoneLookupHashes } from '@/lib/crypto';
 import { withTenant } from '@/lib/db/tenant';
 import { metrics } from '@/lib/observability/metrics';
 import { PoisonPillError } from '@/lib/outbox/errors';
@@ -73,6 +73,7 @@ export async function recordBusinessAppEcho(
       clinicId,
       echo.toNumberHash,
       await encryptForTenant(clinicId, echo.toNumber),
+      await phoneLookupHashes(echo.toNumber),
     );
 
     // Checkpoint por eventId. A janela de 7 dias poda as partições de

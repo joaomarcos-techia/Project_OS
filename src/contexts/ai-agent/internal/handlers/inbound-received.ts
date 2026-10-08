@@ -38,7 +38,7 @@ import {
   type GenerateResult,
   type ToolResult,
 } from '@/lib/ai/provider';
-import { decryptForTenant, encryptForTenant } from '@/lib/crypto';
+import { decryptForTenant, encryptForTenant, phoneLookupHashes } from '@/lib/crypto';
 import type { Tx } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
 import { resolveAiSnapshotMode } from '@/lib/env';
@@ -570,6 +570,9 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
   }
   const fromNumber = inbound.fromNumber;
   const aiRequestId = randomUUID(); // R7 — trace do turno
+  // Cifra e hashes são CPU puro: calculados fora da transação.
+  const fromNumberEncrypted = await encryptForTenant(clinicId, fromNumber);
+  const identityHashes = await phoneLookupHashes(fromNumber);
 
   // FASE A — conversa + mensagem 'in' (checkpoint por eventId) + coalescing.
   const { conversation, replayedOut, turnText, coalesced } = await phase(clinicId, async (tx) => {
@@ -577,7 +580,8 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
       tx,
       clinicId,
       inbound.fromNumberHash,
-      await encryptForTenant(clinicId, fromNumber),
+      fromNumberEncrypted,
+      identityHashes,
       inbound.contactNameEncrypted,
     );
     const turn = await findTurnMessages(tx, clinicId, eventId);
