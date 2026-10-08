@@ -260,7 +260,7 @@ principal quebra), **Média** (degradação com contorno), **Baixa** (cosmético
 | EC-29 | — | Reagendamento com sinal em aberto | "SIM" ao reagendar | Sinal antigo fechado; novo sinal na nova consulta | `30e72c2f` cancelado no Sandbox; `cd1c2e3c` criado | PASS | — | handlers reais (ADR-049) |
 | EC-30 | — | Consulta cancelada com pedido de sinal na fila | Processar `deposit_requested` | Nenhuma cobrança | Inelegível, nenhuma cobrança | PASS | — | handler real |
 | EC-31 | Média | Cadastro em andamento | "qual o endereço de vocês?" no passo do motivo; "quanto custa?" no do CPF | Não gravar; pedir o mesmo campo | Gravado como `motivo`; "CPF inválido" (sonda do parser real) | FAIL → corrigido (unitário; ao vivo exige um número novo autorizado) | `2d9ee2ad` | `semantic-guard.test.ts` (+13), `registration-reply.test.ts` (+2) |
-| EC-32 | Alta | Template proativo aceito pela Cloud API e depois recusado pela Meta | Link do sinal (C14) | Job marcado como falha e visível para a clínica; retentativa quando couber | Job ficou `sent`; o `status_updated: failed` não tem consumidor (11:01) | FAIL → corrigido (unitário). O job vai a `failed` com `meta_<código>` e métrica. Painel e reenvio ficam abertos (ver abaixo) | `84b3b413` | `outbound-status-updated.test.ts` (12), `delivery-failure.test.ts` (6), `status-reconciler.test.ts` (5), `inbound-status.test.ts` (2), `events.test.ts` (4), `api.test.ts` (2), `delivery-status.test.ts` (+3) |
+| EC-32 | Alta | Template proativo aceito pela Cloud API e depois recusado pela Meta | Link do sinal (C14) | Job marcado como falha e visível para a clínica; retentativa quando couber | Job ficou `sent`; o `status_updated: failed` não tem consumidor (11:01) | FAIL → corrigido; PASS ao vivo no DEV às 12:03 (job `b6a068ad` → `failed`). O job vai a `failed` com `meta_<código>` e métrica. Painel e reenvio ficam abertos (ver abaixo) | `84b3b413` | `outbound-status-updated.test.ts` (12), `delivery-failure.test.ts` (6), `status-reconciler.test.ts` (5), `inbound-status.test.ts` (2), `events.test.ts` (4), `api.test.ts` (2), `delivery-status.test.ts` (+3) |
 
 **EC-32 — como ficou:**
 
@@ -282,10 +282,18 @@ principal quebra), **Média** (degradação com contorno), **Baixa** (cosmético
   do sender e terminaria `meta_failed`, sem enviar nada e perdendo o código. Reenviar exige uma nova
   chave por recusa definitiva, e isso muda o contrato de envio. Fica como decisão à parte. O 131042
   observado também não se resolve reenviando: depende do Billing da Meta.
+- **Prova ao vivo no DEV (12:03 UTC):**
+  - o reenvio das 11:48 (job `b6a068ad`) também voltou `failed` 131042. O evento dele estava
+    `pending` e foi processado pelo id, com os handlers reais e o código de `84b3b413`;
+  - o evento terminou `processed` na 1ª tentativa, e o job foi de `sent` para `failed`;
+  - o motivo ficou `meta_failed`: o evento saiu do Preview antes do `errorCode`, que é o caminho de
+    compatibilidade. O código `131042` está no callback cru, e a leitura dele está provada no unitário;
+  - o job `b701cf7a` (tick das 11:01) segue `sent`. O evento dele terminou `skipped` antes do handler,
+    e a fila antiga do outbox não foi reprocessada.
 - **Ainda aberto:**
   - mostrar a recusa à clínica, já que nenhuma tela lê o status dos jobs proativos;
-  - provar ao vivo, o que depende de uma nova recusa real da Meta. O job de `cd1c2e3c` no DEV segue
-    `sent`: o evento das 11:01 terminou `skipped`, e a fila antiga do outbox não foi reprocessada.
+  - ver um `meta_<código>` ao vivo, o que depende de uma recusa real publicada por um deploy que já
+    tenha `84b3b413`.
 
 ## E. Alterações implementadas
 
@@ -364,7 +372,7 @@ segue draft e sem merge.
    - **(b)** fazer um teste com mensagens digitadas no aparelho depois do deploy: saudação, marcar,
      SIM, cancelar e SIM;
    - **(c)** configurar moeda e forma de pagamento da WABA no Billing da Meta (sem isso nenhum template sai) e acompanhar o primeiro link de sinal real;
-   - **(d)** EC-32 corrigido no código (`84b3b413`): a recusa da Meta depois do aceite leva o job a `failed`, com o código. Antes de depender da C14 em escala, ainda falta mostrar a recusa à clínica e acompanhar a primeira recusa real até o job.
+   - **(d)** EC-32 corrigido (`84b3b413`) e provado ao vivo no DEV: a recusa da Meta depois do aceite leva o job a `failed`, com o código. Antes de depender da C14 em escala, ainda falta mostrar a recusa à clínica.
 3. **Riscos abertos aceitáveis com acompanhamento:**
    - áudio sem resposta (W18);
    - política inventada em mensagem longa (W28);
