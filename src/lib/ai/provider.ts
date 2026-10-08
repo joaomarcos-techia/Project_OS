@@ -25,6 +25,12 @@ export type Usage = {
 export type ToolCall = {
   name: string;
   args: unknown;
+  /**
+   * Token OPACO que o provider exige de volta junto do functionCall na
+   * re-chamada (Gemini 3: `thoughtSignature`; sem ele a API responde 400). Não
+   * é payload: o caller só o repassa para o ToolResult, nunca o lê nem loga.
+   */
+  signature?: string | undefined;
 };
 
 /**
@@ -48,6 +54,8 @@ export type ToolResult = {
   name: string;
   args: unknown;
   response: object;
+  /** O `ToolCall.signature` da chamada que gerou este resultado, intacto. */
+  signature?: string | undefined;
 };
 
 export type GenerateOpts = {

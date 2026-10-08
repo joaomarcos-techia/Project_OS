@@ -18,6 +18,8 @@ export const AI_PRICE_TABLE_USD_PER_1M: Readonly<
   Record<string, { input: number; output: number }>
 > = Object.freeze({
   'gemini-2.5-flash': { input: 0.3, output: 2.5 },
+  // Preço introdutório oficial até 31/12/2026 (1.50/7.50 a partir de 2027).
+  'gemini-3.6-flash': { input: 0.75, output: 3.75 },
   // Preço introdutório oficial até 31/12/2026.
   'gemini-3.8-flash': { input: 0.75, output: 3.75 },
 });
