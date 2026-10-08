@@ -60,6 +60,19 @@ function timeZoneOffsetMs(instant: Date, timeZone: string): number {
 }
 
 /** Wall-clock local da clínica → instante UTC (correto sob DST). */
+/**
+ * Data e hora de uma consulta como o PACIENTE lê: no fuso da clínica.
+ *
+ * Os resumos de cancelar, reagendar e confirmar presença mostravam o ISO em UTC
+ * ("2026-10-09T13:00:00.000Z"): 10:00 em São Paulo virava "13:00" na tela do
+ * paciente, e o "SIM" confirmava um horário que ele leu errado (08/10/2026).
+ */
+export function appointmentTimeForPatient(iso: string, timeZone: string): string {
+  const parts = zonedParts(new Date(iso), timeZone);
+  const pad = (value: number): string => String(value).padStart(2, '0');
+  return `${pad(parts.day)}/${pad(parts.month)}/${parts.year} às ${pad(parts.hour)}:${pad(parts.minute)}`;
+}
+
 export function wallClockInTimeZoneToInstant(args: ZonedParts, timeZone: string): Date {
   const wallClockUtc = Date.UTC(args.year, args.month - 1, args.day, args.hour, args.minute);
   let instant = new Date(wallClockUtc - timeZoneOffsetMs(new Date(wallClockUtc), timeZone));

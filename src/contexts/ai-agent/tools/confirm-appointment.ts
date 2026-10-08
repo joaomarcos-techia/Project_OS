@@ -16,6 +16,7 @@ import {
   isExplicitConfirmation,
   proposePendingAction,
 } from '../internal/pending-action';
+import { appointmentTimeForPatient } from '../internal/relative-datetime';
 import { registerTool } from './registry';
 
 const InputSchema = z.object({
@@ -30,6 +31,8 @@ const InputSchema = z.object({
 const AppointmentOptionSchema = z.object({
   appointment_id: z.string().uuid(),
   scheduled_at: z.string(),
+  /** O que o paciente lê: data e hora no fuso da clínica. */
+  scheduled_at_local: z.string(),
   status: z.string(),
   doctor_name: z.string(),
   procedure_name: z.string(),
@@ -48,10 +51,12 @@ const OutputSchema = z.object({
 
 function toOption(
   appointment: Awaited<ReturnType<typeof schedulingApiV1.listPatientAppointments>>[number],
+  timeZone: string,
 ) {
   return {
     appointment_id: appointment.id,
     scheduled_at: appointment.scheduledAt,
+    scheduled_at_local: appointmentTimeForPatient(appointment.scheduledAt, timeZone),
     status: appointment.status,
     // DATA-001 — o profissional ATUAL; o snapshot só cobre o fallback.
     doctor_name: appointment.currentDoctorNome ?? appointment.snapshotDoctorNome,
@@ -110,7 +115,7 @@ registerTool({
         pending_action_id: null,
         status: null,
         summary: null,
-        appointments: appointments.map(toOption),
+        appointments: appointments.map((appointment) => toOption(appointment, ctx.clinicTimeZone)),
       };
     }
 
@@ -128,7 +133,10 @@ registerTool({
     }
 
     if (!isExplicitConfirmation(ctx.currentMessage)) {
-      const summary = `Confirmar presença na consulta de ${selected.scheduledAt}`;
+      const summary = `Confirmar presença na consulta de ${appointmentTimeForPatient(
+        selected.scheduledAt,
+        ctx.clinicTimeZone,
+      )}`;
       const pending = await proposePendingAction(ctx.tx, {
         clinicId: ctx.clinicId,
         conversationId: ctx.conversationId,

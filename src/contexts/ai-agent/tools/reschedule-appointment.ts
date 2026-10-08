@@ -10,6 +10,7 @@ import { schedulingApiV1 } from '@/contexts/scheduling';
 /* eslint-enable boundaries/element-types */
 
 import { assertAgentSchedulePolicy, proposePendingAction } from '../internal/pending-action';
+import { appointmentTimeForPatient } from '../internal/relative-datetime';
 import { registerTool } from './registry';
 
 const InputSchema = z.object({
@@ -54,7 +55,10 @@ registerTool({
         appointmentId: input.appointment_id,
         newScheduledAt: input.new_scheduled_at,
       },
-      summary: `Reagendar consulta de ${appt.scheduledAt} para ${input.new_scheduled_at}`,
+      summary: `Reagendar consulta de ${appointmentTimeForPatient(
+        appt.scheduledAt,
+        ctx.clinicTimeZone,
+      )} para ${appointmentTimeForPatient(input.new_scheduled_at, ctx.clinicTimeZone)}`,
     });
     return {
       pending_action_id: pending.id,

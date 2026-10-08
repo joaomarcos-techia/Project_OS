@@ -33,9 +33,9 @@ import {
   proposePendingAction,
 } from '../internal/pending-action';
 import {
+  appointmentTimeForPatient,
   reconcileRequestedTime,
   resolveRequestedDateTime,
-  zonedParts,
 } from '../internal/relative-datetime';
 import { agentSlotFloor } from './list-slots';
 import { registerTool } from './registry';
@@ -179,17 +179,8 @@ function patientPaymentChoice(message: string): {
   };
 }
 
-/**
- * F-04 (auditoria 2026-08-14): a resolução de data/hora saiu daqui para
- * `internal/relative-datetime.ts`. O que existia era um regex de "amanhã às N"
- * que vencia o modelo até quando a frase o negava, e que lia "depois de amanhã"
- * como "amanhã". Os primitivos de fuso moraram aqui; hoje vivem lá, com testes.
- */
-function appointmentTimeForPatient(iso: string, timeZone: string): string {
-  const parts = zonedParts(new Date(iso), timeZone);
-  const pad = (value: number): string => String(value).padStart(2, '0');
-  return `${pad(parts.day)}/${pad(parts.month)}/${parts.year} às ${pad(parts.hour)}:${pad(parts.minute)}`;
-}
+// F-04 (auditoria 2026-08-14): a resolução de data/hora mora em
+// `internal/relative-datetime.ts`, com o formatador do horário para o paciente.
 
 /** Test-only: matcher puro exposto p/ cobertura (bug real cardiologia↔cardiológica). */
 export const __testing__ = {
