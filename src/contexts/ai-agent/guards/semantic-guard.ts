@@ -100,11 +100,65 @@ export function detectHumanHandoffRequest(text: string): boolean {
   return HUMAN_HANDOFF_RE.test(normalize(text));
 }
 
+/**
+ * Sinais de URGÊNCIA (08/10/2026). Não é triagem nem diagnóstico: são relatos em
+ * que a resposta clínica padrão — "vou marcar para você conversar com o médico"
+ * — é perigosa, porque oferece consulta futura a quem pode estar em emergência.
+ * Falso positivo custa um aviso de emergência e um humano na conversa; falso
+ * negativo custa alguém com dor no peito esperando o horário de amanhã. Na
+ * dúvida, o termo entra. Rótulos fixos: nenhum texto do paciente vai para a
+ * telemetria.
+ */
+const EMERGENCY_PATTERNS: ReadonlyArray<{ label: string; re: RegExp }> = [
+  { label: 'peito', re: /\b(dor|aperto|pressao|queimacao) (forte )?no peito\b/ },
+  {
+    label: 'respiracao',
+    re: /\b(falta de ar|sem ar|nao (consigo|consegue|esta conseguindo|to conseguindo) respirar|dificuldade (para|pra|de) respirar|sufoca\w*)\b/,
+  },
+  {
+    label: 'consciencia',
+    re: /\b(desmai\w*|convuls\w*|inconscient\w*|desacordad\w*|perd\w* (a )?consciencia|nao (acorda|responde))\b/,
+  },
+  {
+    label: 'neurologico',
+    re: /\b(avc|derrame|boca torta|rosto torto|perd\w* (a )?forca (no|na|do|da) (braco|perna|lado))\b/,
+  },
+  { label: 'cardiaco', re: /\b(infart\w*|parada cardiaca)\b/ },
+  {
+    label: 'sangramento',
+    re: /\b(hemorragia|sangrando muito|sangramento (forte|intenso|muito forte|que nao para))\b/,
+  },
+  {
+    label: 'intoxicacao',
+    re: /\b(overdose|envenen\w*|intoxica\w*|engoli\w* (veneno|produto de limpeza|remedios?|comprimidos))\b/,
+  },
+  {
+    label: 'alergia_grave',
+    re: /\b(anafila\w*|garganta (esta |ta )?(fechando|fechou|inchad\w*|inchando)|lingua (esta |ta )?(inchad\w*|inchando)|reacao alergica (grave|forte))\b/,
+  },
+  {
+    label: 'autolesao',
+    re: /\b(suicid\w*|me matar|se matar|tirar (a )?minha (propria )?vida|acabar com (a )?minha vida|nao quero mais viver|me machucar|automutila\w*|autolesao)\b/,
+  },
+  { label: 'emergencia', re: /\bemergencia\b/ },
+];
+
+/** Relato com sinal de urgência? `matched` = rótulo fixo (telemetria). */
+export function detectEmergency(text: string): SemanticCheckResult {
+  const norm = normalize(text);
+  for (const { label, re } of EMERGENCY_PATTERNS) {
+    if (re.test(norm)) return { safe: false, matched: `emergencia:${label}` };
+  }
+  return { safe: true };
+}
+
 /** Estados de cadastro conduzidos INTEGRALMENTE pelo servidor (sem LLM). */
 type ServerDrivenRegistration = 'collecting' | 'awaiting_confirmation';
 
 export type TurnGuardDecision =
   | { kind: 'allow' }
+  /** Sinal de urgência → orientação de emergência fixa + humano, sem LLM. */
+  | { kind: 'emergency'; matched: string }
   /** Pergunta clínica pura → fallback clínico + contador de escalonamento. */
   | { kind: 'clinical_block'; matched: string }
   /** Clínico E operacional → fallback clínico + retomada da jornada, sem LLM. */
@@ -117,6 +171,10 @@ export type TurnGuardDecision =
  *
  * A ordem importa e é o coração da correção:
  *
+ *  0. **Urgência antes de tudo** (08/10/2026). Nem o cadastro em andamento pode
+ *     transformar "estou com dor no peito e falta de ar" no campo `motivo`, nem o
+ *     fallback clínico pode responder "vou marcar para você conversar com o
+ *     médico" a quem talvez precise do SAMU agora.
  *  1. **Cadastro primeiro.** Num turno de coleta o servidor responde sozinho —
  *     o LLM não é chamado, logo não há risco de orientação clínica. Sem esta
  *     isenção, um `motivo` legítimo como "dor nas costas" era barrado pelo
@@ -133,6 +191,9 @@ export function decideTurnGuard(args: {
   text: string;
   registrationStatus: string;
 }): TurnGuardDecision {
+  const emergency = detectEmergency(args.text);
+  if (!emergency.safe) return { kind: 'emergency', matched: emergency.matched ?? 'emergencia' };
+
   const serverDriven: readonly string[] = [
     'collecting',
     'awaiting_confirmation',

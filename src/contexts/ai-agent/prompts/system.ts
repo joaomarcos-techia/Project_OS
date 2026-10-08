@@ -42,6 +42,14 @@ export const PROMPT_VERSION = '2026-10-03-v14';
 export const CLINICAL_FALLBACK =
   'Não posso te orientar sobre sintomas. Vou marcar para você conversar com o médico, ok?';
 
+/**
+ * Relato com sinal de urgência (08/10/2026) — texto FIXO do servidor, o LLM não
+ * roda neste caminho. Não orienta sobre o sintoma (anti-SAMD continua valendo):
+ * só aponta o serviço de emergência e chama um humano da clínica.
+ */
+export const EMERGENCY_REPLY =
+  'Se for uma emergência, ligue agora para o SAMU (192) ou procure o pronto-socorro mais próximo. Se estiver pensando em se machucar, o CVV atende 24 horas pelo 188. Já avisei a equipe da clínica para falar com você por aqui.';
+
 /** Fallback operacional — provider caiu / circuito aberto / tool quebrou. */
 export const OPERATIONAL_FALLBACK = 'Recebi sua mensagem! Um atendente vai te responder em breve.';
 

@@ -79,6 +79,7 @@ import {
   buildPromptMessages,
   buildSystemPrompt,
   CLINICAL_FALLBACK,
+  EMERGENCY_REPLY,
   OPERATIONAL_FALLBACK,
   OPERATIONAL_NUDGE,
   PROMPT_HASH,
@@ -756,6 +757,21 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
     costUsd = replayedOut.costUsd ? Number(replayedOut.costUsd) : 0;
     alreadyPersisted = true;
     metrics.emit('ai_agent.turn.replayed', { clinicId, eventId, aiRequestId });
+  } else if (guard.kind === 'emergency') {
+    // Sinal de urgência (08/10/2026): orientação de emergência FIXA e um humano
+    // da clínica na conversa — antes, o fallback clínico oferecia "marcar para
+    // conversar com o médico" a quem talvez precisasse do SAMU. Sem LLM, sem
+    // custo, e antes do cadastro: o relato nunca vira o campo `motivo`.
+    responseText = EMERGENCY_REPLY;
+    await phase(clinicId, (tx) =>
+      escalateToHuman(tx, clinicId, conversation.id, 'clinical_emergency'),
+    );
+    outcome = 'handoff';
+    metrics.emit('ai_agent.semantic_guard.emergency', {
+      clinicId,
+      aiRequestId,
+      matched: guard.matched,
+    });
   } else if (guard.kind === 'clinical_block' || guard.kind === 'clinical_with_operational') {
     // G4 — pré-filtro clínico: custo zero, latência zero, zero LLM.
     //

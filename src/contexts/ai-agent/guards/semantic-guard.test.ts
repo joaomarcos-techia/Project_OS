@@ -9,6 +9,7 @@ import { ADVERSARIAL_MESSAGES } from './adversarial-corpus';
 import {
   checkClinicalContent,
   decideTurnGuard,
+  detectEmergency,
   detectHumanHandoffRequest,
   detectOperationalIntent,
   detectPromptInjection,
@@ -151,9 +152,9 @@ describe('decideTurnGuard — clínico + operacional na mesma mensagem', () => {
   });
 
   it.each([
-    'estou com dor no peito desde ontem',
     'qual remédio posso tomar para enxaqueca?',
     'meu filho está com manchas vermelhas no corpo',
+    'estou com dor nas costas desde ontem',
   ])('pergunta clínica PURA continua sendo bloqueio seco: %s', (text) => {
     expect(decideTurnGuard({ text, registrationStatus: 'not_started' }).kind).toBe(
       'clinical_block',
@@ -168,6 +169,52 @@ describe('decideTurnGuard — clínico + operacional na mesma mensagem', () => {
     'sim',
   ])('mensagem operacional limpa passa direto: %s', (text) => {
     expect(decideTurnGuard({ text, registrationStatus: 'not_started' }).kind).toBe('allow');
+  });
+});
+
+describe('decideTurnGuard — sinal de urgência vem antes de tudo (08/10/2026)', () => {
+  // Antes, todos estes recebiam "Vou marcar para você conversar com o médico".
+  it.each([
+    ['estou com dor no peito desde ontem', 'peito'],
+    ['Tô com uma dor forte no peito e falta de ar agora', 'peito'],
+    ['minha mãe desmaiou e não acorda', 'consciencia'],
+    ['nao consigo respirar direito', 'respiracao'],
+    ['acho que meu pai está tendo um AVC, a boca ficou torta', 'neurologico'],
+    ['estou sangrando muito depois da cirurgia', 'sangramento'],
+    ['meu filho engoliu remédios da gaveta', 'intoxicacao'],
+    ['a garganta está fechando depois da injeção', 'alergia_grave'],
+    ['não quero mais viver', 'autolesao'],
+    ['pensei em me matar ontem', 'autolesao'],
+    ['é uma emergência, preciso de ajuda', 'emergencia'],
+  ])('%s → emergência (%s)', (text, label) => {
+    expect(decideTurnGuard({ text, registrationStatus: 'not_started' })).toEqual({
+      kind: 'emergency',
+      matched: `emergencia:${label}`,
+    });
+  });
+
+  it.each(['collecting', 'awaiting_confirmation', 'registered'])(
+    'o cadastro em andamento (%s) não transforma a urgência no campo motivo',
+    (status) => {
+      expect(
+        decideTurnGuard({ text: 'estou com dor no peito agora', registrationStatus: status }).kind,
+      ).toBe('emergency');
+    },
+  );
+
+  it.each([
+    'quero marcar uma consulta de rotina',
+    'quero marcar com urgência, tem horário hoje?',
+    'qual o endereço do pronto atendimento de vocês?',
+    'preciso remarcar, tive um imprevisto',
+    'dor nas costas',
+  ])('mensagem sem sinal de urgência não dispara o aviso: %s', (text) => {
+    expect(detectEmergency(text).safe).toBe(true);
+  });
+
+  it('a telemetria leva só o rótulo fixo, nunca o texto do paciente', () => {
+    const result = detectEmergency('Joana, CPF 123, está com falta de ar');
+    expect(result).toEqual({ safe: false, matched: 'emergencia:respiracao' });
   });
 });
 
