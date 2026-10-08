@@ -11,6 +11,7 @@ import {
   decideTurnGuard,
   detectEmergency,
   detectHumanHandoffRequest,
+  detectInformationQuestion,
   detectOperationalIntent,
   detectPromptInjection,
   isMedicalQuestion,
@@ -339,5 +340,30 @@ describe('detectPromptInjection (C12 — AUDIT-ONLY; não bloqueia)', () => {
         expect(m.length).toBeLessThan(32);
       }
     });
+  });
+});
+
+describe('detectInformationQuestion — pergunta no meio do cadastro (08/10/2026)', () => {
+  it.each([
+    'qual o endereço de vocês?',
+    'quanto custa a consulta?',
+    'qual o valor?',
+    'onde fica a clínica?',
+    'que horas vocês abrem?',
+    'aceitam convênio?',
+    'tem estacionamento?',
+  ])('"%s" é pergunta, não o campo do cadastro', (text) => {
+    expect(detectInformationQuestion(text)).toBe(true);
+  });
+
+  it.each([
+    'Maria Souza',
+    '381.527.496-64',
+    'consulta de rotina',
+    'dor nas costas',
+    'acompanhamento da pressão',
+    'quero fazer um check-up',
+  ])('"%s" segue sendo um valor válido para o cadastro', (text) => {
+    expect(detectInformationQuestion(text)).toBe(false);
   });
 });

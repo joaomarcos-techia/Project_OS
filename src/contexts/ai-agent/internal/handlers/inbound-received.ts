@@ -90,6 +90,7 @@ import {
   checkClinicalContent,
   decideTurnGuard,
   detectHumanHandoffRequest,
+  detectInformationQuestion,
   detectPromptInjection,
 } from '../../guards/semantic-guard';
 import { aiAgentFailures, aiConversations } from '../../schema';
@@ -280,7 +281,21 @@ async function runRegistrationTurnServerSide(args: {
     return { kind: 'handoff', reason: 'collect_human_requested' };
   }
 
-  const parsed = registrationFieldFromMessage(args.state.nextRequiredField, args.text);
+  // 08/10/2026 — pergunta sobre a clínica no meio do cadastro não é o campo
+  // pendente: antes, ela era gravada como `motivo` ou respondida com "CPF
+  // inválido". Conta como turno sem progresso (a válvula de estagnação segue
+  // valendo) e pede o mesmo campo, dizendo que a resposta vem depois.
+  const informationQuestion = detectInformationQuestion(args.text);
+  const parsed = informationQuestion
+    ? ({
+        accepted: false,
+        patientMessage: patientRegistrationMessage({
+          nextRequiredField: args.state.nextRequiredField,
+          complete: false,
+          confirmed: false,
+        }),
+      } as const)
+    : registrationFieldFromMessage(args.state.nextRequiredField, args.text);
   if (!parsed.accepted) {
     // Merge VAZIO: nada entra, mas o turno é contabilizado como sem progresso.
     const stalled = await phase(args.clinicId, (tx) =>
@@ -289,7 +304,12 @@ async function runRegistrationTurnServerSide(args: {
     if (stalled.stagnation >= MAX_COLLECT_STAGNATION) {
       return { kind: 'handoff', reason: 'collect_stagnation' };
     }
-    return { kind: 'reply', text: parsed.patientMessage };
+    return {
+      kind: 'reply',
+      text: informationQuestion
+        ? `Respondo isso assim que terminarmos o cadastro. ${parsed.patientMessage}`
+        : parsed.patientMessage,
+    };
   }
 
   const partial: CollectedData = { ...parsed.partial, telefone: args.verifiedPhone };

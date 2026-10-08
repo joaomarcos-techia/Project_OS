@@ -101,6 +101,20 @@ export function detectHumanHandoffRequest(text: string): boolean {
 }
 
 /**
+ * Pergunta de INFORMAÇÃO da clínica (08/10/2026) — endereço, preço, horário,
+ * convênio, estacionamento. Durante o cadastro o servidor lia toda mensagem como
+ * o campo pendente: "qual o endereço de vocês?" virava o `motivo` da consulta e
+ * "quanto custa a consulta?" virava "CPF inválido". Os termos são específicos de
+ * propósito: um motivo legítimo ("consulta de rotina") não pode casar.
+ */
+const INFORMATION_QUESTION_RE =
+  /\b(endereco|onde (fica|ficam)|como (chego|chegar)|localizacao|horario de (funcionamento|atendimento)|que horas (voces )?(abre|abrem|fecha|fecham)|quanto custa|qual (o|e o) (preco|valor)|preco da consulta|valor da consulta|aceita(m)? (convenio|plano|cartao|pix)|tem estacionamento|estacionamento)\b/;
+
+export function detectInformationQuestion(text: string): boolean {
+  return INFORMATION_QUESTION_RE.test(normalize(text));
+}
+
+/**
  * Sinais de URGÊNCIA (08/10/2026). Não é triagem nem diagnóstico: são relatos em
  * que a resposta clínica padrão — "vou marcar para você conversar com o médico"
  * — é perigosa, porque oferece consulta futura a quem pode estar em emergência.
