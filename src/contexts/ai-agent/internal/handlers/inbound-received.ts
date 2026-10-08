@@ -638,56 +638,88 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
   const identityHashes = await phoneLookupHashes(fromNumber);
 
   // FASE A — conversa + mensagem 'in' (checkpoint por eventId) + coalescing.
-  const { conversation, replayedOut, turnText, coalesced } = await phase(clinicId, async (tx) => {
-    const conv: ActiveConversation = await findOrCreateConversation(
-      tx,
-      clinicId,
-      inbound.fromNumberHash,
-      fromNumberEncrypted,
-      identityHashes,
-      inbound.contactNameEncrypted,
-    );
-    const turn = await findTurnMessages(tx, clinicId, eventId);
-    if (turn.inRow) {
-      // F-08 — a row 'in' É o checkpoint do coalescing: ela guarda o texto do
-      // turno JÁ costurado. Um retry precisa reproduzir exatamente o mesmo
-      // turno; reler `inbound.text` aqui descartaria em silêncio tudo que foi
-      // absorvido na primeira tentativa.
+  const { conversation, replayedOut, turnText, coalesced, absorbed } = await phase(
+    clinicId,
+    async (tx) => {
+      // F-08 + 08/10/2026 — a FASE A é SERIAL por contato. Com o ingress
+      // processando cada mensagem na hora (runOutboxEventsNow), uma rajada vira
+      // turnos SIMULTÂNEOS do mesmo contato: cada um reivindicava as irmãs com
+      // SKIP LOCKED e respondia — três mensagens, três respostas, ao vivo no
+      // Preview. O lock de transação ordena as FASES A; quem chega depois vê a
+      // própria mensagem já absorvida e sai sem responder.
+      await tx.execute(
+        sql`SELECT pg_advisory_xact_lock(hashtextextended(${`ai-turn:${clinicId}:${inbound.fromNumberHash}`}, 0))`,
+      );
+      const conv: ActiveConversation = await findOrCreateConversation(
+        tx,
+        clinicId,
+        inbound.fromNumberHash,
+        fromNumberEncrypted,
+        identityHashes,
+        inbound.contactNameEncrypted,
+      );
+      const turn = await findTurnMessages(tx, clinicId, eventId);
+      if (turn.inRow) {
+        // F-08 — a row 'in' É o checkpoint do coalescing: ela guarda o texto do
+        // turno JÁ costurado. Um retry precisa reproduzir exatamente o mesmo
+        // turno; reler `inbound.text` aqui descartaria em silêncio tudo que foi
+        // absorvido na primeira tentativa.
+        return {
+          conversation: conv,
+          replayedOut: turn.outRow,
+          turnText: await decryptForTenant(clinicId, turn.inRow.contentEncrypted),
+          coalesced: 0,
+          absorbed: false,
+        };
+      }
+
+      // Um turno irmão pode ter absorvido ESTA mensagem enquanto este esperava o
+      // lock: ela já está costurada na resposta dele.
+      const fresh = await messagingApiV1.getInboundForAgent(tx, clinicId, inbound.id);
+      if (fresh?.processedAt) {
+        return {
+          conversation: conv,
+          replayedOut: null,
+          turnText: '',
+          coalesced: 0,
+          absorbed: true,
+        };
+      }
+
+      // F-08 — absorve as mensagens que o paciente mandou na sequência e ainda
+      // não foram consumidas. A reivindicação é atômica (ver claimPendingSiblings),
+      // então o evento de outbox de cada irmã vira no-op no guard de
+      // `processed_at` em vez de virar um turno concorrente.
+      const siblings = await messagingApiV1.claimPendingSiblings(tx, clinicId, {
+        fromNumberHash: inbound.fromNumberHash,
+        excludeId: inbound.id,
+        notBefore: new Date(Date.now() - COALESCE_MAX_AGE_MS),
+        limit: COALESCE_MAX_MESSAGES - 1,
+      });
+      const joined = [text, ...siblings.map((s) => s.text.trim()).filter((t) => t.length > 0)].join(
+        '\n',
+      );
+      const turnText = truncateInbound(joined);
+      await appendInboundMessage(tx, {
+        clinicId,
+        conversationId: conv.id,
+        eventId,
+        text: turnText,
+      });
       return {
         conversation: conv,
         replayedOut: turn.outRow,
-        turnText: await decryptForTenant(clinicId, turn.inRow.contentEncrypted),
-        coalesced: 0,
+        turnText,
+        coalesced: siblings.length,
+        absorbed: false,
       };
-    }
+    },
+  );
 
-    // F-08 — absorve as mensagens que o paciente mandou na sequência e ainda
-    // não foram consumidas. A reivindicação é atômica (ver claimPendingSiblings),
-    // então o evento de outbox de cada irmã vira no-op no guard de
-    // `processed_at` em vez de virar um turno concorrente.
-    const siblings = await messagingApiV1.claimPendingSiblings(tx, clinicId, {
-      fromNumberHash: inbound.fromNumberHash,
-      excludeId: inbound.id,
-      notBefore: new Date(Date.now() - COALESCE_MAX_AGE_MS),
-      limit: COALESCE_MAX_MESSAGES - 1,
-    });
-    const joined = [text, ...siblings.map((s) => s.text.trim()).filter((t) => t.length > 0)].join(
-      '\n',
-    );
-    const turnText = truncateInbound(joined);
-    await appendInboundMessage(tx, {
-      clinicId,
-      conversationId: conv.id,
-      eventId,
-      text: turnText,
-    });
-    return {
-      conversation: conv,
-      replayedOut: turn.outRow,
-      turnText,
-      coalesced: siblings.length,
-    };
-  });
+  if (absorbed) {
+    metrics.emit('ai_agent.turn.absorbed', { clinicId, eventId });
+    return; // a resposta sai pelo turno que costurou esta mensagem
+  }
 
   if (coalesced > 0) {
     metrics.emit('ai_agent.turn.coalesced', {
