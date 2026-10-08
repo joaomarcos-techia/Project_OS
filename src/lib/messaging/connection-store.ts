@@ -67,6 +67,8 @@ export async function upsertTenantConnection(
     if (foundId) {
       // Reconexão do MESMO número → UPDATE in-place + reativa. Bump em
       // token_version para o sender detectar o refresh de credencial (3ª#3).
+      // A saúde de envio (0116) recomeça: ela é da conta que acabou de ser
+      // autorizada, e o `after()` do connect a relê em seguida.
       await tx.execute(sql`
         UPDATE clinic_whatsapp_numbers SET
           token_encrypted = ${input.tokenEncrypted},
@@ -78,6 +80,9 @@ export async function upsertTenantConnection(
           active = true,
           connection_status = 'connected',
           coexistence = ${input.coexistence},
+          messaging_health = NULL,
+          messaging_health_codes = '{}',
+          messaging_health_checked_at = NULL,
           updated_at = now()
         WHERE id = ${foundId}
       `);
@@ -346,6 +351,150 @@ export async function recordConnectionHealth(input: {
       requestContext: input.requestContext,
     });
     return { changed: true };
+  });
+}
+
+// ===========================================================================
+// Saúde de ENVIO (migration 0116) — o `health_status` da Meta para mensagens
+// iniciadas pela clínica. Mora aqui pelo mesmo motivo do bloco acima: a leitura
+// precisa da credencial (service_role-only) e a escrita é privilegiada
+// (authenticated só tem SELECT nas três colunas). O contexto interpreta a Meta;
+// este seam só busca a credencial e grava o resultado.
+// ===========================================================================
+
+/** Os valores de `can_send_message` da Meta, em minúsculas (CHECK da 0116). */
+export type StoredMessagingHealth = 'available' | 'limited' | 'blocked';
+
+export interface ConnectionForMessagingHealth {
+  id: string;
+  clinicId: string;
+  metaPhoneId: string;
+  /** Ciphertext — o decrypt acontece no contexto, com a chave do tenant. */
+  tokenCiphertext: string;
+  /** Última leitura bem-sucedida; null = nunca lida. */
+  messagingHealthCheckedAt: Date | null;
+}
+
+type MessagingHealthConnectionRow = {
+  id: string;
+  clinic_id: string;
+  meta_phone_id: string;
+  token_encrypted: string;
+  messaging_health_checked_at: Date | string | null;
+};
+
+function toConnectionForMessagingHealth(
+  r: MessagingHealthConnectionRow,
+): ConnectionForMessagingHealth {
+  return {
+    id: r.id,
+    clinicId: r.clinic_id,
+    metaPhoneId: r.meta_phone_id,
+    tokenCiphertext: r.token_encrypted,
+    messagingHealthCheckedAt:
+      r.messaging_health_checked_at === null ? null : new Date(r.messaging_health_checked_at),
+  };
+}
+
+/** Conexão ATIVA da clínica, com a credencial cifrada, para ler o `health_status`. */
+export async function loadConnectionForMessagingHealth(
+  clinicId: string,
+): Promise<ConnectionForMessagingHealth | null> {
+  const rows = await dbAdmin.execute<MessagingHealthConnectionRow>(sql`
+    SELECT id, clinic_id, meta_phone_id, token_encrypted, messaging_health_checked_at
+      FROM clinic_whatsapp_numbers
+     WHERE clinic_id = ${clinicId} AND active = true
+     LIMIT 1
+  `);
+  const r = rows[0];
+  return r ? toConnectionForMessagingHealth(r) : null;
+}
+
+/**
+ * Conexões ativas sem leitura desde `checkedBefore` — a varredura diária. Nunca
+ * lidas primeiro, depois as mais antigas; reexecutar o cron no mesmo dia não
+ * relê quem já foi lido.
+ */
+export async function listConnectionsDueForMessagingHealth(
+  limit: number,
+  checkedBefore: Date,
+): Promise<ConnectionForMessagingHealth[]> {
+  const rows = await dbAdmin.execute<MessagingHealthConnectionRow>(sql`
+    SELECT id, clinic_id, meta_phone_id, token_encrypted, messaging_health_checked_at
+      FROM clinic_whatsapp_numbers
+     WHERE active = true
+       AND (messaging_health_checked_at IS NULL
+            OR messaging_health_checked_at < ${checkedBefore.toISOString()})
+     ORDER BY messaging_health_checked_at ASC NULLS FIRST, id
+     LIMIT ${limit}
+  `);
+  return rows.map(toConnectionForMessagingHealth);
+}
+
+function sameCodes(a: readonly number[], b: readonly number[]): boolean {
+  return a.length === b.length && a.every((code, i) => code === b[i]);
+}
+
+/**
+ * Grava a leitura bem-sucedida do `health_status`. `checked_at` anda sempre — a
+ * tela mostra quando a Meta foi consultada —, mas a auditoria só registra a
+ * MUDANÇA de estado ou de códigos, no mesmo critério do health do canal: uma
+ * linha por verificação faria de `audit_events` um log de polling. A primeira
+ * leitura só é auditada quando já encontra pendência; "disponível" na estreia
+ * não é um fato.
+ *
+ * `codes` precisa vir validado (inteiros positivos, ordenados) — o contexto o
+ * entrega assim. Conexão desativada entre a leitura e a gravação não é tocada.
+ */
+export async function recordMessagingHealth(input: {
+  clinicId: string;
+  connectionId: string;
+  state: StoredMessagingHealth;
+  codes: readonly number[];
+  requestContext: RequestContext;
+  /** Ausente quando o gatilho é do sistema (cron, callback da Meta). */
+  userId?: string | null;
+}): Promise<{ recorded: boolean; changed: boolean; previous: StoredMessagingHealth | null }> {
+  const codes = input.codes.filter((code) => Number.isSafeInteger(code) && code > 0);
+  return dbAdmin.transaction(async (tx: Tx) => {
+    const rows = await tx.execute<{
+      messaging_health: StoredMessagingHealth | null;
+      messaging_health_codes: number[] | null;
+    }>(sql`
+      SELECT messaging_health, messaging_health_codes FROM clinic_whatsapp_numbers
+       WHERE id = ${input.connectionId} AND clinic_id = ${input.clinicId} AND active = true
+       FOR UPDATE
+    `);
+    const row = rows[0];
+    if (!row) return { recorded: false, changed: false, previous: null };
+    const previous = row.messaging_health;
+    const previousCodes = (row.messaging_health_codes ?? []).map(Number);
+
+    // Literal de array como PARÂMETRO (o sql do Drizzle expandiria um array JS
+    // em lista de parâmetros); os códigos já são inteiros validados acima.
+    await tx.execute(sql`
+      UPDATE clinic_whatsapp_numbers
+         SET messaging_health = ${input.state},
+             messaging_health_codes = ${`{${codes.join(',')}}`}::integer[],
+             messaging_health_checked_at = now()
+       WHERE id = ${input.connectionId} AND clinic_id = ${input.clinicId}
+    `);
+
+    const changed = previous !== input.state || !sameCodes(previousCodes, codes);
+    if (changed && !(previous === null && input.state === 'available')) {
+      await logAudit(tx, {
+        clinicId: input.clinicId,
+        userId: input.userId ?? null,
+        action: 'messaging.whatsapp.messaging_health_changed',
+        resourceType: 'whatsapp_number',
+        resourceId: input.connectionId,
+        before: { messagingHealth: previous, codes: previousCodes },
+        // Códigos públicos da Meta e o estado — nenhum id de WABA, número ou token.
+        after: { messagingHealth: input.state, codes: [...codes] },
+        requestContext: input.requestContext,
+      });
+    }
+    return { recorded: true, changed, previous };
   });
 }
 

@@ -53,6 +53,10 @@
       "schedule": "0 */6 * * *"
     },
     {
+      "path": "/api/cron/whatsapp-messaging-health",
+      "schedule": "30 10 * * *"
+    },
+    {
       "path": "/api/cron/proactive-reminders",
       "schedule": "*/15 11-23 * * *"
     },

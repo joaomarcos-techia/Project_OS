@@ -43,6 +43,7 @@ Todos os horários são UTC e a lista canônica de agendamento é `vercel.json`.
 | `0 8 * * *` | `/api/cron/billing-dunning` | estágios de inadimplência |
 | `0 9 * * *` | `/api/cron/billing-reconcile` | reconcilia Asaas/local |
 | `0 */6 * * *` | `/api/cron/whatsapp-health` | saúde dos números Meta |
+| `30 10 * * *` | `/api/cron/whatsapp-messaging-health` | saúde de envio (`health_status`): bloqueio ou limite da Meta nas mensagens automáticas |
 | `*/15 11-23 * * *` | `/api/cron/proactive-reminders` | lembretes em janela local |
 | `*/15 11-23 * * *` | `/api/cron/proactive-dunning` | cobrança ao paciente |
 | `*/15 11-23 * * *` | `/api/cron/proactive-followup` | retorno pós-atendimento |

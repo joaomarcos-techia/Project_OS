@@ -41,7 +41,12 @@ export {
   loadConnectionForHealth,
   listActiveConnectionsForHealth,
   recordConnectionHealth,
+  loadConnectionForMessagingHealth,
+  listConnectionsDueForMessagingHealth,
+  recordMessagingHealth,
   type ConnectionForHealth,
+  type ConnectionForMessagingHealth,
+  type StoredMessagingHealth,
   type UpsertTenantConnectionInput,
 } from './connection-store';
 

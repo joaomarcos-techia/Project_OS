@@ -89,6 +89,16 @@ export const clinicWhatsappNumbers = pgTable(
     // WhatsApp Business do celular. Não participa do roteamento; muda o que a
     // tela diz ao desconectar (a Meta não aceita deregister nesse número).
     coexistence: boolean('coexistence').notNull().default(false),
+    // Migration 0116: saúde de ENVIO — o `can_send_message` da Meta para
+    // mensagens iniciadas pela clínica, sem o ruído das chamadas
+    // (`internal/messaging-health.ts`). NULL até a primeira leitura; só o seam
+    // privilegiado grava, authenticated só lê.
+    messagingHealth: text('messaging_health'),
+    messagingHealthCodes: integer('messaging_health_codes')
+      .array()
+      .notNull()
+      .default(sql`'{}'::integer[]`),
+    messagingHealthCheckedAt: timestamp('messaging_health_checked_at', { withTimezone: true }),
     ...timestampsPattern(),
   },
   (t) => ({
