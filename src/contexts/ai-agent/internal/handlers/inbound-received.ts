@@ -172,31 +172,40 @@ const REGISTRATION_FIELDS = [
   'cpf',
   'motivo',
 ] as const satisfies readonly RegistrationField[];
-const MAX_EMPTY_RESPONSE_ATTEMPTS = 3;
+const MAX_TRANSIENT_ATTEMPTS = 3;
+/** Espera curta antes de repetir um 5xx: dá fôlego a um provider sobrecarregado. */
+const SERVER_ERROR_BACKOFF_MS = 400;
 
 /**
- * O Gemini pode devolver HTTP 200 com candidate STOP sem parts. Não há efeito
- * externo na geração, então novas tentativas são seguras. O Gemini já devolveu
- * respostas HTTP 200 sem candidate em produção; três tentativas rápidas evitam
- * que uma instabilidade transitória vire a mensagem de handoff ao paciente.
+ * Falhas TRANSITÓRIAS do Gemini repetem até três vezes. A geração não tem efeito
+ * externo, então repetir é seguro:
+ *   - HTTP 200 sem candidate utilizável (já visto em produção);
+ *   - HTTP 5xx — "The service is currently unavailable" (503) apareceu no probe
+ *     de 08/10/2026 e virava, sozinho, "um atendente vai te responder".
+ * Timeout NÃO repete: o turno inteiro roda dentro do orçamento de 60 s da
+ * função, e uma segunda espera longa estouraria esse teto. 4xx também não: a
+ * mesma requisição seria recusada de novo.
  */
-export async function generateWithEmptyResponseRetry(
+export async function generateWithTransientRetry(
   provider: Pick<AIProvider, 'generateWithTools'>,
   opts: GenerateOpts,
 ): Promise<GenerateResult> {
-  for (let attempt = 1; attempt <= MAX_EMPTY_RESPONSE_ATTEMPTS; attempt += 1) {
+  for (let attempt = 1; attempt <= MAX_TRANSIENT_ATTEMPTS; attempt += 1) {
     try {
       return await provider.generateWithTools(opts);
     } catch (err) {
-      const canRetry =
-        err instanceof AIProviderError &&
-        err.code === 'gemini_empty_response' &&
-        attempt < MAX_EMPTY_RESPONSE_ATTEMPTS;
-      if (!canRetry) throw err;
-      metrics.emit('ai_agent.provider.empty_response_retry', { attempt });
+      const code = err instanceof AIProviderError ? err.code : null;
+      const transient = code === 'gemini_empty_response' || code === 'gemini_server_error';
+      if (!transient || attempt >= MAX_TRANSIENT_ATTEMPTS) throw err;
+      if (code === 'gemini_server_error') {
+        metrics.emit('ai_agent.provider.server_error_retry', { attempt });
+        await new Promise((resolve) => setTimeout(resolve, SERVER_ERROR_BACKOFF_MS * attempt));
+      } else {
+        metrics.emit('ai_agent.provider.empty_response_retry', { attempt });
+      }
     }
   }
-  throw new Error('unreachable empty-response retry state');
+  throw new Error('unreachable transient retry state');
 }
 
 function nextRegistrationField(data: CollectedData): RegistrationField | null {
@@ -904,7 +913,7 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
     if (!serverRegistrationReply && !confirmedRegistrationServerSide && !registrationHandoff) {
       try {
         result = await aiCircuit.exec(() =>
-          generateWithEmptyResponseRetry(provider, { systemPrompt, messages, tools: declarations }),
+          generateWithTransientRetry(provider, { systemPrompt, messages, tools: declarations }),
         );
         usageTokens.input += result.usage.tokensInput;
         usageTokens.output += result.usage.tokensOutput;
@@ -1059,7 +1068,7 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
         // Re-chamada com toolResults (SEM TX — R2).
         try {
           result = await aiCircuit.exec(() =>
-            generateWithEmptyResponseRetry(provider, {
+            generateWithTransientRetry(provider, {
               systemPrompt,
               messages,
               tools: declarations,
