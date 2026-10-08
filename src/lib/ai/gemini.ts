@@ -53,6 +53,8 @@ interface GeminiCandidate {
 interface GeminiPart {
   text?: string;
   functionCall?: { name?: string; args?: unknown };
+  /** Gemini 3: assinatura do raciocínio que precisa voltar com o functionCall. */
+  thoughtSignature?: string;
 }
 
 type GeminiContent = { role: 'user' | 'model'; parts: Record<string, unknown>[] };
@@ -65,11 +67,16 @@ function buildContents(opts: GenerateOpts): GeminiContent[] {
 
   // Re-chamada pós-tool: o protocolo exige o turno `functionCall` do modelo
   // seguido do turno `functionResponse` do caller — reconstituímos ambos a
-  // partir dos ToolResult (que ecoam os args originais).
+  // partir dos ToolResult (que ecoam os args originais). Os modelos Gemini 3
+  // recusam com 400 um functionCall sem a `thoughtSignature` que eles mesmos
+  // emitiram; ela volta intacta quando existir.
   if (opts.toolResults && opts.toolResults.length > 0) {
     contents.push({
       role: 'model',
-      parts: opts.toolResults.map((r) => ({ functionCall: { name: r.name, args: r.args ?? {} } })),
+      parts: opts.toolResults.map((r) => ({
+        functionCall: { name: r.name, args: r.args ?? {} },
+        ...(r.signature ? { thoughtSignature: r.signature } : {}),
+      })),
     });
     contents.push({
       role: 'user',
@@ -161,7 +168,13 @@ export class GeminiProvider implements AIProvider {
     const textParts = parts.filter((p) => typeof p.text === 'string').map((p) => p.text as string);
     const toolCalls: ToolCall[] = parts
       .filter((p) => p.functionCall && typeof p.functionCall.name === 'string')
-      .map((p) => ({ name: p.functionCall!.name!, args: p.functionCall!.args ?? {} }));
+      .map((p) => ({
+        name: p.functionCall!.name!,
+        args: p.functionCall!.args ?? {},
+        ...(typeof p.thoughtSignature === 'string' && p.thoughtSignature
+          ? { signature: p.thoughtSignature }
+          : {}),
+      }));
 
     return {
       text: textParts.length > 0 ? textParts.join('') : undefined,

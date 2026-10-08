@@ -1005,7 +1005,14 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
             ) {
               handoffExecuted = true;
             }
-            acc.push({ name: call.name, args: call.args, response: exec.response });
+            // A assinatura opaca do provider volta com o resultado: sem ela, a
+            // re-chamada a um modelo Gemini 3 responde 400 e o turno cai no fallback.
+            acc.push({
+              name: call.name,
+              args: call.args,
+              response: exec.response,
+              ...(call.signature ? { signature: call.signature } : {}),
+            });
           }
           return { failed: null, acc };
         });
