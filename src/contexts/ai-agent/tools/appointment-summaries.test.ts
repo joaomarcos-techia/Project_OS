@@ -14,6 +14,7 @@ import { getTool, type ToolContext } from './registry';
 import './register';
 
 const mocks = vi.hoisted(() => ({
+  listSlots: vi.fn(),
   lookupAppointment: vi.fn(),
   listPatientAppointments: vi.fn(),
   proposePendingAction: vi.fn(),
@@ -22,6 +23,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/contexts/scheduling', () => ({
   schedulingApiV1: {
+    listSlots: mocks.listSlots,
     lookupAppointment: mocks.lookupAppointment,
     listPatientAppointments: mocks.listPatientAppointments,
   },
@@ -56,9 +58,14 @@ const ctx: ToolContext = {
   canDisclosePayments: false,
 };
 
+const DOCTOR = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+const PROCEDURE = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+
 const upcoming = {
   id: APPOINTMENT,
   patientId: PATIENT,
+  doctorId: DOCTOR,
+  procedureId: PROCEDURE,
   scheduledAt: TEN_AM_SAO_PAULO,
   status: 'agendado',
   currentDoctorNome: 'Dra. Ana',
@@ -69,6 +76,8 @@ const upcoming = {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.lookupAppointment.mockResolvedValue(upcoming);
+  // 10/10/2026 17:30 em São Paulo, livre na agenda do mesmo profissional.
+  mocks.listSlots.mockResolvedValue([{ startAt: '2026-10-10T20:30:00.000Z', doctorId: DOCTOR }]);
   mocks.listPatientAppointments.mockResolvedValue([upcoming]);
   mocks.findPendingActionSummary.mockResolvedValue(null);
   mocks.proposePendingAction.mockImplementation(
@@ -114,6 +123,58 @@ describe('resumos que o paciente confirma usam o fuso da clínica', () => {
   });
 });
 
+describe('reagendar confere o novo horário na agenda real (08/10/2026)', () => {
+  const reschedule = (newAt: string, message = 'pode ser no sábado?') =>
+    getTool('reschedule_appointment')!.handler(
+      { appointment_id: APPOINTMENT, new_scheduled_at: newAt },
+      { ...ctx, currentMessage: message },
+    );
+
+  it('horário sem vaga na agenda do profissional → indisponível, nada é preparado', async () => {
+    mocks.listSlots.mockResolvedValue([]);
+    await expect(reschedule('2026-10-11T03:00:00-03:00')).resolves.toEqual({
+      status: 'appointment_unavailable',
+      patient_message:
+        'Esse horário não está disponível para essa consulta. Informe outra data ou horário.',
+    });
+    expect(mocks.proposePendingAction).not.toHaveBeenCalled();
+  });
+
+  it('vaga de OUTRO profissional não serve: o reagendamento mantém o médico', async () => {
+    mocks.listSlots.mockResolvedValue([
+      { startAt: '2026-10-10T20:30:00.000Z', doctorId: 'ffffffff-0000-4000-8000-000000000000' },
+    ]);
+    await expect(reschedule('2026-10-10T17:30:00-03:00')).resolves.toMatchObject({
+      status: 'appointment_unavailable',
+    });
+    expect(mocks.proposePendingAction).not.toHaveBeenCalled();
+  });
+
+  it('consulta a agenda do mesmo profissional e procedimento, sem slots já começados', async () => {
+    await reschedule('2026-10-10T17:30:00-03:00');
+    expect(mocks.listSlots).toHaveBeenCalledWith(
+      expect.objectContaining({
+        doctorId: DOCTOR,
+        procedureId: PROCEDURE,
+        notBefore: expect.any(Date),
+      }),
+    );
+  });
+
+  it('vaga confirmada → resumo com o horário da agenda', async () => {
+    await expect(reschedule('2026-10-10T17:30:00-03:00')).resolves.toMatchObject({
+      status: 'appointment_prepared',
+      summary: 'Reagendar consulta de 09/10/2026 às 10:00 para 10/10/2026 às 17:30',
+    });
+  });
+
+  it('a consulta de outro paciente continua recusada antes de olhar a agenda', async () => {
+    mocks.lookupAppointment.mockResolvedValue({ ...upcoming, patientId: 'outro' });
+    await expect(reschedule('2026-10-10T17:30:00-03:00')).rejects.toThrow('não pertence');
+    expect(mocks.listSlots).not.toHaveBeenCalled();
+  });
+});
+
 describe('listas de consultas trazem o horário local ao lado do UTC', () => {
   it('list_my_appointments', async () => {
     const response = await getTool('list_my_appointments')!.handler({}, ctx);
@@ -128,7 +189,7 @@ describe('listas de consultas trazem o horário local ao lado do UTC', () => {
       upcoming,
       {
         ...upcoming,
-        id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+        id: 'abababab-abab-4bab-8bab-abababababab',
         scheduledAt: '2026-10-12T19:00:00.000Z',
       },
     ]);

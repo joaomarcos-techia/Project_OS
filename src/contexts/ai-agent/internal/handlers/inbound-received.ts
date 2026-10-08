@@ -362,7 +362,11 @@ export function registrationReplyFromToolResults(toolResults: ToolResult[]): str
 export function appointmentReplyFromToolResults(toolResults: ToolResult[]): string | null {
   for (let i = toolResults.length - 1; i >= 0; i -= 1) {
     const result = toolResults[i]!;
-    if (result.name !== 'prepare_appointment') continue;
+    // Reagendar segue o mesmo contrato desde 08/10/2026: o horário conferido
+    // na agenda volta ao paciente exatamente como o servidor o escreveu.
+    if (result.name !== 'prepare_appointment' && result.name !== 'reschedule_appointment') {
+      continue;
+    }
 
     const response = result.response as {
       patient_message?: unknown;
