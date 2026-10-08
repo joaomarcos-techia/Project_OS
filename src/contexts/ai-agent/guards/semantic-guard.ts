@@ -28,7 +28,7 @@ function normalize(text: string): string {
 const PATTERNS: ReadonlyArray<{ category: string; re: RegExp }> = [
   {
     category: 'sintomas',
-    re: /\b(dor(es)?|febre|sangram\w*|tontura|tonteira|enjoo|nausea|vomito|diarreia|falta de ar|cansaco|fadiga|mancha\w*|coceira|incha\w*|palpitac\w*|desmaio|formigamento|convuls\w*|sintoma\w*|mal[- ]estar|colica\w*|azia|queimacao|calafrio\w*|secrecao|caroco|nodulo|les(a|o)es?\b)/,
+    re: /\b(dor(es)?|doi|doendo|febre|sangram\w*|tontura|tonteira|enjoo|nausea|vomito|diarreia|falta de ar|cansaco|fadiga|mancha\w*|coceira|incha\w*|palpitac\w*|desmaio|formigamento|convuls\w*|sintoma\w*|mal[- ]estar|colica\w*|azia|queimacao|calafrio\w*|secrecao|caroco|nodulo|les(a|o)es?\b|tosse\w*|catarro|coriza|espirr\w*|gripad\w*|resfriad\w*)/,
   },
   {
     category: 'diagnostico',
@@ -36,7 +36,7 @@ const PATTERNS: ReadonlyArray<{ category: string; re: RegExp }> = [
   },
   {
     category: 'medicamentos',
-    re: /\b(remedio\w*|medicament\w*|medicac\w*|dosagem|posologia|\d+ ?mg\b|comprimido\w*|antibiotico\w*|anti[- ]?inflamatorio\w*|analgesico\w*|dipirona|paracetamol|ibuprofeno|amoxicilina|omeprazol|rivotril|fluoxetina|pode tomar|devo tomar|tomar (algum|algo|um) (remedio|medicamento)|receit(a|ar|e) (um |o )?(remedio|medicament\w*)|automedicac\w*)\b/,
+    re: /\b(remedio\w*|medicament\w*|medicac\w*|dosagem|posologia|\d+ ?mg\b|comprimido\w*|antibiotico\w*|anti[- ]?inflamatorio\w*|analgesico\w*|dipirona|paracetamol|ibuprofeno|amoxicilina|omeprazol|rivotril|fluoxetina|xarope\w*|pode tomar|posso tomar|devo tomar|tomar (algum|algo|um) (remedio|medicamento)|receit(a|ar|e) (um |o )?(remedio|medicament\w*)|automedicac\w*)\b/,
   },
   {
     category: 'exames',
@@ -110,7 +110,10 @@ export function detectHumanHandoffRequest(text: string): boolean {
  * telemetria.
  */
 const EMERGENCY_PATTERNS: ReadonlyArray<{ label: string; re: RegExp }> = [
-  { label: 'peito', re: /\b(dor|aperto|pressao|queimacao) (forte )?no peito\b/ },
+  {
+    label: 'peito',
+    re: /\b((dor|aperto|pressao|queimacao) (forte )?no peito|peito (doi|doe|doendo|apertado|ta doendo|esta doendo))\b/,
+  },
   {
     label: 'respiracao',
     re: /\b(falta de ar|sem ar|nao (consigo|consegue|esta conseguindo|to conseguindo) respirar|dificuldade (para|pra|de) respirar|sufoca\w*)\b/,
