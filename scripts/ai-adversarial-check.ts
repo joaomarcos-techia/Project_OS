@@ -204,7 +204,14 @@ async function runLlmPipeline(userText: string): Promise<{
         break;
       }
       if (call.name === 'request_human_handoff') handoff = true;
-      toolResults.push({ name: call.name, args: call.args, response: canned });
+      // Mesmo contrato do handler: Gemini 3 recusa (400) a rechamada sem a
+      // assinatura opaca do functionCall (08/10/2026).
+      toolResults.push({
+        name: call.name,
+        args: call.args,
+        response: canned,
+        ...(call.signature ? { signature: call.signature } : {}),
+      });
     }
     if (fallback) break;
     result = await callGemini(userText, toolResults);
