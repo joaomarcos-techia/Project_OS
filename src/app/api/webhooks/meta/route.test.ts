@@ -13,7 +13,7 @@ const {
   persistBusinessAppEcho,
   deactivateConnectionsForRemovedPartner,
   quarantineOrphan,
-  runOutboxOnce,
+  runOutboxEventsNow,
   captureBackgroundError,
   emit,
 } = vi.hoisted(() => ({
@@ -26,7 +26,7 @@ const {
   persistBusinessAppEcho: vi.fn(),
   deactivateConnectionsForRemovedPartner: vi.fn(),
   quarantineOrphan: vi.fn(),
-  runOutboxOnce: vi.fn(),
+  runOutboxEventsNow: vi.fn(),
   captureBackgroundError: vi.fn(),
   emit: vi.fn(),
 }));
@@ -46,7 +46,7 @@ vi.mock('@/lib/observability/context', () => ({
 }));
 vi.mock('@/lib/observability/capture', () => ({ captureBackgroundError }));
 vi.mock('@/lib/observability/metrics', () => ({ metrics: { emit } }));
-vi.mock('@/lib/outbox/worker', () => ({ runOutboxOnce }));
+vi.mock('@/lib/outbox/worker', () => ({ runOutboxEventsNow }));
 vi.mock('@/lib/messaging', () => ({
   getMessagingProvider: () => ({ validateSignature, parseWebhook }),
   resolveClinicByPhoneId,
@@ -57,7 +57,16 @@ vi.mock('@/contexts/messaging/internal/inbound', () => ({
   persistInbound,
   persistStatusEvents,
   persistBusinessAppEcho,
+  inboundEventKey: (provider: string, id: string) => `inbound:${provider}:${id}`,
+  businessAppEchoEventKey: (provider: string, id: string) => `business_app_echo:${provider}:${id}`,
 }));
+
+/** Executa o que o webhook agendou em `after()` (o trabalho pós-200). */
+async function runScheduledAfter(): Promise<void> {
+  expect(afterMock).toHaveBeenCalledTimes(1);
+  const scheduled = afterMock.mock.calls[0]![0] as () => Promise<void>;
+  await scheduled();
+}
 
 import { POST, triggerOutboxAfterMetaIngress } from './route';
 
@@ -80,7 +89,7 @@ describe('Meta webhook immediate outbox trigger', () => {
     resolveClinicByPhoneId.mockResolvedValue('clinic-1');
     persistInbound.mockResolvedValue(undefined);
     persistStatusEvents.mockResolvedValue(undefined);
-    runOutboxOnce.mockResolvedValue({
+    runOutboxEventsNow.mockResolvedValue({
       processed: 1,
       failed: 0,
       skipped: 0,
@@ -91,7 +100,7 @@ describe('Meta webhook immediate outbox trigger', () => {
     });
   });
 
-  it('acknowledges persisted ingress and schedules a single worker tick after the response', async () => {
+  it('acknowledges persisted ingress and, only after the response, processes THIS message', async () => {
     const response = await POST(webhookRequest());
 
     expect(response.status).toBe(200);
@@ -100,8 +109,24 @@ describe('Meta webhook immediate outbox trigger', () => {
       'meta',
       expect.objectContaining({ providerMessageId: 'wamid-1' }),
     );
-    expect(afterMock).toHaveBeenCalledWith(triggerOutboxAfterMetaIngress);
-    expect(runOutboxOnce).not.toHaveBeenCalled();
+    expect(runOutboxEventsNow).not.toHaveBeenCalled();
+
+    await runScheduledAfter();
+    expect(runOutboxEventsNow).toHaveBeenCalledWith([
+      { eventType: 'messaging.business_app_echo.received', idempotencyKeys: [] },
+      { eventType: 'messaging.inbound.received', idempotencyKeys: ['inbound:meta:wamid-1'] },
+    ]);
+  });
+
+  it('a delivery-status-only webhook publishes nothing and schedules nothing', async () => {
+    parseWebhook.mockReturnValue({
+      messages: [],
+      statuses: [{ toPhoneId: 'phone-1', providerMessageId: 'wamid-out', status: 'read' }],
+    });
+
+    expect((await POST(webhookRequest())).status).toBe(200);
+    expect(persistStatusEvents).toHaveBeenCalledTimes(1);
+    expect(afterMock).not.toHaveBeenCalled();
   });
 
   it('does not schedule worker work for a rejected signature', async () => {
@@ -155,10 +180,16 @@ describe('Meta webhook immediate outbox trigger', () => {
     expect(captureBackgroundError).toHaveBeenCalledWith(error, { flow: 'messaging.webhook' });
   });
 
-  it('processes at most one job in the best-effort ingress tick', async () => {
-    await expect(triggerOutboxAfterMetaIngress()).resolves.toBeUndefined();
+  it('processes only the events of this request — never the oldest event of the global queue', async () => {
+    await expect(
+      triggerOutboxAfterMetaIngress({ echoKeys: [], inboundKeys: ['inbound:meta:wamid-1'] }),
+    ).resolves.toBeUndefined();
 
-    expect(runOutboxOnce).toHaveBeenCalledWith({ batchSize: 1, parallelism: 1 });
+    expect(runOutboxEventsNow).toHaveBeenCalledTimes(1);
+    expect(runOutboxEventsNow).toHaveBeenCalledWith([
+      { eventType: 'messaging.business_app_echo.received', idempotencyKeys: [] },
+      { eventType: 'messaging.inbound.received', idempotencyKeys: ['inbound:meta:wamid-1'] },
+    ]);
     expect(emit).toHaveBeenCalledWith('messaging.webhook.outbox_triggered', {
       processed: 1,
       failed: 0,
@@ -172,9 +203,11 @@ describe('Meta webhook immediate outbox trigger', () => {
 
   it('does not turn a worker failure into an unhandled webhook error', async () => {
     const workerError = new Error('worker unavailable');
-    runOutboxOnce.mockRejectedValue(workerError);
+    runOutboxEventsNow.mockRejectedValue(workerError);
 
-    await expect(triggerOutboxAfterMetaIngress()).resolves.toBeUndefined();
+    await expect(
+      triggerOutboxAfterMetaIngress({ echoKeys: [], inboundKeys: ['inbound:meta:wamid-1'] }),
+    ).resolves.toBeUndefined();
 
     expect(captureBackgroundError).toHaveBeenCalledWith(workerError, {
       flow: 'messaging.webhook.outbox_trigger',
@@ -220,6 +253,16 @@ describe('Meta webhook — coexistência com o app WhatsApp Business', () => {
     );
     expect(persistInbound).not.toHaveBeenCalled();
     expect(await response.json()).toEqual({ received: 0, statuses: 0, echoes: 1 });
+
+    // O eco pausa a IA: é processado logo, antes de qualquer mensagem do lote.
+    await runScheduledAfter();
+    expect(runOutboxEventsNow).toHaveBeenCalledWith([
+      {
+        eventType: 'messaging.business_app_echo.received',
+        idempotencyKeys: ['business_app_echo:meta:wamid-echo'],
+      },
+      { eventType: 'messaging.inbound.received', idempotencyKeys: [] },
+    ]);
   });
 
   it('eco de número não provisionado vai para a quarentena, como o inbound', async () => {

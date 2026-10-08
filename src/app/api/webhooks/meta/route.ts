@@ -30,7 +30,10 @@ import {
 import { metrics } from '@/lib/observability/metrics';
 import { after } from 'next/server';
 
+import { MESSAGING_EVENTS } from '@/contexts/messaging/events';
 import {
+  businessAppEchoEventKey,
+  inboundEventKey,
   persistBusinessAppEcho,
   persistInbound,
   persistStatusEvents,
@@ -91,13 +94,23 @@ export async function GET(req: Request): Promise<Response> {
 }
 
 const FLOW = 'messaging.webhook';
-const INGRESS_OUTBOX_BATCH_SIZE = 1;
+
+/** Eventos que este webhook publicou: ecos primeiro (pausam a IA), depois mensagens. */
+export interface IngressEvents {
+  echoKeys: string[];
+  inboundKeys: string[];
+}
 
 /**
- * The minute cron remains the retry/backstop. This best-effort tick only reduces
- * normal ingress latency and never changes the webhook acknowledgement outcome.
+ * The minute cron remains the retry/backstop. This best-effort run only reduces
+ * ingress latency and never changes the webhook acknowledgement outcome.
+ *
+ * It processes exactly the events THIS request published, by idempotency key.
+ * The previous tick took the oldest due event of the whole queue, which was this
+ * message's turn only when the queue happened to be empty: under any backlog the
+ * patient waited for the cron, and the Preview (no cron) never answered.
  */
-export async function triggerOutboxAfterMetaIngress(): Promise<void> {
+export async function triggerOutboxAfterMetaIngress(events: IngressEvents): Promise<void> {
   try {
     // Load the worker wiring only after Meta has received its acknowledgement.
     // Importing every consumer before HMAC validation would enlarge the hot
@@ -105,8 +118,14 @@ export async function triggerOutboxAfterMetaIngress(): Promise<void> {
     // is most costly.
     await import('@/app/api/cron/outbox/handlers');
     await import('@/lib/db/schema');
-    const { runOutboxOnce } = await import('@/lib/outbox/worker');
-    const summary = await runOutboxOnce({ batchSize: INGRESS_OUTBOX_BATCH_SIZE, parallelism: 1 });
+    const { runOutboxEventsNow } = await import('@/lib/outbox/worker');
+    const summary = await runOutboxEventsNow([
+      {
+        eventType: MESSAGING_EVENTS.BUSINESS_APP_ECHO_RECEIVED,
+        idempotencyKeys: events.echoKeys,
+      },
+      { eventType: MESSAGING_EVENTS.INBOUND_RECEIVED, idempotencyKeys: events.inboundKeys },
+    ]);
     metrics.emit('messaging.webhook.outbox_triggered', summary);
   } catch (error) {
     captureBackgroundError(error, { flow: `${FLOW}.outbox_trigger` });
@@ -165,6 +184,7 @@ async function handleWebhook(req: Request): Promise<Response> {
   }
 
   // 3. resolve tenant + persistir / quarentena.
+  const ingress: IngressEvents = { echoKeys: [], inboundKeys: [] };
   try {
     for (const removal of parsed.partnerRemovals ?? []) {
       const { deactivated } = await deactivateConnectionsForRemovedPartner({
@@ -192,9 +212,11 @@ async function handleWebhook(req: Request): Promise<Response> {
       }
       for (const msg of group.messages) {
         await persistInbound(clinicId, PROVIDER, msg);
+        ingress.inboundKeys.push(inboundEventKey(PROVIDER, msg.providerMessageId));
       }
       for (const echo of group.echoes) {
         await persistBusinessAppEcho(clinicId, PROVIDER, echo);
+        ingress.echoKeys.push(businessAppEchoEventKey(PROVIDER, echo.providerMessageId));
       }
       if (group.statuses.length > 0) {
         await persistStatusEvents(clinicId, PROVIDER, group.statuses);
@@ -211,9 +233,12 @@ async function handleWebhook(req: Request): Promise<Response> {
   }
 
   // The provider receives 200 immediately after the transactional persistence.
-  // `after` lets the same invocation start one worker tick without turning a
-  // temporary worker/LLM failure into a duplicate Meta delivery.
-  after(triggerOutboxAfterMetaIngress);
+  // `after` lets the same invocation process its own events without turning a
+  // temporary worker/LLM failure into a duplicate Meta delivery. Statuses alone
+  // publish nothing, so they schedule nothing.
+  if (ingress.inboundKeys.length > 0 || ingress.echoKeys.length > 0) {
+    after(() => triggerOutboxAfterMetaIngress(ingress));
+  }
 
   return Response.json(
     {

@@ -45,6 +45,21 @@ function epochToIso(ts: string): string {
   return epochToDate(ts)?.toISOString() ?? new Date().toISOString();
 }
 
+/**
+ * Chaves de idempotência dos eventos de ingress. O webhook as usa para processar
+ * o próprio turno logo após o 200 (runOutboxEventsNow) — fonte única do formato.
+ */
+export function inboundEventKey(provider: MessagingProviderName, providerMessageId: string) {
+  return `inbound:${provider}:${providerMessageId}`;
+}
+
+export function businessAppEchoEventKey(
+  provider: MessagingProviderName,
+  providerMessageId: string,
+) {
+  return `business_app_echo:${provider}:${providerMessageId}`;
+}
+
 export async function persistInbound(
   clinicId: string,
   provider: MessagingProviderName,
@@ -124,7 +139,7 @@ export async function persistInbound(
         hasText: msg.text !== null,
         receivedAt: epochToIso(msg.timestamp),
       },
-      idempotencyKey: `inbound:${provider}:${msg.providerMessageId}`,
+      idempotencyKey: inboundEventKey(provider, msg.providerMessageId),
     });
     metrics.emit('messaging.inbound.received', { clinicId, provider });
     return { deduped: false };
@@ -205,7 +220,7 @@ export async function persistBusinessAppEcho(
         hasText: echo.text !== null,
         sentAt: epochToIso(echo.timestamp),
       },
-      idempotencyKey: `business_app_echo:${provider}:${echo.providerMessageId}`,
+      idempotencyKey: businessAppEchoEventKey(provider, echo.providerMessageId),
     });
     metrics.emit('messaging.business_app_echo.received', { clinicId, provider });
     return { deduped: false };
