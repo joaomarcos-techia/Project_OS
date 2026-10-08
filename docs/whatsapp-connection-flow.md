@@ -12,7 +12,10 @@ Reference — complemento de [integrações](integrations/providers.md).
 4. `clinic_whatsapp_numbers` guarda número/ids, token cifrado, status e timestamps;
 5. app registra subscription/webhook quando necessário;
 6. webhook associa `phone_number_id` à clínica;
-7. cron `/api/cron/whatsapp-health` verifica conectividade.
+7. cron `/api/cron/whatsapp-health` verifica conectividade;
+8. a saúde de ENVIO (`health_status` da Meta: a conta pode iniciar conversa?) é lida na conexão, na
+   tela, no cron diário `/api/cron/whatsapp-messaging-health` e na primeira recusa por forma de
+   pagamento (131042/141006), e aparece na tela e no painel — [ADR-063](adr/063-saude-de-envio-whatsapp.md).
 
 O cadastro usa o **Embedded Signup v4**: `META_CONFIG_ID` é uma configuração do Facebook Login for
 Business com a variação "Cadastro incorporado do WhatsApp" e o produto WhatsApp Cloud API, e o
