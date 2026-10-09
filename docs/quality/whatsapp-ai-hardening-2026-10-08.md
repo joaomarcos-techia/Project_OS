@@ -108,8 +108,11 @@ identidade, e as duas foram corrigidas.
   template depois de aceitá-lo, o job da C14 agora vai de `sent` para `failed`, com o código da Meta no
   motivo (`meta_131042`) e a métrica `proactive.job.failed` (`stage: delivery`). Desde `64e2c7d7` a
   clínica vê a recusa na Agenda: faixa com o paciente, o que fazer e o motivo; selo na linha da
-  consulta; "Copiar link" do sinal e do saldo enquanto a cobrança for pagável. Continua aberto:
-  - não há reenvio automático, e o job não volta para a fila (ver EC-32 em D).
+  consulta; "Copiar link" do sinal e do saldo enquanto a cobrança for pagável. Continuava aberto:
+  - ~~não há reenvio automático, e o job não volta para a fila~~ — resolvido pelo
+    [ADR-064](../adr/064-c14-reenvio-por-geracao.md). Uma recusa por código passageiro volta à fila com
+    uma chave de envio nova e é reenviada. Uma recusa definitiva, como o 131042, falha na hora com o
+    código. Timeout nunca é reenviado.
 - **Pagamento do sinal e conciliação pela jornada:** dependem de pagar o checkout no Sandbox. NOT RUN.
 - **Mídia:** áudio e foto respondidos ao vivo (W18 e W30). Figurinha, reação e localização seguem sem
   resposta, de propósito. Transcrição de áudio fica para depois (opção B, não escolhida).

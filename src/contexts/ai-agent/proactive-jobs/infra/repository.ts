@@ -12,7 +12,7 @@
  */
 import 'server-only';
 
-import { and, count, desc, eq, gte, sql } from 'drizzle-orm';
+import { and, count, desc, eq, gte, isNull, or, sql } from 'drizzle-orm';
 
 import { dbAdmin, type Tx } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
@@ -41,6 +41,12 @@ export interface ClaimedJob {
   /** attempts JÁ incrementado (= tentativa em curso). */
   attempts: number;
   leaseToken: string;
+  /** ADR-064 — chave de envio desta geração: `send_key`, ou o próprio id na geração 0. */
+  sendKey: string;
+  /** Geração 1 em diante: a Meta recusou uma geração anterior e isto é um reenvio. */
+  resend: boolean;
+  /** Último motivo gravado; num reenvio, a recusa que o motivou (`meta_131000`). */
+  failedReason: string | null;
 }
 
 /** Timezone da clínica via tx já aberta (handler). Single-table read da fundação. */
@@ -84,8 +90,9 @@ export async function enqueue(
  * (`AT TIME ZONE` — ADR-2/Kill-Criteria §14.15) e incrementa `attempts`. Jobs
  * fora da janela NÃO são reservados (não queimam tentativa). SKIP LOCKED impede
  * duas instâncias do cron pegarem a MESMA linha — granularidade por job (supera
- * o advisory lock por (type) do ADR-3). A chave de envio estável (job.id) é o
- * backstop contra duplicata no Meta. Retorna `attempts` já incrementado.
+ * o advisory lock por (type) do ADR-3). A chave de envio da geração (ADR-064:
+ * `send_key`, ou o job.id) é o backstop contra duplicata no Meta. Retorna
+ * `attempts` já incrementado.
  */
 export async function claimDue(type: ProactiveJobType, limit: number): Promise<ClaimedJob[]> {
   const rows = (await dbAdmin.execute(
@@ -126,7 +133,9 @@ export async function claimDue(type: ProactiveJobType, limit: number): Promise<C
           FROM due
          WHERE j.id = due.id
         RETURNING j.id::text AS id, j.clinic_id::text AS clinic_id, j.type AS type,
-                  j.payload AS payload, j.attempts AS attempts, j.lease_token AS lease_token`,
+                  j.payload AS payload, j.attempts AS attempts, j.lease_token AS lease_token,
+                  coalesce(j.send_key, j.id)::text AS send_key,
+                  (j.send_key IS NOT NULL) AS resend, j.failed_reason AS failed_reason`,
   )) as unknown as Array<{
     id: string;
     clinic_id: string;
@@ -134,6 +143,9 @@ export async function claimDue(type: ProactiveJobType, limit: number): Promise<C
     payload: unknown;
     attempts: number;
     lease_token: string;
+    send_key: string;
+    resend: boolean;
+    failed_reason: string | null;
   }>;
 
   return rows.map((r) => ({
@@ -143,6 +155,9 @@ export async function claimDue(type: ProactiveJobType, limit: number): Promise<C
     payload: r.payload,
     attempts: r.attempts,
     leaseToken: r.lease_token,
+    sendKey: r.send_key,
+    resend: r.resend,
+    failedReason: r.failed_reason,
   }));
 }
 
@@ -177,7 +192,11 @@ export function finalizeSent(clinicId: string, jobId: string, leaseToken: string
   return finalizeClaim(clinicId, jobId, leaseToken, { status: 'sent', sentAt: new Date() });
 }
 
-/** Falha transitória → volta a pending com backoff (attempts já incrementado). */
+/**
+ * Sem resposta definitiva (dedup `pending`, exceção) → volta a pending com
+ * backoff e a MESMA chave: a próxima tentativa reencontra este envio no dedup
+ * do sender em vez de arriscar um segundo (attempts já incrementado).
+ */
 export function finalizeRetry(
   clinicId: string,
   jobId: string,
@@ -189,6 +208,28 @@ export function finalizeRetry(
     status: 'pending',
     scheduledFor: nextAt,
     failedReason: reason,
+  });
+}
+
+/**
+ * ADR-064 — a Meta RECUSOU esta geração com código retentável: volta a pending
+ * com backoff e uma chave nova, no mesmo UPDATE guardado pelo lease. A chave fica
+ * gravada antes de qualquer envio que a use, então um crash só repete esta
+ * geração, que o dedup do sender segura.
+ */
+export function finalizeResend(
+  clinicId: string,
+  jobId: string,
+  leaseToken: string,
+  nextAt: Date,
+  reason: string,
+  sendKey: string,
+): Promise<void> {
+  return finalizeClaim(clinicId, jobId, leaseToken, {
+    status: 'pending',
+    scheduledFor: nextAt,
+    failedReason: reason,
+    sendKey,
   });
 }
 
@@ -216,58 +257,103 @@ export function cancel(
   });
 }
 
-export type DeliveryFailureOutcome =
-  | { kind: 'failed'; type: ProactiveJobType; previousStatus: 'sent' | 'pending' }
-  /** O processor ainda segura o lease (entre o aceite da Cloud API e o finalize). */
-  | { kind: 'in_flight'; type: ProactiveJobType }
-  /** Já terminal (`failed`/`cancelled`): reentrega do evento é no-op. */
-  | { kind: 'unchanged'; type: ProactiveJobType; status: ProactiveJobStatus }
-  /** O envio não é de job desta clínica (resposta da IA, manual, outro tenant). */
-  | { kind: 'not_found' };
+/** O job cuja geração atual a Meta recusou depois do aceite, travado para a decisão. */
+export interface RefusedJob {
+  id: string;
+  type: ProactiveJobType;
+  status: ProactiveJobStatus;
+  payload: unknown;
+  attempts: number;
+  leaseToken: string | null;
+  /**
+   * `processing` com lease vencido: a tentativa que segurava o job morreu (mesmo
+   * critério do `claimDue`). Lease vivo = o processor ainda está entre o aceite
+   * da Cloud API e o finalize.
+   */
+  leaseExpired: boolean;
+}
 
 /**
- * EC-32 — a Meta recusou o envio DEPOIS de aceitá-lo (callback `failed`). Roda
- * na TX do worker (handler `messaging.outbound.status_updated`).
- *
- * Transições: `sent` → `failed` e `pending` → `failed`. O `pending` aparece
- * quando uma tentativa obteve o wamid mas não chegou a finalizar e o job voltou
- * à fila: como a chave de envio é o job.id, a próxima tentativa só reencontraria
- * o mesmo envio `failed` no dedup do sender e terminaria `meta_failed`, sem o
- * código. Nada volta a `pending` — reenviar exigiria outra chave, e a chave
- * estável é a garantia at-most-once da fila.
+ * EC-32 + ADR-064 — a Meta recusou o envio DEPOIS de aceitá-lo (callback
+ * `failed`). Acha, na TX do worker, o job cuja geração ATUAL usou `sendKey`:
+ *   - geração 0: chave = id, com `send_key` NULL;
+ *   - geração 1 em diante: `send_key` = chave.
+ * A chave de uma geração já substituída não acha nada, e é isso que impede o
+ * callback atrasado ou reentregue de um envio antigo de provocar outro reenvio.
+ * Envio que não é da C14 (resposta da IA, resposta manual) também não acha.
  *
  * `FOR UPDATE` serializa com o `claimDue` (SKIP LOCKED pula a linha travada) e
- * com o finalize do processor; o UPDATE ainda confere o status lido.
+ * com o finalize do processor.
  */
-export async function markDeliveryFailedTx(
+export async function lockJobBySendKeyTx(
   tx: Tx,
   clinicId: string,
-  jobId: string,
-  reason: string,
-): Promise<DeliveryFailureOutcome> {
+  sendKey: string,
+): Promise<RefusedJob | null> {
   const [job] = await tx
-    .select({ type: aiProactiveJobs.type, status: aiProactiveJobs.status })
+    .select({
+      id: aiProactiveJobs.id,
+      type: aiProactiveJobs.type,
+      status: aiProactiveJobs.status,
+      payload: aiProactiveJobs.payload,
+      attempts: aiProactiveJobs.attempts,
+      leaseToken: aiProactiveJobs.leaseToken,
+      leaseExpired: sql<boolean>`coalesce(${aiProactiveJobs.leaseExpiresAt} <= now(), false)`,
+    })
     .from(aiProactiveJobs)
-    .where(and(eq(aiProactiveJobs.id, jobId), eq(aiProactiveJobs.clinicId, clinicId)))
-    .limit(1)
-    .for('update');
-  if (!job) return { kind: 'not_found' };
-  if (job.status === 'processing') return { kind: 'in_flight', type: job.type };
-  if (job.status !== 'sent' && job.status !== 'pending') {
-    return { kind: 'unchanged', type: job.type, status: job.status };
-  }
-
-  await tx
-    .update(aiProactiveJobs)
-    .set({ status: 'failed', failedReason: reason })
     .where(
       and(
-        eq(aiProactiveJobs.id, jobId),
+        eq(aiProactiveJobs.clinicId, clinicId),
+        or(
+          and(eq(aiProactiveJobs.id, sendKey), isNull(aiProactiveJobs.sendKey)),
+          eq(aiProactiveJobs.sendKey, sendKey),
+        ),
+      ),
+    )
+    .limit(1)
+    .for('update');
+  return job ?? null;
+}
+
+export type RefusalSettlement =
+  | { status: 'failed'; reason: string }
+  /** ADR-064 — recusa retentável: reenvia em `nextAt`, com a chave nova. */
+  | { status: 'pending'; reason: string; nextAt: Date; sendKey: string };
+
+/**
+ * Fecha (`failed`) ou reagenda com chave nova (`pending`) o job travado por
+ * `lockJobBySendKeyTx`. Um `processing` de lease vencido é assumido aqui e o
+ * lease morre junto: se a tentativa morta acordar, o finalize dela não acha mais
+ * o token. O UPDATE ainda confere o status e o token lidos.
+ */
+export async function settleRefusedJobTx(
+  tx: Tx,
+  clinicId: string,
+  job: RefusedJob,
+  settlement: RefusalSettlement,
+): Promise<void> {
+  await tx
+    .update(aiProactiveJobs)
+    .set({
+      status: settlement.status,
+      failedReason: settlement.reason,
+      ...(settlement.status === 'pending'
+        ? { scheduledFor: settlement.nextAt, sendKey: settlement.sendKey }
+        : {}),
+      processingStartedAt: null,
+      leaseExpiresAt: null,
+      leaseToken: null,
+    })
+    .where(
+      and(
+        eq(aiProactiveJobs.id, job.id),
         eq(aiProactiveJobs.clinicId, clinicId),
         eq(aiProactiveJobs.status, job.status),
+        job.leaseToken === null
+          ? isNull(aiProactiveJobs.leaseToken)
+          : eq(aiProactiveJobs.leaseToken, job.leaseToken),
       ),
     );
-  return { kind: 'failed', type: job.type, previousStatus: job.status };
 }
 
 // --- leitura do painel: mensagens que não chegaram ao paciente ----------------

@@ -6,14 +6,25 @@
  *      pendente) — evita corrida e cobre o teste "pagou → não envia".
  *   3. resolve contato (patient) + política (suppression/consent) — bloqueio =
  *      job cancelled com reason.
- *   4. monta template Meta + envia via messagingApiV1.sendText com
- *      idempotencyKey = job.id (ESTÁVEL — at-most-once no Meta mesmo com retry).
- *   5. finaliza: accepted→sent; falha transitória→backoff (reusa o do outbox);
- *      estourou MAX_ATTEMPTS / erro de config → failed.
+ *   4. monta template Meta + envia via messagingApiV1.sendText com a chave da
+ *      GERAÇÃO (ADR-064: `send_key`, ou o job.id na geração 0). Retry de rede ou
+ *      de lease reusa a chave, e o dedup do sender segura o at-most-once.
+ *   5. finaliza (ADR-064):
+ *      - a Meta aceitou (tem wamid) → sent; recusa posterior é do handler EC-32;
+ *      - recusa síncrona com código retentável → pending com chave NOVA +
+ *        backoff (reusa o do outbox): reenvio de verdade;
+ *      - recusa definitiva, fora das tentativas ou do prazo → failed na hora,
+ *        com `meta_<código>`;
+ *      - timeout (`unknown`) → failed na hora, `meta_unknown`: pode ter chegado,
+ *        então nunca há chave nova;
+ *      - dedup `pending` ou exceção → backoff com a MESMA chave;
+ *      - erro de config → failed.
  *
  * NÃO segura tx durante o envio (sendText gere as próprias 3 fases). NUNCA chama
  * Meta direto — só via messagingApiV1.
  */
+import { randomUUID } from 'node:crypto';
+
 /* eslint-disable boundaries/element-types -- APIs internas PÚBLICAS (M14) dos contextos-fonte: C14 é transporte e lê estado via os seams versionados (mesma exceção das tools do AI Agent). */
 import { financialApiV1 } from '@/contexts/financial';
 import { clinicalApiV1 } from '@/contexts/clinical';
@@ -22,6 +33,7 @@ import {
   SuppressedRecipientError,
   messagingApiV1,
   type OutboundBody,
+  type OutboundResult,
 } from '@/contexts/messaging';
 import { patientApiV1 } from '@/contexts/patient';
 import { schedulingApiV1 } from '@/contexts/scheduling';
@@ -30,12 +42,14 @@ import { paymentsApiV1 } from '@/contexts/payments';
 import { metrics } from '@/lib/observability/metrics';
 import { BACKOFF_FAIL, backoffDelayMs } from '@/lib/outbox/backoff';
 
+import { decideAfterRefusal, refusalReason, resendDeadline } from '../domain/resend';
 import {
   PROACTIVE_PAYLOAD_SCHEMAS,
   type DepositLinkPayload,
   type DunningPayload,
   type FollowupPayload,
   type NoShowFollowupPayload,
+  type ProactivePayload,
   type ReminderPayload,
   type RemainderLinkPayload,
   type WaitlistOfferPayload,
@@ -75,6 +89,20 @@ async function processOne(job: ClaimedJob, tzCache: Map<string, string>): Promis
   const payload = parsed.data;
   const patientId = (payload as { patientId: string }).patientId;
 
+  // 1b. ADR-064 — reenvio só vale até o prazo do tipo. O prazo foi conferido ao
+  // agendar, mas a janela 8–20 h pode empurrar o envio para depois dele. Vem
+  // antes do guard: passado o prazo, o motivo verdadeiro é a recusa da Meta, e
+  // não o hold vencido ou a consulta que já passou.
+  if (job.resend) {
+    const deadline = resendDeadline(type, payload);
+    if (deadline && Date.now() >= deadline.getTime()) {
+      const reason = job.failedReason ?? 'meta_failed';
+      await repo.finalizeFailed(clinicId, id, leaseToken, reason);
+      metrics.emit('proactive.job.failed', { ...log, reason, why: 'past_deadline' });
+      return 'failed';
+    }
+  }
+
   // 2. guard de send-time (estado fresco).
   const guard = await sendTimeGuard(type, clinicId, payload);
   if (guard) {
@@ -94,7 +122,7 @@ async function processOne(job: ClaimedJob, tzCache: Map<string, string>): Promis
   // contact + phone garantidos por evaluateProactivePolicy.
   const { phone, nome } = contact!;
 
-  // 4. template + envio (chave ESTÁVEL = job.id).
+  // 4. template + envio (chave da GERAÇÃO = job.sendKey).
   //
   // O link de pagamento é resolvido AQUI, no send-time, e não veio no payload:
   // de pagamento não fica em repouso numa fila que operador e worker leem — e o
@@ -138,24 +166,28 @@ async function processOne(job: ClaimedJob, tzCache: Map<string, string>): Promis
     const res = await messagingApiV1.sendText({
       clinicId,
       toNumber: phone!,
-      idempotencyKey: id,
+      idempotencyKey: job.sendKey,
       body,
       // MESMA função da política de supressão, e não uma cópia: bloquear por um
       // propósito e registrar outro faria o opt-out do paciente nunca casar.
       purpose: suppressionPurposeFor(type),
     });
-    if (
-      res.status === 'accepted' ||
-      res.status === 'sent' ||
-      res.status === 'delivered' ||
-      res.status === 'read'
-    ) {
+    if (acceptedByMeta(res)) {
       await repo.finalizeSent(clinicId, id, leaseToken);
       metrics.emit('proactive.job.sent', log);
       return 'sent';
     }
-    // failed/unknown/pending → backoff (chave estável dedup no Meta).
-    return finalizeBackoff(job, `meta_${res.status}`, log);
+    if (res.status === 'failed') return refuse(job, payload, res.errorCode ?? null, log);
+    if (res.status === 'unknown') {
+      // Timeout: a Meta pode ter recebido. Chave nova poderia duplicar a
+      // mensagem, e a mesma só devolveria este `unknown` no dedup do sender.
+      await repo.finalizeFailed(clinicId, id, leaseToken, 'meta_unknown');
+      metrics.emit('proactive.job.failed', { ...log, reason: 'meta_unknown', stage: 'send' });
+      return 'failed';
+    }
+    // `pending` no dedup: outra tentativa desta geração ainda não finalizou o
+    // envio. É o único resultado que esperar pode mudar.
+    return finalizeBackoff(job, 'meta_pending', log);
   } catch (err) {
     if (err instanceof SuppressedRecipientError) {
       await repo.cancel(clinicId, id, leaseToken, 'suppressed');
@@ -279,6 +311,64 @@ async function sendTimeGuard(
   return null;
 }
 
+/**
+ * A Meta aceitou ESTA geração. Um `failed` deduplicado com wamid foi aceito e
+ * recusado depois: o callback já publicou o `status_updated`, e quem decide o
+ * reenvio é o handler do EC-32, com o código do callback.
+ */
+function acceptedByMeta(res: OutboundResult): boolean {
+  return (
+    res.status === 'accepted' ||
+    res.status === 'sent' ||
+    res.status === 'delivered' ||
+    res.status === 'read' ||
+    (res.status === 'failed' && res.providerMessageId !== null)
+  );
+}
+
+/**
+ * ADR-064 — a Meta recusou esta geração na resposta síncrona. Código retentável,
+ * dentro das tentativas e do prazo → reenvio com chave NOVA; o resto falha já,
+ * com o código, em vez de queimar o backoff no dedup da mesma chave.
+ */
+async function refuse(
+  job: ClaimedJob,
+  payload: ProactivePayload,
+  code: string | null,
+  log: Record<string, unknown>,
+): Promise<Outcome> {
+  const reason = refusalReason(code);
+  const decision = decideAfterRefusal({
+    type: job.type,
+    payload,
+    attempts: job.attempts,
+    code,
+    now: new Date(),
+  });
+  if (decision.kind === 'resend') {
+    await repo.finalizeResend(
+      job.clinicId,
+      job.id,
+      job.leaseToken,
+      decision.nextAt,
+      reason,
+      randomUUID(),
+    );
+    metrics.emit('proactive.job.retried', {
+      ...log,
+      reason,
+      delayMs: decision.delayMs,
+      stage: 'send',
+      resend: true,
+    });
+    return 'retried';
+  }
+  await repo.finalizeFailed(job.clinicId, job.id, job.leaseToken, reason);
+  metrics.emit('proactive.job.failed', { ...log, reason, stage: 'send', why: decision.why });
+  return 'failed';
+}
+
+/** Sem resposta definitiva (dedup `pending`, exceção): backoff com a MESMA chave. */
 async function finalizeBackoff(
   job: ClaimedJob,
   reason: string,

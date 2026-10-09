@@ -1,5 +1,6 @@
 /**
- * EC-32 consumer: a Meta recusou a mensagem DEPOIS de aceitá-la → o job C14 falha.
+ * EC-32 consumer: a Meta recusou a mensagem DEPOIS de aceitá-la → o job C14
+ * reenvia ou falha (ADR-064).
  *
  * Reage a `messaging.outbound.status_updated`. O processor da C14 finaliza o job
  * como `sent` quando a Cloud API aceita o envio e devolve o wamid; a entrega é
@@ -8,20 +9,26 @@
  * configurados): sem este consumidor o job ficava `sent` para sempre e nada
  * registrava que o paciente não recebeu o link do sinal.
  *
- * Ligação envio ↔ job: a C14 envia com `idempotencyKey = job.id`, chave estável
- * que `outbound_messages.idempotency_key` guarda. O handler lê essa chave pelo
- * seam do Messaging e procura o job com esse id NA CLÍNICA DO EVENTO — predicado
- * explícito, além da RLS do `withTenant` do worker. Envio que não é da C14
- * (resposta da IA, resposta manual) não tem job: no-op.
+ * Ligação envio ↔ job: a C14 envia com a chave da GERAÇÃO (`send_key`, ou o
+ * job.id na geração 0), que `outbound_messages.idempotency_key` guarda. O
+ * handler lê essa chave pelo seam do Messaging e trava o job cuja geração ATUAL
+ * a usou, NA CLÍNICA DO EVENTO — predicado explícito, além da RLS do
+ * `withTenant` do worker. Envio que não é da C14 (resposta da IA, resposta
+ * manual) ou de uma geração já substituída não acha job: no-op.
  *
- * Só `failed` move o job (motivo `meta_<código>`), e o repositório decide a
- * transição. Job ainda `processing` → retry pelo backoff do outbox: o processor
- * está entre o aceite e o `finalizeSent`. Job já terminal → no-op, o que torna a
- * reentrega at-least-once idempotente.
- *
- * Não reagenda, nem para código transitório: o reenvio cairia no dedup do
- * sender pela mesma chave e reencontraria o envio `failed`, sem nova mensagem.
+ * Só `failed` move o job. A decisão é a mesma do processor (`decideAfterRefusal`):
+ *   - código retentável, dentro das tentativas e do prazo do tipo → `pending`
+ *     com chave NOVA e backoff: o reenvio é de verdade, porque a Meta disse que
+ *     esta geração não foi entregue;
+ *   - o resto → `failed`, com `meta_<código>`.
+ * Job `processing` com lease vivo → retry pelo backoff do outbox: o processor
+ * está entre o aceite e o `finalizeSent`. Com lease vencido, a tentativa morreu
+ * e o handler decide por ela — senão o evento poderia esgotar as tentativas
+ * durante a madrugada, fora da janela de envio. Job já terminal → no-op, o que
+ * torna a reentrega at-least-once idempotente.
  */
+import { randomUUID } from 'node:crypto';
+
 import { z } from 'zod';
 
 import type { Tx } from '@/lib/db';
@@ -37,17 +44,31 @@ import {
 } from '@/contexts/messaging';
 /* eslint-enable boundaries/element-types */
 
-import { markDeliveryFailedTx } from '../../infra/repository';
+import { decideAfterRefusal, refusalReason, type RefusalDecision } from '../../domain/resend';
+import { PROACTIVE_PAYLOAD_SCHEMAS } from '../../domain/types';
+import { lockJobBySendKeyTx, settleRefusedJobTx, type RefusedJob } from '../../infra/repository';
 
-/** O id do job é uuid; chave de outro formato não é de job (e quebraria o cast). */
-const jobIdSchema = z.string().uuid();
+/** A chave de envio da C14 é uuid; chave de outro formato não é de job (e quebraria o cast). */
+const sendKeySchema = z.string().uuid();
 
-/** `failed_reason` da recusa: `meta_131042`; sem código, `meta_failed`. */
-export function deliveryFailureReason(errorCode: string | undefined): string {
-  return errorCode ? `meta_${errorCode}` : 'meta_failed';
+function decide(
+  job: RefusedJob,
+  errorCode: string | undefined,
+): RefusalDecision | { kind: 'fail'; why: 'invalid_payload' } {
+  // O prazo do tipo sai do payload: sem payload válido não há como saber se o
+  // reenvio ainda serve, e a recusa fecha o job.
+  const parsed = PROACTIVE_PAYLOAD_SCHEMAS[job.type].safeParse(job.payload);
+  if (!parsed.success) return { kind: 'fail', why: 'invalid_payload' };
+  return decideAfterRefusal({
+    type: job.type,
+    payload: parsed.data,
+    attempts: job.attempts,
+    code: errorCode,
+    now: new Date(),
+  });
 }
 
-async function failJobOnDeliveryFailure(ctx: {
+async function settleDeliveryRefusal(ctx: {
   tx: Tx;
   clinicId: string;
   payload: OutboundStatusUpdatedPayload;
@@ -68,33 +89,47 @@ async function failJobOnDeliveryFailure(ctx: {
     clinicId,
     payload.outboundMessageId,
   );
-  if (!sendKey || !jobIdSchema.safeParse(sendKey).success) return;
+  if (!sendKey || !sendKeySchema.safeParse(sendKey).success) return;
 
-  const reason = deliveryFailureReason(payload.errorCode);
-  const outcome = await markDeliveryFailedTx(tx, clinicId, sendKey, reason);
-
-  if (outcome.kind === 'in_flight') {
+  const job = await lockJobBySendKeyTx(tx, clinicId, sendKey);
+  if (!job || job.status === 'failed' || job.status === 'cancelled') return;
+  if (job.status === 'processing' && !job.leaseExpired) {
     throw new HandlerError(
-      `proactive job ${sendKey} still processing; retry after finalize`,
+      `proactive job ${job.id} still processing; retry after finalize`,
       'proactive_job_in_flight',
     );
   }
-  if (outcome.kind !== 'failed') return;
 
-  metrics.emit('proactive.job.failed', {
+  const reason = refusalReason(payload.errorCode);
+  const decision = decide(job, payload.errorCode);
+  const log = {
     clinicId,
-    jobId: sendKey,
-    type: outcome.type,
+    jobId: job.id,
+    type: job.type,
     reason,
     // A recusa veio no callback da entrega, não na resposta do envio.
     stage: 'delivery',
-    previousStatus: outcome.previousStatus,
+    previousStatus: job.status,
     outboundMessageId: payload.outboundMessageId,
     eventId,
-  });
+  };
+
+  if (decision.kind === 'resend') {
+    await settleRefusedJobTx(tx, clinicId, job, {
+      status: 'pending',
+      reason,
+      nextAt: decision.nextAt,
+      sendKey: randomUUID(),
+    });
+    metrics.emit('proactive.job.retried', { ...log, delayMs: decision.delayMs, resend: true });
+    return;
+  }
+
+  await settleRefusedJobTx(tx, clinicId, job, { status: 'failed', reason });
+  metrics.emit('proactive.job.failed', { ...log, why: decision.why });
 }
 
 registerHandler<OutboundStatusUpdatedPayload>(
   MESSAGING_EVENTS.OUTBOUND_STATUS_UPDATED,
-  failJobOnDeliveryFailure,
+  settleDeliveryRefusal,
 );

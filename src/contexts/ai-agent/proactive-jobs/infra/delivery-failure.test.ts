@@ -1,8 +1,9 @@
 /**
- * EC-32 — máquina de estados da recusa pós-aceite (`markDeliveryFailedTx`).
+ * EC-32 + ADR-064 — leitura e fechamento do job cuja geração a Meta recusou.
  *
- * Só `sent` e `pending` viram `failed`; `processing` pede retry (o processor
- * ainda segura o lease); terminais não mudam. Toda leitura e escrita carrega o
+ * O job é achado pela chave da geração ATUAL (id com `send_key` NULL na geração
+ * 0, `send_key` depois), travado, e fechado ou reagendado com chave nova num
+ * UPDATE que confere o status e o lease lidos. Toda leitura e escrita carrega o
  * predicado da clínica do evento — nunca toca job de outro tenant.
  */
 import type { SQL } from 'drizzle-orm';
@@ -14,14 +15,21 @@ import type { Tx } from '@/lib/db';
 vi.mock('@/lib/db', () => ({ dbAdmin: {} }));
 vi.mock('@/lib/db/tenant', () => ({ withTenant: vi.fn() }));
 
-import { markDeliveryFailedTx } from './repository';
+import { lockJobBySendKeyTx, settleRefusedJobTx, type RefusedJob } from './repository';
 
 const CLINIC = '11111111-1111-4111-8111-111111111111';
 const JOB = '33333333-3333-4333-8333-333333333333';
+const KEY = '55555555-5555-4555-8555-555555555555';
 
-function fakeTx(job: { type: string; status: string } | null) {
-  const seen: { selectWhere?: SQL; lock?: unknown; set?: unknown; updateWhere?: SQL } = {};
-  const select = Object.assign(Promise.resolve(job ? [job] : []), {
+function fakeTx(rows: unknown[]) {
+  const seen: {
+    fields?: Record<string, unknown>;
+    selectWhere?: SQL;
+    lock?: unknown;
+    set?: unknown;
+    updateWhere?: SQL;
+  } = {};
+  const select = Object.assign(Promise.resolve(rows), {
     from: vi.fn(),
     where: vi.fn(),
     limit: vi.fn(),
@@ -45,8 +53,14 @@ function fakeTx(job: { type: string; status: string } | null) {
   update.where.mockImplementation(async (clause: SQL) => {
     seen.updateWhere = clause;
   });
-  const tx = { select: vi.fn(() => select), update: vi.fn(() => update) };
-  return { tx: tx as unknown as Tx, seen, updateCalls: tx.update };
+  const tx = {
+    select: vi.fn((fields: Record<string, unknown>) => {
+      seen.fields = fields;
+      return select;
+    }),
+    update: vi.fn(() => update),
+  };
+  return { tx: tx as unknown as Tx, seen };
 }
 
 const compile = (clause: SQL | undefined) => {
@@ -54,76 +68,111 @@ const compile = (clause: SQL | undefined) => {
   return new PgDialect().sqlToQuery(clause);
 };
 
-describe('markDeliveryFailedTx', () => {
-  it('sent → failed with the Meta reason, guarded by id, clinic and the status it read', async () => {
-    const { tx, seen } = fakeTx({ type: 'deposit_link', status: 'sent' });
+const refused = (over: Partial<RefusedJob> = {}): RefusedJob => ({
+  id: JOB,
+  type: 'deposit_link',
+  status: 'sent',
+  payload: {},
+  attempts: 1,
+  leaseToken: null,
+  leaseExpired: false,
+  ...over,
+});
 
-    await expect(markDeliveryFailedTx(tx, CLINIC, JOB, 'meta_131042')).resolves.toEqual({
-      kind: 'failed',
-      type: 'deposit_link',
-      previousStatus: 'sent',
+describe('lockJobBySendKeyTx', () => {
+  it('finds the job by the CURRENT key only: id with no send_key, or the send_key itself', async () => {
+    const { tx, seen } = fakeTx([refused()]);
+
+    await expect(lockJobBySendKeyTx(tx, CLINIC, KEY)).resolves.toEqual(refused());
+
+    const where = compile(seen.selectWhere);
+    expect(where.sql).toBe(
+      '("ai_proactive_jobs"."clinic_id" = $1 and (("ai_proactive_jobs"."id" = $2 and "ai_proactive_jobs"."send_key" is null) or "ai_proactive_jobs"."send_key" = $3))',
+    );
+    expect(where.params).toEqual([CLINIC, KEY, KEY]);
+    expect(seen.lock).toBe('update');
+  });
+
+  it('reads whether a processing lease already expired, with the claimDue clock (now())', async () => {
+    const { tx, seen } = fakeTx([refused()]);
+
+    await lockJobBySendKeyTx(tx, CLINIC, KEY);
+
+    expect(Object.keys(seen.fields ?? {})).toEqual([
+      'id',
+      'type',
+      'status',
+      'payload',
+      'attempts',
+      'leaseToken',
+      'leaseExpired',
+    ]);
+    expect(compile(seen.fields?.leaseExpired as SQL).sql).toBe(
+      'coalesce("ai_proactive_jobs"."lease_expires_at" <= now(), false)',
+    );
+  });
+
+  it('a key with no current job (replaced generation, AI or manual reply) returns null', async () => {
+    const { tx } = fakeTx([]);
+
+    await expect(lockJobBySendKeyTx(tx, CLINIC, KEY)).resolves.toBeNull();
+  });
+});
+
+describe('settleRefusedJobTx', () => {
+  it('failed: records the Meta reason and clears any lease, guarded by id, clinic, status and lease', async () => {
+    const { tx, seen } = fakeTx([]);
+
+    await settleRefusedJobTx(tx, CLINIC, refused(), { status: 'failed', reason: 'meta_131042' });
+
+    expect(seen.set).toEqual({
+      status: 'failed',
+      failedReason: 'meta_131042',
+      processingStartedAt: null,
+      leaseExpiresAt: null,
+      leaseToken: null,
     });
-
-    expect(seen.set).toEqual({ status: 'failed', failedReason: 'meta_131042' });
     const where = compile(seen.updateWhere);
-    expect(where.sql).toContain('"ai_proactive_jobs"."id" = $1');
-    expect(where.sql).toContain('"ai_proactive_jobs"."clinic_id" = $2');
-    expect(where.sql).toContain('"ai_proactive_jobs"."status" = $3');
+    expect(where.sql).toBe(
+      '("ai_proactive_jobs"."id" = $1 and "ai_proactive_jobs"."clinic_id" = $2 and "ai_proactive_jobs"."status" = $3 and "ai_proactive_jobs"."lease_token" is null)',
+    );
     expect(where.params).toEqual([JOB, CLINIC, 'sent']);
   });
 
-  it('reads the job locked, by id AND clinic', async () => {
-    const { tx, seen } = fakeTx({ type: 'reminder', status: 'sent' });
+  it('pending: reschedules with the NEW key in the same UPDATE', async () => {
+    const { tx, seen } = fakeTx([]);
+    const nextAt = new Date('2026-10-08T15:00:00.000Z');
 
-    await markDeliveryFailedTx(tx, CLINIC, JOB, 'meta_131026');
-
-    expect(seen.lock).toBe('update');
-    const where = compile(seen.selectWhere);
-    expect(where.sql).toContain('"ai_proactive_jobs"."id" = $1');
-    expect(where.sql).toContain('"ai_proactive_jobs"."clinic_id" = $2');
-    expect(where.params).toEqual([JOB, CLINIC]);
-  });
-
-  it('pending → failed: a retry would only find the same failed send again', async () => {
-    const { tx, seen } = fakeTx({ type: 'deposit_link', status: 'pending' });
-
-    await expect(markDeliveryFailedTx(tx, CLINIC, JOB, 'meta_131042')).resolves.toEqual({
-      kind: 'failed',
-      type: 'deposit_link',
-      previousStatus: 'pending',
+    await settleRefusedJobTx(tx, CLINIC, refused(), {
+      status: 'pending',
+      reason: 'meta_131000',
+      nextAt,
+      sendKey: KEY,
     });
-    expect(compile(seen.updateWhere).params).toEqual([JOB, CLINIC, 'pending']);
-  });
 
-  it('processing → in_flight, without writing: the processor still holds the lease', async () => {
-    const { tx, updateCalls } = fakeTx({ type: 'deposit_link', status: 'processing' });
-
-    await expect(markDeliveryFailedTx(tx, CLINIC, JOB, 'meta_131042')).resolves.toEqual({
-      kind: 'in_flight',
-      type: 'deposit_link',
+    expect(seen.set).toEqual({
+      status: 'pending',
+      failedReason: 'meta_131000',
+      scheduledFor: nextAt,
+      sendKey: KEY,
+      processingStartedAt: null,
+      leaseExpiresAt: null,
+      leaseToken: null,
     });
-    expect(updateCalls).not.toHaveBeenCalled();
   });
 
-  it('terminal jobs stay as they are (event redelivery is a no-op)', async () => {
-    for (const status of ['failed', 'cancelled']) {
-      const { tx, updateCalls } = fakeTx({ type: 'deposit_link', status });
+  it('taking over a dead processing attempt checks the lease token it read', async () => {
+    const { tx, seen } = fakeTx([]);
 
-      await expect(markDeliveryFailedTx(tx, CLINIC, JOB, 'meta_131042')).resolves.toEqual({
-        kind: 'unchanged',
-        type: 'deposit_link',
-        status,
-      });
-      expect(updateCalls).not.toHaveBeenCalled();
-    }
-  });
+    await settleRefusedJobTx(
+      tx,
+      CLINIC,
+      refused({ status: 'processing', leaseToken: 'lease-1', leaseExpired: true }),
+      { status: 'failed', reason: 'meta_131026' },
+    );
 
-  it('a send that is not a job of this clinic changes nothing', async () => {
-    const { tx, updateCalls } = fakeTx(null);
-
-    await expect(markDeliveryFailedTx(tx, CLINIC, JOB, 'meta_131042')).resolves.toEqual({
-      kind: 'not_found',
-    });
-    expect(updateCalls).not.toHaveBeenCalled();
+    const where = compile(seen.updateWhere);
+    expect(where.sql).toContain('"ai_proactive_jobs"."lease_token" = $4');
+    expect(where.params).toEqual([JOB, CLINIC, 'processing', 'lease-1']);
   });
 });

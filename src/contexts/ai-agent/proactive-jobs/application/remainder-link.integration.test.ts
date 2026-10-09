@@ -110,6 +110,10 @@ async function enqueueAndClaim(kind: 'deposit' | 'remainder'): Promise<void> {
       payload: queued.payload,
       attempts: 1,
       leaseToken: 'lease-1',
+      // Geração 0 (ADR-064): a chave de envio é o próprio id.
+      sendKey: `job-${kind}`,
+      resend: false,
+      failedReason: null,
     },
   ]);
 }

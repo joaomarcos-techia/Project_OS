@@ -11,6 +11,8 @@
  *
  * Status (3ª#5): accepted (ack síncrono) | failed (HTTP definitivo) | unknown
  * (timeout/reset — NÃO sabemos se a Meta recebeu; callback async confirma em C14).
+ * Um `failed` sem wamid leva o código da Meta (`errorCode`, ADR-064), inclusive
+ * no dedup: é ele que diz à C14 se a recusa merece reenvio com chave nova.
  *
  * Refresh de credencial (3ª#3 + 4ª#2): em 401/403 recarrega a credencial; só
  * reenvia se `token_version` aumentou (rotação ocorreu) — senão é token inválido
@@ -53,6 +55,7 @@ import {
   SuppressedRecipientError,
 } from '../errors';
 import { outboundMessages } from '../schema';
+import { syncRefusalCode } from './delivery-status';
 import { reconcileStoredProviderStatuses } from './status-reconciler';
 import type { OutboundResult, OutboundSendStatus, SendOutboundInput } from '../types';
 
@@ -165,6 +168,7 @@ export async function sendOutbound(input: SendOutboundInput): Promise<OutboundRe
           id: outboundMessages.id,
           status: outboundMessages.status,
           providerMessageId: outboundMessages.providerMessageId,
+          providerResponse: outboundMessages.providerResponse,
         })
         .from(outboundMessages)
         .where(
@@ -187,6 +191,11 @@ export async function sendOutbound(input: SendOutboundInput): Promise<OutboundRe
       status: reserve.row.status,
       providerMessageId: reserve.row.providerMessageId,
       deduped: true,
+      errorCode: syncRefusalCode(
+        reserve.row.status,
+        reserve.row.providerMessageId,
+        reserve.row.providerResponse,
+      ),
     };
   }
   const outboundId = reserve.id;
@@ -241,5 +250,11 @@ export async function sendOutbound(input: SendOutboundInput): Promise<OutboundRe
   });
 
   metrics.emit(`messaging.outbound.${finalStatus}`, { clinicId: input.clinicId });
-  return { id: outboundId, status: finalStatus, providerMessageId, deduped: false };
+  return {
+    id: outboundId,
+    status: finalStatus,
+    providerMessageId,
+    deduped: false,
+    errorCode: syncRefusalCode(finalStatus, providerMessageId, providerResponse),
+  };
 }

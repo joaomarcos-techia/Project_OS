@@ -7,6 +7,10 @@ import {
   advanceDeliveryStatus,
   normalizeProviderDeliveryStatus,
   providerFailureCode,
+  providerSendErrorCode,
+  syncRefusalCode,
+  type DeliveryStatus,
+  type ProviderDeliveryStatus,
 } from './delivery-status';
 
 const inboundSource = readFileSync(new URL('./inbound.ts', import.meta.url), 'utf8');
@@ -36,6 +40,67 @@ describe('outbound delivery status', () => {
     expect(advanceDeliveryStatus('sent', 'failed')).toBe('failed');
     expect(advanceDeliveryStatus('delivered', 'failed')).toBe('delivered');
     expect(advanceDeliveryStatus('read', 'failed')).toBe('read');
+  });
+
+  it('a late `sent` never revives a refused send (ADR-064, panel of ADR-047)', () => {
+    expect(advanceDeliveryStatus('failed', 'sent')).toBe('failed');
+    expect(advanceDeliveryStatus('failed', 'failed')).toBe('failed');
+  });
+
+  it('any callback resolves an `unknown` (timeout) send', () => {
+    for (const incoming of ['sent', 'delivered', 'read', 'failed'] as const) {
+      expect(advanceDeliveryStatus('unknown', incoming)).toBe(incoming);
+    }
+  });
+
+  it('the final status does not depend on the order the callbacks arrive in', () => {
+    const callbacks: ProviderDeliveryStatus[] = ['sent', 'delivered', 'read', 'failed'];
+    const starts: DeliveryStatus[] = ['pending', 'accepted', 'unknown', 'sent', 'failed'];
+    for (const start of starts) {
+      for (const a of callbacks) {
+        for (const b of callbacks) {
+          const ab = advanceDeliveryStatus(advanceDeliveryStatus(start, a), b);
+          const ba = advanceDeliveryStatus(advanceDeliveryStatus(start, b), a);
+          expect(ab, `${start} + ${a}/${b}`).toBe(ba);
+        }
+      }
+    }
+  });
+
+  it('reads the code of a synchronous refusal from the Graph error body (error.code)', () => {
+    // Forma do corpo HTTP de erro da Cloud API, sem o destinatário.
+    const raw = {
+      error: {
+        message: '(#131026) Message undeliverable',
+        type: 'OAuthException',
+        code: 131026,
+        error_data: { messaging_product: 'whatsapp', details: 'Message undeliverable' },
+        fbtrace_id: 'AbC',
+      },
+    };
+    expect(providerSendErrorCode(raw)).toBe('131026');
+    expect(providerSendErrorCode({ error: { code: '130429' } })).toBe('130429');
+    for (const other of [
+      null,
+      '<html>502 Bad Gateway</html>',
+      {},
+      { messages: [{ id: 'wamid.X' }] },
+      { error: null },
+      { error: { code: 'abc' } },
+      { errors: [{ code: 131042 }] },
+    ]) {
+      expect(providerSendErrorCode(other)).toBeNull();
+    }
+  });
+
+  it('the sender returns a code only for a failed send without wamid', () => {
+    const body = { error: { code: 131000 } };
+    expect(syncRefusalCode('failed', null, body)).toBe('131000');
+    // Com wamid, a Meta aceitou e recusou depois: o código vem no callback.
+    expect(syncRefusalCode('failed', 'wamid.X', body)).toBeNull();
+    for (const status of ['accepted', 'unknown', 'pending', 'sent', 'delivered'] as const) {
+      expect(syncRefusalCode(status, null, body)).toBeNull();
+    }
   });
 
   it('reads the Meta refusal code from errors[0].code (EC-32, callback of 08/10)', () => {
@@ -94,6 +159,11 @@ describe('outbound delivery status', () => {
       expect(errorCode).not.toBeNull();
       expect(OutboundStatusUpdatedSchema.safeParse({ ...base, errorCode }).success).toBe(true);
     }
+  });
+
+  it('the sender reports the synchronous refusal code on fresh and deduplicated sends', () => {
+    expect(senderSource.match(/errorCode: syncRefusalCode\(/g)).toHaveLength(2);
+    expect(senderSource).toContain('providerResponse: outboundMessages.providerResponse');
   });
 
   it('consumes callbacks and reconciles callbacks that arrived before sender finalization', () => {

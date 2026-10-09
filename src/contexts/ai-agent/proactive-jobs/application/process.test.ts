@@ -2,7 +2,8 @@
  * Processor C14 — matriz de decisão (T1/T2/T5/T6 do §14.6) com I/O mockado.
  *
  * Cobre o que é do C14: accepted→sent, bloqueio (suppression/consent)→cancelled,
- * guard de dunning (já pago)→cancelled, falha Meta→retry/backoff→failed.
+ * guard de dunning (já pago)→cancelled e a recusa da Meta (ADR-064): reenvio
+ * com chave nova só para código retentável, falha na hora para o resto.
  * T3/T4 (paciente responde SIM/REMARCAR) NÃO estão aqui: são do C11 (inbound
  * webhook → tools confirm/reschedule), que C14 não altera — cobertos por C11.
  */
@@ -13,6 +14,7 @@ vi.mock('../infra/repository', () => ({
   getClinicTimezone: vi.fn(async () => 'America/Sao_Paulo'),
   finalizeSent: vi.fn(async () => {}),
   finalizeRetry: vi.fn(async () => {}),
+  finalizeResend: vi.fn(async () => {}),
   finalizeFailed: vi.fn(async () => {}),
   cancel: vi.fn(async () => {}),
 }));
@@ -113,8 +115,11 @@ const waitlistPayload = {
   doctorNome: 'Dr X',
 };
 
+/** Geração 0 por padrão: a chave de envio é o próprio id do job. */
 function claim(job: Record<string, unknown>): void {
-  vi.mocked(repo.claimDue).mockResolvedValue([{ leaseToken: 'lease-1', ...job } as never]);
+  vi.mocked(repo.claimDue).mockResolvedValue([
+    { leaseToken: 'lease-1', sendKey: job.id, resend: false, failedReason: null, ...job } as never,
+  ]);
 }
 
 beforeEach(() => {
@@ -460,38 +465,6 @@ describe('processProactiveBatch (C14 §14.6)', () => {
     );
   });
 
-  it('retry mantém a chave estável do job para o at-most-once no Meta', async () => {
-    claim({
-      id: 'j-restante',
-      clinicId: 'c1',
-      type: 'remainder_link',
-      payload: remainderPayload,
-      attempts: 1,
-    });
-    vi.mocked(messagingApiV1.sendText)
-      .mockResolvedValueOnce({
-        id: 'o1',
-        status: 'failed',
-        providerMessageId: null,
-        deduped: false,
-      })
-      .mockResolvedValueOnce({
-        id: 'o1',
-        status: 'accepted',
-        providerMessageId: 'w',
-        deduped: true,
-      });
-
-    await processProactiveBatch('remainder_link');
-    await processProactiveBatch('remainder_link');
-
-    expect(messagingApiV1.sendText).toHaveBeenCalledTimes(2);
-    expect(
-      vi.mocked(messagingApiV1.sendText).mock.calls.map(([input]) => input.idempotencyKey),
-    ).toEqual(['j-restante', 'j-restante']);
-    expect(repo.finalizeSent).toHaveBeenCalledTimes(1);
-  });
-
   it('T1: reminder de consulta ativa, contato OK, Meta aceita → sent', async () => {
     claim({ id: 'j1', clinicId: 'c1', type: 'reminder', payload: reminderPayload, attempts: 1 });
     vi.mocked(messagingApiV1.sendText).mockResolvedValue({
@@ -563,40 +536,6 @@ describe('processProactiveBatch (C14 §14.6)', () => {
     );
   });
 
-  it('T6a: falha Meta na 1ª tentativa → retry com backoff (+30s)', async () => {
-    claim({ id: 'j1', clinicId: 'c1', type: 'reminder', payload: reminderPayload, attempts: 1 });
-    vi.mocked(messagingApiV1.sendText).mockResolvedValue({
-      id: 'o1',
-      status: 'failed',
-      providerMessageId: null,
-      deduped: false,
-    });
-
-    const before = Date.now();
-    const s = await processProactiveBatch('reminder');
-    expect(s.retried).toBe(1);
-    expect(repo.finalizeRetry).toHaveBeenCalledTimes(1);
-    const [, , leaseToken, nextAt, reason] = vi.mocked(repo.finalizeRetry).mock.calls[0]!;
-    expect(leaseToken).toBe('lease-1');
-    expect(reason).toBe('meta_failed');
-    expect((nextAt as Date).getTime()).toBeGreaterThanOrEqual(before + 30_000 - 1000);
-  });
-
-  it('T6b: falha Meta após esgotar MAX_ATTEMPTS → failed definitivo', async () => {
-    claim({ id: 'j1', clinicId: 'c1', type: 'reminder', payload: reminderPayload, attempts: 5 });
-    vi.mocked(messagingApiV1.sendText).mockResolvedValue({
-      id: 'o1',
-      status: 'failed',
-      providerMessageId: null,
-      deduped: false,
-    });
-
-    const s = await processProactiveBatch('reminder');
-    expect(s.failed).toBe(1);
-    expect(repo.finalizeFailed).toHaveBeenCalledWith('c1', 'j1', 'lease-1', 'meta_failed');
-    expect(repo.finalizeRetry).not.toHaveBeenCalled();
-  });
-
   it('cancela follow-up quando o retorno clínico deixou de ser necessário', async () => {
     claim({ id: 'j1', clinicId: 'c1', type: 'followup', payload: followupPayload, attempts: 1 });
     vi.mocked(clinicalApiV1.getFollowupState).mockResolvedValue({
@@ -628,5 +567,243 @@ describe('processProactiveBatch (C14 §14.6)', () => {
       expect.objectContaining({ patientId: U, procedureId: U }),
     );
     expect(messagingApiV1.sendText).not.toHaveBeenCalled();
+  });
+});
+
+describe('ADR-064 — recusa da Meta, reenvio e chave por geração', () => {
+  const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+  const SECOND_KEY = '44444444-4444-4444-8444-444444444444';
+
+  /** Resultado de `sendText` sem wamid: recusa síncrona, timeout ou reserva sem finalize. */
+  function sendResult(over: {
+    status: 'failed' | 'unknown' | 'pending' | 'accepted';
+    deduped?: boolean;
+    errorCode?: string | null;
+    providerMessageId?: string | null;
+  }) {
+    vi.mocked(messagingApiV1.sendText).mockResolvedValue({
+      id: 'o1',
+      providerMessageId: null,
+      deduped: false,
+      ...over,
+    });
+  }
+
+  function dunningJob(over: Record<string, unknown> = {}): void {
+    claim({
+      id: 'j1',
+      clinicId: 'c1',
+      type: 'dunning',
+      payload: dunningPayload,
+      attempts: 1,
+      ...over,
+    });
+  }
+
+  it('T6a: geração 0 envia com a chave = job.id; o reenvio, com a send_key gravada', async () => {
+    dunningJob();
+    sendResult({ status: 'accepted', providerMessageId: 'w' });
+    await processProactiveBatch('dunning');
+
+    dunningJob({ sendKey: SECOND_KEY, resend: true, failedReason: 'meta_131000', attempts: 2 });
+    await processProactiveBatch('dunning');
+
+    expect(
+      vi.mocked(messagingApiV1.sendText).mock.calls.map(([input]) => input.idempotencyKey),
+    ).toEqual(['j1', SECOND_KEY]);
+  });
+
+  it('T6b: recusa síncrona retentável → pending com chave NOVA e backoff (+30 s)', async () => {
+    dunningJob();
+    sendResult({ status: 'failed', errorCode: '131000' });
+
+    const before = Date.now();
+    const s = await processProactiveBatch('dunning');
+
+    expect(s.retried).toBe(1);
+    expect(repo.finalizeResend).toHaveBeenCalledTimes(1);
+    const [clinicId, jobId, leaseToken, nextAt, reason, nextKey] = vi.mocked(repo.finalizeResend)
+      .mock.calls[0]!;
+    expect([clinicId, jobId, leaseToken, reason]).toEqual(['c1', 'j1', 'lease-1', 'meta_131000']);
+    expect(nextAt.getTime()).toBeGreaterThanOrEqual(before + 30_000);
+    expect(nextAt.getTime()).toBeLessThanOrEqual(Date.now() + 30_000);
+    expect(nextKey).toMatch(UUID);
+    expect(nextKey).not.toBe('j1');
+    expect(repo.finalizeRetry).not.toHaveBeenCalled();
+    expect(repo.finalizeFailed).not.toHaveBeenCalled();
+  });
+
+  it('T6c: o reenvio usa a chave nova, então o sender envia de novo em vez de deduplicar', async () => {
+    dunningJob();
+    sendResult({ status: 'failed', errorCode: '130429' });
+    await processProactiveBatch('dunning');
+    const nextKey = vi.mocked(repo.finalizeResend).mock.calls[0]![5];
+
+    dunningJob({ sendKey: nextKey, resend: true, failedReason: 'meta_130429', attempts: 2 });
+    sendResult({ status: 'accepted', providerMessageId: 'w2' });
+    const s = await processProactiveBatch('dunning');
+
+    const keys = vi.mocked(messagingApiV1.sendText).mock.calls.map(([i]) => i.idempotencyKey);
+    expect(keys).toEqual(['j1', nextKey]);
+    expect(new Set(keys).size).toBe(2);
+    expect(s.sent).toBe(1);
+    expect(repo.finalizeSent).toHaveBeenCalledWith('c1', 'j1', 'lease-1');
+  });
+
+  it('T6d: recusa síncrona definitiva → failed NA HORA, com o código da Meta', async () => {
+    dunningJob();
+    sendResult({ status: 'failed', errorCode: '131026' });
+
+    const s = await processProactiveBatch('dunning');
+
+    expect(s.failed).toBe(1);
+    expect(repo.finalizeFailed).toHaveBeenCalledWith('c1', 'j1', 'lease-1', 'meta_131026');
+    expect(repo.finalizeRetry).not.toHaveBeenCalled();
+    expect(repo.finalizeResend).not.toHaveBeenCalled();
+  });
+
+  it('T6e: 131048 (qualidade) e 131049 (esperar 24 h) são definitivos', async () => {
+    for (const code of ['131048', '131049']) {
+      vi.mocked(repo.finalizeFailed).mockClear();
+      dunningJob();
+      sendResult({ status: 'failed', errorCode: code });
+
+      await processProactiveBatch('dunning');
+
+      expect(repo.finalizeFailed).toHaveBeenCalledWith('c1', 'j1', 'lease-1', `meta_${code}`);
+    }
+    expect(repo.finalizeResend).not.toHaveBeenCalled();
+  });
+
+  it('T6f: recusa sem código → meta_failed na hora (sem código não há como saber se passa)', async () => {
+    dunningJob();
+    sendResult({ status: 'failed', errorCode: null });
+
+    await processProactiveBatch('dunning');
+
+    expect(repo.finalizeFailed).toHaveBeenCalledWith('c1', 'j1', 'lease-1', 'meta_failed');
+    expect(repo.finalizeRetry).not.toHaveBeenCalled();
+    expect(repo.finalizeResend).not.toHaveBeenCalled();
+  });
+
+  it('T6g: recusa retentável na 5ª tentativa → failed com o código, sem chave nova', async () => {
+    dunningJob({ attempts: 5 });
+    sendResult({ status: 'failed', errorCode: '131000' });
+
+    const s = await processProactiveBatch('dunning');
+
+    expect(s.failed).toBe(1);
+    expect(repo.finalizeFailed).toHaveBeenCalledWith('c1', 'j1', 'lease-1', 'meta_131000');
+    expect(repo.finalizeResend).not.toHaveBeenCalled();
+  });
+
+  it('T6h: timeout (unknown) → failed meta_unknown NA HORA; nunca chave nova', async () => {
+    for (const deduped of [false, true]) {
+      vi.mocked(repo.finalizeFailed).mockClear();
+      dunningJob();
+      sendResult({ status: 'unknown', deduped });
+
+      await processProactiveBatch('dunning');
+
+      expect(repo.finalizeFailed).toHaveBeenCalledWith('c1', 'j1', 'lease-1', 'meta_unknown');
+    }
+    expect(repo.finalizeRetry).not.toHaveBeenCalled();
+    expect(repo.finalizeResend).not.toHaveBeenCalled();
+  });
+
+  it('T6i: failed deduplicado COM wamid foi aceito → sent; a recusa é do handler EC-32', async () => {
+    dunningJob();
+    sendResult({ status: 'failed', deduped: true, providerMessageId: 'wamid.X' });
+
+    const s = await processProactiveBatch('dunning');
+
+    expect(s.sent).toBe(1);
+    expect(repo.finalizeSent).toHaveBeenCalledWith('c1', 'j1', 'lease-1');
+    expect(repo.finalizeFailed).not.toHaveBeenCalled();
+    expect(repo.finalizeResend).not.toHaveBeenCalled();
+  });
+
+  it('T6j: failed deduplicado SEM wamid usa o código guardado da recusa síncrona', async () => {
+    dunningJob();
+    sendResult({ status: 'failed', deduped: true, errorCode: '131016' });
+
+    const s = await processProactiveBatch('dunning');
+
+    expect(s.retried).toBe(1);
+    expect(vi.mocked(repo.finalizeResend).mock.calls[0]![4]).toBe('meta_131016');
+  });
+
+  it('T6k: pending no dedup → backoff com a MESMA chave (outra tentativa em voo)', async () => {
+    dunningJob();
+    sendResult({ status: 'pending', deduped: true });
+
+    const s = await processProactiveBatch('dunning');
+
+    expect(s.retried).toBe(1);
+    const [, , leaseToken, , reason] = vi.mocked(repo.finalizeRetry).mock.calls[0]!;
+    expect([leaseToken, reason]).toEqual(['lease-1', 'meta_pending']);
+    expect(repo.finalizeResend).not.toHaveBeenCalled();
+  });
+
+  it('T6l: exceção do sender → backoff com a MESMA chave (meta_error)', async () => {
+    dunningJob();
+    vi.mocked(messagingApiV1.sendText).mockRejectedValue(new Error('db down'));
+
+    const s = await processProactiveBatch('dunning');
+
+    expect(s.retried).toBe(1);
+    expect(vi.mocked(repo.finalizeRetry).mock.calls[0]![4]).toBe('meta_error');
+    expect(repo.finalizeResend).not.toHaveBeenCalled();
+  });
+
+  it('T6m: sinal — recusa retentável sem tempo de reenviar antes do hold → failed com o código', async () => {
+    claim({
+      id: 'j-sinal',
+      clinicId: 'c1',
+      type: 'deposit_link',
+      payload: { ...depositPayload, holdExpiresAt: new Date(Date.now() + 10_000).toISOString() },
+      attempts: 1,
+    });
+    vi.mocked(schedulingApiV1.lookupAppointment).mockResolvedValue({ status: 'agendado' } as never);
+    sendResult({ status: 'failed', errorCode: '131000' });
+
+    const s = await processProactiveBatch('deposit_link');
+
+    expect(s.failed).toBe(1);
+    expect(repo.finalizeFailed).toHaveBeenCalledWith('c1', 'j-sinal', 'lease-1', 'meta_131000');
+    expect(repo.finalizeResend).not.toHaveBeenCalled();
+  });
+
+  it('T6n: reenvio reivindicado depois do prazo não envia e fecha com a recusa que o motivou', async () => {
+    claim({
+      id: 'j1',
+      clinicId: 'c1',
+      type: 'reminder',
+      // A consulta já passou: a janela 8–20 h empurrou o reenvio para depois dela.
+      payload: { ...reminderPayload, scheduledAt: new Date(Date.now() - 60_000).toISOString() },
+      attempts: 2,
+      sendKey: SECOND_KEY,
+      resend: true,
+      failedReason: 'meta_131016',
+    });
+
+    const s = await processProactiveBatch('reminder');
+
+    expect(s.failed).toBe(1);
+    expect(repo.finalizeFailed).toHaveBeenCalledWith('c1', 'j1', 'lease-1', 'meta_131016');
+    expect(schedulingApiV1.lookupAppointment).not.toHaveBeenCalled();
+    expect(messagingApiV1.sendText).not.toHaveBeenCalled();
+  });
+
+  it('T6o: o prazo só vale para reenvio; a geração 0 segue o guard de sempre', async () => {
+    claim({ id: 'j1', clinicId: 'c1', type: 'reminder', payload: reminderPayload, attempts: 1 });
+    sendResult({ status: 'accepted', providerMessageId: 'w' });
+
+    const s = await processProactiveBatch('reminder');
+
+    expect(s.sent).toBe(1);
+    expect(messagingApiV1.sendText).toHaveBeenCalledWith(
+      expect.objectContaining({ idempotencyKey: 'j1' }),
+    );
   });
 });

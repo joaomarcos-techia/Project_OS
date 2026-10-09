@@ -46,5 +46,6 @@ Decisão futura só entra aqui quando adotada na implementação. Uma ideia desc
 | Contrato | Estado | Documento |
 | --- | --- | --- |
 | Identidade + consentimento + nome da clínica; corte O-3a/staging e O-3b/Auth/ownership | O-3a e O-3b.1–6 Accepted local em 15–16/09/2026; sem rollout externo | [ADR-062](062-identidade-consentimento-cadastro.md) |
+| C14 reenvia com uma chave por geração: recusa retentável da Meta gera chave nova e backoff; definitiva falha na hora, com o código; timeout nunca reenvia | Accepted em código em 08/10/2026; 0118 não aplicada; sem rollout | [ADR-064](064-c14-reenvio-por-geracao.md) |
 
 ADR-061 permanece reservada ao perfil WhatsApp de Qoro v2 §33; não foi criada nesta fatia.

@@ -168,4 +168,26 @@ describe('reconcileStoredProviderStatuses', () => {
       'provider-status:raw-failed',
     ]);
   });
+
+  it('a `sent` that arrives after the refusal does not revive it (ADR-064)', async () => {
+    await reconcileStoredProviderStatuses(
+      fakeTx('accepted', [
+        { id: 'raw-failed', status: 'failed', raw: metaRefusal },
+        { id: 'raw-sent', status: 'sent', raw: { id: WAMID, status: 'sent' } },
+      ]),
+      CLINIC,
+      WAMID,
+    );
+
+    // Só a recusa sai: o `sent` atrasado não muda o envio nem publica nada.
+    expect(published()).toEqual([
+      {
+        clinicId: CLINIC,
+        outboundMessageId: OUTBOUND,
+        providerMessageId: WAMID,
+        status: 'failed',
+        errorCode: '131042',
+      },
+    ]);
+  });
 });
