@@ -485,7 +485,7 @@ describe('dinheiro e sinal (decisão do usuário, 08/10/2026)', () => {
     expect(response).toMatchObject({ status: 'appointment_prepared' });
     expect(response.summary).toContain('valor total R$ 180,00 via Pix');
     expect(response.summary).toContain(
-      'Para confirmar o horário, o sinal de R$ 90,00 é pago pelo link que vamos enviar por aqui (o horário fica reservado por até 24 horas). O restante, R$ 90,00, pode ser pago na clínica, inclusive em dinheiro',
+      'Para confirmar o horário, o sinal de R$ 90,00 é pago pelo link que vamos enviar por aqui (o horário fica reservado por até 24 horas). O restante, R$ 90,00, pode ser pago na clínica, inclusive em dinheiro.',
     );
     const payload = mocks.proposePendingAction.mock.calls[0]![1].payload as Record<string, unknown>;
     expect(payload.depositAmount).toBe(90);

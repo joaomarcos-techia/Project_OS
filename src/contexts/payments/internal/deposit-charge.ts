@@ -38,32 +38,9 @@ import { resolveDepositAmount } from '../policy';
 import { getDepositPolicy } from '../queries';
 import { findChargeByAppointment } from './charge-store';
 import { createInitialHostedCheckout, resolveCheckoutWindow } from './hosted-checkout';
+import { MIN_GATEWAY_AMOUNT, resolveHoldExpiry } from './deposit-rules';
 
-/** Janela do hold (ADR-049). Fixa: é promessa ao paciente, não configuração. */
-const HOLD_HOURS = 24;
-
-/**
- * Valor mínimo que o Asaas aceita numa cobrança — **R$ 5,00**, verificado ao vivo
- * em 2026-08-24 (`invalid_value`: *"O valor mínimo para cobranças com a forma de
- * pagamento Pergunte ao Cliente é R$ 5,00"*).
- *
- * Fica AQUI, e não em `policy.ts`, porque é regra do GATEWAY e não do domínio: a
- * política é agnóstica de provedor de propósito. Sem esta guarda, uma clínica com
- * procedimento barato (50% de R$ 8 = R$ 4) geraria uma cobrança que o gateway
- * recusa — o handler trataria como poison pill e o sinal nunca aconteceria, com
- * um erro por agendamento. Não cobrar é o mesmo desfecho, sem o ruído.
- */
-const MIN_GATEWAY_AMOUNT = 5;
-
-/**
- * O hold nunca pode ultrapassar o horário da consulta: segurar uma vaga até depois
- * dela ter acontecido não segura nada — só impede a agenda de liberar o horário
- * para outro paciente a tempo.
- */
-export function resolveHoldExpiry(now: Date, scheduledAt: Date): Date {
-  const nominal = new Date(now.getTime() + HOLD_HOURS * 60 * 60 * 1000);
-  return nominal.getTime() < scheduledAt.getTime() ? nominal : scheduledAt;
-}
+export { resolveHoldExpiry } from './deposit-rules';
 
 /**
  * Primeira consulta = o paciente não tem NENHUM outro agendamento nesta clínica.
@@ -76,52 +53,6 @@ async function isReturnVisit(
 ): Promise<boolean> {
   const previous = await schedulingApiV1.listPatientAppointments(clinicId, patientId, 2);
   return previous.some((appointment) => appointment.id !== appointmentId);
-}
-
-/**
- * O sinal que um agendamento NOVO vai cobrar, antes de ele existir (08/10/2026).
- *
- * Mesma decisão do `createDepositCharge`, sem efeito nenhum: o agente usa no
- * resumo para dizer ao paciente que o horário só se confirma com o sinal pago
- * pelo link e quanto fica para pagar na clínica — e para não oferecer "tudo em
- * dinheiro" quando há sinal (decisão do usuário: com o sinal ligado, o
- * agendamento só se confirma com o sinal pago online; o restante pode ser em
- * dinheiro). Conta Asaas e CPF ainda podem impedir o link depois; por isso o
- * agente fala do sinal, nunca promete o envio.
- *
- * `scheduledAt` ausente = horário ainda não escolhido: pula só a janela do
- * Checkout, que depende dele.
- */
-export async function previewDepositForBooking(input: {
-  clinicId: string;
-  patientId: string | null;
-  basePrice: number;
-  scheduledAt?: Date;
-  now?: Date;
-}): Promise<{ amount: number } | null> {
-  if (!input.patientId) return null;
-  const policy = await getDepositPolicy(input.clinicId);
-  if (!policy.enabled) return null;
-
-  // O agendamento ainda não existe: qualquer outro já marcado faz deste um
-  // retorno — a mesma leitura do `isReturnVisit` depois da criação.
-  const previous = await schedulingApiV1.listPatientAppointments(
-    input.clinicId,
-    input.patientId,
-    1,
-  );
-  const amount = resolveDepositAmount({
-    policy,
-    basePrice: input.basePrice,
-    isReturn: previous.length > 0,
-  });
-  if (amount === null || amount < MIN_GATEWAY_AMOUNT) return null;
-
-  if (input.scheduledAt) {
-    const now = input.now ?? new Date();
-    if (!resolveCheckoutWindow(now, resolveHoldExpiry(now, input.scheduledAt))) return null;
-  }
-  return { amount };
 }
 
 /**

@@ -8657,12 +8657,24 @@ Registro canônico: [`docs/quality/whatsapp-ai-hardening-2026-10-08.md`](quality
 - 5xx sem retry;
 - lacunas do pré-filtro clínico.
 
-**Estado:** 12 commits na PR #26, que segue draft. Gates locais e CI verdes no último commit. A prova
+**Estado:** 19 commits de código na PR #26, que segue draft. Gates locais e CI verdes no último commit. A prova
 ao vivo no Preview, com webhook assinado vindo do número autorizado e envio real pela Cloud API, está
 detalhada no registro canônico.
 
 **Pendências:**
 
 - link do sinal pelo WhatsApp: o tick da C14 enviou, mas a Meta recusou o template com 131042 (moeda/pagamento da WABA de teste não configurados) — BLOCKED até o Billing da Meta. Uma nova recusa agora volta ao job: `failed` com o código da Meta (`meta_131042`) e métrica (EC-32, corrigido em `84b3b413`). Mostrar a recusa à clínica fica pendente;
-- pagamento do sinal no Sandbox: NOT RUN, depende do usuário;
-- decisões de produto sobre mídia e formatação.
+- pagamento do sinal no Sandbox: NOT RUN, depende do usuário.
+
+**Noite de 08/10 — decisões de produto implementadas e provadas ao vivo (22:05–22:15 UTC):**
+
+- áudio pede a mensagem escrita; foto, documento e vídeo vão para a equipe (migration 0117, só no DEV);
+- respostas no formato do WhatsApp (`*negrito*`) e regra contra afirmar política da clínica fora das
+  ferramentas;
+- "já paguei" respondido pelo status real da cobrança; dinheiro e insistência vão para a equipe;
+- dinheiro: sem sinal, é opção no agente; com sinal, o horário só se confirma com o sinal pelo link e o
+  restante pode ser em dinheiro. No Caixa, "Pagou em dinheiro" e "Pagou o restante em dinheiro"; o
+  registro manual fecha o link do restante, que agora espera 2 h. Decisão no
+  [registro financeiro](specs/politica-financeira-camadas.md).
+
+Commits `eb969eed`, `3da70f90` e `cf180f0d`. Em aberto: sinal só por Pix ou também por cartão em 1x.
