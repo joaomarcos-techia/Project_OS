@@ -82,8 +82,9 @@ const PRODUCER_AHEAD = new Set<string>([
   // clinical.prontuario.signed saiu daqui: C14 ativou handler de followup (F-14).
   'clinical.prescription.created',
   'clinical.document.generated',
-  // C13/C14 — financeiro downstream (recibos, cobrança, dashboards)
-  'financial.lancamento.paid',
+  // C13/C14 — financeiro downstream (recibos, cobrança, dashboards).
+  // `financial.lancamento.paid` saiu em 08/10/2026: o Payments consome a baixa
+  // manual da recepção e fecha o link do restante (`handlers/lancamento-paid`).
   'financial.lancamento.cancelled',
   'financial.lancamento.estornado',
   // C11 ATIVOU o handler de messaging.inbound.received (removido daqui no

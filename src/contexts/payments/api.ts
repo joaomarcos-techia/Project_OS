@@ -9,7 +9,7 @@
 import 'server-only';
 
 import { findPayableCharge, type PayableCharge } from './internal/charge-store';
-import { previewDepositForBooking } from './internal/deposit-charge';
+import { previewDepositForBooking } from './internal/deposit-preview';
 import {
   listPatientChargeStatuses,
   type PatientChargeStatus,
@@ -68,6 +68,8 @@ export interface PaymentsApiV1 {
     clinicId: string;
     patientId: string | null;
     basePrice: number;
+    /** O paciente já tem outro agendamento? Só é chamado com a política ligada. */
+    isReturnVisit: () => Promise<boolean>;
     scheduledAt?: Date;
   }): Promise<{ amount: number } | null>;
   /**

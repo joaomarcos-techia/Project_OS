@@ -282,6 +282,16 @@ registerTool({
       };
     }
 
+    // Retorno = o paciente já tem outro agendamento (mesma leitura do Payments ao
+    // cobrar). Só é consultado se a política de sinal estiver ligada, e uma vez.
+    let returnVisit: Promise<boolean> | undefined;
+    const isReturnVisit = (): Promise<boolean> =>
+      (returnVisit ??= ctx.patientId
+        ? schedulingApiV1
+            .listPatientAppointments(ctx.clinicId, ctx.patientId, 1)
+            .then((appointments) => appointments.length > 0)
+        : Promise.resolve(false));
+
     // A condição comercial é decidida pela escolha do paciente e pelo catálogo
     // da clínica. O modelo nunca fornece preço ou identificador de versão.
     const pricingPolicy = await getPaymentPricingPolicy(ctx.clinicId);
@@ -310,6 +320,7 @@ registerTool({
           clinicId: ctx.clinicId,
           patientId: ctx.patientId,
           basePrice: onlinePrices[0]?.grossAmount ?? procedure!.valorPadrao ?? 0,
+          isReturnVisit,
         })) !== null;
       const availablePrices = depositApplies ? onlinePrices : configuredPrices;
       const options = availablePrices
@@ -577,6 +588,7 @@ registerTool({
             clinicId: ctx.clinicId,
             patientId: ctx.patientId,
             basePrice,
+            isReturnVisit,
             scheduledAt: new Date(scheduledAt),
           });
 
