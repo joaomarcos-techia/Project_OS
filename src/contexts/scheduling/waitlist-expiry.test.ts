@@ -18,8 +18,8 @@ const { scanned, releaseWaitlistOffer, withTenant } = vi.hoisted(() => ({
 
 vi.mock('@/lib/db', () => {
   const chain: Record<string, unknown> = {};
-  for (const key of ['select', 'from', 'where', 'orderBy']) chain[key] = () => chain;
-  chain.limit = async () => scanned.rows;
+  for (const key of ['select', 'from', 'where', 'orderBy', 'limit']) chain[key] = () => chain;
+  chain.offset = async () => scanned.rows;
   return { dbAdmin: { transaction: (fn: (tx: unknown) => unknown) => fn(chain) } };
 });
 vi.mock('@/lib/db/tenant', () => ({ withTenant }));
@@ -36,7 +36,13 @@ const ENTRY = '22222222-2222-4222-8222-222222222222';
 
 function offeredAt(iso: string): void {
   scanned.rows = [
-    { id: ENTRY, clinicId: CLINIC, offeredAt: new Date(iso), timeZone: 'America/Sao_Paulo' },
+    {
+      id: ENTRY,
+      clinicId: CLINIC,
+      offeredAt: new Date(iso),
+      offeredAppointmentId: 'appt-1',
+      timeZone: 'America/Sao_Paulo',
+    },
   ];
 }
 
@@ -79,8 +85,26 @@ describe('expireStaleWaitlistOffers — a janela só corre nas horas de envio', 
     expect(withTenant).toHaveBeenCalledWith(CLINIC, expect.any(Function));
     expect(releaseWaitlistOffer).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ clinicId: CLINIC, entryId: ENTRY }),
+      expect.objectContaining({
+        clinicId: CLINIC,
+        entryId: ENTRY,
+        expectedOffer: {
+          offeredAt: new Date('2026-10-09T21:00:00-03:00'),
+          appointmentId: 'appt-1',
+        },
+      }),
     );
+  });
+
+  it('duas gerações da mesma entrada usam chaves diferentes; replay conserva a chave', async () => {
+    offeredAt('2026-10-09T10:00:00-03:00');
+    await passAt('2026-10-09T14:00:00-03:00');
+    await passAt('2026-10-09T14:15:00-03:00');
+    offeredAt('2026-10-09T15:00:00-03:00');
+    await passAt('2026-10-09T19:00:00-03:00');
+    const keys = releaseWaitlistOffer.mock.calls.map((call) => call[1].idempotencyKey);
+    expect(keys[0]).toBe(keys[1]);
+    expect(keys[2]).not.toBe(keys[0]);
   });
 
   it('oferta diurna: volta à fila 240 min depois, como antes', async () => {

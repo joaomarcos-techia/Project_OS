@@ -4,14 +4,42 @@ import type { Tx } from '@/lib/db';
 import { publishEvent } from '@/lib/outbox/publish';
 
 import { SCHEDULING_EVENTS } from '../events';
+import { SchedulingValidationError } from '../errors';
 import { appointments, waitlistEntries, type AppointmentRow } from '../schema';
 import {
   WAITLIST_OFFER_TTL_MINUTES,
   chooseWaitlistCandidate,
   isWaitlistOfferExpired,
+  waitlistOfferExpiresAt,
 } from '../waitlist-policy';
 
 const DEFAULT_TZ = 'America/Sao_Paulo';
+
+async function readOfferClock(tx: Tx, clinicId: string): Promise<{ now: Date; timeZone: string }> {
+  const [row] = await tx.execute<{ db_now: Date | string; timezone: string | null }>(
+    sql`SELECT clock_timestamp() AS db_now, timezone FROM clinics WHERE id = ${clinicId} LIMIT 1`,
+  );
+  if (!row) throw new SchedulingValidationError('clínica não encontrada');
+  return { now: new Date(row.db_now), timeZone: row.timezone ?? DEFAULT_TZ };
+}
+
+/** Conferida sob o lock da entrada, antes de criar a consulta. */
+export async function assertWaitlistOfferAcceptable(
+  tx: Tx,
+  input: { clinicId: string; offeredAt: Date | null; scheduledAt: Date },
+): Promise<Date> {
+  if (!input.offeredAt)
+    throw new SchedulingValidationError('não há oferta aberta para esta entrada');
+  const clock = await readOfferClock(tx, input.clinicId);
+  const expiresAt = waitlistOfferExpiresAt(input.offeredAt, clock.timeZone);
+  if (clock.now >= expiresAt) {
+    throw new SchedulingValidationError('a oferta da lista de espera expirou');
+  }
+  if (input.scheduledAt <= clock.now) {
+    throw new SchedulingValidationError('o horário ofertado já passou');
+  }
+  return expiresAt;
+}
 
 /**
  * WAIT-001 — oferta da vaga liberada por um cancelamento.
@@ -29,6 +57,8 @@ export async function offerWaitlistForCancelledAppointment(
     excludeEntryIds?: readonly string[];
   },
 ): Promise<string | null> {
+  const clock = await readOfferClock(tx, appointment.clinicId);
+  if (appointment.scheduledAt <= clock.now) return null;
   const excluded = input.excludeEntryIds ?? [];
   const rows = await tx
     .select()
@@ -72,7 +102,7 @@ export async function offerWaitlistForCancelledAppointment(
     .set({
       status: 'offered',
       offeredAppointmentId: appointment.id,
-      offeredAt: sql`now()`,
+      offeredAt: sql`clock_timestamp()`,
       updatedAt: sql`now()`,
     })
     .where(
@@ -80,6 +110,7 @@ export async function offerWaitlistForCancelledAppointment(
         eq(waitlistEntries.id, selected.id),
         eq(waitlistEntries.clinicId, appointment.clinicId),
         eq(waitlistEntries.status, 'waiting'),
+        sql`${appointment.scheduledAt} > clock_timestamp()`,
       ),
     )
     .returning({ id: waitlistEntries.id });
@@ -127,6 +158,7 @@ export async function releaseWaitlistOffer(
     entryId: string;
     idempotencyKey: string;
     correlationId: string | null;
+    expectedOffer?: { offeredAt: Date; appointmentId: string | null };
   },
 ): Promise<WaitlistReleaseResult> {
   const [entry] = await tx
@@ -136,6 +168,14 @@ export async function releaseWaitlistOffer(
     .for('update')
     .limit(1);
   if (!entry || entry.status !== 'offered') return { released: false, nextEntryId: null };
+  if (
+    input.expectedOffer &&
+    (entry.offeredAt?.getTime() !== input.expectedOffer.offeredAt.getTime() ||
+      entry.offeredAppointmentId !== input.expectedOffer.appointmentId)
+  ) {
+    // O scan pode ter observado uma geração anterior; não liberar a nova oferta.
+    return { released: false, nextEntryId: null };
+  }
 
   const releasedAppointmentId = entry.offeredAppointmentId;
   await tx
@@ -179,33 +219,57 @@ export async function releaseWaitlistOffer(
  *
  * A janela é a mesma que o seam entrega à C14 (`waitlistOfferExpiresAt`): o TTL
  * corre só nas horas de envio, no fuso de cada clínica (ADR-066). O SQL só
- * pré-filtra, porque a janela nunca fecha antes do TTL corrido. No mesmo fuso,
- * quem foi ofertado antes vence antes, então a ordem por `offered_at` impede que
- * as ofertas da madrugada, ainda abertas, ocupem o LIMIT de uma já vencida.
+ * pré-filtra, porque a janela nunca fecha antes do TTL corrido. A ordenação por
+ * `offered_at` não equivale à ordenação por vencimento entre fusos diferentes:
+ * varremos páginas até reunir `limit` ofertas realmente vencidas.
  */
 export async function findStaleWaitlistOffers(
   tx: Tx,
   input: { now: Date; limit: number },
-): Promise<Array<{ id: string; clinicId: string }>> {
+): Promise<
+  Array<{ id: string; clinicId: string; offeredAt: Date; offeredAppointmentId: string | null }>
+> {
+  if (input.limit <= 0) return [];
   const offeredBy = new Date(input.now.getTime() - WAITLIST_OFFER_TTL_MINUTES * 60 * 1000);
-  const rows = await tx
-    .select({
-      id: waitlistEntries.id,
-      clinicId: waitlistEntries.clinicId,
-      offeredAt: waitlistEntries.offeredAt,
-      timeZone: sql<
-        string | null
-      >`(SELECT c.timezone FROM clinics c WHERE c.id = ${waitlistEntries.clinicId})`,
-    })
-    .from(waitlistEntries)
-    .where(and(eq(waitlistEntries.status, 'offered'), lte(waitlistEntries.offeredAt, offeredBy)))
-    .orderBy(asc(waitlistEntries.offeredAt), asc(waitlistEntries.id))
-    .limit(input.limit);
-  return rows
-    .filter(
-      (row) =>
-        row.offeredAt !== null &&
-        isWaitlistOfferExpired(row.offeredAt, row.timeZone ?? DEFAULT_TZ, input.now),
-    )
-    .map(({ id, clinicId }) => ({ id, clinicId }));
+  const stale: Array<{
+    id: string;
+    clinicId: string;
+    offeredAt: Date;
+    offeredAppointmentId: string | null;
+  }> = [];
+  let offset = 0;
+  while (stale.length < input.limit) {
+    const rows = await tx
+      .select({
+        id: waitlistEntries.id,
+        clinicId: waitlistEntries.clinicId,
+        offeredAt: waitlistEntries.offeredAt,
+        offeredAppointmentId: waitlistEntries.offeredAppointmentId,
+        timeZone: sql<
+          string | null
+        >`(SELECT c.timezone FROM clinics c WHERE c.id = ${waitlistEntries.clinicId})`,
+      })
+      .from(waitlistEntries)
+      .where(and(eq(waitlistEntries.status, 'offered'), lte(waitlistEntries.offeredAt, offeredBy)))
+      .orderBy(asc(waitlistEntries.offeredAt), asc(waitlistEntries.id))
+      .limit(input.limit)
+      .offset(offset);
+    for (const row of rows) {
+      if (
+        row.offeredAt &&
+        isWaitlistOfferExpired(row.offeredAt, row.timeZone ?? DEFAULT_TZ, input.now)
+      ) {
+        stale.push({
+          id: row.id,
+          clinicId: row.clinicId,
+          offeredAt: row.offeredAt,
+          offeredAppointmentId: row.offeredAppointmentId,
+        });
+      }
+      if (stale.length === input.limit) break;
+    }
+    if (rows.length < input.limit) break;
+    offset += rows.length;
+  }
+  return stale;
 }
