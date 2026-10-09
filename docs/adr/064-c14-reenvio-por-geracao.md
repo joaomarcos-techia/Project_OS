@@ -83,24 +83,26 @@ Tabela de erros da Cloud API, conferida em 08/10/2026:
 
 - **Tentativas:** o limite e o backoff de hoje, com até 5 envios por job (+30 s, +5 min, +30 min,
   +6 h), ticks de 15 min e janela 8–20 h.
-- **Prazo** (`application/resend-deadline.ts`, no fuso da clínica):
+- **Prazo:** é o `sendDeadline` da [ADR-065](065-validade-por-tipo-c14.md)
+  (`application/validity.ts`, no fuso da clínica), o mesmo do primeiro envio e definido para os 7
+  tipos. Esta ADR nasceu com um `resendDeadline` próprio, só para reenvio:
   - `deposit_link`: `holdExpiresAt`;
   - `reminder`: meia-noite local do dia da consulta, porque o corpo diz "agendado para amanhã às
     {{2}}" e, no próprio dia, mentiria;
   - `waitlist_offer`: `scheduledAt`;
   - demais tipos: só o limite de tentativas.
+
+  Ele foi substituído na integração do PR #31.
 - O prazo é conferido ao agendar o reenvio e de novo quando o reenvio é reivindicado, porque a janela
   8–20 h pode empurrá-lo para depois do prazo. Vencido, o job fecha `failed` com a recusa que o
   motivou, em vez de sumir sob `charge_not_payable` ou `appointment_inactive`.
-- **Integração com a validade por tipo:** a sessão "C14: validade por tipo"
-  (`fix/c14-validade-por-tipo-20261008`) traz `sendDeadline(type, payload, { timezone, createdAt })`,
-  que vale para todo envio e para os 7 tipos. Quem integrar por último faz a troca mecânica:
-  - troca `resendDeadline` por `sendDeadline` nos dois chamadores (o bloco 1b de `processOne` e o
-    handler) e apaga `resend-deadline.ts`;
-  - `decideAfterRefusal` já recebe o prazo pronto;
+- **Integração com a validade por tipo (feita no PR #31):**
+  - o `sendDeadline(type, payload, { timezone, createdAt })` substituiu o `resendDeadline` nos três
+    usos: o bloco 1b de `processOne`, a recusa síncrona e o handler. O `resend-deadline.ts` saiu;
+  - o processor calcula o prazo uma vez por job;
   - o 1b continua ANTES do corte `expired_<tipo>`, então um reenvio vencido segue `failed` com
     `meta_<código>`;
-  - o handler passa a ler `created_at` em `lockJobBySendKeyTx`.
+  - o handler lê `created_at` em `lockJobBySendKeyTx`.
 
 ### 7. Status do envio
 

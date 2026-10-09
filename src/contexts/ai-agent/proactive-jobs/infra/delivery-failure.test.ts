@@ -76,6 +76,7 @@ const refused = (over: Partial<RefusedJob> = {}): RefusedJob => ({
   attempts: 1,
   leaseToken: null,
   leaseExpired: false,
+  createdAt: new Date('2026-10-08T11:00:00.000Z'),
   ...over,
 });
 
@@ -106,6 +107,8 @@ describe('lockJobBySendKeyTx', () => {
       'attempts',
       'leaseToken',
       'leaseExpired',
+      // ADR-065: base do prazo do `remainder_link` no handler.
+      'createdAt',
     ]);
     expect(compile(seen.fields?.leaseExpired as SQL).sql).toBe(
       'coalesce("ai_proactive_jobs"."lease_expires_at" <= now(), false)',

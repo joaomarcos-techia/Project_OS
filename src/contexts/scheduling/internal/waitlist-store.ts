@@ -1,11 +1,17 @@
-import { and, eq, notInArray, or, sql } from 'drizzle-orm';
+import { and, asc, eq, lte, notInArray, or, sql } from 'drizzle-orm';
 
 import type { Tx } from '@/lib/db';
 import { publishEvent } from '@/lib/outbox/publish';
 
 import { SCHEDULING_EVENTS } from '../events';
 import { appointments, waitlistEntries, type AppointmentRow } from '../schema';
-import { chooseWaitlistCandidate } from '../waitlist-policy';
+import {
+  WAITLIST_OFFER_TTL_MINUTES,
+  chooseWaitlistCandidate,
+  isWaitlistOfferExpired,
+} from '../waitlist-policy';
+
+const DEFAULT_TZ = 'America/Sao_Paulo';
 
 /**
  * WAIT-001 — oferta da vaga liberada por um cancelamento.
@@ -170,20 +176,36 @@ export async function releaseWaitlistOffer(
 /**
  * Ofertas sem resposta dentro da janela. A vaga é perecível: segurá-la
  * indefinidamente em quem não respondeu é como não ter lista de espera.
+ *
+ * A janela é a mesma que o seam entrega à C14 (`waitlistOfferExpiresAt`): o TTL
+ * corre só nas horas de envio, no fuso de cada clínica (ADR-066). O SQL só
+ * pré-filtra, porque a janela nunca fecha antes do TTL corrido. No mesmo fuso,
+ * quem foi ofertado antes vence antes, então a ordem por `offered_at` impede que
+ * as ofertas da madrugada, ainda abertas, ocupem o LIMIT de uma já vencida.
  */
 export async function findStaleWaitlistOffers(
   tx: Tx,
-  input: { olderThanMinutes: number; limit: number },
+  input: { now: Date; limit: number },
 ): Promise<Array<{ id: string; clinicId: string }>> {
+  const offeredBy = new Date(input.now.getTime() - WAITLIST_OFFER_TTL_MINUTES * 60 * 1000);
   const rows = await tx
-    .select({ id: waitlistEntries.id, clinicId: waitlistEntries.clinicId })
+    .select({
+      id: waitlistEntries.id,
+      clinicId: waitlistEntries.clinicId,
+      offeredAt: waitlistEntries.offeredAt,
+      timeZone: sql<
+        string | null
+      >`(SELECT c.timezone FROM clinics c WHERE c.id = ${waitlistEntries.clinicId})`,
+    })
     .from(waitlistEntries)
-    .where(
-      and(
-        eq(waitlistEntries.status, 'offered'),
-        sql`${waitlistEntries.offeredAt} < now() - make_interval(mins => ${input.olderThanMinutes})`,
-      ),
-    )
+    .where(and(eq(waitlistEntries.status, 'offered'), lte(waitlistEntries.offeredAt, offeredBy)))
+    .orderBy(asc(waitlistEntries.offeredAt), asc(waitlistEntries.id))
     .limit(input.limit);
-  return rows;
+  return rows
+    .filter(
+      (row) =>
+        row.offeredAt !== null &&
+        isWaitlistOfferExpired(row.offeredAt, row.timeZone ?? DEFAULT_TZ, input.now),
+    )
+    .map(({ id, clinicId }) => ({ id, clinicId }));
 }

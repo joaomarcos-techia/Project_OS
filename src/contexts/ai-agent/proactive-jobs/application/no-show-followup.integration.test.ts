@@ -1,8 +1,11 @@
 /**
  * Integração controlada da 2.4B: no-show → job C14 → guarda de Scheduling →
  * template real → seam Messaging. Banco e Meta são as únicas bordas mockadas.
+ *
+ * Relógio fixo no horário em que o job sai (ADR-065: a validade do job depende
+ * do instante do envio).
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type * as EnvModule from '@/lib/env';
 
@@ -72,6 +75,8 @@ const APPOINTMENT = '22222222-2222-2222-2222-222222222222';
 const PATIENT = '33333333-3333-3333-3333-333333333333';
 const PROCEDURE = '44444444-4444-4444-4444-444444444444';
 const NO_SHOW_AT = '2026-09-04T15:00:00.000Z';
+/** Segunda 07/09, 10:00 locais: o próximo dia útil depois da falta. */
+const SEND_AT = new Date('2026-09-07T13:00:00.000Z');
 
 async function enqueueAndClaim(): Promise<void> {
   await scheduleNoShowFollowup({
@@ -103,12 +108,18 @@ async function enqueueAndClaim(): Promise<void> {
       sendKey: 'job-no-show',
       resend: false,
       failedReason: null,
+      createdAt: new Date(NO_SHOW_AT),
     },
   ]);
 }
 
+afterEach(() => {
+  vi.useRealTimers();
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.useFakeTimers({ now: SEND_AT, toFake: ['Date'] });
   mocks.getClinicTimezoneTx.mockResolvedValue('America/Sao_Paulo');
   mocks.getClinicTimezone.mockResolvedValue('America/Sao_Paulo');
   mocks.lookupAppointment.mockResolvedValue({

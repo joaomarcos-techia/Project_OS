@@ -51,6 +51,7 @@ import type {
   Slot,
   WaitlistEntryDTO,
 } from './types';
+import { waitlistOfferExpiresAt } from './waitlist-policy';
 
 const DEFAULT_TZ = 'America/Sao_Paulo';
 const DEFAULT_SLOT_MINUTES = 30;
@@ -232,6 +233,13 @@ export interface WaitlistOfferState {
   status: 'waiting' | 'offered' | 'booked' | 'cancelled';
   patientId: string;
   offeredAppointmentId: string | null;
+  /**
+   * Fim da janela de resposta da oferta em curso (`waitlistOfferExpiresAt`: TTL
+   * contado só nas horas de envio, ADR-066); null fora de `offered`. O cron
+   * devolve a oferta à fila só na próxima passada, então entre um e outro a C14
+   * confere aqui (ADR-065). É a mesma regra do cron.
+   */
+  offerExpiresAt: Date | null;
 }
 
 export async function getWaitlistOfferState(
@@ -244,11 +252,21 @@ export async function getWaitlistOfferState(
         status: waitlistEntries.status,
         patientId: waitlistEntries.patientId,
         offeredAppointmentId: waitlistEntries.offeredAppointmentId,
+        offeredAt: waitlistEntries.offeredAt,
       })
       .from(waitlistEntries)
       .where(eq(waitlistEntries.id, entryId))
       .limit(1);
-    return row ?? null;
+    if (!row) return null;
+    // `offered_at` sobrevive ao `booked`; a janela só existe com a oferta aberta.
+    const { offeredAt, ...state } = row;
+    if (state.status !== 'offered' || !offeredAt) return { ...state, offerExpiresAt: null };
+    // As horas de envio são as locais da clínica.
+    const tzRows = await tx.execute<{ timezone: string | null }>(
+      sql`SELECT timezone FROM clinics WHERE id = ${clinicId} LIMIT 1`,
+    );
+    const timeZone = tzRows[0]?.timezone ?? DEFAULT_TZ;
+    return { ...state, offerExpiresAt: waitlistOfferExpiresAt(offeredAt, timeZone) };
   });
 }
 

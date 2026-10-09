@@ -22,6 +22,7 @@ message.event:"outbox.skipped_missing_clinic"
 message.event:"messaging.whatsapp.template_category_drift"
 message.event:"proactive.job.failed"
 message.event:"proactive.job.retried"
+message.event:"proactive.job.cancelled"
 ```
 
 `template_category_drift` (D104) aparece quando a Meta reclassificou um template
@@ -41,8 +42,9 @@ resposta do próprio envio. Nos dois casos:
 - o `why` diz por que ela não foi reenviada (ADR-064):
   - `not_retryable`: código definitivo;
   - `attempts_exhausted`: tentativas esgotadas;
-  - `past_deadline`: o hold do sinal ou a consulta já passou. Também aparece sem
-    `stage`, quando um reenvio é reivindicado depois do prazo;
+  - `past_deadline`: o prazo do tipo já passou (ADR-065), por exemplo o hold do
+    sinal ou o dia da consulta. Também aparece sem `stage`, quando um reenvio é
+    reivindicado depois do prazo;
   - `invalid_payload`: o payload guardado do job não valida mais. Só aparece no
     callback.
 
@@ -54,6 +56,13 @@ esgotadas sem resposta (`meta_pending`, `meta_error`).
 `proactive.job.retried` com `resend:true` é recusa por código passageiro (131000,
 131016, 130429…): o job volta à fila com chave nova e reenvia de verdade. Sem
 `resend`, é o backoff com a mesma chave (`meta_pending`, `meta_error`).
+
+`proactive.job.cancelled` com `reason` começando por `expired_` (ADR-065) é um job
+que perdeu a janela útil na fila e foi cancelado em vez de sair atrasado. Exemplos:
+um lembrete que já não seria "amanhã", ou um link de sinal depois do hold. Vários
+de uma vez indicam fila parada: cron fora do ar ou conta do WhatsApp bloqueada.
+Os outros motivos de cancelamento (`suppressed`, `no_consent`, `already_paid`,
+`charge_not_payable`…) são decisões deliberadas, não atraso.
 
 Consultas acima são verificadas contra strings emitidas no código por `pnpm check:observability`. Acrescentar evento inexistente cria falsa cobertura e falha o gate.
 
