@@ -64,6 +64,7 @@ import {
   syncWaitingQueueStatus,
 } from './internal/waiting-queue-store';
 import {
+  assertWaitlistOfferAcceptable,
   offerWaitlistForCancelledAppointment,
   releaseWaitlistOffer,
 } from './internal/waitlist-store';
@@ -1151,6 +1152,12 @@ export async function acceptWaitlistOffer(
             throw new SchedulingValidationError('o horário ofertado não está mais disponível');
           }
 
+          const offerExpiresAt = await assertWaitlistOfferAcceptable(tx, {
+            clinicId,
+            offeredAt: entry.offeredAt,
+            scheduledAt: released.scheduledAt,
+          });
+
           const created = await insertScheduledAppointment(tx, {
             clinicId,
             userId: user.userId,
@@ -1179,6 +1186,8 @@ export async function acceptWaitlistOffer(
                 eq(waitlistEntries.id, id),
                 eq(waitlistEntries.clinicId, clinicId),
                 eq(waitlistEntries.status, 'offered'),
+                sql`clock_timestamp() < ${offerExpiresAt}`,
+                sql`${released.scheduledAt} > clock_timestamp()`,
               ),
             )
             .returning();

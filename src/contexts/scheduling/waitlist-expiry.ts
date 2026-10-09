@@ -53,10 +53,14 @@ export async function expireStaleWaitlistOffers(input: {
         releaseWaitlistOffer(tx, {
           clinicId: entry.clinicId,
           entryId: entry.id,
-          // Estável por (entrada, expiração): a reentrega do mesmo repasse é
-          // deduplicada pelo outbox em vez de virar uma segunda oferta.
-          idempotencyKey: `waitlist-expire:${entry.id}`,
+          // A mesma entrada pode ser ofertada novamente, até para a mesma vaga.
+          // O instante diferencia as gerações sem duplicar um replay do cron.
+          idempotencyKey: `waitlist-expire:${entry.id}:${entry.offeredAppointmentId ?? 'none'}:${entry.offeredAt.toISOString()}`,
           correlationId: null,
+          expectedOffer: {
+            offeredAt: entry.offeredAt,
+            appointmentId: entry.offeredAppointmentId,
+          },
         }),
       );
       if (result.released) summary.expiredReleased += 1;

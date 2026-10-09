@@ -10,7 +10,7 @@ migration, sem coluna nova e sem mudança de env. A C14 não mudou: chave de env
 ## Contexto
 
 WAIT-001: quando um cancelamento libera uma vaga, `offerWaitlistForCancelledAppointment` grava
-`offered_at = now()` na entrada escolhida e publica `scheduling.waitlist.offered`. O handler enfileira
+`offered_at` pelo relógio do banco na entrada escolhida e publica `scheduling.waitlist.offered`. O handler enfileira
 um job `waitlist_offer` na C14.
 
 - A janela de resposta era `offered_at` + 240 min (`WAITLIST_OFFER_TTL_MINUTES`).
@@ -44,9 +44,9 @@ registrou este defeito em "Revisitar quando".
    - A varredura do cron (`findStaleWaitlistOffers`) aplica a mesma função, com o fuso de cada
      clínica.
    - O SQL só pré-filtra pelo TTL corrido (`offered_at <= agora − 240 min`). É uma condição
-     necessária, porque a janela nunca fecha antes disso. A varredura ordena por `offered_at`: no
-     mesmo fuso, quem foi ofertado antes vence antes, e as ofertas da madrugada, ainda abertas, não
-     tomam o `LIMIT` de uma já vencida.
+     necessária, porque a janela nunca fecha antes disso. A varredura ordena por `offered_at` e
+     percorre páginas até reunir o limite de ofertas realmente vencidas. Entre clínicas com fusos
+     diferentes, uma oferta mais antiga pode vencer depois de outra mais nova.
 3. **O cron não passa mais o TTL:** chama `expireStaleWaitlistOffers({ limit })`. A constante saiu
    do `index.ts` do Scheduling, para ninguém recalcular a janela somando minutos.
 4. **As horas de envio do Scheduling são as do `claimDue`.** O teste
@@ -55,6 +55,14 @@ registrou este defeito em "Revisitar quando".
    preso ao `routeDunning` (ADR-065).
 5. **`offered_at` continua sendo o instante da oferta.** A chave de envio e o backoff da C14 não
    mudam.
+
+6. **O aceite também respeita o fim da janela.** Sob o lock da entrada, a ação lê o fuso e
+   `clock_timestamp()` do banco. Antes da criação, rejeita oferta vencida e vaga passada; o `UPDATE`
+   final repete os dois limites no SQL, para que uma execução demorada não conclua depois do prazo.
+   O cron identifica a geração pelo instante e vaga ofertada, de modo que um scan antigo não libera
+   uma oferta nova e uma segunda oferta da mesma entrada ganha outra chave de outbox. Uma vaga
+   passada não é ofertada nem repassada. A varredura paginada alcança vencimentos de fusos distintos
+   mesmo quando ofertas ainda abertas aparecem primeiro na ordenação.
 
 ### Exemplos (São Paulo)
 
@@ -106,6 +114,22 @@ registrou este defeito em "Revisitar quando".
   deixa de exigir um caminho novo entre os contextos.
 
 ## Evidência (09/10/2026)
+
+Complemento na branch `fix/waitlist-offer-closure-20261009`, baseada no PR #32:
+
+- O aceite agora verifica prazo e horário pelo relógio do banco sob o lock da entrada. O `UPDATE`
+  final exige novamente `clock_timestamp() < offerExpiresAt` e vaga futura; se perder a corrida,
+  a transação inteira reverte, inclusive a consulta recém-inserida.
+- O cron usa uma chave por geração da oferta e só libera a geração que examinou. O scan pagina
+  ofertas de clínicas em fusos distintos até reunir o limite de vencidas.
+- Testes locais direcionados: 58/58 PASS. TypeScript e ESLint: exit 0. Build Next de produção
+  isolado com variáveis sintéticas (`scripts/security/local-build.ts`): exit 0. Regressão Vitest:
+  5.365/5.365 testes em 514 arquivos, exit 0. O inventário de Server Actions foi regenerado.
+- `scripts/probe-waitlist-offer-dev.ts` executou em transação `READ ONLY` no banco DEV, com
+  conferência explícita do projeto, e passou para prazo aberto, prazo vencido, vaga passada e scan.
+  Nenhuma oferta foi criada ou alterada pelo probe.
+- Ainda falta E2E no Preview integrado; os resultados acima não comprovam o envio real da oferta
+  nem o aceite por uma pessoa.
 
 - `waitlist-policy.test.ts`: oferta diurna, às 21h, de madrugada e às 17h; bordas às 7h59, 8h, 16h,
   19h59 e 20h; virada do ano; fuso de Manaus; fim exclusivo às 12h. Uma varredura de 48 h, de 15 em
