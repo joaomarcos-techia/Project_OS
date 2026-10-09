@@ -106,9 +106,9 @@ identidade, e as duas foram corrigidas.
   Billing da Meta.
 - **Falha de entrega depois do aceite (EC-32, corrigido em `84b3b413`):** quando a Meta recusa um
   template depois de aceitá-lo, o job da C14 agora vai de `sent` para `failed`, com o código da Meta no
-  motivo (`meta_131042`) e a métrica `proactive.job.failed` (`stage: delivery`). Continuam abertos:
-  - nenhuma tela da clínica mostra o status dos jobs proativos, então a recusa aparece no banco e nos
-    logs, mas não no painel;
+  motivo (`meta_131042`) e a métrica `proactive.job.failed` (`stage: delivery`). Desde `64e2c7d7` a
+  clínica vê a recusa na Agenda: faixa com o paciente, o que fazer e o motivo; selo na linha da
+  consulta; "Copiar link" do sinal e do saldo enquanto a cobrança for pagável. Continua aberto:
   - não há reenvio automático, e o job não volta para a fila (ver EC-32 em D).
 - **Pagamento do sinal e conciliação pela jornada:** dependem de pagar o checkout no Sandbox. NOT RUN.
 - **Mídia:** áudio e foto respondidos ao vivo (W18 e W30). Figurinha, reação e localização seguem sem
@@ -278,7 +278,7 @@ principal quebra), **Média** (degradação com contorno), **Baixa** (cosmético
 | EC-29 | — | Reagendamento com sinal em aberto | "SIM" ao reagendar | Sinal antigo fechado; novo sinal na nova consulta | `30e72c2f` cancelado no Sandbox; `cd1c2e3c` criado | PASS | — | handlers reais (ADR-049) |
 | EC-30 | — | Consulta cancelada com pedido de sinal na fila | Processar `deposit_requested` | Nenhuma cobrança | Inelegível, nenhuma cobrança | PASS | — | handler real |
 | EC-31 | Média | Cadastro em andamento | "qual o endereço de vocês?" no passo do motivo; "quanto custa?" no do CPF | Não gravar; pedir o mesmo campo | Gravado como `motivo`; "CPF inválido" (sonda do parser real) | FAIL → corrigido (unitário; ao vivo exige um número novo autorizado) | `2d9ee2ad` | `semantic-guard.test.ts` (+13), `registration-reply.test.ts` (+2) |
-| EC-32 | Alta | Template proativo aceito pela Cloud API e depois recusado pela Meta | Link do sinal (C14) | Job marcado como falha e visível para a clínica; retentativa quando couber | Job ficou `sent`; o `status_updated: failed` não tem consumidor (11:01) | FAIL → corrigido; PASS ao vivo no DEV às 12:03 (job `b6a068ad` → `failed`). O job vai a `failed` com `meta_<código>` e métrica. Painel e reenvio ficam abertos (ver abaixo) | `84b3b413` | `outbound-status-updated.test.ts` (12), `delivery-failure.test.ts` (6), `status-reconciler.test.ts` (5), `inbound-status.test.ts` (2), `events.test.ts` (4), `api.test.ts` (2), `delivery-status.test.ts` (+3) |
+| EC-32 | Alta | Template proativo aceito pela Cloud API e depois recusado pela Meta | Link do sinal (C14) | Job marcado como falha e visível para a clínica; retentativa quando couber | Job ficou `sent`; o `status_updated: failed` não tem consumidor (11:01) | FAIL → corrigido; PASS ao vivo no DEV às 12:03 (job `b6a068ad` → `failed`). O job vai a `failed` com `meta_<código>` e métrica. A recusa aparece na Agenda desde `64e2c7d7`; o reenvio fica aberto (ver abaixo) | `84b3b413`, `64e2c7d7` | `outbound-status-updated.test.ts` (12), `delivery-failure.test.ts` (6), `status-reconciler.test.ts` (5), `inbound-status.test.ts` (2), `events.test.ts` (4), `api.test.ts` (2), `delivery-status.test.ts` (+3); painel: 12 arquivos (ver E) |
 
 **EC-32 — como ficou:**
 
@@ -308,17 +308,36 @@ principal quebra), **Média** (degradação com contorno), **Baixa** (cosmético
     compatibilidade. O código `131042` está no callback cru, e a leitura dele está provada no unitário;
   - o job `b701cf7a` (tick das 11:01) segue `sent`. O evento dele terminou `skipped` antes do handler,
     e a fila antiga do outbox não foi reprocessada.
+- **A recusa no painel (`64e2c7d7`, lugar e copy aprovados pelo usuário):**
+  - **Faixa da Agenda**, em todas as visões, só com o que ainda tem ação. Isso cobre o sinal com a
+    vaga segurada, o saldo com cobrança pendente, o lembrete de consulta futura, o contato pós-falta
+    que ainda vale, a oferta de vaga futura e o retorno por vir;
+  - **cada item da faixa** diz primeiro o que fazer ("Envie o link ao paciente por outro canal antes
+    de 18:00; depois disso a vaga é liberada"). Depois vêm o motivo em português, o código da Meta e
+    a frase "Esta mensagem não será reenviada";
+  - **selo na linha da consulta** (visão Dia), ao lado do "Sinal pendente", inclusive em consulta já
+    cancelada, onde ele explica por que a vaga caiu;
+  - **"Copiar link"** do sinal e do saldo, para quem tem `edit:agenda`. A action recebe o id do job,
+    nunca o da cobrança, e só devolve o link enquanto `getPayableCharge` disser que ele é pagável.
+    O link é buscado no clique e nunca vai para o HTML, log ou métrica;
+  - **o que aparece:** só jobs `failed`, que são terminais. `meta_unknown`, `meta_pending` e
+    `meta_error` aparecem como "sem confirmação de entrega", nunca como recusa. Ficam de fora
+    `pending` com `meta_<código>` (reenvio agendado, ADR-064), `cancelled` (opt-out, consentimento,
+    cobrança paga) e a cobrança D+3/D+7, porque a Agenda não mostra valores;
+  - **o aviso de conta (131042/141006)** é da faixa de saúde do WhatsApp (ADR-063, PR #30), e a
+    Agenda não o repete. `countRecentProactiveFailures` já está pronta para o `refusals` daquela faixa.
 - **Ainda aberto:**
-  - mostrar a recusa à clínica, já que nenhuma tela lê o status dos jobs proativos;
   - ver um `meta_<código>` ao vivo, o que depende de uma recusa real publicada por um deploy que já
-    tenha `84b3b413`.
+    tenha `84b3b413`;
+  - preencher `refusals` no `WhatsappSendAlert` (dashboard e Configurações › WhatsApp) quando o
+    PR #30 e `64e2c7d7` estiverem os dois no PR #26.
 
 ## E. Alterações implementadas
 
 Uma migration, aditiva e só no DEV: 0117 (`inbound_messages_raw.message_type`; a 0116 é de outra branch,
 já aplicada no DEV). Mudanças de contrato de evento, todas aditivas: `errorCode` opcional em
 `messaging.outbound.status_updated` (EC-32), `messageType` em `messaging.inbound.received` e
-`appointmentId` + `source` em `financial.lancamento.paid`. 19 commits de código na branch (após `1ac32356`):
+`appointmentId` + `source` em `financial.lancamento.paid`. 20 commits de código na branch (após `1ac32356`):
 
 | Commit | Arquivos de produção | Testes |
 | --- | --- | --- |
@@ -341,6 +360,7 @@ já aplicada no DEV). Mudanças de contrato de evento, todas aditivas: `errorCod
 | `eb969eed` áudio e arquivo respondidos, formatação do WhatsApp, "já paguei" pelo status real, dinheiro sem sinal, prompt v15/v16 | `internal/inbound-media.ts`, `internal/whatsapp-format.ts`, `internal/payment-claim.ts` e `payment-claim-turn.ts`; `handlers/inbound-received.ts`; `guards/semantic-guard.ts` (`detectPaymentClaim`); `tools/prepare-appointment.ts`, `provide-procedure-price.ts`; `internal/pending-action.ts`; `prompts/system.ts`; `lib/messaging/meta-cloud.ts`, `provider.ts`; `messaging/events.ts`, `schema.ts`, `api.ts`, `internal/inbound.ts`; `payments/internal/deposit-charge.ts` (`previewDepositForBooking`), `patient-charge-status.ts`, `api.ts`; migration 0117 | `whatsapp-format.test.ts` (7), `inbound-media.test.ts` (5), `media-turn.test.ts` (5), `payment-claim.test.ts` (10), `payment-claim-wiring.test.ts` (3), `prepare-appointment.test.ts` (+5), `pending-confirmation.test.ts` (+1), `system.test.ts` (+1), `meta-cloud.test.ts` (+1) |
 | `3da70f90` Caixa: "Pagou (o restante) em dinheiro"; o registro manual fecha o link do restante; o link do restante espera 2 h | `financial/actions.ts` (`assertAppointmentPaymentMethod`), `events.ts`, `internal/credit-allocation.ts`; `payments/internal/charge-closeout.ts` (`closeRemainderAfterManualPayment`), `charge-store.ts`, `handlers/lancamento-paid.ts`; boot do outbox; `proactive-jobs/internal/handlers/patient-charge-link-ready.ts`; Caixa (`cash-action-panels.tsx`, `cash-item-card.tsx`, `cash-queue.tsx`); `configuracoes/pagamentos/deposit-policy-form.tsx`; `docs/specs/politica-financeira-camadas.md`; inventário | `actions-commercial-method.test.ts` (+3), `charge-closeout.test.ts` (+3), `lancamento-paid.test.ts` (6), `patient-charge-link-ready.test.ts` (+1), `caixa-view.test.tsx` (+4), `deposit-policy-form.test.tsx` (2) |
 | `cf180f0d` ponto final na frase do sinal do resumo (visto ao vivo às 22:11) | `tools/prepare-appointment.ts` | `prepare-appointment.test.ts` |
+| `64e2c7d7` a recusa da C14 aparece na Agenda, com "Copiar link" (EC-32) | `proactive-jobs/domain/delivery-failure.ts` (`failureCauseOf`); `infra/repository.ts` (`listFailedSince`, `countFailedSince`, `findFailedJob`); `application/delivery-failures.ts`; `ai-agent/queries.ts`; `scheduling/queries.ts` (`listAppointments({ ids })`); Agenda (`data.ts`, `delivery-failures.ts`, `delivery-failure-copy.ts`, `delivery-failure-strip.tsx`, `copy-charge-link-button.tsx`, `agenda-calendar.tsx`, `page.tsx`, `actions.ts` `copiarLinkDeCobrancaAction`); inventário | `domain/delivery-failure.test.ts` (9), `failed-jobs-read.test.ts` (7), `application/delivery-failures.test.ts` (9), `list-appointments-by-ids.test.ts` (3), `agenda/delivery-failures.test.ts` (11), `delivery-failure-copy.test.ts` (17), `delivery-failure-strip.test.tsx` (7), `copy-charge-link-button.test.tsx` (6), `copy-charge-link-action.test.ts` (5), `actions-auth-order.test.ts` (+2), `data.test.ts` (3), `page.test.tsx` (+3) |
 
 **Justificativas técnicas resumidas:**
 
@@ -356,7 +376,7 @@ já aplicada no DEV). Mudanças de contrato de evento, todas aditivas: `errorCod
 
 | Camada | Ambiente | PASS | FAIL | SKIP | BLOCKED / NOT RUN | Observação |
 | --- | --- | ---: | ---: | ---: | ---: | --- |
-| Unitário + regressão (Vitest) | local | 5161 | 0 | 0 | 0 | 497 arquivos; suíte inteira no `3da70f90`. Antes: 5142 no `eb969eed`, 5104 no `84b3b413` (EC-32) e 4957 antes da rodada |
+| Unitário + regressão (Vitest) | local | 5250 | 0 | 0 | 0 | 508 arquivos, com cobertura; suíte inteira no `64e2c7d7` (painel do EC-32, +82), sobre `d125dedf`. Antes: 5161 no `3da70f90`, 5142 no `eb969eed`, 5104 no `84b3b413` (EC-32) e 4957 antes da rodada |
 | Contrato do webhook | Preview | 2 | 0 | 0 | 0 | assinatura forjada; número sem clínica |
 | Integração no banco (concorrência e isolamento) | DEV | 6 | 0 | 0 | 0 | mesmo horário com dois pacientes (4/4); identidade entre clínicas (2/2) |
 | Adversarial clínico/injeção (LLM real) | LLM | 50 | 0 | 0 | 0 | `gemini-3.6-flash`, 52 chamadas, US$ 0,18 |
@@ -396,7 +416,7 @@ segue draft e sem merge.
    - **(b)** fazer um teste com mensagens digitadas no aparelho depois do deploy: saudação, marcar,
      SIM, cancelar e SIM;
    - **(c)** configurar moeda e forma de pagamento da WABA no Billing da Meta (sem isso nenhum template sai) e acompanhar o primeiro link de sinal real;
-   - **(d)** EC-32 corrigido (`84b3b413`) e provado ao vivo no DEV: a recusa da Meta depois do aceite leva o job a `failed`, com o código. Antes de depender da C14 em escala, ainda falta mostrar a recusa à clínica.
+   - **(d)** EC-32 corrigido (`84b3b413`) e provado ao vivo no DEV: a recusa da Meta depois do aceite leva o job a `failed`, com o código. Desde `64e2c7d7` a clínica vê a recusa na Agenda, com a ação e o "Copiar link" do sinal. Falta ver a faixa com uma recusa real num deploy que tenha os dois commits.
 3. **Riscos abertos aceitáveis com acompanhamento** (áudio, política inventada, negrito e "já paguei"
    foram corrigidos e provados ao vivo na noite de 08/10):
    - sinal só por Pix ou também por cartão em 1x: decisão em aberto;

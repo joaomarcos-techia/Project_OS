@@ -8663,7 +8663,7 @@ detalhada no registro canônico.
 
 **Pendências:**
 
-- link do sinal pelo WhatsApp: o tick da C14 enviou, mas a Meta recusou o template com 131042 (moeda/pagamento da WABA de teste não configurados) — BLOCKED até o Billing da Meta. Uma nova recusa agora volta ao job: `failed` com o código da Meta (`meta_131042`) e métrica (EC-32, corrigido em `84b3b413`). Mostrar a recusa à clínica fica pendente;
+- link do sinal pelo WhatsApp: o tick da C14 enviou, mas a Meta recusou o template com 131042 (moeda/pagamento da WABA de teste não configurados) — BLOCKED até o Billing da Meta. Uma nova recusa agora volta ao job: `failed` com o código da Meta (`meta_131042`) e métrica (EC-32, corrigido em `84b3b413`). A clínica vê a recusa na Agenda, com a ação e o "Copiar link" do sinal (`64e2c7d7`);
 - pagamento do sinal no Sandbox: NOT RUN, depende do usuário.
 
 **Noite de 08/10 — decisões de produto implementadas e provadas ao vivo (22:05–22:15 UTC):**
