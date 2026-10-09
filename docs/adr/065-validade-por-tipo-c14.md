@@ -120,3 +120,16 @@ O bloco 1b roda **antes** deste corte. Assim, um reenvio vencido continua `faile
   `cancelled` com `expired_<tipo>` sem ler estado nem enviar. Mais a oferta com a janela de
   resposta vencida no seam e o `remainder_link` de 34 dias.
 - Os dois testes de integração (`remainder-link`, `no-show-followup`) agora usam relógio fixo.
+- `waitlist-offer-state.test.ts`: o seam só devolve a janela com a oferta em `offered`.
+- Gates locais em `917ef575`, cada um no próprio comando e com o próprio exit code, todos 0:
+  - typecheck;
+  - lint;
+  - `test:coverage` (510 arquivos, 5.290 testes; `validity.ts` com 95% de linhas, só o ramo
+    `never` de fora);
+  - `security:inventory` (o `--write` só moveu o `GET` do cron da lista de espera da linha 33 para
+    a 27);
+  - `arch:check`;
+  - `check:observability`.
+- DEV, só leitura (`BEGIN READ ONLY`, o `sendDeadline` real aplicado à fila): havia **1** job não
+  terminal, o `remainder_link` em `pending` havia 35 dias. Com esta regra ele fecharia como
+  `cancelled expired_remainder_link`, vencido havia 28 dias. Nada foi gravado.
