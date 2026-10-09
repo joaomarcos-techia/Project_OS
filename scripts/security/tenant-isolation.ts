@@ -234,14 +234,205 @@ try {
   pass(
     `CONTRAFACTUAL: sem role-switch o papel do pool (${String(papelDoPool?.role)}, BYPASSRLS) LÊ a linha da outra clínica — quem isola é o SET LOCAL ROLE, não a RLS sozinha`,
   );
+  // --- Saúde de envio do WhatsApp (0116) -----------------------------------
+  // Três colunas novas na tabela da conexão, que tem o token cifrado da clínica.
+  // Mesmo método de cima: tipo, tabela, GRANTs de coluna e policy vêm
+  // literalmente das migrations (0022, 0033, 0045, 0107 e a própria 0116), e a
+  // escrita passa pelo seam real (lib/messaging/connection-store, dbAdmin).
+  const messagingCore = await readFile('drizzle/migrations/0022_messaging_core.sql', 'utf8');
+  const coexistenceSql = await readFile('drizzle/migrations/0107_whatsapp_coexistence.sql', 'utf8');
+  const literal = (source: string, pattern: RegExp, label: string): string => {
+    const statement = source.match(pattern)?.[0];
+    assert.ok(statement, `${label} não encontrado`);
+    return statement.replaceAll('--> statement-breakpoint', '');
+  };
+  await admin.unsafe(`
+    CREATE TABLE _schema_version (version text PRIMARY KEY);
+    CREATE TABLE audit_events (
+      id uuid NOT NULL DEFAULT gen_random_uuid(), clinic_id uuid NOT NULL, user_id uuid,
+      action text NOT NULL, resource_type text NOT NULL, resource_id text,
+      before jsonb, after jsonb, ip_address text, user_agent text, request_id text,
+      correlation_id uuid, created_at timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (id, created_at)
+    );
+  `);
+  for (const [pattern, label] of [
+    [/DO \$\$ BEGIN\s+CREATE TYPE "public"\."messaging_provider"[\s\S]*?END \$\$;/, '0022 enum'],
+    [/CREATE TABLE IF NOT EXISTS "clinic_whatsapp_numbers" \([\s\S]*?\n\);/, '0022 tabela'],
+    [/^REVOKE ALL ON clinic_whatsapp_numbers FROM authenticated;/m, '0022 REVOKE'],
+    [/^GRANT SELECT \([^)]*\) ON clinic_whatsapp_numbers TO authenticated;/m, '0022 GRANT'],
+  ] as const) {
+    await admin.unsafe(literal(messagingCore, pattern, label));
+  }
+  await admin.unsafe(
+    (await readFile('drizzle/migrations/0033_messaging_connection_status.sql', 'utf8')).replaceAll(
+      '--> statement-breakpoint',
+      '',
+    ),
+  );
+  await admin.unsafe(
+    literal(
+      policies,
+      /ALTER TABLE clinic_whatsapp_numbers ENABLE ROW LEVEL SECURITY;[\s\S]*?CREATE POLICY clinic_whatsapp_numbers_tenant_access[\s\S]*?\);/,
+      '0045 policy clinic_whatsapp_numbers',
+    ),
+  );
+  for (const [pattern, label] of [
+    [
+      /ALTER TABLE public\.clinic_whatsapp_numbers\s+ADD COLUMN IF NOT EXISTS coexistence[^;]*;/,
+      '0107 coluna',
+    ],
+    [
+      /GRANT SELECT \("coexistence"\) ON public\.clinic_whatsapp_numbers TO authenticated;/,
+      '0107 GRANT',
+    ],
+  ] as const) {
+    await admin.unsafe(literal(coexistenceSql, pattern, label));
+  }
+  await admin.unsafe(
+    (await readFile('drizzle/migrations/0116_whatsapp_messaging_health.sql', 'utf8')).replaceAll(
+      '--> statement-breakpoint',
+      '',
+    ),
+  );
+  const wa = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+  const wb = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+  await admin`
+    INSERT INTO clinic_whatsapp_numbers (id, clinic_id, phone_number, meta_phone_id, token_encrypted)
+    VALUES (${wa}, ${a}, '+5500000000001', 'phone-sintetico-a', 'cifrado-sintetico-a'),
+           (${wb}, ${b}, '+5500000000002', 'phone-sintetico-b', 'cifrado-sintetico-b')`;
+
+  const store = await import('../../src/lib/messaging/connection-store');
+  const harnessContext = {
+    ip: null,
+    userAgent: null,
+    requestId: 'tenant-isolation',
+    correlationId: null,
+  };
+  const blockedRead = {
+    clinicId: a,
+    connectionId: wa,
+    state: 'blocked' as const,
+    codes: [141006, 141010],
+    requestContext: harnessContext,
+  };
+  assert.equal((await store.loadConnectionForMessagingHealth(a))?.messagingHealthCheckedAt, null);
+  assert.deepEqual(await store.recordMessagingHealth(blockedRead), {
+    recorded: true,
+    changed: true,
+    previous: null,
+  });
+  assert.deepEqual(await store.recordMessagingHealth(blockedRead), {
+    recorded: true,
+    changed: false,
+    previous: 'blocked',
+  });
+  // A conexão de A com o clinicId de B: o predicado da clínica não deixa gravar.
+  assert.deepEqual(
+    await store.recordMessagingHealth({
+      ...blockedRead,
+      clinicId: b,
+      state: 'available',
+      codes: [],
+    }),
+    { recorded: false, changed: false, previous: null },
+  );
+  const [gravada] = await admin`
+    SELECT messaging_health, messaging_health_codes, messaging_health_checked_at IS NOT NULL AS lida
+      FROM clinic_whatsapp_numbers WHERE id = ${wa}`;
+  assert.equal(gravada?.messaging_health, 'blocked');
+  assert.deepEqual(gravada?.messaging_health_codes, [141006, 141010]);
+  assert.equal(gravada?.lida, true);
+  const [auditoria] = await admin`
+    SELECT count(*)::int AS n FROM audit_events
+     WHERE resource_id = ${wa} AND action = 'messaging.whatsapp.messaging_health_changed'`;
+  assert.equal(Number(auditoria?.n), 1);
+  const due = await store.listConnectionsDueForMessagingHealth(10, new Date(Date.now() - 60_000));
+  assert.deepEqual(
+    due.map((c) => c.id),
+    [wb],
+  );
+  pass(
+    'saúde de envio: o seam grava estado, códigos e data; audita só a mudança; não grava com o clinicId de outra clínica; a varredura pega só quem não foi lido',
+  );
+
+  for (const [ownClinic, ownUser, ownRow, otherRow, expected] of [
+    [a, ua, wa, wb, 'blocked'],
+    [b, ub, wb, wa, null],
+  ] as const) {
+    await withTenant(
+      ownClinic,
+      async (tx) => {
+        const own = await tx.execute<{ messaging_health: string | null }>(
+          sql`SELECT messaging_health, messaging_health_codes, messaging_health_checked_at
+                FROM clinic_whatsapp_numbers WHERE id = ${ownRow}::uuid`,
+        );
+        assert.equal(own.length, 1);
+        assert.equal(own[0]?.messaging_health, expected);
+        assert.equal(
+          (
+            await tx.execute(
+              sql`SELECT messaging_health FROM clinic_whatsapp_numbers WHERE id = ${otherRow}::uuid`,
+            )
+          ).length,
+          0,
+        );
+      },
+      ownUser,
+    );
+  }
+  const permissionDenied = (error: unknown) => {
+    const cause = error instanceof Error ? error.cause : undefined;
+    return cause instanceof Error && 'code' in cause && cause.code === '42501';
+  };
+  await assert.rejects(
+    withTenant(
+      a,
+      (tx) =>
+        tx.execute(
+          sql`UPDATE clinic_whatsapp_numbers SET messaging_health = 'available' WHERE id = ${wa}::uuid`,
+        ),
+      ua,
+    ),
+    permissionDenied,
+  );
+  await assert.rejects(
+    withTenant(
+      a,
+      (tx) =>
+        tx.execute(sql`SELECT token_encrypted FROM clinic_whatsapp_numbers WHERE id = ${wa}::uuid`),
+      ua,
+    ),
+    permissionDenied,
+  );
+  pass(
+    'saúde de envio: authenticated LÊ as três colunas só da própria clínica; UPDATE nelas e leitura do token negados (42501)',
+  );
+  const checkViolation = (error: unknown) =>
+    typeof error === 'object' && error !== null && (error as { code?: string }).code === '23514';
+  await assert.rejects(
+    admin`UPDATE clinic_whatsapp_numbers SET messaging_health = 'bloqueado' WHERE id = ${wa}`,
+    checkViolation,
+  );
+  await assert.rejects(
+    admin`UPDATE clinic_whatsapp_numbers SET messaging_health_checked_at = NULL WHERE id = ${wa}`,
+    checkViolation,
+  );
+  pass(
+    'saúde de envio: o CHECK recusa estado fora do vocabulário da Meta e estado sem data (23514)',
+  );
+  await admin`DELETE FROM clinic_whatsapp_numbers`;
+  await admin`DELETE FROM audit_events`;
+
   // Teardown exato: só o cluster criado aqui contém estas fixtures.
   await admin`DELETE FROM patients`;
   await admin`DELETE FROM profiles`;
   await admin`DELETE FROM clinics`;
   const [remaining] =
-    await admin`SELECT (SELECT count(*) FROM patients) + (SELECT count(*) FROM profiles) + (SELECT count(*) FROM clinics) AS n`;
+    await admin`SELECT (SELECT count(*) FROM patients) + (SELECT count(*) FROM profiles) + (SELECT count(*) FROM clinics)
+                     + (SELECT count(*) FROM clinic_whatsapp_numbers) + (SELECT count(*) FROM audit_events) AS n`;
   assert.equal(Number(remaining?.n), 0);
-  pass('teardown: pacientes + profiles + clínicas = 0');
+  pass('teardown: pacientes + profiles + clínicas + conexões WhatsApp + auditoria = 0');
 } finally {
   await admin.end({ timeout: 1 });
   // pg_ctl recebe o caminho absoluto que esta execução criou, nunca URL/path do usuário.

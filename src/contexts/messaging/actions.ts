@@ -65,6 +65,7 @@ import {
   WhatsappProfileManagedInBusinessAppError,
 } from './errors';
 import { getBusinessProfile, updateBusinessProfile } from './internal/meta-business-profile';
+import { checkClinicMessagingHealth } from './internal/messaging-health-check';
 import {
   exchangeCodeForToken,
   registerPhoneNumber,
@@ -367,6 +368,14 @@ export async function connectMyClinicWhatsapp(
             .join(','),
         });
       }
+      // Saúde de envio: uma conta recém-conectada pode estar sem forma de
+      // pagamento na Meta. Os templates seriam aceitos e recusados depois
+      // (131042); ler agora põe o aviso na tela antes do primeiro lembrete.
+      await checkClinicMessagingHealth(clinicId, {
+        trigger: 'connect',
+        requestContext: ctx,
+        userId: user.userId,
+      });
     });
 
     return { id, phoneNumberMasked: maskPhone(meta.waba.phoneNumber) };

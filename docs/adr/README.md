@@ -46,5 +46,6 @@ Decisão futura só entra aqui quando adotada na implementação. Uma ideia desc
 | Contrato | Estado | Documento |
 | --- | --- | --- |
 | Identidade + consentimento + nome da clínica; corte O-3a/staging e O-3b/Auth/ownership | O-3a e O-3b.1–6 Accepted local em 15–16/09/2026; sem rollout externo | [ADR-062](062-identidade-consentimento-cadastro.md) |
+| Saúde de envio da WABA (`health_status`) avisa antes da recusa; a C14 segue enviando com a conta BLOCKED | Accepted em código/DEV em 08/10/2026; 0116 só no DEV; sem rollout | [ADR-063](063-saude-de-envio-whatsapp.md) |
 
 ADR-061 permanece reservada ao perfil WhatsApp de Qoro v2 §33; não foi criada nesta fatia.

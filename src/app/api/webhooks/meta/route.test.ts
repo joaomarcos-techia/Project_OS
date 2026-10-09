@@ -16,6 +16,7 @@ const {
   runOutboxEventsNow,
   captureBackgroundError,
   emit,
+  recheckMessagingHealthAfterDeliveryFailure,
 } = vi.hoisted(() => ({
   afterMock: vi.fn(),
   validateSignature: vi.fn(),
@@ -29,6 +30,7 @@ const {
   runOutboxEventsNow: vi.fn(),
   captureBackgroundError: vi.fn(),
   emit: vi.fn(),
+  recheckMessagingHealthAfterDeliveryFailure: vi.fn(),
 }));
 
 vi.mock('next/server', () => ({ after: afterMock }));
@@ -53,6 +55,9 @@ vi.mock('@/lib/messaging', () => ({
   quarantineOrphan,
   deactivateConnectionsForRemovedPartner,
 }));
+vi.mock('@/contexts/messaging/internal/messaging-health-check', () => ({
+  recheckMessagingHealthAfterDeliveryFailure,
+}));
 vi.mock('@/contexts/messaging/internal/inbound', () => ({
   persistInbound,
   persistStatusEvents,
@@ -68,7 +73,7 @@ async function runScheduledAfter(): Promise<void> {
   await scheduled();
 }
 
-import { POST, triggerOutboxAfterMetaIngress } from './route';
+import { POST, recheckHealthAfterDeliveryFailure, triggerOutboxAfterMetaIngress } from './route';
 
 function webhookRequest(): Request {
   return new Request('https://app.qoro.test/api/webhooks/meta', {
@@ -324,5 +329,81 @@ describe('Meta webhook — coexistência com o app WhatsApp Business', () => {
     expect(quarantineOrphan).not.toHaveBeenCalled();
     expect(persistInbound).not.toHaveBeenCalled();
     expect(persistBusinessAppEcho).not.toHaveBeenCalled();
+  });
+});
+
+describe('Meta webhook — recusa por forma de pagamento relê a saúde de envio', () => {
+  /** Callback `failed` na forma real da Meta (status + errors[0].code). */
+  const failedStatus = (code: number, toPhoneId = 'phone-1') => ({
+    providerMessageId: `wamid-${code}`,
+    status: 'failed',
+    recipientNumber: '5511988887777',
+    toPhoneId,
+    raw: { id: `wamid-${code}`, status: 'failed', errors: [{ code, title: 'x' }] },
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    validateSignature.mockReturnValue(true);
+    persistStatusEvents.mockResolvedValue(undefined);
+    resolveClinicByPhoneId.mockImplementation(async (phoneId: string) =>
+      phoneId === 'phone-2' ? 'clinic-2' : 'clinic-1',
+    );
+    recheckMessagingHealthAfterDeliveryFailure.mockResolvedValue(undefined);
+  });
+
+  it('131042 e 141006: agenda a releitura depois do 200, uma vez por clínica', async () => {
+    parseWebhook.mockReturnValue({
+      messages: [],
+      statuses: [failedStatus(131042), failedStatus(141006), failedStatus(131042, 'phone-2')],
+    });
+
+    expect((await POST(webhookRequest())).status).toBe(200);
+    expect(recheckMessagingHealthAfterDeliveryFailure).not.toHaveBeenCalled();
+
+    await runScheduledAfter();
+    expect(recheckMessagingHealthAfterDeliveryFailure).toHaveBeenCalledTimes(1);
+    const [clinicIds, requestContext] = recheckMessagingHealthAfterDeliveryFailure.mock.calls[0]!;
+    expect([...clinicIds].sort()).toEqual(['clinic-1', 'clinic-2']);
+    expect(requestContext).toMatchObject({ requestId: 'request-1' });
+  });
+
+  it('outra recusa, ou um status que não é falha, não relê nada', async () => {
+    parseWebhook.mockReturnValue({
+      messages: [],
+      statuses: [
+        failedStatus(131026),
+        { ...failedStatus(131042), status: 'delivered' },
+        { ...failedStatus(131042), raw: { status: 'failed' } },
+      ],
+    });
+
+    expect((await POST(webhookRequest())).status).toBe(200);
+    expect(afterMock).not.toHaveBeenCalled();
+  });
+
+  it('persistência falhou: 500 e nenhuma releitura agendada', async () => {
+    parseWebhook.mockReturnValue({ messages: [], statuses: [failedStatus(131042)] });
+    persistStatusEvents.mockRejectedValueOnce(new Error('rollback'));
+
+    expect((await POST(webhookRequest())).status).toBe(500);
+    expect(afterMock).not.toHaveBeenCalled();
+  });
+
+  it('a releitura nunca vira erro do webhook', async () => {
+    const boom = new Error('module failed');
+    recheckMessagingHealthAfterDeliveryFailure.mockRejectedValueOnce(boom);
+
+    await expect(
+      recheckHealthAfterDeliveryFailure(['clinic-1'], {
+        ip: null,
+        userAgent: null,
+        requestId: 'request-1',
+        correlationId: 'request-1',
+      }),
+    ).resolves.toBeUndefined();
+    expect(captureBackgroundError).toHaveBeenCalledWith(boom, {
+      flow: 'messaging.webhook.health_recheck',
+    });
   });
 });

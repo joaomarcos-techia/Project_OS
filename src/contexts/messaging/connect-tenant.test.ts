@@ -49,6 +49,13 @@ vi.mock('./internal/meta-onboarding', () => ({
   ensureMessageTemplates: vi.fn(async () => []),
   unsubscribeAppFromWaba: vi.fn(async () => {}),
 }));
+vi.mock('./internal/messaging-health-check', () => ({
+  checkClinicMessagingHealth: vi.fn(async () => ({
+    outcome: 'checked',
+    health: { state: 'blocked', codes: [141006] },
+    changed: true,
+  })),
+}));
 vi.mock('@/lib/messaging', () => ({
   upsertTenantConnection: vi.fn(async () => ({ id: 'num-1' })),
   deactivateTenantConnection: vi.fn(async () => ({
@@ -70,6 +77,7 @@ import {
 
 import { connectMyClinicWhatsapp, disconnectMyClinicWhatsapp } from './actions';
 import { MetaConnectError } from './errors';
+import { checkClinicMessagingHealth } from './internal/messaging-health-check';
 import * as onboarding from './internal/meta-onboarding';
 
 beforeEach(() => {
@@ -440,6 +448,24 @@ describe('connect — provisionamento dos templates', () => {
     const [wabaId, token] = vi.mocked(onboarding.ensureMessageTemplates).mock.calls[0]!;
     expect(wabaId).toBe('waba-1');
     expect(token).toBe('SECRET_TOKEN_VALUE');
+  });
+
+  it('lê a saúde de envio da conta depois da resposta, como a clínica que conectou', async () => {
+    await connectMyClinicWhatsapp(connectInput);
+    // Nada de Graph extra no caminho síncrono.
+    expect(checkClinicMessagingHealth).not.toHaveBeenCalled();
+
+    await (mocks.after.mock.calls[0]![0] as () => Promise<void>)();
+    expect(checkClinicMessagingHealth).toHaveBeenCalledTimes(1);
+    expect(checkClinicMessagingHealth).toHaveBeenCalledWith('clinic-1', {
+      trigger: 'connect',
+      requestContext: expect.objectContaining({ requestId: 'r' }),
+      userId: 'user-1',
+    });
+    // Depois dos templates: o prazo de 24 h da coexistência e os modelos vêm antes.
+    expect(vi.mocked(onboarding.ensureMessageTemplates).mock.invocationCallOrder[0]!).toBeLessThan(
+      vi.mocked(checkClinicMessagingHealth).mock.invocationCallOrder[0]!,
+    );
   });
 
   it('provisiona só depois de persistir a conexão', async () => {

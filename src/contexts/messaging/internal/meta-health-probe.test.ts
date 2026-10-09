@@ -19,8 +19,10 @@ vi.mock('@/lib/env', () => ({
   },
 }));
 
+import { DEV_PHONE_NODE_BLOCKED } from '@/lib/test/meta-health-status-fixtures';
+
 import { evaluateChannelHealth } from './channel-health';
-import { probeMetaChannel } from './meta-onboarding';
+import { probeMetaChannel, readMessagingHealth } from './meta-onboarding';
 
 type Body = Record<string, unknown>;
 const res = (body: Body, ok = true, status = 200) => ({ ok, status, json: async () => body });
@@ -409,5 +411,43 @@ describe('probeMetaChannel — status do número e revisão da conta', () => {
     const probe = await probeMetaChannel({ ...INPUT, wabaId: null });
     expect(probe.accountReview).toBe('unknown');
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('readMessagingHealth — health_status do número (saúde de envio)', () => {
+  const INPUT_HS = { token: 'TENANT-TOKEN', phoneNumberId: 'phone-1' };
+
+  it('uma GET read-only no nó do número, só health_status, com o token da clínica', async () => {
+    fetchMock.mockResolvedValueOnce(res(DEV_PHONE_NODE_BLOCKED));
+
+    const read = await readMessagingHealth(INPUT_HS);
+
+    expect(read).toEqual({ ok: true, health: { state: 'blocked', codes: [141006, 141010] } });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0]! as [URL, RequestInit];
+    expect(url.toString()).toBe('https://graph.facebook.com/v21.0/phone-1?fields=health_status');
+    expect(init.method).toBe('GET');
+    expect((init.headers as Record<string, string>).authorization).toBe('Bearer TENANT-TOKEN');
+    // Nem moeda nem funding: esses campos exigem permissão de BSP (erro 10).
+    expect(url.searchParams.get('fields')).not.toMatch(/currency|funding/u);
+  });
+
+  it.each([
+    ['token revogado (190)', res({ error: { code: 190 } }, false, 401), 'denied'],
+    ['rate limit (429)', res({ error: { code: 4 } }, false, 429), 'rate_limited'],
+    ['instabilidade (500)', res({}, false, 500), 'indeterminate'],
+  ])('%s → não verificado, com a classe da falha', async (_label, response, reason) => {
+    fetchMock.mockResolvedValueOnce(response);
+    expect(await readMessagingHealth(INPUT_HS)).toEqual({ ok: false, reason });
+  });
+
+  it('timeout ou rede caída → indeterminate, sem lançar', async () => {
+    fetchMock.mockRejectedValueOnce(new Error('ETIMEDOUT'));
+    expect(await readMessagingHealth(INPUT_HS)).toEqual({ ok: false, reason: 'indeterminate' });
+  });
+
+  it('200 sem a forma documentada → unparseable', async () => {
+    fetchMock.mockResolvedValueOnce(res({ id: 'phone-1' }));
+    expect(await readMessagingHealth(INPUT_HS)).toEqual({ ok: false, reason: 'unparseable' });
   });
 });
