@@ -2,8 +2,10 @@
  * Processor de jobs proativos (C14) — roda nos crons. Para cada job reservado
  * (claimDue já aplicou janela 8-20h local + bump de attempts):
  *   1. valida payload (Zod) — inválido = falha NÃO-retryável.
- *   2. guard de send-time (re-lê estado: consulta ainda ativa / lançamento ainda
- *      pendente) — evita corrida e cobre o teste "pagou → não envia".
+ *   2. guard de send-time: primeiro a validade do tipo (ADR-065 — vencido =
+ *      cancelled `expired_<tipo>`, nunca enviado atrasado); depois re-lê estado
+ *      (consulta ainda ativa / lançamento ainda pendente) — evita corrida e
+ *      cobre o teste "pagou → não envia".
  *   3. resolve contato (patient) + política (suppression/consent) — bloqueio =
  *      job cancelled com reason.
  *   4. monta template Meta + envia via messagingApiV1.sendText com a chave da
@@ -49,6 +51,7 @@ import {
   type DunningPayload,
   type FollowupPayload,
   type NoShowFollowupPayload,
+  type ProactivePayload,
   type ReminderPayload,
   type RemainderLinkPayload,
   type WaitlistOfferPayload,
@@ -58,7 +61,7 @@ import type { ClaimedJob } from '../infra/repository';
 import { TemplateNotConfiguredError, buildProactiveTemplate } from '../infra/templates';
 import type { ProactiveJobType } from '../schema';
 import { evaluateProactivePolicy, suppressionPurposeFor } from './policy';
-import { resendDeadline } from './resend-deadline';
+import { expiredReason, isPastDeadline, sendDeadline } from './validity';
 
 export interface BatchSummary {
   type: ProactiveJobType;
@@ -88,24 +91,25 @@ async function processOne(job: ClaimedJob, tzCache: Map<string, string>): Promis
   }
   const payload = parsed.data;
   const patientId = (payload as { patientId: string }).patientId;
+  // O fuso da clínica serve ao prazo (dias-calendário locais) e ao template.
   const tz = await resolveTz(clinicId, tzCache);
+  // ADR-065 — um prazo só por job: o do primeiro envio é o mesmo do reenvio.
+  const deadline = sendDeadline(type, payload, { timezone: tz, createdAt: job.createdAt });
+  const now = new Date();
 
   // 1b. ADR-064 — reenvio só vale até o prazo do tipo. O prazo foi conferido ao
   // agendar, mas a janela 8–20 h pode empurrar o envio para depois dele. Vem
   // antes do guard: passado o prazo, o motivo verdadeiro é a recusa da Meta, e
-  // não o hold vencido ou a consulta que já passou.
-  if (job.resend) {
-    const deadline = resendDeadline(type, payload, tz);
-    if (deadline && Date.now() >= deadline.getTime()) {
-      const reason = job.failedReason ?? 'meta_failed';
-      await repo.finalizeFailed(clinicId, id, leaseToken, reason);
-      metrics.emit('proactive.job.failed', { ...log, reason, why: 'past_deadline' });
-      return 'failed';
-    }
+  // não o prazo vencido (`expired_<tipo>`) nem o hold ou a consulta que passou.
+  if (job.resend && isPastDeadline(now, deadline)) {
+    const reason = job.failedReason ?? 'meta_failed';
+    await repo.finalizeFailed(clinicId, id, leaseToken, reason);
+    metrics.emit('proactive.job.failed', { ...log, reason, why: 'past_deadline' });
+    return 'failed';
   }
 
-  // 2. guard de send-time (estado fresco).
-  const guard = await sendTimeGuard(type, clinicId, payload);
+  // 2. guard de send-time (validade do tipo + estado fresco).
+  const guard = await sendTimeGuard(type, clinicId, payload, { now, deadline });
   if (guard) {
     await repo.cancel(clinicId, id, leaseToken, guard);
     metrics.emit('proactive.job.cancelled', { ...log, reason: guard });
@@ -178,7 +182,7 @@ async function processOne(job: ClaimedJob, tzCache: Map<string, string>): Promis
       return 'sent';
     }
     if (res.status === 'failed') {
-      return refuse(job, resendDeadline(type, payload, tz), res.errorCode ?? null, log);
+      return refuse(job, deadline, res.errorCode ?? null, log);
     }
     if (res.status === 'unknown') {
       // Timeout: a Meta pode ter recebido. Chave nova poderia duplicar a
@@ -205,20 +209,20 @@ async function processOne(job: ClaimedJob, tzCache: Map<string, string>): Promis
   }
 }
 
-/** Retorna um reason de cancelamento se o estado mudou; null se segue válido. */
+/**
+ * Retorna um reason de cancelamento se o job venceu ou o estado mudou; null se
+ * segue válido.
+ */
 async function sendTimeGuard(
   type: ProactiveJobType,
   clinicId: string,
-  payload:
-    | ReminderPayload
-    | DunningPayload
-    | FollowupPayload
-    | NoShowFollowupPayload
-    | WaitlistOfferPayload
-    | DepositLinkPayload
-    | RemainderLinkPayload
-    | { patientId: string },
+  payload: ProactivePayload,
+  timing: { now: Date; deadline: Date },
 ): Promise<string | null> {
+  // ADR-065 — a validade vem antes de qualquer leitura: passada a janela útil, a
+  // mensagem não sai atrasada, nem com a consulta ativa ou a cobrança pagável.
+  if (isPastDeadline(timing.now, timing.deadline)) return expiredReason(type);
+
   if (type === 'reminder') {
     const appt = await schedulingApiV1.lookupAppointment(
       clinicId,
@@ -250,6 +254,11 @@ async function sendTimeGuard(
     if (state.patientId !== offer.patientId) return 'waitlist_patient_mismatch';
     if (state.offeredAppointmentId !== offer.releasedAppointmentId) {
       return 'waitlist_offer_superseded';
+    }
+    // A janela de resposta é do Scheduling. O cron devolve a oferta vencida à
+    // fila antes de despachar; se ainda não devolveu, o convite também não sai.
+    if (state.offerExpiresAt && isPastDeadline(timing.now, state.offerExpiresAt)) {
+      return expiredReason('waitlist_offer');
     }
     const released = await schedulingApiV1.lookupAppointment(clinicId, offer.releasedAppointmentId);
     if (!released || released.status !== 'cancelado') return 'waitlist_slot_unavailable';
@@ -335,7 +344,7 @@ function acceptedByMeta(res: OutboundResult): boolean {
  */
 async function refuse(
   job: ClaimedJob,
-  deadline: Date | null,
+  deadline: Date,
   code: string | null,
   log: Record<string, unknown>,
 ): Promise<Outcome> {

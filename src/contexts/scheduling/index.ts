@@ -63,6 +63,7 @@ export type { DoctorCommitments, WaitlistOfferState } from './queries';
 
 // WAIT-001 — expiração/repasse das ofertas (consumido pelo cron do app).
 export { expireStaleWaitlistOffers } from './waitlist-expiry';
+export { WAITLIST_OFFER_TTL_MINUTES } from './waitlist-policy';
 export type { WaitlistExpirySummary } from './waitlist-expiry';
 
 export type {
