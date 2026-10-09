@@ -125,8 +125,11 @@ Complemento na branch `fix/waitlist-offer-closure-20261009`, baseada no PR #32:
 - Testes locais direcionados: 58/58 PASS. TypeScript e ESLint: exit 0. Build Next de produção
   isolado com variáveis sintéticas (`scripts/security/local-build.ts`): exit 0. Regressão Vitest:
   5.365/5.365 testes em 514 arquivos, exit 0. O inventário de Server Actions foi regenerado.
-- Ainda falta prova da transação com banco DEV e E2E no Preview integrado; estes resultados locais
-  não comprovam o envio real da oferta nem o aceite por uma pessoa.
+- `scripts/probe-waitlist-offer-dev.ts` executou em transação `READ ONLY` no banco DEV, com
+  conferência explícita do projeto, e passou para prazo aberto, prazo vencido, vaga passada e scan.
+  Nenhuma oferta foi criada ou alterada pelo probe.
+- Ainda falta E2E no Preview integrado; os resultados acima não comprovam o envio real da oferta
+  nem o aceite por uma pessoa.
 
 - `waitlist-policy.test.ts`: oferta diurna, às 21h, de madrugada e às 17h; bordas às 7h59, 8h, 16h,
   19h59 e 20h; virada do ano; fuso de Manaus; fim exclusivo às 12h. Uma varredura de 48 h, de 15 em
