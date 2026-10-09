@@ -62,6 +62,9 @@ local que abre o dia do corte.
 - O TTL de 240 min saiu do cron `/api/cron/proactive-waitlist` e foi para
   `scheduling/waitlist-policy.ts` (`WAITLIST_OFFER_TTL_MINUTES`). O cron e o seam usam a mesma
   constante, e o Scheduling continua dono de "quando a oferta caducou".
+- A [ADR-066](066-janela-da-oferta-da-lista-de-espera.md) mudou a regra: o TTL só corre nas horas de
+  envio, no fuso da clínica, e o cron e o seam passaram a usar a mesma função
+  (`waitlistOfferExpiresAt`), não só a mesma constante.
 
 ### Por que `cancelled` e não `failed`
 
@@ -114,7 +117,8 @@ O bloco 1b roda **antes** deste corte. Assim, um reenvio vencido continua `faile
   `no_show_followup`.
 - O TTL da oferta corre de madrugada, quando a mensagem não pode sair (8–20h). Uma oferta feita às
   21h vence antes das 8h do dia seguinte e é repassada sem que o primeiro candidato tenha sido
-  avisado. Isso já acontecia antes desta ADR e não mudou aqui.
+  avisado. Isso já acontecia antes desta ADR e não mudou aqui. **Resolvido na
+  [ADR-066](066-janela-da-oferta-da-lista-de-espera.md):** o TTL só corre nas horas de envio.
 
 ## Evidência (09/10/2026)
 
