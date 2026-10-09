@@ -39,6 +39,25 @@ import type {
   AIThreadMessage,
 } from './types';
 
+/**
+ * C14 — mensagens proativas que não chegaram ao paciente (EC-32). A Agenda
+ * lista e o painel conta, com a mesma janela e o mesmo critério: só jobs
+ * `failed`, que são terminais.
+ */
+export {
+  countRecentProactiveFailures,
+  getFailedJobChargeRef,
+  listRecentProactiveFailures,
+  type FailedJobChargeRef,
+  type ProactiveDeliveryFailureDTO,
+} from './proactive-jobs/application/delivery-failures';
+export {
+  DELIVERY_FAILURE_LIST_LIMIT,
+  DELIVERY_FAILURE_WINDOW_DAYS,
+  deliveryFailureWindowStart,
+  type ProactiveFailureCause,
+} from './proactive-jobs/domain/delivery-failure';
+
 const PAGE_SIZE = 30;
 const PREVIEW_CHARS = 90;
 /** Teto de mensagens por thread. A retenção é 30d, então na prática não corta. */

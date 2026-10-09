@@ -10,6 +10,7 @@ import { PageNoAccess } from '@/components/shared/page-no-access';
 import { AgendaCalendar, AgendaNav } from './agenda-calendar';
 import { AgendaPageActions } from './agenda-page-actions';
 import { getAgendaData } from './data';
+import { DeliveryFailureStrip } from './delivery-failure-strip';
 import { isAgendaView } from './range';
 
 export const dynamic = 'force-dynamic';
@@ -57,6 +58,14 @@ export default async function AgendaPage({
 
       <AgendaNav data={data} />
       <div className="qoro-page-content">
+        {/* EC-32 — em todas as visões: o sinal de uma consulta de outro dia
+            vence antes de alguém abrir aquele dia. */}
+        <DeliveryFailureStrip
+          failures={data.deliveryFailures}
+          limited={data.deliveryFailuresLimited}
+          tz={data.tz}
+          canCopyLink={data.canEditAgenda}
+        />
         <AgendaCalendar data={data} />
       </div>
     </>

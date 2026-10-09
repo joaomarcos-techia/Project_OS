@@ -24,6 +24,8 @@ const baseData: AgendaData = {
   resources: [],
   paymentPricingMode: 'payment_method_pricing',
   paymentPrices: [],
+  deliveryFailures: [],
+  deliveryFailuresLimited: false,
   tz: 'America/Sao_Paulo',
   view: 'day',
   ymd: '2026-10-03',

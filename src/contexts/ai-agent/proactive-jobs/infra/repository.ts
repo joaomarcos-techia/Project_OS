@@ -3,6 +3,8 @@
  * (ADR review C14 — C4: "o cron nunca toca a tabela"). Encapsula:
  *   - scan cross-tenant via dbAdmin (BYPASSRLS) — read-only, bound por LIMIT;
  *   - writes por clínica via withTenant (RLS aplicada);
+ *   - leituras do painel por clínica via withTenant (jobs `failed`: a mensagem
+ *     que não chegou ao paciente);
  *   - helpers tx-aware (insertJobTx / getClinicTimezoneTx) p/ o handler de
  *     followup, que já roda dentro da withTenant do worker (nested é proibido).
  *
@@ -10,7 +12,7 @@
  */
 import 'server-only';
 
-import { and, eq, sql } from 'drizzle-orm';
+import { and, count, desc, eq, gte, sql } from 'drizzle-orm';
 
 import { dbAdmin, type Tx } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
@@ -266,4 +268,92 @@ export async function markDeliveryFailedTx(
       ),
     );
   return { kind: 'failed', type: job.type, previousStatus: job.status };
+}
+
+// --- leitura do painel: mensagens que não chegaram ao paciente ----------------
+
+/** Job terminado em `failed`, na forma que o painel da clínica lê. */
+export interface FailedJob {
+  id: string;
+  type: ProactiveJobType;
+  payload: unknown;
+  failedReason: string | null;
+  /** Última tentativa de envio: quando a mensagem saiu, ou tentou sair. */
+  lastAttemptAt: Date | null;
+}
+
+const FAILED_JOB_COLUMNS = {
+  id: aiProactiveJobs.id,
+  type: aiProactiveJobs.type,
+  payload: aiProactiveJobs.payload,
+  failedReason: aiProactiveJobs.failedReason,
+  lastAttemptAt: aiProactiveJobs.lastAttemptAt,
+};
+
+/**
+ * Só `failed`, que é terminal: a mensagem não chegou e não será reenviada.
+ * `pending` com `meta_<código>` é reenvio agendado, e `cancelled` é decisão
+ * deliberada (opt-out, sem consentimento, cobrança já paga). Nenhum dos dois é
+ * falha a mostrar. O tempo é o da última tentativa, que todo job `failed` tem:
+ * só passa a `failed` quem o `claimDue` já reservou.
+ */
+function failedSince(clinicId: string, since: Date) {
+  return and(
+    eq(aiProactiveJobs.clinicId, clinicId),
+    eq(aiProactiveJobs.status, 'failed'),
+    gte(aiProactiveJobs.lastAttemptAt, since),
+  );
+}
+
+/**
+ * Jobs que falharam desde `since`, do mais recente ao mais antigo. Roda em
+ * `withTenant` (fluxo iniciado por usuário) e ainda filtra a clínica no
+ * predicado, a mesma defesa dupla do resto do repositório.
+ */
+export async function listFailedSince(
+  clinicId: string,
+  since: Date,
+  limit: number,
+): Promise<FailedJob[]> {
+  return withTenant(clinicId, (tx) =>
+    tx
+      .select(FAILED_JOB_COLUMNS)
+      .from(aiProactiveJobs)
+      .where(failedSince(clinicId, since))
+      .orderBy(desc(aiProactiveJobs.lastAttemptAt), desc(aiProactiveJobs.id))
+      .limit(limit),
+  );
+}
+
+/** Quantos jobs falharam desde `since` (o mesmo predicado da lista). */
+export async function countFailedSince(clinicId: string, since: Date): Promise<number> {
+  return withTenant(clinicId, async (tx) => {
+    const [row] = await tx
+      .select({ total: count() })
+      .from(aiProactiveJobs)
+      .where(failedSince(clinicId, since));
+    return Number(row?.total ?? 0);
+  });
+}
+
+/**
+ * Um job `failed` da clínica, por id. Base do "Copiar link": a action só
+ * resolve o link de cobrança de um envio que de fato falhou, nunca o de um id
+ * qualquer vindo do browser.
+ */
+export async function findFailedJob(clinicId: string, jobId: string): Promise<FailedJob | null> {
+  return withTenant(clinicId, async (tx) => {
+    const [row] = await tx
+      .select(FAILED_JOB_COLUMNS)
+      .from(aiProactiveJobs)
+      .where(
+        and(
+          eq(aiProactiveJobs.id, jobId),
+          eq(aiProactiveJobs.clinicId, clinicId),
+          eq(aiProactiveJobs.status, 'failed'),
+        ),
+      )
+      .limit(1);
+    return row ?? null;
+  });
 }

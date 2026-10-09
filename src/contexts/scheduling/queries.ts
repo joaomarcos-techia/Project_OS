@@ -253,6 +253,8 @@ export async function getWaitlistOfferState(
 }
 
 export interface ListAppointmentsOpts {
+  /** Só estes atendimentos, em lote. Lista vazia devolve vazio sem consultar. */
+  ids?: readonly string[];
   from?: Date;
   to?: Date;
   status?: AppointmentStatusDTO[];
@@ -269,6 +271,10 @@ export async function listAppointments(
   const limit = Math.min(Math.max(opts.limit ?? 100, 1), 500);
   const offset = Math.max(opts.offset ?? 0, 0);
   const conds: SQL[] = [eq(appointments.clinicId, clinicId)];
+  if (opts.ids) {
+    if (opts.ids.length === 0) return [];
+    conds.push(inArray(appointments.id, [...opts.ids]));
+  }
   if (opts.from) conds.push(gte(appointments.scheduledAt, opts.from));
   if (opts.to) conds.push(lt(appointments.scheduledAt, opts.to));
   if (opts.restrictToDoctorId) conds.push(eq(appointments.doctorId, opts.restrictToDoctorId));

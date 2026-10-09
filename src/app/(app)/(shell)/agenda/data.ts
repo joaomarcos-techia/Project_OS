@@ -2,9 +2,15 @@ import 'server-only';
 
 import { sql } from 'drizzle-orm';
 
+import {
+  DELIVERY_FAILURE_LIST_LIMIT,
+  deliveryFailureWindowStart,
+  listRecentProactiveFailures,
+} from '@/contexts/ai-agent/queries';
 import { practitionerSql, profiles } from '@/contexts/identity';
 import { getCurrentPractitioner } from '@/contexts/identity/internal/practitioner';
 import { listPatientCards } from '@/contexts/patient/queries';
+import { paymentsApiV1 } from '@/contexts/payments';
 import {
   getPaymentPricingPolicy,
   listProcedurePaymentPrices,
@@ -30,7 +36,12 @@ import { PERMISSIONS } from '@/lib/auth/permissions';
 import { requireUser } from '@/lib/auth/tenant-context';
 import { withTenant } from '@/lib/db/tenant';
 
-import { type AgendaView, normalizeDateParam, rangeFor } from './range';
+import {
+  buildAgendaDeliveryFailures,
+  type AgendaDeliveryFailure,
+  type AgendaFailureAppointment,
+} from './delivery-failures';
+import { type AgendaView, normalizeDateParam, rangeFor, todayYmd } from './range';
 
 /**
  * Dados da Agenda (v1 — walk-in). Lista os atendimentos de HOJE (fuso da clínica)
@@ -112,6 +123,13 @@ export interface AgendaData {
   resources: ResourceOption[];
   paymentPricingMode: 'absorb_fees' | 'payment_method_pricing';
   paymentPrices: ProcedurePaymentPriceDTO[];
+  /**
+   * EC-32 — mensagens automáticas (C14) que não chegaram ao paciente nos
+   * últimos 7 dias. A faixa mostra as acionáveis; o selo da linha, todas.
+   */
+  deliveryFailures: AgendaDeliveryFailure[];
+  /** A leitura bateu no teto: pode haver mais falhas no período. */
+  deliveryFailuresLimited: boolean;
   /** Fuso da clínica + faixa atual (item 12 — Mês/Semana/Dia). */
   tz: string;
   view: AgendaView;
@@ -134,6 +152,8 @@ const EMPTY: AgendaData = {
   resources: [],
   paymentPricingMode: 'absorb_fees',
   paymentPrices: [],
+  deliveryFailures: [],
+  deliveryFailuresLimited: false,
   tz: DEFAULT_TZ,
   view: 'day',
   ymd: '',
@@ -180,9 +200,12 @@ export async function getAgendaData(query: AgendaQuery = { view: 'day' }): Promi
   // streamando, com TTFB de 69 ms. O tempo estava todo aqui.
   //
   // A ordem das rodadas é ditada por dependência real, não por estilo:
-  //   1. o que não depende de nada (inclusive o fuso, que a faixa de datas usa);
-  //   2. os atendimentos, que precisam da faixa;
+  //   1. o que não depende de nada (inclusive o fuso, que a faixa de datas usa,
+  //      e as mensagens automáticas que não chegaram);
+  //   2. os atendimentos, que precisam da faixa, e a consulta e a cobrança de
+  //      cada mensagem que falhou;
   //   3. o que se resolve a partir dos atendimentos.
+  const now = new Date();
   const [
     isPractitioner,
     tzRaw,
@@ -191,6 +214,7 @@ export async function getAgendaData(query: AgendaQuery = { view: 'day' }): Promi
     docRows,
     pricingPolicy,
     paymentPrices,
+    failures,
   ] = await Promise.all([
     getCurrentPractitioner(),
     getClinicTimezone(clinicId),
@@ -206,6 +230,9 @@ export async function getAgendaData(query: AgendaQuery = { view: 'day' }): Promi
     ) as Promise<unknown> as Promise<Array<{ id: string; nome: string }>>,
     getPaymentPricingPolicy(clinicId),
     listProcedurePaymentPrices(clinicId),
+    // EC-32 — sem isto a recusa da Meta só aparecia no banco: no sinal, a vaga
+    // vencia sem a recepção saber que o paciente não recebeu o link.
+    listRecentProactiveFailures(clinicId, { since: deliveryFailureWindowStart(now) }),
   ]);
 
   const tz = tzRaw ?? DEFAULT_TZ;
@@ -213,9 +240,31 @@ export async function getAgendaData(query: AgendaQuery = { view: 'day' }): Promi
   // Mês pode ter muitos atendimentos; teto generoso p/ clínica pequena.
   const limit = query.view === 'month' ? 1000 : 300;
   const { from, to } = rangeFor(query.view, ymd, tz);
-  const appts = await listAppointments(clinicId, { from, to, limit });
 
-  const ids = [...new Set(appts.filter((a) => a.patientId).map((a) => a.patientId!))];
+  // A consulta de cada falha pode estar fora da faixa exibida (o sinal de uma
+  // consulta da semana que vem), então ela vem por id, em lote. A cobrança só
+  // decide se o "Copiar link" aparece; nenhum valor sai daqui.
+  const failureAppointmentIds = [
+    ...new Set(failures.flatMap((f) => (f.appointmentId ? [f.appointmentId] : []))),
+  ];
+  const chargeAppointmentIds = [
+    ...new Set(failures.flatMap((f) => (f.chargeId && f.appointmentId ? [f.appointmentId] : []))),
+  ];
+  const [appts, failureAppts, charges] = await Promise.all([
+    listAppointments(clinicId, { from, to, limit }),
+    listAppointments(clinicId, {
+      ids: failureAppointmentIds,
+      limit: Math.max(failureAppointmentIds.length, 1),
+    }),
+    paymentsApiV1.listPatientChargeEconomics(clinicId, chargeAppointmentIds),
+  ]);
+
+  const ids = [
+    ...new Set([
+      ...appts.filter((a) => a.patientId).map((a) => a.patientId!),
+      ...failures.flatMap((f) => (f.patientId ? [f.patientId] : [])),
+    ]),
+  ];
   const seriesIds = [
     ...new Set(appts.map((a) => a.recurrenceSeriesId).filter((id): id is string => id !== null)),
   ];
@@ -272,6 +321,15 @@ export async function getAgendaData(query: AgendaQuery = { view: 'day' }): Promi
     atendimentoDesde: filaDe.get(a.id)?.startedAt ?? null,
   }));
 
+  const deliveryFailures = buildAgendaDeliveryFailures({
+    failures,
+    appointments: new Map<string, AgendaFailureAppointment>(failureAppts.map((a) => [a.id, a])),
+    chargeStatus: new Map(charges.map((charge) => [charge.chargeId, charge.status])),
+    patientNames: nameOf,
+    now,
+    today: todayYmd(tz, now),
+  });
+
   return {
     hasAccess: true,
     hasClinic: true,
@@ -286,6 +344,8 @@ export async function getAgendaData(query: AgendaQuery = { view: 'day' }): Promi
     resources,
     paymentPricingMode: pricingPolicy.mode,
     paymentPrices,
+    deliveryFailures,
+    deliveryFailuresLimited: failures.length >= DELIVERY_FAILURE_LIST_LIMIT,
     tz,
     view: query.view,
     ymd,
