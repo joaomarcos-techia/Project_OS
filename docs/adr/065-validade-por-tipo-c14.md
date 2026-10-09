@@ -125,15 +125,21 @@ O bloco 1b roda **antes** deste corte. Assim, um reenvio vencido continua `faile
   resposta vencida no seam e o `remainder_link` de 34 dias.
 - Os dois testes de integração (`remainder-link`, `no-show-followup`) agora usam relógio fixo.
 - `waitlist-offer-state.test.ts`: o seam só devolve a janela com a oferta em `offered`.
-- Gates locais em `917ef575`, cada um no próprio comando e com o próprio exit code, todos 0:
+- Integração com a ADR-064:
+  - T6r: reenvio de `dunning` reivindicado depois do D+7 falha com a recusa que o motivou;
+  - T6o: a geração 0 vencida vira `expired_reminder`, sem `finalizeFailed`;
+  - o handler do EC-32 tira o prazo do `remainder_link` do `created_at`.
+- Gates locais em `e4611302` (depois do rebase sobre a ADR-064 e da unificação), cada um no
+  próprio comando e com o próprio exit code, todos 0:
   - typecheck;
   - lint;
-  - `test:coverage` (510 arquivos, 5.290 testes; `validity.ts` com 95% de linhas, só o ramo
+  - `test:coverage` (512 arquivos, 5.331 testes; `validity.ts` com 94,6% de linhas, só o ramo
     `never` de fora);
   - `security:inventory` (o `--write` só moveu o `GET` do cron da lista de espera da linha 33 para
     a 27);
   - `arch:check`;
   - `check:observability`.
-- DEV, só leitura (`BEGIN READ ONLY`, o `sendDeadline` real aplicado à fila): havia **1** job não
-  terminal, o `remainder_link` em `pending` havia 35 dias. Com esta regra ele fecharia como
-  `cancelled expired_remainder_link`, vencido havia 28 dias. Nada foi gravado.
+- DEV, só leitura (`BEGIN READ ONLY`, com o `sendDeadline` real aplicado à fila). Rodou antes do
+  rebase, mas a regra não mudou desde então. Havia **1** job não terminal: o `remainder_link` em
+  `pending` havia 35 dias. Com esta regra ele fecharia como `cancelled expired_remainder_link`,
+  vencido havia 28 dias. Nada foi gravado.
