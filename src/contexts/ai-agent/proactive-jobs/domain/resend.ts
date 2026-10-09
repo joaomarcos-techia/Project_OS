@@ -9,14 +9,6 @@
  */
 import { BACKOFF_FAIL, backoffDelayMs } from '@/lib/outbox/backoff';
 
-import type { ProactiveJobType } from '../schema';
-import type {
-  DepositLinkPayload,
-  ProactivePayload,
-  ReminderPayload,
-  WaitlistOfferPayload,
-} from './types';
-
 /**
  * Códigos que a Meta trata como passageiros (tabela de erros da Cloud API,
  * conferida em 08/10/2026): indisponibilidade, limite de taxa e erro
@@ -42,34 +34,19 @@ export function refusalReason(code: string | null | undefined): string {
   return code ? `meta_${code}` : 'meta_failed';
 }
 
-/**
- * Depois deste instante a mensagem não serve mais, e reenviá-la seria pior do
- * que não enviar. Tipos sem prazo dependem só do limite de tentativas.
- */
-export function resendDeadline(type: ProactiveJobType, payload: ProactivePayload): Date | null {
-  switch (type) {
-    case 'deposit_link':
-      // O hold do sinal: vencido, a vaga é liberada e o link não paga mais nada.
-      return new Date((payload as DepositLinkPayload).holdExpiresAt);
-    case 'reminder':
-      return new Date((payload as ReminderPayload).scheduledAt);
-    case 'waitlist_offer':
-      return new Date((payload as WaitlistOfferPayload).scheduledAt);
-    default:
-      return null;
-  }
-}
-
 export type RefusalDecision =
   | { kind: 'resend'; nextAt: Date; delayMs: number }
   | { kind: 'fail'; why: 'not_retryable' | 'attempts_exhausted' | 'past_deadline' };
 
 export function decideAfterRefusal(input: {
-  type: ProactiveJobType;
-  payload: ProactivePayload;
   /** Tentativas já feitas, incluindo a recusada (o claimDue incrementa antes). */
   attempts: number;
   code: string | null | undefined;
+  /**
+   * Depois deste instante a mensagem não serve mais (`resendDeadline`); null =
+   * só o limite de tentativas vale.
+   */
+  deadline: Date | null;
   now: Date;
 }): RefusalDecision {
   if (!input.code || !RETRYABLE_META_CODES.has(input.code)) {
@@ -78,8 +55,7 @@ export function decideAfterRefusal(input: {
   const delayMs = backoffDelayMs(input.attempts + 1);
   if (delayMs === BACKOFF_FAIL) return { kind: 'fail', why: 'attempts_exhausted' };
   const nextAt = new Date(input.now.getTime() + delayMs);
-  const deadline = resendDeadline(input.type, input.payload);
-  if (deadline && nextAt.getTime() >= deadline.getTime()) {
+  if (input.deadline && nextAt.getTime() >= input.deadline.getTime()) {
     return { kind: 'fail', why: 'past_deadline' };
   }
   return { kind: 'resend', nextAt, delayMs };

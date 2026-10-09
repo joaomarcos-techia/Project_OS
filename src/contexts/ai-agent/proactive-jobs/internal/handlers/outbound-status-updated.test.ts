@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
     vi.fn<(tx: unknown, clinicId: string, id: string) => Promise<string | null>>(),
   lockJobBySendKeyTx: vi.fn(),
   settleRefusedJobTx: vi.fn(),
+  getClinicTimezoneTx: vi.fn(async () => 'America/Sao_Paulo'),
 }));
 
 vi.mock('@/lib/observability/metrics', () => ({ metrics: { emit: vi.fn() } }));
@@ -29,6 +30,7 @@ vi.mock('@/contexts/messaging', () => ({
 vi.mock('../../infra/repository', () => ({
   lockJobBySendKeyTx: mocks.lockJobBySendKeyTx,
   settleRefusedJobTx: mocks.settleRefusedJobTx,
+  getClinicTimezoneTx: mocks.getClinicTimezoneTx,
 }));
 
 import { metrics } from '@/lib/observability/metrics';
@@ -160,6 +162,36 @@ describe('handler messaging.outbound.status_updated (C14)', () => {
       'proactive.job.failed',
       expect.objectContaining({ why: 'past_deadline' }),
     );
+  });
+
+  it('reminder: no resend that would land on the appointment day ("amanhã" would lie)', async () => {
+    vi.useFakeTimers({ now: new Date('2026-10-08T22:00:00.000Z'), toFake: ['Date'] });
+    try {
+      // 19:00 em São Paulo; a 4ª tentativa voltaria em +6 h, já no dia da consulta.
+      mocks.lockJobBySendKeyTx.mockResolvedValue(
+        job({
+          type: 'reminder',
+          attempts: 4,
+          payload: {
+            patientId: CLINIC,
+            appointmentId: CLINIC,
+            scheduledAt: '2026-10-09T19:00:00.000Z',
+            doctorNome: 'Dr X',
+          },
+        }),
+      );
+
+      await run({ errorCode: '131016' });
+
+      expect(mocks.getClinicTimezoneTx).toHaveBeenCalledWith('TX', CLINIC);
+      expect(settlement()).toEqual({ status: 'failed', reason: 'meta_131016' });
+      expect(metrics.emit).toHaveBeenCalledWith(
+        'proactive.job.failed',
+        expect.objectContaining({ why: 'past_deadline' }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('a job whose stored payload no longer parses is closed, never resent', async () => {

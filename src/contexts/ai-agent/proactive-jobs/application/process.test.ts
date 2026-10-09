@@ -806,4 +806,51 @@ describe('ADR-064 — recusa da Meta, reenvio e chave por geração', () => {
       expect.objectContaining({ idempotencyKey: 'j1' }),
     );
   });
+
+  it('T6p: lembrete reenviado no PRÓPRIO dia da consulta não sai ("amanhã às" mentiria)', async () => {
+    // 10:00 em São Paulo; a consulta é às 16:00 do mesmo dia, ainda no futuro.
+    vi.useFakeTimers({ now: new Date('2026-10-09T13:00:00.000Z'), toFake: ['Date'] });
+    try {
+      claim({
+        id: 'j1',
+        clinicId: 'c1',
+        type: 'reminder',
+        payload: { ...reminderPayload, scheduledAt: '2026-10-09T19:00:00.000Z' },
+        attempts: 3,
+        sendKey: SECOND_KEY,
+        resend: true,
+        failedReason: 'meta_130429',
+      });
+
+      const s = await processProactiveBatch('reminder');
+
+      expect(s.failed).toBe(1);
+      expect(repo.finalizeFailed).toHaveBeenCalledWith('c1', 'j1', 'lease-1', 'meta_130429');
+      expect(messagingApiV1.sendText).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('T6q: recusa retentável de lembrete na véspera reenvia enquanto ainda é véspera', async () => {
+    // 10:00 da véspera em São Paulo; o reenvio (+30 s) ainda cai na véspera.
+    vi.useFakeTimers({ now: new Date('2026-10-08T13:00:00.000Z'), toFake: ['Date'] });
+    try {
+      claim({
+        id: 'j1',
+        clinicId: 'c1',
+        type: 'reminder',
+        payload: { ...reminderPayload, scheduledAt: '2026-10-09T19:00:00.000Z' },
+        attempts: 1,
+      });
+      sendResult({ status: 'failed', errorCode: '131000' });
+
+      const s = await processProactiveBatch('reminder');
+
+      expect(s.retried).toBe(1);
+      expect(repo.finalizeResend).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

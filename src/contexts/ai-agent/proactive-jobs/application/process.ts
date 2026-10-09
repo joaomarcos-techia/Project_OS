@@ -42,14 +42,13 @@ import { paymentsApiV1 } from '@/contexts/payments';
 import { metrics } from '@/lib/observability/metrics';
 import { BACKOFF_FAIL, backoffDelayMs } from '@/lib/outbox/backoff';
 
-import { decideAfterRefusal, refusalReason, resendDeadline } from '../domain/resend';
+import { decideAfterRefusal, refusalReason } from '../domain/resend';
 import {
   PROACTIVE_PAYLOAD_SCHEMAS,
   type DepositLinkPayload,
   type DunningPayload,
   type FollowupPayload,
   type NoShowFollowupPayload,
-  type ProactivePayload,
   type ReminderPayload,
   type RemainderLinkPayload,
   type WaitlistOfferPayload,
@@ -59,6 +58,7 @@ import type { ClaimedJob } from '../infra/repository';
 import { TemplateNotConfiguredError, buildProactiveTemplate } from '../infra/templates';
 import type { ProactiveJobType } from '../schema';
 import { evaluateProactivePolicy, suppressionPurposeFor } from './policy';
+import { resendDeadline } from './resend-deadline';
 
 export interface BatchSummary {
   type: ProactiveJobType;
@@ -88,13 +88,14 @@ async function processOne(job: ClaimedJob, tzCache: Map<string, string>): Promis
   }
   const payload = parsed.data;
   const patientId = (payload as { patientId: string }).patientId;
+  const tz = await resolveTz(clinicId, tzCache);
 
   // 1b. ADR-064 — reenvio só vale até o prazo do tipo. O prazo foi conferido ao
   // agendar, mas a janela 8–20 h pode empurrar o envio para depois dele. Vem
   // antes do guard: passado o prazo, o motivo verdadeiro é a recusa da Meta, e
   // não o hold vencido ou a consulta que já passou.
   if (job.resend) {
-    const deadline = resendDeadline(type, payload);
+    const deadline = resendDeadline(type, payload, tz);
     if (deadline && Date.now() >= deadline.getTime()) {
       const reason = job.failedReason ?? 'meta_failed';
       await repo.finalizeFailed(clinicId, id, leaseToken, reason);
@@ -145,7 +146,6 @@ async function processOne(job: ClaimedJob, tzCache: Map<string, string>): Promis
 
   let body: OutboundBody;
   try {
-    const tz = await resolveTz(clinicId, tzCache);
     const t = buildProactiveTemplate(type, payload, nome, tz, extra);
     body = {
       kind: 'template',
@@ -177,7 +177,9 @@ async function processOne(job: ClaimedJob, tzCache: Map<string, string>): Promis
       metrics.emit('proactive.job.sent', log);
       return 'sent';
     }
-    if (res.status === 'failed') return refuse(job, payload, res.errorCode ?? null, log);
+    if (res.status === 'failed') {
+      return refuse(job, resendDeadline(type, payload, tz), res.errorCode ?? null, log);
+    }
     if (res.status === 'unknown') {
       // Timeout: a Meta pode ter recebido. Chave nova poderia duplicar a
       // mensagem, e a mesma só devolveria este `unknown` no dedup do sender.
@@ -333,18 +335,12 @@ function acceptedByMeta(res: OutboundResult): boolean {
  */
 async function refuse(
   job: ClaimedJob,
-  payload: ProactivePayload,
+  deadline: Date | null,
   code: string | null,
   log: Record<string, unknown>,
 ): Promise<Outcome> {
   const reason = refusalReason(code);
-  const decision = decideAfterRefusal({
-    type: job.type,
-    payload,
-    attempts: job.attempts,
-    code,
-    now: new Date(),
-  });
+  const decision = decideAfterRefusal({ attempts: job.attempts, code, deadline, now: new Date() });
   if (decision.kind === 'resend') {
     await repo.finalizeResend(
       job.clinicId,

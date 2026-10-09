@@ -44,9 +44,15 @@ import {
 } from '@/contexts/messaging';
 /* eslint-enable boundaries/element-types */
 
+import { resendDeadline } from '../../application/resend-deadline';
 import { decideAfterRefusal, refusalReason, type RefusalDecision } from '../../domain/resend';
 import { PROACTIVE_PAYLOAD_SCHEMAS } from '../../domain/types';
-import { lockJobBySendKeyTx, settleRefusedJobTx, type RefusedJob } from '../../infra/repository';
+import {
+  getClinicTimezoneTx,
+  lockJobBySendKeyTx,
+  settleRefusedJobTx,
+  type RefusedJob,
+} from '../../infra/repository';
 
 /** A chave de envio da C14 é uuid; chave de outro formato não é de job (e quebraria o cast). */
 const sendKeySchema = z.string().uuid();
@@ -54,16 +60,16 @@ const sendKeySchema = z.string().uuid();
 function decide(
   job: RefusedJob,
   errorCode: string | undefined,
+  timezone: string,
 ): RefusalDecision | { kind: 'fail'; why: 'invalid_payload' } {
   // O prazo do tipo sai do payload: sem payload válido não há como saber se o
   // reenvio ainda serve, e a recusa fecha o job.
   const parsed = PROACTIVE_PAYLOAD_SCHEMAS[job.type].safeParse(job.payload);
   if (!parsed.success) return { kind: 'fail', why: 'invalid_payload' };
   return decideAfterRefusal({
-    type: job.type,
-    payload: parsed.data,
     attempts: job.attempts,
     code: errorCode,
+    deadline: resendDeadline(job.type, parsed.data, timezone),
     now: new Date(),
   });
 }
@@ -101,7 +107,7 @@ async function settleDeliveryRefusal(ctx: {
   }
 
   const reason = refusalReason(payload.errorCode);
-  const decision = decide(job, payload.errorCode);
+  const decision = decide(job, payload.errorCode, await getClinicTimezoneTx(tx, clinicId));
   const log = {
     clinicId,
     jobId: job.id,

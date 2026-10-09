@@ -1,47 +1,18 @@
 /**
  * ADR-064 — quando uma recusa da Meta merece reenvio.
  *
- * Só código retentável reenvia, e só dentro das tentativas e do prazo do tipo.
- * A tabela é a da Cloud API (conferida em 08/10/2026), com as decisões do
- * usuário: 131048 e 131049 são definitivos, e o código 1 é retentável.
+ * Só código retentável reenvia, e só dentro das tentativas e do prazo. A tabela é
+ * a da Cloud API (conferida em 08/10/2026), com as decisões do usuário: 131048 e
+ * 131049 são definitivos, e o código 1 é retentável. O prazo por tipo é calculado
+ * fora daqui (`application/resend-deadline.ts`).
  */
 import { describe, expect, it } from 'vitest';
 
-import { RETRYABLE_META_CODES, decideAfterRefusal, refusalReason, resendDeadline } from './resend';
+import { RETRYABLE_META_CODES, decideAfterRefusal, refusalReason } from './resend';
 
-const U = '11111111-1111-4111-8111-111111111111';
 const NOW = new Date('2026-10-08T14:00:00.000Z');
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
-
-const reminder = {
-  patientId: U,
-  appointmentId: U,
-  scheduledAt: '2026-10-09T13:00:00.000Z',
-  doctorNome: 'Dr X',
-};
-const deposit = {
-  patientId: U,
-  chargeId: U,
-  appointmentId: U,
-  amount: 150,
-  holdExpiresAt: '2026-10-09T14:00:00.000Z',
-};
-const waitlist = {
-  patientId: U,
-  waitlistEntryId: U,
-  releasedAppointmentId: U,
-  scheduledAt: '2026-10-08T18:00:00.000Z',
-  doctorNome: null,
-};
-const dunning = {
-  patientId: U,
-  lancamentoId: U,
-  stage: 3 as const,
-  valor: 200,
-  dueDate: '2026-10-01',
-  procedureNome: null,
-};
 
 describe('refusalReason', () => {
   it('maps the Meta code to the failed_reason', () => {
@@ -77,7 +48,7 @@ describe('RETRYABLE_META_CODES', () => {
 });
 
 describe('decideAfterRefusal', () => {
-  const base = { type: 'dunning' as const, payload: dunning, now: NOW };
+  const base = { deadline: null, now: NOW };
 
   it('a transient refusal on the 1st attempt resends after the outbox backoff (+30 s)', () => {
     expect(decideAfterRefusal({ ...base, attempts: 1, code: '131000' })).toEqual({
@@ -119,76 +90,16 @@ describe('decideAfterRefusal', () => {
     });
   });
 
-  it('deposit link: resends only while the hold is open', () => {
+  it('never schedules a resend for at or after the deadline', () => {
+    const resend = { attempts: 1, code: '131000', now: NOW };
     expect(
-      decideAfterRefusal({
-        type: 'deposit_link',
-        payload: deposit,
-        attempts: 1,
-        code: '131000',
-        now: NOW,
-      }),
+      decideAfterRefusal({ ...resend, deadline: new Date(NOW.getTime() + 31_000) }),
     ).toMatchObject({ kind: 'resend' });
-
-    // O hold vence em 20 s; a próxima tentativa seria em +30 s.
-    const closing = { ...deposit, holdExpiresAt: new Date(NOW.getTime() + 20_000).toISOString() };
-    expect(
-      decideAfterRefusal({
-        type: 'deposit_link',
-        payload: closing,
-        attempts: 1,
-        code: '131000',
-        now: NOW,
-      }),
-    ).toEqual({ kind: 'fail', why: 'past_deadline' });
-  });
-
-  it('reminder and waitlist offer: never resend for after the appointment', () => {
-    // 4ª tentativa → +6 h. A consulta do lembrete é em 23 h; a vaga, em 4 h.
-    expect(
-      decideAfterRefusal({
-        type: 'reminder',
-        payload: reminder,
-        attempts: 4,
-        code: '131016',
-        now: NOW,
-      }),
-    ).toMatchObject({ kind: 'resend', delayMs: 6 * HOUR });
-    expect(
-      decideAfterRefusal({
-        type: 'waitlist_offer',
-        payload: waitlist,
-        attempts: 4,
-        code: '131016',
-        now: NOW,
-      }),
-    ).toEqual({ kind: 'fail', why: 'past_deadline' });
-  });
-});
-
-describe('resendDeadline', () => {
-  it('is the deposit hold or the appointment time; the other types have none', () => {
-    expect(resendDeadline('deposit_link', deposit)).toEqual(new Date(deposit.holdExpiresAt));
-    expect(resendDeadline('reminder', reminder)).toEqual(new Date(reminder.scheduledAt));
-    expect(resendDeadline('waitlist_offer', waitlist)).toEqual(new Date(waitlist.scheduledAt));
-    expect(resendDeadline('dunning', dunning)).toBeNull();
-    expect(
-      resendDeadline('followup', {
-        patientId: U,
-        prontuarioId: U,
-        doctorNome: null,
-        returnDate: '2026-11-01',
-      }),
-    ).toBeNull();
-    expect(
-      resendDeadline('no_show_followup', {
-        patientId: U,
-        appointmentId: U,
-        noShowAt: '2026-10-07T15:00:00.000Z',
-      }),
-    ).toBeNull();
-    expect(
-      resendDeadline('remainder_link', { patientId: U, chargeId: U, appointmentId: U, amount: 80 }),
-    ).toBeNull();
+    for (const ms of [30_000, 20_000, -1]) {
+      expect(decideAfterRefusal({ ...resend, deadline: new Date(NOW.getTime() + ms) })).toEqual({
+        kind: 'fail',
+        why: 'past_deadline',
+      });
+    }
   });
 });

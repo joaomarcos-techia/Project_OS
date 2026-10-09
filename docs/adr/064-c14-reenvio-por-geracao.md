@@ -83,13 +83,24 @@ Tabela de erros da Cloud API, conferida em 08/10/2026:
 
 - **Tentativas:** o limite e o backoff de hoje, com até 5 envios por job (+30 s, +5 min, +30 min,
   +6 h), ticks de 15 min e janela 8–20 h.
-- **Prazo:**
+- **Prazo** (`application/resend-deadline.ts`, no fuso da clínica):
   - `deposit_link`: `holdExpiresAt`;
-  - `reminder` e `waitlist_offer`: `scheduledAt`;
+  - `reminder`: meia-noite local do dia da consulta, porque o corpo diz "agendado para amanhã às
+    {{2}}" e, no próprio dia, mentiria;
+  - `waitlist_offer`: `scheduledAt`;
   - demais tipos: só o limite de tentativas.
 - O prazo é conferido ao agendar o reenvio e de novo quando o reenvio é reivindicado, porque a janela
   8–20 h pode empurrá-lo para depois do prazo. Vencido, o job fecha `failed` com a recusa que o
   motivou, em vez de sumir sob `charge_not_payable` ou `appointment_inactive`.
+- **Integração com a validade por tipo:** a sessão "C14: validade por tipo"
+  (`fix/c14-validade-por-tipo-20261008`) traz `sendDeadline(type, payload, { timezone, createdAt })`,
+  que vale para todo envio e para os 7 tipos. Quem integrar por último faz a troca mecânica:
+  - troca `resendDeadline` por `sendDeadline` nos dois chamadores (o bloco 1b de `processOne` e o
+    handler) e apaga `resend-deadline.ts`;
+  - `decideAfterRefusal` já recebe o prazo pronto;
+  - o 1b continua ANTES do corte `expired_<tipo>`, então um reenvio vencido segue `failed` com
+    `meta_<código>`;
+  - o handler passa a ler `created_at` em `lockJobBySendKeyTx`.
 
 ### 7. Status do envio
 
@@ -140,5 +151,6 @@ Tabela de erros da Cloud API, conferida em 08/10/2026:
 - **Fora do escopo:**
   - **Reconciliar `unknown`:** enviar o id do envio em `biz_opaque_callback_data`, que a Meta devolve
     no webhook de status. Isso mexe no contrato do provider e no parser.
-  - **Prazo do primeiro envio:** a geração 0 continua sem prazo, como antes.
+  - **Prazo do primeiro envio:** nesta branch a geração 0 continua sem prazo, como antes. O prazo
+    vem com a validade por tipo.
   - **Reprocessar a fila antiga do outbox do DEV.**
