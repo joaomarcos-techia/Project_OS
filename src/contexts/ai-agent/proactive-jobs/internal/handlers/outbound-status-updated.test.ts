@@ -60,6 +60,9 @@ const depositPayload = {
   holdExpiresAt: new Date(Date.now() + 24 * 3_600_000).toISOString(),
 };
 
+/** Um valor só: `toHaveBeenCalledWith` compara o job inteiro. */
+const CREATED_AT = new Date(Date.now() - 60_000);
+
 const job = (over: Record<string, unknown> = {}) => ({
   id: JOB,
   type: 'deposit_link',
@@ -68,6 +71,7 @@ const job = (over: Record<string, unknown> = {}) => ({
   attempts: 1,
   leaseToken: null,
   leaseExpired: false,
+  createdAt: CREATED_AT,
   ...over,
 });
 
@@ -158,6 +162,25 @@ describe('handler messaging.outbound.status_updated (C14)', () => {
     await run({ errorCode: '131016' });
 
     expect(settlement()).toEqual({ status: 'failed', reason: 'meta_131016' });
+    expect(metrics.emit).toHaveBeenCalledWith(
+      'proactive.job.failed',
+      expect.objectContaining({ why: 'past_deadline' }),
+    );
+  });
+
+  it('remainder link: the deadline comes from created_at (ADR-065), the same as the first send', async () => {
+    // Enfileirado há quase 7 dias: o reenvio em +30 s cairia depois do prazo do restante.
+    mocks.lockJobBySendKeyTx.mockResolvedValue(
+      job({
+        type: 'remainder_link',
+        payload: { patientId: CLINIC, chargeId: CLINIC, appointmentId: CLINIC, amount: 80 },
+        createdAt: new Date(Date.now() - 7 * 24 * 3_600_000 + 10_000),
+      }),
+    );
+
+    await run({ errorCode: '131000' });
+
+    expect(settlement()).toEqual({ status: 'failed', reason: 'meta_131000' });
     expect(metrics.emit).toHaveBeenCalledWith(
       'proactive.job.failed',
       expect.objectContaining({ why: 'past_deadline' }),

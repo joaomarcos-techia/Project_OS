@@ -71,13 +71,17 @@ não aparece lá (ver "Revisitar quando").
 
 ### Relação com a ADR-064 (reenvio por geração)
 
-A ADR-064 (sessão "C14: retentativa real para falhas da Meta", ainda fora da base deste PR) tem um
-`resendDeadline` para reenvios: hold do sinal, e `scheduledAt` no lembrete e na oferta. Fica
-combinado **um prazo só**, este `sendDeadline`. Quem integrar por último:
+A ADR-064 (sessão "C14: retentativa real para falhas da Meta") entrou na base antes deste PR, com um
+`resendDeadline` só para reenvio: hold do sinal, meia-noite local do dia da consulta no lembrete e
+`scheduledAt` na oferta; os demais tipos tinham só o limite de tentativas. Ficou combinado **um
+prazo só**, e a integração foi feita aqui:
 
-- passa a usar `sendDeadline` em `decideAfterRefusal`, que recebe o prazo como entrada, e no bloco
-  "1b";
-- o handler do EC-32 passa a ler o fuso (`getClinicTimezoneTx`) e o `created_at` do job.
+- o `sendDeadline` substituiu o `resendDeadline` nos três usos: o bloco "1b" de `processOne`, a
+  recusa síncrona (`decideAfterRefusal` recebe o prazo como entrada) e o handler do EC-32;
+- o `resend-deadline.ts` saiu;
+- o processor calcula o prazo uma vez por job, e o mesmo valor serve ao 1b, ao guard e à recusa;
+- o handler lê o fuso (`getClinicTimezoneTx`) e o `created_at` do job (`lockJobBySendKeyTx`);
+- dunning, followup, no-show e restante passaram a ter prazo também no reenvio.
 
 O bloco 1b roda **antes** deste corte. Assim, um reenvio vencido continua `failed` com
 `meta_<código>`, porque a causa foi a recusa da Meta. Só a geração 0 vencida vira `expired_<tipo>`.

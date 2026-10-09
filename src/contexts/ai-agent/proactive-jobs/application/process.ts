@@ -61,8 +61,7 @@ import type { ClaimedJob } from '../infra/repository';
 import { TemplateNotConfiguredError, buildProactiveTemplate } from '../infra/templates';
 import type { ProactiveJobType } from '../schema';
 import { evaluateProactivePolicy, suppressionPurposeFor } from './policy';
-import { resendDeadline } from './resend-deadline';
-import { expiredReason, isExpired, type ValidityContext } from './validity';
+import { expiredReason, isPastDeadline, sendDeadline } from './validity';
 
 export interface BatchSummary {
   type: ProactiveJobType;
@@ -92,29 +91,25 @@ async function processOne(job: ClaimedJob, tzCache: Map<string, string>): Promis
   }
   const payload = parsed.data;
   const patientId = (payload as { patientId: string }).patientId;
-  // O fuso da clínica serve à validade (dias-calendário locais) e ao template.
+  // O fuso da clínica serve ao prazo (dias-calendário locais) e ao template.
   const tz = await resolveTz(clinicId, tzCache);
+  // ADR-065 — um prazo só por job: o do primeiro envio é o mesmo do reenvio.
+  const deadline = sendDeadline(type, payload, { timezone: tz, createdAt: job.createdAt });
+  const now = new Date();
 
   // 1b. ADR-064 — reenvio só vale até o prazo do tipo. O prazo foi conferido ao
   // agendar, mas a janela 8–20 h pode empurrar o envio para depois dele. Vem
   // antes do guard: passado o prazo, o motivo verdadeiro é a recusa da Meta, e
-  // não o hold vencido ou a consulta que já passou.
-  if (job.resend) {
-    const deadline = resendDeadline(type, payload, tz);
-    if (deadline && Date.now() >= deadline.getTime()) {
-      const reason = job.failedReason ?? 'meta_failed';
-      await repo.finalizeFailed(clinicId, id, leaseToken, reason);
-      metrics.emit('proactive.job.failed', { ...log, reason, why: 'past_deadline' });
-      return 'failed';
-    }
+  // não o prazo vencido (`expired_<tipo>`) nem o hold ou a consulta que passou.
+  if (job.resend && isPastDeadline(now, deadline)) {
+    const reason = job.failedReason ?? 'meta_failed';
+    await repo.finalizeFailed(clinicId, id, leaseToken, reason);
+    metrics.emit('proactive.job.failed', { ...log, reason, why: 'past_deadline' });
+    return 'failed';
   }
 
   // 2. guard de send-time (validade do tipo + estado fresco).
-  const guard = await sendTimeGuard(type, clinicId, payload, {
-    now: new Date(),
-    timezone: tz,
-    createdAt: job.createdAt,
-  });
+  const guard = await sendTimeGuard(type, clinicId, payload, { now, deadline });
   if (guard) {
     await repo.cancel(clinicId, id, leaseToken, guard);
     metrics.emit('proactive.job.cancelled', { ...log, reason: guard });
@@ -187,7 +182,7 @@ async function processOne(job: ClaimedJob, tzCache: Map<string, string>): Promis
       return 'sent';
     }
     if (res.status === 'failed') {
-      return refuse(job, resendDeadline(type, payload, tz), res.errorCode ?? null, log);
+      return refuse(job, deadline, res.errorCode ?? null, log);
     }
     if (res.status === 'unknown') {
       // Timeout: a Meta pode ter recebido. Chave nova poderia duplicar a
@@ -222,11 +217,11 @@ async function sendTimeGuard(
   type: ProactiveJobType,
   clinicId: string,
   payload: ProactivePayload,
-  validity: ValidityContext & { now: Date },
+  timing: { now: Date; deadline: Date },
 ): Promise<string | null> {
   // ADR-065 — a validade vem antes de qualquer leitura: passada a janela útil, a
   // mensagem não sai atrasada, nem com a consulta ativa ou a cobrança pagável.
-  if (isExpired(type, payload, validity)) return expiredReason(type);
+  if (isPastDeadline(timing.now, timing.deadline)) return expiredReason(type);
 
   if (type === 'reminder') {
     const appt = await schedulingApiV1.lookupAppointment(
@@ -262,7 +257,7 @@ async function sendTimeGuard(
     }
     // A janela de resposta é do Scheduling. O cron devolve a oferta vencida à
     // fila antes de despachar; se ainda não devolveu, o convite também não sai.
-    if (state.offerExpiresAt && state.offerExpiresAt.getTime() <= validity.now.getTime()) {
+    if (state.offerExpiresAt && isPastDeadline(timing.now, state.offerExpiresAt)) {
       return expiredReason('waitlist_offer');
     }
     const released = await schedulingApiV1.lookupAppointment(clinicId, offer.releasedAppointmentId);
@@ -349,7 +344,7 @@ function acceptedByMeta(res: OutboundResult): boolean {
  */
 async function refuse(
   job: ClaimedJob,
-  deadline: Date | null,
+  deadline: Date,
   code: string | null,
   log: Record<string, unknown>,
 ): Promise<Outcome> {

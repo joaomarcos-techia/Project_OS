@@ -43,8 +43,9 @@ export function decideAfterRefusal(input: {
   attempts: number;
   code: string | null | undefined;
   /**
-   * Depois deste instante a mensagem não serve mais (`resendDeadline`); null =
-   * só o limite de tentativas vale.
+   * Depois deste instante a mensagem não serve mais: o prazo do tipo
+   * (`sendDeadline`, ADR-065), o mesmo do primeiro envio. null = só o limite de
+   * tentativas vale.
    */
   deadline: Date | null;
   now: Date;

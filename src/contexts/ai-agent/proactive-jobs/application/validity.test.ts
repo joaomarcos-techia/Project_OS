@@ -12,7 +12,7 @@ import type { ProactiveJobType } from '../schema';
 import {
   DUNNING_STAGE_VALID_UNTIL_DAYS,
   expiredReason,
-  isExpired,
+  isPastDeadline,
   sendDeadline,
   type ValidityContext,
 } from './validity';
@@ -23,7 +23,7 @@ const CREATED_AT = new Date('2026-10-01T15:00:00.000Z');
 const ctx: ValidityContext = { timezone: TZ, createdAt: CREATED_AT };
 
 function expiredAt(type: ProactiveJobType, payload: ProactivePayload, now: string): boolean {
-  return isExpired(type, payload, { ...ctx, now: new Date(now) });
+  return isPastDeadline(new Date(now), sendDeadline(type, payload, ctx));
 }
 
 describe('validade por tipo (ADR-065)', () => {
@@ -212,10 +212,10 @@ describe('validade por tipo (ADR-065)', () => {
       expect(expiredAt('remainder_link', payload, '2026-10-08T15:00:00.000Z')).toBe(true);
       const stale = { ...ctx, createdAt: new Date('2026-09-04T15:00:00.000Z') };
       expect(
-        isExpired('remainder_link', payload, {
-          ...stale,
-          now: new Date('2026-10-08T15:00:00.000Z'),
-        }),
+        isPastDeadline(
+          new Date('2026-10-08T15:00:00.000Z'),
+          sendDeadline('remainder_link', payload, stale),
+        ),
       ).toBe(true);
     });
   });

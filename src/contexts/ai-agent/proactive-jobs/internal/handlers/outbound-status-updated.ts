@@ -44,7 +44,7 @@ import {
 } from '@/contexts/messaging';
 /* eslint-enable boundaries/element-types */
 
-import { resendDeadline } from '../../application/resend-deadline';
+import { sendDeadline } from '../../application/validity';
 import { decideAfterRefusal, refusalReason, type RefusalDecision } from '../../domain/resend';
 import { PROACTIVE_PAYLOAD_SCHEMAS } from '../../domain/types';
 import {
@@ -62,14 +62,14 @@ function decide(
   errorCode: string | undefined,
   timezone: string,
 ): RefusalDecision | { kind: 'fail'; why: 'invalid_payload' } {
-  // O prazo do tipo sai do payload: sem payload válido não há como saber se o
-  // reenvio ainda serve, e a recusa fecha o job.
+  // O prazo do tipo sai do payload (e do `created_at`, ADR-065): sem payload
+  // válido não há como saber se o reenvio ainda serve, e a recusa fecha o job.
   const parsed = PROACTIVE_PAYLOAD_SCHEMAS[job.type].safeParse(job.payload);
   if (!parsed.success) return { kind: 'fail', why: 'invalid_payload' };
   return decideAfterRefusal({
     attempts: job.attempts,
     code: errorCode,
-    deadline: resendDeadline(job.type, parsed.data, timezone),
+    deadline: sendDeadline(job.type, parsed.data, { timezone, createdAt: job.createdAt }),
     now: new Date(),
   });
 }

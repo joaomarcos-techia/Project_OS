@@ -12,6 +12,10 @@
  * O que só o seam de origem sabe continua no guard: a janela de resposta da
  * oferta da lista de espera (`lookupWaitlistOffer`) e a cobrança ainda pagável
  * (`getPayableCharge`).
+ *
+ * É o MESMO prazo do reenvio (ADR-064): a geração 0 vencida é cancelada aqui, e
+ * um reenvio vencido falha com a recusa que o motivou (`decideAfterRefusal` e o
+ * bloco 1b do processor recebem este prazo).
  */
 import type {
   DepositLinkPayload,
@@ -128,10 +132,7 @@ export function sendDeadline(
   }
 }
 
-export function isExpired(
-  type: ProactiveJobType,
-  payload: ProactivePayload,
-  ctx: ValidityContext & { now: Date },
-): boolean {
-  return ctx.now.getTime() >= sendDeadline(type, payload, ctx).getTime();
+/** O prazo é exclusivo: no próprio instante do prazo o job já não sai. */
+export function isPastDeadline(now: Date, deadline: Date): boolean {
+  return now.getTime() >= deadline.getTime();
 }

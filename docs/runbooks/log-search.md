@@ -42,8 +42,9 @@ resposta do próprio envio. Nos dois casos:
 - o `why` diz por que ela não foi reenviada (ADR-064):
   - `not_retryable`: código definitivo;
   - `attempts_exhausted`: tentativas esgotadas;
-  - `past_deadline`: o hold do sinal ou a consulta já passou. Também aparece sem
-    `stage`, quando um reenvio é reivindicado depois do prazo;
+  - `past_deadline`: o prazo do tipo já passou (ADR-065), por exemplo o hold do
+    sinal ou o dia da consulta. Também aparece sem `stage`, quando um reenvio é
+    reivindicado depois do prazo;
   - `invalid_payload`: o payload guardado do job não valida mais. Só aparece no
     callback.
 

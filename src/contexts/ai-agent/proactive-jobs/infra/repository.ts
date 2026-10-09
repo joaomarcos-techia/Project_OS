@@ -296,6 +296,8 @@ export interface RefusedJob {
    * da Cloud API e o finalize.
    */
   leaseExpired: boolean;
+  /** ADR-065 — base do prazo de quem não tem prazo no payload (`remainder_link`). */
+  createdAt: Date;
 }
 
 /**
@@ -324,6 +326,7 @@ export async function lockJobBySendKeyTx(
       attempts: aiProactiveJobs.attempts,
       leaseToken: aiProactiveJobs.leaseToken,
       leaseExpired: sql<boolean>`coalesce(${aiProactiveJobs.leaseExpiresAt} <= now(), false)`,
+      createdAt: aiProactiveJobs.createdAt,
     })
     .from(aiProactiveJobs)
     .where(

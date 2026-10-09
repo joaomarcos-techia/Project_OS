@@ -876,6 +876,20 @@ describe('ADR-064 — recusa da Meta, reenvio e chave por geração', () => {
     expect(s.retried).toBe(1);
     expect(repo.finalizeResend).toHaveBeenCalledTimes(1);
   });
+
+  it('T6r: o prazo do reenvio é o mesmo do primeiro envio, para todo tipo (ADR-065)', async () => {
+    // D+3 de 05/10 vence quando o D+7 começa (segunda 12/10). Antes, o dunning só
+    // tinha o limite de tentativas no reenvio.
+    vi.setSystemTime(new Date('2026-10-12T12:00:00.000Z'));
+    dunningJob({ sendKey: SECOND_KEY, resend: true, failedReason: 'meta_131000', attempts: 2 });
+
+    const s = await processProactiveBatch('dunning');
+
+    expect(s.failed).toBe(1);
+    expect(repo.finalizeFailed).toHaveBeenCalledWith('c1', 'j1', 'lease-1', 'meta_131000');
+    expect(repo.cancel).not.toHaveBeenCalled();
+    expect(messagingApiV1.sendText).not.toHaveBeenCalled();
+  });
 });
 
 describe('ADR-065 — validade por tipo no send-time', () => {

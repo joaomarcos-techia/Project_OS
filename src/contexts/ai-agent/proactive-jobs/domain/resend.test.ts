@@ -4,7 +4,7 @@
  * Só código retentável reenvia, e só dentro das tentativas e do prazo. A tabela é
  * a da Cloud API (conferida em 08/10/2026), com as decisões do usuário: 131048 e
  * 131049 são definitivos, e o código 1 é retentável. O prazo por tipo é calculado
- * fora daqui (`application/resend-deadline.ts`).
+ * fora daqui (`sendDeadline`, em `application/validity.ts`, ADR-065).
  */
 import { describe, expect, it } from 'vitest';
 
