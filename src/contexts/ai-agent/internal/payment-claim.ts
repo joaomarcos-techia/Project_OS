@@ -68,7 +68,10 @@ export function decidePaymentClaimReply(args: {
         handoffReason: null,
       };
     }
-    return { text: `Recebemos o seu pagamento de ${brl(charge.amount)}. Obrigado!`, handoffReason: null };
+    return {
+      text: `Recebemos o seu pagamento de ${brl(charge.amount)}. Obrigado!`,
+      handoffReason: null,
+    };
   }
 
   if (args.cash) {

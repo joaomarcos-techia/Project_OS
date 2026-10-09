@@ -24,9 +24,9 @@ describe('toWhatsAppFormatting (EC-24)', () => {
   });
 
   it('link Markdown vira "texto: url" e a URL fica intacta', () => {
-    expect(toWhatsAppFormatting('Pague pelo [link do sinal](https://www.asaas.com/i/abc_1__x).')).toBe(
-      'Pague pelo link do sinal: https://www.asaas.com/i/abc_1__x.',
-    );
+    expect(
+      toWhatsAppFormatting('Pague pelo [link do sinal](https://www.asaas.com/i/abc_1__x).'),
+    ).toBe('Pague pelo link do sinal: https://www.asaas.com/i/abc_1__x.');
   });
 
   it('não mexe em sublinhado nem asterisco dentro de URL', () => {

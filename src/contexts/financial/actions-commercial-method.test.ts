@@ -166,7 +166,10 @@ describe('confirmPayment e condição comercial do atendimento', () => {
   it.each(['pix', 'credit_card'])(
     'dinheiro na recepção quita o atendimento combinado em %s (08/10/2026)',
     async (commercialPaymentMethod) => {
-      const tx = stubTransaction({ pricingPolicyMode: 'payment_method_pricing', commercialPaymentMethod });
+      const tx = stubTransaction({
+        pricingPolicyMode: 'payment_method_pricing',
+        commercialPaymentMethod,
+      });
       await expect(
         confirmPayment(
           { lancamentoId: LANCAMENTO_ID, valorPago: 75, paymentMethod: 'dinheiro' },
@@ -178,14 +181,21 @@ describe('confirmPayment e condição comercial do atendimento', () => {
       expect(mocks.publishEvent).toHaveBeenCalledWith(
         tx,
         expect.objectContaining({
-          payload: expect.objectContaining({ appointmentId: APPOINTMENT_ID, source: 'manual', paymentMethod: 'dinheiro' }),
+          payload: expect.objectContaining({
+            appointmentId: APPOINTMENT_ID,
+            source: 'manual',
+            paymentMethod: 'dinheiro',
+          }),
         }),
       );
     },
   );
 
   it('dinheiro sempre vale, mas outro meio fora do combinado segue recusado', async () => {
-    const tx = stubTransaction({ pricingPolicyMode: 'payment_method_pricing', commercialPaymentMethod: 'pix' });
+    const tx = stubTransaction({
+      pricingPolicyMode: 'payment_method_pricing',
+      commercialPaymentMethod: 'pix',
+    });
     await expect(
       confirmPayment(
         { lancamentoId: LANCAMENTO_ID, valorPago: 25, paymentMethod: 'cartao_credito' },

@@ -701,14 +701,21 @@ describe('retenção libera o crédito no Financial', () => {
 
 describe('restante pago na recepção (08/10/2026)', () => {
   it('fecha o link do restante ainda aberto, pela cobrança do RESTANTE', async () => {
-    mocks.findOpenCharge.mockResolvedValue(charge({ id: 'remainder-1', kind: 'remainder', amount: 75 }));
+    mocks.findOpenCharge.mockResolvedValue(
+      charge({ id: 'remainder-1', kind: 'remainder', amount: 75 }),
+    );
 
     await closeRemainderAfterManualPayment({ clinicId: CLINIC, appointmentId: APPOINTMENT });
 
     expect(mocks.findOpenCharge).toHaveBeenCalledWith(CLINIC, APPOINTMENT, 'remainder');
     expect(mocks.cancelPayment).toHaveBeenCalledWith('pay_1');
     expect(mocks.closeCharge).toHaveBeenCalledWith(
-      expect.objectContaining({ chargeId: 'remainder-1', from: 'pending', outcome: 'cancelled', kind: 'remainder' }),
+      expect.objectContaining({
+        chargeId: 'remainder-1',
+        from: 'pending',
+        outcome: 'cancelled',
+        kind: 'remainder',
+      }),
     );
   });
 

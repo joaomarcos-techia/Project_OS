@@ -324,7 +324,10 @@ registerTool({
         })) !== null;
       const availablePrices = depositApplies ? onlinePrices : configuredPrices;
       const options = availablePrices
-        .map((price) => `${paymentOptionLabel(price.paymentMethod)}: ${moneyForMessage(price.grossAmount)}`)
+        .map(
+          (price) =>
+            `${paymentOptionLabel(price.paymentMethod)}: ${moneyForMessage(price.grossAmount)}`,
+        )
         .join('; ');
       const depositNote = depositApplies
         ? ' O horário é confirmado com o sinal pago pelo link que enviamos por aqui; o restante pode ser pago na clínica, inclusive em dinheiro.'
@@ -352,7 +355,10 @@ registerTool({
             : 'Para confirmar o horário, o sinal é pago pelo link, e não há preço com link para este atendimento. Solicite ajuda à clínica.',
         };
       }
-      if (patientChoice.method === 'cash' && !configuredPrices.some((price) => price.paymentMethod === 'cash')) {
+      if (
+        patientChoice.method === 'cash' &&
+        !configuredPrices.some((price) => price.paymentMethod === 'cash')
+      ) {
         return {
           status: 'appointment_information_required' as const,
           patient_message: options
@@ -391,7 +397,8 @@ registerTool({
       if (patientChoice.method === 'cash' && input.installment_count !== undefined) {
         return {
           status: 'appointment_information_required' as const,
-          patient_message: 'Dinheiro não tem parcelas. Confirme se deseja pagar em dinheiro na clínica.',
+          patient_message:
+            'Dinheiro não tem parcelas. Confirme se deseja pagar em dinheiro na clínica.',
         };
       }
       if (

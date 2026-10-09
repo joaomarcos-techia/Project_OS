@@ -407,8 +407,20 @@ describe('dinheiro e sinal (decisão do usuário, 08/10/2026)', () => {
 
   beforeEach(() => {
     mocks.listProcedurePaymentPrices.mockResolvedValue([
-      { id: PRICE_ID, procedureId: PROCEDURE_ID, paymentMethod: 'pix', installmentCount: null, grossAmount: 180 },
-      { id: CASH_PRICE_ID, procedureId: PROCEDURE_ID, paymentMethod: 'cash', installmentCount: null, grossAmount: 170 },
+      {
+        id: PRICE_ID,
+        procedureId: PROCEDURE_ID,
+        paymentMethod: 'pix',
+        installmentCount: null,
+        grossAmount: 180,
+      },
+      {
+        id: CASH_PRICE_ID,
+        procedureId: PROCEDURE_ID,
+        paymentMethod: 'cash',
+        installmentCount: null,
+        grossAmount: 170,
+      },
     ]);
   });
 
@@ -470,7 +482,9 @@ describe('dinheiro e sinal (decisão do usuário, 08/10/2026)', () => {
       { ...registeredPatientContext, currentMessage: 'quero pagar tudo em dinheiro' },
     );
     expect(response).toMatchObject({ status: 'appointment_information_required' });
-    expect(response.patient_message).toContain('Para confirmar o horário, o sinal é pago pelo link');
+    expect(response.patient_message).toContain(
+      'Para confirmar o horário, o sinal é pago pelo link',
+    );
     expect(response.patient_message).toContain('Pix: R$ 180,00');
     expect(mocks.resolveConfiguredProcedurePaymentPrice).not.toHaveBeenCalled();
     expect(mocks.proposePendingAction).not.toHaveBeenCalled();

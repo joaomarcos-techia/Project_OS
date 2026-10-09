@@ -171,7 +171,11 @@ describe('CaixaView — work queue, rótulos e RBAC', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Confirmar pagamento' }));
     const select = screen.getByLabelText('Forma de pagamento');
-    expect(within(select).getAllByRole('option').map((o) => o.textContent)).toEqual(['PIX', 'Dinheiro']);
+    expect(
+      within(select)
+        .getAllByRole('option')
+        .map((o) => o.textContent),
+    ).toEqual(['PIX', 'Dinheiro']);
   });
 
   it('Pagou em dinheiro: painel só com dinheiro e o saldo inteiro', () => {
@@ -190,9 +194,15 @@ describe('CaixaView — work queue, rótulos e RBAC', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Pagou em dinheiro' }));
     const select = screen.getByLabelText('Forma de pagamento');
-    expect(within(select).getAllByRole('option').map((o) => o.textContent)).toEqual(['Dinheiro']);
+    expect(
+      within(select)
+        .getAllByRole('option')
+        .map((o) => o.textContent),
+    ).toEqual(['Dinheiro']);
     expect((screen.getByLabelText('Valor recebido') as HTMLInputElement).value).toBe('200.00');
-    expect(screen.getByText(/Se o link do restante já foi enviado ao paciente, ele deixa de valer/)).toBeTruthy();
+    expect(
+      screen.getByText(/Se o link do restante já foi enviado ao paciente, ele deixa de valer/),
+    ).toBeTruthy();
   });
 
   it('com o sinal pago, a ação vira Pagou o restante em dinheiro', () => {

@@ -12,7 +12,9 @@ const messagingApi = readFileSync(new URL('../../../messaging/api.ts', import.me
 
 describe('turno de mídia', () => {
   it('só mensagem sem texto vira mídia, e o resto sem texto continua sem resposta', () => {
-    expect(source).toContain('const media = payload.hasText ? null : inboundMedia(payload.messageType);');
+    expect(source).toContain(
+      'const media = payload.hasText ? null : inboundMedia(payload.messageType);',
+    );
     expect(source).toContain(
       'if ((!media && (!payload.hasText || text.length === 0)) || inbound.fromNumber === null) {',
     );
@@ -23,7 +25,9 @@ describe('turno de mídia', () => {
       source.indexOf("// FASE A — conversa + mensagem 'in'"),
       source.indexOf('if (absorbed) {'),
     );
-    expect(faseA).toMatch(/const siblings = media\s+\? \[\]\s+: await messagingApiV1\.claimPendingSiblings\(/);
+    expect(faseA).toMatch(
+      /const siblings = media\s+\? \[\]\s+: await messagingApiV1\.claimPendingSiblings\(/,
+    );
     expect(faseA).toMatch(/const joined = media\s+\? media\.turnText/);
   });
 
@@ -40,14 +44,20 @@ describe('turno de mídia', () => {
     expect(mediaBranch).toBeLessThan(emergency);
     const branch = source.slice(mediaBranch, emergency);
     expect(branch).toContain('responseText = media.reply;');
-    expect(branch).toMatch(/media\.kind === 'file'[\s\S]+escalateToHuman\(tx, clinicId, conversation\.id, 'media_received'\)/);
+    expect(branch).toMatch(
+      /media\.kind === 'file'[\s\S]+escalateToHuman\(tx, clinicId, conversation\.id, 'media_received'\)/,
+    );
     expect(branch).not.toContain('generate');
   });
 
   it('a resposta é convertida para o WhatsApp antes de ser gravada e enviada', () => {
-    const format = source.indexOf('if (!alreadyPersisted) responseText = toWhatsAppFormatting(responseText);');
+    const format = source.indexOf(
+      'if (!alreadyPersisted) responseText = toWhatsAppFormatting(responseText);',
+    );
     expect(format).toBeGreaterThan(-1);
-    expect(format).toBeLessThan(source.indexOf("// FASE D — persiste a resposta (checkpoint 'out' por eventId)."));
+    expect(format).toBeLessThan(
+      source.indexOf("// FASE D — persiste a resposta (checkpoint 'out' por eventId)."),
+    );
     expect(format).toBeLessThan(source.indexOf('// FASE E — envia WhatsApp'));
   });
 });

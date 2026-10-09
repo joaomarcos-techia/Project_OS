@@ -27,7 +27,10 @@ describe('pendingConfirmationReply — o que o paciente lê depois do SIM', () =
 
   it('com sinal previsto, diz que o horário só se confirma com o sinal pago pelo link (08/10/2026)', () => {
     expect(
-      pendingConfirmationReply({ action: 'schedule_appointment', scheduledAt: AT, depositAmount: 75 }, TZ),
+      pendingConfirmationReply(
+        { action: 'schedule_appointment', scheduledAt: AT, depositAmount: 75 },
+        TZ,
+      ),
     ).toBe(
       'Pronto! Consulta agendada para 12/10/2026 às 10:00. Para confirmar o horário, pague o sinal de R$ 75,00 pelo link que vou te enviar por aqui. O horário fica reservado por até 24 horas.',
     );

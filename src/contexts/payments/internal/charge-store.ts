@@ -1360,9 +1360,7 @@ export async function findOpenCharge(
         providerCheckoutId: patientCharges.providerCheckoutId,
       })
       .from(patientCharges)
-      .where(
-        and(eq(patientCharges.appointmentId, appointmentId), eq(patientCharges.kind, kind)),
-      )
+      .where(and(eq(patientCharges.appointmentId, appointmentId), eq(patientCharges.kind, kind)))
       .limit(1),
   );
   const row = rows[0];

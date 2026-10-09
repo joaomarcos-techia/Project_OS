@@ -21,22 +21,43 @@ function charge(over: Partial<PatientChargeStatus>): PatientChargeStatus {
   };
 }
 
-const base = { cash: false, insisting: false, appointmentWhen: '12/10/2026 às 11:00', holdUntil: '09/10/2026 às 11:00' };
+const base = {
+  cash: false,
+  insisting: false,
+  appointmentWhen: '12/10/2026 às 11:00',
+  holdUntil: '09/10/2026 às 11:00',
+};
 
 describe('detectPaymentClaim (EC-22)', () => {
   it('casa a afirmação de pagamento', () => {
-    for (const text of ['Já paguei', 'paguei o sinal', 'Fiz o Pix agora', 'já transferi', 'segue o comprovante', 'pagamento feito!']) {
+    for (const text of [
+      'Já paguei',
+      'paguei o sinal',
+      'Fiz o Pix agora',
+      'já transferi',
+      'segue o comprovante',
+      'pagamento feito!',
+    ]) {
       expect(detectPaymentClaim(text)).toEqual({ claimed: true, cash: false });
     }
   });
 
   it('separa o pagamento em dinheiro', () => {
-    expect(detectPaymentClaim('paguei em dinheiro na recepção')).toEqual({ claimed: true, cash: true });
+    expect(detectPaymentClaim('paguei em dinheiro na recepção')).toEqual({
+      claimed: true,
+      cash: true,
+    });
     expect(detectPaymentClaim('já paguei pessoalmente')).toEqual({ claimed: true, cash: true });
   });
 
   it('pergunta, futuro e negação não são afirmação', () => {
-    for (const text of ['posso pagar em dinheiro?', 'vou pagar amanhã', 'ainda não paguei', 'não fiz o pix', 'quanto custa a consulta?']) {
+    for (const text of [
+      'posso pagar em dinheiro?',
+      'vou pagar amanhã',
+      'ainda não paguei',
+      'não fiz o pix',
+      'quanto custa a consulta?',
+    ]) {
       expect(detectPaymentClaim(text).claimed).toBe(false);
     }
   });
@@ -44,7 +65,10 @@ describe('detectPaymentClaim (EC-22)', () => {
 
 describe('decidePaymentClaimReply (EC-22)', () => {
   it('sinal pago: confirma com valor e consulta, sem equipe', () => {
-    const r = decidePaymentClaimReply({ ...base, charges: [charge({ status: 'paid', paidAt: new Date() })] });
+    const r = decidePaymentClaimReply({
+      ...base,
+      charges: [charge({ status: 'paid', paidAt: new Date() })],
+    });
     expect(r).toEqual({
       text: 'Recebemos o pagamento do sinal (R$ 75,00). Sua consulta de 12/10/2026 às 11:00 está confirmada.',
       handoffReason: null,
@@ -72,7 +96,11 @@ describe('decidePaymentClaimReply (EC-22)', () => {
   });
 
   it('dinheiro com restante pendente: a equipe dá baixa', () => {
-    const r = decidePaymentClaimReply({ ...base, cash: true, charges: [charge({ kind: 'remainder', holdExpiresAt: null })] });
+    const r = decidePaymentClaimReply({
+      ...base,
+      cash: true,
+      charges: [charge({ kind: 'remainder', holdExpiresAt: null })],
+    });
     expect(r).toEqual({
       text: 'Pagamento em dinheiro é registrado pela equipe da clínica. Já avisei a equipe para dar baixa e te retornar por aqui.',
       handoffReason: 'payment_claim_cash',

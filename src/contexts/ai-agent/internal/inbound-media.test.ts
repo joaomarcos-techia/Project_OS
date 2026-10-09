@@ -5,11 +5,19 @@ import { inboundMedia } from './inbound-media';
 
 describe('inboundMedia (W18 — mensagem sem texto)', () => {
   it('áudio pede a mensagem escrita, sem ir para a equipe', () => {
-    expect(inboundMedia('audio')).toEqual({ kind: 'audio', turnText: '[Áudio]', reply: AUDIO_REPLY });
+    expect(inboundMedia('audio')).toEqual({
+      kind: 'audio',
+      turnText: '[Áudio]',
+      reply: AUDIO_REPLY,
+    });
   });
 
   it('imagem, documento e vídeo vão para a equipe', () => {
-    expect(inboundMedia('image')).toEqual({ kind: 'file', turnText: '[Imagem]', reply: FILE_REPLY });
+    expect(inboundMedia('image')).toEqual({
+      kind: 'file',
+      turnText: '[Imagem]',
+      reply: FILE_REPLY,
+    });
     expect(inboundMedia('document')?.turnText).toBe('[Documento]');
     expect(inboundMedia('video')?.turnText).toBe('[Vídeo]');
   });

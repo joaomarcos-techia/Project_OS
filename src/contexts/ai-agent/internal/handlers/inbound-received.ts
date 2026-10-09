@@ -342,7 +342,9 @@ export function pendingConfirmationReply(
   const at = when ? ` de ${when}` : '';
   switch (result.action) {
     case 'schedule_appointment': {
-      const booked = when ? `Pronto! Consulta agendada para ${when}.` : 'Pronto! Consulta agendada.';
+      const booked = when
+        ? `Pronto! Consulta agendada para ${when}.`
+        : 'Pronto! Consulta agendada.';
       // 08/10/2026 — com sinal, o horário só se confirma com o pagamento pelo link.
       return result.depositAmount
         ? `${booked} Para confirmar o horário, pague o sinal de ${brlForReply(result.depositAmount)} pelo link que vou te enviar por aqui. O horário fica reservado por até 24 horas.`
@@ -965,9 +967,7 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
     responseText = decision.text;
     const handoffReason = decision.handoffReason;
     if (handoffReason) {
-      await phase(clinicId, (tx) =>
-        escalateToHuman(tx, clinicId, conversation.id, handoffReason),
-      );
+      await phase(clinicId, (tx) => escalateToHuman(tx, clinicId, conversation.id, handoffReason));
       outcome = 'handoff';
     } else {
       outcome = 'replied';

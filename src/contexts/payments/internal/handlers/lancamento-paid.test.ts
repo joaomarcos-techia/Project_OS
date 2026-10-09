@@ -29,7 +29,11 @@ import './lancamento-paid';
 
 // Capturado no LOAD do módulo: `clearAllMocks` apagaria o registro.
 const registration = mocks.registerDetachedHandler.mock.calls[0]!;
-type Handler = (ctx: { clinicId: string; payload: Record<string, unknown>; eventId: string }) => Promise<void>;
+type Handler = (ctx: {
+  clinicId: string;
+  payload: Record<string, unknown>;
+  eventId: string;
+}) => Promise<void>;
 const handler = registration[1] as Handler;
 
 const payload = (over: Record<string, unknown> = {}) => ({
@@ -65,7 +69,11 @@ describe('lancamento.paid → link do restante', () => {
   });
 
   it('também fecha numa baixa parcial: depois do registro manual, o saldo é da recepção', async () => {
-    await handler({ clinicId: 'clinic-1', payload: payload({ status: 'parcial', valorPago: 100 }), eventId: 'e2' });
+    await handler({
+      clinicId: 'clinic-1',
+      payload: payload({ status: 'parcial', valorPago: 100 }),
+      eventId: 'e2',
+    });
     expect(mocks.closeRemainderAfterManualPayment).toHaveBeenCalledOnce();
   });
 

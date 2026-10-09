@@ -86,7 +86,8 @@ export const paymentsApiV1: PaymentsApiV1 = {
   listFailedCharges,
   listPatientChargeEconomics,
   previewDepositForBooking,
-  listPatientChargeStatuses: (clinicId, patientId) => listPatientChargeStatuses(clinicId, patientId),
+  listPatientChargeStatuses: (clinicId, patientId) =>
+    listPatientChargeStatuses(clinicId, patientId),
 };
 
 export type {

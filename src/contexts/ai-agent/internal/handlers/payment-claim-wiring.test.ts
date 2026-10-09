@@ -19,17 +19,26 @@ describe('ramo do "já paguei"', () => {
     const branch = source.indexOf('} else if (paymentClaim.claimed && conversation.patientId) {');
     expect(branch).toBeGreaterThan(source.indexOf("} else if (guard.kind === 'emergency') {"));
     expect(branch).toBeGreaterThan(
-      source.indexOf("} else if (guard.kind === 'clinical_block' || guard.kind === 'clinical_with_operational') {"),
+      source.indexOf(
+        "} else if (guard.kind === 'clinical_block' || guard.kind === 'clinical_with_operational') {",
+      ),
     );
-    expect(branch).toBeLessThan(source.indexOf("} else if ((await getAiAgentMode()) === 'fallback_only') {"));
+    expect(branch).toBeLessThan(
+      source.indexOf("} else if ((await getAiAgentMode()) === 'fallback_only') {"),
+    );
   });
 
   it('a resposta vem do status real e a equipe entra quando a decisão pede', () => {
     const start = source.indexOf('} else if (paymentClaim.claimed && conversation.patientId) {');
-    const branch = source.slice(start, source.indexOf("} else if ((await getAiAgentMode()) === 'fallback_only') {"));
+    const branch = source.slice(
+      start,
+      source.indexOf("} else if ((await getAiAgentMode()) === 'fallback_only') {"),
+    );
     expect(branch).toContain('await paymentClaimTurn({');
     expect(branch).toContain('responseText = decision.text;');
-    expect(branch).toMatch(/if \(handoffReason\) \{\s+await phase\(clinicId, \(tx\) =>\s+escalateToHuman\(tx, clinicId, conversation\.id, handoffReason\)/);
+    expect(branch).toMatch(
+      /if \(handoffReason\) \{\s+await phase\(clinicId, \(tx\) =>\s+escalateToHuman\(tx, clinicId, conversation\.id, handoffReason\)/,
+    );
     expect(branch).not.toContain('generate');
   });
 });

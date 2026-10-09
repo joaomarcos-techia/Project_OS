@@ -31,8 +31,12 @@ describe('DepositPolicyForm — como o paciente paga', () => {
     expect(
       screen.getByText(/o horário só é confirmado depois que o paciente paga o sinal pelo/),
     ).toBeTruthy();
-    expect(screen.getByText(/O restante pode ser pago na clínica, inclusive em dinheiro/)).toBeTruthy();
-    expect(screen.getByText(/Com o sinal desligado, o agendamento não exige pagamento antecipado/)).toBeTruthy();
+    expect(
+      screen.getByText(/O restante pode ser pago na clínica, inclusive em dinheiro/),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(/Com o sinal desligado, o agendamento não exige pagamento antecipado/),
+    ).toBeTruthy();
   });
 
   it('cita as ações que existem no Caixa', () => {
