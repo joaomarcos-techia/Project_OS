@@ -603,7 +603,7 @@ registerTool({
               basePrice > deposit.amount
                 ? `, ${moneyForMessage(Math.round((basePrice - deposit.amount) * 100) / 100)},`
                 : ''
-            } pode ser pago na clínica, inclusive em dinheiro`
+            } pode ser pago na clínica, inclusive em dinheiro.`
           : ''
       }`,
     });
