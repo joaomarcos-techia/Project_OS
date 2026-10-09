@@ -11,7 +11,7 @@
  * Expirar primeiro é de propósito: o repasse publica um evento novo, cujo job
  * já é despachado nesta mesma execução em vez de esperar a próxima.
  */
-import { WAITLIST_OFFER_TTL_MINUTES, expireStaleWaitlistOffers } from '@/contexts/scheduling';
+import { expireStaleWaitlistOffers } from '@/contexts/scheduling';
 import { processProactiveBatch } from '@/contexts/ai-agent/proactive-jobs/application/process';
 import { recordHeartbeat } from '@/lib/cron-heartbeat';
 import { withCron } from '@/lib/http/cron';
@@ -33,11 +33,10 @@ export const GET = withCron(
   async () => {
     // A expiração é higiene de agenda e roda mesmo com a mensageria proativa
     // desligada: senão o kill-switch de mensagens travaria a fila inteira.
-    // A janela de resposta é do Scheduling: a mesma que a C14 confere no envio.
-    const expired = await expireStaleWaitlistOffers({
-      olderThanMinutes: WAITLIST_OFFER_TTL_MINUTES,
-      limit: EXPIRE_LIMIT,
-    });
+    // A janela de resposta é do Scheduling, a mesma que a C14 confere no envio,
+    // e só corre nas horas de envio (ADR-066): às 8h, a oferta da noite ainda
+    // está aberta e o convite sai nesta mesma passada.
+    const expired = await expireStaleWaitlistOffers({ limit: EXPIRE_LIMIT });
     metrics.emit('waitlist.offers.expired', { ...expired });
 
     if (!(await isProactiveEnabled())) {

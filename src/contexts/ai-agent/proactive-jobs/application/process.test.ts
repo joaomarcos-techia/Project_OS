@@ -55,6 +55,8 @@ import { patientApiV1 } from '@/contexts/patient';
 import { paymentsApiV1 } from '@/contexts/payments';
 import { schedulingApiV1 } from '@/contexts/scheduling';
 /* eslint-enable boundaries/element-types */
+/* eslint-disable-next-line boundaries/element-types -- só o teste usa a regra real do Scheduling, para provar que a C14 envia dentro da janela que o seam entrega. */
+import { waitlistOfferExpiresAt } from '@/contexts/scheduling/waitlist-policy';
 
 import * as repo from '../infra/repository';
 import { buildProactiveTemplate } from '../infra/templates';
@@ -208,6 +210,47 @@ describe('WAIT-001 — oferta da lista de espera', () => {
     // Respeita o opt-out de `followup`: é contato proativo de agendamento.
     expect(messagingApiV1.sendText).toHaveBeenCalledWith(
       expect.objectContaining({ purpose: 'followup' }),
+    );
+  });
+
+  // ADR-066 — o TTL da oferta só corre nas horas de envio. A janela vem da regra
+  // real do Scheduling, a mesma que o cron usa para devolver a oferta à fila.
+  it('cancelamento às 21h → às 8h o convite sai, com a janela aberta até as 12h', async () => {
+    vi.setSystemTime(new Date('2026-10-10T08:00:00-03:00'));
+    claim({
+      id: 'j-noite',
+      clinicId: 'c1',
+      type: 'waitlist_offer',
+      payload: waitlistPayload,
+      attempts: 1,
+      createdAt: new Date('2026-10-09T21:01:00-03:00'),
+    });
+    slotStillFree();
+    const offerExpiresAt = waitlistOfferExpiresAt(
+      new Date('2026-10-09T21:00:00-03:00'),
+      'America/Sao_Paulo',
+    );
+    vi.mocked(schedulingApiV1.lookupWaitlistOffer).mockResolvedValue({
+      status: 'offered',
+      patientId: U,
+      offeredAppointmentId: RELEASED,
+      offerExpiresAt,
+    });
+    vi.mocked(messagingApiV1.sendText).mockResolvedValue({
+      id: 'o1',
+      status: 'accepted',
+      providerMessageId: 'w',
+      deduped: false,
+    });
+
+    const s = await processProactiveBatch('waitlist_offer');
+
+    // As 4 h inteiras, das 8h às 12h: nenhuma hora da madrugada foi contada.
+    expect(offerExpiresAt).toEqual(new Date('2026-10-10T12:00:00-03:00'));
+    expect(s.sent).toBe(1);
+    expect(repo.cancel).not.toHaveBeenCalled();
+    expect(messagingApiV1.sendText).toHaveBeenCalledWith(
+      expect.objectContaining({ idempotencyKey: 'j-noite' }),
     );
   });
 

@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { chooseWaitlistCandidate, type WaitlistCandidate } from './waitlist-policy';
+import {
+  WAITLIST_OFFER_SEND_HOURS,
+  WAITLIST_OFFER_TTL_MINUTES,
+  chooseWaitlistCandidate,
+  isWaitlistOfferExpired,
+  waitlistOfferExpiresAt,
+  type WaitlistCandidate,
+} from './waitlist-policy';
 
 const core = readFileSync(
   resolve(process.cwd(), 'src/contexts/scheduling/internal/appointment-core.ts'),
@@ -149,6 +156,70 @@ describe('waitlist candidate selection', () => {
     expect(acceptBlock).toContain('idemKey(');
     expect(manager).toContain('Aceitar vaga');
     expect(manager).toContain('Recusar');
+  });
+});
+
+// ADR-066 — o TTL da oferta corre só nas horas em que o convite pode sair.
+describe('janela de resposta da oferta', () => {
+  const SP = 'America/Sao_Paulo';
+  const MINUTE = 60 * 1000;
+
+  it('o TTL segue 240 min', () => {
+    expect(WAITLIST_OFFER_TTL_MINUTES).toBe(240);
+  });
+
+  it.each([
+    ['diurna: as 4 h no mesmo dia', '2026-10-09T10:00-03:00', '2026-10-09T14:00-03:00'],
+    ['às 21h: abre às 8h e fecha às 12h', '2026-10-09T21:00-03:00', '2026-10-10T12:00-03:00'],
+    ['de madrugada: abre às 8h', '2026-10-10T04:30-03:00', '2026-10-10T12:00-03:00'],
+    ['às 17h: 3 h hoje e 1 h amanhã', '2026-10-09T17:00-03:00', '2026-10-10T09:00-03:00'],
+    ['às 8h em ponto', '2026-10-09T08:00-03:00', '2026-10-09T12:00-03:00'],
+    ['um minuto antes das 8h', '2026-10-09T07:59-03:00', '2026-10-09T12:00-03:00'],
+    ['às 16h fecha às 20h em ponto', '2026-10-09T16:00-03:00', '2026-10-09T20:00-03:00'],
+    ['às 19h59: 1 min hoje e 239 amanhã', '2026-10-09T19:59-03:00', '2026-10-10T11:59-03:00'],
+    ['às 20h em ponto já conta amanhã', '2026-10-09T20:00-03:00', '2026-10-10T12:00-03:00'],
+    ['na virada do ano', '2026-12-31T21:00-03:00', '2027-01-01T12:00-03:00'],
+  ])('oferta %s', (_label, offeredAt, expiresAt) => {
+    expect(waitlistOfferExpiresAt(new Date(offeredAt), SP)).toEqual(new Date(expiresAt));
+  });
+
+  it('as horas são as do fuso da clínica', () => {
+    // Manaus é UTC−4: às 12h locais, em São Paulo já são 13h.
+    expect(waitlistOfferExpiresAt(new Date('2026-10-09T21:00-04:00'), 'America/Manaus')).toEqual(
+      new Date('2026-10-10T12:00-04:00'),
+    );
+  });
+
+  it('a oferta das 21h segue aberta às 8h e vence às 12h em ponto', () => {
+    const offeredAt = new Date('2026-10-09T21:00-03:00');
+    expect(isWaitlistOfferExpired(offeredAt, SP, new Date('2026-10-10T08:00-03:00'))).toBe(false);
+    expect(isWaitlistOfferExpired(offeredAt, SP, new Date('2026-10-10T11:59:59.999-03:00'))).toBe(
+      false,
+    );
+    expect(isWaitlistOfferExpired(offeredAt, SP, new Date('2026-10-10T12:00-03:00'))).toBe(true);
+  });
+
+  it('qualquer horário de oferta ganha o TTL inteiro em horas de envio, e nada além', () => {
+    // Conta minuto a minuto, sem a regra. São Paulo não tem horário de verão
+    // desde 2019: a hora local é a UTC menos 3.
+    const isSendMinute = (instant: number) => {
+      const hour = new Date(instant - 3 * 60 * MINUTE).getUTCHours();
+      return hour >= WAITLIST_OFFER_SEND_HOURS.start && hour < WAITLIST_OFFER_SEND_HOURS.end;
+    };
+    const first = new Date('2026-10-09T00:00-03:00').getTime();
+    const wrong: string[] = [];
+    for (let offeredAt = first; offeredAt < first + 48 * 60 * MINUTE; offeredAt += 15 * MINUTE) {
+      const expiresAt = waitlistOfferExpiresAt(new Date(offeredAt), SP).getTime();
+      let counted = 0;
+      for (let minute = offeredAt; minute < expiresAt; minute += MINUTE) {
+        if (isSendMinute(minute)) counted += 1;
+      }
+      // O último minuto da janela também é de envio: ela não se estende noite adentro.
+      if (counted !== WAITLIST_OFFER_TTL_MINUTES || !isSendMinute(expiresAt - MINUTE)) {
+        wrong.push(new Date(offeredAt).toISOString());
+      }
+    }
+    expect(wrong).toEqual([]);
   });
 });
 import { readFileSync } from 'node:fs';
