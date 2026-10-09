@@ -2,8 +2,10 @@
  * Processor de jobs proativos (C14) — roda nos crons. Para cada job reservado
  * (claimDue já aplicou janela 8-20h local + bump de attempts):
  *   1. valida payload (Zod) — inválido = falha NÃO-retryável.
- *   2. guard de send-time (re-lê estado: consulta ainda ativa / lançamento ainda
- *      pendente) — evita corrida e cobre o teste "pagou → não envia".
+ *   2. guard de send-time: primeiro a validade do tipo (ADR-065 — vencido =
+ *      cancelled `expired_<tipo>`, nunca enviado atrasado); depois re-lê estado
+ *      (consulta ainda ativa / lançamento ainda pendente) — evita corrida e
+ *      cobre o teste "pagou → não envia".
  *   3. resolve contato (patient) + política (suppression/consent) — bloqueio =
  *      job cancelled com reason.
  *   4. monta template Meta + envia via messagingApiV1.sendText com a chave da
@@ -49,6 +51,7 @@ import {
   type DunningPayload,
   type FollowupPayload,
   type NoShowFollowupPayload,
+  type ProactivePayload,
   type ReminderPayload,
   type RemainderLinkPayload,
   type WaitlistOfferPayload,
@@ -59,6 +62,7 @@ import { TemplateNotConfiguredError, buildProactiveTemplate } from '../infra/tem
 import type { ProactiveJobType } from '../schema';
 import { evaluateProactivePolicy, suppressionPurposeFor } from './policy';
 import { resendDeadline } from './resend-deadline';
+import { expiredReason, isExpired, type ValidityContext } from './validity';
 
 export interface BatchSummary {
   type: ProactiveJobType;
@@ -88,6 +92,7 @@ async function processOne(job: ClaimedJob, tzCache: Map<string, string>): Promis
   }
   const payload = parsed.data;
   const patientId = (payload as { patientId: string }).patientId;
+  // O fuso da clínica serve à validade (dias-calendário locais) e ao template.
   const tz = await resolveTz(clinicId, tzCache);
 
   // 1b. ADR-064 — reenvio só vale até o prazo do tipo. O prazo foi conferido ao
@@ -104,8 +109,12 @@ async function processOne(job: ClaimedJob, tzCache: Map<string, string>): Promis
     }
   }
 
-  // 2. guard de send-time (estado fresco).
-  const guard = await sendTimeGuard(type, clinicId, payload);
+  // 2. guard de send-time (validade do tipo + estado fresco).
+  const guard = await sendTimeGuard(type, clinicId, payload, {
+    now: new Date(),
+    timezone: tz,
+    createdAt: job.createdAt,
+  });
   if (guard) {
     await repo.cancel(clinicId, id, leaseToken, guard);
     metrics.emit('proactive.job.cancelled', { ...log, reason: guard });
@@ -205,20 +214,20 @@ async function processOne(job: ClaimedJob, tzCache: Map<string, string>): Promis
   }
 }
 
-/** Retorna um reason de cancelamento se o estado mudou; null se segue válido. */
+/**
+ * Retorna um reason de cancelamento se o job venceu ou o estado mudou; null se
+ * segue válido.
+ */
 async function sendTimeGuard(
   type: ProactiveJobType,
   clinicId: string,
-  payload:
-    | ReminderPayload
-    | DunningPayload
-    | FollowupPayload
-    | NoShowFollowupPayload
-    | WaitlistOfferPayload
-    | DepositLinkPayload
-    | RemainderLinkPayload
-    | { patientId: string },
+  payload: ProactivePayload,
+  validity: ValidityContext & { now: Date },
 ): Promise<string | null> {
+  // ADR-065 — a validade vem antes de qualquer leitura: passada a janela útil, a
+  // mensagem não sai atrasada, nem com a consulta ativa ou a cobrança pagável.
+  if (isExpired(type, payload, validity)) return expiredReason(type);
+
   if (type === 'reminder') {
     const appt = await schedulingApiV1.lookupAppointment(
       clinicId,
@@ -250,6 +259,11 @@ async function sendTimeGuard(
     if (state.patientId !== offer.patientId) return 'waitlist_patient_mismatch';
     if (state.offeredAppointmentId !== offer.releasedAppointmentId) {
       return 'waitlist_offer_superseded';
+    }
+    // A janela de resposta é do Scheduling. O cron devolve a oferta vencida à
+    // fila antes de despachar; se ainda não devolveu, o convite também não sai.
+    if (state.offerExpiresAt && state.offerExpiresAt.getTime() <= validity.now.getTime()) {
+      return expiredReason('waitlist_offer');
     }
     const released = await schedulingApiV1.lookupAppointment(clinicId, offer.releasedAppointmentId);
     if (!released || released.status !== 'cancelado') return 'waitlist_slot_unavailable';

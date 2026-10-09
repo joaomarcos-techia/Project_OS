@@ -47,6 +47,24 @@ export interface ClaimedJob {
   resend: boolean;
   /** Último motivo gravado; num reenvio, a recusa que o motivou (`meta_131000`). */
   failedReason: string | null;
+  /**
+   * ADR-065 — base da validade de quem não tem prazo no payload. Não é o
+   * `scheduled_for`: esse o backoff reescreve a cada tentativa.
+   */
+  createdAt: Date;
+}
+
+/**
+ * `execute()` cru não carrega o tipo da coluna: conforme o cache de tipos do
+ * postgres-js, timestamptz chega como `Date` ou como texto do Postgres
+ * (`2026-10-08 12:00:00+00`). Mesmo cuidado do `reminder-candidates.ts`.
+ */
+function rawTimestamp(value: Date | string): Date {
+  const parsed = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error('[c14] claimDue devolveu created_at inválido');
+  }
+  return parsed;
 }
 
 /** Timezone da clínica via tx já aberta (handler). Single-table read da fundação. */
@@ -93,6 +111,10 @@ export async function enqueue(
  * o advisory lock por (type) do ADR-3). A chave de envio da geração (ADR-064:
  * `send_key`, ou o job.id) é o backstop contra duplicata no Meta. Retorna
  * `attempts` já incrementado.
+ *
+ * Não corta por idade de propósito (ADR-065): o job vencido precisa ser
+ * reservado para o guard de send-time fechá-lo com `expired_<tipo>`. Filtrado
+ * aqui, ele ficaria `pending` para sempre, sem motivo.
  */
 export async function claimDue(type: ProactiveJobType, limit: number): Promise<ClaimedJob[]> {
   const rows = (await dbAdmin.execute(
@@ -135,7 +157,8 @@ export async function claimDue(type: ProactiveJobType, limit: number): Promise<C
         RETURNING j.id::text AS id, j.clinic_id::text AS clinic_id, j.type AS type,
                   j.payload AS payload, j.attempts AS attempts, j.lease_token AS lease_token,
                   coalesce(j.send_key, j.id)::text AS send_key,
-                  (j.send_key IS NOT NULL) AS resend, j.failed_reason AS failed_reason`,
+                  (j.send_key IS NOT NULL) AS resend, j.failed_reason AS failed_reason,
+                  j.created_at AS created_at`,
   )) as unknown as Array<{
     id: string;
     clinic_id: string;
@@ -146,6 +169,7 @@ export async function claimDue(type: ProactiveJobType, limit: number): Promise<C
     send_key: string;
     resend: boolean;
     failed_reason: string | null;
+    created_at: Date | string;
   }>;
 
   return rows.map((r) => ({
@@ -158,6 +182,7 @@ export async function claimDue(type: ProactiveJobType, limit: number): Promise<C
     sendKey: r.send_key,
     resend: r.resend,
     failedReason: r.failed_reason,
+    createdAt: rawTimestamp(r.created_at),
   }));
 }
 

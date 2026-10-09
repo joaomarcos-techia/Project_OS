@@ -6,8 +6,11 @@
  * com chave nova só para código retentável, falha na hora para o resto.
  * T3/T4 (paciente responde SIM/REMARCAR) NÃO estão aqui: são do C11 (inbound
  * webhook → tools confirm/reschedule), que C14 não altera — cobertos por C11.
+ *
+ * O relógio é fixo (ADR-065): a validade de cada tipo depende do instante do
+ * envio, e as fixtures ficam dentro da janela em `NOW`.
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../infra/repository', () => ({
   claimDue: vi.fn(),
@@ -55,9 +58,14 @@ import { schedulingApiV1 } from '@/contexts/scheduling';
 
 import * as repo from '../infra/repository';
 import { buildProactiveTemplate } from '../infra/templates';
+import type { ProactiveJobType } from '../schema';
 import { processProactiveBatch } from './process';
 
 const U = '11111111-1111-1111-1111-111111111111';
+/** Sexta 09/10/2026, 10:00 em São Paulo. */
+const NOW = new Date('2026-10-09T13:00:00.000Z');
+/** `created_at` padrão dos jobs reservados: duas horas antes de `NOW`. */
+const CREATED_AT = new Date('2026-10-09T11:00:00.000Z');
 const okContact = {
   nome: 'Maria',
   phone: '5511999990000',
@@ -70,7 +78,8 @@ const okContact = {
 const reminderPayload = {
   patientId: U,
   appointmentId: U,
-  scheduledAt: '2026-06-19T12:00:00Z',
+  // Amanhã (sábado 10/10) às 09:00 locais.
+  scheduledAt: '2026-10-10T12:00:00Z',
   doctorNome: 'Dr X',
 };
 const dunningPayload = {
@@ -78,26 +87,28 @@ const dunningPayload = {
   lancamentoId: U,
   stage: 3,
   valor: 200,
-  dueDate: '2026-06-10',
+  // D+4 em `NOW`.
+  dueDate: '2026-10-05',
   procedureNome: 'Consulta',
 };
 const followupPayload = {
   patientId: U,
   prontuarioId: U,
   doctorNome: 'Dr X',
-  returnDate: '2026-09-10',
+  returnDate: '2026-10-11',
 };
 const noShowFollowupPayload = {
   patientId: U,
   appointmentId: U,
-  noShowAt: '2026-09-04T15:00:00.000Z',
+  // Quinta 08/10, 12:00 locais: o job sai na sexta, o 1º dia útil.
+  noShowAt: '2026-10-08T15:00:00.000Z',
 };
 const depositPayload = {
   patientId: U,
   chargeId: U,
   appointmentId: U,
   amount: 150,
-  holdExpiresAt: '2026-08-26T17:00:00.000Z',
+  holdExpiresAt: '2026-10-10T13:00:00.000Z',
 };
 const remainderPayload = {
   patientId: U,
@@ -111,19 +122,33 @@ const waitlistPayload = {
   patientId: U,
   waitlistEntryId: U,
   releasedAppointmentId: RELEASED,
-  scheduledAt: '2026-09-12T13:00:00Z',
+  scheduledAt: '2026-10-12T13:00:00Z',
   doctorNome: 'Dr X',
 };
+/** Janela de resposta da oferta ainda aberta em `NOW`. */
+const OFFER_EXPIRES_AT = new Date('2026-10-09T16:00:00.000Z');
 
 /** Geração 0 por padrão: a chave de envio é o próprio id do job. */
 function claim(job: Record<string, unknown>): void {
   vi.mocked(repo.claimDue).mockResolvedValue([
-    { leaseToken: 'lease-1', sendKey: job.id, resend: false, failedReason: null, ...job } as never,
+    {
+      leaseToken: 'lease-1',
+      sendKey: job.id,
+      resend: false,
+      failedReason: null,
+      createdAt: CREATED_AT,
+      ...job,
+    } as never,
   ]);
 }
 
+afterEach(() => {
+  vi.useRealTimers();
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.useFakeTimers({ now: NOW, toFake: ['Date'] });
   vi.mocked(repo.getClinicTimezone).mockResolvedValue('America/Sao_Paulo');
   vi.mocked(patientApiV1.getProactiveContact).mockResolvedValue(okContact);
   vi.mocked(paymentsApiV1.getPayableCharge).mockResolvedValue({
@@ -150,6 +175,7 @@ beforeEach(() => {
     status: 'offered',
     patientId: U,
     offeredAppointmentId: RELEASED,
+    offerExpiresAt: OFFER_EXPIRES_AT,
   });
 });
 
@@ -197,6 +223,7 @@ describe('WAIT-001 — oferta da lista de espera', () => {
       status: 'booked',
       patientId: U,
       offeredAppointmentId: RELEASED,
+      offerExpiresAt: null,
     });
 
     const s = await processProactiveBatch('waitlist_offer');
@@ -236,6 +263,7 @@ describe('WAIT-001 — oferta da lista de espera', () => {
       status: 'offered',
       patientId: U,
       offeredAppointmentId: '33333333-3333-3333-3333-333333333333',
+      offerExpiresAt: OFFER_EXPIRES_AT,
     });
 
     const s = await processProactiveBatch('waitlist_offer');
@@ -293,7 +321,7 @@ describe('processProactiveBatch (C14 §14.6)', () => {
         patientId: U,
         procedureId: U,
         excludeAppointmentId: U,
-        after: new Date('2026-09-04T15:00:00.000Z'),
+        after: new Date('2026-10-08T15:00:00.000Z'),
       }),
     );
     expect(buildProactiveTemplate).toHaveBeenCalledWith(
@@ -795,62 +823,234 @@ describe('ADR-064 — recusa da Meta, reenvio e chave por geração', () => {
     expect(messagingApiV1.sendText).not.toHaveBeenCalled();
   });
 
-  it('T6o: o prazo só vale para reenvio; a geração 0 segue o guard de sempre', async () => {
+  it('T6o: geração 0 vencida é cancelada com expired_<tipo> (ADR-065), não falha como recusa', async () => {
+    // O mesmo prazo do T6p, sem recusa anterior: não há código da Meta a registrar.
+    vi.setSystemTime(new Date('2026-10-10T11:00:00.000Z'));
     claim({ id: 'j1', clinicId: 'c1', type: 'reminder', payload: reminderPayload, attempts: 1 });
-    sendResult({ status: 'accepted', providerMessageId: 'w' });
 
     const s = await processProactiveBatch('reminder');
 
-    expect(s.sent).toBe(1);
-    expect(messagingApiV1.sendText).toHaveBeenCalledWith(
-      expect.objectContaining({ idempotencyKey: 'j1' }),
-    );
+    expect(s.cancelled).toBe(1);
+    expect(repo.cancel).toHaveBeenCalledWith('c1', 'j1', 'lease-1', 'expired_reminder');
+    expect(repo.finalizeFailed).not.toHaveBeenCalled();
+    expect(messagingApiV1.sendText).not.toHaveBeenCalled();
   });
 
   it('T6p: lembrete reenviado no PRÓPRIO dia da consulta não sai ("amanhã às" mentiria)', async () => {
     // 10:00 em São Paulo; a consulta é às 16:00 do mesmo dia, ainda no futuro.
-    vi.useFakeTimers({ now: new Date('2026-10-09T13:00:00.000Z'), toFake: ['Date'] });
-    try {
-      claim({
-        id: 'j1',
-        clinicId: 'c1',
-        type: 'reminder',
-        payload: { ...reminderPayload, scheduledAt: '2026-10-09T19:00:00.000Z' },
-        attempts: 3,
-        sendKey: SECOND_KEY,
-        resend: true,
-        failedReason: 'meta_130429',
-      });
+    // O relógio já é falso (beforeEach): só move o instante.
+    vi.setSystemTime(new Date('2026-10-09T13:00:00.000Z'));
+    claim({
+      id: 'j1',
+      clinicId: 'c1',
+      type: 'reminder',
+      payload: { ...reminderPayload, scheduledAt: '2026-10-09T19:00:00.000Z' },
+      attempts: 3,
+      sendKey: SECOND_KEY,
+      resend: true,
+      failedReason: 'meta_130429',
+    });
 
-      const s = await processProactiveBatch('reminder');
+    const s = await processProactiveBatch('reminder');
 
-      expect(s.failed).toBe(1);
-      expect(repo.finalizeFailed).toHaveBeenCalledWith('c1', 'j1', 'lease-1', 'meta_130429');
-      expect(messagingApiV1.sendText).not.toHaveBeenCalled();
-    } finally {
-      vi.useRealTimers();
-    }
+    expect(s.failed).toBe(1);
+    expect(repo.finalizeFailed).toHaveBeenCalledWith('c1', 'j1', 'lease-1', 'meta_130429');
+    expect(messagingApiV1.sendText).not.toHaveBeenCalled();
   });
 
   it('T6q: recusa retentável de lembrete na véspera reenvia enquanto ainda é véspera', async () => {
     // 10:00 da véspera em São Paulo; o reenvio (+30 s) ainda cai na véspera.
-    vi.useFakeTimers({ now: new Date('2026-10-08T13:00:00.000Z'), toFake: ['Date'] });
-    try {
-      claim({
-        id: 'j1',
-        clinicId: 'c1',
-        type: 'reminder',
-        payload: { ...reminderPayload, scheduledAt: '2026-10-09T19:00:00.000Z' },
-        attempts: 1,
+    // O relógio já é falso (beforeEach): só move o instante.
+    vi.setSystemTime(new Date('2026-10-08T13:00:00.000Z'));
+    claim({
+      id: 'j1',
+      clinicId: 'c1',
+      type: 'reminder',
+      payload: { ...reminderPayload, scheduledAt: '2026-10-09T19:00:00.000Z' },
+      attempts: 1,
+    });
+    sendResult({ status: 'failed', errorCode: '131000' });
+
+    const s = await processProactiveBatch('reminder');
+
+    expect(s.retried).toBe(1);
+    expect(repo.finalizeResend).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('ADR-065 — validade por tipo no send-time', () => {
+  /**
+   * Estado de origem que deixa o guard passar: no caso vencido, prova que só a
+   * validade decidiu. reminder (confirmado), dunning (pendente), followup e
+   * remainder_link (cobrança pagável) já passam com o estado do beforeEach.
+   */
+  function arrangeLiveState(type: ProactiveJobType): void {
+    if (type === 'no_show_followup') {
+      vi.mocked(schedulingApiV1.lookupAppointment).mockResolvedValue({
+        status: 'faltou',
+        patientId: U,
+        procedureId: U,
+      } as never);
+    } else if (type === 'waitlist_offer') {
+      vi.mocked(schedulingApiV1.lookupAppointment).mockResolvedValue({
+        status: 'cancelado',
+      } as never);
+      vi.mocked(schedulingApiV1.lookupWaitlistOffer).mockResolvedValue({
+        status: 'offered',
+        patientId: U,
+        offeredAppointmentId: RELEASED,
+        offerExpiresAt: new Date('2026-10-12T16:30:00.000Z'),
       });
-      sendResult({ status: 'failed', errorCode: '131000' });
-
-      const s = await processProactiveBatch('reminder');
-
-      expect(s.retried).toBe(1);
-      expect(repo.finalizeResend).toHaveBeenCalledTimes(1);
-    } finally {
-      vi.useRealTimers();
+    } else if (type === 'deposit_link') {
+      vi.mocked(schedulingApiV1.lookupAppointment).mockResolvedValue({
+        status: 'agendado',
+      } as never);
     }
+  }
+
+  // Instantes dentro da janela 8–20h locais, como o claimDue os entregaria.
+  const cases: Array<{
+    type: ProactiveJobType;
+    payload: Record<string, unknown>;
+    inWindowAt: string;
+    expiredAt: string;
+  }> = [
+    // Consulta sábado 09:00: vale na sexta 19:45; às 08:00 do sábado o "amanhã" já mente.
+    {
+      type: 'reminder',
+      payload: reminderPayload,
+      inWindowAt: '2026-10-09T22:45:00.000Z',
+      expiredAt: '2026-10-10T11:00:00.000Z',
+    },
+    // Hold até sábado 10:00.
+    {
+      type: 'deposit_link',
+      payload: depositPayload,
+      inWindowAt: '2026-10-10T12:45:00.000Z',
+      expiredAt: '2026-10-10T13:00:00.000Z',
+    },
+    // Vaga na segunda 10:00.
+    {
+      type: 'waitlist_offer',
+      payload: waitlistPayload,
+      inWindowAt: '2026-10-12T12:30:00.000Z',
+      expiredAt: '2026-10-12T13:00:00.000Z',
+    },
+    // D+3 de 05/10: vale no D+4; na segunda 12/10 já é D+7.
+    {
+      type: 'dunning',
+      payload: dunningPayload,
+      inWindowAt: '2026-10-09T13:00:00.000Z',
+      expiredAt: '2026-10-12T12:00:00.000Z',
+    },
+    // Retorno em 11/10: vale até domingo 18/10; segunda 19/10 é o 8º dia.
+    {
+      type: 'followup',
+      payload: followupPayload,
+      inWindowAt: '2026-10-18T22:00:00.000Z',
+      expiredAt: '2026-10-19T12:00:00.000Z',
+    },
+    // Falta na quinta 08/10: sexta, segunda e terça; na quarta 14/10 já venceu.
+    {
+      type: 'no_show_followup',
+      payload: noShowFollowupPayload,
+      inWindowAt: '2026-10-13T22:00:00.000Z',
+      expiredAt: '2026-10-14T12:00:00.000Z',
+    },
+    // Enfileirado em `CREATED_AT`: vale por 7 dias.
+    {
+      type: 'remainder_link',
+      payload: remainderPayload,
+      inWindowAt: '2026-10-16T10:45:00.000Z',
+      expiredAt: '2026-10-16T11:00:00.000Z',
+    },
+  ];
+
+  it.each(cases)('$type dentro da janela segue para o envio', async (c) => {
+    vi.setSystemTime(new Date(c.inWindowAt));
+    claim({ id: 'j-validade', clinicId: 'c1', type: c.type, payload: c.payload, attempts: 1 });
+    arrangeLiveState(c.type);
+    vi.mocked(messagingApiV1.sendText).mockResolvedValue({
+      id: 'o1',
+      status: 'accepted',
+      providerMessageId: 'w',
+      deduped: false,
+    });
+
+    const summary = await processProactiveBatch(c.type);
+
+    expect(summary.sent).toBe(1);
+    expect(repo.cancel).not.toHaveBeenCalled();
+    expect(messagingApiV1.sendText).toHaveBeenCalledWith(
+      expect.objectContaining({ idempotencyKey: 'j-validade' }),
+    );
+  });
+
+  it.each(cases)(
+    '$type vencido → cancelled expired_$type, sem ler estado nem enviar',
+    async (c) => {
+      vi.setSystemTime(new Date(c.expiredAt));
+      claim({ id: 'j-validade', clinicId: 'c1', type: c.type, payload: c.payload, attempts: 1 });
+      arrangeLiveState(c.type);
+
+      const summary = await processProactiveBatch(c.type);
+
+      expect(summary.cancelled).toBe(1);
+      expect(repo.cancel).toHaveBeenCalledWith('c1', 'j-validade', 'lease-1', `expired_${c.type}`);
+      expect(schedulingApiV1.lookupAppointment).not.toHaveBeenCalled();
+      expect(schedulingApiV1.lookupWaitlistOffer).not.toHaveBeenCalled();
+      expect(financialApiV1.getLancamento).not.toHaveBeenCalled();
+      expect(clinicalApiV1.getFollowupState).not.toHaveBeenCalled();
+      expect(paymentsApiV1.getPayableCharge).not.toHaveBeenCalled();
+      expect(patientApiV1.getProactiveContact).not.toHaveBeenCalled();
+      expect(messagingApiV1.sendText).not.toHaveBeenCalled();
+    },
+  );
+
+  it('oferta com a janela de resposta vencida no Scheduling → expired_waitlist_offer', async () => {
+    // O horário ainda não começou, mas o cron ainda não devolveu a oferta à fila.
+    claim({
+      id: 'j1',
+      clinicId: 'c1',
+      type: 'waitlist_offer',
+      payload: waitlistPayload,
+      attempts: 1,
+    });
+    vi.mocked(schedulingApiV1.lookupWaitlistOffer).mockResolvedValue({
+      status: 'offered',
+      patientId: U,
+      offeredAppointmentId: RELEASED,
+      offerExpiresAt: NOW,
+    });
+
+    const summary = await processProactiveBatch('waitlist_offer');
+
+    expect(summary.cancelled).toBe(1);
+    expect(repo.cancel).toHaveBeenCalledWith('c1', 'j1', 'lease-1', 'expired_waitlist_offer');
+    expect(schedulingApiV1.lookupAppointment).not.toHaveBeenCalled();
+    expect(messagingApiV1.sendText).not.toHaveBeenCalled();
+  });
+
+  it('remainder_link há 34 dias na fila (o caso do DEV) não pergunta ao Payments', async () => {
+    claim({
+      id: 'j-restante',
+      clinicId: 'c1',
+      type: 'remainder_link',
+      payload: remainderPayload,
+      attempts: 1,
+      createdAt: new Date(NOW.getTime() - 34 * 24 * 60 * 60 * 1000),
+    });
+
+    const summary = await processProactiveBatch('remainder_link');
+
+    expect(summary.cancelled).toBe(1);
+    expect(repo.cancel).toHaveBeenCalledWith(
+      'c1',
+      'j-restante',
+      'lease-1',
+      'expired_remainder_link',
+    );
+    expect(paymentsApiV1.getPayableCharge).not.toHaveBeenCalled();
+    expect(messagingApiV1.sendText).not.toHaveBeenCalled();
   });
 });
