@@ -87,10 +87,16 @@ terminou em **success** em 10/10 UTC. Foram 5.455/5.455 testes em 520 arquivos;
 o build Next e o gate de segredos no bundle passaram. O gate E2E público executou
 6 testes com PASS e pulou 2; os skips não são prova funcional dessas rotas.
 
+Releitura da WABA e da mensagem enviada após o cadastro de pagamento em 10/10:
+[evidência e limites medidos](waba-readback-2026-10-10.md). A Meta já não reporta
+o bloqueio de pagamento; o callback da WABA aponta para outro Preview, e o
+ingresso no Preview integrado continua sem prova.
+
 ## O que ainda precisa de prova
 
-- **Preview integrado:** ainda falta E2E externo da lista de espera, C14 e saúde
-  WABA. O resultado local não comprova aceite de oferta ou envio pela Meta.
+- **Preview integrado:** ainda falta E2E externo da lista de espera e da C14.
+  A saúde WABA teve leitura real na Meta e na UI em 10/10, mas isso não comprova
+  aceite de oferta nem entrega de template novo ao paciente.
 - **Migrations de produção:** não foram aplicadas nem tiveram readback neste ciclo.
   A presença dos marcadores no DEV não autoriza inferência sobre produção.
 - **Editor de perfil público do WhatsApp (#19):** resolver conflitos depois de

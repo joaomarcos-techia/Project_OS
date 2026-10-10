@@ -8681,6 +8681,11 @@ Commits `eb969eed`, `3da70f90` e `cf180f0d`. Em aberto: sinal só por Pix ou tam
 
 ## 60. Integração isolada e gates de 09/10/2026
 
+Atualização de 10/10: a [releitura da WABA após cadastrar pagamento](quality/waba-readback-2026-10-10.md)
+mediu a remoção do bloqueio 141006, a mensagem real processada no DEV e a ausência
+intencional de resposta durante `handoff`. O callback da WABA aponta para outro
+Preview; a entrega de template novo e o ingresso na PR #34 seguem sem prova.
+
 A branch `integration/qoro-20261009` combina as PRs #26, #30, #31, #32 e #33
 sem alterar a `main` ou produção. A composição, os comandos, os resultados
 medidos no código combinado e os gates ainda abertos estão no
