@@ -1,7 +1,8 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 import { config as loadDotenv } from 'dotenv';
 
 import { authenticate, hasE2ECredentials } from './auth';
+import { vercelBypassHeaders } from './vercel-bypass';
 
 loadDotenv({ path: '.env.local' });
 
@@ -42,8 +43,24 @@ const ROTA = '/configuracoes/whatsapp';
 const SECAO = '[data-slot="whatsapp-profile"]';
 
 test.describe('§33 — perfil público do WhatsApp', () => {
+  test.describe.configure({ mode: 'serial' });
   test.skip(!baseUrl, 'E2E_BASE_URL ausente: sem alvo para exercitar.');
   test.skip(!hasE2ECredentials(), 'E2E_USER_EMAIL/E2E_USER_PASSWORD ausentes.');
+
+  let context: BrowserContext;
+  let page: Page;
+  test.beforeAll(async ({ browser }) => {
+    if (!baseUrl) throw new Error('E2E_BASE_URL ausente');
+    context = await browser.newContext({
+      baseURL: baseUrl,
+      extraHTTPHeaders: vercelBypassHeaders(),
+    });
+    page = await context.newPage();
+    await authenticate(page);
+  });
+  test.afterAll(async () => {
+    await context?.close();
+  });
 
   /** Falha o teste em erro de página — hidratação quebrada não pode passar. */
   function vigiar(page: Page): { erros: string[] } {
@@ -61,7 +78,6 @@ test.describe('§33 — perfil público do WhatsApp', () => {
     page: Page,
   ): Promise<{ temSecao: boolean; somenteLeitura: boolean; erros: string[] }> {
     const { erros } = vigiar(page);
-    await authenticate(page);
     await page.goto(ROTA, { timeout: 90_000 });
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
     const temSecao = (await page.locator(SECAO).count()) > 0;
@@ -70,7 +86,7 @@ test.describe('§33 — perfil público do WhatsApp', () => {
     return { temSecao, somenteLeitura, erros };
   }
 
-  test('a tela abre sem 5xx e sem erro de página', async ({ page }, testInfo) => {
+  test('a tela abre sem 5xx e sem erro de página', async ({}, testInfo) => {
     const { temSecao, erros } = await abrir(page);
     testInfo.annotations.push({
       type: 'regime',
@@ -79,7 +95,7 @@ test.describe('§33 — perfil público do WhatsApp', () => {
     expect(erros, erros.join(' | ')).toEqual([]);
   });
 
-  test('sem número conectado, a seção de perfil não aparece', async ({ page }) => {
+  test('sem número conectado, a seção de perfil não aparece', async () => {
     const { temSecao } = await abrir(page);
     test.skip(temSecao, 'Há número conectado nesta clínica: este caso não se aplica.');
 
@@ -88,9 +104,7 @@ test.describe('§33 — perfil público do WhatsApp', () => {
     await expect(page.locator(SECAO)).toHaveCount(0);
   });
 
-  test('com número conectado, o formulário vem preenchido e avisa que é público', async ({
-    page,
-  }) => {
+  test('com número conectado, o formulário vem preenchido e avisa que é público', async () => {
     const { temSecao } = await abrir(page);
     test.skip(!temSecao, 'Sem número conectado no Preview: nada a ler.');
 
@@ -111,7 +125,7 @@ test.describe('§33 — perfil público do WhatsApp', () => {
     await expect(secao.getByLabel('Recado')).toBeVisible();
   });
 
-  test('o token da Meta não chega ao HTML servido', async ({ page }) => {
+  test('o token da Meta não chega ao HTML servido', async () => {
     const { temSecao } = await abrir(page);
     test.skip(!temSecao, 'Sem número conectado: não há credencial em jogo nesta tela.');
 
@@ -123,7 +137,7 @@ test.describe('§33 — perfil público do WhatsApp', () => {
     expect(html).not.toContain('access_token');
   });
 
-  test('coexistência mostra o perfil como gerenciado pelo aplicativo', async ({ page }) => {
+  test('coexistência mostra o perfil como gerenciado pelo aplicativo', async () => {
     const { temSecao, somenteLeitura } = await abrir(page);
     test.skip(!temSecao, 'Sem número conectado: não há perfil a exibir.');
     test.skip(!somenteLeitura, 'Número dedicado: este caso de coexistência não se aplica.');
@@ -134,7 +148,7 @@ test.describe('§33 — perfil público do WhatsApp', () => {
     await expect(secao.getByRole('button', { name: 'Salvar perfil' })).toHaveCount(0);
   });
 
-  test('entrada inválida é recusada por campo, e nada é enviado à Meta', async ({ page }) => {
+  test('entrada inválida é recusada por campo, e nada é enviado à Meta', async () => {
     const { temSecao, somenteLeitura } = await abrir(page);
     test.skip(!temSecao, 'Sem número conectado: o formulário não existe.');
     test.skip(somenteLeitura, 'Coexistência: o perfil é editado no aplicativo WhatsApp Business.');
@@ -161,7 +175,7 @@ test.describe('§33 — perfil público do WhatsApp', () => {
     await site.fill(original);
   });
 
-  test('round-trip real: escreve, recarrega e confere na Meta', async ({ page }, testInfo) => {
+  test('round-trip real: escreve, recarrega e confere na Meta', async () => {
     test.setTimeout(300_000);
     test.skip(
       !escritaAutorizada,
@@ -180,7 +194,6 @@ test.describe('§33 — perfil público do WhatsApp', () => {
     const recado = secao.getByLabel('Recado');
     const anterior = await recado.inputValue();
     const novo = `Teste automatizado ${Date.now()}`;
-    testInfo.annotations.push({ type: 'restaura-para', description: anterior });
 
     try {
       await recado.fill(novo);
@@ -200,8 +213,8 @@ test.describe('§33 — perfil público do WhatsApp', () => {
     } finally {
       // Restaura SEMPRE, inclusive em falha: este perfil é público e um recado
       // de teste ficaria visível para quem abrisse a conversa com a clínica.
-      await page.goto('/dashboard', { timeout: 90_000 }).catch(() => undefined);
-      await page.goto(ROTA, { timeout: 90_000 }).catch(() => undefined);
+      await page.goto('/dashboard', { timeout: 90_000 });
+      await page.goto(ROTA, { timeout: 90_000 });
       const atual = page.locator(SECAO).getByLabel('Recado');
       if ((await atual.count()) > 0 && (await atual.inputValue()) !== anterior) {
         await atual.fill(anterior);

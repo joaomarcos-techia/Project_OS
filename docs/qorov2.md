@@ -8723,3 +8723,33 @@ outra conta permaneceu intacto. Consulta `READ ONLY` em produção encontrou só
 a migration 0107 entre 0107–0118: **0108–0118 seguem pendentes**. Nenhuma
 migration foi aplicada. Evidência, limites e links da documentação oficial do
 Asaas estão no [registro de integração](quality/integracao-2026-10-09.md).
+
+## 61. Callback de teste no Preview e mensalidade SaaS pós-trial — 10/10/2026
+
+Com autorização do usuário, o override **somente da WABA de teste** foi trocado
+do Preview anterior para o Preview integrado da PR #34. A Meta respondeu 200 ao
+`POST /{waba}/subscribed_apps`; dois `GET` conferiram o host e o bypass, e o
+endpoint novo passou no handshake. Uma leitura do DEV ainda encontrou zero
+mensagens recebidas na janela após a troca: **configuração PASS; ingresso real
+novo NOT TESTED** até o envio de uma mensagem consentida.
+
+A mensalidade SaaS foi exercitada três vezes, duas pelo runner versionado
+`scripts/asaas-post-trial-preview-e2e.ts`, com fixture sem profile/paciente no DEV
+e recursos descartáveis no Asaas Sandbox. Nas três execuções, cobrança Solo mensal PIX
+R$ 149 `PENDING` → confirmação oficial do Sandbox → `RECEIVED` → webhook **real**
+Asaas→Preview → uma invoice `paid`, assinatura e clínica `active`, período
+avançado após o trial. Replay não duplicou o estado; webhook temporário e fixture
+foram removidos com readback, e assinatura/customer ficaram `deleted:true` no
+Asaas. **PASS para essa simulação**, sem antecipar nem pagar a cobrança de 17/10
+da conta cadastrada pelo usuário. Cartão mensal e pagamento com dinheiro real
+continuam fora desta prova.
+
+O Playwright autenticado do perfil WhatsApp revelou que fazer login antes de
+cada caso atingia o rate limit após cinco entradas. Após compartilhar uma
+sessão por suíte, a reexecução teve **4 PASS / 3 SKIP / 0 FAIL**. O round-trip
+externo da PR #19 ainda não ocorreu: PR conflitante e WABA atual em coexistência,
+que o Qoro trata como perfil gerenciado no WhatsApp Business do celular.
+Para escrever, reler e restaurar pelo Qoro é necessário um número **dedicado**
+de teste, conectado ao Preview com a PR #19 integrada e opt-in explícito;
+upload da foto pede prova separada. Evidência operacional e limites estão no
+[registro da integração](quality/integracao-2026-10-09.md).

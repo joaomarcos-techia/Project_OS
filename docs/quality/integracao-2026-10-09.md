@@ -214,3 +214,52 @@ intencional do aceite sob preço explícito não explica a falha observada.
   voltar. A medição única não equivale a SLA.
 
 Esta é uma fotografia de evidência para revisão; **não é aprovação de go-live**.
+
+## 10/10 — callback Meta no Preview integrado e mensalidade SaaS pós-trial
+
+O usuário autorizou trocar **somente o override da WABA de teste** e simular uma
+mensalidade no Asaas Sandbox. Nenhuma configuração da Meta para outras WABAs nem
+nenhum recurso de produção foi alterado.
+
+| Verificação | Evidência observada | Estado |
+| --- | --- | --- |
+| WABA de teste → Preview da PR #34 | O banco DEV apontou uma única conexão ativa em coexistência para o telefone de teste (final 2198). O `GET /{waba}/subscribed_apps` da Meta confirmou um app e override no Preview anterior. O novo endpoint respondeu HTTP 200 ao desafio `hub.challenge`. O `POST /{waba}/subscribed_apps` respondeu 200; novo `GET` confirmou `project-os-git-integration-qoro-344a22-clinic-os-v2-s-projects.vercel.app/api/webhooks/meta` com bypass presente. Um segundo readback independente confirmou o mesmo destino | **PASS de configuração e handshake**; mensagem Meta real após a troca **NOT TESTED** até novo ingresso |
+| SaaS pós-trial no Preview | `SAAS_POST_TRIAL_E2E=ALLOW_DEV_SANDBOX`, `APP_BASE_URL` no Preview integrado e `QORO_ENV_FILE` apontando para env local; **três execuções exit 0**, duas delas pelo runner versionado `npx tsx --conditions=react-server scripts/asaas-post-trial-preview-e2e.ts`. Fixture única por execução, clínica sem profile/paciente, trial vencido, assinatura Solo mensal R$ 149, cobrança PIX `PENDING`. Endpoint de confirmação oficial do Sandbox respondeu 200 e `GET /payments/{id}` trouxe `RECEIVED`. O Asaas entregou um evento real ao Preview; `processed_webhooks` da fixture registrou `PAYMENT_RECEIVED`/`PAYMENT_CONFIRMED`, uma invoice ficou `paid`, clínica e assinatura `active`, período avançou, replay manteve uma invoice e o mesmo período | **PASS real Asaas Sandbox → Preview → DEV**, incluindo idempotência; não equivale a pagamento com cartão nem à mensalidade da conta humana |
+| Cleanup da fixture mensal | Nas três execuções, webhook temporário `DELETE 200 → GET 404`; assinatura e customer `DELETE 200 → deleted:true` no readback; clínica sintética `DELETE` e leitura 0. A terceira execução já usou o runner com falha explícita se qualquer readback de cleanup divergir. O webhook de paciente ativo e o webhook global antigo, desativado, foram preservados | **PASS para esses recursos**; o histórico da cobrança paga pode permanecer no Sandbox como histórico do provedor |
+| PR #19, perfil WhatsApp | PR aberto no commit `95ae83b`, `mergeable=CONFLICTING` com a integração. A WABA atualmente conectada é de coexistência; o formulário se anuncia como gerenciado pelo WhatsApp Business, sem escrita pelo Qoro. O teste `round-trip real` da PR exige `E2E_WHATSAPP_PROFILE_WRITE=1` e um número dedicado com escrita. O teste não cobre upload da foto | **BLOCKED** para escrita/restore externo no número atual; não converter SKIP em PASS |
+
+O runner usa somente `DATABASE_URL_DEV` com o ref DEV fixado e hosts HTTPS oficiais
+do Asaas Sandbox; exige Preview Vercel e opt-in. Ele cria um webhook **temporário**
+para não trocar nem reativar o webhook global antigo, nem tocar o webhook de
+pacientes usado por outra sessão. Seu evento inicial `PAYMENT_CREATED` é um
+bootstrap autenticado; o evento de **pagamento** veio do Asaas após a confirmação
+oficial, conferido separadamente em `processed_webhooks`. A confirmação de
+Sandbox não movimenta dinheiro real, conforme a [referência oficial do
+Asaas](https://docs.asaas.com/reference/confirmar-pagamento).
+
+O readback da WABA depois da troca continuou no Preview integrado. Uma consulta
+`READ ONLY` ao DEV, para a janela após a troca, encontrou **0 mensagens de
+entrada** até a medição. Assim, callback configurado não é prova de
+Meta → ingress → IA → resposta nesse deploy. Para fechar: enviar uma mensagem
+nova do número consentido ao Business de teste, conferir a persistência, o evento
+de outbox e a resposta enviada/entregue; se a conversa estiver em handoff,
+devolvê-la ao agente antes do envio. O Google Ads permanece para a etapa final,
+com campanha atribuível ativa.
+
+O primeiro Playwright `e2e/whatsapp-profile.spec.ts` no Preview obteve **4 PASS,
+2 SKIP, 1 FAIL**. O FAIL aconteceu *antes* do caso de validação de campo:
+o sexto login da mesma conta recebeu “Muitas tentativas. Aguarde alguns minutos”.
+A suíte foi ajustada para autenticar **uma vez** por execução e reutilizar a sessão;
+`npx playwright test e2e/whatsapp-profile.spec.ts` no mesmo Preview terminou com
+**exit 0, 4 PASS e 3 SKIP em 40,1 s**. Os SKIPs são: ausência de número (não se
+aplica), validação de entrada editável (coexistência é somente leitura) e escrita
+real (opt-in desligado). Nenhum desses três é PASS funcional do editor editável.
+
+Validação local após a última edição: `npx tsc --noEmit` exit 0;
+`npx eslint e2e/whatsapp-profile.spec.ts scripts/asaas-post-trial-preview-e2e.ts`
+exit 0; `npx prettier --check` nos quatro arquivos da rodada exit 0;
+`npx vitest run` direcionado ao webhook e ao ciclo de assinatura, **52/52** em
+4 arquivos, exit 0. O `next build` direto, sem `.env.local` neste worktree,
+parou na validação de `DATABASE_URL` e `NEXT_PUBLIC_SUPABASE_URL`; o build
+isolado oficial `npx tsx scripts/security/local-build.ts`, com valores sintéticos,
+compilou e terminou com **exit 0**. Isso comprova o build sem usar credenciais.
