@@ -1186,8 +1186,8 @@ export async function acceptWaitlistOffer(
                 eq(waitlistEntries.id, id),
                 eq(waitlistEntries.clinicId, clinicId),
                 eq(waitlistEntries.status, 'offered'),
-                sql`clock_timestamp() < ${offerExpiresAt}`,
-                sql`${released.scheduledAt} > clock_timestamp()`,
+                sql`clock_timestamp() < ${offerExpiresAt.toISOString()}::timestamptz`,
+                sql`${released.scheduledAt.toISOString()}::timestamptz > clock_timestamp()`,
               ),
             )
             .returning();

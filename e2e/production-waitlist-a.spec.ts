@@ -214,11 +214,15 @@ async function retryFixtureCleanup<T>(work: () => Promise<T>): Promise<T> {
 const suiteName = previewMode
   ? 'Preview DEV: lista de espera na Clínica A'
   : 'produção: lista de espera na Clínica A';
+const acceptMode = previewMode && process.env.E2E_WAITLIST_ACCEPT === '1';
+const scenarioName = acceptMode
+  ? 'validação, cancelamento humano COM oferta, aceite e cleanup'
+  : 'validação, cancelamento humano COM oferta, encerramento e cleanup';
 
 test.describe(suiteName, () => {
   test.describe.configure({ retries: 0 });
 
-  test('validação, cancelamento humano COM oferta, encerramento e cleanup', async ({ browser }) => {
+  test(scenarioName, async ({ browser }) => {
     test.setTimeout(420_000);
     test.skip(
       !authorized,
@@ -645,6 +649,79 @@ test.describe(suiteName, () => {
       // beco sem saida. Agora existe o controle para concluir.
       expect(offeredBookControl).toBeGreaterThan(0);
 
+      if (acceptMode) {
+        const acceptResponse = page.waitForResponse(
+          (response) =>
+            isServerAction(response) && new URL(response.url()).pathname === '/agenda/lista-espera',
+        );
+        await waitlistRow(page, patientNames[1])
+          .getByRole('button', { name: 'Aceitar vaga' })
+          .click();
+        const action = await acceptResponse;
+        const body = await action.text().catch(() => null);
+        const [accepted] = await sql.begin(async (tx) => {
+          await tx.unsafe('SET TRANSACTION READ ONLY');
+          await tx.unsafe('RESET ROLE');
+          return tx<
+            {
+              entry_status: string;
+              booked_appointment_id: string | null;
+              appointment_status: string | null;
+              patient_id: string | null;
+              procedure_id: string | null;
+              doctor_id: string | null;
+              same_slot_active: number;
+            }[]
+          >`
+            select e.status::text entry_status,
+                   e.booked_appointment_id::text booked_appointment_id,
+                   a.status::text appointment_status,
+                   a.patient_id::text patient_id,
+                   a.procedure_id::text procedure_id,
+                   a.doctor_id::text doctor_id,
+                   (select count(*)::int from appointments x
+                     where x.clinic_id=e.clinic_id
+                       and x.doctor_id=${setup.doctor.id}::uuid
+                       and x.scheduled_at=(select scheduled_at from appointments where id=${appointmentId!}::uuid)
+                       and x.status<>'cancelado') same_slot_active
+              from waitlist_entries e
+              left join appointments a on a.id=e.booked_appointment_id and a.clinic_id=e.clinic_id
+             where e.clinic_id=${clinicId!}::uuid and e.patient_id=${urgentPatientId}::uuid
+          `;
+        });
+        if (accepted?.entry_status !== 'booked') {
+          throw new Error(
+            `Aceite da oferta não persistiu: ${JSON.stringify({
+              http: action.status(),
+              failureSummary: safeActionFailure(body, marker),
+              status: accepted?.entry_status ?? 'missing',
+            })}`,
+          );
+        }
+        expect(accepted).toMatchObject({
+          appointment_status: 'agendado',
+          patient_id: urgentPatientId,
+          procedure_id: setup.procedure.id,
+          doctor_id: setup.doctor.id,
+          same_slot_active: 1,
+        });
+        expect(accepted.booked_appointment_id).toBeTruthy();
+        await page.getByRole('checkbox', { name: 'Mostrar encerrados' }).check();
+        await expect(
+          waitlistRow(page, patientNames[1]).getByText('Agendado', { exact: true }),
+        ).toBeVisible();
+        console.log(
+          `[waitlist-a-accept] ${JSON.stringify({
+            http: action.status(),
+            entryStatus: accepted.entry_status,
+            appointmentStatus: accepted.appointment_status,
+            sameSlotActive: accepted.same_slot_active,
+            externalEffects: false,
+          })}`,
+        );
+        return;
+      }
+
       const urgentEntryId = entries.find(({ priority }) => priority === 'urgent')?.id;
       if (!urgentEntryId) throw new Error('Entrada urgente ausente antes do cancelamento.');
       const offerCancelResponse = page.waitForResponse(
@@ -748,7 +825,10 @@ test.describe(suiteName, () => {
               ...new Set([...waitlistIds, ...entries.map(({ id }) => id)]),
             ];
             const appointments = await tx<{ id: string }[]>`
-            select id::text from appointments where clinic_id=${clinicId!}::uuid and observacoes=${marker}
+            select id::text from appointments where clinic_id=${clinicId!}::uuid
+              and (observacoes=${marker}
+                   or (patient_id::text=any(${patientIds}::text[])
+                       and created_at>=${startedAt}::timestamptz))
           `;
             const cleanupAppointmentIds = [
               ...new Set(
