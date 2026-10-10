@@ -8678,3 +8678,13 @@ detalhada no registro canônico.
   [registro financeiro](specs/politica-financeira-camadas.md).
 
 Commits `eb969eed`, `3da70f90` e `cf180f0d`. Em aberto: sinal só por Pix ou também por cartão em 1x.
+
+## 60. Integração isolada e gates de 09/10/2026
+
+A branch `integration/qoro-20261009` combina as PRs #26, #30, #31, #32 e #33
+sem alterar a `main` ou produção. A composição, os comandos, os resultados
+medidos no código combinado e os gates ainda abertos estão no
+[registro de integração](quality/integracao-2026-10-09.md). A regressão local
+passou em 5.452/5.452 testes; os marcadores 0115–0118 foram lidos no banco DEV
+em transação somente de leitura. Preview integrado e produção continuam sem
+validação nesta fotografia.
