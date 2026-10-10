@@ -321,7 +321,7 @@ test.describe(suiteName, () => {
         if (!doctor || !procedure) throw new Error('Clínica A sem médico ou procedimento ativo.');
         const [freeYear] = await tx<{ chosen_year: number }[]>`
           select candidate::int chosen_year
-            from (values (2097), (2098), (2099)) as years(candidate)
+            from generate_series(2097, 2110) as years(candidate)
            where not exists (
              select 1 from appointments a
               where a.doctor_id=${doctor.id}::uuid
@@ -659,6 +659,24 @@ test.describe(suiteName, () => {
           .click();
         const action = await acceptResponse;
         const body = await action.text().catch(() => null);
+        const successToast = page
+          .getByRole('region', { name: 'Notificações' })
+          .getByRole('status')
+          .filter({ hasText: 'Consulta agendada na vaga ofertada.' });
+        const errorToast = page
+          .getByRole('region', { name: 'Notificações' })
+          .getByRole('status')
+          .filter({ has: page.locator('svg.text-danger-600') });
+        await successToast
+          .or(errorToast)
+          .first()
+          .waitFor({ state: 'visible', timeout: 10_000 })
+          .catch(() => null);
+        const acceptSuccessVisible = await successToast.first().isVisible();
+        const acceptError = await errorToast
+          .first()
+          .innerText()
+          .catch(() => null);
         const [accepted] = await sql.begin(async (tx) => {
           await tx.unsafe('SET TRANSACTION READ ONLY');
           await tx.unsafe('RESET ROLE');
@@ -693,11 +711,20 @@ test.describe(suiteName, () => {
           throw new Error(
             `Aceite da oferta não persistiu: ${JSON.stringify({
               http: action.status(),
+              bodyAvailable: body !== null,
+              returnedFailure: body ? /(?:\\?")ok(?:\\?")\s*:\s*false/u.test(body) : null,
               failureSummary: safeActionFailure(body, marker),
+              successFeedback: acceptSuccessVisible,
+              feedback: acceptError
+                ?.replace(/https?:\/\/\S+/gu, '[url]')
+                .replace(/[0-9a-f]{8}-[0-9a-f-]{27}/giu, '[id]')
+                .replace(/[\w.+-]+@[\w.-]+\.[a-z]{2,}/giu, '[email]')
+                .slice(0, 160),
               status: accepted?.entry_status ?? 'missing',
             })}`,
           );
         }
+        expect(acceptSuccessVisible, 'a interface precisa confirmar o aceite').toBe(true);
         expect(accepted).toMatchObject({
           appointment_status: 'agendado',
           patient_id: urgentPatientId,
@@ -783,7 +810,9 @@ test.describe(suiteName, () => {
            where clinic_id=${clinicId!}::uuid and patient_id=any(${patientIds}::uuid[])
         `;
       });
-      expect(new Map(cancelledEntries.map(({ patient_id, status }) => [patient_id, status]))).toEqual(
+      expect(
+        new Map(cancelledEntries.map(({ patient_id, status }) => [patient_id, status])),
+      ).toEqual(
         new Map([
           [normalPatientId, 'cancelled'],
           [urgentPatientId, 'cancelled'],
@@ -875,6 +904,22 @@ test.describe(suiteName, () => {
             await tx`delete from waitlist_entries where clinic_id=${clinicId!}::uuid and id::text=any(${cleanupWaitlistIds}::text[])`;
             await tx`delete from appointments where clinic_id=${clinicId!}::uuid and id::text=any(${cleanupAppointmentIds}::text[])`;
             await tx`delete from patients where clinic_id=${clinicId!}::uuid and id::text=any(${cleanupPatientIds}::text[])`;
+            // Verifica novamente audit/idempotency após remover os recursos.
+            // A primeira execução do aceite deixou um par remanescente; não
+            // presumimos a causa. Ambas as passagens ficam limitadas à fixture.
+            const lateAudits = await tx<{ id: string }[]>`
+              delete from audit_events where clinic_id=${clinicId!}::uuid
+                and created_at>=${startedAt}::timestamptz
+                and (resource_id=any(${allResourceIds}::text[])
+                     or after ->> 'id'=any(${allResourceIds}::text[]))
+              returning id::text
+            `;
+            const lateIdempotency = await tx<{ key: string }[]>`
+              delete from idempotency_keys where clinic_id=${clinicId!}::uuid
+                and created_at>=${startedAt}::timestamptz
+                and response::text like any(${allResourceIds.map((id) => `%${id}%`)}::text[])
+              returning key
+            `;
             const [remaining] = await tx<
               {
                 patients: number;
@@ -899,8 +944,10 @@ test.describe(suiteName, () => {
               removed: {
                 jobs: removedJobs.length,
                 outbox: removedOutbox.length,
-                audits: removedAudits.length,
-                idempotency: removedIdempotency.length,
+                audits: removedAudits.length + lateAudits.length,
+                idempotency: removedIdempotency.length + lateIdempotency.length,
+                lateAudits: lateAudits.length,
+                lateIdempotency: lateIdempotency.length,
                 waitlist: cleanupWaitlistIds.length,
                 appointments: cleanupAppointmentIds.length,
                 patients: cleanupPatientIds.length,

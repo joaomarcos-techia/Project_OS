@@ -8697,3 +8697,15 @@ hidratação da tela. Após a correção, o ciclo completo passou 6/6 no Preview
 com readback de cleanup no DEV e no Asaas Sandbox. O CI do código corrigido
 passou 5.455/5.455 testes em 520 arquivos, build e 6 E2E públicos (2 skips).
 Produção continua sem validação nesta fotografia.
+
+Atualização de 10/10: o E2E da lista de espera na PR #34 reproduziu uma falha
+real na oferta causada por `Date` vinculado diretamente ao SQL; o mesmo padrão
+foi corrigido nas comparações do aceite. No Preview com Auth/banco DEV, três
+execuções consecutivas passaram até oferta e cancelamento; depois, duas
+execuções passaram pelo aceite com toast de sucesso, entrada `booked`, uma
+consulta ativa na vaga e cleanup sem resíduos. Uma tentativa intermediária
+permaneceu `offered` sem causa conclusiva preservada, portanto estabilidade
+total do aceite não foi demonstrada. A regressão do cancelamento passou mais
+uma vez. O usuário relatou cadastro manual concluído sem erro; isso não é
+readback independente do pagamento e provisionamento daquela conta. Comandos,
+limites e achados estão no [registro de integração](quality/integracao-2026-10-09.md).
