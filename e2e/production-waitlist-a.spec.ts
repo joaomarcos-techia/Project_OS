@@ -645,8 +645,50 @@ test.describe(suiteName, () => {
       // beco sem saida. Agora existe o controle para concluir.
       expect(offeredBookControl).toBeGreaterThan(0);
 
+      const urgentEntryId = entries.find(({ priority }) => priority === 'urgent')?.id;
+      if (!urgentEntryId) throw new Error('Entrada urgente ausente antes do cancelamento.');
+      const offerCancelResponse = page.waitForResponse(
+        (response) =>
+          isServerAction(response) && new URL(response.url()).pathname === '/agenda/lista-espera',
+      );
       await waitlistRow(page, patientNames[1]).getByRole('button', { name: 'Cancelar' }).click();
-      await expect(waitlistRow(page, patientNames[1])).toHaveCount(0);
+      const offerCancelAction = await offerCancelResponse;
+      const offerCancelBody = await offerCancelAction.text().catch(() => null);
+      try {
+        await expect(waitlistRow(page, patientNames[1])).toHaveCount(0);
+      } catch {
+        const [entryState] = await sql.begin(async (tx) => {
+          await tx.unsafe('SET TRANSACTION READ ONLY');
+          await tx.unsafe('RESET ROLE');
+          return tx<{ status: string }[]>`
+            select status::text from waitlist_entries
+             where clinic_id=${clinicId!}::uuid and id=${urgentEntryId}::uuid
+          `;
+        });
+        throw new Error(
+          `Cancelamento da oferta sem atualização visível: ${JSON.stringify({
+            http: offerCancelAction.status(),
+            returnedSuccess: offerCancelBody
+              ? /(?:\\?")ok(?:\\?")\s*:\s*true/u.test(offerCancelBody)
+              : null,
+            returnedFailure: offerCancelBody
+              ? /(?:\\?")ok(?:\\?")\s*:\s*false/u.test(offerCancelBody)
+              : null,
+            failureSummary: safeActionFailure(offerCancelBody, marker),
+            persistedStatus: entryState?.status ?? 'missing',
+            rowStatus: await waitlistRow(page, patientNames[1])
+              .locator('.lr-main')
+              .innerText()
+              .then((text) =>
+                text.includes('Oferta enviada')
+                  ? 'offered'
+                  : text.includes('Cancelado')
+                    ? 'cancelled'
+                    : 'other',
+              ),
+          })}`,
+        );
+      }
       await waitlistRow(page, patientNames[0]).getByRole('button', { name: 'Cancelar' }).click();
       await expect(waitlistRow(page, patientNames[0])).toHaveCount(0);
       await page.getByRole('checkbox', { name: 'Mostrar encerrados' }).check();

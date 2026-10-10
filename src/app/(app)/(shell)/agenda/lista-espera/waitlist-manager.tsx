@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -67,6 +67,8 @@ export function WaitlistManager({
   const [notes, setNotes] = useState('');
   const [showClosed, setShowClosed] = useState(false);
   const [busy, startTransition] = useTransition();
+  const [interactive, setInteractive] = useState(false);
+  useEffect(() => setInteractive(true), []);
   const patientName = useMemo(
     () => new Map(patients.map((item) => [item.id, item.name])),
     [patients],
@@ -233,7 +235,7 @@ export function WaitlistManager({
           </Field>
         </div>
         <div className="flex items-end">
-          <Button type="button" loading={busy} onClick={create}>
+          <Button type="button" loading={busy} disabled={!interactive} onClick={create}>
             Adicionar à lista
           </Button>
         </div>
@@ -242,6 +244,7 @@ export function WaitlistManager({
       <label className="flex items-center gap-2 text-sm text-fg-muted">
         <input
           type="checkbox"
+          disabled={!interactive}
           checked={showClosed}
           onChange={(event) => setShowClosed(event.target.checked)}
         />
@@ -281,7 +284,7 @@ export function WaitlistManager({
                     <Button
                       type="button"
                       size="sm"
-                      disabled={busy}
+                      disabled={!interactive || busy}
                       onClick={() => accept(entry.id)}
                     >
                       Aceitar vaga
@@ -290,7 +293,7 @@ export function WaitlistManager({
                       type="button"
                       size="sm"
                       variant="ghost"
-                      disabled={busy}
+                      disabled={!interactive || busy}
                       onClick={() => decline(entry.id)}
                     >
                       Recusar
@@ -302,7 +305,7 @@ export function WaitlistManager({
                     type="button"
                     size="sm"
                     variant="ghost"
-                    disabled={busy}
+                    disabled={!interactive || busy}
                     onClick={() => cancel(entry.id)}
                   >
                     Cancelar
