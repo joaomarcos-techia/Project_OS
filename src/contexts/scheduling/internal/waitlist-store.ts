@@ -110,7 +110,7 @@ export async function offerWaitlistForCancelledAppointment(
         eq(waitlistEntries.id, selected.id),
         eq(waitlistEntries.clinicId, appointment.clinicId),
         eq(waitlistEntries.status, 'waiting'),
-        sql`${appointment.scheduledAt} > clock_timestamp()`,
+        sql`${appointment.scheduledAt.toISOString()}::timestamptz > clock_timestamp()`,
       ),
     )
     .returning({ id: waitlistEntries.id });

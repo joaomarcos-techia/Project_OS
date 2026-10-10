@@ -147,6 +147,8 @@ describe('offerWaitlistForCancelledAppointment — o claim da vaga', () => {
     expect(publishEvent).toHaveBeenCalledTimes(1);
     const claimWhere = new PgDialect().sqlToQuery(wheres.at(-1) as SQL);
     expect(claimWhere.sql).toContain('clock_timestamp()');
+    expect(claimWhere.params).toContain(APPT.scheduledAt.toISOString());
+    expect(claimWhere.params.some((value) => value instanceof Date)).toBe(false);
     const published = publishEvent.mock.calls[0]![1] as {
       eventType: string;
       payload: Record<string, unknown>;

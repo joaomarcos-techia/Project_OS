@@ -32,6 +32,8 @@ round-trip real do provedor ainda não testado.
 | Migrations no DEV | `npx tsx scripts/probe-dev-migrations.ts` com arquivo de ambiente DEV e referência de projeto exigidos | Exit 0; marcadores 0115, 0116, 0117 e 0118 presentes; transação `READ ONLY` |
 | Relógio da oferta no DEV | `npx tsx --conditions=react-server scripts/probe-waitlist-offer-dev.ts` com as mesmas guardas | Exit 0; prazo, vaga passada e varredura PASS; transação `READ ONLY` |
 | CI do código corrigido (`23e70f93`) | [Run 38010506366](https://github.com/joaomarcos-techia/Project_OS/actions/runs/38010506366) | Exit 0; 5.455/5.455 testes em 520 arquivos, cobertura, build, inventário, isolamento e limites HTTP PASS; E2E público 6 PASS, 2 SKIP |
+| Regressão local repetida em 10/10 após o conserto da oferta | `npx vitest run`; `npx tsc --noEmit`; `npx eslint e2e/production-waitlist-a.spec.ts src/contexts/scheduling/internal/waitlist-store{,.test}.ts` | 5.455/5.455 em 520 arquivos, três comandos exit 0; lint completo havia passado antes do conserto |
+| Build isolado repetido em 10/10 após o conserto da oferta | `npx tsx scripts/security/local-build.ts` | Exit 0, compilação Next e geração de 18 páginas estáticas concluídas; ambiente sintético |
 
 Os dois probes foram repetidos em 09/10, sem gravar no banco. A primeira invocação
 do probe da lista de espera omitiu `--conditions=react-server` e falhou no pacote
@@ -92,6 +94,28 @@ Releitura da WABA e da mensagem enviada após o cadastro de pagamento em 10/10:
 o bloqueio de pagamento; o callback da WABA aponta para outro Preview, e o
 ingresso no Preview integrado continua sem prova.
 
+Em 10/10, o usuário informou que concluiu manualmente o cadastro sem erro. Isso
+fecha o roteiro humano **por relato**, não equivale a readback automatizado do
+checkout pago, provisionamento, tenant e primeira sessão desta conta específica.
+
+O E2E sintético da lista de espera foi exercitado no Preview integrado, com
+fingerprint assinado de Auth e banco DEV, duas entradas reais pela UI e consulta
+SQL da Clínica A. **A execução inicial falhou**: a Action de correção devolveu
+`ok:false`, não alterou a consulta e não ofertou a vaga. A investigação isolou
+`src/contexts/scheduling/internal/waitlist-store.ts`: a condição da oferta
+vinculava um objeto JavaScript `Date` diretamente no template SQL; o driver
+`postgres@3.4.5` recusou o parâmetro (`Received an instance of Date`), e a
+transação inteira foi revertida. Uma transação de diagnóstico foi revertida
+deliberadamente. A correção serializa o instante em ISO antes do bind, ainda
+comparando a validade com `clock_timestamp()` do banco. O teste de regressão
+verifica o parâmetro gerado; 21/21 testes dirigidos, TypeScript e lint passaram.
+**O E2E externo ainda precisa ser repetido no Preview com essa correção publicada.**
+A tabela `appointment_corrections` e o marcador da migration 0059 estão no DEV;
+ausência dessa migration foi excluída. Uma rodada teve deadlock no cleanup e
+exigiu limpeza posterior guardada. O runner ganhou retry e valida a remoção de
+pacientes, entradas, consultas, jobs, outbox, auditoria e idempotência; o
+readback independente após a limpeza confirmou zero pacientes sintéticos.
+
 ## O que ainda precisa de prova
 
 - **Preview integrado:** ainda falta E2E externo da lista de espera e da C14.
@@ -101,9 +125,9 @@ ingresso no Preview integrado continua sem prova.
   A presença dos marcadores no DEV não autoriza inferência sobre produção.
 - **Editor de perfil público do WhatsApp (#19):** resolver conflitos depois de
   comparar contratos, testar upload e leitura reais no provedor e rodar regressão.
-- **Pagamento do sinal no Sandbox, campanha Google Ads e roteiro humano de
-  `/cadastro`:** gates externos/manuais ainda abertos. Nenhum deles recebe PASS
-  por esta integração.
+- **Pagamento do sinal no Sandbox e campanha Google Ads:** gates externos ainda
+  abertos. O roteiro humano de `/cadastro` foi relatado como concluído pelo
+  usuário em 10/10; falta readback independente do resultado específico.
 - **Login automatizado:** investigar a espera longa com trace/console/network
   no Preview atualizado, preservando a distinção da experiência manual.
 
