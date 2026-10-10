@@ -673,10 +673,9 @@ test.describe(suiteName, () => {
           .waitFor({ state: 'visible', timeout: 10_000 })
           .catch(() => null);
         const acceptSuccessVisible = await successToast.first().isVisible();
-        const acceptError = await errorToast
-          .first()
-          .innerText()
-          .catch(() => null);
+        const acceptError = (await errorToast.first().isVisible())
+          ? await errorToast.first().innerText()
+          : null;
         const [accepted] = await sql.begin(async (tx) => {
           await tx.unsafe('SET TRANSACTION READ ONLY');
           await tx.unsafe('RESET ROLE');

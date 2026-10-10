@@ -8701,7 +8701,7 @@ Produção continua sem validação nesta fotografia.
 Atualização de 10/10: o E2E da lista de espera na PR #34 reproduziu uma falha
 real na oferta causada por `Date` vinculado diretamente ao SQL; o mesmo padrão
 foi corrigido nas comparações do aceite. No Preview com Auth/banco DEV, três
-execuções consecutivas passaram até oferta e cancelamento; depois, duas
+execuções consecutivas passaram até oferta e cancelamento; depois, quatro
 execuções passaram pelo aceite com toast de sucesso, entrada `booked`, uma
 consulta ativa na vaga e cleanup sem resíduos. Uma tentativa intermediária
 permaneceu `offered` sem causa conclusiva preservada, portanto estabilidade
