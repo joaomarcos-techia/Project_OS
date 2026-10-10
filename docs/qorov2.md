@@ -8688,5 +8688,7 @@ medidos no código combinado e os gates ainda abertos estão no
 passou em 5.452/5.452 testes; os marcadores 0115–0118 foram lidos no banco DEV
 em transação somente de leitura. O cadastro real no Preview passou 7/7.
 O E2E da conta de pagamentos revelou uma divergência de fuso que quebrava a
-hidratação da tela; a correção local aguarda nova prova no Preview. Produção
-continua sem validação nesta fotografia.
+hidratação da tela. Após a correção, o ciclo completo passou 6/6 no Preview,
+com readback de cleanup no DEV e no Asaas Sandbox. O CI do código corrigido
+passou 5.455/5.455 testes em 520 arquivos, build e 6 E2E públicos (2 skips).
+Produção continua sem validação nesta fotografia.

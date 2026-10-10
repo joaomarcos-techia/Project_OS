@@ -1,7 +1,7 @@
 # Integração isolada de 09/10/2026
 
 Estado: **validação local e leitura DEV aprovadas; cadastro no Preview 7/7 PASS;
-conta de pagamentos em correção; produção não validada**.
+conta de pagamentos no Preview 6/6 PASS após correção; produção não validada**.
 
 ## Composição
 
@@ -31,6 +31,7 @@ round-trip real do provedor ainda não testado.
 | Isolamento de tenant | `npx tsx --conditions=react-server scripts/security/tenant-isolation.ts` | Exit 0; fixtures removidas |
 | Migrations no DEV | `npx tsx scripts/probe-dev-migrations.ts` com arquivo de ambiente DEV e referência de projeto exigidos | Exit 0; marcadores 0115, 0116, 0117 e 0118 presentes; transação `READ ONLY` |
 | Relógio da oferta no DEV | `npx tsx --conditions=react-server scripts/probe-waitlist-offer-dev.ts` com as mesmas guardas | Exit 0; prazo, vaga passada e varredura PASS; transação `READ ONLY` |
+| CI do código corrigido (`23e70f93`) | [Run 38010506366](https://github.com/joaomarcos-techia/Project_OS/actions/runs/38010506366) | Exit 0; 5.455/5.455 testes em 520 arquivos, cobertura, build, inventário, isolamento e limites HTTP PASS; E2E público 6 PASS, 2 SKIP |
 
 Os dois probes foram repetidos em 09/10, sem gravar no banco. A primeira invocação
 do probe da lista de espera omitiu `--conditions=react-server` e falhou no pacote
@@ -54,7 +55,7 @@ Preview da PR #34.
 ## Preview funcional
 
 Em 09/10, `scripts/run-signup-confirmation-e2e.ts` executou sete cenários
-funcionais no Preview integrado com Resend DEV e Asaas Sandbox: **7/7 PASS,
+funcionais no Preview do commit `8fd34d51`, com Resend DEV e Asaas Sandbox: **7/7 PASS,
 exit 0, 5,7 min**. Foram exercitados recebimento do e-mail, link no segundo
 aparelho, código na aba original, checkout recorrente, retomada do draft vencido,
 conta legada, novo draft e reenvio que invalida o link anterior. O arquivo local
@@ -70,20 +71,26 @@ UTC e 09/10 no browser de São Paulo. A digitação no campo não alterava o bot
 controlado por React; o clique não produziu a mutação de desconexão no banco.
 Um teste novo reproduziu antes da correção (`10/10` recebido contra `09/10`
 esperado). O formatter agora fixa `America/Sao_Paulo`; os testes dirigidos
-passaram. **O E2E desse ajuste no novo Preview ainda não foi executado nesta
-fotografia.**
+passaram. No Preview atualizado (`23e70f93`), a suíte completa de conta de
+pagamentos passou **6/6, exit 0, 3,5 min**: chave inválida, conexão e
+desconexão, preços e repasses Pro/Clínica, bloqueio Solo por UI e Action, Caixa
+Solo e Pro, e pausa/retomada com cobrança histórica. A hidratação foi conferida
+por uma interação controlada antes do clique mutante. O readback final retornou
+**0 clínicas E2E no DEV e 0 webhooks desse Preview no Sandbox**.
 
 O primeiro CI da PR #34 aprovou testes e cobertura, mas falhou no inventário de
 segurança: o script novo `probe-dev-migrations.ts` acrescentou três acessos a
 `process.env` após a geração do inventário. `docs/security/acoes.md` foi
 regenerado (294 acessos) e `inventory.ts --check` voltou a passar localmente.
-O CI do commit corrigido ainda precisa terminar.
+O [CI do commit corrigido](https://github.com/joaomarcos-techia/Project_OS/actions/runs/38010506366)
+terminou em **success** em 10/10 UTC. Foram 5.455/5.455 testes em 520 arquivos;
+o build Next e o gate de segredos no bundle passaram. O gate E2E público executou
+6 testes com PASS e pulou 2; os skips não são prova funcional dessas rotas.
 
 ## O que ainda precisa de prova
 
-- **Preview integrado:** repetir o ciclo da conta de pagamentos no commit com
-  a correção de hidratação; ainda falta E2E externo da lista de espera, C14 e
-  saúde WABA. O resultado local não comprova aceite de oferta ou envio pela Meta.
+- **Preview integrado:** ainda falta E2E externo da lista de espera, C14 e saúde
+  WABA. O resultado local não comprova aceite de oferta ou envio pela Meta.
 - **Migrations de produção:** não foram aplicadas nem tiveram readback neste ciclo.
   A presença dos marcadores no DEV não autoriza inferência sobre produção.
 - **Editor de perfil público do WhatsApp (#19):** resolver conflitos depois de
