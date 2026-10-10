@@ -30,7 +30,15 @@ export async function assertPreviewRuntimeIsDev(baseUrl: string): Promise<void> 
     signal: AbortSignal.timeout(45_000),
   });
   if (!response.ok) throw new Error(`Preview recusou a prova do projeto DEV (${response.status}).`);
-  const result: unknown = await response.json();
+  if (!response.headers.get('content-type')?.toLowerCase().includes('application/json')) {
+    throw new Error(`Preview não devolveu prova JSON (${response.status}).`);
+  }
+  let result: unknown;
+  try {
+    result = await response.json();
+  } catch {
+    throw new Error('Preview devolveu prova JSON inválida.');
+  }
   if (
     !result ||
     typeof result !== 'object' ||

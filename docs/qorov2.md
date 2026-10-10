@@ -8686,5 +8686,7 @@ sem alterar a `main` ou produção. A composição, os comandos, os resultados
 medidos no código combinado e os gates ainda abertos estão no
 [registro de integração](quality/integracao-2026-10-09.md). A regressão local
 passou em 5.452/5.452 testes; os marcadores 0115–0118 foram lidos no banco DEV
-em transação somente de leitura. Preview integrado e produção continuam sem
-validação nesta fotografia.
+em transação somente de leitura. O cadastro real no Preview passou 7/7.
+O E2E da conta de pagamentos revelou uma divergência de fuso que quebrava a
+hidratação da tela; a correção local aguarda nova prova no Preview. Produção
+continua sem validação nesta fotografia.

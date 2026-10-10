@@ -44,10 +44,13 @@ export function redactCpf(cpf: string | null | undefined): string {
   return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.***-${digits.slice(9)}`;
 }
 
+const QORO_DATE_TIME_ZONE = 'America/Sao_Paulo';
+
 const DATE_PT = new Intl.DateTimeFormat('pt-BR', {
   day: '2-digit',
   month: '2-digit',
   year: 'numeric',
+  timeZone: QORO_DATE_TIME_ZONE,
 });
 
 /** Formata 'YYYY-MM-DD' ou ISO como dd/mm/aaaa (sem timezone shift para date puro). */

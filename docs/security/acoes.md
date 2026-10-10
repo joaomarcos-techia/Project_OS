@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 197 actions (0 inline); 53 métodos em 49 handlers; 22 props com referência de action; 291 acessos diretos a process.env; 9 nomes NEXT_PUBLIC.
+Contagem: 197 actions (0 inline); 53 métodos em 49 handlers; 22 props com referência de action; 294 acessos diretos a process.env; 9 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -448,6 +448,9 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/payments-meta-e2e.ts:131`                         | `META_TEMPLATE_REMAINDER_LINK_ID`      | `process.env.META_TEMPLATE_REMAINDER_LINK_ID`      |
 | `scripts/pentest-account-inventory.ts:61`                  | `PENTEST_ACCOUNT_EMAILS_JSON`          | `process.env.PENTEST_ACCOUNT_EMAILS_JSON`          |
 | `scripts/pentest-account-inventory.ts:75`                  | `<object>`                             | `process.env`                                      |
+| `scripts/probe-dev-migrations.ts:5`                        | `QORO_DEV_ENV_FILE`                    | `process.env.QORO_DEV_ENV_FILE`                    |
+| `scripts/probe-dev-migrations.ts:6`                        | `QORO_EXPECTED_DEV_PROJECT_REF`        | `process.env.QORO_EXPECTED_DEV_PROJECT_REF`        |
+| `scripts/probe-dev-migrations.ts:10`                       | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                 |
 | `scripts/probe-waitlist-offer-dev.ts:7`                    | `QORO_DEV_ENV_FILE`                    | `process.env.QORO_DEV_ENV_FILE`                    |
 | `scripts/probe-waitlist-offer-dev.ts:8`                    | `QORO_EXPECTED_DEV_PROJECT_REF`        | `process.env.QORO_EXPECTED_DEV_PROJECT_REF`        |
 | `scripts/probe-waitlist-offer-dev.ts:12`                   | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                 |

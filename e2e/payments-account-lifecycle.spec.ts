@@ -420,6 +420,13 @@ test.describe.serial('conta de pagamento da clínica (Preview)', () => {
     try {
       await page.goto('/configuracoes/pagamentos');
       if ((await lerEstado(page)) === 'conectada') {
+        // O HTML do Server Component pode aparecer antes do handler client ser
+        // hidratado. Prove uma interação controlada antes do clique mutante.
+        const reconnectButton = page.getByRole('button', { name: 'Conectar ou retomar' });
+        await page.locator('#asaas-api-key').fill('e2e-hydration-check');
+        await expect(reconnectButton).toBeEnabled();
+        await page.locator('#asaas-api-key').fill('');
+        await expect(reconnectButton).toBeDisabled();
         await page.getByRole('button', { name: 'Pausar ou desconectar' }).click();
         await expect(page.getByText(/Nenhuma conta conectada/)).toBeVisible({ timeout: 60_000 });
       }

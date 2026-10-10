@@ -1,6 +1,7 @@
 # Integração isolada de 09/10/2026
 
-Estado: **validação local e leitura DEV aprovadas; Preview integrado e produção não validados**.
+Estado: **validação local e leitura DEV aprovadas; cadastro no Preview 7/7 PASS;
+conta de pagamentos em correção; produção não validada**.
 
 ## Composição
 
@@ -43,11 +44,46 @@ O usuário informou que o login em navegador normal abriu em até aproximadament
 O carregamento de 30 segundos em browser automatizado não deve ser apresentado
 como falha reproduzida para o usuário sem nova prova.
 
+Uma sondagem durante o build da Vercel recebeu HTML de espera no endpoint da
+prova assinada. O helper E2E foi corrigido para recusar esse conteúdo sem
+despejar o corpo no erro; os dois testes dirigidos passaram. A sondagem não
+comprovou o runtime naquele instante, pois o deploy ainda estava em `BUILDING`.
+Após o build, a mesma prova assinada passou e confirmou Auth e banco DEV no
+Preview da PR #34.
+
+## Preview funcional
+
+Em 09/10, `scripts/run-signup-confirmation-e2e.ts` executou sete cenários
+funcionais no Preview integrado com Resend DEV e Asaas Sandbox: **7/7 PASS,
+exit 0, 5,7 min**. Foram exercitados recebimento do e-mail, link no segundo
+aparelho, código na aba original, checkout recorrente, retomada do draft vencido,
+conta legada, novo draft e reenvio que invalida o link anterior. O arquivo local
+da fixture e o lock foram confirmados ausentes ao final. O pagamento efetivo do
+checkout não faz parte desses sete cenários.
+
+`payments-account-lifecycle.spec.ts` encontrou **FAIL** no ciclo de conexão e
+desconexão da conta Asaas: após conectar, o botão da tela permaneceu inerte.
+O readback após a execução mostrou **0 clínicas E2E residuais no DEV e 0
+webhooks deste Preview no Sandbox**. A investigação isolou o erro React #418 de
+hidratação: `formatDatePt` formatava o mesmo `connectedAt` como 10/10 no servidor
+UTC e 09/10 no browser de São Paulo. A digitação no campo não alterava o botão
+controlado por React; o clique não produziu a mutação de desconexão no banco.
+Um teste novo reproduziu antes da correção (`10/10` recebido contra `09/10`
+esperado). O formatter agora fixa `America/Sao_Paulo`; os testes dirigidos
+passaram. **O E2E desse ajuste no novo Preview ainda não foi executado nesta
+fotografia.**
+
+O primeiro CI da PR #34 aprovou testes e cobertura, mas falhou no inventário de
+segurança: o script novo `probe-dev-migrations.ts` acrescentou três acessos a
+`process.env` após a geração do inventário. `docs/security/acoes.md` foi
+regenerado (294 acessos) e `inventory.ts --check` voltou a passar localmente.
+O CI do commit corrigido ainda precisa terminar.
+
 ## O que ainda precisa de prova
 
-- **Preview integrado:** deploy e E2E nas rotas alteradas, sobretudo cadastro,
-  lista de espera, C14 e saúde WABA. O resultado local não comprova entrega
-  externa, aceite de oferta ou envio pela Meta.
+- **Preview integrado:** repetir o ciclo da conta de pagamentos no commit com
+  a correção de hidratação; ainda falta E2E externo da lista de espera, C14 e
+  saúde WABA. O resultado local não comprova aceite de oferta ou envio pela Meta.
 - **Migrations de produção:** não foram aplicadas nem tiveram readback neste ciclo.
   A presença dos marcadores no DEV não autoriza inferência sobre produção.
 - **Editor de perfil público do WhatsApp (#19):** resolver conflitos depois de
