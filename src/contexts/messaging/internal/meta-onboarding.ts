@@ -18,6 +18,7 @@ import type { ProactiveTemplateDefinition } from '@/lib/messaging/proactive-temp
 
 import { MetaConnectError, type MetaConnectFailureStage } from '../errors';
 import type { MetaChannelProbe, MetaProbeOutcome } from './channel-health';
+import { parseMessagingHealth, type MessagingHealth } from './messaging-health';
 
 const REQUIRED_SCOPES = ['whatsapp_business_management', 'whatsapp_business_messaging'] as const;
 
@@ -785,6 +786,45 @@ export async function probeMetaChannel(input: {
   }
 
   return probe;
+}
+
+// ===========================================================================
+// Saúde de ENVIO — `health_status` (08/10/2026). Também só GET.
+// ===========================================================================
+
+export type MessagingHealthRead =
+  | { ok: true; health: MessagingHealth }
+  | { ok: false; reason: GraphFailureKind | 'unparseable' };
+
+/**
+ * Lê o `health_status` do NÚMERO com o token da clínica.
+ *
+ * Uma chamada cobre a WABA e o número: a resposta do nó do número já traz as
+ * entidades PHONE_NUMBER, WABA, BUSINESS e APP (conferido ao vivo no DEV em
+ * 08/10/2026). É também o campo que dá para ler sem permissão de BSP — pedir
+ * `currency` com `primary_funding_id` devolve o erro 10.
+ *
+ * Nunca lança. Qualquer falha, inclusive uma negativa de token, é só "não
+ * verificado": o veredito do canal é do META-001 (`probeMetaChannel`), e
+ * repeti-lo aqui duplicaria a causa na tela.
+ */
+export async function readMessagingHealth(input: {
+  token: string;
+  phoneNumberId: string;
+}): Promise<MessagingHealthRead> {
+  let body: unknown;
+  try {
+    body = await graphFetch<unknown>(encodeURIComponent(input.phoneNumberId), {
+      method: 'GET',
+      stage: 'account',
+      token: input.token,
+      query: { fields: 'health_status' },
+    });
+  } catch (err) {
+    return { ok: false, reason: classifyGraphFailure(err) };
+  }
+  const health = parseMessagingHealth(body);
+  return health ? { ok: true, health } : { ok: false, reason: 'unparseable' };
 }
 
 /** `+55 11 99999-9999` → `+5511999999999`. */

@@ -46,6 +46,7 @@ Decisão futura só entra aqui quando adotada na implementação. Uma ideia desc
 | Contrato | Estado | Documento |
 | --- | --- | --- |
 | Identidade + consentimento + nome da clínica; corte O-3a/staging e O-3b/Auth/ownership | O-3a e O-3b.1–6 Accepted local em 15–16/09/2026; sem rollout externo | [ADR-062](062-identidade-consentimento-cadastro.md) |
+| Saúde de envio da WABA (`health_status`) avisa antes da recusa; a C14 segue enviando com a conta BLOCKED | Accepted em código/DEV em 08/10/2026; 0116 só no DEV; sem rollout | [ADR-063](063-saude-de-envio-whatsapp.md) |
 | C14 reenvia com uma chave por geração: recusa retentável da Meta gera chave nova e backoff; definitiva falha na hora, com o código; timeout nunca reenvia | Accepted em código em 08/10/2026; 0118 não aplicada; sem rollout | [ADR-064](064-c14-reenvio-por-geracao.md) |
 | Validade por tipo na fila C14: job vencido vira `cancelled` com `expired_<tipo>`, nunca envio atrasado | Accepted em código em 09/10/2026; sem migration; sem rollout | [ADR-065](065-validade-por-tipo-c14.md) |
 | Janela de resposta da oferta da lista de espera só corre nas horas de envio (8–20h locais); seam e cron usam a mesma função | Accepted em código em 09/10/2026; sem migration; sem rollout | [ADR-066](066-janela-da-oferta-da-lista-de-espera.md) |

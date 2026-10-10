@@ -38,6 +38,8 @@ import {
   persistInbound,
   persistStatusEvents,
 } from '@/contexts/messaging/internal/inbound';
+import { deliveryFailureNeedsHealthCheck } from '@/contexts/messaging/internal/messaging-health';
+import type { RequestContext } from '@/lib/audit/types';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -134,6 +136,25 @@ export async function triggerOutboxAfterMetaIngress(events: IngressEvents): Prom
 }
 
 /**
+ * Saúde de envio: a Meta recusou um template por forma de pagamento (131042 ou
+ * 141006) — relê o `health_status` dessas clínicas para o aviso aparecer na tela
+ * já na primeira recusa, e não só na varredura diária. Depois do 200, como o
+ * gatilho do outbox; o módulo só carrega aqui, fora do caminho quente.
+ */
+export async function recheckHealthAfterDeliveryFailure(
+  clinicIds: string[],
+  requestContext: RequestContext,
+): Promise<void> {
+  try {
+    const { recheckMessagingHealthAfterDeliveryFailure } =
+      await import('@/contexts/messaging/internal/messaging-health-check');
+    await recheckMessagingHealthAfterDeliveryFailure(clinicIds, requestContext);
+  } catch (error) {
+    captureBackgroundError(error, { flow: `${FLOW}.health_recheck` });
+  }
+}
+
+/**
  * Abre o escopo de correlação e delega (mesmo padrão do webhook Asaas).
  *
  * NÃO fixa `clinicId`: um único webhook da Meta pode trazer mensagens de VÁRIAS
@@ -185,6 +206,7 @@ async function handleWebhook(req: Request): Promise<Response> {
 
   // 3. resolve tenant + persistir / quarentena.
   const ingress: IngressEvents = { echoKeys: [], inboundKeys: [] };
+  const healthRecheck = new Set<string>();
   try {
     for (const removal of parsed.partnerRemovals ?? []) {
       const { deactivated } = await deactivateConnectionsForRemovedPartner({
@@ -220,6 +242,9 @@ async function handleWebhook(req: Request): Promise<Response> {
       }
       if (group.statuses.length > 0) {
         await persistStatusEvents(clinicId, PROVIDER, group.statuses);
+        if (group.statuses.some((s) => deliveryFailureNeedsHealthCheck(s.status, s.raw))) {
+          healthRecheck.add(clinicId);
+        }
       }
     }
   } catch (err) {
@@ -239,6 +264,11 @@ async function handleWebhook(req: Request): Promise<Response> {
   // drains it (a `failed` closes the C14 job — EC-32).
   if (ingress.inboundKeys.length > 0 || ingress.echoKeys.length > 0) {
     after(() => triggerOutboxAfterMetaIngress(ingress));
+  }
+  if (healthRecheck.size > 0) {
+    const clinicIds = [...healthRecheck];
+    const requestContext = buildRequestContext(req.headers);
+    after(() => recheckHealthAfterDeliveryFailure(clinicIds, requestContext));
   }
 
   return Response.json(

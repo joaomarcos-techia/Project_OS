@@ -17,6 +17,7 @@ const {
   redirect,
   countOpenHandoffs,
   currentOnboardingProgress,
+  getWhatsappSendAlert,
 } = vi.hoisted(() => ({
   demoEnv: {
     DASHBOARD_DEMO_USER_ID: undefined as string | undefined,
@@ -33,6 +34,7 @@ const {
   redirect: vi.fn(),
   countOpenHandoffs: vi.fn(),
   currentOnboardingProgress: vi.fn(),
+  getWhatsappSendAlert: vi.fn(),
 }));
 
 // `useRouter` entra no mock por causa do botao "Atualizar", que e client e
@@ -58,7 +60,7 @@ vi.mock('@/contexts/tenancy/queries', () => ({ getClinicTimezone }));
 vi.mock('@/contexts/identity/queries', () => ({ getProfileNames }));
 vi.mock('@/contexts/financial/queries', () => ({ getCashFlowToday, listCashFlowDaily }));
 vi.mock('@/lib/audit/recent', () => ({ getRecentActivity }));
-vi.mock('./data', () => ({ getActivationChecklist, getDashboard }));
+vi.mock('./data', () => ({ getActivationChecklist, getDashboard, getWhatsappSendAlert }));
 // O-7 — a leitura de `onboarding_progress` abre `withTenant`, que quer banco de
 // verdade. Aqui interessa a COMPOSIÇÃO da tela, e o comportamento do progresso
 // tem prova própria em operational-onboarding.test.ts (unidade) e no harness de
@@ -164,6 +166,7 @@ describe('DashboardPage', () => {
     ]);
     getProfileNames.mockResolvedValue(new Map([['user-1', 'Ana Costa']]));
     countOpenHandoffs.mockResolvedValue({ abertos: 0, vencidos: 0 });
+    getWhatsappSendAlert.mockResolvedValue({ account: null, refusals: null });
   });
 
   it('prioriza ativação e operação, com agenda antes do gráfico', async () => {
@@ -311,5 +314,138 @@ describe('DashboardPage', () => {
     expect(html).not.toContain('Atividade recente');
     expect(html).not.toContain('Ana Costa');
     expect(screen.getByText('Próximos na agenda')).toBeTruthy();
+  });
+});
+
+describe('DashboardPage — mensagens automáticas do WhatsApp', () => {
+  afterEach(cleanup);
+
+  const blocked = {
+    account: {
+      state: 'blocked',
+      headline:
+        'A Meta bloqueou as mensagens automáticas do WhatsApp: lembretes e links de sinal não chegam aos pacientes',
+    },
+    refusals: null,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    demoEnv.DASHBOARD_DEMO_USER_ID = undefined;
+    demoEnv.DASHBOARD_DEMO_CLINIC_ID = undefined;
+    getCurrentUser.mockResolvedValue(currentUser(['manage:settings']));
+    getClinicTimezone.mockResolvedValue('America/Sao_Paulo');
+    getDashboard.mockResolvedValue({ ...dashboard, naoFaturados: 0 });
+    getActivationChecklist.mockResolvedValue({ ...checklist, complete: true });
+    currentOnboardingProgress.mockResolvedValue(null);
+    countOpenHandoffs.mockResolvedValue({ abertos: 0, vencidos: 0 });
+    getWhatsappSendAlert.mockResolvedValue(blocked);
+  });
+
+  it('conta bloqueada: uma faixa que leva à tela de WhatsApp', async () => {
+    render(await DashboardPage());
+
+    expect(getWhatsappSendAlert).toHaveBeenCalledWith(clinicId);
+    const link = screen.getByRole('link', { name: /A Meta bloqueou as mensagens automáticas/u });
+    expect(link.getAttribute('href')).toBe('/configuracoes/whatsapp');
+    expect(link.getAttribute('data-whatsapp-send-alert')).toBe('blocked');
+    expect(link.textContent).toContain('Ver o que fazer');
+    expect(link.textContent?.toLowerCase()).not.toContain('multa');
+  });
+
+  it('vem antes das outras pendências', async () => {
+    getCurrentUser.mockResolvedValue(
+      currentUser(['manage:settings', 'view:financial', 'view:conversations']),
+    );
+    getDashboard.mockResolvedValue(dashboard);
+    countOpenHandoffs.mockResolvedValue({ abertos: 1, vencidos: 0 });
+    getCashFlowToday.mockResolvedValue({
+      receber: 0,
+      pagar: 0,
+      recebidoHoje: 0,
+      pagoHoje: 0,
+      saldoHoje: 0,
+    });
+    listCashFlowDaily.mockResolvedValue([]);
+
+    const { container } = render(await DashboardPage());
+    const content = container.textContent ?? '';
+    expect(content.indexOf('A Meta bloqueou')).toBeLessThan(
+      content.indexOf('ainda não foram faturados'),
+    );
+    expect(content.indexOf('A Meta bloqueou')).toBeLessThan(
+      content.indexOf('aguardando atendimento humano'),
+    );
+  });
+
+  it('conta limitada: faixa âmbar', async () => {
+    getWhatsappSendAlert.mockResolvedValue({
+      account: {
+        state: 'limited',
+        headline: 'A Meta está limitando as mensagens automáticas do WhatsApp',
+      },
+      refusals: null,
+    });
+
+    render(await DashboardPage());
+
+    const link = screen.getByRole('link', { name: /A Meta está limitando/u });
+    expect(link.getAttribute('data-whatsapp-send-alert')).toBe('limited');
+  });
+
+  it('só mensagens que não chegaram: a faixa leva à Agenda, onde estão os pacientes', async () => {
+    getWhatsappSendAlert.mockResolvedValue({
+      account: null,
+      refusals: { count: 2, since: 'nas últimas 24 h' },
+    });
+
+    render(await DashboardPage());
+
+    const link = screen.getByRole('link', {
+      name: /2 mensagens automáticas não chegaram aos pacientes nas últimas 24 h/u,
+    });
+    expect(link.getAttribute('href')).toBe('/agenda');
+    expect(link.getAttribute('data-whatsapp-send-alert')).toBe('refusals');
+    expect(link.textContent).toContain('Ver na Agenda');
+    // A contagem inclui falhas que não são recusa da Meta.
+    expect(link.textContent).not.toMatch(/recusad/u);
+  });
+
+  it('pendência da conta e mensagens perdidas: uma faixa só, para a tela de WhatsApp', async () => {
+    getWhatsappSendAlert.mockResolvedValue({ ...blocked, refusals: { count: 1, since: '' } });
+
+    const { container } = render(await DashboardPage());
+
+    const strips = container.querySelectorAll('[data-whatsapp-send-alert]');
+    expect(strips).toHaveLength(1);
+    expect(strips[0]!.getAttribute('href')).toBe('/configuracoes/whatsapp');
+    expect(strips[0]!.textContent).toContain('A Meta bloqueou');
+    // O aviso da conta já diz que não chegam; a contagem só se soma a ele.
+    expect(strips[0]!.textContent).toContain('· 1 não chegou');
+    expect(strips[0]!.textContent).toContain('Ver o que fazer');
+  });
+
+  it('nada pendente: nenhuma faixa', async () => {
+    getWhatsappSendAlert.mockResolvedValue({ account: null, refusals: { count: 0, since: '' } });
+
+    const { container } = render(await DashboardPage());
+    expect(container.querySelector('[data-whatsapp-send-alert]')).toBeNull();
+  });
+
+  it('sem manage:settings o estado da conta nem é lido', async () => {
+    getCurrentUser.mockResolvedValue(currentUser(['view:conversations']));
+
+    const { container } = render(await DashboardPage());
+    expect(getWhatsappSendAlert).not.toHaveBeenCalled();
+    expect(container.querySelector('[data-whatsapp-send-alert]')).toBeNull();
+  });
+
+  it('a prévia ilustrativa não lê o estado real da integração', async () => {
+    demoEnv.DASHBOARD_DEMO_USER_ID = 'demo-user';
+    demoEnv.DASHBOARD_DEMO_CLINIC_ID = clinicId;
+    getCurrentUser.mockResolvedValue({ ...currentUser(['manage:settings']), userId: 'demo-user' });
+
+    render(await DashboardPage());
+    expect(getWhatsappSendAlert).not.toHaveBeenCalled();
   });
 });

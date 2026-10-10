@@ -23,7 +23,19 @@ message.event:"messaging.whatsapp.template_category_drift"
 message.event:"proactive.job.failed"
 message.event:"proactive.job.retried"
 message.event:"proactive.job.cancelled"
+message.event:"messaging.whatsapp.messaging_health_changed"
+message.event:"messaging.whatsapp.messaging_health_blocked"
 ```
+
+`messaging_health_changed` (ADR-063) é a Meta mudando o que a clínica pode
+**iniciar** — lembrete, link do sinal, cobrança, oferta de vaga. `to:"blocked"`
+com `codes` contendo `141006` é a conta sem forma de pagamento: todo template
+será aceito e recusado depois com 131042, enquanto as respostas na janela de 24 h
+continuam chegando. `141010` é negócio sem verificação (limite de volume). O
+`trigger` diz quem leu: `connect`, `settings`, `daily` ou `delivery_failure`.
+`messaging_health_blocked` é o resumo da varredura diária com ao menos uma conta
+bloqueada. Quem resolve é a clínica, na Meta; a tela de WhatsApp e o painel já
+mostram a ação.
 
 `template_category_drift` (D104) aparece quando a Meta reclassificou um template
 aprovado — tipicamente `UTILITY` → `MARKETING`, com a justificativa "não atendeu
