@@ -1,7 +1,7 @@
 # Integração isolada de 09/10/2026
 
 Estado: **validação local e leitura DEV aprovadas; cadastro no Preview 7/7 PASS;
-conta de pagamentos no Preview 6/6 PASS após correção; produção não validada**.
+conta de pagamentos no Preview 6/6 PASS após correção; produção sem validação funcional**.
 
 ## Composição
 
@@ -50,6 +50,13 @@ O usuário informou que o login em navegador normal abriu em até aproximadament
 O carregamento de 30 segundos em browser automatizado não deve ser apresentado
 como falha reproduzida para o usuário sem nova prova.
 
+Em 10/10, um navegador Chromium novo, com a conta de teste configurada no DEV e
+prova assinada do runtime Preview, mediu: `/dashboard` redirecionando ao login
+em **4,5 s**, login até o dashboard em **7,8 s** e navegação autenticada a
+`/conversas` em **3,0 s**. Não houve `pageerror` nem resposta HTTP 5xx. A espera
+de 30 s **não se reproduziu nessa execução**; uma amostra não estabelece p95 nem
+descarta lentidão intermitente. Nenhum screenshot, trace ou cookie foi salvo.
+
 Uma sondagem durante o build da Vercel recebeu HTML de espera no endpoint da
 prova assinada. O helper E2E foi corrigido para recusar esse conteúdo sem
 despejar o corpo no erro; os dois testes dirigidos passaram. A sondagem não
@@ -97,9 +104,45 @@ Releitura da WABA e da mensagem enviada após o cadastro de pagamento em 10/10:
 o bloqueio de pagamento; o callback da WABA aponta para outro Preview, e o
 ingresso no Preview integrado continua sem prova.
 
-Em 10/10, o usuário informou que concluiu manualmente o cadastro sem erro. Isso
-fecha o roteiro humano **por relato**, não equivale a readback automatizado do
-checkout pago, provisionamento, tenant e primeira sessão desta conta específica.
+Em 10/10, o usuário informou que concluiu manualmente o cadastro sem erro. O
+relato fecha o roteiro humano; a leitura independente abaixo verifica os estados
+persistidos sem assumir que houve pagamento ou primeira sessão autenticada.
+
+**Readback independente do cadastro informado (10/10, DEV + Asaas Sandbox, somente
+GET/SQL `READ ONLY`):** a busca pela caixa indicada pelo usuário encontrou uma
+conta Auth confirmada, exatamente um profile, uma clínica em `trial`, uma
+assinatura local em `trial` no plano Solo e nenhum draft remanescente. A
+assinatura vinculada foi encontrada no Asaas com `ASAAS_API_KEY_DEV`: `ACTIVE`,
+R$ 149,00, ciclo `MONTHLY`. `ASAAS_CHAVE_TESTE_2` devolveu 404 para o mesmo ID.
+`GET /myAccount` nas duas chaves retornou HTTP 200, mas hashes distintos para o
+e-mail da conta e listagens diferentes de webhooks; o 404 de uma chave isolada
+não indica assinatura ausente na outra conta Sandbox.
+O trial local termina em **17/10/2026**. O Asaas lista duas cobranças **PENDING**
+de R$ 149,00, vencendo em 17/10 e 17/11; nenhuma está paga. A assinatura informa
+`nextDueDate=17/12`, que designa a próxima cobrança **a gerar**, depois das duas
+já geradas, conforme a [referência de atualização de assinaturas do Asaas](https://docs.asaas.com/reference/atualizar-assinatura-existente).
+Assim, provisionamento e correlação com o provedor são **PASS**; pagamento efetivo
+da mensalidade de 17/10 e primeira sessão de browser dessa conta permanecem
+**NOT TESTED** por este readback. O e-mail e os IDs completos não foram registrados.
+
+**Webhooks órfãos do Sandbox (10/10):** `GET /v3/webhooks` em cada uma das duas
+contas de teste encontrou, na conta de `ASAAS_CHAVE_TESTE_2`, exatamente dois
+webhooks de cobrança de paciente desativados e interrompidos apontando para um
+Preview antigo. Ambos tinham **zero** vínculos em `clinic_payment_accounts` do
+DEV. Com esse escopo fixado, cada um foi removido por `DELETE /v3/webhooks/{id}`:
+HTTP 200, seguido por `GET` HTTP 404; nova listagem retornou **zero**. O webhook
+**ativo** da conta `ASAAS_API_KEY_DEV` continuou presente, com um vínculo no
+banco, apontando para o Preview usado pelo outro agente. Ele não foi alterado.
+A [referência de remoção do Asaas](https://docs.asaas.com/reference/remover-webhook)
+explica que a exclusão interrompe entregas futuras daquele webhook; ela não
+recupera os eventos históricos que falharam nem prova uma futura entrega 2xx.
+
+**Banco de produção (10/10, `READ ONLY`):** a conexão foi exigida no projeto
+Supabase PROD conhecido antes da consulta a `_schema_version`. Entre 0107 e
+0118, **só 0107** está aplicada. Portanto as onze migrations 0108–0118 da branch
+integrada ainda não estão em produção. Nenhuma migration foi executada nesta
+rodada. A publicação da PR #34 precisa de um rollout ordenado de banco e código;
+o banco DEV e o CI verde não substituem essa etapa.
 
 O E2E sintético da lista de espera foi exercitado no Preview integrado, com
 fingerprint assinado de Auth e banco DEV, duas entradas reais pela UI e consulta
@@ -158,14 +201,16 @@ intencional do aceite sob preço explícito não explica a falha observada.
   cancelamento e aceite efetivo com agendamento em `absorb_fees`. Faltam entrega
   do template ao paciente e E2E externo da C14. A saúde WABA teve leitura real na Meta e na UI
   em 10/10, mas isso não comprova a entrega de uma mensagem nova.
-- **Migrations de produção:** não foram aplicadas nem tiveram readback neste ciclo.
-  A presença dos marcadores no DEV não autoriza inferência sobre produção.
+- **Migrations de produção:** readback de 10/10 confirmou 0108–0118 pendentes;
+  nenhuma foi aplicada. Planejar backup, advisory lock, aplicação em ordem,
+  readback e deploy compatível antes da ativação da branch integrada.
 - **Editor de perfil público do WhatsApp (#19):** resolver conflitos depois de
   comparar contratos, testar upload e leitura reais no provedor e rodar regressão.
 - **Pagamento do sinal no Sandbox e campanha Google Ads:** gates externos ainda
-  abertos. O roteiro humano de `/cadastro` foi relatado como concluído pelo
-  usuário em 10/10; falta readback independente do resultado específico.
-- **Login automatizado:** investigar a espera longa com trace/console/network
-  no Preview atualizado, preservando a distinção da experiência manual.
+  abertos. O cadastro relatado em 10/10 teve Auth, tenant, trial e assinatura
+  correlacionados por readback; não houve pagamento da primeira mensalidade.
+- **Login automatizado:** uma medição nova não reproduziu 30 s nem erro 5xx;
+  continuar observando latência intermitente, com amostras repetidas se o sintoma
+  voltar. A medição única não equivale a SLA.
 
 Esta é uma fotografia de evidência para revisão; **não é aprovação de go-live**.

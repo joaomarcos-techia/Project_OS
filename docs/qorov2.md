@@ -8696,7 +8696,7 @@ O E2E da conta de pagamentos revelou uma divergência de fuso que quebrava a
 hidratação da tela. Após a correção, o ciclo completo passou 6/6 no Preview,
 com readback de cleanup no DEV e no Asaas Sandbox. O CI do código corrigido
 passou 5.455/5.455 testes em 520 arquivos, build e 6 E2E públicos (2 skips).
-Produção continua sem validação nesta fotografia.
+Produção continua sem validação funcional nesta fotografia.
 
 Atualização de 10/10: o E2E da lista de espera na PR #34 reproduziu uma falha
 real na oferta causada por `Date` vinculado diretamente ao SQL; o mesmo padrão
@@ -8706,6 +8706,20 @@ execuções passaram pelo aceite com toast de sucesso, entrada `booked`, uma
 consulta ativa na vaga e cleanup sem resíduos. Uma tentativa intermediária
 permaneceu `offered` sem causa conclusiva preservada, portanto estabilidade
 total do aceite não foi demonstrada. A regressão do cancelamento passou mais
-uma vez. O usuário relatou cadastro manual concluído sem erro; isso não é
-readback independente do pagamento e provisionamento daquela conta. Comandos,
+uma vez. O usuário relatou cadastro manual concluído sem erro; o readback
+posterior abaixo distingue provisionamento de pagamento. Comandos,
 limites e achados estão no [registro de integração](quality/integracao-2026-10-09.md).
+
+Readback adicional de 10/10 da conta de cadastro informada pelo usuário:
+Auth confirmado, profile, clínica e assinatura Solo/trial únicos no DEV, sem
+draft remanescente; assinatura correspondente `ACTIVE` no Asaas Sandbox com
+R$ 149/mês. O trial e a primeira cobrança pendente vencem em 17/10; **não houve
+pagamento comprovado**. O `nextDueDate` de 17/12 é a próxima cobrança a gerar,
+após as cobranças pendentes de 17/10 e 17/11. A chave de outra conta Sandbox
+retornou 404 para a mesma assinatura, sem representar ausência no provedor.
+Dois webhooks Sandbox interrompidos, desativados e órfãos de um Preview antigo
+foram removidos com readback 404 e listagem zero; o webhook ativo vinculado à
+outra conta permaneceu intacto. Consulta `READ ONLY` em produção encontrou só
+a migration 0107 entre 0107–0118: **0108–0118 seguem pendentes**. Nenhuma
+migration foi aplicada. Evidência, limites e links da documentação oficial do
+Asaas estão no [registro de integração](quality/integracao-2026-10-09.md).
