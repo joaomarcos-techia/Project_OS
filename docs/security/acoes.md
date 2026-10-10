@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 197 actions (0 inline); 53 métodos em 49 handlers; 22 props com referência de action; 294 acessos diretos a process.env; 9 nomes NEXT_PUBLIC.
+Contagem: 197 actions (0 inline); 53 métodos em 49 handlers; 22 props com referência de action; 306 acessos diretos a process.env; 9 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -398,6 +398,18 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/asaas-live-check.ts:23`                           | `ASAAS_API_KEY`                        | `process.env.ASAAS_API_KEY`                        |
 | `scripts/asaas-live-check.ts:24`                           | `ASAAS_BASE_URL`                       | `process.env.ASAAS_BASE_URL`                       |
 | `scripts/asaas-live-roundtrip.ts:28`                       | `ASAAS_API_KEY`                        | `process.env.ASAAS_API_KEY`                        |
+| `scripts/asaas-post-trial-preview-e2e.ts:15`               | `QORO_ENV_FILE`                        | `process.env.QORO_ENV_FILE`                        |
+| `scripts/asaas-post-trial-preview-e2e.ts:17`               | `DATABASE_URL_DEV`                     | `process.env.DATABASE_URL_DEV`                     |
+| `scripts/asaas-post-trial-preview-e2e.ts:18`               | `ASAAS_API_KEY_DEV`                    | `process.env.ASAAS_API_KEY_DEV`                    |
+| `scripts/asaas-post-trial-preview-e2e.ts:19`               | `ASAAS_BASE_URL_DEV`                   | `process.env.ASAAS_BASE_URL_DEV`                   |
+| `scripts/asaas-post-trial-preview-e2e.ts:20`               | `ASAAS_WEBHOOK_TOKEN_DEV`              | `process.env.ASAAS_WEBHOOK_TOKEN_DEV`              |
+| `scripts/asaas-post-trial-preview-e2e.ts:21`               | `VERCEL_AUTOMATION_BYPASS_SECRET`      | `process.env.VERCEL_AUTOMATION_BYPASS_SECRET`      |
+| `scripts/asaas-post-trial-preview-e2e.ts:22`               | `APP_BASE_URL`                         | `process.env.APP_BASE_URL`                         |
+| `scripts/asaas-post-trial-preview-e2e.ts:23`               | `SAAS_POST_TRIAL_E2E`                  | `process.env.SAAS_POST_TRIAL_E2E`                  |
+| `scripts/asaas-post-trial-preview-e2e.ts:35`               | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                 |
+| `scripts/asaas-post-trial-preview-e2e.ts:58`               | `DATABASE_URL`                         | `process.env.DATABASE_URL`                         |
+| `scripts/asaas-post-trial-preview-e2e.ts:59`               | `DATABASE_URL_RUNTIME`                 | `process.env.DATABASE_URL_RUNTIME`                 |
+| `scripts/asaas-post-trial-preview-e2e.ts:60`               | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                 |
 | `scripts/asaas-refund-e2e.ts:63`                           | `ASAAS_REFUND_E2E`                     | `process.env.ASAAS_REFUND_E2E`                     |
 | `scripts/asaas-refund-e2e.ts:66`                           | `ASAAS_REFUND_E2E_API_KEY`             | `process.env.ASAAS_REFUND_E2E_API_KEY`             |
 | `scripts/asaas-refund-e2e.ts:66`                           | `ASAAS_API_KEY`                        | `process.env.ASAAS_API_KEY`                        |

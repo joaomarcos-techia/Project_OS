@@ -263,3 +263,11 @@ exit 0; `npx prettier --check` nos quatro arquivos da rodada exit 0;
 parou na validação de `DATABASE_URL` e `NEXT_PUBLIC_SUPABASE_URL`; o build
 isolado oficial `npx tsx scripts/security/local-build.ts`, com valores sintéticos,
 compilou e terminou com **exit 0**. Isso comprova o build sem usar credenciais.
+
+A primeira CI do commit `cfe32f28` falhou no gate
+`Security inventory (AST and explicit guard review)`: o runner novo acrescentou
+12 referências a `process.env` e o inventário versionado estava desatualizado.
+`npx tsx scripts/security/inventory.ts --write` atualizou somente
+`docs/security/acoes.md`; a reexecução local com `--check` terminou com exit 0,
+sem itens `unresolved` ou `publicEnv` indevidos. A CI desse ajuste precisa ser
+avaliada separadamente; a falha inicial não é PASS.
