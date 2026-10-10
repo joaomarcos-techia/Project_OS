@@ -33,7 +33,8 @@ round-trip real do provedor ainda não testado.
 | Relógio da oferta no DEV | `npx tsx --conditions=react-server scripts/probe-waitlist-offer-dev.ts` com as mesmas guardas | Exit 0; prazo, vaga passada e varredura PASS; transação `READ ONLY` |
 | CI do código corrigido (`23e70f93`) | [Run 38010506366](https://github.com/joaomarcos-techia/Project_OS/actions/runs/38010506366) | Exit 0; 5.455/5.455 testes em 520 arquivos, cobertura, build, inventário, isolamento e limites HTTP PASS; E2E público 6 PASS, 2 SKIP |
 | Regressão local repetida em 10/10 após o conserto da oferta | `npx vitest run`; `npx tsc --noEmit`; `npx eslint e2e/production-waitlist-a.spec.ts src/contexts/scheduling/internal/waitlist-store{,.test}.ts` | 5.455/5.455 em 520 arquivos, três comandos exit 0; lint completo havia passado antes do conserto |
-| Build isolado repetido em 10/10 após o conserto da oferta | `npx tsx scripts/security/local-build.ts` | Exit 0, compilação Next e geração de 18 páginas estáticas concluídas; ambiente sintético |
+| Build isolado repetido em 10/10 após os consertos da oferta e hidratação | `npx tsx scripts/security/local-build.ts` | Exit 0 nas duas execuções, compilação Next e geração de 18 páginas estáticas; ambiente sintético |
+| Lista de espera no Preview DEV (`b8cc9819`) | `npx playwright test e2e/production-waitlist-a.spec.ts --project=chromium` com fingerprint assinado DEV e flag de fixture | **3/3 execuções PASS**, cada uma com 1 cenário funcional: entrada normal/urgente pela UI, correção da consulta, oferta prioritária única, cancelamentos pela UI e cleanup com sete contagens residuais em zero; a terceira incluiu readback SQL dos dois cancelamentos |
 
 Os dois probes foram repetidos em 09/10, sem gravar no banco. A primeira invocação
 do probe da lista de espera omitiu `--conditions=react-server` e falhou no pacote
@@ -109,18 +110,34 @@ transação inteira foi revertida. Uma transação de diagnóstico foi revertida
 deliberadamente. A correção serializa o instante em ISO antes do bind, ainda
 comparando a validade com `clock_timestamp()` do banco. O teste de regressão
 verifica o parâmetro gerado; 21/21 testes dirigidos, TypeScript e lint passaram.
-**O E2E externo ainda precisa ser repetido no Preview com essa correção publicada.**
+A primeira repetição no Preview comprovou oferta e evento, mas falhou no clique
+de cancelamento da oferta. Uma repetição passou e a seguinte não recebeu a
+resposta da Action em 30 segundos. As duas falhas nessa etapa foram limpas; a
+diferença nas contagens de auditoria sustentou que a mutação nem sempre partia
+do browser. A hipótese de clique antes da hidratação motivou uma guarda: os
+botões mutantes e o filtro ficam desabilitados até o React montar. No commit
+`b8cc9819`, **três execuções completas consecutivas passaram** no Preview:
+correção `cancelado`, entrada urgente `offered`, normal `waiting`, exatamente
+um evento de oferta, controle de aceite visível, dois cancelamentos refletidos
+na UI, e nenhum envio externo. A terceira execução também confirmou no banco
+que as duas entradas terminaram `cancelled`. Isso valida o caminho funcional
+medido; não demonstra a entrega do template Meta ao paciente.
 A tabela `appointment_corrections` e o marcador da migration 0059 estão no DEV;
 ausência dessa migration foi excluída. Uma rodada teve deadlock no cleanup e
 exigiu limpeza posterior guardada. O runner ganhou retry e valida a remoção de
 pacientes, entradas, consultas, jobs, outbox, auditoria e idempotência; o
-readback independente após a limpeza confirmou zero pacientes sintéticos.
+readback final das três execuções PASS confirmou zero em todas as sete contagens.
+O CI do commit `b8cc9819` falhou apenas no inventário de segurança: o novo
+estado de hidratação deslocou a linha de um `onSearch` documentado. A linha foi
+regenerada e `inventory.ts --check` voltou a passar localmente; o CI remoto da
+atualização ainda precisa ser executado.
 
 ## O que ainda precisa de prova
 
-- **Preview integrado:** ainda falta E2E externo da lista de espera e da C14.
-  A saúde WABA teve leitura real na Meta e na UI em 10/10, mas isso não comprova
-  aceite de oferta nem entrega de template novo ao paciente.
+- **Preview integrado:** a lista de espera passou até oferta, controles e
+  cancelamento. Faltam aceite efetivo com agendamento, entrega do template ao
+  paciente e E2E externo da C14. A saúde WABA teve leitura real na Meta e na UI
+  em 10/10, mas isso não comprova a entrega de uma mensagem nova.
 - **Migrations de produção:** não foram aplicadas nem tiveram readback neste ciclo.
   A presença dos marcadores no DEV não autoriza inferência sobre produção.
 - **Editor de perfil público do WhatsApp (#19):** resolver conflitos depois de

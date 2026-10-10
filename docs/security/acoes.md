@@ -279,7 +279,7 @@ O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase
 | Arquivo:linha                                                                     | Prop         | Actions                                                                                        |
 | --------------------------------------------------------------------------------- | ------------ | ---------------------------------------------------------------------------------------------- |
 | `src/app/(app)/(shell)/account/security/unenroll-form.tsx:9`                      | `action`     | `src/app/(app)/(shell)/account/security/actions.ts#unenrollAction`                             |
-| `src/app/(app)/(shell)/agenda/lista-espera/waitlist-manager.tsx:165`              | `onSearch`   | `src/app/(app)/(shell)/agenda/actions.ts#buscarPacientes`                                      |
+| `src/app/(app)/(shell)/agenda/lista-espera/waitlist-manager.tsx:167`              | `onSearch`   | `src/app/(app)/(shell)/agenda/actions.ts#buscarPacientes`                                      |
 | `src/app/(app)/(shell)/agenda/new-appointment-drawer.tsx:228`                     | `onSearch`   | `src/app/(app)/(shell)/agenda/actions.ts#buscarPacientes`                                      |
 | `src/app/(app)/(shell)/configuracoes/horarios/horarios-manager.tsx:187`           | `onClick`    | `src/contexts/scheduling/config-actions.ts#removeDoctorAvailability`                           |
 | `src/app/(app)/(shell)/configuracoes/horarios/horarios-manager.tsx:300`           | `onClick`    | `src/contexts/scheduling/config-actions.ts#removeHoliday`                                      |

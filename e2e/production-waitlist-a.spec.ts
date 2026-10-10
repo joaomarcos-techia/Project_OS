@@ -698,6 +698,20 @@ test.describe(suiteName, () => {
       await expect(
         waitlistRow(page, patientNames[1]).getByText('Cancelado', { exact: true }),
       ).toBeVisible();
+      const cancelledEntries = await sql.begin(async (tx) => {
+        await tx.unsafe('SET TRANSACTION READ ONLY');
+        await tx.unsafe('RESET ROLE');
+        return tx<{ patient_id: string; status: string }[]>`
+          select patient_id::text, status::text from waitlist_entries
+           where clinic_id=${clinicId!}::uuid and patient_id=any(${patientIds}::uuid[])
+        `;
+      });
+      expect(new Map(cancelledEntries.map(({ patient_id, status }) => [patient_id, status]))).toEqual(
+        new Map([
+          [normalPatientId, 'cancelled'],
+          [urgentPatientId, 'cancelled'],
+        ]),
+      );
 
       console.log(
         `[waitlist-a] ${JSON.stringify({
