@@ -14,12 +14,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   ler: vi.fn(),
   salvar: vi.fn(),
+  upload: vi.fn(),
   toastSuccess: vi.fn(),
 }));
 
 vi.mock('./actions', () => ({
   readWhatsappProfileAction: mocks.ler,
   saveWhatsappProfileAction: mocks.salvar,
+  uploadWhatsappProfilePictureAction: mocks.upload,
 }));
 vi.mock('@/components/ui/use-toast', () => ({
   toast: { success: mocks.toastSuccess, error: vi.fn(), info: vi.fn(), ai: vi.fn() },
@@ -36,6 +38,11 @@ const perfil = (over: Record<string, unknown> = {}) => ({
     websites: ['https://clinica.com.br'],
     vertical: 'HEALTH' as const,
     ...over,
+  },
+  profilePictureUrl: 'https://pps.whatsapp.net/profile.jpg',
+  identidade: {
+    displayName: 'Clínica Exemplo',
+    displayPhoneNumber: '+55 11 99999-0000',
   },
   verticalDesconhecida: null,
 });
@@ -109,7 +116,44 @@ describe('leitura bem-sucedida', () => {
       (screen.getByLabelText('Recado').closest('fieldset') as HTMLFieldSetElement).disabled,
     ).toBe(true);
     expect(screen.queryByRole('button', { name: 'Salvar perfil' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Trocar foto/ })).toBeNull();
+    expect((screen.getByLabelText('Selecionar foto do perfil') as HTMLInputElement).disabled).toBe(
+      true,
+    );
     expect(mocks.salvar).not.toHaveBeenCalled();
+  });
+
+  it('mostra nome real como somente leitura e encaminha a alteração para a Meta', () => {
+    render(<WhatsappProfile inicial={carregado()} />);
+
+    const nome = screen.getByLabelText('Nome exibido no WhatsApp') as HTMLInputElement;
+    expect(nome.value).toBe('Clínica Exemplo');
+    expect(nome.readOnly).toBe(true);
+    expect(screen.getByText('Nome gerenciado pela Meta')).toBeTruthy();
+
+    const link = screen.getByRole('link', { name: /Alterar nome na Meta/ });
+    expect(link.getAttribute('href')).toContain('business.facebook.com/wa/manage/phone-numbers');
+    expect(link.getAttribute('target')).toBe('_blank');
+  });
+
+  it('mantém uma prévia ao vivo, identificada como aproximada', () => {
+    const { container } = render(<WhatsappProfile inicial={carregado()} />);
+    const preview = container.querySelector('[data-slot="whatsapp-profile-preview"]');
+    expect(preview?.textContent).toContain('Clínica Exemplo');
+    expect(screen.getByText('aproximada')).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText('Recado'), {
+      target: { value: 'Novo recado em tempo real' },
+    });
+    expect(preview?.textContent).toContain('Novo recado em tempo real');
+  });
+
+  it('oferece upload apenas para PNG e JPG', () => {
+    render(<WhatsappProfile inicial={carregado()} />);
+    const input = screen.getByLabelText('Selecionar foto do perfil') as HTMLInputElement;
+    expect(input.type).toBe('file');
+    expect(input.accept).toBe('image/jpeg,image/png');
+    expect(screen.getByRole('button', { name: /Trocar foto/ })).toBeTruthy();
   });
 
   it('preenche os campos com o que a Meta reporta', () => {

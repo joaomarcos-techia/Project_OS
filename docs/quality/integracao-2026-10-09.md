@@ -317,3 +317,22 @@ O usuário confirmou que a resposta apareceu no aparelho de teste. Assim,
 **PASS real** para Meta → webhook Preview → clínica DEV → evento → IA →
 resposta → outbox → Meta → WhatsApp do remetente. Nenhuma mensagem, telefone,
 token ou conteúdo clínico foi copiado para o relatório.
+
+## 11/10 — editor de perfil integrado à coexistência
+
+O commit `95ae83b` da PR #19 foi integrado à base da PR #34 em
+`integration/qoro-whatsapp-profile-20261011`, sem mudar o callback da WABA de teste. Os conflitos
+foram resolvidos preservando o perfil em modo somente leitura para coexistência. O upload da foto
+passa pela mesma guarda de escrita no servidor, e uma falha de rede durante o envio binário não
+carrega a URL assinada do upload na cadeia de causas. O E2E impede opt-in de escrita fora de um
+Preview isolado da Vercel.
+
+| Evidência | Resultado | Limite |
+| --- | --- | --- |
+| `npx vitest run` | **PASS**, 5.467 testes em 520 arquivos, exit 0 | Testes locais; não provam escrita aceita pela Meta |
+| Cinco arquivos focados de perfil | **PASS**, 109 testes | Inclui guarda de coexistência; não inclui upload real |
+| `npx tsc --noEmit`, ESLint direcionado, Prettier e inventário de segurança | **PASS**, exit 0; inventário com 199 actions e zero pendências | Verificação estática |
+| Build Next com ambiente sintético | **PASS**, exit 0 | Não equivale ao deploy nem à execução no Preview |
+| Leitura em coexistência no novo Preview | **NOT TESTED** até publicar a branch e executar Playwright autenticado | Depende do deploy Preview |
+| Escrita, releitura e restauração em número dedicado | **BLOCKED** pelo número atual em coexistência | Requer número de teste dedicado conectado ao novo Preview |
+| Foto real na Meta | **NOT TESTED** | Requer imagem sintética e restauração verificável da foto anterior |

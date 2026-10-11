@@ -18,7 +18,11 @@ vi.mock('@/lib/env', () => ({
 
 import { MetaConnectError } from '../errors';
 
-import { getBusinessProfile, updateBusinessProfile } from './meta-business-profile';
+import {
+  getBusinessProfile,
+  updateBusinessProfile,
+  updateBusinessProfilePicture,
+} from './meta-business-profile';
 
 const TOKEN = 'TOKEN_SUPER_SECRETO_NAO_VAZE';
 const PHONE = 'phone-123';
@@ -29,6 +33,12 @@ const fetchMock = vi.fn();
 
 beforeEach(() => {
   fetchMock.mockReset();
+  fetchMock.mockResolvedValue(
+    res({
+      verified_name: 'Clínica Exemplo',
+      display_phone_number: '+55 11 99999-0000',
+    }),
+  );
   vi.stubGlobal('fetch', fetchMock);
 });
 afterEach(() => vi.unstubAllGlobals());
@@ -56,12 +66,14 @@ describe('getBusinessProfile', () => {
     // O endpoint é no NÚMERO, não na WABA — trocar isso devolveria 400 opaco.
     expect(url.pathname).not.toContain('waba');
     expect(url.searchParams.get('fields')).toBe(
-      'about,address,description,email,websites,vertical',
+      'about,address,description,email,profile_picture_url,websites,vertical',
     );
-    // §33.6 — a foto está fora de escopo e não pode entrar de carona.
-    expect(url.searchParams.get('fields')).not.toContain('profile_picture_url');
     expect(optOf(fetchMock.mock.calls[0]!).method).toBe('GET');
     expect(optOf(fetchMock.mock.calls[0]!).headers.authorization).toBe(`Bearer ${TOKEN}`);
+
+    const identityUrl = new URL(urlOf(fetchMock.mock.calls[1]!));
+    expect(identityUrl.pathname).toBe(`/v21.0/${PHONE}`);
+    expect(identityUrl.searchParams.get('fields')).toBe('verified_name,display_phone_number');
   });
 
   it('trata `data: []` como perfil vazio, não como erro', async () => {
@@ -74,6 +86,11 @@ describe('getBusinessProfile', () => {
       email: '',
       websites: [],
       vertical: 'UNDEFINED',
+    });
+    expect(r.profilePictureUrl).toBeNull();
+    expect(r.identidade).toEqual({
+      displayName: 'Clínica Exemplo',
+      displayPhoneNumber: '+55 11 99999-0000',
     });
     expect(r.verticalDesconhecida).toBeNull();
   });
@@ -110,6 +127,67 @@ describe('getBusinessProfile', () => {
     const r = await getBusinessProfile(PHONE, TOKEN);
     expect(r.perfil.vertical).toBe('UNDEFINED');
     expect(r.verticalDesconhecida).toBe('MEDICAL_CLINIC');
+  });
+
+  it('aceita somente URL HTTPS para a foto publicada', async () => {
+    fetchMock.mockResolvedValueOnce(
+      res({ data: [{ profile_picture_url: 'https://pps.whatsapp.net/profile.jpg' }] }),
+    );
+    expect((await getBusinessProfile(PHONE, TOKEN)).profilePictureUrl).toBe(
+      'https://pps.whatsapp.net/profile.jpg',
+    );
+
+    fetchMock.mockResolvedValueOnce(
+      res({ data: [{ profile_picture_url: 'javascript:alert(1)' }] }),
+    );
+    expect((await getBusinessProfile(PHONE, TOKEN)).profilePictureUrl).toBeNull();
+  });
+});
+
+describe('updateBusinessProfilePicture', () => {
+  it('cria sessão, envia o binário desde offset zero e aplica somente o handle', async () => {
+    fetchMock
+      .mockResolvedValueOnce(res({ id: 'upload:session-1?sig=opaque' }))
+      .mockResolvedValueOnce(res({ h: 'opaque-image-handle' }))
+      .mockResolvedValueOnce(res({ success: true }));
+
+    const bytes = new Uint8Array([0xff, 0xd8, 0xff, 0x00]);
+    await updateBusinessProfilePicture(PHONE, TOKEN, bytes, 'image/jpeg');
+
+    const createUrl = new URL(urlOf(fetchMock.mock.calls[0]!));
+    expect(createUrl.pathname).toBe('/v21.0/app-123/uploads');
+    expect(createUrl.searchParams.get('file_length')).toBe('4');
+    expect(createUrl.searchParams.get('file_type')).toBe('image/jpeg');
+
+    const upload = fetchMock.mock.calls[1]!;
+    expect(new URL(urlOf(upload)).pathname).toBe('/v21.0/upload:session-1');
+    expect(new URL(urlOf(upload)).searchParams.get('sig')).toBe('opaque');
+    expect(optOf(upload).headers.file_offset).toBe('0');
+    expect(optOf(upload).headers['content-type']).toBe('image/jpeg');
+    expect(optOf(upload).body).toBeInstanceOf(Blob);
+
+    const update = fetchMock.mock.calls[2]!;
+    expect(bodyOf(update)).toEqual({
+      messaging_product: 'whatsapp',
+      profile_picture_handle: 'opaque-image-handle',
+    });
+  });
+
+  it('não expõe o upload id quando o envio binário falha', async () => {
+    const uploadId = 'upload:SEGREDO?sig=ASSINATURA';
+    fetchMock
+      .mockResolvedValueOnce(res({ id: uploadId }))
+      .mockRejectedValueOnce(new Error('ECONNRESET'));
+
+    const error: unknown = await updateBusinessProfilePicture(
+      PHONE,
+      TOKEN,
+      new Uint8Array([0x89]),
+      'image/png',
+    ).catch((cause: unknown) => cause);
+    if (!(error instanceof Error)) throw new Error('Era esperada uma falha de rede.');
+    expect(error.message).not.toContain(uploadId);
+    expect(error.cause).toBeUndefined();
   });
 });
 

@@ -7,6 +7,7 @@ import { ZodError } from 'zod';
 
 import {
   MessagingRateLimitedError,
+  MessagingValidationError,
   MetaConnectError,
   NumberNotConnectedError,
   WhatsappProfileManagedInBusinessAppError,
@@ -139,6 +140,9 @@ export function fail(err: unknown): ActionResult<never> {
           ? 'Muitas alterações seguidas no perfil. Nada foi enviado à Meta. Aguarde alguns minutos e tente de novo.'
           : 'O perfil foi consultado muitas vezes seguidas. Aguarde alguns minutos e recarregue.',
     };
+  }
+  if (err instanceof MessagingValidationError) {
+    return { ok: false, code: 'validation', message: err.message };
   }
   if (err instanceof NumberNotConnectedError) {
     return {

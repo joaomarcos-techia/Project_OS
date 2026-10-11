@@ -38,6 +38,12 @@ loadDotenv({ path: '.env.local' });
  */
 const baseUrl = process.env.E2E_BASE_URL;
 const escritaAutorizada = process.env.E2E_WHATSAPP_PROFILE_WRITE === '1';
+if (escritaAutorizada) {
+  const host = baseUrl ? new URL(baseUrl).hostname : '';
+  if (!host.startsWith('project-os-git-') || !host.endsWith('.vercel.app')) {
+    throw new Error('Escrita do perfil WhatsApp exige um Preview isolado da Vercel.');
+  }
+}
 
 const ROTA = '/configuracoes/whatsapp';
 const SECAO = '[data-slot="whatsapp-profile"]';
@@ -105,24 +111,26 @@ test.describe('§33 — perfil público do WhatsApp', () => {
   });
 
   test('com número conectado, o formulário vem preenchido e avisa que é público', async () => {
-    const { temSecao } = await abrir(page);
+    const { temSecao, somenteLeitura } = await abrir(page);
     test.skip(!temSecao, 'Sem número conectado no Preview: nada a ler.');
 
     const secao = page.locator(SECAO);
 
-    // §33.5 — o estado tem de ser "carregado". Se a leitura falhar, o
-    // formulário NÃO existe, e é isso que o outro teste cobre.
-    const estado = await secao.getAttribute('data-profile-state');
-    test.skip(
-      estado === 'erro-leitura',
-      'A Meta não respondeu à leitura do perfil agora: round-trip não testado.',
-    );
+    // Com número conectado, falhar na leitura não pode virar SKIP verde.
+    await expect(secao).toHaveAttribute('data-profile-state', 'carregado');
 
-    await expect(secao.getByText('Este conteúdo é público')).toBeVisible();
+    await expect(secao.getByText('Estas informações são públicas')).toBeVisible();
     await expect(secao.getByText('Não escreva nome de paciente')).toBeVisible();
     // §33.3 nº 2 — o rótulo diz "da clínica", nunca "E-mail" genérico.
     await expect(secao.getByLabel('E-mail de contato da clínica')).toBeVisible();
     await expect(secao.getByLabel('Recado')).toBeVisible();
+    await expect(secao.getByLabel('Nome exibido no WhatsApp')).toHaveAttribute('readonly', '');
+    await expect(secao.locator('[data-slot="whatsapp-profile-preview"]')).toBeVisible();
+    if (somenteLeitura) {
+      await expect(secao.getByRole('button', { name: /foto/u })).toHaveCount(0);
+    } else {
+      await expect(secao.getByRole('button', { name: /foto/u })).toBeVisible();
+    }
   });
 
   test('o token da Meta não chega ao HTML servido', async () => {
@@ -186,10 +194,7 @@ test.describe('§33 — perfil público do WhatsApp', () => {
     test.skip(somenteLeitura, 'Coexistência: a Meta não aceita a escrita deste perfil pelo Qoro.');
 
     const secao = page.locator(SECAO);
-    test.skip(
-      (await secao.getAttribute('data-profile-state')) === 'erro-leitura',
-      'Leitura do perfil indisponível agora: round-trip NÃO testado.',
-    );
+    await expect(secao).toHaveAttribute('data-profile-state', 'carregado');
 
     const recado = secao.getByLabel('Recado');
     const anterior = await recado.inputValue();

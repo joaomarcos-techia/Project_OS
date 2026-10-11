@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { PerfilWhatsappSchema } from '@/contexts/messaging/business-profile-contract';
 import {
   MessagingRateLimitedError,
+  MessagingValidationError,
   MetaConnectError,
   NumberNotConnectedError,
   WhatsappProfileManagedInBusinessAppError,
@@ -11,6 +12,14 @@ import {
 import { fail } from './wa-types';
 
 describe('fail', () => {
+  it('devolve a mensagem segura da validação de arquivo', () => {
+    expect(fail(new MessagingValidationError('Formato inválido. Use PNG ou JPG.'))).toEqual({
+      ok: false,
+      code: 'validation',
+      message: 'Formato inválido. Use PNG ou JPG.',
+    });
+  });
+
   it('expõe orientação da etapa sem vazar detalhes internos da Meta', () => {
     const result = fail(
       new MetaConnectError('[meta] graph HTTP 400 code=100 com token secreto', {
