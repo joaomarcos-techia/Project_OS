@@ -271,3 +271,49 @@ A primeira CI do commit `cfe32f28` falhou no gate
 `docs/security/acoes.md`; a reexecução local com `--check` terminou com exit 0,
 sem itens `unresolved` ou `publicEnv` indevidos. A CI desse ajuste precisa ser
 avaliada separadamente; a falha inicial não é PASS.
+
+## 11/10 — ingresso real após trocar o callback
+
+Uma mensagem nova do número de teste consentido chegou à WABA de teste no
+Preview integrado às **22:46:09 UTC**. A leitura `READ ONLY` do DEV confirmou:
+conexão ativa na clínica de teste, uma linha em `inbound_messages_raw`, nenhum
+órfão para o `phone_number_id`, evento `messaging.inbound.received` com
+`status=processed`, uma tentativa e `error_code=NULL`, `processed_at` às
+22:46:17 UTC e uma mensagem de entrada na conversa. O número recebido foi
+comparado ao número consentido após decifrar **somente em memória**, sem registrar
+telefone ou conteúdo na evidência. A rota rejeitou um `POST` externo sem
+assinatura com HTTP **401** e corpo `invalid signature`, depois de comprovar que
+o Preview usa Auth/banco DEV. Os testes direcionados de webhook, handoff, worker
+e status de entrega passaram **42/42**, em 5 arquivos (`npx vitest run` direcionado).
+
+Não houve resposta automática a essa mensagem: a conversa já estava em
+`handoff` desde 08/10, sem responsável atribuído. O evento foi processado e
+registrou entrada, mas gerou zero mensagens de saída e zero envios Meta, como a
+regra de atendimento humano determina. A ação autenticada **Devolver ao agente**
+foi executada no Preview; o readback no DEV às **22:53:05 UTC** encontrou
+`status=active` e zero handoffs abertos. O teste de UI que esperava um toast
+transitório expirou depois de a ação ter sido concluída; **a asserção do toast
+falhou, mas a mudança de estado foi confirmada separadamente**. A primeira
+mensagem não foi reprocessada retroativamente; a segunda, abaixo, mediu IA,
+outbox, aceite e entrega Meta.
+
+Observação de ambiente para futuros runners locais: o HMAC do telefone
+recalculado com `CRYPTO_LOOKUP_SALT` do `.env.local` não coincidiu com o hash
+armazenado pela instância Preview, embora a decifragem do telefone e sua
+comparação com o número consentido tenham passado. O arquivo local não foi
+alterado; a causa da diferença de salt **não foi demonstrada**. Não usar esse
+hash calculado localmente como critério de correlação de mensagens do Preview
+até reconciliar a configuração.
+
+### Segunda mensagem, conversa ativa — fluxo completo
+
+Após a devolução, uma segunda mensagem do mesmo número consentido entrou às
+**23:06:12 UTC**. O readback `READ ONLY` no DEV encontrou `processed_at` às
+23:06:30, evento `processed` em **uma** tentativa, uma mensagem `in` e uma
+mensagem `out` da IA, zero `ai_agent_failures`, **um** `outbound_messages` e
+`outbound_targets_sender=true`. A Meta aceitou o envio e entregou callbacks
+`sent` e `delivered`; o estado persistido ficou `delivered` às **23:06:32 UTC**.
+O usuário confirmou que a resposta apareceu no aparelho de teste. Assim,
+**PASS real** para Meta → webhook Preview → clínica DEV → evento → IA →
+resposta → outbox → Meta → WhatsApp do remetente. Nenhuma mensagem, telefone,
+token ou conteúdo clínico foi copiado para o relatório.

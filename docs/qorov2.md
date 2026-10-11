@@ -8733,6 +8733,22 @@ endpoint novo passou no handshake. Uma leitura do DEV ainda encontrou zero
 mensagens recebidas na janela após a troca: **configuração PASS; ingresso real
 novo NOT TESTED** até o envio de uma mensagem consentida.
 
+Atualização de 11/10: a mensagem consentida chegou ao Preview, foi persistida
+na clínica de teste e o evento de IA foi consumido. A conversa estava em
+`handoff` anterior; por isso houve zero resposta e zero envio Meta. A ação
+autenticada devolveu-a ao agente e o DEV confirmou `active` sem handoff aberto.
+Nesse primeiro ingresso, o fluxo **IA → resposta → entrega não foi exercitado**.
+O probe externo sem assinatura retornou 401 e a regressão
+direcionada passou 42/42. Os horários, o readback e a divergência de HMAC local
+estão no [registro de integração](quality/integracao-2026-10-09.md#1110--ingresso-real-após-trocar-o-callback).
+
+Uma segunda mensagem do remetente consentido, após o retorno da conversa ao
+agente, fechou o E2E às 23:06 UTC: um evento processado, uma entrada e uma
+resposta da IA, um outbound para o mesmo remetente, aceite `sent` e confirmação
+`delivered` da Meta. O usuário confirmou a resposta no aparelho. **PASS real**
+para mensagem → Preview → IA → Meta → WhatsApp de teste, com readback DEV e
+sem falhas de IA. Detalhes no mesmo [registro](quality/integracao-2026-10-09.md#segunda-mensagem-conversa-ativa--fluxo-completo).
+
 A mensalidade SaaS foi exercitada três vezes, duas pelo runner versionado
 `scripts/asaas-post-trial-preview-e2e.ts`, com fixture sem profile/paciente no DEV
 e recursos descartáveis no Asaas Sandbox. Nas três execuções, cobrança Solo mensal PIX
