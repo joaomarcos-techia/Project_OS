@@ -325,7 +325,7 @@ O commit `95ae83b` da PR #19 foi integrado à base da PR #34 em
 foram resolvidos preservando o perfil em modo somente leitura para coexistência. O upload da foto
 passa pela mesma guarda de escrita no servidor, e uma falha de rede durante o envio binário não
 carrega a URL assinada do upload na cadeia de causas. O E2E impede opt-in de escrita fora de um
-Preview isolado da Vercel.
+Preview isolado da Vercel e exige prova assinada de Auth e banco DEV antes da escrita.
 
 | Evidência | Resultado | Limite |
 | --- | --- | --- |

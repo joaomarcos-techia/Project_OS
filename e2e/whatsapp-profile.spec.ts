@@ -2,6 +2,7 @@ import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 import { config as loadDotenv } from 'dotenv';
 
 import { authenticate, hasE2ECredentials } from './auth';
+import { assertPreviewRuntimeIsDev } from './preview-dev-runtime';
 import { vercelBypassHeaders } from './vercel-bypass';
 
 loadDotenv({ path: '.env.local' });
@@ -57,6 +58,7 @@ test.describe('§33 — perfil público do WhatsApp', () => {
   let page: Page;
   test.beforeAll(async ({ browser }) => {
     if (!baseUrl) throw new Error('E2E_BASE_URL ausente');
+    if (escritaAutorizada) await assertPreviewRuntimeIsDev(baseUrl);
     context = await browser.newContext({
       baseURL: baseUrl,
       extraHTTPHeaders: vercelBypassHeaders(),
