@@ -58,6 +58,7 @@ import {
 } from '../domain/types';
 import * as repo from '../infra/repository';
 import type { ClaimedJob } from '../infra/repository';
+import { nextSendWindowStart } from '../infra/send-window';
 import { TemplateNotConfiguredError, buildProactiveTemplate } from '../infra/templates';
 import type { ProactiveJobType } from '../schema';
 import { evaluateProactivePolicy, suppressionPurposeFor } from './policy';
@@ -164,6 +165,15 @@ async function processOne(job: ClaimedJob, tzCache: Map<string, string>): Promis
       return 'failed';
     }
     throw err;
+  }
+
+  // O claim pode ocorrer às 19:59 e a resolução do contato/link terminar depois
+  // das 20h. Reconfere imediatamente antes do sender; não consome tentativa Meta.
+  const nextWindow = nextSendWindowStart(tz, new Date());
+  if (nextWindow) {
+    await repo.deferUntilSendWindow(clinicId, id, leaseToken, nextWindow);
+    metrics.emit('proactive.job.deferred', { ...log, reason: 'send_window_closed' });
+    return 'retried';
   }
 
   try {

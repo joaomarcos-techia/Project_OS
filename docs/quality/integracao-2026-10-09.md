@@ -469,3 +469,13 @@ Após o pagamento, reler a cobrança no Sandbox e no DEV, o evento real do webho
 despachar **somente** os eventos da fixture e verificar agendamento, crédito e
 Caixa. O Preview não executa cron automaticamente; drenar o outbox global do DEV
 processaria eventos de outras clínicas e não serve como prova segura.
+
+**Guarda da janela de envio (12/10):** além do filtro SQL do `claimDue`, o
+processor C14 confere novamente o horário local da clínica imediatamente antes
+de chamar o sender da Meta. Se a janela [08:00, 20:00) fechou enquanto contato,
+estado e link eram resolvidos, o job volta para a próxima abertura às 08:00 sem
+consumir tentativa de envio nem trocar a chave de idempotência. O link só será
+enviado se a cobrança ainda estiver pagável e dentro do prazo no novo
+processamento. Testes de borda cobrem 07:59, 08:00, 19:59, 20:00, a travessia de
+19:59 para 20:00 durante o job e os links de sinal/restante. O pagamento humano
+no Sandbox, entrega Meta e webhook continuam **NOT RUN** até a janela abrir.

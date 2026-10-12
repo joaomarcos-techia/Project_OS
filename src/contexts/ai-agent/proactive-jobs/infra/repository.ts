@@ -12,7 +12,7 @@
  */
 import 'server-only';
 
-import { and, count, desc, eq, gte, isNull, or, sql } from 'drizzle-orm';
+import { and, count, desc, eq, gte, isNull, or, sql, type SQL } from 'drizzle-orm';
 
 import { dbAdmin, type Tx } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
@@ -24,12 +24,11 @@ import {
   type ProactiveJobStatus,
   type ProactiveJobType,
 } from '../schema';
+import { SEND_WINDOW_END_HOUR, SEND_WINDOW_START_HOUR } from './send-window';
+export { SEND_WINDOW_END_HOUR, SEND_WINDOW_START_HOUR } from './send-window';
 
 const DEFAULT_TZ = 'America/Sao_Paulo';
 
-/** Janela de envio permitida (hora local da clínica): [8, 20). */
-export const SEND_WINDOW_START_HOUR = 8;
-export const SEND_WINDOW_END_HOUR = 20;
 export const PROACTIVE_LEASE_SECONDS = 5 * 60;
 
 /** Forma enxuta usada pelo processor (só o necessário p/ enviar + finalizar). */
@@ -190,7 +189,7 @@ async function finalizeClaim(
   clinicId: string,
   jobId: string,
   leaseToken: string,
-  patch: Partial<ProactiveJobRow>,
+  patch: Omit<Partial<ProactiveJobRow>, 'attempts'> & { attempts?: number | SQL },
 ): Promise<void> {
   await withTenant(clinicId, async (tx) => {
     await tx
@@ -233,6 +232,23 @@ export function finalizeRetry(
     status: 'pending',
     scheduledFor: nextAt,
     failedReason: reason,
+  });
+}
+
+/**
+ * O job foi reservado dentro da janela, mas ela fechou antes do envio. Volta à
+ * fila sem consumir uma tentativa de Meta; a mesma chave de envio é preservada.
+ */
+export function deferUntilSendWindow(
+  clinicId: string,
+  jobId: string,
+  leaseToken: string,
+  nextAt: Date,
+): Promise<void> {
+  return finalizeClaim(clinicId, jobId, leaseToken, {
+    status: 'pending',
+    scheduledFor: nextAt,
+    attempts: sql`${aiProactiveJobs.attempts} - 1`,
   });
 }
 
