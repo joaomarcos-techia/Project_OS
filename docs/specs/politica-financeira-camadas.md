@@ -800,3 +800,14 @@ o "já paguei": fazer o recomendado e "adicionar a lógica de pago com dinheiro"
   Caixa.
 - **Fora do modelo:** sinal pago em dinheiro antes da consulta. Não há como registrar; a equipe orienta
   o pagamento pelo link.
+
+### 12/10/2026 — prova integrada do sinal ainda pendente
+
+Foi preparado um modo do `scripts/payments-meta-e2e.ts` que preserva um único
+Checkout de sinal no **Asaas Sandbox** depois do template consentido, para que
+o paciente de teste possa pagar pelo link recebido. O preflight mede banco/Auth
+DEV, Preview, callback e janela C14; a configuração do webhook Sandbox só muda
+com opt-in adicional e readback. A execução externa parou antes da fixture porque
+era 00h local e o envio C14 só é permitido a partir de 08h. Portanto, a cadeia
+Meta → pagamento → webhook → crédito → Caixa permanece **NOT RUN**, não PASS.
+Comandos, evidência e retomada: [registro operacional](../quality/integracao-2026-10-09.md).

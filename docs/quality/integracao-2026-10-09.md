@@ -415,3 +415,57 @@ contas acessíveis, mas recusou consultas a ambas com a condição de que o proj
 Cloud está aprovado apenas para contas de teste; não foi possível ler o estado
 atual da ação de conversão por API. A landing passou novamente `npm run comecar`
 27/27 e `npm run conversao` 2/2 em 11/10.
+
+### 12/10 — preparação do pagamento de sinal recebido por WhatsApp
+
+O modo `PAYMENTS_META_E2E=ALLOW_SANDBOX_HUMAN_PAYMENT` do runner
+`scripts/payments-meta-e2e.ts` prepara **uma** fixture sintética na Clínica A do
+DEV, cria somente o sinal de um atendimento de R$ 20, envia o template de link
+ao número consentido e preserva o Checkout Sandbox para pagamento humano. O
+modo anterior (`ALLOW_REAL_META`) conserva seus dois templates e cleanup. No
+modo novo, `.tmp/payments-meta-deposit-handoff.json` guarda apenas IDs técnicos,
+valor e estado; não contém URL de pagamento, telefone nem credenciais. Uma falha
+após a tentativa de envio não cancela cegamente o Checkout: marca o handoff para
+inspeção, porque a Meta pode ter aceito a mensagem antes de a resposta falhar.
+
+Antes de qualquer escrita, o runner exige banco DEV, Asaas Sandbox explícito,
+fingerprint assinado de Auth e DB DEV no Preview, clínica/conta/número ativos,
+destinatário sem paciente preexistente, fila de sinal livre e janela C14
+**08:00–19:59 no fuso da clínica**. Com opt-in separado
+`PAYMENTS_META_E2E_MOVE_WEBHOOK=ALLOW_SANDBOX_PREVIEW_WEBHOOK_MOVE`, confere a
+rota no Preview, move somente o webhook correspondente no Asaas Sandbox e faz
+GET de readback do callback ativo. Não altera webhook de produção.
+
+**Medições desta preparação, antes do pagamento:** a prova assinada do Preview
+confirmou DEV; GET da rota de webhook com bypass retornou **405**, que é o
+comportamento esperado de uma rota POST; o preflight do runner recusou o callback
+antigo e, após preparar a troca guardada, recusou a execução fora da janela C14.
+Ambas as tentativas terminaram antes de criar fixture, Checkout ou mensagem;
+o arquivo de handoff não existe. **Estado da jornada: BLOCKED pela janela C14 até 08:00
+da clínica.** Meta entregue, pagamento, webhook, crédito e Caixa continuam
+**NOT RUN** nesta rodada; HTTP 405 não prova entrega de webhook POST.
+
+| Verificação em 12/10, 00:30–00:36 BRT | Resultado |
+| --- | --- |
+| `node .tmp/probe-payments-preview.mjs` (probe local ignorado pelo Git) | HTTP 405, exit 0; só GET de leitura |
+| `node .tmp/run-payments-meta-handoff.mjs` (preflight local ignorado) | Exit 1 deliberado: janela C14 fechada; zero handoff criado |
+| `npx vitest run --silent` | 5.470/5.470 em 520 arquivos, exit 0 |
+| `npx vitest run` em charge-store, C14 e cliente Asaas | 168/168, exit 0 |
+| `npx tsc --noEmit`, ESLint e Prettier do runner | Exit 0 |
+| `npx tsx scripts/security/local-build.ts` | Build Next isolado exit 0 |
+
+A [API oficial do Asaas](https://docs.asaas.com/reference/atualizar-webhook-existente)
+permite `PUT /webhooks/{id}` somente com os campos alterados; os demais
+permanecem. O runner altera apenas a URL no Sandbox e exige GET de confirmação
+antes de criar a cobrança.
+
+Para retomar no horário permitido, carregar as credenciais DEV localmente sem
+imprimir seus valores, fixar `ASAAS_BASE_URL` e `ASAAS_BASE_URL_DEV` em
+`https://api-sandbox.asaas.com/v3` (o alias `_DEV` prevalece no script),
+`APP_BASE_URL` no Preview com fingerprint DEV, clínica e destinatário consentido,
+os dois opt-ins acima, e executar `npx tsx --conditions=react-server
+scripts/payments-meta-e2e.ts`. Conferir o recebimento no aparelho antes de pagar.
+Após o pagamento, reler a cobrança no Sandbox e no DEV, o evento real do webhook,
+despachar **somente** os eventos da fixture e verificar agendamento, crédito e
+Caixa. O Preview não executa cron automaticamente; drenar o outbox global do DEV
+processaria eventos de outras clínicas e não serve como prova segura.

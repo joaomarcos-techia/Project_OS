@@ -1,13 +1,14 @@
 /**
  * E2E real e controlado: Checkout Asaas da clínica -> outbox -> C14 -> Meta.
  *
- * Cria duas fixtures sintéticas na clínica informada (sinal e restante), envia
- * os dois templates para um destinatário consentido e remove exatamente os
- * dados criados. Os outbounds aceitos ficam como evidência cifrada; nenhuma URL,
- * credencial ou telefone é impressa.
+ * Modo padrão: duas fixtures sintéticas (sinal e restante), dois templates e
+ * limpeza dos dados criados. Modo de pagamento humano: só sinal; mantém o
+ * Checkout Sandbox ativo para o destinatário consentido pagar depois.
+ * Nenhuma URL, credencial ou telefone é impressa.
  *
  * Guardas:
  *   PAYMENTS_META_E2E=ALLOW_REAL_META
+ *   ou PAYMENTS_META_E2E=ALLOW_SANDBOX_HUMAN_PAYMENT
  *   PAYMENTS_META_E2E_CLINIC_ID=<uuid da clínica DEV/Preview>
  *   META_E2E_RECIPIENT_E164=<destinatário consentido>
  *   APP_BASE_URL=https://<host público>
@@ -15,6 +16,9 @@
 import { assertDevContext } from './_env';
 
 import { randomInt, randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
+import { mkdir, rename, unlink, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 
 import { and, eq, inArray, sql } from 'drizzle-orm';
 
@@ -24,6 +28,7 @@ import { lancamentos } from '@/contexts/financial';
 import { outboundMessages } from '@/contexts/messaging';
 import { patientConsents, patients } from '@/contexts/patient';
 import {
+  clinicPaymentAccounts,
   patientCharges,
   patientCheckoutGenerations,
   patientPaymentCustomers,
@@ -32,6 +37,7 @@ import { createDepositCharge } from '@/contexts/payments/internal/deposit-charge
 import { createRemainderCharge } from '@/contexts/payments/internal/remainder-charge';
 import { appointments } from '@/contexts/scheduling';
 import {
+  decryptForTenant,
   encryptForTenant,
   hashForLookup,
   normalizeCpf,
@@ -44,14 +50,20 @@ import { withTenant } from '@/lib/db/tenant';
 import { getEventSchema } from '@/lib/outbox/catalog';
 import { getHandler } from '@/lib/outbox/registry';
 import { getClinicAsaasClient } from '@/lib/payments/account-store';
+import { assertPreviewRuntimeIsDev, DEV_PROJECT_REF } from '../e2e/preview-dev-runtime';
 
 // Registra os handlers reais consumidos pelo worker.
 import '@/lib/db/schema';
 import '@/app/api/cron/outbox/handlers';
 
-assertDevContext();
+const { databaseUrl } = assertDevContext();
 
 const OPT_IN = 'ALLOW_REAL_META';
+const HUMAN_PAYMENT_OPT_IN = 'ALLOW_SANDBOX_HUMAN_PAYMENT';
+const MOVE_WEBHOOK_OPT_IN = 'ALLOW_SANDBOX_PREVIEW_WEBHOOK_MOVE';
+const humanPayment = process.env.PAYMENTS_META_E2E === HUMAN_PAYMENT_OPT_IN;
+const fixtureCount = humanPayment ? 1 : 2;
+const handoffFile = join('.tmp', 'payments-meta-deposit-handoff.json');
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const E164 = /^\+[1-9]\d{9,14}$/;
 const TERMINAL_OUTBOUND = new Set(['accepted', 'sent', 'delivered', 'read']);
@@ -86,6 +98,7 @@ let checkoutIds: string[] = [];
 let outboxIds: string[] = [];
 let jobIds: string[] = [];
 let preservedOutboundCount = 0;
+let metaSendAttempted = false;
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(`[payments-meta-e2e] ${message}`);
@@ -122,13 +135,148 @@ async function uniqueCpf(offset: number): Promise<{ cpf: string; hash: string }>
   throw new Error('[payments-meta-e2e] não foi possível gerar CPF sintético único');
 }
 
+async function assertSandboxWebhookTargetsPreview(previewOrigin: string, asaasBase: string) {
+  const [account] = await dbAdmin
+    .select({
+      apiKeyEncrypted: clinicPaymentAccounts.apiKeyEncrypted,
+      webhookRef: clinicPaymentAccounts.webhookRef,
+    })
+    .from(clinicPaymentAccounts)
+    .where(
+      and(
+        eq(clinicPaymentAccounts.clinicId, clinicId),
+        eq(clinicPaymentAccounts.provider, 'asaas'),
+      ),
+    )
+    .limit(1);
+  assert(account?.apiKeyEncrypted && account.webhookRef, 'conta Sandbox incompleta');
+  const apiKey = await decryptForTenant(clinicId, account.apiKeyEncrypted);
+  const response = await fetch(`${asaasBase.replace(/\/$/, '')}/webhooks?offset=0&limit=100`, {
+    headers: { access_token: apiKey, 'User-Agent': 'Qoro E2E preflight' },
+    signal: AbortSignal.timeout(15_000),
+  });
+  assert(response.ok, `Asaas Sandbox recusou leitura de webhooks (HTTP ${response.status})`);
+  const body: unknown = await response.json();
+  assert(body && typeof body === 'object' && 'data' in body, 'lista de webhooks inválida');
+  const entries = body.data;
+  assert(Array.isArray(entries), 'lista de webhooks inválida');
+  const matching = entries.filter((entry: unknown) => {
+    if (!entry || typeof entry !== 'object' || !('url' in entry)) return false;
+    if (typeof entry.url !== 'string') return false;
+    try {
+      return new URL(entry.url).pathname === `/api/webhooks/asaas/patient/${account.webhookRef}`;
+    } catch {
+      return false;
+    }
+  });
+  assert(matching.length === 1, 'webhook da clínica ausente ou duplicado no Sandbox');
+  const webhook: unknown = matching[0];
+  assert(
+    webhook &&
+      typeof webhook === 'object' &&
+      'id' in webhook &&
+      typeof webhook.id === 'string' &&
+      'url' in webhook &&
+      typeof webhook.url === 'string',
+    'webhook da clínica inválido no Sandbox',
+  );
+  const url = new URL(webhook.url);
+  assert(
+    'enabled' in webhook &&
+      webhook.enabled === true &&
+      'interrupted' in webhook &&
+      webhook.interrupted !== true,
+    'webhook Sandbox inativo',
+  );
+  const bypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+  assert(bypass, 'bypass do Preview ausente');
+  const expected = new URL(`/api/webhooks/asaas/patient/${account.webhookRef}`, previewOrigin);
+  expected.searchParams.set('x-vercel-protection-bypass', bypass);
+  if (url.toString() !== expected.toString()) {
+    assert(
+      process.env.PAYMENTS_META_E2E_MOVE_WEBHOOK === MOVE_WEBHOOK_OPT_IN,
+      'webhook Sandbox aponta para outro Preview',
+    );
+    assert(url.hostname.endsWith('.vercel.app'), 'webhook atual não é Preview Vercel');
+    const routeResponse = await fetch(expected, {
+      method: 'GET',
+      redirect: 'manual',
+      signal: AbortSignal.timeout(15_000),
+    });
+    assert(routeResponse.status === 405, 'rota de webhook não respondeu 405 no novo Preview');
+    const changed = await fetch(
+      `${asaasBase.replace(/\/$/, '')}/webhooks/${encodeURIComponent(webhook.id)}`,
+      {
+        method: 'PUT',
+        headers: {
+          access_token: apiKey,
+          'User-Agent': 'Qoro E2E preflight',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ url: expected.toString() }),
+        signal: AbortSignal.timeout(15_000),
+      },
+    );
+    assert(changed.ok, `Asaas Sandbox recusou troca do callback (HTTP ${changed.status})`);
+  }
+  const readback = await fetch(
+    `${asaasBase.replace(/\/$/, '')}/webhooks/${encodeURIComponent(webhook.id)}`,
+    {
+      headers: { access_token: apiKey, 'User-Agent': 'Qoro E2E preflight' },
+      signal: AbortSignal.timeout(15_000),
+    },
+  );
+  assert(readback.ok, `Asaas Sandbox recusou readback do webhook (HTTP ${readback.status})`);
+  const configured: unknown = await readback.json();
+  assert(
+    configured &&
+      typeof configured === 'object' &&
+      'url' in configured &&
+      configured.url === expected.toString() &&
+      'enabled' in configured &&
+      configured.enabled === true &&
+      'interrupted' in configured &&
+      configured.interrupted !== true,
+    'readback do webhook Sandbox não confirmou Preview ativo',
+  );
+}
+
 async function preflight(): Promise<{ doctor: DoctorRow; procedure: ProcedureRow }> {
-  assert(process.env.PAYMENTS_META_E2E === OPT_IN, `PAYMENTS_META_E2E deve ser ${OPT_IN}`);
+  assert(
+    [OPT_IN, HUMAN_PAYMENT_OPT_IN].includes(process.env.PAYMENTS_META_E2E ?? ''),
+    `PAYMENTS_META_E2E deve ser ${OPT_IN} ou ${HUMAN_PAYMENT_OPT_IN}`,
+  );
   assert(UUID.test(clinicId), 'PAYMENTS_META_E2E_CLINIC_ID deve ser UUID');
   assert(E164.test(recipient), 'META_E2E_RECIPIENT_E164 deve estar em E.164');
   assert(process.env.APP_BASE_URL?.startsWith('https://'), 'APP_BASE_URL HTTPS é obrigatória');
   assert(process.env.META_TEMPLATE_DEPOSIT_LINK_ID, 'template Meta de sinal não configurado');
-  assert(process.env.META_TEMPLATE_REMAINDER_LINK_ID, 'template Meta de restante não configurado');
+  if (!humanPayment) {
+    assert(
+      process.env.META_TEMPLATE_REMAINDER_LINK_ID,
+      'template Meta de restante não configurado',
+    );
+  }
+  if (humanPayment) {
+    const dbRef = decodeURIComponent(new URL(databaseUrl).username).split('.').at(-1);
+    assert(dbRef === DEV_PROJECT_REF, 'banco local não é o projeto DEV esperado');
+    assert(
+      process.env.NEXT_PUBLIC_SUPABASE_URL &&
+        new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname.split('.')[0] === DEV_PROJECT_REF,
+      'Auth local não é o projeto DEV esperado',
+    );
+    assert(!existsSync(handoffFile), 'handoff anterior ainda existe; não criar outra cobrança');
+    const appBase = new URL(process.env.APP_BASE_URL!);
+    assert(appBase.hostname.endsWith('.vercel.app'), 'handoff exige Preview Vercel isolado');
+    assert(process.env.ASAAS_BASE_URL, 'ASAAS_BASE_URL explícita é obrigatória');
+    const asaasBase = new URL(process.env.ASAAS_BASE_URL);
+    assert(
+      asaasBase.protocol === 'https:' &&
+        ((asaasBase.hostname === 'api-sandbox.asaas.com' && asaasBase.pathname === '/v3') ||
+          (asaasBase.hostname === 'sandbox.asaas.com' && asaasBase.pathname === '/api/v3')),
+      'handoff exige somente Asaas Sandbox',
+    );
+    await assertPreviewRuntimeIsDev(appBase.origin);
+  }
 
   const requirements = await dbAdmin.execute<RequirementRow>(sql`
     SELECT c.timezone,
@@ -169,7 +317,7 @@ async function preflight(): Promise<{ doctor: DoctorRow; procedure: ProcedureRow
 
   const queueRows = await dbAdmin.execute<{ jobs_count: number }>(sql`
     SELECT (SELECT count(*)::int FROM ai_proactive_jobs
-        WHERE type IN ('deposit_link', 'remainder_link')
+        WHERE (type = 'deposit_link' OR (${!humanPayment} AND type = 'remainder_link'))
           AND status IN ('pending', 'processing')) AS jobs_count
   `);
   assert(Number(queueRows[0]?.jobs_count ?? 0) === 0, 'há jobs de cobrança concorrentes');
@@ -195,6 +343,12 @@ async function preflight(): Promise<{ doctor: DoctorRow; procedure: ProcedureRow
   `);
   assert(doctors[0], 'clínica não possui médico ativo para a fixture');
   assert(procedures[0], 'clínica não possui procedimento ativo para a fixture');
+  if (humanPayment) {
+    await assertSandboxWebhookTargetsPreview(
+      new URL(process.env.APP_BASE_URL!).origin,
+      process.env.ASAAS_BASE_URL!,
+    );
+  }
   return { doctor: doctors[0], procedure: procedures[0] };
 }
 
@@ -202,7 +356,9 @@ async function createFixtures(doctor: DoctorRow, procedure: ProcedureRow): Promi
   const phone = normalizePhone(recipient);
   const phoneHash = await hashForLookup(phone);
   const phoneEncrypted = await encryptForTenant(clinicId, phone);
-  const identities = await Promise.all([uniqueCpf(0), uniqueCpf(100_000)]);
+  const identities = await Promise.all(
+    [0, 100_000].slice(0, fixtureCount).map((offset) => uniqueCpf(offset)),
+  );
   const cpfEncrypted = await Promise.all(
     identities.map((identity) => encryptForTenant(clinicId, identity.cpf)),
   );
@@ -212,7 +368,7 @@ async function createFixtures(doctor: DoctorRow, procedure: ProcedureRow): Promi
 
   await withTenant(clinicId, async (tx) => {
     await tx.insert(patients).values(
-      patientIds.map((id, index) => ({
+      patientIds.slice(0, fixtureCount).map((id, index) => ({
         id,
         clinicId,
         nome: index === 0 ? 'Paciente E2E Sinal' : 'Paciente E2E Restante',
@@ -223,7 +379,7 @@ async function createFixtures(doctor: DoctorRow, procedure: ProcedureRow): Promi
       })),
     );
     await tx.insert(patientConsents).values(
-      patientIds.map((patientId) => ({
+      patientIds.slice(0, fixtureCount).map((patientId) => ({
         clinicId,
         patientId,
         cobrancaWhatsapp: true,
@@ -243,43 +399,47 @@ async function createFixtures(doctor: DoctorRow, procedure: ProcedureRow): Promi
       snapshotDoctorNome: doctor.nome,
       createdVia: 'attendant' as const,
     };
-    await tx.insert(appointments).values([
-      {
-        ...snapshot,
-        id: appointmentIds[0],
-        patientId: patientIds[0],
-        scheduledAt: depositAt,
-        status: 'agendado',
-        valor: '1000.00',
-        valorAjustado: true,
-        valorAjusteMotivo: 'Fixture E2E controlada',
-      },
-      {
-        ...snapshot,
-        id: appointmentIds[1],
-        patientId: patientIds[1],
-        scheduledAt: remainderAt,
-        status: 'atendido',
+    await tx.insert(appointments).values(
+      [
+        {
+          ...snapshot,
+          id: appointmentIds[0],
+          patientId: patientIds[0],
+          scheduledAt: depositAt,
+          status: 'agendado' as const,
+          valor: humanPayment ? '20.00' : '1000.00',
+          valorAjustado: true,
+          valorAjusteMotivo: 'Fixture E2E controlada',
+        },
+        {
+          ...snapshot,
+          id: appointmentIds[1],
+          patientId: patientIds[1],
+          scheduledAt: remainderAt,
+          status: 'atendido' as const,
+          valor: '75.00',
+          valorAjustado: true,
+          valorAjusteMotivo: 'Fixture E2E controlada',
+        },
+      ].slice(0, fixtureCount),
+    );
+    if (!humanPayment) {
+      await tx.insert(lancamentos).values({
+        id: lancamentoId,
+        clinicId,
+        tipo: 'receber',
+        descricao: 'Atendimento E2E controlado',
         valor: '75.00',
-        valorAjustado: true,
-        valorAjusteMotivo: 'Fixture E2E controlada',
-      },
-    ]);
-    await tx.insert(lancamentos).values({
-      id: lancamentoId,
-      clinicId,
-      tipo: 'receber',
-      descricao: 'Atendimento E2E controlado',
-      valor: '75.00',
-      valorPago: '0.00',
-      status: 'pendente',
-      dueDate: new Date().toISOString().slice(0, 10),
-      patientId: patientIds[1],
-      appointmentId: appointmentIds[1],
-      createdVia: 'auto',
-      snapshotProcedureName: procedure.descricao,
-      snapshotDoctorNome: doctor.nome,
-    });
+        valorPago: '0.00',
+        status: 'pendente',
+        dueDate: new Date().toISOString().slice(0, 10),
+        patientId: patientIds[1],
+        appointmentId: appointmentIds[1],
+        createdVia: 'auto',
+        snapshotProcedureName: procedure.descricao,
+        snapshotDoctorNome: doctor.nome,
+      });
+    }
   });
 }
 
@@ -314,14 +474,16 @@ async function executeJourney(): Promise<void> {
     appointment: {
       appointmentId: appointmentIds[0],
       patientId: patientIds[0],
-      valor: 1000,
+      valor: humanPayment ? 20 : 1000,
       scheduledAt: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString(),
     },
   });
-  await createRemainderCharge({
-    clinicId,
-    appointment: { appointmentId: appointmentIds[1], patientId: patientIds[1], valor: 75 },
-  });
+  if (!humanPayment) {
+    await createRemainderCharge({
+      clinicId,
+      appointment: { appointmentId: appointmentIds[1], patientId: patientIds[1], valor: 75 },
+    });
+  }
 
   const charges = await dbAdmin
     .select({
@@ -332,7 +494,10 @@ async function executeJourney(): Promise<void> {
     })
     .from(patientCharges)
     .where(inArray(patientCharges.appointmentId, [...appointmentIds]));
-  assert(charges.length === 2, `esperava 2 cobranças, encontrou ${charges.length}`);
+  assert(
+    charges.length === fixtureCount,
+    `esperava ${fixtureCount} cobranças, encontrou ${charges.length}`,
+  );
   assert(
     charges.every((charge) => charge.checkoutId && charge.invoiceUrl),
     'Checkout sem id/link',
@@ -357,7 +522,10 @@ async function executeJourney(): Promise<void> {
     })
     .from(outbox)
     .where(and(eq(outbox.clinicId, clinicId), inArray(outbox.idempotencyKey, eventKeys)));
-  assert(events.length === 3, `esperava 3 eventos outbox, encontrou ${events.length}`);
+  assert(
+    events.length === (humanPayment ? 2 : 3),
+    `quantidade inesperada de eventos outbox: ${events.length}`,
+  );
   outboxIds = events.map((event) => event.id);
   await dispatchOwnEvents(events);
 
@@ -382,16 +550,22 @@ async function executeJourney(): Promise<void> {
         ),
       ),
     );
-  assert(jobs.length === 2, `esperava 2 jobs C14, encontrou ${jobs.length}`);
+  assert(
+    jobs.length === fixtureCount,
+    `esperava ${fixtureCount} jobs C14, encontrou ${jobs.length}`,
+  );
   jobIds = jobs.map((job) => job.id);
 
+  if (humanPayment) metaSendAttempted = true;
   const deposit = await processProactiveBatch('deposit_link', { batchSize: 1 });
-  const remainder = await processProactiveBatch('remainder_link', { batchSize: 1 });
   assert(deposit.sent === 1 && deposit.scanned === 1, 'template de sinal não foi aceito pela Meta');
-  assert(
-    remainder.sent === 1 && remainder.scanned === 1,
-    'template de restante não foi aceito pela Meta',
-  );
+  if (!humanPayment) {
+    const remainder = await processProactiveBatch('remainder_link', { batchSize: 1 });
+    assert(
+      remainder.sent === 1 && remainder.scanned === 1,
+      'template de restante não foi aceito pela Meta',
+    );
+  }
 
   const outbounds = await dbAdmin
     .select({
@@ -407,26 +581,27 @@ async function executeJourney(): Promise<void> {
         inArray(outboundMessages.idempotencyKey, jobIds),
       ),
     );
-  assert(outbounds.length === 2, `esperava 2 outbounds, encontrou ${outbounds.length}`);
+  assert(
+    outbounds.length === fixtureCount,
+    `esperava ${fixtureCount} outbounds, encontrou ${outbounds.length}`,
+  );
   assert(
     outbounds.every(
       (message) => TERMINAL_OUTBOUND.has(message.status) && message.providerMessageId,
     ),
-    'Meta não devolveu aceite/message id para os dois templates',
+    'Meta não devolveu aceite/message id para os templates esperados',
   );
   assert(
-    new Set(outbounds.map((message) => message.templateId)).size === 2,
+    new Set(outbounds.map((message) => message.templateId)).size === fixtureCount,
     'templates não são distintos',
   );
 
-  const [depositReplay, remainderReplay] = await Promise.all([
-    processProactiveBatch('deposit_link', { batchSize: 1 }),
-    processProactiveBatch('remainder_link', { batchSize: 1 }),
-  ]);
-  assert(
-    depositReplay.scanned === 0 && remainderReplay.scanned === 0,
-    'replay encontrou job duplicado',
-  );
+  const depositReplay = await processProactiveBatch('deposit_link', { batchSize: 1 });
+  assert(depositReplay.scanned === 0, 'replay encontrou job de sinal duplicado');
+  if (!humanPayment) {
+    const remainderReplay = await processProactiveBatch('remainder_link', { batchSize: 1 });
+    assert(remainderReplay.scanned === 0, 'replay encontrou job de restante duplicado');
+  }
 }
 
 async function discoverCleanupTargets(): Promise<void> {
@@ -562,18 +737,104 @@ async function cleanup(): Promise<void> {
     throw new Error(`[payments-meta-e2e] cleanup incompleto: ${failures.join(',')}`);
 }
 
+async function saveHumanPaymentHandoff(): Promise<void> {
+  const [charge] = await dbAdmin
+    .select({
+      id: patientCharges.id,
+      amount: patientCharges.amount,
+      checkoutId: patientCharges.providerCheckoutId,
+      status: patientCharges.status,
+    })
+    .from(patientCharges)
+    .where(eq(patientCharges.appointmentId, appointmentIds[0]))
+    .limit(1);
+  assert(
+    charge?.checkoutId && charge.status === 'pending',
+    'sinal não está pendente com Checkout ativo para o handoff',
+  );
+  const [outbound] = await dbAdmin
+    .select({
+      id: outboundMessages.id,
+      status: outboundMessages.status,
+      providerMessageId: outboundMessages.providerMessageId,
+    })
+    .from(outboundMessages)
+    .where(eq(outboundMessages.idempotencyKey, jobIds[0]!))
+    .limit(1);
+  assert(
+    outbound?.providerMessageId && TERMINAL_OUTBOUND.has(outbound.status),
+    'template do sinal ainda não foi aceito pela Meta',
+  );
+  const state = {
+    status: 'awaiting_sandbox_payment',
+    createdAt: new Date().toISOString(),
+    clinicId,
+    patientId: patientIds[0],
+    appointmentId: appointmentIds[0],
+    chargeId: charge.id,
+    checkoutId: charge.checkoutId,
+    amount: charge.amount,
+    outboundId: outbound.id,
+    providerMessageId: outbound.providerMessageId,
+  };
+  const nextFile = `${handoffFile}.next`;
+  await writeFile(nextFile, JSON.stringify(state, null, 2), { mode: 0o600 });
+  await rename(nextFile, handoffFile);
+}
+
 async function main(): Promise<void> {
   const requirements = await preflight();
+  if (humanPayment) {
+    await mkdir('.tmp', { recursive: true });
+    await writeFile(
+      handoffFile,
+      JSON.stringify({
+        status: 'preparing',
+        createdAt: new Date().toISOString(),
+        clinicId,
+        patientId: patientIds[0],
+        appointmentId: appointmentIds[0],
+      }),
+      { flag: 'wx', mode: 0o600 },
+    );
+  }
   console.log('[payments-meta-e2e] preflight PASS; criando fixtures sintéticas.');
+  let handedOff = false;
   try {
     await createFixtures(requirements.doctor, requirements.procedure);
     await executeJourney();
-    console.log('[payments-meta-e2e] PASS: sinal e restante aceitos pela Meta, sem duplicata.');
+    if (humanPayment) {
+      await saveHumanPaymentHandoff();
+      handedOff = true;
+      console.log(
+        '[payments-meta-e2e] SINAL PRONTO: Meta aceitou um template; Checkout Sandbox mantido ativo para o pagamento humano. Confirme o recebimento no aparelho antes de pagar.',
+      );
+    } else {
+      console.log('[payments-meta-e2e] PASS: sinal e restante aceitos pela Meta, sem duplicata.');
+    }
   } finally {
-    await cleanup();
-    console.log(
-      `[payments-meta-e2e] cleanup PASS; outbounds cifrados preservados: ${preservedOutboundCount}.`,
-    );
+    if (humanPayment && metaSendAttempted && !handedOff) {
+      await writeFile(
+        handoffFile,
+        JSON.stringify({
+          status: 'manual_review_required',
+          createdAt: new Date().toISOString(),
+          clinicId,
+          patientId: patientIds[0],
+          appointmentId: appointmentIds[0],
+        }),
+        { mode: 0o600 },
+      );
+      console.error(
+        '[payments-meta-e2e] envio Meta foi tentado; cobrança preservada para inspeção antes de qualquer cleanup.',
+      );
+    } else if (!handedOff) {
+      await cleanup();
+      if (humanPayment) await unlink(handoffFile);
+      console.log(
+        `[payments-meta-e2e] cleanup PASS; outbounds cifrados preservados: ${preservedOutboundCount}.`,
+      );
+    }
   }
 }
 
