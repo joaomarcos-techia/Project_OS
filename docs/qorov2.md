@@ -8827,6 +8827,11 @@ código Graph 131000, e não ocorreu. A recuperação com texto neutro recebeu 2
 o readback confirmou a retirada do marcador. A UI foi corrigida para dizer
 **Resultado não confirmado** quando um POST pode ter sido aplicado, em vez de
 afirmar que a conexão não foi salva. O E2E não escreve mais sobre recado original
-vazio enquanto sua restauração não estiver comprovada. Esta ocorrência **não
-é PASS do round-trip**. Comandos, provas e limites estão no
+vazio enquanto sua restauração não estiver comprovada. A primeira tentativa
+foi FAIL; sobre o recado neutro, a repetição focada passou 1/1 e a suíte final
+do Preview passou **6 PASS / 2 SKIP / 0 FAIL**, incluindo escrita, releitura e
+restauração reais. Os SKIPs são estados inaplicáveis à conta dedicada. A
+limpeza para vazio e o upload real da foto continuam sem PASS. A regressão
+local passou **5.470/5.470** testes em 520 arquivos, TypeScript, lint,
+formatação, inventário e build isolado. Comandos, provas e limites estão no
 [registro de integração](quality/integracao-2026-10-09.md).

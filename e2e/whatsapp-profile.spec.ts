@@ -266,7 +266,6 @@ test.describe('§33 — perfil público do WhatsApp', () => {
         const salvar = page.locator(SECAO).getByRole('button', { name: 'Salvar perfil' });
         await expect(salvar).toBeEnabled({ timeout: 30_000 });
         await salvar.click();
-        await expect(salvar).toBeEnabled({ timeout: 60_000 });
         await expect
           .poll(
             async () => {

@@ -334,7 +334,7 @@ Preview isolado da Vercel e exige prova assinada de Auth e banco DEV antes da es
 | `npx tsc --noEmit`, ESLint direcionado, Prettier e inventário de segurança | **PASS**, exit 0; inventário com 199 actions e zero pendências | Verificação estática |
 | Build Next com ambiente sintético | **PASS**, exit 0 | Não equivale ao deploy nem à execução no Preview |
 | Leitura em coexistência no novo Preview | **PASS**, 4 testes executados e 3 SKIP condicionais com a conta de teste da Clínica A | Não prova escrita, que a Meta não suporta em coexistência |
-| Escrita, releitura e restauração em número dedicado | **FAIL na primeira tentativa**: o Graph retornou HTTP 500/código 131000; a alteração apareceu depois na releitura, mas a limpeza para vazio também recebeu 500. Um texto neutro foi publicado com 2xx e relido, eliminando o marcador de teste | O round-trip completo com restauração pela UI ainda exige reexecução; nenhum SKIP conta como PASS |
+| Escrita, releitura e restauração em número dedicado | **PASS final** em recado inicial não vazio: Playwright escreveu, navegou, releu da Meta, restaurou e releu o original. A suíte completa terminou 6 PASS / 2 SKIP, exit 0 | A primeira tentativa havia recebido resultado indeterminado; limpar o recado para vazio retornou HTTP 500/código 131000 nesta conta. O PASS final não prova limpeza para vazio |
 | Foto real na Meta | **NOT TESTED** | Requer imagem sintética e restauração verificável da foto anterior |
 
 ### 11/10 — número dedicado, verificação da empresa e resultado indeterminado do perfil
@@ -365,6 +365,23 @@ mudança que a Meta aplicou, e a limpeza para vazio não funcionou nesta conta.
 O produto agora apresenta **Resultado não confirmado** para o primeiro caso,
 orienta a reler o perfil antes de qualquer repetição e não afirma que nada foi
 salvo. O E2E também deixa de escrever sobre um recado original vazio até a
-restauração ser comprovada; falhas de confirmação continuam FAIL. O resultado
-de uma nova execução sobre o recado neutro e o link no Preview atualizado deve
-ser registrado separadamente após o deploy.
+restauração ser comprovada; falhas de confirmação continuam FAIL.
+
+No commit seguinte, o Preview passou no gate da Vercel e o Playwright autenticado
+confirmou o botão de verificação na conta com código 141010. A primeira execução
+com escrita teve **5 PASS, 2 SKIP e 1 FAIL do teste**: o `finally` esperava que
+“Salvar perfil” voltasse a ficar habilitado, mas após restauração bem-sucedida
+ele fica desabilitado porque não há diferença pendente. Uma releitura direta do
+Graph confirmou o recado neutro, sem marcador. Corrigida essa asserção, o caso
+focado passou **1/1**; a execução final da suíte inteira passou **6 PASS,
+2 SKIP, 0 FAIL**, exit 0 em aproximadamente 1 minuto. Os SKIPs são os estados
+sem número e coexistência, que não se aplicam à conta dedicada. O caso de
+escrita passou por fingerprint assinado do Auth/banco DEV antes de qualquer
+POST e por releitura da Meta após a restauração. A foto real continua NOT TESTED.
+
+Regressão local da versão publicada: **5.470/5.470 testes em 520 arquivos**,
+`npx tsc --noEmit`, ESLint, Prettier, inventário de segurança e build Next
+isolado com ambiente sintético em exit 0. O deploy Vercel do commit anterior
+falhou sem causa conclusiva no log disponível; o commit atual terminou em
+`success`, e os quatro checks da PR #35 passaram. Nenhuma migração, painel de
+produção ou dado de cliente foi alterado.
