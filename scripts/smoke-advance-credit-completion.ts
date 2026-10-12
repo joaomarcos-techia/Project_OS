@@ -1,6 +1,6 @@
 /**
  * Prova controlada em DEV: o tempo sozinho não conclui uma consulta; após o
- * evento clínico de conclusão, o Financial aloca o crédito integral uma vez.
+ * encerramento clínico, o Financial aloca o crédito integral uma vez.
  *
  * Clona apenas as referências de uma fixture E2E existente. Toda escrita fica
  * numa transação deliberadamente revertida; não chama Asaas, Meta ou worker.
@@ -11,6 +11,9 @@ import { randomUUID } from 'node:crypto';
 
 import { eq, sql } from 'drizzle-orm';
 
+import { prontuarios } from '@/contexts/clinical/schema';
+import { encryptJson } from '@/contexts/clinical/internal/content-crypto';
+import { applyTransition } from '@/contexts/scheduling/internal/appointment-core';
 import { appointments } from '@/contexts/scheduling/schema';
 import { patientCredits } from '@/contexts/financial/schema';
 import { dbAdmin } from '@/lib/db';
@@ -29,7 +32,6 @@ if (dbProjectRef !== DEV_PROJECT_REF) {
 
 const appointmentId = randomUUID();
 const creditId = randomUUID();
-const eventId = randomUUID();
 const amount = '10.00';
 const eventType = 'scheduling.appointment.completed';
 
@@ -50,6 +52,8 @@ type Source = {
 type State = {
   appointmentStatus: string;
   scheduledInPast: boolean;
+  queueStatus: string | null;
+  transitionCount: number;
   creditStatus: string;
   allocatedAmount: string;
   receivableCount: number;
@@ -119,6 +123,10 @@ async function main(): Promise<void> {
         const [state] = await tx.execute<State>(sql`
           SELECT a.status::text AS "appointmentStatus",
                  a.scheduled_at < now() AS "scheduledInPast",
+                 (SELECT q.status::text FROM waiting_queue_entries q
+                   WHERE q.appointment_id = a.id LIMIT 1) AS "queueStatus",
+                 (SELECT count(*)::int FROM appointment_state_log s
+                   WHERE s.appointment_id = a.id) AS "transitionCount",
                  pc.status::text AS "creditStatus",
                  pc.allocated_amount::text AS "allocatedAmount",
                  (SELECT count(*)::int FROM lancamentos l
@@ -168,34 +176,67 @@ async function main(): Promise<void> {
       );
       console.log('PASS: após o horário, segue confirmado e o valor é crédito antecipado');
 
-      // Esta prova isola o consumidor financeiro. A autorização e o prontuário
-      // assinado para a transição clínica são cobertos por testes próprios.
-      await tx
-        .update(appointments)
-        .set({ status: 'atendido' })
-        .where(eq(appointments.id, appointmentId));
-      const payload = schema.parse({
-        appointmentId,
+      const transition = (target: 'chegou' | 'em_atendimento' | 'atendido') =>
+        applyTransition(tx, {
+          clinicId: source.clinicId,
+          appointmentId,
+          target,
+          transitionedBy: source.doctorId,
+          actorType: 'user',
+          clientKey: `smoke-advance-credit:${appointmentId}:${target}`,
+          correlationId: null,
+        });
+      await transition('chegou');
+      await transition('em_atendimento');
+      assert((await readState()).appointmentStatus === 'em_atendimento', 'Atendimento não iniciou');
+
+      let refusedWithoutRecord = false;
+      try {
+        await transition('atendido');
+      } catch (error) {
+        refusedWithoutRecord = error instanceof Error && /prontuário/u.test(error.message);
+      }
+      assert(refusedWithoutRecord, 'Consulta sem prontuário foi concluída indevidamente');
+      assert(
+        (await readState()).appointmentStatus === 'em_atendimento',
+        'Recusa sem prontuário alterou o estado',
+      );
+      console.log('PASS: conclusão sem prontuário assinado foi recusada');
+
+      await tx.insert(prontuarios).values({
         clinicId: source.clinicId,
-        doctorId: source.doctorId,
         patientId: source.patientId,
-        procedureId: source.procedureId,
-        unitId: null,
-        valor: Number(amount),
-        snapshotProcedureName: 'Consulta sintética — prova de crédito',
-        snapshotDoctorNome: source.snapshotDoctorNome,
-        scheduledAt: pastDate.toISOString(),
+        doctorId: source.doctorId,
+        appointmentId,
+        status: 'assinado',
+        contentEncrypted: await encryptJson(source.clinicId, {}),
+        signedAt: new Date(),
+        signedBy: source.doctorId,
+        signedDoctorNome: source.snapshotDoctorNome,
+        createdBy: source.doctorId,
       });
+      await transition('atendido');
+      const [completionEvent] = await tx.execute<{ id: string; payload: unknown }>(sql`
+        SELECT id::text AS id, payload FROM outbox
+         WHERE clinic_id = ${source.clinicId}::uuid
+           AND event_type = ${eventType}
+           AND idempotency_key = ${`smoke-advance-credit:${appointmentId}:atendido:atendido`}
+         LIMIT 1
+      `);
+      assert(completionEvent, 'Scheduling não publicou appointment.completed');
+      const payload = schema.parse(completionEvent.payload);
       await registered.handler({
         tx,
         clinicId: source.clinicId,
         payload,
-        eventId,
+        eventId: completionEvent.id,
         attempt: 1,
       });
       const completed = await readState();
       assert(
         completed.appointmentStatus === 'atendido' &&
+          completed.queueStatus === 'completed' &&
+          completed.transitionCount === 3 &&
           completed.creditStatus === 'allocated' &&
           completed.allocatedAmount === amount &&
           completed.receivableCount === 1 &&
@@ -212,7 +253,7 @@ async function main(): Promise<void> {
         tx,
         clinicId: source.clinicId,
         payload,
-        eventId,
+        eventId: completionEvent.id,
         attempt: 2,
       });
       const replay = await readState();
@@ -232,13 +273,27 @@ async function main(): Promise<void> {
     appointments: number;
     credits: number;
     receivables: number;
+    records: number;
+    queue: number;
+    transitions: number;
+    events: number;
   }>(sql`
     SELECT (SELECT count(*)::int FROM appointments WHERE id = ${appointmentId}::uuid) AS appointments,
            (SELECT count(*)::int FROM patient_credits WHERE id = ${creditId}::uuid) AS credits,
-           (SELECT count(*)::int FROM lancamentos WHERE appointment_id = ${appointmentId}::uuid) AS receivables
+           (SELECT count(*)::int FROM lancamentos WHERE appointment_id = ${appointmentId}::uuid) AS receivables,
+           (SELECT count(*)::int FROM prontuarios WHERE appointment_id = ${appointmentId}::uuid) AS records,
+           (SELECT count(*)::int FROM waiting_queue_entries WHERE appointment_id = ${appointmentId}::uuid) AS queue,
+           (SELECT count(*)::int FROM appointment_state_log WHERE appointment_id = ${appointmentId}::uuid) AS transitions,
+           (SELECT count(*)::int FROM outbox WHERE payload->>'appointmentId' = ${appointmentId}) AS events
   `);
   assert(
-    residue?.appointments === 0 && residue.credits === 0 && residue.receivables === 0,
+    residue?.appointments === 0 &&
+      residue.credits === 0 &&
+      residue.receivables === 0 &&
+      residue.records === 0 &&
+      residue.queue === 0 &&
+      residue.transitions === 0 &&
+      residue.events === 0,
     'Rollback não eliminou toda a fixture',
   );
   console.log('PASS: rollback confirmado, sem resíduos no DEV');

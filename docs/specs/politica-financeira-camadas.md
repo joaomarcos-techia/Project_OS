@@ -151,11 +151,13 @@ Registrar aqui cada avanço com data, commit/base, camada, comandos e totais med
 `scripts/smoke-advance-credit-completion.ts` moveu apenas a data de uma fixture
 sintética de consulta futura para dois dias antes do relógio do banco. O
 agendamento permaneceu `confirmado`, o crédito `available` e não surgiu
-recebível. Depois de simular a conclusão clínica e entregar o evento ao handler
-real, o recebível bruto de R$ 10 nasceu `pago`, com uma única baixa e o crédito
-`allocated`; replay não duplicou. A transação foi revertida e o readback não
-encontrou resíduos. É **PASS de integração Financial/DB**, não prova de
-encerramento clínico via UI nem de nova cobrança externa. A regra de produto
+recebível. O core Scheduling percorreu `chegou → em_atendimento`, recusou
+`atendido` sem prontuário e, após um registro sintético assinado e cifrado,
+concluiu e publicou o evento; o handler Financial criou o recebível bruto de
+R$ 10 `pago`, com uma única baixa e crédito `allocated`. O replay não duplicou.
+A transação foi revertida e o readback não encontrou resíduos. É **PASS de
+integração Scheduling/Financial/DB**, não prova de encerramento pela UI com
+autorização de usuário nem de nova cobrança externa. A regra de produto
 continua: hora vencida não comprova atendimento; só `atendido` após
 encerramento clínico autorizado produz o recebível.
 
