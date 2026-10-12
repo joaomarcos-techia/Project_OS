@@ -553,3 +553,34 @@ alterados e `npx tsx scripts/security/local-build.ts` com exit 0. O build
 Next 15.5.24 compilou e gerou 18 páginas estáticas. Estas verificações não
 medem a variável `APP_BASE_URL` de produção nem o HTTP individual no painel
 do Asaas.
+
+### 12/10 — retorno público do Checkout e crédito antecipado no Financeiro
+
+O Checkout do paciente já produzia `APP_BASE_URL/?payment=success`, mas a raiz
+redirecionava para login. O branch atual renderiza uma página pública de
+acompanhamento para `success`, `cancelled` e `expired`. Ela informa que o Asaas
+está sendo verificado; **não** afirma que o pagamento ocorreu com base na URL.
+`/` sem esses valores continua exigindo login. O E2E de navegador local,
+sem sessão, atravessou o middleware e recebeu HTTP 200 em `/?payment=success`
+(1/1). Ainda não houve redeploy nem clique externo do Asaas nesta nova página;
+o hostname real de `APP_BASE_URL` em produção continua não verificado.
+
+O `/financeiro` agora consulta `patient_credits` sob `withTenant` e mostra o
+saldo não aplicado em quadro separado de recebíveis e fluxo mensal. Inclui
+créditos antecipados e excedentes parcialmente alocados, desconta reversões
+não alocadas e exclui disputas abertas. O cartão real de R$ 10 foi relido em
+DEV/Sandbox às **09:18 BRT**: cobrança `paid`, agenda `confirmado`, crédito de
+R$ 10 não aplicado, zero recebíveis da consulta futura. A consulta nova
+retornou R$ 95 em três créditos com saldo não aplicado da clínica inteira;
+agregação SQL independente deu exatamente o mesmo resultado. A regra aceita
+é: pagamento integral antes da consulta = crédito agora; após a conclusão,
+lançamento bruto `pago` se o crédito o cobrir. Esta última transição está
+coberta pelo teste do handler, mas não foi executada externamente nesta fixture.
+
+Validação local desta mudança: teste direcionado de consulta, página e handler
+**18/18**; `npx vitest run --silent` **5.492/5.492 em 523 arquivos**;
+`npx tsc --noEmit`, `npx eslint .`, Prettier dos arquivos alterados,
+`git diff --check` e probe SQL/readback DEV com exit 0. O build otimizado
+`npx tsx scripts/security/local-build.ts` terminou com exit 0: Next 15.5.24,
+18 páginas estáticas e `/`/`/financeiro` dinâmicas. Nenhum desses checks
+representa E2E externo do pagamento integral antes da consulta.

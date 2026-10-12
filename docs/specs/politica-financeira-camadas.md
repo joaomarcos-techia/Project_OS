@@ -825,3 +825,32 @@ real até o crédito.** O recebível/Caixa posterior ao atendimento continua
 entrega no painel do Asaas e o valor efetivo de `APP_BASE_URL` em produção
 também não foram verificados. Evidências e comandos no
 [registro operacional](../quality/integracao-2026-10-09.md).
+
+### 12/10/2026 — crédito antecipado visível antes da consulta
+
+**Regra escolhida:** para um atendimento de R$ 150 pago integralmente antes da
+consulta, o dinheiro confirmado pelo Asaas aparece de imediato em `/financeiro`
+como **crédito antecipado** de R$ 150. Não se cria nem quita o recebível antes
+do atendimento. Quando a consulta é concluída, `appointment.completed` cria o
+lançamento bruto de R$ 150 e aloca o crédito na mesma transação; ele nasce
+`pago`, com `valorPago=150` e baixa no ledger. Se apenas R$ 10 foram pagos como
+sinal, o lançamento nasce `parcial` após a consulta e o saldo fica a receber.
+O callback `/?payment=success` não autoriza nenhuma dessas transições: ele
+mostra apenas que a verificação pelo Asaas está em andamento.
+
+O quadro **“Créditos antecipados e excedentes”** soma o saldo positivo ainda
+não aplicado de `patient_credits` da clínica, descontando alocação e reversão
+do principal não alocado. Inclui saldo excedente mesmo em crédito parcialmente
+`allocated`; exclui créditos devolvidos/retidos e disputas ainda abertas. O
+total é geral, não do mês, e aparece separado dos indicadores mensais e da
+lista de recebíveis. Nenhum valor ali é contado como “A receber” ou marcado
+`pago` antes da conclusão da consulta.
+
+Na fixture real de cartão Sandbox, o readback DEV de 12/10 às 09:18 BRT
+encontrou R$ 10 não alocados, cobrança `paid`, agenda `confirmado` e zero
+recebíveis da consulta futura. A consulta tenant-scoped retornou R$ 95 em
+três saldos não aplicados **da clínica inteira**, incluindo essa fixture, e
+coincidiu com SQL independente. Os outros R$ 85 não pertencem à cobrança de
+teste e não foram classificados nesta prova. Os testes de handler cobrem a
+criação do recebível `pago` quando o crédito cobre 100%; a transição real
+Asaas → atendimento concluído → lançamento `pago` permanece **NOT TESTED**.

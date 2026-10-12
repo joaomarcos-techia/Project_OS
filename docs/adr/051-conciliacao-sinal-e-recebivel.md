@@ -99,6 +99,15 @@ aparecer em parcelamento, pagamento misto e outros percentuais de sinal.
 
 **A tabela é nova porque o primitivo existente não serve, e isso foi verificado (§3.2), não presumido.**
 
+**Apresentação no Financeiro (decisão de produto, 12/10/2026).** Se o paciente paga
+100% antes da consulta, `/financeiro` mostra imediatamente o valor como crédito
+antecipado, separado de “A receber” e do fluxo de lançamentos. A consulta e seu
+recebível **não** ficam `pago` pelo simples retorno do Checkout: é preciso o
+evento confirmado pelo Asaas. Quando o atendimento é concluído, o Financial
+cria o recebível pelo valor bruto e aplica o crédito na mesma transação; se
+cobrir todo o valor, o lançamento nasce `pago`. Crédito excedente permanece
+visível como saldo não aplicado, sem inflar `valor_pago`.
+
 ### D4 — Eventos voltados ao CRÉDITO, não à cobrança
 
 O `payments` publica, para o `financial`, dois eventos próprios:

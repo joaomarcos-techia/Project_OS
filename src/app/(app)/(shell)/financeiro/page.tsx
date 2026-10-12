@@ -14,6 +14,7 @@ import type { ReactNode } from 'react';
 
 import { clinicMonthBounds } from '@/contexts/financial/logic';
 import {
+  getAvailablePatientCreditSummary,
   getCashFlowToday,
   listLancamentosPage,
   listPaymentMethods,
@@ -118,9 +119,13 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: P
     ...new Set(lancamentosResult.items.filter((l) => l.patientId).map((l) => l.patientId!)),
   ];
 
-  const [flow, patientCards] = await withQueryDeadline(
+  const [flow, patientCards, advanceCredits] = await withQueryDeadline(
     'financeiro.flow',
-    Promise.all([getCashFlowToday(clinicId, from, to), listPatientCards(clinicId, patientIds)]),
+    Promise.all([
+      getCashFlowToday(clinicId, from, to),
+      listPatientCards(clinicId, patientIds),
+      getAvailablePatientCreditSummary(clinicId),
+    ]),
   );
   const nomeDoPaciente = new Map(patientCards.map((card) => [card.id, card.nome]));
   const nomeDoFornecedor = new Map(suppliers.map((s) => [s.id, s.razaoSocial]));
@@ -295,6 +300,27 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: P
               emphasis
             />
           </FinancialMetricGroup>
+        </section>
+
+        <section
+          aria-label="Créditos antecipados e excedentes"
+          className="qoro-section flex flex-wrap items-center justify-between gap-4 px-4 py-3"
+        >
+          <div>
+            <h2 className="text-sm font-semibold text-fg">Créditos antecipados e excedentes</h2>
+            <p className="mt-1 font-mono text-xl font-semibold tabular-nums text-fg">
+              {formatBRL(advanceCredits.amount)}
+            </p>
+            <p className="text-xs text-fg-muted">
+              {advanceCredits.count} crédito{advanceCredits.count === 1 ? '' : 's'} com saldo não
+              aplicado
+            </p>
+          </div>
+          <p className="max-w-xl text-sm leading-relaxed text-fg-muted">
+            Pagamentos confirmados ainda não aplicados a um recebível. Podem anteceder a consulta ou
+            ser um excedente. Este saldo não entra em “A receber”. Após a consulta, o crédito é
+            aplicado ao recebível; se cobrir o valor integral, o atendimento fica pago.
+          </p>
         </section>
 
         <div className="flex min-h-10 flex-wrap items-center gap-2.5 rounded-lg border border-border bg-surface-2 px-3.5 py-2 text-xs text-fg-muted">

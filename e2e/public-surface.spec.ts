@@ -48,6 +48,19 @@ const PROTECTED_ROUTES = [
 
 test.use({ storageState: { cookies: [], origins: [] } });
 
+test('retorno público do Checkout informa verificação sem afirmar pagamento', async ({ page }) => {
+  await page.goto('/?payment=success', { waitUntil: 'domcontentloaded' });
+
+  await expect(
+    page.getByRole('heading', { name: 'Estamos verificando seu pagamento' }),
+  ).toBeVisible();
+  await expect(
+    page.getByText('O Asaas ainda precisa confirmar a cobrança', { exact: false }),
+  ).toBeVisible();
+  await expect(page.getByText('Esta página não é um comprovante', { exact: false })).toBeVisible();
+  expect(new URL(page.url()).pathname).toBe('/');
+});
+
 test.describe('fronteira sem sessão', () => {
   test('toda rota protegida redireciona SEM entregar corpo', async ({ request }) => {
     test.setTimeout(180_000);

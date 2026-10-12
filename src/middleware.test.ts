@@ -96,6 +96,22 @@ describe('matcher de sessão e cutover HttpOnly', () => {
     expect(response.headers.get('location')).toBe('https://qoro.test/login');
   });
 
+  it.each(['success', 'cancelled', 'expired'])(
+    'permite retorno público de pagamento %s sem sessão',
+    (result) => {
+      const response = middleware(request(`/?payment=${result}`));
+      expect(response.status).toBe(200);
+      expect(response.headers.get('location')).toBeNull();
+    },
+  );
+
+  it('não torna a raiz ou outros parâmetros públicos', () => {
+    expect(middleware(request('/')).headers.get('location')).toBe('https://qoro.test/login');
+    expect(middleware(request('/?payment=paid')).headers.get('location')).toBe(
+      'https://qoro.test/login',
+    );
+  });
+
   it('invalida todos os fragmentos legados e exige novo login em rota protegida', () => {
     const response = middleware(
       request('/dashboard', legacySessionCookie(Date.now() / 1000 + 3600, true)),
