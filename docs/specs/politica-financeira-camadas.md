@@ -854,3 +854,6 @@ coincidiu com SQL independente. Os outros R$ 85 não pertencem à cobrança de
 teste e não foram classificados nesta prova. Os testes de handler cobrem a
 criação do recebível `pago` quando o crédito cobre 100%; a transição real
 Asaas → atendimento concluído → lançamento `pago` permanece **NOT TESTED**.
+O Preview do PR #37 exibiu o quadro no `/financeiro` para uma conta de teste da
+mesma clínica (**E2E de navegador 1/1 PASS, somente leitura**); o retorno
+público `/?payment=success` também passou 1/1 sem sessão.

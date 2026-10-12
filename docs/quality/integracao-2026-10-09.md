@@ -562,8 +562,10 @@ acompanhamento para `success`, `cancelled` e `expired`. Ela informa que o Asaas
 está sendo verificado; **não** afirma que o pagamento ocorreu com base na URL.
 `/` sem esses valores continua exigindo login. O E2E de navegador local,
 sem sessão, atravessou o middleware e recebeu HTTP 200 em `/?payment=success`
-(1/1). Ainda não houve redeploy nem clique externo do Asaas nesta nova página;
-o hostname real de `APP_BASE_URL` em produção continua não verificado.
+(1/1). O commit `9dba5080` foi publicado no Preview do PR #37 e o mesmo
+E2E sem sessão passou **1/1** nesse deploy com bypass de automação; a Vercel
+marcou o deploy como concluído. Não houve novo clique externo do Asaas nesta
+página, e o hostname real de `APP_BASE_URL` em produção continua não verificado.
 
 O `/financeiro` agora consulta `patient_credits` sob `withTenant` e mostra o
 saldo não aplicado em quadro separado de recebíveis e fluxo mensal. Inclui
@@ -576,6 +578,12 @@ agregação SQL independente deu exatamente o mesmo resultado. A regra aceita
 é: pagamento integral antes da consulta = crédito agora; após a conclusão,
 lançamento bruto `pago` se o crédito o cobrir. Esta última transição está
 coberta pelo teste do handler, mas não foi executada externamente nesta fixture.
+Uma conta de teste configurada no ambiente foi ligada à **mesma clínica** da
+fixture por consulta read-only em `auth.users`/`profiles` no DEV, sem expor o
+endereço nem a senha. Com ela, `e2e/advance-credit-financial-preview.spec.ts`
+abriu `/financeiro` no Preview e comprovou em navegador **1/1 PASS**: o quadro
+aparece com valor que contém o crédito de R$ 10 e o aviso de que não integra
+“A receber”. O teste é somente leitura e não salva screenshot, trace ou vídeo.
 
 Validação local desta mudança: teste direcionado de consulta, página e handler
 **18/18**; `npx vitest run --silent` **5.492/5.492 em 523 arquivos**;
