@@ -62,6 +62,9 @@ const OPT_IN = 'ALLOW_REAL_META';
 const HUMAN_PAYMENT_OPT_IN = 'ALLOW_SANDBOX_HUMAN_PAYMENT';
 const MOVE_WEBHOOK_OPT_IN = 'ALLOW_SANDBOX_PREVIEW_WEBHOOK_MOVE';
 const humanPayment = process.env.PAYMENTS_META_E2E === HUMAN_PAYMENT_OPT_IN;
+const checkoutMethod = process.env.PAYMENTS_META_E2E_METHOD;
+const humanPaymentMethod: 'credit_card' | null =
+  checkoutMethod === 'CREDIT_CARD' ? 'credit_card' : null;
 const fixtureCount = humanPayment ? 1 : 2;
 const handoffFile = join('.tmp', 'payments-meta-deposit-handoff.json');
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -248,6 +251,10 @@ async function preflight(): Promise<{ doctor: DoctorRow; procedure: ProcedureRow
   );
   assert(UUID.test(clinicId), 'PAYMENTS_META_E2E_CLINIC_ID deve ser UUID');
   assert(E164.test(recipient), 'META_E2E_RECIPIENT_E164 deve estar em E.164');
+  assert(
+    !checkoutMethod || (humanPayment && checkoutMethod === 'CREDIT_CARD'),
+    'PAYMENTS_META_E2E_METHOD deve ser CREDIT_CARD no modo de pagamento humano',
+  );
   assert(process.env.APP_BASE_URL?.startsWith('https://'), 'APP_BASE_URL HTTPS é obrigatória');
   assert(process.env.META_TEMPLATE_DEPOSIT_LINK_ID, 'template Meta de sinal não configurado');
   if (!humanPayment) {
@@ -476,6 +483,9 @@ async function executeJourney(): Promise<void> {
       patientId: patientIds[0],
       valor: humanPayment ? 20 : 1000,
       scheduledAt: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString(),
+      ...(humanPaymentMethod
+        ? { commercialPaymentMethod: humanPaymentMethod, commercialInstallmentCount: 1 }
+        : {}),
     },
   });
   if (!humanPayment) {

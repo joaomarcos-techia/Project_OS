@@ -811,3 +811,17 @@ com opt-in adicional e readback. A execução externa parou antes da fixture por
 era 00h local e o envio C14 só é permitido a partir de 08h. Portanto, a cadeia
 Meta → pagamento → webhook → crédito → Caixa permanece **NOT RUN**, não PASS.
 Comandos, evidência e retomada: [registro operacional](../quality/integracao-2026-10-09.md).
+
+**Atualização 12/10, 08:22 BRT:** a prova externa do sinal avançou. O primeiro
+Checkout PIX ficou `PENDING` no Sandbox e não foi pagável pelo usuário; a
+cobrança e o Checkout foram cancelados com readback antes de criar outro link.
+Um Checkout novo, exclusivo de cartão, foi enviado pela Meta e recebido no
+aparelho de teste. O cartão foi pago; o Asaas retornou `CONFIRMED`, e dois
+eventos reais (`PAYMENT_CONFIRMED`, `CHECKOUT_PAID`) chegaram ao DEV. A cobrança
+ficou `paid` com economia conciliada; o despachante restrito à fixture projetou
+agendamento `confirmado`, sinal `paid` e crédito de R$ 10 `available`. **PASS
+real até o crédito.** O recebível/Caixa posterior ao atendimento continua
+**NOT TESTED** nesta fixture futura, como exige a ADR-051. O HTTP de cada
+entrega no painel do Asaas e o valor efetivo de `APP_BASE_URL` em produção
+também não foram verificados. Evidências e comandos no
+[registro operacional](../quality/integracao-2026-10-09.md).
