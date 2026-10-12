@@ -7,22 +7,25 @@
  */
 import Script from 'next/script';
 import { useRouter } from 'next/navigation';
-import { Check, CircleCheck, MessageCircle, WifiOff } from 'lucide-react';
+import { Check, CircleCheck, ExternalLink, MessageCircle, WifiOff } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { PageHeader } from '@/components/ui/page-header';
 import { Separator } from '@/components/ui/separator';
+import { BUSINESS_VERIFICATION_ERROR_CODES } from '@/contexts/messaging/internal/messaging-health';
 import { formatDatePt } from '@/lib/format';
 
 import { connectWhatsappAction, disconnectWhatsappAction } from './actions';
 import type { WhatsappStatusDTO } from './data';
+
+const META_BUSINESS_SECURITY_URL = 'https://business.facebook.com/settings/security';
 
 // --- Facebook JS SDK (mínimo, tipado) --------------------------------------
 interface FbLoginResponse {
@@ -789,6 +792,17 @@ function MessagingHealthAlert({ messaging }: { messaging: WhatsappStatusDTO['mes
           </li>
         ))}
       </ul>
+      {messaging.codes.some((code) => BUSINESS_VERIFICATION_ERROR_CODES.has(code)) ? (
+        <a
+          href={META_BUSINESS_SECURITY_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={buttonVariants({ variant: 'secondary', size: 'sm', className: 'mt-3' })}
+        >
+          Verificar empresa na Meta
+          <ExternalLink aria-hidden="true" className="size-4" />
+        </a>
+      ) : null}
       {meta.length > 0 ? (
         <p className="mt-1.5 font-mono text-(length:--fs-2xs) text-fg-subtle">{meta.join(' · ')}</p>
       ) : null}

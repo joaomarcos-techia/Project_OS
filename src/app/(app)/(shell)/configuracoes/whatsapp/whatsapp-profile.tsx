@@ -443,7 +443,15 @@ export function WhatsappProfile({
               ) : null}
 
               {erroGeral ? (
-                <Alert variant="danger" title="Não foi possível salvar" className="mb-5">
+                <Alert
+                  variant="danger"
+                  title={
+                    erroGeral.code === 'profile_outcome_unknown'
+                      ? 'Resultado não confirmado'
+                      : 'Não foi possível salvar'
+                  }
+                  className="mb-5"
+                >
                   <p className="text-pretty">{erroGeral.message}</p>
                   <p className="mt-1.5 font-mono text-(length:--fs-2xs) text-fg-subtle">
                     Código: {erroGeral.code}

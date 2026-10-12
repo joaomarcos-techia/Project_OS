@@ -294,6 +294,23 @@ describe('salvar', () => {
     expect((screen.getByLabelText('Recado') as HTMLInputElement).value).toBe('texto longo demais');
   });
 
+  it('orienta reler o perfil quando a Meta não confirma um POST que pode ter sido aplicado', async () => {
+    mocks.salvar.mockResolvedValue({
+      ok: false,
+      code: 'profile_outcome_unknown',
+      message:
+        'A Meta não confirmou o resultado. O perfil pode ter sido alterado. Recarregue esta página antes de tentar novamente.',
+    });
+    render(<WhatsappProfile inicial={carregado()} />);
+    fireEvent.change(screen.getByLabelText('Recado'), { target: { value: 'Novo recado' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar perfil' }));
+
+    await waitFor(() => expect(screen.getByText('Resultado não confirmado')).toBeTruthy());
+    expect(screen.getByText(/perfil pode ter sido alterado/u)).toBeTruthy();
+    expect((screen.getByLabelText('Recado') as HTMLInputElement).value).toBe('Novo recado');
+    expect(mocks.toastSuccess).not.toHaveBeenCalled();
+  });
+
   it('não habilita o botão quando a única diferença é espaço em branco', () => {
     render(<WhatsappProfile inicial={carregado()} />);
     const botao = screen.getByRole('button', { name: 'Salvar perfil' }) as HTMLButtonElement;

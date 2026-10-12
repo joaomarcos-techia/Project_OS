@@ -22,7 +22,7 @@ import type {
   PerfilWhatsappInput,
 } from '@/contexts/messaging/business-profile-contract';
 
-import { fail, ok, type ActionResult } from './wa-types';
+import { fail, failProfileWrite, ok, type ActionResult } from './wa-types';
 
 export async function connectWhatsappAction(
   input: ConnectMyClinicInput,
@@ -68,7 +68,7 @@ export async function saveWhatsappProfileAction(
   try {
     return ok(await updateMyClinicWhatsappProfile(input));
   } catch (err) {
-    return fail(err);
+    return failProfileWrite(err);
   }
 }
 

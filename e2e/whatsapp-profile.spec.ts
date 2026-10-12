@@ -103,6 +103,20 @@ test.describe('§33 — perfil público do WhatsApp', () => {
     expect(erros, erros.join(' | ')).toEqual([]);
   });
 
+  test('pendência de verificação leva ao Centro de Segurança da Meta', async () => {
+    await abrir(page);
+    const aviso = page.locator('[data-messaging-health]');
+    test.skip(
+      !(await aviso
+        .getByText('Conclua a verificação da empresa no gerenciador de negócios da Meta.')
+        .count()),
+      'A Meta não reportou pendência de verificação nesta conta.',
+    );
+    const link = aviso.getByRole('link', { name: 'Verificar empresa na Meta' });
+    await expect(link).toHaveAttribute('href', 'https://business.facebook.com/settings/security');
+    await expect(link).toHaveAttribute('target', '_blank');
+  });
+
   test('sem número conectado, a seção de perfil não aparece', async () => {
     const { temSecao } = await abrir(page);
     test.skip(temSecao, 'Há número conectado nesta clínica: este caso não se aplica.');
@@ -200,14 +214,38 @@ test.describe('§33 — perfil público do WhatsApp', () => {
 
     const recado = secao.getByLabel('Recado');
     const anterior = await recado.inputValue();
+    test.skip(
+      anterior.trim() === '',
+      'Recado original vazio: a limpeza retornou HTTP 500 nesta conta; escrita de teste insegura sem restauração comprovada.',
+    );
     const novo = `Teste automatizado ${Date.now()}`;
 
     try {
       await recado.fill(novo);
       await secao.getByRole('button', { name: 'Salvar perfil' }).click();
-      await expect(
-        page.getByText(/Perfil do WhatsApp atualizado\.|Nada mudou no perfil\./u),
-      ).toBeVisible({ timeout: 90_000 });
+      await expect
+        .poll(
+          async () => {
+            if (
+              await page
+                .getByText(/Perfil do WhatsApp atualizado\.|Nada mudou no perfil\./u)
+                .isVisible()
+            ) {
+              return 'confirmado';
+            }
+            if (
+              await page.getByText(/Resultado não confirmado|Não foi possível salvar/u).isVisible()
+            ) {
+              return 'erro';
+            }
+            return 'pendente';
+          },
+          { timeout: 60_000 },
+        )
+        .not.toBe('pendente');
+      if (await page.getByText(/Resultado não confirmado|Não foi possível salvar/u).isVisible()) {
+        throw new Error('A tela reportou erro após o POST do perfil; a restauração será tentada.');
+      }
 
       // A prova NÃO é a UI depois do salvar. Navegar para outra rota antes de
       // voltar desmonta o formulário e impede o browser de restaurar o valor
@@ -228,14 +266,17 @@ test.describe('§33 — perfil público do WhatsApp', () => {
         const salvar = page.locator(SECAO).getByRole('button', { name: 'Salvar perfil' });
         await expect(salvar).toBeEnabled({ timeout: 30_000 });
         await salvar.click();
-        await expect(
-          page.getByText(/Perfil do WhatsApp atualizado\.|Nada mudou no perfil\./u),
-        ).toBeVisible({ timeout: 90_000 });
-        await page.goto('/dashboard', { timeout: 90_000 });
-        await page.goto(ROTA, { timeout: 90_000 });
-        await expect(page.locator(SECAO).getByLabel('Recado')).toHaveValue(anterior, {
-          timeout: 90_000,
-        });
+        await expect(salvar).toBeEnabled({ timeout: 60_000 });
+        await expect
+          .poll(
+            async () => {
+              await page.goto('/dashboard', { timeout: 90_000 });
+              await page.goto(ROTA, { timeout: 90_000 });
+              return page.locator(SECAO).getByLabel('Recado').inputValue();
+            },
+            { timeout: 120_000, intervals: [5_000, 10_000, 15_000] },
+          )
+          .toBe(anterior);
       }
     }
   });

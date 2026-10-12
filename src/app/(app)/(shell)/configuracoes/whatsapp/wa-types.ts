@@ -191,3 +191,16 @@ export function fail(err: unknown): ActionResult<never> {
     message: 'Não foi possível concluir a ação. Tente novamente.',
   };
 }
+
+/** Um POST de perfil pode ter sido aplicado mesmo quando a Meta responde 5xx. */
+export function failProfileWrite(err: unknown): ActionResult<never> {
+  if (err instanceof MetaConnectError && err.stage === 'provider_outcome_unknown') {
+    return {
+      ok: false,
+      code: 'profile_outcome_unknown',
+      message:
+        'A Meta não confirmou o resultado. O perfil pode ter sido alterado. Recarregue esta página e confira os dados publicados antes de tentar novamente.',
+    };
+  }
+  return fail(err);
+}

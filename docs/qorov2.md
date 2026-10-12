@@ -8810,3 +8810,23 @@ Para escrever, reler e restaurar pelo Qoro é necessário um número **dedicado*
 de teste, conectado ao Preview com a PR #19 integrada e opt-in explícito;
 upload da foto pede prova separada. Evidência operacional e limites estão no
 [registro da integração](quality/integracao-2026-10-09.md).
+
+## 62. Perfil de número dedicado e verificação empresarial — 11/10/2026
+
+Na conta sintética “teste”, o número recém-conectado está ativo e dedicado no
+banco DEV. O diagnóstico da Meta é `limited` com código 141010. A tela de
+configuração agora oferece **Verificar empresa na Meta** junto do aviso, com
+destino ao Centro de Segurança da Meta. O botão não aparece quando só há
+pendência de pagamento. A verificação da empresa e a forma de pagamento não
+foram alteradas por esta rodada.
+
+O editor real foi exercitado no Preview. A primeira gravação recebeu resultado
+indeterminado na UI, mas uma releitura posterior mostrou que a Meta havia
+aplicado o recado de teste. A restauração do recado vazio recebeu HTTP 500,
+código Graph 131000, e não ocorreu. A recuperação com texto neutro recebeu 2xx;
+o readback confirmou a retirada do marcador. A UI foi corrigida para dizer
+**Resultado não confirmado** quando um POST pode ter sido aplicado, em vez de
+afirmar que a conexão não foi salva. O E2E não escreve mais sobre recado original
+vazio enquanto sua restauração não estiver comprovada. Esta ocorrência **não
+é PASS do round-trip**. Comandos, provas e limites estão no
+[registro de integração](quality/integracao-2026-10-09.md).

@@ -333,6 +333,38 @@ Preview isolado da Vercel e exige prova assinada de Auth e banco DEV antes da es
 | Cinco arquivos focados de perfil | **PASS**, 109 testes | Inclui guarda de coexistência; não inclui upload real |
 | `npx tsc --noEmit`, ESLint direcionado, Prettier e inventário de segurança | **PASS**, exit 0; inventário com 199 actions e zero pendências | Verificação estática |
 | Build Next com ambiente sintético | **PASS**, exit 0 | Não equivale ao deploy nem à execução no Preview |
-| Leitura em coexistência no novo Preview | **NOT TESTED** até publicar a branch e executar Playwright autenticado | Depende do deploy Preview |
-| Escrita, releitura e restauração em número dedicado | **BLOCKED** pelo número atual em coexistência | Requer número de teste dedicado conectado ao novo Preview |
+| Leitura em coexistência no novo Preview | **PASS**, 4 testes executados e 3 SKIP condicionais com a conta de teste da Clínica A | Não prova escrita, que a Meta não suporta em coexistência |
+| Escrita, releitura e restauração em número dedicado | **FAIL na primeira tentativa**: o Graph retornou HTTP 500/código 131000; a alteração apareceu depois na releitura, mas a limpeza para vazio também recebeu 500. Um texto neutro foi publicado com 2xx e relido, eliminando o marcador de teste | O round-trip completo com restauração pela UI ainda exige reexecução; nenhum SKIP conta como PASS |
 | Foto real na Meta | **NOT TESTED** | Requer imagem sintética e restauração verificável da foto anterior |
+
+### 11/10 — número dedicado, verificação da empresa e resultado indeterminado do perfil
+
+Uma consulta `READ ONLY` ao DEV encontrou a conexão ativa da clínica sintética
+“teste” em modo dedicado (`coexistence=false`). A conta E2E correspondente abriu
+o editor no Preview integrado. Seu diagnóstico de envio era `limited`, com o
+código **141010**, a pendência de verificação empresarial. O aviso agora oferece
+o botão **Verificar empresa na Meta**, que abre o Centro de Segurança da própria
+Meta em outra aba. O botão só aparece com esse código; uma pendência apenas de
+pagamento não o exibe. Não se alterou o painel da Meta, o método de pagamento ou
+a verificação empresarial.
+
+O Playwright de leitura nessa conta executou **4 PASS e 3 SKIP**, sem escrever no
+perfil. O primeiro opt-in de escrita confirmou Auth e banco DEV por fingerprint
+assinado antes do POST. O teste falhou ao esperar confirmação visual; a releitura
+posterior encontrou o recado de teste efetivamente publicado. A tentativa de
+restaurar o campo vazio pela UI não o removeu. Uma chamada direta, usando o
+mesmo token da conexão sem expô-lo, mediu **HTTP 500/código Graph 131000** ao
+enviar `about: ''`, seguida de readback sem mudança. Uma única escrita de
+recuperação para “Conta de teste da Qoro” recebeu **2xx** e o readback confirmou
+que não restou marcador de E2E. O valor vazio anterior não foi restaurado; a
+conta de teste permanece com o recado neutro. Não há evidência de impacto em
+produção ou em conta de cliente.
+
+O comportamento revela dois limites distintos: um 5xx pode acompanhar uma
+mudança que a Meta aplicou, e a limpeza para vazio não funcionou nesta conta.
+O produto agora apresenta **Resultado não confirmado** para o primeiro caso,
+orienta a reler o perfil antes de qualquer repetição e não afirma que nada foi
+salvo. O E2E também deixa de escrever sobre um recado original vazio até a
+restauração ser comprovada; falhas de confirmação continuam FAIL. O resultado
+de uma nova execução sobre o recado neutro e o link no Preview atualizado deve
+ser registrado separadamente após o deploy.

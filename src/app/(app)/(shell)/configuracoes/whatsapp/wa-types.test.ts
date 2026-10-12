@@ -9,7 +9,38 @@ import {
   WhatsappProfileManagedInBusinessAppError,
 } from '@/contexts/messaging/errors';
 
-import { fail } from './wa-types';
+import { fail, failProfileWrite } from './wa-types';
+
+describe('failProfileWrite', () => {
+  it('não afirma falha definitiva quando o Graph retorna 5xx após aplicar o perfil', () => {
+    const result = failProfileWrite(
+      new MetaConnectError('[meta] graph HTTP 500 code=131000', {
+        stage: 'provider_outcome_unknown',
+        graphStatus: 500,
+        graphCode: 131000,
+      }),
+    );
+    expect(result).toMatchObject({ ok: false, code: 'profile_outcome_unknown' });
+    if (result.ok) throw new Error('Esperava resultado indeterminado');
+    expect(result.message).toContain('pode ter sido alterado');
+    expect(result.message).toContain('Recarregue');
+    expect(result.message).not.toContain('conexão não foi salva');
+    expect(result.message).not.toContain('500');
+  });
+
+  it('mantém recusa definitiva como recusa, sem orientar releitura desnecessária', () => {
+    const result = failProfileWrite(
+      new MetaConnectError('[meta] graph HTTP 400 code=100', {
+        stage: 'profile_write',
+        graphStatus: 400,
+        graphCode: 100,
+      }),
+    );
+    expect(result).toMatchObject({ ok: false, code: 'META_AUTH_FAILED' });
+    if (result.ok) throw new Error('Esperava recusa de perfil');
+    expect(result.message).toContain('recusou os dados');
+  });
+});
 
 describe('fail', () => {
   it('devolve a mensagem segura da validação de arquivo', () => {
