@@ -8835,3 +8835,34 @@ limpeza para vazio e o upload real da foto continuam sem PASS. A regressão
 local passou **5.470/5.470** testes em 520 arquivos, TypeScript, lint,
 formatação, inventário e build isolado. Comandos, provas e limites estão no
 [registro de integração](quality/integracao-2026-10-09.md).
+
+## 63. Publicação da integração e migrations em produção — 12/10/2026 UTC
+
+A PR #35 foi mesclada na branch da PR #34 (`a9f3d202`); a PR #34, com os checks
+de CI, Vercel Preview, Snyk e Semgrep verdes, foi mesclada na `main`
+(`ea1189cf`). Essa integração inclui o editor de perfil do WhatsApp e as fatias
+financeira, C14, lista de espera e saúde da WABA. A Vercel marcou como `success`
+o deploy de produção do mesmo SHA; o smoke HTTP e o teste autenticado de leitura
+estão discriminados no [registro operacional](quality/integracao-2026-10-09.md).
+
+Antes da migration, uma leitura `READ ONLY` do projeto Supabase PROD confirmou
+somente a 0107 aplicada entre 0107–0118 e 108 entradas no journal do Drizzle.
+Havia 64 atendimentos, nenhuma cobrança ou conta de pagamento de paciente e
+nenhum lançamento `auto` legado sem atendimento. Um backup manual completo de
+2.308.596 bytes foi feito; o script de migration fez outro backup de 2.308.598
+bytes. Ambos têm o marcador de conclusão do `pg_dump` e estão fora do Git; não
+houve teste de restauração em scratch nesta rodada.
+
+`npx tsx scripts/db-migrate-prod.ts` terminou com exit 0, adquirindo e liberando
+o advisory lock 4242. O readback em transação `READ ONLY` encontrou 119 entradas
+no journal, último `when=1791868800000` (0118), as novas tabelas/colunas, RLS
+ENABLE+FORCE em `professional_payout_reviews`, o índice da 0118, zero contas
+inativas habilitadas para cobrar e zero locks 4242 restantes. A 0109 não insere
+linha em `_schema_version` no próprio SQL: existem dez marcadores auxiliares
+para onze migrations, mas a coluna, os dois índices e a função alterados pela
+0109 foram confirmados no banco. Não foi inserido marcador manual.
+
+Permanecem como provas separadas a jornada integrada IA → template do sinal
+recebido → pagamento Sandbox → webhook → Caixa, o upload real da foto do perfil
+e o crédito final da conversão no Google Ads com campanha ativa. O smoke
+autenticado de rotas não comprova essas integrações.
