@@ -385,3 +385,33 @@ isolado com ambiente sintético em exit 0. O deploy Vercel do commit anterior
 falhou sem causa conclusiva no log disponível; o commit atual terminou em
 `success`, e os quatro checks da PR #35 passaram. Nenhuma migração, painel de
 produção ou dado de cliente foi alterado.
+
+## 12/10 UTC — PRs integradas e banco de produção
+
+| Etapa | Evidência | Estado |
+| --- | --- | --- |
+| PR #35 → #34 | Merge `a9f3d202`; suíte de perfil em Preview 6 PASS, 2 SKIP; checks da PR #35 verdes | **PASS** para a integração do código na branch |
+| PR #34 → `main` | Merge `ea1189cf` após CI da PR #34 em success (typecheck, lint, testes/cobertura, isolamento, build, E2E público), Vercel Preview, Snyk e Semgrep verdes | **PASS** para merge, não para runtime de produção |
+| Pré-flight PROD | Projeto Supabase PROD conferido sem expor a URL; `READ ONLY`: journal 108, apenas 0107 entre 0107–0118; 64 atendimentos, zero cobranças/contas de pagamento de paciente e zero lançamentos `auto` legados sem atendimento | **PASS** de identidade e estado inicial |
+| Backup | `npx tsx scripts/db-backup-prod.ts` exit 0, 2.308.596 bytes, hash SHA-256 prefixo `23D5C96F6782D033`; `db-migrate-prod.ts` gerou outro dump de 2.308.598 bytes, prefixo `6E64C95549DBBB28`. Ambos têm marcador de conclusão e ficam em `backups/` ignorado pelo Git | **PASS** da criação e inspeção estrutural; restore em scratch **NOT TESTED** |
+| Migration | `npx tsx scripts/db-migrate-prod.ts` exit 0; backup, lock 4242 adquirido/liberado, `drizzle-kit migrate` concluído; sem `MIGRATION_FAILED.md` | **PASS** do migrador |
+| Readback PROD | `READ ONLY`: journal 119, último `when=1791868800000` (0118), tabelas/colunas econômicas e WhatsApp presentes, RLS ENABLE+FORCE em `professional_payout_reviews`, índice 0118, zero contas inativas habilitadas para cobrar e zero advisory locks 4242 | **PASS** das verificações indicadas |
+| Deploy Vercel PROD | Deployment GitHub `7005284162` do SHA `ea1189cf` em `success`; URL de deployment `https://project-f9fasxokr-clinic-os-v2-s-projects.vercel.app` | **PASS** do deploy reportado pela Vercel; não é prova de integração externa |
+| HTTP público PROD | `curl` com exit 0: `/login` 200, `/cadastro` 200, `/api/health` 401 sem autenticação e `/api/health/outbox` 401 sem autenticação | **PASS** dessas quatro respostas; health interno autenticado **NOT TESTED** |
+| Shell autenticado PROD | `playwright test e2e/authenticated-readonly-routes.spec.ts --grep 'todas as rotas' --project=chromium`, `E2E_BASE_URL=https://app.qoro.dev`, conta E2E de produção, artefatos desligados: exit 0, 1 teste PASS, 26 rotas com HTTP 200 e heading esperado, 34 s | **PASS** da navegação de leitura; não prova mutações, webhook ou provider |
+| CI da `main` | Run `38196255815`, SHA `ea1189cf`: exit 0 em 9m36s; auditoria de dependências, typecheck, lint, testes/cobertura, isolamento de tenants, build e E2E público concluídos | **PASS** de CI; não substitui prova externa |
+
+A `_schema_version` tem dez marcadores de 0108–0118 porque o arquivo da 0109
+não faz INSERT nela. A aplicação da 0109 foi comprovada por journal e por
+readback da coluna `provider_reconcile_checked_at`, dos dois índices e da função
+`validate_appointment_commercial_price_snapshot` com `exact_reschedule`.
+Nenhum marcador foi fabricado manualmente.
+
+**Ainda não converter em PASS:** health interno autenticado, entrega do
+template de sinal via Meta e a jornada completa até o Caixa; upload
+externo de foto do perfil; crédito de conversão no Google Ads. A campanha segue
+inativa conforme o último relato do usuário. A API do Google Ads listou duas
+contas acessíveis, mas recusou consultas a ambas com a condição de que o projeto
+Cloud está aprovado apenas para contas de teste; não foi possível ler o estado
+atual da ação de conversão por API. A landing passou novamente `npm run comecar`
+27/27 e `npm run conversao` 2/2 em 11/10.
