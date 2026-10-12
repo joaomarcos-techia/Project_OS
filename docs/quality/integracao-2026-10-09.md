@@ -612,3 +612,83 @@ Validação local desta mudança: teste direcionado de consulta, página e handl
 `npx tsx scripts/security/local-build.ts` terminou com exit 0: Next 15.5.24,
 18 páginas estáticas e `/`/`/financeiro` dinâmicas. Nenhum desses checks
 representa E2E externo do pagamento integral antes da consulta.
+
+### 12/10, 19:35 BRT — chave Sandbox, novo Preview e segunda cobrança
+
+**Diagnóstico da rejeição da chave em produção.** O runtime de produção usa
+`api.asaas.com`; a chave de teste indicada pelo fundador respondeu HTTP 200 a
+`GET /myAccount` no Sandbox e HTTP 401 `invalid_environment` na API real.
+`connectPaymentAccount` valida a credencial antes de cifrar/gravar, e o readback
+de produção confirmou zero contas recebedoras conectadas. Não houve conexão nem
+cobrança de paciente em produção. A mensagem de erro local agora explica a
+diferença entre Sandbox e produção quando o código estável do Asaas é
+`invalid_environment`; os demais erros mantêm a mensagem anterior. O teste de
+regressão prova a mensagem específica e que `upsertPaymentAccount` não é chamado.
+**Esta mudança local ainda não foi publicada no Preview nem em produção.**
+
+A variável local `teste_final` foi checada sem reproduzir seu valor: HTTP 200 no
+Sandbox. Ela lista exatamente os mesmos IDs de webhooks da chave Sandbox já
+conectada à Clínica A no DEV, inclusive o webhook ativo cujo `webhook_ref` no
+banco é o da Clínica A. O `id` de `/myAccount` diferiu entre as chaves, portanto
+esse campo isolado não serviu como prova de separação de contas. A clínica de
+teste `teste` permanece **sem** conta Asaas: conectar ali uma segunda chave que
+alcança o mesmo conjunto de webhooks misturaria dois tenants recebedores. A
+conexão já funcional da Clínica A foi preservada; nenhuma rotação de chave foi
+feita.
+
+Após fingerprint assinado comprovar Auth e banco DEV no Preview
+`https://project-ptmvs45oh-clinic-os-v2-s-projects.vercel.app`, o callback do
+**Asaas Sandbox** da Clínica A foi movido do Preview antigo para esse deploy.
+GET da rota de webhook no novo Preview retornou o 405 esperado para uma rota
+POST; GET do recurso no Asaas confirmou a URL nova, `enabled=true` e
+`interrupted=false`. Isso é prova de configuração, **não** do HTTP de uma entrega
+real do Asaas. O WhatsApp da clínica de teste `teste` foi desconectado pelo
+Preview e relido como inativo no banco e na Meta; a conexão de coexistência da
+Clínica A permaneceu ativa.
+
+Pela UI `/agenda` do Preview, a conta owner de teste da Clínica A criou um
+atendimento sintético do paciente E2E já existente, para **20/10/2026 10:00**,
+valor bruto R$ 150. O runner de navegador encerrou antes da confirmação visual,
+mas o readback SQL encontrou **exatamente um** agendamento novo; não houve
+repetição do clique. A política da clínica é sinal de 50% também no retorno.
+Com guards de DEV, Sandbox, consentimento, conta, WhatsApp, fila livre e callback,
+`createDepositCharge` criou **uma** cobrança de R$ 75; somente seus dois eventos
+de outbox foram processados. O job `deposit_link` enviou o template ao número de
+teste consentido; a Meta aceitou e o readback local registrou `delivered`.
+O handoff técnico fica em `.tmp/payments-meta-deposit-handoff-2.json` (ignorado
+pelo Git, sem URL, número ou segredo). Antes do pagamento humano: cobrança
+`pending`, agendamento `agendado`, sinal `pending`, zero crédito, zero recebível
+e zero webhook de pagamento. O usuário confirmou o recebimento da mensagem;
+o Checkout Sandbox foi concluído com cartão. O readback posterior encontrou
+pagamento `CONFIRMED` de R$ 75 no Asaas, ligado à sessão exata do Checkout;
+eventos reais `PAYMENT_CONFIRMED` e `CHECKOUT_PAID` foram persistidos no DEV,
+e a cobrança mudou para `paid` com economia do provedor conciliada. Como o
+Preview não roda cron, somente os eventos `charge-paid` e `credit-granted`
+desta cobrança foram despachados: agenda `confirmado`, sinal `paid`, um crédito
+R$ 75 `available`, zero recebível antes da consulta e zero evento da fixture
+pendente. **Pagamento Sandbox → webhook → Qoro → agenda/crédito: PASS funcional.**
+O status HTTP individual da entrega original no painel Asaas segue **NOT TESTED**.
+
+`node .tmp/run-advance-credit-readback.mjs --new` confirmou saldo total de
+R$ 170 em quatro créditos não alocados da Clínica A, exatamente igual à soma
+SQL independente, dos quais R$ 75 pertencem à nova cobrança. Em seguida,
+`node .tmp/run-preview-advance-credit-e2e.mjs` abriu `/financeiro` no novo
+Preview e passou **1/1**, mostrando o crédito antecipado fora de “A receber”.
+Esse E2E foi somente leitura, sem screenshot, trace ou vídeo. A consulta de
+20/10 ainda não foi encerrada; alocação do crédito após conclusão clínica real
+na UI permanece **NOT TESTED** para esta fixture.
+
+A cobrança anterior, também sintética, continuou `paid`/`CONFIRMED`, com
+`provider_payment_id`, economia conciliada, consulta `confirmado`, um crédito
+`available` e zero recebível antes da consulta. Uma reentrega controlada do
+evento já processado ao endpoint do Preview retornou HTTP 200 `ignored`, sem
+duplicar crédito/evento. O HTTP individual da entrega original feita pelo Asaas
+continua **NOT TESTED** porque o log por entrega não está exposto na API de
+webhooks; exige leitura do painel do Sandbox.
+
+Validações locais desta rodada: `npx vitest run --silent` **5.493/5.493 em 523
+arquivos**, exit 0; `npx tsc --noEmit`, `npx eslint .`, Prettier dos três arquivos
+alterados e `git diff --check` exit 0; `npx tsx scripts/security/local-build.ts`
+exit 0 (Next 15.5.24, compilação e typecheck). O `npx eslint .` inicial apontou
+dois avisos em helper temporário ignorado pelo Git; foram removidos e a repetição
+terminou sem erros nem avisos. Nenhuma migration foi executada nesta rodada.

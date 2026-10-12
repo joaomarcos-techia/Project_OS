@@ -327,6 +327,20 @@ describe('connectPaymentAccount', () => {
     expect(upsertPaymentAccount).not.toHaveBeenCalled();
   });
 
+  it('chave de outro ambiente informa Sandbox/produção sem gravar a conta', async () => {
+    mocks.getMyAccount.mockRejectedValue(
+      new BillingProviderError('asaas GET /myAccount → HTTP 401', 'billing_provider_error', 401, [
+        'invalid_environment',
+      ]),
+    );
+
+    await expect(connectPaymentAccount({ apiKey: SECRET })).rejects.toMatchObject({
+      code: 'payment_credential_rejected',
+      message: expect.stringContaining('outro ambiente do Asaas'),
+    });
+    expect(upsertPaymentAccount).not.toHaveBeenCalled();
+  });
+
   it('Asaas indisponível NÃO grava — chave não verificada não entra no banco', async () => {
     mocks.getMyAccount.mockRejectedValue(new BillingProviderUnreachableError('timeout'));
 
