@@ -6,12 +6,10 @@
  * cross-tenant via `dbAdmin` (BYPASSRLS) — mesma justificativa dos crons
  * financeiros: rotear várias clínicas num passo só.
  *
- * **Por que um cron-scan e não um handler de evento:** `scheduling.appointment.created`
- * já tem dono (o metering do Billing) e o registry do outbox é estritamente 1
- * handler por evento — não existe fan-out. Este é o mesmo padrão que reminder e
- * dunning já usam, e ele tem uma vantagem própria: é **auto-curável**. Se o worker
- * ou o gateway ficarem fora do ar por horas, a próxima varredura pega os
- * agendamentos que ficaram sem cobrança, sem intervenção humana.
+ * O scan periódico recupera agendamentos sem cobrança mesmo após falha do worker
+ * ou do gateway. Para os criados pela IA, um evento próprio antecipa a tentativa
+ * e usa a leitura tenant-scoped abaixo. `scheduling.appointment.created` continua
+ * reservado ao metering do Billing; o registry aceita um handler por evento.
  *
  * A regra aqui é só de AGENDA: `agendado` (quem já confirmou não precisa de sinal),
  * consulta no futuro, criado dentro da janela de varredura. Se JÁ existe cobrança,
@@ -29,6 +27,7 @@ import 'server-only';
 import { and, desc, eq, gt, inArray, isNotNull, sql } from 'drizzle-orm';
 
 import { dbAdmin } from '@/lib/db';
+import { withTenant } from '@/lib/db/tenant';
 
 import { appointments } from './schema';
 
@@ -40,6 +39,49 @@ export interface DepositCandidate {
   scheduledAt: string;
   /** Valor cheio do procedimento — a base do percentual do sinal. */
   valor: number;
+  commercialPaymentMethod: 'pix' | 'cash' | 'credit_card' | null;
+  commercialInstallmentCount: number | null;
+}
+
+/** Leitura fresca e tenant-scoped para o pedido acelerado do sinal pela IA. */
+export async function lookupDepositCandidate(
+  clinicId: string,
+  appointmentId: string,
+): Promise<DepositCandidate | null> {
+  const rows = await withTenant(clinicId, (tx) =>
+    tx
+      .select({
+        clinicId: appointments.clinicId,
+        appointmentId: appointments.id,
+        patientId: appointments.patientId,
+        scheduledAt: appointments.scheduledAt,
+        valor: appointments.valor,
+        commercialPaymentMethod: appointments.commercialPaymentMethod,
+        commercialInstallmentCount: appointments.commercialInstallmentCount,
+      })
+      .from(appointments)
+      .where(
+        and(
+          eq(appointments.clinicId, clinicId),
+          eq(appointments.id, appointmentId),
+          isNotNull(appointments.patientId),
+          eq(appointments.status, 'agendado'),
+          gt(appointments.scheduledAt, sql`now()`),
+        ),
+      )
+      .limit(1),
+  );
+  const row = rows[0];
+  if (!row?.patientId) return null;
+  return {
+    clinicId: row.clinicId,
+    appointmentId: row.appointmentId,
+    patientId: row.patientId,
+    scheduledAt: new Date(row.scheduledAt).toISOString(),
+    valor: Number(row.valor),
+    commercialPaymentMethod: row.commercialPaymentMethod,
+    commercialInstallmentCount: row.commercialInstallmentCount,
+  };
 }
 
 /**
@@ -64,6 +106,8 @@ export async function listDepositCandidates(
       patientId: appointments.patientId,
       scheduledAt: appointments.scheduledAt,
       valor: appointments.valor,
+      commercialPaymentMethod: appointments.commercialPaymentMethod,
+      commercialInstallmentCount: appointments.commercialInstallmentCount,
     })
     .from(appointments)
     .where(
@@ -88,6 +132,8 @@ export async function listDepositCandidates(
             patientId: r.patientId,
             scheduledAt: new Date(r.scheduledAt).toISOString(),
             valor: Number(r.valor),
+            commercialPaymentMethod: r.commercialPaymentMethod,
+            commercialInstallmentCount: r.commercialInstallmentCount,
           },
         ],
   );
@@ -103,6 +149,8 @@ export interface RemainderCandidate {
   scheduledAt: string;
   /** Valor CHEIO do procedimento. O saldo é calculado pelo Payments. */
   valor: number;
+  commercialPaymentMethod: 'pix' | 'cash' | 'credit_card' | null;
+  commercialInstallmentCount: number | null;
 }
 
 /**
@@ -136,6 +184,8 @@ export async function listRemainderCandidates(
       patientId: appointments.patientId,
       scheduledAt: appointments.scheduledAt,
       valor: appointments.valor,
+      commercialPaymentMethod: appointments.commercialPaymentMethod,
+      commercialInstallmentCount: appointments.commercialInstallmentCount,
     })
     .from(appointments)
     .where(
@@ -159,6 +209,8 @@ export async function listRemainderCandidates(
             patientId: r.patientId,
             scheduledAt: new Date(r.scheduledAt).toISOString(),
             valor: Number(r.valor),
+            commercialPaymentMethod: r.commercialPaymentMethod,
+            commercialInstallmentCount: r.commercialInstallmentCount,
           },
         ],
   );

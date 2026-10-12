@@ -4486,8 +4486,8 @@ foi provado, em qual ambiente, e o que continua sem prova está na
 
 ## 33. Perfil do WhatsApp Business da clínica — spec e execução
 
-**Status:** **implementado em 20/09/2026**, exceto a foto de perfil, que continua fora de escopo por
-decisão própria (§33.6). A spec abaixo (§33.1–§33.8) fica como estava escrita, porque ela é o
+**Status:** **implementado em 20/09/2026 e ampliado em 26/09/2026** com foto, identidade e prévia ao
+vivo. A spec abaixo (§33.1–§33.8) fica como estava escrita, porque ela é o
 contrato contra o qual a implementação foi conferida; o que a execução decidiu por conta própria, o
 que ela contrariou e o que ela encontrou estão na **§33.9**.
 
@@ -4536,7 +4536,7 @@ erro do Graph:
 | `email`               | 128              | e-mail de CONTATO da clínica, não do paciente |
 | `websites`            | até 2, 256 cada  |                                               |
 | `vertical`            | enum fechado     | para clínica, `HEALTH`                        |
-| `profile_picture_url` | upload retomável | **fora desta fatia** — ver §33.6              |
+| `profile_picture_url` | upload retomável | implementado na ampliação da §33.10          |
 
 ### 33.3 As quatro invariantes de segurança
 
@@ -4619,10 +4619,6 @@ estava lá.
 
 ### 33.6 Fora do escopo desta fatia, e por quê
 
-- **Foto de perfil.** Exige upload retomável (`/{app-id}/uploads`), que é outra forma de API, com
-  manipulação de binário e um handle intermediário. Além do tamanho, traz o risco que os campos de
-  texto não têm: alguém subir uma imagem com paciente nela. Se entrar, entra com decisão própria
-  sobre limite de tamanho, MIME e quem pode.
 - **Nome de exibição (display name).** Não é campo deste endpoint — passa por **revisão da Meta** e
   tem regra própria. Misturar com os campos livres daria a impressão de que muda na hora.
 - **Múltiplos números por clínica.** O modelo hoje é um número ativo por clínica
@@ -4767,6 +4763,7 @@ e foi verificada por mutação: forçando o ramo de erro a renderizar o formulá
 | Sem número conectado | **PASS** | a seção não renderiza (página) e a action lança `NumberNotConnectedError` (teste) |
 | Leitura falha não esvazia | **PASS** | `whatsapp-profile.test.tsx` — asserção negativa, verificada por mutação |
 | Token não vaza | **PASS** em unit | mensagem e cadeia de causas; o E2E cobre o HTML servido |
+| Foto, nome e prévia | **PASS local** | upload retomável em três chamadas, magic bytes, tamanho/MIME, handle sanitizado e UI ao vivo; round-trip real da foto segue pendente |
 | **Round-trip real** | **NOT TESTED** | exige número de teste conectado em Preview; ver §33.9.7 |
 
 Suíte inteira depois da fatia: **4.062 testes em 401 arquivos, exit 0**, contra 3.979 em 397 na ponta
@@ -4788,8 +4785,9 @@ chamadas; remover a reetiquetagem do 4xx; e fazer o erro de leitura renderizar f
   **pula com o motivo anotado** quando não há número conectado ou quando
   `E2E_WHATSAPP_PROFILE_WRITE=1` não está ligado. Não vira verde vazio. É a única prova que responde
   "a Meta aceita o que mandamos", e só um número de teste em Preview a produz;
-- **foto de perfil** — fora de escopo (§33.6). Exige upload retomável e traz um risco que os campos
-  de texto não têm: alguém subir uma imagem com paciente nela;
+- **round-trip real da foto — `NOT TESTED`.** O contrato, o binário e a aplicação do handle têm
+  cobertura local, mas ainda falta subir uma imagem sintética num número de teste conectado em
+  Preview, reler `profile_picture_url` e restaurar a foto anterior;
 - **ADR-061** — a decisão nº 2 (Meta como fonte da verdade) continua sem ADR própria;
 - **concorrência** — dois administradores salvando ao mesmo tempo: o último vence, na Meta. Não há
   CAS possível sobre estado que mora fora, e um `row_version` local seria fingir controle. A tela relê
@@ -4797,6 +4795,49 @@ chamadas; remover a reetiquetagem do 4xx; e fazer o erro de leitura renderizar f
 - **`about` (139)** — é o único limite que a referência pública do endpoint não repete por extenso. Se
   a Meta recusar um recado dentro de 139, o caminho de `profile_write` recusado já dá a mensagem
   certa, e o número se ajusta no contrato.
+
+### 33.10 Ampliação — foto, identidade e prévia (26/09/2026)
+
+A tela passou a apresentar uma seção de identidade e uma prévia aproximada do perfil. O nome e o
+número são lidos de `GET /{phone-number-id}?fields=verified_name,display_phone_number`.
+O nome aparece como somente leitura porque alterá-lo inicia revisão da Meta; a ação da tela abre o
+WhatsApp Manager em vez de simular uma atualização instantânea.
+
+A foto usa o fluxo oficial: cria sessão em `/{app-id}/uploads`, envia o binário com `file_offset: 0`,
+recebe o handle e aplica `profile_picture_handle` no Business Profile. O Qoro não persiste arquivo,
+handle nem URL: a Meta continua sendo a fonte da verdade. A entrada aceita somente JPEG/PNG, até 4 MB;
+o cliente exige 192×192 px e o servidor valida MIME, tamanho e magic bytes antes de decifrar o token.
+O ID assinado da sessão é rotulado de forma opaca nos erros e nunca entra em log ou resposta.
+
+A prévia usa os valores ainda não salvos, mostra a foto publicada ou o blob local durante o upload e
+é rotulada como aproximada. O upload não apaga alterações textuais que a pessoa ainda não salvou. A
+releitura posterior continua decidindo o estado confirmado pela Meta.
+
+**Validação desta ampliação.** Os cinco arquivos focados passaram **104/104**; a suíte integral passou
+**4.389/4.389 em 414 arquivos**; TypeScript, ESLint completo, Prettier, inventário de segurança
+(`182 actions`, `49 métodos`, zero unresolved) e build Next 15.5.24 com `NODE_ENV=production` passaram
+com exit 0. O Playwright autenticado contra o build otimizado local executou **4 PASS + 2 skips
+declarados**: abriu a tela com número conectado, leu o perfil real, exibiu identidade/prévia, recusou
+entrada inválida antes da Meta e não encontrou token no HTML. O caso sem número foi pulado porque a
+fixture tem número conectado; o round-trip de escrita, inclusive o upload real da foto, permanece
+**NOT TESTED** porque `E2E_WHATSAPP_PROFILE_WRITE=1` não foi habilitado.
+
+### 33.11 Integração com coexistência (11/10/2026)
+
+A ampliação da §33.10 foi integrada à implementação posterior de coexistência na branch isolada
+`integration/qoro-whatsapp-profile-20261011`. Para números conectados pelo WhatsApp Business App,
+nome, foto e demais dados são apresentados com prévia, mas o formulário e o upload ficam desabilitados:
+o aplicativo WhatsApp Business continua responsável por editá-los. O servidor aplica a mesma regra à
+escrita da foto antes de decifrar a credencial ou chamar a Meta. Números dedicados da Cloud API mantêm
+o editor e o upload. A tela de nome permanece somente leitura nos dois regimes, com link para a Meta.
+
+Na integração, os testes focados passaram **109/109 em 5 arquivos**; a suíte Vitest integral passou
+**5.467/5.467 em 520 arquivos** (`npx vitest run`, exit 0). O inventário de Server Actions passou com
+**199 actions**, 53 métodos e zero pendências; `npx tsc --noEmit`, ESLint direcionado e Prettier
+passaram. O build Next com ambiente sintético também passou. O erro de rede do upload retomável não
+retém a URL assinada da sessão na cadeia de causas, com regressão automatizada. A prova externa de
+**leitura em coexistência** e a de **escrita, releitura e restauração em número dedicado** ainda devem
+ser executadas no Preview desta branch; os testes locais não substituem essas provas.
 
 ---
 
@@ -7248,7 +7289,7 @@ produto.
 
 ## 40. Gap: conta de cadastro que expira antes do pagamento entra em loop no login — 29/09/2026
 
-**Estado: aberto.** Documentado, sem correção. A correção depende de decisão de produto (40.4).
+**Estado atual: correção implementada e testada localmente; E2E funcional no Auth/PostgreSQL DEV aprovado para o estado pós-expiração. Cron temporal e Preview ainda pendentes.** O relato e a medição de produção abaixo são históricos. A decisão adotada está em 40.5.
 
 ### 40.1 O sintoma
 
@@ -7287,7 +7328,7 @@ loop.
 | ---- | ------ |
 | Contas de cadastro autônomo sem clínica em produção, depois da limpeza | **0** — leitura em transação `READ ONLY` |
 | Conta de teste `2c1411d1…` | **Apagada** a pedido, pela Admin API. Antes, conferido: nenhuma referência fora do schema `auth` (sem profile, clínica ou assinatura) e nenhum cliente no Asaas de produção com o e-mail. Depois: usuário, identidades, sessões e refresh tokens em 0; `GET admin/users` → 404. Ficaram 2 linhas em `login_attempts` (só hash do e-mail), que a retenção remove |
-| Correção do loop | **NOT TESTED** — não implementada |
+| Correção do loop no estado de 29/09 | **NOT TESTED** — não implementada naquele momento; ver 40.5 para o estado atual |
 
 ### 40.4 O que precisa ser decidido
 
@@ -7300,6 +7341,44 @@ loop.
 - **Mínimo, em qualquer caso: acabar com o loop mudo.** `/cadastro/continuar` encerra a sessão e manda
   para `/login` com um motivo explícito ("Seu cadastro expirou antes de ser concluído…"), e a tela de
   login mostra o que fazer. Sozinho, isso não devolve o acesso: precisa de uma das duas saídas acima.
+
+### 40.5 Decisão e implementação local — 04/10/2026
+
+Foi escolhida a **retomada na mesma conta Auth**. Após login com senha e e-mail confirmado, se não há
+rascunho vivo, `/cadastro/continuar` oferece novo preenchimento dos dados perdidos. O POST limitado de
+`/api/signup/draft` grava uma nova linha vinculada ao mesmo `auth_user_id` e só anuncia sucesso depois
+de reatar em `app_metadata` a referência nova. Plano e checkout continuam exigindo concordância entre
+o Auth e a linha viva no banco. Nenhum profile, clínica, papel ou plano é criado por esse recomeço.
+Uma linha vencida que tenha iniciado billing ou tenha IDs do Asaas não é apagada automaticamente: o
+POST devolve conflito e a tela orienta verificar o pagamento em processamento. Se a gravação SQL
+concluir mas o rebind do Auth falhar, a tela informa que o vínculo está pendente e pede novo login;
+esse login tenta reparar o vínculo, sem conceder acesso às etapas seguintes antes da concordância.
+Estados sem vínculo válido exibem erro explícito em vez do redirecionamento circular silencioso.
+
+**Evidência:** `npx vitest run` passou 4.828/4.828 em 469 arquivos, exit 0, neste worktree. Os
+118 testes direcionados em cinco arquivos cobrem retorno com a mesma conta, recomeço, fronteira de
+Auth, falha parcial, conflito e feedback da tela. O cenário novo em
+`e2e/signup-confirmation.spec.ts` passou **1/1 no navegador Chromium contra aplicação local + Auth
+e PostgreSQL DEV**, com guarda de fingerprint para o projeto DEV: conta confirmada com marker antigo e
+sem linha `signup_sessions` → login → novo rascunho → readback de identidade e referência no Auth e
+banco → refresh → `/cadastro/plano`. O teste fez cleanup, e fixture/lock locais ficaram ausentes.
+Esse cenário reproduz o **estado após a limpeza**, mas não espera uma hora nem executa o cron real;
+a expiração temporal, entrega de e-mail, Preview e pagamento Asaas continuam **NOT TESTED** para esta
+correção. A primeira tentativa não chegou ao app porque o runner não subiu o servidor ao receber
+`E2E_BASE_URL`; depois de subir o servidor, uma tentativa falhou na espera padrão durante a compilação
+fria de `/api/signup/draft`. O mesmo teste passou sem aumentar timeouts após aquecer a rota.
+
+**Regressão do cadastro em 04/10/2026:** uma execução única de
+`e2e/signup-confirmation.spec.ts` contra o app local, Auth/PostgreSQL DEV e Resend real terminou
+com **6 PASS, 1 SKIP, exit 0, em 7,9 min**. Passaram confirmação em outro aparelho, código e
+handoff, retomada da mesma conta após expiração, conta legada, segundo draft e reenvio que invalida
+o link anterior. O único SKIP é o Checkout hospedado: a criação recorrente no Asaas rejeita os
+três callbacks `http://localhost` e esse teste exige Preview HTTPS; não foi contado como PASS.
+Uma tentativa consolidada anterior falhou durante o callback e deixou os casos seguintes sem
+execução. O servidor `next dev` reiniciou por limite de memória logo após registrar
+`POST /auth/confirm` 303 e `GET /cadastro/confirmado` 200; o cenário passou isolado e na suíte
+completa após iniciar o servidor com mais memória. Esta correlação aponta para instabilidade do
+ambiente local, não prova uma correção do produto nem elimina a necessidade do E2E em Preview.
 
 ## 41. Tela de nova senha: motivo da recusa e senha salva desatualizada — 29/09/2026
 
@@ -7386,6 +7465,16 @@ descrição completa com o nome da clínica, e o Asaas respondeu `400 invalid_ob
 aceita no máximo 30 caracteres. O adapter agora recebe um nome técnico curto, limita-o a 30 e conserva
 a descrição completa em `items[].description`. A reprodução externa com os mesmos callbacks passou de
 400 para 200 e o Checkout criado foi cancelado com 200; há regressão de contrato dedicada.
+
+**Nova medição em 04/10/2026, limitada ao Sandbox:** o E2E desta branch chegou ao plano em
+`http://localhost:3000`, mas `POST /api/signup/checkout` respondeu 402 depois de o Asaas recusar
+`POST /checkouts` com 400 `invalid_object`. Um probe isolado, com `ASAAS_CHAVE_TESTE_2` e sem
+pagamento, recebeu do Asaas três erros específicos: `successUrl`, `cancelUrl` e `expiredUrl`
+inválidos quando apontavam para HTTP local. O mesmo payload sintético, alterando somente os três
+callbacks para HTTPS, recebeu 200; o Checkout criado foi cancelado com 200. Logo, a suíte local
+não comprova a abertura do Checkout nesta versão: esse trecho requer Preview HTTPS atualizado.
+O resultado histórico de 5/5 no Preview descrito abaixo não substitui uma nova execução da branch
+atual.
 
 Depois do corretivo, o E2E de confirmação executou **5/5 PASS** contra o Preview HTTPS. O cenário
 principal criou conta e mensagem reais em DEV/Resend, confirmou em outro contexto de navegador,
@@ -8148,3 +8237,601 @@ Actions** e **52 respostas `200` com negativa explícita**, incluindo
 `fetchOpenHandoffs`. A regressão final do CI passou **4.577/4.577 em 442
 arquivos** e o E2E público terminou em **6 PASS + 2 SKIP condicionais**. O
 inventário regenerado manteve 180 actions, 51 route methods e zero gaps.
+
+## 50. Fechamento do Preview, e-mail recebido e regressão — 01/10/2026
+
+Esta rodada foi executada no worktree isolado
+`C:\dev\ClinicaOS_V2_2e2_integration`, branch
+`fix/post-merge-validation-20261001`. O worktree compartilhado do agente de
+WhatsApp permaneceu intocado. O PR #25 já havia sido mesclado na `main` em
+`b6fc136`; o source adicional desta rodada está no PR #26, commit `9316495`, e
+**não foi mesclado**.
+
+### 50.1 Migration 0107 e perfil de coexistência
+
+A migration 0107 foi aplicada em produção após backup, advisory lock e leitura
+de retorno. O backup ficou em
+`backups/prod-pre-migration-2026-10-01T14-01-24.sql` (2.209.892 bytes). O
+readback confirmou uma entrada 0107 no journal, as colunas de coexistência, RLS
+`FORCE`, policies, constraints, índices e grants esperados.
+
+O Graph da Meta permite ler o perfil do número conectado em coexistência, mas
+recusou a escrita com HTTP 403. A tela e o servidor passaram a tratar esse modo
+como somente leitura, sem oferecer um formulário que o provider rejeita. No
+Preview do PR #26, o E2E autenticado do perfil terminou com **4 PASS e 3 SKIP**:
+os skips são operações de escrita deliberadamente não aplicáveis à conexão de
+coexistência. Essa prova não substitui a jornada externa
+WhatsApp → webhook → IA → resposta, mantida com o agente concorrente.
+
+### 50.2 Confirmação no Preview e inbox Resend
+
+O convite recebido por Resend expôs um defeito real do Preview. O Route Handler
+comparava o `Origin` do navegador com o `APP_BASE_URL` fixo de outro deployment;
+por isso o token válido chegava a `POST /auth/confirm`, recebia 403 e a ponte o
+convertia em `invalid_token`. A correção aceita a origem da própria requisição
+somente quando `VERCEL_ENV=preview`, o esquema é HTTPS e o host é um subdomínio
+não raiz de `vercel.app`. Produção e desenvolvimento continuam presos ao
+`APP_BASE_URL`; host externo continua recusado.
+
+Evidências depois do redeploy do commit `9316495`:
+
+- regressão da rota: **32/32 PASS**, incluindo Preview confiável e host externo
+  403;
+- probe mínimo com OTP novo: `POST /auth/confirm` respondeu 303 e terminou em
+  `/convite`; cleanup completo;
+- jornada completa: e-mail inicial recebido, reenvio recebido, link anterior
+  recusado, link novo aceito, tenant correto, replay recusado e cleanup de Auth,
+  perfil e idempotência completo;
+- transporte isolado Resend: evento `delivered`, mensagem inbound localizada e
+  nonce/conteúdo conferidos sem imprimir corpo ou segredo.
+
+Portanto, convite está **PASS ponta a ponta no Preview**. “Mensagem encontrada”
+não foi usada como substituto do aceite e do estado final.
+
+### 50.3 Conta de pagamentos, Gemini e refund
+
+`payments-account-lifecycle.spec.ts` foi reexecutado no mesmo Preview com tenant
+e owner exclusivos no DEV e a conta Asaas Sandbox autorizada. Resultado:
+**2/2 PASS em 48,3 s** — chave inválida recusada sem alteração e ciclo real
+conectar → persistir → desconectar. O `afterAll` removeu clínica e usuário e o
+processo terminou com exit 0.
+
+O corpus original Gemini 3–50 foi repetido no provider real, sem mock:
+**48/48 PASS**, 48 chamadas, zero resposta final insegura e custo calculado de
+US$ 0,096414. A evidência consolidada está em
+`docs/audits/C11_ADVERSARIAL_3_50.md`.
+
+O refund PIX permanece **BLOCKED**. O pagamento está `RECEIVED`; o refund mais
+novo está `AWAITING_CRITICAL_ACTION_AUTHORIZATION` e o anterior está
+`CANCELLED`. A reexecução fez somente readback e não criou uma terceira
+solicitação. É necessário aprovar a ação mais recente no painel Sandbox e
+reexecutar o mesmo runner até `DONE`.
+
+### 50.4 Produção e honestidade da suíte
+
+A coleta conjunta dos 44 arquivos `production-*` continua sem PASS funcional:
+**44 SKIP + 3 PRECONDITION BLOCKED** nos 47 casos. Execuções isoladas com
+pré-condições legítimas acrescentaram evidência sem reclassificar essa coleta:
+
+- RLS read-only: PASS;
+- RLS com rollback: PASS;
+- preço fundador: PASS na repetição, 1/1 em 6,7 s;
+- dashboard com dados não zero: **PASS 1/1 em 9,6 s**, após corrigir no teste a
+  autenticação por cookie fabricado e rótulos seletores já desatualizados;
+- mutações autorizadas: **PASS 1/1 em 59,2 s**. A jornada percorreu paciente,
+  edição, procedimento, agenda, cancelamento excepcional, consultório,
+  prontuário, prescrição, documento, assinatura, encerramento, recebimento,
+  reembolso manual e pedido LGPD. O teste passou a dar ao `afterEach` um
+  orçamento próprio, esperar a hidratação antes das ações cliente e usar os
+  contratos atuais de tabela/paginação. O cleanup externo removeu somente a
+  fixture marcada e o readback confirmou zero resíduo atual.
+
+O estado por arquivo passa a ser: **5 PASS funcionais, 0 FAIL, 4 PRECONDITION
+BLOCKED e 35 SKIP**. Por caso: **5 PASS, 0 FAIL, 4 PRECONDITION BLOCKED e 38
+SKIP**. Trinta e um specs ainda duplicam a fabricação manual de
+cookie Supabase; apenas o spec efetivamente reproduzido foi corrigido nesta
+rodada, evitando uma refatoração ampla sem prova.
+
+### 50.5 Regressão e riscos restantes
+
+- `npx tsc --noEmit`: PASS;
+- `npx vitest run`: **4.583/4.583 PASS em 442 arquivos**, 125,18 s;
+- `npx next build` com `NODE_ENV=production`: PASS, 18 páginas estáticas;
+- CI do PR #26: lint, TypeScript, testes, build, Semgrep, Snyk, arquitetura e
+  Vercel Preview PASS;
+- a primeira tentativa local de build, com `NODE_ENV` não padrão herdado do
+  arquivo local, falhou no prerender de `/404`; a repetição no modo real de
+  produção passou e o CI confirmou o mesmo commit.
+
+Riscos ainda sem comprovação final:
+
+1. refund PIX foi aprovado manualmente, mas os dois processamentos terminaram
+   recusados no Asaas Sandbox; a causa detalhada ainda depende do painel de
+   mecanismos de segurança ou do suporte do provider;
+2. checkout PIX/cartão pago continua limitado pelo reCAPTCHA do checkout
+   hospedado;
+3. a causa externa histórica do Supavisor read-only e do `CONNECT_TIMEOUT` não
+   foi eliminada, embora recuperação, observabilidade e probes atuais estejam
+   verdes;
+4. crédito final do Google Ads depende de campanha ativa;
+5. WhatsApp → IA → resposta real desta integração pertence ao trabalho
+   concorrente e não é inferido dos testes de perfil;
+6. o roteiro humano final de `/cadastro` permanece manual;
+7. o PR #26 aguarda decisão de merge.
+
+## 51. Evidência adicional de produção e correção da própria suíte — 01/10/2026
+
+Esta continuação preservou o worktree concorrente de WhatsApp e alterou somente
+três specs `production-*` no worktree isolado, além da documentação. Dois
+contratos dos testes estavam envelhecidos: o helper fabricava o cookie legado
+`sb-<ref>-auth-token`, enquanto a aplicação exige a geração HttpOnly v2
+selecionada por `qoro-auth-session`; e o link de recovery ainda esperava o token
+na query, embora o contrato atual o coloque no fragmento. Os helpers exercitados
+passaram a emitir o formato vigente. Não houve mudança no código de produto.
+
+### 51.1 Execuções funcionais
+
+- `production-mfa-lifecycle`: **1/1 PASS em 16,9 s**. TOTP ativado, AAL2
+  comprovado, fator removido; readback final sem fator verificado ou pendente;
+- `production-financial-lifecycle-a`: **1/1 PASS em 53,4 s**. Quatro entradas
+  inválidas não persistiram; 10,005 virou 10,01; uma despesa foi cancelada; o
+  recebimento ocorreu em 3,33 + 6,67; dois estornos e duas compensações somaram
+  10; filtros e estado `estornado` foram conferidos. O cleanup removeu todos os
+  registros marcados e o readback final deu zero;
+- `production-role-transition-matrix-a`: **1/1 PASS em 1,2 min**. Nove
+  transições exigidas e três pontes produziram 12 recusas de sessão antiga, 12
+  claims novas e 12 bundles de banco corretos. Convite, usuário, auditoria,
+  idempotência e outbox sintéticos foram removidos;
+- `production-unauthenticated-boundary`: **2 PASS + 1 SKIP em 9,0 s**. As 28
+  rotas estáticas e cinco deep-links com IDs reais redirecionaram para `/login`;
+  HSTS, CSP, `nosniff` e `frame deny` estavam presentes. O caso isolado de
+  `/conversas/[id]` foi pulado porque produção possui zero conversa real.
+
+### 51.2 Consolidação honesta das 44 suítes
+
+A coleta fresca encontrou **44 arquivos e 49 casos**. Sem opt-ins ela terminou
+em **46 SKIP + 3 PRECONDITION BLOCKED**, zero PASS. Os três bloqueios são
+credenciais específicas de doctor/owner exigidas por
+`production-dashboard-financial-rbac`, `production-dashboard-operational-a` e
+`production-whatsapp-settings-rbac`.
+
+Somando somente execuções funcionais isoladas, o retrato atual por caso é **10
+PASS, 0 FAIL, 3 PRECONDITION BLOCKED e 36 SKIP**. Por arquivo: **8 PASS
+integrais, 1 PARTIAL, 3 PRECONDITION BLOCKED e 32 SKIP**. O PARTIAL é a
+fronteira anônima, porque dois casos executaram e o deep-link de conversa não
+tinha fixture. A decomposição completa está em
+[`quality/production-44-execution.md`](quality/production-44-execution.md).
+
+Os bloqueios externos da §50.5 permanecem: diagnóstico da recusa do refund PIX
+no Asaas Sandbox, reCAPTCHA do checkout hospedado, campanha Google Ads inativa,
+causa histórica externa de Supavisor/`CONNECT_TIMEOUT`, jornada WhatsApp → IA →
+resposta sob o agente concorrente e roteiro humano final de `/cadastro`. O PR
+#26 continua sem autorização de merge.
+
+### 51.3 Regressão desta versão
+
+- `npx vitest run`: **4.583/4.583 PASS em 442 arquivos**, exit 0, 221,97 s;
+- `npx tsc --noEmit`: PASS;
+- `npx eslint .`: PASS;
+- Prettier nos sete arquivos alterados: PASS;
+- build Next 15.5.24 com `NODE_ENV=production`: PASS, exit 0, 18 páginas
+  estáticas.
+
+A primeira chamada do build no worktree isolado parou antes de compilar porque
+esse worktree não possui `.env.local`: o validador reportou as duas variáveis
+obrigatórias ausentes. A repetição carregou o arquivo local do worktree principal
+no processo sem imprimir ou copiar valores e concluiu toda a compilação. Isso é
+uma pré-condição local do build, não uma falha do candidato.
+
+## 52. Cadastro no alias atual do Preview — 01/10/2026
+
+O roteiro manual encontrou `GET /api/signup/sessions/me` 410 seguido de
+`POST /api/signup/sessions/identity` 403. O 410 é o contrato esperado quando o
+navegador ainda não possui uma sessão anônima utilizável: a tela o usa para criar
+uma sessão nova. O 403 era o defeito real. As mutações do funil comparavam o
+`Origin` somente com um `APP_BASE_URL` antigo e, por isso, recusavam o alias atual
+do próprio Preview depois de a criação da sessão já ter sido aceita por outro
+gate.
+
+O commit `62028d0` centralizou a origem pública confiável. O `APP_BASE_URL`
+configurado continua aceito; em `VERCEL_ENV=preview`, somente as origens HTTPS
+exatas injetadas pela Vercel em `VERCEL_URL` ou `VERCEL_BRANCH_URL` também são
+aceitas. Um subdomínio arbitrário de `vercel.app`, origem externa ou requisição
+cross-site continua bloqueado. A mesma origem validada passou a formar os links
+do Resend e os retornos do Checkout hospedado, evitando que a jornada volte para
+um deployment antigo.
+
+Evidência funcional no Preview do PR #26, com Supabase DEV, Resend real e Asaas
+Sandbox, em 01/10/2026:
+
+- regressão focada: **409/409 PASS em 13 arquivos**;
+- TypeScript e ESLint focado: **PASS**;
+- regressão integral: **4.594/4.594 PASS em 442 arquivos**, exit 0, 152,68 s;
+- ESLint global e build Next 15.5.24 de produção: **PASS**, com 18 páginas
+  estáticas geradas;
+- `e2e/signup-confirmation.spec.ts`: **5/5 PASS em 5,3 min**, um worker e zero
+  retry;
+- o fluxo comum percorreu tela → identidade → Resend entregue e lido → link em
+  outro contexto → código na aba original → senha → plano → Checkout hospedado;
+- a conta Auth legada não confirmada preservou a senha anterior até o handoff e
+  terminou vinculada ao mesmo draft com a senha nova;
+- dois drafts, reenvio, invalidação do link anterior e replay foram exercitados;
+- o cleanup cancelou os checkouts Sandbox e removeu as fixtures de Auth e banco.
+
+Uma execução anterior do cenário legado recebeu 409 durante o handoff, mas a
+falha não se repetiu nem no cenário isolado (**1/1 PASS em 59,8 s**) nem na suíte
+completa. Não houve alteração da regra de produto sem reprodução. O runner agora
+repete apenas falhas transitórias idempotentes da rede do Supabase, reconcilia a
+criação Auth antes de tentar novamente e, se o 409 reaparecer, registra somente
+estado CAS sanitizado — sem e-mail, senha, cookie ou token.
+
+## 53. Readback final do refund PIX Sandbox — 01/10/2026
+
+Depois da autorização manual informada no painel, o runner oficial foi retomado
+com o manifesto já existente e `ASAAS_CHAVE_TESTE_2`, restrito ao Sandbox e ao
+método PIX. Ele reconheceu a mesma conta e a mesma cobrança antes de qualquer
+mutação e terminou com **FAIL externo**: o provider marcou o refund como
+`CANCELLED`, sem devolver o valor.
+
+Um GET independente confirmou pagamento `RECEIVED` de R$ 10 e **dois refunds de
+R$ 10, ambos `CANCELLED`**. Os objetos de refund não fornecem `failureReason` ou
+`cancellationReason`; a consulta separada de transações Pix encontrou as duas
+operações `CREDIT_REFUND` em `REFUSED`, ambas com o motivo genérico do provider
+`Falha ao processar a transferência.`. O extrato registrou, para cada tentativa,
+R$ 10 de `PAYMENT_REVERSAL` e depois R$ 10 de `PAYMENT_REFUND_CANCELLED`. Esta
+retomada não fez um terceiro POST: o
+runner encontrou o refund existente, classificou o estado terminal de falha e
+preservou o manifesto. Portanto o estado deixou de ser `BLOCKED aguardando
+autorização`; ele é **FAIL do resultado externo**, com causa específica ainda
+dependente do suporte/diagnóstico do Asaas. O código continua correto ao exigir
+`DONE` antes de projetar devolução e ao não repetir o refund automaticamente.
+
+## 54. Reconciliação do webhook Asaas entre Previews — 02/10/2026
+
+A investigação dos refunds separou duas contas Sandbox. `ASAAS_CHAVE_TESTE_2`,
+usada pelo runner de refund, **não** corresponde à credencial cifrada da conta
+conectada ao DEV. Os webhooks órfãos encontrados naquela conta de teste são
+resíduos de fixtures e não participaram da decisão financeira do provider.
+Nenhuma configuração foi aplicada à conta errada; o guard comparou as
+credenciais e abortou antes da mutação.
+
+Na conta efetivamente conectada ao DEV, a ref ativa existia no Asaas e a fila
+estava saudável, mas a URL ainda apontava para um Preview antigo. O código tinha
+duas causas de drift: reenviar a mesma chave pulava toda reconciliação quando
+`webhook_configured_at` já estava preenchido, e o upsert identificava o recurso
+por origem + pathname. Como o host e o bypass mudam a cada Preview, o mesmo
+webhook podia ser duplicado em vez de movido.
+
+A correção mantém o contrato público e não adiciona dependência:
+
+- reenviar a mesma chave sempre reconcilia o webhook no provider;
+- o adapter identifica o recurso por nome + pathname/ref, ignorando host e
+  query rotativos;
+- o PUT existente continua reativando a fila, substituindo URL, token e eventos;
+- o teste de regressão muda simultaneamente host e bypass e exige PUT, não POST.
+
+Evidência: **59/59 testes focados PASS**, **311/311 na regressão de pagamentos**
+e **4.594/4.594 na regressão integral em 442 arquivos** (exit 0, 160,63 s).
+TypeScript, ESLint global, Prettier, inventário de segurança e build Next 15.5.24
+de produção também passaram; o build gerou 18 páginas estáticas. No Sandbox
+ligado ao DEV, o recurso existente foi atualizado para o Preview atual; o total
+de webhooks permaneceu 2 antes/depois, o readback encontrou exatamente uma URL
+para a ref ativa e um probe autenticado, sem pagamento nem dado clínico, recebeu
+**HTTP 200**. O webhook órfão de outra ref foi preservado: removê-lo é uma
+operação destrutiva separada e não é necessária para provar a correção.
+
+Para o refund PIX, o mecanismo especial de autorização de saques continua uma
+configuração distinta dos webhooks listados por `GET /webhooks`. A checagem
+manual então pendente era: Asaas Sandbox → **Integrações → Mecanismos de
+segurança** → verificar se **Ativar autorização de saque para estornos Pix**
+estava ligado. Em 04/10, o operador informou que a opção está desligada na
+conta Sandbox deste diagnóstico (registro atualizado na §55 e na especificação
+financeira). Portanto, esse mecanismo não explica os refunds desta conta;
+a causa raiz externa ainda não foi comprovada e nenhum terceiro refund deve ser
+criado antes da resposta do suporte.
+
+## 55. Política financeira em camadas — 02/10/2026
+
+A especificação, as decisões de plano, o registro de progresso, as evidências
+e as pendências desta frente ficam em
+[política financeira em camadas](specs/politica-financeira-camadas.md). A
+camada 1 havia passado nos testes locais; naquele checkpoint a migration 0108
+e o E2E real ainda não tinham sido executados. O progresso atual fica no
+documento específico.
+
+Em 04/10, a auditoria dos estornos PIX e do código de aprovação do Asaas foi
+registrada na seção “auditoria da autorização do estorno PIX” da especificação.
+O aceite do código não concluiu os refunds observados, que terminaram
+`CANCELLED`. O operador confirmou que a configuração opcional do webhook especial
+`PIX_REFUND` está desligada na conta Sandbox deste diagnóstico; a hipótese foi
+descartada para essa conta, mas o motivo interno da recusa permanece desconhecido.
+A conciliação local foi
+endurecida para não confirmar um item `PENDING` ou um `DONE` de valor insuficiente;
+isso não resolve a recusa do provedor nem libera a nova política para produção.
+
+Decisão posterior de 04/10: a devolução do sinal e do excedente passa a ser
+executada pela clínica na própria conta Asaas; o Qoro registra a pendência,
+mostra-a no Caixa e só a confirma após readback `DONE`. O código e os testes
+locais foram atualizados, sem deploy nem nova prova externa. Detalhes, operação e
+limites estão na seção “devolução assistida pela clínica” da especificação acima.
+
+## 56. Revalidação independente das suítes de produção — 05/10/2026
+
+O médico de teste configurado agora existe no Auth de produção, está ativo e tem
+role `doctor`; a ausência registrada em 04/10 deixou de ser a pré-condição real.
+As três suítes de RBAC foram reexecutadas em leitura: Dashboard financeiro **PASS**,
+Dashboard operacional **PASS** após atualizar expectativas obsoletas do teste para
+a UI efetivamente servida, e páginas de configuração do WhatsApp **PASS** para
+negação básica. O cenário adicional que exige ocultar metadados de um número
+conectado permanece **PRECONDITION BLOCKED**, porque a clínica desse médico não
+possui conexão ativa. Nenhuma conexão foi criada em produção para o teste.
+
+A coleta integral dos **44 arquivos `production-*`**, sem opt-ins de mutação,
+encontrou **50 casos: 3 PASS funcionais, 46 SKIP, 1 PRECONDITION BLOCKED**.
+A execução separada da fronteira anônima, com opt-in exclusivamente de leitura,
+encontrou **2 PASS e 1 SKIP** por ausência de conversa real. O detalhamento e as
+pré-condições estão em [production-44-execution.md](quality/production-44-execution.md).
+Esta fotografia não valida as 46 omissões nem substitui o Checkout no Preview
+HTTPS, o refund terminal `DONE` no Asaas, a correção de tarifa tardia ou a cadeia
+WhatsApp → IA. A política financeira permanece na
+[especificação por camadas](specs/politica-financeira-camadas.md).
+
+Na revisão do cadastro da conta Asaas, foi encontrado um defeito no gerador do
+token do webhook: o regex continha um caractere de controle no lugar da
+referência ao caractere anterior e, portanto, não rejeitava sequências repetidas.
+A correção aplica a regra atual de quatro caracteres iguais ou cinco dígitos
+consecutivos; o teste força as duas amostras inválidas antes de aceitar a
+terceira. A regressão dirigida passou 18/18. Ela foi publicada somente na
+branch/Preview do PR #26, ainda não na `main` ou em produção.
+
+Dois webhooks da conta `ASAAS_CHAVE_TESTE_2` no **Asaas Sandbox** estavam
+`enabled=true` e `interrupted=true`, ambos apontando para o Preview antigo
+`project-os-git-integration-estad-04a442-…` que devolvia 404. Os respectivos
+`webhook_ref` não constam em `clinic_payment_accounts` nem no DEV nem na produção
+(consultas somente de leitura). Após conferir nome, host, pathname e estado de
+cada registro, os dois webhooks foram **desativados**, sem excluí-los nem
+reativar a fila; GET posterior confirmou `enabled=false`, `interrupted=true`
+para ambos (sufixos dos IDs `611c` e `0ddd`). Essa operação resolveu apenas
+esses destinos órfãos do Sandbox. A desconexão de uma conta ativa ainda apaga
+a chave local sem desabilitar seu webhook remoto e pode interromper a
+reconciliação de cobranças preexistentes; continua um bloqueio arquitetural
+para a promoção financeira.
+
+Readback Asaas somente GET no mesmo Sandbox manteve as duas cobranças PIX
+diagnósticas em `RECEIVED`: uma tem um refund `CANCELLED`, a outra dois
+`CANCELLED`, sem qualquer item `DONE`. A devolução PIX não foi comprovada;
+nenhum novo POST de refund foi feito.
+
+O E2E de devolução assistida foi repetido contra app local, Auth e banco DEV.
+A primeira invocação falhou na infraestrutura de teste por falta da condição
+`react-server` ao importar `server-only`; não chegou às assertions financeiras
+e fez cleanup completo. Com `NODE_OPTIONS=--conditions=react-server`, passou
+**1/1 em 2,2 min**; readback final dos prefixos da fixture: zero clínicas e
+zero usuários Auth. O readback de refund desse spec é sintético e não valida a
+devolução real do Asaas.
+
+O cadastro foi reexecutado em `next dev` local contra Supabase DEV e Resend real
+com `npx tsx scripts/run-signup-confirmation-e2e.ts`, um worker e zero retry:
+**6 PASS, 1 SKIP, exit 0 em 6,4 min**. Os PASS incluem e-mail entregue e lido,
+confirmação em outro aparelho, código na aba original, senha, plano, retomada
+após expiração, conta legada, dois drafts, reenvio e invalidação do link anterior.
+O único SKIP é o Checkout hospedado: o alvo local usa HTTP e o Asaas Sandbox
+exige callback HTTPS; não equivale a uma prova de Checkout em Preview. O runner
+terminou sem fixture ou lock de cadastro persistidos.
+
+A primeira tentativa falhou **antes** da jornada de e-mail: `POST
+/api/signup/sessions` respondeu 201 com `Set-Cookie` válido, mas o helper E2E
+procurava o cookie `Secure` com `context.cookies('http://127.0.0.1:3000')`.
+Um probe isolado confirmou que o Chromium guardava o cookie, enquanto esse
+filtro de URL do Playwright retornava lista vazia. O helper passou a ler os
+cookies do contexto isolado e conferir o host exato. Portanto, essa falha foi
+do teste, não do produto; o cadastro só recebeu PASS após a reexecução real.
+A tentativa interrompida deixou uma sessão anônima sem e-mail porque o helper
+antigo não havia capturado seu hash. O readback localizou exatamente uma linha
+com estado `initiated`, sem identidade, respostas ou Checkout, no segundo da
+criação; ela foi removida em DEV sob lock e o cleanup retornou uma linha.
+
+Os E2E posteriores no Preview HTTPS e as pendências atuais da política financeira
+estão no [registro por camadas](specs/politica-financeira-camadas.md).
+
+## 57. Inbox do WhatsApp: nome do contato e número formatado — 07/10/2026
+
+No teste da jornada com o número autorizado, a inbox mostrava só os dígitos crus na lista e "Paciente" duas vezes na conversa. A causa tinha duas partes:
+
+- o formatador só reconhecia celular brasileiro com o nono dígito, e o WhatsApp entrega muitos celulares no formato antigo, com 12 dígitos;
+- o parser do webhook da Meta descartava `contacts[].profile.name`.
+
+Correção no PR #26 (`63253e75`):
+
+- números com DDI 55 aparecem como `+55 88 9716-8587`, e os nacionais mantêm `(DD)`;
+- o nome do perfil é saneado e guardado cifrado por clínica;
+- lista, cabeçalho e rótulo das mensagens usam o nome do cadastro, depois o do WhatsApp, depois o telefone.
+
+A migration 0114 (`inbound_messages_raw.from_name_encrypted` e `ai_conversations.contact_name_encrypted`, anuláveis) foi aplicada **só no DEV**, com backup completo antes e readback de colunas e privilégios. Conversas antigas ganham o nome na próxima mensagem recebida. Detalhes de prova estão no histórico do PR; não foi aplicada em produção.
+
+## 58. Jornada WhatsApp → IA no Preview — 08/10/2026
+
+Teste da jornada integrada com o número de teste em coexistência (final 2198) na `clinica-a` do DEV e o número autorizado do lado do paciente.
+
+**Achados e ações:**
+
+1. **O webhook da Meta ia para produção.** O app Meta (final 6678) entrega `whatsapp_business_account` em `app.qoro.dev/api/webhooks/meta`, e a mensagem real foi para produção, onde o número não está conectado. Com autorização do usuário, um `override_callback_uri` foi configurado **só na WABA do número de teste** (final 3643), apontando para o Preview da PR #26. A verificação da Meta passou no Preview e a releitura confirmou o destino. Para desfazer, `POST /{waba}/subscribed_apps` sem override.
+2. **O Preview não processa o próprio outbox.** Sem cron, o tick depois do ingresso da rota Meta processa um único evento, o mais antigo do outbox global, e o DEV tinha 57 pendentes na frente. A mensagem chegou ao DEV com o nome do perfil (0114 provada), mas o turno da IA não rodou.
+3. **Gemini 3 exige `thoughtSignature` (corrigido).**
+   - **Problema:** com `gemini-3.8-flash`, o padrão do env, toda rechamada depois de uma tool respondia HTTP 400 ("Function call is missing a thought_signature"). O turno caía no texto da tool ou no fallback "Um atendente vai te responder em breve".
+   - **Prova:** uma sonda direta na API deu 400 sem a assinatura e 200 com ela.
+   - **Correção:** `ToolCall.signature`/`ToolResult.signature` opacos; o Gemini lê a `thoughtSignature` e a devolve no `functionCall` da rechamada.
+   - **Resultado:** zero 400 nos turnos seguintes.
+4. **Procedimento contido em outro (corrigido).** Com "Consulta" e "Consulta [demo]", o casamento tolerante casava os dois, e "Consulta" nunca era escolhida. O nome exato agora vence.
+5. **Especialidades da IA diferentes dos procedimentos (dado da `clinica-a`).** A IA ofereceu "Pediatria ou Cardiologia", que não casam com os procedimentos cadastrados. Pede ajuste de cadastro, não de código.
+6. **Agendamento anônimo com sinal ligado.** Com `can_schedule_anonymous=true`, a IA agenda sem paciente e o sinal não é cobrado. Decisão de produto pendente.
+7. **Entrega do link do sinal.** Ela depende da fila C14 (cron `proactive-deposit-link`, só em produção, janela de 8h a 20h). No Preview o link não sai pelo WhatsApp.
+8. **Artefato de teste, não defeito.** Para destravar, os turnos foram processados por um processador local restrito à `clinica-a`. O salt do hash de lookup local difere do Preview, e o paciente cadastrado localmente não casava com a conversa (laço de cadastro). Os artefatos foram removidos (agendamento anônimo, paciente sintético, estado de cadastro), a configuração da clínica foi restaurada e o readback deu zero.
+
+**Estado da jornada:**
+
+- **PASS:** Meta → Preview → DEV com o nome do perfil; resposta da IA enviada pela Cloud API; agendamento e cadastro conduzidos pela IA (desfeitos no cleanup).
+- **NOT RUN:** sinal, link, pagamento e Caixa pela jornada. Exigem um worker de outbox no Preview, ou produção, e a C14 no horário dela.
+
+## 59. Hardening do agente de IA do WhatsApp — 08/10/2026
+
+Registro canônico: [`docs/quality/whatsapp-ai-hardening-2026-10-08.md`](quality/whatsapp-ai-hardening-2026-10-08.md).
+
+**Problema reportado — "com o sinal ligado exige o cadastro":** duas causas, ambas corrigidas.
+
+1. Com o sinal ligado e o agendamento anônimo permitido, a IA marcava sem cadastro e o sinal nunca era
+   cobrado. Decisão do usuário: com o sinal ligado, o cadastro é obrigatório.
+2. O paciente cadastrado pela clínica (número nacional) não era reconhecido pelo `wa_id` do WhatsApp
+   (55, às vezes sem o nono dígito): a IA pedia cadastro de novo e falhava no CPF já existente.
+
+**Também corrigidos:**
+
+- `gemini-3.8-flash` levando 13–60 s com timeout de 15 s → padrão `gemini-3.6-flash`, mesmo preço;
+- ingress da Meta processando o evento mais antigo da fila global;
+- rajada de mensagens com várias respostas;
+- "SIM" dependente da tool escolhida pelo modelo;
+- relato urgente recebendo oferta de consulta;
+- supressão ignorada no WhatsApp;
+- horários em UTC;
+- reagendamento fora da agenda;
+- custo sem tokens de raciocínio;
+- 5xx sem retry;
+- lacunas do pré-filtro clínico.
+
+**Estado:** 19 commits de código na PR #26, que segue draft. Gates locais e CI verdes no último commit. A prova
+ao vivo no Preview, com webhook assinado vindo do número autorizado e envio real pela Cloud API, está
+detalhada no registro canônico.
+
+**Pendências:**
+
+- link do sinal pelo WhatsApp: o tick da C14 enviou, mas a Meta recusou o template com 131042 (moeda/pagamento da WABA de teste não configurados) — BLOCKED até o Billing da Meta. Uma nova recusa agora volta ao job: `failed` com o código da Meta (`meta_131042`) e métrica (EC-32, corrigido em `84b3b413`). A clínica vê a recusa na Agenda, com a ação e o "Copiar link" do sinal (`64e2c7d7`);
+- pagamento do sinal no Sandbox: NOT RUN, depende do usuário.
+
+**Noite de 08/10 — decisões de produto implementadas e provadas ao vivo (22:05–22:15 UTC):**
+
+- áudio pede a mensagem escrita; foto, documento e vídeo vão para a equipe (migration 0117, só no DEV);
+- respostas no formato do WhatsApp (`*negrito*`) e regra contra afirmar política da clínica fora das
+  ferramentas;
+- "já paguei" respondido pelo status real da cobrança; dinheiro e insistência vão para a equipe;
+- dinheiro: sem sinal, é opção no agente; com sinal, o horário só se confirma com o sinal pelo link e o
+  restante pode ser em dinheiro. No Caixa, "Pagou em dinheiro" e "Pagou o restante em dinheiro"; o
+  registro manual fecha o link do restante, que agora espera 2 h. Decisão no
+  [registro financeiro](specs/politica-financeira-camadas.md).
+
+Commits `eb969eed`, `3da70f90` e `cf180f0d`. Em aberto: sinal só por Pix ou também por cartão em 1x.
+
+## 60. Integração isolada e gates de 09/10/2026
+
+Atualização de 10/10: a [releitura da WABA após cadastrar pagamento](quality/waba-readback-2026-10-10.md)
+mediu a remoção do bloqueio 141006, a mensagem real processada no DEV e a ausência
+intencional de resposta durante `handoff`. O callback da WABA aponta para outro
+Preview; a entrega de template novo e o ingresso na PR #34 seguem sem prova.
+
+A branch `integration/qoro-20261009` combina as PRs #26, #30, #31, #32 e #33
+sem alterar a `main` ou produção. A composição, os comandos, os resultados
+medidos no código combinado e os gates ainda abertos estão no
+[registro de integração](quality/integracao-2026-10-09.md). A regressão local
+passou em 5.452/5.452 testes; os marcadores 0115–0118 foram lidos no banco DEV
+em transação somente de leitura. O cadastro real no Preview passou 7/7.
+O E2E da conta de pagamentos revelou uma divergência de fuso que quebrava a
+hidratação da tela. Após a correção, o ciclo completo passou 6/6 no Preview,
+com readback de cleanup no DEV e no Asaas Sandbox. O CI do código corrigido
+passou 5.455/5.455 testes em 520 arquivos, build e 6 E2E públicos (2 skips).
+Produção continua sem validação funcional nesta fotografia.
+
+Atualização de 10/10: o E2E da lista de espera na PR #34 reproduziu uma falha
+real na oferta causada por `Date` vinculado diretamente ao SQL; o mesmo padrão
+foi corrigido nas comparações do aceite. No Preview com Auth/banco DEV, três
+execuções consecutivas passaram até oferta e cancelamento; depois, quatro
+execuções passaram pelo aceite com toast de sucesso, entrada `booked`, uma
+consulta ativa na vaga e cleanup sem resíduos. Uma tentativa intermediária
+permaneceu `offered` sem causa conclusiva preservada, portanto estabilidade
+total do aceite não foi demonstrada. A regressão do cancelamento passou mais
+uma vez. O usuário relatou cadastro manual concluído sem erro; o readback
+posterior abaixo distingue provisionamento de pagamento. Comandos,
+limites e achados estão no [registro de integração](quality/integracao-2026-10-09.md).
+
+Readback adicional de 10/10 da conta de cadastro informada pelo usuário:
+Auth confirmado, profile, clínica e assinatura Solo/trial únicos no DEV, sem
+draft remanescente; assinatura correspondente `ACTIVE` no Asaas Sandbox com
+R$ 149/mês. O trial e a primeira cobrança pendente vencem em 17/10; **não houve
+pagamento comprovado**. O `nextDueDate` de 17/12 é a próxima cobrança a gerar,
+após as cobranças pendentes de 17/10 e 17/11. A chave de outra conta Sandbox
+retornou 404 para a mesma assinatura, sem representar ausência no provedor.
+Dois webhooks Sandbox interrompidos, desativados e órfãos de um Preview antigo
+foram removidos com readback 404 e listagem zero; o webhook ativo vinculado à
+outra conta permaneceu intacto. Consulta `READ ONLY` em produção encontrou só
+a migration 0107 entre 0107–0118: **0108–0118 seguem pendentes**. Nenhuma
+migration foi aplicada. Evidência, limites e links da documentação oficial do
+Asaas estão no [registro de integração](quality/integracao-2026-10-09.md).
+
+## 61. Callback de teste no Preview e mensalidade SaaS pós-trial — 10/10/2026
+
+Com autorização do usuário, o override **somente da WABA de teste** foi trocado
+do Preview anterior para o Preview integrado da PR #34. A Meta respondeu 200 ao
+`POST /{waba}/subscribed_apps`; dois `GET` conferiram o host e o bypass, e o
+endpoint novo passou no handshake. Uma leitura do DEV ainda encontrou zero
+mensagens recebidas na janela após a troca: **configuração PASS; ingresso real
+novo NOT TESTED** até o envio de uma mensagem consentida.
+
+Atualização de 11/10: a mensagem consentida chegou ao Preview, foi persistida
+na clínica de teste e o evento de IA foi consumido. A conversa estava em
+`handoff` anterior; por isso houve zero resposta e zero envio Meta. A ação
+autenticada devolveu-a ao agente e o DEV confirmou `active` sem handoff aberto.
+Nesse primeiro ingresso, o fluxo **IA → resposta → entrega não foi exercitado**.
+O probe externo sem assinatura retornou 401 e a regressão
+direcionada passou 42/42. Os horários, o readback e a divergência de HMAC local
+estão no [registro de integração](quality/integracao-2026-10-09.md#1110--ingresso-real-após-trocar-o-callback).
+
+Uma segunda mensagem do remetente consentido, após o retorno da conversa ao
+agente, fechou o E2E às 23:06 UTC: um evento processado, uma entrada e uma
+resposta da IA, um outbound para o mesmo remetente, aceite `sent` e confirmação
+`delivered` da Meta. O usuário confirmou a resposta no aparelho. **PASS real**
+para mensagem → Preview → IA → Meta → WhatsApp de teste, com readback DEV e
+sem falhas de IA. Detalhes no mesmo [registro](quality/integracao-2026-10-09.md#segunda-mensagem-conversa-ativa--fluxo-completo).
+
+A mensalidade SaaS foi exercitada três vezes, duas pelo runner versionado
+`scripts/asaas-post-trial-preview-e2e.ts`, com fixture sem profile/paciente no DEV
+e recursos descartáveis no Asaas Sandbox. Nas três execuções, cobrança Solo mensal PIX
+R$ 149 `PENDING` → confirmação oficial do Sandbox → `RECEIVED` → webhook **real**
+Asaas→Preview → uma invoice `paid`, assinatura e clínica `active`, período
+avançado após o trial. Replay não duplicou o estado; webhook temporário e fixture
+foram removidos com readback, e assinatura/customer ficaram `deleted:true` no
+Asaas. **PASS para essa simulação**, sem antecipar nem pagar a cobrança de 17/10
+da conta cadastrada pelo usuário. Cartão mensal e pagamento com dinheiro real
+continuam fora desta prova.
+
+O Playwright autenticado do perfil WhatsApp revelou que fazer login antes de
+cada caso atingia o rate limit após cinco entradas. Após compartilhar uma
+sessão por suíte, a reexecução teve **4 PASS / 3 SKIP / 0 FAIL**. O round-trip
+externo da PR #19 ainda não ocorreu: PR conflitante e WABA atual em coexistência,
+que o Qoro trata como perfil gerenciado no WhatsApp Business do celular.
+Para escrever, reler e restaurar pelo Qoro é necessário um número **dedicado**
+de teste, conectado ao Preview com a PR #19 integrada e opt-in explícito;
+upload da foto pede prova separada. Evidência operacional e limites estão no
+[registro da integração](quality/integracao-2026-10-09.md).
+
+## 62. Perfil de número dedicado e verificação empresarial — 11/10/2026
+
+Na conta sintética “teste”, o número recém-conectado está ativo e dedicado no
+banco DEV. O diagnóstico da Meta é `limited` com código 141010. A tela de
+configuração agora oferece **Verificar empresa na Meta** junto do aviso, com
+destino ao Centro de Segurança da Meta. O botão não aparece quando só há
+pendência de pagamento. A verificação da empresa e a forma de pagamento não
+foram alteradas por esta rodada.
+
+O editor real foi exercitado no Preview. A primeira gravação recebeu resultado
+indeterminado na UI, mas uma releitura posterior mostrou que a Meta havia
+aplicado o recado de teste. A restauração do recado vazio recebeu HTTP 500,
+código Graph 131000, e não ocorreu. A recuperação com texto neutro recebeu 2xx;
+o readback confirmou a retirada do marcador. A UI foi corrigida para dizer
+**Resultado não confirmado** quando um POST pode ter sido aplicado, em vez de
+afirmar que a conexão não foi salva. O E2E não escreve mais sobre recado original
+vazio enquanto sua restauração não estiver comprovada. A primeira tentativa
+foi FAIL; sobre o recado neutro, a repetição focada passou 1/1 e a suíte final
+do Preview passou **6 PASS / 2 SKIP / 0 FAIL**, incluindo escrita, releitura e
+restauração reais. Os SKIPs são estados inaplicáveis à conta dedicada. A
+limpeza para vazio e o upload real da foto continuam sem PASS. A regressão
+local passou **5.470/5.470** testes em 520 arquivos, TypeScript, lint,
+formatação, inventário e build isolado. Comandos, provas e limites estão no
+[registro de integração](quality/integracao-2026-10-09.md).

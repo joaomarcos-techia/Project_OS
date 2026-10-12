@@ -54,6 +54,14 @@ export const LancamentoPaidSchema = z.object({
   valorPago: z.number().nonnegative(),
   status: statusEnum,
   paymentMethod: z.string().nullable(),
+  /**
+   * 08/10/2026 — o atendimento do recebível e a origem da baixa. Com eles o
+   * Payments fecha o link do restante quando a recepção registra o pagamento
+   * (`manual`); a baixa que veio do próprio link é `gateway`. Aditivos e
+   * opcionais: eventos anteriores seguem válidos e não fecham nada.
+   */
+  appointmentId: uuid.nullable().optional(),
+  source: z.enum(['manual', 'gateway']).optional(),
 });
 export type LancamentoPaidPayload = z.infer<typeof LancamentoPaidSchema>;
 

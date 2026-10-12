@@ -67,8 +67,10 @@ const pendingAppMetadata = {
   },
 };
 
-const sendInitial = () => sendSignupConfirmation({ email, password, signupRef, attemptEpoch });
-const resend = () => resendSignupConfirmation({ email, signupRef, attemptEpoch });
+const publicOrigin = 'https://app.qoro.test';
+const sendInitial = () =>
+  sendSignupConfirmation({ email, password, signupRef, attemptEpoch, publicOrigin });
+const resend = () => resendSignupConfirmation({ email, signupRef, attemptEpoch, publicOrigin });
 
 function hibpSafe(): Response {
   return new Response(`${'0'.repeat(35)}:0\n`, { status: 200 });

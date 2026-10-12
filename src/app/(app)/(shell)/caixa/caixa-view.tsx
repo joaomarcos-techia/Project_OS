@@ -21,7 +21,7 @@ import type {
   PaymentMethodDTO,
   PaymentTransactionSummary,
 } from '@/contexts/financial/types';
-import type { ExcessRefundStatus, FailedChargeDTO } from '@/contexts/payments';
+import type { ExcessRefundStatus, FailedChargeDTO, ManualRefundTask } from '@/contexts/payments';
 import { Alert } from '@/components/ui/alert';
 import { buttonVariants } from '@/components/ui/button';
 import { PageHeader } from '@/components/ui/page-header';
@@ -40,6 +40,7 @@ import { LocalPager, paginateLocally } from './local-pagination';
 
 /** Cobrança falha + nome resolvido na camada page (Financial não conhece Patient). */
 export type FailedChargeItem = FailedChargeDTO & { pacienteNome: string | null };
+export type ManualRefundItem = ManualRefundTask & { pacienteNome: string | null };
 
 const QUERY_RESULT_LIMIT = 100;
 
@@ -52,12 +53,15 @@ export function CaixaView({
   aPagar,
   pendencias,
   failedCharges,
+  manualRefundTasks,
   excessRefundStatuses,
   collectionCases,
   methods,
   canOperate,
   paymentTransactions,
+  showAdvancedFinancialDetails,
   canRefund,
+  canReviewPayout = false,
 }: {
   /** "7 de setembro", já no fuso da clínica. */
   hoje: string;
@@ -69,10 +73,14 @@ export function CaixaView({
   aPagar: CaixaItem[];
   pendencias: FaturamentoPendenciaDTO[];
   failedCharges: FailedChargeItem[];
+  manualRefundTasks: ManualRefundItem[];
   excessRefundStatuses: ExcessRefundStatus[];
   collectionCases: CollectionCaseDTO[];
   methods: PaymentMethodDTO[];
   paymentTransactions: PaymentTransactionSummary[];
+  showAdvancedFinancialDetails: boolean;
+  /** MANAGE_FINANCIAL: registra revisão humana de repasse suspenso. */
+  canReviewPayout?: boolean;
   canOperate: boolean;
   canRefund: boolean;
 }) {
@@ -239,7 +247,10 @@ export function CaixaView({
         />
       </MetricStrip>
 
-      {failedCharges.length > 0 || pendencias.length > 0 || collectionCases.length > 0 ? (
+      {failedCharges.length > 0 ||
+      manualRefundTasks.length > 0 ||
+      pendencias.length > 0 ||
+      collectionCases.length > 0 ? (
         <div className="mb-5 flex flex-col gap-2">
           {/* Primeiro da pilha porque é o único aqui que o sistema causou. As
               outras duas faixas são trabalho pendente; esta é uma cobrança que
@@ -270,6 +281,50 @@ export function CaixaView({
                     ) : null}
                   </span>
                   <span className="font-medium tabular-nums">{formatBRL(item.amount)}</span>
+                </div>
+              )}
+            />
+          ) : null}
+          {manualRefundTasks.length > 0 ? (
+            <AttentionQueue
+              label="devoluções que exigem ação da clínica"
+              summary={`${manualRefundTasks.length} ${manualRefundTasks.length === 1 ? 'devolução' : 'devoluções'} de paciente pendente${manualRefundTasks.length === 1 ? '' : 's'} de verificação`}
+              cta="Ver pendências"
+              tone="warning"
+              icon={<TriangleAlert aria-hidden="true" />}
+              items={manualRefundTasks}
+              getKey={(item) => item.id}
+              renderItem={(item) => (
+                <div className="grid gap-1">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <span className="text-pretty">
+                      {item.pacienteNome ?? 'Paciente não identificado'} ·{' '}
+                      {item.purpose === 'deposit_closeout' ? 'sinal' : 'valor excedente'}
+                    </span>
+                    <span className="shrink-0 font-medium tabular-nums">
+                      {formatBRL(item.amount)}
+                    </span>
+                  </div>
+                  <p className="text-pretty text-(length:--fs-xs)">
+                    {item.state === 'account_unavailable'
+                      ? 'Reconecte a conta Asaas e confira a devolução com o paciente.'
+                      : item.state === 'payment_id_missing'
+                        ? 'O identificador da cobrança Asaas não foi registrado. Investigue o vínculo antes de solicitar qualquer devolução.'
+                        : item.state === 'readback_unavailable'
+                          ? 'O Qoro ainda não conseguiu verificar esta cobrança no Asaas. Confira o estado no painel antes de qualquer devolução.'
+                          : item.state === 'failed'
+                            ? 'A tentativa anterior não devolveu o valor. Confira o estado no Asaas antes de agir.'
+                            : 'Confira se já há estorno em andamento; se não houver, faça a devolução na conta Asaas da clínica.'}
+                  </p>
+                  <p className="text-(length:--fs-xs) text-muted-foreground">
+                    {item.providerPaymentId ? (
+                      <>
+                        Cobrança Asaas: <span className="font-mono">{item.providerPaymentId}</span>
+                        .{' '}
+                      </>
+                    ) : null}
+                    O Qoro só confirma a devolução após o Asaas informar conclusão.
+                  </p>
                 </div>
               )}
             />
@@ -362,6 +417,8 @@ export function CaixaView({
           aPagar={aPagar}
           methods={methods}
           paymentTransactionsByLancamento={paymentTransactionsByLancamento}
+          showAdvancedFinancialDetails={showAdvancedFinancialDetails}
+          canReviewPayout={canReviewPayout}
           canOperate={canOperate}
           canRefund={canRefund}
           pending={pending}
@@ -383,6 +440,8 @@ export function CaixaView({
             aPagar={aPagar}
             methods={methods}
             paymentTransactionsByLancamento={paymentTransactionsByLancamento}
+            showAdvancedFinancialDetails={showAdvancedFinancialDetails}
+            canReviewPayout={canReviewPayout}
             canOperate={canOperate}
             canRefund={canRefund}
             pending={pending}
@@ -403,6 +462,8 @@ export function CaixaView({
             aPagar={aPagar}
             methods={methods}
             paymentTransactionsByLancamento={paymentTransactionsByLancamento}
+            showAdvancedFinancialDetails={showAdvancedFinancialDetails}
+            canReviewPayout={canReviewPayout}
             canOperate={canOperate}
             canRefund={canRefund}
             pending={pending}
@@ -430,10 +491,11 @@ export function CaixaView({
 }
 
 const EXCESS_REFUND_COPY: Record<ExcessRefundStatus['state'], string> = {
+  manual: 'Devolução pendente de ação da clínica; confira a cobrança na conta Asaas.',
   waiting: 'Estorno solicitado ao Asaas; aguardando confirmação da devolução.',
   confirmed: 'Estorno confirmado pelo Asaas.',
   cancelled: 'Estorno cancelado pelo Asaas; o valor não foi devolvido. Revise antes de nova ação.',
-  failed: 'Estorno automático não foi concluído. Revise antes de nova ação.',
+  failed: 'A devolução não foi concluída. Revise antes de nova ação.',
 };
 
 function ExcessRefundStatusLine({ status }: { status: ExcessRefundStatus }) {

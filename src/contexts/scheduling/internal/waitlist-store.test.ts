@@ -10,6 +10,8 @@
  * consome. Não valida SQL — valida o fluxo de controle, que é exatamente onde
  * estava o defeito (o repasse não existia e o cancelamento humano não ofertava).
  */
+import { sql, type SQL } from 'drizzle-orm';
+import { PgDialect } from 'drizzle-orm/pg-core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const publishEvent = vi.fn();
@@ -19,7 +21,12 @@ vi.mock('@/lib/outbox/publish', () => ({
 
 import type { Tx } from '@/lib/db';
 
-import { offerWaitlistForCancelledAppointment, releaseWaitlistOffer } from './waitlist-store';
+import {
+  assertWaitlistOfferAcceptable,
+  findStaleWaitlistOffers,
+  offerWaitlistForCancelledAppointment,
+  releaseWaitlistOffer,
+} from './waitlist-store';
 
 const CLINIC = 'clinic-a';
 const APPT = {
@@ -52,6 +59,8 @@ function entry(over: Record<string, unknown> = {}) {
 
 /** Captura os `where` construídos para provar a exclusão do repasse. */
 const wheres: unknown[] = [];
+/** Captura os `orderBy`: a ordem da varredura das ofertas vencidas importa. */
+const orderBys: SQL[][] = [];
 
 /**
  * Os objetos de condição do Drizzle referenciam as tabelas e são circulares,
@@ -68,10 +77,14 @@ function literalsIn(value: unknown, seen = new WeakSet<object>()): string[] {
 
 function chain(result: unknown[]) {
   const self: Record<string, unknown> = {};
-  const passthrough = ['from', 'leftJoin', 'orderBy', 'limit', 'for', 'set', 'values'];
+  const passthrough = ['from', 'leftJoin', 'limit', 'offset', 'for', 'set', 'values'];
   for (const key of passthrough) self[key] = () => self;
   self.where = (w: unknown) => {
     wheres.push(w);
+    return self;
+  };
+  self.orderBy = (...columns: SQL[]) => {
+    orderBys.push(columns);
     return self;
   };
   self.returning = () => Promise.resolve(result);
@@ -80,23 +93,45 @@ function chain(result: unknown[]) {
   return self;
 }
 
-function scriptedTx(plan: { selects?: unknown[][]; updates?: unknown[][] }): Tx {
+function scriptedTx(plan: {
+  selects?: unknown[][];
+  updates?: unknown[][];
+  executes?: unknown[][];
+}): Tx {
   const selects = [...(plan.selects ?? [])];
   const updates = [...(plan.updates ?? [])];
+  const executes = [...(plan.executes ?? [])];
   return {
     select: () => chain(selects.shift() ?? []),
     update: () => chain(updates.shift() ?? []),
     insert: () => chain([]),
-    execute: async () => [],
+    execute: async () =>
+      executes.shift() ?? [
+        { db_now: new Date('2026-09-10T11:00:00.000Z'), timezone: 'America/Sao_Paulo' },
+      ],
   } as unknown as Tx;
 }
 
 beforeEach(() => {
   publishEvent.mockReset();
   wheres.length = 0;
+  orderBys.length = 0;
 });
 
 describe('offerWaitlistForCancelledAppointment — o claim da vaga', () => {
+  it('não oferece uma vaga cujo horário já passou no relógio do banco', async () => {
+    const tx = scriptedTx({
+      executes: [[{ db_now: APPT.scheduledAt, timezone: 'America/Sao_Paulo' }]],
+    });
+    const chosen = await offerWaitlistForCancelledAppointment(tx, APPT as never, {
+      idempotencyKey: 'key-past',
+      correlationId: null,
+    });
+    expect(chosen).toBeNull();
+    expect(wheres).toHaveLength(0);
+    expect(publishEvent).not.toHaveBeenCalled();
+  });
+
   it('oferta ao candidato elegível e publica o evento com o nome do profissional', async () => {
     const tx = scriptedTx({
       selects: [[entry()]],
@@ -110,6 +145,10 @@ describe('offerWaitlistForCancelledAppointment — o claim da vaga', () => {
 
     expect(chosen).toBe('entry-1');
     expect(publishEvent).toHaveBeenCalledTimes(1);
+    const claimWhere = new PgDialect().sqlToQuery(wheres.at(-1) as SQL);
+    expect(claimWhere.sql).toContain('clock_timestamp()');
+    expect(claimWhere.params).toContain(APPT.scheduledAt.toISOString());
+    expect(claimWhere.params.some((value) => value instanceof Date)).toBe(false);
     const published = publishEvent.mock.calls[0]![1] as {
       eventType: string;
       payload: Record<string, unknown>;
@@ -167,6 +206,33 @@ describe('offerWaitlistForCancelledAppointment — o claim da vaga', () => {
 });
 
 describe('releaseWaitlistOffer — recusa e expiração', () => {
+  it('um scan antigo não libera uma nova geração da mesma entrada', async () => {
+    const tx = scriptedTx({
+      selects: [
+        [
+          entry({
+            status: 'offered',
+            offeredAt: new Date('2026-09-10T12:00:00.000Z'),
+            offeredAppointmentId: 'appt-2',
+          }),
+        ],
+      ],
+    });
+    const result = await releaseWaitlistOffer(tx, {
+      clinicId: CLINIC,
+      entryId: 'entry-1',
+      idempotencyKey: 'old-scan',
+      correlationId: null,
+      expectedOffer: {
+        offeredAt: new Date('2026-09-10T10:00:00.000Z'),
+        appointmentId: 'appt-1',
+      },
+    });
+    expect(result).toEqual({ released: false, nextEntryId: null });
+    expect(publishEvent).not.toHaveBeenCalled();
+    expect(wheres).toHaveLength(1);
+  });
+
   it('devolve a entrada à fila e REPASSA a vaga ao próximo elegível', async () => {
     const tx = scriptedTx({
       selects: [
@@ -273,5 +339,130 @@ describe('releaseWaitlistOffer — recusa e expiração', () => {
     });
 
     expect(result).toEqual({ released: true, nextEntryId: null });
+  });
+});
+
+describe('assertWaitlistOfferAcceptable — aceite sob o lock da entrada', () => {
+  const offeredAt = new Date('2026-10-09T21:00:00-03:00');
+  const scheduledAt = new Date('2026-10-10T13:00:00-03:00');
+
+  it('aceita antes das 12h locais, usando o relógio e o fuso do banco', async () => {
+    const tx = scriptedTx({
+      executes: [
+        [{ db_now: new Date('2026-10-10T11:59:59-03:00'), timezone: 'America/Sao_Paulo' }],
+      ],
+    });
+    await expect(
+      assertWaitlistOfferAcceptable(tx, { clinicId: CLINIC, offeredAt, scheduledAt }),
+    ).resolves.toEqual(new Date('2026-10-10T12:00:00-03:00'));
+  });
+
+  it('rejeita no instante exato da expiração', async () => {
+    const tx = scriptedTx({
+      executes: [
+        [{ db_now: new Date('2026-10-10T12:00:00-03:00'), timezone: 'America/Sao_Paulo' }],
+      ],
+    });
+    await expect(
+      assertWaitlistOfferAcceptable(tx, { clinicId: CLINIC, offeredAt, scheduledAt }),
+    ).rejects.toThrow('a oferta da lista de espera expirou');
+  });
+
+  it('rejeita horário passado mesmo com janela de resposta ainda aberta', async () => {
+    const tx = scriptedTx({
+      executes: [
+        [{ db_now: new Date('2026-10-10T11:00:00-03:00'), timezone: 'America/Sao_Paulo' }],
+      ],
+    });
+    await expect(
+      assertWaitlistOfferAcceptable(tx, {
+        clinicId: CLINIC,
+        offeredAt,
+        scheduledAt: new Date('2026-10-10T10:59:00-03:00'),
+      }),
+    ).rejects.toThrow('o horário ofertado já passou');
+  });
+});
+
+// ADR-066 — a varredura do cron usa a regra que o seam entrega à C14: o TTL só
+// corre nas horas de envio, no fuso de cada clínica.
+describe('findStaleWaitlistOffers — a mesma janela do seam', () => {
+  const SP = 'America/Sao_Paulo';
+
+  function offer(id: string, offeredAt: string, timeZone: string | null = SP) {
+    return { id, clinicId: CLINIC, offeredAt: new Date(offeredAt), timeZone };
+  }
+
+  async function staleAt(now: string, rows: unknown[]) {
+    const tx = scriptedTx({ selects: [rows] });
+    const stale = await findStaleWaitlistOffers(tx, { now: new Date(now), limit: 200 });
+    return stale.map((row) => row.id);
+  }
+
+  it('às 8h a oferta das 21h segue aberta; a das 10h da véspera já venceu', async () => {
+    const rows = [
+      offer('entry-dia', '2026-10-09T10:00:00-03:00'),
+      offer('entry-noite', '2026-10-09T21:00:00-03:00'),
+    ];
+
+    // Contadas as horas da madrugada, a das 21h teria vencido à 1h e seria
+    // repassada nesta passada, antes de o convite poder sair.
+    await expect(staleAt('2026-10-10T08:00:00-03:00', rows)).resolves.toEqual(['entry-dia']);
+  });
+
+  it('a oferta das 21h vence às 12h em ponto', async () => {
+    const rows = [offer('entry-noite', '2026-10-09T21:00:00-03:00')];
+
+    await expect(staleAt('2026-10-10T11:45:00-03:00', rows)).resolves.toEqual([]);
+    await expect(staleAt('2026-10-10T12:00:00-03:00', rows)).resolves.toEqual(['entry-noite']);
+  });
+
+  it('a oferta diurna vence 240 min depois, como antes', async () => {
+    const rows = [offer('entry-dia', '2026-10-09T10:00:00-03:00')];
+
+    await expect(staleAt('2026-10-09T13:59:59-03:00', rows)).resolves.toEqual([]);
+    await expect(staleAt('2026-10-09T14:00:00-03:00', rows)).resolves.toEqual(['entry-dia']);
+  });
+
+  it('cada clínica conta no próprio fuso, e sem fuso vale o de São Paulo', async () => {
+    const rows = [
+      offer('entry-sp', '2026-10-09T21:00:00-03:00'),
+      offer('entry-manaus', '2026-10-09T21:00:00-04:00', 'America/Manaus'),
+      offer('entry-sem-fuso', '2026-10-09T21:00:00-03:00', null),
+    ];
+
+    // 12h em São Paulo são 11h em Manaus: lá a janela ainda tem uma hora.
+    await expect(staleAt('2026-10-10T12:00:00-03:00', rows)).resolves.toEqual([
+      'entry-sp',
+      'entry-sem-fuso',
+    ]);
+  });
+
+  it('não deixa um fuso ainda aberto ocupar o limite e esconder outro já vencido', async () => {
+    const tx = scriptedTx({
+      selects: [
+        [offer('entry-manaus', '2026-10-09T20:00:00-04:00', 'America/Manaus')],
+        [offer('entry-sp', '2026-10-09T22:00:00-03:00')],
+      ],
+    });
+    const stale = await findStaleWaitlistOffers(tx, {
+      now: new Date('2026-10-10T12:00:00-03:00'),
+      limit: 1,
+    });
+    expect(stale.map((row) => row.id)).toEqual(['entry-sp']);
+    expect(orderBys).toHaveLength(2);
+  });
+
+  it('o SQL só pré-filtra pelo TTL corrido, das ofertas mais antigas às mais novas', async () => {
+    await staleAt('2026-10-10T12:00:00-03:00', []);
+
+    const dialect = new PgDialect();
+    const where = dialect.sqlToQuery(wheres[0] as SQL);
+    expect(where.sql).toContain('"waitlist_entries"."offered_at" <=');
+    // 240 min antes de `now`: a janela nunca fecha antes disso.
+    expect(where.params).toContain('2026-10-10T11:00:00.000Z');
+    expect(dialect.sqlToQuery(sql.join(orderBys[0]!, sql`, `)).sql).toBe(
+      '"waitlist_entries"."offered_at" asc, "waitlist_entries"."id" asc',
+    );
   });
 });

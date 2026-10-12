@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 
 import {
+  ensurePasswordAuthenticatedSignupAuthBinding,
   readSignupDraft,
-  resolveReadyOwnedSignupOnboarding,
+  resolveSignupDraftEntry,
   signupDraftMutationSchema,
   writeSignupDraft,
 } from '@/contexts/onboarding';
@@ -13,7 +14,7 @@ import {
 } from '@/lib/auth/rate-limit';
 import { hashSignupUserId } from '@/lib/auth/signup-user-hash';
 import { env } from '@/lib/env';
-import { buildApplicationUrl } from '@/lib/http/application-url';
+import { resolveTrustedApplicationOrigin } from '@/lib/http/application-url';
 import { readWebhookBodyCapped } from '@/lib/http/webhook-body';
 
 import { SIGNUP_COOKIE_CLEAR_OPTIONS, SIGNUP_SESSION_COOKIE } from '../cookie';
@@ -39,19 +40,20 @@ function authFailure(reason: string): NextResponse {
 }
 
 async function readyPreTenant(): Promise<
-  | { ok: true; userId: string; email: string; signupRef: string }
+  | { ok: true; userId: string; email: string; signupRef: string | null; restart: boolean }
   | { ok: false; response: NextResponse }
 > {
-  const onboarding = await resolveReadyOwnedSignupOnboarding();
+  const onboarding = await resolveSignupDraftEntry();
   if (!onboarding.ok) return { ok: false, response: authFailure(onboarding.reason) };
-  if (onboarding.kind !== 'pretenant') {
+  if (onboarding.kind === 'redirect') {
     return { ok: false, response: json({ error: 'forbidden' }, 403) };
   }
   return {
     ok: true,
     userId: onboarding.userId,
     email: onboarding.email,
-    signupRef: onboarding.signupRef,
+    signupRef: onboarding.kind === 'restart' ? null : onboarding.signupRef,
+    restart: onboarding.kind === 'restart',
   };
 }
 
@@ -78,7 +80,8 @@ export async function GET(req: Request): Promise<Response> {
     if (!limit.ok)
       return limited(limit.reason, 'retryAfter' in limit ? limit.retryAfter : undefined);
 
-    const result = await readSignupDraft(identity.userId, identity.signupRef);
+    if (identity.restart) return json({ error: 'gone' }, 410);
+    const result = await readSignupDraft(identity.userId, identity.signupRef ?? undefined);
     if (!result.ok) {
       return json({ error: result.reason }, result.reason === 'gone' ? 410 : 503);
     }
@@ -98,19 +101,9 @@ export async function GET(req: Request): Promise<Response> {
 export async function POST(req: Request): Promise<Response> {
   if (!env.SIGNUP_AUTH_ENABLED || !env.SIGNUP_IDENTITY_ENABLED)
     return json({ error: 'unavailable' }, 503);
-  let origin: string;
-  try {
-    origin = new URL(
-      buildApplicationUrl(env.APP_BASE_URL ?? '', '/', {
-        allowInsecureLocalhost: env.NODE_ENV !== 'production',
-      }),
-    ).origin;
-  } catch {
-    return json({ error: 'unavailable' }, 503);
-  }
-  if (req.headers.get('origin') !== origin || req.headers.get('sec-fetch-site') === 'cross-site') {
-    return json({ error: 'blocked' }, 403);
-  }
+  const publicOrigin = resolveTrustedApplicationOrigin(req);
+  if (publicOrigin === undefined) return json({ error: 'unavailable' }, 503);
+  if (publicOrigin === null) return json({ error: 'blocked' }, 403);
 
   try {
     const identity = await readyPreTenant();
@@ -140,6 +133,13 @@ export async function POST(req: Request): Promise<Response> {
     });
     if (!result.ok) {
       return json({ error: result.reason }, result.reason === 'conflict' ? 409 : 503);
+    }
+    if (identity.restart) {
+      const binding = await ensurePasswordAuthenticatedSignupAuthBinding({
+        userId: identity.userId,
+        email: identity.email,
+      });
+      if (!binding.ok) return json({ error: 'binding_unavailable' }, 503);
     }
     const response = json({ rowVersion: result.rowVersion });
     response.cookies.set(SIGNUP_SESSION_COOKIE, '', SIGNUP_COOKIE_CLEAR_OPTIONS);

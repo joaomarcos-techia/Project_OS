@@ -11,9 +11,12 @@
 export {
   clinicDepositPolicy,
   clinicPaymentAccounts,
+  clinicPaymentPricingPolicies,
+  procedurePaymentPrices,
   type ClinicDepositPolicyRow,
   type ClinicPaymentAccountRow,
 } from './schema';
+export type { ClinicPricingPolicyMode, ProcedurePaymentMethod } from './schema';
 export {
   DEPOSIT_POLICY_OFF,
   isRefundableCancellation,
@@ -28,11 +31,25 @@ export {
   type ConnectPaymentAccountResult,
   type ConnectPaymentAccountInput,
   type DepositPolicyDTO,
+  type PaymentAccountClosureDTO,
   type PaymentAccountStatusDTO,
   type PaymentWebhookConfigurationIssue,
   type SaveDepositPolicyInput,
 } from './types';
 export { PaymentCredentialRejectedError, PaymentProviderUnavailableError } from './errors';
+export type {
+  PaymentPricingPolicyDTO,
+  ProcedurePaymentPriceDTO,
+  SavePaymentPricingPolicyInput,
+  SaveProcedurePaymentPriceInput,
+} from './pricing-types';
+export {
+  getEffectivePaymentPricingMode,
+  getPaymentPricingPolicy,
+  listProcedurePaymentPrices,
+  matchesConfiguredProcedurePriceSnapshot,
+  resolveConfiguredProcedurePaymentPrice,
+} from './pricing-queries';
 export { PAYMENTS_EVENTS } from './events';
 export type {
   PatientChargeClosedPayload,
@@ -45,10 +62,15 @@ export type {
   ExcessRefundConfirmedPayload,
   PatientPaymentRiskChangedPayload,
 } from './events';
+export type { PatientPaymentEconomicsReconciledPayload } from './events';
+export type { PatientPaymentEconomicsCorrectedPayload } from './events';
 export {
   paymentsApiV1,
   type ExcessRefundStatus,
   type FailedChargeDTO,
+  type ManualRefundTask,
+  type PatientChargeEconomicsDTO,
+  type PatientChargeStatus,
   type PayableCharge,
   type PaymentsApiV1,
 } from './api';

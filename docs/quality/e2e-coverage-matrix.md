@@ -41,7 +41,7 @@ _poderiam_ estar.
 | Recuperação de senha | solicitar                               | qualquer    | sim      | anti-enumeração                | `production-password-recovery-a`                    | —                                    | Coberto |
 | Recuperação de senha | prova de recovery, uso único, revogação | owner       | sim      | replay, token inválido         | `production-password-recovery-a`                    | —                                    | Coberto |
 | Logout               | revogar refresh, dois dispositivos      | owner       | sim      | replay do cookie               | `production-session-logout-replay-a`                | —                                    | Coberto |
-| Fronteira sem sessão | 22 rotas protegidas                     | anônimo     | —        | sim                            | `production-unauthenticated-boundary` (só prod)     | `public-surface` (qualquer ambiente) | Coberto |
+| Fronteira sem sessão | 28 rotas + deep-links reais             | anônimo     | —        | sim                            | `production-unauthenticated-boundary` (só prod)     | `public-surface` (qualquer ambiente) | Coberto |
 | Cabeçalhos           | CSP, sem curinga, Turnstile             | anônimo     | sim      | —                              | `headers-gate.test.ts` (unitário)                   | `public-surface` (HTTP real)         | Coberto |
 
 ## 2. Cadastro autônomo (ADR-060)
@@ -358,7 +358,7 @@ arquivos geram 47 casos porque `production-role-journeys-a` possui quatro.
 | Gemini 3–50 | provider real, 48 chamadas | 48 | 0 | 0 | 0 | zero resposta final insegura; custo calculado US$ 0,096410 |
 | Conta de pagamentos | Preview + DEV + Asaas Sandbox | 2 | 0 | 0 | 0 | chave inválida negada; conectar/desconectar; cleanup Auth/DB zero |
 | Refund cartão | Asaas Sandbox | 1 | 0 | 0 | 0 | `CONFIRMED` → refund terminal; replay sem duplicata |
-| Refund PIX | Asaas Sandbox | 0 | 0 | 1 | 0 | `RECEIVED` → `AWAITING_CRITICAL_ACTION_AUTHORIZATION`; sem segundo POST |
+| Refund PIX | Asaas Sandbox | 0 | 1 | 0 | 0 | `RECEIVED`; readback pontual de 05/10 em `/payments/{id}/refunds` confirmou zero `DONE`: um `CANCELLED` numa cobrança e dois noutra; transações Pix `CREDIT_REFUND/REFUSED` com motivo genérico do provider; retomada não criou terceiro POST |
 | `production-*` | 44 arquivos / 47 casos | 3 | 0 | 4 | 40 | RLS leitura, RLS rollback e founder PASS; credenciais/conversa bloqueiam quatro |
 | Supavisor atual | 48 conexões PROD read-only probe | 48 | 0 | 0 | 0 | zero sessão contaminada; dois backends; p95 2,6 s |
 | Incidentes de conexão | ratchets locais | 23 | 0 | 0 | 0 | mitigação/observabilidade PASS; causa externa continua não comprovada |
@@ -383,3 +383,53 @@ O resultado do Playwright não substitui a jornada real da Meta: quatro casos
 foram pulados porque não havia número conectado. A prova externa do agente
 anterior é mantida como evidência histórica separada, sem ser recontada como uma
 execução desta rodada.
+
+## 17. Fechamento do Preview — 01/10/2026
+
+| Domínio | Execução | PASS | FAIL | BLOCKED | SKIP | Evidência |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| Convite por e-mail | Preview + Resend inbound + Auth DEV | 1 | 0 | 0 | 0 | inicial e reenvio recebidos; token antigo negado; novo aceito; tenant e replay conferidos; cleanup completo |
+| Conta de pagamentos | Preview + DEV + Asaas Sandbox | 2 | 0 | 0 | 0 | chave inválida negada; conectar, persistir e desconectar; fixture removida |
+| Gemini 3–50 | provider real | 48 | 0 | 0 | 0 | 48 chamadas, zero resposta final insegura; custo US$ 0,096414 |
+| WhatsApp perfil em coexistência | Preview autenticado | 4 | 0 | 0 | 3 | leitura funcional; escrita não aplicável porque Graph devolve 403 nesse modo |
+| `production-*` | 44 arquivos / 47 casos | 5 | 0 | 4 | 38 | cinco provas funcionais; mutações autorizadas PASS 1/1 em 59,2 s; cleanup externo com readback zero |
+| Refund PIX | Asaas Sandbox | 0 | 0 | 1 | 0 | refund novo aguarda autorização crítica; execução fez somente readback |
+| Regressão global | Vitest | 4583 | 0 | 0 | 0 | 442 arquivos, exit 0 |
+| Build Next | modo production | 1 | 0 | 0 | 0 | 18 páginas estáticas, exit 0; mesmo commit verde no CI/Vercel |
+
+`production-authorized-mutations` agora separa o orçamento do `afterEach`,
+espera a hidratação das telas cliente e usa os contratos atuais da agenda e do
+caixa. A execução real terminou 1/1 PASS e a limpeza transacional posterior
+removeu paciente, atendimentos, prontuários, documentos, lançamentos e eventos
+sintéticos; o readback final encontrou zero resíduo atual.
+
+## 18. Execução adicional das suítes de produção — 01/10/2026
+
+| Domínio | Execução | PASS | FAIL | BLOCKED | SKIP | Evidência |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| MFA | produção, conta E2E owner | 1 | 0 | 0 | 0 | TOTP ativado, AAL2 comprovado, fator removido e readback zero |
+| Financeiro | produção, fixture sintética isolada | 1 | 0 | 0 | 0 | inválidos, arredondamento, cancelamento, duas parcelas, dois estornos, filtros e cleanup zero |
+| Transições de role | produção, membro sintético convidado | 1 | 0 | 0 | 0 | 12 transições/ponte, sessão antiga recusada e claims/bundle atuais; cleanup zero |
+| Fronteira anônima | produção | 2 | 0 | 0 | 1 | 28 rotas estáticas + 5 deep-links negados; conversa sem fixture ficou SKIP |
+| `production-*` consolidado | 44 arquivos / 49 casos | 10 | 0 | 3 | 36 | 8 arquivos PASS integral, 1 PARTIAL, 3 PRECONDITION BLOCKED e 32 SKIP |
+
+A coleta conjunta sem opt-ins produziu **46 SKIP + 3 PRECONDITION BLOCKED** e
+zero PASS. Os dez PASS do consolidado pertencem a execuções isoladas com os
+guardas satisfeitos; não foram inferidos da coleta. Os três bloqueios continuam
+sendo credenciais doctor/owner específicas ausentes. O caso de conversa é SKIP
+justificado pela inexistência de `ai_conversations` em produção.
+
+## 19. Fotografia funcional adicional — 05/10/2026
+
+| Domínio | Ambiente e execução | PASS | FAIL | BLOCKED | SKIP | Limite da prova |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| Cadastro e Checkout SaaS | Preview HTTPS + Supabase DEV + Resend + Asaas Sandbox | 1 | 0 | 0 | 0 | Abriu Checkout e persistiu `checkout_pending`; pagamento/webhook não executados |
+| Conta Asaas, política e Caixa | Preview HTTPS + fixture DEV/Sandbox; `payments-account-lifecycle.spec.ts` | 5 | 0 | 0 | 0 | Chave inválida, conexão/desconexão, preços Pro, bloqueio Solo na UI e Action, retorno Clínica; Caixa Solo com economia parcialmente desconhecida; Caixa Pro com NET/repasse de R$ 70,80 e suspensão visual após reload, ambos sintéticos; fixture eliminada |
+| Guardas de preço e Checkout no PostgreSQL | DEV; dois smokes isolados | 2 | 0 | 0 | 0 | Segundo smoke usa provider sintético e handler da fixture, sem worker global |
+| Regra temporal e suspensão auditada do repasse | PostgreSQL DEV + Auth DEV; `smoke-professional-payout-date-db.ts` | 1 | 0 | 0 | 0 | Atraso, remarcação, regra/base, NET pendente; perda sintética suspende GROSS e NET sem reabertura automática, preserva R$ 75,00 uma vez em `audit_events`; rollback e cleanup; ainda sem decisão humana/provider real |
+| `production-*` | 44 arquivos / 50 casos na coleta atual | 3 | 0 | 1 | 46 | A maioria continuou sem pré-condição de execução; ver [relatório específico](production-44-execution.md) |
+
+Os resultados de 01/10 acima são fotografias históricas, não os totais da coleta
+de 05/10. A [especificação financeira](../specs/politica-financeira-camadas.md)
+registra as falhas de teste corrigidas, os comandos, a limpeza e as pendências
+externas sem converter um Checkout aberto em pagamento concluído.

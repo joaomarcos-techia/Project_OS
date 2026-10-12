@@ -8,6 +8,7 @@ import type {
   PaymentMethodDTO,
   PaymentTransactionSummary,
 } from '@/contexts/financial/types';
+import { catalogPaymentMethodForCommercial } from '@/contexts/financial/commercial-method';
 import { Button } from '@/components/ui/button';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
@@ -24,10 +25,28 @@ export interface RefundInput {
   comprovante: { type: 'comprovante'; fileStoragePath: string } | null;
 }
 
+/** Código do catálogo para dinheiro — o mesmo que o servidor sempre aceita. */
+const CASH_METHOD = catalogPaymentMethodForCommercial('cash');
+
+/** Rótulo da ação de dinheiro: com parte já paga (o sinal, por exemplo), é o restante. */
+export function cashActionLabel(item: CaixaItem): string {
+  return item.valorPago > 0 ? 'Pagou o restante em dinheiro' : 'Pagou em dinheiro';
+}
+
+/** O botão de dinheiro só existe para recebível em aberto e com dinheiro no catálogo. */
+export function canMarkPaidInCash(item: CaixaItem, methods: PaymentMethodDTO[]): boolean {
+  return (
+    item.tipo === 'receber' &&
+    (item.status === 'pendente' || item.status === 'parcial') &&
+    methods.some((method) => method.code === CASH_METHOD)
+  );
+}
+
 export function ConfirmPaymentPanel({
   item,
   methods,
   pending,
+  cashOnly = false,
   onClose,
   onRequestCancel,
   onSubmit,
@@ -35,25 +54,46 @@ export function ConfirmPaymentPanel({
   item: CaixaItem;
   methods: PaymentMethodDTO[];
   pending: boolean;
+  /** "Pagou em dinheiro": só dinheiro, saldo inteiro pré-preenchido. */
+  cashOnly?: boolean;
   onClose?: () => void;
   /** Ausente quando o perfil nao pode operar o caixa — ai o botao nao existe. */
   onRequestCancel?: (() => void) | undefined;
   onSubmit: (valorPago: number, method: string, comprovante: string) => void;
 }) {
+  const commercialMethod = catalogPaymentMethodForCommercial(item.commercialPaymentMethod ?? null);
+  // Dinheiro na recepção sempre quita o atendimento (08/10/2026): ele aparece ao
+  // lado da forma acordada, que segue sendo a única outra opção.
+  const availableMethods = cashOnly
+    ? methods.filter((paymentMethod) => paymentMethod.code === CASH_METHOD)
+    : item.commercialPaymentMethod
+      ? methods.filter(
+          (paymentMethod) =>
+            paymentMethod.code === commercialMethod || paymentMethod.code === CASH_METHOD,
+        )
+      : methods;
   const [valor, setValor] = useState(String(outstandingBalance(item).toFixed(2)));
-  const [method, setMethod] = useState(methods[0]?.code ?? '');
+  const [method, setMethod] = useState(availableMethods[0]?.code ?? '');
   const [comprovante, setComprovante] = useState('');
 
   const valorNum = Number(valor.replace(',', '.'));
-  const valid = method && valorNum > 0 && valorNum <= outstandingBalance(item) + 1e-9;
+  const valid =
+    availableMethods.some((paymentMethod) => paymentMethod.code === method) &&
+    valorNum > 0 &&
+    valorNum <= outstandingBalance(item) + 1e-9;
   const actionLabel = item.tipo === 'pagar' ? 'Pagar' : 'Receber';
 
   return (
     <div className="grid gap-3 rounded-(--r-md) border border-border bg-surface p-3 sm:grid-cols-3">
       <div className="sm:col-span-3">
-        <p className="font-medium text-fg">{actionLabel} lançamento</p>
+        <p className="font-medium text-fg">
+          {cashOnly ? cashActionLabel(item) : `${actionLabel} lançamento`}
+        </p>
         <p className="text-pretty text-(length:--fs-xs) text-fg-muted">
-          Confira valor e forma de pagamento antes de confirmar. Saldo atual:{' '}
+          {cashOnly
+            ? 'Registra o dinheiro recebido na recepção. Se o link do restante já foi enviado ao paciente, ele deixa de valer. '
+            : 'Confira valor e forma de pagamento antes de confirmar. '}
+          Saldo atual:{' '}
           <span className="font-medium tabular-nums">{formatBRL(outstandingBalance(item))}</span>.
         </p>
       </div>
@@ -63,7 +103,7 @@ export function ConfirmPaymentPanel({
           value={method}
           onChange={(event) => setMethod(event.target.value)}
         >
-          {methods.map((paymentMethod) => (
+          {availableMethods.map((paymentMethod) => (
             <option key={paymentMethod.code} value={paymentMethod.code}>
               {paymentMethod.label}
             </option>

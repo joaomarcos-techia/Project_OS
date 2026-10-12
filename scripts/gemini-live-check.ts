@@ -103,6 +103,8 @@ async function main(): Promise<void> {
       {
         name: 'provide_clinic_info',
         args: r1.toolCalls[0]!.args,
+        // Gemini 3 recusa (400) a rechamada sem a assinatura do functionCall.
+        ...(r1.toolCalls[0]!.signature ? { signature: r1.toolCalls[0]!.signature } : {}),
         response: {
           nome: ctx.clinic.nome,
           endereco: ctx.clinic.endereco,
@@ -148,6 +150,7 @@ async function main(): Promise<void> {
       {
         name: 'prepare_appointment',
         args: r3.toolCalls[0]!.args,
+        ...(r3.toolCalls[0]!.signature ? { signature: r3.toolCalls[0]!.signature } : {}),
         response: {
           status: 'patient_registration_required',
           required_fields: ['nome', 'cpf', 'motivo'],

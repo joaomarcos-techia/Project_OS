@@ -3,7 +3,7 @@
  *
  * Implementa `AIProvider` direto via fetch cru (mesmo padrão do
  * MetaCloudProvider — sem SDK, sem dependência nova). Modelo default
- * gemini-3.8-flash (env.GEMINI_MODEL).
+ * gemini-3.6-flash (env.GEMINI_MODEL).
  *
  * Timeout: todo fetch usa `AbortSignal.timeout` (env.AI_HTTP_TIMEOUT_MS,
  * default 15s). Sem o teto, um request lento segura o worker do outbox.
@@ -45,6 +45,8 @@ interface GeminiResponseBody {
   usageMetadata?: {
     promptTokenCount?: number;
     candidatesTokenCount?: number;
+    /** Tokens de raciocínio — cobrados pelo preço de SAÍDA. */
+    thoughtsTokenCount?: number;
   };
 }
 interface GeminiCandidate {
@@ -53,6 +55,8 @@ interface GeminiCandidate {
 interface GeminiPart {
   text?: string;
   functionCall?: { name?: string; args?: unknown };
+  /** Gemini 3: assinatura do raciocínio que precisa voltar com o functionCall. */
+  thoughtSignature?: string;
 }
 
 type GeminiContent = { role: 'user' | 'model'; parts: Record<string, unknown>[] };
@@ -65,11 +69,16 @@ function buildContents(opts: GenerateOpts): GeminiContent[] {
 
   // Re-chamada pós-tool: o protocolo exige o turno `functionCall` do modelo
   // seguido do turno `functionResponse` do caller — reconstituímos ambos a
-  // partir dos ToolResult (que ecoam os args originais).
+  // partir dos ToolResult (que ecoam os args originais). Os modelos Gemini 3
+  // recusam com 400 um functionCall sem a `thoughtSignature` que eles mesmos
+  // emitiram; ela volta intacta quando existir.
   if (opts.toolResults && opts.toolResults.length > 0) {
     contents.push({
       role: 'model',
-      parts: opts.toolResults.map((r) => ({ functionCall: { name: r.name, args: r.args ?? {} } })),
+      parts: opts.toolResults.map((r) => ({
+        functionCall: { name: r.name, args: r.args ?? {} },
+        ...(r.signature ? { thoughtSignature: r.signature } : {}),
+      })),
     });
     contents.push({
       role: 'user',
@@ -161,14 +170,25 @@ export class GeminiProvider implements AIProvider {
     const textParts = parts.filter((p) => typeof p.text === 'string').map((p) => p.text as string);
     const toolCalls: ToolCall[] = parts
       .filter((p) => p.functionCall && typeof p.functionCall.name === 'string')
-      .map((p) => ({ name: p.functionCall!.name!, args: p.functionCall!.args ?? {} }));
+      .map((p) => ({
+        name: p.functionCall!.name!,
+        args: p.functionCall!.args ?? {},
+        ...(typeof p.thoughtSignature === 'string' && p.thoughtSignature
+          ? { signature: p.thoughtSignature }
+          : {}),
+      }));
 
     return {
       text: textParts.length > 0 ? textParts.join('') : undefined,
       toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
       usage: {
         tokensInput: parsed.usageMetadata?.promptTokenCount ?? 0,
-        tokensOutput: parsed.usageMetadata?.candidatesTokenCount ?? 0,
+        // O Gemini cobra o raciocínio como saída. Sem `thoughtsTokenCount`, um
+        // turno de 10 tokens visíveis e ~500 de raciocínio (medido em 08/10/2026)
+        // era contabilizado como 10: custo e teto por clínica (R4) subestimados.
+        tokensOutput:
+          (parsed.usageMetadata?.candidatesTokenCount ?? 0) +
+          (parsed.usageMetadata?.thoughtsTokenCount ?? 0),
         model: this.model,
       },
     };

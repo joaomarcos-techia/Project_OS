@@ -128,6 +128,11 @@ export interface AIConversationListItem {
   maskedPhone: string | null;
   /** Contato completo para a UI autorizada de conversas. Nunca usar em logs. */
   contactPhone: string | null;
+  /**
+   * Nome do perfil do WhatsApp do contato (0114), decifrado no servidor; null
+   * quando a Meta ainda não o enviou. Nunca usar em logs.
+   */
+  contactName: string | null;
   /** Trecho da última mensagem, truncado. Decifrado no servidor. */
   lastMessagePreview: string | null;
   status: AIConversationStatus;
@@ -190,6 +195,8 @@ export interface AIConversationThread {
   maskedPhone: string | null;
   /** Decifrado no servidor somente dentro da clínica autorizada. */
   contactPhone: string | null;
+  /** Nome do perfil do WhatsApp do contato (0114); null quando ausente. */
+  contactName: string | null;
   status: AIConversationStatus;
   intentAtual: string | null;
   startedAt: string;

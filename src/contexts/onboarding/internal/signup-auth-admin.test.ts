@@ -36,6 +36,7 @@ import {
   ensurePasswordAuthenticatedSignupAuthBinding,
   ensureReadyOwnedSignupAuthBinding,
   ensureVerifiedSignupAuthBinding,
+  resolveSignupDraftEntry,
   resolveReadyOwnedSignupOnboarding,
   validateVerifiedSignupAuthUserForClaim,
 } from './signup-auth-admin';
@@ -104,6 +105,41 @@ describe('resolveReadyOwnedSignupOnboarding', () => {
       ok: false,
       reason: 'unavailable',
     });
+  });
+
+  it('aceita draft recriado sem tentativa de e-mail somente com marker pronto correspondente', async () => {
+    mocks.readOwnedSignupReference.mockResolvedValue({
+      ok: true,
+      signupRef: newRef,
+      credentialState: null,
+    });
+    await expect(resolveReadyOwnedSignupOnboarding()).resolves.toMatchObject({
+      ok: true,
+      kind: 'pretenant',
+      signupRef: newRef,
+    });
+  });
+});
+
+describe('resolveSignupDraftEntry', () => {
+  it('oferece recomeço apenas à sessão pronta sem draft vivo', async () => {
+    mocks.readOwnedSignupReference.mockResolvedValue({ ok: false, reason: 'gone' });
+    await expect(resolveSignupDraftEntry()).resolves.toEqual({
+      ok: true,
+      kind: 'restart',
+      userId,
+      email,
+    });
+  });
+
+  it('não abre recomeço com credencial pendente nem falha do banco', async () => {
+    mocks.resolveReady.mockResolvedValueOnce({ ok: false, reason: 'credentials_pending' });
+    await expect(resolveSignupDraftEntry()).resolves.toEqual({
+      ok: false,
+      reason: 'credentials_pending',
+    });
+    mocks.readOwnedSignupReference.mockResolvedValue({ ok: false, reason: 'unavailable' });
+    await expect(resolveSignupDraftEntry()).resolves.toEqual({ ok: false, reason: 'unavailable' });
   });
 });
 
@@ -244,6 +280,28 @@ describe('ensurePasswordAuthenticatedSignupAuthBinding', () => {
       reason: 'obfuscated',
     });
     expect(mocks.updateUserById).not.toHaveBeenCalled();
+  });
+
+  it('reata marker set ao draft novo sem tentativa de e-mail após expiração', async () => {
+    const readyOld = markPasswordAuthenticatedSignupReady(user(), oldRef);
+    const previous = { ...user(), app_metadata: readyOld };
+    mocks.getUserById.mockResolvedValue({ data: { user: previous }, error: null });
+    mocks.readOwnedSignupReference.mockResolvedValue({
+      ok: true,
+      signupRef: newRef,
+      credentialState: null,
+    });
+    mocks.updateUserById.mockImplementationOnce(async (_id, attributes) => ({
+      data: { user: { ...previous, app_metadata: attributes.app_metadata } },
+      error: null,
+    }));
+
+    await expect(ensurePasswordAuthenticatedSignupAuthBinding({ userId, email })).resolves.toEqual({
+      ok: true,
+    });
+    expect(mocks.updateUserById).toHaveBeenCalledWith(userId, {
+      app_metadata: markPasswordAuthenticatedSignupReady(previous, newRef),
+    });
   });
 
   it('cria marker ready após login quando o draft antigo já não existe', async () => {

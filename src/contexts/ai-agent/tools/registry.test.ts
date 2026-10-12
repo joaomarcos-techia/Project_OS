@@ -222,4 +222,24 @@ describe('listToolDeclarations (wire format p/ o provider)', () => {
     registerEcho();
     expect(() => registerEcho()).toThrow(/duplicada/);
   });
+
+  it('declara enum de pagamento e parcelas inteiras para o provider', () => {
+    registerTool({
+      name: 'payment_tool',
+      description: 'd',
+      inputSchema: z.object({
+        payment_method: z.enum(['pix', 'credit_card']).optional(),
+        installment_count: z.number().int().min(1).max(12).optional(),
+      }),
+      outputSchema: z.object({}),
+      handler: async () => ({}),
+    });
+    expect(listToolDeclarations()[0]?.parameters).toEqual({
+      type: 'object',
+      properties: {
+        payment_method: { type: 'string', enum: ['pix', 'credit_card'] },
+        installment_count: { type: 'integer' },
+      },
+    });
+  });
 });

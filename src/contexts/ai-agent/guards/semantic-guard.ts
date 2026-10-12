@@ -28,7 +28,7 @@ function normalize(text: string): string {
 const PATTERNS: ReadonlyArray<{ category: string; re: RegExp }> = [
   {
     category: 'sintomas',
-    re: /\b(dor(es)?|febre|sangram\w*|tontura|tonteira|enjoo|nausea|vomito|diarreia|falta de ar|cansaco|fadiga|mancha\w*|coceira|incha\w*|palpitac\w*|desmaio|formigamento|convuls\w*|sintoma\w*|mal[- ]estar|colica\w*|azia|queimacao|calafrio\w*|secrecao|caroco|nodulo|les(a|o)es?\b)/,
+    re: /\b(dor(es)?|doi|doendo|febre|sangram\w*|tontura|tonteira|enjoo|nausea|vomito|diarreia|falta de ar|cansaco|fadiga|mancha\w*|coceira|incha\w*|palpitac\w*|desmaio|formigamento|convuls\w*|sintoma\w*|mal[- ]estar|colica\w*|azia|queimacao|calafrio\w*|secrecao|caroco|nodulo|les(a|o)es?\b|tosse\w*|catarro|coriza|espirr\w*|gripad\w*|resfriad\w*)/,
   },
   {
     category: 'diagnostico',
@@ -36,7 +36,7 @@ const PATTERNS: ReadonlyArray<{ category: string; re: RegExp }> = [
   },
   {
     category: 'medicamentos',
-    re: /\b(remedio\w*|medicament\w*|medicac\w*|dosagem|posologia|\d+ ?mg\b|comprimido\w*|antibiotico\w*|anti[- ]?inflamatorio\w*|analgesico\w*|dipirona|paracetamol|ibuprofeno|amoxicilina|omeprazol|rivotril|fluoxetina|pode tomar|devo tomar|tomar (algum|algo|um) (remedio|medicamento)|receit(a|ar|e) (um |o )?(remedio|medicament\w*)|automedicac\w*)\b/,
+    re: /\b(remedio\w*|medicament\w*|medicac\w*|dosagem|posologia|\d+ ?mg\b|comprimido\w*|antibiotico\w*|anti[- ]?inflamatorio\w*|analgesico\w*|dipirona|paracetamol|ibuprofeno|amoxicilina|omeprazol|rivotril|fluoxetina|xarope\w*|pode tomar|posso tomar|devo tomar|tomar (algum|algo|um) (remedio|medicamento)|receit(a|ar|e) (um |o )?(remedio|medicament\w*)|automedicac\w*)\b/,
   },
   {
     category: 'exames',
@@ -100,11 +100,107 @@ export function detectHumanHandoffRequest(text: string): boolean {
   return HUMAN_HANDOFF_RE.test(normalize(text));
 }
 
+/**
+ * Pergunta de INFORMAÇÃO da clínica (08/10/2026) — endereço, preço, horário,
+ * convênio, estacionamento. Durante o cadastro o servidor lia toda mensagem como
+ * o campo pendente: "qual o endereço de vocês?" virava o `motivo` da consulta e
+ * "quanto custa a consulta?" virava "CPF inválido". Os termos são específicos de
+ * propósito: um motivo legítimo ("consulta de rotina") não pode casar.
+ */
+const INFORMATION_QUESTION_RE =
+  /\b(endereco|onde (fica|ficam)|como (chego|chegar)|localizacao|horario de (funcionamento|atendimento)|que horas (voces )?(abre|abrem|fecha|fecham)|quanto custa|qual (o|e o) (preco|valor)|preco da consulta|valor da consulta|aceita(m)? (convenio|plano|cartao|pix)|tem estacionamento|estacionamento)\b/;
+
+/**
+ * "Já paguei" (08/10/2026, EC-22). O paciente AFIRMA que pagou — o servidor
+ * responde com o status real da cobrança, sem LLM, e nunca dá nada como pago
+ * pela palavra dele. Pergunta e futuro ("posso pagar em dinheiro?", "vou pagar
+ * amanhã") não casam: seguem para o fluxo normal. Negação ("ainda não paguei")
+ * também não.
+ *
+ * `cash` separa o pagamento em dinheiro: ele não passa pelo Asaas, quem
+ * confirma é a equipe da clínica.
+ */
+const PAYMENT_CLAIM_RE =
+  /\b(ja paguei|paguei|ja fiz o (pix|pagamento)|fiz o (pix|pagamento)|ja transferi|transferi|ja foi pago|pagamento (feito|realizado|efetuado|concluido)|(efetuei|realizei|conclui) o pagamento|(mandei|enviei|segue) o comprovante)\b/;
+const PAYMENT_CLAIM_NEGATION_RE =
+  /\b(nao|ainda nao|nunca)\s+(paguei|fiz o (pix|pagamento)|transferi|foi pago)\b/;
+const PAYMENT_CASH_RE =
+  /\b(em dinheiro|no dinheiro|em especie|na especie|na recepcao|no balcao|pessoalmente|no caixa da clinica|na clinica)\b/;
+
+export function detectPaymentClaim(text: string): { claimed: boolean; cash: boolean } {
+  const normalized = normalize(text);
+  if (!PAYMENT_CLAIM_RE.test(normalized) || PAYMENT_CLAIM_NEGATION_RE.test(normalized)) {
+    return { claimed: false, cash: false };
+  }
+  return { claimed: true, cash: PAYMENT_CASH_RE.test(normalized) };
+}
+
+export function detectInformationQuestion(text: string): boolean {
+  return INFORMATION_QUESTION_RE.test(normalize(text));
+}
+
+/**
+ * Sinais de URGÊNCIA (08/10/2026). Não é triagem nem diagnóstico: são relatos em
+ * que a resposta clínica padrão — "vou marcar para você conversar com o médico"
+ * — é perigosa, porque oferece consulta futura a quem pode estar em emergência.
+ * Falso positivo custa um aviso de emergência e um humano na conversa; falso
+ * negativo custa alguém com dor no peito esperando o horário de amanhã. Na
+ * dúvida, o termo entra. Rótulos fixos: nenhum texto do paciente vai para a
+ * telemetria.
+ */
+const EMERGENCY_PATTERNS: ReadonlyArray<{ label: string; re: RegExp }> = [
+  {
+    label: 'peito',
+    re: /\b((dor|aperto|pressao|queimacao) (forte )?no peito|peito (doi|doe|doendo|apertado|ta doendo|esta doendo))\b/,
+  },
+  {
+    label: 'respiracao',
+    re: /\b(falta de ar|sem ar|nao (consigo|consegue|esta conseguindo|to conseguindo) respirar|dificuldade (para|pra|de) respirar|sufoca\w*)\b/,
+  },
+  {
+    label: 'consciencia',
+    re: /\b(desmai\w*|convuls\w*|inconscient\w*|desacordad\w*|perd\w* (a )?consciencia|nao (acorda|responde))\b/,
+  },
+  {
+    label: 'neurologico',
+    re: /\b(avc|derrame|boca torta|rosto torto|perd\w* (a )?forca (no|na|do|da) (braco|perna|lado))\b/,
+  },
+  { label: 'cardiaco', re: /\b(infart\w*|parada cardiaca)\b/ },
+  {
+    label: 'sangramento',
+    re: /\b(hemorragia|sangrando muito|sangramento (forte|intenso|muito forte|que nao para))\b/,
+  },
+  {
+    label: 'intoxicacao',
+    re: /\b(overdose|envenen\w*|intoxica\w*|engoli\w* (veneno|produto de limpeza|remedios?|comprimidos))\b/,
+  },
+  {
+    label: 'alergia_grave',
+    re: /\b(anafila\w*|garganta (esta |ta )?(fechando|fechou|inchad\w*|inchando)|lingua (esta |ta )?(inchad\w*|inchando)|reacao alergica (grave|forte))\b/,
+  },
+  {
+    label: 'autolesao',
+    re: /\b(suicid\w*|me matar|se matar|tirar (a )?minha (propria )?vida|acabar com (a )?minha vida|nao quero mais viver|me machucar|automutila\w*|autolesao)\b/,
+  },
+  { label: 'emergencia', re: /\bemergencia\b/ },
+];
+
+/** Relato com sinal de urgência? `matched` = rótulo fixo (telemetria). */
+export function detectEmergency(text: string): SemanticCheckResult {
+  const norm = normalize(text);
+  for (const { label, re } of EMERGENCY_PATTERNS) {
+    if (re.test(norm)) return { safe: false, matched: `emergencia:${label}` };
+  }
+  return { safe: true };
+}
+
 /** Estados de cadastro conduzidos INTEGRALMENTE pelo servidor (sem LLM). */
 type ServerDrivenRegistration = 'collecting' | 'awaiting_confirmation';
 
 export type TurnGuardDecision =
   | { kind: 'allow' }
+  /** Sinal de urgência → orientação de emergência fixa + humano, sem LLM. */
+  | { kind: 'emergency'; matched: string }
   /** Pergunta clínica pura → fallback clínico + contador de escalonamento. */
   | { kind: 'clinical_block'; matched: string }
   /** Clínico E operacional → fallback clínico + retomada da jornada, sem LLM. */
@@ -117,6 +213,10 @@ export type TurnGuardDecision =
  *
  * A ordem importa e é o coração da correção:
  *
+ *  0. **Urgência antes de tudo** (08/10/2026). Nem o cadastro em andamento pode
+ *     transformar "estou com dor no peito e falta de ar" no campo `motivo`, nem o
+ *     fallback clínico pode responder "vou marcar para você conversar com o
+ *     médico" a quem talvez precise do SAMU agora.
  *  1. **Cadastro primeiro.** Num turno de coleta o servidor responde sozinho —
  *     o LLM não é chamado, logo não há risco de orientação clínica. Sem esta
  *     isenção, um `motivo` legítimo como "dor nas costas" era barrado pelo
@@ -133,6 +233,9 @@ export function decideTurnGuard(args: {
   text: string;
   registrationStatus: string;
 }): TurnGuardDecision {
+  const emergency = detectEmergency(args.text);
+  if (!emergency.safe) return { kind: 'emergency', matched: emergency.matched ?? 'emergencia' };
+
   const serverDriven: readonly string[] = [
     'collecting',
     'awaiting_confirmation',

@@ -95,6 +95,7 @@ describe('POST signup resend', () => {
       email: input.email,
       signupRef: 'a'.repeat(64),
       attemptEpoch: 1_795_000_060_000,
+      publicOrigin: 'https://app.qoro.test',
     });
     expect(finish).toHaveBeenCalledWith(token, 6, 'completed');
   });

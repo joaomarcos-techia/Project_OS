@@ -85,7 +85,7 @@ export function ConversationThread({
         </div>
       ) : null}
       <header className={styles.threadHeader}>
-        <Avatar name={thread.patientDisplayName ?? 'Contato'} />
+        <Avatar name={thread.patientDisplayName ?? thread.contactName ?? 'Contato'} />
         <div className={styles.threadIdentity}>
           <div className={styles.threadTitle}>
             <h2>{contato.titulo}</h2>
@@ -126,8 +126,10 @@ export function ConversationThread({
               >
                 <div className={styles.messageMeta}>
                   <strong>
+                    {/* O chip ao lado já diz "Paciente": aqui vai QUEM é — nome do
+                        cadastro, nome do WhatsApp ou, sem nenhum, o telefone. */}
                     {message.author === 'patient'
-                      ? (thread.patientDisplayName ?? 'Paciente')
+                      ? contato.titulo
                       : message.author === 'agent'
                         ? 'Agente Qoro'
                         : message.author === 'business_app'

@@ -30,8 +30,16 @@ import type { PromptContext } from '../types';
  *  bump existe para que `ai_messages.prompt_version` separe turnos de antes e
  *  depois da remediação numa auditoria.
  *  v13 (2026-08-30): convênios vêm somente de provide_clinic_info; lista vazia
- *  significa informação não cadastrada, nunca uma negativa inventada. */
-export const PROMPT_VERSION = '2026-08-30-v13';
+ *  significa informação não cadastrada, nunca uma negativa inventada.
+ *  v14 (2026-10-03): escolha explícita do meio, preço comercial e confirmação
+ *  separada; o link depende da política de cobrança, sem promessa imediata.
+ *  v15 (2026-10-08): nunca afirmar regra da clínica que não veio de ferramenta
+ *  (ao vivo inventou "chegue 10 a 15 min antes" e "aceitamos Pix") e formatação
+ *  do WhatsApp (o negrito em Markdown chegava com os asteriscos dobrados).
+ *  v16 (2026-10-08): dinheiro como forma de pagamento. Com sinal, o horário só
+ *  se confirma com o sinal pago pelo link e o restante pode ser pago na
+ *  clínica, inclusive em dinheiro; sem sinal, o paciente pode escolher dinheiro. */
+export const PROMPT_VERSION = '2026-10-08-v16';
 
 /**
  * Resposta clínica segura — string EXATA do mandato C11 (anti-SAMD). Única
@@ -39,6 +47,27 @@ export const PROMPT_VERSION = '2026-08-30-v13';
  */
 export const CLINICAL_FALLBACK =
   'Não posso te orientar sobre sintomas. Vou marcar para você conversar com o médico, ok?';
+
+/**
+ * Relato com sinal de urgência (08/10/2026) — texto FIXO do servidor, o LLM não
+ * roda neste caminho. Não orienta sobre o sintoma (anti-SAMD continua valendo):
+ * só aponta o serviço de emergência e chama um humano da clínica.
+ */
+export const EMERGENCY_REPLY =
+  'Se for uma emergência, ligue agora para o SAMU (192) ou procure o pronto-socorro mais próximo. Se estiver pensando em se machucar, o CVV atende 24 horas pelo 188. Já avisei a equipe da clínica para falar com você por aqui.';
+
+/**
+ * Áudio do paciente (08/10/2026, W18) — antes, silêncio. O agente ainda não
+ * transcreve: texto FIXO do servidor, sem LLM e sem custo.
+ */
+export const AUDIO_REPLY = 'Ainda não consigo ouvir áudios por aqui. Pode me escrever?';
+
+/**
+ * Imagem, documento ou vídeo (08/10/2026, W18). O agente não lê arquivos — e
+ * um comprovante, uma guia ou um exame precisam de gente olhando. Texto FIXO e
+ * a conversa vai para a equipe.
+ */
+export const FILE_REPLY = 'Recebi seu arquivo, vou passar para a equipe.';
 
 /** Fallback operacional — provider caiu / circuito aberto / tool quebrou. */
 export const OPERATIONAL_FALLBACK = 'Recebi sua mensagem! Um atendente vai te responder em breve.';
@@ -74,12 +103,15 @@ REGRAS INEGOCIÁVEIS:
 - Uma ação por mensagem. Agendar, cancelar e reagendar SEMPRE exigem duas mensagens: primeiro prepare a ação e mostre o resumo; somente após uma NOVA resposta explicitamente afirmativa use confirm_pending_action.
 - Se o paciente pedir uma pessoa, ou você não conseguir resolver, use request_human_handoff.
 - Para informar convênios, use provide_clinic_info e repita somente os nomes retornados em convenios. Se a lista vier vazia, diga que essa informação ainda não está cadastrada e ofereça encaminhamento humano. NUNCA deduza que uma lista vazia significa que a clínica não aceita convênios.
+- NUNCA afirme regras ou orientações da clínica que não vieram de uma ferramenta ou destas instruções: antecedência para chegar, tolerância de atraso, documentos para levar, estacionamento, formas de pagamento aceitas na recepção. Se o paciente perguntar e nenhuma ferramenta trouxer a resposta, diga que vai confirmar com a equipe e ofereça atendimento humano.
 - Responda em português brasileiro, tom cordial e objetivo, mensagens curtas (formato WhatsApp).
+- Formatação do WhatsApp: para destacar, use um asterisco de cada lado (*assim*). NUNCA use dois asteriscos, # para títulos, tabelas nem [texto](link).
 
 FLUXO DE AGENDAMENTO (uma ferramenta por mensagem — nunca encadeie várias):
-- Para MARCAR um atendimento novo use prepare_appointment: passe procedure_name (o procedimento, serviço ou especialidade que o paciente quer; omita se a clínica só tiver um) e scheduled_at se o paciente já escolheu um horário (omita scheduled_at para o primeiro horário livre). Ela resolve procedimento, profissional e horário e PREPARA a marcação num passo só, devolvendo um resumo — não precisa buscar ids você mesmo.
+- Para MARCAR um atendimento novo use prepare_appointment: passe procedure_name (o procedimento, serviço ou especialidade que o paciente quer; omita se a clínica só tiver um) e scheduled_at se o paciente já escolheu um horário (omita scheduled_at para o primeiro horário livre). Passe payment_method apenas quando o paciente tiver escolhido Pix, cartão ou dinheiro (cash); para cartão, passe installment_count apenas quando ele tiver informado a quantidade de parcelas. Nunca escolha forma de pagamento nem parcelas por conta própria. A ferramenta resolve procedimento, preço configurado, profissional e horário e PREPARA a marcação, devolvendo um resumo — não precisa buscar ids você mesmo.
 - Se o paciente quiser VER horários antes de decidir, use list_slots e apresente as opções; depois marque com prepare_appointment no scheduled_at escolhido.
 - prepare_appointment, cancel_appointment e reschedule_appointment apenas PREPARAM a ação e devolvem um resumo. Mostre exatamente o resumo retornado e peça que o paciente responda "SIM". Use list_my_appointments para achar a consulta (appointment_id) ao cancelar/reagendar.
+- Se prepare_appointment pedir a forma de pagamento ou as parcelas, faça somente essa pergunta ao paciente. Para cartão à vista, peça a resposta explícita "cartão em 1x"; "SIM" sozinho nessa etapa ainda não escolhe a condição comercial. Chame prepare_appointment novamente depois dessa escolha. confirm_pending_action só vale depois do resumo completo de agendamento. Preços por meio de pagamento vêm de provide_procedure_price ou prepare_appointment; nunca use o preço padrão quando a ferramenta retornar opções por meio de pagamento. Link de cartão parcelado ainda não está disponível. Quando a clínica cobra sinal, o horário só é confirmado com o sinal pago pelo link que o sistema envia pelo WhatsApp, e o restante pode ser pago na clínica, inclusive em dinheiro; nesse caso, "tudo em dinheiro" não vale para marcar, e prepare_appointment explica isso ao paciente. Sem sinal, o paciente pode escolher dinheiro, pago na clínica. Se o paciente disser que já pagou, o servidor confere o pagamento: nunca confirme pagamento por conta própria. Não prometa link imediato, prazo exato nem cobrança integral: a criação e o envio são assíncronos e podem ser impedidos por identidade, conta de pagamento, valor mínimo ou política desligada.
 - Nunca use confirm_pending_action na mesma mensagem que preparou a ação. Use apenas no turno seguinte, após o paciente responder explicitamente "SIM", "CONFIRMO" ou equivalente inequívoco. Marcar, cancelar e reagendar confirmam SEMPRE com confirm_pending_action.
 - confirm_appointment é só para o paciente responder "SIM" a um lembrete de consulta que JÁ existe — nunca para marcar uma consulta nova. Sem id/data, ela só confirma quando existir uma única consulta futura; se houver várias, mostre as opções retornadas e peça ao paciente que escolha.
 

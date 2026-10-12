@@ -29,14 +29,25 @@ import { PAYMENTS_EVENTS, type PatientCreditGrantedPayload } from '@/contexts/pa
 
 import { applyCreditToExistingReceivable } from '../credit-allocation';
 import { grantCredit } from '../credit-store';
+import { recordProviderExpense } from '../provider-expense';
+import { refreshProfessionalPayout } from '../professional-payout';
 import { EXCESS_REFUND_PENDING_REASON } from '../patient-credit-adjustment';
 import { FINANCIAL_EVENTS } from '../../events';
 import { faturamentoPendencias } from '../../schema';
 
+type LegacyCreditGrantedPayload = Omit<
+  PatientCreditGrantedPayload,
+  | 'providerGrossAmount'
+  | 'providerFeeAmount'
+  | 'providerNetAmount'
+  | 'earlySettlementFeeAmount'
+  | 'installmentNumber'
+>;
+
 async function registerCredit(ctx: {
   tx: Tx;
   clinicId: string;
-  payload: PatientCreditGrantedPayload;
+  payload: PatientCreditGrantedPayload | LegacyCreditGrantedPayload;
   eventId: string;
 }): Promise<void> {
   const { tx, clinicId, payload, eventId } = ctx;
@@ -51,16 +62,40 @@ async function registerCredit(ctx: {
     );
   }
 
+  const economics = 'providerGrossAmount' in payload ? payload : null;
   const creditId = await grantCredit(tx, {
     clinicId,
     patientChargeId: payload.chargeId,
     appointmentId: payload.appointmentId,
     patientId: payload.patientId,
     amount: payload.amount,
+    providerGrossAmount: economics?.providerGrossAmount ?? null,
+    providerFeeAmount: economics?.providerFeeAmount ?? null,
+    providerNetAmount: economics?.providerNetAmount ?? null,
+    earlySettlementFeeAmount: economics?.earlySettlementFeeAmount ?? null,
     kind: payload.kind,
     paymentMethod: payload.paymentMethod,
     grantedAt: new Date(payload.paidAt),
   });
+
+  if (economics?.providerFeeAmount != null) {
+    await recordProviderExpense(tx, {
+      clinicId,
+      patientChargeId: payload.chargeId,
+      kind: 'payment_processing_fee',
+      amount: economics.providerFeeAmount,
+      occurredAt: new Date(payload.paidAt),
+    });
+  }
+  if (economics?.earlySettlementFeeAmount != null) {
+    await recordProviderExpense(tx, {
+      clinicId,
+      patientChargeId: payload.chargeId,
+      kind: 'early_settlement_fee',
+      amount: economics.earlySettlementFeeAmount,
+      occurredAt: new Date(payload.paidAt),
+    });
+  }
 
   const allocation = creditId
     ? await applyCreditToExistingReceivable(tx, {
@@ -74,6 +109,13 @@ async function registerCredit(ctx: {
         correlationId: eventId,
       })
     : null;
+
+  if (allocation?.outcome === 'applied' && allocation.status === 'pago') {
+    await refreshProfessionalPayout(tx, {
+      clinicId,
+      appointmentId: payload.appointmentId,
+    });
+  }
 
   if (allocation?.outcome === 'applied' && allocation.unappliedAmount > 0) {
     await tx
@@ -129,4 +171,7 @@ async function registerCredit(ctx: {
   });
 }
 
-registerHandler<PatientCreditGrantedPayload>(PAYMENTS_EVENTS.CREDIT_GRANTED, registerCredit);
+registerHandler<PatientCreditGrantedPayload | LegacyCreditGrantedPayload>(
+  PAYMENTS_EVENTS.CREDIT_GRANTED,
+  registerCredit,
+);

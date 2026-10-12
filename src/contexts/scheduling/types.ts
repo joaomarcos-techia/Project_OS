@@ -137,6 +137,10 @@ const CreateAppointmentFieldsSchema = z.object({
   valorAjustado: z.boolean().optional(),
   valor: ValorSchema.optional(),
   valorAjusteMotivo: MotivoSchema.optional(),
+  pricingPolicyMode: z.enum(['absorb_fees', 'payment_method_pricing']).optional(),
+  commercialPaymentMethod: z.enum(['pix', 'cash', 'credit_card']).nullable().optional(),
+  commercialInstallmentCount: z.number().int().min(1).max(12).nullable().optional(),
+  commercialPriceId: uuid.nullable().optional(),
   urgencia: z.boolean().optional(),
   observacoes: ObservacoesSchema.optional(),
 });
@@ -147,18 +151,66 @@ export const CreateAppointmentSchema = CreateAppointmentFieldsSchema.refine(
     message: 'valor_ajustado=true exige valor E motivo',
     path: ['valorAjusteMotivo'],
   },
-);
+).superRefine((value, ctx) => {
+  const installments = value.commercialInstallmentCount ?? null;
+  if (value.commercialPaymentMethod === 'credit_card' && installments === null) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'cartão exige quantidade de parcelas',
+      path: ['commercialInstallmentCount'],
+    });
+  }
+  if (value.commercialPaymentMethod !== 'credit_card' && installments !== null) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'parcelas só se aplicam ao cartão',
+      path: ['commercialInstallmentCount'],
+    });
+  }
+});
 export type CreateAppointmentInput = z.infer<typeof CreateAppointmentSchema>;
 
-export const CreateWalkInSchema = z.object({
-  doctorId: uuid,
-  patientId: uuid.nullable().optional(),
-  procedureId: uuid,
-  unitId: uuid.nullable().optional(),
-  resourceIds: z.array(uuid).max(20).optional(),
-  urgencia: z.boolean().optional(),
-  observacoes: ObservacoesSchema.optional(),
-});
+export const CreateWalkInSchema = z
+  .object({
+    doctorId: uuid,
+    patientId: uuid.nullable().optional(),
+    procedureId: uuid,
+    unitId: uuid.nullable().optional(),
+    resourceIds: z.array(uuid).max(20).optional(),
+    urgencia: z.boolean().optional(),
+    observacoes: ObservacoesSchema.optional(),
+    valorAjustado: z.boolean().optional(),
+    valor: ValorSchema.optional(),
+    valorAjusteMotivo: MotivoSchema.optional(),
+    pricingPolicyMode: z.enum(['absorb_fees', 'payment_method_pricing']).optional(),
+    commercialPaymentMethod: z.enum(['pix', 'cash', 'credit_card']).nullable().optional(),
+    commercialInstallmentCount: z.number().int().min(1).max(12).nullable().optional(),
+    commercialPriceId: uuid.nullable().optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.valorAjustado && (value.valor == null || value.valorAjusteMotivo == null)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'valor_ajustado=true exige valor E motivo',
+        path: ['valorAjusteMotivo'],
+      });
+    }
+    const installments = value.commercialInstallmentCount ?? null;
+    if (value.commercialPaymentMethod === 'credit_card' && installments === null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'cartão exige quantidade de parcelas',
+        path: ['commercialInstallmentCount'],
+      });
+    }
+    if (value.commercialPaymentMethod !== 'credit_card' && installments !== null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'parcelas só se aplicam ao cartão',
+        path: ['commercialInstallmentCount'],
+      });
+    }
+  });
 export type CreateWalkInInput = z.infer<typeof CreateWalkInSchema>;
 
 const HistoricalAppointmentItemSchema = CreateAppointmentFieldsSchema.omit({

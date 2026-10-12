@@ -3,13 +3,54 @@ import { describe, expect, it } from 'vitest';
 import { PerfilWhatsappSchema } from '@/contexts/messaging/business-profile-contract';
 import {
   MessagingRateLimitedError,
+  MessagingValidationError,
   MetaConnectError,
   NumberNotConnectedError,
+  WhatsappProfileManagedInBusinessAppError,
 } from '@/contexts/messaging/errors';
 
-import { fail } from './wa-types';
+import { fail, failProfileWrite } from './wa-types';
+
+describe('failProfileWrite', () => {
+  it('não afirma falha definitiva quando o Graph retorna 5xx após aplicar o perfil', () => {
+    const result = failProfileWrite(
+      new MetaConnectError('[meta] graph HTTP 500 code=131000', {
+        stage: 'provider_outcome_unknown',
+        graphStatus: 500,
+        graphCode: 131000,
+      }),
+    );
+    expect(result).toMatchObject({ ok: false, code: 'profile_outcome_unknown' });
+    if (result.ok) throw new Error('Esperava resultado indeterminado');
+    expect(result.message).toContain('pode ter sido alterado');
+    expect(result.message).toContain('Recarregue');
+    expect(result.message).not.toContain('conexão não foi salva');
+    expect(result.message).not.toContain('500');
+  });
+
+  it('mantém recusa definitiva como recusa, sem orientar releitura desnecessária', () => {
+    const result = failProfileWrite(
+      new MetaConnectError('[meta] graph HTTP 400 code=100', {
+        stage: 'profile_write',
+        graphStatus: 400,
+        graphCode: 100,
+      }),
+    );
+    expect(result).toMatchObject({ ok: false, code: 'META_AUTH_FAILED' });
+    if (result.ok) throw new Error('Esperava recusa de perfil');
+    expect(result.message).toContain('recusou os dados');
+  });
+});
 
 describe('fail', () => {
+  it('devolve a mensagem segura da validação de arquivo', () => {
+    expect(fail(new MessagingValidationError('Formato inválido. Use PNG ou JPG.'))).toEqual({
+      ok: false,
+      code: 'validation',
+      message: 'Formato inválido. Use PNG ou JPG.',
+    });
+  });
+
   it('expõe orientação da etapa sem vazar detalhes internos da Meta', () => {
     const result = fail(
       new MetaConnectError('[meta] graph HTTP 400 code=100 com token secreto', {
@@ -105,6 +146,14 @@ describe('fail', () => {
 });
 
 describe('fail — §33, perfil público', () => {
+  it('orienta editar no aplicativo quando o número usa coexistência', () => {
+    const r = fail(new WhatsappProfileManagedInBusinessAppError());
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.code).toBe('profile_managed_in_business_app');
+    expect(r.message).toContain('aplicativo WhatsApp Business');
+  });
+
   it('distingue o teto de LEITURA do de escrita', () => {
     // A frase do teto de escrita, dita a quem só abriu a tela, mandaria a
     // pessoa procurar uma alteração que ela não fez.

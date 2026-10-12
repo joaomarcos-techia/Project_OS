@@ -42,6 +42,7 @@ const status: WhatsappStatusDTO = {
   verifiedAt: null,
   coexistence: false,
   health: { verdict: 'indeterminate', messages: [] },
+  messaging: { state: null, codes: [], checkedAtLabel: null, notice: null },
 };
 
 /** Dispara um postMessage do Embedded Signup vindo de uma origem confiável. */
@@ -1101,5 +1102,131 @@ describe('WhatsappConnect — coexistência', () => {
     expect(screen.getByText('App WhatsApp Business do celular')).toBeTruthy();
     expect(screen.getByText('A recepção continua usando o app')).toBeTruthy();
     expect(screen.getByText(/desconecte também no app WhatsApp Business/)).toBeTruthy();
+  });
+});
+
+describe('WhatsappConnect — saúde de envio (health_status)', () => {
+  const connected = {
+    ...status,
+    connected: true,
+    hasActiveNumber: true,
+    phoneNumberMasked: '+55 ** *****-1234',
+    connectionStatus: 'connected',
+  };
+
+  function renderWith(messaging: WhatsappStatusDTO['messaging'], base = connected) {
+    render(
+      <WhatsappConnect
+        status={{ ...base, messaging }}
+        appId="app-id"
+        configId="config-id"
+        graphVersion="v23.0"
+        ready={true}
+      />,
+    );
+  }
+
+  it('WABA bloqueada: diz o que parou, o que fazer, o código e quando foi lido', () => {
+    renderWith({
+      state: 'blocked',
+      codes: [141006, 141010],
+      checkedAtLabel: '08/10/2026 às 09:12',
+      notice: {
+        state: 'blocked',
+        title: 'Mensagens automáticas bloqueadas pela Meta',
+        summary:
+          'Lembretes de consulta, links de sinal, cobranças e ofertas de vaga não estão chegando aos pacientes. As respostas nas conversas continuam funcionando.',
+        actions: [
+          'Adicione uma forma de pagamento à sua conta do WhatsApp Business na Meta.',
+          'Conclua a verificação da empresa no gerenciador de negócios da Meta.',
+        ],
+        headline: 'A Meta bloqueou as mensagens automáticas do WhatsApp',
+      },
+    });
+
+    const alert = screen.getByRole('alert');
+    expect(alert.getAttribute('data-messaging-health')).toBe('blocked');
+    expect(alert.textContent).toContain('Mensagens automáticas bloqueadas pela Meta');
+    expect(
+      screen.getByText('Adicione uma forma de pagamento à sua conta do WhatsApp Business na Meta.'),
+    ).toBeTruthy();
+    expect(alert.textContent).toContain('Código da Meta: 141006, 141010');
+    const verificationLink = screen.getByRole('link', { name: 'Verificar empresa na Meta' });
+    expect(verificationLink.getAttribute('href')).toBe(
+      'https://business.facebook.com/settings/security',
+    );
+    expect(verificationLink.getAttribute('target')).toBe('_blank');
+    expect(verificationLink.getAttribute('rel')).toContain('noopener');
+    expect(alert.textContent).toContain('verificado em 08/10/2026 às 09:12');
+    // O canal continua conectado, mas o selo não diz "Ativo" ao lado de um bloqueio.
+    expect(screen.getByText('WhatsApp conectado')).toBeTruthy();
+    expect(screen.getByText('Envios bloqueados')).toBeTruthy();
+    expect(screen.queryByText('Ativo')).toBeNull();
+    expect(alert.textContent?.toLowerCase()).not.toContain('multa');
+  });
+
+  it('negócio sem verificação: aviso de limite, selo âmbar', () => {
+    renderWith({
+      state: 'limited',
+      codes: [141010],
+      checkedAtLabel: null,
+      notice: {
+        state: 'limited',
+        title: 'Mensagens automáticas limitadas pela Meta',
+        summary:
+          'Os lembretes e links continuam saindo, mas a Meta restringe o volume de envios até a pendência ser resolvida.',
+        actions: ['Conclua a verificação da empresa no gerenciador de negócios da Meta.'],
+        headline: 'A Meta está limitando as mensagens automáticas do WhatsApp',
+      },
+    });
+
+    expect(screen.getByRole('alert').getAttribute('data-messaging-health')).toBe('limited');
+    expect(screen.getByText('Envios limitados')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Verificar empresa na Meta' })).toBeTruthy();
+    expect(screen.queryByText(/verificado em/u)).toBeNull();
+  });
+
+  it('disponível ou nunca lido: nenhum aviso, selo "Ativo"', () => {
+    renderWith({
+      state: 'available',
+      codes: [],
+      checkedAtLabel: '08/10/2026 às 09:12',
+      notice: null,
+    });
+
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Verificar empresa na Meta' })).toBeNull();
+    expect(screen.getByText('Ativo')).toBeTruthy();
+  });
+
+  it('canal quebrado: o aviso de envio gravado continua visível', () => {
+    renderWith(
+      {
+        state: 'blocked',
+        codes: [141006],
+        checkedAtLabel: '07/10/2026 às 10:30',
+        notice: {
+          state: 'blocked',
+          title: 'Mensagens automáticas bloqueadas pela Meta',
+          summary: 'Lembretes de consulta não estão chegando aos pacientes.',
+          actions: ['Adicione uma forma de pagamento à sua conta do WhatsApp Business na Meta.'],
+          headline: 'A Meta bloqueou as mensagens automáticas do WhatsApp',
+        },
+      },
+      {
+        ...status,
+        connected: false,
+        hasActiveNumber: true,
+        degraded: true,
+        phoneNumberMasked: '+55 ****-1234',
+        connectionStatus: 'failed',
+        health: { verdict: 'broken', messages: ['A autorização do WhatsApp expirou.'] },
+      },
+    );
+
+    expect(screen.getByText('WhatsApp com problema')).toBeTruthy();
+    expect(screen.getByText('Mensagens automáticas bloqueadas pela Meta')).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Verificar empresa na Meta' })).toBeNull();
+    expect(screen.getByText(/verificado em 07\/10\/2026 às 10:30/u)).toBeTruthy();
   });
 });

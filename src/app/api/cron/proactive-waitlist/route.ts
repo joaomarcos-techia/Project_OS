@@ -22,12 +22,6 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-/**
- * Janela de resposta. Curta porque a vaga é perecível — em geral o horário
- * liberado é dos próximos dias — e porque quem não respondeu volta para a fila,
- * não perde o lugar.
- */
-const OFFER_TTL_MINUTES = 240;
 const EXPIRE_LIMIT = 200;
 
 export const GET = withCron(
@@ -39,10 +33,10 @@ export const GET = withCron(
   async () => {
     // A expiração é higiene de agenda e roda mesmo com a mensageria proativa
     // desligada: senão o kill-switch de mensagens travaria a fila inteira.
-    const expired = await expireStaleWaitlistOffers({
-      olderThanMinutes: OFFER_TTL_MINUTES,
-      limit: EXPIRE_LIMIT,
-    });
+    // A janela de resposta é do Scheduling, a mesma que a C14 confere no envio,
+    // e só corre nas horas de envio (ADR-066): às 8h, a oferta da noite ainda
+    // está aberta e o convite sai nesta mesma passada.
+    const expired = await expireStaleWaitlistOffers({ limit: EXPIRE_LIMIT });
     metrics.emit('waitlist.offers.expired', { ...expired });
 
     if (!(await isProactiveEnabled())) {

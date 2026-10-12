@@ -30,11 +30,16 @@ import {
 import { metrics } from '@/lib/observability/metrics';
 import { after } from 'next/server';
 
+import { MESSAGING_EVENTS } from '@/contexts/messaging/events';
 import {
+  businessAppEchoEventKey,
+  inboundEventKey,
   persistBusinessAppEcho,
   persistInbound,
   persistStatusEvents,
 } from '@/contexts/messaging/internal/inbound';
+import { deliveryFailureNeedsHealthCheck } from '@/contexts/messaging/internal/messaging-health';
+import type { RequestContext } from '@/lib/audit/types';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -91,13 +96,23 @@ export async function GET(req: Request): Promise<Response> {
 }
 
 const FLOW = 'messaging.webhook';
-const INGRESS_OUTBOX_BATCH_SIZE = 1;
+
+/** Eventos que este webhook publicou: ecos primeiro (pausam a IA), depois mensagens. */
+export interface IngressEvents {
+  echoKeys: string[];
+  inboundKeys: string[];
+}
 
 /**
- * The minute cron remains the retry/backstop. This best-effort tick only reduces
- * normal ingress latency and never changes the webhook acknowledgement outcome.
+ * The minute cron remains the retry/backstop. This best-effort run only reduces
+ * ingress latency and never changes the webhook acknowledgement outcome.
+ *
+ * It processes exactly the events THIS request published, by idempotency key.
+ * The previous tick took the oldest due event of the whole queue, which was this
+ * message's turn only when the queue happened to be empty: under any backlog the
+ * patient waited for the cron, and the Preview (no cron) never answered.
  */
-export async function triggerOutboxAfterMetaIngress(): Promise<void> {
+export async function triggerOutboxAfterMetaIngress(events: IngressEvents): Promise<void> {
   try {
     // Load the worker wiring only after Meta has received its acknowledgement.
     // Importing every consumer before HMAC validation would enlarge the hot
@@ -105,12 +120,37 @@ export async function triggerOutboxAfterMetaIngress(): Promise<void> {
     // is most costly.
     await import('@/app/api/cron/outbox/handlers');
     await import('@/lib/db/schema');
-    const { runOutboxOnce } = await import('@/lib/outbox/worker');
-    const summary = await runOutboxOnce({ batchSize: INGRESS_OUTBOX_BATCH_SIZE, parallelism: 1 });
+    const { runOutboxEventsNow } = await import('@/lib/outbox/worker');
+    const summary = await runOutboxEventsNow([
+      {
+        eventType: MESSAGING_EVENTS.BUSINESS_APP_ECHO_RECEIVED,
+        idempotencyKeys: events.echoKeys,
+      },
+      { eventType: MESSAGING_EVENTS.INBOUND_RECEIVED, idempotencyKeys: events.inboundKeys },
+    ]);
     metrics.emit('messaging.webhook.outbox_triggered', summary);
   } catch (error) {
     captureBackgroundError(error, { flow: `${FLOW}.outbox_trigger` });
     metrics.emit('messaging.webhook.outbox_trigger_failed', { error });
+  }
+}
+
+/**
+ * Saúde de envio: a Meta recusou um template por forma de pagamento (131042 ou
+ * 141006) — relê o `health_status` dessas clínicas para o aviso aparecer na tela
+ * já na primeira recusa, e não só na varredura diária. Depois do 200, como o
+ * gatilho do outbox; o módulo só carrega aqui, fora do caminho quente.
+ */
+export async function recheckHealthAfterDeliveryFailure(
+  clinicIds: string[],
+  requestContext: RequestContext,
+): Promise<void> {
+  try {
+    const { recheckMessagingHealthAfterDeliveryFailure } =
+      await import('@/contexts/messaging/internal/messaging-health-check');
+    await recheckMessagingHealthAfterDeliveryFailure(clinicIds, requestContext);
+  } catch (error) {
+    captureBackgroundError(error, { flow: `${FLOW}.health_recheck` });
   }
 }
 
@@ -165,6 +205,8 @@ async function handleWebhook(req: Request): Promise<Response> {
   }
 
   // 3. resolve tenant + persistir / quarentena.
+  const ingress: IngressEvents = { echoKeys: [], inboundKeys: [] };
+  const healthRecheck = new Set<string>();
   try {
     for (const removal of parsed.partnerRemovals ?? []) {
       const { deactivated } = await deactivateConnectionsForRemovedPartner({
@@ -192,12 +234,17 @@ async function handleWebhook(req: Request): Promise<Response> {
       }
       for (const msg of group.messages) {
         await persistInbound(clinicId, PROVIDER, msg);
+        ingress.inboundKeys.push(inboundEventKey(PROVIDER, msg.providerMessageId));
       }
       for (const echo of group.echoes) {
         await persistBusinessAppEcho(clinicId, PROVIDER, echo);
+        ingress.echoKeys.push(businessAppEchoEventKey(PROVIDER, echo.providerMessageId));
       }
       if (group.statuses.length > 0) {
         await persistStatusEvents(clinicId, PROVIDER, group.statuses);
+        if (group.statuses.some((s) => deliveryFailureNeedsHealthCheck(s.status, s.raw))) {
+          healthRecheck.add(clinicId);
+        }
       }
     }
   } catch (err) {
@@ -211,9 +258,18 @@ async function handleWebhook(req: Request): Promise<Response> {
   }
 
   // The provider receives 200 immediately after the transactional persistence.
-  // `after` lets the same invocation start one worker tick without turning a
-  // temporary worker/LLM failure into a duplicate Meta delivery.
-  after(triggerOutboxAfterMetaIngress);
+  // `after` lets the same invocation process its own events without turning a
+  // temporary worker/LLM failure into a duplicate Meta delivery. Statuses publish
+  // `messaging.outbound.status_updated`, which no reply waits on: the minute cron
+  // drains it (a `failed` closes the C14 job — EC-32).
+  if (ingress.inboundKeys.length > 0 || ingress.echoKeys.length > 0) {
+    after(() => triggerOutboxAfterMetaIngress(ingress));
+  }
+  if (healthRecheck.size > 0) {
+    const clinicIds = [...healthRecheck];
+    const requestContext = buildRequestContext(req.headers);
+    after(() => recheckHealthAfterDeliveryFailure(clinicIds, requestContext));
+  }
 
   return Response.json(
     {

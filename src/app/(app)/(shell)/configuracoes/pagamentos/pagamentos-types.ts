@@ -31,6 +31,13 @@ export function fail(err: unknown): ActionResult<never> {
     return { ok: false, code: err.code, message: err.message };
   }
   const name = err instanceof Error ? err.name : '';
+  const code =
+    typeof err === 'object' && err !== null && 'code' in err && typeof err.code === 'string'
+      ? err.code
+      : '';
+  if ((code === 'financial_validation' || code === 'payment_validation') && err instanceof Error) {
+    return { ok: false, code, message: err.message };
+  }
   if (name === 'AuthError') {
     return { ok: false, code: 'forbidden', message: 'Você não tem permissão para esta ação.' };
   }
@@ -38,7 +45,7 @@ export function fail(err: unknown): ActionResult<never> {
     return {
       ok: false,
       code: 'invalid_input',
-      message: 'Confira a chave: ela não pode ficar em branco nem conter espaços.',
+      message: 'Confira os campos informados e tente novamente.',
     };
   }
   // Erro não mapeado vai INTEIRO para o Sentry/Better Stack e volta GENÉRICO para a

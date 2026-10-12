@@ -12,6 +12,10 @@
  *
  * Idempotente: `releaseWaitlistOffer` só age sobre `status='offered'`, então uma
  * segunda passada do cron sobre a mesma linha não repassa a vaga duas vezes.
+ *
+ * A janela corre só nas horas de envio (ADR-066), pela mesma regra que o seam
+ * entrega à C14: a oferta feita de noite é convidada às 8h e vence no meio da
+ * manhã, em vez de ser repassada antes de o convite poder sair.
  */
 import 'server-only';
 
@@ -31,10 +35,12 @@ export interface WaitlistExpirySummary {
 }
 
 export async function expireStaleWaitlistOffers(input: {
-  olderThanMinutes: number;
   limit: number;
 }): Promise<WaitlistExpirySummary> {
-  const stale = await dbAdmin.transaction((tx) => findStaleWaitlistOffers(tx, input));
+  const now = new Date();
+  const stale = await dbAdmin.transaction((tx) =>
+    findStaleWaitlistOffers(tx, { now, limit: input.limit }),
+  );
   const summary: WaitlistExpirySummary = {
     expiredScanned: stale.length,
     expiredReleased: 0,
@@ -47,10 +53,14 @@ export async function expireStaleWaitlistOffers(input: {
         releaseWaitlistOffer(tx, {
           clinicId: entry.clinicId,
           entryId: entry.id,
-          // Estável por (entrada, expiração): a reentrega do mesmo repasse é
-          // deduplicada pelo outbox em vez de virar uma segunda oferta.
-          idempotencyKey: `waitlist-expire:${entry.id}`,
+          // A mesma entrada pode ser ofertada novamente, até para a mesma vaga.
+          // O instante diferencia as gerações sem duplicar um replay do cron.
+          idempotencyKey: `waitlist-expire:${entry.id}:${entry.offeredAppointmentId ?? 'none'}:${entry.offeredAt.toISOString()}`,
           correlationId: null,
+          expectedOffer: {
+            offeredAt: entry.offeredAt,
+            appointmentId: entry.offeredAppointmentId,
+          },
         }),
       );
       if (result.released) summary.expiredReleased += 1;

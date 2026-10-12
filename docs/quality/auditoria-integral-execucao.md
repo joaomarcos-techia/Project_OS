@@ -390,7 +390,7 @@ vídeo.
 | Área | Evidência atual | Veredito |
 | --- | --- | --- |
 | Refund cartão Sandbox | pagamento `CONFIRMED`, um refund terminal e replay HTTP 400 sem segunda devolução | **PASS** |
-| Refund PIX Sandbox | pagamento `RECEIVED`, um refund em `AWAITING_CRITICAL_ACTION_AUTHORIZATION`; manifesto preservado | **BLOCKED** até aprovação no painel + `DONE` |
+| Refund PIX Sandbox | pagamento `RECEIVED`; dois refunds de R$ 10 terminaram `CANCELLED`; as transações Pix ficaram `CREDIT_REFUND/REFUSED` com motivo genérico do provider; a retomada pelo manifesto não criou terceiro POST | **FAIL externo** — nenhum valor foi devolvido |
 | `production-*` | 44 arquivos/47 casos coletados no host correto; três specs isolados passaram e a fronteira anônima ficou sem conversa fixture | **3 PASS, 4 PRECONDITION BLOCKED, 40 SKIP** por caso |
 | Supavisor atual | 48/48 conexões graváveis, dois backends, zero recovery/read-only; p95 2,6 s | **PASS atual**, causa histórica externa desconhecida |
 | Cron/DB defensivo | 23/23 em ratchet de sessão, pool, deadline e captura do cron | **PASS de mitigação**, sem retry estrutural do tick inteiro |
@@ -426,3 +426,53 @@ com 177 arquivos de bundle local/175 no CI, sem segredo, e 328 requests HTTP,
 dos quais 52 respostas `200` continham negativa explícita. O CI final passou
 4.577/4.577 testes em 442 arquivos e o E2E público passou 6 casos, com dois
 skips condicionais declarados.
+
+## Adendo — confirmação real no Preview e regressão final em 01/10/2026
+
+O fluxo de convite foi repetido no Preview após corrigir a validação de origem
+de `/auth/confirm`. O erro não estava no token: o Preview comparava seu `Origin`
+com o `APP_BASE_URL` de outro deployment e devolvia 403. Após o redeploy, a
+jornada terminou com e-mail inicial e reenvio recebidos, link anterior recusado,
+link novo aceito, tenant correto, replay recusado e cleanup completo. A regressão
+da rota passou 32/32 e mantém host externo em 403.
+
+`payments-account-lifecycle` passou **2/2** no Preview com fixture DEV isolada e
+Asaas Sandbox. O Gemini real passou **48/48** no corpus 3–50. A regressão global
+passou **4.583/4.583 em 442 arquivos**, TypeScript passou e o build Next em
+`NODE_ENV=production` terminou com exit 0 e 18 páginas estáticas.
+
+Nas suítes `production-*`, o dashboard com dados não zero e o runner de
+mutações autorizadas passaram, elevando a evidência isolada para cinco arquivos
+funcionais. O runner percorreu paciente, procedimento, agenda, clínica,
+financeiro, reembolso e LGPD em 59,2 s. O `afterEach` recebeu orçamento próprio,
+e os seletores foram reconciliados com as tabelas e a paginação atuais. A
+fixture sintética foi removida externamente e o readback deu zero. Estado atual
+por caso: **5 PASS, 0 FAIL, 4 PRECONDITION BLOCKED e 38 SKIP**.
+
+Continuam pendentes externamente: causa do cancelamento dos refunds PIX pelo
+Asaas, checkout pago sob reCAPTCHA, crédito final do Google Ads com campanha
+inativa e a reexecução integrada WhatsApp → IA → resposta sob responsabilidade
+do agente concorrente.
+
+## Adendo — MFA, financeiro, transições de role e fronteira anônima em 01/10/2026
+
+Quatro runners `production-*` adicionais foram executados isoladamente com seus
+guardas legítimos. MFA terminou 1/1 PASS em 16,9 s e removeu o fator criado. O
+ciclo financeiro terminou 1/1 PASS em 53,4 s, incluindo valores inválidos,
+arredondamento, cancelamento, pagamento parcial, quitação, dois estornos,
+compensações, filtros e cleanup com readback zero. A matriz de role terminou 1/1
+PASS em 1,2 min: nove transições exigidas, três pontes, 12 sessões antigas
+recusadas e cleanup zero.
+
+A fronteira anônima foi decomposta para não esconder provas independentes atrás
+da ausência de uma conversa em produção. O resultado foi **2 PASS + 1 SKIP**:
+28 rotas estáticas e cinco deep-links com IDs clínicos reais redirecionaram para
+`/login`, e os cabeçalhos de segurança foram conferidos. Somente
+`/conversas/[id]` ficou sem execução por `ai_conversations=0`.
+
+A coleta fresca dos 44 arquivos agora contém 49 casos e, sem opt-ins, terminou
+em **46 SKIP + 3 PRECONDITION BLOCKED**, zero PASS. Combinando somente as
+execuções funcionais isoladas, o estado é **10 PASS, 0 FAIL, 3 PRECONDITION
+BLOCKED e 36 SKIP**; por arquivo: **8 PASS integrais, 1 PARTIAL, 3
+PRECONDITION BLOCKED e 32 SKIP**. A tabela autoritativa por suíte está em
+[`production-44-execution.md`](production-44-execution.md).

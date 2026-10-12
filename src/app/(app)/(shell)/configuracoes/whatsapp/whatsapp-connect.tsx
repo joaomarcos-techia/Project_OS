@@ -7,22 +7,25 @@
  */
 import Script from 'next/script';
 import { useRouter } from 'next/navigation';
-import { Check, CircleCheck, MessageCircle, WifiOff } from 'lucide-react';
+import { Check, CircleCheck, ExternalLink, MessageCircle, WifiOff } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { PageHeader } from '@/components/ui/page-header';
 import { Separator } from '@/components/ui/separator';
+import { BUSINESS_VERIFICATION_ERROR_CODES } from '@/contexts/messaging/internal/messaging-health';
 import { formatDatePt } from '@/lib/format';
 
 import { connectWhatsappAction, disconnectWhatsappAction } from './actions';
 import type { WhatsappStatusDTO } from './data';
+
+const META_BUSINESS_SECURITY_URL = 'https://business.facebook.com/settings/security';
 
 // --- Facebook JS SDK (mínimo, tipado) --------------------------------------
 interface FbLoginResponse {
@@ -762,6 +765,51 @@ function RegistrationPinField({
   );
 }
 
+/**
+ * Saúde de ENVIO (0116) — a Meta bloqueia ou limita as mensagens que a clínica
+ * inicia. É a mesma conta, mas outro problema: o canal pode estar recebendo
+ * tudo e, ainda assim, nenhum lembrete ou link de sinal sair. Uma superfície só
+ * para esse assunto, aqui e no painel.
+ */
+function MessagingHealthAlert({ messaging }: { messaging: WhatsappStatusDTO['messaging'] }) {
+  const notice = messaging.notice;
+  if (!notice) return null;
+  const meta = [
+    messaging.codes.length > 0 ? `Código da Meta: ${messaging.codes.join(', ')}` : null,
+    messaging.checkedAtLabel ? `verificado em ${messaging.checkedAtLabel}` : null,
+  ].filter(Boolean);
+  return (
+    <Alert
+      variant={notice.state === 'blocked' ? 'danger' : 'warning'}
+      title={notice.title}
+      data-messaging-health={notice.state}
+    >
+      <p className="text-pretty">{notice.summary}</p>
+      <ul className="mt-1.5 grid list-disc gap-1 pl-4">
+        {notice.actions.map((action) => (
+          <li key={action} className="text-pretty font-medium text-fg">
+            {action}
+          </li>
+        ))}
+      </ul>
+      {messaging.codes.some((code) => BUSINESS_VERIFICATION_ERROR_CODES.has(code)) ? (
+        <a
+          href={META_BUSINESS_SECURITY_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={buttonVariants({ variant: 'secondary', size: 'sm', className: 'mt-3' })}
+        >
+          Verificar empresa na Meta
+          <ExternalLink aria-hidden="true" className="size-4" />
+        </a>
+      ) : null}
+      {meta.length > 0 ? (
+        <p className="mt-1.5 font-mono text-(length:--fs-2xs) text-fg-subtle">{meta.join(' · ')}</p>
+      ) : null}
+    </Alert>
+  );
+}
+
 function ConnectedView({
   status,
   onDisconnect,
@@ -773,6 +821,18 @@ function ConnectedView({
 }) {
   const verificationPending =
     status.health.verdict === 'indeterminate' && status.health.messages.length > 0;
+  // A recusa de envio pesa mais que a verificação pendente: ela é um fato da
+  // Meta, e a clínica tem o que fazer. "Ativo" em verde ao lado de um bloqueio
+  // seria a mesma mentira que o META-001 tirou da tela.
+  const sendState = status.messaging.notice?.state ?? null;
+  const badge =
+    sendState === 'blocked'
+      ? { label: 'Envios bloqueados', tone: 'red' as const }
+      : verificationPending
+        ? { label: 'Verificação pendente', tone: 'amber' as const }
+        : sendState === 'limited'
+          ? { label: 'Envios limitados', tone: 'amber' as const }
+          : { label: 'Ativo', tone: 'green' as const };
 
   return (
     <>
@@ -784,11 +844,12 @@ function ConnectedView({
             ? 'A última conexão válida foi preservada enquanto a Meta não responde à verificação.'
             : 'O número está vinculado e disponível para o atendimento automatizado.'
         }
-        badge={verificationPending ? 'Verificação pendente' : 'Ativo'}
-        badgeTone={verificationPending ? 'amber' : 'green'}
+        badge={badge.label}
+        badgeTone={badge.tone}
       />
       <div className="grid gap-4 p-(--card-pad)">
         <ConnectionDetails status={status} />
+        <MessagingHealthAlert messaging={status.messaging} />
         {status.coexistence ? (
           <Alert variant="info" title="A recepção continua usando o app">
             <p className="text-pretty">
@@ -883,6 +944,9 @@ function DegradedView({
             </ul>
           </Alert>
         ) : null}
+        {/* Última leitura gravada: com o canal quebrado a Meta pode não
+            responder agora, e a data diz de quando é o aviso. */}
+        <MessagingHealthAlert messaging={status.messaging} />
         <Separator />
         <div className="grid gap-4">
           <p className="text-pretty text-(length:--fs-sm) text-fg-muted">

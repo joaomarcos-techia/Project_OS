@@ -27,7 +27,7 @@ import {
   assertAsaasFixtureAccount,
   fingerprintAsaasAccount,
 } from '@/lib/test/asaas-account-provenance';
-import { classifyCheckoutCleanup } from '@/lib/test/asaas-checkout-cleanup';
+import { classifyCheckoutCleanup, completedRefundValue } from '@/lib/test/asaas-checkout-cleanup';
 
 const OPT_IN = 'ALLOW_SANDBOX_REFUND';
 const API_BASE_URL = 'https://api-sandbox.asaas.com/v3';
@@ -38,7 +38,6 @@ const MINIMUM_BALANCE = 25;
 const POLL_ATTEMPTS = 30;
 const POLL_INTERVAL_MS = 2_000;
 const SETTLED_PAYMENT_STATUSES = new Set(['CONFIRMED', 'RECEIVED', 'RECEIVED_IN_CASH']);
-const TERMINAL_REFUND_STATUSES = new Set(['DONE', 'REFUNDED', 'CONFIRMED', 'COMPLETED']);
 
 const SYNTHETIC_CARD = {
   holderName: 'Paciente E2E Sandbox',
@@ -273,15 +272,6 @@ async function waitForSettled(client: AsaasClient, paymentId: string): Promise<P
   throw new Error('[asaas-refund-e2e] cobranca nao atingiu estado pago no prazo');
 }
 
-function completedRefundValue(refunds: readonly ProviderRefund[]): number {
-  return Number(
-    refunds
-      .filter((refund) => TERMINAL_REFUND_STATUSES.has(refund.status))
-      .reduce((total, refund) => total + refund.value, 0)
-      .toFixed(2),
-  );
-}
-
 async function waitForRefund(
   client: AsaasClient,
   paymentId: string,
@@ -289,6 +279,7 @@ async function waitForRefund(
 ): Promise<
   | { state: 'complete'; payment: ProviderPayment; refunds: ProviderRefund[] }
   | { state: 'pending-critical-action'; payment: ProviderPayment; refunds: ProviderRefund[] }
+  | { state: 'cancelled'; payment: ProviderPayment; refunds: ProviderRefund[] }
 > {
   for (let attempt = 0; attempt < POLL_ATTEMPTS; attempt += 1) {
     const [payment, refunds] = await Promise.all([
@@ -304,6 +295,9 @@ async function waitForRefund(
     if (state.state === 'complete') return { state: 'complete', payment, refunds };
     if (state.state === 'pending-critical-action') {
       return { state: 'pending-critical-action', payment, refunds };
+    }
+    if (state.state === 'cancelled') {
+      return { state: 'cancelled', payment, refunds };
     }
     if (attempt < POLL_ATTEMPTS - 1) {
       await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
@@ -454,6 +448,11 @@ async function runMethod(input: {
         );
         return 'blocked';
       }
+      if (existing.state === 'cancelled') {
+        throw new Error(
+          `[asaas-refund-e2e] FAIL ${method}: provider cancelou o estorno; o valor nao foi devolvido`,
+        );
+      }
       throw new Error(`[asaas-refund-e2e] ${method} ja possui estorno nao terminal`);
     }
   } else {
@@ -486,6 +485,11 @@ async function runMethod(input: {
       `[asaas-refund-e2e] BLOCKED ${method}: estorno aguarda autorizacao de acao critica; id=${paymentFingerprint(payment.paymentId)}.`,
     );
     return 'blocked';
+  }
+  if (completed.state === 'cancelled') {
+    throw new Error(
+      `[asaas-refund-e2e] FAIL ${method}: provider cancelou o estorno; o valor nao foi devolvido`,
+    );
   }
   await assertDuplicateRefundRejected(client, payment.paymentId, PAYMENT_VALUE, completed.refunds);
   console.log(

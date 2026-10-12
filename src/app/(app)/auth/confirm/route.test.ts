@@ -20,6 +20,13 @@ const mocks = vi.hoisted(() => ({
   signRecoveryGrant: vi.fn(),
   signSignupConfirmationGrant: vi.fn(),
   verifyOtp: vi.fn(),
+  env: {
+    NODE_ENV: 'test',
+    APP_BASE_URL: 'https://app.qoro.test',
+    VERCEL_ENV: undefined as 'preview' | undefined,
+    VERCEL_URL: undefined as string | undefined,
+    VERCEL_BRANCH_URL: undefined as string | undefined,
+  },
 }));
 
 vi.mock('next/headers', () => ({ cookies: mocks.cookies }));
@@ -51,7 +58,7 @@ vi.mock('@/lib/auth/tenant-context', () => ({
   readAuthoritativeProfile: mocks.readAuthoritativeProfile,
 }));
 vi.mock('@/lib/env', () => ({
-  env: { NODE_ENV: 'test', APP_BASE_URL: 'https://app.qoro.test' },
+  env: mocks.env,
 }));
 vi.mock('@/lib/observability/logger', () => ({ logger: { warn: mocks.loggerWarn } }));
 
@@ -104,6 +111,10 @@ function redirectPath(response: Response): string {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.env.APP_BASE_URL = origin;
+  mocks.env.VERCEL_ENV = undefined;
+  mocks.env.VERCEL_URL = undefined;
+  mocks.env.VERCEL_BRANCH_URL = undefined;
   mocks.cookies.mockResolvedValue({ set: mocks.cookieSet });
   mocks.createServerClient.mockResolvedValue(client);
   mocks.verifyOtp.mockResolvedValue({
@@ -169,6 +180,47 @@ describe('GET /auth/confirm — ponte que não consome OTP', () => {
 });
 
 describe('POST /auth/confirm — envelope estrito', () => {
+  it('usa a origem HTTPS do deployment em Preview mesmo com APP_BASE_URL de outro Preview', async () => {
+    mocks.env.VERCEL_ENV = 'preview';
+    mocks.env.APP_BASE_URL = 'https://preview-antigo.vercel.app';
+    const previewOrigin = 'https://project-os-git-branch-owner.vercel.app';
+    mocks.env.VERCEL_BRANCH_URL = new URL(previewOrigin).hostname;
+    const request = new NextRequest(`${previewOrigin}/auth/confirm`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded;charset=UTF-8',
+        origin: previewOrigin,
+        'sec-fetch-site': 'same-origin',
+      },
+      body: signupBody().toString(),
+    });
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(303);
+    expect(response.headers.get('location')).toBe(`${previewOrigin}/cadastro/confirmado`);
+    expect(mocks.verifyOtp).toHaveBeenCalledOnce();
+  });
+
+  it('não confia em host externo quando VERCEL_ENV é Preview', async () => {
+    mocks.env.VERCEL_ENV = 'preview';
+    const externalOrigin = 'https://attacker.example';
+    const request = new NextRequest(`${externalOrigin}/auth/confirm`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded;charset=UTF-8',
+        origin: externalOrigin,
+        'sec-fetch-site': 'same-origin',
+      },
+      body: signupBody().toString(),
+    });
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(403);
+    expect(mocks.verifyOtp).not.toHaveBeenCalled();
+  });
+
   it('valida a origem pública configurada mesmo atrás de uma origem interna', async () => {
     const request = new NextRequest('http://127.0.0.1:3217/auth/confirm', {
       method: 'POST',

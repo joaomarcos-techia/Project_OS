@@ -32,12 +32,19 @@ import { metrics } from '@/lib/observability/metrics';
 
 import { listClinicsWithPendingRefundIntents, runDepositScan } from './deposit-scan';
 
-const candidate = (clinicId: string, appointmentId: string) => ({
+const candidate = (
+  clinicId: string,
+  appointmentId: string,
+  commercialPaymentMethod: 'pix' | 'cash' | 'credit_card' | null = null,
+  commercialInstallmentCount: number | null = null,
+) => ({
   clinicId,
   appointmentId,
   patientId: `pac-${appointmentId}`,
   scheduledAt: '2026-09-10T14:00:00.000Z',
   valor: 300,
+  commercialPaymentMethod,
+  commercialInstallmentCount,
 });
 
 beforeEach(() => {
@@ -63,8 +70,36 @@ describe('runDepositScan', () => {
         patientId: 'pac-apt-1',
         valor: 300,
         scheduledAt: '2026-09-10T14:00:00.000Z',
+        commercialPaymentMethod: null,
+        commercialInstallmentCount: null,
       },
     });
+  });
+
+  it.each([
+    ['pix', null],
+    ['credit_card', 3],
+  ] as const)('repassa %s e parcelas ao criar o sinal', async (method, installments) => {
+    mocks.listDepositCandidates.mockResolvedValue([
+      candidate('clinic-a', 'apt-1', method, installments),
+    ]);
+
+    await runDepositScan();
+
+    expect(mocks.createDepositCharge).toHaveBeenCalledWith({
+      clinicId: 'clinic-a',
+      appointment: expect.objectContaining({
+        commercialPaymentMethod: method,
+        commercialInstallmentCount: installments,
+      }),
+    });
+  });
+
+  it('dinheiro não cria Checkout nem conta como sinal cobrado', async () => {
+    mocks.listDepositCandidates.mockResolvedValue([candidate('clinic-a', 'apt-1', 'cash')]);
+
+    await expect(runDepositScan()).resolves.toMatchObject({ charged: 0, failed: 0 });
+    expect(mocks.createDepositCharge).not.toHaveBeenCalled();
   });
 
   it('nenhuma clínica com a política ligada: não pergunta nada à agenda', async () => {

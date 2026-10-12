@@ -161,6 +161,25 @@ describe('Checkout hospedado do cadastro', () => {
     );
   });
 
+  it('usa a origem Preview validada nos tres retornos do Checkout', async () => {
+    const client = fakeProvider();
+    const publicOrigin = 'https://project-os-git-branch-owner.vercel.app';
+
+    await expect(
+      startSignupHostedCheckout({ userId: USER, publicOrigin, client }),
+    ).resolves.toMatchObject({ ok: true, state: 'checkout_pending' });
+
+    expect(client.createCheckout).toHaveBeenCalledWith(
+      expect.objectContaining({
+        callback: {
+          successUrl: `${publicOrigin}/cadastro/pagamento?resultado=success`,
+          cancelUrl: `${publicOrigin}/cadastro/pagamento?resultado=cancelled`,
+          expiredUrl: `${publicOrigin}/cadastro/pagamento?resultado=expired`,
+        },
+      }),
+    );
+  });
+
   it('reabre a mesma URL persistida sem criar outro Checkout', async () => {
     mocks.reserve.mockResolvedValue({
       ok: false,

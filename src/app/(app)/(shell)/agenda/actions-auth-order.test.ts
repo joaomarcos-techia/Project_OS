@@ -1,12 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { cancelRecurringSeries, requireCachedPermission, requireUser } = vi.hoisted(() => ({
+const {
+  cancelRecurringSeries,
+  getFailedJobChargeRef,
+  getPayableCharge,
+  requireCachedPermission,
+  requireUser,
+} = vi.hoisted(() => ({
   cancelRecurringSeries: vi.fn(),
+  getFailedJobChargeRef: vi.fn(),
+  getPayableCharge: vi.fn(),
   requireCachedPermission: vi.fn(),
   requireUser: vi.fn(),
 }));
 
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
+vi.mock('@/contexts/ai-agent/queries', () => ({ getFailedJobChargeRef }));
+vi.mock('@/contexts/payments', () => ({ paymentsApiV1: { getPayableCharge } }));
+vi.mock('@/lib/observability/metrics', () => ({ metrics: { emit: vi.fn() } }));
 vi.mock('@/contexts/patient/queries', () => ({
   getPatientSummaryById: vi.fn(),
   listPatients: vi.fn(),
@@ -30,7 +41,7 @@ vi.mock('@/lib/auth/tenant-context', () => ({
 
 import { PERMISSIONS } from '@/lib/auth/permissions';
 
-import { cancelarSerieRecorrenteAction } from './actions';
+import { cancelarSerieRecorrenteAction, copiarLinkDeCobrancaAction } from './actions';
 
 function authError(): Error {
   const error = new Error('denied');
@@ -79,5 +90,39 @@ describe('cancelarSerieRecorrenteAction — ordem de autenticação', () => {
     expect(requireCachedPermission).toHaveBeenCalledWith(PERMISSIONS.EDIT_AGENDA);
     expect(get).not.toHaveBeenCalled();
     expect(cancelRecurringSeries).not.toHaveBeenCalled();
+  });
+});
+
+describe('copiarLinkDeCobrancaAction — ordem de autenticação', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requireUser.mockResolvedValue({ userId: 'user-a' });
+    requireCachedPermission.mockResolvedValue(undefined);
+  });
+
+  it('nega sessão inválida antes de procurar o job ou o link', async () => {
+    requireUser.mockRejectedValueOnce(authError());
+
+    await expect(copiarLinkDeCobrancaAction('job-1')).resolves.toEqual({
+      ok: false,
+      message: 'Sem permissão para copiar o link.',
+    });
+
+    expect(requireCachedPermission).not.toHaveBeenCalled();
+    expect(getFailedJobChargeRef).not.toHaveBeenCalled();
+    expect(getPayableCharge).not.toHaveBeenCalled();
+  });
+
+  it('exige edit:agenda antes de procurar o job ou o link', async () => {
+    requireCachedPermission.mockRejectedValueOnce(authError());
+
+    await expect(copiarLinkDeCobrancaAction('job-1')).resolves.toEqual({
+      ok: false,
+      message: 'Sem permissão para copiar o link.',
+    });
+
+    expect(requireCachedPermission).toHaveBeenCalledWith(PERMISSIONS.EDIT_AGENDA);
+    expect(getFailedJobChargeRef).not.toHaveBeenCalled();
+    expect(getPayableCharge).not.toHaveBeenCalled();
   });
 });

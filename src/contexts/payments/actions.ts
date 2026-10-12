@@ -44,16 +44,24 @@ import {
   BillingProviderUnreachableError,
   createAsaasClient,
 } from '@/lib/payments/asaas';
+import type { PaymentAccountClosureBlockers } from '@/lib/payments/account-closure';
 import {
+  closePausedPaymentAccount,
   deactivatePaymentAccount,
   getWebhookSetupTarget,
   markWebhookConfigured,
   upsertPaymentAccount,
+  withPaymentWebhookLock,
+  type PaymentAccountClosureOutcome,
 } from '@/lib/payments/account-store';
 import { env } from '@/lib/env';
 import { buildApplicationUrl } from '@/lib/http/application-url';
 
-import { PaymentCredentialRejectedError, PaymentProviderUnavailableError } from './errors';
+import {
+  PaymentCredentialRejectedError,
+  PaymentProviderUnavailableError,
+  PaymentValidationError,
+} from './errors';
 import { getDepositPolicy, getPaymentAccountStatus } from './queries';
 import { clinicDepositPolicy } from './schema';
 import {
@@ -103,15 +111,15 @@ async function validateCredential(
  * há de onde relê-lo depois.
  *
  * O laço existe por uma regra REAL do Asaas, descoberta ao vivo em 2026-08-24:
- * *"o token não pode conter mais de 4 caracteres iguais consecutivos"*. Um token
- * aleatório viola isso raramente — o que é pior do que violar sempre: a conexão
+ * O token não pode conter 4 caracteres iguais nem sequências numéricas simples.
+ * Um token aleatório viola isso raramente — o que é pior do que violar sempre: a conexão
  * de uma clínica falharia de vez em quando, sem padrão, e pareceria instabilidade
  * do gateway. Gerar de novo é mais barato que investigar isso depois.
  */
 function generateWebhookToken(): string {
   for (let attempt = 0; attempt < 8; attempt++) {
     const candidate = randomBytes(32).toString('base64url');
-    if (!/(.){4,}/.test(candidate)) return candidate;
+    if (!/(.)\1{3,}/.test(candidate) && !/\d{5}/.test(candidate)) return candidate;
   }
   // 8 tentativas seguidas com repetição é indistinguível de RNG quebrado.
   throw new Error('[payments] não foi possível gerar um token de webhook válido');
@@ -323,36 +331,36 @@ export async function connectPaymentAccount(
     encryptForTenant(clinicId, webhookToken),
   ]);
 
-  const result = await upsertPaymentAccount({
-    clinicId,
-    userId: user.userId,
-    apiKeyEncrypted,
-    apiKeyHash,
-    accountName,
-    webhookTokenEncrypted,
-    requestContext: ctx,
+  // `webhook_configured_at` prova apenas que o Asaas aceitou a configuração no
+  // passado. O recurso pode ter sido removido no provider depois disso. Sempre
+  // reconcilia ao reenviar a chave: `createWebhook` faz upsert por pathname/ref,
+  // atualiza o existente sem duplicar e recria somente quando sumiu.
+  const { result, webhookResult } = await withPaymentWebhookLock(clinicId, async () => {
+    const result = await upsertPaymentAccount({
+      clinicId,
+      userId: user.userId,
+      apiKeyEncrypted,
+      apiKeyHash,
+      accountName,
+      webhookTokenEncrypted,
+      requestContext: ctx,
+    });
+    const webhookResult = await tryConfigureWebhook(clinicId, accountEmail);
+    return { result, webhookResult };
   });
-
-  // Reenviar a MESMA chave com webhook já confirmado é um no-op real. Além de
-  // poupar uma chamada, impede criar webhooks duplicados com o mesmo token.
-  const unchangedStatus = result.changed ? null : await getPaymentAccountStatus(clinicId);
-  const webhookResult = unchangedStatus?.webhookConfigured
-    ? { ok: true as const, issue: null }
-    : await tryConfigureWebhook(clinicId, accountEmail);
 
   // Sem chave, sem hash, sem nome de conta: só o suficiente para ver adoção e
   // investigar volume. `changed:false` = reenvio da mesma chave.
   metrics.emit('payments.account.connected', { clinicId, changed: result.changed });
 
-  const status = unchangedStatus?.webhookConfigured
-    ? unchangedStatus
-    : await getPaymentAccountStatus(clinicId);
+  const status = await getPaymentAccountStatus(clinicId);
   return { ...status, webhookConfigurationIssue: webhookResult.issue };
 }
 
 /**
- * Desconecta a conta. A chave é APAGADA (não escondida) — ver `account-store`.
- * Idempotente: desconectar o que já estava desconectado não é erro.
+ * Pausa novas cobranças antes de tentar desconectar. Com histórico financeiro,
+ * a chave permanece cifrada para reconciliar estornos e correções posteriores.
+ * Sem histórico, o webhook é desativado no Asaas e só então a chave é apagada.
  */
 export async function disconnectPaymentAccount(): Promise<PaymentAccountStatusDTO> {
   const user = await requireUser();
@@ -365,8 +373,73 @@ export async function disconnectPaymentAccount(): Promise<PaymentAccountStatusDT
     userId: user.userId,
     requestContext: ctx,
   });
-  metrics.emit('payments.account.disconnected', { clinicId, changed: result.changed });
+  metrics.emit(
+    result.state === 'paused' ? 'payments.account.paused' : 'payments.account.disconnected',
+    { clinicId, changed: result.changed },
+  );
 
+  return getPaymentAccountStatus(clinicId);
+}
+
+function closureBlockedMessage(blockers: PaymentAccountClosureBlockers): string {
+  const plural = (count: number, one: string, many: string) =>
+    `${count} ${count === 1 ? one : many}`;
+  const parts = [
+    blockers.openLinks
+      ? plural(blockers.openLinks, 'link de pagamento aberto', 'links de pagamento abertos')
+      : null,
+    blockers.pendingRefunds
+      ? plural(blockers.pendingRefunds, 'devolução sem confirmação', 'devoluções sem confirmação')
+      : null,
+    blockers.openDisputes
+      ? plural(blockers.openDisputes, 'contestação em andamento', 'contestações em andamento')
+      : null,
+  ].filter((part): part is string => part !== null);
+  return `Ainda há ${parts.join(', ')}. Resolva antes de encerrar a conta.`;
+}
+
+/**
+ * Encerramento definitivo da conta PAUSADA (decisão de 07/10/2026). Só com nada
+ * em aberto: link pagável, devolução sem confirmação ou contestação em
+ * andamento. Desativa o webhook no Asaas antes de apagar chave e token; falha
+ * externa desfaz tudo e a conta segue pausada.
+ */
+export async function closePaymentAccount(): Promise<PaymentAccountStatusDTO> {
+  const user = await requireUser();
+  await requirePaymentAdmin();
+  const clinicId = await requireClinicId();
+  const ctx = await requestContext();
+
+  let result: PaymentAccountClosureOutcome;
+  try {
+    result = await closePausedPaymentAccount({
+      clinicId,
+      userId: user.userId,
+      trigger: 'manual',
+      now: new Date(),
+      requestContext: ctx,
+    });
+  } catch (err) {
+    if (
+      err instanceof BillingProviderError ||
+      err instanceof BillingProviderUnreachableError ||
+      err instanceof BillingCircuitOpenError
+    ) {
+      throw new PaymentValidationError(
+        'O Asaas não confirmou a desativação do webhook agora. Nada foi apagado; tente de novo em instantes.',
+      );
+    }
+    throw err;
+  }
+  if (result.outcome === 'blocked') {
+    throw new PaymentValidationError(closureBlockedMessage(result.blockers));
+  }
+  if (result.outcome !== 'closed') {
+    throw new PaymentValidationError(
+      'Só uma conta pausada pode ser encerrada. Pause as novas cobranças primeiro.',
+    );
+  }
+  metrics.emit('payments.account.closed', { clinicId, trigger: 'manual' });
   return getPaymentAccountStatus(clinicId);
 }
 

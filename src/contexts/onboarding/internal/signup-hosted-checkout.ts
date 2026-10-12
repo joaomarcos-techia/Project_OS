@@ -78,15 +78,14 @@ function describe(intent: SignupBillingIntent): string {
   return `Qoro · plano ${intent.planCode} — ${intent.clinicName}`;
 }
 
-function checkoutCallbacks(): {
+function checkoutCallbacks(publicOrigin: string): {
   successUrl: string;
   cancelUrl: string;
   expiredUrl: string;
 } {
-  if (!env.APP_BASE_URL) throw new Error('[signup] APP_BASE_URL ausente para Checkout');
   const callback = (result: 'success' | 'cancelled' | 'expired') => {
     const url = new URL(
-      buildApplicationUrl(env.APP_BASE_URL!, '/cadastro/pagamento', {
+      buildApplicationUrl(publicOrigin, '/cadastro/pagamento', {
         allowInsecureLocalhost: env.NODE_ENV !== 'production',
       }),
     );
@@ -121,11 +120,12 @@ async function compensateCheckout(client: PaymentProvider, checkoutId: string): 
 
 export async function startSignupHostedCheckout(input: {
   userId: string;
+  publicOrigin?: string;
   client?: PaymentProvider;
 }): Promise<StartSignupHostedCheckoutOutcome> {
   const client = input.client ?? asaasProvider;
   // Valida a configuração antes de reservar a linha.
-  const callbacks = checkoutCallbacks();
+  const callbacks = checkoutCallbacks(input.publicOrigin ?? env.APP_BASE_URL ?? '');
   const reserved = await reserveSignupBillingAttempt(input.userId);
   if (!reserved.ok) {
     if (reserved.reason === 'checkout_pending') {

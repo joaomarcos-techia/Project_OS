@@ -21,6 +21,7 @@ import { APPOINTMENT_STATES } from './state-machine';
 
 export const SCHEDULING_EVENTS = {
   CREATED: 'scheduling.appointment.created',
+  DEPOSIT_REQUESTED: 'scheduling.appointment.deposit_requested',
   CONFIRMED: 'scheduling.appointment.confirmed',
   CHECKED_IN: 'scheduling.appointment.checked_in',
   STARTED: 'scheduling.appointment.started',
@@ -73,6 +74,13 @@ export const AppointmentCreatedSchema = z.object({
   urgencia: z.boolean(),
 });
 export type AppointmentCreatedPayload = z.infer<typeof AppointmentCreatedSchema>;
+
+/** Agendamento pela IA confirmado; Payments relê a agenda antes de cobrar. */
+export const AppointmentDepositRequestedSchema = z.object({
+  clinicId: uuid,
+  appointmentId: uuid,
+});
+export type AppointmentDepositRequestedPayload = z.infer<typeof AppointmentDepositRequestedSchema>;
 
 // --- transition events (confirmed / checked_in) ----------------------------
 const TransitionBase = z.object({
@@ -233,6 +241,7 @@ export const AppointmentImportCompletedSchema = z.object({
 export type AppointmentImportCompletedPayload = z.infer<typeof AppointmentImportCompletedSchema>;
 
 registerEventSchema(SCHEDULING_EVENTS.CREATED, AppointmentCreatedSchema);
+registerEventSchema(SCHEDULING_EVENTS.DEPOSIT_REQUESTED, AppointmentDepositRequestedSchema);
 registerEventSchema(SCHEDULING_EVENTS.CONFIRMED, AppointmentConfirmedSchema);
 registerEventSchema(SCHEDULING_EVENTS.CHECKED_IN, AppointmentCheckedInSchema);
 registerEventSchema(SCHEDULING_EVENTS.STARTED, AppointmentStartedSchema);

@@ -11,6 +11,8 @@ export {
   hashesEqual,
   normalizeCpf,
   normalizePhone,
+  phoneLookupVariants,
+  phoneLookupHashes,
   normalizeEmail,
   validateCpf,
 } from './encryption';

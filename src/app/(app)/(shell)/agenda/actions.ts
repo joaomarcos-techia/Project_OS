@@ -17,8 +17,12 @@
  * (EXCLUDE) são reaplicados dentro de createAppointment/createWalkInAppointment.
  */
 import { revalidatePath } from 'next/cache';
+import { z } from 'zod';
 
+import { getFailedJobChargeRef } from '@/contexts/ai-agent/queries';
 import { getPatientSummaryById, listPatients } from '@/contexts/patient/queries';
+import { paymentsApiV1 } from '@/contexts/payments';
+import { resolveConfiguredProcedurePaymentPrice } from '@/contexts/payments/pricing-queries';
 import {
   cancelRecurringSeries,
   createAppointment,
@@ -27,11 +31,12 @@ import {
   createWalkInAppointment,
   recoverAppointment,
 } from '@/contexts/scheduling/actions';
-import { listAppointments } from '@/contexts/scheduling/queries';
+import { getProcedure, listAppointments } from '@/contexts/scheduling/queries';
 import { zonedWallToUtc } from '@/contexts/scheduling/slot-resolver';
 import { getClinicTimezone } from '@/contexts/tenancy/queries';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { requireCachedPermission, requireClinicId, requireUser } from '@/lib/auth/tenant-context';
+import { metrics } from '@/lib/observability/metrics';
 
 export type CriarAtendimentoInput = {
   patientId: string;
@@ -40,6 +45,8 @@ export type CriarAtendimentoInput = {
   urgencia?: boolean;
   observacoes?: string;
   resourceIds?: string[];
+  paymentMethod?: 'pix' | 'cash' | 'credit_card';
+  installmentCount?: number;
 } & (
   | { modo: 'agora' }
   | {
@@ -133,12 +140,39 @@ export async function criarAtendimento(
     const pat = await getPatientSummaryById(clinicId, input.patientId);
     if (!pat) return { ok: false, message: 'Paciente inválido para esta clínica.' };
 
+    const procedure = await getProcedure(clinicId, input.procedureId);
+    if (!procedure) return { ok: false, message: 'Procedimento inválido para esta clínica.' };
+    const commercialPrice = await resolveConfiguredProcedurePaymentPrice({
+      clinicId,
+      procedureId: input.procedureId,
+      standardGrossAmount: procedure.valorPadrao,
+      paymentMethod: input.paymentMethod ?? null,
+      installmentCount: input.installmentCount ?? null,
+    });
+    if (!commercialPrice) {
+      return {
+        ok: false,
+        message: 'Selecione uma forma de pagamento com preço configurado.',
+      };
+    }
+
     const key = crypto.randomUUID();
     const common = {
       doctorId: input.doctorId,
       patientId: input.patientId,
       procedureId: input.procedureId,
       resourceIds: input.resourceIds ?? [],
+      pricingPolicyMode: commercialPrice.mode,
+      commercialPaymentMethod: commercialPrice.paymentMethod,
+      commercialInstallmentCount: commercialPrice.installmentCount,
+      commercialPriceId: commercialPrice.priceId,
+      ...(commercialPrice.source === 'explicit_method_price'
+        ? {
+            valorAjustado: true,
+            valor: commercialPrice.grossAmount,
+            valorAjusteMotivo: 'Preço por meio de pagamento',
+          }
+        : {}),
       ...(input.urgencia ? { urgencia: true } : {}),
       ...(input.observacoes?.trim() ? { observacoes: input.observacoes.trim() } : {}),
     };
@@ -294,5 +328,45 @@ export async function criarAusenciaMedicaAction(
     };
   } catch (error) {
     return { ok: false, message: messageFrom(error) };
+  }
+}
+
+export type CopiarLinkResult = { ok: true; url: string } | { ok: false; message: string };
+
+const LINK_INDISPONIVEL =
+  'Este link não está mais disponível: a cobrança foi paga, cancelada ou expirou.';
+
+/**
+ * EC-32 — o link do sinal ou do saldo que a Meta não entregou, para a recepção
+ * mandar por outro canal. O WhatsApp do celular da clínica não depende da
+ * cobrança da Meta, então ele chega mesmo com a conta pendente (131042).
+ *
+ *   - gate por edit:agenda ANTES de ler a entrada;
+ *   - a entrada é o id do JOB, nunca o da cobrança: só sai o link de um envio
+ *     da C14 desta clínica que terminou `failed`;
+ *   - quem decide se o link ainda vale é o seam do Payments
+ *     (`getPayableCharge`), o mesmo do envio: cobrança paga, cancelada ou
+ *     expirada não devolve link;
+ *   - o link nunca vai para log, métrica ou evento.
+ */
+export async function copiarLinkDeCobrancaAction(jobId: string): Promise<CopiarLinkResult> {
+  try {
+    await requireUser();
+    await requireCachedPermission(PERMISSIONS.EDIT_AGENDA);
+    const clinicId = await requireClinicId();
+
+    const id = z.string().uuid().safeParse(jobId);
+    if (!id.success) return { ok: false, message: LINK_INDISPONIVEL };
+    const ref = await getFailedJobChargeRef(clinicId, id.data);
+    const charge = ref ? await paymentsApiV1.getPayableCharge(clinicId, ref.chargeId) : null;
+    if (!ref || !charge) return { ok: false, message: LINK_INDISPONIVEL };
+
+    metrics.emit('proactive.link.copied', { clinicId, jobId: ref.jobId, type: ref.type });
+    return { ok: true, url: charge.invoiceUrl };
+  } catch (error) {
+    if (error && typeof error === 'object' && (error as { name?: string }).name === 'AuthError') {
+      return { ok: false, message: 'Sem permissão para copiar o link.' };
+    }
+    return { ok: false, message: 'Não foi possível obter o link agora. Tente de novo.' };
   }
 }

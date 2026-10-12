@@ -45,6 +45,7 @@ import { assertCanCompleteClinically } from './internal/clinical-completion';
 import { assertNoDailyDuplicate, readClinicTimeZone } from './internal/daily-duplicate';
 import {
   assertActiveDoctorInClinic,
+  assertCommercialPriceInput,
   assertPatientInClinic,
   buildSnapshot,
   createAppointmentCore,
@@ -63,6 +64,7 @@ import {
   syncWaitingQueueStatus,
 } from './internal/waiting-queue-store';
 import {
+  assertWaitlistOfferAcceptable,
   offerWaitlistForCancelledAppointment,
   releaseWaitlistOffer,
 } from './internal/waitlist-store';
@@ -413,6 +415,7 @@ export async function createWalkInAppointment(
         },
       },
       async (tx) => {
+        await assertCommercialPriceInput(tx, clinicId, data);
         if (data.patientId) await assertPatientInClinic(tx, clinicId, data.patientId);
         const snap = await buildSnapshot(tx, clinicId, data.procedureId, data.doctorId);
         await assertWalkInOperationalCapacity(tx, {
@@ -432,7 +435,13 @@ export async function createWalkInAppointment(
             scheduledAt: sql`now()`, // microssegundos → nunca colide na UNIQUE; isento do EXCLUDE
             durationMin: snap.duracaoMin,
             status: 'chegou',
-            valor: snap.valorPadrao,
+            valor: data.valorAjustado ? data.valor!.toFixed(2) : snap.valorPadrao,
+            valorAjustado: data.valorAjustado ?? false,
+            valorAjusteMotivo: data.valorAjustado ? (data.valorAjusteMotivo ?? null) : null,
+            pricingPolicyMode: data.pricingPolicyMode ?? 'absorb_fees',
+            commercialPaymentMethod: data.commercialPaymentMethod ?? null,
+            commercialInstallmentCount: data.commercialInstallmentCount ?? null,
+            commercialPriceId: data.commercialPriceId ?? null,
             snapshotProcedureName: snap.nome,
             snapshotProcedureCodigo: snap.codigo,
             snapshotProcedureCategoria: snap.categoria,
@@ -1143,6 +1152,12 @@ export async function acceptWaitlistOffer(
             throw new SchedulingValidationError('o horário ofertado não está mais disponível');
           }
 
+          const offerExpiresAt = await assertWaitlistOfferAcceptable(tx, {
+            clinicId,
+            offeredAt: entry.offeredAt,
+            scheduledAt: released.scheduledAt,
+          });
+
           const created = await insertScheduledAppointment(tx, {
             clinicId,
             userId: user.userId,
@@ -1171,6 +1186,8 @@ export async function acceptWaitlistOffer(
                 eq(waitlistEntries.id, id),
                 eq(waitlistEntries.clinicId, clinicId),
                 eq(waitlistEntries.status, 'offered'),
+                sql`clock_timestamp() < ${offerExpiresAt.toISOString()}::timestamptz`,
+                sql`${released.scheduledAt.toISOString()}::timestamptz > clock_timestamp()`,
               ),
             )
             .returning();

@@ -39,6 +39,13 @@ describe('computeCostUsd', () => {
     ).toBe(0.001463);
   });
 
+  it('gemini-3.6-flash tem o mesmo preço introdutório do 3.8 (tabela oficial, 08/10/2026)', () => {
+    expect(AI_PRICE_TABLE_USD_PER_1M['gemini-3.6-flash']).toEqual({ input: 0.75, output: 3.75 });
+    expect(
+      computeCostUsd({ tokensInput: 1200, tokensOutput: 150, model: 'gemini-3.6-flash' }),
+    ).toBe(0.001463);
+  });
+
   it('modelo fora da tabela → 0 (sem exceção)', () => {
     expect(computeCostUsd({ tokensInput: 1000, tokensOutput: 1000, model: 'gpt-99' })).toBe(0);
   });

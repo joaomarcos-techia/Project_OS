@@ -8,6 +8,7 @@ import { listClinicsWithPendingRefundIntents } from './deposit-scan';
 import {
   confirmRefundIntentFromReadback,
   listRefundIntentReconcileCandidates,
+  prepareDisconnectedManualRefund,
 } from './excess-refund';
 
 export interface ExcessRefundReconcileSummary extends Record<string, unknown> {
@@ -47,7 +48,14 @@ export async function runExcessRefundReconcile(opts?: {
 
     for (const candidate of candidates) {
       try {
-        const payment = await client.getPayment(candidate.providerPaymentId, { attempts: 1 });
+        if (candidate.manualPreparation) {
+          await prepareDisconnectedManualRefund({
+            clinicId,
+            manualPreparation: candidate.manualPreparation,
+            client,
+          });
+        }
+        await client.getPayment(candidate.providerPaymentId, { attempts: 1 });
         const refunds = await client.listPaymentRefunds(candidate.providerPaymentId, {
           attempts: 1,
         });
@@ -55,7 +63,6 @@ export async function runExcessRefundReconcile(opts?: {
           clinicId,
           intentId: candidate.id,
           refunds,
-          providerPaymentStatus: payment.status,
         });
         if (outcome === 'confirmed') summary.confirmed += 1;
         else if (outcome === 'failed') summary.failed += 1;

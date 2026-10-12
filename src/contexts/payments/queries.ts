@@ -14,11 +14,17 @@ import 'server-only';
 import { sql } from 'drizzle-orm';
 
 import { withTenant } from '@/lib/db/tenant';
+import { closureSchedule, hasClosureBlockers } from '@/lib/payments/account-closure';
+import {
+  readPaymentAccountClosureState,
+  type PaymentAccountClosureState,
+} from '@/lib/payments/account-store';
 
 import { DEPOSIT_POLICY_OFF } from './policy';
 import {
   EMPTY_PAYMENT_ACCOUNT,
   type DepositPolicyDTO,
+  type PaymentAccountClosureDTO,
   type PaymentAccountStatusDTO,
 } from './types';
 
@@ -27,6 +33,7 @@ interface AccountRow {
   account_name: string | null;
   key_version: number;
   active: boolean;
+  accept_new_charges: boolean;
   connected_at: string | null;
   webhook_configured_at: string | null;
 }
@@ -34,7 +41,8 @@ interface AccountRow {
 export async function getPaymentAccountStatus(clinicId: string): Promise<PaymentAccountStatusDTO> {
   const rows = (await withTenant(clinicId, (tx) =>
     tx.execute(sql`
-      SELECT provider, account_name, key_version, active, connected_at, webhook_configured_at
+      SELECT provider, account_name, key_version, active, accept_new_charges,
+             connected_at, webhook_configured_at
       FROM clinic_payment_accounts
       WHERE provider = 'asaas'
       LIMIT 1`),
@@ -43,14 +51,33 @@ export async function getPaymentAccountStatus(clinicId: string): Promise<Payment
   const row = rows[0];
   if (!row) return EMPTY_PAYMENT_ACCOUNT;
 
+  // Contagens e prazos do encerramento vêm do seam privilegiado: a data do aviso
+  // fica fora do grant de `authenticated`, como a credencial.
+  const closureState = row.active ? await readPaymentAccountClosureState(clinicId) : null;
+  const paused = row.active && !row.accept_new_charges;
+
   return {
     provider: 'asaas',
     // Invariante do CHECK da 0081: ativa ⇒ existe chave. Ver types.ts.
     hasApiKey: row.active,
+    acceptNewCharges: row.active && row.accept_new_charges,
     webhookConfigured: row.webhook_configured_at !== null,
     accountName: row.account_name,
     keyVersion: row.key_version,
     connectedAt: row.connected_at,
+    openLinks: closureState?.blockers.openLinks ?? 0,
+    closure: paused && closureState ? toClosureDTO(closureState, new Date()) : null,
+  };
+}
+
+function toClosureDTO(state: PaymentAccountClosureState, now: Date): PaymentAccountClosureDTO {
+  const schedule = closureSchedule({ ...state, now });
+  return {
+    blockers: state.blockers,
+    canClose: !hasClosureBlockers(state.blockers),
+    lastActivityAt: state.lastActivityAt.toISOString(),
+    autoCloseAt: schedule.closeAt.toISOString(),
+    noticeSentAt: schedule.noticeValid ? (state.noticeSentAt?.toISOString() ?? null) : null,
   };
 }
 

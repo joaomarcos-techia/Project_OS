@@ -113,11 +113,12 @@ export const COALESCE_MAX_AGE_MS = 90_000;
  * `checkQuota` ANTES de qualquer chamada ao provider.
  *
  * Aritmética que sustenta o número, para que ele seja discutível em vez de
- * arbitrário. Preço introdutório de gemini-3.8-flash em 2026
+ * arbitrário. Preço introdutório de gemini-3.6-flash e 3.8-flash em 2026
  * (`AI_PRICE_TABLE_USD_PER_1M`): $0,75/1M de entrada e $3,75/1M de saída. Um
- * turno típico do agente monta prompt de ~3.000 tokens e responde ~300 →
- * ~$0,00225 + ~$0,001125 ≈ **$0,0034**. Com US$ 1,00 por hora, o teto só é
- * alcançado por volta de **~300 turnos na
+ * turno típico do agente monta prompt de ~3.000 tokens e responde ~300, mais
+ * ~200–600 de raciocínio cobrados como saída (medido em 08/10/2026) →
+ * ~$0,00225 + ~$0,0019–0,0034 ≈ **$0,004–0,006**. Com US$ 1,00 por hora, o
+ * teto só é alcançado por volta de **~170–250 turnos na
  * mesma clínica em 60 minutos** — ordem de grandeza que nenhuma recepção
  * humana produz por WhatsApp, e que caracteriza loop de integração,
  * reprocessamento em rajada ou abuso.

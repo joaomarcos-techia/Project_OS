@@ -3,12 +3,28 @@ import { createServerClient as createSsrClient } from '@supabase/ssr';
 import { config as loadDotenv } from 'dotenv';
 import postgres from 'postgres';
 
-loadDotenv({ path: '.env.local' });
+import {
+  createSupabaseSessionGeneration,
+  supabaseAuthCookieName,
+  SUPABASE_SESSION_COOKIE_OPTIONS,
+  SUPABASE_SESSION_SELECTOR_COOKIE,
+} from '../src/lib/auth/supabase-session-cookie';
 
-const authorized = process.env.E2E_PRODUCTION_WAITLIST === 'ALLOW_SYNTHETIC_CLINIC_A';
+import { assertPreviewRuntimeIsDev, DEV_PROJECT_REF } from './preview-dev-runtime';
+import { vercelBypassHeaders } from './vercel-bypass';
+
+loadDotenv({ path: process.env.QORO_DEV_ENV_FILE ?? '.env.local' });
+
+const previewMode = process.env.E2E_PREVIEW_WAITLIST === 'ALLOW_SYNTHETIC_CLINIC_A_DEV';
+const authorized =
+  previewMode || process.env.E2E_PRODUCTION_WAITLIST === 'ALLOW_SYNTHETIC_CLINIC_A';
 const baseUrl = process.env.E2E_BASE_URL;
-const attendantEmail = process.env.E2E_ATTENDANT_EMAIL;
-const sharedPassword = process.env.E2E_TENANT_PASSWORD;
+const attendantEmail = previewMode
+  ? process.env.E2E_WHATSAPP_EMAIL_TEST
+  : process.env.E2E_ATTENDANT_EMAIL;
+const sharedPassword = previewMode
+  ? process.env.E2E_WHATSAPP_PASSWORD_TEST
+  : process.env.E2E_TENANT_PASSWORD;
 
 test.use({
   storageState: { cookies: [], origins: [] },
@@ -17,6 +33,18 @@ test.use({
 });
 
 function productionConfig(): { databaseUrl: string; url: string; secretKey: string } {
+  if (previewMode) {
+    const databaseUrl = process.env.DATABASE_URL_DEV ?? process.env.DATABASE_URL;
+    const secretKey = process.env.SECRET_KEY_DEV;
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    if (!databaseUrl || !secretKey || !url) throw new Error('Credenciais DEV ausentes.');
+    const databaseRef = decodeURIComponent(new URL(databaseUrl).username).split('.').at(-1);
+    const authRef = new URL(url).hostname.split('.')[0];
+    if (databaseRef !== DEV_PROJECT_REF || authRef !== DEV_PROJECT_REF) {
+      throw new Error('Preview waitlist exige Auth e banco DEV fixados.');
+    }
+    return { databaseUrl, url, secretKey };
+  }
   const databaseUrl = process.env.DATABASE_URL_PROD;
   const secretKey = process.env.SUPABASE_SECRET_KEY_PROD;
   if (!databaseUrl || !secretKey) throw new Error('Credenciais operacionais PROD ausentes.');
@@ -30,6 +58,9 @@ function productionConfig(): { databaseUrl: string; url: string; secretKey: stri
 async function signInContext(context: BrowserContext, email: string, password: string) {
   if (!baseUrl) throw new Error('E2E_BASE_URL ausente.');
   const { url, secretKey } = productionConfig();
+  const generation = createSupabaseSessionGeneration();
+  const cookieName = supabaseAuthCookieName(url, generation);
+  if (!cookieName) throw new Error('Nome do cookie de sessão inválido.');
   let nextCookies: Array<{ name: string; value: string }> = [];
   const client = createSsrClient(url, secretKey, {
     cookies: {
@@ -39,15 +70,27 @@ async function signInContext(context: BrowserContext, email: string, password: s
       },
     },
     auth: { autoRefreshToken: false, persistSession: true },
+    cookieOptions: { name: cookieName, ...SUPABASE_SESSION_COOKIE_OPTIONS },
   });
   const { data, error } = await client.auth.signInWithPassword({ email, password });
   if (error || !data.session || nextCookies.length === 0) {
     throw new Error(error?.message ?? 'Login não produziu sessão.');
   }
   await context.addCookies(
-    nextCookies
-      .filter(({ value }) => value !== '')
-      .map(({ name, value }) => ({ name, value, url: baseUrl })),
+    [
+      ...nextCookies.filter(
+        ({ name, value }) =>
+          value !== '' && (name === cookieName || name.startsWith(`${cookieName}.`)),
+      ),
+      { name: SUPABASE_SESSION_SELECTOR_COOKIE, value: generation },
+    ].map(({ name, value }) => ({
+      name,
+      value,
+      url: baseUrl,
+      httpOnly: true,
+      secure: new URL(baseUrl).protocol === 'https:',
+      sameSite: 'Lax' as const,
+    })),
   );
 }
 
@@ -73,12 +116,39 @@ function isServerAction(response: Response): boolean {
   return request.method() === 'POST' && Boolean(request.headers()['next-action']);
 }
 
+function safeActionFailure(body: string | null, fixtureMarker: string): string {
+  if (!body) return 'unavailable';
+  const decoded = body.replaceAll('\\"', '"');
+  if (/failed query:/iu.test(decoded)) {
+    const target =
+      /\b(insert into|update|delete from|from)\s+(?:"[a-z_]+"\.)?"?([a-z_][a-z0-9_]*)"?/iu.exec(
+        decoded,
+      );
+    return target ? `database_query_failed:${target[1]}:${target[2]}` : 'database_query_failed';
+  }
+  const message = /"message":"((?:\\.|[^"\\])*)"/u.exec(decoded)?.[1];
+  if (!message) return 'message_not_found';
+  return message
+    .replaceAll(fixtureMarker, '[fixture]')
+    .replace(/https?:\/\/\S+/giu, '[url]')
+    .replace(/[\w.+-]+@[\w.-]+\.[a-z]{2,}/giu, '[email]')
+    .replace(/[0-9a-f]{8}-[0-9a-f-]{27}/giu, '[id]')
+    .replace(/\b(?:token|secret|password|key)\s*[:=]\s*\S+/giu, '[secret]')
+    .replace(/[A-Za-z0-9_-]{32,}/gu, '[opaque]')
+    .slice(0, 120);
+}
+
 async function createPatient(
   page: Page,
   input: { name: string; cpf: string; email: string },
 ): Promise<string> {
-  await page.goto('/pacientes?novo=1');
+  const response = await page.goto('/pacientes?novo=1');
   const drawer = page.getByRole('dialog', { name: 'Novo paciente' });
+  if ((await drawer.count()) === 0) {
+    throw new Error(
+      `Formulário de paciente indisponível: path=${new URL(page.url()).pathname}, HTTP=${response?.status() ?? 'sem resposta'}, login=${(await page.locator('#email').count()) > 0}, newButton=${(await page.getByRole('button', { name: 'Novo paciente' }).count()) > 0}`,
+    );
+  }
   await drawer.locator('input[name="nome"]').fill(input.name);
   await drawer.locator('input[name="cpf"]').fill(input.cpf);
   await drawer.locator('input[name="email"]').fill(input.email);
@@ -128,25 +198,70 @@ function waitlistRow(page: Page, patientName: string) {
     .locator('xpath=ancestor::div[contains(@class,"listrow")][1]');
 }
 
-test.describe('produção: lista de espera na Clínica A', () => {
+async function retryFixtureCleanup<T>(work: () => Promise<T>): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await work();
+    } catch (error) {
+      const code =
+        typeof error === 'object' && error !== null && 'code' in error ? error.code : null;
+      if ((code !== '40P01' && code !== '55P03') || attempt >= 4) throw error;
+      await new Promise<void>((resolve) => setTimeout(resolve, attempt * 1_000));
+    }
+  }
+}
+
+const suiteName = previewMode
+  ? 'Preview DEV: lista de espera na Clínica A'
+  : 'produção: lista de espera na Clínica A';
+const acceptMode = previewMode && process.env.E2E_WAITLIST_ACCEPT === '1';
+const scenarioName = acceptMode
+  ? 'validação, cancelamento humano COM oferta, aceite e cleanup'
+  : 'validação, cancelamento humano COM oferta, encerramento e cleanup';
+
+test.describe(suiteName, () => {
   test.describe.configure({ retries: 0 });
 
-  test('validação, cancelamento humano COM oferta, encerramento e cleanup', async ({ browser }) => {
+  test(scenarioName, async ({ browser }) => {
     test.setTimeout(420_000);
     test.skip(
       !authorized,
       'Exige autorização explícita para lista de espera sintética na Clínica A.',
     );
-    if (!baseUrl || new URL(baseUrl).hostname !== 'app.qoro.dev') {
-      throw new Error('O teste de lista de espera só pode apontar para app.qoro.dev.');
+    if (!baseUrl) throw new Error('E2E_BASE_URL ausente.');
+    if (previewMode) {
+      const target = new URL(baseUrl);
+      if (target.protocol !== 'https:' || !target.hostname.endsWith('.vercel.app')) {
+        throw new Error('Preview waitlist exige *.vercel.app com HTTPS.');
+      }
+      await assertPreviewRuntimeIsDev(baseUrl);
+    } else if (new URL(baseUrl).hostname !== 'app.qoro.dev') {
+      throw new Error('O teste de produção só pode apontar para app.qoro.dev.');
     }
     if (!attendantEmail || !sharedPassword) throw new Error('Credencial do atendente A ausente.');
 
     const { databaseUrl } = productionConfig();
     const sql = postgres(databaseUrl, { max: 2, ssl: 'require', prepare: false });
-    const context = await browser.newContext({ baseURL: baseUrl });
+    const context = await browser.newContext({
+      baseURL: baseUrl,
+      extraHTTPHeaders: vercelBypassHeaders(),
+    });
     const page = await context.newPage();
-    const startedAt = new Date();
+    const browserErrorKinds: string[] = [];
+    page.on('pageerror', (error) => {
+      browserErrorKinds.push(
+        /Hydration failed|React error #418/iu.test(error.message) ? 'hydration' : error.name,
+      );
+    });
+    page.on('console', (message) => {
+      if (
+        message.type() === 'error' &&
+        /Hydration failed|React error #418/iu.test(message.text())
+      ) {
+        browserErrorKinds.push('hydration-console');
+      }
+    });
+    const startedAt = new Date().toISOString();
     const runId = String(Date.now()).slice(-10);
     const marker = `[E2E-WAITLIST-A-${runId}]`;
     const patientNames = [`${marker} Normal`, `${marker} Urgente`] as const;
@@ -174,7 +289,8 @@ test.describe('produção: lista de espera na Clínica A', () => {
             join effective_permissions_v ep on ep.user_id=p.id and ep.clinic_id=p.clinic_id
             join clinics c on c.id=p.clinic_id
            where lower(u.email)=${attendantEmail.toLowerCase()}
-             and p.role='attendant' and p.ativo=true and p.deleted_at is null
+             and p.role=${previewMode ? 'owner' : 'attendant'}
+             and p.ativo=true and p.deleted_at is null
            limit 1
         `;
         if (!identity?.can_edit) throw new Error('Atendente A sem edit:agenda.');
@@ -205,7 +321,7 @@ test.describe('produção: lista de espera na Clínica A', () => {
         if (!doctor || !procedure) throw new Error('Clínica A sem médico ou procedimento ativo.');
         const [freeYear] = await tx<{ chosen_year: number }[]>`
           select candidate::int chosen_year
-            from (values (2097), (2098), (2099)) as years(candidate)
+            from generate_series(2097, 2110) as years(candidate)
            where not exists (
              select 1 from appointments a
               where a.doctor_id=${doctor.id}::uuid
@@ -229,6 +345,12 @@ test.describe('produção: lista de espera na Clínica A', () => {
       const preferredUntil = addDays(appointmentDate, 1);
 
       await signInContext(context, attendantEmail, sharedPassword);
+      if (previewMode) {
+        const dashboardResponse = await page.goto('/dashboard');
+        if (dashboardResponse?.status() !== 200 || new URL(page.url()).pathname !== '/dashboard') {
+          throw new Error('Preview não reconheceu a sessão Supabase v2 do runner.');
+        }
+      }
       patientIds.push(
         await createPatient(page, {
           name: patientNames[0],
@@ -275,7 +397,9 @@ test.describe('produção: lista de espera na Clínica A', () => {
         priority: (await page.getByLabel('Prioridade', { exact: true }).count()) > 0,
         notes: (await page.getByLabel('Observações', { exact: true }).count()) > 0,
       };
-      expect(Object.values(accessibility).every(Boolean)).toBe(false);
+      // O teste anterior fixava como esperado o defeito de acessibilidade.
+      // O comportamento correto exige rótulo em todos os sete controles.
+      expect(Object.values(accessibility).every(Boolean)).toBe(true);
 
       await prepareWaitlist(page, {
         patientName: patientNames[0],
@@ -341,15 +465,129 @@ test.describe('produção: lista de espera na Clínica A', () => {
       await page.goto(`/agenda?view=day&date=${appointmentDate}`);
       const appointmentRow = page
         .getByText('Encaixe', { exact: true })
-        .locator('xpath=ancestor::li[1]');
+        .locator('xpath=ancestor::tr[1]');
       await appointmentRow.getByRole('button', { name: 'Corrigir' }).click();
       const correction = page.getByRole('dialog', { name: 'Corrigir atendimento' });
       await correction.getByLabel('Correção').selectOption('exceptional_cancel');
       await correction.getByLabel('Motivo').fill(`${marker} liberação controlada`);
-      const correctionResponse = page.waitForResponse(isServerAction);
+      const formValid = await correction
+        .locator('form')
+        .evaluate((form) => (form as HTMLFormElement).checkValidity());
+      if (!formValid) throw new Error('Formulário de correção inválido antes do submit.');
+      const correctionNavigations: string[] = [];
+      const correctionPosts: Array<{ path: string; markerSent: boolean; serverAction: boolean }> =
+        [];
+      page.on('framenavigated', (frame) => {
+        if (frame === page.mainFrame()) correctionNavigations.push(new URL(frame.url()).pathname);
+      });
+      const hasCorrectionMarker = (request: import('@playwright/test').Request): boolean =>
+        Boolean(
+          request.postData()?.includes(marker) ||
+          request.postDataBuffer()?.includes(Buffer.from(marker)),
+        );
+      page.on('request', (request) => {
+        if (request.method() !== 'POST') return;
+        const path = new URL(request.url()).pathname;
+        if (path !== '/agenda') return;
+        correctionPosts.push({
+          path,
+          markerSent: hasCorrectionMarker(request),
+          serverAction: Boolean(request.headers()['next-action']),
+        });
+      });
+      const correctionResponse = page.waitForResponse(
+        (response) => {
+          const request = response.request();
+          return (
+            request.method() === 'POST' &&
+            new URL(response.url()).pathname === '/agenda' &&
+            hasCorrectionMarker(request)
+          );
+        },
+        { timeout: 30_000 },
+      );
       await correction.getByRole('button', { name: 'Registrar correção' }).click();
-      const cancellationHttpStatus = (await correctionResponse).status();
-      await expect(page.getByText('Agenda corrigida', { exact: true })).toBeVisible();
+      const actionResponse = await correctionResponse.catch(() => {
+        throw new Error(
+          `Correção não enviou POST identificável: ${JSON.stringify({
+            formValid,
+            correctionPosts: correctionPosts.slice(0, 5),
+            path: new URL(page.url()).pathname,
+            correctionNavigations,
+            browserErrorKinds,
+          })}`,
+        );
+      });
+      const cancellationHttpStatus = actionResponse.status();
+      // Uma navegação completa pode descartar o body do POST antes da leitura.
+      const actionBody = await actionResponse.text().catch(() => null);
+      const actionSignals = {
+        http: cancellationHttpStatus,
+        contentType: actionResponse.headers()['content-type']?.split(';')[0] ?? 'none',
+        responsePath: new URL(actionResponse.url()).pathname,
+        bodyAvailable: actionBody !== null,
+        bytes: actionBody?.length ?? null,
+        returnedSuccess: actionBody ? /(?:\\?")ok(?:\\?")\s*:\s*true/u.test(actionBody) : null,
+        returnedFailure: actionBody ? /(?:\\?")ok(?:\\?")\s*:\s*false/u.test(actionBody) : null,
+        serverDigest: actionBody ? /digest/u.test(actionBody) : null,
+        failureSummary: safeActionFailure(actionBody, marker),
+      };
+      if (!actionResponse.ok()) {
+        throw new Error(
+          `Correção devolveu resposta HTTP inválida: ${JSON.stringify(actionSignals)}`,
+        );
+      }
+      // O POST pode terminar antes de o useActionState publicar o resultado.
+      // Aguardar o feedback específico evita consultar o banco cedo demais.
+      const correctionFeedback = page
+        .getByRole('status')
+        .filter({ hasText: /Agenda corrigida|Não foi possível corrigir/u });
+      try {
+        await correctionFeedback.first().waitFor({ state: 'visible', timeout: 45_000 });
+      } catch {
+        const submitButton = correction.getByRole('button', {
+          name: /Registrar correção|Registrando/u,
+        });
+        const [appointmentState] = await sql.begin(async (tx) => {
+          await tx.unsafe('SET TRANSACTION READ ONLY');
+          await tx.unsafe('RESET ROLE');
+          return tx<{ status: string }[]>`
+              select status::text from appointments
+               where clinic_id=${clinicId!}::uuid and id=${appointmentId!}::uuid
+            `;
+        });
+        throw new Error(
+          `Correção sem feedback: ${JSON.stringify({
+            ...actionSignals,
+            path: new URL(page.url()).pathname,
+            correctionNavigations,
+            correctionPosts: correctionPosts.slice(0, 5),
+            appointmentStatus: appointmentState?.status ?? 'missing',
+            dialogVisible: await correction.isVisible(),
+            submitDisabled:
+              (await submitButton.count()) > 0 ? await submitButton.isDisabled() : null,
+            loginVisible: (await page.locator('#email').count()) > 0,
+            toastCount: await page.getByRole('status').count(),
+            browserErrorKinds,
+          })}`,
+        );
+      }
+      const correctionFeedbackText = (await correctionFeedback.first().innerText())
+        .replace(/https?:\/\/\S+/gu, '[url]')
+        .replace(/[0-9a-f]{8}-[0-9a-f-]{27}/giu, '[id]')
+        .slice(0, 180);
+      if (correctionFeedbackText.includes('Não foi possível corrigir')) {
+        throw new Error(
+          `Correção recusada pela UI: ${JSON.stringify({
+            ...actionSignals,
+            authError: /permissão|autenticação|sessão/iu.test(correctionFeedbackText),
+            databaseError: /constraint|relation|column|database|query/iu.test(
+              correctionFeedbackText,
+            ),
+            timeoutError: /timeout|tempo limite/iu.test(correctionFeedbackText),
+          })}`,
+        );
+      }
 
       const normalPatientId = patientIds[0];
       const urgentPatientId = patientIds[1];
@@ -411,8 +649,149 @@ test.describe('produção: lista de espera na Clínica A', () => {
       // beco sem saida. Agora existe o controle para concluir.
       expect(offeredBookControl).toBeGreaterThan(0);
 
+      if (acceptMode) {
+        const acceptResponse = page.waitForResponse(
+          (response) =>
+            isServerAction(response) && new URL(response.url()).pathname === '/agenda/lista-espera',
+        );
+        await waitlistRow(page, patientNames[1])
+          .getByRole('button', { name: 'Aceitar vaga' })
+          .click();
+        const action = await acceptResponse;
+        const body = await action.text().catch(() => null);
+        const successToast = page
+          .getByRole('region', { name: 'Notificações' })
+          .getByRole('status')
+          .filter({ hasText: 'Consulta agendada na vaga ofertada.' });
+        const errorToast = page
+          .getByRole('region', { name: 'Notificações' })
+          .getByRole('status')
+          .filter({ has: page.locator('svg.text-danger-600') });
+        await successToast
+          .or(errorToast)
+          .first()
+          .waitFor({ state: 'visible', timeout: 10_000 })
+          .catch(() => null);
+        const acceptSuccessVisible = await successToast.first().isVisible();
+        const acceptError = (await errorToast.first().isVisible())
+          ? await errorToast.first().innerText()
+          : null;
+        const [accepted] = await sql.begin(async (tx) => {
+          await tx.unsafe('SET TRANSACTION READ ONLY');
+          await tx.unsafe('RESET ROLE');
+          return tx<
+            {
+              entry_status: string;
+              booked_appointment_id: string | null;
+              appointment_status: string | null;
+              patient_id: string | null;
+              procedure_id: string | null;
+              doctor_id: string | null;
+              same_slot_active: number;
+            }[]
+          >`
+            select e.status::text entry_status,
+                   e.booked_appointment_id::text booked_appointment_id,
+                   a.status::text appointment_status,
+                   a.patient_id::text patient_id,
+                   a.procedure_id::text procedure_id,
+                   a.doctor_id::text doctor_id,
+                   (select count(*)::int from appointments x
+                     where x.clinic_id=e.clinic_id
+                       and x.doctor_id=${setup.doctor.id}::uuid
+                       and x.scheduled_at=(select scheduled_at from appointments where id=${appointmentId!}::uuid)
+                       and x.status<>'cancelado') same_slot_active
+              from waitlist_entries e
+              left join appointments a on a.id=e.booked_appointment_id and a.clinic_id=e.clinic_id
+             where e.clinic_id=${clinicId!}::uuid and e.patient_id=${urgentPatientId}::uuid
+          `;
+        });
+        if (accepted?.entry_status !== 'booked') {
+          throw new Error(
+            `Aceite da oferta não persistiu: ${JSON.stringify({
+              http: action.status(),
+              bodyAvailable: body !== null,
+              returnedFailure: body ? /(?:\\?")ok(?:\\?")\s*:\s*false/u.test(body) : null,
+              failureSummary: safeActionFailure(body, marker),
+              successFeedback: acceptSuccessVisible,
+              feedback: acceptError
+                ?.replace(/https?:\/\/\S+/gu, '[url]')
+                .replace(/[0-9a-f]{8}-[0-9a-f-]{27}/giu, '[id]')
+                .replace(/[\w.+-]+@[\w.-]+\.[a-z]{2,}/giu, '[email]')
+                .slice(0, 160),
+              status: accepted?.entry_status ?? 'missing',
+            })}`,
+          );
+        }
+        expect(acceptSuccessVisible, 'a interface precisa confirmar o aceite').toBe(true);
+        expect(accepted).toMatchObject({
+          appointment_status: 'agendado',
+          patient_id: urgentPatientId,
+          procedure_id: setup.procedure.id,
+          doctor_id: setup.doctor.id,
+          same_slot_active: 1,
+        });
+        expect(accepted.booked_appointment_id).toBeTruthy();
+        await page.getByRole('checkbox', { name: 'Mostrar encerrados' }).check();
+        await expect(
+          waitlistRow(page, patientNames[1]).getByText('Agendado', { exact: true }),
+        ).toBeVisible();
+        console.log(
+          `[waitlist-a-accept] ${JSON.stringify({
+            http: action.status(),
+            entryStatus: accepted.entry_status,
+            appointmentStatus: accepted.appointment_status,
+            sameSlotActive: accepted.same_slot_active,
+            externalEffects: false,
+          })}`,
+        );
+        return;
+      }
+
+      const urgentEntryId = entries.find(({ priority }) => priority === 'urgent')?.id;
+      if (!urgentEntryId) throw new Error('Entrada urgente ausente antes do cancelamento.');
+      const offerCancelResponse = page.waitForResponse(
+        (response) =>
+          isServerAction(response) && new URL(response.url()).pathname === '/agenda/lista-espera',
+      );
       await waitlistRow(page, patientNames[1]).getByRole('button', { name: 'Cancelar' }).click();
-      await expect(waitlistRow(page, patientNames[1])).toHaveCount(0);
+      const offerCancelAction = await offerCancelResponse;
+      const offerCancelBody = await offerCancelAction.text().catch(() => null);
+      try {
+        await expect(waitlistRow(page, patientNames[1])).toHaveCount(0);
+      } catch {
+        const [entryState] = await sql.begin(async (tx) => {
+          await tx.unsafe('SET TRANSACTION READ ONLY');
+          await tx.unsafe('RESET ROLE');
+          return tx<{ status: string }[]>`
+            select status::text from waitlist_entries
+             where clinic_id=${clinicId!}::uuid and id=${urgentEntryId}::uuid
+          `;
+        });
+        throw new Error(
+          `Cancelamento da oferta sem atualização visível: ${JSON.stringify({
+            http: offerCancelAction.status(),
+            returnedSuccess: offerCancelBody
+              ? /(?:\\?")ok(?:\\?")\s*:\s*true/u.test(offerCancelBody)
+              : null,
+            returnedFailure: offerCancelBody
+              ? /(?:\\?")ok(?:\\?")\s*:\s*false/u.test(offerCancelBody)
+              : null,
+            failureSummary: safeActionFailure(offerCancelBody, marker),
+            persistedStatus: entryState?.status ?? 'missing',
+            rowStatus: await waitlistRow(page, patientNames[1])
+              .locator('.lr-main')
+              .innerText()
+              .then((text) =>
+                text.includes('Oferta enviada')
+                  ? 'offered'
+                  : text.includes('Cancelado')
+                    ? 'cancelled'
+                    : 'other',
+              ),
+          })}`,
+        );
+      }
       await waitlistRow(page, patientNames[0]).getByRole('button', { name: 'Cancelar' }).click();
       await expect(waitlistRow(page, patientNames[0])).toHaveCount(0);
       await page.getByRole('checkbox', { name: 'Mostrar encerrados' }).check();
@@ -422,6 +801,22 @@ test.describe('produção: lista de espera na Clínica A', () => {
       await expect(
         waitlistRow(page, patientNames[1]).getByText('Cancelado', { exact: true }),
       ).toBeVisible();
+      const cancelledEntries = await sql.begin(async (tx) => {
+        await tx.unsafe('SET TRANSACTION READ ONLY');
+        await tx.unsafe('RESET ROLE');
+        return tx<{ patient_id: string; status: string }[]>`
+          select patient_id::text, status::text from waitlist_entries
+           where clinic_id=${clinicId!}::uuid and patient_id=any(${patientIds}::uuid[])
+        `;
+      });
+      expect(
+        new Map(cancelledEntries.map(({ patient_id, status }) => [patient_id, status])),
+      ).toEqual(
+        new Map([
+          [normalPatientId, 'cancelled'],
+          [urgentPatientId, 'cancelled'],
+        ]),
+      );
 
       console.log(
         `[waitlist-a] ${JSON.stringify({
@@ -442,34 +837,47 @@ test.describe('produção: lista de espera na Clínica A', () => {
       );
     } finally {
       if (clinicId) {
-        const result = await sql.begin(async (tx) => {
-          await tx.unsafe('RESET ROLE');
-          const patients = await tx<{ id: string }[]>`
+        const result = await retryFixtureCleanup(() =>
+          sql.begin(async (tx) => {
+            await tx.unsafe('RESET ROLE');
+            const patients = await tx<{ id: string }[]>`
             select id::text from patients where clinic_id=${clinicId!}::uuid
               and lower(email)=any(${patientEmails.map((email) => email.toLowerCase())}::text[])
           `;
-          const cleanupPatientIds = patients.map(({ id }) => id);
-          const entries = await tx<{ id: string }[]>`
+            const cleanupPatientIds = patients.map(({ id }) => id);
+            const entries = await tx<{ id: string }[]>`
             select id::text from waitlist_entries where clinic_id=${clinicId!}::uuid
               and patient_id::text=any(${cleanupPatientIds}::text[])
           `;
-          const cleanupWaitlistIds = [...new Set([...waitlistIds, ...entries.map(({ id }) => id)])];
-          const appointments = await tx<{ id: string }[]>`
-            select id::text from appointments where clinic_id=${clinicId!}::uuid and observacoes=${marker}
+            const cleanupWaitlistIds = [
+              ...new Set([...waitlistIds, ...entries.map(({ id }) => id)]),
+            ];
+            const appointments = await tx<{ id: string }[]>`
+            select id::text from appointments where clinic_id=${clinicId!}::uuid
+              and (observacoes=${marker}
+                   or (patient_id::text=any(${patientIds}::text[])
+                       and created_at>=${startedAt}::timestamptz))
           `;
-          const cleanupAppointmentIds = [
-            ...new Set(
-              [appointmentId, ...appointments.map(({ id }) => id)].filter((id): id is string =>
-                Boolean(id),
+            const cleanupAppointmentIds = [
+              ...new Set(
+                [appointmentId, ...appointments.map(({ id }) => id)].filter((id): id is string =>
+                  Boolean(id),
+                ),
               ),
-            ),
-          ];
-          const allResourceIds = [
-            ...cleanupPatientIds,
-            ...cleanupWaitlistIds,
-            ...cleanupAppointmentIds,
-          ];
-          const removedOutbox = await tx<{ id: string }[]>`
+            ];
+            const allResourceIds = [
+              ...cleanupPatientIds,
+              ...cleanupWaitlistIds,
+              ...cleanupAppointmentIds,
+            ];
+            const removedJobs = await tx<{ id: string }[]>`
+            delete from ai_proactive_jobs where clinic_id=${clinicId!}::uuid
+              and (payload ->> 'patientId'=any(${cleanupPatientIds}::text[])
+                   or payload ->> 'appointmentId'=any(${cleanupAppointmentIds}::text[])
+                   or payload ->> 'waitlistEntryId'=any(${cleanupWaitlistIds}::text[]))
+            returning id::text
+          `;
+            const removedOutbox = await tx<{ id: string }[]>`
             delete from outbox where clinic_id=${clinicId!}::uuid
               and (payload ->> 'patientId'=any(${cleanupPatientIds}::text[])
                    or payload ->> 'appointmentId'=any(${cleanupAppointmentIds}::text[])
@@ -478,7 +886,7 @@ test.describe('produção: lista de espera na Clínica A', () => {
                    or payload::text like ${`%${marker}%`})
             returning id::text
           `;
-          const removedAudits = await tx<{ id: string }[]>`
+            const removedAudits = await tx<{ id: string }[]>`
             delete from audit_events where clinic_id=${clinicId!}::uuid
               and created_at>=${startedAt}::timestamptz
               and (resource_id=any(${allResourceIds}::text[])
@@ -486,48 +894,71 @@ test.describe('produção: lista de espera na Clínica A', () => {
                    or coalesce(after::text,'') like ${`%${marker}%`})
             returning id::text
           `;
-          const removedIdempotency = await tx<{ key: string }[]>`
+            const removedIdempotency = await tx<{ key: string }[]>`
             delete from idempotency_keys where clinic_id=${clinicId!}::uuid
               and created_at>=${startedAt}::timestamptz
               and response::text like any(${allResourceIds.map((id) => `%${id}%`)}::text[])
             returning key
           `;
-          await tx`delete from waitlist_entries where clinic_id=${clinicId!}::uuid and id::text=any(${cleanupWaitlistIds}::text[])`;
-          await tx`delete from appointments where clinic_id=${clinicId!}::uuid and id::text=any(${cleanupAppointmentIds}::text[])`;
-          await tx`delete from patients where clinic_id=${clinicId!}::uuid and id::text=any(${cleanupPatientIds}::text[])`;
-          const [remaining] = await tx<
-            {
-              patients: number;
-              waitlist: number;
-              appointments: number;
-              outbox: number;
-              audits: number;
-              idempotency: number;
-            }[]
-          >`
+            await tx`delete from waitlist_entries where clinic_id=${clinicId!}::uuid and id::text=any(${cleanupWaitlistIds}::text[])`;
+            await tx`delete from appointments where clinic_id=${clinicId!}::uuid and id::text=any(${cleanupAppointmentIds}::text[])`;
+            await tx`delete from patients where clinic_id=${clinicId!}::uuid and id::text=any(${cleanupPatientIds}::text[])`;
+            // Verifica novamente audit/idempotency após remover os recursos.
+            // A primeira execução do aceite deixou um par remanescente; não
+            // presumimos a causa. Ambas as passagens ficam limitadas à fixture.
+            const lateAudits = await tx<{ id: string }[]>`
+              delete from audit_events where clinic_id=${clinicId!}::uuid
+                and created_at>=${startedAt}::timestamptz
+                and (resource_id=any(${allResourceIds}::text[])
+                     or after ->> 'id'=any(${allResourceIds}::text[]))
+              returning id::text
+            `;
+            const lateIdempotency = await tx<{ key: string }[]>`
+              delete from idempotency_keys where clinic_id=${clinicId!}::uuid
+                and created_at>=${startedAt}::timestamptz
+                and response::text like any(${allResourceIds.map((id) => `%${id}%`)}::text[])
+              returning key
+            `;
+            const [remaining] = await tx<
+              {
+                patients: number;
+                jobs: number;
+                waitlist: number;
+                appointments: number;
+                outbox: number;
+                audits: number;
+                idempotency: number;
+              }[]
+            >`
             select
               (select count(*)::int from patients where clinic_id=${clinicId!}::uuid and lower(email)=any(${patientEmails.map((email) => email.toLowerCase())}::text[])) patients,
+              (select count(*)::int from ai_proactive_jobs where clinic_id=${clinicId!}::uuid and (payload ->> 'patientId'=any(${cleanupPatientIds}::text[]) or payload ->> 'appointmentId'=any(${cleanupAppointmentIds}::text[]) or payload ->> 'waitlistEntryId'=any(${cleanupWaitlistIds}::text[]))) jobs,
               (select count(*)::int from waitlist_entries where clinic_id=${clinicId!}::uuid and id::text=any(${cleanupWaitlistIds}::text[])) waitlist,
               (select count(*)::int from appointments where clinic_id=${clinicId!}::uuid and id::text=any(${cleanupAppointmentIds}::text[])) appointments,
               (select count(*)::int from outbox where clinic_id=${clinicId!}::uuid and (payload::text like ${`%${marker}%`} or payload ->> 'waitlistEntryId'=any(${cleanupWaitlistIds}::text[]))) outbox,
               (select count(*)::int from audit_events where clinic_id=${clinicId!}::uuid and created_at>=${startedAt}::timestamptz and (resource_id=any(${allResourceIds}::text[]) or after ->> 'id'=any(${allResourceIds}::text[]))) audits,
               (select count(*)::int from idempotency_keys where clinic_id=${clinicId!}::uuid and created_at>=${startedAt}::timestamptz and response::text like any(${allResourceIds.map((id) => `%${id}%`)}::text[])) idempotency
           `;
-          return {
-            removed: {
-              outbox: removedOutbox.length,
-              audits: removedAudits.length,
-              idempotency: removedIdempotency.length,
-              waitlist: cleanupWaitlistIds.length,
-              appointments: cleanupAppointmentIds.length,
-              patients: cleanupPatientIds.length,
-            },
-            remaining,
-          };
-        });
+            return {
+              removed: {
+                jobs: removedJobs.length,
+                outbox: removedOutbox.length,
+                audits: removedAudits.length + lateAudits.length,
+                idempotency: removedIdempotency.length + lateIdempotency.length,
+                lateAudits: lateAudits.length,
+                lateIdempotency: lateIdempotency.length,
+                waitlist: cleanupWaitlistIds.length,
+                appointments: cleanupAppointmentIds.length,
+                patients: cleanupPatientIds.length,
+              },
+              remaining,
+            };
+          }),
+        );
         cleanup = result.remaining;
         expect(result.remaining).toEqual({
           patients: 0,
+          jobs: 0,
           waitlist: 0,
           appointments: 0,
           outbox: 0,

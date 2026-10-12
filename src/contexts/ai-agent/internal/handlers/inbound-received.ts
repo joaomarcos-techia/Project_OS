@@ -38,7 +38,7 @@ import {
   type GenerateResult,
   type ToolResult,
 } from '@/lib/ai/provider';
-import { decryptForTenant, encryptForTenant } from '@/lib/crypto';
+import { decryptForTenant, encryptForTenant, phoneLookupHashes } from '@/lib/crypto';
 import type { Tx } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
 import { resolveAiSnapshotMode } from '@/lib/env';
@@ -79,6 +79,7 @@ import {
   buildPromptMessages,
   buildSystemPrompt,
   CLINICAL_FALLBACK,
+  EMERGENCY_REPLY,
   OPERATIONAL_FALLBACK,
   OPERATIONAL_NUDGE,
   PROMPT_HASH,
@@ -89,6 +90,8 @@ import {
   checkClinicalContent,
   decideTurnGuard,
   detectHumanHandoffRequest,
+  detectInformationQuestion,
+  detectPaymentClaim,
   detectPromptInjection,
 } from '../../guards/semantic-guard';
 import { aiAgentFailures, aiConversations } from '../../schema';
@@ -97,6 +100,7 @@ import {
   listToolDeclarations,
   preflightToolCalls,
   validateAndExecute,
+  type ToolContext,
 } from '../../tools/registry';
 // Side-effect: registra as tools no registry (whitelist G9). FONTE ÚNICA da
 // whitelist (3 da C11 + 12 da C12) — compartilhada com os scripts de verificação
@@ -119,10 +123,20 @@ import {
 } from '../conversation';
 import type { ActiveConversation } from '../conversation';
 import { buildContext, patientRegistrationState } from '../context-builder';
-import { isExplicitConfirmation } from '../pending-action';
+import { inboundMedia } from '../inbound-media';
+import { paymentClaimTurn } from '../payment-claim-turn';
+import {
+  classifyConfirmation,
+  executePendingAction,
+  findPendingActionSummary,
+  isExplicitConfirmation,
+  type PendingActionExecutionResult,
+} from '../pending-action';
+import { appointmentTimeForPatient } from '../relative-datetime';
 import { checkQuota, type QuotaCheck } from '../quota';
 import { sanitizeAiFailurePayload } from '../sanitize';
 import { toToolCallRecords } from '../tool-call-record';
+import { toWhatsAppFormatting } from '../whatsapp-format';
 import {
   patientRegistrationMessage,
   registrationFieldFromMessage,
@@ -171,31 +185,40 @@ const REGISTRATION_FIELDS = [
   'cpf',
   'motivo',
 ] as const satisfies readonly RegistrationField[];
-const MAX_EMPTY_RESPONSE_ATTEMPTS = 3;
+const MAX_TRANSIENT_ATTEMPTS = 3;
+/** Espera curta antes de repetir um 5xx: dá fôlego a um provider sobrecarregado. */
+const SERVER_ERROR_BACKOFF_MS = 400;
 
 /**
- * O Gemini pode devolver HTTP 200 com candidate STOP sem parts. Não há efeito
- * externo na geração, então novas tentativas são seguras. O Gemini já devolveu
- * respostas HTTP 200 sem candidate em produção; três tentativas rápidas evitam
- * que uma instabilidade transitória vire a mensagem de handoff ao paciente.
+ * Falhas TRANSITÓRIAS do Gemini repetem até três vezes. A geração não tem efeito
+ * externo, então repetir é seguro:
+ *   - HTTP 200 sem candidate utilizável (já visto em produção);
+ *   - HTTP 5xx — "The service is currently unavailable" (503) apareceu no probe
+ *     de 08/10/2026 e virava, sozinho, "um atendente vai te responder".
+ * Timeout NÃO repete: o turno inteiro roda dentro do orçamento de 60 s da
+ * função, e uma segunda espera longa estouraria esse teto. 4xx também não: a
+ * mesma requisição seria recusada de novo.
  */
-export async function generateWithEmptyResponseRetry(
+export async function generateWithTransientRetry(
   provider: Pick<AIProvider, 'generateWithTools'>,
   opts: GenerateOpts,
 ): Promise<GenerateResult> {
-  for (let attempt = 1; attempt <= MAX_EMPTY_RESPONSE_ATTEMPTS; attempt += 1) {
+  for (let attempt = 1; attempt <= MAX_TRANSIENT_ATTEMPTS; attempt += 1) {
     try {
       return await provider.generateWithTools(opts);
     } catch (err) {
-      const canRetry =
-        err instanceof AIProviderError &&
-        err.code === 'gemini_empty_response' &&
-        attempt < MAX_EMPTY_RESPONSE_ATTEMPTS;
-      if (!canRetry) throw err;
-      metrics.emit('ai_agent.provider.empty_response_retry', { attempt });
+      const code = err instanceof AIProviderError ? err.code : null;
+      const transient = code === 'gemini_empty_response' || code === 'gemini_server_error';
+      if (!transient || attempt >= MAX_TRANSIENT_ATTEMPTS) throw err;
+      if (code === 'gemini_server_error') {
+        metrics.emit('ai_agent.provider.server_error_retry', { attempt });
+        await new Promise((resolve) => setTimeout(resolve, SERVER_ERROR_BACKOFF_MS * attempt));
+      } else {
+        metrics.emit('ai_agent.provider.empty_response_retry', { attempt });
+      }
     }
   }
-  throw new Error('unreachable empty-response retry state');
+  throw new Error('unreachable transient retry state');
 }
 
 function nextRegistrationField(data: CollectedData): RegistrationField | null {
@@ -262,7 +285,21 @@ async function runRegistrationTurnServerSide(args: {
     return { kind: 'handoff', reason: 'collect_human_requested' };
   }
 
-  const parsed = registrationFieldFromMessage(args.state.nextRequiredField, args.text);
+  // 08/10/2026 — pergunta sobre a clínica no meio do cadastro não é o campo
+  // pendente: antes, ela era gravada como `motivo` ou respondida com "CPF
+  // inválido". Conta como turno sem progresso (a válvula de estagnação segue
+  // valendo) e pede o mesmo campo, dizendo que a resposta vem depois.
+  const informationQuestion = detectInformationQuestion(args.text);
+  const parsed = informationQuestion
+    ? ({
+        accepted: false,
+        patientMessage: patientRegistrationMessage({
+          nextRequiredField: args.state.nextRequiredField,
+          complete: false,
+          confirmed: false,
+        }),
+      } as const)
+    : registrationFieldFromMessage(args.state.nextRequiredField, args.text);
   if (!parsed.accepted) {
     // Merge VAZIO: nada entra, mas o turno é contabilizado como sem progresso.
     const stalled = await phase(args.clinicId, (tx) =>
@@ -271,7 +308,12 @@ async function runRegistrationTurnServerSide(args: {
     if (stalled.stagnation >= MAX_COLLECT_STAGNATION) {
       return { kind: 'handoff', reason: 'collect_stagnation' };
     }
-    return { kind: 'reply', text: parsed.patientMessage };
+    return {
+      kind: 'reply',
+      text: informationQuestion
+        ? `Respondo isso assim que terminarmos o cadastro. ${parsed.patientMessage}`
+        : parsed.patientMessage,
+    };
   }
 
   const partial: CollectedData = { ...parsed.partial, telefone: args.verifiedPhone };
@@ -286,6 +328,57 @@ async function runRegistrationTurnServerSide(args: {
       confirmed: false,
     }),
   };
+}
+
+/**
+ * Resposta do SERVIDOR para uma ação preparada que o paciente confirmou
+ * (08/10/2026). Data e hora no fuso da clínica, como no resumo que ele leu.
+ */
+export function pendingConfirmationReply(
+  result: Pick<PendingActionExecutionResult, 'action' | 'scheduledAt' | 'depositAmount'>,
+  timeZone: string,
+): string {
+  const when = result.scheduledAt ? appointmentTimeForPatient(result.scheduledAt, timeZone) : null;
+  const at = when ? ` de ${when}` : '';
+  switch (result.action) {
+    case 'schedule_appointment': {
+      const booked = when
+        ? `Pronto! Consulta agendada para ${when}.`
+        : 'Pronto! Consulta agendada.';
+      // 08/10/2026 — com sinal, o horário só se confirma com o pagamento pelo link.
+      return result.depositAmount
+        ? `${booked} Para confirmar o horário, pague o sinal de ${brlForReply(result.depositAmount)} pelo link que vou te enviar por aqui. O horário fica reservado por até 24 horas.`
+        : booked;
+    }
+    case 'reschedule_appointment':
+      return when ? `Pronto! Consulta reagendada para ${when}.` : 'Pronto! Consulta reagendada.';
+    case 'confirm_appointment':
+      return `Pronto! Presença confirmada na consulta${at}.`;
+    case 'cancel_appointment':
+      return `Pronto! A consulta${at} foi cancelada.`;
+  }
+}
+
+const brlFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+const brlForReply = (value: number): string => brlFormatter.format(value).replace(/\u00a0/g, ' ');
+
+/**
+ * Por que a execução de uma ação confirmada falhou, na língua do paciente.
+ * `null` = falha sem explicação útil: segue o fallback operacional.
+ */
+export function pendingConfirmationFailureReply(err: unknown): string | null {
+  const name = err instanceof Error ? err.name : '';
+  const message = err instanceof Error ? err.message : '';
+  if (message.includes('expirou')) {
+    return 'O resumo expirou antes da confirmação. Me diga de novo o que deseja e preparo outro para você confirmar.';
+  }
+  if (name === 'SchedulingConflictError') {
+    return 'Esse horário acabou de ser ocupado. Me diga outro dia ou horário que eu verifico a agenda.';
+  }
+  if (message.includes('identidade do contato mudou') || message.includes('cadastre/identifique')) {
+    return 'Não consegui confirmar com os dados atuais do seu cadastro. Me diga de novo o que deseja e preparo um novo resumo.';
+  }
+  return null;
 }
 
 function registrationWasRequired(toolResults: ToolResult[]): boolean {
@@ -352,7 +445,11 @@ export function registrationReplyFromToolResults(toolResults: ToolResult[]): str
 export function appointmentReplyFromToolResults(toolResults: ToolResult[]): string | null {
   for (let i = toolResults.length - 1; i >= 0; i -= 1) {
     const result = toolResults[i]!;
-    if (result.name !== 'prepare_appointment') continue;
+    // Reagendar segue o mesmo contrato desde 08/10/2026: o horário conferido
+    // na agenda volta ao paciente exatamente como o servidor o escreveu.
+    if (result.name !== 'prepare_appointment' && result.name !== 'reschedule_appointment') {
+      continue;
+    }
 
     const response = result.response as {
       patient_message?: unknown;
@@ -557,9 +654,12 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
   if (inbound.processedAt !== null) return; // turno já concluído (re-entrega)
 
   const text = inbound.text.trim();
-  if (!payload.hasText || text.length === 0 || inbound.fromNumber === null) {
-    // Sem texto (mídia proibida em C10/C11) ou row pré-0024 sem telefone
-    // cifrado: nada a responder — marca consumido e encerra.
+  // W18 (08/10/2026) — áudio e arquivo têm resposta própria. O resto sem texto
+  // (figurinha, reação, localização, tipo desconhecido) segue sem resposta.
+  const media = payload.hasText ? null : inboundMedia(payload.messageType);
+  if ((!media && (!payload.hasText || text.length === 0)) || inbound.fromNumber === null) {
+    // Sem texto nem mídia tratada, ou row pré-0024 sem telefone cifrado: nada a
+    // responder — marca consumido e encerra.
     await phase(clinicId, (tx) => messagingApiV1.markInboundProcessed(tx, clinicId, inbound.id));
     metrics.emit('ai_agent.turn.skipped', {
       clinicId,
@@ -570,56 +670,98 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
   }
   const fromNumber = inbound.fromNumber;
   const aiRequestId = randomUUID(); // R7 — trace do turno
+  // Cifra e hashes são CPU puro: calculados fora da transação.
+  const fromNumberEncrypted = await encryptForTenant(clinicId, fromNumber);
+  const identityHashes = await phoneLookupHashes(fromNumber);
 
   // FASE A — conversa + mensagem 'in' (checkpoint por eventId) + coalescing.
-  const { conversation, replayedOut, turnText, coalesced } = await phase(clinicId, async (tx) => {
-    const conv: ActiveConversation = await findOrCreateConversation(
-      tx,
-      clinicId,
-      inbound.fromNumberHash,
-      await encryptForTenant(clinicId, fromNumber),
-    );
-    const turn = await findTurnMessages(tx, clinicId, eventId);
-    if (turn.inRow) {
-      // F-08 — a row 'in' É o checkpoint do coalescing: ela guarda o texto do
-      // turno JÁ costurado. Um retry precisa reproduzir exatamente o mesmo
-      // turno; reler `inbound.text` aqui descartaria em silêncio tudo que foi
-      // absorvido na primeira tentativa.
+  const { conversation, replayedOut, turnText, coalesced, absorbed } = await phase(
+    clinicId,
+    async (tx) => {
+      // F-08 + 08/10/2026 — a FASE A é SERIAL por contato. Com o ingress
+      // processando cada mensagem na hora (runOutboxEventsNow), uma rajada vira
+      // turnos SIMULTÂNEOS do mesmo contato: cada um reivindicava as irmãs com
+      // SKIP LOCKED e respondia — três mensagens, três respostas, ao vivo no
+      // Preview. O lock de transação ordena as FASES A; quem chega depois vê a
+      // própria mensagem já absorvida e sai sem responder.
+      await tx.execute(
+        sql`SELECT pg_advisory_xact_lock(hashtextextended(${`ai-turn:${clinicId}:${inbound.fromNumberHash}`}, 0))`,
+      );
+      const conv: ActiveConversation = await findOrCreateConversation(
+        tx,
+        clinicId,
+        inbound.fromNumberHash,
+        fromNumberEncrypted,
+        identityHashes,
+        inbound.contactNameEncrypted,
+      );
+      const turn = await findTurnMessages(tx, clinicId, eventId);
+      if (turn.inRow) {
+        // F-08 — a row 'in' É o checkpoint do coalescing: ela guarda o texto do
+        // turno JÁ costurado. Um retry precisa reproduzir exatamente o mesmo
+        // turno; reler `inbound.text` aqui descartaria em silêncio tudo que foi
+        // absorvido na primeira tentativa.
+        return {
+          conversation: conv,
+          replayedOut: turn.outRow,
+          turnText: await decryptForTenant(clinicId, turn.inRow.contentEncrypted),
+          coalesced: 0,
+          absorbed: false,
+        };
+      }
+
+      // Um turno irmão pode ter absorvido ESTA mensagem enquanto este esperava o
+      // lock: ela já está costurada na resposta dele.
+      const fresh = await messagingApiV1.getInboundForAgent(tx, clinicId, inbound.id);
+      if (fresh?.processedAt) {
+        return {
+          conversation: conv,
+          replayedOut: null,
+          turnText: '',
+          coalesced: 0,
+          absorbed: true,
+        };
+      }
+
+      // F-08 — absorve as mensagens que o paciente mandou na sequência e ainda
+      // não foram consumidas. A reivindicação é atômica (ver claimPendingSiblings),
+      // então o evento de outbox de cada irmã vira no-op no guard de
+      // `processed_at` em vez de virar um turno concorrente.
+      //
+      // W18 — áudio ou arquivo tem turno próprio e não absorve nada: a resposta
+      // dele é só o aviso de mídia, e um texto absorvido ficaria sem resposta.
+      const siblings = media
+        ? []
+        : await messagingApiV1.claimPendingSiblings(tx, clinicId, {
+            fromNumberHash: inbound.fromNumberHash,
+            excludeId: inbound.id,
+            notBefore: new Date(Date.now() - COALESCE_MAX_AGE_MS),
+            limit: COALESCE_MAX_MESSAGES - 1,
+          });
+      const joined = media
+        ? media.turnText
+        : [text, ...siblings.map((s) => s.text.trim()).filter((t) => t.length > 0)].join('\n');
+      const turnText = truncateInbound(joined);
+      await appendInboundMessage(tx, {
+        clinicId,
+        conversationId: conv.id,
+        eventId,
+        text: turnText,
+      });
       return {
         conversation: conv,
         replayedOut: turn.outRow,
-        turnText: await decryptForTenant(clinicId, turn.inRow.contentEncrypted),
-        coalesced: 0,
+        turnText,
+        coalesced: siblings.length,
+        absorbed: false,
       };
-    }
+    },
+  );
 
-    // F-08 — absorve as mensagens que o paciente mandou na sequência e ainda
-    // não foram consumidas. A reivindicação é atômica (ver claimPendingSiblings),
-    // então o evento de outbox de cada irmã vira no-op no guard de
-    // `processed_at` em vez de virar um turno concorrente.
-    const siblings = await messagingApiV1.claimPendingSiblings(tx, clinicId, {
-      fromNumberHash: inbound.fromNumberHash,
-      excludeId: inbound.id,
-      notBefore: new Date(Date.now() - COALESCE_MAX_AGE_MS),
-      limit: COALESCE_MAX_MESSAGES - 1,
-    });
-    const joined = [text, ...siblings.map((s) => s.text.trim()).filter((t) => t.length > 0)].join(
-      '\n',
-    );
-    const turnText = truncateInbound(joined);
-    await appendInboundMessage(tx, {
-      clinicId,
-      conversationId: conv.id,
-      eventId,
-      text: turnText,
-    });
-    return {
-      conversation: conv,
-      replayedOut: turn.outRow,
-      turnText,
-      coalesced: siblings.length,
-    };
-  });
+  if (absorbed) {
+    metrics.emit('ai_agent.turn.absorbed', { clinicId, eventId });
+    return; // a resposta sai pelo turno que costurou esta mensagem
+  }
 
   if (coalesced > 0) {
     metrics.emit('ai_agent.turn.coalesced', {
@@ -731,6 +873,9 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
       collectedForGuard,
     ).status,
   });
+  // EC-22 (08/10/2026) — "já paguei" é respondido pelo servidor com o status
+  // REAL da cobrança. Mídia nunca é afirmação de pagamento (o texto é o rótulo).
+  const paymentClaim = media ? { claimed: false, cash: false } : detectPaymentClaim(turnText);
   // C12 (ADR-023) — injection é AUDIT-ONLY: não bloqueia (RLS + whitelist de
   // tools + recusa do LLM são a defesa real); só dá visibilidade.
   const injection = detectPromptInjection(turnText);
@@ -751,6 +896,35 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
     costUsd = replayedOut.costUsd ? Number(replayedOut.costUsd) : 0;
     alreadyPersisted = true;
     metrics.emit('ai_agent.turn.replayed', { clinicId, eventId, aiRequestId });
+  } else if (media) {
+    // W18 (08/10/2026) — texto FIXO do servidor, sem LLM e sem custo. Áudio pede
+    // a mensagem escrita; arquivo vai para a equipe, que o vê no app do WhatsApp
+    // Business (coexistência) — um comprovante ou uma guia precisam de gente.
+    responseText = media.reply;
+    if (media.kind === 'file') {
+      await phase(clinicId, (tx) =>
+        escalateToHuman(tx, clinicId, conversation.id, 'media_received'),
+      );
+      outcome = 'handoff';
+    } else {
+      outcome = 'replied';
+    }
+    metrics.emit('ai_agent.turn.media', { clinicId, aiRequestId, kind: media.kind });
+  } else if (guard.kind === 'emergency') {
+    // Sinal de urgência (08/10/2026): orientação de emergência FIXA e um humano
+    // da clínica na conversa — antes, o fallback clínico oferecia "marcar para
+    // conversar com o médico" a quem talvez precisasse do SAMU. Sem LLM, sem
+    // custo, e antes do cadastro: o relato nunca vira o campo `motivo`.
+    responseText = EMERGENCY_REPLY;
+    await phase(clinicId, (tx) =>
+      escalateToHuman(tx, clinicId, conversation.id, 'clinical_emergency'),
+    );
+    outcome = 'handoff';
+    metrics.emit('ai_agent.semantic_guard.emergency', {
+      clinicId,
+      aiRequestId,
+      matched: guard.matched,
+    });
   } else if (guard.kind === 'clinical_block' || guard.kind === 'clinical_with_operational') {
     // G4 — pré-filtro clínico: custo zero, latência zero, zero LLM.
     //
@@ -775,6 +949,34 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
       matched: guard.matched,
       mode: guard.kind,
       escalated,
+    });
+  } else if (paymentClaim.claimed && conversation.patientId) {
+    // EC-22 (08/10/2026) — texto FIXO do servidor a partir do status real: pago
+    // confirma; pendente avisa que a confirmação não chegou; dinheiro e
+    // insistência vão para a equipe. Nunca dá nada como pago pela palavra do
+    // paciente. Sem cadastro não há cobrança a consultar: segue o fluxo normal.
+    const patientId = conversation.patientId;
+    const decision = await paymentClaimTurn({
+      clinicId,
+      conversationId: conversation.id,
+      patientId,
+      cash: paymentClaim.cash,
+      eventId,
+      read: (fn) => phase(clinicId, fn),
+    });
+    responseText = decision.text;
+    const handoffReason = decision.handoffReason;
+    if (handoffReason) {
+      await phase(clinicId, (tx) => escalateToHuman(tx, clinicId, conversation.id, handoffReason));
+      outcome = 'handoff';
+    } else {
+      outcome = 'replied';
+    }
+    metrics.emit('ai_agent.payment_claim', {
+      clinicId,
+      aiRequestId,
+      cash: paymentClaim.cash,
+      handoffReason,
     });
   } else if ((await getAiAgentMode()) === 'fallback_only') {
     // Kill-switch global (platform_settings): agente em degradação MANUAL.
@@ -880,10 +1082,76 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
       });
     }
 
+    // Contexto autoritativo das tools — uma definição para o loop do LLM e
+    // para a confirmação conduzida pelo servidor.
+    const toolContext = (tx: Tx): ToolContext => ({
+      tx,
+      clinicId,
+      conversationId: conversation.id,
+      eventId,
+      aiRequestId,
+      // C12 — identidade verificada por telefone (anti-spoofing).
+      patientId: conversation.patientId,
+      patientNome: conversation.patientNome,
+      identityAmbiguous: conversation.identityAmbiguous,
+      verifiedPhone: fromNumber,
+      currentMessage: turnText,
+      canScheduleAnonymous: promptCtx.aiConfig.canScheduleAnonymous,
+      maxDaysAhead: promptCtx.aiConfig.maxDaysAhead,
+      clinicTimeZone: promptCtx.clinic.timezone,
+      pendingAppointmentProcedureName: promptCtx.pendingAppointmentProcedureName,
+      canDisclosePayments: promptCtx.aiConfig.canDisclosePayments,
+    });
+
+    // 08/10/2026 — o "SIM" a uma ação PREPARADA é um gate do servidor, como a
+    // confirmação do cadastro. Ao vivo, o modelo respondeu a um "SIM" chamando
+    // confirm_appointment em vez de confirm_pending_action, com scheduled_at
+    // inválido: a tool falhou e o paciente recebeu "um atendente vai te
+    // responder" depois de confirmar. A pendência e a confirmação explícita
+    // (classifyConfirmation, pela AÇÃO preparada) bastam; o modelo não decide.
+    let serverConfirmationReply: string | null = null;
     if (!serverRegistrationReply && !confirmedRegistrationServerSide && !registrationHandoff) {
+      const pending = await phase(clinicId, (tx) =>
+        findPendingActionSummary(tx, clinicId, conversation.id),
+      );
+      if (pending && classifyConfirmation(turnText, pending.actionName).confirmed) {
+        toolCallCount += 1;
+        toolCallsRecord = toToolCallRecords([{ name: 'confirm_pending_action', args: {} }]);
+        try {
+          const executed = await phase(clinicId, (tx) => executePendingAction(toolContext(tx)));
+          serverConfirmationReply = pendingConfirmationReply(executed, promptCtx.clinic.timezone);
+          metrics.emit('ai_agent.pending_action.confirmed_server_side', {
+            clinicId,
+            conversationId: conversation.id,
+            aiRequestId,
+            action: executed.action,
+          });
+        } catch (err) {
+          await recordFailure({
+            clinicId,
+            conversationId: conversation.id,
+            eventId,
+            aiRequestId,
+            stage: 'tool_invalid',
+            error: err,
+            toolName: 'confirm_pending_action',
+          });
+          serverConfirmationReply = pendingConfirmationFailureReply(err);
+          if (!serverConfirmationReply) fallback = true;
+        }
+      }
+    }
+
+    if (
+      !serverRegistrationReply &&
+      !confirmedRegistrationServerSide &&
+      !registrationHandoff &&
+      !serverConfirmationReply &&
+      !fallback
+    ) {
       try {
         result = await aiCircuit.exec(() =>
-          generateWithEmptyResponseRetry(provider, { systemPrompt, messages, tools: declarations }),
+          generateWithTransientRetry(provider, { systemPrompt, messages, tools: declarations }),
         );
         usageTokens.input += result.usage.tokensInput;
         usageTokens.output += result.usage.tokensOutput;
@@ -969,24 +1237,7 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
         const roundResults = await phase(clinicId, async (tx) => {
           const acc: ToolResult[] = [];
           for (const call of calls) {
-            const exec = await validateAndExecute(call, {
-              tx,
-              clinicId,
-              conversationId: conversation.id,
-              eventId,
-              aiRequestId,
-              // C12 — identidade verificada por telefone (anti-spoofing).
-              patientId: conversation.patientId,
-              patientNome: conversation.patientNome,
-              identityAmbiguous: conversation.identityAmbiguous,
-              verifiedPhone: fromNumber,
-              currentMessage: turnText,
-              canScheduleAnonymous: promptCtx.aiConfig.canScheduleAnonymous,
-              maxDaysAhead: promptCtx.aiConfig.maxDaysAhead,
-              clinicTimeZone: promptCtx.clinic.timezone,
-              pendingAppointmentProcedureName: promptCtx.pendingAppointmentProcedureName,
-              canDisclosePayments: promptCtx.aiConfig.canDisclosePayments,
-            });
+            const exec = await validateAndExecute(call, toolContext(tx));
             if (!exec.ok) {
               const stage: FailureStage =
                 exec.kind === 'unknown_tool'
@@ -1004,7 +1255,14 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
             ) {
               handoffExecuted = true;
             }
-            acc.push({ name: call.name, args: call.args, response: exec.response });
+            // A assinatura opaca do provider volta com o resultado: sem ela, a
+            // re-chamada a um modelo Gemini 3 responde 400 e o turno cai no fallback.
+            acc.push({
+              name: call.name,
+              args: call.args,
+              response: exec.response,
+              ...(call.signature ? { signature: call.signature } : {}),
+            });
           }
           return { failed: null, acc };
         });
@@ -1031,7 +1289,7 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
         // Re-chamada com toolResults (SEM TX — R2).
         try {
           result = await aiCircuit.exec(() =>
-            generateWithEmptyResponseRetry(provider, {
+            generateWithTransientRetry(provider, {
               systemPrompt,
               messages,
               tools: declarations,
@@ -1090,6 +1348,7 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
     }
 
     const operationalReply =
+      serverConfirmationReply ??
       appointmentReplyFromToolResults(toolResults) ??
       serverRegistrationReply ??
       registrationReplyFromToolResults(toolResults) ??
@@ -1191,6 +1450,11 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
       return;
     }
   }
+
+  // EC-24 (08/10/2026) — o modelo escreve Markdown e o WhatsApp mostrava os
+  // asteriscos dobrados. Converte ANTES de gravar: o que fica na conversa é o
+  // que o paciente recebeu. Replay reusa o texto já gravado.
+  if (!alreadyPersisted) responseText = toWhatsAppFormatting(responseText);
 
   // FASE D — persiste a resposta (checkpoint 'out' por eventId).
   if (!alreadyPersisted) {

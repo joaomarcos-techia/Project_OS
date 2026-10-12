@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   registerHandler: vi.fn(),
   recordExcessRefund: vi.fn(),
   applyPatientPaymentRisk: vi.fn(),
+  refreshProfessionalPayout: vi.fn(),
 }));
 
 vi.mock('server-only', () => ({}));
@@ -17,6 +18,9 @@ vi.mock('@/contexts/payments', () => ({
 vi.mock('../patient-credit-adjustment', () => ({
   recordExcessRefund: mocks.recordExcessRefund,
   applyPatientPaymentRisk: mocks.applyPatientPaymentRisk,
+}));
+vi.mock('../professional-payout', () => ({
+  refreshProfessionalPayout: mocks.refreshProfessionalPayout,
 }));
 
 import { PoisonPillError } from '@/lib/outbox/errors';
@@ -39,7 +43,11 @@ function handlerFor(eventType: string): Handler {
   return registration[1] as Handler;
 }
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  mocks.recordExcessRefund.mockResolvedValue('recorded');
+  mocks.applyPatientPaymentRisk.mockResolvedValue('loss_recorded');
+});
 
 describe('handlers de ajuste financeiro do paciente', () => {
   it('confirma D50 dentro da transação do outbox', async () => {
@@ -65,6 +73,10 @@ describe('handlers de ajuste financeiro do paciente', () => {
       sourceEventId: 'event-1',
       occurredAt: new Date('2026-08-29T12:00:00.000Z'),
     });
+    expect(mocks.refreshProfessionalPayout).toHaveBeenCalledWith('TX', {
+      clinicId: 'clinic-1',
+      appointmentId: 'apt-1',
+    });
   });
 
   it('projeta D27 dentro da transação do outbox', async () => {
@@ -88,6 +100,34 @@ describe('handlers de ajuste financeiro do paciente', () => {
       payload,
       sourceEventId: 'event-2',
     });
+    expect(mocks.refreshProfessionalPayout).toHaveBeenCalledWith('TX', {
+      clinicId: 'clinic-1',
+      appointmentId: 'apt-1',
+    });
+  });
+
+  it('reentrega de estorno e disputa aberta não recalculam repasse', async () => {
+    mocks.recordExcessRefund.mockResolvedValue('duplicate');
+    await handlerFor('payments.patient_refund.confirmed')({
+      tx: 'TX',
+      clinicId: 'clinic-1',
+      payload: {
+        clinicId: 'clinic-1',
+        appointmentId: 'apt-1',
+        chargeId: 'charge-1',
+        amount: 30,
+        confirmedAt: '2026-08-29T12:00:00.000Z',
+      },
+      eventId: 'event-1',
+    });
+    mocks.applyPatientPaymentRisk.mockResolvedValue('dispute_opened');
+    await handlerFor('payments.patient_payment.risk_changed')({
+      tx: 'TX',
+      clinicId: 'clinic-1',
+      payload: { clinicId: 'clinic-1', appointmentId: 'apt-1' },
+      eventId: 'event-2',
+    });
+    expect(mocks.refreshProfessionalPayout).not.toHaveBeenCalled();
   });
 
   it.each(['payments.patient_refund.confirmed', 'payments.patient_payment.risk_changed'])(

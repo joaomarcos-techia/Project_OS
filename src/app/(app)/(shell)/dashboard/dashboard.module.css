@@ -233,6 +233,36 @@
   color: var(--warning-600);
 }
 
+/* Mensagens automáticas do WhatsApp: vermelho quando a Meta bloqueia os envios,
+   âmbar quando limita. O texto diz qual é; a cor só reforça (1.4.1). */
+.alertDanger {
+  border-color: var(--danger-200);
+  background: var(--danger-50);
+  color: var(--danger-700);
+}
+
+.alertDanger:hover {
+  border-color: var(--danger-600);
+}
+
+.alertDanger > svg {
+  color: var(--danger-600);
+}
+
+.alertWarning {
+  border-color: var(--warning-200);
+  background: var(--warning-50);
+  color: var(--warning-700);
+}
+
+.alertWarning:hover {
+  border-color: var(--warning-600);
+}
+
+.alertWarning > svg {
+  color: var(--warning-600);
+}
+
 .alertAi {
   border-color: var(--ai-border);
   background: var(--ai-soft);

@@ -18,6 +18,7 @@ import { SCHEDULING_EVENTS } from './events';
 import { createAppointmentCore, rescheduleCore, transitionCore } from './internal/appointment-core';
 import {
   listDepositCandidates,
+  lookupDepositCandidate,
   listRemainderCandidates,
   type DepositCandidate,
   type RemainderCandidate,
@@ -78,6 +79,7 @@ export interface SchedulingApiV1 {
     clinicIds: readonly string[],
     opts?: { createdWithinHours?: number; limit?: number },
   ): Promise<DepositCandidate[]>;
+  lookupDepositCandidate(clinicId: string, appointmentId: string): Promise<DepositCandidate | null>;
   /**
    * ADR-051 1.5b.3 — atendimentos concluídos que podem gerar cobrança do
    * RESTANTE. Mesma divisão: a regra de agenda mora aqui; **quanto ainda falta**
@@ -172,6 +174,8 @@ export const schedulingApiV1: SchedulingApiV1 = {
     listUpcomingPatientAppointments(clinicId, patientId, limit),
   listReminderCandidates: (limit) => listReminderCandidates(limit),
   listDepositCandidates: (clinicIds, opts) => listDepositCandidates(clinicIds, opts),
+  lookupDepositCandidate: (clinicId, appointmentId) =>
+    lookupDepositCandidate(clinicId, appointmentId),
   listRemainderCandidates: (clinicIds, opts) => listRemainderCandidates(clinicIds, opts),
   doctorActiveCommitments: (clinicId, doctorId) => getDoctorActiveCommitments(clinicId, doctorId),
   hasSubsequentCompletedAppointment: (clinicId, input) =>

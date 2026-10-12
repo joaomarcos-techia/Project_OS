@@ -41,6 +41,12 @@ export interface InboundForAgent {
    * anteriores à migration 0024 (coluna aditiva) — sem ele não há resposta.
    */
   fromNumber: string | null;
+  /**
+   * 0114 — nome do perfil do WhatsApp, AINDA CIFRADO com a chave da mesma
+   * clínica: a conversa o guarda como veio, sem decifrar. NULL quando a Meta
+   * não o enviou ou a linha é anterior à 0114.
+   */
+  contactNameEncrypted: string | null;
   receivedAt: Date;
   /** Marcador de consumo do C11 — dedup at-least-once do handler. */
   processedAt: Date | null;
@@ -110,6 +116,16 @@ export interface MessagingApiV1 {
     clinicId: string,
     idempotencyKeys: readonly string[],
   ): Promise<Map<string, OutboundDeliveryStatus>>;
+  /**
+   * EC-32 — o caminho inverso: de um envio (id do `status_updated`) à chave que
+   * o remetente passou ao `sendText`. É ela que liga a recusa da Meta ao job da
+   * C14 (chave = job.id). Só desta clínica; null se o envio não existe aqui.
+   */
+  getOutboundIdempotencyKey(
+    tx: Tx,
+    clinicId: string,
+    outboundMessageId: string,
+  ): Promise<string | null>;
   sendText(input: SendOutboundInput): Promise<OutboundResult>;
 }
 
@@ -134,6 +150,7 @@ async function getInboundForAgent(
     fromNumber: row.fromNumberEncrypted
       ? await decryptForTenant(clinicId, row.fromNumberEncrypted)
       : null,
+    contactNameEncrypted: row.fromNameEncrypted ?? null,
     receivedAt: row.receivedAt,
     processedAt: row.processedAt,
   };
@@ -184,6 +201,11 @@ async function claimPendingSiblings(
           AND id <> ${args.excludeId}
           AND processed_at IS NULL
           AND received_at >= ${args.notBefore.toISOString()}
+          -- 08/10/2026: só TEXTO entra no turno de outra mensagem. Um áudio ou
+          -- arquivo absorvido aqui sumia sem resposta; com o próprio turno, ele
+          -- recebe o aviso de áudio ou vai para a equipe. NULL = linha anterior
+          -- à 0117, tratada como antes.
+          AND (message_type IS NULL OR message_type = 'text')
         ORDER BY received_at
         LIMIT ${args.limit}
         FOR UPDATE SKIP LOCKED
@@ -219,6 +241,19 @@ async function getOutboundStatuses(
   return new Map(rows.map((r) => [r.key, r.status]));
 }
 
+async function getOutboundIdempotencyKey(
+  tx: Tx,
+  clinicId: string,
+  outboundMessageId: string,
+): Promise<string | null> {
+  const [row] = await tx
+    .select({ key: outboundMessages.idempotencyKey })
+    .from(outboundMessages)
+    .where(and(eq(outboundMessages.id, outboundMessageId), eq(outboundMessages.clinicId, clinicId)))
+    .limit(1);
+  return row?.key ?? null;
+}
+
 async function getBusinessAppEchoForAgent(
   tx: Tx,
   clinicId: string,
@@ -252,5 +287,6 @@ export const messagingApiV1: MessagingApiV1 = {
   getBusinessAppEchoForAgent,
   claimPendingSiblings,
   getOutboundStatuses,
+  getOutboundIdempotencyKey,
   sendText: (input) => sendOutbound(input),
 };

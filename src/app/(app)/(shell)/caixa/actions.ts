@@ -6,6 +6,11 @@
  * `ActionResult` (sem redirect) — a tela atualiza in-place via router.refresh().
  */
 import { cancelLancamento, confirmPayment, createEstorno } from '@/contexts/financial/actions';
+import { reviewProfessionalPayout } from '@/contexts/financial/payout-actions';
+import type {
+  ProfessionalPayoutReviewDTO,
+  ReviewProfessionalPayoutInput,
+} from '@/contexts/financial/payout-types';
 import type {
   CancelLancamentoInput,
   ConfirmPaymentInput,
@@ -34,6 +39,18 @@ export async function cancelLancamentoAction(
   try {
     return ok(await cancelLancamento(input, idempotencyKey));
   } catch (err) {
+    return fail(err);
+  }
+}
+
+export async function reviewProfessionalPayoutAction(
+  input: ReviewProfessionalPayoutInput,
+  idempotencyKey: string,
+): Promise<ActionResult<ProfessionalPayoutReviewDTO>> {
+  try {
+    return ok(await reviewProfessionalPayout(input, idempotencyKey));
+  } catch (err) {
+    logger.error('financial.caixa.payout_review_failed', actionErrorLogFields(err));
     return fail(err);
   }
 }

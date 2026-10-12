@@ -2,8 +2,11 @@
  * Integração controlada da 1.6c: contrato Payments → handler outbox → job C14 →
  * lookup no send-time → builder real → seam Messaging. Só as bordas externas
  * (DB/Meta) são mockadas; routing, policy e template são os módulos reais.
+ *
+ * Relógio fixo um dia antes do hold da fixture (ADR-065: a validade do job
+ * depende do instante do envio).
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type * as EnvModule from '@/lib/env';
 
@@ -75,6 +78,7 @@ const CLINIC = '11111111-1111-1111-1111-111111111111';
 const PATIENT = '22222222-2222-2222-2222-222222222222';
 const APPOINTMENT = '33333333-3333-3333-3333-333333333333';
 const CHARGE = '44444444-4444-4444-4444-444444444444';
+const NOW = new Date('2026-08-26T17:00:00.000Z');
 
 type EventHandler = (ctx: {
   tx: unknown;
@@ -110,12 +114,22 @@ async function enqueueAndClaim(kind: 'deposit' | 'remainder'): Promise<void> {
       payload: queued.payload,
       attempts: 1,
       leaseToken: 'lease-1',
+      // Geração 0 (ADR-064): a chave de envio é o próprio id.
+      sendKey: `job-${kind}`,
+      resend: false,
+      failedReason: null,
+      createdAt: new Date(),
     },
   ]);
 }
 
+afterEach(() => {
+  vi.useRealTimers();
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.useFakeTimers({ now: NOW, toFake: ['Date'] });
   mocks.getClinicTimezone.mockResolvedValue('America/Sao_Paulo');
   mocks.getProactiveContact.mockResolvedValue({
     nome: 'Maria Silva',

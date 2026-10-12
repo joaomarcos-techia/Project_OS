@@ -16,7 +16,7 @@
  * provide_procedure_price, request_human_handoff). Tools extras = escopo
  * inválido até C12.
  */
-import type { z } from 'zod';
+import { z } from 'zod';
 
 import type { AIToolDeclaration, ToolCall } from '@/lib/ai/provider';
 import type { Tx } from '@/lib/db';
@@ -118,9 +118,9 @@ export function listToolDeclarations(): AIToolDeclaration[] {
 }
 
 /**
- * Conversor Zod→JSON Schema MÍNIMO: cobre ZodObject de ZodString /
- * ZodOptional<ZodString> com describe() — exatamente o que as 3 tools da C11
- * usam. Tool nova com shape diferente deve estender isto conscientemente
+ * Conversor Zod→JSON Schema MÍNIMO: cobre strings, enums e inteiros opcionais
+ * dentro de ZodObject. Tool nova com shape diferente deve estender isto
+ * conscientemente
  * (gate: lança em vez de emitir schema errado).
  */
 function zodObjectToJsonSchema(schema: z.ZodTypeAny): Record<string, unknown> {
@@ -140,15 +140,27 @@ function zodObjectToJsonSchema(schema: z.ZodTypeAny): Record<string, unknown> {
       inner = innerDef.innerType as z.ZodTypeAny;
       innerDef = (inner as { _def?: { typeName?: string; innerType?: z.ZodTypeAny } })._def;
     }
-    if (innerDef?.typeName !== 'ZodString') {
+    if (inner instanceof z.ZodString) {
+      properties[key] = {
+        type: 'string',
+        ...(inner.description ? { description: inner.description } : {}),
+      };
+    } else if (inner instanceof z.ZodEnum) {
+      properties[key] = {
+        type: 'string',
+        enum: inner.options,
+        ...(inner.description ? { description: inner.description } : {}),
+      };
+    } else if (inner instanceof z.ZodNumber && inner.isInt) {
+      properties[key] = {
+        type: 'integer',
+        ...(inner.description ? { description: inner.description } : {}),
+      };
+    } else {
       throw new Error(
-        `[ai-agent] zodObjectToJsonSchema só cobre strings (campo '${key}') — estenda o conversor`,
+        `[ai-agent] zodObjectToJsonSchema não cobre o campo '${key}' — estenda o conversor`,
       );
     }
-    properties[key] = {
-      type: 'string',
-      ...(inner.description ? { description: inner.description } : {}),
-    };
     if (!optional) required.push(key);
   }
   return {

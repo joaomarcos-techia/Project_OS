@@ -19,6 +19,8 @@
 
 const MINUTE_MS = 60_000;
 const DAY_MS = 86_400_000;
+/** Rótulo de um instante resolvido SEM data na frase ("às 8h"): a data é um palpite. */
+const TIME_ONLY_LABEL = 'no horário informado';
 
 export interface ZonedParts {
   year: number;
@@ -60,6 +62,19 @@ function timeZoneOffsetMs(instant: Date, timeZone: string): number {
 }
 
 /** Wall-clock local da clínica → instante UTC (correto sob DST). */
+/**
+ * Data e hora de uma consulta como o PACIENTE lê: no fuso da clínica.
+ *
+ * Os resumos de cancelar, reagendar e confirmar presença mostravam o ISO em UTC
+ * ("2026-10-09T13:00:00.000Z"): 10:00 em São Paulo virava "13:00" na tela do
+ * paciente, e o "SIM" confirmava um horário que ele leu errado (08/10/2026).
+ */
+export function appointmentTimeForPatient(iso: string, timeZone: string): string {
+  const parts = zonedParts(new Date(iso), timeZone);
+  const pad = (value: number): string => String(value).padStart(2, '0');
+  return `${pad(parts.day)}/${pad(parts.month)}/${parts.year} às ${pad(parts.hour)}:${pad(parts.minute)}`;
+}
+
 export function wallClockInTimeZoneToInstant(args: ZonedParts, timeZone: string): Date {
   const wallClockUtc = Date.UTC(args.year, args.month - 1, args.day, args.hour, args.minute);
   let instant = new Date(wallClockUtc - timeZoneOffsetMs(new Date(wallClockUtc), timeZone));
@@ -359,14 +374,14 @@ export function resolveRequestedDateTime(args: ResolveArgs): ResolvedWhen {
         return {
           kind: 'ambiguous',
           candidatesIso: [pm.toISOString(), at.toISOString()],
-          label: datePart?.label ?? 'no horário informado',
+          label: datePart?.label ?? TIME_ONLY_LABEL,
         };
       }
     }
     return {
       kind: 'instant',
       atIso: at.toISOString(),
-      label: datePart?.label ?? 'no horário informado',
+      label: datePart?.label ?? TIME_ONLY_LABEL,
     };
   }
 
@@ -405,6 +420,12 @@ export type RequestedTime =
   | { mode: 'search'; fromIso: string; toIso: string }
   | { mode: 'candidates'; candidatesIso: string[]; label: string };
 
+/** Mesma hora do dia em datas possivelmente diferentes (tolerância de 1 min). */
+function sameTimeOfDay(a: number, b: number): boolean {
+  const diff = Math.abs(a - b) % DAY_MS;
+  return Math.min(diff, DAY_MS - diff) < MINUTE_MS;
+}
+
 /**
  * Precedência entre servidor e modelo — o ponto exato do F-04.
  *
@@ -422,7 +443,21 @@ export function reconcileRequestedTime(args: {
   const modelAt = modelIso ? new Date(modelIso) : null;
   const modelValid = modelAt !== null && !Number.isNaN(modelAt.getTime());
 
-  if (resolved.kind === 'instant') return { mode: 'instant', atIso: resolved.atIso };
+  if (resolved.kind === 'instant') {
+    // 08/10/2026 — "às 8h" logo depois de a conversa fixar a segunda-feira: o
+    // resolvedor só vê esta frase e entende hoje (ou amanhã) às 8h; o modelo,
+    // com o histórico, propõe segunda às 8h. Ao vivo, o servidor sobrescreveu
+    // a data e respondeu "horário indisponível". Sem data na frase, a HORA é do
+    // servidor e a DATA é da conversa: vale o instante do modelo de mesma hora.
+    if (
+      resolved.label === TIME_ONLY_LABEL &&
+      modelValid &&
+      sameTimeOfDay(modelAt.getTime(), new Date(resolved.atIso).getTime())
+    ) {
+      return { mode: 'instant', atIso: modelAt.toISOString() };
+    }
+    return { mode: 'instant', atIso: resolved.atIso };
+  }
 
   if (resolved.kind === 'window') {
     if (modelValid) {
@@ -441,6 +476,13 @@ export function reconcileRequestedTime(args: {
         (c) => Math.abs(new Date(c).getTime() - t) < MINUTE_MS,
       );
       if (hit) return { mode: 'instant', atIso: hit };
+      // Mesma regra do instante: sem data na frase, a data da conversa vale.
+      if (
+        resolved.label === TIME_ONLY_LABEL &&
+        resolved.candidatesIso.some((c) => sameTimeOfDay(new Date(c).getTime(), t))
+      ) {
+        return { mode: 'instant', atIso: modelAt.toISOString() };
+      }
     }
     return {
       mode: 'candidates',

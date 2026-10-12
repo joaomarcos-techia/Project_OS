@@ -41,7 +41,8 @@ import { ActivationChecklist } from './_components/activation-checklist';
 import { ActivityFeed } from './_components/activity-feed';
 import { RefreshButton } from './_components/refresh-button';
 import { RevenueChart } from './_components/revenue-chart';
-import { getActivationChecklist, getDashboard } from './data';
+import { WhatsappSendAlert, type WhatsappSendAlertData } from './_components/whatsapp-send-alert';
+import { getActivationChecklist, getDashboard, getWhatsappSendAlert } from './data';
 import { dashboardDemoData } from './demo-data';
 import styles from './dashboard.module.css';
 
@@ -115,38 +116,49 @@ export default async function DashboardPage() {
   // e consultada, entao o alerta da IA nao existe no HTML.
   const canViewConversations = user.permissions.includes(PERMISSIONS.VIEW_CONVERSATIONS);
   const NO_HANDOFF: HandoffPulse = { abertos: 0, vencidos: 0 };
+  // Mesmo gate da tela de WhatsApp (AUTHZ-006): o aviso leva para lá, e é quem
+  // gerencia a conta que resolve a pendência na Meta.
+  const canManageSettings = user.permissions.includes(PERMISSIONS.MANAGE_SETTINGS);
+  const NO_WHATSAPP_ALERT: WhatsappSendAlertData = { account: null, refusals: null };
 
   // Gráfico: faturamento (recebido) dos últimos 7 dias. Histórico vem do
   // consolidado diário (cash_flow_daily); "hoje" usa o valor ao vivo (o rollup
   // roda 1x/dia, então ainda não fechou o dia corrente).
-  const [d, checklist, onboarding, flow, serie, activity, handoff] = await Promise.all([
-    demoData ? Promise.resolve(demoData.dashboard) : getDashboard(clinicId, tz),
-    getActivationChecklist(clinicId),
-    // Memoizado por request: o layout já leu esta linha para montar o tour.
-    currentOnboardingProgress(),
-    // DTO neutro em vez da query: o zero aqui nunca é renderizado (os blocos
-    // financeiros somem abaixo), ele só mantém o tipo sem consultar o caixa.
-    canViewFinancial
-      ? demoData
-        ? Promise.resolve(demoData.flow)
-        : getCashFlowToday(clinicId, from, to)
-      : Promise.resolve(NO_CASH_FLOW),
-    canViewFinancial
-      ? demoData
-        ? Promise.resolve(demoData.serie)
-        : listCashFlowDaily(clinicId, dias[0]!, ymd(tz, 1))
-      : Promise.resolve<Awaited<ReturnType<typeof listCashFlowDaily>>>([]),
-    canAudit
-      ? demoData
-        ? Promise.resolve(demoData.activity)
-        : getRecentActivity(clinicId, 7)
-      : Promise.resolve<AuditActivity[]>([]),
-    canViewConversations
-      ? demoData
-        ? Promise.resolve(demoData.handoff)
-        : countOpenHandoffs(clinicId)
-      : Promise.resolve(NO_HANDOFF),
-  ]);
+  const [d, checklist, onboarding, flow, serie, activity, handoff, whatsappAlert] =
+    await Promise.all([
+      demoData ? Promise.resolve(demoData.dashboard) : getDashboard(clinicId, tz),
+      getActivationChecklist(clinicId),
+      // Memoizado por request: o layout já leu esta linha para montar o tour.
+      currentOnboardingProgress(),
+      // DTO neutro em vez da query: o zero aqui nunca é renderizado (os blocos
+      // financeiros somem abaixo), ele só mantém o tipo sem consultar o caixa.
+      canViewFinancial
+        ? demoData
+          ? Promise.resolve(demoData.flow)
+          : getCashFlowToday(clinicId, from, to)
+        : Promise.resolve(NO_CASH_FLOW),
+      canViewFinancial
+        ? demoData
+          ? Promise.resolve(demoData.serie)
+          : listCashFlowDaily(clinicId, dias[0]!, ymd(tz, 1))
+        : Promise.resolve<Awaited<ReturnType<typeof listCashFlowDaily>>>([]),
+      canAudit
+        ? demoData
+          ? Promise.resolve(demoData.activity)
+          : getRecentActivity(clinicId, 7)
+        : Promise.resolve<AuditActivity[]>([]),
+      canViewConversations
+        ? demoData
+          ? Promise.resolve(demoData.handoff)
+          : countOpenHandoffs(clinicId)
+        : Promise.resolve(NO_HANDOFF),
+      // A prévia ilustrativa não lê estado real de integração.
+      canManageSettings && !demoData
+        ? getWhatsappSendAlert(clinicId)
+        : Promise.resolve(NO_WHATSAPP_ALERT),
+    ]);
+  const hasWhatsappAlert =
+    whatsappAlert.account !== null || (whatsappAlert.refusals?.count ?? 0) > 0;
   const recByDate = new Map(serie.map((s) => [s.date, s.totalRecebido]));
   const chart = dias.map((date, i) => ({
     date,
@@ -326,8 +338,11 @@ export default async function DashboardPage() {
       {/* Pendências que valem interromper a leitura: dinheiro que ficou para
           trás e gente esperando um humano. Cada faixa é um link para o lugar
           onde aquilo se resolve — nunca um aviso mudo. */}
-      {(canViewFinancial && d.naoFaturados > 0) || handoff.abertos > 0 ? (
+      {(canViewFinancial && d.naoFaturados > 0) || handoff.abertos > 0 || hasWhatsappAlert ? (
         <div className={styles.alerts ?? ''}>
+          {/* Primeiro: com os envios bloqueados, lembretes e links de sinal
+              não chegam a NENHUM paciente. */}
+          {hasWhatsappAlert ? <WhatsappSendAlert {...whatsappAlert} /> : null}
           {canViewFinancial && d.naoFaturados > 0 ? (
             <Link href="/caixa" className={cn(styles.alert, styles.alertBilling)}>
               <TriangleAlert aria-hidden="true" />

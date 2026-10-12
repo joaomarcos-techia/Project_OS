@@ -47,6 +47,8 @@ interface MetaChange {
 }
 interface MetaValue {
   metadata?: { phone_number_id?: string; display_phone_number?: string };
+  /** Quem enviou as mensagens desta mudança: `wa_id` e nome do perfil. */
+  contacts?: MetaContact[];
   messages?: MetaMessage[];
   statuses?: MetaStatus[];
   // Coexistência (Embedded Signup com app WhatsApp Business).
@@ -65,6 +67,10 @@ interface MetaEcho {
   type?: string;
   text?: { body?: string };
   timestamp?: string;
+}
+interface MetaContact {
+  wa_id?: string;
+  profile?: { name?: string };
 }
 interface MetaMessage {
   id?: string;
@@ -85,6 +91,40 @@ interface MetaSendResponse {
 
 function stringOrNull(v: unknown): string | null {
   return typeof v === 'string' && v.length > 0 ? v : null;
+}
+
+const PROFILE_NAME_MAX = 120;
+
+/**
+ * O nome do perfil é texto livre escolhido pelo contato e vai para a tela da
+ * recepção: caracteres de controle e de direção de texto (que invertem o que
+ * se lê) viram espaço, espaços colapsam e o tamanho tem teto.
+ */
+function profileName(v: unknown): string | null {
+  if (typeof v !== 'string') return null;
+  const visible = Array.from(v, (ch) => {
+    const code = ch.codePointAt(0) ?? 0;
+    const hidden =
+      code < 0x20 ||
+      code === 0x7f ||
+      (code >= 0x202a && code <= 0x202e) ||
+      (code >= 0x2066 && code <= 0x2069);
+    return hidden ? ' ' : ch;
+  }).join('');
+  const name = visible.replace(/\s+/gu, ' ').trim();
+  return name.length > 0 ? Array.from(name).slice(0, PROFILE_NAME_MAX).join('') : null;
+}
+
+/**
+ * Nome de cada remetente da mudança, por `wa_id`. A Meta manda o contato ao
+ * lado das mensagens; com um contato só e `wa_id` diferente do `from` (formato
+ * do número), ele ainda é o remetente.
+ */
+function contactNameFor(contacts: MetaContact[] | undefined, from: string): string | null {
+  const list = contacts ?? [];
+  const exact = list.find((contact) => contact.wa_id === from);
+  if (exact) return profileName(exact.profile?.name);
+  return list.length === 1 ? profileName(list[0]?.profile?.name) : null;
 }
 
 export class MetaCloudProvider implements MessagingProvider {
@@ -245,7 +285,9 @@ export class MetaCloudProvider implements MessagingProvider {
             toPhoneId: phoneId,
             toNumber: typeof displayNumber === 'string' ? displayNumber : null,
             text: m.type === 'text' && typeof m.text?.body === 'string' ? m.text.body : null,
+            messageType: typeof m.type === 'string' ? m.type.slice(0, 40) : null,
             timestamp: typeof m.timestamp === 'string' ? m.timestamp : '',
+            contactName: contactNameFor(value?.contacts, m.from),
           });
         }
 

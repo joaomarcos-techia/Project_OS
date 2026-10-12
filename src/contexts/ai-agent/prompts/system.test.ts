@@ -145,6 +145,22 @@ describe('versionamento (G8/R6)', () => {
     expect(prompt).toContain('Nunca use confirm_pending_action na mesma mensagem');
   });
 
+  it('orienta cobrança apenas do sinal configurado, sem prometer link no mesmo turno', () => {
+    const prompt = buildSystemPrompt(makeCtx());
+    expect(prompt).toContain('o horário só é confirmado com o sinal pago pelo link');
+    expect(prompt).toContain('o restante pode ser pago na clínica, inclusive em dinheiro');
+    expect(prompt).toContain('Não prometa link imediato, prazo exato nem cobrança integral');
+  });
+
+  it('nunca confirma pagamento nem afirma regra da clínica que não veio de ferramenta (08/10/2026)', () => {
+    const prompt = buildSystemPrompt(makeCtx());
+    expect(prompt).toContain('nunca confirme pagamento por conta própria');
+    expect(prompt).toContain(
+      'NUNCA afirme regras ou orientações da clínica que não vieram de uma ferramenta',
+    );
+    expect(prompt).toContain('NUNCA use dois asteriscos');
+  });
+
   it('obriga consulta autoritativa e não transforma lista vazia em negativa', () => {
     const prompt = buildSystemPrompt(makeCtx());
     expect(prompt).toContain('Para informar convênios, use provide_clinic_info');

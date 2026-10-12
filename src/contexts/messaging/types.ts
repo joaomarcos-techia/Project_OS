@@ -36,6 +36,14 @@ export interface OutboundResult {
   status: OutboundMessageStatus;
   providerMessageId: string | null;
   deduped: boolean;
+  /**
+   * ADR-064 — código da recusa SÍNCRONA da Meta (`error.code` do corpo HTTP, ex.:
+   * '131026'), quando `status` é `failed` sem wamid; no dedup de uma chave que já
+   * falhou assim, sai do `provider_response` guardado. A recusa depois do aceite
+   * não vem aqui: chega pelo callback (`messaging.outbound.status_updated`).
+   * Ausente ou null = sem código.
+   */
+  errorCode?: string | null;
 }
 
 export interface WhatsappNumberSummary {

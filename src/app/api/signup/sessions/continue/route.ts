@@ -19,7 +19,7 @@ import { assertSignupContinuationAllowed, getClientIp } from '@/lib/auth/rate-li
 import { createAdminClient } from '@/lib/auth/supabase-admin';
 import { clearSupabaseSessionSelector, createServerClient } from '@/lib/auth/supabase-server';
 import { env } from '@/lib/env';
-import { buildApplicationUrl } from '@/lib/http/application-url';
+import { resolveTrustedApplicationOrigin } from '@/lib/http/application-url';
 import { readWebhookBodyCapped } from '@/lib/http/webhook-body';
 
 import { readSignupCookie, SIGNUP_COOKIE_CLEAR_OPTIONS, SIGNUP_SESSION_COOKIE } from '../../cookie';
@@ -57,22 +57,9 @@ export async function POST(req: Request): Promise<Response> {
   if (!env.SIGNUP_AUTH_ENABLED || !env.SIGNUP_IDENTITY_ENABLED)
     return json({ error: 'unavailable' }, 503);
 
-  let expectedOrigin: string;
-  try {
-    expectedOrigin = new URL(
-      buildApplicationUrl(env.APP_BASE_URL ?? '', '/', {
-        allowInsecureLocalhost: env.NODE_ENV !== 'production',
-      }),
-    ).origin;
-  } catch {
-    return json({ error: 'unavailable' }, 503);
-  }
-  if (
-    req.headers.get('origin') !== expectedOrigin ||
-    req.headers.get('sec-fetch-site') === 'cross-site'
-  ) {
-    return json({ error: 'blocked' }, 403);
-  }
+  const publicOrigin = resolveTrustedApplicationOrigin(req);
+  if (publicOrigin === undefined) return json({ error: 'unavailable' }, 503);
+  if (publicOrigin === null) return json({ error: 'blocked' }, 403);
 
   const rawToken = readSignupCookie(req);
   if (!rawToken || !/^[A-Za-z0-9_-]{43}$/u.test(rawToken)) return gone();

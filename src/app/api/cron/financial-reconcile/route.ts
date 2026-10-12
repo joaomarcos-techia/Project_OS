@@ -27,6 +27,13 @@ import { metrics } from '@/lib/observability/metrics';
 import { publishEvent } from '@/lib/outbox/publish';
 
 import { ORPHAN_CREDIT_AGE_DAYS, scanOrphanCredits } from './orphan-credit-scan';
+import {
+  reconcileQuarantinedPatientPayments,
+  reconcilePendingPaymentEconomics,
+  scanQuarantinedPatientPayments,
+  scanPendingPaymentEconomics,
+  scanReconciledPaymentEconomics,
+} from './payment-economics-reconcile';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -34,6 +41,11 @@ export const maxDuration = 60;
 
 const DEFAULT_LIMIT = 200;
 const MAX_LIMIT = 1000;
+// Cada leitura externa tem teto de 4 s; no máximo sete cabem no orçamento de 60 s.
+const PAYMENT_ECONOMICS_LIMIT = 2;
+const PAYMENT_CORRECTION_LIMIT = 4;
+const PAYMENT_ANOMALY_LIMIT = 1;
+const PAYMENT_BACKSTOP_START_DEADLINE_MS = 30_000;
 const GRACE = "interval '15 minutes'";
 const MOTIVO = 'Atendimento concluído sem lançamento — verificar faturamento.';
 const TERMINAL_APPOINTMENT_STATUSES = new Set(['atendido', 'cancelado', 'faltou']);
@@ -45,6 +57,7 @@ export const GET = withCron(
     errorEvent: 'financial.reconcile.error',
   },
   async (req) => {
+    const startedAt = Date.now();
     const url = new URL(req.url);
     const limit = Math.min(
       Math.max(Number(url.searchParams.get('limit')) || DEFAULT_LIMIT, 1),
@@ -155,14 +168,84 @@ export const GET = withCron(
     if (opened > 0) {
       metrics.emit('financial.reconcile.pendencia_opened', { opened, clinics: byClinic.size });
     }
+    // A recuperação de recebíveis é a obrigação primária deste cron. O Asaas
+    // pode ficar lento; só depois dela fazemos um lote pequeno do backstop.
+    const paymentBackstopSkippedForBudget =
+      Date.now() - startedAt >= PAYMENT_BACKSTOP_START_DEADLINE_MS;
+    if (paymentBackstopSkippedForBudget) {
+      metrics.emit('financial.reconcile.payment_backstop_skipped_budget', {});
+    }
+    const paymentScan = !paymentBackstopSkippedForBudget
+      ? await dbAdmin.transaction(async (tx) => {
+          await tx.execute(sql`RESET ROLE`);
+          const pendingPaymentEconomics = await scanPendingPaymentEconomics(
+            tx,
+            Math.min(limit, PAYMENT_ECONOMICS_LIMIT),
+          );
+          const correctionCandidates = await scanReconciledPaymentEconomics(
+            tx,
+            Math.min(limit, PAYMENT_CORRECTION_LIMIT),
+          );
+          const quarantinedPayments = await scanQuarantinedPatientPayments(
+            tx,
+            Math.min(limit, PAYMENT_ANOMALY_LIMIT),
+          );
+          return { pendingPaymentEconomics, correctionCandidates, quarantinedPayments };
+        })
+      : { pendingPaymentEconomics: [], correctionCandidates: [], quarantinedPayments: [] };
+    const paymentEconomics = await reconcilePendingPaymentEconomics(
+      paymentScan.pendingPaymentEconomics,
+      new Date(),
+    );
+    const paymentCorrections = await reconcilePendingPaymentEconomics(
+      paymentScan.correctionCandidates,
+      new Date(),
+    );
+    const paymentAnomalies = await reconcileQuarantinedPatientPayments(
+      paymentScan.quarantinedPayments,
+      new Date(),
+    );
+    if (paymentAnomalies.mismatched > 0) {
+      metrics.emit('financial.reconcile.payment_anomaly_persisted', {
+        count: paymentAnomalies.mismatched,
+      });
+    }
+    if (paymentEconomics.mismatched > 0) {
+      metrics.emit('financial.reconcile.payment_amount_mismatch', {
+        count: paymentEconomics.mismatched,
+      });
+    }
     const runFields = {
       opened,
       clinics: byClinic.size,
       orphanCredits,
       orphanClinics: orphanClinicIds.size,
+      paymentEconomicsCandidates: paymentEconomics.candidates,
+      paymentEconomicsReconciled: paymentEconomics.reconciled,
+      paymentEconomicsPending: paymentEconomics.pending,
+      paymentEconomicsSkipped: paymentEconomics.skipped,
+      paymentEconomicsMismatched: paymentEconomics.mismatched,
+      paymentEconomicsFailed: paymentEconomics.failed,
+      paymentCorrectionCandidates: paymentCorrections.candidates,
+      paymentCorrectionsApplied: paymentCorrections.corrected,
+      paymentCorrectionsFailed: paymentCorrections.failed,
+      paymentAnomalyCandidates: paymentScan.quarantinedPayments.length,
+      paymentAnomalyRecovered: paymentAnomalies.recovered,
+      paymentAnomalyMismatched: paymentAnomalies.mismatched,
+      paymentAnomalySkipped: paymentAnomalies.skipped,
+      paymentAnomalyFailed: paymentAnomalies.failed,
+      paymentBackstopSkippedForBudget,
     };
     metrics.emit('financial.reconcile.run', runFields);
     await recordHeartbeat('financial-reconcile', 'success', runFields);
-    return Response.json({ ok: true, opened, clinics: byClinic.size }, { status: 200 });
+    return Response.json(
+      {
+        ok: true,
+        opened,
+        clinics: byClinic.size,
+        paymentEconomicsReconciled: paymentEconomics.reconciled,
+      },
+      { status: 200 },
+    );
   },
 );

@@ -53,13 +53,27 @@ import {
 
 import {
   camposAlterados,
+  isPerfilFotoMime,
+  PERFIL_FOTO_MAX_BYTES,
   PerfilWhatsappSchema,
-  type PerfilCampo,
+  type PerfilCampoAuditavel,
+  type PerfilFotoMime,
   type PerfilLido,
   type PerfilWhatsappInput,
 } from './business-profile-contract';
-import { MessagingRateLimitedError, MetaConnectError, NumberNotConnectedError } from './errors';
-import { getBusinessProfile, updateBusinessProfile } from './internal/meta-business-profile';
+import {
+  MessagingRateLimitedError,
+  MessagingValidationError,
+  MetaConnectError,
+  NumberNotConnectedError,
+  WhatsappProfileManagedInBusinessAppError,
+} from './errors';
+import {
+  getBusinessProfile,
+  updateBusinessProfile,
+  updateBusinessProfilePicture,
+} from './internal/meta-business-profile';
+import { checkClinicMessagingHealth } from './internal/messaging-health-check';
 import {
   exchangeCodeForToken,
   registerPhoneNumber,
@@ -362,6 +376,14 @@ export async function connectMyClinicWhatsapp(
             .join(','),
         });
       }
+      // Saúde de envio: uma conta recém-conectada pode estar sem forma de
+      // pagamento na Meta. Os templates seriam aceitos e recusados depois
+      // (131042); ler agora põe o aviso na tela antes do primeiro lembrete.
+      await checkClinicMessagingHealth(clinicId, {
+        trigger: 'connect',
+        requestContext: ctx,
+        userId: user.userId,
+      });
     });
 
     return { id, phoneNumberMasked: maskPhone(meta.waba.phoneNumber) };
@@ -482,9 +504,13 @@ export async function disconnectMyClinicWhatsapp(): Promise<{ disconnected: bool
  */
 async function resolverConexaoDoPerfil(
   clinicId: string,
+  operacao: 'read' | 'write' = 'read',
 ): Promise<{ connectionId: string; phoneNumberId: string; token: string }> {
   const conn = await loadConnectionForHealth(clinicId);
   if (!conn) throw new NumberNotConnectedError(clinicId);
+  if (operacao === 'write' && conn.coexistence) {
+    throw new WhatsappProfileManagedInBusinessAppError();
+  }
   return {
     connectionId: conn.id,
     phoneNumberId: conn.metaPhoneId,
@@ -513,7 +539,7 @@ export async function getMyClinicWhatsappProfile(): Promise<PerfilLido> {
 
 export interface AtualizacaoDePerfil extends PerfilLido {
   /** Campos que de fato mudaram. Vazio = nada foi enviado à Meta. */
-  alterados: PerfilCampo[];
+  alterados: PerfilCampoAuditavel[];
 }
 
 /**
@@ -541,7 +567,7 @@ export async function updateMyClinicWhatsappProfile(
   // Parse ANTES de qualquer I/O: entrada inválida não gasta decrypt nem Graph.
   const desejado = PerfilWhatsappSchema.parse(input);
   const ctx = await requestContext();
-  const { connectionId, phoneNumberId, token } = await resolverConexaoDoPerfil(clinicId);
+  const { connectionId, phoneNumberId, token } = await resolverConexaoDoPerfil(clinicId, 'write');
 
   const antes = await getBusinessProfile(phoneNumberId, token);
   const alterados = camposAlterados(antes.perfil, desejado);
@@ -566,4 +592,60 @@ export async function updateMyClinicWhatsappProfile(
 
   metrics.emit('messaging.whatsapp.profile_updated', { fields: alterados.length });
   return { ...depois, alterados };
+}
+
+function assinaturaDeFotoValida(bytes: Uint8Array, contentType: PerfilFotoMime): boolean {
+  if (contentType === 'image/png') {
+    const png = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+    return png.every((byte, index) => bytes[index] === byte);
+  }
+  return bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+}
+
+/**
+ * Troca a foto pública da própria clínica por upload retomável no Graph.
+ * MIME e assinatura são validados antes de decifrar a credencial da Meta.
+ */
+export async function updateMyClinicWhatsappProfilePicture(
+  file: File,
+): Promise<AtualizacaoDePerfil> {
+  const user = await requireUser();
+  await requireFreshPermission(PERMISSIONS.MANAGE_SETTINGS);
+  const clinicId = await requireClinicId();
+
+  const limite = await assertWhatsappProfileAllowed(clinicId, 'write');
+  if (!limite.ok) throw new MessagingRateLimitedError('write');
+
+  if (!(file instanceof File) || file.size === 0) {
+    throw new MessagingValidationError('Escolha uma imagem PNG ou JPG.');
+  }
+  if (file.size > PERFIL_FOTO_MAX_BYTES) {
+    throw new MessagingValidationError('A foto deve ter no máximo 4 MB.');
+  }
+  if (!isPerfilFotoMime(file.type)) {
+    throw new MessagingValidationError('Formato inválido. Use PNG ou JPG.');
+  }
+
+  const contentType: PerfilFotoMime = file.type;
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  if (!assinaturaDeFotoValida(bytes, contentType)) {
+    throw new MessagingValidationError(
+      'O conteúdo do arquivo não corresponde a uma imagem válida.',
+    );
+  }
+
+  const ctx = await requestContext();
+  const { connectionId, phoneNumberId, token } = await resolverConexaoDoPerfil(clinicId, 'write');
+  await updateBusinessProfilePicture(phoneNumberId, token, bytes, contentType);
+
+  const depois = await getBusinessProfile(phoneNumberId, token);
+  await recordProfileUpdated({
+    clinicId,
+    userId: user.userId,
+    connectionId,
+    changedFields: ['profile_picture'],
+    requestContext: ctx,
+  });
+  metrics.emit('messaging.whatsapp.profile_updated', { fields: 1 });
+  return { ...depois, alterados: ['profile_picture'] };
 }

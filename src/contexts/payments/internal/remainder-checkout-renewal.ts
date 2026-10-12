@@ -93,7 +93,11 @@ export async function runRemainderCheckoutRenewal(opts?: {
             asaasEventId: `reconcile:checkout-expiry:${payment.paymentId}`,
             eventType: 'PAYMENT_RECONCILED',
             paidAt: new Date(),
+            providerGrossAmount: payment.value,
+            providerNetAmount: payment.netValue ?? null,
             billingType: payment.billingType,
+            providerInstallmentId: payment.installmentId ?? null,
+            providerInstallmentNumber: payment.installmentNumber ?? null,
           });
           summary.paymentExists += 1;
           continue;

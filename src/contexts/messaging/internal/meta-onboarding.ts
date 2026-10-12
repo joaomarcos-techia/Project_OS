@@ -18,6 +18,7 @@ import type { ProactiveTemplateDefinition } from '@/lib/messaging/proactive-temp
 
 import { MetaConnectError, type MetaConnectFailureStage } from '../errors';
 import type { MetaChannelProbe, MetaProbeOutcome } from './channel-health';
+import { parseMessagingHealth, type MessagingHealth } from './messaging-health';
 
 const REQUIRED_SCOPES = ['whatsapp_business_management', 'whatsapp_business_messaging'] as const;
 
@@ -77,13 +78,26 @@ export async function graphFetch<T>(
     query?: Record<string, string>;
     // `unknown`: o corpo de template carrega `components` aninhados.
     body?: Record<string, unknown>;
+    /** Corpo binário do upload retomável de foto. Incompatível com `body`. */
+    binary?: { bytes: Uint8Array; contentType: 'image/jpeg' | 'image/png'; fileOffset: 0 };
+    /** Rótulo sem handle/assinatura para mensagens de erro. */
+    safePathLabel?: string;
   },
 ): Promise<T> {
+  if (init.body && init.binary) {
+    throw new Error('graphFetch recebeu body JSON e binário ao mesmo tempo.');
+  }
   const url = new URL(`https://graph.facebook.com/${env.META_GRAPH_API_VERSION}/${path}`);
   for (const [k, v] of Object.entries(init.query ?? {})) url.searchParams.set(k, v);
   const headers: Record<string, string> = {};
   if (init.token) headers.authorization = `Bearer ${init.token}`;
   if (init.body) headers['content-type'] = 'application/json';
+  if (init.binary) {
+    headers['content-type'] = init.binary.contentType;
+    headers.file_offset = String(init.binary.fileOffset);
+  }
+
+  const pathForError = init.safePathLabel ?? path;
 
   let res: Response;
   try {
@@ -93,13 +107,19 @@ export async function graphFetch<T>(
       signal: AbortSignal.timeout(env.META_HTTP_TIMEOUT_MS),
     };
     if (init.body) request.body = JSON.stringify(init.body);
+    if (init.binary) {
+      const bytes = new Uint8Array(init.binary.bytes.byteLength);
+      bytes.set(init.binary.bytes);
+      request.body = new Blob([bytes.buffer], { type: init.binary.contentType });
+    }
     res = await fetch(url, request);
   } catch (err) {
     // timeout / abort / reset — não inclui token; `path` é seguro (sem segredo).
     // Sem resposta não há como afirmar recusa; num POST, nem sequer que nada
     // mudou do outro lado.
-    throw new MetaConnectError(`[meta] graph inalcançável (${init.method} ${path})`, {
-      cause: err,
+    throw new MetaConnectError(`[meta] graph inalcançável (${init.method} ${pathForError})`, {
+      // O erro nativo pode incluir a URL assinada do upload na cadeia de causas.
+      cause: init.safePathLabel ? undefined : err,
       stage: failureStage('indeterminate', init.method, init.stage),
     });
   }
@@ -785,6 +805,45 @@ export async function probeMetaChannel(input: {
   }
 
   return probe;
+}
+
+// ===========================================================================
+// Saúde de ENVIO — `health_status` (08/10/2026). Também só GET.
+// ===========================================================================
+
+export type MessagingHealthRead =
+  | { ok: true; health: MessagingHealth }
+  | { ok: false; reason: GraphFailureKind | 'unparseable' };
+
+/**
+ * Lê o `health_status` do NÚMERO com o token da clínica.
+ *
+ * Uma chamada cobre a WABA e o número: a resposta do nó do número já traz as
+ * entidades PHONE_NUMBER, WABA, BUSINESS e APP (conferido ao vivo no DEV em
+ * 08/10/2026). É também o campo que dá para ler sem permissão de BSP — pedir
+ * `currency` com `primary_funding_id` devolve o erro 10.
+ *
+ * Nunca lança. Qualquer falha, inclusive uma negativa de token, é só "não
+ * verificado": o veredito do canal é do META-001 (`probeMetaChannel`), e
+ * repeti-lo aqui duplicaria a causa na tela.
+ */
+export async function readMessagingHealth(input: {
+  token: string;
+  phoneNumberId: string;
+}): Promise<MessagingHealthRead> {
+  let body: unknown;
+  try {
+    body = await graphFetch<unknown>(encodeURIComponent(input.phoneNumberId), {
+      method: 'GET',
+      stage: 'account',
+      token: input.token,
+      query: { fields: 'health_status' },
+    });
+  } catch (err) {
+    return { ok: false, reason: classifyGraphFailure(err) };
+  }
+  const health = parseMessagingHealth(body);
+  return health ? { ok: true, health } : { ok: false, reason: 'unparseable' };
 }
 
 /** `+55 11 99999-9999` → `+5511999999999`. */

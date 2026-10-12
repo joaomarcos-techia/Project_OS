@@ -113,6 +113,14 @@ describe('caminho feliz', () => {
     );
   });
 
+  it('restringe o Checkout ao método comercial escolhido', async () => {
+    await run({ commercialPaymentMethod: 'credit_card', commercialInstallmentCount: 3 });
+
+    expect(mocks.createInitialHostedCheckout).toHaveBeenCalledWith(
+      expect.objectContaining({ paymentMethod: 'credit_card', installmentCount: 3 }),
+    );
+  });
+
   it('NUNCA manda o nome do procedimento para a fatura (dado sensível)', async () => {
     await run();
 
@@ -134,6 +142,13 @@ describe('caminho feliz', () => {
 describe('o padrão é NÃO cobrar', () => {
   it('agendamento sem paciente', async () => {
     await run({ patientId: null });
+    expect(mocks.createInitialHostedCheckout).not.toHaveBeenCalled();
+  });
+
+  it('preço em dinheiro não cria Checkout Asaas', async () => {
+    await run({ commercialPaymentMethod: 'cash' });
+
+    expect(mocks.getDepositPolicy).not.toHaveBeenCalled();
     expect(mocks.createInitialHostedCheckout).not.toHaveBeenCalled();
   });
 

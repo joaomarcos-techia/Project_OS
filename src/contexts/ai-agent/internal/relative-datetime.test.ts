@@ -339,6 +339,59 @@ describe('reconcileRequestedTime — precedência servidor × modelo', () => {
     ).toEqual({ mode: 'instant', atIso: '2026-08-14T22:00:00.000Z' });
   });
 
+  describe('só a hora na frase: a data vem da conversa (08/10/2026)', () => {
+    // 14/08 09:00 local. "às 14h" sem data → hoje às 14h para o resolvedor.
+    const TODAY_14 = '2026-08-14T17:00:00.000Z';
+    const MONDAY_14 = '2026-08-17T17:00:00.000Z'; // segunda 17/08 14:00 local
+
+    it('o modelo propõe segunda às 14h depois de listar segunda → vale segunda', () => {
+      expect(reconcileRequestedTime({ resolved: resolve('às 14h'), modelIso: MONDAY_14 })).toEqual({
+        mode: 'instant',
+        atIso: MONDAY_14,
+      });
+    });
+
+    it('hora diferente da dita pelo paciente → a hora do servidor vence', () => {
+      expect(
+        reconcileRequestedTime({
+          resolved: resolve('às 14h'),
+          modelIso: '2026-08-17T18:00:00.000Z',
+        }),
+      ).toEqual({ mode: 'instant', atIso: TODAY_14 });
+    });
+
+    it('com data explícita na frase, o servidor continua vencendo', () => {
+      expect(
+        reconcileRequestedTime({ resolved: resolve('amanhã às 14h'), modelIso: MONDAY_14 }),
+      ).toEqual({ mode: 'instant', atIso: '2026-08-15T17:00:00.000Z' });
+    });
+
+    it('hora ambígua ("às 8h") com a data da conversa e a leitura da manhã', () => {
+      const monday8 = '2026-08-17T11:00:00.000Z';
+      expect(reconcileRequestedTime({ resolved: resolve('às 8h'), modelIso: monday8 })).toEqual({
+        mode: 'instant',
+        atIso: monday8,
+      });
+    });
+
+    it('hora ambígua com instante do modelo em outra hora → pergunta, não chuta', () => {
+      expect(
+        reconcileRequestedTime({
+          resolved: resolve('às 8h'),
+          modelIso: '2026-08-17T12:00:00.000Z',
+        }),
+      ).toMatchObject({ mode: 'candidates' });
+    });
+
+    it('hora ambígua sem data: o modelo escolhe a data e uma das leituras', () => {
+      const mondayAt15 = '2026-08-17T18:00:00.000Z';
+      expect(reconcileRequestedTime({ resolved: resolve('às 3'), modelIso: mondayAt15 })).toEqual({
+        mode: 'instant',
+        atIso: mondayAt15,
+      });
+    });
+  });
+
   it('nada de nenhum lado → none (cai no primeiro horário livre)', () => {
     expect(reconcileRequestedTime({ resolved: { kind: 'none' }, modelIso: undefined })).toEqual({
       mode: 'none',

@@ -10,6 +10,7 @@
  */
 import { eq } from 'drizzle-orm';
 
+import type { Tx } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
 
 import { plans, subscriptions, type SubscriptionRow } from './schema';
@@ -40,6 +41,8 @@ export interface BillingApiV1 {
   assertUserQuota(clinicId: string, activeUsers: number): Promise<UserQuotaResult>;
   /** Permissões granulares são recurso dos planos Clínica e Pro. */
   hasGranularPermissions(clinicId: string): Promise<boolean>;
+  /** Políticas financeiras avançadas só existem nos planos Clínica e Pro. */
+  hasAdvancedFinancialPolicies(clinicId: string, tx?: Tx): Promise<boolean>;
 }
 
 async function getPlanLimitsApi(clinicId: string): Promise<PlanLimits | null> {
@@ -90,10 +93,28 @@ async function hasGranularPermissions(clinicId: string): Promise<boolean> {
   });
 }
 
+export function planHasAdvancedFinancialPolicies(code: string | null | undefined): boolean {
+  return code === 'clinica' || code === 'pro';
+}
+
+async function hasAdvancedFinancialPolicies(clinicId: string, tx?: Tx): Promise<boolean> {
+  const read = async (connection: Tx): Promise<boolean> => {
+    const [row] = await connection
+      .select({ code: plans.code })
+      .from(subscriptions)
+      .innerJoin(plans, eq(plans.id, subscriptions.planId))
+      .where(eq(subscriptions.clinicId, clinicId))
+      .limit(1);
+    return planHasAdvancedFinancialPolicies(row?.code);
+  };
+  return tx ? read(tx) : withTenant(clinicId, read);
+}
+
 export const billingApiV1: BillingApiV1 = {
   getPlanLimits: getPlanLimitsApi,
   getSubscription: getSubscriptionApi,
   checkAndIncrementQuota,
   assertUserQuota,
   hasGranularPermissions,
+  hasAdvancedFinancialPolicies,
 };

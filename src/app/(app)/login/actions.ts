@@ -147,7 +147,20 @@ export async function loginAction(
     if (onboarding.ok) {
       if (onboarding.kind === 'redirect') redirect(onboarding.route);
       const currentBinding = readSignupAuthBinding(data.user);
-      if (currentBinding?.passwordState === 'set') redirect('/cadastro/continuar');
+      if (currentBinding?.passwordState === 'set') {
+        const binding = await ensurePasswordAuthenticatedSignupAuthBinding({
+          userId: onboarding.userId,
+          email: onboarding.email,
+        });
+        if (binding.ok) redirect('/cadastro/continuar');
+        await supabase.auth.signOut({ scope: 'local' });
+        return {
+          error:
+            binding.reason === 'unavailable'
+              ? 'Não foi possível consultar seu cadastro agora. Tente novamente.'
+              : 'Não foi possível vincular seu cadastro. Contate o suporte.',
+        };
+      }
       // Contas pré-tenant criadas antes do marker em app_metadata já têm senha.
       // O login acabou de prová-la; reata o marker apenas à linha verificada que
       // o mesmo user/e-mail possui, sem aceitar referência vinda do formulário.

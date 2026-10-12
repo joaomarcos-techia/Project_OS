@@ -72,7 +72,7 @@ describe('continuação autenticada do cadastro verificado', () => {
       'href',
       'http://localhost:3000/cadastro/plano',
     );
-    // Uma única leitura: o vínculo acontece no servidor, dentro deste GET.
+    // Uma única leitura: este GET não altera o vínculo no Auth.
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/signup/draft');
     expect(fetchMock.mock.calls[0]?.[1]).toEqual({ cache: 'no-store' });
@@ -125,6 +125,36 @@ describe('continuação autenticada do cadastro verificado', () => {
 
     await screen.findByText('Cadastro recuperado na conta verificada');
     expect(screen.getByText('Ana')).toBeTruthy();
+  });
+
+  it('pede novo login se o draft foi salvo mas o vínculo no Auth falhou', async () => {
+    fetchMock.mockResolvedValueOnce(json(410, { error: 'gone' }));
+    render(<ContinueSignupForm />);
+    await screen.findByText(/Não encontramos um cadastro em andamento/u);
+    fillRestartForm();
+    fetchMock.mockResolvedValueOnce(json(503, { error: 'binding_unavailable' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar e continuar' }));
+
+    await screen.findByText('Cadastro salvo; vínculo pendente');
+    expect(screen.getByRole('link', { name: 'Ir para o login' })).toHaveProperty(
+      'href',
+      'http://localhost:3000/login',
+    );
+    expect(screen.queryByRole('link', { name: 'Escolher plano' })).toBeNull();
+  });
+
+  it('não trata conflito após cobrança como sucesso ou sessão nova', async () => {
+    fetchMock.mockResolvedValueOnce(json(410, { error: 'gone' }));
+    render(<ContinueSignupForm />);
+    await screen.findByText(/Não encontramos um cadastro em andamento/u);
+    fillRestartForm();
+    fetchMock
+      .mockResolvedValueOnce(json(409, { error: 'conflict' }))
+      .mockResolvedValueOnce(json(410, { error: 'gone' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar e continuar' }));
+
+    await screen.findByText(/Pode haver um pagamento em processamento/u);
+    expect(screen.queryByRole('link', { name: 'Escolher plano' })).toBeNull();
   });
 
   it('não trata indisponibilidade como navegador novo e permite repetir só a leitura', async () => {

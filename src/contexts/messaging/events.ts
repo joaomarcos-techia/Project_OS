@@ -2,16 +2,14 @@
  * Messaging context events (C10). Producer-side schema registrado no catálogo do
  * outbox no module load (importado por ./schema, re-exportado pelo barrel).
  *
- * ÚNICO evento: `messaging.inbound.received`. Outbound e status callbacks NÃO
- * emitem evento (decisão de produto: só status + métrica).
+ * Eventos: `messaging.inbound.received` (turno da IA, C11), o eco do app
+ * WhatsApp Business (coexistência) e `messaging.outbound.status_updated`, que
+ * a fila C14 consome para fechar o job cuja mensagem a Meta recusou depois de
+ * aceitar (EC-32).
  *
  * Payload rule (5.9): NUNCA conteúdo/plaintext — só ids + hashes + escalares
  * não-sensíveis. JSON-safe (sem Date/BigInt; receivedAt é string ISO). O
- * consumidor (C11 AI Agent) lê a row por id para descriptografar.
- *
- * Até C11 registrar o handler, este evento fica `skipped` no worker (catálogo
- * sem handler = "producer ahead of consumer", F-03). A mensagem permanece salva
- * em inbound_messages_raw.
+ * consumidor lê a row por id para descriptografar.
  */
 import { z } from 'zod';
 
@@ -38,6 +36,11 @@ export const InboundReceivedSchema = z.object({
   fromNumberHash: z.string(),
   toPhoneId: z.string(),
   hasText: z.boolean(),
+  /**
+   * `type` da Meta (08/10/2026). Aditivo e opcional: eventos anteriores seguem
+   * válidos e são tratados como hoje (sem texto = sem resposta).
+   */
+  messageType: z.string().max(40).optional(),
   receivedAt: z.string(),
 });
 export type InboundReceivedPayload = z.infer<typeof InboundReceivedSchema>;
@@ -47,6 +50,15 @@ export const OutboundStatusUpdatedSchema = z.object({
   outboundMessageId: uuid,
   providerMessageId: z.string(),
   status: z.enum(['sent', 'delivered', 'read', 'failed']),
+  /**
+   * Código da recusa quando `status = 'failed'` (Meta: `errors[0].code`, ex.:
+   * "131042"). Aditivo e opcional: eventos anteriores a ele continuam válidos e
+   * o callback pode vir sem código.
+   */
+  errorCode: z
+    .string()
+    .regex(/^\d{1,10}$/)
+    .optional(),
 });
 export type OutboundStatusUpdatedPayload = z.infer<typeof OutboundStatusUpdatedSchema>;
 

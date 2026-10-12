@@ -10,6 +10,7 @@ import { schedulingApiV1 } from '@/contexts/scheduling';
 /* eslint-enable boundaries/element-types */
 
 import { proposePendingAction } from '../internal/pending-action';
+import { appointmentTimeForPatient } from '../internal/relative-datetime';
 import { registerTool } from './registry';
 
 const InputSchema = z.object({
@@ -46,7 +47,7 @@ registerTool({
         appointmentId: input.appointment_id,
         ...(input.reason !== undefined ? { reason: input.reason } : {}),
       },
-      summary: `Cancelar consulta de ${appt.scheduledAt}`,
+      summary: `Cancelar consulta de ${appointmentTimeForPatient(appt.scheduledAt, ctx.clinicTimeZone)}`,
     });
     return {
       pending_action_id: pending.id,

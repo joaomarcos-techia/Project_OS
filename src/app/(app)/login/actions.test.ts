@@ -287,7 +287,7 @@ describe('login de usuário verificado pré-tenant', () => {
     });
   });
 
-  it('não exige compatibilidade para marker ready já instalado', async () => {
+  it('revalida marker ready para reparar uma recriação interrompida', async () => {
     mocks.readSignupAuthBinding.mockReturnValue({
       signupRef: 'a'.repeat(64),
       passwordState: 'set',
@@ -297,7 +297,25 @@ describe('login de usuário verificado pré-tenant', () => {
     await expect(loginAction({ error: null }, loginForm())).rejects.toThrow(
       'REDIRECT:/cadastro/continuar',
     );
-    expect(mocks.ensurePasswordAuthenticatedSignupAuthBinding).not.toHaveBeenCalled();
+    expect(mocks.ensurePasswordAuthenticatedSignupAuthBinding).toHaveBeenCalledOnce();
+  });
+
+  it('encerra sessão e explica quando o marker ready não pode ser reparado', async () => {
+    mocks.readSignupAuthBinding.mockReturnValue({
+      signupRef: 'a'.repeat(64),
+      passwordState: 'set',
+    });
+    mocks.ensurePasswordAuthenticatedSignupAuthBinding.mockResolvedValue({
+      ok: false,
+      reason: 'unavailable',
+    });
+    const { loginAction } = await import('./actions');
+    await expect(loginAction({ error: null }, loginForm())).resolves.toEqual({
+      error: 'Não foi possível consultar seu cadastro agora. Tente novamente.',
+    });
+    expect(mocks.signOut).toHaveBeenCalledWith({ scope: 'local' });
+    expect(mocks.ensurePasswordAuthenticatedSignupAuthBinding).toHaveBeenCalledOnce();
+    expect(mocks.redirect).not.toHaveBeenCalled();
   });
 
   it('retoma cadastro somente depois da seam server-only', async () => {

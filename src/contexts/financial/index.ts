@@ -22,7 +22,24 @@ export {
   pendenciaStatus,
   collectionCaseStage,
   collectionCaseStatus,
+  clinicFinancialPolicies,
+  clinicFinancialPolicyVersions,
+  professionalPayoutRules,
+  professionalPayouts,
 } from './schema';
+
+export type {
+  ProfessionalPayoutBasis,
+  ProfessionalPayoutRuleKind,
+  ProfessionalPayoutStatus,
+} from './schema';
+export type {
+  ProfessionalPayoutDTO,
+  ProfessionalPayoutPolicyDTO,
+  ProfessionalPayoutRuleDTO,
+  SaveProfessionalPayoutPolicyInput,
+  SaveProfessionalPayoutRuleInput,
+} from './payout-types';
 
 export { financialApiV1, type FinancialApiV1 } from './api';
 export type { DunningCandidate } from './dunning-candidates';

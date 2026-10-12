@@ -33,9 +33,25 @@ const agendaData = {
   procedures: [],
   doctors: [],
   resources: [],
+  deliveryFailures: [],
+  deliveryFailuresLimited: false,
   tz: 'America/Sao_Paulo',
   view: 'week',
   ymd: '2026-08-20',
+};
+
+/** EC-32 — link do sinal recusado pela Meta, com a vaga ainda segurada. */
+const depositFailure = {
+  jobId: 'job-1',
+  kind: 'deposit_link',
+  pacienteNome: 'Maria Souza',
+  appointmentId: 'appt-1',
+  consultaEm: '2099-01-10T13:00:00.000Z',
+  retornoEm: null,
+  vagaSeguradaAte: '2099-01-09T13:00:00.000Z',
+  acionavel: true,
+  linkCopiavel: true,
+  causa: { kind: 'meta_refused', code: '131042' },
 };
 
 afterEach(cleanup);
@@ -116,6 +132,71 @@ describe('AgendaPage', () => {
     expect(getAgendaData).toHaveBeenLastCalledWith({ view: 'day' });
     await AgendaPage({ searchParams: Promise.resolve({ view: 'month', date: '2026-09-09' }) });
     expect(getAgendaData).toHaveBeenLastCalledWith({ view: 'month', date: '2026-09-09' });
+  });
+
+  it('mostra a faixa das mensagens que não chegaram, em qualquer visão', async () => {
+    getAgendaData.mockResolvedValue({ ...agendaData, deliveryFailures: [depositFailure] });
+
+    render(await AgendaPage({ searchParams: Promise.resolve({ view: 'week' }) }));
+
+    expect(
+      screen.getByText(/O link do sinal não chegou a Maria Souza · vaga segurada até/u),
+    ).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Copiar link do sinal' })).toBeTruthy();
+  });
+
+  it('no Dia, a linha da consulta ganha o selo ao lado do "Sinal pendente"', async () => {
+    navigation.search = 'view=day&date=2099-01-10';
+    getAgendaData.mockResolvedValue({
+      ...agendaData,
+      view: 'day',
+      ymd: '2099-01-10',
+      appointments: [
+        {
+          id: 'appt-1',
+          doctorId: 'doc-1',
+          horario: '2099-01-10T13:00:00.000Z',
+          pacienteNome: 'Maria Souza',
+          pacienteIdade: 34,
+          medicoNome: 'Dra. Ana',
+          procedimento: 'Consulta',
+          duracaoMin: 50,
+          status: 'agendado',
+          recoveryKinds: [],
+          recurrenceSeriesId: null,
+          recurrenceOccurrence: null,
+          depositStatus: 'pending',
+          holdExpiresAt: '2099-01-09T13:00:00.000Z',
+          urgencia: false,
+          createdVia: 'ai',
+          criadoEm: '2099-01-08T13:00:00.000Z',
+          filaDesde: null,
+          atendimentoDesde: null,
+        },
+      ],
+      deliveryFailures: [depositFailure],
+    });
+
+    render(
+      await AgendaPage({ searchParams: Promise.resolve({ view: 'day', date: '2099-01-10' }) }),
+    );
+
+    const row = screen.getByText('Sinal pendente').closest('tr')!;
+    const badge = within(row).getByText('Link não entregue');
+    expect(badge.closest('[title]')?.getAttribute('title')).toContain('(131042)');
+  });
+
+  it('sem edit:agenda a faixa aparece, mas sem "Copiar link"', async () => {
+    getAgendaData.mockResolvedValue({
+      ...agendaData,
+      canEditAgenda: false,
+      deliveryFailures: [depositFailure],
+    });
+
+    render(await AgendaPage({ searchParams: Promise.resolve({}) }));
+
+    expect(screen.getByText(/O link do sinal não chegou a Maria Souza/u)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Copiar link do sinal' })).toBeNull();
   });
 
   it('não renderiza navegação nem ações quando view:agenda é negada', async () => {

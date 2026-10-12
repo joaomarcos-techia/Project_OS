@@ -91,6 +91,8 @@ import '@/contexts/scheduling/internal/handlers/patient-charge-paid';
 // handler detached, preservando TX curta antes da chamada externa ao Asaas.
 import './appointment-no-show-handler';
 import '@/contexts/payments/internal/handlers/appointment-cancelled';
+// Agendamento pela IA confirmado -> tenta criar o sinal sem aguardar o scan de 15 min.
+import '@/contexts/payments/internal/handlers/appointment-deposit-requested';
 // ADR-049 1.5 — desfecho da cobrança projetado na agenda (R3: o Payments publica,
 // a agenda escreve a própria coluna).
 import '@/contexts/scheduling/internal/handlers/patient-charge-closed';
@@ -100,12 +102,23 @@ import '@/contexts/scheduling/internal/handlers/patient-charge-closed';
 // aprovado; não há LLM em nenhum ponto deste caminho.
 import '@/contexts/ai-agent/proactive-jobs/internal/handlers/patient-charge-link-ready';
 
+// EC-32 — a Meta recusou DEPOIS de aceitar (callback `failed`) → o job da C14
+// que fez o envio deixa de ser `sent` e falha com o código da Meta. Antes o
+// evento terminava `skipped` e a recusa do link do sinal ficava invisível.
+import '@/contexts/ai-agent/proactive-jobs/internal/handlers/outbound-status-updated';
+
 // ADR-051 1.5b.1 — o dinheiro do paciente contado no FINANCIAL, que e a fonte da
 // verdade financeira. Eventos PROPRIOS do credito (`patient_credit.*`), e nao os
 // da cobranca: `patient_charge.paid`/`.closed` ja tem dono no Scheduling, e os
 // dois pares significam coisas diferentes para dominios diferentes.
 import '@/contexts/financial/internal/handlers/patient-credit-granted';
+import '@/contexts/financial/internal/handlers/patient-payment-economics-reconciled';
+import '@/contexts/financial/internal/handlers/patient-payment-economics-corrected';
 import '@/contexts/financial/internal/handlers/patient-credit-released';
+
+// 08/10/2026 — a recepção registrou pagamento do atendimento no Caixa (o
+// restante em dinheiro, por exemplo) → o Payments fecha o link do restante.
+import '@/contexts/payments/internal/handlers/lancamento-paid';
 
 // D50 — Financial detecta excedente; Payments executa o estorno fora da TX do worker.
 import '@/contexts/payments/internal/handlers/excess-refund-requested';

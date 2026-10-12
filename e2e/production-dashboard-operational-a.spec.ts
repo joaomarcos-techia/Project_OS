@@ -1,3 +1,5 @@
+import { randomBytes } from 'node:crypto';
+
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 import { createServerClient as createSsrClient } from '@supabase/ssr';
 import { config as loadDotenv } from 'dotenv';
@@ -8,7 +10,8 @@ loadDotenv({ path: '.env.local' });
 const baseUrl = process.env.E2E_BASE_URL;
 const ownerEmail = process.env.E2E_OWNER_EMAIL;
 const doctorEmail = process.env.E2E_DOCTOR_EMAIL;
-const sharedPassword = process.env.E2E_TENANT_PASSWORD;
+const ownerPassword = process.env.E2E_OWNER_PASSWORD ?? process.env.E2E_TENANT_PASSWORD;
+const doctorPassword = process.env.E2E_DOCTOR_PASSWORD ?? process.env.E2E_TENANT_PASSWORD;
 
 test.use({
   storageState: { cookies: [], origins: [] },
@@ -30,6 +33,9 @@ function productionConfig(): { databaseUrl: string; url: string; secretKey: stri
 async function signInContext(context: BrowserContext, email: string, password: string) {
   if (!baseUrl) throw new Error('E2E_BASE_URL ausente.');
   const { url, secretKey } = productionConfig();
+  const generation = randomBytes(16).toString('hex');
+  const projectRef = new URL(url).hostname.split('.')[0]!;
+  const cookieName = `sb-${projectRef}-auth-token-v2-${generation}`;
   let nextCookies: Array<{ name: string; value: string }> = [];
   const client = createSsrClient(url, secretKey, {
     cookies: {
@@ -38,17 +44,33 @@ async function signInContext(context: BrowserContext, email: string, password: s
         nextCookies = items.map(({ name, value }) => ({ name, value }));
       },
     },
+    cookieOptions: { name: cookieName, httpOnly: true, sameSite: 'lax', secure: true },
     auth: { autoRefreshToken: false, persistSession: true },
   });
   const { data, error } = await client.auth.signInWithPassword({ email, password });
   if (error || !data.session || nextCookies.length === 0) {
     throw new Error(error?.message ?? 'Login não produziu sessão.');
   }
-  await context.addCookies(
-    nextCookies
+  await context.addCookies([
+    ...nextCookies
       .filter(({ value }) => value !== '')
-      .map(({ name, value }) => ({ name, value, url: baseUrl })),
-  );
+      .map(({ name, value }) => ({
+        name,
+        value,
+        url: baseUrl,
+        httpOnly: true,
+        secure: true,
+        sameSite: 'Lax' as const,
+      })),
+    {
+      name: 'qoro-auth-session',
+      value: generation,
+      url: baseUrl,
+      httpOnly: true,
+      secure: true,
+      sameSite: 'Lax' as const,
+    },
+  ]);
 }
 
 async function expectStat(page: Page, label: string, value: number): Promise<void> {
@@ -65,7 +87,7 @@ test.describe('produção: reconciliação operacional do Dashboard', () => {
     if (!baseUrl || new URL(baseUrl).hostname !== 'app.qoro.dev') {
       throw new Error('O teste read-only só pode apontar para app.qoro.dev.');
     }
-    if (!ownerEmail || !doctorEmail || !sharedPassword) {
+    if (!ownerEmail || !doctorEmail || !ownerPassword || !doctorPassword) {
       throw new Error('Credenciais da Clínica A ausentes.');
     }
 
@@ -84,6 +106,7 @@ test.describe('produção: reconciliação operacional do Dashboard', () => {
             clinic_id: string;
             timezone: string;
             owner_can_audit: boolean;
+            doctor_found: boolean;
             doctor_can_audit: boolean;
             consultas_hoje: number;
             aguardando: number;
@@ -95,6 +118,7 @@ test.describe('produção: reconciliação operacional do Dashboard', () => {
             has_patient: boolean;
             has_procedure: boolean;
             has_whatsapp: boolean;
+            checklist_dismissed: boolean;
             activity_items: number;
           }[]
         >`
@@ -117,6 +141,9 @@ test.describe('produção: reconciliação operacional do Dashboard', () => {
               from identity i
           )
           select b.clinic_id::text, b.timezone, b.owner_can_audit,
+                 exists(select 1 from auth.users du join effective_permissions_v d on d.user_id=du.id
+                   where lower(du.email)=${doctorEmail.toLowerCase()}
+                     and d.clinic_id=b.clinic_id and d.ativo=true and d.deleted_at is null) doctor_found,
                  coalesce(b.doctor_can_audit,false) doctor_can_audit,
                  (select count(*)::int from appointments a where a.clinic_id=b.clinic_id
                    and a.scheduled_at>=b.day_from and a.scheduled_at<b.day_to
@@ -140,19 +167,25 @@ test.describe('produção: reconciliação operacional do Dashboard', () => {
                  exists(select 1 from procedures p where p.clinic_id=b.clinic_id and p.ativo=true) has_procedure,
                  exists(select 1 from clinic_whatsapp_numbers w where w.clinic_id=b.clinic_id
                    and w.active=true and w.connection_status='connected') has_whatsapp,
+                 exists(select 1 from onboarding_progress op
+                   join auth.users owner on owner.id=op.user_id
+                   where op.clinic_id=b.clinic_id
+                     and lower(owner.email)=${ownerEmail.toLowerCase()}
+                     and op.checklist_dismissed_at is not null) checklist_dismissed,
                  least(5, (select count(*)::int from audit_events a
                    where a.clinic_id=b.clinic_id)) activity_items
             from bounds b
         `;
       });
       if (!state) throw new Error('Estado autoritativo do Dashboard ausente.');
+      if (!state.doctor_found) throw new Error('Médico A não encontrado na mesma clínica.');
       expect(state.owner_can_audit).toBe(true);
       expect(state.doctor_can_audit).toBe(false);
       expect(state.consultas_hoje).toBeLessThanOrEqual(200);
 
       await Promise.all([
-        signInContext(ownerContext, ownerEmail, sharedPassword),
-        signInContext(doctorContext, doctorEmail, sharedPassword),
+        signInContext(ownerContext, ownerEmail, ownerPassword),
+        signInContext(doctorContext, doctorEmail, doctorPassword),
       ]);
       await Promise.all([ownerPage.goto('/dashboard'), doctorPage.goto('/dashboard')]);
 
@@ -170,7 +203,10 @@ test.describe('produção: reconciliação operacional do Dashboard', () => {
         .getByText('Próximos na agenda', { exact: true })
         .locator('../..');
       if (state.proximos === 0) {
-        await expect(upcomingPanel.getByText('Nada para hoje.', { exact: true })).toBeVisible();
+        await expect(upcomingPanel.getByText('Agenda livre hoje', { exact: true })).toBeVisible();
+        await expect(
+          upcomingPanel.getByText('Nenhum atendimento está agendado para hoje.', { exact: true }),
+        ).toBeVisible();
       } else {
         await expect(upcomingPanel.getByRole('listitem')).toHaveCount(state.proximos);
       }
@@ -183,13 +219,14 @@ test.describe('produção: reconciliação operacional do Dashboard', () => {
         state.has_whatsapp,
       ];
       const checklistDone = checklistFlags.filter(Boolean).length;
-      if (checklistDone === checklistFlags.length) {
-        await expect(ownerPage.getByText('Primeiros passos', { exact: true })).toHaveCount(0);
+      if (checklistDone === checklistFlags.length || state.checklist_dismissed) {
+        await expect(ownerPage.getByText('Ativação da clínica', { exact: true })).toHaveCount(0);
       } else {
-        await expect(ownerPage.getByText('Primeiros passos', { exact: true })).toBeVisible();
-        await expect(
-          ownerPage.getByText(`${checklistDone}/5 concluídos`, { exact: true }),
-        ).toBeVisible();
+        await expect(ownerPage.getByText('Ativação da clínica', { exact: true })).toBeVisible();
+        await expect(ownerPage.getByRole('progressbar')).toHaveAttribute(
+          'aria-valuenow',
+          String(checklistDone),
+        );
       }
 
       const ownerActivityPanel = ownerPage
@@ -197,22 +234,24 @@ test.describe('produção: reconciliação operacional do Dashboard', () => {
         .locator('../..');
       if (state.activity_items === 0) {
         await expect(
-          ownerActivityPanel.getByText('Nenhuma atividade registrada ainda.', { exact: true }),
+          ownerActivityPanel.getByText('Sem atividade recente', { exact: true }),
         ).toBeVisible();
       } else {
         await expect(ownerActivityPanel.getByRole('listitem')).toHaveCount(state.activity_items);
       }
-      await expect(
-        doctorPage.getByText('A trilha de atividade fica disponível para gestores.', {
-          exact: true,
-        }),
-      ).toBeVisible();
+      await expect(doctorPage.getByRole('region', { name: 'Atividade recente' })).toHaveCount(0);
 
-      await ownerPage.getByRole('link', { name: 'Atualizar' }).click();
+      await ownerPage.getByRole('button', { name: 'Atualizar os dados do turno' }).click();
       await expect(ownerPage).toHaveURL(/\/dashboard(?:\?|$)/u);
       await expectStat(ownerPage, 'Consultas hoje', state.consultas_hoje);
-      await expect(ownerPage.getByText('Ocupação por profissional', { exact: true })).toBeVisible();
-      await expect(ownerPage.getByText('Alertas da IA', { exact: true })).toBeVisible();
+      await expect(
+        ownerPage.getByText(
+          'Ocupação por profissional ainda não tem fonte de dados nesta clínica.',
+          {
+            exact: true,
+          },
+        ),
+      ).toBeVisible();
 
       console.log(
         `[dashboard-operational-a] ${JSON.stringify({
@@ -224,13 +263,14 @@ test.describe('produção: reconciliação operacional do Dashboard', () => {
           proximos: state.proximos,
           checklistDone,
           checklistTotal: checklistFlags.length,
-          checklistHiddenWhenComplete: checklistDone === checklistFlags.length,
+          checklistHiddenWhenCompleteOrDismissed:
+            checklistDone === checklistFlags.length || state.checklist_dismissed,
           ownerActivityItems: state.activity_items,
           ownerCanAudit: state.owner_can_audit,
           doctorCanAudit: state.doctor_can_audit,
           doctorActivityHidden: true,
           refreshLinkPreservedState: true,
-          placeholdersDeclaredAsComingSoon: 2,
+          placeholdersDeclaredAsComingSoon: 1,
           mutation: false,
         })}`,
       );

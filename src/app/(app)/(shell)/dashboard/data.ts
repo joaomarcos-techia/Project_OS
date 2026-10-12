@@ -3,10 +3,13 @@ import 'server-only';
 import { sql } from 'drizzle-orm';
 
 import { practitionerSql, profiles } from '@/contexts/identity';
+import { describeMessagingHealth } from '@/contexts/messaging';
 import { listPatientCards } from '@/contexts/patient/queries';
 import { getCheckInTimes, listAppointments } from '@/contexts/scheduling/queries';
 import type { AppointmentStatusDTO } from '@/contexts/scheduling/types';
 import { withTenant } from '@/lib/db/tenant';
+
+import type { WhatsappSendAlertData } from './_components/whatsapp-send-alert';
 
 /**
  * Dados do dashboard (Visão operacional). Apenas o que é REAL hoje: o pulso de
@@ -264,4 +267,39 @@ export async function getActivationChecklist(clinicId: string): Promise<Activati
     hasProcedure: r.has_procedure,
     hasWhatsapp: r.has_whatsapp,
   });
+}
+
+/* =====================================================================
+   Mensagens automáticas do WhatsApp (0116) — a CONTA na Meta bloqueia ou
+   limita os envios iniciados pela clínica. Lê o último `health_status`
+   gravado; a Meta não é chamada daqui, porque o painel é a tela mais aberta
+   do produto (a releitura acontece na conexão, na tela de WhatsApp, no cron
+   diário e na primeira recusa por forma de pagamento). Tenant-scoped via
+   withTenant (RLS + GRANT de coluna da 0116).
+   ===================================================================== */
+export async function getWhatsappSendAlert(clinicId: string): Promise<WhatsappSendAlertData> {
+  const rows = (await withTenant(clinicId, (tx) =>
+    tx.execute(sql`
+      SELECT messaging_health, messaging_health_codes
+        FROM clinic_whatsapp_numbers
+       WHERE active = true
+       LIMIT 1`),
+  )) as unknown as Array<{
+    messaging_health: string | null;
+    messaging_health_codes: number[] | null;
+  }>;
+  const r = rows[0];
+  const state = r?.messaging_health;
+  const notice =
+    state === 'blocked' || state === 'limited'
+      ? describeMessagingHealth({
+          state,
+          codes: (r?.messaging_health_codes ?? []).map(Number).filter(Number.isSafeInteger),
+        })
+      : null;
+  // `refusals` é da leitura das recusas por mensagem (C14); esta só cobre a conta.
+  return {
+    account: notice ? { state: notice.state, headline: notice.headline } : null,
+    refusals: null,
+  };
 }

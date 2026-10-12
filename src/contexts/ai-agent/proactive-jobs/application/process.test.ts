@@ -2,17 +2,22 @@
  * Processor C14 — matriz de decisão (T1/T2/T5/T6 do §14.6) com I/O mockado.
  *
  * Cobre o que é do C14: accepted→sent, bloqueio (suppression/consent)→cancelled,
- * guard de dunning (já pago)→cancelled, falha Meta→retry/backoff→failed.
+ * guard de dunning (já pago)→cancelled e a recusa da Meta (ADR-064): reenvio
+ * com chave nova só para código retentável, falha na hora para o resto.
  * T3/T4 (paciente responde SIM/REMARCAR) NÃO estão aqui: são do C11 (inbound
  * webhook → tools confirm/reschedule), que C14 não altera — cobertos por C11.
+ *
+ * O relógio é fixo (ADR-065): a validade de cada tipo depende do instante do
+ * envio, e as fixtures ficam dentro da janela em `NOW`.
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../infra/repository', () => ({
   claimDue: vi.fn(),
   getClinicTimezone: vi.fn(async () => 'America/Sao_Paulo'),
   finalizeSent: vi.fn(async () => {}),
   finalizeRetry: vi.fn(async () => {}),
+  finalizeResend: vi.fn(async () => {}),
   finalizeFailed: vi.fn(async () => {}),
   cancel: vi.fn(async () => {}),
 }));
@@ -50,12 +55,19 @@ import { patientApiV1 } from '@/contexts/patient';
 import { paymentsApiV1 } from '@/contexts/payments';
 import { schedulingApiV1 } from '@/contexts/scheduling';
 /* eslint-enable boundaries/element-types */
+/* eslint-disable-next-line boundaries/element-types -- só o teste usa a regra real do Scheduling, para provar que a C14 envia dentro da janela que o seam entrega. */
+import { waitlistOfferExpiresAt } from '@/contexts/scheduling/waitlist-policy';
 
 import * as repo from '../infra/repository';
 import { buildProactiveTemplate } from '../infra/templates';
+import type { ProactiveJobType } from '../schema';
 import { processProactiveBatch } from './process';
 
 const U = '11111111-1111-1111-1111-111111111111';
+/** Sexta 09/10/2026, 10:00 em São Paulo. */
+const NOW = new Date('2026-10-09T13:00:00.000Z');
+/** `created_at` padrão dos jobs reservados: duas horas antes de `NOW`. */
+const CREATED_AT = new Date('2026-10-09T11:00:00.000Z');
 const okContact = {
   nome: 'Maria',
   phone: '5511999990000',
@@ -68,7 +80,8 @@ const okContact = {
 const reminderPayload = {
   patientId: U,
   appointmentId: U,
-  scheduledAt: '2026-06-19T12:00:00Z',
+  // Amanhã (sábado 10/10) às 09:00 locais.
+  scheduledAt: '2026-10-10T12:00:00Z',
   doctorNome: 'Dr X',
 };
 const dunningPayload = {
@@ -76,26 +89,28 @@ const dunningPayload = {
   lancamentoId: U,
   stage: 3,
   valor: 200,
-  dueDate: '2026-06-10',
+  // D+4 em `NOW`.
+  dueDate: '2026-10-05',
   procedureNome: 'Consulta',
 };
 const followupPayload = {
   patientId: U,
   prontuarioId: U,
   doctorNome: 'Dr X',
-  returnDate: '2026-09-10',
+  returnDate: '2026-10-11',
 };
 const noShowFollowupPayload = {
   patientId: U,
   appointmentId: U,
-  noShowAt: '2026-09-04T15:00:00.000Z',
+  // Quinta 08/10, 12:00 locais: o job sai na sexta, o 1º dia útil.
+  noShowAt: '2026-10-08T15:00:00.000Z',
 };
 const depositPayload = {
   patientId: U,
   chargeId: U,
   appointmentId: U,
   amount: 150,
-  holdExpiresAt: '2026-08-26T17:00:00.000Z',
+  holdExpiresAt: '2026-10-10T13:00:00.000Z',
 };
 const remainderPayload = {
   patientId: U,
@@ -109,16 +124,33 @@ const waitlistPayload = {
   patientId: U,
   waitlistEntryId: U,
   releasedAppointmentId: RELEASED,
-  scheduledAt: '2026-09-12T13:00:00Z',
+  scheduledAt: '2026-10-12T13:00:00Z',
   doctorNome: 'Dr X',
 };
+/** Janela de resposta da oferta ainda aberta em `NOW`. */
+const OFFER_EXPIRES_AT = new Date('2026-10-09T16:00:00.000Z');
 
+/** Geração 0 por padrão: a chave de envio é o próprio id do job. */
 function claim(job: Record<string, unknown>): void {
-  vi.mocked(repo.claimDue).mockResolvedValue([{ leaseToken: 'lease-1', ...job } as never]);
+  vi.mocked(repo.claimDue).mockResolvedValue([
+    {
+      leaseToken: 'lease-1',
+      sendKey: job.id,
+      resend: false,
+      failedReason: null,
+      createdAt: CREATED_AT,
+      ...job,
+    } as never,
+  ]);
 }
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.useFakeTimers({ now: NOW, toFake: ['Date'] });
   vi.mocked(repo.getClinicTimezone).mockResolvedValue('America/Sao_Paulo');
   vi.mocked(patientApiV1.getProactiveContact).mockResolvedValue(okContact);
   vi.mocked(paymentsApiV1.getPayableCharge).mockResolvedValue({
@@ -145,6 +177,7 @@ beforeEach(() => {
     status: 'offered',
     patientId: U,
     offeredAppointmentId: RELEASED,
+    offerExpiresAt: OFFER_EXPIRES_AT,
   });
 });
 
@@ -180,6 +213,47 @@ describe('WAIT-001 — oferta da lista de espera', () => {
     );
   });
 
+  // ADR-066 — o TTL da oferta só corre nas horas de envio. A janela vem da regra
+  // real do Scheduling, a mesma que o cron usa para devolver a oferta à fila.
+  it('cancelamento às 21h → às 8h o convite sai, com a janela aberta até as 12h', async () => {
+    vi.setSystemTime(new Date('2026-10-10T08:00:00-03:00'));
+    claim({
+      id: 'j-noite',
+      clinicId: 'c1',
+      type: 'waitlist_offer',
+      payload: waitlistPayload,
+      attempts: 1,
+      createdAt: new Date('2026-10-09T21:01:00-03:00'),
+    });
+    slotStillFree();
+    const offerExpiresAt = waitlistOfferExpiresAt(
+      new Date('2026-10-09T21:00:00-03:00'),
+      'America/Sao_Paulo',
+    );
+    vi.mocked(schedulingApiV1.lookupWaitlistOffer).mockResolvedValue({
+      status: 'offered',
+      patientId: U,
+      offeredAppointmentId: RELEASED,
+      offerExpiresAt,
+    });
+    vi.mocked(messagingApiV1.sendText).mockResolvedValue({
+      id: 'o1',
+      status: 'accepted',
+      providerMessageId: 'w',
+      deduped: false,
+    });
+
+    const s = await processProactiveBatch('waitlist_offer');
+
+    // As 4 h inteiras, das 8h às 12h: nenhuma hora da madrugada foi contada.
+    expect(offerExpiresAt).toEqual(new Date('2026-10-10T12:00:00-03:00'));
+    expect(s.sent).toBe(1);
+    expect(repo.cancel).not.toHaveBeenCalled();
+    expect(messagingApiV1.sendText).toHaveBeenCalledWith(
+      expect.objectContaining({ idempotencyKey: 'j-noite' }),
+    );
+  });
+
   it('oferta já aceita/recusada → cancelled, sem convidar para vaga inexistente', async () => {
     claim({
       id: 'j1',
@@ -192,6 +266,7 @@ describe('WAIT-001 — oferta da lista de espera', () => {
       status: 'booked',
       patientId: U,
       offeredAppointmentId: RELEASED,
+      offerExpiresAt: null,
     });
 
     const s = await processProactiveBatch('waitlist_offer');
@@ -231,6 +306,7 @@ describe('WAIT-001 — oferta da lista de espera', () => {
       status: 'offered',
       patientId: U,
       offeredAppointmentId: '33333333-3333-3333-3333-333333333333',
+      offerExpiresAt: OFFER_EXPIRES_AT,
     });
 
     const s = await processProactiveBatch('waitlist_offer');
@@ -288,7 +364,7 @@ describe('processProactiveBatch (C14 §14.6)', () => {
         patientId: U,
         procedureId: U,
         excludeAppointmentId: U,
-        after: new Date('2026-09-04T15:00:00.000Z'),
+        after: new Date('2026-10-08T15:00:00.000Z'),
       }),
     );
     expect(buildProactiveTemplate).toHaveBeenCalledWith(
@@ -460,38 +536,6 @@ describe('processProactiveBatch (C14 §14.6)', () => {
     );
   });
 
-  it('retry mantém a chave estável do job para o at-most-once no Meta', async () => {
-    claim({
-      id: 'j-restante',
-      clinicId: 'c1',
-      type: 'remainder_link',
-      payload: remainderPayload,
-      attempts: 1,
-    });
-    vi.mocked(messagingApiV1.sendText)
-      .mockResolvedValueOnce({
-        id: 'o1',
-        status: 'failed',
-        providerMessageId: null,
-        deduped: false,
-      })
-      .mockResolvedValueOnce({
-        id: 'o1',
-        status: 'accepted',
-        providerMessageId: 'w',
-        deduped: true,
-      });
-
-    await processProactiveBatch('remainder_link');
-    await processProactiveBatch('remainder_link');
-
-    expect(messagingApiV1.sendText).toHaveBeenCalledTimes(2);
-    expect(
-      vi.mocked(messagingApiV1.sendText).mock.calls.map(([input]) => input.idempotencyKey),
-    ).toEqual(['j-restante', 'j-restante']);
-    expect(repo.finalizeSent).toHaveBeenCalledTimes(1);
-  });
-
   it('T1: reminder de consulta ativa, contato OK, Meta aceita → sent', async () => {
     claim({ id: 'j1', clinicId: 'c1', type: 'reminder', payload: reminderPayload, attempts: 1 });
     vi.mocked(messagingApiV1.sendText).mockResolvedValue({
@@ -563,40 +607,6 @@ describe('processProactiveBatch (C14 §14.6)', () => {
     );
   });
 
-  it('T6a: falha Meta na 1ª tentativa → retry com backoff (+30s)', async () => {
-    claim({ id: 'j1', clinicId: 'c1', type: 'reminder', payload: reminderPayload, attempts: 1 });
-    vi.mocked(messagingApiV1.sendText).mockResolvedValue({
-      id: 'o1',
-      status: 'failed',
-      providerMessageId: null,
-      deduped: false,
-    });
-
-    const before = Date.now();
-    const s = await processProactiveBatch('reminder');
-    expect(s.retried).toBe(1);
-    expect(repo.finalizeRetry).toHaveBeenCalledTimes(1);
-    const [, , leaseToken, nextAt, reason] = vi.mocked(repo.finalizeRetry).mock.calls[0]!;
-    expect(leaseToken).toBe('lease-1');
-    expect(reason).toBe('meta_failed');
-    expect((nextAt as Date).getTime()).toBeGreaterThanOrEqual(before + 30_000 - 1000);
-  });
-
-  it('T6b: falha Meta após esgotar MAX_ATTEMPTS → failed definitivo', async () => {
-    claim({ id: 'j1', clinicId: 'c1', type: 'reminder', payload: reminderPayload, attempts: 5 });
-    vi.mocked(messagingApiV1.sendText).mockResolvedValue({
-      id: 'o1',
-      status: 'failed',
-      providerMessageId: null,
-      deduped: false,
-    });
-
-    const s = await processProactiveBatch('reminder');
-    expect(s.failed).toBe(1);
-    expect(repo.finalizeFailed).toHaveBeenCalledWith('c1', 'j1', 'lease-1', 'meta_failed');
-    expect(repo.finalizeRetry).not.toHaveBeenCalled();
-  });
-
   it('cancela follow-up quando o retorno clínico deixou de ser necessário', async () => {
     claim({ id: 'j1', clinicId: 'c1', type: 'followup', payload: followupPayload, attempts: 1 });
     vi.mocked(clinicalApiV1.getFollowupState).mockResolvedValue({
@@ -627,6 +637,477 @@ describe('processProactiveBatch (C14 §14.6)', () => {
       'c1',
       expect.objectContaining({ patientId: U, procedureId: U }),
     );
+    expect(messagingApiV1.sendText).not.toHaveBeenCalled();
+  });
+});
+
+describe('ADR-064 — recusa da Meta, reenvio e chave por geração', () => {
+  const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+  const SECOND_KEY = '44444444-4444-4444-8444-444444444444';
+
+  /** Resultado de `sendText` sem wamid: recusa síncrona, timeout ou reserva sem finalize. */
+  function sendResult(over: {
+    status: 'failed' | 'unknown' | 'pending' | 'accepted';
+    deduped?: boolean;
+    errorCode?: string | null;
+    providerMessageId?: string | null;
+  }) {
+    vi.mocked(messagingApiV1.sendText).mockResolvedValue({
+      id: 'o1',
+      providerMessageId: null,
+      deduped: false,
+      ...over,
+    });
+  }
+
+  function dunningJob(over: Record<string, unknown> = {}): void {
+    claim({
+      id: 'j1',
+      clinicId: 'c1',
+      type: 'dunning',
+      payload: dunningPayload,
+      attempts: 1,
+      ...over,
+    });
+  }
+
+  it('T6a: geração 0 envia com a chave = job.id; o reenvio, com a send_key gravada', async () => {
+    dunningJob();
+    sendResult({ status: 'accepted', providerMessageId: 'w' });
+    await processProactiveBatch('dunning');
+
+    dunningJob({ sendKey: SECOND_KEY, resend: true, failedReason: 'meta_131000', attempts: 2 });
+    await processProactiveBatch('dunning');
+
+    expect(
+      vi.mocked(messagingApiV1.sendText).mock.calls.map(([input]) => input.idempotencyKey),
+    ).toEqual(['j1', SECOND_KEY]);
+  });
+
+  it('T6b: recusa síncrona retentável → pending com chave NOVA e backoff (+30 s)', async () => {
+    dunningJob();
+    sendResult({ status: 'failed', errorCode: '131000' });
+
+    const before = Date.now();
+    const s = await processProactiveBatch('dunning');
+
+    expect(s.retried).toBe(1);
+    expect(repo.finalizeResend).toHaveBeenCalledTimes(1);
+    const [clinicId, jobId, leaseToken, nextAt, reason, nextKey] = vi.mocked(repo.finalizeResend)
+      .mock.calls[0]!;
+    expect([clinicId, jobId, leaseToken, reason]).toEqual(['c1', 'j1', 'lease-1', 'meta_131000']);
+    expect(nextAt.getTime()).toBeGreaterThanOrEqual(before + 30_000);
+    expect(nextAt.getTime()).toBeLessThanOrEqual(Date.now() + 30_000);
+    expect(nextKey).toMatch(UUID);
+    expect(nextKey).not.toBe('j1');
+    expect(repo.finalizeRetry).not.toHaveBeenCalled();
+    expect(repo.finalizeFailed).not.toHaveBeenCalled();
+  });
+
+  it('T6c: o reenvio usa a chave nova, então o sender envia de novo em vez de deduplicar', async () => {
+    dunningJob();
+    sendResult({ status: 'failed', errorCode: '130429' });
+    await processProactiveBatch('dunning');
+    const nextKey = vi.mocked(repo.finalizeResend).mock.calls[0]![5];
+
+    dunningJob({ sendKey: nextKey, resend: true, failedReason: 'meta_130429', attempts: 2 });
+    sendResult({ status: 'accepted', providerMessageId: 'w2' });
+    const s = await processProactiveBatch('dunning');
+
+    const keys = vi.mocked(messagingApiV1.sendText).mock.calls.map(([i]) => i.idempotencyKey);
+    expect(keys).toEqual(['j1', nextKey]);
+    expect(new Set(keys).size).toBe(2);
+    expect(s.sent).toBe(1);
+    expect(repo.finalizeSent).toHaveBeenCalledWith('c1', 'j1', 'lease-1');
+  });
+
+  it('T6d: recusa síncrona definitiva → failed NA HORA, com o código da Meta', async () => {
+    dunningJob();
+    sendResult({ status: 'failed', errorCode: '131026' });
+
+    const s = await processProactiveBatch('dunning');
+
+    expect(s.failed).toBe(1);
+    expect(repo.finalizeFailed).toHaveBeenCalledWith('c1', 'j1', 'lease-1', 'meta_131026');
+    expect(repo.finalizeRetry).not.toHaveBeenCalled();
+    expect(repo.finalizeResend).not.toHaveBeenCalled();
+  });
+
+  it('T6e: 131048 (qualidade) e 131049 (esperar 24 h) são definitivos', async () => {
+    for (const code of ['131048', '131049']) {
+      vi.mocked(repo.finalizeFailed).mockClear();
+      dunningJob();
+      sendResult({ status: 'failed', errorCode: code });
+
+      await processProactiveBatch('dunning');
+
+      expect(repo.finalizeFailed).toHaveBeenCalledWith('c1', 'j1', 'lease-1', `meta_${code}`);
+    }
+    expect(repo.finalizeResend).not.toHaveBeenCalled();
+  });
+
+  it('T6f: recusa sem código → meta_failed na hora (sem código não há como saber se passa)', async () => {
+    dunningJob();
+    sendResult({ status: 'failed', errorCode: null });
+
+    await processProactiveBatch('dunning');
+
+    expect(repo.finalizeFailed).toHaveBeenCalledWith('c1', 'j1', 'lease-1', 'meta_failed');
+    expect(repo.finalizeRetry).not.toHaveBeenCalled();
+    expect(repo.finalizeResend).not.toHaveBeenCalled();
+  });
+
+  it('T6g: recusa retentável na 5ª tentativa → failed com o código, sem chave nova', async () => {
+    dunningJob({ attempts: 5 });
+    sendResult({ status: 'failed', errorCode: '131000' });
+
+    const s = await processProactiveBatch('dunning');
+
+    expect(s.failed).toBe(1);
+    expect(repo.finalizeFailed).toHaveBeenCalledWith('c1', 'j1', 'lease-1', 'meta_131000');
+    expect(repo.finalizeResend).not.toHaveBeenCalled();
+  });
+
+  it('T6h: timeout (unknown) → failed meta_unknown NA HORA; nunca chave nova', async () => {
+    for (const deduped of [false, true]) {
+      vi.mocked(repo.finalizeFailed).mockClear();
+      dunningJob();
+      sendResult({ status: 'unknown', deduped });
+
+      await processProactiveBatch('dunning');
+
+      expect(repo.finalizeFailed).toHaveBeenCalledWith('c1', 'j1', 'lease-1', 'meta_unknown');
+    }
+    expect(repo.finalizeRetry).not.toHaveBeenCalled();
+    expect(repo.finalizeResend).not.toHaveBeenCalled();
+  });
+
+  it('T6i: failed deduplicado COM wamid foi aceito → sent; a recusa é do handler EC-32', async () => {
+    dunningJob();
+    sendResult({ status: 'failed', deduped: true, providerMessageId: 'wamid.X' });
+
+    const s = await processProactiveBatch('dunning');
+
+    expect(s.sent).toBe(1);
+    expect(repo.finalizeSent).toHaveBeenCalledWith('c1', 'j1', 'lease-1');
+    expect(repo.finalizeFailed).not.toHaveBeenCalled();
+    expect(repo.finalizeResend).not.toHaveBeenCalled();
+  });
+
+  it('T6j: failed deduplicado SEM wamid usa o código guardado da recusa síncrona', async () => {
+    dunningJob();
+    sendResult({ status: 'failed', deduped: true, errorCode: '131016' });
+
+    const s = await processProactiveBatch('dunning');
+
+    expect(s.retried).toBe(1);
+    expect(vi.mocked(repo.finalizeResend).mock.calls[0]![4]).toBe('meta_131016');
+  });
+
+  it('T6k: pending no dedup → backoff com a MESMA chave (outra tentativa em voo)', async () => {
+    dunningJob();
+    sendResult({ status: 'pending', deduped: true });
+
+    const s = await processProactiveBatch('dunning');
+
+    expect(s.retried).toBe(1);
+    const [, , leaseToken, , reason] = vi.mocked(repo.finalizeRetry).mock.calls[0]!;
+    expect([leaseToken, reason]).toEqual(['lease-1', 'meta_pending']);
+    expect(repo.finalizeResend).not.toHaveBeenCalled();
+  });
+
+  it('T6l: exceção do sender → backoff com a MESMA chave (meta_error)', async () => {
+    dunningJob();
+    vi.mocked(messagingApiV1.sendText).mockRejectedValue(new Error('db down'));
+
+    const s = await processProactiveBatch('dunning');
+
+    expect(s.retried).toBe(1);
+    expect(vi.mocked(repo.finalizeRetry).mock.calls[0]![4]).toBe('meta_error');
+    expect(repo.finalizeResend).not.toHaveBeenCalled();
+  });
+
+  it('T6m: sinal — recusa retentável sem tempo de reenviar antes do hold → failed com o código', async () => {
+    claim({
+      id: 'j-sinal',
+      clinicId: 'c1',
+      type: 'deposit_link',
+      payload: { ...depositPayload, holdExpiresAt: new Date(Date.now() + 10_000).toISOString() },
+      attempts: 1,
+    });
+    vi.mocked(schedulingApiV1.lookupAppointment).mockResolvedValue({ status: 'agendado' } as never);
+    sendResult({ status: 'failed', errorCode: '131000' });
+
+    const s = await processProactiveBatch('deposit_link');
+
+    expect(s.failed).toBe(1);
+    expect(repo.finalizeFailed).toHaveBeenCalledWith('c1', 'j-sinal', 'lease-1', 'meta_131000');
+    expect(repo.finalizeResend).not.toHaveBeenCalled();
+  });
+
+  it('T6n: reenvio reivindicado depois do prazo não envia e fecha com a recusa que o motivou', async () => {
+    claim({
+      id: 'j1',
+      clinicId: 'c1',
+      type: 'reminder',
+      // A consulta já passou: a janela 8–20 h empurrou o reenvio para depois dela.
+      payload: { ...reminderPayload, scheduledAt: new Date(Date.now() - 60_000).toISOString() },
+      attempts: 2,
+      sendKey: SECOND_KEY,
+      resend: true,
+      failedReason: 'meta_131016',
+    });
+
+    const s = await processProactiveBatch('reminder');
+
+    expect(s.failed).toBe(1);
+    expect(repo.finalizeFailed).toHaveBeenCalledWith('c1', 'j1', 'lease-1', 'meta_131016');
+    expect(schedulingApiV1.lookupAppointment).not.toHaveBeenCalled();
+    expect(messagingApiV1.sendText).not.toHaveBeenCalled();
+  });
+
+  it('T6o: geração 0 vencida é cancelada com expired_<tipo> (ADR-065), não falha como recusa', async () => {
+    // O mesmo prazo do T6p, sem recusa anterior: não há código da Meta a registrar.
+    vi.setSystemTime(new Date('2026-10-10T11:00:00.000Z'));
+    claim({ id: 'j1', clinicId: 'c1', type: 'reminder', payload: reminderPayload, attempts: 1 });
+
+    const s = await processProactiveBatch('reminder');
+
+    expect(s.cancelled).toBe(1);
+    expect(repo.cancel).toHaveBeenCalledWith('c1', 'j1', 'lease-1', 'expired_reminder');
+    expect(repo.finalizeFailed).not.toHaveBeenCalled();
+    expect(messagingApiV1.sendText).not.toHaveBeenCalled();
+  });
+
+  it('T6p: lembrete reenviado no PRÓPRIO dia da consulta não sai ("amanhã às" mentiria)', async () => {
+    // 10:00 em São Paulo; a consulta é às 16:00 do mesmo dia, ainda no futuro.
+    // O relógio já é falso (beforeEach): só move o instante.
+    vi.setSystemTime(new Date('2026-10-09T13:00:00.000Z'));
+    claim({
+      id: 'j1',
+      clinicId: 'c1',
+      type: 'reminder',
+      payload: { ...reminderPayload, scheduledAt: '2026-10-09T19:00:00.000Z' },
+      attempts: 3,
+      sendKey: SECOND_KEY,
+      resend: true,
+      failedReason: 'meta_130429',
+    });
+
+    const s = await processProactiveBatch('reminder');
+
+    expect(s.failed).toBe(1);
+    expect(repo.finalizeFailed).toHaveBeenCalledWith('c1', 'j1', 'lease-1', 'meta_130429');
+    expect(messagingApiV1.sendText).not.toHaveBeenCalled();
+  });
+
+  it('T6q: recusa retentável de lembrete na véspera reenvia enquanto ainda é véspera', async () => {
+    // 10:00 da véspera em São Paulo; o reenvio (+30 s) ainda cai na véspera.
+    // O relógio já é falso (beforeEach): só move o instante.
+    vi.setSystemTime(new Date('2026-10-08T13:00:00.000Z'));
+    claim({
+      id: 'j1',
+      clinicId: 'c1',
+      type: 'reminder',
+      payload: { ...reminderPayload, scheduledAt: '2026-10-09T19:00:00.000Z' },
+      attempts: 1,
+    });
+    sendResult({ status: 'failed', errorCode: '131000' });
+
+    const s = await processProactiveBatch('reminder');
+
+    expect(s.retried).toBe(1);
+    expect(repo.finalizeResend).toHaveBeenCalledTimes(1);
+  });
+
+  it('T6r: o prazo do reenvio é o mesmo do primeiro envio, para todo tipo (ADR-065)', async () => {
+    // D+3 de 05/10 vence quando o D+7 começa (segunda 12/10). Antes, o dunning só
+    // tinha o limite de tentativas no reenvio.
+    vi.setSystemTime(new Date('2026-10-12T12:00:00.000Z'));
+    dunningJob({ sendKey: SECOND_KEY, resend: true, failedReason: 'meta_131000', attempts: 2 });
+
+    const s = await processProactiveBatch('dunning');
+
+    expect(s.failed).toBe(1);
+    expect(repo.finalizeFailed).toHaveBeenCalledWith('c1', 'j1', 'lease-1', 'meta_131000');
+    expect(repo.cancel).not.toHaveBeenCalled();
+    expect(messagingApiV1.sendText).not.toHaveBeenCalled();
+  });
+});
+
+describe('ADR-065 — validade por tipo no send-time', () => {
+  /**
+   * Estado de origem que deixa o guard passar: no caso vencido, prova que só a
+   * validade decidiu. reminder (confirmado), dunning (pendente), followup e
+   * remainder_link (cobrança pagável) já passam com o estado do beforeEach.
+   */
+  function arrangeLiveState(type: ProactiveJobType): void {
+    if (type === 'no_show_followup') {
+      vi.mocked(schedulingApiV1.lookupAppointment).mockResolvedValue({
+        status: 'faltou',
+        patientId: U,
+        procedureId: U,
+      } as never);
+    } else if (type === 'waitlist_offer') {
+      vi.mocked(schedulingApiV1.lookupAppointment).mockResolvedValue({
+        status: 'cancelado',
+      } as never);
+      vi.mocked(schedulingApiV1.lookupWaitlistOffer).mockResolvedValue({
+        status: 'offered',
+        patientId: U,
+        offeredAppointmentId: RELEASED,
+        offerExpiresAt: new Date('2026-10-12T16:30:00.000Z'),
+      });
+    } else if (type === 'deposit_link') {
+      vi.mocked(schedulingApiV1.lookupAppointment).mockResolvedValue({
+        status: 'agendado',
+      } as never);
+    }
+  }
+
+  // Instantes dentro da janela 8–20h locais, como o claimDue os entregaria.
+  const cases: Array<{
+    type: ProactiveJobType;
+    payload: Record<string, unknown>;
+    inWindowAt: string;
+    expiredAt: string;
+  }> = [
+    // Consulta sábado 09:00: vale na sexta 19:45; às 08:00 do sábado o "amanhã" já mente.
+    {
+      type: 'reminder',
+      payload: reminderPayload,
+      inWindowAt: '2026-10-09T22:45:00.000Z',
+      expiredAt: '2026-10-10T11:00:00.000Z',
+    },
+    // Hold até sábado 10:00.
+    {
+      type: 'deposit_link',
+      payload: depositPayload,
+      inWindowAt: '2026-10-10T12:45:00.000Z',
+      expiredAt: '2026-10-10T13:00:00.000Z',
+    },
+    // Vaga na segunda 10:00.
+    {
+      type: 'waitlist_offer',
+      payload: waitlistPayload,
+      inWindowAt: '2026-10-12T12:30:00.000Z',
+      expiredAt: '2026-10-12T13:00:00.000Z',
+    },
+    // D+3 de 05/10: vale no D+4; na segunda 12/10 já é D+7.
+    {
+      type: 'dunning',
+      payload: dunningPayload,
+      inWindowAt: '2026-10-09T13:00:00.000Z',
+      expiredAt: '2026-10-12T12:00:00.000Z',
+    },
+    // Retorno em 11/10: vale até domingo 18/10; segunda 19/10 é o 8º dia.
+    {
+      type: 'followup',
+      payload: followupPayload,
+      inWindowAt: '2026-10-18T22:00:00.000Z',
+      expiredAt: '2026-10-19T12:00:00.000Z',
+    },
+    // Falta na quinta 08/10: sexta, segunda e terça; na quarta 14/10 já venceu.
+    {
+      type: 'no_show_followup',
+      payload: noShowFollowupPayload,
+      inWindowAt: '2026-10-13T22:00:00.000Z',
+      expiredAt: '2026-10-14T12:00:00.000Z',
+    },
+    // Enfileirado em `CREATED_AT`: vale por 7 dias.
+    {
+      type: 'remainder_link',
+      payload: remainderPayload,
+      inWindowAt: '2026-10-16T10:45:00.000Z',
+      expiredAt: '2026-10-16T11:00:00.000Z',
+    },
+  ];
+
+  it.each(cases)('$type dentro da janela segue para o envio', async (c) => {
+    vi.setSystemTime(new Date(c.inWindowAt));
+    claim({ id: 'j-validade', clinicId: 'c1', type: c.type, payload: c.payload, attempts: 1 });
+    arrangeLiveState(c.type);
+    vi.mocked(messagingApiV1.sendText).mockResolvedValue({
+      id: 'o1',
+      status: 'accepted',
+      providerMessageId: 'w',
+      deduped: false,
+    });
+
+    const summary = await processProactiveBatch(c.type);
+
+    expect(summary.sent).toBe(1);
+    expect(repo.cancel).not.toHaveBeenCalled();
+    expect(messagingApiV1.sendText).toHaveBeenCalledWith(
+      expect.objectContaining({ idempotencyKey: 'j-validade' }),
+    );
+  });
+
+  it.each(cases)(
+    '$type vencido → cancelled expired_$type, sem ler estado nem enviar',
+    async (c) => {
+      vi.setSystemTime(new Date(c.expiredAt));
+      claim({ id: 'j-validade', clinicId: 'c1', type: c.type, payload: c.payload, attempts: 1 });
+      arrangeLiveState(c.type);
+
+      const summary = await processProactiveBatch(c.type);
+
+      expect(summary.cancelled).toBe(1);
+      expect(repo.cancel).toHaveBeenCalledWith('c1', 'j-validade', 'lease-1', `expired_${c.type}`);
+      expect(schedulingApiV1.lookupAppointment).not.toHaveBeenCalled();
+      expect(schedulingApiV1.lookupWaitlistOffer).not.toHaveBeenCalled();
+      expect(financialApiV1.getLancamento).not.toHaveBeenCalled();
+      expect(clinicalApiV1.getFollowupState).not.toHaveBeenCalled();
+      expect(paymentsApiV1.getPayableCharge).not.toHaveBeenCalled();
+      expect(patientApiV1.getProactiveContact).not.toHaveBeenCalled();
+      expect(messagingApiV1.sendText).not.toHaveBeenCalled();
+    },
+  );
+
+  it('oferta com a janela de resposta vencida no Scheduling → expired_waitlist_offer', async () => {
+    // O horário ainda não começou, mas o cron ainda não devolveu a oferta à fila.
+    claim({
+      id: 'j1',
+      clinicId: 'c1',
+      type: 'waitlist_offer',
+      payload: waitlistPayload,
+      attempts: 1,
+    });
+    vi.mocked(schedulingApiV1.lookupWaitlistOffer).mockResolvedValue({
+      status: 'offered',
+      patientId: U,
+      offeredAppointmentId: RELEASED,
+      offerExpiresAt: NOW,
+    });
+
+    const summary = await processProactiveBatch('waitlist_offer');
+
+    expect(summary.cancelled).toBe(1);
+    expect(repo.cancel).toHaveBeenCalledWith('c1', 'j1', 'lease-1', 'expired_waitlist_offer');
+    expect(schedulingApiV1.lookupAppointment).not.toHaveBeenCalled();
+    expect(messagingApiV1.sendText).not.toHaveBeenCalled();
+  });
+
+  it('remainder_link há 34 dias na fila (o caso do DEV) não pergunta ao Payments', async () => {
+    claim({
+      id: 'j-restante',
+      clinicId: 'c1',
+      type: 'remainder_link',
+      payload: remainderPayload,
+      attempts: 1,
+      createdAt: new Date(NOW.getTime() - 34 * 24 * 60 * 60 * 1000),
+    });
+
+    const summary = await processProactiveBatch('remainder_link');
+
+    expect(summary.cancelled).toBe(1);
+    expect(repo.cancel).toHaveBeenCalledWith(
+      'c1',
+      'j-restante',
+      'lease-1',
+      'expired_remainder_link',
+    );
+    expect(paymentsApiV1.getPayableCharge).not.toHaveBeenCalled();
     expect(messagingApiV1.sendText).not.toHaveBeenCalled();
   });
 });

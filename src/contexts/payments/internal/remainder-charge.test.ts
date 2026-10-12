@@ -66,7 +66,13 @@ const POLICY_ON = {
   updatedAt: null,
 };
 
-const appointment: { appointmentId: string; patientId: string | null; valor: number } = {
+const appointment: {
+  appointmentId: string;
+  patientId: string | null;
+  valor: number;
+  commercialPaymentMethod?: 'pix' | 'cash' | 'credit_card' | null;
+  commercialInstallmentCount?: number | null;
+} = {
   appointmentId: APPOINTMENT,
   patientId: PATIENT,
   valor: 200,
@@ -100,6 +106,14 @@ describe('cobra o saldo que o FINANCIAL informa', () => {
     );
   });
 
+  it('preserva método e parcelamento no Checkout do saldo', async () => {
+    await run({ commercialPaymentMethod: 'credit_card', commercialInstallmentCount: 4 });
+
+    expect(mocks.createInitialHostedCheckout).toHaveBeenCalledWith(
+      expect.objectContaining({ paymentMethod: 'credit_card', installmentCount: 4 }),
+    );
+  });
+
   it('a descrição é genérica — procedimento é dado sensível', async () => {
     await run();
 
@@ -124,6 +138,13 @@ describe('o padrão é NÃO cobrar', () => {
     await run({ patientId: null });
 
     expect(mocks.getAppointmentBalance).not.toHaveBeenCalled();
+  });
+
+  it('pagamento em dinheiro permanece manual no Caixa', async () => {
+    await run({ commercialPaymentMethod: 'cash' });
+
+    expect(mocks.getDepositPolicy).not.toHaveBeenCalled();
+    expect(mocks.createInitialHostedCheckout).not.toHaveBeenCalled();
   });
 
   it('política desligada: a clínica não passa a cobrar por ter concluído', async () => {

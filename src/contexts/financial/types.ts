@@ -6,6 +6,8 @@ import { z } from 'zod';
 
 import { CNPJ_INVALID_MESSAGE, parseOptionalCnpj } from '@/lib/validation/cnpj';
 
+import type { CommercialPaymentMethod } from './commercial-method';
+
 export type LancamentoTipo = 'receber' | 'pagar';
 export type LancamentoStatus = 'pendente' | 'parcial' | 'pago' | 'cancelado' | 'estornado';
 export type LancamentoCreatedVia = 'auto' | 'manual' | 'estorno';
@@ -35,9 +37,43 @@ export interface LancamentoSummary {
   createdAt: string; // ISO
 }
 
+export interface AppointmentFinancialEconomics {
+  appointmentId: string;
+  providerGrossAmount: number | null;
+  providerFeeAmount: number | null;
+  earlySettlementFeeAmount: number | null;
+  providerNetAmount: number | null;
+  payout: {
+    id: string;
+    calculationBasis: 'gross' | 'net';
+    basisAmount: number | null;
+    payoutAmount: number | null;
+    status: 'pending_economics' | 'calculated' | 'cancelled' | 'reviewed';
+    /** Versão vigente da revisão humana, quando houver. */
+    review: { version: number; decidedAmount: number; decidedAt: string } | null;
+    /**
+     * Limites da próxima revisão, só para repasse suspenso ou revisado. `null`
+     * quando a base NET ainda depende do líquido original do provedor.
+     */
+    reviewBounds: { ceilingAmount: number; referenceAmount: number | null } | null;
+  } | null;
+}
+
 /** Item do Caixa: lançamento + nome do paciente resolvido (patient-first UX). */
 export interface CaixaItem extends LancamentoSummary {
   pacienteNome: string | null;
+  paymentEconomics: AppointmentFinancialEconomics | null;
+  chargeEconomics?: {
+    chargeId: string;
+    appointmentId: string;
+    kind: 'deposit' | 'remainder';
+    status: 'pending' | 'paid' | 'expired' | 'cancelled' | 'refunded' | 'failed';
+    requestedAmount: number;
+    providerGrossAmount: number | null;
+    providerFeeAmount: number | null;
+    providerNetAmount: number | null;
+  }[];
+  commercialPaymentMethod?: CommercialPaymentMethod | null;
 }
 
 export interface FaturamentoPendenciaDTO {

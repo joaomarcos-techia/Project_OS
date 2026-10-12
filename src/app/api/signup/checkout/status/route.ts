@@ -13,7 +13,7 @@ import {
 import { assertSignupDraftReadAllowed, getClientIp } from '@/lib/auth/rate-limit';
 import { hashSignupUserId } from '@/lib/auth/signup-user-hash';
 import { env } from '@/lib/env';
-import { buildApplicationUrl } from '@/lib/http/application-url';
+import { resolveTrustedApplicationOrigin } from '@/lib/http/application-url';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -22,30 +22,13 @@ function json(body: object, status = 200): NextResponse {
   return NextResponse.json(body, { status, headers: { 'Cache-Control': 'no-store' } });
 }
 
-function expectedOrigin(): string | null {
-  try {
-    return new URL(
-      buildApplicationUrl(env.APP_BASE_URL ?? '', '/', {
-        allowInsecureLocalhost: env.NODE_ENV !== 'production',
-      }),
-    ).origin;
-  } catch {
-    return null;
-  }
-}
-
 export async function POST(req: Request): Promise<Response> {
   if (!env.SIGNUP_AUTH_ENABLED || !env.SIGNUP_IDENTITY_ENABLED) {
     return json({ error: 'unavailable' }, 503);
   }
-  const origin = expectedOrigin();
-  if (
-    !origin ||
-    req.headers.get('origin') !== origin ||
-    req.headers.get('sec-fetch-site') === 'cross-site'
-  ) {
-    return json({ error: 'blocked' }, 403);
-  }
+  const publicOrigin = resolveTrustedApplicationOrigin(req);
+  if (publicOrigin === undefined) return json({ error: 'unavailable' }, 503);
+  if (publicOrigin === null) return json({ error: 'blocked' }, 403);
 
   try {
     const onboarding = await resolveReadyOwnedSignupOnboarding();

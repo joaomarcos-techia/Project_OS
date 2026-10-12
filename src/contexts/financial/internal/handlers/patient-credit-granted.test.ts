@@ -14,6 +14,8 @@ const mocks = vi.hoisted(() => ({
   registerHandler: vi.fn(),
   grantCredit: vi.fn(),
   applyCreditToExistingReceivable: vi.fn(),
+  recordProviderExpense: vi.fn(),
+  refreshProfessionalPayout: vi.fn(),
   publishEvent: vi.fn(),
 }));
 
@@ -27,6 +29,10 @@ vi.mock('@/contexts/payments', () => ({
 vi.mock('../credit-store', () => ({ grantCredit: mocks.grantCredit }));
 vi.mock('../credit-allocation', () => ({
   applyCreditToExistingReceivable: mocks.applyCreditToExistingReceivable,
+}));
+vi.mock('../provider-expense', () => ({ recordProviderExpense: mocks.recordProviderExpense }));
+vi.mock('../professional-payout', () => ({
+  refreshProfessionalPayout: mocks.refreshProfessionalPayout,
 }));
 vi.mock('../../schema', () => ({
   faturamentoPendencias: { appointmentId: 'fp.appointment_id' },
@@ -53,6 +59,11 @@ const payload = (over: Record<string, unknown> = {}) => ({
   patientId: 'pac-1',
   kind: 'deposit',
   amount: 150,
+  providerGrossAmount: 150,
+  providerFeeAmount: 5,
+  providerNetAmount: 145,
+  earlySettlementFeeAmount: null,
+  installmentNumber: null,
   paidAt: '2026-08-25T12:00:00.000Z',
   paymentMethod: 'pix',
   ...over,
@@ -68,6 +79,7 @@ beforeEach(() => {
     outcome: 'deferred',
     reason: 'receivable_not_open',
   });
+  mocks.refreshProfessionalPayout.mockResolvedValue('missing');
 });
 
 describe('handler de crédito concedido', () => {
@@ -86,10 +98,57 @@ describe('handler de crédito concedido', () => {
       appointmentId: 'apt-1',
       patientId: 'pac-1',
       amount: 150,
+      providerGrossAmount: 150,
+      providerFeeAmount: 5,
+      providerNetAmount: 145,
+      earlySettlementFeeAmount: null,
       kind: 'deposit',
       paymentMethod: 'pix',
       grantedAt: new Date('2026-08-25T12:00:00.000Z'),
     });
+  });
+
+  it('registra a taxa real como despesa separada e idempotente', async () => {
+    await run();
+
+    expect(mocks.recordProviderExpense).toHaveBeenCalledWith('TX', {
+      clinicId: 'clinic-1',
+      patientChargeId: 'charge-1',
+      kind: 'payment_processing_fee',
+      amount: 5,
+      occurredAt: new Date('2026-08-25T12:00:00.000Z'),
+    });
+  });
+
+  it('projeta o payload legado do outbox sem criar taxa ou liquido', async () => {
+    await handler({
+      tx: 'TX',
+      clinicId: 'clinic-1',
+      eventId: 'evt-legacy',
+      payload: {
+        chargeId: 'charge-1',
+        clinicId: 'clinic-1',
+        appointmentId: 'apt-1',
+        patientId: 'pac-1',
+        kind: 'deposit',
+        amount: 150,
+        paidAt: '2026-08-25T12:00:00.000Z',
+        paymentMethod: 'pix',
+      },
+    });
+
+    expect(mocks.grantCredit).toHaveBeenCalledWith(
+      'TX',
+      expect.objectContaining({
+        amount: 150,
+        providerGrossAmount: null,
+        providerFeeAmount: null,
+        providerNetAmount: null,
+        earlySettlementFeeAmount: null,
+      }),
+    );
+    expect(mocks.applyCreditToExistingReceivable).toHaveBeenCalledOnce();
+    expect(mocks.recordProviderExpense).not.toHaveBeenCalled();
   });
 
   it('clínica divergente é POISON PILL, não retentativa', async () => {
@@ -146,6 +205,10 @@ describe('handler de crédito concedido', () => {
       'financial.patient_credit.granted',
       expect.objectContaining({ allocation: 'applied', appliedAmount: 150 }),
     );
+    expect(mocks.refreshProfessionalPayout).toHaveBeenCalledWith('TX', {
+      clinicId: 'clinic-1',
+      appointmentId: 'apt-1',
+    });
   });
 
   it('paciente anônimo (encaixe) não impede o crédito', async () => {

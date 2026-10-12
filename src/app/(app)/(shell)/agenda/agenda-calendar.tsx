@@ -37,6 +37,8 @@ import type { AppointmentStatusDTO } from '@/contexts/scheduling/types';
 
 import type { AgendaAppt, AgendaData } from './data';
 import { AppointmentCorrectionDialog } from './appointment-correction-dialog';
+import { DeliveryFailureBadge } from './delivery-failure-strip';
+import { BADGE_KINDS, type AgendaDeliveryFailure } from './delivery-failures';
 import { RecurrenceSeriesDialog } from './recurrence-series-dialog';
 import { groupByDay, monthMatrix, shift as shiftYmd, todayYmd, weekDays } from './range';
 
@@ -251,9 +253,27 @@ function contexto(
   return null;
 }
 
+/**
+ * EC-32 — falhas de mensagem automática por consulta. O selo vale para toda
+ * falha da janela, inclusive numa consulta já cancelada: ali ele explica por
+ * que a vaga caiu.
+ */
+function falhasPorConsulta(failures: readonly AgendaDeliveryFailure[]) {
+  const porConsulta = new Map<string, AgendaDeliveryFailure[]>();
+  for (const failure of failures) {
+    if (!failure.appointmentId || !BADGE_KINDS.has(failure.kind)) continue;
+    porConsulta.set(failure.appointmentId, [
+      ...(porConsulta.get(failure.appointmentId) ?? []),
+      failure,
+    ]);
+  }
+  return porConsulta;
+}
+
 function DayView({ data }: { data: AgendaData }) {
   const appts = [...data.appointments].sort((a, b) => a.horario.localeCompare(b.horario));
   const seriesById = new Map(data.recurrenceSeries.map((s) => [s.id, s]));
+  const falhas = falhasPorConsulta(data.deliveryFailures);
   const agora = Date.now();
   const esperando = appts.filter((appointment) => appointment.status === 'chegou');
   const waiting = esperando.length;
@@ -375,6 +395,9 @@ function DayView({ data }: { data: AgendaData }) {
                       >
                         <DepositStatusBadge status={a.depositStatus} />
                       </span>
+                      {(falhas.get(a.id) ?? []).map((failure) => (
+                        <DeliveryFailureBadge key={failure.jobId} failure={failure} />
+                      ))}
                       {/* UX-003 — o vínculo com a série vira visível e acionável aqui. */}
                       {a.recurrenceSeriesId && seriesById.get(a.recurrenceSeriesId) ? (
                         <RecurrenceSeriesDialog

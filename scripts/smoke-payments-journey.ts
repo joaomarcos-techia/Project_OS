@@ -617,6 +617,8 @@ async function main(): Promise<void> {
           asaasEventId: `evt-h1-b-1-${stamp}`,
           eventType: 'PAYMENT_RECEIVED',
           paidAt: new Date(),
+          providerGrossAmount: 100,
+          providerNetAmount: 100,
           billingType: 'PIX',
         }),
         markDepositPaid({
@@ -625,6 +627,8 @@ async function main(): Promise<void> {
           asaasEventId: `evt-h1-b-2-${stamp}`,
           eventType: 'PAYMENT_CONFIRMED',
           paidAt: new Date(),
+          providerGrossAmount: 100,
+          providerNetAmount: 100,
           billingType: 'PIX',
         }),
       ]);
@@ -637,6 +641,8 @@ async function main(): Promise<void> {
         asaasEventId: `evt-h1-b-1-${stamp}`,
         eventType: 'PAYMENT_RECEIVED',
         paidAt: new Date(),
+        providerGrossAmount: 100,
+        providerNetAmount: 100,
         billingType: 'PIX',
       });
       assert(replay === 'ignored', `replay do mesmo eventId devolveu ${replay}`);
@@ -774,6 +780,8 @@ async function main(): Promise<void> {
           asaasEventId: `evt-hold-race-${stamp}`,
           eventType: 'PAYMENT_RECEIVED',
           paidAt: new Date(),
+          providerGrossAmount: 100,
+          providerNetAmount: 100,
           billingType: 'PIX',
         }),
       ]);
@@ -1028,6 +1036,8 @@ async function main(): Promise<void> {
         asaasEventId: `evt-cross-tenant-${stamp}`,
         eventType: 'PAYMENT_RECEIVED',
         paidAt: new Date(),
+        providerGrossAmount: 75,
+        providerNetAmount: 75,
         billingType: 'PIX',
       });
       assert(outcome === 'unknown_charge', `conciliação cross-tenant devolveu ${outcome}`);

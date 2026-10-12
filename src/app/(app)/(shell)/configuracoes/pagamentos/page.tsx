@@ -1,10 +1,12 @@
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { pageGate } from '@/lib/auth/page-guard';
 import { PageNoAccess } from '@/components/shared/page-no-access';
+import { Alert } from '@/components/ui/alert';
 
 import { loadPagamentosPage } from './data';
 import { DepositPolicyForm } from './deposit-policy-form';
 import { PaymentAccountPanel } from './payment-account-panel';
+import { FinancialPoliciesPanel } from './financial-policies-panel';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,11 +31,26 @@ export default async function PagamentosSettingsPage() {
     );
   }
 
-  const { account, policy } = await loadPagamentosPage();
+  const data = await loadPagamentosPage();
   return (
     <div className="flex flex-col gap-6">
-      <PaymentAccountPanel status={account} />
-      <DepositPolicyForm policy={policy} hasAccount={account.hasApiKey} />
+      <PaymentAccountPanel status={data.account} />
+      <DepositPolicyForm policy={data.policy} hasAccount={data.account.hasApiKey} />
+      {data.advancedPoliciesEnabled ? (
+        <FinancialPoliciesPanel
+          pricingPolicy={data.pricingPolicy}
+          methodPrices={data.methodPrices}
+          payoutPolicy={data.payoutPolicy}
+          payoutRules={data.payoutRules}
+          professionals={data.professionals}
+          procedures={data.procedures}
+        />
+      ) : (
+        <Alert variant="info">
+          Preços por meio de pagamento e regras de repasse estão disponíveis nos planos Clínica e
+          Pro.
+        </Alert>
+      )}
     </div>
   );
 }

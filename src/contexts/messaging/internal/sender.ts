@@ -11,6 +11,8 @@
  *
  * Status (3ª#5): accepted (ack síncrono) | failed (HTTP definitivo) | unknown
  * (timeout/reset — NÃO sabemos se a Meta recebeu; callback async confirma em C14).
+ * Um `failed` sem wamid leva o código da Meta (`errorCode`, ADR-064), inclusive
+ * no dedup: é ele que diz à C14 se a recusa merece reenvio com chave nova.
  *
  * Refresh de credencial (3ª#3 + 4ª#2): em 401/403 recarrega a credencial; só
  * reenvia se `token_version` aumentou (rotação ocorreu) — senão é token inválido
@@ -21,10 +23,16 @@
  */
 import 'server-only';
 
-import { and, eq, isNotNull, isNull, or, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
-import { decryptForTenant, encryptForTenant, hashForLookup, normalizePhone } from '@/lib/crypto';
+import {
+  decryptForTenant,
+  encryptForTenant,
+  hashForLookup,
+  normalizePhone,
+  phoneLookupHashes,
+} from '@/lib/crypto';
 import { withTenant } from '@/lib/db/tenant';
 import {
   getMessagingProvider,
@@ -47,6 +55,7 @@ import {
   SuppressedRecipientError,
 } from '../errors';
 import { outboundMessages } from '../schema';
+import { syncRefusalCode } from './delivery-status';
 import { reconcileStoredProviderStatuses } from './status-reconciler';
 import type { OutboundResult, OutboundSendStatus, SendOutboundInput } from '../types';
 
@@ -97,6 +106,10 @@ export async function sendOutbound(input: SendOutboundInput): Promise<OutboundRe
   if (!number) throw new NumberNotConnectedError(input.clinicId);
 
   const toNumberHash = await hashForLookup(normalizePhone(input.toNumber));
+  // Óbito e supressão são gravados com o hash do CADASTRO (número nacional); a
+  // resposta da IA vai para o wa_id (55, às vezes sem o nono dígito). Comparar
+  // só o hash exato deixava a supressão sem efeito no WhatsApp (08/10/2026).
+  const toNumberHashes = await phoneLookupHashes(input.toNumber);
   const contentPlain =
     input.body.kind === 'text' ? input.body.text : `template:${input.body.templateName}`;
   const contentEncrypted = await encryptForTenant(input.clinicId, contentPlain);
@@ -110,7 +123,7 @@ export async function sendOutbound(input: SendOutboundInput): Promise<OutboundRe
       .where(
         and(
           eq(patients.clinicId, input.clinicId),
-          eq(patients.telefoneHash, toNumberHash),
+          inArray(patients.telefoneHash, toNumberHashes),
           isNotNull(patients.obitoEm),
           isNull(patients.deletedAt),
         ),
@@ -124,7 +137,7 @@ export async function sendOutbound(input: SendOutboundInput): Promise<OutboundRe
       .where(
         and(
           eq(suppressionList.clinicId, input.clinicId),
-          eq(suppressionList.contactHash, toNumberHash),
+          inArray(suppressionList.contactHash, toNumberHashes),
           eq(suppressionList.channel, 'whatsapp'),
           input.purpose
             ? or(eq(suppressionList.purpose, 'all'), eq(suppressionList.purpose, input.purpose))
@@ -155,6 +168,7 @@ export async function sendOutbound(input: SendOutboundInput): Promise<OutboundRe
           id: outboundMessages.id,
           status: outboundMessages.status,
           providerMessageId: outboundMessages.providerMessageId,
+          providerResponse: outboundMessages.providerResponse,
         })
         .from(outboundMessages)
         .where(
@@ -177,6 +191,11 @@ export async function sendOutbound(input: SendOutboundInput): Promise<OutboundRe
       status: reserve.row.status,
       providerMessageId: reserve.row.providerMessageId,
       deduped: true,
+      errorCode: syncRefusalCode(
+        reserve.row.status,
+        reserve.row.providerMessageId,
+        reserve.row.providerResponse,
+      ),
     };
   }
   const outboundId = reserve.id;
@@ -231,5 +250,11 @@ export async function sendOutbound(input: SendOutboundInput): Promise<OutboundRe
   });
 
   metrics.emit(`messaging.outbound.${finalStatus}`, { clinicId: input.clinicId });
-  return { id: outboundId, status: finalStatus, providerMessageId, deduped: false };
+  return {
+    id: outboundId,
+    status: finalStatus,
+    providerMessageId,
+    deduped: false,
+    errorCode: syncRefusalCode(finalStatus, providerMessageId, providerResponse),
+  };
 }

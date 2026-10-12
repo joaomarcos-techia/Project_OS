@@ -89,6 +89,16 @@ export const clinicWhatsappNumbers = pgTable(
     // WhatsApp Business do celular. Não participa do roteamento; muda o que a
     // tela diz ao desconectar (a Meta não aceita deregister nesse número).
     coexistence: boolean('coexistence').notNull().default(false),
+    // Migration 0116: saúde de ENVIO — o `can_send_message` da Meta para
+    // mensagens iniciadas pela clínica, sem o ruído das chamadas
+    // (`internal/messaging-health.ts`). NULL até a primeira leitura; só o seam
+    // privilegiado grava, authenticated só lê.
+    messagingHealth: text('messaging_health'),
+    messagingHealthCodes: integer('messaging_health_codes')
+      .array()
+      .notNull()
+      .default(sql`'{}'::integer[]`),
+    messagingHealthCheckedAt: timestamp('messaging_health_checked_at', { withTimezone: true }),
     ...timestampsPattern(),
   },
   (t) => ({
@@ -122,12 +132,20 @@ export const inboundMessagesRaw = pgTable(
     // per-tenant — sem ele o AI Agent não tem como RESPONDER (o hash não é
     // reversível). Nullable: rows anteriores à 0024 não o possuem.
     fromNumberEncrypted: text('from_number_encrypted'),
+    // Migration 0114: nome do perfil do WhatsApp do remetente, cifrado
+    // per-tenant. NULL quando a Meta não o enviou ou a linha é anterior à 0114.
+    fromNameEncrypted: text('from_name_encrypted'),
     toNumber: text('to_number'),
     contentEncrypted: text('content_encrypted').notNull(),
     // Canônico (payloadHash) — distingue duplicate (igual) vs conflict (diferente).
     payloadHash: text('payload_hash').notNull(),
     // Coluna existe por contrato; SEMPRE NULL em C10 (proibição de mídia).
     mediaUrl: text('media_url'),
+    // Migration 0117: o `type` da Meta (`text`, `audio`, `image`…). O agente
+    // responde a áudio e arquivo pelo tipo, e o coalescing só junta TEXTO — um
+    // áudio absorvido por uma mensagem de texto sumia sem resposta. NULL nas
+    // linhas anteriores à 0117.
+    messageType: text('message_type'),
     receivedAt: timestamp('received_at', { withTimezone: true })
       .notNull()
       .default(sql`now()`),

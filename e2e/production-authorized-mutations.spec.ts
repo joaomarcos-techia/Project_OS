@@ -34,18 +34,34 @@ function validCpfForRun(runId: string): string {
   return [...digits, digit(digits, 10), digit([...digits, digit(digits, 10)], 11)].join('');
 }
 
+function reportStage(stage: string): void {
+  console.log(`[production-authorized-mutations] stage=${stage}`);
+}
+
 test.describe('produção: mutações autorizadas em conta de teste', () => {
+  let cleanupCurrentRun: (() => Promise<void>) | null = null;
+
+  test.afterEach(async ({}, testInfo) => {
+    testInfo.setTimeout(240_000);
+    const cleanup = cleanupCurrentRun;
+    cleanupCurrentRun = null;
+    if (cleanup) await cleanup();
+  });
+
   test('valida limites e percorre paciente, agenda, financeiro manual e LGPD', async ({
     page,
   }, testInfo) => {
-    // A jornada abre dois PDFs, assina o prontuário e roda o cleanup LGPD;
-    // deixa margem para o finally completar sem encerrar o browser no meio.
-    test.setTimeout(600_000);
+    // A jornada atravessa várias Functions frias de produção. Seu orçamento não
+    // inclui o cleanup: o afterEach tem relógio separado e preserva a fixture
+    // mesmo quando o corpo principal expira.
+    test.setTimeout(1_800_000);
     test.skip(
       !productionMutationAuthorized || !hasE2ECredentials(),
       'Exige E2E_PRODUCTION_MUTATION=ALLOW_TEST_ACCOUNT e credenciais da conta de teste.',
     );
     assertProductionTarget();
+    page.setDefaultTimeout(60_000);
+    page.setDefaultNavigationTimeout(90_000);
 
     const runId = `${Date.now()}`.slice(-10);
     const marker = `[E2E-PROD-${runId}]`;
@@ -61,8 +77,60 @@ test.describe('produção: mutações autorizadas em conta de teste', () => {
     let temporaryAvailabilityAdded = false;
     const todayWeekday = WEEKDAY_NAMES[new Date().getDay()]!;
 
-    try {
+    cleanupCurrentRun = async () => {
+      reportStage('cleanup_started');
+      try {
+        if (procedureCreated) {
+          await page.goto('/configuracoes/procedimentos');
+          await page
+            .getByPlaceholder('Buscar por código, descrição ou categoria')
+            .fill(procedureCode);
+          const procedureRow = page
+            .getByText(procedureCode, { exact: true })
+            .locator('xpath=ancestor::div[contains(@class,"listrow")][1]');
+          if ((await procedureRow.count()) > 0) {
+            page.once('dialog', (dialog) => dialog.accept());
+            await procedureRow.getByRole('button', { name: 'Desativar' }).click();
+            await expect(procedureRow).toHaveCount(0, { timeout: 30_000 });
+            await page.getByLabel('Mostrar inativos').check();
+            const inactiveProcedureRow = page
+              .getByText(procedureCode, { exact: true })
+              .locator('xpath=ancestor::div[contains(@class,"listrow")][1]');
+            await expect(inactiveProcedureRow.getByText('inativo', { exact: true })).toBeVisible({
+              timeout: 30_000,
+            });
+          }
+        }
+      } finally {
+        try {
+          if (temporaryAvailabilityAdded) {
+            await page.goto('/configuracoes/horarios');
+            const temporaryWindow = page.getByRole('button', {
+              name: `Remover ${todayWeekday} 00:00`,
+            });
+            await expect(temporaryWindow).toBeVisible({ timeout: 30_000 });
+            await temporaryWindow.click();
+            await expect(temporaryWindow).toHaveCount(0, { timeout: 30_000 });
+          }
+        } finally {
+          if (patientUrl) {
+            await page.goto(patientUrl);
+            await page.getByRole('button', { name: 'Solicitar exclusão (LGPD)' }).click();
+            const lgpdDialog = page.getByRole('dialog', {
+              name: 'Registrar solicitação de exclusão LGPD',
+            });
+            await expect(lgpdDialog).toBeVisible();
+            await lgpdDialog.getByRole('button', { name: 'Registrar solicitação' }).click();
+            await expect(page).toHaveURL(/\/pacientes(?:\?|$)/, { timeout: 30_000 });
+          }
+        }
+      }
+      reportStage('cleanup_completed');
+    };
+
+    await test.step('jornada funcional autorizada', async () => {
       await authenticate(page);
+      reportStage('authenticated');
 
       // Prova a jornada de conta solo: owner/gestor com CRM torna-se profissional
       // sem depender de outro membro. Só preenche quando a conta de teste ainda
@@ -82,10 +150,11 @@ test.describe('produção: mutações autorizadas em conta de teste', () => {
           },
         );
       }
+      reportStage('professional_ready');
 
       // The authorized account can be created without working hours. To run a
       // real walk-in/consulting-room flow without bypassing capacity rules, add
-      // a window only when the current weekday has none. The finally removes it.
+      // a window only when the current weekday has none. The afterEach removes it.
       await page.goto('/configuracoes/horarios');
       const weekdayRow = page
         .getByText(todayWeekday, { exact: true })
@@ -102,6 +171,7 @@ test.describe('produção: mutações autorizadas em conta de teste', () => {
         });
         temporaryAvailabilityAdded = true;
       }
+      reportStage('availability_ready');
 
       await page.goto('/pacientes?novo=1');
       const patientDrawer = page.getByRole('dialog', { name: 'Novo paciente' });
@@ -152,29 +222,38 @@ test.describe('produção: mutações autorizadas em conta de teste', () => {
       await expect(page).toHaveURL(/\/pacientes\/[0-9a-f-]{36}(?:\?|$)/, { timeout: 90_000 });
       patientUrl = page.url();
       await expect(page.getByRole('heading', { name: patientName, exact: true })).toBeVisible();
+      reportStage('patient_created');
 
-      const editForm = page.getByRole('heading', { name: 'Editar', exact: true }).locator('..');
+      await page.getByRole('button', { name: 'Editar dados', exact: true }).click();
+      const editForm = page.locator('#patient-profile-editor');
+      await expect(
+        editForm.getByRole('heading', { name: 'Editar dados cadastrais' }),
+      ).toBeVisible();
       await editForm.locator('input[name="telefone"]').fill('11988880000');
+      reportStage('patient_edit_submitting');
       await editForm.getByRole('button', { name: 'Salvar alterações' }).click();
+      reportStage('patient_edit_submitted');
       await expect(page).toHaveURL(/\/pacientes\/[0-9a-f-]{36}(?:\?|$)/, { timeout: 30_000 });
 
+      reportStage('procedure_page_opening');
       await page.goto('/configuracoes/procedimentos');
+      reportStage('procedure_page_opened');
       await page.getByRole('button', { name: 'Novo procedimento' }).click();
       await expect(page.getByRole('heading', { name: 'Novo procedimento' })).toBeVisible();
-      await expect(page.getByPlaceholder('Código * (ex: CONS)')).toHaveAttribute('maxlength', '40');
-      await expect(page.getByPlaceholder('Descrição * (ex: Consulta)')).toHaveAttribute(
-        'maxlength',
-        '160',
-      );
-      await page.getByPlaceholder('Código * (ex: CONS)').fill(procedureCode);
-      await page.getByPlaceholder('Descrição * (ex: Consulta)').fill(procedureName);
-      await page.getByPlaceholder('0,00').fill('12,34');
-      await page.getByPlaceholder('30').fill('30');
+      const procedureCodeInput = page.locator('#proc-codigo');
+      const procedureDescriptionInput = page.locator('#proc-descricao');
+      await expect(procedureCodeInput).toHaveAttribute('maxlength', '40');
+      await expect(procedureDescriptionInput).toHaveAttribute('maxlength', '160');
+      await procedureCodeInput.fill(procedureCode);
+      await procedureDescriptionInput.fill(procedureName);
+      await page.locator('#proc-valor').fill('12,34');
+      await page.locator('#proc-duracao').fill('30');
       await page.getByRole('button', { name: 'Salvar', exact: true }).click();
       await expect(page.getByText('Procedimento salvo.', { exact: true })).toBeVisible({
         timeout: 30_000,
       });
       procedureCreated = true;
+      reportStage('procedure_created');
 
       await page.goto('/agenda');
       await page.getByRole('button', { name: 'Novo atendimento' }).click();
@@ -201,11 +280,10 @@ test.describe('produção: mutações autorizadas em conta de teste', () => {
       });
 
       await page.goto(`/agenda?view=day&date=${appointmentDate}`);
-      const scheduledAppointmentRow = page
-        .getByText(patientName, { exact: true })
-        .locator('xpath=ancestor::li[1]');
+      const scheduledAppointmentRow = page.getByRole('row').filter({ hasText: patientName });
       await expect(scheduledAppointmentRow).toBeVisible({ timeout: 30_000 });
-      await expect(scheduledAppointmentRow.getByText('Agendado', { exact: true })).toBeVisible();
+      await expect(scheduledAppointmentRow.getByText('Agendada', { exact: true })).toBeVisible();
+      reportStage('scheduled_appointment_created');
 
       // A correção excepcional só é permitida em atendimento. Cria um encaixe,
       // chama o paciente e então valida a transição real em vez de tentar uma
@@ -239,19 +317,22 @@ test.describe('produção: mutações autorizadas em conta de teste', () => {
       });
 
       await page.goto('/consultorio');
+      await page.waitForLoadState('networkidle');
       const cancellationWaitingCard = page
         .getByText(patientName, { exact: true })
         .locator('xpath=ancestor::div[.//button[normalize-space()="Chamar"]][1]');
       await expect(cancellationWaitingCard).toBeVisible({ timeout: 30_000 });
-      await cancellationWaitingCard.getByRole('button', { name: 'Chamar' }).click();
+      const cancellationCallButton = cancellationWaitingCard.getByRole('button', {
+        name: 'Chamar',
+      });
+      await cancellationCallButton.click();
+      await expect(cancellationCallButton).toHaveCount(0, { timeout: 90_000 });
       await expect(page.getByRole('heading', { name: patientName, exact: true })).toBeVisible({
-        timeout: 30_000,
+        timeout: 90_000,
       });
 
       await page.goto(`/agenda?view=day&date=${futureDate(0)}`);
-      const cancellationAppointmentRow = page
-        .getByText(patientName, { exact: true })
-        .locator('xpath=ancestor::li[1]');
+      const cancellationAppointmentRow = page.getByRole('row').filter({ hasText: patientName });
       await expect(cancellationAppointmentRow).toBeVisible({ timeout: 30_000 });
       await cancellationAppointmentRow.getByRole('button', { name: 'Corrigir' }).click();
       const correctionDialog = page.getByRole('dialog', { name: 'Corrigir atendimento' });
@@ -268,6 +349,7 @@ test.describe('produção: mutações autorizadas em conta de teste', () => {
       await expect(page.getByText('Agenda corrigida', { exact: true })).toBeVisible({
         timeout: 30_000,
       });
+      reportStage('exceptional_cancellation_completed');
 
       await page.goto('/agenda');
       await page.getByRole('button', { name: 'Novo atendimento' }).click();
@@ -298,13 +380,16 @@ test.describe('produção: mutações autorizadas em conta de teste', () => {
       });
 
       await page.goto('/consultorio');
+      await page.waitForLoadState('networkidle');
       const waitingCard = page
         .getByText(patientName, { exact: true })
         .locator('xpath=ancestor::div[.//button[normalize-space()="Chamar"]][1]');
       await expect(waitingCard).toBeVisible({ timeout: 30_000 });
-      await waitingCard.getByRole('button', { name: 'Chamar' }).click();
+      const callButton = waitingCard.getByRole('button', { name: 'Chamar' });
+      await callButton.click();
+      await expect(callButton).toHaveCount(0, { timeout: 90_000 });
       await expect(page.getByRole('heading', { name: patientName, exact: true })).toBeVisible({
-        timeout: 30_000,
+        timeout: 90_000,
       });
 
       const prontuarioField = page.locator('textarea').first();
@@ -365,6 +450,7 @@ test.describe('produção: mutações autorizadas em conta de teste', () => {
       await expect(completedCard).toBeVisible({
         timeout: 30_000,
       });
+      reportStage('clinical_journey_completed');
 
       await page.goto('/financeiro?novo=1');
       const financialDrawer = page.getByRole('dialog', { name: 'Novo lançamento' });
@@ -383,26 +469,47 @@ test.describe('produção: mutações autorizadas em conta de teste', () => {
       ).toBeVisible({ timeout: 30_000 });
 
       await page.goto('/caixa');
-      const financialCard = page
-        .getByText(financialDescription, { exact: true })
-        .locator('xpath=ancestor::div[contains(@class,"rounded-(--card-radius)")][1]');
+      await page.waitForLoadState('networkidle');
+      const receivablesRegion = page.getByRole('region', { name: 'A receber' });
+      const receivedRegion = page.getByRole('region', { name: 'Recebidos hoje' });
+      const initialRefundButtons = await receivedRegion
+        .getByRole('button', { name: 'Reembolsar' })
+        .count();
+      expect(
+        initialRefundButtons,
+        'a conta E2E deve iniciar sem recebimento reembolsável hoje',
+      ).toBe(0);
+      const financialCard = receivablesRegion
+        .locator('div[data-status]')
+        .filter({ hasText: financialDescription });
+      for (let pageIndex = 0; pageIndex < 5 && (await financialCard.count()) === 0; pageIndex++) {
+        const nextPage = receivablesRegion.getByRole('button', {
+          name: 'Próxima página de A receber',
+        });
+        await expect(nextPage).toBeEnabled();
+        await nextPage.click();
+      }
       await expect(financialCard).toBeVisible({ timeout: 30_000 });
       await financialCard.getByRole('button', { name: 'Confirmar pagamento' }).click();
       await expect(financialCard.getByLabel('Valor recebido')).toHaveValue('12.34');
       await financialCard.getByRole('button', { name: /Receber R\$/ }).click();
-      await expect(financialCard.getByText('Pago', { exact: true })).toBeVisible({
-        timeout: 30_000,
-      });
-      await financialCard.getByRole('button', { name: 'Reembolsar' }).click();
-      await financialCard.getByLabel('Motivo do reembolso').fill(`${marker} estorno de teste`);
-      await financialCard.getByRole('button', { name: 'Confirmar reembolso' }).click();
       await expect(financialCard).toHaveCount(0, { timeout: 30_000 });
+      const refundButtons = receivedRegion.getByRole('button', { name: 'Reembolsar' });
+      await expect(refundButtons).toHaveCount(initialRefundButtons + 1, { timeout: 30_000 });
+      const paidCard = refundButtons
+        .last()
+        .locator('xpath=ancestor::div[contains(@class,"border-b")][1]');
+      await paidCard.getByRole('button', { name: 'Reembolsar' }).click();
+      await paidCard.getByLabel('Motivo do reembolso').fill(`${marker} estorno de teste`);
+      await paidCard.getByRole('button', { name: 'Confirmar reembolso' }).click();
+      await expect(refundButtons).toHaveCount(initialRefundButtons, { timeout: 30_000 });
       await page.goto('/financeiro?status=estornado');
       const estornadoRow = page
         .getByText(financialDescription, { exact: true })
         .locator('xpath=ancestor::tr[1]');
       await expect(estornadoRow).toBeVisible({ timeout: 30_000 });
       await expect(estornadoRow.getByText('Estornado', { exact: true })).toBeVisible();
+      reportStage('financial_journey_completed');
 
       await testInfo.attach('production-authorized-mutation-result.json', {
         body: JSON.stringify(
@@ -419,49 +526,6 @@ test.describe('produção: mutações autorizadas em conta de teste', () => {
         ),
         contentType: 'application/json',
       });
-    } finally {
-      try {
-        if (procedureCreated) {
-          await page.goto('/configuracoes/procedimentos');
-          await page
-            .getByPlaceholder('Buscar por código, descrição ou categoria')
-            .fill(procedureCode);
-          const procedureRow = page
-            .getByText(procedureCode, { exact: true })
-            .locator('xpath=ancestor::div[contains(@class,"listrow")][1]');
-          if ((await procedureRow.count()) > 0) {
-            page.once('dialog', (dialog) => dialog.accept());
-            await procedureRow.getByRole('button', { name: 'Desativar' }).click();
-            await expect(procedureRow).toHaveCount(0, { timeout: 30_000 });
-            await page.getByLabel('Mostrar inativos').check();
-            const inactiveProcedureRow = page
-              .getByText(procedureCode, { exact: true })
-              .locator('xpath=ancestor::div[contains(@class,"listrow")][1]');
-            await expect(inactiveProcedureRow.getByText('inativo', { exact: true })).toBeVisible({
-              timeout: 30_000,
-            });
-          }
-        }
-      } finally {
-        try {
-          if (temporaryAvailabilityAdded) {
-            await page.goto('/configuracoes/horarios');
-            const temporaryWindow = page.getByRole('button', {
-              name: `Remover ${todayWeekday} 00:00`,
-            });
-            await expect(temporaryWindow).toBeVisible({ timeout: 30_000 });
-            await temporaryWindow.click();
-            await expect(temporaryWindow).toHaveCount(0, { timeout: 30_000 });
-          }
-        } finally {
-          if (patientUrl) {
-            await page.goto(patientUrl);
-            page.once('dialog', (dialog) => dialog.accept());
-            await page.getByRole('button', { name: 'Solicitar exclusão (LGPD)' }).click();
-            await expect(page).toHaveURL(/\/pacientes(?:\?|$)/, { timeout: 30_000 });
-          }
-        }
-      }
-    }
+    });
   });
 });

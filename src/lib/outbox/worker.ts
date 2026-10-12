@@ -108,9 +108,6 @@ async function runTickBody(
     Array.from({ length: batchSize }, () => limit(() => processOne())),
   );
 
-  // F-03: exhaustive tally over ProcessOneResult. `empty` = no row reserved;
-  // `skipped` = terminally skipped (no handler). The `default: never` makes the
-  // compiler reject any future result variant that isn't counted here.
   const summary: WorkerTickSummary = {
     processed: 0,
     failed: 0,
@@ -120,27 +117,78 @@ async function runTickBody(
     circuit_paused: circuit.pausedCount,
     duration_ms: Date.now() - t0,
   };
-  for (const r of results) {
-    switch (r) {
-      case 'processed':
-        summary.processed++;
-        break;
-      case 'failed':
-        summary.failed++;
-        break;
-      case 'skipped':
-        summary.skipped++;
-        break;
-      case 'empty':
-        summary.empty++;
-        break;
-      default: {
-        const _exhaustive: never = r;
-        throw new Error(`unknown processOne result: ${String(_exhaustive)}`);
-      }
+  for (const r of results) tally(summary, r);
+  metrics.emit('worker.tick', summary);
+  return summary;
+}
+
+// F-03: exhaustive tally over ProcessOneResult. `empty` = no row reserved;
+// `skipped` = terminally skipped (no handler). The `default: never` makes the
+// compiler reject any future result variant that isn't counted here.
+function tally(summary: WorkerTickSummary, r: ProcessOneResult): void {
+  switch (r) {
+    case 'processed':
+      summary.processed++;
+      break;
+    case 'failed':
+      summary.failed++;
+      break;
+    case 'skipped':
+      summary.skipped++;
+      break;
+    case 'empty':
+      summary.empty++;
+      break;
+    default: {
+      const _exhaustive: never = r;
+      throw new Error(`unknown processOne result: ${String(_exhaustive)}`);
     }
   }
-  metrics.emit('worker.tick', summary);
+}
+
+/** Eventos que um request acabou de publicar, pela chave de idempotência. */
+export interface OutboxSelection {
+  eventType: string;
+  idempotencyKeys: readonly string[];
+}
+
+/**
+ * Processa AGORA os eventos que o próprio request publicou (ingress da Meta).
+ *
+ * O tick de ingress antigo era `runOutboxOnce({ batchSize: 1 })`: pegava o
+ * evento devido MAIS ANTIGO da fila global, que só por acaso era o turno da
+ * mensagem recém-chegada. Com fila não vazia — outra clínica, um retry, um
+ * backlog — o paciente esperava o cron; no Preview, que não tem cron, nunca era
+ * respondido (visto em 07-08/10/2026 com 57 eventos antigos à frente).
+ *
+ * Mesmo caminho TX1/TX2/TX3 do tick (reserva com SKIP LOCKED, finalize com
+ * guarda), sem janitor, circuit nem advisory lock: esses fazem UPDATEs amplos e
+ * pertencem ao cron. Respeita `next_attempt_at` (backoff e pausa do circuito) e
+ * só toca linhas `pending` das chaves pedidas — um tick global concorrente
+ * nunca processa a mesma linha. O cron continua sendo o backstop.
+ */
+export async function runOutboxEventsNow(
+  selections: readonly OutboxSelection[],
+): Promise<WorkerTickSummary> {
+  const t0 = Date.now();
+  const summary: WorkerTickSummary = {
+    processed: 0,
+    failed: 0,
+    skipped: 0,
+    empty: 0,
+    stuck_reclaimed: 0,
+    circuit_paused: 0,
+    duration_ms: 0,
+  };
+  for (const selection of selections) {
+    for (let i = 0; i < selection.idempotencyKeys.length; i++) {
+      const result = await processOne(selection);
+      tally(summary, result);
+      if (result === 'empty') break;
+    }
+  }
+  summary.duration_ms = Date.now() - t0;
+  metrics.emit('worker.targeted', summary);
   return summary;
 }
 
@@ -154,7 +202,15 @@ type ReservedRow = {
   clinic_exists: boolean;
 };
 
-async function processOne(): Promise<ProcessOneResult> {
+async function processOne(selection?: OutboxSelection): Promise<ProcessOneResult> {
+  if (selection && selection.idempotencyKeys.length === 0) return 'empty';
+  const only = selection
+    ? sql`AND o.event_type = ${selection.eventType}
+           AND o.idempotency_key IN (${sql.join(
+             selection.idempotencyKeys.map((key) => sql`${key}`),
+             sql`, `,
+           )})`
+    : sql``;
   // === TX1 (dbWorker) — reserve com RETURNING processing_started_at ===
   // CRITICAL-01: TX3 precisa do processing_started_at exato setado aqui para
   // detectar reclaim do janitor. SELECT FOR UPDATE SKIP LOCKED + UPDATE numa
@@ -164,7 +220,7 @@ async function processOne(): Promise<ProcessOneResult> {
       SELECT o.id, o.clinic_id, o.event_type, o.payload, o.attempts,
              EXISTS (SELECT 1 FROM clinics c WHERE c.id = o.clinic_id) AS clinic_exists
         FROM outbox o
-       WHERE o.status = 'pending' AND o.next_attempt_at <= now()
+       WHERE o.status = 'pending' AND o.next_attempt_at <= now() ${only}
        ORDER BY o.next_attempt_at, o.created_at
        LIMIT 1
        FOR UPDATE SKIP LOCKED

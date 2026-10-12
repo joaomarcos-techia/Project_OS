@@ -34,6 +34,7 @@ const first: AIConversationListItem = {
   patientDisplayName: 'Ana Teste',
   contactPhone: '+5511999991234',
   maskedPhone: null,
+  contactName: null,
   lastMessagePreview: 'Preciso confirmar a consulta.',
   status: 'handoff',
   lastMessageAt: '2026-09-09T12:00:00Z',
@@ -87,7 +88,7 @@ describe('inbox de conversas', () => {
     render(await ConversasPage({ searchParams: Promise.resolve({}) }));
     expect(getConversationThread).toHaveBeenCalledWith('clinic-1', firstId);
     const inbox = screen.getByRole('region', { name: 'Lista de conversas' });
-    expect(within(inbox).getByText('+55 (11) 99999-1234')).toBeTruthy();
+    expect(within(inbox).getByText('+55 11 99999-1234')).toBeTruthy();
     expect(
       within(inbox)
         .getByRole('link', { name: /Ana Teste/ })
@@ -95,10 +96,30 @@ describe('inbox de conversas', () => {
     ).toBe('true');
     expect(
       within(screen.getByRole('region', { name: 'Conversa selecionada' })).getByText(
-        '+55 (11) 99999-1234',
+        '+55 11 99999-1234',
       ),
     ).toBeTruthy();
     expect(screen.getByRole('form', { name: 'Responder ao contato' })).toBeTruthy();
+  });
+
+  it('identifica contato sem cadastro pelo nome do WhatsApp, com o telefone formatado embaixo', async () => {
+    // O caso real: wa_id brasileiro de 12 dígitos (celular de antes do nono
+    // dígito) e o nome que a pessoa usa no perfil do WhatsApp.
+    const whatsapp: AIConversationListItem = {
+      ...second,
+      contactName: 'Maria do WhatsApp',
+      contactPhone: '558897168587',
+      maskedPhone: '+5588*****8587',
+    };
+    listConversations.mockResolvedValue({ items: [whatsapp], total: 1, page: 1, pageSize: 30 });
+    getConversationThread.mockResolvedValue(thread(whatsapp));
+    render(await ConversasPage({ searchParams: Promise.resolve({}) }));
+    const inbox = screen.getByRole('region', { name: 'Lista de conversas' });
+    expect(within(inbox).getByText('Maria do WhatsApp')).toBeTruthy();
+    expect(within(inbox).getByText('+55 88 9716-8587')).toBeTruthy();
+    const selected = screen.getByRole('region', { name: 'Conversa selecionada' });
+    expect(within(selected).getByRole('heading', { name: 'Maria do WhatsApp' })).toBeTruthy();
+    expect(within(selected).getByText('+55 88 9716-8587')).toBeTruthy();
   });
 
   it('seleciona uma conversa da página e mantém os filtros ao voltar e paginar', async () => {

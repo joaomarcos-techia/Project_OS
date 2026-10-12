@@ -1,3 +1,5 @@
+import { randomBytes } from 'node:crypto';
+
 import { expect, test, type BrowserContext } from '@playwright/test';
 import { createServerClient as createSsrClient } from '@supabase/ssr';
 import { config as loadDotenv } from 'dotenv';
@@ -7,7 +9,7 @@ loadDotenv({ path: '.env.local' });
 
 const baseUrl = process.env.E2E_BASE_URL;
 const doctorEmail = process.env.E2E_DOCTOR_EMAIL;
-const sharedPassword = process.env.E2E_TENANT_PASSWORD;
+const doctorPassword = process.env.E2E_DOCTOR_PASSWORD ?? process.env.E2E_TENANT_PASSWORD;
 
 test.use({
   storageState: { cookies: [], origins: [] },
@@ -32,8 +34,11 @@ async function signInContext(
   password: string,
 ): Promise<void> {
   if (!baseUrl) throw new Error('E2E_BASE_URL ausente.');
+  const generation = randomBytes(16).toString('hex');
   let nextCookies: Array<{ name: string; value: string }> = [];
   const { url, key } = productionSupabaseConfig();
+  const projectRef = new URL(url).hostname.split('.')[0]!;
+  const cookieName = `sb-${projectRef}-auth-token-v2-${generation}`;
   const client = createSsrClient(url, key, {
     cookies: {
       getAll: () => [],
@@ -41,21 +46,64 @@ async function signInContext(
         nextCookies = items.map(({ name, value }) => ({ name, value }));
       },
     },
+    cookieOptions: { name: cookieName, httpOnly: true, sameSite: 'lax', secure: true },
     auth: { autoRefreshToken: false, persistSession: true },
   });
   const { data, error } = await client.auth.signInWithPassword({ email, password });
   if (error || !data.session || nextCookies.length === 0) {
     throw new Error(error?.message ?? 'Login não produziu sessão.');
   }
-  await context.addCookies(
-    nextCookies
+  await context.addCookies([
+    ...nextCookies
       .filter(({ value }) => value !== '')
-      .map(({ name, value }) => ({ name, value, url: baseUrl })),
-  );
+      .map(({ name, value }) => ({
+        name,
+        value,
+        url: baseUrl,
+        httpOnly: true,
+        secure: true,
+        sameSite: 'Lax' as const,
+      })),
+    {
+      name: 'qoro-auth-session',
+      value: generation,
+      url: baseUrl,
+      httpOnly: true,
+      secure: true,
+      sameSite: 'Lax' as const,
+    },
+  ]);
 }
 
 test.describe('produção: RBAC das configurações do WhatsApp', () => {
   test.describe.configure({ retries: 0 });
+
+  test('médico sem manage:settings não abre as páginas protegidas', async ({ browser }) => {
+    test.setTimeout(180_000);
+    if (!baseUrl || new URL(baseUrl).hostname !== 'app.qoro.dev') {
+      throw new Error('O teste read-only só pode apontar para app.qoro.dev.');
+    }
+    if (!doctorEmail || !doctorPassword) throw new Error('Credencial do médico A ausente.');
+
+    const context = await browser.newContext({ baseURL: baseUrl });
+    try {
+      await signInContext(context, doctorEmail, doctorPassword);
+      const page = await context.newPage();
+      for (const path of [
+        '/configuracoes/perfil',
+        '/configuracoes/assinatura',
+        '/configuracoes/whatsapp',
+      ]) {
+        await page.goto(path);
+        await expect(page.getByText('Sem acesso', { exact: true })).toBeVisible();
+      }
+      await expect(page.getByText('WhatsApp conectado', { exact: true })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Desconectar' })).toHaveCount(0);
+      await expect(page.locator('[data-slot="whatsapp-profile"]')).toHaveCount(0);
+    } finally {
+      await context.close();
+    }
+  });
 
   test('não deve expor estado nem controles da integração sem manage:settings', async ({
     browser,
@@ -64,7 +112,7 @@ test.describe('produção: RBAC das configurações do WhatsApp', () => {
     if (!baseUrl || new URL(baseUrl).hostname !== 'app.qoro.dev') {
       throw new Error('O teste read-only só pode apontar para app.qoro.dev.');
     }
-    if (!doctorEmail || !sharedPassword) throw new Error('Credencial do médico A ausente.');
+    if (!doctorEmail || !doctorPassword) throw new Error('Credencial do médico A ausente.');
     const databaseUrl = process.env.DATABASE_URL_PROD;
     if (!databaseUrl) throw new Error('DATABASE_URL_PROD ausente.');
 
@@ -106,7 +154,7 @@ test.describe('produção: RBAC das configurações do WhatsApp', () => {
       const lastFourDigits = precondition.phone_number?.replace(/\D/gu, '').slice(-4);
       expect(lastFourDigits).toHaveLength(4);
 
-      await signInContext(context, doctorEmail, sharedPassword);
+      await signInContext(context, doctorEmail, doctorPassword);
 
       await page.goto('/configuracoes/perfil');
       await expect(page.getByText('Sem acesso', { exact: true })).toBeVisible();

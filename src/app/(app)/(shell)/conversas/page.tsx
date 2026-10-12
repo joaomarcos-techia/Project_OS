@@ -202,7 +202,7 @@ export default async function ConversasPage({ searchParams }: { searchParams: Pr
                         href={`/conversas${qstring(sp, { conversation: item.id })}`}
                         aria-current={selected?.id === item.id ? 'true' : undefined}
                       >
-                        <Avatar name={item.patientDisplayName ?? 'Contato'} />
+                        <Avatar name={item.patientDisplayName ?? item.contactName ?? 'Contato'} />
                         <div className={styles.contactBody}>
                           <div className={styles.contactTitle}>
                             <strong>{contato.titulo}</strong>

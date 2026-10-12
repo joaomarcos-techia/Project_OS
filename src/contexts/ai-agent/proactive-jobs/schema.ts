@@ -14,9 +14,11 @@
  * Idempotência:
  *   - CRIAÇÃO: UNIQUE(clinic_id, dedup_key) — "um appointment → um reminder",
  *     "um lançamento → um dunning por estágio", "um prontuário → um followup".
- *   - ENVIO: a idempotencyKey passada ao messagingApiV1.sendText é o PRÓPRIO
- *     job.id (estável por job, NUNCA por tentativa) → at-most-once no Meta
- *     mesmo com retries (ADR C3 da review de C14).
+ *   - ENVIO (ADR-064, emenda a C3 da review de C14): a idempotencyKey passada
+ *     ao messagingApiV1.sendText é a chave da GERAÇÃO — `send_key`, ou o
+ *     próprio job.id na geração 0. Retry de rede ou de lease reusa a chave, e o
+ *     dedup do sender segura o at-most-once. Chave nova só depois que a Meta
+ *     RECUSOU a atual com código retentável; nunca depois de timeout.
  *
  * PII (ADR-011 #27): payload carrega APENAS ids + snapshot operacional NÃO-PII
  * (nome de médico, data, valor). Nome/telefone de paciente JAMAIS entram aqui —
@@ -37,6 +39,7 @@ import {
   text,
   timestamp,
   uniqueIndex,
+  uuid,
 } from 'drizzle-orm/pg-core';
 
 // eslint-disable-next-line boundaries/element-types -- D35: tenantIdRef ref vive no schema tenancy por design (mesma exceção de ai-agent/scheduling/financial schema).
@@ -94,6 +97,12 @@ export const aiProactiveJobs = pgTable(
     leaseToken: text('lease_token'),
     /** Idempotência de CRIAÇÃO: ex. 'reminder:{apptId}', 'dunning:{lancId}:d3', 'followup:{prontId}'. */
     dedupKey: text('dedup_key').notNull(),
+    /**
+     * ADR-064 — chave de envio da geração ATUAL. NULL = geração 0, cuja chave é o
+     * próprio `id`. Troca só depois de recusa retentável da Meta, no mesmo UPDATE
+     * que devolve o job a `pending` (migration 0118).
+     */
+    sendKey: uuid('send_key'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .default(sql`now()`),
@@ -102,6 +111,10 @@ export const aiProactiveJobs = pgTable(
   (t) => ({
     // Idempotência de criação (um job lógico por origem).
     clinicDedupUniq: uniqueIndex('ai_proactive_jobs_clinic_dedup_uniq').on(t.clinicId, t.dedupKey),
+    // ADR-064 — o handler do EC-32 acha o job pela chave da geração atual.
+    clinicSendKeyUniq: uniqueIndex('ai_proactive_jobs_clinic_send_key_uniq')
+      .on(t.clinicId, t.sendKey)
+      .where(sql`send_key IS NOT NULL`),
     // Hot path do processor: jobs pendentes vencidos por tipo.
     dueIdx: index('ai_proactive_jobs_due_idx').on(t.status, t.type, t.scheduledFor, t.clinicId),
     // Operação/debug por clínica.

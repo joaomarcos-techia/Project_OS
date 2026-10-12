@@ -16,6 +16,12 @@
  */
 import { and, eq, inArray, sql } from 'drizzle-orm';
 
+/* eslint-disable boundaries/element-types -- contrato público do Payments; a versão/preço são revalidados na mesma transação do agendamento. */
+import {
+  getEffectivePaymentPricingMode,
+  matchesConfiguredProcedurePriceSnapshot,
+} from '@/contexts/payments';
+/* eslint-enable boundaries/element-types */
 /* eslint-disable boundaries/element-types -- profiles é declarado no schema de identity (Drizzle FK vive onde a tabela é declarada); leitura tenant-scoped via tx (RLS aplica). Mesma exceção de clinical/internal/doctor.ts e tenant-context.ts. */
 import { profiles } from '@/contexts/identity/schema';
 /* eslint-enable boundaries/element-types */
@@ -43,6 +49,7 @@ import {
   RescheduleSchema,
   type AppointmentSummary,
   type CreateAppointmentInput,
+  type CreateWalkInInput,
   type RescheduleInput,
 } from '../types';
 import { asConflict, idemKey, jsonSafe } from './action-helpers';
@@ -343,7 +350,25 @@ export async function buildSnapshot(
 
 export async function publishCreated(
   tx: Tx,
-  row: AppointmentRow,
+  row: Pick<
+    AppointmentRow,
+    | 'id'
+    | 'clinicId'
+    | 'doctorId'
+    | 'patientId'
+    | 'procedureId'
+    | 'scheduledAt'
+    | 'durationMin'
+    | 'valor'
+    | 'snapshotProcedureName'
+    | 'snapshotProcedureCodigo'
+    | 'snapshotProcedureCategoria'
+    | 'snapshotProcedureValor'
+    | 'snapshotProcedureDuracaoMin'
+    | 'snapshotDoctorNome'
+    | 'createdVia'
+    | 'urgencia'
+  >,
   clientKey: string,
   correlationId: string | null,
 ): Promise<void> {
@@ -371,6 +396,78 @@ export async function publishCreated(
     idempotencyKey: `${clientKey}:created`,
     correlationId,
   });
+  if (row.createdVia === 'ai_agent') {
+    // O worker detached consulta novamente a agenda antes de chamar o Asaas.
+    // O scan periódico continua como backstop se a entrega deste evento atrasar.
+    await publishEvent(tx, {
+      clinicId: row.clinicId,
+      eventType: SCHEDULING_EVENTS.DEPOSIT_REQUESTED,
+      payload: { clinicId: row.clinicId, appointmentId: row.id },
+      idempotencyKey: `${clientKey}:deposit_requested`,
+      correlationId,
+    });
+  }
+}
+
+export async function assertCommercialPriceInput(
+  tx: Tx,
+  clinicId: string,
+  data: CreateAppointmentInput | CreateWalkInInput,
+): Promise<void> {
+  const effectiveMode = await getEffectivePaymentPricingMode(tx, clinicId);
+  if (effectiveMode === 'payment_method_pricing' && data.pricingPolicyMode !== effectiveMode) {
+    throw new SchedulingValidationError(
+      'Esta clínica usa preço por meio de pagamento. Escolha uma forma de pagamento na Agenda antes de criar o atendimento.',
+    );
+  }
+  if (data.pricingPolicyMode !== 'payment_method_pricing') {
+    if (
+      data.commercialPaymentMethod != null ||
+      data.commercialInstallmentCount != null ||
+      data.commercialPriceId != null
+    ) {
+      throw new SchedulingValidationError('Condição comercial inválida para o preço padrão.');
+    }
+    return;
+  }
+
+  if (effectiveMode !== 'payment_method_pricing') {
+    throw new SchedulingValidationError(
+      'Preço por meio de pagamento não está ativo nesta clínica.',
+    );
+  }
+
+  const method = data.commercialPaymentMethod;
+  const priceId = data.commercialPriceId;
+  if (method === 'credit_card' && data.commercialInstallmentCount !== 1) {
+    throw new SchedulingValidationError(
+      'Link de cartão parcelado ainda não está disponível. Escolha cartão em 1x ou outra forma de pagamento.',
+    );
+  }
+  if (
+    !method ||
+    !priceId ||
+    data.valorAjustado !== true ||
+    data.valor == null ||
+    !Number.isFinite(data.valor) ||
+    Number(data.valor.toFixed(2)) !== data.valor
+  ) {
+    throw new SchedulingValidationError('Condição comercial incompleta ou valor inválido.');
+  }
+
+  const matches = await matchesConfiguredProcedurePriceSnapshot(tx, {
+    clinicId,
+    procedureId: data.procedureId,
+    priceId,
+    paymentMethod: method,
+    installmentCount: data.commercialInstallmentCount ?? null,
+    grossAmount: data.valor,
+  });
+  if (!matches) {
+    throw new SchedulingValidationError(
+      'O preço por meio de pagamento mudou. Selecione-o novamente.',
+    );
+  }
 }
 
 export async function insertScheduledAppointment(
@@ -393,6 +490,7 @@ export async function insertScheduledAppointment(
   },
 ): Promise<AppointmentSummary> {
   const { clinicId, userId, actorType, correlationId, idempotencyKey, data, scheduledAt } = input;
+  await assertCommercialPriceInput(tx, clinicId, data);
   if (data.patientId) await assertPatientInClinic(tx, clinicId, data.patientId);
   await assertUnitInClinic(tx, clinicId, data.unitId);
   const snap = await buildSnapshot(tx, clinicId, data.procedureId, data.doctorId);
@@ -412,6 +510,10 @@ export async function insertScheduledAppointment(
       valor,
       valorAjustado: data.valorAjustado ?? false,
       valorAjusteMotivo: data.valorAjustado ? (data.valorAjusteMotivo ?? null) : null,
+      pricingPolicyMode: data.pricingPolicyMode ?? 'absorb_fees',
+      commercialPaymentMethod: data.commercialPaymentMethod ?? null,
+      commercialInstallmentCount: data.commercialInstallmentCount ?? null,
+      commercialPriceId: data.commercialPriceId ?? null,
       snapshotProcedureName: snap.nome,
       snapshotProcedureCodigo: snap.codigo,
       snapshotProcedureCategoria: snap.categoria,
@@ -635,6 +737,10 @@ export async function rescheduleCore(
             valor: old.valor,
             valorAjustado: old.valorAjustado,
             valorAjusteMotivo: old.valorAjusteMotivo,
+            pricingPolicyMode: old.pricingPolicyMode,
+            commercialPaymentMethod: old.commercialPaymentMethod,
+            commercialInstallmentCount: old.commercialInstallmentCount,
+            commercialPriceId: old.commercialPriceId,
             snapshotProcedureName: old.snapshotProcedureName,
             snapshotProcedureCodigo: old.snapshotProcedureCodigo,
             snapshotProcedureCategoria: old.snapshotProcedureCategoria,

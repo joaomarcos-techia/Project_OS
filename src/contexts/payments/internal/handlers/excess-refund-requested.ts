@@ -5,11 +5,11 @@ import { registerDetachedHandler } from '@/lib/outbox/registry';
 import { FINANCIAL_EVENTS, type ExcessRefundRequestedPayload } from '@/contexts/financial';
 /* eslint-enable boundaries/element-types */
 
-import { requestExcessRefund } from '../excess-refund';
+import { queueManualExcessRefund } from '../excess-refund';
 
 registerDetachedHandler<ExcessRefundRequestedPayload>(
   FINANCIAL_EVENTS.EXCESS_REFUND_REQUESTED,
   async ({ clinicId, payload, eventId }) => {
-    await requestExcessRefund({ clinicId, payload, sourceEventId: eventId });
+    await queueManualExcessRefund({ clinicId, payload, sourceEventId: eventId });
   },
 );

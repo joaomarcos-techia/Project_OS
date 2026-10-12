@@ -33,6 +33,36 @@ describe('identidade de paciente por telefone compartilhado', () => {
     expect(lookup).not.toContain('.limit(1)');
   });
 
+  it('casa o paciente em TODAS as grafias do número, não só no hash exato (08/10/2026)', () => {
+    // O wa_id chega como 55 + DDD e, em linhas antigas, sem o nono dígito; a
+    // clínica cadastra o número nacional. Com eq(telefoneHash, phoneHash) o
+    // paciente cadastrado nunca era reconhecido e a IA pedia cadastro de novo.
+    const source = readFileSync(new URL('./conversation.ts', import.meta.url), 'utf8');
+    const lookup = source.slice(
+      source.indexOf('const patientMatches'),
+      source.indexOf('// Conversa não-encerrada'),
+    );
+    expect(lookup).toContain(
+      'inArray(patients.telefoneHash, [...new Set([phoneHash, ...identityHashes])])',
+    );
+    expect(lookup).not.toContain('eq(patients.telefoneHash, phoneHash)');
+
+    const handler = readFileSync(
+      new URL('./handlers/inbound-received.ts', import.meta.url),
+      'utf8',
+    );
+    expect(handler).toContain('const identityHashes = await phoneLookupHashes(fromNumber);');
+  });
+
+  it('supressão e óbito do envio comparam todas as grafias do destino', () => {
+    const sender = readFileSync(
+      new URL('../../messaging/internal/sender.ts', import.meta.url),
+      'utf8',
+    );
+    expect(sender).toContain('inArray(patients.telefoneHash, toNumberHashes)');
+    expect(sender).toContain('inArray(suppressionList.contactHash, toNumberHashes)');
+  });
+
   it('traduz unique violation mesmo quando o Drizzle encapsula o SQLSTATE em cause', () => {
     const source = readFileSync(new URL('./conversation.ts', import.meta.url), 'utf8');
     const returnToAgent = source.slice(

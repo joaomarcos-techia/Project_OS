@@ -44,6 +44,8 @@ export type ConnectPaymentAccountInput = z.infer<typeof ConnectPaymentAccountSch
 export interface PaymentAccountStatusDTO {
   provider: 'asaas';
   hasApiKey: boolean;
+  /** false = cobrança nova bloqueada; chave retida só para reconciliação. */
+  acceptNewCharges: boolean;
   /**
    * ADR-049 1.4 — o Asaas confirmou o registro do webhook desta clínica.
    * **`false` com conta conectada é o estado que a tela precisa gritar:** as
@@ -54,6 +56,26 @@ export interface PaymentAccountStatusDTO {
   keyVersion: number;
   /** ISO string ou null. */
   connectedAt: string | null;
+  /**
+   * Cobranças com link de pagamento ainda pagável. Continuam pagáveis depois
+   * da pausa e são conciliadas normalmente (decisão de 07/10/2026).
+   */
+  openLinks: number;
+  /** Encerramento definitivo — só para conta pausada; null nos demais estados. */
+  closure: PaymentAccountClosureDTO | null;
+}
+
+/** Encerramento da conta pausada (0115). Datas em ISO. */
+export interface PaymentAccountClosureDTO {
+  /** O que impede encerrar agora. Tudo zero = pode encerrar. */
+  blockers: { openLinks: number; pendingRefunds: number; openDisputes: number };
+  canClose: boolean;
+  /** Última movimentação considerada: conta, cobranças ou webhook. */
+  lastActivityAt: string;
+  /** Previsão do encerramento automático se nada mudar. */
+  autoCloseAt: string;
+  /** Quando saiu o aviso por e-mail; null antes dele. */
+  noticeSentAt: string | null;
 }
 
 /**
@@ -84,10 +106,13 @@ export interface ConnectPaymentAccountResult extends PaymentAccountStatusDTO {
 export const EMPTY_PAYMENT_ACCOUNT: PaymentAccountStatusDTO = {
   provider: 'asaas',
   hasApiKey: false,
+  acceptNewCharges: false,
   webhookConfigured: false,
   accountName: null,
   keyVersion: 0,
   connectedAt: null,
+  openLinks: 0,
+  closure: null,
 };
 
 // --- política de sinal (1.2) -------------------------------------------------

@@ -31,7 +31,7 @@ import { publishEvent } from '@/lib/outbox/publish';
 
 import { MESSAGING_EVENTS } from '../events';
 import { inboundMessagesRaw, providerStatusEventsRaw, whatsappBusinessAppEchoes } from '../schema';
-import { normalizeProviderDeliveryStatus } from './delivery-status';
+import { normalizeProviderDeliveryStatus, providerFailureCode } from './delivery-status';
 import { applyProviderDeliveryStatus } from './status-reconciler';
 
 /** Epoch-seconds string → Date (ou null se inválido → coluna usa default now()). */
@@ -43,6 +43,21 @@ function epochToDate(ts: string): Date | null {
 
 function epochToIso(ts: string): string {
   return epochToDate(ts)?.toISOString() ?? new Date().toISOString();
+}
+
+/**
+ * Chaves de idempotência dos eventos de ingress. O webhook as usa para processar
+ * o próprio turno logo após o 200 (runOutboxEventsNow) — fonte única do formato.
+ */
+export function inboundEventKey(provider: MessagingProviderName, providerMessageId: string) {
+  return `inbound:${provider}:${providerMessageId}`;
+}
+
+export function businessAppEchoEventKey(
+  provider: MessagingProviderName,
+  providerMessageId: string,
+) {
+  return `business_app_echo:${provider}:${providerMessageId}`;
 }
 
 export async function persistInbound(
@@ -57,6 +72,11 @@ export async function persistInbound(
   // continua sem plaintext).
   const fromNumberEncrypted = await encryptForTenant(clinicId, normalizePhone(msg.fromNumber));
   const contentEncrypted = await encryptForTenant(clinicId, msg.text ?? '');
+  // 0114: nome do perfil, cifrado como o telefone. Fica fora do payload_hash:
+  // um reenvio da Meta com o perfil renomeado não é conflito de conteúdo.
+  const fromNameEncrypted = msg.contactName
+    ? await encryptForTenant(clinicId, msg.contactName)
+    : null;
   const pHash = payloadHash({
     providerMessageId: msg.providerMessageId,
     from: msg.fromNumber,
@@ -74,9 +94,11 @@ export async function persistInbound(
         provider,
         fromNumberHash,
         fromNumberEncrypted,
+        fromNameEncrypted,
         toNumber: msg.toNumber,
         contentEncrypted,
         payloadHash: pHash,
+        messageType: msg.messageType ?? null,
         ...(receivedAt ? { receivedAt } : {}),
       })
       .onConflictDoNothing({
@@ -116,9 +138,10 @@ export async function persistInbound(
         fromNumberHash,
         toPhoneId: msg.toPhoneId,
         hasText: msg.text !== null,
+        ...(msg.messageType ? { messageType: msg.messageType } : {}),
         receivedAt: epochToIso(msg.timestamp),
       },
-      idempotencyKey: `inbound:${provider}:${msg.providerMessageId}`,
+      idempotencyKey: inboundEventKey(provider, msg.providerMessageId),
     });
     metrics.emit('messaging.inbound.received', { clinicId, provider });
     return { deduped: false };
@@ -199,7 +222,7 @@ export async function persistBusinessAppEcho(
         hasText: echo.text !== null,
         sentAt: epochToIso(echo.timestamp),
       },
-      idempotencyKey: `business_app_echo:${provider}:${echo.providerMessageId}`,
+      idempotencyKey: businessAppEchoEventKey(provider, echo.providerMessageId),
     });
     metrics.emit('messaging.business_app_echo.received', { clinicId, provider });
     return { deduped: false };
@@ -207,10 +230,11 @@ export async function persistBusinessAppEcho(
 }
 
 /**
- * Persiste callbacks de status (sent/delivered/read/failed) CRUS, append-only,
- * sem consumidor (drena em C14). Dedup por (provider, payload_hash) tolera os
- * reenvios da Meta (3ª#1+2). Independente da existência da mensagem (3ª#8) —
- * pode chegar antes do inbound/outbound; SEM FK.
+ * Persiste callbacks de status (sent/delivered/read/failed) CRUS, append-only, e
+ * os aplica ao envio, publicando `messaging.outbound.status_updated` (com o
+ * código da recusa, se houver) — a C14 o consome. Dedup por (provider,
+ * payload_hash) tolera os reenvios da Meta (3ª#1+2). Independente da existência
+ * da mensagem (3ª#8) — pode chegar antes do inbound/outbound; SEM FK.
  */
 export async function persistStatusEvents(
   clinicId: string,
@@ -249,6 +273,7 @@ export async function persistStatusEvents(
           providerMessageId: row.providerMessageId,
           status: normalized,
           sourceId: inserted.id,
+          errorCode: providerFailureCode(row.raw),
         });
       }
     }

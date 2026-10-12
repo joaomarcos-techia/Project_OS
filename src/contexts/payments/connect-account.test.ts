@@ -11,7 +11,14 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type * as CryptoModule from 'node:crypto';
 import type * as AsaasModule from '@/lib/payments/asaas';
+
+const cryptoMocks = vi.hoisted(() => ({ randomBytes: vi.fn() }));
+vi.mock('node:crypto', async (importActual) => {
+  const actual = await importActual<typeof CryptoModule>();
+  return { ...actual, randomBytes: cryptoMocks.randomBytes.mockImplementation(actual.randomBytes) };
+});
 
 const mocks = vi.hoisted(() => ({
   getMyAccount: vi.fn(),
@@ -58,7 +65,11 @@ vi.mock('@/lib/payments/asaas', async (importActual) => {
 });
 vi.mock('@/lib/payments/account-store', () => ({
   upsertPaymentAccount: vi.fn(async () => ({ id: 'acc-1', changed: true })),
-  deactivatePaymentAccount: vi.fn(async () => ({ changed: true })),
+  deactivatePaymentAccount: vi.fn(async () => ({ changed: true, state: 'disconnected' })),
+  closePausedPaymentAccount: vi.fn(async () => ({ outcome: 'closed' })),
+  withPaymentWebhookLock: vi.fn(async (_clinicId: string, operation: () => Promise<unknown>) =>
+    operation(),
+  ),
   getWebhookSetupTarget: mocks.getWebhookSetupTarget,
   markWebhookConfigured: mocks.markWebhookConfigured,
 }));
@@ -66,6 +77,7 @@ vi.mock('./queries', () => ({
   getPaymentAccountStatus: vi.fn(async () => ({
     provider: 'asaas',
     hasApiKey: true,
+    acceptNewCharges: true,
     webhookConfigured: true,
     accountName: 'Clínica Exemplo',
     keyVersion: 1,
@@ -74,14 +86,20 @@ vi.mock('./queries', () => ({
 }));
 
 import { metrics } from '@/lib/observability/metrics';
+import { encryptForTenant } from '@/lib/crypto';
 import {
   BillingCircuitOpenError,
   BillingProviderError,
   BillingProviderUnreachableError,
 } from '@/lib/payments/asaas';
-import { deactivatePaymentAccount, upsertPaymentAccount } from '@/lib/payments/account-store';
+import {
+  closePausedPaymentAccount,
+  deactivatePaymentAccount,
+  upsertPaymentAccount,
+  withPaymentWebhookLock,
+} from '@/lib/payments/account-store';
 
-import { connectPaymentAccount, disconnectPaymentAccount } from './actions';
+import { closePaymentAccount, connectPaymentAccount, disconnectPaymentAccount } from './actions';
 import { PaymentCredentialRejectedError, PaymentProviderUnavailableError } from './errors';
 
 const SECRET = '$aact_chave_secreta_da_clinica';
@@ -105,6 +123,49 @@ beforeEach(() => {
 });
 
 describe('connectPaymentAccount', () => {
+  it('mantém gravação e configuração remota sob o mesmo lock da desconexão', async () => {
+    const stages: string[] = [];
+    vi.mocked(withPaymentWebhookLock).mockImplementationOnce(async (_clinicId, operation) => {
+      stages.push('lock');
+      const result = await operation();
+      stages.push('unlock');
+      return result;
+    });
+    vi.mocked(upsertPaymentAccount).mockImplementationOnce(async () => {
+      stages.push('upsert');
+      return { id: 'acc-1', changed: true };
+    });
+    mocks.createWebhook.mockImplementationOnce(async () => {
+      stages.push('webhook');
+      return { webhookId: 'webhook-1' };
+    });
+
+    await connectPaymentAccount({ apiKey: SECRET });
+
+    expect(stages).toEqual(['lock', 'upsert', 'webhook', 'unlock']);
+  });
+
+  it('descarta token do webhook com quatro caracteres iguais ou sequência numérica', async () => {
+    const repeated = Buffer.from(
+      'AQEBAQEB' + 'AAAA' + 'BAQEBAQE'.repeat(3) + 'BAQEBAQ',
+      'base64url',
+    );
+    const numeric = Buffer.from(
+      'AQEBAQEB' + '12345' + 'BAQEBAQE'.repeat(3) + 'BAQEBA',
+      'base64url',
+    );
+    const valid = Buffer.alloc(32, 1);
+    cryptoMocks.randomBytes
+      .mockReturnValueOnce(repeated)
+      .mockReturnValueOnce(numeric)
+      .mockReturnValueOnce(valid);
+
+    await connectPaymentAccount({ apiKey: SECRET });
+
+    expect(cryptoMocks.randomBytes).toHaveBeenCalledTimes(3);
+    expect(encryptForTenant).toHaveBeenCalledWith('clinic-1', valid.toString('base64url'));
+  });
+
   it('valida no Asaas com a chave recebida e grava apenas o ciphertext', async () => {
     await connectPaymentAccount({ apiKey: SECRET });
 
@@ -232,12 +293,13 @@ describe('connectPaymentAccount', () => {
     expect(JSON.stringify(result)).not.toContain('timeout interno');
   });
 
-  it('não cria webhook duplicado ao reenviar a mesma chave já configurada', async () => {
+  it('reconcilia o webhook ao reenviar a mesma chave já configurada', async () => {
     vi.mocked(upsertPaymentAccount).mockResolvedValue({ id: 'acc-1', changed: false });
 
     const result = await connectPaymentAccount({ apiKey: SECRET });
 
-    expect(mocks.createWebhook).not.toHaveBeenCalled();
+    expect(mocks.createWebhook).toHaveBeenCalledOnce();
+    expect(mocks.markWebhookConfigured).toHaveBeenCalledWith('clinic-1');
     expect(result.webhookConfigured).toBe(true);
     expect(result.webhookConfigurationIssue).toBeNull();
   });
@@ -312,11 +374,79 @@ describe('disconnectPaymentAccount', () => {
     });
   });
 
+  it('distingue pausa para reconciliação de desconexão efetiva', async () => {
+    vi.mocked(deactivatePaymentAccount).mockResolvedValueOnce({ changed: true, state: 'paused' });
+    await disconnectPaymentAccount();
+    expect(metrics.emit).toHaveBeenCalledWith('payments.account.paused', {
+      clinicId: 'clinic-1',
+      changed: true,
+    });
+    expect(metrics.emit).not.toHaveBeenCalledWith(
+      'payments.account.disconnected',
+      expect.anything(),
+    );
+  });
+
   it('exige a mesma permissão do connect', async () => {
     const authError = Object.assign(new Error('forbidden'), { name: 'AuthError' });
     mocks.requireCachedPermission.mockRejectedValue(authError);
 
     await expect(disconnectPaymentAccount()).rejects.toBe(authError);
     expect(deactivatePaymentAccount).not.toHaveBeenCalled();
+  });
+});
+
+describe('closePaymentAccount — encerramento da conta pausada (07/10/2026)', () => {
+  it('encerra pelo seam privilegiado, como gatilho manual do usuário da sessão', async () => {
+    await closePaymentAccount();
+
+    expect(closePausedPaymentAccount).toHaveBeenCalledWith(
+      expect.objectContaining({ clinicId: 'clinic-1', userId: 'user-1', trigger: 'manual' }),
+    );
+    expect(metrics.emit).toHaveBeenCalledWith('payments.account.closed', {
+      clinicId: 'clinic-1',
+      trigger: 'manual',
+    });
+  });
+
+  it('com pendência, diz exatamente o que impede e não emite métrica de encerramento', async () => {
+    vi.mocked(closePausedPaymentAccount).mockResolvedValueOnce({
+      outcome: 'blocked',
+      blockers: { openLinks: 2, pendingRefunds: 1, openDisputes: 1 },
+    });
+
+    await expect(closePaymentAccount()).rejects.toMatchObject({
+      name: 'PaymentValidationError',
+      message:
+        'Ainda há 2 links de pagamento abertos, 1 devolução sem confirmação, 1 contestação em andamento. Resolva antes de encerrar a conta.',
+    });
+    expect(metrics.emit).not.toHaveBeenCalledWith('payments.account.closed', expect.anything());
+  });
+
+  it('conta que não está pausada não é encerrada por este caminho', async () => {
+    vi.mocked(closePausedPaymentAccount).mockResolvedValueOnce({ outcome: 'not_paused' });
+    await expect(closePaymentAccount()).rejects.toMatchObject({
+      name: 'PaymentValidationError',
+      message: 'Só uma conta pausada pode ser encerrada. Pause as novas cobranças primeiro.',
+    });
+  });
+
+  it('falha do Asaas vira mensagem acionável de que nada foi apagado', async () => {
+    vi.mocked(closePausedPaymentAccount).mockRejectedValueOnce(
+      new BillingProviderUnreachableError('down'),
+    );
+    await expect(closePaymentAccount()).rejects.toMatchObject({
+      name: 'PaymentValidationError',
+      message:
+        'O Asaas não confirmou a desativação do webhook agora. Nada foi apagado; tente de novo em instantes.',
+    });
+  });
+
+  it('exige a mesma permissão do connect, antes de qualquer leitura', async () => {
+    const authError = Object.assign(new Error('forbidden'), { name: 'AuthError' });
+    mocks.requireCachedPermission.mockRejectedValue(authError);
+
+    await expect(closePaymentAccount()).rejects.toBe(authError);
+    expect(closePausedPaymentAccount).not.toHaveBeenCalled();
   });
 });

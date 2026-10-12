@@ -91,6 +91,7 @@ export {
   ensureReadyOwnedSignupAuthBinding,
   ensureVerifiedSignupAuthBinding,
   resolveReadyOwnedSignupOnboarding,
+  resolveSignupDraftEntry,
   validateVerifiedSignupAuthUserForClaim,
   type EnsureReadyOwnedSignupAuthBindingOutcome,
   type EnsureVerifiedSignupAuthBindingOutcome,

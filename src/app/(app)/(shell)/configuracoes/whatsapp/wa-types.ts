@@ -7,8 +7,10 @@ import { ZodError } from 'zod';
 
 import {
   MessagingRateLimitedError,
+  MessagingValidationError,
   MetaConnectError,
   NumberNotConnectedError,
+  WhatsappProfileManagedInBusinessAppError,
   type MetaConnectFailureStage,
 } from '@/contexts/messaging/errors';
 
@@ -139,11 +141,22 @@ export function fail(err: unknown): ActionResult<never> {
           : 'O perfil foi consultado muitas vezes seguidas. Aguarde alguns minutos e recarregue.',
     };
   }
+  if (err instanceof MessagingValidationError) {
+    return { ok: false, code: 'validation', message: err.message };
+  }
   if (err instanceof NumberNotConnectedError) {
     return {
       ok: false,
       code: 'number_not_connected',
       message: 'Nenhum número de WhatsApp está conectado nesta clínica.',
+    };
+  }
+  if (err instanceof WhatsappProfileManagedInBusinessAppError) {
+    return {
+      ok: false,
+      code: err.code,
+      message:
+        'Este perfil é gerenciado no aplicativo WhatsApp Business do celular. Faça a alteração por lá.',
     };
   }
   if (err instanceof MetaConnectError) {
@@ -177,4 +190,17 @@ export function fail(err: unknown): ActionResult<never> {
     code: 'error',
     message: 'Não foi possível concluir a ação. Tente novamente.',
   };
+}
+
+/** Um POST de perfil pode ter sido aplicado mesmo quando a Meta responde 5xx. */
+export function failProfileWrite(err: unknown): ActionResult<never> {
+  if (err instanceof MetaConnectError && err.stage === 'provider_outcome_unknown') {
+    return {
+      ok: false,
+      code: 'profile_outcome_unknown',
+      message:
+        'A Meta não confirmou o resultado. O perfil pode ter sido alterado. Recarregue esta página e confira os dados publicados antes de tentar novamente.',
+    };
+  }
+  return fail(err);
 }

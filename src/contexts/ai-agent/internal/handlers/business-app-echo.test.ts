@@ -30,6 +30,7 @@ vi.mock('@/lib/db/tenant', () => ({
 }));
 vi.mock('@/lib/crypto', () => ({
   encryptForTenant: vi.fn(async (_clinicId: string, text: string) => `enc(${text})`),
+  phoneLookupHashes: vi.fn(async (phone: string) => [`hash(${phone})`, `hash-variante(${phone})`]),
 }));
 vi.mock('@/lib/outbox/registry', () => ({ registerHandler: vi.fn() }));
 vi.mock('@/lib/observability/metrics', () => ({ metrics: { emit: mocks.emit } }));
@@ -89,11 +90,13 @@ describe('recordBusinessAppEcho', () => {
   it('conversa com a IA: grava a mensagem como do celular e pausa a IA', async () => {
     await recordBusinessAppEcho(ctx());
 
+    // O paciente é casado em todas as grafias do número (com/sem 55 e nono dígito).
     expect(mocks.findOrCreateConversation).toHaveBeenCalledWith(
       fakeTx,
       CLINIC,
       'hash-paciente',
       'enc(5511988887777)',
+      ['hash(5511988887777)', 'hash-variante(5511988887777)'],
     );
     expect(mocks.inserted).toEqual([
       {

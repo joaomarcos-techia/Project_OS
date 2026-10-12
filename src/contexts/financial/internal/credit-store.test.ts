@@ -27,10 +27,21 @@ vi.mock('../schema', () => ({
     status: 'pc.status',
     disputeStatus: 'pc.dispute_status',
     grantedAt: 'pc.granted_at',
+    providerEconomicsReconciledAt: 'pc.provider_economics_reconciled_at',
+    providerEconomicsRevision: 'pc.provider_economics_revision',
+    providerFeeAmount: 'pc.provider_fee_amount',
+    amount: 'pc.amount',
   },
 }));
 
-import { allocateCredit, grantCredit, listAvailableCredits, releaseCredit } from './credit-store';
+import {
+  allocateCredit,
+  correctCreditEconomics,
+  grantCredit,
+  listAvailableCredits,
+  reconcileCreditEconomics,
+  releaseCredit,
+} from './credit-store';
 
 const CLINIC = 'clinic-1';
 const CHARGE = 'charge-1';
@@ -60,6 +71,7 @@ function stubTx(opts: { inserted?: unknown[]; selected?: unknown[]; updated?: un
           calls.where(c);
           return {
             limit: async () => opts.selected ?? [],
+            for: () => ({ limit: async () => opts.selected ?? [] }),
             orderBy: async () => opts.selected ?? [],
           };
         },
@@ -85,6 +97,10 @@ const grantInput = {
   appointmentId: 'apt-1',
   patientId: 'pac-1',
   amount: 150,
+  providerGrossAmount: 150,
+  providerFeeAmount: 5,
+  providerNetAmount: 145,
+  earlySettlementFeeAmount: null,
   kind: 'deposit' as const,
   paymentMethod: 'pix',
   grantedAt: new Date('2026-08-25T12:00:00.000Z'),
@@ -125,6 +141,202 @@ describe('grantCredit — um crédito por cobrança', () => {
     await grantCredit(stubTx(), { ...grantInput, paymentMethod: null });
 
     expect(calls.values).toHaveBeenCalledWith(expect.objectContaining({ paymentMethod: null }));
+  });
+
+  it('projeta credito legado sem inventar bruto, taxa ou liquido do provedor', async () => {
+    await grantCredit(stubTx(), {
+      ...grantInput,
+      providerGrossAmount: null,
+      providerFeeAmount: null,
+      providerNetAmount: null,
+      earlySettlementFeeAmount: null,
+    });
+
+    expect(calls.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        amount: '150.00',
+        providerGrossAmount: null,
+        providerFeeAmount: null,
+        providerNetAmount: null,
+        earlySettlementFeeAmount: null,
+        providerEconomicsReconciledAt: null,
+      }),
+    );
+  });
+
+  it('nao marca economia reconciliada quando a taxa ainda e desconhecida', async () => {
+    await grantCredit(stubTx(), { ...grantInput, providerFeeAmount: null });
+
+    expect(calls.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerGrossAmount: '150.00',
+        providerFeeAmount: null,
+        providerNetAmount: '145.00',
+        providerEconomicsReconciledAt: null,
+      }),
+    );
+  });
+});
+
+describe('reconcileCreditEconomics', () => {
+  const economics = {
+    clinicId: CLINIC,
+    patientChargeId: CHARGE,
+    providerGrossAmount: 150,
+    providerFeeAmount: 5,
+    providerNetAmount: 145,
+    earlySettlementFeeAmount: null,
+    paymentMethod: 'pix',
+    reconciledAt: new Date('2026-08-25T12:05:00.000Z'),
+  };
+
+  it('completa o crédito existente sem criar outro', async () => {
+    const tx = stubTx({
+      selected: [{ id: 'cred-1', providerEconomicsReconciledAt: null }],
+    });
+
+    await expect(reconcileCreditEconomics(tx, economics)).resolves.toBe('reconciled');
+    expect(calls.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerGrossAmount: '150.00',
+        providerFeeAmount: '5.00',
+        providerNetAmount: '145.00',
+        providerEconomicsReconciledAt: economics.reconciledAt,
+        paymentMethod: 'pix',
+      }),
+    );
+  });
+
+  it('não marca economia completa quando o líquido é conhecido mas a taxa não é', async () => {
+    const tx = stubTx({
+      selected: [{ id: 'cred-1', providerEconomicsReconciledAt: null }],
+    });
+    await expect(
+      reconcileCreditEconomics(tx, { ...economics, providerFeeAmount: null }),
+    ).resolves.toBe('reconciled');
+    expect(calls.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerGrossAmount: '150.00',
+        providerFeeAmount: null,
+        providerNetAmount: '145.00',
+        providerEconomicsReconciledAt: null,
+      }),
+    );
+  });
+
+  it('reentrega não sobrescreve fatos já reconciliados', async () => {
+    const tx = stubTx({
+      selected: [{ id: 'cred-1', providerEconomicsReconciledAt: new Date('2026-08-25T12:00:00Z') }],
+    });
+
+    await expect(reconcileCreditEconomics(tx, economics)).resolves.toBe('already_reconciled');
+    expect(calls.set).not.toHaveBeenCalled();
+  });
+
+  it('não inventa crédito quando o evento original ainda não foi consumido', async () => {
+    await expect(reconcileCreditEconomics(stubTx({ selected: [] }), economics)).resolves.toBe(
+      'not_found',
+    );
+  });
+});
+
+describe('correctCreditEconomics', () => {
+  const input = {
+    clinicId: CLINIC,
+    patientChargeId: CHARGE,
+    appointmentId: 'apt-1',
+    revision: 2,
+    grossAmount: 150,
+    feeAmount: 7,
+    netAmount: 143,
+    observedAt: new Date('2026-10-06T12:00:00Z'),
+  };
+
+  it('5→7 grava o novo snapshot e devolve só o delta de 2', async () => {
+    const tx = stubTx({
+      selected: [
+        {
+          id: 'cred-1',
+          appointmentId: 'apt-1',
+          amount: '150.00',
+          feeAmount: '5.00',
+          revision: 1,
+        },
+      ],
+    });
+    await expect(correctCreditEconomics(tx, input)).resolves.toEqual({
+      outcome: 'corrected',
+      deltaCents: 200,
+    });
+    expect(calls.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerFeeAmount: '7.00',
+        providerNetAmount: '143.00',
+        providerEconomicsRevision: 2,
+      }),
+    );
+  });
+
+  it('7→5 devolve delta inverso sem reescrever o lançamento anterior', async () => {
+    const tx = stubTx({
+      selected: [
+        {
+          id: 'cred-1',
+          appointmentId: 'apt-1',
+          amount: '150.00',
+          feeAmount: '7.00',
+          revision: 2,
+        },
+      ],
+    });
+    await expect(
+      correctCreditEconomics(tx, {
+        ...input,
+        revision: 3,
+        feeAmount: 5,
+        netAmount: 145,
+      }),
+    ).resolves.toEqual({ outcome: 'corrected', deltaCents: -200 });
+  });
+
+  it('replay e evento antigo não reduzem revisão nem geram novo delta', async () => {
+    const tx = stubTx({
+      selected: [
+        {
+          id: 'cred-1',
+          appointmentId: 'apt-1',
+          amount: '150.00',
+          feeAmount: '9.00',
+          revision: 3,
+        },
+      ],
+    });
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      await expect(correctCreditEconomics(tx, input)).resolves.toEqual({
+        outcome: 'already_applied',
+      });
+    }
+    expect(calls.set).not.toHaveBeenCalled();
+  });
+
+  it('não inventa correção antes de o crédito original ser criado', async () => {
+    await expect(correctCreditEconomics(stubTx(), input)).resolves.toEqual({ outcome: 'pending' });
+  });
+
+  it('rejeita ID de atendimento ou valor incompatível com o fato original', async () => {
+    const tx = stubTx({
+      selected: [
+        {
+          id: 'cred-1',
+          appointmentId: 'apt-2',
+          amount: '150.00',
+          feeAmount: '5.00',
+          revision: 1,
+        },
+      ],
+    });
+    await expect(correctCreditEconomics(tx, input)).rejects.toThrow('divergente');
+    expect(calls.set).not.toHaveBeenCalled();
   });
 });
 

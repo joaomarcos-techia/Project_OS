@@ -20,6 +20,20 @@ export class NumberNotConnectedError extends Error {
 }
 
 /**
+ * O perfil de um número em coexistência continua sendo administrado pelo
+ * aplicativo WhatsApp Business. O Qoro pode lê-lo, mas não deve oferecer uma
+ * escrita que a Meta recusa para esse modo de conexão.
+ */
+export class WhatsappProfileManagedInBusinessAppError extends Error {
+  readonly code = 'profile_managed_in_business_app';
+  readonly httpStatus = 409;
+  constructor() {
+    super('O perfil desta conexão é gerenciado no aplicativo WhatsApp Business.');
+    this.name = 'WhatsappProfileManagedInBusinessAppError';
+  }
+}
+
+/**
  * Falha no fluxo de Embedded Signup (troca de code, escopos, resolução de WABA,
  * assinatura de webhook). `code` ESTÁVEL p/ a UI exibir sem vazar internals
  * ("Não foi possível conectar / Código: META_AUTH_FAILED"). A mensagem NUNCA

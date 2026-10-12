@@ -47,6 +47,8 @@ export interface RemainderChargeInput {
   patientId: string | null;
   /** Valor cheio do procedimento — só para observabilidade; o saldo manda. */
   valor: number;
+  commercialPaymentMethod?: 'pix' | 'cash' | 'credit_card' | null;
+  commercialInstallmentCount?: number | null;
 }
 
 /**
@@ -61,6 +63,7 @@ export async function createRemainderCharge(ctx: {
   const { appointmentId, patientId } = appointment;
 
   if (!patientId) return;
+  if (appointment.commercialPaymentMethod === 'cash') return;
 
   // A política de sinal é o gate da clínica inteira (D1): quem não usa sinal não
   // passa a receber link de cobrança por ter concluído um atendimento.
@@ -115,6 +118,8 @@ export async function createRemainderCharge(ctx: {
       holdExpiresAt: null,
       collectionExpiresAt,
       now,
+      paymentMethod: appointment.commercialPaymentMethod ?? null,
+      installmentCount: appointment.commercialInstallmentCount ?? null,
     });
 
     if (outcome === 'created') {

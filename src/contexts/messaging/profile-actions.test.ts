@@ -48,6 +48,7 @@ vi.mock('@/lib/messaging', () => ({
     metaBusinessId: 'waba-1',
     tokenCiphertext: 'CIPHERTEXT_BLOB',
     connectionStatus: 'connected',
+    coexistence: false,
   })),
   loadActiveNumberForSend: vi.fn(async () => null),
 }));
@@ -63,6 +64,7 @@ vi.mock('./internal/meta-onboarding', () => ({
 vi.mock('./internal/meta-business-profile', () => ({
   getBusinessProfile: vi.fn(),
   updateBusinessProfile: vi.fn(async () => {}),
+  updateBusinessProfilePicture: vi.fn(async () => {}),
 }));
 
 import { assertWhatsappProfileAllowed } from '@/lib/auth/rate-limit';
@@ -70,8 +72,16 @@ import { decryptForTenant } from '@/lib/crypto';
 import { loadConnectionForHealth, recordProfileUpdated } from '@/lib/messaging';
 import { requireFreshPermission } from '@/lib/auth/tenant-context';
 
-import { getMyClinicWhatsappProfile, updateMyClinicWhatsappProfile } from './actions';
-import { getBusinessProfile, updateBusinessProfile } from './internal/meta-business-profile';
+import {
+  getMyClinicWhatsappProfile,
+  updateMyClinicWhatsappProfile,
+  updateMyClinicWhatsappProfilePicture,
+} from './actions';
+import {
+  getBusinessProfile,
+  updateBusinessProfile,
+  updateBusinessProfilePicture,
+} from './internal/meta-business-profile';
 
 const lido = (over: Record<string, unknown> = {}) => ({
   perfil: {
@@ -82,6 +92,11 @@ const lido = (over: Record<string, unknown> = {}) => ({
     websites: [],
     vertical: 'UNDEFINED' as const,
     ...over,
+  },
+  profilePictureUrl: 'https://pps.whatsapp.net/profile.jpg',
+  identidade: {
+    displayName: 'Clínica Exemplo',
+    displayPhoneNumber: '+55 11 99999-0000',
   },
   verticalDesconhecida: null,
 });
@@ -107,6 +122,7 @@ beforeEach(() => {
     metaBusinessId: 'waba-1',
     tokenCiphertext: 'CIPHERTEXT_BLOB',
     connectionStatus: 'connected',
+    coexistence: false,
   });
   vi.mocked(getBusinessProfile).mockResolvedValue(lido());
 });
@@ -155,6 +171,70 @@ describe('sem número conectado', () => {
     await expect(getMyClinicWhatsappProfile()).rejects.toMatchObject({
       name: 'NumberNotConnectedError',
     });
+  });
+});
+
+describe('perfil em coexistência', () => {
+  it('recusa escrita antes de decifrar o token ou chamar a Meta', async () => {
+    vi.mocked(loadConnectionForHealth).mockResolvedValue({
+      id: 'conn-1',
+      clinicId: 'clinic-da-sessao',
+      metaPhoneId: 'phone-da-clinica',
+      metaBusinessId: 'waba-1',
+      tokenCiphertext: 'CIPHERTEXT_BLOB',
+      connectionStatus: 'connected',
+      coexistence: true,
+    });
+
+    await expect(updateMyClinicWhatsappProfile(entrada({ about: 'depois' }))).rejects.toMatchObject(
+      {
+        name: 'WhatsappProfileManagedInBusinessAppError',
+        code: 'profile_managed_in_business_app',
+      },
+    );
+    expect(decryptForTenant).not.toHaveBeenCalled();
+    expect(getBusinessProfile).not.toHaveBeenCalled();
+    expect(updateBusinessProfile).not.toHaveBeenCalled();
+  });
+
+  it('recusa upload da foto antes de decifrar o token ou chamar a Meta', async () => {
+    vi.mocked(loadConnectionForHealth).mockResolvedValue({
+      id: 'conn-1',
+      clinicId: 'clinic-da-sessao',
+      metaPhoneId: 'phone-da-clinica',
+      metaBusinessId: 'waba-1',
+      tokenCiphertext: 'CIPHERTEXT_BLOB',
+      connectionStatus: 'connected',
+      coexistence: true,
+    });
+    const png = new File(
+      [Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])],
+      'perfil.png',
+      { type: 'image/png' },
+    );
+
+    await expect(updateMyClinicWhatsappProfilePicture(png)).rejects.toMatchObject({
+      name: 'WhatsappProfileManagedInBusinessAppError',
+      code: 'profile_managed_in_business_app',
+    });
+    expect(decryptForTenant).not.toHaveBeenCalled();
+    expect(updateBusinessProfilePicture).not.toHaveBeenCalled();
+  });
+
+  it('mantém a leitura para mostrar o estado informado pela Meta', async () => {
+    vi.mocked(loadConnectionForHealth).mockResolvedValue({
+      id: 'conn-1',
+      clinicId: 'clinic-da-sessao',
+      metaPhoneId: 'phone-da-clinica',
+      metaBusinessId: 'waba-1',
+      tokenCiphertext: 'CIPHERTEXT_BLOB',
+      connectionStatus: 'connected',
+      coexistence: true,
+    });
+
+    await getMyClinicWhatsappProfile();
+
+    expect(getBusinessProfile).toHaveBeenCalledWith('phone-da-clinica', 'token-em-claro');
   });
 });
 
@@ -275,12 +355,62 @@ describe('diff, escrita e auditoria', () => {
 describe('leitura', () => {
   it('devolve o perfil e o aviso de vertical desconhecida', async () => {
     vi.mocked(getBusinessProfile).mockResolvedValue({
-      perfil: lido().perfil,
+      ...lido(),
       verticalDesconhecida: 'MEDICAL_CLINIC',
     });
 
     const r = await getMyClinicWhatsappProfile();
     expect(r.verticalDesconhecida).toBe('MEDICAL_CLINIC');
     expect(vi.mocked(getBusinessProfile).mock.calls[0]?.[1]).toBe('token-em-claro');
+  });
+});
+
+describe('foto do perfil', () => {
+  function file(bytes: number[], type = 'image/png'): File {
+    const buffer = Uint8Array.from(bytes).buffer;
+    return new File([buffer], 'perfil', { type });
+  }
+
+  it('recusa MIME não permitido antes de decifrar token ou chamar a Meta', async () => {
+    await expect(
+      updateMyClinicWhatsappProfilePicture(file([0x52, 0x49, 0x46, 0x46], 'image/webp')),
+    ).rejects.toMatchObject({ name: 'MessagingValidationError' });
+
+    expect(decryptForTenant).not.toHaveBeenCalled();
+    expect(updateBusinessProfilePicture).not.toHaveBeenCalled();
+  });
+
+  it('recusa arquivo disfarçado cujo conteúdo não corresponde ao MIME', async () => {
+    await expect(
+      updateMyClinicWhatsappProfilePicture(file([0x00, 0x01, 0x02], 'image/png')),
+    ).rejects.toMatchObject({ name: 'MessagingValidationError' });
+
+    expect(decryptForTenant).not.toHaveBeenCalled();
+    expect(updateBusinessProfilePicture).not.toHaveBeenCalled();
+  });
+
+  it('envia a foto para o número da sessão, relê e audita somente o nome do campo', async () => {
+    const png = file([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], 'image/png');
+
+    const result = await updateMyClinicWhatsappProfilePicture(png);
+
+    expect(updateBusinessProfilePicture).toHaveBeenCalledWith(
+      'phone-da-clinica',
+      'token-em-claro',
+      expect.any(Uint8Array),
+      'image/png',
+    );
+    expect(getBusinessProfile).toHaveBeenCalledWith('phone-da-clinica', 'token-em-claro');
+    expect(recordProfileUpdated).toHaveBeenCalledWith(
+      expect.objectContaining({
+        clinicId: 'clinic-da-sessao',
+        connectionId: 'conn-1',
+        changedFields: ['profile_picture'],
+      }),
+    );
+    expect(JSON.stringify(vi.mocked(recordProfileUpdated).mock.calls[0]?.[0])).not.toContain(
+      'token-em-claro',
+    );
+    expect(result.alterados).toEqual(['profile_picture']);
   });
 });

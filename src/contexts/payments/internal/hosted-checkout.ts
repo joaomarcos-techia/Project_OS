@@ -67,7 +67,22 @@ function checkoutCallbacks(): {
   };
 }
 
-export type CreateHostedCheckoutOutcome = 'created' | 'existing' | 'window_too_short';
+export type CreateHostedCheckoutOutcome =
+  | 'created'
+  | 'existing'
+  | 'account_paused'
+  | 'window_too_short'
+  | 'unsupported_condition';
+
+function supportsHostedCheckoutCondition(
+  paymentMethod: 'pix' | 'credit_card' | null,
+  installmentCount: number | null,
+): boolean {
+  if (paymentMethod === null) return installmentCount === null;
+  if (paymentMethod === 'pix') return installmentCount === null;
+  // O Checkout hospedado aceita um MAXIMO de parcelas, nao uma quantidade exata.
+  return installmentCount === 1;
+}
 
 interface CheckoutClaim {
   chargeId: string;
@@ -83,6 +98,8 @@ async function provisionClaimedCheckout(input: {
   description: string;
   claim: CheckoutClaim;
   window: CheckoutWindow;
+  paymentMethod: 'pix' | 'credit_card' | null;
+  installmentCount: number | null;
 }): Promise<'created' | 'existing'> {
   let checkout: ProviderCheckout;
   try {
@@ -92,6 +109,9 @@ async function provisionClaimedCheckout(input: {
       externalReference: input.claim.externalReference,
       minutesToExpire: input.window.minutesToExpire,
       callback: checkoutCallbacks(),
+      ...(input.paymentMethod
+        ? { billingTypes: [input.paymentMethod === 'pix' ? 'PIX' : 'CREDIT_CARD'] as const }
+        : {}),
     });
   } catch (error) {
     const definitive = error instanceof BillingProviderError;
@@ -170,7 +190,20 @@ export async function createInitialHostedCheckout(input: {
   holdExpiresAt: Date | null;
   collectionExpiresAt: Date;
   now?: Date;
+  paymentMethod?: 'pix' | 'credit_card' | null;
+  installmentCount?: number | null;
 }): Promise<CreateHostedCheckoutOutcome> {
+  if (
+    !supportsHostedCheckoutCondition(input.paymentMethod ?? null, input.installmentCount ?? null)
+  ) {
+    metrics.emit('payments.checkout.unsupported_commercial_condition', {
+      clinicId: input.clinicId,
+      appointmentId: input.appointmentId,
+      paymentMethod: input.paymentMethod,
+      installmentCount: input.installmentCount,
+    });
+    return 'unsupported_condition';
+  }
   const now = input.now ?? new Date();
   const window = resolveCheckoutWindow(now, input.collectionExpiresAt);
   if (!window) return 'window_too_short';
@@ -187,7 +220,10 @@ export async function createInitialHostedCheckout(input: {
     collectionExpiresAt: input.collectionExpiresAt,
     checkoutExpiresAt: window.expiresAt,
     leaseUntil: new Date(now.getTime() + CHECKOUT_LEASE_MS),
+    requestedPaymentMethod: input.paymentMethod ?? null,
+    requestedInstallmentCount: input.installmentCount ?? null,
   });
+  if (claim.state === 'account_paused') return 'account_paused';
   if (claim.state === 'existing') return 'existing';
   return provisionClaimedCheckout({
     client: input.client,
@@ -196,10 +232,18 @@ export async function createInitialHostedCheckout(input: {
     description: input.description,
     claim,
     window,
+    paymentMethod: input.paymentMethod ?? null,
+    installmentCount: input.installmentCount ?? null,
   });
 }
 
-export type RenewHostedCheckoutOutcome = 'created' | 'lost' | 'payment_exists' | 'window_ended';
+export type RenewHostedCheckoutOutcome =
+  | 'created'
+  | 'lost'
+  | 'account_paused'
+  | 'payment_exists'
+  | 'window_ended'
+  | 'unsupported_condition';
 
 /** Renova somente se a geração anterior não produziu cobrança no Asaas. */
 export async function renewRemainderHostedCheckout(input: {
@@ -208,6 +252,20 @@ export async function renewRemainderHostedCheckout(input: {
   candidate: RemainderCheckoutRenewalCandidate;
   now?: Date;
 }): Promise<RenewHostedCheckoutOutcome> {
+  if (
+    !supportsHostedCheckoutCondition(
+      input.candidate.requestedPaymentMethod,
+      input.candidate.requestedInstallmentCount,
+    )
+  ) {
+    metrics.emit('payments.checkout.unsupported_commercial_condition', {
+      clinicId: input.clinicId,
+      appointmentId: input.candidate.appointmentId,
+      paymentMethod: input.candidate.requestedPaymentMethod,
+      installmentCount: input.candidate.requestedInstallmentCount,
+    });
+    return 'unsupported_condition';
+  }
   const now = input.now ?? new Date();
   const window = resolveCheckoutWindow(now, input.candidate.collectionExpiresAt);
   if (!window) return 'window_ended';
@@ -226,6 +284,7 @@ export async function renewRemainderHostedCheckout(input: {
     leaseUntil: new Date(now.getTime() + CHECKOUT_LEASE_MS),
     now,
   });
+  if (claim.state === 'account_paused') return 'account_paused';
   if (claim.state === 'lost') return 'lost';
 
   const outcome = await provisionClaimedCheckout({
@@ -235,6 +294,8 @@ export async function renewRemainderHostedCheckout(input: {
     description: 'Restante do atendimento',
     claim,
     window,
+    paymentMethod: input.candidate.requestedPaymentMethod,
+    installmentCount: input.candidate.requestedInstallmentCount,
   });
   return outcome === 'created' ? 'created' : 'lost';
 }

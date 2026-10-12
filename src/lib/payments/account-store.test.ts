@@ -4,7 +4,7 @@
  * `dbAdmin`/`logAudit` mockados; o `sql` real é compilado para texto (PgDialect)
  * para asserir as garantias que NÃO dá para verificar por tipo:
  *   - todo comando é escopado por `clinic_id` (dbAdmin ignora RLS);
- *   - desconectar APAGA a chave, não só marca inativo;
+ *   - desconectar só apaga a chave após desativar o webhook sem histórico;
  *   - o audit nunca recebe a chave nem o hash;
  *   - reenviar a mesma chave não escreve nada.
  */
@@ -14,15 +14,25 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // vi.hoisted: a fábrica do vi.mock é içada acima dos imports; expor o spy por aqui
 // evita um `import { dbAdmin }` (origem de conexão proibida pelo arch:db-check).
-const { transactionMock } = vi.hoisted(() => ({ transactionMock: vi.fn() }));
-vi.mock('@/lib/db', () => ({ dbAdmin: { transaction: transactionMock } }));
+const { transactionMock, withTenantMock, disableWebhookMock } = vi.hoisted(() => ({
+  transactionMock: vi.fn(),
+  withTenantMock: vi.fn(),
+  disableWebhookMock: vi.fn(),
+}));
+vi.mock('@/lib/db', () => ({
+  dbAdmin: { transaction: transactionMock },
+}));
+vi.mock('@/lib/db/tenant', () => ({ withTenant: withTenantMock }));
 vi.mock('@/lib/audit/log', () => ({ logAudit: vi.fn(async () => 'audit-1') }));
+vi.mock('@/lib/crypto', () => ({ decryptForTenant: vi.fn(async () => 'test-key') }));
+vi.mock('./asaas', () => ({ createAsaasClient: () => ({ disableWebhook: disableWebhookMock }) }));
 
 import { logAudit } from '@/lib/audit/log';
 
 import {
   deactivatePaymentAccount,
   upsertPaymentAccount,
+  withPaymentWebhookLock,
   type UpsertPaymentAccountInput,
 } from './account-store';
 
@@ -41,6 +51,8 @@ function makeTx(returns: unknown[][]) {
 
 function runWithTx(tx: unknown) {
   transactionMock.mockImplementation(((fn: (t: unknown) => unknown) => fn(tx)) as never);
+  withTenantMock.mockImplementation(((_clinicId: string, fn: (t: unknown) => unknown) =>
+    fn({ execute: vi.fn(async () => []) })) as never);
 }
 
 const SECRET = '$aact_chave_em_claro_que_nunca_pode_aparecer';
@@ -54,7 +66,10 @@ const baseInput: UpsertPaymentAccountInput = {
   requestContext: ctx,
 };
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  disableWebhookMock.mockResolvedValue({ matched: 1 });
+});
 
 describe('upsertPaymentAccount', () => {
   it('grava a chave cifrada, ativa a conta e audita na mesma tx', async () => {
@@ -112,13 +127,48 @@ describe('upsertPaymentAccount', () => {
   });
 
   it('reenviar a MESMA chave de uma conta ativa não escreve nem audita', async () => {
-    const { tx, sqls } = makeTx([[{ id: 'acc-1', api_key_hash: 'hash-nova', active: true }]]);
+    const { tx, sqls } = makeTx([
+      [
+        {
+          id: 'acc-1',
+          api_key_hash: 'hash-nova',
+          active: true,
+          accept_new_charges: true,
+        },
+      ],
+    ]);
     runWithTx(tx);
 
     await expect(upsertPaymentAccount(baseInput)).resolves.toEqual({ id: 'acc-1', changed: false });
 
     expect(sqls).toHaveLength(1); // só o SELECT
     expect(logAudit).not.toHaveBeenCalled();
+  });
+
+  it('retoma a mesma conta pausada sem girar chave nem token do webhook', async () => {
+    const { tx, sqls } = makeTx([
+      [
+        {
+          id: 'acc-1',
+          api_key_hash: 'hash-nova',
+          key_version: 4,
+          active: true,
+          accept_new_charges: false,
+        },
+      ],
+      [],
+    ]);
+    runWithTx(tx);
+
+    await expect(upsertPaymentAccount(baseInput)).resolves.toEqual({ id: 'acc-1', changed: true });
+    expect(sqls).toHaveLength(2);
+    expect(sqls[1]).toContain('accept_new_charges = true');
+    expect(sqls[1]).not.toContain('webhook_token_encrypted');
+    expect(sqls[1]).not.toContain('key_version');
+    expect(logAudit).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({ action: 'payments.account.resumed' }),
+    );
   });
 
   it('mesma chave numa conta DESCONECTADA reconecta (não é no-op)', async () => {
@@ -134,22 +184,104 @@ describe('upsertPaymentAccount', () => {
   });
 });
 
+it('serializa a configuração remota do webhook com a pausa da conta', async () => {
+  const { tx, sqls } = makeTx([[]]);
+  withTenantMock.mockImplementation(((_clinicId: string, fn: (t: unknown) => unknown) =>
+    fn(tx)) as never);
+  const operation = vi.fn(async () => 'configured');
+  await expect(withPaymentWebhookLock('clinic-1', operation)).resolves.toBe('configured');
+  expect(sqls[0]).toContain('pg_advisory_xact_lock');
+  expect(withTenantMock).toHaveBeenCalledWith('clinic-1', expect.any(Function));
+  expect(transactionMock).not.toHaveBeenCalled();
+  expect(operation).toHaveBeenCalledOnce();
+});
+
 describe('deactivatePaymentAccount', () => {
-  it('APAGA a chave em vez de apenas marcar inativa', async () => {
-    const { tx, sqls } = makeTx([[{ id: 'acc-1' }]]);
+  it('pausa e preserva segredo/webhook quando há histórico de cobranças', async () => {
+    const { tx, sqls } = makeTx([
+      [{ id: 'acc-1', active: true, accept_new_charges: true }],
+      [],
+      [
+        {
+          id: 'acc-1',
+          active: true,
+          accept_new_charges: false,
+          api_key_encrypted: 'ciphertext',
+          webhook_ref: 'ref-1',
+        },
+      ],
+      [{ present: 1 }],
+    ]);
     runWithTx(tx);
 
     await expect(
       deactivatePaymentAccount({ clinicId: 'clinic-1', userId: 'user-1', requestContext: ctx }),
-    ).resolves.toEqual({ changed: true });
+    ).resolves.toEqual({ changed: true, state: 'paused' });
 
-    const update = sqls[0] ?? '';
-    expect(update).toContain('api_key_encrypted = NULL');
-    expect(update).toContain('api_key_hash = NULL');
-    // Sem conta, nenhum webhook daquela clínica pode ser aceito.
-    expect(update).toContain('webhook_token_encrypted = NULL');
-    expect(update).toContain('active = false');
-    expect(update).toContain('WHERE clinic_id =');
+    expect(sqls[1]).toContain('accept_new_charges = false');
+    expect(sqls.join(' ')).not.toContain('api_key_encrypted = NULL');
+    expect(disableWebhookMock).not.toHaveBeenCalled();
+    expect(logAudit).toHaveBeenCalledTimes(1);
+  });
+
+  it('desativa webhook com readback antes de apagar a chave sem cobranças', async () => {
+    const { tx, sqls } = makeTx([
+      [{ id: 'acc-1', active: true, accept_new_charges: true }],
+      [],
+      [
+        {
+          id: 'acc-1',
+          active: true,
+          accept_new_charges: false,
+          api_key_encrypted: 'ciphertext',
+          webhook_ref: 'ref-1',
+        },
+      ],
+      [],
+      [],
+    ]);
+    runWithTx(tx);
+    await expect(
+      deactivatePaymentAccount({
+        clinicId: 'clinic-1',
+        userId: 'user-1',
+        requestContext: ctx,
+      }),
+    ).resolves.toEqual({ changed: true, state: 'disconnected' });
+    expect(disableWebhookMock).toHaveBeenCalledWith({
+      pathname: '/api/webhooks/asaas/patient/ref-1',
+    });
+    expect(sqls[4]).toContain('api_key_encrypted = NULL');
+    expect(sqls[4]).toContain('webhook_token_encrypted = NULL');
+    expect(withTenantMock).toHaveBeenCalledOnce();
+    expect(logAudit).toHaveBeenCalledTimes(2);
+  });
+
+  it('falha do Asaas mantém a pausa e não apaga a chave', async () => {
+    const { tx, sqls } = makeTx([
+      [{ id: 'acc-1', active: true, accept_new_charges: true }],
+      [],
+      [
+        {
+          id: 'acc-1',
+          active: true,
+          accept_new_charges: false,
+          api_key_encrypted: 'ciphertext',
+          webhook_ref: 'ref-1',
+        },
+      ],
+      [],
+    ]);
+    runWithTx(tx);
+    disableWebhookMock.mockRejectedValueOnce(new Error('provider unavailable'));
+    await expect(
+      deactivatePaymentAccount({
+        clinicId: 'clinic-1',
+        userId: 'user-1',
+        requestContext: ctx,
+      }),
+    ).rejects.toThrow('provider unavailable');
+    expect(sqls.join(' ')).not.toContain('api_key_encrypted = NULL');
     expect(logAudit).toHaveBeenCalledTimes(1);
   });
 
@@ -159,7 +291,7 @@ describe('deactivatePaymentAccount', () => {
 
     await expect(
       deactivatePaymentAccount({ clinicId: 'clinic-1', userId: 'user-1', requestContext: ctx }),
-    ).resolves.toEqual({ changed: false });
+    ).resolves.toEqual({ changed: false, state: 'disconnected' });
 
     expect(logAudit).not.toHaveBeenCalled();
   });

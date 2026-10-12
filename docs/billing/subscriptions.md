@@ -22,6 +22,14 @@ Defaults do seed versionado:
 
 Somente **assentos** bloqueiam operação. Agendamentos e IA são contadores/métricas, mesmo quando superam o valor do catálogo. Permissões granulares são feature dos planos Clínica e Pro. Não existe plano `Pro+` nem overage automático.
 
+**Política planejada, ainda não promovida:** configuração de preço por meio de
+pagamento, base/regra de repasse profissional e relatórios econômicos avançados
+serão recursos dos planos **Clínica e Pro**, não do Solo. A visibilidade básica
+de bruto, tarifa e líquido por cobrança pertence a todos os planos, inclusive
+Solo. O desenho, os defaults, o tratamento de downgrade e os critérios de
+ativação estão em
+[Política financeira em camadas](../specs/politica-financeira-camadas.md).
+
 ## Ciclo e estados
 
 - ciclos: `monthly`, `annual`;

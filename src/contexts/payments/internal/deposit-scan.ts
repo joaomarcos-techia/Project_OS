@@ -73,8 +73,12 @@ export async function listClinicsWithPendingRefundIntents(limit: number): Promis
   const rows = await dbAdmin.execute<EnabledClinicRow>(sql`
     SELECT DISTINCT clinic_id::text AS clinic_id
     FROM patient_refund_intents
-    WHERE status IN ('submitting', 'confirmation_pending')
-      AND baseline_refunded_amount IS NOT NULL
+    WHERE ((status IN ('submitting', 'confirmation_pending')
+            OR (status = 'failed' AND failure_code IN ('manual_refund_cancelled', 'manual_refund_denied'))
+            OR (status = 'failed' AND purpose = 'deposit_closeout'
+                AND failure_code IN ('refund_cancelled', 'refund_denied')))
+           AND baseline_refunded_amount IS NOT NULL)
+       OR (status = 'pending' AND failure_code IN ('payment_account_unavailable', 'provider_readback_unavailable'))
     ORDER BY clinic_id
     LIMIT ${limit}
   `);
@@ -118,6 +122,7 @@ export async function runDepositScan(opts?: {
 
     for (const item of items) {
       if (alreadyCharged.has(item.appointmentId)) continue;
+      if (item.commercialPaymentMethod === 'cash') continue;
       try {
         await createDepositCharge({
           clinicId,
@@ -126,6 +131,8 @@ export async function runDepositScan(opts?: {
             patientId: item.patientId,
             valor: item.valor,
             scheduledAt: item.scheduledAt,
+            commercialPaymentMethod: item.commercialPaymentMethod,
+            commercialInstallmentCount: item.commercialInstallmentCount,
           },
         });
         summary.charged += 1;

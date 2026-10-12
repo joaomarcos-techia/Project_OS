@@ -14,11 +14,13 @@ import './_env';
 import { access, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import { chromium, type Page } from '@playwright/test';
+import { chromium, type Browser, type Page } from '@playwright/test';
 
 import {
   classifyCheckoutCleanup,
   hasCheckoutRefundInFlight,
+  isCancelledCheckoutResponse,
+  requestCheckoutRefundWithRetry,
   retainCheckoutForChargeback,
   type CheckoutCleanupRefund,
 } from '@/lib/test/asaas-checkout-cleanup';
@@ -38,6 +40,8 @@ const PAYMENT_POLL_ATTEMPTS = 30;
 const INTERACTIVE_PAYMENT_POLL_ATTEMPTS = 270;
 const PAYMENT_POLL_INTERVAL_MS = 2_000;
 const REFUND_POLL_ATTEMPTS = 15;
+const REFUND_RETRY_ATTEMPTS = 6;
+const REFUND_RETRY_INTERVAL_MS = 10_000;
 const SETTLED_STATUSES = new Set(['CONFIRMED', 'RECEIVED', 'RECEIVED_IN_CASH']);
 
 const SYNTHETIC_CUSTOMER = {
@@ -60,6 +64,16 @@ const SANDBOX_CARD = {
 
 type JsonObject = Record<string, unknown>;
 type CheckoutMethod = 'CREDIT_CARD' | 'PIX';
+
+class AsaasRequestError extends Error {
+  constructor(
+    message: string,
+    readonly httpStatus: number,
+    readonly providerCode: string | null,
+  ) {
+    super(message);
+  }
+}
 
 type CheckoutResponse = {
   id: string;
@@ -196,8 +210,10 @@ async function asaasRequest<T>(
 
   const body = (await response.json().catch(() => null)) as unknown;
   if (!response.ok) {
-    throw new Error(
+    throw new AsaasRequestError(
       `[asaas-checkout-e2e] API Asaas recusou ${path} (HTTP ${response.status}): ${JSON.stringify(summarizeProviderError(body))}`,
+      response.status,
+      firstProviderErrorCode(body),
     );
   }
   return body as T;
@@ -234,7 +250,17 @@ async function createCheckout(
 }
 
 async function cancelCheckout(apiBaseUrl: URL, apiKey: string, checkoutId: string): Promise<void> {
-  await asaasRequest(apiBaseUrl, apiKey, `/checkouts/${checkoutId}/cancel`, { method: 'POST' });
+  const response = await asaasRequest<unknown>(
+    apiBaseUrl,
+    apiKey,
+    `/checkouts/${checkoutId}/cancel`,
+    {
+      method: 'POST',
+    },
+  );
+  if (!isCancelledCheckoutResponse(response, checkoutId)) {
+    throw new Error('[asaas-checkout-e2e] cancelamento nao confirmado na resposta do provider.');
+  }
 }
 
 async function getPayment(
@@ -250,9 +276,34 @@ async function deletePayment(apiBaseUrl: URL, apiKey: string, paymentId: string)
 }
 
 async function refundPayment(apiBaseUrl: URL, apiKey: string, paymentId: string): Promise<void> {
-  await asaasRequest(apiBaseUrl, apiKey, `/payments/${paymentId}/refund`, {
-    method: 'POST',
-    body: JSON.stringify({ description: 'Cleanup automatico do E2E Checkout Sandbox' }),
+  await requestCheckoutRefundWithRetry({
+    maxAttempts: REFUND_RETRY_ATTEMPTS,
+    request: async () => {
+      try {
+        await asaasRequest(apiBaseUrl, apiKey, `/payments/${paymentId}/refund`, {
+          method: 'POST',
+          body: JSON.stringify({ description: 'Cleanup automatico do E2E Checkout Sandbox' }),
+        });
+        return { accepted: true };
+      } catch (error) {
+        if (
+          error instanceof AsaasRequestError &&
+          error.httpStatus === 400 &&
+          error.providerCode === 'invalid_action'
+        ) {
+          return { accepted: false, error };
+        }
+        throw error;
+      }
+    },
+    readback: async () => {
+      const [payment, refunds] = await Promise.all([
+        getPayment(apiBaseUrl, apiKey, paymentId),
+        listPaymentRefunds(apiBaseUrl, apiKey, paymentId),
+      ]);
+      return { paymentStatus: payment.status, refunds };
+    },
+    wait: () => new Promise((resolve) => setTimeout(resolve, REFUND_RETRY_INTERVAL_MS)),
   });
 }
 
@@ -297,6 +348,11 @@ async function waitForRefundCompletion(
     if (readback.state === 'pending-critical-action') {
       throw new Error(
         '[asaas-checkout-e2e] cleanup bloqueado: o estorno aguarda autorizacao de acao critica no painel Asaas Sandbox.',
+      );
+    }
+    if (readback.state === 'cancelled') {
+      throw new Error(
+        '[asaas-checkout-e2e] cleanup falhou: o provider cancelou o estorno e o valor nao foi devolvido.',
       );
     }
     if (attempt < REFUND_POLL_ATTEMPTS - 1) {
@@ -434,7 +490,7 @@ async function cleanupFixture(
 ): Promise<void> {
   if (!payment) {
     await cancelCheckout(apiBaseUrl, apiKey, checkoutId);
-    console.log('[asaas-checkout-e2e] cleanup: Checkout cancelado.');
+    console.log('[asaas-checkout-e2e] cleanup: Checkout CANCELED na resposta do provider.');
     return;
   }
 
@@ -453,6 +509,11 @@ async function cleanupFixture(
   if (existingReadback.state === 'pending-critical-action') {
     throw new Error(
       '[asaas-checkout-e2e] cleanup bloqueado: o estorno aguarda autorizacao de acao critica no painel Asaas Sandbox.',
+    );
+  }
+  if (existingReadback.state === 'cancelled') {
+    throw new Error(
+      '[asaas-checkout-e2e] cleanup falhou: o provider cancelou o estorno e o valor nao foi devolvido.',
     );
   }
   if (hasCheckoutRefundInFlight({ paymentStatus: current.status, refunds: existingRefunds })) {
@@ -492,6 +553,16 @@ function summarizeProviderError(value: unknown): unknown {
   };
 }
 
+function firstProviderErrorCode(value: unknown): string | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const errors = (value as JsonObject).errors;
+  if (!Array.isArray(errors) || errors.length === 0) return null;
+  const first = errors[0];
+  if (!first || typeof first !== 'object' || Array.isArray(first)) return null;
+  const code = (first as JsonObject).code;
+  return typeof code === 'string' ? code : null;
+}
+
 function summarizeSubmitResponse(value: JsonObject): unknown {
   const message = value.message;
   const safeMessage =
@@ -523,13 +594,15 @@ async function main(): Promise<void> {
   const externalReference = `qoro-checkout-e2e-${Date.now()}`;
   const checkout = await createCheckout(apiBaseUrl, apiKey, externalReference);
   if (checkout.status !== 'ACTIVE' || !checkout.id || !checkout.link) {
+    if (checkout.id) await cancelCheckout(apiBaseUrl, apiKey, checkout.id);
     throw new Error('[asaas-checkout-e2e] Checkout nao nasceu ACTIVE com link.');
   }
 
   let payment: PaymentSummary | null = null;
   let retained = false;
-  const browser = await chromium.launch({ headless: !interactive });
+  let browser: Browser | null = null;
   try {
+    browser = await chromium.launch({ headless: !interactive });
     const page = await browser.newPage();
     if (interactive) {
       await prepareCheckout(page, checkout.link, method);
@@ -604,7 +677,7 @@ async function main(): Promise<void> {
     }
   } finally {
     const results = await Promise.allSettled([
-      browser.close(),
+      browser?.close() ?? Promise.resolve(),
       retained ? Promise.resolve() : cleanupFixture(apiBaseUrl, apiKey, checkout.id, payment),
     ]);
     const cleanupFailure = results[1];

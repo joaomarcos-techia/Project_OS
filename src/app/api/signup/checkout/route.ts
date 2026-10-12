@@ -21,7 +21,7 @@ import {
 import { assertSignupDraftWriteAllowed, getClientIp } from '@/lib/auth/rate-limit';
 import { hashSignupUserId } from '@/lib/auth/signup-user-hash';
 import { env } from '@/lib/env';
-import { buildApplicationUrl } from '@/lib/http/application-url';
+import { resolveTrustedApplicationOrigin } from '@/lib/http/application-url';
 import { readWebhookBodyCapped } from '@/lib/http/webhook-body';
 import { asaasProvider } from '@/lib/payments/asaas';
 import { parseDocument } from '@/lib/validation/document';
@@ -70,18 +70,6 @@ function billingFailure(
   }
 }
 
-function expectedOrigin(): string | null {
-  try {
-    return new URL(
-      buildApplicationUrl(env.APP_BASE_URL ?? '', '/', {
-        allowInsecureLocalhost: env.NODE_ENV !== 'production',
-      }),
-    ).origin;
-  } catch {
-    return null;
-  }
-}
-
 async function provisionLegacyActiveDraft(input: {
   userId: string;
   email: string;
@@ -114,14 +102,9 @@ export async function POST(req: Request): Promise<Response> {
     return json({ error: 'unavailable' }, 503);
   }
 
-  const origin = expectedOrigin();
-  if (
-    !origin ||
-    req.headers.get('origin') !== origin ||
-    req.headers.get('sec-fetch-site') === 'cross-site'
-  ) {
-    return json({ error: 'blocked' }, 403);
-  }
+  const publicOrigin = resolveTrustedApplicationOrigin(req);
+  if (publicOrigin === undefined) return json({ error: 'unavailable' }, 503);
+  if (publicOrigin === null) return json({ error: 'blocked' }, 403);
 
   try {
     const onboarding = await resolveReadyOwnedSignupOnboarding();
@@ -153,6 +136,7 @@ export async function POST(req: Request): Promise<Response> {
 
     const checkout = await startSignupHostedCheckout({
       userId: onboarding.userId,
+      publicOrigin,
     });
     if (checkout.ok) {
       return json({ state: checkout.state, checkoutUrl: checkout.checkoutUrl });
