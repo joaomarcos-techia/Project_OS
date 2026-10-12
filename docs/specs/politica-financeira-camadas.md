@@ -147,6 +147,18 @@ Antes de um PR/merge, releia `git diff`, `git status`, o inventário de actions 
 
 Registrar aqui cada avanço com data, commit/base, camada, comandos e totais medidos, estado externo, defeitos encontrados/corrigidos e próxima condição de saída. **PASS local, execução DEV/Preview e promoção são marcos diferentes.** Não substituir o registro anterior por um resumo otimista nem duplicar o progresso em `qorov2.md`.
 
+**12/10 — passagem do horário e quitação:** no DEV, o runner
+`scripts/smoke-advance-credit-completion.ts` moveu apenas a data de uma fixture
+sintética de consulta futura para dois dias antes do relógio do banco. O
+agendamento permaneceu `confirmado`, o crédito `available` e não surgiu
+recebível. Depois de simular a conclusão clínica e entregar o evento ao handler
+real, o recebível bruto de R$ 10 nasceu `pago`, com uma única baixa e o crédito
+`allocated`; replay não duplicou. A transação foi revertida e o readback não
+encontrou resíduos. É **PASS de integração Financial/DB**, não prova de
+encerramento clínico via UI nem de nova cobrança externa. A regra de produto
+continua: hora vencida não comprova atendimento; só `atendido` após
+encerramento clínico autorizado produz o recebível.
+
 | Data | Camada | Estado comprovado | Próxima condição de saída |
 | --- | --- | --- | --- |
 | 02/10/2026 | 1 — elegibilidade | `PASS LOCAL`: 34/34 testes focados, build e checks; `NOT TESTED` em banco/Preview | corrigir as dependências das camadas seguintes e provar a 0108 em DEV antes de implantar o diff inteiro |

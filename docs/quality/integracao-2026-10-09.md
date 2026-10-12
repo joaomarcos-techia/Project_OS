@@ -585,6 +585,23 @@ abriu `/financeiro` no Preview e comprovou em navegador **1/1 PASS**: o quadro
 aparece com valor que contém o crédito de R$ 10 e o aviso de que não integra
 “A receber”. O teste é somente leitura e não salva screenshot, trace ou vídeo.
 
+Às **13:29 UTC de 12/10**, `node .tmp/run-smoke-advance-credit-completion.mjs`
+executou `scripts/smoke-advance-credit-completion.ts` no banco DEV fixado. A
+transação clonou somente referências da fixture E2E de cartão já paga, criou
+agendamento e crédito sintéticos de R$ 10 e foi revertida ao final. Quatro
+assertions funcionais passaram: consulta futura sem recebível; `scheduled_at`
+avançado para dois dias atrás ainda em `confirmado`, com crédito `available` e
+sem recebível; após **simular o fato clínico `atendido`** e executar o handler
+real de `scheduling.appointment.completed`, um recebível bruto de R$ 10 nasceu
+`pago`, crédito `allocated` e uma baixa de R$ 10; reentrega não duplicou
+recebível nem ledger. Readback fora da transação: zero agendamentos, créditos
+ou recebíveis da fixture (exit 0). `npx tsc --noEmit` e ESLint do runner também
+terminaram com exit 0. **Limite:** o teste isola o consumidor financeiro; não
+executa a ação clínica pela UI nem cria prontuário assinado, e o crédito
+sintético desta transação não passou por um novo Checkout. A passagem do
+horário, sozinha, não marca consulta como atendida: o encerramento clínico
+autorizado é obrigatório. A fixture real de cartão continua futura e intacta.
+
 Validação local desta mudança: teste direcionado de consulta, página e handler
 **18/18**; `npx vitest run --silent` **5.492/5.492 em 523 arquivos**;
 `npx tsc --noEmit`, `npx eslint .`, Prettier dos arquivos alterados,
