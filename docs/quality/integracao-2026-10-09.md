@@ -271,3 +271,117 @@ A primeira CI do commit `cfe32f28` falhou no gate
 `docs/security/acoes.md`; a reexecução local com `--check` terminou com exit 0,
 sem itens `unresolved` ou `publicEnv` indevidos. A CI desse ajuste precisa ser
 avaliada separadamente; a falha inicial não é PASS.
+
+## 11/10 — ingresso real após trocar o callback
+
+Uma mensagem nova do número de teste consentido chegou à WABA de teste no
+Preview integrado às **22:46:09 UTC**. A leitura `READ ONLY` do DEV confirmou:
+conexão ativa na clínica de teste, uma linha em `inbound_messages_raw`, nenhum
+órfão para o `phone_number_id`, evento `messaging.inbound.received` com
+`status=processed`, uma tentativa e `error_code=NULL`, `processed_at` às
+22:46:17 UTC e uma mensagem de entrada na conversa. O número recebido foi
+comparado ao número consentido após decifrar **somente em memória**, sem registrar
+telefone ou conteúdo na evidência. A rota rejeitou um `POST` externo sem
+assinatura com HTTP **401** e corpo `invalid signature`, depois de comprovar que
+o Preview usa Auth/banco DEV. Os testes direcionados de webhook, handoff, worker
+e status de entrega passaram **42/42**, em 5 arquivos (`npx vitest run` direcionado).
+
+Não houve resposta automática a essa mensagem: a conversa já estava em
+`handoff` desde 08/10, sem responsável atribuído. O evento foi processado e
+registrou entrada, mas gerou zero mensagens de saída e zero envios Meta, como a
+regra de atendimento humano determina. A ação autenticada **Devolver ao agente**
+foi executada no Preview; o readback no DEV às **22:53:05 UTC** encontrou
+`status=active` e zero handoffs abertos. O teste de UI que esperava um toast
+transitório expirou depois de a ação ter sido concluída; **a asserção do toast
+falhou, mas a mudança de estado foi confirmada separadamente**. A primeira
+mensagem não foi reprocessada retroativamente; a segunda, abaixo, mediu IA,
+outbox, aceite e entrega Meta.
+
+Observação de ambiente para futuros runners locais: o HMAC do telefone
+recalculado com `CRYPTO_LOOKUP_SALT` do `.env.local` não coincidiu com o hash
+armazenado pela instância Preview, embora a decifragem do telefone e sua
+comparação com o número consentido tenham passado. O arquivo local não foi
+alterado; a causa da diferença de salt **não foi demonstrada**. Não usar esse
+hash calculado localmente como critério de correlação de mensagens do Preview
+até reconciliar a configuração.
+
+### Segunda mensagem, conversa ativa — fluxo completo
+
+Após a devolução, uma segunda mensagem do mesmo número consentido entrou às
+**23:06:12 UTC**. O readback `READ ONLY` no DEV encontrou `processed_at` às
+23:06:30, evento `processed` em **uma** tentativa, uma mensagem `in` e uma
+mensagem `out` da IA, zero `ai_agent_failures`, **um** `outbound_messages` e
+`outbound_targets_sender=true`. A Meta aceitou o envio e entregou callbacks
+`sent` e `delivered`; o estado persistido ficou `delivered` às **23:06:32 UTC**.
+O usuário confirmou que a resposta apareceu no aparelho de teste. Assim,
+**PASS real** para Meta → webhook Preview → clínica DEV → evento → IA →
+resposta → outbox → Meta → WhatsApp do remetente. Nenhuma mensagem, telefone,
+token ou conteúdo clínico foi copiado para o relatório.
+
+## 11/10 — editor de perfil integrado à coexistência
+
+O commit `95ae83b` da PR #19 foi integrado à base da PR #34 em
+`integration/qoro-whatsapp-profile-20261011`, sem mudar o callback da WABA de teste. Os conflitos
+foram resolvidos preservando o perfil em modo somente leitura para coexistência. O upload da foto
+passa pela mesma guarda de escrita no servidor, e uma falha de rede durante o envio binário não
+carrega a URL assinada do upload na cadeia de causas. O E2E impede opt-in de escrita fora de um
+Preview isolado da Vercel e exige prova assinada de Auth e banco DEV antes da escrita.
+
+| Evidência | Resultado | Limite |
+| --- | --- | --- |
+| `npx vitest run` | **PASS**, 5.467 testes em 520 arquivos, exit 0 | Testes locais; não provam escrita aceita pela Meta |
+| Cinco arquivos focados de perfil | **PASS**, 109 testes | Inclui guarda de coexistência; não inclui upload real |
+| `npx tsc --noEmit`, ESLint direcionado, Prettier e inventário de segurança | **PASS**, exit 0; inventário com 199 actions e zero pendências | Verificação estática |
+| Build Next com ambiente sintético | **PASS**, exit 0 | Não equivale ao deploy nem à execução no Preview |
+| Leitura em coexistência no novo Preview | **PASS**, 4 testes executados e 3 SKIP condicionais com a conta de teste da Clínica A | Não prova escrita, que a Meta não suporta em coexistência |
+| Escrita, releitura e restauração em número dedicado | **PASS final** em recado inicial não vazio: Playwright escreveu, navegou, releu da Meta, restaurou e releu o original. A suíte completa terminou 6 PASS / 2 SKIP, exit 0 | A primeira tentativa havia recebido resultado indeterminado; limpar o recado para vazio retornou HTTP 500/código 131000 nesta conta. O PASS final não prova limpeza para vazio |
+| Foto real na Meta | **NOT TESTED** | Requer imagem sintética e restauração verificável da foto anterior |
+
+### 11/10 — número dedicado, verificação da empresa e resultado indeterminado do perfil
+
+Uma consulta `READ ONLY` ao DEV encontrou a conexão ativa da clínica sintética
+“teste” em modo dedicado (`coexistence=false`). A conta E2E correspondente abriu
+o editor no Preview integrado. Seu diagnóstico de envio era `limited`, com o
+código **141010**, a pendência de verificação empresarial. O aviso agora oferece
+o botão **Verificar empresa na Meta**, que abre o Centro de Segurança da própria
+Meta em outra aba. O botão só aparece com esse código; uma pendência apenas de
+pagamento não o exibe. Não se alterou o painel da Meta, o método de pagamento ou
+a verificação empresarial.
+
+O Playwright de leitura nessa conta executou **4 PASS e 3 SKIP**, sem escrever no
+perfil. O primeiro opt-in de escrita confirmou Auth e banco DEV por fingerprint
+assinado antes do POST. O teste falhou ao esperar confirmação visual; a releitura
+posterior encontrou o recado de teste efetivamente publicado. A tentativa de
+restaurar o campo vazio pela UI não o removeu. Uma chamada direta, usando o
+mesmo token da conexão sem expô-lo, mediu **HTTP 500/código Graph 131000** ao
+enviar `about: ''`, seguida de readback sem mudança. Uma única escrita de
+recuperação para “Conta de teste da Qoro” recebeu **2xx** e o readback confirmou
+que não restou marcador de E2E. O valor vazio anterior não foi restaurado; a
+conta de teste permanece com o recado neutro. Não há evidência de impacto em
+produção ou em conta de cliente.
+
+O comportamento revela dois limites distintos: um 5xx pode acompanhar uma
+mudança que a Meta aplicou, e a limpeza para vazio não funcionou nesta conta.
+O produto agora apresenta **Resultado não confirmado** para o primeiro caso,
+orienta a reler o perfil antes de qualquer repetição e não afirma que nada foi
+salvo. O E2E também deixa de escrever sobre um recado original vazio até a
+restauração ser comprovada; falhas de confirmação continuam FAIL.
+
+No commit seguinte, o Preview passou no gate da Vercel e o Playwright autenticado
+confirmou o botão de verificação na conta com código 141010. A primeira execução
+com escrita teve **5 PASS, 2 SKIP e 1 FAIL do teste**: o `finally` esperava que
+“Salvar perfil” voltasse a ficar habilitado, mas após restauração bem-sucedida
+ele fica desabilitado porque não há diferença pendente. Uma releitura direta do
+Graph confirmou o recado neutro, sem marcador. Corrigida essa asserção, o caso
+focado passou **1/1**; a execução final da suíte inteira passou **6 PASS,
+2 SKIP, 0 FAIL**, exit 0 em aproximadamente 1 minuto. Os SKIPs são os estados
+sem número e coexistência, que não se aplicam à conta dedicada. O caso de
+escrita passou por fingerprint assinado do Auth/banco DEV antes de qualquer
+POST e por releitura da Meta após a restauração. A foto real continua NOT TESTED.
+
+Regressão local da versão publicada: **5.470/5.470 testes em 520 arquivos**,
+`npx tsc --noEmit`, ESLint, Prettier, inventário de segurança e build Next
+isolado com ambiente sintético em exit 0. O deploy Vercel do commit anterior
+falhou sem causa conclusiva no log disponível; o commit atual terminou em
+`success`, e os quatro checks da PR #35 passaram. Nenhuma migração, painel de
+produção ou dado de cliente foi alterado.

@@ -1151,6 +1151,12 @@ describe('WhatsappConnect — saúde de envio (health_status)', () => {
       screen.getByText('Adicione uma forma de pagamento à sua conta do WhatsApp Business na Meta.'),
     ).toBeTruthy();
     expect(alert.textContent).toContain('Código da Meta: 141006, 141010');
+    const verificationLink = screen.getByRole('link', { name: 'Verificar empresa na Meta' });
+    expect(verificationLink.getAttribute('href')).toBe(
+      'https://business.facebook.com/settings/security',
+    );
+    expect(verificationLink.getAttribute('target')).toBe('_blank');
+    expect(verificationLink.getAttribute('rel')).toContain('noopener');
     expect(alert.textContent).toContain('verificado em 08/10/2026 às 09:12');
     // O canal continua conectado, mas o selo não diz "Ativo" ao lado de um bloqueio.
     expect(screen.getByText('WhatsApp conectado')).toBeTruthy();
@@ -1176,6 +1182,7 @@ describe('WhatsappConnect — saúde de envio (health_status)', () => {
 
     expect(screen.getByRole('alert').getAttribute('data-messaging-health')).toBe('limited');
     expect(screen.getByText('Envios limitados')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Verificar empresa na Meta' })).toBeTruthy();
     expect(screen.queryByText(/verificado em/u)).toBeNull();
   });
 
@@ -1188,6 +1195,7 @@ describe('WhatsappConnect — saúde de envio (health_status)', () => {
     });
 
     expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Verificar empresa na Meta' })).toBeNull();
     expect(screen.getByText('Ativo')).toBeTruthy();
   });
 
@@ -1218,6 +1226,7 @@ describe('WhatsappConnect — saúde de envio (health_status)', () => {
 
     expect(screen.getByText('WhatsApp com problema')).toBeTruthy();
     expect(screen.getByText('Mensagens automáticas bloqueadas pela Meta')).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Verificar empresa na Meta' })).toBeNull();
     expect(screen.getByText(/verificado em 07\/10\/2026 às 10:30/u)).toBeTruthy();
   });
 });

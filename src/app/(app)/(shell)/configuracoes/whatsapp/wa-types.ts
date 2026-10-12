@@ -7,6 +7,7 @@ import { ZodError } from 'zod';
 
 import {
   MessagingRateLimitedError,
+  MessagingValidationError,
   MetaConnectError,
   NumberNotConnectedError,
   WhatsappProfileManagedInBusinessAppError,
@@ -140,6 +141,9 @@ export function fail(err: unknown): ActionResult<never> {
           : 'O perfil foi consultado muitas vezes seguidas. Aguarde alguns minutos e recarregue.',
     };
   }
+  if (err instanceof MessagingValidationError) {
+    return { ok: false, code: 'validation', message: err.message };
+  }
   if (err instanceof NumberNotConnectedError) {
     return {
       ok: false,
@@ -186,4 +190,17 @@ export function fail(err: unknown): ActionResult<never> {
     code: 'error',
     message: 'Não foi possível concluir a ação. Tente novamente.',
   };
+}
+
+/** Um POST de perfil pode ter sido aplicado mesmo quando a Meta responde 5xx. */
+export function failProfileWrite(err: unknown): ActionResult<never> {
+  if (err instanceof MetaConnectError && err.stage === 'provider_outcome_unknown') {
+    return {
+      ok: false,
+      code: 'profile_outcome_unknown',
+      message:
+        'A Meta não confirmou o resultado. O perfil pode ter sido alterado. Recarregue esta página e confira os dados publicados antes de tentar novamente.',
+    };
+  }
+  return fail(err);
 }

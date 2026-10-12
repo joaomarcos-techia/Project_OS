@@ -37,6 +37,24 @@ export const PERFIL_LIMITES = {
 } as const;
 
 /**
+ * A Server Action compartilha o teto de 4,25 MB do upload de logo. Reservar a
+ * margem do envelope multipart mantém o arquivo abaixo do limite da Function.
+ * A API da Meta aceita JPEG e PNG para a foto do perfil.
+ */
+export const PERFIL_FOTO_MAX_BYTES = 4 * 1024 * 1024;
+export const PERFIL_FOTO_MAX_LABEL = '4 MB';
+export const PERFIL_FOTO_MIN_PX = 192;
+export const PERFIL_FOTO_MIME = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+} as const;
+export type PerfilFotoMime = keyof typeof PERFIL_FOTO_MIME;
+
+export function isPerfilFotoMime(value: string): value is PerfilFotoMime {
+  return Object.prototype.hasOwnProperty.call(PERFIL_FOTO_MIME, value);
+}
+
+/**
  * `vertical` — enum fechado da Meta. A lista inteira entra porque a clínica
  * pode já ter escolhido outra categoria no Business Manager, e oferecer só
  * `HEALTH` faria o formulário sobrescrever em silêncio uma escolha existente ao
@@ -199,6 +217,7 @@ export const PERFIL_CAMPOS = [
 ] as const;
 
 export type PerfilCampo = (typeof PERFIL_CAMPOS)[number];
+export type PerfilCampoAuditavel = PerfilCampo | 'profile_picture';
 
 /**
  * Nomes dos campos que mudaram entre dois perfis.
@@ -240,6 +259,13 @@ export const PERFIL_VAZIO: PerfilWhatsapp = {
  */
 export interface PerfilLido {
   perfil: PerfilWhatsapp;
+  /** URL temporária/CDN que a Meta informa para a foto publicada. */
+  profilePictureUrl: string | null;
+  /** Identidade do número. O nome é aprovado pela Meta e não é campo editável deste endpoint. */
+  identidade: {
+    displayName: string;
+    displayPhoneNumber: string;
+  };
   /**
    * `vertical` que a Meta devolveu e que NÃO está na lista conhecida, ou `null`.
    *
