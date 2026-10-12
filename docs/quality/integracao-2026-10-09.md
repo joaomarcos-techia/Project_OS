@@ -624,7 +624,8 @@ cobrança de paciente em produção. A mensagem de erro local agora explica a
 diferença entre Sandbox e produção quando o código estável do Asaas é
 `invalid_environment`; os demais erros mantêm a mensagem anterior. O teste de
 regressão prova a mensagem específica e que `upsertPaymentAccount` não é chamado.
-**Esta mudança local ainda não foi publicada no Preview nem em produção.**
+No momento destas medições, essa mudança de mensagem ainda não estava
+publicada no Preview nem em produção; a validação da cópia é local.
 
 A variável local `teste_final` foi checada sem reproduzir seu valor: HTTP 200 no
 Sandbox. Ela lista exatamente os mesmos IDs de webhooks da chave Sandbox já
