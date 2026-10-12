@@ -415,3 +415,200 @@ contas acessíveis, mas recusou consultas a ambas com a condição de que o proj
 Cloud está aprovado apenas para contas de teste; não foi possível ler o estado
 atual da ação de conversão por API. A landing passou novamente `npm run comecar`
 27/27 e `npm run conversao` 2/2 em 11/10.
+
+### 12/10 — preparação do pagamento de sinal recebido por WhatsApp
+
+O modo `PAYMENTS_META_E2E=ALLOW_SANDBOX_HUMAN_PAYMENT` do runner
+`scripts/payments-meta-e2e.ts` prepara **uma** fixture sintética na Clínica A do
+DEV, cria somente o sinal de um atendimento de R$ 20, envia o template de link
+ao número consentido e preserva o Checkout Sandbox para pagamento humano. O
+modo anterior (`ALLOW_REAL_META`) conserva seus dois templates e cleanup. No
+modo novo, `.tmp/payments-meta-deposit-handoff.json` guarda apenas IDs técnicos,
+valor e estado; não contém URL de pagamento, telefone nem credenciais. Uma falha
+após a tentativa de envio não cancela cegamente o Checkout: marca o handoff para
+inspeção, porque a Meta pode ter aceito a mensagem antes de a resposta falhar.
+
+Antes de qualquer escrita, o runner exige banco DEV, Asaas Sandbox explícito,
+fingerprint assinado de Auth e DB DEV no Preview, clínica/conta/número ativos,
+destinatário sem paciente preexistente, fila de sinal livre e janela C14
+**08:00–19:59 no fuso da clínica**. Com opt-in separado
+`PAYMENTS_META_E2E_MOVE_WEBHOOK=ALLOW_SANDBOX_PREVIEW_WEBHOOK_MOVE`, confere a
+rota no Preview, move somente o webhook correspondente no Asaas Sandbox e faz
+GET de readback do callback ativo. Não altera webhook de produção.
+
+**Medições desta preparação, antes do pagamento:** a prova assinada do Preview
+confirmou DEV; GET da rota de webhook com bypass retornou **405**, que é o
+comportamento esperado de uma rota POST; o preflight do runner recusou o callback
+antigo e, após preparar a troca guardada, recusou a execução fora da janela C14.
+Ambas as tentativas terminaram antes de criar fixture, Checkout ou mensagem;
+o arquivo de handoff não existe. **Estado da jornada: BLOCKED pela janela C14 até 08:00
+da clínica.** Meta entregue, pagamento, webhook, crédito e Caixa continuam
+**NOT RUN** nesta rodada; HTTP 405 não prova entrega de webhook POST.
+
+| Verificação em 12/10, 00:30–00:36 BRT | Resultado |
+| --- | --- |
+| `node .tmp/probe-payments-preview.mjs` (probe local ignorado pelo Git) | HTTP 405, exit 0; só GET de leitura |
+| `node .tmp/run-payments-meta-handoff.mjs` (preflight local ignorado) | Exit 1 deliberado: janela C14 fechada; zero handoff criado |
+| `npx vitest run --silent` | 5.470/5.470 em 520 arquivos, exit 0 |
+| `npx vitest run` em charge-store, C14 e cliente Asaas | 168/168, exit 0 |
+| `npx tsc --noEmit`, ESLint e Prettier do runner | Exit 0 |
+| `npx tsx scripts/security/local-build.ts` | Build Next isolado exit 0 |
+
+A [API oficial do Asaas](https://docs.asaas.com/reference/atualizar-webhook-existente)
+permite `PUT /webhooks/{id}` somente com os campos alterados; os demais
+permanecem. O runner altera apenas a URL no Sandbox e exige GET de confirmação
+antes de criar a cobrança.
+
+Para retomar no horário permitido, carregar as credenciais DEV localmente sem
+imprimir seus valores, fixar `ASAAS_BASE_URL` e `ASAAS_BASE_URL_DEV` em
+`https://api-sandbox.asaas.com/v3` (o alias `_DEV` prevalece no script),
+`APP_BASE_URL` no Preview com fingerprint DEV, clínica e destinatário consentido,
+os dois opt-ins acima, e executar `npx tsx --conditions=react-server
+scripts/payments-meta-e2e.ts`. Conferir o recebimento no aparelho antes de pagar.
+Após o pagamento, reler a cobrança no Sandbox e no DEV, o evento real do webhook,
+despachar **somente** os eventos da fixture e verificar agendamento, crédito e
+Caixa. O Preview não executa cron automaticamente; drenar o outbox global do DEV
+processaria eventos de outras clínicas e não serve como prova segura.
+
+**Guarda da janela de envio (12/10):** além do filtro SQL do `claimDue`, o
+processor C14 confere novamente o horário local da clínica imediatamente antes
+de chamar o sender da Meta. Se a janela [08:00, 20:00) fechou enquanto contato,
+estado e link eram resolvidos, o job volta para a próxima abertura às 08:00 sem
+consumir tentativa de envio nem trocar a chave de idempotência. O link só será
+enviado se a cobrança ainda estiver pagável e dentro do prazo no novo
+processamento. Testes de borda cobrem 07:59, 08:00, 19:59, 20:00, a travessia de
+19:59 para 20:00 durante o job e os links de sinal/restante. O pagamento humano
+no Sandbox, entrega Meta e webhook continuam **NOT RUN** até a janela abrir.
+
+### 12/10, 08:02–08:22 BRT — sinal por WhatsApp pago com cartão no Sandbox
+
+Esta execução substitui o bloqueio por horário descrito acima. Branch
+`e2e/meta-sinal-pagamento-20261012`, Preview isolado, banco/Auth DEV e conta Asaas
+Sandbox conferidos no preflight. Nenhuma operação foi feita em produção. O runner
+criou consulta sintética de R$ 20 com sinal de R$ 10 e enviou um único template
+à caixa WhatsApp de teste consentida. A Meta aceitou; o readback de
+`outbound_messages` passou a `read`, e o destinatário confirmou o recebimento.
+
+O primeiro Checkout foi aberto em PIX. O Asaas gerou cobrança `PENDING`, mas o
+pagamento PIX não pôde ser concluído pelo usuário no Sandbox. Antes da troca,
+o readback confirmou cobrança pendente, nenhum crédito e nenhum evento de
+pagamento. A cobrança PIX foi removida no Asaas com `deleted=true`, o Checkout
+foi cancelado e somente sua fixture sintética foi removida do DEV. A evidência
+de leitura da mensagem antiga foi preservada. Não ocorreu estorno: não houve
+pagamento PIX.
+
+O runner ganhou a opção explícita `PAYMENTS_META_E2E_METHOD=CREDIT_CARD` no modo
+de pagamento humano. Ela chama o Checkout hospedado com apenas `CREDIT_CARD` e
+registra `requested_payment_method=credit_card`; o modo anterior sem esta opção
+continua oferecendo os meios padrão. A primeira tentativa de fixture de cartão
+falhou antes de criar Checkout porque tentou gravar método comercial num
+agendamento da política `absorb_fees`; o teste limpou a fixture. Corrigido o
+próprio runner: a escolha de cartão é passada à criação da cobrança, sem
+falsificar a política de preço do agendamento. `npx tsc --noEmit` voltou a exit 0.
+
+Na segunda execução, a Meta aceitou o novo template às 08:16 BRT; o destinatário
+confirmou o recebimento. O Checkout Sandbox criou cobrança de R$ 10 em cartão.
+Após o pagamento humano, o readback pelo cliente Asaas encontrou `CONFIRMED`,
+`billingType=CREDIT_CARD`, valor R$ 10, vínculo exato ao Checkout e
+`deleted=false`. O webhook real registrou `PAYMENT_CONFIRMED` e `CHECKOUT_PAID`
+em `patient_webhook_events`; no DEV, `patient_charges` passou de `pending` a
+`paid`, com `provider_payment_id` e fatos econômicos conciliados. O HTTP 200
+individual das entregas não foi lido nos Logs de Webhooks do painel; a
+persistência e a transição no banco comprovam o processamento, mas não
+substituem essa medição de transporte.
+
+Como o Preview não executa cron, foram processados **somente** os dois eventos
+da cobrança sintética, pelas chaves `charge-paid:<chargeId>` e
+`credit-granted:<chargeId>`, após confirmar novamente o pagamento no Sandbox.
+Readback final: agendamento `confirmado`, `deposit_status=paid`, um crédito de
+R$ 10 `available`, zero evento pendente da cobrança. O evento informativo
+`scheduling.appointment.confirmed` da mesma fixture foi passado ao worker
+restrito à sua chave e terminou `skipped_no_handler`, conforme o contrato atual.
+Nenhuma fila global de outras clínicas foi drenada.
+
+**Limite da prova:** não há `lancamento` da consulta no Caixa ainda. A consulta
+sintética está marcada para o futuro; pela ADR-051, o sinal pago é crédito
+antecipado e o recebível só nasce após o atendimento. Portanto,
+**Meta → Checkout cartão → Asaas → webhook → cobrança → agenda → crédito: PASS
+real**. **Alocação do crédito no recebível e visualização final no Caixa:
+NOT TESTED nesta fixture**. A opção “Acompanhar pedido” leva à URL do Preview
+usada na criação deste Checkout; o callback de produção depende do valor de
+`APP_BASE_URL` no deployment de produção, não verificado nesta rodada. O
+callback é navegação, não prova de pagamento.
+
+Comandos executados: `node .tmp/run-payments-meta-handoff.mjs` (PIX exit 0;
+primeira tentativa de cartão exit 1 pela fixture de preço; repetição corrigida
+exit 0), `node .tmp/run-cancel-pix-handoff.mjs` (exit 0),
+`node .tmp/run-cleanup-pix-handoff.mjs` (exit 0),
+`node .tmp/run-dispatch-payments-meta.mjs` (exit 0),
+`node .tmp/run-finish-fixture-outbox.mjs` (exit 0) e
+`node .tmp/run-readback-payments-meta.mjs` (readbacks antes/depois, exit 0).
+Os launchers locais em `.tmp` são ignorados pelo Git e não imprimem credenciais,
+telefone nem URL de pagamento.
+
+Regressão após o ajuste do runner: testes direcionados de Checkout, sinal,
+agenda e crédito **57/57**; `npx vitest run --silent` **5.478/5.478 em 520
+arquivos**, exit 0; `npx tsc --noEmit`, `npx eslint .`, Prettier dos arquivos
+alterados e `npx tsx scripts/security/local-build.ts` com exit 0. O build
+Next 15.5.24 compilou e gerou 18 páginas estáticas. Estas verificações não
+medem a variável `APP_BASE_URL` de produção nem o HTTP individual no painel
+do Asaas.
+
+### 12/10 — retorno público do Checkout e crédito antecipado no Financeiro
+
+O Checkout do paciente já produzia `APP_BASE_URL/?payment=success`, mas a raiz
+redirecionava para login. O branch atual renderiza uma página pública de
+acompanhamento para `success`, `cancelled` e `expired`. Ela informa que o Asaas
+está sendo verificado; **não** afirma que o pagamento ocorreu com base na URL.
+`/` sem esses valores continua exigindo login. O E2E de navegador local,
+sem sessão, atravessou o middleware e recebeu HTTP 200 em `/?payment=success`
+(1/1). O commit `9dba5080` foi publicado no Preview do PR #37 e o mesmo
+E2E sem sessão passou **1/1** nesse deploy com bypass de automação; a Vercel
+marcou o deploy como concluído. Não houve novo clique externo do Asaas nesta
+página, e o hostname real de `APP_BASE_URL` em produção continua não verificado.
+
+O `/financeiro` agora consulta `patient_credits` sob `withTenant` e mostra o
+saldo não aplicado em quadro separado de recebíveis e fluxo mensal. Inclui
+créditos antecipados e excedentes parcialmente alocados, desconta reversões
+não alocadas e exclui disputas abertas. O cartão real de R$ 10 foi relido em
+DEV/Sandbox às **09:18 BRT**: cobrança `paid`, agenda `confirmado`, crédito de
+R$ 10 não aplicado, zero recebíveis da consulta futura. A consulta nova
+retornou R$ 95 em três créditos com saldo não aplicado da clínica inteira;
+agregação SQL independente deu exatamente o mesmo resultado. A regra aceita
+é: pagamento integral antes da consulta = crédito agora; após a conclusão,
+lançamento bruto `pago` se o crédito o cobrir. Esta última transição está
+coberta pelo teste do handler, mas não foi executada externamente nesta fixture.
+Uma conta de teste configurada no ambiente foi ligada à **mesma clínica** da
+fixture por consulta read-only em `auth.users`/`profiles` no DEV, sem expor o
+endereço nem a senha. Com ela, `e2e/advance-credit-financial-preview.spec.ts`
+abriu `/financeiro` no Preview e comprovou em navegador **1/1 PASS**: o quadro
+aparece com valor que contém o crédito de R$ 10 e o aviso de que não integra
+“A receber”. O teste é somente leitura e não salva screenshot, trace ou vídeo.
+
+Às **13:49 UTC de 12/10**, `node .tmp/run-smoke-advance-credit-completion.mjs`
+executou `scripts/smoke-advance-credit-completion.ts` no banco DEV fixado. A
+transação clonou somente referências da fixture E2E de cartão já paga, criou
+agendamento e crédito sintéticos de R$ 10 e foi revertida ao final. As
+verificações funcionais passaram: consulta futura sem recebível; `scheduled_at`
+avançado para dois dias atrás ainda em `confirmado`, com crédito `available` e
+sem recebível; após `confirmado → chegou → em_atendimento`, o core recusou
+`atendido` sem prontuário; com registro sintético assinado e cifrado, o core
+gravou `atendido`, atualizou a fila, registrou três transições e publicou
+`scheduling.appointment.completed`; seu handler real criou um recebível bruto de
+R$ 10 `pago`, crédito `allocated` e uma baixa de R$ 10; reentrega não duplicou
+recebível nem ledger. Readback fora da transação: zero agendamentos, créditos,
+recebíveis, prontuários, filas, logs de transição e eventos da fixture (exit 0).
+`npx tsc --noEmit` e ESLint do runner também terminaram com exit 0. **Limite:**
+a prova atravessa os cores Scheduling e Financial, mas não a Server Action/UI e
+seu gate de autorização; o crédito sintético desta transação não passou por um
+novo Checkout. A passagem do horário, sozinha, não marca consulta como
+atendida: o encerramento clínico autorizado é obrigatório. A fixture real de
+cartão continua futura e intacta.
+
+Validação local desta mudança: teste direcionado de consulta, página e handler
+**18/18**; `npx vitest run --silent` **5.492/5.492 em 523 arquivos**;
+`npx tsc --noEmit`, `npx eslint .`, Prettier dos arquivos alterados,
+`git diff --check` e probe SQL/readback DEV com exit 0. O build otimizado
+`npx tsx scripts/security/local-build.ts` terminou com exit 0: Next 15.5.24,
+18 páginas estáticas e `/`/`/financeiro` dinâmicas. Nenhum desses checks
+representa E2E externo do pagamento integral antes da consulta.

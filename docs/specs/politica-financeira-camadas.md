@@ -147,6 +147,20 @@ Antes de um PR/merge, releia `git diff`, `git status`, o inventário de actions 
 
 Registrar aqui cada avanço com data, commit/base, camada, comandos e totais medidos, estado externo, defeitos encontrados/corrigidos e próxima condição de saída. **PASS local, execução DEV/Preview e promoção são marcos diferentes.** Não substituir o registro anterior por um resumo otimista nem duplicar o progresso em `qorov2.md`.
 
+**12/10 — passagem do horário e quitação:** no DEV, o runner
+`scripts/smoke-advance-credit-completion.ts` moveu apenas a data de uma fixture
+sintética de consulta futura para dois dias antes do relógio do banco. O
+agendamento permaneceu `confirmado`, o crédito `available` e não surgiu
+recebível. O core Scheduling percorreu `chegou → em_atendimento`, recusou
+`atendido` sem prontuário e, após um registro sintético assinado e cifrado,
+concluiu e publicou o evento; o handler Financial criou o recebível bruto de
+R$ 10 `pago`, com uma única baixa e crédito `allocated`. O replay não duplicou.
+A transação foi revertida e o readback não encontrou resíduos. É **PASS de
+integração Scheduling/Financial/DB**, não prova de encerramento pela UI com
+autorização de usuário nem de nova cobrança externa. A regra de produto
+continua: hora vencida não comprova atendimento; só `atendido` após
+encerramento clínico autorizado produz o recebível.
+
 | Data | Camada | Estado comprovado | Próxima condição de saída |
 | --- | --- | --- | --- |
 | 02/10/2026 | 1 — elegibilidade | `PASS LOCAL`: 34/34 testes focados, build e checks; `NOT TESTED` em banco/Preview | corrigir as dependências das camadas seguintes e provar a 0108 em DEV antes de implantar o diff inteiro |
@@ -800,3 +814,60 @@ o "já paguei": fazer o recomendado e "adicionar a lógica de pago com dinheiro"
   Caixa.
 - **Fora do modelo:** sinal pago em dinheiro antes da consulta. Não há como registrar; a equipe orienta
   o pagamento pelo link.
+
+### 12/10/2026 — prova integrada do sinal ainda pendente
+
+Foi preparado um modo do `scripts/payments-meta-e2e.ts` que preserva um único
+Checkout de sinal no **Asaas Sandbox** depois do template consentido, para que
+o paciente de teste possa pagar pelo link recebido. O preflight mede banco/Auth
+DEV, Preview, callback e janela C14; a configuração do webhook Sandbox só muda
+com opt-in adicional e readback. A execução externa parou antes da fixture porque
+era 00h local e o envio C14 só é permitido a partir de 08h. Portanto, a cadeia
+Meta → pagamento → webhook → crédito → Caixa permanece **NOT RUN**, não PASS.
+Comandos, evidência e retomada: [registro operacional](../quality/integracao-2026-10-09.md).
+
+**Atualização 12/10, 08:22 BRT:** a prova externa do sinal avançou. O primeiro
+Checkout PIX ficou `PENDING` no Sandbox e não foi pagável pelo usuário; a
+cobrança e o Checkout foram cancelados com readback antes de criar outro link.
+Um Checkout novo, exclusivo de cartão, foi enviado pela Meta e recebido no
+aparelho de teste. O cartão foi pago; o Asaas retornou `CONFIRMED`, e dois
+eventos reais (`PAYMENT_CONFIRMED`, `CHECKOUT_PAID`) chegaram ao DEV. A cobrança
+ficou `paid` com economia conciliada; o despachante restrito à fixture projetou
+agendamento `confirmado`, sinal `paid` e crédito de R$ 10 `available`. **PASS
+real até o crédito.** O recebível/Caixa posterior ao atendimento continua
+**NOT TESTED** nesta fixture futura, como exige a ADR-051. O HTTP de cada
+entrega no painel do Asaas e o valor efetivo de `APP_BASE_URL` em produção
+também não foram verificados. Evidências e comandos no
+[registro operacional](../quality/integracao-2026-10-09.md).
+
+### 12/10/2026 — crédito antecipado visível antes da consulta
+
+**Regra escolhida:** para um atendimento de R$ 150 pago integralmente antes da
+consulta, o dinheiro confirmado pelo Asaas aparece de imediato em `/financeiro`
+como **crédito antecipado** de R$ 150. Não se cria nem quita o recebível antes
+do atendimento. Quando a consulta é concluída, `appointment.completed` cria o
+lançamento bruto de R$ 150 e aloca o crédito na mesma transação; ele nasce
+`pago`, com `valorPago=150` e baixa no ledger. Se apenas R$ 10 foram pagos como
+sinal, o lançamento nasce `parcial` após a consulta e o saldo fica a receber.
+O callback `/?payment=success` não autoriza nenhuma dessas transições: ele
+mostra apenas que a verificação pelo Asaas está em andamento.
+
+O quadro **“Créditos antecipados e excedentes”** soma o saldo positivo ainda
+não aplicado de `patient_credits` da clínica, descontando alocação e reversão
+do principal não alocado. Inclui saldo excedente mesmo em crédito parcialmente
+`allocated`; exclui créditos devolvidos/retidos e disputas ainda abertas. O
+total é geral, não do mês, e aparece separado dos indicadores mensais e da
+lista de recebíveis. Nenhum valor ali é contado como “A receber” ou marcado
+`pago` antes da conclusão da consulta.
+
+Na fixture real de cartão Sandbox, o readback DEV de 12/10 às 09:18 BRT
+encontrou R$ 10 não alocados, cobrança `paid`, agenda `confirmado` e zero
+recebíveis da consulta futura. A consulta tenant-scoped retornou R$ 95 em
+três saldos não aplicados **da clínica inteira**, incluindo essa fixture, e
+coincidiu com SQL independente. Os outros R$ 85 não pertencem à cobrança de
+teste e não foram classificados nesta prova. Os testes de handler cobrem a
+criação do recebível `pago` quando o crédito cobre 100%; a transição real
+Asaas → atendimento concluído → lançamento `pago` permanece **NOT TESTED**.
+O Preview do PR #37 exibiu o quadro no `/financeiro` para uma conta de teste da
+mesma clínica (**E2E de navegador 1/1 PASS, somente leitura**); o retorno
+público `/?payment=success` também passou 1/1 sem sessão.

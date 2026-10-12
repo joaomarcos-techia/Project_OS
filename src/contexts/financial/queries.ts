@@ -7,7 +7,7 @@
  */
 import 'server-only';
 
-import { and, asc, desc, eq, gte, inArray, lt, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, isNull, lt, or, sql } from 'drizzle-orm';
 
 import { withTenant } from '@/lib/db/tenant';
 
@@ -626,6 +626,34 @@ export async function getCashFlowToday(
         pagamentos: liquidado?.qtdPagamentos ?? 0,
       },
     };
+  });
+}
+
+/**
+ * Saldo confirmado pelo provedor que ainda não foi aplicado a um recebível.
+ * Inclui o excedente de um crédito parcialmente alocado; exclui estorno e
+ * contestação. Não integra "A receber" nem o fluxo mensal.
+ */
+export async function getAvailablePatientCreditSummary(
+  clinicId: string,
+): Promise<{ amount: number; count: number }> {
+  return withTenant(clinicId, async (tx) => {
+    const availableAmount = sql`${patientCredits.amount} - ${patientCredits.allocatedAmount} - ${patientCredits.unallocatedReversedAmount}`;
+    const [summary] = await tx
+      .select({
+        amount: sql<string>`coalesce(sum(greatest(${availableAmount}, 0)), 0)`,
+        count: sql<number>`count(*) filter (where ${availableAmount} > 0)::int`,
+      })
+      .from(patientCredits)
+      .where(
+        and(
+          eq(patientCredits.clinicId, clinicId),
+          inArray(patientCredits.status, ['available', 'allocated']),
+          or(isNull(patientCredits.disputeStatus), eq(patientCredits.disputeStatus, 'reversed')),
+        ),
+      );
+
+    return { amount: num(summary?.amount), count: summary?.count ?? 0 };
   });
 }
 

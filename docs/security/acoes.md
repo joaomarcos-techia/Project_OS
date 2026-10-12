@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 199 actions (0 inline); 53 métodos em 49 handlers; 22 props com referência de action; 306 acessos diretos a process.env; 9 nomes NEXT_PUBLIC.
+Contagem: 199 actions (0 inline); 53 métodos em 49 handlers; 22 props com referência de action; 317 acessos diretos a process.env; 9 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -454,12 +454,23 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/no-show-meta-e2e.ts:39`                           | `META_E2E_RECIPIENT_E164`              | `process.env.META_E2E_RECIPIENT_E164`              |
 | `scripts/payments-live-check.ts:29`                        | `ASAAS_BASE_URL`                       | `process.env.ASAAS_BASE_URL`                       |
 | `scripts/payments-live-check.ts:166`                       | `ASAAS_CLINIC_SANDBOX_KEY`             | `process.env.ASAAS_CLINIC_SANDBOX_KEY`             |
-| `scripts/payments-meta-e2e.ts:79`                          | `PAYMENTS_META_E2E_CLINIC_ID`          | `process.env.PAYMENTS_META_E2E_CLINIC_ID`          |
-| `scripts/payments-meta-e2e.ts:80`                          | `META_E2E_RECIPIENT_E164`              | `process.env.META_E2E_RECIPIENT_E164`              |
-| `scripts/payments-meta-e2e.ts:126`                         | `PAYMENTS_META_E2E`                    | `process.env.PAYMENTS_META_E2E`                    |
-| `scripts/payments-meta-e2e.ts:129`                         | `APP_BASE_URL`                         | `process.env.APP_BASE_URL`                         |
-| `scripts/payments-meta-e2e.ts:130`                         | `META_TEMPLATE_DEPOSIT_LINK_ID`        | `process.env.META_TEMPLATE_DEPOSIT_LINK_ID`        |
-| `scripts/payments-meta-e2e.ts:131`                         | `META_TEMPLATE_REMAINDER_LINK_ID`      | `process.env.META_TEMPLATE_REMAINDER_LINK_ID`      |
+| `scripts/payments-meta-e2e.ts:64`                          | `PAYMENTS_META_E2E`                    | `process.env.PAYMENTS_META_E2E`                    |
+| `scripts/payments-meta-e2e.ts:65`                          | `PAYMENTS_META_E2E_METHOD`             | `process.env.PAYMENTS_META_E2E_METHOD`             |
+| `scripts/payments-meta-e2e.ts:94`                          | `PAYMENTS_META_E2E_CLINIC_ID`          | `process.env.PAYMENTS_META_E2E_CLINIC_ID`          |
+| `scripts/payments-meta-e2e.ts:95`                          | `META_E2E_RECIPIENT_E164`              | `process.env.META_E2E_RECIPIENT_E164`              |
+| `scripts/payments-meta-e2e.ts:194`                         | `VERCEL_AUTOMATION_BYPASS_SECRET`      | `process.env.VERCEL_AUTOMATION_BYPASS_SECRET`      |
+| `scripts/payments-meta-e2e.ts:200`                         | `PAYMENTS_META_E2E_MOVE_WEBHOOK`       | `process.env.PAYMENTS_META_E2E_MOVE_WEBHOOK`       |
+| `scripts/payments-meta-e2e.ts:249`                         | `PAYMENTS_META_E2E`                    | `process.env.PAYMENTS_META_E2E`                    |
+| `scripts/payments-meta-e2e.ts:258`                         | `APP_BASE_URL`                         | `process.env.APP_BASE_URL`                         |
+| `scripts/payments-meta-e2e.ts:259`                         | `META_TEMPLATE_DEPOSIT_LINK_ID`        | `process.env.META_TEMPLATE_DEPOSIT_LINK_ID`        |
+| `scripts/payments-meta-e2e.ts:262`                         | `META_TEMPLATE_REMAINDER_LINK_ID`      | `process.env.META_TEMPLATE_REMAINDER_LINK_ID`      |
+| `scripts/payments-meta-e2e.ts:270`                         | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`             |
+| `scripts/payments-meta-e2e.ts:271`                         | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`             |
+| `scripts/payments-meta-e2e.ts:275`                         | `APP_BASE_URL`                         | `process.env.APP_BASE_URL`                         |
+| `scripts/payments-meta-e2e.ts:277`                         | `ASAAS_BASE_URL`                       | `process.env.ASAAS_BASE_URL`                       |
+| `scripts/payments-meta-e2e.ts:278`                         | `ASAAS_BASE_URL`                       | `process.env.ASAAS_BASE_URL`                       |
+| `scripts/payments-meta-e2e.ts:355`                         | `APP_BASE_URL`                         | `process.env.APP_BASE_URL`                         |
+| `scripts/payments-meta-e2e.ts:356`                         | `ASAAS_BASE_URL`                       | `process.env.ASAAS_BASE_URL`                       |
 | `scripts/pentest-account-inventory.ts:61`                  | `PENTEST_ACCOUNT_EMAILS_JSON`          | `process.env.PENTEST_ACCOUNT_EMAILS_JSON`          |
 | `scripts/pentest-account-inventory.ts:75`                  | `<object>`                             | `process.env`                                      |
 | `scripts/probe-dev-migrations.ts:5`                        | `QORO_DEV_ENV_FILE`                    | `process.env.QORO_DEV_ENV_FILE`                    |

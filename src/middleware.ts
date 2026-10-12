@@ -97,20 +97,24 @@ export function middleware(req: NextRequest): NextResponse {
       )
     : [];
   const path = req.nextUrl.pathname;
+  const paymentReturn =
+    path === '/' &&
+    ['success', 'cancelled', 'expired'].includes(req.nextUrl.searchParams.get('payment') ?? '');
+  const publicPath = isPublicPath(path) || paymentReturn;
   const emailTokenType = req.nextUrl.searchParams.get('type');
   const hasLegacyEmailToken =
     Boolean(req.nextUrl.searchParams.get('token_hash')) &&
     ((path === '/convite' && (emailTokenType === 'invite' || emailTokenType === 'recovery')) ||
       (path === '/reset-password' && emailTokenType === 'recovery'));
   const sessionPage =
-    !isPublicPath(path) ||
+    !publicPath ||
     path === '/convite' ||
     path === '/reset-password' ||
     path === '/login/mfa' ||
     path === '/account/security';
   let res: NextResponse;
 
-  if (!isPublicPath(path) && authCookies.length === 0) {
+  if (!publicPath && authCookies.length === 0) {
     res = NextResponse.redirect(new URL('/login', req.url));
   } else if (
     cookieName &&

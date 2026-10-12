@@ -8866,3 +8866,20 @@ Permanecem como provas separadas a jornada integrada IA → template do sinal
 recebido → pagamento Sandbox → webhook → Caixa, o upload real da foto do perfil
 e o crédito final da conversão no Google Ads com campanha ativa. O smoke
 autenticado de rotas não comprova essas integrações.
+
+## 64. Sinal pelo WhatsApp com pagamento humano no Sandbox — preparação em 12/10/2026
+
+O runner de Meta/Asaas ganhou um modo de handoff para **uma única cobrança de
+sinal**. Ele deixa o Checkout Sandbox aberto para o destinatário consentido, em
+vez de cancelá-lo logo após o aceite do template. O preflight exige prova
+assinada de que o Preview usa Auth e banco DEV, callback ativo do webhook da
+clínica no mesmo Preview, Sandbox explícito, fila sem sinal concorrente e janela
+C14 de 08:00–19:59 no fuso da clínica. A troca do callback Sandbox requer opt-in
+separado e readback; nenhuma configuração de produção é alterada.
+
+O Preview e a rota foram sondados sem escrita, mas a janela C14 estava fechada.
+Por isso **não** houve mensagem nem pagamento nesta rodada, e a cadeia até o
+Caixa permanece sem PASS externo. O procedimento, resultados exatos e
+precondições de retomada estão no
+[registro de integração](quality/integracao-2026-10-09.md). A foto de perfil real
+é a etapa seguinte; a verificação empresarial pela Meta ficou para depois.

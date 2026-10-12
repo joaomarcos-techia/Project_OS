@@ -17,6 +17,7 @@ vi.mock('../infra/repository', () => ({
   getClinicTimezone: vi.fn(async () => 'America/Sao_Paulo'),
   finalizeSent: vi.fn(async () => {}),
   finalizeRetry: vi.fn(async () => {}),
+  deferUntilSendWindow: vi.fn(async () => {}),
   finalizeResend: vi.fn(async () => {}),
   finalizeFailed: vi.fn(async () => {}),
   cancel: vi.fn(async () => {}),
@@ -485,6 +486,116 @@ describe('processProactiveBatch (C14 §14.6)', () => {
       expect.objectContaining({ idempotencyKey: 'j-restante', purpose: 'billing' }),
     );
     expect(schedulingApiV1.lookupAppointment).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['07:59', '2026-10-09T10:59:59.000Z', '2026-10-09T11:00:00.000Z'],
+    ['20:00', '2026-10-09T23:00:00.000Z', '2026-10-10T11:00:00.000Z'],
+  ])(
+    'link de cobrança às %s locais não sai e volta para a próxima abertura',
+    async (_label, now, next) => {
+      vi.setSystemTime(new Date(now));
+      claim({
+        id: 'j-restante',
+        clinicId: 'c1',
+        type: 'remainder_link',
+        payload: remainderPayload,
+        attempts: 1,
+      });
+
+      const summary = await processProactiveBatch('remainder_link');
+
+      expect(summary.retried).toBe(1);
+      expect(repo.deferUntilSendWindow).toHaveBeenCalledWith(
+        'c1',
+        'j-restante',
+        'lease-1',
+        new Date(next),
+      );
+      expect(messagingApiV1.sendText).not.toHaveBeenCalled();
+      expect(repo.finalizeSent).not.toHaveBeenCalled();
+    },
+  );
+
+  it('link reservado às 19:59 não sai se a janela fechar durante o processamento', async () => {
+    vi.setSystemTime(new Date('2026-10-09T22:59:59.000Z'));
+    claim({
+      id: 'j-restante',
+      clinicId: 'c1',
+      type: 'remainder_link',
+      payload: remainderPayload,
+      attempts: 1,
+    });
+    vi.mocked(paymentsApiV1.getPayableCharge).mockImplementation(async () => {
+      vi.setSystemTime(new Date('2026-10-09T23:00:00.000Z'));
+      return {
+        chargeId: U,
+        appointmentId: U,
+        amount: 80,
+        invoiceUrl: 'https://www.asaas.com/i/current-link',
+        holdExpiresAt: null,
+      };
+    });
+
+    const summary = await processProactiveBatch('remainder_link');
+
+    expect(summary.retried).toBe(1);
+    expect(repo.deferUntilSendWindow).toHaveBeenCalledWith(
+      'c1',
+      'j-restante',
+      'lease-1',
+      new Date('2026-10-10T11:00:00.000Z'),
+    );
+    expect(messagingApiV1.sendText).not.toHaveBeenCalled();
+  });
+
+  it('o link do sinal também aguarda a próxima janela sem chamar a Meta', async () => {
+    vi.setSystemTime(new Date('2026-10-09T23:00:00.000Z'));
+    vi.mocked(schedulingApiV1.lookupAppointment).mockResolvedValue({ status: 'agendado' } as never);
+    claim({
+      id: 'j-sinal',
+      clinicId: 'c1',
+      type: 'deposit_link',
+      payload: depositPayload,
+      attempts: 1,
+    });
+
+    const summary = await processProactiveBatch('deposit_link');
+
+    expect(summary.retried).toBe(1);
+    expect(repo.deferUntilSendWindow).toHaveBeenCalledWith(
+      'c1',
+      'j-sinal',
+      'lease-1',
+      new Date('2026-10-10T11:00:00.000Z'),
+    );
+    expect(messagingApiV1.sendText).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['08:00', '2026-10-09T11:00:00.000Z'],
+    ['19:59', '2026-10-09T22:59:59.000Z'],
+  ])('link de cobrança às %s locais ainda pode sair', async (_label, now) => {
+    vi.setSystemTime(new Date(now));
+    claim({
+      id: 'j-restante',
+      clinicId: 'c1',
+      type: 'remainder_link',
+      payload: remainderPayload,
+      attempts: 1,
+    });
+    vi.mocked(messagingApiV1.sendText).mockResolvedValue({
+      id: 'o1',
+      status: 'accepted',
+      providerMessageId: 'w',
+      deduped: false,
+    });
+
+    const summary = await processProactiveBatch('remainder_link');
+
+    expect(summary.sent).toBe(1);
+    expect(messagingApiV1.sendText).toHaveBeenCalledOnce();
+    expect(repo.deferUntilSendWindow).not.toHaveBeenCalled();
   });
 
   it('1.6c: cobrança paga/estornada/inválida antes do worker não envia', async () => {
@@ -1014,11 +1125,12 @@ describe('ADR-065 — validade por tipo no send-time', () => {
       inWindowAt: '2026-10-13T22:00:00.000Z',
       expiredAt: '2026-10-14T12:00:00.000Z',
     },
-    // Enfileirado em `CREATED_AT`: vale por 7 dias.
+    // Enfileirado em `CREATED_AT`: vale por 7 dias. Às 07:45 do último dia
+    // ainda estaria fora da janela C14; usa 19:45 do dia anterior.
     {
       type: 'remainder_link',
       payload: remainderPayload,
-      inWindowAt: '2026-10-16T10:45:00.000Z',
+      inWindowAt: '2026-10-15T22:45:00.000Z',
       expiredAt: '2026-10-16T11:00:00.000Z',
     },
   ];
