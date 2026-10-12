@@ -13,7 +13,11 @@ export class PaymentCredentialRejectedError extends Error {
   /** Códigos estáveis do Asaas já sanitizados pelo adapter (nunca o corpo bruto). */
   readonly providerErrorCodes: readonly string[];
   constructor(providerErrorCodes: readonly string[] = []) {
-    super('O Asaas não aceitou essa chave. Confira se copiou a chave inteira da conta certa.');
+    super(
+      providerErrorCodes.includes('invalid_environment')
+        ? 'Esta chave é de outro ambiente do Asaas (Sandbox ou produção). Use uma chave do mesmo ambiente desta instalação da Qoro.'
+        : 'O Asaas não aceitou essa chave. Confira se copiou a chave inteira da conta certa.',
+    );
     this.name = 'PaymentCredentialRejectedError';
     this.providerErrorCodes = providerErrorCodes;
   }
