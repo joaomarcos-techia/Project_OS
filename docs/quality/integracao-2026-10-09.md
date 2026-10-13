@@ -747,3 +747,40 @@ Os dois JSONs exportados inicialmente (`01-00-27` e `01-09-18`) eram idênticos,
 entregas de 22:35 ou 01:08. O JSONL posterior, copiado diretamente dos Logs
 da Vercel, trouxe as linhas correlacionadas. O painel de logs do próprio Asaas
 não foi lido nesta rodada.
+
+### 13/10/2026 — correção publicada e reconexão real no novo Preview
+
+O commit `957b9abc` foi enviado à branch `fix/asaas-environment-copy-20261012`.
+O status da Vercel para esse SHA mudou para `success` às **02:05:25 UTC**.
+O alvo testado foi
+`https://project-os-git-fix-asaas-environ-1b3c1d-clinic-os-v2-s-projects.vercel.app`.
+Antes de qualquer escrita, `/api/signup/runtime-fingerprint` comprovou por assinatura
+que Auth e banco apontam para o projeto DEV. O E2E de navegador reconectou a
+conta Asaas Sandbox da Clínica A em `/configuracoes/pagamentos`, confirmou a
+mensagem de conta conectada, campo da chave limpo e estado mantido após reload:
+**PASS** (`node .tmp/connect-teste-final-preview.mjs`, exit 0). A chave não foi
+incluída em log, screenshot ou artefato versionado.
+
+O GET independente da configuração no Asaas Sandbox encontrou exatamente um
+webhook de cobrança de paciente; seu host agora é a URL da branch acima,
+`enabled=true`, `interrupted=false`, token configurado, bypass da proteção da
+Vercel presente e eventos `PAYMENT_CONFIRMED`/`PAYMENT_RECEIVED` inscritos:
+**PASS** (`node .tmp/inspect-sandbox-webhook.mjs <host-da-branch>`, exit 0).
+Esse readback distingue a correção em execução do código anterior, que ao
+reconectar gravava `APP_BASE_URL` de outro Preview. O E2E de navegador do retorno
+público `/?payment=success` passou **1/1** (`node .tmp/run-preview-return-e2e.mjs`,
+exit 0): a página informa verificação sem afirmar quitação antes do webhook.
+Os testes direcionados da origem dos callbacks, conexão e Checkout passaram
+**79/79** (`npx vitest run src/lib/http/application-url.test.ts
+src/contexts/payments/connect-account.test.ts
+src/contexts/payments/internal/hosted-checkout.test.ts`, exit 0). A mesma versão
+do código já havia passado **5.498/5.498** testes, TypeScript, ESLint, Prettier
+e build Next local antes do push; não houve alteração de código depois disso.
+
+Limite da evidência: a reconexão e o readback provam que o novo Preview registrou
+o webhook correto, mas ainda não há POST original do Asaas correlacionado nos
+logs **desta** URL nem um Checkout novo criado pelo runtime desta branch com os
+três callbacks relidos no provedor. A entrega real de R$ 75 e a sondagem PIX de
+R$ 10 com HTTP 200 referem-se ao Preview anterior. Esses dois checks do novo
+Preview permanecem **NOT TESTED**; a conclusão da consulta e o Google Ads seguem
+deliberadamente para a etapa final.
