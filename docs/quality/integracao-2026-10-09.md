@@ -777,13 +777,14 @@ src/contexts/payments/internal/hosted-checkout.test.ts`, exit 0). A mesma versã
 do código já havia passado **5.498/5.498** testes, TypeScript, ESLint, Prettier
 e build Next local antes do push; não houve alteração de código depois disso.
 
-Limite da evidência: a reconexão e o readback provam que o novo Preview registrou
-o webhook correto, mas ainda não há POST original do Asaas correlacionado nos
-logs **desta** URL nem um Checkout novo criado pelo runtime desta branch com os
-três callbacks relidos no provedor. A entrega real de R$ 75 e a sondagem PIX de
-R$ 10 com HTTP 200 referem-se ao Preview anterior. Esses dois checks do novo
-Preview permanecem **NOT TESTED**; a conclusão da consulta e o Google Ads seguem
-deliberadamente para a etapa final.
+Limite da evidência **naquele checkpoint**: a reconexão e o readback provavam
+que o novo Preview registrou o webhook correto, mas ainda não havia POST
+original do Asaas correlacionado nos logs **desta** URL nem um Checkout novo
+criado pelo runtime desta branch com os três callbacks relidos no provedor. A
+entrega real de R$ 75 e a sondagem PIX de R$ 10 com HTTP 200 referiam-se ao
+Preview anterior. A entrega original no novo Preview foi medida no adendo de
+03:09 UTC abaixo; a criação pelo runtime segue sem prova. A conclusão da
+consulta e o Google Ads ficam para a etapa final.
 
 ### 13/10/2026 — Checkout Sandbox de um novo agendamento da Clínica A
 
@@ -845,11 +846,11 @@ origem dos callbacks, conexão e Checkout passou **79/79**, `npx tsc --noEmit`
 e `git diff --check` terminaram com exit 0; após a publicação da branch, só
 este registro de evidência foi alterado em arquivo versionado.
 
-Para fechar a cadeia externa desta branch, falta pagar esse Checkout somente
-com cartão de teste no Sandbox e medir o POST original do Asaas no novo Preview
-com HTTP/resultado, seguido do readback `paid`, agenda confirmada e crédito.
-Até isso ocorrer: **Checkout criado e callback ecoado = PASS parcial de
-integração; pagamento → webhook → estado final nesta branch = NOT TESTED**.
+Naquele checkpoint, faltava pagar esse Checkout com cartão de teste no Sandbox
+e medir o POST original do Asaas no novo Preview, seguido do readback `paid`,
+agenda confirmada e crédito. O estado era **PASS parcial** para criação e
+callback ecoado, **NOT TESTED** para pagamento → webhook → estado final. O
+pagamento, o readback e o HTTP original foram medidos nos adendos abaixo.
 
 Também passaram **72/72** testes dos handlers de hold, fila de link e política
 de envio (`patient-charge-created.test.ts`, `patient-charge-link-ready.test.ts`,
@@ -865,3 +866,113 @@ A regra específica foi conferida em `policy.ts` e seus **16/16** testes
 --silent`, exit 0). O fato de não ter enviado neste teste vem da decisão de
 **não processar o evento de link para um telefone não autorizado**, não de uma
 suposta recusa por falta de opt-in.
+
+### 13/10/2026, 03:04 UTC — pagamento do novo Checkout e estado no Preview
+
+O fundador concluiu o Checkout Sandbox de R$ 75 com cartão de teste. O readback
+guardado (`.tmp/read-new-clinic-a-payment.ts`, exit 0, 02:58–03:01 UTC) encontrou
+na API do Asaas `CONFIRMED`, `CREDIT_CARD`, valor R$ 75 e a sessão de Checkout
+exata desta cobrança. No DEV, a cobrança passou a `paid`, ganhou
+`provider_payment_id`, teve os fatos econômicos conciliados e registrou os
+eventos `PAYMENT_CONFIRMED` e `CHECKOUT_PAID`. Na primeira leitura, a agenda
+ainda estava `agendado`/sinal `pending` e não havia crédito: o webhook publica
+eventos para o outbox, mas o Preview não executa o cron automaticamente.
+Os timestamps de persistência no DEV foram 02:58:42.852 UTC (`CHECKOUT_PAID`)
+e 02:58:43.838 UTC (`PAYMENT_CONFIRMED`), obtidos por
+`.tmp/read-new-event-times.ts` (exit 0); são a janela exata para procurar a
+requisição original na Vercel.
+
+Após conferir clínica, agendamento, cobrança, tipo, chave idempotente e status de
+cada evento, `.tmp/process-new-clinic-a-paid.ts` despachou **somente**
+`charge-paid:<chargeId>` e `credit-granted:<chargeId>`: 2 processados, zero
+falhas/skips. O readback final encontrou consulta `confirmado`, sinal `paid`,
+hold removido, um crédito antecipado de R$ 75 `available` e nenhum recebível
+criado antes do atendimento. O Asaas continuou `CONFIRMED` para o mesmo
+Checkout; no DEV, a cobrança permaneceu `paid`, com dois eventos de webhook.
+`node .tmp/run-advance-credit-readback.mjs --new` saiu com exit 0 e encontrou
+R$ 245 em cinco créditos não alocados da Clínica A, valor igual à soma SQL
+independente. Essa soma inclui R$ 75 da nova cobrança e não representa
+recebível quitado nem dinheiro liquidado na conta Asaas.
+
+No deployment da branch, `.tmp/check-new-appointment-preview.ts` abriu a
+Agenda autenticada, encontrou exatamente a linha da fixture com **“Confirmada”**
+e **“Sinal pago”**, sem prazo de hold e sem erros de página: exit 0. O primeiro
+ensaio desse runner falhou por uma expectativa textual incorreta do próprio
+teste (`Confirmado` em vez do rótulo feminino `Confirmada`); corrigida conforme
+o componente real, a repetição passou. A leitura de `/financeiro` via
+`e2e/advance-credit-financial-preview.spec.ts` no mesmo Preview passou **1/1**
+com saldo mínimo de R$ 245 (`node .tmp/run-new-preview-advance-credit-e2e.mjs`,
+exit 0), fora de “A receber”. Ambos são E2E de leitura, sem screenshot/trace.
+
+Um replay controlado do **mesmo** `PAYMENT_CONFIRMED` já persistido, enviado à
+rota da nova branch com o token configurado da conta Sandbox, retornou **HTTP
+200**, `outcome=ignored`; o readback antes/depois permaneceu cobrança `paid`,
+um crédito e dois eventos de webhook (`.tmp/replay-new-paid-webhook.ts`, exit 0).
+Isso prova disponibilidade e idempotência da rota implantada para um evento
+repetido. O GET independente da configuração Asaas ainda mostrou callback na
+branch correta, `enabled=true` e `interrupted=false`.
+
+**Limite da prova:** o status HTTP da entrega original estava **NOT TESTED**
+na primeira leitura, pois os exports da Vercel então disponíveis terminavam
+antes do pagamento; foi medido no export posterior, registrado abaixo. Ainda
+não houve Checkout novo criado pelo runtime do Preview: a criação desta fixture
+usou o código da branch localmente contra DEV/Sandbox. A conclusão da consulta de
+13/10 12:00 UTC e a alocação do crédito no recebível após atendimento continuam
+**NOT TESTED** nesta fixture; não se antecipou o relógio nem se processou a
+fila global. O evento `link_ready` continua sem despacho porque o telefone da
+fixture não é o número autorizado para envios reais.
+
+As rotas implantadas `/api/cron/payments-deposit` e `/api/cron/outbox` não
+recebem filtro por agendamento/evento: ambas processam lotes globais. Como a
+fila DEV contém eventos de outras clínicas, chamá-las só para obter um Checkout
+originado pelo runtime do Preview provocaria efeitos fora desta fixture. Não
+foi adicionado um endpoint administrativo de execução pontual apenas para
+forçar um teste verde.
+
+Como prova separada da regra de fechamento, o runner
+`.tmp/run-smoke-advance-credit-completion.mjs` repetiu em 13/10 (exit 0) o
+cenário transacional em DEV: a consulta futura conserva o crédito disponível;
+passar do horário **sozinho** não conclui nem quita; conclusão sem prontuário
+assinado é recusada; após a conclusão válida, o crédito é alocado e nasce um
+recebível quitado; reentrega não duplica baixa nem recebível. O runner confirmou
+rollback sem resíduos. Esta prova usa uma fixture sintética separada, portanto
+não transforma a conclusão da consulta paga desta seção em PASS.
+
+### 13/10/2026, 03:09 UTC — entrega original confirmada nos Logs da Vercel
+
+O export `project-os-log-export-2026-10-13T03-09-10.json`, fornecido pelo
+fundador, contém 847 linhas Preview até 03:08:50 UTC. Filtrando branch
+`fix/asaas-environment-copy-20261012`, método POST, rota de webhook do paciente
+e a janela 02:58:35–02:58:50 UTC, restaram dez linhas de **duas requisições**
+originais, ambas no deployment `dpl_5k1A2jDVFGhCFaquJF5MGn5SaRA3` e no host
+do novo Preview. O request `n5c7z-1791860319362-3e721820c7d8` verificou o
+token com `outcome=ok`, processou `CHECKOUT_PAID` com `outcome=paid` e respondeu
+**HTTP 200**. O request `4h957-1791860320672-aa9056c2e514` também verificou
+com `outcome=ok`, processou `PAYMENT_CONFIRMED` com `outcome=already_paid` e
+respondeu **HTTP 200**. A ordem explica por que houve dois eventos persistidos,
+mas só uma transição financeira e um crédito. Nenhuma URL com bypass, token ou
+payload foi copiada para o relatório.
+
+**PASS funcional nesta branch:** cartão de teste no Asaas Sandbox → dois POSTs
+originais HTTP 200 no Preview correto → cobrança `paid` e economia conciliada no
+DEV → processamento direcionado do outbox → consulta `confirmado`, sinal `paid`
+e crédito antecipado R$ 75 `available` → Agenda e Financeiro renderizados no
+Preview. O replay HTTP 200 `ignored` prova a idempotência separadamente. Os
+limites restantes são a criação do Checkout **pelo runtime** do Preview e a
+conclusão/alocação **desta consulta** após o horário e o fechamento clínico.
+
+A preparação dessa conclusão também foi lida no navegador, sem alterar estado:
+`.tmp/check-new-consultorio-preview.ts` entrou em `/consultorio` do mesmo
+Preview com a conta de teste, encontrou a fixture na faixa “A chegar hoje” e o
+controle “Check-in”, com zero erros de página (exit 0). Esse check comprova que
+o caminho manual está disponível; não equivale a check-in, prontuário assinado
+ou consulta concluída.
+
+Para fechar a fixture sem manipular o relógio, após **09:00 de 13/10 em
+Brasília** entre no Preview da branch em `/consultorio` com uma conta clínica
+autorizada, localize o paciente sintético desta consulta e use “Check-in” →
+“Chamar”. Uma conta com permissão clínica deve preencher um prontuário
+**fictício**, “Assinar consulta” e “Encerrar consulta”. Só então repetir o
+readback do crédito/recebível e a leitura de `/financeiro`; não marcar a etapa
+como PASS antes dessas ações e da conciliação observada. A assinatura torna o
+prontuário imutável, por isso a ação deve usar apenas dados sintéticos.
