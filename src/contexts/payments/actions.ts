@@ -55,7 +55,7 @@ import {
   type PaymentAccountClosureOutcome,
 } from '@/lib/payments/account-store';
 import { env } from '@/lib/env';
-import { buildApplicationUrl } from '@/lib/http/application-url';
+import { buildApplicationUrl, resolvePreviewCallbackOrigin } from '@/lib/http/application-url';
 
 import {
   PaymentCredentialRejectedError,
@@ -185,12 +185,17 @@ async function tryConfigureWebhook(
     return { ok: false, issue };
   };
 
-  const baseUrl = env.APP_BASE_URL;
+  // APP_BASE_URL pode pertencer a outro Preview; a URL auto-injetada pela Vercel
+  // identifica a branch deste deploy e permanece estavel apos um redeploy.
+  const baseUrl = env.VERCEL_ENV === 'preview' ? resolvePreviewCallbackOrigin() : env.APP_BASE_URL;
   if (!baseUrl) {
     return fail({
       code: 'qoro_missing_app_base_url',
       location: 'Configuração do Qoro, antes de chamar o Asaas',
-      message: 'APP_BASE_URL não está disponível no runtime deste deploy.',
+      message:
+        env.VERCEL_ENV === 'preview'
+          ? 'URL pública da branch Preview não está disponível no runtime deste deploy.'
+          : 'APP_BASE_URL não está disponível no runtime deste deploy.',
     });
   }
   // O Asaas exige um e-mail de contato para o webhook. Sem ele não dá para

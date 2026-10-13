@@ -668,7 +668,8 @@ Preview não roda cron, somente os eventos `charge-paid` e `credit-granted`
 desta cobrança foram despachados: agenda `confirmado`, sinal `paid`, um crédito
 R$ 75 `available`, zero recebível antes da consulta e zero evento da fixture
 pendente. **Pagamento Sandbox → webhook → Qoro → agenda/crédito: PASS funcional.**
-O status HTTP individual da entrega original no painel Asaas segue **NOT TESTED**.
+O status HTTP individual da entrega original ficou **PASS** no adendo de 13/10
+abaixo, pela requisição correlacionada nos Logs da Vercel.
 
 `node .tmp/run-advance-credit-readback.mjs --new` confirmou saldo total de
 R$ 170 em quatro créditos não alocados da Clínica A, exatamente igual à soma
@@ -683,9 +684,8 @@ A cobrança anterior, também sintética, continuou `paid`/`CONFIRMED`, com
 `provider_payment_id`, economia conciliada, consulta `confirmado`, um crédito
 `available` e zero recebível antes da consulta. Uma reentrega controlada do
 evento já processado ao endpoint do Preview retornou HTTP 200 `ignored`, sem
-duplicar crédito/evento. O HTTP individual da entrega original feita pelo Asaas
-continua **NOT TESTED** porque o log por entrega não está exposto na API de
-webhooks; exige leitura do painel do Sandbox.
+duplicar crédito/evento. A entrega original desta cobrança anterior ainda não
+tem seu próprio registro HTTP identificado neste relatório.
 
 Validações locais desta rodada: `npx vitest run --silent` **5.493/5.493 em 523
 arquivos**, exit 0; `npx tsc --noEmit`, `npx eslint .`, Prettier dos três arquivos
@@ -693,3 +693,57 @@ alterados e `git diff --check` exit 0; `npx tsx scripts/security/local-build.ts`
 exit 0 (Next 15.5.24, compilação e typecheck). O `npx eslint .` inicial apontou
 dois avisos em helper temporário ignorado pelo Git; foram removidos e a repetição
 terminou sem erros nem avisos. Nenhuma migration foi executada nesta rodada.
+
+### 13/10/2026 — HTTP do webhook e prevenção de callback para Preview antigo
+
+O usuário copiou quatro linhas JSONL dos Logs da Vercel do projeto `project-os`,
+intervalo 12/10 13:18–13/10 01:18 UTC, filtro `outcome`. O POST do evento real
+`PAYMENT_CONFIRMED` às **22:35:44.743 UTC de 12/10** atingiu a rota de webhook
+da Clínica A no deployment `dpl_Ac1X53QUvL5UEUdzwZT4p3VPrfkg`, ambiente
+`preview`, com **`responseStatusCode: 200`**. Outra linha da mesma rota às
+22:35:52.206 UTC registrou `payments.webhook.verify` com `outcome: ok` e também
+HTTP 200. Assim, a entrega HTTP do pagamento de R$ 75, antes **NOT TESTED**, é
+**PASS** no log da borda/aplicação da Vercel; o corpo de resposta informado pelo
+usuário foi `{"received":true,"outcome":"paid"}`. Readback independente em
+13/10 01:19 UTC (`node .tmp/run-readback-payments-meta.mjs --new`, exit 0)
+confirmou Asaas `CONFIRMED`, R$ 75, cartão, mesmo Checkout; no DEV, cobrança
+`paid`, fatos econômicos conciliados, agendamento `confirmado`, sinal `paid`, um
+crédito `available` de R$ 75, nenhum recebível antes da consulta e dois eventos
+persistidos: `PAYMENT_CONFIRMED` e `CHECKOUT_PAID`.
+
+Para reproduzir uma entrega nova sem tocar produção, a conta `teste_final` foi
+guardada como Sandbox e o webhook da Clínica A foi relido como ativo, não
+interrompido, com token configurado e eventos de pagamento inscritos. Seu
+callback tinha derivado para um Preview antigo após a reconexão da chave; um
+`PUT /v3/webhooks/{id}` **somente da URL**, seguido de GET, restaurou o Preview
+alvo, preservando token e eventos. Uma cobrança PIX sintética de R$ 10 foi
+criada diretamente no Sandbox, com notificações ao cliente desativadas, e
+confirmada pelo endpoint oficial de simulação às **01:08:11 UTC de 13/10**.
+O log da Vercel às **01:08:15.509 UTC** registrou `PAYMENT_RECEIVED` na rota
+esperada com **HTTP 200**. O readback DEV encontrou **zero** cobranças ou
+créditos Qoro associados a esse pagamento externo, comportamento esperado:
+ele não nasceu no Checkout da Qoro. Esse segundo POST comprova entrega e
+resposta da rota, mas não a conciliação de uma cobrança do produto.
+
+A causa do callback derivado estava no uso de `APP_BASE_URL` para registrar
+webhooks em Preview; essa variável pode conter o host de outra branch. O mesmo
+risco existia nos três retornos do Checkout hospedado. O código passou a usar
+`VERCEL_BRANCH_URL` validada (ou `VERCEL_URL` como fallback) nos callbacks
+externos de Preview, mantendo `APP_BASE_URL` em produção. URL auto-injetada
+ausente ou inválida impede o registro remoto do webhook, com aviso visível, e
+impede criar Checkout com retorno incorreto. A regressão direcionada passou
+**79/79 em três arquivos**. `npx tsc --noEmit`, ESLint dos seis arquivos de
+código tocados, Prettier e `git diff --check` saíram com exit 0. O build Next
+15.5.24 local, com variáveis de DEV e sem upload ao Sentry, compilou e terminou
+com **exit 0**. A suíte completa `npx vitest run --silent` passou **5.498/5.498
+em 523 arquivos**, exit 0. A correção ainda não foi implantada nem revalidada
+em um novo Preview; o webhook do Sandbox foi ajustado e relido separadamente.
+Como uma Server Action mudou de linha, `npx tsx scripts/security/inventory.ts
+--write` foi executado com exit 0 e atualizou somente referências de linha em
+`docs/security/acoes.md` (199 actions, 53 métodos de rota, zero pendências).
+
+Os dois JSONs exportados inicialmente (`01-00-27` e `01-09-18`) eram idênticos,
+314 linhas entre 00:30 e 00:59 UTC, e não serviam para inferir o HTTP das
+entregas de 22:35 ou 01:08. O JSONL posterior, copiado diretamente dos Logs
+da Vercel, trouxe as linhas correlacionadas. O painel de logs do próprio Asaas
+não foi lido nesta rodada.

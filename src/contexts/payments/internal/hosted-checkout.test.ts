@@ -6,6 +6,9 @@ const mocks = vi.hoisted(() => ({
   env: {
     APP_BASE_URL: 'https://app.qoro.test' as string | undefined,
     NODE_ENV: 'test' as const,
+    VERCEL_ENV: undefined as 'preview' | undefined,
+    VERCEL_URL: undefined as string | undefined,
+    VERCEL_BRANCH_URL: undefined as string | undefined,
   },
   claim: vi.fn(),
   claimRenewal: vi.fn(),
@@ -82,6 +85,9 @@ function renew() {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.env.APP_BASE_URL = 'https://app.qoro.test';
+  mocks.env.VERCEL_ENV = undefined;
+  mocks.env.VERCEL_URL = undefined;
+  mocks.env.VERCEL_BRANCH_URL = undefined;
   mocks.claim.mockResolvedValue({
     state: 'claimed',
     chargeId: 'charge-1',
@@ -131,6 +137,34 @@ describe('resolveCheckoutWindow', () => {
 });
 
 describe('createInitialHostedCheckout', () => {
+  it('retorna do Checkout para a branch Preview atual mesmo com APP_BASE_URL antigo', async () => {
+    mocks.env.VERCEL_ENV = 'preview';
+    mocks.env.VERCEL_BRANCH_URL = 'preview-atual.vercel.app';
+    mocks.env.APP_BASE_URL = 'https://preview-antigo.vercel.app';
+    await expect(run()).resolves.toBe('created');
+    const [input] = mocks.createCheckout.mock.calls[0] as [
+      {
+        callback: {
+          successUrl: string;
+          cancelUrl: string;
+          expiredUrl: string;
+        };
+      },
+    ];
+    expect(input.callback).toEqual({
+      successUrl: 'https://preview-atual.vercel.app/?payment=success',
+      cancelUrl: 'https://preview-atual.vercel.app/?payment=cancelled',
+      expiredUrl: 'https://preview-atual.vercel.app/?payment=expired',
+    });
+  });
+
+  it('não cria Checkout em Preview sem URL auto-injetada válida', async () => {
+    mocks.env.VERCEL_ENV = 'preview';
+    mocks.env.APP_BASE_URL = 'https://preview-antigo.vercel.app';
+    await expect(run()).rejects.toThrow('URL pública da branch Preview');
+    expect(mocks.createCheckout).not.toHaveBeenCalled();
+  });
+
   it('não chama Asaas quando a reserva encontra a conta pausada', async () => {
     mocks.claim.mockResolvedValue({ state: 'account_paused' });
     await expect(run()).resolves.toBe('account_paused');

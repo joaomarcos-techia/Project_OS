@@ -6,7 +6,7 @@
  * falha indeterminada vira `creation_unknown` e nunca retry cego.
  */
 import { env } from '@/lib/env';
-import { buildApplicationUrl } from '@/lib/http/application-url';
+import { buildApplicationUrl, resolvePreviewCallbackOrigin } from '@/lib/http/application-url';
 import { metrics } from '@/lib/observability/metrics';
 import {
   BillingProviderError,
@@ -49,10 +49,15 @@ function checkoutCallbacks(): {
   cancelUrl: string;
   expiredUrl: string;
 } {
-  if (!env.APP_BASE_URL) {
-    throw new Error('[payments] APP_BASE_URL é obrigatória para callback do Checkout');
+  const baseUrl = env.VERCEL_ENV === 'preview' ? resolvePreviewCallbackOrigin() : env.APP_BASE_URL;
+  if (!baseUrl) {
+    throw new Error(
+      env.VERCEL_ENV === 'preview'
+        ? '[payments] URL pública da branch Preview é obrigatória para callback do Checkout'
+        : '[payments] APP_BASE_URL é obrigatória para callback do Checkout',
+    );
   }
-  const root = buildApplicationUrl(env.APP_BASE_URL, '/', {
+  const root = buildApplicationUrl(baseUrl, '/', {
     allowInsecureLocalhost: env.NODE_ENV !== 'production',
   });
   const callback = (result: 'success' | 'cancelled' | 'expired') => {

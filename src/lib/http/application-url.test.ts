@@ -22,6 +22,7 @@ import {
   createOnboardingInviteUrl,
   createPasswordResetRedirectUrl,
   resolveTrustedApplicationOrigin,
+  resolvePreviewCallbackOrigin,
 } from './application-url';
 
 describe('buildApplicationUrl', () => {
@@ -75,6 +76,17 @@ describe('buildApplicationUrl', () => {
       expect(resolveTrustedApplicationOrigin(request)).toBe(origin);
     },
   );
+
+  it('usa a branch Preview no callback persistente e rejeita host invalido', () => {
+    mockEnv.VERCEL_ENV = 'preview';
+    mockEnv.VERCEL_URL = 'deploy-atual.vercel.app';
+    mockEnv.VERCEL_BRANCH_URL = 'branch-atual.vercel.app';
+    expect(resolvePreviewCallbackOrigin()).toBe('https://branch-atual.vercel.app');
+    mockEnv.VERCEL_BRANCH_URL = 'https://user:pass@evil.test';
+    expect(resolvePreviewCallbackOrigin()).toBe('https://deploy-atual.vercel.app');
+    mockEnv.VERCEL_URL = undefined;
+    expect(resolvePreviewCallbackOrigin()).toBeNull();
+  });
 
   it.each([
     ['host Vercel nao allowlisted', 'preview-atacante.vercel.app', 'same-origin'],
