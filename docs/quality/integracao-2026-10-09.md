@@ -996,15 +996,12 @@ R$ 150 em estado `parcial`, com R$ 75 pagos e R$ 75 restantes. **PASS** para
 atendimento concluído → evento → lançamento e alocação nesta fixture;
 pagamento do saldo restante continua não testado.
 
-Para provar Checkout criado pelo **runtime do Preview**, o preflight somente
-leitura da rota `/api/cron/payments-deposit` achou uma clínica habilitada, zero
-candidatos a sinal, exatamente um candidato a saldo não cobrado (esta fixture),
-mas também **um hold vencido**. A rota roda, em paralelo, `expireDepositHolds`,
-que cancelaria esse outro agendamento. Não executamos o cron global para não
-alterar uma fixture alheia. Continua **BLOCKED por escopo da rota**; a prova
-anterior de criação do Checkout foi pelo código local contra DEV/Sandbox, com
-webhook recebido pelo Preview, e não deve ser reclassificada como prova de
-criação no runtime implantado.
+Para provar Checkout criado pelo **runtime do Preview**, o primeiro preflight
+somente leitura da rota `/api/cron/payments-deposit` achou uma clínica
+habilitada, zero candidatos a sinal, exatamente um candidato a saldo não
+cobrado (esta fixture), mas também **um hold vencido**. A rota roda em paralelo
+`expireDepositHolds`, que cancelaria esse outro agendamento. A execução foi
+adiada até identificar o hold e medir seus efeitos; o resultado está abaixo.
 
 Na UI de `/configuracoes/whatsapp`, o número dedicado de teste retornou uma
 `profilePictureUrl` da Meta em `pps.whatsapp.net`; o GET da imagem deu HTTP 200,
@@ -1023,8 +1020,9 @@ em 524 arquivos; `npx tsc --noEmit --incremental false`, `npx eslint .` e
 18 páginas estáticas). O lint havia reportado dois imports não usados apenas
 em um helper ignorado `.tmp`, removidos depois; nenhum arquivo versionado teve
 erro de lint. O Prettier dos arquivos tocados e `git diff --check` passaram.
-Esses gates não transformam a foto em PASS no Preview nem eliminam o bloqueio
-de escopo do cron.
+Esses gates, sozinhos, não transformam a foto em PASS no Preview nem provam a
+criação do Checkout pelo runtime implantado. Ambas as provas foram realizadas
+depois, como registrado abaixo.
 
 Após publicar `d62bdca6` somente na branch do PR #39, a Vercel concluiu o
 deployment. O mesmo probe autenticado de navegador contra
@@ -1037,3 +1035,19 @@ sem “Faturada” e zero erros de página. Isso fecha a correção visual para 
 número **dedicado**. Foto em coexistência continua sem prova externa atual,
 pois não há conexão ativa desse tipo no DEV; seu fallback está coberto por
 teste de componente. Não houve merge em `main` nem escrita em produção.
+
+**Checkout criado no runtime do Preview (13/10):** um segundo preflight
+identificou o único hold vencido como outro agendamento da mesma clínica de
+teste, criado havia 124 horas, com paciente sintético, horário passado e sem
+prontuário. Não havia outros candidatos a sinal, saldo, renovação ou refund.
+Com guardas de projeto DEV, host Asaas Sandbox, branch Preview, conta ativa e
+IDs exatos da fixture, `node .tmp/run-verify-clinic-a-completion.mjs
+--preview-remainder-cron` chamou **uma vez** o cron implantado. Resultado:
+exit 0, **HTTP 200**, `remainder.charged=1`, `remainder.failed=0`,
+`failures=0` e `expiry.cancelled=1`. Readback separado do banco: uma cobrança
+`remainder` de **R$ 75,00** `pending` para a consulta concluída, com
+`provider_checkout_id` presente e URL no host `sandbox.asaas.com`. O hold
+sintético ficou `cancelado`/`expired`, exatamente o efeito esperado do cron.
+**PASS** para criação de Checkout pelo runtime do Preview → Asaas Sandbox →
+persistência DEV. Pagamento desse saldo e envio do link por WhatsApp continuam
+**NOT TESTED**; o outbox global não foi executado.
