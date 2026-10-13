@@ -78,6 +78,7 @@ describe('fechamento dos canais de exfiltração (auditoria 2026-09-10, item 10)
     expect(img).toContain("'self'");
     expect(img).toContain('data:');
     expect(img).toContain(SUPABASE);
+    expect(img).toContain('https://pps.whatsapp.net');
   });
 
   it('script-src perdeu unsafe-eval', () => {

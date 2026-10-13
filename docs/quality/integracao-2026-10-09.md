@@ -976,3 +976,52 @@ autorizada, localize o paciente sintético desta consulta e use “Check-in” �
 readback do crédito/recebível e a leitura de `/financeiro`; não marcar a etapa
 como PASS antes dessas ações e da conciliação observada. A assinatura torna o
 prontuário imutável, por isso a ação deve usar apenas dados sintéticos.
+
+### 13/10/2026 — encerramento da consulta e apresentação do perfil WhatsApp
+
+O operador concluiu a consulta sintética e a tela mostrou “Faturada”. O readback
+independente em DEV (`node .tmp/run-verify-clinic-a-completion.mjs`, exit 0,
+13:48:47 UTC) encontrou o agendamento `atendido`, um prontuário assinado e o
+crédito de R$ 75 ainda `available`, mas **nenhum recebível**: o evento
+`scheduling.appointment.completed` estava `pending` no outbox do Preview. Logo,
+o rótulo “Faturada” não provava lançamento financeiro. Corrigimos a lista de
+consultas para usar o fato clínico “Concluída”, coberto por dois testes focados.
+
+O dispatcher foi chamado **somente** para o evento pendente desta fixture,
+com guardas de clínica/agendamento DEV e prontuário assinado, sem executar o
+cron global (`node .tmp/run-verify-clinic-a-completion.mjs --process`, exit 0:
+1 processado, 0 falhas). No readback de 13:51:39 UTC, o evento estava
+`processed`, o crédito `allocated` em R$ 75, e havia **um** recebível de
+R$ 150 em estado `parcial`, com R$ 75 pagos e R$ 75 restantes. **PASS** para
+atendimento concluído → evento → lançamento e alocação nesta fixture;
+pagamento do saldo restante continua não testado.
+
+Para provar Checkout criado pelo **runtime do Preview**, o preflight somente
+leitura da rota `/api/cron/payments-deposit` achou uma clínica habilitada, zero
+candidatos a sinal, exatamente um candidato a saldo não cobrado (esta fixture),
+mas também **um hold vencido**. A rota roda, em paralelo, `expireDepositHolds`,
+que cancelaria esse outro agendamento. Não executamos o cron global para não
+alterar uma fixture alheia. Continua **BLOCKED por escopo da rota**; a prova
+anterior de criação do Checkout foi pelo código local contra DEV/Sandbox, com
+webhook recebido pelo Preview, e não deve ser reclassificada como prova de
+criação no runtime implantado.
+
+Na UI de `/configuracoes/whatsapp`, o número dedicado de teste retornou uma
+`profilePictureUrl` da Meta em `pps.whatsapp.net`; o GET da imagem deu HTTP 200,
+mas o Playwright do Preview observou `imageLoaded=false` e três violações de
+CSP `img-src`. A CSP local passou a permitir **somente essa origem** para
+imagens, e o componente substitui por iniciais a foto que falhar no navegador.
+O mesmo formulário é somente leitura em coexistência e editável no modo
+dedicado, conforme os testes da UI. A conexão ativa atual em DEV é dedicada;
+não há conexão ativa de coexistência disponível para um readback externo da
+foto nesse modo. A correção visual precisa ser observada de novo no Preview
+após o deploy desta branch antes de receber PASS externo.
+
+**Gates locais após a correção:** `npx vitest run --silent` passou 5.501/5.501
+em 524 arquivos; `npx tsc --noEmit --incremental false`, `npx eslint .` e
+`npx tsx scripts/security/local-build.ts` terminaram com exit 0 (Next 15.5.24,
+18 páginas estáticas). O lint havia reportado dois imports não usados apenas
+em um helper ignorado `.tmp`, removidos depois; nenhum arquivo versionado teve
+erro de lint. O Prettier dos arquivos tocados e `git diff --check` passaram.
+Esses gates não transformam a foto em PASS no Preview nem eliminam o bloqueio
+de escopo do cron.

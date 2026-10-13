@@ -49,8 +49,8 @@ export function FinalizedList({
                   Sem cobrança
                 </Badge>
               ) : (
-                <Badge tone="green" dot>
-                  Faturada
+                <Badge tone="gray" dot>
+                  Concluída
                 </Badge>
               )}
             </span>
