@@ -784,3 +784,84 @@ três callbacks relidos no provedor. A entrega real de R$ 75 e a sondagem PIX de
 R$ 10 com HTTP 200 referem-se ao Preview anterior. Esses dois checks do novo
 Preview permanecem **NOT TESTED**; a conclusão da consulta e o Google Ads seguem
 deliberadamente para a etapa final.
+
+### 13/10/2026 — Checkout Sandbox de um novo agendamento da Clínica A
+
+Os exports da Vercel foram conferidos sem reproduzir query strings nem tokens:
+`project-os-log-export-2026-10-13T01-09-18.json` repete os 314 registros de
+00:30–00:59 UTC, todos de produção. O CSV `02-29-54` contém 9.203 registros
+de 12/10 14:30 a 13/10 02:29 UTC (8.676 produção, 527 Preview). O CSV
+`02-33-14` é o subconjunto Preview de 527 registros, entre 12/10 22:04 e
+13/10 02:28 UTC. Nele, a entrega original do Preview anterior às 22:35 UTC
+recebeu HTTP 200, verificação `ok` e processamento `paid`; o POST de 01:08 UTC
+recebeu HTTP 200 e `unknown_charge`, como esperado para a sonda PIX externa.
+Para a nova branch há 42 registros, mas só um GET do webhook com HTTP 405 às
+02:11 UTC: **a entrega original POST no novo Preview ainda não foi medida**.
+
+O usuário informou ter criado pela UI do novo Preview um agendamento sintético
+da Clínica A. O banco registra sua criação às **02:41:24 UTC**, com consulta
+marcada para **13/10 12:00 UTC** e valor R$ 150; o export da Vercel termina
+antes disso e não comprova a origem do POST da Agenda. O readback
+guardado encontrou um único agendamento novo, nenhum `patient_charge`, política
+de sinal ativa a 50%, conta Sandbox ativa e webhook configurado. Antes da criação
+da cobrança, `getPaymentIdentity` confirmou CPF válido e
+`/api/signup/runtime-fingerprint` confirmou Auth/DB DEV. A fila geral continha
+eventos de várias clínicas; **não** se invocou `/api/cron/outbox` nem
+`/api/cron/payments-deposit` globalmente.
+
+`createDepositCharge` foi chamado **localmente** sobre apenas esse agendamento,
+com banco DEV, Asaas Sandbox e variáveis de Preview da branch. O Asaas aceitou
+o `POST /checkouts` e sua resposta ecoou `successUrl`, `cancelUrl` e
+`expiredUrl` no host da nova branch. Readback independente no DEV: exatamente
+uma cobrança `pending` de **R$ 75**, Checkout ativo com ID persistido e link
+hospedado presente. Um GET externo do link hospedado retornou HTTP 200. O
+Checkout vence em **13/10 11:59:21 UTC**, pois o hold não ultrapassa a consulta.
+Esses checks comprovam o código real da branch contra Sandbox e DEV, mas
+**não equivalem a um Checkout criado pelo runtime implantado no Preview**.
+
+O evento `payments.patient_charge.created` dessa cobrança foi processado com
+`runOutboxEventsNow` filtrado por tipo e chave idempotente: **1 processado,
+0 falhas, 0 skips**. Readback mostrou `deposit_status=pending` e hold futuro.
+O evento `link_ready` não foi processado: o paciente escolhido é sintético, mas
+seu telefone não corresponde ao número de teste autorizado. A política do
+produto classifica `deposit_link` como mensagem transacional de lembrete:
+**não** exige o opt-in de cobrança usado por `remainder_link`/`dunning`.
+Nenhuma mensagem foi enviada. Os runners temporários e
+o readback ficam sob `.tmp/` (ignorado pelo Git); não contêm chave, senha,
+telefone ou link do Checkout em log versionado.
+
+O E2E de navegador autenticado contra a Agenda **implantada** no novo Preview
+encontrou exatamente uma linha desse paciente no dia 13/10, badge **“Sinal
+pendente”** e prazo visível da vaga; zero erros de página
+(`.tmp/check-new-appointment-preview.ts`, exit 0, sem screenshot/trace). O
+Checkout hospedado no Asaas Sandbox também abriu em Chromium com HTTP 200,
+R$ 75 visíveis e zero erros de página
+(`.tmp/check-new-asaas-checkout-ui.mjs`, exit 0). A página inicial ainda não
+mostrou seleção PIX/cartão na leitura automática, então esses controles não
+foram classificados como PASS de UI. Readback DEV + Asaas às **02:52:05 UTC**:
+cobrança `pending`, agendamento `agendado`, sinal `pending`, zero crédito, zero
+webhook dessa cobrança e nenhuma `payment` ligada ao Checkout. A regressão da
+origem dos callbacks, conexão e Checkout passou **79/79**, `npx tsc --noEmit`
+e `git diff --check` terminaram com exit 0; após a publicação da branch, só
+este registro de evidência foi alterado em arquivo versionado.
+
+Para fechar a cadeia externa desta branch, falta pagar esse Checkout somente
+com cartão de teste no Sandbox e medir o POST original do Asaas no novo Preview
+com HTTP/resultado, seguido do readback `paid`, agenda confirmada e crédito.
+Até isso ocorrer: **Checkout criado e callback ecoado = PASS parcial de
+integração; pagamento → webhook → estado final nesta branch = NOT TESTED**.
+
+Também passaram **72/72** testes dos handlers de hold, fila de link e política
+de envio (`patient-charge-created.test.ts`, `patient-charge-link-ready.test.ts`,
+`process.test.ts`, exit 0). A falta de opt-in bloqueia `remainder_link` e
+`dunning`, não `deposit_link`; esses testes não substituem a entrega externa
+ao paciente autorizado. O readback repetido às **02:57:59 UTC** continuou
+`pending` no Qoro e sem
+pagamento do Checkout no Asaas. `npx prettier --check` deste documento saiu
+com exit 0.
+
+A regra específica foi conferida em `policy.ts` e seus **16/16** testes
+(`npx vitest run src/contexts/ai-agent/proactive-jobs/application/policy.test.ts
+--silent`, exit 0). O fato de não ter enviado neste teste vem da decisão de
+**não processar o evento de link para um telefone não autorizado**, não de uma
+suposta recusa por falta de opt-in.
