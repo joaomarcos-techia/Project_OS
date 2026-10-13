@@ -1025,3 +1025,15 @@ em um helper ignorado `.tmp`, removidos depois; nenhum arquivo versionado teve
 erro de lint. O Prettier dos arquivos tocados e `git diff --check` passaram.
 Esses gates não transformam a foto em PASS no Preview nem eliminam o bloqueio
 de escopo do cron.
+
+Após publicar `d62bdca6` somente na branch do PR #39, a Vercel concluiu o
+deployment. O mesmo probe autenticado de navegador contra
+`project-os-git-fix-asaas-environ-1b3c1d-clinic-os-v2-s-projects.vercel.app`
+retornou exit 0: perfil carregado, imagem presente de `pps.whatsapp.net`,
+`imageLoaded=true`, **zero** violações de CSP para imagem e edição habilitada
+no número dedicado. Outro probe autenticado no mesmo Preview e na mesma
+consulta sintética retornou exit 0: linha finalizada única com “Concluída”,
+sem “Faturada” e zero erros de página. Isso fecha a correção visual para o
+número **dedicado**. Foto em coexistência continua sem prova externa atual,
+pois não há conexão ativa desse tipo no DEV; seu fallback está coberto por
+teste de componente. Não houve merge em `main` nem escrita em produção.
