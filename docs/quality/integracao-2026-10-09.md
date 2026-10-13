@@ -1051,3 +1051,13 @@ sintético ficou `cancelado`/`expired`, exatamente o efeito esperado do cron.
 **PASS** para criação de Checkout pelo runtime do Preview → Asaas Sandbox →
 persistência DEV. Pagamento desse saldo e envio do link por WhatsApp continuam
 **NOT TESTED**; o outbox global não foi executado.
+
+Uma leitura autenticada posterior de `/financeiro` no mesmo Preview encontrou
+uma linha do paciente sintético com “A receber”, valor **R$ 150,00** e
+“**R$ 75,00 em aberto**”. O probe de navegador, porém, **não recebeu PASS**:
+capturou um `pageerror` na navegação por `/consultorio`; nas repetições, a
+autenticação passou a exceder o limite de navegação de 60 s. A causa desse
+erro de browser/login não foi identificada e nenhuma nova tentativa de login
+foi feita depois disso para não agravar possível rate limit. A linha vista é
+evidência **parcial de UI**; o estado financeiro `parcial` e a alocação de
+R$ 75 têm prova independente no banco, registrada acima.
