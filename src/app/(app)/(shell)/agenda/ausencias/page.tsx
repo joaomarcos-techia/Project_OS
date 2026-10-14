@@ -63,6 +63,30 @@ export default async function DoctorAbsencesPage({ searchParams }: { searchParam
   // Um não-practitioner sem gestão de equipe não tem agenda própria para
   // ausentar-se — a tela não teria o que oferecer.
   if (doctors.length === 0) {
+    if (canManageTeam) {
+      return (
+        <>
+          <PageHeader
+            crumbs={[
+              { label: 'Operação' },
+              { label: 'Agenda', href: '/agenda' },
+              { label: 'Ausências médicas' },
+            ]}
+            title="Ausências médicas"
+            description="Registre um período e reorganize os atendimentos afetados de forma auditável."
+          />
+          <EmptyState
+            title="Nenhum profissional disponível"
+            description="Cadastre um profissional na equipe para registrar ausências."
+            action={
+              <Link href="/equipe" className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
+                Ir para equipe
+              </Link>
+            }
+          />
+        </>
+      );
+    }
     return (
       <Alert variant="warning" title="Sem permissão">
         Você só pode registrar ausências da sua própria agenda, e seu perfil não tem agenda de

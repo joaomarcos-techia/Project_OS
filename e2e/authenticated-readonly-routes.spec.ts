@@ -36,7 +36,7 @@ const READ_ONLY_ROUTES = [
 type RouteInventory = {
   route: string;
   status: number;
-  heading: string;
+  issue?: string;
 };
 
 async function assertFirstDynamicRoute(
@@ -95,7 +95,7 @@ test.describe('auditoria autenticada somente-leitura', () => {
   test('todas as rotas estáticas do shell renderizam sem erro de servidor', async ({
     page,
   }, testInfo) => {
-    test.setTimeout(180_000);
+    test.setTimeout(300_000);
     test.skip(
       !hasE2ECredentials(),
       'Defina E2E_USER_EMAIL e E2E_USER_PASSWORD de uma conta descartável.',
@@ -106,26 +106,34 @@ test.describe('auditoria autenticada somente-leitura', () => {
     const inventory: RouteInventory[] = [];
     for (const expectation of READ_ONLY_ROUTES) {
       const { route, heading } = expectation;
-      const response = await page.goto(route);
-      const status = response?.status();
-      expect(status, `${route} não respondeu 200`).toBe(200);
-      await expect(page, `${route} redirecionou indevidamente para login`).not.toHaveURL(
-        /\/login(?:\?|$)/,
-      );
-      await expect(page.locator('main')).toBeVisible({ timeout: 30_000 });
-      const title = page.getByRole('heading', { level: 1, name: heading });
-      await expect(title, `${route} não renderizou o contrato visual da página`).toBeVisible();
-      await expect(
-        page.getByText('Sem acesso', { exact: true }),
-        `${route} foi negada à conta que deveria cobrir as rotas operacionais`,
-      ).toHaveCount(0);
-      await expect(page.getByText('Página não encontrada', { exact: true })).toHaveCount(0);
-
-      inventory.push({
-        route,
-        status: status!,
-        heading: (await title.innerText()).trim(),
-      });
+      let status = 0;
+      let issue: string | undefined;
+      try {
+        const response = await page.goto(route);
+        status = response?.status() ?? 0;
+        if (status !== 200) issue = `HTTP ${status}`;
+        else if (/\/login(?:\?|$)/u.test(page.url())) issue = 'redirecionou para login';
+        else {
+          await page.locator('main').waitFor({ state: 'visible', timeout: 30_000 });
+          const title = page.getByRole('heading', { level: 1, name: heading });
+          try {
+            await title.waitFor({ state: 'visible', timeout: 10_000 });
+          } catch {
+            issue = 'título esperado ausente';
+          }
+          if (!issue && (await page.getByText('Sem acesso', { exact: true }).count()) > 0) {
+            issue = 'acesso negado';
+          } else if (
+            !issue &&
+            (await page.getByText('Página não encontrada', { exact: true }).count()) > 0
+          ) {
+            issue = 'página não encontrada';
+          }
+        }
+      } catch {
+        issue = 'navegação ou renderização falhou';
+      }
+      inventory.push({ route, status, ...(issue ? { issue } : {}) });
     }
 
     await testInfo.attach('authenticated-readonly-route-inventory.json', {
@@ -133,6 +141,10 @@ test.describe('auditoria autenticada somente-leitura', () => {
       contentType: 'application/json',
     });
     console.log(`[readonly-route-audit] ${JSON.stringify(inventory)}`);
+    expect(
+      inventory.filter((entry) => entry.issue),
+      'Todas as rotas devem ser verificadas; falhas anteriores não podem esconder as seguintes.',
+    ).toEqual([]);
   });
 
   test('as rotas dinâmicas existentes mantêm a sessão e renderizam', async ({ page }, testInfo) => {

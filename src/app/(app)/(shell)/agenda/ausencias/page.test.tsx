@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
+import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
@@ -73,6 +74,31 @@ describe('/agenda/ausencias pagination', () => {
     expect(requireClinicId).not.toHaveBeenCalled();
     expect(listEmployees).not.toHaveBeenCalled();
     expect(listDoctorAbsencesPage).not.toHaveBeenCalled();
+  });
+
+  it('orienta o gestor de uma clínica sem médicos sem alegar falta de permissão', async () => {
+    listEmployees.mockResolvedValue([]);
+
+    const html = renderToStaticMarkup(
+      await DoctorAbsencesPage({ searchParams: Promise.resolve({}) }),
+    );
+
+    expect(html).toContain('Ausências médicas');
+    expect(html).toContain('Nenhum profissional disponível');
+    expect(html).toContain('href="/equipe"');
+    expect(html).not.toContain('Sem permissão');
+  });
+
+  it('mantém o bloqueio para quem não administra a equipe e não tem agenda própria', async () => {
+    administersTeamSchedule.mockReturnValue(false);
+    listEmployees.mockResolvedValue([]);
+
+    const html = renderToStaticMarkup(
+      await DoctorAbsencesPage({ searchParams: Promise.resolve({}) }),
+    );
+
+    expect(html).toContain('Sem permissão');
+    expect(html).not.toContain('href="/equipe"');
   });
 
   it('consulta somente a página e os filtros validados da URL', async () => {
