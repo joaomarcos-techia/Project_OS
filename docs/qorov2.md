@@ -8890,9 +8890,11 @@ A conta Pro criada para o PR #39 foi exercitada no Preview com Auth e banco DEV
 comprovados pelo probe assinado. Um erro de estado vazio em
 `/agenda/ausencias` foi corrigido: o owner sem profissionais agora recebe o
 convite para cadastrar a equipe, enquanto usuários sem permissão continuam
-barrados. O build, lint, TypeScript e 5.503 testes Vitest passaram para essa
-correção. A rodada E2E verificou 28 rotas autenticadas, navegação e fronteira
-de `/admin`, ações selecionadas de Configurações, validação negativa da política
+barrados. Um E2E confirmou o link para `/equipe` e que o formulário da Agenda
+desabilita agendar e criar encaixe sem procedimento. O build, lint, TypeScript
+e 5.503 testes Vitest passaram para essa correção. A rodada E2E verificou
+28 rotas autenticadas, navegação e fronteira de `/admin`, ações selecionadas de
+Configurações, validação negativa da política
 de preço e 6 cenários de revisão de repasse e configuração PIX/cartão com roles
 e tenants reais em DEV.
 O último limpou a fixture com readback sem resíduos.

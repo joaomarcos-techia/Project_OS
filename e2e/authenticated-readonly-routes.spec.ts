@@ -149,6 +149,33 @@ test.describe('auditoria autenticada somente-leitura', () => {
     ).toEqual([]);
   });
 
+  test('clínica vazia orienta o gestor e impede agendamento sem procedimento', async ({ page }) => {
+    test.skip(
+      !hasE2ECredentials() || process.env.E2E_EXPECT_EMPTY_CLINIC !== '1',
+      'Exige conta de clínica DEV sem profissionais e sem procedimentos.',
+    );
+    await authenticate(page);
+
+    await page.goto('/agenda/ausencias');
+    await expect(page.getByRole('heading', { level: 1, name: 'Ausências médicas' })).toBeVisible();
+    await expect(page.getByText('Nenhum profissional disponível')).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Ir para equipe' })).toHaveAttribute(
+      'href',
+      '/equipe',
+    );
+    await expect(page.getByText('Sem permissão', { exact: true })).toHaveCount(0);
+
+    await page.goto('/agenda');
+    await page.getByRole('button', { name: 'Novo atendimento' }).click();
+    const drawer = page.getByRole('dialog', { name: 'Novo atendimento' });
+    await expect(
+      drawer.getByText('Nenhum procedimento cadastrado', { exact: false }),
+    ).toBeVisible();
+    await expect(drawer.getByRole('button', { name: 'Agendar', exact: true })).toBeDisabled();
+    await drawer.getByRole('radio', { name: 'Encaixe (agora)' }).click();
+    await expect(drawer.getByRole('button', { name: 'Criar encaixe' })).toBeDisabled();
+  });
+
   test('as rotas dinâmicas existentes mantêm a sessão e renderizam', async ({ page }, testInfo) => {
     test.setTimeout(120_000);
     test.skip(

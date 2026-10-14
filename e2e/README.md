@@ -15,6 +15,7 @@ abaixo.
 | `admin-superadmin-journey.spec.ts` | `E2E_BASE_URL` **de Preview** + `SUPER_ADMIN_*_DEV` + `DATABASE_URL` | não (muta estado GLOBAL) |
 | `tenant-settings-screens.spec.ts` | `E2E_BASE_URL` + conta de clínica descartável | não (cria e apaga modelo de receita) |
 | `advanced-financial-entitlement-preview.spec.ts` | Preview + conta Pro/Clínica; `E2E_EXPECT_ADVANCED_FINANCIAL=1`; negativo exige `E2E_EXPECT_NO_METHOD_PRICES=1` e segredo do probe assinado | não (depende de fixture DEV) |
+| `authenticated-readonly-routes.spec.ts`, caso de clínica vazia | conta DEV sem profissionais/procedimentos + `E2E_EXPECT_EMPTY_CLINIC=1` | não (depende do estado da conta) |
 | `production-*.spec.ts` (44) | variável de autorização + credenciais de clínica sintética + `DATABASE_URL_PROD` | não, por design |
 | mutáveis locais | `E2E_MUTATION=1` + banco de desenvolvimento | não |
 

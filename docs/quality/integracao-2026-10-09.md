@@ -1115,6 +1115,7 @@ Preview e usaram apenas fixture criada e removida pelo próprio teste.
 | `e2e/payout-review-preview.spec.ts` | 6 PASS, exit 0, 4,5 min | Duas clínicas e cinco usuários sintéticos no DEV; repasse com estorno parcial, revisão com teto, roles, tenant, idempotência, revogação, Solo e configuração PIX/cartão. Sem Asaas. |
 | `scripts/run-signup-confirmation-e2e.ts` → `e2e/signup-confirmation.spec.ts` | 7 PASS, exit 0, 5,8 min | Envio e leitura reais no Resend DEV, confirmação entre aparelhos, código na aba original, Checkout Sandbox, retomada de draft expirado, conta legada, segundo draft e reenvio. Fixture local e lock removidos. |
 | `e2e/accounting-export.spec.ts` | 3 PASS após correção do teste; primeira execução 2 PASS, 1 FAIL | CSV vazio com cabeçalho, mês inválido 422 e bloqueio anônimo. Sem lançamentos, esta conta não prova linhas financeiras reais. |
+| `e2e/authenticated-readonly-routes.spec.ts`, caso de clínica vazia | 1 PASS, exit 0 | Owner vê ação para cadastrar equipe; agendar e criar encaixe ficam desabilitados sem procedimento. |
 
 A primeira varredura autenticada encontrou `/agenda/ausencias` respondendo 200,
 mas exibindo “Sem permissão” ao owner de clínica recém-criada sem profissionais.
@@ -1124,6 +1125,10 @@ e mantém a negativa para quem não administra a equipe. Dois testes de página
 cobrem os ramos. Antes do deploy, o E2E agregado registrou 25 rotas sem falha e
 essa rota com título ausente; após o deploy, 26/26 passaram no mesmo Preview. O
 inventário foi então ampliado para Auditoria e Pagamentos e passou 28/28.
+Um caso E2E específico da mesma clínica confirmou o estado vazio de Ausências
+com link para `/equipe` e, no drawer da Agenda, o bloqueio de “Agendar” e
+“Criar encaixe” quando não há procedimento. Isso exerce a interação do gestor,
+além do título da rota; nenhuma gravação foi feita.
 
 O primeiro `login-and-navigation` também revelou duas causas distintas: a
 expectativa do teste ainda usava o título antigo “Bem-vindo de volta” e a antiga
