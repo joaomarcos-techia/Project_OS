@@ -9,13 +9,21 @@ abaixo.
 | Família | Precisa de | Roda em CI? |
 | --- | --- | --- |
 | `public-surface.spec.ts` | nada (ou `E2E_BASE_URL`) | **sim** — `pnpm test:e2e:ci` |
-| `signup-session-api.spec.ts` | `E2E_BASE_URL` | não (precisa de banco) |
+| `signup-session-api.spec.ts` | `E2E_BASE_URL`; casos de Turnstile exigem `E2E_TURNSTILE_MODE` no Preview | não (precisa de banco) |
 | `admin-boundary-rbac.spec.ts` | `E2E_BASE_URL` + conta de clínica descartável | não (precisa de credencial) |
 | `payments-account-lifecycle.spec.ts` | `E2E_BASE_URL` **de Preview** + `ASAAS_CLINIC_SANDBOX_KEY` | não (cria estado no Asaas) |
 | `admin-superadmin-journey.spec.ts` | `E2E_BASE_URL` **de Preview** + `SUPER_ADMIN_*_DEV` + `DATABASE_URL` | não (muta estado GLOBAL) |
 | `tenant-settings-screens.spec.ts` | `E2E_BASE_URL` + conta de clínica descartável | não (cria e apaga modelo de receita) |
+| `advanced-financial-entitlement-preview.spec.ts` | Preview + conta Pro/Clínica; `E2E_EXPECT_ADVANCED_FINANCIAL=1`; negativo exige `E2E_EXPECT_NO_METHOD_PRICES=1` e segredo do probe assinado | não (depende de fixture DEV) |
 | `production-*.spec.ts` (44) | variável de autorização + credenciais de clínica sintética + `DATABASE_URL_PROD` | não, por design |
 | mutáveis locais | `E2E_MUTATION=1` + banco de desenvolvimento | não |
+
+No Preview, declare `E2E_TURNSTILE_MODE=always-pass` somente se a configuração
+remota usa a secret de teste correspondente; nesse modo, o teste de token
+forjado fica **SKIPPED** por desenho. Use `reject-invalid` para uma secret real
+ou de teste always-fail, que permite provar a recusa. Sem modo declarado, os
+dois casos condicionais ficam **SKIPPED**: a secret local não é evidência da
+configuração remota. Os demais casos da suíte continuam executando.
 
 **Regra do fundador (13/09): escrita e alteração acontecem SOMENTE em Preview.**
 `payments-account-lifecycle` e `admin-superadmin-journey` recusam `app.qoro.dev`

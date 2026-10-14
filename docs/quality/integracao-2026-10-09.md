@@ -1092,3 +1092,101 @@ complementares, não uma prova única de pagamento → provisionamento → polí
 TypeScript, ESLint do spec, Prettier, `git diff --check`, Vitest integral
 (**5.501/5.501**, 524 arquivos) e build Next 15.5.24 (**exit 0**, 18 páginas
 estáticas) passaram após a mudança do E2E.
+
+### 14/10/2026 — conta Pro recém-criada: superfície, estados vazios e testes adversariais
+
+Alvo: Preview do PR #39, branch `fix/asaas-environment-copy-20261012`, com
+Auth e banco do projeto DEV comprovados pelo probe assinado de runtime. A conta
+de teste informada em `2E2_UI_EMAIL`/`2E2_UI_PASSWORD` foi confirmada no DEV
+como `owner`, clínica em `trial` e plano `pro`; nenhum valor de credencial foi
+registrado em teste ou documento. Os cenários com escrita permaneceram no
+Preview e usaram apenas fixture criada e removida pelo próprio teste.
+
+| Prova executada | Resultado desta rodada | Limite da evidência |
+| --- | --- | --- |
+| `e2e/public-surface.spec.ts` | 8 PASS, 1 SKIP, exit 0 | Superfície pública; não executa a jornada inteira de cadastro. |
+| `e2e/signup-session-api.spec.ts`, com modo Turnstile `always-pass` declarado para o Preview | 9 PASS, 1 SKIP, exit 0 | Esse modo não permite provar recusa de token forjado; a secret remota não foi lida do painel. |
+| `e2e/tenant-settings-screens.spec.ts` | 3 PASS, exit 0 | CSV de auditoria, fila LGPD e modelo de receita criado, relido, excluído e relido. |
+| `e2e/admin-boundary-rbac.spec.ts` | 1 PASS, exit 0 | A sessão Pro não alcança 11 URLs de `/admin` nem conteúdo RSC da plataforma. |
+| `e2e/authenticated-readonly-routes.spec.ts`, caso estático | 1 PASS, 28/28 rotas HTTP 200 com título, exit 0 | Abrir página não comprova todas as ações da página; rota dinâmica sem fixture não foi marcada PASS. |
+| `e2e/login-and-navigation.spec.ts`, acesso público | 5 PASS, exit 0 | Login exibe controles e alterna visibilidade da senha; quatro rotas negam visitante anônimo. |
+| `e2e/login-and-navigation.spec.ts`, navegação autenticada | 1 PASS, exit 0 | Agenda, Caixa, Financeiro, índice de Configurações e Sugestões percorridos com sessão reutilizada. |
+| `e2e/advanced-financial-entitlement-preview.spec.ts` | 2 PASS, exit 0 | A conta Pro em trial vê preço por meio e base de repasse; ativação sem preço foi recusada e o modo anterior permaneceu após reload. |
+| `e2e/payout-review-preview.spec.ts` | 5 PASS, exit 0, 3,2 min | Duas clínicas e cinco usuários sintéticos no DEV; repasse com estorno parcial, revisão com teto, roles, tenant, idempotência, revogação e Solo. Sem Asaas. |
+| `scripts/run-signup-confirmation-e2e.ts` → `e2e/signup-confirmation.spec.ts` | 7 PASS, exit 0, 5,8 min | Envio e leitura reais no Resend DEV, confirmação entre aparelhos, código na aba original, Checkout Sandbox, retomada de draft expirado, conta legada, segundo draft e reenvio. Fixture local e lock removidos. |
+
+A primeira varredura autenticada encontrou `/agenda/ausencias` respondendo 200,
+mas exibindo “Sem permissão” ao owner de clínica recém-criada sem profissionais.
+Não era falta de permissão: a lista de médicos estava vazia. O commit
+`aac87a6e` exibe o estado vazio apropriado com link para `/equipe` aos gestores
+e mantém a negativa para quem não administra a equipe. Dois testes de página
+cobrem os ramos. Antes do deploy, o E2E agregado registrou 25 rotas sem falha e
+essa rota com título ausente; após o deploy, 26/26 passaram no mesmo Preview. O
+inventário foi então ampliado para Auditoria e Pagamentos e passou 28/28.
+
+O primeiro `login-and-navigation` também revelou duas causas distintas: a
+expectativa do teste ainda usava o título antigo “Bem-vindo de volta” e a antiga
+rota intermediária “Produto”; já o login autenticado foi recusado com “Muitas
+tentativas” após a sequência de auditorias. Os textos e destinos do teste foram
+atualizados conforme a interface atual. Os cinco casos públicos passaram na
+reexecução. Após a janela do limitador, a navegação autenticada passou com uma
+sessão E2E reutilizada, sem novos logins por teste. O arquivo temporário de
+cookies foi removido ao final e confirmado ausente. O bloqueio anterior foi o
+controle de proteção funcionando, não um bug do produto.
+
+Na conta Pro em `trial`, um novo E2E confirmou a presença do painel “Política
+financeira”, incluindo preço por meio e base do repasse. Com a precondição
+observada de zero procedimentos na clínica, selecionar preço por meio e salvar
+retornou a validação “Cadastre ao menos um preço por método”; após reload,
+`absorb_fees` continuou selecionado. Antes dessa tentativa de escrita, o teste
+confirmou por assinatura que o Preview usa Auth e banco DEV. Isso prova a
+negativa e ausência de mudança de modo nessa conta, não prova criação de preço,
+cobrança ou repasse. O ciclo Pro/Clínica/Solo com fixture isolada já está
+discriminado no adendo anterior.
+
+A revisão de repasse executou o fluxo real de Caixa do Preview para um
+atendimento sintético de R$ 150. O estorno de R$ 50 suspendeu o repasse; o
+financeiro registrou uma decisão de R$ 60 dentro do teto original de R$ 75.
+Tentativas de atendente, médico, outra clínica, valor acima do teto e sessão
+encerrada não criaram versão. Uma correção gerou a versão 2, outro estorno
+suspendeu novamente e a versão 3 foi relida. O plano Clínica permitiu revisão,
+o Solo a recusou. O teste encerrou com readback de **0 clínicas, 0 usuários e 0
+linhas** da fixture. Essa prova não inclui transferência de dinheiro nem refund
+do Asaas; os lançamentos de Caixa são internos e sintéticos.
+
+O runner de confirmação executou as sete provas no mesmo Preview, com guardas de
+projeto DEV, origem exata e Asaas Sandbox. O e-mail lido foi a mensagem real
+registrada no Resend de teste. No cenário de reenvio, o link anterior deixou de
+valer e o novo permitiu concluir em outro aparelho. O Checkout recorrente foi
+aberto e persistido, mas **nenhuma mensalidade foi paga** nesta suíte. O teardown
+da suíte terminou sem erro; o arquivo de fixture, o lock e o arquivo temporário
+de sessão foram confirmados ausentes no filesystem após o runner. A entrega em
+uma caixa Gmail externa e o pagamento do checkout continuam provas distintas.
+
+O caso de Turnstile que inicialmente recebeu HTTP 201 para um token forjado não
+prova bypass em produção: o teste deduzia a secret do **servidor remoto** pelo
+`.env.local` do runner. O código da rota consulta `siteverify`; uma
+sondagem direta com a [secret pública de teste `always-pass` da Cloudflare](https://developers.cloudflare.com/turnstile/troubleshooting/testing/)
+retornou `success=true` para o mesmo token forjado. Isso é compatível com o
+comportamento do Preview, mas não substitui leitura da configuração remota.
+`signup-session-api` agora
+exige `E2E_TURNSTILE_MODE` explícito para escolher qual caso condicional é
+aplicável ao Preview. Rodar com `always-pass` executou o positivo e deixou o
+negativo **SKIPPED**, sem convertê-lo em PASS. A confirmação direta da secret
+configurada no painel da Vercel e a recusa E2E com secret `reject-invalid`
+continuam sem prova nesta rodada.
+
+Validação local do commit de produto: build otimizado Next 15.5.24 exit 0,
+`npx vitest run --silent` **5.503/5.503** em 524 arquivos, `npx eslint .` exit 0,
+`npx tsc --noEmit --incremental false` exit 0 após os ajustes de E2E,
+Prettier e `git diff --check` sem erro. CI do PR #39 concluiu lint, tipos,
+testes, build e análise de segurança com sucesso para `aac87a6e`. Nenhum desses
+gates substitui os E2E funcionais ainda não executados com essa conta.
+
+Com a conta Pro recém-criada, continuam **NOT TESTED nesta rodada**: criação de
+procedimento com preços PIX/cartão válidos, agendamento e atendimento pela UI,
+convite a profissional, emissão de cobrança real no Sandbox, eventos Meta/IA e
+rotas dinâmicas que exigem registros próprios. O teste de 28 rotas mede
+renderização e título, sem converter ações dessas páginas em PASS. O positivo
+do Turnstile em secret de teste também não comprova recusa de token inválido em
+uma configuração `reject-invalid`.

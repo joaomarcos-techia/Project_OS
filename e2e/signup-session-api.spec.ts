@@ -27,7 +27,9 @@ import { expect, test, type APIRequestContext } from '@playwright/test';
  * O que esta suíte NÃO prova: nada do que acontece depois do cadastro. Esta
  * fatia não cria usuário, clínica nem assinatura.
  *
- * Requer apenas `E2E_BASE_URL`.
+ * Requer `E2E_BASE_URL`. Os dois casos condicionais de Turnstile em Preview
+ * também exigem `E2E_TURNSTILE_MODE`, pois o `.env.local` do runner não informa
+ * qual secret o deploy remoto usa.
  */
 
 const baseUrl = process.env.E2E_BASE_URL;
@@ -64,12 +66,19 @@ function cookieValue(setCookie: string): string {
 const DUMMY_TURNSTILE_TOKEN = 'XXXX.DUMMY.TOKEN.XXXX';
 const TURNSTILE_ALWAYS_PASSES_SECRET = '1x0000000000000000000000000000000AA';
 
-function usesTurnstileTestSecret(): boolean {
-  return [
-    process.env.TURNSTILE_SECRET_KEY_LOCAL,
-    process.env.TURNSTILE_SECRET_KEY_DEV,
-    process.env.TURNSTILE_SECRET_KEY,
-  ].includes(TURNSTILE_ALWAYS_PASSES_SECRET);
+function turnstileMode(): 'always-pass' | 'reject-invalid' | null {
+  const declared = process.env.E2E_TURNSTILE_MODE;
+  if (declared === 'always-pass' || declared === 'reject-invalid') return declared;
+  if (declared) throw new Error('E2E_TURNSTILE_MODE deve ser always-pass ou reject-invalid.');
+
+  const host = baseUrl ? new URL(baseUrl).hostname : '';
+  if (!['localhost', '127.0.0.1', '::1'].includes(host)) return null;
+  const localSecret =
+    process.env.TURNSTILE_SECRET_KEY_LOCAL ||
+    process.env.TURNSTILE_SECRET_KEY_DEV ||
+    process.env.TURNSTILE_SECRET_KEY;
+  if (!localSecret) return null;
+  return localSecret === TURNSTILE_ALWAYS_PASSES_SECRET ? 'always-pass' : 'reject-invalid';
 }
 
 /**
@@ -297,8 +306,8 @@ test.describe('cadastro anônimo — classificação de risco (O-2b)', () => {
     playwright,
   }) => {
     test.skip(
-      !usesTurnstileTestSecret(),
-      'Este cenário exige a secret dummy oficial da Cloudflare no ambiente de teste.',
+      turnstileMode() !== 'always-pass',
+      'Exige E2E_TURNSTILE_MODE=always-pass e a secret dummy no Preview.',
     );
 
     const anon = await playwright.request.newContext({ baseURL: baseUrl! });
@@ -326,8 +335,8 @@ test.describe('cadastro anônimo — classificação de risco (O-2b)', () => {
     playwright,
   }) => {
     test.skip(
-      usesTurnstileTestSecret(),
-      'A secret dummy always-pass aceita qualquer resposta; execute este caso com a secret always-fail ou uma secret real.',
+      turnstileMode() !== 'reject-invalid',
+      'Exige E2E_TURNSTILE_MODE=reject-invalid; a secret always-pass aceita qualquer resposta.',
     );
 
     const anon = await playwright.request.newContext({ baseURL: baseUrl! });
