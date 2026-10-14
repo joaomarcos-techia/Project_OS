@@ -8893,12 +8893,16 @@ convite para cadastrar a equipe, enquanto usuários sem permissão continuam
 barrados. O build, lint, TypeScript e 5.503 testes Vitest passaram para essa
 correção. A rodada E2E verificou 28 rotas autenticadas, navegação e fronteira
 de `/admin`, ações selecionadas de Configurações, validação negativa da política
-de preço e 5 cenários de revisão de repasse com roles e tenants reais em DEV.
+de preço e 6 cenários de revisão de repasse e configuração PIX/cartão com roles
+e tenants reais em DEV.
 O último limpou a fixture com readback sem resíduos.
 O runner real de cadastro/Resend passou 7/7: leu a mensagem enviada,
 confirmou em outro aparelho, liberou a aba pelo código, abriu Checkout Sandbox,
 retomou rascunho expirado e validou conta legada, segundo rascunho e reenvio.
 Nenhum pagamento de mensalidade ocorreu nessa suíte.
+O export contábil da clínica vazia passou 3/3 após corrigir uma asserção do
+E2E que confundia separador `CRLF` com terminador obrigatório do cabeçalho;
+nenhuma linha financeira real foi provada nesse CSV.
 
 Os totais por spec, comandos, evidências e lacunas permanecem no
 [registro de integração](quality/integracao-2026-10-09.md). Abrir uma rota não

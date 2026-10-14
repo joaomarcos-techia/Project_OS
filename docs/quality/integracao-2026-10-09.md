@@ -1112,8 +1112,9 @@ Preview e usaram apenas fixture criada e removida pelo próprio teste.
 | `e2e/login-and-navigation.spec.ts`, acesso público | 5 PASS, exit 0 | Login exibe controles e alterna visibilidade da senha; quatro rotas negam visitante anônimo. |
 | `e2e/login-and-navigation.spec.ts`, navegação autenticada | 1 PASS, exit 0 | Agenda, Caixa, Financeiro, índice de Configurações e Sugestões percorridos com sessão reutilizada. |
 | `e2e/advanced-financial-entitlement-preview.spec.ts` | 2 PASS, exit 0 | A conta Pro em trial vê preço por meio e base de repasse; ativação sem preço foi recusada e o modo anterior permaneceu após reload. |
-| `e2e/payout-review-preview.spec.ts` | 5 PASS, exit 0, 3,2 min | Duas clínicas e cinco usuários sintéticos no DEV; repasse com estorno parcial, revisão com teto, roles, tenant, idempotência, revogação e Solo. Sem Asaas. |
+| `e2e/payout-review-preview.spec.ts` | 6 PASS, exit 0, 4,5 min | Duas clínicas e cinco usuários sintéticos no DEV; repasse com estorno parcial, revisão com teto, roles, tenant, idempotência, revogação, Solo e configuração PIX/cartão. Sem Asaas. |
 | `scripts/run-signup-confirmation-e2e.ts` → `e2e/signup-confirmation.spec.ts` | 7 PASS, exit 0, 5,8 min | Envio e leitura reais no Resend DEV, confirmação entre aparelhos, código na aba original, Checkout Sandbox, retomada de draft expirado, conta legada, segundo draft e reenvio. Fixture local e lock removidos. |
+| `e2e/accounting-export.spec.ts` | 3 PASS após correção do teste; primeira execução 2 PASS, 1 FAIL | CSV vazio com cabeçalho, mês inválido 422 e bloqueio anônimo. Sem lançamentos, esta conta não prova linhas financeiras reais. |
 
 A primeira varredura autenticada encontrou `/agenda/ausencias` respondendo 200,
 mas exibindo “Sem permissão” ao owner de clínica recém-criada sem profissionais.
@@ -1153,6 +1154,12 @@ suspendeu novamente e a versão 3 foi relida. O plano Clínica permitiu revisão
 o Solo a recusou. O teste encerrou com readback de **0 clínicas, 0 usuários e 0
 linhas** da fixture. Essa prova não inclui transferência de dinheiro nem refund
 do Asaas; os lançamentos de Caixa são internos e sintéticos.
+Na mesma fixture Pro, o sexto caso salvou preços brutos PIX (R$ 140) e cartão
+1x (R$ 160) pela UI, relendo ambos no banco. Ativou
+`payment_method_pricing`, confirmou o modo após reload, restaurou
+`absorb_fees` e removeu os preços; o readback final mostrou zero preço ativo.
+O teardown eliminou também o histórico da fixture. Isso valida a configuração,
+mas não a aplicação do preço escolhido pelo paciente num checkout real.
 
 O runner de confirmação executou as sete provas no mesmo Preview, com guardas de
 projeto DEV, origem exata e Asaas Sandbox. O e-mail lido foi a mensagem real
@@ -1162,6 +1169,16 @@ aberto e persistido, mas **nenhuma mensalidade foi paga** nesta suíte. O teardo
 da suíte terminou sem erro; o arquivo de fixture, o lock e o arquivo temporário
 de sessão foram confirmados ausentes no filesystem após o runner. A entrega em
 uma caixa Gmail externa e o pagamento do checkout continuam provas distintas.
+
+O E2E do CSV contábil inicialmente falhou porque exigia um `CRLF` mesmo quando
+o mês não tinha movimentos. O corpo real era só o cabeçalho; a ADR-058 exige
+`CRLF` como **separador entre registros**, não uma linha vazia obrigatória.
+`renderAccountingCsv` já usa `lines.join('\r\n')` para arquivos com movimentos.
+Corrigida a expectativa para recusar `CR` ou `LF` isolados, a suíte passou 3/3
+no Preview. Classificação: **bug do teste**, sem alteração no produto. O teste
+continua limitado para conteúdo de linhas porque a clínica Pro de teste não
+tinha transações no mês; o arquivo temporário de autenticação foi removido e
+confirmado ausente.
 
 O caso de Turnstile que inicialmente recebeu HTTP 201 para um token forjado não
 prova bypass em produção: o teste deduzia a secret do **servidor remoto** pelo
@@ -1184,7 +1201,7 @@ testes, build e análise de segurança com sucesso para `aac87a6e`. Nenhum desse
 gates substitui os E2E funcionais ainda não executados com essa conta.
 
 Com a conta Pro recém-criada, continuam **NOT TESTED nesta rodada**: criação de
-procedimento com preços PIX/cartão válidos, agendamento e atendimento pela UI,
+procedimento pela UI e uso dos preços PIX/cartão em cobrança, agendamento e atendimento pela UI,
 convite a profissional, emissão de cobrança real no Sandbox, eventos Meta/IA e
 rotas dinâmicas que exigem registros próprios. O teste de 28 rotas mede
 renderização e título, sem converter ações dessas páginas em PASS. O positivo

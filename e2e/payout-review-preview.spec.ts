@@ -842,4 +842,69 @@ test.describe.serial('revisão humana do repasse (Preview + DEV, papéis reais)'
     }
     expect(await reviews()).toHaveLength(3);
   });
+
+  test('6. owner Pro salva preços PIX/cartão, ativa a política e desfaz pela UI', async () => {
+    test.setTimeout(180_000);
+    const owner = pageOf('owner');
+    await refreshSession(owner);
+    await owner.goto('/configuracoes/pagamentos');
+    await expect(owner.getByText('Política financeira', { exact: true })).toBeVisible();
+    await expect(owner.locator('#price-procedure option')).toHaveCount(1);
+
+    const savePrice = async (method: 'pix' | 'credit_card', amount: string) => {
+      await owner.locator('#price-method').selectOption(method);
+      await owner.locator('#price-gross').fill(amount);
+      await owner.getByRole('button', { name: 'Salvar preço' }).click();
+      await expect(owner.getByText('Preço por método salvo.', { exact: true })).toBeVisible();
+      await expect(owner.getByText(`R$ ${amount},00`, { exact: true })).toBeVisible();
+    };
+
+    await savePrice('pix', '140');
+    await savePrice('credit_card', '160');
+    await owner.reload();
+    await expect(owner.getByText('R$ 140,00', { exact: true })).toBeVisible();
+    await expect(owner.getByText('R$ 160,00', { exact: true })).toBeVisible();
+    const configured = await db()<
+      { payment_method: string; gross_amount: string; installment_count: number | null }[]
+    >`
+      select payment_method, gross_amount::text, installment_count
+        from procedure_payment_prices
+       where clinic_id = ${fixture.clinicA}::uuid and active = true
+       order by payment_method
+    `;
+    expect(configured).toEqual([
+      { payment_method: 'credit_card', gross_amount: '160.00', installment_count: 1 },
+      { payment_method: 'pix', gross_amount: '140.00', installment_count: null },
+    ]);
+
+    await owner.getByText('Preço por meio de pagamento', { exact: true }).click();
+    await owner.getByRole('button', { name: 'Salvar política de preço' }).click();
+    await expect(owner.getByText('Política de preço salva.', { exact: true })).toBeVisible();
+    await owner.reload();
+    await expect(
+      owner.locator('input[name="pricing-policy"][value="payment_method_pricing"]'),
+    ).toBeChecked();
+
+    await owner.getByText('Absorver taxas', { exact: true }).click();
+    await owner.getByRole('button', { name: 'Salvar política de preço' }).click();
+    await expect(owner.getByText('Política de preço salva.', { exact: true })).toBeVisible();
+    await owner.reload();
+    await expect(owner.locator('input[name="pricing-policy"][value="absorb_fees"]')).toBeChecked();
+    for (let count = 2; count > 0; count--) {
+      await expect(owner.getByRole('button', { name: 'Remover', exact: true })).toHaveCount(count);
+      await owner.getByRole('button', { name: 'Remover', exact: true }).first().click();
+      await expect(owner.getByText('Preço removido.', { exact: true })).toBeVisible();
+    }
+    await owner.reload();
+    await expect(owner.getByRole('button', { name: 'Remover', exact: true })).toHaveCount(0);
+    const [state] = await db()<{ mode: string; active_prices: number }[]>`
+      select p.mode,
+             (select count(*)::int from procedure_payment_prices
+               where clinic_id = ${fixture.clinicA}::uuid and active = true) active_prices
+        from clinic_payment_pricing_policies p
+       where p.clinic_id = ${fixture.clinicA}::uuid
+    `;
+    expect(state).toEqual({ mode: 'absorb_fees', active_prices: 0 });
+    evidence.pricing = { methods: ['pix', 'credit_card'], activated: true, restored: state };
+  });
 });
