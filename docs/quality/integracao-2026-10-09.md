@@ -1249,3 +1249,9 @@ worktree. O runner isolado `npx tsx scripts/security/local-build.ts`, que
 fornece fixtures sintéticas sem carregar `.env.local`, concluiu o build
 otimizado Next 15.5.24 com exit 0. O bloqueio inicial era de ambiente, não
 falha de compilação.
+
+Na primeira execução do CI deste commit, testes e cobertura passaram, mas o
+inventário de segurança falhou porque as duas novas importações deslocaram as
+linhas de `process.env` registradas em `docs/security/acoes.md`. O inventário
+foi regenerado e seu `--check` passou localmente; a nova execução remota deve
+ser julgada pelo próprio resultado, sem converter o primeiro FAIL em PASS.
