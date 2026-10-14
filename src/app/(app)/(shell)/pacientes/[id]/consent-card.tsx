@@ -49,11 +49,6 @@ export function ConsentCard({
   const state = grantState.error || grantState.message ? grantState : revokeState;
   const busy = granting || revoking;
 
-  /** Estado atual das cinco finalidades — o grant preserva as não alteradas. */
-  const currentFlags = Object.fromEntries(
-    purposes.map((p) => [p.purpose, p.granted ? '1' : '0']),
-  ) as Record<string, string>;
-
   return (
     <Card className="p-(--card-pad)">
       <h2 className="mb-1 text-balance text-(length:--fs-h4) font-semibold">
@@ -61,7 +56,7 @@ export function ConsentCard({
       </h2>
       <p className="mb-4 text-pretty text-(length:--fs-xs) text-fg-muted">
         Decisão vigente por finalidade. Cada alteração cria uma nova versão — o histórico é
-        preservado.
+        preservado. Ter o telefone cadastrado não autoriza nem dispara mensagens por WhatsApp.
       </p>
 
       {state.error ? (
@@ -103,18 +98,13 @@ export function ConsentCard({
                 <input type="hidden" name="id" value={patientId} />
                 <input type="hidden" name="purpose" value={p.purpose} />
                 <input type="hidden" name="idempotencyKey" value={uuidv4()} />
-                {/* O grant escreve o conjunto completo; sem isto, conceder uma
-                    finalidade revogaria as demais por omissão. */}
-                {!p.granted
-                  ? purposes.map((other) => (
-                      <input
-                        key={other.purpose}
-                        type="hidden"
-                        name={FIELD_NAME[other.purpose] ?? other.purpose}
-                        value={currentFlags[other.purpose] ?? '0'}
-                      />
-                    ))
-                  : null}
+                {!p.granted &&
+                (p.purpose === 'agendamento_whatsapp' || p.purpose === 'cobranca_whatsapp') ? (
+                  <label className="mb-2 flex max-w-64 items-start gap-2 text-(length:--fs-xs) text-fg-muted">
+                    <input type="checkbox" name="optInConfirmed" required className="mt-0.5" />
+                    Confirmo que o paciente autorizou esta finalidade pelo WhatsApp.
+                  </label>
+                ) : null}
                 <Button
                   type="submit"
                   size="sm"
@@ -132,12 +122,3 @@ export function ConsentCard({
     </Card>
   );
 }
-
-/** purpose (banco/enum) → nome do campo aceito por `recordConsent`. */
-const FIELD_NAME: Record<string, string> = {
-  dados_saude: 'dadosSaude',
-  compartilhamento: 'compartilhamento',
-  cobranca_whatsapp: 'cobrancaWhatsapp',
-  marketing: 'marketing',
-  pesquisa: 'pesquisa',
-};

@@ -58,6 +58,7 @@ export const suppressionChannel = pgEnum('suppression_channel', ['whatsapp', 'em
 export const consentPurpose = pgEnum('consent_purpose', [
   'dados_saude',
   'compartilhamento',
+  'agendamento_whatsapp',
   'cobranca_whatsapp',
   'marketing',
   'pesquisa',

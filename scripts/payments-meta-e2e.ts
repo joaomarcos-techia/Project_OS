@@ -26,7 +26,7 @@ import { processProactiveBatch } from '@/contexts/ai-agent/proactive-jobs/applic
 import { aiProactiveJobs } from '@/contexts/ai-agent/proactive-jobs/schema';
 import { lancamentos } from '@/contexts/financial';
 import { outboundMessages } from '@/contexts/messaging';
-import { patientConsents, patients } from '@/contexts/patient';
+import { patientConsentDecisions, patientConsents, patients } from '@/contexts/patient';
 import {
   clinicPaymentAccounts,
   patientCharges,
@@ -391,6 +391,16 @@ async function createFixtures(doctor: DoctorRow, procedure: ProcedureRow): Promi
         patientId,
         cobrancaWhatsapp: true,
         versao: 1,
+      })),
+    );
+    await tx.insert(patientConsentDecisions).values(
+      patientIds.slice(0, fixtureCount).map((patientId) => ({
+        clinicId,
+        patientId,
+        purpose: 'agendamento_whatsapp' as const,
+        channel: 'whatsapp' as const,
+        granted: true,
+        version: 1,
       })),
     );
     const snapshot = {

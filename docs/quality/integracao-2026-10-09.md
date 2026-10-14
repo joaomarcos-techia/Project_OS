@@ -1255,3 +1255,7 @@ inventário de segurança falhou porque as duas novas importações deslocaram a
 linhas de `process.env` registradas em `docs/security/acoes.md`. O inventário
 foi regenerado e seu `--check` passou localmente; a nova execução remota deve
 ser julgada pelo próprio resultado, sem converter o primeiro FAIL em PASS.
+
+### 14/10/2026 — adendo de consentimento para contato iniciado pela clínica
+
+Os registros históricos desta página que dizem que `deposit_link` dispensa opt-in descrevem a política **anterior**. A decisão vigente está no [adendo da ADR-049](../adr/049-pagamentos-paciente-sinal.md) e no [checkpoint financeiro](../specs/politica-financeira-camadas.md): o link de sinal exige permissão de agendamento **e** de cobrança; o telefone cadastrado manualmente não constitui autorização. As migrations 0119–0120 foram aplicadas apenas no DEV. Os 85 testes direcionados passaram localmente; E2E desta mudança no Preview e entrega real pela Meta permanecem como provas distintas.

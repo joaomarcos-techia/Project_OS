@@ -439,3 +439,9 @@ Cada sub-fase é reversível: flag por clínica desliga o fluxo; migrações sã
 
 ## 10. Fora de escopo (P0)
 Recibo/NFS-e, notificação de receita azul/amarela, Memed, template psiquiátrico, CRP/psicologia, convênio/TISS, pacote/mensalidade, CRM/UTM, repasse, NPS — todos em P1/P2/P3 conforme o Gap Analysis.
+
+## Adendo de 14/10/2026 — autorização do primeiro contato por WhatsApp
+
+A classificação transacional de `deposit_link` e o propósito de supressão `reminder` continuam válidos, mas **não dispensam opt-in**. A política de mensagens da Meta exige número fornecido pela pessoa e autorização para contato; o primeiro envio iniciado pela clínica usa template aprovado. Após a migration 0119–0120 e a implantação do código correspondente, o C14 exige `agendamento_whatsapp` para lembretes, ofertas e acompanhamentos, `cobranca_whatsapp` para saldo e cobrança, e **ambos** para link de sinal. O opt-out de `billing` também bloqueia o sinal. O telefone digitado na ficha, por si só, não dispara nem autoriza mensagens. Decisões já existentes de cobrança não são convertidas automaticamente em autorização de agendamento.
+
+O operador registra cada finalidade separadamente na ficha do paciente, confirmando que obteve a autorização. A decisão é versionada, guarda quem a registrou e pode ser revogada. Isso atesta a declaração do operador; ainda não armazena o comprovante externo de como o paciente consentiu. Uma tentativa aceita pela API da Meta não garante entrega: o status de entrega depende do webhook da Meta e do número válido/ativo do destinatário.

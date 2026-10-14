@@ -834,6 +834,20 @@
       "when": 1791868800000,
       "tag": "0118_proactive_job_send_key",
       "breakpoints": true
+    },
+    {
+      "idx": 119,
+      "version": "7",
+      "when": 1791955200000,
+      "tag": "0119_patient_whatsapp_scheduling_consent_enum",
+      "breakpoints": true
+    },
+    {
+      "idx": 120,
+      "version": "7",
+      "when": 1791955200001,
+      "tag": "0120_patient_whatsapp_scheduling_consent_check",
+      "breakpoints": true
     }
   ]
 }

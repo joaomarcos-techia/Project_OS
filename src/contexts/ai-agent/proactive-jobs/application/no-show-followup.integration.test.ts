@@ -133,6 +133,7 @@ beforeEach(() => {
     phone: '5511999990000',
     deceased: false,
     cobrancaWhatsapp: false,
+    agendamentoWhatsapp: true,
     consentRevoked: true,
     suppressedWhatsapp: false,
     suppressedWhatsappPurposes: [],

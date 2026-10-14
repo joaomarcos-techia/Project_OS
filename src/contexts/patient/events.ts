@@ -99,6 +99,7 @@ export const ConsentGrantedSchema = z.object({
   versao: z.number().int().min(1),
   dadosSaude: z.boolean(),
   compartilhamento: z.boolean(),
+  agendamentoWhatsapp: z.boolean().optional(),
   cobrancaWhatsapp: z.boolean(),
   marketing: z.boolean(),
   pesquisa: z.boolean(),
@@ -111,6 +112,7 @@ export const ConsentRevokedSchema = z.object({
   consentType: z.enum([
     'dados_saude',
     'compartilhamento',
+    'agendamento_whatsapp',
     'cobranca_whatsapp',
     'marketing',
     'pesquisa',

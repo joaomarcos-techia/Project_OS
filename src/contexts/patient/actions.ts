@@ -145,6 +145,7 @@ async function suppressAllChannels(
 const CONSENT_DECISIONS = [
   { purpose: 'dados_saude', field: 'dadosSaude', channel: null },
   { purpose: 'compartilhamento', field: 'compartilhamento', channel: null },
+  { purpose: 'agendamento_whatsapp', field: 'agendamentoWhatsapp', channel: 'whatsapp' },
   { purpose: 'cobranca_whatsapp', field: 'cobrancaWhatsapp', channel: 'whatsapp' },
   { purpose: 'marketing', field: 'marketing', channel: 'whatsapp' },
   { purpose: 'pesquisa', field: 'pesquisa', channel: null },
@@ -1075,10 +1076,12 @@ export async function recordConsent(
   patientId: string,
   consent: ConsentInput,
   idempotencyKey: string,
+  grantedPurpose?: ConsentType,
 ): Promise<{ patientId: string; versao: number }> {
   const user = await requireUser();
   await requireFreshPermission(PERMISSIONS.EDIT_PATIENT);
-  const data = ConsentInputSchema.parse(consent);
+  const requested = ConsentInputSchema.parse(consent);
+  const purpose = grantedPurpose ? ConsentTypeSchema.parse(grantedPurpose) : null;
   const clinicId = await requireClinicId();
   const ctx = await requestContext();
 
@@ -1089,7 +1092,7 @@ export async function recordConsent(
     {
       idempotency: {
         key: idemKey('consent_grant', idempotencyKey),
-        payload: { patientId, data },
+        payload: purpose ? { patientId, purpose } : { patientId, data: requested },
         ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
       },
       audit: {
@@ -1101,6 +1104,57 @@ export async function recordConsent(
       },
     },
     async (tx) => {
+      // Serializa concessões/revogações da mesma ficha. Uma aba antiga nunca
+      // restaura uma finalidade revogada enquanto outra alteração é gravada.
+      await tx.execute(
+        sql`SELECT pg_advisory_xact_lock(hashtextextended(${`patient-consent:${patientId}`}, 0))`,
+      );
+      const data = { ...requested };
+      if (purpose) {
+        const [legacy] = await tx
+          .select({
+            dadosSaude: patientConsents.dadosSaude,
+            compartilhamento: patientConsents.compartilhamento,
+            cobrancaWhatsapp: patientConsents.cobrancaWhatsapp,
+            marketing: patientConsents.marketing,
+            pesquisa: patientConsents.pesquisa,
+            revokedAt: patientConsents.revokedAt,
+          })
+          .from(patientConsents)
+          .where(
+            and(eq(patientConsents.patientId, patientId), eq(patientConsents.clinicId, clinicId)),
+          )
+          .orderBy(desc(patientConsents.versao))
+          .limit(1);
+        if (legacy && !legacy.revokedAt) {
+          data.dadosSaude = legacy.dadosSaude;
+          data.compartilhamento = legacy.compartilhamento;
+          data.cobrancaWhatsapp = legacy.cobrancaWhatsapp;
+          data.marketing = legacy.marketing;
+          data.pesquisa = legacy.pesquisa;
+        }
+        const decisions = await tx
+          .select({
+            purpose: patientConsentDecisions.purpose,
+            granted: patientConsentDecisions.granted,
+          })
+          .from(patientConsentDecisions)
+          .where(
+            and(
+              eq(patientConsentDecisions.patientId, patientId),
+              eq(patientConsentDecisions.clinicId, clinicId),
+            ),
+          )
+          .orderBy(desc(patientConsentDecisions.version));
+        const seen = new Set<string>();
+        for (const decision of decisions) {
+          if (seen.has(decision.purpose)) continue;
+          seen.add(decision.purpose);
+          const field = CONSENT_DECISIONS.find((item) => item.purpose === decision.purpose)?.field;
+          if (field) data[field] = decision.granted;
+        }
+        data[CONSENT_DECISIONS.find((item) => item.purpose === purpose)!.field] = true;
+      }
       const aggRows = await tx
         .select({ maxVersao: sql<number>`coalesce(max(${patientConsents.versao}), 0)` })
         .from(patientConsents)
@@ -1123,7 +1177,9 @@ export async function recordConsent(
         .from(patients)
         .where(and(eq(patients.id, patientId), eq(patients.clinicId, clinicId)))
         .limit(1);
-      for (const decision of CONSENT_DECISIONS) {
+      for (const decision of CONSENT_DECISIONS.filter(
+        (item) => !purpose || item.purpose === purpose,
+      )) {
         await appendConsentDecision(tx, {
           clinicId,
           patientId,
@@ -1135,20 +1191,29 @@ export async function recordConsent(
         if (
           patient?.telefoneHash &&
           data[decision.field] &&
-          (decision.purpose === 'cobranca_whatsapp' || decision.purpose === 'marketing')
+          (decision.purpose === 'agendamento_whatsapp' ||
+            decision.purpose === 'cobranca_whatsapp' ||
+            decision.purpose === 'marketing')
         ) {
-          const purpose = decision.purpose === 'cobranca_whatsapp' ? 'billing' : 'marketing';
-          await tx
-            .delete(suppressionList)
-            .where(
-              and(
-                eq(suppressionList.clinicId, clinicId),
-                eq(suppressionList.contactHash, patient.telefoneHash),
-                eq(suppressionList.channel, 'whatsapp'),
-                eq(suppressionList.purpose, purpose),
-                eq(suppressionList.reason, `consent_revoked:${decision.purpose}`),
-              ),
-            );
+          const purposes =
+            decision.purpose === 'agendamento_whatsapp'
+              ? (['reminder', 'followup'] as const)
+              : decision.purpose === 'cobranca_whatsapp'
+                ? (['billing'] as const)
+                : (['marketing'] as const);
+          for (const purpose of purposes) {
+            await tx
+              .delete(suppressionList)
+              .where(
+                and(
+                  eq(suppressionList.clinicId, clinicId),
+                  eq(suppressionList.contactHash, patient.telefoneHash),
+                  eq(suppressionList.channel, 'whatsapp'),
+                  eq(suppressionList.purpose, purpose),
+                  eq(suppressionList.reason, `consent_revoked:${decision.purpose}`),
+                ),
+              );
+          }
         }
       }
       await publishEvent(tx, {
@@ -1160,6 +1225,7 @@ export async function recordConsent(
           versao,
           dadosSaude: data.dadosSaude,
           compartilhamento: data.compartilhamento,
+          agendamentoWhatsapp: data.agendamentoWhatsapp,
           cobrancaWhatsapp: data.cobrancaWhatsapp,
           marketing: data.marketing,
           pesquisa: data.pesquisa,
@@ -1200,6 +1266,9 @@ export async function revokeConsent(
       },
     },
     async (tx) => {
+      await tx.execute(
+        sql`SELECT pg_advisory_xact_lock(hashtextextended(${`patient-consent:${patientId}`}, 0))`,
+      );
       const definition = CONSENT_DECISIONS.find((decision) => decision.purpose === consentType)!;
       await appendConsentDecision(tx, {
         clinicId,
@@ -1210,7 +1279,11 @@ export async function revokeConsent(
         recordedBy: user.userId,
       });
 
-      if (consentType === 'cobranca_whatsapp' || consentType === 'marketing') {
+      if (
+        consentType === 'agendamento_whatsapp' ||
+        consentType === 'cobranca_whatsapp' ||
+        consentType === 'marketing'
+      ) {
         const [patient] = await tx
           .select({ telefoneHash: patients.telefoneHash })
           .from(patients)
@@ -1218,17 +1291,24 @@ export async function revokeConsent(
           .limit(1);
         if (!patient) throw new PatientNotFoundError(patientId);
         if (patient.telefoneHash) {
-          const purpose = consentType === 'cobranca_whatsapp' ? 'billing' : 'marketing';
-          await tx
-            .insert(suppressionList)
-            .values({
-              clinicId,
-              contactHash: patient.telefoneHash,
-              channel: 'whatsapp',
-              purpose,
-              reason: `consent_revoked:${consentType}`,
-            })
-            .onConflictDoNothing();
+          const purposes =
+            consentType === 'agendamento_whatsapp'
+              ? (['reminder', 'followup'] as const)
+              : consentType === 'cobranca_whatsapp'
+                ? (['billing'] as const)
+                : (['marketing'] as const);
+          for (const purpose of purposes) {
+            await tx
+              .insert(suppressionList)
+              .values({
+                clinicId,
+                contactHash: patient.telefoneHash,
+                channel: 'whatsapp',
+                purpose,
+                reason: `consent_revoked:${consentType}`,
+              })
+              .onConflictDoNothing();
+          }
         }
       }
       await publishEvent(tx, {

@@ -855,6 +855,12 @@ test.describe.serial('revisão humana do repasse (Preview + DEV, papéis reais)'
     await refreshSession(owner);
     await owner.goto('/configuracoes/pagamentos');
     await expect(owner.getByText('Política financeira', { exact: true })).toBeVisible();
+    const doctor = pageOf('doctor');
+    await doctor.goto('/configuracoes/pagamentos');
+    await expect(
+      doctor.getByText('Seu perfil não tem permissão para configurar o recebimento da clínica.'),
+    ).toBeVisible();
+    await expect(doctor.getByRole('button', { name: 'Salvar preço' })).toHaveCount(0);
     await expect(owner.locator('#price-procedure option')).toHaveCount(1);
 
     const savePrice = async (method: 'pix' | 'credit_card', amount: string) => {
@@ -982,5 +988,82 @@ test.describe.serial('revisão humana do repasse (Preview + DEV, papéis reais)'
     `;
     expect(state).toEqual({ mode: 'absorb_fees', active_prices: 0 });
     evidence.pricing = { methods: ['pix', 'credit_card'], activated: true, restored: state };
+  });
+
+  test('7. cadastro manual não autoriza WhatsApp; consentimentos separados preservam revogação', async () => {
+    test.setTimeout(180_000);
+    const owner = pageOf('owner');
+    const name = `Paciente consentimento ${short}`;
+    await owner.goto('/pacientes?novo=1');
+    const drawer = owner.getByRole('dialog', { name: 'Novo paciente' });
+    await expect(drawer).toBeVisible();
+    await drawer.locator('input[name="nome"]').fill(name);
+    await drawer.locator('input[name="cpf"]').fill('52998224725');
+    await drawer.locator('input[name="email"]').fill(`consent-${short}@example.invalid`);
+    await drawer.locator('input[name="telefone"]').fill('11999990000');
+    await drawer.getByRole('button', { name: 'Criar paciente' }).click();
+    await expect(owner).toHaveURL(/\/pacientes\/[0-9a-f-]{36}(?:\?|$)/u, { timeout: 90_000 });
+    const patientId = new URL(owner.url()).pathname.split('/').at(-1);
+    if (!patientId) throw new Error('Paciente de consentimento não foi criado.');
+
+    const decisions = () => db()<{ purpose: string; granted: boolean; version: number }[]>`
+      select distinct on (purpose) purpose::text, granted, version
+        from patient_consent_decisions
+       where clinic_id = ${fixture.clinicA}::uuid and patient_id = ${patientId}::uuid
+         and purpose in ('agendamento_whatsapp', 'cobranca_whatsapp')
+       order by purpose, version desc
+    `;
+    expect(await decisions()).toEqual([]);
+    const [outbound] = await db()<{ count: number }[]>`
+      select count(*)::int as count
+        from outbound_messages o
+        join patients p on p.telefone_hash = o.to_number_hash and p.clinic_id = o.clinic_id
+       where p.clinic_id = ${fixture.clinicA}::uuid and p.id = ${patientId}::uuid
+    `;
+    expect(outbound?.count).toBe(0);
+    const scheduling = owner.locator('li').filter({ hasText: 'Agendamento por WhatsApp' });
+    const billing = owner.locator('li').filter({ hasText: 'Cobrança por WhatsApp' });
+    await expect(scheduling.getByText('Não concedido')).toBeVisible();
+    await expect(billing.getByText('Não concedido')).toBeVisible();
+
+    // Remover o atributo HTML simula um cliente que ignora a validação visual:
+    // a Server Action ainda precisa recusar a concessão sem atestação.
+    await scheduling.locator('input[name="optInConfirmed"]').evaluate((checkbox) => {
+      checkbox.removeAttribute('required');
+      (checkbox as HTMLInputElement).form?.requestSubmit();
+    });
+    await expect(
+      owner.getByText('Confirme que o paciente autorizou mensagens por WhatsApp.'),
+    ).toBeVisible();
+    expect(await decisions()).toEqual([]);
+
+    await scheduling.getByRole('checkbox').check();
+    await scheduling.getByRole('button', { name: 'Conceder' }).click();
+    await expect(scheduling.getByText('Concedido', { exact: true })).toBeVisible();
+    expect(await decisions()).toEqual([
+      { purpose: 'agendamento_whatsapp', granted: true, version: 1 },
+    ]);
+
+    // A segunda aba reteve o estado anterior. Conceder cobrança nela não pode
+    // ressuscitar a permissão de agendamento revogada pela primeira aba.
+    const stale = await owner.context().newPage();
+    await stale.goto(`/pacientes/${patientId}`);
+    const staleBilling = stale.locator('li').filter({ hasText: 'Cobrança por WhatsApp' });
+    await expect(staleBilling.getByRole('button', { name: 'Conceder' })).toBeVisible();
+    await scheduling.getByRole('button', { name: 'Revogar' }).click();
+    await expect(scheduling.getByText('Não concedido')).toBeVisible();
+    await staleBilling.getByRole('checkbox').check();
+    await staleBilling.getByRole('button', { name: 'Conceder' }).click();
+    await expect(staleBilling.getByText('Concedido', { exact: true })).toBeVisible();
+    expect(await decisions()).toEqual([
+      { purpose: 'agendamento_whatsapp', granted: false, version: 2 },
+      { purpose: 'cobranca_whatsapp', granted: true, version: 1 },
+    ]);
+    await stale.close();
+    evidence.consent = {
+      manuallyCreated: true,
+      independentPurposes: true,
+      staleTabRevocationPreserved: true,
+    };
   });
 });

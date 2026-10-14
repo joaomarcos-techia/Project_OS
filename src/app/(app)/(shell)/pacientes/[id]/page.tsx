@@ -233,9 +233,14 @@ const CONSENT_PURPOSES: Array<{ purpose: string; label: string; description: str
     description: 'Envio de dados a laboratórios, convênios e demais parceiros.',
   },
   {
+    purpose: 'agendamento_whatsapp',
+    label: 'Agendamento por WhatsApp',
+    description: 'Lembretes, vagas e mensagens operacionais sobre agendamentos.',
+  },
+  {
     purpose: 'cobranca_whatsapp',
     label: 'Cobrança por WhatsApp',
-    description: 'Mensagens sobre pagamentos e pendências financeiras.',
+    description: 'Links de sinal, saldo e mensagens sobre pagamentos ou pendências.',
   },
   {
     purpose: 'marketing',

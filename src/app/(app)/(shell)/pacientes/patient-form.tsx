@@ -222,7 +222,11 @@ export function PatientForm({
 
       <FormSection label="Contato">
         <div className="grid gap-3.5 sm:grid-cols-2">
-          <Field label="Telefone" htmlFor="patient-phone">
+          <Field
+            label="Telefone"
+            htmlFor="patient-phone"
+            hint="Salvar o número não envia WhatsApp. Depois do cadastro, registre a permissão do paciente em Consentimentos."
+          >
             <Input
               id="patient-phone"
               name="telefone"

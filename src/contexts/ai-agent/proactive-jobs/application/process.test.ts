@@ -74,6 +74,7 @@ const okContact = {
   phone: '5511999990000',
   deceased: false,
   cobrancaWhatsapp: true,
+  agendamentoWhatsapp: true,
   consentRevoked: false,
   suppressedWhatsapp: false,
   suppressedWhatsappPurposes: [],
@@ -687,6 +688,26 @@ describe('processProactiveBatch (C14 §14.6)', () => {
     const s = await processProactiveBatch('dunning');
     expect(s.cancelled).toBe(1);
     expect(repo.cancel).toHaveBeenCalledWith('c1', 'j1', 'lease-1', 'no_consent');
+  });
+
+  it.each([
+    ['sem agendamento', { agendamentoWhatsapp: false, cobrancaWhatsapp: true }],
+    ['sem cobrança', { agendamentoWhatsapp: true, cobrancaWhatsapp: false }],
+  ])('link de sinal %s → cancelled antes de chamar a Meta', async (_name, consent) => {
+    claim({
+      id: 'j-sem-optin',
+      clinicId: 'c1',
+      type: 'deposit_link',
+      payload: depositPayload,
+      attempts: 1,
+    });
+    vi.mocked(schedulingApiV1.lookupAppointment).mockResolvedValue({ status: 'agendado' } as never);
+    vi.mocked(patientApiV1.getProactiveContact).mockResolvedValue({ ...okContact, ...consent });
+
+    const result = await processProactiveBatch('deposit_link');
+    expect(result.cancelled).toBe(1);
+    expect(repo.cancel).toHaveBeenCalledWith('c1', 'j-sem-optin', 'lease-1', 'no_consent');
+    expect(messagingApiV1.sendText).not.toHaveBeenCalled();
   });
 
   it('T5: dunning cujo lançamento já foi pago → cancelled(already_paid), não envia', async () => {

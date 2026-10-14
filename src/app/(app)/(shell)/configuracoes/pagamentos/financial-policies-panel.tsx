@@ -83,6 +83,52 @@ export function FinancialPoliciesPanel(props: Props) {
     <>
       <Card>
         <CardHeader>
+          <CardTitle>Como configurar preços, taxas e repasse</CardTitle>
+          <CardDescription>
+            O preço cobrado, a tarifa do Asaas e o valor devido ao profissional são três valores
+            diferentes.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-3">
+          <div className="rounded-(--r-md) border border-border p-4">
+            <p className="font-medium">1. Defina o preço ao paciente</p>
+            <p className="mt-2 text-(length:--fs-sm) text-fg-muted">
+              Para cobrar valores diferentes no PIX e no cartão, cadastre um preço bruto para cada
+              meio e procedimento em{' '}
+              <a href="#precos-por-meio" className="font-medium text-primary underline">
+                Preços por meio de pagamento
+              </a>
+              . Depois, ative a política abaixo. Sem essa opção, vale o preço padrão do
+              procedimento.
+            </p>
+          </div>
+          <div className="rounded-(--r-md) border border-border p-4">
+            <p className="font-medium">2. Confira a tarifa real</p>
+            <p className="mt-2 text-(length:--fs-sm) text-fg-muted">
+              A tarifa não é cadastrada aqui nem somada automaticamente ao preço. Após o pagamento,
+              o Asaas informa o valor líquido; o Qoro registra a diferença como despesa da clínica.
+              Antes desse retorno, a tarifa fica pendente.
+            </p>
+          </div>
+          <div className="rounded-(--r-md) border border-border p-4">
+            <p className="font-medium">3. Escolha o repasse</p>
+            <p className="mt-2 text-(length:--fs-sm) text-fg-muted">
+              Selecione a base bruta ou líquida e cadastre uma regra para o médico. Sem regra, não
+              há repasse automático. A base líquida aguarda o valor real do Asaas.
+            </p>
+          </div>
+          <p className="text-(length:--fs-sm) text-fg-muted md:col-span-3">
+            Exemplo: consulta de <span className="tabular-nums">R$ 150,00</span>, tarifa real de{' '}
+            <span className="tabular-nums">R$ 5,00</span> e regra de 50%. O paciente paga{' '}
+            <span className="tabular-nums">R$ 150,00</span>; o repasse é{' '}
+            <span className="tabular-nums">R$ 75,00</span> sobre o bruto ou{' '}
+            <span className="tabular-nums">R$ 72,50</span> sobre o líquido. Os valores de tarifa
+            neste exemplo são ilustrativos.
+          </p>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
           <CardTitle>Política financeira</CardTitle>
           <CardDescription>
             Separe o preço do atendimento, o custo do meio de pagamento e a regra de repasse.
@@ -117,13 +163,17 @@ export function FinancialPoliciesPanel(props: Props) {
                   {
                     value: 'payment_method_pricing',
                     label: 'Preço por meio de pagamento',
-                    description: 'Usa somente os preços explícitos cadastrados abaixo.',
+                    description: 'Exige um preço cadastrado para cada opção que será oferecida.',
                   },
                 ]}
               />
               <Button
                 type="button"
-                disabled={pending || pricingMode === props.pricingPolicy.mode}
+                disabled={
+                  pending ||
+                  pricingMode === props.pricingPolicy.mode ||
+                  (pricingMode === 'payment_method_pricing' && props.methodPrices.length === 0)
+                }
                 onClick={() =>
                   run(
                     () => savePaymentPricingPolicyAction({ mode: pricingMode }, uuidv4()),
@@ -133,6 +183,11 @@ export function FinancialPoliciesPanel(props: Props) {
               >
                 Salvar política de preço
               </Button>
+              {pricingMode === 'payment_method_pricing' && props.methodPrices.length === 0 ? (
+                <p className="text-(length:--fs-sm) text-fg-muted">
+                  Cadastre pelo menos um preço por meio de pagamento antes de ativar esta opção.
+                </p>
+              ) : null}
             </div>
 
             <div className="flex flex-col gap-3">
@@ -176,6 +231,12 @@ export function FinancialPoliciesPanel(props: Props) {
             </div>
           </section>
 
+          <p className="text-(length:--fs-sm) text-fg-muted">
+            O preço de um agendamento já criado não muda. A base e a regra de repasse são
+            selecionadas pela data agendada do atendimento e ficam registradas quando o repasse é
+            calculado.
+          </p>
+
           <Alert variant="info">
             A antecipação é uma despesa financeira da clínica e não é descontada automaticamente do
             paciente ou do profissional.
@@ -183,11 +244,12 @@ export function FinancialPoliciesPanel(props: Props) {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card id="regras-de-repasse">
         <CardHeader>
           <CardTitle>Regras por profissional</CardTitle>
           <CardDescription>
-            Sem uma regra, nenhum repasse é criado. Proprietários não aparecem nesta lista.
+            Sem uma regra, nenhum repasse é criado. Proprietários não aparecem nesta lista. Regras
+            novas ou encerradas não recalculam atendimentos anteriores.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-5">
@@ -322,15 +384,21 @@ export function FinancialPoliciesPanel(props: Props) {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card id="precos-por-meio">
         <CardHeader>
           <CardTitle>Preços por meio de pagamento</CardTitle>
           <CardDescription>
-            Cadastre o preço bruto que será apresentado ao paciente. O valor não é calculado a
-            partir da tarifa do Asaas.
+            Cadastre o preço bruto de cada procedimento e forma de pagamento que deseja oferecer. O
+            valor não é calculado a partir da tarifa do Asaas. Cartão aceita apenas 1x; dinheiro não
+            gera Checkout.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-5">
+          {props.procedures.length === 0 ? (
+            <Alert variant="info">
+              Cadastre um procedimento na Agenda antes de definir preços por meio de pagamento.
+            </Alert>
+          ) : null}
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <Field label="Procedimento" htmlFor="price-procedure">
               <Select
