@@ -849,13 +849,16 @@ test.describe.serial('revisão humana do repasse (Preview + DEV, papéis reais)'
     expect(await reviews()).toHaveLength(3);
   });
 
-  test('6. owner Pro salva preços PIX/cartão, ativa a política e desfaz pela UI', async () => {
+  test('6. owner Pro salva preços PIX/cartão, ativa a política e desfaz pela UI', async ({
+    browser,
+  }) => {
     test.setTimeout(180_000);
-    const owner = pageOf('owner');
+    const owner = sessions.has('owner') ? pageOf('owner') : await openSession(browser, 'owner');
     await refreshSession(owner);
     await owner.goto('/configuracoes/pagamentos');
     await expect(owner.getByText('Política financeira', { exact: true })).toBeVisible();
-    const doctor = pageOf('doctor');
+    const doctor = sessions.has('doctor') ? pageOf('doctor') : await openSession(browser, 'doctor');
+    await refreshSession(doctor);
     await doctor.goto('/configuracoes/pagamentos');
     await expect(
       doctor.getByText('Seu perfil não tem permissão para configurar o recebimento da clínica.'),
@@ -990,9 +993,11 @@ test.describe.serial('revisão humana do repasse (Preview + DEV, papéis reais)'
     evidence.pricing = { methods: ['pix', 'credit_card'], activated: true, restored: state };
   });
 
-  test('7. cadastro manual não autoriza WhatsApp; consentimentos separados preservam revogação', async () => {
+  test('7. cadastro manual não autoriza WhatsApp; consentimentos separados preservam revogação', async ({
+    browser,
+  }) => {
     test.setTimeout(180_000);
-    const owner = pageOf('owner');
+    const owner = sessions.has('owner') ? pageOf('owner') : await openSession(browser, 'owner');
     const name = `Paciente consentimento ${short}`;
     await owner.goto('/pacientes?novo=1');
     const drawer = owner.getByRole('dialog', { name: 'Novo paciente' });
