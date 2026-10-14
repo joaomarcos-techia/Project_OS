@@ -871,3 +871,40 @@ Asaas → atendimento concluído → lançamento `pago` permanece **NOT TESTED**
 O Preview do PR #37 exibiu o quadro no `/financeiro` para uma conta de teste da
 mesma clínica (**E2E de navegador 1/1 PASS, somente leitura**); o retorno
 público `/?payment=success` também passou 1/1 sem sessão.
+
+### 14/10/2026 — disponibilidade por plano revalidada no Preview
+
+O gate existente usa o código do plano em `subscriptions`: Clínica e Pro podem
+configurar preço por método e repasse; Solo e clínica sem assinatura ficam
+bloqueados no servidor. Na Clínica A do DEV, readback somente leitura encontrou
+`status=active`, três perfis ativos (`owner`, `doctor`, `gestor`), mas **zero**
+linhas em `subscriptions` e `billing_customers`. Por isso, a página de
+assinatura mostra “Assinatura em configuração” e essa fixture não comprova o
+entitlement Clínica. Dois usuários adicionais não criariam a assinatura. A
+alteração de plano ainda exige `billing_status=active`.
+
+Em um cadastro descartável **separado** no Preview com Auth/PostgreSQL DEV,
+`e2e/signup-confirmation.spec.ts` passou **7/7, exit 0, 5,7 min**. O cenário
+de Checkout agora seleciona Clínica pelo nome, verifica o rádio, localiza e lê
+a mensagem enviada no Resend, confirma a conta, abre o Checkout hospedado no Asaas
+Sandbox e relê `signup_sessions.selected_plan_id → plans.code=clinica` junto
+com `billing_attempt_state=checkout_pending`. O runner cancelou o Checkout e
+apagou os recursos de teste; **não houve pagamento nem provisionamento** nessa
+jornada. Em complemento, `e2e/payments-account-lifecycle.spec.ts` passou
+**6/6, exit 0, 3,4 min** no mesmo Preview: uma fixture isolada de assinatura
+ativa criada diretamente no DEV comprovou Pro/Clínica na UI e nas actions,
+bloqueio do Solo, Caixa/repasse e conexão/pausa da conta Asaas Sandbox. O
+teardown incluiu o webhook da fixture e exigiu ausência de clínica e usuários.
+Esse segundo E2E prova o gate após uma assinatura existir, mas **não substitui**
+o trecho Checkout pago → assinatura provisionada pelo fluxo normal. Esse
+trecho ainda requer pagamento de teste no Checkout Sandbox e readback de
+`billing_customers`, `subscriptions`, tenant e permissões.
+Próxima prova: fazer um novo cadastro com e-mail de teste consentido no Preview,
+selecionar Clínica e concluir o pagamento com cartão de teste no Checkout
+Sandbox. Após o retorno, reler no DEV a assinatura `active`, o vínculo ao plano
+Clínica e o tenant criado; então executar o ciclo de permissões/preço/repasse
+nessa mesma clínica. Não acrescentar usuários à Clínica A para simular o plano.
+Após a mudança do spec, `npx tsc --noEmit --incremental false`, ESLint do
+arquivo alterado, Prettier e `git diff --check` passaram; a regressão Vitest
+completa passou **5.501/5.501 em 524 arquivos** e o build otimizado Next
+15.5.24 terminou com **exit 0** e 18 páginas estáticas.

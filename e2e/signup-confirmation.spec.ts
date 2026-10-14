@@ -532,7 +532,10 @@ async function cancelSandboxCheckout(checkoutId: string): Promise<void> {
   await response.body?.cancel().catch(() => undefined);
 }
 
-async function assertHostedCheckoutPersisted(tokenHash: string): Promise<void> {
+async function assertHostedCheckoutPersisted(
+  tokenHash: string,
+  expectedPlanCode: 'solo' | 'clinica' | 'pro',
+): Promise<void> {
   const sql = postgres(databaseUrl!, { max: 1, ssl: 'require', prepare: false });
   try {
     const [row] = await sql<
@@ -542,22 +545,26 @@ async function assertHostedCheckoutPersisted(tokenHash: string): Promise<void> {
         asaas_checkout_url: string | null;
         asaas_customer_id: string | null;
         asaas_subscription_id: string | null;
+        plan_code: string | null;
       }[]
     >`
-      select billing_attempt_state,
-             asaas_checkout_id,
-             asaas_checkout_url,
-             asaas_customer_id,
-             asaas_subscription_id
-        from signup_sessions
-       where token_hash = ${tokenHash}
+      select s.billing_attempt_state,
+             s.asaas_checkout_id,
+             s.asaas_checkout_url,
+             s.asaas_customer_id,
+             s.asaas_subscription_id,
+             p.code as plan_code
+        from signup_sessions s
+        left join plans p on p.id = s.selected_plan_id
+       where s.token_hash = ${tokenHash}
     `;
     if (
       row?.billing_attempt_state !== 'checkout_pending' ||
       !row.asaas_checkout_id ||
       !row.asaas_checkout_url ||
       row.asaas_customer_id !== null ||
-      row.asaas_subscription_id !== null
+      row.asaas_subscription_id !== null ||
+      row.plan_code !== expectedPlanCode
     ) {
       throw new Error('draft não persistiu o Checkout hospedado pendente antes da navegação');
     }
@@ -1260,7 +1267,11 @@ test.describe('cadastro — confirmação real via Resend', () => {
         verificationCode: proof.verificationCode,
         tokenHash: fixture.tokenHash,
       });
-      await signup.page.locator('[data-slot="option-card-group"] label').first().click();
+      await signup.page
+        .locator('[data-slot="option-card-group"]')
+        .getByText('Clínica', { exact: true })
+        .click();
+      await expect(signup.page.getByRole('radio', { name: /Clínica/u })).toBeChecked();
       await signup.page.getByRole('button', { name: 'Salvar plano' }).click();
       await expect(signup.page.getByText('Plano salvo')).toBeVisible();
       await signup.page.getByRole('button', { name: 'Continuar no Checkout Asaas' }).click();
@@ -1274,7 +1285,7 @@ test.describe('cadastro — confirmação real via Resend', () => {
       await expect(signup.page.getByText('Informações da assinatura')).toBeVisible({
         timeout: 30_000,
       });
-      await assertHostedCheckoutPersisted(fixture.tokenHash!);
+      await assertHostedCheckoutPersisted(fixture.tokenHash!, 'clinica');
     } finally {
       await Promise.allSettled([phone?.close(), desktop?.close()]);
       await cleanupFixture(fixture);

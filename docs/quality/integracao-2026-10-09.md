@@ -1064,3 +1064,31 @@ paciente sintético como “A receber”, R$ 150,00, R$ 75,00 em aberto; **zero
 comprovada; não classificá-lo como bug corrigido nem atribuí-lo definitivamente
 ao redeploy. O estado `parcial` e a alocação de R$ 75 também têm readback
 independente no banco, registrado acima.
+
+### 14/10/2026 — Clínica A sem assinatura; cadastro Clínica em fixture separada
+
+Readback somente leitura no DEV da Clínica A: clínica `active`, perfis ativos
+`owner=1`, `doctor=1`, `gestor=1`, `subscriptions=0` e
+`billing_customers=0`. A mensagem “Assinatura em configuração” corresponde ao
+estado do banco. Adicionar dois usuários não habilita o plano Clínica: o gate
+de preço/repasse lê a assinatura. A troca de plano requer assinatura `active`.
+
+Na mesma leitura, a consulta sintética concluída tinha um recebível `parcial`
+de R$ 150, com R$ 75 quitados, e exatamente uma cobrança `remainder` de R$ 75
+`pending`, com Checkout Sandbox presente e ainda válido às 14:39 BRT. O
+pagamento do restante, seu webhook, a quitação final e o envio do link seguem
+**NOT TESTED** nessa fixture.
+
+Para testar sem modificar a Clínica A, `e2e/signup-confirmation.spec.ts` passou
+**7/7, exit 0, 5,7 min** no Preview do PR #39. Seu cenário de Checkout
+selecionou Clínica e confirmou por leitura SQL `plans.code=clinica` no draft,
+além do Checkout pendente no Asaas Sandbox. O runner limpou a fixture; não
+houve pagamento nem assinatura provisionada. Em seguida,
+`e2e/payments-account-lifecycle.spec.ts` passou **6/6, exit 0, 3,4 min** com
+clínica descartável distinta e assinatura sintética `active`: Pro/Clínica
+exibiram configurações financeiras e Solo bloqueou UI/action. A limpeza da
+clínica, usuários e webhook da fixture fez parte do PASS. As duas provas são
+complementares, não uma prova única de pagamento → provisionamento → política.
+TypeScript, ESLint do spec, Prettier, `git diff --check`, Vitest integral
+(**5.501/5.501**, 524 arquivos) e build Next 15.5.24 (**exit 0**, 18 páginas
+estáticas) passaram após a mudança do E2E.
