@@ -8912,3 +8912,15 @@ prova suas ações: preço PIX/cartão completo, agendamento da nova clínica,
 convites, cobrança Sandbox e eventos Meta ainda exigem provas próprias. Um
 modo Turnstile `always-pass` aceita tokens fictícios por configuração de teste;
 a recusa E2E de token inválido segue sem PASS nesta rodada.
+
+Na rodada complementar de 14/10, o mesmo Preview/DEV passou 6/6 no ciclo da
+conta de pagamentos da clínica e 6/6 na revisão de repasse. Este último agora
+prova pela UI que a política PIX/cartão exige escolha do meio e grava dois
+agendamentos com preços distintos, R$ 140 no PIX e R$ 160 no cartão 1x, com
+readback SQL e cleanup. O runner Resend de convite comprovou recebimento,
+reenvio, aceite e replay recusado. O pós-trial SaaS comprovou fatura PIX no
+Asaas Sandbox, pagamento simulado, webhook ao Preview, ativação no DEV, avanço
+do ciclo e replay idempotente, seguido de cleanup. Os comandos, limites e
+estados pendentes constam no [registro de integração](quality/integracao-2026-10-09.md).
+Ainda falta pagar um checkout de paciente com preço por meio e verificar seu
+efeito completo no financeiro; os testes de agendamento não o substituem.

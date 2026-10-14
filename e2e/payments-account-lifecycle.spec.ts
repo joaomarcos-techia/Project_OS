@@ -396,9 +396,10 @@ test.describe.serial('conta de pagamento da clínica (Preview)', () => {
 
       // O DTO carrega só `hasApiKey`. Se a chave aparecer no HTML, ela vazou para
       // o cliente — e uma chave de Asaas movimenta dinheiro.
-      expect(await page.content(), 'a chave da clínica apareceu no HTML').not.toContain(
-        sandboxKey!,
-      );
+      expect(
+        (await page.content()).includes(sandboxKey!),
+        'a chave da clínica apareceu no HTML',
+      ).toBe(false);
 
       await page.reload();
       expect(

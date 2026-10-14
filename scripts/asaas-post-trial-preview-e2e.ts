@@ -12,6 +12,8 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { sql } from 'drizzle-orm';
 import { z } from 'zod';
 
+import { assertPreviewRuntimeIsDev } from '../e2e/preview-dev-runtime';
+
 config({ path: process.env.QORO_ENV_FILE ?? '.env.local' });
 
 const databaseUrl = process.env.DATABASE_URL_DEV;
@@ -144,6 +146,7 @@ async function state() {
 }
 
 async function run() {
+  await assertPreviewRuntimeIsDev(preview.origin);
   const preflight = await fetch(webhookUrl, {
     method: 'POST',
     headers: { 'asaas-access-token': webhookToken!, 'content-type': 'application/json' },

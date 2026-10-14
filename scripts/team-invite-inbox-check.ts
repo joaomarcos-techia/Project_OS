@@ -22,6 +22,8 @@ import {
 } from '@/lib/email/resend-inspector';
 import { env } from '@/lib/env';
 
+import { assertPreviewRuntimeIsDev } from '../e2e/preview-dev-runtime';
+
 const DEV_PROJECT_REF = 'pqhkirrszzpwezdaqrai';
 const databaseUrl = process.env.DATABASE_URL_DEV ?? process.env.DATABASE_URL;
 const inbox = process.env.E2E_RESEND_INBOX_ADDRESS;
@@ -162,6 +164,7 @@ async function expectRejected(browser: Browser, link: string): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  if (previewApplication) await assertPreviewRuntimeIsDev(applicationOrigin);
   const runId = `${Date.now()}-${randomUUID().slice(0, 8)}`;
   const email = createResendInboxAlias(inbox!, `team-${runId}`);
   const password = `Aa1!${randomBytes(18).toString('base64url')}`;

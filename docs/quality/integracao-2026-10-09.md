@@ -1212,3 +1212,40 @@ rotas dinâmicas que exigem registros próprios. O teste de 28 rotas mede
 renderização e título, sem converter ações dessas páginas em PASS. O positivo
 do Turnstile em secret de teste também não comprova recusa de token inválido em
 uma configuração `reject-invalid`.
+
+### Rodada complementar de 14/10/2026 — Preview, DEV e Sandbox
+
+Os comandos abaixo foram executados contra o Preview do PR #39 com probe assinado
+confirmando o projeto Supabase de DEV antes de criar fixtures. Nenhuma fixture desta
+rodada foi criada em produção. PASS aqui significa execução funcional e asserção,
+não apenas descoberta ou invocação do teste.
+
+| Prova | Execução e resultado | Limite |
+| --- | --- | --- |
+| Conta de pagamentos da clínica | `e2e/payments-account-lifecycle.spec.ts`: 6/6 PASS, exit 0; conexão, pausa, retomada, webhook remoto habilitado/desabilitado e cleanup no Asaas Sandbox. | Conta e clínica sintéticas em DEV; não valida produção. |
+| Política de preços e revisão de repasse | `e2e/payout-review-preview.spec.ts`: 6/6 PASS, exit 0; além de RBAC e revisão, a UI recusou agendamento sem meio de pagamento e criou dois agendamentos com PIX R$ 140 e cartão 1x R$ 160. Readback SQL confirmou valor, meio, parcelas e referência à tabela de preços; cleanup com 0 clínicas, 0 usuários e 0 linhas da fixture. | Agendamento e persistência provados; cobrança real desses dois atendimentos não foi executada. |
+| Convite e caixa de teste Resend | `scripts/team-invite-inbox-check.ts`: PASS, exit 0; envio inicial, reenvio, recebimento, link antigo recusado, novo link aceito, replay recusado, vínculo ao tenant e cleanup completo. | Não substitui entrega na caixa pessoal do usuário. |
+| Primeira mensalidade após trial | `scripts/asaas-post-trial-preview-e2e.ts`: PASS, exit 0; fatura PIX pendente no Asaas Sandbox, pagamento simulado, webhook entregue ao Preview, assinatura e clínica ativas no DEV, ciclo avançado e replay idempotente. Readback confirmou remoção do webhook, assinatura, cliente e clínica sintéticos. | Não é o primeiro checkout de cadastro da conta Pro do usuário; não envolve dinheiro real. |
+| Guardas de banco para preço e checkout | `scripts/smoke-appointment-pricing-guard-db.ts`: PASS, exit 0; `scripts/smoke-patient-checkout-db.ts`: 7/7 PASS, exit 0, ambos com rollback/cleanup. | Provas de banco, não de UI ou provedor externo. |
+
+Os dois runners que criam recursos externos agora verificam o runtime DEV do
+Preview antes da primeira escrita. A asserção de que a chave Asaas não aparece
+no HTML também deixou de incluir o valor da chave na mensagem de falha do teste.
+Não há secrets no relatório ou nas evidências registradas aqui.
+
+Ainda **NOT TESTED** nesta rodada: pagamento real no Checkout Sandbox para os
+agendamentos com preços por meio; liquidação e exportação contábil com linhas
+financeiras; primeira mensalidade da conta Pro recém-criada; Meta/IA da clínica
+nova; recusa Turnstile em Preview configurado como `reject-invalid`; atribuição
+final no Google Ads com campanha ativa. Esses pontos não herdam PASS dos testes
+de componente, banco ou da clínica sintética.
+
+Gates após esta rodada: Prettier nos seis arquivos alterados exit 0,
+`git diff --check` exit 0, `npx tsc --noEmit --incremental false` exit 0,
+`npx eslint .` exit 0, `npx vitest run --silent` 5.503/5.503 em 524
+arquivos, exit 0. A primeira tentativa de `npx next build` parou antes da
+compilação por ausência de `DATABASE_URL` e `NEXT_PUBLIC_SUPABASE_URL` neste
+worktree. O runner isolado `npx tsx scripts/security/local-build.ts`, que
+fornece fixtures sintéticas sem carregar `.env.local`, concluiu o build
+otimizado Next 15.5.24 com exit 0. O bloqueio inicial era de ambiente, não
+falha de compilação.

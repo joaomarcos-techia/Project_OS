@@ -42,6 +42,7 @@ const SLUG_PREFIX = 'e2e-payout-review-';
 const fixturePrefix = `${SLUG_PREFIX}${short}`;
 const password = `Qoro${runId.replaceAll('-', '')}Aa1!`;
 const patientName = `Paciente revisão ${short}`;
+const cardPatientName = `Paciente cartão ${short}`;
 const APPOINTMENT_VALUE = 150;
 const REASONS = {
   v1: 'Acordo com a profissional após estorno parcial',
@@ -232,6 +233,11 @@ async function createFixture(): Promise<void> {
     await tx`
       insert into patients (id, clinic_id, nome, cpf_encrypted, cpf_hash)
       values (${patientId}::uuid, ${fixture.clinicA}::uuid, ${patientName},
+              'fixture', ${randomUUID().replaceAll('-', '').padEnd(64, '0')})
+    `;
+    await tx`
+      insert into patients (id, clinic_id, nome, cpf_encrypted, cpf_hash)
+      values (${randomUUID()}::uuid, ${fixture.clinicA}::uuid, ${cardPatientName},
               'fixture', ${randomUUID().replaceAll('-', '').padEnd(64, '0')})
     `;
     await tx`
@@ -885,6 +891,76 @@ test.describe.serial('revisão humana do repasse (Preview + DEV, papéis reais)'
       owner.locator('input[name="pricing-policy"][value="payment_method_pricing"]'),
     ).toBeChecked();
 
+    const appointmentDate = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Sao_Paulo',
+    }).format(new Date(Date.now() + 3 * 24 * 60 * 60 * 1000));
+    const scheduleAtConfiguredPrice = async (
+      name: string,
+      method: 'pix' | 'credit_card',
+      time: string,
+      amount: string,
+    ) => {
+      await owner.goto('/agenda');
+      await owner.getByRole('button', { name: 'Novo atendimento' }).click();
+      const drawer = owner.getByRole('dialog', { name: 'Novo atendimento' });
+      await drawer.getByPlaceholder('Buscar por nome (mín. 2 letras)').fill(name);
+      await drawer.getByRole('option', { name }).click();
+      await drawer
+        .getByLabel('Procedimento', { exact: true })
+        .selectOption({ label: 'Consulta E2E repasse' });
+      await drawer
+        .getByLabel('Profissional', { exact: true })
+        .selectOption({ label: `Dra. Repasse E2E ${short}` });
+      await drawer.getByLabel('Data', { exact: true }).fill(appointmentDate);
+      await drawer.getByLabel('Hora', { exact: true }).fill(time);
+      await drawer.getByRole('button', { name: 'Agendar', exact: true }).click();
+      await expect(drawer.getByText('Selecione a forma de pagamento e o preço.')).toBeVisible();
+      const price = drawer.getByLabel('Forma de pagamento e preço');
+      await expect(price.locator('option', { hasText: `R$ ${amount},00` })).toHaveCount(1);
+      await price.selectOption(method === 'credit_card' ? 'credit_card:1' : 'pix:0');
+      await drawer.getByRole('button', { name: 'Agendar', exact: true }).click();
+      await expect(owner.getByText('Atendimento agendado', { exact: true })).toBeVisible();
+      await expect(drawer).toBeHidden();
+    };
+    await scheduleAtConfiguredPrice(patientName, 'pix', '10:00', '140');
+    await scheduleAtConfiguredPrice(cardPatientName, 'credit_card', '11:00', '160');
+    const appointments = await db()<
+      {
+        patient_name: string;
+        amount: string;
+        method: string;
+        installments: number | null;
+        price_amount: string;
+      }[]
+    >`
+      select pt.nome patient_name, a.valor::text amount,
+             a.commercial_payment_method method, a.commercial_installment_count installments,
+             pp.gross_amount::text price_amount
+        from appointments a
+        join patients pt on pt.id = a.patient_id
+        join procedure_payment_prices pp on pp.id = a.commercial_price_id
+       where a.clinic_id = ${fixture.clinicA}::uuid and a.created_by = ${fixture.users.owner!}::uuid
+       order by a.commercial_payment_method
+    `;
+    expect(appointments).toEqual([
+      {
+        patient_name: cardPatientName,
+        amount: '160.00',
+        method: 'credit_card',
+        installments: 1,
+        price_amount: '160.00',
+      },
+      {
+        patient_name: patientName,
+        amount: '140.00',
+        method: 'pix',
+        installments: null,
+        price_amount: '140.00',
+      },
+    ]);
+    evidence.scheduledPrices = appointments.map(({ method, amount }) => ({ method, amount }));
+
+    await owner.goto('/configuracoes/pagamentos');
     await owner.getByText('Absorver taxas', { exact: true }).click();
     await owner.getByRole('button', { name: 'Salvar política de preço' }).click();
     await expect(owner.getByText('Política de preço salva.', { exact: true })).toBeVisible();
