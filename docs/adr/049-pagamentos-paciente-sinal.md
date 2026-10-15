@@ -25,7 +25,7 @@ GAP 1 (Crítico): o sistema **não cobra o no-show de fato**. Hoje `appointment.
 | D5 | Percentual do sinal | **50% default, configurável por clínica** (liga/desliga, %, aplicabilidade). |
 | D6 | Meios do sinal | **PIX** e **cartão**, escolha do paciente. Ambos cobram os 50%. |
 | D7 | Restante (outros 50%) | Cobrado **após o comparecimento**, **por link** (Asaas) ou presencial. **Sem token, sem cartão em arquivo, sem débito automático** (decisão 2026-08-19: tudo por link). |
-| D8 | Aplicabilidade | **1ª consulta e retorno** (default; configurável). |
+| D8 | Aplicabilidade | **1ª consulta e retorno** (default; configurável). Retorno exige consulta anterior com status `atendido` na mesma clínica e antes do novo agendamento; pendências, cancelamentos e faltas não contam. |
 | D9 | Cancelamento | Com antecedência (janela configurável) → sinal **devolvido/creditado**. Tarde ou no-show → clínica **retém** o sinal (é a taxa). |
 
 ### Fronteira operacional

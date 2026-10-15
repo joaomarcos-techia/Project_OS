@@ -44,4 +44,12 @@ describe('DepositPolicyForm — como o paciente paga', () => {
     expect(screen.getByText(/Pagou o\s+restante em dinheiro/)).toBeTruthy();
     expect(screen.getByText(/“Pagou em dinheiro”/)).toBeTruthy();
   });
+
+  it('define retorno apenas depois de consulta concluída', () => {
+    render(<DepositPolicyForm policy={POLICY} hasAccount />);
+    expect(screen.getByText(/Retorno só após uma consulta concluída nesta clínica/)).toBeTruthy();
+    expect(
+      screen.getByText(/Agendamentos pendentes, cancelamentos e faltas não contam/),
+    ).toBeTruthy();
+  });
 });
