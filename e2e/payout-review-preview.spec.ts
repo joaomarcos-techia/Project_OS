@@ -142,8 +142,10 @@ async function createFixture(): Promise<void> {
     max: 2,
     ssl: 'require',
     prepare: false,
-    idle_timeout: 20,
-    max_lifetime: 600,
+    // O browser pode levar minutos entre readbacks. Manter a conexão da fixture
+    // evita nova resolução DNS do pooler a cada intervalo ocioso; afterAll a fecha.
+    idle_timeout: 600,
+    max_lifetime: 1800,
   });
   const plans = await db()<
     { code: 'solo' | 'clinica' | 'pro'; plan_id: string; price_id: string }[]
