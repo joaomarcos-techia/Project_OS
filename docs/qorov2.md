@@ -8924,3 +8924,13 @@ do ciclo e replay idempotente, seguido de cleanup. Os comandos, limites e
 estados pendentes constam no [registro de integração](quality/integracao-2026-10-09.md).
 Ainda falta pagar um checkout de paciente com preço por meio e verificar seu
 efeito completo no financeiro; os testes de agendamento não o substituem.
+
+## 66. Prévia da oferta por profissional — 15/10/2026
+
+A proposta de Consultório/Clínica do PDF de 13/10/2026 foi codificada somente
+como simulação em Preview. A tabela, os limites, as condições ainda não
+implementadas e os gates para qualquer ativação estão em
+[precos-2026-preview.md](specs/precos-2026-preview.md). O catálogo e o checkout
+vigentes permanecem inalterados. A configuração de pagamentos passa a consultar
+as tarifas da própria conta Asaas, sem substituir a taxa efetiva conciliada
+após cada pagamento.

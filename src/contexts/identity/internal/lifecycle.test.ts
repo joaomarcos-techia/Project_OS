@@ -47,7 +47,7 @@ vi.mock('@/lib/db', () => {
 
 vi.mock('@/lib/audit/log', () => ({ logAudit }));
 
-import { setMemberActive, setMemberOverride, setMemberRole } from './lifecycle';
+import { setMemberActive, setMemberOverride, setMemberOverrides, setMemberRole } from './lifecycle';
 
 const CLINIC = '11111111-1111-1111-1111-111111111111';
 const ACTOR = '22222222-2222-2222-2222-222222222222';
@@ -295,5 +295,38 @@ describe('setMemberOverride', () => {
       before: { permission: 'view:financial', granted: true },
       after: { permission: 'view:financial', granted: null },
     });
+  });
+});
+
+describe('setMemberOverrides', () => {
+  it('salva duas permissões na mesma transação e audita cada alteração', async () => {
+    await setMemberOverrides({
+      clinicId: CLINIC,
+      actorUserId: ACTOR,
+      targetUserId: TARGET,
+      changes: [
+        { permissionCode: 'view:financial', granted: true },
+        { permissionCode: 'operate:caixa', granted: false },
+      ],
+      requestContext: ctx,
+    });
+    expect(logAudit).toHaveBeenCalledTimes(2);
+    expect(logAudit.mock.calls.map((call) => call[1].after)).toEqual([
+      { permission: 'view:financial', granted: true },
+      { permission: 'operate:caixa', granted: false },
+    ]);
+  });
+
+  it('recusa lote que tenta alterar as próprias permissões', async () => {
+    await expect(
+      setMemberOverrides({
+        clinicId: CLINIC,
+        actorUserId: ACTOR,
+        targetUserId: ACTOR,
+        changes: [{ permissionCode: 'view:financial', granted: true }],
+        requestContext: ctx,
+      }),
+    ).rejects.toMatchObject({ code: 'self_mutation_forbidden' });
+    expect(logAudit).not.toHaveBeenCalled();
   });
 });

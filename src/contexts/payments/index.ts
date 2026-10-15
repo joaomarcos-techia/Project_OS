@@ -24,6 +24,8 @@ export {
   type DepositPolicy,
 } from './policy';
 export { getDepositPolicy, getPaymentAccountStatus } from './queries';
+export { getPaymentAccountFees } from './account-fees';
+export type { AsaasAccountFees } from '@/lib/payments/asaas';
 export {
   ConnectPaymentAccountSchema,
   EMPTY_PAYMENT_ACCOUNT,

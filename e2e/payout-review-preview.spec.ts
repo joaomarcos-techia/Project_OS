@@ -1073,4 +1073,157 @@ test.describe.serial('revisão humana do repasse (Preview + DEV, papéis reais)'
       staleTabRevocationPreserved: true,
     };
   });
+
+  test('8. link de preços e duas regras do mesmo profissional persistem sem travar', async ({
+    browser,
+  }) => {
+    test.setTimeout(180_000);
+    const owner = sessions.has('owner') ? pageOf('owner') : await openSession(browser, 'owner');
+    await refreshSession(owner);
+    await owner.goto('/configuracoes/pagamentos');
+    await owner.locator('a[href="#precos-por-meio"]').click();
+    await expect(owner).toHaveURL(/\/configuracoes\/pagamentos#precos-por-meio$/u);
+    await expect(owner.locator('#precos-por-meio')).toBeVisible();
+
+    const rules = owner.locator('#regras-de-repasse');
+    await expect(rules.getByText('50% da base')).toBeVisible();
+    const [eligibleProfile] = await db()<
+      { clinic_id: string; role: string; ativo: boolean; deleted_at: string | null }[]
+    >`
+      select clinic_id::text, role::text, ativo, deleted_at::text
+        from profiles where id = ${fixture.users.doctor!}::uuid
+    `;
+    expect(eligibleProfile).toEqual({
+      clinic_id: fixture.clinicA,
+      role: 'doctor',
+      ativo: true,
+      deleted_at: null,
+    });
+    const scopedEligible = await db().begin(async (tx) => {
+      await tx`set local role authenticated`;
+      await tx`select set_config('app.current_clinic', ${fixture.clinicA}, true)`;
+      await tx`select set_config('app.current_user', ${fixture.users.owner!}, true)`;
+      return tx<{ ok: number }[]>`
+        select 1 as ok from profiles
+         where id = ${fixture.users.doctor!}::uuid
+           and clinic_id = ${fixture.clinicA}::uuid
+           and deleted_at is null and ativo = true and role <> 'owner'
+           and (role = 'doctor' or (crm is not null and btrim(crm) <> ''))
+         limit 1
+      `;
+    });
+    expect(scopedEligible).toHaveLength(1);
+    await rules.locator('#payout-procedure').selectOption('');
+    await rules.locator('#payout-kind').selectOption('fixed');
+    await rules.locator('#payout-value').fill('25');
+    await rules.getByRole('button', { name: 'Salvar regra' }).click();
+    await expect(rules.getByText('R$ 25,00 fixos')).toBeVisible();
+
+    const [procedure] = await db()<{ id: string }[]>`
+      select id::text from procedures where clinic_id = ${fixture.clinicA}::uuid
+      order by descricao limit 1
+    `;
+    expect(procedure).toBeTruthy();
+    await rules.locator('#payout-procedure').selectOption(procedure!.id);
+    await rules.locator('#payout-kind').selectOption('percentage');
+    await rules.locator('#payout-value').fill('60');
+    await rules.getByRole('button', { name: 'Salvar regra' }).click();
+    await expect(rules.getByText('60% da base')).toBeVisible();
+    await owner.reload();
+    await expect(owner.locator('#regras-de-repasse').getByText('R$ 25,00 fixos')).toBeVisible();
+    await expect(owner.locator('#regras-de-repasse').getByText('60% da base')).toBeVisible();
+
+    const active = await db()<
+      {
+        procedure_id: string | null;
+        kind: string;
+        percentage: string | null;
+        fixed_amount: string | null;
+      }[]
+    >`
+      select procedure_id::text, kind, percentage::text, fixed_amount::text
+        from professional_payout_rules
+       where clinic_id = ${fixture.clinicA}::uuid
+         and professional_id = ${fixture.users.doctor!}::uuid
+         and effective_to is null
+       order by procedure_id nulls first
+    `;
+    expect(active).toEqual([
+      { procedure_id: null, kind: 'fixed', percentage: null, fixed_amount: '25.00' },
+      {
+        procedure_id: procedure!.id,
+        kind: 'percentage',
+        percentage: '60.0000',
+        fixed_amount: null,
+      },
+    ]);
+    evidence.multipleRules = { active: active.length, anchor: true };
+  });
+
+  test('9. permissões individuais de dois tipos são salvas juntas ou descartadas', async ({
+    browser,
+  }) => {
+    test.setTimeout(120_000);
+    const owner = sessions.has('owner') ? pageOf('owner') : await openSession(browser, 'owner');
+    await refreshSession(owner);
+    await owner.goto('/equipe');
+    const memberName = `Dra. Repasse E2E ${short}`;
+    await owner.getByRole('button', { name: `Ações de ${memberName}` }).click();
+    await owner.getByRole('menuitem', { name: 'Permissões individuais' }).click();
+    const dialog = owner.getByRole('dialog', { name: `Permissões de ${memberName}` });
+    const viewFinancial = dialog.locator(`select[id$="view:financial"]`);
+    const operateCaixa = dialog.locator(`select[id$="operate:caixa"]`);
+    await viewFinancial.selectOption('grant');
+    await operateCaixa.selectOption('deny');
+    await dialog.getByRole('button', { name: 'Cancelar' }).click();
+    const readOverrides = () => db()<{ permission_code: string; granted: boolean }[]>`
+      select permission_code, granted from user_permission_overrides
+       where user_id = ${fixture.users.doctor!}::uuid
+         and clinic_id = ${fixture.clinicA}::uuid
+         and permission_code in ('view:financial', 'operate:caixa')
+       order by permission_code
+    `;
+    expect(await readOverrides()).toEqual([]);
+
+    await owner.getByRole('button', { name: `Ações de ${memberName}` }).click();
+    await owner.getByRole('menuitem', { name: 'Permissões individuais' }).click();
+    await viewFinancial.selectOption('grant');
+    await operateCaixa.selectOption('deny');
+    await dialog.getByRole('button', { name: 'Salvar permissões (2)' }).click();
+    await expect(dialog).toBeHidden();
+    expect(await readOverrides()).toEqual([
+      { permission_code: 'operate:caixa', granted: false },
+      { permission_code: 'view:financial', granted: true },
+    ]);
+    await owner.reload();
+    await owner.getByRole('button', { name: `Ações de ${memberName}` }).click();
+    await owner.getByRole('menuitem', { name: 'Permissões individuais' }).click();
+    await expect(viewFinancial).toHaveValue('grant');
+    await expect(operateCaixa).toHaveValue('deny');
+    evidence.bulkPermissions = { changes: 2, cancelledWithoutWrites: true, persisted: true };
+  });
+
+  test('10. proposta de preços em Preview não altera o checkout vigente', async ({ browser }) => {
+    const owner = sessions.has('owner') ? pageOf('owner') : await openSession(browser, 'owner');
+    await refreshSession(owner);
+    await owner.goto('/oferta-preview');
+    await expect(
+      owner.getByRole('heading', { name: 'Proposta de planos em validação' }),
+    ).toBeVisible();
+    const count = owner.getByLabel('Profissionais com agenda própria');
+    for (const [professionals, monthly] of [
+      ['1', '197'],
+      ['2', '397'],
+      ['3', '544'],
+      ['5', '838'],
+      ['10', '1.573'],
+    ] as const) {
+      await count.fill(professionals);
+      await expect(owner.getByText(new RegExp(`R\\$\\s*${monthly},00/mês`, 'u'))).toBeVisible();
+    }
+    await count.fill('11');
+    await expect(owner.getByRole('alert')).toContainText('Informe de 1 a 10 profissionais');
+    await expect(owner.locator('a[href*="/cadastro"]')).toHaveCount(0);
+    evidence.pricingPreview = { values: 5, aboveLimitBlocked: true, checkoutUntouched: true };
+  });
 });

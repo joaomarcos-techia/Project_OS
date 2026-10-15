@@ -974,6 +974,48 @@ describe('getMyAccount — validação de credencial', () => {
   });
 });
 
+describe('getAccountFees — tarifas da conta', () => {
+  it('consulta a própria conta e devolve apenas campos financeiros conhecidos', async () => {
+    fetchMock.mockImplementation(() =>
+      Response.json({
+        payment: {
+          pix: {
+            fixedFeeValue: 1.99,
+            fixedFeeValueWithDiscount: 0.99,
+            discountExpiration: '2026-11-22 00:00:00',
+            monthlyCreditsWithoutFee: 100,
+            creditsReceivedOfCurrentMonth: 2,
+          },
+          creditCard: {
+            operationValue: 0.49,
+            oneInstallmentPercentage: 2.99,
+            discountOneInstallmentPercentage: 1.99,
+            hasValidDiscount: true,
+            discountExpiration: '2026-11-22 00:00:00',
+          },
+        },
+        secret: 'não deve sair',
+      }),
+    );
+    const fees = await createAsaasClient({ apiKey: 'chave-da-clinica' }).getAccountFees();
+    expect(fees.pix.regular).toBe(1.99);
+    expect(fees.pix.discounted).toBe(0.99);
+    expect(fees.creditCard.oneInstallmentPercentage).toBe(2.99);
+    expect(JSON.stringify(fees)).not.toContain('não deve sair');
+    const [url, request] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://sandbox.asaas.com/api/v3/myAccount/fees/');
+    expect(request.method).toBe('GET');
+    expect(request.headers).toEqual(expect.objectContaining({ access_token: 'chave-da-clinica' }));
+  });
+
+  it('não inventa tarifa zero quando o Asaas omite um campo', async () => {
+    fetchMock.mockImplementation(() => Response.json({ payment: { pix: {}, creditCard: {} } }));
+    const fees = await createAsaasClient({ apiKey: 'chave-da-clinica' }).getAccountFees();
+    expect(fees.pix.regular).toBeNull();
+    expect(fees.creditCard.oneInstallmentPercentage).toBeNull();
+  });
+});
+
 describe('getPayment economics', () => {
   it('limits one reconciliation read to the caller budget', async () => {
     const timeout = vi.spyOn(AbortSignal, 'timeout');

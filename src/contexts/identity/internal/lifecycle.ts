@@ -166,67 +166,87 @@ export interface SetMemberOverrideArgs {
   requestContext: RequestContext;
 }
 
+export interface SetMemberOverridesArgs {
+  clinicId: string;
+  actorUserId: string;
+  targetUserId: string;
+  changes: Array<{ permissionCode: Permission; granted: boolean | null }>;
+  requestContext: RequestContext;
+}
+
+/** Salva vários ajustes em uma transação: ou todos valem, ou nenhum vale. */
+export async function setMemberOverrides(args: SetMemberOverridesArgs): Promise<void> {
+  if (args.actorUserId === args.targetUserId) throw new SelfMutationError();
+  if (args.changes.length === 0) return;
+  const target = await loadTarget(args.clinicId, args.targetUserId);
+  if (!target) throw new MemberNotFoundError();
+  assertTargetMutable(target.role);
+
+  await dbAdmin.transaction(async (tx) => {
+    for (const change of args.changes) {
+      const [before] = await tx
+        .select({ granted: userPermissionOverrides.granted })
+        .from(userPermissionOverrides)
+        .where(
+          and(
+            eq(userPermissionOverrides.userId, args.targetUserId),
+            eq(userPermissionOverrides.permissionCode, change.permissionCode),
+            eq(userPermissionOverrides.clinicId, args.clinicId),
+          ),
+        )
+        .limit(1);
+
+      if (change.granted === null) {
+        await tx
+          .delete(userPermissionOverrides)
+          .where(
+            and(
+              eq(userPermissionOverrides.userId, args.targetUserId),
+              eq(userPermissionOverrides.permissionCode, change.permissionCode),
+              eq(userPermissionOverrides.clinicId, args.clinicId),
+            ),
+          );
+      } else {
+        await tx
+          .insert(userPermissionOverrides)
+          .values({
+            userId: args.targetUserId,
+            clinicId: args.clinicId,
+            permissionCode: change.permissionCode,
+            granted: change.granted,
+            grantedBy: args.actorUserId,
+          })
+          .onConflictDoUpdate({
+            target: [userPermissionOverrides.userId, userPermissionOverrides.permissionCode],
+            set: { granted: change.granted, grantedBy: args.actorUserId },
+          });
+      }
+
+      await logAudit(tx, {
+        clinicId: args.clinicId,
+        userId: args.actorUserId,
+        action: 'internal.user.override_changed',
+        resourceType: 'profile',
+        resourceId: args.targetUserId,
+        before: { permission: change.permissionCode, granted: before?.granted ?? null },
+        after: { permission: change.permissionCode, granted: change.granted },
+        requestContext: args.requestContext,
+      });
+    }
+  });
+}
+
 /**
  * Concede/nega/remove um override granular. Este é o caminho de escrita que o I-13
  * trancou no nível de RLS: agora só existe aqui, atrás do gate (dbAdmin/BYPASSRLS),
  * com o ator provado e auditado. O trigger bumpa claims_version do alvo.
  */
 export async function setMemberOverride(args: SetMemberOverrideArgs): Promise<void> {
-  // Anti-escalonamento no nível da app (o RLS já barra, isto dá a mensagem certa):
-  // ninguém edita o próprio conjunto de permissões.
-  if (args.actorUserId === args.targetUserId) throw new SelfMutationError();
-
-  const target = await loadTarget(args.clinicId, args.targetUserId);
-  if (!target) throw new MemberNotFoundError();
-  assertTargetMutable(target.role); // override em owner é inócuo (tem tudo) e em super_admin é ilegal
-
-  await dbAdmin.transaction(async (tx) => {
-    const [before] = await tx
-      .select({ granted: userPermissionOverrides.granted })
-      .from(userPermissionOverrides)
-      .where(
-        and(
-          eq(userPermissionOverrides.userId, args.targetUserId),
-          eq(userPermissionOverrides.permissionCode, args.permissionCode),
-        ),
-      )
-      .limit(1);
-
-    if (args.granted === null) {
-      await tx
-        .delete(userPermissionOverrides)
-        .where(
-          and(
-            eq(userPermissionOverrides.userId, args.targetUserId),
-            eq(userPermissionOverrides.permissionCode, args.permissionCode),
-            eq(userPermissionOverrides.clinicId, args.clinicId),
-          ),
-        );
-    } else {
-      await tx
-        .insert(userPermissionOverrides)
-        .values({
-          userId: args.targetUserId,
-          clinicId: args.clinicId,
-          permissionCode: args.permissionCode,
-          granted: args.granted,
-          grantedBy: args.actorUserId,
-        })
-        .onConflictDoUpdate({
-          target: [userPermissionOverrides.userId, userPermissionOverrides.permissionCode],
-          set: { granted: args.granted, grantedBy: args.actorUserId },
-        });
-    }
-
-    await logAudit(tx, {
-      clinicId: args.clinicId,
-      userId: args.actorUserId,
-      action: 'internal.user.override_changed',
-      resourceType: 'profile',
-      resourceId: args.targetUserId,
-      before: { permission: args.permissionCode, granted: before?.granted ?? null },
-      after: { permission: args.permissionCode, granted: args.granted },
-      requestContext: args.requestContext,
-    });
+  return setMemberOverrides({
+    clinicId: args.clinicId,
+    actorUserId: args.actorUserId,
+    targetUserId: args.targetUserId,
+    changes: [{ permissionCode: args.permissionCode, granted: args.granted }],
+    requestContext: args.requestContext,
   });
 }

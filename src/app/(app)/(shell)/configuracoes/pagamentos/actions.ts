@@ -15,11 +15,15 @@ import {
   saveDepositPolicy,
 } from '@/contexts/payments/actions';
 import type {
+  AsaasAccountFees,
   ConnectPaymentAccountResult,
   DepositPolicyDTO,
   PaymentAccountStatusDTO,
   SaveDepositPolicyInput,
 } from '@/contexts/payments';
+import { getPaymentAccountFees } from '@/contexts/payments';
+import { authorizeAction } from '@/lib/auth/action-guard';
+import { PERMISSIONS } from '@/lib/auth/permissions';
 import {
   removeProcedurePaymentPrice,
   savePaymentPricingPolicy,
@@ -44,6 +48,18 @@ import type {
 } from '@/contexts/financial';
 
 import { fail, ok, type ActionResult } from './pagamentos-types';
+
+export async function getPaymentAccountFeesAction(): Promise<
+  ActionResult<AsaasAccountFees | null>
+> {
+  const auth = await authorizeAction(PERMISSIONS.MANAGE_FINANCIAL);
+  if (!auth.ok) return { ok: false, code: 'forbidden', message: auth.message };
+  try {
+    return ok(await getPaymentAccountFees(auth.clinicId));
+  } catch (err) {
+    return fail(err);
+  }
+}
 
 export async function connectPaymentAccountAction(
   apiKey: string,

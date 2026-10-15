@@ -6,6 +6,7 @@ import { Alert } from '@/components/ui/alert';
 import { loadPagamentosPage } from './data';
 import { DepositPolicyForm } from './deposit-policy-form';
 import { PaymentAccountPanel } from './payment-account-panel';
+import { AsaasFeesPanel } from './asaas-fees-panel';
 import { FinancialPoliciesPanel } from './financial-policies-panel';
 
 export const dynamic = 'force-dynamic';
@@ -35,6 +36,7 @@ export default async function PagamentosSettingsPage() {
   return (
     <div className="flex flex-col gap-6">
       <PaymentAccountPanel status={data.account} />
+      <AsaasFeesPanel hasApiKey={data.account.hasApiKey} />
       <DepositPolicyForm policy={data.policy} hasAccount={data.account.hasApiKey} />
       {data.advancedPoliciesEnabled ? (
         <FinancialPoliciesPanel

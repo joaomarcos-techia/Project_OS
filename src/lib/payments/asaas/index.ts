@@ -366,6 +366,22 @@ export interface AsaasAccountInfo {
   email: string | null;
 }
 
+/** Tarifas da conta conectada, apenas para exibição; a taxa efetiva vem do pagamento. */
+export interface AsaasAccountFees {
+  pix: {
+    regular: number | null;
+    discounted: number | null;
+    discountExpiration: string | null;
+  };
+  creditCard: {
+    operationValue: number | null;
+    oneInstallmentPercentage: number | null;
+    discountedOneInstallmentPercentage: number | null;
+    hasValidDiscount: boolean;
+    discountExpiration: string | null;
+  };
+}
+
 export interface PaymentProvider {
   createCustomer(input: CreateCustomerInput): Promise<{ customerId: string }>;
   /** Remove cliente criado nesta tentativa que falhou antes de gerar assinatura. */
@@ -481,6 +497,8 @@ export interface PaymentProvider {
    * nome amanhã, a validação continua funcionando e só o rótulo da tela fica nulo.
    */
   getMyAccount(opts?: { attempts?: number }): Promise<AsaasAccountInfo>;
+  /** GET /myAccount/fees/ usa as condições da própria conta, sem tabela hard-coded. */
+  getAccountFees(opts?: { attempts?: number }): Promise<AsaasAccountFees>;
   /**
    * Configura o webhook na conta. Se a mesma rota já existir, atualiza o recurso
    * em vez de repetir o POST que o Asaas rejeita como `invalid_object`.
@@ -507,6 +525,18 @@ function asNum(v: unknown): number {
 }
 function asStr(v: unknown): string | null {
   return typeof v === 'string' && v.length > 0 ? v : null;
+}
+
+function asFeeNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function asObject(value: unknown): Record<string, unknown> {
+  return isObject(value) ? value : {};
 }
 
 const ASAAS_RESOURCE_SEGMENTS = new Set([
@@ -1312,6 +1342,29 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
     async getMyAccount(opts) {
       const res = (await request('GET', '/myAccount', undefined, opts)) as Record<string, unknown>;
       return { name: asStr(res.name), email: asStr(res.email) };
+    },
+
+    async getAccountFees(opts) {
+      const response = await request('GET', '/myAccount/fees/', undefined, opts);
+      const payment = asObject(asObject(response).payment);
+      const pix = asObject(payment.pix);
+      const creditCard = asObject(payment.creditCard);
+      return {
+        pix: {
+          regular: asFeeNumber(pix.fixedFeeValue),
+          discounted: asFeeNumber(pix.fixedFeeValueWithDiscount),
+          discountExpiration: asStr(pix.discountExpiration),
+        },
+        creditCard: {
+          operationValue: asFeeNumber(creditCard.operationValue),
+          oneInstallmentPercentage: asFeeNumber(creditCard.oneInstallmentPercentage),
+          discountedOneInstallmentPercentage: asFeeNumber(
+            creditCard.discountOneInstallmentPercentage,
+          ),
+          hasValidDiscount: creditCard.hasValidDiscount === true,
+          discountExpiration: asStr(creditCard.discountExpiration),
+        },
+      };
     },
 
     parseWebhook(raw) {
