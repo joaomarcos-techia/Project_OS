@@ -8933,4 +8933,17 @@ implementadas e os gates para qualquer ativação estão em
 [precos-2026-preview.md](specs/precos-2026-preview.md). O catálogo e o checkout
 vigentes permanecem inalterados. A configuração de pagamentos passa a consultar
 as tarifas da própria conta Asaas, sem substituir a taxa efetiva conciliada
-após cada pagamento.
+após cada pagamento. O Preview do app está no [Draft PR #40](https://github.com/joaomarcos-techia/Project_OS/pull/40), empilhado sobre o
+PR #39; a landing equivalente está no [Draft PR #1](https://github.com/joaomarcos-techia/landing_page/pull/1). Os
+resultados por cenário, a causa do erro ao salvar duas regras, o novo editor de
+permissões e os limites de entrega ao WhatsApp do paciente constam na
+[spec financeira](specs/politica-financeira-camadas.md), seção de 15/10/2026.
+No Preview com Auth/PostgreSQL DEV, o E2E integrado passou **10/10** em uma
+execução (exit 0, 6,9 min), com cleanup de clínicas, usuários e linhas em zero.
+O E2E de leitura das tarifas da conta Sandbox conectada passou **1/1** e
+confirmou por hash que as duas regras de preço existentes não mudaram. O build
+otimizado Next 15.5.24, o TypeScript, o ESLint e a suíte Vitest integral
+(**5.529/5.529 em 529 arquivos**) passaram. A proposta de preços permanece
+somente em Preview; a entrega do link de sinal por WhatsApp nessa clínica de
+teste ainda depende de número Meta conectado, política de sinal e agendamento
+futuro, como descrito na spec financeira.
