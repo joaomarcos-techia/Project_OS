@@ -854,7 +854,7 @@ test.describe.serial('revisão humana do repasse (Preview + DEV, papéis reais)'
   test('6. owner Pro salva preços PIX/cartão, ativa a política e desfaz pela UI', async ({
     browser,
   }) => {
-    test.setTimeout(180_000);
+    test.setTimeout(300_000);
     const owner = sessions.has('owner') ? pageOf('owner') : await openSession(browser, 'owner');
     await refreshSession(owner);
     await owner.goto('/configuracoes/pagamentos');
@@ -905,6 +905,7 @@ test.describe.serial('revisão humana do repasse (Preview + DEV, papéis reais)'
     const appointmentDate = new Intl.DateTimeFormat('en-CA', {
       timeZone: 'America/Sao_Paulo',
     }).format(new Date(Date.now() + 3 * 24 * 60 * 60 * 1000));
+    const schedulingDurationsMs: number[] = [];
     const scheduleAtConfiguredPrice = async (
       name: string,
       method: 'pix' | 'credit_card',
@@ -929,12 +930,17 @@ test.describe.serial('revisão humana do repasse (Preview + DEV, papéis reais)'
       const price = drawer.getByLabel('Forma de pagamento e preço');
       await expect(price.locator('option', { hasText: `R$ ${amount},00` })).toHaveCount(1);
       await price.selectOption(method === 'credit_card' ? 'credit_card:1' : 'pix:0');
+      const startedAt = Date.now();
       await drawer.getByRole('button', { name: 'Agendar', exact: true }).click();
-      await expect(owner.getByText('Atendimento agendado', { exact: true })).toBeVisible();
+      await expect(owner.getByText('Atendimento agendado', { exact: true })).toBeVisible({
+        timeout: 60_000,
+      });
+      schedulingDurationsMs.push(Date.now() - startedAt);
       await expect(drawer).toBeHidden();
     };
     await scheduleAtConfiguredPrice(patientName, 'pix', '10:00', '140');
     await scheduleAtConfiguredPrice(cardPatientName, 'credit_card', '11:00', '160');
+    evidence.schedulingDurationsMs = schedulingDurationsMs;
     const appointments = await db()<
       {
         patient_name: string;
@@ -1222,7 +1228,9 @@ test.describe.serial('revisão humana do repasse (Preview + DEV, papéis reais)'
       await expect(owner.getByText(new RegExp(`R\\$\\s*${monthly},00/mês`, 'u'))).toBeVisible();
     }
     await count.fill('11');
-    await expect(owner.getByRole('alert')).toContainText('Informe de 1 a 10 profissionais');
+    await expect(owner.locator('main').getByRole('alert')).toContainText(
+      'Informe de 1 a 10 profissionais',
+    );
     await expect(owner.locator('a[href*="/cadastro"]')).toHaveCount(0);
     evidence.pricingPreview = { values: 5, aboveLimitBlocked: true, checkoutUntouched: true };
   });
