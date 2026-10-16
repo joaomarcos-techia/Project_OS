@@ -120,10 +120,10 @@ export const clinicDepositPolicy = pgTable('clinic_deposit_policy', {
 
 export type ClinicDepositPolicyRow = typeof clinicDepositPolicy.$inferSelect;
 
-export type ClinicPricingPolicyMode = 'absorb_fees' | 'payment_method_pricing';
+export type ClinicPricingPolicyMode = 'absorb_fees';
 export type ProcedurePaymentMethod = 'pix' | 'cash' | 'credit_card';
 
-/** Ausência de linha equivale ao default seguro `absorb_fees`. */
+/** Legado: mantido para preservar auditoria; novas políticas só absorvem as taxas. */
 export const clinicPaymentPricingPolicies = pgTable(
   'clinic_payment_pricing_policies',
   {
@@ -133,16 +133,13 @@ export const clinicPaymentPricingPolicies = pgTable(
     ...timestampsPattern(),
   },
   (t) => ({
-    modeCheck: check(
-      'clinic_payment_pricing_policies_mode_chk',
-      sql`${t.mode} IN ('absorb_fees', 'payment_method_pricing')`,
-    ),
+    modeCheck: check('clinic_payment_pricing_policies_mode_chk', sql`${t.mode} = 'absorb_fees'`),
   }),
 );
 
 /**
- * Preço comercial explícito por procedimento e forma. Não é tabela de tarifa
- * do Asaas e nunca serve para estimar taxa ou líquido do provedor.
+ * Versões históricas de preços por meio. Novas versões não são cadastradas;
+ * manter esta tabela preserva os vínculos e snapshots de atendimentos antigos.
  */
 export const procedurePaymentPrices = pgTable(
   'procedure_payment_prices',
@@ -153,7 +150,7 @@ export const procedurePaymentPrices = pgTable(
     paymentMethod: text('payment_method').$type<ProcedurePaymentMethod>().notNull(),
     installmentCount: integer('installment_count'),
     grossAmount: numeric('gross_amount', { precision: 12, scale: 2 }).notNull(),
-    active: boolean('active').notNull().default(true),
+    active: boolean('active').notNull().default(false),
     effectiveFrom: timestamp('effective_from', { withTimezone: true }).notNull().defaultNow(),
     effectiveTo: timestamp('effective_to', { withTimezone: true }),
     updatedBy: uuid('updated_by'),
@@ -171,6 +168,7 @@ export const procedurePaymentPrices = pgTable(
           OR (${t.paymentMethod} IN ('pix', 'cash') AND ${t.installmentCount} IS NULL)`,
     ),
     amountCheck: check('procedure_payment_prices_amount_chk', sql`${t.grossAmount} > 0`),
+    retiredCheck: check('procedure_payment_prices_retired_chk', sql`${t.active} = false`),
     effectiveWindowCheck: check(
       'procedure_payment_prices_effective_window_chk',
       sql`(${t.active} = true AND ${t.effectiveTo} IS NULL)

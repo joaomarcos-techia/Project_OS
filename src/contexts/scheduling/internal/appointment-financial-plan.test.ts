@@ -1,166 +1,61 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-const mocks = vi.hoisted(() => ({
-  getEffectivePaymentPricingMode: vi.fn(),
-  matchesConfiguredProcedurePriceSnapshot: vi.fn(),
-}));
-
-vi.mock('server-only', () => ({}));
-vi.mock('@/contexts/payments', () => ({
-  getEffectivePaymentPricingMode: mocks.getEffectivePaymentPricingMode,
-  matchesConfiguredProcedurePriceSnapshot: mocks.matchesConfiguredProcedurePriceSnapshot,
-}));
+import { describe, expect, it, vi } from 'vitest';
 
 import type { Tx } from '@/lib/db';
+
 import { assertCommercialPriceInput, insertScheduledAppointment } from './appointment-core';
 
-const CLINIC_ID = 'clinic-test';
-const PROCEDURE_ID = '22222222-2222-4222-8222-222222222222';
-const PRICE_ID = '33333333-3333-4333-8333-333333333333';
-const tx = { select: vi.fn(), insert: vi.fn(), execute: vi.fn() } as unknown as Tx;
+const clinicId = '11111111-1111-4111-8111-111111111111';
+const procedureId = '22222222-2222-4222-8222-222222222222';
+const doctorId = '33333333-3333-4333-8333-333333333333';
+const priceId = '44444444-4444-4444-8444-444444444444';
 
-beforeEach(() => {
-  vi.clearAllMocks();
-  mocks.getEffectivePaymentPricingMode.mockResolvedValue('absorb_fees');
-  mocks.matchesConfiguredProcedurePriceSnapshot.mockResolvedValue(false);
-});
-
-describe('preço por método no core de agendamento', () => {
-  it('nega chamada direta no Solo antes de tocar procedimentos ou gravar agenda', async () => {
+describe('retirada do preço por meio de pagamento', () => {
+  it('recusa preço por método na entrada interna antes de consultar ou gravar', async () => {
+    const tx = { select: vi.fn(), insert: vi.fn(), execute: vi.fn() } as unknown as Tx;
     await expect(
       insertScheduledAppointment(tx, {
-        clinicId: CLINIC_ID,
+        clinicId,
         userId: 'user-test',
         actorType: 'user',
         correlationId: null,
         idempotencyKey: 'idem-test',
-        scheduledAt: new Date('2026-10-03T10:00:00Z'),
+        scheduledAt: new Date('2026-10-17T10:00:00Z'),
         data: {
-          doctorId: '11111111-1111-4111-8111-111111111111',
-          procedureId: PROCEDURE_ID,
-          scheduledAt: '2026-10-03T10:00:00Z',
+          doctorId,
+          procedureId,
+          scheduledAt: '2026-10-17T10:00:00Z',
           pricingPolicyMode: 'payment_method_pricing',
           commercialPaymentMethod: 'pix',
-          commercialPriceId: PRICE_ID,
+          commercialPriceId: priceId,
         },
       }),
-    ).rejects.toThrow('não está ativo');
-    expect(mocks.getEffectivePaymentPricingMode).toHaveBeenCalledWith(tx, CLINIC_ID);
+    ).rejects.toThrow('não está mais disponível');
     expect(tx.select).not.toHaveBeenCalled();
     expect(tx.insert).not.toHaveBeenCalled();
     expect(tx.execute).not.toHaveBeenCalled();
   });
 
-  it('recusa valor ou versão adulterados antes da gravação', async () => {
-    mocks.getEffectivePaymentPricingMode.mockResolvedValue('payment_method_pricing');
+  it.each([
+    { commercialPaymentMethod: 'pix' as const },
+    { commercialInstallmentCount: 1 },
+    { commercialPriceId: priceId },
+  ])('recusa metadados comerciais avulsos', async (fields) => {
+    const tx = { select: vi.fn(), insert: vi.fn(), execute: vi.fn() } as unknown as Tx;
     await expect(
-      assertCommercialPriceInput(tx, CLINIC_ID, {
-        doctorId: '11111111-1111-4111-8111-111111111111',
-        procedureId: PROCEDURE_ID,
-        pricingPolicyMode: 'payment_method_pricing',
-        commercialPaymentMethod: 'pix',
-        commercialPriceId: PRICE_ID,
-        valorAjustado: true,
-        valor: 240,
-      }),
-    ).rejects.toThrow('Selecione-o novamente');
-    expect(mocks.matchesConfiguredProcedurePriceSnapshot).toHaveBeenCalledWith(tx, {
-      clinicId: CLINIC_ID,
-      procedureId: PROCEDURE_ID,
-      priceId: PRICE_ID,
-      paymentMethod: 'pix',
-      installmentCount: null,
-      grossAmount: 240,
-    });
-    expect(tx.insert).not.toHaveBeenCalled();
+      assertCommercialPriceInput(tx, clinicId, { doctorId, procedureId, ...fields }),
+    ).rejects.toThrow('não está mais disponível');
+    expect(tx.select).not.toHaveBeenCalled();
   });
 
-  it('aceita somente a versão e o valor confirmados na transação', async () => {
-    mocks.getEffectivePaymentPricingMode.mockResolvedValue('payment_method_pricing');
-    mocks.matchesConfiguredProcedurePriceSnapshot.mockResolvedValue(true);
+  it('mantém o preço padrão sem exigir escolha de meio de pagamento', async () => {
+    const tx = { select: vi.fn(), insert: vi.fn(), execute: vi.fn() } as unknown as Tx;
     await expect(
-      assertCommercialPriceInput(tx, CLINIC_ID, {
-        doctorId: '11111111-1111-4111-8111-111111111111',
-        procedureId: PROCEDURE_ID,
-        pricingPolicyMode: 'payment_method_pricing',
-        commercialPaymentMethod: 'credit_card',
-        commercialInstallmentCount: 1,
-        commercialPriceId: PRICE_ID,
-        valorAjustado: true,
-        valor: 260,
+      assertCommercialPriceInput(tx, clinicId, {
+        doctorId,
+        procedureId,
+        pricingPolicyMode: 'absorb_fees',
       }),
     ).resolves.toBeUndefined();
+    expect(tx.select).not.toHaveBeenCalled();
   });
-
-  it('bloqueia cartão parcelado antes de consultar versão ou gravar atendimento', async () => {
-    mocks.getEffectivePaymentPricingMode.mockResolvedValue('payment_method_pricing');
-    await expect(
-      assertCommercialPriceInput(tx, CLINIC_ID, {
-        doctorId: '11111111-1111-4111-8111-111111111111',
-        procedureId: PROCEDURE_ID,
-        pricingPolicyMode: 'payment_method_pricing',
-        commercialPaymentMethod: 'credit_card',
-        commercialInstallmentCount: 3,
-        commercialPriceId: PRICE_ID,
-        valorAjustado: true,
-        valor: 260,
-      }),
-    ).rejects.toThrow('Link de cartão parcelado ainda não está disponível');
-    expect(mocks.matchesConfiguredProcedurePriceSnapshot).not.toHaveBeenCalled();
-    expect(tx.insert).not.toHaveBeenCalled();
-  });
-
-  it('recusa campos comerciais no modo padrão', async () => {
-    await expect(
-      assertCommercialPriceInput(tx, CLINIC_ID, {
-        doctorId: '11111111-1111-4111-8111-111111111111',
-        procedureId: PROCEDURE_ID,
-        pricingPolicyMode: 'absorb_fees',
-        commercialPaymentMethod: 'pix',
-      }),
-    ).rejects.toThrow('Condição comercial inválida');
-    expect(mocks.getEffectivePaymentPricingMode).toHaveBeenCalledWith(tx, CLINIC_ID);
-  });
-
-  it('recusa preço incompleto ou com fração de centavo', async () => {
-    mocks.getEffectivePaymentPricingMode.mockResolvedValue('payment_method_pricing');
-    await expect(
-      assertCommercialPriceInput(tx, CLINIC_ID, {
-        doctorId: '11111111-1111-4111-8111-111111111111',
-        procedureId: PROCEDURE_ID,
-        pricingPolicyMode: 'payment_method_pricing',
-        commercialPaymentMethod: 'pix',
-        commercialPriceId: PRICE_ID,
-        valorAjustado: true,
-        valor: 240.001,
-      }),
-    ).rejects.toThrow('Condição comercial incompleta');
-    expect(mocks.matchesConfiguredProcedurePriceSnapshot).not.toHaveBeenCalled();
-  });
-
-  it.each([undefined, 'absorb_fees' as const])(
-    'bloqueia criação sem cotação sob política explícita (%s), antes de gravar',
-    async (pricingPolicyMode) => {
-      mocks.getEffectivePaymentPricingMode.mockResolvedValue('payment_method_pricing');
-      await expect(
-        insertScheduledAppointment(tx, {
-          clinicId: CLINIC_ID,
-          userId: 'user-test',
-          actorType: 'user',
-          correlationId: null,
-          idempotencyKey: 'idem-test',
-          scheduledAt: new Date('2026-10-03T10:00:00Z'),
-          data: {
-            doctorId: '11111111-1111-4111-8111-111111111111',
-            procedureId: PROCEDURE_ID,
-            scheduledAt: '2026-10-03T10:00:00Z',
-            pricingPolicyMode,
-          },
-        }),
-      ).rejects.toThrow('Escolha uma forma de pagamento na Agenda');
-      expect(tx.select).not.toHaveBeenCalled();
-      expect(tx.insert).not.toHaveBeenCalled();
-      expect(tx.execute).not.toHaveBeenCalled();
-    },
-  );
 });

@@ -106,9 +106,6 @@ export function AsaasFeesPanel({ hasApiKey }: { hasApiKey: boolean }) {
           >
             {loading ? 'Consultando…' : 'Atualizar tarifas'}
           </Button>
-          <a href="#precos-por-meio" className="text-(length:--fs-sm) underline">
-            Definir preços ao paciente por meio de pagamento
-          </a>
         </div>
         <p className="text-(length:--fs-sm) text-fg-muted">
           Essas tarifas são custo da clínica. O preço ao paciente não muda automaticamente e o

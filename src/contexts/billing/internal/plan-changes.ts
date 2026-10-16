@@ -3,7 +3,7 @@
  * com o Asaas; assim um timeout de POST pode ser conciliado pela
  * `externalReference` sem criar uma cobrança duplicada.
  */
-import { and, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 
 import type { Tx } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
@@ -193,18 +193,14 @@ async function readCurrentSubscription(tx: Tx, clinicId: string): Promise<Curren
  * assinatura. Puro porque é a regra que decide QUANTO a clínica passa a pagar —
  * ela precisa ser afirmável sem banco.
  *
- * Fallback ao preço de tabela é deliberado: se o plano de destino não tem linha
- * da campanha, cobrar o cheio é melhor do que recusar a troca.
+ * Uma assinatura promocional só pode migrar para outro preço da mesma campanha.
+ * Sem essa linha, a troca é recusada antes de criar cobrança ou alterar contrato.
  */
 export function pickPriceForCampaign<T extends { campaignCode: string | null }>(
   candidates: readonly T[],
   campaignCode: string | null,
 ): T | undefined {
-  if (campaignCode) {
-    const promocional = candidates.find((c) => c.campaignCode === campaignCode);
-    if (promocional) return promocional;
-  }
-  return candidates.find((c) => c.campaignCode === null);
+  return candidates.find((c) => c.campaignCode === campaignCode);
 }
 
 /**
@@ -213,8 +209,8 @@ export function pickPriceForCampaign<T extends { campaignCode: string | null }>(
  * plano e caísse no preço de tabela, ela perderia o desconto vitalício sem
  * jamais ter pedido isso — e por um caminho que nem menciona preço promocional.
  *
- * Fallback é deliberado: se o plano de destino não tem linha da campanha, o
- * preço de tabela vale. Melhor cobrar o cheio do que recusar a troca.
+ * Se o destino não oferecer a mesma campanha, recusamos a troca para não
+ * substituir silenciosamente o preço vitalício por preço de tabela.
  */
 async function readTargetPlan(
   tx: Tx,
@@ -238,9 +234,7 @@ async function readTargetPlan(
         eq(prices.planId, plans.id),
         eq(prices.billingCycle, billingCycle),
         isNull(prices.activeUntil),
-        campaignCode
-          ? or(isNull(prices.campaignCode), eq(prices.campaignCode, campaignCode))
-          : isNull(prices.campaignCode),
+        campaignCode ? eq(prices.campaignCode, campaignCode) : isNull(prices.campaignCode),
       ),
     )
     .where(and(eq(plans.id, targetPlanId), eq(plans.ativo, true)));
@@ -1310,12 +1304,10 @@ export type PlanChangeOverview = {
 export async function getPlanChangeOverview(clinicId: string): Promise<PlanChangeOverview> {
   return withTenant(clinicId, async (tx) => {
     const current = await readCurrentSubscription(tx, clinicId);
-    // O catálogo tem que mostrar o MESMO preço que a troca vai cobrar, senão a
-    // tela promete um valor e o débito vem outro. Com campanha vêm DUAS linhas
-    // por plano (tabela + campanha); o `DISTINCT ON` fica com a da campanha,
-    // que é a ordenada primeiro — filtrar em JS deixaria a dedupe implícita.
+    // O catálogo só pode mostrar destinos que preservem a campanha vigente.
+    // Sem preço promocional correspondente, a troca não é oferecida nem cobrada.
     const campaignFilter = current.campaignCode
-      ? or(isNull(prices.campaignCode), eq(prices.campaignCode, current.campaignCode))
+      ? eq(prices.campaignCode, current.campaignCode)
       : isNull(prices.campaignCode);
     const planRows = await tx
       .selectDistinctOn([plans.id], {

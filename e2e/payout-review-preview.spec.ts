@@ -851,7 +851,7 @@ test.describe.serial('revisão humana do repasse (Preview + DEV, papéis reais)'
     expect(await reviews()).toHaveLength(3);
   });
 
-  test('6. owner Pro salva preços PIX/cartão, ativa a política e desfaz pela UI', async ({
+  test('6. owner Pro agenda pelo preço único; médico não configura políticas', async ({
     browser,
   }) => {
     test.setTimeout(300_000);
@@ -859,59 +859,21 @@ test.describe.serial('revisão humana do repasse (Preview + DEV, papéis reais)'
     await refreshSession(owner);
     await owner.goto('/configuracoes/pagamentos');
     await expect(owner.getByText('Política financeira', { exact: true })).toBeVisible();
+    await expect(owner.locator('#price-procedure')).toHaveCount(0);
+    await expect(owner.locator('input[name="pricing-policy"]')).toHaveCount(0);
     const doctor = sessions.has('doctor') ? pageOf('doctor') : await openSession(browser, 'doctor');
     await refreshSession(doctor);
     await doctor.goto('/configuracoes/pagamentos');
     await expect(
       doctor.getByText('Seu perfil não tem permissão para configurar o recebimento da clínica.'),
     ).toBeVisible();
-    await expect(doctor.getByRole('button', { name: 'Salvar preço' })).toHaveCount(0);
-    await expect(owner.locator('#price-procedure option')).toHaveCount(1);
-
-    const savePrice = async (method: 'pix' | 'credit_card', amount: string) => {
-      await owner.locator('#price-method').selectOption(method);
-      await owner.locator('#price-gross').fill(amount);
-      await owner.getByRole('button', { name: 'Salvar preço' }).click();
-      await expect(owner.getByText('Preço por método salvo.', { exact: true })).toBeVisible();
-      await expect(owner.getByText(`R$ ${amount},00`, { exact: true })).toBeVisible();
-    };
-
-    await savePrice('pix', '140');
-    await savePrice('credit_card', '160');
-    await owner.reload();
-    await expect(owner.getByText('R$ 140,00', { exact: true })).toBeVisible();
-    await expect(owner.getByText('R$ 160,00', { exact: true })).toBeVisible();
-    const configured = await db()<
-      { payment_method: string; gross_amount: string; installment_count: number | null }[]
-    >`
-      select payment_method, gross_amount::text, installment_count
-        from procedure_payment_prices
-       where clinic_id = ${fixture.clinicA}::uuid and active = true
-       order by payment_method
-    `;
-    expect(configured).toEqual([
-      { payment_method: 'credit_card', gross_amount: '160.00', installment_count: 1 },
-      { payment_method: 'pix', gross_amount: '140.00', installment_count: null },
-    ]);
-
-    await owner.getByText('Preço por meio de pagamento', { exact: true }).click();
-    await owner.getByRole('button', { name: 'Salvar política de preço' }).click();
-    await expect(owner.getByText('Política de preço salva.', { exact: true })).toBeVisible();
-    await owner.reload();
-    await expect(
-      owner.locator('input[name="pricing-policy"][value="payment_method_pricing"]'),
-    ).toBeChecked();
+    await expect(doctor.getByRole('button', { name: 'Salvar base de repasse' })).toHaveCount(0);
 
     const appointmentDate = new Intl.DateTimeFormat('en-CA', {
       timeZone: 'America/Sao_Paulo',
     }).format(new Date(Date.now() + 3 * 24 * 60 * 60 * 1000));
     const schedulingDurationsMs: number[] = [];
-    const scheduleAtConfiguredPrice = async (
-      name: string,
-      method: 'pix' | 'credit_card',
-      time: string,
-      amount: string,
-    ) => {
+    const scheduleAtStandardPrice = async (name: string, time: string) => {
       await owner.goto('/agenda');
       await owner.getByRole('button', { name: 'Novo atendimento' }).click();
       const drawer = owner.getByRole('dialog', { name: 'Novo atendimento' });
@@ -925,11 +887,7 @@ test.describe.serial('revisão humana do repasse (Preview + DEV, papéis reais)'
         .selectOption({ label: `Dra. Repasse E2E ${short}` });
       await drawer.getByLabel('Data', { exact: true }).fill(appointmentDate);
       await drawer.getByLabel('Hora', { exact: true }).fill(time);
-      await drawer.getByRole('button', { name: 'Agendar', exact: true }).click();
-      await expect(drawer.getByText('Selecione a forma de pagamento e o preço.')).toBeVisible();
-      const price = drawer.getByLabel('Forma de pagamento e preço');
-      await expect(price.locator('option', { hasText: `R$ ${amount},00` })).toHaveCount(1);
-      await price.selectOption(method === 'credit_card' ? 'credit_card:1' : 'pix:0');
+      await expect(drawer.getByLabel('Forma de pagamento e preço')).toHaveCount(0);
       const startedAt = Date.now();
       await drawer.getByRole('button', { name: 'Agendar', exact: true }).click();
       await expect(owner.getByText('Atendimento agendado', { exact: true })).toBeVisible({
@@ -938,67 +896,23 @@ test.describe.serial('revisão humana do repasse (Preview + DEV, papéis reais)'
       schedulingDurationsMs.push(Date.now() - startedAt);
       await expect(drawer).toBeHidden();
     };
-    await scheduleAtConfiguredPrice(patientName, 'pix', '10:00', '140');
-    await scheduleAtConfiguredPrice(cardPatientName, 'credit_card', '11:00', '160');
+    await scheduleAtStandardPrice(patientName, '10:00');
+    await scheduleAtStandardPrice(cardPatientName, '11:00');
     evidence.schedulingDurationsMs = schedulingDurationsMs;
     const appointments = await db()<
-      {
-        patient_name: string;
-        amount: string;
-        method: string;
-        installments: number | null;
-        price_amount: string;
-      }[]
+      { patient_name: string; amount: string; method: string | null }[]
     >`
-      select pt.nome patient_name, a.valor::text amount,
-             a.commercial_payment_method method, a.commercial_installment_count installments,
-             pp.gross_amount::text price_amount
-        from appointments a
-        join patients pt on pt.id = a.patient_id
-        join procedure_payment_prices pp on pp.id = a.commercial_price_id
+      select pt.nome patient_name, a.valor::text amount, a.commercial_payment_method method
+        from appointments a join patients pt on pt.id = a.patient_id
        where a.clinic_id = ${fixture.clinicA}::uuid and a.created_by = ${fixture.users.owner!}::uuid
-       order by a.commercial_payment_method
+       order by pt.nome
     `;
-    expect(appointments).toEqual([
-      {
-        patient_name: cardPatientName,
-        amount: '160.00',
-        method: 'credit_card',
-        installments: 1,
-        price_amount: '160.00',
-      },
-      {
-        patient_name: patientName,
-        amount: '140.00',
-        method: 'pix',
-        installments: null,
-        price_amount: '140.00',
-      },
+    expect(appointments).toHaveLength(2);
+    expect(appointments.map(({ amount, method }) => ({ amount, method }))).toEqual([
+      { amount: '150.00', method: null },
+      { amount: '150.00', method: null },
     ]);
-    evidence.scheduledPrices = appointments.map(({ method, amount }) => ({ method, amount }));
-
-    await owner.goto('/configuracoes/pagamentos');
-    await owner.getByText('Absorver taxas', { exact: true }).click();
-    await owner.getByRole('button', { name: 'Salvar política de preço' }).click();
-    await expect(owner.getByText('Política de preço salva.', { exact: true })).toBeVisible();
-    await owner.reload();
-    await expect(owner.locator('input[name="pricing-policy"][value="absorb_fees"]')).toBeChecked();
-    for (let count = 2; count > 0; count--) {
-      await expect(owner.getByRole('button', { name: 'Remover', exact: true })).toHaveCount(count);
-      await owner.getByRole('button', { name: 'Remover', exact: true }).first().click();
-      await expect(owner.getByText('Preço removido.', { exact: true })).toBeVisible();
-    }
-    await owner.reload();
-    await expect(owner.getByRole('button', { name: 'Remover', exact: true })).toHaveCount(0);
-    const [state] = await db()<{ mode: string; active_prices: number }[]>`
-      select p.mode,
-             (select count(*)::int from procedure_payment_prices
-               where clinic_id = ${fixture.clinicA}::uuid and active = true) active_prices
-        from clinic_payment_pricing_policies p
-       where p.clinic_id = ${fixture.clinicA}::uuid
-    `;
-    expect(state).toEqual({ mode: 'absorb_fees', active_prices: 0 });
-    evidence.pricing = { methods: ['pix', 'credit_card'], activated: true, restored: state };
+    evidence.standardPrice = { appointments: appointments.length, gross: '150.00' };
   });
 
   test('7. cadastro manual não autoriza WhatsApp; consentimentos separados preservam revogação', async ({
@@ -1080,16 +994,15 @@ test.describe.serial('revisão humana do repasse (Preview + DEV, papéis reais)'
     };
   });
 
-  test('8. link de preços e duas regras do mesmo profissional persistem sem travar', async ({
+  test('8. regras do mesmo profissional persistem sem travar após retirar preços por meio', async ({
     browser,
   }) => {
     test.setTimeout(180_000);
     const owner = sessions.has('owner') ? pageOf('owner') : await openSession(browser, 'owner');
     await refreshSession(owner);
     await owner.goto('/configuracoes/pagamentos');
-    await owner.locator('a[href="#precos-por-meio"]').click();
-    await expect(owner).toHaveURL(/\/configuracoes\/pagamentos#precos-por-meio$/u);
-    await expect(owner.locator('#precos-por-meio')).toBeVisible();
+    await expect(owner.locator('a[href="#precos-por-meio"]')).toHaveCount(0);
+    await expect(owner.locator('#precos-por-meio')).toHaveCount(0);
 
     const rules = owner.locator('#regras-de-repasse');
     await expect(rules.getByText('50% da base')).toBeVisible();
@@ -1163,7 +1076,7 @@ test.describe.serial('revisão humana do repasse (Preview + DEV, papéis reais)'
         fixed_amount: null,
       },
     ]);
-    evidence.multipleRules = { active: active.length, anchor: true };
+    evidence.multipleRules = { active: active.length, oldPricingAnchorRemoved: true };
   });
 
   test('9. permissões individuais de dois tipos são salvas juntas ou descartadas', async ({
@@ -1227,11 +1140,25 @@ test.describe.serial('revisão humana do repasse (Preview + DEV, papéis reais)'
       await count.fill(professionals);
       await expect(owner.getByText(new RegExp(`R\\$\\s*${monthly},00/mês`, 'u'))).toBeVisible();
     }
+    await count.fill('2');
+    const staff = owner.getByLabel('Logins de equipe sem agenda própria');
+    await staff.fill('2');
+    await expect(owner.getByText(/R\$\s*397,00\/mês/u)).toBeVisible();
+    await staff.fill('3');
+    await expect(owner.getByText(/R\$\s*476,00\/mês/u)).toBeVisible();
+    await staff.fill('11');
+    await expect(owner.locator('main').getByRole('alert')).toContainText('0 a 10 logins de equipe');
+    await staff.fill('1');
     await count.fill('11');
     await expect(owner.locator('main').getByRole('alert')).toContainText(
       'Informe de 1 a 10 profissionais',
     );
     await expect(owner.locator('a[href*="/cadastro"]')).toHaveCount(0);
-    evidence.pricingPreview = { values: 5, aboveLimitBlocked: true, checkoutUntouched: true };
+    evidence.pricingPreview = {
+      values: 5,
+      staffIncludedAndAdditional: true,
+      aboveLimitBlocked: true,
+      checkoutUntouched: true,
+    };
   });
 });

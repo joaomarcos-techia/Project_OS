@@ -5,18 +5,10 @@ import type { Tx } from '@/lib/db';
 import './provide-procedure-price';
 import { getTool, type ToolContext } from './registry';
 
-const mocks = vi.hoisted(() => ({
-  listProcedures: vi.fn(),
-  getPaymentPricingPolicy: vi.fn(),
-  listProcedurePaymentPrices: vi.fn(),
-}));
+const listProcedures = vi.hoisted(() => vi.fn());
 
 vi.mock('@/contexts/scheduling', () => ({
-  schedulingApiV1: { listProcedures: mocks.listProcedures },
-}));
-vi.mock('@/contexts/payments', () => ({
-  getPaymentPricingPolicy: mocks.getPaymentPricingPolicy,
-  listProcedurePaymentPrices: mocks.listProcedurePaymentPrices,
+  schedulingApiV1: { listProcedures },
 }));
 
 const PROCEDURE_ID = '55555555-5555-5555-5555-555555555555';
@@ -40,7 +32,7 @@ const context: ToolContext = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.listProcedures.mockResolvedValue([
+  listProcedures.mockResolvedValue([
     {
       id: PROCEDURE_ID,
       descricao: 'Consulta Cardiológica',
@@ -49,73 +41,20 @@ beforeEach(() => {
       duracaoPadraoMin: 30,
     },
   ]);
-  mocks.getPaymentPricingPolicy.mockResolvedValue({ mode: 'payment_method_pricing' });
-  mocks.listProcedurePaymentPrices.mockResolvedValue([
-    { procedureId: PROCEDURE_ID, paymentMethod: 'pix', installmentCount: null, grossAmount: 180 },
-    {
-      procedureId: PROCEDURE_ID,
-      paymentMethod: 'credit_card',
-      installmentCount: 1,
-      grossAmount: 200,
-    },
-    {
-      procedureId: PROCEDURE_ID,
-      paymentMethod: 'credit_card',
-      installmentCount: 3,
-      grossAmount: 220,
-    },
-    { procedureId: PROCEDURE_ID, paymentMethod: 'cash', installmentCount: null, grossAmount: 170 },
-  ]);
 });
 
-describe('provide_procedure_price por meio de pagamento', () => {
-  it('mostra preços configurados, inclusive dinheiro na clínica, e não apresenta o preço padrão como preço cobrável', async () => {
+describe('provide_procedure_price com preço único', () => {
+  it('expõe apenas o preço do procedimento, sem cotação por meio', async () => {
     const result = await getTool('provide_procedure_price')!.handler({}, context);
     expect(result.procedures).toEqual([
       {
         procedure_id: PROCEDURE_ID,
         descricao: 'Consulta Cardiológica',
         categoria: 'consulta',
-        valor: null,
+        valor: 250,
         duracao_min: 30,
-        payment_options: [
-          {
-            payment_method: 'pix',
-            installment_count: null,
-            gross_amount: 180,
-            hosted_checkout_supports_option: true,
-            paid_at_clinic: false,
-          },
-          {
-            payment_method: 'credit_card',
-            installment_count: 1,
-            gross_amount: 200,
-            hosted_checkout_supports_option: true,
-            paid_at_clinic: false,
-          },
-          {
-            payment_method: 'credit_card',
-            installment_count: 3,
-            gross_amount: 220,
-            hosted_checkout_supports_option: false,
-            paid_at_clinic: false,
-          },
-          {
-            payment_method: 'cash',
-            installment_count: null,
-            gross_amount: 170,
-            hosted_checkout_supports_option: false,
-            paid_at_clinic: true,
-          },
-        ],
       },
     ]);
-  });
-
-  it('mantém preço padrão no modo sem preços por meio de pagamento', async () => {
-    mocks.getPaymentPricingPolicy.mockResolvedValue({ mode: 'absorb_fees' });
-    const result = await getTool('provide_procedure_price')!.handler({}, context);
-    expect(result.procedures[0]).toMatchObject({ valor: 250, payment_options: [] });
-    expect(mocks.listProcedurePaymentPrices).not.toHaveBeenCalled();
+    expect(listProcedures).toHaveBeenCalledWith(context.clinicId, { limit: 20 });
   });
 });

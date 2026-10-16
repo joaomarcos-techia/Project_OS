@@ -14,13 +14,17 @@ Esta é uma **hipótese comercial**, baseada em `Qoro_mudancas_de_preco.pdf` (13
 
 Fórmula Clínica: `397 + 147 × (profissionais − 2)`. O anual equivale a 10 mensalidades. Acima de 10 profissionais, a proposta é sob consulta. A quantidade não é um simples campo visual: antes da ativação, precisa ser validada no servidor com base em profissionais ativos com agenda, inclusive em convites, mudança de papel, desativação e reativação.
 
+O fundador decidiu que qualquer login adicional poderá ser contratado. Na proposta, o Consultório inclui **1 profissional com agenda + 1 login de equipe** e a Clínica inclui **2 profissionais com agenda + 2 logins de equipe**. Cada profissional além da cota custa **R$ 147/mês** e cada login de equipe além da cota custa **R$ 79/mês**. Um login ocupa uma categoria, sem contagem dupla. A simulação aceita de 0 a 10 logins de equipe; acima disso, a proposta é sob consulta. Esses adicionais **não** participam do catálogo ativo nem do Checkout atual. As prévias calculam os valores sem oferecer compra.
+
+Há uma assinatura promocional ativa em produção, além de uma promocional cancelada, conforme leitura agregada somente de consulta em 16/10/2026. O preço-base contratado dessa conta ativa tem desconto **vitalício**: não será recalculado pela tabela nova nem sofrerá reajuste automático. A eventual compra de login adicional terá componente separado e não mudará o `price_id` do contrato-base. Se não existir preço da mesma campanha para um plano de destino, a troca deve ser recusada antes de cobrar.
+
 ## Condições de ativação
 
 1. Medir o custo real de IA por conversa e as despesas Meta por clínica; confirmar quem paga a Meta. As estimativas do PDF não são medições do Qoro.
 2. Implementar definição e contagem de conversa de 24 horas, franquia de 500 por profissional, aviso em 80% e política de excedente. Não anunciar franquia como benefício vigente antes disso.
 3. Implementar no billing o catálogo Consultório/Clínica por quantidade de profissionais, preço anual, mudança de quantidade, prorrata, limites server-side e migração de clientes legados. A rota de prévia não participa dessas decisões.
 4. Implementar e testar o trial proposto de 14 dias a partir da conexão do WhatsApp ou primeiro agendamento pela IA; hoje o cadastro autônomo usa 7 dias a partir do fluxo atual.
-5. Revisar textos e Termos de Uso com responsável jurídico: tarifas de terceiros, cancelamento, reajuste, trial, uso justo e transição. O relatório sugere preservar preços legados por 12 meses, avisar com 60 dias e limitar a elevação anual a 20%, mas isso ainda não está em contrato nem no código.
+5. Revisar textos e Termos de Uso com responsável jurídico: tarifas de terceiros, cancelamento, reajuste, trial, uso justo e transição. A sugestão do PDF de preservar preços legados por apenas 12 meses **não se aplica ao cliente com desconto vitalício**. O preço-base contratado dele permanece, inclusive após a nova tabela.
 6. Fazer E2E Preview com conta nova: valor exibido = valor reservado = Checkout Asaas = assinatura = próxima cobrança; testar 1, 2, 3, 10 e 11 profissionais, mensal/anual, reentrada, cancelamento, upgrade/downgrade e webhook duplicado. Só então ativar a landing e o catálogo em produção juntos.
 7. Definir explicitamente os entitlements do futuro Consultório e Clínica. As políticas financeiras avançadas hoje são de Clínica e Pro; a prévia de preço não altera esse gate.
 
@@ -32,7 +36,7 @@ Fórmula Clínica: `397 + 147 × (profissionais − 2)`. O anual equivale a 10 m
 
 Os cálculos da proposta têm testes de limite e valores nos dois repositórios; as páginas de prévia são `noindex`. Nenhuma migration, alteração de preço no Asaas ou mudança de trial foi feita nesta fase.
 
-Em 15/10/2026, a landing foi publicada na branch `preview/pricing-2026-10`, commit `2a8fb56`, em `https://landing-page-git-preview-pricing-05406a-clinic-os-v2-s-projects.vercel.app/precos-preview`. O build Vite, typecheck, lint e o runner da proposta passaram localmente; a URL externa exige autenticação SSO da Vercel e não foi marcada como prova de interação pública.
+Em 15/10/2026, a landing foi publicada na branch `preview/pricing-2026-10`, inicialmente no commit `2a8fb56`, em `https://landing-page-git-preview-pricing-05406a-clinic-os-v2-s-projects.vercel.app/precos-preview`. Em 16/10, o commit `bc4ad4d` incluiu a cota de equipe e o adicional de R$ 79 na simulação. Build Vite, typecheck, lint e runner da proposta passaram localmente nessa ponta; a URL externa pode apontar para outro deployment da branch e exige autenticação SSO da Vercel, portanto não é prova de interação pública atualizada.
 
 O app foi publicado na branch `preview/payment-settings-pricing-20261015`, commit `47c24b18`, em `https://project-os-git-preview-payment-s-8e7b79-clinic-os-v2-s-projects.vercel.app/oferta-preview`. Esta rota requer login e não participa do cadastro. O build Next 15.5.24 terminou com exit 0. O E2E no Preview/DEV verificou os valores para 1, 2, 3, 5 e 10 profissionais, rejeitou 11 e constatou que a página não oferece link de contratação; o teste dirigido passou com readback de cleanup zero. Isso valida a simulação, **não** a futura contratação nem a regra de trial proposta.
 

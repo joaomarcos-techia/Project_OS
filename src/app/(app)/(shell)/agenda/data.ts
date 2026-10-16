@@ -11,11 +11,6 @@ import { practitionerSql, profiles } from '@/contexts/identity';
 import { getCurrentPractitioner } from '@/contexts/identity/internal/practitioner';
 import { listPatientCards } from '@/contexts/patient/queries';
 import { paymentsApiV1 } from '@/contexts/payments';
-import {
-  getPaymentPricingPolicy,
-  listProcedurePaymentPrices,
-} from '@/contexts/payments/pricing-queries';
-import type { ProcedurePaymentPriceDTO } from '@/contexts/payments/pricing-types';
 import { ageFromBirthdate } from '../consultorio/board-logic';
 import {
   listAppointments,
@@ -121,8 +116,6 @@ export interface AgendaData {
   procedures: ProcedureOption[];
   doctors: DoctorOption[];
   resources: ResourceOption[];
-  paymentPricingMode: 'absorb_fees' | 'payment_method_pricing';
-  paymentPrices: ProcedurePaymentPriceDTO[];
   /**
    * EC-32 — mensagens automáticas (C14) que não chegaram ao paciente nos
    * últimos 7 dias. A faixa mostra as acionáveis; o selo da linha, todas.
@@ -150,8 +143,6 @@ const EMPTY: AgendaData = {
   procedures: [],
   doctors: [],
   resources: [],
-  paymentPricingMode: 'absorb_fees',
-  paymentPrices: [],
   deliveryFailures: [],
   deliveryFailuresLimited: false,
   tz: DEFAULT_TZ,
@@ -206,34 +197,25 @@ export async function getAgendaData(query: AgendaQuery = { view: 'day' }): Promi
   //      cada mensagem que falhou;
   //   3. o que se resolve a partir dos atendimentos.
   const now = new Date();
-  const [
-    isPractitioner,
-    tzRaw,
-    proceduresRaw,
-    resourcesRaw,
-    docRows,
-    pricingPolicy,
-    paymentPrices,
-    failures,
-  ] = await Promise.all([
-    getCurrentPractitioner(),
-    getClinicTimezone(clinicId),
-    listProcedures(clinicId, { onlyActive: true }),
-    listSchedulableResources(clinicId),
-    withTenant(clinicId, (tx) =>
-      tx.execute(
-        sql`SELECT id::text AS id, nome FROM profiles
+  const [isPractitioner, tzRaw, proceduresRaw, resourcesRaw, docRows, failures] = await Promise.all(
+    [
+      getCurrentPractitioner(),
+      getClinicTimezone(clinicId),
+      listProcedures(clinicId, { onlyActive: true }),
+      listSchedulableResources(clinicId),
+      withTenant(clinicId, (tx) =>
+        tx.execute(
+          sql`SELECT id::text AS id, nome FROM profiles
           WHERE ${practitionerSql(profiles.role, profiles.crm)} AND ativo = true AND deleted_at IS NULL
             AND invite_accepted_at IS NOT NULL
           ORDER BY nome`,
-      ),
-    ) as Promise<unknown> as Promise<Array<{ id: string; nome: string }>>,
-    getPaymentPricingPolicy(clinicId),
-    listProcedurePaymentPrices(clinicId),
-    // EC-32 — sem isto a recusa da Meta só aparecia no banco: no sinal, a vaga
-    // vencia sem a recepção saber que o paciente não recebeu o link.
-    listRecentProactiveFailures(clinicId, { since: deliveryFailureWindowStart(now) }),
-  ]);
+        ),
+      ) as Promise<unknown> as Promise<Array<{ id: string; nome: string }>>,
+      // EC-32 — sem isto a recusa da Meta só aparecia no banco: no sinal, a vaga
+      // vencia sem a recepção saber que o paciente não recebeu o link.
+      listRecentProactiveFailures(clinicId, { since: deliveryFailureWindowStart(now) }),
+    ],
+  );
 
   const tz = tzRaw ?? DEFAULT_TZ;
   const ymd = normalizeDateParam(query.date, tz);
@@ -342,8 +324,6 @@ export async function getAgendaData(query: AgendaQuery = { view: 'day' }): Promi
     procedures,
     doctors,
     resources,
-    paymentPricingMode: pricingPolicy.mode,
-    paymentPrices,
     deliveryFailures,
     deliveryFailuresLimited: failures.length >= DELIVERY_FAILURE_LIST_LIMIT,
     tz,

@@ -8,11 +8,6 @@ import {
   type PaymentAccountStatusDTO,
 } from '@/contexts/payments';
 import {
-  getPaymentPricingPolicy,
-  listProcedurePaymentPrices,
-} from '@/contexts/payments/pricing-queries';
-import type { PaymentPricingPolicyDTO, ProcedurePaymentPriceDTO } from '@/contexts/payments';
-import {
   getProfessionalPayoutPolicy,
   listActiveProfessionalPayoutRules,
 } from '@/contexts/financial/payout-queries';
@@ -30,8 +25,6 @@ export interface PagamentosPageData {
   account: PaymentAccountStatusDTO;
   policy: DepositPolicyDTO;
   advancedPoliciesEnabled: boolean;
-  pricingPolicy: PaymentPricingPolicyDTO;
-  methodPrices: ProcedurePaymentPriceDTO[];
   payoutPolicy: ProfessionalPayoutPolicyDTO;
   payoutRules: ProfessionalPayoutRuleDTO[];
   professionals: Array<{ id: string; name: string }>;
@@ -55,23 +48,18 @@ export async function loadPagamentosPage(): Promise<PagamentosPageData> {
       account,
       policy,
       advancedPoliciesEnabled,
-      pricingPolicy: { mode: 'absorb_fees', updatedAt: null },
-      methodPrices: [],
       payoutPolicy: { basis: 'gross', updatedAt: null },
       payoutRules: [],
       professionals: [],
       procedures: [],
     };
   }
-  const [pricingPolicy, methodPrices, payoutPolicy, payoutRules, employees, procedures] =
-    await Promise.all([
-      getPaymentPricingPolicy(clinicId),
-      listProcedurePaymentPrices(clinicId),
-      getProfessionalPayoutPolicy(clinicId),
-      listActiveProfessionalPayoutRules(clinicId),
-      listEmployees(clinicId),
-      schedulingApiV1.listProcedures(clinicId, { limit: 200 }),
-    ]);
+  const [payoutPolicy, payoutRules, employees, procedures] = await Promise.all([
+    getProfessionalPayoutPolicy(clinicId),
+    listActiveProfessionalPayoutRules(clinicId),
+    listEmployees(clinicId),
+    schedulingApiV1.listProcedures(clinicId, { limit: 200 }),
+  ]);
   const professionals = employees
     .filter(
       (employee) =>
@@ -85,8 +73,6 @@ export async function loadPagamentosPage(): Promise<PagamentosPageData> {
     account,
     policy,
     advancedPoliciesEnabled,
-    pricingPolicy,
-    methodPrices,
     payoutPolicy,
     payoutRules,
     professionals,

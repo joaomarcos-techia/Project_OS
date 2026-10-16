@@ -74,8 +74,8 @@ beforeEach(() => {
   });
 });
 
-describe('execução do agendamento preparado com preço comercial', () => {
-  it('passa o preço Pix e a versão configurada para o core de agenda', async () => {
+describe('ações pendentes após a retirada do preço por meio', () => {
+  it('recusa preço antigo e exige novo resumo antes de criar a consulta', async () => {
     mocks.decryptForTenant.mockResolvedValue(
       JSON.stringify({
         ...legacyPayload,
@@ -88,25 +88,8 @@ describe('execução do agendamento preparado com preço comercial', () => {
       }),
     );
 
-    await executePendingAction(context);
-
-    expect(mocks.scheduleAsAgent).toHaveBeenCalledWith(
-      expect.objectContaining({ clinicId: context.clinicId }),
-      {
-        doctorId: legacyPayload.doctorId,
-        procedureId: legacyPayload.procedureId,
-        patientId: legacyPayload.patientId,
-        scheduledAt: legacyPayload.scheduledAt,
-        pricingPolicyMode: 'payment_method_pricing',
-        commercialPaymentMethod: 'pix',
-        commercialInstallmentCount: null,
-        commercialPriceId: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
-        valorAjustado: true,
-        valor: 180,
-        valorAjusteMotivo: 'Preço por meio de pagamento',
-      },
-      expect.any(String),
-    );
+    await expect(executePendingAction(context)).rejects.toThrow('peça um novo agendamento');
+    expect(mocks.scheduleAsAgent).not.toHaveBeenCalled();
   });
 
   it('continua executando payloads antigos com os argumentos originais', async () => {

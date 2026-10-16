@@ -36,9 +36,7 @@ describe('AsaasFeesPanel', () => {
     expect(await screen.findByText(/R\$\s*1,99 por recebimento/)).toBeTruthy();
     expect(screen.getByText(/2,99%/)).toBeTruthy();
     expect(screen.getAllByText(/validade informada: 22\/11\/2026/)).toHaveLength(2);
-    expect(
-      screen.getByRole('link', { name: /Definir preços ao paciente/ }).getAttribute('href'),
-    ).toBe('#precos-por-meio');
+    expect(screen.queryByRole('link', { name: /Definir preços ao paciente/ })).toBeNull();
   });
 
   it('sem conta conectada não chama o Asaas', () => {

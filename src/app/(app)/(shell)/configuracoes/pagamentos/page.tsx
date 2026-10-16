@@ -40,18 +40,13 @@ export default async function PagamentosSettingsPage() {
       <DepositPolicyForm policy={data.policy} hasAccount={data.account.hasApiKey} />
       {data.advancedPoliciesEnabled ? (
         <FinancialPoliciesPanel
-          pricingPolicy={data.pricingPolicy}
-          methodPrices={data.methodPrices}
           payoutPolicy={data.payoutPolicy}
           payoutRules={data.payoutRules}
           professionals={data.professionals}
           procedures={data.procedures}
         />
       ) : (
-        <Alert variant="info">
-          Preços por meio de pagamento e regras de repasse estão disponíveis nos planos Clínica e
-          Pro.
-        </Alert>
+        <Alert variant="info">Regras de repasse estão disponíveis nos planos Clínica e Pro.</Alert>
       )}
     </div>
   );

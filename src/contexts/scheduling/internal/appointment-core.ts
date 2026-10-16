@@ -16,12 +16,6 @@
  */
 import { and, eq, inArray, sql } from 'drizzle-orm';
 
-/* eslint-disable boundaries/element-types -- contrato público do Payments; a versão/preço são revalidados na mesma transação do agendamento. */
-import {
-  getEffectivePaymentPricingMode,
-  matchesConfiguredProcedurePriceSnapshot,
-} from '@/contexts/payments';
-/* eslint-enable boundaries/element-types */
 /* eslint-disable boundaries/element-types -- profiles é declarado no schema de identity (Drizzle FK vive onde a tabela é declarada); leitura tenant-scoped via tx (RLS aplica). Mesma exceção de clinical/internal/doctor.ts e tenant-context.ts. */
 import { profiles } from '@/contexts/identity/schema';
 /* eslint-enable boundaries/element-types */
@@ -410,63 +404,17 @@ export async function publishCreated(
 }
 
 export async function assertCommercialPriceInput(
-  tx: Tx,
-  clinicId: string,
+  _tx: Tx,
+  _clinicId: string,
   data: CreateAppointmentInput | CreateWalkInInput,
 ): Promise<void> {
-  const effectiveMode = await getEffectivePaymentPricingMode(tx, clinicId);
-  if (effectiveMode === 'payment_method_pricing' && data.pricingPolicyMode !== effectiveMode) {
-    throw new SchedulingValidationError(
-      'Esta clínica usa preço por meio de pagamento. Escolha uma forma de pagamento na Agenda antes de criar o atendimento.',
-    );
-  }
-  if (data.pricingPolicyMode !== 'payment_method_pricing') {
-    if (
-      data.commercialPaymentMethod != null ||
-      data.commercialInstallmentCount != null ||
-      data.commercialPriceId != null
-    ) {
-      throw new SchedulingValidationError('Condição comercial inválida para o preço padrão.');
-    }
-    return;
-  }
-
-  if (effectiveMode !== 'payment_method_pricing') {
-    throw new SchedulingValidationError(
-      'Preço por meio de pagamento não está ativo nesta clínica.',
-    );
-  }
-
-  const method = data.commercialPaymentMethod;
-  const priceId = data.commercialPriceId;
-  if (method === 'credit_card' && data.commercialInstallmentCount !== 1) {
-    throw new SchedulingValidationError(
-      'Link de cartão parcelado ainda não está disponível. Escolha cartão em 1x ou outra forma de pagamento.',
-    );
-  }
   if (
-    !method ||
-    !priceId ||
-    data.valorAjustado !== true ||
-    data.valor == null ||
-    !Number.isFinite(data.valor) ||
-    Number(data.valor.toFixed(2)) !== data.valor
+    (data.pricingPolicyMode != null && data.pricingPolicyMode !== 'absorb_fees') ||
+    data.commercialPaymentMethod != null ||
+    data.commercialInstallmentCount != null ||
+    data.commercialPriceId != null
   ) {
-    throw new SchedulingValidationError('Condição comercial incompleta ou valor inválido.');
-  }
-
-  const matches = await matchesConfiguredProcedurePriceSnapshot(tx, {
-    clinicId,
-    procedureId: data.procedureId,
-    priceId,
-    paymentMethod: method,
-    installmentCount: data.commercialInstallmentCount ?? null,
-    grossAmount: data.valor,
-  });
-  if (!matches) {
-    throw new SchedulingValidationError(
-      'O preço por meio de pagamento mudou. Selecione-o novamente.',
-    );
+    throw new SchedulingValidationError('Preço por meio de pagamento não está mais disponível.');
   }
 }
 

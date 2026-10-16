@@ -39,19 +39,6 @@ export {
   type SaveDepositPolicyInput,
 } from './types';
 export { PaymentCredentialRejectedError, PaymentProviderUnavailableError } from './errors';
-export type {
-  PaymentPricingPolicyDTO,
-  ProcedurePaymentPriceDTO,
-  SavePaymentPricingPolicyInput,
-  SaveProcedurePaymentPriceInput,
-} from './pricing-types';
-export {
-  getEffectivePaymentPricingMode,
-  getPaymentPricingPolicy,
-  listProcedurePaymentPrices,
-  matchesConfiguredProcedurePriceSnapshot,
-  resolveConfiguredProcedurePaymentPrice,
-} from './pricing-queries';
 export { PAYMENTS_EVENTS } from './events';
 export type {
   PatientChargeClosedPayload,
