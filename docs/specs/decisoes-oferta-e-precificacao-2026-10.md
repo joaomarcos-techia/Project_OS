@@ -50,7 +50,7 @@ Os testes dirigidos e o E2E Preview registrados em `docs/specs/politica-financei
 
 **Visão do paciente:** ele vê R$ X e escolhe o meio no Checkout. A troca entre Pix e cartão nesse Checkout não muda o bruto. `items[].value` define o valor do item; `billingTypes` define os meios disponíveis. Não se promete parcelamento ou valor líquido idêntico para a clínica, pois as tarifas dependem da transação real.
 
-**Transição técnica:** remover criação, edição e seleção de regras Pix/cartão no painel, Agenda e IA. A migration 0121 foi aplicada no DEV: desativou regras e restringiu novas políticas a `absorb_fees`, sem apagar tabela ou reescrever atendimentos/cobranças antigos. As duas constraints e escritas adversariais passaram no probe DEV. Ainda faltam E2E de navegador com o código atualizado e replay de webhook histórico antes de publicar a mudança no app.
+**Transição técnica:** a branch Preview removeu criação, edição e seleção de regras Pix/cartão no painel, Agenda e IA. A migration 0121 foi aplicada no DEV: desativou regras e restringiu novas políticas a `absorb_fees`, sem apagar tabela ou reescrever atendimentos/cobranças antigos. As duas constraints e escritas adversariais passaram no probe DEV. O E2E de navegador passou com consultas novas de preço único; checkout Pix/cartão e replay de webhook histórico nesta ponta ainda precisam de prova antes de publicar a mudança no app.
 
 ### Não confundir preço, tarifa e repasse
 
@@ -113,7 +113,7 @@ Também não tratar “uma consulta recuperada paga o plano” como resultado ga
 
 | Pergunta | Medição exigida | Estado agora |
 | --- | --- | --- |
-| Retirada do preço por método preserva operações? | Agendamento novo em UI/API/IA, regras antigas desativadas, histórico íntegro, checkout Pix/cartão pelo mesmo bruto, webhook tardio e tenant | **Parcial:** código local, testes unitários e migration 0121 no DEV com guardas comprovados; E2E Preview e webhook histórico ainda pendentes. A decisão de produto de retirar a configuração já está tomada. |
+| Retirada do preço por método preserva operações? | Agendamento novo em UI/API/IA, regras antigas desativadas, histórico íntegro, checkout Pix/cartão pelo mesmo bruto, webhook tardio e tenant | **Parcial:** migration 0121 e guardas no DEV; E2E Preview confirmou duas consultas pelo preço único, ausência do formulário antigo e isolamento entre tenants (10/10 no spec integrado). Checkout Pix/cartão novo e replay externo de webhook histórico sob esta ponta ainda não foram executados. A decisão de retirar a configuração já está tomada. |
 | Login extra pode ser contratado sem mudar desconto vitalício? | Contrato-base fixo, checkout do adicional, confirmação do pagamento, limite de assentos, convite, recorrência e cancelamento sob concorrência | **Não implementado.** A prévia calcula cotas 1+1/2+2 e adicional de equipe a R$ 79/mês, mas não concede acesso nem cria cobrança. |
 | Médico e gestor conseguem conferir repasse mensal? | Soma por competência, isolamento do médico, consolidado do gestor, suspensão e revisão auditáveis | **Não implementado.** Há apenas cálculo por atendimento/visão do Caixa. |
 | R$ 197 / R$ 397 + adicional têm margem? | Faturas de IA, Meta e infraestrutura por clínica; suporte/onboarding; impostos reais; volume e mix de profissionais | **Não demonstrado.** PDF fornece cenários. |

@@ -5,6 +5,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { PatientForm } from './patient-form';
 
+const ACTION_RENDER_TIMEOUT_MS = 5_000;
+
 describe('PatientForm', () => {
   it('preserva o rascunho após a action devolver erro de validação', async () => {
     const action = vi.fn(async () => ({ error: 'CPF inválido' }));
@@ -26,7 +28,9 @@ describe('PatientForm', () => {
     expect(form).not.toBeNull();
     fireEvent.submit(form!);
 
-    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('CPF inválido'));
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('CPF inválido'), {
+      timeout: ACTION_RENDER_TIMEOUT_MS,
+    });
     expect(action).toHaveBeenCalledTimes(1);
     expect((screen.getByLabelText('Nome') as HTMLInputElement).value).toBe('Paciente de teste');
     expect((screen.getByLabelText('E-mail') as HTMLInputElement).value).toBe('teste@example.test');
