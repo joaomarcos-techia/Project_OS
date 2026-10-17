@@ -8883,3 +8883,19 @@ Caixa permanece sem PASS externo. O procedimento, resultados exatos e
 precondições de retomada estão no
 [registro de integração](quality/integracao-2026-10-09.md). A foto de perfil real
 é a etapa seguinte; a verificação empresarial pela Meta ficou para depois.
+
+## 65. Sincronização da troca de plano com o Asaas — 17/10/2026
+
+Foi encontrada divergência financeira na assinatura SaaS: o upgrade pago mudava
+o plano local sem mudar a recorrência no Asaas; o downgrade mudava a recorrência,
+mas podia deixar uma cobrança já emitida para o novo ciclo com o preço antigo.
+A correção exige releitura da assinatura e das cobranças do novo ciclo antes de
+aplicar o plano local. Dívidas de ciclos anteriores e cobranças já pagas não são
+apagadas nem reprecificadas automaticamente. O cron retoma upgrades pagos sem
+webhook. Também foram alinhadas a capacidade de usuários do downgrade e a
+preservação de descontos de campanha na tela e no servidor.
+
+O desenho, os testes, a prova isolada no Asaas Sandbox, os limites externos e o
+procedimento de rollout estão no [registro da troca de plano](quality/asaas-plan-change-2026-10-17.md).
+Essa prova do provider não equivale ao round trip completo de uma clínica Qoro
+em Preview; a publicação deve manter essa distinção.

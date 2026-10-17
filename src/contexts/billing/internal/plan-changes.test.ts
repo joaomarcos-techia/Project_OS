@@ -4,6 +4,7 @@ import {
   calculateUpgradeProration,
   changeIdFromExternalReference,
   comparePlans,
+  fitsPlanUserLimit,
   nextPeriodEnd,
   pickPriceForCampaign,
   planChangeExternalReference,
@@ -66,14 +67,13 @@ describe('pickPriceForCampaign', () => {
     expect(pickPriceForCampaign([tabela, fundador], null)).toBe(tabela);
   });
 
-  it('cai no preço de tabela quando o plano de destino não tem a campanha', () => {
-    // Recusar a troca seria pior do que cobrar o cheio.
-    expect(pickPriceForCampaign([tabela], 'fundador')).toBe(tabela);
+  it('recusa a troca automática quando o destino não tem a campanha vitalícia', () => {
+    expect(pickPriceForCampaign([tabela], 'fundador')).toBeUndefined();
   });
 
   it('ignora campanha de outro código', () => {
     const outra = { priceId: 'p-outra', priceAmount: '500.00', campaignCode: 'black-friday' };
-    expect(pickPriceForCampaign([tabela, outra], 'fundador')).toBe(tabela);
+    expect(pickPriceForCampaign([tabela, outra], 'fundador')).toBeUndefined();
   });
 
   it('devolve undefined quando não há preço vigente algum', () => {
@@ -110,5 +110,20 @@ describe('pickPriceForCampaign', () => {
       meio,
     );
     expect(rateioFundador).toBeLessThan(rateioTabela);
+  });
+});
+
+describe('capacidade no downgrade', () => {
+  it('permite até a capacidade do destino, inclusive Clínica com mais de um usuário', () => {
+    expect(fitsPlanUserLimit(5, 5)).toBe(true);
+    expect(fitsPlanUserLimit(2, 5)).toBe(true);
+    expect(fitsPlanUserLimit(1, 1)).toBe(true);
+  });
+
+  it('bloqueia excesso, ausência da regra e clínica sem usuário ativo', () => {
+    expect(fitsPlanUserLimit(6, 5)).toBe(false);
+    expect(fitsPlanUserLimit(2, 1)).toBe(false);
+    expect(fitsPlanUserLimit(2, null)).toBe(false);
+    expect(fitsPlanUserLimit(0, 5)).toBe(false);
   });
 });

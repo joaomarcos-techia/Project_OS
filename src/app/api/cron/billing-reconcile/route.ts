@@ -19,7 +19,14 @@ import { metrics } from '@/lib/observability/metrics';
 import { asaasProvider, BillingProviderError } from '@/lib/payments/asaas';
 import { removeSubscriptionCharges } from '@/contexts/billing/internal/cancellation-charges';
 import { reopenReactivatedClinics } from '@/contexts/billing/internal/clinic-status';
-import { applyScheduledPlanChange } from '@/contexts/billing/internal/plan-changes';
+import {
+  applyPaidUpgradeForPayment,
+  applyScheduledPlanChange,
+  fitsPlanUserLimit,
+  getPaidUpgradeSyncContext,
+  planChangeExternalReference,
+} from '@/contexts/billing/internal/plan-changes';
+import { syncProviderPlanChange } from '@/contexts/billing/internal/plan-change-provider-sync';
 import { providerStatusToInvoiceStatus } from '@/contexts/billing/internal/provider-sync';
 import {
   ensureInvoiceForPayment,
@@ -44,6 +51,7 @@ export const maxDuration = 60;
 const PAID_STATUSES = new Set(['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH']);
 const RECONCILE_SUBSCRIPTION_LIMIT = 50;
 const SCHEDULED_PLAN_CHANGE_LIMIT = 50;
+const PENDING_UPGRADE_LIMIT = 50;
 type ReconciliationAction = 'paid' | 'overdue' | 'refunded';
 type MaterializationResult = {
   materialized: boolean;
@@ -193,8 +201,11 @@ export const GET = withCron(
           id: subscriptionChangeRequests.id,
           clinicId: subscriptionChangeRequests.clinicId,
           kind: subscriptionChangeRequests.kind,
+          toPlanId: subscriptionChangeRequests.toPlanId,
+          effectiveAt: subscriptionChangeRequests.effectiveAt,
           asaasSubscriptionId: subscriptions.asaasSubscriptionId,
           targetAmount: prices.amount,
+          previousAmount: sql<string>`(SELECT amount FROM public.prices WHERE id = ${subscriptions.priceId})`,
         })
         .from(subscriptionChangeRequests)
         .innerJoin(subscriptions, eq(subscriptions.id, subscriptionChangeRequests.subscriptionId))
@@ -215,23 +226,30 @@ export const GET = withCron(
             throw new Error('scheduled subscription change has no Asaas subscription id');
           }
           if (change.kind === 'downgrade') {
-            const [active] = await dbAdmin.execute<{ active_users: number }>(sql`
-              SELECT count(*)::int AS active_users
-                FROM public.profiles
-               WHERE clinic_id = ${change.clinicId}::uuid
-                 AND ativo = true
-                 AND deleted_at IS NULL
+            const [capacity] = await dbAdmin.execute<{
+              active_users: number;
+              user_limit: number | null;
+            }>(sql`
+              SELECT (SELECT count(*)::int FROM public.profiles
+                       WHERE clinic_id = ${change.clinicId}::uuid
+                         AND ativo = true AND deleted_at IS NULL) AS active_users,
+                     (SELECT limit_value FROM public.plan_limits
+                       WHERE plan_id = ${change.toPlanId}::uuid AND metric = 'users') AS user_limit
             `);
-            if (Number(active?.active_users ?? 0) !== 1) {
+            if (
+              !fitsPlanUserLimit(Number(capacity?.active_users ?? 0), capacity?.user_limit ?? null)
+            ) {
               metrics.emit('billing.plan_change.blocked_active_users', { changeId: change.id });
               continue;
             }
-            if (change.targetAmount === null) {
+            if (change.targetAmount === null || !change.previousAmount || !change.toPlanId) {
               throw new Error('scheduled downgrade has no target amount');
             }
-            await asaasProvider.updateSubscription(change.asaasSubscriptionId, {
-              value: Number(change.targetAmount),
-              updatePendingPayments: false,
+            await syncProviderPlanChange(asaasProvider, {
+              subscriptionId: change.asaasSubscriptionId,
+              previousAmount: change.previousAmount,
+              amount: change.targetAmount,
+              firstDueDate: change.effectiveAt.toISOString().slice(0, 10),
             });
           } else {
             // O pedido já pausou a recorrência e apagou as cobranças no Asaas.
@@ -255,6 +273,53 @@ export const GET = withCron(
           if (result.applied) scheduledChangesApplied++;
         } catch (err) {
           metrics.emit('billing.plan_change.apply_error', { changeId: change.id, error: err });
+        }
+      }
+
+      // Backstop de upgrade pago cujo webhook não foi entregue. Sem isto, o
+      // rateio fica pago mas a clínica nunca recebe o novo plano.
+      const pendingUpgrades = await dbAdmin
+        .select({
+          id: subscriptionChangeRequests.id,
+          providerPaymentId: subscriptionChangeRequests.providerPaymentId,
+        })
+        .from(subscriptionChangeRequests)
+        .where(
+          and(
+            eq(subscriptionChangeRequests.kind, 'upgrade'),
+            eq(subscriptionChangeRequests.status, 'pending_payment'),
+            isNotNull(subscriptionChangeRequests.providerPaymentId),
+          ),
+        )
+        .orderBy(subscriptionChangeRequests.createdAt)
+        .limit(PENDING_UPGRADE_LIMIT);
+      for (const upgrade of pendingUpgrades) {
+        if (!upgrade.providerPaymentId) continue;
+        try {
+          const payment = await asaasProvider.getPayment(upgrade.providerPaymentId, {
+            attempts: 1,
+          });
+          if (!PAID_STATUSES.has(payment.status)) continue;
+          if (payment.externalReference !== planChangeExternalReference(upgrade.id)) {
+            throw new Error('paid upgrade payment reference mismatch');
+          }
+          const syncContext = await dbAdmin.transaction((tx) =>
+            getPaidUpgradeSyncContext(tx, payment),
+          );
+          if (!syncContext) continue;
+          await syncProviderPlanChange(asaasProvider, syncContext);
+          const applied = await dbAdmin.transaction((tx) =>
+            applyPaidUpgradeForPayment(tx, payment, `reconcile:${upgrade.id}`),
+          );
+          if (applied) {
+            found++;
+            fixed++;
+          }
+        } catch (err) {
+          metrics.emit('billing.plan_change.upgrade_reconcile_error', {
+            changeId: upgrade.id,
+            error: err,
+          });
         }
       }
 
