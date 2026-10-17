@@ -55,9 +55,13 @@ Reconciliação diária lista/consulta pagamentos e corrige invoices/assinatura/
 
 Calcula prorrata em centavos sobre o preço efetivo/campanha, cria cobrança avulsa Asaas e aplica o plano somente após confirmação do pagamento.
 
+**Lacuna identificada em 17/10/2026:** a aplicação local não atualiza o valor da assinatura recorrente no Asaas. O próximo ciclo pode continuar com o valor anterior. Não considerar a troca financeiramente validada até corrigir e comprovar o readback no Sandbox.
+
 ### Downgrade
 
 Agenda para o fim do ciclo. Solo exige exatamente um usuário ativo e não excluído na solicitação **e novamente** na aplicação. Se a condição mudou, a troca falha sem desativar pessoas automaticamente.
+
+O código atual exige exatamente um usuário também em Pro → Clínica, embora Clínica permita até cinco. O cron atualiza o valor da assinatura Asaas com `updatePendingPayments: false`; uma cobrança pendente já gerada permanece no valor anterior. Ela **não é apagada** pelo downgrade. Essas duas lacunas precisam de correção e prova externa antes de prometer a troca como concluída.
 
 ### Cancelamento
 

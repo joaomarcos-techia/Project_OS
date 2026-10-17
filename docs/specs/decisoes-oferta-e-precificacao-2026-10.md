@@ -20,8 +20,17 @@
 | Repasse de 50% | **Decidido:** o percentual incide sobre GROSS ou NET conforme escolha explícita da clínica. Estorno suspende; revisão humana usa teto e motivo. | Manter o snapshot original para auditoria, sem recalcular silenciosamente o passado. |
 | Preço por meio | **Decidido pelo fundador:** retirar a configuração de preços distintos por Pix/cartão. | Um preço por procedimento; paciente escolhe Pix ou cartão no Checkout pelo mesmo bruto. Preservar snapshots e pagamentos históricos. Migration 0121 aplicada só no DEV. |
 | Usuário extra | **Decidido:** cada login ocupa uma categoria: profissional com agenda ou equipe. A proposta inclui 1 profissional e 1 login de equipe no Consultório, 2 profissionais e 2 logins de equipe na Clínica; acima disso, R$ 147/mês por profissional e R$ 79/mês por login de equipe. | Checkout, cobrança recorrente, limites de assentos e convite ainda dependem de implementação. Nenhum login extra é liberado pelo retorno HTTP do Checkout. |
+| Ciclo de assento extra | **Aprovado em 17/10/2026:** a adição cobra proporcionalmente pelos dias restantes do ciclo; a retirada reduz a cobrança somente a partir do próximo ciclo, sem estorno automático. | Regra comercial para a implementação futura. Exibir o valor e a data de vigência antes de confirmar; o pagamento e o webhook devem preceder a liberação do assento. Não aplicada ao catálogo vigente nem ao Asaas nesta fase. |
 | Cliente com desconto vitalício | **Decidido:** preço-base contratado permanece pelo valor promocional, sem reajuste nem migração automática para a nova tabela. | `subscriptions.price_id` continua fixado; troca de plano sem preço da mesma campanha deve ser bloqueada, nunca cair no preço de tabela. Adicionais futuros não alteram a base contratada. |
 | Novos planos | **Hipótese recomendada:** Consultório/Clínica por profissionais, preservando legados. | Implementar gates, contrato e E2E antes de qualquer lançamento. |
+
+### Auditoria da troca de planos vigente em 17/10/2026
+
+O upgrade cria uma cobrança avulsa proporcional (`src/contexts/billing/internal/plan-change-payment.ts`) e `applyPaidUpgradeForPayment` muda `plan_id`/`price_id` **somente no banco local** (`src/contexts/billing/internal/plan-changes.ts`). Não há `updateSubscription` do Asaas neste caminho. Portanto o valor recorrente no provedor pode continuar o antigo mesmo após a interface mostrar o plano novo. Os 29 testes direcionados de billing executados em 17/10 passaram, mas não afirmam a atualização remota da recorrência.
+
+No downgrade, o cron chama `updateSubscription(value: novo, updatePendingPayments: false)` antes de mudar o plano local (`src/app/api/cron/billing-reconcile/route.ts`). Segundo a [API do Asaas](https://docs.asaas.com/reference/update-existing-subscription), esse `false` deixa **inalteradas** as cobranças pendentes já geradas. A troca não apaga a cobrança anterior. Cobranças já pagas não devem ser apagadas; no cancelamento, que é outro fluxo, o Qoro pausa a recorrência e exclui as cobranças ainda não pagas com releitura.
+
+Há também um limite indevido: `assertExactlyOneActiveUser` é chamado para **todo** downgrade, inclusive Pro → Clínica, embora o catálogo Clínica permita até 5 usuários. Antes de liberar mudanças de plano como prontas, corrigir esse gate, sincronizar o valor recorrente e as cobranças pendentes com releitura autoritativa, testar falha/retry e realizar round trip no Asaas Sandbox. Não inferir funcionamento financeiro dos testes unitários atuais.
 
 ## 2. O que existe hoje — constatação técnica
 

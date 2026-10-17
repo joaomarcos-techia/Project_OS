@@ -16,6 +16,8 @@ Fórmula Clínica: `397 + 147 × (profissionais − 2)`. O anual equivale a 10 m
 
 O fundador decidiu que qualquer login adicional poderá ser contratado. Na proposta, o Consultório inclui **1 profissional com agenda + 1 login de equipe** e a Clínica inclui **2 profissionais com agenda + 2 logins de equipe**. Cada profissional além da cota custa **R$ 147/mês** e cada login de equipe além da cota custa **R$ 79/mês**. Um login ocupa uma categoria, sem contagem dupla. A simulação aceita de 0 a 10 logins de equipe; acima disso, a proposta é sob consulta. Esses adicionais **não** participam do catálogo ativo nem do Checkout atual. As prévias calculam os valores sem oferecer compra.
 
+**Regra aprovada em 17/10/2026 para a implementação futura:** ao adicionar um assento, cobrar proporcionalmente aos dias restantes do ciclo e informar o valor antes do Checkout; ao retirar, manter acesso e cobrança contratados até o fim do ciclo e reduzir a recorrência seguinte, sem estorno automático. A regra ainda não foi implementada no Asaas, no controle de assentos ou na UI.
+
 Há uma assinatura promocional ativa em produção, além de uma promocional cancelada, conforme leitura agregada somente de consulta em 16/10/2026. O preço-base contratado dessa conta ativa tem desconto **vitalício**: não será recalculado pela tabela nova nem sofrerá reajuste automático. A eventual compra de login adicional terá componente separado e não mudará o `price_id` do contrato-base. Se não existir preço da mesma campanha para um plano de destino, a troca deve ser recusada antes de cobrar.
 
 ## Condições de ativação
