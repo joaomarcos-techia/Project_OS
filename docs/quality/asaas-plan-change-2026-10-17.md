@@ -47,13 +47,14 @@ silenciosamente no preço de tabela, podendo eliminar um desconto vitalício.
 - Suíte integral padrão: 5.512/5.512 testes em 524 arquivos, `exit 0`.
 - Build otimizado Next 15.5.24 em cópia isolada, TypeScript, ESLint e Prettier:
   `exit 0`. O build não herdou `.env.local` nem credenciais reais.
-- Asaas Sandbox, duas fixtures isoladas em 17/10/2026: uma assinatura BOLETO
-  e uma CREDIT_CARD com cartão fictício da documentação do Sandbox. Em cada
+- Asaas Sandbox, três fixtures isoladas em 17/10/2026: assinaturas BOLETO,
+  PIX e CREDIT_CARD com cartão fictício da documentação do Sandbox. Em cada
   uma, upgrade 197 → 397, repetição idempotente e downgrade 397 → 197 foram
   confirmados por GET da assinatura e da parcela emitida. A parcela aberta foi
   removida, a assinatura cancelada, o cliente excluído, com readback das
   cobranças abertas. `exit 0` nas duas execuções do runner
-  `scripts/security/subscription-plan-change-sandbox.ts`.
+  `scripts/security/subscription-plan-change-sandbox.ts`, com
+  `SANDBOX_PLAN_CHANGE_METHOD` definido para cada método.
 - A primeira tentativa de criar a fixture CREDIT_CARD recebeu HTTP 400,
   código `invalid_creditCard`. Nenhuma assinatura foi criada; o cliente foi
   excluído. Com os dados sintéticos do titular e o IP de teste ajustados, a
@@ -68,7 +69,7 @@ e das condições atuais. A proposta Consultório/Clínica, adicionais por assen
 e trial novo seguem nos PRs draft #40 (app) e #1 (landing); as telas de Preview
 não mudam o catálogo nem autorizam anunciar esses valores como contratáveis.
 
-O Sandbox testou cobranças já emitidas de assinatura BOLETO e CREDIT_CARD,
+O Sandbox testou cobranças já emitidas de assinatura BOLETO, PIX e CREDIT_CARD,
 mas não o pagamento real de rateio, a entrega de webhook no Qoro nem dívida
 antiga vencida externa. Esta última condição tem teste determinístico, mas não
 PASS externo. Para assinatura com cartão, o Asaas exige a funcionalidade de

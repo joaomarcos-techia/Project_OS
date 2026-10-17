@@ -36,7 +36,12 @@ function guard(): void {
 async function main(): Promise<void> {
   guard();
   const dueDate = new Date(Date.now() + 10 * 86_400_000).toISOString().slice(0, 10);
-  const card = process.env.SANDBOX_PLAN_CHANGE_CARD === '1';
+  const method = process.env.SANDBOX_PLAN_CHANGE_METHOD ?? 'BOLETO';
+  assert.ok(
+    method === 'BOLETO' || method === 'PIX' || method === 'CREDIT_CARD',
+    'Método de teste inválido',
+  );
+  const card = method === 'CREDIT_CARD';
   let customerId: string | null = null;
   let subscriptionId: string | null = null;
   try {
@@ -72,7 +77,7 @@ async function main(): Promise<void> {
             remoteIp: '203.0.113.10',
           })
         ).subscriptionId
-      : (await asaasProvider.createSubscription({ ...subscriptionInput, billingType: 'BOLETO' }))
+      : (await asaasProvider.createSubscription({ ...subscriptionInput, billingType: method }))
           .subscriptionId;
 
     let payments = await asaasProvider.listAllSubscriptionPayments(subscriptionId);
@@ -98,9 +103,7 @@ async function main(): Promise<void> {
         (payment) => payment.value === 397,
       ),
     );
-    console.log(
-      `PASS: upgrade ${card ? 'cartão' : 'boleto'} alterou recorrência e parcela no Sandbox`,
-    );
+    console.log(`PASS: upgrade ${method} alterou recorrência e parcela no Sandbox`);
 
     await syncProviderPlanChange(asaasProvider, {
       subscriptionId,
@@ -122,9 +125,7 @@ async function main(): Promise<void> {
         (payment) => payment.value === 197,
       ),
     );
-    console.log(
-      `PASS: downgrade ${card ? 'cartão' : 'boleto'} alterou recorrência e parcela no Sandbox`,
-    );
+    console.log(`PASS: downgrade ${method} alterou recorrência e parcela no Sandbox`);
   } finally {
     let cleanupError: unknown = null;
     if (subscriptionId) {
