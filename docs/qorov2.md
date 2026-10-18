@@ -8998,10 +8998,15 @@ em Preview; a publicação deve manter essa distinção.
 
 Na branch isolada `integration/pricing-plan-sync-20261018`, que reúne os Draft
 PRs #40 e #41 sem alterar a `main`, foram medidos em 18/10/2026: TypeScript,
-ESLint e build Next isolado com exit 0; Vitest **5.517/5.517 em 528 arquivos**;
-testes dirigidos de billing **152/152 em 7 arquivos**; inventário de segurança
+ESLint e build Next isolado com exit 0; Vitest **5.518/5.518 em 528 arquivos**;
+testes dirigidos de billing **152/152 em 7 arquivos** antes de acrescentar
+uma regressão para parcela concorrente (**7/7** no spec afetado); inventário de segurança
 regenerado para o código combinado. O probe do banco DEV confirmou a migration
 0121, duas escritas de preço por meio recusadas por `CHECK 23514` e nenhum
 resíduo ativo. O [roteiro de fechamento](runbooks/validacao-nova-oferta-2026-10.md)
 mantém o round trip externo de troca de plano como pendente; estes verdes
-locais não o substituem.
+locais não o substituem. O [registro do E2E no Preview integrado](quality/preview-pricing-integration-e2e-2026-10-18.md)
+preserva quatro tentativas parciais, as correções do spec e o resultado final
+**10/10, exit 0, cleanup 0/0/0** em 18/10/2026 às 17:36 UTC. Esse E2E cobre
+a prévia comercial e o financeiro existente; não exerce a troca de plano SaaS
+com webhook real.

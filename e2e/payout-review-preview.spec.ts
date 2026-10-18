@@ -377,17 +377,38 @@ async function switchPlan(code: 'solo' | 'clinica' | 'pro'): Promise<void> {
   expect(updated).toHaveLength(1);
 }
 
+/** Aguarda o componente cliente, não apenas o HTML de streaming do servidor. */
+async function waitForCaixaHydration(page: Page): Promise<void> {
+  await expect(page.getByRole('heading', { name: 'Caixa', exact: true })).toBeVisible();
+  const queue = page.getByRole('region', { name: 'A receber' });
+  await expect(queue).toBeVisible();
+  // O HTML do servidor já mostra botões e <details> antes de o React anexar
+  // seus handlers. Clicar nesse intervalo perde a ação ou fecha o <details>
+  // quando a hidratação substitui o nó. A fila é renderizada por CaixaView.
+  await expect
+    .poll(() =>
+      queue.evaluate((element) =>
+        Object.keys(element).some((key) => key.startsWith('__reactFiber$')),
+      ),
+    )
+    .toBe(true);
+}
+
 /** A troca de plano invalida as claims; a rota própria renova o JWT sem novo login. */
-async function refreshSession(page: Page): Promise<void> {
+async function refreshSession(page: Page, caixaAccess = true): Promise<void> {
   await page.goto('/auth/session-refresh?next=/caixa');
   await expect(page).toHaveURL(/\/caixa(?:\?|$)/u);
-  await page.waitForLoadState('networkidle');
+  if (caixaAccess) {
+    await waitForCaixaHydration(page);
+  } else {
+    await expect(page.getByText('Seu perfil não tem permissão para o caixa.')).toBeVisible();
+  }
 }
 
 async function openCaixa(page: Page): Promise<void> {
   const response = await page.goto('/caixa');
   expect(response?.status()).toBe(200);
-  await page.waitForLoadState('networkidle');
+  await waitForCaixaHydration(page);
 }
 
 function receivedRow(page: Page): Locator {
@@ -415,8 +436,12 @@ function valueOf(composition: Locator, label: string): Locator {
 }
 
 async function refundInCaixa(page: Page, amount: string, reason: string): Promise<void> {
-  await openCaixa(page);
-  await receivedRow(page).getByRole('button', { name: 'Reembolsar' }).click();
+  const row = receivedRow(page);
+  await expect(row).toBeVisible();
+  const refundButton = row.getByRole('button', { name: 'Reembolsar' });
+  await refundButton.click();
+  await expect(refundButton).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.locator('#refund-value')).toBeVisible();
   await page.locator('#refund-value').fill(amount);
   await page.locator('#estorno-motivo').fill(reason);
   await page.getByRole('button', { name: 'Confirmar reembolso' }).click();
@@ -862,7 +887,7 @@ test.describe.serial('revisão humana do repasse (Preview + DEV, papéis reais)'
     await expect(owner.locator('#price-procedure')).toHaveCount(0);
     await expect(owner.locator('input[name="pricing-policy"]')).toHaveCount(0);
     const doctor = sessions.has('doctor') ? pageOf('doctor') : await openSession(browser, 'doctor');
-    await refreshSession(doctor);
+    await refreshSession(doctor, false);
     await doctor.goto('/configuracoes/pagamentos');
     await expect(
       doctor.getByText('Seu perfil não tem permissão para configurar o recebimento da clínica.'),

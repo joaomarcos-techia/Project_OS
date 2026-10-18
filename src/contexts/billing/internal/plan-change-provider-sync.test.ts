@@ -125,6 +125,26 @@ describe('sincronização da troca de plano com o Asaas', () => {
     });
   });
 
+  it('detecta parcela criada durante a sincronização e a corrige no retry', async () => {
+    const { provider, subscription, payments } = fixture([payment('pay_next', '2026-11-01', 699)]);
+    provider.updatePayment.mockImplementationOnce(async (id, input) => {
+      const current = payments.find((item) => item.paymentId === id);
+      if (!current) throw new Error('unknown payment');
+      current.value = input.value;
+      payments.push(payment('pay_race', '2026-12-01', 699));
+    });
+
+    await expect(syncProviderPlanChange(provider, INPUT)).rejects.toMatchObject({
+      code: 'provider_payment_mismatch',
+    });
+    expect(subscription.value).toBe(397);
+    expect(payments.find((item) => item.paymentId === 'pay_race')?.value).toBe(699);
+
+    await syncProviderPlanChange(provider, INPUT);
+    expect(payments.every((item) => item.value === 397)).toBe(true);
+    expect(provider.updateSubscription).toHaveBeenCalledTimes(1);
+  });
+
   it('sincroniza a assinatura sem inventar cobrança que ainda não foi emitida', async () => {
     const { provider, subscription } = fixture([]);
 
