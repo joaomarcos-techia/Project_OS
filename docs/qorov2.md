@@ -8968,7 +8968,8 @@ app × landing passou (exit 0); ela ainda não prova os deployments externos.
 O [roteiro específico](runbooks/validacao-nova-oferta-2026-10.md)
 separa os testes ainda executáveis dos pontos bloqueados por implementação,
 integração com Asaas, medição real ou decisão comercial. A correção da troca
-de planos vigente está no Draft PR #41, separado; integrar antes do E2E final.
+de planos vigente veio do Draft PR #41 e foi incorporada nesta branch de
+integração. O round trip final Qoro → Asaas → webhook → Qoro ainda falta.
 
 Após o deploy do app `e3a5b81d`, o E2E do Preview ligado ao DEV passou **10/10**
 em 18/10/2026 02:32 UTC (exit 0, 6,9 min). A prova assinada confirmou Auth e
@@ -8978,3 +8979,29 @@ usuários e linhas de fixture. Os checks remotos dos dois PRs passaram. A
 landing externa continua **NOT TESTED funcionalmente** porque o GET foi
 redirecionado ao SSO da Vercel; o Chromium local e o deployment Ready não
 substituem essa prova.
+
+## 68. Sincronização da troca de plano com o Asaas — 17/10/2026
+
+Foi encontrada divergência financeira na assinatura SaaS: o upgrade pago mudava
+o plano local sem mudar a recorrência no Asaas; o downgrade mudava a recorrência,
+mas podia deixar uma cobrança já emitida para o novo ciclo com o preço antigo.
+A correção exige releitura da assinatura e das cobranças do novo ciclo antes de
+aplicar o plano local. Dívidas de ciclos anteriores e cobranças já pagas não são
+apagadas nem reprecificadas automaticamente. O cron retoma upgrades pagos sem
+webhook. Também foram alinhadas a capacidade de usuários do downgrade e a
+preservação de descontos de campanha na tela e no servidor.
+
+O desenho, os testes, a prova isolada no Asaas Sandbox, os limites externos e o
+procedimento de rollout estão no [registro da troca de plano](quality/asaas-plan-change-2026-10-17.md).
+Essa prova do provider não equivale ao round trip completo de uma clínica Qoro
+em Preview; a publicação deve manter essa distinção.
+
+Na branch isolada `integration/pricing-plan-sync-20261018`, que reúne os Draft
+PRs #40 e #41 sem alterar a `main`, foram medidos em 18/10/2026: TypeScript,
+ESLint e build Next isolado com exit 0; Vitest **5.517/5.517 em 528 arquivos**;
+testes dirigidos de billing **152/152 em 7 arquivos**; inventário de segurança
+regenerado para o código combinado. O probe do banco DEV confirmou a migration
+0121, duas escritas de preço por meio recusadas por `CHECK 23514` e nenhum
+resíduo ativo. O [roteiro de fechamento](runbooks/validacao-nova-oferta-2026-10.md)
+mantém o round trip externo de troca de plano como pendente; estes verdes
+locais não o substituem.

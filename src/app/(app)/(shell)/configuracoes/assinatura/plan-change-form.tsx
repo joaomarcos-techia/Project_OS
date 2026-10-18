@@ -136,7 +136,7 @@ export function PlanChangeForm({
           }
         >
           {pending.status === 'pending_payment'
-            ? 'Seu upgrade aguarda a confirmação do pagamento proporcional.'
+            ? 'Seu upgrade aguarda a confirmação do pagamento proporcional e do novo valor recorrente no Asaas.'
             : pending.kind === 'cancellation'
               ? `Assinatura cancelada: nenhuma nova cobrança será feita. O acesso segue até ${formatCycleDate(new Date(pending.effectiveAt))}.`
               : `Seu downgrade está agendado para ${formatCycleDate(new Date(pending.effectiveAt))}.`}
@@ -198,18 +198,21 @@ export function PlanChangeForm({
           const direction = (RANK[plan.code] ?? 0) - currentRank;
           const isCurrent = plan.id === current.planId;
           const isDowngrade = direction < 0;
+          const exceedsUserLimit =
+            isDowngrade &&
+            (plan.limits.users < 1 || activeUsers < 1 || activeUsers > plan.limits.users);
           const disabled =
             current.billingStatus !== 'active' ||
             isCurrent ||
             Boolean(pending) ||
             submitting ||
-            (isDowngrade && activeUsers !== 1);
+            exceedsUserLimit;
           const actionLabel = isCurrent
             ? 'Plano atual'
             : isDowngrade
-              ? activeUsers === 1
-                ? 'Agendar downgrade'
-                : 'Requer 1 usuário ativo'
+              ? exceedsUserLimit
+                ? `Limite de ${plan.limits.users} usuário${plan.limits.users === 1 ? '' : 's'}`
+                : 'Agendar downgrade'
               : 'Fazer upgrade';
           return (
             <Card key={plan.id} className={isCurrent ? 'border-primary shadow-sm' : undefined}>

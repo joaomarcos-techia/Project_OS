@@ -438,6 +438,17 @@ export interface PaymentProvider {
    * uma lista incompleta aqui viraria "cancelado sem sobra" com cobrança viva.
    */
   listUnpaidSubscriptionPayments(asaasSubscriptionId: string): Promise<ProviderPayment[]>;
+  /** Todas as cobranças já geradas; usada apenas na troca de plano, com paginação limitada. */
+  listAllSubscriptionPayments(asaasSubscriptionId: string): Promise<ProviderPayment[]>;
+  /** Reprecifica somente uma cobrança ainda aberta, preservando método e vencimento. */
+  updatePayment(
+    asaasPaymentId: string,
+    input: {
+      value: number;
+      billingType: 'UNDEFINED' | 'BOLETO' | 'CREDIT_CARD' | 'PIX';
+      dueDate: string;
+    },
+  ): Promise<void>;
   /** `attempts` aperta o orçamento de retry (webhook usa 1 — ver [asaas/route.ts]). */
   getPayment(
     asaasPaymentId: string,
@@ -1121,6 +1132,41 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
         }
       }
       return found;
+    },
+
+    async listAllSubscriptionPayments(id) {
+      const found: ProviderPayment[] = [];
+      for (let page = 0; page < UNPAID_LISTING_MAX_PAGES; page++) {
+        const query = new URLSearchParams({
+          limit: String(UNPAID_LISTING_PAGE_SIZE),
+          offset: String(page * UNPAID_LISTING_PAGE_SIZE),
+        });
+        const r = (await request(
+          'GET',
+          `/subscriptions/${encodeURIComponent(id)}/payments?${query.toString()}`,
+        )) as { data?: unknown; hasMore?: unknown };
+        if (!Array.isArray(r.data) || typeof r.hasMore !== 'boolean') {
+          throw new BillingProviderError(
+            'Asaas não confirmou a listagem completa de cobranças da assinatura.',
+            'subscription_payments_listing_invalid',
+          );
+        }
+        const payments = r.data;
+        for (const payment of payments) {
+          const mapped = listedSubscriptionPayment(payment, id);
+          if (!mapped.deleted) found.push(mapped);
+        }
+        if (!r.hasMore) return found;
+      }
+      throw new BillingProviderError(
+        'Listagem de cobranças da assinatura não terminou dentro do teto de páginas.',
+        'subscription_payments_listing_truncated',
+      );
+    },
+
+    async updatePayment(id, input) {
+      await request('PUT', `/payments/${encodeURIComponent(id)}`, input);
+      metrics.emit('billing.asaas.payment_updated', { paymentId: redactOpaqueId(id) });
     },
 
     async getPayment(id, opts) {

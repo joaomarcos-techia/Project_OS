@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
   selectResults,
+  capacityRows,
   listSubscriptionPayments,
   getPayment,
   ensureInvoiceForPayment,
@@ -14,9 +15,16 @@ const {
   cancelPayment,
   reopenReactivatedClinics,
   applyScheduledPlanChange,
+  applyPaidUpgradeForPayment,
+  getPaidUpgradeSyncContext,
+  syncProviderPlanChange,
   emit,
 } = vi.hoisted(() => ({
   selectResults: [] as unknown[][],
+  capacityRows: [{ active_users: 1, user_limit: 1 }] as {
+    active_users: number;
+    user_limit: number | null;
+  }[],
   listSubscriptionPayments: vi.fn(),
   getPayment: vi.fn(),
   ensureInvoiceForPayment: vi.fn(),
@@ -29,6 +37,9 @@ const {
   cancelPayment: vi.fn(),
   reopenReactivatedClinics: vi.fn(),
   applyScheduledPlanChange: vi.fn(),
+  applyPaidUpgradeForPayment: vi.fn(),
+  getPaidUpgradeSyncContext: vi.fn(),
+  syncProviderPlanChange: vi.fn(),
   emit: vi.fn(),
 }));
 
@@ -50,7 +61,7 @@ vi.mock('@/lib/db', () => ({
       return { from: () => query };
     },
     transaction: async (callback: (tx: unknown) => unknown) => callback({}),
-    execute: async () => [{ active_users: 1 }],
+    execute: async () => capacityRows,
     update: () => ({ set: () => ({ where: async () => {} }) }),
   },
 }));
@@ -74,7 +85,17 @@ vi.mock('@/lib/payments/asaas', () => ({
     }
   },
 }));
-vi.mock('@/contexts/billing/internal/plan-changes', () => ({ applyScheduledPlanChange }));
+vi.mock('@/contexts/billing/internal/plan-changes', () => ({
+  applyScheduledPlanChange,
+  applyPaidUpgradeForPayment,
+  getPaidUpgradeSyncContext,
+  fitsPlanUserLimit: (active: number, limit: number | null) =>
+    active > 0 && limit !== null && active <= limit,
+  planChangeExternalReference: (id: string) => `plan-change:${id}`,
+}));
+vi.mock('@/contexts/billing/internal/plan-change-provider-sync', () => ({
+  syncProviderPlanChange,
+}));
 vi.mock('@/contexts/billing/internal/clinic-status', () => ({ reopenReactivatedClinics }));
 vi.mock('@/contexts/billing/internal/subscriptions', () => ({
   ensureInvoiceForPayment,
@@ -91,11 +112,14 @@ import { GET } from './route';
 beforeEach(() => {
   vi.clearAllMocks();
   selectResults.length = 0;
+  capacityRows.splice(0, capacityRows.length, { active_users: 1, user_limit: 1 });
   listSubscriptionPayments.mockResolvedValue([]);
   listUnpaidSubscriptionPayments.mockResolvedValue([]);
   cancelPayment.mockResolvedValue({ deleted: true });
   reopenReactivatedClinics.mockResolvedValue(0);
   applyScheduledPlanChange.mockResolvedValue({ applied: true, kind: 'cancellation' });
+  applyPaidUpgradeForPayment.mockResolvedValue(true);
+  getPaidUpgradeSyncContext.mockResolvedValue(null);
   // BILLING-002 — por padrão local e provedor concordam: a reconciliação é
   // no-op e devolve a mesma invoice para a transição seguinte.
   syncInvoiceFromProviderPayment.mockImplementation(
@@ -107,6 +131,117 @@ beforeEach(() => {
 });
 
 describe('billing reconcile', () => {
+  it('aplica downgrade para Clínica com três usuários somente após confirmação remota', async () => {
+    capacityRows.splice(0, capacityRows.length, { active_users: 3, user_limit: 5 });
+    selectResults.push(
+      [],
+      [
+        {
+          id: 'change_down',
+          clinicId: 'clinic_1',
+          kind: 'downgrade',
+          toPlanId: 'plan_clinica',
+          effectiveAt: new Date('2026-11-01'),
+          asaasSubscriptionId: 'sub_1',
+          targetAmount: '397.00',
+          previousAmount: '699.00',
+        },
+      ],
+      [],
+      [],
+    );
+    applyScheduledPlanChange.mockResolvedValue({ applied: true, kind: 'downgrade' });
+
+    const response = await GET(new Request('http://localhost/api/cron/billing-reconcile'));
+
+    expect(syncProviderPlanChange).toHaveBeenCalledWith(expect.anything(), {
+      subscriptionId: 'sub_1',
+      previousAmount: '699.00',
+      amount: '397.00',
+      firstDueDate: '2026-11-01',
+    });
+    expect(syncProviderPlanChange.mock.invocationCallOrder[0]).toBeLessThan(
+      applyScheduledPlanChange.mock.invocationCallOrder[0]!,
+    );
+    expect((await response.json()).scheduledChangesApplied).toBe(1);
+  });
+
+  it('não altera o provedor nem o plano quando a clínica excede a capacidade', async () => {
+    capacityRows.splice(0, capacityRows.length, { active_users: 6, user_limit: 5 });
+    selectResults.push(
+      [],
+      [
+        {
+          id: 'change_down',
+          clinicId: 'clinic_1',
+          kind: 'downgrade',
+          toPlanId: 'plan_clinica',
+          effectiveAt: new Date('2026-11-01'),
+          asaasSubscriptionId: 'sub_1',
+          targetAmount: '397.00',
+          previousAmount: '699.00',
+        },
+      ],
+      [],
+      [],
+    );
+
+    const response = await GET(new Request('http://localhost/api/cron/billing-reconcile'));
+
+    expect(syncProviderPlanChange).not.toHaveBeenCalled();
+    expect(applyScheduledPlanChange).not.toHaveBeenCalled();
+    expect((await response.json()).scheduledChangesApplied).toBe(0);
+  });
+
+  it('retoma upgrade pago sem webhook, mas só após sincronizar a recorrência', async () => {
+    selectResults.push([], [], [{ id: 'change_up', providerPaymentId: 'pay_rateio' }], []);
+    getPayment.mockResolvedValue({
+      paymentId: 'pay_rateio',
+      status: 'CONFIRMED',
+      externalReference: 'plan-change:change_up',
+    });
+    getPaidUpgradeSyncContext.mockResolvedValue({
+      subscriptionId: 'sub_1',
+      previousAmount: '397.00',
+      amount: '699.00',
+      firstDueDate: '2026-11-01',
+    });
+
+    const response = await GET(new Request('http://localhost/api/cron/billing-reconcile'));
+
+    expect(syncProviderPlanChange).toHaveBeenCalledOnce();
+    expect(applyPaidUpgradeForPayment).toHaveBeenCalledOnce();
+    expect(syncProviderPlanChange.mock.invocationCallOrder[0]).toBeLessThan(
+      applyPaidUpgradeForPayment.mock.invocationCallOrder[0]!,
+    );
+    expect((await response.json()).fixed).toBe(1);
+  });
+
+  it('mantém upgrade pendente quando a sincronização remota falha', async () => {
+    selectResults.push([], [], [{ id: 'change_up', providerPaymentId: 'pay_rateio' }], []);
+    getPayment.mockResolvedValue({
+      paymentId: 'pay_rateio',
+      status: 'CONFIRMED',
+      externalReference: 'plan-change:change_up',
+    });
+    getPaidUpgradeSyncContext.mockResolvedValue({
+      subscriptionId: 'sub_1',
+      previousAmount: '397.00',
+      amount: '699.00',
+      firstDueDate: '2026-11-01',
+    });
+    syncProviderPlanChange.mockRejectedValueOnce(new Error('Asaas indisponível'));
+
+    const response = await GET(new Request('http://localhost/api/cron/billing-reconcile'));
+
+    expect(applyPaidUpgradeForPayment).not.toHaveBeenCalled();
+    expect((await response.json()).fixed).toBe(0);
+    expect(emit).toHaveBeenCalledWith(
+      'billing.plan_change.upgrade_reconcile_error',
+      expect.objectContaining({ changeId: 'change_up' }),
+    );
+  });
+
   it('materializa e confirma cobrança pós-trial que chegou sem PAYMENT_CREATED', async () => {
     selectResults.push([{ clinicId: 'clinic_1', asaasSubscriptionId: 'sub_1' }], []);
     listSubscriptionPayments.mockResolvedValue([
@@ -253,6 +388,7 @@ describe('BILLING-002 — divergência com o painel', () => {
   /** Uma invoice aberta com pagamento no provedor, no 2º scan da rota. */
   function openInvoice() {
     selectResults.push(
+      [],
       [],
       [],
       [

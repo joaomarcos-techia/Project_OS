@@ -113,6 +113,64 @@ describe('listSubscriptionPayments', () => {
   });
 });
 
+describe('troca de plano: cobranças já geradas', () => {
+  it('falha fechado se o provedor omitir o marcador de paginação', async () => {
+    fetchMock.mockResolvedValue(
+      Response.json({
+        data: [{ id: 'pay_1', status: 'PENDING', value: 197, dueDate: '2026-11-01' }],
+      }),
+    );
+
+    await expect(asaasProvider.listAllSubscriptionPayments('sub_1')).rejects.toMatchObject({
+      code: 'subscription_payments_listing_invalid',
+    });
+  });
+
+  it('pagina até incluir a parcela futura, mesmo atrás de pagamentos antigos', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        Response.json({
+          data: [{ id: 'pay_old', status: 'RECEIVED', value: 699, dueDate: '2026-10-01' }],
+          hasMore: true,
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          data: [{ id: 'pay_next', status: 'PENDING', value: 699, dueDate: '2026-11-01' }],
+          hasMore: false,
+        }),
+      );
+
+    const payments = await asaasProvider.listAllSubscriptionPayments('sub_1');
+
+    expect(payments.map((item) => item.paymentId)).toEqual(['pay_old', 'pay_next']);
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      'https://sandbox.asaas.com/api/v3/subscriptions/sub_1/payments?limit=100&offset=100',
+      expect.anything(),
+    );
+  });
+
+  it('envia somente valor, método e vencimento ao editar parcela aberta', async () => {
+    fetchMock.mockResolvedValue(Response.json({ id: 'pay_next' }));
+
+    await asaasProvider.updatePayment('pay_next', {
+      value: 397,
+      billingType: 'CREDIT_CARD',
+      dueDate: '2026-11-01',
+    });
+
+    const [url, request] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://sandbox.asaas.com/api/v3/payments/pay_next');
+    expect(request.method).toBe('PUT');
+    expect(JSON.parse(String(request.body))).toEqual({
+      value: 397,
+      billingType: 'CREDIT_CARD',
+      dueDate: '2026-11-01',
+    });
+  });
+});
+
 describe('reconciliação de assinatura', () => {
   it('recupera assinatura anterior pela externalReference do onboarding', async () => {
     fetchMock.mockResolvedValue(

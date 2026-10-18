@@ -14,11 +14,22 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type * as AsaasProviderModule from '@/lib/payments/asaas';
 
-const { transactionMock, getPayment, validateWebhookToken, emit } = vi.hoisted(() => ({
+const {
+  transactionMock,
+  getPayment,
+  validateWebhookToken,
+  emit,
+  getPaidUpgradeSyncContext,
+  syncProviderPlanChange,
+  applyPaidUpgradeForPayment,
+} = vi.hoisted(() => ({
   transactionMock: vi.fn(),
   getPayment: vi.fn(),
   validateWebhookToken: vi.fn(() => true),
   emit: vi.fn(),
+  getPaidUpgradeSyncContext: vi.fn(),
+  syncProviderPlanChange: vi.fn(),
+  applyPaidUpgradeForPayment: vi.fn(),
 }));
 
 vi.mock('@/lib/db', () => ({ dbAdmin: { transaction: transactionMock } }));
@@ -34,6 +45,14 @@ vi.mock('@/lib/payments/asaas', async (orig) => {
     asaasProvider: { ...actual.asaasProvider, getPayment, validateWebhookToken },
   };
 });
+vi.mock('@/contexts/billing/internal/plan-changes', async (orig) => ({
+  ...(await orig<Record<string, unknown>>()),
+  getPaidUpgradeSyncContext,
+  applyPaidUpgradeForPayment,
+}));
+vi.mock('@/contexts/billing/internal/plan-change-provider-sync', () => ({
+  syncProviderPlanChange,
+}));
 vi.mock('@/contexts/billing/internal/subscriptions', () => ({
   ensureInvoiceForPayment: vi.fn(async () => ({
     id: 'inv-1',
@@ -105,6 +124,9 @@ function fakeTx(seen: Set<string>) {
       }),
     }),
     update: () => ({ set: () => ({ where: async () => {} }) }),
+    select: () => ({
+      from: () => ({ where: () => ({ limit: async () => [{ clinicId: 'clinic-1' }] }) }),
+    }),
   };
 }
 
@@ -124,8 +146,62 @@ beforeEach(() => {
   vi.clearAllMocks();
   validateWebhookToken.mockReturnValue(true);
   getPayment.mockResolvedValue(PAYMENT);
+  getPaidUpgradeSyncContext.mockResolvedValue(null);
+  applyPaidUpgradeForPayment.mockResolvedValue(false);
   const seen = new Set<string>();
   transactionMock.mockImplementation(((fn: (t: unknown) => unknown) => fn(fakeTx(seen))) as never);
+});
+
+describe('upgrade pago', () => {
+  const upgradePayment = {
+    ...PAYMENT,
+    paymentId: 'pay_rateio',
+    status: 'CONFIRMED',
+    externalReference: 'plan-change:00000000-0000-0000-0000-000000000001',
+  };
+
+  it('sincroniza o valor recorrente antes de aplicar o plano local', async () => {
+    getPayment.mockResolvedValue(upgradePayment);
+    getPaidUpgradeSyncContext.mockResolvedValue({
+      subscriptionId: 'sub_1',
+      previousAmount: '197.00',
+      amount: '397.00',
+      firstDueDate: '2026-11-01',
+    });
+    applyPaidUpgradeForPayment.mockResolvedValue(true);
+
+    const response = await post({
+      id: 'evt_upgrade',
+      event: 'PAYMENT_CONFIRMED',
+      payment: { id: 'pay_rateio' },
+    });
+
+    expect(response.status).toBe(200);
+    expect(syncProviderPlanChange).toHaveBeenCalledOnce();
+    expect(syncProviderPlanChange.mock.invocationCallOrder[0]).toBeLessThan(
+      applyPaidUpgradeForPayment.mock.invocationCallOrder[0]!,
+    );
+  });
+
+  it('retorna 500 para permitir reentrega se a recorrência não foi confirmada', async () => {
+    getPayment.mockResolvedValue(upgradePayment);
+    getPaidUpgradeSyncContext.mockResolvedValue({
+      subscriptionId: 'sub_1',
+      previousAmount: '197.00',
+      amount: '397.00',
+      firstDueDate: '2026-11-01',
+    });
+    syncProviderPlanChange.mockRejectedValueOnce(new Error('Asaas indisponível'));
+
+    const response = await post({
+      id: 'evt_upgrade',
+      event: 'PAYMENT_CONFIRMED',
+      payment: { id: 'pay_rateio' },
+    });
+
+    expect(response.status).toBe(500);
+    expect(applyPaidUpgradeForPayment).not.toHaveBeenCalled();
+  });
 });
 
 describe('token', () => {

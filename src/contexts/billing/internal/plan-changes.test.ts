@@ -4,6 +4,7 @@ import {
   calculateUpgradeProration,
   changeIdFromExternalReference,
   comparePlans,
+  fitsPlanUserLimit,
   nextPeriodEnd,
   pickPriceForCampaign,
   planChangeExternalReference,
@@ -66,7 +67,7 @@ describe('pickPriceForCampaign', () => {
     expect(pickPriceForCampaign([tabela, fundador], null)).toBe(tabela);
   });
 
-  it('recusa preço de tabela quando o plano de destino não tem a campanha vitalícia', () => {
+  it('recusa a troca automática quando o destino não tem a campanha vitalícia', () => {
     expect(pickPriceForCampaign([tabela], 'fundador')).toBeUndefined();
   });
 
@@ -109,5 +110,20 @@ describe('pickPriceForCampaign', () => {
       meio,
     );
     expect(rateioFundador).toBeLessThan(rateioTabela);
+  });
+});
+
+describe('capacidade no downgrade', () => {
+  it('permite até a capacidade do destino, inclusive Clínica com mais de um usuário', () => {
+    expect(fitsPlanUserLimit(5, 5)).toBe(true);
+    expect(fitsPlanUserLimit(2, 5)).toBe(true);
+    expect(fitsPlanUserLimit(1, 1)).toBe(true);
+  });
+
+  it('bloqueia excesso, ausência da regra e clínica sem usuário ativo', () => {
+    expect(fitsPlanUserLimit(6, 5)).toBe(false);
+    expect(fitsPlanUserLimit(2, 1)).toBe(false);
+    expect(fitsPlanUserLimit(2, null)).toBe(false);
+    expect(fitsPlanUserLimit(0, 5)).toBe(false);
   });
 });

@@ -6,6 +6,7 @@
 import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 
 import type { Tx } from '@/lib/db';
+import type { ProviderPayment } from '@/lib/payments/asaas';
 import { withTenant } from '@/lib/db/tenant';
 import { publishEvent } from '@/lib/outbox/publish';
 
@@ -162,6 +163,62 @@ export function changeIdFromExternalReference(value: string | null): string | nu
   return /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(id) ? id : null;
 }
 
+/** Snapshot verificado antes do I/O remoto; a transação de aplicação relê o estado. */
+export async function getPaidUpgradeSyncContext(
+  tx: Tx,
+  payment: ProviderPayment,
+): Promise<{
+  subscriptionId: string;
+  previousAmount: string;
+  amount: string;
+  firstDueDate: string;
+} | null> {
+  if (!paidStatus(payment.status)) return null;
+  const changeId = changeIdFromExternalReference(payment.externalReference);
+  if (!changeId) return null;
+  const [change] = await tx
+    .select({
+      status: subscriptionChangeRequests.status,
+      kind: subscriptionChangeRequests.kind,
+      fromPriceId: subscriptionChangeRequests.fromPriceId,
+      providerPaymentId: subscriptionChangeRequests.providerPaymentId,
+      prorationAmount: subscriptionChangeRequests.prorationAmount,
+      currentPriceId: subscriptions.priceId,
+      previousAmount: sql<string>`(SELECT amount FROM public.prices WHERE id = ${subscriptions.priceId})`,
+      billingStatus: subscriptions.billingStatus,
+      asaasSubscriptionId: subscriptions.asaasSubscriptionId,
+      currentPeriodEnd: subscriptions.currentPeriodEnd,
+      targetAmount: prices.amount,
+    })
+    .from(subscriptionChangeRequests)
+    .innerJoin(subscriptions, eq(subscriptions.id, subscriptionChangeRequests.subscriptionId))
+    .innerJoin(prices, eq(prices.id, subscriptionChangeRequests.toPriceId))
+    .where(eq(subscriptionChangeRequests.id, changeId))
+    .limit(1);
+  if (!change || change.status !== 'pending_payment') return null;
+  if (
+    change.kind !== 'upgrade' ||
+    change.currentPriceId !== change.fromPriceId ||
+    change.billingStatus !== 'active' ||
+    (change.providerPaymentId && change.providerPaymentId !== payment.paymentId) ||
+    toCents(change.prorationAmount ?? '0') !== toCents(payment.value) ||
+    !change.asaasSubscriptionId ||
+    !change.previousAmount ||
+    !change.currentPeriodEnd
+  ) {
+    throw new PlanChangeError(
+      'Upgrade pago não corresponde à assinatura ativa.',
+      'upgrade_sync_preflight_failed',
+    );
+  }
+  return {
+    subscriptionId: change.asaasSubscriptionId,
+    previousAmount: change.previousAmount,
+    amount: change.targetAmount,
+    firstDueDate: change.currentPeriodEnd.toISOString().slice(0, 10),
+  };
+}
+
 async function readCurrentSubscription(tx: Tx, clinicId: string): Promise<CurrentSubscription> {
   const [row] = await tx
     .select({
@@ -193,8 +250,8 @@ async function readCurrentSubscription(tx: Tx, clinicId: string): Promise<Curren
  * assinatura. Puro porque é a regra que decide QUANTO a clínica passa a pagar —
  * ela precisa ser afirmável sem banco.
  *
- * Uma assinatura promocional só pode migrar para outro preço da mesma campanha.
- * Sem essa linha, a troca é recusada antes de criar cobrança ou alterar contrato.
+ * Sem preço da mesma campanha no destino, a troca é recusada. Um desconto
+ * vitalício não pode desaparecer silenciosamente em uma mudança de plano.
  */
 export function pickPriceForCampaign<T extends { campaignCode: string | null }>(
   candidates: readonly T[],
@@ -209,8 +266,7 @@ export function pickPriceForCampaign<T extends { campaignCode: string | null }>(
  * plano e caísse no preço de tabela, ela perderia o desconto vitalício sem
  * jamais ter pedido isso — e por um caminho que nem menciona preço promocional.
  *
- * Se o destino não oferecer a mesma campanha, recusamos a troca para não
- * substituir silenciosamente o preço vitalício por preço de tabela.
+ * Sem preço da mesma campanha no destino, não existe troca automática segura.
  */
 async function readTargetPlan(
   tx: Tx,
@@ -244,7 +300,20 @@ async function readTargetPlan(
   return row;
 }
 
-async function assertExactlyOneActiveUser(tx: Tx, clinicId: string): Promise<void> {
+export function fitsPlanUserLimit(activeUsers: number, limit: number | null): boolean {
+  return Number.isInteger(activeUsers) && activeUsers > 0 && limit !== null && activeUsers <= limit;
+}
+
+async function assertTargetPlanCapacity(
+  tx: Tx,
+  clinicId: string,
+  targetPlanId: string,
+): Promise<void> {
+  const [limit] = await tx
+    .select({ value: planLimits.limitValue })
+    .from(planLimits)
+    .where(and(eq(planLimits.planId, targetPlanId), eq(planLimits.metric, 'users')))
+    .limit(1);
   const [row] = await tx.execute<{ active_users: number }>(sql`
     SELECT count(*)::int AS active_users
       FROM public.profiles
@@ -252,10 +321,10 @@ async function assertExactlyOneActiveUser(tx: Tx, clinicId: string): Promise<voi
        AND ativo = true
        AND deleted_at IS NULL
   `);
-  if (Number(row?.active_users ?? 0) !== 1) {
+  if (!fitsPlanUserLimit(Number(row?.active_users ?? 0), limit?.value ?? null)) {
     throw new PlanChangeError(
-      'O downgrade só é permitido para clínicas com exatamente um usuário ativo.',
-      'downgrade_requires_one_active_user',
+      'A clínica possui mais usuários ativos do que o plano de destino permite.',
+      'downgrade_capacity_exceeded',
     );
   }
 }
@@ -345,6 +414,12 @@ export async function requestPlanChange(
 ): Promise<RequestedPlanChange> {
   const now = input.now ?? new Date();
   const current = await readCurrentSubscription(tx, input.clinicId);
+  if (!current.asaasSubscriptionId) {
+    throw new PlanChangeError(
+      'Assinatura ainda não foi provisionada no Asaas.',
+      'subscription_not_provisioned',
+    );
+  }
   if (current.billingStatus !== 'active') {
     throw new PlanChangeError(
       'A alteração de plano exige uma assinatura ativa.',
@@ -396,7 +471,7 @@ export async function requestPlanChange(
     }
   }
 
-  if (direction === -1) await assertExactlyOneActiveUser(tx, input.clinicId);
+  if (direction === -1) await assertTargetPlanCapacity(tx, input.clinicId, target.id);
 
   const isUpgrade = direction === 1;
   const periodStart = current.currentPeriodStart;
@@ -417,6 +492,12 @@ export async function requestPlanChange(
         now,
       )
     : null;
+  if (isUpgrade && prorationCents === 0) {
+    throw new PlanChangeError(
+      'O ciclo está terminando. Tente novamente após a renovação para calcular o novo valor.',
+      'upgrade_proration_unavailable',
+    );
+  }
   const status = isUpgrade ? 'pending_payment' : 'scheduled';
   const [created] = await tx
     .insert(subscriptionChangeRequests)
@@ -1060,6 +1141,12 @@ export async function applyPaidUpgradeForPayment(
   if (toCents(payment.value) !== toCents(change.prorationAmount ?? '0')) {
     throw new PlanChangeError('Pagamento de upgrade com valor inesperado.', 'proration_mismatch');
   }
+  if (change.providerPaymentId && change.providerPaymentId !== payment.paymentId) {
+    throw new PlanChangeError(
+      'Pagamento não pertence ao upgrade solicitado.',
+      'upgrade_payment_mismatch',
+    );
+  }
   if (!change.toPlanId || !change.toPriceId) {
     throw new PlanChangeError('Upgrade sem plano de destino.', 'upgrade_target_missing');
   }
@@ -1095,6 +1182,7 @@ export async function applyPaidUpgradeForPayment(
     .select({
       id: subscriptions.id,
       planId: subscriptions.planId,
+      priceId: subscriptions.priceId,
       planCode: plans.code,
       billingStatus: subscriptions.billingStatus,
     })
@@ -1112,6 +1200,17 @@ export async function applyPaidUpgradeForPayment(
       'Assinatura do upgrade não encontrada.',
       'upgrade_subscription_missing',
     );
+
+  if (
+    current.planId !== change.fromPlanId ||
+    current.priceId !== change.fromPriceId ||
+    current.billingStatus !== 'active'
+  ) {
+    throw new PlanChangeError(
+      'Assinatura mudou durante o upgrade.',
+      'upgrade_subscription_changed',
+    );
+  }
 
   await tx
     .update(subscriptions)
@@ -1231,7 +1330,13 @@ export async function applyScheduledPlanChange(
     if (!change.toPlanId || !change.toPriceId) {
       throw new PlanChangeError('Downgrade sem plano de destino.', 'downgrade_target_missing');
     }
-    await assertExactlyOneActiveUser(tx, change.clinicId);
+    await assertTargetPlanCapacity(tx, change.clinicId, change.toPlanId);
+    if (current.planId !== change.fromPlanId || current.billingStatus !== 'active') {
+      throw new PlanChangeError(
+        'Assinatura mudou durante o downgrade.',
+        'downgrade_subscription_changed',
+      );
+    }
     const [target] = await tx
       .select({ code: plans.code })
       .from(plans)
@@ -1304,8 +1409,8 @@ export type PlanChangeOverview = {
 export async function getPlanChangeOverview(clinicId: string): Promise<PlanChangeOverview> {
   return withTenant(clinicId, async (tx) => {
     const current = await readCurrentSubscription(tx, clinicId);
-    // O catálogo só pode mostrar destinos que preservem a campanha vigente.
-    // Sem preço promocional correspondente, a troca não é oferecida nem cobrada.
+    // Só mostra destinos com preço da MESMA campanha. Exibir o preço de tabela
+    // aqui e recusar a troca no servidor seria uma promessa enganosa na UI.
     const campaignFilter = current.campaignCode
       ? eq(prices.campaignCode, current.campaignCode)
       : isNull(prices.campaignCode);

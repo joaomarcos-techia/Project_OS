@@ -131,3 +131,41 @@ describe('datas de ciclo', () => {
     expect(screen.getByText(/ciclo encerra em 10\/10\/2026/u)).toBeTruthy();
   });
 });
+
+describe('capacidade mostrada na troca de plano', () => {
+  const current = {
+    planId: 'plan_pro',
+    planName: 'Pro',
+    planCode: 'pro',
+    priceAmount: '699.00',
+    billingCycle: 'monthly' as const,
+    billingStatus: 'active' as const,
+    periodEnd: '2026-11-01T00:00:00.000Z',
+    trialEndsAt: null,
+  };
+  const plans = [
+    {
+      id: 'plan_clinica',
+      name: 'Clínica',
+      code: 'clinica',
+      priceAmount: '397.00',
+      limits: { users: 5, agendamentos: 800, ai_messages: 800 },
+    },
+  ];
+
+  it('permite agendar Pro → Clínica com três usuários dentro da cota de cinco', () => {
+    render(<PlanChangeForm current={current} plans={plans} activeUsers={3} pending={null} />);
+
+    expect(screen.getByRole('button', { name: 'Agendar downgrade' }).hasAttribute('disabled')).toBe(
+      false,
+    );
+  });
+
+  it('informa o limite e bloqueia a troca com seis usuários', () => {
+    render(<PlanChangeForm current={current} plans={plans} activeUsers={6} pending={null} />);
+
+    expect(
+      screen.getByRole('button', { name: 'Limite de 5 usuários' }).hasAttribute('disabled'),
+    ).toBe(true);
+  });
+});
