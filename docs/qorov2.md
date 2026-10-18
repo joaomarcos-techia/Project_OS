@@ -8924,3 +8924,57 @@ do ciclo e replay idempotente, seguido de cleanup. Os comandos, limites e
 estados pendentes constam no [registro de integração](quality/integracao-2026-10-09.md).
 Ainda falta pagar um checkout de paciente com preço por meio e verificar seu
 efeito completo no financeiro; os testes de agendamento não o substituem.
+
+## 66. Prévia da oferta por profissional — 15/10/2026
+
+A proposta de Consultório/Clínica do PDF de 13/10/2026 foi codificada somente
+como simulação em Preview. A tabela, os limites, as condições ainda não
+implementadas e os gates para qualquer ativação estão em
+[precos-2026-preview.md](specs/precos-2026-preview.md). O catálogo e o checkout
+vigentes permanecem inalterados. A configuração de pagamentos passa a consultar
+as tarifas da própria conta Asaas, sem substituir a taxa efetiva conciliada
+após cada pagamento. O Preview do app está no [Draft PR #40](https://github.com/joaomarcos-techia/Project_OS/pull/40), empilhado sobre o
+PR #39; a landing equivalente está no [Draft PR #1](https://github.com/joaomarcos-techia/landing_page/pull/1). Os
+resultados por cenário, a causa do erro ao salvar duas regras, o novo editor de
+permissões e os limites de entrega ao WhatsApp do paciente constam na
+[spec financeira](specs/politica-financeira-camadas.md), seção de 15/10/2026.
+No Preview com Auth/PostgreSQL DEV, o E2E integrado passou **10/10** em uma
+execução (exit 0, 6,9 min), com cleanup de clínicas, usuários e linhas em zero.
+O E2E de leitura das tarifas da conta Sandbox conectada passou **1/1** e
+confirmou por hash que as duas regras de preço existentes não mudaram. O build
+otimizado Next 15.5.24, o TypeScript, o ESLint e a suíte Vitest integral
+(**5.529/5.529 em 529 arquivos**) passaram. A proposta de preços permanece
+somente em Preview; a entrega do link de sinal por WhatsApp nessa clínica de
+teste ainda depende de número Meta conectado, política de sinal e agendamento
+futuro, como descrito na spec financeira.
+
+## 67. Revisão da proposta comercial pelo PDF — 17/10/2026
+
+O fundador pediu que as prévias de preço sigam o PDF de 13/10/2026 quanto à
+equipe: Consultório inclui até **3 logins de equipe**; Clínica inclui equipe
+sem cobrança por login. A hipótese intermediária de R$ 79 por login adicional
+e cotas 1+1/2+2 registrada na seção anterior está **revogada**. R$ 197 por
+Consultório, Clínica desde R$ 397 por dois profissionais, R$ 147 por
+profissional adicional, anual de 10 mensalidades, franquia proposta de 500
+conversas/profissional e trial proposto de 14 dias continuam em **Preview**, sem
+alterar a contratação ativa. A landing Preview usa o WhatsApp comercial
+`+55 88 99682-2198` para o contato da proposta.
+
+O cálculo e os textos atualizados estão nos Draft PRs [app #40](https://github.com/joaomarcos-techia/Project_OS/pull/40)
+e [landing #1](https://github.com/joaomarcos-techia/landing_page/pull/1).
+Os testes antigos de 10/10 e 144 combinações usavam a hipótese de R$ 79;
+não são evidência da revisão. A comparação local atual de **42/42** combinações
+app × landing passou (exit 0); ela ainda não prova os deployments externos.
+O [roteiro específico](runbooks/validacao-nova-oferta-2026-10.md)
+separa os testes ainda executáveis dos pontos bloqueados por implementação,
+integração com Asaas, medição real ou decisão comercial. A correção da troca
+de planos vigente está no Draft PR #41, separado; integrar antes do E2E final.
+
+Após o deploy do app `e3a5b81d`, o E2E do Preview ligado ao DEV passou **10/10**
+em 18/10/2026 02:32 UTC (exit 0, 6,9 min). A prova assinada confirmou Auth e
+banco DEV antes das escritas; o caso 10 verificou a cota de equipe da nova
+prévia e ausência de checkout, e a limpeza terminou com zero clínicas,
+usuários e linhas de fixture. Os checks remotos dos dois PRs passaram. A
+landing externa continua **NOT TESTED funcionalmente** porque o GET foi
+redirecionado ao SSO da Vercel; o Chromium local e o deployment Ready não
+substituem essa prova.

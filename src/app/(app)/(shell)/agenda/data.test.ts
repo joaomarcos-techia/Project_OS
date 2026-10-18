@@ -40,10 +40,6 @@ vi.mock('@/contexts/patient/queries', () => ({ listPatientCards: mocks.listPatie
 vi.mock('@/contexts/payments', () => ({
   paymentsApiV1: { listPatientChargeEconomics: mocks.listPatientChargeEconomics },
 }));
-vi.mock('@/contexts/payments/pricing-queries', () => ({
-  getPaymentPricingPolicy: vi.fn(async () => ({ mode: 'absorb_fees' })),
-  listProcedurePaymentPrices: vi.fn(async () => []),
-}));
 vi.mock('@/contexts/scheduling/queries', () => ({
   listAppointments: mocks.listAppointments,
   listProcedures: vi.fn(async () => []),

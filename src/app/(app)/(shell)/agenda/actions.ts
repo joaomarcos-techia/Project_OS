@@ -22,7 +22,6 @@ import { z } from 'zod';
 import { getFailedJobChargeRef } from '@/contexts/ai-agent/queries';
 import { getPatientSummaryById, listPatients } from '@/contexts/patient/queries';
 import { paymentsApiV1 } from '@/contexts/payments';
-import { resolveConfiguredProcedurePaymentPrice } from '@/contexts/payments/pricing-queries';
 import {
   cancelRecurringSeries,
   createAppointment,
@@ -142,18 +141,8 @@ export async function criarAtendimento(
 
     const procedure = await getProcedure(clinicId, input.procedureId);
     if (!procedure) return { ok: false, message: 'Procedimento inválido para esta clínica.' };
-    const commercialPrice = await resolveConfiguredProcedurePaymentPrice({
-      clinicId,
-      procedureId: input.procedureId,
-      standardGrossAmount: procedure.valorPadrao,
-      paymentMethod: input.paymentMethod ?? null,
-      installmentCount: input.installmentCount ?? null,
-    });
-    if (!commercialPrice) {
-      return {
-        ok: false,
-        message: 'Selecione uma forma de pagamento com preço configurado.',
-      };
+    if (input.paymentMethod !== undefined || input.installmentCount !== undefined) {
+      return { ok: false, message: 'A forma de pagamento é escolhida pelo paciente no Checkout.' };
     }
 
     const key = crypto.randomUUID();
@@ -162,17 +151,6 @@ export async function criarAtendimento(
       patientId: input.patientId,
       procedureId: input.procedureId,
       resourceIds: input.resourceIds ?? [],
-      pricingPolicyMode: commercialPrice.mode,
-      commercialPaymentMethod: commercialPrice.paymentMethod,
-      commercialInstallmentCount: commercialPrice.installmentCount,
-      commercialPriceId: commercialPrice.priceId,
-      ...(commercialPrice.source === 'explicit_method_price'
-        ? {
-            valorAjustado: true,
-            valor: commercialPrice.grossAmount,
-            valorAjusteMotivo: 'Preço por meio de pagamento',
-          }
-        : {}),
       ...(input.urgencia ? { urgencia: true } : {}),
       ...(input.observacoes?.trim() ? { observacoes: input.observacoes.trim() } : {}),
     };

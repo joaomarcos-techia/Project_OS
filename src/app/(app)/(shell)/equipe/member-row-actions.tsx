@@ -27,7 +27,9 @@ import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { toast } from '@/components/ui/use-toast';
 
-import { setMemberActiveAction, setMemberOverrideAction, setMemberRoleAction } from './actions';
+import { setMemberActiveAction, setMemberOverridesAction, setMemberRoleAction } from './actions';
+
+type OverrideChoice = 'default' | 'grant' | 'deny';
 
 /** Rótulos das funções atribuíveis (a autoridade real é `assertCanAssignRole`, server-side). */
 const ROLE_LABELS: Record<string, string> = {
@@ -103,6 +105,12 @@ export function MemberRowActions({
   const [roleOpen, setRoleOpen] = useState(false);
   const [nextRole, setNextRole] = useState(role);
   const [permissionsOpen, setPermissionsOpen] = useState(false);
+  const [permissionDraft, setPermissionDraft] = useState<
+    Partial<Record<Permission, OverrideChoice>>
+  >({});
+  const [permissionBaseline, setPermissionBaseline] = useState<
+    Partial<Record<Permission, OverrideChoice>>
+  >({});
 
   const [deactivateOpen, setDeactivateOpen] = useState(false);
   // Estado do bloqueio ADR-032 §4: quando setado, o Dialog vira "desativar mesmo assim".
@@ -125,15 +133,49 @@ export function MemberRowActions({
     });
   }
 
-  function handlePermissionChange(permission: Permission, value: string) {
-    const granted = value === 'grant' ? true : value === 'deny' ? false : null;
+  function openPermissions() {
+    const initial: Partial<Record<Permission, OverrideChoice>> = {};
+    for (const override of overrides) {
+      initial[override.permission] = override.granted ? 'grant' : 'deny';
+    }
+    setPermissionBaseline(initial);
+    setPermissionDraft(initial);
+    setPermissionsOpen(true);
+  }
+
+  const permissionChanges = ALL_PERMISSIONS.filter(
+    (permission) =>
+      (permissionDraft[permission] ?? 'default') !== (permissionBaseline[permission] ?? 'default'),
+  );
+
+  function savePermissions() {
+    if (permissionChanges.length === 0) {
+      setPermissionsOpen(false);
+      return;
+    }
     start(async () => {
-      const res = await setMemberOverrideAction({ userId, permission, granted });
+      const res = await setMemberOverridesAction({
+        userId,
+        changes: permissionChanges.map((permission) => ({
+          permission,
+          granted:
+            permissionDraft[permission] === 'grant'
+              ? true
+              : permissionDraft[permission] === 'deny'
+                ? false
+                : null,
+        })),
+      });
       if ('ok' in res) {
-        toast.success('Permissão atualizada', `${PERMISSION_LABELS[permission] ?? permission}.`);
+        toast.success(
+          'Permissões atualizadas',
+          `${permissionChanges.length} alterações salvas para ${nome}.`,
+        );
+        setPermissionBaseline({ ...permissionDraft });
+        setPermissionsOpen(false);
         router.refresh();
       } else {
-        toast.error('Não foi possível atualizar a permissão', res.error);
+        toast.error('Não foi possível atualizar as permissões', res.error);
       }
     });
   }
@@ -187,9 +229,7 @@ export function MemberRowActions({
             </DropdownMenuItem>
           ) : null}
           {canManagePermissions ? (
-            <DropdownMenuItem onSelect={() => setPermissionsOpen(true)}>
-              Permissões individuais
-            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={openPermissions}>Permissões individuais</DropdownMenuItem>
           ) : null}
           {ativo ? (
             <DropdownMenuItem
@@ -258,8 +298,7 @@ export function MemberRowActions({
           </DialogHeader>
           <DialogBody className="max-h-[60vh] space-y-3 overflow-y-auto">
             {ALL_PERMISSIONS.map((permission) => {
-              const override = overrides.find((item) => item.permission === permission);
-              const value = override ? (override.granted ? 'grant' : 'deny') : 'default';
+              const value = permissionDraft[permission] ?? 'default';
               return (
                 <div key={permission} className="flex items-center justify-between gap-3">
                   <Label htmlFor={`permission-${userId}-${permission}`}>
@@ -268,9 +307,12 @@ export function MemberRowActions({
                   <Select
                     id={`permission-${userId}-${permission}`}
                     value={value}
-                    onChange={(event) =>
-                      handlePermissionChange(permission, event.currentTarget.value)
-                    }
+                    onChange={(event) => {
+                      const value = event.currentTarget.value;
+                      if (value === 'default' || value === 'grant' || value === 'deny') {
+                        setPermissionDraft((current) => ({ ...current, [permission]: value }));
+                      }
+                    }}
                     disabled={pending}
                   >
                     <option value="default">Padrão da função</option>
@@ -283,8 +325,12 @@ export function MemberRowActions({
           </DialogBody>
           <DialogFooter>
             <DialogClose asChild>
-              <Button variant="secondary">Fechar</Button>
+              <Button variant="secondary">Cancelar</Button>
             </DialogClose>
+            <Button onClick={savePermissions} disabled={pending || permissionChanges.length === 0}>
+              Salvar permissões
+              {permissionChanges.length > 0 ? ` (${permissionChanges.length})` : ''}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

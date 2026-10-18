@@ -4,8 +4,6 @@ const mocks = vi.hoisted(() => ({
   hasAdvancedFinancialPolicies: vi.fn(),
   getPaymentAccountStatus: vi.fn(),
   getDepositPolicy: vi.fn(),
-  getPaymentPricingPolicy: vi.fn(),
-  listProcedurePaymentPrices: vi.fn(),
   getProfessionalPayoutPolicy: vi.fn(),
   listActiveProfessionalPayoutRules: vi.fn(),
   listEmployees: vi.fn(),
@@ -20,10 +18,6 @@ vi.mock('@/contexts/billing/api', () => ({
 vi.mock('@/contexts/payments', () => ({
   getPaymentAccountStatus: mocks.getPaymentAccountStatus,
   getDepositPolicy: mocks.getDepositPolicy,
-}));
-vi.mock('@/contexts/payments/pricing-queries', () => ({
-  getPaymentPricingPolicy: mocks.getPaymentPricingPolicy,
-  listProcedurePaymentPrices: mocks.listProcedurePaymentPrices,
 }));
 vi.mock('@/contexts/financial/payout-queries', () => ({
   getProfessionalPayoutPolicy: mocks.getProfessionalPayoutPolicy,
@@ -51,24 +45,19 @@ describe('configurações de pagamentos por plano', () => {
 
     await expect(loadPagamentosPage()).resolves.toMatchObject({
       advancedPoliciesEnabled: false,
-      pricingPolicy: { mode: 'absorb_fees' },
       payoutPolicy: { basis: 'gross' },
-      methodPrices: [],
       payoutRules: [],
       professionals: [],
       procedures: [],
     });
     expect(mocks.getPaymentAccountStatus).toHaveBeenCalledWith('clinic-test');
     expect(mocks.getDepositPolicy).toHaveBeenCalledWith('clinic-test');
-    expect(mocks.getPaymentPricingPolicy).not.toHaveBeenCalled();
     expect(mocks.getProfessionalPayoutPolicy).not.toHaveBeenCalled();
     expect(mocks.listEmployees).not.toHaveBeenCalled();
   });
 
   it('Clínica/Pro carrega as políticas e regras do tenant', async () => {
     mocks.hasAdvancedFinancialPolicies.mockResolvedValue(true);
-    mocks.getPaymentPricingPolicy.mockResolvedValue({ mode: 'payment_method_pricing' });
-    mocks.listProcedurePaymentPrices.mockResolvedValue([{ id: 'price-1' }]);
     mocks.getProfessionalPayoutPolicy.mockResolvedValue({ basis: 'net' });
     mocks.listActiveProfessionalPayoutRules.mockResolvedValue([{ id: 'rule-1' }]);
     mocks.listEmployees.mockResolvedValue([
@@ -85,8 +74,6 @@ describe('configurações de pagamentos por plano', () => {
 
     await expect(loadPagamentosPage()).resolves.toMatchObject({
       advancedPoliciesEnabled: true,
-      pricingPolicy: { mode: 'payment_method_pricing' },
-      methodPrices: [{ id: 'price-1' }],
       payoutPolicy: { basis: 'net' },
       payoutRules: [{ id: 'rule-1' }],
       professionals: [{ id: 'professional-1', name: 'Dra. Exemplo' }],

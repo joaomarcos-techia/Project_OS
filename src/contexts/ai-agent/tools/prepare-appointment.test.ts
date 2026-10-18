@@ -14,9 +14,6 @@ import { getTool, type ToolContext } from './registry';
 const mocks = vi.hoisted(() => ({
   listProcedures: vi.fn(),
   listSlots: vi.fn(),
-  getPaymentPricingPolicy: vi.fn(),
-  listProcedurePaymentPrices: vi.fn(),
-  resolveConfiguredProcedurePaymentPrice: vi.fn(),
   getDepositPolicy: vi.fn(),
   previewDepositForBooking: vi.fn(),
   proposePendingAction: vi.fn(),
@@ -27,9 +24,6 @@ vi.mock('@/contexts/scheduling', () => ({
 }));
 vi.mock('@/contexts/payments', () => ({
   getDepositPolicy: mocks.getDepositPolicy,
-  getPaymentPricingPolicy: mocks.getPaymentPricingPolicy,
-  listProcedurePaymentPrices: mocks.listProcedurePaymentPrices,
-  resolveConfiguredProcedurePaymentPrice: mocks.resolveConfiguredProcedurePaymentPrice,
   paymentsApiV1: { previewDepositForBooking: mocks.previewDepositForBooking },
 }));
 vi.mock('../internal/pending-action', async (importOriginal) => ({
@@ -42,7 +36,6 @@ const cardio = { descricao: 'Consulta Cardiológica', categoria: 'consulta' };
 const dermato = { descricao: 'Consulta Dermatológica', categoria: 'consulta' };
 const PROCEDURE_ID = '55555555-5555-5555-5555-555555555555';
 const DOCTOR_ID = '66666666-6666-6666-6666-666666666666';
-const PRICE_ID = '77777777-7777-7777-7777-777777777777';
 const APPOINTMENT_ACTION_ID = '88888888-8888-8888-8888-888888888888';
 
 const unregisteredPatientContext: ToolContext = {
@@ -81,39 +74,42 @@ beforeEach(() => {
   mocks.listSlots.mockImplementation(async () => [
     { startAt: new Date(Date.now() + 86_400_000).toISOString(), doctorId: DOCTOR_ID },
   ]);
-  mocks.getPaymentPricingPolicy.mockResolvedValue({ mode: 'payment_method_pricing' });
   mocks.getDepositPolicy.mockResolvedValue({ enabled: false });
   mocks.previewDepositForBooking.mockResolvedValue(null);
-  mocks.listProcedurePaymentPrices.mockResolvedValue([
-    {
-      id: PRICE_ID,
-      procedureId: PROCEDURE_ID,
-      paymentMethod: 'pix',
-      installmentCount: null,
-      grossAmount: 180,
-    },
-    {
-      id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
-      procedureId: PROCEDURE_ID,
-      paymentMethod: 'credit_card',
-      installmentCount: 1,
-      grossAmount: 200,
-    },
-  ]);
-  mocks.resolveConfiguredProcedurePaymentPrice.mockResolvedValue({
-    mode: 'payment_method_pricing',
-    paymentMethod: 'pix',
-    installmentCount: null,
-    priceId: PRICE_ID,
-    grossAmount: 180,
-    source: 'explicit_method_price',
-  });
   mocks.proposePendingAction.mockImplementation(async (_tx, args: { summary: string }) => ({
     id: APPOINTMENT_ACTION_ID,
     action: 'schedule_appointment',
     summary: args.summary,
     expiresAt: new Date(Date.now() + 600_000).toISOString(),
   }));
+});
+
+describe('prepare_appointment com preço único', () => {
+  it('prepara agendamento sem pedir a forma de pagamento', async () => {
+    const response = await getTool('prepare_appointment')!.handler({}, registeredPatientContext);
+    expect(response).toMatchObject({ status: 'appointment_prepared' });
+    expect(mocks.proposePendingAction).toHaveBeenCalledWith(
+      registeredPatientContext.tx,
+      expect.objectContaining({
+        payload: expect.not.objectContaining({ commercialPrice: expect.anything() }),
+      }),
+    );
+    expect(mocks.previewDepositForBooking).toHaveBeenCalledWith(
+      expect.objectContaining({ basePrice: 250 }),
+    );
+  });
+
+  it('mantém o sinal calculado a partir do preço padrão', async () => {
+    mocks.previewDepositForBooking.mockResolvedValue({ amount: 125 });
+    const response = await getTool('prepare_appointment')!.handler({}, registeredPatientContext);
+    expect(response).toMatchObject({ status: 'appointment_prepared' });
+    expect(mocks.proposePendingAction).toHaveBeenCalledWith(
+      registeredPatientContext.tx,
+      expect.objectContaining({
+        payload: expect.objectContaining({ depositAmount: 125 }),
+      }),
+    );
+  });
 });
 
 describe('matchesProcedure (tolerante a especialidade vs nome)', () => {
@@ -157,7 +153,6 @@ describe('nome exato do procedimento vence o matching tolerante', () => {
         valorPadrao: 380,
       },
     ]);
-    mocks.getPaymentPricingPolicy.mockResolvedValue({ mode: 'absorb_fees' });
 
     const response = await getTool('prepare_appointment')!.handler(
       { procedure_name: 'Consulta' },
@@ -254,254 +249,5 @@ describe('com o sinal ligado exige o cadastro (decisão de 08/10/2026)', () => {
       ),
     ).rejects.toThrow('mais de um paciente');
     expect(mocks.proposePendingAction).not.toHaveBeenCalled();
-  });
-});
-
-describe('prepare_appointment com preço por meio de pagamento', () => {
-  it('pede escolha do paciente e mostra apenas opções com link disponível', async () => {
-    const response = await getTool('prepare_appointment')!.handler({}, registeredPatientContext);
-    expect(response).toMatchObject({ status: 'appointment_information_required' });
-    expect(response.patient_message).toContain('Pix: R$ 180,00');
-    expect(response.patient_message).toContain('cartão de crédito em 1x: R$ 200,00');
-    expect(mocks.listSlots).not.toHaveBeenCalled();
-    expect(mocks.proposePendingAction).not.toHaveBeenCalled();
-  });
-
-  it('não oferece cartão quando só há preço Pix configurado', async () => {
-    mocks.listProcedurePaymentPrices.mockResolvedValue([
-      { procedureId: PROCEDURE_ID, paymentMethod: 'pix', installmentCount: null, grossAmount: 180 },
-    ]);
-    const response = await getTool('prepare_appointment')!.handler({}, registeredPatientContext);
-    expect(response.patient_message).toContain('Pix: R$ 180,00');
-    expect(response.patient_message).not.toContain('cartão');
-  });
-
-  it('salva preço Pix consultado no servidor e o apresenta no resumo', async () => {
-    const response = await getTool('prepare_appointment')!.handler(
-      { payment_method: 'pix' },
-      { ...registeredPatientContext, currentMessage: 'Quero pagar no Pix' },
-    );
-    expect(response).toMatchObject({ status: 'appointment_prepared' });
-    expect(response.summary).toContain('valor total R$ 180,00 via Pix');
-    expect(mocks.resolveConfiguredProcedurePaymentPrice).toHaveBeenCalledWith({
-      clinicId: registeredPatientContext.clinicId,
-      procedureId: PROCEDURE_ID,
-      standardGrossAmount: 250,
-      paymentMethod: 'pix',
-      installmentCount: null,
-    });
-    expect(mocks.proposePendingAction).toHaveBeenCalledWith(
-      registeredPatientContext.tx,
-      expect.objectContaining({
-        payload: expect.objectContaining({
-          commercialPrice: {
-            paymentMethod: 'pix',
-            installmentCount: null,
-            priceId: PRICE_ID,
-            grossAmount: 180,
-          },
-        }),
-      }),
-    );
-  });
-
-  it('pede parcelas para cartão, sem assumir pagamento em 1x', async () => {
-    const response = await getTool('prepare_appointment')!.handler(
-      { payment_method: 'credit_card' },
-      { ...registeredPatientContext, currentMessage: 'Quero pagar no cartão' },
-    );
-    expect(response.patient_message).toContain('responda "cartão em 1x"');
-    expect(mocks.proposePendingAction).not.toHaveBeenCalled();
-  });
-
-  it('prepara cartão em 1x com o preço configurado', async () => {
-    mocks.resolveConfiguredProcedurePaymentPrice.mockResolvedValue({
-      mode: 'payment_method_pricing',
-      paymentMethod: 'credit_card',
-      installmentCount: 1,
-      priceId: PRICE_ID,
-      grossAmount: 200,
-      source: 'explicit_method_price',
-    });
-    const response = await getTool('prepare_appointment')!.handler(
-      { payment_method: 'credit_card', installment_count: 1 },
-      { ...registeredPatientContext, currentMessage: 'Vou pagar no cartão em 1x' },
-    );
-    expect(response.summary).toContain('valor total R$ 200,00 via cartão de crédito em 1x');
-    expect(mocks.proposePendingAction).toHaveBeenCalledWith(
-      registeredPatientContext.tx,
-      expect.objectContaining({
-        payload: expect.objectContaining({
-          commercialPrice: expect.objectContaining({
-            paymentMethod: 'credit_card',
-            installmentCount: 1,
-            grossAmount: 200,
-          }),
-        }),
-      }),
-    );
-  });
-
-  it('não prepara cartão parcelado nem inventa preço indisponível', async () => {
-    const tool = getTool('prepare_appointment')!;
-    const parcelado = await tool.handler(
-      { payment_method: 'credit_card', installment_count: 3 },
-      { ...registeredPatientContext, currentMessage: 'Vou pagar no cartão em 3x' },
-    );
-    expect(parcelado.patient_message).toContain('não consigo gerar link de cartão parcelado');
-    expect(mocks.resolveConfiguredProcedurePaymentPrice).not.toHaveBeenCalled();
-
-    mocks.resolveConfiguredProcedurePaymentPrice.mockResolvedValue(null);
-    const semPreco = await tool.handler(
-      { payment_method: 'pix' },
-      { ...registeredPatientContext, currentMessage: 'Pix' },
-    );
-    expect(semPreco.patient_message).toContain('preço dessa forma de pagamento mudou');
-    expect(mocks.proposePendingAction).not.toHaveBeenCalled();
-  });
-
-  it('preserva o agendamento com preço padrão quando a política explícita não está ativa', async () => {
-    mocks.getPaymentPricingPolicy.mockResolvedValue({ mode: 'absorb_fees' });
-    const response = await getTool('prepare_appointment')!.handler({}, registeredPatientContext);
-    expect(response).toMatchObject({ status: 'appointment_prepared' });
-    expect(mocks.proposePendingAction).toHaveBeenCalledWith(
-      registeredPatientContext.tx,
-      expect.objectContaining({
-        payload: expect.not.objectContaining({ commercialPrice: expect.anything() }),
-      }),
-    );
-  });
-
-  it('não aceita meio nem parcelas inventados pelo modelo', async () => {
-    const tool = getTool('prepare_appointment')!;
-    const semEscolha = await tool.handler({ payment_method: 'pix' }, registeredPatientContext);
-    expect(semEscolha.patient_message).toContain('Como prefere pagar');
-
-    const metodoDivergente = await tool.handler(
-      { payment_method: 'credit_card', installment_count: 1 },
-      { ...registeredPatientContext, currentMessage: 'Vou pagar no Pix' },
-    );
-    expect(metodoDivergente.patient_message).toContain('não corresponde à sua mensagem');
-
-    const parcelaInventada = await tool.handler(
-      { payment_method: 'credit_card', installment_count: 1 },
-      { ...registeredPatientContext, currentMessage: 'Vou pagar no cartão' },
-    );
-    expect(parcelaInventada.patient_message).toContain('responda "cartão em 1x"');
-    expect(mocks.proposePendingAction).not.toHaveBeenCalled();
-  });
-
-  it('pede escolha quando o paciente menciona Pix e cartão na mesma mensagem', async () => {
-    const response = await getTool('prepare_appointment')!.handler(
-      { payment_method: 'pix' },
-      { ...registeredPatientContext, currentMessage: 'Pode ser Pix ou cartão?' },
-    );
-    expect(response.patient_message).toContain('Você mencionou mais de uma forma de pagamento');
-    expect(mocks.resolveConfiguredProcedurePaymentPrice).not.toHaveBeenCalled();
-    expect(mocks.proposePendingAction).not.toHaveBeenCalled();
-  });
-});
-
-describe('dinheiro e sinal (decisão do usuário, 08/10/2026)', () => {
-  const CASH_PRICE_ID = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
-
-  beforeEach(() => {
-    mocks.listProcedurePaymentPrices.mockResolvedValue([
-      {
-        id: PRICE_ID,
-        procedureId: PROCEDURE_ID,
-        paymentMethod: 'pix',
-        installmentCount: null,
-        grossAmount: 180,
-      },
-      {
-        id: CASH_PRICE_ID,
-        procedureId: PROCEDURE_ID,
-        paymentMethod: 'cash',
-        installmentCount: null,
-        grossAmount: 170,
-      },
-    ]);
-  });
-
-  it('sem sinal, oferece dinheiro na clínica entre as opções', async () => {
-    const response = await getTool('prepare_appointment')!.handler({}, registeredPatientContext);
-    expect(response.patient_message).toContain('Pix: R$ 180,00');
-    expect(response.patient_message).toContain('dinheiro na clínica: R$ 170,00');
-    expect(response.patient_message).not.toContain('sinal');
-  });
-
-  it('sem sinal, prepara em dinheiro com o preço configurado e sem linha de sinal', async () => {
-    mocks.resolveConfiguredProcedurePaymentPrice.mockResolvedValue({
-      mode: 'payment_method_pricing',
-      paymentMethod: 'cash',
-      installmentCount: null,
-      priceId: CASH_PRICE_ID,
-      grossAmount: 170,
-      source: 'explicit_method_price',
-    });
-    const response = await getTool('prepare_appointment')!.handler(
-      { payment_method: 'cash' },
-      { ...registeredPatientContext, currentMessage: 'vou pagar em dinheiro' },
-    );
-    expect(response).toMatchObject({ status: 'appointment_prepared' });
-    expect(response.summary).toContain('valor total R$ 170,00 em dinheiro, pago na clínica');
-    expect(response.summary).not.toContain('sinal');
-    expect(mocks.previewDepositForBooking).toHaveBeenCalledTimes(1); // só a sonda das opções
-    expect(mocks.proposePendingAction).toHaveBeenCalledWith(
-      registeredPatientContext.tx,
-      expect.objectContaining({
-        payload: expect.objectContaining({
-          commercialPrice: {
-            paymentMethod: 'cash',
-            installmentCount: null,
-            priceId: CASH_PRICE_ID,
-            grossAmount: 170,
-          },
-        }),
-      }),
-    );
-    const payload = mocks.proposePendingAction.mock.calls[0]![1].payload as Record<string, unknown>;
-    expect(payload).not.toHaveProperty('depositAmount');
-  });
-
-  it('com sinal, esconde "tudo em dinheiro" e explica que o restante pode ser em dinheiro', async () => {
-    mocks.previewDepositForBooking.mockResolvedValue({ amount: 90 });
-    const response = await getTool('prepare_appointment')!.handler({}, registeredPatientContext);
-    expect(response.patient_message).toContain('Pix: R$ 180,00');
-    expect(response.patient_message).not.toContain('dinheiro na clínica: R$ 170,00');
-    expect(response.patient_message).toContain(
-      'O horário é confirmado com o sinal pago pelo link que enviamos por aqui; o restante pode ser pago na clínica, inclusive em dinheiro.',
-    );
-  });
-
-  it('com sinal, recusa agendar em dinheiro e pede a forma do sinal', async () => {
-    mocks.previewDepositForBooking.mockResolvedValue({ amount: 90 });
-    const response = await getTool('prepare_appointment')!.handler(
-      { payment_method: 'cash' },
-      { ...registeredPatientContext, currentMessage: 'quero pagar tudo em dinheiro' },
-    );
-    expect(response).toMatchObject({ status: 'appointment_information_required' });
-    expect(response.patient_message).toContain(
-      'Para confirmar o horário, o sinal é pago pelo link',
-    );
-    expect(response.patient_message).toContain('Pix: R$ 180,00');
-    expect(mocks.resolveConfiguredProcedurePaymentPrice).not.toHaveBeenCalled();
-    expect(mocks.proposePendingAction).not.toHaveBeenCalled();
-  });
-
-  it('"Pix e o restante em dinheiro" escolhe o Pix e o resumo traz sinal e restante', async () => {
-    mocks.previewDepositForBooking.mockResolvedValue({ amount: 90 });
-    const response = await getTool('prepare_appointment')!.handler(
-      { payment_method: 'pix' },
-      { ...registeredPatientContext, currentMessage: 'pix, e o restante pago em dinheiro aí' },
-    );
-    expect(response).toMatchObject({ status: 'appointment_prepared' });
-    expect(response.summary).toContain('valor total R$ 180,00 via Pix');
-    expect(response.summary).toContain(
-      'Para confirmar o horário, o sinal de R$ 90,00 é pago pelo link que vamos enviar por aqui (o horário fica reservado por até 24 horas). O restante, R$ 90,00, pode ser pago na clínica, inclusive em dinheiro.',
-    );
-    const payload = mocks.proposePendingAction.mock.calls[0]![1].payload as Record<string, unknown>;
-    expect(payload.depositAmount).toBe(90);
   });
 });

@@ -848,6 +848,13 @@
       "when": 1791955200001,
       "tag": "0120_patient_whatsapp_scheduling_consent_check",
       "breakpoints": true
+    },
+    {
+      "idx": 121,
+      "version": "7",
+      "when": 1792108800000,
+      "tag": "0121_retire_payment_method_pricing",
+      "breakpoints": true
     }
   ]
 }

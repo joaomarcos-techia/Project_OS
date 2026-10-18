@@ -66,14 +66,13 @@ describe('pickPriceForCampaign', () => {
     expect(pickPriceForCampaign([tabela, fundador], null)).toBe(tabela);
   });
 
-  it('cai no preço de tabela quando o plano de destino não tem a campanha', () => {
-    // Recusar a troca seria pior do que cobrar o cheio.
-    expect(pickPriceForCampaign([tabela], 'fundador')).toBe(tabela);
+  it('recusa preço de tabela quando o plano de destino não tem a campanha vitalícia', () => {
+    expect(pickPriceForCampaign([tabela], 'fundador')).toBeUndefined();
   });
 
   it('ignora campanha de outro código', () => {
     const outra = { priceId: 'p-outra', priceAmount: '500.00', campaignCode: 'black-friday' };
-    expect(pickPriceForCampaign([tabela, outra], 'fundador')).toBe(tabela);
+    expect(pickPriceForCampaign([tabela, outra], 'fundador')).toBeUndefined();
   });
 
   it('devolve undefined quando não há preço vigente algum', () => {

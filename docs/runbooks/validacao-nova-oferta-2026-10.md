@@ -1,0 +1,112 @@
+# Fechamento da nova oferta de preços — roteiro de implementação e validação
+
+**Escopo:** proposta do PDF `Qoro_mudancas_de_preco.pdf` (13/10/2026), app Draft PR #40 e landing Draft PR #1. Revisado em 17/10/2026. Este roteiro não autoriza venda, alteração de assinatura real, migration em produção ou publicação da nova tabela. O catálogo contratado continua Solo R$ 149, Clínica R$ 349, Pro R$ 699; o cadastro autônomo continua com 7 dias. As páginas `/oferta-preview` e `/precos-preview` são simulações `noindex`.
+
+**Regra comercial a validar:** Consultório R$ 197/mês, 1 profissional com agenda e até 3 logins de equipe; Clínica R$ 397/mês por 2 profissionais, R$ 147/mês por profissional adicional até 10, equipe incluída sem preço por login. Anual = 10 mensalidades. Mais de 10 profissionais ou várias unidades: contato comercial, sem prometer multiunidade pronta. A proposta anterior de R$ 79 por login de equipe, registrada historicamente nas specs, foi revogada pelo pedido de seguir o PDF. A franquia de 500 conversas/profissional e o trial de 14 dias a partir da conexão do WhatsApp **ou do primeiro agendamento pela IA** são **propostas não implementadas**. O WhatsApp comercial é [+55 88 99682-2198](https://wa.me/5588996822198).
+
+## Como registrar uma prova
+
+Em cada item abaixo, registrar: data/hora UTC, commit dos dois repositórios, deployment ID/URL, ambiente e projeto Supabase/Asaas **sem exibir credenciais**, comando e exit code, quantidade de casos realmente executados, IDs de fixture truncados, estado inicial e final, readback do banco/provedor, artefato sanitizado e limpeza. `PASS` exige execução e asserção do comportamento; teste existente ou invocado com `SKIP` não é PASS. `BLOCKED` identifica a pré-condição real; `NOT RUN` significa que ninguém executou. Não guardar cookie, token, telefone completo de paciente, cartão nem URL com bypass em trace, screenshot ou relatório.
+
+Executar mutações somente no Preview ligado ao banco DEV e na conta **Sandbox** do Asaas, depois de conferir o fingerprint do ambiente. Não repetir um checkout ou webhook real se a fixture anterior ainda estiver ativa. Nunca adaptar um teste ao comportamento defeituoso para deixá-lo verde. Preservar o contrato com desconto vitalício: preço-base, `price_id` e campanha não são recalculados pela nova tabela.
+
+### Fotografia desta revisão local (17/10/2026)
+
+| Prova | Estado medido | Limite |
+| --- | --- | --- |
+| Comparação dos calculadores app × landing | **PASS 42/42**, `npx tsx` com entradas 0/1/2/3/5/10/11 profissionais × 0/1/3/4/11/100 logins, exit 0 | Não exercita checkout nem limites no servidor. |
+| Cálculo e componente do app | **PASS 22/22** em 2 arquivos, `npx vitest run`, exit 0 | Componente local, sem browser Preview. |
+| Regressão integral do app | **PASS 5.498/5.498** em 527 arquivos, `npx vitest run`, exit 0 | Suíte unitária/integração; não substitui E2E externo. |
+| Build otimizado Next | **PASS**, `npx tsx scripts/security/local-build.ts`, exit 0, 19 páginas estáticas | Build isolado com ambiente sintético; não prova deployment. |
+| Landing após incorporar `origin/main` | **PASS**, `npm run typecheck`, `npm run lint`, `npm run build`, exit 0; 54 rotas prerenderizadas, 27/27 gate da ponte, 2/2 conversão e 20 checks de segurança | Artefato local; landing externa ainda não medida. |
+| Runner da proposta e Chromium local | **PASS**, runner com type stripping exit 0; `/precos-preview` HTTP 200 em 1440 px e 390 px, valores dinâmicos, rejeição 1/4 e link `wa.me/5588996822198` | Não é o Preview protegido por SSO. |
+| E2E atualizado do app em Preview/DEV | **PASS 10/10**, `node node_modules/@playwright/test/cli.js test e2e/payout-review-preview.spec.ts --project=chromium --workers=1` lançado com variáveis DEV carregadas apenas no processo, exit 0 em 6,9 min, 18/10/2026 02:32 UTC. A prova assinada confirmou Auth e banco DEV antes da fixture; o caso 10 validou a proposta do PDF e ausência de checkout; cleanup relido: 0 clínicas, 0 usuários e 0 linhas. | Exercita a prévia do app e fluxos financeiros existentes no DEV; não contrata a oferta nova. |
+| Deploys dos Draft PRs #40 e #1 | **PASS de implantação**, checks Vercel, Snyk e Semgrep do app e Vercel/Semgrep da landing concluídos; SHAs `e3a5b81d` e `71d5f41` | Deploy pronto não prova navegação nem compra. |
+| Landing externa em Preview | **NOT TESTED funcionalmente**: GET direto redirecionou ao SSO da Vercel; o controle do navegador não respondeu nesta execução. | Login no SSO e interação com a página ainda necessários. O Chromium local passou, mas não substitui esta prova. |
+| Contratação da oferta do PDF | **BLOCKED por implementação** | Catálogo, trial, franquia, assentos e recorrência novos ainda não existem. |
+
+## 1. Provar que as duas prévias dizem a mesma coisa
+
+**Situação:** os cálculos e textos foram revistos para seguir o PDF; a comparação local atual app × landing passou **42/42 combinações, exit 0**. A evidência antiga de 144 combinações e o E2E anterior de 10/10 mediam a proposta revogada com adicional de equipe. O E2E **atual**, executado contra o Preview do commit `e3a5b81d`, passou 10/10 com prova de ambiente DEV e cleanup zero. A landing Preview passa pelo SSO da Vercel; build local não prova a página externa.
+
+1. No app Draft PR #40 e na landing Draft PR #1, registrar SHA e deployment Ready. Abrir [prévia do app](https://project-os-git-preview-payment-s-8e7b79-clinic-os-v2-s-projects.vercel.app/oferta-preview) após login e [prévia da landing](https://landing-page-git-preview-pricing-05406a-clinic-os-v2-s-projects.vercel.app/precos-preview) após SSO. Se esses deployments forem antigos, usar as URLs de branch mostradas pela Vercel para o SHA atual e registrar as novas URLs.
+2. Testar em **ambas**: 1 profissional/equipe 0, 3 e 4; 2 profissionais/equipe 0 e 11; 3, 5, 10 e 11 profissionais. Esperado: 1/3 = R$ 197; 1/4 = sem cotação automática; 2/11 = R$ 397; 3 = R$ 544; 5 = R$ 838; 10 = R$ 1.573; 11 = sem cotação. Equipe da Clínica não altera o preço. O anual é 10× o mensal; a franquia é rotulada como **proposta**. Nenhuma prévia abre checkout ou participa do cadastro.
+3. Na landing, clicar “Entrar em contato pelo WhatsApp” e conferir o destino `wa.me/5588996822198`. Não enviar mensagem de teste sem consentimento. Validar largura móvel e desktop, foco por teclado, mensagem de erro e ausência de indexação.
+4. Executar `npm run typecheck`, `npm run lint`, `npm run build` e `node scripts/testar-proposta-precos.mjs` na landing; no app, `npx vitest run src/contexts/billing/proposed-offer.test.ts "src/app/(app)/oferta-preview/proposal-calculator.test.tsx"`, `npx tsc --noEmit`, `npx eslint .`, build isolado oficial (`npx tsx scripts/security/local-build.ts`) e o spec de Preview `npx playwright test e2e/payout-review-preview.spec.ts --project=chromium --workers=1` com as variáveis DEV que o próprio runner exige. Registrar separadamente qualquer teste não executado.
+
+**Fechamento:** preço, cotas, texto, contato e resultado `noindex` iguais nos dois deployments; nenhuma URL de contratação da proposta. O cruzamento programático app × landing deve cobrir as combinações acima, inclusive equipe 100 na Clínica e entrada inválida.
+
+## 2. Provar o preço único ao paciente após a migration 0121
+
+**Situação:** a migration 0121 e a UI nova foram verificadas no DEV; a spec relata E2E de agendamento e repasse. O checkout Pix/cartão **no caminho alterado** e o replay de webhook histórico ainda não foram provados. A migration não foi aplicada em produção.
+
+1. Antes de novo E2E, confirmar por readback que o projeto é DEV, que 0121 consta no journal e que nenhuma política nova aceita preço distinto por meio. Não executar `db:migrate:prod` neste roteiro.
+2. Criar clínica/paciente/procedimento de fixture com preço único de R$ 150 e agendar pelas rotas UI, API e IA que existirem. Tentar injetar preço Pix/cartão diferente, tarifa ou `clinicId` de outra clínica. Esperado: preço permanece R$ 150; entrada adulterada é recusada; isolamento preservado.
+3. Abrir checkout hospedado de fixture no Asaas Sandbox; escolher Pix e cartão **separadamente**. Comparar valor mostrado ao paciente, `items[].value` no Checkout, cobrança persistida, valor do Asaas, `netValue` conciliado e lançamento financeiro. Ambos os meios devem cobrar o mesmo bruto de R$ 150; tarifa efetiva pode mudar o líquido, não o preço do paciente.
+4. Reentregar um evento histórico de cobrança com método/preço explícito anterior à 0121 e um evento duplicado; conferir que o snapshot antigo continua íntegro e que não nasce segunda cobrança nem repasse. Validar sinal e restante quando aplicáveis. Usar apenas eventos da fixture; guardar request/response sanitizados.
+5. Fazer readback e limpeza da fixture. Só após essas provas, backup, revisão do SQL e janela de rollout, discutir aplicação de 0121 em produção.
+
+**Fechamento:** UI/API/IA → Checkout Sandbox Pix e cartão → webhook → banco/financeiro e tenant, com mesmo bruto e histórico preservado. Um PASS do checkout antigo com Pix R$ 140/cartão R$ 160 não cobre este item.
+
+## 3. Implementar e provar a contratação da nova oferta
+
+**Situação: BLOCKED por implementação.** As páginas de prévia não alteram `plans`, `prices`, `signup`, entitlements ou Asaas. Não é possível aprovar E2E de compra agora.
+
+1. Versionar catálogo Consultório/Clínica e preço-base no servidor, preservando Solo/Clínica/Pro legados e campanha vitalícia. Definir profissional como usuário com agenda e atendimento; contar owner atendente uma vez. Aplicar limite de 1 profissional e 3 logins de equipe no Consultório, de 2–10 profissionais na Clínica e **nenhuma cobrança por login de equipe** na Clínica. Validar servidor em convite, ativação/desativação, mudança de papel, exclusão e requisições concorrentes; testar URL e API diretamente, não só botão oculto.
+2. Fazer o cadastro mostrar preço e ciclo calculados no servidor. Para 1, 2, 3, 10 e 11 profissionais, conferir reserva, Checkout Sandbox, pagamento, webhook, `price_id`, assinatura recorrente, cobrança já emitida e renovação. Para equipe, testar 0/3/4 no Consultório e 0/11 na Clínica. O 11º profissional e o 4º login de equipe do Consultório não podem receber acesso pelo fluxo automático.
+3. Para profissional adicional, mostrar pró-rata e vigência antes de confirmar; reservar operação idempotente, cobrar no Checkout, esperar evento/readback do Asaas e só então liberar convite/capacidade. Remoção reduz valor apenas no ciclo seguinte, sem reembolso automático. Testar replay, clique duplo, pagamento falho, retorno “Acompanhar pedido” sem pagamento, webhook atrasado/duplicado e falha intermediária ao sincronizar recorrência. Não criar segunda assinatura para o mesmo contrato sem desenho explícito.
+4. Reconciliar os gates por plano em financeiro avançado, permissões e onboarding. Testar owner/gestor/médico/equipe e cross-tenant. Confirmar que a equipe “incluída” não contorna RBAC nem limite técnico de abuso. Mais de 10 profissionais/várias unidades não devem ser anunciados como função pronta.
+5. Em assinatura de fixture com campanha, testar destino sem preço da **mesma campanha**: troca bloqueada antes de cobrar. Ler o contrato promocional real apenas em modo leitura; nenhum E2E pode reprecificá-lo.
+
+**Fechamento:** valor da landing = app = reserva = Checkout = assinatura = parcela atual/próxima, com login/limite efetivos e cleanup zero. Até isso passar, manter páginas como prévia e PRs draft.
+
+## 4. Integrar e repetir a prova de troca de plano SaaS
+
+**Situação: PARCIAL em branch separada.** O [Draft PR #41](https://github.com/joaomarcos-techia/Project_OS/pull/41) corrigiu upgrade sem atualização da recorrência, downgrade com parcela antiga emitida, gate Pro→Clínica e fallback de campanha. O runner Sandbox passou para BOLETO, PIX e CREDIT_CARD; ainda faltam integração dos PRs e round trip Qoro → Asaas → webhook → Qoro → UI. A evidência está em `docs/quality/asaas-plan-change-2026-10-17.md` na branch do PR #41.
+
+1. Integrar PR #41 à mesma ponta que receberá PR #40, resolvendo conflitos em `plan-changes.ts`, teste e `docs/qorov2.md` sem perder nenhum lado. Rodar typecheck, lint, build, testes de billing e diff review na ponta integrada.
+2. No DEV/Sandbox, criar **assinaturas de fixture** para upgrade e downgrade. Registrar antes o plano/preço local, `GET /subscriptions/{id}` e a lista paginada de cobranças emitidas. Executar pela UI; pagar somente o rateio Sandbox; observar webhook e cron. Releitura deve mostrar plano, valor recorrente e cobrança aberta do novo ciclo iguais ao destino. Dívida vencida de ciclo anterior e cobrança já paga ficam intactas.
+3. Repetir webhook/cron, simular falha parcial, cobrança já paga por valor incompatível e campanha sem preço no destino. Esperado: idempotência, pedido pendente/revisão humana quando necessário, **sem** fallback para preço de tabela nem exclusão de pagamento.
+4. Para cartão, confirmar na **conta que será usada** se a tokenização necessária para alteração de assinatura está habilitada; o PASS na conta Sandbox do runner não prova a configuração de todas as contas. Limpar fixture e reler saldo de objetos abertos.
+
+**Fechamento:** sequência inteira passa após integração. Os 5.512 testes do PR #41 e os três métodos em Sandbox são prova importante, mas não substituem esse E2E.
+
+## 5. Implementar anual, trial e franquia antes de anunciá-los
+
+**Situação: BLOCKED por implementação/decisão.** O PDF propõe anual = 10 mensalidades, 14 dias contados da conexão do WhatsApp ou primeira consulta pela IA e 500 conversas de IA por profissional. Hoje o cadastro autônomo tem 7 dias; não há franquia de 24 horas por paciente nem aviso de 80%. Há teto técnico de custo que pode acionar fallback, então “IA nunca é desligada” não é promessa segura.
+
+1. Definir e implementar o limite absoluto do trial desde o cadastro, além do gatilho de conexão/primeira consulta, para não existir uso gratuito indefinido. Testar relógio, fuso, ausência de conexão, conexão tardia, reconexão, primeira consulta pela IA, cartão e sem cartão. Só depois iniciar coorte comercial de 14 dias.
+2. Criar preço/contrato **anual** por 10 mensalidades, Asaas Sandbox Pix e cartão segundo o suporte real, renovação anual, cancelamento, upgrade/downgrade no meio do ciclo e readback de cobrança. Não chamar “2 meses grátis” no site antes da oferta contratável.
+3. Medir tokens de entrada/saída/raciocínio/cache, retries e custo por conversa contra a fatura do provider; distinguir custo estimado de custo faturado. Implementar conversa de 24h por paciente, agregação por profissional/tenant, aviso em 80%, proteção antispam, resposta sob excesso e política comercial aprovada para 120% por 2 meses. Testar limites concorrentes, virada de mês, timezone, duplicata e tenant. Não cobrar excedente silenciosamente.
+
+**Fechamento:** teste funcional real e contrato correspondente; métricas que batem com fatura. O número “500” na prévia, sozinho, não comprova franquia.
+
+## 6. Relatório de resultado e repasse mensal
+
+**Situação: BLOCKED por implementação.** Repasse GROSS/NET por atendimento e revisão humana de estorno existem; não há fechamento mensal visível ao médico/gestor, registro de transferência nem relatório mensal automático de resultados. A antiga promessa de reunião mensal não deve virar promessa de relatório inexistente.
+
+1. Implementar período de competência/fuso e soma de `professional_payouts` com bruto, taxa efetiva, base, valor calculado, suspenso/revisado e versão. Médico vê só seus lançamentos; gestor com permissão vê consolidado da clínica e detalhe por profissional. Nunca rotular como **pago** sem fato de liquidação.
+2. E2E com dois profissionais, gestor sem acesso ao tenant B, pagamento antecipado, consulta concluída, pagamento tardio, estorno parcial, revisão R$ 0–teto original e fechamento de mês. Conferir UI, API, RLS, exportação e números de banco. Preservar motivo/auditoria.
+3. Para o relatório de valor do PDF, provar cada métrica com fonte de dados (faltas, confirmações, consultas IA, cobranças recebidas, retornos, custo Meta estimado). Testar e-mail entregue, reenvio idempotente, mês sem dados e correção posterior. Revisão trimestral humana só pode ser anunciada após capacidade operacional definida.
+
+**Fechamento:** telas e e-mail refletem dados rastreáveis, papéis isolados, sem números ilustrativos apresentados como reais.
+
+## 7. Comunicação, tarifas Meta e revisão jurídica
+
+**Situação: PARCIAL / validação externa.** O PDF não analisou código; suas tarifas Meta, custos, margens, concorrentes e efeito de conversão são hipóteses datadas. A landing pública ainda apresenta a oferta atual e textos que a spec manda rever. Não publicar números de tarifa ou promessas como fato apenas por constarem do PDF.
+
+1. Conferir no Gerenciador Meta, em **conta de teste/cliente autorizado**, quem é o pagador das mensagens e confrontar uma fatura com mensagens entregues. Medir custo por categoria e janela; depois atualizar FAQ, preços e Termos com o responsável pelo contrato. No produto, mostrar estimativa como estimativa, não taxa garantida.
+2. Auditar home, `/precos`, FAQ, especialidades, calculadora, meta descriptions, JSON-LD, `llms.txt`, Termos e segurança contra promessas sem prova: reunião mensal, gerente dedicado, “LGPD/CFM nativo” como certificação, resultado recuperado, ausência de custo Meta, coexistência e baixa Asaas. Corrigir a oferta **vigente** sem fazer a nova oferta parecer comprável. Testar o HTML construído e servido, não só strings no fonte.
+3. Com advogado/contador, fechar regras de tarifa de terceiros, trial, anual, uso justo, cancelamento, aviso e transição. Para clientes de tabela, definir cronograma de aviso antes de qualquer migração. O contrato de desconto vitalício fica no preço-base contratado, **sem** limite de 12 meses ou reajuste de 20% sugerido genericamente no PDF.
+4. Se quiser validar preço comercialmente: 15–25 entrevistas de donos; depois coortes sequenciais de 4 semanas com cerca de 30 testes/coorte, comparando visitante→teste→pagante; medir custo real e resultado por clínica. Não chamar hipótese de ROI de resultado de cliente.
+
+**Fechamento:** texto público e contrato correspondem ao que o produto entrega e cobra; fonte/fatura datadas; aprovação jurídica/comercial registrada.
+
+## Ordem para encerrar a etapa
+
+1. **Agora, engenharia:** terminar verificações do item 1 e o checkout/histórico do item 2; integrar o PR #41 sem perder mudanças do PR #40; manter a landing de preço novo em Preview.
+2. **Depois, implementação:** itens 3, 5 e 6, cada um com teste dirigido e E2E Sandbox/DEV. Sem eles a nova tabela não é contratável.
+3. **Depois, validação externa e humana:** itens 4 e 7, incluindo SSO da Vercel, fatura Meta, jurídico/contador, entrevistas e coortes. O fluxo manual de `/cadastro` com conta nova só deve ser repetido quando app, catálogo, trial e landing apontarem à **mesma oferta**.
+4. **Só para rollout futuro:** backup, revisão de migration, implantação conjunta app/landing, leitura de preço e parcela no Asaas, observabilidade de webhook/cancelamento e reversão planejada. Não migrar contrato vitalício automaticamente.
+
+Fonte interna: [decisões da oferta](../specs/decisoes-oferta-e-precificacao-2026-10.md), [prévia de preços](../specs/precos-2026-preview.md), [política financeira](../specs/politica-financeira-camadas.md), evidência da troca de plano no Draft PR #41 e `docs/qorov2.md` §§66–67. O PDF é insumo comercial; a verificação do código e do provedor prevalece quando divergir.

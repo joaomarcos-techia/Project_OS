@@ -483,6 +483,29 @@ export async function listUpcomingPatientAppointments(
   });
 }
 
+/** Retorno para o sinal: só conta consulta anterior concluída nesta clínica. */
+export async function hasPriorCompletedAppointment(
+  clinicId: string,
+  patientId: string,
+  before: Date,
+): Promise<boolean> {
+  return withTenant(clinicId, async (tx) => {
+    const [row] = await tx
+      .select({ id: appointments.id })
+      .from(appointments)
+      .where(
+        and(
+          eq(appointments.clinicId, clinicId),
+          eq(appointments.patientId, patientId),
+          eq(appointments.status, 'atendido'),
+          lt(appointments.scheduledAt, before),
+        ),
+      )
+      .limit(1);
+    return Boolean(row);
+  });
+}
+
 export async function hasSubsequentCompletedAppointment(
   clinicId: string,
   input: {

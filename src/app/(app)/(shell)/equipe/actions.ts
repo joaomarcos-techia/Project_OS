@@ -19,6 +19,7 @@ import {
 import {
   setMemberActive,
   setMemberOverride,
+  setMemberOverrides,
   setMemberRole,
 } from '@/contexts/identity/internal/lifecycle';
 import { UserQuotaExceededError } from '@/contexts/identity/errors';
@@ -28,7 +29,12 @@ import { listEmployees } from '@/contexts/identity/queries';
 import { schedulingApiV1 } from '@/contexts/scheduling';
 import { buildRequestContext } from '@/lib/audit/request-context';
 import { authorizeAction } from '@/lib/auth/action-guard';
-import { isPermission, PERMISSIONS } from '@/lib/auth/permissions';
+import {
+  ALL_PERMISSIONS,
+  isPermission,
+  PERMISSIONS,
+  type Permission,
+} from '@/lib/auth/permissions';
 import { isPractitionerRole } from '@/lib/auth/practitioner';
 import { ROLES } from '@/lib/auth/roles';
 import { assertInviteAllowed, assertResendInviteAllowed } from '@/lib/auth/rate-limit';
@@ -349,6 +355,58 @@ export async function setMemberOverrideAction(
       targetUserId: parsed.data.userId,
       permissionCode: parsed.data.permission,
       granted: parsed.data.granted,
+      requestContext: buildRequestContext(hdrs),
+    });
+    return { ok: true };
+  } catch (err) {
+    return { error: mapIdentityError(err) };
+  }
+}
+
+const SetOverridesSchema = z
+  .object({
+    userId: z.string().uuid('Membro inválido.'),
+    changes: z
+      .array(
+        z
+          .object({
+            permission: z.custom<Permission>(isPermission, 'Permissão inválida.'),
+            granted: z.union([z.boolean(), z.null()]),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(ALL_PERMISSIONS.length),
+  })
+  .strict();
+
+/** Salva as escolhas da janela de permissões numa única transação auditada. */
+export async function setMemberOverridesAction(
+  input: z.input<typeof SetOverridesSchema>,
+): Promise<SetMemberOverrideResult> {
+  const auth = await authorizeAction(PERMISSIONS.MANAGE_PERMISSIONS);
+  if (!auth.ok) return { error: auth.message };
+  const { user, clinicId } = auth;
+  await requireActiveClinic(clinicId);
+  if (!(await billingApiV1.hasGranularPermissions(clinicId))) {
+    return { error: 'Permissões granulares estão disponíveis nos planos Clínica e Pro.' };
+  }
+  const parsed = SetOverridesSchema.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Dados inválidos.' };
+  const permissions = parsed.data.changes.map((change) => change.permission);
+  if (new Set(permissions).size !== permissions.length) {
+    return { error: 'Permissão repetida.' };
+  }
+  try {
+    const hdrs = await headers();
+    await setMemberOverrides({
+      clinicId,
+      actorUserId: user.userId,
+      targetUserId: parsed.data.userId,
+      changes: parsed.data.changes.map((change) => ({
+        permissionCode: change.permission,
+        granted: change.granted,
+      })),
       requestContext: buildRequestContext(hdrs),
     });
     return { ok: true };
