@@ -8969,3 +8969,12 @@ O [roteiro específico](runbooks/validacao-nova-oferta-2026-10.md)
 separa os testes ainda executáveis dos pontos bloqueados por implementação,
 integração com Asaas, medição real ou decisão comercial. A correção da troca
 de planos vigente está no Draft PR #41, separado; integrar antes do E2E final.
+
+Após o deploy do app `e3a5b81d`, o E2E do Preview ligado ao DEV passou **10/10**
+em 18/10/2026 02:32 UTC (exit 0, 6,9 min). A prova assinada confirmou Auth e
+banco DEV antes das escritas; o caso 10 verificou a cota de equipe da nova
+prévia e ausência de checkout, e a limpeza terminou com zero clínicas,
+usuários e linhas de fixture. Os checks remotos dos dois PRs passaram. A
+landing externa continua **NOT TESTED funcionalmente** porque o GET foi
+redirecionado ao SSO da Vercel; o Chromium local e o deployment Ready não
+substituem essa prova.
