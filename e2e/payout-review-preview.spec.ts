@@ -1145,9 +1145,13 @@ test.describe.serial('revisão humana do repasse (Preview + DEV, papéis reais)'
     await staff.fill('2');
     await expect(owner.getByText(/R\$\s*397,00\/mês/u)).toBeVisible();
     await staff.fill('3');
-    await expect(owner.getByText(/R\$\s*476,00\/mês/u)).toBeVisible();
+    await expect(owner.getByText(/R\$\s*397,00\/mês/u)).toBeVisible();
     await staff.fill('11');
-    await expect(owner.locator('main').getByRole('alert')).toContainText('0 a 10 logins de equipe');
+    await expect(owner.getByText(/R\$\s*397,00\/mês/u)).toBeVisible();
+    await count.fill('1');
+    await expect(owner.locator('main').getByRole('alert')).toContainText(
+      'Consultório inclui até 3',
+    );
     await staff.fill('1');
     await count.fill('11');
     await expect(owner.locator('main').getByRole('alert')).toContainText(
@@ -1156,7 +1160,7 @@ test.describe.serial('revisão humana do repasse (Preview + DEV, papéis reais)'
     await expect(owner.locator('a[href*="/cadastro"]')).toHaveCount(0);
     evidence.pricingPreview = {
       values: 5,
-      staffIncludedAndAdditional: true,
+      consultorioStaffLimitAndClinicaIncluded: true,
       aboveLimitBlocked: true,
       checkoutUntouched: true,
     };

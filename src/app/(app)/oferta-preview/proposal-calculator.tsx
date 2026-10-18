@@ -37,7 +37,6 @@ export function ProposalCalculator() {
         id="proposed-staff"
         type="number"
         min="0"
-        max={PROPOSED_OFFER.maxSelfServiceStaffLogins}
         step="1"
         value={staffCount}
         onChange={(event) => setStaffCount(event.currentTarget.value)}
@@ -48,19 +47,23 @@ export function ProposalCalculator() {
           <p className="font-display text-2xl font-semibold">
             {quote.plan === 'consultorio' ? 'Consultório' : 'Clínica'} · {money(quote.monthly)}/mês
           </p>
-          <p>Anual proposto: {money(quote.annual)} à vista, equivalente a 10 mensalidades.</p>
           <p>
-            {quote.includedStaffLogins} {quote.includedStaffLogins === 1 ? 'login' : 'logins'} de
-            equipe incluídos; {quote.additionalStaffLogins} adicionais a R${' '}
-            {PROPOSED_OFFER.additionalStaffMonthly}/mês cada.
+            Anual proposto: {money(quote.annual)}, equivalente a 10 mensalidades. Pagamento em Pix
+            ou cartão ainda em validação.
+          </p>
+          <p>
+            {quote.plan === 'consultorio'
+              ? `Até ${PROPOSED_OFFER.consultorioIncludedStaffLogins} logins de equipe incluídos.`
+              : 'Equipe ilimitada na proposta, sem cobrança por login de equipe.'}
           </p>
           <p>Franquia proposta: {quote.conversationsIncluded} conversas de IA por mês.</p>
         </div>
       ) : (
         <p role="alert">
-          Informe de 1 a {PROPOSED_OFFER.maxSelfServiceProfessionals} profissionais e de 0 a{' '}
-          {PROPOSED_OFFER.maxSelfServiceStaffLogins} logins de equipe, em números inteiros. Acima
-          desses limites, a proposta é sob consulta.
+          Informe de 1 a {PROPOSED_OFFER.maxSelfServiceProfessionals} profissionais e uma quantidade
+          inteira não negativa de logins de equipe. O Consultório inclui até{' '}
+          {PROPOSED_OFFER.consultorioIncludedStaffLogins}; acima desse limite, ou com mais de 10
+          profissionais, entre em contato para avaliar a configuração.
         </p>
       )}
     </div>

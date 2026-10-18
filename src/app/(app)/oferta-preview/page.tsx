@@ -23,11 +23,10 @@ export default function OfertaPreviewPage() {
       </p>
       <ProposalCalculator />
       <p className="text-fg-muted">
-        Adicionais propostos: R$ {PROPOSED_OFFER.additionalProfessionalMonthly}/mês por profissional
-        com agenda e R$ {PROPOSED_OFFER.additionalStaffMonthly}/mês por login de equipe. A proposta
-        inclui {PROPOSED_OFFER.consultorioIncludedStaffLogins} login de equipe no Consultório e{' '}
-        {PROPOSED_OFFER.clinicaIncludedStaffLogins} na Clínica. A compra de logins ainda não está
-        disponível.
+        Consultório inclui um profissional e até {PROPOSED_OFFER.consultorioIncludedStaffLogins}{' '}
+        logins de equipe. Clínica começa com dois profissionais, inclui equipe ilimitada na proposta
+        e propõe R$ {PROPOSED_OFFER.additionalProfessionalMonthly}/mês por profissional adicional,
+        até dez. A contratação dessa oferta ainda não está disponível.
       </p>
       <p className="text-fg-muted">
         A proposta inclui teste de {PROPOSED_OFFER.proposedTrialDays} dias a partir da conexão do

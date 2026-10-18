@@ -8947,3 +8947,25 @@ otimizado Next 15.5.24, o TypeScript, o ESLint e a suíte Vitest integral
 somente em Preview; a entrega do link de sinal por WhatsApp nessa clínica de
 teste ainda depende de número Meta conectado, política de sinal e agendamento
 futuro, como descrito na spec financeira.
+
+## 67. Revisão da proposta comercial pelo PDF — 17/10/2026
+
+O fundador pediu que as prévias de preço sigam o PDF de 13/10/2026 quanto à
+equipe: Consultório inclui até **3 logins de equipe**; Clínica inclui equipe
+sem cobrança por login. A hipótese intermediária de R$ 79 por login adicional
+e cotas 1+1/2+2 registrada na seção anterior está **revogada**. R$ 197 por
+Consultório, Clínica desde R$ 397 por dois profissionais, R$ 147 por
+profissional adicional, anual de 10 mensalidades, franquia proposta de 500
+conversas/profissional e trial proposto de 14 dias continuam em **Preview**, sem
+alterar a contratação ativa. A landing Preview usa o WhatsApp comercial
+`+55 88 99682-2198` para o contato da proposta.
+
+O cálculo e os textos atualizados estão nos Draft PRs [app #40](https://github.com/joaomarcos-techia/Project_OS/pull/40)
+e [landing #1](https://github.com/joaomarcos-techia/landing_page/pull/1).
+Os testes antigos de 10/10 e 144 combinações usavam a hipótese de R$ 79;
+não são evidência da revisão. A comparação local atual de **42/42** combinações
+app × landing passou (exit 0); ela ainda não prova os deployments externos.
+O [roteiro específico](runbooks/validacao-nova-oferta-2026-10.md)
+separa os testes ainda executáveis dos pontos bloqueados por implementação,
+integração com Asaas, medição real ou decisão comercial. A correção da troca
+de planos vigente está no Draft PR #41, separado; integrar antes do E2E final.
