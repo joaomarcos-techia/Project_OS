@@ -34,6 +34,7 @@ const STATE: SignupPlanState = {
     },
   ],
   trialDays: 7,
+  offerTrialEndsAt: null,
 };
 
 function json(status: number, body: unknown): Response {
@@ -78,6 +79,7 @@ describe('seleção de plano O-4', () => {
     fetchMock.mockResolvedValueOnce(
       json(200, {
         ...STATE,
+        offerTrialEndsAt: '2026-11-02T13:45:00.000Z',
         plans: [
           STATE.plans[0],
           {
@@ -93,8 +95,33 @@ describe('seleção de plano O-4', () => {
     render(<PlanSelectionForm />);
 
     expect(await screen.findByText('Consultório')).toBeTruthy();
-    expect(screen.getByText('14 dias de avaliação desde a criação da conta')).toBeTruthy();
+    expect(
+      screen.getByText(
+        /14 dias desde a criação da conta; termina em 02\/11\/2026, 10:45 \(Brasília\)/u,
+      ),
+    ).toBeTruthy();
     expect(screen.getByText('7 dias grátis após a ativação')).toBeTruthy();
+  });
+
+  it('avisa que o pagamento confirmado é necessário depois do prazo, inclusive com data passada', async () => {
+    fetchMock.mockResolvedValueOnce(
+      json(200, {
+        ...STATE,
+        offerTrialEndsAt: '2026-10-01T13:45:00.000Z',
+        plans: [
+          {
+            id: CONSULTORIO_2026_ID,
+            code: 'consultorio_2026',
+            name: 'Consultório',
+            priceCents: 19700,
+            cycle: 'monthly',
+          },
+        ],
+      }),
+    );
+    render(<PlanSelectionForm />);
+    expect(await screen.findByText(/termina em 01\/10\/2026, 10:45/u)).toBeTruthy();
+    expect(screen.getByText(/Após esse horário, acesso só com pagamento confirmado/u)).toBeTruthy();
   });
 
   it('salva somente planId e rowVersion, e só então oferece a ativação', async () => {

@@ -8,6 +8,7 @@ import { z } from 'zod';
 /* eslint-disable boundaries/element-types -- O-4 resolve o catálogo global de Billing
    no servidor; signup_sessions continua pré-tenant e não recebe preço do browser. */
 import { plans, prices } from '@/contexts/billing/schema';
+import { isOffer2026PlanCode } from '@/contexts/billing/proposed-offer';
 /* eslint-enable boundaries/element-types */
 import { signupSessions } from '@/contexts/onboarding/schema';
 import { hashEmail } from '@/lib/auth/email-hash';
@@ -17,6 +18,7 @@ import { env } from '@/lib/env';
 import { QORO_SELF_SERVICE_TRIAL_DAYS } from '../trial';
 import { signupAnswerValuesSchema, type SignupAnswerValues } from './signup-answer-values';
 import { hashSignupToken, SIGNUP_ABSOLUTE_TTL_SECONDS, signupNameSchema } from './signup-session';
+import { readSignupAuthCreatedAt, resolveSignupTrialTerms } from './signup-trial';
 
 const userIdSchema = z.string().uuid();
 const verifiedEmailSchema = z.string().max(160).email();
@@ -70,6 +72,8 @@ export interface SignupPlanState {
   selectedPlanId: string | null;
   plans: SignupPlan[];
   trialDays: number;
+  /** Fim absoluto dos planos 2026, derivado do Auth no servidor; null para catálogo legado. */
+  offerTrialEndsAt: string | null;
 }
 
 /** Sem `gone`: criar não depende de linha anterior; o que falha é disputa ou gate. */
@@ -232,6 +236,21 @@ export async function readSignupPlan(userId: string): Promise<PlanReadOutcome> {
   if (!draft) return { ok: false, reason: 'gone' };
   if (!draft.clinicName) return { ok: false, reason: 'unavailable' };
 
+  const availablePlans = await listSelfServicePlans();
+  const offerPlan = availablePlans.find((plan) => isOffer2026PlanCode(plan.code));
+  let offerTrialEndsAt: string | null = null;
+  if (offerPlan) {
+    const authCreatedAt = await readSignupAuthCreatedAt(userId);
+    if (!authCreatedAt) return { ok: false, reason: 'unavailable' };
+    const trial = resolveSignupTrialTerms({
+      planCode: offerPlan.code,
+      attemptedAt: new Date(),
+      authCreatedAt,
+    });
+    if (!trial) return { ok: false, reason: 'unavailable' };
+    offerTrialEndsAt = trial.endsAt.toISOString();
+  }
+
   return {
     ok: true,
     state: {
@@ -239,8 +258,9 @@ export async function readSignupPlan(userId: string): Promise<PlanReadOutcome> {
       rowVersion: draft.rowVersion,
       clinicName: draft.clinicName,
       selectedPlanId: draft.selectedPlanId,
-      plans: await listSelfServicePlans(),
+      plans: availablePlans,
       trialDays: QORO_SELF_SERVICE_TRIAL_DAYS,
+      offerTrialEndsAt,
     },
   };
 }

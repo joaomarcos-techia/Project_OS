@@ -38,7 +38,13 @@ function isPlanState(value: unknown): value is SignupPlanState {
     (value.selectedPlanId === null || typeof value.selectedPlanId === 'string') &&
     typeof value.trialDays === 'number' &&
     Number.isInteger(value.trialDays) &&
-    value.trialDays > 0
+    value.trialDays > 0 &&
+    (value.offerTrialEndsAt === null ||
+      (typeof value.offerTrialEndsAt === 'string' &&
+        value.offerTrialEndsAt.endsWith('Z') &&
+        Number.isFinite(Date.parse(value.offerTrialEndsAt)))) &&
+    (value.plans.every((plan) => !isOffer2026PlanCode(plan.code)) ||
+      value.offerTrialEndsAt !== null)
   );
 }
 
@@ -58,10 +64,18 @@ function formatMonthlyPrice(priceCents: number): string {
   }).format(priceCents / 100);
 }
 
-function trialDescription(plan: SignupPlan, legacyDays: number): string {
-  return isOffer2026PlanCode(plan.code)
-    ? `${PROPOSED_OFFER.proposedTrialDays} dias de avaliação desde a criação da conta`
-    : `${legacyDays} dias grátis após a ativação`;
+function trialDescription(plan: SignupPlan, state: SignupPlanState): string {
+  if (!isOffer2026PlanCode(plan.code)) {
+    return `${state.trialDays} dias grátis após a ativação`;
+  }
+  const deadline = state.offerTrialEndsAt;
+  if (!deadline) return 'Prazo de avaliação indisponível';
+  const formatted = new Intl.DateTimeFormat('pt-BR', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+    timeZone: 'America/Sao_Paulo',
+  }).format(new Date(deadline));
+  return `${PROPOSED_OFFER.proposedTrialDays} dias desde a criação da conta; termina em ${formatted} (Brasília). Após esse horário, acesso só com pagamento confirmado.`;
 }
 
 function selectedTrialDescription(
@@ -69,7 +83,7 @@ function selectedTrialDescription(
   selectedPlanId: string | undefined,
 ): string {
   const plan = state.plans.find((item) => item.id === selectedPlanId);
-  return plan ? trialDescription(plan, state.trialDays) : 'Plano selecionado';
+  return plan ? trialDescription(plan, state) : 'Plano selecionado';
 }
 
 function trustedCheckoutUrl(value: unknown): string | null {
@@ -150,7 +164,7 @@ export function PlanSelectionForm() {
             </span>
           </span>
         ),
-        description: trialDescription(plan, state?.trialDays ?? 0),
+        description: state ? trialDescription(plan, state) : '',
       })),
     [state],
   );

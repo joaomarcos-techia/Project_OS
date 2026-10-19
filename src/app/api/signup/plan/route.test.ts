@@ -52,6 +52,7 @@ const state = {
     },
   ],
   trialDays: 7,
+  offerTrialEndsAt: null,
 } as const;
 
 function request(

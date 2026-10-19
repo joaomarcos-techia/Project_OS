@@ -11,11 +11,15 @@ const mocks = vi.hoisted(() => ({
   },
   select: vi.fn(),
   transaction: vi.fn(),
+  getUser: vi.fn(),
   hashedEmails: [] as string[],
 }));
 vi.mock('@/lib/env', () => ({ env: mocks.env }));
 vi.mock('@/lib/db', () => ({
   dbAdmin: { select: mocks.select, transaction: mocks.transaction },
+}));
+vi.mock('@/lib/auth/supabase-server', () => ({
+  createServerClient: async () => ({ auth: { getUser: mocks.getUser } }),
 }));
 // Espia o HMAC sem trocá-lo: o que precisa ser provado é QUAL endereço vira
 // chave de busca do draft, não o algoritmo — que continua o de produção.
@@ -532,8 +536,47 @@ describe('signup plan contract O-4', () => {
           },
         ],
         trialDays: 7,
+        offerTrialEndsAt: null,
       },
     });
+    expect(mocks.getUser).not.toHaveBeenCalled();
+  });
+
+  it('mostra o fim absoluto da oferta nova a partir do Auth, sem reiniciar ao reler', async () => {
+    mocks.getUser.mockResolvedValue({
+      data: { user: { id: userId, created_at: '2026-10-19T13:45:00.000Z' } },
+      error: null,
+    });
+    mocks.select
+      .mockReturnValueOnce(
+        selectChain([{ rowVersion: 7, clinicName: 'Clínica Sintética', selectedPlanId: null }]),
+      )
+      .mockReturnValueOnce(
+        selectChain([
+          { id: planId, code: 'consultorio_2026', name: 'Consultório', amount: '197.00' },
+        ]),
+      );
+
+    const result = await readSignupPlan(userId);
+    expect(result).toMatchObject({
+      ok: true,
+      state: { offerTrialEndsAt: '2026-11-02T13:45:00.000Z', trialDays: 7 },
+    });
+    expect(mocks.getUser).toHaveBeenCalledOnce();
+  });
+
+  it('não oferece o prazo novo quando o marco Auth não pode ser comprovado', async () => {
+    mocks.getUser.mockResolvedValue({ data: { user: null }, error: null });
+    mocks.select
+      .mockReturnValueOnce(
+        selectChain([{ rowVersion: 7, clinicName: 'Clínica Sintética', selectedPlanId: null }]),
+      )
+      .mockReturnValueOnce(
+        selectChain([
+          { id: planId, code: 'consultorio_2026', name: 'Consultório', amount: '197.00' },
+        ]),
+      );
+    await expect(readSignupPlan(userId)).resolves.toEqual({ ok: false, reason: 'unavailable' });
   });
 
   it('salva plano ativo por CAS sem mudar o prazo do draft', async () => {

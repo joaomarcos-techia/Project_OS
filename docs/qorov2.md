@@ -9026,3 +9026,16 @@ resíduo. Esta prova é apenas de banco DEV. O
 [roteiro da nova oferta](runbooks/validacao-nova-oferta-2026-10.md)
 registra a evidência e os bloqueios de Checkout, anual e médico extra; os planos
 continuam inativos e os PRs draft.
+
+## 70. Fim absoluto do trial na escolha do plano — 19/10/2026
+
+Para a oferta 2026, a tela de cadastro passou a mostrar a data e hora em que
+terminam os 14 dias contados desde a criação do usuário Auth. O servidor lê o
+mesmo `created_at` usado na reserva do Checkout e devolve o prazo à UI; o
+navegador não escolhe nem reinicia o relógio. A mensagem explica que, depois
+desse horário, a clínica exige pagamento confirmado. Os planos legados
+continuam mostrando sete dias a partir da ativação e não dependem dessa leitura
+extra do Auth. Os **79/79 testes dirigidos** de draft, rota e UI e a regressão
+integral **5.578/5.578** passaram; TypeScript, ESLint e build otimizado também.
+A comparação com conta Auth real, Checkout Sandbox e vencimento segue no
+[roteiro da nova oferta](runbooks/validacao-nova-oferta-2026-10.md).
