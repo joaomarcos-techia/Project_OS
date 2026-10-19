@@ -257,4 +257,49 @@ describe('provisionamento do trial da nova oferta', () => {
       expect.any(Function),
     );
   });
+
+  it('não confunde draft expirado com tenant provisionado', async () => {
+    setup('consultorio_2026');
+    mocks.results = [[], []];
+
+    await expect(
+      provisionTenantFromSignup({
+        userId: USER,
+        verifiedEmail: 'dona@example.invalid',
+        cpfCnpj: '24971563792',
+        expectedAsaasSubscriptionId: 'sub_test',
+      }),
+    ).resolves.toEqual({ ok: false, reason: 'gone' });
+    expect(mocks.provision).not.toHaveBeenCalled();
+  });
+
+  it('reconhece a aba vencedora somente pela mesma assinatura e pelo owner', async () => {
+    setup('consultorio_2026');
+    const clinicId = '55555555-5555-4555-8555-555555555555';
+    mocks.results = [[], [{ clinicId }]];
+
+    await expect(
+      provisionTenantFromSignup({
+        userId: USER,
+        verifiedEmail: 'dona@example.invalid',
+        cpfCnpj: '24971563792',
+        expectedAsaasSubscriptionId: 'sub_test',
+      }),
+    ).resolves.toEqual({ ok: true, clinicId });
+    expect(mocks.provision).not.toHaveBeenCalled();
+  });
+
+  it('recusa assinatura trocada antes de criar a clínica', async () => {
+    setup('consultorio_2026');
+
+    await expect(
+      provisionTenantFromSignup({
+        userId: USER,
+        verifiedEmail: 'dona@example.invalid',
+        cpfCnpj: '24971563792',
+        expectedAsaasSubscriptionId: 'sub_other',
+      }),
+    ).resolves.toEqual({ ok: false, reason: 'not_paid' });
+    expect(mocks.provision).not.toHaveBeenCalled();
+  });
 });

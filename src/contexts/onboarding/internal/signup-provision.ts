@@ -23,13 +23,14 @@ import { z } from 'zod';
 
 /* eslint-disable boundaries/element-types -- O-6 orquestra tenancy+billing a
    partir do cadastro pré-tenant, como a saga de convite (ADR-027 autoriza). */
-import { plans, prices } from '@/contexts/billing/schema';
+import { plans, prices, subscriptions } from '@/contexts/billing/schema';
 import { isOffer2026PlanCode } from '@/contexts/billing/proposed-offer';
 import {
   ensureInvoiceForPayment,
   markInvoicePaid,
 } from '@/contexts/billing/internal/subscriptions';
 import { clinics, reservedSlugs } from '@/contexts/tenancy/schema';
+import { profiles } from '@/contexts/identity/schema';
 /* eslint-enable boundaries/element-types */
 import { signupSessions } from '@/contexts/onboarding/schema';
 import { dbAdmin, type Tx } from '@/lib/db';
@@ -128,6 +129,8 @@ export async function provisionTenantFromSignup(input: {
    * acabou de nascer. Antes disso não havia tenant para cifrar com.
    */
   cpfCnpj: string;
+  /** Confere o vencedor da corrida quando o draft já foi consumido por outra aba. */
+  expectedAsaasSubscriptionId?: string;
   /** Readback do Checkout, nunca dados do browser ou apenas callback. */
   paidCheckout?: { payment: ProviderPayment; through: Date };
 }): Promise<ProvisionSignupOutcome> {
@@ -163,13 +166,36 @@ export async function provisionTenantFromSignup(input: {
       .for('update')
       .limit(1);
 
-    if (!draft) return { ok: false, reason: 'gone' };
+    if (!draft) {
+      if (!input.expectedAsaasSubscriptionId) return { ok: false, reason: 'gone' };
+      const [alreadyProvisioned] = await tx
+        .select({ clinicId: profiles.clinicId })
+        .from(profiles)
+        .innerJoin(subscriptions, eq(subscriptions.clinicId, profiles.clinicId))
+        .where(
+          and(
+            eq(profiles.id, input.userId),
+            eq(profiles.role, 'owner'),
+            eq(subscriptions.asaasSubscriptionId, input.expectedAsaasSubscriptionId),
+          ),
+        )
+        .limit(1);
+      return alreadyProvisioned?.clinicId
+        ? { ok: true, clinicId: alreadyProvisioned.clinicId }
+        : { ok: false, reason: 'gone' };
+    }
     if (!draft.ownerName || !draft.clinicName) return { ok: false, reason: 'gone' };
     if (!draft.selectedPlanId) return { ok: false, reason: 'no_plan' };
     // Sem assinatura confirmada não nasce tenant. `creation_unknown` cai aqui de
     // propósito: provisionar sobre estado indeterminado é criar clínica que
     // talvez não esteja paga.
     if (draft.billingState !== 'active' || !draft.asaasSubscriptionId || !draft.asaasCustomerId) {
+      return { ok: false, reason: 'not_paid' };
+    }
+    if (
+      input.expectedAsaasSubscriptionId &&
+      input.expectedAsaasSubscriptionId !== draft.asaasSubscriptionId
+    ) {
       return { ok: false, reason: 'not_paid' };
     }
 

@@ -73,7 +73,7 @@ beforeEach(() => {
   mocks.reconcile.mockResolvedValue({ ok: true, state: 'active' });
   mocks.readBilling.mockResolvedValue({
     ok: true,
-    snapshot: { asaasCustomerId: 'cus_legacy' },
+    snapshot: { asaasCustomerId: 'cus_legacy', asaasSubscriptionId: 'sub_legacy' },
   });
   mocks.getCustomer.mockResolvedValue({ customerId: 'cus_legacy', cpfCnpj: CPF });
 });
@@ -177,7 +177,18 @@ describe('POST /api/signup/checkout', () => {
       userId: USER_ID,
       verifiedEmail: EMAIL,
       cpfCnpj: CPF,
+      expectedAsaasSubscriptionId: 'sub_legacy',
     });
+  });
+
+  it('não declara provisionado se o draft legado expirou durante o readback', async () => {
+    mocks.start.mockResolvedValue({ ok: false, reason: 'already_active' });
+    mocks.provision.mockResolvedValue({ ok: false, reason: 'gone' });
+
+    const res = await POST(request());
+
+    expect(res.status).toBe(410);
+    expect(await res.json()).toEqual({ error: 'gone' });
   });
 
   it('creation_unknown antigo só provisiona depois da conciliação', async () => {

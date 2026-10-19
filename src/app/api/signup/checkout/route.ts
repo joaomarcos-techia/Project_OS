@@ -90,11 +90,17 @@ async function provisionLegacyActiveDraft(input: {
     userId: input.userId,
     verifiedEmail: input.email,
     cpfCnpj: document.digits,
+    ...(billing.snapshot.asaasSubscriptionId && {
+      expectedAsaasSubscriptionId: billing.snapshot.asaasSubscriptionId,
+    }),
   });
-  if (provisioned.ok || provisioned.reason === 'gone') {
+  if (provisioned.ok) {
     return json({ state: 'provisioned' });
   }
-  return json({ error: provisioned.reason }, provisioned.reason === 'unavailable' ? 503 : 409);
+  return json(
+    { error: provisioned.reason },
+    provisioned.reason === 'unavailable' ? 503 : provisioned.reason === 'gone' ? 410 : 409,
+  );
 }
 
 export async function POST(req: Request): Promise<Response> {

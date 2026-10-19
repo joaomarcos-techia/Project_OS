@@ -306,7 +306,19 @@ describe('Checkout hospedado do cadastro', () => {
       userId: USER,
       verifiedEmail: EMAIL,
       cpfCnpj: CPF,
+      expectedAsaasSubscriptionId: 'sub_1',
     });
+  });
+
+  it('não informa sucesso quando o draft expira antes do provisionamento', async () => {
+    mocks.provision.mockResolvedValue({ ok: false, reason: 'gone' });
+
+    await expect(
+      completeSignupHostedCheckout({ userId: USER, verifiedEmail: EMAIL, client: fakeProvider() }),
+    ).resolves.toEqual({ ok: false, reason: 'gone' });
+    expect(mocks.provision).toHaveBeenCalledWith(
+      expect.objectContaining({ expectedAsaasSubscriptionId: 'sub_1' }),
+    );
   });
 
   it('recusa valor divergente sem ativar nem provisionar', async () => {
@@ -406,6 +418,7 @@ describe('Checkout hospedado do cadastro', () => {
       userId: USER,
       verifiedEmail: EMAIL,
       cpfCnpj: CPF,
+      expectedAsaasSubscriptionId: 'sub_1',
       paidCheckout: {
         payment: { ...PAYMENT, dueDate: '2026-10-19', status: 'CONFIRMED' },
         through: new Date('2026-11-19T00:00:00.000Z'),

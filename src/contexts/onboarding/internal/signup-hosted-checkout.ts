@@ -440,11 +440,13 @@ export async function completeSignupHostedCheckout(input: {
       userId: input.userId,
       verifiedEmail: input.verifiedEmail,
       cpfCnpj: document.digits,
+      expectedAsaasSubscriptionId: subscription.subscriptionId,
       ...(paidCheckout && { paidCheckout }),
     });
-    if (provisioned.ok || provisioned.reason === 'gone') {
+    if (provisioned.ok) {
       return { ok: true, state: 'provisioned' };
     }
+    if (provisioned.reason === 'gone') return { ok: false, reason: 'gone' };
     if (provisioned.reason === 'unavailable') return { ok: false, reason: 'unavailable' };
     return { ok: false, reason: 'conflict' };
   } catch (error) {
