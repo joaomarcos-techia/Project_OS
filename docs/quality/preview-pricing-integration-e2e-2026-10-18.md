@@ -35,3 +35,9 @@ Este spec valida a prévia da oferta e o fluxo financeiro existente; ele não
 valida a troca de plano SaaS ponta a ponta. Esse round trip ainda exige fixture
 de assinatura no DEV e Asaas Sandbox, pagamento do rateio, webhook/cron,
 readback da recorrência e parcela e confirmação na UI.
+
+## Reexecução no commit de 19/10
+
+No SHA `aff10f22` do Draft PR #42, após a implantação [Vercel](https://vercel.com/clinic-os-v2-s-projects/project-os/9X4zSifMTyKzBCMHtJ9Mzc2RFuRS), a mesma suíte foi executada contra a URL de branch acima em **Preview**, com prova assinada de Auth e banco no projeto DEV antes de escrever. O comando foi `node node_modules/@playwright/test/cli.js test e2e/payout-review-preview.spec.ts --project=chromium --workers=1`, com `E2E_BASE_URL` da branch, `E2E_PAYOUT_REVIEW_MUTATION=dev` e `E2E_ARTIFACTS=0`; variáveis locais foram carregadas apenas em memória. Resultado: **10/10 PASS, exit 0, 5,6 min**, encerrado em 19/10/2026 aproximadamente 13:21 UTC. O run ID sintético foi `d2135594`.
+
+O caso 10 verificou a prévia atual: quatro valores apresentados, cota Consultório/Clínica, rejeição acima do limite e checkout legado intacto. Os demais cobriram repasse, estornos, papéis/tenant, sessão revogada, consentimentos, regras e permissões. O readback do `afterAll` confirmou **0 clínicas, 0 usuários e 0 linhas** restantes; `cleanup=ok`. Vercel, Snyk e Semgrep do PR terminaram PASS. Nenhum trace, screenshot autenticado, cookie ou token foi preservado. Esta execução **não** comprou Consultório, Clínica ou médico extra, nem comprovou a assinatura Asaas da oferta nova.
