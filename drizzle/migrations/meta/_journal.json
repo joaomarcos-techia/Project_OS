@@ -876,6 +876,20 @@
       "when": 1792368000002,
       "tag": "0124_offer_2026_trial_deadline",
       "breakpoints": true
+    },
+    {
+      "idx": 125,
+      "version": "7",
+      "when": 1792368000003,
+      "tag": "0125_offer_2026_pending_checkout_catalog",
+      "breakpoints": true
+    },
+    {
+      "idx": 126,
+      "version": "7",
+      "when": 1792368000004,
+      "tag": "0126_offer_2026_catalog_trigger_fields",
+      "breakpoints": true
     }
   ]
 }

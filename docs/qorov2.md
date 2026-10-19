@@ -8951,8 +8951,9 @@ futuro, como descrito na spec financeira.
 ## 67. Revisão da proposta comercial pelo PDF — 17/10/2026
 
 O fundador pediu que as prévias de preço sigam o PDF de 13/10/2026 quanto à
-equipe: Consultório inclui até **3 logins de equipe**; Clínica inclui equipe
-sem cobrança por login. A hipótese intermediária de R$ 79 por login adicional
+equipe: Consultório e Clínica incluem até **3 logins de equipe** cada, sem
+cobrança por login dentro dessa cota. A hipótese intermediária de R$ 79 por
+login adicional
 e cotas 1+1/2+2 registrada na seção anterior está **revogada**. R$ 197 por
 Consultório, Clínica desde R$ 397 por dois profissionais, R$ 147 por
 profissional adicional, anual de 10 mensalidades, franquia proposta de 500
@@ -9010,3 +9011,18 @@ preserva quatro tentativas parciais, as correções do spec e o resultado final
 **10/10, exit 0, cleanup 0/0/0** em 18/10/2026 às 17:36 UTC. Esse E2E cobre
 a prévia comercial e o financeiro existente; não exerce a troca de plano SaaS
 com webhook real.
+
+## 69. Catálogo da oferta nova durante Checkout — 19/10/2026
+
+A reserva do cadastro lia o preço vigente, mas o retorno do Checkout o lia de
+novo. Se o catálogo mudasse enquanto o pagador estava no Asaas, a assinatura
+poderia ser paga e recusada no provisionamento. A conferência de centavos antes
+de criar a clínica já falhava fechada; as migrations 0125–0126 agora impedem
+alteração/desativação/exclusão do preço ou plano da oferta 2026 enquanto houver
+tentativa pendente. A 0125 apresentou `42703` no primeiro ensaio DEV; a 0126
+corrigiu o trigger. O ensaio repetido bloqueou quatro mutações com `23514`,
+aceitou alterações após remover a reserva e fez rollback integral, com zero
+resíduo. Esta prova é apenas de banco DEV. O
+[roteiro da nova oferta](runbooks/validacao-nova-oferta-2026-10.md)
+registra a evidência e os bloqueios de Checkout, anual e médico extra; os planos
+continuam inativos e os PRs draft.
