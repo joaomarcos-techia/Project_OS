@@ -17,6 +17,14 @@ describe('plan changes', () => {
     expect(comparePlans('clinica', 'clinica')).toBe(0);
   });
 
+  it('permite o médico adicional apenas dentro da nova tabela', () => {
+    expect(comparePlans('clinica_2026_2', 'clinica_2026_3')).toBe(1);
+    expect(comparePlans('clinica_2026_5', 'clinica_2026_4')).toBe(-1);
+    expect(comparePlans('consultorio_2026', 'clinica_2026_2')).toBe(1);
+    expect(() => comparePlans('clinica', 'clinica_2026_2')).toThrow(/tabelas de contrato/);
+    expect(() => comparePlans('clinica_2026_2', 'pro')).toThrow(/tabelas de contrato/);
+  });
+
   it('calcula o rateio do upgrade apenas para a fração restante do ciclo', () => {
     const start = new Date('2026-08-01T00:00:00.000Z');
     const end = new Date('2026-08-31T00:00:00.000Z');

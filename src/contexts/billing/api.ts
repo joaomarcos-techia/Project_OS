@@ -14,6 +14,7 @@ import type { Tx } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
 
 import { plans, subscriptions, type SubscriptionRow } from './schema';
+import { isOffer2026PlanCode, type Offer2026PlanCode } from './proposed-offer';
 import { currentPeriod, getPlanLimits, readUsage, type PlanLimits } from './internal/quota';
 import { enforce, type QuotaType } from './internal/quota-policy';
 
@@ -30,7 +31,7 @@ export interface UserQuotaResult {
   limit: number;
 }
 
-export type PlanCode = 'solo' | 'clinica' | 'pro';
+export type PlanCode = 'solo' | 'clinica' | 'pro' | Offer2026PlanCode;
 
 export interface BillingApiV1 {
   getPlanLimits(clinicId: string): Promise<PlanLimits | null>;
@@ -89,12 +90,16 @@ async function hasGranularPermissions(clinicId: string): Promise<boolean> {
       .innerJoin(plans, eq(plans.id, subscriptions.planId))
       .where(eq(subscriptions.clinicId, clinicId))
       .limit(1);
-    return row?.code === 'clinica' || row?.code === 'pro';
+    return planHasAdvancedFinancialPolicies(row?.code);
   });
 }
 
 export function planHasAdvancedFinancialPolicies(code: string | null | undefined): boolean {
-  return code === 'clinica' || code === 'pro';
+  return (
+    code === 'clinica' ||
+    code === 'pro' ||
+    (code != null && isOffer2026PlanCode(code) && code !== 'consultorio_2026')
+  );
 }
 
 async function hasAdvancedFinancialPolicies(clinicId: string, tx?: Tx): Promise<boolean> {

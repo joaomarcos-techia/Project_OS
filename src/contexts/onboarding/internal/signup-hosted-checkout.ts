@@ -13,6 +13,7 @@ import {
   BillingProviderError,
   BillingProviderUnreachableError,
   type PaymentProvider,
+  type ProviderPayment,
   type ProviderSubscription,
 } from '@/lib/payments/asaas';
 import { env } from '@/lib/env';
@@ -291,6 +292,33 @@ async function authoritativeSubscription(
   return subscriptionMatchesTarget(readback, target) ? readback : 'conflict';
 }
 
+async function paidPeriodAfterTrial(
+  client: PaymentProvider,
+  target: SignupHostedCheckoutTarget,
+  subscription: ProviderSubscription,
+): Promise<{ payment: ProviderPayment; through: Date } | null> {
+  const payment = await client.findPaymentByCheckoutSession(target.asaasCheckoutId, {
+    attempts: 1,
+    createdSince: target.attemptedOn,
+  });
+  if (
+    !payment ||
+    payment.deleted ||
+    (payment.status !== 'CONFIRMED' && payment.status !== 'RECEIVED') ||
+    payment.checkoutSessionId !== target.asaasCheckoutId ||
+    payment.subscriptionId !== subscription.subscriptionId ||
+    payment.billingType !== 'CREDIT_CARD' ||
+    Math.round(payment.value * 100) !== target.priceCents ||
+    payment.dueDate !== target.nextDueDate
+  ) {
+    return null;
+  }
+  const periodEnd = new Date(`${subscription.nextDueDate}T00:00:00.000Z`);
+  return Number.isFinite(periodEnd.getTime()) && periodEnd.getTime() > Date.now()
+    ? { payment, through: periodEnd }
+    : null;
+}
+
 /**
  * Cancela um Checkout pendente e só então libera uma nova tentativa.
  *
@@ -370,6 +398,12 @@ export async function completeSignupHostedCheckout(input: {
       return { ok: false, reason: 'conflict' };
     }
 
+    const expiredTrial = target.strictTrialDeadline && Date.now() >= Date.parse(target.trialEndsAt);
+    const paidCheckout = expiredTrial
+      ? await paidPeriodAfterTrial(client, target, subscription)
+      : undefined;
+    if (expiredTrial && !paidCheckout) return { ok: true, state: 'pending' };
+
     if (target.state === 'checkout_pending') {
       if (!subscription.customerId) return { ok: false, reason: 'conflict' };
       const activated = await activateSignupHostedCheckout({
@@ -406,6 +440,7 @@ export async function completeSignupHostedCheckout(input: {
       userId: input.userId,
       verifiedEmail: input.verifiedEmail,
       cpfCnpj: document.digits,
+      ...(paidCheckout && { paidCheckout }),
     });
     if (provisioned.ok || provisioned.reason === 'gone') {
       return { ok: true, state: 'provisioned' };

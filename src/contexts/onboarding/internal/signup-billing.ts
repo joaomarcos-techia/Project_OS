@@ -28,13 +28,14 @@ import { z } from 'zod';
    Billing no servidor; signup_sessions continua pré-tenant e não recebe preço do
    browser. Mesma autorização usada pelo O-4 em signup-draft.ts. */
 import { SubscriptionCreatedSchema } from '@/contexts/billing/events';
+import { isOffer2026PlanCode } from '@/contexts/billing/proposed-offer';
 import { plans, prices } from '@/contexts/billing/schema';
 /* eslint-enable boundaries/element-types */
 import { signupSessions } from '@/contexts/onboarding/schema';
 import { dbAdmin } from '@/lib/db';
 import { env } from '@/lib/env';
 
-import { QORO_SELF_SERVICE_TRIAL_DAYS } from '../trial';
+import { readSignupAuthCreatedAt, resolveSignupTrialTerms } from './signup-trial';
 
 const userIdSchema = z.string().uuid();
 
@@ -57,6 +58,9 @@ export interface SignupBillingIntent {
   clinicName: string;
   ownerName: string;
   trialDays: number;
+  trialEndsAt: string;
+  strictTrialDeadline: boolean;
+  expiredAtCheckout: boolean;
   /** `YYYY-MM-DD`: primeira cobrança vence ao fim do trial, não hoje. */
   nextDueDate: string;
 }
@@ -124,11 +128,6 @@ export function centsToReais(cents: number): number {
   return Number((cents / 100).toFixed(2));
 }
 
-function dueDateAfterTrial(trialDays: number, now: Date): string {
-  const due = new Date(now.getTime() + trialDays * 86_400_000);
-  return due.toISOString().slice(0, 10);
-}
-
 /**
  * Reserva a tentativa por CAS e devolve a intenção resolvida no servidor.
  *
@@ -141,6 +140,9 @@ function dueDateAfterTrial(trialDays: number, now: Date): string {
 export async function reserveSignupBillingAttempt(userId: string): Promise<ReserveOutcome> {
   if (!enabled()) return { ok: false, reason: 'unavailable' };
   if (!userIdSchema.safeParse(userId).success) throw new Error('[signup] invalid_billing_owner');
+  // GoTrue fica fora da transação/lock. Só planos versionados exigem a leitura;
+  // falha desta consulta não altera o contrato legado.
+  const authCreatedAt = await readSignupAuthCreatedAt(userId);
 
   return dbAdmin.transaction(async (tx) => {
     // FOR UPDATE: duas abas pedindo checkout ao mesmo tempo serializam aqui, e a
@@ -214,6 +216,10 @@ export async function reserveSignupBillingAttempt(userId: string): Promise<Reser
     if (!SubscriptionCreatedSchema.shape.planCode.safeParse(priced.planCode).success) {
       return { ok: false, reason: 'invalid_plan' };
     }
+    // Rejeita o plano novo antes da reserva se o Auth não puder provar o marco.
+    if (!authCreatedAt && isOffer2026PlanCode(priced.planCode)) {
+      return { ok: false, reason: 'unavailable' };
+    }
 
     const [reserved] = await tx
       .update(signupSessions)
@@ -243,6 +249,12 @@ export async function reserveSignupBillingAttempt(userId: string): Promise<Reser
       });
     if (!reserved) return { ok: false, reason: 'conflict' };
     if (!reserved.billingAttemptedAt) throw new Error('[signup] missing_billing_clock');
+    const trial = resolveSignupTrialTerms({
+      planCode: priced.planCode,
+      attemptedAt: reserved.billingAttemptedAt,
+      authCreatedAt,
+    });
+    if (!trial) throw new Error('[signup] invalid_trial_clock');
 
     return {
       ok: true,
@@ -255,8 +267,11 @@ export async function reserveSignupBillingAttempt(userId: string): Promise<Reser
         priceCents: priceToCents(priced.amount),
         clinicName: draft.clinicName,
         ownerName: draft.ownerName,
-        trialDays: QORO_SELF_SERVICE_TRIAL_DAYS,
-        nextDueDate: dueDateAfterTrial(QORO_SELF_SERVICE_TRIAL_DAYS, reserved.billingAttemptedAt),
+        trialDays: trial.days,
+        trialEndsAt: trial.endsAt.toISOString(),
+        strictTrialDeadline: trial.strictDeadline,
+        expiredAtCheckout: trial.expiredAtCheckout,
+        nextDueDate: trial.firstDueDate,
       },
     };
   });
@@ -430,6 +445,8 @@ export interface SignupHostedCheckoutTarget {
   externalReference: string;
   priceCents: number;
   trialDays: number;
+  trialEndsAt: string;
+  strictTrialDeadline: boolean;
   attemptedOn: string;
   nextDueDate: string;
   asaasCustomerId: string | null;
@@ -442,6 +459,7 @@ export async function readSignupHostedCheckoutTarget(
   userId: string,
 ): Promise<SignupHostedCheckoutTarget | null> {
   if (!enabled() || !userIdSchema.safeParse(userId).success) return null;
+  const authCreatedAt = await readSignupAuthCreatedAt(userId);
 
   const [row] = await dbAdmin
     .select({
@@ -453,6 +471,7 @@ export async function readSignupHostedCheckoutTarget(
       asaasCheckoutId: signupSessions.asaasCheckoutId,
       asaasSubscriptionId: signupSessions.asaasSubscriptionId,
       amount: prices.amount,
+      planCode: plans.code,
     })
     .from(signupSessions)
     .innerJoin(plans, and(eq(plans.id, signupSessions.selectedPlanId), eq(plans.ativo, true)))
@@ -486,15 +505,23 @@ export async function readSignupHostedCheckoutTarget(
   ) {
     return null;
   }
+  const trial = resolveSignupTrialTerms({
+    planCode: row.planCode,
+    attemptedAt: row.attemptedAt,
+    authCreatedAt,
+  });
+  if (!trial) throw new Error('[signup] invalid_trial_clock');
 
   return {
     state: row.state,
     rowVersion: row.rowVersion,
     externalReference: `signup:${row.id}`,
     priceCents: priceToCents(row.amount),
-    trialDays: QORO_SELF_SERVICE_TRIAL_DAYS,
+    trialDays: trial.days,
+    trialEndsAt: trial.endsAt.toISOString(),
+    strictTrialDeadline: trial.strictDeadline,
     attemptedOn: row.attemptedAt.toISOString().slice(0, 10),
-    nextDueDate: dueDateAfterTrial(QORO_SELF_SERVICE_TRIAL_DAYS, row.attemptedAt),
+    nextDueDate: trial.firstDueDate,
     asaasCustomerId: row.asaasCustomerId,
     asaasCheckoutId: row.asaasCheckoutId,
     asaasSubscriptionId: row.asaasSubscriptionId,

@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { quoteProposedOffer } from './proposed-offer';
+import {
+  isOffer2026PlanCode,
+  offer2026PlanCodeForDoctors,
+  quoteProposedOffer,
+} from './proposed-offer';
 
 describe('proposta de preços do PDF — não ativa no checkout', () => {
   it.each([
@@ -44,5 +48,25 @@ describe('proposta de preços do PDF — não ativa no checkout', () => {
   it.each([-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1])(
     'recusa quantidade inválida de logins de equipe %s',
     (count) => expect(quoteProposedOffer(2, count)).toBeNull(),
+  );
+
+  it.each([
+    [1, 'consultorio_2026'],
+    [2, 'clinica_2026_2'],
+    [3, 'clinica_2026_3'],
+    [4, 'clinica_2026_4'],
+    [5, 'clinica_2026_5'],
+  ] as const)('usa um código novo e distinto para %i médicos', (doctors, code) => {
+    expect(offer2026PlanCodeForDoctors(doctors)).toBe(code);
+    expect(isOffer2026PlanCode(code)).toBe(true);
+  });
+
+  it.each([0, 6, 1.5, Number.NaN, Number.POSITIVE_INFINITY])(
+    'não produz plano contratável para %s médicos',
+    (doctors) => expect(offer2026PlanCodeForDoctors(doctors)).toBeNull(),
+  );
+  it.each(['solo', 'clinica', 'pro', 'enterprise', 'clinica_2026_6'])(
+    'não confunde %s com um plano novo',
+    (code) => expect(isOffer2026PlanCode(code)).toBe(false),
   );
 });

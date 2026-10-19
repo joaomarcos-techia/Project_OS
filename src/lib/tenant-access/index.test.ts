@@ -10,9 +10,11 @@
  * nasce protegida. Estes testes congelam as EXCEÇÕES, que são a parte perigosa:
  * bloquear demais tranca o cliente fora da própria regularização.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { shouldEnforceWriteGate } from './index';
+import type { Tx } from '@/lib/db';
+
+import { assertClinicCanWriteTx, shouldEnforceWriteGate } from './index';
 
 describe('shouldEnforceWriteGate — quem passa pelo gate', () => {
   it('mutação normal de usuário: ENFORCE', () => {
@@ -63,5 +65,25 @@ describe('shouldEnforceWriteGate — quem passa pelo gate', () => {
         actor: { clinicId: 'c1', userId: null },
       }),
     ).toBe(false);
+  });
+});
+
+describe('trial absoluto da nova oferta no gate central', () => {
+  const clinicId = '11111111-1111-4111-8111-111111111111';
+
+  it('bloqueia escrita quando o banco diz que o trial estrito terminou', async () => {
+    const execute = vi.fn().mockResolvedValue([{ status: 'trial', trial_expired: true }]);
+    await expect(assertClinicCanWriteTx({ execute } as unknown as Tx, clinicId)).rejects.toMatchObject(
+      { code: 'clinic_write_blocked', status: 'pending_payment' },
+    );
+    expect(execute).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    { status: 'trial', trial_expired: false },
+    { status: 'active', trial_expired: false },
+  ])('preserva o acesso de assinatura vigente: %j', async (row) => {
+    const execute = vi.fn().mockResolvedValue([row]);
+    await expect(assertClinicCanWriteTx({ execute } as unknown as Tx, clinicId)).resolves.toBeUndefined();
   });
 });

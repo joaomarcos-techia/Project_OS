@@ -11,6 +11,7 @@ const fetchMock = vi.fn<typeof fetch>();
 const assignMock = vi.fn<(url: string | URL) => void>();
 const ESSENTIAL_ID = '22222222-2222-4222-8222-222222222222';
 const COMPLETE_ID = '33333333-3333-4333-8333-333333333333';
+const CONSULTORIO_2026_ID = '44444444-4444-4444-8444-444444444444';
 const STATE: SignupPlanState = {
   status: 'email_verified',
   rowVersion: 7,
@@ -71,6 +72,29 @@ describe('seleção de plano O-4', () => {
       'md:grid-cols-3',
     );
     expect(fetchMock).toHaveBeenCalledWith('/api/signup/plan', { cache: 'no-store' });
+  });
+
+  it('explica que o prazo da nova oferta começa na criação da conta, sem alterar o legado', async () => {
+    fetchMock.mockResolvedValueOnce(
+      json(200, {
+        ...STATE,
+        plans: [
+          STATE.plans[0],
+          {
+            id: CONSULTORIO_2026_ID,
+            code: 'consultorio_2026',
+            name: 'Consultório',
+            priceCents: 19700,
+            cycle: 'monthly',
+          },
+        ],
+      }),
+    );
+    render(<PlanSelectionForm />);
+
+    expect(await screen.findByText('Consultório')).toBeTruthy();
+    expect(screen.getByText('14 dias de avaliação desde a criação da conta')).toBeTruthy();
+    expect(screen.getByText('7 dias grátis após a ativação')).toBeTruthy();
   });
 
   it('salva somente planId e rowVersion, e só então oferece a ativação', async () => {

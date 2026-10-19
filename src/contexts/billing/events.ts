@@ -19,6 +19,8 @@ import { z } from 'zod';
 
 import { registerEventSchema } from '@/lib/outbox/catalog';
 
+import { OFFER_2026_PLAN_CODES } from './proposed-offer';
+
 export const BILLING_EVENTS = {
   CUSTOMER_CREATED: 'billing.customer.created',
   CUSTOMER_PORTAL_REQUESTED: 'billing.customer.portal_requested',
@@ -44,7 +46,7 @@ export const BILLING_EVENTS = {
 
 const uuid = z.string().uuid();
 const money = z.number().nonnegative();
-const planCode = z.enum(['solo', 'clinica', 'pro']);
+const planCode = z.enum(['solo', 'clinica', 'pro', ...OFFER_2026_PLAN_CODES]);
 const billingCycle = z.enum(['monthly', 'annual']);
 
 // --- customer --------------------------------------------------------------

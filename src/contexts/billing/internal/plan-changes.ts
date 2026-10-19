@@ -11,6 +11,7 @@ import { withTenant } from '@/lib/db/tenant';
 import { publishEvent } from '@/lib/outbox/publish';
 
 import { BILLING_EVENTS } from '../events';
+import { isOffer2026PlanCode, OFFER_2026_PLAN_CODES } from '../proposed-offer';
 import {
   billingCustomers,
   billingEvents,
@@ -19,15 +20,16 @@ import {
   paymentAttempts,
   plans,
   planLimits,
+  planSeatLimits,
   prices,
   subscriptionChangeRequests,
   subscriptionHistory,
   subscriptions,
 } from '../schema';
 import { toCents, toReais, toReaisString } from './money';
-import { setClinicAccess, syncInvoiceFromProviderPayment } from './subscriptions';
+import { setClinicAccess, syncInvoiceFromProviderPayment, toPlanCode } from './subscriptions';
 
-const PLAN_RANK: Readonly<Record<string, number>> = { solo: 1, clinica: 2, pro: 3 };
+const LEGACY_PLAN_RANK: Readonly<Record<string, number>> = { solo: 1, clinica: 2, pro: 3 };
 export const PLAN_CHANGE_EXTERNAL_REFERENCE_PREFIX = 'plan-change:';
 
 export class PlanChangeError extends Error {
@@ -126,12 +128,20 @@ type CurrentSubscription = {
 type TargetPlan = { id: string; name: string; code: string; priceId: string; priceAmount: string };
 
 function rank(code: string): number {
-  const value = PLAN_RANK[code];
+  const value = isOffer2026PlanCode(code)
+    ? OFFER_2026_PLAN_CODES.indexOf(code) + 1
+    : LEGACY_PLAN_RANK[code];
   if (!value) throw new PlanChangeError('Plano não suportado para alteração.', 'unsupported_plan');
   return value;
 }
 
 export function comparePlans(currentCode: string, targetCode: string): -1 | 0 | 1 {
+  if (isOffer2026PlanCode(currentCode) !== isOffer2026PlanCode(targetCode)) {
+    throw new PlanChangeError(
+      'Troca entre tabelas de contrato indisponível.',
+      'offer_generation_mismatch',
+    );
+  }
   const delta = rank(targetCode) - rank(currentCode);
   return delta === 0 ? 0 : delta > 0 ? 1 : -1;
 }
@@ -309,6 +319,7 @@ async function assertTargetPlanCapacity(
   clinicId: string,
   targetPlanId: string,
 ): Promise<void> {
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${clinicId}))`);
   const [limit] = await tx
     .select({ value: planLimits.limitValue })
     .from(planLimits)
@@ -324,6 +335,29 @@ async function assertTargetPlanCapacity(
   if (!fitsPlanUserLimit(Number(row?.active_users ?? 0), limit?.value ?? null)) {
     throw new PlanChangeError(
       'A clínica possui mais usuários ativos do que o plano de destino permite.',
+      'downgrade_capacity_exceeded',
+    );
+  }
+
+  const [seats] = await tx
+    .select({ doctors: planSeatLimits.doctors, staff: planSeatLimits.staff })
+    .from(planSeatLimits)
+    .where(eq(planSeatLimits.planId, targetPlanId))
+    .limit(1);
+  if (!seats) return; // Planos legados só têm teto total de usuários.
+
+  const [usage] = await tx.execute<{ doctors: number; staff: number }>(sql`
+    SELECT count(*) FILTER (WHERE role = 'doctor'
+      OR (role IN ('owner', 'gestor') AND nullif(btrim(crm), '') IS NOT NULL))::int AS doctors,
+      count(*) FILTER (WHERE role <> 'doctor'
+        AND NOT (role IN ('owner', 'gestor') AND nullif(btrim(crm), '') IS NOT NULL))::int AS staff
+    FROM public.profiles
+    WHERE clinic_id = ${clinicId}::uuid AND ativo IS TRUE
+      AND deleted_at IS NULL AND role <> 'super_admin'
+  `);
+  if (Number(usage?.doctors ?? 0) > seats.doctors || Number(usage?.staff ?? 0) > seats.staff) {
+    throw new PlanChangeError(
+      'A clínica excede as vagas de médicos ou equipe do plano de destino.',
       'downgrade_capacity_exceeded',
     );
   }
@@ -938,7 +972,7 @@ export async function reactivateSubscription(
     payload: {
       clinicId: input.clinicId,
       subscriptionId: current.id,
-      planCode: current.planCode as 'solo' | 'clinica' | 'pro',
+      planCode: toPlanCode(current.planCode),
     },
     idempotencyKey: `subscription-reactivated:${current.id}`,
   });
@@ -1241,8 +1275,8 @@ export async function applyPaidUpgradeForPayment(
     payload: {
       clinicId: change.clinicId,
       subscriptionId: current.id,
-      oldPlanCode: current.planCode as 'solo' | 'clinica' | 'pro',
-      newPlanCode: target.code as 'solo' | 'clinica' | 'pro',
+      oldPlanCode: toPlanCode(current.planCode),
+      newPlanCode: toPlanCode(target.code),
       oldStatus: current.billingStatus,
       newStatus: current.billingStatus,
     },
@@ -1364,8 +1398,8 @@ export async function applyScheduledPlanChange(
       payload: {
         clinicId: change.clinicId,
         subscriptionId: current.id,
-        oldPlanCode: current.planCode as 'solo' | 'clinica' | 'pro',
-        newPlanCode: target.code as 'solo' | 'clinica' | 'pro',
+        oldPlanCode: toPlanCode(current.planCode),
+        newPlanCode: toPlanCode(target.code),
         oldStatus: current.billingStatus,
         newStatus: current.billingStatus,
       },

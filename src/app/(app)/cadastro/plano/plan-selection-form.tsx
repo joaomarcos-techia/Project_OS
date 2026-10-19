@@ -6,6 +6,7 @@ import type { FormEvent } from 'react';
 import { Alert } from '@/components/ui/alert';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { OptionCardGroup, type OptionCard } from '@/components/ui/option-card-group';
+import { isOffer2026PlanCode, PROPOSED_OFFER } from '@/contexts/billing/proposed-offer';
 import type { SignupPlan, SignupPlanState } from '@/contexts/onboarding';
 
 type Phase = 'loading' | 'ready' | 'unavailable' | 'signed_out' | 'expired';
@@ -55,6 +56,20 @@ function formatMonthlyPrice(priceCents: number): string {
     currency: 'BRL',
     minimumFractionDigits: 2,
   }).format(priceCents / 100);
+}
+
+function trialDescription(plan: SignupPlan, legacyDays: number): string {
+  return isOffer2026PlanCode(plan.code)
+    ? `${PROPOSED_OFFER.proposedTrialDays} dias de avaliação desde a criação da conta`
+    : `${legacyDays} dias grátis após a ativação`;
+}
+
+function selectedTrialDescription(
+  state: SignupPlanState,
+  selectedPlanId: string | undefined,
+): string {
+  const plan = state.plans.find((item) => item.id === selectedPlanId);
+  return plan ? trialDescription(plan, state.trialDays) : 'Plano selecionado';
 }
 
 function trustedCheckoutUrl(value: unknown): string | null {
@@ -135,7 +150,7 @@ export function PlanSelectionForm() {
             </span>
           </span>
         ),
-        description: `${state?.trialDays ?? 0} dias grátis após a ativação`,
+        description: trialDescription(plan, state?.trialDays ?? 0),
       })),
     [state],
   );
@@ -337,7 +352,7 @@ export function PlanSelectionForm() {
       <div aria-live="polite" className="space-y-2">
         {saved ? (
           <Alert variant="success" title="Plano salvo">
-            {state.trialDays} dias grátis após a ativação. O pagamento acontece com segurança na
+            {selectedTrialDescription(state, selectedPlanId)}. O pagamento acontece com segurança na
             página do Asaas.
           </Alert>
         ) : null}

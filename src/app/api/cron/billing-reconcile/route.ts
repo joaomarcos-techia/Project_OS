@@ -229,15 +229,41 @@ export const GET = withCron(
             const [capacity] = await dbAdmin.execute<{
               active_users: number;
               user_limit: number | null;
+              active_doctors: number;
+              active_staff: number;
+              doctor_limit: number | null;
+              staff_limit: number | null;
             }>(sql`
               SELECT (SELECT count(*)::int FROM public.profiles
                        WHERE clinic_id = ${change.clinicId}::uuid
-                         AND ativo = true AND deleted_at IS NULL) AS active_users,
+                         AND ativo = true AND deleted_at IS NULL
+                         AND role <> 'super_admin') AS active_users,
                      (SELECT limit_value FROM public.plan_limits
-                       WHERE plan_id = ${change.toPlanId}::uuid AND metric = 'users') AS user_limit
+                       WHERE plan_id = ${change.toPlanId}::uuid AND metric = 'users') AS user_limit,
+                     (SELECT count(*)::int FROM public.profiles
+                       WHERE clinic_id = ${change.clinicId}::uuid AND ativo = true
+                         AND deleted_at IS NULL AND role <> 'super_admin'
+                         AND (role = 'doctor' OR (role IN ('owner', 'gestor')
+                           AND nullif(btrim(crm), '') IS NOT NULL))) AS active_doctors,
+                     (SELECT count(*)::int FROM public.profiles
+                       WHERE clinic_id = ${change.clinicId}::uuid AND ativo = true
+                         AND deleted_at IS NULL AND role <> 'super_admin'
+                         AND role <> 'doctor' AND NOT (role IN ('owner', 'gestor')
+                           AND nullif(btrim(crm), '') IS NOT NULL)) AS active_staff,
+                     (SELECT doctors FROM public.plan_seat_limits
+                       WHERE plan_id = ${change.toPlanId}::uuid) AS doctor_limit,
+                     (SELECT staff FROM public.plan_seat_limits
+                       WHERE plan_id = ${change.toPlanId}::uuid) AS staff_limit
             `);
             if (
-              !fitsPlanUserLimit(Number(capacity?.active_users ?? 0), capacity?.user_limit ?? null)
+              !fitsPlanUserLimit(
+                Number(capacity?.active_users ?? 0),
+                capacity?.user_limit ?? null,
+              ) ||
+              (capacity?.doctor_limit != null &&
+                Number(capacity.active_doctors) > capacity.doctor_limit) ||
+              (capacity?.staff_limit != null &&
+                Number(capacity.active_staff) > capacity.staff_limit)
             ) {
               metrics.emit('billing.plan_change.blocked_active_users', { changeId: change.id });
               continue;

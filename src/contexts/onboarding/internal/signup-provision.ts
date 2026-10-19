@@ -24,15 +24,22 @@ import { z } from 'zod';
 /* eslint-disable boundaries/element-types -- O-6 orquestra tenancy+billing a
    partir do cadastro pré-tenant, como a saga de convite (ADR-027 autoriza). */
 import { plans, prices } from '@/contexts/billing/schema';
+import { isOffer2026PlanCode } from '@/contexts/billing/proposed-offer';
+import {
+  ensureInvoiceForPayment,
+  markInvoicePaid,
+} from '@/contexts/billing/internal/subscriptions';
 import { clinics, reservedSlugs } from '@/contexts/tenancy/schema';
 /* eslint-enable boundaries/element-types */
 import { signupSessions } from '@/contexts/onboarding/schema';
 import { dbAdmin, type Tx } from '@/lib/db';
 import { env } from '@/lib/env';
 import { metrics } from '@/lib/observability/metrics';
+import type { ProviderPayment } from '@/lib/payments/asaas';
 
 import { QORO_SELF_SERVICE_TRIAL_DAYS } from '../trial';
 import { OnboardingProvisionError, provisionTenantCoreTx } from './saga';
+import { readSignupAuthCreatedAt, resolveSignupTrialTerms } from './signup-trial';
 
 const userIdSchema = z.string().uuid();
 
@@ -107,8 +114,9 @@ async function resolveAvailableSlug(tx: Tx, clinicName: string): Promise<string 
  * Provisiona o tenant do cadastro autônomo.
  *
  * Pré-condição inegociável: a assinatura já existe e foi confirmada por readback
- * (`billing_attempt_state = 'active'`). É a decisão de 02/09 registrada no
- * §21.20 — o trial começa depois da assinatura recorrente correta, não antes.
+ * (`billing_attempt_state = 'active'`). No catálogo legado, o trial começa após
+ * confirmar a assinatura recorrente (§21.20). Nos planos versionados, o prazo
+ * absoluto começa na criação do usuário Auth e pode já estar encerrado aqui.
  */
 export async function provisionTenantFromSignup(input: {
   userId: string;
@@ -120,11 +128,14 @@ export async function provisionTenantFromSignup(input: {
    * acabou de nascer. Antes disso não havia tenant para cifrar com.
    */
   cpfCnpj: string;
+  /** Readback do Checkout, nunca dados do browser ou apenas callback. */
+  paidCheckout?: { payment: ProviderPayment; through: Date };
 }): Promise<ProvisionSignupOutcome> {
   if (!env.SIGNUP_AUTH_ENABLED || !env.SIGNUP_IDENTITY_ENABLED)
     return { ok: false, reason: 'unavailable' };
   if (!userIdSchema.safeParse(input.userId).success)
     throw new Error('[signup] invalid_provision_owner');
+  const authCreatedAt = await readSignupAuthCreatedAt(input.userId);
 
   return dbAdmin.transaction(async (tx) => {
     // Trava a sessão antes de ler: é o ponto onde duas abas viram uma.
@@ -135,7 +146,9 @@ export async function provisionTenantFromSignup(input: {
         clinicName: signupSessions.clinicName,
         selectedPlanId: signupSessions.selectedPlanId,
         billingState: signupSessions.billingAttemptState,
+        billingAttemptedAt: signupSessions.billingAttemptedAt,
         asaasCustomerId: signupSessions.asaasCustomerId,
+        asaasCheckoutId: signupSessions.asaasCheckoutId,
         asaasSubscriptionId: signupSessions.asaasSubscriptionId,
       })
       .from(signupSessions)
@@ -184,6 +197,35 @@ export async function provisionTenantFromSignup(input: {
       .limit(1);
     if (!priced) return { ok: false, reason: 'invalid_plan' };
 
+    const newOffer = isOffer2026PlanCode(priced.planCode);
+    const trial =
+      newOffer && draft.billingAttemptedAt
+        ? resolveSignupTrialTerms({
+            planCode: priced.planCode,
+            attemptedAt: draft.billingAttemptedAt,
+            authCreatedAt,
+          })
+        : null;
+    if (newOffer && !trial) return { ok: false, reason: 'unavailable' };
+    const now = Date.now();
+    const trialExpired = trial !== null && trial.endsAt.getTime() <= now;
+    const paid = input.paidCheckout;
+    if (
+      trialExpired &&
+      (!paid ||
+        !Number.isFinite(paid.through.getTime()) ||
+        paid.through.getTime() <= now ||
+        paid.payment.deleted ||
+        (paid.payment.status !== 'CONFIRMED' && paid.payment.status !== 'RECEIVED') ||
+        paid.payment.checkoutSessionId !== draft.asaasCheckoutId ||
+        paid.payment.subscriptionId !== draft.asaasSubscriptionId ||
+        paid.payment.billingType !== 'CREDIT_CARD' ||
+        Math.round(paid.payment.value * 100) !== Math.round(Number(priced.amount) * 100) ||
+        paid.payment.dueDate !== trial.firstDueDate)
+    ) {
+      return { ok: false, reason: 'not_paid' };
+    }
+
     const slug = await resolveAvailableSlug(tx, draft.clinicName);
     if (!slug) return { ok: false, reason: 'slug_unavailable' };
 
@@ -208,6 +250,17 @@ export async function provisionTenantFromSignup(input: {
         priceAmount: Number(priced.amount),
         billingCycle: 'monthly',
         trialDays: QORO_SELF_SERVICE_TRIAL_DAYS,
+        ...(trial && {
+          trialDays: trial.days,
+          trialEndsAt: trial.endsAt,
+          enforceTrialDeadline: true,
+          initialBillingStatus: trialExpired ? 'active' : 'trial',
+          ...(trialExpired &&
+            paid && {
+              currentPeriodStart: new Date(`${paid.payment.dueDate}T00:00:00.000Z`),
+              currentPeriodEnd: paid.through,
+            }),
+        }),
         asaasCustomerId: draft.asaasCustomerId,
         asaasSubscriptionId: draft.asaasSubscriptionId,
       },
@@ -232,6 +285,24 @@ export async function provisionTenantFromSignup(input: {
         }
       },
     );
+
+    if (trialExpired && paid) {
+      // O webhook pode ter chegado antes de existir tenant. Materialize a primeira
+      // parcela paga na mesma transação; uma falha faz rollback e permite retry.
+      const invoice = await ensureInvoiceForPayment(tx, {
+        paymentId: paid.payment.paymentId,
+        subscriptionId: paid.payment.subscriptionId,
+        value: paid.payment.value,
+        dueDate: paid.payment.dueDate,
+      });
+      if (!invoice)
+        throw new OnboardingProvisionError('parcela paga sem assinatura', 'paid_invoice_missing');
+      await markInvoicePaid(tx, provisioned.clinicId, invoice, {
+        paymentMethod: paid.payment.billingType,
+        providerPaymentId: paid.payment.paymentId,
+        idemSuffix: paid.payment.paymentId,
+      });
+    }
 
     metrics.emit('signup.provisioned', { planCode: priced.planCode });
     return { ok: true, clinicId: provisioned.clinicId };

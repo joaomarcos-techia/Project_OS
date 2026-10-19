@@ -7,7 +7,7 @@ import { __testing__ } from './subscriptions';
 import type { Tx } from '@/lib/db';
 
 describe('subscription.activated planCode', () => {
-  it.each(['solo', 'clinica', 'pro'] as const)(
+  it.each(['solo', 'clinica', 'pro', 'consultorio_2026', 'clinica_2026_5'] as const)(
     'preserva o plano real %s no contrato do evento',
     (planCode) => {
       expect(__testing__.toPlanCode(planCode)).toBe(planCode);

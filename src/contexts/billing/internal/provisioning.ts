@@ -16,6 +16,7 @@ import { encryptForTenant } from '@/lib/crypto';
 import type { Tx } from '@/lib/db';
 import { publishEvent } from '@/lib/outbox/publish';
 
+import type { PlanCode } from '../api';
 import { BILLING_EVENTS } from '../events';
 import {
   billingCustomers,
@@ -31,7 +32,7 @@ export interface ProvisionInput {
   slug: string;
   clinicName: string;
   planId: string;
-  planCode: 'solo' | 'clinica' | 'pro';
+  planCode: PlanCode;
   priceId: string;
   billingCycle: 'monthly' | 'annual';
   customerName: string;

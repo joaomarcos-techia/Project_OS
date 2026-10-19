@@ -24,6 +24,10 @@ const {
   capacityRows: [{ active_users: 1, user_limit: 1 }] as {
     active_users: number;
     user_limit: number | null;
+    active_doctors?: number;
+    active_staff?: number;
+    doctor_limit?: number | null;
+    staff_limit?: number | null;
   }[],
   listSubscriptionPayments: vi.fn(),
   getPayment: vi.fn(),
@@ -180,6 +184,40 @@ describe('billing reconcile', () => {
           asaasSubscriptionId: 'sub_1',
           targetAmount: '397.00',
           previousAmount: '699.00',
+        },
+      ],
+      [],
+      [],
+    );
+
+    const response = await GET(new Request('http://localhost/api/cron/billing-reconcile'));
+
+    expect(syncProviderPlanChange).not.toHaveBeenCalled();
+    expect(applyScheduledPlanChange).not.toHaveBeenCalled();
+    expect((await response.json()).scheduledChangesApplied).toBe(0);
+  });
+
+  it('não reduz a recorrência se a clínica excede a cota médica do destino', async () => {
+    capacityRows.splice(0, capacityRows.length, {
+      active_users: 3,
+      user_limit: 4,
+      active_doctors: 2,
+      active_staff: 1,
+      doctor_limit: 1,
+      staff_limit: 3,
+    });
+    selectResults.push(
+      [],
+      [
+        {
+          id: 'change_down_doctors',
+          clinicId: 'clinic_1',
+          kind: 'downgrade',
+          toPlanId: 'consultorio_2026',
+          effectiveAt: new Date('2026-11-01'),
+          asaasSubscriptionId: 'sub_1',
+          targetAmount: '197.00',
+          previousAmount: '397.00',
         },
       ],
       [],

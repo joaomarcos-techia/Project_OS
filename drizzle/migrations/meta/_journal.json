@@ -855,6 +855,27 @@
       "when": 1792108800000,
       "tag": "0121_retire_payment_method_pricing",
       "breakpoints": true
+    },
+    {
+      "idx": 122,
+      "version": "7",
+      "when": 1792368000000,
+      "tag": "0122_offer_2026_seats",
+      "breakpoints": true
+    },
+    {
+      "idx": 123,
+      "version": "7",
+      "when": 1792368000001,
+      "tag": "0123_offer_2026_scheduled_seats",
+      "breakpoints": true
+    },
+    {
+      "idx": 124,
+      "version": "7",
+      "when": 1792368000002,
+      "tag": "0124_offer_2026_trial_deadline",
+      "breakpoints": true
     }
   ]
 }

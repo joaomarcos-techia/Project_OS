@@ -185,6 +185,23 @@ export const planLimits = pgTable(
 );
 export type PlanLimitRow = typeof planLimits.$inferSelect;
 
+/** Cotas médicas e administrativas apenas dos planos versionados de 2026. */
+export const planSeatLimits = pgTable(
+  'plan_seat_limits',
+  {
+    planId: uuid('plan_id')
+      .primaryKey()
+      .references(() => plans.id, { onDelete: 'cascade' }),
+    doctors: integer('doctors').notNull(),
+    staff: integer('staff').notNull(),
+  },
+  (t) => ({
+    doctorsChk: check('plan_seat_limits_doctors_check', sql`${t.doctors} BETWEEN 1 AND 5`),
+    staffChk: check('plan_seat_limits_staff_check', sql`${t.staff} BETWEEN 0 AND 3`),
+  }),
+);
+export type PlanSeatLimitRow = typeof planSeatLimits.$inferSelect;
+
 // =====================================================================
 // PLATAFORMA — pré-tenant / cross-tenant
 // =====================================================================
@@ -314,6 +331,7 @@ export const subscriptions = pgTable(
       .notNull()
       .default(sql`now()`),
     trialEndsAt: timestamp('trial_ends_at', { withTimezone: true }),
+    enforceTrialDeadline: boolean('enforce_trial_deadline').notNull().default(false),
     currentPeriodStart: timestamp('current_period_start', { withTimezone: true }),
     currentPeriodEnd: timestamp('current_period_end', { withTimezone: true }),
     gracePeriodUntil: timestamp('grace_period_until', { withTimezone: true }), // G9

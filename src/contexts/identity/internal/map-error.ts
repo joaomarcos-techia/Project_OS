@@ -37,6 +37,17 @@ const KNOWN_ERRORS = [
 ] as const;
 
 export function mapIdentityError(err: unknown): string {
+  const dbError = err instanceof Error ? (err.cause ?? err) : err;
+  if (
+    dbError != null &&
+    typeof dbError === 'object' &&
+    'code' in dbError &&
+    dbError.code === '23514' &&
+    'constraint_name' in dbError &&
+    dbError.constraint_name === 'offer_2026_seat_limit'
+  ) {
+    return 'As vagas de médicos ou equipe deste plano foram preenchidas. Revise o plano antes de continuar.';
+  }
   if (KNOWN_ERRORS.some((E) => err instanceof E)) {
     return (err as Error).message;
   }

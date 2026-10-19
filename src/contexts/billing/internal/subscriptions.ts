@@ -14,6 +14,7 @@ import { metrics } from '@/lib/observability/metrics';
 import { publishEvent } from '@/lib/outbox/publish';
 
 import { BILLING_EVENTS, type SubscriptionActivatedPayload } from '../events';
+import { isOffer2026PlanCode } from '../proposed-offer';
 import {
   billingEvents,
   invoices,
@@ -36,8 +37,9 @@ import { canTransitionBilling, canTransitionInvoice, type BillingStatus } from '
 
 type PlanCode = SubscriptionActivatedPayload['planCode'];
 
-function toPlanCode(code: string): PlanCode {
-  if (code === 'solo' || code === 'clinica' || code === 'pro') return code;
+export function toPlanCode(code: string): PlanCode {
+  if (code === 'solo' || code === 'clinica' || code === 'pro' || isOffer2026PlanCode(code))
+    return code;
   throw new Error(`[billing] plano não suportado na ativação: ${code}`);
 }
 

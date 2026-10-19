@@ -97,7 +97,15 @@ export interface ProvisionArgs {
 }
 
 /** O que qualquer origem precisa fornecer para um tenant nascer. */
-export type TenantSeed = Omit<ProvisionArgs, 'inviteId' | 'inviteVersion'>;
+export type TenantSeed = Omit<ProvisionArgs, 'inviteId' | 'inviteVersion'> & {
+  /** Cadastro versionado: prazo absoluto ancorado na criação do usuário Auth. */
+  trialEndsAt?: Date;
+  enforceTrialDeadline?: boolean;
+  /** Cadastro depois do trial só chega aqui após readback de pagamento no Asaas. */
+  initialBillingStatus?: 'trial' | 'active';
+  currentPeriodStart?: Date;
+  currentPeriodEnd?: Date;
+};
 
 /**
  * Passo que marca a ORIGEM como consumida, dentro da mesma transação.
@@ -123,7 +131,11 @@ export async function provisionTenantCoreTx(
   args: TenantSeed,
   claim: ProvisionClaim,
 ): Promise<{ clinicId: string }> {
-  // 1. Clínica — nasce `trial` de ACESSO (datas de trial vivem na subscription).
+  const initialBillingStatus = args.initialBillingStatus ?? 'trial';
+  if (initialBillingStatus === 'active' && (!args.currentPeriodStart || !args.currentPeriodEnd)) {
+    throw new OnboardingProvisionError('período pago ausente', 'paid_period_missing');
+  }
+  // 1. Clínica — nasce com o estado de acesso já comprovado pela origem.
   // A8: id gerado na app para poder cifrar o CNPJ com ele (salt HKDF = id) ANTES
   // do insert — a alternativa (insert→returning→update) faria 2 idas ao banco.
   const clinicId = randomUUID();
@@ -135,7 +147,7 @@ export async function provisionTenantCoreTx(
     cnpjEncrypted: cnpjRaw ? await encryptForTenant(clinicId, cnpjRaw) : null,
     cnpjHash: cnpjRaw ? await hashForLookup(cnpjRaw) : null,
     endereco: args.clinic.endereco ?? null,
-    status: 'trial',
+    status: initialBillingStatus,
   });
 
   // 2. Owner profile (id = auth.users.id criado antes da tx). Idempotente em retry.
@@ -184,18 +196,19 @@ export async function provisionTenantCoreTx(
     })
     .onConflictDoNothing({ target: billingCustomers.clinicId });
 
-  // 5. Subscription trial — billing controla pagamento; trial_ends_at na subscription.
-  const trialEnds = new Date(Date.now() + args.trialDays * 86_400_000);
+  // 5. Subscription — billing controla pagamento; trial_ends_at permanece auditável.
+  const trialEnds = args.trialEndsAt ?? new Date(Date.now() + args.trialDays * 86_400_000);
   const [sub] = await tx
     .insert(subscriptions)
     .values({
       clinicId,
       planId: args.planId,
       priceId: args.priceId,
-      billingStatus: 'trial',
+      billingStatus: initialBillingStatus,
       trialEndsAt: trialEnds,
-      currentPeriodStart: new Date(),
-      currentPeriodEnd: trialEnds,
+      enforceTrialDeadline: args.enforceTrialDeadline ?? false,
+      currentPeriodStart: args.currentPeriodStart ?? new Date(),
+      currentPeriodEnd: args.currentPeriodEnd ?? trialEnds,
       asaasSubscriptionId: args.asaasSubscriptionId,
     })
     .onConflictDoNothing({ target: subscriptions.clinicId })
@@ -218,12 +231,21 @@ export async function provisionTenantCoreTx(
       },
       idempotencyKey: `subscription-created:${clinicId}`,
     });
-    await publishEvent(tx, {
-      clinicId,
-      eventType: BILLING_EVENTS.TRIAL_STARTED,
-      payload: { clinicId, subscriptionId: sub.id, trialEndsAt: trialEnds.toISOString() },
-      idempotencyKey: `trial-started:${clinicId}`,
-    });
+    if (initialBillingStatus === 'trial') {
+      await publishEvent(tx, {
+        clinicId,
+        eventType: BILLING_EVENTS.TRIAL_STARTED,
+        payload: { clinicId, subscriptionId: sub.id, trialEndsAt: trialEnds.toISOString() },
+        idempotencyKey: `trial-started:${clinicId}`,
+      });
+    } else {
+      await publishEvent(tx, {
+        clinicId,
+        eventType: BILLING_EVENTS.SUBSCRIPTION_ACTIVATED,
+        payload: { clinicId, subscriptionId: sub.id, planCode: args.planCode },
+        idempotencyKey: `subscription-activated:${clinicId}`,
+      });
+    }
   }
 
   return { clinicId };
