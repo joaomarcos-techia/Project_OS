@@ -131,6 +131,8 @@ export async function provisionTenantFromSignup(input: {
   cpfCnpj: string;
   /** Confere o vencedor da corrida quando o draft já foi consumido por outra aba. */
   expectedAsaasSubscriptionId?: string;
+  /** Centavos já conferidos contra o Asaas, para detectar mudança de catálogo no provisionamento. */
+  expectedPriceCents?: number;
   /** Readback do Checkout, nunca dados do browser ou apenas callback. */
   paidCheckout?: { payment: ProviderPayment; through: Date };
 }): Promise<ProvisionSignupOutcome> {
@@ -222,6 +224,12 @@ export async function provisionTenantFromSignup(input: {
       .for('share')
       .limit(1);
     if (!priced) return { ok: false, reason: 'invalid_plan' };
+    if (
+      input.expectedPriceCents !== undefined &&
+      Math.round(Number(priced.amount) * 100) !== input.expectedPriceCents
+    ) {
+      return { ok: false, reason: 'not_paid' };
+    }
 
     const newOffer = isOffer2026PlanCode(priced.planCode);
     const trial =

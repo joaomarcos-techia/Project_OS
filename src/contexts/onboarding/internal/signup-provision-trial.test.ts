@@ -94,6 +94,7 @@ describe('provisionamento do trial da nova oferta', () => {
         userId: USER,
         verifiedEmail: 'dona@example.invalid',
         cpfCnpj: '24971563792',
+        expectedPriceCents: 19_700,
       }),
     ).resolves.toMatchObject({ ok: true });
     expect(mocks.provision).toHaveBeenCalledWith(
@@ -298,6 +299,20 @@ describe('provisionamento do trial da nova oferta', () => {
         verifiedEmail: 'dona@example.invalid',
         cpfCnpj: '24971563792',
         expectedAsaasSubscriptionId: 'sub_other',
+      }),
+    ).resolves.toEqual({ ok: false, reason: 'not_paid' });
+    expect(mocks.provision).not.toHaveBeenCalled();
+  });
+
+  it('recusa preço alterado entre o readback do Asaas e a transação', async () => {
+    setup('consultorio_2026');
+    await expect(
+      provisionTenantFromSignup({
+        userId: USER,
+        verifiedEmail: 'dona@example.invalid',
+        cpfCnpj: '24971563792',
+        expectedAsaasSubscriptionId: 'sub_test',
+        expectedPriceCents: 1,
       }),
     ).resolves.toEqual({ ok: false, reason: 'not_paid' });
     expect(mocks.provision).not.toHaveBeenCalled();

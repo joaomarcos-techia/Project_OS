@@ -441,6 +441,7 @@ export async function completeSignupHostedCheckout(input: {
       verifiedEmail: input.verifiedEmail,
       cpfCnpj: document.digits,
       expectedAsaasSubscriptionId: subscription.subscriptionId,
+      expectedPriceCents: target.priceCents,
       ...(paidCheckout && { paidCheckout }),
     });
     if (provisioned.ok) {

@@ -307,6 +307,7 @@ describe('Checkout hospedado do cadastro', () => {
       verifiedEmail: EMAIL,
       cpfCnpj: CPF,
       expectedAsaasSubscriptionId: 'sub_1',
+      expectedPriceCents: 34_900,
     });
   });
 
@@ -419,6 +420,7 @@ describe('Checkout hospedado do cadastro', () => {
       verifiedEmail: EMAIL,
       cpfCnpj: CPF,
       expectedAsaasSubscriptionId: 'sub_1',
+      expectedPriceCents: 34_900,
       paidCheckout: {
         payment: { ...PAYMENT, dueDate: '2026-10-19', status: 'CONFIRMED' },
         through: new Date('2026-11-19T00:00:00.000Z'),
