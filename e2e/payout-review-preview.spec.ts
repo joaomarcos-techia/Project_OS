@@ -1154,37 +1154,36 @@ test.describe.serial('revisão humana do repasse (Preview + DEV, papéis reais)'
     await expect(
       owner.getByRole('heading', { name: 'Proposta de planos em validação' }),
     ).toBeVisible();
-    const count = owner.getByLabel('Profissionais com agenda própria');
+    const count = owner.getByLabel('Médicos que atendem em agenda clínica');
     for (const [professionals, monthly] of [
       ['1', '197'],
       ['2', '397'],
       ['3', '544'],
       ['5', '838'],
-      ['10', '1.573'],
     ] as const) {
       await count.fill(professionals);
       await expect(owner.getByText(new RegExp(`R\\$\\s*${monthly},00/mês`, 'u'))).toBeVisible();
     }
     await count.fill('2');
-    const staff = owner.getByLabel('Logins de equipe sem agenda própria');
+    const staff = owner.getByLabel('Logins de equipe: recepção, gestão e financeiro');
     await staff.fill('2');
     await expect(owner.getByText(/R\$\s*397,00\/mês/u)).toBeVisible();
     await staff.fill('3');
     await expect(owner.getByText(/R\$\s*397,00\/mês/u)).toBeVisible();
-    await staff.fill('11');
-    await expect(owner.getByText(/R\$\s*397,00\/mês/u)).toBeVisible();
+    await staff.fill('4');
+    await expect(owner.locator('main').getByRole('alert')).toContainText('até 3 logins de equipe');
     await count.fill('1');
     await expect(owner.locator('main').getByRole('alert')).toContainText(
-      'Consultório inclui até 3',
+      'Consultório e Clínica incluem até 3',
     );
     await staff.fill('1');
-    await count.fill('11');
+    await count.fill('6');
     await expect(owner.locator('main').getByRole('alert')).toContainText(
-      'Informe de 1 a 10 profissionais',
+      'Informe de 1 a 5 médicos',
     );
     await expect(owner.locator('a[href*="/cadastro"]')).toHaveCount(0);
     evidence.pricingPreview = {
-      values: 5,
+      values: 4,
       consultorioStaffLimitAndClinicaIncluded: true,
       aboveLimitBlocked: true,
       checkoutUntouched: true,

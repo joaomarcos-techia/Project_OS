@@ -4,8 +4,9 @@ export const PROPOSED_OFFER = {
   clinicaMonthlyForTwo: 397,
   additionalProfessionalMonthly: 147,
   consultorioIncludedStaffLogins: 3,
+  clinicaIncludedStaffLogins: 3,
   annualMonthsCharged: 10,
-  maxSelfServiceProfessionals: 10,
+  maxSelfServiceProfessionals: 5,
   conversationsPerProfessional: 500,
   proposedTrialDays: 14,
 } as const;
@@ -26,7 +27,8 @@ export function quoteProposedOffer(professionals: number, staffLogins = 0): Prop
     professionals > PROPOSED_OFFER.maxSelfServiceProfessionals ||
     !Number.isSafeInteger(staffLogins) ||
     staffLogins < 0 ||
-    (professionals === 1 && staffLogins > PROPOSED_OFFER.consultorioIncludedStaffLogins)
+    (professionals === 1 && staffLogins > PROPOSED_OFFER.consultorioIncludedStaffLogins) ||
+    (professionals > 1 && staffLogins > PROPOSED_OFFER.clinicaIncludedStaffLogins)
   )
     return null;
 

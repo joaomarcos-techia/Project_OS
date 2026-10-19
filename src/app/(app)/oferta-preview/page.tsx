@@ -23,10 +23,14 @@ export default function OfertaPreviewPage() {
       </p>
       <ProposalCalculator />
       <p className="text-fg-muted">
-        Consultório inclui um profissional e até {PROPOSED_OFFER.consultorioIncludedStaffLogins}{' '}
-        logins de equipe. Clínica começa com dois profissionais, inclui equipe ilimitada na proposta
-        e propõe R$ {PROPOSED_OFFER.additionalProfessionalMonthly}/mês por profissional adicional,
-        até dez. A contratação dessa oferta ainda não está disponível.
+        Na proposta, o papel médico ocupa vaga médica mesmo antes de cadastrar CRM; titular ou
+        gestor com CRM também ocupa vaga médica e, sem CRM, ocupa vaga de equipe. Recepção e
+        financeiro são logins de equipe. Consultório inclui um médico e até{' '}
+        {PROPOSED_OFFER.consultorioIncludedStaffLogins} logins de equipe. Clínica começa com dois
+        médicos, inclui até {PROPOSED_OFFER.clinicaIncludedStaffLogins} logins de equipe e propõe R${' '}
+        {PROPOSED_OFFER.additionalProfessionalMonthly}
+        {'/mês por médico adicional, até cinco médicos no total.'} O cadastro atual ainda limita
+        todos os logins juntos. A contratação dessa oferta ainda não está disponível.
       </p>
       <p className="text-fg-muted">
         A proposta inclui teste de {PROPOSED_OFFER.proposedTrialDays} dias a partir da conexão do

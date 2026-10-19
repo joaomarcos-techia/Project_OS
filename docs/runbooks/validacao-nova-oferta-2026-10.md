@@ -1,8 +1,8 @@
 # Fechamento da nova oferta de preços — roteiro de implementação e validação
 
-**Escopo:** proposta do PDF `Qoro_mudancas_de_preco.pdf` (13/10/2026), app Draft PR #40 e landing Draft PR #1. Revisado em 18/10/2026. Este roteiro não autoriza venda, alteração de assinatura real, migration em produção ou publicação da nova tabela. O catálogo contratado continua Solo R$ 149, Clínica R$ 349, Pro R$ 699; o cadastro autônomo continua com 7 dias. As páginas `/oferta-preview` e `/precos-preview` são simulações `noindex`.
+**Escopo:** proposta do PDF `Qoro_mudancas_de_preco.pdf` (13/10/2026), app Draft PR #42 e landing Draft PR #1. Revisado em 19/10/2026. Este roteiro não autoriza venda, alteração de assinatura real, migration em produção ou publicação da nova tabela. O catálogo contratado continua Solo R$ 149, Clínica R$ 349, Pro R$ 699; o cadastro autônomo continua com 7 dias. As páginas `/oferta-preview` e `/precos-preview` são simulações `noindex`.
 
-**Regra comercial a validar:** Consultório R$ 197/mês, 1 profissional com agenda e até 3 logins de equipe; Clínica R$ 397/mês por 2 profissionais, R$ 147/mês por profissional adicional até 10, equipe incluída sem preço por login. Anual = 10 mensalidades. Mais de 10 profissionais ou várias unidades: contato comercial, sem prometer multiunidade pronta. A proposta anterior de R$ 79 por login de equipe, registrada historicamente nas specs, foi revogada pelo pedido de seguir o PDF. A franquia de 500 conversas/profissional e o trial de 14 dias a partir da conexão do WhatsApp **ou do primeiro agendamento pela IA** são **propostas não implementadas**. O WhatsApp comercial é [+55 88 99682-2198](https://wa.me/5588996822198).
+**Regra comercial a validar, após decisão de 18/10:** Consultório R$ 197/mês, 1 médico e até 3 logins de equipe; Clínica R$ 397/mês por 2 médicos incluídos e até 3 logins de equipe, R$ 147/mês por médico adicional até **5 médicos no total**. Anual = 10 mensalidades. Acima de 5 médicos, 3 logins de equipe ou para várias unidades, a prévia não cota automaticamente; não prometer capacidade multiunidade pronta. As hipóteses anteriores de R$ 79 por equipe e equipe ilimitada na Clínica foram revogadas. A franquia de 500 conversas/médico e o trial de 14 dias a partir da conexão do WhatsApp **ou do primeiro agendamento pela IA** são **propostas não implementadas**. O WhatsApp comercial é [+55 88 99682-2198](https://wa.me/5588996822198).
 
 ## Como registrar uma prova
 
@@ -10,7 +10,9 @@ Em cada item abaixo, registrar: data/hora UTC, commit dos dois repositórios, de
 
 Executar mutações somente no Preview ligado ao banco DEV e na conta **Sandbox** do Asaas, depois de conferir o fingerprint do ambiente. Não repetir um checkout ou webhook real se a fixture anterior ainda estiver ativa. Nunca adaptar um teste ao comportamento defeituoso para deixá-lo verde. Preservar o contrato com desconto vitalício: preço-base, `price_id` e campanha não são recalculados pela nova tabela.
 
-### Fotografia desta revisão local (17/10/2026)
+### Fotografia histórica da revisão local (17/10/2026)
+
+Os números abaixo foram medidos antes da decisão de limitar a Clínica a cinco médicos e três logins de equipe. São histórico, não PASS da proposta atual.
 
 | Prova | Estado medido | Limite |
 | --- | --- | --- |
@@ -26,16 +28,28 @@ Executar mutações somente no Preview ligado ao banco DEV e na conta **Sandbox*
 | Landing externa em Preview | **NOT TESTED funcionalmente**: GET direto redirecionou ao SSO da Vercel; o controle do navegador não respondeu nesta execução. | Login no SSO e interação com a página ainda necessários. O Chromium local passou, mas não substitui esta prova. |
 | Contratação da oferta do PDF | **BLOCKED por implementação** | Catálogo, trial, franquia, assentos e recorrência novos ainda não existem. |
 
+### Fotografia da decisão atual (19/10/2026)
+
+| Prova | Estado medido | Limite |
+| --- | --- | --- |
+| App × landing, 1–6 médicos × 0–4 logins de equipe | **PASS 30/30**, mensal, anual, conversas e rejeição de combinações inválidas iguais; exit 0 | Cálculo local, sem contratar assento. |
+| App — testes dirigidos e regressão | **PASS 52/52** dirigidos; **5.520/5.520** em 528 arquivos na suíte integral, exit 0 | Não prova checkout novo ou cota separada em banco. |
+| App — build isolado | **PASS**, `npx tsx scripts/security/local-build.ts`, exit 0, 19 páginas estáticas | Credenciais sintéticas; não prova Preview externo. |
+| Landing — typecheck, lint, build e proposta | **PASS**, 54 rotas; ponte 27/27, conversão 2/2, segurança 20 checks; runner da proposta exit 0 | Artefato local; página protegida por SSO não medida nesta revisão. |
+| Catálogo DEV lido sem escrita | Solo R$ 149/1 login, Clínica R$ 349/5, Pro R$ 699/10 | Os planos atuais contam logins totais, sem distinção por CRM. |
+| E2E da nova proposta no Preview | **NOT RUN** | Publicar ambos os novos commits no Preview e executar os itens abaixo. |
+| Compra de médico adicional | **BLOCKED por implementação** | Reserva, Checkout, confirmação, assento e recorrência ainda não existem. |
+
 ## 1. Provar que as duas prévias dizem a mesma coisa
 
-**Situação:** os cálculos e textos foram revistos para seguir o PDF; a comparação local atual app × landing passou **42/42 combinações, exit 0**. A evidência antiga de 144 combinações e o E2E anterior de 10/10 mediam a proposta revogada com adicional de equipe. O E2E corrigido passou 10/10 no Preview do PR #40 (`e3a5b81d`) e, novamente, **10/10 no Preview integrado do PR #42**, com prova de ambiente DEV e cleanup zero. A landing Preview passa pelo SSO da Vercel; build local não prova a página externa.
+**Situação em 19/10:** os cálculos locais do app e da landing coincidiram em **30/30 combinações** (1–6 médicos × 0–4 logins, inclusive limites e entradas inválidas), exit 0. Isto não prova a cota na assinatura vigente. Os E2E anteriores de 10/10 no Preview do PR #40 e #42 mediam a proposta anterior; **o E2E da decisão de 18/10 ainda não foi executado**. A landing Preview passa pelo SSO da Vercel; build local não prova a página externa.
 
 1. No app Draft PR #42 e na landing Draft PR #1, registrar SHA e deployment Ready. Abrir [prévia integrada do app](https://project-os-git-integration-prici-c5e6c6-clinic-os-v2-s-projects.vercel.app/oferta-preview) e [prévia da landing](https://landing-page-git-preview-pricing-05406a-clinic-os-v2-s-projects.vercel.app/precos-preview) após SSO. Se esses deployments forem antigos, usar as URLs de branch mostradas pela Vercel para o SHA atual e registrar as novas URLs.
-2. Testar em **ambas**: 1 profissional/equipe 0, 3 e 4; 2 profissionais/equipe 0 e 11; 3, 5, 10 e 11 profissionais. Esperado: 1/3 = R$ 197; 1/4 = sem cotação automática; 2/11 = R$ 397; 3 = R$ 544; 5 = R$ 838; 10 = R$ 1.573; 11 = sem cotação. Equipe da Clínica não altera o preço. O anual é 10× o mensal; a franquia é rotulada como **proposta**. Nenhuma prévia abre checkout ou participa do cadastro.
+2. Testar em **ambas**: 1 médico/equipe 0, 3 e 4; 2 médicos/equipe 0, 3 e 4; 3, 5 e 6 médicos. Esperado: 1/3 = R$ 197; 1/4 = sem cotação; 2/3 = R$ 397; 2/4 = sem cotação; 3/3 = R$ 544; 5/3 = R$ 838; 6 = sem cotação. Equipe dentro do limite não altera o preço. O anual é 10× o mensal; a franquia é rotulada como **proposta**. Nenhuma prévia abre checkout ou participa do cadastro.
 3. Na landing, clicar “Entrar em contato pelo WhatsApp” e conferir o destino `wa.me/5588996822198`. Não enviar mensagem de teste sem consentimento. Validar largura móvel e desktop, foco por teclado, mensagem de erro e ausência de indexação.
 4. Executar `npm run typecheck`, `npm run lint`, `npm run build` e `node scripts/testar-proposta-precos.mjs` na landing; no app, `npx vitest run src/contexts/billing/proposed-offer.test.ts "src/app/(app)/oferta-preview/proposal-calculator.test.tsx"`, `npx tsc --noEmit`, `npx eslint .`, build isolado oficial (`npx tsx scripts/security/local-build.ts`) e o spec de Preview `npx playwright test e2e/payout-review-preview.spec.ts --project=chromium --workers=1` com as variáveis DEV que o próprio runner exige. Registrar separadamente qualquer teste não executado.
 
-**Fechamento:** preço, cotas, texto, contato e resultado `noindex` iguais nos dois deployments; nenhuma URL de contratação da proposta. O cruzamento programático app × landing deve cobrir as combinações acima, inclusive equipe 100 na Clínica e entrada inválida.
+**Fechamento:** preço, cotas, texto, contato e resultado `noindex` iguais nos dois deployments; nenhuma URL de contratação da proposta. O cruzamento programático app × landing deve cobrir as combinações acima, inclusive 5 médicos/3 logins válidos, 6 médicos e 4 logins inválidos. Antes de oferecer compra, testar owner/gestor com e sem CRM, convite pendente e troca de papel que deixa CRM retido: o billing atual ainda conta logins totais, não categorias.
 
 ## 2. Provar o preço único ao paciente após a migration 0121
 

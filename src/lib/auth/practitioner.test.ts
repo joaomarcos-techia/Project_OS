@@ -32,12 +32,21 @@ describe('isPractitioner (ADR-032 §2 — capacidade clínica)', () => {
     expect(isPractitioner({ role: 'owner', crm: null })).toBe(false);
   });
 
+  it('gestor com CRM → true; gestor sem CRM → false', () => {
+    expect(isPractitioner({ role: 'gestor', crm: '123456' })).toBe(true);
+    expect(isPractitioner({ role: 'gestor', crm: null })).toBe(false);
+  });
+
   it("owner com CRM em branco '   ' → false (espelha o btrim do SQL — review #8)", () => {
     expect(isPractitioner({ role: 'owner', crm: '   ' })).toBe(false);
   });
 
   it('attendant sem CRM → false', () => {
     expect(isPractitioner({ role: 'attendant', crm: null })).toBe(false);
+  });
+
+  it('attendant com CRM retido → true na regra clínica vigente', () => {
+    expect(isPractitioner({ role: 'attendant', crm: '123456' })).toBe(true);
   });
 
   it("financial com CRM string vazia '' → false", () => {
