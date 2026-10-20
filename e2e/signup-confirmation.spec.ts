@@ -576,6 +576,23 @@ async function assertHostedCheckoutPersisted(
   }
 }
 
+async function expireOnlyFixtureTrial(userId: string, email: string): Promise<void> {
+  const sql = postgres(databaseUrl!, { max: 1, ssl: 'require', prepare: false });
+  try {
+    const rows = await sql<{ id: string }[]>`
+      update auth.users
+         set created_at = now() - interval '15 days'
+       where id = ${userId} and lower(email) = ${email.toLowerCase()}
+       returning id
+    `;
+    if (rows.length !== 1 || rows[0]?.id !== userId) {
+      throw new Error('não foi possível envelhecer somente a identidade de teste no Auth DEV');
+    }
+  } finally {
+    await sql.end({ timeout: 5 });
+  }
+}
+
 async function assertExactDraftReferences(email: string, expectedRefs: readonly string[]) {
   const sql = postgres(databaseUrl!, { max: 1, ssl: 'require', prepare: false });
   try {
@@ -1355,6 +1372,13 @@ test.describe('cadastro — confirmação real via Resend', () => {
         tokenHash: fixture.tokenHash,
       });
 
+      const createdUser = await findUser(email);
+      if (!createdUser) throw new Error('conta Auth não foi reencontrada após confirmação');
+      // A prova de pagamento tardio precisa vencer o trial. Alteramos apenas o
+      // relógio da identidade sintética no Auth DEV; o Checkout/Asaas continuam reais.
+      await expireOnlyFixtureTrial(createdUser.id, email);
+      await signup.page.reload();
+
       const response = await signup.page.request.get('/api/signup/plan');
       if (!response.ok()) throw new Error(`catálogo do cadastro respondeu ${response.status()}`);
       const state = (await response.json()) as {
@@ -1405,11 +1429,15 @@ test.describe('cadastro — confirmação real via Resend', () => {
           planCode,
           priceCents: expectedPrice,
           email,
+          // Credencial sintética somente no arquivo local ignorado, para retomar
+          // a sessão após o pagamento manual em outro navegador.
+          password: signup.password,
           authUserId: authUser.id,
           tokenHash: fixture.tokenHash,
           checkoutId: persisted.checkoutId,
           checkoutUrl: persisted.checkoutUrl,
           trialEndsAt: state.offerTrialEndsAt,
+          authAgeDays: 15,
           createdAt: new Date().toISOString(),
         },
       ];
