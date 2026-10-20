@@ -9069,7 +9069,8 @@ sem `Origin`, HTTP 403), corrigido antes da medição. Esses PASS **não** prova
 entrega automática do webhook, renovação futura nem o fluxo de uma conta com
 trial ainda vigente. A regressão final após a correção passou **5.584/5.584 em
 531 arquivos**, com TypeScript, ESLint, Prettier e build otimizado (19 páginas
-estáticas) em exit 0. O
+estáticas) em exit 0. Após o deploy do PR #42, os dois readbacks autenticados
+foram repetidos no Preview e passaram; Vercel, Snyk e Semgrep ficaram verdes. O
 [roteiro de validação](runbooks/validacao-nova-oferta-2026-10.md) registra a
 evidência e os bloqueios restantes de anual, franquia de IA, compra de médico
 adicional e rota humana recém-criada. O PR e a landing seguem em Preview, sem
