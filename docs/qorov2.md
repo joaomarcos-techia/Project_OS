@@ -9024,8 +9024,9 @@ corrigiu o trigger. O ensaio repetido bloqueou quatro mutações com `23514`,
 aceitou alterações após remover a reserva e fez rollback integral, com zero
 resíduo. Esta prova é apenas de banco DEV. O
 [roteiro da nova oferta](runbooks/validacao-nova-oferta-2026-10.md)
-registra a evidência e os bloqueios de Checkout, anual e médico extra; os planos
-continuam inativos e os PRs draft.
+registra a evidência e os bloqueios de Checkout, anual e médico extra; naquele
+checkpoint os planos ainda estavam inativos. A ativação posterior no DEV está
+no §71. Os PRs continuam draft.
 
 ## 70. Fim absoluto do trial na escolha do plano — 19/10/2026
 
@@ -9039,3 +9040,37 @@ extra do Auth. Os **79/79 testes dirigidos** de draft, rota e UI e a regressão
 integral **5.578/5.578** passaram; TypeScript, ESLint e build otimizado também.
 A comparação com conta Auth real, Checkout Sandbox e vencimento segue no
 [roteiro da nova oferta](runbooks/validacao-nova-oferta-2026-10.md).
+
+## 71. Dois planos no cadastro do Preview — 20/10/2026
+
+O Draft PR #42 (`integration/pricing-plan-sync-20261018`) agora mostra somente
+Consultório R$ 197/mês e Clínica R$ 397/mês quando esses planos versionados
+estão ativos, e a API recusa a seleção direta de Solo/Clínica/Pro legados nessa
+condição. Contratos existentes continuam com seus preços e códigos. O catálogo
+novo informa 14 dias desde a criação no Auth; contas novas foram verificadas
+com Resend e Checkout recorrente real no Asaas Sandbox. O banco DEV recebeu
+somente a ativação dos **dois planos de entrada**; os códigos de médicos extras
+continuam inativos, e produção não recebeu ativação ou migration nesta etapa.
+
+Dois Checkouts de identidades sintéticas com trial envelhecido 15 dias no DEV
+foram preparados e pagos manualmente no Asaas Sandbox, um por plano. A preparação
+passou **2/2**; uma conta Auth recém-criada passou **1/1**, com trial absoluto de
+14 dias e limpeza da fixture. Após o pagamento, `@verify-offer-checkout` passou
+**1/1 por plano** no Preview: confirmação autenticada, retorno ao dashboard,
+tenant, assinatura ativa e invoice paga com valores R$ 197/R$ 397 conferidos no
+banco DEV e no Asaas, e replay sem segunda invoice. Houve duas tentativas em que
+o retorno terminou em `/login` após o provisionamento. O código permitia esse
+resultado quando um segundo polling recebia 401 do JWT pré-tenant, ainda sem as
+claims da clínica recém-criada. A tela agora tenta renovar a sessão nesse caso;
+403 continua bloqueado. Essa correção passou nos testes dirigidos, mas a
+transição com JWT antigo ainda precisa de nova prova externa. A primeira
+tentativa de verificação do Consultório também teve um defeito no teste (requisição
+sem `Origin`, HTTP 403), corrigido antes da medição. Esses PASS **não** provam
+entrega automática do webhook, renovação futura nem o fluxo de uma conta com
+trial ainda vigente. A regressão final após a correção passou **5.584/5.584 em
+531 arquivos**, com TypeScript, ESLint, Prettier e build otimizado (19 páginas
+estáticas) em exit 0. O
+[roteiro de validação](runbooks/validacao-nova-oferta-2026-10.md) registra a
+evidência e os bloqueios restantes de anual, franquia de IA, compra de médico
+adicional e rota humana recém-criada. O PR e a landing seguem em Preview, sem
+publicação da nova tabela em produção.

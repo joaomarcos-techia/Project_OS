@@ -88,6 +88,31 @@ type SignupRun = {
   startedAt: number;
   password: string;
 };
+type OfferCheckoutReceipt = {
+  planCode: string;
+  priceCents: number;
+  email: string;
+  password: string;
+  authUserId: string;
+  tokenHash: string;
+  checkoutId: string;
+  trialEndsAt: string;
+};
+
+function isOfferCheckoutReceipt(value: unknown): value is OfferCheckoutReceipt {
+  if (typeof value !== 'object' || value === null) return false;
+  const row = value as Record<string, unknown>;
+  return (
+    typeof row.planCode === 'string' &&
+    typeof row.priceCents === 'number' &&
+    typeof row.email === 'string' &&
+    typeof row.password === 'string' &&
+    typeof row.authUserId === 'string' &&
+    typeof row.tokenHash === 'string' &&
+    typeof row.checkoutId === 'string' &&
+    typeof row.trialEndsAt === 'string'
+  );
+}
 
 let lockHeld = false;
 const writeEnabled = process.env.E2E_SIGNUP_WRITE === '1';
@@ -1298,9 +1323,27 @@ test.describe('cadastro — confirmação real via Resend', () => {
         verificationCode: proof.verificationCode,
         tokenHash: fixture.tokenHash,
       });
+      const plansResponse = await signup.page.request.get('/api/signup/plan');
+      if (!plansResponse.ok()) throw new Error('catálogo do cadastro indisponível no E2E');
+      const catalog = (await plansResponse.json()) as {
+        plans?: Array<{ code: string }>;
+        trialDays?: number;
+        offerTrialEndsAt?: string | null;
+      };
+      const newOfferActive = catalog.plans?.some((plan) => plan.code === 'clinica_2026_2');
+      if (newOfferActive) {
+        const user = await findUser(email);
+        const createdAt = Date.parse(user?.created_at ?? '');
+        const endsAt = Date.parse(catalog.offerTrialEndsAt ?? '');
+        if (catalog.trialDays !== 14 || endsAt - createdAt !== 14 * 86_400_000) {
+          throw new Error('cadastro novo não preservou 14 dias desde a criação no Auth DEV');
+        }
+      }
+      const selectedName = newOfferActive ? 'Clínica · 2 médicos' : 'Clínica';
+      const selectedCode = newOfferActive ? 'clinica_2026_2' : 'clinica';
       await signup.page
         .locator('[data-slot="option-card-group"]')
-        .getByText('Clínica', { exact: true })
+        .getByText(selectedName, { exact: true })
         .click();
       await expect(signup.page.getByRole('radio', { name: /Clínica/u })).toBeChecked();
       await signup.page.getByRole('button', { name: 'Salvar plano' }).click();
@@ -1316,7 +1359,7 @@ test.describe('cadastro — confirmação real via Resend', () => {
       await expect(signup.page.getByText('Informações da assinatura')).toBeVisible({
         timeout: 30_000,
       });
-      await assertHostedCheckoutPersisted(fixture.tokenHash!, 'clinica');
+      await assertHostedCheckoutPersisted(fixture.tokenHash!, selectedCode);
     } finally {
       await Promise.allSettled([phone?.close(), desktop?.close()]);
       await cleanupFixture(fixture);
@@ -1452,6 +1495,318 @@ test.describe('cadastro — confirmação real via Resend', () => {
     } finally {
       await Promise.allSettled([phone?.close(), desktop?.close()]);
       if (!heldForManualPayment) await cleanupFixture(fixture);
+    }
+  });
+
+  test('@retire-expired-offer-checkout limpa Checkout vencido sem pagamento antes de nova tentativa', async () => {
+    test.skip(
+      process.env.E2E_SIGNUP_RETIRE_OFFER !== '1',
+      'limpeza de Checkout vencido não solicitada',
+    );
+    const reason = skipReason();
+    if (reason) throw new Error(`guard recusou a escrita: ${reason}`);
+    const planCode = process.env.E2E_OFFER_PLAN_CODE;
+    if (planCode !== 'consultorio_2026' && planCode !== 'clinica_2026_2') {
+      throw new Error('plano de limpeza não pertence aos dois Checkouts de teste');
+    }
+    const raw: unknown = JSON.parse(await readFile(OFFER_CHECKOUT_PATH, 'utf8'));
+    if (!Array.isArray(raw) || !raw.every(isOfferCheckoutReceipt)) {
+      throw new Error('recibos locais de Checkout estão ausentes ou inválidos');
+    }
+    const receipt = raw.find((item) => item.planCode === planCode);
+    if (
+      !receipt ||
+      !receipt.email.startsWith(`offer-${planCode}-`) ||
+      !receipt.email.endsWith('@resend.dev')
+    ) {
+      throw new Error('limpeza recusou identidade que não é fixture sintética da oferta');
+    }
+
+    const sql = postgres(databaseUrl!, { max: 1, ssl: 'require', prepare: false });
+    let draftId: string;
+    try {
+      const rows = await sql<
+        {
+          id: string;
+          billing_attempt_state: string | null;
+          asaas_checkout_id: string | null;
+          expired: boolean;
+          clinic_id: string | null;
+        }[]
+      >`
+        select s.id::text, s.billing_attempt_state, s.asaas_checkout_id,
+               s.idle_expires_at < now() and s.absolute_expires_at < now() as expired,
+               p.clinic_id
+          from public.signup_sessions s
+          left join public.profiles p on p.id = s.auth_user_id
+         where s.auth_user_id = ${receipt.authUserId}::uuid
+           and s.token_hash = ${receipt.tokenHash}
+      `;
+      const row = rows[0];
+      if (
+        rows.length !== 1 ||
+        row?.billing_attempt_state !== 'checkout_pending' ||
+        row.asaas_checkout_id !== receipt.checkoutId ||
+        !row.expired ||
+        row.clinic_id
+      ) {
+        throw new Error('limpeza recusou draft ativo, pago, provisionado ou divergente');
+      }
+      draftId = row.id;
+    } finally {
+      await sql.end({ timeout: 5 });
+    }
+
+    const providerBase = new URL(asaasBaseUrl!);
+    if (!['sandbox.asaas.com', 'api-sandbox.asaas.com'].includes(providerBase.hostname)) {
+      throw new Error('limpeza recusou Asaas fora do Sandbox');
+    }
+    const apiBase = asaasBaseUrl!.replace(/\/$/u, '');
+    const subscriptionsUrl = new URL(`${apiBase}/subscriptions`);
+    subscriptionsUrl.searchParams.set('externalReference', `signup:${draftId}`);
+    const subscriptionsResponse = await fetch(subscriptionsUrl, {
+      headers: { access_token: asaasApiKey! },
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (!subscriptionsResponse.ok) {
+      throw new Error(`readback de assinatura no Asaas respondeu ${subscriptionsResponse.status}`);
+    }
+    const subscriptions = (await subscriptionsResponse.json()) as { data?: unknown[] };
+    if (subscriptions.data?.length) throw new Error('Checkout tem assinatura; limpeza recusada');
+
+    let offset = 0;
+    while (true) {
+      const paymentsUrl = new URL(`${apiBase}/payments`);
+      paymentsUrl.searchParams.set('limit', '100');
+      paymentsUrl.searchParams.set('offset', String(offset));
+      const paymentsResponse = await fetch(paymentsUrl, {
+        headers: { access_token: asaasApiKey! },
+        signal: AbortSignal.timeout(20_000),
+      });
+      if (!paymentsResponse.ok) {
+        throw new Error(`readback de cobranças no Asaas respondeu ${paymentsResponse.status}`);
+      }
+      const payments = (await paymentsResponse.json()) as {
+        data?: Array<{ checkoutSession?: string }>;
+        hasMore?: boolean;
+      };
+      if (!Array.isArray(payments.data)) throw new Error('lista de cobranças do Asaas inválida');
+      if (payments.data.some((payment) => payment.checkoutSession === receipt.checkoutId)) {
+        throw new Error('Checkout tem cobrança; limpeza recusada');
+      }
+      if (!payments.hasMore) break;
+      offset += payments.data.length;
+      if (payments.data.length === 0) throw new Error('paginação do Asaas não avançou');
+    }
+
+    await cleanupFixture({
+      projectRef: expectedProjectRef!,
+      email: receipt.email,
+      tokenHash: receipt.tokenHash,
+    });
+    await writeFile(
+      OFFER_CHECKOUT_PATH,
+      `${JSON.stringify(
+        raw.filter((item) => item.planCode !== planCode),
+        null,
+        2,
+      )}\n`,
+      { encoding: 'utf8', mode: 0o600 },
+    );
+    console.log(`PASS: Checkout vencido ${planCode} retirado sem pagamento ou tenant`);
+  });
+
+  test('@verify-offer-checkout confirma pagamento, provisionamento e acesso no Preview', async ({
+    browser,
+  }) => {
+    test.skip(process.env.E2E_SIGNUP_VERIFY_OFFER !== '1', 'verificação manual não solicitada');
+    const reason = skipReason();
+    if (reason) throw new Error(`guard recusou a escrita: ${reason}`);
+    const planCode = process.env.E2E_OFFER_PLAN_CODE;
+    if (planCode !== 'consultorio_2026' && planCode !== 'clinica_2026_2') {
+      throw new Error('plano de verificação não pertence aos dois Checkouts de teste');
+    }
+    test.setTimeout(240_000);
+
+    const raw: unknown = JSON.parse(await readFile(OFFER_CHECKOUT_PATH, 'utf8'));
+    if (!Array.isArray(raw) || !raw.every(isOfferCheckoutReceipt)) {
+      throw new Error('recibos locais de Checkout estão ausentes ou inválidos');
+    }
+    const receipt = raw.find((item) => item.planCode === planCode);
+    if (!receipt) throw new Error('não há Checkout preparado para o plano solicitado');
+
+    const context = await browser.newContext({
+      baseURL: baseUrl!,
+      storageState: { cookies: [], origins: [] },
+      extraHTTPHeaders: vercelBypassHeaders(),
+    });
+    try {
+      const page = await context.newPage();
+      await page.goto('/login');
+      await page.locator('#email').fill(receipt.email);
+      await page.getByLabel('Senha', { exact: true }).fill(receipt.password);
+      await page.getByRole('button', { name: 'Entrar', exact: true }).click();
+      await expect(page).toHaveURL(
+        /\/(?:cadastro\/(?:continuar|plano|pagamento)|dashboard)(?:\?.*)?$/u,
+        {
+          timeout: 60_000,
+        },
+      );
+
+      let provisioned = false;
+      for (let attempt = 0; attempt < 18; attempt += 1) {
+        const response = await page.evaluate(async () => {
+          const result = await fetch('/api/signup/checkout/status', { method: 'POST' });
+          return { status: result.status, body: (await result.json()) as { state?: string } };
+        });
+        if (response.status === 200) {
+          if (response.body.state !== 'provisioned')
+            throw new Error('status 200 sem tenant provisionado');
+          provisioned = true;
+          break;
+        }
+        if (response.status !== 202) {
+          throw new Error(`readback autenticado do Checkout respondeu ${response.status}`);
+        }
+        await new Promise((resolve) => setTimeout(resolve, 5_000));
+      }
+      if (!provisioned) throw new Error('Asaas ainda não confirmou o pagamento do trial vencido');
+
+      const returnResponses: string[] = [];
+      page.on('response', (response) => {
+        const path = new URL(response.url()).pathname;
+        if (
+          path === '/auth/session-refresh' ||
+          path === '/api/signup/checkout/status' ||
+          path === '/dashboard'
+        ) {
+          returnResponses.push(`${path}:${response.status()}`);
+        }
+      });
+      await page.goto('/cadastro/pagamento?resultado=success');
+      await page.waitForURL(/\/(?:dashboard|login)$/u, { timeout: 60_000 });
+      console.log(`retorno ${planCode}: ${returnResponses.join(', ')}`);
+      if (new URL(page.url()).pathname === '/login') {
+        throw new Error('Checkout provisionado, mas o retorno perdeu a sessão antes do dashboard');
+      }
+      await expect(page).toHaveURL(/\/dashboard$/u, { timeout: 60_000 });
+      const replay = await page.evaluate(async () => {
+        const result = await fetch('/api/signup/checkout/status', { method: 'POST' });
+        return { status: result.status, body: (await result.json()) as { state?: string } };
+      });
+      if (replay.status !== 200 || replay.body.state !== 'provisioned') {
+        throw new Error('replay da confirmação não foi idempotente');
+      }
+
+      const sql = postgres(databaseUrl!, { max: 1, ssl: 'require', prepare: false });
+      let subscriptionId: string;
+      let paymentId: string;
+      try {
+        const rows = await sql<
+          {
+            clinic_id: string;
+            billing_status: string;
+            enforce_trial_deadline: boolean;
+            trial_ends_at: Date;
+            asaas_subscription_id: string;
+            code: string;
+            amount: string;
+          }[]
+        >`
+          select p.clinic_id, s.billing_status, s.enforce_trial_deadline,
+                 s.trial_ends_at, s.asaas_subscription_id, pl.code, pr.amount::text as amount
+            from public.profiles p
+            join public.subscriptions s on s.clinic_id = p.clinic_id
+            join public.plans pl on pl.id = s.plan_id
+            join public.prices pr on pr.id = s.price_id
+           where p.id = ${receipt.authUserId}
+        `;
+        const row = rows[0];
+        if (
+          rows.length !== 1 ||
+          !row?.clinic_id ||
+          row.billing_status !== 'active' ||
+          !row.enforce_trial_deadline ||
+          row.code !== planCode ||
+          row.amount !== (receipt.priceCents / 100).toFixed(2) ||
+          row.trial_ends_at?.toISOString() !== receipt.trialEndsAt ||
+          !row.asaas_subscription_id
+        ) {
+          throw new Error('tenant, preço ou trial persistidos divergem do Checkout pago');
+        }
+        subscriptionId = row.asaas_subscription_id;
+        const invoices = await sql<
+          {
+            status: string;
+            total_amount: string;
+            asaas_payment_id: string | null;
+          }[]
+        >`
+          select status, total_amount::text as total_amount, asaas_payment_id
+            from public.invoices where clinic_id = ${row.clinic_id}
+        `;
+        const paid = invoices.filter((invoice) => invoice.status === 'paid');
+        if (
+          paid.length !== 1 ||
+          paid[0]?.total_amount !== (receipt.priceCents / 100).toFixed(2) ||
+          !paid[0].asaas_payment_id
+        ) {
+          throw new Error('invoice paga ausente, duplicada ou com valor divergente');
+        }
+        paymentId = paid[0].asaas_payment_id;
+        const draft = await sql<{ count: number }[]>`
+          select count(*)::int as count from public.signup_sessions
+           where token_hash = ${receipt.tokenHash}
+        `;
+        if (draft[0]?.count !== 0) throw new Error('draft não foi consumido uma única vez');
+      } finally {
+        await sql.end({ timeout: 5 });
+      }
+
+      const providerBase = new URL(asaasBaseUrl!);
+      if (!['sandbox.asaas.com', 'api-sandbox.asaas.com'].includes(providerBase.hostname)) {
+        throw new Error('readback de assinatura recusou ambiente fora do Sandbox');
+      }
+      const providerResponse = await fetch(
+        `${asaasBaseUrl!.replace(/\/$/u, '')}/subscriptions/${encodeURIComponent(subscriptionId)}`,
+        { headers: { access_token: asaasApiKey! }, signal: AbortSignal.timeout(20_000) },
+      );
+      if (!providerResponse.ok) throw new Error(`Asaas respondeu ${providerResponse.status}`);
+      const provider = (await providerResponse.json()) as {
+        status?: string;
+        value?: number;
+        billingType?: string;
+      };
+      if (
+        provider.status !== 'ACTIVE' ||
+        Math.round((provider.value ?? -1) * 100) !== receipt.priceCents ||
+        provider.billingType !== 'CREDIT_CARD'
+      ) {
+        throw new Error('assinatura do Asaas diverge do plano pago no Qoro');
+      }
+      const paymentResponse = await fetch(
+        `${asaasBaseUrl!.replace(/\/$/u, '')}/payments/${encodeURIComponent(paymentId)}`,
+        { headers: { access_token: asaasApiKey! }, signal: AbortSignal.timeout(20_000) },
+      );
+      if (!paymentResponse.ok)
+        throw new Error(`cobrança no Asaas respondeu ${paymentResponse.status}`);
+      const payment = (await paymentResponse.json()) as {
+        status?: string;
+        value?: number;
+        subscription?: string;
+        checkoutSession?: string;
+      };
+      if (
+        !['CONFIRMED', 'RECEIVED'].includes(payment.status ?? '') ||
+        payment.subscription !== subscriptionId ||
+        payment.checkoutSession !== receipt.checkoutId ||
+        Math.round((payment.value ?? -1) * 100) !== receipt.priceCents
+      ) {
+        throw new Error('pagamento no Asaas não corresponde à invoice paga no Qoro');
+      }
+      console.log(`PASS: ${planCode} pago e provisionado, invoice e Asaas conciliados`);
+    } finally {
+      await context.close();
     }
   });
 

@@ -76,6 +76,16 @@ describe('POST /api/signup/checkout/status', () => {
     expect(mocks.complete).not.toHaveBeenCalled();
   });
 
+  it('JWT pré-tenant desatualizado após provisionamento pede renovação da sessão', async () => {
+    mocks.resolve.mockResolvedValue({ ok: false, reason: 'profile_denied' });
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(401);
+    expect(await response.json()).toEqual({ error: 'unauthorized' });
+    expect(mocks.complete).not.toHaveBeenCalled();
+  });
+
   it('bloqueia origem externa antes de consultar estado', async () => {
     const response = await POST(request('https://evil.test'));
 

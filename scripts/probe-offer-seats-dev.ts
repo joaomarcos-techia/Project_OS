@@ -56,8 +56,12 @@ async function main(): Promise<void> {
     ['clinica_2026_5', 5, 3, '838.00', '8380.00'],
   ];
   const actual = plans.map((row) => [row.code, row.doctors, row.staff, row.monthly, row.annual]);
-  if (JSON.stringify(actual) !== JSON.stringify(expected) || plans.some((row) => row.ativo)) {
-    throw new Error('Offer catalog does not match the inactive, versioned prices');
+  const inactive = plans.every((row) => !row.ativo);
+  const previewActive = plans.every((row) =>
+    ['consultorio_2026', 'clinica_2026_2'].includes(row.code) ? row.ativo : !row.ativo,
+  );
+  if (JSON.stringify(actual) !== JSON.stringify(expected) || (!inactive && !previewActive)) {
+    throw new Error('Offer catalog does not match either allowed DEV activation state');
   }
   if (
     !guard?.rls ||
@@ -68,7 +72,9 @@ async function main(): Promise<void> {
   ) {
     throw new Error('Seat guard or deny-by-default RLS is missing');
   }
-  console.log('PASS: five inactive plans, exact prices, migrations 0122–0123, guard and forced RLS');
+  console.log(
+    `PASS: five plans (${previewActive ? 'two Preview entries active' : 'inactive'}), exact prices, migrations 0122–0123, guard and forced RLS`,
+  );
 }
 
 void main().catch((error: unknown) => {

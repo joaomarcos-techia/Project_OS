@@ -44,6 +44,24 @@ describe('retorno do Checkout do cadastro', () => {
     });
   });
 
+  it('renova as claims pré-tenant quando outra aba concluiu o provisionamento', async () => {
+    fetchMock.mockResolvedValueOnce(json(401, { error: 'unauthorized' }));
+
+    render(<PaymentReturn result="success" />);
+
+    await waitFor(() =>
+      expect(assignMock).toHaveBeenCalledWith('/auth/session-refresh?next=/dashboard'),
+    );
+  });
+
+  it('não usa a renovação de sessão para contornar um bloqueio de origem', async () => {
+    fetchMock.mockResolvedValueOnce(json(403, { error: 'blocked' }));
+
+    render(<PaymentReturn result="success" />);
+
+    await waitFor(() => expect(assignMock).toHaveBeenCalledWith('/login'));
+  });
+
   it('cancela com o servidor antes de voltar ao plano', async () => {
     fetchMock.mockResolvedValueOnce(json(200, { state: 'reset' }));
     render(<PaymentReturn result="cancelled" />);

@@ -51,7 +51,13 @@ export function PaymentReturn({ result }: { result: Result }) {
           setPhase('waiting');
           continue;
         }
-        if (response.status === 401 || response.status === 403) {
+        if (response.status === 401) {
+          // Outra aba pode ter provisionado a clínica depois que este JWT pré-tenant
+          // foi emitido. Renovar as claims antes de concluir que a sessão acabou.
+          window.location.assign('/auth/session-refresh?next=/dashboard');
+          return;
+        }
+        if (response.status === 403) {
           window.location.assign('/login');
           return;
         }

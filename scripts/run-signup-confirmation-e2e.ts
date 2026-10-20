@@ -234,6 +234,12 @@ async function run(): Promise<number> {
 
   return new Promise<number>((resolve, reject) => {
     const prepareOffer = process.env.E2E_SIGNUP_PREPARE_OFFER === '1';
+    const verifyOffer = process.env.E2E_SIGNUP_VERIFY_OFFER === '1';
+    const retireOffer = process.env.E2E_SIGNUP_RETIRE_OFFER === '1';
+    if (Number(prepareOffer) + Number(verifyOffer) + Number(retireOffer) > 1) {
+      reject(new Error('preparação, verificação e limpeza do Checkout não podem rodar juntas'));
+      return;
+    }
     const child = spawn(
       process.execPath,
       [
@@ -244,7 +250,16 @@ async function run(): Promise<number> {
         '--workers=1',
         '--retries=0',
         '--reporter=list',
-        ...(prepareOffer ? ['--grep', '@prepare-offer-checkout'] : []),
+        ...(prepareOffer || verifyOffer || retireOffer
+          ? [
+              '--grep',
+              prepareOffer
+                ? '@prepare-offer-checkout'
+                : verifyOffer
+                  ? '@verify-offer-checkout'
+                  : '@retire-expired-offer-checkout',
+            ]
+          : []),
       ],
       {
         cwd: process.cwd(),

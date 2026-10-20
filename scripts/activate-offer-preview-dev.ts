@@ -56,7 +56,10 @@ async function main(): Promise<void> {
         join public.prices pr on pr.plan_id = p.id
           and pr.billing_cycle = 'monthly' and pr.active_until is null
           and pr.campaign_code is null
-        where p.code like '%_2026'
+        where p.code in (
+          'consultorio_2026', 'clinica_2026_2', 'clinica_2026_3',
+          'clinica_2026_4', 'clinica_2026_5'
+        )
         order by p.code
         for update of p
       `);
@@ -89,7 +92,12 @@ async function main(): Promise<void> {
         returning code
       `);
     const readback = await tx.execute<{ code: string; ativo: boolean }>(sql`
-        select code, ativo from public.plans where code like '%_2026' order by code
+        select code, ativo from public.plans
+        where code in (
+          'consultorio_2026', 'clinica_2026_2', 'clinica_2026_3',
+          'clinica_2026_4', 'clinica_2026_5'
+        )
+        order by code
       `);
     if (
       readback.length !== 5 ||
