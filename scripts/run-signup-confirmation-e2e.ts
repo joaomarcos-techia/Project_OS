@@ -233,6 +233,7 @@ async function run(): Promise<number> {
   }
 
   return new Promise<number>((resolve, reject) => {
+    const prepareOffer = process.env.E2E_SIGNUP_PREPARE_OFFER === '1';
     const child = spawn(
       process.execPath,
       [
@@ -243,6 +244,7 @@ async function run(): Promise<number> {
         '--workers=1',
         '--retries=0',
         '--reporter=list',
+        ...(prepareOffer ? ['--grep', '@prepare-offer-checkout'] : []),
       ],
       {
         cwd: process.cwd(),

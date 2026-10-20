@@ -2,13 +2,17 @@ import 'server-only';
 
 import { randomBytes } from 'node:crypto';
 
-import { and, asc, desc, eq, gt, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
 /* eslint-disable boundaries/element-types -- O-4 resolve o catálogo global de Billing
    no servidor; signup_sessions continua pré-tenant e não recebe preço do browser. */
 import { plans, prices } from '@/contexts/billing/schema';
-import { isOffer2026PlanCode } from '@/contexts/billing/proposed-offer';
+import {
+  isOffer2026PlanCode,
+  OFFER_2026_PLAN_CODES,
+  PROPOSED_OFFER,
+} from '@/contexts/billing/proposed-offer';
 /* eslint-enable boundaries/element-types */
 import { signupSessions } from '@/contexts/onboarding/schema';
 import { hashEmail } from '@/lib/auth/email-hash';
@@ -210,7 +214,11 @@ async function listSelfServicePlans(): Promise<SignupPlan[]> {
     .where(eq(plans.ativo, true))
     .orderBy(asc(plans.name));
 
-  return rows.map((row) => ({
+  // Durante a transição, contratos legados continuam ativos para seus clientes.
+  // Quando a oferta versionada estiver ativa, o cadastro novo mostra só ela.
+  const offerRows = rows.filter((row) => isOffer2026PlanCode(row.code));
+  const availableRows = offerRows.length > 0 ? offerRows : rows;
+  return availableRows.map((row) => ({
     id: row.id,
     code: row.code,
     name: row.name,
@@ -259,7 +267,7 @@ export async function readSignupPlan(userId: string): Promise<PlanReadOutcome> {
       clinicName: draft.clinicName,
       selectedPlanId: draft.selectedPlanId,
       plans: availablePlans,
-      trialDays: QORO_SELF_SERVICE_TRIAL_DAYS,
+      trialDays: offerPlan ? PROPOSED_OFFER.proposedTrialDays : QORO_SELF_SERVICE_TRIAL_DAYS,
       offerTrialEndsAt,
     },
   };
@@ -275,7 +283,7 @@ export async function writeSignupPlan(userId: string, input: unknown): Promise<P
   const { planId, rowVersion } = parsed.data;
   return dbAdmin.transaction(async (tx) => {
     const [availablePlan] = await tx
-      .select({ id: plans.id })
+      .select({ id: plans.id, code: plans.code })
       .from(plans)
       .innerJoin(
         prices,
@@ -292,6 +300,14 @@ export async function writeSignupPlan(userId: string, input: unknown): Promise<P
       .for('share')
       .limit(1);
     if (!availablePlan) return { ok: false, reason: 'invalid_plan' };
+    if (!isOffer2026PlanCode(availablePlan.code)) {
+      const [activeOffer] = await tx
+        .select({ id: plans.id })
+        .from(plans)
+        .where(and(eq(plans.ativo, true), inArray(plans.code, OFFER_2026_PLAN_CODES)))
+        .limit(1);
+      if (activeOffer) return { ok: false, reason: 'invalid_plan' };
+    }
 
     const [saved] = await tx
       .update(signupSessions)

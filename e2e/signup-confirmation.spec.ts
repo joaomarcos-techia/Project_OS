@@ -45,6 +45,7 @@ const productionSupabaseSecret = firstEnv(
 
 const FIXTURE_PATH = path.join(process.cwd(), '.playwright', 'signup-confirmation-fixture.json');
 const LOCK_PATH = path.join(process.cwd(), '.playwright', 'signup-confirmation.lock');
+const OFFER_CHECKOUT_PATH = path.join(process.cwd(), '.playwright', 'offer-checkouts-pending.json');
 const RESEND_API = 'https://api.resend.com';
 const INITIAL_SUBJECT = 'Confirme seu e-mail — Qoro';
 const RESEND_SUBJECT = 'Seu novo link de confirmação — Qoro';
@@ -60,6 +61,7 @@ type Fixture = {
 type AuthUser = {
   id: string;
   email?: string;
+  created_at?: string;
   email_confirmed_at?: string | null;
   app_metadata?: Record<string, unknown>;
 };
@@ -534,8 +536,8 @@ async function cancelSandboxCheckout(checkoutId: string): Promise<void> {
 
 async function assertHostedCheckoutPersisted(
   tokenHash: string,
-  expectedPlanCode: 'solo' | 'clinica' | 'pro',
-): Promise<void> {
+  expectedPlanCode: string,
+): Promise<{ checkoutId: string; checkoutUrl: string }> {
   const sql = postgres(databaseUrl!, { max: 1, ssl: 'require', prepare: false });
   try {
     const [row] = await sql<
@@ -568,6 +570,7 @@ async function assertHostedCheckoutPersisted(
     ) {
       throw new Error('draft não persistiu o Checkout hospedado pendente antes da navegação');
     }
+    return { checkoutId: row.asaas_checkout_id, checkoutUrl: row.asaas_checkout_url };
   } finally {
     await sql.end({ timeout: 5 });
   }
@@ -1147,7 +1150,18 @@ test.describe('cadastro — confirmação real via Resend', () => {
     await assertTargetRuntime();
     await acquireLock();
     const stale = await readFixture();
-    if (stale) await cleanupFixture(stale);
+    if (stale) {
+      let held = '';
+      try {
+        held = await readFile(OFFER_CHECKOUT_PATH, 'utf8');
+      } catch (error) {
+        if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error;
+      }
+      if (held.includes(stale.email)) {
+        throw new Error('fixture de Checkout manual pendente; limpeza automática recusada');
+      }
+      await cleanupFixture(stale);
+    }
   });
 
   test.afterAll(async () => {
@@ -1289,6 +1303,127 @@ test.describe('cadastro — confirmação real via Resend', () => {
     } finally {
       await Promise.allSettled([phone?.close(), desktop?.close()]);
       await cleanupFixture(fixture);
+    }
+  });
+
+  test('@prepare-offer-checkout prepara contratação mensal real para pagamento manual no Sandbox', async ({
+    browser,
+  }) => {
+    test.skip(process.env.E2E_SIGNUP_PREPARE_OFFER !== '1', 'preparação manual não solicitada');
+    const planCode = process.env.E2E_OFFER_PLAN_CODE;
+    if (planCode !== 'consultorio_2026' && planCode !== 'clinica_2026_2') {
+      throw new Error('E2E_OFFER_PLAN_CODE precisa identificar um dos dois planos de entrada');
+    }
+    const expectedPrice = planCode === 'consultorio_2026' ? 19700 : 39700;
+    const reason = skipReason();
+    if (reason) throw new Error(`guard recusou a escrita: ${reason}`);
+    test.setTimeout(420_000);
+
+    const email = `offer-${planCode}-${Date.now()}-${randomBytes(4).toString('hex')}@resend.dev`;
+    let fixture: Fixture = { projectRef: expectedProjectRef!, email };
+    let desktop: BrowserContext | null = null;
+    let phone: BrowserContext | null = null;
+    let heldForManualPayment = false;
+    try {
+      let priorRaw = '[]';
+      try {
+        priorRaw = await readFile(OFFER_CHECKOUT_PATH, 'utf8');
+      } catch (error) {
+        if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error;
+      }
+      const prior = JSON.parse(priorRaw) as Array<{ planCode: string }>;
+      if (!Array.isArray(prior) || prior.some((item) => item.planCode === planCode)) {
+        throw new Error('já existe Checkout manual desse plano; reconcilie antes de criar outro');
+      }
+
+      const signup = await startSignup(browser, email);
+      desktop = signup.context;
+      fixture = signup.fixture;
+      const message = await waitForMessage({
+        email,
+        subject: INITIAL_SUBJECT,
+        after: signup.startedAt,
+      });
+      if (!fixture.tokenHash) throw new Error('fixture sem hash do draft');
+      const proof = confirmationProof(message, fixture.tokenHash);
+      phone = (await openOnPhone(browser, proof.url)).context;
+      await waitForOriginalHandoff(signup.page);
+      await completeHandoffAfterRefresh(signup.page, {
+        email,
+        password: signup.password,
+        verificationCode: proof.verificationCode,
+        tokenHash: fixture.tokenHash,
+      });
+
+      const response = await signup.page.request.get('/api/signup/plan');
+      if (!response.ok()) throw new Error(`catálogo do cadastro respondeu ${response.status()}`);
+      const state = (await response.json()) as {
+        plans?: Array<{ id: string; code: string; priceCents: number }>;
+        offerTrialEndsAt?: string;
+      };
+      const codes = state.plans?.map((plan) => plan.code).sort();
+      if (JSON.stringify(codes) !== JSON.stringify(['clinica_2026_2', 'consultorio_2026'])) {
+        throw new Error('o Preview não oferece exatamente Consultório e Clínica');
+      }
+      const selected = state.plans?.find((plan) => plan.code === planCode);
+      if (selected?.priceCents !== expectedPrice || !state.offerTrialEndsAt) {
+        throw new Error('preço ou prazo do trial não corresponde à nova oferta');
+      }
+      const authUser = await findUser(email);
+      if (!authUser) throw new Error('conta Auth não foi reencontrada após confirmação');
+      const createdAt = Date.parse(authUser.created_at ?? '');
+      const trialEndsAt = Date.parse(state.offerTrialEndsAt);
+      if (!Number.isFinite(createdAt) || trialEndsAt - createdAt !== 14 * 86_400_000) {
+        throw new Error('trial não termina 14 dias após a criação da conta Auth');
+      }
+
+      await signup.page
+        .locator('[data-slot="option-card-group"]')
+        .getByText(planCode === 'consultorio_2026' ? 'Consultório' : 'Clínica · 2 médicos', {
+          exact: true,
+        })
+        .click();
+      await signup.page.getByRole('button', { name: 'Salvar plano' }).click();
+      await expect(signup.page.getByText('Plano salvo')).toBeVisible();
+      await signup.page.getByRole('button', { name: 'Continuar no Checkout Asaas' }).click();
+      await signup.page.waitForURL(
+        (url) =>
+          url.hostname === 'sandbox.asaas.com' &&
+          /^\/(?:\d+\/)?checkoutSession\/show(?:\/|$)/u.test(url.pathname),
+        { timeout: 90_000, waitUntil: 'domcontentloaded' },
+      );
+      await expect(signup.page.getByText('Informações da assinatura')).toBeVisible({
+        timeout: 30_000,
+      });
+      const persisted = await assertHostedCheckoutPersisted(fixture.tokenHash, planCode);
+      if (persisted.checkoutUrl !== signup.page.url()) {
+        throw new Error('URL persistida diverge da página do Asaas aberta pelo cadastro');
+      }
+      const next = [
+        ...prior,
+        {
+          planCode,
+          priceCents: expectedPrice,
+          email,
+          authUserId: authUser.id,
+          tokenHash: fixture.tokenHash,
+          checkoutId: persisted.checkoutId,
+          checkoutUrl: persisted.checkoutUrl,
+          trialEndsAt: state.offerTrialEndsAt,
+          createdAt: new Date().toISOString(),
+        },
+      ];
+      await mkdir(path.dirname(OFFER_CHECKOUT_PATH), { recursive: true });
+      await writeFile(OFFER_CHECKOUT_PATH, `${JSON.stringify(next, null, 2)}\n`, {
+        encoding: 'utf8',
+        mode: 0o600,
+      });
+      heldForManualPayment = true;
+      await rm(FIXTURE_PATH, { force: true });
+      console.log(`PASS: Checkout ${planCode} guardado para pagamento manual no Sandbox`);
+    } finally {
+      await Promise.allSettled([phone?.close(), desktop?.close()]);
+      if (!heldForManualPayment) await cleanupFixture(fixture);
     }
   });
 

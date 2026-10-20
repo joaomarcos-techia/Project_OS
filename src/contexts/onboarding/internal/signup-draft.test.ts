@@ -560,9 +560,44 @@ describe('signup plan contract O-4', () => {
     const result = await readSignupPlan(userId);
     expect(result).toMatchObject({
       ok: true,
-      state: { offerTrialEndsAt: '2026-11-02T13:45:00.000Z', trialDays: 7 },
+      state: { offerTrialEndsAt: '2026-11-02T13:45:00.000Z', trialDays: 14 },
     });
     expect(mocks.getUser).toHaveBeenCalledOnce();
+  });
+
+  it('mostra apenas a oferta versionada no cadastro quando ela convive com planos legados ativos', async () => {
+    mocks.getUser.mockResolvedValue({
+      data: { user: { id: userId, created_at: '2026-10-19T13:45:00.000Z' } },
+      error: null,
+    });
+    mocks.select
+      .mockReturnValueOnce(
+        selectChain([{ rowVersion: 7, clinicName: 'Clínica Sintética', selectedPlanId: null }]),
+      )
+      .mockReturnValueOnce(
+        selectChain([
+          { id: 'legacy', code: 'solo', name: 'Solo', amount: '149.00' },
+          { id: planId, code: 'consultorio_2026', name: 'Consultório', amount: '197.00' },
+          {
+            id: 'new-clinic',
+            code: 'clinica_2026_2',
+            name: 'Clínica · 2 médicos',
+            amount: '397.00',
+          },
+        ]),
+      );
+
+    const result = await readSignupPlan(userId);
+    expect(result).toMatchObject({
+      ok: true,
+      state: {
+        trialDays: 14,
+        plans: [
+          { code: 'consultorio_2026', priceCents: 19700 },
+          { code: 'clinica_2026_2', priceCents: 39700 },
+        ],
+      },
+    });
   });
 
   it('não oferece o prazo novo quando o marco Auth não pode ser comprovado', async () => {
@@ -580,7 +615,7 @@ describe('signup plan contract O-4', () => {
   });
 
   it('salva plano ativo por CAS sem mudar o prazo do draft', async () => {
-    const available = selectChain([{ id: planId }]);
+    const available = selectChain([{ id: planId, code: 'consultorio_2026' }]);
     const update = updateChain([{ rowVersion: 8, selectedPlanId: planId }]);
     const tx = {
       select: vi.fn().mockReturnValue(available),
@@ -605,6 +640,44 @@ describe('signup plan contract O-4', () => {
     );
   });
 
+  it('recusa plano legado pela API quando a nova oferta já está ativa', async () => {
+    const tx = {
+      select: vi
+        .fn()
+        .mockReturnValueOnce(selectChain([{ id: planId, code: 'solo' }]))
+        .mockReturnValueOnce(selectChain([{ id: 'new-offer' }])),
+      update: vi.fn(),
+    };
+    mocks.transaction.mockImplementationOnce(
+      async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx),
+    );
+
+    await expect(writeSignupPlan(userId, { rowVersion: 7, planId })).resolves.toEqual({
+      ok: false,
+      reason: 'invalid_plan',
+    });
+    expect(tx.update).not.toHaveBeenCalled();
+  });
+
+  it('preserva o cadastro legado quando a nova oferta ainda está inativa', async () => {
+    const tx = {
+      select: vi
+        .fn()
+        .mockReturnValueOnce(selectChain([{ id: planId, code: 'solo' }]))
+        .mockReturnValueOnce(selectChain([])),
+      update: vi.fn().mockReturnValue(updateChain([{ rowVersion: 8, selectedPlanId: planId }])),
+    };
+    mocks.transaction.mockImplementationOnce(
+      async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx),
+    );
+
+    await expect(writeSignupPlan(userId, { rowVersion: 7, planId })).resolves.toEqual({
+      ok: true,
+      rowVersion: 8,
+      selectedPlanId: planId,
+    });
+  });
+
   it.each([
     {
       name: 'plano inativo',
@@ -615,35 +688,35 @@ describe('signup plan contract O-4', () => {
     },
     {
       name: 'retry idempotente',
-      planRows: [{ id: planId }],
+      planRows: [{ id: planId, code: 'consultorio_2026' }],
       savedRows: [],
       liveRows: [{ rowVersion: 8, selectedPlanId: planId, billingAttemptState: null }],
       expected: { ok: true, rowVersion: 8, selectedPlanId: planId },
     },
     ...(['reserved', 'active', 'creation_unknown'] as const).map((billingAttemptState) => ({
       name: `retry idempotente bloqueado com billing ${billingAttemptState}`,
-      planRows: [{ id: planId }],
+      planRows: [{ id: planId, code: 'consultorio_2026' }],
       savedRows: [],
       liveRows: [{ rowVersion: 8, selectedPlanId: planId, billingAttemptState }],
       expected: { ok: false, reason: 'conflict' },
     })),
     {
       name: 'retry idempotente depois de falha definitiva',
-      planRows: [{ id: planId }],
+      planRows: [{ id: planId, code: 'consultorio_2026' }],
       savedRows: [],
       liveRows: [{ rowVersion: 8, selectedPlanId: planId, billingAttemptState: 'failed' }],
       expected: { ok: true, rowVersion: 8, selectedPlanId: planId },
     },
     {
       name: 'CAS perdido',
-      planRows: [{ id: planId }],
+      planRows: [{ id: planId, code: 'consultorio_2026' }],
       savedRows: [],
       liveRows: [{ rowVersion: 9, selectedPlanId: planId }],
       expected: { ok: false, reason: 'conflict' },
     },
     {
       name: 'draft vencido',
-      planRows: [{ id: planId }],
+      planRows: [{ id: planId, code: 'consultorio_2026' }],
       savedRows: [],
       liveRows: [],
       expected: { ok: false, reason: 'gone' },
