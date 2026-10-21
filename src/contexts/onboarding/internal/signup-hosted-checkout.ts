@@ -74,8 +74,18 @@ function failureCodeOf(error: BillingProviderError): string {
   return normalized.length > 0 ? normalized : 'provider_rejected';
 }
 
+/**
+ * Nome do item no Checkout. O Asaas aceita 30 caracteres e o adapter corta o
+ * excedente; "Qoro · Clínica · 10 profissionais" sairia mutilado, então a marca
+ * só entra quando cabe — a descrição logo abaixo sempre a carrega.
+ */
+export function checkoutItemName(planName: string): string {
+  const branded = `Qoro · ${planName}`;
+  return branded.length <= 30 ? branded : planName;
+}
+
 function describe(intent: SignupBillingIntent): string {
-  return `Qoro · plano ${intent.planCode} — ${intent.clinicName}`;
+  return `Qoro · plano ${intent.planName} — ${intent.clinicName}`;
 }
 
 function checkoutCallbacks(publicOrigin: string): {
@@ -143,7 +153,7 @@ export async function startSignupHostedCheckout(input: {
     const checkout = await client.createCheckout({
       kind: 'recurrent',
       value: centsToReais(intent.priceCents),
-      itemName: `Qoro · ${intent.planCode}`,
+      itemName: checkoutItemName(intent.planName),
       description: describe(intent),
       externalReference: intent.externalReference,
       minutesToExpire: CHECKOUT_EXPIRATION_MINUTES,

@@ -15,6 +15,7 @@ import { dbAdmin } from '@/lib/db';
 import { CrmConflictError, MemberNotFoundError, ProfessionalCredentialError } from '../errors';
 import { profiles } from '../schema';
 import { normalizeCrm, normalizeCrmUf } from './normalize-crm';
+import { seatLimitErrorFrom } from './seat-limit-error';
 
 const CREDENTIAL_ROLES = new Set(['owner', 'gestor', 'doctor']);
 
@@ -109,6 +110,7 @@ export async function updateOwnProfessionalCredential(
     });
   } catch (err) {
     if ((err as { code?: unknown }).code === '23505') throw new CrmConflictError();
-    throw err;
+    // Owner/gestor que ganha CRM passa a ocupar vaga de profissional (ADR-067).
+    throw seatLimitErrorFrom(err) ?? err;
   }
 }

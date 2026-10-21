@@ -143,18 +143,25 @@ describe('capacidade mostrada na troca de plano', () => {
     periodEnd: '2026-11-01T00:00:00.000Z',
     trialEndsAt: null,
   };
-  const plans = [
+  // Direção e encaixe chegam do servidor (getPlanChangeOverview), com a mesma
+  // regra que a troca aplica; a tela só os mostra.
+  const plansFor = (teamFits: boolean) => [
     {
       id: 'plan_clinica',
       name: 'Clínica',
       code: 'clinica',
       priceAmount: '397.00',
       limits: { users: 5, agendamentos: 800, ai_messages: 800 },
+      seats: null,
+      direction: -1 as const,
+      teamFits,
     },
   ];
 
   it('permite agendar Pro → Clínica com três usuários dentro da cota de cinco', () => {
-    render(<PlanChangeForm current={current} plans={plans} activeUsers={3} pending={null} />);
+    render(
+      <PlanChangeForm current={current} plans={plansFor(true)} activeUsers={3} pending={null} />,
+    );
 
     expect(screen.getByRole('button', { name: 'Agendar downgrade' }).hasAttribute('disabled')).toBe(
       false,
@@ -162,10 +169,106 @@ describe('capacidade mostrada na troca de plano', () => {
   });
 
   it('informa o limite e bloqueia a troca com seis usuários', () => {
-    render(<PlanChangeForm current={current} plans={plans} activeUsers={6} pending={null} />);
+    render(
+      <PlanChangeForm current={current} plans={plansFor(false)} activeUsers={6} pending={null} />,
+    );
 
     expect(
       screen.getByRole('button', { name: 'Limite de 5 usuários' }).hasAttribute('disabled'),
+    ).toBe(true);
+  });
+});
+
+describe('oferta por profissional (ADR-067)', () => {
+  const offerPlan = (
+    id: string,
+    professionals: number,
+    priceAmount: string,
+    direction: -1 | 0 | 1,
+    teamFits = true,
+  ) => ({
+    id,
+    name: professionals === 1 ? 'Consultório' : `Clínica · ${professionals} profissionais`,
+    code: professionals === 1 ? 'consultorio_2026' : `clinica_2026_${professionals}`,
+    priceAmount,
+    limits: { users: 0, agendamentos: 0, ai_messages: 0 },
+    seats: { professionals, staff: professionals === 1 ? 3 : null },
+    direction,
+    teamFits,
+  });
+  const current = {
+    planId: 'plan_c3',
+    planName: 'Clínica · 3 profissionais',
+    planCode: 'clinica_2026_3',
+    priceAmount: '544.00',
+    billingCycle: 'monthly' as const,
+    billingStatus: 'active' as const,
+    periodEnd: '2026-11-01T00:00:00.000Z',
+    trialEndsAt: null,
+  };
+  const plans = [
+    offerPlan('plan_cons', 1, '197.00', -1, false),
+    offerPlan('plan_c2', 2, '397.00', -1, false),
+    offerPlan('plan_c3', 3, '544.00', 0),
+    offerPlan('plan_c4', 4, '691.00', 1),
+  ];
+
+  function renderOffer() {
+    return render(
+      <PlanChangeForm
+        current={current}
+        plans={plans}
+        activeUsers={5}
+        seatUsage={{ users: 5, professionals: 3, staff: 2 }}
+        pending={null}
+      />,
+    );
+  }
+
+  it('mostra o uso por categoria em vez do total de usuários', () => {
+    renderOffer();
+    expect(screen.getByText('3 de 3 profissionais')).toBeTruthy();
+    expect(screen.getByText('2 de equipe · sem limite')).toBeTruthy();
+    expect(screen.queryByText(/usuários ativos/u)).toBeNull();
+  });
+
+  it('o seletor da Clínica começa no plano atual e lista o preço de cada quantidade', () => {
+    renderOffer();
+    const selector = screen.getByLabelText('Profissionais de saúde') as HTMLSelectElement;
+    expect(selector.value).toBe('plan_c3');
+    // `Intl` separa "R$" do valor com espaço inseparável.
+    expect(
+      Array.from(selector.options).map((option) => option.text.replace(/\u00a0/gu, ' ')),
+    ).toEqual([
+      '2 profissionais — R$ 397,00/mês',
+      '3 profissionais — R$ 544,00/mês (atual)',
+      '4 profissionais — R$ 691,00/mês',
+    ]);
+    expect(screen.getByRole('button', { name: 'Plano atual' }).hasAttribute('disabled')).toBe(true);
+  });
+
+  it('incluir profissional envia o plano da nova quantidade', () => {
+    renderOffer();
+    fireEvent.change(screen.getByLabelText('Profissionais de saúde'), {
+      target: { value: 'plan_c4' },
+    });
+    const button = screen.getByRole('button', { name: 'Contratar agora' });
+    expect(button.hasAttribute('disabled')).toBe(false);
+    const form = button.closest('form');
+    expect(form?.querySelector<HTMLInputElement>('input[name="targetPlanId"]')?.value).toBe(
+      'plan_c4',
+    );
+  });
+
+  it('reduzir abaixo da equipe ativa fica bloqueado, com o motivo no botão', () => {
+    renderOffer();
+    fireEvent.change(screen.getByLabelText('Profissionais de saúde'), {
+      target: { value: 'plan_c2' },
+    });
+    expect(
+      screen
+        .getAllByRole('button', { name: 'A equipe ativa não cabe neste plano' })
+        .every((button) => button.hasAttribute('disabled')),
     ).toBe(true);
   });
 });

@@ -31,13 +31,16 @@ import {
   type ProviderInvoiceState,
   type ProviderSyncAction,
 } from './provider-sync';
+import { isOffer2026PlanCode } from '../offer-2026';
 import { toCents, toReais, toReaisString } from './money';
 import { canTransitionBilling, canTransitionInvoice, type BillingStatus } from './state-machine';
 
 type PlanCode = SubscriptionActivatedPayload['planCode'];
 
 function toPlanCode(code: string): PlanCode {
-  if (code === 'solo' || code === 'clinica' || code === 'pro') return code;
+  if (code === 'solo' || code === 'clinica' || code === 'pro' || isOffer2026PlanCode(code)) {
+    return code;
+  }
   throw new Error(`[billing] plano não suportado na ativação: ${code}`);
 }
 

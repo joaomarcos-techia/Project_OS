@@ -19,6 +19,8 @@ import { z } from 'zod';
 
 import { registerEventSchema } from '@/lib/outbox/catalog';
 
+import { OFFER_2026_PLAN_CODES } from './offer-2026';
+
 export const BILLING_EVENTS = {
   CUSTOMER_CREATED: 'billing.customer.created',
   CUSTOMER_PORTAL_REQUESTED: 'billing.customer.portal_requested',
@@ -44,7 +46,8 @@ export const BILLING_EVENTS = {
 
 const uuid = z.string().uuid();
 const money = z.number().nonnegative();
-const planCode = z.enum(['solo', 'clinica', 'pro']);
+// Tabela antiga (Solo/Clínica/Pro) + oferta por profissional de 2026 (ADR-067).
+const planCode = z.enum(['solo', 'clinica', 'pro', ...OFFER_2026_PLAN_CODES]);
 const billingCycle = z.enum(['monthly', 'annual']);
 
 // --- customer --------------------------------------------------------------

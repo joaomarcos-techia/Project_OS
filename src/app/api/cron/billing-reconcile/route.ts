@@ -22,9 +22,9 @@ import { reopenReactivatedClinics } from '@/contexts/billing/internal/clinic-sta
 import {
   applyPaidUpgradeForPayment,
   applyScheduledPlanChange,
-  fitsPlanUserLimit,
   getPaidUpgradeSyncContext,
   planChangeExternalReference,
+  targetPlanCapacityFits,
 } from '@/contexts/billing/internal/plan-changes';
 import { syncProviderPlanChange } from '@/contexts/billing/internal/plan-change-provider-sync';
 import { providerStatusToInvoiceStatus } from '@/contexts/billing/internal/provider-sync';
@@ -226,19 +226,15 @@ export const GET = withCron(
             throw new Error('scheduled subscription change has no Asaas subscription id');
           }
           if (change.kind === 'downgrade') {
-            const [capacity] = await dbAdmin.execute<{
-              active_users: number;
-              user_limit: number | null;
-            }>(sql`
-              SELECT (SELECT count(*)::int FROM public.profiles
-                       WHERE clinic_id = ${change.clinicId}::uuid
-                         AND ativo = true AND deleted_at IS NULL) AS active_users,
-                     (SELECT limit_value FROM public.plan_limits
-                       WHERE plan_id = ${change.toPlanId}::uuid AND metric = 'users') AS user_limit
-            `);
-            if (
-              !fitsPlanUserLimit(Number(capacity?.active_users ?? 0), capacity?.user_limit ?? null)
-            ) {
+            // Total de usuários na tabela antiga; profissionais e equipe na
+            // oferta por profissional (ADR-067) — a mesma regra do pedido.
+            const toPlanId = change.toPlanId;
+            const fits = toPlanId
+              ? await dbAdmin.transaction((tx) =>
+                  targetPlanCapacityFits(tx, change.clinicId, toPlanId),
+                )
+              : false;
+            if (!fits) {
               metrics.emit('billing.plan_change.blocked_active_users', { changeId: change.id });
               continue;
             }

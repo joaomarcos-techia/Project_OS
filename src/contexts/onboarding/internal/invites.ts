@@ -6,12 +6,13 @@
  */
 import 'server-only';
 
-import { and, asc, eq, isNull, ne, sql } from 'drizzle-orm';
+import { and, asc, eq, isNull, ne, notInArray, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 
 import { dbAdmin, type Tx } from '@/lib/db';
 /* eslint-disable boundaries/element-types -- catálogo de planos (billing) p/ o wizard
    público; leitura cross-context do catálogo global, como tenant-context lê identity. */
+import { OFFER_2026_PLAN_CODES } from '@/contexts/billing/offer-2026';
 import { plans, prices } from '@/contexts/billing/schema';
 /* eslint-enable boundaries/element-types */
 import { clinicInvites, type ClinicInviteRow } from '../schema';
@@ -148,6 +149,16 @@ export interface OnboardingPlan {
 }
 
 /**
+ * Plano oferecido pelo convite do fundador: a tabela antiga, que é a que tem
+ * preço de fundador. A oferta por profissional (ADR-067) é vendida no cadastro
+ * autônomo, com seletor de profissionais que este wizard não tem; levá-la ao
+ * convite (e decidir se ganha desconto de fundador) é decisão comercial aberta.
+ */
+export function invitePlanCondition() {
+  return and(eq(plans.ativo, true), notInArray(plans.code, [...OFFER_2026_PLAN_CODES]));
+}
+
+/**
  * Catálogo de planos para o wizard público (preço mensal vigente). Visitante é
  * não-autenticado → leitura via dbAdmin (RLS não aplica sem sessão).
  */
@@ -182,7 +193,7 @@ export async function listOnboardingPlans(): Promise<OnboardingPlan[]> {
         eq(founderPrice.campaignCode, FOUNDER_CAMPAIGN),
       ),
     )
-    .where(eq(plans.ativo, true))
+    .where(invitePlanCondition())
     .orderBy(asc(plans.name));
 
   return rows.map((r) => {
@@ -231,7 +242,7 @@ export async function resolveCheckoutPlan(planId: string): Promise<CheckoutPlan 
         isNull(prices.activeUntil),
       ),
     )
-    .where(and(eq(plans.id, planId), eq(plans.ativo, true)))
+    .where(and(eq(plans.id, planId), invitePlanCondition()))
     // Preço de fundador primeiro: quem chega por convite paga o promocional. O
     // `limit(1)` sozinho seria não-determinístico com duas linhas vigentes.
     .orderBy(sql`case when ${prices.campaignCode} = ${FOUNDER_CAMPAIGN} then 0 else 1 end`)

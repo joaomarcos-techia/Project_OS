@@ -5,7 +5,9 @@
  *
  * Regra comercial atual:
  *   - agendamento e conversa_ia: apenas métricas, sem limite de plano.
- *   - usuários: trava dura (assertUserQuota, no convite) — fora deste módulo.
+ *   - equipe: trava dura por plano (ADR-024/ADR-067) — total de usuários na
+ *     tabela antiga, profissionais e equipe na oferta por profissional. Fica
+ *     fora deste módulo: `seat-limits.ts` + trigger de `profiles` (0119).
  */
 export type QuotaType = 'agendamento' | 'conversa_ia';
 export type PlanLimitMetric = 'users' | 'agendamentos' | 'ai_messages';
@@ -54,7 +56,7 @@ export interface QuotaDecision {
 /** Efeito por dimensão (ADR-024). count = uso atual; limit = teto do plano. */
 export function enforce(t: QuotaType, count: number, limit: number): QuotaDecision {
   // Agendamentos e mensagens de IA são apenas métricas. A única trava
-  // comercial é `users`, aplicada por `assertUserQuota` no convite.
+  // comercial é a de equipe (`seat-limits.ts` e a trigger de `profiles`).
   void t;
   void count;
   void limit;

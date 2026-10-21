@@ -800,7 +800,7 @@ test.describe.serial('revisão humana do repasse (Preview + DEV, papéis reais)'
       soloComposition.getByRole('button', { name: /Revisar repasse|Registrar nova revisão/u }),
     ).toHaveCount(0);
     const bySolo = await replayAction(requestOf('financial'), { amount: 10 });
-    expect(bySolo.message).toBe('Políticas de repasse estão disponíveis nos planos Clínica e Pro.');
+    expect(bySolo.message).toBe('Políticas de repasse estão disponíveis no plano Clínica.');
     expect(await reviews()).toHaveLength(3);
     evidence.versions = afterV3.map((row) => ({
       version: row.version,

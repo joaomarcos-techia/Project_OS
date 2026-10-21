@@ -35,6 +35,7 @@ import { dbAdmin } from '@/lib/db';
 import { env } from '@/lib/env';
 
 import { QORO_SELF_SERVICE_TRIAL_DAYS } from '../trial';
+import { selfServicePlanCondition } from './signup-draft';
 
 const userIdSchema = z.string().uuid();
 
@@ -51,6 +52,8 @@ export interface SignupBillingIntent {
   externalReference: string;
   planId: string;
   planCode: string;
+  /** Nome comercial, mostrado ao pagador no Checkout do Asaas. */
+  planName: string;
   priceId: string;
   /** Centavos — a unidade interna. Converta na borda do provedor. */
   priceCents: number;
@@ -179,6 +182,7 @@ export async function reserveSignupBillingAttempt(userId: string): Promise<Reser
       .select({
         planId: plans.id,
         planCode: plans.code,
+        planName: plans.name,
         priceId: prices.id,
         amount: prices.amount,
       })
@@ -194,7 +198,10 @@ export async function reserveSignupBillingAttempt(userId: string): Promise<Reser
           isNull(prices.campaignCode),
         ),
       )
-      .where(and(eq(plans.id, draft.selectedPlanId), eq(plans.ativo, true)))
+      // Só a oferta por profissional é vendida aqui (ADR-067). Um draft que
+      // escolheu um plano da tabela antiga antes do deploy volta à escolha em
+      // vez de abrir um Checkout com o preço que o site não anuncia mais.
+      .where(and(eq(plans.id, draft.selectedPlanId), selfServicePlanCondition()))
       .for('share')
       .limit(1);
     if (!priced) return { ok: false, reason: 'invalid_plan' };
@@ -251,6 +258,7 @@ export async function reserveSignupBillingAttempt(userId: string): Promise<Reser
         externalReference: `signup:${draft.id}`,
         planId: priced.planId,
         planCode: priced.planCode,
+        planName: priced.planName,
         priceId: priced.priceId,
         priceCents: priceToCents(priced.amount),
         clinicName: draft.clinicName,

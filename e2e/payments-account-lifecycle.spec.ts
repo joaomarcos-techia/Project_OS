@@ -630,8 +630,7 @@ test.describe.serial('conta de pagamento da clínica (Preview)', () => {
     await expect(page).toHaveURL(/\/configuracoes\/pagamentos(?:\?|$)/u);
     await expect(
       page.getByRole('alert').filter({
-        hasText:
-          'Preços por meio de pagamento e regras de repasse estão disponíveis nos planos Clínica e Pro.',
+        hasText: 'Preços por meio de pagamento e regras de repasse estão disponíveis no plano Clínica.',
       }),
     ).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Política financeira' })).toHaveCount(0);
@@ -646,7 +645,7 @@ test.describe.serial('conta de pagamento da clínica (Preview)', () => {
       200,
     );
     expect(await replay.text(), 'o backend aceitou configuração Pro no plano Solo').toContain(
-      'Preço por meio de pagamento está disponível nos planos Clínica e Pro.',
+      'Preço por meio de pagamento está disponível no plano Clínica.',
     );
 
     const [clinicPlan] = await fixtureSql!<{ plan_id: string; price_id: string }[]>`

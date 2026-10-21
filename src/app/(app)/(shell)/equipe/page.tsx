@@ -32,6 +32,7 @@ import { cn } from '@/lib/ui/cn';
 import { InviteDrawer } from './invite-drawer';
 import { InviteRowActions } from './invite-row-actions';
 import { MemberRowActions } from './member-row-actions';
+import { teamSeatsFrom, type TeamSeats } from './seats';
 import styles from './team.module.css';
 
 type BadgeTone = NonNullable<VariantProps<typeof badgeVariants>['tone']>;
@@ -68,6 +69,11 @@ function notaDoPapel(
   if (semCredencial > 0) return `${semCredencial} com pendência`;
   if (doPapel.length === 1) return doPapel[0]!.nome;
   return `${doPapel.length} ativos`;
+}
+
+function professionalSlotsText(free: number): string {
+  const left = Math.max(0, free);
+  return `${left} vaga${left === 1 ? '' : 's'} de profissional`;
 }
 
 function initials(nome: string): string {
@@ -123,7 +129,7 @@ export default async function EquipePage({
 
   const [employees, limits, granularPermissionsEnabled] = await Promise.all([
     listEmployees(user.clinicId),
-    billingApiV1.getPlanLimits(user.clinicId),
+    billingApiV1.getSeatLimits(user.clinicId),
     user.permissions.includes(PERMISSIONS.MANAGE_PERMISSIONS)
       ? billingApiV1.hasGranularPermissions(user.clinicId)
       : Promise.resolve(false),
@@ -149,7 +155,8 @@ export default async function EquipePage({
   const ativos = employees.filter((e) => e.ativo).length;
   // Funções que ESTE ator pode atribuir (server-side; a UI só oferece o permitido).
   const assignableRoles = assignableRolesFor(user.role);
-  const seatLimit = limits?.users ?? null;
+  const seats: TeamSeats = teamSeatsFrom(limits, employees);
+  const seatLimit = seats.model === 'users' ? seats.limit : null;
   const canManagePermissions =
     user.permissions.includes(PERMISSIONS.MANAGE_PERMISSIONS) && granularPermissionsEnabled;
   const counts = new Map<Role, number>();
@@ -170,7 +177,15 @@ export default async function EquipePage({
                 </span>
               ),
             }
-          : {})}
+          : seats.model === 'categories'
+            ? {
+                meta: (
+                  <span className="font-mono tabular-nums">
+                    {seats.professionals.used} de {seats.professionals.limit} profissionais
+                  </span>
+                ),
+              }
+            : {})}
         actions={
           <>
             {/* Vagas restantes ao lado do Convidar: é a informação que decide
@@ -181,8 +196,13 @@ export default async function EquipePage({
                 {Math.max(0, seatLimit - ativos)} vaga
                 {seatLimit - ativos === 1 ? '' : 's'} no plano
               </span>
+            ) : seats.model === 'categories' && seats.professionals.limit !== null ? (
+              <span className="inline-flex items-center gap-1.5 text-(length:--fs-sm) text-fg-muted">
+                <Users aria-hidden="true" className="size-3.5 text-fg-subtle" />
+                {professionalSlotsText(seats.professionals.limit - seats.professionals.used)}
+              </span>
             ) : null}
-            <InviteDrawer ativos={ativos} seatLimit={seatLimit} />
+            <InviteDrawer seats={seats} />
           </>
         }
       />
@@ -195,15 +215,31 @@ export default async function EquipePage({
             <small>{notaDoPapel(r, employees)}</small>
           </div>
         ))}
-        <div>
-          <span>Uso do plano</span>
-          <strong>{seatLimit != null ? `${ativos} de ${seatLimit}` : ativos}</strong>
-          <small>
-            {seatLimit != null
-              ? `${Math.max(0, seatLimit - ativos)} vaga${seatLimit - ativos === 1 ? '' : 's'} restante${seatLimit - ativos === 1 ? '' : 's'}`
-              : 'sem limite no plano'}
-          </small>
-        </div>
+        {seats.model === 'categories' ? (
+          <div>
+            <span>Profissionais no plano</span>
+            <strong>
+              {seats.professionals.limit !== null
+                ? `${seats.professionals.used} de ${seats.professionals.limit}`
+                : seats.professionals.used}
+            </strong>
+            <small>
+              {seats.staff.limit !== null
+                ? `equipe: ${seats.staff.used} de ${seats.staff.limit}`
+                : `equipe: ${seats.staff.used}, sem limite`}
+            </small>
+          </div>
+        ) : (
+          <div>
+            <span>Uso do plano</span>
+            <strong>{seatLimit != null ? `${ativos} de ${seatLimit}` : ativos}</strong>
+            <small>
+              {seatLimit != null
+                ? `${Math.max(0, seatLimit - ativos)} vaga${seatLimit - ativos === 1 ? '' : 's'} restante${seatLimit - ativos === 1 ? '' : 's'}`
+                : 'sem limite no plano'}
+            </small>
+          </div>
+        )}
       </section>
 
       <FilterBar className="qoro-toolbar">

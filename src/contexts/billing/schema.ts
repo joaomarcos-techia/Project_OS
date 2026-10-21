@@ -185,6 +185,32 @@ export const planLimits = pgTable(
 );
 export type PlanLimitRow = typeof planLimits.$inferSelect;
 
+/**
+ * Teto por categoria dos planos cobrados por profissional (ADR-067, migration
+ * 0119). Planos sem linha aqui são da tabela antiga e usam `plan_limits.users`.
+ * A trigger `profiles_plan_seat_limits` aplica estes números no write de
+ * `profiles`; o app só os lê para mostrar e para recusar antes do e-mail.
+ */
+export const planSeatLimits = pgTable(
+  'plan_seat_limits',
+  {
+    planId: uuid('plan_id')
+      .primaryKey()
+      .references(() => plans.id, { onDelete: 'cascade' }),
+    professionals: integer('professionals').notNull(),
+    /** `null` = equipe administrativa ilimitada. */
+    staff: integer('staff'),
+  },
+  (t) => ({
+    professionalsChk: check(
+      'plan_seat_limits_professionals_chk',
+      sql`${t.professionals} BETWEEN 1 AND 10`,
+    ),
+    staffChk: check('plan_seat_limits_staff_chk', sql`${t.staff} IS NULL OR ${t.staff} >= 0`),
+  }),
+);
+export type PlanSeatLimitRow = typeof planSeatLimits.$inferSelect;
+
 // =====================================================================
 // PLATAFORMA — pré-tenant / cross-tenant
 // =====================================================================

@@ -36,7 +36,7 @@ async function requirePricingAdmin(): Promise<void> {
 async function requirePricingPlan(clinicId: string): Promise<void> {
   if (!(await billingApiV1.hasAdvancedFinancialPolicies(clinicId))) {
     throw new PaymentValidationError(
-      'Preço por meio de pagamento está disponível nos planos Clínica e Pro.',
+      'Preço por meio de pagamento está disponível no plano Clínica.',
     );
   }
 }

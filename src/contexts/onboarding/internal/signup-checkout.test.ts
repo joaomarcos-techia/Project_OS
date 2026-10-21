@@ -34,7 +34,8 @@ const CPF = '24971563792';
 const INTENT = {
   externalReference: 'signup:aaaaaaaa-0000-4000-8000-000000000001',
   planId: 'bbbbbbbb-0000-4000-8000-000000000002',
-  planCode: 'essencial',
+  planCode: 'clinica_2026_3',
+  planName: 'Clínica · 3 profissionais',
   priceId: 'cccccccc-0000-4000-8000-000000000003',
   priceCents: 34_900,
   clinicName: 'Clínica Aurora',

@@ -20,16 +20,32 @@ export class EmailAlreadyMemberError extends Error {
   }
 }
 
+/** Dimensão do teto: total de usuários (tabela antiga) ou categoria (ADR-067). */
+export type SeatDimension = 'users' | 'professionals' | 'staff';
+
+const SEAT_LIMIT_MESSAGE: Record<SeatDimension, string> = {
+  users: 'Limite de usuários do plano atingido.',
+  professionals:
+    'Todas as vagas de profissional de saúde do plano estão ocupadas. Inclua profissionais em Configurações › Assinatura.',
+  staff:
+    'As vagas de equipe do Consultório estão ocupadas. No plano Clínica a equipe administrativa é ilimitada (Configurações › Assinatura).',
+};
+
 /**
- * Teto de usuários do plano atingido, detectado ATOMICAMENTE sob advisory lock
- * (a checagem barata do action pode ter passado numa corrida). `limit` é o teto
- * do plano vigente. O caller mapeia para o CTA de upgrade.
+ * Teto do plano atingido, detectado ATOMICAMENTE: sob o advisory lock do
+ * convite (total da tabela antiga) ou pela trigger de `profiles` (profissionais
+ * e equipe da oferta por profissional, migration 0119). A checagem barata da
+ * action pode ter passado numa corrida. O caller mapeia para o CTA de upgrade.
+ * `limit` é `null` quando quem barrou foi a trigger, que não devolve o número.
  */
 export class UserQuotaExceededError extends Error {
   readonly code = 'user_quota_exceeded';
   readonly httpStatus = 409;
-  constructor(public readonly limit: number) {
-    super(`Limite de ${limit} usuário(s) do plano atingido.`);
+  constructor(
+    public readonly limit: number | null,
+    public readonly dimension: SeatDimension = 'users',
+  ) {
+    super(SEAT_LIMIT_MESSAGE[dimension]);
     this.name = 'UserQuotaExceededError';
   }
 }

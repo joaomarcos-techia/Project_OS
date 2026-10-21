@@ -17,6 +17,34 @@ describe('plan changes', () => {
     expect(comparePlans('clinica', 'clinica')).toBe(0);
   });
 
+  it('na oferta por profissional, incluir profissional é upgrade e remover é downgrade', () => {
+    expect(comparePlans('consultorio_2026', 'clinica_2026_2')).toBe(1);
+    expect(comparePlans('clinica_2026_3', 'clinica_2026_4')).toBe(1);
+    expect(comparePlans('clinica_2026_10', 'clinica_2026_9')).toBe(-1);
+    expect(comparePlans('clinica_2026_2', 'consultorio_2026')).toBe(-1);
+    expect(comparePlans('clinica_2026_5', 'clinica_2026_5')).toBe(0);
+  });
+
+  it('não troca entre a tabela antiga e a nova — transição de clientes ainda é decisão aberta', () => {
+    for (const [from, to] of [
+      ['solo', 'consultorio_2026'],
+      ['clinica', 'clinica_2026_2'],
+      ['clinica_2026_10', 'pro'],
+    ] as const) {
+      expect(() => comparePlans(from, to)).toThrow(
+        expect.objectContaining({ code: 'cross_catalog_change' }),
+      );
+    }
+  });
+
+  it('o rateio de incluir um profissional é a diferença de R$ 147 no restante do ciclo', () => {
+    const start = new Date('2026-11-01T00:00:00.000Z');
+    const end = new Date('2026-12-01T00:00:00.000Z');
+    const halfway = new Date('2026-11-16T00:00:00.000Z');
+    // 544 → 691 (3 → 4 profissionais) na metade do ciclo.
+    expect(calculateUpgradeProration('544.00', '691.00', start, end, halfway)).toBe(7350);
+  });
+
   it('calcula o rateio do upgrade apenas para a fração restante do ciclo', () => {
     const start = new Date('2026-08-01T00:00:00.000Z');
     const end = new Date('2026-08-31T00:00:00.000Z');

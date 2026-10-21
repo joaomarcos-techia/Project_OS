@@ -10,6 +10,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { uuidv4 } from '@/lib/ui/uuid';
 
+import { OfferPlanPicker, type OfferPlan } from './offer-plan-picker';
 import {
   requestPlanChangeAction,
   reactivateSubscriptionAction,
@@ -24,10 +25,24 @@ type Plan = {
   code: string;
   priceAmount: string;
   limits: { users: number; agendamentos: number; ai_messages: number };
+  /** Oferta por profissional (ADR-067); `null` na tabela antiga. */
+  seats: { professionals: number; staff: number | null } | null;
+  /** Decididos no servidor, com a mesma regra da troca. */
+  direction: -1 | 0 | 1;
+  teamFits: boolean;
 };
 
+type SeatUsage = { users: number; professionals: number; staff: number };
+
 const INITIAL: PlanChangeState = { error: null };
-const RANK: Record<string, number> = { solo: 1, clinica: 2, pro: 3 };
+
+function isOfferPlan(plan: Plan): plan is Plan & OfferPlan {
+  return plan.seats !== null;
+}
+
+function seatText(used: number, limit: number | null, noun: string): string {
+  return limit === null ? `${used} ${noun} · sem limite` : `${used} de ${limit} ${noun}`;
+}
 
 function formatMoney(amount: string): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
@@ -74,6 +89,7 @@ export function PlanChangeForm({
   current,
   plans,
   activeUsers,
+  seatUsage,
   pending,
 }: {
   current: {
@@ -88,6 +104,8 @@ export function PlanChangeForm({
   };
   plans: Plan[];
   activeUsers: number;
+  /** Uso por categoria; ausente nas telas que só conhecem a tabela antiga. */
+  seatUsage?: SeatUsage;
   pending: { kind: string; status: string; effectiveAt: string; paymentUrl: string | null } | null;
 }) {
   const [state, formAction, submitting] = useActionState(requestPlanChangeAction, INITIAL);
@@ -108,7 +126,9 @@ export function PlanChangeForm({
   const cancellationKey = useMemo(() => uuidv4(), []);
   const revocationKey = useMemo(() => uuidv4(), []);
   const reactivationKey = useMemo(() => uuidv4(), []);
-  const currentRank = RANK[current.planCode] ?? 0;
+  const offerPlans = plans.filter(isOfferPlan);
+  const currentSeats = offerPlans.find((plan) => plan.id === current.planId)?.seats ?? null;
+  const locked = current.billingStatus !== 'active' || Boolean(pending);
   const end = current.periodEnd ? formatCycleDate(new Date(current.periodEnd)) : null;
   const trialEnd = current.trialEndsAt ? formatCycleDate(new Date(current.trialEndsAt)) : null;
 
@@ -187,69 +207,91 @@ export function PlanChangeForm({
               {end ? ` · ciclo encerra em ${end}` : ''}
             </p>
           </div>
-          <Badge tone="blue">
-            {activeUsers} usuário{activeUsers === 1 ? '' : 's'} ativo{activeUsers === 1 ? '' : 's'}
-          </Badge>
+          {currentSeats && seatUsage ? (
+            <div className="flex flex-wrap gap-2">
+              <Badge tone="blue">
+                {seatText(seatUsage.professionals, currentSeats.professionals, 'profissionais')}
+              </Badge>
+              <Badge tone="gray">
+                {seatText(seatUsage.staff, currentSeats.staff, 'de equipe')}
+              </Badge>
+            </div>
+          ) : (
+            <Badge tone="blue">
+              {activeUsers} usuário{activeUsers === 1 ? '' : 's'} ativo
+              {activeUsers === 1 ? '' : 's'}
+            </Badge>
+          )}
         </CardContent>
       </Card>
 
+      {offerPlans.length > 0 ? (
+        <OfferPlanPicker
+          plans={offerPlans}
+          currentPlanId={current.planId}
+          locked={locked}
+          submitting={submitting}
+          formAction={formAction}
+          keys={keys}
+        />
+      ) : null}
+
       <div className="grid gap-(--sp-4) lg:grid-cols-3">
-        {plans.map((plan) => {
-          const direction = (RANK[plan.code] ?? 0) - currentRank;
-          const isCurrent = plan.id === current.planId;
-          const isDowngrade = direction < 0;
-          const exceedsUserLimit =
-            isDowngrade &&
-            (plan.limits.users < 1 || activeUsers < 1 || activeUsers > plan.limits.users);
-          const disabled =
-            current.billingStatus !== 'active' ||
-            isCurrent ||
-            Boolean(pending) ||
-            submitting ||
-            exceedsUserLimit;
-          const actionLabel = isCurrent
-            ? 'Plano atual'
-            : isDowngrade
-              ? exceedsUserLimit
-                ? `Limite de ${plan.limits.users} usuário${plan.limits.users === 1 ? '' : 's'}`
-                : 'Agendar downgrade'
-              : 'Fazer upgrade';
-          return (
-            <Card key={plan.id} className={isCurrent ? 'border-primary shadow-sm' : undefined}>
-              <CardContent className="flex h-full flex-col gap-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h3 className="text-(length:--fs-lg) font-semibold">{plan.name}</h3>
-                    <p className="mt-1 text-(length:--fs-sm) text-fg-muted">
-                      {formatMoney(plan.priceAmount)} {cycleLabel(current.billingCycle)}
-                    </p>
+        {plans
+          .filter((plan) => !isOfferPlan(plan))
+          .map((plan) => {
+            const isCurrent = plan.id === current.planId;
+            const isDowngrade = plan.direction < 0;
+            const exceedsUserLimit = isDowngrade && !plan.teamFits;
+            const disabled =
+              current.billingStatus !== 'active' ||
+              isCurrent ||
+              Boolean(pending) ||
+              submitting ||
+              exceedsUserLimit;
+            const actionLabel = isCurrent
+              ? 'Plano atual'
+              : isDowngrade
+                ? exceedsUserLimit
+                  ? `Limite de ${plan.limits.users} usuário${plan.limits.users === 1 ? '' : 's'}`
+                  : 'Agendar downgrade'
+                : 'Fazer upgrade';
+            return (
+              <Card key={plan.id} className={isCurrent ? 'border-primary shadow-sm' : undefined}>
+                <CardContent className="flex h-full flex-col gap-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-(length:--fs-lg) font-semibold">{plan.name}</h3>
+                      <p className="mt-1 text-(length:--fs-sm) text-fg-muted">
+                        {formatMoney(plan.priceAmount)} {cycleLabel(current.billingCycle)}
+                      </p>
+                    </div>
+                    {isCurrent ? <Badge tone="blue">Atual</Badge> : null}
                   </div>
-                  {isCurrent ? <Badge tone="blue">Atual</Badge> : null}
-                </div>
-                <ul className="flex flex-1 flex-col gap-2 text-(length:--fs-sm) text-fg-muted">
-                  <li>
-                    {plan.limits.users} usuário{plan.limits.users === 1 ? '' : 's'}
-                  </li>
-                  <li>{plan.limits.agendamentos} agendamentos/mês monitorados</li>
-                  <li>{plan.limits.ai_messages} mensagens IA/mês monitoradas</li>
-                </ul>
-                <form action={formAction}>
-                  <input type="hidden" name="targetPlanId" value={plan.id} />
-                  <input type="hidden" name="idempotencyKey" value={keys.get(plan.id) ?? ''} />
-                  <Button
-                    type="submit"
-                    className="w-full"
-                    variant={isDowngrade ? 'secondary' : 'primary'}
-                    disabled={disabled}
-                    loading={submitting}
-                  >
-                    {actionLabel}
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-          );
-        })}
+                  <ul className="flex flex-1 flex-col gap-2 text-(length:--fs-sm) text-fg-muted">
+                    <li>
+                      {plan.limits.users} usuário{plan.limits.users === 1 ? '' : 's'}
+                    </li>
+                    <li>{plan.limits.agendamentos} agendamentos/mês monitorados</li>
+                    <li>{plan.limits.ai_messages} mensagens IA/mês monitoradas</li>
+                  </ul>
+                  <form action={formAction}>
+                    <input type="hidden" name="targetPlanId" value={plan.id} />
+                    <input type="hidden" name="idempotencyKey" value={keys.get(plan.id) ?? ''} />
+                    <Button
+                      type="submit"
+                      className="w-full"
+                      variant={isDowngrade ? 'secondary' : 'primary'}
+                      disabled={disabled}
+                      loading={submitting}
+                    >
+                      {actionLabel}
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
+            );
+          })}
       </div>
       {current.billingStatus === 'cancelled' ? (
         <form action={reactivationAction}>
@@ -290,8 +332,9 @@ export function PlanChangeForm({
         />
       )}
       <p className="text-(length:--fs-xs) text-fg-subtle">
-        Mensagens de IA, agendamentos e pacientes nunca são removidos nem bloqueiam esta alteração.
-        Apenas o limite de usuários é aplicado.
+        {offerPlans.length > 0
+          ? 'Incluir profissionais cobra hoje a diferença proporcional ao restante do ciclo e atualiza a mensalidade no Asaas antes de liberar as vagas. Reduzir vale no fim do ciclo, se a equipe ativa couber no novo plano. Mensagens de IA, agendamentos e pacientes nunca bloqueiam esta alteração.'
+          : 'Mensagens de IA, agendamentos e pacientes nunca são removidos nem bloqueiam esta alteração. Apenas o limite de usuários é aplicado.'}
       </p>
     </div>
   );

@@ -41,7 +41,7 @@ async function requirePayoutAdmin(): Promise<void> {
 async function requirePayoutPlan(clinicId: string): Promise<void> {
   if (!(await billingApiV1.hasAdvancedFinancialPolicies(clinicId))) {
     throw new FinancialValidationError(
-      'Políticas de repasse estão disponíveis nos planos Clínica e Pro.',
+      'Políticas de repasse estão disponíveis no plano Clínica.',
     );
   }
 }

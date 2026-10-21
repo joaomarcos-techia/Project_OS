@@ -72,7 +72,7 @@ describe('repasse indisponível no plano Solo', () => {
     ['remoção', () => removeProfessionalPayoutRule({ ruleId: PROFESSIONAL_ID }, 'idem-3')],
     ['revisão', () => reviewProfessionalPayout(REVIEW, 'idem-4')],
   ])('bloqueia %s antes de qualquer mutação', async (_label, action) => {
-    await expect(action()).rejects.toThrow('planos Clínica e Pro');
+    await expect(action()).rejects.toThrow('plano Clínica');
     expect(mocks.hasAdvancedFinancialPolicies).toHaveBeenCalledWith(CLINIC_ID);
     expect(mocks.idempotentMutation).not.toHaveBeenCalled();
   });

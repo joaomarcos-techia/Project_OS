@@ -5,10 +5,19 @@ import type { FormEvent } from 'react';
 
 import { Alert } from '@/components/ui/alert';
 import { Button, buttonVariants } from '@/components/ui/button';
+import { Field } from '@/components/ui/field';
 import { OptionCardGroup, type OptionCard } from '@/components/ui/option-card-group';
+import { Select } from '@/components/ui/select';
 import type { SignupPlan, SignupPlanState } from '@/contexts/onboarding';
 
 type Phase = 'loading' | 'ready' | 'unavailable' | 'signed_out' | 'expired';
+
+/**
+ * Consultório (1 profissional) ou Clínica (2 a 10). Cada quantidade da Clínica
+ * é um plano do catálogo, com preço resolvido no servidor (ADR-067): a tela só
+ * escolhe qual `planId` salvar e mostra o valor que o servidor mandou.
+ */
+type Tier = 'consultorio' | 'clinica';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -23,8 +32,33 @@ function isPlan(value: unknown): value is SignupPlan {
     typeof value.priceCents === 'number' &&
     Number.isSafeInteger(value.priceCents) &&
     value.priceCents >= 0 &&
-    value.cycle === 'monthly'
+    value.cycle === 'monthly' &&
+    typeof value.professionals === 'number' &&
+    Number.isInteger(value.professionals) &&
+    value.professionals >= 1 &&
+    (value.staffLimit === null ||
+      (typeof value.staffLimit === 'number' &&
+        Number.isInteger(value.staffLimit) &&
+        value.staffLimit >= 0))
   );
+}
+
+function tierOf(plan: SignupPlan): Tier {
+  return plan.professionals <= 1 ? 'consultorio' : 'clinica';
+}
+
+function staffLabel(staffLimit: number | null): string {
+  if (staffLimit === null) return 'equipe administrativa ilimitada';
+  return `até ${staffLimit} usuário${staffLimit === 1 ? '' : 's'} de equipe`;
+}
+
+/** A menor quantidade da Clínica: o ponto de partida do seletor. */
+function smallestClinicaPlan(plans: SignupPlan[]): SignupPlan | undefined {
+  return plans
+    .filter((plan) => tierOf(plan) === 'clinica')
+    .reduce<
+      SignupPlan | undefined
+    >((smallest, plan) => (!smallest || plan.professionals < smallest.professionals ? plan : smallest), undefined);
 }
 
 function isPlanState(value: unknown): value is SignupPlanState {
@@ -71,7 +105,8 @@ function trustedCheckoutUrl(value: unknown): string | null {
 export function PlanSelectionForm() {
   const [phase, setPhase] = useState<Phase>('loading');
   const [state, setState] = useState<SignupPlanState | null>(null);
-  const [selectedPlanId, setSelectedPlanId] = useState<string>();
+  const [tier, setTier] = useState<Tier>();
+  const [clinicaPlanId, setClinicaPlanId] = useState<string>();
   const [message, setMessage] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -90,10 +125,10 @@ export function PlanSelectionForm() {
       const body = await responseJson(response);
       if (response.ok && isPlanState(body)) {
         setState(body);
-        setSelectedPlanId(
-          body.selectedPlanId && body.plans.some((plan) => plan.id === body.selectedPlanId)
-            ? body.selectedPlanId
-            : undefined,
+        const saved = body.plans.find((plan) => plan.id === body.selectedPlanId);
+        setTier(saved ? tierOf(saved) : undefined);
+        setClinicaPlanId(
+          saved && tierOf(saved) === 'clinica' ? saved.id : smallestClinicaPlan(body.plans)?.id,
         );
         setPhase('ready');
         return;
@@ -120,25 +155,78 @@ export function PlanSelectionForm() {
     void load();
   }, [load]);
 
-  const options = useMemo<OptionCard<string>[]>(
-    () =>
-      (state?.plans ?? []).map((plan) => ({
-        value: plan.id,
+  const catalog = useMemo(() => {
+    const plans = state?.plans ?? [];
+    const consultorio = plans.find((plan) => tierOf(plan) === 'consultorio');
+    const clinica = plans
+      .filter((plan) => tierOf(plan) === 'clinica')
+      .sort((a, b) => a.professionals - b.professionals);
+    const [first, second] = clinica;
+    // O adicional vem do próprio catálogo (diferença entre duas quantidades
+    // vizinhas), nunca de uma constante da tela que poderia divergir do preço.
+    const additionalCents =
+      first && second && second.professionals === first.professionals + 1
+        ? second.priceCents - first.priceCents
+        : null;
+    return { consultorio, clinica, additionalCents };
+  }, [state]);
+
+  const selectedPlan: SignupPlan | undefined =
+    tier === 'consultorio'
+      ? catalog.consultorio
+      : tier === 'clinica'
+        ? catalog.clinica.find((plan) => plan.id === clinicaPlanId)
+        : undefined;
+  const selectedPlanId = selectedPlan?.id;
+
+  const options = useMemo<OptionCard<Tier>[]>(() => {
+    const trial = `${state?.trialDays ?? 0} dias grátis após a ativação`;
+    const price = (cents: number, prefix?: string) => (
+      <span className="flex items-baseline gap-1 text-primary">
+        {prefix ? <span className="text-xs font-medium text-fg-muted">{prefix}</span> : null}
+        <span className="font-display text-2xl font-semibold tracking-tight tabular-nums">
+          {formatMonthlyPrice(cents)}
+        </span>
+        <span className="text-xs font-medium text-fg-muted">/mês</span>
+      </span>
+    );
+    const cards: OptionCard<Tier>[] = [];
+    if (catalog.consultorio) {
+      cards.push({
+        value: 'consultorio',
         label: (
           <span className="flex flex-col gap-2">
-            <span className="text-sm font-semibold text-fg">{plan.name}</span>
-            <span className="flex items-baseline gap-1 text-primary">
-              <span className="font-display text-2xl font-semibold tracking-tight tabular-nums">
-                {formatMonthlyPrice(plan.priceCents)}
-              </span>
-              <span className="text-xs font-medium text-fg-muted">/mês</span>
-            </span>
+            <span className="text-sm font-semibold text-fg">{catalog.consultorio.name}</span>
+            {price(catalog.consultorio.priceCents)}
           </span>
         ),
-        description: `${state?.trialDays ?? 0} dias grátis após a ativação`,
-      })),
-    [state],
-  );
+        description: `1 profissional de saúde e ${staffLabel(catalog.consultorio.staffLimit)}. ${trial}`,
+      });
+    }
+    const smallest = catalog.clinica[0];
+    const largest = catalog.clinica[catalog.clinica.length - 1];
+    if (smallest && largest) {
+      const range =
+        smallest.professionals === largest.professionals
+          ? `${smallest.professionals} profissionais de saúde`
+          : `${smallest.professionals} a ${largest.professionals} profissionais de saúde`;
+      const extra =
+        catalog.additionalCents !== null
+          ? `, ${formatMonthlyPrice(catalog.additionalCents)} por profissional adicional`
+          : '';
+      cards.push({
+        value: 'clinica',
+        label: (
+          <span className="flex flex-col gap-2">
+            <span className="text-sm font-semibold text-fg">Clínica</span>
+            {price(smallest.priceCents, catalog.clinica.length > 1 ? 'a partir de' : undefined)}
+          </span>
+        ),
+        description: `${range} e ${staffLabel(smallest.staffLimit)}${extra}. ${trial}`,
+      });
+    }
+    return cards;
+  }, [catalog, state?.trialDays]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -232,6 +320,12 @@ export function PlanSelectionForm() {
       }
       if (response.status === 409) {
         const reason = isRecord(body) ? body.error : null;
+        if (reason === 'invalid_plan' || reason === 'no_plan') {
+          // Um plano salvo antes da troca de tabela não é mais vendido aqui.
+          await load();
+          setMessage('Esse plano não está mais disponível. Escolha uma opção atualizada.');
+          return;
+        }
         setFinishError(
           reason === 'reconcile_required'
             ? 'Estamos confirmando sua assinatura com o provedor. Recarregue esta página em alguns minutos; não tente de novo agora para não duplicar a cobrança.'
@@ -322,18 +416,53 @@ export function PlanSelectionForm() {
         <legend className="mb-2.5 text-sm font-semibold text-fg">Plano mensal</legend>
         <OptionCardGroup
           name="signupPlan"
-          value={selectedPlanId}
+          value={tier}
           onValueChange={(value) => {
-            setSelectedPlanId(value);
+            setTier(value);
             setSaved(false);
             setMessage(null);
           }}
           options={options}
           disabled={saving}
           aria-label="Planos disponíveis"
-          className="grid gap-3 md:grid-cols-3"
+          className="grid gap-3 md:grid-cols-2"
         />
       </fieldset>
+      {tier === 'clinica' && catalog.clinica.length > 0 ? (
+        <div className="grid gap-3 rounded-(--r-md) border border-border p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+          <Field
+            label="Profissionais de saúde"
+            htmlFor="signup-professionals"
+            hint="Conta quem tem agenda própria e atende. Recepção, gestão e financeiro entram sem custo."
+          >
+            <Select
+              id="signup-professionals"
+              value={clinicaPlanId ?? ''}
+              disabled={saving}
+              onChange={(event) => {
+                setClinicaPlanId(event.target.value);
+                setSaved(false);
+                setMessage(null);
+              }}
+            >
+              {catalog.clinica.map((plan) => (
+                <option key={plan.id} value={plan.id}>
+                  {plan.professionals} profissionais
+                </option>
+              ))}
+            </Select>
+          </Field>
+          {selectedPlan ? (
+            <p className="text-sm text-fg-muted sm:pb-2 sm:text-right" aria-live="polite">
+              Total{' '}
+              <span className="font-display text-lg font-semibold text-fg tabular-nums">
+                {formatMonthlyPrice(selectedPlan.priceCents)}
+              </span>
+              /mês
+            </p>
+          ) : null}
+        </div>
+      ) : null}
       <div aria-live="polite" className="space-y-2">
         {saved ? (
           <Alert variant="success" title="Plano salvo">

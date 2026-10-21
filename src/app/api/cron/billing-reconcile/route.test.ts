@@ -89,8 +89,17 @@ vi.mock('@/contexts/billing/internal/plan-changes', () => ({
   applyScheduledPlanChange,
   applyPaidUpgradeForPayment,
   getPaidUpgradeSyncContext,
-  fitsPlanUserLimit: (active: number, limit: number | null) =>
-    active > 0 && limit !== null && active <= limit,
+  // A regra de capacidade mora em plan-changes (usuários na tabela antiga,
+  // profissionais e equipe na oferta por profissional); aqui só o resultado.
+  targetPlanCapacityFits: async (_tx: unknown, _clinicId: string, _planId: string) => {
+    const capacity = capacityRows[0];
+    return (
+      capacity !== undefined &&
+      capacity.active_users > 0 &&
+      capacity.user_limit !== null &&
+      capacity.active_users <= capacity.user_limit
+    );
+  },
   planChangeExternalReference: (id: string) => `plan-change:${id}`,
 }));
 vi.mock('@/contexts/billing/internal/plan-change-provider-sync', () => ({

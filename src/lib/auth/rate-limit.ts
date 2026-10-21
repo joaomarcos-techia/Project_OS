@@ -944,7 +944,7 @@ export async function assertInviteAcceptAllowed(ip: string): Promise<LimitResult
  *
  * **Convite e reenvio têm orçamentos SEPARADOS porque têm economias diferentes:**
  *
- *   - **Convite já é limitado pela quota do plano** (`assertUserQuota` — ADR-024): não
+ *   - **Convite já é limitado pela quota do plano** (`checkSeatQuota` — ADR-024/067): não
  *     dá para convidar além dos seats contratados, e convite que falha não manda
  *     e-mail. O teto aqui só barra loop patológico. Precisa caber o onboarding real:
  *     o maior plano vende **10 seats** (`plan_limits`, migration 0039), e o owner é

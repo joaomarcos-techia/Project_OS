@@ -13,11 +13,21 @@ import { eq } from 'drizzle-orm';
 import type { Tx } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
 
+import type { SubscriptionCreatedPayload } from './events';
+import { planHasTeamFeatures } from './offer-2026';
 import { plans, subscriptions, type SubscriptionRow } from './schema';
 import { currentPeriod, getPlanLimits, readUsage, type PlanLimits } from './internal/quota';
 import { enforce, type QuotaType } from './internal/quota-policy';
+import {
+  decideSeatQuota,
+  type SeatCategory,
+  type SeatDimension,
+  type SeatLimits,
+  type SeatUsage,
+} from './internal/seat-limits';
+import { readSeatLimits, readSeatUsage } from './internal/seat-usage';
 
-export type { QuotaType };
+export type { QuotaType, SeatCategory, SeatDimension, SeatLimits, SeatUsage };
 
 export interface QuotaCheckResult {
   allowed: boolean;
@@ -25,23 +35,34 @@ export interface QuotaCheckResult {
   nearLimit: boolean;
 }
 
-export interface UserQuotaResult {
+export interface SeatQuotaResult {
   allowed: boolean;
-  limit: number;
+  /** Dimensão que barrou (`users` na tabela antiga); `null` quando cabe. */
+  dimension: SeatDimension | null;
+  limit: number | null;
+  limits: SeatLimits | null;
+  usage: SeatUsage;
 }
 
-export type PlanCode = 'solo' | 'clinica' | 'pro';
+/** Tabela antiga (Solo/Clínica/Pro) + oferta por profissional (ADR-067). */
+export type PlanCode = SubscriptionCreatedPayload['planCode'];
 
 export interface BillingApiV1 {
   getPlanLimits(clinicId: string): Promise<PlanLimits | null>;
   getSubscription(clinicId: string): Promise<SubscriptionRow | null>;
   /** Gate síncrono de cota; agendamento e IA são apenas métricas. */
   checkAndIncrementQuota(clinicId: string, type: QuotaType): Promise<QuotaCheckResult>;
-  /** Trava dura de usuários (ADR-024) — chamada no convite. */
-  assertUserQuota(clinicId: string, activeUsers: number): Promise<UserQuotaResult>;
-  /** Permissões granulares são recurso dos planos Clínica e Pro. */
+  /** Tetos de equipe do plano vigente (ADR-067); `null` = sem assinatura. */
+  getSeatLimits(clinicId: string): Promise<SeatLimits | null>;
+  /**
+   * Checagem barata antes do convite: cabe mais uma pessoa desta categoria?
+   * A autoridade é a trigger de `profiles` (migration 0119) e o advisory lock
+   * do convite; isto evita mandar e-mail de convite que o banco recusaria.
+   */
+  checkSeatQuota(clinicId: string, category: SeatCategory): Promise<SeatQuotaResult>;
+  /** Permissões granulares são recurso da Clínica (e do Pro antigo). */
   hasGranularPermissions(clinicId: string): Promise<boolean>;
-  /** Políticas financeiras avançadas só existem nos planos Clínica e Pro. */
+  /** Políticas financeiras avançadas só existem na Clínica (e no Pro antigo). */
   hasAdvancedFinancialPolicies(clinicId: string, tx?: Tx): Promise<boolean>;
 }
 
@@ -75,10 +96,18 @@ async function checkAndIncrementQuota(
   });
 }
 
-async function assertUserQuota(clinicId: string, activeUsers: number): Promise<UserQuotaResult> {
-  const limits = await getPlanLimitsApi(clinicId);
-  const limit = limits?.users ?? Number.MAX_SAFE_INTEGER;
-  return { allowed: activeUsers < limit, limit };
+async function getSeatLimitsApi(clinicId: string): Promise<SeatLimits | null> {
+  return withTenant(clinicId, (tx) => readSeatLimits(tx, clinicId));
+}
+
+async function checkSeatQuota(clinicId: string, category: SeatCategory): Promise<SeatQuotaResult> {
+  return withTenant(clinicId, async (tx) => {
+    const [limits, usage] = await Promise.all([
+      readSeatLimits(tx, clinicId),
+      readSeatUsage(tx, clinicId),
+    ]);
+    return { ...decideSeatQuota(limits, usage, category), limits, usage };
+  });
 }
 
 async function hasGranularPermissions(clinicId: string): Promise<boolean> {
@@ -89,12 +118,12 @@ async function hasGranularPermissions(clinicId: string): Promise<boolean> {
       .innerJoin(plans, eq(plans.id, subscriptions.planId))
       .where(eq(subscriptions.clinicId, clinicId))
       .limit(1);
-    return row?.code === 'clinica' || row?.code === 'pro';
+    return planHasTeamFeatures(row?.code);
   });
 }
 
 export function planHasAdvancedFinancialPolicies(code: string | null | undefined): boolean {
-  return code === 'clinica' || code === 'pro';
+  return planHasTeamFeatures(code);
 }
 
 async function hasAdvancedFinancialPolicies(clinicId: string, tx?: Tx): Promise<boolean> {
@@ -114,7 +143,8 @@ export const billingApiV1: BillingApiV1 = {
   getPlanLimits: getPlanLimitsApi,
   getSubscription: getSubscriptionApi,
   checkAndIncrementQuota,
-  assertUserQuota,
+  getSeatLimits: getSeatLimitsApi,
+  checkSeatQuota,
   hasGranularPermissions,
   hasAdvancedFinancialPolicies,
 };

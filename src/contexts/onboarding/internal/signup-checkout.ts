@@ -91,7 +91,7 @@ async function compensateSubscription(client: PaymentProvider, id: string): Prom
 }
 
 function describe(intent: SignupBillingIntent): string {
-  return `Qoro · plano ${intent.planCode} — ${intent.clinicName}`;
+  return `Qoro · plano ${intent.planName} — ${intent.clinicName}`;
 }
 
 /**

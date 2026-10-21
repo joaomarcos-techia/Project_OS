@@ -119,7 +119,7 @@ describe('saveProcedurePaymentPrice', () => {
         },
         IDEM_ID,
       ),
-    ).rejects.toThrow('planos Clínica e Pro');
+    ).rejects.toThrow('plano Clínica');
     expect(mocks.hasAdvancedFinancialPolicies).toHaveBeenCalledWith(CLINIC_ID);
     expect(mocks.idempotentMutation).not.toHaveBeenCalled();
   });
@@ -208,7 +208,7 @@ describe('outras escritas de preço no Solo', () => {
     ['remoção', () => removeProcedurePaymentPrice({ priceId: OLD_PRICE_ID }, IDEM_ID)],
   ])('bloqueia %s antes de qualquer mutação', async (_label, action) => {
     mocks.hasAdvancedFinancialPolicies.mockResolvedValue(false);
-    await expect(action()).rejects.toThrow('planos Clínica e Pro');
+    await expect(action()).rejects.toThrow('plano Clínica');
     expect(mocks.idempotentMutation).not.toHaveBeenCalled();
   });
 });

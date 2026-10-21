@@ -834,6 +834,13 @@
       "when": 1791868800000,
       "tag": "0118_proactive_job_send_key",
       "breakpoints": true
+    },
+    {
+      "idx": 119,
+      "version": "7",
+      "when": 1792540800000,
+      "tag": "0119_offer_2026_per_professional",
+      "breakpoints": true
     }
   ]
 }

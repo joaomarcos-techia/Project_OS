@@ -46,7 +46,8 @@ const CHECKOUT_URL = 'https://sandbox.asaas.com/checkoutSession/show?id=checkout
 const INTENT = {
   externalReference: 'signup:aaaaaaaa-0000-4000-8000-000000000001',
   planId: 'bbbbbbbb-0000-4000-8000-000000000002',
-  planCode: 'essencial',
+  planCode: 'clinica_2026_3',
+  planName: 'Clínica · 3 profissionais',
   priceId: 'cccccccc-0000-4000-8000-000000000003',
   priceCents: 34_900,
   clinicName: 'Clínica Aurora',
@@ -139,8 +140,9 @@ describe('Checkout hospedado do cadastro', () => {
     expect(client.createCheckout).toHaveBeenCalledWith({
       kind: 'recurrent',
       value: 349,
-      itemName: 'Qoro · essencial',
-      description: expect.stringContaining('essencial'),
+      // "Qoro · Clínica · 3 profissionais" passaria dos 30 caracteres do Asaas.
+      itemName: 'Clínica · 3 profissionais',
+      description: 'Qoro · plano Clínica · 3 profissionais — Clínica Aurora',
       externalReference: INTENT.externalReference,
       minutesToExpire: 60,
       callback: {

@@ -2,12 +2,13 @@ import 'server-only';
 
 import { randomBytes } from 'node:crypto';
 
-import { and, asc, desc, eq, gt, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
 /* eslint-disable boundaries/element-types -- O-4 resolve o catálogo global de Billing
    no servidor; signup_sessions continua pré-tenant e não recebe preço do browser. */
-import { plans, prices } from '@/contexts/billing/schema';
+import { OFFER_2026_PLAN_CODES } from '@/contexts/billing/offer-2026';
+import { plans, planSeatLimits, prices } from '@/contexts/billing/schema';
 /* eslint-enable boundaries/element-types */
 import { signupSessions } from '@/contexts/onboarding/schema';
 import { hashEmail } from '@/lib/auth/email-hash';
@@ -61,6 +62,10 @@ export interface SignupPlan {
   name: string;
   priceCents: number;
   cycle: 'monthly';
+  /** Profissionais de saúde que o plano inclui (ADR-067). */
+  professionals: number;
+  /** Usuários de equipe administrativa; `null` = ilimitada. */
+  staffLimit: number | null;
 }
 
 export interface SignupPlanState {
@@ -182,6 +187,16 @@ function priceToCents(value: string): number {
   return major * 100 + minor;
 }
 
+/**
+ * Plano vendável no cadastro autônomo: a oferta por profissional (ADR-067),
+ * ativa e com teto de equipe. Os planos da tabela antiga continuam ativos para
+ * quem já assina (troca de plano, convite do fundador), mas não são vendidos
+ * aqui. Usado na listagem, na escolha e na reserva do Checkout.
+ */
+export function selfServicePlanCondition() {
+  return and(eq(plans.ativo, true), inArray(plans.code, [...OFFER_2026_PLAN_CODES]));
+}
+
 /** Catálogo autônomo: somente preço mensal BRL de tabela, nunca campanha de convite. */
 async function listSelfServicePlans(): Promise<SignupPlan[]> {
   const rows = await dbAdmin
@@ -190,8 +205,11 @@ async function listSelfServicePlans(): Promise<SignupPlan[]> {
       code: plans.code,
       name: plans.name,
       amount: prices.amount,
+      professionals: planSeatLimits.professionals,
+      staffLimit: planSeatLimits.staff,
     })
     .from(plans)
+    .innerJoin(planSeatLimits, eq(planSeatLimits.planId, plans.id))
     .innerJoin(
       prices,
       and(
@@ -203,8 +221,8 @@ async function listSelfServicePlans(): Promise<SignupPlan[]> {
         isNull(prices.campaignCode),
       ),
     )
-    .where(eq(plans.ativo, true))
-    .orderBy(asc(plans.name));
+    .where(selfServicePlanCondition())
+    .orderBy(asc(planSeatLimits.professionals));
 
   return rows.map((row) => ({
     id: row.id,
@@ -212,6 +230,8 @@ async function listSelfServicePlans(): Promise<SignupPlan[]> {
     name: row.name,
     priceCents: priceToCents(row.amount),
     cycle: 'monthly',
+    professionals: row.professionals,
+    staffLimit: row.staffLimit,
   }));
 }
 
@@ -268,7 +288,7 @@ export async function writeSignupPlan(userId: string, input: unknown): Promise<P
           isNull(prices.campaignCode),
         ),
       )
-      .where(and(eq(plans.id, planId), eq(plans.ativo, true)))
+      .where(and(eq(plans.id, planId), selfServicePlanCondition()))
       .for('share')
       .limit(1);
     if (!availablePlan) return { ok: false, reason: 'invalid_plan' };

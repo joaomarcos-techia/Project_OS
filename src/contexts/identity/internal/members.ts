@@ -38,6 +38,7 @@ import {
 import { profiles } from '../schema';
 import { normalizeCrm, normalizeCrmUf } from './normalize-crm';
 import { assertCanAssignRole } from './role-matrix';
+import { seatLimitErrorFrom } from './seat-limit-error';
 import { deliverTeamInviteEmail } from './team-invite-email';
 
 export interface InviteClinicMemberArgs {
@@ -55,10 +56,11 @@ export interface InviteClinicMemberArgs {
   requestContext: RequestContext;
   idempotencyKey: string;
   /**
-   * Teto de usuários do plano vigente (do action, via billingApiV1). O VALOR não
-   * corre (plano é estável); o que precisa ser atômico é a CONTAGEM vs o teto —
-   * feita aqui dentro da tx sob advisory lock. `Number.MAX_SAFE_INTEGER` = sem
-   * plano/sem teto.
+   * Teto TOTAL de usuários da tabela antiga (do action, via billingApiV1). O
+   * VALOR não corre (plano é estável); o que precisa ser atômico é a CONTAGEM vs
+   * o teto — feita aqui dentro da tx sob advisory lock. `Number.MAX_SAFE_INTEGER`
+   * = sem teto total: sem plano, ou plano cobrado por profissional, cujos tetos
+   * por categoria a trigger de `profiles` aplica no insert (ADR-067).
    */
   seatLimit: number;
 }
@@ -237,7 +239,7 @@ export async function inviteClinicMember(
     // (best-effort COM visibilidade — débito de reconciliação auth↔profile, review #6).
     await deleteCreatedAuthUser(admin, userId, 'identity.invite_compensation.delete_user_failed');
     if (isUniqueViolation(err)) throw new CrmConflictError();
-    throw err;
+    throw seatLimitErrorFrom(err) ?? err;
   }
 }
 
@@ -356,7 +358,7 @@ export interface CancelClinicInviteArgs {
 /**
  * Cancela um convite PENDENTE (spec convite §Fase 2, gap #12). Hard delete: o
  * profile pendente não tem histórico clínico → remove-se a linha + o auth user.
- * Libera a vaga (assertUserQuota) e o e-mail (para reconvidar).
+ * Libera a vaga (cota do plano) e o e-mail (para reconvidar).
  *
  * O delete do profile + a auditoria vão na MESMA tx ("no audit, no op"). O
  * `deleteUser` (auth) é EXTERNO e best-effort — órfão residual = débito #6, mas

@@ -29,6 +29,10 @@ describe('políticas financeiras avançadas por plano', () => {
     ['solo', false],
     ['clinica', true],
     ['pro', true],
+    // Oferta por profissional (ADR-067): Clínica mantém, Consultório não.
+    ['consultorio_2026', false],
+    ['clinica_2026_2', true],
+    ['clinica_2026_10', true],
     [null, false],
     ['desconhecido', false],
   ])('plano %s → %s', async (code, expected) => {

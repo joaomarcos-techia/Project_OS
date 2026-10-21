@@ -245,7 +245,7 @@ export function MemberRowActions({
         </DialogContent>
       </Dialog>
 
-      {/* Overrides granulares — recurso dos planos Clínica e Pro. */}
+      {/* Overrides granulares — recurso da Clínica (e do Pro antigo). */}
       <Dialog open={permissionsOpen} onOpenChange={setPermissionsOpen}>
         <DialogContent>
           <DialogHeader>

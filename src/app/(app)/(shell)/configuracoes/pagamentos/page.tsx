@@ -47,8 +47,7 @@ export default async function PagamentosSettingsPage() {
         />
       ) : (
         <Alert variant="info">
-          Preços por meio de pagamento e regras de repasse estão disponíveis nos planos Clínica e
-          Pro.
+          Preços por meio de pagamento e regras de repasse estão disponíveis no plano Clínica.
         </Alert>
       )}
     </div>

@@ -24,7 +24,6 @@ import {
 import { UserQuotaExceededError } from '@/contexts/identity/errors';
 import { mapIdentityError } from '@/contexts/identity/internal/map-error';
 import { assertCanAssignRole } from '@/contexts/identity/internal/role-matrix';
-import { listEmployees } from '@/contexts/identity/queries';
 import { schedulingApiV1 } from '@/contexts/scheduling';
 import { buildRequestContext } from '@/lib/audit/request-context';
 import { authorizeAction } from '@/lib/auth/action-guard';
@@ -55,7 +54,13 @@ export type InviteMemberInput = z.input<typeof InviteMemberSchema>;
 export type InviteMemberResult =
   | { ok: true; nome: string }
   | { error: string }
-  | { upgrade: true; limit: number };
+  | {
+      upgrade: true;
+      /** `users` na tabela antiga; categoria na oferta por profissional (ADR-067). */
+      dimension: 'users' | 'professionals' | 'staff';
+      /** `null` quando a recusa veio da trigger, que não devolve o número. */
+      limit: number | null;
+    };
 
 const FUNCAO_LABEL: Record<z.infer<typeof InvitableRole>, string> = {
   gestor: 'Gestor',
@@ -94,11 +99,16 @@ export async function inviteMemberAction(input: InviteMemberInput): Promise<Invi
   try {
     assertCanAssignRole(user.role, d.role); // matriz + anti-escalonamento (server-side)
 
-    // Checagem BARATA (UX rápido) — a AUTORIDADE anti-corrida é o advisory lock
-    // dentro de inviteClinicMember (conta+cria na mesma tx serializada por clínica).
-    const ativos = (await listEmployees(clinicId)).filter((e) => e.ativo).length;
-    const quota = await billingApiV1.assertUserQuota(clinicId, ativos); // ADR-024 — pendente conta
-    if (!quota.allowed) return { upgrade: true, limit: quota.limit };
+    // Checagem BARATA, ANTES do e-mail — a AUTORIDADE anti-corrida é o advisory
+    // lock dentro de inviteClinicMember (total da tabela antiga) e a trigger de
+    // `profiles` (profissionais e equipe da oferta por profissional, ADR-067).
+    // Convite pendente ocupa vaga. A categoria vem do PAPEL: o convite só aceita
+    // CRM para papel clínico, então quem não é `doctor` entra como equipe.
+    const category = isPractitionerRole(d.role) ? 'professionals' : 'staff';
+    const quota = await billingApiV1.checkSeatQuota(clinicId, category);
+    if (!quota.allowed && quota.dimension) {
+      return { upgrade: true, dimension: quota.dimension, limit: quota.limit };
+    }
 
     const identity = await getShellIdentity(); // clínica + nome do convidante (metadata rica)
     const hdrs = await headers();
@@ -115,13 +125,15 @@ export async function inviteMemberAction(input: InviteMemberInput): Promise<Invi
       invitedBy: user.userId,
       requestContext: buildRequestContext(hdrs),
       idempotencyKey: d.idempotencyKey,
-      seatLimit: quota.limit,
+      seatLimit: quota.limits?.users ?? Number.MAX_SAFE_INTEGER,
     });
 
     return { ok: true, nome: d.nome };
   } catch (err) {
     // Corrida perdeu para outro convite concorrente: o teto estourou dentro da tx.
-    if (err instanceof UserQuotaExceededError) return { upgrade: true, limit: err.limit };
+    if (err instanceof UserQuotaExceededError) {
+      return { upgrade: true, dimension: err.dimension, limit: err.limit };
+    }
     return { error: mapIdentityError(err) };
   }
 }
@@ -331,10 +343,10 @@ export async function setMemberOverrideAction(
   const { user, clinicId } = auth;
   await requireActiveClinic(clinicId);
 
-  // Overrides por usuário são um recurso comercial dos planos Clínica e Pro.
+  // Overrides por usuário são um recurso comercial da Clínica (e do Pro antigo).
   // O gate fica no servidor para não depender da visibilidade da UI.
   if (!(await billingApiV1.hasGranularPermissions(clinicId))) {
-    return { error: 'Permissões granulares estão disponíveis nos planos Clínica e Pro.' };
+    return { error: 'O ajuste de permissões por pessoa está disponível no plano Clínica.' };
   }
 
   const parsed = SetOverrideSchema.safeParse(input);

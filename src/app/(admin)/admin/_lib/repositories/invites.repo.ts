@@ -6,8 +6,9 @@
  * Server-only.
  */
 import 'server-only';
-import { desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, notInArray } from 'drizzle-orm';
 
+import { OFFER_2026_PLAN_CODES } from '@/contexts/billing/offer-2026';
 import { plans } from '@/contexts/billing/schema';
 import { clinicInvites } from '@/contexts/onboarding/schema';
 import { clinics } from '@/contexts/tenancy/schema';
@@ -35,12 +36,16 @@ export interface PlanOption {
 }
 
 export class InvitesRepository {
-  /** Planos ativos para o select do modal "+ Nova Clínica". */
+  /**
+   * Planos ativos para o select do modal "+ Nova Clínica". O wizard do convite
+   * só vende a tabela antiga (ver `invitePlanCondition` em onboarding); sugerir
+   * um plano da oferta por profissional criaria um convite que ele recusa.
+   */
   async listPlans(): Promise<PlanOption[]> {
     return dbAdmin
       .select({ id: plans.id, code: plans.code, name: plans.name })
       .from(plans)
-      .where(eq(plans.ativo, true))
+      .where(and(eq(plans.ativo, true), notInArray(plans.code, [...OFFER_2026_PLAN_CODES])))
       .orderBy(plans.name);
   }
 

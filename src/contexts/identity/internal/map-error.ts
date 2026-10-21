@@ -20,6 +20,7 @@ import {
   ProfessionalCredentialError,
   RoleAssignmentError,
   SelfMutationError,
+  UserQuotaExceededError,
 } from '../errors';
 
 /** Todos os erros de domínio "esperados" — os que têm mensagem própria para o usuário. */
@@ -34,6 +35,7 @@ const KNOWN_ERRORS = [
   ProtectedRoleError,
   MemberHasActiveCommitmentsError,
   InviteHasLinkedRecordsError,
+  UserQuotaExceededError,
 ] as const;
 
 export function mapIdentityError(err: unknown): string {

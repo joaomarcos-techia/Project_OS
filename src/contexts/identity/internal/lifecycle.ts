@@ -40,6 +40,7 @@ import { dbAdmin } from '@/lib/db';
 import { MemberNotFoundError, ProtectedRoleError, SelfMutationError } from '../errors';
 import { profiles, userPermissionOverrides } from '../schema';
 import { assertCanAssignRole } from './role-matrix';
+import { rethrowSeatLimit } from './seat-limit-error';
 
 /** Papéis que NÃO podem ser alvo de desativação/troca/override pelo canal tenant. */
 function assertTargetMutable(role: Role): void {
@@ -89,27 +90,30 @@ export async function setMemberActive(args: SetMemberActiveArgs): Promise<{ role
 
   if (target.ativo === args.active) return { role: target.role }; // no-op idempotente
 
-  await dbAdmin.transaction(async (tx) => {
-    await tx
-      .update(profiles)
-      .set({ ativo: args.active })
-      .where(and(eq(profiles.id, args.targetUserId), eq(profiles.clinicId, args.clinicId)));
+  // Reativar ocupa vaga: a trigger de `profiles` recusa acima do teto do plano.
+  await dbAdmin
+    .transaction(async (tx) => {
+      await tx
+        .update(profiles)
+        .set({ ativo: args.active })
+        .where(and(eq(profiles.id, args.targetUserId), eq(profiles.clinicId, args.clinicId)));
 
-    await logAudit(tx, {
-      clinicId: args.clinicId,
-      userId: args.actorUserId,
-      action: args.active ? 'internal.user.reactivated' : 'internal.user.deactivated',
-      resourceType: 'profile',
-      resourceId: args.targetUserId,
-      before: { ativo: target.ativo },
-      after: {
-        ativo: args.active,
-        // Deixa a decisão de override RASTREÁVEL: quem, quando, sobre o que.
-        forcedOverCommitments: args.active ? null : (args.forcedOverCommitments ?? null),
-      },
-      requestContext: args.requestContext,
-    });
-  });
+      await logAudit(tx, {
+        clinicId: args.clinicId,
+        userId: args.actorUserId,
+        action: args.active ? 'internal.user.reactivated' : 'internal.user.deactivated',
+        resourceType: 'profile',
+        resourceId: args.targetUserId,
+        before: { ativo: target.ativo },
+        after: {
+          ativo: args.active,
+          // Deixa a decisão de override RASTREÁVEL: quem, quando, sobre o que.
+          forcedOverCommitments: args.active ? null : (args.forcedOverCommitments ?? null),
+        },
+        requestContext: args.requestContext,
+      });
+    })
+    .catch(rethrowSeatLimit);
 
   return { role: target.role };
 }
@@ -137,23 +141,26 @@ export async function setMemberRole(args: SetMemberRoleArgs): Promise<void> {
 
   if (target.role === args.newRole) return; // no-op
 
-  await dbAdmin.transaction(async (tx) => {
-    await tx
-      .update(profiles)
-      .set({ role: args.newRole })
-      .where(and(eq(profiles.id, args.targetUserId), eq(profiles.clinicId, args.clinicId)));
+  // Virar `doctor` (ou deixar de ser) muda a categoria da vaga (ADR-067).
+  await dbAdmin
+    .transaction(async (tx) => {
+      await tx
+        .update(profiles)
+        .set({ role: args.newRole })
+        .where(and(eq(profiles.id, args.targetUserId), eq(profiles.clinicId, args.clinicId)));
 
-    await logAudit(tx, {
-      clinicId: args.clinicId,
-      userId: args.actorUserId,
-      action: 'internal.user.role_changed',
-      resourceType: 'profile',
-      resourceId: args.targetUserId,
-      before: { role: target.role },
-      after: { role: args.newRole },
-      requestContext: args.requestContext,
-    });
-  });
+      await logAudit(tx, {
+        clinicId: args.clinicId,
+        userId: args.actorUserId,
+        action: 'internal.user.role_changed',
+        resourceType: 'profile',
+        resourceId: args.targetUserId,
+        before: { role: target.role },
+        after: { role: args.newRole },
+        requestContext: args.requestContext,
+      });
+    })
+    .catch(rethrowSeatLimit);
 }
 
 export interface SetMemberOverrideArgs {

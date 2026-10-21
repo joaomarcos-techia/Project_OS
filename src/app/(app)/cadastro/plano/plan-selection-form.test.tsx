@@ -9,8 +9,10 @@ import { PlanSelectionForm } from './plan-selection-form';
 
 const fetchMock = vi.fn<typeof fetch>();
 const assignMock = vi.fn<(url: string | URL) => void>();
-const ESSENTIAL_ID = '22222222-2222-4222-8222-222222222222';
-const COMPLETE_ID = '33333333-3333-4333-8333-333333333333';
+const CONSULTORIO_ID = '22222222-2222-4222-8222-222222222222';
+const CLINICA_2_ID = '33333333-3333-4333-8333-333333333333';
+const CLINICA_3_ID = '44444444-4444-4444-8444-444444444444';
+/** Valores do servidor (ADR-067). A tela não calcula preço, só mostra. */
 const STATE: SignupPlanState = {
   status: 'email_verified',
   rowVersion: 7,
@@ -18,18 +20,31 @@ const STATE: SignupPlanState = {
   selectedPlanId: null,
   plans: [
     {
-      id: ESSENTIAL_ID,
-      code: 'essencial',
-      name: 'Essencial',
-      priceCents: 14900,
+      id: CONSULTORIO_ID,
+      code: 'consultorio_2026',
+      name: 'Consultório',
+      priceCents: 19700,
       cycle: 'monthly',
+      professionals: 1,
+      staffLimit: 3,
     },
     {
-      id: COMPLETE_ID,
-      code: 'completo',
-      name: 'Completo',
-      priceCents: 24990,
+      id: CLINICA_3_ID,
+      code: 'clinica_2026_3',
+      name: 'Clínica · 3 profissionais',
+      priceCents: 54400,
       cycle: 'monthly',
+      professionals: 3,
+      staffLimit: null,
+    },
+    {
+      id: CLINICA_2_ID,
+      code: 'clinica_2026_2',
+      name: 'Clínica · 2 profissionais',
+      priceCents: 39700,
+      cycle: 'monthly',
+      professionals: 2,
+      staffLimit: null,
     },
   ],
   trialDays: 7,
@@ -56,30 +71,68 @@ afterEach(() => {
 });
 
 describe('seleção de plano O-4', () => {
-  it('mostra clínica, preço mensal de tabela e trial resolvidos pelo servidor', async () => {
+  it('mostra Consultório e Clínica com preços e trial resolvidos pelo servidor', async () => {
     fetchMock.mockResolvedValueOnce(json(200, STATE));
     render(<PlanSelectionForm />);
 
     expect(await screen.findByText('Clínica Sintética')).toBeTruthy();
-    expect(screen.getByRole('radio', { name: /Essencial/u })).toBeTruthy();
-    expect(screen.getByRole('radio', { name: /Completo/u })).toBeTruthy();
-    expect(screen.getByText(/R\$.*149,00/u)).toBeTruthy();
-    expect(screen.getByText(/R\$.*249,90/u)).toBeTruthy();
-    expect(screen.getAllByText('/mês')).toHaveLength(2);
-    expect(screen.getAllByText('7 dias grátis após a ativação')).toHaveLength(2);
-    expect(screen.getByRole('radiogroup', { name: 'Planos disponíveis' }).className).toContain(
-      'md:grid-cols-3',
+    expect(screen.getAllByRole('radio')).toHaveLength(2);
+    const consultorio = screen.getByRole('radio', { name: /Consultório/u });
+    const clinica = screen.getByRole('radio', { name: /^Clínica/u });
+    expect(consultorio.closest('label')?.textContent).toMatch(/R\$.*197,00/u);
+    expect(consultorio.closest('label')?.textContent).toMatch(
+      /1 profissional de saúde e até 3 usuários de equipe/u,
     );
+    expect(clinica.closest('label')?.textContent).toMatch(/a partir de.*R\$.*397,00/u);
+    // O adicional é a diferença do próprio catálogo (544 − 397), não constante da tela.
+    expect(clinica.closest('label')?.textContent).toMatch(
+      /2 a 3 profissionais de saúde e equipe administrativa ilimitada, R\$.*147,00 por profissional adicional/u,
+    );
+    expect(screen.getAllByText(/7 dias grátis após a ativação/u)).toHaveLength(2);
+    expect(screen.getByRole('radiogroup', { name: 'Planos disponíveis' }).className).toContain(
+      'md:grid-cols-2',
+    );
+    // O seletor só aparece com a Clínica escolhida.
+    expect(screen.queryByLabelText('Profissionais de saúde')).toBeNull();
     expect(fetchMock).toHaveBeenCalledWith('/api/signup/plan', { cache: 'no-store' });
+  });
+
+  it('na Clínica, o seletor escolhe o plano da quantidade e mostra o total do servidor', async () => {
+    fetchMock
+      .mockResolvedValueOnce(json(200, STATE))
+      .mockResolvedValueOnce(json(200, { rowVersion: 8, selectedPlanId: CLINICA_3_ID }));
+    render(<PlanSelectionForm />);
+
+    fireEvent.click(await screen.findByRole('radio', { name: /^Clínica/u }));
+    const selector = screen.getByLabelText('Profissionais de saúde');
+    expect(selector).toHaveProperty('value', CLINICA_2_ID);
+    expect(
+      Array.from((selector as HTMLSelectElement).options).map((option) => option.text),
+    ).toEqual(['2 profissionais', '3 profissionais']);
+    expect(
+      screen.getByText(/R\$.*397,00/u, { selector: 'span.tabular-nums.text-lg' }),
+    ).toBeTruthy();
+
+    fireEvent.change(selector, { target: { value: CLINICA_3_ID } });
+    expect(
+      screen.getByText(/R\$.*544,00/u, { selector: 'span.tabular-nums.text-lg' }),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar plano' }));
+
+    await screen.findByText('Plano salvo');
+    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({
+      rowVersion: 7,
+      planId: CLINICA_3_ID,
+    });
   });
 
   it('salva somente planId e rowVersion, e só então oferece a ativação', async () => {
     fetchMock
       .mockResolvedValueOnce(json(200, STATE))
-      .mockResolvedValueOnce(json(200, { rowVersion: 8, selectedPlanId: COMPLETE_ID }));
+      .mockResolvedValueOnce(json(200, { rowVersion: 8, selectedPlanId: CLINICA_2_ID }));
     render(<PlanSelectionForm />);
 
-    fireEvent.click(await screen.findByRole('radio', { name: /Completo/u }));
+    fireEvent.click(await screen.findByRole('radio', { name: /^Clínica/u }));
     fireEvent.click(screen.getByRole('button', { name: 'Salvar plano' }));
 
     await screen.findByText('Plano salvo');
@@ -98,25 +151,25 @@ describe('seleção de plano O-4', () => {
     expect(fetchMock.mock.calls[1]?.[1]).toEqual({
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ rowVersion: 7, planId: COMPLETE_ID }),
+      body: JSON.stringify({ rowVersion: 7, planId: CLINICA_2_ID }),
     });
   });
 
   it('restaura escolha salva e usa a nova versão em alterações posteriores', async () => {
     fetchMock
-      .mockResolvedValueOnce(json(200, { ...STATE, rowVersion: 8, selectedPlanId: ESSENTIAL_ID }))
-      .mockResolvedValueOnce(json(200, { rowVersion: 9, selectedPlanId: COMPLETE_ID }));
+      .mockResolvedValueOnce(json(200, { ...STATE, rowVersion: 8, selectedPlanId: CONSULTORIO_ID }))
+      .mockResolvedValueOnce(json(200, { rowVersion: 9, selectedPlanId: CLINICA_2_ID }));
     render(<PlanSelectionForm />);
 
-    const essential = await screen.findByRole('radio', { name: /Essencial/u });
-    expect(essential).toHaveProperty('checked', true);
-    fireEvent.click(screen.getByRole('radio', { name: /Completo/u }));
+    const consultorio = await screen.findByRole('radio', { name: /Consultório/u });
+    expect(consultorio).toHaveProperty('checked', true);
+    fireEvent.click(screen.getByRole('radio', { name: /^Clínica/u }));
     fireEvent.click(screen.getByRole('button', { name: 'Salvar plano' }));
 
     await screen.findByText('Plano salvo');
     expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({
       rowVersion: 8,
-      planId: COMPLETE_ID,
+      planId: CLINICA_2_ID,
     });
   });
 
@@ -124,14 +177,16 @@ describe('seleção de plano O-4', () => {
     fetchMock
       .mockResolvedValueOnce(json(200, STATE))
       .mockResolvedValueOnce(json(409, { error: 'conflict' }))
-      .mockResolvedValueOnce(json(200, { ...STATE, rowVersion: 8, selectedPlanId: ESSENTIAL_ID }));
+      .mockResolvedValueOnce(
+        json(200, { ...STATE, rowVersion: 8, selectedPlanId: CONSULTORIO_ID }),
+      );
     render(<PlanSelectionForm />);
 
-    fireEvent.click(await screen.findByRole('radio', { name: /Completo/u }));
+    fireEvent.click(await screen.findByRole('radio', { name: /^Clínica/u }));
     fireEvent.click(screen.getByRole('button', { name: 'Salvar plano' }));
 
     await screen.findByText('O cadastro foi atualizado em outra aba. Revise a escolha carregada.');
-    expect(screen.getByRole('radio', { name: /Essencial/u })).toHaveProperty('checked', true);
+    expect(screen.getByRole('radio', { name: /Consultório/u })).toHaveProperty('checked', true);
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
@@ -171,11 +226,11 @@ describe('seleção de plano O-4', () => {
     const checkoutUrl = 'https://sandbox.asaas.com/checkoutSession/show?id=checkout_1';
     fetchMock
       .mockResolvedValueOnce(json(200, STATE))
-      .mockResolvedValueOnce(json(200, { rowVersion: 8, selectedPlanId: COMPLETE_ID }))
+      .mockResolvedValueOnce(json(200, { rowVersion: 8, selectedPlanId: CLINICA_2_ID }))
       .mockResolvedValueOnce(json(200, { state: 'checkout_pending', checkoutUrl }));
     render(<PlanSelectionForm />);
 
-    fireEvent.click(await screen.findByRole('radio', { name: /Completo/u }));
+    fireEvent.click(await screen.findByRole('radio', { name: /^Clínica/u }));
     fireEvent.click(screen.getByRole('button', { name: 'Salvar plano' }));
     await screen.findByText('Plano salvo');
     expect(screen.queryByRole('textbox', { name: /CPF ou CNPJ/u })).toBeNull();
@@ -186,16 +241,35 @@ describe('seleção de plano O-4', () => {
     expect(assignMock).not.toHaveBeenCalledWith('/auth/session-refresh?next=/dashboard');
   });
 
+  it('volta à escolha quando o Checkout recusa um plano que deixou de ser vendido', async () => {
+    fetchMock
+      .mockResolvedValueOnce(json(200, STATE))
+      .mockResolvedValueOnce(json(200, { rowVersion: 8, selectedPlanId: CLINICA_2_ID }))
+      .mockResolvedValueOnce(json(409, { error: 'invalid_plan' }))
+      .mockResolvedValueOnce(json(200, { ...STATE, rowVersion: 8, selectedPlanId: null }));
+    render(<PlanSelectionForm />);
+
+    fireEvent.click(await screen.findByRole('radio', { name: /^Clínica/u }));
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar plano' }));
+    await screen.findByText('Plano salvo');
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar no Checkout Asaas' }));
+
+    await screen.findByText('Esse plano não está mais disponível. Escolha uma opção atualizada.');
+    expect(fetchMock.mock.calls[3]?.[0]).toBe('/api/signup/plan');
+    expect(screen.getByRole('radio', { name: /^Clínica/u })).toHaveProperty('checked', false);
+    expect(assignMock).not.toHaveBeenCalled();
+  });
+
   it('recusa URL de Checkout fora dos hosts oficiais', async () => {
     fetchMock
       .mockResolvedValueOnce(json(200, STATE))
-      .mockResolvedValueOnce(json(200, { rowVersion: 8, selectedPlanId: COMPLETE_ID }))
+      .mockResolvedValueOnce(json(200, { rowVersion: 8, selectedPlanId: CLINICA_2_ID }))
       .mockResolvedValueOnce(
         json(200, { state: 'checkout_pending', checkoutUrl: 'https://evil.test/coletar-cartao' }),
       );
     render(<PlanSelectionForm />);
 
-    fireEvent.click(await screen.findByRole('radio', { name: /Completo/u }));
+    fireEvent.click(await screen.findByRole('radio', { name: /^Clínica/u }));
     fireEvent.click(screen.getByRole('button', { name: 'Salvar plano' }));
     await screen.findByText('Plano salvo');
     fireEvent.click(screen.getByRole('button', { name: 'Continuar no Checkout Asaas' }));

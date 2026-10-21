@@ -24,6 +24,7 @@ import { cn } from '@/lib/ui/cn';
 import { uuidv4 } from '@/lib/ui/uuid';
 
 import { inviteMemberAction, type InviteMemberInput } from './actions';
+import { noSeatsLeft, seatLimitMessage, seatsFull, seatSummary, type TeamSeats } from './seats';
 
 type Func = 'gestor' | 'doctor' | 'attendant' | 'financial';
 
@@ -31,7 +32,7 @@ type Func = 'gestor' | 'doctor' | 'attendant' | 'financial';
  * Convite de funcionário — Drawer (spec convite §Fase 1). Quem tem
  * `manage:employees` vê o botão. Progressive disclosure: a Função decide o resto.
  */
-export function InviteDrawer({ ativos, seatLimit }: { ativos: number; seatLimit: number | null }) {
+export function InviteDrawer({ seats }: { seats: TeamSeats }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [role, setRole] = useState<Func>('doctor');
@@ -41,10 +42,15 @@ export function InviteDrawer({ ativos, seatLimit }: { ativos: number; seatLimit:
   const [crmUf, setCrmUf] = useState('');
   const [idemKey, setIdemKey] = useState(() => uuidv4());
   const [error, setError] = useState<string | null>(null);
-  const [upgrade, setUpgrade] = useState<number | null>(null);
+  const [upgrade, setUpgrade] = useState<string | null>(null);
   const [salvando, startSalvar] = useTransition();
 
-  const atLimit = seatLimit != null && ativos >= seatLimit;
+  const atLimit = noSeatsLeft(seats);
+  const summary = seatSummary(seats);
+  // A categoria vem do papel, como no servidor: só `doctor` entra como
+  // profissional no convite (CRM só é aceito para papel clínico).
+  const roleCategory = isPractitionerRole(role) ? 'professionals' : 'staff';
+  const roleFull = seatsFull(seats, roleCategory);
 
   function reset() {
     setRole('doctor');
@@ -80,7 +86,7 @@ export function InviteDrawer({ ativos, seatLimit }: { ativos: number; seatLimit:
           reset();
           router.refresh();
         } else if ('upgrade' in res) {
-          setUpgrade(res.limit);
+          setUpgrade(seatLimitMessage(res.dimension, res.limit));
         } else {
           setError(res.error);
         }
@@ -92,14 +98,14 @@ export function InviteDrawer({ ativos, seatLimit }: { ativos: number; seatLimit:
 
   return (
     <div className="flex items-center gap-2.5">
-      {seatLimit != null ? (
+      {summary ? (
         <span
           className={cn(
             'text-(length:--fs-xs)',
             atLimit ? 'font-medium text-warning-700 dark:text-warning-200' : 'text-fg-subtle',
           )}
         >
-          Usuários: {ativos} de {seatLimit}
+          {summary}
         </span>
       ) : null}
       <Drawer
@@ -130,8 +136,14 @@ export function InviteDrawer({ ativos, seatLimit }: { ativos: number; seatLimit:
               {error ? <Alert variant="danger">{error}</Alert> : null}
               {upgrade != null ? (
                 <Alert variant="warning" title="Limite do plano atingido">
-                  Seu plano permite {upgrade} usuário{upgrade === 1 ? '' : 's'}. Você atingiu o
-                  limite — remova ou desative um usuário para adicionar outro.
+                  {upgrade}
+                </Alert>
+              ) : roleFull ? (
+                <Alert variant="warning" title="Sem vaga para esta função">
+                  {seatLimitMessage(
+                    seats.model === 'users' ? 'users' : roleCategory,
+                    seats.model === 'users' ? seats.limit : seats[roleCategory].limit,
+                  )}
                 </Alert>
               ) : null}
 
@@ -204,7 +216,7 @@ export function InviteDrawer({ ativos, seatLimit }: { ativos: number; seatLimit:
               ) : null}
             </DrawerBody>
             <DrawerFooter>
-              <Button type="submit" loading={salvando}>
+              <Button type="submit" loading={salvando} disabled={roleFull}>
                 Enviar convite
               </Button>
             </DrawerFooter>

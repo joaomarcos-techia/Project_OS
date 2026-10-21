@@ -9,6 +9,7 @@ export {
   plans,
   prices,
   planLimits,
+  planSeatLimits,
   // plataforma
   checkoutSessions,
   tenantProvisioning,
@@ -58,4 +59,25 @@ export type {
 
 // API interna versionada — consumida por Identity (trava de usuários) e telas.
 export { billingApiV1, type BillingApiV1 } from './api';
-export type { PlanCode, QuotaType, QuotaCheckResult, UserQuotaResult } from './api';
+export type {
+  PlanCode,
+  QuotaType,
+  QuotaCheckResult,
+  SeatCategory,
+  SeatDimension,
+  SeatLimits,
+  SeatQuotaResult,
+  SeatUsage,
+} from './api';
+export {
+  OFFER_2026,
+  OFFER_2026_PLAN_CODES,
+  isOffer2026PlanCode,
+  offer2026MonthlyCents,
+  offer2026PlanCodeFor,
+  offer2026Professionals,
+  offer2026StaffLimit,
+  planCatalogOf,
+  type Offer2026PlanCode,
+  type PlanCatalog,
+} from './offer-2026';

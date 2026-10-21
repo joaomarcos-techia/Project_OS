@@ -10,7 +10,8 @@ import type { ProviderPayment } from '@/lib/payments/asaas';
 import { withTenant } from '@/lib/db/tenant';
 import { publishEvent } from '@/lib/outbox/publish';
 
-import { BILLING_EVENTS } from '../events';
+import { BILLING_EVENTS, type SubscriptionChangedPayload } from '../events';
+import { offer2026Professionals, planCatalogOf } from '../offer-2026';
 import {
   billingCustomers,
   billingEvents,
@@ -19,15 +20,21 @@ import {
   paymentAttempts,
   plans,
   planLimits,
+  planSeatLimits,
   prices,
   subscriptionChangeRequests,
   subscriptionHistory,
   subscriptions,
 } from '../schema';
 import { toCents, toReais, toReaisString } from './money';
+import { teamFitsSeatCaps, type SeatUsage } from './seat-limits';
+import { readSeatUsage } from './seat-usage';
 import { setClinicAccess, syncInvoiceFromProviderPayment } from './subscriptions';
 
-const PLAN_RANK: Readonly<Record<string, number>> = { solo: 1, clinica: 2, pro: 3 };
+type PlanCode = NonNullable<SubscriptionChangedPayload['newPlanCode']>;
+
+/** Ordem da tabela antiga. Na oferta por profissional, a ordem é a quantidade. */
+const LEGACY_PLAN_RANK: Readonly<Record<string, number>> = { solo: 1, clinica: 2, pro: 3 };
 export const PLAN_CHANGE_EXTERNAL_REFERENCE_PREFIX = 'plan-change:';
 
 export class PlanChangeError extends Error {
@@ -125,14 +132,32 @@ type CurrentSubscription = {
 
 type TargetPlan = { id: string; name: string; code: string; priceId: string; priceAmount: string };
 
+function rankOrNull(code: string): number | null {
+  return offer2026Professionals(code) ?? LEGACY_PLAN_RANK[code] ?? null;
+}
+
 function rank(code: string): number {
-  const value = PLAN_RANK[code];
+  const value = rankOrNull(code);
   if (!value) throw new PlanChangeError('Plano não suportado para alteração.', 'unsupported_plan');
   return value;
 }
 
+/**
+ * Upgrade (1), downgrade (−1) ou o mesmo plano (0). Na oferta por profissional,
+ * incluir profissional é upgrade e remover é downgrade (ADR-067).
+ *
+ * A troca só existe dentro da mesma tabela. Levar um cliente da tabela antiga
+ * para a nova (ou o contrário) muda preço e limites de quem já assina, e essa
+ * transição ainda é decisão comercial aberta — não um efeito de botão.
+ */
 export function comparePlans(currentCode: string, targetCode: string): -1 | 0 | 1 {
   const delta = rank(targetCode) - rank(currentCode);
+  if (planCatalogOf(currentCode) !== planCatalogOf(targetCode)) {
+    throw new PlanChangeError(
+      'A troca entre a tabela de planos antiga e a atual ainda não está disponível. Fale com o suporte.',
+      'cross_catalog_change',
+    );
+  }
   return delta === 0 ? 0 : delta > 0 ? 1 : -1;
 }
 
@@ -304,26 +329,56 @@ export function fitsPlanUserLimit(activeUsers: number, limit: number | null): bo
   return Number.isInteger(activeUsers) && activeUsers > 0 && limit !== null && activeUsers <= limit;
 }
 
-async function assertTargetPlanCapacity(
-  tx: Tx,
-  clinicId: string,
-  targetPlanId: string,
-): Promise<void> {
+type TargetCapacity =
+  | { model: 'users'; users: number | null }
+  | { model: 'seats'; professionals: number; staff: number | null };
+
+async function readTargetCapacity(tx: Tx, targetPlanId: string): Promise<TargetCapacity> {
+  const [seats] = await tx
+    .select({ professionals: planSeatLimits.professionals, staff: planSeatLimits.staff })
+    .from(planSeatLimits)
+    .where(eq(planSeatLimits.planId, targetPlanId))
+    .limit(1);
+  if (seats) return { model: 'seats', ...seats };
   const [limit] = await tx
     .select({ value: planLimits.limitValue })
     .from(planLimits)
     .where(and(eq(planLimits.planId, targetPlanId), eq(planLimits.metric, 'users')))
     .limit(1);
-  const [row] = await tx.execute<{ active_users: number }>(sql`
-    SELECT count(*)::int AS active_users
-      FROM public.profiles
-     WHERE clinic_id = ${clinicId}::uuid
-       AND ativo = true
-       AND deleted_at IS NULL
-  `);
-  if (!fitsPlanUserLimit(Number(row?.active_users ?? 0), limit?.value ?? null)) {
+  return { model: 'users', users: limit?.value ?? null };
+}
+
+function capacityFits(usage: SeatUsage, capacity: TargetCapacity): boolean {
+  return capacity.model === 'seats'
+    ? teamFitsSeatCaps(usage, capacity)
+    : fitsPlanUserLimit(usage.users, capacity.users);
+}
+
+/**
+ * A equipe ativa (convites pendentes incluídos) cabe no plano de destino? É a
+ * mesma pergunta no pedido do downgrade e no cron que o aplica: total de
+ * usuários na tabela antiga; profissionais e equipe na oferta por profissional.
+ */
+export async function targetPlanCapacityFits(
+  tx: Tx,
+  clinicId: string,
+  targetPlanId: string,
+): Promise<boolean> {
+  const [capacity, usage] = await Promise.all([
+    readTargetCapacity(tx, targetPlanId),
+    readSeatUsage(tx, clinicId),
+  ]);
+  return capacityFits(usage, capacity);
+}
+
+async function assertTargetPlanCapacity(
+  tx: Tx,
+  clinicId: string,
+  targetPlanId: string,
+): Promise<void> {
+  if (!(await targetPlanCapacityFits(tx, clinicId, targetPlanId))) {
     throw new PlanChangeError(
-      'A clínica possui mais usuários ativos do que o plano de destino permite.',
+      'A equipe ativa não cabe no plano de destino. Desative pessoas ou cancele convites antes de reduzir o plano.',
       'downgrade_capacity_exceeded',
     );
   }
@@ -938,7 +993,7 @@ export async function reactivateSubscription(
     payload: {
       clinicId: input.clinicId,
       subscriptionId: current.id,
-      planCode: current.planCode as 'solo' | 'clinica' | 'pro',
+      planCode: current.planCode as PlanCode,
     },
     idempotencyKey: `subscription-reactivated:${current.id}`,
   });
@@ -1241,8 +1296,8 @@ export async function applyPaidUpgradeForPayment(
     payload: {
       clinicId: change.clinicId,
       subscriptionId: current.id,
-      oldPlanCode: current.planCode as 'solo' | 'clinica' | 'pro',
-      newPlanCode: target.code as 'solo' | 'clinica' | 'pro',
+      oldPlanCode: current.planCode as PlanCode,
+      newPlanCode: target.code as PlanCode,
       oldStatus: current.billingStatus,
       newStatus: current.billingStatus,
     },
@@ -1364,8 +1419,8 @@ export async function applyScheduledPlanChange(
       payload: {
         clinicId: change.clinicId,
         subscriptionId: current.id,
-        oldPlanCode: current.planCode as 'solo' | 'clinica' | 'pro',
-        newPlanCode: target.code as 'solo' | 'clinica' | 'pro',
+        oldPlanCode: current.planCode as PlanCode,
+        newPlanCode: target.code as PlanCode,
         oldStatus: current.billingStatus,
         newStatus: current.billingStatus,
       },
@@ -1395,15 +1450,26 @@ export type PlanChangeOverview = {
     periodEnd: string | null;
     trialEndsAt: string | null;
   };
-  plans: Array<{
-    id: string;
-    name: string;
-    code: string;
-    priceAmount: string;
-    limits: { users: number; agendamentos: number; ai_messages: number };
-  }>;
+  /** Só planos da tabela da assinatura atual, em ordem crescente. */
+  plans: PlanChangeOverviewPlan[];
   activeUsers: number;
+  /** Uso por categoria (convites pendentes contam), para a oferta por profissional. */
+  seatUsage: SeatUsage;
   pending: { kind: string; status: string; effectiveAt: string; paymentUrl: string | null } | null;
+};
+
+export type PlanChangeOverviewPlan = {
+  id: string;
+  name: string;
+  code: string;
+  priceAmount: string;
+  limits: { users: number; agendamentos: number; ai_messages: number };
+  /** Tetos por categoria da oferta por profissional; `null` na tabela antiga. */
+  seats: { professionals: number; staff: number | null } | null;
+  /** Decidido no servidor, com a mesma regra de `requestPlanChange`. */
+  direction: -1 | 0 | 1;
+  /** A equipe ativa cabe neste plano — condição para agendar o downgrade. */
+  teamFits: boolean;
 };
 
 export async function getPlanChangeOverview(clinicId: string): Promise<PlanChangeOverview> {
@@ -1433,7 +1499,17 @@ export async function getPlanChangeOverview(clinicId: string): Promise<PlanChang
       )
       .where(eq(plans.ativo, true))
       .orderBy(plans.id, sql`case when ${prices.campaignCode} is null then 1 else 0 end`);
-    const planIds = planRows.map((row) => row.id);
+    // A troca só existe dentro da mesma tabela (ver `comparePlans`): mostrar a
+    // outra seria oferecer um botão que o servidor recusa.
+    // Plano atual fora das duas tabelas não tem troca self-service.
+    const catalog = planCatalogOf(current.planCode);
+    const changeable = rankOrNull(current.planCode) !== null;
+    const sameCatalog = planRows
+      .filter(
+        (row) => changeable && planCatalogOf(row.code) === catalog && rankOrNull(row.code) !== null,
+      )
+      .sort((a, b) => (rankOrNull(a.code) ?? 0) - (rankOrNull(b.code) ?? 0));
+    const planIds = sameCatalog.map((row) => row.id);
     const limits = planIds.length
       ? await tx
           .select({
@@ -1453,13 +1529,20 @@ export async function getPlanChangeOverview(clinicId: string): Promise<PlanChang
       const target = limitsByPlan.get(limit.planId);
       if (target) target[limit.metric] = Number(limit.value);
     }
-    const [active] = await tx.execute<{ active_users: number }>(sql`
-      SELECT count(*)::int AS active_users
-        FROM public.profiles
-       WHERE clinic_id = ${clinicId}::uuid
-         AND ativo = true
-         AND deleted_at IS NULL
-    `);
+    const seatRows = planIds.length
+      ? await tx
+          .select({
+            planId: planSeatLimits.planId,
+            professionals: planSeatLimits.professionals,
+            staff: planSeatLimits.staff,
+          })
+          .from(planSeatLimits)
+          .where(inArray(planSeatLimits.planId, planIds))
+      : [];
+    const seatsByPlan = new Map(
+      seatRows.map((row) => [row.planId, { professionals: row.professionals, staff: row.staff }]),
+    );
+    const seatUsage = await readSeatUsage(tx, clinicId);
     const [pending] = await tx
       .select({
         kind: subscriptionChangeRequests.kind,
@@ -1487,11 +1570,22 @@ export async function getPlanChangeOverview(clinicId: string): Promise<PlanChang
         periodEnd: current.currentPeriodEnd?.toISOString() ?? null,
         trialEndsAt: current.trialEndsAt?.toISOString() ?? null,
       },
-      plans: planRows.map((plan) => ({
-        ...plan,
-        limits: limitsByPlan.get(plan.id) ?? { users: 0, agendamentos: 0, ai_messages: 0 },
-      })),
-      activeUsers: Number(active?.active_users ?? 0),
+      plans: sameCatalog.map((plan) => {
+        const limits = limitsByPlan.get(plan.id) ?? { users: 0, agendamentos: 0, ai_messages: 0 };
+        const seats = seatsByPlan.get(plan.id) ?? null;
+        return {
+          ...plan,
+          limits,
+          seats,
+          direction: comparePlans(current.planCode, plan.code),
+          teamFits: capacityFits(
+            seatUsage,
+            seats ? { model: 'seats', ...seats } : { model: 'users', users: limits.users },
+          ),
+        };
+      }),
+      activeUsers: seatUsage.users,
+      seatUsage,
       pending: pending
         ? {
             kind: pending.kind,
