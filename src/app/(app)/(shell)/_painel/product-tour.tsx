@@ -44,6 +44,7 @@ export function ProductTour({
 }) {
   const [progress, setProgress] = useState(initial);
   const [closing, setClosing] = useState(false);
+  const [dismissError, setDismissError] = useState(false);
   const [seenVersion, setSeenVersion] = useState(initial.rowVersion);
   const [pending, startTransition] = useTransition();
 
@@ -54,6 +55,7 @@ export function ProductTour({
     setSeenVersion(initial.rowVersion);
     setProgress(initial);
     setClosing(false);
+    setDismissError(false);
   }
 
   const send = useCallback((input: OnboardingAction) => {
@@ -80,17 +82,41 @@ export function ProductTour({
   const open = progress.shouldAutoOpenTour && !closing;
   const isLast = step >= lastStep;
 
-  /** X, Esc e clique no scrim entram por aqui — todos significam "pular". */
+  /** X, Esc e clique no scrim só fecham após o servidor persistir "pular". */
   const dismiss = () => {
-    setClosing(true);
-    send({ action: 'tour_skip' });
+    if (pending) return;
+    setDismissError(false);
+    startTransition(async () => {
+      try {
+        const result = await submitOnboardingAction({ action: 'tour_skip' });
+        const persisted = result.progress;
+        if (persisted) {
+          setProgress(persisted);
+          if (persisted.tourState === 'skipped' || persisted.tourState === 'completed') {
+            setClosing(true);
+            return;
+          }
+        }
+        const fresh = await fetchOnboardingProgress();
+        if (fresh.ok) {
+          setProgress(fresh.progress);
+          if (fresh.progress.tourState === 'skipped' || fresh.progress.tourState === 'completed') {
+            setClosing(true);
+            return;
+          }
+        }
+      } catch {
+        // A janela permanece aberta e mostra a falha, sem fingir que salvou.
+      }
+      setDismissError(true);
+    });
   };
 
   return (
     <Dialog
       open={open}
       onOpenChange={(next) => {
-        if (!next) dismiss();
+        if (!next && !pending) dismiss();
       }}
     >
       <DialogContent aria-describedby={undefined} data-testid="product-tour">
@@ -102,6 +128,11 @@ export function ProductTour({
         </DialogHeader>
         <DialogBody>
           <p className="text-pretty text-(length:--fs-sm) text-fg-muted">{current.body}</p>
+          {dismissError ? (
+            <p role="alert" className="text-(length:--fs-xs) text-danger-600">
+              Não foi possível fechar o tour. Tente novamente.
+            </p>
+          ) : null}
         </DialogBody>
         <DialogFooter>
           <Button

@@ -91,6 +91,43 @@ describe('ProductTour', () => {
     await waitFor(() => expect(screen.queryByTestId('product-tour')).toBeNull());
   });
 
+  it('mantém a janela aberta enquanto o servidor ainda não confirmou pular', async () => {
+    let confirm!: (value: unknown) => void;
+    submitOnboardingAction.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          confirm = resolve;
+        }),
+    );
+    render(<ProductTour steps={TOUR_STEPS} initial={state({ tourState: 'in_progress' })} />);
+
+    act(() => {
+      fireEvent.click(screen.getByTestId('tour-skip'));
+    });
+    expect(screen.getByTestId('product-tour')).toBeTruthy();
+
+    await act(async () => {
+      confirm({
+        ok: true,
+        progress: state({ tourState: 'skipped', rowVersion: 2 }),
+        changed: true,
+      });
+    });
+    await waitFor(() => expect(screen.queryByTestId('product-tour')).toBeNull());
+  });
+
+  it('exibe erro sem fechar quando pular falha', async () => {
+    submitOnboardingAction.mockRejectedValue(new Error('network unavailable'));
+    render(<ProductTour steps={TOUR_STEPS} initial={state({ tourState: 'in_progress' })} />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('tour-skip'));
+    });
+
+    expect(screen.getByTestId('product-tour')).toBeTruthy();
+    expect(screen.getByRole('alert').textContent).toContain('Não foi possível fechar o tour');
+  });
+
   it('adota o estado autoritativo quando o servidor responde `stale`', async () => {
     // Outra aba já avançou para o passo 4 enquanto esta achava estar no 1.
     submitOnboardingAction.mockResolvedValue({
