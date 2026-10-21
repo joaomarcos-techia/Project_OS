@@ -103,7 +103,9 @@ let PLAN_ID = '';
 let PLAN_NO_PRICE_ID = '';
 
 /**
- * Usa o catálogo REAL (`solo`/`clinica`/`pro`).
+ * Usa o catálogo REAL: o Consultório da oferta por profissional (migration
+ * 0119, ADR-067), que é o que o cadastro autônomo vende, e o Pro antigo como
+ * "plano sem preço".
  *
  * Inserir planos próprios não é opção: `plans_code_uniq` recusa, e os códigos
  * são um enum fechado do contrato de eventos de billing
@@ -111,18 +113,16 @@ let PLAN_NO_PRICE_ID = '';
  * provisionamento DEPOIS da cobrança — o pior momento possível.
  */
 async function seedCatalog(): Promise<void> {
-  const [solo] = await sql<{ id: string }[]>`SELECT id FROM plans WHERE code = 'solo'`;
+  const [consultorio] = await sql<{ id: string; amount: string }[]>`
+    SELECT p.id, pr.amount::text AS amount FROM plans p
+      JOIN prices pr ON pr.plan_id = p.id AND pr.billing_cycle = 'monthly'
+       AND pr.active_until IS NULL AND pr.campaign_code IS NULL
+     WHERE p.code = 'consultorio_2026'`;
   const [pro] = await sql<{ id: string }[]>`SELECT id FROM plans WHERE code = 'pro'`;
-  assert.ok(solo && pro, 'a migration deveria ter semeado solo e pro');
-  PLAN_ID = solo.id;
+  assert.ok(consultorio && pro, 'as migrations deveriam ter semeado consultorio_2026 e pro');
+  assert.equal(consultorio.amount, '197.00', 'a 0119 deveria ter gravado R$ 197');
+  PLAN_ID = consultorio.id;
   PLAN_NO_PRICE_ID = pro.id;
-
-  await sql`INSERT INTO prices (plan_id, amount, currency, billing_cycle, active_from)
-    SELECT ${PLAN_ID}::uuid, 149.00, 'BRL', 'monthly', now() - interval '1 day'
-    WHERE NOT EXISTS (
-      SELECT 1 FROM prices WHERE plan_id = ${PLAN_ID}::uuid AND billing_cycle = 'monthly'
-        AND currency = 'BRL' AND active_until IS NULL AND campaign_code IS NULL
-    )`;
 
   // "Plano sem preço" precisa ser um estado real, não uma suposição.
   await sql`UPDATE prices SET active_until = now() - interval '1 hour'
@@ -500,6 +500,8 @@ try {
     // viraria assinatura no Asaas e so explodiria no `publishEvent`, dentro da
     // transacao de provisionamento — pessoa pagando, sem clinica, e o retry
     // repetindo o mesmo erro. Foi assim que o defeito apareceu aqui.
+    // Desde a ADR-067 a reserva só aceita a oferta por profissional, então a
+    // recusa chega antes; o guard do enum segue como segunda barreira.
     const [rogue] = await sql<{ id: string }[]>`
       INSERT INTO plans (code, name, ativo) VALUES ('essencial', 'Essencial', true)
       ON CONFLICT (code) DO UPDATE SET ativo = true RETURNING id`;

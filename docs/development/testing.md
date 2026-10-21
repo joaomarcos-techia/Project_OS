@@ -116,6 +116,25 @@ O runner do kill switch exige `pnpm build` antes (ele serve o `.next` da raiz) e
 `NODE_OPTIONS`** para o `next start` filho: `--conditions=react-server` herdado muda a resolução de
 módulos do servidor e o Next não sobe com ele.
 
+### Oferta por profissional (ADR-067), com banco real
+
+```powershell
+$env:NODE_OPTIONS = '--conditions=react-server'
+node node_modules/tsx/dist/cli.mjs scripts/security/offer-2026-seats-db.ts
+node node_modules/tsx/dist/cli.mjs scripts/security/signup-provision-db.ts
+```
+
+O primeiro sobe Postgres descartável com **todas** as migrations e prova:
+
+- o catálogo da 0119 contra a fórmula (e a tabela antiga intacta);
+- a trigger de `profiles`: Consultório 1+3, Clínica com equipe ilimitada, CRM e reativação
+  ocupando vaga, só o crescimento barrado, reserva do downgrade agendado e corrida na última vaga;
+- a API de billing sob RLS, a visão da assinatura e a tradução do erro em identity;
+- o cadastro: só a oferta nova, preço e nome resolvidos no servidor, e o provisionamento no plano
+  escolhido.
+
+O segundo é a prova do provisionamento do cadastro (O-6), agora com o Consultório.
+
 ### Carga sem credencial de DEV
 
 ```powershell

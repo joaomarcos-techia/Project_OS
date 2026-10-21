@@ -14,6 +14,32 @@ detalhado, camada a camada (contratos congelados, defesas validadas, débitos), 
 
 ## [Unreleased]
 
+### Alterado (oferta por profissional — out/2026)
+
+Nova tabela do cadastro autônomo ([ADR-067](./docs/adr/067-oferta-por-profissional.md)). Nada muda
+para quem já assina Solo, Clínica ou Pro.
+
+- **O cadastro vende Consultório e Clínica.**
+  - Consultório: R$ 197/mês, com 1 profissional de saúde e até 3 usuários de equipe.
+  - Clínica: R$ 397/mês com 2 profissionais e R$ 147 por profissional adicional, até 10, com
+    equipe administrativa ilimitada.
+  - A tela tem um seletor de profissionais. O preço vem do catálogo, no servidor, e é o valor da
+    assinatura recorrente no Checkout do Asaas.
+  - Só mensal, 7 dias de teste. O Pro não é mais vendido.
+- **Limite por categoria aplicado no banco.**
+  - Profissional (papel médico ou CRM preenchido, como na agenda) e equipe administrativa têm tetos
+    próprios.
+  - O convite avisa antes de mandar e-mail.
+  - Reativar alguém, trocar o papel ou cadastrar CRM no próprio perfil também respeitam o teto.
+- **Incluir ou remover profissional em Configurações › Assinatura.**
+  - Incluir cobra hoje a diferença proporcional e só libera a vaga depois que o Asaas confirma o
+    novo valor mensal.
+  - Remover vale no fim do ciclo, se a equipe couber.
+- **Clientes atuais mantêm plano, preço (inclusive o de fundador) e limite.** A troca de plano
+  continua dentro da tabela antiga. Migrar para a nova é decisão comercial pendente.
+- **Inclui a PR #41.** O upgrade pago agora atualiza também a recorrência e as parcelas do novo
+  ciclo no Asaas; antes, só o plano local mudava.
+
 ### Corrigido (agente de IA — auditoria 2026-08-14)
 
 Auditoria completa do agente de WhatsApp ([relatório](./docs/audits/C12_AI_AGENT_AUDIT_2026-08-14.md),

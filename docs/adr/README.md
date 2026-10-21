@@ -27,6 +27,7 @@ Os 48 ADRs antigos registravam muitas etapas intermediárias e repetiam regras d
 | Gemini é o provider de IA funcional | Accepted | [ADR-022](022-ai-agent-foundation.md) |
 | Confirmação em dois turnos e segurança clínica | Accepted | [ADR-048](048-ai-agent-conversational-safety.md) |
 | Asaas-only, planos/preços separados, sem overage | Accepted | [billing](../billing/subscriptions.md) |
+| Oferta 10/2026 cobrada por profissional: um plano por quantidade, teto por categoria na trigger de `profiles`, troca só dentro da mesma tabela | Proposed (código; migration 0119 não aplicada) | [ADR-067](067-oferta-por-profissional.md) |
 | Trial 14d e convite mágico HMAC/versionado | Accepted | [onboarding](../onboarding-spec.md) |
 | Cadastro autônomo, atribuição e provisionamento pós-billing | Proposed | [ADR-053](053-cadastro-autonomo-seguro.md) |
 | Comprovante de pagamento separado de recibo fiscal/Receita Saúde | Accepted | [ADR-054](054-documento-de-pagamento-e-recibo-fiscal.md) |

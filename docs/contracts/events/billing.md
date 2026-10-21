@@ -10,7 +10,9 @@ Reference — espelho resumido de `src/contexts/billing/events.ts`.
 - todo payload tem `clinicId` UUID;
 - timestamps são ISO strings, dinheiro é número não negativo em reais;
 - payload contém ids/escalares não sensíveis;
-- schema Zod no código vence esta tabela.
+- schema Zod no código vence esta tabela;
+- `planCode`: `solo`, `clinica`, `pro` (tabela antiga) ou `consultorio_2026`,
+  `clinica_2026_2` … `clinica_2026_10` (oferta por profissional, ADR-067).
 
 | Evento | Campos além de `clinicId` |
 | --- | --- |
