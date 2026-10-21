@@ -8,6 +8,7 @@ import { Ban, CalendarCheck, Check, FileDown, Sheet, UserX } from 'lucide-react'
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 
+import { getCurrentPractitioner } from '@/contexts/identity/internal/practitioner';
 import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { buttonVariants } from '@/components/ui/button';
@@ -43,6 +44,7 @@ export default async function RelatoriosPage({
   const { periodo } = await searchParams;
   const period = resolvePeriod(periodo);
   const canFinancial = user.permissions.includes(PERMISSIONS.VIEW_FINANCIAL);
+  const canSeeOwnPayouts = !canFinancial && (await getCurrentPractitioner());
 
   const data = await getRelatorios(clinicId, period.days, { includeFaturamento: canFinancial });
 
@@ -100,6 +102,14 @@ export default async function RelatoriosPage({
           Dados consolidados no fuso da clínica
         </span>
       </nav>
+
+      {canFinancial || canSeeOwnPayouts ? (
+        <p className="mb-5">
+          <Link href="/relatorios/repasses" className="font-semibold text-(--text-link)">
+            Ver repasses por mês
+          </Link>
+        </p>
+      ) : null}
 
       {/* A referência agrupa por PERGUNTA — dinheiro, faltas, ocupação — em vez de
           alinhar cartões soltos. Cada seção responde uma, e o título diz qual;

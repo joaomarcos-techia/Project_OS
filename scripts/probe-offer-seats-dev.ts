@@ -60,20 +60,24 @@ async function main(): Promise<void> {
   const previewActive = plans.every((row) =>
     ['consultorio_2026', 'clinica_2026_2'].includes(row.code) ? row.ativo : !row.ativo,
   );
-  if (JSON.stringify(actual) !== JSON.stringify(expected) || (!inactive && !previewActive)) {
+  const extrasActive = plans.every((row) => row.ativo);
+  if (
+    JSON.stringify(actual) !== JSON.stringify(expected) ||
+    (!inactive && !previewActive && !extrasActive)
+  ) {
     throw new Error('Offer catalog does not match either allowed DEV activation state');
   }
   if (
     !guard?.rls ||
     !guard.force_rls ||
-    guard.policies !== 0 ||
+    guard.policies !== 1 ||
     guard.triggers !== 1 ||
     versions?.applied !== 2
   ) {
     throw new Error('Seat guard or deny-by-default RLS is missing');
   }
   console.log(
-    `PASS: five plans (${previewActive ? 'two Preview entries active' : 'inactive'}), exact prices, migrations 0122–0123, guard and forced RLS`,
+    `PASS: five plans (${extrasActive ? 'five Preview plans active' : previewActive ? 'two Preview entries active' : 'inactive'}), exact prices, migrations 0122–0123, guard and forced RLS with authenticated catalog read`,
   );
 }
 

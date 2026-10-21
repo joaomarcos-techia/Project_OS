@@ -106,7 +106,9 @@ export async function requestPlanChangeAction(
       return {
         error: null,
         success: 'upgrade_pending_payment',
-        message: 'Cobrança proporcional criada. Confirme o pagamento para liberar o novo plano.',
+        message: change.prorationAmount
+          ? `Cobrança proporcional de ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(change.prorationAmount))} criada. Após a confirmação, a recorrência será atualizada para ${change.targetPlanName}.`
+          : 'Cobrança proporcional criada. Confirme o pagamento para liberar o novo plano.',
         paymentUrl: payment.paymentUrl,
       };
     } catch (err) {

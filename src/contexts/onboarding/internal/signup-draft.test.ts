@@ -584,6 +584,12 @@ describe('signup plan contract O-4', () => {
             name: 'Clínica · 2 médicos',
             amount: '397.00',
           },
+          {
+            id: 'extra-clinic',
+            code: 'clinica_2026_3',
+            name: 'Clínica · 3 médicos',
+            amount: '544.00',
+          },
         ]),
       );
 
@@ -646,6 +652,22 @@ describe('signup plan contract O-4', () => {
         .fn()
         .mockReturnValueOnce(selectChain([{ id: planId, code: 'solo' }]))
         .mockReturnValueOnce(selectChain([{ id: 'new-offer' }])),
+      update: vi.fn(),
+    };
+    mocks.transaction.mockImplementationOnce(
+      async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx),
+    );
+
+    await expect(writeSignupPlan(userId, { rowVersion: 7, planId })).resolves.toEqual({
+      ok: false,
+      reason: 'invalid_plan',
+    });
+    expect(tx.update).not.toHaveBeenCalled();
+  });
+
+  it('recusa compra de médico extra pelo cadastro mesmo com plano adicional ativo', async () => {
+    const tx = {
+      select: vi.fn().mockReturnValueOnce(selectChain([{ id: planId, code: 'clinica_2026_3' }])),
       update: vi.fn(),
     };
     mocks.transaction.mockImplementationOnce(

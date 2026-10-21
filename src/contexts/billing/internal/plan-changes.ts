@@ -1435,8 +1435,11 @@ export type PlanChangeOverview = {
     code: string;
     priceAmount: string;
     limits: { users: number; agendamentos: number; ai_messages: number };
+    seats: { doctors: number; staff: number } | null;
   }>;
   activeUsers: number;
+  activeDoctors: number;
+  activeStaff: number;
   pending: { kind: string; status: string; effectiveAt: string; paymentUrl: string | null } | null;
 };
 
@@ -1467,7 +1470,10 @@ export async function getPlanChangeOverview(clinicId: string): Promise<PlanChang
       )
       .where(eq(plans.ativo, true))
       .orderBy(plans.id, sql`case when ${prices.campaignCode} is null then 1 else 0 end`);
-    const planIds = planRows.map((row) => row.id);
+    const availablePlans = planRows.filter(
+      (row) => isOffer2026PlanCode(row.code) === isOffer2026PlanCode(current.planCode),
+    );
+    const planIds = availablePlans.map((row) => row.id);
     const limits = planIds.length
       ? await tx
           .select({
@@ -1478,6 +1484,22 @@ export async function getPlanChangeOverview(clinicId: string): Promise<PlanChang
           .from(planLimits)
           .where(inArray(planLimits.planId, planIds))
       : [];
+    // O catálogo de assentos é exclusivo da oferta 2026. Contratos legados
+    // não podem depender da migration/grant novo durante o rollout em Preview.
+    const seats =
+      isOffer2026PlanCode(current.planCode) && planIds.length
+        ? await tx
+            .select({
+              planId: planSeatLimits.planId,
+              doctors: planSeatLimits.doctors,
+              staff: planSeatLimits.staff,
+            })
+            .from(planSeatLimits)
+            .where(inArray(planSeatLimits.planId, planIds))
+        : [];
+    const seatsByPlan = new Map(
+      seats.map((row) => [row.planId, { doctors: row.doctors, staff: row.staff }]),
+    );
     const limitsByPlan = new Map<
       string,
       { users: number; agendamentos: number; ai_messages: number }
@@ -1487,8 +1509,20 @@ export async function getPlanChangeOverview(clinicId: string): Promise<PlanChang
       const target = limitsByPlan.get(limit.planId);
       if (target) target[limit.metric] = Number(limit.value);
     }
-    const [active] = await tx.execute<{ active_users: number }>(sql`
-      SELECT count(*)::int AS active_users
+    const [active] = await tx.execute<{
+      active_users: number;
+      active_doctors: number;
+      active_staff: number;
+    }>(sql`
+      SELECT count(*)::int AS active_users,
+        count(*) FILTER (WHERE role <> 'super_admin' AND
+          (role = 'doctor' OR
+            (role IN ('owner', 'gestor') AND nullif(btrim(crm), '') IS NOT NULL)))::int
+          AS active_doctors,
+        count(*) FILTER (WHERE role <> 'super_admin' AND NOT
+          (role = 'doctor' OR
+            (role IN ('owner', 'gestor') AND nullif(btrim(crm), '') IS NOT NULL)))::int
+          AS active_staff
         FROM public.profiles
        WHERE clinic_id = ${clinicId}::uuid
          AND ativo = true
@@ -1521,11 +1555,14 @@ export async function getPlanChangeOverview(clinicId: string): Promise<PlanChang
         periodEnd: current.currentPeriodEnd?.toISOString() ?? null,
         trialEndsAt: current.trialEndsAt?.toISOString() ?? null,
       },
-      plans: planRows.map((plan) => ({
+      plans: availablePlans.map((plan) => ({
         ...plan,
         limits: limitsByPlan.get(plan.id) ?? { users: 0, agendamentos: 0, ai_messages: 0 },
+        seats: seatsByPlan.get(plan.id) ?? null,
       })),
       activeUsers: Number(active?.active_users ?? 0),
+      activeDoctors: Number(active?.active_doctors ?? 0),
+      activeStaff: Number(active?.active_staff ?? 0),
       pending: pending
         ? {
             kind: pending.kind,

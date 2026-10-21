@@ -47,7 +47,7 @@ async function main(): Promise<void> {
     JOIN public.prices price ON price.plan_id = p.id
       AND price.billing_cycle = 'monthly' AND price.active_until IS NULL
       AND price.campaign_code IS NULL
-    WHERE p.code = 'consultorio_2026'
+    WHERE p.code = 'clinica_2026_3'
   `);
   if (!before || before.ativo) throw new Error('Inactive DEV offer fixture not found');
   const tokenHash = `probe-offer-catalog-${randomUUID()}`;

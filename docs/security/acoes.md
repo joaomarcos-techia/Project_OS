@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 195 actions (0 inline); 53 métodos em 49 handlers; 19 props com referência de action; 328 acessos diretos a process.env; 9 nomes NEXT_PUBLIC.
+Contagem: 195 actions (0 inline); 53 métodos em 49 handlers; 19 props com referência de action; 341 acessos diretos a process.env; 9 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -40,10 +40,10 @@ O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase
 | `src/app/(app)/(shell)/caixa/actions.ts:24#confirmPaymentAction`                                      | session                             | session                             | `src/app/(app)/(shell)/caixa/actions.ts:24#confirmPaymentAction` → `src/contexts/financial/actions.ts:193#confirmPayment` → `src/lib/auth/tenant-context.ts:366#requireUser`                                                                       |
 | `src/app/(app)/(shell)/caixa/actions.ts:58#createEstornoAction`                                       | session                             | session                             | `src/app/(app)/(shell)/caixa/actions.ts:58#createEstornoAction` → `src/contexts/financial/actions.ts:371#createEstorno` → `src/lib/auth/tenant-context.ts:366#requireUser`                                                                         |
 | `src/app/(app)/(shell)/caixa/actions.ts:46#reviewProfessionalPayoutAction`                            | NEW                                 | session                             | `src/app/(app)/(shell)/caixa/actions.ts:46#reviewProfessionalPayoutAction` → `src/contexts/financial/payout-actions.ts:220#reviewProfessionalPayout` → `src/lib/auth/tenant-context.ts:366#requireUser`                                            |
-| `src/app/(app)/(shell)/configuracoes/assinatura/actions.ts:310#reactivateSubscriptionAction`          | session                             | session                             | `src/app/(app)/(shell)/configuracoes/assinatura/actions.ts:310#reactivateSubscriptionAction` → `src/lib/auth/tenant-context.ts:366#requireUser`                                                                                                    |
+| `src/app/(app)/(shell)/configuracoes/assinatura/actions.ts:312#reactivateSubscriptionAction`          | session                             | session                             | `src/app/(app)/(shell)/configuracoes/assinatura/actions.ts:312#reactivateSubscriptionAction` → `src/lib/auth/tenant-context.ts:366#requireUser`                                                                                                    |
 | `src/app/(app)/(shell)/configuracoes/assinatura/actions.ts:51#requestPlanChangeAction`                | session                             | session                             | `src/app/(app)/(shell)/configuracoes/assinatura/actions.ts:51#requestPlanChangeAction` → `src/lib/auth/tenant-context.ts:366#requireUser`                                                                                                          |
-| `src/app/(app)/(shell)/configuracoes/assinatura/actions.ts:162#requestSubscriptionCancellationAction` | session                             | session                             | `src/app/(app)/(shell)/configuracoes/assinatura/actions.ts:162#requestSubscriptionCancellationAction` → `src/lib/auth/tenant-context.ts:366#requireUser`                                                                                           |
-| `src/app/(app)/(shell)/configuracoes/assinatura/actions.ts:250#revokeSubscriptionCancellationAction`  | session                             | session                             | `src/app/(app)/(shell)/configuracoes/assinatura/actions.ts:250#revokeSubscriptionCancellationAction` → `src/lib/auth/tenant-context.ts:366#requireUser`                                                                                            |
+| `src/app/(app)/(shell)/configuracoes/assinatura/actions.ts:164#requestSubscriptionCancellationAction` | session                             | session                             | `src/app/(app)/(shell)/configuracoes/assinatura/actions.ts:164#requestSubscriptionCancellationAction` → `src/lib/auth/tenant-context.ts:366#requireUser`                                                                                           |
+| `src/app/(app)/(shell)/configuracoes/assinatura/actions.ts:252#revokeSubscriptionCancellationAction`  | session                             | session                             | `src/app/(app)/(shell)/configuracoes/assinatura/actions.ts:252#revokeSubscriptionCancellationAction` → `src/lib/auth/tenant-context.ts:366#requireUser`                                                                                            |
 | `src/app/(app)/(shell)/configuracoes/auditoria/actions.ts:22#exportAuditAction`                       | session                             | session                             | `src/app/(app)/(shell)/configuracoes/auditoria/actions.ts:22#exportAuditAction` → `src/lib/auth/tenant-context.ts:366#requireUser`                                                                                                                 |
 | `src/app/(app)/(shell)/configuracoes/lgpd/actions.ts:26#assignLgpdRequestForm`                        | session                             | session                             | `src/app/(app)/(shell)/configuracoes/lgpd/actions.ts:26#assignLgpdRequestForm` → `src/contexts/patient/actions.ts:1559#assignLgpdRequest` → `src/lib/auth/tenant-context.ts:366#requireUser`                                                       |
 | `src/app/(app)/(shell)/configuracoes/lgpd/actions.ts:35#notifyLgpdRequesterForm`                      | session                             | session                             | `src/app/(app)/(shell)/configuracoes/lgpd/actions.ts:35#notifyLgpdRequesterForm` → `src/contexts/patient/actions.ts:1597#markLgpdRequesterNotified` → `src/lib/auth/tenant-context.ts:366#requireUser`                                             |
@@ -377,6 +377,9 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/_env.ts:111`                                      | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                 |
 | `scripts/_env.ts:174`                                      | `USER`                                 | `process.env.USER`                                 |
 | `scripts/_env.ts:174`                                      | `USERNAME`                             | `process.env.USERNAME`                             |
+| `scripts/activate-offer-extras-preview-dev.ts:20`          | `E2E_OFFER_DEV_ACTIVATION`             | `process.env.E2E_OFFER_DEV_ACTIVATION`             |
+| `scripts/activate-offer-extras-preview-dev.ts:20`          | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                 |
+| `scripts/activate-offer-extras-preview-dev.ts:26`          | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                    |
 | `scripts/activate-offer-preview-dev.ts:18`                 | `E2E_OFFER_DEV_ACTIVATION`             | `process.env.E2E_OFFER_DEV_ACTIVATION`             |
 | `scripts/activate-offer-preview-dev.ts:18`                 | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                 |
 | `scripts/activate-offer-preview-dev.ts:25`                 | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                    |
@@ -473,6 +476,16 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/probe-dev-migrations.ts:5`                        | `QORO_DEV_ENV_FILE`                    | `process.env.QORO_DEV_ENV_FILE`                    |
 | `scripts/probe-dev-migrations.ts:6`                        | `QORO_EXPECTED_DEV_PROJECT_REF`        | `process.env.QORO_EXPECTED_DEV_PROJECT_REF`        |
 | `scripts/probe-dev-migrations.ts:10`                       | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                 |
+| `scripts/probe-offer-plan-overview-dev.ts:25`              | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                    |
+| `scripts/probe-offer-seat-access-dev.ts:18`                | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                    |
+| `scripts/probe-pricing-preview-browser.ts:9`               | `QORO_ENV_PATH`                        | `process.env.QORO_ENV_PATH`                        |
+| `scripts/probe-pricing-preview-browser.ts:11`              | `E2E_BASE_URL`                         | `process.env.E2E_BASE_URL`                         |
+| `scripts/probe-pricing-preview-browser.ts:12`              | `2E2_UI_EMAIL`                         | `process.env['2E2_UI_EMAIL']`                      |
+| `scripts/probe-pricing-preview-browser.ts:13`              | `2E2_UI_PASSWORD`                      | `process.env['2E2_UI_PASSWORD']`                   |
+| `scripts/probe-pricing-preview-browser.ts:22`              | `VERCEL_AUTOMATION_BYPASS_SECRET`      | `process.env.VERCEL_AUTOMATION_BYPASS_SECRET`      |
+| `scripts/probe-pricing-preview-browser.ts:59`              | `E2E_VISUAL_CAPTURE`                   | `process.env.E2E_VISUAL_CAPTURE`                   |
+| `scripts/probe-pricing-preview-pages.ts:4`                 | `QORO_ENV_PATH`                        | `process.env.QORO_ENV_PATH`                        |
+| `scripts/probe-pricing-preview-pages.ts:12`                | `VERCEL_AUTOMATION_BYPASS_SECRET`      | `process.env.VERCEL_AUTOMATION_BYPASS_SECRET`      |
 | `scripts/probe-waitlist-offer-dev.ts:7`                    | `QORO_DEV_ENV_FILE`                    | `process.env.QORO_DEV_ENV_FILE`                    |
 | `scripts/probe-waitlist-offer-dev.ts:8`                    | `QORO_EXPECTED_DEV_PROJECT_REF`        | `process.env.QORO_EXPECTED_DEV_PROJECT_REF`        |
 | `scripts/probe-waitlist-offer-dev.ts:12`                   | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                 |
@@ -522,21 +535,21 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/signup-billing-sandbox.ts:177`           | `ASAAS_API_KEY`                        | `process.env.ASAAS_API_KEY`                        |
 | `scripts/security/signup-billing-sandbox.ts:407`           | `<object>`                             | `process.env`                                      |
 | `scripts/security/signup-kill-switch-browser.ts:54`        | `<object>`                             | `process.env`                                      |
-| `scripts/security/signup-provision-db.ts:75`               | `DATABASE_URL`                         | `process.env.DATABASE_URL`                         |
-| `scripts/security/signup-provision-db.ts:76`               | `DATABASE_URL_DEV`                     | `process.env.DATABASE_URL_DEV`                     |
-| `scripts/security/signup-provision-db.ts:77`               | `DATABASE_URL_RUNTIME`                 | `process.env.DATABASE_URL_RUNTIME`                 |
-| `scripts/security/signup-provision-db.ts:78`               | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                 |
-| `scripts/security/signup-provision-db.ts:79`               | `SIGNUP_IDENTITY_ENABLED`              | `process.env.SIGNUP_IDENTITY_ENABLED`              |
-| `scripts/security/signup-provision-db.ts:80`               | `SIGNUP_AUTH_ENABLED`                  | `process.env.SIGNUP_AUTH_ENABLED`                  |
-| `scripts/security/signup-provision-db.ts:81`               | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`             |
-| `scripts/security/signup-provision-db.ts:82`               | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` |
-| `scripts/security/signup-provision-db.ts:83`               | `MAGIC_TOKEN_SECRET`                   | `process.env.MAGIC_TOKEN_SECRET`                   |
-| `scripts/security/signup-provision-db.ts:84`               | `LOGIN_HASH_PEPPER`                    | `process.env.LOGIN_HASH_PEPPER`                    |
-| `scripts/security/signup-provision-db.ts:87`               | `CRYPTO_SECRET_BACKEND`                | `process.env.CRYPTO_SECRET_BACKEND`                |
-| `scripts/security/signup-provision-db.ts:88`               | `CRYPTO_MASTER_KEY_V1`                 | `process.env.CRYPTO_MASTER_KEY_V1`                 |
-| `scripts/security/signup-provision-db.ts:89`               | `CRYPTO_LOOKUP_SALT`                   | `process.env.CRYPTO_LOOKUP_SALT`                   |
-| `scripts/security/signup-provision-db.ts:90`               | `LOG_LEVEL`                            | `process.env.LOG_LEVEL`                            |
-| `scripts/security/signup-provision-db.ts:565`              | `<object>`                             | `process.env`                                      |
+| `scripts/security/signup-provision-db.ts:81`               | `DATABASE_URL`                         | `process.env.DATABASE_URL`                         |
+| `scripts/security/signup-provision-db.ts:82`               | `DATABASE_URL_DEV`                     | `process.env.DATABASE_URL_DEV`                     |
+| `scripts/security/signup-provision-db.ts:83`               | `DATABASE_URL_RUNTIME`                 | `process.env.DATABASE_URL_RUNTIME`                 |
+| `scripts/security/signup-provision-db.ts:84`               | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                 |
+| `scripts/security/signup-provision-db.ts:85`               | `SIGNUP_IDENTITY_ENABLED`              | `process.env.SIGNUP_IDENTITY_ENABLED`              |
+| `scripts/security/signup-provision-db.ts:86`               | `SIGNUP_AUTH_ENABLED`                  | `process.env.SIGNUP_AUTH_ENABLED`                  |
+| `scripts/security/signup-provision-db.ts:87`               | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`             |
+| `scripts/security/signup-provision-db.ts:88`               | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` |
+| `scripts/security/signup-provision-db.ts:89`               | `MAGIC_TOKEN_SECRET`                   | `process.env.MAGIC_TOKEN_SECRET`                   |
+| `scripts/security/signup-provision-db.ts:90`               | `LOGIN_HASH_PEPPER`                    | `process.env.LOGIN_HASH_PEPPER`                    |
+| `scripts/security/signup-provision-db.ts:93`               | `CRYPTO_SECRET_BACKEND`                | `process.env.CRYPTO_SECRET_BACKEND`                |
+| `scripts/security/signup-provision-db.ts:94`               | `CRYPTO_MASTER_KEY_V1`                 | `process.env.CRYPTO_MASTER_KEY_V1`                 |
+| `scripts/security/signup-provision-db.ts:95`               | `CRYPTO_LOOKUP_SALT`                   | `process.env.CRYPTO_LOOKUP_SALT`                   |
+| `scripts/security/signup-provision-db.ts:96`               | `LOG_LEVEL`                            | `process.env.LOG_LEVEL`                            |
+| `scripts/security/signup-provision-db.ts:647`              | `<object>`                             | `process.env`                                      |
 | `scripts/security/signup-regression.ts:19`                 | `SECURITY_PG_BIN`                      | `process.env.SECURITY_PG_BIN`                      |
 | `scripts/security/signup-regression.ts:35`                 | `<object>`                             | `process.env`                                      |
 | `scripts/security/signup-regression.ts:35`                 | `<dynamic>`                            | `process.env[key]`                                 |

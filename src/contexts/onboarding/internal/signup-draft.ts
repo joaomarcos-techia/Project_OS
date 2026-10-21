@@ -10,6 +10,7 @@ import { z } from 'zod';
 import { plans, prices } from '@/contexts/billing/schema';
 import {
   isOffer2026PlanCode,
+  OFFER_2026_ENTRY_PLAN_CODES,
   OFFER_2026_PLAN_CODES,
   PROPOSED_OFFER,
 } from '@/contexts/billing/proposed-offer';
@@ -216,8 +217,10 @@ async function listSelfServicePlans(): Promise<SignupPlan[]> {
 
   // Durante a transição, contratos legados continuam ativos para seus clientes.
   // Quando a oferta versionada estiver ativa, o cadastro novo mostra só ela.
-  const offerRows = rows.filter((row) => isOffer2026PlanCode(row.code));
-  const availableRows = offerRows.length > 0 ? offerRows : rows;
+  const offerRows = rows.filter((row) =>
+    OFFER_2026_ENTRY_PLAN_CODES.some((code) => code === row.code),
+  );
+  const availableRows = rows.some((row) => isOffer2026PlanCode(row.code)) ? offerRows : rows;
   return availableRows.map((row) => ({
     id: row.id,
     code: row.code,
@@ -300,6 +303,12 @@ export async function writeSignupPlan(userId: string, input: unknown): Promise<P
       .for('share')
       .limit(1);
     if (!availablePlan) return { ok: false, reason: 'invalid_plan' };
+    if (
+      isOffer2026PlanCode(availablePlan.code) &&
+      !OFFER_2026_ENTRY_PLAN_CODES.some((code) => code === availablePlan.code)
+    ) {
+      return { ok: false, reason: 'invalid_plan' };
+    }
     if (!isOffer2026PlanCode(availablePlan.code)) {
       const [activeOffer] = await tx
         .select({ id: plans.id })

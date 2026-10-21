@@ -3,6 +3,8 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { requestPlanChangeAction } from './actions';
+
 vi.mock('./actions', () => ({
   requestPlanChangeAction: vi.fn(async () => ({ error: null })),
   requestSubscriptionCancellationAction: vi.fn(async () => ({
@@ -47,6 +49,8 @@ function renderForm(
       }}
       plans={[]}
       activeUsers={1}
+      activeDoctors={0}
+      activeStaff={0}
       pending={over.pending ?? null}
     />,
   );
@@ -132,6 +136,47 @@ describe('datas de ciclo', () => {
   });
 });
 
+it('mostra imediatamente o link da cobrança proporcional devolvido pelo servidor', async () => {
+  vi.mocked(requestPlanChangeAction).mockResolvedValueOnce({
+    error: null,
+    success: 'upgrade_pending_payment',
+    message: 'Cobrança proporcional de R$ 73,50 criada.',
+    paymentUrl: 'https://sandbox.asaas.com/test-checkout',
+  });
+  render(
+    <PlanChangeForm
+      current={{
+        planId: 'plan_two',
+        planName: 'Clínica · 2 médicos',
+        planCode: 'clinica_2026_2',
+        priceAmount: '397.00',
+        billingCycle: 'monthly',
+        billingStatus: 'active',
+        periodEnd: '2026-11-01T00:00:00.000Z',
+        trialEndsAt: null,
+      }}
+      plans={[
+        {
+          id: 'plan_three',
+          name: 'Clínica · 3 médicos',
+          code: 'clinica_2026_3',
+          priceAmount: '544.00',
+          limits: { users: 6, agendamentos: 0, ai_messages: 0 },
+          seats: { doctors: 3, staff: 3 },
+        },
+      ]}
+      activeUsers={2}
+      activeDoctors={2}
+      activeStaff={0}
+      pending={null}
+    />,
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Contratar +1 médico' }));
+  const link = await screen.findByRole('link', { name: 'Abrir cobrança proporcional no Asaas' });
+  expect(link.getAttribute('href')).toBe('https://sandbox.asaas.com/test-checkout');
+  expect(screen.getByText(/R\$ 73,50 criada/u)).toBeTruthy();
+});
+
 describe('capacidade mostrada na troca de plano', () => {
   const current = {
     planId: 'plan_pro',
@@ -150,11 +195,21 @@ describe('capacidade mostrada na troca de plano', () => {
       code: 'clinica',
       priceAmount: '397.00',
       limits: { users: 5, agendamentos: 800, ai_messages: 800 },
+      seats: null,
     },
   ];
 
   it('permite agendar Pro → Clínica com três usuários dentro da cota de cinco', () => {
-    render(<PlanChangeForm current={current} plans={plans} activeUsers={3} pending={null} />);
+    render(
+      <PlanChangeForm
+        current={current}
+        plans={plans}
+        activeUsers={3}
+        activeDoctors={0}
+        activeStaff={0}
+        pending={null}
+      />,
+    );
 
     expect(screen.getByRole('button', { name: 'Agendar downgrade' }).hasAttribute('disabled')).toBe(
       false,
@@ -162,10 +217,110 @@ describe('capacidade mostrada na troca de plano', () => {
   });
 
   it('informa o limite e bloqueia a troca com seis usuários', () => {
-    render(<PlanChangeForm current={current} plans={plans} activeUsers={6} pending={null} />);
+    render(
+      <PlanChangeForm
+        current={current}
+        plans={plans}
+        activeUsers={6}
+        activeDoctors={0}
+        activeStaff={0}
+        pending={null}
+      />,
+    );
 
     expect(
       screen.getByRole('button', { name: 'Limite de 5 usuários' }).hasAttribute('disabled'),
     ).toBe(true);
+  });
+});
+
+describe('contratação de médico na oferta 2026', () => {
+  const current = {
+    planId: 'plan_clinica_2',
+    planName: 'Clínica · 2 médicos',
+    planCode: 'clinica_2026_2',
+    priceAmount: '397.00',
+    billingCycle: 'monthly' as const,
+    billingStatus: 'active' as const,
+    periodEnd: '2026-11-01T00:00:00.000Z',
+    trialEndsAt: null,
+  };
+  const plans = [
+    {
+      id: 'plan_solo',
+      name: 'Solo',
+      code: 'solo',
+      priceAmount: '149.00',
+      limits: { users: 1, agendamentos: 100, ai_messages: 100 },
+      seats: null,
+    },
+    {
+      id: 'plan_consultorio',
+      name: 'Consultório',
+      code: 'consultorio_2026',
+      priceAmount: '197.00',
+      limits: { users: 4, agendamentos: 800, ai_messages: 800 },
+      seats: { doctors: 1, staff: 3 },
+    },
+    {
+      id: 'plan_clinica_3',
+      name: 'Clínica · 3 médicos',
+      code: 'clinica_2026_3',
+      priceAmount: '544.00',
+      limits: { users: 6, agendamentos: 800, ai_messages: 800 },
+      seats: { doctors: 3, staff: 3 },
+    },
+    {
+      id: 'plan_clinica_2',
+      name: 'Clínica · 2 médicos',
+      code: 'clinica_2026_2',
+      priceAmount: '397.00',
+      limits: { users: 5, agendamentos: 800, ai_messages: 800 },
+      seats: { doctors: 2, staff: 3 },
+    },
+  ];
+
+  it('mostra apenas a tabela contratada e identifica upgrade e downgrade', () => {
+    render(
+      <PlanChangeForm
+        current={current}
+        plans={plans}
+        activeUsers={4}
+        activeDoctors={2}
+        activeStaff={2}
+        pending={null}
+      />,
+    );
+
+    expect(screen.queryByText('Solo')).toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'Contratar +1 médico' }).hasAttribute('disabled'),
+    ).toBe(false);
+    expect(
+      screen
+        .getByRole('button', { name: 'Cota de médicos ou equipe excedida' })
+        .hasAttribute('disabled'),
+    ).toBe(true);
+    expect(screen.getByText('2 médicos · 2 de equipe')).toBeTruthy();
+    expect(screen.getByText(/vaga só é liberada após a confirmação do pagamento/u)).toBeTruthy();
+    expect(screen.queryByText(/agendamentos\/mês monitorados/u)).toBeNull();
+    expect(screen.queryByText(/mensagens IA\/mês monitoradas/u)).toBeNull();
+  });
+
+  it('permite downgrade quando médicos e equipe cabem no destino', () => {
+    render(
+      <PlanChangeForm
+        current={{ ...current, planId: 'plan_clinica_3', planCode: 'clinica_2026_3' }}
+        plans={plans}
+        activeUsers={4}
+        activeDoctors={1}
+        activeStaff={3}
+        pending={null}
+      />,
+    );
+
+    const buttons = screen.getAllByRole('button', { name: 'Agendar downgrade' });
+    expect(buttons).toHaveLength(2);
+    expect(buttons.every((button) => !button.hasAttribute('disabled'))).toBe(true);
   });
 });

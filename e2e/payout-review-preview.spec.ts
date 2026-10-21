@@ -254,6 +254,12 @@ async function createFixture(): Promise<void> {
               30, ${PROFILES.doctor.nome}, 'attendant')
     `;
     await tx`
+      insert into appointment_state_log
+        (clinic_id, appointment_id, from_status, to_status, transitioned_at, actor_type)
+      values (${fixture.clinicA}::uuid, ${appointmentId}::uuid,
+              'em_atendimento', 'atendido', now(), 'user')
+    `;
+    await tx`
       insert into lancamentos
         (id, clinic_id, tipo, descricao, valor, valor_pago, status, due_date,
          appointment_id, patient_id, created_via, snapshot_procedure_name, snapshot_doctor_nome)
@@ -1188,5 +1194,38 @@ test.describe.serial('revisão humana do repasse (Preview + DEV, papéis reais)'
       aboveLimitBlocked: true,
       checkoutUntouched: true,
     };
+  });
+
+  test('11. relatório mensal mostra revisão ao médico e gestor, isolando perfil e tenant', async ({
+    browser,
+  }) => {
+    const month = saoPauloDate().slice(0, 7);
+    const owner = sessions.has('owner') ? pageOf('owner') : await openSession(browser, 'owner');
+    await owner.goto(`/relatorios/repasses?mes=${month}`);
+    await expect(owner.getByRole('heading', { name: 'Repasses por mês' })).toBeVisible();
+    await expect(owner.getByText(PROFILES.doctor.nome)).toBeVisible();
+    await expect(owner.getByText(/Revisado · versão 3/u)).toBeVisible();
+    await expect(owner.getByText(/Repasse calculado\/revisado: R\$\s?40,00/u)).toBeVisible();
+
+    const doctor = sessions.has('doctor') ? pageOf('doctor') : await openSession(browser, 'doctor');
+    await doctor.goto(`/relatorios/repasses?mes=${month}`);
+    await expect(doctor.getByText(/Seus atendimentos concluídos/u)).toBeVisible();
+    await expect(doctor.getByText(/Repasse calculado\/revisado: R\$\s?40,00/u)).toBeVisible();
+    await expect(doctor.getByRole('columnheader', { name: 'Profissional' })).toHaveCount(0);
+
+    const attendant = sessions.has('attendant')
+      ? pageOf('attendant')
+      : await openSession(browser, 'attendant');
+    await attendant.goto(`/relatorios/repasses?mes=${month}`);
+    await expect(attendant.getByText('Seu perfil não tem acesso a este relatório.')).toBeVisible();
+
+    const otherTenant = sessions.has('financialB')
+      ? pageOf('financialB')
+      : await openSession(browser, 'financialB');
+    await otherTenant.goto(`/relatorios/repasses?mes=${month}`);
+    await expect(
+      otherTenant.getByText('Nenhum repasse com consulta concluída neste mês.'),
+    ).toBeVisible();
+    evidence.monthlyPayout = { scoped: true, reviewedVersion: 3, amount: '40.00' };
   });
 });

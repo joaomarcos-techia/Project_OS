@@ -18,8 +18,10 @@ export default function OfertaPreviewPage() {
       <p className="text-sm font-semibold uppercase tracking-wide text-primary">Prévia comercial</p>
       <h1 className="font-display text-3xl font-semibold">Proposta de planos em validação</h1>
       <p className="text-fg-muted">
-        Esta página permite revisar a nova tabela. O cadastro e o checkout ainda cobram os planos
-        vigentes; nenhum valor abaixo está ativo para contratação.
+        Esta página permite revisar a nova tabela. Consultório e Clínica com dois médicos estão
+        habilitados para cadastro no ambiente DEV; a contratação completa pelo checkout ainda está
+        em validação no Sandbox. Os demais valores abaixo são simulações e não podem ser
+        contratados.
       </p>
       <ProposalCalculator />
       <p className="text-fg-muted">
@@ -29,13 +31,13 @@ export default function OfertaPreviewPage() {
         {PROPOSED_OFFER.consultorioIncludedStaffLogins} logins de equipe. Clínica começa com dois
         médicos, inclui até {PROPOSED_OFFER.clinicaIncludedStaffLogins} logins de equipe e propõe R${' '}
         {PROPOSED_OFFER.additionalProfessionalMonthly}
-        {'/mês por médico adicional, até cinco médicos no total.'} O cadastro atual ainda limita
-        todos os logins juntos. A contratação dessa oferta ainda não está disponível.
+        {'/mês por médico adicional, até cinco médicos no total.'} A compra de médicos adicionais
+        ainda não está disponível no cadastro.
       </p>
       <p className="text-fg-muted">
-        A proposta inclui teste de {PROPOSED_OFFER.proposedTrialDays} dias a partir da conexão do
-        WhatsApp ou do primeiro agendamento pela IA. Essa regra ainda não está implementada no
-        cadastro atual.
+        Nos dois planos habilitados no DEV, o teste dura {PROPOSED_OFFER.proposedTrialDays} dias
+        desde a criação da conta, sem reiniciar após o checkout. A opção anual e a franquia mensal
+        de conversas de IA ainda não estão disponíveis para contratação.
       </p>
     </main>
   );

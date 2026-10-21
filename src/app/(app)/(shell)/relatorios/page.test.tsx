@@ -8,8 +8,9 @@ import { PERMISSIONS } from '@/lib/auth/permissions';
 
 import type * as ReportData from './data';
 
-const { getRelatorios, requireClinicId, requireUser } = vi.hoisted(() => ({
+const { getRelatorios, getCurrentPractitioner, requireClinicId, requireUser } = vi.hoisted(() => ({
   getRelatorios: vi.fn(),
+  getCurrentPractitioner: vi.fn(),
   requireClinicId: vi.fn(),
   requireUser: vi.fn(),
 }));
@@ -18,6 +19,7 @@ vi.mock('next/link', () => ({
   default: (props: ComponentProps<'a'>) => <a {...props} />,
 }));
 vi.mock('@/lib/auth/tenant-context', () => ({ requireClinicId, requireUser }));
+vi.mock('@/contexts/identity/internal/practitioner', () => ({ getCurrentPractitioner }));
 vi.mock('./data', async (original) => ({
   ...(await original<typeof ReportData>()),
   getRelatorios,
@@ -62,6 +64,7 @@ describe('RelatoriosPage', () => {
     requireClinicId.mockResolvedValue('clinic-1');
     requireUser.mockResolvedValue({ permissions: [] });
     getRelatorios.mockResolvedValue(report);
+    getCurrentPractitioner.mockResolvedValue(false);
   });
 
   it('usa faixa única de métricas e não consulta faturamento sem permissão', async () => {
@@ -78,6 +81,14 @@ describe('RelatoriosPage', () => {
     expect(
       screen.queryByRole('region', { name: 'Exportação financeira para contabilidade' }),
     ).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Ver repasses por mês' })).toBeNull();
+  });
+
+  it('descobre o relatório próprio para titular médico mesmo sem view:financial', async () => {
+    getCurrentPractitioner.mockResolvedValue(true);
+    render(await RelatoriosPage({ searchParams: Promise.resolve({ periodo: '30d' }) }));
+    expect(screen.getByRole('link', { name: 'Ver repasses por mês' })).toBeTruthy();
+    expect(getRelatorios).toHaveBeenCalledWith('clinic-1', 30, { includeFaturamento: false });
   });
 
   it('mantém período, exportação e faturamento descobertos com permissão', async () => {

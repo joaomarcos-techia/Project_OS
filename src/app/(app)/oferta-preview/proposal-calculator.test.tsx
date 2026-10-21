@@ -8,12 +8,19 @@ import OfertaPreviewPage from './page';
 afterEach(cleanup);
 
 describe('prévia da proposta comercial', () => {
-  it('mostra a equipe incluída sem oferecer contratação', () => {
+  it('distingue planos de entrada no DEV de itens ainda não contratáveis', () => {
     render(<OfertaPreviewPage />);
     expect(screen.getByText(/R\$ 147.*\/mês por médico adicional/s)).toBeTruthy();
     expect(screen.getByText(/até 3 logins de equipe/)).toBeTruthy();
-    expect(screen.getByText(/O cadastro atual ainda limita todos os logins juntos/)).toBeTruthy();
-    expect(screen.getByText(/A contratação dessa oferta ainda não está disponível/)).toBeTruthy();
+    expect(
+      screen.getByText(/Consultório e Clínica com dois médicos estão habilitados/),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(/A compra de médicos adicionais ainda não está disponível/),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(/desde a criação da conta, sem reiniciar após o checkout/),
+    ).toBeTruthy();
   });
 
   it('limita a equipe a três logins nos dois planos', () => {

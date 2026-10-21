@@ -126,6 +126,50 @@ async function main(): Promise<void> {
       ),
     );
     console.log(`PASS: downgrade ${method} alterou recorrência e parcela no Sandbox`);
+
+    // A compra do terceiro médico usa a mesma recorrência da Clínica, sem
+    // criar uma segunda assinatura. O delta mensal contratual é R$ 147.
+    await syncProviderPlanChange(asaasProvider, {
+      subscriptionId,
+      previousAmount: '197.00',
+      amount: '397.00',
+      firstDueDate: dueDate,
+    });
+    await syncProviderPlanChange(asaasProvider, {
+      subscriptionId,
+      previousAmount: '397.00',
+      amount: '544.00',
+      firstDueDate: dueDate,
+    });
+    await syncProviderPlanChange(asaasProvider, {
+      subscriptionId,
+      previousAmount: '397.00',
+      amount: '544.00',
+      firstDueDate: dueDate,
+    });
+    assert.equal((await asaasProvider.getSubscription(subscriptionId)).value, 544);
+    assert.ok(
+      (await asaasProvider.listAllSubscriptionPayments(subscriptionId)).every(
+        (payment) => payment.value === 544,
+      ),
+    );
+    console.log(
+      `PASS: médico adicional ${method} elevou a mesma recorrência para R$ 544 sem duplicata`,
+    );
+
+    await syncProviderPlanChange(asaasProvider, {
+      subscriptionId,
+      previousAmount: '544.00',
+      amount: '397.00',
+      firstDueDate: dueDate,
+    });
+    assert.equal((await asaasProvider.getSubscription(subscriptionId)).value, 397);
+    assert.ok(
+      (await asaasProvider.listAllSubscriptionPayments(subscriptionId)).every(
+        (payment) => payment.value === 397,
+      ),
+    );
+    console.log(`PASS: retirada do médico adicional ${method} reduziu a recorrência futura`);
   } finally {
     let cleanupError: unknown = null;
     if (subscriptionId) {

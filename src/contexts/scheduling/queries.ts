@@ -1178,3 +1178,43 @@ export async function listQueueTimestamps(
     }));
   });
 }
+
+/** Instante em que a consulta foi concluída, sem confundir a data agendada com a competência. */
+export async function listCompletedAppointmentsForMonth(
+  clinicId: string,
+  month: string,
+  timezone: string,
+): Promise<Array<{ appointmentId: string; completedAt: string; professionalName: string }>> {
+  return withTenant(clinicId, async (tx) => {
+    const rows = await tx
+      .select({
+        appointmentId: appointmentStateLog.appointmentId,
+        completedAt: appointmentStateLog.transitionedAt,
+        professionalName: appointments.snapshotDoctorNome,
+      })
+      .from(appointmentStateLog)
+      .innerJoin(
+        appointments,
+        and(
+          eq(appointments.id, appointmentStateLog.appointmentId),
+          eq(appointments.clinicId, clinicId),
+        ),
+      )
+      .where(
+        and(
+          eq(appointmentStateLog.clinicId, clinicId),
+          eq(appointmentStateLog.toStatus, 'atendido'),
+          // Importação histórica pode nascer atendida: o instante de importação
+          // não é o da consulta e não deve ser apresentado como competência.
+          sql`${appointmentStateLog.fromStatus} IS NOT NULL`,
+          sql`to_char(${appointmentStateLog.transitionedAt} AT TIME ZONE ${timezone}, 'YYYY-MM') = ${month}`,
+        ),
+      )
+      .orderBy(desc(appointmentStateLog.transitionedAt));
+    return rows.map((row) => ({
+      appointmentId: row.appointmentId,
+      completedAt: toIso(row.completedAt)!,
+      professionalName: row.professionalName,
+    }));
+  });
+}

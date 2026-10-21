@@ -1,5 +1,7 @@
 # Prévia da oferta por médico — outubro de 2026
 
+> **Estado atualizado em 21/10:** no DEV/Preview, Consultório e Clínica de entrada já foram ativados e dois Checkouts Sandbox tiveram pagamento e provisionamento confirmados. Produção conserva a oferta antiga. Os planos adicionais de 3–5 médicos, o anual e a franquia de IA ainda não estão contratáveis. A simulação `/oferta-preview` continua sem compra. Leia a evidência datada em `docs/quality/validacao-autonoma-2026-10-21.md`; os checkpoints abaixo descrevem estados anteriores.
+
 Esta é uma **hipótese comercial**, baseada em `Qoro_mudancas_de_preco.pdf` (13/10/2026). A rota `/oferta-preview` do app e `/precos-preview` da landing são simulações sem contratação e sem indexação. O catálogo, o cadastro, o trial e o Checkout Asaas continuam cobrando a oferta vigente. Não usar os valores desta página em proposta comercial até a ativação conjunta do produto, contrato e landing.
 
 ## Tabela proposta
