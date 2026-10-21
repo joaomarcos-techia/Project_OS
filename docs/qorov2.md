@@ -9100,3 +9100,33 @@ houve nova cobrança ou migration nesta rodada. O Playwright lista **159 casos e
 70 arquivos**; listagem não é execução. A matriz com comandos, falhas iniciais,
 limites de evidência e pendências está em
 [validação autônoma de 21/10](quality/validacao-autonoma-2026-10-21.md).
+
+Na continuação da mesma rodada, o O-7 autenticado expôs dois defeitos reais do
+tour voluntário: iniciar não abria a janela apesar de persistir `in_progress`, e
+“Pular” fechava a janela antes de persistir `skipped`, permitindo reabertura no
+reload. As duas tentativas intermediárias ficaram em **3 PASS/2 FAIL**. Após
+correções separadas, o spec passou **5/5 no Preview** do commit `9e4a5279`:
+dashboard, Ajuda, 404, início/pulo persistente e convergência de duas abas. A
+conta de teste no DEV foi restaurada de `skipped`/versão 10 para
+`not_started`/versão 11 por guarda exata. A regressão final passou
+**5.589/5.589 em 531 arquivos**, além de TypeScript, ESLint, Prettier, build,
+gate HttpOnly **7/7**, HTTP de actions e inspeção do bundle. Isso não transforma
+os dois skips de Turnstile ou os 159 casos apenas listados em PASS.
+
+Uma varredura autenticada adicional no mesmo Preview visitou **28 rotas
+estáticas** do shell: todas responderam HTTP 200 e renderizaram o título
+esperado, **1/1 teste PASS**. A primeira prova de deep-links terminou exit 1
+por falta de conversa na conta de teste; o paciente havia aberto. Uma conversa
+e mensagem sintéticas, sem evento nem envio, foram criadas apenas no DEV para
+essa conta. A repetição abriu paciente e conversa, **1/1 PASS**, seguida de
+cleanup por ID/tenant exatos e readback de **zero conversa**. O teste não foi
+afrouxado para aceitar o estado vazio.
+
+Como linha de base separada do candidato, a fronteira sem login de
+`app.qoro.dev` passou **2 testes e teve 1 SKIP**: 28 rotas estáticas e cinco
+deep-links clínicos redirecionaram ao login com os headers esperados; não havia
+conversa de produção para o terceiro caso. Na landing do Draft PR #1,
+TypeScript, ESLint, gate da proposta e build completo passaram: 54 rotas,
+ponte **27/27**, conversão **2/2** e 20 checks de segurança. A prévia externa de
+`/precos-preview` ainda respondeu **302 para o SSO da Vercel**, mesmo com o
+bypass disponível para o app; não foi classificada como prova visual da landing.
