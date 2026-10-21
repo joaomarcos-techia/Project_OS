@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 195 actions (0 inline); 53 métodos em 49 handlers; 19 props com referência de action; 322 acessos diretos a process.env; 9 nomes NEXT_PUBLIC.
+Contagem: 195 actions (0 inline); 53 métodos em 49 handlers; 19 props com referência de action; 328 acessos diretos a process.env; 9 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -249,7 +249,7 @@ O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase
 | `src/app/api/health/outbox/route.ts:84#GET`                          | health-token-or-admin   | health-token-or-admin                                                           | `src/app/api/health/outbox/route.ts:84#GET` → `src/lib/http/health-auth.ts:22#healthAuthLevel`                                                                               |
 | `src/app/api/health/route.ts:77#GET`                                 | health-token-or-admin   | health-token-or-admin                                                           | `src/app/api/health/route.ts:77#GET` → `src/lib/http/health-auth.ts:22#healthAuthLevel`                                                                                      |
 | `src/app/api/signup/checkout/cancel/route.ts:35#POST`                | NEW                     | origin-verified-pretenant-user-hmac-write-limit-strict-body-provider-cancel-cas | `src/app/api/signup/checkout/cancel/route.ts:76#abandonSignupHostedCheckout`                                                                                                 |
-| `src/app/api/signup/checkout/route.ts:100#POST`                      | NEW                     | origin-verified-pretenant-user-hmac-write-limit-empty-body-cas                  | `src/app/api/signup/checkout/route.ts:137#startSignupHostedCheckout`                                                                                                         |
+| `src/app/api/signup/checkout/route.ts:106#POST`                      | NEW                     | origin-verified-pretenant-user-hmac-write-limit-empty-body-cas                  | `src/app/api/signup/checkout/route.ts:143#startSignupHostedCheckout`                                                                                                         |
 | `src/app/api/signup/checkout/status/route.ts:25#POST`                | NEW                     | origin-verified-pretenant-user-hmac-read-limit-provider-readback-cas            | `src/app/api/signup/checkout/status/route.ts:59#completeSignupHostedCheckout`                                                                                                |
 | `src/app/api/signup/draft/route.ts:67#GET`                           | NEW                     | verified-pretenant-user-hmac-read-limit                                         | `src/app/api/signup/draft/route.ts:84#readSignupDraft`                                                                                                                       |
 | `src/app/api/signup/draft/route.ts:101#POST`                         | NEW                     | origin-verified-pretenant-user-hmac-write-limit-cas                             | `src/app/api/signup/draft/route.ts:129#writeSignupDraft`                                                                                                                     |
@@ -377,6 +377,9 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/_env.ts:111`                                      | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                 |
 | `scripts/_env.ts:174`                                      | `USER`                                 | `process.env.USER`                                 |
 | `scripts/_env.ts:174`                                      | `USERNAME`                             | `process.env.USERNAME`                             |
+| `scripts/activate-offer-preview-dev.ts:18`                 | `E2E_OFFER_DEV_ACTIVATION`             | `process.env.E2E_OFFER_DEV_ACTIVATION`             |
+| `scripts/activate-offer-preview-dev.ts:18`                 | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                 |
+| `scripts/activate-offer-preview-dev.ts:25`                 | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                    |
 | `scripts/ai-adversarial-check.ts:260`                      | `GEMINI_API_KEY`                       | `process.env.GEMINI_API_KEY`                       |
 | `scripts/asaas-card-live-check.ts:28`                      | `ASAAS_BASE_URL`                       | `process.env.ASAAS_BASE_URL`                       |
 | `scripts/asaas-checkout-e2e.ts:94`                         | `ASAAS_CHECKOUT_E2E`                   | `process.env.ASAAS_CHECKOUT_E2E`                   |
@@ -487,7 +490,10 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/restore-test.ts:59`                               | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                    |
 | `scripts/run-hard-delete.ts:24`                            | `HARD_DELETE_LIMIT`                    | `process.env.HARD_DELETE_LIMIT`                    |
 | `scripts/run-signup-confirmation-e2e.ts:220`               | `<object>`                             | `process.env`                                      |
-| `scripts/run-signup-confirmation-e2e.ts:249`               | `<object>`                             | `process.env`                                      |
+| `scripts/run-signup-confirmation-e2e.ts:236`               | `E2E_SIGNUP_PREPARE_OFFER`             | `process.env.E2E_SIGNUP_PREPARE_OFFER`             |
+| `scripts/run-signup-confirmation-e2e.ts:237`               | `E2E_SIGNUP_VERIFY_OFFER`              | `process.env.E2E_SIGNUP_VERIFY_OFFER`              |
+| `scripts/run-signup-confirmation-e2e.ts:238`               | `E2E_SIGNUP_RETIRE_OFFER`              | `process.env.E2E_SIGNUP_RETIRE_OFFER`              |
+| `scripts/run-signup-confirmation-e2e.ts:266`               | `<object>`                             | `process.env`                                      |
 | `scripts/security/local-build.ts:75`                       | `<dynamic>`                            | `process.env[key]`                                 |
 | `scripts/security/local-build.ts:75`                       | `<dynamic>`                            | `process.env[key]`                                 |
 | `scripts/security/onboarding-progress-db.ts:44`            | `DATABASE_URL`                         | `process.env.DATABASE_URL`                         |

@@ -9075,3 +9075,28 @@ foram repetidos no Preview e passaram; Vercel, Snyk e Semgrep ficaram verdes. O
 evidência e os bloqueios restantes de anual, franquia de IA, compra de médico
 adicional e rota humana recém-criada. O PR e a landing seguem em Preview, sem
 publicação da nova tabela em produção.
+
+## 72. Revalidação autônoma do candidato — 21/10/2026
+
+No Draft PR #42, a regressão integral passou **5.584/5.584 em 531 arquivos**;
+TypeScript, ESLint, build otimizado, gates de migração/arquitetura/observabilidade,
+isolamento tenant e inventário de ações passaram. No Chromium contra o Preview,
+a superfície pública passou **9/9** e a sessão de cadastro teve **8 PASS e 2
+SKIP condicionais de Turnstile**. O gate local de sessão HttpOnly falhou primeiro
+por usar HTTP com a regra HTTPS de produção e depois por um redirect à porta
+interna do harness; preservada a regra do produto e corrigido o ambiente TLS
+local, a execução final passou **7/7**. `security:http` e a inspeção do bundle
+também passaram no mesmo build.
+
+A suíte financeira integrada foi reexecutada no Preview/DEV do candidato atual:
+**10/10 PASS** em 5,6 min, incluindo estorno e revisão de repasse, negativas por
+papel/tenant, consentimentos, regras múltiplas, permissões em lote e limites da
+proposta. O readback de limpeza confirmou **zero clínicas, usuários e linhas**
+de fixture restantes. Esta suíte não compra a nova oferta nem prova a recorrência.
+
+O probe DEV de trial foi atualizado após os dois Checkouts pagos: confirmou **2/2
+assinaturas da oferta com prazo estrito e 6 contratos legados sem mudança**. Não
+houve nova cobrança ou migration nesta rodada. O Playwright lista **159 casos em
+70 arquivos**; listagem não é execução. A matriz com comandos, falhas iniciais,
+limites de evidência e pendências está em
+[validação autônoma de 21/10](quality/validacao-autonoma-2026-10-21.md).
