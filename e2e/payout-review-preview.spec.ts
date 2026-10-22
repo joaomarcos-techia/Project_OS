@@ -1245,4 +1245,70 @@ test.describe.serial('revisão humana do repasse (Preview + DEV, papéis reais)'
     ).toBeVisible();
     evidence.monthlyPayout = { scoped: true, reviewedVersion: 3, amount: '40.00' };
   });
+
+  test('12. assinatura da nova oferta mostra cotas e valores de 2 a 5 médicos', async ({
+    browser,
+  }) => {
+    test.setTimeout(120_000);
+    const legacy = fixture.plans.pro;
+    if (!legacy) throw new Error('Plano legado da fixture ausente.');
+    const [entry] = await db()<
+      { plan_id: string; price_id: string; amount: string; doctors: number; staff: number }[]
+    >`
+      select p.id::text plan_id, pr.id::text price_id, pr.amount::text amount,
+             s.doctors, s.staff
+        from plans p
+        join prices pr on pr.plan_id = p.id
+        join plan_seat_limits s on s.plan_id = p.id
+       where p.code = 'clinica_2026_2' and p.ativo = true
+         and pr.billing_cycle = 'monthly' and pr.active_until is null
+         and pr.campaign_code is null
+    `;
+    if (!entry) throw new Error('Plano Clínica 2026 de entrada ausente no DEV.');
+    expect(entry).toMatchObject({ amount: '397.00', doctors: 2, staff: 3 });
+    const changed = await db()<{ clinic_id: string }[]>`
+      update subscriptions
+         set plan_id = ${entry.plan_id}::uuid, price_id = ${entry.price_id}::uuid
+       where clinic_id = ${fixture.clinicA}::uuid
+         and plan_id = ${legacy.planId}::uuid and price_id = ${legacy.priceId}::uuid
+         and billing_status = 'active' and asaas_subscription_id is null
+      returning clinic_id::text
+    `;
+    expect(changed).toHaveLength(1);
+    try {
+      const owner = sessions.has('owner') ? pageOf('owner') : await openSession(browser, 'owner');
+      await refreshSession(owner);
+      const response = await owner.goto('/configuracoes/assinatura');
+      expect(response?.status()).toBe(200);
+      await expect(owner.getByRole('heading', { name: 'Assinatura', exact: true })).toBeVisible();
+      for (const [doctors, price] of [
+        [2, '397'],
+        [3, '544'],
+        [4, '691'],
+        [5, '838'],
+      ] as const) {
+        const card = owner
+          .locator('main [data-slot="card"]')
+          .filter({
+            has: owner.getByRole('heading', { name: `Clínica · ${doctors} médicos`, exact: true }),
+          })
+          .filter({ has: owner.locator('input[name="targetPlanId"]') });
+        await expect(card).toHaveCount(1);
+        await expect(card).toContainText(new RegExp(`R\\$\\s?${price},00\\s+por mês`, 'u'));
+        await expect(card).toContainText(`${doctors} médicos e até 3 pessoas de equipe`);
+      }
+      await expect(owner.getByRole('button', { name: 'Contratar +1 médico' })).toBeVisible();
+      evidence.extraDoctorsUi = { plans: [2, 3, 4, 5], purchaseNotStarted: true };
+    } finally {
+      const restored = await db()<{ clinic_id: string }[]>`
+        update subscriptions
+           set plan_id = ${legacy.planId}::uuid, price_id = ${legacy.priceId}::uuid
+         where clinic_id = ${fixture.clinicA}::uuid
+           and plan_id = ${entry.plan_id}::uuid and price_id = ${entry.price_id}::uuid
+           and asaas_subscription_id is null
+        returning clinic_id::text
+      `;
+      expect(restored).toHaveLength(1);
+    }
+  });
 });

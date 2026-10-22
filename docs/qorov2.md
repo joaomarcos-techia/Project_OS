@@ -9130,3 +9130,25 @@ TypeScript, ESLint, gate da proposta e build completo passaram: 54 rotas,
 ponte **27/27**, conversão **2/2** e 20 checks de segurança. A prévia externa de
 `/precos-preview` ainda respondeu **302 para o SSO da Vercel**, mesmo com o
 bypass disponível para o app; não foi classificada como prova visual da landing.
+
+## 73. Reteste de repasses e catálogo de assentos no Preview — 22/10/2026
+
+O Preview do commit `b04c8413` fechou a regressão do relatório mensal: a suíte
+`e2e/payout-review-preview.spec.ts` passou **11/11** após a correção que exige
+`manage:financial` para o consolidado e limita o médico ao próprio repasse.
+O atendente não viu o link nem a rota direta; outra clínica não recebeu linhas.
+Na repetição com mais um caso para a oferta, o mesmo spec passou **12/12 em
+5,7 min**, exit 0, com readback final de **zero clínicas, usuários Auth e linhas
+de fixture**. A prova de assentos usou assinatura sintética sem provider: a UI
+mostrou Clínica de 2 a 5 médicos, até três logins de equipe e R$ 397/544/691/838
+por mês; não iniciou Checkout.
+
+As variantes de 3–5 médicos foram ativadas por guarda e readback **somente no
+banco DEV**. A compra paga do adicional, o ciclo anual, a contagem/aviso
+comercial de 500 conversas de IA, a recusa Turnstile num Preview isolado e a
+inspeção externa da landing ainda não têm PASS. O primeiro run do caso novo
+falhou por seletor que incluía também o resumo do plano atual; a correção do
+teste manteve asserções e a repetição passou. O relatório detalhado, inclusive
+as tentativas falhas e os limites, está em
+[validação autônoma de 21–22/10](quality/validacao-autonoma-2026-10-21.md).
+Produção e o contrato de desconto vitalício não foram alterados.

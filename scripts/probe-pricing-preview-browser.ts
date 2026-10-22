@@ -9,10 +9,11 @@ import { chromium } from '@playwright/test';
 loadDotenv({ path: process.env.QORO_ENV_PATH ?? '.env.local' });
 
 const baseUrl = process.env.E2E_BASE_URL;
-const email = process.env['2E2_UI_EMAIL'];
-const password = process.env['2E2_UI_PASSWORD'];
+const useSecondaryLogin = process.env.E2E_OFFER_LOGIN_SOURCE === 'secondary';
+const email = process.env[useSecondaryLogin ? '2E2_teste_EMAIL' : '2E2_UI_EMAIL'];
+const password = process.env[useSecondaryLogin ? '2E2_teste_PASSWORD' : '2E2_UI_PASSWORD'];
 if (!baseUrl || !email || !password) {
-  throw new Error('E2E_BASE_URL e credenciais 2E2_UI do ambiente de teste são obrigatórias');
+  throw new Error('E2E_BASE_URL e credenciais do login DEV selecionado são obrigatórias');
 }
 const target = new URL(baseUrl);
 if (!target.hostname.startsWith('project-os-git-') || !target.hostname.endsWith('.vercel.app')) {
@@ -68,6 +69,16 @@ try {
           { waitUntil: 'domcontentloaded' },
         );
         assert.equal(subscription?.status(), 200, `${device}: assinatura não respondeu 200`);
+        assert.equal(
+          new URL(page.url()).pathname,
+          '/configuracoes/assinatura',
+          `${device}: assinatura redirecionou para outra tela`,
+        );
+        const planTitles = await page.locator('main [data-slot="card"] h3').allTextContents();
+        assert.ok(
+          planTitles.includes('Clínica · 3 médicos'),
+          `${device}: a conta de teste não recebeu o catálogo de médicos extras; títulos públicos: ${planTitles.join(', ')}`,
+        );
         for (const [doctors, price] of [
           [3, '544'],
           [4, '691'],
@@ -76,7 +87,7 @@ try {
           const card = page.locator('main [data-slot="card"]').filter({
             hasText: `Clínica · ${doctors} médicos`,
           });
-          await card.getByText(`${price},00/mês`, { exact: false }).waitFor();
+          await card.getByText(new RegExp(`${price},00\\s+por mês`, 'u')).waitFor();
         }
         console.log(`PASS ${device}: assinatura oferece 3–5 médicos com valores do catálogo`);
       }

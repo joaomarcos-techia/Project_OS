@@ -1,24 +1,23 @@
 # Ações humanas pendentes — oferta 2026 (Preview e Sandbox)
 
-Atualizado em 21/10/2026. Este documento contém somente ações que exigem uma pessoa ou acesso ao painel indisponível à automação. **Não altere produção, não use cartão real, não copie chaves, senhas, OTP ou URLs com bypass para o chat.** Os testes de código, migrations DEV, fixtures e readbacks pertencem à engenharia e não devem ser repetidos manualmente. A nova tabela ainda não está pronta para publicação.
+Atualizado em 22/10/2026. Este documento contém somente ações que exigem uma pessoa ou acesso ao painel indisponível à automação. **Não altere produção, não use cartão real, não copie chaves, senhas, OTP ou URLs com bypass para o chat.** Os testes de código, migrations DEV, fixtures e readbacks pertencem à engenharia e não devem ser repetidos manualmente. A nova tabela ainda não está pronta para publicação. As variantes de 3–5 médicos foram ativadas só no DEV; isso não autoriza contratar em produção.
 
-## Obrigatória 1 — Conferir visualmente as duas prévias após o próximo deploy
+## Obrigatória 1 — Conferir a landing protegida pelo SSO
 
-**Objetivo.** Confirmar que a versão publicada da branch mostra a mesma proposta em desktop e celular. Build local não prova a tela protegida por SSO da Vercel.
+**Objetivo.** Confirmar que a landing publicada no Preview mostra a mesma proposta em desktop e celular. O app já teve `/oferta-preview` inspecionado automaticamente nas duas larguras, sem overflow; a landing externa ainda redireciona ao SSO da Vercel para este agente. Não repita a inspeção do app como pré-condição da landing.
 
-**Pré-requisitos.** Acesso ao time `clinic-os-v2-s-projects` na Vercel; no app, uma conta de teste do DEV. Espere o agente informar o novo SHA como `Ready`. Se o Preview mostrar um SHA anterior, não registre PASS.
+**Pré-requisitos.** Acesso ao time `clinic-os-v2-s-projects` na Vercel. Confirme que o deployment da landing Preview está `Ready` e corresponde ao PR draft de preços. Se mostrar uma versão anterior, não registre PASS.
 
-**Links.** [App — oferta](https://project-os-git-integration-prici-c5e6c6-clinic-os-v2-s-projects.vercel.app/oferta-preview) e [landing — preços](https://landing-page-git-preview-pricing-05406a-clinic-os-v2-s-projects.vercel.app/precos-preview).
+**Link.** [Landing — preços](https://landing-page-git-preview-pricing-05406a-clinic-os-v2-s-projects.vercel.app/precos-preview). [App — oferta](https://project-os-git-integration-prici-c5e6c6-clinic-os-v2-s-projects.vercel.app/oferta-preview) fica como comparação opcional, não como teste humano pendente.
 
 **Passo a passo.**
 
-1. Abra cada link no navegador em que está logado na Vercel. Se aparecer a porta do SSO, entre pelo time e retorne ao mesmo link.
+1. Abra o link da landing no navegador em que está logado na Vercel. Se aparecer a porta do SSO, entre pelo time e retorne ao mesmo link.
 2. Na landing, compare 1, 2, 3 e 5 médicos com 0 e 3 logins de equipe. Os valores mensais esperados são R$ 197, R$ 397, R$ 544 e R$ 838. Quatro logins de equipe e seis médicos devem ser recusados. O anual (dez mensalidades) e as 500 conversas devem estar marcados como proposta, sem botão de compra anual.
-3. No app, entre com conta **DEV** e repita 1, 2, 3 e 5 médicos. Confirme que a simulação não abre Checkout.
-4. No navegador, use F12 → modo celular (largura próxima de 375 px). Repita os passos 2 e 3, role até o fim, confira ausência de corte lateral, texto legível, foco por Tab e mensagens de erro ao digitar limites inválidos.
-5. Na landing, confira o botão de contato para clínicas maiores apontando para `wa.me/5588996822198`; não é necessário enviar mensagem.
+3. No navegador, use F12 → modo celular (largura próxima de 375 px). Repita o passo 2, role até o fim, confira ausência de corte lateral, texto legível, foco por Tab e mensagens de erro ao digitar limites inválidos.
+4. Confira o botão de contato para clínicas maiores apontando para `wa.me/5588996822198`; não é necessário enviar mensagem.
 
-**Resultado e evidência.** Anote SHA exibido no deployment, navegador, largura, página, valores e qualquer elemento cortado. Screenshot pode mostrar apenas a proposta pública, nunca sessão, cookies, DevTools ou dados de pacientes. Resposta curta ao agente: `Preview app SHA …: desktop/mobile OK ou falha …; landing SHA …: desktop/mobile OK ou falha …`.
+**Resultado e evidência.** Anote SHA exibido no deployment, navegador, largura, página, valores e qualquer elemento cortado. Screenshot pode mostrar apenas a proposta pública, nunca sessão, cookies, DevTools ou dados de pacientes. Resposta curta ao agente: `Landing Preview SHA …: desktop/mobile OK ou falha …`.
 
 **Problemas comuns.** Se voltar ao login da Vercel, confirme que você está no time correto. Se a página disser oferta antiga, verifique se o deployment da branch está `Ready` antes de concluir. Se a URL de branch mudou, copie a nova URL **sem** query de bypass, token ou cookie.
 
@@ -42,7 +41,7 @@ Atualizado em 21/10/2026. Este documento contém somente ações que exigem uma 
 
 **Resultado e evidência.** Asaas deve indicar pagamento de teste; Qoro deve mostrar novo plano apenas depois da confirmação. Registre horário, ID do pagamento **somente se não contiver token** e estado textual da tela. O PASS final será dado pelo readback do agente.
 
-**Problemas comuns.** Se o botão não aparecer, os planos adicionais ainda não estão ativados no DEV ou o Preview está antigo; não tente alterar o banco. Se houver `invalid_action` ou reCAPTCHA preso, guarde o código do erro e horário. Se pagar e o Qoro continuar esperando, não pague de novo: a reconciliação é trabalho do agente.
+**Problemas comuns.** Se o botão não aparecer, confirme que a clínica da fixture está na oferta **2026**, não em Solo/Clínica/Pro legados; os adicionais já estão ativos no DEV, mas não aparecem para contratos da família antiga. Também confira o SHA do Preview; não tente alterar o banco. Se houver `invalid_action` ou reCAPTCHA preso, guarde o código do erro e horário. Se pagar e o Qoro continuar esperando, não pague de novo: a reconciliação é trabalho do agente.
 
 **Próximo passo.** Aguarde a confirmação técnica e a limpeza da fixture antes de qualquer outro Checkout.
 
