@@ -9177,9 +9177,13 @@ DEV e entrega/leitura do aviso no inbox Resend de teste, seguido de exclusão e
 readback zerado da fixture sintética. Um run anterior descobriu que o driver
 devolvia `now()` como string; o handler foi corrigido antes da repetição. Os
 testes dirigidos passaram **51/51** antes da correção do produtor e **44/44**
-após ela. Isso ainda **não** é prova de mensagem real
-Meta → IA → consumer, nem de execução do cron ou visualização no Preview deste
-commit. O período é o mês civil UTC e um evento atrasado entra no mês em que é
+após ela. O Preview do commit `8f4cf626` passou **1/1** no caso isolado e
+**12/12** na suíte integrada, exit 0: a assinatura exibiu 799 usos sem alerta,
+800 com aviso de 80% e 1.000 com aviso de 100%, sem iniciar compra. A prova
+assinada confirmou Auth e banco DEV antes da fixture; o cleanup relido mostrou
+zero clínicas, usuários e linhas residuais. Isso ainda **não** é prova de
+mensagem real Meta → IA → consumer nem de execução do cron de Preview. O
+período é o mês civil UTC e um evento atrasado entra no mês em que é
 processado. A [matriz de evidências](quality/validacao-autonoma-2026-10-21.md)
 separa essa prova DEV das etapas externas pendentes. Nenhum dado ou contrato de
 produção foi alterado.
