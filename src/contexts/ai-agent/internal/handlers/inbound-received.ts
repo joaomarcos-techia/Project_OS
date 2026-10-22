@@ -56,6 +56,7 @@ import {
   NumberNotConnectedError,
   SuppressedRecipientError,
   type InboundReceivedPayload,
+  type OutboundResult,
 } from '@/contexts/messaging';
 /* eslint-enable boundaries/element-types */
 
@@ -155,6 +156,17 @@ type TurnOutcome =
   | 'suppressed'
   | 'quota_blocked'
   | 'prefiltered';
+
+/** `sendText` também pode devolver uma recusa sem lançar exceção. */
+export function turnOutcomeAfterOutbound(
+  outcome: TurnOutcome,
+  status: OutboundResult['status'],
+): TurnOutcome {
+  if (outcome !== 'replied') return outcome;
+  return status === 'accepted' || status === 'sent' || status === 'delivered' || status === 'read'
+    ? outcome
+    : 'fallback';
+}
 
 type FailureStage =
   | 'provider'
@@ -1480,12 +1492,13 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
 
   // FASE E — envia WhatsApp (dedup por idempotencyKey = eventId) + finaliza.
   try {
-    await messagingApiV1.sendText({
+    const sent = await messagingApiV1.sendText({
       clinicId,
       toNumber: fromNumber,
       idempotencyKey: eventId,
       body: { kind: 'text', text: responseText },
     });
+    outcome = turnOutcomeAfterOutbound(outcome, sent.status);
   } catch (err) {
     if (err instanceof SuppressedRecipientError) {
       outcome = 'suppressed'; // contato pediu para não receber — não envia

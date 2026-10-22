@@ -52,6 +52,7 @@ import '@/contexts/ai-agent/internal/handlers/inbound-received';
 // → +1 conversas_ia (outcome='replied'). NUNCA bloqueiam (ADR-024) — só contam.
 import '@/contexts/billing/internal/handlers/appointment-created';
 import '@/contexts/billing/internal/handlers/conversation-completed';
+import './ai-usage-notice-handler';
 
 // ADR-047 — AI Agent: resposta manual do painel → envia ao WhatsApp fora da TX
 // (a Server Action persistiu a mensagem + publicou o evento atomicamente).

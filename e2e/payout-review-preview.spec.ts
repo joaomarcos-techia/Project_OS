@@ -1298,8 +1298,38 @@ test.describe.serial('revisão humana do repasse (Preview + DEV, papéis reais)'
         await expect(card).toContainText(`${doctors} médicos e até 3 pessoas de equipe`);
       }
       await expect(owner.getByRole('button', { name: 'Contratar +1 médico' })).toBeVisible();
-      evidence.extraDoctorsUi = { plans: [2, 3, 4, 5], purchaseNotStarted: true };
+      const period = new Date().toISOString().slice(0, 7);
+      const usageText = owner.getByText(/de 1000 conversas de referência usadas/u);
+      await expect(usageText).toContainText('0 de 1000');
+      for (const [count, warning] of [
+        [799, null],
+        [800, 'Uso da IA próximo da referência mensal'],
+        [1000, 'Referência mensal de IA alcançada'],
+      ] as const) {
+        await db()`
+          insert into usage_metrics (clinic_id, period_yyyymm, conversas_ia_count)
+          values (${fixture.clinicA}::uuid, ${period}, ${count})
+          on conflict (clinic_id, period_yyyymm)
+          do update set conversas_ia_count = excluded.conversas_ia_count
+        `;
+        await owner.reload();
+        await expect(usageText).toContainText(`${count} de 1000`);
+        if (warning) {
+          await expect(owner.getByText(warning, { exact: true })).toBeVisible();
+          await expect(
+            owner.getByText('A IA continua atendendo. Não há cobrança automática de excedente.'),
+          ).toBeVisible();
+        } else {
+          await expect(owner.getByText('Uso da IA próximo da referência mensal')).toHaveCount(0);
+        }
+      }
+      evidence.extraDoctorsUi = {
+        plans: [2, 3, 4, 5],
+        aiUsageAt: [799, 800, 1000],
+        purchaseNotStarted: true,
+      };
     } finally {
+      await db()`delete from usage_metrics where clinic_id = ${fixture.clinicA}::uuid`;
       const restored = await db()<{ clinic_id: string }[]>`
         update subscriptions
            set plan_id = ${legacy.planId}::uuid, price_id = ${legacy.priceId}::uuid

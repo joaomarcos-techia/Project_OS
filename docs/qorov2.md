@@ -9152,3 +9152,39 @@ teste manteve asserções e a repetição passou. O relatório detalhado, inclus
 as tentativas falhas e os limites, está em
 [validação autônoma de 21–22/10](quality/validacao-autonoma-2026-10-21.md).
 Produção e o contrato de desconto vitalício não foram alterados.
+
+## 74. Referência mensal de conversas de IA — 22/10/2026
+
+Na branch isolada de integração da oferta, o consumer de `ai_agent.conversation.completed`
+passou a contar apenas respostas `replied`, por paciente identificado ou hash de
+telefone quando a identidade ainda é anônima. O mesmo sujeito consome uma unidade
+por janela móvel de 24 horas, inclusive entre meses; replay do mesmo evento usa
+marcador idempotente e respostas simultâneas são serializadas por locks do
+Postgres. O contador mensal em `usage_metrics` é informativo: 500 por médico da
+cota do plano 2026. Nos cruzamentos de 80% e 100%, o outbox solicita e-mail
+idempotente aos titulares, e `/configuracoes/assinatura` mostra aviso. Não há
+cobrança automática de excedente nem bloqueio comercial. O circuito técnico de
+custo de IA continua independente e pode levar a fallback.
+
+Uma recusa síncrona da Meta também pode ser devolvida como `status=failed`, sem
+exceção. A revisão encontrou que esse caso antes ainda terminava com `replied`;
+agora somente um status `accepted`, `sent`, `delivered` ou `read` preserva esse
+outcome e consome a referência. `pending`, `unknown` e `failed` não contam.
+Aceite do provedor não prova entrega final, que permanece pendente de callback.
+
+`scripts/smoke-ai-usage-preview-dev.ts` passou com **10 asserções** no PostgreSQL
+DEV e entrega/leitura do aviso no inbox Resend de teste, seguido de exclusão e
+readback zerado da fixture sintética. Um run anterior descobriu que o driver
+devolvia `now()` como string; o handler foi corrigido antes da repetição. Os
+testes dirigidos passaram **51/51** antes da correção do produtor e **44/44**
+após ela. Isso ainda **não** é prova de mensagem real
+Meta → IA → consumer, nem de execução do cron ou visualização no Preview deste
+commit. O período é o mês civil UTC e um evento atrasado entra no mês em que é
+processado. A [matriz de evidências](quality/validacao-autonoma-2026-10-21.md)
+separa essa prova DEV das etapas externas pendentes. Nenhum dado ou contrato de
+produção foi alterado.
+
+A regressão integral após o novo código e a correção do produtor passou
+**5.628/5.628 em 535 arquivos**, exit 0. O build Next 15.5.24 também passou
+com exit 0 e gerou 19 páginas estáticas. A validação externa permanece
+prova separada.

@@ -12,6 +12,7 @@ import { publishEvent } from '@/lib/outbox/publish';
 
 import { BILLING_EVENTS } from '../events';
 import { isOffer2026PlanCode, OFFER_2026_PLAN_CODES } from '../proposed-offer';
+import { PROPOSED_OFFER } from '../proposed-offer';
 import {
   billingCustomers,
   billingEvents,
@@ -27,6 +28,7 @@ import {
   subscriptions,
 } from '../schema';
 import { toCents, toReais, toReaisString } from './money';
+import { currentPeriod, readUsage } from './quota';
 import { setClinicAccess, syncInvoiceFromProviderPayment, toPlanCode } from './subscriptions';
 
 const LEGACY_PLAN_RANK: Readonly<Record<string, number>> = { solo: 1, clinica: 2, pro: 3 };
@@ -1440,6 +1442,7 @@ export type PlanChangeOverview = {
   activeUsers: number;
   activeDoctors: number;
   activeStaff: number;
+  aiUsage: { count: number; limit: number; period: string } | null;
   pending: { kind: string; status: string; effectiveAt: string; paymentUrl: string | null } | null;
 };
 
@@ -1500,6 +1503,18 @@ export async function getPlanChangeOverview(clinicId: string): Promise<PlanChang
     const seatsByPlan = new Map(
       seats.map((row) => [row.planId, { doctors: row.doctors, staff: row.staff }]),
     );
+    const currentSeats = seatsByPlan.get(current.planId);
+    if (isOffer2026PlanCode(current.planCode) && !currentSeats) {
+      throw new PlanChangeError('Cota de médicos do plano indisponível.', 'seat_catalog_missing');
+    }
+    const aiPeriod = currentPeriod();
+    const aiUsage = currentSeats
+      ? {
+          count: (await readUsage(tx, clinicId, aiPeriod)).ai_messages,
+          limit: currentSeats.doctors * PROPOSED_OFFER.conversationsPerProfessional,
+          period: aiPeriod,
+        }
+      : null;
     const limitsByPlan = new Map<
       string,
       { users: number; agendamentos: number; ai_messages: number }
@@ -1563,6 +1578,7 @@ export async function getPlanChangeOverview(clinicId: string): Promise<PlanChang
       activeUsers: Number(active?.active_users ?? 0),
       activeDoctors: Number(active?.active_doctors ?? 0),
       activeStaff: Number(active?.active_staff ?? 0),
+      aiUsage,
       pending: pending
         ? {
             kind: pending.kind,

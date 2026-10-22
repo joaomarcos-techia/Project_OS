@@ -42,6 +42,7 @@ export const BILLING_EVENTS = {
   CLINIC_SUSPENDED: 'billing.clinic.suspended',
   CLINIC_REACTIVATED: 'billing.clinic.reactivated',
   CLINIC_DUNNING_ADVANCED: 'billing.clinic.dunning_advanced',
+  AI_USAGE_NOTICE_REQUESTED: 'billing.ai_usage.notice_requested',
 } as const;
 
 const uuid = z.string().uuid();
@@ -188,6 +189,15 @@ export const ClinicDunningAdvancedSchema = z.object({
 });
 export type ClinicDunningAdvancedPayload = z.infer<typeof ClinicDunningAdvancedSchema>;
 
+export const AiUsageNoticeRequestedSchema = z.object({
+  clinicId: uuid,
+  period: z.string().regex(/^[0-9]{4}-(0[1-9]|1[0-2])$/),
+  threshold: z.union([z.literal(80), z.literal(100)]),
+  count: z.number().int().positive(),
+  limit: z.number().int().positive(),
+});
+export type AiUsageNoticeRequestedPayload = z.infer<typeof AiUsageNoticeRequestedSchema>;
+
 registerEventSchema(BILLING_EVENTS.CUSTOMER_CREATED, CustomerCreatedSchema);
 registerEventSchema(BILLING_EVENTS.CUSTOMER_PORTAL_REQUESTED, CustomerPortalRequestedSchema);
 registerEventSchema(BILLING_EVENTS.SUBSCRIPTION_CREATED, SubscriptionCreatedSchema);
@@ -206,3 +216,4 @@ registerEventSchema(BILLING_EVENTS.TRIAL_CONVERTED, TrialConvertedSchema);
 registerEventSchema(BILLING_EVENTS.CLINIC_SUSPENDED, ClinicSuspendedSchema);
 registerEventSchema(BILLING_EVENTS.CLINIC_REACTIVATED, ClinicReactivatedSchema);
 registerEventSchema(BILLING_EVENTS.CLINIC_DUNNING_ADVANCED, ClinicDunningAdvancedSchema);
+registerEventSchema(BILLING_EVENTS.AI_USAGE_NOTICE_REQUESTED, AiUsageNoticeRequestedSchema);

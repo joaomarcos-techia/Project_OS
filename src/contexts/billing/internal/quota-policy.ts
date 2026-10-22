@@ -30,7 +30,9 @@ export interface LedgerKey {
 /**
  * Chave de idempotência da contagem:
  *   - agendamento: 1× por appointmentId.
- *   - conversa_ia: 1× por (telefone, dia UTC) — "uma vez por janela de 24h por número".
+ *   - conversa_ia: chave histórica por (telefone, dia UTC), conservada para
+ *     compatibilidade. O consumer de `ai_agent.conversation.completed` implementa
+ *     a janela móvel de 24h por paciente/telefone diretamente no ledger.
  */
 export function ledgerKeyFor(
   t: QuotaType,

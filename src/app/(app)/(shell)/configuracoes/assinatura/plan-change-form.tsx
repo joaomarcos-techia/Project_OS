@@ -82,6 +82,7 @@ export function PlanChangeForm({
   activeUsers,
   activeDoctors,
   activeStaff,
+  aiUsage,
   pending,
 }: {
   current: {
@@ -98,6 +99,7 @@ export function PlanChangeForm({
   activeUsers: number;
   activeDoctors: number;
   activeStaff: number;
+  aiUsage?: { count: number; limit: number; period: string } | null;
   pending: { kind: string; status: string; effectiveAt: string; paymentUrl: string | null } | null;
 }) {
   const [state, formAction, submitting] = useActionState(requestPlanChangeAction, INITIAL);
@@ -216,6 +218,29 @@ export function PlanChangeForm({
           </Badge>
         </CardContent>
       </Card>
+      {isNewOffer && aiUsage ? (
+        <Card>
+          <CardContent>
+            <p className="font-semibold">Uso da IA em {aiUsage.period}</p>
+            <p className="mt-1 text-(length:--fs-sm) text-fg-muted">
+              {aiUsage.count} de {aiUsage.limit} conversas de referência usadas. Cada paciente conta
+              uma vez por janela de 24 horas com resposta da IA.
+            </p>
+            {aiUsage.count >= Math.ceil(aiUsage.limit * 0.8) ? (
+              <Alert
+                variant="warning"
+                title={
+                  aiUsage.count >= aiUsage.limit
+                    ? 'Referência mensal de IA alcançada'
+                    : 'Uso da IA próximo da referência mensal'
+                }
+              >
+                A IA continua atendendo. Não há cobrança automática de excedente.
+              </Alert>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
 
       <div className="grid gap-(--sp-4) lg:grid-cols-3">
         {availablePlans.map((plan) => {

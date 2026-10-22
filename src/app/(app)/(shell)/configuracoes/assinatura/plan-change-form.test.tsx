@@ -323,4 +323,33 @@ describe('contratação de médico na oferta 2026', () => {
     expect(buttons).toHaveLength(2);
     expect(buttons.every((button) => !button.hasAttribute('disabled'))).toBe(true);
   });
+
+  it.each([
+    { count: 399, title: null },
+    { count: 400, title: 'Uso da IA próximo da referência mensal' },
+    { count: 500, title: 'Referência mensal de IA alcançada' },
+  ])('mostra referência de IA com $count usos sem bloquear atendimento', ({ count, title }) => {
+    render(
+      <PlanChangeForm
+        current={current}
+        plans={plans}
+        activeUsers={4}
+        activeDoctors={2}
+        activeStaff={2}
+        aiUsage={{ count, limit: 500, period: '2026-10' }}
+        pending={null}
+      />,
+    );
+    expect(
+      screen.getByText(`${count} de 500 conversas de referência usadas.`, { exact: false }),
+    ).toBeTruthy();
+    if (title) {
+      expect(screen.getByText(title)).toBeTruthy();
+      expect(
+        screen.getByText('A IA continua atendendo. Não há cobrança automática de excedente.'),
+      ).toBeTruthy();
+    } else {
+      expect(screen.queryByText(/referência mensal de IA alcançada/u)).toBeNull();
+    }
+  });
 });
