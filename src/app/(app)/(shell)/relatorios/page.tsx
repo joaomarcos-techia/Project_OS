@@ -44,7 +44,8 @@ export default async function RelatoriosPage({
   const { periodo } = await searchParams;
   const period = resolvePeriod(periodo);
   const canFinancial = user.permissions.includes(PERMISSIONS.VIEW_FINANCIAL);
-  const canSeeOwnPayouts = !canFinancial && (await getCurrentPractitioner());
+  const canManagePayouts = user.permissions.includes(PERMISSIONS.MANAGE_FINANCIAL);
+  const canSeeOwnPayouts = !canManagePayouts && (await getCurrentPractitioner());
 
   const data = await getRelatorios(clinicId, period.days, { includeFaturamento: canFinancial });
 
@@ -103,7 +104,7 @@ export default async function RelatoriosPage({
         </span>
       </nav>
 
-      {canFinancial || canSeeOwnPayouts ? (
+      {canManagePayouts || canSeeOwnPayouts ? (
         <p className="mb-5">
           <Link href="/relatorios/repasses" className="font-semibold text-(--text-link)">
             Ver repasses por mês

@@ -79,7 +79,7 @@ describe('RepassesPage', () => {
     mocks.requireUser.mockResolvedValue({
       userId: 'manager-a',
       role: 'gestor',
-      permissions: [PERMISSIONS.VIEW_FINANCIAL],
+      permissions: [PERMISSIONS.MANAGE_FINANCIAL],
     });
     render(await RepassesPage({ searchParams: Promise.resolve({ mes: '2026-10' }) }));
     expect(mocks.listPayouts).toHaveBeenCalledWith('clinic-a', ['appointment-a'], undefined);
@@ -94,8 +94,23 @@ describe('RepassesPage', () => {
     expect(mocks.listPayouts).toHaveBeenCalledWith('clinic-a', ['appointment-a'], 'owner-a');
   });
 
+  it('médico com permissão de leitura financeira continua vendo só seus repasses', async () => {
+    mocks.requireUser.mockResolvedValue({
+      userId: 'doctor-a',
+      role: 'doctor',
+      permissions: [PERMISSIONS.VIEW_FINANCIAL],
+    });
+    mocks.getCurrentPractitioner.mockResolvedValue(true);
+    render(await RepassesPage({ searchParams: Promise.resolve({ mes: '2026-10' }) }));
+    expect(mocks.listPayouts).toHaveBeenCalledWith('clinic-a', ['appointment-a'], 'doctor-a');
+  });
+
   it('nega antes de consultar repasses quando a role não tem autorização', async () => {
-    mocks.requireUser.mockResolvedValue({ userId: 'staff-a', role: 'atendente', permissions: [] });
+    mocks.requireUser.mockResolvedValue({
+      userId: 'staff-a',
+      role: 'attendant',
+      permissions: [PERMISSIONS.VIEW_FINANCIAL],
+    });
     render(await RepassesPage({ searchParams: Promise.resolve({ mes: '2026-10' }) }));
     expect(screen.getByText(/não tem acesso a este relatório/i)).toBeTruthy();
     expect(mocks.getClinicTimezone).not.toHaveBeenCalled();

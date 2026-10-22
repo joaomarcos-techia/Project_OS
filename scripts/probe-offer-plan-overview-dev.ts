@@ -52,6 +52,7 @@ async function main(): Promise<void> {
     throw new Error('ativação parcial ou desconhecida do catálogo DEV');
   }
 
+  let paidActive = 0;
   for (const subscription of subscriptions) {
     const overview = await getPlanChangeOverview(subscription.clinic_id);
     if (
@@ -63,9 +64,10 @@ async function main(): Promise<void> {
     ) {
       throw new Error('a página de assinatura não recebeu catálogo, cotas e contagens coerentes');
     }
+    if (overview.current.billingStatus === 'active') paidActive += 1;
   }
   console.log(
-    `PASS: ${subscriptions.length} assinatura(s) DEV com ${activeCodes.length} planos próprios e cotas legíveis`,
+    `PASS: ${subscriptions.length} assinatura(s) DEV com ${activeCodes.length} planos próprios e cotas legíveis; ${paidActive} ativa(s) para troca`,
   );
 }
 

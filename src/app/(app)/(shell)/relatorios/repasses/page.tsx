@@ -30,9 +30,9 @@ export default async function RepassesPage({
 }) {
   const user = await requireUser();
   const clinicId = await requireClinicId();
-  const canFinancial = user.permissions.includes(PERMISSIONS.VIEW_FINANCIAL);
-  const ownOnly = !canFinancial && (await getCurrentPractitioner());
-  if (!canFinancial && !ownOnly) {
+  const canManagePayouts = user.permissions.includes(PERMISSIONS.MANAGE_FINANCIAL);
+  const ownOnly = !canManagePayouts && (await getCurrentPractitioner());
+  if (!canManagePayouts && !ownOnly) {
     return (
       <>
         <PageHeader title="Repasses por mês" />

@@ -1150,7 +1150,17 @@ test.describe.serial('revisão humana do repasse (Preview + DEV, papéis reais)'
     await owner.getByRole('menuitem', { name: 'Permissões individuais' }).click();
     await expect(viewFinancial).toHaveValue('grant');
     await expect(operateCaixa).toHaveValue('deny');
-    evidence.bulkPermissions = { changes: 2, cancelledWithoutWrites: true, persisted: true };
+    await viewFinancial.selectOption('default');
+    await operateCaixa.selectOption('default');
+    await dialog.getByRole('button', { name: 'Salvar permissões (2)' }).click();
+    await expect(dialog).toBeHidden();
+    expect(await readOverrides()).toEqual([]);
+    evidence.bulkPermissions = {
+      changes: 2,
+      cancelledWithoutWrites: true,
+      persisted: true,
+      revoked: true,
+    };
   });
 
   test('10. proposta de preços em Preview não altera o checkout vigente', async ({ browser }) => {
@@ -1208,6 +1218,9 @@ test.describe.serial('revisão humana do repasse (Preview + DEV, papéis reais)'
     await expect(owner.getByText(/Repasse calculado\/revisado: R\$\s?40,00/u)).toBeVisible();
 
     const doctor = sessions.has('doctor') ? pageOf('doctor') : await openSession(browser, 'doctor');
+    await refreshSession(doctor, false);
+    await doctor.goto('/relatorios');
+    await expect(doctor.getByRole('link', { name: 'Ver repasses por mês' })).toBeVisible();
     await doctor.goto(`/relatorios/repasses?mes=${month}`);
     await expect(doctor.getByText(/Seus atendimentos concluídos/u)).toBeVisible();
     await expect(doctor.getByText(/Repasse calculado\/revisado: R\$\s?40,00/u)).toBeVisible();
@@ -1216,12 +1229,16 @@ test.describe.serial('revisão humana do repasse (Preview + DEV, papéis reais)'
     const attendant = sessions.has('attendant')
       ? pageOf('attendant')
       : await openSession(browser, 'attendant');
+    await refreshSession(attendant);
+    await attendant.goto('/relatorios');
+    await expect(attendant.getByRole('link', { name: 'Ver repasses por mês' })).toHaveCount(0);
     await attendant.goto(`/relatorios/repasses?mes=${month}`);
     await expect(attendant.getByText('Seu perfil não tem acesso a este relatório.')).toBeVisible();
 
     const otherTenant = sessions.has('financialB')
       ? pageOf('financialB')
       : await openSession(browser, 'financialB');
+    await refreshSession(otherTenant);
     await otherTenant.goto(`/relatorios/repasses?mes=${month}`);
     await expect(
       otherTenant.getByText('Nenhum repasse com consulta concluída neste mês.'),

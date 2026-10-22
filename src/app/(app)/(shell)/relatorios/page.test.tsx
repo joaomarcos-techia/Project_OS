@@ -91,6 +91,20 @@ describe('RelatoriosPage', () => {
     expect(getRelatorios).toHaveBeenCalledWith('clinic-1', 30, { includeFaturamento: false });
   });
 
+  it('não oferece o relatório consolidado ao atendente que apenas lê o financeiro', async () => {
+    requireUser.mockResolvedValue({ permissions: [PERMISSIONS.VIEW_FINANCIAL] });
+    render(await RelatoriosPage({ searchParams: Promise.resolve({ periodo: '30d' }) }));
+    expect(screen.queryByRole('link', { name: 'Ver repasses por mês' })).toBeNull();
+    expect(getRelatorios).toHaveBeenCalledWith('clinic-1', 30, { includeFaturamento: true });
+  });
+
+  it('mantém o link para médico mesmo com leitura financeira concedida', async () => {
+    requireUser.mockResolvedValue({ permissions: [PERMISSIONS.VIEW_FINANCIAL] });
+    getCurrentPractitioner.mockResolvedValue(true);
+    render(await RelatoriosPage({ searchParams: Promise.resolve({ periodo: '30d' }) }));
+    expect(screen.getByRole('link', { name: 'Ver repasses por mês' })).toBeTruthy();
+  });
+
   it('mantém período, exportação e faturamento descobertos com permissão', async () => {
     requireUser.mockResolvedValue({ permissions: [PERMISSIONS.VIEW_FINANCIAL] });
 

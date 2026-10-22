@@ -62,6 +62,24 @@ try {
         await main.screenshot({ path: path.join(dir, `${device}.png`) });
       }
       console.log(`PASS ${device}: HTTP 200, copy atual e sem overflow horizontal`);
+      if (process.env.E2E_OFFER_EXTRA_ACTIVE === '1') {
+        const subscription = await page.goto(
+          new URL('/configuracoes/assinatura', target).toString(),
+          { waitUntil: 'domcontentloaded' },
+        );
+        assert.equal(subscription?.status(), 200, `${device}: assinatura não respondeu 200`);
+        for (const [doctors, price] of [
+          [3, '544'],
+          [4, '691'],
+          [5, '838'],
+        ] as const) {
+          const card = page.locator('main [data-slot="card"]').filter({
+            hasText: `Clínica · ${doctors} médicos`,
+          });
+          await card.getByText(`${price},00/mês`, { exact: false }).waitFor();
+        }
+        console.log(`PASS ${device}: assinatura oferece 3–5 médicos com valores do catálogo`);
+      }
     } finally {
       await context.close();
     }
