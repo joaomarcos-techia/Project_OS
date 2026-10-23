@@ -9418,3 +9418,15 @@ A página hospedada mostrou recorrência anual e primeira cobrança em 23/10.
 Pagamento humano, webhook e acesso após provisionamento ainda **NOT RUN**;
 este PASS é somente da preparação. A regressão integral após o guarda de
 ambiente foi **5.646/5.646**, e o build Next teve exit 0.
+
+## 80. Checkout anual pago após vencimento do draft — 23/10/2026
+
+O usuário concluiu o Checkout hospedado de Consultório anual no Asaas Sandbox. O pagamento real de teste expôs uma lacuna que o teste de preparação não cobria: o draft completou seu TTL de uma hora enquanto o Asaas processava o cartão. O Auth conservou o vínculo e o banco manteve `checkout_pending`, mas `/cadastro/continuar` não achava a referência; `POST /api/signup/checkout/status` devolvia 401. O pagamento podia ficar sem tenant. A indisponibilidade 503 anterior era distinta, causada por comparação enum/text no SQL, corrigida em `226b72c1`.
+
+O commit `03e1d064` recupera apenas um Checkout hospedado já associado ao mesmo Auth e ao HMAC do e-mail, com tentativa de cobrança comprovada. O formulário continua fechado após o TTL e nenhum novo Checkout é autorizado por essa recuperação. O readback do Asaas e a transação de provisionamento continuam obrigatórios.
+
+No Preview do PR #42, `@verify-offer-checkout` reutilizou a mesma fixture paga: **1/1 PASS, exit 0**. Autenticou pela UI, conciliou com HTTP 200 `provisioned`, chegou ao dashboard, repetiu a confirmação com 200 e releu no DEV uma clínica ativa, Consultório anual pelo valor contratado, uma invoice paga e o draft consumido. O Asaas Sandbox confirmou assinatura `ACTIVE`/`YEARLY`/cartão e pagamento correspondente ao mesmo Checkout. Um polling redundante recebeu 401 durante a troca de sessão; o refresh respondeu 307 e o dashboard 200. A prova confirma o estado final, mas não isola o webhook como causa da invoice, pois o próprio status autenticado consulta o provedor. A assinatura/conta paga permanece como fixture DEV; não foi removida parcialmente.
+
+Gates: **5.652/5.652** testes em 535 arquivos, TypeScript, ESLint, inventário de segurança e build Next isolado com exit 0. O Preview passou Vercel, Snyk e Semgrep. Detalhes no [relatório de validação](quality/validacao-autonoma-2026-10-21.md). Permanecem parciais a renovação efetiva após um ano, a troca de ciclo de contrato existente e a prova causal do webhook; a nova oferta não foi publicada em produção.
+
+Busca de logs de runtime do Preview entre 17h e 21h UTC: nenhuma entrada na rota SaaS `/api/webhooks/asaas`; as 18 entradas com caminho Asaas eram das rotas de cobrança de paciente. A configuração de webhooks do Sandbox não foi lida: a revisão automática bloqueou a tentativa de consulta `GET /v3/webhooks` antes da execução. A entrega SaaS permanece **NOT TESTED**; o estado final acima foi confirmado pelo readback autenticado do Asaas.

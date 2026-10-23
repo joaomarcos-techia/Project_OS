@@ -45,33 +45,24 @@ Atualizado em 23/10/2026. Este documento contém somente ações que exigem uma 
 
 **Próximo passo.** Aguarde a confirmação técnica e a limpeza da fixture antes de qualquer outro Checkout.
 
-## Obrigatória 3 — Pagar o cadastro anual de teste no Checkout Sandbox
+## Condicional — Conferir a entrega do webhook de assinatura no Asaas Sandbox
 
-**Suspensa até a engenharia liberar:** em 23/10, o endpoint de confirmação do
-Checkout respondeu HTTP 503 no Preview com a conta de teste ainda pendente.
-Mesmo que o link Sandbox ainda abra, **não pague agora**. A engenharia precisa
-primeiro identificar a etapa da falha nos Logs da Vercel e comprovar HTTP 202
-para um Checkout não pago no novo Preview. Só depois enviará um link válido e
-autorizará esta etapa. Não reutilize o link expirado.
+**Objetivo.** A compra anual chegou ao estado correto por readback autenticado, mas não foi comprovado que o webhook da assinatura entregou o evento ao Preview. Os logs de 23/10, 17h–21h UTC, não mostraram chamada a `/api/webhooks/asaas` no Preview. Precisamos distinguir webhook ausente, alvo diferente e entrega não registrada. Não crie outra cobrança para este diagnóstico.
 
-**Objetivo.** Provar a cadeia que o teste local não atravessa: escolha anual na UI → Checkout Asaas hospedado → pagamento com cartão → webhook → assinatura e invoice anuais no DEV → dashboard. O cadastro anual da branch precisa estar publicado em **Preview** e a migration 0128 aplicada **somente no DEV** antes desta etapa. A execução da engenharia deve preparar uma conta sintética e confirmar que o trial dela venceu por relógio controlado; assim o pagamento é exigido antes do acesso.
+**Pré-requisitos.** Entre na conta **Sandbox** usada pelo Checkout anual; não use a conta real. Tenha acesso a **Integrações → Webhooks** e **Integrações → Logs de Webhooks**. Não copie a URL completa se ela contiver bypass, nem token de autenticação, chave API ou corpo de evento.
 
-**Pré-requisitos.** O Preview atualizado foi publicado e a prova assinada confirmou Auth/banco DEV, URL Asaas Sandbox e presença da chave; a página hospedada também abriu no Sandbox. Uma fixture sintética de Consultório anual foi preparada em 23/10 às 14h24 de Brasília. O link do Checkout deve começar com `https://sandbox.asaas.com/` e **vence após 60 minutos**; use o link temporário enviado na conversa, não um link guardado neste arquivo. Não use cartão real nem crie um segundo checkout se o primeiro ficar pendente.
-
-**Links.** [Cadastro no Preview](https://project-os-git-integration-prici-c5e6c6-clinic-os-v2-s-projects.vercel.app/cadastro). O link do Checkout é gerado para cada fixture e expira; o agente enviará apenas o endereço Sandbox necessário quando a preparação terminar. [Painel de pagamentos do Asaas Sandbox](https://sandbox.asaas.com/) serve para conferir o resultado, se você já tiver acesso à conta de teste.
+**Link.** [Painel Asaas Sandbox](https://sandbox.asaas.com/). A [documentação oficial de Logs de Webhooks](https://docs.asaas.com/docs/webhooks-logs) descreve onde localizar horário, destino e status HTTP.
 
 **Passo a passo.**
 
-1. Abra somente o link de Checkout **Sandbox** preparado pelo agente. Na página, confira o nome do plano e o valor anual: Consultório R$ 1.970 ou Clínica R$ 3.970. Se aparecer mensalidade, cobrança Pix ou domínio diferente, pare e informe a divergência.
-2. Escolha cartão. Use apenas os dados de cartão de teste indicados pelo próprio Sandbox/documentação do Asaas e conclua o reCAPTCHA manualmente. Não envie número, CVV, senha, token ou URL da sessão ao chat.
-3. Ao receber a confirmação, clique em **Acompanhar pedido** e aguarde o retorno ao Preview. Se a tela disser que está verificando o Asaas, aguarde e atualize **uma vez** após alguns minutos; não pague outra vez.
-4. Informe ao agente plano, horário aproximado em Brasília, estado mostrado pelo Asaas e destino/estado final no Qoro. O agente fará o readback do webhook, assinatura `YEARLY`, valor, primeira invoice paga, período anual, acesso e replay. A conta paga permanecerá identificada como fixture DEV até existir remoção transacional segura de Auth, tenant e assinatura Sandbox; não a apague manualmente por partes.
+1. Em **Integrações → Webhooks**, procure uma configuração de assinatura SaaS que termine no caminho `/api/webhooks/asaas` (sem `/patient/`). Anote apenas se existe, se está ativa, se a fila está interrompida e se o domínio é Preview, produção ou outro; não envie a URL completa.
+2. Confira se a configuração inclui `PAYMENT_CREATED`, `PAYMENT_CONFIRMED` e `PAYMENT_RECEIVED`. Não revele o `authToken` nem altere eventos agora.
+3. Em **Integrações → Logs de Webhooks**, filtre 23/10/2026 entre **14h e 18h de Brasília** para a configuração de assinatura. Anote o tipo do evento, horário, resultado da entrega e código HTTP. Se não houver entrega, registre “nenhuma entrega” sem presumir a causa.
+4. Envie somente: `Webhook SaaS Sandbox: [existe/ausente]; alvo: [Preview/produção/outro]; ativo: [sim/não]; fila interrompida: [sim/não]; eventos exigidos: [completos/incompletos]; última entrega: [horário, evento, HTTP ou nenhuma]`. Não faça replay nem crie novo Checkout antes da análise técnica.
 
-**Resultado e evidência.** A página do Asaas confirma o pagamento de teste e o Qoro libera o dashboard **somente depois** da confirmação pelo provedor. Guarde screenshot sanitizado do estado final, sem cartão, dados pessoais, query de bypass nem identificador de sessão. Modelo de resposta: `Anual [Consultório/Clínica] pago no Sandbox às HH:MM; Asaas: [estado]; Qoro: [estado]`.
+**Resultado esperado.** Uma entrega `PAYMENT_CONFIRMED` ou `PAYMENT_RECEIVED` para o endpoint SaaS responde 2xx e aparece também nos logs do deployment destinatário. A configuração por si só não é prova de entrega, e a invoice anual já paga não deve ser usada como substituto da evidência.
 
-**Problemas comuns.** Se o Checkout pedir Pix, não continue: Pix anual ainda não foi habilitado. Se ficar preso no reCAPTCHA, registre o horário e a mensagem e deixe o checkout pendente para o agente reconciliar ou limpar; não crie outro. Se o Asaas confirmar e a tela do Qoro continuar esperando, informe o horário sem repetir o pagamento. Se o link expirar, peça que o agente verifique primeiro se existe cobrança ou assinatura associada antes de preparar outra fixture.
-
-**Próximo passo.** O agente compara banco, Asaas e UI e só então registra PASS ou FAIL, com a fixture paga identificada e isolada. A renovação após um ano e a troca mensal↔anual de contrato existente exigem provas separadas; este pagamento não as valida.
+**Problemas comuns e próximo passo.** Se o webhook apontar para outro deployment, estiver inativo ou não existir, deixe a configuração intacta e informe o estado; a engenharia preparará um alvo de Preview, token separado e fixture controlada para nova prova. Se houver HTTP não 2xx, informe apenas o código e horário para correlacionar com logs, sem reenviar o payload.
 
 ## Condicional — Validar a recusa do Turnstile em Preview separado
 
