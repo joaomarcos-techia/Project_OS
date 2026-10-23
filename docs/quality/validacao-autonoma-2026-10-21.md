@@ -365,3 +365,26 @@ um mês. O [Asaas documenta](https://docs.asaas.com/reference/atualizar-assinatu
 que alterar a assinatura afeta por padrão cobranças futuras e não corrige
 as já emitidas sem tratamento explícito. A prova isolada do provider não
 fecha essa corrida; não oferecer a troca mensal↔anual pela UI ainda.
+
+## Bloqueio do checkout anual no Preview — 23/10/2026, 17h50 UTC
+
+Antes do pagamento da fixture anual, o login da conta sintética foi repetido no
+deployment exato `project-72elr0chu-clinic-os-v2-s-projects.vercel.app`. O draft
+e o plano responderam HTTP 200, mas `POST /api/signup/checkout/status` respondeu
+**503 `unavailable` em três tentativas**, embora o Checkout ainda estivesse sem
+pagamento. A sessão no banco DEV permanecia viva em `checkout_pending`, associada
+ao mesmo Checkout; o Asaas Sandbox respondeu HTTP 200 com zero pagamentos para
+ele, e a mesma busca pelo cliente local retornou `null` sem erro. Uma tentativa
+de abrir diretamente o retorno de sucesso não concedeu acesso ao dashboard.
+Esse controle confirma **falha de disponibilidade no Preview, não bypass de
+pagamento**. Pagamento humano foi suspenso para não prender uma conta paga.
+
+A rota agora emite `signup.checkout.status.unavailable` com etapa enumerada
+(`configuration`, `origin`, `identity`, `rate_limit`, `completion` ou
+`unexpected`) e, na etapa de conclusão, motivo enumerado. A métrica não inclui
+usuário, email, Checkout, corpo do provedor ou texto da exceção. A causa raiz
+do 503 **ainda não foi identificada**: será preciso reproduzir no novo Preview
+e ler essa métrica nos Logs da Vercel. O teste de rota passou **10/10** e a
+regressão integral anterior à instrumentação das duas etapas iniciais passou
+**5.648/5.648 em 535 arquivos, exit 0**. Não atribuir PASS ao checkout anual
+antes de obter 202 pendente e, após o pagamento, provisionamento confirmado.

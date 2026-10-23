@@ -47,6 +47,13 @@ Atualizado em 23/10/2026. Este documento contém somente ações que exigem uma 
 
 ## Obrigatória 3 — Pagar o cadastro anual de teste no Checkout Sandbox
 
+**Suspensa até a engenharia liberar:** em 23/10, o endpoint de confirmação do
+Checkout respondeu HTTP 503 no Preview com a conta de teste ainda pendente.
+Mesmo que o link Sandbox ainda abra, **não pague agora**. A engenharia precisa
+primeiro identificar a etapa da falha nos Logs da Vercel e comprovar HTTP 202
+para um Checkout não pago no novo Preview. Só depois enviará um link válido e
+autorizará esta etapa. Não reutilize o link expirado.
+
 **Objetivo.** Provar a cadeia que o teste local não atravessa: escolha anual na UI → Checkout Asaas hospedado → pagamento com cartão → webhook → assinatura e invoice anuais no DEV → dashboard. O cadastro anual da branch precisa estar publicado em **Preview** e a migration 0128 aplicada **somente no DEV** antes desta etapa. A execução da engenharia deve preparar uma conta sintética e confirmar que o trial dela venceu por relógio controlado; assim o pagamento é exigido antes do acesso.
 
 **Pré-requisitos.** O Preview atualizado foi publicado e a prova assinada confirmou Auth/banco DEV, URL Asaas Sandbox e presença da chave; a página hospedada também abriu no Sandbox. Uma fixture sintética de Consultório anual foi preparada em 23/10 às 14h24 de Brasília. O link do Checkout deve começar com `https://sandbox.asaas.com/` e **vence após 60 minutos**; use o link temporário enviado na conversa, não um link guardado neste arquivo. Não use cartão real nem crie um segundo checkout se o primeiro ficar pendente.
