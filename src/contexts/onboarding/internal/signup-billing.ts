@@ -488,7 +488,7 @@ export async function readSignupHostedCheckoutTarget(
       prices,
       and(
         eq(prices.planId, plans.id),
-        eq(prices.billingCycle, signupSessions.selectedBillingCycle),
+        eq(sql<string>`${prices.billingCycle}::text`, signupSessions.selectedBillingCycle),
         eq(prices.currency, 'BRL'),
         lte(prices.activeFrom, sql`now()`),
         isNull(prices.activeUntil),
@@ -655,7 +655,7 @@ export async function readSignupBillingReconcileTarget(userId: string): Promise<
       prices,
       and(
         eq(prices.planId, plans.id),
-        eq(prices.billingCycle, signupSessions.selectedBillingCycle),
+        eq(sql<string>`${prices.billingCycle}::text`, signupSessions.selectedBillingCycle),
         eq(prices.currency, 'BRL'),
         lte(prices.activeFrom, sql`now()`),
         isNull(prices.activeUntil),
