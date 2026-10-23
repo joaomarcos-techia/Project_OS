@@ -62,11 +62,14 @@ async function main(): Promise<void> {
     `);
     return Number(row?.count ?? 0);
   };
-  const conversation = async (phoneHash: string): Promise<string> => {
+  const conversation = async (
+    phoneHash: string,
+    patientId: string | null = null,
+  ): Promise<string> => {
     const [row] = await dbAdmin.execute<{ id: string }>(sql`
       INSERT INTO public.ai_conversations
-        (clinic_id, patient_phone_hash, patient_phone_encrypted)
-      VALUES (${clinicId}::uuid, ${phoneHash}, 'fixture-only-no-delivery')
+        (clinic_id, patient_id, patient_phone_hash, patient_phone_encrypted)
+      VALUES (${clinicId}::uuid, ${patientId}::uuid, ${phoneHash}, 'fixture-only-no-delivery')
       RETURNING id::text AS id
     `);
     if (!row) throw new Error('Conversa sintética não criada.');
@@ -126,6 +129,35 @@ async function main(): Promise<void> {
     const concurrentConversation = await conversation(`fixture-${clinicId}-b`);
     await Promise.all([processTurn(concurrentConversation), processTurn(concurrentConversation)]);
     assert((await readCount()) === 3, 'duas respostas concorrentes do mesmo contato contam uma');
+
+    const sharedPhone = `fixture-${clinicId}-shared`;
+    const firstPatientId = randomUUID();
+    const secondPatientId = randomUUID();
+    const firstSharedConversation = await conversation(sharedPhone, firstPatientId);
+    await processTurn(firstSharedConversation);
+    await dbAdmin.execute(sql`
+      UPDATE public.ai_conversations SET status = 'closed'
+      WHERE id = ${firstSharedConversation}::uuid AND clinic_id = ${clinicId}::uuid
+    `);
+    await processTurn(await conversation(sharedPhone, secondPatientId));
+    assert(
+      (await readCount()) === 5,
+      'pacientes distintos com telefone compartilhado contam separadamente',
+    );
+
+    await processTurn(await conversation(`fixture-${clinicId}-other-phone`, firstPatientId));
+    assert((await readCount()) === 5, 'mesmo paciente em outro telefone não duplica a janela');
+
+    const newlyIdentifiedPhone = `fixture-${clinicId}-identified`;
+    const anonymousConversation = await conversation(newlyIdentifiedPhone);
+    await processTurn(anonymousConversation);
+    assert((await readCount()) === 6, 'contato anônimo conta por telefone');
+    await dbAdmin.execute(sql`
+      UPDATE public.ai_conversations SET status = 'closed'
+      WHERE id = ${anonymousConversation}::uuid AND clinic_id = ${clinicId}::uuid
+    `);
+    await processTurn(await conversation(newlyIdentifiedPhone, randomUUID()));
+    assert((await readCount()) === 6, 'identificação posterior não duplica a janela do telefone');
 
     await dbAdmin.execute(sql`
       UPDATE public.usage_metrics SET conversas_ia_count = 399

@@ -9192,3 +9192,15 @@ A regressão integral após o novo código e a correção do produtor passou
 **5.628/5.628 em 535 arquivos**, exit 0. O build Next 15.5.24 também passou
 com exit 0 e gerou 19 páginas estáticas. A validação externa permanece
 prova separada.
+
+**Ampliação da prova DEV em 22/10:** o smoke foi repetido com **14 asserções**,
+exit 0, incluindo dois pacientes conhecidos no mesmo telefone, um paciente em
+dois números e a identificação posterior de um contato anônimo. O banco permite
+apenas uma conversa ativa por telefone; a primeira conversa foi encerrada antes
+de iniciar a segunda. Os dois pacientes conhecidos contaram separadamente,
+enquanto o mesmo paciente e a identificação posterior não duplicaram a janela
+de 24 horas. A hipótese inicial de que o telefone compartilhado suprimia um
+paciente conhecido foi **refutada** pela medição; não houve correção de produto.
+O aviso de 80% foi novamente recebido/lido no inbox Resend de teste e o
+readback da fixture terminou com zero resíduo. TypeScript de scripts, ESLint e
+Prettier do runner passaram. Isto continua sem provar uma mensagem real da Meta.
