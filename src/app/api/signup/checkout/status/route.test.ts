@@ -151,6 +151,8 @@ describe('POST /api/signup/checkout/status', () => {
     expect(await response.json()).toEqual({ error: 'unavailable' });
     expect(mocks.metric).toHaveBeenCalledWith('signup.checkout.status.unavailable', {
       stage: 'unexpected',
+      during: 'completion',
+      errorType: 'error',
     });
   });
 });

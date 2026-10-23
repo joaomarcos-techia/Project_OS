@@ -35,6 +35,7 @@ export async function POST(req: Request): Promise<Response> {
   }
   if (publicOrigin === null) return json({ error: 'blocked' }, 403);
 
+  let stage: 'identity' | 'rate_limit' | 'completion' = 'identity';
   try {
     const onboarding = await resolveReadyOwnedSignupOnboarding();
     if (!onboarding.ok) {
@@ -52,6 +53,7 @@ export async function POST(req: Request): Promise<Response> {
     // fazia plano + criação do Checkout + três leituras esgotarem a janela antes
     // de o Asaas materializar a assinatura. O readback continua autenticado e
     // rate-limited, mas usa o orçamento próprio de leitura (60/15 min por usuário).
+    stage = 'rate_limit';
     const limit = await assertSignupDraftReadAllowed(
       getClientIp(req.headers),
       hashSignupUserId(onboarding.userId),
@@ -67,6 +69,7 @@ export async function POST(req: Request): Promise<Response> {
       return response;
     }
 
+    stage = 'completion';
     const completed = await completeSignupHostedCheckout({
       userId: onboarding.userId,
       verifiedEmail: onboarding.email,
@@ -81,8 +84,12 @@ export async function POST(req: Request): Promise<Response> {
       reason: completed.reason,
     });
     return json({ error: 'unavailable' }, 503);
-  } catch {
-    metrics.emit('signup.checkout.status.unavailable', { stage: 'unexpected' });
+  } catch (error) {
+    metrics.emit('signup.checkout.status.unavailable', {
+      stage: 'unexpected',
+      during: stage,
+      errorType: error instanceof TypeError ? 'type' : error instanceof Error ? 'error' : 'other',
+    });
     return json({ error: 'unavailable' }, 503);
   }
 }

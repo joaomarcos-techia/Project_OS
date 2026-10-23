@@ -34,6 +34,7 @@ import { plans, prices } from '@/contexts/billing/schema';
 import { signupSessions } from '@/contexts/onboarding/schema';
 import { dbAdmin } from '@/lib/db';
 import { env } from '@/lib/env';
+import { metrics } from '@/lib/observability/metrics';
 
 import { readSignupAuthCreatedAt, resolveSignupTrialTerms } from './signup-trial';
 
@@ -518,7 +519,12 @@ export async function readSignupHostedCheckoutTarget(
     attemptedAt: row.attemptedAt,
     authCreatedAt,
   });
-  if (!trial) throw new Error('[signup] invalid_trial_clock');
+  if (!trial) {
+    metrics.emit('signup.checkout.target.invalid_trial_clock', {
+      authClock: authCreatedAt ? 'present' : 'missing',
+    });
+    throw new Error('[signup] invalid_trial_clock');
+  }
 
   return {
     state: row.state,
