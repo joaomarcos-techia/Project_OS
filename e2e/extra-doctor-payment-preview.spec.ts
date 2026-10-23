@@ -223,14 +223,27 @@ async function cleanup(): Promise<void> {
         slug: string;
         users: number;
         subscriptions: number;
+        foreign_users: number;
+        foreign_subscriptions: number;
+        patients: number;
       }[]
     >`
       select slug,
              (select count(*)::int from profiles where clinic_id = c.id) users,
-             (select count(*)::int from subscriptions where clinic_id = c.id and asaas_subscription_id = ${subscriptionId}) subscriptions
+             (select count(*)::int from subscriptions where clinic_id = c.id) subscriptions,
+             (select count(*)::int from profiles where clinic_id = c.id and id <> ${userId}::uuid) foreign_users,
+             (select count(*)::int from subscriptions where clinic_id = c.id and asaas_subscription_id is distinct from ${subscriptionId}) foreign_subscriptions,
+             (select count(*)::int from patients where clinic_id = c.id) patients
         from clinics c where id = ${clinicId}::uuid
     `;
-    if (guard?.slug !== slug || guard.users !== 1 || guard.subscriptions !== 1) {
+    if (
+      guard?.slug !== slug ||
+      guard.users > 1 ||
+      guard.subscriptions > 1 ||
+      guard.foreign_users !== 0 ||
+      guard.foreign_subscriptions !== 0 ||
+      guard.patients !== 0
+    ) {
       problems.push('guarda da clínica DEV');
     } else {
       await sql().begin(async (tx) => {
@@ -512,7 +525,7 @@ test.describe('médico extra pago no Preview/DEV/Asaas Sandbox', () => {
       expect(pendingPayments.data.every((payment) => payment.value === 544)).toBe(true);
       await page.getByRole('link', { name: 'Já pagou? Atualizar assinatura' }).click();
       await expect(page).toHaveURL(/\/configuracoes\/assinatura(?:\?|$)/u, { timeout: 60_000 });
-      await expect(page.getByText('R$ 544,00 por mês')).toBeVisible();
+      await expect(page.getByText('R$ 544,00 por mês', { exact: true })).toBeVisible();
       console.log('PASS pagamento: webhook, plano de 3 médicos, parcela e UI convergiram');
 
       const replay = await fetch(webhookUrl, {

@@ -9291,3 +9291,37 @@ Este E2E comprova vencimento **simulado por fixture**, cobrança e recuperação
 integrados. Não observou 14 dias de relógio real nem percorreu Auth/cadastro e
 retorno de Checkout pela UI; essas provas continuam separadas e não devem ser
 marcadas PASS por esta execução.
+
+## 78. Terceiro médico pago no Preview — 23/10/2026
+
+O novo `e2e/extra-doctor-payment-preview.spec.ts` exige opt-in explícito,
+Preview HTTPS e prova assinada de que Auth e PostgreSQL são do projeto DEV; a
+chave e o host do Asaas precisam ser do Sandbox. A fixture cria seu próprio
+titular Auth, clínica ativa com **Clínica · 2 médicos** a R$ 397/mês, customer,
+assinatura PIX com parcela futura e webhook temporário. Nenhum contrato real é
+usado. A pessoa sintética entra pela UI do Qoro e clica em **Contratar +1 médico**.
+O teste compara o rateio persistido com a cobrança criada no Asaas antes de
+simular o pagamento pelo endpoint oficial do Sandbox.
+
+No Preview do commit `20c05ae1`, a execução final foi **1/1 PASS, exit 0,
+40,1 s de teste**. Um evento pago **realmente entregue pelo webhook do provider**
+aplicou a alteração: uma solicitação, uma invoice paga, um registro de histórico,
+plano `clinica_2026_3`, cota de três médicos e R$ 544/mês no banco. O readback do
+Asaas mostrou recorrência e parcela futura a R$ 544. O link **“Já pagou?
+Atualizar assinatura”** renovou as claims da sessão antiga e a tela passou a
+mostrar o preço novo. Reenviar o evento autenticado manteve esses contadores em
+um; webhook, assinatura, customer e clínica/usuário de teste foram removidos com
+readback de **zero resíduos DEV**.
+
+As três tentativas anteriores não viram PASS retrospectivo. A primeira falhou
+num seletor ambíguo para o aviso da cobrança; a segunda chegou ao pagamento,
+mas um reload com JWT antigo foi mandado ao login pela revogação normal de
+`claims_version`; a terceira comprovou o link de renovação e a tela com R$ 544,
+mas outro seletor ambíguo para o mesmo preço em dois locais falhou. Cada fixture
+foi limpa e os seletores foram corrigidos. A proteção de epoch não foi relaxada.
+
+**Limite:** o teste usou a seleção de PIX pela API e a confirmação oficial do
+Sandbox, não o Checkout hospedado com reCAPTCHA e ação humana. Também não cobriu
+pagamento recusado, remoção do médico ao fim do ciclo, contratação anual nem a
+jornada de um cliente em produção. Esses estados continuam independentes da
+prova positiva acima.

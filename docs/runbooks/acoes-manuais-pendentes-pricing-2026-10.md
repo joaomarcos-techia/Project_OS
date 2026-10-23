@@ -1,6 +1,6 @@
 # Ações humanas pendentes — oferta 2026 (Preview e Sandbox)
 
-Atualizado em 22/10/2026. Este documento contém somente ações que exigem uma pessoa ou acesso ao painel indisponível à automação. **Não altere produção, não use cartão real, não copie chaves, senhas, OTP ou URLs com bypass para o chat.** Os testes de código, migrations DEV, fixtures e readbacks pertencem à engenharia e não devem ser repetidos manualmente. A nova tabela ainda não está pronta para publicação. As variantes de 3–5 médicos foram ativadas só no DEV; isso não autoriza contratar em produção.
+Atualizado em 23/10/2026. Este documento contém somente ações que exigem uma pessoa ou acesso ao painel indisponível à automação. **Não altere produção, não use cartão real, não copie chaves, senhas, OTP ou URLs com bypass para o chat.** Os testes de código, migrations DEV, fixtures e readbacks pertencem à engenharia e não devem ser repetidos manualmente. A nova tabela ainda não está pronta para publicação. As variantes de 3–5 médicos foram ativadas só no DEV; isso não autoriza contratar em produção. A compra do terceiro médico pela UI, com simulação oficial de PIX, webhook e cota, passou automaticamente no Preview; a atividade humana abaixo serve exclusivamente para conferir o pagamento na página hospedada do Asaas.
 
 ## Obrigatória 1 — Conferir a landing protegida pelo SSO
 
@@ -23,9 +23,9 @@ Atualizado em 22/10/2026. Este documento contém somente ações que exigem uma 
 
 **Próximo passo.** Entregue o resultado ao agente; ele confrontará com o teste automatizado e corrigirá qualquer divergência antes de publicar.
 
-## Obrigatória 2 — Concluir o Checkout adicional somente quando a fixture estiver pronta
+## Obrigatória 2 — Conferir o pagamento hospedado do adicional quando a fixture estiver pronta
 
-**Objetivo.** O reCAPTCHA/cartão do Asaas Sandbox pode exigir uma pessoa. A ação fecha a prova de `upgrade → pagamento → webhook → banco → cota → tela` para o terceiro médico.
+**Objetivo.** A prova automatizada já fechou `UI Qoro → rateio → simulação oficial PIX → webhook → banco → cota → tela`. Falta atravessar **a página hospedada do Asaas Sandbox** como uma pessoa, inclusive a escolha de método e o reCAPTCHA, para não atribuir ao teste de API um comportamento de Checkout que ele não mediu.
 
 **Pré-requisitos.** O agente deve primeiro confirmar por escrito: Preview com SHA novo, Auth e banco do projeto DEV, conta Asaas **Sandbox**, clínica sintética identificada, assinatura ativa de R$ 397, valor proporcional mostrado e plano de limpeza. Sem essa confirmação, **não pague**. Use somente cartão de teste fornecido pela interface/documentação oficial do Sandbox; nunca cartão real.
 
@@ -36,7 +36,7 @@ Atualizado em 22/10/2026. Este documento contém somente ações que exigem uma 
 1. Entre no Preview com o titular da clínica sintética indicada pelo agente. Confirme que a tela mostra **Clínica — 2 médicos** e o preço de R$ 397/mês; se mostrar outra clínica, pare.
 2. Clique em **Contratar +1 médico**. Confira a diferença proporcional e o novo valor recorrente **R$ 544/mês** antes de abrir o Asaas. Se o valor não aparecer ou divergir, não conclua.
 3. No domínio `sandbox.asaas.com`, conclua o reCAPTCHA e pague somente com o meio de teste aprovado para esta fixture.
-4. Volte ao Qoro pelo botão do Checkout. Aguarde a confirmação do servidor; a página de retorno sozinha não comprova pagamento. Se a tela ficar em espera, anote horário e estado, sem repetir a compra.
+4. Volte à aba original do Qoro e clique em **Já pagou? Atualizar assinatura**. Isso renova a sessão após a mudança de plano e relê o estado; a página de retorno do Asaas sozinha não comprova pagamento. Se a tela continuar pendente, anote horário e estado, sem repetir a compra.
 5. Avise `Checkout do terceiro médico concluído às HH:MM; tela Qoro: …`. Não envie URL de sessão, recibo com PII nem credenciais. O agente fará readback de valor, webhook, assinatura, plano, cota, replay e cleanup.
 
 **Resultado e evidência.** Asaas deve indicar pagamento de teste; Qoro deve mostrar novo plano apenas depois da confirmação. Registre horário, ID do pagamento **somente se não contiver token** e estado textual da tela. O PASS final será dado pelo readback do agente.

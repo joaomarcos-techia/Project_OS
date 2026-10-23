@@ -145,3 +145,33 @@ O primeiro smoke da implementação falhou com `now.getUTCFullYear is not a func
 **Trial 2026 vencido em fixture, Preview/DEV/Asaas Sandbox, 23/10 ~09:54 UTC:** o modo `SAAS_POST_TRIAL_OFFER=2026` de `scripts/asaas-post-trial-preview-e2e.ts` terminou **PASS, exit 0** em duas execuções; a segunda afirmou por readback o intervalo exato de **14 dias** e `enforce_trial_deadline=true`. Antes do pagamento, a clínica `active` teve escrita recusada como `pending_payment`. Após a simulação oficial de uma parcela PIX R$ 197, o webhook real do Asaas chegou ao Preview e o DEV mostrou invoice única `paid`, assinatura/clínica `active`, período avançado e escrita liberada. Replay não duplicou nem avançou de novo. Cleanup: webhook DELETE 200/GET 404, assinatura e customer excluídos/relidos, clínica DEV removida sem resíduo. **Limite:** o tempo foi avançado apenas na fixture; não é espera real de 14 dias, nem cadastro/Checkout/UI completos. Nenhuma conta ou cobrança de produção foi tocada.
 
 O modo legado do mesmo runner permaneceu como default e não foi repetido depois dessa extensão, para evitar outro pagamento Sandbox sem necessidade; seu resultado anterior continua histórico, não é novo PASS desta rodada.
+
+## Médico extra: pagamento integrado no Preview — 23/10/2026, ~10:25 UTC
+
+**PASS delimitado:** `e2e/extra-doctor-payment-preview.spec.ts` contra o Preview do
+commit `20c05ae1`, com prova assinada de Auth/PostgreSQL DEV e conta Asaas
+Sandbox: **1/1, exit 0, 40,1 s**. Titular e clínica sintéticos partiram de
+`clinica_2026_2` a R$ 397/mês. A UI criou uma única solicitação de terceiro
+médico e a cobrança proporcional com valor igual ao registrado no DEV. Após
+escolher PIX e confirmar pelo simulador oficial do Sandbox, um webhook pago do
+provedor foi observado; banco, valor recorrente e parcela futura no Asaas
+convergiram para `clinica_2026_3`, três vagas médicas e R$ 544/mês. Uma invoice
+paga e um histórico foram relidos. O link da tela **“Já pagou? Atualizar
+assinatura”** renovou o JWT desatualizado e mostrou R$ 544; replay do evento
+não duplicou mudança ou invoice. Webhook, assinatura, customer e fixture DEV/Auth
+foram removidos com readback de zero resíduos.
+
+As três execuções anteriores falharam por dois seletores ambíguos do teste e,
+entre eles, revelaram que recarregar com claims antigas levava ao login. O link
+explícito usa a rota existente de renovação; a invalidação server-side permanece.
+Os gates depois dessa alteração: Vitest **5.631/5.631 em 535 arquivos**, build
+Next **19/19 páginas estáticas**, TypeScript app/scripts, ESLint integral e
+Prettier dos arquivos alterados: exit 0.
+
+**Ainda não é PASS do Checkout hospedado:** o pagamento foi simulado pela API
+oficial do Sandbox após a escolha de PIX; ninguém atravessou o reCAPTCHA e a
+tela de pagamento. A recusa do pagamento, o downgrade no vencimento e o anual
+seguem sem E2E integrado desta rodada. A landing externa continua bloqueada
+pelo SSO, embora `npm run build` e a renderização local desktop/mobile tenham
+passado nesta sessão sem overflow. Nenhuma migração ou escrita em produção foi
+feita.
