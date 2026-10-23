@@ -37,6 +37,7 @@ import { env } from '@/lib/env';
 import { metrics } from '@/lib/observability/metrics';
 
 import { readSignupAuthCreatedAt, resolveSignupTrialTerms } from './signup-trial';
+import { recoverableHostedCheckoutCondition } from './signup-checkout-recovery';
 
 const userIdSchema = z.string().uuid();
 
@@ -343,7 +344,7 @@ export async function activateSignupHostedCheckout(input: {
     })
     .where(
       and(
-        ownerDraftCondition(input.userId),
+        or(ownerDraftCondition(input.userId), recoverableHostedCheckoutCondition(input.userId)),
         eq(signupSessions.billingAttemptState, 'checkout_pending'),
         eq(signupSessions.rowVersion, input.expectedVersion),
         eq(signupSessions.asaasCheckoutId, input.asaasCheckoutId),
@@ -497,7 +498,7 @@ export async function readSignupHostedCheckoutTarget(
     )
     .where(
       and(
-        ownerDraftCondition(userId),
+        or(ownerDraftCondition(userId), recoverableHostedCheckoutCondition(userId)),
         or(
           eq(signupSessions.billingAttemptState, 'checkout_pending'),
           eq(signupSessions.billingAttemptState, 'active'),
@@ -579,7 +580,7 @@ export async function resetSignupHostedCheckout(input: {
     })
     .where(
       and(
-        ownerDraftCondition(input.userId),
+        or(ownerDraftCondition(input.userId), recoverableHostedCheckoutCondition(input.userId)),
         eq(signupSessions.billingAttemptState, 'checkout_pending'),
         eq(signupSessions.rowVersion, input.expectedVersion),
         eq(signupSessions.asaasCheckoutId, input.asaasCheckoutId),

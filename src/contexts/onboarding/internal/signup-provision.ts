@@ -18,7 +18,7 @@ import 'server-only';
 
 import { randomBytes } from 'node:crypto';
 
-import { and, eq, gt, isNotNull, isNull, lte, sql } from 'drizzle-orm';
+import { and, eq, gt, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
 /* eslint-disable boundaries/element-types -- O-6 orquestra tenancy+billing a
@@ -41,6 +41,7 @@ import type { ProviderPayment } from '@/lib/payments/asaas';
 import { QORO_SELF_SERVICE_TRIAL_DAYS } from '../trial';
 import { OnboardingProvisionError, provisionTenantCoreTx } from './saga';
 import { readSignupAuthCreatedAt, resolveSignupTrialTerms } from './signup-trial';
+import { recoverableHostedCheckoutCondition } from './signup-checkout-recovery';
 
 const userIdSchema = z.string().uuid();
 
@@ -163,7 +164,10 @@ export async function provisionTenantFromSignup(input: {
           eq(signupSessions.authUserId, input.userId),
           eq(signupSessions.status, 'email_verified'),
           isNotNull(signupSessions.consumedAt),
-          gt(signupSessions.absoluteExpiresAt, sql`now()`),
+          or(
+            gt(signupSessions.absoluteExpiresAt, sql`now()`),
+            recoverableHostedCheckoutCondition(input.userId),
+          ),
         ),
       )
       .for('update')

@@ -22,6 +22,7 @@ import { env } from '@/lib/env';
 
 import { QORO_SELF_SERVICE_TRIAL_DAYS } from '../trial';
 import { signupAnswerValuesSchema, type SignupAnswerValues } from './signup-answer-values';
+import { recoverableHostedCheckoutCondition } from './signup-checkout-recovery';
 import { hashSignupToken, SIGNUP_ABSOLUTE_TTL_SECONDS, signupNameSchema } from './signup-session';
 import { readSignupAuthCreatedAt, resolveSignupTrialTerms } from './signup-trial';
 
@@ -98,7 +99,12 @@ export type EnsureSignupDraftOutcome =
   | { ok: false; reason: 'gone' | 'unavailable' };
 export type OwnedSignupCredentialState = 'reserved' | 'completed' | 'uncertain' | null;
 export type OwnedSignupReferenceOutcome =
-  | { ok: true; signupRef: string; credentialState: OwnedSignupCredentialState }
+  | {
+      ok: true;
+      signupRef: string;
+      credentialState: OwnedSignupCredentialState;
+      checkoutRecovery?: true;
+    }
   | { ok: false; reason: 'gone' | 'unavailable' };
 type PlanWriteOutcome =
   | {
@@ -161,11 +167,15 @@ export async function readOwnedSignupReference(
       .select({
         signupRef: signupSessions.tokenHash,
         credentialState: signupSessions.authAttemptState,
+        checkoutRecovery: sql<boolean>`(${signupSessions.idleExpiresAt} <= now() OR ${signupSessions.absoluteExpiresAt} <= now())`,
       })
       .from(signupSessions)
       .where(
         and(
-          ownerDraftCondition(identity.data.userId),
+          or(
+            ownerDraftCondition(identity.data.userId),
+            recoverableHostedCheckoutCondition(identity.data.userId),
+          ),
           eq(signupSessions.emailHash, hashEmail(identity.data.email)),
         ),
       )
@@ -184,6 +194,7 @@ export async function readOwnedSignupReference(
       ok: true,
       signupRef: owned.signupRef,
       credentialState,
+      ...(owned.checkoutRecovery ? { checkoutRecovery: true as const } : {}),
     };
   } catch {
     return { ok: false, reason: 'unavailable' };

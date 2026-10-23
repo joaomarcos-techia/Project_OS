@@ -122,6 +122,25 @@ describe('resolveReadyOwnedSignupOnboarding', () => {
 });
 
 describe('resolveSignupDraftEntry', () => {
+  it('envia Checkout vencido para conciliacao sem reabrir o formulario', async () => {
+    mocks.readOwnedSignupReference.mockResolvedValue({
+      ok: true,
+      signupRef: newRef,
+      credentialState: 'completed',
+      checkoutRecovery: true,
+    });
+    await expect(resolveSignupDraftEntry()).resolves.toEqual({
+      ok: true,
+      kind: 'redirect',
+      route: '/cadastro/pagamento?resultado=pending',
+    });
+    await expect(resolveReadyOwnedSignupOnboarding()).resolves.toMatchObject({
+      ok: true,
+      kind: 'pretenant',
+      signupRef: newRef,
+    });
+  });
+
   it('oferece recomeço apenas à sessão pronta sem draft vivo', async () => {
     mocks.readOwnedSignupReference.mockResolvedValue({ ok: false, reason: 'gone' });
     await expect(resolveSignupDraftEntry()).resolves.toEqual({

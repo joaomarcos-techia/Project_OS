@@ -232,6 +232,24 @@ describe('signup draft contract', () => {
 });
 
 describe('referência autoritativa do draft vinculado', () => {
+  it('recupera apenas a referência do Checkout vencido, sem reabrir a edição', async () => {
+    const chain = selectChain([
+      { signupRef, credentialState: 'completed', checkoutRecovery: true },
+    ]);
+    mocks.select.mockReturnValue(chain);
+    await expect(readOwnedSignupReference(context.userId, context.email)).resolves.toEqual({
+      ok: true,
+      signupRef,
+      credentialState: 'completed',
+      checkoutRecovery: true,
+    });
+    const predicate = textoDe(chain.where.mock.calls[0]?.[0]);
+    expect(predicate).toContain('billing_attempt_state');
+    expect(predicate).toContain('asaas_checkout_id');
+    expect(predicate).toContain('auth_attempt_state');
+    expect(mocks.hashedEmails).toEqual([context.email]);
+  });
+
   it('lê a referência somente pelo owner e pelo HMAC do e-mail verificado', async () => {
     mocks.select.mockReturnValue(selectChain([{ signupRef, credentialState: 'completed' }]));
 
