@@ -9232,3 +9232,10 @@ clínicas. A execução final passou **22/22 asserções**, exit 0: evento em
 `processed`, contador atualizado uma vez, replay sem novo consumo, dois avisos
 de 80% recebidos no inbox Resend e cleanup com zero resíduos. Isso estende a
 prova até o worker DEV, mas não inclui uma mensagem real da Meta nem o modelo.
+
+Com o commit `c83516fe` publicado no Preview, a suíte
+`e2e/payout-review-preview.spec.ts` foi repetida: **12/12 PASS**, exit 0,
+5,8 min, prova assinada de Auth/banco DEV e artefatos autenticados desativados.
+O caso de cotas mostrou 2–5 médicos e avisos de IA com contagem semeada; o
+readback final da fixture registrou **0 clínicas, 0 usuários, 0 linhas**. Esta é
+regressão da UI no Preview, não compra paga de assento ou fluxo Meta real.
