@@ -333,6 +333,30 @@ describe('alteração de assinatura e recuperação de cobrança', () => {
     );
   });
 
+  it('envia ciclo anual e inclui cobranças pendentes somente quando solicitado', async () => {
+    fetchMock.mockResolvedValue(Response.json({ id: 'sub_1' }));
+
+    await asaasProvider.updateSubscription('sub_1', {
+      value: 3970,
+      cycle: 'YEARLY',
+      nextDueDate: '2026-11-01',
+      updatePendingPayments: true,
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://sandbox.asaas.com/api/v3/subscriptions/sub_1',
+      expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify({
+          value: 3970,
+          cycle: 'YEARLY',
+          nextDueDate: '2026-11-01',
+          updatePendingPayments: true,
+        }),
+      }),
+    );
+  });
+
   it('recupera cobrança já criada pela externalReference antes de novo POST', async () => {
     fetchMock.mockResolvedValue(
       Response.json({

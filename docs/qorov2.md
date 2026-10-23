@@ -9239,3 +9239,28 @@ Com o commit `c83516fe` publicado no Preview, a suíte
 O caso de cotas mostrou 2–5 médicos e avisos de IA com contagem semeada; o
 readback final da fixture registrou **0 clínicas, 0 usuários, 0 linhas**. Esta é
 regressão da UI no Preview, não compra paga de assento ou fluxo Meta real.
+
+## 76. Prova isolada da troca de ciclo no Asaas Sandbox — 23/10/2026
+
+O cliente Asaas passou a aceitar `cycle` opcional em `updateSubscription`; isso
+ainda não disponibiliza a contratação anual na UI nem altera uma assinatura Qoro.
+Com `SANDBOX_CYCLE_PROBE=1`, a fixture de `scripts/security/subscription-plan-change-sandbox.ts`
+criou uma assinatura **BOLETO não paga**, com vencimento futuro, no host oficial
+do Sandbox. Depois dos controles de upgrade, downgrade e médico adicional,
+alterou **mensal R$ 397 → anual R$ 3.970 → mensal R$ 397** na mesma assinatura.
+Em ambas as trocas, `getSubscription` confirmou ciclo e valor, e a listagem das
+cobranças confirmou o valor e o vencimento da parcela pendente. Comando Node
+com `--conditions=react-server`, ambiente carregado apenas no processo e
+`SANDBOX_CONFIRM=ASAAS_SANDBOX_ONLY`: **exit 0**, sem token no relatório. O
+cleanup cancelou a parcela, a assinatura e o cliente sintéticos, com readback
+de zero parcelas em aberto. O teste unitário do cliente Asaas passou **58/58**;
+os typechecks do app e dos scripts passaram.
+
+Após a alteração, a regressão integral passou **5.630/5.630 em 535 arquivos**;
+ESLint integral, Prettier dos arquivos alterados e `git diff --check` tiveram
+exit 0. O build Next otimizado terminou com exit 0 e **19/19 páginas estáticas**.
+
+Este PASS é **somente do provedor**. A regra aprovada de troca no próximo
+vencimento, sem rateio, ainda precisa de reserva local, reconciliação diante de
+webhook/cron concorrentes, UI, renovação e E2E Preview/DEV. Nenhum valor, ciclo
+ou contrato de produção foi alterado.

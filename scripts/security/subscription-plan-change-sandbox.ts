@@ -10,6 +10,8 @@ import { asaasProvider } from '@/lib/payments/asaas';
 
 const CONFIRM = 'ASAAS_SANDBOX_ONLY';
 const TEST_CPF = '24971563792';
+const MONTHLY_CLINIC_PRICE = 397;
+const ANNUAL_CLINIC_PRICE = MONTHLY_CLINIC_PRICE * 10;
 /** Cartão fictício aprovado fornecido pelo Sandbox; nunca pertence a um paciente. */
 const SANDBOX_CARD = {
   holderName: 'Qoro Teste Sandbox',
@@ -170,6 +172,46 @@ async function main(): Promise<void> {
       ),
     );
     console.log(`PASS: retirada do médico adicional ${method} reduziu a recorrência futura`);
+
+    if (process.env.SANDBOX_CYCLE_PROBE === '1') {
+      await asaasProvider.updateSubscription(subscriptionId, {
+        value: ANNUAL_CLINIC_PRICE,
+        cycle: 'YEARLY',
+        nextDueDate: dueDate,
+        updatePendingPayments: true,
+      });
+      const annual = await asaasProvider.getSubscription(subscriptionId);
+      const annualPayments = await asaasProvider.listAllSubscriptionPayments(subscriptionId);
+      assert.equal(annual.cycle, 'YEARLY');
+      assert.equal(annual.value, ANNUAL_CLINIC_PRICE);
+      assert.ok(
+        annualPayments.length > 0 &&
+          annualPayments.every(
+            (payment) => payment.value === ANNUAL_CLINIC_PRICE && payment.dueDate === dueDate,
+          ),
+        'Cobrança pendente anual não foi conciliada no Sandbox',
+      );
+      console.log(`PASS: mensal → anual ${method} atualizou recorrência e cobrança pendente`);
+
+      await asaasProvider.updateSubscription(subscriptionId, {
+        value: MONTHLY_CLINIC_PRICE,
+        cycle: 'MONTHLY',
+        nextDueDate: dueDate,
+        updatePendingPayments: true,
+      });
+      const monthly = await asaasProvider.getSubscription(subscriptionId);
+      const monthlyPayments = await asaasProvider.listAllSubscriptionPayments(subscriptionId);
+      assert.equal(monthly.cycle, 'MONTHLY');
+      assert.equal(monthly.value, MONTHLY_CLINIC_PRICE);
+      assert.ok(
+        monthlyPayments.length > 0 &&
+          monthlyPayments.every(
+            (payment) => payment.value === MONTHLY_CLINIC_PRICE && payment.dueDate === dueDate,
+          ),
+        'Cobrança pendente mensal não foi restaurada no Sandbox',
+      );
+      console.log(`PASS: anual → mensal ${method} restaurou recorrência e cobrança pendente`);
+    }
   } finally {
     let cleanupError: unknown = null;
     if (subscriptionId) {

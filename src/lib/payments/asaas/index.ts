@@ -393,11 +393,12 @@ export interface PaymentProvider {
   ): Promise<{ subscriptionId: string; creditCardToken: string | null }>;
   /** Cancela a assinatura no Asaas (compensação da saga — mata cobrança órfã). */
   cancelSubscription(asaasSubscriptionId: string): Promise<void>;
-  /** Atualiza somente cobranças futuras da recorrência. */
+  /** Atualiza a recorrência; cobranças pendentes só são incluídas quando solicitado. */
   updateSubscription(
     asaasSubscriptionId: string,
     input: {
       value?: number;
+      cycle?: 'MONTHLY' | 'YEARLY';
       status?: 'ACTIVE' | 'INACTIVE';
       nextDueDate?: string;
       updatePendingPayments?: boolean;
@@ -937,6 +938,7 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
       }
       await request('PUT', `/subscriptions/${encodeURIComponent(id)}`, {
         value: input.value,
+        cycle: input.cycle,
         status: input.status,
         nextDueDate: input.nextDueDate,
         updatePendingPayments: input.updatePendingPayments ?? false,
