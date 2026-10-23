@@ -175,6 +175,21 @@ it('mostra imediatamente o link da cobrança proporcional devolvido pelo servido
   const link = await screen.findByRole('link', { name: 'Abrir cobrança proporcional no Asaas' });
   expect(link.getAttribute('href')).toBe('https://sandbox.asaas.com/test-checkout');
   expect(screen.getByText(/R\$ 73,50 criada/u)).toBeTruthy();
+  expect(
+    screen.getByRole('link', { name: 'Já pagou? Atualizar assinatura' }).getAttribute('href'),
+  ).toBe('/auth/session-refresh?next=%2Fconfiguracoes%2Fassinatura');
+});
+
+it('oferece atualização segura da sessão enquanto o upgrade aguarda pagamento', () => {
+  renderForm('active', {
+    pending: {
+      kind: 'upgrade',
+      status: 'pending_payment',
+      effectiveAt: '2026-10-23T00:00:00.000Z',
+      paymentUrl: null,
+    },
+  });
+  expect(screen.getByRole('link', { name: 'Já pagou? Atualizar assinatura' })).toBeTruthy();
 });
 
 describe('capacidade mostrada na troca de plano', () => {

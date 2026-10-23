@@ -121,6 +121,8 @@ export function PlanChangeForm({
   const revocationKey = useMemo(() => uuidv4(), []);
   const reactivationKey = useMemo(() => uuidv4(), []);
   const isNewOffer = isOffer2026PlanCode(current.planCode);
+  const paymentAwaitingConfirmation =
+    pending?.status === 'pending_payment' || state.success === 'upgrade_pending_payment';
   const currentRank = rankOfPlan(current.planCode);
   const availablePlans = plans.filter((plan) => isOffer2026PlanCode(plan.code) === isNewOffer);
   const end = current.periodEnd ? formatCycleDate(new Date(current.periodEnd)) : null;
@@ -197,6 +199,14 @@ export function PlanChangeForm({
         >
           Abrir cobrança proporcional no Asaas
         </Link>
+      ) : null}
+      {paymentAwaitingConfirmation ? (
+        <a
+          href="/auth/session-refresh?next=%2Fconfiguracoes%2Fassinatura"
+          className="text-(length:--fs-sm) font-medium text-primary underline"
+        >
+          Já pagou? Atualizar assinatura
+        </a>
       ) : null}
 
       <Card>
