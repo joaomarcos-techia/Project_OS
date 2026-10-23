@@ -16,6 +16,7 @@ import {
   SIGNUP_E2E_DEV_PROJECT_REF,
   SIGNUP_E2E_ENV_ALIASES,
 } from '../scripts/run-signup-confirmation-e2e';
+import { assertPreviewRuntimeIsDev } from './preview-dev-runtime';
 import { vercelBypassHeaders } from './vercel-bypass';
 
 test.use({
@@ -1395,6 +1396,8 @@ test.describe('cadastro — confirmação real via Resend', () => {
     const reason = skipReason();
     if (reason) throw new Error(`guard recusou a escrita: ${reason}`);
     test.setTimeout(420_000);
+    if (!baseUrl) throw new Error('E2E_BASE_URL ausente');
+    await assertPreviewRuntimeIsDev(baseUrl, { requireSandboxAsaas: true });
 
     const email = `offer-${planCode}-${billingCycle}-${Date.now()}-${randomBytes(4).toString('hex')}@resend.dev`;
     let fixture: Fixture = { projectRef: expectedProjectRef!, email };

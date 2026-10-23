@@ -10,7 +10,10 @@ export const DEV_PROJECT_REF = 'pqhkirrszzpwezdaqrai';
  * Specs que criam fixture no DEV chamam isto antes de qualquer escrita: um
  * `E2E_BASE_URL` apontando para outro deploy faria a UI escrever em outro banco.
  */
-export async function assertPreviewRuntimeIsDev(baseUrl: string): Promise<void> {
+export async function assertPreviewRuntimeIsDev(
+  baseUrl: string,
+  options: { requireSandboxAsaas?: boolean } = {},
+): Promise<void> {
   const secret = process.env.MAGIC_TOKEN_SECRET_DEV ?? process.env.MAGIC_TOKEN_SECRET;
   if (!secret) throw new Error('Prova assinada do runtime Preview indisponível.');
   const timestamp = Date.now();
@@ -50,5 +53,14 @@ export async function assertPreviewRuntimeIsDev(baseUrl: string): Promise<void> 
     result.databaseProjectRef !== DEV_PROJECT_REF
   ) {
     throw new Error('Preview não comprovou Auth e banco no projeto DEV esperado.');
+  }
+  if (
+    options.requireSandboxAsaas &&
+    (!('asaasSandboxConfigured' in result) ||
+      result.asaasSandboxConfigured !== true ||
+      !('asaasKeyConfigured' in result) ||
+      result.asaasKeyConfigured !== true)
+  ) {
+    throw new Error('Preview não comprovou a configuração do Asaas Sandbox.');
   }
 }

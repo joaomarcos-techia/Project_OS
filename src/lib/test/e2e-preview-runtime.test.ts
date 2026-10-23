@@ -45,4 +45,28 @@ describe('prova do runtime Preview', () => {
 
     await expect(assertPreviewRuntimeIsDev('https://preview.vercel.app')).resolves.toBeUndefined();
   });
+
+  it('recusa escrita de Checkout quando o Preview não comprova Asaas Sandbox', async () => {
+    vi.stubEnv('MAGIC_TOKEN_SECRET_DEV', 'segredo-sintetico-de-teste');
+    const proof = {
+      environment: 'preview',
+      authProjectRef: 'pqhkirrszzpwezdaqrai',
+      databaseProjectRef: 'pqhkirrszzpwezdaqrai',
+      asaasSandboxConfigured: false,
+      asaasKeyConfigured: true,
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(() => Promise.resolve(Response.json(proof))),
+    );
+
+    await expect(
+      assertPreviewRuntimeIsDev('https://preview.vercel.app', { requireSandboxAsaas: true }),
+    ).rejects.toThrow('Preview não comprovou a configuração do Asaas Sandbox.');
+
+    proof.asaasSandboxConfigured = true;
+    await expect(
+      assertPreviewRuntimeIsDev('https://preview.vercel.app', { requireSandboxAsaas: true }),
+    ).resolves.toBeUndefined();
+  });
 });
