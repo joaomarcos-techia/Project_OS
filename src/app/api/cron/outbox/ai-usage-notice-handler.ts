@@ -36,7 +36,7 @@ registerDetachedHandler<AiUsageNoticeRequestedPayload>(
       await sendTransactionalEmail({
         to: email,
         ...content,
-        idempotencyKey: `ai-usage/${clinicId}/${payload.period}/${payload.threshold}/${recipientKey}`,
+        idempotencyKey: `ai-usage/${clinicId}/${payload.period}/${payload.limit}/${payload.threshold}/${recipientKey}`,
       });
     }
   },

@@ -9204,3 +9204,24 @@ paciente conhecido foi **refutada** pela medição; não houve correção de pro
 O aviso de 80% foi novamente recebido/lido no inbox Resend de teste e o
 readback da fixture terminou com zero resíduo. TypeScript de scripts, ESLint e
 Prettier do runner passaram. Isto continua sem provar uma mensagem real da Meta.
+
+## 75. Aviso de IA após comprar médico adicional — 22/10/2026
+
+O evento de 80% usava a chave `clínica:mês:percentual`, mas o payload também
+inclui o limite. Numa clínica que chegou a 400/500, passou a contratar dois
+médicos e depois chegou a 800/1000 no mesmo mês, o segundo evento reutilizava a chave com
+outro payload. A prova no PostgreSQL DEV reproduziu `outbox.key_collision`,
+exit 1: a transação do consumer voltava atrás, de modo que a resposta aceita da
+IA podia ficar presa em retry sem contabilização. A fixture foi limpa e o
+readback mostrou zero resíduo.
+
+O limite vigente passou a integrar a chave do evento e a chave idempotente do
+e-mail no Resend. A repetição no DEV passou **17/17 asserções**, exit 0: avisos
+distintos para 400/500 e 800/1000 foram enfileirados, enviados e lidos no
+inbox de teste; cleanup da clínica, ledger e outbox terminou em zero. Os testes
+dirigidos do consumer e da entrega passaram **19/19**. A regressão integral
+passou **5.629/5.629 testes em 535 arquivos**, exit 0; TypeScript do app e dos
+scripts, ESLint, Prettier dos arquivos alterados e `git diff --check` passaram.
+O build Next isolado terminou com exit 0 e gerou **19/19 páginas estáticas**.
+Esta prova usa uma troca de plano sintética no DEV, não uma compra Asaas; a compra paga do médico extra
+continua pendente de E2E separado.

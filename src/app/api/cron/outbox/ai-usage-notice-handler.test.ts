@@ -65,6 +65,18 @@ describe('aviso de referência mensal de IA', () => {
     expect(second).toBe(first);
   });
 
+  it('novo limite após upgrade usa outra chave para entregar o novo aviso', async () => {
+    await handler({ clinicId: 'clinic-1', payload });
+    await handler({
+      clinicId: 'clinic-1',
+      payload: { ...payload, count: 800, limit: 1000 },
+    });
+    const first = (mocks.send.mock.calls[0]?.[0] as { idempotencyKey: string }).idempotencyKey;
+    const second = (mocks.send.mock.calls[1]?.[0] as { idempotencyKey: string }).idempotencyKey;
+    expect(second).not.toBe(first);
+    expect(second).toContain('/1000/80/');
+  });
+
   it('ausência de titular ou falha do Resend propagam para retry', async () => {
     mocks.owners.mockResolvedValueOnce([]);
     await expect(handler({ clinicId: 'clinic-1', payload })).rejects.toThrow('Nenhum titular');

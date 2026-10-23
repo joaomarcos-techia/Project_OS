@@ -114,7 +114,9 @@ async function countConversaIa(ctx: {
       clinicId,
       eventType: BILLING_EVENTS.AI_USAGE_NOTICE_REQUESTED,
       payload: { clinicId, period, threshold, count: usage, limit },
-      idempotencyKey: `ai-usage:${clinicId}:${period}:${threshold}`,
+      // Uma compra de médico adicional muda a referência no mesmo mês.
+      // Limites diferentes geram avisos diferentes, sem colisão no outbox.
+      idempotencyKey: `ai-usage:${clinicId}:${period}:${limit}:${threshold}`,
     });
   }
 }

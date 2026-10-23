@@ -138,7 +138,7 @@ describe('medição de conversa de IA', () => {
       tx,
       expect.objectContaining({
         eventType: 'billing.ai_usage.notice_requested',
-        idempotencyKey: `ai-usage:clinic-1:2026-10:${threshold}`,
+        idempotencyKey: `ai-usage:clinic-1:2026-10:500:${threshold}`,
         payload: expect.objectContaining({ threshold, count, limit: 500 }),
       }),
     );

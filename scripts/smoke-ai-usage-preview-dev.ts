@@ -42,6 +42,15 @@ async function main(): Promise<void> {
     LIMIT 1
   `);
   if (!catalog) throw new Error('Catálogo Consultório 2026 indisponível no DEV.');
+  const [expandedCatalog] = await dbAdmin.execute<{ plan_id: string; price_id: string }>(sql`
+    SELECT p.id::text AS plan_id, pr.id::text AS price_id
+    FROM public.plans p JOIN public.prices pr ON pr.plan_id = p.id
+    WHERE p.code = 'clinica_2026_2' AND p.ativo = true
+      AND pr.billing_cycle = 'monthly' AND pr.active_until IS NULL
+      AND pr.campaign_code IS NULL
+    LIMIT 1
+  `);
+  if (!expandedCatalog) throw new Error('Catálogo Clínica 2026 indisponível no DEV.');
 
   const registered = getHandler(AI_AGENT_EVENTS.CONVERSATION_COMPLETED);
   if (!registered || registered.execution !== 'transactional') {
@@ -181,6 +190,35 @@ async function main(): Promise<void> {
       notices.length === 2 && notices[0]?.threshold === 80 && notices[1]?.threshold === 100,
       'avisos 80% e 100% enfileirados exatamente uma vez',
     );
+    await dbAdmin.execute(sql`
+      UPDATE public.subscriptions
+      SET plan_id = ${expandedCatalog.plan_id}::uuid, price_id = ${expandedCatalog.price_id}::uuid
+      WHERE clinic_id = ${clinicId}::uuid
+    `);
+    await dbAdmin.execute(sql`
+      UPDATE public.usage_metrics SET conversas_ia_count = 799
+      WHERE clinic_id = ${clinicId}::uuid
+    `);
+    await processTurn(await conversation(`fixture-${clinicId}-after-upgrade`));
+    assert((await readCount()) === 800, 'após upgrade, 80% da nova referência conta');
+    const upgradedNotices = await dbAdmin.execute<{
+      threshold: number;
+      reference_limit: number;
+    }>(sql`
+      SELECT (payload->>'threshold')::int AS threshold,
+             (payload->>'limit')::int AS reference_limit
+      FROM public.outbox
+      WHERE clinic_id = ${clinicId}::uuid
+        AND event_type = 'billing.ai_usage.notice_requested'
+        AND payload->>'threshold' = '80'
+      ORDER BY reference_limit
+    `);
+    assert(
+      upgradedNotices.length === 2 &&
+        upgradedNotices[0]?.reference_limit === 500 &&
+        upgradedNotices[1]?.reference_limit === 1000,
+      'aviso de 80% usa limite novo sem colidir com o anterior',
+    );
     // O cron DEV não pode enviar uma fixture antes de ela ganhar titular.
     await dbAdmin.execute(sql`
       UPDATE public.outbox SET next_attempt_at = '2099-01-01'::timestamptz
@@ -236,7 +274,34 @@ async function main(): Promise<void> {
           Boolean(received.text?.includes('400 de 500')),
         'Resend entregou ao inbox o aviso correto de 80%',
       );
-      console.log('PASS: aviso de IA chegou ao inbox Resend de teste.');
+      const [expandedNotice] = await dbAdmin.execute<{ payload: unknown; id: string }>(sql`
+        SELECT id::text AS id, payload FROM public.outbox
+        WHERE clinic_id = ${clinicId}::uuid
+          AND event_type = 'billing.ai_usage.notice_requested'
+          AND payload->>'threshold' = '80' AND payload->>'limit' = '1000'
+        LIMIT 1
+      `);
+      if (!expandedNotice) throw new Error('Aviso do limite ampliado ausente antes do envio.');
+      const expandedStartedAt = new Date(Date.now() - 1_000);
+      await delivery.handler({
+        clinicId,
+        payload: AiUsageNoticeRequestedSchema.parse(expandedNotice.payload),
+        eventId: expandedNotice.id,
+        attempt: 1,
+      });
+      const expandedReceived = await waitForResendEmail({
+        apiKey: resendKey,
+        to: recipient,
+        subject: 'Qoro: 80% da referência mensal de IA',
+        sentAfter: expandedStartedAt,
+        kind: 'received',
+        timeoutMs: 60_000,
+      });
+      assert(
+        Boolean(expandedReceived.text?.includes('800 de 1000')),
+        'Resend entregou aviso distinto após ampliar o limite',
+      );
+      console.log('PASS: os dois avisos de 80% chegaram ao inbox Resend de teste.');
     } else {
       console.log(
         'BLOCKED: inbox Resend de teste ou chave DEV ausente; aviso somente enfileirado.',
