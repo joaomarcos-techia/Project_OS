@@ -148,9 +148,12 @@ async function state() {
       payment_id: string | null;
       proration: string | null;
       invoice_count: number;
+      invoice_status: string | null;
       paid_invoice_count: number;
       history_count: number;
       real_event_count: number;
+      deleted_event_count: number;
+      restored_event_count: number;
     }[]
   >`
     select p.code, pr.amount::text, seats.doctors,
@@ -159,9 +162,12 @@ async function state() {
            ch.proration_amount::text proration,
            (select count(*)::int from subscription_change_requests where clinic_id = ${clinicId}::uuid) change_count,
            (select count(*)::int from invoices where clinic_id = ${clinicId}::uuid and asaas_payment_id = ${paymentId}) invoice_count,
+           (select status::text from invoices where clinic_id = ${clinicId}::uuid and asaas_payment_id = ${paymentId} limit 1) invoice_status,
            (select count(*)::int from invoices where clinic_id = ${clinicId}::uuid and asaas_payment_id = ${paymentId} and status = 'paid') paid_invoice_count,
            (select count(*)::int from subscription_history where clinic_id = ${clinicId}::uuid and reason = 'upgrade_payment_confirmed') history_count,
-           (select count(*)::int from processed_webhooks where clinic_id = ${clinicId}::uuid and event_type in ('PAYMENT_CONFIRMED', 'PAYMENT_RECEIVED')) real_event_count
+           (select count(*)::int from processed_webhooks where clinic_id = ${clinicId}::uuid and event_type in ('PAYMENT_CONFIRMED', 'PAYMENT_RECEIVED')) real_event_count,
+           (select count(*)::int from processed_webhooks where clinic_id = ${clinicId}::uuid and event_type = 'PAYMENT_DELETED') deleted_event_count,
+           (select count(*)::int from processed_webhooks where clinic_id = ${clinicId}::uuid and event_type = 'PAYMENT_RESTORED') restored_event_count
       from subscriptions s
       join plans p on p.id = s.plan_id
       join prices pr on pr.id = s.price_id
@@ -406,7 +412,13 @@ test.describe('médico extra pago no Preview/DEV/Asaas Sandbox', () => {
         apiVersion: 3,
         authToken: webhookToken,
         sendType: 'NON_SEQUENTIALLY',
-        events: ['PAYMENT_CREATED', 'PAYMENT_CONFIRMED', 'PAYMENT_RECEIVED'],
+        events: [
+          'PAYMENT_CREATED',
+          'PAYMENT_CONFIRMED',
+          'PAYMENT_RECEIVED',
+          'PAYMENT_DELETED',
+          'PAYMENT_RESTORED',
+        ],
       }),
     );
     const webhook = await asaasOk(`webhooks/${encodeURIComponent(webhookId)}`, 'GET');
@@ -501,6 +513,30 @@ test.describe('médico extra pago no Preview/DEV/Asaas Sandbox', () => {
         history_count: 0,
       });
       console.log('PASS notificação precoce: sem pagamento no Asaas, sem vaga liberada');
+
+      await asaasOk(`payments/${encodeURIComponent(paymentId)}`, 'DELETE');
+      await expect
+        .poll(async () => (await state()).invoice_status, { timeout: 60_000 })
+        .toBe('cancelled');
+      expect((await state()).deleted_event_count).toBeGreaterThan(0);
+      expect(await state()).toMatchObject({
+        code: 'clinica_2026_2',
+        change_status: 'pending_payment',
+        paid_invoice_count: 0,
+      });
+      await asaasOk(`payments/${encodeURIComponent(paymentId)}/restore`, 'POST');
+      await expect
+        .poll(async () => (await state()).restored_event_count, { timeout: 60_000 })
+        .toBeGreaterThan(0);
+      await expect
+        .poll(async () => (await state()).invoice_status, { timeout: 30_000 })
+        .toBe('open');
+      const restored = await asaasOk(`payments/${encodeURIComponent(paymentId)}`, 'GET');
+      if (!restored || typeof restored !== 'object' || !('status' in restored)) {
+        throw new Error('Cobrança proporcional restaurada sem readback do Asaas');
+      }
+      expect(restored.status).toBe('PENDING');
+      console.log('PASS remoção/restauração: invoice recuperada sem liberar a vaga');
 
       const selected = await asaas(`payments/${encodeURIComponent(paymentId)}`, 'PUT', {
         billingType: 'PIX',

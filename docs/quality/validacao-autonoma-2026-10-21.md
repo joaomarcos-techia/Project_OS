@@ -212,12 +212,23 @@ fixtures foram limpas e a correção passou na execução final. Isto prova a
 transição funcional no tempo simulado; **não** é observação do cron real
 disparando no vencimento nem passagem de um mês no relógio externo.
 
-**Risco confirmado por código, não executado externamente:** em
-`src/app/api/webhooks/asaas/route.ts`, a remoção autoritativa cancela a invoice,
-mas não finaliza uma solicitação de upgrade `pending_payment`. O Asaas permite
-restaurar a cobrança pelo mesmo ID; portanto liberar automaticamente a
-reserva no primeiro evento de remoção poderia gerar pagamento posterior sem
-concessão da vaga. Recuperação e reconciliação remoção/restauração continuam
-**NOT RUN** e são requisito antes da nova oferta. A landing externa permaneceu
+**Remoção e restauração da cobrança proporcional, 23/10 ~11:12 UTC:** a fixture
+foi repetida com `PAYMENT_DELETED` e `PAYMENT_RESTORED` assinados pelo webhook
+temporário do Asaas Sandbox. O teste apagou somente a cobrança que ele mesmo
+criara; no DEV a invoice passou a `cancelled`, mas a solicitação continuou
+`pending_payment` e a vaga não foi liberada. Após `restore` da **mesma** cobrança,
+um novo evento real fez a invoice voltar a `open`, e o readback do Asaas mostrou
+`PENDING`. O pagamento oficial posterior aplicou o upgrade uma vez, seguido de
+replay idempotente e downgrade no vencimento simulado. **1/1 PASS, exit 0, 1,7
+min de teste; cleanup zero.** Esse resultado mede a recuperação após
+restauração; não define o que fazer se a cobrança for removida e nunca voltar.
+
+**Risco remanescente:** a remoção autoritativa cancela a invoice e preserva a
+solicitação de upgrade `pending_payment`. A prova externa acima confirmou que
+a mesma cobrança pode ser restaurada e paga com concessão correta da vaga;
+liberar automaticamente a reserva na remoção quebraria esse caminho. Quando
+a cobrança nunca for restaurada, a solicitação ainda impede outra troca de
+plano. Esse estado permanente e sua recuperação continuam **NOT RUN** e exigem
+regra explícita antes da nova oferta. A landing externa permaneceu
 **BLOCKED** pelo SSO: o navegador conectado não disponibilizou nenhuma aba ou
 browser nesta sessão; a renderização local anterior não vira prova do Preview.

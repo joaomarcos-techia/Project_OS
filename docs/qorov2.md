@@ -9356,12 +9356,22 @@ global será disparado automaticamente no dia devido, nem que um mês real
 decorreu. As duas tentativas anteriores falharam no runner (ambiente não
 carregado e timestamp SQL tratado como `Date`); ambas limparam a fixture.
 
-**Recuperação ainda aberta:** uma cobrança proporcional removida no Asaas tem
-sua invoice cancelada no Qoro, mas a alteração pode continuar
-`pending_payment`, impedindo outra troca. Não se deve simplesmente cancelar a
-alteração nesse webhook: [o Asaas permite restaurar a mesma cobrança pelo ID
-original](https://docs.asaas.com/reference/restaurar-cobranca-removida), que
-poderia ser paga depois. É necessário desenhar e provar a reconciliação de
-remoção → restauração/pagamento e a liberação segura da reserva antes de
-chamar esse caminho concluído. Não houve remoção/restauração da fixture nesta
-execução.
+**Recuperação ainda aberta para remoção permanente:** uma cobrança proporcional
+removida no Asaas tem sua invoice cancelada no Qoro, mas a alteração pode
+continuar `pending_payment`, impedindo outra troca. Não se deve simplesmente
+cancelar a alteração nesse webhook: [o Asaas permite restaurar a mesma cobrança
+pelo ID original](https://docs.asaas.com/reference/restaurar-cobranca-removida),
+que pode ser paga depois. A execução anterior não removeu/restaurou a fixture;
+a prova seguinte cobriu essa restauração, mas ainda não a liberação segura da
+reserva quando a cobrança nunca volta.
+
+Em 23/10 ~11:12 UTC, uma nova execução do E2E apagou e restaurou **a mesma**
+cobrança proporcional criada pela fixture. Os eventos reais do Asaas Sandbox
+levaram a invoice `open → cancelled → open`; durante a remoção, a alteração
+ficou `pending_payment`, sem conceder vaga. O readback após restauração mostrou
+`PENDING` no Asaas. Confirmação oficial posterior, replay e downgrade no tempo
+simulado passaram **1/1, exit 0, 1,7 min de teste**, com cleanup zero. O caso
+em que a cobrança **nunca** é restaurada permanece aberto: a alteração pode
+continuar ocupando a reserva indefinidamente. Não há cancelamento automático
+seguro no primeiro `PAYMENT_DELETED`, pois o provider aceita restauração
+posterior e pagamento pelo mesmo ID.

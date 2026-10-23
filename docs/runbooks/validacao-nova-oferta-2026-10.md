@@ -17,8 +17,9 @@ controlado: DEV, Asaas Sandbox e UI convergiram para dois médicos/R$ 397
 (1/1 PASS, cleanup zero). Não observamos o cron global disparar no vencimento
 real, nem atravessamos a página hospedada do Asaas. O anual continua indisponível para
 contratação, apesar dos preços no catálogo e da prova isolada da API Sandbox.
-Uma cobrança proporcional removida/restaurada exige desenho de recuperação
-antes de a nova oferta ser publicada. A [matriz atual](../quality/validacao-autonoma-2026-10-21.md)
+O caminho de cobrança proporcional removida → restaurada → paga passou no
+Sandbox. A reserva cuja cobrança nunca é restaurada ainda não tem saída segura
+e exige desenho de recuperação antes da nova oferta. A [matriz atual](../quality/validacao-autonoma-2026-10-21.md)
 separa os PASS observados desses riscos.
 
 **Estado mais recente em 22/10:** o relatório mensal passou **11/11 E2E no Preview/DEV** do commit `b04c8413`, após correção da divulgação indevida do consolidado ao atendente. As variantes de 3–5 médicos foram ativadas **somente no DEV**; a UI autenticada apresentou cotas e preços com fixture sintética, sem iniciar compra. A suíte de Preview com o novo caso passou **12/12** e consta na [matriz](../quality/validacao-autonoma-2026-10-21.md). A medição de IA por paciente/janela de 24 horas e os avisos de 80% e 100% estão implementados; PostgreSQL DEV, worker do outbox e inbox Resend passaram **22/22 asserções**, inclusive após ampliar o limite de 500 para 1.000 e repetir um evento já finalizado, mas a cadeia Meta → IA → contador em Preview ainda não foi executada. A contratação adicional paga, o anual, o Turnstile negativo em Preview isolado e a landing externa ainda pendem. **Decisões do fundador em 21/10:** troca mensal/anual no próximo vencimento, sem proporcional; referência de 500 conversas de IA por médico gera aviso sem interromper serviço nem cobrar excedente; competência do repasse é o mês da consulta concluída no fuso da clínica. Os registros cronológicos abaixo não devem ser lidos como fotografia atual quando divergem desta nota.
