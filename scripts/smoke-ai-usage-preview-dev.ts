@@ -14,7 +14,9 @@ import { dbAdmin } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
 import { createResendInboxAlias, waitForResendEmail } from '@/lib/email/resend-inspector';
 import { env } from '@/lib/env';
+import { publishEvent } from '@/lib/outbox/publish';
 import { getHandler } from '@/lib/outbox/registry';
+import { runOutboxEventsNow } from '@/lib/outbox/worker';
 
 import { assertDevContext } from './_env';
 
@@ -219,6 +221,43 @@ async function main(): Promise<void> {
         upgradedNotices[1]?.reference_limit === 1000,
       'aviso de 80% usa limite novo sem colidir com o anterior',
     );
+    const workerConversationId = await conversation(`fixture-${clinicId}-worker`);
+    const workerKey = `ai-usage-smoke:${clinicId}:worker`;
+    await withTenant(clinicId, (tx) =>
+      publishEvent(tx, {
+        clinicId,
+        eventType: AI_AGENT_EVENTS.CONVERSATION_COMPLETED,
+        idempotencyKey: workerKey,
+        payload: {
+          clinicId,
+          conversationId: workerConversationId,
+          inboundMessageId: randomUUID(),
+          outcome: 'replied',
+          toolCallCount: 0,
+          costUsd: 0.001,
+        },
+      }),
+    );
+    const workerResult = await runOutboxEventsNow([
+      { eventType: AI_AGENT_EVENTS.CONVERSATION_COMPLETED, idempotencyKeys: [workerKey] },
+    ]);
+    assert(
+      workerResult.processed === 1 && workerResult.failed === 0,
+      'worker processa evento real',
+    );
+    assert((await readCount()) === 801, 'evento publicado no outbox atualiza o contador');
+    const [workerEvent] = await dbAdmin.execute<{ status: string }>(sql`
+      SELECT status FROM public.outbox
+      WHERE clinic_id = ${clinicId}::uuid
+        AND event_type = ${AI_AGENT_EVENTS.CONVERSATION_COMPLETED}
+        AND idempotency_key = ${workerKey}
+    `);
+    assert(workerEvent?.status === 'processed', 'worker finaliza o evento publicado');
+    const replayResult = await runOutboxEventsNow([
+      { eventType: AI_AGENT_EVENTS.CONVERSATION_COMPLETED, idempotencyKeys: [workerKey] },
+    ]);
+    assert(replayResult.processed === 0, 'worker não consome evento finalizado de novo');
+    assert((await readCount()) === 801, 'repetição do worker não duplica uso');
     // O cron DEV não pode enviar uma fixture antes de ela ganhar titular.
     await dbAdmin.execute(sql`
       UPDATE public.outbox SET next_attempt_at = '2099-01-01'::timestamptz

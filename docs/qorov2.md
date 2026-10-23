@@ -9225,3 +9225,10 @@ scripts, ESLint, Prettier dos arquivos alterados e `git diff --check` passaram.
 O build Next isolado terminou com exit 0 e gerou **19/19 páginas estáticas**.
 Esta prova usa uma troca de plano sintética no DEV, não uma compra Asaas; a compra paga do médico extra
 continua pendente de E2E separado.
+
+O runner passou a publicar também um `ai_agent.conversation.completed` real no
+outbox e a processá-lo pelo worker selecionado, sem tocar eventos de outras
+clínicas. A execução final passou **22/22 asserções**, exit 0: evento em
+`processed`, contador atualizado uma vez, replay sem novo consumo, dois avisos
+de 80% recebidos no inbox Resend e cleanup com zero resíduos. Isso estende a
+prova até o worker DEV, mas não inclui uma mensagem real da Meta nem o modelo.
