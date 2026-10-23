@@ -194,7 +194,23 @@ volta de três para dois médicos. A execução **1/1 PASS, exit 0, 47,8 s de
 teste** encontrou a segunda solicitação `scheduled`, mas manteve plano,
 cota e preço em três médicos/R$ 544 no DEV e R$ 544 na recorrência do Asaas
 antes do vencimento. Cleanup zero. A aplicação pelo cron e a próxima
-parcela de R$ 397 continuam **NOT RUN**.
+parcela de R$ 397 ainda não tinham sido executadas nesse checkpoint.
+
+**Vencimento simulado na fixture, 23/10 ~11:07 UTC:** o mesmo E2E criou upgrade
+pago e downgrade agendado pela UI. Um runner separado verificou novamente o
+slug, Auth/DB DEV, conta Asaas Sandbox, IDs, plano, valor e data futura da
+fixture; sincronizou a recorrência e a parcela emitida pelo caminho real
+`syncProviderPlanChange` e chamou `applyScheduledPlanChange` somente para essa
+solicitação com relógio controlado. O E2E releu no DEV `applied`,
+`clinica_2026_2`, duas vagas e R$ 397; no Asaas, recorrência de R$ 397; e na
+UI autenticada, R$ 397/mês após renovar a sessão. **1/1 PASS, exit 0, 1,5 min de
+teste; cleanup DEV/Auth e Sandbox: zero resíduos.** TypeScript de scripts,
+ESLint e Prettier dos arquivos alterados também passaram. As duas tentativas
+anteriores falharam no próprio runner: uma antes de carregar o ambiente DEV,
+outra ao tratar como `Date` o timestamp retornado como texto pelo SQL; as
+fixtures foram limpas e a correção passou na execução final. Isto prova a
+transição funcional no tempo simulado; **não** é observação do cron real
+disparando no vencimento nem passagem de um mês no relógio externo.
 
 **Risco confirmado por código, não executado externamente:** em
 `src/app/api/webhooks/asaas/route.ts`, a remoção autoritativa cancela a invoice,

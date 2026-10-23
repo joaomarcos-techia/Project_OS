@@ -12,8 +12,10 @@ webhook, readback da recorrência/parcela futura e tela final; a fixture foi
 removida sem resíduo DEV. Uma notificação de `PAYMENT_RECEIVED` enviada antes
 de o Asaas confirmar o pagamento **não** liberou a vaga. A volta de três para
 dois médicos ficou agendada, mantendo cota e R$ 544 antes do vencimento.
-Essas execuções não atravessaram a página hospedada do Asaas e não aplicaram
-o downgrade pelo cron no vencimento. O anual continua indisponível para
+Uma prova posterior aplicou o downgrade somente na fixture, com relógio
+controlado: DEV, Asaas Sandbox e UI convergiram para dois médicos/R$ 397
+(1/1 PASS, cleanup zero). Não observamos o cron global disparar no vencimento
+real, nem atravessamos a página hospedada do Asaas. O anual continua indisponível para
 contratação, apesar dos preços no catálogo e da prova isolada da API Sandbox.
 Uma cobrança proporcional removida/restaurada exige desenho de recuperação
 antes de a nova oferta ser publicada. A [matriz atual](../quality/validacao-autonoma-2026-10-21.md)

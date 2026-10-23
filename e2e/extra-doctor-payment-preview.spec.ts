@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 
 import { expect, test } from '@playwright/test';
 import postgres from 'postgres';
@@ -142,6 +143,7 @@ async function state() {
       amount: string;
       doctors: number;
       change_status: string | null;
+      change_id: string | null;
       change_count: number;
       payment_id: string | null;
       proration: string | null;
@@ -152,7 +154,8 @@ async function state() {
     }[]
   >`
     select p.code, pr.amount::text, seats.doctors,
-           ch.status::text change_status, ch.provider_payment_id payment_id,
+           ch.status::text change_status, ch.id::text change_id,
+           ch.provider_payment_id payment_id,
            ch.proration_amount::text proration,
            (select count(*)::int from subscription_change_requests where clinic_id = ${clinicId}::uuid) change_count,
            (select count(*)::int from invoices where clinic_id = ${clinicId}::uuid and asaas_payment_id = ${paymentId}) invoice_count,
@@ -164,7 +167,7 @@ async function state() {
       join prices pr on pr.id = s.price_id
       join plan_seat_limits seats on seats.plan_id = s.plan_id
       left join lateral (
-        select status, provider_payment_id, proration_amount
+        select id, status, provider_payment_id, proration_amount
           from subscription_change_requests where subscription_id = s.id
          order by created_at desc limit 1
       ) ch on true
@@ -599,6 +602,58 @@ test.describe('médico extra pago no Preview/DEV/Asaas Sandbox', () => {
       }
       expect(Number(beforeDue.value)).toBe(544);
       console.log('PASS downgrade agendado: cota e recorrência preservadas antes do vencimento');
+
+      const scheduled = await state();
+      if (!clinicId || !userId || !subscriptionId || !scheduled.change_id) {
+        throw new Error('Fixture de downgrade sem identificadores completos');
+      }
+      const appliedAtDue = spawnSync(
+        process.execPath,
+        ['--conditions=react-server', '--import=tsx', 'scripts/test-scheduled-doctor-downgrade.ts'],
+        {
+          cwd: process.cwd(),
+          env: {
+            ...process.env,
+            E2E_DOWNGRADE_CLINIC_ID: clinicId,
+            E2E_DOWNGRADE_USER_ID: userId,
+            E2E_DOWNGRADE_CHANGE_ID: scheduled.change_id,
+            E2E_DOWNGRADE_SUBSCRIPTION_ID: subscriptionId,
+            E2E_DOWNGRADE_SLUG: slug,
+          },
+          encoding: 'utf8',
+          timeout: 120_000,
+        },
+      );
+      if (
+        appliedAtDue.error ||
+        appliedAtDue.status !== 0 ||
+        !appliedAtDue.stdout.includes('PASS downgrade da fixture no vencimento simulado')
+      ) {
+        const diagnostic =
+          appliedAtDue.stderr.match(
+            /\[e2e-downgrade\] FAIL stage=[a-z_]+ name=[A-Za-z0-9_]+ code=[A-Za-z0-9_]+ http=\d{1,3}/u,
+          )?.[0] ?? 'child_bootstrap';
+        throw new Error(
+          `Aplicação isolada do downgrade falhou (exit ${appliedAtDue.status}; ${diagnostic})`,
+        );
+      }
+      expect(await state()).toMatchObject({
+        code: 'clinica_2026_2',
+        amount: '397.00',
+        doctors: 2,
+        change_status: 'applied',
+        change_count: 2,
+        paid_invoice_count: 1,
+      });
+      const afterDue = await asaasOk(`subscriptions/${encodeURIComponent(subscriptionId)}`, 'GET');
+      if (!afterDue || typeof afterDue !== 'object' || !('value' in afterDue)) {
+        throw new Error('Recorrência Sandbox indisponível após o downgrade');
+      }
+      expect(Number(afterDue.value)).toBe(397);
+      await page.goto('/auth/session-refresh?next=%2Fconfiguracoes%2Fassinatura');
+      await expect(page).toHaveURL(/\/configuracoes\/assinatura(?:\?|$)/u, { timeout: 60_000 });
+      await expect(page.getByText('R$ 397,00 por mês', { exact: true })).toBeVisible();
+      console.log('PASS vencimento simulado: Asaas, plano, cota e UI convergiram para 2 médicos');
     } finally {
       await context.close();
     }

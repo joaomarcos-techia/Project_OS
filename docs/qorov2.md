@@ -9344,6 +9344,18 @@ em três médicos/R$ 544 e o Asaas continuou recorrendo R$ 544 antes do
 vencimento. Cleanup zero. Isto prova **agendamento sem redução antecipada**;
 não prova a aplicação pelo cron no dia devido nem a parcela posterior a R$ 397.
 
+Em 23/10, a extensão do mesmo E2E passou **1/1, exit 0, 1,5 min de teste**:
+depois do upgrade pago e downgrade agendado pela UI, um runner com guardas de
+fixture, projeto DEV e Asaas Sandbox sincronizou somente aquela assinatura
+para R$ 397 e chamou `applyScheduledPlanChange` com o instante devido
+simulado. Readback: alteração `applied`, plano de dois médicos, cota de dois e
+R$ 397 no DEV, recorrência de R$ 397 no Asaas, tela autenticada em R$ 397 após
+refresh; teardown sem resíduos. A sincronização inclui as parcelas já emitidas
+do ciclo-alvo e revalida valores no provider. Isso **não** prova que o cron
+global será disparado automaticamente no dia devido, nem que um mês real
+decorreu. As duas tentativas anteriores falharam no runner (ambiente não
+carregado e timestamp SQL tratado como `Date`); ambas limparam a fixture.
+
 **Recuperação ainda aberta:** uma cobrança proporcional removida no Asaas tem
 sua invoice cancelada no Qoro, mas a alteração pode continuar
 `pending_payment`, impedindo outra troca. Não se deve simplesmente cancelar a
