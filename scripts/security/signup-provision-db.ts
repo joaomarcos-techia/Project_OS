@@ -278,6 +278,28 @@ function compensationStub(userId: string, mode: 'declined' | 'mismatch' | 'cas')
 try {
   await seedCatalog();
 
+  await check('ciclo anual: coluna real, CHECK fechado e preço do catálogo 2026', async () => {
+    const [plan] = await sql<{ id: string }[]>`
+      SELECT id FROM plans WHERE code = 'consultorio_2026'`;
+    assert.ok(plan);
+    const userId = await seedSession('annual-cycle', { planId: plan.id, billingState: null });
+    const [defaultCycle] = await sql<{ cycle: string }[]>`
+      SELECT selected_billing_cycle AS cycle FROM signup_sessions
+      WHERE auth_user_id = ${userId}::uuid`;
+    assert.equal(defaultCycle?.cycle, 'monthly');
+    await sql`UPDATE signup_sessions SET selected_billing_cycle = 'annual'
+      WHERE auth_user_id = ${userId}::uuid`;
+    const [priced] = await sql<{ cycle: string; amount: string }[]>`
+      SELECT s.selected_billing_cycle AS cycle, p.amount::text AS amount
+      FROM signup_sessions s JOIN prices p ON p.plan_id = s.selected_plan_id
+        AND p.billing_cycle::text = s.selected_billing_cycle
+      WHERE s.auth_user_id = ${userId}::uuid`;
+    assert.equal(priced?.cycle, 'annual');
+    assert.equal(priced?.amount, '1970.00');
+    await assert.rejects(sql`UPDATE signup_sessions SET selected_billing_cycle = 'weekly'
+      WHERE auth_user_id = ${userId}::uuid`);
+  });
+
   await check('execucao normal: tenant, owner, config, customer, assinatura e outbox', async () => {
     const userId = await seedSession('normal');
     const result = await provisionTenantFromSignup({

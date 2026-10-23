@@ -59,6 +59,7 @@ export const signupPlanMutationSchema = z
   .object({
     rowVersion: z.number().int().min(1).max(2_147_483_646),
     planId: z.string().uuid(),
+    cycle: z.enum(['monthly', 'annual']).default('monthly'),
   })
   .strict();
 
@@ -67,7 +68,7 @@ export interface SignupPlan {
   code: string;
   name: string;
   priceCents: number;
-  cycle: 'monthly';
+  cycle: 'monthly' | 'annual';
 }
 
 export interface SignupPlanState {
@@ -75,6 +76,7 @@ export interface SignupPlanState {
   rowVersion: number;
   clinicName: string;
   selectedPlanId: string | null;
+  selectedBillingCycle: 'monthly' | 'annual';
   plans: SignupPlan[];
   trialDays: number;
   /** Fim absoluto dos planos 2026, derivado do Auth no servidor; null para catálogo legado. */
@@ -99,7 +101,12 @@ export type OwnedSignupReferenceOutcome =
   | { ok: true; signupRef: string; credentialState: OwnedSignupCredentialState }
   | { ok: false; reason: 'gone' | 'unavailable' };
 type PlanWriteOutcome =
-  | { ok: true; rowVersion: number; selectedPlanId: string }
+  | {
+      ok: true;
+      rowVersion: number;
+      selectedPlanId: string;
+      selectedBillingCycle: 'monthly' | 'annual';
+    }
   | { ok: false; reason: 'gone' | 'conflict' | 'invalid_plan' | 'unavailable' };
 type PlanReadOutcome =
   | { ok: true; state: SignupPlanState }
@@ -191,7 +198,7 @@ function priceToCents(value: string): number {
   return major * 100 + minor;
 }
 
-/** Catálogo autônomo: somente preço mensal BRL de tabela, nunca campanha de convite. */
+/** Catálogo autônomo: preços BRL de tabela, nunca campanha de convite. */
 async function listSelfServicePlans(): Promise<SignupPlan[]> {
   const rows = await dbAdmin
     .select({
@@ -199,13 +206,13 @@ async function listSelfServicePlans(): Promise<SignupPlan[]> {
       code: plans.code,
       name: plans.name,
       amount: prices.amount,
+      cycle: prices.billingCycle,
     })
     .from(plans)
     .innerJoin(
       prices,
       and(
         eq(prices.planId, plans.id),
-        eq(prices.billingCycle, 'monthly'),
         eq(prices.currency, 'BRL'),
         lte(prices.activeFrom, sql`now()`),
         isNull(prices.activeUntil),
@@ -220,13 +227,15 @@ async function listSelfServicePlans(): Promise<SignupPlan[]> {
   const offerRows = rows.filter((row) =>
     OFFER_2026_ENTRY_PLAN_CODES.some((code) => code === row.code),
   );
-  const availableRows = rows.some((row) => isOffer2026PlanCode(row.code)) ? offerRows : rows;
+  const availableRows = rows.some((row) => isOffer2026PlanCode(row.code))
+    ? offerRows
+    : rows.filter((row) => row.cycle === 'monthly');
   return availableRows.map((row) => ({
     id: row.id,
     code: row.code,
     name: row.name,
     priceCents: priceToCents(row.amount),
-    cycle: 'monthly',
+    cycle: row.cycle,
   }));
 }
 
@@ -240,6 +249,7 @@ export async function readSignupPlan(userId: string): Promise<PlanReadOutcome> {
       rowVersion: signupSessions.rowVersion,
       clinicName: signupSessions.clinicName,
       selectedPlanId: signupSessions.selectedPlanId,
+      selectedBillingCycle: signupSessions.selectedBillingCycle,
     })
     .from(signupSessions)
     .where(ownerDraftCondition(userId))
@@ -269,6 +279,7 @@ export async function readSignupPlan(userId: string): Promise<PlanReadOutcome> {
       rowVersion: draft.rowVersion,
       clinicName: draft.clinicName,
       selectedPlanId: draft.selectedPlanId,
+      selectedBillingCycle: draft.selectedBillingCycle,
       plans: availablePlans,
       trialDays: offerPlan ? PROPOSED_OFFER.proposedTrialDays : QORO_SELF_SERVICE_TRIAL_DAYS,
       offerTrialEndsAt,
@@ -283,7 +294,7 @@ export async function writeSignupPlan(userId: string, input: unknown): Promise<P
   const parsed = signupPlanMutationSchema.safeParse(input);
   if (!parsed.success) throw new Error('[signup] invalid_plan');
 
-  const { planId, rowVersion } = parsed.data;
+  const { planId, rowVersion, cycle } = parsed.data;
   return dbAdmin.transaction(async (tx) => {
     const [availablePlan] = await tx
       .select({ id: plans.id, code: plans.code })
@@ -292,7 +303,7 @@ export async function writeSignupPlan(userId: string, input: unknown): Promise<P
         prices,
         and(
           eq(prices.planId, plans.id),
-          eq(prices.billingCycle, 'monthly'),
+          eq(prices.billingCycle, cycle),
           eq(prices.currency, 'BRL'),
           lte(prices.activeFrom, sql`now()`),
           isNull(prices.activeUntil),
@@ -303,6 +314,9 @@ export async function writeSignupPlan(userId: string, input: unknown): Promise<P
       .for('share')
       .limit(1);
     if (!availablePlan) return { ok: false, reason: 'invalid_plan' };
+    if (cycle === 'annual' && !isOffer2026PlanCode(availablePlan.code)) {
+      return { ok: false, reason: 'invalid_plan' };
+    }
     if (
       isOffer2026PlanCode(availablePlan.code) &&
       !OFFER_2026_ENTRY_PLAN_CODES.some((code) => code === availablePlan.code)
@@ -325,6 +339,7 @@ export async function writeSignupPlan(userId: string, input: unknown): Promise<P
         // absoluto, e `least(now() + idle, absoluto)` ENCURTARIA o prazo a cada
         // escolha de plano — a leitura autenticada não renova nada depois.
         selectedPlanId: planId,
+        selectedBillingCycle: cycle,
         rowVersion: sql`${signupSessions.rowVersion} + 1`,
       })
       .where(
@@ -343,15 +358,22 @@ export async function writeSignupPlan(userId: string, input: unknown): Promise<P
       .returning({
         rowVersion: signupSessions.rowVersion,
         selectedPlanId: signupSessions.selectedPlanId,
+        selectedBillingCycle: signupSessions.selectedBillingCycle,
       });
     if (saved?.selectedPlanId) {
-      return { ok: true, rowVersion: saved.rowVersion, selectedPlanId: saved.selectedPlanId };
+      return {
+        ok: true,
+        rowVersion: saved.rowVersion,
+        selectedPlanId: saved.selectedPlanId,
+        selectedBillingCycle: cycle,
+      };
     }
 
     const [live] = await tx
       .select({
         rowVersion: signupSessions.rowVersion,
         selectedPlanId: signupSessions.selectedPlanId,
+        selectedBillingCycle: signupSessions.selectedBillingCycle,
         billingAttemptState: signupSessions.billingAttemptState,
       })
       .from(signupSessions)
@@ -361,8 +383,17 @@ export async function writeSignupPlan(userId: string, input: unknown): Promise<P
     if (live.billingAttemptState !== null && live.billingAttemptState !== 'failed') {
       return { ok: false, reason: 'conflict' };
     }
-    if (live.selectedPlanId === planId && live.rowVersion === rowVersion + 1) {
-      return { ok: true, rowVersion: live.rowVersion, selectedPlanId: planId };
+    if (
+      live.selectedPlanId === planId &&
+      live.selectedBillingCycle === cycle &&
+      live.rowVersion === rowVersion + 1
+    ) {
+      return {
+        ok: true,
+        rowVersion: live.rowVersion,
+        selectedPlanId: planId,
+        selectedBillingCycle: cycle,
+      };
     }
     return { ok: false, reason: 'conflict' };
   });

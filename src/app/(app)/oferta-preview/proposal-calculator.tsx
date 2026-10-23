@@ -48,8 +48,8 @@ export function ProposalCalculator() {
             {quote.plan === 'consultorio' ? 'Consultório' : 'Clínica'} · {money(quote.monthly)}/mês
           </p>
           <p>
-            Anual proposto: {money(quote.annual)}, equivalente a 10 mensalidades. Pagamento em Pix
-            ou cartão ainda em validação.
+            Anual proposto: {money(quote.annual)}, equivalente a 10 mensalidades. Primeiro no
+            cartão; Pix anual ficará para uma etapa posterior.
           </p>
           <p>
             {quote.plan === 'consultorio'

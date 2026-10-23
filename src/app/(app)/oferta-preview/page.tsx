@@ -19,9 +19,9 @@ export default function OfertaPreviewPage() {
       <h1 className="font-display text-3xl font-semibold">Proposta de planos em validação</h1>
       <p className="text-fg-muted">
         Esta página permite revisar a nova tabela. Consultório e Clínica com dois médicos estão
-        habilitados para cadastro no ambiente DEV; a contratação completa pelo checkout ainda está
-        em validação no Sandbox. Os demais valores abaixo são simulações e não podem ser
-        contratados.
+        habilitados para cadastro no ambiente DEV. A compra de médico adicional está disponível após
+        a ativação da clínica; o Checkout anual por cartão ainda passa por validação integrada no
+        Sandbox. Os valores abaixo são simulações, não uma oferta de produção.
       </p>
       <ProposalCalculator />
       <p className="text-fg-muted">
@@ -31,13 +31,14 @@ export default function OfertaPreviewPage() {
         {PROPOSED_OFFER.consultorioIncludedStaffLogins} logins de equipe. Clínica começa com dois
         médicos, inclui até {PROPOSED_OFFER.clinicaIncludedStaffLogins} logins de equipe e propõe R${' '}
         {PROPOSED_OFFER.additionalProfessionalMonthly}
-        {'/mês por médico adicional, até cinco médicos no total.'} A compra de médicos adicionais
-        ainda não está disponível no cadastro.
+        {'/mês por médico adicional, até cinco médicos no total.'} A vaga adicional é contratada na
+        assinatura da clínica já ativa, com valor proporcional exibido antes do pagamento.
       </p>
       <p className="text-fg-muted">
         Nos dois planos habilitados no DEV, o teste dura {PROPOSED_OFFER.proposedTrialDays} dias
-        desde a criação da conta, sem reiniciar após o checkout. A opção anual e a franquia mensal
-        de conversas de IA ainda não estão disponíveis para contratação.
+        desde a criação da conta, sem reiniciar após o checkout. O cadastro anual por cartão está em
+        validação no DEV/Preview; Pix anual virá depois. A referência mensal de conversas de IA gera
+        avisos, sem bloquear o atendimento.
       </p>
     </main>
   );

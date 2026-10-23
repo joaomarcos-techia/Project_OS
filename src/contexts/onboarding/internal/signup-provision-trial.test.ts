@@ -37,7 +37,7 @@ const USER = '11111111-1111-4111-8111-111111111111';
 const CREATED_AT = new Date('2026-10-01T12:00:00.000Z');
 const ATTEMPTED_AT = new Date('2026-10-02T12:00:00.000Z');
 
-function setup(planCode: string): void {
+function setup(planCode: string, cycle: 'monthly' | 'annual' = 'monthly'): void {
   mocks.results = [
     [
       {
@@ -45,6 +45,7 @@ function setup(planCode: string): void {
         ownerName: 'Dona Teste',
         clinicName: 'Clínica Teste',
         selectedPlanId: '33333333-3333-4333-8333-333333333333',
+        selectedBillingCycle: cycle,
         billingState: 'active',
         billingAttemptedAt: ATTEMPTED_AT,
         asaasCustomerId: 'cus_test',
@@ -57,7 +58,7 @@ function setup(planCode: string): void {
         planId: '33333333-3333-4333-8333-333333333333',
         planCode,
         priceId: '44444444-4444-4444-8444-444444444444',
-        amount: '197.00',
+        amount: cycle === 'annual' ? '1970.00' : '197.00',
       },
     ],
     [],
@@ -84,6 +85,29 @@ beforeEach(() => {
 });
 
 describe('provisionamento do trial da nova oferta', () => {
+  it('provisiona ciclo anual com o preço anual sem alterar contratos mensais', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-03T12:00:00.000Z'));
+    setup('consultorio_2026', 'annual');
+    await expect(
+      provisionTenantFromSignup({
+        userId: USER,
+        verifiedEmail: 'dona@example.invalid',
+        cpfCnpj: '24971563792',
+        expectedPriceCents: 197_000,
+      }),
+    ).resolves.toMatchObject({ ok: true });
+    expect(mocks.provision).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        billingCycle: 'annual',
+        priceAmount: 1970,
+        initialBillingStatus: 'trial',
+      }),
+      expect.any(Function),
+    );
+  });
+
   it('grava o fim absoluto do Auth sem reiniciar os 14 dias no provisionamento', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-10-03T12:00:00.000Z'));

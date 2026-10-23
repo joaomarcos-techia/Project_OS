@@ -16,7 +16,7 @@ describe('prévia da proposta comercial', () => {
       screen.getByText(/Consultório e Clínica com dois médicos estão habilitados/),
     ).toBeTruthy();
     expect(
-      screen.getByText(/A compra de médicos adicionais ainda não está disponível/),
+      screen.getByText(/A vaga adicional é contratada na assinatura da clínica já ativa/),
     ).toBeTruthy();
     expect(
       screen.getByText(/desde a criação da conta, sem reiniciar após o checkout/),
@@ -47,6 +47,9 @@ describe('prévia da proposta comercial', () => {
     });
     expect(screen.getByText(/R\$\s*544,00\/mês/)).toBeTruthy();
     expect(screen.getByText(/R\$\s*5\.440,00/)).toBeTruthy();
+    expect(
+      screen.getByText(/Primeiro no cartão; Pix anual ficará para uma etapa posterior/),
+    ).toBeTruthy();
   });
 
   it('não apresenta preço para contagem fora do limite', () => {

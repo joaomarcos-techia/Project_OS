@@ -55,6 +55,7 @@ export interface SignupBillingIntent {
   priceId: string;
   /** Centavos — a unidade interna. Converta na borda do provedor. */
   priceCents: number;
+  billingCycle: 'monthly' | 'annual';
   clinicName: string;
   ownerName: string;
   trialDays: number;
@@ -154,6 +155,7 @@ export async function reserveSignupBillingAttempt(userId: string): Promise<Reser
         ownerName: signupSessions.ownerName,
         clinicName: signupSessions.clinicName,
         selectedPlanId: signupSessions.selectedPlanId,
+        selectedBillingCycle: signupSessions.selectedBillingCycle,
         attemptState: signupSessions.billingAttemptState,
         checkoutUrl: signupSessions.asaasCheckoutUrl,
       })
@@ -189,7 +191,7 @@ export async function reserveSignupBillingAttempt(userId: string): Promise<Reser
         prices,
         and(
           eq(prices.planId, plans.id),
-          eq(prices.billingCycle, 'monthly'),
+          eq(prices.billingCycle, draft.selectedBillingCycle),
           eq(prices.currency, 'BRL'),
           lte(prices.activeFrom, sql`now()`),
           isNull(prices.activeUntil),
@@ -200,6 +202,9 @@ export async function reserveSignupBillingAttempt(userId: string): Promise<Reser
       .for('share')
       .limit(1);
     if (!priced) return { ok: false, reason: 'invalid_plan' };
+    if (draft.selectedBillingCycle === 'annual' && !isOffer2026PlanCode(priced.planCode)) {
+      return { ok: false, reason: 'invalid_plan' };
+    }
 
     /*
      * O código do plano precisa ser publicável ANTES de existir cobrança.
@@ -265,6 +270,7 @@ export async function reserveSignupBillingAttempt(userId: string): Promise<Reser
         planCode: priced.planCode,
         priceId: priced.priceId,
         priceCents: priceToCents(priced.amount),
+        billingCycle: draft.selectedBillingCycle,
         clinicName: draft.clinicName,
         ownerName: draft.ownerName,
         trialDays: trial.days,
@@ -444,6 +450,7 @@ export interface SignupHostedCheckoutTarget {
   rowVersion: number;
   externalReference: string;
   priceCents: number;
+  billingCycle: 'monthly' | 'annual';
   trialDays: number;
   trialEndsAt: string;
   strictTrialDeadline: boolean;
@@ -472,6 +479,7 @@ export async function readSignupHostedCheckoutTarget(
       asaasSubscriptionId: signupSessions.asaasSubscriptionId,
       amount: prices.amount,
       planCode: plans.code,
+      billingCycle: signupSessions.selectedBillingCycle,
     })
     .from(signupSessions)
     .innerJoin(plans, and(eq(plans.id, signupSessions.selectedPlanId), eq(plans.ativo, true)))
@@ -479,7 +487,7 @@ export async function readSignupHostedCheckoutTarget(
       prices,
       and(
         eq(prices.planId, plans.id),
-        eq(prices.billingCycle, 'monthly'),
+        eq(prices.billingCycle, signupSessions.selectedBillingCycle),
         eq(prices.currency, 'BRL'),
         lte(prices.activeFrom, sql`now()`),
         isNull(prices.activeUntil),
@@ -517,6 +525,7 @@ export async function readSignupHostedCheckoutTarget(
     rowVersion: row.rowVersion,
     externalReference: `signup:${row.id}`,
     priceCents: priceToCents(row.amount),
+    billingCycle: row.billingCycle,
     trialDays: trial.days,
     trialEndsAt: trial.endsAt.toISOString(),
     strictTrialDeadline: trial.strictDeadline,
@@ -616,8 +625,10 @@ export async function reconcileSignupBillingAttempt(input: {
  */
 export async function readSignupBillingReconcileTarget(userId: string): Promise<{
   externalReference: string;
+  planCode: string;
   asaasCustomerId: string | null;
   priceCents: number;
+  billingCycle: 'monthly' | 'annual';
   rowVersion: number;
 } | null> {
   if (!enabled()) return null;
@@ -629,6 +640,8 @@ export async function readSignupBillingReconcileTarget(userId: string): Promise<
       asaasCustomerId: signupSessions.asaasCustomerId,
       rowVersion: signupSessions.rowVersion,
       amount: prices.amount,
+      planCode: plans.code,
+      billingCycle: signupSessions.selectedBillingCycle,
     })
     .from(signupSessions)
     .innerJoin(plans, and(eq(plans.id, signupSessions.selectedPlanId), eq(plans.ativo, true)))
@@ -636,7 +649,7 @@ export async function readSignupBillingReconcileTarget(userId: string): Promise<
       prices,
       and(
         eq(prices.planId, plans.id),
-        eq(prices.billingCycle, 'monthly'),
+        eq(prices.billingCycle, signupSessions.selectedBillingCycle),
         eq(prices.currency, 'BRL'),
         lte(prices.activeFrom, sql`now()`),
         isNull(prices.activeUntil),
@@ -651,8 +664,10 @@ export async function readSignupBillingReconcileTarget(userId: string): Promise<
 
   return {
     externalReference: `signup:${row.id}`,
+    planCode: row.planCode,
     asaasCustomerId: row.asaasCustomerId,
     priceCents: priceToCents(row.amount),
+    billingCycle: row.billingCycle,
     rowVersion: row.rowVersion,
   };
 }

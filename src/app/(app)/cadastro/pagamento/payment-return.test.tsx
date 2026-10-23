@@ -29,6 +29,20 @@ afterEach(() => {
 });
 
 describe('retorno do Checkout do cadastro', () => {
+  it('verifica uma assinatura pendente antes de abrir o dashboard', async () => {
+    fetchMock.mockResolvedValueOnce(json(200, { state: 'provisioned' }));
+
+    render(<PaymentReturn result="pending" />);
+
+    await waitFor(() =>
+      expect(assignMock).toHaveBeenCalledWith('/auth/session-refresh?next=/dashboard'),
+    );
+    expect(fetchMock).toHaveBeenCalledWith('/api/signup/checkout/status', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+    });
+  });
+
   it('redireciona somente depois da confirmação autoritativa', async () => {
     fetchMock.mockResolvedValueOnce(json(200, { state: 'provisioned' }));
 

@@ -17,6 +17,7 @@ const STATE: SignupPlanState = {
   rowVersion: 7,
   clinicName: 'Clínica Sintética',
   selectedPlanId: null,
+  selectedBillingCycle: 'monthly',
   plans: [
     {
       id: ESSENTIAL_ID,
@@ -124,10 +125,59 @@ describe('seleção de plano O-4', () => {
     expect(screen.getByText(/Após esse horário, acesso só com pagamento confirmado/u)).toBeTruthy();
   });
 
+  it('mostra preço anual e envia plano mais ciclo sem aceitar preço do browser', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        json(200, {
+          ...STATE,
+          trialDays: 14,
+          offerTrialEndsAt: '2026-11-02T13:45:00.000Z',
+          plans: [
+            {
+              id: CONSULTORIO_2026_ID,
+              code: 'consultorio_2026',
+              name: 'Consultório',
+              priceCents: 19_700,
+              cycle: 'monthly',
+            },
+            {
+              id: CONSULTORIO_2026_ID,
+              code: 'consultorio_2026',
+              name: 'Consultório',
+              priceCents: 197_000,
+              cycle: 'annual',
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(
+        json(200, {
+          rowVersion: 8,
+          selectedPlanId: CONSULTORIO_2026_ID,
+          selectedBillingCycle: 'annual',
+        }),
+      );
+    render(<PlanSelectionForm />);
+    expect(await screen.findByText(/R\$.*197,00/u)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /Anual/u }));
+    expect(screen.getByText(/R\$.*1\.970,00/u)).toBeTruthy();
+    expect(screen.queryByText(/R\$.*197,00/u)).toBeNull();
+    fireEvent.click(screen.getByRole('radio', { name: /Consultório/u }));
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar plano' }));
+    await screen.findByText('Plano salvo');
+    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({
+      rowVersion: 7,
+      planId: CONSULTORIO_2026_ID,
+      cycle: 'annual',
+    });
+  });
+
   it('salva somente planId e rowVersion, e só então oferece a ativação', async () => {
     fetchMock
       .mockResolvedValueOnce(json(200, STATE))
-      .mockResolvedValueOnce(json(200, { rowVersion: 8, selectedPlanId: COMPLETE_ID }));
+      .mockResolvedValueOnce(
+        json(200, { rowVersion: 8, selectedPlanId: COMPLETE_ID, selectedBillingCycle: 'monthly' }),
+      );
     render(<PlanSelectionForm />);
 
     fireEvent.click(await screen.findByRole('radio', { name: /Completo/u }));
@@ -149,14 +199,16 @@ describe('seleção de plano O-4', () => {
     expect(fetchMock.mock.calls[1]?.[1]).toEqual({
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ rowVersion: 7, planId: COMPLETE_ID }),
+      body: JSON.stringify({ rowVersion: 7, planId: COMPLETE_ID, cycle: 'monthly' }),
     });
   });
 
   it('restaura escolha salva e usa a nova versão em alterações posteriores', async () => {
     fetchMock
       .mockResolvedValueOnce(json(200, { ...STATE, rowVersion: 8, selectedPlanId: ESSENTIAL_ID }))
-      .mockResolvedValueOnce(json(200, { rowVersion: 9, selectedPlanId: COMPLETE_ID }));
+      .mockResolvedValueOnce(
+        json(200, { rowVersion: 9, selectedPlanId: COMPLETE_ID, selectedBillingCycle: 'monthly' }),
+      );
     render(<PlanSelectionForm />);
 
     const essential = await screen.findByRole('radio', { name: /Essencial/u });
@@ -168,6 +220,7 @@ describe('seleção de plano O-4', () => {
     expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({
       rowVersion: 8,
       planId: COMPLETE_ID,
+      cycle: 'monthly',
     });
   });
 
@@ -222,7 +275,9 @@ describe('seleção de plano O-4', () => {
     const checkoutUrl = 'https://sandbox.asaas.com/checkoutSession/show?id=checkout_1';
     fetchMock
       .mockResolvedValueOnce(json(200, STATE))
-      .mockResolvedValueOnce(json(200, { rowVersion: 8, selectedPlanId: COMPLETE_ID }))
+      .mockResolvedValueOnce(
+        json(200, { rowVersion: 8, selectedPlanId: COMPLETE_ID, selectedBillingCycle: 'monthly' }),
+      )
       .mockResolvedValueOnce(json(200, { state: 'checkout_pending', checkoutUrl }));
     render(<PlanSelectionForm />);
 
@@ -237,10 +292,31 @@ describe('seleção de plano O-4', () => {
     expect(assignMock).not.toHaveBeenCalledWith('/auth/session-refresh?next=/dashboard');
   });
 
+  it('retoma a verificação de uma assinatura já criada sem declarar erro nem abrir outro Checkout', async () => {
+    fetchMock
+      .mockResolvedValueOnce(json(200, STATE))
+      .mockResolvedValueOnce(
+        json(200, { rowVersion: 8, selectedPlanId: COMPLETE_ID, selectedBillingCycle: 'monthly' }),
+      )
+      .mockResolvedValueOnce(json(200, { state: 'pending' }));
+    render(<PlanSelectionForm />);
+
+    fireEvent.click(await screen.findByRole('radio', { name: /Completo/u }));
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar plano' }));
+    await screen.findByText('Plano salvo');
+    fireEvent.click(await screen.findByRole('button', { name: 'Continuar no Checkout Asaas' }));
+
+    await waitFor(() =>
+      expect(assignMock).toHaveBeenCalledWith('/cadastro/pagamento?resultado=pending'),
+    );
+  });
+
   it('recusa URL de Checkout fora dos hosts oficiais', async () => {
     fetchMock
       .mockResolvedValueOnce(json(200, STATE))
-      .mockResolvedValueOnce(json(200, { rowVersion: 8, selectedPlanId: COMPLETE_ID }))
+      .mockResolvedValueOnce(
+        json(200, { rowVersion: 8, selectedPlanId: COMPLETE_ID, selectedBillingCycle: 'monthly' }),
+      )
       .mockResolvedValueOnce(
         json(200, { state: 'checkout_pending', checkoutUrl: 'https://evil.test/coletar-cartao' }),
       );

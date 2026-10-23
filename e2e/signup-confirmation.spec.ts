@@ -90,6 +90,7 @@ type SignupRun = {
 };
 type OfferCheckoutReceipt = {
   planCode: string;
+  billingCycle?: 'monthly' | 'annual';
   priceCents: number;
   email: string;
   password: string;
@@ -104,6 +105,9 @@ function isOfferCheckoutReceipt(value: unknown): value is OfferCheckoutReceipt {
   const row = value as Record<string, unknown>;
   return (
     typeof row.planCode === 'string' &&
+    (row.billingCycle === undefined ||
+      row.billingCycle === 'monthly' ||
+      row.billingCycle === 'annual') &&
     typeof row.priceCents === 'number' &&
     typeof row.email === 'string' &&
     typeof row.password === 'string' &&
@@ -112,6 +116,14 @@ function isOfferCheckoutReceipt(value: unknown): value is OfferCheckoutReceipt {
     typeof row.checkoutId === 'string' &&
     typeof row.trialEndsAt === 'string'
   );
+}
+
+function requestedOfferBillingCycle(): 'monthly' | 'annual' {
+  const cycle = process.env.E2E_OFFER_BILLING_CYCLE ?? 'monthly';
+  if (cycle !== 'monthly' && cycle !== 'annual') {
+    throw new Error('E2E_OFFER_BILLING_CYCLE deve ser monthly ou annual');
+  }
+  return cycle;
 }
 
 let lockHeld = false;
@@ -562,6 +574,7 @@ async function cancelSandboxCheckout(checkoutId: string): Promise<void> {
 async function assertHostedCheckoutPersisted(
   tokenHash: string,
   expectedPlanCode: string,
+  expectedBillingCycle: 'monthly' | 'annual' = 'monthly',
 ): Promise<{ checkoutId: string; checkoutUrl: string }> {
   const sql = postgres(databaseUrl!, { max: 1, ssl: 'require', prepare: false });
   try {
@@ -573,6 +586,7 @@ async function assertHostedCheckoutPersisted(
         asaas_customer_id: string | null;
         asaas_subscription_id: string | null;
         plan_code: string | null;
+        selected_billing_cycle: string;
       }[]
     >`
       select s.billing_attempt_state,
@@ -580,7 +594,7 @@ async function assertHostedCheckoutPersisted(
              s.asaas_checkout_url,
              s.asaas_customer_id,
              s.asaas_subscription_id,
-             p.code as plan_code
+             p.code as plan_code, s.selected_billing_cycle
         from signup_sessions s
         left join plans p on p.id = s.selected_plan_id
        where s.token_hash = ${tokenHash}
@@ -591,7 +605,8 @@ async function assertHostedCheckoutPersisted(
       !row.asaas_checkout_url ||
       row.asaas_customer_id !== null ||
       row.asaas_subscription_id !== null ||
-      row.plan_code !== expectedPlanCode
+      row.plan_code !== expectedPlanCode ||
+      row.selected_billing_cycle !== expectedBillingCycle
     ) {
       throw new Error('draft não persistiu o Checkout hospedado pendente antes da navegação');
     }
@@ -1366,7 +1381,7 @@ test.describe('cadastro — confirmação real via Resend', () => {
     }
   });
 
-  test('@prepare-offer-checkout prepara contratação mensal real para pagamento manual no Sandbox', async ({
+  test('@prepare-offer-checkout prepara contratação real para pagamento manual no Sandbox', async ({
     browser,
   }) => {
     test.skip(process.env.E2E_SIGNUP_PREPARE_OFFER !== '1', 'preparação manual não solicitada');
@@ -1374,12 +1389,14 @@ test.describe('cadastro — confirmação real via Resend', () => {
     if (planCode !== 'consultorio_2026' && planCode !== 'clinica_2026_2') {
       throw new Error('E2E_OFFER_PLAN_CODE precisa identificar um dos dois planos de entrada');
     }
-    const expectedPrice = planCode === 'consultorio_2026' ? 19700 : 39700;
+    const billingCycle = requestedOfferBillingCycle();
+    const monthlyPrice = planCode === 'consultorio_2026' ? 19700 : 39700;
+    const expectedPrice = billingCycle === 'annual' ? monthlyPrice * 10 : monthlyPrice;
     const reason = skipReason();
     if (reason) throw new Error(`guard recusou a escrita: ${reason}`);
     test.setTimeout(420_000);
 
-    const email = `offer-${planCode}-${Date.now()}-${randomBytes(4).toString('hex')}@resend.dev`;
+    const email = `offer-${planCode}-${billingCycle}-${Date.now()}-${randomBytes(4).toString('hex')}@resend.dev`;
     let fixture: Fixture = { projectRef: expectedProjectRef!, email };
     let desktop: BrowserContext | null = null;
     let phone: BrowserContext | null = null;
@@ -1391,8 +1408,15 @@ test.describe('cadastro — confirmação real via Resend', () => {
       } catch (error) {
         if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error;
       }
-      const prior = JSON.parse(priorRaw) as Array<{ planCode: string }>;
-      if (!Array.isArray(prior) || prior.some((item) => item.planCode === planCode)) {
+      const prior: unknown = JSON.parse(priorRaw);
+      if (!Array.isArray(prior) || !prior.every(isOfferCheckoutReceipt)) {
+        throw new Error('recibos locais de Checkout estão ausentes ou inválidos');
+      }
+      if (
+        prior.some(
+          (item) => item.planCode === planCode && (item.billingCycle ?? 'monthly') === billingCycle,
+        )
+      ) {
         throw new Error('já existe Checkout manual desse plano; reconcilie antes de criar outro');
       }
 
@@ -1425,14 +1449,21 @@ test.describe('cadastro — confirmação real via Resend', () => {
       const response = await signup.page.request.get('/api/signup/plan');
       if (!response.ok()) throw new Error(`catálogo do cadastro respondeu ${response.status()}`);
       const state = (await response.json()) as {
-        plans?: Array<{ id: string; code: string; priceCents: number }>;
+        plans?: Array<{
+          id: string;
+          code: string;
+          priceCents: number;
+          cycle: 'monthly' | 'annual';
+        }>;
         offerTrialEndsAt?: string;
       };
-      const codes = state.plans?.map((plan) => plan.code).sort();
+      const codes = [...new Set(state.plans?.map((plan) => plan.code) ?? [])].sort();
       if (JSON.stringify(codes) !== JSON.stringify(['clinica_2026_2', 'consultorio_2026'])) {
         throw new Error('o Preview não oferece exatamente Consultório e Clínica');
       }
-      const selected = state.plans?.find((plan) => plan.code === planCode);
+      const selected = state.plans?.find(
+        (plan) => plan.code === planCode && plan.cycle === billingCycle,
+      );
       if (selected?.priceCents !== expectedPrice || !state.offerTrialEndsAt) {
         throw new Error('preço ou prazo do trial não corresponde à nova oferta');
       }
@@ -1444,6 +1475,9 @@ test.describe('cadastro — confirmação real via Resend', () => {
         throw new Error('trial não termina 14 dias após a criação da conta Auth');
       }
 
+      if (billingCycle === 'annual') {
+        await signup.page.getByRole('button', { name: 'Anual · preço de 10 meses' }).click();
+      }
       await signup.page
         .locator('[data-slot="option-card-group"]')
         .getByText(planCode === 'consultorio_2026' ? 'Consultório' : 'Clínica · 2 médicos', {
@@ -1462,7 +1496,11 @@ test.describe('cadastro — confirmação real via Resend', () => {
       await expect(signup.page.getByText('Informações da assinatura')).toBeVisible({
         timeout: 30_000,
       });
-      const persisted = await assertHostedCheckoutPersisted(fixture.tokenHash, planCode);
+      const persisted = await assertHostedCheckoutPersisted(
+        fixture.tokenHash,
+        planCode,
+        billingCycle,
+      );
       if (persisted.checkoutUrl !== signup.page.url()) {
         throw new Error('URL persistida diverge da página do Asaas aberta pelo cadastro');
       }
@@ -1470,6 +1508,7 @@ test.describe('cadastro — confirmação real via Resend', () => {
         ...prior,
         {
           planCode,
+          billingCycle,
           priceCents: expectedPrice,
           email,
           // Credencial sintética somente no arquivo local ignorado, para retomar
@@ -1509,11 +1548,14 @@ test.describe('cadastro — confirmação real via Resend', () => {
     if (planCode !== 'consultorio_2026' && planCode !== 'clinica_2026_2') {
       throw new Error('plano de limpeza não pertence aos dois Checkouts de teste');
     }
+    const billingCycle = requestedOfferBillingCycle();
     const raw: unknown = JSON.parse(await readFile(OFFER_CHECKOUT_PATH, 'utf8'));
     if (!Array.isArray(raw) || !raw.every(isOfferCheckoutReceipt)) {
       throw new Error('recibos locais de Checkout estão ausentes ou inválidos');
     }
-    const receipt = raw.find((item) => item.planCode === planCode);
+    const receipt = raw.find(
+      (item) => item.planCode === planCode && (item.billingCycle ?? 'monthly') === billingCycle,
+    );
     if (
       !receipt ||
       !receipt.email.startsWith(`offer-${planCode}-`) ||
@@ -1607,7 +1649,9 @@ test.describe('cadastro — confirmação real via Resend', () => {
     await writeFile(
       OFFER_CHECKOUT_PATH,
       `${JSON.stringify(
-        raw.filter((item) => item.planCode !== planCode),
+        raw.filter(
+          (item) => item.planCode !== planCode || (item.billingCycle ?? 'monthly') !== billingCycle,
+        ),
         null,
         2,
       )}\n`,
@@ -1626,13 +1670,16 @@ test.describe('cadastro — confirmação real via Resend', () => {
     if (planCode !== 'consultorio_2026' && planCode !== 'clinica_2026_2') {
       throw new Error('plano de verificação não pertence aos dois Checkouts de teste');
     }
+    const billingCycle = requestedOfferBillingCycle();
     test.setTimeout(240_000);
 
     const raw: unknown = JSON.parse(await readFile(OFFER_CHECKOUT_PATH, 'utf8'));
     if (!Array.isArray(raw) || !raw.every(isOfferCheckoutReceipt)) {
       throw new Error('recibos locais de Checkout estão ausentes ou inválidos');
     }
-    const receipt = raw.find((item) => item.planCode === planCode);
+    const receipt = raw.find(
+      (item) => item.planCode === planCode && (item.billingCycle ?? 'monthly') === billingCycle,
+    );
     if (!receipt) throw new Error('não há Checkout preparado para o plano solicitado');
 
     const context = await browser.newContext({
@@ -1711,10 +1758,12 @@ test.describe('cadastro — confirmação real via Resend', () => {
             asaas_subscription_id: string;
             code: string;
             amount: string;
+            billing_cycle: string;
           }[]
         >`
           select p.clinic_id, s.billing_status, s.enforce_trial_deadline,
-                 s.trial_ends_at, s.asaas_subscription_id, pl.code, pr.amount::text as amount
+                 s.trial_ends_at, s.asaas_subscription_id, pl.code,
+                 pr.amount::text as amount, pr.billing_cycle
             from public.profiles p
             join public.subscriptions s on s.clinic_id = p.clinic_id
             join public.plans pl on pl.id = s.plan_id
@@ -1728,6 +1777,7 @@ test.describe('cadastro — confirmação real via Resend', () => {
           row.billing_status !== 'active' ||
           !row.enforce_trial_deadline ||
           row.code !== planCode ||
+          row.billing_cycle !== billingCycle ||
           row.amount !== (receipt.priceCents / 100).toFixed(2) ||
           row.trial_ends_at?.toISOString() !== receipt.trialEndsAt ||
           !row.asaas_subscription_id
@@ -1776,11 +1826,13 @@ test.describe('cadastro — confirmação real via Resend', () => {
         status?: string;
         value?: number;
         billingType?: string;
+        cycle?: string;
       };
       if (
         provider.status !== 'ACTIVE' ||
         Math.round((provider.value ?? -1) * 100) !== receipt.priceCents ||
-        provider.billingType !== 'CREDIT_CARD'
+        provider.billingType !== 'CREDIT_CARD' ||
+        provider.cycle !== (billingCycle === 'annual' ? 'YEARLY' : 'MONTHLY')
       ) {
         throw new Error('assinatura do Asaas diverge do plano pago no Qoro');
       }

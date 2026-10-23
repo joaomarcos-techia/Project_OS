@@ -11,6 +11,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import {
+  completeSignupHostedCheckout,
   provisionTenantFromSignup,
   readSignupBilling,
   reconcileSignupSubscription,
@@ -150,6 +151,17 @@ export async function POST(req: Request): Promise<Response> {
 
     // Compatibilidade de recuperação para drafts criados pelo contrato anterior.
     if (checkout.reason === 'already_active') {
+      const billing = await readSignupBilling(onboarding.userId);
+      if (!billing.ok) return billingFailure('unavailable');
+      if (billing.snapshot.asaasCheckoutId) {
+        const completed = await completeSignupHostedCheckout({
+          userId: onboarding.userId,
+          verifiedEmail: onboarding.email,
+        });
+        return completed.ok
+          ? json({ state: completed.state })
+          : billingFailure(completed.reason === 'gone' ? 'gone' : 'unavailable');
+      }
       return provisionLegacyActiveDraft({
         userId: onboarding.userId,
         email: onboarding.email,
@@ -157,7 +169,7 @@ export async function POST(req: Request): Promise<Response> {
     }
     if (checkout.reason === 'reconcile_required') {
       const reconciled = await reconcileSignupSubscription({ userId: onboarding.userId });
-      if (!reconciled.ok) return billingFailure('unavailable');
+      if (!reconciled.ok) return billingFailure('reconcile_required');
       if (reconciled.state === 'not_found') return billingFailure('reconcile_required');
       return provisionLegacyActiveDraft({
         userId: onboarding.userId,

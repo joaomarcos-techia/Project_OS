@@ -19,6 +19,9 @@
  */
 import 'server-only';
 
+/* eslint-disable boundaries/element-types -- O cadastro legado precisa reconhecer o catálogo novo antes de chamar o provedor. */
+import { isOffer2026PlanCode } from '@/contexts/billing/proposed-offer';
+/* eslint-enable boundaries/element-types */
 import {
   asaasProvider,
   BillingCircuitOpenError,
@@ -128,6 +131,17 @@ export async function startSignupSubscription(input: {
   if (!reserved.ok) return { ok: false, reason: reserved.reason };
 
   const { intent, rowVersion } = reserved;
+  // O contrato 2026 só pode seguir pelo Checkout hospedado, que fixa cartão
+  // e valida o ciclo anual no readback. Esta rotina é compatibilidade legada.
+  if (isOffer2026PlanCode(intent.planCode)) {
+    await markSignupBillingIssue({
+      userId: input.userId,
+      reservedVersion: rowVersion,
+      outcome: 'failed',
+      failureCode: 'legacy_checkout_unsupported',
+    });
+    return { ok: false, reason: 'invalid_plan' };
+  }
   let customerId: string | null = null;
   let customerCreatedHere: string | null = null;
   let subscriptionId: string;
@@ -250,6 +264,9 @@ export async function reconcileSignupSubscription(input: {
 
   const target = await readSignupBillingReconcileTarget(input.userId);
   if (!target) return { ok: false, reason: 'gone' };
+  // Uma tentativa do Checkout hospedado 2026 não é uma assinatura legada.
+  // Promovê-la aqui poderia provisionar sem conferir ciclo e pagamento.
+  if (isOffer2026PlanCode(target.planCode)) return { ok: false, reason: 'conflict' };
 
   let found: Awaited<ReturnType<PaymentProvider['findSubscriptionByExternalReference']>>;
   try {

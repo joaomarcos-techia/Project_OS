@@ -486,10 +486,11 @@ describe('signup plan contract O-4', () => {
   const planId = '22222222-2222-4222-8222-222222222222';
   const userId = context.userId;
 
-  it('aceita somente planId e rowVersion; preço, trial e campanha são server-side', () => {
+  it('aceita plano, ciclo e versão; preço, trial e campanha são server-side', () => {
     expect(signupPlanMutationSchema.parse({ rowVersion: 7, planId })).toEqual({
       rowVersion: 7,
       planId,
+      cycle: 'monthly',
     });
     for (const extra of [
       { priceCents: 1 },
@@ -506,7 +507,14 @@ describe('signup plan contract O-4', () => {
   it('lê o draft do owner e converte numeric em centavos sem usar campanha', async () => {
     mocks.select
       .mockReturnValueOnce(
-        selectChain([{ rowVersion: 7, clinicName: 'Clínica Sintética', selectedPlanId: null }]),
+        selectChain([
+          {
+            rowVersion: 7,
+            clinicName: 'Clínica Sintética',
+            selectedPlanId: null,
+            selectedBillingCycle: 'monthly',
+          },
+        ]),
       )
       .mockReturnValueOnce(
         selectChain([
@@ -515,6 +523,7 @@ describe('signup plan contract O-4', () => {
             code: 'essencial',
             name: 'Essencial',
             amount: '149.90',
+            cycle: 'monthly',
           },
         ]),
       );
@@ -526,6 +535,7 @@ describe('signup plan contract O-4', () => {
         rowVersion: 7,
         clinicName: 'Clínica Sintética',
         selectedPlanId: null,
+        selectedBillingCycle: 'monthly',
         plans: [
           {
             id: planId,
@@ -553,7 +563,13 @@ describe('signup plan contract O-4', () => {
       )
       .mockReturnValueOnce(
         selectChain([
-          { id: planId, code: 'consultorio_2026', name: 'Consultório', amount: '197.00' },
+          {
+            id: planId,
+            code: 'consultorio_2026',
+            name: 'Consultório',
+            amount: '197.00',
+            cycle: 'monthly',
+          },
         ]),
       );
 
@@ -576,19 +592,27 @@ describe('signup plan contract O-4', () => {
       )
       .mockReturnValueOnce(
         selectChain([
-          { id: 'legacy', code: 'solo', name: 'Solo', amount: '149.00' },
-          { id: planId, code: 'consultorio_2026', name: 'Consultório', amount: '197.00' },
+          { id: 'legacy', code: 'solo', name: 'Solo', amount: '149.00', cycle: 'monthly' },
+          {
+            id: planId,
+            code: 'consultorio_2026',
+            name: 'Consultório',
+            amount: '197.00',
+            cycle: 'monthly',
+          },
           {
             id: 'new-clinic',
             code: 'clinica_2026_2',
             name: 'Clínica · 2 médicos',
             amount: '397.00',
+            cycle: 'monthly',
           },
           {
             id: 'extra-clinic',
             code: 'clinica_2026_3',
             name: 'Clínica · 3 médicos',
             amount: '544.00',
+            cycle: 'monthly',
           },
         ]),
       );
@@ -606,6 +630,89 @@ describe('signup plan contract O-4', () => {
     });
   });
 
+  it('expõe preço anual de tabela apenas na nova oferta e salva o ciclo por CAS', async () => {
+    mocks.getUser.mockResolvedValue({
+      data: { user: { id: userId, created_at: '2026-10-19T13:45:00.000Z' } },
+      error: null,
+    });
+    mocks.select
+      .mockReturnValueOnce(
+        selectChain([
+          {
+            rowVersion: 7,
+            clinicName: 'Clínica Sintética',
+            selectedPlanId: null,
+            selectedBillingCycle: 'monthly',
+          },
+        ]),
+      )
+      .mockReturnValueOnce(
+        selectChain([
+          { id: 'legacy', code: 'solo', name: 'Solo', amount: '149.00', cycle: 'monthly' },
+          {
+            id: planId,
+            code: 'consultorio_2026',
+            name: 'Consultório',
+            amount: '197.00',
+            cycle: 'monthly',
+          },
+          {
+            id: planId,
+            code: 'consultorio_2026',
+            name: 'Consultório',
+            amount: '1970.00',
+            cycle: 'annual',
+          },
+        ]),
+      );
+    await expect(readSignupPlan(userId)).resolves.toMatchObject({
+      ok: true,
+      state: {
+        plans: [
+          { code: 'consultorio_2026', cycle: 'monthly', priceCents: 19_700 },
+          { code: 'consultorio_2026', cycle: 'annual', priceCents: 197_000 },
+        ],
+      },
+    });
+
+    const update = updateChain([{ rowVersion: 8, selectedPlanId: planId }]);
+    const tx = {
+      select: vi.fn().mockReturnValue(selectChain([{ id: planId, code: 'consultorio_2026' }])),
+      update: vi.fn().mockReturnValue(update),
+    };
+    mocks.transaction.mockImplementationOnce(
+      async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx),
+    );
+    await expect(
+      writeSignupPlan(userId, { rowVersion: 7, planId, cycle: 'annual' }),
+    ).resolves.toEqual({
+      ok: true,
+      rowVersion: 8,
+      selectedPlanId: planId,
+      selectedBillingCycle: 'annual',
+    });
+    expect(update.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        selectedPlanId: planId,
+        selectedBillingCycle: 'annual',
+      }),
+    );
+  });
+
+  it('não permite ciclo anual em plano legado mesmo se houver preço anual no catálogo', async () => {
+    const tx = {
+      select: vi.fn().mockReturnValue(selectChain([{ id: planId, code: 'solo' }])),
+      update: vi.fn(),
+    };
+    mocks.transaction.mockImplementationOnce(
+      async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx),
+    );
+    await expect(
+      writeSignupPlan(userId, { rowVersion: 7, planId, cycle: 'annual' }),
+    ).resolves.toEqual({ ok: false, reason: 'invalid_plan' });
+    expect(tx.update).not.toHaveBeenCalled();
+  });
+
   it('não oferece o prazo novo quando o marco Auth não pode ser comprovado', async () => {
     mocks.getUser.mockResolvedValue({ data: { user: null }, error: null });
     mocks.select
@@ -614,7 +721,13 @@ describe('signup plan contract O-4', () => {
       )
       .mockReturnValueOnce(
         selectChain([
-          { id: planId, code: 'consultorio_2026', name: 'Consultório', amount: '197.00' },
+          {
+            id: planId,
+            code: 'consultorio_2026',
+            name: 'Consultório',
+            amount: '197.00',
+            cycle: 'monthly',
+          },
         ]),
       );
     await expect(readSignupPlan(userId)).resolves.toEqual({ ok: false, reason: 'unavailable' });
@@ -635,6 +748,7 @@ describe('signup plan contract O-4', () => {
       ok: true,
       rowVersion: 8,
       selectedPlanId: planId,
+      selectedBillingCycle: 'monthly',
     });
     expect(available.for).toHaveBeenCalledWith('share');
     expect(tx.update).toHaveBeenCalledTimes(1);
@@ -697,6 +811,7 @@ describe('signup plan contract O-4', () => {
       ok: true,
       rowVersion: 8,
       selectedPlanId: planId,
+      selectedBillingCycle: 'monthly',
     });
   });
 
@@ -712,8 +827,20 @@ describe('signup plan contract O-4', () => {
       name: 'retry idempotente',
       planRows: [{ id: planId, code: 'consultorio_2026' }],
       savedRows: [],
-      liveRows: [{ rowVersion: 8, selectedPlanId: planId, billingAttemptState: null }],
-      expected: { ok: true, rowVersion: 8, selectedPlanId: planId },
+      liveRows: [
+        {
+          rowVersion: 8,
+          selectedPlanId: planId,
+          selectedBillingCycle: 'monthly',
+          billingAttemptState: null,
+        },
+      ],
+      expected: {
+        ok: true,
+        rowVersion: 8,
+        selectedPlanId: planId,
+        selectedBillingCycle: 'monthly',
+      },
     },
     ...(['reserved', 'active', 'creation_unknown'] as const).map((billingAttemptState) => ({
       name: `retry idempotente bloqueado com billing ${billingAttemptState}`,
@@ -726,8 +853,20 @@ describe('signup plan contract O-4', () => {
       name: 'retry idempotente depois de falha definitiva',
       planRows: [{ id: planId, code: 'consultorio_2026' }],
       savedRows: [],
-      liveRows: [{ rowVersion: 8, selectedPlanId: planId, billingAttemptState: 'failed' }],
-      expected: { ok: true, rowVersion: 8, selectedPlanId: planId },
+      liveRows: [
+        {
+          rowVersion: 8,
+          selectedPlanId: planId,
+          selectedBillingCycle: 'monthly',
+          billingAttemptState: 'failed',
+        },
+      ],
+      expected: {
+        ok: true,
+        rowVersion: 8,
+        selectedPlanId: planId,
+        selectedBillingCycle: 'monthly',
+      },
     },
     {
       name: 'CAS perdido',

@@ -150,7 +150,7 @@ export async function startSignupHostedCheckout(input: {
       minutesToExpire: CHECKOUT_EXPIRATION_MINUTES,
       callback: callbacks,
       subscription: {
-        cycle: 'MONTHLY',
+        cycle: intent.billingCycle === 'annual' ? 'YEARLY' : 'MONTHLY',
         nextDueDate: intent.nextDueDate,
       },
     });
@@ -222,14 +222,16 @@ function subscriptionMatchesTarget(
     ? subscription.customerId === target.asaasCustomerId
     : Boolean(subscription.customerId);
   const firstDueDate = parseIsoDate(target.nextDueDate);
-  const nextCycleDueDate = firstDueDate ? addCalendarMonth(firstDueDate) : null;
+  const nextCycleDueDate = firstDueDate
+    ? addCalendarMonths(firstDueDate, target.billingCycle === 'annual' ? 12 : 1)
+    : null;
   const dueDateMatches =
     subscription.nextDueDate === target.nextDueDate ||
     (nextCycleDueDate !== null && subscription.nextDueDate === nextCycleDueDate);
   return (
     subscription.status === 'ACTIVE' &&
     customerMatches &&
-    subscription.cycle === 'MONTHLY' &&
+    subscription.cycle === (target.billingCycle === 'annual' ? 'YEARLY' : 'MONTHLY') &&
     subscription.billingType === 'CREDIT_CARD' &&
     dueDateMatches &&
     Math.round(subscription.value * 100) === target.priceCents &&
@@ -254,8 +256,11 @@ function parseIsoDate(raw: string): { year: number; month: number; day: number }
   return { year, month, day };
 }
 
-function addCalendarMonth(date: { year: number; month: number; day: number }): string {
-  const nextMonthIndex = date.month;
+function addCalendarMonths(
+  date: { year: number; month: number; day: number },
+  months: number,
+): string {
+  const nextMonthIndex = date.month - 1 + months;
   const year = date.year + Math.floor(nextMonthIndex / 12);
   const monthIndex = nextMonthIndex % 12;
   const lastDay = new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate();

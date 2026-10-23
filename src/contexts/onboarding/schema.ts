@@ -86,6 +86,10 @@ export const signupSessions = pgTable('signup_sessions', {
   authUserId: uuid('auth_user_id').unique(),
   /** Plano de tabela escolhido no draft; a FK cross-context vive na migration. */
   selectedPlanId: uuid('selected_plan_id'),
+  /** Ciclo escolhido no cadastro; o valor continua vindo do catálogo no servidor. */
+  selectedBillingCycle: text('selected_billing_cycle', { enum: ['monthly', 'annual'] })
+    .notNull()
+    .default('monthly'),
 
   /* --- O-5: intenção de assinatura recorrente (migration 0103) -------------
    * NENHUM dado de cartão entra aqui, nem cifrado. O Asaas coleta o meio na

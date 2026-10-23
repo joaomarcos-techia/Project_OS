@@ -24,7 +24,7 @@ function isPlan(value: unknown): value is SignupPlan {
     typeof value.priceCents === 'number' &&
     Number.isSafeInteger(value.priceCents) &&
     value.priceCents >= 0 &&
-    value.cycle === 'monthly'
+    (value.cycle === 'monthly' || value.cycle === 'annual')
   );
 }
 
@@ -36,6 +36,7 @@ function isPlanState(value: unknown): value is SignupPlanState {
     Number.isInteger(value.rowVersion) &&
     typeof value.clinicName === 'string' &&
     (value.selectedPlanId === null || typeof value.selectedPlanId === 'string') &&
+    (value.selectedBillingCycle === 'monthly' || value.selectedBillingCycle === 'annual') &&
     typeof value.trialDays === 'number' &&
     Number.isInteger(value.trialDays) &&
     value.trialDays > 0 &&
@@ -56,7 +57,7 @@ async function responseJson(response: Response): Promise<unknown> {
   }
 }
 
-function formatMonthlyPrice(priceCents: number): string {
+function formatPrice(priceCents: number): string {
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL',
@@ -81,8 +82,9 @@ function trialDescription(plan: SignupPlan, state: SignupPlanState): string {
 function selectedTrialDescription(
   state: SignupPlanState,
   selectedPlanId: string | undefined,
+  cycle: 'monthly' | 'annual',
 ): string {
-  const plan = state.plans.find((item) => item.id === selectedPlanId);
+  const plan = state.plans.find((item) => item.id === selectedPlanId && item.cycle === cycle);
   return plan ? trialDescription(plan, state) : 'Plano selecionado';
 }
 
@@ -101,6 +103,7 @@ export function PlanSelectionForm() {
   const [phase, setPhase] = useState<Phase>('loading');
   const [state, setState] = useState<SignupPlanState | null>(null);
   const [selectedPlanId, setSelectedPlanId] = useState<string>();
+  const [selectedCycle, setSelectedCycle] = useState<'monthly' | 'annual'>('monthly');
   const [message, setMessage] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -119,8 +122,12 @@ export function PlanSelectionForm() {
       const body = await responseJson(response);
       if (response.ok && isPlanState(body)) {
         setState(body);
+        setSelectedCycle(body.selectedBillingCycle);
         setSelectedPlanId(
-          body.selectedPlanId && body.plans.some((plan) => plan.id === body.selectedPlanId)
+          body.selectedPlanId &&
+            body.plans.some(
+              (plan) => plan.id === body.selectedPlanId && plan.cycle === body.selectedBillingCycle,
+            )
             ? body.selectedPlanId
             : undefined,
         );
@@ -151,22 +158,26 @@ export function PlanSelectionForm() {
 
   const options = useMemo<OptionCard<string>[]>(
     () =>
-      (state?.plans ?? []).map((plan) => ({
-        value: plan.id,
-        label: (
-          <span className="flex flex-col gap-2">
-            <span className="text-sm font-semibold text-fg">{plan.name}</span>
-            <span className="flex items-baseline gap-1 text-primary">
-              <span className="font-display text-2xl font-semibold tracking-tight tabular-nums">
-                {formatMonthlyPrice(plan.priceCents)}
+      (state?.plans ?? [])
+        .filter((plan) => plan.cycle === selectedCycle)
+        .map((plan) => ({
+          value: plan.id,
+          label: (
+            <span className="flex flex-col gap-2">
+              <span className="text-sm font-semibold text-fg">{plan.name}</span>
+              <span className="flex items-baseline gap-1 text-primary">
+                <span className="font-display text-2xl font-semibold tracking-tight tabular-nums">
+                  {formatPrice(plan.priceCents)}
+                </span>
+                <span className="text-xs font-medium text-fg-muted">
+                  /{selectedCycle === 'annual' ? 'ano' : 'mês'}
+                </span>
               </span>
-              <span className="text-xs font-medium text-fg-muted">/mês</span>
             </span>
-          </span>
-        ),
-        description: state ? trialDescription(plan, state) : '',
-      })),
-    [state],
+          ),
+          description: state ? trialDescription(plan, state) : '',
+        })),
+    [state, selectedCycle],
   );
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -185,7 +196,11 @@ export function PlanSelectionForm() {
       const response = await fetch('/api/signup/plan', {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ rowVersion: state.rowVersion, planId: selectedPlanId }),
+        body: JSON.stringify({
+          rowVersion: state.rowVersion,
+          planId: selectedPlanId,
+          cycle: selectedCycle,
+        }),
       });
       const body = await responseJson(response);
       if (
@@ -193,9 +208,15 @@ export function PlanSelectionForm() {
         isRecord(body) &&
         typeof body.rowVersion === 'number' &&
         Number.isInteger(body.rowVersion) &&
-        body.selectedPlanId === selectedPlanId
+        body.selectedPlanId === selectedPlanId &&
+        body.selectedBillingCycle === selectedCycle
       ) {
-        setState({ ...state, rowVersion: body.rowVersion, selectedPlanId });
+        setState({
+          ...state,
+          rowVersion: body.rowVersion,
+          selectedPlanId,
+          selectedBillingCycle: selectedCycle,
+        });
         setSaved(true);
       } else if (response.status === 409 || response.status === 422) {
         await load();
@@ -237,6 +258,10 @@ export function PlanSelectionForm() {
       if (response.ok && isRecord(body)) {
         if (body.state === 'provisioned') {
           window.location.assign('/auth/session-refresh?next=/dashboard');
+          return;
+        }
+        if (body.state === 'pending') {
+          window.location.assign('/cadastro/pagamento?resultado=pending');
           return;
         }
         const checkoutUrl = trustedCheckoutUrl(body.checkoutUrl);
@@ -347,8 +372,41 @@ export function PlanSelectionForm() {
         <p className="text-xs font-medium text-fg-subtle">Clínica</p>
         <p className="truncate text-sm font-semibold text-fg">{state.clinicName}</p>
       </div>
+      {state.plans.some((plan) => plan.cycle === 'annual') ? (
+        <div className="flex gap-2" role="group" aria-label="Ciclo de cobrança">
+          {(['monthly', 'annual'] as const).map((cycle) => (
+            <Button
+              key={cycle}
+              type="button"
+              variant={selectedCycle === cycle ? 'primary' : 'secondary'}
+              aria-pressed={selectedCycle === cycle}
+              disabled={saving || finishing}
+              onClick={() => {
+                setSelectedCycle(cycle);
+                if (
+                  !state.plans.some((plan) => plan.id === selectedPlanId && plan.cycle === cycle)
+                ) {
+                  setSelectedPlanId(undefined);
+                }
+                setSaved(false);
+                setMessage(null);
+              }}
+            >
+              {cycle === 'monthly' ? 'Mensal' : 'Anual · preço de 10 meses'}
+            </Button>
+          ))}
+        </div>
+      ) : null}
+      {selectedCycle === 'annual' ? (
+        <p className="text-sm text-fg-muted">
+          Cobrança integral no cartão após o prazo de avaliação, com renovação automática a cada
+          ano. Pix anual estará disponível posteriormente.
+        </p>
+      ) : null}
       <fieldset disabled={saving} className="space-y-2.5">
-        <legend className="mb-2.5 text-sm font-semibold text-fg">Plano mensal</legend>
+        <legend className="mb-2.5 text-sm font-semibold text-fg">
+          Plano {selectedCycle === 'annual' ? 'anual' : 'mensal'}
+        </legend>
         <OptionCardGroup
           name="signupPlan"
           value={selectedPlanId}
@@ -366,8 +424,8 @@ export function PlanSelectionForm() {
       <div aria-live="polite" className="space-y-2">
         {saved ? (
           <Alert variant="success" title="Plano salvo">
-            {selectedTrialDescription(state, selectedPlanId)}. O pagamento acontece com segurança na
-            página do Asaas.
+            {selectedTrialDescription(state, selectedPlanId, selectedCycle)}. O pagamento acontece
+            com segurança na página do Asaas.
           </Alert>
         ) : null}
         {message ? <Alert variant="warning">{message}</Alert> : null}

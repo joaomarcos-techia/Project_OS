@@ -7,7 +7,7 @@ import { PaymentReturn } from './payment-return';
 
 export const dynamic = 'force-dynamic';
 
-type Result = 'success' | 'cancelled' | 'expired';
+type Result = 'success' | 'pending' | 'cancelled' | 'expired';
 
 export default async function SignupPaymentReturnPage({
   searchParams,
@@ -15,7 +15,12 @@ export default async function SignupPaymentReturnPage({
   searchParams: Promise<{ resultado?: string }>;
 }) {
   const { resultado } = await searchParams;
-  if (resultado !== 'success' && resultado !== 'cancelled' && resultado !== 'expired') {
+  if (
+    resultado !== 'success' &&
+    resultado !== 'pending' &&
+    resultado !== 'cancelled' &&
+    resultado !== 'expired'
+  ) {
     redirect('/cadastro/plano');
   }
 

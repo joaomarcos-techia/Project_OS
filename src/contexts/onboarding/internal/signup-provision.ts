@@ -150,6 +150,7 @@ export async function provisionTenantFromSignup(input: {
         ownerName: signupSessions.ownerName,
         clinicName: signupSessions.clinicName,
         selectedPlanId: signupSessions.selectedPlanId,
+        selectedBillingCycle: signupSessions.selectedBillingCycle,
         billingState: signupSessions.billingAttemptState,
         billingAttemptedAt: signupSessions.billingAttemptedAt,
         asaasCustomerId: signupSessions.asaasCustomerId,
@@ -213,7 +214,7 @@ export async function provisionTenantFromSignup(input: {
         prices,
         and(
           eq(prices.planId, plans.id),
-          eq(prices.billingCycle, 'monthly'),
+          eq(prices.billingCycle, draft.selectedBillingCycle),
           eq(prices.currency, 'BRL'),
           lte(prices.activeFrom, sql`now()`),
           isNull(prices.activeUntil),
@@ -282,7 +283,7 @@ export async function provisionTenantFromSignup(input: {
         planCode: priced.planCode,
         priceId: priced.priceId,
         priceAmount: Number(priced.amount),
-        billingCycle: 'monthly',
+        billingCycle: draft.selectedBillingCycle,
         trialDays: QORO_SELF_SERVICE_TRIAL_DAYS,
         ...(trial && {
           trialDays: trial.days,
