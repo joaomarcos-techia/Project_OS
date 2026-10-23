@@ -286,3 +286,46 @@ publicação da nova oferta. A cópia da prévia da landing foi alinhada e envia
 de segurança) e o gate da proposta passaram com exit 0. GET externo do Preview
 devolveu **302** para o SSO da Vercel; inspeção visual externa permanece
 **BLOCKED**, sem converter build local em prova do Preview.
+
+## Preparação do Checkout anual no Preview — 23/10/2026, 17h24 UTC
+
+O app foi publicado **somente em Preview** a partir de `bf43ff09`; o deployment
+exato `project-72elr0chu-clinic-os-v2-s-projects.vercel.app` ficou `success`.
+Antes de qualquer escrita da fixture, a prova assinada de
+`assertPreviewRuntimeIsDev(..., { requireSandboxAsaas: true })` confirmou Auth e
+banco do projeto DEV, URL do Asaas Sandbox e presença da chave do provider,
+exit 0. A prova não identifica o ambiente da chave; a página hospedada
+subsequente confirmou a criação na conta Sandbox. O
+controle contra o deployment anterior, sem as duas novas flags, foi recusado
+antes de criar conta, exit 0 da asserção negativa. A rota não expõe chave nem
+URL do provider. O teste da rota exige 404 em ambiente de produção; não houve
+sondagem desse endpoint em produção nesta rodada.
+
+`@prepare-offer-checkout` no Chromium, com `E2E_OFFER_PLAN_CODE=consultorio_2026`
+e `E2E_OFFER_BILLING_CYCLE=annual`, executou **1/1 PASS em 57 s, exit 0**.
+Percorreu cadastro, Resend, confirmação, seleção anual, leitura do catálogo,
+draft e abertura do Checkout hospedado; o recibo da fixture sintética ficou em
+`.playwright/offer-checkouts-pending.json` ignorado pelo Git. O Checkout
+Sandbox respondeu HTTP 200 e sua página exibiu **R$ 1.970**, recorrência
+**Anual** e primeira cobrança em **23/10/2026**. A opção Pix não apareceu na
+tela lida. O prazo do Checkout é **60 minutos** desde a criação; a URL efêmera
+não foi versionada. **Pagamento, webhook, provisionamento, primeira invoice e
+acesso continuam NOT RUN**, aguardando cartão/reCAPTCHA manual no Sandbox.
+Uma consulta pontual `GET /payments?checkoutSession=...` às 17h27 UTC retornou
+HTTP 200 com **zero pagamentos**; não foi interpretada como sucesso financeiro.
+
+Depois da proteção de ambiente, a regressão integral foi **5.646/5.646 em 535
+arquivos, exit 0**; prova dirigida da rota/guarda **22/22**, TypeScript, lint,
+Prettier, inventário `--check` e build Next otimizado também terminaram exit 0.
+O cadastro público no Preview abriu sessão HTTP 201 e renderizou a primeira
+etapa em desktop 1440 px e celular 390 px sem overflow horizontal. A landing
+externa ainda direcionou ao login da Vercel mesmo com o bypass do projeto app;
+continua **BLOCKED** para inspeção visual externa.
+
+O login da mesma conta sintética pendente foi validado sem imprimir credenciais:
+Auth DEV emitiu sessão HTTP 200 para o usuário esperado; a UI do Preview
+redirecionou `/login` → `/cadastro/continuar` (POST 303), com mensagem de
+cadastro recuperado e clínica ainda não criada. A primeira observação após
+apenas cinco segundos permaneceu em `/login`; aguardar dez segundos mostrou o
+destino final, portanto a espera curta não foi classificada como defeito.
+Esse controle não prova ainda a liberação após pagamento.

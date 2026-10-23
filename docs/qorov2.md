@@ -9409,3 +9409,12 @@ e ciclo/valor/pagamento no Asaas. **Ter teste preparado não é PASS externo:**
 a jornada anual no Preview, o webhook de pagamento e a renovação ainda exigem
 execução. A landing e o app permanecem em Preview; não houve rollout da nova
 oferta em produção.
+
+**Checkpoint externo de 23/10, 17h24 UTC:** o Preview `bf43ff09` foi publicado e
+a prova assinada confirmou Auth/banco DEV e Asaas Sandbox antes de escrever.
+O E2E `@prepare-offer-checkout` percorreu a UI e o Resend, abriu Consultório
+anual por R$ 1.970 no Checkout Sandbox e persistiu o draft: **1/1 PASS**.
+A página hospedada mostrou recorrência anual e primeira cobrança em 23/10.
+Pagamento humano, webhook e acesso após provisionamento ainda **NOT RUN**;
+este PASS é somente da preparação. A regressão integral após o guarda de
+ambiente foi **5.646/5.646**, e o build Next teve exit 0.
