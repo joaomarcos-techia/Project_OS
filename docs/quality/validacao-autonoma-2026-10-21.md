@@ -329,3 +329,39 @@ cadastro recuperado e clínica ainda não criada. A primeira observação após
 apenas cinco segundos permaneceu em `/login`; aguardar dez segundos mostrou o
 destino final, portanto a espera curta não foi classificada como defeito.
 Esse controle não prova ainda a liberação após pagamento.
+
+## Regressão e inspeção adicionais — 23/10/2026, 17h42 UTC
+
+No deployment exato de `bf43ff09`, `e2e/payout-review-preview.spec.ts`
+executou **12/12 PASS em 5,9 min, exit 0**. O spec confirmou estorno parcial e
+suspensão do repasse, revisão com teto, negação por papel e tenant, versões
+sucessivas, sessão revogada, preço único, consentimentos de WhatsApp separados,
+persistência de regras, permissões em lote, relatório mensal e catálogo de
+2–5 médicos. O `afterAll` registrou `cleanup=ok` e resíduo **0 clínicas,
+0 usuários, 0 linhas**. O teste 12 apenas lê as variantes de médico extra:
+`purchaseNotStarted=true`, sem atribuir PASS à compra paga.
+
+A landing compilada da branch `preview/pricing-2026-10` foi servida localmente e
+aberta em Chromium a **1440 e 390 px**: `/precos-preview` respondeu HTTP 200,
+mostrou Consultório e Clínica e teve `body.scrollWidth === innerWidth` nas duas
+larguras. A calculadora interativa passou **7/7**: 1/3 = R$ 197/R$ 1.970,
+2/3 = R$ 397/R$ 3.970, 3/1 = R$ 544/R$ 5.440, 5/3 = R$ 838/R$ 8.380;
+6 médicos, 4 logins de equipe e 0 médicos foram recusados. Isto é
+**PASS local**, não inspeção externa do Preview protegido por SSO. Sem sessão,
+`/oferta-preview` no app leva a `/login`, como a rota exige; a inspeção
+autenticada anterior continua sendo a evidência do conteúdo do app.
+
+O PR #42 no commit documental `0af508d1` terminou com Vercel, Semgrep e Snyk
+**PASS**. Um novo `GET /payments?checkoutSession=...` no Asaas Sandbox às
+17h42 UTC respondeu HTTP 200, **zero pagamentos**: checkout criado não é
+checkout pago. O E2E `@verify-offer-checkout` permanece **NOT RUN**.
+
+A troca de ciclo de uma assinatura ativa continua **PARTIAL por implementação**.
+`requestPlanChange` lê o destino no ciclo atual e só agenda upgrade/downgrade
+de plano; `syncProviderPlanChange` sincroniza valor, não periodicidade;
+`advanceBillingPeriod` deriva o período do `price_id` local no momento do
+pagamento. Uma cobrança anual paga antes da troca local poderia abrir apenas
+um mês. O [Asaas documenta](https://docs.asaas.com/reference/atualizar-assinatura-existente)
+que alterar a assinatura afeta por padrão cobranças futuras e não corrige
+as já emitidas sem tratamento explícito. A prova isolada do provider não
+fecha essa corrida; não oferecer a troca mensal↔anual pela UI ainda.
