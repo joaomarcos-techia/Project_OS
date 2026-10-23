@@ -1,5 +1,11 @@
 # Fechamento da nova oferta de preços — roteiro de implementação e validação
 
+**Atualização de 23/10:** trial de 14 dias vencido por fixture, cobrança PIX
+Sandbox de R$ 197, entrega real do webhook no Preview, ativação e replay
+passaram com cleanup. É prova do fluxo financeiro com tempo simulado, não da
+jornada de cadastro pela UI nem da espera de 14 dias reais. Consulte o
+checkpoint detalhado no fim deste roteiro.
+
 **Estado mais recente em 22/10:** o relatório mensal passou **11/11 E2E no Preview/DEV** do commit `b04c8413`, após correção da divulgação indevida do consolidado ao atendente. As variantes de 3–5 médicos foram ativadas **somente no DEV**; a UI autenticada apresentou cotas e preços com fixture sintética, sem iniciar compra. A suíte de Preview com o novo caso passou **12/12** e consta na [matriz](../quality/validacao-autonoma-2026-10-21.md). A medição de IA por paciente/janela de 24 horas e os avisos de 80% e 100% estão implementados; PostgreSQL DEV, worker do outbox e inbox Resend passaram **22/22 asserções**, inclusive após ampliar o limite de 500 para 1.000 e repetir um evento já finalizado, mas a cadeia Meta → IA → contador em Preview ainda não foi executada. A contratação adicional paga, o anual, o Turnstile negativo em Preview isolado e a landing externa ainda pendem. **Decisões do fundador em 21/10:** troca mensal/anual no próximo vencimento, sem proporcional; referência de 500 conversas de IA por médico gera aviso sem interromper serviço nem cobrar excedente; competência do repasse é o mês da consulta concluída no fuso da clínica. Os registros cronológicos abaixo não devem ser lidos como fotografia atual quando divergem desta nota.
 
 **Escopo:** proposta do PDF `Qoro_mudancas_de_preco.pdf` (13/10/2026), app Draft PR #42 e landing Draft PR #1. Revisado em 21/10/2026. Este roteiro não autoriza venda, alteração de assinatura real, migration em produção ou publicação da nova tabela. Em produção, o catálogo contratado continua Solo R$ 149, Clínica R$ 349, Pro R$ 699 e o cadastro autônomo legado continua com 7 dias. No DEV/Preview, os dois novos planos de entrada estão ativos para validação com trial absoluto de 14 dias. As páginas `/oferta-preview` e `/precos-preview` são simulações `noindex`. A [revalidação autônoma de 21/10](../quality/validacao-autonoma-2026-10-21.md) registra a execução atual e os limites dos PASS históricos abaixo.
@@ -157,3 +163,11 @@ Os números abaixo foram medidos antes da decisão de limitar a Clínica a cinco
 4. **Só para rollout futuro:** backup, revisão de migration, implantação conjunta app/landing, leitura de preço e parcela no Asaas, observabilidade de webhook/cancelamento e reversão planejada. Não migrar contrato vitalício automaticamente.
 
 Fonte interna: [decisões da oferta](../specs/decisoes-oferta-e-precificacao-2026-10.md), [prévia de preços](../specs/precos-2026-preview.md), [política financeira](../specs/politica-financeira-camadas.md), evidência da troca de plano no Draft PR #41 e `docs/qorov2.md` §§66–67. O PDF é insumo comercial; a verificação do código e do provedor prevalece quando divergir.
+
+**Checkpoint técnico de 23/10 (prevalece apenas para o trial integrado):** a
+simulação controlada de 14 dias vencidos para Consultório 2026 passou no
+Preview/DEV com pagamento PIX Sandbox, entrega real do webhook, invoice única,
+desbloqueio de escrita e cleanup confirmado. O resultado detalhado está no
+relatório de validação e em `docs/qorov2.md` §77. O teste não percorreu o
+cadastro pela UI nem esperou 14 dias reais. A compra paga de médico extra,
+contratação anual e troca de ciclo no Qoro continuam sem E2E integrado.

@@ -9264,3 +9264,30 @@ Este PASS é **somente do provedor**. A regra aprovada de troca no próximo
 vencimento, sem rateio, ainda precisa de reserva local, reconciliação diante de
 webhook/cron concorrentes, UI, renovação e E2E Preview/DEV. Nenhum valor, ciclo
 ou contrato de produção foi alterado.
+
+## 77. Trial de 14 dias encerrado e mensalidade no Preview — 23/10/2026
+
+O runner `scripts/asaas-post-trial-preview-e2e.ts` ganhou o modo explícito
+`SAAS_POST_TRIAL_OFFER=2026`, preservando o caso legado como default. Após a
+prova assinada de que o Preview usa Auth/PostgreSQL DEV, cria somente clínica,
+assinatura, customer, cobrança e webhook temporários identificados da fixture.
+O contrato **Consultório 2026, R$ 197/mês** foi gravado em trial com início e
+fim separados por **14 dias exatos**; o fim foi colocado um dia no passado
+apenas nesta fixture para simular o decurso. A clínica tinha status `active`,
+mas `assertClinicCanWriteTx` recusou escrita como `pending_payment` por causa
+de `enforce_trial_deadline=true`. Não houve usuário ou paciente real.
+
+O Asaas Sandbox gerou a parcela PIX pendente e a simulação oficial confirmou o
+pagamento. Um webhook **real do provedor** chegou ao Preview; o readback no DEV
+encontrou uma única invoice `paid`, assinatura e clínica ativas, novo período
+posterior ao trial e escrita liberada. Replay autenticado não duplicou invoice
+nem avançou o ciclo outra vez. A repetição final do runner terminou em
+**PASS, exit 0, 23/10/2026 ~09:54 UTC**. O cleanup apagou webhook, assinatura e
+customer do Sandbox (readback `404`/`deleted=true`) e a clínica DEV (zero
+resíduo). A primeira execução também passou; a segunda acrescentou a asserção
+do intervalo exato de 14 dias.
+
+Este E2E comprova vencimento **simulado por fixture**, cobrança e recuperação
+integrados. Não observou 14 dias de relógio real nem percorreu Auth/cadastro e
+retorno de Checkout pela UI; essas provas continuam separadas e não devem ser
+marcadas PASS por esta execução.
