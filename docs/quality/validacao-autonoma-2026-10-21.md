@@ -175,3 +175,26 @@ seguem sem E2E integrado desta rodada. A landing externa continua bloqueada
 pelo SSO, embora `npm run build` e a renderização local desktop/mobile tenham
 passado nesta sessão sem overflow. Nenhuma migração ou escrita em produção foi
 feita.
+
+**Segunda prova do terceiro médico, 23/10:** a mesma fixture isolada foi
+recriada e removida em execução **1/1 PASS, exit 0, 52,9 s de teste**. Antes de
+simular o pagamento oficial, um evento autenticado alegou
+`PAYMENT_RECEIVED` enquanto a API do Asaas ainda devolvia `PENDING`; plano,
+cota, invoice paga e histórico permaneceram inalterados. Depois do pagamento
+Sandbox, webhook real, valor recorrente e UI convergiram como acima; replay
+não duplicou registros. Cleanup DEV/Auth: zero resíduos. Esse caso prova o
+readback contra uma notificação precoce, não recusa de cartão ou Checkout
+hospedado.
+
+A prova foi repetida após exigir explicitamente `status=PENDING` no readback
+anterior à notificação: **1/1 PASS, exit 0, 41,1 s de teste**, cleanup zero.
+
+**Risco confirmado por código, não executado externamente:** em
+`src/app/api/webhooks/asaas/route.ts`, a remoção autoritativa cancela a invoice,
+mas não finaliza uma solicitação de upgrade `pending_payment`. O Asaas permite
+restaurar a cobrança pelo mesmo ID; portanto liberar automaticamente a
+reserva no primeiro evento de remoção poderia gerar pagamento posterior sem
+concessão da vaga. Recuperação e reconciliação remoção/restauração continuam
+**NOT RUN** e são requisito antes da nova oferta. A landing externa permaneceu
+**BLOCKED** pelo SSO: o navegador conectado não disponibilizou nenhuma aba ou
+browser nesta sessão; a renderização local anterior não vira prova do Preview.

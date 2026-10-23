@@ -9325,3 +9325,24 @@ Sandbox, não o Checkout hospedado com reCAPTCHA e ação humana. Também não c
 pagamento recusado, remoção do médico ao fim do ciclo, contratação anual nem a
 jornada de um cliente em produção. Esses estados continuam independentes da
 prova positiva acima.
+
+Uma segunda execução do mesmo E2E em 23/10 passou **1/1, exit 0, 52,9 s de
+teste**. Antes da confirmação oficial, o teste enviou uma notificação
+autenticada que alegava `PAYMENT_RECEIVED` para a cobrança ainda `PENDING` no
+Asaas. O webhook respondeu 200, mas readback do DEV manteve plano de dois
+médicos, alteração `pending_payment`, nenhuma invoice paga e nenhum histórico
+de upgrade. Só o pagamento confirmado pelo Sandbox liberou a terceira vaga;
+replay permaneceu idempotente e o cleanup terminou sem resíduos DEV.
+
+A guarda adicional que exige `PENDING` no readback do Asaas passou na terceira
+execução **1/1, exit 0, 41,1 s de teste**, também com cleanup zero.
+
+**Recuperação ainda aberta:** uma cobrança proporcional removida no Asaas tem
+sua invoice cancelada no Qoro, mas a alteração pode continuar
+`pending_payment`, impedindo outra troca. Não se deve simplesmente cancelar a
+alteração nesse webhook: [o Asaas permite restaurar a mesma cobrança pelo ID
+original](https://docs.asaas.com/reference/restaurar-cobranca-removida), que
+poderia ser paga depois. É necessário desenhar e provar a reconciliação de
+remoção → restauração/pagamento e a liberação segura da reserva antes de
+chamar esse caminho concluído. Não houve remoção/restauração da fixture nesta
+execução.

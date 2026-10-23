@@ -465,11 +465,39 @@ test.describe('médico extra pago no Preview/DEV/Asaas Sandbox', () => {
         change_count: 1,
       });
       const generated = await asaasOk(`payments/${encodeURIComponent(paymentId)}`, 'GET');
-      if (!generated || typeof generated !== 'object' || !('value' in generated)) {
-        throw new Error('Asaas não encontrou cobrança proporcional');
+      if (
+        !generated ||
+        typeof generated !== 'object' ||
+        !('value' in generated) ||
+        !('status' in generated) ||
+        generated.status !== 'PENDING'
+      ) {
+        throw new Error('Asaas não encontrou a cobrança proporcional pendente');
       }
       expect(Number(generated.value)).toBe(Number(reserved.proration));
       console.log('PASS UI/DEV/Sandbox: reserva única e cobrança proporcional no valor contratual');
+
+      // O corpo e o token do webhook não provam pagamento. Mesmo se uma
+      // notificação alegar RECEIVED, o readback do provider ainda diz PENDING.
+      const claimedPaid = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'asaas-access-token': webhookToken!, 'content-type': 'application/json' },
+        body: JSON.stringify({
+          id: `evt_qoro_e2e_unpaid_${runId}`,
+          event: 'PAYMENT_RECEIVED',
+          payment: { id: paymentId },
+        }),
+        signal: AbortSignal.timeout(30_000),
+      });
+      expect(claimedPaid.status).toBe(200);
+      expect(await state()).toMatchObject({
+        code: 'clinica_2026_2',
+        doctors: 2,
+        change_status: 'pending_payment',
+        paid_invoice_count: 0,
+        history_count: 0,
+      });
+      console.log('PASS notificação precoce: sem pagamento no Asaas, sem vaga liberada');
 
       const selected = await asaas(`payments/${encodeURIComponent(paymentId)}`, 'PUT', {
         billingType: 'PIX',
