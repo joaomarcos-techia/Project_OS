@@ -9375,3 +9375,37 @@ em que a cobrança **nunca** é restaurada permanece aberto: a alteração pode
 continuar ocupando a reserva indefinidamente. Não há cancelamento automático
 seguro no primeiro `PAYMENT_DELETED`, pois o provider aceita restauração
 posterior e pagamento pelo mesmo ID.
+
+## 79. Cadastro anual por cartão no candidato 2026 — 23/10/2026
+
+**Decisão comercial:** a contratação anual equivale a dez mensalidades e, nesta
+primeira etapa, usa somente cartão; Pix anual será estudado depois. Para um
+contrato já ativo, a troca mensal↔anual deve valer no próximo vencimento, sem
+acerto proporcional. Esta segunda operação **ainda não foi implementada** e não
+deve ser inferida do checkout inicial.
+
+Na branch isolada `integration/pricing-plan-sync-20261018`, o catálogo de
+cadastro oferece mensal/anual para os dois planos de entrada 2026. A escolha
+passa por schema estrito e fica no draft como
+`signup_sessions.selected_billing_cycle`. O preço é lido no banco, não no
+browser; o legado só aceita mensal. A migration `0128_signup_billing_cycle.sql`
+cria a coluna `text NOT NULL DEFAULT 'monthly'` com CHECK fechado. A reserva,
+o Checkout hospedado, a reconciliação e o provisionamento usam o mesmo ciclo.
+No anual, o Checkout Asaas envia `YEARLY`, e o readback exige ciclo, valor,
+customer, cartão e vencimento coerentes. Se os 14 dias absolutos desde o Auth
+já terminaram, a clínica só é liberada depois do pagamento confirmado. Uma
+retomada com pagamento pendente exibe a tela de verificação, sem abrir outro
+Checkout por engano.
+
+**Ambientes:** a migration 0128 foi aplicada apenas no banco DEV. O probe
+guardado por project ref confirmou `_schema_version` e journal em 129/129,
+default mensal e CHECK válido, exit 0. A suite local, tipos, lint, build,
+Postgres descartável e E2E externo estão detalhados no
+[relatório de validação](quality/validacao-autonoma-2026-10-21.md) e no
+[roteiro humano](runbooks/acoes-manuais-pendentes-pricing-2026-10.md). O teste
+Playwright de preparação agora verifica código, ciclo e valor no catálogo e no
+draft; após pagamento, foi preparado para comparar assinatura/invoice no DEV
+e ciclo/valor/pagamento no Asaas. **Ter teste preparado não é PASS externo:**
+a jornada anual no Preview, o webhook de pagamento e a renovação ainda exigem
+execução. A landing e o app permanecem em Preview; não houve rollout da nova
+oferta em produção.

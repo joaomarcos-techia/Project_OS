@@ -1,5 +1,7 @@
 # Fechamento da nova oferta de preços — roteiro de implementação e validação
 
+**Checkpoint de 23/10 (cadastro anual):** a branch agora oferece mensal e anual no cadastro DEV/Preview. O ciclo selecionado fica no draft, o preço vem do catálogo e o Checkout anual usa recorrência `YEARLY` somente por cartão. A migration 0128 foi aplicada apenas no DEV e o readback do ledger, default e CHECK passou. A suíte local e a prova em banco descartável estão registradas na [matriz](../quality/validacao-autonoma-2026-10-21.md); pagamento anual na página hospedada, webhook e resultado final no Preview **ainda não receberam PASS externo**. A troca mensal↔anual de assinatura já ativa no próximo vencimento continua sem implementação. Pix anual fica para depois. O [guia manual](acoes-manuais-pendentes-pricing-2026-10.md) descreve o pagamento Sandbox somente após fixture segura e deployment atualizado. As notas cronológicas abaixo são histórico e não substituem este checkpoint.
+
 **Atualização de 23/10:** trial de 14 dias vencido por fixture, cobrança PIX
 Sandbox de R$ 197, entrega real do webhook no Preview, ativação e replay
 passaram com cleanup. É prova do fluxo financeiro com tempo simulado, não da

@@ -13,7 +13,7 @@ Atualizado em 23/10/2026. Este documento contém somente ações que exigem uma 
 **Passo a passo.**
 
 1. Abra o link da landing no navegador em que está logado na Vercel. Se aparecer a porta do SSO, entre pelo time e retorne ao mesmo link.
-2. Na landing, compare 1, 2, 3 e 5 médicos com 0 e 3 logins de equipe. Os valores mensais esperados são R$ 197, R$ 397, R$ 544 e R$ 838. Quatro logins de equipe e seis médicos devem ser recusados. O anual (dez mensalidades) e as 500 conversas devem estar marcados como proposta, sem botão de compra anual.
+2. Na landing, compare 1, 2, 3 e 5 médicos com 0 e 3 logins de equipe. Os valores mensais esperados são R$ 197, R$ 397, R$ 544 e R$ 838. Quatro logins de equipe e seis médicos devem ser recusados. O anual deve mostrar dez mensalidades e cartão primeiro, Pix depois; a landing continua sem botão de compra. As 500 conversas são referência com avisos, sem bloqueio automático.
 3. No navegador, use F12 → modo celular (largura próxima de 375 px). Repita o passo 2, role até o fim, confira ausência de corte lateral, texto legível, foco por Tab e mensagens de erro ao digitar limites inválidos.
 4. Confira o botão de contato para clínicas maiores apontando para `wa.me/5588996822198`; não é necessário enviar mensagem.
 
@@ -44,6 +44,27 @@ Atualizado em 23/10/2026. Este documento contém somente ações que exigem uma 
 **Problemas comuns.** Se o botão não aparecer, confirme que a clínica da fixture está na oferta **2026**, não em Solo/Clínica/Pro legados; os adicionais já estão ativos no DEV, mas não aparecem para contratos da família antiga. Também confira o SHA do Preview; não tente alterar o banco. Se houver `invalid_action` ou reCAPTCHA preso, guarde o código do erro e horário. Se pagar e o Qoro continuar esperando, não pague de novo: a reconciliação é trabalho do agente.
 
 **Próximo passo.** Aguarde a confirmação técnica e a limpeza da fixture antes de qualquer outro Checkout.
+
+## Obrigatória 3 — Pagar o cadastro anual de teste no Checkout Sandbox
+
+**Objetivo.** Provar a cadeia que o teste local não atravessa: escolha anual na UI → Checkout Asaas hospedado → pagamento com cartão → webhook → assinatura e invoice anuais no DEV → dashboard. O cadastro anual da branch precisa estar publicado em **Preview** e a migration 0128 aplicada **somente no DEV** antes desta etapa. A execução da engenharia deve preparar uma conta sintética e confirmar que o trial dela venceu por relógio controlado; assim o pagamento é exigido antes do acesso.
+
+**Pré-requisitos.** Aguarde o agente informar que o Preview atualizado está `Ready`, que Auth/banco apontam para o projeto DEV, que a chave da conta recebedora aponta para o Asaas Sandbox, que há uma fixture sintética identificada e que o readback do checkout confirma o ciclo `YEARLY` e o valor escolhido. O link do Checkout deve começar com `https://sandbox.asaas.com/`. Não use cartão real nem crie um segundo checkout se o primeiro ficar pendente.
+
+**Links.** [Cadastro no Preview](https://project-os-git-integration-prici-c5e6c6-clinic-os-v2-s-projects.vercel.app/cadastro). O link do Checkout é gerado para cada fixture e expira; o agente enviará apenas o endereço Sandbox necessário quando a preparação terminar. [Painel de pagamentos do Asaas Sandbox](https://sandbox.asaas.com/) serve para conferir o resultado, se você já tiver acesso à conta de teste.
+
+**Passo a passo.**
+
+1. Abra somente o link de Checkout **Sandbox** preparado pelo agente. Na página, confira o nome do plano e o valor anual: Consultório R$ 1.970 ou Clínica R$ 3.970. Se aparecer mensalidade, cobrança Pix ou domínio diferente, pare e informe a divergência.
+2. Escolha cartão. Use apenas os dados de cartão de teste indicados pelo próprio Sandbox/documentação do Asaas e conclua o reCAPTCHA manualmente. Não envie número, CVV, senha, token ou URL da sessão ao chat.
+3. Ao receber a confirmação, clique em **Acompanhar pedido** e aguarde o retorno ao Preview. Se a tela disser que está verificando o Asaas, aguarde e atualize **uma vez** após alguns minutos; não pague outra vez.
+4. Informe ao agente plano, horário aproximado em Brasília, estado mostrado pelo Asaas e destino/estado final no Qoro. O agente fará o readback do webhook, assinatura `YEARLY`, valor, primeira invoice paga, período anual, acesso e replay. A conta paga permanecerá identificada como fixture DEV até existir remoção transacional segura de Auth, tenant e assinatura Sandbox; não a apague manualmente por partes.
+
+**Resultado e evidência.** A página do Asaas confirma o pagamento de teste e o Qoro libera o dashboard **somente depois** da confirmação pelo provedor. Guarde screenshot sanitizado do estado final, sem cartão, dados pessoais, query de bypass nem identificador de sessão. Modelo de resposta: `Anual [Consultório/Clínica] pago no Sandbox às HH:MM; Asaas: [estado]; Qoro: [estado]`.
+
+**Problemas comuns.** Se o Checkout pedir Pix, não continue: Pix anual ainda não foi habilitado. Se ficar preso no reCAPTCHA, registre o horário e a mensagem e deixe o checkout pendente para o agente reconciliar ou limpar; não crie outro. Se o Asaas confirmar e a tela do Qoro continuar esperando, informe o horário sem repetir o pagamento. Se o link expirar, peça que o agente verifique primeiro se existe cobrança ou assinatura associada antes de preparar outra fixture.
+
+**Próximo passo.** O agente compara banco, Asaas e UI e só então registra PASS ou FAIL, com a fixture paga identificada e isolada. A renovação após um ano e a troca mensal↔anual de contrato existente exigem provas separadas; este pagamento não as valida.
 
 ## Condicional — Validar a recusa do Turnstile em Preview separado
 

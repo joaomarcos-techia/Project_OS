@@ -232,3 +232,57 @@ plano. Esse estado permanente e sua recuperação continuam **NOT RUN** e exigem
 regra explícita antes da nova oferta. A landing externa permaneceu
 **BLOCKED** pelo SSO: o navegador conectado não disponibilizou nenhuma aba ou
 browser nesta sessão; a renderização local anterior não vira prova do Preview.
+
+## Checkout anual no cadastro — checkpoint de 23/10/2026
+
+**Código do candidato:** `c3c9265d` no app, branch
+`integration/pricing-plan-sync-20261018`; cópia da landing `d481c71` na branch
+`preview/pricing-2026-10`. Ambos são Previews, sem merge ou publicação da nova
+oferta em produção.
+
+**Implementado nesta branch, sem publicação em produção:** a escolha mensal/anual
+no cadastro da oferta 2026 persiste em `signup_sessions.selected_billing_cycle`.
+O servidor resolve o valor no catálogo e cria Checkout Asaas `YEARLY`, restrito
+a cartão. Só provisiona após readback de ciclo, valor, vencimento e customer;
+se o trial absoluto acabou, exige também pagamento confirmado. O legado segue
+mensal. A retomada de uma assinatura pendente mostra a verificação em vez de um
+erro genérico ou uma segunda cobrança. Pix anual não foi habilitado.
+
+**Evidência local:** `npx vitest run --reporter=dot --silent` passou
+**5.644/5.644 em 535 arquivos, exit 0**. `npx tsc --noEmit`,
+`npx tsc -p tsconfig.scripts.json --noEmit`, `npx eslint .` e
+`npx tsx scripts/check-migration-safety.ts` passaram com exit 0. Depois da
+última alteração de UI, a regressão integral foi repetida: **5.644/5.644 em
+535 arquivos, exit 0**. A prova com todas as migrations reais em Postgres
+descartável foi repetida: **15/15, exit 0**. Uma tentativa intermediária de
+acrescentar provisionamento anual no mesmo harness terminou **15/16, exit 1**:
+o runner insere `auth.users` no SQL descartável, mas o código 2026 consulta a
+data de criação pela sessão do GoTrue, que não existe naquele harness. Essa
+asserção da fixture foi retirada; não foi promovida a PASS. Os testes unitários
+de provisionamento anual passaram, mas a prova Auth + banco + Asaas exige o
+Preview. Nenhuma dessas provas locais cobrou no Asaas externo.
+
+O build otimizado `npx tsx scripts/security/local-build.ts` foi repetido após
+os ajustes da UI: **exit 0**, compilação, tipos Next, 19 páginas estáticas e
+traces concluídos. `npx tsc -p tsconfig.scripts.json --noEmit`, ESLint integral,
+Prettier dos arquivos alterados, `git diff --check`,
+`npx tsx scripts/check-migration-safety.ts` e o inventário de segurança
+regenerado com `--write` e validado com `--check` passaram com exit 0.
+
+**DEV:** o probe guardado encontrou o projeto DEV esperado, versão `0127`,
+ledger Drizzle 128/129 e coluna anual ausente. Depois,
+`node -r dotenv/config --import tsx scripts/db-migrate-dev.ts` executou com
+exit 0; `npx tsx scripts/probe-signup-billing-cycle-dev.ts` confirmou
+`0128-signup-billing-cycle`, ledger **129/129**, default mensal e CHECK válido,
+exit 0. Nenhuma migration foi aplicada em produção.
+
+**Ainda PARTIAL:** Checkout anual na UI do Preview → cartão Sandbox → evento
+externo → primeira cobrança/invoice, renovação anual e troca mensal↔anual no
+próximo vencimento não foram provados nesta etapa. A prova isolada do Asaas
+descrita acima mede somente a API do provedor. A landing continua sem
+publicação da nova oferta. A cópia da prévia da landing foi alinhada e enviada
+à branch `preview/pricing-2026-10` em `d481c71`; `npm run typecheck`,
+`npm run lint`, `npm run build` (incluindo 27/27 ponte, 2/2 conversão e 20 gates
+de segurança) e o gate da proposta passaram com exit 0. GET externo do Preview
+devolveu **302** para o SSO da Vercel; inspeção visual externa permanece
+**BLOCKED**, sem converter build local em prova do Preview.
