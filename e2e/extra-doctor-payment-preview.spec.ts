@@ -576,6 +576,29 @@ test.describe('médico extra pago no Preview/DEV/Asaas Sandbox', () => {
         history_count: 1,
       });
       console.log('PASS replay: sem cobrança, alteração ou histórico duplicado');
+
+      const previousPlan = page
+        .locator('main [data-slot="card"]')
+        .filter({ has: page.locator(`input[name="targetPlanId"][value="${currentPlanId}"]`) });
+      await expect(previousPlan).toHaveCount(1);
+      await previousPlan.getByRole('button', { name: 'Agendar downgrade' }).click();
+      await expect
+        .poll(async () => (await state()).change_status, { timeout: 30_000 })
+        .toBe('scheduled');
+      expect(await state()).toMatchObject({
+        code: 'clinica_2026_3',
+        amount: '544.00',
+        doctors: 3,
+        change_count: 2,
+        paid_invoice_count: 1,
+        history_count: 1,
+      });
+      const beforeDue = await asaasOk(`subscriptions/${encodeURIComponent(subscriptionId)}`, 'GET');
+      if (!beforeDue || typeof beforeDue !== 'object' || !('value' in beforeDue)) {
+        throw new Error('Recorrência Sandbox indisponível após o agendamento');
+      }
+      expect(Number(beforeDue.value)).toBe(544);
+      console.log('PASS downgrade agendado: cota e recorrência preservadas antes do vencimento');
     } finally {
       await context.close();
     }

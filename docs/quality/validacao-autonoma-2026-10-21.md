@@ -189,6 +189,13 @@ hospedado.
 A prova foi repetida após exigir explicitamente `status=PENDING` no readback
 anterior à notificação: **1/1 PASS, exit 0, 41,1 s de teste**, cleanup zero.
 
+**Downgrade após upgrade pago, 23/10:** o titular da fixture acionou na UI a
+volta de três para dois médicos. A execução **1/1 PASS, exit 0, 47,8 s de
+teste** encontrou a segunda solicitação `scheduled`, mas manteve plano,
+cota e preço em três médicos/R$ 544 no DEV e R$ 544 na recorrência do Asaas
+antes do vencimento. Cleanup zero. A aplicação pelo cron e a próxima
+parcela de R$ 397 continuam **NOT RUN**.
+
 **Risco confirmado por código, não executado externamente:** em
 `src/app/api/webhooks/asaas/route.ts`, a remoção autoritativa cancela a invoice,
 mas não finaliza uma solicitação de upgrade `pending_payment`. O Asaas permite

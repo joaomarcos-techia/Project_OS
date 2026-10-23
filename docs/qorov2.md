@@ -9337,6 +9337,13 @@ replay permaneceu idempotente e o cleanup terminou sem resíduos DEV.
 A guarda adicional que exige `PENDING` no readback do Asaas passou na terceira
 execução **1/1, exit 0, 41,1 s de teste**, também com cleanup zero.
 
+Na quarta execução, **1/1 PASS, exit 0, 47,8 s de teste**, o titular pediu pela
+UI a volta de três para dois médicos depois do upgrade pago. O DEV registrou
+uma segunda alteração `scheduled`, enquanto plano, cota e preço local ficaram
+em três médicos/R$ 544 e o Asaas continuou recorrendo R$ 544 antes do
+vencimento. Cleanup zero. Isto prova **agendamento sem redução antecipada**;
+não prova a aplicação pelo cron no dia devido nem a parcela posterior a R$ 397.
+
 **Recuperação ainda aberta:** uma cobrança proporcional removida no Asaas tem
 sua invoice cancelada no Qoro, mas a alteração pode continuar
 `pending_payment`, impedindo outra troca. Não se deve simplesmente cancelar a
