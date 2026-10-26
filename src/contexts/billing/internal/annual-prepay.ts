@@ -1,6 +1,7 @@
 /**
- * Annual prepay (C13). Refund pro-rata DETERMINÍSTICO em centavos (ADR-025 F5).
- * Cancelamento mid-cycle devolve a fração NÃO utilizada do período anual.
+ * Cálculo hipotético de estorno proporcional anual em centavos (ADR-025 F5).
+ * Não é chamado pelo cancelamento: a regra vigente cancela a renovação, mantém
+ * acesso até o fim do período pago e não faz estorno automático.
  */
 import { type Cents, proRataCents } from './money';
 

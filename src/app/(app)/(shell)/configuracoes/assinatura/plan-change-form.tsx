@@ -62,13 +62,17 @@ function cycleLabel(cycle: 'monthly' | 'annual'): string {
  */
 function cancellationDescription(
   status: 'trial' | 'active' | 'past_due' | 'cancelled',
+  billingCycle: 'monthly' | 'annual',
   periodEnd: string | null,
   trialEnd: string | null,
 ): string {
   const cobrancas =
     'A recorrência para agora e todas as cobranças em aberto no Asaas são apagadas — nenhuma nova será feita.';
   if (status === 'active') {
-    return `${cobrancas} ${periodEnd ? `O acesso continua até ${periodEnd}, o fim do período já pago.` : 'O acesso é encerrado em até um dia.'}`;
+    const access = periodEnd
+      ? `O acesso continua até ${periodEnd}, o fim do período já pago.`
+      : 'O acesso é encerrado em até um dia.';
+    return `${cobrancas} ${access}${billingCycle === 'annual' ? ' O período anual já pago não recebe estorno automático.' : ''}`;
   }
   if (status === 'trial') {
     return `${cobrancas} ${trialEnd ? `O acesso continua até ${trialEnd}, o fim do período de teste.` : 'O acesso é encerrado em até um dia.'}`;
@@ -363,7 +367,12 @@ export function PlanChangeForm({
             </Button>
           }
           title="Cancelar assinatura"
-          description={cancellationDescription(current.billingStatus, end, trialEnd)}
+          description={cancellationDescription(
+            current.billingStatus,
+            current.billingCycle,
+            end,
+            trialEnd,
+          )}
           confirmLabel="Cancelar assinatura"
           cancelLabel="Manter assinatura"
           tone="danger"

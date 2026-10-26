@@ -27,6 +27,7 @@ function renderForm(
   over: {
     periodEnd?: string | null;
     trialEndsAt?: string | null;
+    billingCycle?: 'monthly' | 'annual';
     pending?: {
       kind: string;
       status: string;
@@ -42,7 +43,7 @@ function renderForm(
         planName: 'Solo',
         planCode: 'solo',
         priceAmount: '149.00',
-        billingCycle: 'monthly',
+        billingCycle: over.billingCycle ?? 'monthly',
         billingStatus,
         periodEnd: over.periodEnd ?? null,
         trialEndsAt: over.trialEndsAt ?? null,
@@ -79,6 +80,20 @@ describe('cancelar assinatura na tela', () => {
     const dialog = await screen.findByRole('dialog');
     expect(dialog.textContent).toContain('todas as cobranças em aberto no Asaas são apagadas');
     expect(dialog.textContent).toContain('O acesso continua até 02/10/2026');
+  });
+
+  it('no anual, informa que cancela a renovação sem estorno automático do período pago', async () => {
+    renderForm('active', {
+      billingCycle: 'annual',
+      periodEnd: '2027-10-02T00:00:00.000Z',
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar assinatura' }));
+
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog.textContent).toContain('nenhuma nova será feita');
+    expect(dialog.textContent).toContain('O acesso continua até 02/10/2027');
+    expect(dialog.textContent).toContain('O período anual já pago não recebe estorno automático');
   });
 
   it('fecha o diálogo e mostra a confirmação quando o cancelamento termina', async () => {
