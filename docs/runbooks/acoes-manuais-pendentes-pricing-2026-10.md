@@ -2,7 +2,7 @@
 
 Atualizado em 26/10/2026. Este documento contém somente ações que exigem uma pessoa ou acesso ao painel indisponível à automação. **Não altere produção, não use cartão real, não copie chaves, senhas, OTP ou URLs com bypass para o chat.** Os testes de código, migrations DEV, fixtures e readbacks pertencem à engenharia e não devem ser repetidos manualmente. A nova tabela ainda não está pronta para contratação no app em produção, embora a landing pública já anuncie os novos preços. A landing publicada promete até **10 profissionais e equipe ilimitada**; o candidato do app limita a **5 médicos e 3 logins de equipe**. Esta divergência já foi medida e deve ser corrigida em código antes da revisão visual final. As variantes de 3–5 médicos foram ativadas só no DEV; isso não autoriza contratar em produção. A compra do terceiro médico pela UI, com simulação oficial de PIX, webhook e cota, passou automaticamente no Preview; a atividade humana abaixo serve exclusivamente para conferir o pagamento na página hospedada do Asaas.
 
-Os limites e o trial de 14 dias foram preparados no [PR draft da landing #3](https://github.com/joaomarcos-techia/landing_page/pull/3), sem mexer em produção. Em 25/10, o deployment imutável `fa8b67c` passou **4/4** verificações em Chromium externo (home/preços, desktop/celular, texto, CTA, cancelamento anual e largura). A proteção da Vercel já foi atravessada pela CLI autenticada para esses testes; ela não exige compra. A inspeção humana abaixo fica para julgamento visual e para a comparação final com o cadastro real depois da publicação coordenada. Não há necessidade de repetir o build local nem de abrir o PR #1 antigo.
+Os limites e o trial de 14 dias foram preparados no [PR draft da landing #3](https://github.com/joaomarcos-techia/landing_page/pull/3), sem mexer em produção. Em 25/10, o deployment imutável `fa8b67c` passou **4/4** verificações em Chromium externo (home/preços, desktop/celular, texto, CTA, cancelamento anual e largura). A proteção da Vercel já foi atravessada pela CLI autenticada para esses testes; ela não exige compra. O Turnstile positivo/negativo passou automaticamente em Previews separados em 26/10; a configuração temporária de teste foi removida, portanto não há ação humana para esse gate. A inspeção humana abaixo fica para julgamento visual e para a comparação final com o cadastro real depois da publicação coordenada. Não há necessidade de repetir o build local nem de abrir o PR #1 antigo.
 
 ## Obrigatória 1 — Conferir a landing corrigida no Preview e repetir após o rollout
 
@@ -67,27 +67,6 @@ Os limites e o trial de 14 dias foram preparados no [PR draft da landing #3](htt
 **Resultado esperado.** Uma entrega `PAYMENT_CONFIRMED` ou `PAYMENT_RECEIVED` para o endpoint SaaS responde 2xx e aparece também nos logs do deployment destinatário. A configuração por si só não é prova de entrega, e a invoice anual já paga não deve ser usada como substituto da evidência.
 
 **Problemas comuns e próximo passo.** Se o webhook apontar para outro deployment, estiver inativo ou não existir, deixe a configuração intacta e informe o estado; a engenharia preparará um alvo de Preview, token separado e fixture controlada para nova prova. Se houver HTTP não 2xx, informe apenas o código e horário para correlacionar com logs, sem reenviar o payload.
-
-## Condicional — Validar a recusa do Turnstile em Preview separado
-
-**Objetivo.** O Preview atual usa a secret de teste `always-pass`, por isso um token inventado recebeu HTTP 201. É preciso provar a recusa em outro deployment de teste, sem tocar a configuração de produção.
-
-**Pré-requisitos.** Acesso às variáveis de ambiente do projeto `project-os` na Vercel e autorização para criar/editar **somente uma configuração Preview isolada**. O agente deve preparar o runner e identificar a branch/deployment alvo. Se ele obtiver esse acesso e fizer a configuração sozinho, esta ação deixa de ser manual.
-
-**Link.** [Variáveis de ambiente do projeto](https://vercel.com/clinic-os-v2-s-projects/project-os/settings/environment-variables). Use a documentação oficial do [Turnstile para chaves de teste](https://developers.cloudflare.com/turnstile/troubleshooting/testing/) para escolher a secret de teste que sempre rejeita. Não compartilhe seu valor.
-
-**Passo a passo.**
-
-1. Confirme no topo da Vercel o projeto `project-os` e o ambiente **Preview**, nunca Production.
-2. Crie ou edite a variável de secret do Turnstile usada pelo app com escopo restrito ao Preview isolado indicado pelo agente. Não substitua a secret de produção nem a configuração do Preview normal, que testa o caminho positivo.
-3. Faça redeploy somente desse Preview e informe ao agente a URL sem query de bypass e o SHA. Ele executará o teste `reject-invalid` e registrará o HTTP esperado.
-4. Depois da prova, restaure/remova a configuração isolada se ela não for mais usada. Peça ao agente readback de que o Preview normal continua positivo.
-
-**Resultado e evidência.** Token inválido recusado pelo endpoint do Preview isolado; Preview normal continua aceitando o token de teste positivo. Informe apenas URL/branch/SHA/status HTTP, jamais secret.
-
-**Problemas comuns.** Se a variável aparecer também em Production, pare antes do deploy. Se o mesmo Preview continuar respondendo 201, confira se o redeploy carregou a variável da branch correta; não conclua PASS por uma simples mudança de painel.
-
-**Próximo passo.** O agente executa o runner negativo e classifica pelo resultado real.
 
 ## Obrigatória antes de tráfego clínico — Conferir o tier Gemini do projeto de produção
 

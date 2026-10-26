@@ -9476,3 +9476,14 @@ novo pagamento. A página hospedada do médico extra, o webhook SaaS causal, a
 renovação futura e a troca mensal↔anual de contrato existente ainda não têm
 PASS. Detalhes e limites estão no
 [relatório de prontidão](quality/prontidao-oferta-2026-10-25.md).
+
+**Turnstile, prova externa posterior em 26/10:** o caso negativo pulado no
+Preview principal foi executado em deployment Git de uma branch isolada, com
+secret de teste da Cloudflare restrita àquela branch: token forjado recusado,
+HTTP 401, sem cookie, **1/1 PASS**. No Preview principal, a secret `always-pass`
+continuou permitindo o token de teste, HTTP 201, **1/1 PASS**. Um primeiro
+deployment criado pela CLI não herdou a configuração da branch e devolveu 201
+para o token forjado: **FAIL de pré-condição**, preservado na matriz; o deploy
+feito pelo Git resolveu a separação. A variável temporária foi removida com
+readback (zero override da branch, uma variável geral de Preview), e a branch
+e o worktree temporários foram excluídos. Nada em Production foi alterado.
