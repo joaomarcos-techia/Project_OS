@@ -183,6 +183,32 @@ describe('upgrade pago', () => {
     );
   });
 
+  it('faz preflight por checkoutSession quando o pagamento não herda externalReference', async () => {
+    getPayment.mockResolvedValue({
+      ...upgradePayment,
+      externalReference: null,
+      checkoutSessionId: 'checkout_upgrade',
+    });
+    getPaidUpgradeSyncContext.mockResolvedValue({
+      subscriptionId: 'sub_1',
+      previousAmount: '397.00',
+      amount: '544.00',
+      firstDueDate: '2026-11-01',
+      expectedCycle: 'MONTHLY',
+    });
+    applyPaidUpgradeForPayment.mockResolvedValue(true);
+
+    const response = await post({
+      id: 'evt_checkout_upgrade',
+      event: 'PAYMENT_CONFIRMED',
+      payment: { id: 'pay_checkout_upgrade' },
+    });
+
+    expect(response.status).toBe(200);
+    expect(syncProviderPlanChange).toHaveBeenCalledOnce();
+    expect(applyPaidUpgradeForPayment).toHaveBeenCalledOnce();
+  });
+
   it('retorna 500 para permitir reentrega se a recorrência não foi confirmada', async () => {
     getPayment.mockResolvedValue(upgradePayment);
     getPaidUpgradeSyncContext.mockResolvedValue({

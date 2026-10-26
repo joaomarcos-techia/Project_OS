@@ -38,6 +38,7 @@ import { metrics } from '@/lib/observability/metrics';
 import { asaasProvider, BillingProviderError, type ProviderPayment } from '@/lib/payments/asaas';
 import {
   applyPaidUpgradeForPayment,
+  prepareScheduledCycleForPaidInvoice,
   changeIdFromExternalReference,
   getPaidUpgradeSyncContext,
 } from '@/contexts/billing/internal/plan-changes';
@@ -176,7 +177,7 @@ async function handleWebhook(req: Request): Promise<Response> {
     if (
       payment &&
       actionFor(payment.status) === 'paid' &&
-      changeIdFromExternalReference(payment.externalReference)
+      (changeIdFromExternalReference(payment.externalReference) || payment.checkoutSessionId)
     ) {
       const syncContext = await dbAdmin.transaction((tx) => getPaidUpgradeSyncContext(tx, payment));
       if (syncContext) await syncProviderPlanChange(asaasProvider, syncContext);
@@ -270,13 +271,27 @@ async function handleWebhook(req: Request): Promise<Response> {
       const current = synced.invoice;
 
       switch (actionFor(payment.status)) {
-        case 'paid':
+        case 'paid': {
+          const cycle = current.subscriptionId
+            ? await prepareScheduledCycleForPaidInvoice(
+                tx,
+                clinicId,
+                {
+                  subscriptionId: current.subscriptionId,
+                  dueDate: current.dueDate,
+                  totalAmount: current.totalAmount,
+                },
+                payment.billingType,
+              )
+            : { deferPeriodAdvance: false };
           await markInvoicePaid(tx, clinicId, current, {
             paymentMethod: payment.billingType,
             providerPaymentId: payment.paymentId,
             idemSuffix: idem,
+            deferPeriodAdvance: cycle.deferPeriodAdvance,
           });
           break;
+        }
         case 'overdue':
           await markInvoiceOverdue(tx, clinicId, current, {
             providerPaymentId: payment.paymentId,

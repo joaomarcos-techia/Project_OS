@@ -387,7 +387,12 @@ export async function markInvoicePaid(
   tx: Tx,
   clinicId: string,
   invoice: InvoiceRow,
-  opts: { paymentMethod: string | null; providerPaymentId: string | null; idemSuffix: string },
+  opts: {
+    paymentMethod: string | null;
+    providerPaymentId: string | null;
+    idemSuffix: string;
+    deferPeriodAdvance?: boolean;
+  },
 ): Promise<void> {
   await tx.insert(paymentAttempts).values({
     clinicId,
@@ -455,11 +460,37 @@ export async function markInvoicePaid(
   // BILLING-001 — abre o período que esta cobrança pagou. Roda ANTES de ativar:
   // quem lê a subscription no evento de ativação já vê o ciclo novo, não o
   // trial encerrado.
-  await advanceBillingPeriod(tx, clinicId, invoice);
+  if (!opts.deferPeriodAdvance) await advanceBillingPeriod(tx, clinicId, invoice);
 
   // Pagamento recebido reativa acesso + billing_status (decisão de ClinicaOS).
   await activateSubscription(tx, clinicId, opts.idemSuffix);
   await setClinicAccess(tx, clinicId, 'enabled', 'payment received', opts.idemSuffix);
+}
+
+/** Repara pagamento anual antecipado assim que a troca agendada entra em vigor. */
+export async function advancePaidCycleChangeInvoicePeriod(
+  tx: Tx,
+  clinicId: string,
+  subscriptionId: string,
+  dueDate: string,
+  expectedAmount: string,
+): Promise<void> {
+  const [invoice] = await tx
+    .select()
+    .from(invoices)
+    .where(
+      and(
+        eq(invoices.subscriptionId, subscriptionId),
+        eq(invoices.dueDate, dueDate),
+        eq(invoices.status, 'paid'),
+      ),
+    )
+    .limit(1);
+  if (!invoice) return;
+  if (toCents(invoice.totalAmount) !== toCents(expectedAmount)) {
+    throw new Error('[billing] pagamento antecipado diverge do preço do novo ciclo');
+  }
+  await advanceBillingPeriod(tx, clinicId, invoice);
 }
 
 /**

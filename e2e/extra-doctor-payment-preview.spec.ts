@@ -34,6 +34,8 @@ let customerId: string | null = null;
 let subscriptionId: string | null = null;
 let webhookId: string | null = null;
 let paymentId: string | null = null;
+let checkoutId: string | null = null;
+let checkoutUrl: string | null = null;
 let currentPlanId = '';
 let targetPlanId = '';
 
@@ -146,6 +148,9 @@ async function state() {
       change_id: string | null;
       change_count: number;
       payment_id: string | null;
+      checkout_id: string | null;
+      checkout_state: string | null;
+      checkout_url: string | null;
       proration: string | null;
       invoice_count: number;
       invoice_status: string | null;
@@ -159,6 +164,9 @@ async function state() {
     select p.code, pr.amount::text, seats.doctors,
            ch.status::text change_status, ch.id::text change_id,
            ch.provider_payment_id payment_id,
+           ch.provider_checkout_id checkout_id,
+           ch.checkout_creation_state checkout_state,
+           ch.provider_payment_url checkout_url,
            ch.proration_amount::text proration,
            (select count(*)::int from subscription_change_requests where clinic_id = ${clinicId}::uuid) change_count,
            (select count(*)::int from invoices where clinic_id = ${clinicId}::uuid and asaas_payment_id = ${paymentId}) invoice_count,
@@ -173,7 +181,8 @@ async function state() {
       join prices pr on pr.id = s.price_id
       join plan_seat_limits seats on seats.plan_id = s.plan_id
       left join lateral (
-        select id, status, provider_payment_id, proration_amount
+        select id, status, provider_payment_id, provider_checkout_id,
+               checkout_creation_state, provider_payment_url, proration_amount
           from subscription_change_requests where subscription_id = s.id
          order by created_at desc limit 1
       ) ch on true
@@ -185,6 +194,12 @@ async function state() {
 
 async function cleanup(): Promise<void> {
   const problems: string[] = [];
+  if (checkoutId && !paymentId) {
+    const removed = await asaas(`checkouts/${encodeURIComponent(checkoutId)}`, 'DELETE').catch(
+      () => ({ status: 0 }),
+    );
+    if (removed.status !== 200 && removed.status !== 404) problems.push('Checkout Sandbox');
+  }
   if (webhookId) {
     const removed = await asaas(`webhooks/${encodeURIComponent(webhookId)}`, 'DELETE').catch(
       () => ({ status: 0 }),
@@ -287,6 +302,7 @@ async function cleanup(): Promise<void> {
 }
 
 test.describe('médico extra pago no Preview/DEV/Asaas Sandbox', () => {
+  test.describe.configure({ mode: 'serial' });
   test.setTimeout(300_000);
 
   test.beforeAll(async () => {
@@ -439,7 +455,7 @@ test.describe('médico extra pago no Preview/DEV/Asaas Sandbox', () => {
     await cleanup();
   });
 
-  test('UI → rateio → pagamento → webhook → assinatura e cota', async ({ browser }) => {
+  test('UI → Checkout único → cota preservada antes do pagamento', async ({ browser }) => {
     const context = await browser.newContext({
       baseURL: preview.origin,
       extraHTTPHeaders: vercelBypassHeaders(),
@@ -466,100 +482,95 @@ test.describe('médico extra pago no Preview/DEV/Asaas Sandbox', () => {
         .filter({ has: page.locator(`input[name="targetPlanId"][value="${targetPlanId}"]`) });
       await expect(target).toHaveCount(1);
       await target.getByRole('button', { name: 'Contratar +1 médico' }).click();
-      await expect(
-        page.getByRole('link', { name: 'Abrir cobrança proporcional no Asaas' }),
-      ).toBeVisible({ timeout: 60_000 });
-      await expect.poll(async () => (await state()).payment_id, { timeout: 60_000 }).not.toBeNull();
+      const paymentLink = page.getByRole('link', { name: 'Abrir pagamento proporcional no Asaas' });
+      await expect(paymentLink).toBeVisible({ timeout: 60_000 });
+      await expect
+        .poll(async () => (await state()).checkout_id, { timeout: 60_000 })
+        .not.toBeNull();
       const reserved = await state();
-      if (!reserved.payment_id || !reserved.proration)
-        throw new Error('Rateio sem cobrança vinculada');
-      paymentId = reserved.payment_id;
+      if (!reserved.checkout_id || !reserved.checkout_url || !reserved.proration)
+        throw new Error('Rateio sem Checkout vinculado');
+      checkoutId = reserved.checkout_id;
+      checkoutUrl = reserved.checkout_url;
+      expect(new URL(checkoutUrl).hostname).toBe('sandbox.asaas.com');
+      expect(await paymentLink.getAttribute('href')).toBe(checkoutUrl);
       expect(reserved).toMatchObject({
         code: 'clinica_2026_2',
         change_status: 'pending_payment',
         change_count: 1,
-      });
-      const generated = await asaasOk(`payments/${encodeURIComponent(paymentId)}`, 'GET');
-      if (
-        !generated ||
-        typeof generated !== 'object' ||
-        !('value' in generated) ||
-        !('status' in generated) ||
-        generated.status !== 'PENDING'
-      ) {
-        throw new Error('Asaas não encontrou a cobrança proporcional pendente');
-      }
-      expect(Number(generated.value)).toBe(Number(reserved.proration));
-      console.log('PASS UI/DEV/Sandbox: reserva única e cobrança proporcional no valor contratual');
-
-      // O corpo e o token do webhook não provam pagamento. Mesmo se uma
-      // notificação alegar RECEIVED, o readback do provider ainda diz PENDING.
-      const claimedPaid = await fetch(webhookUrl, {
-        method: 'POST',
-        headers: { 'asaas-access-token': webhookToken!, 'content-type': 'application/json' },
-        body: JSON.stringify({
-          id: `evt_qoro_e2e_unpaid_${runId}`,
-          event: 'PAYMENT_RECEIVED',
-          payment: { id: paymentId },
-        }),
-        signal: AbortSignal.timeout(30_000),
-      });
-      expect(claimedPaid.status).toBe(200);
-      expect(await state()).toMatchObject({
-        code: 'clinica_2026_2',
-        doctors: 2,
-        change_status: 'pending_payment',
+        checkout_state: 'ready',
+        payment_id: null,
+        invoice_count: 0,
         paid_invoice_count: 0,
         history_count: 0,
       });
-      console.log('PASS notificação precoce: sem pagamento no Asaas, sem vaga liberada');
-
-      await asaasOk(`payments/${encodeURIComponent(paymentId)}`, 'DELETE');
-      await expect
-        .poll(async () => (await state()).invoice_status, { timeout: 60_000 })
-        .toBe('cancelled');
-      expect((await state()).deleted_event_count).toBeGreaterThan(0);
-      expect(await state()).toMatchObject({
-        code: 'clinica_2026_2',
-        change_status: 'pending_payment',
-        paid_invoice_count: 0,
-      });
-      await asaasOk(`payments/${encodeURIComponent(paymentId)}/restore`, 'POST');
-      await expect
-        .poll(async () => (await state()).restored_event_count, { timeout: 60_000 })
-        .toBeGreaterThan(0);
-      await expect
-        .poll(async () => (await state()).invoice_status, { timeout: 30_000 })
-        .toBe('open');
-      const restored = await asaasOk(`payments/${encodeURIComponent(paymentId)}`, 'GET');
-      if (!restored || typeof restored !== 'object' || !('status' in restored)) {
-        throw new Error('Cobrança proporcional restaurada sem readback do Asaas');
-      }
-      expect(restored.status).toBe('PENDING');
-      console.log('PASS remoção/restauração: invoice recuperada sem liberar a vaga');
-
-      const selected = await asaas(`payments/${encodeURIComponent(paymentId)}`, 'PUT', {
-        billingType: 'PIX',
-      });
-      if (selected.status !== 200)
-        throw new Error(`Sandbox recusou escolha PIX HTTP ${selected.status}`);
-      const confirmed = await asaas(
-        `sandbox/payment/${encodeURIComponent(paymentId)}/confirm`,
-        'POST',
-        { id: paymentId },
+      await page.reload();
+      await expect(page.getByRole('link', { name: 'Abrir pagamento no Asaas' })).toHaveAttribute(
+        'href',
+        checkoutUrl,
       );
-      if (confirmed.status !== 200)
-        throw new Error(`Sandbox recusou confirmação HTTP ${confirmed.status}`);
+      expect((await state()).checkout_id).toBe(checkoutId);
+      console.log('PASS UI/DEV/Sandbox: Checkout único; médico adicional ainda bloqueado');
+    } finally {
+      await context.close();
+    }
+  });
+
+  test('pagamento humano no Checkout → webhook → assinatura e cota', async ({ browser }) => {
+    test.skip(
+      process.env.E2E_EXTRA_DOCTOR_PAYMENT_INTERACTIVE !== '1',
+      'Checkout hospedado exige conclusão humana do reCAPTCHA no Asaas Sandbox.',
+    );
+    test.setTimeout(900_000);
+    if (!checkoutId || !checkoutUrl) throw new Error('Checkout da fixture não preparado');
+    const context = await browser.newContext({
+      baseURL: preview.origin,
+      extraHTTPHeaders: vercelBypassHeaders(),
+    });
+    try {
+      const page = await context.newPage();
+      await page.goto(checkoutUrl);
+      console.log('AÇÃO HUMANA: conclua o Checkout com cartão de teste no Asaas Sandbox.');
+      await expect
+        .poll(
+          async () => {
+            const result = z
+              .object({ data: z.array(z.object({ id: z.string() })) })
+              .parse(
+                await asaasOk(`payments?checkoutSession=${encodeURIComponent(checkoutId!)}`, 'GET'),
+              );
+            const id = result.data[0]?.id;
+            if (!id) return null;
+            const payment = await asaasOk(`payments/${encodeURIComponent(id)}`, 'GET');
+            return payment &&
+              typeof payment === 'object' &&
+              'status' in payment &&
+              ['RECEIVED', 'CONFIRMED'].includes(String(payment.status))
+              ? id
+              : null;
+          },
+          { timeout: 600_000, intervals: [3_000] },
+        )
+        .not.toBeNull();
+      const result = z
+        .object({ data: z.array(z.object({ id: z.string() })) })
+        .parse(await asaasOk(`payments?checkoutSession=${encodeURIComponent(checkoutId)}`, 'GET'));
+      paymentId = result.data[0]?.id ?? null;
+      if (!paymentId) throw new Error('Checkout concluído sem cobrança correlacionada');
       const paid = await asaasOk(`payments/${encodeURIComponent(paymentId)}`, 'GET');
       if (
         !paid ||
         typeof paid !== 'object' ||
         !('status' in paid) ||
-        !['RECEIVED', 'CONFIRMED'].includes(String(paid.status))
+        !['RECEIVED', 'CONFIRMED'].includes(String(paid.status)) ||
+        !('checkoutSession' in paid) ||
+        paid.checkoutSession !== checkoutId
       ) {
-        throw new Error('Asaas não confirmou o rateio');
+        throw new Error('Asaas não confirmou o pagamento correlacionado ao Checkout');
       }
-
+      if (!('value' in paid) || Number(paid.value) !== Number((await state()).proration)) {
+        throw new Error('Valor recebido não corresponde ao rateio contratado');
+      }
       await expect
         .poll(async () => (await state()).change_status, { timeout: 120_000, intervals: [2_000] })
         .toBe('applied');
@@ -590,8 +601,12 @@ test.describe('médico extra pago no Preview/DEV/Asaas Sandbox', () => {
         );
       expect(pendingPayments.data.length).toBeGreaterThan(0);
       expect(pendingPayments.data.every((payment) => payment.value === 544)).toBe(true);
-      await page.getByRole('link', { name: 'Já pagou? Atualizar assinatura' }).click();
-      await expect(page).toHaveURL(/\/configuracoes\/assinatura(?:\?|$)/u, { timeout: 60_000 });
+      await page.goto('/login');
+      await page.locator('#email').fill(email);
+      await page.locator('input[name="password"]').fill(password);
+      await page.getByRole('button', { name: 'Entrar' }).click();
+      await expect(page).toHaveURL(/\/dashboard(?:\?|$)/u, { timeout: 90_000 });
+      await page.goto('/configuracoes/assinatura');
       await expect(page.getByText('R$ 544,00 por mês', { exact: true })).toBeVisible();
       console.log('PASS pagamento: webhook, plano de 3 médicos, parcela e UI convergiram');
 

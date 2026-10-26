@@ -73,9 +73,9 @@ describe('trial absoluto da nova oferta no gate central', () => {
 
   it('bloqueia escrita quando o banco diz que o trial estrito terminou', async () => {
     const execute = vi.fn().mockResolvedValue([{ status: 'trial', trial_expired: true }]);
-    await expect(assertClinicCanWriteTx({ execute } as unknown as Tx, clinicId)).rejects.toMatchObject(
-      { code: 'clinic_write_blocked', status: 'pending_payment' },
-    );
+    await expect(
+      assertClinicCanWriteTx({ execute } as unknown as Tx, clinicId),
+    ).rejects.toMatchObject({ code: 'clinic_write_blocked', status: 'pending_payment' });
     expect(execute).toHaveBeenCalledOnce();
   });
 
@@ -84,6 +84,8 @@ describe('trial absoluto da nova oferta no gate central', () => {
     { status: 'active', trial_expired: false },
   ])('preserva o acesso de assinatura vigente: %j', async (row) => {
     const execute = vi.fn().mockResolvedValue([row]);
-    await expect(assertClinicCanWriteTx({ execute } as unknown as Tx, clinicId)).resolves.toBeUndefined();
+    await expect(
+      assertClinicCanWriteTx({ execute } as unknown as Tx, clinicId),
+    ).resolves.toBeUndefined();
   });
 });

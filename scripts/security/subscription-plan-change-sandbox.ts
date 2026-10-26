@@ -5,6 +5,8 @@
 import assert from 'node:assert/strict';
 
 import { removeSubscriptionCharges } from '@/contexts/billing/internal/cancellation-charges';
+import { addCalendarMonths } from '@/contexts/billing/internal/billing-period';
+import { syncProviderBillingCycle } from '@/contexts/billing/internal/billing-cycle-provider-sync';
 import { syncProviderPlanChange } from '@/contexts/billing/internal/plan-change-provider-sync';
 import { asaasProvider } from '@/lib/payments/asaas';
 
@@ -183,16 +185,25 @@ async function main(): Promise<void> {
     if (process.env.SANDBOX_CYCLE_PROBE === '1') {
       if (!subscriptionId) throw new Error('Assinatura Sandbox da fixture ausente');
       const cycleSubscriptionId = subscriptionId;
-      await asaasProvider.updateSubscription(subscriptionId, {
-        value: ANNUAL_CLINIC_PRICE,
-        cycle: 'YEARLY',
-        nextDueDate: dueDate,
-        updatePendingPayments: true,
+      const beforeCycle = await asaasProvider.getSubscription(subscriptionId);
+      const beforePayments = await asaasProvider.listAllSubscriptionPayments(subscriptionId);
+      await syncProviderBillingCycle(asaasProvider, {
+        subscriptionId,
+        previousAmount: String(MONTHLY_CLINIC_PRICE),
+        amount: String(ANNUAL_CLINIC_PRICE),
+        firstDueDate: dueDate,
+        fromCycle: 'MONTHLY',
+        toCycle: 'YEARLY',
       });
       const annual = await asaasProvider.getSubscription(subscriptionId);
       const annualPayments = await asaasProvider.listAllSubscriptionPayments(subscriptionId);
+      console.log(
+        `CYCLE_PROBE: nextDueDate ${beforeCycle.nextDueDate ?? 'absent'} -> ${annual.nextDueDate ?? 'absent'}; existing payments ${beforePayments.length} -> ${annualPayments.length}`,
+      );
       assert.equal(annual.cycle, 'YEARLY');
       assert.equal(annual.value, ANNUAL_CLINIC_PRICE);
+      assert.equal(annual.nextDueDate, addCalendarMonths(dueDate, 12));
+      assert.equal(annualPayments.length, beforePayments.length, 'Ciclo criou cobrança duplicada');
       assert.ok(
         annualPayments.length > 0 &&
           annualPayments.every(
@@ -221,11 +232,13 @@ async function main(): Promise<void> {
       assert.equal(afterRejectedChange.value, ANNUAL_CLINIC_PRICE);
       console.log('PASS: divergência de ciclo recusada sem alterar a assinatura anual');
 
-      await asaasProvider.updateSubscription(subscriptionId, {
-        value: MONTHLY_CLINIC_PRICE,
-        cycle: 'MONTHLY',
-        nextDueDate: dueDate,
-        updatePendingPayments: true,
+      await syncProviderBillingCycle(asaasProvider, {
+        subscriptionId,
+        previousAmount: String(ANNUAL_CLINIC_PRICE),
+        amount: String(MONTHLY_CLINIC_PRICE),
+        firstDueDate: dueDate,
+        fromCycle: 'YEARLY',
+        toCycle: 'MONTHLY',
       });
       const monthly = await asaasProvider.getSubscription(subscriptionId);
       const monthlyPayments = await asaasProvider.listAllSubscriptionPayments(subscriptionId);

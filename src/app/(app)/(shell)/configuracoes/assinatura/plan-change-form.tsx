@@ -13,6 +13,7 @@ import { uuidv4 } from '@/lib/ui/uuid';
 
 import {
   requestPlanChangeAction,
+  requestBillingCycleChangeAction,
   reactivateSubscriptionAction,
   requestSubscriptionCancellationAction,
   revokeSubscriptionCancellationAction,
@@ -87,6 +88,7 @@ export function PlanChangeForm({
   activeDoctors,
   activeStaff,
   aiUsage,
+  cycleOffer,
   pending,
 }: {
   current: {
@@ -104,9 +106,22 @@ export function PlanChangeForm({
   activeDoctors: number;
   activeStaff: number;
   aiUsage?: { count: number; limit: number; period: string } | null;
-  pending: { kind: string; status: string; effectiveAt: string; paymentUrl: string | null } | null;
+  cycleOffer?: { billingCycle: 'monthly' | 'annual'; priceAmount: string } | null;
+  pending: {
+    kind: string;
+    status: string;
+    effectiveAt: string;
+    paymentUrl: string | null;
+    providerSynced?: boolean;
+    checkoutCreationState?: string | null;
+    checkoutExpired?: boolean;
+  } | null;
 }) {
   const [state, formAction, submitting] = useActionState(requestPlanChangeAction, INITIAL);
+  const [cycleState, cycleAction, cycling] = useActionState(
+    requestBillingCycleChangeAction,
+    INITIAL,
+  );
   const [cancellationState, cancellationAction, cancelling] = useActionState(
     requestSubscriptionCancellationAction,
     INITIAL,
@@ -120,13 +135,16 @@ export function PlanChangeForm({
     INITIAL,
   );
   const [cancellationDialogOpen, setCancellationDialogOpen] = useState(false);
+  const [cycleDialogOpen, setCycleDialogOpen] = useState(false);
   const keys = useMemo(() => new Map(plans.map((plan) => [plan.id, uuidv4()])), [plans]);
   const cancellationKey = useMemo(() => uuidv4(), []);
+  const cycleKey = useMemo(() => uuidv4(), []);
   const revocationKey = useMemo(() => uuidv4(), []);
   const reactivationKey = useMemo(() => uuidv4(), []);
   const isNewOffer = isOffer2026PlanCode(current.planCode);
   const paymentAwaitingConfirmation =
     pending?.status === 'pending_payment' || state.success === 'upgrade_pending_payment';
+  const checkoutExpired = pending?.checkoutExpired ?? false;
   const currentRank = rankOfPlan(current.planCode);
   const availablePlans = plans.filter((plan) => isOffer2026PlanCode(plan.code) === isNewOffer);
   const end = current.periodEnd ? formatCycleDate(new Date(current.periodEnd)) : null;
@@ -140,6 +158,9 @@ export function PlanChangeForm({
       setCancellationDialogOpen(false);
     }
   }, [cancellationState.error, cancellationState.success]);
+  useEffect(() => {
+    if (cycleState.success || cycleState.error) setCycleDialogOpen(false);
+  }, [cycleState.error, cycleState.success]);
 
   return (
     <div className="flex flex-col gap-(--sp-5)">
@@ -156,39 +177,53 @@ export function PlanChangeForm({
           }
         >
           {pending.status === 'pending_payment'
-            ? 'Seu upgrade aguarda a confirmação do pagamento proporcional e do novo valor recorrente no Asaas.'
+            ? pending.checkoutCreationState === 'creation_unknown'
+              ? 'O Asaas pode ter criado o Checkout, mas a resposta não chegou ao Qoro. Nenhuma vaga foi liberada. Contate o suporte antes de tentar novamente.'
+              : checkoutExpired
+                ? 'O Checkout expirou. Nenhuma vaga foi liberada; contate o suporte para conciliar a tentativa.'
+                : pending.checkoutCreationState === 'creating'
+                  ? 'O Checkout está sendo preparado. Aguarde e atualize esta página.'
+                  : 'Seu upgrade aguarda a confirmação do pagamento proporcional e do novo valor recorrente no Asaas.'
             : pending.kind === 'cancellation'
               ? `Assinatura cancelada: nenhuma nova cobrança será feita. O acesso segue até ${formatCycleDate(new Date(pending.effectiveAt))}.`
-              : `Seu downgrade está agendado para ${formatCycleDate(new Date(pending.effectiveAt))}.`}
-          {pending.paymentUrl ? (
+              : pending.kind === 'cycle_change'
+                ? pending.providerSynced
+                  ? `Troca de ciclo preparada no Asaas para ${formatCycleDate(new Date(pending.effectiveAt))}. O ciclo atual continua até lá.`
+                  : 'Troca de ciclo aguardando confirmação do Asaas. O ciclo atual continua ativo; não faça outra contratação.'
+                : `Seu downgrade está agendado para ${formatCycleDate(new Date(pending.effectiveAt))}.`}
+          {pending.paymentUrl && !checkoutExpired ? (
             <Link
               className="ml-1 font-semibold underline"
               href={pending.paymentUrl}
               target="_blank"
               rel="noreferrer"
             >
-              Abrir cobrança
+              Abrir pagamento no Asaas
             </Link>
           ) : null}
         </Alert>
       ) : null}
       {state.error ||
+      cycleState.error ||
       cancellationState.error ||
       revocationState.error ||
       reactivationState.error ? (
         <Alert variant="danger">
           {state.error ??
+            cycleState.error ??
             cancellationState.error ??
             revocationState.error ??
             reactivationState.error}
         </Alert>
       ) : null}
       {state.success ||
+      cycleState.success ||
       cancellationState.success ||
       revocationState.success ||
       reactivationState.success ? (
         <Alert variant="success">
           {state.message ??
+            cycleState.message ??
             cancellationState.message ??
             revocationState.message ??
             reactivationState.message}
@@ -201,7 +236,7 @@ export function PlanChangeForm({
           rel="noreferrer"
           className="font-semibold underline"
         >
-          Abrir cobrança proporcional no Asaas
+          Abrir pagamento proporcional no Asaas
         </Link>
       ) : null}
       {paymentAwaitingConfirmation ? (
@@ -232,6 +267,43 @@ export function PlanChangeForm({
           </Badge>
         </CardContent>
       </Card>
+      {isNewOffer && cycleOffer ? (
+        <Card>
+          <CardContent className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h2 className="font-semibold">
+                {cycleOffer.billingCycle === 'annual' ? 'Mudar para anual' : 'Voltar ao mensal'}
+              </h2>
+              <p className="mt-1 text-(length:--fs-sm) text-fg-muted">
+                {formatMoney(cycleOffer.priceAmount)} {cycleLabel(cycleOffer.billingCycle)}. A troca
+                vale no próximo vencimento{end ? `, em ${end}` : ''}; nada é cobrado agora. Somente
+                assinaturas com cartão já cadastrado no Asaas podem mudar de ciclo.
+              </p>
+            </div>
+            <ConfirmDialog
+              open={cycleDialogOpen}
+              onOpenChange={setCycleDialogOpen}
+              trigger={
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={current.billingStatus !== 'active' || Boolean(pending) || !end}
+                  loading={cycling}
+                >
+                  Agendar troca de ciclo
+                </Button>
+              }
+              title="Confirmar troca de ciclo"
+              description={`O plano atual e o acesso continuam até ${end ?? 'o próximo vencimento'}. A próxima cobrança será de ${formatMoney(cycleOffer.priceAmount)} ${cycleLabel(cycleOffer.billingCycle)} no cartão já cadastrado. Não há cobrança proporcional agora.${cycleOffer.billingCycle === 'annual' ? ' Cancelar depois interrompe a renovação e mantém o acesso até o fim pago, sem estorno automático.' : ''}`}
+              confirmLabel="Agendar troca"
+              cancelLabel="Voltar"
+              action={cycleAction}
+              loading={cycling}
+              formFields={<input type="hidden" name="idempotencyKey" value={cycleKey} />}
+            />
+          </CardContent>
+        </Card>
+      ) : null}
       {isNewOffer && aiUsage ? (
         <Card>
           <CardContent>

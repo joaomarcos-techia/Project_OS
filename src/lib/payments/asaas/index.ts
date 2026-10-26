@@ -212,6 +212,8 @@ export interface GenerateInvoiceInput {
 
 interface CreateCheckoutBaseInput {
   value: number;
+  /** Cliente SaaS já cadastrado; evita solicitar novamente a identidade no Checkout. */
+  customerId?: string;
   /** Nome curto do item no Asaas; o contrato do Checkout limita a 30 caracteres. */
   itemName?: string;
   description: string;
@@ -1006,6 +1008,7 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
         throw new BillingProviderError('checkout item name ausente', 'invalid_checkout_item_name');
       }
       const r = (await request('POST', '/checkouts', {
+        ...(input.customerId ? { customer: input.customerId } : {}),
         billingTypes: recurrent ? ['CREDIT_CARD'] : (input.billingTypes ?? ['PIX', 'CREDIT_CARD']),
         chargeTypes: recurrent ? ['RECURRENT'] : installment ? ['INSTALLMENT'] : ['DETACHED'],
         minutesToExpire: input.minutesToExpire,

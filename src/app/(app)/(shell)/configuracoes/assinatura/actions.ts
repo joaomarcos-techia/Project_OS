@@ -5,21 +5,27 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { buildRequestContext } from '@/lib/audit/request-context';
+import { withTenant } from '@/lib/db/tenant';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { requireClinicId, requireFreshPermission, requireUser } from '@/lib/auth/tenant-context';
 import { idempotentMutation } from '@/lib/idempotency/mutation';
 import { removeSubscriptionCharges } from '@/contexts/billing/internal/cancellation-charges';
 import { reopenClinicAfterReactivation } from '@/contexts/billing/internal/clinic-status';
 import { ensureUpgradePayment } from '@/contexts/billing/internal/plan-change-payment';
+import { syncProviderBillingCycle } from '@/contexts/billing/internal/billing-cycle-provider-sync';
 import { asaasProvider } from '@/lib/payments/asaas';
 import { metrics } from '@/lib/observability/metrics';
 import {
   getSubscriptionCancellationContext,
+  getCurrentCycleProviderContext,
+  getCycleChangeSyncContext,
+  confirmCycleChangeProviderSync,
   getSubscriptionReactivationContext,
   getSubscriptionRevocationContext,
   PlanChangeError,
   reactivateSubscription,
   requestPlanChange,
+  requestBillingCycleChange,
   requestSubscriptionCancellation,
   revokeSubscriptionCancellation,
 } from '@/contexts/billing/internal/plan-changes';
@@ -41,12 +47,93 @@ export type PlanChangeState = {
     | 'cancellation_scheduled'
     | 'cancellation_already_applied'
     | 'cancellation_revoked'
-    | 'subscription_reactivated';
+    | 'subscription_reactivated'
+    | 'cycle_change_scheduled'
+    | 'cycle_change_provider_pending';
   message?: string;
   paymentUrl?: string | null;
 };
 
 const INITIAL_ERROR = 'Não foi possível alterar o plano agora. Tente novamente em instantes.';
+
+export async function requestBillingCycleChangeAction(
+  _previous: PlanChangeState,
+  formData: FormData,
+): Promise<PlanChangeState> {
+  const user = await requireUser();
+  await requireFreshPermission(PERMISSIONS.MANAGE_SETTINGS);
+  const clinicId = await requireClinicId();
+  const parsed = CancellationSchema.safeParse({ idempotencyKey: formData.get('idempotencyKey') });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Dados inválidos.' };
+
+  try {
+    const local = await getCurrentCycleProviderContext(clinicId);
+    const remote = await asaasProvider.getSubscription(local.subscriptionId);
+    if (
+      remote.subscriptionId !== local.subscriptionId ||
+      remote.status !== 'ACTIVE' ||
+      remote.billingType !== 'CREDIT_CARD'
+    ) {
+      return {
+        error:
+          'A troca de ciclo exige assinatura ativa com cartão já cadastrado no Asaas. Pix e boleto ainda não podem ser convertidos.',
+      };
+    }
+
+    const hdrs = await headers();
+    const requestContext = buildRequestContext(hdrs);
+    const change = await idempotentMutation(
+      {
+        idempotency: {
+          key: `billing:cycle_change:${parsed.data.idempotencyKey.replace(/-/g, '')}`,
+          payload: { action: 'switch_billing_cycle' },
+          ttlSeconds: 7 * 86_400,
+        },
+        audit: {
+          action: 'subscription.cycle_change.requested',
+          resourceType: 'subscription_change',
+          resourceId: null,
+          before: null,
+          requestContext,
+        },
+      },
+      (tx) =>
+        requestBillingCycleChange(tx, {
+          clinicId,
+          requestedBy: user.userId,
+          idempotencyKey: parsed.data.idempotencyKey,
+          request: {
+            ip: requestContext.ip,
+            origin: hdrs.get('origin'),
+            requestId: requestContext.requestId,
+          },
+        }),
+    );
+
+    try {
+      const context = await getCycleChangeSyncContext(clinicId, change.id);
+      await syncProviderBillingCycle(asaasProvider, context);
+      await withTenant(clinicId, (tx) => confirmCycleChangeProviderSync(tx, clinicId, change.id));
+      revalidatePath('/configuracoes/assinatura');
+      return {
+        error: null,
+        success: 'cycle_change_scheduled',
+        message: `Troca para cobrança ${change.targetCycle === 'annual' ? 'anual' : 'mensal'} de ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(change.targetAmount))} preparada no Asaas. O ciclo atual continua até ${new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC' }).format(change.effectiveAt)}; a nova cobrança vence nessa data.`,
+      };
+    } catch (error) {
+      metrics.emit('billing.cycle_change.provider_sync_pending', { clinicId, error });
+      revalidatePath('/configuracoes/assinatura');
+      return {
+        error: null,
+        success: 'cycle_change_provider_pending',
+        message:
+          'Solicitação registrada, mas o Asaas ainda não confirmou a troca. O Qoro não alterou o ciclo; a conciliação tentará novamente. Não faça outra contratação.',
+      };
+    }
+  } catch (error) {
+    return { error: error instanceof PlanChangeError ? error.message : INITIAL_ERROR };
+  }
+}
 
 export async function requestPlanChangeAction(
   _previous: PlanChangeState,
@@ -107,8 +194,8 @@ export async function requestPlanChangeAction(
         error: null,
         success: 'upgrade_pending_payment',
         message: change.prorationAmount
-          ? `Cobrança proporcional de ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(change.prorationAmount))} criada. Após a confirmação, a recorrência será atualizada para ${change.targetPlanName}.`
-          : 'Cobrança proporcional criada. Confirme o pagamento para liberar o novo plano.',
+          ? `Pagamento proporcional de ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(change.prorationAmount))} preparado no Asaas. Após a confirmação, a recorrência será atualizada para ${change.targetPlanName}.`
+          : 'Pagamento proporcional preparado. Confirme-o para liberar o novo plano.',
         paymentUrl: payment.paymentUrl,
       };
     } catch (err) {

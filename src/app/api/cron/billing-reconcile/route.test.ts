@@ -18,6 +18,8 @@ const {
   applyPaidUpgradeForPayment,
   getPaidUpgradeSyncContext,
   syncProviderPlanChange,
+  prepareScheduledCycleForPaidInvoice,
+  expireStaleUpgradeCheckoutLeases,
   emit,
 } = vi.hoisted(() => ({
   selectResults: [] as unknown[][],
@@ -44,6 +46,8 @@ const {
   applyPaidUpgradeForPayment: vi.fn(),
   getPaidUpgradeSyncContext: vi.fn(),
   syncProviderPlanChange: vi.fn(),
+  prepareScheduledCycleForPaidInvoice: vi.fn(),
+  expireStaleUpgradeCheckoutLeases: vi.fn(),
   emit: vi.fn(),
 }));
 
@@ -69,6 +73,7 @@ vi.mock('@/lib/db', () => ({
     update: () => ({ set: () => ({ where: async () => {} }) }),
   },
 }));
+vi.mock('@/lib/db/tenant', () => ({ withTenant: vi.fn() }));
 vi.mock('@/lib/payments/asaas', () => ({
   asaasProvider: {
     listSubscriptionPayments,
@@ -96,6 +101,13 @@ vi.mock('@/contexts/billing/internal/plan-changes', () => ({
   fitsPlanUserLimit: (active: number, limit: number | null) =>
     active > 0 && limit !== null && active <= limit,
   planChangeExternalReference: (id: string) => `plan-change:${id}`,
+  prepareScheduledCycleForPaidInvoice,
+  expireStaleUpgradeCheckoutLeases,
+  confirmCycleChangeProviderSync: vi.fn(),
+  getCycleChangeSyncContext: vi.fn(),
+}));
+vi.mock('@/contexts/billing/internal/billing-cycle-provider-sync', () => ({
+  syncProviderBillingCycle: vi.fn(),
 }));
 vi.mock('@/contexts/billing/internal/plan-change-provider-sync', () => ({
   syncProviderPlanChange,
@@ -107,6 +119,7 @@ vi.mock('@/contexts/billing/internal/subscriptions', () => ({
   markInvoiceOverdue,
   markInvoiceRefunded,
   syncInvoiceFromProviderPayment,
+  advancePaidCycleChangeInvoicePeriod: vi.fn(),
 }));
 
 import { BillingProviderError } from '@/lib/payments/asaas';
@@ -116,6 +129,7 @@ import { GET } from './route';
 beforeEach(() => {
   vi.clearAllMocks();
   selectResults.length = 0;
+  selectResults.push([]); // nenhuma troca de ciclo aguardando sync remoto por padrão
   capacityRows.splice(0, capacityRows.length, { active_users: 1, user_limit: 1 });
   listSubscriptionPayments.mockResolvedValue([]);
   listUnpaidSubscriptionPayments.mockResolvedValue([]);
@@ -124,6 +138,7 @@ beforeEach(() => {
   applyScheduledPlanChange.mockResolvedValue({ applied: true, kind: 'cancellation' });
   applyPaidUpgradeForPayment.mockResolvedValue(true);
   getPaidUpgradeSyncContext.mockResolvedValue(null);
+  expireStaleUpgradeCheckoutLeases.mockResolvedValue(0);
   // BILLING-002 — por padrão local e provedor concordam: a reconciliação é
   // no-op e devolve a mesma invoice para a transição seguinte.
   syncInvoiceFromProviderPayment.mockImplementation(
@@ -132,9 +147,18 @@ beforeEach(() => {
       invoice,
     }),
   );
+  prepareScheduledCycleForPaidInvoice.mockResolvedValue({ deferPeriodAdvance: false });
 });
 
 describe('billing reconcile', () => {
+  it('marca lease expirado como incerto sem criar outro Checkout', async () => {
+    expireStaleUpgradeCheckoutLeases.mockResolvedValueOnce(1);
+    const response = await GET(new Request('http://localhost/api/cron/billing-reconcile'));
+    expect(response.status).toBe(200);
+    expect(expireStaleUpgradeCheckoutLeases).toHaveBeenCalledOnce();
+    expect(emit).toHaveBeenCalledWith('billing.upgrade.checkout_creation_unknown', { count: 1 });
+  });
+
   it('aplica downgrade para Clínica com três usuários somente após confirmação remota', async () => {
     capacityRows.splice(0, capacityRows.length, { active_users: 3, user_limit: 5 });
     selectResults.push(

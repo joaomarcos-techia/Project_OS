@@ -904,6 +904,27 @@
       "when": 1792368000006,
       "tag": "0128_signup_billing_cycle",
       "breakpoints": true
+    },
+    {
+      "idx": 129,
+      "version": "7",
+      "when": 1792368000007,
+      "tag": "0129_subscription_cycle_change_kind",
+      "breakpoints": true
+    },
+    {
+      "idx": 130,
+      "version": "7",
+      "when": 1792368000008,
+      "tag": "0130_subscription_cycle_change_sync",
+      "breakpoints": true
+    },
+    {
+      "idx": 131,
+      "version": "7",
+      "when": 1792368000009,
+      "tag": "0131_subscription_upgrade_checkout",
+      "breakpoints": true
     }
   ]
 }

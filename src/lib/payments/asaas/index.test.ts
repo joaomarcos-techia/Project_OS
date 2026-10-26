@@ -389,6 +389,29 @@ describe('alteração de assinatura e recuperação de cobrança', () => {
 });
 
 describe('Checkout hospedado de paciente (D24)', () => {
+  it('associa o Checkout SaaS ao cliente já cadastrado sem mudar o fluxo do paciente', async () => {
+    fetchMock.mockResolvedValue(Response.json({ id: 'checkout_upgrade', status: 'ACTIVE' }));
+    await createAsaasClient({ apiKey: 'k' }).createCheckout({
+      value: 73.5,
+      customerId: 'cus_existing',
+      description: 'Médico adicional',
+      externalReference: 'plan-change:upgrade-1',
+      minutesToExpire: 60,
+      callback: {
+        successUrl: 'https://qoro.example/?payment=success',
+        cancelUrl: 'https://qoro.example/?payment=cancelled',
+        expiredUrl: 'https://qoro.example/?payment=expired',
+      },
+    });
+
+    const [, request] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(String(request.body))).toMatchObject({
+      customer: 'cus_existing',
+      chargeTypes: ['DETACHED'],
+      externalReference: 'plan-change:upgrade-1',
+    });
+  });
+
   it('cria somente PIX/cartão, avulso e deixa os dados do pagador para o Checkout', async () => {
     fetchMock.mockResolvedValue(
       Response.json({

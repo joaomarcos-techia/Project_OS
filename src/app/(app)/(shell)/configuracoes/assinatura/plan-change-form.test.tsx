@@ -3,10 +3,11 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { requestPlanChangeAction } from './actions';
+import { requestBillingCycleChangeAction, requestPlanChangeAction } from './actions';
 
 vi.mock('./actions', () => ({
   requestPlanChangeAction: vi.fn(async () => ({ error: null })),
+  requestBillingCycleChangeAction: vi.fn(async () => ({ error: null })),
   requestSubscriptionCancellationAction: vi.fn(async () => ({
     error: null,
     success: 'cancellation_scheduled',
@@ -151,11 +152,11 @@ describe('datas de ciclo', () => {
   });
 });
 
-it('mostra imediatamente o link da cobrança proporcional devolvido pelo servidor', async () => {
+it('mostra imediatamente o link do Checkout proporcional devolvido pelo servidor', async () => {
   vi.mocked(requestPlanChangeAction).mockResolvedValueOnce({
     error: null,
     success: 'upgrade_pending_payment',
-    message: 'Cobrança proporcional de R$ 73,50 criada.',
+    message: 'Pagamento proporcional de R$ 73,50 preparado no Asaas.',
     paymentUrl: 'https://sandbox.asaas.com/test-checkout',
   });
   render(
@@ -187,9 +188,9 @@ it('mostra imediatamente o link da cobrança proporcional devolvido pelo servido
     />,
   );
   fireEvent.click(screen.getByRole('button', { name: 'Contratar +1 médico' }));
-  const link = await screen.findByRole('link', { name: 'Abrir cobrança proporcional no Asaas' });
+  const link = await screen.findByRole('link', { name: 'Abrir pagamento proporcional no Asaas' });
   expect(link.getAttribute('href')).toBe('https://sandbox.asaas.com/test-checkout');
-  expect(screen.getByText(/R\$ 73,50 criada/u)).toBeTruthy();
+  expect(screen.getByText(/R\$ 73,50 preparado/u)).toBeTruthy();
   expect(
     screen.getByRole('link', { name: 'Já pagou? Atualizar assinatura' }).getAttribute('href'),
   ).toBe('/auth/session-refresh?next=%2Fconfiguracoes%2Fassinatura');
@@ -205,6 +206,42 @@ it('oferece atualização segura da sessão enquanto o upgrade aguarda pagamento
     },
   });
   expect(screen.getByRole('link', { name: 'Já pagou? Atualizar assinatura' })).toBeTruthy();
+});
+
+it('explica preço anual, próximo vencimento e cartão antes de agendar', async () => {
+  vi.mocked(requestBillingCycleChangeAction).mockResolvedValueOnce({
+    error: null,
+    success: 'cycle_change_scheduled',
+    message: 'Troca anual preparada no Asaas.',
+  });
+  render(
+    <PlanChangeForm
+      current={{
+        planId: 'plan_two',
+        planName: 'Clínica · 2 médicos',
+        planCode: 'clinica_2026_2',
+        priceAmount: '397.00',
+        billingCycle: 'monthly',
+        billingStatus: 'active',
+        periodEnd: '2026-11-05T00:00:00.000Z',
+        trialEndsAt: null,
+      }}
+      plans={[]}
+      activeUsers={2}
+      activeDoctors={2}
+      activeStaff={0}
+      cycleOffer={{ billingCycle: 'annual', priceAmount: '3970.00' }}
+      pending={null}
+    />,
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Agendar troca de ciclo' }));
+  const dialog = await screen.findByRole('dialog');
+  expect(dialog.textContent).toContain('05/11/2026');
+  expect(dialog.textContent).toContain('R$ 3.970,00');
+  expect(dialog.textContent).toContain('cartão já cadastrado');
+  expect(dialog.textContent).toContain('sem estorno automático');
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Agendar troca' }));
+  await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('preparada'));
 });
 
 describe('capacidade mostrada na troca de plano', () => {

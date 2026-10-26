@@ -59,7 +59,9 @@ export async function listMonthlyPayoutSnapshots(
     const reviews = await listLatestPayoutReviews(
       tx,
       clinicId,
-      rows.filter((row) => row.status === 'reviewed' || row.status === 'cancelled').map((row) => row.id),
+      rows
+        .filter((row) => row.status === 'reviewed' || row.status === 'cancelled')
+        .map((row) => row.id),
     );
     return rows.map((row) => ({
       appointmentId: row.appointmentId,
