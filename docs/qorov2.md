@@ -9525,3 +9525,29 @@ Os runners da mensalidade pós-trial e do médico extra agora exigem na prova
 assinada que o próprio Preview use Asaas Sandbox, além de Auth/banco DEV. Após
 esse reforço, build Next otimizado e a suíte integral passaram: 5.657/5.657
 testes em 535 arquivos, exit 0.
+
+**Ciclo com cartão, contrato isolado no Sandbox:** o runner
+`scripts/security/subscription-plan-change-sandbox.ts`, com cartão fictício e
+`SANDBOX_CYCLE_PROBE=1`, passou com exit 0. A assinatura e sua cobrança pendente
+convergiram mensal→anual→mensal em valor, ciclo e vencimento; replays de mudança
+de preço não criaram parcela duplicada. O cleanup removeu a cobrança, cancelou
+a assinatura e excluiu o cliente sintético. A primeira invocação falhou em
+`server-only` antes de alcançar o Asaas; a segunda usou a condição Node correta.
+Esta é prova da **capacidade do provedor**, não da saga Qoro nem da mudança
+de um contrato já pago no próximo vencimento.
+
+No SHA `a8026f1a`, o E2E de médico extra voltou a passar **1/1** no Preview
+com a nova prova assinada de DEV **e Asaas Sandbox** no runtime; o cleanup leu
+zero resíduos. O fundador decidiu que uma assinatura mensal Pix/boleto não
+poderá migrar ao anual até existir cadastro seguro de cartão; a troca de um
+contrato mensal já pago por cartão valerá no próximo vencimento. O fluxo de
+troca de ciclo ainda não existe no Qoro.
+
+O runner `restore:test` tinha um falso positivo: com `ON_ERROR_STOP=0`, um dump
+interrompido podia terminar com mensagem de sucesso se as tabelas-âncora já
+existissem. Em 26/10 o gate passou a reprovar qualquer erro SQL/status não zero
+do `psql`; prova sintética em Postgres 17 local: dump íntegro exit 0, erro SQL
+após as âncoras exit 1. Isso **não** valida um backup atual de produção nem
+os schemas geridos pelo Supabase; restore real e paridade continuam pendentes.
+Após a correção, `npx vitest run --reporter=dot --silent` passou
+**5.659/5.659 em 536 arquivos** e o build Next otimizado terminou com exit 0.

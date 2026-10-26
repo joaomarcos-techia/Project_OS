@@ -10,15 +10,16 @@
  *   RESTORE_TARGET_URL="..." pnpm restore:test backups/manual-XXX.sql
  *
  * Alvo pode ser: um Postgres local, um projeto Supabase scratch, um container.
- * Erros benignos de auth/rls durante o restore são ESPERADOS (o dump exclui os
- * schemas gerenciados do Supabase — auth/storage/etc.). O que importa é: as
- * tabelas de dados restauram e as contagens batem com a ordem de grandeza de prod.
+ * O scratch precisa das dependências de schema/extensões exigidas pelo dump.
+ * Qualquer erro SQL aborta: tabelas-âncora preexistentes não provam restauração.
+ * As contagens ainda devem ser comparadas manualmente à origem.
  */
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { looksLikeProd, redact } from './_env';
+import { assertRestoreExit } from './restore-test-result';
 
 const BACKUPS_DIR = resolve(process.cwd(), 'backups');
 
@@ -71,20 +72,14 @@ function main(): void {
 
   console.log(`[restore:test] dump:   ${dump}`);
   console.log(`[restore:test] target: ${redact(target)}`);
-  console.log(
-    '[restore:test] restaurando... (erros de auth/rls são benignos — o dump exclui os schemas do Supabase)\n',
-  );
+  console.log('[restore:test] restaurando... qualquer erro SQL interrompe a prova\n');
 
-  // ON_ERROR_STOP=0: tolera GRANT/POLICY que referenciam auth.* (schema ausente no scratch).
-  const restore = spawnSync('psql', [target, '-v', 'ON_ERROR_STOP=0', '-q', '-f', dump], {
-    stdio: ['ignore', 'ignore', 'inherit'], // stderr visível (erros benignos), stdout silencioso
+  const restore = spawnSync('psql', [target, '-X', '-v', 'ON_ERROR_STOP=1', '-q', '-f', dump], {
+    stdio: ['ignore', 'ignore', 'inherit'],
   });
-  if (restore.status !== 0 && restore.error) {
-    throw new Error(`falha ao invocar psql: ${restore.error.message}`);
-  }
+  assertRestoreExit(restore.status, restore.error);
 
-  // Validação: as tabelas CREATE TABLE quase nunca falham (só as POLICY/GRANT de auth),
-  // então as âncoras existem. Se alguma faltar, o psql abaixo erra e o drill é FALHA.
+  // O SELECT de âncoras confirma apenas leitura; paridade exige comparação à origem.
   const validation = `
     SELECT
       (SELECT count(*) FROM information_schema.tables WHERE table_schema='public') AS public_tables,
@@ -94,9 +89,11 @@ function main(): void {
       (SELECT count(*) FROM appointments)                                          AS appointments,
       (SELECT count(*) FROM audit_events)                                          AS audit_events;`;
 
-  console.log('\n[restore:test] ✅ RESTAUROU. Contagens no scratch:\n');
   try {
-    const out = execFileSync('psql', [target, '-c', validation], { encoding: 'utf8' });
+    const out = execFileSync('psql', [target, '-X', '-v', 'ON_ERROR_STOP=1', '-c', validation], {
+      encoding: 'utf8',
+    });
+    console.log('\n[restore:test] SQL restaurado sem erro; contagens no scratch:\n');
     console.log(out);
   } catch {
     throw new Error(
@@ -105,7 +102,7 @@ function main(): void {
   }
 
   console.log('[restore:test] Confira se os números batem com a ordem de grandeza de prod.');
-  console.log('[restore:test] Se baterem → restore test PASSOU. ✅');
+  console.log('[restore:test] Paridade com a origem PENDENTE de comparação humana.');
   console.log('[restore:test] ⚠️  DERRUBE o scratch quando terminar (contém PII de prod).');
 }
 
