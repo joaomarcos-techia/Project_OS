@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 195 actions (0 inline); 53 métodos em 49 handlers; 19 props com referência de action; 366 acessos diretos a process.env; 9 nomes NEXT_PUBLIC.
+Contagem: 195 actions (0 inline); 53 métodos em 49 handlers; 19 props com referência de action; 377 acessos diretos a process.env; 9 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -474,9 +474,20 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/payments-meta-e2e.ts:356`                         | `ASAAS_BASE_URL`                       | `process.env.ASAAS_BASE_URL`                                                |
 | `scripts/pentest-account-inventory.ts:61`                  | `PENTEST_ACCOUNT_EMAILS_JSON`          | `process.env.PENTEST_ACCOUNT_EMAILS_JSON`                                   |
 | `scripts/pentest-account-inventory.ts:75`                  | `<object>`                             | `process.env`                                                               |
+| `scripts/probe-dev-integration-connections.ts:5`           | `QORO_DEV_ENV_FILE`                    | `process.env.QORO_DEV_ENV_FILE`                                             |
+| `scripts/probe-dev-integration-connections.ts:6`           | `QORO_EXPECTED_DEV_PROJECT_REF`        | `process.env.QORO_EXPECTED_DEV_PROJECT_REF`                                 |
+| `scripts/probe-dev-integration-connections.ts:10`          | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                                          |
+| `scripts/probe-dev-integration-connections.ts:40`          | `<dynamic>`                            | `process.env[name]`                                                         |
+| `scripts/probe-dev-integration-connections.ts:42`          | `ASAAS_BASE_URL`                       | `process.env.ASAAS_BASE_URL`                                                |
+| `scripts/probe-dev-integration-connections.ts:42`          | `ASAAS_BASE_URL`                       | `process.env.ASAAS_BASE_URL`                                                |
 | `scripts/probe-dev-migrations.ts:5`                        | `QORO_DEV_ENV_FILE`                    | `process.env.QORO_DEV_ENV_FILE`                                             |
 | `scripts/probe-dev-migrations.ts:6`                        | `QORO_EXPECTED_DEV_PROJECT_REF`        | `process.env.QORO_EXPECTED_DEV_PROJECT_REF`                                 |
 | `scripts/probe-dev-migrations.ts:10`                       | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                                          |
+| `scripts/probe-landing-offer-browser.ts:28`                | `VERCEL_AUTOMATION_BYPASS_SECRET`      | `process.env.VERCEL_AUTOMATION_BYPASS_SECRET`                               |
+| `scripts/probe-landing-offer-browser.ts:29`                | `VERCEL_AUTOMATION_BYPASS_SECRET`      | `process.env.VERCEL_AUTOMATION_BYPASS_SECRET`                               |
+| `scripts/probe-landing-offer-browser.ts:33`                | `E2E_VERCEL_BYPASS_COOKIE`             | `process.env.E2E_VERCEL_BYPASS_COOKIE`                                      |
+| `scripts/probe-landing-offer-browser.ts:37`                | `E2E_VERCEL_BYPASS_COOKIE`             | `process.env.E2E_VERCEL_BYPASS_COOKIE`                                      |
+| `scripts/probe-landing-offer-browser.ts:79`                | `E2E_VISUAL_CAPTURE`                   | `process.env.E2E_VISUAL_CAPTURE`                                            |
 | `scripts/probe-offer-plan-overview-dev.ts:25`              | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
 | `scripts/probe-offer-seat-access-dev.ts:18`                | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
 | `scripts/probe-payout-review-fixture-residue-dev.ts:16`    | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
