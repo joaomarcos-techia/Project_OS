@@ -36,6 +36,7 @@ let webhookId: string | null = null;
 let paymentId: string | null = null;
 let checkoutId: string | null = null;
 let checkoutUrl: string | null = null;
+let paidFlowValidated = false;
 let currentPlanId = '';
 let targetPlanId = '';
 
@@ -295,9 +296,13 @@ async function cleanup(): Promise<void> {
     await db.end({ timeout: 5 });
     db = null;
   }
-  console.log(
-    `Cleanup fixture extra-doctor: ${problems.length === 0 ? '0 resíduos' : 'INCOMPLETO'}`,
-  );
+  const cleanupResult =
+    problems.length > 0
+      ? 'INCOMPLETO'
+      : paymentId
+        ? 'recursos ativos removidos; cobrança paga preservada no Sandbox para auditoria'
+        : '0 resíduos';
+  console.log(`Cleanup fixture extra-doctor: ${cleanupResult}`);
   if (problems.length > 0) throw new Error(`Cleanup incompleto: ${problems.join(', ')}`);
 }
 
@@ -452,6 +457,20 @@ test.describe('médico extra pago no Preview/DEV/Asaas Sandbox', () => {
   });
 
   test.afterAll(async () => {
+    if (
+      process.env.E2E_EXTRA_DOCTOR_PAYMENT_INTERACTIVE === '1' &&
+      checkoutId &&
+      !paidFlowValidated
+    ) {
+      console.log(
+        `Fixture preservada para conciliação de pagamento tardio: slug=${slug} clinic=${clinicId ?? 'absent'} checkout=${checkoutId} subscription=${subscriptionId ?? 'absent'} webhook=${webhookId ?? 'absent'} auth=${userId ?? 'absent'}`,
+      );
+      if (db) {
+        await db.end({ timeout: 5 });
+        db = null;
+      }
+      return;
+    }
     await cleanup();
   });
 
@@ -511,6 +530,11 @@ test.describe('médico extra pago no Preview/DEV/Asaas Sandbox', () => {
       );
       expect((await state()).checkout_id).toBe(checkoutId);
       console.log('PASS UI/DEV/Sandbox: Checkout único; médico adicional ainda bloqueado');
+      if (process.env.E2E_EXTRA_DOCTOR_PAYMENT_INTERACTIVE === '1') {
+        console.log(`CHECKOUT_SANDBOX_URL=${checkoutUrl}`);
+        console.log(`CHECKOUT_TEST_PAYER_EMAIL=${email}`);
+        console.log(`CHECKOUT_PRORATION_BRL=${reserved.proration}`);
+      }
     } finally {
       await context.close();
     }
@@ -518,10 +542,14 @@ test.describe('médico extra pago no Preview/DEV/Asaas Sandbox', () => {
 
   test('pagamento humano no Checkout → webhook → assinatura e cota', async ({ browser }) => {
     test.skip(
+      process.env.E2E_EXTRA_DOCTOR_PAYMENT_RETENTION_PROBE === '1',
+      'Probe isolado da retenção e recuperação da fixture, sem pagamento.',
+    );
+    test.skip(
       process.env.E2E_EXTRA_DOCTOR_PAYMENT_INTERACTIVE !== '1',
       'Checkout hospedado exige conclusão humana do reCAPTCHA no Asaas Sandbox.',
     );
-    test.setTimeout(900_000);
+    test.setTimeout(3_300_000);
     if (!checkoutId || !checkoutUrl) throw new Error('Checkout da fixture não preparado');
     const context = await browser.newContext({
       baseURL: preview.origin,
@@ -549,7 +577,7 @@ test.describe('médico extra pago no Preview/DEV/Asaas Sandbox', () => {
               ? id
               : null;
           },
-          { timeout: 600_000, intervals: [3_000] },
+          { timeout: 3_000_000, intervals: [3_000] },
         )
         .not.toBeNull();
       const result = z
@@ -705,6 +733,7 @@ test.describe('médico extra pago no Preview/DEV/Asaas Sandbox', () => {
       await expect(page).toHaveURL(/\/configuracoes\/assinatura(?:\?|$)/u, { timeout: 60_000 });
       await expect(page.getByText('R$ 397,00 por mês', { exact: true })).toBeVisible();
       console.log('PASS vencimento simulado: Asaas, plano, cota e UI convergiram para 2 médicos');
+      paidFlowValidated = true;
     } finally {
       await context.close();
     }

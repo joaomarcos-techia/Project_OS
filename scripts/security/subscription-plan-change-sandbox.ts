@@ -213,6 +213,57 @@ async function main(): Promise<void> {
       );
       console.log(`PASS: mensal → anual ${method} atualizou recorrência e cobrança pendente`);
 
+      if (process.env.SANDBOX_RENEWAL_PROBE === '1') {
+        const renewalDueDate = addCalendarMonths(dueDate, 12);
+        const [year, month] = renewalDueDate.split('-');
+        const apiKey = process.env.ASAAS_API_KEY;
+        assert.ok(apiKey, 'Chave do Sandbox ausente');
+        const response = await fetch(
+          `${process.env.ASAAS_BASE_URL}/subscriptions/${encodeURIComponent(subscriptionId)}/paymentBook?month=${Number(month)}&year=${Number(year)}`,
+          {
+            headers: {
+              access_token: apiKey,
+              accept: 'application/json',
+            },
+            signal: AbortSignal.timeout(30_000),
+          },
+        );
+        const responseBody: unknown = await response.json().catch(() => null);
+        const providerCode =
+          responseBody &&
+          typeof responseBody === 'object' &&
+          'errors' in responseBody &&
+          Array.isArray(responseBody.errors) &&
+          responseBody.errors[0] &&
+          typeof responseBody.errors[0] === 'object' &&
+          'code' in responseBody.errors[0] &&
+          typeof responseBody.errors[0].code === 'string'
+            ? responseBody.errors[0].code
+            : 'none';
+        console.log(`RENEWAL_PROBE HTTP ${response.status} code=${providerCode}`);
+        let renewedPayments = await asaasProvider.listAllSubscriptionPayments(subscriptionId);
+        for (let attempt = 0; attempt < 10 && renewedPayments.length < 2; attempt++) {
+          await new Promise((resolve) => setTimeout(resolve, 1_000));
+          renewedPayments = await asaasProvider.listAllSubscriptionPayments(subscriptionId);
+        }
+        console.log(
+          'RENEWAL_PROBE readback:',
+          renewedPayments.map((payment) => ({ dueDate: payment.dueDate, value: payment.value })),
+        );
+        assert.equal(response.status, 200, 'Asaas recusou antecipar a renovação no Sandbox');
+        assert.equal(renewedPayments.length, 2, 'Renovação gerou cobrança ausente ou duplicada');
+        assert.deepEqual(
+          renewedPayments.map((payment) => [payment.dueDate, payment.value]).sort(),
+          [
+            [dueDate, ANNUAL_CLINIC_PRICE],
+            [renewalDueDate, ANNUAL_CLINIC_PRICE],
+          ].sort(),
+          'Valor ou vencimento da renovação anual divergente',
+        );
+        console.log(`PASS: renovação anual ${method} gerou uma única parcela futura no Sandbox`);
+        return;
+      }
+
       await assert.rejects(
         () =>
           syncProviderPlanChange(asaasProvider, {
@@ -288,6 +339,13 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
-  console.error('[sandbox plan change] FAIL:', error instanceof Error ? error.name : 'unknown');
+  console.error(
+    '[sandbox plan change] FAIL:',
+    error instanceof assert.AssertionError
+      ? error.message
+      : error instanceof Error
+        ? error.name
+        : 'unknown',
+  );
   process.exitCode = 1;
 });

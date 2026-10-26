@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 196 actions (0 inline); 53 métodos em 49 handlers; 19 props com referência de action; 381 acessos diretos a process.env; 9 nomes NEXT_PUBLIC.
+Contagem: 196 actions (0 inline); 53 métodos em 49 handlers; 19 props com referência de action; 384 acessos diretos a process.env; 9 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -610,6 +610,9 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/subscription-plan-change-sandbox.ts:37`  | `ASAAS_API_KEY`                        | `process.env.ASAAS_API_KEY`                                                 |
 | `scripts/security/subscription-plan-change-sandbox.ts:43`  | `SANDBOX_PLAN_CHANGE_METHOD`           | `process.env.SANDBOX_PLAN_CHANGE_METHOD`                                    |
 | `scripts/security/subscription-plan-change-sandbox.ts:185` | `SANDBOX_CYCLE_PROBE`                  | `process.env.SANDBOX_CYCLE_PROBE`                                           |
+| `scripts/security/subscription-plan-change-sandbox.ts:216` | `SANDBOX_RENEWAL_PROBE`                | `process.env.SANDBOX_RENEWAL_PROBE`                                         |
+| `scripts/security/subscription-plan-change-sandbox.ts:219` | `ASAAS_API_KEY`                        | `process.env.ASAAS_API_KEY`                                                 |
+| `scripts/security/subscription-plan-change-sandbox.ts:222` | `ASAAS_BASE_URL`                       | `process.env.ASAAS_BASE_URL`                                                |
 | `scripts/security/tenant-isolation.ts:12`                  | `SECURITY_PG_BIN`                      | `process.env.SECURITY_PG_BIN`                                               |
 | `scripts/security/tenant-isolation.ts:136`                 | `<dynamic>`                            | `process.env[key]`                                                          |
 | `scripts/security/tenant-isolation.ts:137`                 | `<object>`                             | `process.env`                                                               |
