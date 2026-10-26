@@ -47,7 +47,13 @@ function isTargetCycle(
  */
 export async function syncProviderPlanChange(
   provider: PlanChangeProvider,
-  input: { subscriptionId: string; previousAmount: string; amount: string; firstDueDate: string },
+  input: {
+    subscriptionId: string;
+    previousAmount: string;
+    amount: string;
+    firstDueDate: string;
+    expectedCycle: 'MONTHLY' | 'YEARLY';
+  },
 ): Promise<void> {
   const targetCents = toCents(input.amount);
   const previousCents = toCents(input.previousAmount);
@@ -60,6 +66,12 @@ export async function syncProviderPlanChange(
     throw new PlanChangeError(
       'Assinatura não está ativa no Asaas.',
       'provider_subscription_not_active',
+    );
+  }
+  if (subscription.cycle !== input.expectedCycle) {
+    throw new PlanChangeError(
+      'Ciclo da recorrência no Asaas diverge do contrato local.',
+      'provider_subscription_unexpected_cycle',
     );
   }
   if (
@@ -104,6 +116,7 @@ export async function syncProviderPlanChange(
   if (
     updatedSubscription.subscriptionId !== input.subscriptionId ||
     updatedSubscription.status !== 'ACTIVE' ||
+    updatedSubscription.cycle !== input.expectedCycle ||
     toCents(updatedSubscription.value) !== targetCents
   ) {
     throw new PlanChangeError(

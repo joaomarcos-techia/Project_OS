@@ -9,6 +9,7 @@ const INPUT = {
   previousAmount: '699.00',
   amount: '397.00',
   firstDueDate: '2026-11-01',
+  expectedCycle: 'MONTHLY' as const,
 };
 
 function payment(id: string, dueDate: string, value: number, status = 'PENDING'): ProviderPayment {
@@ -98,6 +99,28 @@ describe('sincronização da troca de plano com o Asaas', () => {
       code: 'provider_subscription_unexpected_price',
     });
     expect(provider.updateSubscription).not.toHaveBeenCalled();
+  });
+
+  it('não altera a recorrência quando o ciclo do Asaas diverge do contrato local', async () => {
+    const { provider, subscription } = fixture([payment('pay_next', '2026-11-01', 699)]);
+    subscription.cycle = 'YEARLY';
+
+    await expect(syncProviderPlanChange(provider, INPUT)).rejects.toMatchObject({
+      code: 'provider_subscription_unexpected_cycle',
+    });
+    expect(provider.updateSubscription).not.toHaveBeenCalled();
+    expect(provider.updatePayment).not.toHaveBeenCalled();
+  });
+
+  it('sincroniza um plano anual quando contrato e Asaas concordam no ciclo', async () => {
+    const { provider, subscription, payments } = fixture([payment('pay_next', '2026-11-01', 699)]);
+    subscription.cycle = 'YEARLY';
+
+    await syncProviderPlanChange(provider, { ...INPUT, expectedCycle: 'YEARLY' });
+
+    expect(subscription.value).toBe(397);
+    expect(subscription.cycle).toBe('YEARLY');
+    expect(payments[0]?.value).toBe(397);
   });
 
   it('retoma após falha parcial e não repete PUTs já confirmados', async () => {

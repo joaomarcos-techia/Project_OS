@@ -121,6 +121,7 @@ try {
     previousAmount: fixture.current_amount,
     amount: fixture.target_amount,
     firstDueDate: effectiveAt.toISOString().slice(0, 10),
+    expectedCycle: 'MONTHLY',
   });
   stage = 'local_apply';
   const simulatedNow = new Date(effectiveAt.getTime() + 1_000);

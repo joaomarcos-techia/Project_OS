@@ -184,6 +184,7 @@ export async function getPaidUpgradeSyncContext(
   previousAmount: string;
   amount: string;
   firstDueDate: string;
+  expectedCycle: 'MONTHLY' | 'YEARLY';
 } | null> {
   if (!paidStatus(payment.status)) return null;
   const changeId = changeIdFromExternalReference(payment.externalReference);
@@ -201,6 +202,7 @@ export async function getPaidUpgradeSyncContext(
       asaasSubscriptionId: subscriptions.asaasSubscriptionId,
       currentPeriodEnd: subscriptions.currentPeriodEnd,
       targetAmount: prices.amount,
+      targetBillingCycle: prices.billingCycle,
     })
     .from(subscriptionChangeRequests)
     .innerJoin(subscriptions, eq(subscriptions.id, subscriptionChangeRequests.subscriptionId))
@@ -228,6 +230,7 @@ export async function getPaidUpgradeSyncContext(
     previousAmount: change.previousAmount,
     amount: change.targetAmount,
     firstDueDate: change.currentPeriodEnd.toISOString().slice(0, 10),
+    expectedCycle: change.targetBillingCycle === 'annual' ? 'YEARLY' : 'MONTHLY',
   };
 }
 

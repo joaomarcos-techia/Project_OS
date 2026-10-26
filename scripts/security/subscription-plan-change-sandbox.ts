@@ -98,6 +98,7 @@ async function main(): Promise<void> {
       previousAmount: '197.00',
       amount: '397.00',
       firstDueDate: dueDate,
+      expectedCycle: 'MONTHLY',
     });
     assert.equal((await asaasProvider.getSubscription(subscriptionId)).value, 397);
     assert.ok(
@@ -112,6 +113,7 @@ async function main(): Promise<void> {
       previousAmount: '197.00',
       amount: '397.00',
       firstDueDate: dueDate,
+      expectedCycle: 'MONTHLY',
     });
     console.log('PASS: repetição de upgrade convergiu sem segunda cobrança');
 
@@ -120,6 +122,7 @@ async function main(): Promise<void> {
       previousAmount: '397.00',
       amount: '197.00',
       firstDueDate: dueDate,
+      expectedCycle: 'MONTHLY',
     });
     assert.equal((await asaasProvider.getSubscription(subscriptionId)).value, 197);
     assert.ok(
@@ -136,18 +139,21 @@ async function main(): Promise<void> {
       previousAmount: '197.00',
       amount: '397.00',
       firstDueDate: dueDate,
+      expectedCycle: 'MONTHLY',
     });
     await syncProviderPlanChange(asaasProvider, {
       subscriptionId,
       previousAmount: '397.00',
       amount: '544.00',
       firstDueDate: dueDate,
+      expectedCycle: 'MONTHLY',
     });
     await syncProviderPlanChange(asaasProvider, {
       subscriptionId,
       previousAmount: '397.00',
       amount: '544.00',
       firstDueDate: dueDate,
+      expectedCycle: 'MONTHLY',
     });
     assert.equal((await asaasProvider.getSubscription(subscriptionId)).value, 544);
     assert.ok(
@@ -164,6 +170,7 @@ async function main(): Promise<void> {
       previousAmount: '544.00',
       amount: '397.00',
       firstDueDate: dueDate,
+      expectedCycle: 'MONTHLY',
     });
     assert.equal((await asaasProvider.getSubscription(subscriptionId)).value, 397);
     assert.ok(
@@ -174,6 +181,8 @@ async function main(): Promise<void> {
     console.log(`PASS: retirada do médico adicional ${method} reduziu a recorrência futura`);
 
     if (process.env.SANDBOX_CYCLE_PROBE === '1') {
+      if (!subscriptionId) throw new Error('Assinatura Sandbox da fixture ausente');
+      const cycleSubscriptionId = subscriptionId;
       await asaasProvider.updateSubscription(subscriptionId, {
         value: ANNUAL_CLINIC_PRICE,
         cycle: 'YEARLY',
@@ -192,6 +201,25 @@ async function main(): Promise<void> {
         'Cobrança pendente anual não foi conciliada no Sandbox',
       );
       console.log(`PASS: mensal → anual ${method} atualizou recorrência e cobrança pendente`);
+
+      await assert.rejects(
+        () =>
+          syncProviderPlanChange(asaasProvider, {
+            subscriptionId: cycleSubscriptionId,
+            previousAmount: String(ANNUAL_CLINIC_PRICE),
+            amount: String(MONTHLY_CLINIC_PRICE),
+            firstDueDate: dueDate,
+            expectedCycle: 'MONTHLY',
+          }),
+        (error: unknown) =>
+          error instanceof Error &&
+          'code' in error &&
+          error.code === 'provider_subscription_unexpected_cycle',
+      );
+      const afterRejectedChange = await asaasProvider.getSubscription(subscriptionId);
+      assert.equal(afterRejectedChange.cycle, 'YEARLY');
+      assert.equal(afterRejectedChange.value, ANNUAL_CLINIC_PRICE);
+      console.log('PASS: divergência de ciclo recusada sem alterar a assinatura anual');
 
       await asaasProvider.updateSubscription(subscriptionId, {
         value: MONTHLY_CLINIC_PRICE,

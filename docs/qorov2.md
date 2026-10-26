@@ -9438,3 +9438,26 @@ Uma nova medição de `https://qoro.dev/precos` retornou HTTP 200 com Consultór
 O Draft PR da landing #1 está `CONFLICTING` e é anterior à versão já publicada na `main` da landing; revisar sua antiga `/precos-preview` não valida a página pública atual. Os PRs do app #39, #40, #41 e #42 permanecem abertos. O grafo confirma que o #42 contém os commits do #41, mas sua base é #40; publicação requer reconciliar a pilha e, antes, decidir uma única oferta/limite que app e landing possam cumprir. Nenhum merge, alteração de produção ou migração foi feito nesta verificação. A [matriz](quality/validacao-autonoma-2026-10-21.md) e o [guia manual](runbooks/acoes-manuais-pendentes-pricing-2026-10.md) registram a ordem e os limites das provas ainda pendentes.
 
 O [PR draft #3 da landing](https://github.com/joaomarcos-techia/landing_page/pull/3), commits `1158ab4` e `faf838e`, foi aberto a partir da `main` em worktree isolado para alinhar 5 médicos/3 logins e preparar 14 dias desde a criação da conta em home, preços, verticais, blog, metadados, `llms.txt` e imagem social. TypeScript, ESLint e build completo passaram (incluindo `/comecar` 27/27, conversão 2/2 e segurança 20/20); `dist/precos/index.html` mostrou limites e trial novos. Não foi mesclado nem publicado. A landing pública ainda diverge do checkout legado; o CTA do PR #3 continua exigindo ativação coordenada da nova oferta no app.
+
+## 82. Guarda do ciclo da assinatura e Preview atualizado — 26/10/2026
+
+O sincronizador de upgrade/downgrade do PR #42 agora exige que a recorrência no
+Asaas permaneça no mesmo ciclo (`MONTHLY` ou `YEARLY`) do preço local antes e
+depois da mudança de valor. Quando há divergência, a operação é recusada antes
+de qualquer PUT, sem alterar o plano no Qoro. A prova dirigida passou **23/23**;
+uma fixture BOLETO não paga no Asaas Sandbox confirmou a recusa em assinatura
+anual e seu readback inalterado, além de upgrade/downgrade e cleanup, exit 0.
+Esta guarda **não** implementa a troca mensal↔anual agendada para o vencimento.
+
+No commit `cb2b5106`, o Preview imutável do app
+`project-c0i53rkw3-clinic-os-v2-s-projects.vercel.app` ficou Ready. A proposta
+passou no navegador em desktop e celular (2/2); a suíte pública no mesmo
+deployment passou **9/9** após fornecer ao runner a secret local de comparação
+sem expô-la. As duas contas genéricas do probe autenticado continuam em planos
+legados e não servem como prova da tela de compra de médico extra. A regressão
+local posterior passou **5.657/5.657** em 535 arquivos; build Next, tipos, lint,
+formatação e inventário de segurança tiveram exit 0. A matriz de evidência e os
+gates de publicação continuam no
+[relatório de prontidão](quality/prontidao-oferta-2026-10-25.md); nenhuma nova
+oferta foi publicada em produção. Esse deployment antecede a guarda de ciclo;
+o novo SHA ainda precisa de validação própria em Preview.

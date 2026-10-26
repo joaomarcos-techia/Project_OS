@@ -10,7 +10,7 @@ Os limites e o trial de 14 dias foram preparados no [PR draft da landing #3](htt
 
 **Pré-requisitos.** Para a conferência inicial, use o Preview imutável `fa8b67c` do PR #3; se a Vercel pedir login, entre com uma conta autorizada no time `clinic-os-v2-s-projects`. Para a conferência final em produção, a engenharia deve informar os SHAs do app e da landing reconciliados. Não use o PR draft #1 da landing como referência atual.
 
-**Link.** [Landing corrigida — preços no Preview imutável](https://landing-page-o2dehsjhg-clinic-os-v2-s-projects.vercel.app/precos), [home no mesmo Preview](https://landing-page-o2dehsjhg-clinic-os-v2-s-projects.vercel.app/), [landing pública — preços](https://qoro.dev/precos) e [home pública](https://qoro.dev/). [App — oferta no Preview](https://project-os-git-integration-prici-c5e6c6-clinic-os-v2-s-projects.vercel.app/oferta-preview) serve para comparar os limites do candidato, mas não prova o checkout de produção. A URL de branch antiga da landing foi observada servindo conteúdo defasado; use a imutável acima para este SHA.
+**Link.** [Landing corrigida — preços no Preview imutável](https://landing-page-o2dehsjhg-clinic-os-v2-s-projects.vercel.app/precos), [home no mesmo Preview](https://landing-page-o2dehsjhg-clinic-os-v2-s-projects.vercel.app/), [landing pública — preços](https://qoro.dev/precos) e [home pública](https://qoro.dev/). [App — oferta no Preview imutável](https://project-c0i53rkw3-clinic-os-v2-s-projects.vercel.app/oferta-preview) serve para comparar os limites do candidato, mas não prova o checkout de produção. O deployment do app corresponde a `cb2b5106`; a URL de branch antiga da landing foi observada servindo conteúdo defasado, portanto use as URLs imutáveis para estes SHAs.
 
 **Atenção ao CTA.** O `/comecar` da landing em Preview ainda encaminha para `https://app.qoro.dev/cadastro`, pois `src/lib/comecar.ts` usa esse destino constante. **Não use esse botão para testar pagamento Sandbox:** ele leva ao app de produção. Para examinar a nova oferta sem criar conta, abra o link direto do app Preview acima; testes de Checkout devem usar o roteiro de fixture isolada do app.
 
@@ -33,7 +33,7 @@ Os limites e o trial de 14 dias foram preparados no [PR draft da landing #3](htt
 
 **Pré-requisitos.** O agente deve primeiro confirmar por escrito: Preview com SHA novo, Auth e banco do projeto DEV, conta Asaas **Sandbox**, clínica sintética identificada, assinatura ativa de R$ 397, valor proporcional mostrado e plano de limpeza. Sem essa confirmação, **não pague**. Use somente cartão de teste fornecido pela interface/documentação oficial do Sandbox; nunca cartão real.
 
-**Link.** [Assinatura da clínica de teste no Preview](https://project-os-git-integration-prici-c5e6c6-clinic-os-v2-s-projects.vercel.app/configuracoes/assinatura). O link do Checkout é gerado pelo botão de upgrade e expira; não existe URL fixa a registrar aqui.
+**Link.** [Assinatura da clínica de teste no Preview](https://project-c0i53rkw3-clinic-os-v2-s-projects.vercel.app/configuracoes/assinatura). O link do Checkout é gerado pelo botão de upgrade e expira; não existe URL fixa a registrar aqui. As duas contas do probe genérico atualmente mostram somente planos legados; a engenharia precisa preparar e identificar uma fixture da oferta 2026 antes desta ação humana.
 
 **Passo a passo.**
 

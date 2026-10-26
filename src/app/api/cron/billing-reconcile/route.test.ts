@@ -148,6 +148,7 @@ describe('billing reconcile', () => {
           effectiveAt: new Date('2026-11-01'),
           asaasSubscriptionId: 'sub_1',
           targetAmount: '397.00',
+          targetBillingCycle: 'monthly',
           previousAmount: '699.00',
         },
       ],
@@ -163,6 +164,7 @@ describe('billing reconcile', () => {
       previousAmount: '699.00',
       amount: '397.00',
       firstDueDate: '2026-11-01',
+      expectedCycle: 'MONTHLY',
     });
     expect(syncProviderPlanChange.mock.invocationCallOrder[0]).toBeLessThan(
       applyScheduledPlanChange.mock.invocationCallOrder[0]!,

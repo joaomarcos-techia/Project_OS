@@ -604,7 +604,7 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/subscription-plan-change-sandbox.ts:26`  | `ASAAS_BASE_URL`                       | `process.env.ASAAS_BASE_URL`                                                |
 | `scripts/security/subscription-plan-change-sandbox.ts:35`  | `ASAAS_API_KEY`                        | `process.env.ASAAS_API_KEY`                                                 |
 | `scripts/security/subscription-plan-change-sandbox.ts:41`  | `SANDBOX_PLAN_CHANGE_METHOD`           | `process.env.SANDBOX_PLAN_CHANGE_METHOD`                                    |
-| `scripts/security/subscription-plan-change-sandbox.ts:176` | `SANDBOX_CYCLE_PROBE`                  | `process.env.SANDBOX_CYCLE_PROBE`                                           |
+| `scripts/security/subscription-plan-change-sandbox.ts:183` | `SANDBOX_CYCLE_PROBE`                  | `process.env.SANDBOX_CYCLE_PROBE`                                           |
 | `scripts/security/tenant-isolation.ts:12`                  | `SECURITY_PG_BIN`                      | `process.env.SECURITY_PG_BIN`                                               |
 | `scripts/security/tenant-isolation.ts:136`                 | `<dynamic>`                            | `process.env[key]`                                                          |
 | `scripts/security/tenant-isolation.ts:137`                 | `<object>`                             | `process.env`                                                               |

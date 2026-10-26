@@ -205,6 +205,7 @@ export const GET = withCron(
           effectiveAt: subscriptionChangeRequests.effectiveAt,
           asaasSubscriptionId: subscriptions.asaasSubscriptionId,
           targetAmount: prices.amount,
+          targetBillingCycle: prices.billingCycle,
           previousAmount: sql<string>`(SELECT amount FROM public.prices WHERE id = ${subscriptions.priceId})`,
         })
         .from(subscriptionChangeRequests)
@@ -276,6 +277,7 @@ export const GET = withCron(
               previousAmount: change.previousAmount,
               amount: change.targetAmount,
               firstDueDate: change.effectiveAt.toISOString().slice(0, 10),
+              expectedCycle: change.targetBillingCycle === 'annual' ? 'YEARLY' : 'MONTHLY',
             });
           } else {
             // O pedido já pausou a recorrência e apagou as cobranças no Asaas.
