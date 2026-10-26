@@ -80,7 +80,8 @@ async function main() {
              (select asaas_subscription_id from subscriptions where clinic_id = c.id limit 1) subscription_id,
              (select asaas_customer_id from billing_customers where clinic_id = c.id limit 1) customer_id,
              (select provider_checkout_id from subscription_change_requests
-               where clinic_id = c.id order by created_at desc limit 1) checkout_id,
+               where clinic_id = c.id and provider_checkout_id is not null
+               order by created_at asc limit 1) checkout_id,
              (select count(*)::int from profiles where clinic_id = c.id) users,
              (select count(*)::int from subscriptions where clinic_id = c.id) subscriptions,
              (select count(*)::int from billing_customers where clinic_id = c.id) customers,

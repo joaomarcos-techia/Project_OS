@@ -12,6 +12,9 @@ abaixo.
 | `signup-session-api.spec.ts` | `E2E_BASE_URL`; casos de Turnstile exigem `E2E_TURNSTILE_MODE` no Preview | não (precisa de banco) |
 | `admin-boundary-rbac.spec.ts` | `E2E_BASE_URL` + conta de clínica descartável | não (precisa de credencial) |
 | `payments-account-lifecycle.spec.ts` | `E2E_BASE_URL` **de Preview** + `ASAAS_CLINIC_SANDBOX_KEY` | não (cria estado no Asaas) |
+| `extra-doctor-payment-preview.spec.ts` | Preview + DEV + Asaas Sandbox + `E2E_EXTRA_DOCTOR_PAYMENT=DEV_SANDBOX_ONLY`; pagamento requer opt-in interativo | não (cria fixture e Checkout Sandbox) |
+| `resume-extra-doctor-payment-preview.spec.ts` | Fixture sintética paga preservada + `E2E_EXTRA_DOCTOR_RECOVERY=DEV_SANDBOX_ONLY`, slug e webhook ID dessa fixture | não (retoma uma fixture específica e testa cota/replay/downgrade) |
+| `vercel-bypass-isolation.spec.ts` | `E2E_BASE_URL` local para desativar o webServer do Playwright; o teste usa dois servidores locais próprios | não (teste isolado do encaminhamento de header) |
 | `admin-superadmin-journey.spec.ts` | `E2E_BASE_URL` **de Preview** + `SUPER_ADMIN_*_DEV` + `DATABASE_URL` | não (muta estado GLOBAL) |
 | `tenant-settings-screens.spec.ts` | `E2E_BASE_URL` + conta de clínica descartável | não (cria e apaga modelo de receita) |
 | `advanced-financial-entitlement-preview.spec.ts` | Preview + conta Pro/Clínica; `E2E_EXPECT_ADVANCED_FINANCIAL=1`; negativo exige `E2E_EXPECT_NO_METHOD_PRICES=1` e segredo do probe assinado | não (depende de fixture DEV) |

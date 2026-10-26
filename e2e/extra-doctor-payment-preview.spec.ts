@@ -7,7 +7,7 @@ import { z } from 'zod';
 
 import { assertDevContext } from '../scripts/_env';
 import { assertPreviewRuntimeIsDev, DEV_PROJECT_REF } from './preview-dev-runtime';
-import { vercelBypassHeaders } from './vercel-bypass';
+import { installVercelBypassForOrigin } from './vercel-bypass';
 
 /**
  * Compra de uma vaga médica no Preview, com pagamento simulado pelo mecanismo
@@ -242,6 +242,13 @@ async function cleanup(): Promise<void> {
         after.data.deleted === true);
     if (removed.status !== 200 || !deleted) problems.push('customer Sandbox');
   }
+  if (problems.length > 0) {
+    if (db) {
+      await db.end({ timeout: 5 });
+      db = null;
+    }
+    throw new Error(`Cleanup externo incompleto; fixture DEV preservada: ${problems.join(', ')}`);
+  }
   if (db && clinicId) {
     const [guard] = await sql()<
       {
@@ -282,6 +289,13 @@ async function cleanup(): Promise<void> {
       `;
       if (left?.n !== 0) problems.push('resíduo DEV');
     }
+  }
+  if (problems.length > 0) {
+    if (db) {
+      await db.end({ timeout: 5 });
+      db = null;
+    }
+    throw new Error(`Cleanup DEV incompleto; Auth preservado: ${problems.join(', ')}`);
   }
   if (userId) {
     const removed = await authAdmin(`/users/${encodeURIComponent(userId)}`, 'DELETE').catch(
@@ -475,10 +489,8 @@ test.describe('médico extra pago no Preview/DEV/Asaas Sandbox', () => {
   });
 
   test('UI → Checkout único → cota preservada antes do pagamento', async ({ browser }) => {
-    const context = await browser.newContext({
-      baseURL: preview.origin,
-      extraHTTPHeaders: vercelBypassHeaders(),
-    });
+    const context = await browser.newContext({ baseURL: preview.origin });
+    await installVercelBypassForOrigin(context, preview.origin);
     try {
       const page = await context.newPage();
       await page.goto('/login');
@@ -551,13 +563,12 @@ test.describe('médico extra pago no Preview/DEV/Asaas Sandbox', () => {
     );
     test.setTimeout(3_300_000);
     if (!checkoutId || !checkoutUrl) throw new Error('Checkout da fixture não preparado');
-    const context = await browser.newContext({
-      baseURL: preview.origin,
-      extraHTTPHeaders: vercelBypassHeaders(),
-    });
+    const context = await browser.newContext({ baseURL: preview.origin });
+    await installVercelBypassForOrigin(context, preview.origin);
     try {
       const page = await context.newPage();
-      await page.goto(checkoutUrl);
+      // O pagamento é concluído pela pessoa em outra aba. Este contexto envia o
+      // bypass da Vercel para a aplicação; não o encaminhe ao domínio do Asaas.
       console.log('AÇÃO HUMANA: conclua o Checkout com cartão de teste no Asaas Sandbox.');
       await expect
         .poll(
@@ -612,7 +623,15 @@ test.describe('médico extra pago no Preview/DEV/Asaas Sandbox', () => {
         paid_invoice_count: 1,
         history_count: 1,
       });
-      expect(applied.real_event_count).toBeGreaterThan(0);
+      // O readback pode aplicar a mudança antes de a entrega assíncrona do
+      // webhook terminar. A evidência externa precisa aparecer, não apenas o
+      // estado aplicado pelo polling da aplicação.
+      await expect
+        .poll(async () => (await state()).real_event_count, {
+          timeout: 120_000,
+          intervals: [2_000],
+        })
+        .toBeGreaterThan(0);
       if (!subscriptionId) throw new Error('Assinatura Sandbox da fixture ausente');
       const subscription = await asaasOk(
         `subscriptions/${encodeURIComponent(subscriptionId)}`,
