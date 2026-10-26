@@ -96,7 +96,9 @@ async function ensureOfferUpgradeCheckout(
   try {
     checkout = await asaasProvider.createCheckout({
       kind: 'detached',
-      customerId: context.customerId,
+      // O Asaas exige telefone e endereço completos quando `customer` é fixado.
+      // O cadastro SaaS só tem nome/documento/e-mail; o Checkout hospedado
+      // coleta os dados faltantes do pagador sem alterar o customer recorrente.
       value: context.amountCents / 100,
       itemName: 'Médico adicional Qoro',
       description: `Ajuste proporcional para ${context.targetPlanName}`,

@@ -13,7 +13,7 @@ import { removeSubscriptionCharges } from '@/contexts/billing/internal/cancellat
 import { reopenClinicAfterReactivation } from '@/contexts/billing/internal/clinic-status';
 import { ensureUpgradePayment } from '@/contexts/billing/internal/plan-change-payment';
 import { syncProviderBillingCycle } from '@/contexts/billing/internal/billing-cycle-provider-sync';
-import { asaasProvider } from '@/lib/payments/asaas';
+import { asaasProvider, BillingProviderError } from '@/lib/payments/asaas';
 import { metrics } from '@/lib/observability/metrics';
 import {
   getSubscriptionCancellationContext,
@@ -199,14 +199,25 @@ export async function requestPlanChangeAction(
         paymentUrl: payment.paymentUrl,
       };
     } catch (err) {
-      // A solicitação permanece persistida. Novo submit com a mesma chave consulta
-      // a externalReference antes de qualquer POST, portanto é seguro retentar.
+      // A solicitação permanece persistida. O Checkout da oferta 2026 só pode
+      // ser recriado após recusa conclusiva; um resultado incerto fica bloqueado.
       if (err instanceof PlanChangeError) return { error: err.message };
+      if (
+        err instanceof BillingProviderError &&
+        err.httpStatus !== null &&
+        err.httpStatus >= 400 &&
+        err.httpStatus < 500 &&
+        err.httpStatus !== 408 &&
+        err.httpStatus !== 429
+      ) {
+        return {
+          error:
+            'O Asaas recusou o Checkout. A vaga continua bloqueada; tente novamente ou contate o suporte se persistir.',
+        };
+      }
       return {
-        error: null,
-        success: 'upgrade_pending_payment',
-        message:
-          'Upgrade registrado. A cobrança está sendo conciliada com o Asaas; tente novamente em instantes.',
+        error:
+          'Não foi possível confirmar a criação do Checkout. Nenhum novo Checkout será criado automaticamente; contate o suporte para verificar a solicitação.',
       };
     }
   } catch (err) {

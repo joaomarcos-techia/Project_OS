@@ -39,7 +39,7 @@ Os limites e o trial de 14 dias foram preparados no [PR draft da landing #3](htt
 
 1. Entre no Preview com o titular da clínica sintética indicada pelo agente. Confirme que a tela mostra **Clínica — 2 médicos** e o preço de R$ 397/mês; se mostrar outra clínica, pare.
 2. Clique em **Contratar +1 médico**. Confira a diferença proporcional e o novo valor recorrente **R$ 544/mês** antes de abrir o Asaas. Se o valor não aparecer ou divergir, não conclua.
-3. No domínio `sandbox.asaas.com`, conclua o reCAPTCHA e pague somente com o meio de teste aprovado para esta fixture.
+3. No domínio `sandbox.asaas.com`, informe os dados de pagador de teste solicitados pelo próprio Checkout, inclusive endereço/telefone se aparecerem, conclua o reCAPTCHA e pague somente com o meio de teste aprovado para esta fixture. Não use dados de paciente nem cartão real. O Checkout coleta esses campos porque o customer SaaS da assinatura não contém endereço completo.
 4. Volte à aba original do Qoro e clique em **Já pagou? Atualizar assinatura**. Isso renova a sessão após a mudança de plano e relê o estado; a página de retorno do Asaas sozinha não comprova pagamento. Se a tela continuar pendente, anote horário e estado, sem repetir a compra.
 5. Avise `Checkout do terceiro médico concluído às HH:MM; tela Qoro: …`. Não envie URL de sessão, recibo com PII nem credenciais. O agente fará readback de valor, webhook, assinatura, plano, cota, replay e cleanup.
 

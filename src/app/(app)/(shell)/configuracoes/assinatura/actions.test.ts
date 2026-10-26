@@ -10,12 +10,23 @@ const m = vi.hoisted(() => ({
   revokeCancellation: vi.fn(),
   reactivate: vi.fn(),
   updateSubscription: vi.fn(),
+  ensureUpgradePayment: vi.fn(),
+  requestPlanChange: vi.fn(),
   reopen: vi.fn(),
   idempotent: vi.fn(),
   PlanChangeError: class PlanChangeError extends Error {
     constructor(
       message: string,
       readonly code: string,
+    ) {
+      super(message);
+    }
+  },
+  BillingProviderError: class BillingProviderError extends Error {
+    constructor(
+      message: string,
+      readonly code: string,
+      readonly httpStatus: number | null,
     ) {
       super(message);
     }
@@ -43,10 +54,11 @@ vi.mock('@/lib/idempotency/mutation', () => ({
   },
 }));
 vi.mock('@/contexts/billing/internal/plan-change-payment', () => ({
-  ensureUpgradePayment: vi.fn(),
+  ensureUpgradePayment: m.ensureUpgradePayment,
 }));
 vi.mock('@/lib/payments/asaas', () => ({
   asaasProvider: { updateSubscription: m.updateSubscription },
+  BillingProviderError: m.BillingProviderError,
 }));
 vi.mock('@/contexts/billing/internal/cancellation-charges', () => ({
   removeSubscriptionCharges: m.removeCharges,
@@ -62,11 +74,12 @@ vi.mock('@/contexts/billing/internal/plan-changes', () => ({
   requestSubscriptionCancellation: m.requestCancellation,
   revokeSubscriptionCancellation: m.revokeCancellation,
   reactivateSubscription: m.reactivate,
-  requestPlanChange: vi.fn(),
+  requestPlanChange: m.requestPlanChange,
 }));
 
 import {
   reactivateSubscriptionAction,
+  requestPlanChangeAction,
   requestSubscriptionCancellationAction,
   revokeSubscriptionCancellationAction,
 } from './actions';
@@ -95,6 +108,46 @@ beforeEach(() => {
     id: 'change_1',
     effectiveAt: new Date('2099-10-10T00:00:00Z'),
     removedCharges: 2,
+  });
+});
+
+describe('médico adicional', () => {
+  beforeEach(() => {
+    m.requestPlanChange.mockResolvedValue({
+      id: 'change_1',
+      kind: 'upgrade',
+      targetPlanName: 'Clínica com 3 médicos',
+      prorationAmount: '73.50',
+    });
+  });
+
+  it('mostra recusa definitiva do Asaas sem afirmar que há cobrança em conciliação', async () => {
+    m.ensureUpgradePayment.mockRejectedValue(
+      new m.BillingProviderError('payload inválido', 'invalid_object', 400),
+    );
+    const data = form();
+    data.set('targetPlanId', '00000000-0000-4000-8000-000000000002');
+
+    const result = await requestPlanChangeAction({ error: null }, data);
+
+    expect(result.error).toContain('O Asaas recusou o Checkout');
+    expect(result.success).toBeUndefined();
+    expect(result.paymentUrl).toBeUndefined();
+    expect(m.ensureUpgradePayment).toHaveBeenCalledWith('clinic_1', 'change_1');
+  });
+
+  it('mantém resultado incerto quando o Asaas devolve erro transitório', async () => {
+    m.ensureUpgradePayment.mockRejectedValue(
+      new m.BillingProviderError('indisponível', 'provider_unavailable', 503),
+    );
+    const data = form();
+    data.set('targetPlanId', '00000000-0000-4000-8000-000000000002');
+
+    const result = await requestPlanChangeAction({ error: null }, data);
+
+    expect(result.error).toContain('Não foi possível confirmar a criação do Checkout');
+    expect(result.success).toBeUndefined();
+    expect(result.paymentUrl).toBeUndefined();
   });
 });
 

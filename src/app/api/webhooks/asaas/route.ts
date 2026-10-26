@@ -213,8 +213,8 @@ async function handleWebhook(req: Request): Promise<Response> {
       }
 
       // Cobrança avulsa de upgrade: ela não possui `subscription` no Asaas, por
-      // isso precisa ser resolvida pela externalReference verificada em getPayment
-      // ANTES do caminho normal de invoices recorrentes.
+      // isso precisa ser resolvida pela externalReference ou pela sessão de
+      // Checkout verificadas em getPayment ANTES das invoices recorrentes.
       const upgradeApplied = await applyPaidUpgradeForPayment(tx, payment, parsed.eventId);
       if (upgradeApplied) {
         const [change] = await tx

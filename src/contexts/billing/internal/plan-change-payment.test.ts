@@ -119,7 +119,6 @@ describe('Checkout do médico adicional', () => {
     expect(mocks.createCheckout).toHaveBeenCalledWith(
       expect.objectContaining({
         kind: 'detached',
-        customerId: 'cus_test',
         value: 73.5,
         externalReference: `plan-change:${CHANGE_ID}`,
         callback: expect.objectContaining({
@@ -127,6 +126,7 @@ describe('Checkout do médico adicional', () => {
         }),
       }),
     );
+    expect(mocks.createCheckout.mock.calls[0]?.[0]).not.toHaveProperty('customerId');
     expect(mocks.finishUpgradeCheckoutCreation).toHaveBeenCalledWith(
       expect.anything(),
       CLINIC_ID,
