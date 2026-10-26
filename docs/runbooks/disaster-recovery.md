@@ -11,8 +11,8 @@ Workflow diário às 06:00 UTC executa `pg_dump` PG17, exclui schemas Supabase g
 ## Restore test
 
 1. escolha backup e verifique hash/tamanho/descriptografia;
-2. crie banco scratch explicitamente identificado;
-3. prepare no scratch isolado as dependências de schema/extensões do dump e execute `pnpm restore:test` com a URL desse scratch; qualquer erro SQL ou status não zero do `psql` reprova, mesmo que tabelas antigas continuem visíveis;
+2. crie **PostgreSQL local** com banco dedicado nomeado `qoro_restore_*`; o runner recusa host remoto e nomes genéricos como `postgres` ou `scratch`;
+3. prepare nesse scratch as dependências de schema/extensões do dump e execute `pnpm restore:test` com a URL local; qualquer erro SQL ou status não zero do `psql` reprova, mesmo que tabelas antigas continuem visíveis;
 4. compare as contagens impressas com as da origem do **mesmo backup** e confira migrations, constraints, RLS e queries críticas; exit 0 do script prova apenas que o SQL terminou e as âncoras puderam ser lidas, não paridade nem cobertura dos schemas geridos pelo Supabase;
 5. destrua o scratch somente após validar o path exato.
 

@@ -9546,8 +9546,11 @@ troca de ciclo ainda não existe no Qoro.
 O runner `restore:test` tinha um falso positivo: com `ON_ERROR_STOP=0`, um dump
 interrompido podia terminar com mensagem de sucesso se as tabelas-âncora já
 existissem. Em 26/10 o gate passou a reprovar qualquer erro SQL/status não zero
-do `psql`; prova sintética em Postgres 17 local: dump íntegro exit 0, erro SQL
-após as âncoras exit 1. Isso **não** valida um backup atual de produção nem
-os schemas geridos pelo Supabase; restore real e paridade continuam pendentes.
-Após a correção, `npx vitest run --reporter=dot --silent` passou
-**5.659/5.659 em 536 arquivos** e o build Next otimizado terminou com exit 0.
+do `psql` e a recusar URL remota ou banco sem nome `qoro_restore_*`; prova
+sintética em Postgres 17 local: dump íntegro exit 0, erro SQL após as âncoras
+exit 1 e URL remota fictícia exit 1 antes de conectar. Isso **não** valida um
+backup atual de produção nem os schemas geridos pelo Supabase; restore real e
+paridade continuam pendentes.
+Após a restrição do alvo, `npx vitest run --reporter=dot --silent` passou
+**5.665/5.665 em 536 arquivos** (guard dirigido 8/8) e o build Next otimizado
+do código final terminou com exit 0.

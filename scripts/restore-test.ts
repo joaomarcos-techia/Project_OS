@@ -4,12 +4,12 @@
  * DR drill em 1 comando (C16 / restore-test.md): restaura o dump de prod mais
  * recente (`backups/*.sql`) num banco **SCRATCH** e valida as contagens.
  *
- * NUNCA roda contra prod (3 guardas). O alvo é você quem provê:
- *   RESTORE_TARGET_URL="postgresql://.../scratch?sslmode=require" pnpm restore:test
+ * Recusa URL remota e nome de banco fora de qoro_restore_*. O alvo é você quem provê:
+ *   RESTORE_TARGET_URL="postgresql://localhost:5432/qoro_restore_drill" pnpm restore:test
  *   # opcional: apontar um dump específico
  *   RESTORE_TARGET_URL="..." pnpm restore:test backups/manual-XXX.sql
  *
- * Alvo pode ser: um Postgres local, um projeto Supabase scratch, um container.
+ * Alvo: PostgreSQL local com banco dedicado chamado qoro_restore_*.
  * O scratch precisa das dependências de schema/extensões exigidas pelo dump.
  * Qualquer erro SQL aborta: tabelas-âncora preexistentes não provam restauração.
  * As contagens ainda devem ser comparadas manualmente à origem.
@@ -19,7 +19,7 @@ import { existsSync, readdirSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { looksLikeProd, redact } from './_env';
-import { assertRestoreExit } from './restore-test-result';
+import { assertLocalScratchTarget, assertRestoreExit } from './restore-test-result';
 
 const BACKUPS_DIR = resolve(process.cwd(), 'backups');
 
@@ -46,8 +46,8 @@ function main(): void {
   const target = process.env.RESTORE_TARGET_URL;
   if (!target) {
     throw new Error(
-      'RESTORE_TARGET_URL não setado. Aponte para um banco SCRATCH (NUNCA prod):\n' +
-        '  RESTORE_TARGET_URL="postgresql://.../scratch?sslmode=require" pnpm restore:test',
+      'RESTORE_TARGET_URL não setado. Aponte para um banco local qoro_restore_* (NUNCA prod):\n' +
+        '  RESTORE_TARGET_URL="postgresql://localhost:5432/qoro_restore_drill" pnpm restore:test',
     );
   }
 
@@ -65,6 +65,7 @@ function main(): void {
       '[guard] RESTORE_TARGET_URL parece prod (hostname/env). Use um scratch. Abortando.',
     );
   }
+  assertLocalScratchTarget(target);
 
   assertPsql();
   const dump = process.argv[2] ? resolve(process.argv[2]) : latestDump();
