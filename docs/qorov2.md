@@ -9460,4 +9460,19 @@ formatação e inventário de segurança tiveram exit 0. A matriz de evidência 
 gates de publicação continuam no
 [relatório de prontidão](quality/prontidao-oferta-2026-10-25.md); nenhuma nova
 oferta foi publicada em produção. Esse deployment antecede a guarda de ciclo;
-o novo SHA ainda precisa de validação própria em Preview.
+a validação do novo SHA está registrada abaixo.
+
+**Validação posterior no código `4c81f71d`:** a Vercel publicou o deployment
+imutável `project-lqlrihmtp-clinic-os-v2-s-projects.vercel.app`, e os quatro
+checks do PR #42 passaram. O probe visual passou 2/2 em desktop/celular. As
+suítes públicas e de sessão anônima passaram **18 testes**, com **1 SKIP**
+deliberado do Turnstile negativo porque a secret desse Preview é `always-pass`.
+O E2E de médico extra passou **1/1**: fixture DEV/Sandbox isolada, UI, rateio,
+simulação oficial PIX, webhook, recorrência, cota, replay, downgrade no
+vencimento simulado e cleanup com zero resíduos. O replay de três Checkouts já
+pagos (Consultório mensal, Clínica mensal, Consultório anual) passou **1/1 por
+plano/ciclo**, com invoice, assinatura, dashboard e Asaas conciliados; não foi
+novo pagamento. A página hospedada do médico extra, o webhook SaaS causal, a
+renovação futura e a troca mensal↔anual de contrato existente ainda não têm
+PASS. Detalhes e limites estão no
+[relatório de prontidão](quality/prontidao-oferta-2026-10-25.md).
