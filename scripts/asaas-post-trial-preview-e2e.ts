@@ -158,7 +158,7 @@ async function state() {
 }
 
 async function run() {
-  await assertPreviewRuntimeIsDev(preview.origin);
+  await assertPreviewRuntimeIsDev(preview.origin, { requireSandboxAsaas: true });
   const preflight = await fetch(webhookUrl, {
     method: 'POST',
     headers: { 'asaas-access-token': webhookToken!, 'content-type': 'application/json' },

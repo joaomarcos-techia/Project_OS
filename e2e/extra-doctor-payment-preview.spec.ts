@@ -292,7 +292,7 @@ test.describe('médico extra pago no Preview/DEV/Asaas Sandbox', () => {
   test.beforeAll(async () => {
     const { databaseUrl } = assertDevContext();
     requireTargets();
-    await assertPreviewRuntimeIsDev(preview.origin);
+    await assertPreviewRuntimeIsDev(preview.origin, { requireSandboxAsaas: true });
     const preflight = await fetch(webhookUrl, {
       method: 'POST',
       headers: { 'asaas-access-token': webhookToken!, 'content-type': 'application/json' },

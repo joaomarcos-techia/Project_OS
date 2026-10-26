@@ -9487,3 +9487,41 @@ para o token forjado: **FAIL de pré-condição**, preservado na matriz; o deplo
 feito pelo Git resolveu a separação. A variável temporária foi removida com
 readback (zero override da branch, uma variável geral de Preview), e a branch
 e o worktree temporários foram excluídos. Nada em Production foi alterado.
+
+**Inventário externo posterior no mesmo dia:** a CLI da Vercel listou os nomes de
+20 variáveis críticas em Production e Preview no projeto `project-os`, inclusive
+os nomes Meta ausentes do arquivo local de DEV. A consulta foi filtrada sem
+imprimir valores. Isso comprova presença e escopo, não validade, isolamento de
+credenciais, tier do Gemini ou funcionamento em runtime. Não se deve promover
+segredos do DEV por cópia.
+
+Na conta Asaas Sandbox DEV, `GET /v3/webhooks` encontrou três configurações:
+duas de cobrança de paciente ativas e a única de assinatura SaaS desativada,
+sem fila marcada como interrompida, apontando para um Preview antigo no caminho
+`/api/webhooks/asaas`. Ela inclui os eventos de criação/confirmação/recebimento
+de pagamento. A API não revelou os logs de entrega de 23/10, disponíveis
+somente no painel por até 14 dias; portanto não se sabe se já estava desativada
+quando o Checkout anual foi pago. O replay autenticado confirma a invoice e a
+assinatura, mas não transforma webhook histórico em PASS. Reativar essa
+configuração poderia enviar eventos antigos de outras fixtures; ela permaneceu
+intacta. A [matriz de prontidão](quality/prontidao-oferta-2026-10-25.md) e o
+[roteiro humano](runbooks/acoes-manuais-pendentes-pricing-2026-10.md) registram
+as evidências e o próximo passo seguro.
+
+**Mensalidade pós-trial 2026, prova causal nova:** o runner
+`scripts/asaas-post-trial-preview-e2e.ts` passou com exit 0 em 26/10 no
+Preview `project-os-git-integration-prici-c5e6c6`. Antes de escrever, o guard
+assinado comprovou Auth, banco DEV e Asaas Sandbox no runtime remoto. Uma
+fixture isolada de Consultório R$ 197 tinha trial de 14 dias já encerrado:
+escrita bloqueada e invoice ausente. A simulação oficial PIX produziu entrega
+**real do Asaas** ao webhook temporário no Preview; `processed_webhooks`
+registrou evento pago, a invoice única ficou paga, a clínica ativa e a escrita
+foi liberada. Replay preservou uma invoice e o período. O cleanup confirmou
+webhook removido (DELETE 200/GET 404), assinatura e cliente marcados excluídos
+no Sandbox e clínica sintética removida do DEV. Isso não demonstra a entrega
+histórica do Checkout anual de 23/10 nem a renovação anual futura; ambas
+permanecem separadas na matriz. O webhook SaaS permanente antigo ficou intacto.
+Os runners da mensalidade pós-trial e do médico extra agora exigem na prova
+assinada que o próprio Preview use Asaas Sandbox, além de Auth/banco DEV. Após
+esse reforço, build Next otimizado e a suíte integral passaram: 5.657/5.657
+testes em 535 arquivos, exit 0.

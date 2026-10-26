@@ -49,24 +49,23 @@ Os limites e o trial de 14 dias foram preparados no [PR draft da landing #3](htt
 
 **Próximo passo.** Aguarde a confirmação técnica e a limpeza da fixture antes de qualquer outro Checkout.
 
-## Condicional — Conferir a entrega do webhook de assinatura no Asaas Sandbox
+## Opcional — Investigar a entrega histórica do Checkout anual no Asaas Sandbox
 
-**Objetivo.** A compra anual chegou ao estado correto por readback autenticado, mas não foi comprovado que o webhook da assinatura entregou o evento ao Preview. Os logs de 23/10, 17h–21h UTC, não mostraram chamada a `/api/webhooks/asaas` no Preview. Precisamos distinguir webhook ausente, alvo diferente e entrega não registrada. Não crie outra cobrança para este diagnóstico.
+**Objetivo.** Uma **nova** mensalidade pós-trial já teve entrega real `Asaas → Preview` e estado final comprovados em 26/10, com fixture removida. A compra **anual de 23/10** chegou ao estado correto por readback autenticado, mas não foi comprovado que seu webhook entregou o evento. Os logs de 23/10, 17h–21h UTC, não mostraram chamada a `/api/webhooks/asaas` no Preview. Em 26/10, a API do Asaas Sandbox mostrou a configuração SaaS permanente desativada e apontando para um Preview antigo; não se sabe desde quando. Esta conferência é investigação histórica, não requisito para repetir a prova causal nova. Não crie outra cobrança para este diagnóstico.
 
-**Pré-requisitos.** Entre na conta **Sandbox** usada pelo Checkout anual; não use a conta real. Tenha acesso a **Integrações → Webhooks** e **Integrações → Logs de Webhooks**. Não copie a URL completa se ela contiver bypass, nem token de autenticação, chave API ou corpo de evento.
+**Pré-requisitos.** Entre na conta **Sandbox** usada pelo Checkout anual; não use a conta real. Tenha acesso a **Integrações → Logs de Webhooks**. Não copie a URL completa se ela contiver bypass, nem token de autenticação, chave API ou corpo de evento. A configuração atual já foi medida automaticamente; não a reative.
 
 **Link.** [Painel Asaas Sandbox](https://sandbox.asaas.com/). A [documentação oficial de Logs de Webhooks](https://docs.asaas.com/docs/webhooks-logs) descreve onde localizar horário, destino e status HTTP.
 
 **Passo a passo.**
 
-1. Em **Integrações → Webhooks**, procure uma configuração de assinatura SaaS que termine no caminho `/api/webhooks/asaas` (sem `/patient/`). Anote apenas se existe, se está ativa, se a fila está interrompida e se o domínio é Preview, produção ou outro; não envie a URL completa.
-2. Confira se a configuração inclui `PAYMENT_CREATED`, `PAYMENT_CONFIRMED` e `PAYMENT_RECEIVED`. Não revele o `authToken` nem altere eventos agora.
-3. Em **Integrações → Logs de Webhooks**, filtre 23/10/2026 entre **14h e 18h de Brasília** para a configuração de assinatura. Anote o tipo do evento, horário, resultado da entrega e código HTTP. Se não houver entrega, registre “nenhuma entrega” sem presumir a causa.
-4. Envie somente: `Webhook SaaS Sandbox: [existe/ausente]; alvo: [Preview/produção/outro]; ativo: [sim/não]; fila interrompida: [sim/não]; eventos exigidos: [completos/incompletos]; última entrega: [horário, evento, HTTP ou nenhuma]`. Não faça replay nem crie novo Checkout antes da análise técnica.
+1. Em **Integrações → Logs de Webhooks**, filtre 23/10/2026 entre **14h e 18h de Brasília** para a configuração de assinatura SaaS, cujo destino termina em `/api/webhooks/asaas` (sem `/patient/`). Não confunda com os dois webhooks de cobrança de paciente.
+2. Anote apenas tipo do evento, horário, resultado da entrega e código HTTP. Se não houver registro, escreva “nenhuma entrega localizada”; isso não prova sozinho o estado histórico da configuração.
+3. Envie somente: `Webhook SaaS Sandbox em 23/10: [evento, horário e HTTP / nenhuma entrega localizada]`. Não envie payload, URL, token ou e-mail do painel; não faça replay nem reative a configuração antiga.
 
-**Resultado esperado.** Uma entrega `PAYMENT_CONFIRMED` ou `PAYMENT_RECEIVED` para o endpoint SaaS responde 2xx e aparece também nos logs do deployment destinatário. A configuração por si só não é prova de entrega, e a invoice anual já paga não deve ser usada como substituto da evidência.
+**Resultado esperado.** Uma entrega `PAYMENT_CONFIRMED` ou `PAYMENT_RECEIVED` para o endpoint SaaS responde **HTTP 200** e aparece também nos logs do deployment destinatário. A configuração por si só não é prova de entrega, e a invoice anual já paga não deve ser usada como substituto da evidência. O [Asaas disponibiliza os logs de entrega somente pela interface](https://docs.asaas.com/docs/webhooks-logs).
 
-**Problemas comuns e próximo passo.** Se o webhook apontar para outro deployment, estiver inativo ou não existir, deixe a configuração intacta e informe o estado; a engenharia preparará um alvo de Preview, token separado e fixture controlada para nova prova. Se houver HTTP não 2xx, informe apenas o código e horário para correlacionar com logs, sem reenviar o payload.
+**Problemas comuns e próximo passo.** A configuração permanente atual já aponta para outro deployment e está inativa; deixe-a intacta. A prova causal nova foi concluída com webhook temporário identificado e cleanup. Se não houver registro da entrega de 23/10, mantenha o estado histórico como não comprovado; se houver HTTP diferente de 200, informe só o código e horário para correlacionar, sem reenviar o payload.
 
 ## Obrigatória antes de tráfego clínico — Conferir o tier Gemini do projeto de produção
 
