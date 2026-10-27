@@ -18,7 +18,7 @@ assert.equal(base.username + base.password + base.search + base.hash, '');
 const cookie = (await readFile(cookieFile, 'utf8')).trim();
 assert.ok(cookie.length > 0 && !/[\r\n]/.test(cookie), 'Cookie local vazio/inválido');
 const manifest = z
-  .object({ node: z.record(z.object({ exportedName: z.string().optional() })) })
+  .object({ node: z.record(z.string(), z.object({ exportedName: z.string().optional() })) })
   .parse(
     JSON.parse(
       await readFile(

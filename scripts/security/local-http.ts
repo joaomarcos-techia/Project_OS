@@ -18,8 +18,9 @@ const base = 'http://localhost:3217';
 const manifest = z
   .object({
     node: z.record(
+      z.string(),
       z.object({
-        workers: z.record(z.unknown()),
+        workers: z.record(z.string(), z.unknown()),
         filename: z.string().optional(),
         exportedName: z.string().optional(),
       }),

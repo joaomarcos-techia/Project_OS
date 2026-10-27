@@ -63,7 +63,7 @@ export async function startSupabaseAuthFixture() {
       response.writeHead(400).end(JSON.stringify({ msg: 'Invalid JSON' }));
       return;
     }
-    const validated = z.record(z.unknown()).safeParse(parsed);
+    const validated = z.record(z.string(), z.unknown()).safeParse(parsed);
     if (!validated.success) {
       response.writeHead(400).end(JSON.stringify({ msg: 'Invalid object' }));
       return;

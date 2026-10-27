@@ -52,7 +52,7 @@ export type ToolEffect = 'read' | 'mutation';
 
 export type Tool<
   In extends z.ZodTypeAny = z.ZodTypeAny,
-  Out extends z.ZodTypeAny = z.ZodTypeAny,
+  Out extends z.ZodTypeAny = z.ZodType<Record<string, unknown>>,
 > = {
   name: string;
   description: string;
@@ -124,21 +124,18 @@ export function listToolDeclarations(): AIToolDeclaration[] {
  * (gate: lança em vez de emitir schema errado).
  */
 function zodObjectToJsonSchema(schema: z.ZodTypeAny): Record<string, unknown> {
-  const def = (schema as { _def?: { typeName?: string } })._def;
-  if (def?.typeName !== 'ZodObject') {
+  if (!(schema instanceof z.ZodObject)) {
     throw new Error('[ai-agent] inputSchema de tool deve ser z.object(...) (C11)');
   }
-  const shape = (schema as unknown as { shape: Record<string, z.ZodTypeAny> }).shape;
+  const shape = schema.shape;
   const properties: Record<string, unknown> = {};
   const required: string[] = [];
   for (const [key, field] of Object.entries(shape)) {
-    let inner = field as z.ZodTypeAny;
+    let inner: z.ZodTypeAny = field;
     let optional = false;
-    let innerDef = (inner as { _def?: { typeName?: string; innerType?: z.ZodTypeAny } })._def;
-    while (innerDef?.typeName === 'ZodOptional' || innerDef?.typeName === 'ZodDefault') {
+    while (inner instanceof z.ZodOptional || inner instanceof z.ZodDefault) {
       optional = true;
-      inner = innerDef.innerType as z.ZodTypeAny;
-      innerDef = (inner as { _def?: { typeName?: string; innerType?: z.ZodTypeAny } })._def;
+      inner = inner.unwrap();
     }
     if (inner instanceof z.ZodString) {
       properties[key] = {
