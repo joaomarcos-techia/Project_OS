@@ -8,8 +8,8 @@ import {
 } from './types';
 
 const baseAppt = {
-  doctorId: '11111111-1111-1111-1111-111111111111',
-  procedureId: '22222222-2222-2222-2222-222222222222',
+  doctorId: '11111111-1111-1111-8111-111111111111',
+  procedureId: '22222222-2222-2222-8222-222222222222',
   scheduledAt: '2026-06-01T14:00:00-03:00',
 };
 
@@ -65,7 +65,7 @@ describe('CreateHolidaySchema — partial window (M18)', () => {
 
 describe('SetAvailabilitySchema', () => {
   const base = {
-    doctorId: '11111111-1111-1111-1111-111111111111',
+    doctorId: '11111111-1111-1111-8111-111111111111',
     weekday: 1,
     startTime: '09:00',
     endTime: '12:00',

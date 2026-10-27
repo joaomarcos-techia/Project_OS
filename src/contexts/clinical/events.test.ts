@@ -10,7 +10,7 @@ import {
   ProntuarioSignedSchema,
 } from './events';
 
-const UUID = '11111111-1111-1111-1111-111111111111';
+const UUID = '11111111-1111-1111-8111-111111111111';
 
 describe('CLINICAL_EVENTS — nomes 3-segmentos registrados no catálogo', () => {
   it('todos os 4 eventos estão no catálogo do outbox', () => {

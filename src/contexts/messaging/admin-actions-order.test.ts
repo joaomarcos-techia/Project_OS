@@ -52,7 +52,7 @@ vi.mock('@/lib/env', () => ({
 
 import { connectWhatsappNumber, disconnectWhatsappNumber, rotateWhatsappToken } from './actions';
 
-const CLINIC = '33333333-3333-3333-3333-333333333333';
+const CLINIC = '33333333-3333-3333-8333-333333333333';
 const connectInput = {
   clinicId: CLINIC,
   provider: 'meta' as const,

@@ -60,9 +60,9 @@ function claims(
   opts: { role?: string; superAdmin?: boolean; aal?: 'aal1' | 'aal2' } = {},
 ) {
   const c = {
-    sub: '11111111-1111-1111-1111-111111111111',
+    sub: '11111111-1111-1111-8111-111111111111',
     app_role: opts.role ?? 'attendant',
-    clinic_id: '22222222-2222-2222-2222-222222222222',
+    clinic_id: '22222222-2222-2222-8222-222222222222',
     permissions,
     claims_version: 1,
     super_admin: opts.superAdmin ?? false,
