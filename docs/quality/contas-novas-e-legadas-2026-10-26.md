@@ -23,6 +23,8 @@ Auditoria da branch `integration/pricing-plan-sync-20261018`, iniciada no commit
 
 O cenário A é uma reprodução do **schema e contrato de banco anterior à oferta**, não a execução da versão histórica completa da UI. O cenário B mede assinaturas reais de DEV, mas não prova valores de contratos de produção. Em DEV há 3 assinaturas da oferta, todas com deadline obrigatório e `plan_seat_limits`; nenhuma das 9 assinaturas está sem configuração de IA nem usa preço de outro plano. Não há contrato de campanha legado nesse DEV; a preservação de campanha foi provada no cenário A, não em conta real.
 
+Uma conta legada válida do DEV foi testada também pela UI real do Preview: login de owner, `/configuracoes/assinatura` com plano **Pro** e o mesmo preço persistido no banco, sem oferecer ciclo anual ou contratação de médico da tabela nova. O teste foi somente de leitura. Ele comprova essa conta específica, não as três legadas sem perfil nem todos os contratos antigos.
+
 **Achado no DEV:** três das seis assinaturas legadas estão `past_due` enquanto a clínica está em `trial`, sem qualquer perfil, embora possuam billing customer e identificador de assinatura do provedor. Duas têm nome/slug de teste; a terceira não foi classificada como fixture só pelo nome. O probe é agregado e não expõe identidade. Isso impede afirmar que **todas** as clínicas legadas do DEV têm owner e acesso funcional. Não há evidência de que a migration 0122 criou esse estado, nem de que exista em produção. Nenhum registro foi corrigido ou apagado sem conciliação com a origem e com o Asaas.
 
 ## Execuções e limites
@@ -35,6 +37,7 @@ O cenário A é uma reprodução do **schema e contrato de banco anterior à ofe
 | E2E `checkout recorrente abre...` contra Preview/DEV | 1/1 PASS, exit 0: e-mail Resend, Auth, catálogo, trial calculado, Checkout Sandbox aberto e draft persistido; fixture removida |
 | E2E `@prepare-offer-checkout` com `E2E_SIGNUP_FRESH_OFFER=1` | Primeira tentativa FAIL por resposta HTML de SSO em leitura direta do teste; cleanup removeu a fixture. Após corrigir o teste, 1/1 PASS, exit 0: conta nova com trial vigente e Checkout Clínica mensal preparado; fixture mantida intencionalmente para conclusão humana |
 | E2E `@inspect-fresh-offer-checkout` | 1/1 PASS, exit 0: Auth recém-criado, 14 dias absolutos, draft sem profile, preço de catálogo e valor na UI do Asaas; nenhum header de bypass enviado ao host do Asaas |
+| `e2e/offer-legacy-account-preview.spec.ts` | 1/1 PASS, exit 0: login e tela de assinatura de uma conta Pro antiga no Preview, preço igual à FK persistida, sem ações exclusivas da oferta nova. A primeira execução falhou por seletor ambíguo do teste (dois títulos “Pro”); seletor corrigido e teste repetido |
 | `npx vitest run` direcionado | 99/99 em 6 arquivos, exit 0; unitário/integração local, não prova pagamento externo |
 | `npx vitest run` integral | 5.680/5.680 em 538 arquivos, exit 0 nesta branch |
 | `npx tsc --noEmit`, `npx eslint .`, `npx prettier --check .` | exit 0 cada, após corrigir o uso de um campo ausente no teste novo |
