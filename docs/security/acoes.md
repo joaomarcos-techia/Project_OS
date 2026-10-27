@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 196 actions (0 inline); 53 métodos em 49 handlers; 19 props com referência de action; 384 acessos diretos a process.env; 9 nomes NEXT_PUBLIC.
+Contagem: 196 actions (0 inline); 53 métodos em 49 handlers; 19 props com referência de action; 383 acessos diretos a process.env; 9 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -488,11 +488,9 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/probe-dev-migrations.ts:5`                        | `QORO_DEV_ENV_FILE`                    | `process.env.QORO_DEV_ENV_FILE`                                             |
 | `scripts/probe-dev-migrations.ts:6`                        | `QORO_EXPECTED_DEV_PROJECT_REF`        | `process.env.QORO_EXPECTED_DEV_PROJECT_REF`                                 |
 | `scripts/probe-dev-migrations.ts:10`                       | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                                          |
-| `scripts/probe-landing-offer-browser.ts:28`                | `VERCEL_AUTOMATION_BYPASS_SECRET`      | `process.env.VERCEL_AUTOMATION_BYPASS_SECRET`                               |
-| `scripts/probe-landing-offer-browser.ts:29`                | `VERCEL_AUTOMATION_BYPASS_SECRET`      | `process.env.VERCEL_AUTOMATION_BYPASS_SECRET`                               |
-| `scripts/probe-landing-offer-browser.ts:33`                | `E2E_VERCEL_BYPASS_COOKIE`             | `process.env.E2E_VERCEL_BYPASS_COOKIE`                                      |
-| `scripts/probe-landing-offer-browser.ts:37`                | `E2E_VERCEL_BYPASS_COOKIE`             | `process.env.E2E_VERCEL_BYPASS_COOKIE`                                      |
-| `scripts/probe-landing-offer-browser.ts:79`                | `E2E_VISUAL_CAPTURE`                   | `process.env.E2E_VISUAL_CAPTURE`                                            |
+| `scripts/probe-landing-offer-browser.ts:30`                | `E2E_VERCEL_BYPASS_COOKIE`             | `process.env.E2E_VERCEL_BYPASS_COOKIE`                                      |
+| `scripts/probe-landing-offer-browser.ts:34`                | `E2E_VERCEL_BYPASS_COOKIE`             | `process.env.E2E_VERCEL_BYPASS_COOKIE`                                      |
+| `scripts/probe-landing-offer-browser.ts:76`                | `E2E_VISUAL_CAPTURE`                   | `process.env.E2E_VISUAL_CAPTURE`                                            |
 | `scripts/probe-offer-plan-overview-dev.ts:25`              | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
 | `scripts/probe-offer-seat-access-dev.ts:18`                | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
 | `scripts/probe-payout-review-fixture-residue-dev.ts:16`    | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
@@ -501,9 +499,10 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/probe-pricing-preview-browser.ts:12`              | `E2E_OFFER_LOGIN_SOURCE`               | `process.env.E2E_OFFER_LOGIN_SOURCE`                                        |
 | `scripts/probe-pricing-preview-browser.ts:13`              | `<dynamic>`                            | `process.env[useSecondaryLogin ? '2E2_teste_EMAIL' : '2E2_UI_EMAIL']`       |
 | `scripts/probe-pricing-preview-browser.ts:14`              | `<dynamic>`                            | `process.env[useSecondaryLogin ? '2E2_teste_PASSWORD' : '2E2_UI_PASSWORD']` |
-| `scripts/probe-pricing-preview-browser.ts:23`              | `VERCEL_AUTOMATION_BYPASS_SECRET`      | `process.env.VERCEL_AUTOMATION_BYPASS_SECRET`                               |
-| `scripts/probe-pricing-preview-browser.ts:60`              | `E2E_VISUAL_CAPTURE`                   | `process.env.E2E_VISUAL_CAPTURE`                                            |
-| `scripts/probe-pricing-preview-browser.ts:66`              | `E2E_OFFER_EXTRA_ACTIVE`               | `process.env.E2E_OFFER_EXTRA_ACTIVE`                                        |
+| `scripts/probe-pricing-preview-browser.ts:33`              | `E2E_VERCEL_BYPASS_COOKIE`             | `process.env.E2E_VERCEL_BYPASS_COOKIE`                                      |
+| `scripts/probe-pricing-preview-browser.ts:37`              | `E2E_VERCEL_BYPASS_COOKIE`             | `process.env.E2E_VERCEL_BYPASS_COOKIE`                                      |
+| `scripts/probe-pricing-preview-browser.ts:71`              | `E2E_VISUAL_CAPTURE`                   | `process.env.E2E_VISUAL_CAPTURE`                                            |
+| `scripts/probe-pricing-preview-browser.ts:77`              | `E2E_OFFER_EXTRA_ACTIVE`               | `process.env.E2E_OFFER_EXTRA_ACTIVE`                                        |
 | `scripts/probe-pricing-preview-pages.ts:4`                 | `QORO_ENV_PATH`                        | `process.env.QORO_ENV_PATH`                                                 |
 | `scripts/probe-pricing-preview-pages.ts:12`                | `VERCEL_AUTOMATION_BYPASS_SECRET`      | `process.env.VERCEL_AUTOMATION_BYPASS_SECRET`                               |
 | `scripts/probe-signup-billing-cycle-dev.ts:8`              | `QORO_DEV_ENV_FILE`                    | `process.env.QORO_DEV_ENV_FILE`                                             |

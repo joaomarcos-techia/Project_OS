@@ -25,9 +25,6 @@ try {
   ] as const) {
     const context = await browser.newContext({
       viewport: { width, height },
-      extraHTTPHeaders: process.env.VERCEL_AUTOMATION_BYPASS_SECRET
-        ? { 'x-vercel-protection-bypass': process.env.VERCEL_AUTOMATION_BYPASS_SECRET }
-        : {},
     });
     try {
       if (isPreview && process.env.E2E_VERCEL_BYPASS_COOKIE) {

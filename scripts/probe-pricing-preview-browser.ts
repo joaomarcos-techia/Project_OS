@@ -20,7 +20,6 @@ if (!target.hostname.startsWith('project-os-git-') || !target.hostname.endsWith(
   throw new Error('este probe aceita somente deployment Preview isolado do app');
 }
 
-const bypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
 const browser = await chromium.launch({ headless: true });
 try {
   for (const [device, width, height] of [
@@ -29,9 +28,21 @@ try {
   ] as const) {
     const context = await browser.newContext({
       viewport: { width, height },
-      extraHTTPHeaders: bypass ? { 'x-vercel-protection-bypass': bypass } : {},
     });
     try {
+      if (process.env.E2E_VERCEL_BYPASS_COOKIE) {
+        await context.addCookies([
+          {
+            name: '_vercel_jwt',
+            value: process.env.E2E_VERCEL_BYPASS_COOKIE,
+            domain: target.hostname,
+            path: '/',
+            httpOnly: true,
+            secure: true,
+            sameSite: 'Lax',
+          },
+        ]);
+      }
       const page = await context.newPage();
       await page.goto(new URL('/dashboard', target).toString(), { waitUntil: 'domcontentloaded' });
       if (new URL(page.url()).pathname === '/login') {
