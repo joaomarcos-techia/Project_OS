@@ -79,3 +79,18 @@ Os limites e o trial de 14 dias foram preparados no [PR draft da landing #3](htt
 Em 26/10, a engenharia iniciou e **parou** um Postgres 17 local descartável para testar o `restore:test` com dumps sintéticos. A política do executor bloqueou a exclusão recursiva, apesar de o caminho ter sido verificado. Não há dados de produção nessa pasta e ela não é usada pelo Qoro.
 
 No Explorador de Arquivos do Windows, cole `C:\Users\joaom\AppData\Local\Temp\qoro-restore-probe-1792989843298` na barra de endereço. Confira que o nome da pasta é exatamente `qoro-restore-probe-1792989843298` e exclua **somente essa pasta**. Antes da exclusão, a engenharia confirmou `pg_ctl: no server running` para o `pgdata` dela. Se a pasta não existir, a limpeza já foi feita; não procure nem exclua outra instalação do PostgreSQL. Esta limpeza não comprova recuperação de backup de produção.
+
+## Obrigatória antes do rollout — restauração de backup atual
+
+**Objetivo.** Provar que o SQL de produção restaura integralmente em PostgreSQL 17 local isolado. O artifact diário de 26/10 foi baixado e decifrado em memória com exit 0; isso ainda não demonstra restauração nem paridade. Nenhum dado de produção deve ser importado no DEV, Preview ou banco real.
+
+**Pré-requisitos.** Acesso ao [workflow de backup de produção de 26/10](https://github.com/joaomarcos-techia/Project_OS/actions/runs/40322035718), à senha `BACKUP_PASSPHRASE` guardada localmente e a um PostgreSQL 17 descartável com banco chamado `qoro_restore_*`. Não envie a senha nem o SQL por chat. Reserve um diretório privado, com espaço para o dump decifrado e os dados restaurados. O dump exclui `auth`, `storage` e outros schemas gerenciados pelo Supabase: ele não basta sozinho para recuperar essas partes do serviço.
+
+**Passos para liberar a prova.**
+
+1. No link acima, em **Artifacts**, confira que `db-backup` está disponível. Não é necessário baixá-lo de novo: a engenharia já guardou a cópia cifrada em `%TEMP%/qoro-prod-backup-verify-1793099303` e confirmou sua decifragem sem criar arquivo claro.
+2. Prepare um **novo** banco local e vazio `qoro_restore_...`, com as roles, funções e schemas gerenciados de que o SQL depende; confirme que o host da URL é `localhost` ou `127.0.0.1`. O runner `scripts/restore-test.ts` recusa destino remoto e nome fora desse padrão. Se não souber preparar o banco, responda `Preciso de ajuda para criar o scratch de restore`; não tente usar o DEV ou Production.
+3. Antes de importar o dump, garanta que o ambiente local tem um procedimento autorizado para destruir com segurança o banco e o arquivo SQL claro depois da prova. A exclusão recursiva da pasta scratch antiga foi rejeitada pela revisão automática; não a contorne com outro comando.
+4. Avise `Scratch local qoro_restore_... pronto, porta ... e limpeza autorizada`. A engenharia então poderá executar o restore com `ON_ERROR_STOP=1`, comparar contagens e schema com a origem do mesmo backup, registrar o resultado e remover os dados locais pelo procedimento aprovado. Não compartilhe a URL completa se contiver senha.
+
+**Resultado esperado.** Restore com exit 0, tabelas e políticas presentes, contagens e versões compatíveis com a origem de 26/10; qualquer erro SQL é FAIL. O artifact ter sido decifrado, sozinho, permanece **PARTIAL**. Se o banco scratch não puder ser preparado com limpeza segura, mantenha a restauração como **BLOCKED** e não publique a nova oferta só por haver um artifact.

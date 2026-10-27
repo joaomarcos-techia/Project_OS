@@ -925,6 +925,13 @@
       "when": 1792368000009,
       "tag": "0131_subscription_upgrade_checkout",
       "breakpoints": true
+    },
+    {
+      "idx": 132,
+      "version": "7",
+      "when": 1792368000010,
+      "tag": "0132_preserve_contract_owner",
+      "breakpoints": true
     }
   ]
 }

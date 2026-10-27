@@ -327,6 +327,8 @@ export interface ProviderCustomer {
 }
 
 const ASAAS_CHECKOUT_ITEM_NAME_MAX_LENGTH = 30;
+const CHECKOUT_RECOVERY_PAGE_SIZE = 100;
+const CHECKOUT_RECOVERY_MAX_PAGES = 50;
 
 /**
  * Evento de webhook Asaas normalizado (sem wire format cru).
@@ -1239,23 +1241,45 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
       // fallback é limitado e continua exigindo igualdade exata do vínculo;
       // data/valor nunca são usados como identidade.
       if (!exact) {
-        const recoveryQuery = new URLSearchParams({ limit: '100', offset: '0' });
+        const recoveryQuery = new URLSearchParams({
+          limit: String(CHECKOUT_RECOVERY_PAGE_SIZE),
+          offset: '0',
+        });
         if (opts?.createdSince) {
           // O Asaas pode registrar dateCreated no dia civil anterior ao UTC do
           // Checkout (observado no Sandbox à meia-noite de Brasília). A janela
           // começa um dia antes; a identidade ainda exige checkoutSession exato.
           const since = new Date(`${opts.createdSince}T00:00:00.000Z`);
-          if (Number.isNaN(since.getTime())) throw new Error('createdSince inválido');
+          if (
+            !/^\d{4}-\d{2}-\d{2}$/.test(opts.createdSince) ||
+            Number.isNaN(since.getTime()) ||
+            since.toISOString().slice(0, 10) !== opts.createdSince
+          ) {
+            throw new Error('createdSince inválido');
+          }
           since.setUTCDate(since.getUTCDate() - 1);
           recoveryQuery.set('dateCreated[ge]', since.toISOString().slice(0, 10));
         }
-        const recovery = (await request(
-          'GET',
-          `/payments?${recoveryQuery.toString()}`,
-          undefined,
-          opts,
-        )) as { data?: unknown };
-        exact = findExact(Array.isArray(recovery.data) ? recovery.data : []);
+        for (let page = 0; page < CHECKOUT_RECOVERY_MAX_PAGES; page += 1) {
+          recoveryQuery.set('offset', String(page * CHECKOUT_RECOVERY_PAGE_SIZE));
+          const recovery = (await request(
+            'GET',
+            `/payments?${recoveryQuery.toString()}`,
+            undefined,
+            opts,
+          )) as { data?: unknown; hasMore?: unknown };
+          const payments = Array.isArray(recovery.data) ? recovery.data : [];
+          exact = findExact(payments);
+          if (exact) break;
+          if (
+            recovery.hasMore === false ||
+            (recovery.hasMore !== true && payments.length < CHECKOUT_RECOVERY_PAGE_SIZE)
+          )
+            break;
+          if (page === CHECKOUT_RECOVERY_MAX_PAGES - 1) {
+            throw new Error('Busca de cobrança do Checkout excedeu o limite de paginação');
+          }
+        }
       }
 
       if (!exact) return null;

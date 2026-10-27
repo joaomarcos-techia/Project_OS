@@ -502,14 +502,17 @@ async function main(): Promise<void> {
         }
       }
       console.log('[cleanup] objetos Storage removidos.');
-
-      await deleteAuthUsers(admin!, targets);
-      console.log('[cleanup] usuários Auth removidos.');
     }
 
     const clinicIds = targets.map((target) => target.id);
     await deleteDatabaseData(sql, clinicIds);
     await verifyDeletion(sql, clinicIds);
+    // Preservar o último owner enquanto o contrato existir. Os IDs Auth foram
+    // capturados acima; agora a remoção do tenant já foi confirmada por readback.
+    if (!args.databaseOnly) {
+      await deleteAuthUsers(admin!, targets);
+      console.log('[cleanup] usuários Auth removidos.');
+    }
     console.log(
       args.databaseOnly
         ? '[cleanup] OK: registros SQL e dados em cascata removidos; Asaas, Auth e Storage foram preservados.'

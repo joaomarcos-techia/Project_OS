@@ -66,6 +66,44 @@ describe('marco do trial no cadastro', () => {
     });
   });
 
+  it('mantém 14 dias exatos na meia-noite brasileira sem antecipar o vencimento', () => {
+    const createdAt = new Date('2026-10-27T02:59:59.000Z'); // 26/10 23:59:59 em Brasília
+    const beforeDeadline = new Date('2026-11-10T02:59:58.000Z');
+    const atDeadline = new Date('2026-11-10T02:59:59.000Z');
+    expect(
+      resolveSignupTrialTerms({
+        planCode: 'clinica_2026_2',
+        attemptedAt: beforeDeadline,
+        authCreatedAt: createdAt,
+      }),
+    ).toMatchObject({
+      endsAt: atDeadline,
+      firstDueDate: '2026-11-11',
+      expiredAtCheckout: false,
+    });
+    expect(
+      resolveSignupTrialTerms({
+        planCode: 'clinica_2026_2',
+        attemptedAt: atDeadline,
+        authCreatedAt: createdAt,
+      }),
+    ).toMatchObject({ firstDueDate: '2026-11-10', expiredAtCheckout: true });
+  });
+
+  it('atravessa fevereiro bissexto sem reiniciar o trial de uma conta antiga', () => {
+    expect(
+      resolveSignupTrialTerms({
+        planCode: 'consultorio_2026',
+        attemptedAt: new Date('2028-03-01T12:00:00.000Z'),
+        authCreatedAt: new Date('2028-02-29T12:00:00.000Z'),
+      }),
+    ).toMatchObject({
+      endsAt: new Date('2028-03-14T12:00:00.000Z'),
+      firstDueDate: '2028-03-15',
+      expiredAtCheckout: false,
+    });
+  });
+
   it('após o prazo, não reinicia o trial e vence no dia do checkout', async () => {
     expect(
       resolveSignupTrialTerms({

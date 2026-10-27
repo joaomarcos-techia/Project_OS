@@ -647,6 +647,79 @@ describe('Checkout hospedado de paciente (D24)', () => {
       expect.objectContaining({ method: 'GET' }),
     );
   });
+
+  it.each([
+    ['2027-01-01', '2026-12-31'],
+    ['2028-03-01', '2028-02-29'],
+  ])('inclui a véspera no limite de calendário %s', async (createdSince, previousDay) => {
+    fetchMock
+      .mockResolvedValueOnce(Response.json({ data: [] }))
+      .mockResolvedValueOnce(Response.json({ data: [] }));
+
+    await expect(
+      createAsaasClient({ apiKey: 'k' }).findPaymentByCheckoutSession('checkout_1', {
+        attempts: 1,
+        createdSince,
+      }),
+    ).resolves.toBeNull();
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      `https://sandbox.asaas.com/api/v3/payments?limit=100&offset=0&dateCreated%5Bge%5D=${previousDay}`,
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
+  it('procura páginas seguintes sem aceitar pagamento de outro Checkout', async () => {
+    fetchMock
+      .mockResolvedValueOnce(Response.json({ data: [] }))
+      .mockResolvedValueOnce(
+        Response.json({
+          data: [{ id: 'pay_other', checkoutSession: 'checkout_other' }],
+          hasMore: true,
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          data: [{ id: 'pay_expected', checkoutSession: 'checkout_1', value: 397 }],
+          hasMore: false,
+        }),
+      );
+
+    await expect(
+      createAsaasClient({ apiKey: 'k' }).findPaymentByCheckoutSession('checkout_1', {
+        attempts: 1,
+        createdSince: '2026-10-27',
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({ paymentId: 'pay_expected', checkoutSessionId: 'checkout_1' }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      'https://sandbox.asaas.com/api/v3/payments?limit=100&offset=100&dateCreated%5Bge%5D=2026-10-26',
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
+  it('recusa data inválida sem procurar cobranças por uma janela errada', async () => {
+    fetchMock.mockResolvedValueOnce(Response.json({ data: [] }));
+    await expect(
+      createAsaasClient({ apiKey: 'k' }).findPaymentByCheckoutSession('checkout_1', {
+        attempts: 1,
+        createdSince: '2026-02-30',
+      }),
+    ).rejects.toThrow('createdSince inválido');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('não declara cobrança ausente quando o provedor ainda anuncia outras páginas', async () => {
+    fetchMock.mockImplementation(async () => Response.json({ data: [], hasMore: true }));
+    await expect(
+      createAsaasClient({ apiKey: 'k' }).findPaymentByCheckoutSession('checkout_1', {
+        attempts: 1,
+      }),
+    ).rejects.toThrow('limite de paginação');
+    expect(fetchMock).toHaveBeenCalledTimes(51);
+  });
 });
 
 describe('parseWebhook — identidade mínima de Checkout', () => {
