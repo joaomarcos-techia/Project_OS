@@ -1240,7 +1240,15 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
       // data/valor nunca são usados como identidade.
       if (!exact) {
         const recoveryQuery = new URLSearchParams({ limit: '100', offset: '0' });
-        if (opts?.createdSince) recoveryQuery.set('dateCreated[ge]', opts.createdSince);
+        if (opts?.createdSince) {
+          // O Asaas pode registrar dateCreated no dia civil anterior ao UTC do
+          // Checkout (observado no Sandbox à meia-noite de Brasília). A janela
+          // começa um dia antes; a identidade ainda exige checkoutSession exato.
+          const since = new Date(`${opts.createdSince}T00:00:00.000Z`);
+          if (Number.isNaN(since.getTime())) throw new Error('createdSince inválido');
+          since.setUTCDate(since.getUTCDate() - 1);
+          recoveryQuery.set('dateCreated[ge]', since.toISOString().slice(0, 10));
+        }
         const recovery = (await request(
           'GET',
           `/payments?${recoveryQuery.toString()}`,

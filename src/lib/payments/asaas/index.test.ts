@@ -610,7 +610,7 @@ describe('Checkout hospedado de paciente (D24)', () => {
     ).resolves.toBeNull();
   });
 
-  it('recupera por listagem limitada quando o filtro do provider omite a sessão exata', async () => {
+  it('recupera cobrança criada no dia civil anterior ao UTC do Checkout', async () => {
     fetchMock.mockResolvedValueOnce(Response.json({ data: [] })).mockResolvedValueOnce(
       Response.json({
         data: [
@@ -618,6 +618,7 @@ describe('Checkout hospedado de paciente (D24)', () => {
           {
             id: 'pay_1',
             status: 'PENDING',
+            dateCreated: '2026-10-26',
             value: 149,
             dueDate: '2026-10-03',
             billingType: 'CREDIT_CARD',
@@ -631,7 +632,7 @@ describe('Checkout hospedado de paciente (D24)', () => {
     await expect(
       createAsaasClient({ apiKey: 'k' }).findPaymentByCheckoutSession('checkout_1', {
         attempts: 1,
-        createdSince: '2026-09-26',
+        createdSince: '2026-10-27',
       }),
     ).resolves.toEqual(
       expect.objectContaining({
@@ -642,7 +643,7 @@ describe('Checkout hospedado de paciente (D24)', () => {
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      'https://sandbox.asaas.com/api/v3/payments?limit=100&offset=0&dateCreated%5Bge%5D=2026-09-26',
+      'https://sandbox.asaas.com/api/v3/payments?limit=100&offset=0&dateCreated%5Bge%5D=2026-10-26',
       expect.objectContaining({ method: 'GET' }),
     );
   });
