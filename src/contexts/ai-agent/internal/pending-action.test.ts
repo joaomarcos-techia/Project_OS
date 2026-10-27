@@ -142,7 +142,7 @@ describe('confirmação server-side de ações da IA', () => {
     expect(
       parsePendingActionPayload({
         type: 'cancel_appointment',
-        appointmentId: '11111111-1111-1111-1111-111111111111',
+        appointmentId: '11111111-1111-1111-8111-111111111111',
       }),
     ).toMatchObject({ type: 'cancel_appointment' });
     expect(() => parsePendingActionPayload({ type: 'delete_patient', patientId: 'x' })).toThrow();
@@ -151,9 +151,9 @@ describe('confirmação server-side de ações da IA', () => {
   it('mantém payload de agendamento antigo e valida preço comercial novo', () => {
     const legacy = {
       type: 'schedule_appointment',
-      patientId: '33333333-3333-3333-3333-333333333333',
-      doctorId: '44444444-4444-4444-4444-444444444444',
-      procedureId: '55555555-5555-5555-5555-555555555555',
+      patientId: '33333333-3333-3333-8333-333333333333',
+      doctorId: '44444444-4444-4444-8444-444444444444',
+      procedureId: '55555555-5555-5555-8555-555555555555',
       scheduledAt: '2026-10-04T12:00:00.000Z',
     };
     expect(parsePendingActionPayload(legacy)).toEqual(legacy);
@@ -163,7 +163,7 @@ describe('confirmação server-side de ações da IA', () => {
         commercialPrice: {
           paymentMethod: 'pix',
           installmentCount: null,
-          priceId: '77777777-7777-7777-7777-777777777777',
+          priceId: '77777777-7777-7777-8777-777777777777',
           grossAmount: 180,
         },
       }),
@@ -174,7 +174,7 @@ describe('confirmação server-side de ações da IA', () => {
         commercialPrice: {
           paymentMethod: 'credit_card',
           installmentCount: 3,
-          priceId: '77777777-7777-7777-7777-777777777777',
+          priceId: '77777777-7777-7777-8777-777777777777',
           grossAmount: 200,
         },
       }),
@@ -183,14 +183,14 @@ describe('confirmação server-side de ações da IA', () => {
 });
 
 describe('idempotência da execução (R1 + emenda F-05)', () => {
-  const conv = '22222222-2222-2222-2222-222222222222';
-  const rowA = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
-  const rowB = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+  const conv = '22222222-2222-2222-8222-222222222222';
+  const rowA = 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa';
+  const rowB = 'bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb';
   const schedule = (scheduledAt: string): PendingActionPayload => ({
     type: 'schedule_appointment',
-    patientId: '33333333-3333-3333-3333-333333333333',
-    doctorId: '44444444-4444-4444-4444-444444444444',
-    procedureId: '55555555-5555-5555-5555-555555555555',
+    patientId: '33333333-3333-3333-8333-333333333333',
+    doctorId: '44444444-4444-4444-8444-444444444444',
+    procedureId: '55555555-5555-5555-8555-555555555555',
     scheduledAt,
   });
   const at = '2026-08-01T12:00:00.000Z';
@@ -225,13 +225,13 @@ describe('idempotência da execução (R1 + emenda F-05)', () => {
   it('a chave separa tipo de ação e conversa', () => {
     const cancel: PendingActionPayload = {
       type: 'cancel_appointment',
-      appointmentId: '66666666-6666-6666-6666-666666666666',
+      appointmentId: '66666666-6666-6666-8666-666666666666',
     };
     expect(pendingActionIdemKey(conv, rowA, cancel)).not.toBe(
       pendingActionIdemKey(conv, rowA, schedule(at)),
     );
     expect(pendingActionIdemKey(conv, rowA, cancel)).not.toBe(
-      pendingActionIdemKey('77777777-7777-7777-7777-777777777777', rowA, cancel),
+      pendingActionIdemKey('77777777-7777-7777-8777-777777777777', rowA, cancel),
     );
   });
 });

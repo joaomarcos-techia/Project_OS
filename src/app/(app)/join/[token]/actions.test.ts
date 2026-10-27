@@ -78,7 +78,7 @@ vi.mock('@/contexts/onboarding', async () => {
 import { saveStepAction, submitCheckoutAction } from './actions';
 
 const TOKEN = 'a'.repeat(43);
-const PLAN_ID = '00000000-0000-0000-0000-000000000002';
+const PLAN_ID = '00000000-0000-4000-8000-000000000002';
 
 /** Responsável pelo ACESSO — quem loga. Não é o pagador. */
 const OWNER = { nome: 'Responsável do Acesso', email: 'owner@example.test' };
@@ -147,7 +147,7 @@ beforeEach(() => {
   mocks.resolveCheckoutPlan.mockResolvedValue({
     planId: PLAN_ID,
     code: 'clinica',
-    priceId: '00000000-0000-0000-0000-000000000003',
+    priceId: '00000000-0000-4000-8000-000000000003',
     amountReais: 349,
     cycle: 'monthly',
   });

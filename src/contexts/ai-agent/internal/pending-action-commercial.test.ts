@@ -20,14 +20,14 @@ vi.mock('@/contexts/scheduling', () => ({
 
 const legacyPayload = {
   type: 'schedule_appointment',
-  patientId: '33333333-3333-3333-3333-333333333333',
-  doctorId: '44444444-4444-4444-4444-444444444444',
-  procedureId: '55555555-5555-5555-5555-555555555555',
+  patientId: '33333333-3333-3333-8333-333333333333',
+  doctorId: '44444444-4444-4444-8444-444444444444',
+  procedureId: '55555555-5555-5555-8555-555555555555',
   scheduledAt: '2026-10-04T12:00:00.000Z',
 };
 
 const pendingRow = {
-  id: '66666666-6666-6666-6666-666666666666',
+  id: '66666666-6666-6666-8666-666666666666',
   actionName: 'schedule_appointment',
   expiresAt: new Date(Date.now() + 600_000),
   payloadEncrypted: 'encrypted-payload',
@@ -48,9 +48,9 @@ const tx = {
 
 const context: ToolContext = {
   tx,
-  clinicId: '11111111-1111-1111-1111-111111111111',
-  conversationId: '22222222-2222-2222-2222-222222222222',
-  eventId: '77777777-7777-7777-7777-777777777777',
+  clinicId: '11111111-1111-1111-8111-111111111111',
+  conversationId: '22222222-2222-2222-8222-222222222222',
+  eventId: '77777777-7777-7777-8777-777777777777',
   aiRequestId: '88888888-8888-8888-8888-888888888888',
   patientId: legacyPayload.patientId,
   patientNome: 'Ana',
@@ -68,7 +68,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   pendingRow.expiresAt = new Date(Date.now() + 600_000);
   mocks.scheduleAsAgent.mockResolvedValue({
-    id: '99999999-9999-9999-9999-999999999999',
+    id: '99999999-9999-4999-9999-999999999999',
     status: 'agendado',
     scheduledAt: legacyPayload.scheduledAt,
   });
@@ -82,7 +82,7 @@ describe('ações pendentes após a retirada do preço por meio', () => {
         commercialPrice: {
           paymentMethod: 'pix',
           installmentCount: null,
-          priceId: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+          priceId: 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa',
           grossAmount: 180,
         },
       }),

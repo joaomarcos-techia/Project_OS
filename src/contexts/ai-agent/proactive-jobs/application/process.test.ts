@@ -64,7 +64,7 @@ import { buildProactiveTemplate } from '../infra/templates';
 import type { ProactiveJobType } from '../schema';
 import { processProactiveBatch } from './process';
 
-const U = '11111111-1111-1111-1111-111111111111';
+const U = '11111111-1111-1111-8111-111111111111';
 /** Sexta 09/10/2026, 10:00 em São Paulo. */
 const NOW = new Date('2026-10-09T13:00:00.000Z');
 /** `created_at` padrão dos jobs reservados: duas horas antes de `NOW`. */
@@ -121,7 +121,7 @@ const remainderPayload = {
   amount: 80,
 };
 // WAIT-001 — vaga liberada por cancelamento, ofertada ao 1º da fila.
-const RELEASED = '22222222-2222-2222-2222-222222222222';
+const RELEASED = '22222222-2222-2222-8222-222222222222';
 const waitlistPayload = {
   patientId: U,
   waitlistEntryId: U,
@@ -307,7 +307,7 @@ describe('WAIT-001 — oferta da lista de espera', () => {
     vi.mocked(schedulingApiV1.lookupWaitlistOffer).mockResolvedValue({
       status: 'offered',
       patientId: U,
-      offeredAppointmentId: '33333333-3333-3333-3333-333333333333',
+      offeredAppointmentId: '33333333-3333-3333-8333-333333333333',
       offerExpiresAt: OFFER_EXPIRES_AT,
     });
 
@@ -413,7 +413,7 @@ describe('processProactiveBatch (C14 §14.6)', () => {
     });
     vi.mocked(schedulingApiV1.lookupAppointment).mockResolvedValue({
       status: 'faltou',
-      patientId: '22222222-2222-2222-2222-222222222222',
+      patientId: '22222222-2222-2222-8222-222222222222',
       procedureId: U,
     } as never);
 
