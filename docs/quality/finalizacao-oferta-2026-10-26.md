@@ -2,6 +2,8 @@
 
 Este checkpoint descreve o candidato da branch `integration/pricing-plan-sync-20261018`. Ele não autoriza a publicação. A landing corrigida permanece no PR draft [#3](https://github.com/joaomarcos-techia/landing_page/pull/3); a landing pública ainda apresenta limites diferentes. Os resultados anteriores em [validação autônoma](validacao-autonoma-2026-10-21.md) continuam históricos e não substituem esta medição.
 
+**Reavaliação de contas novas e antigas (26–27/10):** [matriz separada](contas-novas-e-legadas-2026-10-26.md). Um contrato legado com preço de campanha foi reproduzido antes da migration 0122 e preservado após todas as migrations no Postgres descartável; o DEV atual mostra seis assinaturas legadas sem a regra nova de trial e três assinaturas 2026 com ela. Três legadas no DEV estão `past_due` e sem qualquer perfil; o probe as registra como achado separado, sem atribuir causa à migration. Uma conta nova passou pelo cadastro real, Resend, confirmação e Checkout Clínica mensal de R$ 397 no Sandbox, com trial de 14 dias desde o Auth. **O Checkout dessa conta ainda aguarda a conclusão humana; clínica, assinatura e permissões finais não foram aprovadas por inferência.** O runner foi corrigido para não enviar o segredo de bypass ao Asaas; a falha anterior do teste de isolamento com header global está registrada na matriz.
+
 ## O que foi implementado
 
 | Fluxo | Comportamento atual do candidato | Prova e limite |
