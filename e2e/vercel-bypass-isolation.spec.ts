@@ -4,6 +4,10 @@ import { expect, test } from '@playwright/test';
 
 import { installVercelBypassForOrigin } from './vercel-bypass';
 
+// O projeto usa headers globais para outros specs. Este probe só pode medir o
+// helper por origem, sem herdar um header que vazaria para o terceiro host.
+test.use({ extraHTTPHeaders: {} });
+
 async function serve(): Promise<{
   server: Server;
   origin: string;
