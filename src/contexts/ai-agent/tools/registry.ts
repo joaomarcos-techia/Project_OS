@@ -135,7 +135,11 @@ function zodObjectToJsonSchema(schema: z.ZodTypeAny): Record<string, unknown> {
     let optional = false;
     while (inner instanceof z.ZodOptional || inner instanceof z.ZodDefault) {
       optional = true;
-      inner = inner.unwrap();
+      const unwrapped = inner.unwrap();
+      if (!(unwrapped instanceof z.ZodType)) {
+        throw new Error(`[ai-agent] wrapper de '${key}' não contém schema Zod`);
+      }
+      inner = unwrapped;
     }
     if (inner instanceof z.ZodString) {
       properties[key] = {
