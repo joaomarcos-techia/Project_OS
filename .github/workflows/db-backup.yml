@@ -1,15 +1,15 @@
 name: Daily DB Backup (prod)
 
-# Backup diário do banco de PRODUÇÃO (C16 / DR). Grátis, sem PITR: um pg_dump/dia
-# cifrado (AES-256) guardado como artifact. Atende RPO <= 24h. Para retenção longa,
-# troque o upload por um S3/Storage privado.
+# Backup diário do banco de PRODUÇÃO (C16 / DR): um pg_dump/dia
+# cifrado (AES-256) guardado como artifact. O RPO efetivo depende da última
+# execução bem-sucedida; este arquivo não substitui PITR nem backup de objetos Storage.
 #
 # Secrets necessários (Settings -> Secrets and variables -> Actions):
 #   DATABASE_URL_PROD  -> connection string de prod (com ?sslmode=require)
 #   BACKUP_PASSPHRASE  -> senha forte p/ cifrar o dump (guarde no seu cofre)
 #
-# Restaurar depois: baixe o artifact, `gpg -d prod-*.sql.gpg > dump.sql`, e rode
-# `RESTORE_TARGET_URL=... pnpm restore:test dump.sql`.
+# Restaurar depois: baixe o artifact e siga docs/runbooks/disaster-recovery.md.
+# Não grave o SQL decifrado em disco sem proteção.
 
 on:
   schedule:
@@ -47,25 +47,28 @@ jobs:
           # Session Pooler (5432) — Transaction Pooler (6543) pode cair no meio de um dump longo.
           URL="${DATABASE_URL_PROD/:6543\//:5432\/}"
           TS="$(date -u +%Y%m%dT%H%M%SZ)"
-          OUT="prod-${TS}.sql"
+          OUT="prod-${TS}.sql.gpg"
           # pg_dump precisa ser >= a versao do servidor (Supabase = PG17). O wrapper
           # do Ubuntu resolve pra 16 mesmo com o 17 instalado, entao chamamos o binario 17 direto.
           PGDUMP=/usr/lib/postgresql/17/bin/pg_dump
           "$PGDUMP" --version
-          # Mesmas flags do scripts/db-backup-prod.ts (exclui schemas gerenciados do Supabase).
-          "$PGDUMP" --no-owner --no-acl --clean --if-exists \
-            --exclude-schema=auth --exclude-schema=storage --exclude-schema=realtime \
-            --exclude-schema=extensions --exclude-schema=graphql --exclude-schema=graphql_public \
-            --exclude-schema=vault --exclude-schema=supabase_functions --exclude-schema=_realtime \
-            --exclude-schema=_analytics --exclude-schema=pgsodium --exclude-schema=pgsodium_masks \
-            --exclude-schema=pgbouncer \
-            --format=plain --file="$OUT" "$URL"
-          test -s "$OUT" || { echo "::error::dump vazio"; exit 1; }
-          echo "dump: $(wc -c < "$OUT") bytes"
-          # Cifra em repouso (o artifact contém PII — nunca em texto claro).
-          gpg --batch --yes --symmetric --cipher-algo AES256 \
-            --passphrase "$BACKUP_PASSPHRASE" -o "${OUT}.gpg" "$OUT"
-          rm -f "$OUT"
+          # Auth e public precisam do mesmo snapshot: public referencia auth.users.
+          # O SQL segue por pipe para GPG; nunca existe arquivo em claro no runner.
+          {
+            printf '%s\n' "$BACKUP_PASSPHRASE"
+            "$PGDUMP" --no-owner --no-acl --clean --if-exists \
+              --exclude-schema=storage --exclude-schema=realtime \
+              --exclude-schema=extensions --exclude-schema=graphql --exclude-schema=graphql_public \
+              --exclude-schema=vault --exclude-schema=supabase_functions --exclude-schema=_realtime \
+              --exclude-schema=_analytics --exclude-schema=pgsodium --exclude-schema=pgsodium_masks \
+              --exclude-schema=pgbouncer --format=plain "$URL"
+          } | gpg --batch --quiet --no-tty --pinentry-mode loopback \
+            --passphrase-fd 0 --symmetric --cipher-algo AES256 -o "$OUT"
+          test -s "$OUT" || { echo "::error::backup cifrado vazio"; exit 1; }
+          printf '%s\n' "$BACKUP_PASSPHRASE" | gpg --batch --quiet --no-tty \
+            --pinentry-mode loopback --passphrase-fd 0 --decrypt "$OUT" \
+            | tail -n 5 | grep -q 'PostgreSQL database dump complete'
+          echo "backup cifrado: $(wc -c < "$OUT") bytes"
 
       - name: Upload do backup cifrado
         uses: actions/upload-artifact@v4
