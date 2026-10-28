@@ -90,7 +90,7 @@ No Explorador de Arquivos do Windows, cole `C:\Users\joaom\AppData\Local\Temp\qo
 
 ## Obrigatória antes do rollout — confirmar a recuperação complementar do Supabase
 
-**Objetivo.** O backup lógico de `public` + `auth` de 28/10 foi restaurado integralmente em banco local isolado; não repita a instalação do Docker nem esse teste. Falta confirmar a recuperação de objetos do Storage e das configurações gerenciadas do projeto, que o SQL não inclui. A prova e seus limites estão no [relatório de fechamento](../quality/fechamento-oferta-2026-10-28.md) e no [runbook de recuperação](disaster-recovery.md).
+**Objetivo.** O backup lógico de `public` + `auth` de 28/10 foi restaurado integralmente em banco local isolado; não repita a instalação do Docker nem esse teste. Uma consulta agregada e somente de leitura em Production encontrou **5 buckets e 42 registros em `storage.objects`**, sem inspecionar nomes ou conteúdos. Falta confirmar a recuperação desses objetos e das configurações gerenciadas do projeto, que o SQL não inclui. A prova e seus limites estão no [relatório de fechamento](../quality/fechamento-oferta-2026-10-28.md) e no [runbook de recuperação](disaster-recovery.md).
 
 **Pré-requisitos e links.** Acesse como administrador o [Supabase Dashboard](https://supabase.com/dashboard/projects), escolha o projeto **Production** do Qoro pelo identificador já conhecido internamente (não escolha DEV) e abra **Database → Backups**. Consulte a [documentação oficial de backups](https://supabase.com/docs/guides/platform/backups) e a [documentação de Storage](https://supabase.com/docs/guides/storage).
 
