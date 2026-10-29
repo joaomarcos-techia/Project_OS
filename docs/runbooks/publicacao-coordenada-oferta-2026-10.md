@@ -2,7 +2,7 @@
 
 Estado em 28/10/2026: **NO-GO**. Este roteiro prepara uma operação futura; não registra migração, merge ou deploy em Production. Referências: [fechamento técnico](../quality/fechamento-oferta-2026-10-28.md), [ações humanas](acoes-manuais-pendentes-pricing-2026-10.md) e [migrations](migrations.md).
 
-**Atualização de 29/10:** restore real local do Storage passou (5 buckets, 42 hashes, 38 negativas privadas e 4 leituras públicas); não repetir instalação nem cobrar novo projeto para essa prova. Restam cofre/cópia independente, rotina recorrente, configuração Auth gerenciada e aceite de RPO/RTO. A landing mensal `81341c4` passou quatro inspeções de navegador no Preview. As variáveis Turnstile de Production existem, mas o desafio funcional do widget de produção ainda precisa de evidência. A opção anual está fechada no candidato, sem alteração da oferta pública atual.
+**Atualização de 29/10:** restore real local do Storage passou (5 buckets, 42 hashes, 38 negativas privadas e 4 leituras públicas); não repetir instalação nem cobrar novo projeto para essa prova. Restam cofre/cópia independente, rotina recorrente, cofre independente das dependências Auth, ensaio completo do serviço e aceite de RPO/RTO. As 243 configurações Auth foram conferidas e copiadas com cifra DPAPI local. A landing mensal `81341c4` passou quatro inspeções de navegador no Preview. As variáveis Turnstile de Production existem, mas o desafio funcional do widget de produção ainda precisa de evidência. A opção anual está fechada no candidato, sem alteração da oferta pública atual.
 
 ## Portões antes da janela
 

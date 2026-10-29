@@ -99,3 +99,31 @@ try {
 **Ainda pendente:** definir cópia e chave recuperáveis fora desta máquina/perfil e uma rotina supervisionada de snapshots/retentativa/retencão. DPAPI CurrentUser protege o segredo em repouso, mas não é cofre portátil; perder o perfil pode perder acesso à chave. Uma tentativa de envelope portátil com a senha existente de backup foi recusada pelo requisito de comprimento do novo envelope, sem escrever arquivo nem alterar a credencial. Preparar a exportação somente para um cofre aprovado, sem expor a chave em terminal/chat. Não apagar snapshots automaticamente; a retenção operacional será definida com o destino aprovado. A restauração passou para este snapshot, mas não dá RPO futuro sem agendamento. Guardar o arquivo cifrado localmente também não constitui uma cópia independente contra perda do computador.
 
 **Auth em 29/10:** leitura pública `/auth/v1/settings` respondeu 200 e mostrou somente e-mail habilitado, `disable_signup=false` e `mailer_autoconfirm=false`. Não comprova SMTP, URLs, MFA ou hooks. A Management API oficial de configuração respondeu 401 com o acesso disponível, e a CLI Supabase não tinha sessão administrativa. Completar pelo painel/cofre ou autenticação legítima da CLI; não compartilhar PAT por chat.
+
+## Configuração Auth cifrada — atualização após login em 29/10
+
+O titular concluiu o login legítimo e a Management API oficial respondeu 200. Foram inventariadas **243 configurações**, guardadas em `%LOCALAPPDATA%/Qoro/Recovery/auth-20261029/auth-config.dpapi` com ACL restrita ao usuário atual e DPAPI CurrentUser. O readback decifrado em memória foi idêntico à resposta de origem; arquivo cifrado de 40.694 bytes, SHA-256 `7618178c51bc0d34fbe49be16ba6149cf0f69b5069346b36d98a19669655c66b`. A credencial administrativa ficou só em memória e no Credential Manager existente, sem gravação em arquivo do projeto.
+
+| Grupo | Conferência efetiva, sem segredos |
+| --- | --- |
+| URLs | Site URL é `https://app.qoro.dev`; allow-list de redirects está preenchida e incluída no snapshot. |
+| Métodos | E-mail ativo, confirmação obrigatória; provedores OAuth listados desabilitados. |
+| SMTP/templates | Host/porta/remetente/usuário/senha e templates retornados; protegidos no snapshot. Nenhum e-mail foi enviado por este teste. |
+| Sessões | Refresh rotation ativo; JWT de 900 segundos; campos de timebox/inatividade e reuso incluídos. |
+| MFA | TOTP enroll e verify habilitados; configurações de demais métodos incluídas, sem alterar fatores de usuários. |
+| Segurança | HIBP ativo; mínimo gerenciado de senha de seis caracteres. CAPTCHA Supabase desabilitado, distinto do Turnstile próprio do Qoro. Rate limits incluídos. |
+| Hook de claims | Habilitado e URI corresponde a `pg-functions://postgres/public/custom_access_token_hook`; a função está no schema restaurável. |
+
+O snapshot recupera as configurações retornadas pela API, **não** chaves JWT/API do projeto, segredos Vercel, chaves de criptografia do Qoro ou credenciais de todos os serviços. Antes do GO, conferir no cofre a recuperabilidade de `CRYPTO_MASTER_KEY_V1`, `CRYPTO_LOOKUP_SALT`, `LOGIN_HASH_PEPPER`, segredos de tokens de autenticação, Resend, Asaas, Meta e demais nomes do inventário de ambiente. Sem a chave correta, um SQL com conteúdo cifrado pode ser íntegro e ainda assim não permitir ler os prontuários. Não copiar valores DEV para resolver isso.
+
+### Reconstrução segura do serviço
+
+1. Em incidente autorizado, preservar o banco atual e conter jobs/webhooks. Escolher destino isolado e obter aprovações de custo antes de criar projeto hospedado. Não apontar app público para ele durante a preparação.
+2. Restaurar `public+auth` pelo procedimento aprovado e conferir função de claims, RLS, usuários e relacionamentos. Restaurar Storage por API e aplicar as políticas autorizadas; a prova dos bytes não recria automaticamente todas as políticas do serviço gerenciado.
+3. Recuperar o snapshot Auth no perfil Windows autorizado: `ProtectedData.Unprotect` sobre o arquivo `.dpapi`, mantendo JSON somente em memória. Sem esse perfil, será necessária a cópia portátil guardada no cofre; ela **ainda não foi preparada**. Não imprimir o JSON nem colocá-lo em Git/artifact.
+4. Revisar cada campo contra o [contrato oficial de atualização Auth](https://supabase.com/docs/reference/api/v1-update-auth-service-config). Não enviar cegamente toda a resposta GET para PATCH, pois pode conter campos não editáveis. Reconfigurar somente o projeto de destino explicitamente aprovado; adaptar URLs ao destino, sem remover confirmação, MFA ou validação para facilitar o teste. Recriar o hook apontando para a função restaurada.
+5. Manter SMTP e integrações externas sem saída durante o drill; usar destinatários sintéticos e ambiente de e-mail isolado antes de habilitar entrega real. Não usar a senha SMTP real em um teste que possa enviar a pacientes. Reaplicar credenciais específicas do projeto recuperado e fazer novo deployment da aplicação autorizada.
+6. Provar com contas sintéticas: login, confirmação, recuperação de senha, convite, claims/tenant, refresh, sessão expirada, revogação, redirects, MFA e logout. Mudança de chaves de assinatura pode invalidar sessões; exigir novo login controlado em vez de reaproveitar cookies de DEV. Se fatores MFA não puderem ser recuperados com segurança, seguir recuperação aprovada pelo provedor, sem desativar MFA como atalho.
+7. Só liberar tráfego após readback das configurações, comparação de dados/arquivos, reconciliação financeira e autorização operacional. **Esse drill completo de Auth ainda é NOT RUN**; a prova desta rodada é inventário, snapshot cifrado e readback local.
+
+A pasta e a chave DPAPI continuam no mesmo domínio de falha da estação. Definir cofre e cópia independente permanece pendente. O mínimo de senha gerenciado não foi modificado; eventual alinhamento com a política de senha do Qoro deve ser revisado em janela própria.
