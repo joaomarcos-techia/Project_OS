@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 196 actions (0 inline); 53 métodos em 49 handlers; 19 props com referência de action; 386 acessos diretos a process.env; 9 nomes NEXT_PUBLIC.
+Contagem: 196 actions (0 inline); 53 métodos em 49 handlers; 19 props com referência de action; 389 acessos diretos a process.env; 9 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -330,7 +330,7 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `src/lib/auth/supabase-session-cookie.ts:5`                | `NODE_ENV`                             | `process.env.NODE_ENV`                                                      |
 | `src/lib/db/index.ts:39`                                   | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                                          |
 | `src/lib/db/index.ts:53`                                   | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                                          |
-| `src/lib/env.ts:459`                                       | `<object>`                             | `process.env`                                                               |
+| `src/lib/env.ts:469`                                       | `<object>`                             | `process.env`                                                               |
 | `src/lib/impersonation/index.ts:64`                        | `NODE_ENV`                             | `process.env.NODE_ENV`                                                      |
 | `src/middleware.ts:82`                                     | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
 | `src/middleware.ts:88`                                     | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
@@ -680,6 +680,9 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/storage-authorization-check.ts:84`                | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
 | `scripts/storage-authorization-check.ts:86`                | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`                          |
 | `scripts/storage-authorization-check.ts:86`                | `NEXT_PUBLIC_SUPABASE_ANON_KEY`        | `process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY`                                 |
+| `scripts/storage-encrypted-backup.ts:38`                   | `<dynamic>`                            | `process.env[name]`                                                         |
+| `scripts/storage-encrypted-backup.ts:44`                   | `STORAGE_BACKUP_COPY_PROD`             | `process.env.STORAGE_BACKUP_COPY_PROD`                                      |
+| `scripts/storage-encrypted-backup.ts:47`                   | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                                          |
 | `scripts/team-invite-inbox-check.ts:28`                    | `DATABASE_URL_DEV`                     | `process.env.DATABASE_URL_DEV`                                              |
 | `scripts/team-invite-inbox-check.ts:28`                    | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
 | `scripts/team-invite-inbox-check.ts:29`                    | `E2E_RESEND_INBOX_ADDRESS`             | `process.env.E2E_RESEND_INBOX_ADDRESS`                                      |
