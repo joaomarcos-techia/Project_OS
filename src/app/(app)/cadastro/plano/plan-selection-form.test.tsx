@@ -74,7 +74,7 @@ describe('seleção de plano O-4', () => {
       'md:grid-cols-3',
     );
     expect(fetchMock).toHaveBeenCalledWith('/api/signup/plan', { cache: 'no-store' });
-    expect(screen.queryByText(/Equipe administrativa:/u)).toBeNull();
+    expect(screen.queryByText(/Atendente: já está incluído/u)).toBeNull();
   });
 
   it('explica que o prazo da nova oferta começa na criação da conta, sem alterar o legado', async () => {
@@ -105,7 +105,9 @@ describe('seleção de plano O-4', () => {
     expect(screen.getByText('7 dias grátis após a ativação')).toBeTruthy();
     expect(screen.getByText('1 médico + até 3 acessos administrativos')).toBeTruthy();
     expect(screen.getByText('Até 4 pessoas incluídas no total')).toBeTruthy();
-    expect(screen.getByText(/já estão incluídos; não é necessário comprá-los/u)).toBeTruthy();
+    expect(
+      screen.getByText(/Atendente: já está incluído nos 3 acessos administrativos/u),
+    ).toBeTruthy();
     expect(
       screen.getByText(/Dono ou gestor com CRM cadastrado também conta como médico/u),
     ).toBeTruthy();

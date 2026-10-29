@@ -449,9 +449,16 @@ export function PlanSelectionForm() {
       {state.plans.some((plan) => isOffer2026PlanCode(plan.code)) ? (
         <div className="space-y-2 text-sm leading-relaxed text-fg-muted">
           <p>
-            Equipe administrativa: recepção, gestão e financeiro. Os três acessos administrativos já
-            estão incluídos; não é necessário comprá-los. O quarto acesso administrativo não está
-            disponível para contratação online nesta oferta.
+            Atendente: já está incluído nos {PROPOSED_OFFER.clinicaIncludedStaffLogins} acessos
+            administrativos, assim como gestão e financeiro. Hoje não há compra online de um quarto
+            acesso administrativo.
+          </p>
+          <p>
+            Médicos extras na Clínica: R$ {PROPOSED_OFFER.additionalProfessionalMonthly}/mês por
+            médico, até chegar a {PROPOSED_OFFER.maxSelfServiceProfessionals} médicos +{' '}
+            {PROPOSED_OFFER.clinicaIncludedStaffLogins} administrativos = até{' '}
+            {PROPOSED_OFFER.maxSelfServiceProfessionals + PROPOSED_OFFER.clinicaIncludedStaffLogins}{' '}
+            logins.
           </p>
           <p>
             O papel Médico ocupa uma vaga médica, mesmo antes de preencher o CRM. Dono ou gestor com

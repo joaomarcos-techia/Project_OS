@@ -76,12 +76,17 @@ try {
         assert.ok(/Até 4 pessoas no preço base: 1 médico \+ 3 administrativos/u.test(text));
         assert.ok(/Até 5 pessoas no preço base: 2 médicos \+ 3 administrativos/u.test(text));
         assert.ok(/Com 3 administrativos, o limite é de 8 pessoas/u.test(text));
+        assert.ok(/já está incluído nos 3 acessos administrativos/u.test(text));
+        assert.ok(/Hoje não há compra online de um quarto acesso administrativo/u.test(text));
         assert.ok(
-          /Não é necessário comprar acesso para os três administrativos incluídos/u.test(text),
+          /R\$ 397\/mês: 2 médicos \+ até 3 pessoas da equipe administrativa = até 5 logins/u.test(
+            text,
+          ),
         );
-        assert.ok(/O quarto acesso administrativo não está disponível/u.test(text));
         assert.ok(
-          /2 médicos \+ 3 pessoas da equipe administrativa custam R\$ 397\/mês/u.test(text),
+          /R\$ 147\/mês por médico, até chegar a 5 médicos \+ 3 administrativos = até 8 logins/u.test(
+            text,
+          ),
         );
         assert.equal(/por profissional adicional|profissionais incluídos/u.test(text), false);
         assert.equal(

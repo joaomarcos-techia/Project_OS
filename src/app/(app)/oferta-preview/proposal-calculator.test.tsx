@@ -63,11 +63,7 @@ describe('prévia da proposta comercial', () => {
       ),
     ).toBeTruthy();
     expect(screen.getByText(/R\$\s*397,00\/mês/)).toBeTruthy();
-    expect(
-      screen.getByText(
-        /Atendente usa um dos acessos administrativos incluídos, sem compra adicional/u,
-      ),
-    ).toBeTruthy();
+    expect(screen.getByText(/já está incluído nos 3 acessos administrativos/u)).toBeTruthy();
     fireEvent.change(screen.getByLabelText('Médicos que atendem em agenda clínica'), {
       target: { value: '5' },
     });

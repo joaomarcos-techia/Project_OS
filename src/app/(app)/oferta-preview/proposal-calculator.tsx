@@ -72,11 +72,22 @@ export function ProposalCalculator() {
                 : PROPOSED_OFFER.clinicaIncludedStaffLogins)}{' '}
             pessoas no total.
           </p>
-          <p>
-            Atendente usa um dos acessos administrativos incluídos, sem compra adicional. O
-            adicional de R$ {PROPOSED_OFFER.additionalProfessionalMonthly}/mês é para médico. O
-            quarto acesso administrativo não é oferecido nesta etapa.
-          </p>
+          <ol className="list-decimal space-y-2 pl-5">
+            <li>
+              <strong>Médicos extras na Clínica:</strong> R${' '}
+              {PROPOSED_OFFER.additionalProfessionalMonthly}/mês por médico, até chegar a{' '}
+              {PROPOSED_OFFER.maxSelfServiceProfessionals} médicos +{' '}
+              {PROPOSED_OFFER.clinicaIncludedStaffLogins} administrativos = até{' '}
+              {PROPOSED_OFFER.maxSelfServiceProfessionals +
+                PROPOSED_OFFER.clinicaIncludedStaffLogins}{' '}
+              logins.
+            </li>
+            <li>
+              <strong>Atendente:</strong> já está incluído nos{' '}
+              {PROPOSED_OFFER.clinicaIncludedStaffLogins} acessos administrativos. Hoje não há
+              compra online de um quarto acesso administrativo.
+            </li>
+          </ol>
           <p>Franquia proposta: {quote.conversationsIncluded} conversas de IA por mês.</p>
         </div>
       ) : (
