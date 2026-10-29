@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 196 actions (0 inline); 53 métodos em 49 handlers; 19 props com referência de action; 389 acessos diretos a process.env; 9 nomes NEXT_PUBLIC.
+Contagem: 196 actions (0 inline); 53 métodos em 49 handlers; 19 props com referência de action; 392 acessos diretos a process.env; 9 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -490,7 +490,7 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/probe-dev-migrations.ts:10`                       | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                                          |
 | `scripts/probe-landing-offer-browser.ts:30`                | `E2E_VERCEL_BYPASS_COOKIE`             | `process.env.E2E_VERCEL_BYPASS_COOKIE`                                      |
 | `scripts/probe-landing-offer-browser.ts:34`                | `E2E_VERCEL_BYPASS_COOKIE`             | `process.env.E2E_VERCEL_BYPASS_COOKIE`                                      |
-| `scripts/probe-landing-offer-browser.ts:76`                | `E2E_VISUAL_CAPTURE`                   | `process.env.E2E_VISUAL_CAPTURE`                                            |
+| `scripts/probe-landing-offer-browser.ts:78`                | `E2E_VISUAL_CAPTURE`                   | `process.env.E2E_VISUAL_CAPTURE`                                            |
 | `scripts/probe-offer-plan-overview-dev.ts:25`              | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
 | `scripts/probe-offer-seat-access-dev.ts:18`                | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
 | `scripts/probe-payout-review-fixture-residue-dev.ts:16`    | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
@@ -683,6 +683,9 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/storage-encrypted-backup.ts:38`                   | `<dynamic>`                            | `process.env[name]`                                                         |
 | `scripts/storage-encrypted-backup.ts:44`                   | `STORAGE_BACKUP_COPY_PROD`             | `process.env.STORAGE_BACKUP_COPY_PROD`                                      |
 | `scripts/storage-encrypted-backup.ts:47`                   | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                                          |
+| `scripts/storage-local-restore-drill.ts:39`                | `STORAGE_RESTORE_LOCAL`                | `process.env.STORAGE_RESTORE_LOCAL`                                         |
+| `scripts/storage-local-restore-drill.ts:42`                | `STORAGE_ARCHIVE_DIR`                  | `process.env.STORAGE_ARCHIVE_DIR`                                           |
+| `scripts/storage-local-restore-drill.ts:43`                | `BACKUP_PASSPHRASE`                    | `process.env.BACKUP_PASSPHRASE`                                             |
 | `scripts/team-invite-inbox-check.ts:28`                    | `DATABASE_URL_DEV`                     | `process.env.DATABASE_URL_DEV`                                              |
 | `scripts/team-invite-inbox-check.ts:28`                    | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
 | `scripts/team-invite-inbox-check.ts:29`                    | `E2E_RESEND_INBOX_ADDRESS`             | `process.env.E2E_RESEND_INBOX_ADDRESS`                                      |

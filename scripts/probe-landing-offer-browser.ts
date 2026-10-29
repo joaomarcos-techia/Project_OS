@@ -65,6 +65,8 @@ try {
           `${device}: adicional ou teto de profissionais ausente`,
         );
         assert.equal((text.match(/Até 3 acessos de equipe incluídos/gu) ?? []).length, 2);
+        assert.equal((text.match(/modalidade anual ainda não está disponível/gu) ?? []).length, 2);
+        assert.equal(/Anual no cartão:|R\$\s*1\.970|R\$\s*3\.970/u.test(text), false);
         assert.equal(/2 a 5 profissionais · até 3 usuários/u.test(text), false);
         assert.equal(await pricing.locator('a[href="/comecar"]').count(), 2);
         assert.equal(
@@ -92,10 +94,10 @@ try {
           const hero = page.locator('main').first();
           assert.ok(/\+ R\$\s*147\/mês por profissional extra/u.test(await hero.innerText()));
           assert.ok(
-            /anual[\s\S]*cancelamento não gera estorno automático/u.test(
+            /modalidade anual ainda não está disponível para novas contratações/u.test(
               (await page.locator('main').textContent()) ?? '',
             ),
-            `${device}: política de cancelamento anual ausente da FAQ`,
+            `${device}: FAQ precisa informar que novas contratações anuais estão indisponíveis`,
           );
         }
         console.log(`PASS ${device} ${pathname}: oferta, CTA e largura`);

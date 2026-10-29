@@ -68,3 +68,34 @@ O restore de `auth` contém usuários e registros de autenticação, **não a co
 O [Supabase informa que backups diários não guardam senhas de roles PostgreSQL customizadas](https://supabase.com/docs/guides/platform/backups). Se a Qoro usar essas roles, inventariar **nomes e responsáveis** e manter a redefinição das senhas no procedimento de restauração; não registrar senhas neste arquivo.
 
 Este inventário descreve **o que precisa ser conferido**, não afirma que os valores atuais foram lidos ou que o cofre já está completo. Após desastre, reconstruir um projeto isolado, restaurar o banco, reconfigurar esses grupos no Dashboard/cofre, atualizar secrets específicos do novo projeto na Vercel, fazer novo deployment e provar login, recuperação de senha, confirmação, convite, claims/RLS, redirect e logout com contas sintéticas antes de mudar DNS ou receber pacientes. Segredos antigos não devem ser copiados de DEV nem enviados em chat.
+
+## Drill real de Storage — 29/10/2026
+
+Após autorização explícita para criar a pasta e utilizá-la, o helper baixou os **42 arquivos** nos cinco buckets. Archive cifrado em `%LOCALAPPDATA%/Qoro/Recovery/storage-20261029/qoro-storage-S0upJf`, 2.565.459 bytes; `manifest.enc` SHA-256 `043a66f68862ff974a654a7e010415f86eb4c7a811041c23a606aa31e17c077c`. A ACL da pasta não herda permissões e permite somente o usuário Windows atual. A chave aleatória foi cifrada com DPAPI CurrentUser em `%LOCALAPPDATA%/Qoro/RecoveryKeys/storage-20261029.dpapi`. Nenhum arquivo ou path clínico em claro foi gravado no host e não houve upload externo ou mutação em Production.
+
+O novo `scripts/storage-local-restore-drill.ts` restaura **somente** em contêineres novos e identificados. Usa imagens oficiais Supabase PostgreSQL 17.11.0.006/Storage API v1.81.0, rede Docker `internal`, nenhuma porta publicada, logs desativados, bancos e binários em `tmpfs` e memória/swap limitados. O cliente usa tokens sintéticos locais; corpos entram/saem por pipes em memória. A prova restaurou os cinco buckets e os 42 arquivos pela Storage API, conferiu **42 hashes**, **38 negativas de acesso privado anônimo** e **4 leituras públicas com hash**. Contêineres e rede foram removidos no `finally`; a ausência foi conferida. A primeira tentativa com porta de host falhou ambientalmente; a execução via pipe passou. Não restaura políticas RLS originais nem transforma isso em prova de todo o serviço Auth.
+
+Para repetir **apenas quando necessário**, em PowerShell no worktree da oferta, com Docker iniciado e esta cópia ainda disponível:
+
+```powershell
+Add-Type -AssemblyName System.Security
+$keyPath = Join-Path $env:LOCALAPPDATA 'Qoro\RecoveryKeys\storage-20261029.dpapi'
+$keyBytes = [System.Security.Cryptography.ProtectedData]::Unprotect(
+  [IO.File]::ReadAllBytes($keyPath), $null,
+  [System.Security.Cryptography.DataProtectionScope]::CurrentUser
+)
+$env:BACKUP_PASSPHRASE = [Text.Encoding]::UTF8.GetString($keyBytes)
+$env:STORAGE_ARCHIVE_DIR = Join-Path $env:LOCALAPPDATA 'Qoro\Recovery\storage-20261029\qoro-storage-S0upJf'
+$env:STORAGE_RESTORE_LOCAL = 'approved'
+try {
+  pnpm exec tsx scripts/storage-local-restore-drill.ts
+  if ($LASTEXITCODE -ne 0) { throw 'Drill não concluiu; não marcar PASS' }
+} finally {
+  Remove-Item Env:BACKUP_PASSPHRASE,Env:STORAGE_ARCHIVE_DIR,Env:STORAGE_RESTORE_LOCAL -ErrorAction SilentlyContinue
+  $keyBytes = $null
+}
+```
+
+**Ainda pendente:** definir cópia e chave recuperáveis fora desta máquina/perfil e uma rotina supervisionada de snapshots/retentativa/retencão. DPAPI CurrentUser protege o segredo em repouso, mas não é cofre portátil; perder o perfil pode perder acesso à chave. Uma tentativa de envelope portátil com a senha existente de backup foi recusada pelo requisito de comprimento do novo envelope, sem escrever arquivo nem alterar a credencial. Preparar a exportação somente para um cofre aprovado, sem expor a chave em terminal/chat. Não apagar snapshots automaticamente; a retenção operacional será definida com o destino aprovado. A restauração passou para este snapshot, mas não dá RPO futuro sem agendamento. Guardar o arquivo cifrado localmente também não constitui uma cópia independente contra perda do computador.
+
+**Auth em 29/10:** leitura pública `/auth/v1/settings` respondeu 200 e mostrou somente e-mail habilitado, `disable_signup=false` e `mailer_autoconfirm=false`. Não comprova SMTP, URLs, MFA ou hooks. A Management API oficial de configuração respondeu 401 com o acesso disponível, e a CLI Supabase não tinha sessão administrativa. Completar pelo painel/cofre ou autenticação legítima da CLI; não compartilhar PAT por chat.

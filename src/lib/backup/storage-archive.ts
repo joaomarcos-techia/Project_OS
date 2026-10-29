@@ -11,7 +11,7 @@ export type StorageBucket = {
   fileSizeLimit: number | null;
   allowedMimeTypes: string[] | null;
 };
-export type StorageObject = { bucket: string; name: string };
+export type StorageObject = { bucket: string; name: string; contentType?: string };
 
 type Manifest = {
   version: number;
@@ -89,7 +89,13 @@ export async function writeStorageArchive(input: {
       const data = Buffer.from(await blob.arrayBuffer());
       const file = `${randomBytes(16).toString('hex')}.enc`;
       await writeFile(join(directory, file), encrypt(data, key, file), { flag: 'wx', mode: 0o600 });
-      manifest.objects.push({ ...object, file, size: data.length, sha256: hash(data) });
+      manifest.objects.push({
+        ...object,
+        contentType: blob.type || 'application/octet-stream',
+        file,
+        size: data.length,
+        sha256: hash(data),
+      });
     }
     await writeFile(
       join(directory, 'manifest.enc'),
@@ -136,7 +142,10 @@ async function inspectStorageArchive(
     if (data.length !== object.size || hash(data) !== object.sha256) {
       throw new Error('Storage archive integrity check failed');
     }
-    await onObject?.({ bucket: object.bucket, name: object.name }, data);
+    await onObject?.(
+      { bucket: object.bucket, name: object.name, contentType: object.contentType },
+      data,
+    );
   }
   return manifest;
 }

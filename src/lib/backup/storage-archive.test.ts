@@ -1,8 +1,8 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   restoreStorageArchive,
@@ -38,18 +38,24 @@ describe('archive de arquivos do Storage', () => {
         },
       ],
       objects: [{ bucket: 'clinical-pdfs', name: 'paciente-sintetico/arquivo.pdf' }],
-      fetchObject: async () => new Blob(['conteudo sintetico']),
+      fetchObject: async () => new Blob(['conteudo sintetico'], { type: 'application/pdf' }),
     });
     const manifest = await verifyStorageArchive(archive, 'senha-sintetica-longa-para-teste');
     expect(manifest.buckets).toHaveLength(2);
     expect(manifest.objects).toMatchObject([
-      { bucket: 'clinical-pdfs', name: 'paciente-sintetico/arquivo.pdf', size: 18 },
+      {
+        bucket: 'clinical-pdfs',
+        name: 'paciente-sintetico/arquivo.pdf',
+        contentType: 'application/pdf',
+        size: 18,
+      },
     ]);
     const restored = new Map<string, string>();
     await restoreStorageArchive(
       archive,
       'senha-sintetica-longa-para-teste',
       async (object, data) => {
+        expect(object.contentType).toBe('application/pdf');
         restored.set(`${object.bucket}/${object.name}`, data.toString('utf8'));
       },
     );
@@ -69,5 +75,44 @@ describe('archive de arquivos do Storage', () => {
     await expect(
       verifyStorageArchive(archive, 'senha-incorreta-longa-para-teste'),
     ).rejects.toThrow();
+    const upload = vi.fn();
+    await expect(
+      restoreStorageArchive(archive, 'senha-sintetica-longa-para-teste', upload),
+    ).rejects.toThrow();
+    expect(upload).not.toHaveBeenCalled();
+  });
+
+  it('remove somente o archive incompleto se o download falhar', async () => {
+    const parentDir = await mkdtemp(join(tmpdir(), 'qoro-storage-test-'));
+    created.push(parentDir);
+    await writeFile(join(parentDir, 'preservar.txt'), 'fixture independente');
+    await expect(
+      writeStorageArchive({
+        parentDir,
+        projectRef: 'abcdefghijklmnopqrst',
+        passphrase: 'senha-sintetica-longa-para-teste',
+        buckets: [{ name: 'private', public: false, fileSizeLimit: null, allowedMimeTypes: null }],
+        objects: [{ bucket: 'private', name: 'arquivo-sintetico.pdf' }],
+        fetchObject: async () => {
+          throw new Error('falha sintética de rede');
+        },
+      }),
+    ).rejects.toThrow('falha sintética de rede');
+    expect(await readdir(parentDir)).toEqual(['preservar.txt']);
+  });
+
+  it('recusa inventário com bucket desconhecido antes de baixar qualquer arquivo', async () => {
+    const fetchObject = vi.fn();
+    await expect(
+      writeStorageArchive({
+        parentDir: tmpdir(),
+        projectRef: 'abcdefghijklmnopqrst',
+        passphrase: 'senha-sintetica-longa-para-teste',
+        buckets: [],
+        objects: [{ bucket: 'inexistente', name: 'sintetico.pdf' }],
+        fetchObject,
+      }),
+    ).rejects.toThrow('unknown or duplicate bucket');
+    expect(fetchObject).not.toHaveBeenCalled();
   });
 });
