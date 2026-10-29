@@ -65,4 +65,6 @@ O restore de `auth` contém usuários e registros de autenticação, **não a co
 | Sessions/Security | Duração, refresh, confirmação de e-mail, proteção CAPTCHA, rate limits, MFA. |
 | Keys e integrações | Onde ficam JWT/API keys, `APP_BASE_URL`, Vercel env, Resend, Turnstile, Google e demais credenciais; jamais valores no Git. |
 
+O [Supabase informa que backups diários não guardam senhas de roles PostgreSQL customizadas](https://supabase.com/docs/guides/platform/backups). Se a Qoro usar essas roles, inventariar **nomes e responsáveis** e manter a redefinição das senhas no procedimento de restauração; não registrar senhas neste arquivo.
+
 Este inventário descreve **o que precisa ser conferido**, não afirma que os valores atuais foram lidos ou que o cofre já está completo. Após desastre, reconstruir um projeto isolado, restaurar o banco, reconfigurar esses grupos no Dashboard/cofre, atualizar secrets específicos do novo projeto na Vercel, fazer novo deployment e provar login, recuperação de senha, confirmação, convite, claims/RLS, redirect e logout com contas sintéticas antes de mudar DNS ou receber pacientes. Segredos antigos não devem ser copiados de DEV nem enviados em chat.

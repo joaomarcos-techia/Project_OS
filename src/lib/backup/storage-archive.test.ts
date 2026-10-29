@@ -55,9 +55,13 @@ describe('archive de arquivos do Storage', () => {
     );
     expect(restored.get('clinical-pdfs/paciente-sintetico/arquivo.pdf')).toBe('conteudo sintetico');
     expect(await readFile(join(archive, 'header.json'), 'utf8')).not.toContain('paciente');
-    const file = join(archive, manifest.objects[0].file);
+    const archivedObject = manifest.objects.at(0);
+    if (!archivedObject) throw new Error('Arquivo sintético ausente do manifesto');
+    const file = join(archive, archivedObject.file);
     const ciphertext = await readFile(file);
-    ciphertext[ciphertext.length - 1] ^= 1;
+    const lastByte = ciphertext.at(-1);
+    if (lastByte === undefined) throw new Error('Arquivo cifrado sintético vazio');
+    ciphertext[ciphertext.length - 1] = lastByte ^ 1;
     await writeFile(file, ciphertext);
     await expect(
       verifyStorageArchive(archive, 'senha-sintetica-longa-para-teste'),
