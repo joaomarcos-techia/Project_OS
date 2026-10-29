@@ -104,6 +104,8 @@ describe('seleção de plano O-4', () => {
     ).toBeTruthy();
     expect(screen.getByText('7 dias grátis após a ativação')).toBeTruthy();
     expect(screen.getByText('1 médico + até 3 acessos administrativos')).toBeTruthy();
+    expect(screen.getByText('Até 4 pessoas incluídas no total')).toBeTruthy();
+    expect(screen.getByText(/já estão incluídos; não é necessário comprá-los/u)).toBeTruthy();
     expect(
       screen.getByText(/Dono ou gestor com CRM cadastrado também conta como médico/u),
     ).toBeTruthy();
@@ -127,6 +129,7 @@ describe('seleção de plano O-4', () => {
     await screen.findByText('Clínica 2');
     for (const doctors of [2, 3, 4, 5]) {
       expect(screen.getByText(`${doctors} médicos + até 3 acessos administrativos`)).toBeTruthy();
+      expect(screen.getByText(`Até ${doctors + 3} pessoas incluídas no total`)).toBeTruthy();
     }
     expect(screen.getByText(/mesmo antes de preencher o CRM/u)).toBeTruthy();
   });

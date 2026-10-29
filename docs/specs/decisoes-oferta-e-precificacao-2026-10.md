@@ -173,3 +173,16 @@ Esta seção substitui as fotografias anteriores que dizem que a contagem de 24 
 O limite de referência é a capacidade contratada de médicos multiplicada por 500. Ao cruzar 80% ou 100%, um evento idempotente solicita aviso por Resend aos titulares ativos; a página de assinatura mostra uso e alerta. O aviso **não** bloqueia a IA nem cobra excedente. O circuito técnico de custo de 60 minutos é independente e ainda pode produzir fallback; a afirmação absoluta de que a IA nunca interrompe respostas seria falsa. O período do contador é o mês civil em UTC, não o aniversário da assinatura. Uma janela de 24 horas iniciada no mês anterior continua suprimindo nova contagem no mês seguinte até completar 24 horas. Um evento que ficar atrasado no outbox é atribuído ao mês em que o consumer o processa; esse limite temporal ainda precisa ser confrontado com atrasos reais antes de usar o número para faturamento.
 
 Prova já executada: `scripts/smoke-ai-usage-preview-dev.ts` sobre uma clínica sintética no PostgreSQL DEV validou primeira resposta, mesma janela, virada de mês, nova janela, replay tardio, concorrência, cruzamento de 80% e 100%, entrega/leitura do e-mail no inbox Resend de teste e cleanup com zero resíduos. A UI da assinatura no Preview do commit `8f4cf626` passou no caso isolado **1/1** e na suíte integrada **12/12**, com alertas exatamente em 800/1.000 usos para dois médicos e cleanup zerado. A UI leu valores semeados na fixture: ainda não há prova de uma mensagem Meta → IA real atravessando o outbox e chegando a esse contador. As afirmações históricas sobre deduplicação por `conversationId` permanecem no documento apenas como registro do estado anterior.
+
+
+### Esclarecimento de vagas e total de logins — 29/10
+
+| Contratação | Médicos | Administrativos incluídos | Máximo de pessoas/logins | Mensalidade |
+| --- | --- | --- | --- | --- |
+| Consultório | 1 | Até 3 | 4 | R$ 197 |
+| Clínica base | 2 | Até 3 | 5 | R$ 397 |
+| Clínica com 3 médicos | 3 | Até 3 | 6 | R$ 544 |
+| Clínica com 4 médicos | 4 | Até 3 | 7 | R$ 691 |
+| Clínica com 5 médicos | 5 | Até 3 | 8 | R$ 838 |
+
+“Até 5 médicos” não significa cinco médicos incluídos no preço base nem cinco logins totais. O adicional compra **vaga médica**, não acesso de atendente. Os três administrativos já estão incluídos; o quarto não é contratável online nesta oferta. A hipótese antiga de R$ 79 por login administrativo foi revogada e não deve aparecer como compra disponível. Dono/gestor com CRM ocupa uma única vaga médica; sem CRM, ocupa um dos três administrativos. O papel Médico reserva vaga médica mesmo antes do CRM. Cadastro de CRM não equivale a validação automática do conselho. Nenhuma regra comercial, preço ou limite foi alterado por este esclarecimento.

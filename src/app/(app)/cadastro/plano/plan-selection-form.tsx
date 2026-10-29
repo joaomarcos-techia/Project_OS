@@ -179,6 +179,17 @@ export function PlanSelectionForm() {
                   acessos administrativos
                 </span>
               ) : null}
+              {isOffer2026PlanCode(plan.code) ? (
+                <span className="text-xs font-medium text-fg">
+                  Até{' '}
+                  {OFFER_2026_PLAN_CODES.indexOf(plan.code) +
+                    1 +
+                    (plan.code === 'consultorio_2026'
+                      ? PROPOSED_OFFER.consultorioIncludedStaffLogins
+                      : PROPOSED_OFFER.clinicaIncludedStaffLogins)}{' '}
+                  pessoas incluídas no total
+                </span>
+              ) : null}
               <span className="flex items-baseline gap-1 text-primary">
                 <span className="font-display text-2xl font-semibold tracking-tight tabular-nums">
                   {formatPrice(plan.priceCents)}
@@ -436,12 +447,18 @@ export function PlanSelectionForm() {
         />
       </fieldset>
       {state.plans.some((plan) => isOffer2026PlanCode(plan.code)) ? (
-        <p className="text-sm leading-relaxed text-fg-muted">
-          Equipe administrativa: recepção, gestão e financeiro. O papel Médico ocupa uma vaga
-          médica, mesmo antes de preencher o CRM. Dono ou gestor com CRM cadastrado também conta
-          como médico, sem ocupar outro acesso administrativo; sem CRM, conta na equipe
-          administrativa.
-        </p>
+        <div className="space-y-2 text-sm leading-relaxed text-fg-muted">
+          <p>
+            Equipe administrativa: recepção, gestão e financeiro. Os três acessos administrativos já
+            estão incluídos; não é necessário comprá-los. O quarto acesso administrativo não está
+            disponível para contratação online nesta oferta.
+          </p>
+          <p>
+            O papel Médico ocupa uma vaga médica, mesmo antes de preencher o CRM. Dono ou gestor com
+            CRM cadastrado também conta como médico, sem ocupar outro acesso administrativo; sem
+            CRM, conta na equipe administrativa.
+          </p>
+        </div>
       ) : null}
       <div aria-live="polite" className="space-y-2">
         {saved ? (

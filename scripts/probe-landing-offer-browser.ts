@@ -73,6 +73,13 @@ try {
         assert.ok(/papel Médico, inclusive antes de preencher o CRM/u.test(text));
         assert.ok(/Dono ou gestor com CRM cadastrado também entra na cota de médicos/u.test(text));
         assert.ok(/sem ocupar outro acesso administrativo/u.test(text));
+        assert.ok(/Até 4 pessoas no preço base: 1 médico \+ 3 administrativos/u.test(text));
+        assert.ok(/Até 5 pessoas no preço base: 2 médicos \+ 3 administrativos/u.test(text));
+        assert.ok(/Com 3 administrativos, o limite é de 8 pessoas/u.test(text));
+        assert.ok(
+          /Não é necessário comprar acesso para os três administrativos incluídos/u.test(text),
+        );
+        assert.ok(/O quarto acesso administrativo não está disponível/u.test(text));
         assert.ok(
           /2 médicos \+ 3 pessoas da equipe administrativa custam R\$ 397\/mês/u.test(text),
         );

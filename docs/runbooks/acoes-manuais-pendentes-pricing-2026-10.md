@@ -164,3 +164,16 @@ Estas atividades **não foram transferidas ao usuário** e não devem ser execut
 8. Mantém plano de recuperação; não restaura banco ativo nem cria cobrança real sem autorização específica.
 
 Procedimento exato e critérios de interrupção em [publicação coordenada](publicacao-coordenada-oferta-2026-10.md). O teste funcional completo do produto após recuperação, o agendamento real de Storage/Auth e alertas no cofre serão concluídos pela engenharia quando o destino aprovado estiver disponível.
+
+
+### Esclarecimento de vagas e total de logins — 29/10
+
+| Contratação | Médicos | Administrativos incluídos | Máximo de pessoas/logins | Mensalidade |
+| --- | --- | --- | --- | --- |
+| Consultório | 1 | Até 3 | 4 | R$ 197 |
+| Clínica base | 2 | Até 3 | 5 | R$ 397 |
+| Clínica com 3 médicos | 3 | Até 3 | 6 | R$ 544 |
+| Clínica com 4 médicos | 4 | Até 3 | 7 | R$ 691 |
+| Clínica com 5 médicos | 5 | Até 3 | 8 | R$ 838 |
+
+“Até 5 médicos” não significa cinco médicos incluídos no preço base nem cinco logins totais. O adicional compra **vaga médica**, não acesso de atendente. Os três administrativos já estão incluídos; o quarto não é contratável online nesta oferta. A hipótese antiga de R$ 79 por login administrativo foi revogada e não deve aparecer como compra disponível. Dono/gestor com CRM ocupa uma única vaga médica; sem CRM, ocupa um dos três administrativos. O papel Médico reserva vaga médica mesmo antes do CRM. Cadastro de CRM não equivale a validação automática do conselho. Nenhuma regra comercial, preço ou limite foi alterado por este esclarecimento.

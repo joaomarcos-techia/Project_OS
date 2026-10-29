@@ -59,6 +59,24 @@ export function ProposalCalculator() {
               ? `Até ${PROPOSED_OFFER.consultorioIncludedStaffLogins} logins de equipe incluídos.`
               : `Até ${PROPOSED_OFFER.clinicaIncludedStaffLogins} logins de equipe incluídos.`}
           </p>
+          <p>
+            Este preço inclui {quote.professionals}{' '}
+            {quote.professionals === 1 ? 'médico' : 'médicos'} + até{' '}
+            {quote.plan === 'consultorio'
+              ? PROPOSED_OFFER.consultorioIncludedStaffLogins
+              : PROPOSED_OFFER.clinicaIncludedStaffLogins}{' '}
+            administrativos: até{' '}
+            {quote.professionals +
+              (quote.plan === 'consultorio'
+                ? PROPOSED_OFFER.consultorioIncludedStaffLogins
+                : PROPOSED_OFFER.clinicaIncludedStaffLogins)}{' '}
+            pessoas no total.
+          </p>
+          <p>
+            Atendente usa um dos acessos administrativos incluídos, sem compra adicional. O
+            adicional de R$ {PROPOSED_OFFER.additionalProfessionalMonthly}/mês é para médico. O
+            quarto acesso administrativo não é oferecido nesta etapa.
+          </p>
           <p>Franquia proposta: {quote.conversationsIncluded} conversas de IA por mês.</p>
         </div>
       ) : (

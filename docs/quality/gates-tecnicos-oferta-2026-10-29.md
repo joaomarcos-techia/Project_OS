@@ -73,3 +73,23 @@ Alterações de apresentação: pergunta e resumo do cadastro, rótulo da triage
 - **PASS landing local:** TypeScript, ESLint e build completo; bridge 28/28, FAQ visível/JSON-LD (261 perguntas), llms, links, HTML, conversão 2/2 e segurança 20 checks. Há 17 avisos anteriores de FAQPage no blog; não são novos nem foram suprimidos.
 - **FAIL de ambiente no TypeScript global local do app:** três diagnósticos em `ai-agent/tools/registry.ts` e `messaging/business-profile-contract.ts`, ambos intocados nesta alteração. O `node_modules` deste worktree é uma junction para o principal com Zod 3.25.76; o manifesto desta branch exige Zod ^4.6.6. Não foi alterada a junction nem instalado pacote no ambiente compartilhado. O build/typecheck global do candidato deve ser confirmado na CI com o lockfile correto; os 91 testes direcionados não o substituem.
 - **CI/Preview do novo commit:** conferir o SHA final nos checks dos PRs #42 e #3; não atribuir o PASS anterior ao novo código sem execução. Nenhum Checkout, cobrança ou restore foi repetido por uma mudança de copy.
+
+
+### Esclarecimento de vagas e total de logins — 29/10
+
+| Contratação | Médicos | Administrativos incluídos | Máximo de pessoas/logins | Mensalidade |
+| --- | --- | --- | --- | --- |
+| Consultório | 1 | Até 3 | 4 | R$ 197 |
+| Clínica base | 2 | Até 3 | 5 | R$ 397 |
+| Clínica com 3 médicos | 3 | Até 3 | 6 | R$ 544 |
+| Clínica com 4 médicos | 4 | Até 3 | 7 | R$ 691 |
+| Clínica com 5 médicos | 5 | Até 3 | 8 | R$ 838 |
+
+“Até 5 médicos” não significa cinco médicos incluídos no preço base nem cinco logins totais. O adicional compra **vaga médica**, não acesso de atendente. Os três administrativos já estão incluídos; o quarto não é contratável online nesta oferta. A hipótese antiga de R$ 79 por login administrativo foi revogada e não deve aparecer como compra disponível. Dono/gestor com CRM ocupa uma única vaga médica; sem CRM, ocupa um dos três administrativos. O papel Médico reserva vaga médica mesmo antes do CRM. Cadastro de CRM não equivale a validação automática do conselho. Nenhuma regra comercial, preço ou limite foi alterado por este esclarecimento.
+
+
+### Complemento solicitado: 5 logins base versus 5 médicos
+
+Após a dúvida do titular, os cards e o cadastro passaram a mostrar também o **total de pessoas**: Consultório 1+3=4; Clínica base 2+3=5; Clínica ampliada até 5+3=8. “Até 5 médicos” é o teto após comprar vagas médicas, não o número incluído nos R$ 397. Os três administrativos estão incluídos e não precisam ser comprados; não há compra online de um quarto administrativo. O código calcula os totais a partir da cota de médicos e da cota administrativa, sem mudar os limites.
+
+Reteste das partes afetadas: **34/34 PASS** (15 predicado, 14 seleção e 5 calculadora), incluindo novo caso 2 médicos + 3 administrativos por R$ 397 e 5 + 3 por R$ 838, com recusa de quarto administrativo. Typecheck/lint/build da landing passaram novamente. O navegador contra o build atualizado passou **4/4** (home/preços × desktop/mobile), exigindo os totais 4/5/8 e a inclusão dos administrativos. O ambiente de controle da sessão Cloudflare do usuário retornou `browser access host unavailable` e `native pipe unavailable`; não foi possível abrir os hostnames pela interface, nenhuma configuração foi alterada. A ação humana continua restrita à conferência de Hostname Management, sem repetir lista de widgets, compras ou login Supabase.

@@ -493,7 +493,7 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/probe-landing-bridge-browser.ts:24`               | `E2E_VERCEL_BYPASS_COOKIE`             | `process.env.E2E_VERCEL_BYPASS_COOKIE`                                      |
 | `scripts/probe-landing-offer-browser.ts:30`                | `E2E_VERCEL_BYPASS_COOKIE`             | `process.env.E2E_VERCEL_BYPASS_COOKIE`                                      |
 | `scripts/probe-landing-offer-browser.ts:34`                | `E2E_VERCEL_BYPASS_COOKIE`             | `process.env.E2E_VERCEL_BYPASS_COOKIE`                                      |
-| `scripts/probe-landing-offer-browser.ts:86`                | `E2E_VISUAL_CAPTURE`                   | `process.env.E2E_VISUAL_CAPTURE`                                            |
+| `scripts/probe-landing-offer-browser.ts:93`                | `E2E_VISUAL_CAPTURE`                   | `process.env.E2E_VISUAL_CAPTURE`                                            |
 | `scripts/probe-offer-plan-overview-dev.ts:25`              | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
 | `scripts/probe-offer-seat-access-dev.ts:18`                | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
 | `scripts/probe-payout-review-fixture-residue-dev.ts:16`    | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
@@ -590,7 +590,7 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/signup-regression.ts:35`                 | `<object>`                             | `process.env`                                                               |
 | `scripts/security/signup-regression.ts:35`                 | `<dynamic>`                            | `process.env[key]`                                                          |
 | `scripts/security/signup-regression.ts:177`                | `<object>`                             | `process.env`                                                               |
-| `scripts/security/signup-regression.ts:2263`               | `<object>`                             | `process.env`                                                               |
+| `scripts/security/signup-regression.ts:2259`               | `<object>`                             | `process.env`                                                               |
 | `scripts/security/signup-webhook-sandbox.ts:48`            | `SANDBOX_CONFIRM`                      | `process.env.SANDBOX_CONFIRM`                                               |
 | `scripts/security/signup-webhook-sandbox.ts:51`            | `ASAAS_BASE_URL`                       | `process.env.ASAAS_BASE_URL`                                                |
 | `scripts/security/signup-webhook-sandbox.ts:64`            | `ASAAS_API_KEY`                        | `process.env.ASAAS_API_KEY`                                                 |

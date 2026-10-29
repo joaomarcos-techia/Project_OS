@@ -53,6 +53,35 @@ describe('prévia da proposta comercial', () => {
     expect(screen.getByText(/A modalidade anual não está disponível nesta etapa/)).toBeTruthy();
   });
 
+  it('separa cinco logins incluídos na Clínica base de oito após comprar vagas médicas', () => {
+    render(<ProposalCalculator />);
+    const staff = screen.getByLabelText('Logins de equipe: recepção, gestão e financeiro');
+    fireEvent.change(staff, { target: { value: '3' } });
+    expect(
+      screen.getByText(
+        'Este preço inclui 2 médicos + até 3 administrativos: até 5 pessoas no total.',
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText(/R\$\s*397,00\/mês/)).toBeTruthy();
+    expect(
+      screen.getByText(
+        /Atendente usa um dos acessos administrativos incluídos, sem compra adicional/u,
+      ),
+    ).toBeTruthy();
+    fireEvent.change(screen.getByLabelText('Médicos que atendem em agenda clínica'), {
+      target: { value: '5' },
+    });
+    expect(
+      screen.getByText(
+        'Este preço inclui 5 médicos + até 3 administrativos: até 8 pessoas no total.',
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText(/R\$\s*838,00\/mês/)).toBeTruthy();
+    fireEvent.change(staff, { target: { value: '4' } });
+    expect(screen.getByRole('alert')).toBeTruthy();
+    expect(screen.queryByText(/Este preço inclui/u)).toBeNull();
+  });
+
   it('não apresenta preço para contagem fora do limite', () => {
     render(<ProposalCalculator />);
     fireEvent.change(screen.getByLabelText('Médicos que atendem em agenda clínica'), {
