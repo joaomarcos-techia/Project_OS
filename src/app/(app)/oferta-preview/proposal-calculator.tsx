@@ -47,6 +47,12 @@ export function ProposalCalculator() {
           <p className="font-display text-2xl font-semibold">
             {quote.plan === 'consultorio' ? 'Consultório' : 'Clínica'} · {money(quote.monthly)}/mês
           </p>
+          <p>
+            {quote.professionals} {quote.professionals === 1 ? 'médico' : 'médicos'} +{' '}
+            {quote.staffLogins}{' '}
+            {quote.staffLogins === 1 ? 'acesso administrativo' : 'acessos administrativos'} na
+            simulação. As cotas são separadas.
+          </p>
           <p>Contratação mensal no cartão. A modalidade anual não está disponível nesta etapa.</p>
           <p>
             {quote.plan === 'consultorio'

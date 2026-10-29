@@ -50,3 +50,26 @@ Somente no painel Google falta comprovar: ID do projeto da chave efetivamente us
 - A landing pública ainda possui a oferta anterior de limites/trial. Essa divergência só será eliminada no rollout conjunto; Preview aprovado não é correção já publicada.
 
 Não há decisão comercial nova tomada neste documento. Redações e termos vigentes precisam de aprovação competente; testes não substituem análise jurídica.
+
+
+## Atualização do titular e clareza da oferta — 29/10/2026
+
+O titular não autorizou contratação adicional. Informou que entende e considera aceitável neste momento a perda potencial entre backups; registrou-se esse aceite limitado, sem estendê-lo ao RTO desconhecido, custódia fora da máquina, falha da rotina ou autorização de Production. O destino independente continua sem definição.
+
+O screenshot Turnstile mostra `app.qoro.dev (Spin)`, Managed, três hostnames; a lista não comprova quais domínios estão autorizados nem o par de chaves. A ação humana foi reduzida a abrir Settings/Hostname Management do widget e informar somente os hostnames. O gate real positivo/replay/negativo permanece pendente.
+
+Gemini pré-pago ativo e saldo de R$ 23 foram informados pelo titular, não por readback administrativo. Não solicitar compra adicional; faltam correlação do projeto da chave de Production, capacidade e alertas. Não converter relato de faturamento em prova E2E do provider.
+
+A apresentação da oferta foi alinhada para dizer **médicos** e **equipe administrativa**, com cotas separadas: Consultório 1 médico + até 3 acessos administrativos; Clínica 2 médicos + até 3 acessos administrativos, R$ 147 por médico adicional até 5 médicos. O backend não foi alterado: papel `doctor` conta mesmo antes do CRM; owner/gestor com CRM não vazio conta como médico, sem duplicar a cota administrativa; sem CRM conta como administrativo. Recepção/financeiro não ganham capacidade médica por CRM residual. Esse dado não é validação do conselho profissional. Preços, cotas, planos legados e desconto vitalício permanecem inalterados.
+
+
+### Verificação da clareza de médicos e equipe
+
+Alterações de apresentação: pergunta e resumo do cadastro, rótulo da triagem no admin, seleção de plano e resultado da calculadora. Identificadores da API, preços, regras de cobrança, CRM e limites no banco não mudaram. A seleção mostra as cotas apenas para a família 2026; não aplica as cotas novas aos planos legados.
+
+- **PASS local:** 91/91 testes em seis arquivos, incluindo 15 do predicado médico, 42 do questionário, 14 da seleção (com nova regressão de cotas), 10 da continuação, 6 do admin e 4 da calculadora.
+- **PASS local:** ESLint e Prettier dos arquivos alterados; inventário AST sem superfícies novas sem guard, variáveis públicas divergentes ou rotas regredidas.
+- **PASS navegador local:** Chromium em home e `/precos`, desktop 1440px e celular 375px, 4/4. Confere preços, médico extra, duas cotas administrativas, regra de dono/gestor com CRM, exemplo 2 médicos + 3 administrativos por R$ 397, CTAs e ausência de overflow. Foram inspecionadas capturas da seção pública, sem sessão ou PII.
+- **PASS landing local:** TypeScript, ESLint e build completo; bridge 28/28, FAQ visível/JSON-LD (261 perguntas), llms, links, HTML, conversão 2/2 e segurança 20 checks. Há 17 avisos anteriores de FAQPage no blog; não são novos nem foram suprimidos.
+- **FAIL de ambiente no TypeScript global local do app:** três diagnósticos em `ai-agent/tools/registry.ts` e `messaging/business-profile-contract.ts`, ambos intocados nesta alteração. O `node_modules` deste worktree é uma junction para o principal com Zod 3.25.76; o manifesto desta branch exige Zod ^4.6.6. Não foi alterada a junction nem instalado pacote no ambiente compartilhado. O build/typecheck global do candidato deve ser confirmado na CI com o lockfile correto; os 91 testes direcionados não o substituem.
+- **CI/Preview do novo commit:** conferir o SHA final nos checks dos PRs #42 e #3; não atribuir o PASS anterior ao novo código sem execução. Nenhum Checkout, cobrança ou restore foi repetido por uma mudança de copy.

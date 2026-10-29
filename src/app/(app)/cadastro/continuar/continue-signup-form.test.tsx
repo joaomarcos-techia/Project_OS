@@ -65,7 +65,7 @@ describe('continuação autenticada do cadastro verificado', () => {
     await screen.findByText('Cadastro recuperado na conta verificada');
     expect(screen.getByText('Ana')).toBeTruthy();
     expect(screen.getByText('Clínica Teste')).toBeTruthy();
-    expect(screen.getByText('2 a 5 profissionais')).toBeTruthy();
+    expect(screen.getByText('2 a 5 médicos')).toBeTruthy();
     expect(screen.queryByLabelText('Seu nome')).toBeNull();
     expect(screen.queryByLabelText('Senha')).toBeNull();
     expect(screen.getByRole('link', { name: 'Escolher plano' })).toHaveProperty(

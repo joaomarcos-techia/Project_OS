@@ -46,6 +46,9 @@ describe('prévia da proposta comercial', () => {
       target: { value: '3' },
     });
     expect(screen.getByText(/R\$\s*544,00\/mês/)).toBeTruthy();
+    expect(
+      screen.getByText('3 médicos + 1 acesso administrativo na simulação. As cotas são separadas.'),
+    ).toBeTruthy();
     expect(screen.queryByText(/R\$\s*5\.440,00/)).toBeNull();
     expect(screen.getByText(/A modalidade anual não está disponível nesta etapa/)).toBeTruthy();
   });

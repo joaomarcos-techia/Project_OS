@@ -53,22 +53,30 @@ try {
         await pricing.getByRole('heading', { name: 'Clínica' }).waitFor();
         const text = await pricing.innerText();
         assert.ok(
-          /R\$ 197[\s\S]*1 profissional incluído nesse valor/u.test(text),
+          /R\$ 197[\s\S]*1 médico incluído nesse valor/u.test(text),
           `${device}: Consultório não explicou o que R$ 197 inclui`,
         );
         assert.ok(
-          /R\$ 397[\s\S]*2 profissionais incluídos nesse valor/u.test(text),
+          /R\$ 397[\s\S]*2 médicos incluídos nesse valor/u.test(text),
           `${device}: Clínica não explicou o que R$ 397 inclui`,
         );
         assert.ok(
-          /\+ R\$ 147\/mês por profissional adicional, até 5 no total/u.test(text),
-          `${device}: adicional ou teto de profissionais ausente`,
+          /\+ R\$ 147\/mês por médico adicional, até 5 médicos no total/u.test(text),
+          `${device}: adicional ou teto de médicos ausente`,
         );
-        assert.equal((text.match(/Até 3 acessos de equipe incluídos/gu) ?? []).length, 2);
+        assert.equal((text.match(/Até 3 acessos administrativos incluídos/gu) ?? []).length, 2);
         assert.equal((text.match(/modalidade anual ainda não está disponível/gu) ?? []).length, 2);
         assert.equal(/Anual no cartão:|R\$\s*1\.970|R\$\s*3\.970/u.test(text), false);
         assert.equal(/2 a 5 profissionais · até 3 usuários/u.test(text), false);
         assert.equal(await pricing.locator('a[href="/comecar"]').count(), 2);
+        assert.ok(/Recepção, gestão e financeiro/u.test(text));
+        assert.ok(/papel Médico, inclusive antes de preencher o CRM/u.test(text));
+        assert.ok(/Dono ou gestor com CRM cadastrado também entra na cota de médicos/u.test(text));
+        assert.ok(/sem ocupar outro acesso administrativo/u.test(text));
+        assert.ok(
+          /2 médicos \+ 3 pessoas da equipe administrativa custam R\$ 397\/mês/u.test(text),
+        );
+        assert.equal(/por profissional adicional|profissionais incluídos/u.test(text), false);
         assert.equal(
           await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth),
           false,
@@ -92,7 +100,7 @@ try {
           assert.ok(/Clínica a partir de R\$ 397\/mês com 2/u.test(description ?? ''));
           assert.equal(/por mês, por profissional/u.test(description ?? ''), false);
           const hero = page.locator('main').first();
-          assert.ok(/\+ R\$\s*147\/mês por profissional extra/u.test(await hero.innerText()));
+          assert.ok(/\+ R\$\s*147\/mês por médico extra/u.test(await hero.innerText()));
           assert.ok(
             /modalidade anual ainda não está disponível para novas contratações/u.test(
               (await page.locator('main').textContent()) ?? '',

@@ -6,7 +6,11 @@ import type { FormEvent } from 'react';
 import { Alert } from '@/components/ui/alert';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { OptionCardGroup, type OptionCard } from '@/components/ui/option-card-group';
-import { isOffer2026PlanCode, PROPOSED_OFFER } from '@/contexts/billing/proposed-offer';
+import {
+  isOffer2026PlanCode,
+  OFFER_2026_PLAN_CODES,
+  PROPOSED_OFFER,
+} from '@/contexts/billing/proposed-offer';
 import type { SignupPlan, SignupPlanState } from '@/contexts/onboarding';
 
 type Phase = 'loading' | 'ready' | 'unavailable' | 'signed_out' | 'expired';
@@ -165,6 +169,16 @@ export function PlanSelectionForm() {
           label: (
             <span className="flex flex-col gap-2">
               <span className="text-sm font-semibold text-fg">{plan.name}</span>
+              {isOffer2026PlanCode(plan.code) ? (
+                <span className="text-xs text-fg-muted">
+                  {OFFER_2026_PLAN_CODES.indexOf(plan.code) + 1}{' '}
+                  {plan.code === 'consultorio_2026' ? 'médico' : 'médicos'} + até{' '}
+                  {plan.code === 'consultorio_2026'
+                    ? PROPOSED_OFFER.consultorioIncludedStaffLogins
+                    : PROPOSED_OFFER.clinicaIncludedStaffLogins}{' '}
+                  acessos administrativos
+                </span>
+              ) : null}
               <span className="flex items-baseline gap-1 text-primary">
                 <span className="font-display text-2xl font-semibold tracking-tight tabular-nums">
                   {formatPrice(plan.priceCents)}
@@ -421,6 +435,14 @@ export function PlanSelectionForm() {
           className="grid gap-3 md:grid-cols-3"
         />
       </fieldset>
+      {state.plans.some((plan) => isOffer2026PlanCode(plan.code)) ? (
+        <p className="text-sm leading-relaxed text-fg-muted">
+          Equipe administrativa: recepção, gestão e financeiro. O papel Médico ocupa uma vaga
+          médica, mesmo antes de preencher o CRM. Dono ou gestor com CRM cadastrado também conta
+          como médico, sem ocupar outro acesso administrativo; sem CRM, conta na equipe
+          administrativa.
+        </p>
+      ) : null}
       <div aria-live="polite" className="space-y-2">
         {saved ? (
           <Alert variant="success" title="Plano salvo">

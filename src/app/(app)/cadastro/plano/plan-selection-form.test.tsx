@@ -74,6 +74,7 @@ describe('seleção de plano O-4', () => {
       'md:grid-cols-3',
     );
     expect(fetchMock).toHaveBeenCalledWith('/api/signup/plan', { cache: 'no-store' });
+    expect(screen.queryByText(/Equipe administrativa:/u)).toBeNull();
   });
 
   it('explica que o prazo da nova oferta começa na criação da conta, sem alterar o legado', async () => {
@@ -102,6 +103,32 @@ describe('seleção de plano O-4', () => {
       ),
     ).toBeTruthy();
     expect(screen.getByText('7 dias grátis após a ativação')).toBeTruthy();
+    expect(screen.getByText('1 médico + até 3 acessos administrativos')).toBeTruthy();
+    expect(
+      screen.getByText(/Dono ou gestor com CRM cadastrado também conta como médico/u),
+    ).toBeTruthy();
+  });
+
+  it('mostra cotas separadas de médicos e equipe para todas as variantes da Clínica', async () => {
+    fetchMock.mockResolvedValueOnce(
+      json(200, {
+        ...STATE,
+        offerTrialEndsAt: '2026-11-02T13:45:00.000Z',
+        plans: [2, 3, 4, 5].map((doctors) => ({
+          id: `clinica-${doctors}`,
+          code: `clinica_2026_${doctors}`,
+          name: `Clínica ${doctors}`,
+          priceCents: 39_700 + (doctors - 2) * 14_700,
+          cycle: 'monthly',
+        })),
+      }),
+    );
+    render(<PlanSelectionForm />);
+    await screen.findByText('Clínica 2');
+    for (const doctors of [2, 3, 4, 5]) {
+      expect(screen.getByText(`${doctors} médicos + até 3 acessos administrativos`)).toBeTruthy();
+    }
+    expect(screen.getByText(/mesmo antes de preencher o CRM/u)).toBeTruthy();
   });
 
   it('avisa que o pagamento confirmado é necessário depois do prazo, inclusive com data passada', async () => {

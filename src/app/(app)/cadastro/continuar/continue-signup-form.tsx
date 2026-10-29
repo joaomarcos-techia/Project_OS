@@ -15,10 +15,10 @@ type Phase = 'loading' | 'form' | 'owned' | 'unavailable' | 'signed_out' | 'relo
 
 const LABELS = {
   professionalsBand: {
-    '1': '1 profissional',
-    '2_5': '2 a 5 profissionais',
-    '6_15': '6 a 15 profissionais',
-    '16_plus': '16 ou mais profissionais',
+    '1': '1 médico',
+    '2_5': '2 a 5 médicos',
+    '6_15': '6 a 15 médicos',
+    '16_plus': '16 ou mais médicos',
   },
   weeklyAppointmentsBand: {
     ate_20: 'Até 20 por semana',
