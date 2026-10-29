@@ -143,7 +143,11 @@ async function inspectStorageArchive(
       throw new Error('Storage archive integrity check failed');
     }
     await onObject?.(
-      { bucket: object.bucket, name: object.name, contentType: object.contentType },
+      {
+        bucket: object.bucket,
+        name: object.name,
+        contentType: object.contentType ?? 'application/octet-stream',
+      },
       data,
     );
   }

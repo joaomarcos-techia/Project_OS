@@ -270,7 +270,7 @@ async function main(): Promise<void> {
     stage = 'restore-local-files';
     await restoreStorageArchive(archive, passphrase, async (object, data) => {
       const { error } = await admin.from(object.bucket).upload(object.name, data, {
-        contentType: object.contentType,
+        contentType: object.contentType ?? 'application/octet-stream',
         upsert: false,
       });
       if (error) throw new Error('Falha ao restaurar objeto local');
