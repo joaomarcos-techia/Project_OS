@@ -1,5 +1,10 @@
 # Decisões de oferta, preço ao paciente e repasse — outubro de 2026
 
+## Estado prevalente em 29/10/2026
+
+A fase candidata permite **novas contratações mensais**, com anual novo fechado por flag padrão falsa e contratos anuais existentes preservados. Consultório 197/1 médico, Clínica 397/2, adicional 147 até 5, equipe 3 e trial 14 dias desde Auth. As fotografias históricas abaixo que dizem “não implementado” não são a matriz atual. Fontes do estado de engenharia e evidência: [gates técnicos](../quality/gates-tecnicos-oferta-2026-10-29.md), [fechamento](../quality/fechamento-oferta-2026-10-28.md) e [contas novas/legadas](../quality/contas-novas-e-legadas-2026-10-26.md). Isso não representa publicação em Production nem observação de renovação anual após um ano.
+
+
 ## Decisões confirmadas em 21/10/2026 e estado desta branch
 
 - A troca **mensal ↔ anual** de uma assinatura paga valerá no **próximo vencimento**, sem crédito ou cobrança proporcional imediata. A implementação e o E2E dessa troca ainda faltam; a contratação inicial anual já teve prova Sandbox, mas isso não implementa a troca de ciclo.

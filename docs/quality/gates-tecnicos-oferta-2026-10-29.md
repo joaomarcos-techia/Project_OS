@@ -1,0 +1,52 @@
+# Gates finais da oferta mensal — 29/10/2026
+
+Esta é a leitura do candidato, não da oferta atualmente publicada. Não houve merge, deploy Production, alteração de variável Production, migration remota ou cobrança nesta rodada.
+
+## Contrato comercial e implementação
+
+| Regra aprovada | Fonte e funcionamento candidato | Conferência / limite |
+| --- | --- | --- |
+| Consultório R$ 197, 1 médico; Clínica R$ 397, 2 médicos | `src/contexts/billing/proposed-offer.ts`; catálogo versionado na 0122; cadastro só oferece os dois planos de entrada | Landing `src/data/planos.ts` usa os mesmos valores. Não contratar 3–5 diretamente no cadastro; são ampliações da Clínica existente. |
+| Médico extra R$ 147/mês, até 5 no total | Variantes `_3/_4/_5`: R$ 544/691/838; saga de upgrade, Checkout proporcional e confirmação antes da liberação | Prova hospedada/webhook/cota anterior preservada; não criado novo pagamento. |
+| Até 3 membros de equipe em ambos os planos | `consultorioIncludedStaffLogins` e `clinicaIncludedStaffLogins` = 3; gatilho SQL limita profiles | Recepção/financeiro são equipe; médico ou owner/gestor com CRM usa cota médica. Não prometer equipe ilimitada nem quarto login automático. |
+| Trial 14 dias desde usuário Auth | `signup-trial.ts`, `signup-billing.ts` e 0124 | Checkout atrasado não reinicia prazo; já expirado exige pagamento confirmado para liberar. A primeira data de cobrança não antecipa as 14×24h. |
+| Novas contratações somente mensais | `OFFER_2026_ANNUAL_NEW_SALES_ENABLED=false` por padrão, aplicado em catálogo, mutação e criação de Checkout; mensal→anual bloqueado nessa fase | Anual existente e sua reconciliação/cancelamento continuam preservados; preço anual no catálogo não equivale a oferta ativa. |
+| Cancelamento sem estorno automático | Cessa renovação; anual pré-pago mantém acesso até o período pago; cobranças não pagas são limpas conforme saga existente | Revisão jurídica final permanece humana. Não confundir cancelamento SaaS com devolução de pagamento do paciente. |
+| 500 conversas/médico como referência, sem bloquear serviço | Ledger por paciente/janela de 24h após aceite Meta; alertas 80/100%, sem excedente automático | Proteção técnica de custo/indisponibilidade é distinta da referência comercial. Aceite Meta não significa entrega final. |
+| Contrato legado e desconto vitalício preservados | Família versionada, `price_id` e limites históricos preservados; mudança entre família legada e 2026 recusada | Clone real com 14 migrations preservou campos antigos. Não reprecificar ou migrar clientes automaticamente. Três órfãos DEV ficam em saneamento histórico; não se inventou owner. |
+| Aquisição Preview não deve ir a Production | Landing `montarDestinoDaPonte` escolhe somente destinos constantes por host: `qoro.dev/www` → app público; Preview do time/localhost → app Preview imutável | UTM não altera host; desconhecido fica bloqueado; fallback sem JS volta à home. Não foi alterado o destino público de produção. |
+
+O catálogo anual e as funções de cálculo continuam no código para contratos existentes/fase futura. A documentação histórica de outubro contém fotografias “não implementado”; a atualização atual e os relatórios datados prevalecem, sem converter resultado local em prova Production.
+
+## Turnstile: gate técnico preparado e gate real da janela
+
+Código: `src/contexts/onboarding/internal/turnstile.ts`, `e2e/signup-session-api.spec.ts` e `scripts/turnstile-production-gate.ts`. O Siteverify é server-side e falha fechado em configuração/rede/resposta inválida **quando o risco é moderado**. Baixo risco dispensa o desafio por desenho; alto risco é recusado. Testes unitários cobrem token vazio, ausência de secret, retorno inválido, falha HTTP/rede/JSON, timeout e nova verificação no replay. Não há cache local que transforme o segundo uso em sucesso.
+
+Os positivos/negativos reais com chaves de teste em Previews separados já passaram e não foram repetidos. Os dois SKIPs da CI isolada por ausência de chaves permanecem SKIP. A [Cloudflare](https://developers.cloudflare.com/turnstile/get-started/server-side-validation/) documenta validade de 300 segundos e uso único, com `timeout-or-duplicate` na repetição.
+
+**Ajuste do procedimento:** com `SIGNUP_ENABLED=false`, o POST do cadastro deve responder 503; não é possível exigir 201 nesse endpoint fechado para provar Turnstile. Não reabrir o cadastro só para resolver esse conflito de teste. Na janela autorizada:
+
+1. Conferência humana no Cloudflare: widget ativo, domínio `app.qoro.dev`, par de chaves correspondente. A presença das variáveis e a ausência de chave dummy no bundle Production já foram verificadas; não repetir leitura de valores.
+2. Engenharia obtém um token fresco do widget real no domínio correto por interação legítima do navegador, sem gravá-lo em trace/log/artifact. Se o formulário fechado não renderizar o widget, preparar execução controlada do widget no navegador desse domínio, sem expor um endpoint público de diagnóstico ou enfraquecer a aplicação.
+3. `scripts/turnstile-production-gate.ts` recebe token por stdin e secret real por ambiente de processo protegido, com `TURNSTILE_PRODUCTION_GATE=approved`. Confere sucesso e `hostname=app.qoro.dev`, repete o mesmo token e exige `timeout-or-duplicate`, depois exige recusa de token falso. Não cria usuário/sessão Qoro nem altera o cadastro. O script foi preparado/typechecked; **não executado com chaves reais nesta rodada**. Quem executar registra somente PASS/FAIL e horário, sem conteúdo de token.
+4. Após PASS, autorizar reabertura/deployment e smoke do fluxo moderado da aplicação, com fixture sintética e cleanup. Não considerar o Siteverify isolado prova da jornada inteira de cadastro.
+
+## Gemini: resultado técnico e o que falta no painel
+
+`src/lib/env.ts` e `src/lib/ai/gemini.ts` usam por padrão **`gemini-3.6-flash`**, selecionável por `GEMINI_MODEL`. Este é o default do código; o modelo efetivo de Production depende da variável do deployment. Não foi feita chamada com dados de paciente nem troca de credencial/modelo nesta rodada.
+
+O provider tem timeout (15s por padrão), não devolve corpo de erro e emite `ai.provider.error` com classe/status sanitizados. O consumidor repete resposta vazia e 5xx até três tentativas com backoff; 402/429 são preservados como erros 4xx e **não** repetidos em loop curto. Foram adicionadas regressões explícitas para ambos. Após falha, o consumidor usa fallback operacional e pode escalar a humano. Isso mantém uma resposta operacional, mas não comprova a entrega dessa resposta nem que exista recepção humana disponível.
+
+Há métricas, rollups e saved-search documentados; não foi confirmado um destino humano ativo de alertas da conta Google nem configurado aviso externo. Não confundir emissão de métrica com alerta recebido. O controle por clínica/custo não é substituto de limites RPM/TPM/RPD do projeto Google. Sem chave, o runtime nega a chamada antes de fetch; **não foi identificada uma chave geral de produto que isole toda a IA com UX contratual apropriada**. Remover a API key não é plano de desativação seguro. Se o tier não cumprir privacidade/capacidade, o recurso conversacional deve continuar NO-GO até regularização ou decisão explícita de um modo operacional com handoff, que precisa de implementação e prova próprias.
+
+Somente no painel Google falta comprovar: ID do projeto da chave efetivamente usada em Production, modelo disponível, tier, billing, saldo/estado, limites RPM/TPM/RPD e alertas/orçamento. As condições dependem da conta: [billing](https://ai.google.dev/gemini-api/docs/billing), [limites](https://ai.google.dev/gemini-api/docs/rate-limits) e [privacidade/preços](https://ai.google.dev/gemini-api/docs/pricing). Não foi contratado crédito nem alterado faturamento. A landing afirma API paga e condições correspondentes; essa afirmação **exige a conferência do tier antes de tráfego de pacientes**.
+
+## Revisão comercial/jurídica humana remanescente
+
+- Aprovar a versão mensal final: 197/397, adicional 147, limite 5, equipe 3 e trial desde Auth; sem contratação anual nova.
+- Aprovar cancelamento/renovação e comunicação para legados, sem tocar no desconto vitalício.
+- Confirmar termos de uso de mensagens no tier Google efetivo e custos próprios Meta/Asaas, sem prometer isenção ou preço de terceiro não contratado.
+- Conferir comunicação de devolução de sinal: regras comerciais da clínica e registro de devolução não são promessa de refund automático pelo Qoro. A engenharia não deve reativar refund automático só para harmonizar uma frase.
+- A landing pública ainda possui a oferta anterior de limites/trial. Essa divergência só será eliminada no rollout conjunto; Preview aprovado não é correção já publicada.
+
+Não há decisão comercial nova tomada neste documento. Redações e termos vigentes precisam de aprovação competente; testes não substituem análise jurídica.

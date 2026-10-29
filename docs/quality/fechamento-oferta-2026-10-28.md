@@ -10,7 +10,7 @@ Escopo: branch `integration/pricing-plan-sync-20261018` do aplicativo e PR draft
 | Artifact de 26/10 | **FAIL para restore íntegro** | Decifração passou, mas o dump de `public` sem `auth.users` falhou com FK de `appointment_corrections` sob `ON_ERROR_STOP=1`. O erro não foi ignorado nem foram fabricados usuários. |
 | Novo backup lógico e restore | **PASS para public+auth; PARTIAL para serviço completo** | `pg_dump` Production somente de leitura e GPG exit 0; backup cifrado de 600.448 bytes, SHA-256 `76f17b44e3d3e87b3735a0606295d389be7b013ff42a35eb7c4dee76292b778d`. `psql` 17.11 exit 0, zero erros SQL em Supabase local isolado. Storage e configurações externas não foram restaurados; consulta agregada em Production encontrou 5 buckets e 42 registros em `storage.objects`. |
 | Storage — atualização 29/10 | **PASS de cópia e restore real local; PARTIAL operacional** | Cinco buckets e 42 arquivos reais copiados com autorização, archive cifrado, 42 hashes conferidos após restore local, 38 acessos privados anônimos recusados e 4 leituras públicas conferidas. Falta rotina recorrente e cópia/chave em domínio de falha independente. Nenhuma escrita em Production. |
-| Configuração Auth — atualização 29/10 | **PASS de inventário/cópia cifrada; PARTIAL para reconstrução integral** | Após login legítimo, 243 configurações foram lidas, cifradas com DPAPI e verificadas por readback local. URL, redirects, SMTP, templates, refresh, TOTP e hook de claims conferidos sem expor valores secretos. Cofre portátil e smoke de um serviço Auth reconstruído ainda pendentes. |
+| Configuração Auth — atualização 29/10 | **PASS de inventário/cópia e serviço sintético; PARTIAL para reconstrução integral** | 243 configurações cifradas verificadas. Auth oficial local com sete campos recuperados, 133 migrations, hook/parser/RLS, e-mail local, sessão, recuperação e TOTP/AAL2: 14 verificações aprovadas. Cofre independente e reconstrução do produto completo continuam pendentes. |
 | Migrations 0119–0132 | **PASS na cópia restaurada; NOT RUN em Production** | 14/14 SQLs em ordem, cada um em transação com `ON_ERROR_STOP=1`; journal 119 → 133; zero constraints públicas não validadas. Nenhuma migration remota foi aplicada. |
 | Contratos legados | **PASS de preservação na cópia** | Os quatro registros de assinatura conservaram exatamente todos os campos pré-existentes; os planos e preços legados também tiveram digest igual antes/depois. Os cinco planos 2026 nasceram inativos. Não houve atualização de contrato real. |
 | Três contratos DEV sem titular | **PARTIAL, não bloqueio direto de Production** | São três registros DEV `past_due` sem profile/paciente/agendamento; possuem IDs de assinatura Asaas e histórico variável. Não se comprovou quem removeu os titulares. Production tinha zero órfãos no readback anterior. Não foram alterados. |
@@ -130,3 +130,35 @@ Conferências não secretas: `site_url` corresponde a `https://app.qoro.dev`; al
 **Limites:** não foi reconstruído um serviço Auth completo nem testados login/MFA/SMTP nele. JWT signing keys, credenciais Vercel/Google/Resend e chaves de cifra do domínio precisam continuar recuperáveis em cofre independente; a resposta Auth não é inventário de todos esses serviços. O snapshot DPAPI depende deste perfil Windows. O procedimento de reconstrução e as verificações obrigatórias estão no runbook de recuperação. Não repetir o login manual já concluído.
 
 O CI de `d0431df4` identificou dois `undefined` explícitos incompatíveis com `exactOptionalPropertyTypes` nos helpers novos; foram substituídos por MIME fallback explícito, sem afrouxar o TypeScript. A verificação local foi repetida incluindo `--exactOptionalPropertyTypes` e passou, assim como os 3 testes do archive. O run seguinte pertence ao commit corretivo `04fef91c`; o FAIL anterior permanece registrado.
+
+## Conclusão técnica autônoma — rodada de 29/10
+
+As evidências antigas continuam preservadas. Os checks exatos de `279e06bd` passaram: [CI 40855194640](https://github.com/joaomarcos-techia/Project_OS/actions/runs/40855194640), 540 arquivos, **5.694/5.694 testes**, build, lint, TypeScript, isolamento e segurança. E2E público: **7 PASS e 2 SKIP**, sem converter os SKIPs de Turnstile em PASS. Vercel, Snyk e Semgrep passaram nesse SHA. Landing `81341c4` também estava mergeable/draft com checks aplicáveis aprovados; Agent Review era NEUTRAL.
+
+Nesta rodada foram implementados:
+
+- Ensaio funcional Auth descrito no [runbook](../runbooks/disaster-recovery.md): **14 verificações reais locais**, 133 migrations reais, SMTP sem saída, hook/parser/RLS Qoro, TOTP/AAL2, cleanup confirmado em 103.893 ms na execução final (68.575 ms na anterior). Isso supera o antigo NOT RUN do serviço Auth sintético; não prova um HTTP de Next recuperado nem custódia externa de todas as chaves.
+- Formato `QOROREC1` com cifra autenticada e envelope independente do DPAPI, exportador opt-in com senha custodiada, verificador e teste de portabilidade em Linux sem rede/volume. CLI seal/verify, recusa de sobrescrita e alerta por backup ausente passaram com dados sintéticos. Nenhuma exportação real ou upload foi feita.
+- Monitor operacional de três famílias de backup: recusa estado ausente, cópia parcial, hash inválido, relógio futuro, cópia independente/chave/drill não comprovados. Rotina, retenção proposta e watchdog documentados; não existe scheduler real de Storage/Auth instalado enquanto o destino não for aprovado.
+- Regressões Turnstile para replay e JSON inválido; probe da janela real preparado, não executado com credencial Production. O roteiro foi corrigido: cadastro fechado responde 503 e não pode, ao mesmo tempo, comprovar uma criação 201.
+- Regressões Gemini 402/429: status preservado sem corpo sensível e sem retentativa curta de 4xx. Não houve chamada Gemini real nesta rodada; tier, projeto, limites, billing e privacidade continuam pendentes no painel.
+- CTA da landing corrigido para separar Preview de Production com destinos constantes, bloquear host desconhecido e preservar UTM sem open redirect. **28/28** verificações de ponte/artefato e build completo da landing passaram. Browser local desktop/mobile, com e sem JS: **4/4 PASS**, sem enviar requests de conversão ou contratação externa. Essa prova cobre a navegação da ponte; não é novo Checkout ou webhook.
+
+Validação local focada: **41/41 testes** em seis arquivos (12 Gemini, 8 retry, 11 Turnstile, 3 archive, 3 pacote e 4 monitor), TypeScript estrito dos helpers e lint. Nenhuma dependência de produção adicionada, nenhuma configuração CI/CD alterada nesta rodada. O inventário AST foi regenerado. As verificações completas do novo SHA devem ser lidas nos [checks do PR #42](https://github.com/joaomarcos-techia/Project_OS/pull/42/checks), sem atribuir a ele o PASS de `279e06bd` automaticamente.
+
+### Matriz atual
+
+| Área | Resultado | O que falta |
+| --- | --- | --- |
+| Banco e migrations no clone | PASS preservado | Preflight e autorização da janela; Production não migrado. |
+| Storage | PASS local real | Cópia/chave independente, rotina ativa e watchdog aprovados. |
+| Auth funcional | PASS sintético real; PARTIAL serviço completo | Cofre externo e ensaio conjunto do app recuperado com todas as dependências. |
+| Exportação portável | PREPARADA e testada sinteticamente | Escolha do cofre, custódia da senha e autorização da cópia real. |
+| Automação | PARTIAL | Workflow DB existente; checker e procedimento preparados; Storage/Auth e canal de alertas ainda não ativados. |
+| Turnstile | PASS técnico/Preview; PARTIAL Production | Widget/domínio humano e gate real na janela. |
+| Gemini | PASS de tratamento técnico; PARTIAL operacional | Projeto/tier/billing/limites/privacidade e alertas reais. |
+| Oferta mensal/legados | PASS das provas anteriores preservado | Texto contratual aprovado, checks finais e rollout conjunto. |
+| Landing candidata | PASS build e ponte local | Checks e probe do deployment do novo SHA. |
+| Produção | NÃO ALTERADA | Sem merge, migration, deploy, alteração de contrato ou cobrança. |
+
+Os [gates técnicos](gates-tecnicos-oferta-2026-10-29.md) registram a comparação comercial e os limites das provas. O [guia final](../runbooks/acoes-manuais-pendentes-pricing-2026-10.md) separa Grupo A obrigatório humano, B opcional e C engenharia na janela. **NO-GO mantido** por cofre/risco operacional, Turnstile Production, Gemini e aprovação contratual, não por ausência de instalação ou repetição de pagamentos.

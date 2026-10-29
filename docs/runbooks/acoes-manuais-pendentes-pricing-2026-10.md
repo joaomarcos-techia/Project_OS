@@ -1,8 +1,85 @@
-# Ações humanas pendentes — oferta 2026 (Preview e Sandbox)
+# Ações finais — oferta mensal 2026
 
-Atualizado em 28/10/2026. Este documento contém somente ações que exigem uma pessoa ou acesso ao painel indisponível à automação. **Não altere produção, não use cartão real, não copie chaves, senhas, OTP ou URLs com bypass para o chat.** Os testes de código, migrations DEV, fixtures e readbacks pertencem à engenharia e não devem ser repetidos manualmente. A nova tabela ainda não está pronta para contratação no app em produção, embora a landing pública já anuncie os novos preços. A landing publicada promete até **10 profissionais e equipe ilimitada**; o candidato do app limita a **5 médicos e 3 logins de equipe**. O [PR draft da landing #3](https://github.com/joaomarcos-techia/landing_page/pull/3) corrige a promessa no Preview; falta publicação coordenada. As variantes de 3–5 médicos foram ativadas só no DEV; isso não autoriza contratar em produção. O Checkout de médico adicional e o de uma **conta completamente nova** foram pagos e validados no Asaas Sandbox/Preview; não há nova ação humana de pagamento para esses gates. Evidências em [contas novas e legadas](../quality/contas-novas-e-legadas-2026-10-26.md).
+Atualizado em **29/10/2026**. Primeiro a engenharia, depois as aprovações humanas, por último uma janela autorizada. **Não há autorização para merge, deploy, migrations ou alteração de contratos em Production.** Não enviar chaves, senhas, OTP, payloads clínicos ou URLs com bypass por chat.
 
-Os limites e o trial de 14 dias foram preparados no [PR draft da landing #3](https://github.com/joaomarcos-techia/landing_page/pull/3), sem mexer em produção. Em 25/10, o deployment imutável `fa8b67c` passou **4/4** verificações em Chromium externo (home/preços, desktop/celular, texto, CTA, cancelamento anual e largura). A proteção da Vercel já foi atravessada pela CLI autenticada para esses testes; ela não exige compra. O Turnstile positivo/negativo passou automaticamente em Previews separados em 26/10; a configuração temporária de teste foi removida. A configuração efetiva de **Production** ainda exige conferência antes de reabrir o cadastro. A inspeção humana abaixo fica para julgamento visual e para a comparação final com o cadastro real depois da publicação coordenada. Não há necessidade de repetir o build local nem de abrir o PR #1 antigo.
+Já concluído, sem repetição manual: login administrativo Supabase; inventário e snapshot cifrado de 243 configurações Auth; restore do banco e 14 migrations no clone; restore de 42 arquivos Storage; ensaio Auth sintético real; pagamentos Sandbox de conta nova e médico adicional. O código do pacote portátil e o monitor de saúde estão preparados; o destino independente ainda não foi escolhido. Ver [recuperação portável e rotina](recuperacao-portavel-e-rotina-2026-10.md) e [gates técnicos](../quality/gates-tecnicos-oferta-2026-10-29.md).
+
+A landing pública e o app publicado ainda não receberam o rollout conjunto. A oferta candidata é mensal: Consultório R$197/1 médico, Clínica R$397/2 médicos; adicional R$147 até 5 no total; 3 acessos de equipe e trial de 14 dias desde Auth. Contratos antigos preservados. Nenhuma nova compra anual será oferecida nesta fase.
+
+# Grupo A — Obrigatórias antes do lançamento
+
+## Obrigatória antes do rollout — cofre independente, Auth e aceite de recuperação
+
+**Objetivo.** A cópia e a restauração real de Storage foram autorizadas e concluídas em 29/10: **5 buckets, 42/42 hashes iguais, 38 arquivos privados negados ao anônimo e 4 públicos conferidos**. Não é necessário pagar outro projeto nem repetir a prova. A pasta local cifrada tem ACL restrita e a chave fica protegida pelo Windows em outra pasta. Falta proteção contra perda da máquina/perfil, rotina recorrente, cofre independente das dependências Auth e aceite do risco de operar sem PITR. Ver [runbook de recuperação](disaster-recovery.md).
+
+**Pré-requisitos e links.** Tenha um destino local criptografado ou cofre de backup aprovado, com espaço, controle de acesso, retenção e cópia fora da máquina. Acesse o [Supabase Dashboard](https://supabase.com/dashboard/projects) com permissão administrativa somente para conferir Storage/Auth; não clique em Restore no projeto ativo. Consulte a [documentação oficial de backups](https://supabase.com/docs/guides/platform/backups) e de [Storage](https://supabase.com/docs/guides/storage).
+
+**Passo a passo.**
+
+1. Abra `Win+E` e cole `%LOCALAPPDATA%\Qoro\Recovery\storage-20261029`. A cópia está em `qoro-storage-S0upJf`. Não abra os arquivos como documentos nem os envie por chat. A chave está em `%LOCALAPPDATA%\Qoro\RecoveryKeys\storage-20261029.dpapi`; ela depende do perfil Windows atual e **não basta copiar esse arquivo para outro computador**.
+2. Informe qual cofre/destino independente já aprovado pela Qoro pode guardar a chave recuperável e a cópia cifrada, com responsáveis, retenção e controle de acesso. Não faça upload para Drive pessoal, Git ou CI por conta própria. A engenharia prepara a exportação protegida da chave para esse cofre; a senha existente de backup não foi reutilizada porque não atende ao requisito de comprimento do novo envelope. Nenhuma credencial foi alterada. Até existir uma cópia/chave independente, uma perda da máquina continua sendo risco relevante.
+3. O login administrativo **já funcionou**: a engenharia conferiu **243 configurações Auth** e guardou snapshot cifrado pelo Windows em `%LOCALAPPDATA%\Qoro\Recovery\auth-20261029\auth-config.dpapi`. **Não repita o login nem o inventário.** Confirme no cofre independente as dependências externas: chaves de assinatura/JWT e API do projeto, chaves de criptografia da aplicação, salts/peppers e credenciais de e-mail/provedores. Informe somente os grupos disponíveis ou faltantes. A engenharia já executou o ensaio do Auth real com identidades sintéticas, SMTP local, hook/parser/RLS do Qoro e sete configurações seguras recuperadas. Isso não comprova a custódia externa de todas as chaves nem o RTO do serviço completo.
+4. Avalie formalmente o **RPO de planejamento ~24h entre backups saudáveis**, maior se uma execução falhar, e o RTO completo ainda não medido. A prova local de arquivos não mede a reconstrução de todo o serviço. Confirme a contingência operacional para registros criados após o último backup; a decisão de não contratar PITR não equivale ao aceite automático da perda potencial.
+5. Envie somente: `Cofre/destino independente [nome/localização geral]; cofre Auth [disponível/faltantes por grupo]; RPO/RTO [aceito/preciso discutir]; responsável [função]`. Não envie chaves, senha, conteúdo de pacientes ou URLs assinadas.
+
+**Resultado esperado.** Cópia e chave recuperáveis fora do domínio de falha desta máquina, inventário Auth completo e risco residual explicitamente tratado. O restore local do banco e do Storage já passou; o gate remanescente é operacional, não instalação ou novo pagamento.
+
+
+## Obrigatória antes de reabrir o cadastro — Conferir Turnstile de Production
+
+**Objetivo.** Os dois testes com chaves de teste passaram em Preview, mas os dois E2E da CI isolada foram SKIP e não provam a configuração de Production. O backend verifica tokens via Cloudflare somente quando o risco da sessão é moderado; nesse caminho, chave ausente ou inválida fecha o desafio. Sessões de risco baixo não passam por Turnstile, por desenho atual. Não registrar as chaves em screenshots ou chat.
+
+**Já feito em 29/10.** A CLI autenticada confirmou `NEXT_PUBLIC_TURNSTILE_SITE_KEY` e `TURNSTILE_SECRET_KEY` no ambiente Production, sem leitura/exposição dos valores. A leitura do cadastro publicado e de 20 bundles encontrou chave pública com formato real e nenhuma chave dummy conhecida. Não precisa repetir essa presença. Ainda faltam a correspondência do widget/domínio e o teste funcional do desafio real antes da reabertura.
+
+**Pré-requisitos e links.** Acesso de administrador ao [projeto `project-os` na Vercel](https://vercel.com/clinic-os-v2-s-projects/project-os/settings/environment-variables) e ao [Cloudflare Turnstile](https://dash.cloudflare.com/?to=/:account/turnstile). Confira apenas **nomes, ambiente e domínio**: `NEXT_PUBLIC_TURNSTILE_SITE_KEY` e `TURNSTILE_SECRET_KEY` precisam existir para Production e pertencer ao mesmo widget real. Não use as chaves públicas de teste `always-pass` ou `always-fail` no deployment de Production.
+
+**Passos.** 1. No Cloudflare, confira que o widget correspondente às variáveis já verificadas aceita `app.qoro.dev` e está ativo; não revele chaves. 2. Informe somente widget/domínio correto ou o item faltante. 3. A engenharia executará o Siteverify real positivo, replay e negativo na janela autorizada, mantendo cadastro fechado. O POST do cadastro fechado responde 503 e não serve para provar um 201 de Turnstile; o roteiro técnico já separa essas provas. 4. Se configuração estiver ausente/incorreta, manter NO-GO. Uma futura correção de variável exige novo deployment; não fazer essa alteração nesta rodada.
+
+**Evidência e resposta.** Envie `Turnstile Production: variáveis [presentes/ausentes], widget [ativo/inativo], domínio [correto/incorreto], novo deployment [sim/não]`, sem chaves. O resultado esperado é configuração coerente e rejeição server-side de token inválido no teste de risco moderado.
+
+
+## Obrigatória antes de tráfego clínico — Conferir o tier Gemini do projeto de produção
+
+**Objetivo.** A landing afirma que as mensagens são processadas pela API paga do Gemini, cujo tratamento de dados difere do tier gratuito. Uma chave presente na Vercel não comprova billing ativo, tier ou saldo. Esta conferência exige o titular da conta Google e não autoriza compra automática.
+
+**Pré-requisitos.** Acesso administrativo ao Google AI Studio e identificação, no painel da Vercel, de qual **projeto** emite a chave `GEMINI_API_KEY` de Production; não abra nem copie o valor da chave. Se houver vários projetos, confirme o projeto pelo identificador não secreto e pela administração da chave.
+
+**Links oficiais.** [AI Studio — projetos](https://aistudio.google.com/projects), [AI Studio — cobrança](https://aistudio.google.com/billing) e [documentação de cobrança](https://ai.google.dev/gemini-api/docs/billing).
+
+**Passo a passo.**
+
+1. Entre em **Projects** e selecione o projeto que fornece a chave de Production ao Qoro. Na coluna **Billing Tier**, confira se está em um tier pago; registre só o nome do tier, nunca a chave.
+2. Entre em **Billing**. Confira se o plano é Prepay ou Postpay e se o estado está ativo. Se for Prepay, confira saldo positivo e alertas de crédito baixo. Se aparecer **No credits**, chamadas podem parar com HTTP 402.
+3. Se o projeto estiver no Free e você quiser habilitar o Paid, pare e autorize o custo: o Google informa que a ativação pode exigir pelo menos **US$ 5** de crédito pré-pago, além do consumo por tokens. Não clique em **Set up billing** ou **Buy credits** até decidir o orçamento.
+4. Envie ao agente apenas `Gemini Production: projeto [ID não secreto], tier [Free/Paid], plano [Prepay/Postpay], estado [ativo/sem créditos], limite mensal [valor ou ausente]`. Não envie fatura com dados pessoais, senha nem API key.
+
+**Resultado esperado e evidência.** Projeto correto, Paid ativo e, se Prepay, saldo positivo. Um print recortado da linha de tier/estado, sem credenciais, é suficiente. Se a UI divergir, use o procedimento da [documentação oficial](https://ai.google.dev/gemini-api/docs/billing) e informe os rótulos encontrados. O agente confrontará esse estado com a configuração efetiva da Vercel sem copiar segredo DEV para Production.
+
+
+## Decisão contratual e revisão humana antes do lançamento
+
+**Objetivo.** Validar linguagem de preço, trial, anual, aviso de uso de IA, custo Meta/Asaas e contratos existentes. A engenharia não deve inventar condição comercial ou jurídica.
+
+**Pré-requisitos.** Versão final do app/landing e responsável jurídico/contábil da Qoro. Consulte [decisões da oferta](../specs/decisoes-oferta-e-precificacao-2026-10.md) e [roteiro técnico](validacao-nova-oferta-2026-10.md).
+
+**Passos.** Revise a redação dos Termos e das telas contra os valores contratáveis, confirme a permanência integral do desconto vitalício do contrato existente, decida a comunicação para demais contratos legados e aprove ou devolva alterações. Não altere uma assinatura no Asaas para “testar” esta etapa.
+
+**Resultado e evidência.** Documento/versão aprovada e data, sem dados pessoais do cliente de desconto. Resposta ao agente: `Texto comercial/jurídico versão … aprovado` ou `ajustes necessários: …`.
+
+**Próximo passo.** Engenharia confronta aprovação com implementação e evidências de Sandbox antes de discutir publicação conjunta app/landing.
+
+
+## Autorização da janela — somente depois dos gates
+
+**Objetivo.** Autorizar a operação futura conjunta, sem confundir aprovação de texto com permissão para executar produção.
+
+**Pré-requisito.** Cofre/cópia/chave independente verificados, risco residual sem PITR tratado, widget e Gemini conferidos, texto aprovado e checks finais verdes dos dois PRs.
+
+**Passos.** A engenharia entrega SHAs finais, preflight, backup e plano de recuperação; você confirma responsável e horário da janela e autoriza explicitamente fechamento do cadastro, migrations 0119–0132 e publicação coordenada. Se um gate crítico falhar, a autorização não supera o critério de interrupção.
+
+**Resposta.** `Janela [data/horário Brasília] autorizada para SHAs [app/landing], conforme runbook; ou gate pendente [...]`. Nenhuma autorização está presumida agora.
+
+# Grupo B — Opcionais
 
 ## Opcional — Revisão visual humana da landing candidata
 
@@ -12,7 +89,7 @@ Os limites e o trial de 14 dias foram preparados no [PR draft da landing #3](htt
 
 **Link.** [Landing mensal — preços no Preview imutável](https://landing-page-8kg1zwlm9-clinic-os-v2-s-projects.vercel.app/precos), [home no mesmo Preview](https://landing-page-8kg1zwlm9-clinic-os-v2-s-projects.vercel.app/), [landing pública — preços](https://qoro.dev/precos) e [home pública](https://qoro.dev/). O [PR #42 do app](https://github.com/joaomarcos-techia/Project_OS/pull/42) contém o link de deployment atualizado; ele não prova o checkout de produção. Não usar o link antigo `6088143c` para validar o código mensal atual.
 
-**Atenção ao CTA.** O `/comecar` da landing em Preview ainda encaminha para `https://app.qoro.dev/cadastro`, pois `src/lib/comecar.ts` usa esse destino constante. **Não use esse botão para testar pagamento Sandbox:** ele leva ao app de produção. Para examinar a nova oferta sem criar conta, abra o link direto do app Preview acima; testes de Checkout devem usar o roteiro de fixture isolada do app.
+**CTA corrigido no candidato.** `/comecar` diferencia hosts públicos de Preview: a landing Preview usa somente o app Preview fixo revisado; `qoro.dev/www` conserva o app público. Hosts desconhecidos ficam bloqueados e UTM não decide destino. O fallback sem JavaScript volta à home. Não usar links de versões antigas para testar pagamentos. A nova navegação precisa dos checks do SHA final; testes de Checkout continuam exigindo fixture isolada.
 
 **Passo a passo.**
 
@@ -26,6 +103,7 @@ Os limites e o trial de 14 dias foram preparados no [PR draft da landing #3](htt
 **Problemas comuns.** Se a landing pública mostrar uma versão diferente da branch em revisão, confirme o SHA do deployment antes de concluir. A página `/precos-preview` do PR #1 é histórica e não substitui o conteúdo publicado. Se o cadastro mostrar Solo/Clínica/Pro depois de clicar num CTA que promete Consultório R$ 197, registre FAIL e não crie Checkout.
 
 **Próximo passo.** Entregue o resultado ao agente; ele confrontará com o catálogo e o checkout ativos antes de considerar a oferta pronta.
+
 
 ## Opcional — Investigar a entrega histórica do Checkout anual no Asaas Sandbox
 
@@ -45,52 +123,13 @@ Os limites e o trial de 14 dias foram preparados no [PR draft da landing #3](htt
 
 **Problemas comuns e próximo passo.** A configuração permanente atual já aponta para outro deployment e está inativa; deixe-a intacta. A prova causal nova foi concluída com webhook temporário identificado e cleanup. Se não houver registro da entrega de 23/10, mantenha o estado histórico como não comprovado; se houver HTTP diferente de 200, informe só o código e horário para correlacionar, sem reenviar o payload.
 
-## Obrigatória antes de reabrir o cadastro — Conferir Turnstile de Production
-
-**Objetivo.** Os dois testes com chaves de teste passaram em Preview, mas os dois E2E da CI isolada foram SKIP e não provam a configuração de Production. O backend verifica tokens via Cloudflare somente quando o risco da sessão é moderado; nesse caminho, chave ausente ou inválida fecha o desafio. Sessões de risco baixo não passam por Turnstile, por desenho atual. Não registrar as chaves em screenshots ou chat.
-
-**Já feito em 29/10.** A CLI autenticada confirmou `NEXT_PUBLIC_TURNSTILE_SITE_KEY` e `TURNSTILE_SECRET_KEY` no ambiente Production, sem leitura/exposição dos valores. A leitura do cadastro publicado e de 20 bundles encontrou chave pública com formato real e nenhuma chave dummy conhecida. Não precisa repetir essa presença. Ainda faltam a correspondência do widget/domínio e o teste funcional do desafio real antes da reabertura.
-
-**Pré-requisitos e links.** Acesso de administrador ao [projeto `project-os` na Vercel](https://vercel.com/clinic-os-v2-s-projects/project-os/settings/environment-variables) e ao [Cloudflare Turnstile](https://dash.cloudflare.com/?to=/:account/turnstile). Confira apenas **nomes, ambiente e domínio**: `NEXT_PUBLIC_TURNSTILE_SITE_KEY` e `TURNSTILE_SECRET_KEY` precisam existir para Production e pertencer ao mesmo widget real. Não use as chaves públicas de teste `always-pass` ou `always-fail` no deployment de Production.
-
-**Passos.** 1. Na Vercel, filtre **Production** e confirme a presença das duas variáveis; não revele nem copie seus valores. 2. No Cloudflare, confirme que o widget correspondente aceita o domínio `app.qoro.dev` e está ativo. 3. Após o deployment candidato, com cadastro ainda fechado, peça à engenharia um teste sintético do desafio real positivo e negativo; só reabra após esse PASS. 4. Se faltar variável, widget ou domínio, mantenha cadastro fechado e informe apenas qual item falta. Alterar variáveis exige **novo deployment** para atingir a aplicação.
-
-**Evidência e resposta.** Envie `Turnstile Production: variáveis [presentes/ausentes], widget [ativo/inativo], domínio [correto/incorreto], novo deployment [sim/não]`, sem chaves. O resultado esperado é configuração coerente e rejeição server-side de token inválido no teste de risco moderado.
-
-## Obrigatória antes de tráfego clínico — Conferir o tier Gemini do projeto de produção
-
-**Objetivo.** A landing afirma que as mensagens são processadas pela API paga do Gemini, cujo tratamento de dados difere do tier gratuito. Uma chave presente na Vercel não comprova billing ativo, tier ou saldo. Esta conferência exige o titular da conta Google e não autoriza compra automática.
-
-**Pré-requisitos.** Acesso administrativo ao Google AI Studio e identificação, no painel da Vercel, de qual **projeto** emite a chave `GEMINI_API_KEY` de Production; não abra nem copie o valor da chave. Se houver vários projetos, confirme o projeto pelo identificador não secreto e pela administração da chave.
-
-**Links oficiais.** [AI Studio — projetos](https://aistudio.google.com/projects), [AI Studio — cobrança](https://aistudio.google.com/billing) e [documentação de cobrança](https://ai.google.dev/gemini-api/docs/billing).
-
-**Passo a passo.**
-
-1. Entre em **Projects** e selecione o projeto que fornece a chave de Production ao Qoro. Na coluna **Billing Tier**, confira se está em um tier pago; registre só o nome do tier, nunca a chave.
-2. Entre em **Billing**. Confira se o plano é Prepay ou Postpay e se o estado está ativo. Se for Prepay, confira saldo positivo e alertas de crédito baixo. Se aparecer **No credits**, chamadas podem parar com HTTP 402.
-3. Se o projeto estiver no Free e você quiser habilitar o Paid, pare e autorize o custo: o Google informa que a ativação pode exigir pelo menos **US$ 5** de crédito pré-pago, além do consumo por tokens. Não clique em **Set up billing** ou **Buy credits** até decidir o orçamento.
-4. Envie ao agente apenas `Gemini Production: projeto [ID não secreto], tier [Free/Paid], plano [Prepay/Postpay], estado [ativo/sem créditos], limite mensal [valor ou ausente]`. Não envie fatura com dados pessoais, senha nem API key.
-
-**Resultado esperado e evidência.** Projeto correto, Paid ativo e, se Prepay, saldo positivo. Um print recortado da linha de tier/estado, sem credenciais, é suficiente. Se a UI divergir, use o procedimento da [documentação oficial](https://ai.google.dev/gemini-api/docs/billing) e informe os rótulos encontrados. O agente confrontará esse estado com a configuração efetiva da Vercel sem copiar segredo DEV para Production.
-
-## Decisão contratual e revisão humana antes do lançamento
-
-**Objetivo.** Validar linguagem de preço, trial, anual, aviso de uso de IA, custo Meta/Asaas e contratos existentes. A engenharia não deve inventar condição comercial ou jurídica.
-
-**Pré-requisitos.** Versão final do app/landing e responsável jurídico/contábil da Qoro. Consulte [decisões da oferta](../specs/decisoes-oferta-e-precificacao-2026-10.md) e [roteiro técnico](validacao-nova-oferta-2026-10.md).
-
-**Passos.** Revise a redação dos Termos e das telas contra os valores contratáveis, confirme a permanência integral do desconto vitalício do contrato existente, decida a comunicação para demais contratos legados e aprove ou devolva alterações. Não altere uma assinatura no Asaas para “testar” esta etapa.
-
-**Resultado e evidência.** Documento/versão aprovada e data, sem dados pessoais do cliente de desconto. Resposta ao agente: `Texto comercial/jurídico versão … aprovado` ou `ajustes necessários: …`.
-
-**Próximo passo.** Engenharia confronta aprovação com implementação e evidências de Sandbox antes de discutir publicação conjunta app/landing.
 
 ## Limpeza local opcional — scratch sintético do gate de restore
 
 Em 26/10, a engenharia iniciou e **parou** um Postgres 17 local descartável para testar o `restore:test` com dumps sintéticos. A política do executor bloqueou a exclusão recursiva, apesar de o caminho ter sido verificado. Não há dados de produção nessa pasta e ela não é usada pelo Qoro.
 
 No Explorador de Arquivos do Windows, cole `C:\Users\joaom\AppData\Local\Temp\qoro-restore-probe-1792989843298` na barra de endereço. Confira que o nome da pasta é exatamente `qoro-restore-probe-1792989843298` e exclua **somente essa pasta**. Antes da exclusão, a engenharia confirmou `pg_ctl: no server running` para o `pgdata` dela. Se a pasta não existir, a limpeza já foi feita; não procure nem exclua outra instalação do PostgreSQL. Esta limpeza não comprova recuperação de backup de produção.
+
 
 ## Limpeza local opcional — dois scratches sintéticos dos testes de migrations
 
@@ -100,18 +139,18 @@ No Explorador de Arquivos do Windows, cole `C:\Users\joaom\AppData\Local\Temp\qo
 
 **Evidência e próximo passo.** Responda apenas `Scratches sintéticos removidos` ou `Não consegui: [mensagem sem dados sensíveis]`. Não envie arquivos do banco nem screenshot do conteúdo. A recuperação lógica já foi comprovada em outros contêineres isolados; essas pastas não bloqueiam o lançamento.
 
-## Obrigatória antes do rollout — cofre independente, Auth e aceite de recuperação
 
-**Objetivo.** A cópia e a restauração real de Storage foram autorizadas e concluídas em 29/10: **5 buckets, 42/42 hashes iguais, 38 arquivos privados negados ao anônimo e 4 públicos conferidos**. Não é necessário pagar outro projeto nem repetir a prova. A pasta local cifrada tem ACL restrita e a chave fica protegida pelo Windows em outra pasta. Falta proteção contra perda da máquina/perfil, rotina recorrente, cofre independente das dependências Auth e aceite do risco de operar sem PITR. Ver [runbook de recuperação](disaster-recovery.md).
+# Grupo C — Engenharia na janela de publicação
 
-**Pré-requisitos e links.** Tenha um destino local criptografado ou cofre de backup aprovado, com espaço, controle de acesso, retenção e cópia fora da máquina. Acesse o [Supabase Dashboard](https://supabase.com/dashboard/projects) com permissão administrativa somente para conferir Storage/Auth; não clique em Restore no projeto ativo. Consulte a [documentação oficial de backups](https://supabase.com/docs/guides/platform/backups) e de [Storage](https://supabase.com/docs/guides/storage).
+Estas atividades **não foram transferidas ao usuário** e não devem ser executadas agora. Após as aprovações do Grupo A, a engenharia:
 
-**Passo a passo.**
+1. Confirma checks/SHAs, backup recuperável recente, cópia independente, chaves e baseline de contratos.
+2. Configura cadastro fechado e gera novo deployment da versão vigente; comprova 503 da entrada e preserva login existente.
+3. Faz gate real Turnstile sem abrir cadastro; reconcilia os resultados da configuração Auth/Google.
+4. Executa preflight de journal/locks/digests e aplica somente as migrations autorizadas, interrompendo no primeiro erro.
+5. Verifica integridade/owners/cotas/legados e ativa apenas o catálogo mensal previsto.
+6. Publica app e landing de forma coordenada, verifica destinos públicos e ausência de anual novo.
+7. Gera deployment para reabrir cadastro, executa smoke com fixtures isoladas e monitora filas, webhooks e cobrança pós-trial.
+8. Mantém plano de recuperação; não restaura banco ativo nem cria cobrança real sem autorização específica.
 
-1. Abra `Win+E` e cole `%LOCALAPPDATA%\Qoro\Recovery\storage-20261029`. A cópia está em `qoro-storage-S0upJf`. Não abra os arquivos como documentos nem os envie por chat. A chave está em `%LOCALAPPDATA%\Qoro\RecoveryKeys\storage-20261029.dpapi`; ela depende do perfil Windows atual e **não basta copiar esse arquivo para outro computador**.
-2. Informe qual cofre/destino independente já aprovado pela Qoro pode guardar a chave recuperável e a cópia cifrada, com responsáveis, retenção e controle de acesso. Não faça upload para Drive pessoal, Git ou CI por conta própria. A engenharia prepara a exportação protegida da chave para esse cofre; a senha existente de backup não foi reutilizada porque não atende ao requisito de comprimento do novo envelope. Nenhuma credencial foi alterada. Até existir uma cópia/chave independente, uma perda da máquina continua sendo risco relevante.
-3. O login administrativo **já funcionou**: a engenharia conferiu **243 configurações Auth** e guardou snapshot cifrado pelo Windows em `%LOCALAPPDATA%\Qoro\Recovery\auth-20261029\auth-config.dpapi`. **Não repita o login nem o inventário.** Confirme no cofre independente as dependências externas: chaves de assinatura/JWT e API do projeto, chaves de criptografia da aplicação, salts/peppers e credenciais de e-mail/provedores. Informe somente os grupos disponíveis ou faltantes. O ensaio completo do serviço Auth isolado ainda pertence à engenharia; restore SQL e leitura da configuração não o comprovam.
-4. Avalie formalmente o **RPO de planejamento ~24h entre backups saudáveis**, maior se uma execução falhar, e o RTO completo ainda não medido. A prova local de arquivos não mede a reconstrução de todo o serviço. Confirme a contingência operacional para registros criados após o último backup; a decisão de não contratar PITR não equivale ao aceite automático da perda potencial.
-5. Envie somente: `Cofre/destino independente [nome/localização geral]; cofre Auth [disponível/faltantes por grupo]; RPO/RTO [aceito/preciso discutir]; responsável [função]`. Não envie chaves, senha, conteúdo de pacientes ou URLs assinadas.
-
-**Resultado esperado.** Cópia e chave recuperáveis fora do domínio de falha desta máquina, inventário Auth completo e risco residual explicitamente tratado. O restore local do banco e do Storage já passou; o gate remanescente é operacional, não instalação ou novo pagamento.
+Procedimento exato e critérios de interrupção em [publicação coordenada](publicacao-coordenada-oferta-2026-10.md). O teste funcional completo do produto após recuperação, o agendamento real de Storage/Auth e alertas no cofre serão concluídos pela engenharia quando o destino aprovado estiver disponível.

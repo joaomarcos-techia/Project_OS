@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 196 actions (0 inline); 53 métodos em 49 handlers; 19 props com referência de action; 392 acessos diretos a process.env; 9 nomes NEXT_PUBLIC.
+Contagem: 196 actions (0 inline); 53 métodos em 49 handlers; 19 props com referência de action; 402 acessos diretos a process.env; 9 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -423,6 +423,7 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/asaas-upgrade-checkout-probe.ts:19`               | `ASAAS_BASE_URL_DEV`                   | `process.env.ASAAS_BASE_URL_DEV`                                            |
 | `scripts/asaas-upgrade-checkout-probe.ts:20`               | `ASAAS_API_KEY_DEV`                    | `process.env.ASAAS_API_KEY_DEV`                                             |
 | `scripts/audit-partition-maintenance.ts:29`                | `AUDIT_MONTHS_AHEAD`                   | `process.env.AUDIT_MONTHS_AHEAD`                                            |
+| `scripts/auth-local-recovery-drill.ts:39`                  | `AUTH_RECOVERY_LOCAL`                  | `process.env.AUTH_RECOVERY_LOCAL`                                           |
 | `scripts/check-handler-registry.ts:40`                     | `NODE_ENV`                             | `process.env.NODE_ENV`                                                      |
 | `scripts/db-migrate-dev.ts:22`                             | `<object>`                             | `process.env`                                                               |
 | `scripts/db-migrate-prod.ts:172`                           | `<object>`                             | `process.env`                                                               |
@@ -488,6 +489,8 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/probe-dev-migrations.ts:5`                        | `QORO_DEV_ENV_FILE`                    | `process.env.QORO_DEV_ENV_FILE`                                             |
 | `scripts/probe-dev-migrations.ts:6`                        | `QORO_EXPECTED_DEV_PROJECT_REF`        | `process.env.QORO_EXPECTED_DEV_PROJECT_REF`                                 |
 | `scripts/probe-dev-migrations.ts:10`                       | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                                          |
+| `scripts/probe-landing-bridge-browser.ts:20`               | `E2E_VERCEL_BYPASS_COOKIE`             | `process.env.E2E_VERCEL_BYPASS_COOKIE`                                      |
+| `scripts/probe-landing-bridge-browser.ts:24`               | `E2E_VERCEL_BYPASS_COOKIE`             | `process.env.E2E_VERCEL_BYPASS_COOKIE`                                      |
 | `scripts/probe-landing-offer-browser.ts:30`                | `E2E_VERCEL_BYPASS_COOKIE`             | `process.env.E2E_VERCEL_BYPASS_COOKIE`                                      |
 | `scripts/probe-landing-offer-browser.ts:34`                | `E2E_VERCEL_BYPASS_COOKIE`             | `process.env.E2E_VERCEL_BYPASS_COOKIE`                                      |
 | `scripts/probe-landing-offer-browser.ts:78`                | `E2E_VISUAL_CAPTURE`                   | `process.env.E2E_VISUAL_CAPTURE`                                            |
@@ -521,6 +524,11 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/prod-encrypted-backup.ts:30`                      | `<object>`                             | `process.env`                                                               |
 | `scripts/prod-encrypted-backup.ts:87`                      | `BACKUP_PASSPHRASE`                    | `process.env.BACKUP_PASSPHRASE`                                             |
 | `scripts/prod-storage-authorization-check.ts:92`           | `SUPABASE_SECRET_KEY_PROD`             | `process.env.SUPABASE_SECRET_KEY_PROD`                                      |
+| `scripts/recovery-backup-health.ts:4`                      | `RECOVERY_HEALTH_FILE`                 | `process.env.RECOVERY_HEALTH_FILE`                                          |
+| `scripts/recovery-package.ts:13`                           | `RECOVERY_PACKAGE_FILE`                | `process.env.RECOVERY_PACKAGE_FILE`                                         |
+| `scripts/recovery-package.ts:14`                           | `RECOVERY_EXPORT_PASSPHRASE`           | `process.env.RECOVERY_EXPORT_PASSPHRASE`                                    |
+| `scripts/recovery-portable-drill.ts:47`                    | `<object>`                             | `process.env`                                                               |
+| `scripts/recovery-portable-drill.ts:88`                    | `<object>`                             | `process.env`                                                               |
 | `scripts/resend-inbox-check.ts:21`                         | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                                          |
 | `scripts/resend-inbox-check.ts:24`                         | `E2E_RESEND_INBOX_ADDRESS`             | `process.env.E2E_RESEND_INBOX_ADDRESS`                                      |
 | `scripts/resend-live-check.ts:17`                          | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                                          |
@@ -703,6 +711,8 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/test-scheduled-doctor-downgrade.ts:51`            | `ASAAS_BASE_URL`                       | `process.env.ASAAS_BASE_URL`                                                |
 | `scripts/test-scheduled-doctor-downgrade.ts:52`            | `ASAAS_API_KEY`                        | `process.env.ASAAS_API_KEY`                                                 |
 | `scripts/test-scheduled-doctor-downgrade.ts:52`            | `ASAAS_API_KEY_DEV`                    | `process.env.ASAAS_API_KEY_DEV`                                             |
+| `scripts/turnstile-production-gate.ts:4`                   | `TURNSTILE_PRODUCTION_GATE`            | `process.env.TURNSTILE_PRODUCTION_GATE`                                     |
+| `scripts/turnstile-production-gate.ts:5`                   | `TURNSTILE_SECRET_KEY`                 | `process.env.TURNSTILE_SECRET_KEY`                                          |
 | `sentry.edge.config.ts:9`                                  | `NEXT_PUBLIC_SENTRY_DSN`               | `process.env.NEXT_PUBLIC_SENTRY_DSN`                                        |
 | `sentry.edge.config.ts:10`                                 | `SENTRY_DSN`                           | `process.env.SENTRY_DSN`                                                    |
 | `sentry.edge.config.ts:16`                                 | `NODE_ENV`                             | `process.env.NODE_ENV`                                                      |
