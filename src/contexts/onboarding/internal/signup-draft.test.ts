@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   env: {
     SIGNUP_AUTH_ENABLED: true,
     SIGNUP_IDENTITY_ENABLED: true,
+    OFFER_2026_ANNUAL_NEW_SALES_ENABLED: true,
     LOGIN_HASH_PEPPER: 'synthetic-signup-draft-email-pepper',
     MAGIC_TOKEN_SECRET: 'synthetic-signup-draft-token-secret',
   },
@@ -45,6 +46,7 @@ import {
   writeSignupDraft,
   writeSignupPlan,
 } from './signup-draft';
+import { reserveSignupBillingAttempt } from './signup-billing';
 
 const answers = {
   professionalsBand: '2_5',
@@ -62,6 +64,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.env.SIGNUP_AUTH_ENABLED = true;
   mocks.env.SIGNUP_IDENTITY_ENABLED = true;
+  mocks.env.OFFER_2026_ANNUAL_NEW_SALES_ENABLED = true;
   mocks.hashedEmails.length = 0;
 });
 
@@ -715,6 +718,86 @@ describe('signup plan contract O-4', () => {
         selectedBillingCycle: 'annual',
       }),
     );
+  });
+
+  it('fase mensal omite o anual e recusa escolha direta sem abrir transação', async () => {
+    mocks.env.OFFER_2026_ANNUAL_NEW_SALES_ENABLED = false;
+    mocks.getUser.mockResolvedValue({
+      data: { user: { id: userId, created_at: '2026-10-19T13:45:00.000Z' } },
+      error: null,
+    });
+    mocks.select
+      .mockReturnValueOnce(
+        selectChain([
+          {
+            rowVersion: 7,
+            clinicName: 'Clínica Sintética',
+            selectedPlanId: null,
+            selectedBillingCycle: 'monthly',
+          },
+        ]),
+      )
+      .mockReturnValueOnce(
+        selectChain([
+          {
+            id: planId,
+            code: 'consultorio_2026',
+            name: 'Consultório',
+            amount: '197.00',
+            cycle: 'monthly',
+          },
+          {
+            id: planId,
+            code: 'consultorio_2026',
+            name: 'Consultório',
+            amount: '1970.00',
+            cycle: 'annual',
+          },
+        ]),
+      );
+    await expect(readSignupPlan(userId)).resolves.toMatchObject({
+      ok: true,
+      state: { plans: [{ code: 'consultorio_2026', cycle: 'monthly' }] },
+    });
+    await expect(
+      writeSignupPlan(userId, { rowVersion: 7, planId, cycle: 'annual' }),
+    ).resolves.toEqual({
+      ok: false,
+      reason: 'invalid_plan',
+    });
+    expect(mocks.transaction).not.toHaveBeenCalled();
+  });
+
+  it('fase mensal recusa reserva de checkout anual salvo antes do fechamento', async () => {
+    mocks.env.OFFER_2026_ANNUAL_NEW_SALES_ENABLED = false;
+    mocks.getUser.mockResolvedValue({
+      data: { user: { id: userId, created_at: '2026-10-19T13:45:00.000Z' } },
+      error: null,
+    });
+    const tx = {
+      select: vi.fn().mockReturnValue(
+        selectChain([
+          {
+            id: 'draft-sintetico',
+            rowVersion: 7,
+            ownerName: 'Titular Sintético',
+            clinicName: 'Clínica Sintética',
+            selectedPlanId: planId,
+            selectedBillingCycle: 'annual',
+            attemptState: null,
+            checkoutUrl: null,
+          },
+        ]),
+      ),
+    };
+    mocks.transaction.mockImplementationOnce(
+      async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx),
+    );
+    await expect(reserveSignupBillingAttempt(userId)).resolves.toEqual({
+      ok: false,
+      reason: 'invalid_plan',
+    });
+    expect(tx.select).toHaveBeenCalledTimes(1);
   });
 
   it('não permite ciclo anual em plano legado mesmo se houver preço anual no catálogo', async () => {

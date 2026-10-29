@@ -40,16 +40,14 @@ describe('prévia da proposta comercial', () => {
     expect(screen.getByRole('alert').textContent).toContain('Consultório e Clínica incluem até 3');
   });
 
-  it('atualiza preço e anual conforme a quantidade de profissionais', () => {
+  it('atualiza o preço mensal e não oferece contratação anual', () => {
     render(<ProposalCalculator />);
     fireEvent.change(screen.getByLabelText('Médicos que atendem em agenda clínica'), {
       target: { value: '3' },
     });
     expect(screen.getByText(/R\$\s*544,00\/mês/)).toBeTruthy();
-    expect(screen.getByText(/R\$\s*5\.440,00/)).toBeTruthy();
-    expect(
-      screen.getByText(/Primeiro no cartão; Pix anual ficará para uma etapa posterior/),
-    ).toBeTruthy();
+    expect(screen.queryByText(/R\$\s*5\.440,00/)).toBeNull();
+    expect(screen.getByText(/A modalidade anual não está disponível nesta etapa/)).toBeTruthy();
   });
 
   it('não apresenta preço para contagem fora do limite', () => {

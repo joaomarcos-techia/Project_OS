@@ -47,10 +47,7 @@ export function ProposalCalculator() {
           <p className="font-display text-2xl font-semibold">
             {quote.plan === 'consultorio' ? 'Consultório' : 'Clínica'} · {money(quote.monthly)}/mês
           </p>
-          <p>
-            Anual proposto: {money(quote.annual)}, equivalente a 10 mensalidades. Primeiro no
-            cartão; Pix anual ficará para uma etapa posterior.
-          </p>
+          <p>Contratação mensal no cartão. A modalidade anual não está disponível nesta etapa.</p>
           <p>
             {quote.plan === 'consultorio'
               ? `Até ${PROPOSED_OFFER.consultorioIncludedStaffLogins} logins de equipe incluídos.`

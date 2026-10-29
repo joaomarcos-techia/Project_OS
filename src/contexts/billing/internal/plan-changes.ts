@@ -8,6 +8,7 @@ import { and, desc, eq, inArray, isNull, lt, sql } from 'drizzle-orm';
 import type { Tx } from '@/lib/db';
 import type { ProviderPayment } from '@/lib/payments/asaas';
 import { withTenant } from '@/lib/db/tenant';
+import { env } from '@/lib/env';
 import { publishEvent } from '@/lib/outbox/publish';
 
 import { BILLING_EVENTS } from '../events';
@@ -629,6 +630,12 @@ export async function requestBillingCycleChange(
     throw new PlanChangeError(
       'Troca de ciclo indisponível para contratos antigos.',
       'legacy_cycle_change',
+    );
+  }
+  if (current.billingCycle === 'monthly' && !env.OFFER_2026_ANNUAL_NEW_SALES_ENABLED) {
+    throw new PlanChangeError(
+      'Novas contratações anuais ainda não estão disponíveis.',
+      'annual_new_sales_disabled',
     );
   }
   if (current.billingStatus !== 'active' || !current.asaasSubscriptionId) {
@@ -1912,20 +1919,22 @@ export async function getPlanChangeOverview(clinicId: string): Promise<PlanChang
       (row) => isOffer2026PlanCode(row.code) === isOffer2026PlanCode(current.planCode),
     );
     const nextCycle = current.billingCycle === 'monthly' ? 'annual' : 'monthly';
-    const [cyclePrice] = isOffer2026PlanCode(current.planCode)
-      ? await tx
-          .select({ amount: prices.amount })
-          .from(prices)
-          .where(
-            and(
-              eq(prices.planId, current.planId),
-              eq(prices.billingCycle, nextCycle),
-              isNull(prices.activeUntil),
-              campaignFilter,
-            ),
-          )
-          .limit(1)
-      : [];
+    const [cyclePrice] =
+      isOffer2026PlanCode(current.planCode) &&
+      (nextCycle === 'monthly' || env.OFFER_2026_ANNUAL_NEW_SALES_ENABLED)
+        ? await tx
+            .select({ amount: prices.amount })
+            .from(prices)
+            .where(
+              and(
+                eq(prices.planId, current.planId),
+                eq(prices.billingCycle, nextCycle),
+                isNull(prices.activeUntil),
+                campaignFilter,
+              ),
+            )
+            .limit(1)
+        : [];
     const planIds = availablePlans.map((row) => row.id);
     const limits = planIds.length
       ? await tx

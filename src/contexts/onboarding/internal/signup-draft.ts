@@ -241,13 +241,15 @@ async function listSelfServicePlans(): Promise<SignupPlan[]> {
   const availableRows = rows.some((row) => isOffer2026PlanCode(row.code))
     ? offerRows
     : rows.filter((row) => row.cycle === 'monthly');
-  return availableRows.map((row) => ({
-    id: row.id,
-    code: row.code,
-    name: row.name,
-    priceCents: priceToCents(row.amount),
-    cycle: row.cycle,
-  }));
+  return availableRows
+    .filter((row) => row.cycle === 'monthly' || env.OFFER_2026_ANNUAL_NEW_SALES_ENABLED)
+    .map((row) => ({
+      id: row.id,
+      code: row.code,
+      name: row.name,
+      priceCents: priceToCents(row.amount),
+      cycle: row.cycle,
+    }));
 }
 
 /** Lê draft e catálogo sem renovar TTL nem aceitar preço do cliente. */
@@ -306,6 +308,9 @@ export async function writeSignupPlan(userId: string, input: unknown): Promise<P
   if (!parsed.success) throw new Error('[signup] invalid_plan');
 
   const { planId, rowVersion, cycle } = parsed.data;
+  if (cycle === 'annual' && !env.OFFER_2026_ANNUAL_NEW_SALES_ENABLED) {
+    return { ok: false, reason: 'invalid_plan' };
+  }
   return dbAdmin.transaction(async (tx) => {
     const [availablePlan] = await tx
       .select({ id: plans.id, code: plans.code })

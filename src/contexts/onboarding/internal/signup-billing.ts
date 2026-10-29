@@ -178,6 +178,9 @@ export async function reserveSignupBillingAttempt(userId: string): Promise<Reser
     if (draft.attemptState === 'reserved') return { ok: false, reason: 'conflict' };
     if (!draft.selectedPlanId) return { ok: false, reason: 'no_plan' };
     if (!draft.clinicName || !draft.ownerName) return { ok: false, reason: 'gone' };
+    if (draft.selectedBillingCycle === 'annual' && !env.OFFER_2026_ANNUAL_NEW_SALES_ENABLED) {
+      return { ok: false, reason: 'invalid_plan' };
+    }
 
     // Preço do catálogo, travado em `share` para não mudar sob os pés da
     // tentativa. O browser nunca mandou valor; ele nem sabe qual é.
