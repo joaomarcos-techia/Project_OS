@@ -10,11 +10,19 @@ A engenharia já executou: restore real do banco + **15/15 migrations 0119–013
 
 **Você precisa:** saber quais recursos de armazenamento e cofre a Qoro já possui. Não precisa comprar agora nem mover arquivos.
 
+| Opção | Quando faz sentido | Limite principal |
+| --- | --- | --- |
+| A — HD/SSD externo criptografado | Se você já tem o dispositivo e pode mantê-lo desconectado, separado do computador. | Cópia exige rotina; disco pode falhar ou ser perdido. Conectado, também pode ser apagado por malware. |
+| B — Armazenamento corporativo aprovado | Se já existe espaço com controle de acesso, versões e recuperação de exclusão. | Sincronização não basta; perder a conta/MFA ou propagar exclusão pode atingir o backup. |
+| C — Os dois | Preferível se ambos já existem: uma cópia fora da máquina e outra desconectada. | Exige conferir e manter as duas; não justifica contratar serviço sem necessidade. |
+
+**Minha recomendação:** C com recursos existentes; se houver apenas disco externo, podemos preparar A e comprovar a recuperação antes de decidir o lançamento. Nas três opções, o pacote é cifrado e a senha fica em **cofre separado, recuperável fora deste PC**. Não há preço de compra presumido: custo adicional pode ser zero somente se você já possui recurso, capacidade e funcionalidades necessárias. [Comparação completa, kit e riscos](fechamento-operacional-oferta-2026-10.md).
+
 1. Escolha um destino já disponível e controlado pela Qoro para guardar **somente o pacote cifrado** fora deste computador: por exemplo, um backup corporativo aprovado ou disco externo criptografado e guardado separadamente.
 2. Escolha um cofre de senhas já disponível para custodiar a senha de recuperação, com acesso de quem responderá por incidentes. Não mantenha a única senha junto ao pacote.
 3. Informe o nome/localização geral do destino e quem poderá acessar. A engenharia verificará proteção, espaço, retenção, exportação e leitura no destino **antes de transferir dados reais**. A escolha não autoriza upload irrestrito a outros serviços.
 
-**Resposta:** `Destino: …; cofre: …; responsável: …; autorizo preparar a cópia cifrada somente nesse destino.`
+**Primeira resposta:** `Já tenho: [HD/SSD externo / armazenamento corporativo (nome) / gerenciador de senhas (nome) / nenhum].` Não envie senhas. Isso identifica recursos e não autoriza transferência. Depois de escolhermos o caminho exato, a engenharia pedirá somente a autorização específica da cópia cifrada nesse destino.
 
 **Se não tiver recurso disponível:** responda `Ainda não tenho cofre/destino`. A engenharia propõe uma alternativa antes de qualquer custo. **Não copie só o arquivo .dpapi para outra máquina:** ele depende do perfil Windows atual.
 
@@ -26,7 +34,7 @@ A engenharia já executou: restore real do banco + **15/15 migrations 0119–013
 
 **Abrir:** [Supabase — projetos](https://supabase.com/dashboard/projects), escolher **qoro-prod**; [Vercel — variáveis do app](https://vercel.com/clinic-os-v2-s-projects/project-os/settings/environment-variables), filtro **Production**; e o cofre escolhido no item 1. É necessária permissão administrativa. Não clique em Restore, não gere chaves e não altere valores.
 
-1. Confira no cofre a existência dos grupos: acesso administrativo Supabase; chaves de assinatura/JWT e APIs do projeto; chaves de criptografia e salts/peppers da aplicação; credenciais de e-mail/SMTP/Resend; credenciais de provedores OAuth, **somente se habilitados**.
+1. Confira no cofre a existência dos grupos: acesso administrativo Supabase e meios independentes de MFA; credenciais/API e procedimento de recuperação da assinatura JWT; chaves de criptografia e salts/peppers da aplicação, inclusive versões antigas necessárias; credenciais de e-mail/SMTP/Resend; credenciais de provedores OAuth, **somente se habilitados**. O [checklist mínimo](fechamento-operacional-oferta-2026-10.md) separa o que já foi preservado do que ainda falta conferir. Chaves privadas gerenciadas podem não ser exportáveis; não tente gerá-las, extraí-las ou rotacioná-las para preencher o cofre.
 2. Confira se existe responsável e histórico de rotação: backups antigos podem precisar das chaves antigas. Nomes de variáveis podem ser conferidos, seus valores não devem ir ao chat.
 3. Informe apenas grupos disponíveis ou faltantes. O agente fará a comparação técnica com o inventário cifrado e a preparação operacional de recuperação.
 
@@ -47,7 +55,7 @@ A engenharia já executou: restore real do banco + **15/15 migrations 0119–013
 
 **Resposta:** `Turnstile: widget […]; hostnames […]; estado […].`
 
-**Se o domínio não aparecer:** informe `app.qoro.dev ausente`; pare antes de modificar. **Depois:** a engenharia executará no domínio correto o desafio real positivo, replay e token inválido, sem criar conta nem abrir o cadastro. Token é de uso único e dura cinco minutos ([Cloudflare](https://developers.cloudflare.com/turnstile/get-started/server-side-validation/)). O gate real ainda não recebeu PASS. Os dois SKIPs da CI isolada continuam SKIP.
+**Se o domínio não aparecer:** informe `app.qoro.dev ausente`; pare antes de modificar. **Depois:** a engenharia executará no domínio correto o desafio real positivo, replay e token inválido, sem criar usuário real nem abrir o cadastro nesta rodada. Token é de uso único e dura cinco minutos ([Cloudflare](https://developers.cloudflare.com/turnstile/get-started/server-side-validation/)). A prova Siteverify e a prova do backend são separadas: HTTP 503 com cadastro fechado não testa o desafio, e o token já consumido não pode ser usado na outra prova. O [procedimento final](fechamento-operacional-oferta-2026-10.md) registra esses limites. O gate real ainda não recebeu PASS. Os dois SKIPs da CI isolada continuam SKIP.
 
 ## 4. Confirmar projeto e situação atual do Gemini
 
@@ -66,7 +74,7 @@ A engenharia já executou: restore real do banco + **15/15 migrations 0119–013
 
 ## 5. Aprovar a oferta e a redação contratual
 
-**Abrir:** [landing candidata — preços](https://landing-page-9tuiry5ok-clinic-os-v2-s-projects.vercel.app/precos), [home](https://landing-page-9tuiry5ok-clinic-os-v2-s-projects.vercel.app/), [proposta do app testado](https://project-6wioqhsmh-clinic-os-v2-s-projects.vercel.app/oferta-preview) e [decisões comerciais](../specs/decisoes-oferta-e-precificacao-2026-10.md). Se a Vercel pedir login, use o SSO legítimo do time autorizado. Os PRs fornecem os links atuais; Preview não é produção.
+**Abrir:** [landing candidata — preços](https://landing-page-9tuiry5ok-clinic-os-v2-s-projects.vercel.app/precos), [home](https://landing-page-9tuiry5ok-clinic-os-v2-s-projects.vercel.app/), [proposta do app testado](https://project-16d0gb6i6-clinic-os-v2-s-projects.vercel.app/oferta-preview) e [decisões comerciais](../specs/decisoes-oferta-e-precificacao-2026-10.md). Se a Vercel pedir login, use o SSO legítimo do time autorizado. Os PRs fornecem os links atuais; Preview não é produção.
 
 1. Confira **Consultório R$ 197/mês: 1 médico + até 3 administrativos = até 4 logins**.
 2. Confira **Clínica R$ 397/mês: 2 médicos + até 3 administrativos = até 5 logins**. Cada médico extra custa **R$ 147/mês**, até 5 médicos + 3 administrativos = 8 logins. Não há compra online do quarto administrativo.
@@ -82,6 +90,7 @@ A engenharia já executou: restore real do banco + **15/15 migrations 0119–013
 1. Defina quem verifica os backups/alertas e quem atende um incidente quando você estiver indisponível.
 2. Defina como a clínica registra atendimentos durante uma indisponibilidade e quem reconcilia dados e pagamentos posteriores ao backup. Não basta restaurar o banco e presumir consistência com Storage/Asaas.
 3. Defina a meta operacional de recuperação e a exigência de ensaio completo antes do lançamento. O RTO total ainda não foi medido; os testes locais de cada componente **não** são um SLA. Não há aceite automático desse risco.
+   Proposta de engenharia para discutir somente nesta etapa: reservar até **8 horas como objetivo do ensaio completo**, sujeito ao resultado e à necessidade das clínicas; não é prazo demonstrado nem compromisso contratual. Método de medição e limites no [plano operacional](fechamento-operacional-oferta-2026-10.md).
 4. Após escolher o cofre, a engenharia executará as validações que dependem dele, a rotina e os testes de alerta/watchdog. Nenhum e-mail/Slack operacional foi enviado nesta rodada.
 
 **Resposta:** `Operação: responsável […]; substituto […]; contingência […]; meta de recuperação […]; riscos adicionais [preciso discutir/aceite específico documentado].`

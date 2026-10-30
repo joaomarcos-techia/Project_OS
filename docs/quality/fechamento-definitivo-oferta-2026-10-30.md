@@ -67,7 +67,7 @@ A [comparação estrutural somente de leitura](evidencias/offer-schema-diff-2026
 | `/relatorios/pdf` e consolidado | GET autentica, limita exportação, consulta o plano no servidor; Consultório gera PDF geral sem seção médica, inclusive por URL direta. |
 | Cache | RSC/PDF dinâmicos, PDF no-store; React cache da identidade é por request, não autorização persistente entre requests. Cópia já exportada/visualizada não é apagada do dispositivo pelo downgrade. |
 
-E2E atual **1/1 PASS**, quatro estados Clínica 2→Consultório→Clínica 5→Pro, em 2,5 minutos, com Auth/DB DEV comprovados por assinatura. Zero clínicas/usuários/linhas da fixture após cleanup. O Preview testado é [09e78f09](https://project-6wioqhsmh-clinic-os-v2-s-projects.vercel.app); o código de entitlements não mudou neste patch. Não é um teste novo da saga financeira de upgrade e não criou cobranças. Log sanitizado ignorado: `dist/quality/feature-entitlements-stale-session.log`.
+Primeiro reteste desta rodada: **1/1 PASS**, quatro estados Clínica 2→Consultório→Clínica 5→Pro, em 2,5 minutos, com Auth/DB DEV comprovados por assinatura, no Preview `09e78f09`. Após o patch de copy, o **E2E final também passou 1/1 no código `01acc8f6`**, run `f3193d6b`, 2,2 minutos, no [novo Preview](https://project-16d0gb6i6-clinic-os-v2-s-projects.vercel.app). Inclui as quatro mudanças para Clínica no Consultório, sem venda de vaga avulsa. Registro Playwright `passed`, sem testes falhos, e cleanup zero de clínicas/usuários/linhas; o wrapper PowerShell emitiu aviso de conflito de cores. Não é um teste novo da saga financeira de upgrade e não criou cobranças. Logs sanitizados ignorados: `dist/quality/feature-entitlements-stale-session.log` e `dist/quality/feature-entitlements-final-preview.log`.
 
 ## Correção adicional da IA
 
@@ -91,7 +91,7 @@ O painel chamava Consultório→Clínica de “Contratar +1 médico”, confundi
 - **14 verificações Auth reais sintéticas**, com 134 migrations e cleanup. Não é RTO completo da produção.
 - **15/15 migrations no restore real**, matriz de oito planos, rollback/lock concorrente e preservação de campos reais. Não se removeram linhas/constraints do dump para passar.
 - **1/1 E2E real** incluindo sessão antiga, quatro estados e cleanup.
-- Build/typecheck/lint/segurança/regressão global: conferir os **checks do SHA final do PR #42**, que o agente deve aguardar antes de encerrar. A CI da base `8e10a48d` (5.723/5.723) não aprova automaticamente este patch. A junction local de dependências continua com Zod 3 e não foi alterada; o candidato exige Zod 4, instalado pelo lockfile na CI.
+- Build/typecheck/lint/segurança/regressão global do código **`01acc8f6` aprovados**: [CI 41003665873](https://github.com/joaomarcos-techia/Project_OS/actions/runs/41003665873), **5.732/5.732 testes em 545 arquivos**, público **7 PASS + 2 SKIP** Turnstile no build isolado. Vercel/Snyk/Semgrep também passaram nesse SHA. A CI da base `8e10a48d` não foi usada para aprovar código posterior. A junction local de dependências continua com Zod 3 e não foi alterada; a CI instalou o lockfile Zod 4. Alterações documentais posteriores exigem conferir seus checks próprios no PR; não ampliam o escopo das provas financeiras.
 - Landing não foi alterada; a prova desktop/mobile 4/4 e checks de `ca12a68` permanecem aplicáveis. `NEUTRAL/skipping` do Agent Review não é PASS.
 
 ## O que ainda depende de fora do código
@@ -104,3 +104,9 @@ O painel chamava Consultório→Clínica de “Contratar +1 médico”, confundi
 6. Autorização explícita da janela e execução posterior do runbook: cadastro fechado por deployment, preflight/backup, migrations, publicação conjunta, reabertura por deployment, smoke e observação real dos primeiros agendamentos/cadastros/cobranças. Isso continua NOT RUN.
 
 **GO técnico:** condicionado aos checks finais e aos gates operacionais acima. **GO de produção:** não autorizado; NO-GO enquanto os critérios críticos permanecerem sem comprovação ou decisão formal aplicável. Nenhum teste de código substitui cofre, desafio real, painel ou aprovação contratual.
+
+## Fechamento operacional subsequente — sem nova implementação de produto
+
+Os PRs foram relidos nos SHAs `01acc8f6`/`ca12a68`: draft, mergeable, sem conflitos ou reviews/comentários de revisão pendentes; os checks aplicáveis estão aprovados, preservando `NEUTRAL` da landing. A consulta de proteções de branch GitHub retornou 403 por limite de plano em repositório privado. Portanto, PASS de execução não foi confundido com imposição automática dos gates pelo GitHub; não houve compra nem alteração de visibilidade/configuração.
+
+O [plano operacional](../runbooks/fechamento-operacional-oferta-2026-10.md) acrescenta a comparação HD/SSD × armazenamento corporativo × combinação, kit SQL/Storage/Auth e custódia, limites do gate Turnstile, conferência Gemini e proposta de ensaio de RTO. É preparação documental; nenhuma cópia real externa, ativação de rotina, credencial ou condição comercial foi alterada. O próximo passo é **somente identificar os recursos de backup/cofre disponíveis**; as outras seis etapas permanecem para depois. Sem mudança executável, não foram repetidos restore, pagamento ou E2E aprovados.
