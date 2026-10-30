@@ -353,7 +353,9 @@ export function PlanChangeForm({
                   : `Limite de ${plan.limits.users} usuário${plan.limits.users === 1 ? '' : 's'}`
                 : 'Agendar downgrade'
               : isNewOffer
-                ? `Contratar +${direction} médico${direction === 1 ? '' : 's'}`
+                ? current.planCode === 'consultorio_2026'
+                  ? 'Mudar para Clínica'
+                  : `Contratar +${direction} médico${direction === 1 ? '' : 's'}`
                 : 'Fazer upgrade';
           return (
             <Card key={plan.id} className={isCurrent ? 'border-primary shadow-sm' : undefined}>
@@ -405,6 +407,9 @@ export function PlanChangeForm({
       </div>
       {isNewOffer ? (
         <p className="text-(length:--fs-sm) text-fg-muted">
+          {current.planCode === 'consultorio_2026'
+            ? 'Para ter mais de um médico, mude do Consultório para o plano Clínica. O Consultório não vende vagas médicas avulsas. '
+            : null}
           Médicos adicionais são cobrados proporcionalmente pelo restante do ciclo. A nova vaga só é
           liberada após a confirmação do pagamento no Asaas. Reduções passam a valer no próximo
           ciclo e exigem que médicos e equipe caibam no destino.

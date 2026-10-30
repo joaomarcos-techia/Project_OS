@@ -1,0 +1,103 @@
+{
+  "backupSha256": "488e407815e36d42ea595ed599d7b7f925ad49434d4c6a449f2d4894acc4a992",
+  "image": "public.ecr.aws/supabase/postgres:17.11.0.006",
+  "startedAt": "2026-10-30T04:20:30.653Z",
+  "confinement": "network none; no ports; log none; tmpfs; swap bounded",
+  "postgresAndVault": {
+    "postgres": "17.11",
+    "vault": "0.3.1"
+  },
+  "restoredInventory": {
+    "publicTables": 135,
+    "authTables": 27,
+    "users": 8,
+    "clinics": 4,
+    "profiles": 8,
+    "subscriptions": 4
+  },
+  "atomicity": {
+    "injectedFailureRolledBack": true,
+    "concurrentReadLockTimeoutRolledBack": true
+  },
+  "migrations": [
+    {
+      "tag": "0119_patient_whatsapp_scheduling_consent_enum",
+      "sha256": "464b7cf1593869abd4a1d8827ab089d76f889b9b24e2145f9d2c921262ca5827"
+    },
+    {
+      "tag": "0120_patient_whatsapp_scheduling_consent_check",
+      "sha256": "2b2ab263046860b6db37603c285e66286ac6af3b5a6466870a96f2aa007b1a28"
+    },
+    {
+      "tag": "0121_retire_payment_method_pricing",
+      "sha256": "a8dd9af6e226a05a012f7e5a5438234d600b00970d5710a0ab5a67a039906df6"
+    },
+    {
+      "tag": "0122_offer_2026_seats",
+      "sha256": "df7a91a95dee7f6f98442c74ecfd9a6b6cf9052b239961a88e6248d34b027ed0"
+    },
+    {
+      "tag": "0123_offer_2026_scheduled_seats",
+      "sha256": "312b55bf7aff6294e8a4c4825598d4d2a92ef8b232fb574f700a6afd0ef9a9ec"
+    },
+    {
+      "tag": "0124_offer_2026_trial_deadline",
+      "sha256": "a354f71adc49266b36aa1c2a5a21915e3b6252fd8f8e9bad3fd8b4caed7ab689"
+    },
+    {
+      "tag": "0125_offer_2026_pending_checkout_catalog",
+      "sha256": "ceae691a7c421227f02192c28eebefe0450b104baca4409343414b4ded1f5b6b"
+    },
+    {
+      "tag": "0126_offer_2026_catalog_trigger_fields",
+      "sha256": "5eaf3c04016aa515fe79c253071e832e587470d99bb3598c5733cef0139356fc"
+    },
+    {
+      "tag": "0127_offer_2026_seat_catalog_read",
+      "sha256": "6496f70fadaaa4e380f14f4c455256dd6e1f15d8f7ac7d1687980e2f3e10cf7d"
+    },
+    {
+      "tag": "0128_signup_billing_cycle",
+      "sha256": "f794de57308eeedbfcea6afcd3eba31fbf70e729e095aaa7a1c47a5d11d22744"
+    },
+    {
+      "tag": "0129_subscription_cycle_change_kind",
+      "sha256": "87566ca7ae5250592f3ff0ca5784b119faa4e14d5b389ab2554994f514ed99c4"
+    },
+    {
+      "tag": "0130_subscription_cycle_change_sync",
+      "sha256": "7a84577bcf22ba125e61a07827740002ab8491b0860937da3300f7ab824908e5"
+    },
+    {
+      "tag": "0131_subscription_upgrade_checkout",
+      "sha256": "c2a501ea4d677c4455fa6daa59c194bbaad3bb6f6f1f1e665faaad5bd2e03b2c"
+    },
+    {
+      "tag": "0132_preserve_contract_owner",
+      "sha256": "1937cd8add4d4e74220e17a65351c6f253bb3c134963a2e169458a1f4b926d91"
+    },
+    {
+      "tag": "0133_offer_2026_feature_permissions",
+      "sha256": "e574799edafc8deec91b85e6c81440a351dd0088765ee49ca31e906070a84d75"
+    }
+  ],
+  "journal": {
+    "before": 119,
+    "after": 134,
+    "priorHashesUnchanged": true
+  },
+  "legacy": {
+    "tables": ["subscriptions", "plans", "prices", "profiles"],
+    "fieldsUnchanged": true,
+    "subscriptions": 4
+  },
+  "featureMatrix": {
+    "plans": 8,
+    "grantDenyAndHook": true,
+    "downgradeAndOldSessionEpoch": true,
+    "overrideHistoryAndUpgrade": true
+  },
+  "result": "PASS",
+  "cleanup": "container removed; no persistent volume",
+  "finishedAt": "2026-10-30T04:20:57.126Z"
+}

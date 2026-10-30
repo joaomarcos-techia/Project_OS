@@ -6,6 +6,7 @@ const { syncInvoice, tenantTx } = vi.hoisted(() => ({
 }));
 
 vi.mock('@/lib/outbox/publish', () => ({ publishEvent: vi.fn() }));
+vi.mock('@/lib/env', () => ({ env: { OFFER_2026_ANNUAL_NEW_SALES_ENABLED: false } }));
 vi.mock('@/lib/db/tenant', () => ({
   withTenant: (_clinicId: string, fn: (tx: unknown) => unknown) => fn(tenantTx.current),
 }));
@@ -23,6 +24,7 @@ import {
   getSubscriptionReactivationContext,
   getSubscriptionRevocationContext,
   PlanChangeError,
+  requestBillingCycleChange,
   requestPlanChange,
   requestSubscriptionCancellation,
 } from './plan-changes';
@@ -105,6 +107,17 @@ const baseInput = {
 };
 
 beforeEach(() => vi.clearAllMocks());
+
+describe('fase mensal da nova oferta', () => {
+  it('recusa troca direta mensal → anual antes de criar intenção ou alterar contrato', async () => {
+    const { tx, inserts, updates } = scripted([[current({ planCode: 'clinica_2026_2' })]]);
+    await expect(requestBillingCycleChange(tx, baseInput)).rejects.toMatchObject({
+      code: 'annual_new_sales_disabled',
+    });
+    expect(inserts).toEqual([]);
+    expect(updates).toEqual([]);
+  });
+});
 
 describe('cancellationEffectiveAt — até quando o acesso dura', () => {
   it('ativa: no fim do ciclo JÁ PAGO', () => {

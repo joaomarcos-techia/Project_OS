@@ -1,0 +1,30 @@
+{
+  "at": "2026-10-30T04:25:10.914Z",
+  "mode": "READ ONLY",
+  "devOnly": [
+    {
+      "name": "audit_events_2027_05",
+      "partition": true
+    },
+    {
+      "name": "audit_events_2028_05",
+      "partition": true
+    },
+    {
+      "name": "plan_seat_limits",
+      "partition": false
+    }
+  ],
+  "productionOnly": [],
+  "addedColumns": [
+    "signup_sessions.selected_billing_cycle",
+    "subscription_change_requests.provider_synced_at",
+    "subscription_change_requests.provider_checkout_id",
+    "subscription_change_requests.provider_checkout_expires_at",
+    "subscription_change_requests.checkout_creation_state",
+    "subscription_change_requests.checkout_lease_until",
+    "subscriptions.enforce_trial_deadline"
+  ],
+  "changedTypesOrNullability": [],
+  "removedColumns": []
+}

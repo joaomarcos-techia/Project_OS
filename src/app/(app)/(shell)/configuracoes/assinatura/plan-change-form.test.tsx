@@ -347,6 +347,32 @@ describe('contratação de médico na oferta 2026', () => {
     },
   ];
 
+  it('identifica Consultório para Clínica como mudança de plano, sem vender vaga avulsa', () => {
+    render(
+      <PlanChangeForm
+        current={{
+          ...current,
+          planId: 'plan_consultorio',
+          planName: 'Consultório',
+          planCode: 'consultorio_2026',
+          priceAmount: '197.00',
+        }}
+        plans={plans}
+        activeUsers={4}
+        activeDoctors={1}
+        activeStaff={3}
+        pending={null}
+      />,
+    );
+
+    const upgrades = screen.getAllByRole('button', { name: 'Mudar para Clínica' });
+    expect(upgrades).toHaveLength(2);
+    expect(upgrades.every((button) => !button.hasAttribute('disabled'))).toBe(true);
+    expect(screen.queryByRole('button', { name: /Contratar \+/u })).toBeNull();
+    expect(screen.getByText(/O Consultório não vende vagas médicas avulsas/u)).toBeTruthy();
+    expect(screen.getByText('2 médicos e até 3 pessoas de equipe')).toBeTruthy();
+  });
+
   it('mostra apenas a tabela contratada e identifica upgrade e downgrade', () => {
     render(
       <PlanChangeForm

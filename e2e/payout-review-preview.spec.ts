@@ -1370,7 +1370,34 @@ test.describe.serial('revisão humana do repasse (Preview + DEV, papéis reais)'
         returning clinic_id::text
       `;
       expect(changed).toHaveLength(1);
+      if (code === 'consultorio_2026') {
+        if (!permissionAction)
+          throw new Error('Action anterior não capturada para a sessão antiga.');
+        // Ainda são os cookies da Clínica: antes de qualquer refresh, o epoch
+        // precisa rejeitar o POST antigo, sem permitir a mutação.
+        const [before] = await db()<{ total: number }[]>`
+          select count(*)::int total from audit_events where clinic_id=${fixture.clinicA}::uuid
+        `;
+        const stale = await owner.request.post(permissionAction.url, {
+          headers: permissionAction.headers,
+          data: permissionAction.body,
+          maxRedirects: 0,
+        });
+        expect(await stale.text()).toContain('Sua sessão expirou. Entre novamente para continuar.');
+        const [after] = await db()<{ total: number }[]>`
+          select count(*)::int total from audit_events where clinic_id=${fixture.clinicA}::uuid
+        `;
+        expect(after).toEqual(before);
+      }
       await refreshSession(owner);
+      if (code === 'consultorio_2026') {
+        await owner.goto('/configuracoes/assinatura');
+        await expect(owner.getByRole('button', { name: 'Mudar para Clínica' })).toHaveCount(4);
+        await expect(owner.getByRole('button', { name: /Contratar \+/u })).toHaveCount(0);
+        await expect(
+          owner.getByText(/O Consultório não vende vagas médicas avulsas/u),
+        ).toBeVisible();
+      }
       await owner.goto('/configuracoes/pagamentos');
       await expect(owner.locator('#regras-de-repasse')).toHaveCount(allowed ? 1 : 0);
       await expect(owner.getByRole('button', { name: 'Salvar base de repasse' })).toHaveCount(
@@ -1474,6 +1501,8 @@ test.describe.serial('revisão humana do repasse (Preview + DEV, papéis reais)'
     evidence.featureEntitlements = {
       plans: matrix.map(([code]) => code),
       serverActionDeniedWithoutWrite: true,
+      oldSessionRejectedBeforeRefresh: true,
+      consultorioRequiresClinicPlanChange: true,
       permissionsEffectiveInDatabase: true,
       pdfAndMonthlyReportGated: true,
       legacyProPreserved: true,

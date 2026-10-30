@@ -31,7 +31,7 @@ O cenário 13 de `e2e/payout-review-preview.spec.ts` exige `E2E_PAYOUT_REVIEW_MU
 
 ## Migração e lançamento
 
-A sequência candidata é agora **0119–0133**, com 134 entradas no journal final. Somente 0119–0132 têm prova na cópia do backup real anterior. A 0133 tem a prova local sintética acima e aplicação DEV; ainda exige preflight/ensaio na cópia protegida atual para produção. Há UPDATE de `profiles` e substituição de view: revisar locks e renovação de claims na janela. Não houve merge, migration de produção ou alteração de contrato real.
+Na fotografia de 29/10, a sequência candidata era **0119–0133**, com 134 entradas no journal final, mas somente 0119–0132 tinham prova no backup real. **Essa lacuna foi encerrada em 30/10**, com 15/15 sobre cópia protegida e provas de rollback/concorrência, conforme o fechamento abaixo. O preflight imediatamente antes da janela continua obrigatório. Há UPDATE de `profiles` e substituição de view: revisar locks e renovação de claims na janela. Não houve merge, migration de produção ou alteração de contrato real.
 
 Landing: typecheck, lint e build passaram. Probe Chromium local passou **4/4** (`/` e `/precos`, desktop/mobile), incluindo ausência dos três recursos no card Consultório e presença no card Clínica. Isso não substitui validação do app autenticado.
 
@@ -55,3 +55,9 @@ node node_modules/@playwright/test/cli.js test e2e/payout-review-preview.spec.ts
 - Landing: [Preview `ca12a68`](https://landing-page-9tuiry5ok-clinic-os-v2-s-projects.vercel.app/precos), **4/4** após SSO legítimo: home/preços desktop/mobile, com cada benefício exclusivo no card Clínica. Agent Review foi `NEUTRAL/skipping`, não PASS; Vercel e Semgrep passaram.
 
 Os PRs #42 e #3 continuam draft. Nenhum merge, deploy de produção ou migration em produção foi executado. A nova regra foi comprovada em DEV/Preview; publicação continua sujeita aos gates operacionais de lançamento existentes.
+
+## Consolidação corrente — 30/10/2026
+
+A nova [auditoria de fechamento](../quality/fechamento-definitivo-oferta-2026-10-30.md) encerrou a lacuna da 0133 no backup real: **15/15 migrations**, campos legados preservados e rollback/concorrência comprovados. O Auth real sintético passou 14 verificações com **134 migrations**. O E2E passou também com a sessão anterior ao downgrade, sem refresh e sem gravação. A configuração da IA tem fallback operacional já existente; corrigiu-se a leitura para que erro/corrupção não reative Gemini. As fotografias anteriores de 14 migrations e ausência de mecanismo identificado de fallback são históricas, não o estado corrente. Produção não foi alterada.
+
+Cofre/cópia independente, configuração externa Auth, desafio real Turnstile, painel Gemini, RTO/contingência e aprovações seguem no [guia humano simplificado](../runbooks/acoes-manuais-pendentes-pricing-2026-10.md). A ausência de PITR e o aceite limitado do intervalo entre backups não encerram esses gates.

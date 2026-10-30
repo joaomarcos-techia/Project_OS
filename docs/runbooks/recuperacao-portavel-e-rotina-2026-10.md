@@ -94,3 +94,9 @@ try {
 ```
 
 Ainda depende do destino: ativação do scheduler, credenciais específicas do runner, canal real de alerta/watchdog e confirmação de leitura no cofre. Código e testes não equivalem a uma rotina de Production em operação.
+
+## Consolidação corrente — 30/10/2026
+
+A nova [auditoria de fechamento](../quality/fechamento-definitivo-oferta-2026-10-30.md) encerrou a lacuna da 0133 no backup real: **15/15 migrations**, campos legados preservados e rollback/concorrência comprovados. O Auth real sintético passou 14 verificações com **134 migrations**. O E2E passou também com a sessão anterior ao downgrade, sem refresh e sem gravação. A configuração da IA tem fallback operacional já existente; corrigiu-se a leitura para que erro/corrupção não reative Gemini. As fotografias anteriores de 14 migrations e ausência de mecanismo identificado de fallback são históricas, não o estado corrente. Produção não foi alterada.
+
+Cofre/cópia independente, configuração externa Auth, desafio real Turnstile, painel Gemini, RTO/contingência e aprovações seguem no [guia humano simplificado](../runbooks/acoes-manuais-pendentes-pricing-2026-10.md). A ausência de PITR e o aceite limitado do intervalo entre backups não encerram esses gates.
