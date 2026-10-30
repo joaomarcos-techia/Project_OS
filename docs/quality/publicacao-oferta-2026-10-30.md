@@ -50,7 +50,7 @@ A verificação pública da landing usou `node dist/quality/production-landing-b
 
 ## Turnstile e interrupção antes da reabertura
 
-A chave pública de Production foi comparada com a configuração canônica sem imprimir valores; o script usou somente o par real correspondente, nunca as variantes DEV/LOCAL. O widget foi carregado de `challenges.cloudflare.com` sobre `app.qoro.dev/cadastro`, sem criar conta. O usuário realizou a interação; a automação não resolveu o desafio. O relato humano “concluído” não substituiu o resultado: o widget não entregou token.
+A chave pública de Production foi comparada com a configuração canônica sem imprimir valores. O script local usou essa chave real e o secret canônico local, nunca as variantes DEV/LOCAL. A rejeição de inválido foi obtida pelo script local chamando Siteverify real: **não comprova sozinha a correspondência com o secret sensível efetivo do deployment nem o caminho do backend do cadastro**, que ainda precisam de validação funcional. O widget foi carregado de `challenges.cloudflare.com` sobre `app.qoro.dev/cadastro`, sem criar conta. O usuário realizou a interação; a automação não resolveu o desafio. O relato humano “concluído” não substituiu o resultado: o widget não entregou token.
 
 A [Cloudflare classifica `600*`](https://developers.cloudflare.com/turnstile/troubleshooting/client-side-errors/error-codes/) como falha genérica do desafio com detecção de comportamento de bot. A evidência aponta à limitação do navegador de teste; **não comprova falha de todos os navegadores comuns nem determina a causa externa exata**. Não foram alterados domínio/chaves, modo do widget ou proteções, nem usados solver, stealth ou chave `always-pass`.
 

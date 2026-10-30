@@ -298,7 +298,8 @@
       "at": "2026-10-30T21:19:25.576Z",
       "httpStatus": 200,
       "invalidDenied": true,
-      "codes": ["invalid-input-response"]
+      "codes": ["invalid-input-response"],
+      "execution": "Local script calling real Cloudflare Siteverify with canonical secret; not the deployed signup backend"
     },
     "positive": {
       "at": "2026-10-30T21:29:44.110Z",
@@ -311,7 +312,10 @@
     },
     "replay": "NOT RUN",
     "productionSettingsChanged": false,
-    "automationChallengeNotBypassed": true
+    "automationChallengeNotBypassed": true,
+    "deployedPublicKeyMatchedCanonical": true,
+    "deployedSensitiveSecretPairIndependentlyVerified": false,
+    "deployedModerateRiskSignupPath": "NOT RUN"
   },
   "remaining": {
     "signupReopen": "NOT RUN",
