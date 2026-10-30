@@ -284,10 +284,14 @@ try {
   }
   const restored = await boundedBody(received, 32768);
   assert.equal(createHash('sha256').update(restored).digest('hex'), cipherHash);
-  assert.ok(openRecoveryPackage(restored, password)[0].data.equals(source));
+  const [restoredEntry] = openRecoveryPackage(restored, password);
+  assert.ok(restoredEntry, 'Recovered synthetic entry missing');
+  assert.ok(restoredEntry.data.equals(source));
   assert.throws(() => openRecoveryPackage(restored, randomBytes(32).toString('hex')));
   const tampered = Buffer.from(restored);
-  tampered[tampered.length - 1] ^= 1;
+  const lastByte = tampered.at(-1);
+  assert.ok(lastByte !== undefined, 'Recovered ciphertext empty');
+  tampered[tampered.length - 1] = lastByte ^ 1;
   assert.throws(() => openRecoveryPackage(tampered, password));
   portableRestore(restored, password, createHash('sha256').update(source).digest('hex'));
   report.restore =

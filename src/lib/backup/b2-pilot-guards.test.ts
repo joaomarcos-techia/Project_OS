@@ -92,12 +92,11 @@ describe('B2 synthetic pilot boundaries (no network)', () => {
     },
   );
   it('rejects public buckets and wrong identifiers', () => {
-    const bucket = {
-      buckets: [{ bucketId: 'abc123', bucketName: PILOT_BUCKET, bucketType: 'allPrivate' }],
-    };
+    const bucketRow = { bucketId: 'abc123', bucketName: PILOT_BUCKET, bucketType: 'allPrivate' };
+    const bucket = { buckets: [bucketRow] };
     expect(privateBucket(bucket)).toBe('abc123');
     expect(() => privateBucket(bucket, 'other')).toThrow();
-    bucket.buckets[0].bucketType = 'allPublic';
+    bucketRow.bucketType = 'allPublic';
     expect(() => privateBucket(bucket)).toThrow();
   });
   it('never cleans an object whose fixture metadata differs', () => {
