@@ -227,6 +227,7 @@ A resposta do founder encerrou a pergunta sobre recursos: não há mídia extern
 - dois `console.log` desses specs ainda descrevem exposição antiga apesar das assertivas atuais aprovarem o bloqueio; correção é dívida de teste fora do escopo documental
 
 ## Histórico de execução
+- 2026-10-30: piloto B2 autorizado com chave filha temporária: upload/download, integridade, restore Linux e cleanup reais passaram com dados sintéticos. Chave original/cache preservados; evidência em `docs/quality/evidencias/b2-pilot-roundtrip-20261030.json`. Guia humano deixou de pedir nova chave/captura; custódia, destino médico e operação recorrente seguem no runbook canônico `docs/runbooks/backup-independente-sem-custo-2026-10.md`.
 - 2026-08-18: checkpoint lido vazio; worktree e inventário físico inicial coletados.
 - 2026-08-18: 157 documentos classificados; stack, 90 tabelas, 80 migrations, 12 contexts, 248 testes, rotas, integrações, IA, billing, RLS, segurança, frontend e jobs reconstruídos a partir do código.
 - 2026-08-18: estrutura canônica aplicada (61 arquivos); 148 links internos e 89 referências externas verificados sem quebra; `check:observability` aprovado com 15 crons/5 eventos.
