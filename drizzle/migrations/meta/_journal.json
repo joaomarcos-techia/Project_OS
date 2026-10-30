@@ -834,6 +834,111 @@
       "when": 1791868800000,
       "tag": "0118_proactive_job_send_key",
       "breakpoints": true
+    },
+    {
+      "idx": 119,
+      "version": "7",
+      "when": 1791955200000,
+      "tag": "0119_patient_whatsapp_scheduling_consent_enum",
+      "breakpoints": true
+    },
+    {
+      "idx": 120,
+      "version": "7",
+      "when": 1791955200001,
+      "tag": "0120_patient_whatsapp_scheduling_consent_check",
+      "breakpoints": true
+    },
+    {
+      "idx": 121,
+      "version": "7",
+      "when": 1792108800000,
+      "tag": "0121_retire_payment_method_pricing",
+      "breakpoints": true
+    },
+    {
+      "idx": 122,
+      "version": "7",
+      "when": 1792368000000,
+      "tag": "0122_offer_2026_seats",
+      "breakpoints": true
+    },
+    {
+      "idx": 123,
+      "version": "7",
+      "when": 1792368000001,
+      "tag": "0123_offer_2026_scheduled_seats",
+      "breakpoints": true
+    },
+    {
+      "idx": 124,
+      "version": "7",
+      "when": 1792368000002,
+      "tag": "0124_offer_2026_trial_deadline",
+      "breakpoints": true
+    },
+    {
+      "idx": 125,
+      "version": "7",
+      "when": 1792368000003,
+      "tag": "0125_offer_2026_pending_checkout_catalog",
+      "breakpoints": true
+    },
+    {
+      "idx": 126,
+      "version": "7",
+      "when": 1792368000004,
+      "tag": "0126_offer_2026_catalog_trigger_fields",
+      "breakpoints": true
+    },
+    {
+      "idx": 127,
+      "version": "7",
+      "when": 1792368000005,
+      "tag": "0127_offer_2026_seat_catalog_read",
+      "breakpoints": true
+    },
+    {
+      "idx": 128,
+      "version": "7",
+      "when": 1792368000006,
+      "tag": "0128_signup_billing_cycle",
+      "breakpoints": true
+    },
+    {
+      "idx": 129,
+      "version": "7",
+      "when": 1792368000007,
+      "tag": "0129_subscription_cycle_change_kind",
+      "breakpoints": true
+    },
+    {
+      "idx": 130,
+      "version": "7",
+      "when": 1792368000008,
+      "tag": "0130_subscription_cycle_change_sync",
+      "breakpoints": true
+    },
+    {
+      "idx": 131,
+      "version": "7",
+      "when": 1792368000009,
+      "tag": "0131_subscription_upgrade_checkout",
+      "breakpoints": true
+    },
+    {
+      "idx": 132,
+      "version": "7",
+      "when": 1792368000010,
+      "tag": "0132_preserve_contract_owner",
+      "breakpoints": true
+    },
+    {
+      "idx": 133,
+      "version": "7",
+      "when": 1793232000000,
+      "tag": "0133_offer_2026_feature_permissions",
+      "breakpoints": true
     }
   ]
 }

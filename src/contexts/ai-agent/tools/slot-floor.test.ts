@@ -15,14 +15,11 @@ import type { Tx } from '@/lib/db';
 
 import type * as PendingActionModule from '../internal/pending-action';
 
-const { listSlots, listProcedures, getPaymentPricingPolicy, proposePendingAction } = vi.hoisted(
-  () => ({
-    listSlots: vi.fn(),
-    listProcedures: vi.fn(),
-    getPaymentPricingPolicy: vi.fn(),
-    proposePendingAction: vi.fn(),
-  }),
-);
+const { listSlots, listProcedures, proposePendingAction } = vi.hoisted(() => ({
+  listSlots: vi.fn(),
+  listProcedures: vi.fn(),
+  proposePendingAction: vi.fn(),
+}));
 
 // Só a PERSISTÊNCIA da ação pendente é substituída: ela cifra o payload e grava
 // no banco, e nada disso é o que está sob teste aqui. As validações de
@@ -36,7 +33,6 @@ vi.mock('../internal/pending-action', async (orig) => ({
 vi.mock('@/contexts/scheduling', () => ({ schedulingApiV1: { listSlots, listProcedures } }));
 // Sem sinal: o resumo não ganha a linha do sinal (08/10/2026).
 vi.mock('@/contexts/payments', () => ({
-  getPaymentPricingPolicy,
   paymentsApiV1: { previewDepositForBooking: async () => null },
 }));
 
@@ -152,7 +148,6 @@ describe('list_slots pede o piso ao Scheduling', () => {
 describe('prepare_appointment pede o piso nos DOIS caminhos', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    getPaymentPricingPolicy.mockResolvedValue({ mode: 'absorb_fees', updatedAt: null });
     proposePendingAction.mockImplementation(async (_tx, args: { summary: string }) => ({
       id: '88888888-8888-8888-8888-888888888888',
       action: 'schedule_appointment' as const,

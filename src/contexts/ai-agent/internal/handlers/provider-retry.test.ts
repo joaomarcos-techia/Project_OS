@@ -105,21 +105,24 @@ describe('generateWithTransientRetry', () => {
     expect(attempts).toBe(1);
   });
 
-  it('não repete erros que não sejam a resposta vazia transitória', async () => {
-    let attempts = 0;
-    const provider = {
-      generateWithTools: async () => {
-        attempts += 1;
-        throw new AIProviderError('bad request', 'gemini_request_error', 400);
-      },
-    };
+  it.each([400, 402, 429])(
+    'não repete HTTP %s que exige intervenção ou limite do provider',
+    async (status) => {
+      let attempts = 0;
+      const provider = {
+        generateWithTools: async () => {
+          attempts += 1;
+          throw new AIProviderError('bad request', 'gemini_request_error', status);
+        },
+      };
 
-    await expect(
-      generateWithTransientRetry(provider, {
-        systemPrompt: 's',
-        messages: [{ role: 'user', text: 'oi' }],
-      }),
-    ).rejects.toMatchObject({ code: 'gemini_request_error' });
-    expect(attempts).toBe(1);
-  });
+      await expect(
+        generateWithTransientRetry(provider, {
+          systemPrompt: 's',
+          messages: [{ role: 'user', text: 'oi' }],
+        }),
+      ).rejects.toMatchObject({ code: 'gemini_request_error' });
+      expect(attempts).toBe(1);
+    },
+  );
 });

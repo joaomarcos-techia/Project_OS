@@ -3,8 +3,8 @@
  *
  * `isPractitioner` substitui os checks espalhados `role === 'doctor'`: o médico-DONO
  * é `owner` (não `doctor`) e, ao ganhar CRM, precisa ser reconhecido como clínico.
- * CRM é ATRIBUTO (credencial), não identidade — a regra `crm != null ⇒ clínico` mora
- * SÓ aqui (Invariante ADR-032), nunca espalhada.
+ * CRM é ATRIBUTO (credencial), não identidade. Owner/gestor com CRM pode atender;
+ * recepção e financeiro não ganham capacidade clínica por uma credencial retida.
  *
  * Vive em `lib/auth` (não em `contexts/identity`) porque `boundaries` só permite
  * context → lib: o `scheduling` precisa do `practitionerSql` e importa daqui limpo.
@@ -49,7 +49,10 @@ export function isPractitionerRole(role: Role): boolean {
  * TS×SQL que quebra se divergirem.
  */
 export function isPractitioner(p: PractitionerCandidate): boolean {
-  return isPractitionerRole(p.role) || (p.crm != null && p.crm.trim() !== '');
+  return (
+    isPractitionerRole(p.role) ||
+    ((p.role === 'owner' || p.role === 'gestor') && p.crm != null && p.crm.trim() !== '')
+  );
 }
 
 /**
@@ -60,5 +63,5 @@ export function isPractitioner(p: PractitionerCandidate): boolean {
  *    (TS = false, SQL = true) — a divergência mais fácil de introduzir.
  */
 export function practitionerSql(roleCol: AnyColumn, crmCol: AnyColumn): SQL {
-  return sql`(${roleCol} = 'doctor' OR (${crmCol} IS NOT NULL AND btrim(${crmCol}) <> ''))`;
+  return sql`(${roleCol} = 'doctor' OR (${roleCol} IN ('owner', 'gestor') AND ${crmCol} IS NOT NULL AND btrim(${crmCol}) <> ''))`;
 }

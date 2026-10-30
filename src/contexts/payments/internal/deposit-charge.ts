@@ -43,19 +43,6 @@ import { MIN_GATEWAY_AMOUNT, resolveHoldExpiry } from './deposit-rules';
 export { resolveHoldExpiry } from './deposit-rules';
 
 /**
- * Primeira consulta = o paciente não tem NENHUM outro agendamento nesta clínica.
- * Basta olhar dois: se vier algum que não seja este, é retorno.
- */
-async function isReturnVisit(
-  clinicId: string,
-  patientId: string,
-  appointmentId: string,
-): Promise<boolean> {
-  const previous = await schedulingApiV1.listPatientAppointments(clinicId, patientId, 2);
-  return previous.some((appointment) => appointment.id !== appointmentId);
-}
-
-/**
  * O que a cobrança precisa saber do agendamento — e nada além. Um tipo próprio
  * (em vez do payload do evento de agendamento) porque o gatilho é um scan, e
  * porque quanto menor a entrada, menor o acoplamento com a agenda.
@@ -94,7 +81,12 @@ export async function createDepositCharge(ctx: {
   // UNIQUE no insert — isto só evita gastar um POST à toa numa reentrega.
   if (await findChargeByAppointment(clinicId, appointmentId)) return;
 
-  const isReturn = await isReturnVisit(clinicId, patientId, appointmentId);
+  // Agendamento pendente, cancelado ou falta não transforma a próxima em retorno.
+  const isReturn = await schedulingApiV1.hasPriorCompletedAppointment(
+    clinicId,
+    patientId,
+    new Date(payload.scheduledAt),
+  );
   const amount = resolveDepositAmount({ policy, basePrice: payload.valor, isReturn });
   if (amount === null) return;
 

@@ -13,6 +13,7 @@ import {
   BillingProviderError,
   BillingProviderUnreachableError,
   type PaymentProvider,
+  type ProviderPayment,
   type ProviderSubscription,
 } from '@/lib/payments/asaas';
 import { env } from '@/lib/env';
@@ -149,7 +150,7 @@ export async function startSignupHostedCheckout(input: {
       minutesToExpire: CHECKOUT_EXPIRATION_MINUTES,
       callback: callbacks,
       subscription: {
-        cycle: 'MONTHLY',
+        cycle: intent.billingCycle === 'annual' ? 'YEARLY' : 'MONTHLY',
         nextDueDate: intent.nextDueDate,
       },
     });
@@ -221,14 +222,16 @@ function subscriptionMatchesTarget(
     ? subscription.customerId === target.asaasCustomerId
     : Boolean(subscription.customerId);
   const firstDueDate = parseIsoDate(target.nextDueDate);
-  const nextCycleDueDate = firstDueDate ? addCalendarMonth(firstDueDate) : null;
+  const nextCycleDueDate = firstDueDate
+    ? addCalendarMonths(firstDueDate, target.billingCycle === 'annual' ? 12 : 1)
+    : null;
   const dueDateMatches =
     subscription.nextDueDate === target.nextDueDate ||
     (nextCycleDueDate !== null && subscription.nextDueDate === nextCycleDueDate);
   return (
     subscription.status === 'ACTIVE' &&
     customerMatches &&
-    subscription.cycle === 'MONTHLY' &&
+    subscription.cycle === (target.billingCycle === 'annual' ? 'YEARLY' : 'MONTHLY') &&
     subscription.billingType === 'CREDIT_CARD' &&
     dueDateMatches &&
     Math.round(subscription.value * 100) === target.priceCents &&
@@ -253,8 +256,11 @@ function parseIsoDate(raw: string): { year: number; month: number; day: number }
   return { year, month, day };
 }
 
-function addCalendarMonth(date: { year: number; month: number; day: number }): string {
-  const nextMonthIndex = date.month;
+function addCalendarMonths(
+  date: { year: number; month: number; day: number },
+  months: number,
+): string {
+  const nextMonthIndex = date.month - 1 + months;
   const year = date.year + Math.floor(nextMonthIndex / 12);
   const monthIndex = nextMonthIndex % 12;
   const lastDay = new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate();
@@ -289,6 +295,33 @@ async function authoritativeSubscription(
   }
   const readback = await client.getSubscription(payment.subscriptionId);
   return subscriptionMatchesTarget(readback, target) ? readback : 'conflict';
+}
+
+async function paidPeriodAfterTrial(
+  client: PaymentProvider,
+  target: SignupHostedCheckoutTarget,
+  subscription: ProviderSubscription,
+): Promise<{ payment: ProviderPayment; through: Date } | null> {
+  const payment = await client.findPaymentByCheckoutSession(target.asaasCheckoutId, {
+    attempts: 1,
+    createdSince: target.attemptedOn,
+  });
+  if (
+    !payment ||
+    payment.deleted ||
+    (payment.status !== 'CONFIRMED' && payment.status !== 'RECEIVED') ||
+    payment.checkoutSessionId !== target.asaasCheckoutId ||
+    payment.subscriptionId !== subscription.subscriptionId ||
+    payment.billingType !== 'CREDIT_CARD' ||
+    Math.round(payment.value * 100) !== target.priceCents ||
+    payment.dueDate !== target.nextDueDate
+  ) {
+    return null;
+  }
+  const periodEnd = new Date(`${subscription.nextDueDate}T00:00:00.000Z`);
+  return Number.isFinite(periodEnd.getTime()) && periodEnd.getTime() > Date.now()
+    ? { payment, through: periodEnd }
+    : null;
 }
 
 /**
@@ -370,6 +403,12 @@ export async function completeSignupHostedCheckout(input: {
       return { ok: false, reason: 'conflict' };
     }
 
+    const expiredTrial = target.strictTrialDeadline && Date.now() >= Date.parse(target.trialEndsAt);
+    const paidCheckout = expiredTrial
+      ? await paidPeriodAfterTrial(client, target, subscription)
+      : undefined;
+    if (expiredTrial && !paidCheckout) return { ok: true, state: 'pending' };
+
     if (target.state === 'checkout_pending') {
       if (!subscription.customerId) return { ok: false, reason: 'conflict' };
       const activated = await activateSignupHostedCheckout({
@@ -406,10 +445,14 @@ export async function completeSignupHostedCheckout(input: {
       userId: input.userId,
       verifiedEmail: input.verifiedEmail,
       cpfCnpj: document.digits,
+      expectedAsaasSubscriptionId: subscription.subscriptionId,
+      expectedPriceCents: target.priceCents,
+      ...(paidCheckout && { paidCheckout }),
     });
-    if (provisioned.ok || provisioned.reason === 'gone') {
+    if (provisioned.ok) {
       return { ok: true, state: 'provisioned' };
     }
+    if (provisioned.reason === 'gone') return { ok: false, reason: 'gone' };
     if (provisioned.reason === 'unavailable') return { ok: false, reason: 'unavailable' };
     return { ok: false, reason: 'conflict' };
   } catch (error) {

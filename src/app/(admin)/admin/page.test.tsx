@@ -129,7 +129,7 @@ describe('AdminDashboardPage', () => {
     expect(screen.getByText('Clínica Horizonte')).toBeTruthy();
     expect(screen.getByText('Aguardando pagamento')).toBeTruthy();
     expect(screen.getByText('Clínica em cadastro')).toBeTruthy();
-    expect(screen.getByText('2 a 5 profissionais')).toBeTruthy();
+    expect(screen.getByText('2 a 5 médicos')).toBeTruthy();
     expect(screen.getByText('21 a 50 por semana')).toBeTruthy();
     expect(screen.getByText('Outro sistema')).toBeTruthy();
     expect(screen.getByText('Indicação de colega')).toBeTruthy();

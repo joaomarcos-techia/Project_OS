@@ -1,12 +1,13 @@
 import 'server-only';
 
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 
 // eslint-disable-next-line boundaries/element-types -- billingApiV1 é a API versionada de entitlement; o contexto não lê o schema de billing.
 import { billingApiV1 } from '@/contexts/billing/api';
 import { withTenant } from '@/lib/db/tenant';
 
 import { clinicFinancialPolicies, professionalPayoutRules, professionalPayouts } from './schema';
+import { listLatestPayoutReviews } from './internal/payout-review';
 import type {
   ProfessionalPayoutDTO,
   ProfessionalPayoutPolicyDTO,
@@ -14,6 +15,68 @@ import type {
 } from './payout-types';
 
 const iso = (value: Date | string): string => (value instanceof Date ? value.toISOString() : value);
+
+export interface MonthlyPayoutSnapshot {
+  appointmentId: string;
+  professionalId: string;
+  grossAmount: number;
+  providerFeeAmount: number | null;
+  netAmount: number | null;
+  payoutAmount: number | null;
+  calculationBasis: 'gross' | 'net';
+  status: 'pending_economics' | 'calculated' | 'cancelled' | 'reviewed';
+  reviewVersion: number | null;
+}
+
+/** Escopo do médico aplicado no SQL, não apenas escondido na interface. */
+export async function listMonthlyPayoutSnapshots(
+  clinicId: string,
+  appointmentIds: readonly string[],
+  professionalId?: string,
+): Promise<MonthlyPayoutSnapshot[]> {
+  if (appointmentIds.length === 0) return [];
+  if (!(await billingApiV1.hasAdvancedFinancialPolicies(clinicId))) return [];
+  return withTenant(clinicId, async (tx) => {
+    const rows = await tx
+      .select({
+        id: professionalPayouts.id,
+        appointmentId: professionalPayouts.appointmentId,
+        professionalId: professionalPayouts.professionalId,
+        grossAmount: professionalPayouts.grossAmount,
+        providerFeeAmount: professionalPayouts.providerFeeAmount,
+        netAmount: professionalPayouts.netAmount,
+        payoutAmount: professionalPayouts.payoutAmount,
+        calculationBasis: professionalPayouts.calculationBasis,
+        status: professionalPayouts.status,
+      })
+      .from(professionalPayouts)
+      .where(
+        and(
+          eq(professionalPayouts.clinicId, clinicId),
+          inArray(professionalPayouts.appointmentId, [...appointmentIds]),
+          professionalId ? eq(professionalPayouts.professionalId, professionalId) : undefined,
+        ),
+      );
+    const reviews = await listLatestPayoutReviews(
+      tx,
+      clinicId,
+      rows
+        .filter((row) => row.status === 'reviewed' || row.status === 'cancelled')
+        .map((row) => row.id),
+    );
+    return rows.map((row) => ({
+      appointmentId: row.appointmentId,
+      professionalId: row.professionalId,
+      grossAmount: Number(row.grossAmount),
+      providerFeeAmount: row.providerFeeAmount === null ? null : Number(row.providerFeeAmount),
+      netAmount: row.netAmount === null ? null : Number(row.netAmount),
+      payoutAmount: row.payoutAmount === null ? null : Number(row.payoutAmount),
+      calculationBasis: row.calculationBasis,
+      status: row.status,
+      reviewVersion: reviews.get(row.id)?.version ?? null,
+    }));
+  });
+}
 
 export async function getProfessionalPayoutPolicy(
   clinicId: string,
@@ -65,6 +128,7 @@ export async function getProfessionalPayoutByAppointment(
   clinicId: string,
   appointmentId: string,
 ): Promise<ProfessionalPayoutDTO | null> {
+  if (!(await billingApiV1.hasAdvancedFinancialPolicies(clinicId))) return null;
   return withTenant(clinicId, async (tx) => {
     const [row] = await tx
       .select()

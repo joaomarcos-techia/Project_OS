@@ -5,8 +5,9 @@ import { defineConfig, devices } from '@playwright/test';
 
 const APP_DIR = path.join(process.cwd(), 'dist/security-local/app');
 const RUNTIME_ENV = path.join(process.cwd(), 'dist/security-local/runtime-env.json');
-const PORT = 3217;
-const baseURL = `http://localhost:${PORT}`;
+const APP_PORT = 3217;
+const NEXT_PORT = 3218;
+const baseURL = `https://localhost:${APP_PORT}`;
 
 function runtimeEnv(): Record<string, string> {
   try {
@@ -21,14 +22,14 @@ export default defineConfig({
   testMatch: ['http-only-session.spec.ts'],
   workers: 1,
   reporter: 'list',
-  use: { baseURL },
+  use: { baseURL, ignoreHTTPSErrors: true },
   webServer: {
-    command: `node ${path.join(process.cwd(), 'node_modules/next/dist/bin/next')} start -p ${PORT} -H localhost`,
+    command: `node ${path.join(process.cwd(), 'node_modules/next/dist/bin/next')} start -p ${NEXT_PORT} -H 127.0.0.1`,
     cwd: APP_DIR,
-    // A rota de confirmação compara o Origin com o APP_BASE_URL usado no build.
-    // Servir no mesmo origin também prova o artefato exatamente como foi gerado.
-    env: runtimeEnv(),
-    url: `${baseURL}/login`,
+    // O spec põe um proxy TLS local na frente do Next. O build em modo produção
+    // exige HTTPS para links e confirmação; HTTP localhost seria recusado com 503.
+    env: { ...runtimeEnv(), APP_BASE_URL: baseURL },
+    url: `http://127.0.0.1:${NEXT_PORT}/login`,
     reuseExistingServer: false,
     timeout: 120_000,
     stdout: 'pipe',

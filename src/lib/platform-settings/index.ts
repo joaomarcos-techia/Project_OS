@@ -18,6 +18,7 @@ import { eq, inArray } from 'drizzle-orm';
 
 import { dbAdmin } from '@/lib/db';
 import { platformSettings, type PlatformSettingRow } from '@/lib/db/schema/infra/platform-settings';
+import { metrics } from '@/lib/observability/metrics';
 
 import { coerceAiMode, coerceBool, type AiAgentMode } from './coerce';
 
@@ -73,9 +74,19 @@ export async function isProactiveEnabled(): Promise<boolean> {
   );
 }
 
-/** Modo do agente. Default 'normal' (não degradar por erro de config). */
+/** Ausência mantém o default contratado; falha/corrupção não pode reativar o provider. */
 export async function getAiAgentMode(): Promise<AiAgentMode> {
-  return coerceAiMode(await getPlatformSetting<unknown>(PLATFORM_FLAG_KEYS.aiAgentMode, 'normal'));
+  try {
+    const value = await readRaw(PLATFORM_FLAG_KEYS.aiAgentMode);
+    if (value !== undefined && value !== 'normal' && value !== 'fallback_only') {
+      metrics.emit('ai_agent.mode.read_failed', { reason: 'invalid_value' });
+      return 'fallback_only';
+    }
+    return coerceAiMode(value);
+  } catch {
+    metrics.emit('ai_agent.mode.read_failed', { reason: 'unavailable' });
+    return 'fallback_only';
+  }
 }
 
 /**

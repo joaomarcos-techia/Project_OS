@@ -9,6 +9,7 @@ const base: ProactiveContact = {
   nome: 'Maria',
   phone: '5511999990000',
   deceased: false,
+  agendamentoWhatsapp: true,
   cobrancaWhatsapp: true,
   consentRevoked: false,
   suppressedWhatsapp: false,
@@ -89,11 +90,21 @@ describe('evaluateProactivePolicy (C14 — matriz por tipo)', () => {
     expect(evaluateProactivePolicy('dunning', base)).toEqual({ allowed: true });
   });
 
-  it('reminder/followup são transacionais — não exigem cobranca_whatsapp', () => {
+  it('reminder/followup exigem opt-in de agendamento, mas não de cobrança', () => {
     const noConsent = { ...base, cobrancaWhatsapp: false, consentRevoked: true };
     expect(evaluateProactivePolicy('reminder', noConsent)).toEqual({ allowed: true });
     expect(evaluateProactivePolicy('followup', noConsent)).toEqual({ allowed: true });
     expect(evaluateProactivePolicy('no_show_followup', noConsent)).toEqual({ allowed: true });
+    expect(evaluateProactivePolicy('reminder', { ...base, agendamentoWhatsapp: false })).toEqual({
+      allowed: false,
+      reason: 'no_consent',
+    });
+    expect(
+      evaluateProactivePolicy('waitlist_offer', { ...base, agendamentoWhatsapp: false }),
+    ).toEqual({
+      allowed: false,
+      reason: 'no_consent',
+    });
   });
 });
 
@@ -113,8 +124,7 @@ describe('suppressionPurposeFor — propósito de supressão por tipo', () => {
     ['no_show_followup', 'followup'],
     // Contato proativo de agendamento tem a mesma natureza do followup.
     ['waitlist_offer', 'followup'],
-    // 1.6a — TRANSACIONAL: o paciente acabou de marcar e perde a vaga se não
-    // pagar. Não é cobrança de dívida (`billing`, que exige opt-in).
+    // O link do sinal usa supressão de lembrete, mas agora exige os dois opt-ins.
     ['deposit_link', 'reminder'],
     // 1.6c — saldo posterior ao atendimento tem a mesma finalidade de billing
     // do dunning; nenhum propósito novo nasce sem os opt-outs existentes.
@@ -132,13 +142,28 @@ describe('suppressionPurposeFor — propósito de supressão por tipo', () => {
       allowed: false,
       reason: 'suppressed',
     });
+    expect(
+      evaluateProactivePolicy('deposit_link', {
+        ...base,
+        suppressedWhatsappPurposes: ['billing'],
+      }),
+    ).toEqual({ allowed: false, reason: 'suppressed' });
   });
 
-  it('link do sinal NÃO exige opt-in de cobrança (não é dunning)', () => {
+  it('link do sinal exige opt-in de agendamento E cobrança no primeiro contato', () => {
     const semOptInCobranca = { ...base, cobrancaWhatsapp: false, consentRevoked: true };
 
-    expect(evaluateProactivePolicy('deposit_link', semOptInCobranca)).toEqual({ allowed: true });
-    // Contraste: o mesmo contato é barrado para dunning.
+    expect(evaluateProactivePolicy('deposit_link', semOptInCobranca)).toEqual({
+      allowed: false,
+      reason: 'no_consent',
+    });
+    expect(
+      evaluateProactivePolicy('deposit_link', { ...base, agendamentoWhatsapp: false }),
+    ).toEqual({
+      allowed: false,
+      reason: 'no_consent',
+    });
+    expect(evaluateProactivePolicy('deposit_link', base)).toEqual({ allowed: true });
     expect(evaluateProactivePolicy('dunning', semOptInCobranca)).toEqual({
       allowed: false,
       reason: 'no_consent',

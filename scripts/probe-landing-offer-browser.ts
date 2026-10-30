@@ -1,0 +1,145 @@
+/** Confere a oferta renderizada e os CTAs em um navegador real, sem criar conta. */
+import assert from 'node:assert/strict';
+import { mkdir } from 'node:fs/promises';
+import path from 'node:path';
+
+import { chromium } from '@playwright/test';
+
+const rawBaseUrl = process.argv[2];
+if (!rawBaseUrl) throw new Error('Informe a URL da landing local ou de um Preview.');
+
+const baseUrl = new URL(rawBaseUrl);
+const isLocal = ['localhost', '127.0.0.1'].includes(baseUrl.hostname);
+const isPreview =
+  baseUrl.hostname.startsWith('landing-page-') &&
+  baseUrl.hostname.endsWith('-clinic-os-v2-s-projects.vercel.app');
+if (!isLocal && !isPreview) {
+  throw new Error('Este probe aceita apenas a landing local ou um Preview da Vercel.');
+}
+
+const browser = await chromium.launch({ headless: true });
+try {
+  for (const [device, width, height] of [
+    ['desktop', 1440, 900],
+    ['mobile', 375, 812],
+  ] as const) {
+    const context = await browser.newContext({
+      viewport: { width, height },
+    });
+    try {
+      if (isPreview && process.env.E2E_VERCEL_BYPASS_COOKIE) {
+        await context.addCookies([
+          {
+            name: '_vercel_jwt',
+            value: process.env.E2E_VERCEL_BYPASS_COOKIE,
+            domain: baseUrl.hostname,
+            path: '/',
+            httpOnly: true,
+            secure: true,
+            sameSite: 'Lax',
+          },
+        ]);
+      }
+      const page = await context.newPage();
+      for (const pathname of ['/', '/precos']) {
+        const response = await page.goto(new URL(pathname, baseUrl).toString(), {
+          waitUntil: 'domcontentloaded',
+        });
+        assert.equal(new URL(page.url()).host, baseUrl.host, `${device}: Preview exige SSO`);
+        assert.equal(response?.status(), 200, `${device}: ${pathname} não respondeu 200`);
+
+        const pricing = page.locator('#pricing');
+        await pricing.getByRole('heading', { name: 'Consultório' }).waitFor();
+        await pricing.getByRole('heading', { name: 'Clínica' }).waitFor();
+        const text = await pricing.innerText();
+        assert.ok(
+          /R\$ 197[\s\S]*1 médico incluído nesse valor/u.test(text),
+          `${device}: Consultório não explicou o que R$ 197 inclui`,
+        );
+        assert.ok(
+          /R\$ 397[\s\S]*2 médicos incluídos nesse valor/u.test(text),
+          `${device}: Clínica não explicou o que R$ 397 inclui`,
+        );
+        assert.ok(
+          /\+ R\$ 147\/mês por médico adicional, até 5 médicos no total/u.test(text),
+          `${device}: adicional ou teto de médicos ausente`,
+        );
+        assert.equal((text.match(/Até 3 acessos administrativos incluídos/gu) ?? []).length, 2);
+        assert.equal((text.match(/modalidade anual ainda não está disponível/gu) ?? []).length, 2);
+        assert.equal(/Anual no cartão:|R\$\s*1\.970|R\$\s*3\.970/u.test(text), false);
+        assert.equal(/2 a 5 profissionais · até 3 usuários/u.test(text), false);
+        assert.equal(await pricing.locator('a[href="/comecar"]').count(), 2);
+        const consultorioCard = pricing
+          .getByRole('heading', { name: 'Consultório', exact: true })
+          .locator('..');
+        const clinicaCard = pricing
+          .getByRole('heading', { name: 'Clínica', exact: true })
+          .locator('..');
+        for (const feature of [
+          'Ajuste de permissões por pessoa',
+          'Relatório por médico',
+          'Repasse aos médicos por procedimento',
+        ]) {
+          assert.equal(await consultorioCard.getByText(feature, { exact: true }).count(), 0);
+          assert.equal(await clinicaCard.getByText(feature, { exact: true }).count(), 1);
+        }
+        assert.ok(/Recepção, gestão e financeiro/u.test(text));
+        assert.ok(/papel Médico, inclusive antes de preencher o CRM/u.test(text));
+        assert.ok(/Dono ou gestor com CRM cadastrado também entra na cota de médicos/u.test(text));
+        assert.ok(/sem ocupar outro acesso administrativo/u.test(text));
+        assert.ok(/Até 4 pessoas no preço base: 1 médico \+ 3 administrativos/u.test(text));
+        assert.ok(/Até 5 pessoas no preço base: 2 médicos \+ 3 administrativos/u.test(text));
+        assert.ok(/Com 3 administrativos, o limite é de 8 pessoas/u.test(text));
+        assert.ok(/já está incluído nos 3 acessos administrativos/u.test(text));
+        assert.ok(/Hoje não há compra online de um quarto acesso administrativo/u.test(text));
+        assert.ok(
+          /R\$ 397\/mês: 2 médicos \+ até 3 pessoas da equipe administrativa = até 5 logins/u.test(
+            text,
+          ),
+        );
+        assert.ok(
+          /R\$ 147\/mês por médico, até chegar a 5 médicos \+ 3 administrativos = até 8 logins/u.test(
+            text,
+          ),
+        );
+        assert.equal(/por profissional adicional|profissionais incluídos/u.test(text), false);
+        assert.equal(
+          await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth),
+          false,
+          `${device}: ${pathname} tem overflow horizontal`,
+        );
+
+        if (process.env.E2E_VISUAL_CAPTURE === '1') {
+          const dir = path.join(process.cwd(), 'dist/quality/landing-offer');
+          await mkdir(dir, { recursive: true });
+          await page.screenshot({
+            path: path.join(dir, `${device}-${pathname === '/' ? 'home' : 'precos'}.png`),
+            fullPage: true,
+            animations: 'disabled',
+          });
+        }
+
+        if (pathname === '/precos') {
+          const description = await page
+            .locator('meta[name="description"]')
+            .getAttribute('content');
+          assert.ok(/Clínica a partir de R\$ 397\/mês com 2/u.test(description ?? ''));
+          assert.equal(/por mês, por profissional/u.test(description ?? ''), false);
+          const hero = page.locator('main').first();
+          assert.ok(/\+ R\$\s*147\/mês por médico extra/u.test(await hero.innerText()));
+          assert.ok(
+            /modalidade anual ainda não está disponível para novas contratações/u.test(
+              (await page.locator('main').textContent()) ?? '',
+            ),
+            `${device}: FAQ precisa informar que novas contratações anuais estão indisponíveis`,
+          );
+        }
+        console.log(`PASS ${device} ${pathname}: oferta, CTA e largura`);
+      }
+    } finally {
+      await context.close();
+    }
+  }
+} finally {
+  await browser.close();
+}

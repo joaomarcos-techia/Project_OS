@@ -5,8 +5,9 @@
  * Ordem dos bloqueios (mais forte primeiro):
  *   - no_contact : paciente sem telefone (nada a enviar).
  *   - suppressed : telefone na suppression_list (opt-out/spam/LGPD) — vale p/ TODOS.
- *   - no_consent : DUNNING sem opt-in de cobrança (LGPD; reminder/followup são
- *                  transacionais e NÃO exigem o flag).
+ *   - no_consent : agendamento exige opt-in operacional; cobrança exige opt-in
+ *                  financeiro; link de sinal exige ambos. Telefone salvo não é
+ *                  permissão de contato.
  */
 /* eslint-disable-next-line boundaries/element-types -- type-only do contrato PÚBLICO do Patient (ProactiveContact). */
 import type { ProactiveContact } from '@/contexts/patient';
@@ -30,9 +31,8 @@ export type SuppressionPurpose = 'reminder' | 'followup' | 'billing' | 'marketin
  * não ser contatado:
  *   - `waitlist_offer` → `followup`: contato proativo de agendamento;
  *   - `no_show_followup` → `followup`: recuperação operacional da agenda;
- *   - `deposit_link` → `reminder`: é TRANSACIONAL. O paciente acabou de marcar e
- *     perde a vaga se não pagar; não é cobrança de dívida (`billing`, que exige
- *     opt-in), é a conclusão de um ato que ele mesmo iniciou.
+ *   - `deposit_link` → `reminder`: participa da reserva, mas o conteúdo também é
+ *     financeiro, então exige os dois opt-ins no gate abaixo.
  *   - `remainder_link` → `billing`: é o saldo pendente de um atendimento que já
  *     aconteceu e respeita o mesmo consentimento/opt-out da cobrança amigável.
  */
@@ -58,11 +58,18 @@ export function evaluateProactivePolicy(
   if (
     contact.suppressedWhatsapp ||
     contact.suppressedWhatsappPurposes.includes('all') ||
-    contact.suppressedWhatsappPurposes.includes(purpose)
+    contact.suppressedWhatsappPurposes.includes(purpose) ||
+    (type === 'deposit_link' && contact.suppressedWhatsappPurposes.includes('billing'))
   ) {
     return { allowed: false, reason: 'suppressed' };
   }
-  if (purpose === 'billing' && (!contact.cobrancaWhatsapp || contact.consentRevoked)) {
+  if ((purpose === 'reminder' || purpose === 'followup') && !contact.agendamentoWhatsapp) {
+    return { allowed: false, reason: 'no_consent' };
+  }
+  if (
+    (purpose === 'billing' || type === 'deposit_link') &&
+    (!contact.cobrancaWhatsapp || contact.consentRevoked)
+  ) {
     return { allowed: false, reason: 'no_consent' };
   }
   return { allowed: true };

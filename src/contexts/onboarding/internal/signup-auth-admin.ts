@@ -106,6 +106,13 @@ export async function resolveSignupDraftEntry(existingClient?: SupabaseClient) {
   ) {
     return { ok: false as const, reason: 'credentials_invalid' as const };
   }
+  if (owned.checkoutRecovery) {
+    return {
+      ok: true as const,
+      kind: 'redirect' as const,
+      route: '/cadastro/pagamento?resultado=pending',
+    };
+  }
   return { ...onboarding, signupRef: owned.signupRef };
 }
 

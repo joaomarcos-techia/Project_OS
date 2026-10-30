@@ -49,6 +49,7 @@ const INTENT = {
   planCode: 'essencial',
   priceId: 'cccccccc-0000-4000-8000-000000000003',
   priceCents: 34_900,
+  billingCycle: 'monthly' as const,
   clinicName: 'Clínica Aurora',
   ownerName: 'Ana Prado',
   trialDays: 7,
@@ -59,6 +60,7 @@ const TARGET = {
   rowVersion: 8,
   externalReference: INTENT.externalReference,
   priceCents: INTENT.priceCents,
+  billingCycle: 'monthly' as const,
   trialDays: 7,
   attemptedOn: '2026-09-26',
   nextDueDate: INTENT.nextDueDate,
@@ -116,6 +118,7 @@ function fakeProvider(overrides: Partial<PaymentProvider> = {}): PaymentProvider
 }
 
 beforeEach(() => {
+  vi.useRealTimers();
   vi.clearAllMocks();
   mocks.reserve.mockResolvedValue({ ok: true, rowVersion: 7, intent: INTENT });
   mocks.record.mockResolvedValue({ ok: true, rowVersion: 8 });
@@ -178,6 +181,72 @@ describe('Checkout hospedado do cadastro', () => {
         },
       }),
     );
+  });
+
+  it('cria recorrência anual no cartão e confere o ciclo na assinatura antes de provisionar', async () => {
+    mocks.reserve.mockResolvedValue({
+      ok: true,
+      rowVersion: 7,
+      intent: {
+        ...INTENT,
+        planCode: 'consultorio_2026',
+        priceCents: 197_000,
+        billingCycle: 'annual',
+      },
+    });
+    mocks.target.mockResolvedValue({
+      ...TARGET,
+      priceCents: 197_000,
+      billingCycle: 'annual',
+    });
+    const client = fakeProvider({
+      findPaymentByCheckoutSession: vi.fn().mockResolvedValue({ ...PAYMENT, value: 1970 }),
+      getSubscription: vi.fn().mockResolvedValue({ ...SUBSCRIPTION, value: 1970, cycle: 'YEARLY' }),
+    });
+
+    await expect(startSignupHostedCheckout({ userId: USER, client })).resolves.toMatchObject({
+      ok: true,
+      state: 'checkout_pending',
+    });
+    expect(client.createCheckout).toHaveBeenCalledWith(
+      expect.objectContaining({
+        value: 1970,
+        subscription: { cycle: 'YEARLY', nextDueDate: INTENT.nextDueDate },
+      }),
+    );
+    await expect(
+      completeSignupHostedCheckout({ userId: USER, verifiedEmail: EMAIL, client }),
+    ).resolves.toEqual({ ok: true, state: 'provisioned' });
+    expect(mocks.provision).toHaveBeenCalledWith(
+      expect.objectContaining({
+        expectedPriceCents: 197_000,
+      }),
+    );
+  });
+
+  it('recusa mensalidade no provedor quando o contrato selecionado é anual', async () => {
+    mocks.target.mockResolvedValue({ ...TARGET, billingCycle: 'annual' });
+    const client = fakeProvider();
+    await expect(
+      completeSignupHostedCheckout({ userId: USER, verifiedEmail: EMAIL, client }),
+    ).resolves.toEqual({ ok: false, reason: 'conflict' });
+    expect(mocks.activate).not.toHaveBeenCalled();
+    expect(mocks.provision).not.toHaveBeenCalled();
+  });
+
+  it('aceita o próximo vencimento anual somente um ano depois da primeira cobrança', async () => {
+    mocks.target.mockResolvedValue({ ...TARGET, billingCycle: 'annual' });
+    const client = fakeProvider({
+      getSubscription: vi.fn().mockResolvedValue({
+        ...SUBSCRIPTION,
+        cycle: 'YEARLY',
+        nextDueDate: '2027-10-03',
+      }),
+    });
+    await expect(
+      completeSignupHostedCheckout({ userId: USER, verifiedEmail: EMAIL, client }),
+    ).resolves.toEqual({ ok: true, state: 'provisioned' });
+    expect(mocks.provision).toHaveBeenCalledTimes(1);
   });
 
   it('reabre a mesma URL persistida sem criar outro Checkout', async () => {
@@ -305,7 +374,20 @@ describe('Checkout hospedado do cadastro', () => {
       userId: USER,
       verifiedEmail: EMAIL,
       cpfCnpj: CPF,
+      expectedAsaasSubscriptionId: 'sub_1',
+      expectedPriceCents: 34_900,
     });
+  });
+
+  it('não informa sucesso quando o draft expira antes do provisionamento', async () => {
+    mocks.provision.mockResolvedValue({ ok: false, reason: 'gone' });
+
+    await expect(
+      completeSignupHostedCheckout({ userId: USER, verifiedEmail: EMAIL, client: fakeProvider() }),
+    ).resolves.toEqual({ ok: false, reason: 'gone' });
+    expect(mocks.provision).toHaveBeenCalledWith(
+      expect.objectContaining({ expectedAsaasSubscriptionId: 'sub_1' }),
+    );
   });
 
   it('recusa valor divergente sem ativar nem provisionar', async () => {
@@ -347,6 +429,167 @@ describe('Checkout hospedado do cadastro', () => {
     ).resolves.toEqual({ ok: true, state: 'provisioned' });
     expect(mocks.activate).toHaveBeenCalledTimes(1);
     expect(mocks.provision).toHaveBeenCalledTimes(1);
+  });
+
+  it('não provisiona após o trial com cobrança ainda pendente', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-19T12:00:00.000Z'));
+    mocks.target.mockResolvedValue({
+      ...TARGET,
+      strictTrialDeadline: true,
+      trialEndsAt: '2026-10-18T12:00:00.000Z',
+      nextDueDate: '2026-10-19',
+    });
+    const client = fakeProvider({
+      findPaymentByCheckoutSession: vi.fn().mockResolvedValue({
+        ...PAYMENT,
+        dueDate: '2026-10-19',
+        status: 'PENDING',
+      }),
+      getSubscription: vi.fn().mockResolvedValue({
+        ...SUBSCRIPTION,
+        nextDueDate: '2026-11-19',
+      }),
+    });
+
+    await expect(
+      completeSignupHostedCheckout({ userId: USER, verifiedEmail: EMAIL, client }),
+    ).resolves.toEqual({ ok: true, state: 'pending' });
+    expect(mocks.activate).not.toHaveBeenCalled();
+    expect(mocks.provision).not.toHaveBeenCalled();
+  });
+
+  it('provisiona após o trial apenas com pagamento confirmado e próximo período vigente', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-19T12:00:00.000Z'));
+    mocks.target.mockResolvedValue({
+      ...TARGET,
+      strictTrialDeadline: true,
+      trialEndsAt: '2026-10-18T12:00:00.000Z',
+      nextDueDate: '2026-10-19',
+    });
+    const client = fakeProvider({
+      findPaymentByCheckoutSession: vi.fn().mockResolvedValue({
+        ...PAYMENT,
+        dueDate: '2026-10-19',
+        status: 'CONFIRMED',
+      }),
+      getSubscription: vi.fn().mockResolvedValue({
+        ...SUBSCRIPTION,
+        nextDueDate: '2026-11-19',
+      }),
+    });
+
+    await expect(
+      completeSignupHostedCheckout({ userId: USER, verifiedEmail: EMAIL, client }),
+    ).resolves.toEqual({ ok: true, state: 'provisioned' });
+    expect(mocks.provision).toHaveBeenCalledWith({
+      userId: USER,
+      verifiedEmail: EMAIL,
+      cpfCnpj: CPF,
+      expectedAsaasSubscriptionId: 'sub_1',
+      expectedPriceCents: 34_900,
+      paidCheckout: {
+        payment: { ...PAYMENT, dueDate: '2026-10-19', status: 'CONFIRMED' },
+        through: new Date('2026-11-19T00:00:00.000Z'),
+      },
+    });
+  });
+
+  it('anual após o trial exige cartão confirmado e período pago até o próximo ano', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-19T12:00:00.000Z'));
+    mocks.target.mockResolvedValue({
+      ...TARGET,
+      priceCents: 197_000,
+      billingCycle: 'annual',
+      strictTrialDeadline: true,
+      trialEndsAt: '2026-10-18T12:00:00.000Z',
+      nextDueDate: '2026-10-19',
+    });
+    const annualPayment = {
+      ...PAYMENT,
+      value: 1970,
+      dueDate: '2026-10-19',
+      status: 'CONFIRMED',
+    };
+    const client = fakeProvider({
+      findPaymentByCheckoutSession: vi.fn().mockResolvedValue(annualPayment),
+      getSubscription: vi.fn().mockResolvedValue({
+        ...SUBSCRIPTION,
+        value: 1970,
+        cycle: 'YEARLY',
+        nextDueDate: '2027-10-19',
+      }),
+    });
+
+    await expect(
+      completeSignupHostedCheckout({ userId: USER, verifiedEmail: EMAIL, client }),
+    ).resolves.toEqual({ ok: true, state: 'provisioned' });
+    expect(mocks.provision).toHaveBeenCalledWith(
+      expect.objectContaining({
+        expectedPriceCents: 197_000,
+        paidCheckout: {
+          payment: annualPayment,
+          through: new Date('2027-10-19T00:00:00.000Z'),
+        },
+      }),
+    );
+  });
+
+  it('aguarda a atualização do próximo ciclo mesmo depois de o pagamento ser confirmado', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-19T12:00:00.000Z'));
+    mocks.target.mockResolvedValue({
+      ...TARGET,
+      strictTrialDeadline: true,
+      trialEndsAt: '2026-10-18T12:00:00.000Z',
+      nextDueDate: '2026-10-19',
+    });
+    const client = fakeProvider({
+      findPaymentByCheckoutSession: vi.fn().mockResolvedValue({
+        ...PAYMENT,
+        dueDate: '2026-10-19',
+        status: 'CONFIRMED',
+      }),
+      getSubscription: vi.fn().mockResolvedValue({
+        ...SUBSCRIPTION,
+        nextDueDate: '2026-10-19',
+      }),
+    });
+
+    await expect(
+      completeSignupHostedCheckout({ userId: USER, verifiedEmail: EMAIL, client }),
+    ).resolves.toEqual({ ok: true, state: 'pending' });
+    expect(mocks.provision).not.toHaveBeenCalled();
+  });
+
+  it('não aceita pagamento de outro checkout para liberar trial vencido', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-19T12:00:00.000Z'));
+    mocks.target.mockResolvedValue({
+      ...TARGET,
+      strictTrialDeadline: true,
+      trialEndsAt: '2026-10-18T12:00:00.000Z',
+      nextDueDate: '2026-10-19',
+    });
+    const client = fakeProvider({
+      findPaymentByCheckoutSession: vi.fn().mockResolvedValue({
+        ...PAYMENT,
+        dueDate: '2026-10-19',
+        checkoutSessionId: 'checkout_outra_conta',
+        status: 'CONFIRMED',
+      }),
+      getSubscription: vi.fn().mockResolvedValue({
+        ...SUBSCRIPTION,
+        nextDueDate: '2026-11-19',
+      }),
+    });
+
+    await expect(
+      completeSignupHostedCheckout({ userId: USER, verifiedEmail: EMAIL, client }),
+    ).resolves.toEqual({ ok: false, reason: 'conflict' });
+    expect(mocks.provision).not.toHaveBeenCalled();
   });
 
   it('recusa uma data da assinatura fora da primeira cobrança e do ciclo seguinte', async () => {

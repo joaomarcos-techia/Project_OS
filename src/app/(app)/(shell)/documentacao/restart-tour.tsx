@@ -1,8 +1,7 @@
 'use client';
 
 import { PlayCircle } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import { useTransition } from 'react';
+import { useState, useTransition } from 'react';
 
 import { Button } from '@/components/ui/button';
 import type { TourState } from '@/contexts/onboarding';
@@ -16,12 +15,12 @@ import { submitOnboardingAction } from '../_painel/onboarding-actions';
  * some quando a clínica termina de se ativar — um botão ali desapareceria junto
  * e o tour ficaria sem porta de volta. Aqui ele está sempre a um clique do menu.
  *
- * O `router.refresh()` é o que faz a janela abrir: quem monta o tour é o layout,
- * então revalidar o servidor entrega o novo estado ao componente que já está
- * montado. Sem isso, seria preciso um store de cliente paralelo à autoridade.
+ * O tour mora no layout compartilhado, que o App Router pode preservar depois
+ * de uma Server Action. Uma navegação completa ao primeiro passo lê o estado
+ * confirmado do banco e monta a janela sem depender do cache do layout.
  */
 export function RestartTour({ state }: { state: TourState }) {
-  const router = useRouter();
+  const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   // Em `in_progress` a janela já está aberta no shell. Não oferecemos uma
@@ -31,21 +30,39 @@ export function RestartTour({ state }: { state: TourState }) {
   const firstRun = state === 'not_started';
 
   return (
-    <Button
-      type="button"
-      variant="secondary"
-      loading={pending}
-      data-testid="restart-tour"
-      className="active:scale-[0.96]"
-      onClick={() =>
-        startTransition(async () => {
-          await submitOnboardingAction({ action: firstRun ? 'tour_start' : 'tour_reopen' });
-          router.refresh();
-        })
-      }
-    >
-      <PlayCircle aria-hidden="true" className="size-4" />
-      {firstRun ? 'Iniciar tour guiado' : 'Refazer tour guiado'}
-    </Button>
+    <div className="flex flex-col items-start gap-2">
+      <Button
+        type="button"
+        variant="secondary"
+        loading={pending}
+        data-testid="restart-tour"
+        className="active:scale-[0.96]"
+        onClick={() =>
+          startTransition(async () => {
+            setError(null);
+            try {
+              const result = await submitOnboardingAction({
+                action: firstRun ? 'tour_start' : 'tour_reopen',
+              });
+              if (result.ok || result.progress?.tourState === 'in_progress') {
+                window.location.assign('/dashboard');
+                return;
+              }
+            } catch {
+              // A falha de rede fica visível e não navega para um tour que não iniciou.
+            }
+            setError('Não foi possível abrir o tour. Atualize a página e tente novamente.');
+          })
+        }
+      >
+        <PlayCircle aria-hidden="true" className="size-4" />
+        {firstRun ? 'Iniciar tour guiado' : 'Refazer tour guiado'}
+      </Button>
+      {error ? (
+        <p role="alert" className="text-(length:--fs-xs) text-danger-600">
+          {error}
+        </p>
+      ) : null}
+    </div>
   );
 }

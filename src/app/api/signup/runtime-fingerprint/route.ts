@@ -3,7 +3,8 @@
  *
  * Read-only proof used by the destructive signup E2E before it creates an Auth
  * user or writes a draft. The caller must already know `MAGIC_TOKEN_SECRET` and
- * signs a short-lived nonce; the response exposes only Supabase project refs.
+ * signs a short-lived nonce; the response exposes Supabase project refs and
+ * boolean Asaas Sandbox configuration, never credential values.
  *
  * The route intentionally does not exist from a caller's perspective in the
  * Vercel production environment. Preview and local runs remain available so an
@@ -48,6 +49,18 @@ function json(body: unknown, status: number): Response {
     status,
     headers: { 'Cache-Control': 'no-store' },
   });
+}
+
+function isSandboxAsaasBaseUrl(raw: string): boolean {
+  try {
+    const providerUrl = new URL(raw);
+    return (
+      providerUrl.protocol === 'https:' &&
+      ['sandbox.asaas.com', 'api-sandbox.asaas.com'].includes(providerUrl.hostname)
+    );
+  } catch {
+    return false;
+  }
 }
 
 export async function POST(req: Request): Promise<Response> {
@@ -102,6 +115,8 @@ export async function POST(req: Request): Promise<Response> {
       environment: env.VERCEL_ENV ?? 'local',
       authProjectRef,
       databaseProjectRef,
+      asaasSandboxConfigured: isSandboxAsaasBaseUrl(env.ASAAS_BASE_URL),
+      asaasKeyConfigured: Boolean(env.ASAAS_API_KEY),
     },
     200,
   );

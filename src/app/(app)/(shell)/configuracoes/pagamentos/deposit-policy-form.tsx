@@ -193,6 +193,10 @@ export function DepositPolicyForm({ policy, hasAccount }: Props) {
               />
               <span>Retorno</span>
             </label>
+            <p className="text-(length:--fs-sm) text-fg-muted">
+              Retorno só após uma consulta concluída nesta clínica. Agendamentos pendentes,
+              cancelamentos e faltas não contam.
+            </p>
           </fieldset>
 
           <div>

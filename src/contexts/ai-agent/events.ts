@@ -26,7 +26,7 @@ const uuid = z.string().uuid();
 /**
  * Outcome do turno:
  *  - replied        — LLM respondeu (com ou sem tools)
- *  - fallback       — falha de provider/tool/rounds → resposta operacional
+ *  - fallback       — falha de provider/tool/rounds ou envio não aceito pela Meta
  *  - handoff        — tool request_human_handoff ou MAX_FALLBACKS atingido
  *  - suppressed     — destinatário em suppression_list (sem envio)
  *  - quota_blocked  — teto de custo da clínica na janela (R4): o turno respondeu

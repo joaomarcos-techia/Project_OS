@@ -30,6 +30,7 @@ import {
   getDoctorActiveCommitments,
   getWaitlistOfferState,
   hasFutureEquivalentAppointment,
+  hasPriorCompletedAppointment,
   hasSubsequentCompletedAppointment,
   listUpcomingPatientAppointments,
   listProcedures as listProceduresQuery,
@@ -65,6 +66,8 @@ export interface SchedulingApiV1 {
     patientId: string,
     limit?: number,
   ): Promise<AppointmentSummary[]>;
+  /** Retorno para o sinal exige consulta anterior com status `atendido`. */
+  hasPriorCompletedAppointment(clinicId: string, patientId: string, before: Date): Promise<boolean>;
   /**
    * C14 — consultas ativas cuja data local é amanhã (candidatas a lembrete D-1).
    * Read cross-tenant (regra de "quem precisa de lembrete" mora no Scheduling).
@@ -172,6 +175,8 @@ export const schedulingApiV1: SchedulingApiV1 = {
   lookupWaitlistOffer: (clinicId, entryId) => getWaitlistOfferState(clinicId, entryId),
   listPatientAppointments: (clinicId, patientId, limit) =>
     listUpcomingPatientAppointments(clinicId, patientId, limit),
+  hasPriorCompletedAppointment: (clinicId, patientId, before) =>
+    hasPriorCompletedAppointment(clinicId, patientId, before),
   listReminderCandidates: (limit) => listReminderCandidates(limit),
   listDepositCandidates: (clinicIds, opts) => listDepositCandidates(clinicIds, opts),
   lookupDepositCandidate: (clinicId, appointmentId) =>

@@ -5,6 +5,7 @@
  * uma consulta às 10:00 em São Paulo aparecia como "...T13:00:00.000Z", e o
  * "SIM" do paciente confirmava um horário que ele leu errado.
  */
+import assert from 'node:assert/strict';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Tx } from '@/lib/db';
@@ -227,7 +228,9 @@ describe('reagendar confere o novo horário na agenda real (08/10/2026)', () => 
 describe('listas de consultas trazem o horário local ao lado do UTC', () => {
   it('list_my_appointments', async () => {
     const response = await getTool('list_my_appointments')!.handler({}, ctx);
-    expect(response.appointments[0]).toMatchObject({
+    const appointments = response.appointments;
+    assert.ok(Array.isArray(appointments), 'a tool deve devolver uma lista de consultas');
+    expect(appointments[0]).toMatchObject({
       scheduled_at: TEN_AM_SAO_PAULO,
       scheduled_at_local: '09/10/2026 às 10:00',
     });

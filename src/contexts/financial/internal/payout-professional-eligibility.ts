@@ -2,7 +2,7 @@ import { sql } from 'drizzle-orm';
 
 import type { Tx } from '@/lib/db';
 
-/** Revalida o profissional e bloqueia alterações concorrentes até o fim da transação. */
+/** Revalida o profissional sob o RLS do tenant. O cálculo do repasse revalida de novo. */
 export async function isEligiblePayoutProfessional(
   tx: Tx,
   clinicId: string,
@@ -17,7 +17,6 @@ export async function isEligiblePayoutProfessional(
       AND role <> 'owner'
       AND (role = 'doctor' OR (crm IS NOT NULL AND btrim(crm) <> ''))
     LIMIT 1
-    FOR SHARE
   `);
   return rows.length > 0;
 }

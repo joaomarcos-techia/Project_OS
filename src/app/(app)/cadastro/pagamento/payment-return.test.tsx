@@ -29,6 +29,20 @@ afterEach(() => {
 });
 
 describe('retorno do Checkout do cadastro', () => {
+  it('verifica uma assinatura pendente antes de abrir o dashboard', async () => {
+    fetchMock.mockResolvedValueOnce(json(200, { state: 'provisioned' }));
+
+    render(<PaymentReturn result="pending" />);
+
+    await waitFor(() =>
+      expect(assignMock).toHaveBeenCalledWith('/auth/session-refresh?next=/dashboard'),
+    );
+    expect(fetchMock).toHaveBeenCalledWith('/api/signup/checkout/status', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+    });
+  });
+
   it('redireciona somente depois da confirmação autoritativa', async () => {
     fetchMock.mockResolvedValueOnce(json(200, { state: 'provisioned' }));
 
@@ -42,6 +56,24 @@ describe('retorno do Checkout do cadastro', () => {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
     });
+  });
+
+  it('renova as claims pré-tenant quando outra aba concluiu o provisionamento', async () => {
+    fetchMock.mockResolvedValueOnce(json(401, { error: 'unauthorized' }));
+
+    render(<PaymentReturn result="success" />);
+
+    await waitFor(() =>
+      expect(assignMock).toHaveBeenCalledWith('/auth/session-refresh?next=/dashboard'),
+    );
+  });
+
+  it('não usa a renovação de sessão para contornar um bloqueio de origem', async () => {
+    fetchMock.mockResolvedValueOnce(json(403, { error: 'blocked' }));
+
+    render(<PaymentReturn result="success" />);
+
+    await waitFor(() => expect(assignMock).toHaveBeenCalledWith('/login'));
   });
 
   it('cancela com o servidor antes de voltar ao plano', async () => {

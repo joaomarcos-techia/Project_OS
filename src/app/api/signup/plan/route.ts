@@ -116,7 +116,11 @@ export async function PUT(req: Request): Promise<Response> {
               : 503;
       return json({ error: result.reason }, status);
     }
-    return json({ rowVersion: result.rowVersion, selectedPlanId: result.selectedPlanId });
+    return json({
+      rowVersion: result.rowVersion,
+      selectedPlanId: result.selectedPlanId,
+      selectedBillingCycle: result.selectedBillingCycle,
+    });
   } catch {
     return json({ error: 'unavailable' }, 503);
   }

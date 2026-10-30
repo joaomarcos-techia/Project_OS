@@ -8,10 +8,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { isOffer2026PlanCode, OFFER_2026_PLAN_CODES } from '@/contexts/billing/proposed-offer';
 import { uuidv4 } from '@/lib/ui/uuid';
 
 import {
   requestPlanChangeAction,
+  requestBillingCycleChangeAction,
   reactivateSubscriptionAction,
   requestSubscriptionCancellationAction,
   revokeSubscriptionCancellationAction,
@@ -24,10 +26,15 @@ type Plan = {
   code: string;
   priceAmount: string;
   limits: { users: number; agendamentos: number; ai_messages: number };
+  seats: { doctors: number; staff: number } | null;
 };
 
 const INITIAL: PlanChangeState = { error: null };
 const RANK: Record<string, number> = { solo: 1, clinica: 2, pro: 3 };
+
+function rankOfPlan(code: string): number {
+  return isOffer2026PlanCode(code) ? OFFER_2026_PLAN_CODES.indexOf(code) + 1 : (RANK[code] ?? 0);
+}
 
 function formatMoney(amount: string): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
@@ -56,13 +63,17 @@ function cycleLabel(cycle: 'monthly' | 'annual'): string {
  */
 function cancellationDescription(
   status: 'trial' | 'active' | 'past_due' | 'cancelled',
+  billingCycle: 'monthly' | 'annual',
   periodEnd: string | null,
   trialEnd: string | null,
 ): string {
   const cobrancas =
     'A recorrência para agora e todas as cobranças em aberto no Asaas são apagadas — nenhuma nova será feita.';
   if (status === 'active') {
-    return `${cobrancas} ${periodEnd ? `O acesso continua até ${periodEnd}, o fim do período já pago.` : 'O acesso é encerrado em até um dia.'}`;
+    const access = periodEnd
+      ? `O acesso continua até ${periodEnd}, o fim do período já pago.`
+      : 'O acesso é encerrado em até um dia.';
+    return `${cobrancas} ${access}${billingCycle === 'annual' ? ' O período anual já pago não recebe estorno automático.' : ''}`;
   }
   if (status === 'trial') {
     return `${cobrancas} ${trialEnd ? `O acesso continua até ${trialEnd}, o fim do período de teste.` : 'O acesso é encerrado em até um dia.'}`;
@@ -74,6 +85,10 @@ export function PlanChangeForm({
   current,
   plans,
   activeUsers,
+  activeDoctors,
+  activeStaff,
+  aiUsage,
+  cycleOffer,
   pending,
 }: {
   current: {
@@ -88,9 +103,25 @@ export function PlanChangeForm({
   };
   plans: Plan[];
   activeUsers: number;
-  pending: { kind: string; status: string; effectiveAt: string; paymentUrl: string | null } | null;
+  activeDoctors: number;
+  activeStaff: number;
+  aiUsage?: { count: number; limit: number; period: string } | null;
+  cycleOffer?: { billingCycle: 'monthly' | 'annual'; priceAmount: string } | null;
+  pending: {
+    kind: string;
+    status: string;
+    effectiveAt: string;
+    paymentUrl: string | null;
+    providerSynced?: boolean;
+    checkoutCreationState?: string | null;
+    checkoutExpired?: boolean;
+  } | null;
 }) {
   const [state, formAction, submitting] = useActionState(requestPlanChangeAction, INITIAL);
+  const [cycleState, cycleAction, cycling] = useActionState(
+    requestBillingCycleChangeAction,
+    INITIAL,
+  );
   const [cancellationState, cancellationAction, cancelling] = useActionState(
     requestSubscriptionCancellationAction,
     INITIAL,
@@ -104,11 +135,18 @@ export function PlanChangeForm({
     INITIAL,
   );
   const [cancellationDialogOpen, setCancellationDialogOpen] = useState(false);
+  const [cycleDialogOpen, setCycleDialogOpen] = useState(false);
   const keys = useMemo(() => new Map(plans.map((plan) => [plan.id, uuidv4()])), [plans]);
   const cancellationKey = useMemo(() => uuidv4(), []);
+  const cycleKey = useMemo(() => uuidv4(), []);
   const revocationKey = useMemo(() => uuidv4(), []);
   const reactivationKey = useMemo(() => uuidv4(), []);
-  const currentRank = RANK[current.planCode] ?? 0;
+  const isNewOffer = isOffer2026PlanCode(current.planCode);
+  const paymentAwaitingConfirmation =
+    pending?.status === 'pending_payment' || state.success === 'upgrade_pending_payment';
+  const checkoutExpired = pending?.checkoutExpired ?? false;
+  const currentRank = rankOfPlan(current.planCode);
+  const availablePlans = plans.filter((plan) => isOffer2026PlanCode(plan.code) === isNewOffer);
   const end = current.periodEnd ? formatCycleDate(new Date(current.periodEnd)) : null;
   const trialEnd = current.trialEndsAt ? formatCycleDate(new Date(current.trialEndsAt)) : null;
 
@@ -120,6 +158,9 @@ export function PlanChangeForm({
       setCancellationDialogOpen(false);
     }
   }, [cancellationState.error, cancellationState.success]);
+  useEffect(() => {
+    if (cycleState.success || cycleState.error) setCycleDialogOpen(false);
+  }, [cycleState.error, cycleState.success]);
 
   return (
     <div className="flex flex-col gap-(--sp-5)">
@@ -136,43 +177,75 @@ export function PlanChangeForm({
           }
         >
           {pending.status === 'pending_payment'
-            ? 'Seu upgrade aguarda a confirmação do pagamento proporcional.'
+            ? pending.checkoutCreationState === 'creation_unknown'
+              ? 'O Asaas pode ter criado o Checkout, mas a resposta não chegou ao Qoro. Nenhuma vaga foi liberada. Contate o suporte antes de tentar novamente.'
+              : checkoutExpired
+                ? 'O Checkout expirou. Nenhuma vaga foi liberada; contate o suporte para conciliar a tentativa.'
+                : pending.checkoutCreationState === 'creating'
+                  ? 'O Checkout está sendo preparado. Aguarde e atualize esta página.'
+                  : 'Seu upgrade aguarda a confirmação do pagamento proporcional e do novo valor recorrente no Asaas.'
             : pending.kind === 'cancellation'
               ? `Assinatura cancelada: nenhuma nova cobrança será feita. O acesso segue até ${formatCycleDate(new Date(pending.effectiveAt))}.`
-              : `Seu downgrade está agendado para ${formatCycleDate(new Date(pending.effectiveAt))}.`}
-          {pending.paymentUrl ? (
+              : pending.kind === 'cycle_change'
+                ? pending.providerSynced
+                  ? `Troca de ciclo preparada no Asaas para ${formatCycleDate(new Date(pending.effectiveAt))}. O ciclo atual continua até lá.`
+                  : 'Troca de ciclo aguardando confirmação do Asaas. O ciclo atual continua ativo; não faça outra contratação.'
+                : `Seu downgrade está agendado para ${formatCycleDate(new Date(pending.effectiveAt))}.`}
+          {pending.paymentUrl && !checkoutExpired ? (
             <Link
               className="ml-1 font-semibold underline"
               href={pending.paymentUrl}
               target="_blank"
               rel="noreferrer"
             >
-              Abrir cobrança
+              Abrir pagamento no Asaas
             </Link>
           ) : null}
         </Alert>
       ) : null}
       {state.error ||
+      cycleState.error ||
       cancellationState.error ||
       revocationState.error ||
       reactivationState.error ? (
         <Alert variant="danger">
           {state.error ??
+            cycleState.error ??
             cancellationState.error ??
             revocationState.error ??
             reactivationState.error}
         </Alert>
       ) : null}
       {state.success ||
+      cycleState.success ||
       cancellationState.success ||
       revocationState.success ||
       reactivationState.success ? (
         <Alert variant="success">
           {state.message ??
+            cycleState.message ??
             cancellationState.message ??
             revocationState.message ??
             reactivationState.message}
         </Alert>
+      ) : null}
+      {state.paymentUrl ? (
+        <Link
+          href={state.paymentUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="font-semibold underline"
+        >
+          Abrir pagamento proporcional no Asaas
+        </Link>
+      ) : null}
+      {paymentAwaitingConfirmation ? (
+        <a
+          href="/auth/session-refresh?next=%2Fconfiguracoes%2Fassinatura"
+          className="text-(length:--fs-sm) font-medium text-primary underline"
+        >
+          Já pagou? Atualizar assinatura
+        </a>
       ) : null}
 
       <Card>
@@ -188,29 +261,102 @@ export function PlanChangeForm({
             </p>
           </div>
           <Badge tone="blue">
-            {activeUsers} usuário{activeUsers === 1 ? '' : 's'} ativo{activeUsers === 1 ? '' : 's'}
+            {isNewOffer
+              ? `${activeDoctors} médico${activeDoctors === 1 ? '' : 's'} · ${activeStaff} de equipe`
+              : `${activeUsers} usuário${activeUsers === 1 ? '' : 's'} ativo${activeUsers === 1 ? '' : 's'}`}
           </Badge>
         </CardContent>
       </Card>
+      {isNewOffer && cycleOffer ? (
+        <Card>
+          <CardContent className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h2 className="font-semibold">
+                {cycleOffer.billingCycle === 'annual' ? 'Mudar para anual' : 'Voltar ao mensal'}
+              </h2>
+              <p className="mt-1 text-(length:--fs-sm) text-fg-muted">
+                {formatMoney(cycleOffer.priceAmount)} {cycleLabel(cycleOffer.billingCycle)}. A troca
+                vale no próximo vencimento{end ? `, em ${end}` : ''}; nada é cobrado agora. Somente
+                assinaturas com cartão já cadastrado no Asaas podem mudar de ciclo.
+              </p>
+            </div>
+            <ConfirmDialog
+              open={cycleDialogOpen}
+              onOpenChange={setCycleDialogOpen}
+              trigger={
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={current.billingStatus !== 'active' || Boolean(pending) || !end}
+                  loading={cycling}
+                >
+                  Agendar troca de ciclo
+                </Button>
+              }
+              title="Confirmar troca de ciclo"
+              description={`O plano atual e o acesso continuam até ${end ?? 'o próximo vencimento'}. A próxima cobrança será de ${formatMoney(cycleOffer.priceAmount)} ${cycleLabel(cycleOffer.billingCycle)} no cartão já cadastrado. Não há cobrança proporcional agora.${cycleOffer.billingCycle === 'annual' ? ' Cancelar depois interrompe a renovação e mantém o acesso até o fim pago, sem estorno automático.' : ''}`}
+              confirmLabel="Agendar troca"
+              cancelLabel="Voltar"
+              action={cycleAction}
+              loading={cycling}
+              formFields={<input type="hidden" name="idempotencyKey" value={cycleKey} />}
+            />
+          </CardContent>
+        </Card>
+      ) : null}
+      {isNewOffer && aiUsage ? (
+        <Card>
+          <CardContent>
+            <p className="font-semibold">Uso da IA em {aiUsage.period}</p>
+            <p className="mt-1 text-(length:--fs-sm) text-fg-muted">
+              {aiUsage.count} de {aiUsage.limit} conversas de referência usadas. Cada paciente conta
+              uma vez por janela de 24 horas com resposta da IA.
+            </p>
+            {aiUsage.count >= Math.ceil(aiUsage.limit * 0.8) ? (
+              <Alert
+                variant="warning"
+                title={
+                  aiUsage.count >= aiUsage.limit
+                    ? 'Referência mensal de IA alcançada'
+                    : 'Uso da IA próximo da referência mensal'
+                }
+              >
+                A IA continua atendendo. Não há cobrança automática de excedente.
+              </Alert>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
 
       <div className="grid gap-(--sp-4) lg:grid-cols-3">
-        {plans.map((plan) => {
-          const direction = (RANK[plan.code] ?? 0) - currentRank;
+        {availablePlans.map((plan) => {
+          const direction = rankOfPlan(plan.code) - currentRank;
           const isCurrent = plan.id === current.planId;
           const isDowngrade = direction < 0;
+          const exceedsCapacity =
+            isDowngrade &&
+            (plan.seats
+              ? activeDoctors > plan.seats.doctors || activeStaff > plan.seats.staff
+              : plan.limits.users < 1 || activeUsers < 1 || activeUsers > plan.limits.users);
           const disabled =
             current.billingStatus !== 'active' ||
             isCurrent ||
             Boolean(pending) ||
             submitting ||
-            (isDowngrade && activeUsers !== 1);
+            exceedsCapacity;
           const actionLabel = isCurrent
             ? 'Plano atual'
             : isDowngrade
-              ? activeUsers === 1
-                ? 'Agendar downgrade'
-                : 'Requer 1 usuário ativo'
-              : 'Fazer upgrade';
+              ? exceedsCapacity
+                ? plan.seats
+                  ? 'Cota de médicos ou equipe excedida'
+                  : `Limite de ${plan.limits.users} usuário${plan.limits.users === 1 ? '' : 's'}`
+                : 'Agendar downgrade'
+              : isNewOffer
+                ? current.planCode === 'consultorio_2026'
+                  ? 'Mudar para Clínica'
+                  : `Contratar +${direction} médico${direction === 1 ? '' : 's'}`
+                : 'Fazer upgrade';
           return (
             <Card key={plan.id} className={isCurrent ? 'border-primary shadow-sm' : undefined}>
               <CardContent className="flex h-full flex-col gap-4">
@@ -224,11 +370,22 @@ export function PlanChangeForm({
                   {isCurrent ? <Badge tone="blue">Atual</Badge> : null}
                 </div>
                 <ul className="flex flex-1 flex-col gap-2 text-(length:--fs-sm) text-fg-muted">
-                  <li>
-                    {plan.limits.users} usuário{plan.limits.users === 1 ? '' : 's'}
-                  </li>
-                  <li>{plan.limits.agendamentos} agendamentos/mês monitorados</li>
-                  <li>{plan.limits.ai_messages} mensagens IA/mês monitoradas</li>
+                  {plan.seats ? (
+                    <li>
+                      {plan.seats.doctors} médico{plan.seats.doctors === 1 ? '' : 's'} e até{' '}
+                      {plan.seats.staff} pessoas de equipe
+                    </li>
+                  ) : (
+                    <li>
+                      {plan.limits.users} usuário{plan.limits.users === 1 ? '' : 's'}
+                    </li>
+                  )}
+                  {!plan.seats ? (
+                    <>
+                      <li>{plan.limits.agendamentos} agendamentos/mês monitorados</li>
+                      <li>{plan.limits.ai_messages} mensagens IA/mês monitoradas</li>
+                    </>
+                  ) : null}
                 </ul>
                 <form action={formAction}>
                   <input type="hidden" name="targetPlanId" value={plan.id} />
@@ -248,6 +405,16 @@ export function PlanChangeForm({
           );
         })}
       </div>
+      {isNewOffer ? (
+        <p className="text-(length:--fs-sm) text-fg-muted">
+          {current.planCode === 'consultorio_2026'
+            ? 'Para ter mais de um médico, mude do Consultório para o plano Clínica. O Consultório não vende vagas médicas avulsas. '
+            : null}
+          Médicos adicionais são cobrados proporcionalmente pelo restante do ciclo. A nova vaga só é
+          liberada após a confirmação do pagamento no Asaas. Reduções passam a valer no próximo
+          ciclo e exigem que médicos e equipe caibam no destino.
+        </p>
+      ) : null}
       {current.billingStatus === 'cancelled' ? (
         <form action={reactivationAction}>
           <input type="hidden" name="idempotencyKey" value={reactivationKey} />
@@ -277,7 +444,12 @@ export function PlanChangeForm({
             </Button>
           }
           title="Cancelar assinatura"
-          description={cancellationDescription(current.billingStatus, end, trialEnd)}
+          description={cancellationDescription(
+            current.billingStatus,
+            current.billingCycle,
+            end,
+            trialEnd,
+          )}
           confirmLabel="Cancelar assinatura"
           cancelLabel="Manter assinatura"
           tone="danger"
@@ -288,7 +460,9 @@ export function PlanChangeForm({
       )}
       <p className="text-(length:--fs-xs) text-fg-subtle">
         Mensagens de IA, agendamentos e pacientes nunca são removidos nem bloqueiam esta alteração.
-        Apenas o limite de usuários é aplicado.
+        {isNewOffer
+          ? 'Os limites de médicos e equipe são aplicados ao mudar de plano.'
+          : 'Apenas o limite de usuários é aplicado.'}
       </p>
     </div>
   );

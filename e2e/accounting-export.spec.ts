@@ -88,8 +88,9 @@ test.describe('2.1A — exportação contábil pelo HTTP autenticado', () => {
     const firstLine = body.slice(1).split('\r\n')[0]!;
     expect(firstLine.split(';')).toEqual(EXPECTED_HEADER);
 
-    // O separador é CRLF, também por interoperabilidade com Excel.
-    expect(body).toContain('\r\n');
+    // CRLF separa registros; um mês sem movimentos contém só o cabeçalho.
+    // Nenhuma quebra isolada deve aparecer em qualquer dos dois casos.
+    expect(body.replaceAll('\r\n', '')).not.toMatch(/[\r\n]/u);
 
     // O QUE MAIS IMPORTA: nenhuma coluna de paciente, CPF, consulta ou clínica.
     expect(firstLine).not.toMatch(/paciente|cpf|diagnostico|prontuario|consulta/iu);

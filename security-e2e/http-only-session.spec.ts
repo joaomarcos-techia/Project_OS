@@ -1,8 +1,14 @@
 /** Navegador real contra o build Next isolado de `pnpm security:build`. */
-import { createServer, type Server } from 'node:http';
+import { createServer, request as httpRequest, type Server } from 'node:http';
+import { createServer as createHttpsServer, type Server as HttpsServer } from 'node:https';
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import selfsigned from 'selfsigned';
+
+const PUBLIC_ORIGIN = 'https://localhost:3217';
+const NEXT_ORIGIN = 'https://localhost:3218';
+const NEXT_PORT = 3218;
 
 const runtimeEnv = JSON.parse(
   readFileSync(path.join(process.cwd(), 'dist/security-local/runtime-env.json'), 'utf8'),
@@ -28,6 +34,7 @@ const TOKENS = {
   rotatedRefresh: 'synthetic-refresh-rotated',
 } as const;
 let authServer: Server;
+let tlsProxy: HttpsServer;
 let refreshes = 0;
 let verifications = 0;
 
@@ -196,6 +203,45 @@ async function expectNoBearerInBrowser(
 }
 
 test.beforeAll(async () => {
+  const certificate = await selfsigned.generate([{ name: 'commonName', value: 'localhost' }], {
+    keySize: 2048,
+  });
+  tlsProxy = createHttpsServer(
+    { key: certificate.private, cert: certificate.cert },
+    (incoming, outgoing) => {
+      const upstream = httpRequest(
+        {
+          hostname: '127.0.0.1',
+          port: NEXT_PORT,
+          method: incoming.method,
+          path: incoming.url,
+          headers: {
+            ...incoming.headers,
+            host: new URL(PUBLIC_ORIGIN).host,
+            'x-forwarded-host': new URL(PUBLIC_ORIGIN).host,
+            'x-forwarded-proto': 'https',
+            'x-forwarded-port': new URL(PUBLIC_ORIGIN).port,
+          },
+        },
+        (result) => {
+          const headers = { ...result.headers };
+          if (headers.location?.startsWith(`${NEXT_ORIGIN}/`)) {
+            headers.location = headers.location.replace(`${NEXT_ORIGIN}/`, `${PUBLIC_ORIGIN}/`);
+          }
+          outgoing.writeHead(result.statusCode ?? 502, headers);
+          result.pipe(outgoing);
+        },
+      );
+      upstream.on('error', () => {
+        if (!outgoing.headersSent) outgoing.writeHead(502);
+        outgoing.end();
+      });
+      incoming.pipe(upstream);
+    },
+  );
+  await new Promise<void>((resolve) =>
+    tlsProxy.listen(Number(new URL(PUBLIC_ORIGIN).port), 'localhost', resolve),
+  );
   authServer = createServer(async (request, response) => {
     const url = new URL(request.url ?? '/', authUrl);
     response.setHeader('Content-Type', 'application/json');
@@ -270,6 +316,10 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
+  tlsProxy.closeAllConnections();
+  await new Promise<void>((resolve, reject) =>
+    tlsProxy.close((error) => (error ? reject(error) : resolve())),
+  );
   authServer.closeAllConnections();
   await new Promise<void>((resolve, reject) =>
     authServer.close((error) => (error ? reject(error) : resolve())),

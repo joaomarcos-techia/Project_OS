@@ -34,7 +34,13 @@ import { payloadHash } from '@/lib/idempotency/hash';
 import { withTenant } from '@/lib/db/tenant';
 import { publishEvent } from '@/lib/outbox/publish';
 
-import { patientApiV1, patientConsents, patients, suppressionList } from '@/contexts/patient';
+import {
+  patientApiV1,
+  patientConsentDecisions,
+  patientConsents,
+  patients,
+  suppressionList,
+} from '@/contexts/patient';
 import { collectionCases, financialApiV1, lancamentos } from '@/contexts/financial';
 import {
   SCHEDULING_EVENTS,
@@ -165,6 +171,14 @@ async function main(): Promise<void> {
     await tx
       .insert(patientConsents)
       .values({ clinicId: CLINIC_A, patientId, cobrancaWhatsapp: true, versao: 1 });
+    await tx.insert(patientConsentDecisions).values({
+      clinicId: CLINIC_A,
+      patientId,
+      purpose: 'agendamento_whatsapp',
+      channel: 'whatsapp',
+      granted: true,
+      version: 1,
+    });
   });
   console.log(`[smoke:c14] A=${CLINIC_A} B=${CLINIC_B} patient=${patientId}`);
 
@@ -175,6 +189,7 @@ async function main(): Promise<void> {
       assert(c !== null, 'contato nulo');
       assert(c!.phone === normalizePhone(phone), `telefone inesperado: ${c!.phone}`);
       assert(c!.cobrancaWhatsapp === true, 'cobrancaWhatsapp deveria ser true');
+      assert(c!.agendamentoWhatsapp === true, 'agendamentoWhatsapp deveria ser true');
       assert(c!.suppressedWhatsapp === false, 'não deveria estar suprimido ainda');
     });
 

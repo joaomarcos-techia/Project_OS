@@ -1,5 +1,9 @@
 # DOCS REFACTOR CHECKPOINT
 
+## Continuidade operacional — 30/10/2026
+
+A resposta do founder encerrou a pergunta sobre recursos: não há mídia externa, armazenamento aprovado ou gerenciador. A fonte da escolha atual é [backup independente sem compra](docs/runbooks/backup-independente-sem-custo-2026-10.md); o [guia humano](docs/runbooks/acoes-manuais-pendentes-pricing-2026-10.md) e o [fechamento](docs/quality/fechamento-definitivo-oferta-2026-10-30.md) apontam para ela. Inclui fontes oficiais, B2/Bitwarden/papel como piloto proposto, dimensionamento sanitizado e limites contratuais/operacionais. A comparação histórica foi preservada e marcada como superada. O estado da refatoração antiga abaixo não é evidência de recuperação independente ou autorização de publicação.
+
 ## Status
 - estado: CONCLUÍDA — refatoração, validação conectada e revisão final executadas
 - percentual aproximado: 100%
@@ -223,6 +227,8 @@
 - dois `console.log` desses specs ainda descrevem exposição antiga apesar das assertivas atuais aprovarem o bloqueio; correção é dívida de teste fora do escopo documental
 
 ## Histórico de execução
+- 2026-10-30: founder aceitou adiar a cópia/cofre independente para prosseguir com o lançamento; registro em `docs/quality/aceite-risco-backup-2026-10-30.md`. Rotina opt-in preservada e sem execução: pacote único, escritor temporário sem exclusão, readback/restore Linux. SQL/hash, 44 partes Storage e fontes Auth/chaves presentes. Não solicitar novamente senha/configuração; nenhum envio real ou mudança em produção nesta preparação.
+- 2026-10-30: piloto B2 autorizado com chave filha temporária: upload/download, integridade, restore Linux e cleanup reais passaram com dados sintéticos. Chave original/cache preservados; evidência em `docs/quality/evidencias/b2-pilot-roundtrip-20261030.json`. Guia humano deixou de pedir nova chave/captura; custódia, destino médico e operação recorrente seguem no runbook canônico `docs/runbooks/backup-independente-sem-custo-2026-10.md`.
 - 2026-08-18: checkpoint lido vazio; worktree e inventário físico inicial coletados.
 - 2026-08-18: 157 documentos classificados; stack, 90 tabelas, 80 migrations, 12 contexts, 248 testes, rotas, integrações, IA, billing, RLS, segurança, frontend e jobs reconstruídos a partir do código.
 - 2026-08-18: estrutura canônica aplicada (61 arquivos); 148 links internos e 89 referências externas verificados sem quebra; `check:observability` aprovado com 15 crons/5 eventos.

@@ -14,6 +14,7 @@ export const ChannelSchema = z.enum(['whatsapp', 'email', 'sms']);
 export const ConsentTypeSchema = z.enum([
   'dados_saude',
   'compartilhamento',
+  'agendamento_whatsapp',
   'cobranca_whatsapp',
   'marketing',
   'pesquisa',
@@ -135,6 +136,7 @@ export type UpdatePatientInput = z.infer<typeof UpdatePatientSchema>;
 export const ConsentInputSchema = z.object({
   dadosSaude: z.boolean(),
   compartilhamento: z.boolean(),
+  agendamentoWhatsapp: z.boolean(),
   cobrancaWhatsapp: z.boolean(),
   marketing: z.boolean(),
   pesquisa: z.boolean(),
@@ -203,6 +205,8 @@ export interface ProactiveContact {
   phone: string | null;
   /** Paciente falecido nunca recebe comunicacao proativa. */
   deceased: boolean;
+  /** Permissão vigente para mensagens de agendamento por WhatsApp. */
+  agendamentoWhatsapp: boolean;
   /** Opt-in vigente p/ cobrança via WhatsApp (LGPD — dunning exige). */
   cobrancaWhatsapp: boolean;
   /** Consentimento mais recente revogado. */

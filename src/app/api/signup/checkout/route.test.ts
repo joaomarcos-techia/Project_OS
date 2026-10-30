@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   hashUser: vi.fn(),
   writeLimit: vi.fn(),
   start: vi.fn(),
+  complete: vi.fn(),
   provision: vi.fn(),
   reconcile: vi.fn(),
   readBilling: vi.fn(),
@@ -24,6 +25,7 @@ vi.mock('@/lib/auth/rate-limit', () => ({
 }));
 vi.mock('@/contexts/onboarding', () => ({
   startSignupHostedCheckout: mocks.start,
+  completeSignupHostedCheckout: mocks.complete,
   provisionTenantFromSignup: mocks.provision,
   reconcileSignupSubscription: mocks.reconcile,
   readSignupBilling: mocks.readBilling,
@@ -69,11 +71,12 @@ beforeEach(() => {
     state: 'checkout_pending',
     checkoutUrl: CHECKOUT_URL,
   });
+  mocks.complete.mockResolvedValue({ ok: true, state: 'provisioned' });
   mocks.provision.mockResolvedValue({ ok: true, clinicId: 'clinic-1' });
   mocks.reconcile.mockResolvedValue({ ok: true, state: 'active' });
   mocks.readBilling.mockResolvedValue({
     ok: true,
-    snapshot: { asaasCustomerId: 'cus_legacy' },
+    snapshot: { asaasCustomerId: 'cus_legacy', asaasSubscriptionId: 'sub_legacy' },
   });
   mocks.getCustomer.mockResolvedValue({ customerId: 'cus_legacy', cpfCnpj: CPF });
 });
@@ -177,7 +180,31 @@ describe('POST /api/signup/checkout', () => {
       userId: USER_ID,
       verifiedEmail: EMAIL,
       cpfCnpj: CPF,
+      expectedAsaasSubscriptionId: 'sub_legacy',
     });
+  });
+
+  it('reconfere assinatura do Checkout hospedado ativo antes de provisionar', async () => {
+    mocks.start.mockResolvedValue({ ok: false, reason: 'already_active' });
+    mocks.readBilling.mockResolvedValue({
+      ok: true,
+      snapshot: { asaasCheckoutId: 'checkout_1', asaasSubscriptionId: 'sub_1' },
+    });
+    const res = await POST(request());
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ state: 'provisioned' });
+    expect(mocks.complete).toHaveBeenCalledWith({ userId: USER_ID, verifiedEmail: EMAIL });
+    expect(mocks.provision).not.toHaveBeenCalled();
+  });
+
+  it('não declara provisionado se o draft legado expirou durante o readback', async () => {
+    mocks.start.mockResolvedValue({ ok: false, reason: 'already_active' });
+    mocks.provision.mockResolvedValue({ ok: false, reason: 'gone' });
+
+    const res = await POST(request());
+
+    expect(res.status).toBe(410);
+    expect(await res.json()).toEqual({ error: 'gone' });
   });
 
   it('creation_unknown antigo só provisiona depois da conciliação', async () => {

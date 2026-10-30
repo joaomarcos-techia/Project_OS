@@ -112,8 +112,14 @@ export function shouldEnforceWriteGate(input: WriteGateInput): boolean {
  */
 export async function assertClinicCanWriteTx(tx: Tx, clinicId: string): Promise<void> {
   const rows = (await tx.execute(
-    sql`SELECT status FROM clinics WHERE id = ${clinicId}::uuid LIMIT 1`,
-  )) as unknown as Array<{ status: ClinicStatus }>;
-  const status = rows[0]?.status ?? null;
+    sql`SELECT c.status,
+               (s.enforce_trial_deadline IS TRUE
+                 AND s.billing_status = 'trial'
+                 AND s.trial_ends_at <= now()) AS trial_expired
+          FROM clinics c
+          LEFT JOIN subscriptions s ON s.clinic_id = c.id
+         WHERE c.id = ${clinicId}::uuid LIMIT 1`,
+  )) as unknown as Array<{ status: ClinicStatus; trial_expired: boolean }>;
+  const status = rows[0]?.trial_expired ? 'pending_payment' : (rows[0]?.status ?? null);
   if (status && isWriteBlocked(status)) throw new ClinicAccessError(status);
 }

@@ -35,7 +35,7 @@ const LOCAL_DRAFT_KEY = 'qoro-signup-answers-v1';
 const LOCAL_DRAFT_TTL_MS = 60 * 60 * 1_000;
 
 const PROFESSIONAL_OPTIONS: OptionCard<ProfessionalsBand>[] = [
-  { value: '1', label: '1 profissional' },
+  { value: '1', label: '1 médico' },
   { value: '2_5', label: '2 a 5' },
   { value: '6_15', label: '6 a 15' },
   { value: '16_plus', label: '16 ou mais' },
@@ -643,12 +643,12 @@ export function SignupQuestions({ identityEnabled = false }: { identityEnabled?:
       >
         {questionIndex === 0 ? (
           <QuestionPage
-            title="Quantos profissionais atendem na clínica?"
-            hint="São quatro perguntas de marcar, uma por tela. Nenhuma pede nome, contato ou dados de pacientes."
+            title="Quantos médicos atendem na clínica?"
+            hint="Conte apenas os médicos que atendem. Recepção, gestão e financeiro sem atendimento médico são equipe administrativa. Não pedimos dados de pacientes."
           >
             <OptionCardGroup<ProfessionalsBand>
               name="professionalsBand"
-              aria-label="Quantidade de profissionais"
+              aria-label="Quantidade de médicos"
               value={draft.professionalsBand}
               onValueChange={(value) => answer('professionalsBand', value)}
               options={PROFESSIONAL_OPTIONS}

@@ -24,6 +24,8 @@ export {
   type DepositPolicy,
 } from './policy';
 export { getDepositPolicy, getPaymentAccountStatus } from './queries';
+export { getPaymentAccountFees } from './account-fees';
+export type { AsaasAccountFees } from '@/lib/payments/asaas';
 export {
   ConnectPaymentAccountSchema,
   EMPTY_PAYMENT_ACCOUNT,
@@ -37,19 +39,6 @@ export {
   type SaveDepositPolicyInput,
 } from './types';
 export { PaymentCredentialRejectedError, PaymentProviderUnavailableError } from './errors';
-export type {
-  PaymentPricingPolicyDTO,
-  ProcedurePaymentPriceDTO,
-  SavePaymentPricingPolicyInput,
-  SaveProcedurePaymentPriceInput,
-} from './pricing-types';
-export {
-  getEffectivePaymentPricingMode,
-  getPaymentPricingPolicy,
-  listProcedurePaymentPrices,
-  matchesConfiguredProcedurePriceSnapshot,
-  resolveConfiguredProcedurePaymentPrice,
-} from './pricing-queries';
 export { PAYMENTS_EVENTS } from './events';
 export type {
   PatientChargeClosedPayload,

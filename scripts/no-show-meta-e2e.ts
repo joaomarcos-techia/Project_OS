@@ -25,7 +25,7 @@ import { outbox } from '@/lib/db/schema/infra/outbox';
 import { publishEvent } from '@/lib/outbox/publish';
 import { runOutboxOnce } from '@/lib/outbox/worker';
 
-import { patients, patientConsents } from '@/contexts/patient';
+import { patients, patientConsentDecisions, patientConsents } from '@/contexts/patient';
 import { appointments, SCHEDULING_EVENTS } from '@/contexts/scheduling';
 import { processProactiveBatch } from '@/contexts/ai-agent/proactive-jobs/application/process';
 import { aiProactiveJobs } from '@/contexts/ai-agent/proactive-jobs/schema';
@@ -180,6 +180,14 @@ async function main(): Promise<void> {
     await tx
       .insert(patientConsents)
       .values({ clinicId: CLINIC, patientId, cobrancaWhatsapp: true, versao: 1 });
+    await tx.insert(patientConsentDecisions).values({
+      clinicId: CLINIC,
+      patientId,
+      purpose: 'agendamento_whatsapp',
+      channel: 'whatsapp',
+      granted: true,
+      version: 1,
+    });
 
     const [appt] = await tx
       .insert(appointments)

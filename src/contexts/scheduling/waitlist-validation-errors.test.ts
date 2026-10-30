@@ -23,8 +23,8 @@ const manager = read('src/app/(app)/(shell)/agenda/lista-espera/waitlist-manager
 const boundary = read('src/contexts/scheduling/internal/action-result.ts');
 
 const BASE = {
-  patientId: '11111111-1111-1111-1111-111111111111',
-  procedureId: '22222222-2222-2222-2222-222222222222',
+  patientId: '11111111-1111-1111-8111-111111111111',
+  procedureId: '22222222-2222-2222-8222-222222222222',
 };
 
 describe('validação de domínio da lista de espera', () => {

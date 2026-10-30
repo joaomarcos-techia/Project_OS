@@ -6,6 +6,7 @@ import path from 'node:path';
 const root = process.cwd();
 const target = path.join(root, 'dist/security-local/app');
 const output = path.join(root, 'dist/security-local');
+const CI_BUILD_HEAP_MB = 4096;
 await mkdir(target, { recursive: true });
 // Apaga a saída anterior ANTES de copiar. Sem isto, um build interrompido no
 // meio (queda de energia, Ctrl+C) deixa `.next` truncado, o build seguinte o
@@ -94,9 +95,13 @@ Object.assign(childEnv, {
 // Somente fixtures públicas/sintéticas; útil para reproduzir next start sem dotenv.
 await writeFile(path.join(output, 'runtime-env.json'), JSON.stringify(childEnv, null, 2));
 const log: string[] = [];
+// O build frio do Next 15.5.28 excede o heap padrão (~2 GB) do Node no runner
+// GitHub Actions. Aumenta apenas o heap deste processo filho; o teste, o lint
+// e a allowlist de variáveis do build permanecem inalterados.
+const buildNodeArgs = process.env.CI === 'true' ? [`--max-old-space-size=${CI_BUILD_HEAP_MB}`] : [];
 const proc = spawn(
   process.execPath,
-  [path.join(root, 'node_modules/next/dist/bin/next'), 'build'],
+  [...buildNodeArgs, path.join(root, 'node_modules/next/dist/bin/next'), 'build'],
   {
     cwd: target,
     env: childEnv,

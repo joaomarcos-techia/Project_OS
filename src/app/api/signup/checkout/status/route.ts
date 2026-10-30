@@ -14,6 +14,7 @@ import { assertSignupDraftReadAllowed, getClientIp } from '@/lib/auth/rate-limit
 import { hashSignupUserId } from '@/lib/auth/signup-user-hash';
 import { env } from '@/lib/env';
 import { resolveTrustedApplicationOrigin } from '@/lib/http/application-url';
+import { metrics } from '@/lib/observability/metrics';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -24,15 +25,23 @@ function json(body: object, status = 200): NextResponse {
 
 export async function POST(req: Request): Promise<Response> {
   if (!env.SIGNUP_AUTH_ENABLED || !env.SIGNUP_IDENTITY_ENABLED) {
+    metrics.emit('signup.checkout.status.unavailable', { stage: 'configuration' });
     return json({ error: 'unavailable' }, 503);
   }
   const publicOrigin = resolveTrustedApplicationOrigin(req);
-  if (publicOrigin === undefined) return json({ error: 'unavailable' }, 503);
+  if (publicOrigin === undefined) {
+    metrics.emit('signup.checkout.status.unavailable', { stage: 'origin' });
+    return json({ error: 'unavailable' }, 503);
+  }
   if (publicOrigin === null) return json({ error: 'blocked' }, 403);
 
+  let stage: 'identity' | 'rate_limit' | 'completion' = 'identity';
   try {
     const onboarding = await resolveReadyOwnedSignupOnboarding();
     if (!onboarding.ok) {
+      if (onboarding.reason === 'unavailable') {
+        metrics.emit('signup.checkout.status.unavailable', { stage: 'identity' });
+      }
       return json(
         { error: onboarding.reason === 'unavailable' ? 'unavailable' : 'unauthorized' },
         onboarding.reason === 'unavailable' ? 503 : 401,
@@ -44,11 +53,15 @@ export async function POST(req: Request): Promise<Response> {
     // fazia plano + criação do Checkout + três leituras esgotarem a janela antes
     // de o Asaas materializar a assinatura. O readback continua autenticado e
     // rate-limited, mas usa o orçamento próprio de leitura (60/15 min por usuário).
+    stage = 'rate_limit';
     const limit = await assertSignupDraftReadAllowed(
       getClientIp(req.headers),
       hashSignupUserId(onboarding.userId),
     );
     if (!limit.ok) {
+      if (limit.reason === 'unavailable') {
+        metrics.emit('signup.checkout.status.unavailable', { stage: 'rate_limit' });
+      }
       const response = json({ error: limit.reason }, limit.reason === 'rate_limited' ? 429 : 503);
       if (limit.reason === 'rate_limited') {
         response.headers.set('Retry-After', String('retryAfter' in limit ? limit.retryAfter : 1));
@@ -56,6 +69,7 @@ export async function POST(req: Request): Promise<Response> {
       return response;
     }
 
+    stage = 'completion';
     const completed = await completeSignupHostedCheckout({
       userId: onboarding.userId,
       verifiedEmail: onboarding.email,
@@ -65,8 +79,17 @@ export async function POST(req: Request): Promise<Response> {
     }
     if (completed.reason === 'gone') return json({ error: 'gone' }, 410);
     if (completed.reason === 'conflict') return json({ error: 'conflict' }, 409);
+    metrics.emit('signup.checkout.status.unavailable', {
+      stage: 'completion',
+      reason: completed.reason,
+    });
     return json({ error: 'unavailable' }, 503);
-  } catch {
+  } catch (error) {
+    metrics.emit('signup.checkout.status.unavailable', {
+      stage: 'unexpected',
+      during: stage,
+      errorType: error instanceof TypeError ? 'type' : error instanceof Error ? 'error' : 'other',
+    });
     return json({ error: 'unavailable' }, 503);
   }
 }

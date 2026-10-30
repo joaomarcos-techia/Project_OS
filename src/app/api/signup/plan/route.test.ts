@@ -42,6 +42,7 @@ const state = {
   rowVersion: 7,
   clinicName: 'Clínica Sintética',
   selectedPlanId: null,
+  selectedBillingCycle: 'monthly',
   plans: [
     {
       id: PLAN_ID,
@@ -52,6 +53,7 @@ const state = {
     },
   ],
   trialDays: 7,
+  offerTrialEndsAt: null,
 } as const;
 
 function request(
@@ -83,7 +85,12 @@ beforeEach(() => {
   mocks.readLimit.mockResolvedValue({ ok: true });
   mocks.writeLimit.mockResolvedValue({ ok: true });
   mocks.readPlan.mockResolvedValue({ ok: true, state });
-  mocks.writePlan.mockResolvedValue({ ok: true, rowVersion: 8, selectedPlanId: PLAN_ID });
+  mocks.writePlan.mockResolvedValue({
+    ok: true,
+    rowVersion: 8,
+    selectedPlanId: PLAN_ID,
+    selectedBillingCycle: 'monthly',
+  });
 });
 
 describe('GET /api/signup/plan', () => {
@@ -136,8 +143,12 @@ describe('PUT /api/signup/plan', () => {
   it('envia ao domínio somente planId e CAS, sem preço, trial ou campanha', async () => {
     const response = await PUT(request('PUT'));
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ rowVersion: 8, selectedPlanId: PLAN_ID });
-    expect(mocks.writePlan).toHaveBeenCalledWith(USER_ID, input);
+    expect(await response.json()).toEqual({
+      rowVersion: 8,
+      selectedPlanId: PLAN_ID,
+      selectedBillingCycle: 'monthly',
+    });
+    expect(mocks.writePlan).toHaveBeenCalledWith(USER_ID, { ...input, cycle: 'monthly' });
   });
 
   it.each([

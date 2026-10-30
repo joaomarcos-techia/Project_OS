@@ -8,7 +8,7 @@ import {
   SignProntuarioSchema,
 } from './types';
 
-const UUID = '11111111-1111-1111-1111-111111111111';
+const UUID = '11111111-1111-1111-8111-111111111111';
 
 describe('ProntuarioContentSchema (Regra 2 — estruturado)', () => {
   it('aceita campos SOAP/estruturados válidos', () => {

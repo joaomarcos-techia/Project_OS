@@ -9,6 +9,7 @@
  * Matches the existing (app) auth-form convention (useActionState), not
  * react-hook-form — consistency with the codebase (ADR-012 note).
  */
+import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 
@@ -298,28 +299,29 @@ export async function grantConsentForm(_prev: LgpdFormState, fd: FormData): Prom
   const key = str(fd, 'idempotencyKey') ?? '';
   const purpose = ConsentTypeSchema.safeParse(str(fd, 'purpose'));
   if (!id || !purpose.success) return { error: 'Finalidade inválida.', message: null };
-
-  // `recordConsent` grava o conjunto completo de finalidades. Concedemos a
-  // pedida e preservamos as demais como estão — conceder uma não pode revogar
-  // as outras por omissão.
-  const current = {
-    dadosSaude: fd.get('dadosSaude') === '1',
-    compartilhamento: fd.get('compartilhamento') === '1',
-    cobrancaWhatsapp: fd.get('cobrancaWhatsapp') === '1',
-    marketing: fd.get('marketing') === '1',
-    pesquisa: fd.get('pesquisa') === '1',
-  };
-  const FIELD: Record<string, keyof typeof current> = {
-    dados_saude: 'dadosSaude',
-    compartilhamento: 'compartilhamento',
-    cobranca_whatsapp: 'cobrancaWhatsapp',
-    marketing: 'marketing',
-    pesquisa: 'pesquisa',
-  };
-  current[FIELD[purpose.data]!] = true;
+  if (
+    (purpose.data === 'agendamento_whatsapp' || purpose.data === 'cobranca_whatsapp') &&
+    fd.get('optInConfirmed') !== 'on'
+  ) {
+    return { error: 'Confirme que o paciente autorizou mensagens por WhatsApp.', message: null };
+  }
 
   try {
-    await recordConsent(id, current, key);
+    // O domínio lê as outras finalidades na mesma transação da concessão.
+    await recordConsent(
+      id,
+      {
+        dadosSaude: false,
+        compartilhamento: false,
+        agendamentoWhatsapp: false,
+        cobrancaWhatsapp: false,
+        marketing: false,
+        pesquisa: false,
+      },
+      key,
+      purpose.data,
+    );
+    revalidatePath(`/pacientes/${id}`);
     return { error: null, message: 'Consentimento registrado.' };
   } catch (err) {
     return { error: messageFrom(err), message: null };
@@ -338,6 +340,7 @@ export async function revokeConsentForm(
     // Revogar canal de contato também alimenta a suppression list — quem revoga
     // para de receber, não só "fica marcado como revogado".
     await revokeConsent(id, purpose.data, key);
+    revalidatePath(`/pacientes/${id}`);
     return { error: null, message: 'Consentimento revogado.' };
   } catch (err) {
     return { error: messageFrom(err), message: null };

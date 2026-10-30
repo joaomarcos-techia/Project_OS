@@ -17,6 +17,8 @@ const { envState } = vi.hoisted(() => ({
       NEXT_PUBLIC_SUPABASE_URL: 'https://abcdefghijklmnopqrst.supabase.co',
       DATABASE_URL:
         'postgresql://postgres.uvwxyzabcdefghijklmn:password@aws-0.pooler.supabase.com:6543/postgres',
+      ASAAS_BASE_URL: 'https://sandbox.asaas.com/api/v3',
+      ASAAS_API_KEY: 'sandbox-test-key' as string | undefined,
     },
   },
 }));
@@ -70,6 +72,8 @@ describe('POST /api/signup/runtime-fingerprint', () => {
       MAGIC_TOKEN_SECRET: SECRET,
       NEXT_PUBLIC_SUPABASE_URL: `https://${AUTH_REF}.supabase.co`,
       DATABASE_URL: `postgresql://postgres.${DB_REF}:password@aws-0.pooler.supabase.com:6543/postgres`,
+      ASAAS_BASE_URL: 'https://sandbox.asaas.com/api/v3',
+      ASAAS_API_KEY: 'sandbox-test-key',
     };
   });
 
@@ -86,7 +90,19 @@ describe('POST /api/signup/runtime-fingerprint', () => {
       environment: 'preview',
       authProjectRef: AUTH_REF,
       databaseProjectRef: DB_REF,
+      asaasSandboxConfigured: true,
+      asaasKeyConfigured: true,
     });
+  });
+
+  it('reports a production provider or missing key without revealing credentials', async () => {
+    envState.value.ASAAS_BASE_URL = 'https://api.asaas.com/v3';
+    envState.value.ASAAS_API_KEY = undefined;
+    const response = await POST(request());
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body).toMatchObject({ asaasSandboxConfigured: false, asaasKeyConfigured: false });
+    expect(JSON.stringify(body)).not.toContain('api.asaas.com');
   });
 
   it('labels a non-Vercel runtime as local', async () => {

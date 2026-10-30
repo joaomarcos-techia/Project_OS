@@ -17,7 +17,7 @@ const mocks = vi.hoisted(() => ({
   resolveCheckoutWindow: vi.fn(),
   getClinicAsaasClient: vi.fn(),
   getPaymentIdentity: vi.fn(),
-  listPatientAppointments: vi.fn(),
+  hasPriorCompletedAppointment: vi.fn(),
 }));
 
 vi.mock('server-only', () => ({}));
@@ -29,7 +29,7 @@ vi.mock('@/contexts/patient', () => ({
   patientApiV1: { getPaymentIdentity: mocks.getPaymentIdentity },
 }));
 vi.mock('@/contexts/scheduling', () => ({
-  schedulingApiV1: { listPatientAppointments: mocks.listPatientAppointments },
+  schedulingApiV1: { hasPriorCompletedAppointment: mocks.hasPriorCompletedAppointment },
 }));
 vi.mock('../queries', () => ({ getDepositPolicy: mocks.getDepositPolicy }));
 vi.mock('./charge-store', () => ({
@@ -90,7 +90,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.getDepositPolicy.mockResolvedValue(POLICY_ON);
   mocks.findChargeByAppointment.mockResolvedValue(null);
-  mocks.listPatientAppointments.mockResolvedValue([{ id: APPOINTMENT }]);
+  mocks.hasPriorCompletedAppointment.mockResolvedValue(false);
   mocks.getPaymentIdentity.mockResolvedValue({ nome: 'Paciente Exemplo', cpf: '39053344705' });
   mocks.resolveCheckoutWindow.mockReturnValue({
     minutesToExpire: 1_440,
@@ -158,13 +158,43 @@ describe('o padrão é NÃO cobrar', () => {
     expect(mocks.getClinicAsaasClient).not.toHaveBeenCalled();
   });
 
-  it('retorno quando a política só cobre primeira consulta', async () => {
+  it('retorno após consulta concluída quando a política só cobre primeira consulta', async () => {
     mocks.getDepositPolicy.mockResolvedValue({ ...POLICY_ON, appliesToReturn: false });
-    mocks.listPatientAppointments.mockResolvedValue([{ id: 'outro-agendamento' }]);
+    mocks.hasPriorCompletedAppointment.mockResolvedValue(true);
 
     await run();
 
     expect(mocks.createInitialHostedCheckout).not.toHaveBeenCalled();
+  });
+
+  it('agendamentos anteriores sem conclusão continuam sendo primeira consulta', async () => {
+    mocks.getDepositPolicy.mockResolvedValue({ ...POLICY_ON, appliesToReturn: false });
+
+    await run();
+
+    expect(mocks.hasPriorCompletedAppointment).toHaveBeenCalledWith(
+      CLINIC,
+      PATIENT,
+      expect.any(Date),
+    );
+    expect(mocks.createInitialHostedCheckout).toHaveBeenCalled();
+  });
+
+  it('sem consulta concluída não cobra quando a política só cobre retornos', async () => {
+    mocks.getDepositPolicy.mockResolvedValue({ ...POLICY_ON, appliesToFirstVisit: false });
+
+    await run();
+
+    expect(mocks.createInitialHostedCheckout).not.toHaveBeenCalled();
+  });
+
+  it('consulta concluída permite sinal quando a política só cobre retornos', async () => {
+    mocks.getDepositPolicy.mockResolvedValue({ ...POLICY_ON, appliesToFirstVisit: false });
+    mocks.hasPriorCompletedAppointment.mockResolvedValue(true);
+
+    await run();
+
+    expect(mocks.createInitialHostedCheckout).toHaveBeenCalled();
   });
 
   it('clínica sem conta Asaas conectada — e registra a métrica para o operador ver', async () => {

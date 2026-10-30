@@ -32,6 +32,8 @@ const mocks = vi.hoisted(() => ({
     APP_BASE_URL: 'https://preview.qoro.test' as string | undefined,
     NODE_ENV: 'production' as const,
     VERCEL_ENV: 'preview' as 'preview' | 'production' | 'development' | undefined,
+    VERCEL_URL: undefined as string | undefined,
+    VERCEL_BRANCH_URL: 'preview-branch.vercel.app' as string | undefined,
     VERCEL_AUTOMATION_BYPASS_SECRET: 'preview-bypass-secret' as string | undefined,
   },
 }));
@@ -119,6 +121,8 @@ beforeEach(() => {
   vi.mocked(upsertPaymentAccount).mockResolvedValue({ id: 'acc-1', changed: true });
   mocks.env.APP_BASE_URL = 'https://preview.qoro.test';
   mocks.env.VERCEL_ENV = 'preview';
+  mocks.env.VERCEL_URL = undefined;
+  mocks.env.VERCEL_BRANCH_URL = 'preview-branch.vercel.app';
   mocks.env.VERCEL_AUTOMATION_BYPASS_SECRET = 'preview-bypass-secret';
 });
 
@@ -200,6 +204,7 @@ describe('connectPaymentAccount', () => {
     expect(mocks.createWebhook).toHaveBeenCalledOnce();
     const [input] = mocks.createWebhook.mock.calls[0] as [{ url: string; events: string[] }];
     const url = new URL(input.url);
+    expect(url.origin).toBe('https://preview-branch.vercel.app');
     expect(url.pathname).toBe('/api/webhooks/asaas/patient/11111111-1111-4111-8111-111111111111');
     expect(url.searchParams.get('x-vercel-protection-bypass')).toBe('preview-bypass-secret');
     expect(input.events).toEqual([
@@ -219,6 +224,24 @@ describe('connectPaymentAccount', () => {
     expect(mocks.markWebhookConfigured).toHaveBeenCalledWith('clinic-1');
   });
 
+  it('nunca reconecta o webhook de Preview a APP_BASE_URL de uma branch antiga', async () => {
+    mocks.env.APP_BASE_URL = 'https://preview-antigo.vercel.app';
+    await connectPaymentAccount({ apiKey: SECRET });
+    const [input] = mocks.createWebhook.mock.calls[0] as [{ url: string }];
+    expect(new URL(input.url).origin).toBe('https://preview-branch.vercel.app');
+  });
+
+  it('falha de forma visivel quando Preview nao tem URL auto-injetada valida', async () => {
+    mocks.env.APP_BASE_URL = 'https://preview-antigo.vercel.app';
+    mocks.env.VERCEL_BRANCH_URL = 'preview-invalido.example';
+    const result = await connectPaymentAccount({ apiKey: SECRET });
+    expect(mocks.createWebhook).not.toHaveBeenCalled();
+    expect(result.webhookConfigurationIssue).toMatchObject({
+      code: 'qoro_missing_app_base_url',
+      message: 'URL pública da branch Preview não está disponível no runtime deste deploy.',
+    });
+  });
+
   it('não registra webhook condenado quando o Preview protegido está sem bypass', async () => {
     mocks.env.VERCEL_AUTOMATION_BYPASS_SECRET = undefined;
 
@@ -235,6 +258,7 @@ describe('connectPaymentAccount', () => {
   });
 
   it('informa quando APP_BASE_URL está ausente e onde a falha ocorreu', async () => {
+    mocks.env.VERCEL_ENV = 'production';
     mocks.env.APP_BASE_URL = undefined;
 
     const result = await connectPaymentAccount({ apiKey: SECRET });

@@ -11,7 +11,7 @@ test.describe('acesso público', () => {
     await page.goto('/login');
 
     const password = page.locator('input[name="password"]');
-    await expect(page.getByRole('heading', { name: 'Bem-vindo de volta' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Entrar na sua conta' })).toBeVisible();
     await expect(page.locator('#email')).toBeVisible();
     await expect(page.locator('label[for="email"]')).toHaveText(/e-?mail/i);
     await expect(password).toHaveAttribute('type', 'password');
@@ -49,15 +49,13 @@ test.describe('navegação autenticada', () => {
     await authenticate(page);
 
     const settingsLink = page.getByRole('link', { name: 'Configurações', exact: true });
-    expect(await settingsLink.getAttribute('href')).not.toBe('/configuracoes');
+    expect(await settingsLink.getAttribute('href')).toBe('/configuracoes');
 
     const destinations = [
       { label: 'Agenda', heading: 'Agenda' },
       { label: 'Caixa', heading: 'Caixa' },
       { label: 'Financeiro', heading: 'Financeiro' },
-      // `/configuracoes` é apenas um redirect para a primeira categoria
-      // acessível; para este usuário, a categoria inicial é Agenda.
-      { label: 'Configurações', heading: 'Agenda' },
+      { label: 'Configurações', heading: 'Configurações' },
     ];
 
     for (const destination of destinations) {
@@ -67,10 +65,8 @@ test.describe('navegação autenticada', () => {
       ).toBeVisible({ timeout: 90_000 });
     }
 
-    await page.getByRole('link', { name: 'Produto', exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'Produto', exact: true })).toBeVisible({
-      timeout: 90_000,
-    });
+    // O índice de Configurações contém o cartão inteiro como link.
+    // "Produto" deixou de ser uma categoria intermediária.
     await page.getByRole('link', { name: 'Sugestões', exact: true }).click();
     await expect(page).toHaveURL(/\/configuracoes\/sugestoes(?:\?|$)/, { timeout: 30_000 });
     await expect(page.getByRole('heading', { name: 'Sugestões', exact: true })).toBeVisible({

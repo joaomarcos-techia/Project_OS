@@ -6,6 +6,7 @@ const { syncInvoice, tenantTx } = vi.hoisted(() => ({
 }));
 
 vi.mock('@/lib/outbox/publish', () => ({ publishEvent: vi.fn() }));
+vi.mock('@/lib/env', () => ({ env: { OFFER_2026_ANNUAL_NEW_SALES_ENABLED: false } }));
 vi.mock('@/lib/db/tenant', () => ({
   withTenant: (_clinicId: string, fn: (tx: unknown) => unknown) => fn(tenantTx.current),
 }));
@@ -23,12 +24,14 @@ import {
   getSubscriptionReactivationContext,
   getSubscriptionRevocationContext,
   PlanChangeError,
+  requestBillingCycleChange,
   requestPlanChange,
   requestSubscriptionCancellation,
 } from './plan-changes';
 
 const NOW = new Date('2026-09-28T12:00:00Z');
 const FIM_CICLO = new Date('2026-10-10T00:00:00Z');
+const FIM_ANUAL = new Date('2027-09-10T00:00:00Z');
 const FIM_TESTE = new Date('2026-10-02T00:00:00Z');
 
 type Sub = Parameters<typeof cancellationEffectiveAt>[0] & Record<string, unknown>;
@@ -105,9 +108,29 @@ const baseInput = {
 
 beforeEach(() => vi.clearAllMocks());
 
+describe('fase mensal da nova oferta', () => {
+  it('recusa troca direta mensal → anual antes de criar intenção ou alterar contrato', async () => {
+    const { tx, inserts, updates } = scripted([[current({ planCode: 'clinica_2026_2' })]]);
+    await expect(requestBillingCycleChange(tx, baseInput)).rejects.toMatchObject({
+      code: 'annual_new_sales_disabled',
+    });
+    expect(inserts).toEqual([]);
+    expect(updates).toEqual([]);
+  });
+});
+
 describe('cancellationEffectiveAt — até quando o acesso dura', () => {
   it('ativa: no fim do ciclo JÁ PAGO', () => {
     expect(cancellationEffectiveAt(current(), NOW)).toEqual(FIM_CICLO);
+  });
+
+  it('anual pré-pago: preserva acesso até o fim do ano contratado', () => {
+    expect(
+      cancellationEffectiveAt(
+        current({ billingCycle: 'annual', currentPeriodEnd: FIM_ANUAL }),
+        NOW,
+      ),
+    ).toEqual(FIM_ANUAL);
   });
 
   it('teste: no fim do teste prometido', () => {
@@ -133,6 +156,28 @@ describe('cancellationEffectiveAt — até quando o acesso dura', () => {
 });
 
 describe('requestSubscriptionCancellation', () => {
+  it('anual pré-pago: cancela só a renovação e agenda o fim para o período pago', async () => {
+    const { tx, inserts, updates } = scripted([
+      [current({ billingCycle: 'annual', currentPeriodEnd: FIM_ANUAL })],
+      [],
+    ]);
+
+    const result = await requestSubscriptionCancellation(tx, {
+      ...baseInput,
+      removedPaymentIds: [],
+      paidPaymentIds: [],
+    });
+
+    expect(result).toMatchObject({ kind: 'cancellation', effectiveAt: FIM_ANUAL });
+    expect(inserts[0]).toMatchObject({
+      kind: 'cancellation',
+      status: 'scheduled',
+      effectiveAt: FIM_ANUAL,
+    });
+    expect(updates).toContainEqual({ cancelAtPeriodEnd: true });
+    expect(inserts.some((entry) => entry.type === 'refund.requested')).toBe(false);
+  });
+
   it('aceita cancelar DURANTE O TESTE (antes a tela dizia que não havia o que cancelar)', async () => {
     const { tx, inserts, updates } = scripted([
       [current({ billingStatus: 'trial', currentPeriodEnd: null, trialEndsAt: FIM_TESTE })],

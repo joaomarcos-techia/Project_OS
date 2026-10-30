@@ -28,13 +28,16 @@ import { z } from 'zod';
    Billing no servidor; signup_sessions continua pré-tenant e não recebe preço do
    browser. Mesma autorização usada pelo O-4 em signup-draft.ts. */
 import { SubscriptionCreatedSchema } from '@/contexts/billing/events';
+import { isOffer2026PlanCode } from '@/contexts/billing/proposed-offer';
 import { plans, prices } from '@/contexts/billing/schema';
 /* eslint-enable boundaries/element-types */
 import { signupSessions } from '@/contexts/onboarding/schema';
 import { dbAdmin } from '@/lib/db';
 import { env } from '@/lib/env';
+import { metrics } from '@/lib/observability/metrics';
 
-import { QORO_SELF_SERVICE_TRIAL_DAYS } from '../trial';
+import { readSignupAuthCreatedAt, resolveSignupTrialTerms } from './signup-trial';
+import { recoverableHostedCheckoutCondition } from './signup-checkout-recovery';
 
 const userIdSchema = z.string().uuid();
 
@@ -54,9 +57,13 @@ export interface SignupBillingIntent {
   priceId: string;
   /** Centavos — a unidade interna. Converta na borda do provedor. */
   priceCents: number;
+  billingCycle: 'monthly' | 'annual';
   clinicName: string;
   ownerName: string;
   trialDays: number;
+  trialEndsAt: string;
+  strictTrialDeadline: boolean;
+  expiredAtCheckout: boolean;
   /** `YYYY-MM-DD`: primeira cobrança vence ao fim do trial, não hoje. */
   nextDueDate: string;
 }
@@ -124,11 +131,6 @@ export function centsToReais(cents: number): number {
   return Number((cents / 100).toFixed(2));
 }
 
-function dueDateAfterTrial(trialDays: number, now: Date): string {
-  const due = new Date(now.getTime() + trialDays * 86_400_000);
-  return due.toISOString().slice(0, 10);
-}
-
 /**
  * Reserva a tentativa por CAS e devolve a intenção resolvida no servidor.
  *
@@ -141,6 +143,9 @@ function dueDateAfterTrial(trialDays: number, now: Date): string {
 export async function reserveSignupBillingAttempt(userId: string): Promise<ReserveOutcome> {
   if (!enabled()) return { ok: false, reason: 'unavailable' };
   if (!userIdSchema.safeParse(userId).success) throw new Error('[signup] invalid_billing_owner');
+  // GoTrue fica fora da transação/lock. Só planos versionados exigem a leitura;
+  // falha desta consulta não altera o contrato legado.
+  const authCreatedAt = await readSignupAuthCreatedAt(userId);
 
   return dbAdmin.transaction(async (tx) => {
     // FOR UPDATE: duas abas pedindo checkout ao mesmo tempo serializam aqui, e a
@@ -152,6 +157,7 @@ export async function reserveSignupBillingAttempt(userId: string): Promise<Reser
         ownerName: signupSessions.ownerName,
         clinicName: signupSessions.clinicName,
         selectedPlanId: signupSessions.selectedPlanId,
+        selectedBillingCycle: signupSessions.selectedBillingCycle,
         attemptState: signupSessions.billingAttemptState,
         checkoutUrl: signupSessions.asaasCheckoutUrl,
       })
@@ -172,6 +178,9 @@ export async function reserveSignupBillingAttempt(userId: string): Promise<Reser
     if (draft.attemptState === 'reserved') return { ok: false, reason: 'conflict' };
     if (!draft.selectedPlanId) return { ok: false, reason: 'no_plan' };
     if (!draft.clinicName || !draft.ownerName) return { ok: false, reason: 'gone' };
+    if (draft.selectedBillingCycle === 'annual' && !env.OFFER_2026_ANNUAL_NEW_SALES_ENABLED) {
+      return { ok: false, reason: 'invalid_plan' };
+    }
 
     // Preço do catálogo, travado em `share` para não mudar sob os pés da
     // tentativa. O browser nunca mandou valor; ele nem sabe qual é.
@@ -187,7 +196,7 @@ export async function reserveSignupBillingAttempt(userId: string): Promise<Reser
         prices,
         and(
           eq(prices.planId, plans.id),
-          eq(prices.billingCycle, 'monthly'),
+          eq(prices.billingCycle, draft.selectedBillingCycle),
           eq(prices.currency, 'BRL'),
           lte(prices.activeFrom, sql`now()`),
           isNull(prices.activeUntil),
@@ -198,6 +207,9 @@ export async function reserveSignupBillingAttempt(userId: string): Promise<Reser
       .for('share')
       .limit(1);
     if (!priced) return { ok: false, reason: 'invalid_plan' };
+    if (draft.selectedBillingCycle === 'annual' && !isOffer2026PlanCode(priced.planCode)) {
+      return { ok: false, reason: 'invalid_plan' };
+    }
 
     /*
      * O código do plano precisa ser publicável ANTES de existir cobrança.
@@ -213,6 +225,10 @@ export async function reserveSignupBillingAttempt(userId: string): Promise<Reser
      */
     if (!SubscriptionCreatedSchema.shape.planCode.safeParse(priced.planCode).success) {
       return { ok: false, reason: 'invalid_plan' };
+    }
+    // Rejeita o plano novo antes da reserva se o Auth não puder provar o marco.
+    if (!authCreatedAt && isOffer2026PlanCode(priced.planCode)) {
+      return { ok: false, reason: 'unavailable' };
     }
 
     const [reserved] = await tx
@@ -243,6 +259,12 @@ export async function reserveSignupBillingAttempt(userId: string): Promise<Reser
       });
     if (!reserved) return { ok: false, reason: 'conflict' };
     if (!reserved.billingAttemptedAt) throw new Error('[signup] missing_billing_clock');
+    const trial = resolveSignupTrialTerms({
+      planCode: priced.planCode,
+      attemptedAt: reserved.billingAttemptedAt,
+      authCreatedAt,
+    });
+    if (!trial) throw new Error('[signup] invalid_trial_clock');
 
     return {
       ok: true,
@@ -253,10 +275,14 @@ export async function reserveSignupBillingAttempt(userId: string): Promise<Reser
         planCode: priced.planCode,
         priceId: priced.priceId,
         priceCents: priceToCents(priced.amount),
+        billingCycle: draft.selectedBillingCycle,
         clinicName: draft.clinicName,
         ownerName: draft.ownerName,
-        trialDays: QORO_SELF_SERVICE_TRIAL_DAYS,
-        nextDueDate: dueDateAfterTrial(QORO_SELF_SERVICE_TRIAL_DAYS, reserved.billingAttemptedAt),
+        trialDays: trial.days,
+        trialEndsAt: trial.endsAt.toISOString(),
+        strictTrialDeadline: trial.strictDeadline,
+        expiredAtCheckout: trial.expiredAtCheckout,
+        nextDueDate: trial.firstDueDate,
       },
     };
   });
@@ -321,7 +347,7 @@ export async function activateSignupHostedCheckout(input: {
     })
     .where(
       and(
-        ownerDraftCondition(input.userId),
+        or(ownerDraftCondition(input.userId), recoverableHostedCheckoutCondition(input.userId)),
         eq(signupSessions.billingAttemptState, 'checkout_pending'),
         eq(signupSessions.rowVersion, input.expectedVersion),
         eq(signupSessions.asaasCheckoutId, input.asaasCheckoutId),
@@ -429,7 +455,10 @@ export interface SignupHostedCheckoutTarget {
   rowVersion: number;
   externalReference: string;
   priceCents: number;
+  billingCycle: 'monthly' | 'annual';
   trialDays: number;
+  trialEndsAt: string;
+  strictTrialDeadline: boolean;
   attemptedOn: string;
   nextDueDate: string;
   asaasCustomerId: string | null;
@@ -442,6 +471,7 @@ export async function readSignupHostedCheckoutTarget(
   userId: string,
 ): Promise<SignupHostedCheckoutTarget | null> {
   if (!enabled() || !userIdSchema.safeParse(userId).success) return null;
+  const authCreatedAt = await readSignupAuthCreatedAt(userId);
 
   const [row] = await dbAdmin
     .select({
@@ -453,6 +483,8 @@ export async function readSignupHostedCheckoutTarget(
       asaasCheckoutId: signupSessions.asaasCheckoutId,
       asaasSubscriptionId: signupSessions.asaasSubscriptionId,
       amount: prices.amount,
+      planCode: plans.code,
+      billingCycle: signupSessions.selectedBillingCycle,
     })
     .from(signupSessions)
     .innerJoin(plans, and(eq(plans.id, signupSessions.selectedPlanId), eq(plans.ativo, true)))
@@ -460,7 +492,7 @@ export async function readSignupHostedCheckoutTarget(
       prices,
       and(
         eq(prices.planId, plans.id),
-        eq(prices.billingCycle, 'monthly'),
+        eq(sql<string>`${prices.billingCycle}::text`, signupSessions.selectedBillingCycle),
         eq(prices.currency, 'BRL'),
         lte(prices.activeFrom, sql`now()`),
         isNull(prices.activeUntil),
@@ -469,7 +501,7 @@ export async function readSignupHostedCheckoutTarget(
     )
     .where(
       and(
-        ownerDraftCondition(userId),
+        or(ownerDraftCondition(userId), recoverableHostedCheckoutCondition(userId)),
         or(
           eq(signupSessions.billingAttemptState, 'checkout_pending'),
           eq(signupSessions.billingAttemptState, 'active'),
@@ -486,15 +518,29 @@ export async function readSignupHostedCheckoutTarget(
   ) {
     return null;
   }
+  const trial = resolveSignupTrialTerms({
+    planCode: row.planCode,
+    attemptedAt: row.attemptedAt,
+    authCreatedAt,
+  });
+  if (!trial) {
+    metrics.emit('signup.checkout.target.invalid_trial_clock', {
+      authClock: authCreatedAt ? 'present' : 'missing',
+    });
+    throw new Error('[signup] invalid_trial_clock');
+  }
 
   return {
     state: row.state,
     rowVersion: row.rowVersion,
     externalReference: `signup:${row.id}`,
     priceCents: priceToCents(row.amount),
-    trialDays: QORO_SELF_SERVICE_TRIAL_DAYS,
+    billingCycle: row.billingCycle,
+    trialDays: trial.days,
+    trialEndsAt: trial.endsAt.toISOString(),
+    strictTrialDeadline: trial.strictDeadline,
     attemptedOn: row.attemptedAt.toISOString().slice(0, 10),
-    nextDueDate: dueDateAfterTrial(QORO_SELF_SERVICE_TRIAL_DAYS, row.attemptedAt),
+    nextDueDate: trial.firstDueDate,
     asaasCustomerId: row.asaasCustomerId,
     asaasCheckoutId: row.asaasCheckoutId,
     asaasSubscriptionId: row.asaasSubscriptionId,
@@ -537,7 +583,7 @@ export async function resetSignupHostedCheckout(input: {
     })
     .where(
       and(
-        ownerDraftCondition(input.userId),
+        or(ownerDraftCondition(input.userId), recoverableHostedCheckoutCondition(input.userId)),
         eq(signupSessions.billingAttemptState, 'checkout_pending'),
         eq(signupSessions.rowVersion, input.expectedVersion),
         eq(signupSessions.asaasCheckoutId, input.asaasCheckoutId),
@@ -589,8 +635,10 @@ export async function reconcileSignupBillingAttempt(input: {
  */
 export async function readSignupBillingReconcileTarget(userId: string): Promise<{
   externalReference: string;
+  planCode: string;
   asaasCustomerId: string | null;
   priceCents: number;
+  billingCycle: 'monthly' | 'annual';
   rowVersion: number;
 } | null> {
   if (!enabled()) return null;
@@ -602,6 +650,8 @@ export async function readSignupBillingReconcileTarget(userId: string): Promise<
       asaasCustomerId: signupSessions.asaasCustomerId,
       rowVersion: signupSessions.rowVersion,
       amount: prices.amount,
+      planCode: plans.code,
+      billingCycle: signupSessions.selectedBillingCycle,
     })
     .from(signupSessions)
     .innerJoin(plans, and(eq(plans.id, signupSessions.selectedPlanId), eq(plans.ativo, true)))
@@ -609,7 +659,7 @@ export async function readSignupBillingReconcileTarget(userId: string): Promise<
       prices,
       and(
         eq(prices.planId, plans.id),
-        eq(prices.billingCycle, 'monthly'),
+        eq(sql<string>`${prices.billingCycle}::text`, signupSessions.selectedBillingCycle),
         eq(prices.currency, 'BRL'),
         lte(prices.activeFrom, sql`now()`),
         isNull(prices.activeUntil),
@@ -624,8 +674,10 @@ export async function readSignupBillingReconcileTarget(userId: string): Promise<
 
   return {
     externalReference: `signup:${row.id}`,
+    planCode: row.planCode,
     asaasCustomerId: row.asaasCustomerId,
     priceCents: priceToCents(row.amount),
+    billingCycle: row.billingCycle,
     rowVersion: row.rowVersion,
   };
 }

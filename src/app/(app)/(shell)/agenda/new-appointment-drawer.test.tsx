@@ -22,8 +22,6 @@ const baseData: AgendaData = {
   ],
   doctors: [{ id: '22222222-2222-4222-8222-222222222222', nome: 'Médico Teste' }],
   resources: [],
-  paymentPricingMode: 'payment_method_pricing',
-  paymentPrices: [],
   deliveryFailures: [],
   deliveryFailuresLimited: false,
   tz: 'America/Sao_Paulo',
@@ -33,16 +31,14 @@ const baseData: AgendaData = {
 
 afterEach(cleanup);
 
-describe('recorrência com preço por método', () => {
-  it('orienta agendamento individual e impede selecionar uma série que o servidor recusaria', () => {
+describe('recorrência com preço único', () => {
+  it('permite selecionar uma série sem exigir forma de pagamento', () => {
     render(<NewAppointmentDrawer data={baseData} />);
     fireEvent.click(screen.getByRole('button', { name: 'Novo atendimento' }));
 
     expect(
       screen.getByRole('checkbox', { name: 'Repetir semanalmente' }).hasAttribute('disabled'),
-    ).toBe(true);
-    expect(
-      screen.getByText('Com preço por meio de pagamento, agende cada atendimento separadamente.'),
-    ).toBeTruthy();
+    ).toBe(false);
+    expect(screen.queryByText('Forma de pagamento e preço')).toBeNull();
   });
 });

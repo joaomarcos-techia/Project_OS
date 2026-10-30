@@ -483,6 +483,29 @@ export async function listUpcomingPatientAppointments(
   });
 }
 
+/** Retorno para o sinal: só conta consulta anterior concluída nesta clínica. */
+export async function hasPriorCompletedAppointment(
+  clinicId: string,
+  patientId: string,
+  before: Date,
+): Promise<boolean> {
+  return withTenant(clinicId, async (tx) => {
+    const [row] = await tx
+      .select({ id: appointments.id })
+      .from(appointments)
+      .where(
+        and(
+          eq(appointments.clinicId, clinicId),
+          eq(appointments.patientId, patientId),
+          eq(appointments.status, 'atendido'),
+          lt(appointments.scheduledAt, before),
+        ),
+      )
+      .limit(1);
+    return Boolean(row);
+  });
+}
+
 export async function hasSubsequentCompletedAppointment(
   clinicId: string,
   input: {
@@ -1152,6 +1175,46 @@ export async function listQueueTimestamps(
       appointmentId: row.appointmentId,
       queuedAt: toIso(row.queuedAt)!,
       startedAt: toIso(row.startedAt),
+    }));
+  });
+}
+
+/** Instante em que a consulta foi concluída, sem confundir a data agendada com a competência. */
+export async function listCompletedAppointmentsForMonth(
+  clinicId: string,
+  month: string,
+  timezone: string,
+): Promise<Array<{ appointmentId: string; completedAt: string; professionalName: string }>> {
+  return withTenant(clinicId, async (tx) => {
+    const rows = await tx
+      .select({
+        appointmentId: appointmentStateLog.appointmentId,
+        completedAt: appointmentStateLog.transitionedAt,
+        professionalName: appointments.snapshotDoctorNome,
+      })
+      .from(appointmentStateLog)
+      .innerJoin(
+        appointments,
+        and(
+          eq(appointments.id, appointmentStateLog.appointmentId),
+          eq(appointments.clinicId, clinicId),
+        ),
+      )
+      .where(
+        and(
+          eq(appointmentStateLog.clinicId, clinicId),
+          eq(appointmentStateLog.toStatus, 'atendido'),
+          // Importação histórica pode nascer atendida: o instante de importação
+          // não é o da consulta e não deve ser apresentado como competência.
+          sql`${appointmentStateLog.fromStatus} IS NOT NULL`,
+          sql`to_char(${appointmentStateLog.transitionedAt} AT TIME ZONE ${timezone}, 'YYYY-MM') = ${month}`,
+        ),
+      )
+      .orderBy(desc(appointmentStateLog.transitionedAt));
+    return rows.map((row) => ({
+      appointmentId: row.appointmentId,
+      completedAt: toIso(row.completedAt)!,
+      professionalName: row.professionalName,
     }));
   });
 }

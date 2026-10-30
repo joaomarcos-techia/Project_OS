@@ -668,7 +668,8 @@ Preview não roda cron, somente os eventos `charge-paid` e `credit-granted`
 desta cobrança foram despachados: agenda `confirmado`, sinal `paid`, um crédito
 R$ 75 `available`, zero recebível antes da consulta e zero evento da fixture
 pendente. **Pagamento Sandbox → webhook → Qoro → agenda/crédito: PASS funcional.**
-O status HTTP individual da entrega original no painel Asaas segue **NOT TESTED**.
+O status HTTP individual da entrega original ficou **PASS** no adendo de 13/10
+abaixo, pela requisição correlacionada nos Logs da Vercel.
 
 `node .tmp/run-advance-credit-readback.mjs --new` confirmou saldo total de
 R$ 170 em quatro créditos não alocados da Clínica A, exatamente igual à soma
@@ -683,9 +684,8 @@ A cobrança anterior, também sintética, continuou `paid`/`CONFIRMED`, com
 `provider_payment_id`, economia conciliada, consulta `confirmado`, um crédito
 `available` e zero recebível antes da consulta. Uma reentrega controlada do
 evento já processado ao endpoint do Preview retornou HTTP 200 `ignored`, sem
-duplicar crédito/evento. O HTTP individual da entrega original feita pelo Asaas
-continua **NOT TESTED** porque o log por entrega não está exposto na API de
-webhooks; exige leitura do painel do Sandbox.
+duplicar crédito/evento. A entrega original desta cobrança anterior ainda não
+tem seu próprio registro HTTP identificado neste relatório.
 
 Validações locais desta rodada: `npx vitest run --silent` **5.493/5.493 em 523
 arquivos**, exit 0; `npx tsc --noEmit`, `npx eslint .`, Prettier dos três arquivos
@@ -693,3 +693,569 @@ alterados e `git diff --check` exit 0; `npx tsx scripts/security/local-build.ts`
 exit 0 (Next 15.5.24, compilação e typecheck). O `npx eslint .` inicial apontou
 dois avisos em helper temporário ignorado pelo Git; foram removidos e a repetição
 terminou sem erros nem avisos. Nenhuma migration foi executada nesta rodada.
+
+### 13/10/2026 — HTTP do webhook e prevenção de callback para Preview antigo
+
+O usuário copiou quatro linhas JSONL dos Logs da Vercel do projeto `project-os`,
+intervalo 12/10 13:18–13/10 01:18 UTC, filtro `outcome`. O POST do evento real
+`PAYMENT_CONFIRMED` às **22:35:44.743 UTC de 12/10** atingiu a rota de webhook
+da Clínica A no deployment `dpl_Ac1X53QUvL5UEUdzwZT4p3VPrfkg`, ambiente
+`preview`, com **`responseStatusCode: 200`**. Outra linha da mesma rota às
+22:35:52.206 UTC registrou `payments.webhook.verify` com `outcome: ok` e também
+HTTP 200. Assim, a entrega HTTP do pagamento de R$ 75, antes **NOT TESTED**, é
+**PASS** no log da borda/aplicação da Vercel; o corpo de resposta informado pelo
+usuário foi `{"received":true,"outcome":"paid"}`. Readback independente em
+13/10 01:19 UTC (`node .tmp/run-readback-payments-meta.mjs --new`, exit 0)
+confirmou Asaas `CONFIRMED`, R$ 75, cartão, mesmo Checkout; no DEV, cobrança
+`paid`, fatos econômicos conciliados, agendamento `confirmado`, sinal `paid`, um
+crédito `available` de R$ 75, nenhum recebível antes da consulta e dois eventos
+persistidos: `PAYMENT_CONFIRMED` e `CHECKOUT_PAID`.
+
+Para reproduzir uma entrega nova sem tocar produção, a conta `teste_final` foi
+guardada como Sandbox e o webhook da Clínica A foi relido como ativo, não
+interrompido, com token configurado e eventos de pagamento inscritos. Seu
+callback tinha derivado para um Preview antigo após a reconexão da chave; um
+`PUT /v3/webhooks/{id}` **somente da URL**, seguido de GET, restaurou o Preview
+alvo, preservando token e eventos. Uma cobrança PIX sintética de R$ 10 foi
+criada diretamente no Sandbox, com notificações ao cliente desativadas, e
+confirmada pelo endpoint oficial de simulação às **01:08:11 UTC de 13/10**.
+O log da Vercel às **01:08:15.509 UTC** registrou `PAYMENT_RECEIVED` na rota
+esperada com **HTTP 200**. O readback DEV encontrou **zero** cobranças ou
+créditos Qoro associados a esse pagamento externo, comportamento esperado:
+ele não nasceu no Checkout da Qoro. Esse segundo POST comprova entrega e
+resposta da rota, mas não a conciliação de uma cobrança do produto.
+
+A causa do callback derivado estava no uso de `APP_BASE_URL` para registrar
+webhooks em Preview; essa variável pode conter o host de outra branch. O mesmo
+risco existia nos três retornos do Checkout hospedado. O código passou a usar
+`VERCEL_BRANCH_URL` validada (ou `VERCEL_URL` como fallback) nos callbacks
+externos de Preview, mantendo `APP_BASE_URL` em produção. URL auto-injetada
+ausente ou inválida impede o registro remoto do webhook, com aviso visível, e
+impede criar Checkout com retorno incorreto. A regressão direcionada passou
+**79/79 em três arquivos**. `npx tsc --noEmit`, ESLint dos seis arquivos de
+código tocados, Prettier e `git diff --check` saíram com exit 0. O build Next
+15.5.24 local, com variáveis de DEV e sem upload ao Sentry, compilou e terminou
+com **exit 0**. A suíte completa `npx vitest run --silent` passou **5.498/5.498
+em 523 arquivos**, exit 0. A correção ainda não foi implantada nem revalidada
+em um novo Preview; o webhook do Sandbox foi ajustado e relido separadamente.
+Como uma Server Action mudou de linha, `npx tsx scripts/security/inventory.ts
+--write` foi executado com exit 0 e atualizou somente referências de linha em
+`docs/security/acoes.md` (199 actions, 53 métodos de rota, zero pendências).
+
+Os dois JSONs exportados inicialmente (`01-00-27` e `01-09-18`) eram idênticos,
+314 linhas entre 00:30 e 00:59 UTC, e não serviam para inferir o HTTP das
+entregas de 22:35 ou 01:08. O JSONL posterior, copiado diretamente dos Logs
+da Vercel, trouxe as linhas correlacionadas. O painel de logs do próprio Asaas
+não foi lido nesta rodada.
+
+### 13/10/2026 — correção publicada e reconexão real no novo Preview
+
+O commit `957b9abc` foi enviado à branch `fix/asaas-environment-copy-20261012`.
+O status da Vercel para esse SHA mudou para `success` às **02:05:25 UTC**.
+O alvo testado foi
+`https://project-os-git-fix-asaas-environ-1b3c1d-clinic-os-v2-s-projects.vercel.app`.
+Antes de qualquer escrita, `/api/signup/runtime-fingerprint` comprovou por assinatura
+que Auth e banco apontam para o projeto DEV. O E2E de navegador reconectou a
+conta Asaas Sandbox da Clínica A em `/configuracoes/pagamentos`, confirmou a
+mensagem de conta conectada, campo da chave limpo e estado mantido após reload:
+**PASS** (`node .tmp/connect-teste-final-preview.mjs`, exit 0). A chave não foi
+incluída em log, screenshot ou artefato versionado.
+
+O GET independente da configuração no Asaas Sandbox encontrou exatamente um
+webhook de cobrança de paciente; seu host agora é a URL da branch acima,
+`enabled=true`, `interrupted=false`, token configurado, bypass da proteção da
+Vercel presente e eventos `PAYMENT_CONFIRMED`/`PAYMENT_RECEIVED` inscritos:
+**PASS** (`node .tmp/inspect-sandbox-webhook.mjs <host-da-branch>`, exit 0).
+Esse readback distingue a correção em execução do código anterior, que ao
+reconectar gravava `APP_BASE_URL` de outro Preview. O E2E de navegador do retorno
+público `/?payment=success` passou **1/1** (`node .tmp/run-preview-return-e2e.mjs`,
+exit 0): a página informa verificação sem afirmar quitação antes do webhook.
+Os testes direcionados da origem dos callbacks, conexão e Checkout passaram
+**79/79** (`npx vitest run src/lib/http/application-url.test.ts
+src/contexts/payments/connect-account.test.ts
+src/contexts/payments/internal/hosted-checkout.test.ts`, exit 0). A mesma versão
+do código já havia passado **5.498/5.498** testes, TypeScript, ESLint, Prettier
+e build Next local antes do push; não houve alteração de código depois disso.
+
+Limite da evidência **naquele checkpoint**: a reconexão e o readback provavam
+que o novo Preview registrou o webhook correto, mas ainda não havia POST
+original do Asaas correlacionado nos logs **desta** URL nem um Checkout novo
+criado pelo runtime desta branch com os três callbacks relidos no provedor. A
+entrega real de R$ 75 e a sondagem PIX de R$ 10 com HTTP 200 referiam-se ao
+Preview anterior. A entrega original no novo Preview foi medida no adendo de
+03:09 UTC abaixo; a criação pelo runtime segue sem prova. A conclusão da
+consulta e o Google Ads ficam para a etapa final.
+
+### 13/10/2026 — Checkout Sandbox de um novo agendamento da Clínica A
+
+Os exports da Vercel foram conferidos sem reproduzir query strings nem tokens:
+`project-os-log-export-2026-10-13T01-09-18.json` repete os 314 registros de
+00:30–00:59 UTC, todos de produção. O CSV `02-29-54` contém 9.203 registros
+de 12/10 14:30 a 13/10 02:29 UTC (8.676 produção, 527 Preview). O CSV
+`02-33-14` é o subconjunto Preview de 527 registros, entre 12/10 22:04 e
+13/10 02:28 UTC. Nele, a entrega original do Preview anterior às 22:35 UTC
+recebeu HTTP 200, verificação `ok` e processamento `paid`; o POST de 01:08 UTC
+recebeu HTTP 200 e `unknown_charge`, como esperado para a sonda PIX externa.
+Para a nova branch há 42 registros, mas só um GET do webhook com HTTP 405 às
+02:11 UTC: **a entrega original POST no novo Preview ainda não foi medida**.
+
+O usuário informou ter criado pela UI do novo Preview um agendamento sintético
+da Clínica A. O banco registra sua criação às **02:41:24 UTC**, com consulta
+marcada para **13/10 12:00 UTC** e valor R$ 150; o export da Vercel termina
+antes disso e não comprova a origem do POST da Agenda. O readback
+guardado encontrou um único agendamento novo, nenhum `patient_charge`, política
+de sinal ativa a 50%, conta Sandbox ativa e webhook configurado. Antes da criação
+da cobrança, `getPaymentIdentity` confirmou CPF válido e
+`/api/signup/runtime-fingerprint` confirmou Auth/DB DEV. A fila geral continha
+eventos de várias clínicas; **não** se invocou `/api/cron/outbox` nem
+`/api/cron/payments-deposit` globalmente.
+
+`createDepositCharge` foi chamado **localmente** sobre apenas esse agendamento,
+com banco DEV, Asaas Sandbox e variáveis de Preview da branch. O Asaas aceitou
+o `POST /checkouts` e sua resposta ecoou `successUrl`, `cancelUrl` e
+`expiredUrl` no host da nova branch. Readback independente no DEV: exatamente
+uma cobrança `pending` de **R$ 75**, Checkout ativo com ID persistido e link
+hospedado presente. Um GET externo do link hospedado retornou HTTP 200. O
+Checkout vence em **13/10 11:59:21 UTC**, pois o hold não ultrapassa a consulta.
+Esses checks comprovam o código real da branch contra Sandbox e DEV, mas
+**não equivalem a um Checkout criado pelo runtime implantado no Preview**.
+
+O evento `payments.patient_charge.created` dessa cobrança foi processado com
+`runOutboxEventsNow` filtrado por tipo e chave idempotente: **1 processado,
+0 falhas, 0 skips**. Readback mostrou `deposit_status=pending` e hold futuro.
+O evento `link_ready` não foi processado: o paciente escolhido é sintético, mas
+seu telefone não corresponde ao número de teste autorizado. A política do
+produto classifica `deposit_link` como mensagem transacional de lembrete:
+**não** exige o opt-in de cobrança usado por `remainder_link`/`dunning`.
+Nenhuma mensagem foi enviada. Os runners temporários e
+o readback ficam sob `.tmp/` (ignorado pelo Git); não contêm chave, senha,
+telefone ou link do Checkout em log versionado.
+
+O E2E de navegador autenticado contra a Agenda **implantada** no novo Preview
+encontrou exatamente uma linha desse paciente no dia 13/10, badge **“Sinal
+pendente”** e prazo visível da vaga; zero erros de página
+(`.tmp/check-new-appointment-preview.ts`, exit 0, sem screenshot/trace). O
+Checkout hospedado no Asaas Sandbox também abriu em Chromium com HTTP 200,
+R$ 75 visíveis e zero erros de página
+(`.tmp/check-new-asaas-checkout-ui.mjs`, exit 0). A página inicial ainda não
+mostrou seleção PIX/cartão na leitura automática, então esses controles não
+foram classificados como PASS de UI. Readback DEV + Asaas às **02:52:05 UTC**:
+cobrança `pending`, agendamento `agendado`, sinal `pending`, zero crédito, zero
+webhook dessa cobrança e nenhuma `payment` ligada ao Checkout. A regressão da
+origem dos callbacks, conexão e Checkout passou **79/79**, `npx tsc --noEmit`
+e `git diff --check` terminaram com exit 0; após a publicação da branch, só
+este registro de evidência foi alterado em arquivo versionado.
+
+Naquele checkpoint, faltava pagar esse Checkout com cartão de teste no Sandbox
+e medir o POST original do Asaas no novo Preview, seguido do readback `paid`,
+agenda confirmada e crédito. O estado era **PASS parcial** para criação e
+callback ecoado, **NOT TESTED** para pagamento → webhook → estado final. O
+pagamento, o readback e o HTTP original foram medidos nos adendos abaixo.
+
+Também passaram **72/72** testes dos handlers de hold, fila de link e política
+de envio (`patient-charge-created.test.ts`, `patient-charge-link-ready.test.ts`,
+`process.test.ts`, exit 0). A falta de opt-in bloqueia `remainder_link` e
+`dunning`, não `deposit_link`; esses testes não substituem a entrega externa
+ao paciente autorizado. O readback repetido às **02:57:59 UTC** continuou
+`pending` no Qoro e sem
+pagamento do Checkout no Asaas. `npx prettier --check` deste documento saiu
+com exit 0.
+
+A regra específica foi conferida em `policy.ts` e seus **16/16** testes
+(`npx vitest run src/contexts/ai-agent/proactive-jobs/application/policy.test.ts
+--silent`, exit 0). O fato de não ter enviado neste teste vem da decisão de
+**não processar o evento de link para um telefone não autorizado**, não de uma
+suposta recusa por falta de opt-in.
+
+### 13/10/2026, 03:04 UTC — pagamento do novo Checkout e estado no Preview
+
+O fundador concluiu o Checkout Sandbox de R$ 75 com cartão de teste. O readback
+guardado (`.tmp/read-new-clinic-a-payment.ts`, exit 0, 02:58–03:01 UTC) encontrou
+na API do Asaas `CONFIRMED`, `CREDIT_CARD`, valor R$ 75 e a sessão de Checkout
+exata desta cobrança. No DEV, a cobrança passou a `paid`, ganhou
+`provider_payment_id`, teve os fatos econômicos conciliados e registrou os
+eventos `PAYMENT_CONFIRMED` e `CHECKOUT_PAID`. Na primeira leitura, a agenda
+ainda estava `agendado`/sinal `pending` e não havia crédito: o webhook publica
+eventos para o outbox, mas o Preview não executa o cron automaticamente.
+Os timestamps de persistência no DEV foram 02:58:42.852 UTC (`CHECKOUT_PAID`)
+e 02:58:43.838 UTC (`PAYMENT_CONFIRMED`), obtidos por
+`.tmp/read-new-event-times.ts` (exit 0); são a janela exata para procurar a
+requisição original na Vercel.
+
+Após conferir clínica, agendamento, cobrança, tipo, chave idempotente e status de
+cada evento, `.tmp/process-new-clinic-a-paid.ts` despachou **somente**
+`charge-paid:<chargeId>` e `credit-granted:<chargeId>`: 2 processados, zero
+falhas/skips. O readback final encontrou consulta `confirmado`, sinal `paid`,
+hold removido, um crédito antecipado de R$ 75 `available` e nenhum recebível
+criado antes do atendimento. O Asaas continuou `CONFIRMED` para o mesmo
+Checkout; no DEV, a cobrança permaneceu `paid`, com dois eventos de webhook.
+`node .tmp/run-advance-credit-readback.mjs --new` saiu com exit 0 e encontrou
+R$ 245 em cinco créditos não alocados da Clínica A, valor igual à soma SQL
+independente. Essa soma inclui R$ 75 da nova cobrança e não representa
+recebível quitado nem dinheiro liquidado na conta Asaas.
+
+No deployment da branch, `.tmp/check-new-appointment-preview.ts` abriu a
+Agenda autenticada, encontrou exatamente a linha da fixture com **“Confirmada”**
+e **“Sinal pago”**, sem prazo de hold e sem erros de página: exit 0. O primeiro
+ensaio desse runner falhou por uma expectativa textual incorreta do próprio
+teste (`Confirmado` em vez do rótulo feminino `Confirmada`); corrigida conforme
+o componente real, a repetição passou. A leitura de `/financeiro` via
+`e2e/advance-credit-financial-preview.spec.ts` no mesmo Preview passou **1/1**
+com saldo mínimo de R$ 245 (`node .tmp/run-new-preview-advance-credit-e2e.mjs`,
+exit 0), fora de “A receber”. Ambos são E2E de leitura, sem screenshot/trace.
+
+Um replay controlado do **mesmo** `PAYMENT_CONFIRMED` já persistido, enviado à
+rota da nova branch com o token configurado da conta Sandbox, retornou **HTTP
+200**, `outcome=ignored`; o readback antes/depois permaneceu cobrança `paid`,
+um crédito e dois eventos de webhook (`.tmp/replay-new-paid-webhook.ts`, exit 0).
+Isso prova disponibilidade e idempotência da rota implantada para um evento
+repetido. O GET independente da configuração Asaas ainda mostrou callback na
+branch correta, `enabled=true` e `interrupted=false`.
+
+**Limite da prova:** o status HTTP da entrega original estava **NOT TESTED**
+na primeira leitura, pois os exports da Vercel então disponíveis terminavam
+antes do pagamento; foi medido no export posterior, registrado abaixo. Ainda
+não houve Checkout novo criado pelo runtime do Preview: a criação desta fixture
+usou o código da branch localmente contra DEV/Sandbox. A conclusão da consulta de
+13/10 12:00 UTC e a alocação do crédito no recebível após atendimento continuam
+**NOT TESTED** nesta fixture; não se antecipou o relógio nem se processou a
+fila global. O evento `link_ready` continua sem despacho porque o telefone da
+fixture não é o número autorizado para envios reais.
+
+As rotas implantadas `/api/cron/payments-deposit` e `/api/cron/outbox` não
+recebem filtro por agendamento/evento: ambas processam lotes globais. Como a
+fila DEV contém eventos de outras clínicas, chamá-las só para obter um Checkout
+originado pelo runtime do Preview provocaria efeitos fora desta fixture. Não
+foi adicionado um endpoint administrativo de execução pontual apenas para
+forçar um teste verde.
+
+Como prova separada da regra de fechamento, o runner
+`.tmp/run-smoke-advance-credit-completion.mjs` repetiu em 13/10 (exit 0) o
+cenário transacional em DEV: a consulta futura conserva o crédito disponível;
+passar do horário **sozinho** não conclui nem quita; conclusão sem prontuário
+assinado é recusada; após a conclusão válida, o crédito é alocado e nasce um
+recebível quitado; reentrega não duplica baixa nem recebível. O runner confirmou
+rollback sem resíduos. Esta prova usa uma fixture sintética separada, portanto
+não transforma a conclusão da consulta paga desta seção em PASS.
+
+### 13/10/2026, 03:09 UTC — entrega original confirmada nos Logs da Vercel
+
+O export `project-os-log-export-2026-10-13T03-09-10.json`, fornecido pelo
+fundador, contém 847 linhas Preview até 03:08:50 UTC. Filtrando branch
+`fix/asaas-environment-copy-20261012`, método POST, rota de webhook do paciente
+e a janela 02:58:35–02:58:50 UTC, restaram dez linhas de **duas requisições**
+originais, ambas no deployment `dpl_5k1A2jDVFGhCFaquJF5MGn5SaRA3` e no host
+do novo Preview. O request `n5c7z-1791860319362-3e721820c7d8` verificou o
+token com `outcome=ok`, processou `CHECKOUT_PAID` com `outcome=paid` e respondeu
+**HTTP 200**. O request `4h957-1791860320672-aa9056c2e514` também verificou
+com `outcome=ok`, processou `PAYMENT_CONFIRMED` com `outcome=already_paid` e
+respondeu **HTTP 200**. A ordem explica por que houve dois eventos persistidos,
+mas só uma transição financeira e um crédito. Nenhuma URL com bypass, token ou
+payload foi copiada para o relatório.
+
+**PASS funcional nesta branch:** cartão de teste no Asaas Sandbox → dois POSTs
+originais HTTP 200 no Preview correto → cobrança `paid` e economia conciliada no
+DEV → processamento direcionado do outbox → consulta `confirmado`, sinal `paid`
+e crédito antecipado R$ 75 `available` → Agenda e Financeiro renderizados no
+Preview. O replay HTTP 200 `ignored` prova a idempotência separadamente. Os
+limites restantes são a criação do Checkout **pelo runtime** do Preview e a
+conclusão/alocação **desta consulta** após o horário e o fechamento clínico.
+
+A preparação dessa conclusão também foi lida no navegador, sem alterar estado:
+`.tmp/check-new-consultorio-preview.ts` entrou em `/consultorio` do mesmo
+Preview com a conta de teste, encontrou a fixture na faixa “A chegar hoje” e o
+controle “Check-in”, com zero erros de página (exit 0). Esse check comprova que
+o caminho manual está disponível; não equivale a check-in, prontuário assinado
+ou consulta concluída.
+
+Para fechar a fixture sem manipular o relógio, após **09:00 de 13/10 em
+Brasília** entre no Preview da branch em `/consultorio` com uma conta clínica
+autorizada, localize o paciente sintético desta consulta e use “Check-in” →
+“Chamar”. Uma conta com permissão clínica deve preencher um prontuário
+**fictício**, “Assinar consulta” e “Encerrar consulta”. Só então repetir o
+readback do crédito/recebível e a leitura de `/financeiro`; não marcar a etapa
+como PASS antes dessas ações e da conciliação observada. A assinatura torna o
+prontuário imutável, por isso a ação deve usar apenas dados sintéticos.
+
+### 13/10/2026 — encerramento da consulta e apresentação do perfil WhatsApp
+
+O operador concluiu a consulta sintética e a tela mostrou “Faturada”. O readback
+independente em DEV (`node .tmp/run-verify-clinic-a-completion.mjs`, exit 0,
+13:48:47 UTC) encontrou o agendamento `atendido`, um prontuário assinado e o
+crédito de R$ 75 ainda `available`, mas **nenhum recebível**: o evento
+`scheduling.appointment.completed` estava `pending` no outbox do Preview. Logo,
+o rótulo “Faturada” não provava lançamento financeiro. Corrigimos a lista de
+consultas para usar o fato clínico “Concluída”, coberto por dois testes focados.
+
+O dispatcher foi chamado **somente** para o evento pendente desta fixture,
+com guardas de clínica/agendamento DEV e prontuário assinado, sem executar o
+cron global (`node .tmp/run-verify-clinic-a-completion.mjs --process`, exit 0:
+1 processado, 0 falhas). No readback de 13:51:39 UTC, o evento estava
+`processed`, o crédito `allocated` em R$ 75, e havia **um** recebível de
+R$ 150 em estado `parcial`, com R$ 75 pagos e R$ 75 restantes. **PASS** para
+atendimento concluído → evento → lançamento e alocação nesta fixture;
+pagamento do saldo restante continua não testado.
+
+Para provar Checkout criado pelo **runtime do Preview**, o primeiro preflight
+somente leitura da rota `/api/cron/payments-deposit` achou uma clínica
+habilitada, zero candidatos a sinal, exatamente um candidato a saldo não
+cobrado (esta fixture), mas também **um hold vencido**. A rota roda em paralelo
+`expireDepositHolds`, que cancelaria esse outro agendamento. A execução foi
+adiada até identificar o hold e medir seus efeitos; o resultado está abaixo.
+
+Na UI de `/configuracoes/whatsapp`, o número dedicado de teste retornou uma
+`profilePictureUrl` da Meta em `pps.whatsapp.net`; o GET da imagem deu HTTP 200,
+mas o Playwright do Preview observou `imageLoaded=false` e três violações de
+CSP `img-src`. A CSP local passou a permitir **somente essa origem** para
+imagens, e o componente substitui por iniciais a foto que falhar no navegador.
+O mesmo formulário é somente leitura em coexistência e editável no modo
+dedicado, conforme os testes da UI. A conexão ativa atual em DEV é dedicada;
+não há conexão ativa de coexistência disponível para um readback externo da
+foto nesse modo. A correção visual precisa ser observada de novo no Preview
+após o deploy desta branch antes de receber PASS externo.
+
+**Gates locais após a correção:** `npx vitest run --silent` passou 5.501/5.501
+em 524 arquivos; `npx tsc --noEmit --incremental false`, `npx eslint .` e
+`npx tsx scripts/security/local-build.ts` terminaram com exit 0 (Next 15.5.24,
+18 páginas estáticas). O lint havia reportado dois imports não usados apenas
+em um helper ignorado `.tmp`, removidos depois; nenhum arquivo versionado teve
+erro de lint. O Prettier dos arquivos tocados e `git diff --check` passaram.
+Esses gates, sozinhos, não transformam a foto em PASS no Preview nem provam a
+criação do Checkout pelo runtime implantado. Ambas as provas foram realizadas
+depois, como registrado abaixo.
+
+Após publicar `d62bdca6` somente na branch do PR #39, a Vercel concluiu o
+deployment. O mesmo probe autenticado de navegador contra
+`project-os-git-fix-asaas-environ-1b3c1d-clinic-os-v2-s-projects.vercel.app`
+retornou exit 0: perfil carregado, imagem presente de `pps.whatsapp.net`,
+`imageLoaded=true`, **zero** violações de CSP para imagem e edição habilitada
+no número dedicado. Outro probe autenticado no mesmo Preview e na mesma
+consulta sintética retornou exit 0: linha finalizada única com “Concluída”,
+sem “Faturada” e zero erros de página. Isso fecha a correção visual para o
+número **dedicado**. Foto em coexistência continua sem prova externa atual,
+pois não há conexão ativa desse tipo no DEV; seu fallback está coberto por
+teste de componente. Não houve merge em `main` nem escrita em produção.
+
+**Checkout criado no runtime do Preview (13/10):** um segundo preflight
+identificou o único hold vencido como outro agendamento da mesma clínica de
+teste, criado havia 124 horas, com paciente sintético, horário passado e sem
+prontuário. Não havia outros candidatos a sinal, saldo, renovação ou refund.
+Com guardas de projeto DEV, host Asaas Sandbox, branch Preview, conta ativa e
+IDs exatos da fixture, `node .tmp/run-verify-clinic-a-completion.mjs
+--preview-remainder-cron` chamou **uma vez** o cron implantado. Resultado:
+exit 0, **HTTP 200**, `remainder.charged=1`, `remainder.failed=0`,
+`failures=0` e `expiry.cancelled=1`. Readback separado do banco: uma cobrança
+`remainder` de **R$ 75,00** `pending` para a consulta concluída, com
+`provider_checkout_id` presente e URL no host `sandbox.asaas.com`. O hold
+sintético ficou `cancelado`/`expired`, exatamente o efeito esperado do cron.
+**PASS** para criação de Checkout pelo runtime do Preview → Asaas Sandbox →
+persistência DEV. Pagamento desse saldo e envio do link por WhatsApp continuam
+**NOT TESTED**; o outbox global não foi executado.
+
+Uma primeira leitura autenticada de `/financeiro` encontrou uma linha do
+paciente sintético com “A receber”, valor **R$ 150,00** e “**R$ 75,00 em
+aberto**”, mas o probe também capturou um `pageerror` em `/consultorio`; duas
+repetições tiveram problemas de login/tempo de navegação enquanto a Vercel
+fazia novo deployment de documentação. Depois de o status Vercel ficar
+`success`, **uma** repetição controlada do probe terminou **PASS, exit 0**:
+`/consultorio` mostrou “Concluída”; `/financeiro` mostrou uma linha única do
+paciente sintético como “A receber”, R$ 150,00, R$ 75,00 em aberto; **zero
+`pageerror`**. O erro intermediário não se repetiu, mas sua causa exata não foi
+comprovada; não classificá-lo como bug corrigido nem atribuí-lo definitivamente
+ao redeploy. O estado `parcial` e a alocação de R$ 75 também têm readback
+independente no banco, registrado acima.
+
+### 14/10/2026 — Clínica A sem assinatura; cadastro Clínica em fixture separada
+
+Readback somente leitura no DEV da Clínica A: clínica `active`, perfis ativos
+`owner=1`, `doctor=1`, `gestor=1`, `subscriptions=0` e
+`billing_customers=0`. A mensagem “Assinatura em configuração” corresponde ao
+estado do banco. Adicionar dois usuários não habilita o plano Clínica: o gate
+de preço/repasse lê a assinatura. A troca de plano requer assinatura `active`.
+
+Na mesma leitura, a consulta sintética concluída tinha um recebível `parcial`
+de R$ 150, com R$ 75 quitados, e exatamente uma cobrança `remainder` de R$ 75
+`pending`, com Checkout Sandbox presente e ainda válido às 14:39 BRT. O
+pagamento do restante, seu webhook, a quitação final e o envio do link seguem
+**NOT TESTED** nessa fixture.
+
+Para testar sem modificar a Clínica A, `e2e/signup-confirmation.spec.ts` passou
+**7/7, exit 0, 5,7 min** no Preview do PR #39. Seu cenário de Checkout
+selecionou Clínica e confirmou por leitura SQL `plans.code=clinica` no draft,
+além do Checkout pendente no Asaas Sandbox. O runner limpou a fixture; não
+houve pagamento nem assinatura provisionada. Em seguida,
+`e2e/payments-account-lifecycle.spec.ts` passou **6/6, exit 0, 3,4 min** com
+clínica descartável distinta e assinatura sintética `active`: Pro/Clínica
+exibiram configurações financeiras e Solo bloqueou UI/action. A limpeza da
+clínica, usuários e webhook da fixture fez parte do PASS. As duas provas são
+complementares, não uma prova única de pagamento → provisionamento → política.
+TypeScript, ESLint do spec, Prettier, `git diff --check`, Vitest integral
+(**5.501/5.501**, 524 arquivos) e build Next 15.5.24 (**exit 0**, 18 páginas
+estáticas) passaram após a mudança do E2E.
+
+### 14/10/2026 — conta Pro recém-criada: superfície, estados vazios e testes adversariais
+
+Alvo: Preview do PR #39, branch `fix/asaas-environment-copy-20261012`, com
+Auth e banco do projeto DEV comprovados pelo probe assinado de runtime. A conta
+de teste informada em `2E2_UI_EMAIL`/`2E2_UI_PASSWORD` foi confirmada no DEV
+como `owner`, clínica em `trial` e plano `pro`; nenhum valor de credencial foi
+registrado em teste ou documento. Os cenários com escrita permaneceram no
+Preview e usaram apenas fixture criada e removida pelo próprio teste.
+
+| Prova executada | Resultado desta rodada | Limite da evidência |
+| --- | --- | --- |
+| `e2e/public-surface.spec.ts` | 8 PASS, 1 SKIP, exit 0 | Superfície pública; não executa a jornada inteira de cadastro. |
+| `e2e/signup-session-api.spec.ts`, com modo Turnstile `always-pass` declarado para o Preview | 9 PASS, 1 SKIP, exit 0 | Esse modo não permite provar recusa de token forjado; a secret remota não foi lida do painel. |
+| `e2e/tenant-settings-screens.spec.ts` | 3 PASS, exit 0 | CSV de auditoria, fila LGPD e modelo de receita criado, relido, excluído e relido. |
+| `e2e/admin-boundary-rbac.spec.ts` | 1 PASS, exit 0 | A sessão Pro não alcança 11 URLs de `/admin` nem conteúdo RSC da plataforma. |
+| `e2e/authenticated-readonly-routes.spec.ts`, caso estático | 1 PASS, 28/28 rotas HTTP 200 com título, exit 0 | Abrir página não comprova todas as ações da página; rota dinâmica sem fixture não foi marcada PASS. |
+| `e2e/login-and-navigation.spec.ts`, acesso público | 5 PASS, exit 0 | Login exibe controles e alterna visibilidade da senha; quatro rotas negam visitante anônimo. |
+| `e2e/login-and-navigation.spec.ts`, navegação autenticada | 1 PASS, exit 0 | Agenda, Caixa, Financeiro, índice de Configurações e Sugestões percorridos com sessão reutilizada. |
+| `e2e/advanced-financial-entitlement-preview.spec.ts` | 2 PASS, exit 0 | A conta Pro em trial vê preço por meio e base de repasse; ativação sem preço foi recusada e o modo anterior permaneceu após reload. |
+| `e2e/payout-review-preview.spec.ts` | 6 PASS, exit 0, 4,5 min | Duas clínicas e cinco usuários sintéticos no DEV; repasse com estorno parcial, revisão com teto, roles, tenant, idempotência, revogação, Solo e configuração PIX/cartão. Sem Asaas. |
+| `scripts/run-signup-confirmation-e2e.ts` → `e2e/signup-confirmation.spec.ts` | 7 PASS, exit 0, 5,8 min | Envio e leitura reais no Resend DEV, confirmação entre aparelhos, código na aba original, Checkout Sandbox, retomada de draft expirado, conta legada, segundo draft e reenvio. Fixture local e lock removidos. |
+| `e2e/accounting-export.spec.ts` | 3 PASS após correção do teste; primeira execução 2 PASS, 1 FAIL | CSV vazio com cabeçalho, mês inválido 422 e bloqueio anônimo. Sem lançamentos, esta conta não prova linhas financeiras reais. |
+| `e2e/authenticated-readonly-routes.spec.ts`, caso de clínica vazia | 1 PASS, exit 0 | Owner vê ação para cadastrar equipe; agendar e criar encaixe ficam desabilitados sem procedimento. |
+
+A primeira varredura autenticada encontrou `/agenda/ausencias` respondendo 200,
+mas exibindo “Sem permissão” ao owner de clínica recém-criada sem profissionais.
+Não era falta de permissão: a lista de médicos estava vazia. O commit
+`aac87a6e` exibe o estado vazio apropriado com link para `/equipe` aos gestores
+e mantém a negativa para quem não administra a equipe. Dois testes de página
+cobrem os ramos. Antes do deploy, o E2E agregado registrou 25 rotas sem falha e
+essa rota com título ausente; após o deploy, 26/26 passaram no mesmo Preview. O
+inventário foi então ampliado para Auditoria e Pagamentos e passou 28/28.
+Um caso E2E específico da mesma clínica confirmou o estado vazio de Ausências
+com link para `/equipe` e, no drawer da Agenda, o bloqueio de “Agendar” e
+“Criar encaixe” quando não há procedimento. Isso exerce a interação do gestor,
+além do título da rota; nenhuma gravação foi feita.
+
+O primeiro `login-and-navigation` também revelou duas causas distintas: a
+expectativa do teste ainda usava o título antigo “Bem-vindo de volta” e a antiga
+rota intermediária “Produto”; já o login autenticado foi recusado com “Muitas
+tentativas” após a sequência de auditorias. Os textos e destinos do teste foram
+atualizados conforme a interface atual. Os cinco casos públicos passaram na
+reexecução. Após a janela do limitador, a navegação autenticada passou com uma
+sessão E2E reutilizada, sem novos logins por teste. O arquivo temporário de
+cookies foi removido ao final e confirmado ausente. O bloqueio anterior foi o
+controle de proteção funcionando, não um bug do produto.
+
+Na conta Pro em `trial`, um novo E2E confirmou a presença do painel “Política
+financeira”, incluindo preço por meio e base do repasse. Com a precondição
+observada de zero procedimentos na clínica, selecionar preço por meio e salvar
+retornou a validação “Cadastre ao menos um preço por método”; após reload,
+`absorb_fees` continuou selecionado. Antes dessa tentativa de escrita, o teste
+confirmou por assinatura que o Preview usa Auth e banco DEV. Isso prova a
+negativa e ausência de mudança de modo nessa conta, não prova criação de preço,
+cobrança ou repasse. O ciclo Pro/Clínica/Solo com fixture isolada já está
+discriminado no adendo anterior.
+
+A revisão de repasse executou o fluxo real de Caixa do Preview para um
+atendimento sintético de R$ 150. O estorno de R$ 50 suspendeu o repasse; o
+financeiro registrou uma decisão de R$ 60 dentro do teto original de R$ 75.
+Tentativas de atendente, médico, outra clínica, valor acima do teto e sessão
+encerrada não criaram versão. Uma correção gerou a versão 2, outro estorno
+suspendeu novamente e a versão 3 foi relida. O plano Clínica permitiu revisão,
+o Solo a recusou. O teste encerrou com readback de **0 clínicas, 0 usuários e 0
+linhas** da fixture. Essa prova não inclui transferência de dinheiro nem refund
+do Asaas; os lançamentos de Caixa são internos e sintéticos.
+Na mesma fixture Pro, o sexto caso salvou preços brutos PIX (R$ 140) e cartão
+1x (R$ 160) pela UI, relendo ambos no banco. Ativou
+`payment_method_pricing`, confirmou o modo após reload, restaurou
+`absorb_fees` e removeu os preços; o readback final mostrou zero preço ativo.
+O teardown eliminou também o histórico da fixture. Isso valida a configuração,
+mas não a aplicação do preço escolhido pelo paciente num checkout real.
+
+O runner de confirmação executou as sete provas no mesmo Preview, com guardas de
+projeto DEV, origem exata e Asaas Sandbox. O e-mail lido foi a mensagem real
+registrada no Resend de teste. No cenário de reenvio, o link anterior deixou de
+valer e o novo permitiu concluir em outro aparelho. O Checkout recorrente foi
+aberto e persistido, mas **nenhuma mensalidade foi paga** nesta suíte. O teardown
+da suíte terminou sem erro; o arquivo de fixture, o lock e o arquivo temporário
+de sessão foram confirmados ausentes no filesystem após o runner. A entrega em
+uma caixa Gmail externa e o pagamento do checkout continuam provas distintas.
+
+O E2E do CSV contábil inicialmente falhou porque exigia um `CRLF` mesmo quando
+o mês não tinha movimentos. O corpo real era só o cabeçalho; a ADR-058 exige
+`CRLF` como **separador entre registros**, não uma linha vazia obrigatória.
+`renderAccountingCsv` já usa `lines.join('\r\n')` para arquivos com movimentos.
+Corrigida a expectativa para recusar `CR` ou `LF` isolados, a suíte passou 3/3
+no Preview. Classificação: **bug do teste**, sem alteração no produto. O teste
+continua limitado para conteúdo de linhas porque a clínica Pro de teste não
+tinha transações no mês; o arquivo temporário de autenticação foi removido e
+confirmado ausente.
+
+O caso de Turnstile que inicialmente recebeu HTTP 201 para um token forjado não
+prova bypass em produção: o teste deduzia a secret do **servidor remoto** pelo
+`.env.local` do runner. O código da rota consulta `siteverify`; uma
+sondagem direta com a [secret pública de teste `always-pass` da Cloudflare](https://developers.cloudflare.com/turnstile/troubleshooting/testing/)
+retornou `success=true` para o mesmo token forjado. Isso é compatível com o
+comportamento do Preview, mas não substitui leitura da configuração remota.
+`signup-session-api` agora
+exige `E2E_TURNSTILE_MODE` explícito para escolher qual caso condicional é
+aplicável ao Preview. Rodar com `always-pass` executou o positivo e deixou o
+negativo **SKIPPED**, sem convertê-lo em PASS. A confirmação direta da secret
+configurada no painel da Vercel e a recusa E2E com secret `reject-invalid`
+continuam sem prova nesta rodada.
+
+Validação local do commit de produto: build otimizado Next 15.5.24 exit 0,
+`npx vitest run --silent` **5.503/5.503** em 524 arquivos, `npx eslint .` exit 0,
+`npx tsc --noEmit --incremental false` exit 0 após os ajustes de E2E,
+Prettier e `git diff --check` sem erro. CI do PR #39 concluiu lint, tipos,
+testes, build e análise de segurança com sucesso para `aac87a6e`. Nenhum desses
+gates substitui os E2E funcionais ainda não executados com essa conta.
+
+Com a conta Pro recém-criada, continuam **NOT TESTED nesta rodada**: criação de
+procedimento pela UI e uso dos preços PIX/cartão em cobrança, agendamento e atendimento pela UI,
+convite a profissional, emissão de cobrança real no Sandbox, eventos Meta/IA e
+rotas dinâmicas que exigem registros próprios. O teste de 28 rotas mede
+renderização e título, sem converter ações dessas páginas em PASS. O positivo
+do Turnstile em secret de teste também não comprova recusa de token inválido em
+uma configuração `reject-invalid`.
+
+### Rodada complementar de 14/10/2026 — Preview, DEV e Sandbox
+
+Os comandos abaixo foram executados contra o Preview do PR #39 com probe assinado
+confirmando o projeto Supabase de DEV antes de criar fixtures. Nenhuma fixture desta
+rodada foi criada em produção. PASS aqui significa execução funcional e asserção,
+não apenas descoberta ou invocação do teste.
+
+| Prova | Execução e resultado | Limite |
+| --- | --- | --- |
+| Conta de pagamentos da clínica | `e2e/payments-account-lifecycle.spec.ts`: 6/6 PASS, exit 0; conexão, pausa, retomada, webhook remoto habilitado/desabilitado e cleanup no Asaas Sandbox. | Conta e clínica sintéticas em DEV; não valida produção. |
+| Política de preços e revisão de repasse | `e2e/payout-review-preview.spec.ts`: 6/6 PASS, exit 0; além de RBAC e revisão, a UI recusou agendamento sem meio de pagamento e criou dois agendamentos com PIX R$ 140 e cartão 1x R$ 160. Readback SQL confirmou valor, meio, parcelas e referência à tabela de preços; cleanup com 0 clínicas, 0 usuários e 0 linhas da fixture. | Agendamento e persistência provados; cobrança real desses dois atendimentos não foi executada. |
+| Convite e caixa de teste Resend | `scripts/team-invite-inbox-check.ts`: PASS, exit 0; envio inicial, reenvio, recebimento, link antigo recusado, novo link aceito, replay recusado, vínculo ao tenant e cleanup completo. | Não substitui entrega na caixa pessoal do usuário. |
+| Primeira mensalidade após trial | `scripts/asaas-post-trial-preview-e2e.ts`: PASS, exit 0; fatura PIX pendente no Asaas Sandbox, pagamento simulado, webhook entregue ao Preview, assinatura e clínica ativas no DEV, ciclo avançado e replay idempotente. Readback confirmou remoção do webhook, assinatura, cliente e clínica sintéticos. | Não é o primeiro checkout de cadastro da conta Pro do usuário; não envolve dinheiro real. |
+| Guardas de banco para preço e checkout | `scripts/smoke-appointment-pricing-guard-db.ts`: PASS, exit 0; `scripts/smoke-patient-checkout-db.ts`: 7/7 PASS, exit 0, ambos com rollback/cleanup. | Provas de banco, não de UI ou provedor externo. |
+
+Os dois runners que criam recursos externos agora verificam o runtime DEV do
+Preview antes da primeira escrita. A asserção de que a chave Asaas não aparece
+no HTML também deixou de incluir o valor da chave na mensagem de falha do teste.
+Não há secrets no relatório ou nas evidências registradas aqui.
+
+Ainda **NOT TESTED** nesta rodada: pagamento real no Checkout Sandbox para os
+agendamentos com preços por meio; liquidação e exportação contábil com linhas
+financeiras; primeira mensalidade da conta Pro recém-criada; Meta/IA da clínica
+nova; recusa Turnstile em Preview configurado como `reject-invalid`; atribuição
+final no Google Ads com campanha ativa. Esses pontos não herdam PASS dos testes
+de componente, banco ou da clínica sintética.
+
+Gates após esta rodada: Prettier nos seis arquivos alterados exit 0,
+`git diff --check` exit 0, `npx tsc --noEmit --incremental false` exit 0,
+`npx eslint .` exit 0, `npx vitest run --silent` 5.503/5.503 em 524
+arquivos, exit 0. A primeira tentativa de `npx next build` parou antes da
+compilação por ausência de `DATABASE_URL` e `NEXT_PUBLIC_SUPABASE_URL` neste
+worktree. O runner isolado `npx tsx scripts/security/local-build.ts`, que
+fornece fixtures sintéticas sem carregar `.env.local`, concluiu o build
+otimizado Next 15.5.24 com exit 0. O bloqueio inicial era de ambiente, não
+falha de compilação.
+
+Na primeira execução do CI deste commit, testes e cobertura passaram, mas o
+inventário de segurança falhou porque as duas novas importações deslocaram as
+linhas de `process.env` registradas em `docs/security/acoes.md`. O inventário
+foi regenerado e seu `--check` passou localmente; a nova execução remota deve
+ser julgada pelo próprio resultado, sem converter o primeiro FAIL em PASS.
+
+### 14/10/2026 — adendo de consentimento para contato iniciado pela clínica
+
+Os registros históricos desta página que dizem que `deposit_link` dispensa opt-in descrevem a política **anterior**. A decisão vigente está no [adendo da ADR-049](../adr/049-pagamentos-paciente-sinal.md) e no [checkpoint financeiro](../specs/politica-financeira-camadas.md): o link de sinal exige permissão de agendamento **e** de cobrança; o telefone cadastrado manualmente não constitui autorização. As migrations 0119–0120 foram aplicadas apenas no DEV. Os 85 testes direcionados passaram localmente; E2E desta mudança no Preview e entrega real pela Meta permanecem como provas distintas.

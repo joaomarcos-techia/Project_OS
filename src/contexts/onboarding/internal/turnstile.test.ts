@@ -59,6 +59,31 @@ describe('verificação do token do Turnstile', () => {
     expect(await verifyTurnstileToken('token', IP)).toEqual({ ok: false, reason: 'invalid' });
   });
 
+  it('revalida cada uso e recusa replay reportado pela Cloudflare', async () => {
+    fetchMock
+      .mockResolvedValueOnce(resposta({ success: true }))
+      .mockResolvedValueOnce(resposta({ success: false, 'error-codes': ['timeout-or-duplicate'] }));
+    expect(await verifyTurnstileToken('same-synthetic-token', IP)).toEqual({ ok: true });
+    expect(await verifyTurnstileToken('same-synthetic-token', IP)).toEqual({
+      ok: false,
+      reason: 'invalid',
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('resposta malformada não autoriza o desafio', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => {
+        throw new Error('invalid JSON');
+      },
+    });
+    expect(await verifyTurnstileToken('synthetic-token', IP)).toEqual({
+      ok: false,
+      reason: 'unreachable',
+    });
+  });
+
   it('reporta os error-codes da Cloudflare, que distinguem reuso de chave errada', async () => {
     fetchMock.mockResolvedValue(
       resposta({ success: false, 'error-codes': ['invalid-input-secret'] }),

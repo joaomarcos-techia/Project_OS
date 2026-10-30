@@ -567,6 +567,11 @@ export async function executePendingAction(
     JSON.parse(await decryptForTenant(ctx.clinicId, row.payloadEncrypted)) as unknown,
   );
   if (payload.type !== row.actionName) throw new Error('ação pendente inconsistente');
+  // Pendências criadas antes da retirada da política não podem cobrar um preço
+  // que já não é oferecido. O paciente deve receber um novo resumo.
+  if (payload.type === 'schedule_appointment' && payload.commercialPrice) {
+    throw new Error('a condição comercial anterior foi encerrada; peça um novo agendamento');
+  }
   await assertPendingActionStillValid(ctx, payload);
 
   const actor = {
@@ -587,17 +592,6 @@ export async function executePendingAction(
         procedureId: payload.procedureId,
         patientId: payload.patientId,
         scheduledAt: payload.scheduledAt,
-        ...(payload.commercialPrice
-          ? {
-              pricingPolicyMode: 'payment_method_pricing',
-              commercialPaymentMethod: payload.commercialPrice.paymentMethod,
-              commercialInstallmentCount: payload.commercialPrice.installmentCount,
-              commercialPriceId: payload.commercialPrice.priceId,
-              valorAjustado: true,
-              valor: payload.commercialPrice.grossAmount,
-              valorAjusteMotivo: 'Preço por meio de pagamento',
-            }
-          : {}),
       },
       idempotencyKey,
     );

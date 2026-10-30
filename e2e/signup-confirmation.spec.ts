@@ -16,10 +16,12 @@ import {
   SIGNUP_E2E_DEV_PROJECT_REF,
   SIGNUP_E2E_ENV_ALIASES,
 } from '../scripts/run-signup-confirmation-e2e';
-import { vercelBypassHeaders } from './vercel-bypass';
+import { assertPreviewRuntimeIsDev } from './preview-dev-runtime';
+import { installVercelBypassForOrigin, vercelBypassHeaders } from './vercel-bypass';
 
 test.use({
   storageState: { cookies: [], origins: [] },
+  extraHTTPHeaders: {},
   trace: 'off',
   video: 'off',
   screenshot: 'off',
@@ -45,6 +47,7 @@ const productionSupabaseSecret = firstEnv(
 
 const FIXTURE_PATH = path.join(process.cwd(), '.playwright', 'signup-confirmation-fixture.json');
 const LOCK_PATH = path.join(process.cwd(), '.playwright', 'signup-confirmation.lock');
+const OFFER_CHECKOUT_PATH = path.join(process.cwd(), '.playwright', 'offer-checkouts-pending.json');
 const RESEND_API = 'https://api.resend.com';
 const INITIAL_SUBJECT = 'Confirme seu e-mail — Qoro';
 const RESEND_SUBJECT = 'Seu novo link de confirmação — Qoro';
@@ -60,6 +63,7 @@ type Fixture = {
 type AuthUser = {
   id: string;
   email?: string;
+  created_at?: string;
   email_confirmed_at?: string | null;
   app_metadata?: Record<string, unknown>;
 };
@@ -86,6 +90,45 @@ type SignupRun = {
   startedAt: number;
   password: string;
 };
+type OfferCheckoutReceipt = {
+  planCode: string;
+  billingCycle?: 'monthly' | 'annual';
+  priceCents: number;
+  email: string;
+  password: string;
+  authUserId: string;
+  tokenHash: string;
+  checkoutId: string;
+  trialEndsAt: string;
+  authAgeDays?: 0 | 15;
+};
+
+function isOfferCheckoutReceipt(value: unknown): value is OfferCheckoutReceipt {
+  if (typeof value !== 'object' || value === null) return false;
+  const row = value as Record<string, unknown>;
+  return (
+    typeof row.planCode === 'string' &&
+    (row.billingCycle === undefined ||
+      row.billingCycle === 'monthly' ||
+      row.billingCycle === 'annual') &&
+    typeof row.priceCents === 'number' &&
+    typeof row.email === 'string' &&
+    typeof row.password === 'string' &&
+    typeof row.authUserId === 'string' &&
+    typeof row.tokenHash === 'string' &&
+    typeof row.checkoutId === 'string' &&
+    typeof row.trialEndsAt === 'string' &&
+    (row.authAgeDays === undefined || row.authAgeDays === 0 || row.authAgeDays === 15)
+  );
+}
+
+function requestedOfferBillingCycle(): 'monthly' | 'annual' {
+  const cycle = process.env.E2E_OFFER_BILLING_CYCLE ?? 'monthly';
+  if (cycle !== 'monthly' && cycle !== 'annual') {
+    throw new Error('E2E_OFFER_BILLING_CYCLE deve ser monthly ou annual');
+  }
+  return cycle;
+}
 
 let lockHeld = false;
 const writeEnabled = process.env.E2E_SIGNUP_WRITE === '1';
@@ -532,7 +575,12 @@ async function cancelSandboxCheckout(checkoutId: string): Promise<void> {
   await response.body?.cancel().catch(() => undefined);
 }
 
-async function assertHostedCheckoutPersisted(tokenHash: string): Promise<void> {
+async function assertHostedCheckoutPersisted(
+  tokenHash: string,
+  expectedPlanCode: string,
+  expectedBillingCycle: 'monthly' | 'annual' = 'monthly',
+  expectedPriceCents?: number,
+): Promise<{ checkoutId: string; checkoutUrl: string }> {
   const sql = postgres(databaseUrl!, { max: 1, ssl: 'require', prepare: false });
   try {
     const [row] = await sql<
@@ -542,24 +590,59 @@ async function assertHostedCheckoutPersisted(tokenHash: string): Promise<void> {
         asaas_checkout_url: string | null;
         asaas_customer_id: string | null;
         asaas_subscription_id: string | null;
+        plan_code: string | null;
+        selected_billing_cycle: string;
+        selected_price_cents: number | null;
+        profile_count: number;
       }[]
     >`
-      select billing_attempt_state,
-             asaas_checkout_id,
-             asaas_checkout_url,
-             asaas_customer_id,
-             asaas_subscription_id
-        from signup_sessions
-       where token_hash = ${tokenHash}
+      select s.billing_attempt_state,
+             s.asaas_checkout_id,
+             s.asaas_checkout_url,
+             s.asaas_customer_id,
+             s.asaas_subscription_id,
+             p.code as plan_code, s.selected_billing_cycle,
+             (select round(pr.amount * 100)::int from public.prices pr
+               where pr.plan_id = s.selected_plan_id
+                 and pr.billing_cycle::text = s.selected_billing_cycle
+                 and pr.active_until is null and pr.campaign_code is null
+               limit 1) as selected_price_cents,
+             (select count(*)::int from public.profiles profile
+               where profile.id = s.auth_user_id) as profile_count
+        from signup_sessions s
+        left join plans p on p.id = s.selected_plan_id
+       where s.token_hash = ${tokenHash}
     `;
     if (
       row?.billing_attempt_state !== 'checkout_pending' ||
       !row.asaas_checkout_id ||
       !row.asaas_checkout_url ||
       row.asaas_customer_id !== null ||
-      row.asaas_subscription_id !== null
+      row.asaas_subscription_id !== null ||
+      row.plan_code !== expectedPlanCode ||
+      row.selected_billing_cycle !== expectedBillingCycle ||
+      row.profile_count !== 0 ||
+      (expectedPriceCents !== undefined && row.selected_price_cents !== expectedPriceCents)
     ) {
       throw new Error('draft não persistiu o Checkout hospedado pendente antes da navegação');
+    }
+    return { checkoutId: row.asaas_checkout_id, checkoutUrl: row.asaas_checkout_url };
+  } finally {
+    await sql.end({ timeout: 5 });
+  }
+}
+
+async function expireOnlyFixtureTrial(userId: string, email: string): Promise<void> {
+  const sql = postgres(databaseUrl!, { max: 1, ssl: 'require', prepare: false });
+  try {
+    const rows = await sql<{ id: string }[]>`
+      update auth.users
+         set created_at = now() - interval '15 days'
+       where id = ${userId} and lower(email) = ${email.toLowerCase()}
+       returning id
+    `;
+    if (rows.length !== 1 || rows[0]?.id !== userId) {
+      throw new Error('não foi possível envelhecer somente a identidade de teste no Auth DEV');
     }
   } finally {
     await sql.end({ timeout: 5 });
@@ -826,7 +909,10 @@ async function assertScannerGetDoesNotConsume(
   const tokenHash = new URLSearchParams(callback.hash.slice(1)).get('token_hash');
   if (!tokenHash) throw new Error('prova sem token para scanner');
 
-  const response = await context.request.get(proof.url, { maxRedirects: 0 });
+  const response = await context.request.get(proof.url, {
+    headers: vercelBypassHeaders(),
+    maxRedirects: 0,
+  });
   if (response.status() !== 200) throw new Error('scanner GET não recebeu a ponte inerte');
   if (!response.headers()['cache-control']?.includes('no-store')) {
     throw new Error('ponte do callback pode ser armazenada');
@@ -910,8 +996,8 @@ async function startSignup(
   const context = await browser.newContext({
     baseURL: baseUrl!,
     storageState: { cookies: [], origins: [] },
-    extraHTTPHeaders: vercelBypassHeaders(),
   });
+  await installVercelBypassForOrigin(context, new URL(baseUrl!).origin);
   const fixture: Fixture = {
     projectRef: expectedProjectRef!,
     email,
@@ -975,8 +1061,8 @@ async function openOnPhone(
     ...devices['iPhone 13'],
     baseURL: baseUrl!,
     storageState: { cookies: [], origins: [] },
-    extraHTTPHeaders: vercelBypassHeaders(),
   });
+  await installVercelBypassForOrigin(context, new URL(baseUrl!).origin);
   const page = await context.newPage();
   const expectedToken = new URLSearchParams(new URL(rawUrl).hash.slice(1)).get('token_hash');
   if (!expectedToken) throw new Error('callback do telefone sem token no fragmento');
@@ -1140,7 +1226,18 @@ test.describe('cadastro — confirmação real via Resend', () => {
     await assertTargetRuntime();
     await acquireLock();
     const stale = await readFixture();
-    if (stale) await cleanupFixture(stale);
+    if (stale) {
+      let held = '';
+      try {
+        held = await readFile(OFFER_CHECKOUT_PATH, 'utf8');
+      } catch (error) {
+        if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error;
+      }
+      if (held.includes(stale.email)) {
+        throw new Error('fixture de Checkout manual pendente; limpeza automática recusada');
+      }
+      await cleanupFixture(stale);
+    }
   });
 
   test.afterAll(async () => {
@@ -1260,7 +1357,32 @@ test.describe('cadastro — confirmação real via Resend', () => {
         verificationCode: proof.verificationCode,
         tokenHash: fixture.tokenHash,
       });
-      await signup.page.locator('[data-slot="option-card-group"] label').first().click();
+      const plansResponse = await signup.page.request.get('/api/signup/plan', {
+        headers: vercelBypassHeaders(),
+        maxRedirects: 0,
+      });
+      if (!plansResponse.ok()) throw new Error('catálogo do cadastro indisponível no E2E');
+      const catalog = (await plansResponse.json()) as {
+        plans?: Array<{ code: string }>;
+        trialDays?: number;
+        offerTrialEndsAt?: string | null;
+      };
+      const newOfferActive = catalog.plans?.some((plan) => plan.code === 'clinica_2026_2');
+      if (newOfferActive) {
+        const user = await findUser(email);
+        const createdAt = Date.parse(user?.created_at ?? '');
+        const endsAt = Date.parse(catalog.offerTrialEndsAt ?? '');
+        if (catalog.trialDays !== 14 || endsAt - createdAt !== 14 * 86_400_000) {
+          throw new Error('cadastro novo não preservou 14 dias desde a criação no Auth DEV');
+        }
+      }
+      const selectedName = newOfferActive ? 'Clínica · 2 médicos' : 'Clínica';
+      const selectedCode = newOfferActive ? 'clinica_2026_2' : 'clinica';
+      await signup.page
+        .locator('[data-slot="option-card-group"]')
+        .getByText(selectedName, { exact: true })
+        .click();
+      await expect(signup.page.getByRole('radio', { name: /Clínica/u })).toBeChecked();
       await signup.page.getByRole('button', { name: 'Salvar plano' }).click();
       await expect(signup.page.getByText('Plano salvo')).toBeVisible();
       await signup.page.getByRole('button', { name: 'Continuar no Checkout Asaas' }).click();
@@ -1274,10 +1396,640 @@ test.describe('cadastro — confirmação real via Resend', () => {
       await expect(signup.page.getByText('Informações da assinatura')).toBeVisible({
         timeout: 30_000,
       });
-      await assertHostedCheckoutPersisted(fixture.tokenHash!);
+      await assertHostedCheckoutPersisted(fixture.tokenHash!, selectedCode);
     } finally {
       await Promise.allSettled([phone?.close(), desktop?.close()]);
       await cleanupFixture(fixture);
+    }
+  });
+
+  test('@prepare-offer-checkout prepara contratação real para pagamento manual no Sandbox', async ({
+    browser,
+  }) => {
+    test.skip(process.env.E2E_SIGNUP_PREPARE_OFFER !== '1', 'preparação manual não solicitada');
+    const freshTrial = process.env.E2E_SIGNUP_FRESH_OFFER === '1';
+    const planCode = process.env.E2E_OFFER_PLAN_CODE;
+    if (planCode !== 'consultorio_2026' && planCode !== 'clinica_2026_2') {
+      throw new Error('E2E_OFFER_PLAN_CODE precisa identificar um dos dois planos de entrada');
+    }
+    const billingCycle = requestedOfferBillingCycle();
+    const monthlyPrice = planCode === 'consultorio_2026' ? 19700 : 39700;
+    const expectedPrice = billingCycle === 'annual' ? monthlyPrice * 10 : monthlyPrice;
+    const reason = skipReason();
+    if (reason) throw new Error(`guard recusou a escrita: ${reason}`);
+    test.setTimeout(420_000);
+    if (!baseUrl) throw new Error('E2E_BASE_URL ausente');
+    await assertPreviewRuntimeIsDev(baseUrl, { requireSandboxAsaas: true });
+
+    const email = `offer-${planCode}-${billingCycle}-${Date.now()}-${randomBytes(4).toString('hex')}@resend.dev`;
+    let fixture: Fixture = { projectRef: expectedProjectRef!, email };
+    let desktop: BrowserContext | null = null;
+    let phone: BrowserContext | null = null;
+    let heldForManualPayment = false;
+    try {
+      let priorRaw = '[]';
+      try {
+        priorRaw = await readFile(OFFER_CHECKOUT_PATH, 'utf8');
+      } catch (error) {
+        if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error;
+      }
+      const prior: unknown = JSON.parse(priorRaw);
+      if (!Array.isArray(prior) || !prior.every(isOfferCheckoutReceipt)) {
+        throw new Error('recibos locais de Checkout estão ausentes ou inválidos');
+      }
+      if (
+        prior.some(
+          (item) =>
+            item.planCode === planCode &&
+            (item.billingCycle ?? 'monthly') === billingCycle &&
+            (item.authAgeDays === 0) === freshTrial,
+        )
+      ) {
+        throw new Error('já existe Checkout manual desse plano; reconcilie antes de criar outro');
+      }
+
+      const signup = await startSignup(browser, email);
+      desktop = signup.context;
+      fixture = signup.fixture;
+      const message = await waitForMessage({
+        email,
+        subject: INITIAL_SUBJECT,
+        after: signup.startedAt,
+      });
+      if (!fixture.tokenHash) throw new Error('fixture sem hash do draft');
+      const proof = confirmationProof(message, fixture.tokenHash);
+      phone = (await openOnPhone(browser, proof.url)).context;
+      await waitForOriginalHandoff(signup.page);
+      await completeHandoffAfterRefresh(signup.page, {
+        email,
+        password: signup.password,
+        verificationCode: proof.verificationCode,
+        tokenHash: fixture.tokenHash,
+      });
+
+      const createdUser = await findUser(email);
+      if (!createdUser) throw new Error('conta Auth não foi reencontrada após confirmação');
+      if (!freshTrial) {
+        // A prova de pagamento tardio precisa vencer o trial. Alteramos apenas
+        // o relógio da identidade sintética no Auth DEV.
+        await expireOnlyFixtureTrial(createdUser.id, email);
+        await signup.page.reload();
+      }
+
+      const response = await signup.page.request.get('/api/signup/plan', {
+        headers: vercelBypassHeaders(),
+        maxRedirects: 0,
+      });
+      if (!response.ok()) throw new Error(`catálogo do cadastro respondeu ${response.status()}`);
+      const state = (await response.json()) as {
+        plans?: Array<{
+          id: string;
+          code: string;
+          priceCents: number;
+          cycle: 'monthly' | 'annual';
+        }>;
+        offerTrialEndsAt?: string;
+      };
+      const codes = [...new Set(state.plans?.map((plan) => plan.code) ?? [])].sort();
+      if (JSON.stringify(codes) !== JSON.stringify(['clinica_2026_2', 'consultorio_2026'])) {
+        throw new Error('o Preview não oferece exatamente Consultório e Clínica');
+      }
+      const selected = state.plans?.find(
+        (plan) => plan.code === planCode && plan.cycle === billingCycle,
+      );
+      if (selected?.priceCents !== expectedPrice || !state.offerTrialEndsAt) {
+        throw new Error('preço ou prazo do trial não corresponde à nova oferta');
+      }
+      const authUser = await findUser(email);
+      if (!authUser) throw new Error('conta Auth não foi reencontrada após confirmação');
+      const createdAt = Date.parse(authUser.created_at ?? '');
+      const trialEndsAt = Date.parse(state.offerTrialEndsAt);
+      if (!Number.isFinite(createdAt) || trialEndsAt - createdAt !== 14 * 86_400_000) {
+        throw new Error('trial não termina 14 dias após a criação da conta Auth');
+      }
+      if (freshTrial && (createdAt < Date.now() - 3_600_000 || trialEndsAt <= Date.now())) {
+        throw new Error('a fixture de conta nova não preservou o trial vigente');
+      }
+
+      if (billingCycle === 'annual') {
+        await signup.page.getByRole('button', { name: 'Anual · preço de 10 meses' }).click();
+      }
+      await signup.page
+        .locator('[data-slot="option-card-group"]')
+        .getByText(planCode === 'consultorio_2026' ? 'Consultório' : 'Clínica · 2 médicos', {
+          exact: true,
+        })
+        .click();
+      await signup.page.getByRole('button', { name: 'Salvar plano' }).click();
+      await expect(signup.page.getByText('Plano salvo')).toBeVisible();
+      await signup.page.getByRole('button', { name: 'Continuar no Checkout Asaas' }).click();
+      await signup.page.waitForURL(
+        (url) =>
+          url.hostname === 'sandbox.asaas.com' &&
+          /^\/(?:\d+\/)?checkoutSession\/show(?:\/|$)/u.test(url.pathname),
+        { timeout: 90_000, waitUntil: 'domcontentloaded' },
+      );
+      await expect(signup.page.getByText('Informações da assinatura')).toBeVisible({
+        timeout: 30_000,
+      });
+      const persisted = await assertHostedCheckoutPersisted(
+        fixture.tokenHash,
+        planCode,
+        billingCycle,
+        expectedPrice,
+      );
+      if (persisted.checkoutUrl !== signup.page.url()) {
+        throw new Error('URL persistida diverge da página do Asaas aberta pelo cadastro');
+      }
+      const next = [
+        ...prior,
+        {
+          planCode,
+          billingCycle,
+          priceCents: expectedPrice,
+          email,
+          // Credencial sintética somente no arquivo local ignorado, para retomar
+          // a sessão após o pagamento manual em outro navegador.
+          password: signup.password,
+          authUserId: authUser.id,
+          tokenHash: fixture.tokenHash,
+          checkoutId: persisted.checkoutId,
+          checkoutUrl: persisted.checkoutUrl,
+          trialEndsAt: state.offerTrialEndsAt,
+          authAgeDays: freshTrial ? 0 : 15,
+          createdAt: new Date().toISOString(),
+        },
+      ];
+      await mkdir(path.dirname(OFFER_CHECKOUT_PATH), { recursive: true });
+      await writeFile(OFFER_CHECKOUT_PATH, `${JSON.stringify(next, null, 2)}\n`, {
+        encoding: 'utf8',
+        mode: 0o600,
+      });
+      heldForManualPayment = true;
+      await rm(FIXTURE_PATH, { force: true });
+      console.log(
+        `PASS: Checkout ${planCode} (${freshTrial ? 'trial novo' : 'trial vencido'}) guardado para pagamento manual no Sandbox`,
+      );
+    } finally {
+      await Promise.allSettled([phone?.close(), desktop?.close()]);
+      if (!heldForManualPayment) await cleanupFixture(fixture);
+    }
+  });
+
+  test('@inspect-fresh-offer-checkout confere conta nova antes da conclusão no Asaas', async ({
+    browser,
+  }) => {
+    test.skip(
+      process.env.E2E_SIGNUP_INSPECT_FRESH_OFFER !== '1',
+      'inspeção da fixture fresca não solicitada',
+    );
+    const reason = skipReason();
+    if (reason) throw new Error(`guard recusou a leitura: ${reason}`);
+    const raw: unknown = JSON.parse(await readFile(OFFER_CHECKOUT_PATH, 'utf8'));
+    if (!Array.isArray(raw) || !raw.every(isOfferCheckoutReceipt)) {
+      throw new Error('recibos locais de Checkout estão ausentes ou inválidos');
+    }
+    const receipt = raw.find(
+      (item) =>
+        item.planCode === 'clinica_2026_2' &&
+        (item.billingCycle ?? 'monthly') === 'monthly' &&
+        item.authAgeDays === 0,
+    );
+    if (!receipt) throw new Error('Checkout de conta nova não foi preparado');
+    const user = await findUser(receipt.email);
+    const createdAt = Date.parse(user?.created_at ?? '');
+    if (
+      user?.id !== receipt.authUserId ||
+      !Number.isFinite(createdAt) ||
+      Date.parse(receipt.trialEndsAt) - createdAt !== 14 * 86_400_000
+    ) {
+      throw new Error('identidade e trial absoluto divergem do Auth DEV');
+    }
+    const persisted = await assertHostedCheckoutPersisted(
+      receipt.tokenHash,
+      receipt.planCode,
+      'monthly',
+      receipt.priceCents,
+    );
+
+    const checkout = new URL(persisted.checkoutUrl);
+    if (checkout.protocol !== 'https:' || checkout.hostname !== 'sandbox.asaas.com') {
+      throw new Error('fixture não aponta para o Checkout Sandbox');
+    }
+    const context = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+    try {
+      const page = await context.newPage();
+      let leakedBypass = false;
+      page.on('request', (request) => {
+        if (
+          new URL(request.url()).hostname === 'sandbox.asaas.com' &&
+          request.headers()['x-vercel-protection-bypass']
+        ) {
+          leakedBypass = true;
+        }
+      });
+      const response = await page.goto(persisted.checkoutUrl);
+      if (response?.status() !== 200) throw new Error('Checkout Sandbox indisponível');
+      await expect(page.getByText('Informações da assinatura')).toBeVisible();
+      await expect(page.locator('body')).toContainText(
+        (receipt.priceCents / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 }),
+      );
+      if (leakedBypass) throw new Error('segredo de proteção do Preview vazou ao Asaas');
+    } finally {
+      await context.close();
+    }
+    console.log('PASS: conta nova pendente tem Auth, trial, preço e Checkout Sandbox coerentes');
+  });
+
+  test('@retire-expired-offer-checkout limpa Checkout vencido sem pagamento antes de nova tentativa', async () => {
+    test.skip(
+      process.env.E2E_SIGNUP_RETIRE_OFFER !== '1',
+      'limpeza de Checkout vencido não solicitada',
+    );
+    const reason = skipReason();
+    if (reason) throw new Error(`guard recusou a escrita: ${reason}`);
+    const planCode = process.env.E2E_OFFER_PLAN_CODE;
+    if (planCode !== 'consultorio_2026' && planCode !== 'clinica_2026_2') {
+      throw new Error('plano de limpeza não pertence aos dois Checkouts de teste');
+    }
+    const billingCycle = requestedOfferBillingCycle();
+    const freshTrial = process.env.E2E_SIGNUP_FRESH_OFFER === '1';
+    const raw: unknown = JSON.parse(await readFile(OFFER_CHECKOUT_PATH, 'utf8'));
+    if (!Array.isArray(raw) || !raw.every(isOfferCheckoutReceipt)) {
+      throw new Error('recibos locais de Checkout estão ausentes ou inválidos');
+    }
+    const receipt = raw.find(
+      (item) =>
+        item.planCode === planCode &&
+        (item.billingCycle ?? 'monthly') === billingCycle &&
+        (item.authAgeDays === 0) === freshTrial,
+    );
+    if (
+      !receipt ||
+      !receipt.email.startsWith(`offer-${planCode}-`) ||
+      !receipt.email.endsWith('@resend.dev')
+    ) {
+      throw new Error('limpeza recusou identidade que não é fixture sintética da oferta');
+    }
+
+    const sql = postgres(databaseUrl!, { max: 1, ssl: 'require', prepare: false });
+    let draftId: string;
+    try {
+      const rows = await sql<
+        {
+          id: string;
+          billing_attempt_state: string | null;
+          asaas_checkout_id: string | null;
+          expired: boolean;
+          clinic_id: string | null;
+        }[]
+      >`
+        select s.id::text, s.billing_attempt_state, s.asaas_checkout_id,
+               s.idle_expires_at < now() and s.absolute_expires_at < now() as expired,
+               p.clinic_id
+          from public.signup_sessions s
+          left join public.profiles p on p.id = s.auth_user_id
+         where s.auth_user_id = ${receipt.authUserId}::uuid
+           and s.token_hash = ${receipt.tokenHash}
+      `;
+      const row = rows[0];
+      if (
+        rows.length !== 1 ||
+        row?.billing_attempt_state !== 'checkout_pending' ||
+        row.asaas_checkout_id !== receipt.checkoutId ||
+        !row.expired ||
+        row.clinic_id
+      ) {
+        throw new Error('limpeza recusou draft ativo, pago, provisionado ou divergente');
+      }
+      draftId = row.id;
+    } finally {
+      await sql.end({ timeout: 5 });
+    }
+
+    const providerBase = new URL(asaasBaseUrl!);
+    if (!['sandbox.asaas.com', 'api-sandbox.asaas.com'].includes(providerBase.hostname)) {
+      throw new Error('limpeza recusou Asaas fora do Sandbox');
+    }
+    const apiBase = asaasBaseUrl!.replace(/\/$/u, '');
+    const subscriptionsUrl = new URL(`${apiBase}/subscriptions`);
+    subscriptionsUrl.searchParams.set('externalReference', `signup:${draftId}`);
+    const subscriptionsResponse = await fetch(subscriptionsUrl, {
+      headers: { access_token: asaasApiKey! },
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (!subscriptionsResponse.ok) {
+      throw new Error(`readback de assinatura no Asaas respondeu ${subscriptionsResponse.status}`);
+    }
+    const subscriptions = (await subscriptionsResponse.json()) as { data?: unknown[] };
+    if (subscriptions.data?.length) throw new Error('Checkout tem assinatura; limpeza recusada');
+
+    let offset = 0;
+    while (true) {
+      const paymentsUrl = new URL(`${apiBase}/payments`);
+      paymentsUrl.searchParams.set('limit', '100');
+      paymentsUrl.searchParams.set('offset', String(offset));
+      const paymentsResponse = await fetch(paymentsUrl, {
+        headers: { access_token: asaasApiKey! },
+        signal: AbortSignal.timeout(20_000),
+      });
+      if (!paymentsResponse.ok) {
+        throw new Error(`readback de cobranças no Asaas respondeu ${paymentsResponse.status}`);
+      }
+      const payments = (await paymentsResponse.json()) as {
+        data?: Array<{ checkoutSession?: string }>;
+        hasMore?: boolean;
+      };
+      if (!Array.isArray(payments.data)) throw new Error('lista de cobranças do Asaas inválida');
+      if (payments.data.some((payment) => payment.checkoutSession === receipt.checkoutId)) {
+        throw new Error('Checkout tem cobrança; limpeza recusada');
+      }
+      if (!payments.hasMore) break;
+      offset += payments.data.length;
+      if (payments.data.length === 0) throw new Error('paginação do Asaas não avançou');
+    }
+
+    await cleanupFixture({
+      projectRef: expectedProjectRef!,
+      email: receipt.email,
+      tokenHash: receipt.tokenHash,
+    });
+    await writeFile(
+      OFFER_CHECKOUT_PATH,
+      `${JSON.stringify(
+        raw.filter(
+          (item) =>
+            item.planCode !== planCode ||
+            (item.billingCycle ?? 'monthly') !== billingCycle ||
+            (item.authAgeDays === 0) !== freshTrial,
+        ),
+        null,
+        2,
+      )}\n`,
+      { encoding: 'utf8', mode: 0o600 },
+    );
+    console.log(`PASS: Checkout vencido ${planCode} retirado sem pagamento ou tenant`);
+  });
+
+  test('@verify-offer-checkout confirma pagamento, provisionamento e acesso no Preview', async ({
+    browser,
+  }) => {
+    test.skip(process.env.E2E_SIGNUP_VERIFY_OFFER !== '1', 'verificação manual não solicitada');
+    const freshTrial = process.env.E2E_SIGNUP_FRESH_OFFER === '1';
+    const reason = skipReason();
+    if (reason) throw new Error(`guard recusou a escrita: ${reason}`);
+    const planCode = process.env.E2E_OFFER_PLAN_CODE;
+    if (planCode !== 'consultorio_2026' && planCode !== 'clinica_2026_2') {
+      throw new Error('plano de verificação não pertence aos dois Checkouts de teste');
+    }
+    const billingCycle = requestedOfferBillingCycle();
+    test.setTimeout(240_000);
+
+    const raw: unknown = JSON.parse(await readFile(OFFER_CHECKOUT_PATH, 'utf8'));
+    if (!Array.isArray(raw) || !raw.every(isOfferCheckoutReceipt)) {
+      throw new Error('recibos locais de Checkout estão ausentes ou inválidos');
+    }
+    const receipt = raw.find(
+      (item) =>
+        item.planCode === planCode &&
+        (item.billingCycle ?? 'monthly') === billingCycle &&
+        (item.authAgeDays === 0) === freshTrial,
+    );
+    if (!receipt) throw new Error('não há Checkout preparado para o plano solicitado');
+
+    const context = await browser.newContext({
+      baseURL: baseUrl!,
+      storageState: { cookies: [], origins: [] },
+    });
+    await installVercelBypassForOrigin(context, new URL(baseUrl!).origin);
+    try {
+      const page = await context.newPage();
+      await page.goto('/login');
+      await page.locator('#email').fill(receipt.email);
+      await page.getByLabel('Senha', { exact: true }).fill(receipt.password);
+      await page.getByRole('button', { name: 'Entrar', exact: true }).click();
+      await expect(page).toHaveURL(
+        /\/(?:cadastro\/(?:continuar|plano|pagamento)|dashboard)(?:\?.*)?$/u,
+        {
+          timeout: 60_000,
+        },
+      );
+
+      let provisioned = false;
+      for (let attempt = 0; attempt < 18; attempt += 1) {
+        const response = await page.evaluate(async () => {
+          const result = await fetch('/api/signup/checkout/status', { method: 'POST' });
+          return { status: result.status, body: (await result.json()) as { state?: string } };
+        });
+        if (response.status === 200) {
+          if (response.body.state !== 'provisioned')
+            throw new Error('status 200 sem tenant provisionado');
+          provisioned = true;
+          break;
+        }
+        if (response.status !== 202) {
+          throw new Error(`readback autenticado do Checkout respondeu ${response.status}`);
+        }
+        await new Promise((resolve) => setTimeout(resolve, 5_000));
+      }
+      if (!provisioned) {
+        throw new Error(
+          freshTrial
+            ? 'Asaas ainda não confirmou a contratação com trial vigente'
+            : 'Asaas ainda não confirmou o pagamento do trial vencido',
+        );
+      }
+
+      const returnResponses: string[] = [];
+      page.on('response', (response) => {
+        const path = new URL(response.url()).pathname;
+        if (
+          path === '/auth/session-refresh' ||
+          path === '/api/signup/checkout/status' ||
+          path === '/dashboard'
+        ) {
+          returnResponses.push(`${path}:${response.status()}`);
+        }
+      });
+      await page.goto('/cadastro/pagamento?resultado=success');
+      await page.waitForURL(/\/(?:dashboard|login)$/u, { timeout: 60_000 });
+      console.log(`retorno ${planCode}: ${returnResponses.join(', ')}`);
+      if (new URL(page.url()).pathname === '/login') {
+        throw new Error('Checkout provisionado, mas o retorno perdeu a sessão antes do dashboard');
+      }
+      await expect(page).toHaveURL(/\/dashboard$/u, { timeout: 60_000 });
+      const replay = await page.evaluate(async () => {
+        const result = await fetch('/api/signup/checkout/status', { method: 'POST' });
+        return { status: result.status, body: (await result.json()) as { state?: string } };
+      });
+      if (replay.status !== 200 || replay.body.state !== 'provisioned') {
+        throw new Error('replay da confirmação não foi idempotente');
+      }
+
+      const sql = postgres(databaseUrl!, { max: 1, ssl: 'require', prepare: false });
+      let subscriptionId: string;
+      let paymentId: string;
+      try {
+        const rows = await sql<
+          {
+            clinic_id: string;
+            billing_status: string;
+            clinic_status: string;
+            enforce_trial_deadline: boolean;
+            trial_ends_at: Date;
+            asaas_subscription_id: string;
+            code: string;
+            amount: string;
+            billing_cycle: string;
+            ai_config_count: number;
+            doctors: number | null;
+            staff: number | null;
+          }[]
+        >`
+          select p.clinic_id, s.billing_status, c.status as clinic_status,
+                 s.enforce_trial_deadline,
+                 s.trial_ends_at, s.asaas_subscription_id, pl.code,
+                 pr.amount::text as amount, pr.billing_cycle,
+                 (select count(*)::int from public.ai_clinic_config a
+                   where a.clinic_id = p.clinic_id) as ai_config_count,
+                 seats.doctors, seats.staff
+            from public.profiles p
+            join public.clinics c on c.id = p.clinic_id
+            join public.subscriptions s on s.clinic_id = p.clinic_id
+            join public.plans pl on pl.id = s.plan_id
+            join public.prices pr on pr.id = s.price_id
+            left join public.plan_seat_limits seats on seats.plan_id = s.plan_id
+           where p.id = ${receipt.authUserId}
+        `;
+        const row = rows[0];
+        if (
+          rows.length !== 1 ||
+          !row?.clinic_id ||
+          row.billing_status !== (freshTrial ? 'trial' : 'active') ||
+          row.clinic_status !== (freshTrial ? 'trial' : 'active') ||
+          !row.enforce_trial_deadline ||
+          row.code !== planCode ||
+          row.billing_cycle !== billingCycle ||
+          row.amount !== (receipt.priceCents / 100).toFixed(2) ||
+          row.trial_ends_at?.toISOString() !== receipt.trialEndsAt ||
+          row.ai_config_count !== 1 ||
+          row.doctors !== (planCode === 'consultorio_2026' ? 1 : 2) ||
+          row.staff !== 3 ||
+          !row.asaas_subscription_id
+        ) {
+          throw new Error('tenant, configuração, preço ou trial divergem do Checkout concluído');
+        }
+        subscriptionId = row.asaas_subscription_id;
+        const invoices = await sql<
+          {
+            status: string;
+            total_amount: string;
+            asaas_payment_id: string | null;
+          }[]
+        >`
+          select status, total_amount::text as total_amount, asaas_payment_id
+            from public.invoices where clinic_id = ${row.clinic_id}
+        `;
+        const paid = invoices.filter((invoice) => invoice.status === 'paid');
+        if (freshTrial) {
+          if (paid.length !== 0) {
+            throw new Error('conta recém-criada recebeu cobrança paga antes do fim do trial');
+          }
+        } else if (
+          paid.length !== 1 ||
+          paid[0]?.total_amount !== (receipt.priceCents / 100).toFixed(2) ||
+          !paid[0].asaas_payment_id
+        ) {
+          throw new Error('invoice paga ausente, duplicada ou com valor divergente');
+        }
+        paymentId = paid[0]?.asaas_payment_id ?? '';
+        const draft = await sql<{ count: number }[]>`
+          select count(*)::int as count from public.signup_sessions
+           where token_hash = ${receipt.tokenHash}
+        `;
+        if (draft[0]?.count !== 0) throw new Error('draft não foi consumido uma única vez');
+      } finally {
+        await sql.end({ timeout: 5 });
+      }
+
+      const providerBase = new URL(asaasBaseUrl!);
+      if (!['sandbox.asaas.com', 'api-sandbox.asaas.com'].includes(providerBase.hostname)) {
+        throw new Error('readback de assinatura recusou ambiente fora do Sandbox');
+      }
+      const providerResponse = await fetch(
+        `${asaasBaseUrl!.replace(/\/$/u, '')}/subscriptions/${encodeURIComponent(subscriptionId)}`,
+        { headers: { access_token: asaasApiKey! }, signal: AbortSignal.timeout(20_000) },
+      );
+      if (!providerResponse.ok) throw new Error(`Asaas respondeu ${providerResponse.status}`);
+      const provider = (await providerResponse.json()) as {
+        status?: string;
+        value?: number;
+        billingType?: string;
+        cycle?: string;
+        nextDueDate?: string;
+      };
+      const firstDueDate = new Date(Date.parse(receipt.trialEndsAt) + 86_400_000)
+        .toISOString()
+        .slice(0, 10);
+      if (
+        provider.status !== 'ACTIVE' ||
+        Math.round((provider.value ?? -1) * 100) !== receipt.priceCents ||
+        provider.billingType !== 'CREDIT_CARD' ||
+        provider.cycle !== (billingCycle === 'annual' ? 'YEARLY' : 'MONTHLY')
+      ) {
+        throw new Error('assinatura do Asaas diverge do plano pago no Qoro');
+      }
+      if (freshTrial) {
+        if (provider.nextDueDate !== firstDueDate) {
+          const paymentsUrl = new URL(`${asaasBaseUrl!.replace(/\/$/u, '')}/payments`);
+          paymentsUrl.searchParams.set('subscription', subscriptionId);
+          paymentsUrl.searchParams.set('limit', '100');
+          const pendingResponse = await fetch(paymentsUrl, {
+            headers: { access_token: asaasApiKey! },
+            signal: AbortSignal.timeout(20_000),
+          });
+          if (!pendingResponse.ok) {
+            throw new Error(`readback da primeira parcela respondeu ${pendingResponse.status}`);
+          }
+          const pendingBody = (await pendingResponse.json()) as {
+            data?: Array<{ dueDate?: string; status?: string; value?: number }>;
+          };
+          const matching = pendingBody.data?.filter(
+            (payment) =>
+              payment.dueDate === firstDueDate &&
+              payment.status === 'PENDING' &&
+              Math.round((payment.value ?? -1) * 100) === receipt.priceCents,
+          );
+          if (matching?.length !== 1) {
+            throw new Error('primeira parcela futura do trial não corresponde ao contrato');
+          }
+        }
+        console.log(`PASS: ${planCode} criado com trial vigente, limites e Asaas conciliados`);
+        return;
+      }
+      const paymentResponse = await fetch(
+        `${asaasBaseUrl!.replace(/\/$/u, '')}/payments/${encodeURIComponent(paymentId)}`,
+        { headers: { access_token: asaasApiKey! }, signal: AbortSignal.timeout(20_000) },
+      );
+      if (!paymentResponse.ok)
+        throw new Error(`cobrança no Asaas respondeu ${paymentResponse.status}`);
+      const payment = (await paymentResponse.json()) as {
+        status?: string;
+        value?: number;
+        subscription?: string;
+        checkoutSession?: string;
+      };
+      if (
+        !['CONFIRMED', 'RECEIVED'].includes(payment.status ?? '') ||
+        payment.subscription !== subscriptionId ||
+        payment.checkoutSession !== receipt.checkoutId ||
+        Math.round((payment.value ?? -1) * 100) !== receipt.priceCents
+      ) {
+        throw new Error('pagamento no Asaas não corresponde à invoice paga no Qoro');
+      }
+      console.log(`PASS: ${planCode} pago e provisionado, invoice e Asaas conciliados`);
+    } finally {
+      await context.close();
     }
   });
 
@@ -1343,8 +2095,8 @@ test.describe('cadastro — confirmação real via Resend', () => {
       context = await browser.newContext({
         baseURL: baseUrl!,
         storageState: { cookies: [], origins: [] },
-        extraHTTPHeaders: vercelBypassHeaders(),
       });
+      await installVercelBypassForOrigin(context, new URL(baseUrl!).origin);
       const page = await context.newPage();
       await page.goto('/login');
       await page.locator('#email').fill(email);
@@ -1664,8 +2416,8 @@ test.describe('cadastro — confirmação real via Resend', () => {
         ...devices['iPhone 13'],
         baseURL: baseUrl!,
         storageState: { cookies: [], origins: [] },
-        extraHTTPHeaders: vercelBypassHeaders(),
       });
+      await installVercelBypassForOrigin(oldPhone, new URL(baseUrl!).origin);
       const expired = await oldPhone.newPage();
       try {
         await expired.goto(oldProof.url);

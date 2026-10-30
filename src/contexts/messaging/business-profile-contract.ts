@@ -193,7 +193,7 @@ export const PerfilWhatsappSchema = z
       message: `Sites: no máximo ${PERFIL_LIMITES.websites}.`,
     }),
     vertical: z.enum(PERFIL_VERTICALS, {
-      errorMap: () => ({ message: 'Categoria: valor fora da lista aceita pela Meta.' }),
+      error: 'Categoria: valor fora da lista aceita pela Meta.',
     }),
   })
   .strict()

@@ -4,6 +4,7 @@
  *
  * QORO_ENV_FILE=<arquivo local> APP_BASE_URL=<Preview HTTPS> \
  * SAAS_POST_TRIAL_E2E=ALLOW_DEV_SANDBOX \
+ * SAAS_POST_TRIAL_OFFER=2026 (opcional; default legacy) \
  * npx tsx --conditions=react-server scripts/asaas-post-trial-preview-e2e.ts
  */
 import { config } from 'dotenv';
@@ -12,6 +13,8 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { sql } from 'drizzle-orm';
 import { z } from 'zod';
 
+import { assertPreviewRuntimeIsDev } from '../e2e/preview-dev-runtime';
+
 config({ path: process.env.QORO_ENV_FILE ?? '.env.local' });
 
 const databaseUrl = process.env.DATABASE_URL_DEV;
@@ -19,6 +22,14 @@ const apiKey = process.env.ASAAS_API_KEY_DEV;
 const baseUrl = process.env.ASAAS_BASE_URL_DEV;
 const webhookToken = process.env.ASAAS_WEBHOOK_TOKEN_DEV;
 const bypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+const offerMode = process.env.SAAS_POST_TRIAL_OFFER ?? 'legacy';
+if (offerMode !== 'legacy' && offerMode !== '2026') {
+  throw new Error('SAAS_POST_TRIAL_OFFER deve ser legacy ou 2026');
+}
+const offer2026 = offerMode === '2026';
+const expectedPlanCode = offer2026 ? 'consultorio_2026' : 'solo';
+const expectedAmount = offer2026 ? 197 : 149;
+const trialDays = offer2026 ? 14 : 7;
 const preview = new URL(process.env.APP_BASE_URL ?? 'https://invalid.example');
 if (process.env.SAAS_POST_TRIAL_E2E !== 'ALLOW_DEV_SANDBOX') {
   throw new Error('SAAS_POST_TRIAL_E2E=ALLOW_DEV_SANDBOX é obrigatório');
@@ -122,7 +133,9 @@ async function state() {
     clinic_status: string;
     billing_status: string;
     trial_ends_at: Date;
+    current_period_start: Date;
     current_period_end: Date;
+    enforce_trial_deadline: boolean;
     invoice_status: string | null;
     amount: string | null;
     period_start: Date | null;
@@ -131,7 +144,8 @@ async function state() {
     real_event_count: number;
   }>(sql`
     SELECT c.status::text AS clinic_status, s.billing_status::text AS billing_status,
-           s.trial_ends_at, s.current_period_end, i.status::text AS invoice_status,
+           s.trial_ends_at, s.current_period_start, s.current_period_end,
+           s.enforce_trial_deadline, i.status::text AS invoice_status,
            i.total_amount::text AS amount, i.period_start, i.period_end,
            (SELECT count(*)::int FROM invoices WHERE clinic_id = ${clinicId}::uuid AND asaas_payment_id = ${paymentId}) AS invoice_count,
            (SELECT count(*)::int FROM processed_webhooks WHERE clinic_id = ${clinicId}::uuid AND event_type IN ('PAYMENT_RECEIVED','PAYMENT_CONFIRMED')) AS real_event_count
@@ -144,6 +158,7 @@ async function state() {
 }
 
 async function run() {
+  await assertPreviewRuntimeIsDev(preview.origin, { requireSandboxAsaas: true });
   const preflight = await fetch(webhookUrl, {
     method: 'POST',
     headers: { 'asaas-access-token': webhookToken!, 'content-type': 'application/json' },
@@ -159,12 +174,13 @@ async function run() {
   const catalog = await dbAdmin.execute<{ plan_id: string; price_id: string; amount: string }>(sql`
     SELECT p.id::text AS plan_id, pr.id::text AS price_id, pr.amount::text AS amount
       FROM plans p JOIN prices pr ON pr.plan_id = p.id
-     WHERE p.code = 'solo' AND pr.billing_cycle = 'monthly' AND pr.active_until IS NULL
+     WHERE p.code = ${expectedPlanCode} AND p.ativo = true
+       AND pr.billing_cycle = 'monthly' AND pr.active_until IS NULL
        AND pr.campaign_code IS NULL
      ORDER BY pr.active_from DESC LIMIT 1
   `);
-  if (catalog.length !== 1 || Number(catalog[0]!.amount) !== 149)
-    throw new Error('Catálogo Solo DEV inesperado');
+  if (catalog.length !== 1 || Number(catalog[0]!.amount) !== expectedAmount)
+    throw new Error('Catálogo DEV da oferta selecionada inesperado');
 
   customerId = customerSchema.parse(
     await apiOk('customers', 'POST', {
@@ -177,11 +193,11 @@ async function run() {
     await apiOk('subscriptions', 'POST', {
       customer: customerId,
       billingType: 'PIX',
-      value: 149,
+      value: expectedAmount,
       cycle: 'MONTHLY',
       nextDueDate: dueDate,
       externalReference: `qoro-e2e-saas:${tag}`,
-      description: 'Qoro E2E mensalidade pós-trial',
+      description: `Qoro E2E mensalidade pós-trial ${offerMode}`,
     }),
   ).id;
 
@@ -201,7 +217,8 @@ async function run() {
   clinicId = await dbAdmin.transaction(async (tx) => {
     const [clinic] = await tx.execute<{ id: string }>(sql`
       INSERT INTO clinics (slug, nome, status)
-      VALUES (${clinicSlug}, 'Qoro E2E SaaS pós-trial', 'pending_payment'::clinic_status)
+      VALUES (${clinicSlug}, 'Qoro E2E SaaS pós-trial',
+              ${offer2026 ? 'active' : 'pending_payment'}::clinic_status)
       RETURNING id::text AS id
     `);
     const id = clinic?.id;
@@ -212,17 +229,45 @@ async function run() {
     `);
     await tx.execute(sql`
       INSERT INTO subscriptions (clinic_id, plan_id, price_id, billing_status,
-          trial_ends_at, current_period_start, current_period_end, asaas_subscription_id)
+          trial_ends_at, current_period_start, current_period_end, asaas_subscription_id,
+          enforce_trial_deadline)
       VALUES (${id}::uuid, ${catalog[0]!.plan_id}::uuid, ${catalog[0]!.price_id}::uuid,
           'trial'::subscription_billing_status, ${trialEndedAt}::timestamptz,
-          (${trialEndedAt}::timestamptz - interval '7 days'), ${trialEndedAt}::timestamptz,
-          ${subscriptionId})
+          (${trialEndedAt}::timestamptz - ${trialDays} * interval '1 day'),
+          ${trialEndedAt}::timestamptz, ${subscriptionId}, ${offer2026})
     `);
     return id;
   });
   const before = await state();
   if (before?.billing_status !== 'trial' || before.invoice_status !== null)
     throw new Error('Estado inicial local inesperado');
+  if (offer2026) {
+    const { assertClinicCanWriteTx, ClinicAccessError } = await import('@/lib/tenant-access');
+    const trialLength =
+      (new Date(before.trial_ends_at).getTime() - new Date(before.current_period_start).getTime()) /
+      86_400_000;
+    if (
+      trialLength !== trialDays ||
+      !before.enforce_trial_deadline ||
+      new Date(before.trial_ends_at).getTime() >= Date.now()
+    ) {
+      throw new Error('Fixture não reproduziu o prazo absoluto de 14 dias');
+    }
+    let blocked = false;
+    await dbAdmin.transaction(async (tx) => {
+      try {
+        await assertClinicCanWriteTx(tx, clinicId!);
+      } catch (error) {
+        if (!(error instanceof ClinicAccessError) || error.status !== 'pending_payment')
+          throw error;
+        blocked = true;
+      }
+    });
+    if (!blocked || before.clinic_status !== 'active') {
+      throw new Error('Trial 2026 expirado não bloqueou escrita antes do pagamento');
+    }
+    console.log('PASS DEV: trial 2026 de 14 dias expirado bloqueia escrita sem pagamento');
+  }
   console.log('PASS DEV: fixture isolada em trial encerrado, sem invoice, sem profile/paciente');
 
   const created = webhookSchema.parse(
@@ -263,9 +308,13 @@ async function run() {
   const bootstrapStatus = await postWebhook('PAYMENT_CREATED', bootstrapEvent);
   if (bootstrapStatus !== 200) throw new Error(`Bootstrap no Preview HTTP ${bootstrapStatus}`);
   const open = await state();
-  if (open?.invoice_status !== 'open' || open.invoice_count !== 1 || Number(open.amount) !== 149)
+  if (
+    open?.invoice_status !== 'open' ||
+    open.invoice_count !== 1 ||
+    Number(open.amount) !== expectedAmount
+  )
     throw new Error('Invoice inicial incorreta');
-  console.log('PASS Preview: PAYMENT_CREATED consultou Asaas e materializou invoice open R$149');
+  console.log(`PASS Preview: PAYMENT_CREATED materializou invoice open R$${expectedAmount}`);
 
   const confirm = await callApi(
     `sandbox/payment/${encodeURIComponent(paymentId)}/confirm`,
@@ -302,10 +351,15 @@ async function run() {
     paid.billing_status !== 'active' ||
     paid.clinic_status !== 'active' ||
     paid.invoice_count !== 1 ||
-    Number(paid.amount) !== 149 ||
+    Number(paid.amount) !== expectedAmount ||
     !(new Date(paid.current_period_end).getTime() > new Date(paid.trial_ends_at).getTime())
   ) {
     throw new Error('Estado pós-trial não foi ativado corretamente');
+  }
+  if (offer2026) {
+    const { assertClinicCanWriteTx } = await import('@/lib/tenant-access');
+    await dbAdmin.transaction((tx) => assertClinicCanWriteTx(tx, clinicId!));
+    console.log('PASS DEV: pagamento da oferta 2026 libera escrita após trial expirado');
   }
   console.log('PASS DEV: invoice paid única, assinatura/clinica active, ciclo avançado após trial');
 

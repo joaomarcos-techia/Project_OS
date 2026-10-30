@@ -36,7 +36,13 @@ import { runWithContext } from '@/lib/observability/context';
 import { metrics } from '@/lib/observability/metrics';
 
 import { asaasProvider, BillingProviderError, type ProviderPayment } from '@/lib/payments/asaas';
-import { applyPaidUpgradeForPayment } from '@/contexts/billing/internal/plan-changes';
+import {
+  applyPaidUpgradeForPayment,
+  prepareScheduledCycleForPaidInvoice,
+  changeIdFromExternalReference,
+  getPaidUpgradeSyncContext,
+} from '@/contexts/billing/internal/plan-changes';
+import { syncProviderPlanChange } from '@/contexts/billing/internal/plan-change-provider-sync';
 import { providerStatusToInvoiceStatus } from '@/contexts/billing/internal/provider-sync';
 import {
   ensureInvoiceForPayment,
@@ -166,6 +172,16 @@ async function handleWebhook(req: Request): Promise<Response> {
 
   // 4. dedup + resolve + processar (atômico).
   try {
+    // O pagamento avulso do rateio não altera a assinatura recorrente no Asaas.
+    // Sincroniza e relê o valor remoto ANTES de conceder o novo plano local.
+    if (
+      payment &&
+      actionFor(payment.status) === 'paid' &&
+      (changeIdFromExternalReference(payment.externalReference) || payment.checkoutSessionId)
+    ) {
+      const syncContext = await dbAdmin.transaction((tx) => getPaidUpgradeSyncContext(tx, payment));
+      if (syncContext) await syncProviderPlanChange(asaasProvider, syncContext);
+    }
     const result = await dbAdmin.transaction(async (tx) => {
       const dedup = await tx
         .insert(processedWebhooks)
@@ -197,8 +213,8 @@ async function handleWebhook(req: Request): Promise<Response> {
       }
 
       // Cobrança avulsa de upgrade: ela não possui `subscription` no Asaas, por
-      // isso precisa ser resolvida pela externalReference verificada em getPayment
-      // ANTES do caminho normal de invoices recorrentes.
+      // isso precisa ser resolvida pela externalReference ou pela sessão de
+      // Checkout verificadas em getPayment ANTES das invoices recorrentes.
       const upgradeApplied = await applyPaidUpgradeForPayment(tx, payment, parsed.eventId);
       if (upgradeApplied) {
         const [change] = await tx
@@ -255,13 +271,27 @@ async function handleWebhook(req: Request): Promise<Response> {
       const current = synced.invoice;
 
       switch (actionFor(payment.status)) {
-        case 'paid':
+        case 'paid': {
+          const cycle = current.subscriptionId
+            ? await prepareScheduledCycleForPaidInvoice(
+                tx,
+                clinicId,
+                {
+                  subscriptionId: current.subscriptionId,
+                  dueDate: current.dueDate,
+                  totalAmount: current.totalAmount,
+                },
+                payment.billingType,
+              )
+            : { deferPeriodAdvance: false };
           await markInvoicePaid(tx, clinicId, current, {
             paymentMethod: payment.billingType,
             providerPaymentId: payment.paymentId,
             idemSuffix: idem,
+            deferPeriodAdvance: cycle.deferPeriodAdvance,
           });
           break;
+        }
         case 'overdue':
           await markInvoiceOverdue(tx, clinicId, current, {
             providerPaymentId: payment.paymentId,

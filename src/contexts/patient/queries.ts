@@ -638,6 +638,20 @@ export async function getProactiveContact(
       .orderBy(desc(patientConsentDecisions.version))
       .limit(1);
 
+    const [schedulingDecision] = await tx
+      .select({ granted: patientConsentDecisions.granted })
+      .from(patientConsentDecisions)
+      .where(
+        and(
+          eq(patientConsentDecisions.patientId, patientId),
+          eq(patientConsentDecisions.clinicId, clinicId),
+          eq(patientConsentDecisions.purpose, 'agendamento_whatsapp'),
+          eq(patientConsentDecisions.channel, 'whatsapp'),
+        ),
+      )
+      .orderBy(desc(patientConsentDecisions.version))
+      .limit(1);
+
     // Fallback somente para registros anteriores à migration granular.
     const [consent] = await tx
       .select({
@@ -677,6 +691,7 @@ export async function getProactiveContact(
       nome: row.nome,
       phone,
       deceased: row.obitoEm != null,
+      agendamentoWhatsapp: schedulingDecision?.granted ?? false,
       cobrancaWhatsapp: billingDecision?.granted ?? consent?.cobrancaWhatsapp ?? false,
       consentRevoked: billingDecision ? !billingDecision.granted : consent?.revokedAt != null,
       suppressedWhatsapp,

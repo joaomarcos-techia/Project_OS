@@ -8883,3 +8883,674 @@ Caixa permanece sem PASS externo. O procedimento, resultados exatos e
 precondições de retomada estão no
 [registro de integração](quality/integracao-2026-10-09.md). A foto de perfil real
 é a etapa seguinte; a verificação empresarial pela Meta ficou para depois.
+
+## 65. Conta Pro de teste no Preview — 14/10/2026
+
+A conta Pro criada para o PR #39 foi exercitada no Preview com Auth e banco DEV
+comprovados pelo probe assinado. Um erro de estado vazio em
+`/agenda/ausencias` foi corrigido: o owner sem profissionais agora recebe o
+convite para cadastrar a equipe, enquanto usuários sem permissão continuam
+barrados. Um E2E confirmou o link para `/equipe` e que o formulário da Agenda
+desabilita agendar e criar encaixe sem procedimento. O build, lint, TypeScript
+e 5.503 testes Vitest passaram para essa correção. A rodada E2E verificou
+28 rotas autenticadas, navegação e fronteira de `/admin`, ações selecionadas de
+Configurações, validação negativa da política
+de preço e 6 cenários de revisão de repasse e configuração PIX/cartão com roles
+e tenants reais em DEV.
+O último limpou a fixture com readback sem resíduos.
+O runner real de cadastro/Resend passou 7/7: leu a mensagem enviada,
+confirmou em outro aparelho, liberou a aba pelo código, abriu Checkout Sandbox,
+retomou rascunho expirado e validou conta legada, segundo rascunho e reenvio.
+Nenhum pagamento de mensalidade ocorreu nessa suíte.
+O export contábil da clínica vazia passou 3/3 após corrigir uma asserção do
+E2E que confundia separador `CRLF` com terminador obrigatório do cabeçalho;
+nenhuma linha financeira real foi provada nesse CSV.
+
+Os totais por spec, comandos, evidências e lacunas permanecem no
+[registro de integração](quality/integracao-2026-10-09.md). Abrir uma rota não
+prova suas ações: preço PIX/cartão completo, agendamento da nova clínica,
+convites, cobrança Sandbox e eventos Meta ainda exigem provas próprias. Um
+modo Turnstile `always-pass` aceita tokens fictícios por configuração de teste;
+a recusa E2E de token inválido segue sem PASS nesta rodada.
+
+Na rodada complementar de 14/10, o mesmo Preview/DEV passou 6/6 no ciclo da
+conta de pagamentos da clínica e 6/6 na revisão de repasse. Este último agora
+prova pela UI que a política PIX/cartão exige escolha do meio e grava dois
+agendamentos com preços distintos, R$ 140 no PIX e R$ 160 no cartão 1x, com
+readback SQL e cleanup. O runner Resend de convite comprovou recebimento,
+reenvio, aceite e replay recusado. O pós-trial SaaS comprovou fatura PIX no
+Asaas Sandbox, pagamento simulado, webhook ao Preview, ativação no DEV, avanço
+do ciclo e replay idempotente, seguido de cleanup. Os comandos, limites e
+estados pendentes constam no [registro de integração](quality/integracao-2026-10-09.md).
+Ainda falta pagar um checkout de paciente com preço por meio e verificar seu
+efeito completo no financeiro; os testes de agendamento não o substituem.
+
+## 66. Prévia da oferta por profissional — 15/10/2026
+
+A proposta de Consultório/Clínica do PDF de 13/10/2026 foi codificada somente
+como simulação em Preview. A tabela, os limites, as condições ainda não
+implementadas e os gates para qualquer ativação estão em
+[precos-2026-preview.md](specs/precos-2026-preview.md). O catálogo e o checkout
+vigentes permanecem inalterados. A configuração de pagamentos passa a consultar
+as tarifas da própria conta Asaas, sem substituir a taxa efetiva conciliada
+após cada pagamento. O Preview do app está no [Draft PR #40](https://github.com/joaomarcos-techia/Project_OS/pull/40), empilhado sobre o
+PR #39; a landing equivalente está no [Draft PR #1](https://github.com/joaomarcos-techia/landing_page/pull/1). Os
+resultados por cenário, a causa do erro ao salvar duas regras, o novo editor de
+permissões e os limites de entrega ao WhatsApp do paciente constam na
+[spec financeira](specs/politica-financeira-camadas.md), seção de 15/10/2026.
+No Preview com Auth/PostgreSQL DEV, o E2E integrado passou **10/10** em uma
+execução (exit 0, 6,9 min), com cleanup de clínicas, usuários e linhas em zero.
+O E2E de leitura das tarifas da conta Sandbox conectada passou **1/1** e
+confirmou por hash que as duas regras de preço existentes não mudaram. O build
+otimizado Next 15.5.24, o TypeScript, o ESLint e a suíte Vitest integral
+(**5.529/5.529 em 529 arquivos**) passaram. A proposta de preços permanece
+somente em Preview; a entrega do link de sinal por WhatsApp nessa clínica de
+teste ainda depende de número Meta conectado, política de sinal e agendamento
+futuro, como descrito na spec financeira.
+
+## 67. Revisão da proposta comercial pelo PDF — 17/10/2026
+
+O fundador pediu que as prévias de preço sigam o PDF de 13/10/2026 quanto à
+equipe: Consultório e Clínica incluem até **3 logins de equipe** cada, sem
+cobrança por login dentro dessa cota. A hipótese intermediária de R$ 79 por
+login adicional
+e cotas 1+1/2+2 registrada na seção anterior está **revogada**. R$ 197 por
+Consultório, Clínica desde R$ 397 por dois profissionais, R$ 147 por
+profissional adicional, anual de 10 mensalidades, franquia proposta de 500
+conversas/profissional e trial proposto de 14 dias continuam em **Preview**, sem
+alterar a contratação ativa. A landing Preview usa o WhatsApp comercial
+`+55 88 99682-2198` para o contato da proposta.
+
+O cálculo e os textos atualizados estão nos Draft PRs [app #40](https://github.com/joaomarcos-techia/Project_OS/pull/40)
+e [landing #1](https://github.com/joaomarcos-techia/landing_page/pull/1).
+Os testes antigos de 10/10 e 144 combinações usavam a hipótese de R$ 79;
+não são evidência da revisão. A comparação local atual de **42/42** combinações
+app × landing passou (exit 0); ela ainda não prova os deployments externos.
+O [roteiro específico](runbooks/validacao-nova-oferta-2026-10.md)
+separa os testes ainda executáveis dos pontos bloqueados por implementação,
+integração com Asaas, medição real ou decisão comercial. A correção da troca
+de planos vigente veio do Draft PR #41 e foi incorporada nesta branch de
+integração. O round trip final Qoro → Asaas → webhook → Qoro ainda falta.
+
+Após o deploy do app `e3a5b81d`, o E2E do Preview ligado ao DEV passou **10/10**
+em 18/10/2026 02:32 UTC (exit 0, 6,9 min). A prova assinada confirmou Auth e
+banco DEV antes das escritas; o caso 10 verificou a cota de equipe da nova
+prévia e ausência de checkout, e a limpeza terminou com zero clínicas,
+usuários e linhas de fixture. Os checks remotos dos dois PRs passaram. A
+landing externa continua **NOT TESTED funcionalmente** porque o GET foi
+redirecionado ao SSO da Vercel; o Chromium local e o deployment Ready não
+substituem essa prova.
+
+## 68. Sincronização da troca de plano com o Asaas — 17/10/2026
+
+Foi encontrada divergência financeira na assinatura SaaS: o upgrade pago mudava
+o plano local sem mudar a recorrência no Asaas; o downgrade mudava a recorrência,
+mas podia deixar uma cobrança já emitida para o novo ciclo com o preço antigo.
+A correção exige releitura da assinatura e das cobranças do novo ciclo antes de
+aplicar o plano local. Dívidas de ciclos anteriores e cobranças já pagas não são
+apagadas nem reprecificadas automaticamente. O cron retoma upgrades pagos sem
+webhook. Também foram alinhadas a capacidade de usuários do downgrade e a
+preservação de descontos de campanha na tela e no servidor.
+
+O desenho, os testes, a prova isolada no Asaas Sandbox, os limites externos e o
+procedimento de rollout estão no [registro da troca de plano](quality/asaas-plan-change-2026-10-17.md).
+Essa prova do provider não equivale ao round trip completo de uma clínica Qoro
+em Preview; a publicação deve manter essa distinção.
+
+Na branch isolada `integration/pricing-plan-sync-20261018`, que reúne os Draft
+PRs #40 e #41 sem alterar a `main`, foram medidos em 18/10/2026: TypeScript,
+ESLint e build Next isolado com exit 0; Vitest **5.518/5.518 em 528 arquivos**;
+testes dirigidos de billing **152/152 em 7 arquivos** antes de acrescentar
+uma regressão para parcela concorrente (**7/7** no spec afetado); inventário de segurança
+regenerado para o código combinado. O probe do banco DEV confirmou a migration
+0121, duas escritas de preço por meio recusadas por `CHECK 23514` e nenhum
+resíduo ativo. O [roteiro de fechamento](runbooks/validacao-nova-oferta-2026-10.md)
+mantém o round trip externo de troca de plano como pendente; estes verdes
+locais não o substituem. O [registro do E2E no Preview integrado](quality/preview-pricing-integration-e2e-2026-10-18.md)
+preserva quatro tentativas parciais, as correções do spec e o resultado final
+**10/10, exit 0, cleanup 0/0/0** em 18/10/2026 às 17:36 UTC. Esse E2E cobre
+a prévia comercial e o financeiro existente; não exerce a troca de plano SaaS
+com webhook real.
+
+## 69. Catálogo da oferta nova durante Checkout — 19/10/2026
+
+A reserva do cadastro lia o preço vigente, mas o retorno do Checkout o lia de
+novo. Se o catálogo mudasse enquanto o pagador estava no Asaas, a assinatura
+poderia ser paga e recusada no provisionamento. A conferência de centavos antes
+de criar a clínica já falhava fechada; as migrations 0125–0126 agora impedem
+alteração/desativação/exclusão do preço ou plano da oferta 2026 enquanto houver
+tentativa pendente. A 0125 apresentou `42703` no primeiro ensaio DEV; a 0126
+corrigiu o trigger. O ensaio repetido bloqueou quatro mutações com `23514`,
+aceitou alterações após remover a reserva e fez rollback integral, com zero
+resíduo. Esta prova é apenas de banco DEV. O
+[roteiro da nova oferta](runbooks/validacao-nova-oferta-2026-10.md)
+registra a evidência e os bloqueios de Checkout, anual e médico extra; naquele
+checkpoint os planos ainda estavam inativos. A ativação posterior no DEV está
+no §71. Os PRs continuam draft.
+
+## 70. Fim absoluto do trial na escolha do plano — 19/10/2026
+
+Para a oferta 2026, a tela de cadastro passou a mostrar a data e hora em que
+terminam os 14 dias contados desde a criação do usuário Auth. O servidor lê o
+mesmo `created_at` usado na reserva do Checkout e devolve o prazo à UI; o
+navegador não escolhe nem reinicia o relógio. A mensagem explica que, depois
+desse horário, a clínica exige pagamento confirmado. Os planos legados
+continuam mostrando sete dias a partir da ativação e não dependem dessa leitura
+extra do Auth. Os **79/79 testes dirigidos** de draft, rota e UI e a regressão
+integral **5.578/5.578** passaram; TypeScript, ESLint e build otimizado também.
+A comparação com conta Auth real, Checkout Sandbox e vencimento segue no
+[roteiro da nova oferta](runbooks/validacao-nova-oferta-2026-10.md).
+
+## 71. Dois planos no cadastro do Preview — 20/10/2026
+
+O Draft PR #42 (`integration/pricing-plan-sync-20261018`) agora mostra somente
+Consultório R$ 197/mês e Clínica R$ 397/mês quando esses planos versionados
+estão ativos, e a API recusa a seleção direta de Solo/Clínica/Pro legados nessa
+condição. Contratos existentes continuam com seus preços e códigos. O catálogo
+novo informa 14 dias desde a criação no Auth; contas novas foram verificadas
+com Resend e Checkout recorrente real no Asaas Sandbox. O banco DEV recebeu
+somente a ativação dos **dois planos de entrada**; os códigos de médicos extras
+continuam inativos, e produção não recebeu ativação ou migration nesta etapa.
+
+Dois Checkouts de identidades sintéticas com trial envelhecido 15 dias no DEV
+foram preparados e pagos manualmente no Asaas Sandbox, um por plano. A preparação
+passou **2/2**; uma conta Auth recém-criada passou **1/1**, com trial absoluto de
+14 dias e limpeza da fixture. Após o pagamento, `@verify-offer-checkout` passou
+**1/1 por plano** no Preview: confirmação autenticada, retorno ao dashboard,
+tenant, assinatura ativa e invoice paga com valores R$ 197/R$ 397 conferidos no
+banco DEV e no Asaas, e replay sem segunda invoice. Houve duas tentativas em que
+o retorno terminou em `/login` após o provisionamento. O código permitia esse
+resultado quando um segundo polling recebia 401 do JWT pré-tenant, ainda sem as
+claims da clínica recém-criada. A tela agora tenta renovar a sessão nesse caso;
+403 continua bloqueado. Essa correção passou nos testes dirigidos, mas a
+transição com JWT antigo ainda precisa de nova prova externa. A primeira
+tentativa de verificação do Consultório também teve um defeito no teste (requisição
+sem `Origin`, HTTP 403), corrigido antes da medição. Esses PASS **não** provam
+entrega automática do webhook, renovação futura nem o fluxo de uma conta com
+trial ainda vigente. A regressão final após a correção passou **5.584/5.584 em
+531 arquivos**, com TypeScript, ESLint, Prettier e build otimizado (19 páginas
+estáticas) em exit 0. Após o deploy do PR #42, os dois readbacks autenticados
+foram repetidos no Preview e passaram; Vercel, Snyk e Semgrep ficaram verdes. O
+[roteiro de validação](runbooks/validacao-nova-oferta-2026-10.md) registra a
+evidência e os bloqueios restantes de anual, franquia de IA, compra de médico
+adicional e rota humana recém-criada. O PR e a landing seguem em Preview, sem
+publicação da nova tabela em produção.
+
+## 72. Revalidação autônoma do candidato — 21/10/2026
+
+No Draft PR #42, a regressão integral passou **5.584/5.584 em 531 arquivos**;
+TypeScript, ESLint, build otimizado, gates de migração/arquitetura/observabilidade,
+isolamento tenant e inventário de ações passaram. No Chromium contra o Preview,
+a superfície pública passou **9/9** e a sessão de cadastro teve **8 PASS e 2
+SKIP condicionais de Turnstile**. O gate local de sessão HttpOnly falhou primeiro
+por usar HTTP com a regra HTTPS de produção e depois por um redirect à porta
+interna do harness; preservada a regra do produto e corrigido o ambiente TLS
+local, a execução final passou **7/7**. `security:http` e a inspeção do bundle
+também passaram no mesmo build.
+
+A suíte financeira integrada foi reexecutada no Preview/DEV do candidato atual:
+**10/10 PASS** em 5,6 min, incluindo estorno e revisão de repasse, negativas por
+papel/tenant, consentimentos, regras múltiplas, permissões em lote e limites da
+proposta. O readback de limpeza confirmou **zero clínicas, usuários e linhas**
+de fixture restantes. Esta suíte não compra a nova oferta nem prova a recorrência.
+
+O probe DEV de trial foi atualizado após os dois Checkouts pagos: confirmou **2/2
+assinaturas da oferta com prazo estrito e 6 contratos legados sem mudança**. Não
+houve nova cobrança ou migration nesta rodada. O Playwright lista **159 casos em
+70 arquivos**; listagem não é execução. A matriz com comandos, falhas iniciais,
+limites de evidência e pendências está em
+[validação autônoma de 21/10](quality/validacao-autonoma-2026-10-21.md).
+
+Na continuação da mesma rodada, o O-7 autenticado expôs dois defeitos reais do
+tour voluntário: iniciar não abria a janela apesar de persistir `in_progress`, e
+“Pular” fechava a janela antes de persistir `skipped`, permitindo reabertura no
+reload. As duas tentativas intermediárias ficaram em **3 PASS/2 FAIL**. Após
+correções separadas, o spec passou **5/5 no Preview** do commit `9e4a5279`:
+dashboard, Ajuda, 404, início/pulo persistente e convergência de duas abas. A
+conta de teste no DEV foi restaurada de `skipped`/versão 10 para
+`not_started`/versão 11 por guarda exata. A regressão final passou
+**5.589/5.589 em 531 arquivos**, além de TypeScript, ESLint, Prettier, build,
+gate HttpOnly **7/7**, HTTP de actions e inspeção do bundle. Isso não transforma
+os dois skips de Turnstile ou os 159 casos apenas listados em PASS.
+
+Uma varredura autenticada adicional no mesmo Preview visitou **28 rotas
+estáticas** do shell: todas responderam HTTP 200 e renderizaram o título
+esperado, **1/1 teste PASS**. A primeira prova de deep-links terminou exit 1
+por falta de conversa na conta de teste; o paciente havia aberto. Uma conversa
+e mensagem sintéticas, sem evento nem envio, foram criadas apenas no DEV para
+essa conta. A repetição abriu paciente e conversa, **1/1 PASS**, seguida de
+cleanup por ID/tenant exatos e readback de **zero conversa**. O teste não foi
+afrouxado para aceitar o estado vazio.
+
+Como linha de base separada do candidato, a fronteira sem login de
+`app.qoro.dev` passou **2 testes e teve 1 SKIP**: 28 rotas estáticas e cinco
+deep-links clínicos redirecionaram ao login com os headers esperados; não havia
+conversa de produção para o terceiro caso. Na landing do Draft PR #1,
+TypeScript, ESLint, gate da proposta e build completo passaram: 54 rotas,
+ponte **27/27**, conversão **2/2** e 20 checks de segurança. A prévia externa de
+`/precos-preview` ainda respondeu **302 para o SSO da Vercel**, mesmo com o
+bypass disponível para o app; não foi classificada como prova visual da landing.
+
+## 73. Reteste de repasses e catálogo de assentos no Preview — 22/10/2026
+
+O Preview do commit `b04c8413` fechou a regressão do relatório mensal: a suíte
+`e2e/payout-review-preview.spec.ts` passou **11/11** após a correção que exige
+`manage:financial` para o consolidado e limita o médico ao próprio repasse.
+O atendente não viu o link nem a rota direta; outra clínica não recebeu linhas.
+Na repetição com mais um caso para a oferta, o mesmo spec passou **12/12 em
+5,7 min**, exit 0, com readback final de **zero clínicas, usuários Auth e linhas
+de fixture**. A prova de assentos usou assinatura sintética sem provider: a UI
+mostrou Clínica de 2 a 5 médicos, até três logins de equipe e R$ 397/544/691/838
+por mês; não iniciou Checkout.
+
+As variantes de 3–5 médicos foram ativadas por guarda e readback **somente no
+banco DEV**. A compra paga do adicional, o ciclo anual, a contagem/aviso
+comercial de 500 conversas de IA, a recusa Turnstile num Preview isolado e a
+inspeção externa da landing ainda não têm PASS. O primeiro run do caso novo
+falhou por seletor que incluía também o resumo do plano atual; a correção do
+teste manteve asserções e a repetição passou. O relatório detalhado, inclusive
+as tentativas falhas e os limites, está em
+[validação autônoma de 21–22/10](quality/validacao-autonoma-2026-10-21.md).
+Produção e o contrato de desconto vitalício não foram alterados.
+
+## 74. Referência mensal de conversas de IA — 22/10/2026
+
+Na branch isolada de integração da oferta, o consumer de `ai_agent.conversation.completed`
+passou a contar apenas respostas `replied`, por paciente identificado ou hash de
+telefone quando a identidade ainda é anônima. O mesmo sujeito consome uma unidade
+por janela móvel de 24 horas, inclusive entre meses; replay do mesmo evento usa
+marcador idempotente e respostas simultâneas são serializadas por locks do
+Postgres. O contador mensal em `usage_metrics` é informativo: 500 por médico da
+cota do plano 2026. Nos cruzamentos de 80% e 100%, o outbox solicita e-mail
+idempotente aos titulares, e `/configuracoes/assinatura` mostra aviso. Não há
+cobrança automática de excedente nem bloqueio comercial. O circuito técnico de
+custo de IA continua independente e pode levar a fallback.
+
+Uma recusa síncrona da Meta também pode ser devolvida como `status=failed`, sem
+exceção. A revisão encontrou que esse caso antes ainda terminava com `replied`;
+agora somente um status `accepted`, `sent`, `delivered` ou `read` preserva esse
+outcome e consome a referência. `pending`, `unknown` e `failed` não contam.
+Aceite do provedor não prova entrega final, que permanece pendente de callback.
+
+`scripts/smoke-ai-usage-preview-dev.ts` passou com **10 asserções** no PostgreSQL
+DEV e entrega/leitura do aviso no inbox Resend de teste, seguido de exclusão e
+readback zerado da fixture sintética. Um run anterior descobriu que o driver
+devolvia `now()` como string; o handler foi corrigido antes da repetição. Os
+testes dirigidos passaram **51/51** antes da correção do produtor e **44/44**
+após ela. O Preview do commit `8f4cf626` passou **1/1** no caso isolado e
+**12/12** na suíte integrada, exit 0: a assinatura exibiu 799 usos sem alerta,
+800 com aviso de 80% e 1.000 com aviso de 100%, sem iniciar compra. A prova
+assinada confirmou Auth e banco DEV antes da fixture; o cleanup relido mostrou
+zero clínicas, usuários e linhas residuais. Isso ainda **não** é prova de
+mensagem real Meta → IA → consumer nem de execução do cron de Preview. O
+período é o mês civil UTC e um evento atrasado entra no mês em que é
+processado. A [matriz de evidências](quality/validacao-autonoma-2026-10-21.md)
+separa essa prova DEV das etapas externas pendentes. Nenhum dado ou contrato de
+produção foi alterado.
+
+A regressão integral após o novo código e a correção do produtor passou
+**5.628/5.628 em 535 arquivos**, exit 0. O build Next 15.5.24 também passou
+com exit 0 e gerou 19 páginas estáticas. A validação externa permanece
+prova separada.
+
+**Ampliação da prova DEV em 22/10:** o smoke foi repetido com **14 asserções**,
+exit 0, incluindo dois pacientes conhecidos no mesmo telefone, um paciente em
+dois números e a identificação posterior de um contato anônimo. O banco permite
+apenas uma conversa ativa por telefone; a primeira conversa foi encerrada antes
+de iniciar a segunda. Os dois pacientes conhecidos contaram separadamente,
+enquanto o mesmo paciente e a identificação posterior não duplicaram a janela
+de 24 horas. A hipótese inicial de que o telefone compartilhado suprimia um
+paciente conhecido foi **refutada** pela medição; não houve correção de produto.
+O aviso de 80% foi novamente recebido/lido no inbox Resend de teste e o
+readback da fixture terminou com zero resíduo. TypeScript de scripts, ESLint e
+Prettier do runner passaram. Isto continua sem provar uma mensagem real da Meta.
+
+## 75. Aviso de IA após comprar médico adicional — 22/10/2026
+
+O evento de 80% usava a chave `clínica:mês:percentual`, mas o payload também
+inclui o limite. Numa clínica que chegou a 400/500, passou a contratar dois
+médicos e depois chegou a 800/1000 no mesmo mês, o segundo evento reutilizava a chave com
+outro payload. A prova no PostgreSQL DEV reproduziu `outbox.key_collision`,
+exit 1: a transação do consumer voltava atrás, de modo que a resposta aceita da
+IA podia ficar presa em retry sem contabilização. A fixture foi limpa e o
+readback mostrou zero resíduo.
+
+O limite vigente passou a integrar a chave do evento e a chave idempotente do
+e-mail no Resend. A repetição no DEV passou **17/17 asserções**, exit 0: avisos
+distintos para 400/500 e 800/1000 foram enfileirados, enviados e lidos no
+inbox de teste; cleanup da clínica, ledger e outbox terminou em zero. Os testes
+dirigidos do consumer e da entrega passaram **19/19**. A regressão integral
+passou **5.629/5.629 testes em 535 arquivos**, exit 0; TypeScript do app e dos
+scripts, ESLint, Prettier dos arquivos alterados e `git diff --check` passaram.
+O build Next isolado terminou com exit 0 e gerou **19/19 páginas estáticas**.
+Esta prova usa uma troca de plano sintética no DEV, não uma compra Asaas; a compra paga do médico extra
+continua pendente de E2E separado.
+
+O runner passou a publicar também um `ai_agent.conversation.completed` real no
+outbox e a processá-lo pelo worker selecionado, sem tocar eventos de outras
+clínicas. A execução final passou **22/22 asserções**, exit 0: evento em
+`processed`, contador atualizado uma vez, replay sem novo consumo, dois avisos
+de 80% recebidos no inbox Resend e cleanup com zero resíduos. Isso estende a
+prova até o worker DEV, mas não inclui uma mensagem real da Meta nem o modelo.
+
+Com o commit `c83516fe` publicado no Preview, a suíte
+`e2e/payout-review-preview.spec.ts` foi repetida: **12/12 PASS**, exit 0,
+5,8 min, prova assinada de Auth/banco DEV e artefatos autenticados desativados.
+O caso de cotas mostrou 2–5 médicos e avisos de IA com contagem semeada; o
+readback final da fixture registrou **0 clínicas, 0 usuários, 0 linhas**. Esta é
+regressão da UI no Preview, não compra paga de assento ou fluxo Meta real.
+
+## 76. Prova isolada da troca de ciclo no Asaas Sandbox — 23/10/2026
+
+O cliente Asaas passou a aceitar `cycle` opcional em `updateSubscription`; isso
+ainda não disponibiliza a contratação anual na UI nem altera uma assinatura Qoro.
+Com `SANDBOX_CYCLE_PROBE=1`, a fixture de `scripts/security/subscription-plan-change-sandbox.ts`
+criou uma assinatura **BOLETO não paga**, com vencimento futuro, no host oficial
+do Sandbox. Depois dos controles de upgrade, downgrade e médico adicional,
+alterou **mensal R$ 397 → anual R$ 3.970 → mensal R$ 397** na mesma assinatura.
+Em ambas as trocas, `getSubscription` confirmou ciclo e valor, e a listagem das
+cobranças confirmou o valor e o vencimento da parcela pendente. Comando Node
+com `--conditions=react-server`, ambiente carregado apenas no processo e
+`SANDBOX_CONFIRM=ASAAS_SANDBOX_ONLY`: **exit 0**, sem token no relatório. O
+cleanup cancelou a parcela, a assinatura e o cliente sintéticos, com readback
+de zero parcelas em aberto. O teste unitário do cliente Asaas passou **58/58**;
+os typechecks do app e dos scripts passaram.
+
+Após a alteração, a regressão integral passou **5.630/5.630 em 535 arquivos**;
+ESLint integral, Prettier dos arquivos alterados e `git diff --check` tiveram
+exit 0. O build Next otimizado terminou com exit 0 e **19/19 páginas estáticas**.
+
+Este PASS é **somente do provedor**. A regra aprovada de troca no próximo
+vencimento, sem rateio, ainda precisa de reserva local, reconciliação diante de
+webhook/cron concorrentes, UI, renovação e E2E Preview/DEV. Nenhum valor, ciclo
+ou contrato de produção foi alterado.
+
+## 77. Trial de 14 dias encerrado e mensalidade no Preview — 23/10/2026
+
+O runner `scripts/asaas-post-trial-preview-e2e.ts` ganhou o modo explícito
+`SAAS_POST_TRIAL_OFFER=2026`, preservando o caso legado como default. Após a
+prova assinada de que o Preview usa Auth/PostgreSQL DEV, cria somente clínica,
+assinatura, customer, cobrança e webhook temporários identificados da fixture.
+O contrato **Consultório 2026, R$ 197/mês** foi gravado em trial com início e
+fim separados por **14 dias exatos**; o fim foi colocado um dia no passado
+apenas nesta fixture para simular o decurso. A clínica tinha status `active`,
+mas `assertClinicCanWriteTx` recusou escrita como `pending_payment` por causa
+de `enforce_trial_deadline=true`. Não houve usuário ou paciente real.
+
+O Asaas Sandbox gerou a parcela PIX pendente e a simulação oficial confirmou o
+pagamento. Um webhook **real do provedor** chegou ao Preview; o readback no DEV
+encontrou uma única invoice `paid`, assinatura e clínica ativas, novo período
+posterior ao trial e escrita liberada. Replay autenticado não duplicou invoice
+nem avançou o ciclo outra vez. A repetição final do runner terminou em
+**PASS, exit 0, 23/10/2026 ~09:54 UTC**. O cleanup apagou webhook, assinatura e
+customer do Sandbox (readback `404`/`deleted=true`) e a clínica DEV (zero
+resíduo). A primeira execução também passou; a segunda acrescentou a asserção
+do intervalo exato de 14 dias.
+
+Este E2E comprova vencimento **simulado por fixture**, cobrança e recuperação
+integrados. Não observou 14 dias de relógio real nem percorreu Auth/cadastro e
+retorno de Checkout pela UI; essas provas continuam separadas e não devem ser
+marcadas PASS por esta execução.
+
+## 78. Terceiro médico pago no Preview — 23/10/2026
+
+O novo `e2e/extra-doctor-payment-preview.spec.ts` exige opt-in explícito,
+Preview HTTPS e prova assinada de que Auth e PostgreSQL são do projeto DEV; a
+chave e o host do Asaas precisam ser do Sandbox. A fixture cria seu próprio
+titular Auth, clínica ativa com **Clínica · 2 médicos** a R$ 397/mês, customer,
+assinatura PIX com parcela futura e webhook temporário. Nenhum contrato real é
+usado. A pessoa sintética entra pela UI do Qoro e clica em **Contratar +1 médico**.
+O teste compara o rateio persistido com a cobrança criada no Asaas antes de
+simular o pagamento pelo endpoint oficial do Sandbox.
+
+No Preview do commit `20c05ae1`, a execução final foi **1/1 PASS, exit 0,
+40,1 s de teste**. Um evento pago **realmente entregue pelo webhook do provider**
+aplicou a alteração: uma solicitação, uma invoice paga, um registro de histórico,
+plano `clinica_2026_3`, cota de três médicos e R$ 544/mês no banco. O readback do
+Asaas mostrou recorrência e parcela futura a R$ 544. O link **“Já pagou?
+Atualizar assinatura”** renovou as claims da sessão antiga e a tela passou a
+mostrar o preço novo. Reenviar o evento autenticado manteve esses contadores em
+um; webhook, assinatura, customer e clínica/usuário de teste foram removidos com
+readback de **zero resíduos DEV**.
+
+As três tentativas anteriores não viram PASS retrospectivo. A primeira falhou
+num seletor ambíguo para o aviso da cobrança; a segunda chegou ao pagamento,
+mas um reload com JWT antigo foi mandado ao login pela revogação normal de
+`claims_version`; a terceira comprovou o link de renovação e a tela com R$ 544,
+mas outro seletor ambíguo para o mesmo preço em dois locais falhou. Cada fixture
+foi limpa e os seletores foram corrigidos. A proteção de epoch não foi relaxada.
+
+**Limite:** o teste usou a seleção de PIX pela API e a confirmação oficial do
+Sandbox, não o Checkout hospedado com reCAPTCHA e ação humana. Também não cobriu
+pagamento recusado, remoção do médico ao fim do ciclo, contratação anual nem a
+jornada de um cliente em produção. Esses estados continuam independentes da
+prova positiva acima.
+
+Uma segunda execução do mesmo E2E em 23/10 passou **1/1, exit 0, 52,9 s de
+teste**. Antes da confirmação oficial, o teste enviou uma notificação
+autenticada que alegava `PAYMENT_RECEIVED` para a cobrança ainda `PENDING` no
+Asaas. O webhook respondeu 200, mas readback do DEV manteve plano de dois
+médicos, alteração `pending_payment`, nenhuma invoice paga e nenhum histórico
+de upgrade. Só o pagamento confirmado pelo Sandbox liberou a terceira vaga;
+replay permaneceu idempotente e o cleanup terminou sem resíduos DEV.
+
+A guarda adicional que exige `PENDING` no readback do Asaas passou na terceira
+execução **1/1, exit 0, 41,1 s de teste**, também com cleanup zero.
+
+Na quarta execução, **1/1 PASS, exit 0, 47,8 s de teste**, o titular pediu pela
+UI a volta de três para dois médicos depois do upgrade pago. O DEV registrou
+uma segunda alteração `scheduled`, enquanto plano, cota e preço local ficaram
+em três médicos/R$ 544 e o Asaas continuou recorrendo R$ 544 antes do
+vencimento. Cleanup zero. Isto prova **agendamento sem redução antecipada**;
+não prova a aplicação pelo cron no dia devido nem a parcela posterior a R$ 397.
+
+Em 23/10, a extensão do mesmo E2E passou **1/1, exit 0, 1,5 min de teste**:
+depois do upgrade pago e downgrade agendado pela UI, um runner com guardas de
+fixture, projeto DEV e Asaas Sandbox sincronizou somente aquela assinatura
+para R$ 397 e chamou `applyScheduledPlanChange` com o instante devido
+simulado. Readback: alteração `applied`, plano de dois médicos, cota de dois e
+R$ 397 no DEV, recorrência de R$ 397 no Asaas, tela autenticada em R$ 397 após
+refresh; teardown sem resíduos. A sincronização inclui as parcelas já emitidas
+do ciclo-alvo e revalida valores no provider. Isso **não** prova que o cron
+global será disparado automaticamente no dia devido, nem que um mês real
+decorreu. As duas tentativas anteriores falharam no runner (ambiente não
+carregado e timestamp SQL tratado como `Date`); ambas limparam a fixture.
+
+**Recuperação ainda aberta para remoção permanente:** uma cobrança proporcional
+removida no Asaas tem sua invoice cancelada no Qoro, mas a alteração pode
+continuar `pending_payment`, impedindo outra troca. Não se deve simplesmente
+cancelar a alteração nesse webhook: [o Asaas permite restaurar a mesma cobrança
+pelo ID original](https://docs.asaas.com/reference/restaurar-cobranca-removida),
+que pode ser paga depois. A execução anterior não removeu/restaurou a fixture;
+a prova seguinte cobriu essa restauração, mas ainda não a liberação segura da
+reserva quando a cobrança nunca volta.
+
+Em 23/10 ~11:12 UTC, uma nova execução do E2E apagou e restaurou **a mesma**
+cobrança proporcional criada pela fixture. Os eventos reais do Asaas Sandbox
+levaram a invoice `open → cancelled → open`; durante a remoção, a alteração
+ficou `pending_payment`, sem conceder vaga. O readback após restauração mostrou
+`PENDING` no Asaas. Confirmação oficial posterior, replay e downgrade no tempo
+simulado passaram **1/1, exit 0, 1,7 min de teste**, com cleanup zero. O caso
+em que a cobrança **nunca** é restaurada permanece aberto: a alteração pode
+continuar ocupando a reserva indefinidamente. Não há cancelamento automático
+seguro no primeiro `PAYMENT_DELETED`, pois o provider aceita restauração
+posterior e pagamento pelo mesmo ID.
+
+## 79. Cadastro anual por cartão no candidato 2026 — 23/10/2026
+
+**Decisão comercial:** a contratação anual equivale a dez mensalidades e, nesta
+primeira etapa, usa somente cartão; Pix anual será estudado depois. Para um
+contrato já ativo, a troca mensal↔anual deve valer no próximo vencimento, sem
+acerto proporcional. Esta segunda operação **ainda não foi implementada** e não
+deve ser inferida do checkout inicial.
+
+Na branch isolada `integration/pricing-plan-sync-20261018`, o catálogo de
+cadastro oferece mensal/anual para os dois planos de entrada 2026. A escolha
+passa por schema estrito e fica no draft como
+`signup_sessions.selected_billing_cycle`. O preço é lido no banco, não no
+browser; o legado só aceita mensal. A migration `0128_signup_billing_cycle.sql`
+cria a coluna `text NOT NULL DEFAULT 'monthly'` com CHECK fechado. A reserva,
+o Checkout hospedado, a reconciliação e o provisionamento usam o mesmo ciclo.
+No anual, o Checkout Asaas envia `YEARLY`, e o readback exige ciclo, valor,
+customer, cartão e vencimento coerentes. Se os 14 dias absolutos desde o Auth
+já terminaram, a clínica só é liberada depois do pagamento confirmado. Uma
+retomada com pagamento pendente exibe a tela de verificação, sem abrir outro
+Checkout por engano.
+
+**Ambientes:** a migration 0128 foi aplicada apenas no banco DEV. O probe
+guardado por project ref confirmou `_schema_version` e journal em 129/129,
+default mensal e CHECK válido, exit 0. A suite local, tipos, lint, build,
+Postgres descartável e E2E externo estão detalhados no
+[relatório de validação](quality/validacao-autonoma-2026-10-21.md) e no
+[roteiro humano](runbooks/acoes-manuais-pendentes-pricing-2026-10.md). O teste
+Playwright de preparação agora verifica código, ciclo e valor no catálogo e no
+draft; após pagamento, foi preparado para comparar assinatura/invoice no DEV
+e ciclo/valor/pagamento no Asaas. **Ter teste preparado não é PASS externo:**
+a jornada anual no Preview, o webhook de pagamento e a renovação ainda exigem
+execução. A landing e o app permanecem em Preview; não houve rollout da nova
+oferta em produção.
+
+**Checkpoint externo de 23/10, 17h24 UTC:** o Preview `bf43ff09` foi publicado e
+a prova assinada confirmou Auth/banco DEV e Asaas Sandbox antes de escrever.
+O E2E `@prepare-offer-checkout` percorreu a UI e o Resend, abriu Consultório
+anual por R$ 1.970 no Checkout Sandbox e persistiu o draft: **1/1 PASS**.
+A página hospedada mostrou recorrência anual e primeira cobrança em 23/10.
+Pagamento humano, webhook e acesso após provisionamento ainda **NOT RUN**;
+este PASS é somente da preparação. A regressão integral após o guarda de
+ambiente foi **5.646/5.646**, e o build Next teve exit 0.
+
+## 80. Checkout anual pago após vencimento do draft — 23/10/2026
+
+O usuário concluiu o Checkout hospedado de Consultório anual no Asaas Sandbox. O pagamento real de teste expôs uma lacuna que o teste de preparação não cobria: o draft completou seu TTL de uma hora enquanto o Asaas processava o cartão. O Auth conservou o vínculo e o banco manteve `checkout_pending`, mas `/cadastro/continuar` não achava a referência; `POST /api/signup/checkout/status` devolvia 401. O pagamento podia ficar sem tenant. A indisponibilidade 503 anterior era distinta, causada por comparação enum/text no SQL, corrigida em `226b72c1`.
+
+O commit `03e1d064` recupera apenas um Checkout hospedado já associado ao mesmo Auth e ao HMAC do e-mail, com tentativa de cobrança comprovada. O formulário continua fechado após o TTL e nenhum novo Checkout é autorizado por essa recuperação. O readback do Asaas e a transação de provisionamento continuam obrigatórios.
+
+No Preview do PR #42, `@verify-offer-checkout` reutilizou a mesma fixture paga: **1/1 PASS, exit 0**. Autenticou pela UI, conciliou com HTTP 200 `provisioned`, chegou ao dashboard, repetiu a confirmação com 200 e releu no DEV uma clínica ativa, Consultório anual pelo valor contratado, uma invoice paga e o draft consumido. O Asaas Sandbox confirmou assinatura `ACTIVE`/`YEARLY`/cartão e pagamento correspondente ao mesmo Checkout. Um polling redundante recebeu 401 durante a troca de sessão; o refresh respondeu 307 e o dashboard 200. A prova confirma o estado final, mas não isola o webhook como causa da invoice, pois o próprio status autenticado consulta o provedor. A assinatura/conta paga permanece como fixture DEV; não foi removida parcialmente.
+
+Gates: **5.652/5.652** testes em 535 arquivos, TypeScript, ESLint, inventário de segurança e build Next isolado com exit 0. O Preview passou Vercel, Snyk e Semgrep. Detalhes no [relatório de validação](quality/validacao-autonoma-2026-10-21.md). Permanecem parciais a renovação efetiva após um ano, a troca de ciclo de contrato existente e a prova causal do webhook; a nova oferta não foi publicada em produção.
+
+Busca de logs de runtime do Preview entre 17h e 21h UTC: nenhuma entrada na rota SaaS `/api/webhooks/asaas`; as 18 entradas com caminho Asaas eram das rotas de cobrança de paciente. A configuração de webhooks do Sandbox não foi lida: a revisão automática bloqueou a tentativa de consulta `GET /v3/webhooks` antes da execução. A entrega SaaS permanece **NOT TESTED**; o estado final acima foi confirmado pelo readback autenticado do Asaas.
+
+## 81. Divergência entre a oferta pública e o candidato — 24/10/2026
+
+Uma nova medição de `https://qoro.dev/precos` retornou HTTP 200 com Consultório R$ 197, Clínica R$ 397, até **10 profissionais** e **equipe ilimitada**; `C:\dev\qoro\src\data\planos.ts` confirma o conteúdo da `main` da landing. A página ainda apresenta **7 dias de teste**. No app, `origin/main:scripts/seed-plans.ts` conserva Solo R$ 149, Clínica R$ 349 e Pro R$ 699; `origin/main:src/contexts/onboarding/trial.ts` conserva 7 dias para o cadastro autônomo. O PR #42 oferece os novos planos somente no DEV/Preview, com teto de **5 médicos e 3 logins de equipe**. Logo, a landing publicada não descreve nem a compra disponível hoje na `main` nem os limites do candidato que está em teste. Esta é uma divergência observada, não um defeito inferido de testes verdes.
+
+O Draft PR da landing #1 está `CONFLICTING` e é anterior à versão já publicada na `main` da landing; revisar sua antiga `/precos-preview` não valida a página pública atual. Os PRs do app #39, #40, #41 e #42 permanecem abertos. O grafo confirma que o #42 contém os commits do #41, mas sua base é #40; publicação requer reconciliar a pilha e, antes, decidir uma única oferta/limite que app e landing possam cumprir. Nenhum merge, alteração de produção ou migração foi feito nesta verificação. A [matriz](quality/validacao-autonoma-2026-10-21.md) e o [guia manual](runbooks/acoes-manuais-pendentes-pricing-2026-10.md) registram a ordem e os limites das provas ainda pendentes.
+
+O [PR draft #3 da landing](https://github.com/joaomarcos-techia/landing_page/pull/3), commits `1158ab4` e `faf838e`, foi aberto a partir da `main` em worktree isolado para alinhar 5 médicos/3 logins e preparar 14 dias desde a criação da conta em home, preços, verticais, blog, metadados, `llms.txt` e imagem social. TypeScript, ESLint e build completo passaram (incluindo `/comecar` 27/27, conversão 2/2 e segurança 20/20); `dist/precos/index.html` mostrou limites e trial novos. Não foi mesclado nem publicado. A landing pública ainda diverge do checkout legado; o CTA do PR #3 continua exigindo ativação coordenada da nova oferta no app.
+
+## 82. Guarda do ciclo da assinatura e Preview atualizado — 26/10/2026
+
+O sincronizador de upgrade/downgrade do PR #42 agora exige que a recorrência no
+Asaas permaneça no mesmo ciclo (`MONTHLY` ou `YEARLY`) do preço local antes e
+depois da mudança de valor. Quando há divergência, a operação é recusada antes
+de qualquer PUT, sem alterar o plano no Qoro. A prova dirigida passou **23/23**;
+uma fixture BOLETO não paga no Asaas Sandbox confirmou a recusa em assinatura
+anual e seu readback inalterado, além de upgrade/downgrade e cleanup, exit 0.
+Esta guarda **não** implementa a troca mensal↔anual agendada para o vencimento.
+
+No commit `cb2b5106`, o Preview imutável do app
+`project-c0i53rkw3-clinic-os-v2-s-projects.vercel.app` ficou Ready. A proposta
+passou no navegador em desktop e celular (2/2); a suíte pública no mesmo
+deployment passou **9/9** após fornecer ao runner a secret local de comparação
+sem expô-la. As duas contas genéricas do probe autenticado continuam em planos
+legados e não servem como prova da tela de compra de médico extra. A regressão
+local posterior passou **5.657/5.657** em 535 arquivos; build Next, tipos, lint,
+formatação e inventário de segurança tiveram exit 0. A matriz de evidência e os
+gates de publicação continuam no
+[relatório de prontidão](quality/prontidao-oferta-2026-10-25.md); nenhuma nova
+oferta foi publicada em produção. Esse deployment antecede a guarda de ciclo;
+a validação do novo SHA está registrada abaixo.
+
+**Validação posterior no código `4c81f71d`:** a Vercel publicou o deployment
+imutável `project-lqlrihmtp-clinic-os-v2-s-projects.vercel.app`, e os quatro
+checks do PR #42 passaram. O probe visual passou 2/2 em desktop/celular. As
+suítes públicas e de sessão anônima passaram **18 testes**, com **1 SKIP**
+deliberado do Turnstile negativo porque a secret desse Preview é `always-pass`.
+O E2E de médico extra passou **1/1**: fixture DEV/Sandbox isolada, UI, rateio,
+simulação oficial PIX, webhook, recorrência, cota, replay, downgrade no
+vencimento simulado e cleanup com zero resíduos. O replay de três Checkouts já
+pagos (Consultório mensal, Clínica mensal, Consultório anual) passou **1/1 por
+plano/ciclo**, com invoice, assinatura, dashboard e Asaas conciliados; não foi
+novo pagamento. A página hospedada do médico extra, o webhook SaaS causal, a
+renovação futura e a troca mensal↔anual de contrato existente ainda não têm
+PASS. Detalhes e limites estão no
+[relatório de prontidão](quality/prontidao-oferta-2026-10-25.md).
+
+**Turnstile, prova externa posterior em 26/10:** o caso negativo pulado no
+Preview principal foi executado em deployment Git de uma branch isolada, com
+secret de teste da Cloudflare restrita àquela branch: token forjado recusado,
+HTTP 401, sem cookie, **1/1 PASS**. No Preview principal, a secret `always-pass`
+continuou permitindo o token de teste, HTTP 201, **1/1 PASS**. Um primeiro
+deployment criado pela CLI não herdou a configuração da branch e devolveu 201
+para o token forjado: **FAIL de pré-condição**, preservado na matriz; o deploy
+feito pelo Git resolveu a separação. A variável temporária foi removida com
+readback (zero override da branch, uma variável geral de Preview), e a branch
+e o worktree temporários foram excluídos. Nada em Production foi alterado.
+
+**Inventário externo posterior no mesmo dia:** a CLI da Vercel listou os nomes de
+20 variáveis críticas em Production e Preview no projeto `project-os`, inclusive
+os nomes Meta ausentes do arquivo local de DEV. A consulta foi filtrada sem
+imprimir valores. Isso comprova presença e escopo, não validade, isolamento de
+credenciais, tier do Gemini ou funcionamento em runtime. Não se deve promover
+segredos do DEV por cópia.
+
+Na conta Asaas Sandbox DEV, `GET /v3/webhooks` encontrou três configurações:
+duas de cobrança de paciente ativas e a única de assinatura SaaS desativada,
+sem fila marcada como interrompida, apontando para um Preview antigo no caminho
+`/api/webhooks/asaas`. Ela inclui os eventos de criação/confirmação/recebimento
+de pagamento. A API não revelou os logs de entrega de 23/10, disponíveis
+somente no painel por até 14 dias; portanto não se sabe se já estava desativada
+quando o Checkout anual foi pago. O replay autenticado confirma a invoice e a
+assinatura, mas não transforma webhook histórico em PASS. Reativar essa
+configuração poderia enviar eventos antigos de outras fixtures; ela permaneceu
+intacta. A [matriz de prontidão](quality/prontidao-oferta-2026-10-25.md) e o
+[roteiro humano](runbooks/acoes-manuais-pendentes-pricing-2026-10.md) registram
+as evidências e o próximo passo seguro.
+
+**Mensalidade pós-trial 2026, prova causal nova:** o runner
+`scripts/asaas-post-trial-preview-e2e.ts` passou com exit 0 em 26/10 no
+Preview `project-os-git-integration-prici-c5e6c6`. Antes de escrever, o guard
+assinado comprovou Auth, banco DEV e Asaas Sandbox no runtime remoto. Uma
+fixture isolada de Consultório R$ 197 tinha trial de 14 dias já encerrado:
+escrita bloqueada e invoice ausente. A simulação oficial PIX produziu entrega
+**real do Asaas** ao webhook temporário no Preview; `processed_webhooks`
+registrou evento pago, a invoice única ficou paga, a clínica ativa e a escrita
+foi liberada. Replay preservou uma invoice e o período. O cleanup confirmou
+webhook removido (DELETE 200/GET 404), assinatura e cliente marcados excluídos
+no Sandbox e clínica sintética removida do DEV. Isso não demonstra a entrega
+histórica do Checkout anual de 23/10 nem a renovação anual futura; ambas
+permanecem separadas na matriz. O webhook SaaS permanente antigo ficou intacto.
+Os runners da mensalidade pós-trial e do médico extra agora exigem na prova
+assinada que o próprio Preview use Asaas Sandbox, além de Auth/banco DEV. Após
+esse reforço, build Next otimizado e a suíte integral passaram: 5.657/5.657
+testes em 535 arquivos, exit 0.
+
+**Ciclo com cartão, contrato isolado no Sandbox:** o runner
+`scripts/security/subscription-plan-change-sandbox.ts`, com cartão fictício e
+`SANDBOX_CYCLE_PROBE=1`, passou com exit 0. A assinatura e sua cobrança pendente
+convergiram mensal→anual→mensal em valor, ciclo e vencimento; replays de mudança
+de preço não criaram parcela duplicada. O cleanup removeu a cobrança, cancelou
+a assinatura e excluiu o cliente sintético. A primeira invocação falhou em
+`server-only` antes de alcançar o Asaas; a segunda usou a condição Node correta.
+Esta é prova da **capacidade do provedor**, não da saga Qoro nem da mudança
+de um contrato já pago no próximo vencimento.
+
+No SHA `a8026f1a`, o E2E de médico extra voltou a passar **1/1** no Preview
+com a nova prova assinada de DEV **e Asaas Sandbox** no runtime; o cleanup leu
+zero resíduos. O fundador decidiu que uma assinatura mensal Pix/boleto não
+poderá migrar ao anual até existir cadastro seguro de cartão; a troca de um
+contrato mensal já pago por cartão valerá no próximo vencimento. O fluxo de
+troca de ciclo ainda não existe no Qoro.
+
+O runner `restore:test` tinha um falso positivo: com `ON_ERROR_STOP=0`, um dump
+interrompido podia terminar com mensagem de sucesso se as tabelas-âncora já
+existissem. Em 26/10 o gate passou a reprovar qualquer erro SQL/status não zero
+do `psql` e a recusar URL remota ou banco sem nome `qoro_restore_*`; prova
+sintética em Postgres 17 local: dump íntegro exit 0, erro SQL após as âncoras
+exit 1 e URL remota fictícia exit 1 antes de conectar. Isso **não** valida um
+backup atual de produção nem os schemas geridos pelo Supabase; restore real e
+paridade continuam pendentes.
+Após a restrição do alvo, `npx vitest run --reporter=dot --silent` passou
+**5.665/5.665 em 536 arquivos** (guard dirigido 8/8) e o build Next otimizado
+do código final terminou com exit 0.

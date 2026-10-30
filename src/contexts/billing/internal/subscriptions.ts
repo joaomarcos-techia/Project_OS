@@ -14,6 +14,7 @@ import { metrics } from '@/lib/observability/metrics';
 import { publishEvent } from '@/lib/outbox/publish';
 
 import { BILLING_EVENTS, type SubscriptionActivatedPayload } from '../events';
+import { isOffer2026PlanCode } from '../proposed-offer';
 import {
   billingEvents,
   invoices,
@@ -36,8 +37,9 @@ import { canTransitionBilling, canTransitionInvoice, type BillingStatus } from '
 
 type PlanCode = SubscriptionActivatedPayload['planCode'];
 
-function toPlanCode(code: string): PlanCode {
-  if (code === 'solo' || code === 'clinica' || code === 'pro') return code;
+export function toPlanCode(code: string): PlanCode {
+  if (code === 'solo' || code === 'clinica' || code === 'pro' || isOffer2026PlanCode(code))
+    return code;
   throw new Error(`[billing] plano não suportado na ativação: ${code}`);
 }
 
@@ -385,7 +387,12 @@ export async function markInvoicePaid(
   tx: Tx,
   clinicId: string,
   invoice: InvoiceRow,
-  opts: { paymentMethod: string | null; providerPaymentId: string | null; idemSuffix: string },
+  opts: {
+    paymentMethod: string | null;
+    providerPaymentId: string | null;
+    idemSuffix: string;
+    deferPeriodAdvance?: boolean;
+  },
 ): Promise<void> {
   await tx.insert(paymentAttempts).values({
     clinicId,
@@ -453,11 +460,37 @@ export async function markInvoicePaid(
   // BILLING-001 — abre o período que esta cobrança pagou. Roda ANTES de ativar:
   // quem lê a subscription no evento de ativação já vê o ciclo novo, não o
   // trial encerrado.
-  await advanceBillingPeriod(tx, clinicId, invoice);
+  if (!opts.deferPeriodAdvance) await advanceBillingPeriod(tx, clinicId, invoice);
 
   // Pagamento recebido reativa acesso + billing_status (decisão de ClinicaOS).
   await activateSubscription(tx, clinicId, opts.idemSuffix);
   await setClinicAccess(tx, clinicId, 'enabled', 'payment received', opts.idemSuffix);
+}
+
+/** Repara pagamento anual antecipado assim que a troca agendada entra em vigor. */
+export async function advancePaidCycleChangeInvoicePeriod(
+  tx: Tx,
+  clinicId: string,
+  subscriptionId: string,
+  dueDate: string,
+  expectedAmount: string,
+): Promise<void> {
+  const [invoice] = await tx
+    .select()
+    .from(invoices)
+    .where(
+      and(
+        eq(invoices.subscriptionId, subscriptionId),
+        eq(invoices.dueDate, dueDate),
+        eq(invoices.status, 'paid'),
+      ),
+    )
+    .limit(1);
+  if (!invoice) return;
+  if (toCents(invoice.totalAmount) !== toCents(expectedAmount)) {
+    throw new Error('[billing] pagamento antecipado diverge do preço do novo ciclo');
+  }
+  await advanceBillingPeriod(tx, clinicId, invoice);
 }
 
 /**

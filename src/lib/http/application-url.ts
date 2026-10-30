@@ -77,6 +77,13 @@ function vercelHostname(raw: string | undefined): string | null {
   }
 }
 
+/** URL estavel da branch Preview para callbacks externos que sobrevivem ao deploy. */
+export function resolvePreviewCallbackOrigin(): string | null {
+  if (env.VERCEL_ENV !== 'preview') return null;
+  const hostname = vercelHostname(env.VERCEL_BRANCH_URL) ?? vercelHostname(env.VERCEL_URL);
+  return hostname ? `https://${hostname}` : null;
+}
+
 /**
  * Resolve a origem publica desta requisicao sem confiar em Host/Origin livres.
  *

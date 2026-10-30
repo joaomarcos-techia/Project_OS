@@ -113,6 +113,64 @@ describe('listSubscriptionPayments', () => {
   });
 });
 
+describe('troca de plano: cobranças já geradas', () => {
+  it('falha fechado se o provedor omitir o marcador de paginação', async () => {
+    fetchMock.mockResolvedValue(
+      Response.json({
+        data: [{ id: 'pay_1', status: 'PENDING', value: 197, dueDate: '2026-11-01' }],
+      }),
+    );
+
+    await expect(asaasProvider.listAllSubscriptionPayments('sub_1')).rejects.toMatchObject({
+      code: 'subscription_payments_listing_invalid',
+    });
+  });
+
+  it('pagina até incluir a parcela futura, mesmo atrás de pagamentos antigos', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        Response.json({
+          data: [{ id: 'pay_old', status: 'RECEIVED', value: 699, dueDate: '2026-10-01' }],
+          hasMore: true,
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          data: [{ id: 'pay_next', status: 'PENDING', value: 699, dueDate: '2026-11-01' }],
+          hasMore: false,
+        }),
+      );
+
+    const payments = await asaasProvider.listAllSubscriptionPayments('sub_1');
+
+    expect(payments.map((item) => item.paymentId)).toEqual(['pay_old', 'pay_next']);
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      'https://sandbox.asaas.com/api/v3/subscriptions/sub_1/payments?limit=100&offset=100',
+      expect.anything(),
+    );
+  });
+
+  it('envia somente valor, método e vencimento ao editar parcela aberta', async () => {
+    fetchMock.mockResolvedValue(Response.json({ id: 'pay_next' }));
+
+    await asaasProvider.updatePayment('pay_next', {
+      value: 397,
+      billingType: 'CREDIT_CARD',
+      dueDate: '2026-11-01',
+    });
+
+    const [url, request] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://sandbox.asaas.com/api/v3/payments/pay_next');
+    expect(request.method).toBe('PUT');
+    expect(JSON.parse(String(request.body))).toEqual({
+      value: 397,
+      billingType: 'CREDIT_CARD',
+      dueDate: '2026-11-01',
+    });
+  });
+});
+
 describe('reconciliação de assinatura', () => {
   it('recupera assinatura anterior pela externalReference do onboarding', async () => {
     fetchMock.mockResolvedValue(
@@ -275,6 +333,30 @@ describe('alteração de assinatura e recuperação de cobrança', () => {
     );
   });
 
+  it('envia ciclo anual e inclui cobranças pendentes somente quando solicitado', async () => {
+    fetchMock.mockResolvedValue(Response.json({ id: 'sub_1' }));
+
+    await asaasProvider.updateSubscription('sub_1', {
+      value: 3970,
+      cycle: 'YEARLY',
+      nextDueDate: '2026-11-01',
+      updatePendingPayments: true,
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://sandbox.asaas.com/api/v3/subscriptions/sub_1',
+      expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify({
+          value: 3970,
+          cycle: 'YEARLY',
+          nextDueDate: '2026-11-01',
+          updatePendingPayments: true,
+        }),
+      }),
+    );
+  });
+
   it('recupera cobrança já criada pela externalReference antes de novo POST', async () => {
     fetchMock.mockResolvedValue(
       Response.json({
@@ -307,6 +389,29 @@ describe('alteração de assinatura e recuperação de cobrança', () => {
 });
 
 describe('Checkout hospedado de paciente (D24)', () => {
+  it('associa o Checkout SaaS ao cliente já cadastrado sem mudar o fluxo do paciente', async () => {
+    fetchMock.mockResolvedValue(Response.json({ id: 'checkout_upgrade', status: 'ACTIVE' }));
+    await createAsaasClient({ apiKey: 'k' }).createCheckout({
+      value: 73.5,
+      customerId: 'cus_existing',
+      description: 'Médico adicional',
+      externalReference: 'plan-change:upgrade-1',
+      minutesToExpire: 60,
+      callback: {
+        successUrl: 'https://qoro.example/?payment=success',
+        cancelUrl: 'https://qoro.example/?payment=cancelled',
+        expiredUrl: 'https://qoro.example/?payment=expired',
+      },
+    });
+
+    const [, request] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(String(request.body))).toMatchObject({
+      customer: 'cus_existing',
+      chargeTypes: ['DETACHED'],
+      externalReference: 'plan-change:upgrade-1',
+    });
+  });
+
   it('cria somente PIX/cartão, avulso e deixa os dados do pagador para o Checkout', async () => {
     fetchMock.mockResolvedValue(
       Response.json({
@@ -505,7 +610,7 @@ describe('Checkout hospedado de paciente (D24)', () => {
     ).resolves.toBeNull();
   });
 
-  it('recupera por listagem limitada quando o filtro do provider omite a sessão exata', async () => {
+  it('recupera cobrança criada no dia civil anterior ao UTC do Checkout', async () => {
     fetchMock.mockResolvedValueOnce(Response.json({ data: [] })).mockResolvedValueOnce(
       Response.json({
         data: [
@@ -513,6 +618,7 @@ describe('Checkout hospedado de paciente (D24)', () => {
           {
             id: 'pay_1',
             status: 'PENDING',
+            dateCreated: '2026-10-26',
             value: 149,
             dueDate: '2026-10-03',
             billingType: 'CREDIT_CARD',
@@ -526,7 +632,7 @@ describe('Checkout hospedado de paciente (D24)', () => {
     await expect(
       createAsaasClient({ apiKey: 'k' }).findPaymentByCheckoutSession('checkout_1', {
         attempts: 1,
-        createdSince: '2026-09-26',
+        createdSince: '2026-10-27',
       }),
     ).resolves.toEqual(
       expect.objectContaining({
@@ -537,9 +643,82 @@ describe('Checkout hospedado de paciente (D24)', () => {
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      'https://sandbox.asaas.com/api/v3/payments?limit=100&offset=0&dateCreated%5Bge%5D=2026-09-26',
+      'https://sandbox.asaas.com/api/v3/payments?limit=100&offset=0&dateCreated%5Bge%5D=2026-10-26',
       expect.objectContaining({ method: 'GET' }),
     );
+  });
+
+  it.each([
+    ['2027-01-01', '2026-12-31'],
+    ['2028-03-01', '2028-02-29'],
+  ])('inclui a véspera no limite de calendário %s', async (createdSince, previousDay) => {
+    fetchMock
+      .mockResolvedValueOnce(Response.json({ data: [] }))
+      .mockResolvedValueOnce(Response.json({ data: [] }));
+
+    await expect(
+      createAsaasClient({ apiKey: 'k' }).findPaymentByCheckoutSession('checkout_1', {
+        attempts: 1,
+        createdSince,
+      }),
+    ).resolves.toBeNull();
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      `https://sandbox.asaas.com/api/v3/payments?limit=100&offset=0&dateCreated%5Bge%5D=${previousDay}`,
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
+  it('procura páginas seguintes sem aceitar pagamento de outro Checkout', async () => {
+    fetchMock
+      .mockResolvedValueOnce(Response.json({ data: [] }))
+      .mockResolvedValueOnce(
+        Response.json({
+          data: [{ id: 'pay_other', checkoutSession: 'checkout_other' }],
+          hasMore: true,
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          data: [{ id: 'pay_expected', checkoutSession: 'checkout_1', value: 397 }],
+          hasMore: false,
+        }),
+      );
+
+    await expect(
+      createAsaasClient({ apiKey: 'k' }).findPaymentByCheckoutSession('checkout_1', {
+        attempts: 1,
+        createdSince: '2026-10-27',
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({ paymentId: 'pay_expected', checkoutSessionId: 'checkout_1' }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      'https://sandbox.asaas.com/api/v3/payments?limit=100&offset=100&dateCreated%5Bge%5D=2026-10-26',
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
+  it('recusa data inválida sem procurar cobranças por uma janela errada', async () => {
+    fetchMock.mockResolvedValueOnce(Response.json({ data: [] }));
+    await expect(
+      createAsaasClient({ apiKey: 'k' }).findPaymentByCheckoutSession('checkout_1', {
+        attempts: 1,
+        createdSince: '2026-02-30',
+      }),
+    ).rejects.toThrow('createdSince inválido');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('não declara cobrança ausente quando o provedor ainda anuncia outras páginas', async () => {
+    fetchMock.mockImplementation(async () => Response.json({ data: [], hasMore: true }));
+    await expect(
+      createAsaasClient({ apiKey: 'k' }).findPaymentByCheckoutSession('checkout_1', {
+        attempts: 1,
+      }),
+    ).rejects.toThrow('limite de paginação');
+    expect(fetchMock).toHaveBeenCalledTimes(51);
   });
 });
 
@@ -971,6 +1150,48 @@ describe('getMyAccount — validação de credencial', () => {
     expect(error).toBeInstanceOf(BillingProviderError);
     expect((error as BillingProviderError).providerErrorCodes).toEqual(['invalid_apiKey']);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('getAccountFees — tarifas da conta', () => {
+  it('consulta a própria conta e devolve apenas campos financeiros conhecidos', async () => {
+    fetchMock.mockImplementation(() =>
+      Response.json({
+        payment: {
+          pix: {
+            fixedFeeValue: 1.99,
+            fixedFeeValueWithDiscount: 0.99,
+            discountExpiration: '2026-11-22 00:00:00',
+            monthlyCreditsWithoutFee: 100,
+            creditsReceivedOfCurrentMonth: 2,
+          },
+          creditCard: {
+            operationValue: 0.49,
+            oneInstallmentPercentage: 2.99,
+            discountOneInstallmentPercentage: 1.99,
+            hasValidDiscount: true,
+            discountExpiration: '2026-11-22 00:00:00',
+          },
+        },
+        secret: 'não deve sair',
+      }),
+    );
+    const fees = await createAsaasClient({ apiKey: 'chave-da-clinica' }).getAccountFees();
+    expect(fees.pix.regular).toBe(1.99);
+    expect(fees.pix.discounted).toBe(0.99);
+    expect(fees.creditCard.oneInstallmentPercentage).toBe(2.99);
+    expect(JSON.stringify(fees)).not.toContain('não deve sair');
+    const [url, request] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://sandbox.asaas.com/api/v3/myAccount/fees/');
+    expect(request.method).toBe('GET');
+    expect(request.headers).toEqual(expect.objectContaining({ access_token: 'chave-da-clinica' }));
+  });
+
+  it('não inventa tarifa zero quando o Asaas omite um campo', async () => {
+    fetchMock.mockImplementation(() => Response.json({ payment: { pix: {}, creditCard: {} } }));
+    const fees = await createAsaasClient({ apiKey: 'chave-da-clinica' }).getAccountFees();
+    expect(fees.pix.regular).toBeNull();
+    expect(fees.creditCard.oneInstallmentPercentage).toBeNull();
   });
 });
 

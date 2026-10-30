@@ -178,6 +178,20 @@ describe('GeminiProvider', () => {
     ).rejects.toMatchObject({ name: 'AIProviderError', httpStatus: 503 });
   });
 
+  it.each([402, 429])('HTTP %s mantém status sem vazar corpo do provider', async (status) => {
+    stubFetch({ error: { message: 'synthetic-sensitive-provider-response' } }, status);
+    await expect(
+      new GeminiProvider('gemini-3.6-flash').generateWithTools({
+        systemPrompt: 'synthetic-only',
+        messages: [{ role: 'user', text: 'test' }],
+      }),
+    ).rejects.toMatchObject({
+      name: 'AIProviderError',
+      httpStatus: status,
+      message: `[ai] Gemini HTTP ${status}`,
+    });
+  });
+
   it('timeout/abort → AIProviderUnreachableError', async () => {
     globalThis.fetch = (async () => {
       throw Object.assign(new Error('aborted'), { name: 'TimeoutError' });

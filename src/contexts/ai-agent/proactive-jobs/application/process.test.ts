@@ -64,7 +64,7 @@ import { buildProactiveTemplate } from '../infra/templates';
 import type { ProactiveJobType } from '../schema';
 import { processProactiveBatch } from './process';
 
-const U = '11111111-1111-1111-1111-111111111111';
+const U = '11111111-1111-1111-8111-111111111111';
 /** Sexta 09/10/2026, 10:00 em São Paulo. */
 const NOW = new Date('2026-10-09T13:00:00.000Z');
 /** `created_at` padrão dos jobs reservados: duas horas antes de `NOW`. */
@@ -74,6 +74,7 @@ const okContact = {
   phone: '5511999990000',
   deceased: false,
   cobrancaWhatsapp: true,
+  agendamentoWhatsapp: true,
   consentRevoked: false,
   suppressedWhatsapp: false,
   suppressedWhatsappPurposes: [],
@@ -120,7 +121,7 @@ const remainderPayload = {
   amount: 80,
 };
 // WAIT-001 — vaga liberada por cancelamento, ofertada ao 1º da fila.
-const RELEASED = '22222222-2222-2222-2222-222222222222';
+const RELEASED = '22222222-2222-2222-8222-222222222222';
 const waitlistPayload = {
   patientId: U,
   waitlistEntryId: U,
@@ -306,7 +307,7 @@ describe('WAIT-001 — oferta da lista de espera', () => {
     vi.mocked(schedulingApiV1.lookupWaitlistOffer).mockResolvedValue({
       status: 'offered',
       patientId: U,
-      offeredAppointmentId: '33333333-3333-3333-3333-333333333333',
+      offeredAppointmentId: '33333333-3333-3333-8333-333333333333',
       offerExpiresAt: OFFER_EXPIRES_AT,
     });
 
@@ -412,7 +413,7 @@ describe('processProactiveBatch (C14 §14.6)', () => {
     });
     vi.mocked(schedulingApiV1.lookupAppointment).mockResolvedValue({
       status: 'faltou',
-      patientId: '22222222-2222-2222-2222-222222222222',
+      patientId: '22222222-2222-2222-8222-222222222222',
       procedureId: U,
     } as never);
 
@@ -687,6 +688,26 @@ describe('processProactiveBatch (C14 §14.6)', () => {
     const s = await processProactiveBatch('dunning');
     expect(s.cancelled).toBe(1);
     expect(repo.cancel).toHaveBeenCalledWith('c1', 'j1', 'lease-1', 'no_consent');
+  });
+
+  it.each([
+    ['sem agendamento', { agendamentoWhatsapp: false, cobrancaWhatsapp: true }],
+    ['sem cobrança', { agendamentoWhatsapp: true, cobrancaWhatsapp: false }],
+  ])('link de sinal %s → cancelled antes de chamar a Meta', async (_name, consent) => {
+    claim({
+      id: 'j-sem-optin',
+      clinicId: 'c1',
+      type: 'deposit_link',
+      payload: depositPayload,
+      attempts: 1,
+    });
+    vi.mocked(schedulingApiV1.lookupAppointment).mockResolvedValue({ status: 'agendado' } as never);
+    vi.mocked(patientApiV1.getProactiveContact).mockResolvedValue({ ...okContact, ...consent });
+
+    const result = await processProactiveBatch('deposit_link');
+    expect(result.cancelled).toBe(1);
+    expect(repo.cancel).toHaveBeenCalledWith('c1', 'j-sem-optin', 'lease-1', 'no_consent');
+    expect(messagingApiV1.sendText).not.toHaveBeenCalled();
   });
 
   it('T5: dunning cujo lançamento já foi pago → cancelled(already_paid), não envia', async () => {

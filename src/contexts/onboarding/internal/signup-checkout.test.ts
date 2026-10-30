@@ -82,6 +82,26 @@ beforeEach(() => {
 });
 
 describe('O-5 — início da assinatura recorrente', () => {
+  it('recusa a oferta 2026 nesta rota legada antes de chamar o Asaas', async () => {
+    billing.reserve.mockResolvedValue({
+      ok: true,
+      rowVersion: 7,
+      intent: {
+        ...INTENT,
+        planCode: 'consultorio_2026',
+        billingCycle: 'annual',
+        priceCents: 197_000,
+      },
+    });
+    const client = fakeProvider();
+    await expect(
+      startSignupSubscription({ userId: USER, verifiedEmail: EMAIL, cpfCnpj: CPF, client }),
+    ).resolves.toEqual({ ok: false, reason: 'invalid_plan' });
+    expect(client.createCustomer).not.toHaveBeenCalled();
+    expect(client.createSubscription).not.toHaveBeenCalled();
+    expect(billing.mark).toHaveBeenCalledWith(expect.objectContaining({ outcome: 'failed' }));
+  });
+
   it('reserva antes de qualquer I/O, cria sem cartão e ativa por CAS', async () => {
     const client = fakeProvider();
 
@@ -312,6 +332,7 @@ describe('O-5 — reconciliação, a única saída de creation_unknown', () => {
   beforeEach(() => {
     billing.target.mockResolvedValue({
       externalReference: INTENT.externalReference,
+      planCode: INTENT.planCode,
       asaasCustomerId: 'cus_1',
       priceCents: INTENT.priceCents,
       rowVersion: 8,
@@ -348,6 +369,24 @@ describe('O-5 — reconciliação, a única saída de creation_unknown', () => {
       asaasSubscriptionId: 'sub_perdida',
     });
     expect(client.getSubscription).toHaveBeenCalledWith('sub_perdida');
+  });
+
+  it('não reconcilia Checkout 2026 pela rotina legada de assinatura', async () => {
+    billing.target.mockResolvedValue({
+      externalReference: INTENT.externalReference,
+      planCode: 'consultorio_2026',
+      asaasCustomerId: null,
+      priceCents: 197_000,
+      billingCycle: 'annual',
+      rowVersion: 8,
+    });
+    const client = fakeProvider();
+    await expect(reconcileSignupSubscription({ userId: USER, client })).resolves.toEqual({
+      ok: false,
+      reason: 'conflict',
+    });
+    expect(client.findSubscriptionByExternalReference).not.toHaveBeenCalled();
+    expect(billing.reconcile).not.toHaveBeenCalled();
   });
 
   it.each([

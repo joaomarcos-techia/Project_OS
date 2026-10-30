@@ -91,6 +91,7 @@ export const paymentAttemptStatus = pgEnum('payment_attempt_status', [
 export const subscriptionChangeKind = pgEnum('subscription_change_kind', [
   'upgrade',
   'downgrade',
+  'cycle_change',
   'cancellation',
 ]);
 
@@ -184,6 +185,23 @@ export const planLimits = pgTable(
   }),
 );
 export type PlanLimitRow = typeof planLimits.$inferSelect;
+
+/** Cotas médicas e administrativas apenas dos planos versionados de 2026. */
+export const planSeatLimits = pgTable(
+  'plan_seat_limits',
+  {
+    planId: uuid('plan_id')
+      .primaryKey()
+      .references(() => plans.id, { onDelete: 'cascade' }),
+    doctors: integer('doctors').notNull(),
+    staff: integer('staff').notNull(),
+  },
+  (t) => ({
+    doctorsChk: check('plan_seat_limits_doctors_check', sql`${t.doctors} BETWEEN 1 AND 5`),
+    staffChk: check('plan_seat_limits_staff_check', sql`${t.staff} BETWEEN 0 AND 3`),
+  }),
+);
+export type PlanSeatLimitRow = typeof planSeatLimits.$inferSelect;
 
 // =====================================================================
 // PLATAFORMA — pré-tenant / cross-tenant
@@ -314,6 +332,7 @@ export const subscriptions = pgTable(
       .notNull()
       .default(sql`now()`),
     trialEndsAt: timestamp('trial_ends_at', { withTimezone: true }),
+    enforceTrialDeadline: boolean('enforce_trial_deadline').notNull().default(false),
     currentPeriodStart: timestamp('current_period_start', { withTimezone: true }),
     currentPeriodEnd: timestamp('current_period_end', { withTimezone: true }),
     gracePeriodUntil: timestamp('grace_period_until', { withTimezone: true }), // G9
@@ -384,6 +403,11 @@ export const subscriptionChangeRequests = pgTable(
     effectiveAt: timestamp('effective_at', { withTimezone: true }).notNull(),
     providerPaymentId: text('provider_payment_id'),
     providerPaymentUrl: text('provider_payment_url'),
+    providerCheckoutId: text('provider_checkout_id'),
+    providerCheckoutExpiresAt: timestamp('provider_checkout_expires_at', { withTimezone: true }),
+    checkoutCreationState: text('checkout_creation_state'),
+    checkoutLeaseUntil: timestamp('checkout_lease_until', { withTimezone: true }),
+    providerSyncedAt: timestamp('provider_synced_at', { withTimezone: true }),
     idempotencyKey: text('idempotency_key').notNull(),
     requestedBy: uuid('requested_by'), // FK auth.users via migration.
     requestedIp: text('requested_ip'),
@@ -410,13 +434,20 @@ export const subscriptionChangeRequests = pgTable(
     providerPaymentUniq: uniqueIndex('subscription_change_requests_provider_payment_uniq')
       .on(t.providerPaymentId)
       .where(sql`provider_payment_id IS NOT NULL`),
+    providerCheckoutUniq: uniqueIndex('subscription_change_requests_provider_checkout_uniq')
+      .on(t.providerCheckoutId)
+      .where(sql`provider_checkout_id IS NOT NULL`),
     activePerSubscriptionUniq: uniqueIndex('subscription_change_requests_active_subscription_uniq')
       .on(t.subscriptionId)
       .where(sql`${t.status} IN ('pending_payment', 'scheduled')`),
     kindTargetCheck: check(
       'subscription_change_requests_kind_target_chk',
-      sql`(${t.kind} = 'cancellation' AND ${t.toPlanId} IS NULL AND ${t.toPriceId} IS NULL)
-      OR (${t.kind} IN ('upgrade', 'downgrade') AND ${t.toPlanId} IS NOT NULL AND ${t.toPriceId} IS NOT NULL)`,
+      sql`(${t.kind}::text = 'cancellation' AND ${t.toPlanId} IS NULL AND ${t.toPriceId} IS NULL)
+      OR (${t.kind}::text IN ('upgrade', 'downgrade', 'cycle_change') AND ${t.toPlanId} IS NOT NULL AND ${t.toPriceId} IS NOT NULL)`,
+    ),
+    checkoutStateCheck: check(
+      'subscription_change_requests_checkout_state_chk',
+      sql`${t.checkoutCreationState} IS NULL OR ${t.checkoutCreationState} IN ('creating', 'ready', 'creation_unknown')`,
     ),
   }),
 );

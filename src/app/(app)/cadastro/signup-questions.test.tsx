@@ -85,7 +85,7 @@ async function renderReady(session: SignupSessionState = EMPTY_SESSION) {
   if (session.answers) {
     await screen.findByText('Respostas salvas');
   } else {
-    await screen.findByRole('heading', { name: 'Quantos profissionais atendem na clínica?' });
+    await screen.findByRole('heading', { name: 'Quantos médicos atendem na clínica?' });
   }
 }
 
@@ -131,7 +131,7 @@ describe('cadastro — quatro perguntas impessoais', () => {
       </StrictMode>,
     );
 
-    await screen.findByRole('heading', { name: 'Quantos profissionais atendem na clínica?' });
+    await screen.findByRole('heading', { name: 'Quantos médicos atendem na clínica?' });
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/signup/sessions/me');
     expect(fetchMock.mock.calls[1]?.[0]).toBe('/api/signup/sessions');
@@ -157,7 +157,7 @@ describe('cadastro — quatro perguntas impessoais', () => {
 
     expect(screen.getByText('Pergunta 1 de 4')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Voltar' })).toBeNull();
-    expect(screen.getByText(/Nenhuma pede nome, contato ou dados de pacientes/u)).toBeTruthy();
+    expect(screen.getByText(/Não pedimos dados de pacientes/u)).toBeTruthy();
     fireEvent.click(screen.getByRole('radio', { name: '2 a 5' }));
     fireEvent.click(screen.getByRole('button', { name: 'Continuar' }));
 
@@ -168,11 +168,11 @@ describe('cadastro — quatro perguntas impessoais', () => {
     expect(screen.queryByRole('radio', { name: '2 a 5' })).toBeNull();
     // O contexto é dito uma vez, antes da primeira resposta; repeti-lo nas
     // quatro telas seria ruído e tiraria a hierarquia do título.
-    expect(screen.queryByText(/Nenhuma pede nome, contato ou dados de pacientes/u)).toBeNull();
+    expect(screen.queryByText(/Não pedimos dados de pacientes/u)).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'Voltar' }));
 
-    await screen.findByRole('heading', { name: 'Quantos profissionais atendem na clínica?' });
+    await screen.findByRole('heading', { name: 'Quantos médicos atendem na clínica?' });
     expect(screen.getByRole('radio', { name: '2 a 5' })).toHaveProperty('checked', true);
     // Navegar entre perguntas é estado de tela: nada vai ao servidor antes da
     // quarta resposta, então o bootstrap continua sendo a única chamada.
@@ -183,7 +183,7 @@ describe('cadastro — quatro perguntas impessoais', () => {
     fetchMock.mockResolvedValueOnce(json(200, { session: EMPTY_SESSION }));
     const firstRender = render(<SignupQuestions />);
 
-    await screen.findByRole('heading', { name: 'Quantos profissionais atendem na clínica?' });
+    await screen.findByRole('heading', { name: 'Quantos médicos atendem na clínica?' });
     fireEvent.click(screen.getByRole('radio', { name: '2 a 5' }));
     fireEvent.click(screen.getByRole('button', { name: 'Continuar' }));
     await screen.findByRole('heading', {
@@ -205,7 +205,7 @@ describe('cadastro — quatro perguntas impessoais', () => {
   it('não leva respostas locais para uma sessão nova', async () => {
     fetchMock.mockResolvedValueOnce(json(200, { session: EMPTY_SESSION }));
     const firstRender = render(<SignupQuestions />);
-    await screen.findByRole('heading', { name: 'Quantos profissionais atendem na clínica?' });
+    await screen.findByRole('heading', { name: 'Quantos médicos atendem na clínica?' });
     fireEvent.click(screen.getByRole('radio', { name: '2 a 5' }));
     fireEvent.click(screen.getByRole('button', { name: 'Continuar' }));
     await screen.findByRole('heading', {
@@ -218,7 +218,7 @@ describe('cadastro — quatro perguntas impessoais', () => {
       .mockResolvedValueOnce(json(201, { session: EMPTY_SESSION }));
     render(<SignupQuestions />);
 
-    await screen.findByRole('heading', { name: 'Quantos profissionais atendem na clínica?' });
+    await screen.findByRole('heading', { name: 'Quantos médicos atendem na clínica?' });
     expect(screen.getByRole('radio', { name: '2 a 5' })).toHaveProperty('checked', false);
     expect(window.localStorage).toHaveLength(0);
   });
@@ -229,7 +229,7 @@ describe('cadastro — quatro perguntas impessoais', () => {
     await renderReady();
     fireEvent.click(screen.getByRole('radio', { name: '2 a 5' }));
     clock.mockReturnValue(start + 30 * 60 * 1_000);
-    fireEvent.click(screen.getByRole('radio', { name: '1 profissional' }));
+    fireEvent.click(screen.getByRole('radio', { name: '1 médico' }));
     cleanup();
     clock.mockReturnValue(start + 60 * 60 * 1_000);
 
@@ -285,11 +285,11 @@ describe('cadastro — quatro perguntas impessoais', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Continuar' }));
 
-    const first = screen.getByRole('radio', { name: '1 profissional' });
+    const first = screen.getByRole('radio', { name: '1 médico' });
     expect(document.activeElement).toBe(first);
     expect(screen.getByRole('alert').textContent).toContain('Escolha uma opção para continuar');
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole('radiogroup', { name: 'Quantidade de profissionais' })).toBeTruthy();
+    expect(screen.getByRole('radiogroup', { name: 'Quantidade de médicos' })).toBeTruthy();
   });
 
   it('envia uma vez, bloqueia edição durante o POST e confirma o snapshot salvo', async () => {
@@ -297,7 +297,7 @@ describe('cadastro — quatro perguntas impessoais', () => {
     fetchMock.mockResolvedValueOnce(json(200, { session: EMPTY_SESSION }));
     fetchMock.mockImplementationOnce(() => pending.promise);
     render(<SignupQuestions />);
-    await screen.findByRole('heading', { name: 'Quantos profissionais atendem na clínica?' });
+    await screen.findByRole('heading', { name: 'Quantos médicos atendem na clínica?' });
     await chooseAll();
 
     const submit = screen.getByRole('button', { name: 'Salvar e continuar' });
@@ -387,7 +387,7 @@ describe('cadastro — quatro perguntas impessoais', () => {
       .mockResolvedValueOnce(json(200, { session: EMPTY_SESSION }))
       .mockResolvedValueOnce(json(429, { error: 'rate_limited' }));
     render(<SignupQuestions />);
-    await screen.findByRole('heading', { name: 'Quantos profissionais atendem na clínica?' });
+    await screen.findByRole('heading', { name: 'Quantos médicos atendem na clínica?' });
     await chooseAll();
     fireEvent.click(screen.getByRole('button', { name: 'Salvar e continuar' }));
     await screen.findByText(/Aguarde um minuto antes de salvar/u);
@@ -423,7 +423,7 @@ describe('cadastro — quatro perguntas impessoais', () => {
     expect(screen.getByText(/Conclua a verificação de segurança/u)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Continuar' }));
 
-    await screen.findByRole('heading', { name: 'Quantos profissionais atendem na clínica?' });
+    await screen.findByRole('heading', { name: 'Quantos médicos atendem na clínica?' });
     expect(fetchMock).toHaveBeenCalledTimes(4);
     expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({});
     expect(JSON.parse(String(fetchMock.mock.calls[3]?.[1]?.body))).toEqual({
@@ -816,7 +816,7 @@ describe('cadastro — conta e espera O-3b.5', () => {
     cleanup();
     fetchMock.mockResolvedValueOnce(json(200, { session: EMPTY_SESSION }));
     render(<SignupQuestions identityEnabled />);
-    await screen.findByRole('heading', { name: 'Quantos profissionais atendem na clínica?' });
+    await screen.findByRole('heading', { name: 'Quantos médicos atendem na clínica?' });
     expect(screen.queryByRole('textbox')).toBeNull();
     await chooseAll();
     fetchMock.mockResolvedValueOnce(json(200, { rowVersion: 2 }));

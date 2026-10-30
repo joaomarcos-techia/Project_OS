@@ -71,7 +71,7 @@ import { AuditExportTooLargeError } from '../../../../_lib/services/audit-export
 
 import { POST } from './route';
 
-const CLINIC = '11111111-1111-1111-1111-111111111111';
+const CLINIC = '11111111-1111-1111-8111-111111111111';
 
 const post = (from: string, to: string, id = CLINIC): Promise<Response> =>
   POST(

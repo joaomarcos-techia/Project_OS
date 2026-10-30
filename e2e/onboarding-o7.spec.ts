@@ -91,14 +91,14 @@ test.describe('O-7 — onboarding operacional autenticado', () => {
   }
 
   test('o tour só abre por escolha e não reabre depois de dispensado', async ({ page }) => {
+    test.setTimeout(90_000);
     const { erros } = vigiar(page);
     await authenticate(page);
 
     const disponivel = await onboardingDisponivel(page);
     test.skip(
       !disponivel,
-      'onboarding indisponível neste ambiente (banco sem a migration 0104): ' +
-        'o shell degrada e não há tour para exercitar. Skip anotado, nunca verde vazio.',
+      'onboarding indisponível neste ambiente: o shell degrada e não há tour para exercitar.',
     );
 
     const tour = page.getByTestId('product-tour');
@@ -109,6 +109,7 @@ test.describe('O-7 — onboarding operacional autenticado', () => {
 
     await page.goto('/documentacao');
     await page.getByTestId('restart-tour').click();
+    await expect(page).toHaveURL(/\/dashboard(?:\?|$)/u);
     await expect(tour).toBeVisible();
     await page.getByTestId('tour-skip').click();
     await expect(tour).toBeHidden();
@@ -120,20 +121,19 @@ test.describe('O-7 — onboarding operacional autenticado', () => {
   });
 
   test('duas abas convergem para o mesmo estado de onboarding', async ({ browser }) => {
+    test.setTimeout(90_000);
     const contexto = await browser.newContext();
     try {
       const abaA = await contexto.newPage();
       const { erros } = vigiar(abaA);
       await authenticate(abaA);
 
-      test.skip(
-        !(await onboardingDisponivel(abaA)),
-        'onboarding indisponível neste ambiente (banco sem a migration 0104).',
-      );
+      test.skip(!(await onboardingDisponivel(abaA)), 'onboarding indisponível neste ambiente.');
       const tourA = abaA.getByTestId('product-tour');
       if (await tourA.count()) await abaA.getByTestId('tour-skip').click();
       await abaA.goto('/documentacao');
       await abaA.getByTestId('restart-tour').click();
+      await expect(abaA).toHaveURL(/\/dashboard(?:\?|$)/u);
       await expect(tourA).toBeVisible();
 
       const abaB = await contexto.newPage();

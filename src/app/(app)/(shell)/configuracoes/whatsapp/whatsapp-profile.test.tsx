@@ -123,6 +123,16 @@ describe('leitura bem-sucedida', () => {
     expect(mocks.salvar).not.toHaveBeenCalled();
   });
 
+  it('substitui por iniciais a foto que o navegador não consegue carregar', () => {
+    const { container } = render(<WhatsappProfile inicial={carregado()} somenteLeitura />);
+    const photo = screen.getByAltText('Foto atual do perfil do WhatsApp');
+
+    fireEvent.error(photo);
+
+    expect(container.querySelectorAll('img')).toHaveLength(0);
+    expect(container.textContent).toContain('CE');
+  });
+
   it('mostra nome real como somente leitura e encaminha a alteração para a Meta', () => {
     render(<WhatsappProfile inicial={carregado()} />);
 

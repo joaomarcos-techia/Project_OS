@@ -3,13 +3,17 @@
  * com o Asaas; assim um timeout de POST pode ser conciliado pela
  * `externalReference` sem criar uma cobrança duplicada.
  */
-import { and, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, lt, sql } from 'drizzle-orm';
 
 import type { Tx } from '@/lib/db';
+import type { ProviderPayment } from '@/lib/payments/asaas';
 import { withTenant } from '@/lib/db/tenant';
+import { env } from '@/lib/env';
 import { publishEvent } from '@/lib/outbox/publish';
 
 import { BILLING_EVENTS } from '../events';
+import { isOffer2026PlanCode, OFFER_2026_PLAN_CODES } from '../proposed-offer';
+import { PROPOSED_OFFER } from '../proposed-offer';
 import {
   billingCustomers,
   billingEvents,
@@ -18,15 +22,17 @@ import {
   paymentAttempts,
   plans,
   planLimits,
+  planSeatLimits,
   prices,
   subscriptionChangeRequests,
   subscriptionHistory,
   subscriptions,
 } from '../schema';
 import { toCents, toReais, toReaisString } from './money';
-import { setClinicAccess, syncInvoiceFromProviderPayment } from './subscriptions';
+import { currentPeriod, readUsage } from './quota';
+import { setClinicAccess, syncInvoiceFromProviderPayment, toPlanCode } from './subscriptions';
 
-const PLAN_RANK: Readonly<Record<string, number>> = { solo: 1, clinica: 2, pro: 3 };
+const LEGACY_PLAN_RANK: Readonly<Record<string, number>> = { solo: 1, clinica: 2, pro: 3 };
 export const PLAN_CHANGE_EXTERNAL_REFERENCE_PREFIX = 'plan-change:';
 
 export class PlanChangeError extends Error {
@@ -55,6 +61,13 @@ export type RequestedPlanChange = {
   effectiveAt: Date;
   prorationAmount: string | null;
   targetPlanName: string;
+};
+
+export type RequestedCycleChange = {
+  id: string;
+  targetCycle: 'monthly' | 'annual';
+  targetAmount: string;
+  effectiveAt: Date;
 };
 
 export type CancellationRequestInput = {
@@ -125,12 +138,20 @@ type CurrentSubscription = {
 type TargetPlan = { id: string; name: string; code: string; priceId: string; priceAmount: string };
 
 function rank(code: string): number {
-  const value = PLAN_RANK[code];
+  const value = isOffer2026PlanCode(code)
+    ? OFFER_2026_PLAN_CODES.indexOf(code) + 1
+    : LEGACY_PLAN_RANK[code];
   if (!value) throw new PlanChangeError('Plano não suportado para alteração.', 'unsupported_plan');
   return value;
 }
 
 export function comparePlans(currentCode: string, targetCode: string): -1 | 0 | 1 {
+  if (isOffer2026PlanCode(currentCode) !== isOffer2026PlanCode(targetCode)) {
+    throw new PlanChangeError(
+      'Troca entre tabelas de contrato indisponível.',
+      'offer_generation_mismatch',
+    );
+  }
   const delta = rank(targetCode) - rank(currentCode);
   return delta === 0 ? 0 : delta > 0 ? 1 : -1;
 }
@@ -160,6 +181,88 @@ export function changeIdFromExternalReference(value: string | null): string | nu
   if (!value?.startsWith(PLAN_CHANGE_EXTERNAL_REFERENCE_PREFIX)) return null;
   const id = value.slice(PLAN_CHANGE_EXTERNAL_REFERENCE_PREFIX.length);
   return /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(id) ? id : null;
+}
+
+/** Snapshot verificado antes do I/O remoto; a transação de aplicação relê o estado. */
+export async function getPaidUpgradeSyncContext(
+  tx: Tx,
+  payment: ProviderPayment,
+): Promise<{
+  subscriptionId: string;
+  previousAmount: string;
+  amount: string;
+  firstDueDate: string;
+  expectedCycle: 'MONTHLY' | 'YEARLY';
+} | null> {
+  if (!paidStatus(payment.status)) return null;
+  const changeId = await upgradeChangeIdForPayment(tx, payment);
+  if (!changeId) return null;
+  const [change] = await tx
+    .select({
+      status: subscriptionChangeRequests.status,
+      kind: subscriptionChangeRequests.kind,
+      fromPriceId: subscriptionChangeRequests.fromPriceId,
+      providerPaymentId: subscriptionChangeRequests.providerPaymentId,
+      providerCheckoutId: subscriptionChangeRequests.providerCheckoutId,
+      prorationAmount: subscriptionChangeRequests.prorationAmount,
+      currentPriceId: subscriptions.priceId,
+      previousAmount: sql<string>`(SELECT amount FROM public.prices WHERE id = ${subscriptions.priceId})`,
+      billingStatus: subscriptions.billingStatus,
+      asaasSubscriptionId: subscriptions.asaasSubscriptionId,
+      currentPeriodEnd: subscriptions.currentPeriodEnd,
+      targetAmount: prices.amount,
+      targetBillingCycle: prices.billingCycle,
+    })
+    .from(subscriptionChangeRequests)
+    .innerJoin(subscriptions, eq(subscriptions.id, subscriptionChangeRequests.subscriptionId))
+    .innerJoin(prices, eq(prices.id, subscriptionChangeRequests.toPriceId))
+    .where(eq(subscriptionChangeRequests.id, changeId))
+    .limit(1);
+  if (!change || change.status !== 'pending_payment') return null;
+  if (
+    change.kind !== 'upgrade' ||
+    change.currentPriceId !== change.fromPriceId ||
+    change.billingStatus !== 'active' ||
+    (change.providerPaymentId && change.providerPaymentId !== payment.paymentId) ||
+    (change.providerCheckoutId && change.providerCheckoutId !== payment.checkoutSessionId) ||
+    toCents(change.prorationAmount ?? '0') !== toCents(payment.value) ||
+    !change.asaasSubscriptionId ||
+    !change.previousAmount ||
+    !change.currentPeriodEnd
+  ) {
+    throw new PlanChangeError(
+      'Upgrade pago não corresponde à assinatura ativa.',
+      'upgrade_sync_preflight_failed',
+    );
+  }
+  return {
+    subscriptionId: change.asaasSubscriptionId,
+    previousAmount: change.previousAmount,
+    amount: change.targetAmount,
+    firstDueDate: change.currentPeriodEnd.toISOString().slice(0, 10),
+    expectedCycle: change.targetBillingCycle === 'annual' ? 'YEARLY' : 'MONTHLY',
+  };
+}
+
+/** Checkout não propaga necessariamente externalReference para a cobrança. */
+async function upgradeChangeIdForPayment(
+  tx: Tx,
+  payment: Pick<ProviderPayment, 'externalReference' | 'checkoutSessionId'>,
+): Promise<string | null> {
+  const referenceId = changeIdFromExternalReference(payment.externalReference);
+  if (!payment.checkoutSessionId) return referenceId;
+  const [linked] = await tx
+    .select({ id: subscriptionChangeRequests.id })
+    .from(subscriptionChangeRequests)
+    .where(eq(subscriptionChangeRequests.providerCheckoutId, payment.checkoutSessionId))
+    .limit(1);
+  if (linked && referenceId && linked.id !== referenceId) {
+    throw new PlanChangeError(
+      'Checkout e pagamento apontam para upgrades diferentes.',
+      'upgrade_checkout_mismatch',
+    );
+  }
+  return linked?.id ?? null;
 }
 
 async function readCurrentSubscription(tx: Tx, clinicId: string): Promise<CurrentSubscription> {
@@ -193,18 +296,14 @@ async function readCurrentSubscription(tx: Tx, clinicId: string): Promise<Curren
  * assinatura. Puro porque é a regra que decide QUANTO a clínica passa a pagar —
  * ela precisa ser afirmável sem banco.
  *
- * Fallback ao preço de tabela é deliberado: se o plano de destino não tem linha
- * da campanha, cobrar o cheio é melhor do que recusar a troca.
+ * Sem preço da mesma campanha no destino, a troca é recusada. Um desconto
+ * vitalício não pode desaparecer silenciosamente em uma mudança de plano.
  */
 export function pickPriceForCampaign<T extends { campaignCode: string | null }>(
   candidates: readonly T[],
   campaignCode: string | null,
 ): T | undefined {
-  if (campaignCode) {
-    const promocional = candidates.find((c) => c.campaignCode === campaignCode);
-    if (promocional) return promocional;
-  }
-  return candidates.find((c) => c.campaignCode === null);
+  return candidates.find((c) => c.campaignCode === campaignCode);
 }
 
 /**
@@ -213,8 +312,7 @@ export function pickPriceForCampaign<T extends { campaignCode: string | null }>(
  * plano e caísse no preço de tabela, ela perderia o desconto vitalício sem
  * jamais ter pedido isso — e por um caminho que nem menciona preço promocional.
  *
- * Fallback é deliberado: se o plano de destino não tem linha da campanha, o
- * preço de tabela vale. Melhor cobrar o cheio do que recusar a troca.
+ * Sem preço da mesma campanha no destino, não existe troca automática segura.
  */
 async function readTargetPlan(
   tx: Tx,
@@ -238,9 +336,7 @@ async function readTargetPlan(
         eq(prices.planId, plans.id),
         eq(prices.billingCycle, billingCycle),
         isNull(prices.activeUntil),
-        campaignCode
-          ? or(isNull(prices.campaignCode), eq(prices.campaignCode, campaignCode))
-          : isNull(prices.campaignCode),
+        campaignCode ? eq(prices.campaignCode, campaignCode) : isNull(prices.campaignCode),
       ),
     )
     .where(and(eq(plans.id, targetPlanId), eq(plans.ativo, true)));
@@ -250,7 +346,21 @@ async function readTargetPlan(
   return row;
 }
 
-async function assertExactlyOneActiveUser(tx: Tx, clinicId: string): Promise<void> {
+export function fitsPlanUserLimit(activeUsers: number, limit: number | null): boolean {
+  return Number.isInteger(activeUsers) && activeUsers > 0 && limit !== null && activeUsers <= limit;
+}
+
+async function assertTargetPlanCapacity(
+  tx: Tx,
+  clinicId: string,
+  targetPlanId: string,
+): Promise<void> {
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${clinicId}))`);
+  const [limit] = await tx
+    .select({ value: planLimits.limitValue })
+    .from(planLimits)
+    .where(and(eq(planLimits.planId, targetPlanId), eq(planLimits.metric, 'users')))
+    .limit(1);
   const [row] = await tx.execute<{ active_users: number }>(sql`
     SELECT count(*)::int AS active_users
       FROM public.profiles
@@ -258,10 +368,33 @@ async function assertExactlyOneActiveUser(tx: Tx, clinicId: string): Promise<voi
        AND ativo = true
        AND deleted_at IS NULL
   `);
-  if (Number(row?.active_users ?? 0) !== 1) {
+  if (!fitsPlanUserLimit(Number(row?.active_users ?? 0), limit?.value ?? null)) {
     throw new PlanChangeError(
-      'O downgrade só é permitido para clínicas com exatamente um usuário ativo.',
-      'downgrade_requires_one_active_user',
+      'A clínica possui mais usuários ativos do que o plano de destino permite.',
+      'downgrade_capacity_exceeded',
+    );
+  }
+
+  const [seats] = await tx
+    .select({ doctors: planSeatLimits.doctors, staff: planSeatLimits.staff })
+    .from(planSeatLimits)
+    .where(eq(planSeatLimits.planId, targetPlanId))
+    .limit(1);
+  if (!seats) return; // Planos legados só têm teto total de usuários.
+
+  const [usage] = await tx.execute<{ doctors: number; staff: number }>(sql`
+    SELECT count(*) FILTER (WHERE role = 'doctor'
+      OR (role IN ('owner', 'gestor') AND nullif(btrim(crm), '') IS NOT NULL))::int AS doctors,
+      count(*) FILTER (WHERE role <> 'doctor'
+        AND NOT (role IN ('owner', 'gestor') AND nullif(btrim(crm), '') IS NOT NULL))::int AS staff
+    FROM public.profiles
+    WHERE clinic_id = ${clinicId}::uuid AND ativo IS TRUE
+      AND deleted_at IS NULL AND role <> 'super_admin'
+  `);
+  if (Number(usage?.doctors ?? 0) > seats.doctors || Number(usage?.staff ?? 0) > seats.staff) {
+    throw new PlanChangeError(
+      'A clínica excede as vagas de médicos ou equipe do plano de destino.',
+      'downgrade_capacity_exceeded',
     );
   }
 }
@@ -351,6 +484,12 @@ export async function requestPlanChange(
 ): Promise<RequestedPlanChange> {
   const now = input.now ?? new Date();
   const current = await readCurrentSubscription(tx, input.clinicId);
+  if (!current.asaasSubscriptionId) {
+    throw new PlanChangeError(
+      'Assinatura ainda não foi provisionada no Asaas.',
+      'subscription_not_provisioned',
+    );
+  }
   if (current.billingStatus !== 'active') {
     throw new PlanChangeError(
       'A alteração de plano exige uma assinatura ativa.',
@@ -402,7 +541,7 @@ export async function requestPlanChange(
     }
   }
 
-  if (direction === -1) await assertExactlyOneActiveUser(tx, input.clinicId);
+  if (direction === -1) await assertTargetPlanCapacity(tx, input.clinicId, target.id);
 
   const isUpgrade = direction === 1;
   const periodStart = current.currentPeriodStart;
@@ -423,6 +562,12 @@ export async function requestPlanChange(
         now,
       )
     : null;
+  if (isUpgrade && prorationCents === 0) {
+    throw new PlanChangeError(
+      'O ciclo está terminando. Tente novamente após a renovação para calcular o novo valor.',
+      'upgrade_proration_unavailable',
+    );
+  }
   const status = isUpgrade ? 'pending_payment' : 'scheduled';
   const [created] = await tx
     .insert(subscriptionChangeRequests)
@@ -468,6 +613,207 @@ export async function requestPlanChange(
     prorationAmount: prorationCents === null ? null : toReaisString(prorationCents),
     targetPlanName: target.name,
   };
+}
+
+/**
+ * A troca de ciclo conserva o plano, a campanha e o acesso atual. A intenção
+ * local precede qualquer PUT remoto; `providerSyncedAt` só é preenchido depois
+ * do readback completo da recorrência E da parcela já emitida.
+ */
+export async function requestBillingCycleChange(
+  tx: Tx,
+  input: Omit<PlanChangeRequestInput, 'targetPlanId'>,
+): Promise<RequestedCycleChange> {
+  const now = input.now ?? new Date();
+  const current = await readCurrentSubscription(tx, input.clinicId);
+  if (!isOffer2026PlanCode(current.planCode)) {
+    throw new PlanChangeError(
+      'Troca de ciclo indisponível para contratos antigos.',
+      'legacy_cycle_change',
+    );
+  }
+  if (current.billingCycle === 'monthly' && !env.OFFER_2026_ANNUAL_NEW_SALES_ENABLED) {
+    throw new PlanChangeError(
+      'Novas contratações anuais ainda não estão disponíveis.',
+      'annual_new_sales_disabled',
+    );
+  }
+  if (current.billingStatus !== 'active' || !current.asaasSubscriptionId) {
+    throw new PlanChangeError('Assinatura ativa no Asaas necessária.', 'cycle_change_not_active');
+  }
+  if (!current.currentPeriodEnd || current.currentPeriodEnd <= now) {
+    throw new PlanChangeError(
+      'O ciclo atual já terminou; aguarde a renovação.',
+      'cycle_change_period_ended',
+    );
+  }
+  const [existing] = await tx
+    .select({ id: subscriptionChangeRequests.id })
+    .from(subscriptionChangeRequests)
+    .where(
+      and(
+        eq(subscriptionChangeRequests.subscriptionId, current.id),
+        inArray(subscriptionChangeRequests.status, ['pending_payment', 'scheduled']),
+      ),
+    )
+    .limit(1);
+  if (existing) {
+    throw new PlanChangeError(
+      'Já existe alteração de assinatura em andamento.',
+      'change_already_pending',
+    );
+  }
+
+  const targetCycle = current.billingCycle === 'monthly' ? 'annual' : 'monthly';
+  const target = await readTargetPlan(tx, current.planId, targetCycle, current.campaignCode);
+  const [created] = await tx
+    .insert(subscriptionChangeRequests)
+    .values({
+      clinicId: input.clinicId,
+      subscriptionId: current.id,
+      kind: 'cycle_change',
+      status: 'scheduled',
+      fromPlanId: current.planId,
+      fromPriceId: current.priceId,
+      toPlanId: current.planId,
+      toPriceId: target.priceId,
+      effectiveAt: current.currentPeriodEnd,
+      idempotencyKey: input.idempotencyKey,
+      requestedBy: input.requestedBy,
+      requestedIp: input.request.ip,
+      requestedOrigin: input.request.origin,
+      requestId: input.request.requestId,
+    })
+    .returning({ id: subscriptionChangeRequests.id });
+  if (!created) throw new PlanChangeError('Troca não registrada.', 'cycle_change_not_created');
+  await tx.insert(billingEvents).values({
+    clinicId: input.clinicId,
+    type: 'subscription.cycle_change.requested',
+    payload: {
+      changeId: created.id,
+      fromCycle: current.billingCycle,
+      targetCycle,
+      effectiveAt: current.currentPeriodEnd.toISOString(),
+      targetAmount: target.priceAmount,
+    } as never,
+  });
+  return {
+    id: created.id,
+    targetCycle,
+    targetAmount: target.priceAmount,
+    effectiveAt: current.currentPeriodEnd,
+  };
+}
+
+export async function getCurrentCycleProviderContext(clinicId: string): Promise<{
+  subscriptionId: string;
+  amount: string;
+  cycle: 'MONTHLY' | 'YEARLY';
+}> {
+  return withTenant(clinicId, async (tx) => {
+    const current = await readCurrentSubscription(tx, clinicId);
+    if (!isOffer2026PlanCode(current.planCode) || !current.asaasSubscriptionId) {
+      throw new PlanChangeError('Troca de ciclo indisponível.', 'cycle_change_unavailable');
+    }
+    return {
+      subscriptionId: current.asaasSubscriptionId,
+      amount: current.priceAmount,
+      cycle: current.billingCycle === 'annual' ? 'YEARLY' : 'MONTHLY',
+    };
+  });
+}
+
+export async function getCycleChangeSyncContext(
+  clinicId: string,
+  changeId: string,
+): Promise<{
+  subscriptionId: string;
+  previousAmount: string;
+  amount: string;
+  firstDueDate: string;
+  fromCycle: 'MONTHLY' | 'YEARLY';
+  toCycle: 'MONTHLY' | 'YEARLY';
+}> {
+  return withTenant(clinicId, async (tx) => {
+    const [change] = await tx
+      .select({
+        kind: subscriptionChangeRequests.kind,
+        status: subscriptionChangeRequests.status,
+        fromPriceId: subscriptionChangeRequests.fromPriceId,
+        toPriceId: subscriptionChangeRequests.toPriceId,
+        currentPriceId: subscriptions.priceId,
+        billingStatus: subscriptions.billingStatus,
+        asaasSubscriptionId: subscriptions.asaasSubscriptionId,
+        effectiveAt: subscriptionChangeRequests.effectiveAt,
+        currentPeriodEnd: subscriptions.currentPeriodEnd,
+        oldAmount: sql<string>`(SELECT amount FROM public.prices WHERE id = ${subscriptionChangeRequests.fromPriceId})`,
+        newAmount: sql<string>`(SELECT amount FROM public.prices WHERE id = ${subscriptionChangeRequests.toPriceId})`,
+        oldCycle: sql<
+          'monthly' | 'annual'
+        >`(SELECT billing_cycle FROM public.prices WHERE id = ${subscriptionChangeRequests.fromPriceId})`,
+        newCycle: sql<
+          'monthly' | 'annual'
+        >`(SELECT billing_cycle FROM public.prices WHERE id = ${subscriptionChangeRequests.toPriceId})`,
+      })
+      .from(subscriptionChangeRequests)
+      .innerJoin(subscriptions, eq(subscriptions.id, subscriptionChangeRequests.subscriptionId))
+      .where(
+        and(
+          eq(subscriptionChangeRequests.id, changeId),
+          eq(subscriptionChangeRequests.clinicId, clinicId),
+        ),
+      )
+      .limit(1);
+    if (
+      !change ||
+      change.kind !== 'cycle_change' ||
+      change.status !== 'scheduled' ||
+      change.fromPriceId !== change.currentPriceId ||
+      !['active', 'past_due'].includes(change.billingStatus) ||
+      !change.asaasSubscriptionId ||
+      !change.currentPeriodEnd ||
+      change.effectiveAt.getTime() !== change.currentPeriodEnd.getTime() ||
+      !change.toPriceId ||
+      !change.oldAmount ||
+      !change.newAmount ||
+      change.oldCycle === change.newCycle
+    ) {
+      throw new PlanChangeError(
+        'Troca de ciclo não corresponde ao contrato.',
+        'cycle_change_context_invalid',
+      );
+    }
+    return {
+      subscriptionId: change.asaasSubscriptionId,
+      previousAmount: change.oldAmount,
+      amount: change.newAmount,
+      firstDueDate: change.effectiveAt.toISOString().slice(0, 10),
+      fromCycle: change.oldCycle === 'annual' ? 'YEARLY' : 'MONTHLY',
+      toCycle: change.newCycle === 'annual' ? 'YEARLY' : 'MONTHLY',
+    };
+  });
+}
+
+export async function confirmCycleChangeProviderSync(
+  tx: Tx,
+  clinicId: string,
+  changeId: string,
+): Promise<void> {
+  const confirmed = await tx
+    .update(subscriptionChangeRequests)
+    .set({ providerSyncedAt: sql`now()` })
+    .where(
+      and(
+        eq(subscriptionChangeRequests.id, changeId),
+        eq(subscriptionChangeRequests.clinicId, clinicId),
+        eq(subscriptionChangeRequests.kind, 'cycle_change'),
+        eq(subscriptionChangeRequests.status, 'scheduled'),
+      ),
+    )
+    .returning({ id: subscriptionChangeRequests.id });
+  if (!confirmed.length) {
+    throw new PlanChangeError('Troca mudou durante a confirmação.', 'cycle_change_conflict');
+  }
 }
 
 const CANCELLABLE: ReadonlySet<CurrentSubscription['billingStatus']> = new Set([
@@ -863,7 +1209,7 @@ export async function reactivateSubscription(
     payload: {
       clinicId: input.clinicId,
       subscriptionId: current.id,
-      planCode: current.planCode as 'solo' | 'clinica' | 'pro',
+      planCode: toPlanCode(current.planCode),
     },
     idempotencyKey: `subscription-reactivated:${current.id}`,
   });
@@ -881,9 +1227,13 @@ export type UpgradePaymentContext = {
   customerId: string;
   amountCents: number;
   targetPlanName: string;
+  targetPlanCode: string;
   dueDate: string;
   providerPaymentId: string | null;
   providerPaymentUrl: string | null;
+  providerCheckoutId: string | null;
+  providerCheckoutExpiresAt: Date | null;
+  checkoutCreationState: string | null;
 };
 
 export async function getUpgradePaymentContext(
@@ -899,7 +1249,11 @@ export async function getUpgradePaymentContext(
       amount: subscriptionChangeRequests.prorationAmount,
       providerPaymentId: subscriptionChangeRequests.providerPaymentId,
       providerPaymentUrl: subscriptionChangeRequests.providerPaymentUrl,
+      providerCheckoutId: subscriptionChangeRequests.providerCheckoutId,
+      providerCheckoutExpiresAt: subscriptionChangeRequests.providerCheckoutExpiresAt,
+      checkoutCreationState: subscriptionChangeRequests.checkoutCreationState,
       targetPlanName: plans.name,
+      targetPlanCode: plans.code,
     })
     .from(subscriptionChangeRequests)
     .innerJoin(plans, eq(plans.id, subscriptionChangeRequests.toPlanId))
@@ -933,10 +1287,97 @@ export async function getUpgradePaymentContext(
     customerId: customer.asaasCustomerId,
     amountCents,
     targetPlanName: change.targetPlanName,
+    targetPlanCode: change.targetPlanCode,
     dueDate: new Date().toISOString().slice(0, 10),
     providerPaymentId: change.providerPaymentId,
     providerPaymentUrl: change.providerPaymentUrl,
+    providerCheckoutId: change.providerCheckoutId,
+    providerCheckoutExpiresAt: change.providerCheckoutExpiresAt,
+    checkoutCreationState: change.checkoutCreationState,
   };
+}
+
+/** Lease durável: somente uma chamada externa pode nascer para este upgrade. */
+export async function claimUpgradeCheckout(
+  tx: Tx,
+  clinicId: string,
+  changeId: string,
+  leaseUntil: Date,
+): Promise<boolean> {
+  const [claimed] = await tx
+    .update(subscriptionChangeRequests)
+    .set({ checkoutCreationState: 'creating', checkoutLeaseUntil: leaseUntil })
+    .where(
+      and(
+        eq(subscriptionChangeRequests.id, changeId),
+        eq(subscriptionChangeRequests.clinicId, clinicId),
+        eq(subscriptionChangeRequests.kind, 'upgrade'),
+        eq(subscriptionChangeRequests.status, 'pending_payment'),
+        isNull(subscriptionChangeRequests.checkoutCreationState),
+        isNull(subscriptionChangeRequests.providerCheckoutId),
+      ),
+    )
+    .returning({ id: subscriptionChangeRequests.id });
+  return claimed !== undefined;
+}
+
+/** Um POST que passou do lease pode ter sido aceito pelo Asaas; nunca o repita. */
+export async function expireStaleUpgradeCheckoutLeases(tx: Tx, now: Date): Promise<number> {
+  const stale = await tx
+    .update(subscriptionChangeRequests)
+    .set({ checkoutCreationState: 'creation_unknown', checkoutLeaseUntil: null })
+    .where(
+      and(
+        eq(subscriptionChangeRequests.kind, 'upgrade'),
+        eq(subscriptionChangeRequests.status, 'pending_payment'),
+        eq(subscriptionChangeRequests.checkoutCreationState, 'creating'),
+        lt(subscriptionChangeRequests.checkoutLeaseUntil, now),
+        isNull(subscriptionChangeRequests.providerCheckoutId),
+      ),
+    )
+    .returning({ id: subscriptionChangeRequests.id });
+  return stale.length;
+}
+
+export async function finishUpgradeCheckoutCreation(
+  tx: Tx,
+  clinicId: string,
+  changeId: string,
+  outcome:
+    | { state: 'ready'; checkoutId: string; checkoutUrl: string; expiresAt: Date }
+    | { state: 'creation_unknown' | 'failed' },
+): Promise<void> {
+  const values =
+    outcome.state === 'ready'
+      ? {
+          checkoutCreationState: 'ready',
+          checkoutLeaseUntil: null,
+          providerCheckoutId: outcome.checkoutId,
+          providerCheckoutExpiresAt: outcome.expiresAt,
+          providerPaymentUrl: outcome.checkoutUrl,
+        }
+      : {
+          checkoutCreationState: outcome.state === 'failed' ? null : 'creation_unknown',
+          checkoutLeaseUntil: null,
+        };
+  const [updated] = await tx
+    .update(subscriptionChangeRequests)
+    .set(values)
+    .where(
+      and(
+        eq(subscriptionChangeRequests.id, changeId),
+        eq(subscriptionChangeRequests.clinicId, clinicId),
+        eq(subscriptionChangeRequests.kind, 'upgrade'),
+        eq(subscriptionChangeRequests.status, 'pending_payment'),
+        eq(subscriptionChangeRequests.checkoutCreationState, 'creating'),
+      ),
+    )
+    .returning({ id: subscriptionChangeRequests.id });
+  if (!updated)
+    throw new PlanChangeError(
+      'Estado do Checkout mudou durante a criação.',
+      'upgrade_checkout_conflict',
+    );
 }
 
 type ProviderPaymentForChange = {
@@ -945,6 +1386,8 @@ type ProviderPaymentForChange = {
   value: number;
   dueDate: string;
   billingType: string | null;
+  checkoutSessionId?: string | null;
+  externalReference?: string | null;
 };
 
 async function ensureUpgradeInvoice(
@@ -1049,7 +1492,10 @@ export async function applyPaidUpgradeForPayment(
   idemSuffix: string,
 ): Promise<boolean> {
   if (!paidStatus(payment.status)) return false;
-  const changeId = changeIdFromExternalReference(payment.externalReference);
+  const changeId = await upgradeChangeIdForPayment(tx, {
+    externalReference: payment.externalReference,
+    checkoutSessionId: payment.checkoutSessionId ?? null,
+  });
   if (!changeId) return false;
   const [change] = await tx
     .select()
@@ -1065,6 +1511,18 @@ export async function applyPaidUpgradeForPayment(
   if (!change) return false;
   if (toCents(payment.value) !== toCents(change.prorationAmount ?? '0')) {
     throw new PlanChangeError('Pagamento de upgrade com valor inesperado.', 'proration_mismatch');
+  }
+  if (change.providerPaymentId && change.providerPaymentId !== payment.paymentId) {
+    throw new PlanChangeError(
+      'Pagamento não pertence ao upgrade solicitado.',
+      'upgrade_payment_mismatch',
+    );
+  }
+  if (change.providerCheckoutId && change.providerCheckoutId !== payment.checkoutSessionId) {
+    throw new PlanChangeError(
+      'Pagamento não pertence ao Checkout do upgrade.',
+      'upgrade_checkout_mismatch',
+    );
   }
   if (!change.toPlanId || !change.toPriceId) {
     throw new PlanChangeError('Upgrade sem plano de destino.', 'upgrade_target_missing');
@@ -1101,6 +1559,7 @@ export async function applyPaidUpgradeForPayment(
     .select({
       id: subscriptions.id,
       planId: subscriptions.planId,
+      priceId: subscriptions.priceId,
       planCode: plans.code,
       billingStatus: subscriptions.billingStatus,
     })
@@ -1118,6 +1577,17 @@ export async function applyPaidUpgradeForPayment(
       'Assinatura do upgrade não encontrada.',
       'upgrade_subscription_missing',
     );
+
+  if (
+    current.planId !== change.fromPlanId ||
+    current.priceId !== change.fromPriceId ||
+    current.billingStatus !== 'active'
+  ) {
+    throw new PlanChangeError(
+      'Assinatura mudou durante o upgrade.',
+      'upgrade_subscription_changed',
+    );
+  }
 
   await tx
     .update(subscriptions)
@@ -1148,8 +1618,8 @@ export async function applyPaidUpgradeForPayment(
     payload: {
       clinicId: change.clinicId,
       subscriptionId: current.id,
-      oldPlanCode: current.planCode as 'solo' | 'clinica' | 'pro',
-      newPlanCode: target.code as 'solo' | 'clinica' | 'pro',
+      oldPlanCode: toPlanCode(current.planCode),
+      newPlanCode: toPlanCode(target.code),
       oldStatus: current.billingStatus,
       newStatus: current.billingStatus,
     },
@@ -1171,7 +1641,7 @@ export async function applyScheduledPlanChange(
   tx: Tx,
   changeId: string,
   now: Date = new Date(),
-): Promise<{ applied: boolean; kind: 'downgrade' | 'cancellation' | null }> {
+): Promise<{ applied: boolean; kind: 'downgrade' | 'cancellation' | 'cycle_change' | null }> {
   const [change] = await tx
     .select()
     .from(subscriptionChangeRequests)
@@ -1191,6 +1661,8 @@ export async function applyScheduledPlanChange(
       id: subscriptions.id,
       planId: subscriptions.planId,
       planCode: plans.code,
+      priceId: subscriptions.priceId,
+      currentPeriodEnd: subscriptions.currentPeriodEnd,
       billingStatus: subscriptions.billingStatus,
     })
     .from(subscriptions)
@@ -1233,11 +1705,58 @@ export async function applyScheduledPlanChange(
       },
       idempotencyKey: `subscription-change:cancel:${change.id}`,
     });
+  } else if (change.kind === 'cycle_change') {
+    if (
+      !change.providerSyncedAt ||
+      !change.toPriceId ||
+      change.toPlanId !== current.planId ||
+      change.fromPriceId !== current.priceId ||
+      !['active', 'past_due'].includes(current.billingStatus) ||
+      current.currentPeriodEnd?.getTime() !== change.effectiveAt.getTime()
+    ) {
+      throw new PlanChangeError(
+        'Troca de ciclo sem confirmação do Asaas.',
+        'cycle_change_not_ready',
+      );
+    }
+    await tx
+      .update(subscriptions)
+      .set({ priceId: change.toPriceId })
+      .where(eq(subscriptions.id, current.id));
+    await tx.insert(subscriptionHistory).values({
+      clinicId: change.clinicId,
+      subscriptionId: current.id,
+      oldPlanId: current.planId,
+      newPlanId: current.planId,
+      oldStatus: current.billingStatus,
+      newStatus: current.billingStatus,
+      changedBy: change.requestedBy,
+      reason: 'cycle_change_period_end',
+    });
+    await publishEvent(tx, {
+      clinicId: change.clinicId,
+      eventType: BILLING_EVENTS.SUBSCRIPTION_CHANGED,
+      payload: {
+        clinicId: change.clinicId,
+        subscriptionId: current.id,
+        oldPlanCode: toPlanCode(current.planCode),
+        newPlanCode: toPlanCode(current.planCode),
+        oldStatus: current.billingStatus,
+        newStatus: current.billingStatus,
+      },
+      idempotencyKey: `subscription-change:cycle:${change.id}`,
+    });
   } else {
     if (!change.toPlanId || !change.toPriceId) {
       throw new PlanChangeError('Downgrade sem plano de destino.', 'downgrade_target_missing');
     }
-    await assertExactlyOneActiveUser(tx, change.clinicId);
+    await assertTargetPlanCapacity(tx, change.clinicId, change.toPlanId);
+    if (current.planId !== change.fromPlanId || current.billingStatus !== 'active') {
+      throw new PlanChangeError(
+        'Assinatura mudou durante o downgrade.',
+        'downgrade_subscription_changed',
+      );
+    }
     const [target] = await tx
       .select({ code: plans.code })
       .from(plans)
@@ -1265,8 +1784,8 @@ export async function applyScheduledPlanChange(
       payload: {
         clinicId: change.clinicId,
         subscriptionId: current.id,
-        oldPlanCode: current.planCode as 'solo' | 'clinica' | 'pro',
-        newPlanCode: target.code as 'solo' | 'clinica' | 'pro',
+        oldPlanCode: toPlanCode(current.planCode),
+        newPlanCode: toPlanCode(target.code),
         oldStatus: current.billingStatus,
         newStatus: current.billingStatus,
       },
@@ -1283,6 +1802,55 @@ export async function applyScheduledPlanChange(
     payload: { changeId: change.id, kind: change.kind } as never,
   });
   return { applied: true, kind: change.kind };
+}
+
+/**
+ * Um cartão pode ser pago antes do vencimento. A invoice fica paga de imediato,
+ * mas seu período anual só começa na data contratada. Na data, webhook ou cron
+ * aplica a troca antes de derivar o período da cobrança.
+ */
+export async function prepareScheduledCycleForPaidInvoice(
+  tx: Tx,
+  clinicId: string,
+  invoice: { subscriptionId: string; dueDate: string; totalAmount: string },
+  paymentMethod: string | null,
+  now: Date = new Date(),
+): Promise<{ deferPeriodAdvance: boolean }> {
+  const [change] = await tx
+    .select({
+      id: subscriptionChangeRequests.id,
+      effectiveAt: subscriptionChangeRequests.effectiveAt,
+      providerSyncedAt: subscriptionChangeRequests.providerSyncedAt,
+      amount: prices.amount,
+    })
+    .from(subscriptionChangeRequests)
+    .innerJoin(prices, eq(prices.id, subscriptionChangeRequests.toPriceId))
+    .where(
+      and(
+        eq(subscriptionChangeRequests.clinicId, clinicId),
+        eq(subscriptionChangeRequests.subscriptionId, invoice.subscriptionId),
+        eq(subscriptionChangeRequests.kind, 'cycle_change'),
+        eq(subscriptionChangeRequests.status, 'scheduled'),
+      ),
+    )
+    .limit(1);
+  if (!change) return { deferPeriodAdvance: false };
+  const effectiveDate = change.effectiveAt.toISOString().slice(0, 10);
+  if (invoice.dueDate < effectiveDate) return { deferPeriodAdvance: false };
+  if (
+    invoice.dueDate !== effectiveDate ||
+    !change.providerSyncedAt ||
+    paymentMethod !== 'CREDIT_CARD' ||
+    toCents(invoice.totalAmount) !== toCents(change.amount)
+  ) {
+    throw new PlanChangeError(
+      'Pagamento não corresponde à troca de ciclo.',
+      'cycle_change_payment_conflict',
+    );
+  }
+  if (now < change.effectiveAt) return { deferPeriodAdvance: true };
+  await applyScheduledPlanChange(tx, change.id, now);
+  return { deferPeriodAdvance: false };
 }
 
 export type PlanChangeOverview = {
@@ -1302,20 +1870,31 @@ export type PlanChangeOverview = {
     code: string;
     priceAmount: string;
     limits: { users: number; agendamentos: number; ai_messages: number };
+    seats: { doctors: number; staff: number } | null;
   }>;
   activeUsers: number;
-  pending: { kind: string; status: string; effectiveAt: string; paymentUrl: string | null } | null;
+  activeDoctors: number;
+  activeStaff: number;
+  aiUsage: { count: number; limit: number; period: string } | null;
+  cycleOffer: { billingCycle: 'monthly' | 'annual'; priceAmount: string } | null;
+  pending: {
+    kind: string;
+    status: string;
+    effectiveAt: string;
+    paymentUrl: string | null;
+    providerSynced: boolean;
+    checkoutCreationState: string | null;
+    checkoutExpired: boolean;
+  } | null;
 };
 
 export async function getPlanChangeOverview(clinicId: string): Promise<PlanChangeOverview> {
   return withTenant(clinicId, async (tx) => {
     const current = await readCurrentSubscription(tx, clinicId);
-    // O catálogo tem que mostrar o MESMO preço que a troca vai cobrar, senão a
-    // tela promete um valor e o débito vem outro. Com campanha vêm DUAS linhas
-    // por plano (tabela + campanha); o `DISTINCT ON` fica com a da campanha,
-    // que é a ordenada primeiro — filtrar em JS deixaria a dedupe implícita.
+    // Só mostra destinos com preço da MESMA campanha. Exibir o preço de tabela
+    // aqui e recusar a troca no servidor seria uma promessa enganosa na UI.
     const campaignFilter = current.campaignCode
-      ? or(isNull(prices.campaignCode), eq(prices.campaignCode, current.campaignCode))
+      ? eq(prices.campaignCode, current.campaignCode)
       : isNull(prices.campaignCode);
     const planRows = await tx
       .selectDistinctOn([plans.id], {
@@ -1336,7 +1915,27 @@ export async function getPlanChangeOverview(clinicId: string): Promise<PlanChang
       )
       .where(eq(plans.ativo, true))
       .orderBy(plans.id, sql`case when ${prices.campaignCode} is null then 1 else 0 end`);
-    const planIds = planRows.map((row) => row.id);
+    const availablePlans = planRows.filter(
+      (row) => isOffer2026PlanCode(row.code) === isOffer2026PlanCode(current.planCode),
+    );
+    const nextCycle = current.billingCycle === 'monthly' ? 'annual' : 'monthly';
+    const [cyclePrice] =
+      isOffer2026PlanCode(current.planCode) &&
+      (nextCycle === 'monthly' || env.OFFER_2026_ANNUAL_NEW_SALES_ENABLED)
+        ? await tx
+            .select({ amount: prices.amount })
+            .from(prices)
+            .where(
+              and(
+                eq(prices.planId, current.planId),
+                eq(prices.billingCycle, nextCycle),
+                isNull(prices.activeUntil),
+                campaignFilter,
+              ),
+            )
+            .limit(1)
+        : [];
+    const planIds = availablePlans.map((row) => row.id);
     const limits = planIds.length
       ? await tx
           .select({
@@ -1347,6 +1946,34 @@ export async function getPlanChangeOverview(clinicId: string): Promise<PlanChang
           .from(planLimits)
           .where(inArray(planLimits.planId, planIds))
       : [];
+    // O catálogo de assentos é exclusivo da oferta 2026. Contratos legados
+    // não podem depender da migration/grant novo durante o rollout em Preview.
+    const seats =
+      isOffer2026PlanCode(current.planCode) && planIds.length
+        ? await tx
+            .select({
+              planId: planSeatLimits.planId,
+              doctors: planSeatLimits.doctors,
+              staff: planSeatLimits.staff,
+            })
+            .from(planSeatLimits)
+            .where(inArray(planSeatLimits.planId, planIds))
+        : [];
+    const seatsByPlan = new Map(
+      seats.map((row) => [row.planId, { doctors: row.doctors, staff: row.staff }]),
+    );
+    const currentSeats = seatsByPlan.get(current.planId);
+    if (isOffer2026PlanCode(current.planCode) && !currentSeats) {
+      throw new PlanChangeError('Cota de médicos do plano indisponível.', 'seat_catalog_missing');
+    }
+    const aiPeriod = currentPeriod();
+    const aiUsage = currentSeats
+      ? {
+          count: (await readUsage(tx, clinicId, aiPeriod)).ai_messages,
+          limit: currentSeats.doctors * PROPOSED_OFFER.conversationsPerProfessional,
+          period: aiPeriod,
+        }
+      : null;
     const limitsByPlan = new Map<
       string,
       { users: number; agendamentos: number; ai_messages: number }
@@ -1356,8 +1983,20 @@ export async function getPlanChangeOverview(clinicId: string): Promise<PlanChang
       const target = limitsByPlan.get(limit.planId);
       if (target) target[limit.metric] = Number(limit.value);
     }
-    const [active] = await tx.execute<{ active_users: number }>(sql`
-      SELECT count(*)::int AS active_users
+    const [active] = await tx.execute<{
+      active_users: number;
+      active_doctors: number;
+      active_staff: number;
+    }>(sql`
+      SELECT count(*)::int AS active_users,
+        count(*) FILTER (WHERE role <> 'super_admin' AND
+          (role = 'doctor' OR
+            (role IN ('owner', 'gestor') AND nullif(btrim(crm), '') IS NOT NULL)))::int
+          AS active_doctors,
+        count(*) FILTER (WHERE role <> 'super_admin' AND NOT
+          (role = 'doctor' OR
+            (role IN ('owner', 'gestor') AND nullif(btrim(crm), '') IS NOT NULL)))::int
+          AS active_staff
         FROM public.profiles
        WHERE clinic_id = ${clinicId}::uuid
          AND ativo = true
@@ -1369,6 +2008,9 @@ export async function getPlanChangeOverview(clinicId: string): Promise<PlanChang
         status: subscriptionChangeRequests.status,
         effectiveAt: subscriptionChangeRequests.effectiveAt,
         paymentUrl: subscriptionChangeRequests.providerPaymentUrl,
+        providerSyncedAt: subscriptionChangeRequests.providerSyncedAt,
+        checkoutCreationState: subscriptionChangeRequests.checkoutCreationState,
+        checkoutExpiresAt: subscriptionChangeRequests.providerCheckoutExpiresAt,
       })
       .from(subscriptionChangeRequests)
       .where(
@@ -1390,17 +2032,26 @@ export async function getPlanChangeOverview(clinicId: string): Promise<PlanChang
         periodEnd: current.currentPeriodEnd?.toISOString() ?? null,
         trialEndsAt: current.trialEndsAt?.toISOString() ?? null,
       },
-      plans: planRows.map((plan) => ({
+      plans: availablePlans.map((plan) => ({
         ...plan,
         limits: limitsByPlan.get(plan.id) ?? { users: 0, agendamentos: 0, ai_messages: 0 },
+        seats: seatsByPlan.get(plan.id) ?? null,
       })),
       activeUsers: Number(active?.active_users ?? 0),
+      activeDoctors: Number(active?.active_doctors ?? 0),
+      activeStaff: Number(active?.active_staff ?? 0),
+      aiUsage,
+      cycleOffer: cyclePrice ? { billingCycle: nextCycle, priceAmount: cyclePrice.amount } : null,
       pending: pending
         ? {
             kind: pending.kind,
             status: pending.status,
             effectiveAt: pending.effectiveAt.toISOString(),
             paymentUrl: pending.paymentUrl,
+            providerSynced: pending.providerSyncedAt !== null,
+            checkoutCreationState: pending.checkoutCreationState,
+            checkoutExpired:
+              pending.checkoutExpiresAt !== null && pending.checkoutExpiresAt <= new Date(),
           }
         : null,
     };

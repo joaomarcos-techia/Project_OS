@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { billingApiV1 } from '@/contexts/billing/api';
 import { currentMonthInTimeZone } from '@/contexts/financial/accounting-export';
 import {
   getFaturamentoPeriodo,
@@ -290,7 +291,9 @@ export async function getConsolidadoPorProfissional(
   clinicId: string,
   days: number,
   opts: { includeFaturamento: boolean },
-): Promise<DoctorConsolidadoDTO[]> {
+): Promise<DoctorConsolidadoDTO[] | null> {
+  // null = recurso fora do plano; [] = relatório autorizado sem movimento.
+  if (!(await billingApiV1.hasAdvancedFinancialPolicies(clinicId))) return null;
   const tz = await getClinicTimezone(clinicId);
   const todayStart = clinicTodayStart(tz);
   const to = new Date(todayStart.getTime() + DAY_MS);

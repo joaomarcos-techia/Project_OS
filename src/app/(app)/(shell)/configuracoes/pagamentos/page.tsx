@@ -6,6 +6,7 @@ import { Alert } from '@/components/ui/alert';
 import { loadPagamentosPage } from './data';
 import { DepositPolicyForm } from './deposit-policy-form';
 import { PaymentAccountPanel } from './payment-account-panel';
+import { AsaasFeesPanel } from './asaas-fees-panel';
 import { FinancialPoliciesPanel } from './financial-policies-panel';
 
 export const dynamic = 'force-dynamic';
@@ -35,21 +36,17 @@ export default async function PagamentosSettingsPage() {
   return (
     <div className="flex flex-col gap-6">
       <PaymentAccountPanel status={data.account} />
+      <AsaasFeesPanel hasApiKey={data.account.hasApiKey} />
       <DepositPolicyForm policy={data.policy} hasAccount={data.account.hasApiKey} />
       {data.advancedPoliciesEnabled ? (
         <FinancialPoliciesPanel
-          pricingPolicy={data.pricingPolicy}
-          methodPrices={data.methodPrices}
           payoutPolicy={data.payoutPolicy}
           payoutRules={data.payoutRules}
           professionals={data.professionals}
           procedures={data.procedures}
         />
       ) : (
-        <Alert variant="info">
-          Preços por meio de pagamento e regras de repasse estão disponíveis nos planos Clínica e
-          Pro.
-        </Alert>
+        <Alert variant="info">Regras de repasse estão disponíveis nos planos Clínica e Pro.</Alert>
       )}
     </div>
   );

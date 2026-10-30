@@ -30,21 +30,6 @@ import type { AgendaData } from './data';
 
 type Modo = 'agendar' | 'agora';
 
-const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
-
-function paymentOptionValue(method: 'pix' | 'cash' | 'credit_card', installments: number | null) {
-  return `${method}:${installments ?? 0}`;
-}
-
-function paymentOptionLabel(method: 'pix' | 'cash' | 'credit_card', installments: number | null) {
-  if (method === 'pix') return 'PIX';
-  if (method === 'cash') return 'Dinheiro';
-  const maxInstallments = installments ?? 1;
-  return maxInstallments === 1
-    ? 'Cartão de crédito · à vista'
-    : `Cartão de crédito · até ${maxInstallments}x`;
-}
-
 /** YYYY-MM-DD de hoje (local do browser) para o `min` do input de data. */
 function hojeISODate(): string {
   const d = new Date();
@@ -60,7 +45,6 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
   const [modo, setModo] = useState<Modo>('agendar');
   const [paciente, setPaciente] = useState<ComboboxItem | null>(null);
   const [procedureId, setProcedureId] = useState('');
-  const [paymentOption, setPaymentOption] = useState('');
   const [doctorId, setDoctorId] = useState(data.selfDoctorId ?? '');
   const [date, setDate] = useState(hojeISODate());
   const [time, setTime] = useState('09:00');
@@ -79,7 +63,6 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
     setModo('agendar');
     setPaciente(null);
     setProcedureId('');
-    setPaymentOption('');
     setDoctorId(data.selfDoctorId ?? '');
     setDate(hojeISODate());
     setTime('09:00');
@@ -96,27 +79,10 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
     setError(null);
     if (!paciente) return setError('Selecione o paciente.');
     if (!procedureId) return setError('Selecione o procedimento.');
-    if (data.paymentPricingMode === 'payment_method_pricing' && !paymentOption) {
-      return setError('Selecione a forma de pagamento e o preço.');
-    }
     const docId = data.isPractitioner ? (data.selfDoctorId ?? '') : doctorId;
     if (!docId) return setError('Selecione o profissional.');
     if (modo === 'agendar' && (!date || !time)) {
       return setError('Informe data e hora.');
-    }
-    if (modo === 'agendar' && recurring && data.paymentPricingMode === 'payment_method_pricing') {
-      return setError(
-        'A recorrência com preço por meio de pagamento ainda não está disponível. Agende cada atendimento separadamente.',
-      );
-    }
-
-    const selectedPrice = data.paymentPrices.find(
-      (price) =>
-        price.procedureId === procedureId &&
-        paymentOptionValue(price.paymentMethod, price.installmentCount) === paymentOption,
-    );
-    if (data.paymentPricingMode === 'payment_method_pricing' && !selectedPrice) {
-      return setError('A condição de pagamento escolhida não está mais disponível.');
     }
     const base = {
       patientId: paciente.id,
@@ -125,14 +91,6 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
       urgencia,
       observacoes,
       resourceIds,
-      ...(selectedPrice
-        ? {
-            paymentMethod: selectedPrice.paymentMethod,
-            ...(selectedPrice.installmentCount
-              ? { installmentCount: selectedPrice.installmentCount }
-              : {}),
-          }
-        : {}),
     };
     const interval = Number(intervalWeeks);
     const count = Number(occurrences);
@@ -251,10 +209,7 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
                 <Select
                   id="appointment-procedure"
                   value={procedureId}
-                  onChange={(e) => {
-                    setProcedureId(e.target.value);
-                    setPaymentOption('');
-                  }}
+                  onChange={(e) => setProcedureId(e.target.value)}
                 >
                   <option value="">Selecione…</option>
                   {data.procedures.map((p) => (
@@ -265,46 +220,6 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
                 </Select>
               </Field>
             )}
-
-            {data.paymentPricingMode === 'payment_method_pricing' && procedureId ? (
-              data.paymentPrices.some((price) => price.procedureId === procedureId) ? (
-                <Field label="Forma de pagamento e preço" htmlFor="appointment-payment-price">
-                  <Select
-                    id="appointment-payment-price"
-                    value={paymentOption}
-                    onChange={(event) => setPaymentOption(event.target.value)}
-                  >
-                    <option value="">Selecione…</option>
-                    {data.paymentPrices
-                      .filter((price) => price.procedureId === procedureId)
-                      .map((price) => (
-                        <option
-                          key={price.id}
-                          value={paymentOptionValue(price.paymentMethod, price.installmentCount)}
-                          disabled={
-                            price.paymentMethod === 'credit_card' && price.installmentCount !== 1
-                          }
-                        >
-                          {paymentOptionLabel(price.paymentMethod, price.installmentCount)} —{' '}
-                          {money.format(price.grossAmount)}
-                          {price.paymentMethod === 'credit_card' && price.installmentCount !== 1
-                            ? ' · link parcelado indisponível'
-                            : ''}
-                        </option>
-                      ))}
-                  </Select>
-                  <p className="mt-1 text-(length:--fs-xs) text-fg-muted">
-                    Este é o valor bruto do atendimento. Taxas do Asaas serão registradas
-                    separadamente.
-                  </p>
-                </Field>
-              ) : (
-                <Alert variant="warning">
-                  Este procedimento não possui preço por forma de pagamento. Configure-o em
-                  Configurações → Pagamentos antes de agendar.
-                </Alert>
-              )
-            ) : null}
 
             {!data.isPractitioner ? (
               <Field label="Profissional" htmlFor="appointment-doctor">
@@ -347,16 +262,10 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
                 <label className="flex items-center gap-2.5 text-sm">
                   <Checkbox
                     checked={recurring}
-                    disabled={data.paymentPricingMode === 'payment_method_pricing'}
                     onCheckedChange={(value) => setRecurring(value === true)}
                   />
                   Repetir semanalmente
                 </label>
-                {data.paymentPricingMode === 'payment_method_pricing' ? (
-                  <p className="text-(length:--fs-xs) text-fg-muted">
-                    Com preço por meio de pagamento, agende cada atendimento separadamente.
-                  </p>
-                ) : null}
                 {recurring ? (
                   <div className="grid gap-3 sm:grid-cols-2">
                     {/* A11Y-002 — estes dois números decidem a criação de até

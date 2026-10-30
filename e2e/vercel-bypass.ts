@@ -10,10 +10,24 @@
  * Sem `VERCEL_AUTOMATION_BYPASS_SECRET` isto devolve `{}` e localhost continua
  * igual.
  */
+import type { BrowserContext } from '@playwright/test';
+
 export function vercelBypassHeaders(): Record<string, string> {
   const secret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
   if (!secret) return {};
   return {
     'x-vercel-protection-bypass': secret,
   };
+}
+
+/** Aplica o bypass só ao Preview; nunca envia esse segredo ao Asaas ou a outro host. */
+export async function installVercelBypassForOrigin(
+  context: BrowserContext,
+  origin: string,
+): Promise<void> {
+  const headers = vercelBypassHeaders();
+  if (Object.keys(headers).length === 0) return;
+  await context.route(`${origin}/**`, (route) =>
+    route.continue({ headers: { ...route.request().headers(), ...headers } }),
+  );
 }

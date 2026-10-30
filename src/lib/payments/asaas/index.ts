@@ -212,6 +212,8 @@ export interface GenerateInvoiceInput {
 
 interface CreateCheckoutBaseInput {
   value: number;
+  /** Cliente SaaS já cadastrado; evita solicitar novamente a identidade no Checkout. */
+  customerId?: string;
   /** Nome curto do item no Asaas; o contrato do Checkout limita a 30 caracteres. */
   itemName?: string;
   description: string;
@@ -325,6 +327,8 @@ export interface ProviderCustomer {
 }
 
 const ASAAS_CHECKOUT_ITEM_NAME_MAX_LENGTH = 30;
+const CHECKOUT_RECOVERY_PAGE_SIZE = 100;
+const CHECKOUT_RECOVERY_MAX_PAGES = 50;
 
 /**
  * Evento de webhook Asaas normalizado (sem wire format cru).
@@ -366,6 +370,22 @@ export interface AsaasAccountInfo {
   email: string | null;
 }
 
+/** Tarifas da conta conectada, apenas para exibição; a taxa efetiva vem do pagamento. */
+export interface AsaasAccountFees {
+  pix: {
+    regular: number | null;
+    discounted: number | null;
+    discountExpiration: string | null;
+  };
+  creditCard: {
+    operationValue: number | null;
+    oneInstallmentPercentage: number | null;
+    discountedOneInstallmentPercentage: number | null;
+    hasValidDiscount: boolean;
+    discountExpiration: string | null;
+  };
+}
+
 export interface PaymentProvider {
   createCustomer(input: CreateCustomerInput): Promise<{ customerId: string }>;
   /** Remove cliente criado nesta tentativa que falhou antes de gerar assinatura. */
@@ -377,11 +397,12 @@ export interface PaymentProvider {
   ): Promise<{ subscriptionId: string; creditCardToken: string | null }>;
   /** Cancela a assinatura no Asaas (compensação da saga — mata cobrança órfã). */
   cancelSubscription(asaasSubscriptionId: string): Promise<void>;
-  /** Atualiza somente cobranças futuras da recorrência. */
+  /** Atualiza a recorrência; cobranças pendentes só são incluídas quando solicitado. */
   updateSubscription(
     asaasSubscriptionId: string,
     input: {
       value?: number;
+      cycle?: 'MONTHLY' | 'YEARLY';
       status?: 'ACTIVE' | 'INACTIVE';
       nextDueDate?: string;
       updatePendingPayments?: boolean;
@@ -422,6 +443,17 @@ export interface PaymentProvider {
    * uma lista incompleta aqui viraria "cancelado sem sobra" com cobrança viva.
    */
   listUnpaidSubscriptionPayments(asaasSubscriptionId: string): Promise<ProviderPayment[]>;
+  /** Todas as cobranças já geradas; usada apenas na troca de plano, com paginação limitada. */
+  listAllSubscriptionPayments(asaasSubscriptionId: string): Promise<ProviderPayment[]>;
+  /** Reprecifica somente uma cobrança ainda aberta, preservando método e vencimento. */
+  updatePayment(
+    asaasPaymentId: string,
+    input: {
+      value: number;
+      billingType: 'UNDEFINED' | 'BOLETO' | 'CREDIT_CARD' | 'PIX';
+      dueDate: string;
+    },
+  ): Promise<void>;
   /** `attempts` aperta o orçamento de retry (webhook usa 1 — ver [asaas/route.ts]). */
   getPayment(
     asaasPaymentId: string,
@@ -481,6 +513,8 @@ export interface PaymentProvider {
    * nome amanhã, a validação continua funcionando e só o rótulo da tela fica nulo.
    */
   getMyAccount(opts?: { attempts?: number }): Promise<AsaasAccountInfo>;
+  /** GET /myAccount/fees/ usa as condições da própria conta, sem tabela hard-coded. */
+  getAccountFees(opts?: { attempts?: number }): Promise<AsaasAccountFees>;
   /**
    * Configura o webhook na conta. Se a mesma rota já existir, atualiza o recurso
    * em vez de repetir o POST que o Asaas rejeita como `invalid_object`.
@@ -507,6 +541,18 @@ function asNum(v: unknown): number {
 }
 function asStr(v: unknown): string | null {
   return typeof v === 'string' && v.length > 0 ? v : null;
+}
+
+function asFeeNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function asObject(value: unknown): Record<string, unknown> {
+  return isObject(value) ? value : {};
 }
 
 const ASAAS_RESOURCE_SEGMENTS = new Set([
@@ -896,6 +942,7 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
       }
       await request('PUT', `/subscriptions/${encodeURIComponent(id)}`, {
         value: input.value,
+        cycle: input.cycle,
         status: input.status,
         nextDueDate: input.nextDueDate,
         updatePendingPayments: input.updatePendingPayments ?? false,
@@ -963,6 +1010,7 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
         throw new BillingProviderError('checkout item name ausente', 'invalid_checkout_item_name');
       }
       const r = (await request('POST', '/checkouts', {
+        ...(input.customerId ? { customer: input.customerId } : {}),
         billingTypes: recurrent ? ['CREDIT_CARD'] : (input.billingTypes ?? ['PIX', 'CREDIT_CARD']),
         chargeTypes: recurrent ? ['RECURRENT'] : installment ? ['INSTALLMENT'] : ['DETACHED'],
         minutesToExpire: input.minutesToExpire,
@@ -1093,6 +1141,41 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
       return found;
     },
 
+    async listAllSubscriptionPayments(id) {
+      const found: ProviderPayment[] = [];
+      for (let page = 0; page < UNPAID_LISTING_MAX_PAGES; page++) {
+        const query = new URLSearchParams({
+          limit: String(UNPAID_LISTING_PAGE_SIZE),
+          offset: String(page * UNPAID_LISTING_PAGE_SIZE),
+        });
+        const r = (await request(
+          'GET',
+          `/subscriptions/${encodeURIComponent(id)}/payments?${query.toString()}`,
+        )) as { data?: unknown; hasMore?: unknown };
+        if (!Array.isArray(r.data) || typeof r.hasMore !== 'boolean') {
+          throw new BillingProviderError(
+            'Asaas não confirmou a listagem completa de cobranças da assinatura.',
+            'subscription_payments_listing_invalid',
+          );
+        }
+        const payments = r.data;
+        for (const payment of payments) {
+          const mapped = listedSubscriptionPayment(payment, id);
+          if (!mapped.deleted) found.push(mapped);
+        }
+        if (!r.hasMore) return found;
+      }
+      throw new BillingProviderError(
+        'Listagem de cobranças da assinatura não terminou dentro do teto de páginas.',
+        'subscription_payments_listing_truncated',
+      );
+    },
+
+    async updatePayment(id, input) {
+      await request('PUT', `/payments/${encodeURIComponent(id)}`, input);
+      metrics.emit('billing.asaas.payment_updated', { paymentId: redactOpaqueId(id) });
+    },
+
     async getPayment(id, opts) {
       const r = (await request('GET', `/payments/${id}`, undefined, opts)) as Record<
         string,
@@ -1158,15 +1241,45 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
       // fallback é limitado e continua exigindo igualdade exata do vínculo;
       // data/valor nunca são usados como identidade.
       if (!exact) {
-        const recoveryQuery = new URLSearchParams({ limit: '100', offset: '0' });
-        if (opts?.createdSince) recoveryQuery.set('dateCreated[ge]', opts.createdSince);
-        const recovery = (await request(
-          'GET',
-          `/payments?${recoveryQuery.toString()}`,
-          undefined,
-          opts,
-        )) as { data?: unknown };
-        exact = findExact(Array.isArray(recovery.data) ? recovery.data : []);
+        const recoveryQuery = new URLSearchParams({
+          limit: String(CHECKOUT_RECOVERY_PAGE_SIZE),
+          offset: '0',
+        });
+        if (opts?.createdSince) {
+          // O Asaas pode registrar dateCreated no dia civil anterior ao UTC do
+          // Checkout (observado no Sandbox à meia-noite de Brasília). A janela
+          // começa um dia antes; a identidade ainda exige checkoutSession exato.
+          const since = new Date(`${opts.createdSince}T00:00:00.000Z`);
+          if (
+            !/^\d{4}-\d{2}-\d{2}$/.test(opts.createdSince) ||
+            Number.isNaN(since.getTime()) ||
+            since.toISOString().slice(0, 10) !== opts.createdSince
+          ) {
+            throw new Error('createdSince inválido');
+          }
+          since.setUTCDate(since.getUTCDate() - 1);
+          recoveryQuery.set('dateCreated[ge]', since.toISOString().slice(0, 10));
+        }
+        for (let page = 0; page < CHECKOUT_RECOVERY_MAX_PAGES; page += 1) {
+          recoveryQuery.set('offset', String(page * CHECKOUT_RECOVERY_PAGE_SIZE));
+          const recovery = (await request(
+            'GET',
+            `/payments?${recoveryQuery.toString()}`,
+            undefined,
+            opts,
+          )) as { data?: unknown; hasMore?: unknown };
+          const payments = Array.isArray(recovery.data) ? recovery.data : [];
+          exact = findExact(payments);
+          if (exact) break;
+          if (
+            recovery.hasMore === false ||
+            (recovery.hasMore !== true && payments.length < CHECKOUT_RECOVERY_PAGE_SIZE)
+          )
+            break;
+          if (page === CHECKOUT_RECOVERY_MAX_PAGES - 1) {
+            throw new Error('Busca de cobrança do Checkout excedeu o limite de paginação');
+          }
+        }
       }
 
       if (!exact) return null;
@@ -1312,6 +1425,29 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
     async getMyAccount(opts) {
       const res = (await request('GET', '/myAccount', undefined, opts)) as Record<string, unknown>;
       return { name: asStr(res.name), email: asStr(res.email) };
+    },
+
+    async getAccountFees(opts) {
+      const response = await request('GET', '/myAccount/fees/', undefined, opts);
+      const payment = asObject(asObject(response).payment);
+      const pix = asObject(payment.pix);
+      const creditCard = asObject(payment.creditCard);
+      return {
+        pix: {
+          regular: asFeeNumber(pix.fixedFeeValue),
+          discounted: asFeeNumber(pix.fixedFeeValueWithDiscount),
+          discountExpiration: asStr(pix.discountExpiration),
+        },
+        creditCard: {
+          operationValue: asFeeNumber(creditCard.operationValue),
+          oneInstallmentPercentage: asFeeNumber(creditCard.oneInstallmentPercentage),
+          discountedOneInstallmentPercentage: asFeeNumber(
+            creditCard.discountOneInstallmentPercentage,
+          ),
+          hasValidDiscount: creditCard.hasValidDiscount === true,
+          discountExpiration: asStr(creditCard.discountExpiration),
+        },
+      };
     },
 
     parseWebhook(raw) {

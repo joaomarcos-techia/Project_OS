@@ -13,6 +13,8 @@ Reference — consultas versionadas; criação no provedor é manual.
 ## Saved searches válidas
 
 ```text
+message.event:"ai.provider.error"
+message.event:"ai_agent.mode.read_failed"
 message.event:"worker.tick"
 message.event:"outbox.failed"
 message.event:"outbox.retry"
@@ -85,3 +87,7 @@ Consultas acima são verificadas contra strings emitidas no código por `pnpm ch
 3. confira estado persistido (outbox/invoice/outbound/heartbeat);
 4. identifique se provider foi chamado e se houve compensação;
 5. reprocessamento só após confirmar idempotência e estado externo.
+
+## Falha de leitura do modo da IA
+
+`ai_agent.mode.read_failed` informa somente `reason: unavailable|invalid_value`; nunca valor da configuração, prompt, paciente ou erro SQL. O handler usa fallback operacional sem provider. Há cache por instância de até 30 segundos; depois desse TTL, falha de banco não pode assumir modo normal. Alertar a operação ao detectar esse evento; conferir banco/configuração e `ai.provider.error` (402/429), sem remover credencial para desligar o serviço. A saved search versionada não significa que um destinatário de alerta já foi configurado.

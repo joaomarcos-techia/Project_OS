@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 
-type Result = 'success' | 'cancelled' | 'expired';
+type Result = 'success' | 'pending' | 'cancelled' | 'expired';
 type Phase = 'checking' | 'waiting' | 'failed';
 
 const POLL_DELAYS_MS = [0, 1_500, 2_500, 4_000, 6_000, 8_000, 10_000, 12_000];
@@ -51,7 +51,13 @@ export function PaymentReturn({ result }: { result: Result }) {
           setPhase('waiting');
           continue;
         }
-        if (response.status === 401 || response.status === 403) {
+        if (response.status === 401) {
+          // Outra aba pode ter provisionado a clínica depois que este JWT pré-tenant
+          // foi emitido. Renovar as claims antes de concluir que a sessão acabou.
+          window.location.assign('/auth/session-refresh?next=/dashboard');
+          return;
+        }
+        if (response.status === 403) {
           window.location.assign('/login');
           return;
         }
@@ -78,7 +84,7 @@ export function PaymentReturn({ result }: { result: Result }) {
   }, []);
 
   useEffect(() => {
-    if (result !== 'success') return;
+    if (result !== 'success' && result !== 'pending') return;
     void verify();
     return () => {
       runId.current += 1;
@@ -159,7 +165,9 @@ export function PaymentReturn({ result }: { result: Result }) {
         {phase === 'checking'
           ? 'Estamos conferindo o Checkout diretamente com o Asaas.'
           : phase === 'waiting'
-            ? 'O pagamento foi concluído no navegador. Agora aguardamos a assinatura aparecer no Asaas.'
+            ? result === 'success'
+              ? 'O Checkout terminou no navegador. Agora aguardamos a confirmação da assinatura pelo Asaas.'
+              : 'A assinatura ainda não foi confirmada pelo Asaas. Estamos verificando novamente.'
             : 'A ativação ainda não terminou.'}
       </p>
       {message ? (

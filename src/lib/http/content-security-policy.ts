@@ -72,6 +72,7 @@ const FACEBOOK_FRAME = [
  * uma política que só protege um ambiente ensina a equipe a testar no errado.
  */
 const TURNSTILE = 'https://challenges.cloudflare.com';
+const WHATSAPP_PROFILE_IMAGES = 'https://pps.whatsapp.net';
 
 /**
  * Vercel Toolbar — SOMENTE em Preview. Em Production a origem continua
@@ -144,7 +145,7 @@ export function buildContentSecurityPolicy(
     // Next e Tailwind emitem <style> inline; sem nonce, style-src precisa disto.
     // É um risco menor por ordens de grandeza que o mesmo em script-src.
     `style-src ${join("'self'", "'unsafe-inline'", preview ? VERCEL_LIVE.script : [])}`,
-    `img-src ${join("'self'", 'data:', 'blob:', supabase.http, preview ? VERCEL_LIVE.img : [])}`,
+    `img-src ${join("'self'", 'data:', 'blob:', supabase.http, WHATSAPP_PROFILE_IMAGES, preview ? VERCEL_LIVE.img : [])}`,
     `font-src ${join("'self'", 'data:', preview ? VERCEL_LIVE.font : [])}`,
     // O Sentry do browser sai pelo túnel same-origin (/monitoring), então o host
     // de ingestão NÃO entra aqui: seria um destino de exfiltração a mais, e o

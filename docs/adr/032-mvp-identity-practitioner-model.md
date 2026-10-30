@@ -39,8 +39,8 @@ implementar agora** (YAGNI); apenas registrar que a simplificação é conscient
 
 ### 2. `isPractitioner` é o predicado canônico de capacidade clínica (construir JÁ)
 
-- **Predicado único:** `isPractitioner(profile) = role === 'doctor' || crm != null`, em UM lugar em
-  `identity` (ex.: `src/contexts/identity/predicates.ts`), exportado pela superfície pública.
+- **Predicado único vigente:** `role === 'doctor' || (role IN ('owner', 'gestor') && CRM preenchido)`.
+  Vive em `src/lib/auth/practitioner.ts`; o mesmo módulo fornece o predicado SQL.
 - **Migrar os checks `role === 'doctor'` para `isPractitioner`** ANTES de o onboarding gravar CRM no owner.
   Ordem obrigatória (top-5 #1 do review): predicado primeiro, depois os features que dependem dele.
 - **CRM é ATRIBUTO (credencial), não identidade.** A dependência correta é:
@@ -48,8 +48,16 @@ implementar agora** (YAGNI); apenas registrar que a simplificação é conscient
   espalhar `crm != null ⇒ médico` como regra de negócio — só dentro do predicado. O schema já aponta certo
   ([schema.ts:77](../../src/contexts/identity/schema.ts#L77): *"CRM obrigatório p/ emitir documento, não p/
   assinar prontuário"*).
-- **Upgrade futuro:** quando existir profissional-sem-CRM (psicólogo/nutri), trocar `crm != null` por coluna
+- **Upgrade futuro:** quando existir profissional-sem-CRM (psicólogo/nutri), trocar a cláusula de CRM por coluna
   booleana `is_practitioner` dedicada — o predicado muda num lugar só.
+
+**Revisão de 19/10/2026:** a cláusula de CRM acima foi restrita a `owner` e `gestor`.
+`doctor` continua clínico pelo papel, inclusive antes de cadastrar CRM. `attendant` e
+`financial` não se tornam clínicos por um CRM retido após mudança de papel. O
+predicado TypeScript e seu espelho SQL foram alterados juntos; snapshots de
+atendimentos anteriores permanecem históricos. Essa revisão precede a futura
+cobrança por vaga médica, para que trocar um médico para equipe não preserve
+capacidade clínica indevida.
 
 ### 3. Canal de identidade = e-mail (MVP)
 

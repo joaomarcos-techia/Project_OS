@@ -255,6 +255,7 @@ export function WhatsappProfile({
   const [erros, setErros] = useState<Record<string, string>>({});
   const [erroGeral, setErroGeral] = useState<{ code: string; message: string } | null>(null);
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
+  const [unavailablePhotoUrl, setUnavailablePhotoUrl] = useState<string | null>(null);
   const [pendente, startTransition] = useTransition();
   const [photoPending, startPhotoTransition] = useTransition();
 
@@ -286,6 +287,7 @@ export function WhatsappProfile({
       }
       setErroLeitura(null);
       setLido(result.data);
+      setUnavailablePhotoUrl(null);
       setForm(paraFormulario(result.data));
       setErros({});
     });
@@ -352,6 +354,7 @@ export function WhatsappProfile({
           return;
         }
         setLido(result.data);
+        setUnavailablePhotoUrl(null);
         limparPhotoPreview();
         toast.success('Foto do WhatsApp atualizada.');
       });
@@ -366,6 +369,7 @@ export function WhatsappProfile({
   const salvo = lido ? paraFormulario(lido) : null;
   const alterado = salvo ? !iguais(form, salvo) : false;
   const photoUrl = photoPreviewUrl ?? lido?.profilePictureUrl ?? null;
+  const visiblePhotoUrl = photoUrl === unavailablePhotoUrl ? null : photoUrl;
 
   return (
     <Card
@@ -476,13 +480,14 @@ export function WhatsappProfile({
                   <div className="rounded-(--r-lg) border border-border bg-surface-2 p-4">
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
                       <div className="grid size-20 shrink-0 place-items-center overflow-hidden rounded-full border-2 border-surface bg-(--primary-soft) text-lg font-semibold text-(--primary-active) shadow-[0_0_0_1px_var(--border)]">
-                        {photoUrl ? (
+                        {visiblePhotoUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element -- URL dinâmica vem da Meta ou de blob local.
                           <img
-                            src={photoUrl}
+                            src={visiblePhotoUrl}
                             alt="Foto atual do perfil do WhatsApp"
                             className="size-full object-cover"
                             referrerPolicy="no-referrer"
+                            onError={() => setUnavailablePhotoUrl(visiblePhotoUrl)}
                           />
                         ) : (
                           initialsFrom(lido.identidade.displayName || 'Sua clínica')
@@ -718,7 +723,7 @@ export function WhatsappProfile({
               </fieldset>
             </div>
 
-            <WhatsappProfilePreview lido={lido} form={form} photoUrl={photoUrl} />
+            <WhatsappProfilePreview lido={lido} form={form} photoUrl={visiblePhotoUrl} />
           </div>
         ) : null}
       </div>

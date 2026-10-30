@@ -2,12 +2,18 @@ import 'server-only';
 
 import { randomBytes } from 'node:crypto';
 
-import { and, asc, desc, eq, gt, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
 /* eslint-disable boundaries/element-types -- O-4 resolve o catálogo global de Billing
    no servidor; signup_sessions continua pré-tenant e não recebe preço do browser. */
 import { plans, prices } from '@/contexts/billing/schema';
+import {
+  isOffer2026PlanCode,
+  OFFER_2026_ENTRY_PLAN_CODES,
+  OFFER_2026_PLAN_CODES,
+  PROPOSED_OFFER,
+} from '@/contexts/billing/proposed-offer';
 /* eslint-enable boundaries/element-types */
 import { signupSessions } from '@/contexts/onboarding/schema';
 import { hashEmail } from '@/lib/auth/email-hash';
@@ -16,7 +22,9 @@ import { env } from '@/lib/env';
 
 import { QORO_SELF_SERVICE_TRIAL_DAYS } from '../trial';
 import { signupAnswerValuesSchema, type SignupAnswerValues } from './signup-answer-values';
+import { recoverableHostedCheckoutCondition } from './signup-checkout-recovery';
 import { hashSignupToken, SIGNUP_ABSOLUTE_TTL_SECONDS, signupNameSchema } from './signup-session';
+import { readSignupAuthCreatedAt, resolveSignupTrialTerms } from './signup-trial';
 
 const userIdSchema = z.string().uuid();
 const verifiedEmailSchema = z.string().max(160).email();
@@ -52,6 +60,7 @@ export const signupPlanMutationSchema = z
   .object({
     rowVersion: z.number().int().min(1).max(2_147_483_646),
     planId: z.string().uuid(),
+    cycle: z.enum(['monthly', 'annual']).default('monthly'),
   })
   .strict();
 
@@ -60,7 +69,7 @@ export interface SignupPlan {
   code: string;
   name: string;
   priceCents: number;
-  cycle: 'monthly';
+  cycle: 'monthly' | 'annual';
 }
 
 export interface SignupPlanState {
@@ -68,8 +77,11 @@ export interface SignupPlanState {
   rowVersion: number;
   clinicName: string;
   selectedPlanId: string | null;
+  selectedBillingCycle: 'monthly' | 'annual';
   plans: SignupPlan[];
   trialDays: number;
+  /** Fim absoluto dos planos 2026, derivado do Auth no servidor; null para catálogo legado. */
+  offerTrialEndsAt: string | null;
 }
 
 /** Sem `gone`: criar não depende de linha anterior; o que falha é disputa ou gate. */
@@ -87,10 +99,20 @@ export type EnsureSignupDraftOutcome =
   | { ok: false; reason: 'gone' | 'unavailable' };
 export type OwnedSignupCredentialState = 'reserved' | 'completed' | 'uncertain' | null;
 export type OwnedSignupReferenceOutcome =
-  | { ok: true; signupRef: string; credentialState: OwnedSignupCredentialState }
+  | {
+      ok: true;
+      signupRef: string;
+      credentialState: OwnedSignupCredentialState;
+      checkoutRecovery?: true;
+    }
   | { ok: false; reason: 'gone' | 'unavailable' };
 type PlanWriteOutcome =
-  | { ok: true; rowVersion: number; selectedPlanId: string }
+  | {
+      ok: true;
+      rowVersion: number;
+      selectedPlanId: string;
+      selectedBillingCycle: 'monthly' | 'annual';
+    }
   | { ok: false; reason: 'gone' | 'conflict' | 'invalid_plan' | 'unavailable' };
 type PlanReadOutcome =
   | { ok: true; state: SignupPlanState }
@@ -145,11 +167,15 @@ export async function readOwnedSignupReference(
       .select({
         signupRef: signupSessions.tokenHash,
         credentialState: signupSessions.authAttemptState,
+        checkoutRecovery: sql<boolean>`(${signupSessions.idleExpiresAt} <= now() OR ${signupSessions.absoluteExpiresAt} <= now())`,
       })
       .from(signupSessions)
       .where(
         and(
-          ownerDraftCondition(identity.data.userId),
+          or(
+            ownerDraftCondition(identity.data.userId),
+            recoverableHostedCheckoutCondition(identity.data.userId),
+          ),
           eq(signupSessions.emailHash, hashEmail(identity.data.email)),
         ),
       )
@@ -168,6 +194,7 @@ export async function readOwnedSignupReference(
       ok: true,
       signupRef: owned.signupRef,
       credentialState,
+      ...(owned.checkoutRecovery ? { checkoutRecovery: true as const } : {}),
     };
   } catch {
     return { ok: false, reason: 'unavailable' };
@@ -182,7 +209,7 @@ function priceToCents(value: string): number {
   return major * 100 + minor;
 }
 
-/** Catálogo autônomo: somente preço mensal BRL de tabela, nunca campanha de convite. */
+/** Catálogo autônomo: preços BRL de tabela, nunca campanha de convite. */
 async function listSelfServicePlans(): Promise<SignupPlan[]> {
   const rows = await dbAdmin
     .select({
@@ -190,13 +217,13 @@ async function listSelfServicePlans(): Promise<SignupPlan[]> {
       code: plans.code,
       name: plans.name,
       amount: prices.amount,
+      cycle: prices.billingCycle,
     })
     .from(plans)
     .innerJoin(
       prices,
       and(
         eq(prices.planId, plans.id),
-        eq(prices.billingCycle, 'monthly'),
         eq(prices.currency, 'BRL'),
         lte(prices.activeFrom, sql`now()`),
         isNull(prices.activeUntil),
@@ -206,13 +233,23 @@ async function listSelfServicePlans(): Promise<SignupPlan[]> {
     .where(eq(plans.ativo, true))
     .orderBy(asc(plans.name));
 
-  return rows.map((row) => ({
-    id: row.id,
-    code: row.code,
-    name: row.name,
-    priceCents: priceToCents(row.amount),
-    cycle: 'monthly',
-  }));
+  // Durante a transição, contratos legados continuam ativos para seus clientes.
+  // Quando a oferta versionada estiver ativa, o cadastro novo mostra só ela.
+  const offerRows = rows.filter((row) =>
+    OFFER_2026_ENTRY_PLAN_CODES.some((code) => code === row.code),
+  );
+  const availableRows = rows.some((row) => isOffer2026PlanCode(row.code))
+    ? offerRows
+    : rows.filter((row) => row.cycle === 'monthly');
+  return availableRows
+    .filter((row) => row.cycle === 'monthly' || env.OFFER_2026_ANNUAL_NEW_SALES_ENABLED)
+    .map((row) => ({
+      id: row.id,
+      code: row.code,
+      name: row.name,
+      priceCents: priceToCents(row.amount),
+      cycle: row.cycle,
+    }));
 }
 
 /** Lê draft e catálogo sem renovar TTL nem aceitar preço do cliente. */
@@ -225,12 +262,28 @@ export async function readSignupPlan(userId: string): Promise<PlanReadOutcome> {
       rowVersion: signupSessions.rowVersion,
       clinicName: signupSessions.clinicName,
       selectedPlanId: signupSessions.selectedPlanId,
+      selectedBillingCycle: signupSessions.selectedBillingCycle,
     })
     .from(signupSessions)
     .where(ownerDraftCondition(userId))
     .limit(1);
   if (!draft) return { ok: false, reason: 'gone' };
   if (!draft.clinicName) return { ok: false, reason: 'unavailable' };
+
+  const availablePlans = await listSelfServicePlans();
+  const offerPlan = availablePlans.find((plan) => isOffer2026PlanCode(plan.code));
+  let offerTrialEndsAt: string | null = null;
+  if (offerPlan) {
+    const authCreatedAt = await readSignupAuthCreatedAt(userId);
+    if (!authCreatedAt) return { ok: false, reason: 'unavailable' };
+    const trial = resolveSignupTrialTerms({
+      planCode: offerPlan.code,
+      attemptedAt: new Date(),
+      authCreatedAt,
+    });
+    if (!trial) return { ok: false, reason: 'unavailable' };
+    offerTrialEndsAt = trial.endsAt.toISOString();
+  }
 
   return {
     ok: true,
@@ -239,8 +292,10 @@ export async function readSignupPlan(userId: string): Promise<PlanReadOutcome> {
       rowVersion: draft.rowVersion,
       clinicName: draft.clinicName,
       selectedPlanId: draft.selectedPlanId,
-      plans: await listSelfServicePlans(),
-      trialDays: QORO_SELF_SERVICE_TRIAL_DAYS,
+      selectedBillingCycle: draft.selectedBillingCycle,
+      plans: availablePlans,
+      trialDays: offerPlan ? PROPOSED_OFFER.proposedTrialDays : QORO_SELF_SERVICE_TRIAL_DAYS,
+      offerTrialEndsAt,
     },
   };
 }
@@ -252,16 +307,19 @@ export async function writeSignupPlan(userId: string, input: unknown): Promise<P
   const parsed = signupPlanMutationSchema.safeParse(input);
   if (!parsed.success) throw new Error('[signup] invalid_plan');
 
-  const { planId, rowVersion } = parsed.data;
+  const { planId, rowVersion, cycle } = parsed.data;
+  if (cycle === 'annual' && !env.OFFER_2026_ANNUAL_NEW_SALES_ENABLED) {
+    return { ok: false, reason: 'invalid_plan' };
+  }
   return dbAdmin.transaction(async (tx) => {
     const [availablePlan] = await tx
-      .select({ id: plans.id })
+      .select({ id: plans.id, code: plans.code })
       .from(plans)
       .innerJoin(
         prices,
         and(
           eq(prices.planId, plans.id),
-          eq(prices.billingCycle, 'monthly'),
+          eq(prices.billingCycle, cycle),
           eq(prices.currency, 'BRL'),
           lte(prices.activeFrom, sql`now()`),
           isNull(prices.activeUntil),
@@ -272,6 +330,23 @@ export async function writeSignupPlan(userId: string, input: unknown): Promise<P
       .for('share')
       .limit(1);
     if (!availablePlan) return { ok: false, reason: 'invalid_plan' };
+    if (cycle === 'annual' && !isOffer2026PlanCode(availablePlan.code)) {
+      return { ok: false, reason: 'invalid_plan' };
+    }
+    if (
+      isOffer2026PlanCode(availablePlan.code) &&
+      !OFFER_2026_ENTRY_PLAN_CODES.some((code) => code === availablePlan.code)
+    ) {
+      return { ok: false, reason: 'invalid_plan' };
+    }
+    if (!isOffer2026PlanCode(availablePlan.code)) {
+      const [activeOffer] = await tx
+        .select({ id: plans.id })
+        .from(plans)
+        .where(and(eq(plans.ativo, true), inArray(plans.code, OFFER_2026_PLAN_CODES)))
+        .limit(1);
+      if (activeOffer) return { ok: false, reason: 'invalid_plan' };
+    }
 
     const [saved] = await tx
       .update(signupSessions)
@@ -280,6 +355,7 @@ export async function writeSignupPlan(userId: string, input: unknown): Promise<P
         // absoluto, e `least(now() + idle, absoluto)` ENCURTARIA o prazo a cada
         // escolha de plano — a leitura autenticada não renova nada depois.
         selectedPlanId: planId,
+        selectedBillingCycle: cycle,
         rowVersion: sql`${signupSessions.rowVersion} + 1`,
       })
       .where(
@@ -298,15 +374,22 @@ export async function writeSignupPlan(userId: string, input: unknown): Promise<P
       .returning({
         rowVersion: signupSessions.rowVersion,
         selectedPlanId: signupSessions.selectedPlanId,
+        selectedBillingCycle: signupSessions.selectedBillingCycle,
       });
     if (saved?.selectedPlanId) {
-      return { ok: true, rowVersion: saved.rowVersion, selectedPlanId: saved.selectedPlanId };
+      return {
+        ok: true,
+        rowVersion: saved.rowVersion,
+        selectedPlanId: saved.selectedPlanId,
+        selectedBillingCycle: cycle,
+      };
     }
 
     const [live] = await tx
       .select({
         rowVersion: signupSessions.rowVersion,
         selectedPlanId: signupSessions.selectedPlanId,
+        selectedBillingCycle: signupSessions.selectedBillingCycle,
         billingAttemptState: signupSessions.billingAttemptState,
       })
       .from(signupSessions)
@@ -316,8 +399,17 @@ export async function writeSignupPlan(userId: string, input: unknown): Promise<P
     if (live.billingAttemptState !== null && live.billingAttemptState !== 'failed') {
       return { ok: false, reason: 'conflict' };
     }
-    if (live.selectedPlanId === planId && live.rowVersion === rowVersion + 1) {
-      return { ok: true, rowVersion: live.rowVersion, selectedPlanId: planId };
+    if (
+      live.selectedPlanId === planId &&
+      live.selectedBillingCycle === cycle &&
+      live.rowVersion === rowVersion + 1
+    ) {
+      return {
+        ok: true,
+        rowVersion: live.rowVersion,
+        selectedPlanId: planId,
+        selectedBillingCycle: cycle,
+      };
     }
     return { ok: false, reason: 'conflict' };
   });

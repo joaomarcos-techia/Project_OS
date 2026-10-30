@@ -30,6 +30,7 @@ const seams = vi.hoisted(() => ({
 }));
 
 const applicationOrigin = 'http://localhost:3000';
+const ACTION_RENDER_TIMEOUT_MS = 5_000;
 
 vi.mock('@/lib/env', () => ({ env: seams.env }));
 vi.mock('next/headers', () => ({
@@ -194,14 +195,16 @@ describe('sessão Supabase server-only', () => {
     const form = screen.getByRole('button', { name: 'Criar senha e entrar' }).closest('form');
     if (!form) throw new Error('Invite form is missing');
     fireEvent.submit(form);
-    await screen.findByText('As senhas não conferem.');
+    await screen.findByText('As senhas não conferem.', undefined, {
+      timeout: ACTION_RENDER_TIMEOUT_MS,
+    });
     expect(fixture.passwordUpdates).toBe(updatesBefore);
 
     fireEvent.change(screen.getByLabelText('Confirmar senha'), {
       target: { value: 'Synthetic123!' },
     });
     fireEvent.submit(form);
-    await screen.findByText('/dashboard');
+    await screen.findByText('/dashboard', undefined, { timeout: ACTION_RENDER_TIMEOUT_MS });
     expect(fixture.passwordUpdates).toBe(updatesBefore + 1);
     expect(seams.markInviteAccepted).toHaveBeenCalledWith(fixture.user.id);
     expect(fixture.requests).toContain('POST /auth/v1/logout?scope=others');

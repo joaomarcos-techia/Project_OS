@@ -29,12 +29,18 @@ describe('políticas financeiras avançadas por plano', () => {
     ['solo', false],
     ['clinica', true],
     ['pro', true],
+    ['consultorio_2026', false],
+    ['clinica_2026_2', true],
+    ['clinica_2026_3', true],
+    ['clinica_2026_4', true],
+    ['clinica_2026_5', true],
     [null, false],
     ['desconhecido', false],
   ])('plano %s → %s', async (code, expected) => {
     planRead(code);
     expect(planHasAdvancedFinancialPolicies(code)).toBe(expected);
     await expect(billingApiV1.hasAdvancedFinancialPolicies('clinic-test')).resolves.toBe(expected);
+    await expect(billingApiV1.hasGranularPermissions('clinic-test')).resolves.toBe(expected);
     expect(withTenantMock).toHaveBeenCalledWith('clinic-test', expect.any(Function));
   });
 });

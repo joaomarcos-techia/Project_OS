@@ -1,0 +1,29 @@
+{
+  "recordedAt": "2026-10-30T14:42:08.9206938Z",
+  "environment": "B2 synthetic pilot only",
+  "mode": "read-only native API",
+  "bucket": "qoro-recovery-pilot-20261030",
+  "endpoint": "s3.us-east-005.backblazeb2.com",
+  "authorizationHttp": 200,
+  "bucketReadbackHttp": 200,
+  "bucketPrivate": true,
+  "endpointMatches": true,
+  "objectLockEnabled": false,
+  "scope": {
+    "bucketRestricted": false,
+    "prefixRestricted": false,
+    "canListAllBucketNames": true,
+    "expirationPresent": false
+  },
+  "captureRepeatedNoOp": "PASS cache unchanged",
+  "captureReplacementActual": "NOT RUN",
+  "syntheticReplacement": "PASS previous ciphertext preserved",
+  "syntheticScopeGuards": "PASS valid case, 15 unsafe variants and public bucket",
+  "roundtrip": "PRECONDITION BLOCKED",
+  "reason": "SCOPE_BUCKET",
+  "uploaded": false,
+  "realBackupRead": false,
+  "keysCreated": false,
+  "keysRevoked": false,
+  "providerConfigurationChanged": false
+}

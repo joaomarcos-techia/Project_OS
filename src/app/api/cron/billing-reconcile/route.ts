@@ -9,20 +9,34 @@
  * Depois revisita invoices abertas/vencidas cujo pagamento já está
  * RECEIVED/CONFIRMED. Sem dados Asaas (dev), os scans são no-op.
  */
-import { and, desc, eq, inArray, isNotNull, lte, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
 
 import { recordHeartbeat } from '@/lib/cron-heartbeat';
 import { dbAdmin } from '@/lib/db';
+import { withTenant } from '@/lib/db/tenant';
 import { withCron } from '@/lib/http/cron';
 import { metrics } from '@/lib/observability/metrics';
 
 import { asaasProvider, BillingProviderError } from '@/lib/payments/asaas';
 import { removeSubscriptionCharges } from '@/contexts/billing/internal/cancellation-charges';
 import { reopenReactivatedClinics } from '@/contexts/billing/internal/clinic-status';
-import { applyScheduledPlanChange } from '@/contexts/billing/internal/plan-changes';
+import {
+  applyPaidUpgradeForPayment,
+  applyScheduledPlanChange,
+  confirmCycleChangeProviderSync,
+  expireStaleUpgradeCheckoutLeases,
+  fitsPlanUserLimit,
+  getCycleChangeSyncContext,
+  getPaidUpgradeSyncContext,
+  planChangeExternalReference,
+  prepareScheduledCycleForPaidInvoice,
+} from '@/contexts/billing/internal/plan-changes';
+import { syncProviderBillingCycle } from '@/contexts/billing/internal/billing-cycle-provider-sync';
+import { syncProviderPlanChange } from '@/contexts/billing/internal/plan-change-provider-sync';
 import { providerStatusToInvoiceStatus } from '@/contexts/billing/internal/provider-sync';
 import {
   ensureInvoiceForPayment,
+  advancePaidCycleChangeInvoicePeriod,
   markInvoiceOverdue,
   markInvoicePaid,
   markInvoiceRefunded,
@@ -44,6 +58,7 @@ export const maxDuration = 60;
 const PAID_STATUSES = new Set(['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH']);
 const RECONCILE_SUBSCRIPTION_LIMIT = 50;
 const SCHEDULED_PLAN_CHANGE_LIMIT = 50;
+const PENDING_UPGRADE_LIMIT = 50;
 type ReconciliationAction = 'paid' | 'overdue' | 'refunded';
 type MaterializationResult = {
   materialized: boolean;
@@ -69,6 +84,42 @@ export const GET = withCron(
     let fixed = 0;
     let scheduledChangesApplied = 0;
     try {
+      const uncertainCheckouts = await dbAdmin.transaction((tx) =>
+        expireStaleUpgradeCheckoutLeases(tx, new Date()),
+      );
+      if (uncertainCheckouts > 0) {
+        metrics.emit('billing.upgrade.checkout_creation_unknown', { count: uncertainCheckouts });
+      }
+
+      // Retoma uma falha/timeout entre a intenção local e o readback remoto.
+      // Roda antes de materializar pagamentos para que o webhook perdido de uma
+      // parcela anual não seja contabilizado como renovação mensal.
+      const pendingCycleSync = await dbAdmin
+        .select({
+          id: subscriptionChangeRequests.id,
+          clinicId: subscriptionChangeRequests.clinicId,
+        })
+        .from(subscriptionChangeRequests)
+        .where(
+          and(
+            eq(subscriptionChangeRequests.kind, 'cycle_change'),
+            eq(subscriptionChangeRequests.status, 'scheduled'),
+            isNull(subscriptionChangeRequests.providerSyncedAt),
+          ),
+        )
+        .limit(SCHEDULED_PLAN_CHANGE_LIMIT);
+      for (const change of pendingCycleSync) {
+        try {
+          const context = await getCycleChangeSyncContext(change.clinicId, change.id);
+          await syncProviderBillingCycle(asaasProvider, context);
+          await withTenant(change.clinicId, (tx) =>
+            confirmCycleChangeProviderSync(tx, change.clinicId, change.id),
+          );
+        } catch (error) {
+          metrics.emit('billing.cycle_change.provider_sync_error', { changeId: change.id, error });
+        }
+      }
+
       // O Asaas cria as cobranças de uma assinatura autonomamente. Se o webhook
       // `PAYMENT_CREATED` falhar, não existe invoice local e o loop abaixo não
       // consegue sequer descobrir o paymentId. Consulta-se a origem autorizada
@@ -139,10 +190,23 @@ export const GET = withCron(
               switch (actionFor(payment.status)) {
                 case 'paid':
                   if (invoice.status !== 'paid') {
+                    const cycle = invoice.subscriptionId
+                      ? await prepareScheduledCycleForPaidInvoice(
+                          tx,
+                          subscription.clinicId,
+                          {
+                            subscriptionId: invoice.subscriptionId,
+                            dueDate: invoice.dueDate,
+                            totalAmount: invoice.totalAmount,
+                          },
+                          payment.billingType,
+                        )
+                      : { deferPeriodAdvance: false };
                     await markInvoicePaid(tx, subscription.clinicId, invoice, {
                       paymentMethod: payment.billingType,
                       providerPaymentId: payment.paymentId,
                       idemSuffix: `reconcile:subscription:${payment.paymentId}`,
+                      deferPeriodAdvance: cycle.deferPeriodAdvance,
                     });
                     return { materialized: true, action: 'paid' as const };
                   }
@@ -192,16 +256,24 @@ export const GET = withCron(
         .select({
           id: subscriptionChangeRequests.id,
           clinicId: subscriptionChangeRequests.clinicId,
+          subscriptionId: subscriptions.id,
           kind: subscriptionChangeRequests.kind,
+          toPlanId: subscriptionChangeRequests.toPlanId,
+          effectiveAt: subscriptionChangeRequests.effectiveAt,
           asaasSubscriptionId: subscriptions.asaasSubscriptionId,
           targetAmount: prices.amount,
+          targetBillingCycle: prices.billingCycle,
+          previousAmount: sql<string>`(SELECT amount FROM public.prices WHERE id = ${subscriptions.priceId})`,
+          previousBillingCycle: sql<
+            'monthly' | 'annual'
+          >`(SELECT billing_cycle FROM public.prices WHERE id = ${subscriptions.priceId})`,
         })
         .from(subscriptionChangeRequests)
         .innerJoin(subscriptions, eq(subscriptions.id, subscriptionChangeRequests.subscriptionId))
         .leftJoin(prices, eq(prices.id, subscriptionChangeRequests.toPriceId))
         .where(
           and(
-            inArray(subscriptionChangeRequests.kind, ['downgrade', 'cancellation']),
+            inArray(subscriptionChangeRequests.kind, ['downgrade', 'cancellation', 'cycle_change']),
             eq(subscriptionChangeRequests.status, 'scheduled'),
             lte(subscriptionChangeRequests.effectiveAt, sql`now()`),
           ),
@@ -215,24 +287,77 @@ export const GET = withCron(
             throw new Error('scheduled subscription change has no Asaas subscription id');
           }
           if (change.kind === 'downgrade') {
-            const [active] = await dbAdmin.execute<{ active_users: number }>(sql`
-              SELECT count(*)::int AS active_users
-                FROM public.profiles
-               WHERE clinic_id = ${change.clinicId}::uuid
-                 AND ativo = true
-                 AND deleted_at IS NULL
+            const [capacity] = await dbAdmin.execute<{
+              active_users: number;
+              user_limit: number | null;
+              active_doctors: number;
+              active_staff: number;
+              doctor_limit: number | null;
+              staff_limit: number | null;
+            }>(sql`
+              SELECT (SELECT count(*)::int FROM public.profiles
+                       WHERE clinic_id = ${change.clinicId}::uuid
+                         AND ativo = true AND deleted_at IS NULL
+                         AND role <> 'super_admin') AS active_users,
+                     (SELECT limit_value FROM public.plan_limits
+                       WHERE plan_id = ${change.toPlanId}::uuid AND metric = 'users') AS user_limit,
+                     (SELECT count(*)::int FROM public.profiles
+                       WHERE clinic_id = ${change.clinicId}::uuid AND ativo = true
+                         AND deleted_at IS NULL AND role <> 'super_admin'
+                         AND (role = 'doctor' OR (role IN ('owner', 'gestor')
+                           AND nullif(btrim(crm), '') IS NOT NULL))) AS active_doctors,
+                     (SELECT count(*)::int FROM public.profiles
+                       WHERE clinic_id = ${change.clinicId}::uuid AND ativo = true
+                         AND deleted_at IS NULL AND role <> 'super_admin'
+                         AND role <> 'doctor' AND NOT (role IN ('owner', 'gestor')
+                           AND nullif(btrim(crm), '') IS NOT NULL)) AS active_staff,
+                     (SELECT doctors FROM public.plan_seat_limits
+                       WHERE plan_id = ${change.toPlanId}::uuid) AS doctor_limit,
+                     (SELECT staff FROM public.plan_seat_limits
+                       WHERE plan_id = ${change.toPlanId}::uuid) AS staff_limit
             `);
-            if (Number(active?.active_users ?? 0) !== 1) {
+            if (
+              !fitsPlanUserLimit(
+                Number(capacity?.active_users ?? 0),
+                capacity?.user_limit ?? null,
+              ) ||
+              (capacity?.doctor_limit != null &&
+                Number(capacity.active_doctors) > capacity.doctor_limit) ||
+              (capacity?.staff_limit != null &&
+                Number(capacity.active_staff) > capacity.staff_limit)
+            ) {
               metrics.emit('billing.plan_change.blocked_active_users', { changeId: change.id });
               continue;
             }
-            if (change.targetAmount === null) {
+            if (change.targetAmount === null || !change.previousAmount || !change.toPlanId) {
               throw new Error('scheduled downgrade has no target amount');
             }
-            await asaasProvider.updateSubscription(change.asaasSubscriptionId, {
-              value: Number(change.targetAmount),
-              updatePendingPayments: false,
+            await syncProviderPlanChange(asaasProvider, {
+              subscriptionId: change.asaasSubscriptionId,
+              previousAmount: change.previousAmount,
+              amount: change.targetAmount,
+              firstDueDate: change.effectiveAt.toISOString().slice(0, 10),
+              expectedCycle: change.targetBillingCycle === 'annual' ? 'YEARLY' : 'MONTHLY',
             });
+          } else if (change.kind === 'cycle_change') {
+            if (
+              change.targetAmount === null ||
+              !change.previousAmount ||
+              !change.targetBillingCycle
+            ) {
+              throw new Error('scheduled cycle change has no target price');
+            }
+            await syncProviderBillingCycle(asaasProvider, {
+              subscriptionId: change.asaasSubscriptionId,
+              previousAmount: change.previousAmount,
+              amount: change.targetAmount,
+              firstDueDate: change.effectiveAt.toISOString().slice(0, 10),
+              fromCycle: change.previousBillingCycle === 'annual' ? 'YEARLY' : 'MONTHLY',
+              toCycle: change.targetBillingCycle === 'annual' ? 'YEARLY' : 'MONTHLY',
+            });
+            await withTenant(change.clinicId, (tx) =>
+              confirmCycleChangeProviderSync(tx, change.clinicId, change.id),
+            );
           } else {
             // O pedido já pausou a recorrência e apagou as cobranças no Asaas.
             // Aqui é o backstop: repete os dois (idempotentes) e só aplica o
@@ -251,10 +376,83 @@ export const GET = withCron(
               continue;
             }
           }
-          const result = await dbAdmin.transaction((tx) => applyScheduledPlanChange(tx, change.id));
+          const result = await dbAdmin.transaction(async (tx) => {
+            const applied = await applyScheduledPlanChange(tx, change.id);
+            if (applied.applied && applied.kind === 'cycle_change' && change.targetAmount) {
+              await advancePaidCycleChangeInvoicePeriod(
+                tx,
+                change.clinicId,
+                change.subscriptionId,
+                change.effectiveAt.toISOString().slice(0, 10),
+                change.targetAmount,
+              );
+            }
+            return applied;
+          });
           if (result.applied) scheduledChangesApplied++;
         } catch (err) {
           metrics.emit('billing.plan_change.apply_error', { changeId: change.id, error: err });
+        }
+      }
+
+      // Backstop de upgrade pago cujo webhook não foi entregue. Sem isto, o
+      // rateio fica pago mas a clínica nunca recebe o novo plano.
+      const pendingUpgrades = await dbAdmin
+        .select({
+          id: subscriptionChangeRequests.id,
+          providerPaymentId: subscriptionChangeRequests.providerPaymentId,
+          providerCheckoutId: subscriptionChangeRequests.providerCheckoutId,
+        })
+        .from(subscriptionChangeRequests)
+        .where(
+          and(
+            eq(subscriptionChangeRequests.kind, 'upgrade'),
+            eq(subscriptionChangeRequests.status, 'pending_payment'),
+            or(
+              isNotNull(subscriptionChangeRequests.providerPaymentId),
+              isNotNull(subscriptionChangeRequests.providerCheckoutId),
+            ),
+          ),
+        )
+        .orderBy(subscriptionChangeRequests.createdAt)
+        .limit(PENDING_UPGRADE_LIMIT);
+      for (const upgrade of pendingUpgrades) {
+        try {
+          const foundPayment = upgrade.providerPaymentId
+            ? await asaasProvider.getPayment(upgrade.providerPaymentId, { attempts: 1 })
+            : upgrade.providerCheckoutId
+              ? await asaasProvider.findPaymentByCheckoutSession(upgrade.providerCheckoutId, {
+                  attempts: 1,
+                })
+              : null;
+          if (!foundPayment) continue;
+          const payment = upgrade.providerPaymentId
+            ? foundPayment
+            : await asaasProvider.getPayment(foundPayment.paymentId, { attempts: 1 });
+          if (!PAID_STATUSES.has(payment.status)) continue;
+          if (
+            payment.externalReference !== planChangeExternalReference(upgrade.id) &&
+            payment.checkoutSessionId !== upgrade.providerCheckoutId
+          ) {
+            throw new Error('paid upgrade payment reference mismatch');
+          }
+          const syncContext = await dbAdmin.transaction((tx) =>
+            getPaidUpgradeSyncContext(tx, payment),
+          );
+          if (!syncContext) continue;
+          await syncProviderPlanChange(asaasProvider, syncContext);
+          const applied = await dbAdmin.transaction((tx) =>
+            applyPaidUpgradeForPayment(tx, payment, `reconcile:${upgrade.id}`),
+          );
+          if (applied) {
+            found++;
+            fixed++;
+          }
+        } catch (err) {
+          metrics.emit('billing.plan_change.upgrade_reconcile_error', {
+            changeId: upgrade.id,
+            error: err,
+          });
         }
       }
 

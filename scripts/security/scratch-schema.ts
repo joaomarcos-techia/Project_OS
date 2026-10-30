@@ -78,7 +78,10 @@ const SUPABASE_SCAFFOLD = `
 `;
 
 /** Sobe o cluster, aplica o scaffolding e TODAS as migrations em ordem. */
-export async function startScratchSchema(options: { port: number }): Promise<ScratchCluster> {
+export async function startScratchSchema(options: {
+  port: number;
+  beforeMigration?: { file: string; run: (sql: Sql) => Promise<void> };
+}): Promise<ScratchCluster> {
   const cluster = await mkdtemp(path.join(os.tmpdir(), 'qoro-scratch-schema-'));
   const data = path.join(cluster, 'data');
 
@@ -156,14 +159,22 @@ export async function startScratchSchema(options: { port: number }): Promise<Scr
 
   try {
     await sql.unsafe(SUPABASE_SCAFFOLD);
+    let beforeMigrationRan = false;
     for (const { file, body } of await readMigrations()) {
       try {
+        if (file === options.beforeMigration?.file) {
+          await options.beforeMigration.run(sql);
+          beforeMigrationRan = true;
+        }
         await sql.unsafe(body);
       } catch (error) {
         throw new Error(
           `migration ${file} falhou: ${error instanceof Error ? error.message : String(error)}`,
         );
       }
+    }
+    if (options.beforeMigration && !beforeMigrationRan) {
+      throw new Error(`migration não encontrada: ${options.beforeMigration.file}`);
     }
     return { sql, url, stop };
   } catch (error) {

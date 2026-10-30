@@ -111,6 +111,16 @@ const EnvSchema = z
         .transform((v) => v !== 'false'),
     ),
 
+    // Oferta 2026: nasce fechada para novas contratações anuais. Assinaturas
+    // anuais existentes, webhooks e reconciliação continuam operando.
+    OFFER_2026_ANNUAL_NEW_SALES_ENABLED: z.preprocess(
+      emptyToUndefined,
+      z
+        .enum(['true', 'false'])
+        .optional()
+        .transform((v) => v === 'true'),
+    ),
+
     // --- Operational ---
     // Explicit opt-in for prod-targeting scripts (db:migrate:prod, db:backup:prod).
     // Default unset; only set in the operator's shell session right before a prod operation.

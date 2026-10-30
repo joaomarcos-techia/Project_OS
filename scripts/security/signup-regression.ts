@@ -1494,9 +1494,7 @@ globalThis.fetch = (input, init) => {
       const page = await context.newPage();
       await page.goto('/cadastro');
       // Uma pergunta por tela: só as opções da pergunta atual existem no DOM.
-      await page
-        .getByRole('heading', { name: 'Quantos profissionais atendem na clínica?' })
-        .waitFor();
+      await page.getByRole('heading', { name: 'Quantos médicos atendem na clínica?' }).waitFor();
 
       assert.equal(await page.getByRole('radio').count(), 4);
       assert.equal(await page.getByText('Pergunta 1 de 4').count(), 1);
@@ -1531,7 +1529,7 @@ globalThis.fetch = (input, init) => {
       });
       await page.setViewportSize({ width: 1280, height: 720 });
 
-      const first = page.getByRole('radio', { name: '1 profissional' });
+      const first = page.getByRole('radio', { name: '1 médico' });
       await first.focus();
       await page.keyboard.press('ArrowRight');
       assert.equal(await page.getByRole('radio', { name: '2 a 5' }).isChecked(), true);
@@ -1546,9 +1544,7 @@ globalThis.fetch = (input, init) => {
         .getByRole('heading', { name: 'Quantos atendimentos são realizados por semana?' })
         .waitFor();
       await page.getByRole('button', { name: 'Voltar' }).click();
-      await page
-        .getByRole('heading', { name: 'Quantos profissionais atendem na clínica?' })
-        .waitFor();
+      await page.getByRole('heading', { name: 'Quantos médicos atendem na clínica?' }).waitFor();
       assert.equal(await page.getByRole('radio', { name: '2 a 5' }).isChecked(), true);
       const [afterNavigation] = await sql`SELECT row_version FROM signup_sessions
         WHERE token_hash = ${hashToken(cookie.value)}`;
@@ -1568,7 +1564,7 @@ globalThis.fetch = (input, init) => {
         await secondPage.getByRole('button', { name: 'Voltar' }).click();
       }
       await secondPage
-        .getByRole('heading', { name: 'Quantos profissionais atendem na clínica?' })
+        .getByRole('heading', { name: 'Quantos médicos atendem na clínica?' })
         .waitFor();
 
       const rateLimited = async (route: Route) => {

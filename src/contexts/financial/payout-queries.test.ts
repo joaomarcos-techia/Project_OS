@@ -11,7 +11,12 @@ vi.mock('@/contexts/billing/api', () => ({
 }));
 vi.mock('@/lib/db/tenant', () => ({ withTenant: mocks.withTenant }));
 
-import { getProfessionalPayoutPolicy, listActiveProfessionalPayoutRules } from './payout-queries';
+import {
+  getProfessionalPayoutPolicy,
+  listActiveProfessionalPayoutRules,
+  listMonthlyPayoutSnapshots,
+  getProfessionalPayoutByAppointment,
+} from './payout-queries';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -25,6 +30,13 @@ describe('leitura da política de repasse no Solo', () => {
       updatedAt: null,
     });
     await expect(listActiveProfessionalPayoutRules('clinic-test')).resolves.toEqual([]);
+    expect(mocks.withTenant).not.toHaveBeenCalled();
+  });
+  it('não revela snapshots individuais nem relatório mensal sem entitlement', async () => {
+    await expect(listMonthlyPayoutSnapshots('clinic-test', ['appointment-1'])).resolves.toEqual([]);
+    await expect(
+      getProfessionalPayoutByAppointment('clinic-test', 'appointment-1'),
+    ).resolves.toBeNull();
     expect(mocks.withTenant).not.toHaveBeenCalled();
   });
 });

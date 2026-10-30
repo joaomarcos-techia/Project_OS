@@ -11,18 +11,19 @@
  *   - SUPABASE_PROJECT_ENV=prod              (explicit opt-in)
  *   - DATABASE_URL_PROD                      (target connection)
  *   - URL contains sslmode=require
- *   - pg_dump available on PATH
+ *   - pg_dump and gpg available on PATH; BACKUP_PASSPHRASE configured
  *   - MIGRATION_FAILED.md absent from repo root
  */
 import { execSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, statSync, writeFileSync, appendFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync, appendFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import postgres from 'postgres';
 
 import { assertMigrationsSafe } from './check-migration-safety';
-import { assertProdContext, fsTimestamp, gitUserEmail, redact } from './_env';
+import { assertProdContext, gitUserEmail, redact } from './_env';
 import { localBinCommand } from './_local-bin';
+import { takeEncryptedProdBackup } from './prod-encrypted-backup';
 
 const REPO_ROOT = process.cwd();
 const BACKUPS_DIR = resolve(REPO_ROOT, 'backups');
@@ -65,66 +66,6 @@ function assertPgDump(): void {
         '(macOS: `brew install postgresql`. Windows: official installer. Linux: `apt install postgresql-client`.)',
     );
   }
-}
-
-function takeBackup(databaseUrl: string): string {
-  if (!existsSync(BACKUPS_DIR)) mkdirSync(BACKUPS_DIR, { recursive: true });
-  const path = resolve(BACKUPS_DIR, `prod-pre-migration-${fsTimestamp()}.sql`);
-  console.log(`[migrate:prod] backup -> ${path}`);
-  // Flags:
-  //  --no-owner --no-acl  : portable dumps (no role-specific GRANTs that
-  //                         would break on restore to a different role).
-  //  --clean --if-exists  : prefix DROP IF EXISTS before each CREATE so
-  //                         restore is idempotent against a populated target.
-  //  --exclude-schema=... : skip every Supabase-managed schema. Restoring
-  //                         these into a Supabase project fails (objects
-  //                         already exist, or we lack permission). We only
-  //                         care about OUR app schemas. Discovered in C1
-  //                         audit: dumping `public` also pulled in
-  //                         `rls_auto_enable()` (a Supabase event-trigger
-  //                         function) which breaks restore due to a
-  //                         dependent event trigger. The exclude list below
-  //                         covers all known Supabase-prefixed schemas as
-  //                         of 2026-05.
-  //
-  // NOTE: a Supabase-managed function (`public.rls_auto_enable`) lives
-  // INSIDE `public` schema. The dump still includes it; on restore, the
-  // DROP fails due to the dependent `ensure_rls` event trigger. The
-  // restore handler must run with non-stop-on-error to tolerate this one
-  // expected failure. See docs/runbooks/migrations.md for the restore
-  // procedure (uses \set ON_ERROR_STOP off followed by application-table
-  // verification).
-  //
-  // URL is passed as the final positional argument; pg_dump treats it as
-  // the connection string. Credentials in argv are visible to local users
-  // but acceptable: this script only runs on operator workstations (never CI).
-  const excludeSchemas = [
-    'auth',
-    'storage',
-    'realtime',
-    'extensions',
-    'graphql',
-    'graphql_public',
-    'vault',
-    'supabase_functions',
-    '_realtime',
-    '_analytics',
-    'pgsodium',
-    'pgsodium_masks',
-    'pgbouncer',
-  ]
-    .map((s) => `--exclude-schema=${s}`)
-    .join(' ');
-  execSync(
-    `pg_dump --no-owner --no-acl --clean --if-exists ${excludeSchemas} --format=plain --file="${path}" "${databaseUrl}"`,
-    { stdio: 'inherit' },
-  );
-  const size = statSync(path).size;
-  if (size === 0) {
-    throw new Error(`Backup file ${path} is 0 bytes. Aborting.`);
-  }
-  console.log(`[migrate:prod] backup OK (${size} bytes)`);
-  return path;
 }
 
 async function withAdvisoryLock<T>(databaseUrl: string, fn: () => Promise<T>): Promise<T> {
@@ -220,7 +161,8 @@ async function main(): Promise<void> {
 
   let backupPath: string | null = null;
   try {
-    backupPath = takeBackup(migrateUrl);
+    backupPath = await takeEncryptedProdBackup(migrateUrl, BACKUPS_DIR, 'prod-pre-migration');
+    console.log(`[migrate:prod] encrypted backup OK -> ${backupPath}`);
 
     await withAdvisoryLock(migrateUrl, async () => {
       // drizzle-kit reads DATABASE_URL from env; override for this child only.

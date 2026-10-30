@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   complete: vi.fn(),
   limit: vi.fn(),
   hash: vi.fn(),
+  metric: vi.fn(),
 }));
 
 vi.mock('@/lib/env', () => ({ env: mocks.env }));
@@ -23,6 +24,7 @@ vi.mock('@/lib/auth/rate-limit', () => ({
   getClientIp: () => '127.0.0.1',
 }));
 vi.mock('@/lib/auth/signup-user-hash', () => ({ hashSignupUserId: mocks.hash }));
+vi.mock('@/lib/observability/metrics', () => ({ metrics: { emit: mocks.metric } }));
 
 import { POST } from './route';
 
@@ -37,6 +39,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.env.SIGNUP_AUTH_ENABLED = true;
   mocks.env.SIGNUP_IDENTITY_ENABLED = true;
+  mocks.env.APP_BASE_URL = 'https://app.qoro.test';
   mocks.resolve.mockResolvedValue({
     ok: true,
     kind: 'pretenant',
@@ -49,6 +52,30 @@ beforeEach(() => {
 });
 
 describe('POST /api/signup/checkout/status', () => {
+  it('distingue configuracao desabilitada de falha do checkout', async () => {
+    mocks.env.SIGNUP_AUTH_ENABLED = false;
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(503);
+    expect(mocks.metric).toHaveBeenCalledWith('signup.checkout.status.unavailable', {
+      stage: 'configuration',
+    });
+    expect(mocks.resolve).not.toHaveBeenCalled();
+  });
+
+  it('distingue origem publica nao configurada de falha do checkout', async () => {
+    mocks.env.APP_BASE_URL = '';
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(503);
+    expect(mocks.metric).toHaveBeenCalledWith('signup.checkout.status.unavailable', {
+      stage: 'origin',
+    });
+    expect(mocks.resolve).not.toHaveBeenCalled();
+  });
+
   it('mantém 202 enquanto o provider ainda não expõe a assinatura', async () => {
     const response = await POST(request());
 
@@ -76,6 +103,16 @@ describe('POST /api/signup/checkout/status', () => {
     expect(mocks.complete).not.toHaveBeenCalled();
   });
 
+  it('JWT pré-tenant desatualizado após provisionamento pede renovação da sessão', async () => {
+    mocks.resolve.mockResolvedValue({ ok: false, reason: 'profile_denied' });
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(401);
+    expect(await response.json()).toEqual({ error: 'unauthorized' });
+    expect(mocks.complete).not.toHaveBeenCalled();
+  });
+
   it('bloqueia origem externa antes de consultar estado', async () => {
     const response = await POST(request('https://evil.test'));
 
@@ -90,5 +127,32 @@ describe('POST /api/signup/checkout/status', () => {
 
     expect(response.status).toBe(409);
     expect(await response.json()).toEqual({ error: 'conflict' });
+  });
+
+  it('identifica a etapa indisponível sem registrar dados da conta ou do provedor', async () => {
+    mocks.complete.mockResolvedValue({ ok: false, reason: 'provider_unreachable' });
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ error: 'unavailable' });
+    expect(mocks.metric).toHaveBeenCalledWith('signup.checkout.status.unavailable', {
+      stage: 'completion',
+      reason: 'provider_unreachable',
+    });
+  });
+
+  it('não expõe mensagem de exceção inesperada na resposta nem na métrica', async () => {
+    mocks.complete.mockRejectedValue(new Error('dado sensível da fixture'));
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ error: 'unavailable' });
+    expect(mocks.metric).toHaveBeenCalledWith('signup.checkout.status.unavailable', {
+      stage: 'unexpected',
+      during: 'completion',
+      errorType: 'error',
+    });
   });
 });

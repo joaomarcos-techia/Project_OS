@@ -35,11 +35,17 @@ const superAdmins = (await dbAdmin.execute(
 const preserve = new Set(superAdmins.map((s) => s.id));
 console.log(`[reset:dev] preservando ${preserve.size} super_admin(s).`);
 
-// 2. usuários de clínica (não-super_admin) → apagar do Auth ANTES de dropar as
-//    clínicas (depois disso os profiles somem por cascade e perderíamos os ids).
+// 2. Capturar os IDs antes de remover as clínicas. Um Auth delete anterior ao
+//    tenant poderia deixar assinatura sem titular se o processo fosse interrompido.
 const profs = (await dbAdmin.execute(
   sql`SELECT id::text AS id FROM public.profiles WHERE role <> 'super_admin'`,
 )) as unknown as Array<{ id: string }>;
+
+// 3. Apagar as clínicas primeiro: CASCADE limpa profiles e contratos juntos.
+const [{ n: clinicCount } = { n: 0 }] = (await dbAdmin.execute(
+  sql`SELECT count(*)::int AS n FROM public.clinics`,
+)) as unknown as Array<{ n: number }>;
+await dbAdmin.execute(sql`DELETE FROM public.clinics`);
 
 let deletedByProfile = 0;
 for (const p of profs) {
@@ -52,7 +58,7 @@ for (const p of profs) {
   }
 }
 
-// 3. órfãos no Auth nos domínios de seed (sem profile) → limpeza defensiva para
+// 4. órfãos no Auth nos domínios de seed (sem profile) → limpeza defensiva para
 //    re-seed limpo. NUNCA toca super_admin.
 const { data: listed, error: listErr } = await supabase.auth.admin.listUsers({ perPage: 1000 });
 if (listErr) throw listErr;
@@ -64,13 +70,6 @@ for (const u of listed.users) {
     if (!error) deletedOrphans++;
   }
 }
-
-// 4. apagar TODAS as clínicas — CASCADE limpa profiles (exceto super_admin, que
-//    tem clinic_id NULL e não referencia clínica) + todos os dados de tenant.
-const [{ n: clinicCount } = { n: 0 }] = (await dbAdmin.execute(
-  sql`SELECT count(*)::int AS n FROM public.clinics`,
-)) as unknown as Array<{ n: number }>;
-await dbAdmin.execute(sql`DELETE FROM public.clinics`);
 
 console.log(
   `[reset:dev] clínicas removidas: ${clinicCount} (cascade limpou profiles + dados de tenant).`,

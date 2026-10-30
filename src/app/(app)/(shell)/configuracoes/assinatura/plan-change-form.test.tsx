@@ -3,8 +3,11 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { requestBillingCycleChangeAction, requestPlanChangeAction } from './actions';
+
 vi.mock('./actions', () => ({
   requestPlanChangeAction: vi.fn(async () => ({ error: null })),
+  requestBillingCycleChangeAction: vi.fn(async () => ({ error: null })),
   requestSubscriptionCancellationAction: vi.fn(async () => ({
     error: null,
     success: 'cancellation_scheduled',
@@ -25,6 +28,7 @@ function renderForm(
   over: {
     periodEnd?: string | null;
     trialEndsAt?: string | null;
+    billingCycle?: 'monthly' | 'annual';
     pending?: {
       kind: string;
       status: string;
@@ -40,13 +44,15 @@ function renderForm(
         planName: 'Solo',
         planCode: 'solo',
         priceAmount: '149.00',
-        billingCycle: 'monthly',
+        billingCycle: over.billingCycle ?? 'monthly',
         billingStatus,
         periodEnd: over.periodEnd ?? null,
         trialEndsAt: over.trialEndsAt ?? null,
       }}
       plans={[]}
       activeUsers={1}
+      activeDoctors={0}
+      activeStaff={0}
       pending={over.pending ?? null}
     />,
   );
@@ -75,6 +81,20 @@ describe('cancelar assinatura na tela', () => {
     const dialog = await screen.findByRole('dialog');
     expect(dialog.textContent).toContain('todas as cobranças em aberto no Asaas são apagadas');
     expect(dialog.textContent).toContain('O acesso continua até 02/10/2026');
+  });
+
+  it('no anual, informa que cancela a renovação sem estorno automático do período pago', async () => {
+    renderForm('active', {
+      billingCycle: 'annual',
+      periodEnd: '2027-10-02T00:00:00.000Z',
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar assinatura' }));
+
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog.textContent).toContain('nenhuma nova será feita');
+    expect(dialog.textContent).toContain('O acesso continua até 02/10/2027');
+    expect(dialog.textContent).toContain('O período anual já pago não recebe estorno automático');
   });
 
   it('fecha o diálogo e mostra a confirmação quando o cancelamento termina', async () => {
@@ -129,5 +149,300 @@ describe('datas de ciclo', () => {
     // local, o ciclo "encerrava" um dia antes do vencimento real.
     renderForm('active', { periodEnd: '2026-10-10T00:00:00.000Z' });
     expect(screen.getByText(/ciclo encerra em 10\/10\/2026/u)).toBeTruthy();
+  });
+});
+
+it('mostra imediatamente o link do Checkout proporcional devolvido pelo servidor', async () => {
+  vi.mocked(requestPlanChangeAction).mockResolvedValueOnce({
+    error: null,
+    success: 'upgrade_pending_payment',
+    message: 'Pagamento proporcional de R$ 73,50 preparado no Asaas.',
+    paymentUrl: 'https://sandbox.asaas.com/test-checkout',
+  });
+  render(
+    <PlanChangeForm
+      current={{
+        planId: 'plan_two',
+        planName: 'Clínica · 2 médicos',
+        planCode: 'clinica_2026_2',
+        priceAmount: '397.00',
+        billingCycle: 'monthly',
+        billingStatus: 'active',
+        periodEnd: '2026-11-01T00:00:00.000Z',
+        trialEndsAt: null,
+      }}
+      plans={[
+        {
+          id: 'plan_three',
+          name: 'Clínica · 3 médicos',
+          code: 'clinica_2026_3',
+          priceAmount: '544.00',
+          limits: { users: 6, agendamentos: 0, ai_messages: 0 },
+          seats: { doctors: 3, staff: 3 },
+        },
+      ]}
+      activeUsers={2}
+      activeDoctors={2}
+      activeStaff={0}
+      pending={null}
+    />,
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Contratar +1 médico' }));
+  const link = await screen.findByRole('link', { name: 'Abrir pagamento proporcional no Asaas' });
+  expect(link.getAttribute('href')).toBe('https://sandbox.asaas.com/test-checkout');
+  expect(screen.getByText(/R\$ 73,50 preparado/u)).toBeTruthy();
+  expect(
+    screen.getByRole('link', { name: 'Já pagou? Atualizar assinatura' }).getAttribute('href'),
+  ).toBe('/auth/session-refresh?next=%2Fconfiguracoes%2Fassinatura');
+});
+
+it('oferece atualização segura da sessão enquanto o upgrade aguarda pagamento', () => {
+  renderForm('active', {
+    pending: {
+      kind: 'upgrade',
+      status: 'pending_payment',
+      effectiveAt: '2026-10-23T00:00:00.000Z',
+      paymentUrl: null,
+    },
+  });
+  expect(screen.getByRole('link', { name: 'Já pagou? Atualizar assinatura' })).toBeTruthy();
+});
+
+it('explica preço anual, próximo vencimento e cartão antes de agendar', async () => {
+  vi.mocked(requestBillingCycleChangeAction).mockResolvedValueOnce({
+    error: null,
+    success: 'cycle_change_scheduled',
+    message: 'Troca anual preparada no Asaas.',
+  });
+  render(
+    <PlanChangeForm
+      current={{
+        planId: 'plan_two',
+        planName: 'Clínica · 2 médicos',
+        planCode: 'clinica_2026_2',
+        priceAmount: '397.00',
+        billingCycle: 'monthly',
+        billingStatus: 'active',
+        periodEnd: '2026-11-05T00:00:00.000Z',
+        trialEndsAt: null,
+      }}
+      plans={[]}
+      activeUsers={2}
+      activeDoctors={2}
+      activeStaff={0}
+      cycleOffer={{ billingCycle: 'annual', priceAmount: '3970.00' }}
+      pending={null}
+    />,
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Agendar troca de ciclo' }));
+  const dialog = await screen.findByRole('dialog');
+  expect(dialog.textContent).toContain('05/11/2026');
+  expect(dialog.textContent).toContain('R$ 3.970,00');
+  expect(dialog.textContent).toContain('cartão já cadastrado');
+  expect(dialog.textContent).toContain('sem estorno automático');
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Agendar troca' }));
+  await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('preparada'));
+});
+
+describe('capacidade mostrada na troca de plano', () => {
+  const current = {
+    planId: 'plan_pro',
+    planName: 'Pro',
+    planCode: 'pro',
+    priceAmount: '699.00',
+    billingCycle: 'monthly' as const,
+    billingStatus: 'active' as const,
+    periodEnd: '2026-11-01T00:00:00.000Z',
+    trialEndsAt: null,
+  };
+  const plans = [
+    {
+      id: 'plan_clinica',
+      name: 'Clínica',
+      code: 'clinica',
+      priceAmount: '397.00',
+      limits: { users: 5, agendamentos: 800, ai_messages: 800 },
+      seats: null,
+    },
+  ];
+
+  it('permite agendar Pro → Clínica com três usuários dentro da cota de cinco', () => {
+    render(
+      <PlanChangeForm
+        current={current}
+        plans={plans}
+        activeUsers={3}
+        activeDoctors={0}
+        activeStaff={0}
+        pending={null}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'Agendar downgrade' }).hasAttribute('disabled')).toBe(
+      false,
+    );
+  });
+
+  it('informa o limite e bloqueia a troca com seis usuários', () => {
+    render(
+      <PlanChangeForm
+        current={current}
+        plans={plans}
+        activeUsers={6}
+        activeDoctors={0}
+        activeStaff={0}
+        pending={null}
+      />,
+    );
+
+    expect(
+      screen.getByRole('button', { name: 'Limite de 5 usuários' }).hasAttribute('disabled'),
+    ).toBe(true);
+  });
+});
+
+describe('contratação de médico na oferta 2026', () => {
+  const current = {
+    planId: 'plan_clinica_2',
+    planName: 'Clínica · 2 médicos',
+    planCode: 'clinica_2026_2',
+    priceAmount: '397.00',
+    billingCycle: 'monthly' as const,
+    billingStatus: 'active' as const,
+    periodEnd: '2026-11-01T00:00:00.000Z',
+    trialEndsAt: null,
+  };
+  const plans = [
+    {
+      id: 'plan_solo',
+      name: 'Solo',
+      code: 'solo',
+      priceAmount: '149.00',
+      limits: { users: 1, agendamentos: 100, ai_messages: 100 },
+      seats: null,
+    },
+    {
+      id: 'plan_consultorio',
+      name: 'Consultório',
+      code: 'consultorio_2026',
+      priceAmount: '197.00',
+      limits: { users: 4, agendamentos: 800, ai_messages: 800 },
+      seats: { doctors: 1, staff: 3 },
+    },
+    {
+      id: 'plan_clinica_3',
+      name: 'Clínica · 3 médicos',
+      code: 'clinica_2026_3',
+      priceAmount: '544.00',
+      limits: { users: 6, agendamentos: 800, ai_messages: 800 },
+      seats: { doctors: 3, staff: 3 },
+    },
+    {
+      id: 'plan_clinica_2',
+      name: 'Clínica · 2 médicos',
+      code: 'clinica_2026_2',
+      priceAmount: '397.00',
+      limits: { users: 5, agendamentos: 800, ai_messages: 800 },
+      seats: { doctors: 2, staff: 3 },
+    },
+  ];
+
+  it('identifica Consultório para Clínica como mudança de plano, sem vender vaga avulsa', () => {
+    render(
+      <PlanChangeForm
+        current={{
+          ...current,
+          planId: 'plan_consultorio',
+          planName: 'Consultório',
+          planCode: 'consultorio_2026',
+          priceAmount: '197.00',
+        }}
+        plans={plans}
+        activeUsers={4}
+        activeDoctors={1}
+        activeStaff={3}
+        pending={null}
+      />,
+    );
+
+    const upgrades = screen.getAllByRole('button', { name: 'Mudar para Clínica' });
+    expect(upgrades).toHaveLength(2);
+    expect(upgrades.every((button) => !button.hasAttribute('disabled'))).toBe(true);
+    expect(screen.queryByRole('button', { name: /Contratar \+/u })).toBeNull();
+    expect(screen.getByText(/O Consultório não vende vagas médicas avulsas/u)).toBeTruthy();
+    expect(screen.getByText('2 médicos e até 3 pessoas de equipe')).toBeTruthy();
+  });
+
+  it('mostra apenas a tabela contratada e identifica upgrade e downgrade', () => {
+    render(
+      <PlanChangeForm
+        current={current}
+        plans={plans}
+        activeUsers={4}
+        activeDoctors={2}
+        activeStaff={2}
+        pending={null}
+      />,
+    );
+
+    expect(screen.queryByText('Solo')).toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'Contratar +1 médico' }).hasAttribute('disabled'),
+    ).toBe(false);
+    expect(
+      screen
+        .getByRole('button', { name: 'Cota de médicos ou equipe excedida' })
+        .hasAttribute('disabled'),
+    ).toBe(true);
+    expect(screen.getByText('2 médicos · 2 de equipe')).toBeTruthy();
+    expect(screen.getByText(/vaga só é liberada após a confirmação do pagamento/u)).toBeTruthy();
+    expect(screen.queryByText(/agendamentos\/mês monitorados/u)).toBeNull();
+    expect(screen.queryByText(/mensagens IA\/mês monitoradas/u)).toBeNull();
+  });
+
+  it('permite downgrade quando médicos e equipe cabem no destino', () => {
+    render(
+      <PlanChangeForm
+        current={{ ...current, planId: 'plan_clinica_3', planCode: 'clinica_2026_3' }}
+        plans={plans}
+        activeUsers={4}
+        activeDoctors={1}
+        activeStaff={3}
+        pending={null}
+      />,
+    );
+
+    const buttons = screen.getAllByRole('button', { name: 'Agendar downgrade' });
+    expect(buttons).toHaveLength(2);
+    expect(buttons.every((button) => !button.hasAttribute('disabled'))).toBe(true);
+  });
+
+  it.each([
+    { count: 399, title: null },
+    { count: 400, title: 'Uso da IA próximo da referência mensal' },
+    { count: 500, title: 'Referência mensal de IA alcançada' },
+  ])('mostra referência de IA com $count usos sem bloquear atendimento', ({ count, title }) => {
+    render(
+      <PlanChangeForm
+        current={current}
+        plans={plans}
+        activeUsers={4}
+        activeDoctors={2}
+        activeStaff={2}
+        aiUsage={{ count, limit: 500, period: '2026-10' }}
+        pending={null}
+      />,
+    );
+    expect(
+      screen.getByText(`${count} de 500 conversas de referência usadas.`, { exact: false }),
+    ).toBeTruthy();
+    if (title) {
+      expect(screen.getByText(title)).toBeTruthy();
+      expect(
+        screen.getByText('A IA continua atendendo. Não há cobrança automática de excedente.'),
+      ).toBeTruthy();
+    } else {
+      expect(screen.queryByText(/referência mensal de IA alcançada/u)).toBeNull();
+    }
   });
 });

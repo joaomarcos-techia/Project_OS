@@ -54,6 +54,7 @@ export type {
   ClinicSuspendedPayload,
   ClinicReactivatedPayload,
   ClinicDunningAdvancedPayload,
+  AiUsageNoticeRequestedPayload,
 } from './events';
 
 // API interna versionada — consumida por Identity (trava de usuários) e telas.

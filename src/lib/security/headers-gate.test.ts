@@ -117,6 +117,7 @@ describe('gate: a política não pode afrouxar', () => {
     it(`[${label}] só libera terceiros nomeados`, () => {
       const allowed = new Set([
         SUPABASE,
+        'https://pps.whatsapp.net',
         'https://connect.facebook.net',
         'https://www.facebook.com',
         'https://web.facebook.com',

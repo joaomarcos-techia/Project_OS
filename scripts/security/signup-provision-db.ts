@@ -68,6 +68,12 @@ if (childFlag) {
 const cluster = await startScratchSchema({ port: PORT });
 const sql = cluster.sql;
 
+// O Supabase concede SELECT nessas tabelas a `authenticated` por default ACL
+// antes das migrations. O Postgres descartável não reproduz esse default;
+// o readback no DEV confirma os três grants (probe-offer-seat-access-dev).
+// Sem eles, o teste do gate mede um erro da fixture, não o trial do produto.
+await sql`GRANT SELECT ON public.clinics, public.subscriptions, public.profiles TO authenticated`;
+
 // A aplicação lê a conexão de `DATABASE_URL` no momento do import.
 // Neutraliza aliases herdados: `env.ts` promove DATABASE_URL_DEV fora de
 // production, e o runtime pool prefere DATABASE_URL_RUNTIME. Todos os pools
@@ -96,11 +102,24 @@ const { reserveSignupBillingAttempt } =
 const { startSignupSubscription } =
   await import('../../src/contexts/onboarding/internal/signup-checkout');
 const { asaasProvider, BillingProviderError } = await import('../../src/lib/payments/asaas');
+const {
+  requestPlanChange,
+  requestBillingCycleChange,
+  confirmCycleChangeProviderSync,
+  prepareScheduledCycleForPaidInvoice,
+  applyScheduledPlanChange,
+  expireStaleUpgradeCheckoutLeases,
+} = await import('../../src/contexts/billing/internal/plan-changes');
+const { withTenant } = await import('../../src/lib/db/tenant');
+const { advancePaidCycleChangeInvoicePeriod } =
+  await import('../../src/contexts/billing/internal/subscriptions');
+const { assertClinicCanWriteTx, ClinicAccessError } = await import('../../src/lib/tenant-access');
 
 const CPF = '24971563792';
 /** Resolvidos do catálogo que a própria migration 0026 semeia. */
 let PLAN_ID = '';
 let PLAN_NO_PRICE_ID = '';
+let provisionedClinicId = '';
 
 /**
  * Usa o catálogo REAL (`solo`/`clinica`/`pro`).
@@ -268,6 +287,28 @@ function compensationStub(userId: string, mode: 'declined' | 'mismatch' | 'cas')
 try {
   await seedCatalog();
 
+  await check('ciclo anual: coluna real, CHECK fechado e preço do catálogo 2026', async () => {
+    const [plan] = await sql<{ id: string }[]>`
+      SELECT id FROM plans WHERE code = 'consultorio_2026'`;
+    assert.ok(plan);
+    const userId = await seedSession('annual-cycle', { planId: plan.id, billingState: null });
+    const [defaultCycle] = await sql<{ cycle: string }[]>`
+      SELECT selected_billing_cycle AS cycle FROM signup_sessions
+      WHERE auth_user_id = ${userId}::uuid`;
+    assert.equal(defaultCycle?.cycle, 'monthly');
+    await sql`UPDATE signup_sessions SET selected_billing_cycle = 'annual'
+      WHERE auth_user_id = ${userId}::uuid`;
+    const [priced] = await sql<{ cycle: string; amount: string }[]>`
+      SELECT s.selected_billing_cycle AS cycle, p.amount::text AS amount
+      FROM signup_sessions s JOIN prices p ON p.plan_id = s.selected_plan_id
+        AND p.billing_cycle::text = s.selected_billing_cycle
+      WHERE s.auth_user_id = ${userId}::uuid`;
+    assert.equal(priced?.cycle, 'annual');
+    assert.equal(priced?.amount, '1970.00');
+    await assert.rejects(sql`UPDATE signup_sessions SET selected_billing_cycle = 'weekly'
+      WHERE auth_user_id = ${userId}::uuid`);
+  });
+
   await check('execucao normal: tenant, owner, config, customer, assinatura e outbox', async () => {
     const userId = await seedSession('normal');
     const result = await provisionTenantFromSignup({
@@ -277,6 +318,7 @@ try {
     });
     assert.ok(result.ok, `provisionamento falhou: ${JSON.stringify(result)}`);
     const clinicId = result.clinicId;
+    provisionedClinicId = clinicId;
 
     const [counts] = await sql<
       { profiles: number; config: number; customers: number; subs: number; events: number }[]
@@ -324,6 +366,202 @@ try {
     const [left] = await sql<{ n: number }[]>`
       SELECT count(*)::int AS n FROM signup_sessions WHERE auth_user_id = ${userId}::uuid`;
     assert.equal(left?.n, 0, 'a sessao deveria ter sido consumida pelo DELETE');
+  });
+
+  await check(
+    'médico adicional: upgrade 397 → 544 reserva uma alteração no banco real',
+    async () => {
+      assert.ok(provisionedClinicId, 'provisionamento de controle ausente');
+      await sql`UPDATE plans SET ativo = true
+      WHERE code IN ('clinica_2026_2', 'clinica_2026_3')`;
+      const [target] = await sql<{ id: string }[]>`
+      SELECT id FROM plans WHERE code = 'clinica_2026_3'`;
+      assert.ok(target);
+      await sql`UPDATE subscriptions SET
+      plan_id = (SELECT id FROM plans WHERE code = 'clinica_2026_2'),
+      price_id = (SELECT pr.id FROM prices pr JOIN plans p ON p.id = pr.plan_id
+        WHERE p.code = 'clinica_2026_2' AND pr.billing_cycle = 'monthly'
+          AND pr.active_until IS NULL AND pr.campaign_code IS NULL),
+      billing_status = 'active',
+      current_period_start = now() - interval '7 days',
+      current_period_end = now() + interval '23 days'
+      WHERE clinic_id = ${provisionedClinicId}::uuid`;
+      const [owner] = await sql<{ id: string }[]>`
+      SELECT id FROM profiles WHERE clinic_id = ${provisionedClinicId}::uuid AND role = 'owner'`;
+      assert.ok(owner);
+      const change = await withTenant(provisionedClinicId, (tx) =>
+        requestPlanChange(tx, {
+          clinicId: provisionedClinicId,
+          targetPlanId: target.id,
+          requestedBy: owner.id,
+          idempotencyKey: randomUUID(),
+          request: { ip: null, origin: null, requestId: 'scratch-extra-doctor' },
+        }),
+      );
+      assert.equal(change.kind, 'upgrade');
+      assert.equal(change.status, 'pending_payment');
+      assert.ok(Number(change.prorationAmount) > 0 && Number(change.prorationAmount) < 147);
+      const [stored] = await sql<{ status: string; amount: string; subscription_count: number }[]>`
+      SELECT c.status, c.proration_amount::text AS amount,
+        (SELECT count(*)::int FROM subscriptions WHERE clinic_id = ${provisionedClinicId}::uuid)
+          AS subscription_count
+      FROM subscription_change_requests c WHERE c.id = ${change.id}::uuid`;
+      assert.equal(stored?.status, 'pending_payment');
+      assert.equal(stored?.amount, change.prorationAmount);
+      assert.equal(stored?.subscription_count, 1, 'upgrade criou outra assinatura');
+    },
+  );
+
+  await check('Checkout incerto: lease vencido bloqueia nova criação', async () => {
+    assert.ok(provisionedClinicId);
+    const [change] = await sql<{ id: string }[]>`
+      SELECT id FROM subscription_change_requests
+      WHERE clinic_id = ${provisionedClinicId}::uuid AND kind = 'upgrade'
+      ORDER BY created_at DESC LIMIT 1`;
+    assert.ok(change);
+    await sql`UPDATE subscription_change_requests
+      SET checkout_creation_state = 'creating', checkout_lease_until = now() - interval '1 second'
+      WHERE id = ${change.id}::uuid`;
+    const marked = await withTenant(provisionedClinicId, (tx) =>
+      expireStaleUpgradeCheckoutLeases(tx, new Date()),
+    );
+    assert.equal(marked, 1);
+    const [after] = await sql<
+      { checkout_creation_state: string; checkout_lease_until: Date | null }[]
+    >`
+      SELECT checkout_creation_state, checkout_lease_until
+      FROM subscription_change_requests WHERE id = ${change.id}::uuid`;
+    assert.equal(after?.checkout_creation_state, 'creation_unknown');
+    assert.equal(after.checkout_lease_until, null);
+    assert.equal(
+      await withTenant(provisionedClinicId, (tx) =>
+        expireStaleUpgradeCheckoutLeases(tx, new Date()),
+      ),
+      0,
+    );
+  });
+
+  await check('mensal → anual: agenda, preserva o ciclo e aplica só no vencimento', async () => {
+    assert.ok(provisionedClinicId);
+    const [owner] = await sql<{ id: string }[]>`
+      SELECT id FROM profiles WHERE clinic_id = ${provisionedClinicId}::uuid AND role = 'owner'`;
+    assert.ok(owner);
+    // A solicitação de upgrade anterior pertence só a este cluster descartável.
+    await sql`DELETE FROM subscription_change_requests WHERE clinic_id = ${provisionedClinicId}::uuid`;
+    const [before] = await sql<
+      { id: string; plan_id: string; price_id: string; period_end: string | Date }[]
+    >`
+      SELECT id, plan_id, price_id, current_period_end AS period_end FROM subscriptions
+      WHERE clinic_id = ${provisionedClinicId}::uuid`;
+    assert.ok(before?.period_end);
+    const change = await withTenant(provisionedClinicId, (tx) =>
+      requestBillingCycleChange(tx, {
+        clinicId: provisionedClinicId,
+        requestedBy: owner.id,
+        idempotencyKey: randomUUID(),
+        request: { ip: null, origin: null, requestId: 'scratch-cycle-change' },
+      }),
+    );
+    assert.equal(change.targetCycle, 'annual', 'ciclo de destino');
+    assert.equal(change.targetAmount, '3970.00', 'preço anual');
+    const originalEnd =
+      before.period_end instanceof Date
+        ? before.period_end.toISOString().slice(0, 10)
+        : before.period_end;
+    assert.equal(change.effectiveAt.toISOString().slice(0, 10), originalEnd, 'data de troca');
+    await withTenant(provisionedClinicId, (tx) =>
+      confirmCycleChangeProviderSync(tx, provisionedClinicId, change.id),
+    );
+    const due = change.effectiveAt.toISOString().slice(0, 10);
+    const early = await withTenant(provisionedClinicId, (tx) =>
+      prepareScheduledCycleForPaidInvoice(
+        tx,
+        provisionedClinicId,
+        {
+          subscriptionId: before.id,
+          dueDate: due,
+          totalAmount: change.targetAmount,
+        },
+        'CREDIT_CARD',
+        new Date(change.effectiveAt.getTime() - 1000),
+      ),
+    );
+    assert.equal(early.deferPeriodAdvance, true, 'pagamento antecipado deve adiar período');
+    await sql`INSERT INTO invoices (clinic_id, subscription_id, total_amount, status, due_date, paid_at,
+      asaas_payment_id, payment_method)
+      VALUES (${provisionedClinicId}::uuid, ${before.id}::uuid, ${change.targetAmount}::numeric,
+        'paid', ${due}::date, now(), ${`pay_scratch_cycle_${change.id}`}, 'CREDIT_CARD')`;
+    const [stillMonthly] = await sql<{ price_id: string }[]>`
+      SELECT price_id FROM subscriptions WHERE clinic_id = ${provisionedClinicId}::uuid`;
+    assert.equal(stillMonthly?.price_id, before.price_id, 'preço mudou antes do vencimento');
+    const applied = await withTenant(provisionedClinicId, (tx) =>
+      applyScheduledPlanChange(tx, change.id, new Date(change.effectiveAt.getTime() + 1000)),
+    );
+    assert.equal(applied.applied, true, 'troca não aplicada no vencimento');
+    const [after] = await sql<{ plan_id: string; price_id: string; billing_cycle: string }[]>`
+      SELECT s.plan_id, s.price_id, p.billing_cycle FROM subscriptions s
+      JOIN prices p ON p.id = s.price_id WHERE s.clinic_id = ${provisionedClinicId}::uuid`;
+    assert.equal(after?.plan_id, before.plan_id, 'plano mudou ao trocar ciclo');
+    assert.notEqual(after.price_id, before.price_id, 'preço permaneceu mensal');
+    assert.equal(after.billing_cycle, 'annual', 'ciclo não ficou anual');
+    await withTenant(provisionedClinicId, (tx) =>
+      advancePaidCycleChangeInvoicePeriod(
+        tx,
+        provisionedClinicId,
+        before.id,
+        due,
+        change.targetAmount,
+      ),
+    );
+    const [paidCycle] = await sql<{ period_end: string | Date; invoice_end: string | Date }[]>`
+      SELECT s.current_period_end AS period_end, i.period_end AS invoice_end
+      FROM subscriptions s JOIN invoices i ON i.subscription_id = s.id
+      WHERE s.id = ${before.id}::uuid AND i.asaas_payment_id = ${`pay_scratch_cycle_${change.id}`}`;
+    assert.ok(paidCycle?.invoice_end);
+    const periodEnd =
+      paidCycle.period_end instanceof Date
+        ? paidCycle.period_end.toISOString().slice(0, 10)
+        : paidCycle.period_end;
+    const invoiceEnd =
+      paidCycle.invoice_end instanceof Date
+        ? paidCycle.invoice_end.toISOString().slice(0, 10)
+        : paidCycle.invoice_end;
+    assert.equal(periodEnd, invoiceEnd, 'pagamento antecipado não abriu ano na data de troca');
+    assert.equal(
+      (
+        await withTenant(provisionedClinicId, (tx) =>
+          applyScheduledPlanChange(tx, change.id, new Date(change.effectiveAt.getTime() + 2000)),
+        )
+      ).applied,
+      false,
+    );
+  });
+
+  await check('trial de 14 dias: escrita fecha ao vencer e reabre após pagamento', async () => {
+    assert.ok(provisionedClinicId, 'provisionamento de controle ausente');
+    await sql`UPDATE subscriptions SET billing_status = 'trial',
+      enforce_trial_deadline = true, trial_ends_at = now() - interval '1 second'
+      WHERE clinic_id = ${provisionedClinicId}::uuid`;
+    await assert.rejects(
+      withTenant(provisionedClinicId, (tx) => assertClinicCanWriteTx(tx, provisionedClinicId)),
+      (error: unknown) => {
+        const cause = error instanceof Error && 'cause' in error ? error.cause : undefined;
+        assert.ok(
+          error instanceof ClinicAccessError,
+          `erro inesperado: ${String(cause ?? error).split('\n')[0]}`,
+        );
+        assert.equal(error.status, 'pending_payment');
+        return true;
+      },
+    );
+    await sql`UPDATE subscriptions SET trial_ends_at = now() + interval '14 days'
+      WHERE clinic_id = ${provisionedClinicId}::uuid`;
+    await withTenant(provisionedClinicId, (tx) => assertClinicCanWriteTx(tx, provisionedClinicId));
+    await sql`UPDATE subscriptions SET trial_ends_at = now() - interval '1 second'
+      WHERE clinic_id = ${provisionedClinicId}::uuid`;
+    await sql`UPDATE subscriptions SET billing_status = 'active'
+      WHERE clinic_id = ${provisionedClinicId}::uuid`;
+    await withTenant(provisionedClinicId, (tx) => assertClinicCanWriteTx(tx, provisionedClinicId));
   });
 
   await check('duas abas: um tenant, e a perdedora nao deixa residuo', async () => {
@@ -646,10 +884,16 @@ try {
       await tx`SET LOCAL ROLE qoro_runtime`;
       await tx`SELECT set_config('app.current_clinic', ${a.clinicId}, true)`;
 
-      for (const table of ['subscriptions', 'billing_customers', 'ai_clinic_config'] as const) {
+      for (const table of [
+        'subscriptions',
+        'billing_customers',
+        'ai_clinic_config',
+        'profiles',
+        'clinics',
+      ] as const) {
         const countRows = async (clinicId: string): Promise<number> => {
           const rows: { n: number }[] = await tx.unsafe(
-            `SELECT count(*)::int AS n FROM ${table} WHERE clinic_id = $1`,
+            `SELECT count(*)::int AS n FROM ${table} WHERE ${table === 'clinics' ? 'id' : 'clinic_id'} = $1`,
             [clinicId],
           );
           return rows[0]!.n;
@@ -664,20 +908,6 @@ try {
       );
       assert.equal(invaded.length, 0, 'A alterou a assinatura de B');
     });
-
-    // clinics e profiles nem chegam a depender de RLS: o runtime não tem grant
-    // sobre elas (ADR-041/042). Provar a NEGATIVA importa — se um dia alguém
-    // conceder SELECT "para facilitar", este teste quebra.
-    for (const table of ['clinics', 'profiles'] as const) {
-      await assert.rejects(
-        sql.begin(async (tx) => {
-          await tx`SET LOCAL ROLE qoro_runtime`;
-          await tx.unsafe(`SELECT count(*) FROM ${table}`);
-        }),
-        /permission denied/u,
-        `${table} deveria ser negada por grant ao runtime`,
-      );
-    }
 
     const [bSub] = await sql<{ billing_status: string }[]>`
       SELECT billing_status FROM subscriptions WHERE clinic_id = ${b.clinicId}::uuid`;
