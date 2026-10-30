@@ -1,0 +1,47 @@
+{
+  "source": "Founder-provided export from the official Cloudflare troubleshooter in their habitual Chrome",
+  "at": "2026-10-30T21:49:41.329Z",
+  "environment": "Cloudflare diagnostic site; not the Qoro widget or backend",
+  "tests": [
+    {
+      "name": "Automation Check",
+      "passed": true,
+      "warning": false
+    },
+    {
+      "name": "System Clock",
+      "passed": true,
+      "warning": false
+    },
+    {
+      "name": "Privacy Tools",
+      "passed": true,
+      "warning": false
+    },
+    {
+      "name": "Server Connection",
+      "passed": true,
+      "warning": false
+    }
+  ],
+  "turnstile": {
+    "status": "success",
+    "completionAt": "2026-10-30T21:49:50.970Z",
+    "elapsedMs": 9244,
+    "tokenIssued": true,
+    "noTokenIncluded": true
+  },
+  "capture": {
+    "timedOut": true,
+    "successRecordedAfterMetadataEnd": true
+  },
+  "privacy": {
+    "ip": false,
+    "sessionId": false,
+    "rayId": false,
+    "fingerprint": false,
+    "sitekey": false,
+    "token": false
+  },
+  "qoroProductionSiteverify": "NOT RUN by this diagnostic"
+}

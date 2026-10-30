@@ -3,6 +3,7 @@
  * App importa SEMPRE daqui (boundaries). internal/* é privado ao contexto.
  */
 export { generateInviteToken, hashToken } from './internal/token';
+export { verifySignupTurnstileProbe } from './internal/turnstile';
 export {
   CURRENT_TOOLING,
   DISCOVERY_SOURCES,
