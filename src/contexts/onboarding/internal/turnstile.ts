@@ -29,6 +29,17 @@ export type TurnstileOutcome =
   | { ok: true }
   | { ok: false; reason: 'invalid' | 'unreachable' | 'not_configured' };
 
+type DetailedOutcome =
+  | { ok: true; hostname?: string; action?: string }
+  | { ok: false; reason: 'invalid' | 'unreachable' | 'not_configured'; codes?: string[] };
+
+export type SignupTurnstileProbeOutcome =
+  | { ok: true }
+  | { ok: false; reason: 'invalid' | 'unreachable' | 'not_configured' | 'unexpected_result' };
+
+const PROBE_ACTION = 'signup-release-check';
+const INVALID_PROBE_TOKEN = 'qoro-release-check-invalid';
+
 /**
  * Verifica o token contra a Cloudflare.
  *
@@ -46,6 +57,11 @@ export async function verifyTurnstileToken(
   token: string,
   remoteIp: string,
 ): Promise<TurnstileOutcome> {
+  const result = await verifyDetailed(token, remoteIp);
+  return result.ok ? { ok: true } : { ok: false, reason: result.reason };
+}
+
+async function verifyDetailed(token: string, remoteIp: string): Promise<DetailedOutcome> {
   const secret = env.TURNSTILE_SECRET_KEY;
   if (!secret) {
     // Sem chave configurada não há como verificar. Reportado de forma distinta
@@ -71,18 +87,36 @@ export async function verifyTurnstileToken(
       return { ok: false, reason: 'unreachable' };
     }
 
-    const data = (await res.json()) as { success?: boolean; 'error-codes'?: string[] };
+    const data: unknown = await res.json();
+    if (!data || typeof data !== 'object' || !('success' in data)) {
+      metrics.emit('signup.turnstile.unreachable', { reason: 'invalid_response' });
+      return { ok: false, reason: 'unreachable' };
+    }
 
     if (data.success === true) {
       metrics.emit('signup.turnstile.verified', {});
-      return { ok: true };
+      return {
+        ok: true,
+        ...('hostname' in data && typeof data.hostname === 'string'
+          ? { hostname: data.hostname }
+          : {}),
+        ...('action' in data && typeof data.action === 'string' ? { action: data.action } : {}),
+      };
     }
+
+    const rawCodes: unknown = 'error-codes' in data ? data['error-codes'] : undefined;
+    const codes = Array.isArray(rawCodes)
+      ? rawCodes.filter(
+          (code: unknown): code is string =>
+            typeof code === 'string' && /^[a-z-]{1,64}$/u.test(code),
+        )
+      : [];
 
     // Os `error-codes` da Cloudflare são rótulos fixos e sem PII
     // (`invalid-input-response`, `timeout-or-duplicate`, …). São o que
     // distingue "token reusado" de "chave errada" às 3h da manhã.
-    metrics.emit('signup.turnstile.rejected', { codes: data['error-codes'] ?? [] });
-    return { ok: false, reason: 'invalid' };
+    metrics.emit('signup.turnstile.rejected', { codes });
+    return { ok: false, reason: 'invalid', codes };
   } catch (err) {
     // Timeout ou falha de rede. NÃO relança: o caller decide, e a decisão já
     // está tomada acima (fecha no caminho de desafio).
@@ -91,4 +125,32 @@ export async function verifyTurnstileToken(
     logger.warn('signup.turnstile.unreachable', { reason });
     return { ok: false, reason: 'unreachable' };
   }
+}
+
+/** No account, session, entitlement or payment is created by this probe. */
+export async function verifySignupTurnstileProbe(
+  token: string,
+  remoteIp: string,
+  expectedHostname: string,
+): Promise<SignupTurnstileProbeOutcome> {
+  const positive = await verifyDetailed(token, remoteIp);
+  if (!positive.ok) return { ok: false, reason: positive.reason };
+  if (positive.hostname !== expectedHostname || positive.action !== PROBE_ACTION) {
+    return { ok: false, reason: 'invalid' };
+  }
+
+  const replay = await verifyDetailed(token, remoteIp);
+  if (replay.ok) return { ok: false, reason: 'unexpected_result' };
+  if (replay.reason !== 'invalid') return { ok: false, reason: replay.reason };
+  if (!replay.codes?.includes('timeout-or-duplicate')) {
+    return { ok: false, reason: 'unexpected_result' };
+  }
+
+  const invalid = await verifyDetailed(INVALID_PROBE_TOKEN, remoteIp);
+  if (invalid.ok) return { ok: false, reason: 'unexpected_result' };
+  if (invalid.reason !== 'invalid') return { ok: false, reason: invalid.reason };
+  if (!invalid.codes?.includes('invalid-input-response')) {
+    return { ok: false, reason: 'unexpected_result' };
+  }
+  return { ok: true };
 }

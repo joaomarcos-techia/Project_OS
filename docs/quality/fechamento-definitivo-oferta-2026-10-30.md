@@ -1,5 +1,7 @@
 # Fechamento da engenharia da oferta — 30/10/2026
 
+**Continuação posterior autorizada:** os PRs #42/#3 já foram mesclados e app/landing publicados; journal Production 134 após 0119–0133, contratos preservados e smokes aprovados. **A aquisição continua fechada por Turnstile real positivo/replay não comprovados (600010 no navegador de teste).** O [registro da janela de produção](publicacao-oferta-2026-10-30.md) é o estado vigente; a narrativa abaixo registra a preparação anterior e não deve provocar repetição de migrations, merge ou pagamento.
+
 Escopo: app `integration/pricing-plan-sync-20261018` / PR draft #42 e landing `fix/landing-offer-limits-20261024` / PR draft #3. Base recebida: app `8e10a48d`, landing `ca12a68`, ambos limpos e checks conferidos antes de alterar. Não houve merge, deploy, migration de produção, mudança de variável de produção, contrato, crédito ou cobrança. Production foi consultada **somente em transação READ ONLY** para journal/integridade agregada.
 
 ## Decisão de prontidão

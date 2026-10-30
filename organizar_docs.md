@@ -1,5 +1,9 @@
 # DOCS REFACTOR CHECKPOINT
 
+## Janela de produção autorizada — 30/10/2026
+
+Fonte atual: [publicação executada e gate pendente](docs/quality/publicacao-oferta-2026-10-30.md). App #42 e landing #3 mesclados/publicados, 15 migrations aplicadas e contratos preservados. CI do merge aprovada; smokes públicos/autenticados e landing conferidos. **Cadastro permanece fechado por Turnstile real positivo/replay pendentes (600010).** Runbook e guia humano atualizados; não repetir trabalho já aplicado nem retomar a coleta de senha de backup dispensada. Esta atualização documental não altera código, flags ou deployments. O checkpoint histórico de refatoração abaixo fica preservado.
+
 ## Continuidade operacional — 30/10/2026
 
 A resposta do founder encerrou a pergunta sobre recursos: não há mídia externa, armazenamento aprovado ou gerenciador. A fonte da escolha atual é [backup independente sem compra](docs/runbooks/backup-independente-sem-custo-2026-10.md); o [guia humano](docs/runbooks/acoes-manuais-pendentes-pricing-2026-10.md) e o [fechamento](docs/quality/fechamento-definitivo-oferta-2026-10-30.md) apontam para ela. Inclui fontes oficiais, B2/Bitwarden/papel como piloto proposto, dimensionamento sanitizado e limites contratuais/operacionais. A comparação histórica foi preservada e marcada como superada. O estado da refatoração antiga abaixo não é evidência de recuperação independente ou autorização de publicação.

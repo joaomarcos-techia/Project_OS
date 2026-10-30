@@ -246,6 +246,10 @@ export function collectInventory(root: string): Inventory {
       guard: 'public-signup-rate-limit-risk-and-cap',
       call: 'createSignupSession',
     },
+    'src/app/api/signup/verificacao/route.ts#POST': {
+      guard: 'closed-signup-expiry-origin-rate-limit-provider-proof-no-session',
+      call: 'verifySignupTurnstileProbe',
+    },
     'src/app/api/signup/sessions/me/route.ts#GET': {
       guard: 'signup-cookie-and-read-rate-limit',
       call: 'readSignupSession',
