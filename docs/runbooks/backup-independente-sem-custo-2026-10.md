@@ -108,6 +108,31 @@ Esta etapa escolhe e prepara a solução gratuita. A revisão contratual/destino
 
 ## Evidência desta rodada
 
+### Continuação: contas e bucket informados pelo founder
+
+O founder informou criação das duas contas e MFA do Bitwarden. Informou bucket `qoro-recovery-pilot-20261030` e endpoint `s3.us-east-005.backblazeb2.com`. Isso identifica o **destino do piloto sintético**, mas não comprova privacidade, MFA do B2, escopo de chave, upload ou recuperação. Nenhuma cópia médica está autorizada por esse relato. As instruções de criação das contas acima ficam como referência, não tarefa a repetir.
+
+**Próximo passo humano: chave temporária e custódia no Bitwarden.** Não enviar segredos no chat nem colocar esta chave em `.env.local`, GitHub ou Vercel.
+
+1. No [painel B2](https://secure.backblaze.com/), abra **App Keys → Add a New Application Key** (pode aparecer **Add Application Key**). Escolha nome `qoro-pilot-temporary`, acesso somente ao bucket `qoro-recovery-pilot-20261030`, prefixo **`pilot/`**, duração **86400 segundos (24 horas)** e **Read and Write**. Não marcar **Allow list all bucket names** nem escolher **All**. Não gerar master key. Se os campos divergirem, parar e informar apenas os rótulos, sem valores secretos. [Campos oficiais](https://www.backblaze.com/docs/cloud-storage-application-keys).
+2. Essa chave GUI temporária permite leitura/escrita e pode incluir exclusão dentro do escopo do piloto. **Não é a credencial escritora definitiva sem exclusão.** O bucket/prefixo têm apenas dados sintéticos; conferir as capacidades reais via API antes do teste. A credencial final de produção será preparada separadamente, sem copiar a chave do piloto para Production.
+3. No Bitwarden, **Novo item → Login**: nome `Qoro - Backblaze B2`, endereço `https://secure.backblaze.com/`, usuário e senha já existentes da conta B2. Isso guarda o login, sem mudar a senha nem gerar master key. Depois **Novo item → Nota segura**: nome `Qoro - B2 piloto temporario`; registrar `keyID`, `applicationKey`, bucket, endpoint, prefixo `pilot/` e data/hora da expiração exibida no B2. A chave é mostrada na criação; salvá-la diretamente no cofre. [Itens Bitwarden](https://bitwarden.com/help/managing-items/).
+4. A senha mestra do Bitwarden não é senha de backup nem chave da API. Sua recuperação MFA fica também em papel seguro, fora do PC/telefone. Em **Settings → Security → Two-step login → View recovery code**, o titular pode localizar seu código; não enviar QR/OTP/código, export do cofre ou screenshot dos itens. O código MFA exige a senha mestra para recuperar acesso. [Recuperação MFA](https://bitwarden.com/help/two-step-recovery-code/).
+5. Para disponibilizar **somente a chave piloto** ao executor local, executar este comando na própria janela PowerShell; ele solicita `keyID` e `applicationKey` com entrada oculta. Os valores são colados nos prompts, nunca nas linhas do comando, no chat ou em argumento de processo:
+
+```powershell
+Set-Location 'C:\dev\ClinicaOS_V2_pricing_plan_integration_20261018'
+.\scripts\recovery\capture-b2-pilot.ps1
+```
+
+Resultado esperado: `Credencial piloto guardada com DPAPI e ACL privada. Nenhum teste externo ou upload foi executado.` O cache fica em `%LOCALAPPDATA%\Qoro\RecoveryKeys\b2-pilot\credential.dpapi`, com acesso apenas ao usuário Windows atual. Não sobrescreve arquivo existente; se já existir ou houver erro, informar só a mensagem sanitizada, sem apagar outras chaves ou alterar permissões. Não contornar Execution Policy, UAC ou antivírus se bloquearem o comando.
+
+O cache DPAPI é conveniência temporária e **não é o cofre portátil**; a chave continua custodiada no Bitwarden para acesso em outra máquina. A captura não autentica na API nem comprova escopo/expiração. O cliente externo ainda precisa validar isso antes do primeiro envio sintético. Não há agendamento, upload ou exclusão no script.
+
+Resposta suficiente: `Chave piloto salva no Bitwarden e capturada localmente`. Não enviar nenhum dos valores. A próxima ação de engenharia é conferir escopo/bucket privado, preparar fixture identificada e executar o roundtrip sintético. Credencial expirada não deve ser interpretada como bug do B2 nem renovada automaticamente com acesso mais amplo.
+
+Verificação local do capturador: parser PowerShell e `powershell.exe -NoProfile -NonInteractive -File .\scripts\recovery\capture-b2-pilot.ps1 -SelfTest` aprovados; ACL de pasta/arquivo, roundtrip DPAPI com readback, sobrescrita/adulteração recusadas e quatro entradas inválidas rejeitadas. Arquivo e diretório sintéticos temporários removidos pelo ensaio, sem recursão. Nenhum segredo real foi solicitado ou lido pela engenharia nesta prova. Nenhuma configuração Windows ou política de execução foi alterada.
+
 - Planejador somente de metadados, sem rede, upload, exclusão, dependência nova ou leitura de `.env.local`.
 - 15 testes novos: retenção/lock, quota, envelope, crescimento, overflow/entradas inválidas, limites de arquivos, estimativa de transporte e roundtrip sintético com rejeição de senha errada.
 - 22/22 testes focados em três arquivos: capacidade + pacote + saúde. TypeScript estrito dos módulos/script novos, ESLint e inventário de segurança aprovados; checks finais da branch devem ser conferidos no [PR draft #42](https://github.com/joaomarcos-techia/Project_OS/pull/42).

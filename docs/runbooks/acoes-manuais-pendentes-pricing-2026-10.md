@@ -8,7 +8,7 @@ A engenharia já executou: restore real do banco + **15/15 migrations 0119–013
 
 **Para quê:** os arquivos atuais estão cifrados, mas a perda deste computador/perfil ainda pode impedir a recuperação. Precisamos de um destino fora dele e de um cofre separado para as chaves.
 
-**Sua resposta já foi registrada:** não há disco externo, armazenamento corporativo aprovado ou gerenciador de senhas. Não precisa responder isso de novo nem comprar nada agora.
+**Sua resposta inicial já foi registrada:** não havia disco externo, armazenamento corporativo aprovado ou gerenciador de senhas. Depois, você criou B2 e Bitwarden e informou o bucket piloto/endpoint. Não precisa criar as contas novamente nem comprar nada agora. O próximo passo é [guardar a chave temporária no Bitwarden e disponibilizá-la localmente](backup-independente-sem-custo-2026-10.md#continuação-contas-e-bucket-informados-pelo-founder), com entrada oculta e sem segredo no chat.
 
 **Recomendação concreta:** piloto gratuito **Backblaze B2 + Bitwarden Free + folha de recuperação offline**. A reserva calculada para 36 gerações, com 20% de margem, é de aproximadamente **178 MB**, dentro dos 10 GB gratuitos. O pacote real ainda não foi exportado; o cálculo usa metadados das cópias existentes. A adequação contratual à LGPD/transferência e o destino exato precisam ser aprovados antes de enviar dados médicos.
 
