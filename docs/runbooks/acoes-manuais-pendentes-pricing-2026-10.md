@@ -18,6 +18,8 @@ A engenharia já executou: restore real do banco + **15/15 migrations 0119–013
 
 **Depois:** verificar contrato/destino, pedir a autorização específica da cópia real e comprovar exportação, download/restauração independente, rotina e alerta. Código portátil e checker já existem; integração externa não será chamada de PASS antes da execução. **Não copie só o arquivo .dpapi:** ele depende do perfil Windows atual.
 
+**Atualização após a captura:** a primeira gravação funcionou; a repetição sem parâmetros agora só avisa que a credencial existe e não a modifica. O readback real confirmou bucket privado/endpoint, mas a chave recebida é ampla e sem expiração. O passo atual é [criar uma nova chave restrita e substituir o cache preservando a cópia anterior](backup-independente-sem-custo-2026-10.md#leitura-real-após-captura-bucket-correto-chave-ampla--precondition-blocked), seguindo o comando `-ReplaceExisting`. Não apagar/revogar a chave anterior por suposição; nenhum upload real ou sintético foi realizado ainda.
+
 ## 2. Conferir se as dependências externas do Auth estão no cofre
 
 **Para quê:** restaurar tabelas `auth` não restaura automaticamente as chaves e serviços gerenciados. O inventário de **243 configurações** e o snapshot local já foram concluídos.

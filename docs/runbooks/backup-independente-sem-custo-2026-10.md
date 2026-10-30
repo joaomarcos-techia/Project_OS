@@ -125,13 +125,33 @@ Set-Location 'C:\dev\ClinicaOS_V2_pricing_plan_integration_20261018'
 .\scripts\recovery\capture-b2-pilot.ps1
 ```
 
-Resultado esperado: `Credencial piloto guardada com DPAPI e ACL privada. Nenhum teste externo ou upload foi executado.` O cache fica em `%LOCALAPPDATA%\Qoro\RecoveryKeys\b2-pilot\credential.dpapi`, com acesso apenas ao usuário Windows atual. Não sobrescreve arquivo existente; se já existir ou houver erro, informar só a mensagem sanitizada, sem apagar outras chaves ou alterar permissões. Não contornar Execution Policy, UAC ou antivírus se bloquearem o comando.
+Resultado esperado na primeira captura: `Credencial piloto guardada com DPAPI e ACL privada. Nenhum teste externo ou upload foi executado.` O cache fica em `%LOCALAPPDATA%\Qoro\RecoveryKeys\b2-pilot\credential.dpapi`, com acesso apenas ao usuário Windows atual. Uma repetição sem parâmetros agora informa **credencial já existente**, retorna sem pedir valores e não altera o arquivo. A versão anterior emitia erro genérico nesse caso; o guard impediu sobrescrita e a primeira captura continuou válida. Não contornar Execution Policy, UAC ou antivírus se bloquearem o comando.
 
 O cache DPAPI é conveniência temporária e **não é o cofre portátil**; a chave continua custodiada no Bitwarden para acesso em outra máquina. A captura não autentica na API nem comprova escopo/expiração. O cliente externo ainda precisa validar isso antes do primeiro envio sintético. Não há agendamento, upload ou exclusão no script.
 
 Resposta suficiente: `Chave piloto salva no Bitwarden e capturada localmente`. Não enviar nenhum dos valores. A próxima ação de engenharia é conferir escopo/bucket privado, preparar fixture identificada e executar o roundtrip sintético. Credencial expirada não deve ser interpretada como bug do B2 nem renovada automaticamente com acesso mais amplo.
 
 Verificação local do capturador: parser PowerShell e `powershell.exe -NoProfile -NonInteractive -File .\scripts\recovery\capture-b2-pilot.ps1 -SelfTest` aprovados; ACL de pasta/arquivo, roundtrip DPAPI com readback, sobrescrita/adulteração recusadas e quatro entradas inválidas rejeitadas. Arquivo e diretório sintéticos temporários removidos pelo ensaio, sem recursão. Nenhum segredo real foi solicitado ou lido pela engenharia nesta prova. Nenhuma configuração Windows ou política de execução foi alterada.
+
+### Leitura real após captura: bucket correto, chave ampla — PRECONDITION BLOCKED
+
+Em 30/10, a credencial foi capturada pelo founder; a segunda execução foi o guard de arquivo existente, não perda da primeira captura. A engenharia conferiu ACL/DPAPI e usou a chave **somente em autenticação e leitura dos metadados do bucket indicado**, sem imprimir valores. API B2 respondeu **HTTP 200** na autenticação e **HTTP 200** no readback filtrado: bucket esperado **privado**, endpoint correto e Object Lock desativado. Porém a autorização retornou **sem restrição de bucket, prefixo vazio, permissão de listar todos os buckets e sem expiração**. Isso não corresponde à chave temporária solicitada; não se inferiu que fosse necessariamente uma master key. [Evidência sanitizada](../quality/evidencias/b2-pilot-preflight-20261030.json).
+
+O roundtrip permanece **PRECONDITION BLOCKED — escopo da chave**. Não houve upload, leitura de backup real, criação/revogação de chave ou alteração de configuração B2. A chave ampla não foi usada para criar outras credenciais. O helper `preflight-b2-pilot.ps1` autentica no endpoint oficial, recusa escopo inadequado antes das próximas operações e só consulta o bucket esperado quando o escopo passa. Não executa uploads/exclusões, não segue redirects e não imprime resposta com tokens. [Autorização B2 v4](https://www.backblaze.com/apidocs/b2-authorize-account), [consulta filtrada de bucket](https://www.backblaze.com/apidocs/b2-list-buckets).
+
+**Ação humana específica: criar outra application key restrita**, preservando a atual até identificar seu uso. Em **App Keys → Add a New Application Key**, usar nome `qoro-pilot-restrito`, somente bucket `qoro-recovery-pilot-20261030`, **Read and Write**, prefixo **`pilot/`**, duração **`86400`** e **Allow list all bucket names desmarcado**. Não clicar em **Generate New Master Application Key**. Se bucket/prefixo/duração não aparecerem, não concluir nessa tela. Guardar os novos valores em **outra Nota segura** no Bitwarden, nome `Qoro - B2 piloto restrito`, sem sobrescrever a anotação da chave anterior.
+
+Depois, executar a captura com substituição explícita:
+
+```powershell
+Set-Location 'C:\dev\ClinicaOS_V2_pricing_plan_integration_20261018'
+.\scripts\recovery\capture-b2-pilot.ps1 -ReplaceExisting
+.\scripts\recovery\preflight-b2-pilot.ps1
+```
+
+Os prompts ocultos recebem o **novo** `keyID` e a **nova** `applicationKey`. `-ReplaceExisting` primeiro grava e verifica um candidato cifrado; só depois faz troca atômica do cache. A cópia anterior fica cifrada em `previous-<id-aleatorio>.dpapi`, na mesma pasta privada. Não remove a chave no B2, não edita Bitwarden e não altera Production. Captura não prova escopo remoto: o preflight seguinte precisa responder `PASS precondition only`. Esse PASS significa somente credencial temporária/escopo/bucket privado confirmados; **não** equivale a backup restaurado. Se ainda retornar `BLOCKED`, enviar só o campo `reason`, nunca os valores da chave.
+
+Verificações adicionais executadas: captura sintética com substituição atômica/readback e preservação byte a byte da cópia anterior; nome de arquivo inseguro rejeitado; chamada repetida real sem parâmetros retorna aviso e mantém o SHA-256 do cache inalterado. Preflight sintético aceita o escopo/privacidade corretos e rejeita **15 variantes inseguras de autorização mais bucket público**, incluindo chave ampla, prefixo errado, acesso global, expiração ausente/vencida/larga e endpoints inadequados. Preflight real com a chave atual retorna `BLOCKED precondition`, motivo `SCOPE_BUCKET`, HTTP de autenticação 200, **zero upload**. Dados sintéticos de testes locais removidos; cache real preservado.
 
 - Planejador somente de metadados, sem rede, upload, exclusão, dependência nova ou leitura de `.env.local`.
 - 15 testes novos: retenção/lock, quota, envelope, crescimento, overflow/entradas inválidas, limites de arquivos, estimativa de transporte e roundtrip sintético com rejeição de senha errada.
