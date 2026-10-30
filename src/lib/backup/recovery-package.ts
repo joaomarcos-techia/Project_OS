@@ -6,6 +6,10 @@ const SALT_BYTES = 16,
   TAG_BYTES = 16;
 const MAX_PACKAGE_BYTES = 128 * 1024 * 1024;
 const MAX_ENTRIES = 4096;
+export const RECOVERY_PACKAGE_LIMITS = Object.freeze({
+  clearBytes: MAX_PACKAGE_BYTES / 2,
+  entries: MAX_ENTRIES,
+});
 export type RecoveryEntry = { id: string; data: Buffer };
 type WireEntry = { id: string; base64: string; sha256: string };
 function key(passphrase: string, salt: Buffer): Buffer {
@@ -31,7 +35,7 @@ export function sealRecoveryPackage(entries: readonly RecoveryEntry[], passphras
       throw new Error('Invalid recovery entry');
     ids.add(id);
     size += data.length;
-    if (size > MAX_PACKAGE_BYTES / 2) throw new Error('Recovery package is too large');
+    if (size > RECOVERY_PACKAGE_LIMITS.clearBytes) throw new Error('Recovery package is too large');
     return { id, base64: data.toString('base64'), sha256: digest(data) };
   });
   const salt = randomBytes(SALT_BYTES),

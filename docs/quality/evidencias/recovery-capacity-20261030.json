@@ -1,0 +1,53 @@
+{
+  "at": "2026-10-30T10:42:27.572Z",
+  "mode": "local metadata only",
+  "actualPortablePackageBytes": null,
+  "storageEncryptedBytes": 2565459,
+  "storageEntries": 44,
+  "databaseEncryptedBytes": 605324,
+  "authDpapiBytes": 40694,
+  "growthIsForecast": false,
+  "scenarios": [
+    {
+      "growthFactor": 1,
+      "clearBytes": 2606447,
+      "portableUpperBoundBytes": 3523452,
+      "setUpperBoundBytes": 4128776,
+      "retainedSets": 36,
+      "reservedBytes": 178363124,
+      "freeBytes": 10000000000,
+      "portableFormatFits": true,
+      "freeAllowanceFits": true,
+      "note": "Capacity estimate only; no upload, escrow or restore attestation"
+    },
+    {
+      "growthFactor": 10,
+      "clearBytes": 25695578,
+      "portableUpperBoundBytes": 34308960,
+      "setUpperBoundBytes": 40362200,
+      "retainedSets": 36,
+      "reservedBytes": 1743647040,
+      "freeBytes": 10000000000,
+      "portableFormatFits": true,
+      "freeAllowanceFits": true,
+      "note": "Capacity estimate only; no upload, escrow or restore attestation"
+    },
+    {
+      "growthFactor": 100,
+      "clearBytes": 256586888,
+      "portableUpperBoundBytes": 342164040,
+      "setUpperBoundBytes": 402696440,
+      "retainedSets": 36,
+      "reservedBytes": 17396486208,
+      "freeBytes": 10000000000,
+      "portableFormatFits": false,
+      "freeAllowanceFits": false,
+      "note": "Capacity estimate only; no upload, escrow or restore attestation"
+    }
+  ],
+  "networkOnlySeconds": {
+    "at1Mbps": 34,
+    "at10Mbps": 4
+  },
+  "uploaded": false
+}

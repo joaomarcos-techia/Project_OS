@@ -2,6 +2,8 @@
 
 Este documento complementa o [guia humano em sete etapas](acoes-manuais-pendentes-pricing-2026-10.md). Não autoriza transferência real, contratação, merge, deployment, migration ou alteração de Production. A escolha do destino vem primeiro; não solicitar as outras decisões simultaneamente.
 
+**Atualização de 30/10 após resposta do founder:** nenhum dos recursos físicos/corporativos/cofre abaixo existe hoje. A comparação histórica não é mais a próxima ação. A [proposta gratuita concreta](backup-independente-sem-custo-2026-10.md) recomenda piloto B2 + Bitwarden Free + recuperação offline; inclui dimensionamento de 36 gerações (~178 MB), alternativas, fontes oficiais, ressalva contratual/LGPD e criação das contas. Nenhum upload real está autorizado por essa proposta. Não repetir a pergunta sobre recursos existentes.
+
 ## Verificação independente de engenharia
 
 Base conferida nesta rodada: app `01acc8f6`, landing `ca12a68`, worktrees limpos e sem commits locais pendentes. Ambos os PRs estão draft, `MERGEABLE`/`CLEAN`, sem reviews ou comentários de revisão pendentes no readback. Ausência de review não é aprovação humana do lançamento.

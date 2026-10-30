@@ -1,5 +1,9 @@
 # DOCS REFACTOR CHECKPOINT
 
+## Continuidade operacional — 30/10/2026
+
+A resposta do founder encerrou a pergunta sobre recursos: não há mídia externa, armazenamento aprovado ou gerenciador. A fonte da escolha atual é [backup independente sem compra](docs/runbooks/backup-independente-sem-custo-2026-10.md); o [guia humano](docs/runbooks/acoes-manuais-pendentes-pricing-2026-10.md) e o [fechamento](docs/quality/fechamento-definitivo-oferta-2026-10-30.md) apontam para ela. Inclui fontes oficiais, B2/Bitwarden/papel como piloto proposto, dimensionamento sanitizado e limites contratuais/operacionais. A comparação histórica foi preservada e marcada como superada. O estado da refatoração antiga abaixo não é evidência de recuperação independente ou autorização de publicação.
+
 ## Status
 - estado: CONCLUÍDA — refatoração, validação conectada e revisão final executadas
 - percentual aproximado: 100%

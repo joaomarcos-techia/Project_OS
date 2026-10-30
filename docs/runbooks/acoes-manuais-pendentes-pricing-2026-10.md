@@ -8,25 +8,15 @@ A engenharia já executou: restore real do banco + **15/15 migrations 0119–013
 
 **Para quê:** os arquivos atuais estão cifrados, mas a perda deste computador/perfil ainda pode impedir a recuperação. Precisamos de um destino fora dele e de um cofre separado para as chaves.
 
-**Você precisa:** saber quais recursos de armazenamento e cofre a Qoro já possui. Não precisa comprar agora nem mover arquivos.
+**Sua resposta já foi registrada:** não há disco externo, armazenamento corporativo aprovado ou gerenciador de senhas. Não precisa responder isso de novo nem comprar nada agora.
 
-| Opção | Quando faz sentido | Limite principal |
-| --- | --- | --- |
-| A — HD/SSD externo criptografado | Se você já tem o dispositivo e pode mantê-lo desconectado, separado do computador. | Cópia exige rotina; disco pode falhar ou ser perdido. Conectado, também pode ser apagado por malware. |
-| B — Armazenamento corporativo aprovado | Se já existe espaço com controle de acesso, versões e recuperação de exclusão. | Sincronização não basta; perder a conta/MFA ou propagar exclusão pode atingir o backup. |
-| C — Os dois | Preferível se ambos já existem: uma cópia fora da máquina e outra desconectada. | Exige conferir e manter as duas; não justifica contratar serviço sem necessidade. |
+**Recomendação concreta:** piloto gratuito **Backblaze B2 + Bitwarden Free + folha de recuperação offline**. A reserva calculada para 36 gerações, com 20% de margem, é de aproximadamente **178 MB**, dentro dos 10 GB gratuitos. O pacote real ainda não foi exportado; o cálculo usa metadados das cópias existentes. A adequação contratual à LGPD/transferência e o destino exato precisam ser aprovados antes de enviar dados médicos.
 
-**Minha recomendação:** C com recursos existentes; se houver apenas disco externo, podemos preparar A e comprovar a recuperação antes de decidir o lançamento. Nas três opções, o pacote é cifrado e a senha fica em **cofre separado, recuperável fora deste PC**. Não há preço de compra presumido: custo adicional pode ser zero somente se você já possui recurso, capacidade e funcionalidades necessárias. [Comparação completa, kit e riscos](fechamento-operacional-oferta-2026-10.md).
+1. Leia a [comparação gratuita × baixo custo × gradual](backup-independente-sem-custo-2026-10.md), com limites, fontes oficiais e passo a passo para criar as contas **gratuitas**, ativar MFA e guardar a recuperação offline. Não precisa de cartão, terminal ou upload de backup para este primeiro passo.
+2. Escolhido o piloto, crie o cofre Free e a conta B2 pelos links oficiais do documento. Não envie senhas, chaves, QR ou códigos de recuperação. Não ative cobrança nem retenção irreversível por conta própria.
+3. Informe somente que as contas gratuitas foram criadas, região, MFA e folha de recuperação guardada. A engenharia prepara primeiro um ensaio com **dados sintéticos**. Aprovar esse piloto não autoriza transferência de dados reais nem contratação.
 
-1. Escolha um destino já disponível e controlado pela Qoro para guardar **somente o pacote cifrado** fora deste computador: por exemplo, um backup corporativo aprovado ou disco externo criptografado e guardado separadamente.
-2. Escolha um cofre de senhas já disponível para custodiar a senha de recuperação, com acesso de quem responderá por incidentes. Não mantenha a única senha junto ao pacote.
-3. Informe o nome/localização geral do destino e quem poderá acessar. A engenharia verificará proteção, espaço, retenção, exportação e leitura no destino **antes de transferir dados reais**. A escolha não autoriza upload irrestrito a outros serviços.
-
-**Primeira resposta:** `Já tenho: [HD/SSD externo / armazenamento corporativo (nome) / gerenciador de senhas (nome) / nenhum].` Não envie senhas. Isso identifica recursos e não autoriza transferência. Depois de escolhermos o caminho exato, a engenharia pedirá somente a autorização específica da cópia cifrada nesse destino.
-
-**Se não tiver recurso disponível:** responda `Ainda não tenho cofre/destino`. A engenharia propõe uma alternativa antes de qualquer custo. **Não copie só o arquivo .dpapi para outra máquina:** ele depende do perfil Windows atual.
-
-**Depois:** engenharia exporta o pacote portátil, valida integridade/recuperação e prepara a rotina no destino aprovado. Código e drill sintético já existem; você não executará comandos complexos.
+**Depois:** verificar contrato/destino, pedir a autorização específica da cópia real e comprovar exportação, download/restauração independente, rotina e alerta. Código portátil e checker já existem; integração externa não será chamada de PASS antes da execução. **Não copie só o arquivo .dpapi:** ele depende do perfil Windows atual.
 
 ## 2. Conferir se as dependências externas do Auth estão no cofre
 

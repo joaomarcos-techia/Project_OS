@@ -2,6 +2,8 @@
 
 **Não ativado.** Não existe destino independente aprovado nem senha definitiva de exportação criada nesta rodada. Nenhum upload foi realizado. A prova abaixo usa dados sintéticos. Este procedimento complementa [disaster recovery](disaster-recovery.md), sem substituir o backup físico do Supabase ou contratar PITR.
 
+**Complemento de 30/10:** o founder informou não possuir mídia externa, armazenamento aprovado nem cofre. A [proposta de piloto gratuito](backup-independente-sem-custo-2026-10.md) substitui a busca por recursos existentes. O planejador `scripts/recovery-capacity-plan.ts` usa apenas metadados locais, verifica o limite do envelope e reserva gerações/margem; não faz upload nem atesta recuperação. O destino e a custódia reais continuam pendentes. Não usar GitHub/CI como novo destino médico para resolver essa escolha; a rotina abaixo descreve o histórico existente e sua transição exige autorização própria.
+
 ## O que foi implementado e testado
 
 - `src/lib/backup/recovery-package.ts`: pacote `QOROREC1`, scrypt N=32768/r=8/p=1 com salt aleatório de 16 bytes, AES-256-GCM e nonce aleatório de 12 bytes. Cabeçalho autenticado; identificadores, hashes e conteúdo cifrados. Não usa DPAPI nem depende do computador de origem. Senha com mínimo de 24 caracteres, custodiada separadamente. O mínimo não substitui uma senha aleatória de alta entropia.
