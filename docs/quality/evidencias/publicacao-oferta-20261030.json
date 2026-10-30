@@ -1,14 +1,14 @@
 {
-  "recordedAt": "2026-10-30T21:45:49.929Z",
+  "recordedAt": "2026-10-30T22:39:58.402Z",
   "environment": "Production",
-  "releaseState": "PUBLISHED_SIGNUP_CLOSED",
+  "releaseState": "PUBLISHED_SIGNUP_OPEN_MONTHLY",
   "authorization": "Founder explicitly authorized the controlled production window; reopen only after real Turnstile gate",
   "app": {
-    "at": "2026-10-30T21:36:48.372Z",
-    "id": "dpl_DARX7QTtDferMU6tfeiqRwjgoviB",
-    "url": "project-g52c4jkyv-clinic-os-v2-s-projects.vercel.app",
+    "at": "2026-10-30T22:36:38.590Z",
+    "id": "dpl_J1dQNbzxS2GL8yNHfUgYNnai1gmt",
+    "url": "project-fbb828pw0-clinic-os-v2-s-projects.vercel.app",
     "state": "READY",
-    "sha": "663236de5d6268fe8d109a4763df7b9ce01914ab",
+    "sha": "71cc56431837856806f7d16c9d0e5249c8022a69",
     "target": "production",
     "alias": [
       "app.qoro.dev",
@@ -32,19 +32,22 @@
       "landing-page-git-main-clinic-os-v2-s-projects.vercel.app"
     ]
   },
-  "signupEnabled": false,
+  "signupEnabled": true,
   "annualNewSalesEnabled": false,
   "ci": {
-    "sha": "663236de5d6268fe8d109a4763df7b9ce01914ab",
-    "url": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/41106499988",
+    "at": "2026-10-30T22:36:07.181Z",
+    "sha": "71cc56431837856806f7d16c9d0e5249c8022a69",
     "state": "PASS",
-    "testFiles": 548,
-    "testsPassed": 5780,
+    "run": "41137602059",
+    "url": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/41137602059",
+    "results": ["Test Files  552 passed (552)", "Tests  5828 passed (5828)", "7 passed (8.6s)"],
+    "skipReason": "Turnstile keys absent from isolated CI build; actual Production gate passed separately",
     "publicE2E": {
       "passed": 7,
-      "skipped": 2,
-      "skipReason": "Turnstile keys absent in isolated CI build"
-    }
+      "skipped": 2
+    },
+    "testsPassed": 5828,
+    "testFiles": 552
   },
   "backup": {
     "file": "backups/prod-pre-migration-2026-10-30T18-17-27.sql.gpg",
@@ -166,16 +169,53 @@
     ]
   },
   "authenticatedSmoke": {
-    "at": "2026-10-30T18:33:31.337Z",
-    "passed": 2,
-    "skipped": 0,
-    "failed": 0,
-    "staticRoutes": 28,
+    "at": "2026-10-30T22:37:31.063Z",
+    "environment": "Production",
+    "deployment": "dpl_J1dQNbzxS2GL8yNHfUgYNnai1gmt",
+    "sha": "71cc56431837856806f7d16c9d0e5249c8022a69",
+    "exitCode": 0,
+    "stats": {
+      "startTime": "2026-10-30T22:36:46.968Z",
+      "duration": 44059.796,
+      "expected": 2,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    },
+    "tests": [
+      {
+        "title": "todas as rotas estáticas do shell renderizam sem erro de servidor",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "duration": 37554,
+            "errorCategory": null
+          }
+        ]
+      },
+      {
+        "title": "médico sem manage:settings não abre as páginas protegidas",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "duration": 3979,
+            "errorCategory": null
+          }
+        ]
+      }
+    ],
     "noTraces": true,
-    "noAuthenticatedScreenshots": true,
+    "noScreenshots": true,
     "noVideo": true,
     "noStorageState": true,
-    "mutationsAttempted": false
+    "noBillingOrClinicalWritesRequested": true,
+    "rawReportsStored": false,
+    "staticRoutes": 28,
+    "passed": 2,
+    "skipped": 0,
+    "failed": 0
   },
   "landingBrowser": {
     "at": "2026-10-30T21:43:30.922Z",
@@ -291,37 +331,133 @@
       "maintenance503": 2,
       "other5xx": 0,
       "rawMessagesNotStored": true
+    },
+    {
+      "at": "2026-10-30T22:38:10.493Z",
+      "since": "2026-10-30T22:36:30Z",
+      "deployment": "dpl_J1dQNbzxS2GL8yNHfUgYNnai1gmt",
+      "limit": 1000,
+      "records": 381,
+      "statusCounts": {
+        "200": 364,
+        "303": 1,
+        "307": 6,
+        "400": 1,
+        "401": 5,
+        "403": 1,
+        "404": 2,
+        "410": 1
+      },
+      "unknownStatus": 0,
+      "unexpected5xx": 0,
+      "errors": [],
+      "rawMessagesNotStored": true
     }
   ],
   "turnstile": {
-    "invalid": {
-      "at": "2026-10-30T21:19:25.576Z",
+    "priorAttempts": {
+      "invalid": {
+        "at": "2026-10-30T21:19:25.576Z",
+        "httpStatus": 200,
+        "invalidDenied": true,
+        "codes": ["invalid-input-response"],
+        "execution": "Local script calling real Cloudflare Siteverify with canonical secret; not the deployed signup backend"
+      },
+      "positive": {
+        "at": "2026-10-30T21:29:44.110Z",
+        "state": "BLOCKED",
+        "stage": "await-human-widget",
+        "category": "widget-error",
+        "widgetError": "600010",
+        "screenshotCaptured": true,
+        "sensitiveDiagnosticsSuppressed": true
+      },
+      "replay": "NOT RUN",
+      "productionSettingsChanged": false,
+      "automationChallengeNotBypassed": true,
+      "deployedPublicKeyMatchedCanonical": true,
+      "deployedSensitiveSecretPairIndependentlyVerified": false,
+      "deployedModerateRiskSignupPath": "NOT RUN"
+    },
+    "state": "PASS",
+    "productionProbe": {
+      "checkedAt": "2026-10-30T22:30:04.401Z",
+      "deployment": "dpl_GJcKPw7qg4thBUVA4R1apL68qCZv",
+      "sha": "71cc56431837856806f7d16c9d0e5249c8022a69",
+      "runId": "fc831fa4-5c00-4c7d-bb60-8cbae6466ce1",
+      "matches": [
+        {
+          "at": "2026-10-30T22:27:25.678Z",
+          "event": "signup.turnstile.probe.passed",
+          "runId": "fc831fa4-5c00-4c7d-bb60-8cbae6466ce1",
+          "requestId": "w9qxd-1793399245074-e60aa1b2b90f",
+          "requestPath": "/api/signup/verificacao",
+          "deploymentId": "dpl_GJcKPw7qg4thBUVA4R1apL68qCZv",
+          "environment": "production"
+        }
+      ],
+      "entriesQueried": 5,
+      "secretOrTokenStored": false,
+      "state": "PASS",
       "httpStatus": 200,
-      "invalidDenied": true,
-      "codes": ["invalid-input-response"],
-      "execution": "Local script calling real Cloudflare Siteverify with canonical secret; not the deployed signup backend"
+      "accepted": true,
+      "replayRejected": true,
+      "invalidRejected": true,
+      "deployedSecretVerified": true,
+      "humanBrowserReportedSuccess": true
     },
-    "positive": {
-      "at": "2026-10-30T21:29:44.110Z",
-      "state": "BLOCKED",
-      "stage": "await-human-widget",
-      "category": "widget-error",
-      "widgetError": "600010",
-      "screenshotCaptured": true,
-      "sensitiveDiagnosticsSuppressed": true
+    "closedStageSmoke": {
+      "at": "2026-10-30T22:24:50.370Z",
+      "runId": "134d99df-b9e9-49b0-a7e7-7067e81b1b99",
+      "deployment": "dpl_GJcKPw7qg4thBUVA4R1apL68qCZv",
+      "sha": "71cc56431837856806f7d16c9d0e5249c8022a69",
+      "checks": [
+        {
+          "scenario": "signup-still-closed",
+          "state": "PASS",
+          "status": 503
+        },
+        {
+          "scenario": "verification-page",
+          "state": "PASS",
+          "status": 200
+        },
+        {
+          "scenario": "cross-origin",
+          "state": "PASS",
+          "status": 403,
+          "error": "forbidden"
+        },
+        {
+          "scenario": "strict-body",
+          "state": "PASS",
+          "status": 400,
+          "error": "invalid_body"
+        },
+        {
+          "scenario": "real-invalid-token",
+          "state": "PASS",
+          "status": 400,
+          "error": "challenge_failed"
+        }
+      ],
+      "appWritesRequested": false,
+      "tokensOrCookiesStored": false
     },
-    "replay": "NOT RUN",
+    "temporarySurfacesAfterReopen": "404 page and POST",
     "productionSettingsChanged": false,
     "automationChallengeNotBypassed": true,
-    "deployedPublicKeyMatchedCanonical": true,
-    "deployedSensitiveSecretPairIndependentlyVerified": false,
-    "deployedModerateRiskSignupPath": "NOT RUN"
+    "deployedSensitiveSecretPairIndependentlyVerified": true,
+    "deployedModerateRiskSignupPath": "PASS: absent or invalid token rejected with 401; positive actual Siteverify verified by temporary server probe"
   },
   "remaining": {
-    "signupReopen": "NOT RUN",
-    "newRealPayment": "NOT RUN",
+    "signupReopen": "PASS",
+    "newRealPayment": "NOT RUN: no new charge needed; actual Sandbox account and extra-doctor evidence preserved",
     "independentRealBackup": "NOT RUN / explicit founder risk acceptance",
-    "financialRbacSevenDayRollup": "PRECONDITION BLOCKED; no synthetic Production data created"
+    "financialRbacSevenDayRollup": "PRECONDITION BLOCKED; no synthetic Production data created",
+    "fullNewProductionSignupCheckout": "NOT RUN: HTTP form and negative boundaries checked; no account/payment requested",
+    "annualTemporalRenewal": "Not observed; new annual sales remain disabled",
+    "geminiTier": "Confirmed by founder for qoro-510304; no independent new clinical capacity test"
   },
   "artifactPrivacy": {
     "rawProviderMessages": false,
@@ -330,5 +466,165 @@
     "authorizationHeaders": false,
     "patientContent": false,
     "realBackupContents": false
+  },
+  "previousAppBeforeVerification": {
+    "at": "2026-10-30T21:36:48.372Z",
+    "id": "dpl_DARX7QTtDferMU6tfeiqRwjgoviB",
+    "url": "project-g52c4jkyv-clinic-os-v2-s-projects.vercel.app",
+    "state": "READY",
+    "sha": "663236de5d6268fe8d109a4763df7b9ce01914ab",
+    "target": "production",
+    "alias": [
+      "app.qoro.dev",
+      "project-os-ten.vercel.app",
+      "project-os-clinic-os-v2-s-projects.vercel.app",
+      "project-os-git-main-clinic-os-v2-s-projects.vercel.app"
+    ]
+  },
+  "remoteChecks": {
+    "at": "2026-10-30T22:38:28.786Z",
+    "sha": "71cc56431837856806f7d16c9d0e5249c8022a69",
+    "checks": [
+      {
+        "name": "Lint + Typecheck + Test + Build",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/41137602059/job/124343794174"
+      }
+    ],
+    "status": "success",
+    "contexts": [
+      {
+        "name": "Vercel",
+        "state": "success",
+        "url": "https://vercel.com/clinic-os-v2-s-projects/project-os/J1dQNbzxS2GL8yNHfUgYNnai1gmt"
+      }
+    ]
+  },
+  "reopenSmoke": {
+    "at": "2026-10-30T22:36:59.259Z",
+    "runId": "f044d2d5-1e6e-4df6-927e-57f7c44887d0",
+    "environment": "Production",
+    "deployment": "dpl_J1dQNbzxS2GL8yNHfUgYNnai1gmt",
+    "sha": "71cc56431837856806f7d16c9d0e5249c8022a69",
+    "checks": [
+      {
+        "scenario": "login",
+        "path": "/login",
+        "state": "PASS",
+        "httpStatus": 200
+      },
+      {
+        "scenario": "anonymous-dashboard",
+        "path": "/dashboard",
+        "state": "PASS",
+        "httpStatus": 307
+      },
+      {
+        "scenario": "signup-entry-open",
+        "path": "/cadastro",
+        "state": "PASS",
+        "httpStatus": 200
+      },
+      {
+        "scenario": "temporary-page-closed",
+        "path": "/cadastro/verificacao",
+        "state": "PASS",
+        "httpStatus": 404
+      },
+      {
+        "scenario": "temporary-endpoint-closed",
+        "path": "/api/signup/verificacao",
+        "state": "PASS",
+        "httpStatus": 404
+      },
+      {
+        "scenario": "strict-schema-before-write",
+        "path": "/api/signup/sessions",
+        "state": "PASS",
+        "httpStatus": 400
+      },
+      {
+        "scenario": "moderate-risk-needs-token",
+        "path": "/api/signup/sessions",
+        "state": "PASS",
+        "httpStatus": 401
+      },
+      {
+        "scenario": "moderate-risk-invalid-token",
+        "path": "/api/signup/sessions",
+        "state": "PASS",
+        "httpStatus": 401
+      },
+      {
+        "scenario": "cross-origin-denied",
+        "path": "/api/signup/sessions",
+        "state": "PASS",
+        "httpStatus": 403
+      },
+      {
+        "scenario": "no-session",
+        "path": "/api/signup/sessions/me",
+        "state": "PASS",
+        "httpStatus": 410
+      },
+      {
+        "scenario": "asaas-needs-auth",
+        "path": "/api/webhooks/asaas",
+        "state": "PASS",
+        "httpStatus": 401
+      },
+      {
+        "scenario": "meta-needs-auth",
+        "path": "/api/webhooks/meta",
+        "state": "PASS",
+        "httpStatus": 401
+      },
+      {
+        "scenario": "outbox-needs-auth",
+        "path": "/api/cron/outbox",
+        "state": "PASS",
+        "httpStatus": 401
+      },
+      {
+        "scenario": "payment-return",
+        "path": "/?payment=success",
+        "state": "PASS",
+        "httpStatus": 200
+      },
+      {
+        "scenario": "proposal-not-public-production",
+        "path": "/oferta-preview",
+        "state": "PASS",
+        "httpStatus": 307,
+        "destinationPath": "/login"
+      }
+    ],
+    "appWritesRequested": false,
+    "noAccountsOrPayments": true,
+    "tokensOrCookiesStored": false,
+    "correctedAt": "2026-10-30T22:37:43.648Z",
+    "testHarnessCorrection": "Expected authenticated middleware redirect before page-level notFound; initial 404 assertion incorrect. Actual production source and redirect to canonical login checked. Prior 14 successful probes preserved without repeating writes or provider calls."
+  },
+  "authenticatedSmokeBeforeReopen": {
+    "at": "2026-10-30T18:33:31.337Z",
+    "passed": 2,
+    "skipped": 0,
+    "failed": 0,
+    "staticRoutes": 28,
+    "noTraces": true,
+    "noAuthenticatedScreenshots": true,
+    "noVideo": true,
+    "noStorageState": true,
+    "mutationsAttempted": false
+  },
+  "releaseDecision": {
+    "scope": "Monthly new offer only",
+    "state": "GO_OPERATIONAL",
+    "basedOn": "Explicit founder authorization, real Turnstile backend gate, ready deployment, CI, public and authenticated smoke",
+    "backupException": "Explicitly accepted by founder; not converted to PASS",
+    "newBusinessOrPriceChangesAtReopen": false,
+    "newMigrationsAppliedAtReopen": false,
+    "newClinicalOrBillingWritesRequested": false
   }
 }
