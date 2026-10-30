@@ -7,12 +7,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 
 const mocks = vi.hoisted(() => ({
+  hasAdvancedFinancialPolicies: vi.fn(),
   requireUser: vi.fn(),
   requireClinicId: vi.fn(),
   getClinicTimezone: vi.fn(),
   listCompleted: vi.fn(),
   listPayouts: vi.fn(),
   getCurrentPractitioner: vi.fn(),
+}));
+vi.mock('@/contexts/billing/api', () => ({
+  billingApiV1: { hasAdvancedFinancialPolicies: mocks.hasAdvancedFinancialPolicies },
 }));
 vi.mock('next/link', () => ({ default: (props: ComponentProps<'a'>) => <a {...props} /> }));
 vi.mock('@/lib/auth/tenant-context', () => ({
@@ -40,6 +44,7 @@ afterEach(cleanup);
 describe('RepassesPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.hasAdvancedFinancialPolicies.mockResolvedValue(true);
     mocks.requireClinicId.mockResolvedValue('clinic-a');
     mocks.getCurrentPractitioner.mockResolvedValue(false);
     mocks.getClinicTimezone.mockResolvedValue('America/Sao_Paulo');
@@ -113,6 +118,18 @@ describe('RepassesPage', () => {
     });
     render(await RepassesPage({ searchParams: Promise.resolve({ mes: '2026-10' }) }));
     expect(screen.getByText(/não tem acesso a este relatório/i)).toBeTruthy();
+    expect(mocks.getClinicTimezone).not.toHaveBeenCalled();
+    expect(mocks.listCompleted).not.toHaveBeenCalled();
+    expect(mocks.listPayouts).not.toHaveBeenCalled();
+  });
+  it('Consultório com gestor autorizado é bloqueado antes de consultar dados do relatório', async () => {
+    mocks.requireUser.mockResolvedValue({
+      userId: 'owner-a',
+      permissions: [PERMISSIONS.MANAGE_FINANCIAL],
+    });
+    mocks.hasAdvancedFinancialPolicies.mockResolvedValue(false);
+    render(await RepassesPage({ searchParams: Promise.resolve({ mes: '2026-10' }) }));
+    expect(screen.getByText('Disponível no plano Clínica')).toBeTruthy();
     expect(mocks.getClinicTimezone).not.toHaveBeenCalled();
     expect(mocks.listCompleted).not.toHaveBeenCalled();
     expect(mocks.listPayouts).not.toHaveBeenCalled();

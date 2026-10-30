@@ -177,3 +177,9 @@ Procedimento exato e critérios de interrupção em [publicação coordenada](pu
 | Clínica com 5 médicos | 5 | Até 3 | 8 | R$ 838 |
 
 “Até 5 médicos” não significa cinco médicos incluídos no preço base nem cinco logins totais. O adicional compra **vaga médica**, não acesso de atendente. Os três administrativos já estão incluídos; o quarto não é contratável online nesta oferta. A hipótese antiga de R$ 79 por login administrativo foi revogada e não deve aparecer como compra disponível. Dono/gestor com CRM ocupa uma única vaga médica; sem CRM, ocupa um dos três administrativos. O papel Médico reserva vaga médica mesmo antes do CRM. Cadastro de CRM não equivale a validação automática do conselho. Nenhuma regra comercial, preço ou limite foi alterado por este esclarecimento.
+
+## Atualização — exclusividade da nova Clínica (29/10/2026)
+
+Decisão aprovada: ajustes de permissões por pessoa, relatório por médico e repasse por procedimento pertencem somente à **Clínica da nova oferta** (2–5 médicos). O Consultório mantém permissões padrão por função, relatórios gerais e financeiro. **Clínica e Pro legados conservam seus direitos**, inclusive sem mudar preço ou contrato vitalício. A landing usa “Ajuste de permissões por pessoa” para não sugerir que segurança por função seja um adicional.
+
+A proteção inclui actions, consultas, relatório mensal, PDF e resolução de claims no banco. Foi necessária a migration **0133**: o candidato passa a ter **134** entradas; produção continua sem aplicação autorizada, com baseline histórica até 0118. A prova real anterior 0119–0132 não deve ser rebatizada como 0119–0133. Resultados atuais, limites e execução do Preview estão no [registro de entitlements](../quality/entitlements-clinica-2026-10-29.md). Não é necessário novo pagamento Sandbox para esse gate.

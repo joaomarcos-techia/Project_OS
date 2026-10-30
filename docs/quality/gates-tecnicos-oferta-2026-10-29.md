@@ -98,3 +98,9 @@ Reteste das partes afetadas: **34/34 PASS** (15 predicado, 14 seleção e 5 calc
 Redação final escolhida pelo titular: **R$ 397/mês: 2 médicos + até 3 pessoas da equipe administrativa = até 5 logins**, com os itens **Médicos extras: R$ 147/mês por médico, até chegar a 5 médicos + 3 administrativos = até 8 logins** e **Atendente: já está incluído nos 3 acessos administrativos. Hoje não há compra online de um quarto acesso administrativo**. Aplicada na explicação da landing e nos esclarecimentos do app, sem mudar valores ou limites.
 
 Reteste final dessa redação: **92/92 testes direcionados PASS**, lint/formatação e inventário sem divergências; landing typecheck/lint/build PASS e Chromium local **4/4 PASS**, com assertions para as duas frases numéricas e o atendente incluído. Checks e navegadores do SHA final serão registrados no PR, sem inferir PASS de um commit anterior.
+
+## Atualização — exclusividade da nova Clínica (29/10/2026)
+
+Decisão aprovada: ajustes de permissões por pessoa, relatório por médico e repasse por procedimento pertencem somente à **Clínica da nova oferta** (2–5 médicos). O Consultório mantém permissões padrão por função, relatórios gerais e financeiro. **Clínica e Pro legados conservam seus direitos**, inclusive sem mudar preço ou contrato vitalício. A landing usa “Ajuste de permissões por pessoa” para não sugerir que segurança por função seja um adicional.
+
+A proteção inclui actions, consultas, relatório mensal, PDF e resolução de claims no banco. Foi necessária a migration **0133**: o candidato passa a ter **134** entradas; produção continua sem aplicação autorizada, com baseline histórica até 0118. A prova real anterior 0119–0132 não deve ser rebatizada como 0119–0133. Resultados atuais, limites e execução do Preview estão no [registro de entitlements](../quality/entitlements-clinica-2026-10-29.md). Não é necessário novo pagamento Sandbox para esse gate.

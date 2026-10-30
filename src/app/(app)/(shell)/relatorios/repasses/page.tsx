@@ -1,5 +1,6 @@
 import Link from 'next/link';
 
+import { billingApiV1 } from '@/contexts/billing/api';
 import { getCurrentPractitioner } from '@/contexts/identity/internal/practitioner';
 import { listMonthlyPayoutSnapshots } from '@/contexts/financial/payout-queries';
 import { listCompletedAppointmentsForMonth } from '@/contexts/scheduling/queries';
@@ -38,6 +39,18 @@ export default async function RepassesPage({
         <PageHeader title="Repasses por mês" />
         <Alert variant="warning" title="Sem acesso">
           Seu perfil não tem acesso a este relatório.
+        </Alert>
+      </>
+    );
+  }
+
+  if (!(await billingApiV1.hasAdvancedFinancialPolicies(clinicId))) {
+    return (
+      <>
+        <PageHeader title="Repasses por mês" />
+        <Alert variant="warning" title="Disponível no plano Clínica">
+          O relatório de repasses faz parte do plano Clínica. O Consultório mantém seus relatórios
+          gerais e o financeiro, sem repasses por médico.
         </Alert>
       </>
     );

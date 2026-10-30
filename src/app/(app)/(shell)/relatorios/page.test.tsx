@@ -8,13 +8,21 @@ import { PERMISSIONS } from '@/lib/auth/permissions';
 
 import type * as ReportData from './data';
 
-const { getRelatorios, getCurrentPractitioner, requireClinicId, requireUser } = vi.hoisted(() => ({
+const {
+  getRelatorios,
+  getCurrentPractitioner,
+  requireClinicId,
+  requireUser,
+  hasAdvancedFinancialPolicies,
+} = vi.hoisted(() => ({
   getRelatorios: vi.fn(),
+  hasAdvancedFinancialPolicies: vi.fn(),
   getCurrentPractitioner: vi.fn(),
   requireClinicId: vi.fn(),
   requireUser: vi.fn(),
 }));
 
+vi.mock('@/contexts/billing/api', () => ({ billingApiV1: { hasAdvancedFinancialPolicies } }));
 vi.mock('next/link', () => ({
   default: (props: ComponentProps<'a'>) => <a {...props} />,
 }));
@@ -61,6 +69,7 @@ afterEach(cleanup);
 describe('RelatoriosPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    hasAdvancedFinancialPolicies.mockResolvedValue(true);
     requireClinicId.mockResolvedValue('clinic-1');
     requireUser.mockResolvedValue({ permissions: [] });
     getRelatorios.mockResolvedValue(report);
@@ -128,5 +137,17 @@ describe('RelatoriosPage', () => {
     );
     expect(within(accounting).getByRole('button', { name: 'Exportar CSV' })).toBeTruthy();
     expect(within(accounting).getByText(/não substitui nota fiscal/i)).toBeTruthy();
+  });
+  it('Consultório mantém indicadores gerais e PDF sem oferecer relatório de repasses', async () => {
+    hasAdvancedFinancialPolicies.mockResolvedValue(false);
+    requireUser.mockResolvedValue({
+      permissions: [PERMISSIONS.MANAGE_FINANCIAL, PERMISSIONS.VIEW_FINANCIAL],
+    });
+    getCurrentPractitioner.mockResolvedValue(true);
+    render(await RelatoriosPage({ searchParams: Promise.resolve({ periodo: '30d' }) }));
+    expect(screen.queryByRole('link', { name: 'Ver repasses por mês' })).toBeNull();
+    expect(screen.getByRole('link', { name: 'Exportar PDF' })).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'Financeiro do período' })).toBeTruthy();
+    expect(getCurrentPractitioner).not.toHaveBeenCalled();
   });
 });

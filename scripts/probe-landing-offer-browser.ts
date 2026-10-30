@@ -69,6 +69,20 @@ try {
         assert.equal(/Anual no cartão:|R\$\s*1\.970|R\$\s*3\.970/u.test(text), false);
         assert.equal(/2 a 5 profissionais · até 3 usuários/u.test(text), false);
         assert.equal(await pricing.locator('a[href="/comecar"]').count(), 2);
+        const consultorioCard = pricing
+          .getByRole('heading', { name: 'Consultório', exact: true })
+          .locator('..');
+        const clinicaCard = pricing
+          .getByRole('heading', { name: 'Clínica', exact: true })
+          .locator('..');
+        for (const feature of [
+          'Ajuste de permissões por pessoa',
+          'Relatório por médico',
+          'Repasse aos médicos por procedimento',
+        ]) {
+          assert.equal(await consultorioCard.getByText(feature, { exact: true }).count(), 0);
+          assert.equal(await clinicaCard.getByText(feature, { exact: true }).count(), 1);
+        }
         assert.ok(/Recepção, gestão e financeiro/u.test(text));
         assert.ok(/papel Médico, inclusive antes de preencher o CRM/u.test(text));
         assert.ok(/Dono ou gestor com CRM cadastrado também entra na cota de médicos/u.test(text));

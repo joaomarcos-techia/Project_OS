@@ -35,6 +35,7 @@ export async function listMonthlyPayoutSnapshots(
   professionalId?: string,
 ): Promise<MonthlyPayoutSnapshot[]> {
   if (appointmentIds.length === 0) return [];
+  if (!(await billingApiV1.hasAdvancedFinancialPolicies(clinicId))) return [];
   return withTenant(clinicId, async (tx) => {
     const rows = await tx
       .select({
@@ -127,6 +128,7 @@ export async function getProfessionalPayoutByAppointment(
   clinicId: string,
   appointmentId: string,
 ): Promise<ProfessionalPayoutDTO | null> {
+  if (!(await billingApiV1.hasAdvancedFinancialPolicies(clinicId))) return null;
   return withTenant(clinicId, async (tx) => {
     const [row] = await tx
       .select()

@@ -1341,4 +1341,142 @@ test.describe.serial('revisão humana do repasse (Preview + DEV, papéis reais)'
       expect(restored).toHaveLength(1);
     }
   });
+  test('13. nova Clínica libera os três recursos; Consultório bloqueia UI, PDF e action direta', async ({
+    browser,
+  }) => {
+    test.setTimeout(240_000);
+    const owner = sessions.has('owner') ? pageOf('owner') : await openSession(browser, 'owner');
+    const memberName = `Dra. Repasse E2E ${short}`;
+    let permissionAction: { url: string; body: string; headers: Record<string, string> } | null =
+      null;
+    const matrix = [
+      ['clinica_2026_2', true],
+      ['consultorio_2026', false],
+      ['clinica_2026_5', true],
+      ['pro', true],
+    ] as const;
+    for (const [code, allowed] of matrix) {
+      const [plan] = await db()<{ plan_id: string; price_id: string }[]>`
+        select p.id::text plan_id, pr.id::text price_id from plans p
+        join prices pr on pr.plan_id=p.id
+        where p.code=${code} and pr.billing_cycle='monthly' and pr.active_until is null
+          and pr.campaign_code is null
+        order by pr.active_from desc limit 1
+      `;
+      if (!plan) throw new Error(`Plano da matriz ausente: ${code}`);
+      const changed = await db()<{ clinic_id: string }[]>`
+        update subscriptions set plan_id=${plan.plan_id}::uuid, price_id=${plan.price_id}::uuid
+        where clinic_id=${fixture.clinicA}::uuid and asaas_subscription_id is null
+        returning clinic_id::text
+      `;
+      expect(changed).toHaveLength(1);
+      await refreshSession(owner);
+      await owner.goto('/configuracoes/pagamentos');
+      await expect(owner.locator('#regras-de-repasse')).toHaveCount(allowed ? 1 : 0);
+      await expect(owner.getByRole('button', { name: 'Salvar base de repasse' })).toHaveCount(
+        allowed ? 1 : 0,
+      );
+      await owner.goto('/relatorios');
+      await expect(owner.getByRole('link', { name: 'Exportar PDF' })).toBeVisible();
+      await expect(owner.getByRole('link', { name: 'Ver repasses por mês' })).toHaveCount(
+        allowed ? 1 : 0,
+      );
+      const response = await owner.request.get('/relatorios/pdf?periodo=30d');
+      expect(response.status()).toBe(200);
+      expect(response.headers()['content-type']).toContain('application/pdf');
+      const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
+      const task = getDocument({
+        data: new Uint8Array(await response.body()),
+        useSystemFonts: true,
+      });
+      try {
+        const pdf = await task.promise;
+        const parts: string[] = [];
+        for (let index = 1; index <= pdf.numPages; index++) {
+          const content = await (await pdf.getPage(index)).getTextContent();
+          parts.push(content.items.map((item) => ('str' in item ? item.str : '')).join(' '));
+        }
+        expect(parts.join(' ')).toContain('Ocupação');
+        expect(parts.join(' ').includes('Consolidado por profissional')).toBe(allowed);
+      } finally {
+        await task.destroy();
+      }
+      await owner.goto('/relatorios/repasses');
+      if (allowed) {
+        await expect(owner.getByRole('navigation', { name: 'Mês de competência' })).toBeVisible();
+      } else {
+        await expect(owner.getByText('Disponível no plano Clínica', { exact: true })).toBeVisible();
+        await expect(owner.getByRole('navigation', { name: 'Mês de competência' })).toHaveCount(0);
+      }
+      await owner.goto('/equipe');
+      await owner.getByRole('button', { name: `Ações de ${memberName}` }).click();
+      await expect(owner.getByRole('menuitem', { name: 'Permissões individuais' })).toHaveCount(
+        allowed ? 1 : 0,
+      );
+      if (code === 'clinica_2026_2') {
+        await owner.getByRole('menuitem', { name: 'Permissões individuais' }).click();
+        const dialog = owner.getByRole('dialog', { name: `Permissões de ${memberName}` });
+        await dialog.locator('select[id$="view:financial"]').selectOption('grant');
+        const sent = owner.waitForRequest(
+          (request) => request.method() === 'POST' && Boolean(request.headers()['next-action']),
+        );
+        await dialog.getByRole('button', { name: 'Salvar permissões (1)' }).click();
+        const request = await sent;
+        const body = request.postData();
+        if (!body) throw new Error('Action de permissões sem corpo.');
+        const headers = request.headers();
+        permissionAction = {
+          url: request.url(),
+          body,
+          headers: Object.fromEntries(
+            [
+              'accept',
+              'content-type',
+              'next-action',
+              'next-router-state-tree',
+              'next-url',
+              'origin',
+              'referer',
+            ].flatMap((name) => (headers[name] ? [[name, headers[name]]] : [])),
+          ),
+        };
+        await expect(dialog).toBeHidden();
+        const [permission] = await db()<{ granted: boolean; effective: boolean }[]>`
+          select o.granted, 'view:financial'=any(v.permissions) effective
+          from user_permission_overrides o join effective_permissions_v v on v.user_id=o.user_id
+          where o.user_id=${fixture.users.doctor!}::uuid and o.permission_code='view:financial'
+        `;
+        expect(permission).toEqual({ granted: true, effective: true });
+      } else {
+        await owner.keyboard.press('Escape');
+      }
+      if (code === 'consultorio_2026') {
+        if (!permissionAction) throw new Error('Action legítima anterior não capturada.');
+        const [before] = await db()<{ total: number }[]>`
+          select count(*)::int total from audit_events where clinic_id=${fixture.clinicA}::uuid
+        `;
+        const denied = await owner.request.post(permissionAction.url, {
+          headers: permissionAction.headers,
+          data: permissionAction.body,
+        });
+        expect(await denied.text()).toContain('Permissões granulares estão disponíveis');
+        const [after] = await db()<{ total: number }[]>`
+          select count(*)::int total from audit_events where clinic_id=${fixture.clinicA}::uuid
+        `;
+        expect(after).toEqual(before);
+        const [effective] = await db()<{ granted: boolean }[]>`
+          select 'view:financial'=any(permissions) granted from effective_permissions_v
+          where user_id=${fixture.users.doctor!}::uuid
+        `;
+        expect(effective?.granted).toBe(false);
+      }
+    }
+    evidence.featureEntitlements = {
+      plans: matrix.map(([code]) => code),
+      serverActionDeniedWithoutWrite: true,
+      permissionsEffectiveInDatabase: true,
+      pdfAndMonthlyReportGated: true,
+      legacyProPreserved: true,
+    };
+  });
 });

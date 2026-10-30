@@ -31,6 +31,8 @@ describe('políticas financeiras avançadas por plano', () => {
     ['pro', true],
     ['consultorio_2026', false],
     ['clinica_2026_2', true],
+    ['clinica_2026_3', true],
+    ['clinica_2026_4', true],
     ['clinica_2026_5', true],
     [null, false],
     ['desconhecido', false],

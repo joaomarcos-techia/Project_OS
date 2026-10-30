@@ -8,6 +8,7 @@ import { Ban, CalendarCheck, Check, FileDown, Sheet, UserX } from 'lucide-react'
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 
+import { billingApiV1 } from '@/contexts/billing/api';
 import { getCurrentPractitioner } from '@/contexts/identity/internal/practitioner';
 import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
 import { PERMISSIONS } from '@/lib/auth/permissions';
@@ -44,8 +45,10 @@ export default async function RelatoriosPage({
   const { periodo } = await searchParams;
   const period = resolvePeriod(periodo);
   const canFinancial = user.permissions.includes(PERMISSIONS.VIEW_FINANCIAL);
-  const canManagePayouts = user.permissions.includes(PERMISSIONS.MANAGE_FINANCIAL);
-  const canSeeOwnPayouts = !canManagePayouts && (await getCurrentPractitioner());
+  const payoutsEnabled = await billingApiV1.hasAdvancedFinancialPolicies(clinicId);
+  const canManagePayouts =
+    payoutsEnabled && user.permissions.includes(PERMISSIONS.MANAGE_FINANCIAL);
+  const canSeeOwnPayouts = payoutsEnabled && !canManagePayouts && (await getCurrentPractitioner());
 
   const data = await getRelatorios(clinicId, period.days, { includeFaturamento: canFinancial });
 

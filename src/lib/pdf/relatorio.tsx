@@ -54,7 +54,7 @@ export interface RelatorioPdfInput {
     noShow: { taxa: number | null; faltou: number; atendido: number; total: number };
     ocupacao: { taxa: number | null };
   };
-  porProfissional: RelatorioDoctorRow[];
+  porProfissional: RelatorioDoctorRow[] | null;
 }
 
 export async function renderRelatorioPDF(input: RelatorioPdfInput): Promise<Buffer> {
@@ -92,29 +92,33 @@ export async function renderRelatorioPDF(input: RelatorioPdfInput): Promise<Buff
           </View>
         </View>
 
-        <Text style={s.sectionTitle}>Consolidado por profissional</Text>
-        <View style={s.th}>
-          <Text style={[s.cName, s.thText]}>Profissional</Text>
-          <Text style={[s.cNum, s.thText]}>Atendimentos</Text>
-          <Text style={[s.cNum, s.thText]}>Atendidos</Text>
-          <Text style={[s.cNum, s.thText]}>Faltas</Text>
-          {input.includeFaturamento ? <Text style={[s.cNum, s.thText]}>Recebido</Text> : null}
-        </View>
-        {input.porProfissional.length === 0 ? (
-          <Text style={s.note}>Sem atendimentos no período.</Text>
-        ) : (
-          input.porProfissional.map((d) => (
-            <View key={d.doctorId} style={s.tr} wrap={false}>
-              <Text style={s.cName}>{d.nome}</Text>
-              <Text style={s.cNum}>{d.total}</Text>
-              <Text style={s.cNum}>{d.atendidos}</Text>
-              <Text style={s.cNum}>{d.faltas}</Text>
-              {input.includeFaturamento ? (
-                <Text style={s.cNum}>{d.recebido != null ? brl(d.recebido) : '—'}</Text>
-              ) : null}
+        {input.porProfissional !== null ? (
+          <View>
+            <Text style={s.sectionTitle}>Consolidado por profissional</Text>
+            <View style={s.th}>
+              <Text style={[s.cName, s.thText]}>Profissional</Text>
+              <Text style={[s.cNum, s.thText]}>Atendimentos</Text>
+              <Text style={[s.cNum, s.thText]}>Atendidos</Text>
+              <Text style={[s.cNum, s.thText]}>Faltas</Text>
+              {input.includeFaturamento ? <Text style={[s.cNum, s.thText]}>Recebido</Text> : null}
             </View>
-          ))
-        )}
+            {input.porProfissional.length === 0 ? (
+              <Text style={s.note}>Sem atendimentos no período.</Text>
+            ) : (
+              input.porProfissional.map((d) => (
+                <View key={d.doctorId} style={s.tr} wrap={false}>
+                  <Text style={s.cName}>{d.nome}</Text>
+                  <Text style={s.cNum}>{d.total}</Text>
+                  <Text style={s.cNum}>{d.atendidos}</Text>
+                  <Text style={s.cNum}>{d.faltas}</Text>
+                  {input.includeFaturamento ? (
+                    <Text style={s.cNum}>{d.recebido != null ? brl(d.recebido) : '—'}</Text>
+                  ) : null}
+                </View>
+              ))
+            )}
+          </View>
+        ) : null}
 
         <Text style={s.note}>
           Ocupação usa o resolvedor de agenda canônico (respeita pausas e feriados). Gerado pelo

@@ -65,4 +65,41 @@ describe('renderRelatorioPDF', () => {
     });
     expect(buf.subarray(0, 5).toString()).toBe('%PDF-');
   });
+  it.each([null, []])(
+    'distingue relatório fora do plano de ausência de movimento: %s',
+    async (rows) => {
+      const buf = await renderRelatorioPDF({
+        clinicName: 'Clínica sintética',
+        periodLabel: 'Últimos 7 dias',
+        fromLabel: '01/10/2026',
+        toLabel: '07/10/2026',
+        generatedAt: '07/10/2026 10:00',
+        includeFaturamento: false,
+        kpis: {
+          faturamento: null,
+          noShow: { taxa: null, faltou: 0, atendido: 0, total: 0 },
+          ocupacao: { taxa: null },
+        },
+        porProfissional: rows,
+      });
+      const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
+      const task = getDocument({ data: new Uint8Array(buf), useSystemFonts: true });
+      try {
+        const pdf = await task.promise;
+        const page = await pdf.getPage(1);
+        const content = await page.getTextContent();
+        const text = content.items.map((item) => ('str' in item ? item.str : '')).join(' ');
+        expect(text).toContain('Ocupação');
+        if (rows === null) {
+          expect(text).not.toContain('Consolidado por profissional');
+          expect(text).not.toContain('Profissional');
+        } else {
+          expect(text).toContain('Consolidado por profissional');
+          expect(text).toContain('Sem atendimentos no período.');
+        }
+      } finally {
+        await task.destroy();
+      }
+    },
+  );
 });
