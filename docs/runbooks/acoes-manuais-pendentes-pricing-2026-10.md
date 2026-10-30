@@ -1,10 +1,14 @@
 # O que você precisa fazer — lançamento mensal do Qoro
 
-Atualizado em **30/10/2026**. Faça os itens 1–6; o item 7 só ocorre quando os gates estiverem fechados. **Não há compra necessária agora. Não faça merge, deploy, migrations ou alterações de produção por este guia.** Não envie senhas, chaves, OTP, dados de pacientes ou URLs com bypass.
+**Decisão atual de 30/10:** backup independente/cofre adicional foram adiados com [risco aceito pelo founder](../quality/aceite-risco-backup-2026-10-30.md). Os itens 1–2 e as exigências de senha/custódia/rotina de backup do item 6 não são ações obrigatórias desta fase. Não repetir pedidos de configuração. As instruções ficam preservadas para retomada futura; os demais gates de segurança e a janela permanecem separados.
+
+Atualizado em **30/10/2026**. Nesta fase, os itens 1–2 ficam dispensados pelo aceite acima; verificar os gates restantes e só executar o item 7 na janela autorizada. **Não há compra necessária agora. Não faça merge, deploy, migrations ou alterações de produção por este guia.** Não envie senhas, chaves, OTP, dados de pacientes ou URLs com bypass.
 
 A engenharia já executou: restore real do banco + **15/15 migrations 0119–0133**; preservação dos quatro contratos do backup; oito planos com permissões/hook/downgrade; teste de rollback e lock concorrente da 0133; **42/42 arquivos Storage recuperados**; Auth real isolado com identidades sintéticas, **14 verificações e 134 migrations**; E2E de sessão antiga recusada depois do downgrade; pagamentos Sandbox já aprovados. **Não repita instalação, login Supabase, pagamento ou teste técnico.** Evidências: [fechamento de 30/10](../quality/fechamento-definitivo-oferta-2026-10-30.md).
 
 ## 1. Escolher onde guardar a cópia independente e a senha
+
+**Preparação anterior, dispensada pelo aceite atual:** [Nota segura e `RECOVERY_EXPORT_PASSPHRASE`](backup-real-b2-bitwarden.md#o-que-falta-configurar). A chave B2 capturada e `BACKUP_PASSPHRASE` já existem; não repetir captura nem trocar a senha antiga. O envio foi preparado, não realizado; o founder decidiu adiá-lo. Os passos abaixo ficam como contexto para eventual retomada, não como ações a solicitar agora.
 
 **Para quê:** os arquivos atuais estão cifrados, mas a perda deste computador/perfil ainda pode impedir a recuperação. Precisamos de um destino fora dele e de um cofre separado para as chaves.
 

@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 196 actions (0 inline); 53 métodos em 49 handlers; 19 props com referência de action; 404 acessos diretos a process.env; 9 nomes NEXT_PUBLIC.
+Contagem: 196 actions (0 inline); 53 métodos em 49 handlers; 19 props com referência de action; 406 acessos diretos a process.env; 9 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -524,6 +524,8 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/prod-encrypted-backup.ts:30`                      | `<object>`                             | `process.env`                                                               |
 | `scripts/prod-encrypted-backup.ts:87`                      | `BACKUP_PASSPHRASE`                    | `process.env.BACKUP_PASSPHRASE`                                             |
 | `scripts/prod-storage-authorization-check.ts:92`           | `SUPABASE_SECRET_KEY_PROD`             | `process.env.SUPABASE_SECRET_KEY_PROD`                                      |
+| `scripts/recovery-b2-backup.ts:154`                        | `RECOVERY_EXPORT_PASSPHRASE`           | `process.env.RECOVERY_EXPORT_PASSPHRASE`                                    |
+| `scripts/recovery-b2-backup.ts:155`                        | `BACKUP_PASSPHRASE`                    | `process.env.BACKUP_PASSPHRASE`                                             |
 | `scripts/recovery-backup-health.ts:4`                      | `RECOVERY_HEALTH_FILE`                 | `process.env.RECOVERY_HEALTH_FILE`                                          |
 | `scripts/recovery-package.ts:13`                           | `RECOVERY_PACKAGE_FILE`                | `process.env.RECOVERY_PACKAGE_FILE`                                         |
 | `scripts/recovery-package.ts:14`                           | `RECOVERY_EXPORT_PASSPHRASE`           | `process.env.RECOVERY_EXPORT_PASSPHRASE`                                    |

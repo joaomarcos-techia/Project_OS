@@ -2,11 +2,13 @@
 
 ## Decisão que este documento prepara
 
+**Decisão mais recente, 30/10:** o founder aceitou o risco e adiou a cópia real/custódia independente. [Aceite registrado](../quality/aceite-risco-backup-2026-10-30.md). O piloto continua PASS sintético; a cópia real continua NOT RUN e deixa de ser exigida nesta fase por exceção do responsável. Não solicitar novamente senha, chave ou cofre. As instruções seguintes ficam como histórico/preparação futura.
+
 O founder informou que não possui disco externo, armazenamento corporativo aprovado nem gerenciador de senhas. A comparação anterior condicionada à existência desses recursos fica **superada para a escolha atual**. Não pedir novamente os mesmos recursos. Não contratar PITR ou qualquer serviço pago.
 
 **Recomendação técnica: começar com um piloto gratuito de Backblaze B2 + Bitwarden Free + folha de recuperação offline.** B2 guarda somente arquivos cifrados; Bitwarden guarda senhas e referências de recuperação, não arquivos clínicos. A folha permite recuperar o cofre sem depender deste computador. A cópia real exige aprovação do destino exato e tratamento contratual da transferência de dados; criar conta ou aceitar este piloto não autoriza transferir dados médicos.
 
-**Estado: PREPARADO, não operacional.** Dimensionamento local e testes sintéticos aprovados; conta, bucket, custódia real, upload externo, retenção do provedor, rotina e recuperação independente ainda não comprovados. Não é GO de lançamento. O aceite já informado do intervalo entre backups diários permanece registrado e não precisa ser repetido; não abrange perda de todas as cópias ou chaves.
+**Preparação anterior ao aceite:** piloto externo sintético aprovado, com upload/download/restore Linux/cleanup reais; a cópia independente dos snapshots reais foi preparada e aguardava senha no cofre. O pedido inicial autorizou tecnicamente a cópia para o B2 existente; depois o founder a adiou e aceitou o risco, conforme o registro acima. [Configuração preservada para retomada futura](backup-real-b2-bitwarden.md). Custódia real, retenção, rotina e RTO conjunto não foram presumidos como comprovados. As seções de preparação abaixo preservam o histórico, não solicitam novas ações nesta fase.
 
 ## Volume medido e espaço para versões
 

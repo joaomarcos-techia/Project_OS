@@ -227,6 +227,7 @@ A resposta do founder encerrou a pergunta sobre recursos: não há mídia extern
 - dois `console.log` desses specs ainda descrevem exposição antiga apesar das assertivas atuais aprovarem o bloqueio; correção é dívida de teste fora do escopo documental
 
 ## Histórico de execução
+- 2026-10-30: founder aceitou adiar a cópia/cofre independente para prosseguir com o lançamento; registro em `docs/quality/aceite-risco-backup-2026-10-30.md`. Rotina opt-in preservada e sem execução: pacote único, escritor temporário sem exclusão, readback/restore Linux. SQL/hash, 44 partes Storage e fontes Auth/chaves presentes. Não solicitar novamente senha/configuração; nenhum envio real ou mudança em produção nesta preparação.
 - 2026-10-30: piloto B2 autorizado com chave filha temporária: upload/download, integridade, restore Linux e cleanup reais passaram com dados sintéticos. Chave original/cache preservados; evidência em `docs/quality/evidencias/b2-pilot-roundtrip-20261030.json`. Guia humano deixou de pedir nova chave/captura; custódia, destino médico e operação recorrente seguem no runbook canônico `docs/runbooks/backup-independente-sem-custo-2026-10.md`.
 - 2026-08-18: checkpoint lido vazio; worktree e inventário físico inicial coletados.
 - 2026-08-18: 157 documentos classificados; stack, 90 tabelas, 80 migrations, 12 contexts, 248 testes, rotas, integrações, IA, billing, RLS, segurança, frontend e jobs reconstruídos a partir do código.
