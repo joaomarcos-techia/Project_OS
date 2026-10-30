@@ -1,5 +1,11 @@
 # O que você precisa fazer — lançamento mensal do Qoro
 
+**Atualização após a janela autorizada, 30/10:** app e landing já estão publicados, os dois PRs foram mesclados e as 15 migrations já estão em Production, com contratos anteriores preservados. **Não repetir pagamento, merge, migration, login Supabase ou configuração de backup. O cadastro segue fechado.** A única dependência imediata da reabertura é o desafio Turnstile real positivo/replay; a tentativa adicional pedida pelo founder terminou em **600010, sem token**. [Resultado e continuação da janela](../quality/publicacao-oferta-2026-10-30.md).
+
+**Próxima ação humana específica:** abrir o [diagnóstico oficial da Cloudflare](https://debug.challenges.cloudflare.com/) no Chrome habitual, fora da janela de teste. Seguir a verificação apresentada e informar somente se concluiu ou o código de erro, navegador e horário; não copiar tokens, dados de rede completos ou chaves. Isso ajuda a separar o bloqueio do navegador automatizado de uma falha no navegador comum; **não é, sozinho, PASS do Turnstile do app**. O gate de token fresco/hostname/replay/inválido deve ser concluído com a engenharia, sem criar conta/cobrança e sem enfraquecer proteções. Não alterar chaves, domínio ou modo do widget para tentar liberar o teste.
+
+As confirmações anteriores do titular — domínio permitido no widget e Gemini `qoro-510304`, Paid/pré-pago ativo — já foram registradas; não precisam ser reenviadas. Os itens numerados abaixo preservam a preparação anterior e suas dispensas, não uma nova solicitação integral de ações.
+
 **Decisão atual de 30/10:** backup independente/cofre adicional foram adiados com [risco aceito pelo founder](../quality/aceite-risco-backup-2026-10-30.md). Os itens 1–2 e as exigências de senha/custódia/rotina de backup do item 6 não são ações obrigatórias desta fase. Não repetir pedidos de configuração. As instruções ficam preservadas para retomada futura; os demais gates de segurança e a janela permanecem separados.
 
 Atualizado em **30/10/2026**. Nesta fase, os itens 1–2 ficam dispensados pelo aceite acima; verificar os gates restantes e só executar o item 7 na janela autorizada. **Não há compra necessária agora. Não faça merge, deploy, migrations ou alterações de produção por este guia.** Não envie senhas, chaves, OTP, dados de pacientes ou URLs com bypass.

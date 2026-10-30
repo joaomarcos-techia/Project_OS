@@ -1,0 +1,330 @@
+{
+  "recordedAt": "2026-10-30T21:45:49.929Z",
+  "environment": "Production",
+  "releaseState": "PUBLISHED_SIGNUP_CLOSED",
+  "authorization": "Founder explicitly authorized the controlled production window; reopen only after real Turnstile gate",
+  "app": {
+    "at": "2026-10-30T21:36:48.372Z",
+    "id": "dpl_DARX7QTtDferMU6tfeiqRwjgoviB",
+    "url": "project-g52c4jkyv-clinic-os-v2-s-projects.vercel.app",
+    "state": "READY",
+    "sha": "663236de5d6268fe8d109a4763df7b9ce01914ab",
+    "target": "production",
+    "alias": [
+      "app.qoro.dev",
+      "project-os-ten.vercel.app",
+      "project-os-clinic-os-v2-s-projects.vercel.app",
+      "project-os-git-main-clinic-os-v2-s-projects.vercel.app"
+    ]
+  },
+  "landing": {
+    "at": "2026-10-30T21:36:51.692Z",
+    "id": "dpl_J42xQi1j2Gc1cwXHVpPyyYM4S3Qi",
+    "url": "landing-page-mmo5b8vpm-clinic-os-v2-s-projects.vercel.app",
+    "state": "READY",
+    "sha": "deb670bbf3dd5c3e5ba521318f052d312f0193bb",
+    "target": "production",
+    "alias": [
+      "qoro.dev",
+      "landing-page-indol-rho.vercel.app",
+      "www.qoro.dev",
+      "landing-page-clinic-os-v2-s-projects.vercel.app",
+      "landing-page-git-main-clinic-os-v2-s-projects.vercel.app"
+    ]
+  },
+  "signupEnabled": false,
+  "annualNewSalesEnabled": false,
+  "ci": {
+    "sha": "663236de5d6268fe8d109a4763df7b9ce01914ab",
+    "url": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/41106499988",
+    "state": "PASS",
+    "testFiles": 548,
+    "testsPassed": 5780,
+    "publicE2E": {
+      "passed": 7,
+      "skipped": 2,
+      "skipReason": "Turnstile keys absent in isolated CI build"
+    }
+  },
+  "backup": {
+    "file": "backups/prod-pre-migration-2026-10-30T18-17-27.sql.gpg",
+    "bytes": 619771,
+    "sha256": "dbaf125e33cb87c0db18f4bf9590718735e65248949b19b9cfd01c84686be07f",
+    "runnerExit": 0,
+    "cipherVerifiedByRunner": true
+  },
+  "migrations": {
+    "at": "2026-10-30T18:22:47.985Z",
+    "state": "PASS",
+    "journalBefore": 119,
+    "journalAfter": 134,
+    "newMigrationsVerified": 15,
+    "legacyFieldsPreserved": {
+      "subscriptions": {
+        "count": 4,
+        "digestMatch": true
+      },
+      "plans": {
+        "count": 3,
+        "digestMatch": true
+      },
+      "prices": {
+        "count": 12,
+        "digestMatch": true
+      },
+      "profiles": {
+        "count": 8,
+        "digestMatch": true
+      }
+    },
+    "checks": {
+      "missing_owner": 0,
+      "invalid_constraints": 0,
+      "active_method_prices": 0,
+      "invalid_method_policies": 0,
+      "owner_trigger": 1,
+      "seats_rls": true,
+      "view_invoker": true
+    },
+    "verificationCorrection": "Boolean security_invoker read as PostgreSQL boolean; previous textual check expected true but database canonical text is on."
+  },
+  "newCatalog": {
+    "at": "2026-10-30T18:34:54.203Z",
+    "production": true,
+    "onlyNewOfferPlanActivation": true,
+    "rows": [
+      {
+        "code": "consultorio_2026",
+        "ativo": true
+      },
+      {
+        "code": "clinica_2026_2",
+        "ativo": true
+      },
+      {
+        "code": "clinica_2026_3",
+        "ativo": true
+      },
+      {
+        "code": "clinica_2026_4",
+        "ativo": true
+      },
+      {
+        "code": "clinica_2026_5",
+        "ativo": true
+      }
+    ],
+    "initialSignupPlanCodes": ["consultorio_2026", "clinica_2026_2"],
+    "additionalDoctorVariants": "3-5 only in existing subscription upgrade; prior real Sandbox gate preserved",
+    "annualNewSales": false,
+    "oldPricesAndContractsNotUpdated": true
+  },
+  "publicSmoke": {
+    "at": "2026-10-30T18:33:04.071Z",
+    "deployment": "dpl_DARX7QTtDferMU6tfeiqRwjgoviB",
+    "phase": "signup-closed",
+    "noAuthSecretsSent": true,
+    "noSessionCreated": true,
+    "checks": [
+      {
+        "path": "/login",
+        "status": 200,
+        "passed": true
+      },
+      {
+        "path": "/dashboard",
+        "status": 307,
+        "passed": true
+      },
+      {
+        "path": "/api/signup/sessions",
+        "status": 503,
+        "passed": true
+      },
+      {
+        "path": "/api/webhooks/asaas",
+        "status": 401,
+        "passed": true
+      },
+      {
+        "path": "/api/webhooks/meta",
+        "status": 401,
+        "passed": true
+      },
+      {
+        "path": "/api/cron/outbox",
+        "status": 401,
+        "passed": true
+      },
+      {
+        "path": "/?payment=success",
+        "status": 200,
+        "passed": true,
+        "hasAsaas": true,
+        "hasPayment": true
+      }
+    ]
+  },
+  "authenticatedSmoke": {
+    "at": "2026-10-30T18:33:31.337Z",
+    "passed": 2,
+    "skipped": 0,
+    "failed": 0,
+    "staticRoutes": 28,
+    "noTraces": true,
+    "noAuthenticatedScreenshots": true,
+    "noVideo": true,
+    "noStorageState": true,
+    "mutationsAttempted": false
+  },
+  "landingBrowser": {
+    "at": "2026-10-30T21:43:30.922Z",
+    "environment": "Production",
+    "landingSha": "deb670bbf3dd5c3e5ba521318f052d312f0193bb",
+    "checks": [
+      {
+        "path": "/",
+        "viewport": 1440,
+        "state": "PASS",
+        "httpStatus": 200,
+        "offerText": true,
+        "noAnnualPurchase": true,
+        "noHorizontalOverflow": true,
+        "heroReadable": true,
+        "pricingHeadingReadable": true,
+        "cta": "/comecar",
+        "screenshots": [
+          "dist/quality/landing-production-home-1440-hero.png",
+          "dist/quality/landing-production-home-1440-pricing.png"
+        ]
+      },
+      {
+        "path": "/precos",
+        "viewport": 1440,
+        "state": "PASS",
+        "httpStatus": 200,
+        "offerText": true,
+        "noAnnualPurchase": true,
+        "noHorizontalOverflow": true,
+        "heroReadable": true,
+        "pricingHeadingReadable": true,
+        "cta": "/comecar",
+        "screenshots": [
+          "dist/quality/landing-production-precos-1440-hero.png",
+          "dist/quality/landing-production-precos-1440-pricing.png"
+        ]
+      },
+      {
+        "path": "/",
+        "viewport": 375,
+        "state": "PASS",
+        "httpStatus": 200,
+        "offerText": true,
+        "noAnnualPurchase": true,
+        "noHorizontalOverflow": true,
+        "heroReadable": true,
+        "pricingHeadingReadable": true,
+        "cta": "/comecar",
+        "screenshots": [
+          "dist/quality/landing-production-home-375-hero.png",
+          "dist/quality/landing-production-home-375-pricing.png"
+        ]
+      },
+      {
+        "path": "/precos",
+        "viewport": 375,
+        "state": "PASS",
+        "httpStatus": 200,
+        "offerText": true,
+        "noAnnualPurchase": true,
+        "noHorizontalOverflow": true,
+        "heroReadable": true,
+        "pricingHeadingReadable": true,
+        "cta": "/comecar",
+        "screenshots": [
+          "dist/quality/landing-production-precos-375-hero.png",
+          "dist/quality/landing-production-precos-375-pricing.png"
+        ]
+      },
+      {
+        "scenario": "landing-to-app",
+        "state": "PASS",
+        "destinationOrigin": "https://app.qoro.dev",
+        "destinationPath": "/cadastro"
+      }
+    ],
+    "noAccountCreated": true,
+    "correctedSelectors": [
+      "Seven-day collection reminder is not a seven-day trial",
+      "Annual explanatory FAQ is not an annual purchase control"
+    ]
+  },
+  "requestSamples": [
+    {
+      "at": "2026-10-30T18:34:02.108Z",
+      "deployment": "dpl_DARX7QTtDferMU6tfeiqRwjgoviB",
+      "source": "Vercel request records",
+      "records": 489,
+      "statusCounts": {
+        "200": 473,
+        "303": 1,
+        "307": 11,
+        "401": 3,
+        "503": 1
+      },
+      "unknownStatus": 0,
+      "maintenance503": 1,
+      "other5xx": 0,
+      "rawMessagesNotStored": true
+    },
+    {
+      "at": "2026-10-30T21:37:51.634Z",
+      "since": "2026-10-30T21:00:00Z",
+      "deployment": "dpl_DARX7QTtDferMU6tfeiqRwjgoviB",
+      "limit": 1000,
+      "records": 355,
+      "statusCounts": {
+        "200": 312,
+        "307": 41,
+        "503": 2
+      },
+      "maintenance503": 2,
+      "other5xx": 0,
+      "rawMessagesNotStored": true
+    }
+  ],
+  "turnstile": {
+    "invalid": {
+      "at": "2026-10-30T21:19:25.576Z",
+      "httpStatus": 200,
+      "invalidDenied": true,
+      "codes": ["invalid-input-response"]
+    },
+    "positive": {
+      "at": "2026-10-30T21:29:44.110Z",
+      "state": "BLOCKED",
+      "stage": "await-human-widget",
+      "category": "widget-error",
+      "widgetError": "600010",
+      "screenshotCaptured": true,
+      "sensitiveDiagnosticsSuppressed": true
+    },
+    "replay": "NOT RUN",
+    "productionSettingsChanged": false,
+    "automationChallengeNotBypassed": true
+  },
+  "remaining": {
+    "signupReopen": "NOT RUN",
+    "newRealPayment": "NOT RUN",
+    "independentRealBackup": "NOT RUN / explicit founder risk acceptance",
+    "financialRbacSevenDayRollup": "PRECONDITION BLOCKED; no synthetic Production data created"
+  },
+  "artifactPrivacy": {
+    "rawProviderMessages": false,
+    "tokens": false,
+    "cookies": false,
+    "authorizationHeaders": false,
+    "patientContent": false,
+    "realBackupContents": false
+  }
+}
