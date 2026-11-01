@@ -106,6 +106,19 @@ beforeEach(() => {
 });
 
 describe('sendSignupConfirmation', () => {
+  it('envia a confirmação sem escolher senha nem consultar vazamentos prematuramente', async () => {
+    await expect(
+      sendSignupConfirmation({ email, signupRef, attemptEpoch, publicOrigin }),
+    ).resolves.toEqual({ kind: 'sent' });
+    expect(seams.fetch).not.toHaveBeenCalled();
+    expect(seams.createUser).toHaveBeenCalledWith({
+      email,
+      email_confirm: false,
+      app_metadata: pendingAppMetadata,
+    });
+    expect(seams.sendEmail).toHaveBeenCalledOnce();
+    expect(JSON.stringify(seams.createUser.mock.calls)).not.toContain('password"');
+  });
   it('cria a conta pendente uma vez e envia um recovery do /auth/confirm', async () => {
     await expect(sendInitial()).resolves.toEqual({ kind: 'sent' });
 

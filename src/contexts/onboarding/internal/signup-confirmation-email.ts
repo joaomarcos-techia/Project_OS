@@ -196,22 +196,21 @@ export async function checkSignupPasswordExposure(
   return count > 0 ? 'pwned' : 'safe';
 }
 
-/** Primeiro envio: valida a senha, cria a conta passwordless vinculada e envia o token. */
+/** Primeiro envio passwordless. A senha opcional atende somente clientes antigos. */
 export async function sendSignupConfirmation(input: {
   email: string;
-  password: string;
+  password?: string;
   signupRef: string;
   attemptEpoch: number;
   publicOrigin: string;
 }): Promise<SignupConfirmationOutcome> {
-  const exposure = await checkSignupPasswordExposure(input.password);
-  if (exposure === 'pwned') return { kind: 'weak_password' };
-  if (exposure === 'unavailable') {
-    logger.warn('signup.confirmation.password_check_failed', { stage: 'initial' });
-    // Nenhum efeito externo aconteceu ainda. A rota pode devolver a reserva e
-    // permitir nova tentativa, em vez de prender a sessão em `email_pending`
-    // sem usuário nem mensagem para reenviar.
-    return { kind: 'retryable' };
+  if (input.password !== undefined) {
+    const exposure = await checkSignupPasswordExposure(input.password);
+    if (exposure === 'pwned') return { kind: 'weak_password' };
+    if (exposure === 'unavailable') {
+      logger.warn('signup.confirmation.password_check_failed', { stage: 'initial' });
+      return { kind: 'retryable' };
+    }
   }
 
   const admin = createAdminClient();

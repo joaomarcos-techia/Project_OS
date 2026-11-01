@@ -3,19 +3,23 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
 import { Logo } from '@/components/shared/logo';
-import { Card, CardContent } from '@/components/ui/card';
 import { buttonVariants } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   ensureSignupDraftForVerifiedEmail,
   ensureVerifiedSignupAuthBinding,
   readOwnedSignupReference,
+  resolveReadyOwnedSignupOnboarding,
   validateVerifiedSignupAuthUserForClaim,
 } from '@/contexts/onboarding';
+
 import { resolvePreTenantOnboarding } from '@/lib/auth/pretenant-onboarding';
 import {
   readSignupConfirmationGrant,
   SIGNUP_CONFIRMATION_GRANT_COOKIE,
 } from '@/lib/auth/signup-confirmation-grant';
+
+import { SignupPasswordForm } from './signup-password-form';
 
 export const dynamic = 'force-dynamic';
 
@@ -141,6 +145,17 @@ export default async function CadastroConfirmadoPage() {
       </main>
     );
   }
+  const ready = await resolveReadyOwnedSignupOnboarding();
+  if (ready.ok && ready.kind === 'redirect') redirect(ready.route);
+  if (!ready.ok && ready.reason !== 'credentials_pending') {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-surface px-4 py-12">
+        <div className="w-full max-w-[420px]">
+          <TemporarilyUnavailable retryHref={retryHref} />
+        </div>
+      </main>
+    );
+  }
   return (
     <main
       data-qoro-tokens="qorov2"
@@ -156,6 +171,21 @@ export default async function CadastroConfirmadoPage() {
             <h1 className="mt-4 text-balance font-display text-2xl font-semibold">
               E-mail confirmado
             </h1>
+            {ready.ok ? (
+              <>
+                <p className="mt-3 text-sm text-fg-muted">
+                  Sua senha já está definida. Continue para escolher o plano.
+                </p>
+                <a
+                  href="/cadastro/plano"
+                  className={`${buttonVariants({ variant: 'primary' })} mt-6`}
+                >
+                  Escolher plano
+                </a>
+              </>
+            ) : (
+              <SignupPasswordForm />
+            )}
           </CardContent>
         </Card>
       </div>

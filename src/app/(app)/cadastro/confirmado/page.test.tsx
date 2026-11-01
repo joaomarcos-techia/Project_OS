@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   cookieGet: vi.fn(),
   redirect: vi.fn(),
   resolve: vi.fn(),
+  ready: vi.fn(),
 }));
 
 vi.mock('next/navigation', () => ({ redirect: mocks.redirect }));
@@ -34,6 +35,7 @@ vi.mock('@/contexts/onboarding', () => ({
   ensureVerifiedSignupAuthBinding: mocks.ensureAuthBinding,
   validateVerifiedSignupAuthUserForClaim: mocks.validateAuthBinding,
   readOwnedSignupReference: mocks.readOwnedReference,
+  resolveReadyOwnedSignupOnboarding: mocks.ready,
 }));
 
 import CadastroConfirmadoPage from './page';
@@ -57,26 +59,36 @@ beforeEach(() => {
   mocks.validateAuthBinding.mockResolvedValue({ ok: true });
   mocks.readOwnedReference.mockResolvedValue({ ok: true, signupRef: 'a'.repeat(64) });
   mocks.cookieGet.mockReturnValue(undefined);
+  mocks.ready.mockResolvedValue({ ok: false, reason: 'credentials_pending' });
 });
 
 describe('/cadastro/confirmado', () => {
-  it('diz o fato e para por aí — sem formulário nenhum', async () => {
+  it('oferece a criação da senha e a continuação no próprio aparelho confirmado', async () => {
     const html = renderToStaticMarkup(await page());
-
     expect(html).toContain('E-mail confirmado');
-    // O destino antigo era uma revisão de formulário, e quem clica no link quase
-    // sempre está no celular: o formulário ali sugeria que a continuação era
-    // naquele aparelho, e sem o cookie anônimo ela não era.
-    expect(html).not.toContain('<input');
-    expect(html).not.toContain('<select');
-    expect(html).not.toContain('Revise seu cadastro');
-    expect(html).not.toContain('<a');
-    expect(html).not.toContain('<button');
+    expect(html).toContain('name="password"');
+    expect(html).toContain('Criar senha e escolher plano');
+    expect(html).not.toContain('name="email"');
+    expect(html).not.toContain('name="verificationCode"');
     expect(mocks.readOwnedReference).toHaveBeenCalledWith(
       '11111111-1111-4111-8111-111111111111',
       'private@example.invalid',
     );
     expect(mocks.ensureDraft).not.toHaveBeenCalled();
+  });
+
+  it('não pede outra senha quando ela já foi definida', async () => {
+    mocks.ready.mockResolvedValue({ ok: true, kind: 'pretenant' });
+    const html = renderToStaticMarkup(await page());
+    expect(html).toContain('href="/cadastro/plano"');
+    expect(html).not.toContain('name="password"');
+  });
+
+  it('não apresenta formulário quando a prontidão não pode ser verificada', async () => {
+    mocks.ready.mockResolvedValue({ ok: false, reason: 'unavailable' });
+    const html = renderToStaticMarkup(await page());
+    expect(html).toContain('Não foi possível verificar agora');
+    expect(html).not.toContain('name="password"');
   });
 
   it('não expõe e-mail nem id de quem confirmou', async () => {

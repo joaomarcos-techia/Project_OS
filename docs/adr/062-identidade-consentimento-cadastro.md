@@ -1140,3 +1140,42 @@ viva nem recebe mensagem; legado markerless seguro; senha não autentica antes e
 CAS; refresh exige redigitação; cleanup Auth/DB/fixture/lock termina zero. O comando canônico é
 `npx tsx scripts/run-signup-confirmation-e2e.ts`, com os guards descritos na matriz Track O. A mesma
 prova também passou 5/5 no Preview protegido, com fingerprint do ambiente DEV e limpeza zero.
+
+## 12. Senha escolhida após a confirmação, com continuação no mesmo aparelho (31/10/2026)
+
+Decisão do founder: pedir a senha uma única vez e oferecer uma continuação clara após confirmar
+o e-mail. Esta seção substitui a coleta inicial de senha e a página de confirmação sem ação
+descritas na seção 11; preserva os controles de ownership, validade, CAS e anti-fixação.
+
+1. A etapa de dados solicita nome do titular, nome da clínica, e-mail e aceite. Ela não pede,
+   transmite nem retém senha. O primeiro envio continua criando uma conta Auth **sem senha**.
+2. O link do e-mail mantém a ponte fragmento → POST, OTP de uso único e referência exata. Depois
+   da confirmação, `/cadastro/confirmado` apresenta somente a criação da senha e a ação **Criar
+   senha e escolher plano**. Não exige repetir o e-mail nem digitar o código nesse aparelho.
+3. `POST /api/signup/password` aceita somente a senha. Antes de ler o corpo, exige origem confiável,
+   sessão Auth autoritativa com e-mail confirmado e ausência de profile. Aplica o limite existente
+   por IP/HMAC do usuário. O usuário e a referência nunca são escolhidos pelo navegador.
+4. A referência Auth deve corresponder ao draft vivo que pertence ao mesmo usuário/e-mail. O
+   servidor relê o usuário na Admin API, verifica o marker `pending`, consulta a política de senha
+   e vazamentos e reserva o **mesmo CAS** usado pelo handoff anterior. Só o vencedor pode instalar
+   a senha e promover o marker para `set`.
+5. Falha ambígua mantém a reserva `uncertain`. Um marker já `set` permite finalizar o SQL e tentar
+   autenticar com a mesma senha, mas **nunca sobrescrever** a senha. Sucesso requer nova sessão
+   HttpOnly e a pós-condição ready-owned antes de responder `200` e abrir `/cadastro/plano`.
+6. A aba anônima original continua sem autoridade para usar a nova rota, mesmo após observar
+   `email_verified`. Como alternativa, ainda pode usar o código de oito dígitos do corpo do e-mail
+   e escolher a senha pela rota anterior. Após F5, redigita também o e-mail. O link sozinho não
+   libera a aba de quem iniciou um cadastro com o e-mail de outra pessoa.
+7. A página confirmada não pede senha novamente quando a credencial já está pronta: oferece
+   **Escolher plano**. Conta existente com profile não pode usar essa rota para trocar senha.
+   Link/draft expirado não é revivido; indisponibilidade e rate limit falham de modo conservador.
+8. Durante o rollout, `/sessions/auth` aceita a senha opcional de clientes antigos e mantém sua
+   validação quando presente. O cliente novo a omite. Sem alteração de schema ou migration.
+9. Não persistir senha em estado global, local/sessionStorage, staging, logs, traces ou artifacts.
+   O template `signup-confirmation.v4` orienta a continuação no próprio link e explica o código
+   apenas como alternativa para a aba original. O risco residual de scanner com JavaScript
+   consumir OTP permanece; o formulário exige uma ação explícita para instalar a credencial.
+
+Evidências específicas, ambiente, comandos e limites desta alteração ficam em
+[validação da senha única](../quality/cadastro-senha-unica-2026-10-31.md). Evidências da seção 11
+são históricas e não constituem aprovação automática do fluxo alterado.

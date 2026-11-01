@@ -1,6 +1,5 @@
 'use client';
 
-import { Eye, EyeOff } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 
@@ -10,7 +9,6 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SIGNUP_INPUT_LIMITS } from '@/contexts/onboarding/signup-input-limits';
-import { signupPasswordSchema } from '@/lib/auth/signup-password';
 
 type Props = {
   rowVersion: number;
@@ -21,7 +19,7 @@ type Props = {
    * dois componentes da mesma aba, é o que torna o reenvio um clique — sem
    * inventar um armazenamento que a ADR-062 proibiu de propósito.
    */
-  onCredentialsPrepared: (email: string, password: string) => void;
+  onCredentialsPrepared: (email: string) => void;
   onCredentialsCleared: () => void;
   onEmailPending: (rowVersion: number, email: string) => void;
   onReconcile: (reason: 'conflict' | 'uncertain') => Promise<void>;
@@ -55,11 +53,6 @@ export function SignupIdentity({
   const [accepted, setAccepted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  // Uma senha que a pessoa não consegue conferir é uma senha que ela vai digitar
-  // errado e só descobrir no login, depois de já ter confirmado o e-mail. A
-  // regra desta tela (maiúscula, minúscula, número) torna o erro de digitação
-  // mais provável, não menos — por isso o olho existe aqui como existe no login.
-  const [senhaVisivel, setSenhaVisivel] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const currentVersion = useRef(rowVersion);
   const submitting = useRef(false);
@@ -79,14 +72,7 @@ export function SignupIdentity({
     ).find((input) => !input.validity.valid || (input.type !== 'checkbox' && !input.value.trim()));
     if (invalid || !accepted) {
       (invalid ?? form.querySelector<HTMLButtonElement>('[role="checkbox"]'))?.focus();
-      setMessage('Preencha os quatro campos e confirme o aceite para continuar.');
-      return;
-    }
-
-    const password = String(fields.get('password') ?? '');
-    if (!signupPasswordSchema.safeParse(password).success) {
-      form.querySelector<HTMLInputElement>('input[name="password"]')?.focus();
-      setMessage('Use de 8 a 72 caracteres, sem espaços, com letra maiúscula, minúscula e número.');
+      setMessage('Preencha os três campos e confirme o aceite para continuar.');
       return;
     }
 
@@ -134,10 +120,7 @@ export function SignupIdentity({
         return;
       }
       currentVersion.current = identityVersion;
-      // A senha fica somente na memória desta aba. Depois da confirmação, ela
-      // só segue junto do código que veio no corpo do e-mail; nunca é persistida
-      // pelo browser enquanto a conta está pendente.
-      onCredentialsPrepared(email, password);
+      onCredentialsPrepared(email);
 
       let authResponse: Response;
       try {
@@ -147,7 +130,6 @@ export function SignupIdentity({
           body: JSON.stringify({
             rowVersion: identityVersion,
             email,
-            password,
             accepted: true,
           }),
         });
@@ -176,8 +158,8 @@ export function SignupIdentity({
         onCredentialsCleared();
         onGone();
       } else if (authResponse.status === 422) {
-        // A senha foi recusada pelo provedor e a tentativa foi devolvida: dá
-        // para escolher outra agora, sem esperar cooldown nenhum.
+        // Compatibilidade com respostas de uma versão anterior durante o
+        // rollout: reconcilia a versão antes de um novo envio explícito.
         let retryBody: unknown;
         try {
           retryBody = await authResponse.json();
@@ -191,11 +173,8 @@ export function SignupIdentity({
           return;
         }
         currentVersion.current = retryVersion;
-        form.querySelector<HTMLInputElement>('input[name="password"]')?.focus();
         onCredentialsCleared();
-        setMessage(
-          'Essa senha aparece em vazamentos conhecidos e foi recusada. Escolha outra e tente novamente.',
-        );
+        setMessage('Não foi possível enviar a confirmação. Tente novamente.');
       } else if (authResponse.status === 409 || authResponse.status === 503) {
         await onReconcile(authResponse.status === 409 ? 'conflict' : 'uncertain');
       } else {
@@ -209,11 +188,6 @@ export function SignupIdentity({
     } catch {
       setMessage('A conexão falhou antes da confirmação. Seus dados continuam somente nesta tela.');
     } finally {
-      const passwordInput = form.querySelector<HTMLInputElement>('input[name="password"]');
-      if (passwordInput) passwordInput.value = '';
-      // O campo é limpo aqui; deixar o olho aberto exibiria a PRÓXIMA digitação
-      // sem que ninguém tivesse pedido.
-      setSenhaVisivel(false);
       submitting.current = false;
       setSaving(false);
     }
@@ -251,8 +225,8 @@ export function SignupIdentity({
       ) : (
         <form ref={formRef} onSubmit={submit} noValidate className="mt-5">
           <p className="mb-5 text-pretty text-sm leading-relaxed text-fg-muted">
-            Preencha os dados, crie sua senha e confirme o aceite. A senha é enviada somente na
-            tentativa de criar a conta e não é salva neste cadastro temporário.
+            Informe seus dados e confirme o aceite para receber o e-mail. Você criará sua senha
+            somente depois de confirmar o endereço.
           </p>
           <fieldset disabled={saving} className="space-y-4">
             <div className="space-y-2">
@@ -285,38 +259,6 @@ export function SignupIdentity({
                 required
                 maxLength={SIGNUP_INPUT_LIMITS.email}
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="signup-password">Senha</Label>
-              <div className="relative">
-                <Input
-                  id="signup-password"
-                  name="password"
-                  type={senhaVisivel ? 'text' : 'password'}
-                  autoComplete="new-password"
-                  required
-                  maxLength={SIGNUP_INPUT_LIMITS.password}
-                  aria-describedby="signup-password-help"
-                  className="pr-11"
-                />
-                <button
-                  type="button"
-                  onClick={() => setSenhaVisivel((visivel) => !visivel)}
-                  aria-label={senhaVisivel ? 'Ocultar senha' : 'Mostrar senha'}
-                  aria-pressed={senhaVisivel}
-                  className="absolute right-0 top-0 flex size-(--control-h) min-h-(--hit-target) items-center justify-center rounded-(--field-radius) text-fg-subtle transition-colors hover:text-fg focus-visible:shadow-(--focus-ring) focus-visible:outline-none"
-                >
-                  {senhaVisivel ? (
-                    <EyeOff aria-hidden="true" className="size-4" />
-                  ) : (
-                    <Eye aria-hidden="true" className="size-4" />
-                  )}
-                </button>
-              </div>
-              <p id="signup-password-help" className="text-xs leading-relaxed text-fg-subtle">
-                De 8 a 72 caracteres, sem espaços, com letra maiúscula, minúscula e número. Símbolos
-                são opcionais.
-              </p>
             </div>
             <div className="flex min-h-10 items-start gap-3 pt-2">
               <Checkbox
@@ -353,7 +295,7 @@ export function SignupIdentity({
             {message ? <Alert variant="warning">{message}</Alert> : null}
           </div>
           <Button type="submit" loading={saving} className="mt-5 active:scale-[0.96]">
-            Criar conta e continuar
+            Enviar confirmação por e-mail
           </Button>
         </form>
       )}

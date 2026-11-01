@@ -1020,14 +1020,10 @@ async function startSignup(
     await page.getByLabel('Seu nome', { exact: true }).fill('Ana E2E');
     await page.getByLabel('Nome da clínica', { exact: true }).fill('Clínica E2E Confirmação');
     await page.getByLabel('E-mail', { exact: true }).fill(email);
-    await page.getByLabel('Senha', { exact: true }).fill(password);
-    await expect(page.getByLabel('Senha', { exact: true })).toHaveAttribute('type', 'password');
-    await page.getByRole('button', { name: 'Mostrar senha' }).click();
-    await expect(page.getByLabel('Senha', { exact: true })).toHaveAttribute('type', 'text');
-    await page.getByRole('button', { name: 'Ocultar senha' }).click();
+    await expect(page.locator('input[name="password"]')).toHaveCount(0);
     await page.getByRole('checkbox').click();
     const startedAt = Date.now();
-    await page.getByRole('button', { name: 'Criar conta e continuar' }).click();
+    await page.getByRole('button', { name: 'Enviar confirmação por e-mail' }).click();
     await expect(
       page.getByRole('heading', { name: 'Aguardando a confirmação do e-mail' }),
     ).toBeVisible({ timeout: 120_000 });
@@ -1118,11 +1114,9 @@ async function openOnPhone(
   if (finalReferrer.includes('token_hash') || finalReferrer.includes(expectedToken)) {
     throw new Error('destino recebeu bearer no Referer');
   }
-  // O Next injeta um botão próprio de Dev Tools fora do app em `next dev`.
-  // A asserção de produto precisa olhar somente a tela entregue pelo Qoro.
-  await expect(
-    page.locator('main input, main select, main textarea, main a, main button'),
-  ).toHaveCount(0);
+  await expect(page.getByLabel('Crie sua senha')).toBeVisible();
+  await expect(page.locator('input[name="email"], input[name="verificationCode"]')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Criar senha e escolher plano' })).toBeVisible();
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth > window.innerWidth,
   );
@@ -1164,7 +1158,7 @@ async function waitForOriginalHandoff(page: Page): Promise<void> {
   });
   await expect(page.getByLabel('Código do e-mail')).toBeVisible();
   await expect(page.getByLabel('E-mail usado no cadastro')).toHaveCount(0);
-  await expect(page.getByLabel('Crie sua senha')).toHaveCount(0);
+  await expect(page.getByLabel('Crie sua senha')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Escolha seu plano' })).toHaveCount(0);
 }
 
@@ -1316,6 +1310,73 @@ test.describe('cadastro — confirmação real via Resend', () => {
       await signup.page.getByRole('button', { name: 'Salvar plano' }).click();
       await expect(signup.page.getByText('Plano salvo')).toBeVisible();
       await expect(signup.page).toHaveURL(/\/cadastro\/plano$/u);
+    } finally {
+      await Promise.allSettled([phone?.close(), desktop?.close()]);
+      await cleanupFixture(fixture);
+    }
+  });
+
+  test('o destinatário confirma e cria a senha uma única vez no telefone, sem autorizar a aba anônima', async ({
+    browser,
+  }) => {
+    test.setTimeout(240_000);
+    const email = `delivered+qoro-signup-${Date.now()}-${randomBytes(4).toString('hex')}@resend.dev`;
+    let desktop: BrowserContext | null = null;
+    let phone: BrowserContext | null = null;
+    let fixture: Fixture = { projectRef: expectedProjectRef!, email };
+    try {
+      const signup = await startSignup(browser, email);
+      desktop = signup.context;
+      fixture = signup.fixture;
+      const message = await waitForMessage({
+        email,
+        subject: INITIAL_SUBJECT,
+        after: signup.startedAt,
+      });
+      if (!fixture.tokenHash) throw new Error('fixture sem hash do draft');
+      const proof = confirmationProof(message, fixture.tokenHash);
+      const verified = await openOnPhone(browser, proof.url);
+      phone = verified.context;
+      await waitForOriginalHandoff(signup.page);
+      // The anonymous initiator has no authority to use the authenticated-recipient endpoint.
+      const anonymous = await signup.page.evaluate(async () => {
+        const response = await fetch('/api/signup/password', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ password: 'UnauthorizedSynthetic7!' }),
+        });
+        return response.status;
+      });
+      expect(anonymous).toBe(401);
+      expect(await passwordSignInSucceeds(email, signup.password)).toBe(false);
+      await verified.page.getByLabel('Crie sua senha').fill(signup.password);
+      const passwordResponse = verified.page.waitForResponse(
+        (response) =>
+          response.request().method() === 'POST' &&
+          new URL(response.url()).pathname === '/api/signup/password',
+      );
+      await verified.page.getByRole('button', { name: 'Criar senha e escolher plano' }).click();
+      expect((await passwordResponse).status()).toBe(200);
+      await expect(verified.page).toHaveURL(/\/cadastro\/plano$/u, { timeout: 120_000 });
+      await expect(verified.page.getByRole('heading', { name: 'Escolha seu plano' })).toBeVisible();
+      expect(await passwordSignInSucceeds(email, signup.password)).toBe(true);
+      await verified.page.goto('/cadastro/confirmado');
+      await expect(verified.page.getByRole('link', { name: 'Escolher plano' })).toBeVisible();
+      await expect(verified.page.locator('input[name="password"]')).toHaveCount(0);
+      // A second submission cannot replace the installed password, even with a live OTP session.
+      const replay = await verified.page.evaluate(async () => {
+        const response = await fetch('/api/signup/password', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ password: 'DifferentSyntheticReplay7!' }),
+        });
+        return response.status;
+      });
+      expect(replay).toBe(401);
+      expect(await passwordSignInSucceeds(email, signup.password)).toBe(true);
+      expect(await passwordSignInSucceeds(email, 'DifferentSyntheticReplay7!')).toBe(false);
+      await expect(signup.page).toHaveURL(/\/cadastro$/u);
+      await expect(signup.page.getByRole('heading', { name: 'Escolha seu plano' })).toHaveCount(0);
     } finally {
       await Promise.allSettled([phone?.close(), desktop?.close()]);
       await cleanupFixture(fixture);

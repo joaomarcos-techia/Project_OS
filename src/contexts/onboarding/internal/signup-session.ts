@@ -610,12 +610,12 @@ export async function recordSignupIdentity(
   return { ok: false, reason: live ? 'conflict' : 'gone' };
 }
 
-/** Senha/captcha/e-mail bruto só existem no request; não entram no staging. */
+/** Clientes antigos podem enviar senha; o fluxo novo a define só após o OTP. */
 export const signupAuthSchema = z
   .object({
     rowVersion: z.number().int().min(1).max(2_147_483_645),
     email: z.string().trim().max(160).email(),
-    password: signupPasswordSchema,
+    password: signupPasswordSchema.optional(),
     accepted: z.literal(true),
   })
   .strict();

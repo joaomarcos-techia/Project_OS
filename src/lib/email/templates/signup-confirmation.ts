@@ -24,7 +24,7 @@ import 'server-only';
  * numa camada mais barata de ignorar.
  */
 
-export const SIGNUP_CONFIRMATION_EMAIL_TEMPLATE_VERSION = 'signup-confirmation.v3';
+export const SIGNUP_CONFIRMATION_EMAIL_TEMPLATE_VERSION = 'signup-confirmation.v4';
 
 const QORO_LOGO_URL =
   'https://shlcbxawrxuaebazuiue.supabase.co/storage/v1/object/public/logo_qoro/logo_master_blaster_powerrr.png';
@@ -152,7 +152,7 @@ export function renderSignupConfirmationEmail(input: {
     '',
     link,
     '',
-    'Depois de confirmar, volte à aba onde iniciou o cadastro e digite este código:',
+    'Depois de confirmar, crie sua senha na página aberta pelo link e continue por lá. Se preferir continuar na aba onde iniciou o cadastro, use este código:',
     input.verificationCode,
     '',
     'Por segurança, este link tem validade limitada e só pode ser usado uma vez.',
@@ -252,7 +252,8 @@ export function renderSignupConfirmationEmail(input: {
                 </tr>
                 <tr>
                   <td class="px" style="padding:24px 44px 0 44px; font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:14px; line-height:1.55; color:#4b5457;">
-                    Depois de confirmar, volte à aba onde iniciou o cadastro e digite este código:
+                    Depois de confirmar, crie sua senha na página aberta pelo link e continue por lá.
+                    Se preferir continuar na aba onde iniciou o cadastro, use este código:
                   </td>
                 </tr>
                 <tr>

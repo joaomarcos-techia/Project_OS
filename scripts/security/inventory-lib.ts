@@ -274,6 +274,10 @@ export function collectInventory(root: string): Inventory {
       guard: 'SIGNUP_AUTH_ENABLED-origin-cookie-identity-limit-code-cas',
       call: 'assertSignupContinuationAllowed',
     },
+    'src/app/api/signup/password/route.ts#POST': {
+      guard: 'origin-verified-pretenant-owner-hmac-limit-strict-password-epoch-cas',
+      call: 'advanceSignupCredentialEpoch',
+    },
     'src/app/api/signup/runtime-fingerprint/route.ts#POST': {
       guard: 'non-production-e2e-hmac-and-fresh-nonce',
       call: 'safeEqual',

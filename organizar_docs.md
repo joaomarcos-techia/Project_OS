@@ -1,5 +1,14 @@
 # DOCS REFACTOR CHECKPOINT
 
+## Correção do cadastro — 31/10/2026
+
+Em desenvolvimento isolado na branch `fix/signup-single-password-20261031`: coleta da senha após
+confirmação e continuação no mesmo aparelho, conforme pedido do founder. Fonte desta alteração:
+[validação da senha única](docs/quality/cadastro-senha-unica-2026-10-31.md), com decisão na
+[ADR-062, seção 12](docs/adr/062-identidade-consentimento-cadastro.md). Não altera preços, contratos,
+migrations ou campanhas. O fluxo novo ainda precisa da evidência Preview/DEV; a publicação anterior
+abaixo permanece histórica e não equivale a um PASS desta correção.
+
 ## Janela de produção autorizada — 30/10/2026
 
 Fonte atual: [publicação executada e encerrada](docs/quality/publicacao-oferta-2026-10-30.md). App #42, complemento #44 e landing #3 mesclados/publicados, 15 migrations aplicadas e contratos preservados. **GO operacional mensal: cadastro reaberto após Turnstile real 3/3 correlacionado com HTTP 200**, às 22:27:25 UTC; novo deployment `dpl_J1dQNbzxS2GL8yNHfUgYNnai1gmt`, SHA `71cc5643`, READY às 22:36:38 UTC. CI 5.828/5.828; 15/15 probes públicos e 2/2 E2E autenticados após reabertura; 381 requisições sem 5xx na amostra. Anual novo continua desativado. Runbook, guia humano e evidência sanitizada atualizados; não repetir trabalho aplicado nem pedir a senha de backup dispensada. Esta atualização documental não altera código ou contratos. Riscos e limites permanecem no registro, inclusive cópia independente NOT RUN/risco aceito. O checkpoint histórico de refatoração abaixo fica preservado.

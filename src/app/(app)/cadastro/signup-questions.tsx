@@ -26,7 +26,7 @@ type Draft = Partial<SignupAnswerValues>;
 type LocalDraft = { answers: Draft; expiresAt: number };
 type Phase = 'loading' | 'challenge' | 'ready' | 'expired' | 'unavailable';
 type QuestionIndex = 0 | 1 | 2 | 3;
-type ContinuationCredentials = { email: string; password: string };
+type ContinuationCredentials = { email: string };
 
 const EMPTY_DRAFT: Draft = {};
 const QUESTION_COUNT = 4;
@@ -567,8 +567,8 @@ export function SignupQuestions({ identityEnabled = false }: { identityEnabled?:
           key={session.rowVersion}
           rowVersion={session.rowVersion}
           saved={session.status === 'identity_pending'}
-          onCredentialsPrepared={(email, password) => {
-            continuationCredentials.current = { email, password };
+          onCredentialsPrepared={(email) => {
+            continuationCredentials.current = { email };
           }}
           onCredentialsCleared={() => {
             continuationCredentials.current = null;
