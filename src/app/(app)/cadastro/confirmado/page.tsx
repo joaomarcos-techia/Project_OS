@@ -45,10 +45,10 @@ function TemporarilyUnavailable({ retryHref }: { retryHref: string }) {
 }
 
 /**
- * Fim do link de confirmação — e só isso.
+ * Confirmação autoritativa e continuação pelo aparelho que recebeu o link.
  *
- * O destino anterior era `/cadastro/continuar`, uma revisão de formulário. Quem
- * pode continuar neste aparelho com a sessão verificada pelo OTP. A senha só é
+ * O destino anterior era `/cadastro/continuar`, uma revisão de formulário.
+ * O destinatário pode continuar neste aparelho com a sessão verificada pelo OTP. A senha só é
  * escolhida aqui; a aba anônima original continua dependendo do código do e-mail.
  *
  * A checagem abaixo é o que impede a tela de MENTIR. Sem sessão verificada,

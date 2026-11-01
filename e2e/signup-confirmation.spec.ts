@@ -817,8 +817,8 @@ async function assertNoMessage(input: {
 function singleVerificationCode(body: string, kind: 'html' | 'text'): string {
   const pattern =
     kind === 'text'
-      ? /digite este código:\s*\r?\n(\d{8})(?!\d)/giu
-      : /digite este código:[\s\S]{0,1000}?>(\d{8})<\/div>/giu;
+      ? /(?:digite|use) este código:\s*\r?\n(\d{8})(?!\d)/giu
+      : /(?:digite|use) este código:[\s\S]{0,1000}?>(\d{8})<\/div>/giu;
   const codes = [...body.matchAll(pattern)].map((match) => match[1]).filter(Boolean);
   if (codes.length !== 1 || !codes[0]) {
     throw new Error(`${kind} da mensagem não contém exatamente um código de oito dígitos`);
@@ -2419,6 +2419,7 @@ test.describe('cadastro — confirmação real via Resend', () => {
       // O segundo draft não recebeu nem rotacionou mensagem. O código que só o
       // dono do e-mail conhece transfere o ownership para os dados preenchidos
       // nessa sessão; conhecer apenas o endereço continua insuficiente.
+      await second.page.getByLabel('Crie sua senha').fill(second.password);
       await second.page.getByLabel('Código do e-mail').fill(firstProof.verificationCode);
       await second.page.getByRole('button', { name: 'Continuar', exact: true }).click();
       await expect(second.page).toHaveURL(/\/cadastro\/plano$/u, { timeout: 120_000 });
@@ -2526,6 +2527,7 @@ test.describe('cadastro — confirmação real via Resend', () => {
         throw new Error('a senha funcionou antes do código mais recente');
       }
 
+      await signup.page.getByLabel('Crie sua senha').fill(signup.password);
       await signup.page.getByLabel('Código do e-mail').fill(oldProof.verificationCode);
       await signup.page.getByRole('button', { name: 'Continuar', exact: true }).click();
       await expect(signup.page).toHaveURL(/\/cadastro$/u);
