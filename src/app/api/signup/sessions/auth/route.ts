@@ -96,7 +96,7 @@ export async function POST(req: Request): Promise<Response> {
     accountOperationStartedAt = Date.now();
     const outcome = await sendSignupConfirmation({
       email,
-      password,
+      ...(password === undefined ? {} : { password }),
       signupRef: hashSignupToken(token),
       attemptEpoch,
       publicOrigin,

@@ -1,10 +1,51 @@
 # Janela autorizada da oferta mensal — 30/10/2026
 
-**Estado: app e landing publicados; aquisição pausada. O cadastro continua fechado até comprovar Turnstile real positivo e replay. A publicação não está concluída.** Este registro substitui as afirmações de ausência de operações em Production nos relatórios anteriores, que descrevem a preparação. [Evidência sanitizada](evidencias/publicacao-oferta-20261030.json).
+**Estado final em 30/10, às 22:38 UTC (19:38 de Brasília): app e landing publicados, cadastro reaberto e GO operacional para a oferta mensal.** Turnstile real 3/3 comprovado no backend de Production antes da reabertura. CI do SHA publicado, novo deployment e smokes posteriores aprovados. Este GO tem o escopo e as exceções abaixo; não é garantia de ausência de falhas futuras nem aprovação da venda anual. [Evidência sanitizada](evidencias/publicacao-oferta-20261030.json).
+
+## Fechamento da janela — estado vigente
+
+| Sistema | SHA publicado                              | Deployment                         | Resultado                                                                              |
+| ------- | ------------------------------------------ | ---------------------------------- | -------------------------------------------------------------------------------------- |
+| App     | `71cc56431837856806f7d16c9d0e5249c8022a69` | `dpl_J1dQNbzxS2GL8yNHfUgYNnai1gmt` | READY e alias [app.qoro.dev](https://app.qoro.dev), conferidos às 22:36:38 UTC         |
+| Landing | `deb670bbf3dd5c3e5ba521318f052d312f0193bb` | `dpl_J42xQi1j2Gc1cwXHVpPyyYM4S3Qi` | READY e alias [qoro.dev](https://qoro.dev); sem nova alteração após o smoke visual 4/4 |
+
+O complemento [PR #44](https://github.com/joaomarcos-techia/Project_OS/pull/44) foi mesclado às 22:21:38 UTC, após os checks do head `a1dc0c34`. A CI do merge publicado também passou: [run 41137602059](https://github.com/joaomarcos-techia/Project_OS/actions/runs/41137602059), **5.828/5.828 testes em 552 arquivos**, TypeScript, lint, build e demais gates. E2E público da CI: **7 PASS + 2 SKIP**, por ausência de chaves Turnstile no build isolado. Os SKIPs não foram transformados em PASS; o desafio real foi comprovado separadamente em Production.
+
+Às **22:27:25 UTC**, o Chrome habitual do titular obteve **3/3** na página temporária. Código `fc831fa4-5c00-4c7d-bb60-8cbae6466ce1` correlacionado ao evento `signup.turnstile.probe.passed`, request `w9qxd-1793399245074-e60aa1b2b90f`, HTTP **200**, deployment `dpl_GJcKPw7qg4thBUVA4R1apL68qCZv`. O backend com o secret efetivo aceitou token real com hostname/action esperados, recusou reutilização com `timeout-or-duplicate` e inválido com `invalid-input-response`. Não houve conta, pagamento, token em relatório ou alteração de proteção. [Detalhamento](verificacao-turnstile-2026-10-30.md).
+
+Somente após correlacionar a prova foi atualizado `SIGNUP_ENABLED=true`, **exclusivamente Production**, às 22:30:47 UTC. O redeploy do mesmo SHA tornou a configuração efetiva no domínio; não se atribuiu efeito retroativo à variável. `OFFER_2026_ANNUAL_NEW_SALES_ENABLED=false` permaneceu intacta. A superfície temporária passou a retornar 404 na página e no POST, sem ação manual adicional. Os deployments antigos também têm expiração fixa da verificação em 02/11 às 03h UTC.
+
+### Validação depois da reabertura
+
+| Frente                         | Resultado                      | Evidência e limite                                                                                                                                                                                                                                                                                                                                                      |
+| ------------------------------ | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Smoke público                  | **PASS 15/15**                 | 22:36:59–22:37:43 UTC; cadastro 200 com o formulário aberto, corpo inválido 400, risco moderado sem token/com inválido 401, origem externa 403, sessão ausente 410, diagnóstico página/POST 404, login 200, shell anônimo 307, Asaas/Meta/cron não autenticados 401 e retorno de pagamento 200. Nenhuma sessão de cadastro, conta, cobrança ou fila foi criada/drenada. |
+| Login e shell legado           | **PASS 1/1, 28 rotas**         | Login pela UI, status e headings corretos; execução conjunta autenticada em 44 s.                                                                                                                                                                                                                                                                                       |
+| Médico sem `manage:settings`   | **PASS 1/1**                   | Perfil, assinatura e WhatsApp negados, controles ausentes. Total autenticado **2 PASS, zero SKIP/falhas/flaky**. Sem trace, screenshot autenticado, vídeo ou storageState.                                                                                                                                                                                              |
+| Logs do novo deployment        | **PASS na amostra**            | Consulta às 22:38:10 UTC, desde 22:36:30 UTC: **381 requisições, zero 5xx, zero status desconhecido**. Somente contagens/caminhos fixos foram preservados. Não comprova todos os períodos futuros.                                                                                                                                                                      |
+| Checks do SHA publicado        | **PASS**                       | CI e status Vercel `success`, conferidos às 22:38:28 UTC. Review automatizado neutral não foi usado como aprovação.                                                                                                                                                                                                                                                     |
+| Landing e ponte de contratação | **PASS preservado: 4/4 + 1/1** | Mesmo SHA/deployment: `/` e `/precos`, desktop/mobile, oferta mensal coerente e `/comecar` para `app.qoro.dev/cadastro`; o destino agora foi confirmado aberto por HTTP. Não se repetiu inspeção visual sem mudança relevante.                                                                                                                                          |
+
+Comandos operacionais: `node dist/quality/production-reopen-smoke.mjs` e `node dist/quality/production-reopen-auth-smoke.cjs`, com guarda de autorização e deployment READY. O segundo reutiliza os dois specs/grep registrados na etapa anterior. Resultados locais ignorados: `production-reopen-smoke.json`, `production-reopen-auth-smoke.json`, `production-reopen-log-summary.json` e `production-reopen-ci-proof.json`; cópia sanitizada consolidada no JSON versionado acima.
+
+O smoke inicialmente esperava 404 de `/oferta-preview` sem autenticação. O middleware exige login antes do `notFound` da página, portanto o comportamento correto é **307 para `/login` no mesmo domínio**. A asserção foi corrigida após leitura do middleware e nova requisição comprobatória, preservando os 14 PASS anteriores e o resultado inicial. Isso foi erro do runner, não correção do produto nem teste desativado.
+
+### Escopo comercial e riscos remanescentes
+
+- Oferta inicial **mensal**: Consultório R$ 197, 1 médico + até 3 administrativos; Clínica R$ 397, 2 médicos + até 3 administrativos. Médico adicional R$ 147/mês, até 5 médicos no total. Trial de 14 dias desde a criação do usuário Auth. Médicos extras são contratados na assinatura já ativa; não há compra online do quarto administrativo. Direitos e preços dos contratos anteriores permanecem preservados.
+- Não foram repetidos checkouts, pagamentos reais, migrations ou alterações de contratos. As provas funcionais Sandbox de conta nova e médico extra permanecem válidas; **uma nova contratação paga em Production não foi executada**. O GET do formulário e os probes negativos não foram apresentados como um novo checkout completo.
+- Backup independente real B2/Bitwarden: **NOT RUN / risco expressamente aceito**. RTO integral e rotina independente/alerta não comprovados; backup local cifrado e evidências anteriores de restore mantidos. Sem PITR por decisão do titular; sem promessa de perda zero.
+- Venda anual nova continua desativada; código/contratos anuais existentes preservados. Renovação temporal anual após um ano permanece não observada.
+- Gemini Paid/pré-pago e projeto `qoro-510304` confirmados pelo titular, sem novo envio de dados clínicos para testar capacidade. Não confundir a declaração com ensaio independente de carga/saldo futuro.
+- Financeiro RBAC com rollup não zero recente continua **PRECONDITION BLOCKED**; não foram fabricados dados reais para torná-lo verde. Isso não invalida o smoke de navegação/permissões executado.
+
+Não há nova compra, pagamento Sandbox ou desafio humano exigido para esta reabertura. Monitorar os primeiros cadastros/primeira cobrança pós-trial e a saúde dos provedores; esses eventos futuros não têm PASS antecipado. Se houver falha crítica de cadastro, contrato, cobrança ou autorização, fechar novamente a aquisição por novo deployment e investigar, preservando o acesso dos clientes existentes e sem rollback SQL improvisado.
+
+## Histórico — publicação com o cadastro ainda fechado
 
 O founder respondeu **“Autorizar a janela agora”** à proposta de fechar o cadastro por deployment, gerar backup local cifrado, aplicar 0119–0133, publicar app/landing mensais e reabrir somente depois dos gates. Confirmou o domínio no widget e o projeto Gemini `qoro-510304`, Paid/pré-pago ativo. São confirmações humanas de configuração, não teste independente de capacidade do provider. O [aceite anterior de backup](aceite-risco-backup-2026-10-30.md) foi preservado: cópia real independente B2/Bitwarden continua NOT RUN, risco aceito; não é PASS.
 
-## Versões efetivamente publicadas
+## Versões publicadas na etapa anterior à reabertura
 
 | Sistema                                                                    | Merge                                                    | Deployment Production              | Estado conferido                                             |
 | -------------------------------------------------------------------------- | -------------------------------------------------------- | ---------------------------------- | ------------------------------------------------------------ |
@@ -56,7 +97,7 @@ A [Cloudflare classifica `600*`](https://developers.cloudflare.com/turnstile/tro
 
 O gate existente é `scripts/turnstile-production-gate.ts`: com token fresco recebido por stdin e secret real apenas no processo, exige aceite, hostname `app.qoro.dev`, negação de replay `timeout-or-duplicate` e negação de inválido. Não grava token/secret. A obtenção legítima do token positivo em navegador comum ainda precisa ser acompanhada; **não executar novo pagamento ou cadastro real para disfarçar esse gate**.
 
-## Continuação exata
+## Roteiro histórico de continuação — executado conforme fechamento acima
 
 1. Diagnosticar o desafio em navegador habitual do titular, fora do navegador automatizado, mantendo segredo/token fora de chat e logs. O [diagnóstico oficial de compatibilidade](https://debug.challenges.cloudflare.com/) é auxiliar; seu resultado não substitui Siteverify positivo no domínio do app. Se houver novo erro, registrar apenas código, navegador e horário. Não repetir indefinidamente o mesmo runner 600010.
 2. Só depois do gate real positivo/replay/inválido: atualizar **somente Production** para `SIGNUP_ENABLED=true`, mantendo anual false; redeploy do candidato atual; conferir READY e alias. O probe de corpo inválido deve deixar de responder 503 e retornar erro de validação, sem criar sessão. Validar também o fluxo moderado do cadastro, oferta mensal e rejeição anual antes de considerar aquisição liberada.

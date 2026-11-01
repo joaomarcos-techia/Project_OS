@@ -13,7 +13,6 @@ import { signupPasswordSchema } from '@/lib/auth/signup-password';
 
 type PreparedCredentials = {
   email: string;
-  password: string;
 };
 
 type Props = {
@@ -30,8 +29,8 @@ type Props = {
  *
  * O link prova controle da caixa postal, mas não autoriza sozinho a aba anônima
  * que iniciou o cadastro. O código que está no corpo do e-mail liga as duas
- * pontas sem colocar essa prova na URL. E-mail e senha podem continuar apenas
- * na memória da aba original; depois de um refresh, a pessoa os digita de novo.
+ * pontas sem colocar essa prova na URL. Só o e-mail permanece na memória da aba;
+ * a senha é escolhida agora, depois da confirmação, pela primeira vez.
  */
 export function SignupEmailVerified({
   rowVersion,
@@ -45,16 +44,11 @@ export function SignupEmailVerified({
   const [message, setMessage] = useState<string | null>(null);
   const [messageKind, setMessageKind] = useState<'danger' | 'warning'>('warning');
   const [senhaVisivel, setSenhaVisivel] = useState(false);
-  const [pedirNovaSenha, setPedirNovaSenha] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const submitting = useRef(false);
 
   const usarEmailPreparado =
     typeof preparedCredentials?.email === 'string' && preparedCredentials.email.length > 0;
-  const usarSenhaPreparada =
-    !pedirNovaSenha &&
-    typeof preparedCredentials?.password === 'string' &&
-    preparedCredentials.password.length > 0;
 
   function focus(name: 'email' | 'password' | 'verificationCode'): void {
     formRef.current?.querySelector<HTMLInputElement>(`input[name="${name}"]`)?.focus();
@@ -69,9 +63,7 @@ export function SignupEmailVerified({
     const email = usarEmailPreparado
       ? preparedCredentials.email.trim()
       : String(fields.get('email') ?? '').trim();
-    const password = usarSenhaPreparada
-      ? preparedCredentials.password
-      : String(fields.get('password') ?? '');
+    const password = String(fields.get('password') ?? '');
     const verificationCode = String(fields.get('verificationCode') ?? '');
 
     const emailInput = form.querySelector<HTMLInputElement>('input[name="email"]');
@@ -125,8 +117,6 @@ export function SignupEmailVerified({
       if (response.status === 422) {
         const passwordInput = form.querySelector<HTMLInputElement>('input[name="password"]');
         if (passwordInput) passwordInput.value = '';
-        onCredentialsCleared();
-        setPedirNovaSenha(true);
         setSenhaVisivel(false);
         setMessageKind('warning');
         setMessage(
@@ -184,8 +174,8 @@ export function SignupEmailVerified({
           E-mail confirmado
         </h1>
         <p className="mx-auto mt-3 max-w-[48ch] text-pretty text-sm leading-relaxed text-fg-muted">
-          Digite o código de 8 dígitos mostrado no e-mail para concluir a conta e escolher seu
-          plano.
+          Para continuar nesta aba, crie sua senha e digite o código de 8 dígitos do e-mail. Você
+          também pode continuar diretamente na página aberta pelo link de confirmação.
         </p>
       </div>
 
@@ -204,44 +194,42 @@ export function SignupEmailVerified({
             />
           </div>
         ) : null}
-        {!usarSenhaPreparada ? (
-          <div className="space-y-2">
-            <Label htmlFor="signup-continue-password">Crie sua senha</Label>
-            <div className="relative">
-              <Input
-                id="signup-continue-password"
-                name="password"
-                type={senhaVisivel ? 'text' : 'password'}
-                autoComplete="new-password"
-                required
-                maxLength={SIGNUP_INPUT_LIMITS.password}
-                disabled={saving}
-                aria-describedby="signup-continue-password-help"
-                className="pr-11"
-              />
-              <button
-                type="button"
-                onClick={() => setSenhaVisivel((visible) => !visible)}
-                aria-label={senhaVisivel ? 'Ocultar senha' : 'Mostrar senha'}
-                aria-pressed={senhaVisivel}
-                className="absolute right-0 top-0 flex size-(--control-h) min-h-(--hit-target) items-center justify-center rounded-(--field-radius) text-fg-subtle transition-colors hover:text-fg focus-visible:shadow-(--focus-ring) focus-visible:outline-none"
-              >
-                {senhaVisivel ? (
-                  <EyeOff aria-hidden="true" className="size-4" />
-                ) : (
-                  <Eye aria-hidden="true" className="size-4" />
-                )}
-              </button>
-            </div>
-            <p
-              id="signup-continue-password-help"
-              className="text-pretty text-xs leading-relaxed text-fg-subtle"
+        <div className="space-y-2">
+          <Label htmlFor="signup-continue-password">Crie sua senha</Label>
+          <div className="relative">
+            <Input
+              id="signup-continue-password"
+              name="password"
+              type={senhaVisivel ? 'text' : 'password'}
+              autoComplete="new-password"
+              required
+              maxLength={SIGNUP_INPUT_LIMITS.password}
+              disabled={saving}
+              aria-describedby="signup-continue-password-help"
+              className="pr-11"
+            />
+            <button
+              type="button"
+              onClick={() => setSenhaVisivel((visible) => !visible)}
+              aria-label={senhaVisivel ? 'Ocultar senha' : 'Mostrar senha'}
+              aria-pressed={senhaVisivel}
+              className="absolute right-0 top-0 flex size-(--control-h) min-h-(--hit-target) items-center justify-center rounded-(--field-radius) text-fg-subtle transition-colors hover:text-fg focus-visible:shadow-(--focus-ring) focus-visible:outline-none"
             >
-              De 8 a 72 caracteres, sem espaços, com letra maiúscula, minúscula e número. Símbolos
-              são opcionais.
-            </p>
+              {senhaVisivel ? (
+                <EyeOff aria-hidden="true" className="size-4" />
+              ) : (
+                <Eye aria-hidden="true" className="size-4" />
+              )}
+            </button>
           </div>
-        ) : null}
+          <p
+            id="signup-continue-password-help"
+            className="text-pretty text-xs leading-relaxed text-fg-subtle"
+          >
+            De 8 a 72 caracteres, sem espaços, com letra maiúscula, minúscula e número. Símbolos são
+            opcionais.
+          </p>
+        </div>
 
         <div className="space-y-2">
           <Label htmlFor="signup-verification-code">Código do e-mail</Label>

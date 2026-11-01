@@ -82,6 +82,19 @@ beforeEach(() => {
 });
 
 describe('POST signup auth', () => {
+  it('aceita o envio inicial sem senha e não cria uma senha implícita', async () => {
+    const response = await POST(
+      request(JSON.stringify({ rowVersion: 3, email: input.email, accepted: true })),
+    );
+    expect(response.status).toBe(200);
+    expect(enviar).toHaveBeenCalledWith({
+      email: input.email,
+      signupRef: 'a'.repeat(64),
+      attemptEpoch: 1_795_000_000_000,
+      publicOrigin: 'https://app.qoro.test',
+    });
+    expect(JSON.stringify(enviar.mock.calls)).not.toContain('password');
+  });
   it('limites e CAS precedem o envio; só e-mail e senha atravessam', async () => {
     const response = await POST(request());
     expect(response.status).toBe(200);

@@ -3,19 +3,23 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
 import { Logo } from '@/components/shared/logo';
-import { Card, CardContent } from '@/components/ui/card';
 import { buttonVariants } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   ensureSignupDraftForVerifiedEmail,
   ensureVerifiedSignupAuthBinding,
   readOwnedSignupReference,
+  resolveReadyOwnedSignupOnboarding,
   validateVerifiedSignupAuthUserForClaim,
 } from '@/contexts/onboarding';
+
 import { resolvePreTenantOnboarding } from '@/lib/auth/pretenant-onboarding';
 import {
   readSignupConfirmationGrant,
   SIGNUP_CONFIRMATION_GRANT_COOKIE,
 } from '@/lib/auth/signup-confirmation-grant';
+
+import { SignupPasswordForm } from './signup-password-form';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,14 +45,11 @@ function TemporarilyUnavailable({ retryHref }: { retryHref: string }) {
 }
 
 /**
- * Fim do link de confirmação — e só isso.
+ * Confirmação autoritativa e continuação pelo aparelho que recebeu o link.
  *
- * O destino anterior era `/cadastro/continuar`, uma revisão de formulário. Quem
- * clica no link quase sempre está no celular enquanto o cadastro segue aberto no
- * computador; cair num formulário ali sugeria que a continuação era naquele
- * aparelho, e sem o cookie anônimo do navegador original ela não era — a pessoa
- * redigitava tudo por engano. Agora esta tela diz o fato e para por aí: a aba do
- * cadastro percebe a confirmação sozinha e segue para a escolha do plano.
+ * O destino anterior era `/cadastro/continuar`, uma revisão de formulário.
+ * O destinatário pode continuar neste aparelho com a sessão verificada pelo OTP. A senha só é
+ * escolhida aqui; a aba anônima original continua dependendo do código do e-mail.
  *
  * A checagem abaixo é o que impede a tela de MENTIR. Sem sessão verificada,
  * "E-mail confirmado" seria só um texto numa URL que qualquer um abre. Quem já
@@ -141,6 +142,24 @@ export default async function CadastroConfirmadoPage() {
       </main>
     );
   }
+  const ready = await resolveReadyOwnedSignupOnboarding();
+  if (ready.ok && ready.kind === 'redirect') redirect(ready.route);
+  // Auth may have committed the password before SQL finalization lost its
+  // response. Offer reconciliation with the same password after refresh too.
+  const reconcile =
+    !ready.ok &&
+    ready.reason === 'credentials_invalid' &&
+    owned.ok &&
+    (owned.credentialState === 'reserved' || owned.credentialState === 'uncertain');
+  if (!ready.ok && ready.reason !== 'credentials_pending' && !reconcile) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-surface px-4 py-12">
+        <div className="w-full max-w-[420px]">
+          <TemporarilyUnavailable retryHref={retryHref} />
+        </div>
+      </main>
+    );
+  }
   return (
     <main
       data-qoro-tokens="qorov2"
@@ -156,6 +175,21 @@ export default async function CadastroConfirmadoPage() {
             <h1 className="mt-4 text-balance font-display text-2xl font-semibold">
               E-mail confirmado
             </h1>
+            {ready.ok ? (
+              <>
+                <p className="mt-3 text-sm text-fg-muted">
+                  Sua senha já está definida. Continue para escolher o plano.
+                </p>
+                <a
+                  href="/cadastro/plano"
+                  className={`${buttonVariants({ variant: 'primary' })} mt-6`}
+                >
+                  Escolher plano
+                </a>
+              </>
+            ) : (
+              <SignupPasswordForm reconcile={reconcile} />
+            )}
           </CardContent>
         </Card>
       </div>

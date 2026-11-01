@@ -1,20 +1,31 @@
 # DOCS REFACTOR CHECKPOINT
 
+## Correção do cadastro — 31/10/2026
+
+Em desenvolvimento isolado na branch `fix/signup-single-password-20261031`: coleta da senha após
+confirmação e continuação no mesmo aparelho, conforme pedido do founder. Fonte desta alteração:
+[validação da senha única](docs/quality/cadastro-senha-unica-2026-10-31.md), com decisão na
+[ADR-062, seção 12](docs/adr/062-identidade-consentimento-cadastro.md). Não altera preços, contratos,
+migrations ou campanhas. O fluxo novo ainda precisa da evidência Preview/DEV; a publicação anterior
+abaixo permanece histórica e não equivale a um PASS desta correção.
+
 ## Janela de produção autorizada — 30/10/2026
 
-Fonte atual: [publicação executada e gate pendente](docs/quality/publicacao-oferta-2026-10-30.md). App #42 e landing #3 mesclados/publicados, 15 migrations aplicadas e contratos preservados. CI do merge aprovada; smokes públicos/autenticados e landing conferidos. **Cadastro permanece fechado por Turnstile real positivo/replay pendentes (600010).** Runbook e guia humano atualizados; não repetir trabalho já aplicado nem retomar a coleta de senha de backup dispensada. Esta atualização documental não altera código, flags ou deployments. O checkpoint histórico de refatoração abaixo fica preservado.
+Fonte atual: [publicação executada e encerrada](docs/quality/publicacao-oferta-2026-10-30.md). App #42, complemento #44 e landing #3 mesclados/publicados, 15 migrations aplicadas e contratos preservados. **GO operacional mensal: cadastro reaberto após Turnstile real 3/3 correlacionado com HTTP 200**, às 22:27:25 UTC; novo deployment `dpl_J1dQNbzxS2GL8yNHfUgYNnai1gmt`, SHA `71cc5643`, READY às 22:36:38 UTC. CI 5.828/5.828; 15/15 probes públicos e 2/2 E2E autenticados após reabertura; 381 requisições sem 5xx na amostra. Anual novo continua desativado. Runbook, guia humano e evidência sanitizada atualizados; não repetir trabalho aplicado nem pedir a senha de backup dispensada. Esta atualização documental não altera código ou contratos. Riscos e limites permanecem no registro, inclusive cópia independente NOT RUN/risco aceito. O checkpoint histórico de refatoração abaixo fica preservado.
 
 ## Continuidade operacional — 30/10/2026
 
 A resposta do founder encerrou a pergunta sobre recursos: não há mídia externa, armazenamento aprovado ou gerenciador. A fonte da escolha atual é [backup independente sem compra](docs/runbooks/backup-independente-sem-custo-2026-10.md); o [guia humano](docs/runbooks/acoes-manuais-pendentes-pricing-2026-10.md) e o [fechamento](docs/quality/fechamento-definitivo-oferta-2026-10-30.md) apontam para ela. Inclui fontes oficiais, B2/Bitwarden/papel como piloto proposto, dimensionamento sanitizado e limites contratuais/operacionais. A comparação histórica foi preservada e marcada como superada. O estado da refatoração antiga abaixo não é evidência de recuperação independente ou autorização de publicação.
 
 ## Status
+
 - estado: CONCLUÍDA — refatoração, validação conectada e revisão final executadas
 - percentual aproximado: 100%
 - última etapa concluída: formatação, links internos/externos, status documental, checks de migrations/observabilidade e diff aprovados
 - próxima etapa: manter o worktree local e incluir os docs junto da próxima alteração de código; não criar branch, commit ou push nesta tarefa
 
 ## Regras de decisão
+
 - implementação real > testes/evidência executável > documentação > intenção futura
 - funcionalidade inexistente não pode aparecer como implementada
 - código no repositório prova implementação estrutural; não prova configuração, migration, entrega ou saúde em produção
@@ -25,29 +36,36 @@ A resposta do founder encerrou a pergunta sobre recursos: não há mídia extern
 - mudanças preexistentes do worktree serão preservadas e reconciliadas
 
 ## Inventário
+
 ### Documentos analisados
+
 - todos os 157 arquivos encontrados inicialmente em `docs`, classificados por nome, tamanho, títulos, links e finalidade
 - documentos centrais antigos: `README.md`, `CURRENT-STATE.md`, `VisãoGeral.md`, `PlanoAção.md`, `PROGRESS.md` e `teste2e2.md`
 - coleções: 48 ADRs numerados mais índice/template; auditorias C11/C12; achados; contratos; planos de implementação/remediação; runbooks; engenharia; desenvolvimento; governança; C16/SLO; UI e migração documental
 - fontes de verdade inspecionadas: manifesto, CI, Vercel, `src/app`, 12 bounded contexts, schema Drizzle, 80 migrations, autenticação/permissões, providers, workers/outbox, cron, testes e scripts
 
 ### Documentos ainda não analisados
+
 - nenhum
 
 ### Estado inicial mensurável
+
 - arquivos em `docs`: 157
 - maiores arquivos: `PlanoAção.md` (4.133 linhas), `teste2e2.md` (3.343), `VisãoGeral.md` (1.992), `PROGRESS.md` (1.225)
 - código: 12 contexts, 90 tabelas Drizzle, 80 migrations SQL e 248 arquivos de teste unitário/integração/E2E
 - pilha confirmada: Node 22 no manifesto/CI, pnpm 11.17, Next.js 15.5, React 19.2, TypeScript 5.7, Drizzle 0.45, postgres.js, Supabase, Vitest e Playwright
 
 ## Descobertas
+
 ### Arquitetura
+
 - aplicação full-stack Next.js com Server Components, Server Actions e Route Handlers; domínios em `src/contexts`
 - banco acessado por três pools postgres.js separados: runtime, admin e worker
 - side effects assíncronos usam outbox transacional; o worker reserva com `SKIP LOCKED`, usa advisory lock e aplica retry/DLQ
 - marca do produto na UI é Qoro; nome técnico do repositório/pacote é ClinicaOS. A documentação canônica usará “ClinicaOS (produto Qoro)”
 
 ### Banco
+
 - schema versionado por 80 migrations (`0000`–`0079`) e 90 tabelas declaradas; migrations e schema Drizzle são a referência do schema do repositório
 - tabelas estão distribuídas entre tenancy, identity, onboarding, patient, scheduling, clinical, financial, messaging, AI, billing, feedback e infraestrutura
 - RLS é habilitado e forçado; `withTenant` abre transação, assume `authenticated` e define GUCs de clínica/usuário na mesma conexão
@@ -58,17 +76,20 @@ A resposta do founder encerrou a pergunta sobre recursos: não há mídia extern
 - leitura direta por `qoro_runtime` e por `authenticated` sem tenant GUC retornou zero; dois tenants distintos foram testados e cada transação enxergou somente suas próprias linhas
 
 ### Backend
+
 - rotas HTTP públicas/operacionais: auth, health, webhooks Meta/Asaas, exports e 15 crons Vercel
 - crons usam Bearer `CRON_SECRET`; operações destrutivas podem exigir `CRON_SECRET_DESTRUCTIVE`
 - CI real executa audit, typecheck, lint, checks arquiteturais/migrations/observabilidade/registry, cobertura Vitest e build; Playwright não roda no CI atual
 - outbox limita payload, valida schema, deduplica por evento/chave e retém falhas terminais para investigação
 
 ### Frontend
+
 - shell da clínica cobre dashboard, agenda, consultório, pacientes/prontuário, documentos, financeiro/caixa, conversas, relatórios, equipe e configurações
 - shell de super-admin cobre clínicas, billing, feedback, IA, métricas, auditoria e saúde
 - middleware somente faz triagem por cookie/request-id; autenticação e autorização reais ocorrem no servidor
 
 ### Integrações
+
 - Asaas é o único provider de cobrança implementado
 - Meta Cloud API é o provider de WhatsApp implementado; `ZApiProvider` existe apenas como skeleton e seus quatro métodos lançam `ProviderNotImplementedError`
 - Gemini é o provider de IA ativo; `OpenAIProvider` é placeholder não implementado
@@ -83,6 +104,7 @@ A resposta do founder encerrou a pergunta sobre recursos: não há mídia extern
 - Resend: domínio `qoro.dev` verificado; últimos 100 envios da conta observada = 67 delivered/33 bounced. A chave é rotulada DEV, então a atribuição integral ao deploy PROD é incerta
 
 ### Segurança
+
 - seis roles: `owner`, `gestor`, `doctor`, `attendant`, `financial` e `super_admin`; catálogo atual possui 28 permissões
 - autorização combina perfil/epoch de claims, permissões por role/override, guards de servidor e RLS
 - MFA AAL2 é obrigatório para super-admin; gestor/financial recebem incentivo, não bloqueio obrigatório
@@ -93,6 +115,7 @@ A resposta do founder encerrou a pergunta sobre recursos: não há mídia extern
 - Storage PROD: `clinical-pdfs`, `lgpd-exports` e `admin-exports` privados; `clinic-logos`/`logo_qoro` públicos; objetos reais existem nos fluxos clínico/LGPD
 
 ### IA
+
 - runtime atual usa Gemini `gemini-2.5-flash` por padrão e whitelist de 15 tools
 - mutações de agenda usam prepare → confirmação explícita posterior → `confirm_pending_action`
 - contato desconhecido é cadastrado primeiro e depois retoma o agendamento preservado; não é handoff automático
@@ -100,6 +123,7 @@ A resposta do founder encerrou a pergunta sobre recursos: não há mídia extern
 - conversas/mensagens são cifradas; pending actions têm TTL/lock; falhas consecutivas podem abrir handoff
 
 ### Billing
+
 - planos reais: `solo`, `clinica` e `pro`; não existe plano `Pro+`
 - trial padrão do onboarding: 14 dias
 - somente assentos de usuários são quota rígida; agendamentos e IA são métricas
@@ -107,11 +131,13 @@ A resposta do founder encerrou a pergunta sobre recursos: não há mídia extern
 - cancelamento, revogação de cancelamento, inadimplência, dunning e reconciliação estão implementados; estado externo atual não foi verificado
 
 ### Multi-tenancy
+
 - `clinic_id` e RLS isolam dados; `withTenant` é a fronteira transacional canônica
 - super-admin acessa o shell de tenant somente por sessão explícita de impersonação
 - tabelas globais/protegidas têm políticas específicas; RBAC continua na camada de aplicação
 
 ### Outros
+
 - pacientes suportam PII cifrada, consentimentos, vínculos, merge, óbito, restauração e fluxo LGPD
 - scheduling possui estados/transições explícitos, disponibilidade, recorrência, recursos, ausências, fila e waitlist
 - prontuário assinado é imutável; correções pós-assinatura preservam versão legal anterior
@@ -120,6 +146,7 @@ A resposta do founder encerrou a pergunta sobre recursos: não há mídia extern
 - alert targets respondem corretamente, mas regras/canais não foram provados: tokens Sentry retornaram 401/403 e não existe credencial Better Stack local
 
 ## Contradições encontradas
+
 - documentos antigos alternam Qoro/ClinicaOS sem explicar marca versus nome técnico
 - documentação antiga menciona GPT/OpenAI ou arquitetura multi-LLM como atual; runtime usa Gemini e OpenAI é placeholder
 - documentos variam entre 15, 16 e outros totais de tools; código registra 15
@@ -132,6 +159,7 @@ A resposta do founder encerrou a pergunta sobre recursos: não há mídia extern
 - documentação tratava o estado conectado inteiro como manual; DEV RLS/runtime e várias bordas PROD agora têm evidência datada, enquanto settlement/alert delivery/restore continuam pendentes
 
 ## Documentos obsoletos
+
 - `PlanoAção.md` e `PROGRESS.md`: misturam backlog e histórico com estado atual
 - auditorias, relatórios e planos de implementação datados não devem permanecer como referência corrente
 - a maior parte dos 48 ADRs descreve decisões intermediárias já incorporadas, substituídas ou duplicadas
@@ -139,6 +167,7 @@ A resposta do founder encerrou a pergunta sobre recursos: não há mídia extern
 - `docs/docs-migration/*` é proposta de migração anterior, não migração executada nem fonte de verdade
 
 ## Documentos para fundir
+
 - arquitetura/visão/contextos/fluxos em uma visão canônica mais referências por domínio
 - múltiplos documentos de segurança/RLS/LGPD em referências canônicas de banco e segurança
 - planos/quotas/webhooks/reconciliação de billing em uma fonte canônica
@@ -146,17 +175,20 @@ A resposta do founder encerrou a pergunta sobre recursos: não há mídia extern
 - runbooks repetidos em um conjunto operacional mínimo
 
 ## Documentos para dividir
+
 - `VisãoGeral.md`: arquitetura, domínios e operação serão distribuídos por fontes canônicas especializadas
 - conteúdo válido de `PlanoAção.md`/`PROGRESS.md`: somente fatos atuais migram; planos sem evidência serão removidos
 - `teste2e2.md`: resumo histórico separado de estado atual e requisitos de validação manual
 
 ## Documentos a criar
+
 - índice canônico e estado atual
 - referências canônicas para arquitetura/contextos, banco, backend/jobs, frontend/acesso, segurança, IA, billing, integrações, operações, desenvolvimento/testes e regras de negócio
 - lista explícita de limitações confirmadas e validações externas necessárias
 - histórico mínimo de evidências datadas
 
 ## Alterações realizadas
+
 - acervo reduzido de 157 para 61 arquivos; maiores monólitos removidos ou reescritos em referências compactas
 - criadas fontes canônicas para banco, backend/jobs/outbox, frontend, pacientes/clínico/LGPD, agenda/financeiro, IA, billing, integrações, segurança, operações, testes e limitações
 - `README.md`, `CURRENT-STATE.md`, `VisãoGeral.md`, `CONVENTIONS.md`, `onboarding-spec.md` e `adr/README.md` reescritos
@@ -174,6 +206,7 @@ A resposta do founder encerrou a pergunta sobre recursos: não há mídia extern
 - `docs/engineering/decision-guide.md` restaurado como ponte compacta porque templates de issue/PR e o aviso ADR do CI dependem desse caminho
 
 ## Validação executada
+
 - `pnpm exec prettier --check docs organizar_docs.md`: PASS
 - `pnpm typecheck`: PASS
 - `pnpm lint`: PASS
@@ -204,6 +237,7 @@ A resposta do founder encerrou a pergunta sobre recursos: não há mídia extern
 - GitHub Actions/API: dez backups agendados verdes e artifact atual não expirado; nenhum download/restore
 
 ## Decisões tomadas
+
 - preservar caminhos documentais referenciados por código/scripts quando úteis, reescrevendo-os como referência compacta ou ponte explícita
 - remover material redundante sem valor operacional; Git preserva o histórico, portanto `archive` não será depósito integral
 - separar “implementado no repositório” de “confirmado em produção” em todos os documentos operacionais
@@ -214,6 +248,7 @@ A resposta do founder encerrou a pergunta sobre recursos: não há mídia extern
 - assentos são documentados como única quota rígida; feature de permissions granulares em Clínica/Pro permanece distinta de quota
 
 ## Pontos que exigem validação manual
+
 - schema/migrations, drift da `0051` e papel runtime realmente aplicados na instância de produção
 - correção por nova migration do grant `PUBLIC EXECUTE` da trigger e decisão sobre o drift histórico da `0051`
 - criar/corrigir `cobranca_amigavel` e decidir se as categorias Meta `MARKETING` são aceitáveis
@@ -224,6 +259,7 @@ A resposta do founder encerrou a pergunta sobre recursos: não há mídia extern
 - migrations/RLS/role runtime e configuração Data API do PROD
 
 ## Pendências
+
 - nenhuma pendência documental automática após os checks finais
 - pendências de produto/operação permanecem explicitamente na seção anterior e em `docs/roadmap/known-limitations.md`
 - itens externos/manuais permanecem somente na seção anterior e em `docs/roadmap/known-limitations.md`
@@ -231,6 +267,7 @@ A resposta do founder encerrou a pergunta sobre recursos: não há mídia extern
 - dois `console.log` desses specs ainda descrevem exposição antiga apesar das assertivas atuais aprovarem o bloqueio; correção é dívida de teste fora do escopo documental
 
 ## Histórico de execução
+
 - 2026-10-30: founder aceitou adiar a cópia/cofre independente para prosseguir com o lançamento; registro em `docs/quality/aceite-risco-backup-2026-10-30.md`. Rotina opt-in preservada e sem execução: pacote único, escritor temporário sem exclusão, readback/restore Linux. SQL/hash, 44 partes Storage e fontes Auth/chaves presentes. Não solicitar novamente senha/configuração; nenhum envio real ou mudança em produção nesta preparação.
 - 2026-10-30: piloto B2 autorizado com chave filha temporária: upload/download, integridade, restore Linux e cleanup reais passaram com dados sintéticos. Chave original/cache preservados; evidência em `docs/quality/evidencias/b2-pilot-roundtrip-20261030.json`. Guia humano deixou de pedir nova chave/captura; custódia, destino médico e operação recorrente seguem no runbook canônico `docs/runbooks/backup-independente-sem-custo-2026-10.md`.
 - 2026-08-18: checkpoint lido vazio; worktree e inventário físico inicial coletados.

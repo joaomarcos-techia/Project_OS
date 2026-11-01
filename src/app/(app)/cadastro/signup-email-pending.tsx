@@ -136,8 +136,9 @@ export function SignupEmailPending({ rowVersion, email, onUpdated, onReconcile, 
         Aguardando a confirmação do e-mail
       </h2>
       <p className="mx-auto mt-3 max-w-[46ch] text-pretty text-sm leading-relaxed text-fg-muted">
-        Se o endereço puder continuar, enviaremos um link e um código de 8 dígitos. Abra o link;
-        esta tela reconhecerá a confirmação e pedirá o código para continuar.
+        Se o endereço puder continuar, enviaremos um link e um código de 8 dígitos. Abra o link para
+        confirmar o e-mail, criar sua senha e continuar no mesmo aparelho. Se preferir continuar
+        nesta aba, use o código do e-mail depois da confirmação.
       </p>
 
       <form ref={formRef} onSubmit={submit} noValidate className="mt-6">

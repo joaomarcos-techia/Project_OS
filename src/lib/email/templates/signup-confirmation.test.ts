@@ -14,7 +14,9 @@ describe('renderSignupConfirmationEmail', () => {
   it('monta o primeiro envio com o link completo em HTML e em texto', () => {
     const email = renderSignupConfirmationEmail({ confirmUrl, expectedOrigin, verificationCode });
 
-    expect(SIGNUP_CONFIRMATION_EMAIL_TEMPLATE_VERSION).toBe('signup-confirmation.v3');
+    expect(SIGNUP_CONFIRMATION_EMAIL_TEMPLATE_VERSION).toBe('signup-confirmation.v4');
+    expect(email.text).toContain('crie sua senha na página aberta pelo link');
+    expect(email.html).toContain('crie sua senha na página aberta pelo link');
     expect(email.subject).toBe('Confirme seu e-mail — Qoro');
     // O texto é o que sobra quando o cliente de e-mail bloqueia HTML. Sem o link
     // ali, a mensagem chega inútil exatamente para quem tem menos recurso.

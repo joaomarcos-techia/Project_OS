@@ -299,11 +299,14 @@ const config = [
       // vive no Auth (D7) e só a Admin API o lê. Exceção estreita: somente
       // `getUserById` dos donos que a RLS devolveu; nenhuma escrita, nenhum banco.
       'src/contexts/identity/internal/owner-contacts.ts',
-      // Cadastro self-service: estes tres pontos executam transicoes Auth que
+      // Cadastro self-service: estes pontos executam transicoes Auth que
       // nao existem no client comum. Todos derivam user/ref do banco ou de um
       // grant assinado e usam CAS antes de instalar a senha.
       'src/contexts/onboarding/internal/signup-auth-admin.ts',
       'src/app/api/signup/sessions/continue/route.ts',
+      // Destinatário autenticado pelo OTP: identidade autoritativa, ownership
+      // do draft e CAS compartilhado precedem a única instalação da senha.
+      'src/app/api/signup/password/route.ts',
       'src/app/(app)/reset-password/actions.ts',
       // Fase 2 (ADR-032): convite de funcionário cria auth user (inviteUserByEmail via
       // createAdminClient) + insere profile via dbAdmin — profiles não tem INSERT p/
