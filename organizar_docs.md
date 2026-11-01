@@ -2,12 +2,14 @@
 
 ## Correção do cadastro — 31/10/2026
 
-Em desenvolvimento isolado na branch `fix/signup-single-password-20261031`: coleta da senha após
-confirmação e continuação no mesmo aparelho, conforme pedido do founder. Fonte desta alteração:
+Publicado após autorização expressa do founder: PR #45, merge `3fba02a3`, em `app.qoro.dev`.
+Coleta da senha após confirmação e continuação no mesmo aparelho. Fonte desta alteração:
 [validação da senha única](docs/quality/cadastro-senha-unica-2026-10-31.md), com decisão na
 [ADR-062, seção 12](docs/adr/062-identidade-consentimento-cadastro.md). Não altera preços, contratos,
-migrations ou campanhas. O fluxo novo ainda precisa da evidência Preview/DEV; a publicação anterior
-abaixo permanece histórica e não equivale a um PASS desta correção.
+migrations ou campanhas. CI do PR: 5.872/5.872; seis jornadas reais Preview/DEV e smoke em
+Production até a escolha de plano, com persistência e limpeza exata da identidade sintética.
+O smoke de Production não retestou entrega em caixa pessoal; esse limite e a falha corrigida do
+probe de limpeza estão registrados na evidência. A publicação anterior abaixo permanece histórica.
 
 ## Janela de produção autorizada — 30/10/2026
 
