@@ -91,6 +91,22 @@ describe('/cadastro/confirmado', () => {
     expect(html).not.toContain('name="password"');
   });
 
+  it.each(['reserved', 'uncertain'])(
+    'permite reconciliar senha já instalada após refresh: %s',
+    async (credentialState) => {
+      mocks.ready.mockResolvedValue({ ok: false, reason: 'credentials_invalid' });
+      mocks.readOwnedReference.mockResolvedValue({
+        ok: true,
+        signupRef: 'a'.repeat(64),
+        credentialState,
+      });
+      const html = renderToStaticMarkup(await page());
+      expect(html).toContain('Digite a mesma senha');
+      expect(html).toContain('Confirmar senha e continuar');
+      expect(html).toContain('autoComplete="current-password"');
+    },
+  );
+
   it('não expõe e-mail nem id de quem confirmou', async () => {
     const html = renderToStaticMarkup(await page());
     expect(html).not.toContain('private@example.invalid');

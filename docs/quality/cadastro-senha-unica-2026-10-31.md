@@ -36,7 +36,7 @@ incluído aqui. Artifact local sanitizado: `dist/quality/signup-retained-answer-
 | Inventário de segurança | PASS | 196 actions, 55 métodos HTTP, zero gaps e testes de rota presentes |
 | Lint/formatação | PASS | ESLint dos arquivos afetados e Prettier, exit 0; build também executou lint e tipos |
 | Build de produção | PASS | `CI=true node node_modules/tsx/dist/cli.mjs scripts/security/local-build.ts`, Next 15.5.28, exit 0, sem credenciais; bundle: 185 arquivos, zero achados |
-| Regressão integral | PARTIAL | Em execução; não atribuir o resultado histórico à alteração nova |
+| Regressão integral | PASS no primeiro commit | 5.869/5.869 em 554 arquivos, exit 0, 241,16 s; ajuste posterior de retomada após refresh passou 28/28 focados e ainda exige CI do SHA final |
 | Auth + Resend + DB + UI em Preview/DEV | NOT RUN | Spec real atualizado; fixture identificada e limpeza exata, sem pagar Checkout |
 | Produção do fluxo novo | NOT RUN | Código ainda não publicado |
 

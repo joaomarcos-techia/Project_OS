@@ -48,11 +48,8 @@ function TemporarilyUnavailable({ retryHref }: { retryHref: string }) {
  * Fim do link de confirmação — e só isso.
  *
  * O destino anterior era `/cadastro/continuar`, uma revisão de formulário. Quem
- * clica no link quase sempre está no celular enquanto o cadastro segue aberto no
- * computador; cair num formulário ali sugeria que a continuação era naquele
- * aparelho, e sem o cookie anônimo do navegador original ela não era — a pessoa
- * redigitava tudo por engano. Agora esta tela diz o fato e para por aí: a aba do
- * cadastro percebe a confirmação sozinha e segue para a escolha do plano.
+ * pode continuar neste aparelho com a sessão verificada pelo OTP. A senha só é
+ * escolhida aqui; a aba anônima original continua dependendo do código do e-mail.
  *
  * A checagem abaixo é o que impede a tela de MENTIR. Sem sessão verificada,
  * "E-mail confirmado" seria só um texto numa URL que qualquer um abre. Quem já
@@ -147,7 +144,14 @@ export default async function CadastroConfirmadoPage() {
   }
   const ready = await resolveReadyOwnedSignupOnboarding();
   if (ready.ok && ready.kind === 'redirect') redirect(ready.route);
-  if (!ready.ok && ready.reason !== 'credentials_pending') {
+  // Auth may have committed the password before SQL finalization lost its
+  // response. Offer reconciliation with the same password after refresh too.
+  const reconcile =
+    !ready.ok &&
+    ready.reason === 'credentials_invalid' &&
+    owned.ok &&
+    (owned.credentialState === 'reserved' || owned.credentialState === 'uncertain');
+  if (!ready.ok && ready.reason !== 'credentials_pending' && !reconcile) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-surface px-4 py-12">
         <div className="w-full max-w-[420px]">
@@ -184,7 +188,7 @@ export default async function CadastroConfirmadoPage() {
                 </a>
               </>
             ) : (
-              <SignupPasswordForm />
+              <SignupPasswordForm reconcile={reconcile} />
             )}
           </CardContent>
         </Card>

@@ -1360,6 +1360,29 @@ test.describe('cadastro — confirmação real via Resend', () => {
       await expect(verified.page).toHaveURL(/\/cadastro\/plano$/u, { timeout: 120_000 });
       await expect(verified.page.getByRole('heading', { name: 'Escolha seu plano' })).toBeVisible();
       expect(await passwordSignInSucceeds(email, signup.password)).toBe(true);
+      // Fault injection only into this disposable fixture: simulate SQL
+      // finalization losing its response after Auth has installed the password.
+      const sql = postgres(databaseUrl!, { max: 1, ssl: 'require', prepare: false });
+      try {
+        const changed = await sql<{ row_version: number }[]>`
+          update signup_sessions
+             set auth_attempt_state = 'uncertain', row_version = row_version + 1
+           where token_hash = ${fixture.tokenHash}
+             and email_hash = ${emailHash(email)}
+             and status = 'email_verified'
+             and auth_attempt_state = 'completed'
+             and consumed_at is not null
+           returning row_version
+        `;
+        expect(changed).toHaveLength(1);
+      } finally {
+        await sql.end({ timeout: 5 });
+      }
+      await verified.page.goto('/cadastro/confirmado');
+      await expect(verified.page.getByLabel('Sua senha', { exact: true })).toBeVisible();
+      await verified.page.getByLabel('Sua senha', { exact: true }).fill(signup.password);
+      await verified.page.getByRole('button', { name: 'Confirmar senha e continuar' }).click();
+      await expect(verified.page).toHaveURL(/\/cadastro\/plano$/u, { timeout: 120_000 });
       await verified.page.goto('/cadastro/confirmado');
       await expect(verified.page.getByRole('link', { name: 'Escolher plano' })).toBeVisible();
       await expect(verified.page.locator('input[name="password"]')).toHaveCount(0);

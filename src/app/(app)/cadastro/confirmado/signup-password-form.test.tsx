@@ -21,6 +21,15 @@ function fillAndSubmit(password = 'UniquePassword7!') {
   fireEvent.click(screen.getByRole('button', { name: 'Criar senha e escolher plano' }));
 }
 describe('senha após confirmação', () => {
+  it('explica a reconciliação sem sugerir criar outra senha', () => {
+    render(<SignupPasswordForm reconcile />);
+    expect(screen.getByLabelText('Sua senha').getAttribute('autocomplete')).toBe(
+      'current-password',
+    );
+    expect(screen.getByText(/Digite a mesma senha/u)).toBeTruthy();
+    expect(screen.queryByLabelText('Crie sua senha')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Confirmar senha e continuar' })).toBeTruthy();
+  });
   it('pede somente senha, permite conferi-la e não persiste credenciais no navegador', () => {
     render(<SignupPasswordForm />);
     const input = screen.getByLabelText('Crie sua senha');
