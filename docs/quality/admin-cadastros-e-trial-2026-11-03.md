@@ -56,11 +56,47 @@ terminaria em 17/11 e o primeiro vencimento seria 18/11 se concluírem o Checkou
 | Regressão integral local | 5.890/5.890 PASS em 556 arquivos; novos 18 testes somados aos 5.872 anteriores |
 | TypeScript, lint e inventário de segurança | PASS; 196 actions, 55 métodos HTTP e zero gaps |
 | Build local isolado | PASS: Next 15.5.28, exit 0, sem arquivo `.env` no worktree |
-| CI do novo commit e E2E Preview | Em preparação; não equivalem a PASS antecipado |
+| Admin API e SQL Production, somente leitura | PASS de compatibilidade: 11 identidades consultadas, paginação válida e ordem recente; quatro contas autônomas sem profile, três não confirmadas |
+| E2E real Preview/DEV | PASS 1/1, 23,6 s na execução final; prova assinada do ambiente, MFA AAL2, identidade Auth real sem draft, desktop 1440/celular 390, privacidade, negativa anônima e cleanup exato |
+| CI do SHA final | Gate obrigatório antes do merge; resultado corrente nos [checks do PR #46](https://github.com/joaomarcos-techia/Project_OS/pull/46/checks), sem promover skip a PASS |
+| Publicação desta correção em Production | NOT RUN; produção continua no merge `3fba02a3` |
 
 O primeiro teste de componente foi executado sem o ambiente DOM e falhou quatro casos com
 `document is not defined`. A configuração do arquivo passou a usar `happy-dom`, conforme o
 padrão existente; os cinco testes passaram, sem remover asserções. Nenhuma falha foi ocultada.
+
+### E2E e correções do runner
+
+Preview imutável do código de produto `dcba8b15`:
+`https://project-jyu6p8gdr-clinic-os-v2-s-projects.vercel.app/admin/clinicas`.
+Runner: `playwright test e2e/admin-self-service-accounts.spec.ts --project=chromium --workers=1
+--retries=0 --reporter=list`, com `E2E_ADMIN_SIGNUP_FIXTURE=ALLOW_DEV_ONLY` e variáveis selecionadas
+somente no processo. Nenhuma senha, secret TOTP, cookie ou bypass é gravado nos artifacts.
+
+1. Primeira tentativa: FAIL ao localizar e-mail por label exato. O runner passou a usar `#email`,
+   como o teste administrativo já existente. Cleanup da identidade sintética confirmado.
+2. Segunda tentativa: login/MFA, nova linha, ausência de draft, privacidade e as duas larguras
+   passaram; a asserção anônima falhou por esperar HTTP 404 da navegação final. Leituras somente
+   de Production e dos Previews antigo/novo comprovaram que o middleware responde **307 para
+   `/login`** antes do guard administrativo, e o navegador termina na tela de login HTTP 200.
+3. Reteste: **1 PASS, zero SKIP**, exit 0. A negativa exige a cadeia real 307 → login 200, o
+   formulário de login visível e ausência da região/dados administrativos. Não aceita um 200
+   genérico. O guard `super_admin`/AAL2 permanece; seu bloqueio antes de consultar Auth também
+   tem teste unitário. Nenhum contrato ou provider financeiro foi modificado.
+4. Após tornar a guarda DEV exata para host/usuário de banco, verificar o e-mail retornado pela
+   criação da fixture e remover assertions não nulas do request, o cenário inteiro foi repetido:
+   **1/1 PASS em 23,6 s**, sem nova mudança no produto.
+
+Quatro identidades sintéticas sucessivas, uma por tentativa, foram removidas no `finally` com
+readback de ausência e recusa de cleanup caso um profile inesperado aparecesse. O recibo
+`.playwright/admin-signup-visibility-fixture.json` terminou ausente. Falhas anteriores preservadas
+em `dist/quality/admin-signup-preview-e2e-initial-20261103.log` e
+`admin-signup-preview-e2e-redirect-initial-20261103.log`; resultado final em
+`admin-signup-preview-e2e-20261103.log`. Trata-se de teste com Auth/DB reais no DEV e navegador
+externo; os doubles usados na suíte unitária não são contabilizados como E2E.
+
+O commit de conclusão altera apenas runner/documentação em relação a esse Preview; não há nova
+alteração em `src`. A CI do SHA final continua obrigatória, mesmo com o runtime idêntico.
 
 Upgrade/downgrade possuem evidências externas anteriores, incluindo compra paga de médico
 extra, readback da recorrência R$ 397 → R$ 544, replay e downgrade no vencimento controlado.

@@ -20,7 +20,10 @@ async function fillCredential(field: Locator, value: string): Promise<void> {
   try {
     await field.fill(value);
   } catch {
-    throw new Error('Credential field unavailable; sensitive action diagnostics suppressed');
+    const location = new URL(field.page().url());
+    throw new Error(
+      `Credential field unavailable on ${location.hostname}${location.pathname}; sensitive action diagnostics suppressed`,
+    );
   }
 }
 
@@ -68,11 +71,12 @@ test('super_admin sees incomplete self-service accounts without a transient draf
   )
     throw new Error('Only the authorized Preview origin is allowed');
   const database = new URL(databaseUrl);
-  if (
-    !decodeURIComponent(database.username).includes(DEV_PROJECT_REF) &&
-    database.hostname !== `db.${DEV_PROJECT_REF}.supabase.co`
-  )
-    throw new Error('Database is not the known DEV project');
+  const databaseUser = decodeURIComponent(database.username);
+  const knownDevDatabase =
+    (database.hostname === `db.${DEV_PROJECT_REF}.supabase.co` && databaseUser === 'postgres') ||
+    (/^[a-z0-9-]+\.pooler\.supabase\.com$/u.test(database.hostname) &&
+      databaseUser === `postgres.${DEV_PROJECT_REF}`);
+  if (!knownDevDatabase) throw new Error('Database is not the known DEV project');
   if (
     databaseUrl === process.env.DATABASE_URL_PROD ||
     authSecret === process.env.SUPABASE_SECRET_KEY_PROD
@@ -128,7 +132,7 @@ test('super_admin sees incomplete self-service accounts without a transient draf
         },
       },
     });
-    if (created.error || !created.data.user)
+    if (created.error || !created.data.user || created.data.user.email !== fixtureEmail)
       throw new Error('Synthetic Auth fixture creation failed');
     fixtureId = created.data.user.id;
     await writeFile(
@@ -146,8 +150,8 @@ test('super_admin sees incomplete self-service accounts without a transient draf
     expect(before[0]?.n).toBe(0);
     const page = await context.newPage();
     await page.goto(`${target.origin}/login`);
-    await fillCredential(page.getByLabel('E-mail', { exact: true }), adminEmail);
-    await fillCredential(page.getByLabel('Senha', { exact: true }), adminPassword);
+    await fillCredential(page.locator('#email'), adminEmail);
+    await fillCredential(page.locator('input[name="password"]'), adminPassword);
     await page.getByRole('button', { name: 'Entrar', exact: true }).click();
     await expect(page).toHaveURL(/\/login\/mfa/u, { timeout: 45_000 });
     const remainingMs = 30_000 - (Date.now() % 30_000);
@@ -175,7 +179,20 @@ test('super_admin sees incomplete self-service accounts without a transient draf
       await installVercelBypassForOrigin(anonymous, target.origin);
       const denied = await anonymous.newPage();
       const response = await denied.goto(`${target.origin}/admin/clinicas`);
-      expect(response?.status()).toBe(404);
+      // Middleware sends an anonymous visitor to login before the admin guard.
+      // Require that real redirect chain, never accept an arbitrary HTTP 200.
+      if (!response) throw new Error('Anonymous navigation returned no HTTP response');
+      expect(response.status()).toBe(200);
+      await expect(denied).toHaveURL((url) => url.pathname === '/login');
+      const originalRequest = response.request().redirectedFrom();
+      if (!originalRequest)
+        throw new Error('Anonymous request did not follow the required redirect');
+      expect(new URL(originalRequest.url()).pathname).toBe('/admin/clinicas');
+      expect((await originalRequest.response())?.status()).toBe(307);
+      await expect(denied.locator('#email')).toBeVisible();
+      await expect(
+        denied.getByRole('region', { name: 'Contas autônomas sem clínica' }),
+      ).toHaveCount(0);
       expect(await denied.content()).not.toContain('zz***@resend.dev');
     } finally {
       await anonymous.close();
