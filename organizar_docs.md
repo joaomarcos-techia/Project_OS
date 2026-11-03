@@ -2,13 +2,16 @@
 
 ## Visibilidade de cadastros no admin — 03/11/2026
 
-Preparado no [PR #46](https://github.com/joaomarcos-techia/Project_OS/pull/46):
+Publicado pelo [PR #46](https://github.com/joaomarcos-techia/Project_OS/pull/46), após autorização:
 [diagnóstico e validação](docs/quality/admin-cadastros-e-trial-2026-11-03.md).
 As três contas Auth de hoje ainda não confirmaram o e-mail nem provisionaram clínica; o admin
 passa a mostrá-las em seção própria, sem alterar contagens de tenants ou apagar dados expirados.
 A regra de trial de 14 dias e a documentação de troca/cancelamento foram conferidas com o código.
-Regressão local 5.890/5.890, build e E2E real Preview/DEV 1/1 aprovados. Produção permanece no
-merge `3fba02a3`; esta correção ainda não foi publicada. Conferir os checks do SHA final antes do merge.
+Regressão local/CI 5.890/5.890, build e E2E real Preview/DEV 1/1 aprovados. Produção usa o merge
+`d5c623ac`, deployment `dpl_5FUSa3AKW7bkpLUU2qphJVu7phRZ`, READY em `app.qoro.dev`.
+Smoke público 7/7 e leitura Auth/SQL aprovados; UI autenticada Production depende da conferência
+humana, pois o navegador ficou indisponível. Health agregado autenticado não foi comprovado:
+credencial sensitive não legível pela API. Sem migration, mutação de cliente ou operação financeira.
 
 ## Correção do cadastro — 31/10/2026
 

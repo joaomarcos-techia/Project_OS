@@ -1,5 +1,11 @@
 # Admin: contas autônomas, trial e regressão — 03/11/2026
 
+**Publicação autorizada em 03/11, às 21:39 UTC (18:39 de Brasília).** O PR #46 foi
+mesclado como `d5c623ac7d32c182c2dc47d4981a0b68bdb5b80d`. O deployment de Production
+`dpl_5FUSa3AKW7bkpLUU2qphJVu7phRZ` ficou READY e assumiu `app.qoro.dev`.
+As seções de diagnóstico/validação abaixo preservam a fotografia anterior à autorização;
+o resultado pós-publicação e os limites estão no fim deste documento.
+
 ## Diagnóstico em produção, somente leitura
 
 Leitura às 19:45 UTC: três identidades Auth novas em 03/11, todas sem confirmação de e-mail,
@@ -32,7 +38,9 @@ Auth incompletas deixam de aparecer quando o draft temporário expira.
 - A seção é transmitida em Suspense para não bloquear a lista de clínicas. A home do admin
   direciona para essa seção mesmo quando não há formulário temporário válido.
 
-Não houve escrita em Production, mudança de plano/preço/contrato, migration ou cobrança.
+Na investigação anterior à autorização, não houve escrita em Production, mudança de
+plano/preço/contrato, migration ou cobrança. A publicação posterior alterou somente o código;
+não executou mutations de dados de clientes nem operações financeiras.
 
 ## Trial: criação de cobrança não é vencimento
 
@@ -59,7 +67,7 @@ terminaria em 17/11 e o primeiro vencimento seria 18/11 se concluírem o Checkou
 | Admin API e SQL Production, somente leitura | PASS de compatibilidade: 11 identidades consultadas, paginação válida e ordem recente; quatro contas autônomas sem profile, três não confirmadas |
 | E2E real Preview/DEV | PASS 1/1, 23,6 s na execução final; prova assinada do ambiente, MFA AAL2, identidade Auth real sem draft, desktop 1440/celular 390, privacidade, negativa anônima e cleanup exato |
 | CI do SHA final | Gate obrigatório antes do merge; resultado corrente nos [checks do PR #46](https://github.com/joaomarcos-techia/Project_OS/pull/46/checks), sem promover skip a PASS |
-| Publicação desta correção em Production | NOT RUN; produção continua no merge `3fba02a3` |
+| Publicação desta correção em Production | NOT RUN na fotografia pré-autorização, então no merge `3fba02a3`; publicação posterior registrada abaixo |
 
 O primeiro teste de componente foi executado sem o ambiente DOM e falhou quatro casos com
 `document is not defined`. A configuração do arquivo passou a usar `happy-dom`, conforme o
@@ -110,3 +118,50 @@ lacunas de 17/10 como atuais. Foi reconciliada com a implementação e evidênci
 parcelas do novo ciclo são confirmadas antes da aplicação local; dívidas anteriores e histórico
 pago não são apagados no downgrade. O cancelamento pausa a recorrência e remove cobranças
 editáveis abertas com releitura, preservando pagamentos já processados.
+
+## Publicação e verificações de Production — 03/11
+
+- Autorização expressa do founder: “Publicar o PR #46 e verificar em produção”. Antes do merge,
+  head `4afc448a`, base `3fba02a3`, worktree limpo e checks conferidos. A
+  [CI do head](https://github.com/joaomarcos-techia/Project_OS/actions/runs/41712238139)
+  terminou SUCCESS: 5.890/5.890 testes, TypeScript, lint, isolamento, build e segurança. E2E
+  público: 7 PASS e 2 SKIP por falta de chaves Turnstile no build isolado. Snyk e Semgrep PASS;
+  Vercel Agent Review NEUTRAL, sem equivaler a uma revisão aprovada.
+- Merge às 21:39:19 UTC, código de produção `d5c623ac`; deployment READY e alias confirmados
+  pela API autenticada da Vercel. O deployment anterior, `dpl_8kdUb7FKUkgHwqG5G99RcJkz6Auh`,
+  código `3fba02a3`, permanece a referência de rollback de código. Nenhuma migration ou
+  alteração de variável, flag comercial, contrato ou cobrança foi executada.
+- Smoke às 21:46:37 UTC: **7/7 verificações HTTP PASS**. Login entrega shell/JS e CSP;
+  cadastro disponível sem criar conta; `/admin`, `/admin/clinicas` e `/dashboard` respondem
+  307 para login sem conteúdo protegido; retorno de pagamento continua sem alegar liquidação;
+  `/api/health` sem autorização responde 401.
+- Compatibilidade Auth/SQL Production às 21:40:43 UTC: 11 identidades, quatro cadastros
+  autônomos sem profile, sendo três sem confirmação e um confirmado. Consulta somente de
+  leitura; não cria fixtures no banco de clientes nem obtém fatores MFA da produção.
+- Logs do deployment, 21:43–21:46 UTC: amostra de 19 registros, sem truncamento, zero 5xx,
+  erros ou warnings registrados. Essa amostra não comprova ausência global de incidentes.
+- **BLOCKED — UI autenticada em Production:** o inventário do controle do navegador retornou
+  `The browser access host is unavailable`, sem browser/sessão AAL2 disponível. A nova UI passou
+  de verdade no Preview/DEV; API e SQL Production não substituem a observação dessa tela após
+  publicar. Solicitada conferência humana em `https://app.qoro.dev/admin/clinicas`, na seção
+  “Contas autônomas sem clínica”, sem solicitar senha/OTP por chat nem contornar MFA.
+- **BLOCKED — health autenticado:** a API da Vercel não permite decifrar a credencial de
+  monitoring marcada como sensitive. Não houve rotação, alteração ou empréstimo de segredo DEV.
+  A recusa 401 foi comprovada; saúde agregada autenticada não recebeu PASS. A conexão Production
+  de Auth e banco foi conferida separadamente em leitura.
+
+### Falhas iniciais do probe pós-publicação
+
+O primeiro probe HTTP teve duas falhas de pré-condição/expectativa, preservadas em
+`dist/quality/pr46-production-smoke-initial-20261103.json`. A primeira procurava inputs de login
+no HTML antes da hidratação; o login usa `useSearchParams` em Suspense, com formulário CSR.
+O contrato de HTTP passou a conferir explicitamente shell, assets e CSP, sem afirmar que testou
+o formulário hidratado. A segunda exigia uma credencial que a API retorna como não decifrável;
+permanece bloqueio do probe autenticado, sem enfraquecer a rota ou considerar 401 um PASS desse
+probe. Código de login e health não mudou no PR #46. O resultado final é **PARTIAL no conjunto
+de verificações pós-publicação**, com os sete probes públicos aprovados e os dois limites acima.
+
+Evidências locais sanitizadas: `dist/quality/pr46-production-smoke-20261103.json`,
+`dist/quality/pr46-production-logs-20261103.json` e
+`dist/quality/prod-admin-account-read-20261103.json`. Nenhum artifact guarda corpo de Auth,
+tokens, headers de autorização, sessão, OTP, URL assinada ou dado clínico.
