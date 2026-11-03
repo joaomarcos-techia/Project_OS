@@ -147,11 +147,14 @@ editáveis abertas com releitura, preservando pagamentos já processados.
   warnings registrados. A CLI não retornou campos de status HTTP nesses registros: não se pode
   inferir zero 5xx de campos ausentes. Os códigos HTTP foram afirmados somente nos sete probes
   separados. Essa amostra não comprova ausência global de incidentes.
-- **BLOCKED — UI autenticada em Production:** o inventário do controle do navegador retornou
-  `The browser access host is unavailable`, sem browser/sessão AAL2 disponível. A nova UI passou
-  de verdade no Preview/DEV; API e SQL Production não substituem a observação dessa tela após
-  publicar. Solicitada conferência humana em `https://app.qoro.dev/admin/clinicas`, na seção
-  “Contas autônomas sem clínica”, sem solicitar senha/OTP por chat nem contornar MFA.
+- **PASS — UI autenticada em Production, conferência humana:** em 03/11 o founder respondeu
+  “Sim, a seção e as contas aparecem” à verificação de
+  `https://app.qoro.dev/admin/clinicas`, na seção “Contas autônomas sem clínica”. Isso comprova
+  a presença visual da seção e das contas na sessão administrativa do founder; não equivale
+  a um novo E2E automatizado ou à inspeção de todas as colunas/estados em Production. O controle
+  do navegador continuou indisponível (`The browser access host is unavailable`); o E2E
+  automatizado autenticado permanece a prova anterior do Preview/DEV. Não foram solicitados
+  senha/OTP por chat nem obtidos fatores MFA da produção.
 - **BLOCKED — health autenticado:** a API da Vercel não permite decifrar a credencial de
   monitoring marcada como sensitive. Não houve rotação, alteração ou empréstimo de segredo DEV.
   A recusa 401 foi comprovada; saúde agregada autenticada não recebeu PASS. A conexão Production
@@ -165,8 +168,10 @@ no HTML antes da hidratação; o login usa `useSearchParams` em Suspense, com fo
 O contrato de HTTP passou a conferir explicitamente shell, assets e CSP, sem afirmar que testou
 o formulário hidratado. A segunda exigia uma credencial que a API retorna como não decifrável;
 permanece bloqueio do probe autenticado, sem enfraquecer a rota ou considerar 401 um PASS desse
-probe. Código de login e health não mudou no PR #46. O resultado final é **PARTIAL no conjunto
-de verificações pós-publicação**, com os sete probes públicos aprovados e os dois limites acima.
+probe. Código de login e health não mudou no PR #46. O conjunto de verificações pós-publicação
+permanece **PARTIAL** pelo health autenticado não comprovado. Os sete probes públicos passaram,
+e a presença da nova seção/contas recebeu **PASS humano em Production** após a confirmação do
+founder. Não houve novo deploy nem repetição de testes financeiros para registrar essa evidência.
 
 Evidências locais sanitizadas: `dist/quality/pr46-production-smoke-20261103.json`,
 `dist/quality/pr46-production-logs-20261103.json` e

@@ -9,8 +9,9 @@ passa a mostrá-las em seção própria, sem alterar contagens de tenants ou apa
 A regra de trial de 14 dias e a documentação de troca/cancelamento foram conferidas com o código.
 Regressão local/CI 5.890/5.890, build e E2E real Preview/DEV 1/1 aprovados. Produção usa o merge
 `d5c623ac`, deployment `dpl_5FUSa3AKW7bkpLUU2qphJVu7phRZ`, READY em `app.qoro.dev`.
-Smoke público 7/7 e leitura Auth/SQL aprovados; UI autenticada Production depende da conferência
-humana, pois o navegador ficou indisponível. Health agregado autenticado não foi comprovado:
+Smoke público 7/7 e leitura Auth/SQL aprovados; em 03/11 o founder confirmou na sessão autenticada
+de Production que a nova seção e as contas aparecem (PASS humano, sem novo E2E automatizado).
+Health agregado autenticado não foi comprovado:
 credencial sensitive não legível pela API. Sem migration, mutação de cliente ou operação financeira.
 
 ## Correção do cadastro — 31/10/2026
