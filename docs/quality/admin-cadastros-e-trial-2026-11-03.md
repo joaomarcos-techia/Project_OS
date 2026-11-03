@@ -127,6 +127,11 @@ editáveis abertas com releitura, preservando pagamentos já processados.
   terminou SUCCESS: 5.890/5.890 testes, TypeScript, lint, isolamento, build e segurança. E2E
   público: 7 PASS e 2 SKIP por falta de chaves Turnstile no build isolado. Snyk e Semgrep PASS;
   Vercel Agent Review NEUTRAL, sem equivaler a uma revisão aprovada.
+- A [CI automática da main após merge](https://github.com/joaomarcos-techia/Project_OS/actions/runs/41723769170)
+  também terminou SUCCESS às 21:54 UTC: 5.890/5.890 testes em 556 arquivos, build, isolamento
+  e demais gates aprovados; E2E público 7 PASS e 2 SKIP. As árvores Git de `4afc448a` e
+  `d5c623ac` são idênticas (`5cd74bd58ffed2c8996ed86a3ec267e09b4869b2`). Nenhuma nova
+  operação financeira foi necessária para essa regressão.
 - Merge às 21:39:19 UTC, código de produção `d5c623ac`; deployment READY e alias confirmados
   pela API autenticada da Vercel. O deployment anterior, `dpl_8kdUb7FKUkgHwqG5G99RcJkz6Auh`,
   código `3fba02a3`, permanece a referência de rollback de código. Nenhuma migration ou
@@ -138,8 +143,10 @@ editáveis abertas com releitura, preservando pagamentos já processados.
 - Compatibilidade Auth/SQL Production às 21:40:43 UTC: 11 identidades, quatro cadastros
   autônomos sem profile, sendo três sem confirmação e um confirmado. Consulta somente de
   leitura; não cria fixtures no banco de clientes nem obtém fatores MFA da produção.
-- Logs do deployment, 21:43–21:46 UTC: amostra de 19 registros, sem truncamento, zero 5xx,
-  erros ou warnings registrados. Essa amostra não comprova ausência global de incidentes.
+- Logs do deployment, 21:43–21:46 UTC: amostra de 19 registros, sem truncamento, zero erros ou
+  warnings registrados. A CLI não retornou campos de status HTTP nesses registros: não se pode
+  inferir zero 5xx de campos ausentes. Os códigos HTTP foram afirmados somente nos sete probes
+  separados. Essa amostra não comprova ausência global de incidentes.
 - **BLOCKED — UI autenticada em Production:** o inventário do controle do navegador retornou
   `The browser access host is unavailable`, sem browser/sessão AAL2 disponível. A nova UI passou
   de verdade no Preview/DEV; API e SQL Production não substituem a observação dessa tela após
