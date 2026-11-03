@@ -1,5 +1,15 @@
 # DOCS REFACTOR CHECKPOINT
 
+## Visibilidade de cadastros no admin — 03/11/2026
+
+Preparado no [PR #46](https://github.com/joaomarcos-techia/Project_OS/pull/46):
+[diagnóstico e validação](docs/quality/admin-cadastros-e-trial-2026-11-03.md).
+As três contas Auth de hoje ainda não confirmaram o e-mail nem provisionaram clínica; o admin
+passa a mostrá-las em seção própria, sem alterar contagens de tenants ou apagar dados expirados.
+A regra de trial de 14 dias e a documentação de troca/cancelamento foram conferidas com o código.
+Regressão local 5.890/5.890, build e E2E real Preview/DEV 1/1 aprovados. Produção permanece no
+merge `3fba02a3`; esta correção ainda não foi publicada. Conferir os checks do SHA final antes do merge.
+
 ## Correção do cadastro — 31/10/2026
 
 Em desenvolvimento isolado na branch `fix/signup-single-password-20261031`: coleta da senha após

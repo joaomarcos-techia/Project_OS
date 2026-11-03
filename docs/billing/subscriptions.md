@@ -37,6 +37,12 @@ ativação estão em
 - invoice: `open`, `partial`, `paid`, `overdue`, `cancelled`;
 - trial do onboarding por convite (`/join`): 14 dias. O cadastro autônomo é um
   fluxo separado e sua regra de trial não deve ser inferida desta constante.
+- na oferta 2026 do cadastro autônomo: **14 dias desde `auth.users.created_at`**,
+  sem reinício por reenvio, retomada do draft ou provisionamento. O Checkout pode
+  cadastrar a recorrência e uma parcela futura antes do fim; o primeiro vencimento
+  é a data UTC seguinte ao fim exato do trial, para evitar cobrança antecipada.
+  Se o Checkout ocorrer após o prazo, vence na data corrente e a clínica só é
+  liberada após confirmação do pagamento. Fonte: `onboarding/internal/signup-trial.ts`.
 
 Transições são monotônicas para tolerar webhook fora de ordem. `paid`/`cancelled` de invoice são terminais; refund vive em payment attempts. Assinatura `cancelled → active` só ocorre no fluxo auditado de reativação após aceite Asaas.
 
@@ -55,13 +61,27 @@ Reconciliação diária lista/consulta pagamentos e corrige invoices/assinatura/
 
 Calcula prorrata em centavos sobre o preço efetivo/campanha, cria cobrança avulsa Asaas e aplica o plano somente após confirmação do pagamento.
 
-**Lacuna identificada em 17/10/2026:** a aplicação local não atualiza o valor da assinatura recorrente no Asaas. O próximo ciclo pode continuar com o valor anterior. Não considerar a troca financeiramente validada até corrigir e comprovar o readback no Sandbox.
+**Histórico:** a lacuna identificada em 17/10 foi corrigida na integração da oferta.
+`syncProviderPlanChange` exige confirmação do valor recorrente no Asaas e ajusta,
+com releitura, as parcelas editáveis do novo ciclo antes de aplicar o plano local.
+Parcelas de ciclos anteriores e histórico pago são preservados. A compra de médico
+extra e a recorrência R$ 397 → R$ 544 foram comprovadas no Preview/Sandbox;
+ver [evidência de 26/10](../quality/finalizacao-oferta-2026-10-26.md).
 
 ### Downgrade
 
-Agenda para o fim do ciclo. Solo exige exatamente um usuário ativo e não excluído na solicitação **e novamente** na aplicação. Se a condição mudou, a troca falha sem desativar pessoas automaticamente.
+Agenda para o fim do ciclo. Confere o teto do plano de destino na solicitação
+**e novamente** na aplicação, considerando somente usuários ativos e não excluídos.
+Na oferta 2026, confere também as vagas separadas de médicos e equipe. Se a
+condição mudou, a troca falha sem desativar pessoas automaticamente.
 
-O código atual exige exatamente um usuário também em Pro → Clínica, embora Clínica permita até cinco. O cron atualiza o valor da assinatura Asaas com `updatePendingPayments: false`; uma cobrança pendente já gerada permanece no valor anterior. Ela **não é apagada** pelo downgrade. Essas duas lacunas precisam de correção e prova externa antes de prometer a troca como concluída.
+O sincronizador mantém `updatePendingPayments: false` na mudança da recorrência
+para não reprecificar indiscriminadamente dívidas antigas. Depois atualiza
+explicitamente cada parcela editável com vencimento a partir do novo ciclo e
+relê o resultado; uma cobrança processada com valor incompatível impede a
+aplicação local e exige revisão. O downgrade não apaga o histórico financeiro.
+O caminho Clínica 3 → Clínica 2 recebeu prova integrada com vencimento controlado
+no Preview/Sandbox; isso não equivale a uma troca executada em contrato real.
 
 ### Cancelamento
 
