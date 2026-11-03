@@ -58,6 +58,18 @@ export interface SignupIntakeDTO {
   updatedAt: string;
 }
 
+export interface SignupAccountDTO {
+  id: string;
+  maskedEmail: string;
+  createdAt: string;
+  stage: 'email_pending' | 'password_pending' | 'plan_pending' | 'checkout_pending';
+  liveDraft: boolean;
+}
+
+export type SignupAccountPageDTO =
+  | { ok: true; items: SignupAccountDTO[]; page: number; hasNextPage: boolean }
+  | { ok: false };
+
 export interface ClinicDetailDTO {
   general: {
     id: string;

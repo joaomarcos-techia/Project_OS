@@ -1,5 +1,13 @@
 # DOCS REFACTOR CHECKPOINT
 
+## Visibilidade de cadastros no admin — 03/11/2026
+
+Em implementação isolada: [diagnóstico e validação](docs/quality/admin-cadastros-e-trial-2026-11-03.md).
+As três contas Auth de hoje ainda não confirmaram o e-mail nem provisionaram clínica; o admin
+passa a mostrá-las em seção própria, sem alterar contagens de tenants ou apagar dados expirados.
+A regra de trial de 14 dias e a documentação de troca/cancelamento foram conferidas com o código.
+Produção permanece no merge `3fba02a3`; esta correção ainda não foi publicada.
+
 ## Correção do cadastro — 31/10/2026
 
 Em desenvolvimento isolado na branch `fix/signup-single-password-20261031`: coleta da senha após

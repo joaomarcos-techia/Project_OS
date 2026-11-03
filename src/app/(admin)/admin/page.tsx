@@ -255,7 +255,10 @@ export default async function AdminDashboardPage() {
         <CardHeader>
           <CardTitle id="admin-signup-intakes-title">Cadastros autônomos em andamento</CardTitle>
           <CardDescription>
-            Perfil declarado antes da ativação da clínica, limitado aos cadastros ainda válidos.
+            Perfil declarado antes da ativação da clínica, limitado aos cadastros ainda válidos.{' '}
+            <Link className="text-primary underline" href="/admin/clinicas#cadastros-autonomos">
+              Ver também contas sem clínica, mesmo após expirar o formulário.
+            </Link>
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0 pt-(--sp-3)">

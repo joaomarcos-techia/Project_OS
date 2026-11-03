@@ -1,5 +1,6 @@
 import { Eye, Search } from 'lucide-react';
 import Link from 'next/link';
+import { Suspense } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { buttonVariants } from '@/components/ui/button';
@@ -32,6 +33,7 @@ import { clinicRepository } from '../_lib/repositories/clinics.repo';
 import { invitesRepository } from '../_lib/repositories/invites.repo';
 import { InvitesTable } from './invites-table';
 import { NewClinicModal } from './new-clinic-modal';
+import { SignupAccounts, SignupAccountsLoading } from './signup-accounts';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,7 +47,14 @@ const CLINIC_STATUSES = [
 ];
 const BILLING_STATUSES = ['trial', 'active', 'past_due', 'cancelled'];
 
-type SP = { q?: string; status?: string; plan?: string; billing?: string; page?: string };
+type SP = {
+  q?: string;
+  status?: string;
+  plan?: string;
+  billing?: string;
+  page?: string;
+  cadastrosPage?: string;
+};
 
 function buildQuery(sp: SP, overrides: { [K in keyof SP]?: string | undefined }): string {
   const params = new URLSearchParams();
@@ -86,7 +95,7 @@ export default async function ClinicasPage({ searchParams }: { searchParams: Pro
       <PageHeader
         crumbs={[{ label: 'Operação' }, { label: 'Clínicas' }]}
         title="Clínicas"
-        description={`${result.total} tenant(s) na plataforma. Abra para inspecionar ou impersonar — toda ação é auditada.`}
+        description={`${result.total} clínica(s) provisionada(s), por convite ou Checkout. Contas ainda sem clínica aparecem abaixo. Toda ação administrativa é auditada.`}
         actions={<NewClinicModal plans={plans} />}
       />
 
@@ -214,6 +223,10 @@ export default async function ClinicasPage({ searchParams }: { searchParams: Pro
           </>
         )}
       </TableWrap>
+
+      <Suspense fallback={<SignupAccountsLoading />}>
+        <SignupAccounts page={Number(sp.cadastrosPage ?? '1')} />
+      </Suspense>
 
       {/* ======================== CONVITES ======================== */}
       <InvitesTable invites={invites} formatDateTime={inviteDates} />
