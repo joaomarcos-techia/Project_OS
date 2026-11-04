@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import { z } from 'zod';
 
 import {
@@ -10,7 +11,10 @@ import {
   readSignupDraft,
   readSignupPasswordState,
   resolveReadyOwnedSignupOnboarding,
+  completeRecoveredSignupPassword,
+  SIGNUP_RECOVERY_COOKIE,
 } from '@/contexts/onboarding';
+import { readSignupConfirmationGrant } from '@/lib/auth/signup-confirmation-grant';
 import { resolvePreTenantOnboarding } from '@/lib/auth/pretenant-onboarding';
 import { assertSignupDraftWriteAllowed, getClientIp } from '@/lib/auth/rate-limit';
 import { hashSignupUserId } from '@/lib/auth/signup-user-hash';
@@ -27,7 +31,7 @@ export const dynamic = 'force-dynamic';
 
 const MAX_BODY_BYTES = 16_384;
 const schema = z.object({ password: signupPasswordSchema }).strict();
-function json(body: { error: string } | { ok: true }, status = 200): NextResponse {
+function json(body: { error: string } | { ok: true; next?: string }, status = 200): NextResponse {
   return NextResponse.json(body, { status, headers: { 'Cache-Control': 'no-store' } });
 }
 
@@ -74,6 +78,29 @@ export async function POST(req: Request): Promise<Response> {
     if (!input.success) return json({ error: 'invalid_body' }, 400);
 
     const owner = await readOwnedSignupReference(identity.userId, identity.email);
+    if (!owner.ok && owner.reason === 'gone') {
+      const jar = await cookies();
+      const proof = readSignupConfirmationGrant(jar.get(SIGNUP_RECOVERY_COOKIE)?.value);
+      if (proof?.userId === identity.userId && proof.signupRef === identity.signupRef) {
+        const recovered = await completeRecoveredSignupPassword({
+          userId: identity.userId,
+          email: identity.email,
+          signupRef: identity.signupRef,
+          password: input.data.password,
+        });
+        if (recovered.ok) return json({ ok: true, next: recovered.next });
+        return json(
+          { error: recovered.reason },
+          recovered.reason === 'weak_password'
+            ? 422
+            : recovered.reason === 'unauthorized'
+              ? 403
+              : recovered.reason === 'conflict'
+                ? 409
+                : 503,
+        );
+      }
+    }
     if (!owner.ok) return json({ error: owner.reason }, owner.reason === 'gone' ? 410 : 503);
     if (owner.signupRef !== identity.signupRef || owner.checkoutRecovery)
       return json({ error: 'unauthorized' }, 403);

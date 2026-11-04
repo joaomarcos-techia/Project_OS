@@ -7,6 +7,7 @@ import type { NextConfig } from 'next';
 
 import { buildContentSecurityPolicy } from './src/lib/http/content-security-policy';
 import { AUTH_CONFIRM_CONTENT_SECURITY_POLICY } from './src/lib/http/auth-confirm-security';
+import { SIGNUP_RECOVERY_CONTENT_SECURITY_POLICY } from './src/lib/http/signup-recovery-bridge';
 import { CLINIC_LOGO_ACTION_BODY_SIZE_LIMIT } from './src/lib/storage/clinic-logo-policy';
 
 /** Política base, exportada para o teste de não-regressão do Embedded Signup. */
@@ -110,6 +111,17 @@ export const nextConfig: NextConfig = {
         headers: [
           { key: 'Referrer-Policy', value: 'no-referrer' },
           { key: 'Content-Security-Policy', value: AUTH_CONFIRM_CONTENT_SECURITY_POLICY },
+          { key: 'Cache-Control', value: 'no-store, private, max-age=0' },
+          { key: 'X-Robots-Tag', value: 'noindex, nofollow, noarchive' },
+        ],
+      },
+      {
+        // A retomada também recebe segredo no fragmento. A regra específica
+        // posterior preserva os hashes exatos da ponte e impede Referer.
+        source: '/cadastro/retomar',
+        headers: [
+          { key: 'Referrer-Policy', value: 'no-referrer' },
+          { key: 'Content-Security-Policy', value: SIGNUP_RECOVERY_CONTENT_SECURITY_POLICY },
           { key: 'Cache-Control', value: 'no-store, private, max-age=0' },
           { key: 'X-Robots-Tag', value: 'noindex, nofollow, noarchive' },
         ],

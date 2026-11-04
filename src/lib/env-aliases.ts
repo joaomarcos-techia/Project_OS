@@ -50,6 +50,7 @@ export const DEVELOPMENT_ENV_ALIASES = [
   ['ASAAS_BASE_URL', 'ASAAS_BASE_URL_DEV'],
   ['ASAAS_WEBHOOK_TOKEN', 'ASAAS_WEBHOOK_TOKEN_DEV'],
   ['RESEND_API_KEY', 'RESEND_API_KEY_DEV'],
+  ['RESEND_WEBHOOK_SECRET', 'RESEND_WEBHOOK_SECRET_DEV'],
   ['EMAIL_FROM', 'EMAIL_FROM_DEV'],
   // ADR-060: o Turnstile valida o HOSTNAME onde o widget rodou, então a chave de
   // produção simplesmente falha em localhost.

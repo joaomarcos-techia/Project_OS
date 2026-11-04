@@ -234,6 +234,30 @@ export function collectInventory(root: string): Inventory {
       guard: 'same-origin-form-and-supabase-otp',
       call: 'supabase.auth.verifyOtp',
     },
+    'src/app/(app)/cadastro/retomar/route.ts#GET': {
+      guard: 'public-static-recovery-bridge-no-get-consumption-csp-hashes',
+      call: 'signupRecoveryBridgeResponse',
+    },
+    'src/app/api/signup/recovery/consume/route.ts#POST': {
+      guard: 'origin-limit-single-use-mail-proof-http-only-continuation',
+      call: 'consumeSignupRecovery',
+    },
+    'src/app/api/signup/recovery/request/route.ts#POST': {
+      guard: 'origin-resend-limit-obfuscated-existing-account-only',
+      call: 'requestSignupRecovery',
+    },
+    'src/app/api/signup/sessions/destination/route.ts#GET': {
+      guard: 'same-origin-short-browser-cookie-own-destination-read-limit',
+      call: 'readSignupCodeDestination',
+    },
+    'src/app/api/signup/sessions/verify/route.ts#POST': {
+      guard: 'origin-limit-cookie-email-code-expiry-attempts-cas',
+      call: 'confirmSignupEmailCode',
+    },
+    'src/app/api/webhooks/resend/route.ts#POST': {
+      guard: 'svix-hmac-expiry-body-cap-and-event-deduplication',
+      call: 'verifyResendWebhook',
+    },
     'src/app/(app)/auth/session-refresh/route.ts#GET': {
       guard: 'supabase-session-refresh',
       call: 'supabase.auth.getUser',

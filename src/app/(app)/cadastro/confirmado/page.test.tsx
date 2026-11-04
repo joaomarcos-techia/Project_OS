@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   redirect: vi.fn(),
   resolve: vi.fn(),
   ready: vi.fn(),
+  continuation: vi.fn(),
 }));
 
 vi.mock('next/navigation', () => ({ redirect: mocks.redirect }));
@@ -36,6 +37,9 @@ vi.mock('@/contexts/onboarding', () => ({
   validateVerifiedSignupAuthUserForClaim: mocks.validateAuthBinding,
   readOwnedSignupReference: mocks.readOwnedReference,
   resolveReadyOwnedSignupOnboarding: mocks.ready,
+  resolveSignupContinuation: mocks.continuation,
+  SIGNUP_RECOVERY_COOKIE: 'qoro_signup_recovery',
+  readConsumedSignupRecovery: vi.fn().mockResolvedValue(null),
 }));
 
 import CadastroConfirmadoPage from './page';
@@ -60,6 +64,7 @@ beforeEach(() => {
   mocks.readOwnedReference.mockResolvedValue({ ok: true, signupRef: 'a'.repeat(64) });
   mocks.cookieGet.mockReturnValue(undefined);
   mocks.ready.mockResolvedValue({ ok: false, reason: 'credentials_pending' });
+  mocks.continuation.mockResolvedValue({ ok: true, next: '/cadastro/plano' });
 });
 
 describe('/cadastro/confirmado', () => {
@@ -79,9 +84,8 @@ describe('/cadastro/confirmado', () => {
 
   it('não pede outra senha quando ela já foi definida', async () => {
     mocks.ready.mockResolvedValue({ ok: true, kind: 'pretenant' });
-    const html = renderToStaticMarkup(await page());
-    expect(html).toContain('href="/cadastro/plano"');
-    expect(html).not.toContain('name="password"');
+    await expect(page()).rejects.toThrow('REDIRECT:/cadastro/plano');
+    expect(mocks.continuation).toHaveBeenCalledOnce();
   });
 
   it('não apresenta formulário quando a prontidão não pode ser verificada', async () => {

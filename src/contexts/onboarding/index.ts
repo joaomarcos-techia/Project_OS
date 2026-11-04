@@ -15,6 +15,22 @@ export {
   type SignupAnswers,
 } from './internal/signup-answers';
 export type { SignupAnswerValues } from './internal/signup-answer-values';
+export { confirmSignupEmailCode, resolveSignupContinuation } from './internal/signup-email-code';
+export { recordSignupEmailDelivery } from './internal/signup-email-delivery';
+export {
+  prepareSignupRecovery,
+  requestSignupRecovery,
+  sendSignupLeadRecovery,
+  consumeSignupRecovery,
+  readConsumedSignupRecovery,
+  completeRecoveredSignupPassword,
+  signupRecoveryInputSchema,
+  SIGNUP_RECOVERY_COOKIE,
+} from './internal/signup-recovery';
+export {
+  signupEmailCodeSchema,
+  readSignupCodeDestination,
+} from './internal/signup-email-code-repository';
 export {
   claimSignupDraftByVerifiedEmail,
   ensureSignupDraftForVerifiedEmail,

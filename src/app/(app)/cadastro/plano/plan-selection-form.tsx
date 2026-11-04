@@ -135,6 +135,14 @@ export function PlanSelectionForm() {
             ? body.selectedPlanId
             : undefined,
         );
+        setSaved(
+          Boolean(
+            body.selectedPlanId &&
+            body.plans.some(
+              (plan) => plan.id === body.selectedPlanId && plan.cycle === body.selectedBillingCycle,
+            ),
+          ),
+        );
         setPhase('ready');
         return;
       }

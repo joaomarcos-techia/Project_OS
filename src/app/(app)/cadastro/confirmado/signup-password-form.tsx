@@ -45,7 +45,18 @@ export function SignupPasswordForm({ reconcile = false }: { reconcile?: boolean 
         const result: unknown = await response.json();
         if (typeof result === 'object' && result !== null && 'ok' in result && result.ok === true) {
           form.reset();
-          window.location.assign('/cadastro/plano');
+          const next = 'next' in result ? result.next : '/cadastro/plano';
+          if (
+            next === '/cadastro/plano' ||
+            next === '/cadastro/continuar' ||
+            next === '/cadastro/pagamento?resultado=pending'
+          ) {
+            window.location.assign(next);
+            return;
+          }
+          setMessage(
+            'Não foi possível confirmar a próxima etapa. Atualize a página para continuar.',
+          );
           return;
         }
       }

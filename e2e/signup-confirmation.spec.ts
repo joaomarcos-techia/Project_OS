@@ -500,6 +500,10 @@ async function cleanupFixture(fixture: Fixture): Promise<void> {
       for (const resource of resources) {
         await cancelSandboxCheckout(resource.asaas_checkout_id!);
       }
+      const [emailLedger] =
+        await sql`select to_regclass('public.signup_email_delivery_events') as present`;
+      if (emailLedger?.present)
+        await sql`delete from signup_email_delivery_events e using signup_sessions s where s.email_hash=${mailHash} and s.confirmation_message_id=e.message_id`;
       for (const tokenHash of tokenHashes) {
         await sql`delete from signup_sessions where token_hash = ${tokenHash}`;
       }
@@ -992,6 +996,7 @@ async function startSignup(
   browser: Browser,
   email: string,
   knownTokenHashes: readonly string[] = [],
+  flow: 'legacy' | 'code' = 'legacy',
 ): Promise<SignupRun> {
   const context = await browser.newContext({
     baseURL: baseUrl!,
@@ -1020,10 +1025,72 @@ async function startSignup(
     await page.getByLabel('Seu nome', { exact: true }).fill('Ana E2E');
     await page.getByLabel('Nome da clínica', { exact: true }).fill('Clínica E2E Confirmação');
     await page.getByLabel('E-mail', { exact: true }).fill(email);
-    await expect(page.locator('input[name="password"]')).toHaveCount(0);
-    await page.getByRole('checkbox').click();
+    if (flow === 'code') {
+      await page.getByLabel('Crie sua senha', { exact: true }).fill(password);
+      await page.getByRole('checkbox').click();
+      const startedAt = Date.now();
+      await page.getByRole('button', { name: 'Enviar confirmação por e-mail' }).click();
+      await expect(page.getByRole('heading', { name: 'Confirme seu e-mail aqui' })).toBeVisible({
+        timeout: 120_000,
+      });
+      const user = await findUser(email);
+      if (!user || user.email_confirmed_at)
+        throw new Error('new code fixture did not create an unconfirmed identity');
+      return { context, page, fixture, startedAt, password };
+    }
+    // These historical scenarios intentionally exercise v1 link/handoff
+    // compatibility. The new v2 UI requires an initial password and sends only
+    // a code; its actual browser/Auth/mail proof lives in signup-mail.integration.ts.
+    // Emulate an already-open v1 client through the retained API contract, rather
+    // than falsely expecting today's UI to offer passwordless registration.
+    await expect(page.getByLabel('Crie sua senha', { exact: true })).toBeVisible();
     const startedAt = Date.now();
-    await page.getByRole('button', { name: 'Enviar confirmação por e-mail' }).click();
+    const bootstrap = await page.evaluate(
+      async ({ email }) => {
+        const state = await fetch('/api/signup/sessions/me', { cache: 'no-store' });
+        const body: unknown = await state.json();
+        if (
+          !state.ok ||
+          typeof body !== 'object' ||
+          body === null ||
+          !('session' in body) ||
+          typeof body.session !== 'object' ||
+          body.session === null ||
+          !('rowVersion' in body.session) ||
+          typeof body.session.rowVersion !== 'number'
+        )
+          return { stage: 'state', status: state.status };
+        const identity = await fetch('/api/signup/sessions/identity', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            rowVersion: body.session.rowVersion,
+            ownerName: 'Ana E2E',
+            clinicName: 'Clínica E2E Confirmação',
+            email,
+            accepted: true,
+          }),
+        });
+        const saved: unknown = await identity.json();
+        if (
+          !identity.ok ||
+          typeof saved !== 'object' ||
+          saved === null ||
+          !('rowVersion' in saved) ||
+          typeof saved.rowVersion !== 'number'
+        )
+          return { stage: 'identity', status: identity.status };
+        const auth = await fetch('/api/signup/sessions/auth', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ rowVersion: saved.rowVersion, email, accepted: true }),
+        });
+        return { stage: 'auth', status: auth.status };
+      },
+      { email },
+    );
+    expect(bootstrap).toEqual({ stage: 'auth', status: 200 });
+    await page.reload();
     await expect(
       page.getByRole('heading', { name: 'Aguardando a confirmação do e-mail' }),
     ).toBeVisible({ timeout: 120_000 });
@@ -1245,6 +1312,68 @@ test.describe('cadastro — confirmação real via Resend', () => {
       throw new Error('lock local persistiu depois da suíte');
     } catch (error) {
       if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error;
+    }
+  });
+
+  test('@code-flow senha inicial, código, F5 e plano preservado pelo contrato novo', async ({
+    browser,
+  }) => {
+    test.setTimeout(420_000);
+    const email = `delivered+qoro-code-${Date.now()}-${randomBytes(4).toString('hex')}@resend.dev`;
+    let context: BrowserContext | null = null;
+    let fixture: Fixture = { projectRef: expectedProjectRef!, email };
+    try {
+      const signup = await startSignup(browser, email, [], 'code');
+      context = signup.context;
+      fixture = signup.fixture;
+      const message = await waitForMessage({
+        email,
+        subject: 'Seu código de confirmação — Qoro',
+        after: signup.startedAt,
+      });
+      const code = /^(\d{8})\r?\n/u.exec(message.text ?? '')?.[1];
+      if (!code)
+        throw new Error('Confirmation email omitted the expected code; content suppressed');
+      if (await passwordSignInSucceeds(email, signup.password))
+        throw new Error('Password worked before email confirmation');
+      await signup.page.reload();
+      await signup.page.getByLabel('Código de confirmação').fill(code);
+      const verified = signup.page.waitForResponse(
+        (response) =>
+          response.request().method() === 'POST' &&
+          new URL(response.url()).pathname === '/api/signup/sessions/verify',
+      );
+      await signup.page.getByRole('button', { name: 'Confirmar e-mail', exact: true }).click();
+      expect((await verified).status()).toBe(200);
+      await expect(signup.page).toHaveURL(/\/cadastro\/plano$/u, { timeout: 120_000 });
+      await expect(signup.page.locator('input[type=password]')).toHaveCount(0);
+      if (!(await passwordSignInSucceeds(email, signup.password)))
+        throw new Error('Initial password was not preserved after the code');
+      await signup.page.locator('[data-slot="option-card-group"] label').first().click();
+      await signup.page.getByRole('button', { name: 'Salvar plano', exact: true }).click();
+      await expect(
+        signup.page.getByRole('button', { name: 'Continuar no Checkout Asaas' }),
+      ).toBeVisible();
+      await signup.page.reload();
+      await expect(
+        signup.page.getByRole('button', { name: 'Continuar no Checkout Asaas' }),
+      ).toBeVisible();
+      if (!fixture.tokenHash) throw new Error('Code fixture lost its reference');
+      const sql = postgres(databaseUrl!, { max: 1, ssl: 'require', prepare: false });
+      try {
+        const [row] =
+          await sql`select verification_flow_version,email_code_state,status,selected_plan_id,asaas_checkout_id from signup_sessions where token_hash=${fixture.tokenHash}`;
+        expect(row?.verification_flow_version).toBe(2);
+        expect(row?.email_code_state).toBe('verified');
+        expect(row?.status).toBe('email_verified');
+        expect(row?.selected_plan_id).toBeTruthy();
+        expect(row?.asaas_checkout_id).toBeNull();
+      } finally {
+        await sql.end({ timeout: 5 });
+      }
+    } finally {
+      await context?.close();
+      await cleanupFixture(fixture);
     }
   });
 

@@ -141,6 +141,20 @@ export const signupSessions = pgTable('signup_sessions', {
   authAttemptKind: text('auth_attempt_kind'),
   authAttemptState: text('auth_attempt_state'),
   authAttemptedAt: timestamp('auth_attempted_at', { withTimezone: true }),
+  /** Recovery retention is independent of the short anonymous session lifetime. */
+  recoveryExpiresAt: timestamp('recovery_expires_at', { withTimezone: true }),
+  /** Pending identity only; does not grant ownership, Auth or tenant access. */
+  pendingAuthUserId: uuid('pending_auth_user_id'),
+  /** New code flow; v1 rows remain compatible with previously issued links. */
+  verificationFlowVersion: smallint('verification_flow_version').notNull().default(1),
+  emailCodeState: text('email_code_state').notNull().default('none'),
+  emailCodeAttempts: integer('email_code_attempts').notNull().default(0),
+  emailCodeExpiresAt: timestamp('email_code_expires_at', { withTimezone: true }),
+  emailCodeReservedAt: timestamp('email_code_reserved_at', { withTimezone: true }),
+  emailCodeVerifiedAt: timestamp('email_code_verified_at', { withTimezone: true }),
+  confirmationMessageId: uuid('confirmation_message_id'),
+  confirmationDeliveryStatus: text('confirmation_delivery_status'),
+  confirmationDeliveryAt: timestamp('confirmation_delivery_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true })
     .notNull()
     .default(sql`now()`),
@@ -151,6 +165,33 @@ export const signupSessions = pgTable('signup_sessions', {
 
 export type SignupSessionRow = typeof signupSessions.$inferSelect;
 export type SignupSessionInsert = typeof signupSessions.$inferInsert;
+
+/** GLOBAL PROTECTED: provider IDs and machine outcomes only, never message bodies/recipients. */
+export const signupEmailDeliveryEvents = pgTable('signup_email_delivery_events', {
+  id: text('id').primaryKey(),
+  messageId: uuid('message_id').notNull(),
+  event: text('event').notNull(),
+  occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull(),
+  bounceType: text('bounce_type'),
+  receivedAt: timestamp('received_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** GLOBAL PROTECTED: single-use recovery authority; raw token exists only in the email. */
+export const signupRecoveryGrants = pgTable('signup_recovery_grants', {
+  id: uuidPk(),
+  tokenHash: text('token_hash').notNull().unique(),
+  operationKey: text('operation_key').notNull().unique(),
+  authUserId: uuid('auth_user_id').notNull(),
+  emailHash: text('email_hash').notNull(),
+  signupRef: text('signup_ref').notNull(),
+  purpose: text('purpose').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  state: text('state').notNull().default('prepared'),
+  passwordState: text('password_state').notNull().default('none'),
+  consumedAt: timestamp('consumed_at', { withTimezone: true }),
+  providerMessageId: uuid('provider_message_id'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
 
 /* =====================================================================
    O-7 — onboarding OPERACIONAL (depois de a clínica existir).

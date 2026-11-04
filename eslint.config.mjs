@@ -154,6 +154,11 @@ const config = [
       // Mesmo bootstrap, para o harness de provisionamento O-6: cluster efêmero
       // sob o TEMP do SO, loopback fixo, migrations reais aplicadas em ordem.
       'scripts/security/scratch-schema.ts',
+      // Loopback-only Auth/browser fixtures, using the isolated CLI project on
+      // 55442. Dedicated pool closes on cleanup; no remote database accepted.
+      'scripts/security/signup-local-backend.ts',
+      'scripts/security/signup-local.integration.ts',
+      'scripts/security/signup-browser.integration.ts',
       // Reset operacional de pré-go-live: conexão one-shot explícita em
       // DATABASE_URL_PROD, backup obrigatório e confirmação fail-closed.
       'scripts/reset-prod-data.ts',
@@ -262,6 +267,16 @@ const config = [
       // setar. A tabela tem RLS ENABLE+FORCE SEM NENHUMA POLICY, grant só a
       // service_role e REVOKE explícito de anon/authenticated (migration 0096).
       'src/contexts/onboarding/internal/signup-session.ts',
+      // Code verification and delivery ledger are GLOBAL PROTECTED pre-tenant
+      // (0134), with FORCE RLS/no policies. Exact cookie/epoch CAS and signed
+      // provider events guard these paths; they cannot grant a tenant/profile.
+      'src/contexts/onboarding/internal/signup-email-code-repository.ts',
+      'src/contexts/onboarding/internal/signup-email-delivery.ts',
+      // Auth proof after the database code reservation; no direct SQL import.
+      'src/contexts/onboarding/internal/signup-email-code.ts',
+      // Single-use recovery grants: exact verified identity, per-user credential
+      // writer exclusion and no billing/provisioning. Same GLOBAL PROTECTED boundary.
+      'src/contexts/onboarding/internal/signup-recovery.ts',
       // ADR-060 §1.c.1: as quatro perguntas escrevem na MESMA tabela global
       // pré-tenant. Mesma justificativa do irmão acima — `withTenant` não tem
       // GUC de tenant para setar numa linha que nasce antes de existir clínica.

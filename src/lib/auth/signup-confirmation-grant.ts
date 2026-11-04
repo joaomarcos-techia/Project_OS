@@ -6,6 +6,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { env } from '@/lib/env';
 
 export const SIGNUP_CONFIRMATION_GRANT_COOKIE = 'qoro_signup_confirm';
+export const SIGNUP_RECOVERY_COOKIE = 'qoro_signup_recovery';
 export const SIGNUP_CONFIRMATION_GRANT_TTL_SECONDS = 15 * 60;
 
 const VERSION = 'v1';

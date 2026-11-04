@@ -207,6 +207,12 @@ try {
   assert.equal(csrf.status, 500); // Contrato observado do Next 15: erro fechado, sem executar ação.
   assert.match(serverLog, /Invalid Server Actions request|does not match.*origin/is);
   // --- item 10: a CSP que o servidor REALMENTE devolve --------------------
+  const recoveryBridge = await fetch(`${base}/cadastro/retomar`);
+  assert.equal(recoveryBridge.status, 200);
+  assert.equal(recoveryBridge.headers.get('referrer-policy'), 'no-referrer');
+  assert.match(recoveryBridge.headers.get('content-security-policy') ?? '', /default-src 'none'/u);
+  assert.match(recoveryBridge.headers.get('content-security-policy') ?? '', /script-src 'sha256-/u);
+  assert.match(recoveryBridge.headers.get('cache-control') ?? '', /no-store/u);
   // O teste unitário prova a string montada; isto prova o cabeçalho na resposta
   // HTTP de uma página real, servida pelo `next start` deste build.
   const page = await request('headers:login', '/login');

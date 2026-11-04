@@ -59,6 +59,20 @@ afterEach(() => {
 });
 
 describe('seleção de plano O-4', () => {
+  it('resumes the persisted plan at checkout without another selection or plan write', async () => {
+    const checkoutUrl = 'https://sandbox.asaas.com/checkoutSession/show?id=existing_fixture';
+    fetchMock
+      .mockResolvedValueOnce(json(200, { ...STATE, selectedPlanId: COMPLETE_ID }))
+      .mockResolvedValueOnce(json(200, { state: 'checkout_pending', checkoutUrl }));
+    render(<PlanSelectionForm />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Continuar no Checkout Asaas' }));
+    await waitFor(() => expect(assignMock).toHaveBeenCalledWith(checkoutUrl));
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      '/api/signup/plan',
+      '/api/signup/checkout',
+    ]);
+    expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'PUT')).toBe(false);
+  });
   it('mostra clínica, preço mensal de tabela e trial resolvidos pelo servidor', async () => {
     fetchMock.mockResolvedValueOnce(json(200, STATE));
     render(<PlanSelectionForm />);

@@ -14,6 +14,9 @@ const seams = vi.hoisted(() => ({
   readAttemptState: vi.fn(),
   readReferenceLiveness: vi.fn(),
   validateLegacyCandidate: vi.fn(),
+  readCodeFlow: vi.fn(),
+  recordCodeDelivery: vi.fn(),
+  bindCodeUser: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/supabase-admin', () => ({
@@ -35,7 +38,13 @@ vi.mock('./signup-session', () => ({
 vi.mock('./signup-auth-admin', () => ({
   validateLegacySignupDeliveryCandidate: seams.validateLegacyCandidate,
 }));
+vi.mock('./signup-email-code-repository', () => ({
+  readSignupCodeFlow: seams.readCodeFlow,
+  recordSignupCodeDelivery: seams.recordCodeDelivery,
+  bindPendingSignupCodeUser: seams.bindCodeUser,
+}));
 vi.mock('@/lib/email/resend', () => ({ sendTransactionalEmail: seams.sendEmail }));
+vi.mock('@/lib/email/retry', () => ({ sendTransactionalEmailRetried: seams.sendEmail }));
 vi.mock('@/lib/env', () => ({
   env: {
     APP_BASE_URL: 'https://app.qoro.test',
@@ -68,7 +77,8 @@ const pendingAppMetadata = {
 };
 
 const publicOrigin = 'https://app.qoro.test';
-const sendInitial = () =>
+const sendInitial = () => sendSignupConfirmation({ email, signupRef, attemptEpoch, publicOrigin });
+const sendWithPassword = () =>
   sendSignupConfirmation({ email, password, signupRef, attemptEpoch, publicOrigin });
 const resend = () => resendSignupConfirmation({ email, signupRef, attemptEpoch, publicOrigin });
 
@@ -97,6 +107,9 @@ beforeEach(() => {
   });
   seams.readAttemptState.mockResolvedValue('pending');
   seams.readReferenceLiveness.mockResolvedValue('gone');
+  seams.readCodeFlow.mockResolvedValue(false);
+  seams.recordCodeDelivery.mockResolvedValue(undefined);
+  seams.bindCodeUser.mockResolvedValue(undefined);
   seams.validateLegacyCandidate.mockResolvedValue({ ok: false, reason: 'obfuscated' });
   seams.findUserByEmail.mockResolvedValue({
     kind: 'found',
@@ -106,6 +119,42 @@ beforeEach(() => {
 });
 
 describe('sendSignupConfirmation', () => {
+  it('stores the initial password only in Auth and sends a code without a competing link', async () => {
+    await expect(sendWithPassword()).resolves.toEqual({ kind: 'sent' });
+    expect(seams.createUser).toHaveBeenCalledWith({
+      email,
+      password,
+      email_confirm: false,
+      app_metadata: {
+        qoro_self_service_signup: {
+          ...pendingAppMetadata.qoro_self_service_signup,
+          initial_password_ref: signupRef,
+        },
+      },
+    });
+    expect(seams.generateLink).not.toHaveBeenCalled();
+    const sent = seams.sendEmail.mock.calls[0]?.[0];
+    expect(sent.text).toMatch(/^\d{8}\n/u);
+    expect(sent.text).toContain('10 minutos');
+    expect(sent.html).not.toContain('/auth/confirm');
+    expect(sent.text).not.toContain(password);
+    expect(sent.html).not.toContain(password);
+    expect(seams.recordCodeDelivery).toHaveBeenCalledOnce();
+  });
+
+  it('does not claim a confirmed send when the provider receipt cannot be persisted', async () => {
+    seams.recordCodeDelivery.mockRejectedValue(new Error('database unavailable'));
+    await expect(sendWithPassword()).resolves.toEqual({ kind: 'uncertain' });
+    expect(seams.sendEmail).toHaveBeenCalledOnce();
+  });
+
+  it('resends code v2 without issuing a competing provider link or changing password', async () => {
+    seams.readCodeFlow.mockResolvedValue(true);
+    await expect(resend()).resolves.toEqual({ kind: 'sent' });
+    expect(seams.generateLink).not.toHaveBeenCalled();
+    expect(seams.createUser).not.toHaveBeenCalled();
+    expect(seams.sendEmail.mock.calls[0]?.[0].text).toMatch(/^\d{8}\n/u);
+  });
   it('envia a confirmação sem escolher senha nem consultar vazamentos prematuramente', async () => {
     await expect(
       sendSignupConfirmation({ email, signupRef, attemptEpoch, publicOrigin }),
@@ -150,7 +199,7 @@ describe('sendSignupConfirmation', () => {
     const sha1 = createHash('sha1').update(password, 'utf8').digest('hex').toUpperCase();
     seams.fetch.mockResolvedValue(new Response(`${sha1.slice(5)}:42\n`, { status: 200 }));
 
-    await expect(sendInitial()).resolves.toEqual({
+    await expect(sendWithPassword()).resolves.toEqual({
       kind: 'weak_password',
     });
     expect(seams.createUser).not.toHaveBeenCalled();
@@ -165,7 +214,7 @@ describe('sendSignupConfirmation', () => {
   ])('HIBP indisponível (%s) é retryable e não cria efeito', async (_case, arrange) => {
     arrange();
 
-    await expect(sendInitial()).resolves.toEqual({
+    await expect(sendWithPassword()).resolves.toEqual({
       kind: 'retryable',
     });
     expect(seams.createUser).not.toHaveBeenCalled();

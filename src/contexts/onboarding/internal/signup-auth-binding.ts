@@ -16,6 +16,7 @@ type SignupBinding = {
   kind: 'self_service';
   signup_ref: string;
   password_state: SignupPasswordState;
+  initial_password_ref?: string;
 };
 
 type AuthUserWithMetadata = {
@@ -36,7 +37,11 @@ function readBinding(user: AuthUserWithMetadata): SignupBinding | null {
     !SIGNUP_REFERENCE_PATTERN.test(
       typeof candidate.signup_ref === 'string' ? candidate.signup_ref : '',
     ) ||
-    (candidate.password_state !== 'pending' && candidate.password_state !== 'set')
+    (candidate.password_state !== 'pending' && candidate.password_state !== 'set') ||
+    (candidate.initial_password_ref !== undefined &&
+      (candidate.password_state !== 'pending' ||
+        typeof candidate.initial_password_ref !== 'string' ||
+        !SIGNUP_REFERENCE_PATTERN.test(candidate.initial_password_ref)))
   ) {
     return null;
   }
@@ -59,7 +64,10 @@ export function hasSignupAuthBindingMarker(user: AuthUserWithMetadata): boolean 
 }
 
 /** Metadata gravada apenas pela Admin API; o browser não escolhe este vínculo. */
-export function createPendingSignupAppMetadata(signupRef: string): Record<string, unknown> {
+export function createPendingSignupAppMetadata(
+  signupRef: string,
+  initialPassword = false,
+): Record<string, unknown> {
   if (!SIGNUP_REFERENCE_PATTERN.test(signupRef)) {
     throw new Error('[signup] invalid signup auth reference');
   }
@@ -69,8 +77,28 @@ export function createPendingSignupAppMetadata(signupRef: string): Record<string
       kind: 'self_service',
       signup_ref: signupRef,
       password_state: 'pending',
+      ...(initialPassword ? { initial_password_ref: signupRef } : {}),
     } satisfies SignupBinding,
   };
+}
+
+/** Only an email code proved in the browser that created this credential may trust it. */
+export function hasInitialSignupPassword(user: AuthUserWithMetadata, signupRef: string): boolean {
+  const binding = readBinding(user);
+  return (
+    binding?.signup_ref === signupRef &&
+    binding.password_state === 'pending' &&
+    binding.initial_password_ref === signupRef
+  );
+}
+
+export function hasUntrustedInitialSignupPassword(user: AuthUserWithMetadata): boolean {
+  const binding = readBinding(user);
+  return (
+    binding?.password_state === 'pending' &&
+    typeof binding.initial_password_ref === 'string' &&
+    SIGNUP_REFERENCE_PATTERN.test(binding.initial_password_ref)
+  );
 }
 
 /**
@@ -167,6 +195,7 @@ export function rebindPendingSignupAppMetadata(
     throw new Error('[signup] invalid pending signup auth rebind');
   }
   const current = isRecord(user.app_metadata) ? user.app_metadata : {};
+  const initialPasswordRef = readBinding(user)?.initial_password_ref;
   return {
     ...current,
     [SIGNUP_BINDING_KEY]: {
@@ -174,6 +203,7 @@ export function rebindPendingSignupAppMetadata(
       kind: 'self_service',
       signup_ref: signupRef,
       password_state: 'pending',
+      ...(initialPasswordRef ? { initial_password_ref: initialPasswordRef } : {}),
     } satisfies SignupBinding,
   };
 }

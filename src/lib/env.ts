@@ -314,6 +314,10 @@ const EnvSchema = z
 
     // Email transacional. Optional no boot; o handler LGPD exige ambos em runtime.
     RESEND_API_KEY: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+    RESEND_WEBHOOK_SECRET: z.preprocess(
+      emptyToUndefined,
+      z.string().startsWith('whsec_').optional(),
+    ),
     EMAIL_FROM: z.preprocess(emptyToUndefined, z.string().min(3).max(320).optional()),
 
     // --- C14: Proactive Jobs (templates Meta aprovados) ---

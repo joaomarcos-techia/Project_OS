@@ -21,6 +21,9 @@ const m = vi.hoisted(() => ({
   signout: vi.fn(),
   clear: vi.fn(),
   warn: vi.fn(),
+  cookie: vi.fn(),
+  recoveryProof: vi.fn(),
+  recoveredPassword: vi.fn(),
 }));
 vi.mock('@/lib/env', () => ({ env: m.env }));
 vi.mock('@/contexts/onboarding', async () => {
@@ -34,8 +37,14 @@ vi.mock('@/contexts/onboarding', async () => {
     readOwnedSignupReference: m.owner,
     readSignupDraft: m.draft,
     resolveReadyOwnedSignupOnboarding: m.ready,
+    SIGNUP_RECOVERY_COOKIE: 'qoro_signup_recovery',
+    completeRecoveredSignupPassword: m.recoveredPassword,
   };
 });
+vi.mock('next/headers', () => ({ cookies: async () => ({ get: m.cookie }) }));
+vi.mock('@/lib/auth/signup-confirmation-grant', () => ({
+  readSignupConfirmationGrant: m.recoveryProof,
+}));
 vi.mock('@/lib/auth/pretenant-onboarding', () => ({ resolvePreTenantOnboarding: m.identity }));
 vi.mock('@/lib/auth/rate-limit', () => ({
   assertSignupDraftWriteAllowed: m.limit,
@@ -82,6 +91,8 @@ function request(
 }
 beforeEach(() => {
   vi.clearAllMocks();
+  m.cookie.mockReturnValue(undefined);
+  m.recoveryProof.mockReturnValue(null);
   m.env.SIGNUP_AUTH_ENABLED = true;
   m.env.SIGNUP_IDENTITY_ENABLED = true;
   m.identity.mockResolvedValue({

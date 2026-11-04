@@ -5,7 +5,9 @@ import type { User } from '@supabase/supabase-js';
 
 import { createAdminClient, findAdminUserByEmail } from '@/lib/auth/supabase-admin';
 import { sendTransactionalEmail } from '@/lib/email/resend';
+import { sendTransactionalEmailRetried } from '@/lib/email/retry';
 import { renderSignupConfirmationEmail } from '@/lib/email/templates/signup-confirmation';
+import { renderSignupCodeEmail } from '@/lib/email/templates/signup-code';
 import { env } from '@/lib/env';
 import { createSignupConfirmationUrl } from '@/lib/http/application-url';
 import { logger } from '@/lib/observability/logger';
@@ -19,15 +21,21 @@ import {
 } from './signup-auth-binding';
 import { validateLegacySignupDeliveryCandidate } from './signup-auth-admin';
 import { readSignupDeliveryAttemptState, readSignupReferenceLiveness } from './signup-session';
+import {
+  bindPendingSignupCodeUser,
+  recordSignupCodeDelivery,
+  readSignupCodeFlow,
+} from './signup-email-code-repository';
 
 /**
- * Emissao do link de confirmacao do cadastro + envio pelo Resend.
+ * Confirmation delivery through Resend. New UI: initial password + code-only
+ * email. Version 1 keeps outstanding historical links compatible.
  *
  * O corpo e a URL ficam no repositorio; o painel do Supabase deixa de ser uma
- * dependencia invisivel. A conta nasce SEM senha, presa ao HMAC do draft em
- * `app_metadata`. A senha definitiva so e aplicada depois da prova do e-mail.
- * Tanto o primeiro envio quanto o reenvio usam um token de `recovery`: ele nao
- * recebe senha e, ao contrario de `magiclink`, nao cria usuario ausente.
+ * dependencia invisivel. An initial chosen password is trusted only after
+ * proof of the code AND the original browser reference. Legacy passwordless
+ * accounts choose their first password after email proof. Provider recovery
+ * tokens are generated at verification for v2, never included in its email.
  */
 
 export type SignupConfirmationOutcome =
@@ -196,7 +204,7 @@ export async function checkSignupPasswordExposure(
   return count > 0 ? 'pwned' : 'safe';
 }
 
-/** Primeiro envio passwordless. A senha opcional atende somente clientes antigos. */
+/** Initial password + code (v2), or historical passwordless link compatibility (v1). */
 export async function sendSignupConfirmation(input: {
   email: string;
   password?: string;
@@ -219,8 +227,9 @@ export async function sendSignupConfirmation(input: {
   try {
     const { data, error } = await admin.auth.admin.createUser({
       email: input.email,
+      ...(input.password === undefined ? {} : { password: input.password }),
       email_confirm: false,
-      app_metadata: createPendingSignupAppMetadata(input.signupRef),
+      app_metadata: createPendingSignupAppMetadata(input.signupRef, input.password !== undefined),
     });
     if (error) {
       const code = errorCode(error);
@@ -270,6 +279,22 @@ export async function sendSignupConfirmation(input: {
     }
   } catch {
     return { kind: 'uncertain' };
+  }
+
+  if (input.password !== undefined) {
+    if (
+      !(await mayDeliverCurrentAttempt(admin, {
+        userId: expectedUser.id,
+        email: input.email,
+        signupRef: input.signupRef,
+        attemptEpoch: input.attemptEpoch,
+        stage: 'initial',
+        legacy: legacyCandidate,
+      }))
+    )
+      return { kind: 'uncertain' };
+    await bindPendingSignupCodeUser({ ...input, userId: expectedUser.id });
+    return deliverCode(input, 'initial');
   }
 
   try {
@@ -399,6 +424,21 @@ export async function resendSignupConfirmation(input: {
       }
     }
 
+    if (await readSignupCodeFlow(input.signupRef, input.attemptEpoch)) {
+      if (
+        !(await mayDeliverCurrentAttempt(admin, {
+          userId: expectedUser.id,
+          email: input.email,
+          signupRef: input.signupRef,
+          attemptEpoch: input.attemptEpoch,
+          stage: 'resend',
+          legacy: legacyCandidate,
+        }))
+      )
+        return { kind: 'uncertain' };
+      await bindPendingSignupCodeUser({ ...input, userId: expectedUser.id });
+      return deliverCode(input, 'resend');
+    }
     const { data, error } = await admin.auth.admin.generateLink({
       type: 'recovery',
       email: input.email,
@@ -451,6 +491,31 @@ export async function resendSignupConfirmation(input: {
 }
 
 type DeliveryStage = 'initial' | 'resend';
+
+async function deliverCode(
+  input: { email: string; signupRef: string; attemptEpoch: number },
+  stage: DeliveryStage,
+): Promise<SignupConfirmationOutcome> {
+  try {
+    const content = renderSignupCodeEmail(
+      deriveSignupHandoffCode(input.signupRef, input.attemptEpoch),
+    );
+    const result = await sendTransactionalEmailRetried({
+      to: input.email,
+      ...content,
+      idempotencyKey: confirmationIdempotencyKey(`${input.signupRef}:${input.attemptEpoch}`, stage),
+    });
+    await recordSignupCodeDelivery({ ...input, messageId: result.providerMessageId });
+    metrics.emit('signup.confirmation.sent', { stage });
+    return { kind: 'sent' };
+  } catch (error) {
+    logger.warn('signup.confirmation.delivery_failed', {
+      stage,
+      reason: error instanceof Error ? error.name : 'unknown',
+    });
+    return { kind: 'uncertain' };
+  }
+}
 
 async function entregar(
   email: string,

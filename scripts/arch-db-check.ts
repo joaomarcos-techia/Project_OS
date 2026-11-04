@@ -45,6 +45,10 @@ const ALLOWED_POSTGRES_IMPORTS = new Set([
   'scripts/security/tenant-isolation.ts',
   'scripts/security/signup-regression.ts',
   'scripts/security/scratch-schema.ts',
+  // Fixed loopback CLI project 55442; synthetic fixtures, no remote targets.
+  'scripts/security/signup-local-backend.ts',
+  'scripts/security/signup-local.integration.ts',
+  'scripts/security/signup-browser.integration.ts',
   'scripts/db-migrate-prod.ts',
   'scripts/delete-test-clinics-prod.ts',
   // P8: conexões descartáveis, guardadas por loopback + prefixo do banco.
@@ -95,6 +99,10 @@ const ALLOWED_DB_VALUE_IMPORTS: Record<string, Set<string>> = {
     // ENABLE+FORCE sem policy, grant só a service_role e REVOKE de
     // anon/authenticated na 0096. withTenant não se aplica.
     'src/contexts/onboarding/internal/signup-session.ts',
+    // 0134: GLOBAL PROTECTED code CAS and signed delivery ledger; no tenant exists yet.
+    'src/contexts/onboarding/internal/signup-email-code-repository.ts',
+    'src/contexts/onboarding/internal/signup-email-delivery.ts',
+    'src/contexts/onboarding/internal/signup-recovery.ts',
     // Reabrir clínica após reativação: `clinics` não tem UPDATE para o tenant —
     // via RLS casaria zero linhas (medido em 28/09). Comando estreito, guardado
     // por billing ativo + reativação como último evento do histórico.
