@@ -1384,8 +1384,16 @@ globalThis.fetch = (input, init) => {
 
       await page.getByText('Solo', { exact: true }).click();
       assert.equal(await page.getByRole('radio', { name: /Solo/u }).isChecked(), true);
-      await page.getByRole('button', { name: 'Salvar plano' }).click();
-      await page.getByText('Plano salvo', { exact: true }).waitFor();
+      // This auth/plan regression must not create an external checkout.
+      const savedChoice = await page.evaluate(async (planId) => {
+        const response = await fetch('/api/signup/plan', {
+          method: 'PUT',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ rowVersion: 6, planId }),
+        });
+        return response.status;
+      }, SELF_SERVICE_PLAN_ID);
+      assert.equal(savedChoice, 200);
       const [selectedPlan] = await sql`SELECT selected_plan_id, row_version, idle_expires_at,
         absolute_expires_at FROM signup_sessions WHERE token_hash = ${draftHash}`;
       assert.equal(selectedPlan?.selected_plan_id, SELF_SERVICE_PLAN_ID);

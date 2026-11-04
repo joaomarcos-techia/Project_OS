@@ -646,7 +646,7 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/signup-regression.ts:35`                 | `<object>`                             | `process.env`                                                               |
 | `scripts/security/signup-regression.ts:35`                 | `<dynamic>`                            | `process.env[key]`                                                          |
 | `scripts/security/signup-regression.ts:177`                | `<object>`                             | `process.env`                                                               |
-| `scripts/security/signup-regression.ts:2259`               | `<object>`                             | `process.env`                                                               |
+| `scripts/security/signup-regression.ts:2267`               | `<object>`                             | `process.env`                                                               |
 | `scripts/security/signup-webhook-sandbox.ts:48`            | `SANDBOX_CONFIRM`                      | `process.env.SANDBOX_CONFIRM`                                               |
 | `scripts/security/signup-webhook-sandbox.ts:51`            | `ASAAS_BASE_URL`                       | `process.env.ASAAS_BASE_URL`                                                |
 | `scripts/security/signup-webhook-sandbox.ts:64`            | `ASAAS_API_KEY`                        | `process.env.ASAAS_API_KEY`                                                 |
