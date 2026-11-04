@@ -144,6 +144,51 @@ function ownerDraftCondition(userId: string) {
   );
 }
 
+/** Only callers holding a verified Auth identity may renew retained progress.
+ * Anonymous cookies keep their original one-hour ceiling and cannot call this.
+ */
+export async function resumeRetainedOwnedSignupDraft(
+  userId: string,
+  email: string,
+  signupRef: string,
+): Promise<void> {
+  if (
+    !enabled() ||
+    !userIdSchema.safeParse(userId).success ||
+    !verifiedEmailSchema.safeParse(email).success ||
+    !signupReferenceSchema.safeParse(signupRef).success
+  )
+    return;
+  await dbAdmin
+    .update(signupSessions)
+    .set({
+      absoluteExpiresAt: sql`least(now() + make_interval(secs => ${SIGNUP_ABSOLUTE_TTL_SECONDS}), ${signupSessions.recoveryExpiresAt})`,
+      idleExpiresAt: sql`least(now() + make_interval(secs => ${SIGNUP_ABSOLUTE_TTL_SECONDS}), ${signupSessions.recoveryExpiresAt})`,
+      rowVersion: sql`${signupSessions.rowVersion} + 1`,
+    })
+    .where(
+      and(
+        eq(signupSessions.authUserId, userId),
+        eq(signupSessions.emailHash, hashEmail(email)),
+        eq(signupSessions.tokenHash, signupRef),
+        eq(signupSessions.status, 'email_verified'),
+        isNotNull(signupSessions.consumedAt),
+        or(
+          isNull(signupSessions.authAttemptState),
+          eq(signupSessions.authAttemptState, 'completed'),
+        ),
+        gt(signupSessions.recoveryExpiresAt, sql`now()`),
+        // Renew only the authenticated draft's reading window. Billing markers
+        // stay frozen: the existing billing CAS still requires reconciliation
+        // instead of creating a second attempt when an external result is unknown.
+        or(
+          lte(signupSessions.idleExpiresAt, sql`now()`),
+          lte(signupSessions.absoluteExpiresAt, sql`now()`),
+        ),
+      ),
+    );
+}
+
 /**
  * Referência autoritativa do draft já vinculado à identidade verificada.
  *
@@ -505,6 +550,10 @@ export async function claimSignupDraftByVerifiedEmail(
       await tx.delete(signupSessions).where(
         and(
           eq(signupSessions.authUserId, identity.data.userId),
+          or(
+            isNull(signupSessions.recoveryExpiresAt),
+            lte(signupSessions.recoveryExpiresAt, sql`now()`),
+          ),
           // Qualquer tentativa de billing é trilha de reconciliação. Mesmo
           // `failed` pode carregar customer/failure code e não deve sumir por
           // efeito colateral de uma nova confirmação de e-mail.
@@ -642,6 +691,10 @@ export async function writeSignupDraft(args: WriteSignupDraftInput): Promise<Dra
       await tx.delete(signupSessions).where(
         and(
           eq(signupSessions.authUserId, userId),
+          or(
+            isNull(signupSessions.recoveryExpiresAt),
+            lte(signupSessions.recoveryExpiresAt, sql`now()`),
+          ),
           // Uma linha vencida pode ter parado no meio de uma operação do
           // Asaas. Reiniciar o formulário não pode apagar a única trilha de
           // reconciliação; nesse caso o SELECT abaixo devolve conflito.
@@ -681,11 +734,14 @@ export async function writeSignupDraft(args: WriteSignupDraftInput): Promise<Dra
           // Idle igual ao absoluto, como no claim: a janela de inatividade
           // existe para limitar a credencial ANÔNIMA, e esta linha
           // já nasce consumida e presa a um usuário verificado. Mantê-la em 15
-          // min com leitura que não renova (`readSignupDraft`) apagaria o
-          // cadastro que a pessoa acabou de redigitar. O teto absoluto de 60
-          // min continua valendo e é o único prazo desta linha.
+          // min interromperia cedo a revisão que a pessoa acabou de retomar.
+          // O teto de 60 min continua limitando a leitura ativa; a retenção
+          // recuperável abaixo exige uma nova prova autenticada para retomada.
           idleExpiresAt: sql`now() + make_interval(secs => ${SIGNUP_ABSOLUTE_TTL_SECONDS})`,
           absoluteExpiresAt: sql`now() + make_interval(secs => ${SIGNUP_ABSOLUTE_TTL_SECONDS})`,
+          // Authenticated recovery keeps consented progress, without extending
+          // the anonymous cookie or granting access beyond its short lifetime.
+          recoveryExpiresAt: sql`now() + interval '14 days'`,
         })
         .returning({ rowVersion: signupSessions.rowVersion });
       if (!created) throw new Error('[signup] draft_insert_failed');

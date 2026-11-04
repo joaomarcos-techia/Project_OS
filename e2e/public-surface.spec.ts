@@ -61,6 +61,38 @@ test('retorno público do Checkout informa verificação sem afirmar pagamento',
   expect(new URL(page.url()).pathname).toBe('/');
 });
 
+test('a ponte de retomada executa sob CSP restrita e só envia prova após clique', async ({
+  page,
+}) => {
+  // Prova de navegador da ponte, sem Auth/SQL: somente a API é interceptada.
+  // O token sintético não corresponde a nenhum grant ou destinatário.
+  const token = 'A'.repeat(43);
+  let submissions = 0;
+  await page.route('**/api/signup/recovery/consume', async (route) => {
+    submissions++;
+    expect(route.request().method()).toBe('POST');
+    expect(route.request().postDataJSON()).toEqual({ token });
+    await route.fulfill({
+      status: 410,
+      contentType: 'application/json',
+      body: JSON.stringify({ error: 'invalid' }),
+    });
+  });
+
+  const response = await page.goto(`/cadastro/retomar#token=${token}`);
+  expect(response?.status()).toBe(200);
+  expect(response?.headers()['referrer-policy']).toBe('no-referrer');
+  const csp = response?.headers()['content-security-policy'] ?? '';
+  expect(csp).toContain("default-src 'none'");
+  expect(csp).toContain("script-src 'sha256-");
+  expect(csp).not.toContain('unsafe-inline');
+  await expect.poll(() => new URL(page.url()).hash).toBe('');
+  expect(submissions).toBe(0);
+  await page.getByRole('button', { name: 'Continuar meu cadastro', exact: true }).click();
+  await expect(page.locator('#feedback')).toContainText('Este link expirou ou já foi usado.');
+  expect(submissions).toBe(1);
+});
+
 test.describe('fronteira sem sessão', () => {
   test('toda rota protegida redireciona SEM entregar corpo', async ({ request }) => {
     test.setTimeout(180_000);

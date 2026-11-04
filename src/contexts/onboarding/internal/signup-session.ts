@@ -13,6 +13,7 @@
  * Server-only.
  */
 import 'server-only';
+import { purgeExpiredSignupEmailArtifacts } from './signup-email-delivery';
 
 import { createHmac, randomBytes } from 'node:crypto';
 
@@ -31,6 +32,7 @@ import { env } from '@/lib/env';
 import { metrics } from '@/lib/observability/metrics';
 
 import { signupAnswerValuesSchema, type SignupAnswerValues } from './signup-answer-values';
+import { SIGNUP_EMAIL_CODE_TTL_SECONDS } from './signup-verification-policy';
 
 /**
  * TTLs em SEGUNDOS, e computados pelo relógio do BANCO (`now()`), não pelo do
@@ -100,6 +102,7 @@ export interface SignupSessionState {
   rowVersion: number;
   /** Respostas sanitizadas para refresh/retomada; nenhuma PII ou id interno. */
   answers: SignupAnswerValues | null;
+  verificationFlowVersion?: number;
 }
 
 type PersistedAnswers = {
@@ -345,6 +348,7 @@ export async function readSignupSession(rawToken: string): Promise<SignupSession
       discoverySource: signupSessions.discoverySource,
       emailHash: signupSessions.emailHash,
       authAttemptState: signupSessions.authAttemptState,
+      verificationFlowVersion: signupSessions.verificationFlowVersion,
     });
 
   if (!row) {
@@ -353,6 +357,7 @@ export async function readSignupSession(rawToken: string): Promise<SignupSession
         riskLevel: signupSessions.riskLevel,
         rowVersion: signupSessions.rowVersion,
         absoluteExpiresAt: signupSessions.absoluteExpiresAt,
+        verificationFlowVersion: signupSessions.verificationFlowVersion,
       })
       .from(signupSessions)
       .where(
@@ -370,6 +375,7 @@ export async function readSignupSession(rawToken: string): Promise<SignupSession
           riskLevel: verified.riskLevel,
           expiresAt: verified.absoluteExpiresAt.toISOString(),
           rowVersion: verified.rowVersion,
+          ...(verified.verificationFlowVersion === 2 ? { verificationFlowVersion: 2 } : {}),
           answers: null,
         }
       : null;
@@ -425,6 +431,7 @@ export async function readSignupSession(rawToken: string): Promise<SignupSession
     riskLevel: row.riskLevel,
     expiresAt: row.idleExpiresAt.toISOString(),
     rowVersion: row.rowVersion,
+    ...(row.verificationFlowVersion === 2 ? { verificationFlowVersion: 2 } : {}),
     answers: readPersistedAnswers({
       professionalsBand: row.professionalsBand,
       weeklyAppointmentsBand: row.weeklyAppointmentsBand,
@@ -453,6 +460,7 @@ export interface SignupPurgeResult {
  * segurar lock por muito tempo num pico.
  */
 export async function purgeExpiredSignupSessions(batch = 500): Promise<SignupPurgeResult> {
+  await purgeExpiredSignupEmailArtifacts(Math.min(batch, 500));
   const expiredCondition = or(
     lte(signupSessions.idleExpiresAt, sql`now()`),
     lte(signupSessions.absoluteExpiresAt, sql`now()`),
@@ -476,6 +484,10 @@ export async function purgeExpiredSignupSessions(batch = 500): Promise<SignupPur
         SELECT id FROM ${signupSessions}
          WHERE ${and(
            expiredCondition,
+           or(
+             isNull(signupSessions.recoveryExpiresAt),
+             lte(signupSessions.recoveryExpiresAt, sql`now()`),
+           ),
            isNull(signupSessions.billingAttemptState),
            isNull(signupSessions.billingAttemptedAt),
            isNull(signupSessions.asaasCustomerId),
@@ -1281,6 +1293,15 @@ export async function reserveSignupAuthAttempt(
       authAttemptKind: 'initial',
       authAttemptState: 'reserved',
       authAttemptedAt: sql`date_trunc('milliseconds', clock_timestamp())`,
+      ...(check.data.password === undefined
+        ? {}
+        : {
+            verificationFlowVersion: 2,
+            emailCodeState: 'issued',
+            emailCodeAttempts: 0,
+            emailCodeExpiresAt: sql`least(now() + make_interval(secs => ${SIGNUP_EMAIL_CODE_TTL_SECONDS}), ${signupSessions.absoluteExpiresAt})`,
+            recoveryExpiresAt: sql`${signupSessions.createdAt} + interval '14 days'`,
+          }),
       rowVersion: sql`${signupSessions.rowVersion} + 1`,
       idleExpiresAt: sql`least(now() + make_interval(secs => ${SIGNUP_IDLE_TTL_SECONDS}), ${signupSessions.absoluteExpiresAt})`,
     })
@@ -1425,6 +1446,10 @@ export async function reserveSignupResendAttempt(
       authAttemptKind: 'resend',
       authAttemptState: 'reserved',
       authAttemptedAt: sql`date_trunc('milliseconds', clock_timestamp())`,
+      emailCodeState: sql`CASE WHEN ${signupSessions.verificationFlowVersion} = 2 THEN 'issued' ELSE ${signupSessions.emailCodeState} END`,
+      emailCodeAttempts: 0,
+      emailCodeExpiresAt: sql`CASE WHEN ${signupSessions.verificationFlowVersion} = 2 THEN least(now() + make_interval(secs => ${SIGNUP_EMAIL_CODE_TTL_SECONDS}), ${signupSessions.absoluteExpiresAt}) ELSE NULL END`,
+      emailCodeReservedAt: null,
       rowVersion: sql`${signupSessions.rowVersion} + 1`,
     })
     .where(
@@ -1432,6 +1457,7 @@ export async function reserveSignupResendAttempt(
         eq(signupSessions.tokenHash, tokenHash),
         liveCondition(),
         eq(signupSessions.status, 'email_pending'),
+        ne(signupSessions.emailCodeState, 'reserved'),
         eq(signupSessions.emailHash, hashEmail(check.data.email)),
         isNotNull(signupSessions.authAttemptKind),
         inArray(signupSessions.authAttemptState, ['reserved', 'completed', 'uncertain']),

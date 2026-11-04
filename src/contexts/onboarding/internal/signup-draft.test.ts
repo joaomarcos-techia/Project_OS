@@ -231,6 +231,7 @@ describe('signup draft contract', () => {
     // A leitura autenticada não renova prazo nenhum: se o idle nascesse menor
     // que o absoluto, o cadastro recém-redigitado morreria antes do checkout.
     expect(values.idleExpiresAt).toEqual(values.absoluteExpiresAt);
+    expect(textoDe(values.recoveryExpiresAt)).toContain("interval '14 days'");
   });
 });
 

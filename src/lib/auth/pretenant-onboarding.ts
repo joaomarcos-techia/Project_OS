@@ -2,6 +2,12 @@ import 'server-only';
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
+import { cookies } from 'next/headers';
+import {
+  readSignupConfirmationGrant,
+  SIGNUP_CONFIRMATION_GRANT_COOKIE,
+  SIGNUP_RECOVERY_COOKIE,
+} from './signup-confirmation-grant';
 
 import { env } from '@/lib/env';
 
@@ -18,7 +24,11 @@ const selfServiceSignupBindingSchema = z
     kind: z.literal('self_service'),
     signup_ref: signupReferenceSchema,
     password_state: z.enum(['pending', 'set']),
+    initial_password_ref: signupReferenceSchema.optional(),
   })
+  .refine(
+    (binding) => binding.initial_password_ref === undefined || binding.password_state === 'pending',
+  )
   .strict();
 
 const SELF_SERVICE_SIGNUP_METADATA_KEY = 'qoro_self_service_signup';
@@ -91,6 +101,21 @@ async function resolvePreTenantOnboardingWithOptions(
         if (binding.password_state !== 'set') {
           return { ok: false, reason: 'credentials_pending' };
         }
+      }
+      if (!options.requireReadyCredentials && binding?.initial_password_ref) {
+        // A direct provider login can issue a verified session after someone
+        // else proves the mailbox. It must never promote a password prepared
+        // by an unverified browser. Require the server-signed mail proof too.
+        const jar = await cookies();
+        const proofs = [SIGNUP_CONFIRMATION_GRANT_COOKIE, SIGNUP_RECOVERY_COOKIE].map((name) =>
+          readSignupConfirmationGrant(jar.get(name)?.value),
+        );
+        if (
+          !proofs.some(
+            (proof) => proof?.userId === userId.data && proof.signupRef === binding.signup_ref,
+          )
+        )
+          return { ok: false, reason: 'credentials_pending' };
       }
       return {
         ok: true,

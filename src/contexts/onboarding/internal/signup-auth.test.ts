@@ -112,9 +112,14 @@ describe('senha e contrato inicial', () => {
       'authAttemptKind',
       'authAttemptState',
       'authAttemptedAt',
+      'emailCodeAttempts',
+      'emailCodeExpiresAt',
+      'emailCodeState',
       'idleExpiresAt',
+      'recoveryExpiresAt',
       'rowVersion',
       'status',
+      'verificationFlowVersion',
     ]);
     expect(Object.values(fields)).not.toContain(valid.password);
     expect(Object.values(fields)).not.toContain(valid.email);
@@ -262,6 +267,10 @@ describe('reenvio explícito', () => {
       'authAttemptKind',
       'authAttemptState',
       'authAttemptedAt',
+      'emailCodeAttempts',
+      'emailCodeExpiresAt',
+      'emailCodeReservedAt',
+      'emailCodeState',
       'rowVersion',
     ]);
     expect(Object.values(fields)).not.toContain(validResend.email);

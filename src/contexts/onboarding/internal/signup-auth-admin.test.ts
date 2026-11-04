@@ -16,6 +16,7 @@ vi.mock('@/lib/auth/supabase-admin', () => ({
 }));
 vi.mock('./signup-draft', () => ({
   readOwnedSignupReference: mocks.readOwnedSignupReference,
+  resumeRetainedOwnedSignupDraft: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock('./signup-session', () => ({
   readSignupDeliveryAttemptState: mocks.readSignupDeliveryAttemptState,
@@ -77,6 +78,17 @@ beforeEach(() => {
 });
 
 describe('resolveReadyOwnedSignupOnboarding', () => {
+  it('does not promote an untrusted initial password through password-login compatibility', async () => {
+    mocks.getUserById.mockResolvedValue({
+      data: { user: { ...user(), app_metadata: createPendingSignupAppMetadata(oldRef, true) } },
+      error: null,
+    });
+    await expect(ensurePasswordAuthenticatedSignupAuthBinding({ userId, email })).resolves.toEqual({
+      ok: false,
+      reason: 'obfuscated',
+    });
+    expect(mocks.updateUserById).not.toHaveBeenCalled();
+  });
   it('autoriza somente marker e linha concluída na mesma referência', async () => {
     await expect(resolveReadyOwnedSignupOnboarding()).resolves.toMatchObject({
       ok: true,

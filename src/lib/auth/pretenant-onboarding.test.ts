@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   readAuthoritativeProfile: vi.fn(),
   authenticate: vi.fn(),
   postLoginRedirect: vi.fn(),
+  cookie: vi.fn(),
+  proof: vi.fn(),
 }));
 
 vi.mock('@/lib/env', () => ({ env: mocks.env }));
@@ -16,6 +18,12 @@ vi.mock('./tenant-context', () => ({
   readAuthoritativeProfile: mocks.readAuthoritativeProfile,
 }));
 vi.mock('./policies', () => ({ postLoginRedirect: mocks.postLoginRedirect }));
+vi.mock('next/headers', () => ({ cookies: async () => ({ get: mocks.cookie }) }));
+vi.mock('./signup-confirmation-grant', () => ({
+  readSignupConfirmationGrant: mocks.proof,
+  SIGNUP_CONFIRMATION_GRANT_COOKIE: 'qoro_signup_confirm',
+  SIGNUP_RECOVERY_COOKIE: 'qoro_signup_recovery',
+}));
 
 import {
   resolvePreTenantOnboarding,
@@ -46,9 +54,44 @@ beforeEach(() => {
   mocks.readAuthoritativeProfile.mockResolvedValue(null);
   mocks.authenticate.mockResolvedValue({ ok: false, reason: 'NO_PROFILE' });
   mocks.postLoginRedirect.mockReturnValue('/dashboard');
+  mocks.cookie.mockReturnValue(undefined);
+  mocks.proof.mockReturnValue(null);
 });
 
 describe('resolvePreTenantOnboarding', () => {
+  it.each(['missing', 'other-user', 'other-ref', 'valid'])(
+    'requires independent mailbox proof for an initial pending password: %s',
+    async (kind) => {
+      mocks.getUser.mockResolvedValue({
+        data: {
+          user: {
+            ...verifiedUser,
+            app_metadata: {
+              qoro_self_service_signup: {
+                ...verifiedUser.app_metadata.qoro_self_service_signup,
+                password_state: 'pending',
+                initial_password_ref: 'b'.repeat(64),
+              },
+            },
+          },
+        },
+        error: null,
+      });
+      if (kind !== 'missing')
+        mocks.proof.mockReturnValue({
+          userId: kind === 'other-user' ? 'other' : USER_ID,
+          signupRef: kind === 'other-ref' ? 'b'.repeat(64) : 'a'.repeat(64),
+        });
+      const result = await resolvePreTenantOnboarding();
+      if (kind === 'valid')
+        expect(result).toMatchObject({
+          ok: true,
+          kind: 'pretenant',
+          pendingSignupRef: 'a'.repeat(64),
+        });
+      else expect(result).toEqual({ ok: false, reason: 'credentials_pending' });
+    },
+  );
   it('fecha o gate antes de criar cliente Auth', async () => {
     mocks.env.SIGNUP_AUTH_ENABLED = false;
     await expect(resolvePreTenantOnboarding()).resolves.toEqual({

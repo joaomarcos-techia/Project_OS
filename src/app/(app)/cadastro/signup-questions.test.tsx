@@ -460,6 +460,7 @@ describe('cadastro — conta e espera O-3b.5', () => {
       target: { value: ' Clínica Teste ' },
     });
     fireEvent.change(screen.getByLabelText('E-mail'), { target: { value: 'ana@example.test' } });
+    fireEvent.change(screen.getByLabelText('Crie sua senha'), { target: { value: 'Senha1234' } });
   }
 
   async function renderPendingOriginalTab() {
@@ -481,9 +482,7 @@ describe('cadastro — conta e espera O-3b.5', () => {
       await Promise.resolve();
       await Promise.resolve();
     });
-    expect(
-      screen.getByRole('heading', { name: 'Aguardando a confirmação do e-mail' }),
-    ).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Confirme seu e-mail aqui' })).toBeTruthy();
     return view;
   }
 
@@ -561,6 +560,7 @@ describe('cadastro — conta e espera O-3b.5', () => {
 
     await screen.findByRole('heading', { name: 'E-mail confirmado' });
     const password = screen.getByLabelText('Crie sua senha');
+    expect(password.closest('form')?.getAttribute('method')).toBe('post');
     expect(screen.getByLabelText('E-mail usado no cadastro')).toBeTruthy();
     expect(password.getAttribute('type')).toBe('password');
     expect(screen.getByLabelText('Código do e-mail').getAttribute('autocomplete')).toBe(
@@ -826,12 +826,15 @@ describe('cadastro — conta e espera O-3b.5', () => {
     expect(document.activeElement).toBe(screen.getByLabelText('Seu nome'));
   });
 
-  it('não pede senha antes de confirmar o e-mail', async () => {
+  it('define a primeira senha na identidade e nunca usa GET para enviá-la', async () => {
     await renderIdentity();
     expect(screen.queryByLabelText('Senha')).toBeNull();
-    expect(document.querySelector('input[name="password"]')).toBeNull();
+    expect(screen.getByLabelText('Crie sua senha').getAttribute('type')).toBe('password');
+    expect(screen.getByLabelText('Crie sua senha').closest('form')?.getAttribute('method')).toBe(
+      'post',
+    );
     expect(screen.queryByRole('button', { name: 'Mostrar senha' })).toBeNull();
-    expect(screen.getByText(/Você criará sua senha somente depois/u)).toBeTruthy();
+    expect(screen.getByText(/Defina sua senha uma única vez/u)).toBeTruthy();
   });
 
   it('valida os dados e o aceite antes de enviar a confirmação', async () => {
@@ -855,22 +858,20 @@ describe('cadastro — conta e espera O-3b.5', () => {
       .mockResolvedValueOnce(json(200, { rowVersion: 4 }))
       .mockResolvedValueOnce(json(422, { error: 'weak_password', rowVersion: 5 }));
     fireEvent.click(screen.getByRole('button', { name: 'Enviar confirmação por e-mail' }));
-    await screen.findByText(/Não foi possível enviar a confirmação/u);
-    expect(
-      screen.queryByRole('heading', { name: 'Aguardando a confirmação do e-mail' }),
-    ).toBeNull();
+    await screen.findByText(/Esta senha foi encontrada em vazamentos/u);
+    expect(screen.queryByRole('heading', { name: 'Confirme seu e-mail aqui' })).toBeNull();
     expect(screen.getByLabelText('Seu nome')).toHaveProperty('value', ' Ana ');
     expect(screen.getByLabelText('E-mail')).toHaveProperty('value', 'ana@example.test');
-    expect(document.querySelector('input[name="password"]')).toBeNull();
+    expect(screen.getByLabelText('Crie sua senha').getAttribute('type')).toBe('password');
     fetchMock
       .mockResolvedValueOnce(json(200, { rowVersion: 6 }))
       .mockResolvedValueOnce(json(200, { rowVersion: 7 }));
     fireEvent.click(screen.getByRole('button', { name: 'Enviar confirmação por e-mail' }));
-    await screen.findByRole('heading', { name: 'Aguardando a confirmação do e-mail' });
+    await screen.findByRole('heading', { name: 'Confirme seu e-mail aqui' });
     expect(JSON.parse(String(fetchMock.mock.calls[3]?.[1]?.body)).rowVersion).toBe(5);
   });
 
-  it('salva staging e solicita confirmação sem enviar ou armazenar senha', async () => {
+  it('envia senha apenas ao Auth e mantém staging e navegador sem senha persistida', async () => {
     await renderIdentity();
     fillIdentity();
     fireEvent.click(screen.getByRole('button', { name: 'Enviar confirmação por e-mail' }));
@@ -881,7 +882,7 @@ describe('cadastro — conta e espera O-3b.5', () => {
       .mockResolvedValueOnce(json(200, { rowVersion: 3 }))
       .mockResolvedValueOnce(json(200, { rowVersion: 5 }));
     fireEvent.click(screen.getByRole('button', { name: 'Enviar confirmação por e-mail' }));
-    await screen.findByRole('heading', { name: 'Aguardando a confirmação do e-mail' });
+    await screen.findByRole('heading', { name: 'Confirme seu e-mail aqui' });
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(fetchMock.mock.calls[1]?.[0]).toBe('/api/signup/sessions/identity');
     expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({
@@ -895,6 +896,7 @@ describe('cadastro — conta e espera O-3b.5', () => {
     expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))).toEqual({
       rowVersion: 3,
       email: 'ana@example.test',
+      password: 'Senha1234',
       accepted: true,
     });
     expect(screen.queryByLabelText('Senha')).toBeNull();
@@ -909,14 +911,14 @@ describe('cadastro — conta e espera O-3b.5', () => {
       .mockResolvedValueOnce(json(200, { rowVersion: 3 }))
       .mockResolvedValueOnce(json(200, { rowVersion: 5 }));
     fireEvent.click(screen.getByRole('button', { name: 'Enviar confirmação por e-mail' }));
-    await screen.findByRole('heading', { name: 'Aguardando a confirmação do e-mail' });
+    await screen.findByRole('heading', { name: 'Confirme seu e-mail aqui' });
 
     expect(screen.queryByLabelText('E-mail usado no cadastro')).toBeNull();
     expect(screen.queryByLabelText('Senha escolhida')).toBeNull();
     fetchMock.mockResolvedValueOnce(json(200, { rowVersion: 6 }));
-    fireEvent.click(screen.getByRole('button', { name: 'Reenviar o e-mail' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Reenviar código' }));
 
-    await screen.findByText(/novo e-mail está a caminho/u);
+    await screen.findByText(/enviaremos um novo código/u);
     expect(fetchMock.mock.calls[3]?.[0]).toBe('/api/signup/sessions/resend');
     expect(JSON.parse(String(fetchMock.mock.calls[3]?.[1]?.body))).toEqual({
       rowVersion: 5,
@@ -958,7 +960,7 @@ describe('cadastro — conta e espera O-3b.5', () => {
       .mockResolvedValueOnce(json(200, { rowVersion: 4 }))
       .mockResolvedValueOnce(json(200, { rowVersion: 6 }));
     fireEvent.click(screen.getByRole('button', { name: 'Enviar confirmação por e-mail' }));
-    await screen.findByRole('heading', { name: 'Aguardando a confirmação do e-mail' });
+    await screen.findByRole('heading', { name: 'Confirme seu e-mail aqui' });
     expect(JSON.parse(String(fetchMock.mock.calls[3]?.[1]?.body)).rowVersion).toBe(3);
     expect(JSON.parse(String(fetchMock.mock.calls[4]?.[1]?.body)).rowVersion).toBe(4);
   });
@@ -971,10 +973,17 @@ describe('cadastro — conta e espera O-3b.5', () => {
       .mockResolvedValueOnce(json(200, { rowVersion: 3 }))
       .mockResolvedValueOnce(json(503, { error: 'unavailable' }))
       .mockResolvedValueOnce(
-        json(200, { session: { ...identitySession, status: 'email_pending', rowVersion: 5 } }),
+        json(200, {
+          session: {
+            ...identitySession,
+            status: 'email_pending',
+            rowVersion: 5,
+            verificationFlowVersion: 2,
+          },
+        }),
       );
     fireEvent.click(screen.getByRole('button', { name: 'Enviar confirmação por e-mail' }));
-    await screen.findByRole('heading', { name: 'Aguardando a confirmação do e-mail' });
+    await screen.findByRole('heading', { name: 'Confirme seu e-mail aqui' });
     expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
       '/api/signup/sessions/me',
       '/api/signup/sessions/identity',

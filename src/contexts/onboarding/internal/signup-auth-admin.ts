@@ -11,13 +11,14 @@ import { readAuthoritativeProfile } from '@/lib/auth/tenant-context';
 import {
   bindLegacyVerifiedSignupAppMetadata,
   hasSignupAuthBindingMarker,
+  hasUntrustedInitialSignupPassword,
   isPendingSignupUserBound,
   markPasswordAuthenticatedSignupReady,
   readPendingSignupReference,
   readSignupAuthBinding,
   rebindPendingSignupAppMetadata,
 } from './signup-auth-binding';
-import { readOwnedSignupReference } from './signup-draft';
+import { readOwnedSignupReference, resumeRetainedOwnedSignupDraft } from './signup-draft';
 import { readSignupDeliveryAttemptState } from './signup-session';
 
 export type EnsureVerifiedSignupAuthBindingOutcome =
@@ -305,6 +306,18 @@ export async function ensurePasswordAuthenticatedSignupAuthBinding(input: {
       return { ok: false, reason: 'obfuscated' };
     }
     const current = readSignupAuthBinding(user);
+    // A password chosen before email proof cannot become trusted merely through
+    // a password login after someone else confirmed that address on another device.
+    if (hasUntrustedInitialSignupPassword(user)) {
+      return { ok: false, reason: 'obfuscated' };
+    }
+    if (current?.passwordState === 'set') {
+      await resumeRetainedOwnedSignupDraft(
+        parsed.data.userId,
+        parsed.data.email,
+        current.signupRef,
+      );
+    }
     if (hasSignupAuthBindingMarker(user) && !current) {
       return { ok: false, reason: 'obfuscated' };
     }

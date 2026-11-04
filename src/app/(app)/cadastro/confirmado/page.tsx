@@ -10,7 +10,10 @@ import {
   ensureVerifiedSignupAuthBinding,
   readOwnedSignupReference,
   resolveReadyOwnedSignupOnboarding,
+  resolveSignupContinuation,
   validateVerifiedSignupAuthUserForClaim,
+  readConsumedSignupRecovery,
+  SIGNUP_RECOVERY_COOKIE,
 } from '@/contexts/onboarding';
 
 import { resolvePreTenantOnboarding } from '@/lib/auth/pretenant-onboarding';
@@ -48,8 +51,9 @@ function TemporarilyUnavailable({ retryHref }: { retryHref: string }) {
  * Confirmação autoritativa e continuação pelo aparelho que recebeu o link.
  *
  * O destino anterior era `/cadastro/continuar`, uma revisão de formulário.
- * O destinatário pode continuar neste aparelho com a sessão verificada pelo OTP. A senha só é
- * escolhida aqui; a aba anônima original continua dependendo do código do e-mail.
+ * O destinatário pode continuar neste aparelho com a sessão verificada pelo OTP. A nova UI
+ * já recolheu a senha antes do código e segue automaticamente. Esta página só pede uma senha
+ * quando a identidade legada ou recuperada ainda não tem credencial confiável concluída.
  *
  * A checagem abaixo é o que impede a tela de MENTIR. Sem sessão verificada,
  * "E-mail confirmado" seria só um texto numa URL que qualquer um abre. Quem já
@@ -75,6 +79,11 @@ export default async function CadastroConfirmadoPage() {
   const jar = await cookies();
   const repairGrant = readSignupConfirmationGrant(jar.get(SIGNUP_CONFIRMATION_GRANT_COOKIE)?.value);
   const repairSignupRef = repairGrant?.userId === onboarding.userId ? repairGrant.signupRef : null;
+  const recoveryProof = readSignupConfirmationGrant(jar.get(SIGNUP_RECOVERY_COOKIE)?.value);
+  const recovery =
+    recoveryProof?.userId === onboarding.userId && recoveryProof.signupRef === onboarding.signupRef
+      ? await readConsumedSignupRecovery(onboarding.userId, recoveryProof.signupRef)
+      : null;
   const owned = await readOwnedSignupReference(onboarding.userId, onboarding.email);
   if (!owned.ok && owned.reason === 'unavailable') {
     return (
@@ -90,8 +99,17 @@ export default async function CadastroConfirmadoPage() {
   // Se o Auth ainda aponta para uma tentativa anterior, a prova mais recente
   // precisa vencer no retry; depois do claim, a referencia possuida no banco
   // continua sendo a autoridade principal.
-  const signupRef = owned.ok ? owned.signupRef : (repairSignupRef ?? onboarding.pendingSignupRef);
-  if (!owned.ok && signupRef) {
+  const recoveredWithoutDraft = !owned.ok && owned.reason === 'gone' && recovery !== null;
+  if (recoveredWithoutDraft && onboarding.pendingSignupRef === null) {
+    const continuation = await resolveSignupContinuation();
+    if (continuation.ok) redirect(continuation.next);
+  }
+  const signupRef = owned.ok
+    ? owned.signupRef
+    : recoveryProof?.userId === onboarding.userId
+      ? recoveryProof.signupRef
+      : (repairSignupRef ?? onboarding.pendingSignupRef);
+  if (!owned.ok && signupRef && !recoveredWithoutDraft) {
     const validation = await validateVerifiedSignupAuthUserForClaim({
       userId: onboarding.userId,
       email: onboarding.email,
@@ -127,11 +145,13 @@ export default async function CadastroConfirmadoPage() {
   // O banco vence quando o claim já aconteceu. Assim, se a Admin API falhou
   // depois do commit SQL, uma nova carga reata o marker à referência realmente
   // possuída em vez de insistir na referência antiga do Auth.
-  const binding = await ensureVerifiedSignupAuthBinding({
-    userId: onboarding.userId,
-    email: onboarding.email,
-    signupRef,
-  });
+  const binding = recoveredWithoutDraft
+    ? { ok: true as const }
+    : await ensureVerifiedSignupAuthBinding({
+        userId: onboarding.userId,
+        email: onboarding.email,
+        signupRef,
+      });
   if (!binding.ok) {
     if (binding.reason === 'obfuscated') redirect('/auth/auth-error?reason=invalid_token');
     return (
@@ -144,6 +164,10 @@ export default async function CadastroConfirmadoPage() {
   }
   const ready = await resolveReadyOwnedSignupOnboarding();
   if (ready.ok && ready.kind === 'redirect') redirect(ready.route);
+  if (ready.ok) {
+    const continuation = await resolveSignupContinuation();
+    if (continuation.ok) redirect(continuation.next);
+  }
   // Auth may have committed the password before SQL finalization lost its
   // response. Offer reconciliation with the same password after refresh too.
   const reconcile =

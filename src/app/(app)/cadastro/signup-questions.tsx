@@ -15,6 +15,7 @@ import type {
 } from '@/contexts/onboarding';
 
 import { SignupEmailPending } from './signup-email-pending';
+import { SignupCodeConfirmation } from './signup-code-confirmation';
 import { SignupEmailVerified } from './signup-email-verified';
 import { SignupIdentity } from './signup-identity';
 
@@ -514,11 +515,35 @@ export function SignupQuestions({ identityEnabled = false }: { identityEnabled?:
               {phase === 'expired' ? 'Começar novamente' : 'Tentar novamente'}
             </Button>
           )}
+          {phase === 'expired' ? (
+            <p className="mt-5 text-sm leading-relaxed text-fg-muted">
+              Já recebeu um e-mail ou criou sua conta?{' '}
+              <a
+                href="/cadastro/retomar"
+                className="font-medium text-primary underline underline-offset-4"
+              >
+                Recuperar meu cadastro por e-mail
+              </a>
+            </p>
+          ) : null}
         </div>
       </section>
     );
   }
 
+  if (session?.status === 'email_verified' && session.verificationFlowVersion === 2) {
+    return (
+      <section className="mx-auto w-full max-w-[680px] px-5 pb-16 pt-5 sm:px-8">
+        <h2 className="font-display text-2xl">E-mail confirmado</h2>
+        <p className="mt-3 text-sm text-fg-muted">
+          Continue para a próxima etapa do seu cadastro. Não é preciso definir sua senha novamente.
+        </p>
+        <Button className="mt-5" onClick={() => window.location.assign('/cadastro/confirmado')}>
+          Continuar cadastro
+        </Button>
+      </section>
+    );
+  }
   if (session?.status === 'email_verified') {
     return (
       <section className="mx-auto w-full max-w-[680px] px-5 pb-16 pt-5 sm:px-8 lg:pt-9">
@@ -544,13 +569,23 @@ export function SignupQuestions({ identityEnabled = false }: { identityEnabled?:
             <Alert variant={messageKind}>{message}</Alert>
           </div>
         ) : null}
-        <SignupEmailPending
-          rowVersion={session.rowVersion}
-          email={emailPendente}
-          onUpdated={(rowVersion) => setSession({ ...session, rowVersion })}
-          onReconcile={reconcileSession}
-          onGone={expireSession}
-        />
+        {session.verificationFlowVersion === 2 ? (
+          <SignupCodeConfirmation
+            rowVersion={session.rowVersion}
+            email={emailPendente}
+            onUpdated={(rowVersion) => setSession({ ...session, rowVersion })}
+            onReconcile={reconcileSession}
+            onGone={expireSession}
+          />
+        ) : (
+          <SignupEmailPending
+            rowVersion={session.rowVersion}
+            email={emailPendente}
+            onUpdated={(rowVersion) => setSession({ ...session, rowVersion })}
+            onReconcile={reconcileSession}
+            onGone={expireSession}
+          />
+        )}
       </section>
     );
   }
@@ -569,13 +604,19 @@ export function SignupQuestions({ identityEnabled = false }: { identityEnabled?:
           saved={session.status === 'identity_pending'}
           onCredentialsPrepared={(email) => {
             continuationCredentials.current = { email };
+            setEmailPendente(email);
           }}
           onCredentialsCleared={() => {
             continuationCredentials.current = null;
           }}
           onEmailPending={(rowVersion, email) => {
             setEmailPendente(email);
-            setSession({ ...session, status: 'email_pending', rowVersion });
+            setSession({
+              ...session,
+              status: 'email_pending',
+              rowVersion,
+              verificationFlowVersion: 2,
+            });
             setMessage(null);
           }}
           onReconcile={reconcileSession}

@@ -9,6 +9,8 @@ import {
   createPendingSignupAppMetadata,
   deriveSignupHandoffCode,
   isPendingSignupUserBound,
+  hasInitialSignupPassword,
+  hasUntrustedInitialSignupPassword,
   markSignupPasswordSet,
   readPendingSignupReference,
   readSignupAuthBinding,
@@ -21,6 +23,16 @@ const signupRef = 'a'.repeat(64);
 const attemptEpoch = Date.parse('2026-09-23T12:00:00.000Z');
 
 describe('vínculo Auth do cadastro autônomo', () => {
+  it('never trusts a password prepared in another draft or drops its provenance during rebind', () => {
+    const original = { app_metadata: createPendingSignupAppMetadata(signupRef, true) };
+    expect(hasInitialSignupPassword(original, signupRef)).toBe(true);
+    const anotherRef = 'b'.repeat(64);
+    const rebound = { app_metadata: rebindPendingSignupAppMetadata(original, anotherRef) };
+    expect(hasInitialSignupPassword(rebound, anotherRef)).toBe(false);
+    expect(hasUntrustedInitialSignupPassword(rebound)).toBe(true);
+    const ready = { app_metadata: markSignupPasswordSet(rebound, anotherRef) };
+    expect(hasUntrustedInitialSignupPassword(ready)).toBe(false);
+  });
   it('prende a conta passwordless à referência server-only e faz a transição uma vez', () => {
     const pending = { app_metadata: createPendingSignupAppMetadata(signupRef) };
     expect(isPendingSignupUserBound(pending, signupRef)).toBe(true);

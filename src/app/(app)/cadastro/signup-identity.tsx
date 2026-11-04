@@ -9,6 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SIGNUP_INPUT_LIMITS } from '@/contexts/onboarding/signup-input-limits';
+import { SIGNUP_PASSWORD_RULES, signupPasswordMessage } from '@/lib/auth/signup-password';
 
 type Props = {
   rowVersion: number;
@@ -72,11 +73,18 @@ export function SignupIdentity({
     ).find((input) => !input.validity.valid || (input.type !== 'checkbox' && !input.value.trim()));
     if (invalid || !accepted) {
       (invalid ?? form.querySelector<HTMLButtonElement>('[role="checkbox"]'))?.focus();
-      setMessage('Preencha os três campos e confirme o aceite para continuar.');
+      setMessage('Preencha seus dados, a senha e confirme o aceite para continuar.');
       return;
     }
 
     const email = String(fields.get('email')).trim();
+    const password = String(fields.get('password') ?? '');
+    const passwordProblem = signupPasswordMessage(password);
+    if (passwordProblem) {
+      setMessage(passwordProblem);
+      form.querySelector<HTMLInputElement>('input[name="password"]')?.focus();
+      return;
+    }
     const identity = {
       rowVersion: currentVersion.current,
       ownerName: String(fields.get('ownerName')).trim(),
@@ -130,6 +138,7 @@ export function SignupIdentity({
           body: JSON.stringify({
             rowVersion: identityVersion,
             email,
+            password,
             accepted: true,
           }),
         });
@@ -174,7 +183,7 @@ export function SignupIdentity({
         }
         currentVersion.current = retryVersion;
         onCredentialsCleared();
-        setMessage('Não foi possível enviar a confirmação. Tente novamente.');
+        setMessage('Esta senha foi encontrada em vazamentos. Escolha outra senha para continuar.');
       } else if (authResponse.status === 409 || authResponse.status === 503) {
         await onReconcile(authResponse.status === 409 ? 'conflict' : 'uncertain');
       } else {
@@ -223,10 +232,10 @@ export function SignupIdentity({
           </Button>
         </>
       ) : (
-        <form ref={formRef} onSubmit={submit} noValidate className="mt-5">
+        <form method="post" ref={formRef} onSubmit={submit} noValidate className="mt-5">
           <p className="mb-5 text-pretty text-sm leading-relaxed text-fg-muted">
-            Informe seus dados e confirme o aceite para receber o e-mail. Você criará sua senha
-            somente depois de confirmar o endereço.
+            Defina sua senha uma única vez. Depois, confirme seu e-mail com o código recebido, sem
+            sair desta jornada.
           </p>
           <fieldset disabled={saving} className="space-y-4">
             <div className="space-y-2">
@@ -259,6 +268,22 @@ export function SignupIdentity({
                 required
                 maxLength={SIGNUP_INPUT_LIMITS.email}
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="signup-password">Crie sua senha</Label>
+              <Input
+                id="signup-password"
+                name="password"
+                type="password"
+                autoComplete="new-password"
+                required
+                minLength={8}
+                maxLength={72}
+                aria-describedby="signup-password-rules"
+              />
+              <p id="signup-password-rules" className="text-xs leading-relaxed text-fg-muted">
+                {SIGNUP_PASSWORD_RULES}
+              </p>
             </div>
             <div className="flex min-h-10 items-start gap-3 pt-2">
               <Checkbox

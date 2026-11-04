@@ -14,6 +14,9 @@ const { selectMock, insertMock, updateMock, deleteMock, limitMock, emitMock, ver
   }));
 
 vi.mock('server-only', () => ({}));
+vi.mock('./signup-email-delivery', () => ({
+  purgeExpiredSignupEmailArtifacts: vi.fn().mockResolvedValue({ grants: 0, events: 0 }),
+}));
 vi.mock('@/lib/db', () => ({
   dbAdmin: {
     select: selectMock,
