@@ -1338,6 +1338,30 @@ test.describe('cadastro — confirmação real via Resend', () => {
       const verified = await openOnPhone(browser, proof.url);
       phone = verified.context;
       await waitForOriginalHandoff(signup.page);
+      const withoutJavaScript = await browser.newContext({
+        baseURL: baseUrl!,
+        storageState: await phone.storageState(),
+        javaScriptEnabled: false,
+      });
+      try {
+        await installVercelBypassForOrigin(withoutJavaScript, new URL(baseUrl!).origin);
+        const staticPage = await withoutJavaScript.newPage();
+        await staticPage.goto('/cadastro/confirmado');
+        await expect(staticPage.locator('form:has(input[name="password"])')).toHaveAttribute(
+          'method',
+          'post',
+        );
+        await expect(staticPage.getByLabel('Crie sua senha')).toBeDisabled();
+        await expect(
+          staticPage.getByRole('button', { name: 'Criar senha e escolher plano' }),
+        ).toBeDisabled();
+      } finally {
+        await withoutJavaScript.close();
+      }
+      let passwordQuerySeen = false;
+      phone.on('request', (request) => {
+        if (new URL(request.url()).searchParams.has('password')) passwordQuerySeen = true;
+      });
       // The anonymous initiator has no authority to use the authenticated-recipient endpoint.
       const anonymous = await signup.page.evaluate(async () => {
         const response = await fetch('/api/signup/password', {
@@ -1398,6 +1422,7 @@ test.describe('cadastro — confirmação real via Resend', () => {
       expect(replay).toBe(401);
       expect(await passwordSignInSucceeds(email, signup.password)).toBe(true);
       expect(await passwordSignInSucceeds(email, 'DifferentSyntheticReplay7!')).toBe(false);
+      expect(passwordQuerySeen, 'password entered a request URL').toBe(false);
       await expect(signup.page).toHaveURL(/\/cadastro$/u);
       await expect(signup.page.getByRole('heading', { name: 'Escolha seu plano' })).toHaveCount(0);
     } finally {
