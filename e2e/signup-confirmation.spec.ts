@@ -1496,7 +1496,7 @@ test.describe('cadastro — confirmação real via Resend', () => {
             [
               'node_modules/tsx/dist/cli.mjs',
               '--conditions=react-server',
-              'scripts/security/signup-recovery-dev.ts',
+              'scripts/run-signup-recovery-dev.ts',
             ],
             {
               input: JSON.stringify({

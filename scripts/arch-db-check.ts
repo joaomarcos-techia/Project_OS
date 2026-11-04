@@ -50,7 +50,7 @@ const ALLOWED_POSTGRES_IMPORTS = new Set([
   'scripts/security/signup-local.integration.ts',
   'scripts/security/signup-browser.integration.ts',
   // Guarded Preview/DEV operator; synthetic resend.dev recipients only.
-  'scripts/security/signup-recovery-dev.ts',
+  'scripts/run-signup-recovery-dev.ts',
   'scripts/db-migrate-prod.ts',
   'scripts/delete-test-clinics-prod.ts',
   // P8: conexões descartáveis, guardadas por loopback + prefixo do banco.
@@ -105,6 +105,8 @@ const ALLOWED_DB_VALUE_IMPORTS: Record<string, Set<string>> = {
     'src/contexts/onboarding/internal/signup-email-code-repository.ts',
     'src/contexts/onboarding/internal/signup-email-delivery.ts',
     'src/contexts/onboarding/internal/signup-recovery.ts',
+    // Operator-only restoration; exact Auth identity, consent and absence of newer progress.
+    'src/contexts/onboarding/internal/signup-draft-snapshot.ts',
     // Reabrir clínica após reativação: `clinics` não tem UPDATE para o tenant —
     // via RLS casaria zero linhas (medido em 28/09). Comando estreito, guardado
     // por billing ativo + reativação como último evento do histórico.

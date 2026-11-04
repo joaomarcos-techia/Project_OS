@@ -1,0 +1,158 @@
+{
+  "environment": "Preview + DEV + Asaas Sandbox",
+  "realLeadEmailsSent": 0,
+  "campaignReactivated": false,
+  "productionMigrationApplied": false,
+  "normalCodeFlow": {
+    "state": "passed",
+    "sha": "e1cd6c70",
+    "tests": 1,
+    "realAuthAndSql": true,
+    "realSignedDeliveryWebhook": true,
+    "recipient": "Resend controlled delivered alias; not a human inbox proof",
+    "webhookDisabled": true
+  },
+  "crossDeviceRecovery": {
+    "state": "passed",
+    "sha": "4c220e69",
+    "tests": 2,
+    "missingDraft": {
+      "at": "2026-11-04T12:23:39.494Z",
+      "cohort": "missing",
+      "origin": "https://project-os-git-fix-signup-code-f-30817b-clinic-os-v2-s-projects.vercel.app",
+      "identityPreserved": true,
+      "birthAndTrialAnchorPreserved": true,
+      "noGetConsumption": true,
+      "firstPasswordAfterProof": true,
+      "readyPasswordUnchanged": false,
+      "noCheckoutCreated": true
+    },
+    "retainedDraft": {
+      "at": "2026-11-04T12:24:51.202Z",
+      "cohort": "retained",
+      "origin": "https://project-os-git-fix-signup-code-f-30817b-clinic-os-v2-s-projects.vercel.app",
+      "identityPreserved": true,
+      "birthAndTrialAnchorPreserved": true,
+      "noGetConsumption": true,
+      "firstPasswordAfterProof": false,
+      "readyPasswordUnchanged": true,
+      "noCheckoutCreated": true
+    },
+    "fixturesRemoved": true,
+    "initialFailure": "native password GET before hydration; fixed and retested"
+  },
+  "newCodeToCheckout": {
+    "state": "PASS",
+    "sha": "4c220e69",
+    "at": "2026-11-04T12:26:29.792Z",
+    "origin": "https://project-os-git-fix-signup-code-f-30817b-clinic-os-v2-s-projects.vercel.app",
+    "projectRef": "pqhkirrszzpwezdaqrai",
+    "checkoutId": "0ed358c7-472a-4836-ae1d-74b5944e0ee1",
+    "planCode": "clinica_2026_2",
+    "billingCycle": "monthly",
+    "initialPasswordPreserved": true,
+    "trialDaysFromAuth": 14,
+    "paymentMade": false,
+    "cancelledResponseCorrelated": true,
+    "fixtureCleaned": true,
+    "limit": "No payment or new paid webhook/activation proof in this round"
+  },
+  "protectedSnapshotPreparation": {
+    "state": "PASS",
+    "focusedUnitTests": 85,
+    "nativePostgresChecks": 48,
+    "nativeScope": "Real migrations/repository SQL; minimal Auth scaffold, not external Auth service",
+    "dpapiSchemaAndPrivateAclVerified": true,
+    "productionRestorationExecuted": false,
+    "refused": [
+      "changed identity",
+      "existing progress",
+      "billing",
+      "invite",
+      "banned identity",
+      "duplicate restore"
+    ]
+  },
+  "passwordSafetyHotfix": {
+    "pr": 48,
+    "ciRun": "41827566468",
+    "unitTests": 5891,
+    "publicE2ePassed": 7,
+    "publicE2eTurnstileSkipped": 2,
+    "previewE2e": 1,
+    "production": {
+      "at": "2026-11-04T12:35:32.829Z",
+      "state": "PASS",
+      "deploymentId": "dpl_51YUxqQ6n971UatSX4X5D2YtiizV",
+      "mergeSha": "a9c7b0b1dc6f5e5b24e416404bfbf4b958b329df",
+      "testedSourceSha": "dc662a14d630f5d0ef0f795b9380096a365e5da1",
+      "testedAndMergedTreesEqual": true,
+      "canonicalDomain": "app.qoro.dev",
+      "checks": [
+        {
+          "path": "/login",
+          "status": 200,
+          "expected": 200,
+          "pass": true
+        },
+        {
+          "path": "/cadastro",
+          "status": 200,
+          "expected": 200,
+          "pass": true
+        },
+        {
+          "path": "/cadastro/confirmado",
+          "status": 307,
+          "expected": 307,
+          "pass": true
+        },
+        {
+          "path": "/cadastro/continuar",
+          "status": 307,
+          "expected": 307,
+          "pass": true
+        },
+        {
+          "path": "/cadastro/plano",
+          "status": 307,
+          "expected": 307,
+          "pass": true
+        },
+        {
+          "path": "/api/signup/password",
+          "status": 405,
+          "expected": 405,
+          "pass": true
+        },
+        {
+          "path": "/api/signup/sessions/me",
+          "status": 410,
+          "expected": 410,
+          "pass": true
+        },
+        {
+          "path": "/api/health",
+          "status": 401,
+          "expected": 401,
+          "pass": true
+        }
+      ],
+      "limits": "Read-only public smoke; no real account, password, signup, payment, migration or lead email used. Authenticated no-JavaScript/password flow was proved only on the identical Preview source."
+    }
+  },
+  "ciHistory": [
+    {
+      "sha": "e1cd6c70",
+      "state": "PASS",
+      "tests": 6072,
+      "run": "41818924424"
+    },
+    {
+      "sha": "4c220e69",
+      "state": "FAIL",
+      "run": "41828230142",
+      "reason": "Isolated build omitted the sibling dependency of the DEV operator; operator moved alongside runner without build/CI configuration changes"
+    }
+  ]
+}

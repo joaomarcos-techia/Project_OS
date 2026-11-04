@@ -326,6 +326,111 @@ try {
     });
     passed++;
   }
+  // Guarded recovery of the separately protected snapshot; no Auth service or real data.
+  await cluster.sql`alter table auth.users add column encrypted_password text,
+    add column invited_at timestamptz, add column deleted_at timestamptz,
+    add column banned_until timestamptz`;
+  const { restoreSignupDraftSnapshot } =
+    await import('../../src/contexts/onboarding/internal/signup-draft-snapshot');
+  const restoreUser = randomUUID();
+  const restoreEmail = 'synthetic-snapshot@example.test';
+  const restoreRef = randomBytes(32).toString('hex');
+  const bornAt = new Date(Date.now() - 60_000).toISOString();
+  const readyMetadata = {
+    qoro_self_service_signup: {
+      version: 1,
+      kind: 'self_service',
+      signup_ref: restoreRef,
+      password_state: 'set',
+    },
+  };
+  await cluster.sql`insert into auth.users(id,email,created_at,email_confirmed_at,encrypted_password,raw_app_meta_data)
+    values(${restoreUser}::uuid,${restoreEmail},${bornAt}::timestamptz,now(),'synthetic-not-a-real-password-hash',${cluster.sql.json(readyMetadata)})`;
+  const protectedSnapshot = {
+    version: 1,
+    purpose: 'Authorized lead-04 onboarding recovery; not account authority',
+    capturedAt: new Date(Date.now() - 1000).toISOString(),
+    retainUntil: new Date(Date.now() + 86_400_000).toISOString(),
+    data: {
+      user_id: restoreUser,
+      auth_created_at: bornAt,
+      owner_name: 'Synthetic preserved owner',
+      clinic_name: 'Synthetic preserved clinic',
+      email_hash: hashEmail(restoreEmail),
+      accepted_at: bornAt,
+      professionals_band: '1',
+      weekly_appointments_band: 'ate_20',
+      current_tooling: 'nada_papel',
+      discovery_source: 'outro',
+      answered_at: bornAt,
+      selected_plan_id: null,
+      selected_billing_cycle: 'monthly',
+    },
+  };
+  const [authFingerprintBefore] =
+    await cluster.sql`select md5(to_jsonb(u)::text) as fingerprint from auth.users u where id=${restoreUser}::uuid`;
+  const restoreRace = await Promise.all([
+    restoreSignupDraftSnapshot(protectedSnapshot),
+    restoreSignupDraftSnapshot(protectedSnapshot),
+  ]);
+  assert.equal(
+    restoreRace.filter((result) => result.ok && result.state === 'restored').length,
+    1,
+    JSON.stringify(restoreRace),
+  );
+  assert.equal(
+    restoreRace.filter((result) => result.ok && result.state === 'already_present').length,
+    1,
+  );
+  const [restored] = await cluster.sql`
+    select count(*)::int as count, bool_and(owner_name=${protectedSnapshot.data.owner_name}
+      and recovery_expires_at=${protectedSnapshot.retainUntil}::timestamptz
+      and auth_attempt_state is null and billing_attempt_state is null
+      and selected_plan_id is null and asaas_checkout_id is null) as preserved
+    from signup_sessions where auth_user_id=${restoreUser}::uuid`;
+  assert.deepEqual(restored, { count: 1, preserved: true });
+  const [authFingerprintAfter] =
+    await cluster.sql`select md5(to_jsonb(u)::text) as fingerprint from auth.users u where id=${restoreUser}::uuid`;
+  assert.equal(authFingerprintAfter?.fingerprint, authFingerprintBefore?.fingerprint);
+  passed += 3;
+  for (const data of [
+    { ...protectedSnapshot.data, auth_created_at: new Date(Date.now() - 120_000).toISOString() },
+    { ...protectedSnapshot.data, email_hash: '0'.repeat(64) },
+  ]) {
+    assert.deepEqual(await restoreSignupDraftSnapshot({ ...protectedSnapshot, data }), {
+      ok: false,
+      reason: 'identity_changed',
+    });
+    passed++;
+  }
+  await cluster.sql`update auth.users set banned_until=now()+interval '1 hour' where id=${restoreUser}::uuid`;
+  assert.deepEqual(await restoreSignupDraftSnapshot(protectedSnapshot), {
+    ok: false,
+    reason: 'identity_changed',
+  });
+  await cluster.sql`update auth.users set banned_until=null where id=${restoreUser}::uuid`;
+  passed++;
+  const [snapshotPlan] = await cluster.sql`select id from plans where code='consultorio_2026'`;
+  assert.ok(snapshotPlan);
+  await cluster.sql`update signup_sessions set selected_plan_id=${snapshotPlan.id}::uuid,auth_attempt_kind='initial',auth_attempt_state='completed',auth_attempted_at=now(),
+    billing_attempt_state='creation_unknown',billing_attempted_at=now(),asaas_customer_id='cus_synthetic_snapshot_unknown' where auth_user_id=${restoreUser}::uuid`;
+  const [progressBefore] =
+    await cluster.sql`select md5(to_jsonb(s)::text) as fingerprint from signup_sessions s where auth_user_id=${restoreUser}::uuid`;
+  assert.deepEqual(await restoreSignupDraftSnapshot(protectedSnapshot), {
+    ok: false,
+    reason: 'existing_progress',
+  });
+  const [progressAfter] =
+    await cluster.sql`select md5(to_jsonb(s)::text) as fingerprint from signup_sessions s where auth_user_id=${restoreUser}::uuid`;
+  assert.equal(progressAfter?.fingerprint, progressBefore?.fingerprint);
+  passed++;
+  await cluster.sql`insert into clinic_invites(token_hash,email,expires_at)
+    values(${randomBytes(32).toString('hex')},${restoreEmail},now()+interval '1 day')`;
+  assert.deepEqual(await restoreSignupDraftSnapshot(protectedSnapshot), {
+    ok: false,
+    reason: 'existing_progress',
+  });
+  passed++;
   await dbAdmin.$client.end({ timeout: 2 });
   console.log(
     `PASS ${passed}/${passed}: real migration, repository, code/resend concurrency, delivery reconciliation and ACL. Synthetic local DB; external Auth/checkout not covered.`,

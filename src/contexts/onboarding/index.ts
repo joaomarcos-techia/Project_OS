@@ -17,6 +17,7 @@ export {
 export type { SignupAnswerValues } from './internal/signup-answer-values';
 export { confirmSignupEmailCode, resolveSignupContinuation } from './internal/signup-email-code';
 export { recordSignupEmailDelivery } from './internal/signup-email-delivery';
+export { restoreSignupDraftSnapshot } from './internal/signup-draft-snapshot';
 export {
   prepareSignupRecovery,
   requestSignupRecovery,

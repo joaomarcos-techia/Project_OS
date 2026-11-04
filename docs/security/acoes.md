@@ -552,6 +552,13 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/run-signup-confirmation-e2e.ts:237`               | `E2E_SIGNUP_VERIFY_OFFER`              | `process.env.E2E_SIGNUP_VERIFY_OFFER`                                       |
 | `scripts/run-signup-confirmation-e2e.ts:238`               | `E2E_SIGNUP_RETIRE_OFFER`              | `process.env.E2E_SIGNUP_RETIRE_OFFER`                                       |
 | `scripts/run-signup-confirmation-e2e.ts:266`               | `<object>`                             | `process.env`                                                               |
+| `scripts/run-signup-recovery-dev.ts:6`                     | `<object>`                             | `process.env`                                                               |
+| `scripts/run-signup-recovery-dev.ts:7`                     | `E2E_SIGNUP_ALLOWED_ORIGIN`            | `process.env.E2E_SIGNUP_ALLOWED_ORIGIN`                                     |
+| `scripts/run-signup-recovery-dev.ts:10`                    | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
+| `scripts/run-signup-recovery-dev.ts:10`                    | `DATABASE_URL_DEV`                     | `process.env.DATABASE_URL_DEV`                                              |
+| `scripts/run-signup-recovery-dev.ts:11`                    | `APP_BASE_URL`                         | `process.env.APP_BASE_URL`                                                  |
+| `scripts/run-signup-recovery-dev.ts:12`                    | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                                                    |
+| `scripts/run-signup-recovery-dev.ts:13`                    | `VERCEL_BRANCH_URL`                    | `process.env.VERCEL_BRANCH_URL`                                             |
 | `scripts/security/local-build.ts:76`                       | `<dynamic>`                            | `process.env[key]`                                                          |
 | `scripts/security/local-build.ts:76`                       | `<dynamic>`                            | `process.env[key]`                                                          |
 | `scripts/security/local-build.ts:101`                      | `CI`                                   | `process.env.CI`                                                            |
@@ -632,13 +639,6 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/signup-provision-db.ts:95`               | `CRYPTO_LOOKUP_SALT`                   | `process.env.CRYPTO_LOOKUP_SALT`                                            |
 | `scripts/security/signup-provision-db.ts:96`               | `LOG_LEVEL`                            | `process.env.LOG_LEVEL`                                                     |
 | `scripts/security/signup-provision-db.ts:803`              | `<object>`                             | `process.env`                                                               |
-| `scripts/security/signup-recovery-dev.ts:6`                | `<object>`                             | `process.env`                                                               |
-| `scripts/security/signup-recovery-dev.ts:7`                | `E2E_SIGNUP_ALLOWED_ORIGIN`            | `process.env.E2E_SIGNUP_ALLOWED_ORIGIN`                                     |
-| `scripts/security/signup-recovery-dev.ts:10`               | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
-| `scripts/security/signup-recovery-dev.ts:10`               | `DATABASE_URL_DEV`                     | `process.env.DATABASE_URL_DEV`                                              |
-| `scripts/security/signup-recovery-dev.ts:11`               | `APP_BASE_URL`                         | `process.env.APP_BASE_URL`                                                  |
-| `scripts/security/signup-recovery-dev.ts:12`               | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                                                    |
-| `scripts/security/signup-recovery-dev.ts:13`               | `VERCEL_BRANCH_URL`                    | `process.env.VERCEL_BRANCH_URL`                                             |
 | `scripts/security/signup-regression.ts:19`                 | `SECURITY_PG_BIN`                      | `process.env.SECURITY_PG_BIN`                                               |
 | `scripts/security/signup-regression.ts:35`                 | `<object>`                             | `process.env`                                                               |
 | `scripts/security/signup-regression.ts:35`                 | `<dynamic>`                            | `process.env[key]`                                                          |

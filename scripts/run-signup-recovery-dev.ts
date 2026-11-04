@@ -1,7 +1,7 @@
 /** Operator seam for real Preview recovery E2E. Never accepts Production or a real recipient. */
 import { z } from 'zod';
 
-import { assertSignupConfirmationE2EEnvironment } from '../run-signup-confirmation-e2e';
+import { assertSignupConfirmationE2EEnvironment } from './run-signup-confirmation-e2e';
 
 assertSignupConfirmationE2EEnvironment(process.env);
 const origin = new URL(process.env.E2E_SIGNUP_ALLOWED_ORIGIN ?? '').origin;
@@ -29,7 +29,7 @@ async function main(): Promise<void> {
   }
   const input = schema.safeParse(JSON.parse(text));
   if (!input.success) throw new Error('Invalid operator input');
-  const { createAdminClient } = await import('../../src/lib/auth/supabase-admin');
+  const { createAdminClient } = await import('../src/lib/auth/supabase-admin');
   const account = await createAdminClient().auth.admin.getUserById(input.data.userId);
   if (
     account.error ||
@@ -37,8 +37,8 @@ async function main(): Promise<void> {
     !/^delivered\+qoro-recovery-[a-z0-9-]+@resend\.dev$/u.test(account.data.user.email)
   )
     throw new Error('Operator refuses recipients outside its synthetic fixture');
-  const { sendSignupLeadRecovery } = await import('../../src/contexts/onboarding');
-  const { dbAdmin } = await import('../../src/lib/db');
+  const { sendSignupLeadRecovery } = await import('../src/contexts/onboarding');
+  const { dbAdmin } = await import('../src/lib/db');
   try {
     const result = await sendSignupLeadRecovery({ ...input.data, publicOrigin: origin });
     console.log(JSON.stringify({ kind: 'signup-recovery-dev-receipt', ...result }));

@@ -133,7 +133,7 @@ ela também foi aplicada no DEV em 04/11, sem alterar Production; ver o recibo
 
 | Verificação | Resultado | Escopo e limite |
 | --- | --- | --- |
-| SQL real com migrations e concorrência | **PASS 40/40** | Cluster local descartável; ACL, épocas, limite, corridas, retenção, exclusão mútua de escritores e preservação de billing. `dist/signup-code-db-final.log`. |
+| SQL real com migrations e concorrência | **PASS 48/48** | Cluster local descartável; 40 provas anteriores e oito de restauração protegida, concorrência, identidade e recusa de progresso/billing existentes. Auth é scaffold mínimo nesse teste. `dist/signup-code-snapshot-db-final-verified.log`. |
 | Auth real e SQL | **PASS 3/3** | Supabase local; adaptador de cookies substituído. Não é prova de navegador. `dist/signup-local-integration.json`. |
 | Navegador, Next, Auth e SQL reais | **PASS 4/4** | Desktop/mobile, F5, código errado/correto, senha única, plano persistido e outro aparelho. Nenhum Checkout criado. `dist/signup-browser-integration.json`. |
 | E-mail externo e jornada real | **PASS 1/1** | Endereço de teste controlado, Resend DEV, mensagem recebida e código usado pela UI até plano. Auth/SQL locais. Fixture removida; nenhum lead usado. `dist/signup-mail-integration.json`. |
@@ -152,8 +152,9 @@ ela também foi aplicada no DEV em 04/11, sem alterar Production; ver o recibo
 | Migration 0134 no DEV | **PASS** | Histórico 134 → 135; apenas 0134 acrescentada. Histórico prévio, catálogo, preços, contratos e perfis preservados. Ledgers com FORCE RLS e acesso comum negado. Recibo versionado acima. |
 | Preview: senha inicial → código → F5 → plano salvo | **PASS 1/1** | Commit `e1cd6c70`, Preview/DEV real; fixture removida. `dist/quality/signup-preview-code-run.json`. |
 | Resend → webhook publicado → SQL | **PASS** | Evento legítimo assinado projetou `delivered` no DEV; endpoint sem assinatura recusado. Alias de entrega controlado do Resend, não uma nova prova de caixa de entrada humana. Webhook temporário desativado após o teste. |
-| Nova entrada → Checkout Sandbox | **PASS 1/1; cancelamento reforçado em reteste** | Senha preservada, trial exato de 14 dias desde Auth, plano mensal Clínica persistido e página real do Asaas. Sem pagamento/ativação nesta rodada. O primeiro recibo não explicitou o ID de cada cancelamento; helper passou a exigir esse vínculo. Checkout anterior está inativo, sem prova que distinga cancelado de expirado no readback posterior. |
-| Recuperação externa de conta antiga | **FAIL inicial; correção em validação** | Caso sem staging chegou à primeira senha e revelou submissão nativa GET antes da hidratação. Caso com dados retidos não rodou após essa falha. Fixture removida; nenhum lead usado. |
+| Nova entrada → Checkout Sandbox | **PASS 1/1 no reteste estrito** | Senha preservada, trial exato de 14 dias desde Auth, mensal Clínica persistido e página real Asaas. Cancelamento do mesmo Checkout foi reconhecido como CANCELED antes da limpeza. Sem pagamento/ativação nesta rodada. O recibo anterior não explicitava esse vínculo; seu readback posterior só provou inatividade. |
+| Recuperação externa de conta antiga | **PASS 2/2 após correção** | Sem staging: primeira senha após prova de e-mail. Com dados retidos: mesma senha, plano e dados preservados. Outro aparelho, GET sem consumo, Auth e SQL reais; nenhuma cobrança e fixtures removidas. Prova em `4c220e69`; operador movido depois exige reteste. |
+| Restauração do snapshot protegido | **PASS em preparação; NOT APPLIED Production** | 85/85 testes focados e oito provas SQL novas incluídas nos 48; o arquivo DPAPI existente passou na validação de schema e ACL sem despejar dados. Recusa identidade alterada, convite, bloqueio, progresso mais novo ou billing. |
 | Recuperação real dos leads | **NOT SENT** | Destino novo ainda não publicado/validado; lead-02 permanece excluído por hard bounce. |
 
 Os screenshots locais mobile (390 px) e desktop (1280 px) foram inspecionados: formulário legível,
@@ -180,10 +181,21 @@ nenhuma exposição de senha real em Production foi comprovada. Correção peque
 no [PR draft #48](https://github.com/joaomarcos-techia/Project_OS/pull/48): POST explícito e
 controles indisponíveis até a hidratação. Ela também está incorporada ao candidato deste funil.
 Os outros dois formulários de senha da jornada receberam POST explícito, com regressão.
+Após autorização específica, o PR #48 foi publicado em `app.qoro.dev` no merge `a9c7b0b1`.
+Árvore idêntica ao candidato testado, CI **5.891/5.891**, build e segurança aprovados,
+**1/1** E2E real Preview e **8/8** smoke de Production somente de leitura. Não foi criado
+usuário nem enviada senha em Production para testar. A reformulação por código continua no
+PR #47, sem migration de Production. [Recibo consolidado](evidencias/signup-preview-funnel-20261104.json).
+
+A CI de `4c220e69` reprovou o build isolado: ele copia `scripts/security`, mas não o runner
+irmão importado pelo operador DEV. O utilitário foi movido para `scripts/run-signup-recovery-dev.ts`,
+ao lado da dependência já existente. Não se alterou configuração de build/CI nem se ignorou
+checagem de tipos. O novo commit exige CI completa antes de liberar o PR #47.
 
 Branch `fix/signup-code-funnel-20261103`,
 [PR draft #47](https://github.com/joaomarcos-techia/Project_OS/pull/47). Preview:
 https://project-os-git-fix-signup-code-f-30817b-clinic-os-v2-s-projects.vercel.app/cadastro .
-O worktree principal não foi alterado. Production, contratos reais e a campanha permanecem
-intactos; recuperação real dos leads ainda **NOT SENT**. Não declarar GO com os testes externos
-de recuperação e a publicação do novo destino pendentes.
+O worktree principal não foi alterado. A única publicação Production desta rodada foi o hotfix
+#48 autorizado; contratos reais e campanha permanecem intactos. Recuperação real dos leads
+ainda **NOT SENT**. Não declarar o funil novo publicado antes de autorizar e aplicar a 0134
+em Production, publicar o #47 e validar o destino efetivo.

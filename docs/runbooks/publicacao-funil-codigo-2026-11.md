@@ -10,6 +10,11 @@ E2E da ponte sob CSP restrita. Depois autorizou a 0134 no DEV e o Preview: aplic
 histórico e dados existentes preservados. [Recibo](../quality/evidencias/signup-code-dev-migration-20261104.json).
 Não solicitar novamente essa autorização. Production continua fora dessa autorização.
 
+**Hotfix separado já publicado:** o founder autorizou o PR #48; merge `a9c7b0b1`, deployment
+`dpl_51YUxqQ6n971UatSX4X5D2YtiizV` em `app.qoro.dev`. CI 5.891/5.891, E2E real Preview 1/1
+e smoke público Production 8/8. Não repetir autorização ou publicação desse hotfix. A aprovação
+não abrangeu a migration Production nem o PR #47.
+
 ## 1. Ordem técnica, a executar pela engenharia
 
 1. Confirmar SHA revisado e gates locais/remotos. Migration nova: somente
@@ -76,9 +81,9 @@ Tarefa da engenharia na janela autorizada, sem pedir ao founder que execute SQL:
 que já passou nos gates. O AGENTS.md pede confirmação antes de migrations/deploy; aprovações
 antigas dos PRs 45/46 não abrangem esta alteração.
 
-**Como fazer:** a 0134 no DEV e os Previews já foram autorizados. Não repetir. Revisar os PRs e
-resultados que a engenharia entregar: o #48 corrige somente a segurança do formulário, sem
-migration; o #47 traz o funil por código e exige 0134 em Production. A janela Production terá
+**Como fazer:** a 0134 no DEV e os Previews já foram autorizados. Não repetir. Revisar o PR #47 e
+resultados que a engenharia entregar: o #48 já foi publicado, sem migration; o #47 traz o
+funil por código e exige 0134 em Production. A janela Production terá
 aprovação específica, com SHA e evidências. Não executar comandos de migration por conta
 própria, não enviar segredos e não reativar anúncios.
 
@@ -136,6 +141,14 @@ dispensada. Não contratar plano ou gerar chave de outro ambiente para contornar
   mesma identidade Auth, mesmo instante de criação e HMAC do e-mail, ausência de profile/billing
   ou progresso mais recente. Se houver alteração, abortar e usar o estado atual. Nunca trocar
   senha, data de criação Auth ou trial. O lembrete só continua o cadastro; não inicia cobrança.
+  A operação `restoreSignupDraftSnapshot` está implementada e provada com PostgreSQL sintético:
+  lê o snapshot cifrado em memória, valida a identidade atual e insere apenas um draft ausente.
+  A criação Auth é comparada na precisão de milissegundos preservada no snapshot; UUID e HMAC
+  também precisam corresponder. Recusa convite, bloqueio, billing e qualquer progresso diferente.
+  Não há rota pública dessa operação. A transação administrativa tem espera de lock de 3 s e
+  timeout de 10 s; locks curtos excluem escritores das tabelas de draft/perfil/convite. Executar
+  somente na janela autorizada, com cadastro fechado, sem copiar plaintext para arquivo/log.
+  Repetição idêntica não duplica nem renova a validade original; ausência de certeza aborta.
 
 ## 4. Evidência esperada e critérios de interrupção
 

@@ -160,7 +160,7 @@ const config = [
       'scripts/security/signup-local.integration.ts',
       'scripts/security/signup-browser.integration.ts',
       // Guarded Preview/DEV operator; synthetic resend.dev recipients only.
-      'scripts/security/signup-recovery-dev.ts',
+      'scripts/run-signup-recovery-dev.ts',
       // Reset operacional de pré-go-live: conexão one-shot explícita em
       // DATABASE_URL_PROD, backup obrigatório e confirmação fail-closed.
       'scripts/reset-prod-data.ts',
@@ -279,6 +279,8 @@ const config = [
       // Single-use recovery grants: exact verified identity, per-user credential
       // writer exclusion and no billing/provisioning. Same GLOBAL PROTECTED boundary.
       'src/contexts/onboarding/internal/signup-recovery.ts',
+      // Operator-only restoration of an approved pre-tenant snapshot; no public route.
+      'src/contexts/onboarding/internal/signup-draft-snapshot.ts',
       // ADR-060 §1.c.1: as quatro perguntas escrevem na MESMA tabela global
       // pré-tenant. Mesma justificativa do irmão acima — `withTenant` não tem
       // GUC de tenant para setar numa linha que nasce antes de existir clínica.
