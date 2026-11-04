@@ -49,6 +49,8 @@ const ALLOWED_POSTGRES_IMPORTS = new Set([
   'scripts/security/signup-local-backend.ts',
   'scripts/security/signup-local.integration.ts',
   'scripts/security/signup-browser.integration.ts',
+  // Guarded Preview/DEV operator; synthetic resend.dev recipients only.
+  'scripts/security/signup-recovery-dev.ts',
   'scripts/db-migrate-prod.ts',
   'scripts/delete-test-clinics-prod.ts',
   // P8: conexões descartáveis, guardadas por loopback + prefixo do banco.

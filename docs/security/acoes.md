@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 196 actions (0 inline); 61 métodos em 57 handlers; 19 props com referência de action; 440 acessos diretos a process.env; 9 nomes NEXT_PUBLIC.
+Contagem: 196 actions (0 inline); 61 métodos em 57 handlers; 19 props com referência de action; 447 acessos diretos a process.env; 9 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -632,6 +632,13 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/signup-provision-db.ts:95`               | `CRYPTO_LOOKUP_SALT`                   | `process.env.CRYPTO_LOOKUP_SALT`                                            |
 | `scripts/security/signup-provision-db.ts:96`               | `LOG_LEVEL`                            | `process.env.LOG_LEVEL`                                                     |
 | `scripts/security/signup-provision-db.ts:803`              | `<object>`                             | `process.env`                                                               |
+| `scripts/security/signup-recovery-dev.ts:6`                | `<object>`                             | `process.env`                                                               |
+| `scripts/security/signup-recovery-dev.ts:7`                | `E2E_SIGNUP_ALLOWED_ORIGIN`            | `process.env.E2E_SIGNUP_ALLOWED_ORIGIN`                                     |
+| `scripts/security/signup-recovery-dev.ts:10`               | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
+| `scripts/security/signup-recovery-dev.ts:10`               | `DATABASE_URL_DEV`                     | `process.env.DATABASE_URL_DEV`                                              |
+| `scripts/security/signup-recovery-dev.ts:11`               | `APP_BASE_URL`                         | `process.env.APP_BASE_URL`                                                  |
+| `scripts/security/signup-recovery-dev.ts:12`               | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                                                    |
+| `scripts/security/signup-recovery-dev.ts:13`               | `VERCEL_BRANCH_URL`                    | `process.env.VERCEL_BRANCH_URL`                                             |
 | `scripts/security/signup-regression.ts:19`                 | `SECURITY_PG_BIN`                      | `process.env.SECURITY_PG_BIN`                                               |
 | `scripts/security/signup-regression.ts:35`                 | `<object>`                             | `process.env`                                                               |
 | `scripts/security/signup-regression.ts:35`                 | `<dynamic>`                            | `process.env[key]`                                                          |

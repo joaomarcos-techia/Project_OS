@@ -1,4 +1,5 @@
 import { createHmac, randomBytes } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { mkdir, open, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -11,6 +12,7 @@ import {
   type Page,
 } from '@playwright/test';
 import postgres from 'postgres';
+import { isCancelledCheckoutResponse } from '../src/lib/test/asaas-checkout-cleanup';
 
 import {
   SIGNUP_E2E_DEV_PROJECT_REF,
@@ -474,12 +476,13 @@ async function releaseLock(): Promise<void> {
   lockHeld = false;
 }
 
-async function cleanupFixture(fixture: Fixture): Promise<void> {
+async function cleanupFixture(fixture: Fixture): Promise<{ cancelledCheckoutIds: string[] }> {
   if (fixture.projectRef !== expectedProjectRef) {
     throw new Error('fixture anterior pertence a outro projeto; limpeza recusada');
   }
 
   const mailHash = emailHash(fixture.email);
+  const cancelledCheckoutIds = new Set<string>();
   const tokenHashes = [fixture.tokenHash, ...(fixture.tokenHashes ?? [])].filter(
     (value, index, values): value is string => Boolean(value) && values.indexOf(value) === index,
   );
@@ -487,6 +490,13 @@ async function cleanupFixture(fixture: Fixture): Promise<void> {
   for (let attempt = 1; attempt <= 3; attempt++) {
     const sql = postgres(databaseUrl!, { max: 1, ssl: 'require', prepare: false });
     try {
+      if (tokenHashes.length > 0) {
+        const owned = await sql<{ email_hash: string | null }[]>`
+          select email_hash from signup_sessions where token_hash=any(${tokenHashes})
+        `;
+        if (owned.some((row) => row.email_hash !== mailHash))
+          throw new Error('Fixture ownership mismatch; cleanup refused before external operations');
+      }
       const resources = await sql<
         {
           asaas_checkout_id: string | null;
@@ -498,12 +508,21 @@ async function cleanupFixture(fixture: Fixture): Promise<void> {
            and asaas_checkout_id is not null
       `;
       for (const resource of resources) {
-        await cancelSandboxCheckout(resource.asaas_checkout_id!);
+        if (!resource.asaas_checkout_id) throw new Error('Checkout cleanup omitted its identifier');
+        await cancelSandboxCheckout(resource.asaas_checkout_id);
+        cancelledCheckoutIds.add(resource.asaas_checkout_id);
       }
       const [emailLedger] =
         await sql`select to_regclass('public.signup_email_delivery_events') as present`;
       if (emailLedger?.present)
         await sql`delete from signup_email_delivery_events e using signup_sessions s where s.email_hash=${mailHash} and s.confirmation_message_id=e.message_id`;
+      const [recoveryLedger] =
+        await sql`select to_regclass('public.signup_recovery_grants') as present`;
+      if (recoveryLedger?.present && tokenHashes.length > 0) {
+        if (emailLedger?.present)
+          await sql`delete from signup_email_delivery_events e using signup_recovery_grants g where g.email_hash=${mailHash} and g.signup_ref=any(${tokenHashes}) and e.message_id=g.provider_message_id`;
+        await sql`delete from signup_recovery_grants where email_hash=${mailHash} and signup_ref=any(${tokenHashes})`;
+      }
       for (const tokenHash of tokenHashes) {
         await sql`delete from signup_sessions where token_hash = ${tokenHash}`;
       }
@@ -551,6 +570,7 @@ async function cleanupFixture(fixture: Fixture): Promise<void> {
   }
   if (await findUser(fixture.email)) throw new Error('usuário Auth persistiu após cleanup');
   await rm(FIXTURE_PATH, { force: true });
+  return { cancelledCheckoutIds: [...cancelledCheckoutIds] };
 }
 
 async function cancelSandboxCheckout(checkoutId: string): Promise<void> {
@@ -573,10 +593,13 @@ async function cancelSandboxCheckout(checkoutId: string): Promise<void> {
     },
     signal: AbortSignal.timeout(15_000),
   });
-  if (!response.ok && response.status !== 400 && response.status !== 404) {
+  if (!response.ok) {
     throw new Error(`cleanup do Checkout Sandbox falhou (${response.status})`);
   }
-  await response.body?.cancel().catch(() => undefined);
+  const cancelled: unknown = await response.json();
+  if (!isCancelledCheckoutResponse(cancelled, checkoutId)) {
+    throw new Error('Checkout Sandbox não confirmou o cancelamento do mesmo identificador');
+  }
 }
 
 async function assertHostedCheckoutPersisted(
@@ -969,12 +992,13 @@ async function passwordSignInSucceeds(email: string, password: string): Promise<
   }
   const code = typeof body.error_code === 'string' ? body.error_code : body.code;
   const message = typeof body.message === 'string' ? body.message : body.msg;
-  const invalidCredential =
+  const signInDenied =
     response.status === 400 &&
     (code === 'invalid_credentials' ||
       code === 'invalid_grant' ||
+      code === 'email_not_confirmed' ||
       (typeof message === 'string' && /invalid login credentials/iu.test(message)));
-  if (invalidCredential) return false;
+  if (signInDenied) return false;
   throw new Error(`Supabase Auth respondeu status inesperado ${response.status} na sonda de senha`);
 }
 
@@ -1359,15 +1383,49 @@ test.describe('cadastro — confirmação real via Resend', () => {
         signup.page.getByRole('button', { name: 'Continuar no Checkout Asaas' }),
       ).toBeVisible();
       if (!fixture.tokenHash) throw new Error('Code fixture lost its reference');
+      const codeSignupRef = fixture.tokenHash;
       const sql = postgres(databaseUrl!, { max: 1, ssl: 'require', prepare: false });
       try {
         const [row] =
-          await sql`select verification_flow_version,email_code_state,status,selected_plan_id,asaas_checkout_id from signup_sessions where token_hash=${fixture.tokenHash}`;
+          await sql`select verification_flow_version,email_code_state,status,selected_plan_id,asaas_checkout_id from signup_sessions where token_hash=${codeSignupRef}`;
         expect(row?.verification_flow_version).toBe(2);
         expect(row?.email_code_state).toBe('verified');
         expect(row?.status).toBe('email_verified');
         expect(row?.selected_plan_id).toBeTruthy();
         expect(row?.asaas_checkout_id).toBeNull();
+        if (process.env.E2E_SIGNUP_REQUIRE_DELIVERY_WEBHOOK === '1') {
+          await expect
+            .poll(
+              async () => {
+                const [delivery] =
+                  await sql`select confirmation_delivery_status from signup_sessions where token_hash=${codeSignupRef}`;
+                return delivery?.confirmation_delivery_status;
+              },
+              { timeout: 60_000, message: 'Provider delivery did not reach the DEV projection' },
+            )
+            .toBe('delivered');
+          const [delivery] =
+            await sql`select confirmation_message_id,confirmation_delivery_status from signup_sessions where token_hash=${codeSignupRef}`;
+          if (typeof delivery?.confirmation_message_id !== 'string')
+            throw new Error('Delivery projection omitted its provider receipt');
+          const [events] =
+            await sql`select count(*)::int as n from signup_email_delivery_events where message_id=${delivery.confirmation_message_id}::uuid and event='delivered'`;
+          expect(events?.n).toBeGreaterThan(0);
+          await mkdir(path.join(process.cwd(), 'dist/quality'), { recursive: true });
+          await writeFile(
+            path.join(process.cwd(), 'dist/quality/signup-preview-code-delivery.json'),
+            JSON.stringify({
+              at: new Date().toISOString(),
+              projectRef: expectedProjectRef,
+              origin: new URL(baseUrl!).origin,
+              messageId: delivery?.confirmation_message_id,
+              status: delivery?.confirmation_delivery_status,
+              deliveredEvents: events?.n,
+              recipientType: 'Resend controlled delivered alias; not proof of a real inbox',
+              noCheckoutCreated: true,
+            }),
+          );
+        }
       } finally {
         await sql.end({ timeout: 5 });
       }
@@ -1376,6 +1434,210 @@ test.describe('cadastro — confirmação real via Resend', () => {
       await cleanupFixture(fixture);
     }
   });
+
+  for (const cohort of ['missing', 'retained'] as const) {
+    test(`@recovery-flow recuperação em outro aparelho — ${cohort}`, async ({ browser }) => {
+      test.setTimeout(420_000);
+      const email = `delivered+qoro-recovery-${cohort}-${Date.now()}-${randomBytes(4).toString('hex')}@resend.dev`;
+      let desktop: BrowserContext | null = null;
+      let phone: BrowserContext | null = null;
+      let fixture: Fixture = { projectRef: expectedProjectRef!, email };
+      try {
+        const signup = await startSignup(
+          browser,
+          email,
+          [],
+          cohort === 'missing' ? 'legacy' : 'code',
+        );
+        desktop = signup.context;
+        fixture = signup.fixture;
+        if (!fixture.tokenHash) throw new Error('Recovery fixture lost its reference');
+        const ref = fixture.tokenHash;
+        const initial = await waitForMessage({
+          email,
+          subject: cohort === 'missing' ? INITIAL_SUBJECT : 'Seu código de confirmação — Qoro',
+          after: signup.startedAt,
+        });
+        if (cohort === 'retained') {
+          const code = /^(\d{8})\r?\n/u.exec(initial.text ?? '')?.[1];
+          if (!code) throw new Error('Retained fixture omitted the code');
+          await signup.page.getByLabel('Código de confirmação').fill(code);
+          await signup.page.getByRole('button', { name: 'Confirmar e-mail', exact: true }).click();
+          await expect(signup.page).toHaveURL(/\/cadastro\/plano$/u, { timeout: 120_000 });
+          await signup.page.locator('[data-slot="option-card-group"] label').first().click();
+          await signup.page.getByRole('button', { name: 'Salvar plano', exact: true }).click();
+          await expect(
+            signup.page.getByRole('button', { name: 'Continuar no Checkout Asaas' }),
+          ).toBeVisible();
+        }
+        const before = await findUser(email);
+        if (!before) throw new Error('Recovery fixture identity missing');
+        const sql = postgres(databaseUrl!, { max: 1, ssl: 'require', prepare: false });
+        let credentialFingerprint: string | null = null;
+        try {
+          const [credential] =
+            await sql`select md5(encrypted_password) as fingerprint from auth.users where id=${before.id}::uuid`;
+          if (typeof credential?.fingerprint !== 'string')
+            throw new Error('Credential fingerprint unavailable');
+          credentialFingerprint = credential.fingerprint;
+          if (cohort === 'missing') {
+            await sql`delete from signup_sessions where token_hash=${ref} and email_hash=${emailHash(email)} and billing_attempt_state is null and asaas_checkout_id is null and asaas_subscription_id is null`;
+          } else {
+            await sql`update signup_sessions set absolute_expires_at=now()-interval '1 minute',idle_expires_at=now()-interval '1 minute' where token_hash=${ref} and auth_user_id=${before.id}::uuid and recovery_expires_at>now() and asaas_checkout_id is null`;
+          }
+        } finally {
+          await sql.end({ timeout: 5 });
+        }
+        const sentAt = Date.now();
+        let operatorOutput: string;
+        try {
+          operatorOutput = execFileSync(
+            process.execPath,
+            [
+              'node_modules/tsx/dist/cli.mjs',
+              '--conditions=react-server',
+              'scripts/security/signup-recovery-dev.ts',
+            ],
+            {
+              input: JSON.stringify({
+                userId: before.id,
+                operationKey: `e2e-signup-recovery:${cohort}:${sentAt}`,
+                purpose: cohort === 'missing' ? 'verify_email' : 'resume_signup',
+                priorMessageId: initial.id,
+              }),
+              encoding: 'utf8',
+              windowsHide: true,
+              timeout: 90_000,
+              stdio: ['pipe', 'pipe', 'pipe'],
+            },
+          );
+        } catch {
+          throw new Error('Guarded DEV recovery operator failed; sensitive output suppressed');
+        }
+        const receiptLine = operatorOutput
+          .split(/\r?\n/u)
+          .find((line) => line.startsWith('{"kind":"signup-recovery-dev-receipt"'));
+        if (!receiptLine) throw new Error('Recovery operator omitted its sanitized receipt');
+        const receipt: unknown = JSON.parse(receiptLine);
+        if (
+          typeof receipt !== 'object' ||
+          receipt === null ||
+          !('ok' in receipt) ||
+          receipt.ok !== true
+        )
+          throw new Error('Recovery operator refused the synthetic account');
+        const recovered = await waitForMessage({
+          email,
+          subject:
+            cohort === 'missing'
+              ? 'Problemas para confirmar seu e-mail? Vamos resolver!'
+              : 'Seu cadastro está quase pronto!',
+          after: sentAt,
+        });
+        const candidate = [...(recovered.html ?? '').matchAll(/href="([^"]+)"/gu)]
+          .map((match) => match[1]?.replaceAll('&amp;', '&'))
+          .find((value) => {
+            try {
+              return typeof value === 'string' && new URL(value).pathname === '/cadastro/retomar';
+            } catch {
+              return false;
+            }
+          });
+        if (!candidate || new URL(candidate).origin !== new URL(baseUrl!).origin)
+          throw new Error('Recovery email omitted the trusted callback');
+        phone = await browser.newContext({
+          baseURL: baseUrl!,
+          storageState: { cookies: [], origins: [] },
+        });
+        await installVercelBypassForOrigin(phone, new URL(baseUrl!).origin);
+        const page = await phone.newPage();
+        try {
+          await page.goto(candidate, { timeout: 60_000 });
+        } catch {
+          throw new Error('Recovery bridge navigation failed; active URL suppressed');
+        }
+        await expect.poll(() => new URL(page.url()).hash).toBe('');
+        const check = postgres(databaseUrl!, { max: 1, ssl: 'require', prepare: false });
+        try {
+          const [grant] =
+            await check`select state from signup_recovery_grants where auth_user_id=${before.id}::uuid and provider_message_id=${recovered.id}::uuid`;
+          expect(grant?.state).toBe('sent');
+          await page.getByRole('button', { name: 'Continuar meu cadastro', exact: true }).click();
+          if (cohort === 'missing') {
+            await expect(page).toHaveURL(/\/cadastro\/confirmado$/u, { timeout: 90_000 });
+            const withoutJavaScript = await browser.newContext({
+              baseURL: baseUrl!,
+              storageState: await phone.storageState(),
+              javaScriptEnabled: false,
+            });
+            try {
+              await installVercelBypassForOrigin(withoutJavaScript, new URL(baseUrl!).origin);
+              const staticPage = await withoutJavaScript.newPage();
+              await staticPage.goto('/cadastro/confirmado');
+              await expect(staticPage.locator('form:has(input[name="password"])')).toHaveAttribute(
+                'method',
+                'post',
+              );
+              await expect(staticPage.getByLabel('Crie sua senha')).toBeDisabled();
+              await expect(
+                staticPage.getByRole('button', { name: 'Criar senha e escolher plano' }),
+              ).toBeDisabled();
+            } finally {
+              await withoutJavaScript.close();
+            }
+            await page.getByLabel('Crie sua senha', { exact: true }).fill(signup.password);
+            await page.getByRole('button', { name: 'Criar senha e escolher plano' }).click();
+            await expect(page).toHaveURL(/\/cadastro\/continuar$/u, { timeout: 90_000 });
+            await expect(page.getByRole('heading', { name: 'Revise seu cadastro' })).toBeVisible();
+          } else {
+            await expect(page).toHaveURL(/\/cadastro\/plano$/u, { timeout: 90_000 });
+            await expect(page.locator('input[type=password]')).toHaveCount(0);
+            await expect(
+              page.getByRole('button', { name: 'Continuar no Checkout Asaas' }),
+            ).toBeVisible();
+            const [credential] =
+              await check`select md5(encrypted_password) as fingerprint from auth.users where id=${before.id}::uuid`;
+            expect(credential?.fingerprint).toBe(credentialFingerprint);
+            const [progress] =
+              await check`select owner_name,clinic_name,selected_plan_id from signup_sessions where token_hash=${ref}`;
+            expect(progress?.owner_name).toBe('Ana E2E');
+            expect(progress?.clinic_name).toBe('Clínica E2E Confirmação');
+            expect(progress?.selected_plan_id).toBeTruthy();
+          }
+          const after = await findUser(email);
+          expect(after?.id).toBe(before.id);
+          expect(after?.created_at).toBe(before.created_at);
+          expect(await passwordSignInSucceeds(email, signup.password)).toBe(true);
+          const [consumed] =
+            await check`select state from signup_recovery_grants where auth_user_id=${before.id}::uuid and provider_message_id=${recovered.id}::uuid`;
+          expect(consumed?.state).toBe('consumed');
+          const [charges] =
+            await check`select count(*)::int as n from signup_sessions where email_hash=${emailHash(email)} and (asaas_checkout_id is not null or asaas_subscription_id is not null)`;
+          expect(charges?.n).toBe(0);
+          await mkdir(path.join(process.cwd(), 'dist/quality'), { recursive: true });
+          await writeFile(
+            path.join(process.cwd(), `dist/quality/signup-preview-recovery-${cohort}.json`),
+            JSON.stringify({
+              at: new Date().toISOString(),
+              cohort,
+              origin: new URL(baseUrl!).origin,
+              identityPreserved: true,
+              birthAndTrialAnchorPreserved: true,
+              noGetConsumption: true,
+              firstPasswordAfterProof: cohort === 'missing',
+              readyPasswordUnchanged: cohort === 'retained',
+              noCheckoutCreated: true,
+            }),
+          );
+        } finally {
+          await check.end({ timeout: 5 });
+        }
+      } finally {
+        await Promise.allSettled([phone?.close(), desktop?.close()]);
+        await cleanupFixture(fixture);
+      }
+    });
+  }
 
   test('/cadastro/confirmado não afirma confirmação para quem não tem sessão', async ({ page }) => {
     test.skip(!baseUrl, 'E2E_BASE_URL ausente');
@@ -1535,7 +1797,7 @@ test.describe('cadastro — confirmação real via Resend', () => {
     }
   });
 
-  test('checkout recorrente abre no Asaas e fica persistido após a confirmação', async ({
+  test('@code-checkout checkout recorrente abre no Asaas após código e senha única', async ({
     browser,
   }) => {
     const reason = skipReason();
@@ -1549,27 +1811,26 @@ test.describe('cadastro — confirmação real via Resend', () => {
 
     const email = `checkout+qoro-signup-${Date.now()}-${randomBytes(4).toString('hex')}@resend.dev`;
     let desktop: BrowserContext | null = null;
-    let phone: BrowserContext | null = null;
+    let checkoutProof: { checkoutId: string; planCode: string } | null = null;
     let fixture: Fixture = { projectRef: expectedProjectRef!, email };
     try {
-      const signup = await startSignup(browser, email);
+      const signup = await startSignup(browser, email, [], 'code');
       desktop = signup.context;
       fixture = signup.fixture;
       const message = await waitForMessage({
         email,
-        subject: INITIAL_SUBJECT,
+        subject: 'Seu código de confirmação — Qoro',
         after: signup.startedAt,
       });
       if (!fixture.tokenHash) throw new Error('fixture sem hash do draft');
-      const proof = confirmationProof(message, fixture.tokenHash);
-      phone = (await openOnPhone(browser, proof.url)).context;
-      await waitForOriginalHandoff(signup.page);
-      await completeHandoffAfterRefresh(signup.page, {
-        email,
-        password: signup.password,
-        verificationCode: proof.verificationCode,
-        tokenHash: fixture.tokenHash,
-      });
+      const code = /^(\d{8})\r?\n/u.exec(message.text ?? '')?.[1];
+      if (!code) throw new Error('Checkout fixture did not receive its confirmation code');
+      await signup.page.getByLabel('Código de confirmação').fill(code);
+      await signup.page.getByRole('button', { name: 'Confirmar e-mail', exact: true }).click();
+      await expect(signup.page).toHaveURL(/\/cadastro\/plano$/u, { timeout: 120_000 });
+      await expect(signup.page.locator('input[type=password]')).toHaveCount(0);
+      if (!(await passwordSignInSucceeds(email, signup.password)))
+        throw new Error('Initial password failed after the checkout fixture confirmed its code');
       const plansResponse = await signup.page.request.get('/api/signup/plan', {
         headers: vercelBypassHeaders(),
         maxRedirects: 0,
@@ -1581,16 +1842,15 @@ test.describe('cadastro — confirmação real via Resend', () => {
         offerTrialEndsAt?: string | null;
       };
       const newOfferActive = catalog.plans?.some((plan) => plan.code === 'clinica_2026_2');
-      if (newOfferActive) {
-        const user = await findUser(email);
-        const createdAt = Date.parse(user?.created_at ?? '');
-        const endsAt = Date.parse(catalog.offerTrialEndsAt ?? '');
-        if (catalog.trialDays !== 14 || endsAt - createdAt !== 14 * 86_400_000) {
-          throw new Error('cadastro novo não preservou 14 dias desde a criação no Auth DEV');
-        }
+      if (!newOfferActive) throw new Error('New monthly offer is unavailable in the Preview');
+      const user = await findUser(email);
+      const createdAt = Date.parse(user?.created_at ?? '');
+      const endsAt = Date.parse(catalog.offerTrialEndsAt ?? '');
+      if (catalog.trialDays !== 14 || endsAt - createdAt !== 14 * 86_400_000) {
+        throw new Error('cadastro novo não preservou 14 dias desde a criação no Auth DEV');
       }
-      const selectedName = newOfferActive ? 'Clínica · 2 médicos' : 'Clínica';
-      const selectedCode = newOfferActive ? 'clinica_2026_2' : 'clinica';
+      const selectedName = 'Clínica · 2 médicos';
+      const selectedCode = 'clinica_2026_2';
       await signup.page
         .locator('[data-slot="option-card-group"]')
         .getByText(selectedName, { exact: true })
@@ -1609,10 +1869,30 @@ test.describe('cadastro — confirmação real via Resend', () => {
       await expect(signup.page.getByText('Informações da assinatura')).toBeVisible({
         timeout: 30_000,
       });
-      await assertHostedCheckoutPersisted(fixture.tokenHash!, selectedCode);
+      const hosted = await assertHostedCheckoutPersisted(fixture.tokenHash!, selectedCode);
+      checkoutProof = { checkoutId: hosted.checkoutId, planCode: selectedCode };
     } finally {
-      await Promise.allSettled([phone?.close(), desktop?.close()]);
-      await cleanupFixture(fixture);
+      await desktop?.close();
+      const cleanup = await cleanupFixture(fixture);
+      if (checkoutProof) {
+        expect(cleanup.cancelledCheckoutIds).toContain(checkoutProof.checkoutId);
+        await mkdir(path.join(process.cwd(), 'dist/quality'), { recursive: true });
+        await writeFile(
+          path.join(process.cwd(), 'dist/quality/signup-preview-code-checkout.json'),
+          JSON.stringify({
+            at: new Date().toISOString(),
+            origin: new URL(baseUrl!).origin,
+            projectRef: expectedProjectRef,
+            ...checkoutProof,
+            billingCycle: 'monthly',
+            initialPasswordPreserved: true,
+            trialDaysFromAuth: 14,
+            paymentMade: false,
+            cancelledResponseCorrelated: true,
+            fixtureCleaned: true,
+          }),
+        );
+      }
     }
   });
 

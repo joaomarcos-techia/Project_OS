@@ -1,7 +1,7 @@
 'use client';
 
 import { Eye, EyeOff } from 'lucide-react';
-import { useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ import { SIGNUP_INPUT_LIMITS } from '@/contexts/onboarding/signup-input-limits';
 import { SIGNUP_PASSWORD_RULES, signupPasswordMessage } from '@/lib/auth/signup-password';
 
 export function SignupPasswordForm({ reconcile = false }: { reconcile?: boolean }) {
+  const [interactive, setInteractive] = useState(false);
   const [saving, setSaving] = useState(false);
   const [visible, setVisible] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -18,9 +19,13 @@ export function SignupPasswordForm({ reconcile = false }: { reconcile?: boolean 
   const [loginNeeded, setLoginNeeded] = useState(false);
   const submitting = useRef(false);
 
+  useEffect(() => {
+    setInteractive(true);
+  }, []);
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (submitting.current) return;
+    if (!interactive || submitting.current) return;
     const form = event.currentTarget;
     const password = String(new FormData(form).get('password') ?? '');
     const problem = signupPasswordMessage(password);
@@ -95,7 +100,13 @@ export function SignupPasswordForm({ reconcile = false }: { reconcile?: boolean 
   }
 
   return (
-    <form onSubmit={submit} noValidate className="mt-6 space-y-5 text-left">
+    <form
+      method="post"
+      onSubmit={submit}
+      noValidate
+      aria-busy={!interactive || saving}
+      className="mt-6 space-y-5 text-left"
+    >
       <p className="text-sm leading-relaxed text-fg-muted">
         {reconcile
           ? 'Seu e-mail foi confirmado, mas a última tentativa não terminou. Digite a mesma senha que criou para verificar o resultado e continuar. Sua senha não será alterada.'
@@ -113,14 +124,14 @@ export function SignupPasswordForm({ reconcile = false }: { reconcile?: boolean 
             autoComplete={reconcile ? 'current-password' : 'new-password'}
             required
             maxLength={SIGNUP_INPUT_LIMITS.password}
-            disabled={saving || expired}
+            disabled={!interactive || saving || expired}
             aria-describedby="confirmed-signup-password-help"
             className="pr-11"
           />
           <button
             type="button"
             onClick={() => setVisible(!visible)}
-            disabled={saving || expired}
+            disabled={!interactive || saving || expired}
             aria-label={visible ? 'Ocultar senha' : 'Mostrar senha'}
             aria-pressed={visible}
             className="absolute right-0 top-0 flex size-(--control-h) min-h-(--hit-target) items-center justify-center rounded-(--field-radius) text-fg-subtle focus-visible:shadow-(--focus-ring) focus-visible:outline-none"
@@ -151,10 +162,16 @@ export function SignupPasswordForm({ reconcile = false }: { reconcile?: boolean 
           Iniciar novo cadastro
         </a>
       ) : (
-        <Button type="submit" loading={saving} className="w-full">
+        <Button
+          type="submit"
+          disabled={!interactive}
+          loading={!interactive || saving}
+          className="w-full"
+        >
           {reconcile ? 'Confirmar senha e continuar' : 'Criar senha e escolher plano'}
         </Button>
       )}
+      <noscript>Ative o JavaScript para criar sua senha com segurança.</noscript>
     </form>
   );
 }

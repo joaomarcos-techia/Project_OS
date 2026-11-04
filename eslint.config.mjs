@@ -159,6 +159,8 @@ const config = [
       'scripts/security/signup-local-backend.ts',
       'scripts/security/signup-local.integration.ts',
       'scripts/security/signup-browser.integration.ts',
+      // Guarded Preview/DEV operator; synthetic resend.dev recipients only.
+      'scripts/security/signup-recovery-dev.ts',
       // Reset operacional de pré-go-live: conexão one-shot explícita em
       // DATABASE_URL_PROD, backup obrigatório e confirmação fail-closed.
       'scripts/reset-prod-data.ts',

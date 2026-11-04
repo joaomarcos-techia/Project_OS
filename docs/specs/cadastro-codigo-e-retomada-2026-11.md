@@ -140,9 +140,18 @@ estado anterior do provedor aceitável e reserva CAS antes de enviar uma vez. Ch
 idempotência é por grant; timeout indeterminado não libera outro envio automático. Retry rápido
 é limitado a uma repetição da mesma intenção em erro transitório; hard bounce não recebe retry.
 
-O gate remoto ainda exige aplicação autorizada da 0134, configuração do webhook no ambiente
-correto e prova do candidato publicado. As rotas e a prova local não comprovam uma entrega
-`Resend → Preview/Production`. A recuperação real permanece **NOT SENT** até essa conclusão.
+A 0134 foi autorizada e aplicada no DEV em 04/11, com histórico prévio e dados comerciais
+preservados. O Preview `e1cd6c70` recebeu evento Resend assinado e projetou a entrega no SQL;
+o webhook exclusivo de teste foi desativado após a prova. Não equivale a configuração ou
+validação de Production. A recuperação real permanece **NOT SENT** até publicar e validar o
+destino, com autorização própria para Production.
+
+O teste externo de recuperação sem staging revelou um fallback GET no formulário legado de
+primeira senha antes da hidratação. Correção: POST explícito e controles indisponíveis no HTML
+inicial até o handler estar instalado. O SSR tem regressão e o E2E abre a sessão também com
+JavaScript desligado. A senha de teste descartável e sua identidade foram removidas; não foi
+comprovada exposição de senha real. O hotfix independente está no PR #48 e o candidato do
+funil incorpora a mesma defesa. Os outros formulários de senha da jornada também usam POST.
 
 Artifacts de e-mail têm limpeza limitada: grants expirados há mais de 14 dias são removidos
 somente em estados resolvidos, e eventos antigos somente quando não referenciados por staging

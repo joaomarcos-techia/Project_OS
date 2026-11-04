@@ -1,0 +1,44 @@
+{
+  "at": "2026-11-04T11:06:24.419Z",
+  "environment": "DEV",
+  "projectRef": "pqhkirrszzpwezdaqrai",
+  "migration": {
+    "tag": "0134_signup_code_and_recovery",
+    "hash": "e7c5d4f5e6478a63d67e4b952100fd9620d1f7e508e51fa2236cc567190a3f21",
+    "beforeCount": 134,
+    "afterCount": 135
+  },
+  "checks": {
+    "previousJournalRowsUnchanged": true,
+    "plansPreserved": true,
+    "pricesPreserved": true,
+    "subscriptionsPreserved": true,
+    "profilesPreserved": true,
+    "newTablesForceRls": true,
+    "newTablesDenyAnonAndAuthenticated": true,
+    "newTablesInitiallyEmpty": true,
+    "unvalidatedConstraints": 0,
+    "longTransactionsAtPreflight": 0,
+    "productionTouched": false
+  },
+  "knownHistoricalHashDifferences": {
+    "baseline": "offer-release-readback-20261030.json, DEV",
+    "crlfVariants": [
+      "0033_messaging_connection_status",
+      "0037_profiles_invite_and_crm",
+      "0071_runtime_role_timeouts"
+    ],
+    "previouslyDocumentedOriginNotProved": [
+      "0051_ai_conversations_panel",
+      "0093_ai_clinic_config_convenios",
+      "0124_offer_2026_trial_deadline"
+    ],
+    "oldMigrationReapplied": false,
+    "oldHashRewritten": false
+  },
+  "notes": [
+    "The initial preflight refused raw historical hash differences; the six tags match the recorded release baseline.",
+    "One readback comparison rejected the driver's Result prototype against a plain array; a separate read-only value comparison proved the journal unchanged. No migration was retried.",
+    "Comparison fingerprints were calculated inside Postgres; no row contents or recipient data are included here."
+  ]
+}

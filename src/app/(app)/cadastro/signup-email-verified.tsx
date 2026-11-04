@@ -179,7 +179,13 @@ export function SignupEmailVerified({
         </p>
       </div>
 
-      <form ref={formRef} onSubmit={submit} noValidate className="mx-auto mt-7 max-w-sm space-y-5">
+      <form
+        method="post"
+        ref={formRef}
+        onSubmit={submit}
+        noValidate
+        className="mx-auto mt-7 max-w-sm space-y-5"
+      >
         {!usarEmailPreparado ? (
           <div className="space-y-2">
             <Label htmlFor="signup-continue-email">E-mail usado no cadastro</Label>

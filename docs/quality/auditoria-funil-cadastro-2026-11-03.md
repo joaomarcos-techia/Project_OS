@@ -103,8 +103,9 @@ somente a fase inicial; os resultados posteriores estão abaixo.
 ## Implementação e evidências de 04/11 — sem publicação
 
 O candidato altera a entrada do funil, sem reescrever preços, trial, contratos ou a criação de
-Checkout no Asaas. A única migration nova é a **0134**, aditiva e aplicada somente no banco
-local descartável. Production e DEV compartilhado não receberam esta migration.
+Checkout no Asaas. A única migration nova é a **0134**, aditiva. Após autorização expressa,
+ela também foi aplicada no DEV em 04/11, sem alterar Production; ver o recibo
+[de aplicação e integridade](evidencias/signup-code-dev-migration-20261104.json).
 
 | Antes | Candidato implementado |
 | --- | --- |
@@ -147,9 +148,12 @@ local descartável. Production e DEV compartilhado não receberam esta migration
 | HTTP do build — ponte de retomada e fronteiras | **PASS** | Corrigido o override de `no-referrer`: regra específica após o catch-all e CSP compartilhada com a resposta. Gate real completo passou, incluindo 350 chamadas a 175 actions e rejeição CSRF. `dist/funnel-header-http.log`. |
 | Regressão focada dos headers | **PASS 63/63** | Inclui ordem das regras Next, hashes do HTML e callback legado. `dist/funnel-header-unit.json`. |
 | Coverage integral anterior ao ajuste dos headers | **PASS 6.071/6.071; zero SKIP** | Linhas/statements 61,95%, funções 65,83%, branches 82,52%, acima dos pisos existentes. `dist/full-funnel-coverage-final.json`. Após a extração da ponte e uma asserção de configuração nova, repetiram-se os 63 testes afetados e os gates de build/HTTP/navegador. Não declarar uma nova suíte integral de 6.072 sem executá-la. |
-| Preview com migration 0134 | **NOT RUN** | Exige autorização específica da migration em DEV e configuração do candidato. |
-| Resend → webhook publicado → SQL | **NOT RUN** | Assinatura/ledger têm testes; não equivalem à entrega externa ao novo endpoint. |
-| Nova entrada → Checkout Sandbox → ativação | **NOT RUN nesta rodada** | Contratos antigos de billing mantidos e cobertos por regressão; falta atravessar a entrada nova no Preview. Não criar pagamento sem fixture/limpeza. |
+| CI do commit `e1cd6c70` | **PASS 6.072/6.072** | Execução GitHub Actions `41818924424`; coverage e todos os gates obrigatórios passaram. Alterações posteriores exigem seus próprios checks. |
+| Migration 0134 no DEV | **PASS** | Histórico 134 → 135; apenas 0134 acrescentada. Histórico prévio, catálogo, preços, contratos e perfis preservados. Ledgers com FORCE RLS e acesso comum negado. Recibo versionado acima. |
+| Preview: senha inicial → código → F5 → plano salvo | **PASS 1/1** | Commit `e1cd6c70`, Preview/DEV real; fixture removida. `dist/quality/signup-preview-code-run.json`. |
+| Resend → webhook publicado → SQL | **PASS** | Evento legítimo assinado projetou `delivered` no DEV; endpoint sem assinatura recusado. Alias de entrega controlado do Resend, não uma nova prova de caixa de entrada humana. Webhook temporário desativado após o teste. |
+| Nova entrada → Checkout Sandbox | **PASS 1/1; cancelamento reforçado em reteste** | Senha preservada, trial exato de 14 dias desde Auth, plano mensal Clínica persistido e página real do Asaas. Sem pagamento/ativação nesta rodada. O primeiro recibo não explicitou o ID de cada cancelamento; helper passou a exigir esse vínculo. Checkout anterior está inativo, sem prova que distinga cancelado de expirado no readback posterior. |
+| Recuperação externa de conta antiga | **FAIL inicial; correção em validação** | Caso sem staging chegou à primeira senha e revelou submissão nativa GET antes da hidratação. Caso com dados retidos não rodou após essa falha. Fixture removida; nenhum lead usado. |
 | Recuperação real dos leads | **NOT SENT** | Destino novo ainda não publicado/validado; lead-02 permanece excluído por hard bounce. |
 
 Os screenshots locais mobile (390 px) e desktop (1280 px) foram inspecionados: formulário legível,
@@ -160,21 +164,26 @@ usou o limite já previsto pelo projeto e terminou com código zero.
 
 ### O que ainda depende de autorização ou acesso humano
 
-O [roteiro operacional](../runbooks/publicacao-funil-codigo-2026-11.md) separa a migration/Preview,
-a futura janela Production e o contato alternativo do lead-02. O ajuste restrito de configuração
-já foi autorizado, implementado e validado em 04/11. Testes, aplicação autorizada, conciliação e envios condicionados continuam
-sendo tarefas da engenharia; não devem ser transferidos ao founder como trabalho manual.
+O [roteiro operacional](../runbooks/publicacao-funil-codigo-2026-11.md) separa o que já passou
+no DEV/Preview, a futura janela Production e o contato alternativo do lead-02. Headers e
+migration DEV foram autorizados. Testes, conciliação e envios condicionados continuam sendo
+tarefas da engenharia; não devem ser transferidos ao founder como trabalho manual.
 
 O snapshot cifrado do lead-04 foi preservado antes da expiração, com ACL privada, sem password.
 Ainda não foi restaurado. Qualquer restauração exige correspondência exata de identidade,
 criação Auth e titularidade, ausência de progresso mais recente e de billing; abortar diante
 de divergência. Não restaurar por mera igualdade de endereço nem alterar o nascimento do trial.
 
-**Estado desta rodada:** candidato implementado e validado localmente, incluindo a correção
-da falha HTTP; sem migration remota, publicação, envio de recuperação ou reativação de campanha.
-Não declarar funil completo ou GO de Production com os gates externos pendentes.
+**Falha adicional confirmada:** o formulário de `/cadastro/confirmado` sem `method` também
+existe na base publicada `d5c623ac`. A reprodução usou senha e Auth sintéticos, removidos;
+nenhuma exposição de senha real em Production foi comprovada. Correção pequena e independente
+no [PR draft #48](https://github.com/joaomarcos-techia/Project_OS/pull/48): POST explícito e
+controles indisponíveis até a hidratação. Ela também está incorporada ao candidato deste funil.
+Os outros dois formulários de senha da jornada receberam POST explícito, com regressão.
 
-Branch `fix/signup-code-funnel-20261103`, no worktree isolado acima. Alterações consolidadas em
-commit local após revisão dos diffs e gates afetados. Sem push, PR novo ou Preview automático:
-a autorização de 04/11 cobriu somente a configuração local dos headers. A próxima autorização
-deve nomear a 0134 em DEV e o Preview. O worktree principal não foi alterado.
+Branch `fix/signup-code-funnel-20261103`,
+[PR draft #47](https://github.com/joaomarcos-techia/Project_OS/pull/47). Preview:
+https://project-os-git-fix-signup-code-f-30817b-clinic-os-v2-s-projects.vercel.app/cadastro .
+O worktree principal não foi alterado. Production, contratos reais e a campanha permanecem
+intactos; recuperação real dos leads ainda **NOT SENT**. Não declarar GO com os testes externos
+de recuperação e a publicação do novo destino pendentes.

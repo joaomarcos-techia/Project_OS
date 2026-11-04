@@ -6,7 +6,9 @@ engenharia, não ações que o founder precisa repetir.
 
 **Já concluído, sem nova ação humana:** o founder autorizou o ajuste específico de headers do
 Next em 04/11. A correção passou em 63 testes focados, TypeScript/lint, build, gate HTTP real e
-E2E da ponte sob CSP restrita. Isso não foi uma autorização de migration ou publicação.
+E2E da ponte sob CSP restrita. Depois autorizou a 0134 no DEV e o Preview: aplicação concluída,
+histórico e dados existentes preservados. [Recibo](../quality/evidencias/signup-code-dev-migration-20261104.json).
+Não solicitar novamente essa autorização. Production continua fora dessa autorização.
 
 ## 1. Ordem técnica, a executar pela engenharia
 
@@ -42,9 +44,12 @@ E2E da ponte sob CSP restrita. Isso não foi uma autorização de migration ou p
 
 Tarefa da engenharia na janela autorizada, sem pedir ao founder que execute SQL:
 
-- Conferir que o histórico remoto termina exatamente na 0133 e que seus hashes correspondem
-  ao journal candidato. Divergência, tabela nova já existente sem histórico ou execução parcial
-  impedem aplicar; não executar a migration novamente por tentativa e erro.
+- Conferir que o histórico de Production termina exatamente na 0133 e comparar cada par
+  hash/ordem com o baseline registrado do lançamento e o journal candidato. Existem seis
+  diferenças históricas conhecidas no DEV (0033/0037/0071 são variantes CRLF;
+  0051/0093/0124 já constavam no baseline, com origem não comprovada). Não aceitar diferenças
+  novas, reescrever hashes nem reaplicar arquivos antigos. A contagem isolada não prova ordem.
+  Tabela nova sem histórico ou execução parcial impedem aplicar; não repetir por tentativa.
 - Medir o tamanho de `signup_sessions` e conferir transações longas/locks. `ALTER TABLE`, validação
   dos CHECKs e criação dos índices requerem locks; o PASS no banco sintético não mede duração
   em Production. Não há backfill de senha/contrato, mas não prometer indisponibilidade zero.
@@ -71,9 +76,10 @@ Tarefa da engenharia na janela autorizada, sem pedir ao founder que execute SQL:
 que já passou nos gates. O AGENTS.md pede confirmação antes de migrations/deploy; aprovações
 antigas dos PRs 45/46 não abrangem esta alteração.
 
-**Como fazer:** revisar o PR informado pela engenharia, seu resumo e os resultados. Responder
-`Autorizo a 0134 em DEV e o Preview` para a validação externa. A janela Production terá aprovação
-separada, com o SHA e o resultado desse Preview. Não executar comandos de migration por conta
+**Como fazer:** a 0134 no DEV e os Previews já foram autorizados. Não repetir. Revisar os PRs e
+resultados que a engenharia entregar: o #48 corrige somente a segurança do formulário, sem
+migration; o #47 traz o funil por código e exige 0134 em Production. A janela Production terá
+aprovação específica, com SHA e evidências. Não executar comandos de migration por conta
 própria, não enviar segredos e não reativar anúncios.
 
 **Resultado:** engenharia entrega Preview funcional e evidência do fluxo externo antes de pedir
@@ -94,9 +100,15 @@ registrar `lead-02: sem contato alternativo` e manter o envio bloqueado.
 prepara a continuação. A impossibilidade de contatá-lo não é motivo para criar outra conta ou
 declarar que quatro mensagens foram entregues.
 
-### Acesso ao painel Resend, somente se a API disponível não puder configurar o webhook
+### Webhook Resend — configuração já executável pela engenharia
 
-**Link oficial:** [Resend — Webhooks](https://resend.com/webhooks).
+**Sem ação humana agora.** A API autenticada configurou um webhook temporário exclusivo do
+Preview e a variável sensível restrita à branch. A entrega assinada real projetou o estado no
+DEV; a fixture externa foi desativada após o teste. Não pedir acesso ao painel para repetir.
+Na janela Production autorizada, a engenharia prepara outra configuração e segredo próprios.
+
+Referência para contingência somente se a API ficar indisponível:
+[Resend — Webhooks](https://resend.com/webhooks).
 
 1. Entrar na conta Qoro que envia os e-mails. Não usar uma conta pessoal diferente.
 2. A engenharia fornece a URL **exata e vigente** do Preview ou de Production, terminada em

@@ -232,7 +232,7 @@ export function SignupIdentity({
           </Button>
         </>
       ) : (
-        <form ref={formRef} onSubmit={submit} noValidate className="mt-5">
+        <form method="post" ref={formRef} onSubmit={submit} noValidate className="mt-5">
           <p className="mb-5 text-pretty text-sm leading-relaxed text-fg-muted">
             Defina sua senha uma única vez. Depois, confirme seu e-mail com o código recebido, sem
             sair desta jornada.

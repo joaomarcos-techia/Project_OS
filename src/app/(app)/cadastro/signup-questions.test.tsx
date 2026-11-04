@@ -560,6 +560,7 @@ describe('cadastro — conta e espera O-3b.5', () => {
 
     await screen.findByRole('heading', { name: 'E-mail confirmado' });
     const password = screen.getByLabelText('Crie sua senha');
+    expect(password.closest('form')?.getAttribute('method')).toBe('post');
     expect(screen.getByLabelText('E-mail usado no cadastro')).toBeTruthy();
     expect(password.getAttribute('type')).toBe('password');
     expect(screen.getByLabelText('Código do e-mail').getAttribute('autocomplete')).toBe(
@@ -825,10 +826,13 @@ describe('cadastro — conta e espera O-3b.5', () => {
     expect(document.activeElement).toBe(screen.getByLabelText('Seu nome'));
   });
 
-  it('não pede senha antes de confirmar o e-mail', async () => {
+  it('define a primeira senha na identidade e nunca usa GET para enviá-la', async () => {
     await renderIdentity();
     expect(screen.queryByLabelText('Senha')).toBeNull();
     expect(screen.getByLabelText('Crie sua senha').getAttribute('type')).toBe('password');
+    expect(screen.getByLabelText('Crie sua senha').closest('form')?.getAttribute('method')).toBe(
+      'post',
+    );
     expect(screen.queryByRole('button', { name: 'Mostrar senha' })).toBeNull();
     expect(screen.getByText(/Defina sua senha uma única vez/u)).toBeTruthy();
   });
