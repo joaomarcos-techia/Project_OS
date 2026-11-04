@@ -1,10 +1,14 @@
 import { EMPTY_OPERATIONAL_INFO, type OperationalInfo } from '../config-types';
+import { detectHumanHandoffRequest } from '../guards/semantic-guard';
 
 /** Responde fatos cadastrados sem pedir ao modelo novas rodadas da mesma informação. */
 export function operationalQuestionReply(
   message: string,
   configured?: OperationalInfo,
 ): string | null {
+  // Uma dúvida pode acompanhar um pedido explícito de atendimento humano.
+  // Não encerre esse pedido só porque a ferramenta também trouxe um fato.
+  if (detectHumanHandoffRequest(message)) return null;
   const text = message
     .toLowerCase()
     .normalize('NFD')

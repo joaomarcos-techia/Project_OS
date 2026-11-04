@@ -284,6 +284,24 @@ try {
       assert.ok(!result.response.includes('atendimento online:'));
       assert.equal((await queue(result.conversationId)).length, 0);
     });
+    await check('mixed information and human request can complete the handoff', async () => {
+      const before = providerCalls;
+      generated.push(
+        call('provide_clinic_info'),
+        call('request_human_handoff', { reason: 'human_requested' }),
+        {
+          text: 'Conversa encaminhada.',
+          usage: { tokensInput: 1, tokensOutput: 1, model: 'gemini-3.6-flash' },
+        },
+      );
+      const result = await turn(
+        '5511999000006',
+        'Quero falar com um atendente sobre a consulta online',
+      );
+      assert.equal(providerCalls - before, 3);
+      assert.equal((await queue(result.conversationId)).length, 1);
+      assert.equal((await queue(result.conversationId))[0]?.priority, 'normal');
+    });
     await check(
       'repeated reads stop safely and preserve both rounds without false handoff promise',
       async () => {

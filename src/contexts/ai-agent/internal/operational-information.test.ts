@@ -40,6 +40,12 @@ describe('informações operacionais aprovadas pela clínica', () => {
     expect(operationalQuestionReply(message)).toBeNull();
   });
 
+  it('não encerra um pedido de atendimento humano misturado com uma dúvida', () => {
+    expect(
+      operationalQuestionReply('Quero falar com um atendente sobre a consulta online'),
+    ).toBeNull();
+  });
+
   it('limita conteúdo e rejeita campos não previstos na configuração', () => {
     expect(OperationalInfoSchema.safeParse({ onlineCareInfo: 'x'.repeat(601) }).success).toBe(
       false,
