@@ -1,0 +1,144 @@
+{
+  "at": "2026-11-04T17:10:32.439Z",
+  "state": "PUBLISHED_AND_VERIFIED",
+  "environment": "Production",
+  "pr": "https://github.com/joaomarcos-techia/Project_OS/pull/49",
+  "approvedHead": "678e027de5bb79a5f51dac18cb7312ebdc9c15e3",
+  "merge": {
+    "sha": "cd6adc2369558082a7ff34b9a6b2c97f1da58153",
+    "pr": 49,
+    "at": "2026-11-04T16:49:37Z",
+    "approvedTreeMatches": true
+  },
+  "deployment": {
+    "id": "dpl_CXecn3jcW8prPrSz97qEkHTveTdm",
+    "url": "https://app.qoro.dev",
+    "sha": "cd6adc2369558082a7ff34b9a6b2c97f1da58153",
+    "state": "READY",
+    "approvedTreeMatches": true
+  },
+  "migration": {
+    "tag": "0135_ai_clinic_operational_info",
+    "hash": "ff1655034997a99667c9aade34d0f1c97b0fdde436a1f880e37501f0acf28119",
+    "at": "2026-11-04T16:48:55.558Z",
+    "state": "PASS",
+    "beforeCount": 135,
+    "afterCount": 136,
+    "priorJournalPreserved": true,
+    "oldConfigPreserved": true,
+    "commercialAndProfilesPreserved": true,
+    "configRows": 4,
+    "constraintValidated": true,
+    "existingFactsEmpty": true
+  },
+  "backup": {
+    "file": "manual-2026-11-04T16-46-45.sql.gpg",
+    "bytes": 695537,
+    "sha256": "5f4293cedb5083475d9ab09a52c4cc0eb06df277b6b839961ca6e0e9a02cdd4c",
+    "cipherAndDumpCompletionVerified": true,
+    "plaintextWritten": false,
+    "privateAclVerified": true,
+    "newFullRestorePerformed": false
+  },
+  "validation": {
+    "prCi": {
+      "run": 41866912151,
+      "state": "PASS",
+      "tests": 6102,
+      "files": 573,
+      "publicE2E": {
+        "passed": 8,
+        "skipped": 2,
+        "skipReason": "Turnstile keys absent in isolated build"
+      }
+    },
+    "mainCi": {
+      "run": 41871391215,
+      "sha": "cd6adc2369558082a7ff34b9a6b2c97f1da58153",
+      "state": "PASS",
+      "tests": 6102,
+      "publicE2E": {
+        "passed": 8,
+        "skipped": 2
+      }
+    },
+    "focusedTests": 42,
+    "localPostgresScenarios": 16,
+    "localProviderScope": "Gemini and Meta simulated; no external messages",
+    "productionSmoke": {
+      "startedAt": "2026-11-04T17:02:59.407Z",
+      "finishedAt": "2026-11-04T17:03:44.121Z",
+      "state": "PASS",
+      "checks": [
+        "approved production deployment READY and bound to app.qoro.dev",
+        "public boundary /login: 200",
+        "public boundary /cadastro: 200",
+        "public boundary /api/signup/sessions/me: 410",
+        "public boundary /configuracoes/agente: 307",
+        "public boundary /configuracoes/pagamentos: 307",
+        "public boundary /conversas: 307",
+        "real production login; isolated browser; Secure HttpOnly session",
+        "read-only handoff action identified in deployed public bundle and allowed by exact action ID; Sentry tunnel allowed; all other writes remain blocked",
+        "production agent settings read new schema and render all three fields; nothing saved",
+        "agent settings desktop/mobile have no horizontal overflow",
+        "production payment readiness renders four prerequisites; no action, connection, checkout or charge",
+        "production conversation inbox loads under test-tenant permission; no conversation actions",
+        "test-tenant agent configuration, deposit policy and subscription unchanged"
+      ],
+      "businessWrites": false,
+      "businessInvariantsUnchanged": true,
+      "providerPaymentOrMessageCalls": false,
+      "cleanup": {
+        "onlySmokeRefreshSessionRevoked": true,
+        "otherSessionsUntouched": true
+      },
+      "priorHarnessFailures": 2,
+      "priorHarnessCause": "Overbroad POST guard blocked Sentry telemetry and audited read-only handoff polling; corrected exact read-action allowlist, no product change"
+    }
+  },
+  "logs": {
+    "at": "2026-11-04T17:04:58.510Z",
+    "deploymentId": "dpl_CXecn3jcW8prPrSz97qEkHTveTdm",
+    "since": "2026-11-04T17:02:59.407Z",
+    "scope": [
+      "/login",
+      "/dashboard",
+      "/configuracoes/agente",
+      "/configuracoes/pagamentos",
+      "/conversas",
+      "/api/webhooks/meta",
+      "/api/cron/outbox"
+    ],
+    "records": 3,
+    "levelCounts": {
+      "info": 3
+    },
+    "problems": [],
+    "hasMore": false,
+    "rawMessagesPersisted": false,
+    "state": "PASS",
+    "limitations": "Short scoped observation; not a real patient-to-provider round trip or all-traffic guarantee"
+  },
+  "preserved": {
+    "existingConfiguration": true,
+    "profiles": true,
+    "plans": true,
+    "prices": true,
+    "subscriptions": true,
+    "legacyContracts": true,
+    "patientConversationsNotManuallyChanged": true,
+    "consentsNotGranted": true,
+    "noOperatorCreatedRealPayments": true
+  },
+  "remainingOperationalActions": [
+    "Clinic supplies approved online/pediatric/return facts",
+    "Team reviews existing human handoffs before deliberate return",
+    "Clinic configures payment account/policy and records legitimate consent and actual completion as applicable"
+  ],
+  "rollback": {
+    "previousDeployment": "dpl_HHYSPzhr2dKhQULK1T5Hn5yCLvgt",
+    "previousSha": "7b9a7805baef3b1e5c3b527dfc3f4f77e7fb2d54",
+    "keepAdditive0135": true,
+    "doNotDropColumns": true
+  }
+}

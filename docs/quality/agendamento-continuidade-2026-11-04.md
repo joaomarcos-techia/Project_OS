@@ -1,6 +1,8 @@
 # Continuidade do atendimento e prontidão de cobrança
 
-Escopo aprovado em 04/11/2026: corrigir os problemas de continuidade identificados na investigação, sem alterar atendimentos, consentimentos, contratos ou cobranças reais. Não há autorização de publicação em Production nesta rodada.
+Escopo aprovado em 04/11/2026: corrigir os problemas de continuidade identificados na investigação, sem alterar atendimentos, consentimentos, contratos ou cobranças reais. Depois da validação no DEV/Preview, o founder autorizou expressamente a janela de Production para a 0135 e o PR #49, revisão `678e027d`.
+
+**Estado final: publicado e verificado em Production.** O [PR #49](https://github.com/joaomarcos-techia/Project_OS/pull/49) foi mesclado em `cd6adc2369558082a7ff34b9a6b2c97f1da58153`; a árvore mesclada foi comparada e é idêntica à revisão aprovada. O deployment `dpl_CXecn3jcW8prPrSz97qEkHTveTdm` está READY e atende `app.qoro.dev`. [Recibo sanitizado da publicação](evidencias/ai-agent-production-20261104.json).
 
 ## Mudanças
 
@@ -25,7 +27,11 @@ Comparação em transação confirmou configurações anteriores, planos, assina
 
 O primeiro executor de aplicação abortou na conferência de histórico: comparou estruturas `Result` do driver com uma cópia comum de array. A transação reverteu, sem aplicação parcial. A comparação foi ajustada para representação JSON das mesmas linhas; preflight completo repetido, depois aplicação e verificação final passaram. Nenhum gate ou hash foi removido.
 
-Antes de publicar o app em Production será necessário autorizar a 0135, conferir preflight/backup, aplicar a coluna e só então publicar o código que a consulta. Em rollback do app, preservar o campo aditivo e os fatos novos; não executar DROP nem apagar configurações.
+**Production: aplicada na janela autorizada em 04/11 às 16:48:55 UTC (13:48:55 de Brasília)**, histórico 135 → 136, com o mesmo hash validado no DEV. A ordem completa anterior foi comparada com o histórico registrado na publicação da 0134, incluindo as diferenças históricas já conhecidas; não foram reescritos hashes nem reaplicadas migrations antigas. O preflight encontrou quatro configurações, tabela de 49.152 bytes e nenhuma transação longa. Uma transação com advisory lock 4242, espera de lock de 5 s e timeout de statement de 20 s aplicou somente a 0135 e sua entrada no journal. A conferência antes/depois confirmou histórico anterior, configurações antigas, perfis, planos, preços e assinaturas preservados; o novo campo JSON começou em `{}` nas quatro configurações e o CHECK está validado. Postflight independente confirmou 136 migrations, coluna e constraint.
+
+Antes da aplicação, o runner existente gerou uma cópia local cifrada de `public`/`auth`, verificou a decifragem e o marcador de conclusão do dump, sem persistir SQL aberto. Arquivo de 695.537 bytes em `backups/`, ignorado pelo Git, com ACL privada e checksum no recibo. Isso não constitui uma nova prova de restore integral nem backup dos binários de Storage; não houve contratação ou upload externo. No Windows, a aplicação da ACL exigiu corrigir a referência do SID para o formato com `*`; a cifra permaneceu presente e a ACL do arquivo foi conferida antes da migration.
+
+A migration foi aplicada antes do código que consulta a coluna. O cadastro permaneceu aberto: a alteração é aditiva e compatível com o código anterior; não foi necessário mudar flag ou fechar o funil. Em rollback do app, preservar o campo aditivo e os fatos novos; não executar DROP nem apagar configurações. A versão anterior registrada para contingência é `dpl_HHYSPzhr2dKhQULK1T5Hn5yCLvgt`, SHA `7b9a7805`; voltar o código não exige reverter o schema.
 
 ## Provas e limites
 
@@ -37,7 +43,7 @@ Antes de publicar o app em Production será necessário autorizar a 0135, confer
 - Tipos e lint integral locais: PASS. Inventário de segurança: PASS, sem superfícies sem classificação; arquitetura de banco: 0 findings em 1.653 arquivos.
 - Primeiro ciclo integral local: 6.094 PASS, duas asserções de texto financeiro reprovadas. As instruções financeiras esperadas foram restauradas no prompt sem remover asserções ou alterar regras. Na revisão `5db86bb7`, a CI executou **6.096/6.096 testes**, 573 arquivos, além de build, bundle, isolamento, tipos, lint e E2E público (**8 PASS, 2 SKIP**). Os SKIPs são os desafios Turnstile sem chaves no build público isolado; esta mudança não altera cadastro ou Turnstile. O estado final agregado da CI e dos demais checks deve ser conferido no SHA atual do [PR #49](https://github.com/joaomarcos-techia/Project_OS/pull/49), sem herdar o resultado de um commit anterior.
 - Na revisão interrogativa `9a9a5473`, a suíte integral local passou **6.101/6.101**. Os logs remotos do job `126692441984` também registram **6.101/6.101** e **8 E2E públicos PASS, 2 SKIP**, além dos gates de build e segurança. A API de status ainda mostrou `queued` após os logs completos; não usar essa divergência para substituir os checks obrigatórios ou autorizar merge.
-- A última proteção de pedidos explícitos de humano tem cobertura final **42/42** nos testes focados e **16/16** no gate PostgreSQL. O delta acrescenta um teste unitário; a contagem integral de 6.101 pertence expressamente à revisão anterior. O resultado integral e o build do SHA final devem ser conferidos nos checks vinculados ao PR, com estado agregado aprovado antes de publicar.
+- A última proteção de pedidos explícitos de humano tem cobertura final **42/42** nos testes focados e **16/16** no gate PostgreSQL. A CI final da revisão `678e027d` passou **6.102/6.102**, 573 arquivos, além de tipos, lint, cobertura, arquitetura, inventário, isolamento, migrations, build, bundle e HTTP. O E2E público passou **8 cenários e ignorou 2**, relativos ao Turnstile sem chaves no build isolado. Os checks remotos foram confirmados como SUCCESS antes da publicação; o Vercel Agent Review NEUTRAL não equivale a revisão humana. A CI automática da `main`, já no merge `cd6adc23`, repetiu **6.102/6.102 e 8 PASS/2 SKIP**, encerrando com sucesso na [execução 41871391215](https://github.com/joaomarcos-techia/Project_OS/actions/runs/41871391215).
 - O build Next isolado local da revisão `5db86bb7` terminou com saída 0, incluindo compilação, tipos e geração das páginas. O ajuste posterior afeta apenas a decisão de resposta operacional; o build do SHA final deve passar no gate remoto. Avisos preexistentes de cache do webpack/Sentry não foram suprimidos.
 
 ## Preview e prova de interface
@@ -69,17 +75,29 @@ node node_modules/tsx/dist/cli.mjs scripts/security/local-build.ts
 
 O gate PostgreSQL usa porta local 55496 e cluster sintético descartável com guard de caminho antes da limpeza. Não o aponte para DEV/Production. O executor operacional de migration DEV não deve ser repetido: 0135 já está aplicada. O E2E Preview usou fixture própria com limpeza e exige credenciais legítimas privadas; não há credenciais de teste no repositório.
 
+## Verificação após a publicação
+
+Em 04/11 às 17:02:59–17:03:44 UTC (14:02–14:03 de Brasília), o smoke de Production passou com uma conta de teste preexistente, ativa e identificada como teste. A clínica do cliente investigado foi explicitamente excluída. Nenhuma conta, paciente, consulta ou cobrança foi criada para essa verificação.
+
+- Deployment e domínio confirmados no SHA publicado; login/cadastro públicos responderam 200, sessão anônima ausente respondeu 410 e as três páginas protegidas redirecionaram o anônimo ao login.
+- Login real com cookies Secure/HttpOnly, leitura dos três campos novos em `/configuracoes/agente`, ausência de overflow em 1440/390 px, quatro pré-requisitos em `/configuracoes/pagamentos` e carregamento de `/conversas`.
+- Nenhum clique de salvar, conectar, cobrar, assumir ou devolver foi executado. Configuração do agente, política de sinal e assinatura da clínica de teste permaneceram iguais. Somente a sessão de refresh do smoke foi revogada com escopo `local`; não foi usado logout global nem alterado o epoch das demais sessões.
+- As duas primeiras tentativas pararam numa proteção excessiva do executor: ele tratava todo POST como escrita, bloqueando o túnel Sentry `/monitoring` e a leitura `fetchOpenHandoffs`. Os registros foram preservados como FAIL do executor. A chamada foi conferida no código e no bundle público efetivamente publicado; a execução final permitiu somente o ID exato dessa leitura e a telemetria conhecida, mantendo bloqueadas operações não previstas. Nenhuma validação do produto, permissão ou teste de negócio foi desativado. A execução final e as invariantes passaram.
+- Consulta de logs do novo deployment entre o início do smoke e 17:04:58 UTC: **3 registros informativos, nenhum erro encontrado, sem paginação pendente** nos caminhos especificados no recibo. Nenhuma mensagem bruta foi salva. Trata-se de observação curta e com escopo definido, não de prova de ausência de erros em todo o tráfego.
+
+Não foi disparado um novo round trip real paciente → Meta → Gemini → WhatsApp nesta janela. A prova de saga usa banco real e provedores simulados; a prova autenticada usa Production real para leitura. Não se deve declarar que todas as conversas históricas foram resolvidas ou que uma nova mensagem foi entregue com base nesses testes.
+
 ## O que não mudou
 
-Não houve devolução de conversa real à IA, mudança de prioridade histórica, consulta concluída artificialmente, consentimento presumido, cobrança retroativa, conexão de Asaas, envio ao paciente ou alteração de preço. Emergência não é automaticamente reativada. A fila continua dependente de atendimento humano; prioridade urgente não promete monitoramento externo ou serviço 24 horas.
+Não houve devolução de conversa real à IA, mudança de prioridade histórica, consulta concluída artificialmente, consentimento presumido, cobrança retroativa, conexão de Asaas, envio ao paciente ou alteração de preço. A migration e a publicação autorizadas foram as únicas mudanças de produto em Production nesta janela. Emergência não é automaticamente reativada. A fila continua dependente de atendimento humano; prioridade urgente não promete monitoramento externo ou serviço 24 horas.
 
 Não foi implementada separação comercial entre “exigir sinal” e “cobrar depois”: isso precisa de definição própria. O fluxo existente depende da política de sinal, conta recebedora, conclusão e saldo. Dados de modalidade, faixa etária e retorno devem ser preenchidos pela clínica, sem valores inventados pela engenharia.
 
 ## Publicação e operação posterior
 
-1. Revisar o PR e os resultados finais de código/Preview.
-2. Autorizar separadamente migration 0135 e publicação em Production.
-3. Na janela aprovada: backup/preflight; 0135; deployment; smoke de login/configuração/conversas; conferir que clientes legados e política de preços não mudaram.
+1. Concluído: resultados finais de código/Preview e checks do PR conferidos.
+2. Concluído: autorização específica da 0135 e publicação em Production recebida; não solicitar novamente.
+3. Concluído: backup/preflight; 0135; deployment; smoke autenticado; preservação comercial; logs e CI da main.
 4. Após publicação, clínica preenche os fatos operacionais em `/configuracoes/agente` e confere endereço e agenda nas configurações existentes.
 5. Equipe revisa os atendimentos humanos abertos, com prioridade para urgência. Retomar a IA só quando adequado, usando “Devolver ao agente”; não reexecutar confirmações antigas.
 6. Para cobrança, clínica conecta sua conta recebedora, define a política conscientemente, registra consentimentos legítimos e conclusão/pagamento real do atendimento. Não inferir dívida por falta de registro histórico.
