@@ -1006,7 +1006,7 @@ async function passwordSignInSucceeds(email: string, password: string): Promise<
 async function savePlanFixtureWithoutCheckout(page: Page): Promise<void> {
   const planId = await page.getByRole('radio', { checked: true }).inputValue();
   const endpoint = new URL('/api/signup/plan', page.url()).href;
-  const current = await page.request.get(endpoint);
+  const current = await page.request.get(endpoint, { headers: vercelBypassHeaders() });
   expect(current.status()).toBe(200);
   const state: unknown = await current.json();
   if (
@@ -1017,7 +1017,11 @@ async function savePlanFixtureWithoutCheckout(page: Page): Promise<void> {
   )
     throw new Error('Plan fixture version unavailable');
   const response = await page.request.put(endpoint, {
-    headers: { origin: new URL(page.url()).origin, 'sec-fetch-site': 'same-origin' },
+    headers: {
+      ...vercelBypassHeaders(),
+      origin: new URL(page.url()).origin,
+      'sec-fetch-site': 'same-origin',
+    },
     data: { rowVersion: state.rowVersion, planId, cycle: 'monthly' },
   });
   expect(response.status()).toBe(200);
