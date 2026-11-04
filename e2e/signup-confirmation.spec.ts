@@ -1002,6 +1002,28 @@ async function passwordSignInSucceeds(email: string, password: string): Promise<
   throw new Error(`Supabase Auth respondeu status inesperado ${response.status} na sonda de senha`);
 }
 
+/** Fixture setup for auth-only scenarios: persist through the real API without starting billing. */
+async function savePlanFixtureWithoutCheckout(page: Page): Promise<void> {
+  const planId = await page.getByRole('radio', { checked: true }).inputValue();
+  const endpoint = new URL('/api/signup/plan', page.url()).href;
+  const current = await page.request.get(endpoint);
+  expect(current.status()).toBe(200);
+  const state: unknown = await current.json();
+  if (
+    typeof state !== 'object' ||
+    state === null ||
+    !('rowVersion' in state) ||
+    typeof state.rowVersion !== 'number'
+  )
+    throw new Error('Plan fixture version unavailable');
+  const response = await page.request.put(endpoint, {
+    headers: { origin: new URL(page.url()).origin, 'sec-fetch-site': 'same-origin' },
+    data: { rowVersion: state.rowVersion, planId, cycle: 'monthly' },
+  });
+  expect(response.status()).toBe(200);
+  await page.reload();
+}
+
 async function answerQuestions(page: Page): Promise<void> {
   for (let index = 0; index < 4; index += 1) {
     const cards = page.locator('[data-slot="option-card-group"] label');
@@ -1374,13 +1396,13 @@ test.describe('cadastro — confirmação real via Resend', () => {
       if (!(await passwordSignInSucceeds(email, signup.password)))
         throw new Error('Initial password was not preserved after the code');
       await signup.page.locator('[data-slot="option-card-group"] label').first().click();
-      await signup.page.getByRole('button', { name: 'Salvar plano', exact: true }).click();
+      await savePlanFixtureWithoutCheckout(signup.page);
       await expect(
-        signup.page.getByRole('button', { name: 'Continuar no Checkout Asaas' }),
+        signup.page.getByRole('button', { name: 'Continuar para o checkout' }),
       ).toBeVisible();
       await signup.page.reload();
       await expect(
-        signup.page.getByRole('button', { name: 'Continuar no Checkout Asaas' }),
+        signup.page.getByRole('button', { name: 'Continuar para o checkout' }),
       ).toBeVisible();
       if (!fixture.tokenHash) throw new Error('Code fixture lost its reference');
       const codeSignupRef = fixture.tokenHash;
@@ -1465,9 +1487,9 @@ test.describe('cadastro — confirmação real via Resend', () => {
           await signup.page.getByRole('button', { name: 'Confirmar e-mail', exact: true }).click();
           await expect(signup.page).toHaveURL(/\/cadastro\/plano$/u, { timeout: 120_000 });
           await signup.page.locator('[data-slot="option-card-group"] label').first().click();
-          await signup.page.getByRole('button', { name: 'Salvar plano', exact: true }).click();
+          await savePlanFixtureWithoutCheckout(signup.page);
           await expect(
-            signup.page.getByRole('button', { name: 'Continuar no Checkout Asaas' }),
+            signup.page.getByRole('button', { name: 'Continuar para o checkout' }),
           ).toBeVisible();
         }
         const before = await findUser(email);
@@ -1593,7 +1615,7 @@ test.describe('cadastro — confirmação real via Resend', () => {
             await expect(page).toHaveURL(/\/cadastro\/plano$/u, { timeout: 90_000 });
             await expect(page.locator('input[type=password]')).toHaveCount(0);
             await expect(
-              page.getByRole('button', { name: 'Continuar no Checkout Asaas' }),
+              page.getByRole('button', { name: 'Continuar para o checkout' }),
             ).toBeVisible();
             const [credential] =
               await check`select md5(encrypted_password) as fingerprint from auth.users where id=${before.id}::uuid`;
@@ -1698,7 +1720,7 @@ test.describe('cadastro — confirmação real via Resend', () => {
       }
 
       await signup.page.locator('[data-slot="option-card-group"] label').first().click();
-      await signup.page.getByRole('button', { name: 'Salvar plano' }).click();
+      await savePlanFixtureWithoutCheckout(signup.page);
       await expect(signup.page.getByText('Plano salvo')).toBeVisible();
       await expect(signup.page).toHaveURL(/\/cadastro\/plano$/u);
     } finally {
@@ -1881,9 +1903,7 @@ test.describe('cadastro — confirmação real via Resend', () => {
         .getByText(selectedName, { exact: true })
         .click();
       await expect(signup.page.getByRole('radio', { name: /Clínica/u })).toBeChecked();
-      await signup.page.getByRole('button', { name: 'Salvar plano' }).click();
-      await expect(signup.page.getByText('Plano salvo')).toBeVisible();
-      await signup.page.getByRole('button', { name: 'Continuar no Checkout Asaas' }).click();
+      await signup.page.getByRole('button', { name: 'Continuar para o checkout' }).click();
       await signup.page.waitForURL(
         (url) =>
           url.protocol === 'https:' &&
@@ -2038,9 +2058,7 @@ test.describe('cadastro — confirmação real via Resend', () => {
           exact: true,
         })
         .click();
-      await signup.page.getByRole('button', { name: 'Salvar plano' }).click();
-      await expect(signup.page.getByText('Plano salvo')).toBeVisible();
-      await signup.page.getByRole('button', { name: 'Continuar no Checkout Asaas' }).click();
+      await signup.page.getByRole('button', { name: 'Continuar para o checkout' }).click();
       await signup.page.waitForURL(
         (url) =>
           url.hostname === 'sandbox.asaas.com' &&

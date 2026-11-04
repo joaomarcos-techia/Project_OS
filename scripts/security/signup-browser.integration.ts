@@ -180,6 +180,12 @@ describe('local browser signup confirmation and continuation', () => {
         expect(await page.getByRole('radio').count()).toBe(2);
         if (width === 390) {
           let planWrites = 0;
+          let checkoutRequests = 0;
+          // Real UI, auth and plan persistence; only the external billing boundary is simulated.
+          await page.route('**/api/signup/checkout', async (route) => {
+            checkoutRequests++;
+            await route.fulfill({ status: 503, json: { error: 'unavailable' } });
+          });
           page.on('request', (request) => {
             if (
               new URL(request.url()).pathname === '/api/signup/plan' &&
@@ -188,16 +194,26 @@ describe('local browser signup confirmation and continuation', () => {
               planWrites++;
           });
           await page.getByText('Consultório', { exact: true }).click();
-          await page.getByRole('button', { name: 'Salvar plano', exact: true }).click();
           await page
-            .getByRole('button', { name: 'Continuar no Checkout Asaas', exact: true })
+            .getByRole('button', { name: 'Continuar para o checkout', exact: true })
+            .click();
+          await page
+            .getByRole('button', { name: 'Continuar para o checkout', exact: true })
             .waitFor();
+          await page.getByText('Não foi possível concluir agora.', { exact: false }).waitFor();
           expect(planWrites).toBe(1);
+          expect(checkoutRequests).toBe(1);
           await page.reload({ waitUntil: 'domcontentloaded' });
           await page
-            .getByRole('button', { name: 'Continuar no Checkout Asaas', exact: true })
+            .getByRole('button', { name: 'Continuar para o checkout', exact: true })
             .waitFor();
           expect(planWrites).toBe(1);
+          await page
+            .getByRole('button', { name: 'Continuar para o checkout', exact: true })
+            .click();
+          await page.getByText('Não foi possível concluir agora.', { exact: false }).waitFor();
+          expect(planWrites).toBe(1);
+          expect(checkoutRequests).toBe(2);
           const [selected] =
             await sql`select p.code from signup_sessions s join plans p on p.id=s.selected_plan_id where s.token_hash=${f.ref}`;
           expect(selected?.code).toBe('consultorio_2026');

@@ -222,10 +222,14 @@ export function PlanSelectionForm() {
     }
 
     submitting.current = true;
-    setSaving(true);
-    setSaved(false);
     setMessage(null);
+    setFinishError(null);
     try {
+      if (saved) {
+        await finish();
+        return;
+      }
+      setSaving(true);
       const response = await fetch('/api/signup/plan', {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
@@ -251,6 +255,8 @@ export function PlanSelectionForm() {
           selectedBillingCycle: selectedCycle,
         });
         setSaved(true);
+        setSaving(false);
+        await finish();
       } else if (response.status === 409 || response.status === 422) {
         await load();
         setMessage(
@@ -436,7 +442,7 @@ export function PlanSelectionForm() {
           ano. Pix anual estará disponível posteriormente.
         </p>
       ) : null}
-      <fieldset disabled={saving} className="space-y-2.5">
+      <fieldset disabled={saving || finishing} className="space-y-2.5">
         <legend className="mb-2.5 text-sm font-semibold text-fg">
           Plano {selectedCycle === 'annual' ? 'anual' : 'mensal'}
         </legend>
@@ -447,9 +453,10 @@ export function PlanSelectionForm() {
             setSelectedPlanId(value);
             setSaved(false);
             setMessage(null);
+            setFinishError(null);
           }}
           options={options}
-          disabled={saving}
+          disabled={saving || finishing}
           aria-label="Planos disponíveis"
           className="grid gap-3 md:grid-cols-3"
         />
@@ -489,20 +496,9 @@ export function PlanSelectionForm() {
         <a href="/cadastro/continuar" className={buttonVariants({ variant: 'secondary' })}>
           Voltar aos dados
         </a>
-        {saved ? (
-          <Button
-            type="button"
-            onClick={() => void finish()}
-            loading={finishing}
-            className="sm:min-w-64"
-          >
-            Continuar no Checkout Asaas
-          </Button>
-        ) : (
-          <Button type="submit" loading={saving} className="sm:min-w-40">
-            Salvar plano
-          </Button>
-        )}
+        <Button type="submit" loading={saving || finishing} className="sm:min-w-64">
+          Continuar para o checkout
+        </Button>
       </div>
     </form>
   );
