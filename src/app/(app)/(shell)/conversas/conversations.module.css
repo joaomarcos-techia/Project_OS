@@ -222,6 +222,11 @@
   letter-spacing: 0.02em;
   color: var(--text-3);
 }
+.assignee > p {
+  flex-basis: 100%;
+  margin: 0;
+  line-height: 1.5;
+}
 .sla {
   display: flex;
   align-items: center;

@@ -324,11 +324,30 @@ export async function escalateToHuman(
 ): Promise<void> {
   await tx
     .insert(aiHandoffQueue)
-    .values({ clinicId, conversationId, reason })
+    .values({
+      clinicId,
+      conversationId,
+      reason,
+      priority: reason === 'clinical_emergency' ? 'urgent' : 'normal',
+    })
     .onConflictDoNothing({
       target: [aiHandoffQueue.conversationId],
       where: sql`resolved_at IS NULL`,
     });
+  // Uma emergência também eleva uma fila já aberta. Não troca responsável,
+  // reinicia o prazo nem permite que um encaminhamento normal rebaixe urgência.
+  if (reason === 'clinical_emergency') {
+    await tx
+      .update(aiHandoffQueue)
+      .set({ priority: 'urgent' })
+      .where(
+        and(
+          eq(aiHandoffQueue.clinicId, clinicId),
+          eq(aiHandoffQueue.conversationId, conversationId),
+          isNull(aiHandoffQueue.resolvedAt),
+        ),
+      );
+  }
   await tx
     .update(aiConversations)
     .set({ status: 'handoff' })

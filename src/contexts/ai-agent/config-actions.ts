@@ -26,6 +26,7 @@ import { withTenant } from '@/lib/db/tenant';
 
 import {
   AGENT_CONFIG_DEFAULTS,
+  EMPTY_OPERATIONAL_INFO,
   AgentConfigSchema,
   type AgentConfigDTO,
   type AgentConfigInput,
@@ -50,6 +51,7 @@ export async function getAgentConfig(): Promise<AgentConfigDTO> {
     canDisclosePaymentsViaAgent: row.canDisclosePaymentsViaAgent,
     especialidades: row.especialidades ?? [],
     convenios: row.convenios,
+    operationalInfo: { ...EMPTY_OPERATIONAL_INFO, ...row.operationalInfo },
     updatedAt: row.updatedAt?.toISOString() ?? null,
   };
 }
@@ -84,6 +86,9 @@ export async function updateAgentConfig(input: AgentConfigInput): Promise<AgentC
       .where(eq(aiClinicConfig.clinicId, clinicId))
       .limit(1);
 
+    const operationalInfo =
+      data.operationalInfo ?? before?.operationalInfo ?? EMPTY_OPERATIONAL_INFO;
+
     const [row] = await tx
       .insert(aiClinicConfig)
       .values({
@@ -93,6 +98,7 @@ export async function updateAgentConfig(input: AgentConfigInput): Promise<AgentC
         canDisclosePaymentsViaAgent: data.canDisclosePaymentsViaAgent,
         especialidades: data.especialidades,
         convenios: data.convenios,
+        operationalInfo,
       })
       .onConflictDoUpdate({
         target: aiClinicConfig.clinicId,
@@ -102,6 +108,7 @@ export async function updateAgentConfig(input: AgentConfigInput): Promise<AgentC
           canDisclosePaymentsViaAgent: data.canDisclosePaymentsViaAgent,
           especialidades: data.especialidades,
           convenios: data.convenios,
+          operationalInfo,
           updatedAt: sql`now()`,
         },
       })
@@ -122,9 +129,10 @@ export async function updateAgentConfig(input: AgentConfigInput): Promise<AgentC
             canDisclosePaymentsViaAgent: before.canDisclosePaymentsViaAgent,
             especialidades: before.especialidades ?? [],
             convenios: before.convenios,
+            operationalInfo: before.operationalInfo,
           }
         : null,
-      after: data,
+      after: { ...data, operationalInfo },
       requestContext: ctx,
     });
     return row!;
@@ -138,6 +146,7 @@ export async function updateAgentConfig(input: AgentConfigInput): Promise<AgentC
       canDisclosePaymentsViaAgent: saved.canDisclosePaymentsViaAgent,
       especialidades: saved.especialidades ?? [],
       convenios: saved.convenios,
+      operationalInfo: { ...EMPTY_OPERATIONAL_INFO, ...saved.operationalInfo },
       updatedAt: saved.updatedAt?.toISOString() ?? null,
     },
   };

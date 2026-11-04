@@ -53,6 +53,8 @@ describe('provide_clinic_info — convênios', () => {
       ok: true,
       response: {
         ...clinic,
+        operational_info: { onlineCareInfo: '', pediatricCareInfo: '', returnPolicyInfo: '' },
+        patient_message: null,
         working_hours: { seg_sex: '08:00-18:00' },
         especialidades: ['Cardiologia'],
         convenios: ['Unimed', 'Bradesco Saúde'],
@@ -73,6 +75,6 @@ describe('provide_clinic_info — convênios', () => {
   it('declara ao modelo que perguntas sobre convênio usam esta tool', () => {
     const tool = getTool('provide_clinic_info');
     expect(tool?.description).toContain('convênios aceitos');
-    expect(tool?.description).toContain('informação não foi cadastrada');
+    expect(tool?.description).toContain('informação não cadastrada');
   });
 });

@@ -7,6 +7,20 @@
  */
 import { z } from 'zod';
 
+export const OperationalInfoSchema = z
+  .object({
+    onlineCareInfo: z.string().trim().max(600).default(''),
+    pediatricCareInfo: z.string().trim().max(600).default(''),
+    returnPolicyInfo: z.string().trim().max(600).default(''),
+  })
+  .strict();
+export type OperationalInfo = z.infer<typeof OperationalInfoSchema>;
+export const EMPTY_OPERATIONAL_INFO: OperationalInfo = {
+  onlineCareInfo: '',
+  pediatricCareInfo: '',
+  returnPolicyInfo: '',
+};
+
 /** Parâmetros que a clínica controla. Nada aqui é PII. */
 export const AgentConfigSchema = z.object({
   /** O agente pode agendar para um contato ainda não cadastrado. */
@@ -21,6 +35,7 @@ export const AgentConfigSchema = z.object({
   especialidades: z.array(z.string().trim().min(1).max(80)).max(20),
   /** Convênios aceitos pela clínica; lista vazia significa não informado. */
   convenios: z.array(z.string().trim().min(1).max(80)).max(40),
+  operationalInfo: OperationalInfoSchema.optional(),
 });
 export type AgentConfigInput = z.infer<typeof AgentConfigSchema>;
 

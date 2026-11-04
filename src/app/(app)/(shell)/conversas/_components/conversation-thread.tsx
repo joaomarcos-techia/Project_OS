@@ -108,6 +108,17 @@ export function ConversationThread({
           <span>Atendimento humano</span>
           <strong>{assignedToName ?? 'Sem responsável'}</strong>
           <span>Prioridade {thread.handoff.priority === 'urgent' ? 'urgente' : 'normal'}</span>
+          <p>
+            A IA está pausada nesta conversa enquanto a equipe atende. Responder pelo WhatsApp
+            Business do celular também mantém a pausa. Para retomar o atendimento automático, use
+            “Devolver ao agente”; a IA responderá às próximas mensagens do paciente.
+          </p>
+          {!thread.handoff.assignedToUserId ? (
+            <p>Nenhuma pessoa assumiu este atendimento no painel.</p>
+          ) : null}
+          {thread.handoff.priority === 'urgent' ? (
+            <p>Encaminhamento urgente: revise com a equipe responsável antes de devolver à IA.</p>
+          ) : null}
         </div>
       ) : null}
       <section aria-label="Histórico da conversa" className={styles.history}>

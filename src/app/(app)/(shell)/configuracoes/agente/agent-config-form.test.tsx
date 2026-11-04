@@ -54,12 +54,20 @@ describe('AgentConfigForm — convênios aceitos', () => {
     expect(screen.getByText(/O agente informa somente os convênios desta lista/)).toBeTruthy();
 
     fireEvent.change(input, { target: { value: ' Unimed,  Bradesco Saúde, SulAmérica ' } });
+    fireEvent.change(screen.getByLabelText('Atendimento online'), {
+      target: { value: 'Atendimento online disponível.' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
 
     await waitFor(() =>
       expect(mocks.update).toHaveBeenCalledWith(
         expect.objectContaining({
           convenios: ['Unimed', 'Bradesco Saúde', 'SulAmérica'],
+          operationalInfo: {
+            onlineCareInfo: 'Atendimento online disponível.',
+            pediatricCareInfo: '',
+            returnPolicyInfo: '',
+          },
         }),
       ),
     );
