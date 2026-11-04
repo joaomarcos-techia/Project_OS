@@ -1,5 +1,11 @@
 # Publicação e recuperação dos leads — cadastro por código
 
+> **Janela concluída em 04/11/2026.** A autorização Production foi concedida e executada:
+> migration 0134, PR #47 publicado, cadastro reaberto e três recuperações com entrega assinada
+> comprovada. Lead-02 excluído por rejeição permanente. Não repetir a migration ou os envios.
+> Estado final no [registro da publicação](../quality/publicacao-funil-codigo-2026-11-04.md).
+> Os pedidos de autorização abaixo são a preparação histórica, não pendências atuais.
+
 Preparação iniciada em 03/11/2026, continuada em 04/11. A campanha deve permanecer pausada.
 Este roteiro não autoriza migrations nem publicação Production. Os testes locais são tarefas da
 engenharia, não ações que o founder precisa repetir.

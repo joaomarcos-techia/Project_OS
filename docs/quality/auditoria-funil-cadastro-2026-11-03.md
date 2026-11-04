@@ -1,5 +1,11 @@
 # Auditoria do funil de cadastro — 03/11/2026
 
+> **Atualização de fechamento:** a janela Production foi autorizada e executada em 04/11.
+> A 0134 está aplicada, o PR #47 publicado e o cadastro reaberto. Três e-mails de recuperação
+> tiveram entrega assinada comprovada; lead-02 permanece excluído por rejeição permanente.
+> O [registro final](publicacao-funil-codigo-2026-11-04.md) substitui os estados de preparação
+> e “NOT SENT” históricos abaixo. Não repetir a migration nem os envios.
+
 ## Escopo e fotografia
 
 Auditoria anterior à implementação, base `d5c623ac` (Production/PR #46), worktree isolado

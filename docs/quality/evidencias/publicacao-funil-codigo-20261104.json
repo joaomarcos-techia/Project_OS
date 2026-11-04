@@ -1,0 +1,234 @@
+{
+  "recordedAt": "2026-11-04T13:50:17.355Z",
+  "environment": "Production",
+  "state": "PUBLISHED_SIGNUP_OPEN_EMAIL_RECOVERY_DELIVERED",
+  "authorizedSourceSha": "c842bea6b601b9d46214d90820e899d5f9a1610c",
+  "pr": 47,
+  "mergeSha": "7b9a7805baef3b1e5c3b527dfc3f4f77e7fb2d54",
+  "deploymentId": "dpl_HHYSPzhr2dKhQULK1T5Hn5yCLvgt",
+  "domain": "https://app.qoro.dev",
+  "sourceTreeMatchesAuthorizedMerge": true,
+  "backup": {
+    "path": "backups/prod-pre-migration-2026-11-04T13-12-37.sql.gpg",
+    "bytes": 673861,
+    "sha256": "ae8bbb99cd1cb8ee8e0796486b3a1566f3597f918bd72cbd309714f3aec62f0b",
+    "cipherAndDumpCompletionVerifiedByRunner": true,
+    "plaintextPersisted": false,
+    "storage": "Local encrypted file; owner-only Windows ACL; no external upload or new paid service",
+    "restoreOfThisNewArtifactNotRepeated": true
+  },
+  "migration": {
+    "tag": "0134_signup_code_and_recovery",
+    "hash": "e7c5d4f5e6478a63d67e4b952100fd9620d1f7e508e51fa2236cc567190a3f21",
+    "beforeCount": 134,
+    "afterCount": 135,
+    "finishedAt": "2026-11-04T13:14:43.623Z",
+    "previousJournalPreserved": true,
+    "plansPricesSubscriptionsProfilesPreserved": true,
+    "forceRlsAndCommonAccessDenied": true,
+    "unvalidatedConstraints": 0
+  },
+  "closedChecks": {
+    "state": "PASS",
+    "at": "2026-11-04T13:24:19.488Z",
+    "deploymentId": "dpl_GLmeULtRdNG7GMg4V6JsUXHzhioM",
+    "sha": "7b9a7805baef3b1e5c3b527dfc3f4f77e7fb2d54",
+    "checks": [
+      {
+        "path": "/cadastro",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "path": "/api/signup/sessions",
+        "method": "POST",
+        "status": 503
+      },
+      {
+        "path": "/login",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "path": "/cadastro/confirmado",
+        "method": "GET",
+        "status": 307
+      },
+      {
+        "path": "/api/signup/sessions/me",
+        "method": "GET",
+        "status": 410
+      },
+      {
+        "path": "/api/signup/plan",
+        "method": "GET",
+        "status": 401
+      },
+      {
+        "path": "/cadastro/retomar",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "path": "/api/webhooks/resend",
+        "method": "POST",
+        "status": 401
+      }
+    ],
+    "bridgeStrictHeaders": true
+  },
+  "reopen": {
+    "at": "2026-11-04T13:33:17.172Z",
+    "state": "PASS",
+    "pageHTTP": 200,
+    "unsignedWebhookHTTP": 401,
+    "sha": "7b9a7805baef3b1e5c3b527dfc3f4f77e7fb2d54"
+  },
+  "productionFlowProof": {
+    "at": "2026-11-04T13:33:18.468Z",
+    "environment": "Production",
+    "fixture": "synthetic Resend delivered alias; no patient or lead",
+    "checks": [
+      "incorrect code refused without verifying Auth",
+      "same initial password; verified Auth and automatic plan continuation",
+      "selected plan survived refresh; fourteen-day Auth-anchored trial; mobile has no overflow; no password URL",
+      "real Resend signed delivery reached Production SQL",
+      "actual Production recovery email/link; GET not consumed; other device kept same password and selected plan",
+      "original password authenticated against real Production Auth; synthetic sessions revoked"
+    ],
+    "paymentCreated": false,
+    "state": "PASS",
+    "cleanup": {
+      "authRemoved": true,
+      "checkoutNeverCalled": true,
+      "onlyExactFixtureTouched": true
+    },
+    "finishedAt": "2026-11-04T13:34:29.887Z",
+    "passwordURLSeen": false,
+    "checkoutCalled": false
+  },
+  "lead04SnapshotRestoration": {
+    "ok": true,
+    "state": "restored"
+  },
+  "emailRecovery": [
+    {
+      "lead": "lead-02",
+      "state": "NOT_SENT",
+      "reason": "Original Permanent/General bounce; no authorized verified alternative address. Explicitly excluded.",
+      "operationKey": null,
+      "providerMessageId": null,
+      "delivery": null
+    },
+    {
+      "lead": "lead-01",
+      "state": "ACCEPTED_BY_PROVIDER",
+      "reason": null,
+      "operationKey": "signup-leads-20261103:lead-01:recovery-v1",
+      "providerMessageId": "01a1a6c7-e756-7cea-9a1d-0a38f01cbcf1",
+      "delivery": {
+        "at": "2026-11-04T13:40:03.463Z",
+        "providerEvent": "delivered",
+        "signedDeliveryInProduction": true,
+        "terminalFailure": false,
+        "grantState": "sent",
+        "expiresAt": "2026-11-05T13:37:56.431Z",
+        "account": {
+          "emailConfirmed": false,
+          "passwordState": "pending",
+          "clinicProfile": false,
+          "selectedPlan": false
+        }
+      }
+    },
+    {
+      "lead": "lead-03",
+      "state": "ACCEPTED_BY_PROVIDER",
+      "reason": null,
+      "operationKey": "signup-leads-20261103:lead-03:recovery-v1",
+      "providerMessageId": "01a1a6c8-12e3-7b84-9ff9-de59d955d7ce",
+      "delivery": {
+        "at": "2026-11-04T13:40:04.453Z",
+        "providerEvent": "delivered",
+        "signedDeliveryInProduction": true,
+        "terminalFailure": false,
+        "grantState": "sent",
+        "expiresAt": "2026-11-05T13:38:08.601Z",
+        "account": {
+          "emailConfirmed": false,
+          "passwordState": "pending",
+          "clinicProfile": false,
+          "selectedPlan": false
+        }
+      }
+    },
+    {
+      "lead": "lead-04",
+      "state": "ACCEPTED_BY_PROVIDER",
+      "reason": null,
+      "operationKey": "signup-leads-20261103:lead-04:recovery-v1",
+      "providerMessageId": "01a1a6c8-4c99-7a1f-9214-b553618d2f37",
+      "delivery": {
+        "at": "2026-11-04T13:40:05.374Z",
+        "providerEvent": "delivered",
+        "signedDeliveryInProduction": true,
+        "terminalFailure": false,
+        "grantState": "sent",
+        "expiresAt": "2026-11-05T13:38:24.939Z",
+        "account": {
+          "emailConfirmed": true,
+          "passwordState": "set",
+          "clinicProfile": false,
+          "selectedPlan": false
+        }
+      }
+    }
+  ],
+  "credentials": {
+    "newProductionWebhookSecretScopedOnlyToProduction": true,
+    "productionWebhookStatus": "enabled",
+    "existingRuntimeResendKeyUnchanged": true,
+    "devRuntimeKeyCopiedToProduction": false,
+    "temporaryOperatorKeyStatus": "revoked",
+    "temporaryOperatorKeyRevokedAt": "2026-11-04T13:42:54.219Z"
+  },
+  "ci": {
+    "run": "41836525511",
+    "sha": "7b9a7805baef3b1e5c3b527dfc3f4f77e7fb2d54",
+    "state": "PASS",
+    "tests": 6077,
+    "testFiles": 570,
+    "publicE2ePassed": 8,
+    "turnstilePublicE2eSkipped": 2,
+    "skipReason": "No Turnstile test keys in isolated build; no new real challenge forced in this window; previous live gate and unchanged configuration are separate evidence"
+  },
+  "logs": {
+    "at": "2026-11-04T13:47:12.416Z",
+    "state": "READ",
+    "deploymentId": "dpl_HHYSPzhr2dKhQULK1T5Hn5yCLvgt",
+    "scope": "Only signup and Resend request paths; parsed JSON application levels as well as platform levels",
+    "recordCount": 12,
+    "levelCounts": {
+      "info": 12
+    },
+    "warningsOrErrors": [],
+    "hasMore": false,
+    "rawMessagesPersisted": false,
+    "interpretation": "No warning/error/fatal in these 12 scoped records; not a platform-wide audit"
+  },
+  "scope": {
+    "noRealPayment": true,
+    "noCheckoutCreatedInProductionSmoke": true,
+    "noContractPriceChange": true,
+    "noAdsChange": true,
+    "noPatientOrAppointmentMutation": true,
+    "cancelledCustomerInvestigationNotPerformed": true,
+    "noProductionRolloutOfDocumentationChanges": true
+  },
+  "limits": [
+    "delivered is recipient-server acceptance, not proof of inbox placement, reading or completed signup",
+    "No new real payment, invoice, financial settlement or patient booking tested",
+    "Only the first valid recovery click by each recipient will confirm/continue the actual lead account",
+    "One permanently bounced recipient remains excluded until a legitimate verified alternative is available"
+  ]
+}
