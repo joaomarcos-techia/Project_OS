@@ -44,6 +44,37 @@ const original: AIConversationThread = {
 };
 afterEach(cleanup);
 
+describe('continuidade do atendimento humano', () => {
+  it('explica a pausa e a retomada sem prometer reprocessar mensagens antigas', () => {
+    render(
+      <ConversationThread
+        thread={original}
+        canManage
+        currentUserId="user-1"
+        assignedToName="Recepção"
+      />,
+    );
+    expect(screen.getByText(/A IA está pausada nesta conversa/)).toBeTruthy();
+    expect(screen.getByText(/próximas mensagens do paciente/)).toBeTruthy();
+  });
+
+  it('mostra falta de responsável e urgência sem devolver automaticamente', () => {
+    const thread: AIConversationThread = {
+      ...original,
+      handoff: {
+        ...original.handoff!,
+        assignedToUserId: null,
+        priority: 'urgent',
+      },
+    };
+    render(
+      <ConversationThread thread={thread} canManage currentUserId="user-1" assignedToName={null} />,
+    );
+    expect(screen.getByText(/Nenhuma pessoa assumiu/)).toBeTruthy();
+    expect(screen.getByText(/revise com a equipe responsável/)).toBeTruthy();
+  });
+});
+
 describe('reenvio no histórico compartilhado', () => {
   it('mostra falha de entrega e reenvio para responsável autorizado dentro da janela', () => {
     render(

@@ -38,15 +38,17 @@ import type { PromptContext } from '../types';
  *  do WhatsApp (o negrito em Markdown chegava com os asteriscos dobrados).
  *  v16 (2026-10-08): dinheiro como forma de pagamento. Com sinal, o horário só
  *  se confirma com o sinal pago pelo link e o restante pode ser pago na
- *  clínica, inclusive em dinheiro; sem sinal, o paciente pode escolher dinheiro. */
-export const PROMPT_VERSION = '2026-10-08-v16';
+ *  clínica, inclusive em dinheiro; sem sinal, o paciente pode escolher dinheiro.
+ *  v17 (2026-11-04): fallback honesto, informação operacional configurada e
+ *  remoção de argumentos antigos de preços por meio da declaração de agenda. */
+export const PROMPT_VERSION = '2026-11-04-v17';
 
 /**
  * Resposta clínica segura — string EXATA do mandato C11 (anti-SAMD). Única
  * fonte: pré-filtro, pós-guard e o próprio template referenciam esta constante.
  */
 export const CLINICAL_FALLBACK =
-  'Não posso te orientar sobre sintomas. Vou marcar para você conversar com o médico, ok?';
+  'Essa questão precisa ser avaliada pelo médico. Posso ajudar você a agendar uma consulta.';
 
 /**
  * Relato com sinal de urgência (08/10/2026) — texto FIXO do servidor, o LLM não
@@ -70,7 +72,8 @@ export const AUDIO_REPLY = 'Ainda não consigo ouvir áudios por aqui. Pode me e
 export const FILE_REPLY = 'Recebi seu arquivo, vou passar para a equipe.';
 
 /** Fallback operacional — provider caiu / circuito aberto / tool quebrou. */
-export const OPERATIONAL_FALLBACK = 'Recebi sua mensagem! Um atendente vai te responder em breve.';
+export const OPERATIONAL_FALLBACK =
+  'Não consegui concluir esta solicitação agora. Você pode tentar novamente ou pedir para falar com um atendente.';
 
 /**
  * F-01 — complemento do fallback clínico quando a MESMA mensagem também traz um
@@ -85,7 +88,7 @@ export const OPERATIONAL_NUDGE =
 
 /** Quota guard (placeholder C13) — orçamento mensal de IA estourado. */
 export const QUOTA_FALLBACK =
-  'Nosso assistente automático está indisponível no momento. Um atendente vai te responder em breve.';
+  'Nosso assistente automático está indisponível no momento. Você pode tentar novamente ou pedir para falar com um atendente.';
 
 /**
  * Template CRU — base do PROMPT_HASH (R6). Placeholders {snake_case} são
@@ -104,14 +107,15 @@ REGRAS INEGOCIÁVEIS:
 - Se o paciente pedir uma pessoa, ou você não conseguir resolver, use request_human_handoff.
 - Para informar convênios, use provide_clinic_info e repita somente os nomes retornados em convenios. Se a lista vier vazia, diga que essa informação ainda não está cadastrada e ofereça encaminhamento humano. NUNCA deduza que uma lista vazia significa que a clínica não aceita convênios.
 - NUNCA afirme regras ou orientações da clínica que não vieram de uma ferramenta ou destas instruções: antecedência para chegar, tolerância de atraso, documentos para levar, estacionamento, formas de pagamento aceitas na recepção. Se o paciente perguntar e nenhuma ferramenta trouxer a resposta, diga que vai confirmar com a equipe e ofereça atendimento humano.
+- Para atendimento online, infantil e regras de retorno, consulte provide_clinic_info. Apresente patient_message quando preenchida. Informação não cadastrada não significa serviço indisponível: não invente a resposta nem repita a mesma consulta para tentar obtê-la. Ofereça contato com a equipe sem afirmar que já a acionou.
 - Responda em português brasileiro, tom cordial e objetivo, mensagens curtas (formato WhatsApp).
 - Formatação do WhatsApp: para destacar, use um asterisco de cada lado (*assim*). NUNCA use dois asteriscos, # para títulos, tabelas nem [texto](link).
 
-FLUXO DE AGENDAMENTO (uma ferramenta por mensagem — nunca encadeie várias):
-- Para MARCAR um atendimento novo use prepare_appointment: passe procedure_name (o procedimento, serviço ou especialidade que o paciente quer; omita se a clínica só tiver um) e scheduled_at se o paciente já escolheu um horário (omita scheduled_at para o primeiro horário livre). Passe payment_method apenas quando o paciente tiver escolhido Pix, cartão ou dinheiro (cash); para cartão, passe installment_count apenas quando ele tiver informado a quantidade de parcelas. Nunca escolha forma de pagamento nem parcelas por conta própria. A ferramenta resolve procedimento, preço configurado, profissional e horário e PREPARA a marcação, devolvendo um resumo — não precisa buscar ids você mesmo.
+FLUXO DE AGENDAMENTO (uma mutação por mensagem; leituras apenas quando trouxerem informação nova):
+- Para MARCAR um atendimento novo use prepare_appointment: passe procedure_name (o procedimento, serviço ou especialidade que o paciente quer; omita se a clínica só tiver um) e scheduled_at se o paciente já escolheu um horário (omita scheduled_at para o primeiro horário livre). A ferramenta resolve procedimento, preço configurado, profissional e horário e PREPARA a marcação, devolvendo um resumo — não precisa buscar ids você mesmo.
 - Se o paciente quiser VER horários antes de decidir, use list_slots e apresente as opções; depois marque com prepare_appointment no scheduled_at escolhido.
 - prepare_appointment, cancel_appointment e reschedule_appointment apenas PREPARAM a ação e devolvem um resumo. Mostre exatamente o resumo retornado e peça que o paciente responda "SIM". Use list_my_appointments para achar a consulta (appointment_id) ao cancelar/reagendar.
-- Se prepare_appointment pedir a forma de pagamento ou as parcelas, faça somente essa pergunta ao paciente. Para cartão à vista, peça a resposta explícita "cartão em 1x"; "SIM" sozinho nessa etapa ainda não escolhe a condição comercial. Chame prepare_appointment novamente depois dessa escolha. confirm_pending_action só vale depois do resumo completo de agendamento. Preços por meio de pagamento vêm de provide_procedure_price ou prepare_appointment; nunca use o preço padrão quando a ferramenta retornar opções por meio de pagamento. Link de cartão parcelado ainda não está disponível. Quando a clínica cobra sinal, o horário só é confirmado com o sinal pago pelo link que o sistema envia pelo WhatsApp, e o restante pode ser pago na clínica, inclusive em dinheiro; nesse caso, "tudo em dinheiro" não vale para marcar, e prepare_appointment explica isso ao paciente. Sem sinal, o paciente pode escolher dinheiro, pago na clínica. Se o paciente disser que já pagou, o servidor confere o pagamento: nunca confirme pagamento por conta própria. Não prometa link imediato, prazo exato nem cobrança integral: a criação e o envio são assíncronos e podem ser impedidos por identidade, conta de pagamento, valor mínimo ou política desligada.
+- O preço vem do procedimento retornado pelas ferramentas e é o mesmo para Pix e cartão; o paciente escolhe o meio no Checkout. Quando a clínica cobra sinal, o horário só é confirmado com o sinal pago pelo link que o sistema envia e o restante pode ser pago na clínica, inclusive em dinheiro. Se o paciente disser que já pagou, o servidor confere o pagamento: nunca confirme pagamento por conta própria. Não prometa link imediato, prazo exato nem cobrança integral: criação e envio são assíncronos e dependem da identidade, da conta recebedora e da política habilitada. Nunca envie argumentos que não existam na declaração da ferramenta.
 - Nunca use confirm_pending_action na mesma mensagem que preparou a ação. Use apenas no turno seguinte, após o paciente responder explicitamente "SIM", "CONFIRMO" ou equivalente inequívoco. Marcar, cancelar e reagendar confirmam SEMPRE com confirm_pending_action.
 - confirm_appointment é só para o paciente responder "SIM" a um lembrete de consulta que JÁ existe — nunca para marcar uma consulta nova. Sem id/data, ela só confirma quando existir uma única consulta futura; se houver várias, mostre as opções retornadas e peça ao paciente que escolha.
 

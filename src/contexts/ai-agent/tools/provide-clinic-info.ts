@@ -11,6 +11,8 @@ import { sql } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { aiClinicConfig } from '../schema';
+import { EMPTY_OPERATIONAL_INFO, OperationalInfoSchema } from '../config-types';
+import { operationalQuestionReply } from '../internal/operational-information';
 import { registerTool } from './registry';
 
 const InputSchema = z.object({}).strict();
@@ -24,12 +26,14 @@ const OutputSchema = z.object({
   // Vazio = informação não cadastrada. O prompt proíbe inferir ou traduzir
   // isso como "a clínica não aceita convênios".
   convenios: z.array(z.string()),
+  operational_info: OperationalInfoSchema,
+  patient_message: z.string().nullable(),
 });
 
 registerTool({
   name: 'provide_clinic_info',
   description:
-    'Retorna informações operacionais da clínica: nome, endereço, fuso horário, horários de funcionamento, especialidades e convênios aceitos. Use sempre que o paciente perguntar horário, endereço, o que a clínica atende ou quais convênios aceita. Se convenios vier vazio, a informação não foi cadastrada.',
+    'Retorna informações operacionais da clínica: nome, endereço, fuso horário, horários de funcionamento, especialidades, convênios aceitos e regras cadastradas de atendimento online, infantil e retorno. Use nas perguntas sobre essas informações. Campos vazios significam informação não cadastrada. Se patient_message vier preenchida, apresente essa resposta sem repetir consultas nem inventar regras.',
   inputSchema: InputSchema,
   outputSchema: OutputSchema,
   handler: async (_input, ctx) => {
@@ -50,6 +54,8 @@ registerTool({
       working_hours: config?.workingHours ?? null,
       especialidades: config?.especialidades ?? null,
       convenios: config?.convenios ?? [],
+      operational_info: { ...EMPTY_OPERATIONAL_INFO, ...config?.operationalInfo },
+      patient_message: operationalQuestionReply(ctx.currentMessage, config?.operationalInfo),
     };
   },
 });

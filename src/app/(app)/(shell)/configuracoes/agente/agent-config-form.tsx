@@ -15,10 +15,12 @@ import { Card } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { PageHeader } from '@/components/ui/page-header';
 import { toast } from '@/components/ui/use-toast';
 import { updateAgentConfig } from '@/contexts/ai-agent/config-actions';
 import type { AgentConfigDTO } from '@/contexts/ai-agent/config-types';
+import { EMPTY_OPERATIONAL_INFO } from '@/contexts/ai-agent/config-types';
 
 export function AgentConfigForm({ initial }: { initial: AgentConfigDTO }) {
   const router = useRouter();
@@ -30,6 +32,10 @@ export function AgentConfigForm({ initial }: { initial: AgentConfigDTO }) {
   );
   const [especialidades, setEspecialidades] = useState(initial.especialidades.join(', '));
   const [convenios, setConvenios] = useState(initial.convenios.join(', '));
+  const [operationalInfo, setOperationalInfo] = useState({
+    ...EMPTY_OPERATIONAL_INFO,
+    ...initial.operationalInfo,
+  });
 
   function save() {
     startTransition(async () => {
@@ -45,6 +51,7 @@ export function AgentConfigForm({ initial }: { initial: AgentConfigDTO }) {
           .split(',')
           .map((item) => item.trim())
           .filter(Boolean),
+        operationalInfo,
       });
       if (!result.ok) {
         toast.error(result.message);
@@ -63,6 +70,30 @@ export function AgentConfigForm({ initial }: { initial: AgentConfigDTO }) {
         description="O que o agente pode fazer e dizer em nome da clínica no WhatsApp."
       />
       <Card className="flex max-w-190 flex-col gap-4 p-(--card-pad)">
+        <p className="text-(length:--fs-sm) text-fg-subtle">
+          Cadastre somente informações operacionais aprovadas pela clínica. Campos vazios são
+          tratados como informação não cadastrada; a IA não deve inventar uma resposta. Não inclua
+          dados de pacientes nem orientações clínicas.
+        </p>
+        {(
+          [
+            ['onlineCareInfo', 'Atendimento online'],
+            ['pediatricCareInfo', 'Atendimento de crianças e adolescentes'],
+            ['returnPolicyInfo', 'Regras de retorno da consulta'],
+          ] as const
+        ).map(([key, label]) => (
+          <Field key={key} label={label} htmlFor={`agent-${key}`}>
+            <Textarea
+              id={`agent-${key}`}
+              maxLength={600}
+              value={operationalInfo[key]}
+              onChange={(event) =>
+                setOperationalInfo((current) => ({ ...current, [key]: event.target.value }))
+              }
+              placeholder="Informe a regra da clínica ou deixe vazio se ainda não estiver definida."
+            />
+          </Field>
+        ))}
         <Field label="Antecedência máxima de agendamento (dias)" htmlFor="agent-max-days">
           <Input
             id="agent-max-days"

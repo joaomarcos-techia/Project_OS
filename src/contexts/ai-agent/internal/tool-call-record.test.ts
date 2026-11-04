@@ -9,11 +9,40 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { toToolCallRecords } from './tool-call-record';
+import { appendToolCallRecords, toToolCallRecords } from './tool-call-record';
 
 const APPT = '11111111-1111-1111-1111-111111111111';
 const DOCTOR = '22222222-2222-2222-2222-222222222222';
 const PROCEDURE = '33333333-3333-3333-3333-333333333333';
+
+describe('auditoria de um turno com várias rodadas', () => {
+  it('mantém as chamadas anteriores sem mudar o array original nem expor dados livres', () => {
+    const first = appendToolCallRecords(null, [{ name: 'provide_clinic_info', args: {} }], 1);
+    const all = appendToolCallRecords(
+      first,
+      [
+        {
+          name: 'collect_patient_data',
+          args: {
+            nome: 'Paciente Sintético',
+            cpf: '39053344705',
+            motivo: 'informação privada',
+          },
+        },
+      ],
+      2,
+    );
+    expect(all.map((record) => [record.name, record.round])).toEqual([
+      ['provide_clinic_info', 1],
+      ['collect_patient_data', 2],
+    ]);
+    expect(first).toHaveLength(1);
+    const persisted = JSON.stringify(all);
+    for (const secret of ['Paciente Sintético', '39053344705', 'informação privada']) {
+      expect(persisted).not.toContain(secret);
+    }
+  });
+});
 
 describe('toToolCallRecords — PII nunca é persistida', () => {
   it('descarta os VALORES de nome, CPF e motivo, preservando só as chaves', () => {

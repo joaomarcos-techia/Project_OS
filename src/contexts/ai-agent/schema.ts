@@ -44,6 +44,7 @@ import { timestampsPattern, uuidPk } from '@/lib/db/types';
 
 // Side-effect: registra ai_agent.* no catálogo do outbox no module load.
 import './events';
+import type { OperationalInfo } from './config-types';
 
 // --- enums -------------------------------------------------------------------
 
@@ -217,6 +218,10 @@ export const aiClinicConfig = pgTable(
     canScheduleAnonymous: boolean('can_schedule_anonymous').notNull().default(false),
     maxDaysAhead: integer('max_days_ahead').notNull().default(30),
     messageTemplateOverrides: jsonb('message_template_overrides'),
+    operationalInfo: jsonb('operational_info')
+      .$type<OperationalInfo>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
     // Compatibilidade histórica: orçamento mensal de IA em USD. A política
     // comercial atual não o usa para bloquear conversas (ADR-024).
     monthlyBudgetUsd: numeric('monthly_budget_usd', { precision: 10, scale: 2 }),

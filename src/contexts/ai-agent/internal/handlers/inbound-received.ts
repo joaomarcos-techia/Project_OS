@@ -24,6 +24,7 @@
  * Pré-filtro clínico (G4) e quota (R4) curto-circuitam ANTES do passo 4.
  */
 import { randomUUID } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
 import { gzipSync } from 'node:zlib';
 
 import { and, eq, sql } from 'drizzle-orm';
@@ -44,7 +45,7 @@ import { withTenant } from '@/lib/db/tenant';
 import { resolveAiSnapshotMode } from '@/lib/env';
 import { metrics } from '@/lib/observability/metrics';
 import { getAiAgentMode } from '@/lib/platform-settings';
-import { PoisonPillError, serializeError } from '@/lib/outbox/errors';
+import { HandlerError, PoisonPillError, serializeError } from '@/lib/outbox/errors';
 import { publishEvent } from '@/lib/outbox/publish';
 import { registerDetachedHandler } from '@/lib/outbox/registry';
 import type { DetachedHandlerCtx } from '@/lib/outbox/types';
@@ -90,6 +91,7 @@ import {
 import {
   checkClinicalContent,
   decideTurnGuard,
+  detectEmergency,
   detectHumanHandoffRequest,
   detectInformationQuestion,
   detectPaymentClaim,
@@ -136,7 +138,7 @@ import {
 import { appointmentTimeForPatient } from '../relative-datetime';
 import { checkQuota, type QuotaCheck } from '../quota';
 import { sanitizeAiFailurePayload } from '../sanitize';
-import { toToolCallRecords } from '../tool-call-record';
+import { appendToolCallRecords, toToolCallRecords, type ToolCallRecord } from '../tool-call-record';
 import { toWhatsAppFormatting } from '../whatsapp-format';
 import {
   patientRegistrationMessage,
@@ -183,6 +185,23 @@ type FailureStage =
  */
 export function roundMutationCount(calls: Array<{ name: string }>): number {
   return calls.filter((c) => getTool(c.name)?.effect === 'mutation').length;
+}
+
+/** Só respostas de leitura do mesmo turno podem ser reutilizadas. */
+export function previousReadResult(
+  call: NonNullable<GenerateResult['toolCalls']>[number],
+  results: readonly ToolResult[],
+): ToolResult | undefined {
+  if (!getTool(call.name) || getTool(call.name)?.effect === 'mutation') return undefined;
+  return results.find(
+    (previous) => previous.name === call.name && isDeepStrictEqual(previous.args, call.args),
+  );
+}
+
+export function clinicInformationReply(results: readonly ToolResult[]): string | null {
+  const info = results.find((result) => result.name === 'provide_clinic_info');
+  if (!info || !('patient_message' in info.response)) return null;
+  return typeof info.response.patient_message === 'string' ? info.response.patient_message : null;
 }
 
 function patientRegisteredReply(procedureName: string | null): string {
@@ -837,6 +856,13 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
   // Conversa em handoff: humano está atendendo — o agente registra o inbound
   // mas NÃO responde por cima.
   if (conversation.status === 'handoff' && !replayedOut) {
+    // A pausa evita respostas concorrentes, mas não deve esconder um novo
+    // sinal de emergência da fila que a equipe já está acompanhando.
+    if (!media && !detectEmergency(turnText).safe) {
+      await phase(clinicId, (tx) =>
+        escalateToHuman(tx, clinicId, conversation.id, 'clinical_emergency'),
+      );
+    }
     await finalizeTurn(clinicId, conversation.id, inbound.id, eventId, {
       outcome: 'handoff',
       toolCallCount: 0,
@@ -852,7 +878,7 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
   const usageTokens = { input: 0, output: 0 };
   let model: string | null = null;
   let latencyMs: number | undefined;
-  let toolCallsRecord: unknown = null;
+  let toolCallsRecord: ToolCallRecord[] | null = null;
   let snapshot: string | null = null;
   let alreadyPersisted = false;
 
@@ -1192,6 +1218,18 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
         if (rounds >= MAX_TOOL_ROUNDS) {
           // G1 — NUNCA loop: excedeu o orçamento de rodadas → fallback.
           metrics.emit('ai_agent.tool.rounds_exceeded', { clinicId, aiRequestId, rounds });
+          await recordFailure({
+            clinicId,
+            conversationId: conversation.id,
+            eventId,
+            aiRequestId,
+            stage: 'tool_invalid',
+            error: new HandlerError(
+              'limite de rodadas de ferramentas atingido',
+              'tool_rounds_exceeded',
+            ),
+            model: model ?? undefined,
+          });
           fallback = true;
           break;
         }
@@ -1200,7 +1238,7 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
         toolCallCount += calls.length;
         // F-16: além do nome, ids e instantes (whitelist) — `tool_calls` é jsonb
         // SEM cifra, então texto do paciente jamais entra aqui.
-        toolCallsRecord = toToolCallRecords(calls);
+        toolCallsRecord = appendToolCallRecords(toolCallsRecord, calls, rounds);
 
         const preflight = preflightToolCalls(calls, {
           clinicId,
@@ -1216,6 +1254,27 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
             error: new Error(preflight.error),
             toolName: preflight.toolName,
             issuePaths: preflight.issuePaths,
+            model: model ?? undefined,
+          });
+          fallback = true;
+          break;
+        }
+
+        // Repetir apenas leituras já respondidas não acrescenta informação.
+        // A comparação e o reuso valem só neste turno, nunca entre pacientes
+        // ou mensagens (a disponibilidade pode mudar no turno seguinte).
+        const cachedRead = (call: (typeof calls)[number]) => previousReadResult(call, toolResults);
+        if (calls.every((call) => cachedRead(call))) {
+          await recordFailure({
+            clinicId,
+            conversationId: conversation.id,
+            eventId,
+            aiRequestId,
+            stage: 'tool_invalid',
+            error: new HandlerError(
+              'rodada repetiu apenas consultas já respondidas',
+              'tool_read_repeated',
+            ),
             model: model ?? undefined,
           });
           fallback = true;
@@ -1249,7 +1308,10 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
         const roundResults = await phase(clinicId, async (tx) => {
           const acc: ToolResult[] = [];
           for (const call of calls) {
-            const exec = await validateAndExecute(call, toolContext(tx));
+            const cached = cachedRead(call);
+            const exec = cached
+              ? { ok: true as const, response: cached.response }
+              : await validateAndExecute(call, toolContext(tx));
             if (!exec.ok) {
               const stage: FailureStage =
                 exec.kind === 'unknown_tool'
@@ -1297,6 +1359,7 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
         }
         toolResults.push(...roundResults.acc);
         mutationsThisTurn += roundMutations;
+        if (!handoffExecuted && clinicInformationReply(toolResults)) break;
 
         // Re-chamada com toolResults (SEM TX — R2).
         try {
@@ -1362,6 +1425,7 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
     const operationalReply =
       serverConfirmationReply ??
       appointmentReplyFromToolResults(toolResults) ??
+      (!handoffExecuted ? clinicInformationReply(toolResults) : null) ??
       serverRegistrationReply ??
       registrationReplyFromToolResults(toolResults) ??
       registrationReplyFromState(promptCtx.patientRegistration.status);

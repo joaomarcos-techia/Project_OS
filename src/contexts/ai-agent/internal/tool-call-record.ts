@@ -42,6 +42,8 @@ const MAX_KEYS = 12;
 
 export interface ToolCallRecord {
   name: string;
+  /** Rodada solicitada no turno; não comprova execução de uma mutação. */
+  round?: number;
   /** Chaves presentes nos args — sem os valores. Diz o que veio, não o quê. */
   argKeys?: string[];
   /** Subconjunto seguro dos args (ids e instantes). */
@@ -75,4 +77,13 @@ export function toToolCallRecords(
     if (Object.keys(safe).length > 0) record.args = safe;
     return record;
   });
+}
+
+/** Preserva todas as rodadas com a mesma whitelist de dados não sensíveis. */
+export function appendToolCallRecords(
+  previous: readonly ToolCallRecord[] | null,
+  calls: ReadonlyArray<{ name: string; args: unknown }>,
+  round: number,
+): ToolCallRecord[] {
+  return [...(previous ?? []), ...toToolCallRecords(calls).map((record) => ({ ...record, round }))];
 }

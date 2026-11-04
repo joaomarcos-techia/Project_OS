@@ -6,15 +6,34 @@ import { describe, expect, it } from 'vitest';
 
 import { MAX_CONTEXT_MESSAGES, MAX_INBOUND_CHARS, MAX_PROMPT_CHARS } from '../limits';
 import type { PromptContext } from '../types';
+import { checkClinicalContent } from '../guards/semantic-guard';
 import {
   buildPromptMessages,
   buildSystemPrompt,
   CLINICAL_FALLBACK,
+  OPERATIONAL_FALLBACK,
+  QUOTA_FALLBACK,
   PROMPT_HASH,
   PROMPT_VERSION,
   sanitizePromptField,
   truncateInbound,
 } from './system';
+
+describe('respostas fixas e ações reais', () => {
+  it('a recusa clínica passa pelo guard e não promete agendamento executado', () => {
+    expect(checkClinicalContent(CLINICAL_FALLBACK)).toEqual({ safe: true });
+    expect(CLINICAL_FALLBACK).toContain('Posso ajudar');
+    expect(CLINICAL_FALLBACK).not.toMatch(/vou marcar|agendada|já encaminhei/iu);
+  });
+
+  it.each([OPERATIONAL_FALLBACK, QUOTA_FALLBACK])(
+    'falha temporária não promete fila humana: %s',
+    (reply) => {
+      expect(reply).not.toMatch(/vai te responder|já encaminhei|encaminhamos/iu);
+      expect(reply).toContain('pedir para falar com um atendente');
+    },
+  );
+});
 
 function makeCtx(overrides: Partial<PromptContext> = {}): PromptContext {
   return {
