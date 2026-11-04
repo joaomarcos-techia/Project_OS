@@ -30,6 +30,16 @@ describe('informações operacionais aprovadas pela clínica', () => {
     expect(operationalQuestionReply('Pode marcar a consulta online')).toBeNull();
   });
 
+  it.each([
+    'Pode agendar meu retorno?',
+    'Tem como marcar uma consulta online?',
+    'Como posso reagendar o retorno?',
+    'Pode cancelar a consulta infantil?',
+    'Pode confirmar o retorno para amanhã?',
+  ])('preserva o fluxo da agenda em pedidos interrogativos: %s', (message) => {
+    expect(operationalQuestionReply(message)).toBeNull();
+  });
+
   it('limita conteúdo e rejeita campos não previstos na configuração', () => {
     expect(OperationalInfoSchema.safeParse({ onlineCareInfo: 'x'.repeat(601) }).success).toBe(
       false,

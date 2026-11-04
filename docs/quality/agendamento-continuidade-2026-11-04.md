@@ -10,6 +10,7 @@ Escopo aprovado em 04/11/2026: corrigir os problemas de continuidade identificad
 - Todas as rodadas de chamadas permitidas permanecem no JSON de auditoria, com número de rodada e a whitelist anterior. Nome, CPF, motivo, texto clínico e assinatura opaca do provedor não são adicionados aos metadados. Chamada solicitada não equivale a ação executada.
 - O histórico explica que a IA está pausada durante atendimento humano, inclusive quando alguém responde pelo aplicativo Business; usa a ação existente de devolução, sem repetir automaticamente mensagens antigas. A urgência mostra orientação de revisão pela equipe.
 - A clínica pode cadastrar informações operacionais de atendimento online, infantil e regras de retorno em `/configuracoes/agente`. São dados factuais, não prompt editável ou regras clínicas. Vazio significa informação não cadastrada, não negativa. Perguntas reconhecidas recebem o resultado da ferramenta sem novas rodadas do modelo. Pedidos explícitos de marcar não são substituídos por FAQ.
+  A revisão incluiu pedidos interrogativos, como “Pode agendar meu retorno?”: a presença de `?` não converte uma ação de agenda em resposta de política. Os fatos continuam disponíveis ao modelo, mas não encerram esse pedido automaticamente.
 - Foram retiradas do prompt instruções antigas sobre argumentos de preço por meio de pagamento que já não existem na ferramenta. Não há mudança de preço, política comercial ou contratos.
 - `/configuracoes/pagamentos` explica os quatro estados de configuração e os pré-requisitos de recebível, conclusão real, pagamento na recepção e consentimento. Não liga sinal, não concede opt-in e não cria cobrança.
 
@@ -27,10 +28,41 @@ Antes de publicar o app em Production será necessário autorizar a 0135, confer
 
 ## Provas e limites
 
-- PostgreSQL local descartável com todas as migrations reais: **14/14 cenários PASS**. Inclui preservação da configuração anterior, padrão vazio, normal/urgente, elevação sem perda de responsável/prazo, concorrência, deduplicação, devolução explícita, histórico, validação de JSON e isolamento entre clínicas.
+- PostgreSQL local descartável com todas as migrations reais: **15/15 cenários PASS**, última execução em 04/11 às 16:01 UTC, saída 0. Inclui preservação da configuração anterior, padrão vazio, normal/urgente, elevação sem perda de responsável/prazo, concorrência, deduplicação, devolução explícita, histórico, validação de JSON e isolamento entre clínicas.
 - Nessa mesma prova, entrada → persistência → saga → ferramentas → saída/SQL percorreu código real. **Gemini e Meta foram simulados**, com bloqueio de qualquer fetch inesperado. Foram testados resposta online após uma única chamada, repetição de leitura, teto de rodadas e emergência durante atendimento humano. Não representa entrega externa de WhatsApp nem avaliação do modelo Gemini real.
+- O 15º caso confirma que “Pode agendar minha consulta online?” continua para a segunda resposta do modelo depois da ferramenta de informação, sem encerrar como FAQ ou criar encaminhamento. Cinco variações interrogativas têm cobertura unitária. Esse teste confirma a continuidade; não afirma que uma consulta real foi marcada.
 - Duas falhas de preparação do executor foram corrigidas antes do PASS: slug sintético fora do limite e reprodução incompleta das ACLs gerenciadas do Supabase. Um comando inicial de execução também não propagou `react-server` ao processo TSX; a execução correta usa `tsx --conditions=react-server`. Não foram alterados os grants remotos para passar o teste.
-- Tipos, lint, suíte completa, build e navegação de Preview: resultados finais registrados ao encerrar as verificações. Não usar o PASS do release anterior como prova automática deste código.
+- Tipos e lint integral locais: PASS. Inventário de segurança: PASS, sem superfícies sem classificação; arquitetura de banco: 0 findings em 1.653 arquivos.
+- Primeiro ciclo integral local: 6.094 PASS, duas asserções de texto financeiro reprovadas. As instruções financeiras esperadas foram restauradas no prompt sem remover asserções ou alterar regras. Na revisão `5db86bb7`, a CI executou **6.096/6.096 testes**, 573 arquivos, além de build, bundle, isolamento, tipos, lint e E2E público (**8 PASS, 2 SKIP**). Os SKIPs são os desafios Turnstile sem chaves no build público isolado; esta mudança não altera cadastro ou Turnstile. O estado final agregado da CI e dos demais checks deve ser conferido no SHA atual do [PR #49](https://github.com/joaomarcos-techia/Project_OS/pull/49), sem herdar o resultado de um commit anterior.
+- Depois da revisão de pedidos interrogativos, os testes focados de prompt, perguntas operacionais e reutilização de leitura passaram **41/41**; o gate PostgreSQL foi repetido e passou **15/15**. Lint dos arquivos alterados e `git diff --check` passaram. O ciclo integral do novo SHA pertence aos checks atuais do PR; esta contagem de 6.096 refere-se expressamente à revisão anterior, não ao novo SHA.
+- O build Next isolado local da revisão `5db86bb7` terminou com saída 0, incluindo compilação, tipos e geração das páginas. O ajuste posterior afeta apenas a decisão de resposta operacional; o build do SHA final deve passar no gate remoto. Avisos preexistentes de cache do webpack/Sentry não foram suprimidos.
+
+## Preview e prova de interface
+
+[PR draft #49](https://github.com/joaomarcos-techia/Project_OS/pull/49). Deployment imutável inspecionado: [Preview `5db86bb7`](https://project-492siubmv-clinic-os-v2-s-projects.vercel.app). Após novo push, usar o deployment associado ao SHA atual para avaliar alterações posteriores. A revisão interrogativa não muda componentes ou estilos das telas inspecionadas.
+
+Em 04/11, 15:51–15:52 UTC, uma fixture exclusiva no DEV passou pelo login real do Supabase e pelas ações reais do servidor no Preview:
+
+1. Salvamento dos três fatos operacionais, conferência por SQL e preservação após recarregar.
+2. Exibição dos quatro pré-requisitos de pagamento como pendentes, sem conectar Asaas, criar cobrança ou ativar política.
+3. Atendimento humano sem responsável e prioridade urgente visíveis em 1440 px e 390 px; sem overflow horizontal. As duas screenshots foram também inspecionadas visualmente.
+4. Clique real em “Devolver ao agente”, fechamento da fila sintética e conversa ativa confirmados no banco.
+
+Conta, sessão e clínica sintéticas foram removidas ao final; readback confirmou ausência da fixture ativa. Não houve conexão Meta/Asaas/Gemini nessa prova. O Supabase Auth e o banco DEV, ao contrário, foram reais. Não se trata de teste de envio de mensagem a paciente.
+
+A primeira tentativa do executor parou no login com seletor de e-mail ambíguo: o DOM possui os campos de login e recuperação. A fixture dessa tentativa foi limpa. O executor passou a usar os IDs existentes `email` e `password`, sem mudar o produto; a segunda execução concluiu os quatro grupos acima. O recibo local registra PASS e cleanup completo em `dist/quality/ai-reliability-preview-ui.json`; screenshots e logs sintéticos permanecem ignorados pelo Git.
+
+### Comandos de reprodução sem clientes reais
+
+```powershell
+node node_modules/vitest/vitest.mjs run src/contexts/ai-agent/internal/operational-information.test.ts src/contexts/ai-agent/internal/handlers/read-reuse.test.ts src/contexts/ai-agent/prompts/system.test.ts --maxWorkers=2 --minWorkers=1
+node node_modules/tsx/dist/cli.mjs --conditions=react-server scripts/security/ai-handoff-reliability-db.ts
+node node_modules/typescript/bin/tsc --noEmit
+node node_modules/eslint/bin/eslint.js .
+node node_modules/tsx/dist/cli.mjs scripts/security/local-build.ts
+```
+
+O gate PostgreSQL usa porta local 55496 e cluster sintético descartável com guard de caminho antes da limpeza. Não o aponte para DEV/Production. O executor operacional de migration DEV não deve ser repetido: 0135 já está aplicada. O E2E Preview usou fixture própria com limpeza e exige credenciais legítimas privadas; não há credenciais de teste no repositório.
 
 ## O que não mudou
 

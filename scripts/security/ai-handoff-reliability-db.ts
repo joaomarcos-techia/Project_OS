@@ -70,9 +70,9 @@ try {
     console.log(`PASS ${name}`);
   }
   const sql = cluster.sql;
-// Mesma ACL gerenciada reproduzida no gate signup-provision-db. Não altera
-// policies nem grants de ambientes remotos.
-await sql`GRANT SELECT ON public.clinics, public.subscriptions, public.profiles TO authenticated`;
+  // Mesma ACL gerenciada reproduzida no gate signup-provision-db. Não altera
+  // policies nem grants de ambientes remotos.
+  await sql`GRANT SELECT ON public.clinics, public.subscriptions, public.profiles TO authenticated`;
   async function conversation() {
     const id = randomUUID();
     await sql`insert into ai_conversations(id,clinic_id,patient_phone_hash,patient_phone_encrypted)
@@ -272,6 +272,18 @@ await sql`GRANT SELECT ON public.clinics, public.subscriptions, public.profiles 
         assert.equal((await queue(result.conversationId)).length, 0);
       },
     );
+    await check('interrogative booking request continues after the information tool', async () => {
+      const before = providerCalls;
+      generated.push(call('provide_clinic_info'), {
+        text: 'Qual data e horário você prefere para a consulta?',
+        usage: { tokensInput: 1, tokensOutput: 1, model: 'gemini-3.6-flash' },
+      });
+      const result = await turn('5511999000005', 'Pode agendar minha consulta online?');
+      assert.equal(providerCalls - before, 2);
+      assert.ok(result.response);
+      assert.ok(!result.response.includes('atendimento online:'));
+      assert.equal((await queue(result.conversationId)).length, 0);
+    });
     await check(
       'repeated reads stop safely and preserve both rounds without false handoff promise',
       async () => {

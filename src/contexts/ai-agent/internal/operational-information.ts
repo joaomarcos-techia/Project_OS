@@ -12,11 +12,10 @@ export function operationalQuestionReply(
   const info = { ...EMPTY_OPERATIONAL_INFO, ...configured };
   // "Agendar retorno online amanhã" é uma ação, não uma pergunta sobre a
   // política. Não substitua a preparação de agenda por uma resposta de FAQ.
-  if (
-    /\b(marcar|agendar|reagendar|cancelar|confirmar)\b/u.test(text) &&
-    !/\?|\b(qual|quais|como|quanto|tem|atende|aceita|permite|existe)\b/u.test(text)
-  )
-    return null;
+  // A interrogação não muda a intenção: "Pode agendar meu retorno?" ainda
+  // precisa percorrer a agenda. Os fatos seguem disponíveis para o modelo,
+  // mas não encerram deterministicamente um pedido de ação.
+  if (/\b(marcar|agendar|reagendar|cancelar|confirmar)\b/u.test(text)) return null;
   const topics = [
     {
       key: 'onlineCareInfo',
