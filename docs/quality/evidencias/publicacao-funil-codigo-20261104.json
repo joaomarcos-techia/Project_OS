@@ -1,5 +1,5 @@
 {
-  "recordedAt": "2026-11-04T13:50:17.355Z",
+  "recordedAt": "2026-11-04T14:10:17.042Z",
   "environment": "Production",
   "state": "PUBLISHED_SIGNUP_OPEN_EMAIL_RECOVERY_DELIVERED",
   "authorizedSourceSha": "c842bea6b601b9d46214d90820e899d5f9a1610c",
@@ -230,5 +230,76 @@
     "No new real payment, invoice, financial settlement or patient booking tested",
     "Only the first valid recovery click by each recipient will confirm/continue the actual lead account",
     "One permanently bounced recipient remains excluded until a legitimate verified alternative is available"
-  ]
+  ],
+  "publicSelfServiceRecoveryProof": {
+    "at": "2026-11-04T14:08:01.669Z",
+    "environment": "Production",
+    "fixture": "synthetic Resend delivered alias; no patient or lead",
+    "checks": [
+      "incorrect code refused without verifying Auth",
+      "same initial password; verified Auth and automatic plan continuation",
+      "selected plan survived refresh; fourteen-day Auth-anchored trial; mobile has no overflow; no password URL",
+      "real Resend signed delivery reached Production SQL",
+      "unauthenticated public form requested recovery; real runtime provider send and durable sent receipt proved",
+      "actual Production recovery email/link; GET not consumed; other device kept same password and selected plan",
+      "original password authenticated against real Production Auth; synthetic sessions revoked"
+    ],
+    "paymentCreated": false,
+    "providerReads": [
+      {
+        "label": "confirmation",
+        "attempt": 1,
+        "http": 200,
+        "textPresent": true,
+        "codePrefix": true
+      },
+      {
+        "label": "recovery",
+        "attempt": 1,
+        "http": 200,
+        "textPresent": true,
+        "codePrefix": false
+      }
+    ],
+    "state": "PASS",
+    "cleanup": {
+      "authRemoved": true,
+      "checkoutNeverCalled": true,
+      "onlyExactFixtureTouched": true
+    },
+    "finishedAt": "2026-11-04T14:08:48.060Z",
+    "passwordURLSeen": false,
+    "checkoutCalled": false
+  },
+  "additionalProbeFirstAttempt": {
+    "at": "2026-11-04T14:00:16.054Z",
+    "environment": "Production",
+    "fixture": "synthetic Resend delivered alias; no patient or lead",
+    "checks": [],
+    "paymentCreated": false,
+    "state": "FAIL",
+    "failedStage": "read-controlled-message",
+    "cleanup": {
+      "authRemoved": true,
+      "checkoutNeverCalled": true,
+      "onlyExactFixtureTouched": true
+    },
+    "finishedAt": "2026-11-04T14:00:38.160Z",
+    "passwordURLSeen": false,
+    "checkoutCalled": false
+  },
+  "additionalProbeFirstAttemptInterpretation": "Harness failed before public recovery request; initial HTTP cause not captured; fixture cleaned. Subsequent read-only provider inspection and final integrated probe succeeded without changing Production code or key permissions.",
+  "logsAfterPublicSelfServiceRecovery": {
+    "at": "2026-11-04T14:09:45.073Z",
+    "state": "READ",
+    "deploymentId": "dpl_HHYSPzhr2dKhQULK1T5Hn5yCLvgt",
+    "scope": "Only signup and Resend request paths; parsed JSON application levels as well as platform levels",
+    "recordCount": 22,
+    "levelCounts": {
+      "info": 22
+    },
+    "warningsOrErrors": [],
+    "hasMore": false,
+    "rawMessagesPersisted": false
+  }
 }

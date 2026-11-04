@@ -44,13 +44,23 @@ limites, sem destinatários, nomes, senha, código ativo, token de recuperação
 | Cadastro em Production | Código errado recusado; correto confirmou Auth, manteve a senha inicial e levou ao plano. Auth e SQL reais, endereço sintético controlado Resend. |
 | Continuidade | Plano salvo sobreviveu a F5; trial exatamente 14 dias desde Auth; mobile sem corte lateral; nenhuma senha em URL. |
 | Recuperação em outro aparelho | E-mail/link reais da fixture: GET não consumiu, clique retomou o plano sem senha nova. Hash preservado e senha original autenticou no Auth. |
+| Pedido público de novo e-mail | **PASS adicional às 11h08 de Brasília:** formulário de `/cadastro/retomar` em navegador sem sessão → envio pelo runtime Production → grant `sent` → link em outro navegador → mesmo plano/senha. Não dependeu do operador administrativo para emitir o e-mail. |
 | Entrega | Evento legítimo assinado do Resend persistiu no SQL Production. Não apenas aceite da requisição de envio. |
 | Limpeza | Sessões sintéticas revogadas; Auth/draft/grant próprios removidos. Nenhum Checkout, pagamento, clínica ou paciente criado. |
-| Logs do cadastro/webhook | Doze registros informativos, nenhum warning/error/fatal no intervalo consultado, incluindo níveis no JSON da aplicação. Sem mensagens brutas persistidas. Não é auditoria de todo o Qoro. |
+| Logs do cadastro/webhook | Consulta final às 11h09 de Brasília: 22 registros informativos, nenhum warning/error/fatal no intervalo consultado, incluindo níveis no JSON da aplicação. Sem mensagens brutas persistidas. Não é auditoria de todo o Qoro. |
 
 Não houve novo pagamento real ou Sandbox nesta janela. Os Checkouts Sandbox anteriores são
 evidências separadas; não declarar nova prova de liquidação financeira, NF ou agendamento.
 A investigação da mensagem cancelada não foi iniciada.
+
+Na primeira tentativa dessa prova adicional, o executor parou ao consultar a mensagem sintética
+no provedor, **antes** de pedir recuperação pela tela. A causa dessa consulta não foi registrada
+com detalhe suficiente para atribuí-la ao produto ou a uma falha transitória. A fixture foi
+removida. A consulta posterior autenticada retornou HTTP 200, texto/código presentes e entrega.
+O executor passou a registrar somente status e presença de campos, com retentativas limitadas
+nas consultas de leitura. Na execução concluída, as duas consultas deram HTTP 200 na primeira
+tentativa. O teste completo terminou em PASS e limpou a nova fixture; não se alterou código,
+permissão de chave ou configuração de Production para fazê-lo passar.
 
 ## Recuperação dos quatro leads
 
