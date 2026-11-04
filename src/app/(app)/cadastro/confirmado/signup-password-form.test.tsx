@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { renderToString } from 'react-dom/server';
 
 import { SignupPasswordForm } from './signup-password-form';
 
@@ -21,6 +22,16 @@ function fillAndSubmit(password = 'UniquePassword7!') {
   fireEvent.click(screen.getByRole('button', { name: 'Criar senha e escolher plano' }));
 }
 describe('senha após confirmação', () => {
+  it('does not allow a native GET or password entry before hydration', () => {
+    const html = renderToString(<SignupPasswordForm />);
+    const document = new DOMParser().parseFromString(html, 'text/html');
+    expect(document.querySelector('form')?.getAttribute('method')).toBe('post');
+    expect(document.querySelector('input[name="password"]')?.hasAttribute('disabled')).toBe(true);
+    expect(document.querySelector('button[type="submit"]')?.hasAttribute('disabled')).toBe(true);
+    expect(document.querySelector('noscript')?.textContent).toContain('com segurança');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('explica a reconciliação sem sugerir criar outra senha', () => {
     render(<SignupPasswordForm reconcile />);
     expect(screen.getByLabelText('Sua senha').getAttribute('autocomplete')).toBe(
