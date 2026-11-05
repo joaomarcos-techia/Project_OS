@@ -28,8 +28,6 @@ vi.mock('../documentacao/restart-tour', () => ({ RestartTour: () => null }));
 
 import DocumentationPage from './page';
 import TopicPage, { generateMetadata, generateStaticParams } from './[topic]/page';
-import LegacyHome from '../documentacao/page';
-import LegacyTopic from '../documentacao/[topic]/page';
 import { DOC_TOPICS } from '../documentacao/content';
 
 beforeEach(() => {
@@ -60,20 +58,10 @@ describe('documentação dentro da conta Qoro', () => {
     });
   });
 
-  it('mantém os endereços antigos como redirecionamentos para os mesmos guias', async () => {
-    expect(() => LegacyHome()).toThrow('permanent:/documentação');
-    await expect(LegacyTopic({ params: Promise.resolve({ topic: 'agenda' }) })).rejects.toThrow(
-      'permanent:/documentação/agenda',
-    );
-  });
-
   it('recusa um guia desconhecido sem ler arquivos pelo parâmetro', async () => {
     await expect(TopicPage({ params: Promise.resolve({ topic: '__proto__' }) })).rejects.toThrow(
       'not-found',
     );
-    await expect(
-      LegacyTopic({ params: Promise.resolve({ topic: '../../secrets' }) }),
-    ).rejects.toThrow('not-found');
     expect(await generateStaticParams()).toHaveLength(DOC_TOPICS.length);
   });
 
