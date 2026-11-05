@@ -55,6 +55,6 @@ export const MODULES: NavModule[] = [
     icon: 'help',
     label: 'Ajuda',
     group: 'Administração',
-    href: '/documentacao',
+    href: '/documentação',
   },
 ];

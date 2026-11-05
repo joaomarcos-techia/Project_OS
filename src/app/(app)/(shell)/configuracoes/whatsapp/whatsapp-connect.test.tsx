@@ -834,7 +834,7 @@ describe('WhatsappConnect', () => {
           connectionStatus: 'failed',
           health: {
             verdict: 'broken',
-            messages: ['A Meta não está entregando mensagens para o ClinicaOS.'],
+            messages: ['A Meta não está entregando mensagens para a Qoro.'],
           },
         }}
         appId="app-id"
@@ -845,7 +845,7 @@ describe('WhatsappConnect', () => {
     );
 
     expect(screen.getByText('WhatsApp com problema')).toBeTruthy();
-    expect(screen.getByText('A Meta não está entregando mensagens para o ClinicaOS.')).toBeTruthy();
+    expect(screen.getByText('A Meta não está entregando mensagens para a Qoro.')).toBeTruthy();
     expect(screen.queryByText('WhatsApp conectado')).toBeNull();
     expect(screen.queryByText('Conecte o WhatsApp da clínica')).toBeNull();
     // A reconexão continua disponível, e desconectar também.

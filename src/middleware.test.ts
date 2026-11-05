@@ -96,6 +96,15 @@ describe('matcher de sessão e cutover HttpOnly', () => {
     expect(response.headers.get('location')).toBe('https://qoro.test/login');
   });
 
+  it.each(['/documentação', '/documenta%C3%A7%C3%A3o/agenda', '/documentacao'])(
+    'mantém a ajuda dentro da conta, sem tornar o shell público: %s',
+    (path) => {
+      const response = middleware(request(path));
+      expect(response.status).toBe(307);
+      expect(response.headers.get('location')).toBe('https://qoro.test/login');
+    },
+  );
+
   it.each(['success', 'cancelled', 'expired'])(
     'permite retorno público de pagamento %s sem sessão',
     (result) => {
