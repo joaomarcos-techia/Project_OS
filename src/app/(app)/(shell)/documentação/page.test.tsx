@@ -48,9 +48,11 @@ describe('documentação dentro da conta Qoro', () => {
   });
 
   it('renderiza um guia com passos numerados e volta para a central no endereço correto', async () => {
-    const { container } = render(await TopicPage({ params: Promise.resolve({ topic: 'agenda' }) }));
+    render(await TopicPage({ params: Promise.resolve({ topic: 'agenda' }) }));
     expect(screen.getByRole('heading', { name: 'Agendar, remarcar e cancelar' })).toBeTruthy();
-    expect(container.querySelectorAll('ol li').length).toBeGreaterThanOrEqual(4);
+    expect(
+      screen.getByRole('region', { name: 'Criar um agendamento' }).querySelectorAll('ol li'),
+    ).toHaveLength(4);
     expect(screen.getByRole('link', { name: 'Ajuda' }).getAttribute('href')).toBe('/documentação');
     expect(await generateMetadata({ params: Promise.resolve({ topic: 'agenda' }) })).toEqual({
       title: 'Agendar, remarcar e cancelar | Ajuda Qoro',

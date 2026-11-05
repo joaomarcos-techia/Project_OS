@@ -1,6 +1,7 @@
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 
 import { authenticate } from './auth';
+import { DOC_TOPICS } from '../src/app/(app)/(shell)/documentacao/content';
 import { installVercelBypassForOrigin } from './vercel-bypass';
 
 test.describe('central de ajuda para usuários da Qoro', () => {
@@ -60,6 +61,10 @@ test.describe('central de ajuda para usuários da Qoro', () => {
         await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1),
       ).toBe(true);
       await page.getByRole('main').screenshot({ path: `dist/quality/help-home-${width}.png` });
+      await page.getByRole('link', { name: /Agendar, remarcar e cancelar/u }).click();
+      await expect(
+        page.getByRole('heading', { name: 'Agendar, remarcar e cancelar' }),
+      ).toBeVisible();
     });
 
     test(`guia, endereço antigo e nome da Qoro em ${width}px`, async () => {
@@ -68,7 +73,9 @@ test.describe('central de ajuda para usuários da Qoro', () => {
       await expect(
         page.getByRole('heading', { name: 'Agendar, remarcar e cancelar' }),
       ).toBeVisible();
-      await expect(page.locator('main ol li')).toHaveCount(4);
+      await expect(
+        page.getByRole('region', { name: 'Criar um agendamento' }).locator('ol li'),
+      ).toHaveCount(4);
       await expect(page.getByRole('main')).not.toContainText(/ClinicaOS|Mintlify/iu);
       expect(
         await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1),
@@ -79,18 +86,26 @@ test.describe('central de ajuda para usuários da Qoro', () => {
     });
   }
 
-  test('todos os guias abrem e um endereço desconhecido retorna 404', async () => {
-    await page.goto('/documentação');
-    const hrefs = await page
-      .locator('[data-testid="doc-topics"] a')
-      .evaluateAll((links) => links.map((link) => link.getAttribute('href')));
-    for (const href of hrefs) {
-      if (!href) throw new Error('Guia sem endereço');
-      const response = await page.goto(href);
+  for (const topic of DOC_TOPICS) {
+    test('guia: ' + topic.title, async () => {
+      test.setTimeout(45_000);
+      const response = await page.goto('/documentação/' + topic.slug, {
+        waitUntil: 'domcontentloaded',
+      });
       expect(response?.status()).toBe(200);
-      await expect(page.locator('main h1')).toHaveCount(1);
-    }
-    const missing = await page.goto('/documentação/guia-inexistente-123');
-    expect(missing?.status()).toBe(404);
+      await expect(page.getByRole('heading', { name: topic.title, exact: true })).toBeVisible();
+      await expect(page.locator('main h2')).toHaveCount(topic.sections.length);
+      await expect(page.getByRole('main')).not.toContainText(/ClinicaOS|Mintlify/iu);
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1),
+      ).toBe(true);
+    });
+  }
+
+  test('endereço desconhecido retorna 404', async () => {
+    const response = await page.goto('/documentação/guia-inexistente-123', {
+      waitUntil: 'domcontentloaded',
+    });
+    expect(response?.status()).toBe(404);
   });
 });
