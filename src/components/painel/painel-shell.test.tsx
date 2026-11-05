@@ -24,6 +24,7 @@ import { PainelShell } from './painel-shell';
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  navigation.pathname = '/configuracoes/pagamentos';
 });
 
 function renderShell() {
@@ -35,6 +36,16 @@ function renderShell() {
 }
 
 describe('shell tenant das referências HTML', () => {
+  it.each(['/documentação/agenda', '/documenta%C3%A7%C3%A3o/agenda'])(
+    'mantém Ajuda ativa e aponta ao endereço novo: %s',
+    (pathname) => {
+      navigation.pathname = pathname;
+      renderShell();
+      const link = screen.getByRole('link', { name: 'Ajuda' });
+      expect(link.getAttribute('href')).toBe('/documentação');
+      expect(link.getAttribute('aria-current')).toBe('page');
+    },
+  );
   it('mantém Configurações ativo em todas as categorias e preserva o destino autorizado', () => {
     renderShell();
     const link = screen.getByRole('link', { name: 'Configurações' });

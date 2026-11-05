@@ -23,6 +23,11 @@ function probe(over: Partial<MetaChannelProbe> = {}): MetaChannelProbe {
 }
 
 describe('evaluateChannelHealth (META-001) — o veredito', () => {
+  it('identifica a Qoro no aviso exibido ao usuário', () => {
+    const message = describeChannelHealthReason('app_not_subscribed');
+    expect(message).toContain('para a Qoro');
+    expect(message).not.toMatch(/ClinicaOS|Mintlify/iu);
+  });
   it('1. tudo válido → healthy', () => {
     expect(evaluateChannelHealth(probe())).toEqual({ verdict: 'healthy', reasons: [] });
   });

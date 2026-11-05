@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 196 actions (0 inline); 61 métodos em 57 handlers; 19 props com referência de action; 450 acessos diretos a process.env; 9 nomes NEXT_PUBLIC.
+Contagem: 196 actions (0 inline); 61 métodos em 57 handlers; 19 props com referência de action; 451 acessos diretos a process.env; 9 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -368,6 +368,7 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `playwright.config.ts:52`                                  | `CI`                                   | `process.env.CI`                                                            |
 | `playwright.config.ts:70`                                  | `E2E_BASE_URL`                         | `process.env.E2E_BASE_URL`                                                  |
 | `playwright.config.ts:76`                                  | `CI`                                   | `process.env.CI`                                                            |
+| `playwright.documentation.config.ts:3`                     | `E2E_BASE_URL`                         | `process.env.E2E_BASE_URL`                                                  |
 | `playwright.visual.config.ts:12`                           | `E2E_BASE_URL`                         | `process.env.E2E_BASE_URL`                                                  |
 | `playwright.visual.config.ts:14`                           | `E2E_AUTH_REUSE`                       | `process.env.E2E_AUTH_REUSE`                                                |
 | `playwright.visual.config.ts:15`                           | `E2E_BASE_URL`                         | `process.env.E2E_BASE_URL`                                                  |

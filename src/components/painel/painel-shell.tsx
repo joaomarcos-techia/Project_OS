@@ -77,8 +77,7 @@ export function PainelShell({
 
   const isActive = (href?: string) =>
     !!href &&
-    (pathname === href ||
-      pathname.startsWith(href + '/') ||
+    ([href, encodeURI(href)].some((path) => pathname === path || pathname.startsWith(path + '/')) ||
       (href === settingsHref && pathname.startsWith('/configuracoes/')));
 
   const userInitials = initialsFrom(userName);

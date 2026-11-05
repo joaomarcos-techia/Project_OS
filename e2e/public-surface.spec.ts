@@ -22,6 +22,8 @@ import { expect, test } from '@playwright/test';
 
 /** Rotas que NINGUÉM sem sessão pode ver renderizadas. */
 const PROTECTED_ROUTES = [
+  '/documentação',
+  '/documentacao',
   '/dashboard',
   '/pacientes',
   '/agenda',

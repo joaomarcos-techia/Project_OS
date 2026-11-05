@@ -130,7 +130,25 @@ export function middleware(req: NextRequest): NextResponse {
     refreshUrl.searchParams.set('next', `${path}${req.nextUrl.search}`);
     res = NextResponse.redirect(refreshUrl);
   } else {
-    res = NextResponse.next({ request: { headers: requestHeaders } });
+    // Keep the visible Portuguese URL while routing through an ASCII segment.
+    // Authentication and refresh are decided above, before either mapping.
+    const documentationRoot = '/documentação';
+    const internalRoot = '/documentacao';
+    const normalizedPath = path.replace(/%[0-9a-f]{2}/giu, (escape) => escape.toUpperCase());
+    const canonicalPrefix = [documentationRoot, encodeURI(documentationRoot)].find(
+      (prefix) => normalizedPath === prefix || normalizedPath.startsWith(`${prefix}/`),
+    );
+    if (canonicalPrefix) {
+      const target = req.nextUrl.clone();
+      target.pathname = internalRoot + path.slice(canonicalPrefix.length);
+      res = NextResponse.rewrite(target, { request: { headers: requestHeaders } });
+    } else if (path === internalRoot || path.startsWith(`${internalRoot}/`)) {
+      const target = req.nextUrl.clone();
+      target.pathname = documentationRoot + path.slice(internalRoot.length);
+      res = NextResponse.redirect(target, 308);
+    } else {
+      res = NextResponse.next({ request: { headers: requestHeaders } });
+    }
   }
 
   res.headers.set('x-request-id', requestId);

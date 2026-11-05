@@ -96,6 +96,45 @@ describe('matcher de sessão e cutover HttpOnly', () => {
     expect(response.headers.get('location')).toBe('https://qoro.test/login');
   });
 
+  it.each(['/documentação', '/documenta%C3%A7%C3%A3o', '/documenta%c3%a7%c3%a3o'])(
+    'mapeia %s sem perder a sessão, a consulta ou o endereço visível',
+    (root) => {
+      const cookie = activeSessionCookie(Math.floor(Date.now() / 1000) + 3600);
+      const response = middleware(request(`${root}/agenda?origem=ajuda`, cookie));
+      expect(response.status).toBe(200);
+      expect(response.headers.get('x-middleware-rewrite')).toBe(
+        'https://qoro.test/documentacao/agenda?origem=ajuda',
+      );
+      expect(response.headers.get('location')).toBeNull();
+      expect(response.headers.get('x-request-id')).toBeTruthy();
+    },
+  );
+
+  it('encaminha o endereço anterior para a URL solicitada, sem loop', () => {
+    const cookie = activeSessionCookie(Math.floor(Date.now() / 1000) + 3600);
+    const response = middleware(request('/documentacao/agenda?origem=antiga', cookie));
+    expect(response.status).toBe(308);
+    expect(response.headers.get('location')).toBe(
+      'https://qoro.test/documenta%C3%A7%C3%A3o/agenda?origem=antiga',
+    );
+  });
+
+  it('não aplica o mapeamento a prefixos parecidos', () => {
+    const cookie = activeSessionCookie(Math.floor(Date.now() / 1000) + 3600);
+    const response = middleware(request('/documentacao-externa', cookie));
+    expect(response.headers.get('x-middleware-rewrite')).toBeNull();
+    expect(response.headers.get('location')).toBeNull();
+  });
+
+  it.each(['/documentação', '/documenta%C3%A7%C3%A3o/agenda', '/documentacao'])(
+    'mantém a ajuda dentro da conta, sem tornar o shell público: %s',
+    (path) => {
+      const response = middleware(request(path));
+      expect(response.status).toBe(307);
+      expect(response.headers.get('location')).toBe('https://qoro.test/login');
+    },
+  );
+
   it.each(['success', 'cancelled', 'expired'])(
     'permite retorno público de pagamento %s sem sessão',
     (result) => {

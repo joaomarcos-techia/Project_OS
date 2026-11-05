@@ -137,7 +137,7 @@ export function describeChannelHealthReason(reason: ChannelHealthReason): string
     case 'phone_unreachable':
       return 'O número conectado não está mais acessível por esta conexão.';
     case 'app_not_subscribed':
-      return 'A Meta não está entregando mensagens para o ClinicaOS: as mensagens recebidas não chegam até a clínica.';
+      return 'A Meta não está entregando mensagens para a Qoro: as mensagens recebidas não chegam até a clínica.';
     case 'phone_not_connected':
       return 'O número não está ativo na Meta: ele não envia nem recebe mensagens neste estado.';
     case 'account_rejected':

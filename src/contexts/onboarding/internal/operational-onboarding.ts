@@ -84,7 +84,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     key: 'documentacao',
     title: 'A central de ajuda',
     body: 'Todos os fluxos explicados por escrito. Quando esta janela fechar, ela continua em Ajuda, no menu.',
-    href: '/documentacao',
+    href: '/documentação',
   },
 ] as const;
 

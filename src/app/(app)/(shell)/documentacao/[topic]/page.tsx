@@ -1,10 +1,14 @@
+import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
 
 import { PageHeader } from '@/components/ui/page-header';
-import { PanelCard } from '@/components/ui/panel-card';
+import { Card } from '@/components/ui/card';
 import { getCurrentUser } from '@/lib/auth/tenant-context';
 
 import { DOC_TOPICS, findDocTopic } from '../content';
+
+export const dynamic = 'force-dynamic';
+export const dynamicParams = false;
 
 /**
  * Página de um tópico da central de ajuda.
@@ -15,6 +19,17 @@ import { DOC_TOPICS, findDocTopic } from '../content';
  */
 export async function generateStaticParams() {
   return DOC_TOPICS.map((topic) => ({ topic: topic.slug }));
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ topic: string }>;
+}): Promise<Metadata> {
+  const topic = findDocTopic((await params).topic);
+  return topic
+    ? { title: topic.title + ' | Ajuda Qoro', description: topic.summary }
+    : { title: 'Guia não encontrado | Qoro' };
 }
 
 export default async function DocumentacaoTopicPage({
@@ -32,30 +47,55 @@ export default async function DocumentacaoTopicPage({
   return (
     <>
       <PageHeader
-        crumbs={[{ label: 'Ajuda', href: '/documentacao' }, { label: topic.title }]}
+        crumbs={[{ label: 'Ajuda', href: '/documentação' }, { label: topic.title }]}
         title={topic.title}
         description={topic.summary}
       />
-      {topic.sections.map((section) => (
-        <PanelCard key={section.heading} title={section.heading} regionLabel={section.heading}>
-          <div className="flex flex-col gap-2.5 px-4 py-3">
-            {section.paragraphs.map((paragraph) => (
-              <p key={paragraph} className="text-pretty text-(length:--fs-sm) text-fg-muted">
-                {paragraph}
-              </p>
-            ))}
-            {section.bullets ? (
-              <ul className="ml-4 flex list-disc flex-col gap-1.5">
-                {section.bullets.map((bullet) => (
-                  <li key={bullet} className="text-pretty text-(length:--fs-sm) text-fg-muted">
-                    {bullet}
-                  </li>
+      <div className="flex max-w-3xl flex-col gap-4">
+        {topic.sections.map((section, index) => (
+          <section key={section.heading} aria-labelledby={`help-section-${index}`}>
+            <Card className="p-5">
+              <h2 id={`help-section-${index}`} className="text-(length:--fs-h4) font-semibold">
+                {section.heading}
+              </h2>
+              <div className="mt-3 flex flex-col gap-3">
+                {section.paragraphs.map((paragraph) => (
+                  <p
+                    key={paragraph}
+                    className="text-pretty text-(length:--fs-base) leading-relaxed text-fg-muted"
+                  >
+                    {paragraph}
+                  </p>
                 ))}
-              </ul>
-            ) : null}
-          </div>
-        </PanelCard>
-      ))}
+                {section.steps ? (
+                  <ol className="ml-5 flex list-decimal flex-col gap-3">
+                    {section.steps.map((step) => (
+                      <li
+                        key={step}
+                        className="pl-1 text-pretty text-(length:--fs-base) leading-relaxed text-fg-muted"
+                      >
+                        {step}
+                      </li>
+                    ))}
+                  </ol>
+                ) : null}
+                {section.bullets ? (
+                  <ul className="ml-4 flex list-disc flex-col gap-1.5">
+                    {section.bullets.map((bullet) => (
+                      <li
+                        key={bullet}
+                        className="text-pretty text-(length:--fs-base) leading-relaxed text-fg-muted"
+                      >
+                        {bullet}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            </Card>
+          </section>
+        ))}
+      </div>
     </>
   );
 }
