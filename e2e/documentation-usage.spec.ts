@@ -59,6 +59,7 @@ test.describe('central de ajuda para usuários da Qoro', () => {
       expect(
         await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1),
       ).toBe(true);
+      await page.getByRole('main').screenshot({ path: `dist/quality/help-home-${width}.png` });
     });
 
     test(`guia, endereço antigo e nome da Qoro em ${width}px`, async () => {
@@ -72,6 +73,7 @@ test.describe('central de ajuda para usuários da Qoro', () => {
       expect(
         await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1),
       ).toBe(true);
+      await page.getByRole('main').screenshot({ path: `dist/quality/help-agenda-${width}.png` });
       await page.getByRole('link', { name: 'Ajuda', exact: true }).last().click();
       await expect(page.getByRole('heading', { name: 'Central de ajuda' })).toBeVisible();
     });
