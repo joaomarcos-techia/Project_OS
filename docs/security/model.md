@@ -1,4 +1,8 @@
-# Modelo de segurança
+---
+title: "Modelo de segurança"
+description: "Modelo de segurança — responsabilidades, fontes e limites da implementação."
+docType: "reference"
+---
 
 ## Status
 
@@ -39,16 +43,16 @@ Cookies próprios de recuperação, impersonação e cadastro anônimo também s
 
 A evidência local combina Chromium real, build Next isolado e SDK SSR instalado com Auth HTTP
 sintético em loopback. GoTrue/Supabase externo, rollout e revogação pelo provedor são **NOT TESTED**
-nesta emenda; a geração não prova a revogação de um bearer copiado externamente. Veja [Qoro v2 §35.6](../qorov2.md).
+nesta emenda; a geração não prova a revogação de um bearer copiado externamente. Veja [Qoro v2 §35.6](https://github.com/joaomarcos-techia/Project_OS/blob/af677c00cfb9a4faa8474ddbf1d69d489d8c8849/docs/qorov2.md).
 
 ## Identidade e autorização
 
 - roles: `owner`, `gestor`, `doctor`, `attendant`, `financial`, `super_admin`;
-- 28 permissions canônicas em `src/lib/auth/permissions.ts`;
+- permissions canônicas em `src/lib/auth/permissions.ts`;
 - JWT carrega `permissions: string[]`; profile/epoch do banco vence claim antiga;
 - JavaScript same-origin não lê o bearer das novas sessões após o cutover; XSS ainda pode
   disparar ações com a sessão presente e a CSP com `unsafe-inline` segue como risco separado;
-- overrides individuais são persistidos e só existem em Clínica/Pro;
+- overrides individuais da nova oferta exigem Clínica; contratos legados Clínica/Pro preservam seus direitos;
 - super-admin exige AAL2 e não pertence a tenant;
 - acesso cross-tenant usa admin service ou impersonação auditada.
 

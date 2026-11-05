@@ -1,4 +1,8 @@
-# Agenda e financeiro da clínica
+---
+title: "Agenda e financeiro da clínica"
+description: "Agenda e financeiro da clínica — responsabilidades, fontes e limites da implementação."
+docType: "reference"
+---
 
 ## Status
 
@@ -45,7 +49,7 @@ O cron `/api/cron/financial-reconcile` busca consultas atendidas sem lançamento
 
 ## Cobrança ao paciente
 
-Pendências e `collection_cases` sustentam lembretes proativos. Esse financeiro da clínica é distinto do billing SaaS da assinatura; veja [billing](../billing/subscriptions.md).
+Pendências e `collection_cases` sustentam lembretes proativos. Esse financeiro da clínica é distinto do billing SaaS da assinatura; veja [billing](/billing/subscriptions).
 
 ## Failure modes
 

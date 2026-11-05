@@ -1,4 +1,8 @@
-# Frontend, rotas e acesso
+---
+title: "Frontend, rotas e acesso"
+description: "Frontend, rotas e acesso — responsabilidades, fontes e limites da implementação."
+docType: "reference"
+---
 
 ## Status
 

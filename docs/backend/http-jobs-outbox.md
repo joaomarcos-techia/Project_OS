@@ -1,4 +1,8 @@
-# Backend, HTTP, crons e outbox
+---
+title: "Backend, HTTP, crons e outbox"
+description: "Backend, HTTP, crons e outbox — responsabilidades, fontes e limites da implementação."
+docType: "reference"
+---
 
 ## Status
 
@@ -76,4 +80,4 @@ Backoff após falha: imediato, 30 s, 5 min, 30 min e 6 h; a sexta tentativa fica
 - Tick sobreposto: advisory lock devolve resumo sem duplicar manutenção.
 - Handler lento + janitor: finalize guard emite `outbox.lost_race`; idempotência do handler é obrigatória.
 
-Veja [runbook do outbox](../runbooks/c4-validation.md) e [operações](../operations/deployment-observability.md).
+Veja [runbook do outbox](https://github.com/joaomarcos-techia/Project_OS/blob/af677c00cfb9a4faa8474ddbf1d69d489d8c8849/docs/runbooks/c4-validation.md) e [operações](/operations/deployment-observability).

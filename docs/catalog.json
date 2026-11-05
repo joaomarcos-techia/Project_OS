@@ -1,0 +1,1445 @@
+{
+  "baseline": "af677c00cfb9a4faa8474ddbf1d69d489d8c8849",
+  "entries": [
+    {
+      "path": "achados/auditoria-monitoramento-producao.md",
+      "category": "evidence",
+      "title": "Auditoria de monitoramento",
+      "source": "baseline"
+    },
+    {
+      "path": "achados/auditoria-seguranca-codigo.md",
+      "category": "evidence",
+      "title": "Auditoria de segurança do código",
+      "source": "baseline"
+    },
+    {
+      "path": "achados/documentation-modernization-report.md",
+      "category": "evidence",
+      "title": "Modernização da documentação",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/001-bounded-contexts.md",
+      "category": "decision",
+      "title": "ADR-001 — Bounded Contexts isolados via DDD",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/002-rls-postgres.md",
+      "category": "decision",
+      "title": "ADR-002 — RLS Postgres como defesa de isolamento de tenant",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/003-outbox-pattern.md",
+      "category": "decision",
+      "title": "ADR-003 — Outbox transacional para eventos cross-context",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/004-meta-cloud-api.md",
+      "category": "decision",
+      "title": "ADR-004 — Meta Cloud API (WhatsApp) com fallback ZAPI",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/005-supabase-vs-firebase.md",
+      "category": "decision",
+      "title": "ADR-005 — Supabase (Postgres) escolhido sobre Firebase",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/007-rls-implementation-patterns.md",
+      "category": "decision",
+      "title": "ADR-007 — Padrão de RLS",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/008-identity-patterns.md",
+      "category": "decision",
+      "title": "ADR-008 — Identidade e RBAC",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/009-claims-drift-mitigation.md",
+      "category": "decision",
+      "title": "ADR-009 — Mitigação de drift de claims",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/010-security-definer-patterns.md",
+      "category": "decision",
+      "title": "ADR-010 — Funções privilegiadas",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/011-outbox-audit-idempotency-patterns.md",
+      "category": "decision",
+      "title": "ADR-011 — Outbox, audit e idempotência",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/012-encryption-strategy.md",
+      "category": "decision",
+      "title": "ADR-012 — Encryption Strategy (per-tenant AES-256-GCM + lookup HMAC)",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/013-clinical-data-ownership.md",
+      "category": "decision",
+      "title": "ADR-013 — patient_clinical_data permanece em C5, mas C7 é o futuro owner",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/014-scheduling-patterns.md",
+      "category": "decision",
+      "title": "ADR-014 — Scheduling Core (C6): contratos congelados",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/015-event-versioning.md",
+      "category": "decision",
+      "title": "ADR-015 — Versionamento de eventos do outbox",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/016-clinic-lifecycle.md",
+      "category": "decision",
+      "title": "ADR-016 — Semântica do ciclo de vida de clínica (base; enforcement em C13)",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/017-clinical-record-retention-vs-lgpd.md",
+      "category": "decision",
+      "title": "ADR-017 — Retenção de prontuário (CFM) vs hard-delete LGPD do paciente",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/018-ui-design-foundation.md",
+      "category": "decision",
+      "title": "ADR-018 — UI / Design Foundation (quando e como aplicar o Design System)",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/019-consultorio-chamadas.md",
+      "category": "decision",
+      "title": "ADR-019 — Consultório (C8): orquestração + tabela `chamadas` + Realtime",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/020-messaging-provider-patterns.md",
+      "category": "decision",
+      "title": "ADR-020 — Messaging providers",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/021-lgpd-anonymization-on-clinical-retention.md",
+      "category": "decision",
+      "title": "ADR-021 — Anonimização LGPD quando o hard-delete é bloqueado por retenção clínica",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/022-ai-agent-foundation.md",
+      "category": "decision",
+      "title": "ADR-022 — Fundação do agente de IA",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/023-ai-agent-intents.md",
+      "category": "decision",
+      "title": "ADR-023 — AI Agent Intents Core (C12): ator de sistema, intents e memória",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/024-plan-model.md",
+      "category": "decision",
+      "title": "ADR-024 — Modelo de planos: só limites, sem overage, sem feature-gating (base; enforcement em C13)",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/025-billing-architecture.md",
+      "category": "decision",
+      "title": "ADR-025 — Arquitetura de Billing: Asaas é adapter, não o centro",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/027-onboarding-magic-invite.md",
+      "category": "decision",
+      "title": "ADR-027 — Onboarding de clínicas via convite mágico",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/028-white-label-scope-pdf-only.md",
+      "category": "decision",
+      "title": "ADR-028 — White-label: escopo restrito aos PDFs (sem tema de app)",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/029-observability-stack.md",
+      "category": "decision",
+      "title": "ADR-029 — Observability stack (Sentry + logger in-house + Better Stack + error envelope)",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/031-design-system-v2-rebrand.md",
+      "category": "decision",
+      "title": "ADR-031 — Design System v2: rebrand petrol/clay + governança de UI + estrangulamento do CSS legado",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/032-mvp-identity-practitioner-model.md",
+      "category": "decision",
+      "title": "ADR-032 — Modelo de identidade do MVP: colapso User=Employee=Practitioner + predicado `isPractitioner`",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/033-consultorio-board-scope-practitioner.md",
+      "category": "decision",
+      "title": "ADR-033 — Escopo do board do Consultório: practitioner vê a própria fila",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/034-invite-resend-copy-link.md",
+      "category": "decision",
+      "title": "ADR-034 — Convite versionado por Resend com link `recovery` copiável",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/035-palette-rebrand-navy-orchid.md",
+      "category": "decision",
+      "title": "ADR-035 — Rebrand de paleta: petrol/clay → navy/orchid (Qoro) + swap do wordmark",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/036-asconflict-permanece-no-contexto.md",
+      "category": "decision",
+      "title": "ADR-036 — `asConflict` permanece em cada contexto (não centralizar em `@/lib`)",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/037-server-authoritative-session.md",
+      "category": "decision",
+      "title": "ADR-037 — Sessão server-authoritative por request (auth epoch)",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/038-mfa-policy.md",
+      "category": "decision",
+      "title": "ADR-038 — Política de MFA (o \"D6\" que nunca foi escrito)",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/039-member-lifecycle.md",
+      "category": "decision",
+      "title": "ADR-039 — Ciclo de vida de membro (offboarding, troca de role, overrides)",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/040-invite-acceptance-gate.md",
+      "category": "decision",
+      "title": "ADR-040 — Aceite do convite como gate de sessão",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/041-authz-tables-are-not-tenant-tables.md",
+      "category": "decision",
+      "title": "ADR-041 — Tabela de autorização não é tabela de tenant (I-13)",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/042-rls-initplan-and-public-least-privilege.md",
+      "category": "decision",
+      "title": "ADR-042 — Policy v2 (InitPlan) + least-privilege do schema `public`",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/043-messaging-retention-not-partitioning.md",
+      "category": "decision",
+      "title": "ADR-043 — Retenção (não particionamento) contém a mensageria raw",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/044-clinical-content-encryption.md",
+      "category": "decision",
+      "title": "ADR-044 — Cifra do conteúdo clínico (estende o ADR-012 ao registro médico)",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/045-observability-execution-boundary.md",
+      "category": "decision",
+      "title": "ADR-045 — Fronteira de observabilidade: withCron + contexto ambiente + captura de background",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/046-no-login-gate-clinical-record-access.md",
+      "category": "decision",
+      "title": "ADR-046 — Inadimplência não bloqueia login: acesso de LEITURA ao prontuário é obrigação legal",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/047-ai-conversations-human-handoff.md",
+      "category": "decision",
+      "title": "ADR-047 — Painel de Conversas IA e intervenção humana",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/048-ai-agent-conversational-safety.md",
+      "category": "decision",
+      "title": "ADR-048 — Segurança conversacional",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/049-pagamentos-paciente-sinal.md",
+      "category": "decision",
+      "title": "ADR-049 — Pagamento de paciente e sinal anti-no-show (Camada 1 / P0)",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/050-identidade-de-pagamento-do-paciente.md",
+      "category": "decision",
+      "title": "ADR-050 — Identidade de pagamento do paciente (customer Asaas por clínica)",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/051-conciliacao-sinal-e-recebivel.md",
+      "category": "decision",
+      "title": "ADR-051 — Conciliação entre cobrança de paciente e recebível (fonte da verdade financeira)",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/052-risco-e-reversao-de-pagamento-do-paciente.md",
+      "category": "decision",
+      "title": "ADR-052 — Risco e reversão de pagamento do paciente",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/053-cadastro-autonomo-seguro.md",
+      "category": "decision",
+      "title": "ADR-053 — Cadastro autônomo seguro e atribuição de aquisição",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/054-documento-de-pagamento-e-recibo-fiscal.md",
+      "category": "decision",
+      "title": "ADR-054 — Documento de pagamento e recibo fiscal da Camada 2",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/055-documentos-clinicos-fora-da-consulta.md",
+      "category": "decision",
+      "title": "ADR-055 — Documentos clínicos centrados no paciente, com consulta opcional",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/056-spike-integracao-memed.md",
+      "category": "decision",
+      "title": "ADR-056 — Spike 2.2.0 e adiamento da integração Memed",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/057-recuperacao-falta-retorno.md",
+      "category": "decision",
+      "title": "ADR-057 — Recuperação após falta e retorno clínico",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/058-exportacao-financeira-contabilidade.md",
+      "category": "decision",
+      "title": "ADR-058 — Exportação financeira mensal para contabilidade",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/059-acesso-autenticado-pdfs-clinicos.md",
+      "category": "decision",
+      "title": "ADR-059 — Acesso autenticado a PDFs clínicos sem bearer URL",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/060-sessao-anonima-de-cadastro.md",
+      "category": "decision",
+      "title": "ADR-060 — Fatia O-2: sessão anônima de cadastro (bootstrap seguro)",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/062-identidade-consentimento-cadastro.md",
+      "category": "decision",
+      "title": "ADR-062 — Identidade, consentimento e nome da clínica no cadastro",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/063-saude-de-envio-whatsapp.md",
+      "category": "decision",
+      "title": "ADR-063 — Saúde de envio da conta WhatsApp e a C14 com a conta bloqueada",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/064-c14-reenvio-por-geracao.md",
+      "category": "decision",
+      "title": "ADR-064 — C14 reenvia de verdade, com uma chave de envio por geração",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/065-validade-por-tipo-c14.md",
+      "category": "decision",
+      "title": "ADR-065 — Validade por tipo na fila C14",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/066-janela-da-oferta-da-lista-de-espera.md",
+      "category": "decision",
+      "title": "ADR-066 — A janela de resposta da oferta da lista de espera só corre nas horas de envio",
+      "source": "baseline"
+    },
+    {
+      "path": "adr/index.md",
+      "category": "portal",
+      "title": "Decisões arquiteturais",
+      "source": "checkout"
+    },
+    {
+      "path": "adr/README.md",
+      "category": "bridge",
+      "title": "Decisões arquiteturais",
+      "source": "baseline"
+    },
+    {
+      "path": "ai/agent.md",
+      "category": "portal",
+      "title": "Agente de IA no WhatsApp",
+      "source": "baseline"
+    },
+    {
+      "path": "architecture/arch-metrics.json",
+      "category": "asset",
+      "title": "arch-metrics.json",
+      "source": "baseline"
+    },
+    {
+      "path": "architecture/c4.md",
+      "category": "portal",
+      "title": "Arquitetura C4 — visão do sistema",
+      "source": "baseline"
+    },
+    {
+      "path": "architecture/context-map.md",
+      "category": "portal",
+      "title": "Mapa de contextos",
+      "source": "baseline"
+    },
+    {
+      "path": "architecture/context-map.mmd",
+      "category": "asset",
+      "title": "context-map.mmd",
+      "source": "baseline"
+    },
+    {
+      "path": "architecture/dependency-graph.mmd",
+      "category": "asset",
+      "title": "dependency-graph.mmd",
+      "source": "baseline"
+    },
+    {
+      "path": "architecture/event-flow.mmd",
+      "category": "asset",
+      "title": "event-flow.mmd",
+      "source": "baseline"
+    },
+    {
+      "path": "architecture/overview.md",
+      "category": "portal",
+      "title": "Arquitetura do Qoro",
+      "source": "checkout"
+    },
+    {
+      "path": "architecture/risks.md",
+      "category": "portal",
+      "title": "Riscos arquiteturais — Camada -1",
+      "source": "baseline"
+    },
+    {
+      "path": "archive/evidence-snapshots.md",
+      "category": "historical",
+      "title": "Evidências históricas preservadas",
+      "source": "baseline"
+    },
+    {
+      "path": "assets/qoro-icon.svg",
+      "category": "asset",
+      "title": "qoro-icon.svg",
+      "source": "checkout"
+    },
+    {
+      "path": "assets/qoro-logo-dark.svg",
+      "category": "asset",
+      "title": "qoro-logo-dark.svg",
+      "source": "checkout"
+    },
+    {
+      "path": "assets/qoro-logo.svg",
+      "category": "asset",
+      "title": "qoro-logo.svg",
+      "source": "checkout"
+    },
+    {
+      "path": "AUDITORIA_C0_C10_COMPLETA.md",
+      "category": "bridge",
+      "title": "Auditoria C0–C10",
+      "source": "baseline"
+    },
+    {
+      "path": "audits/C11_ADVERSARIAL_1_25.md",
+      "category": "evidence",
+      "title": "C11 — Bateria adversarial (50 mensagens, Gemini REAL)",
+      "source": "baseline"
+    },
+    {
+      "path": "audits/C11_ADVERSARIAL_17_17.md",
+      "category": "evidence",
+      "title": "C11 — Bateria adversarial (50 mensagens, Gemini REAL)",
+      "source": "baseline"
+    },
+    {
+      "path": "audits/C11_ADVERSARIAL_21_21.md",
+      "category": "evidence",
+      "title": "C11 — Bateria adversarial (50 mensagens, Gemini REAL)",
+      "source": "baseline"
+    },
+    {
+      "path": "audits/C11_ADVERSARIAL_22_22.md",
+      "category": "evidence",
+      "title": "C11 — Bateria adversarial (50 mensagens, Gemini REAL)",
+      "source": "baseline"
+    },
+    {
+      "path": "audits/C11_ADVERSARIAL_26_50.md",
+      "category": "evidence",
+      "title": "C11 — Bateria adversarial (50 mensagens, Gemini REAL)",
+      "source": "baseline"
+    },
+    {
+      "path": "audits/C11_ADVERSARIAL_28_28.md",
+      "category": "evidence",
+      "title": "C11 — Bateria adversarial (50 mensagens, Gemini REAL)",
+      "source": "baseline"
+    },
+    {
+      "path": "audits/C11_ADVERSARIAL_3_12.md",
+      "category": "evidence",
+      "title": "C11 — Bateria adversarial (50 mensagens, Gemini REAL)",
+      "source": "baseline"
+    },
+    {
+      "path": "audits/C11_ADVERSARIAL_3_29.md",
+      "category": "evidence",
+      "title": "C11 — Bateria adversarial (50 mensagens, Gemini REAL)",
+      "source": "baseline"
+    },
+    {
+      "path": "audits/C11_ADVERSARIAL_3_50.md",
+      "category": "evidence",
+      "title": "C11 — Bateria adversarial (50 mensagens, Gemini REAL)",
+      "source": "baseline"
+    },
+    {
+      "path": "audits/C11_ADVERSARIAL_30_30.md",
+      "category": "evidence",
+      "title": "C11 — Bateria adversarial (50 mensagens, Gemini REAL)",
+      "source": "baseline"
+    },
+    {
+      "path": "audits/C11_ADVERSARIAL_31_50.md",
+      "category": "evidence",
+      "title": "C11 — Bateria adversarial (50 mensagens, Gemini REAL)",
+      "source": "baseline"
+    },
+    {
+      "path": "audits/C11_ADVERSARIAL_50.md",
+      "category": "evidence",
+      "title": "Gate adversarial C11",
+      "source": "baseline"
+    },
+    {
+      "path": "audits/C12_AI_AGENT_AUDIT_2026-08-14.md",
+      "category": "evidence",
+      "title": "Auditoria C12 — 2026-08-14",
+      "source": "baseline"
+    },
+    {
+      "path": "backend/http-jobs-outbox.md",
+      "category": "portal",
+      "title": "Backend, HTTP, crons e outbox",
+      "source": "baseline"
+    },
+    {
+      "path": "billing/plans-and-seats.md",
+      "category": "portal",
+      "title": "Planos, médicos e equipe",
+      "source": "checkout"
+    },
+    {
+      "path": "billing/subscriptions.md",
+      "category": "portal",
+      "title": "Assinaturas e cobrança do SaaS",
+      "source": "baseline"
+    },
+    {
+      "path": "c16/c16-inventory.md",
+      "category": "evidence",
+      "title": "Inventário operacional C16",
+      "source": "baseline"
+    },
+    {
+      "path": "c16/slo.md",
+      "category": "evidence",
+      "title": "SLOs e indicadores",
+      "source": "baseline"
+    },
+    {
+      "path": "contracts/events/billing.md",
+      "category": "reference",
+      "title": "Eventos de billing",
+      "source": "baseline"
+    },
+    {
+      "path": "contracts/README.md",
+      "category": "bridge",
+      "title": "Contratos",
+      "source": "baseline"
+    },
+    {
+      "path": "CONVENTIONS.md",
+      "category": "bridge",
+      "title": "Convenções de engenharia",
+      "source": "baseline"
+    },
+    {
+      "path": "CURRENT-STATE.md",
+      "category": "bridge",
+      "title": "Estado da implementação",
+      "source": "baseline"
+    },
+    {
+      "path": "database/schema.md",
+      "category": "portal",
+      "title": "Banco, migrations e multi-tenancy",
+      "source": "baseline"
+    },
+    {
+      "path": "design/BASELINE-INVENTORY.md",
+      "category": "reference",
+      "title": "Baseline Inventory — GATE 0",
+      "source": "baseline"
+    },
+    {
+      "path": "design/COMPONENT-DECISIONS.md",
+      "category": "reference",
+      "title": "Component Decisions",
+      "source": "baseline"
+    },
+    {
+      "path": "design/CONTRACT.md",
+      "category": "reference",
+      "title": "Design System Contract",
+      "source": "baseline"
+    },
+    {
+      "path": "design/PREVIEW-SAFETY.md",
+      "category": "reference",
+      "title": "Preview Safety Gate — GATE 1",
+      "source": "baseline"
+    },
+    {
+      "path": "design/refs/agenda.jpg",
+      "category": "asset",
+      "title": "agenda.jpg",
+      "source": "baseline"
+    },
+    {
+      "path": "design/refs/caixa.jpg",
+      "category": "asset",
+      "title": "caixa.jpg",
+      "source": "baseline"
+    },
+    {
+      "path": "design/refs/consultorio.jpg",
+      "category": "asset",
+      "title": "consultorio.jpg",
+      "source": "baseline"
+    },
+    {
+      "path": "design/refs/conversas-ia.jpg",
+      "category": "asset",
+      "title": "conversas-ia.jpg",
+      "source": "baseline"
+    },
+    {
+      "path": "design/refs/dashboard.jpg",
+      "category": "asset",
+      "title": "dashboard.jpg",
+      "source": "baseline"
+    },
+    {
+      "path": "design/refs/documentos.jpg",
+      "category": "asset",
+      "title": "documentos.jpg",
+      "source": "baseline"
+    },
+    {
+      "path": "design/refs/financeiro.jpg",
+      "category": "asset",
+      "title": "financeiro.jpg",
+      "source": "baseline"
+    },
+    {
+      "path": "design/refs/pacientes.jpg",
+      "category": "asset",
+      "title": "pacientes.jpg",
+      "source": "baseline"
+    },
+    {
+      "path": "design/refs/README.md",
+      "category": "bridge",
+      "title": "Referências visuais",
+      "source": "baseline"
+    },
+    {
+      "path": "design/TENANT-HTML-2026-09.md",
+      "category": "reference",
+      "title": "UI tenant — referências HTML de setembro de 2026",
+      "source": "baseline"
+    },
+    {
+      "path": "desing_novo.md",
+      "category": "historical",
+      "title": "Novo Design System / UI UX — Qoro (ClinicaOS)",
+      "source": "baseline"
+    },
+    {
+      "path": "development/environment.md",
+      "category": "portal",
+      "title": "Variáveis de ambiente",
+      "source": "baseline"
+    },
+    {
+      "path": "development/onboarding.md",
+      "category": "portal",
+      "title": "Onboarding de desenvolvimento",
+      "source": "baseline"
+    },
+    {
+      "path": "development/setup.md",
+      "category": "portal",
+      "title": "Setup local",
+      "source": "baseline"
+    },
+    {
+      "path": "development/testing.md",
+      "category": "portal",
+      "title": "Testes e gates",
+      "source": "baseline"
+    },
+    {
+      "path": "discovery-log.md",
+      "category": "historical",
+      "title": "Discovery Log",
+      "source": "baseline"
+    },
+    {
+      "path": "docs.json",
+      "category": "asset",
+      "title": "docs.json",
+      "source": "checkout"
+    },
+    {
+      "path": "domains/financial-policy.md",
+      "category": "portal",
+      "title": "Pagamentos, taxas e repasses",
+      "source": "checkout"
+    },
+    {
+      "path": "domains/patient-clinical-lgpd.md",
+      "category": "portal",
+      "title": "Pacientes, dados clínicos e LGPD",
+      "source": "baseline"
+    },
+    {
+      "path": "domains/scheduling-financial.md",
+      "category": "portal",
+      "title": "Agenda e financeiro da clínica",
+      "source": "baseline"
+    },
+    {
+      "path": "engineering/ai-development.md",
+      "category": "portal",
+      "title": "Desenvolvimento assistido por IA",
+      "source": "baseline"
+    },
+    {
+      "path": "engineering/decision-guide.md",
+      "category": "portal",
+      "title": "Guia de decisão para mudanças",
+      "source": "baseline"
+    },
+    {
+      "path": "engineering/definition-of-done.md",
+      "category": "portal",
+      "title": "Definition of Done",
+      "source": "baseline"
+    },
+    {
+      "path": "engineering/documentation.md",
+      "category": "portal",
+      "title": "Como manter a documentação",
+      "source": "checkout"
+    },
+    {
+      "path": "engineering/git-workflow.md",
+      "category": "portal",
+      "title": "Workflow Git",
+      "source": "baseline"
+    },
+    {
+      "path": "evidence/track-o-revalidacao-2026-09-21.md",
+      "category": "evidence",
+      "title": "Track O — revalidação independente e correções de 21/09/2026",
+      "source": "baseline"
+    },
+    {
+      "path": "evidence/track-o.md",
+      "category": "evidence",
+      "title": "Track O — matriz de evidência",
+      "source": "baseline"
+    },
+    {
+      "path": "frontend/routes-and-access.md",
+      "category": "portal",
+      "title": "Frontend, rotas e acesso",
+      "source": "baseline"
+    },
+    {
+      "path": "handoff-meta-embedded-signup.md",
+      "category": "historical",
+      "title": "Handoff — D78 / Meta WhatsApp Embedded Signup",
+      "source": "baseline"
+    },
+    {
+      "path": "handoff-qorov2.md",
+      "category": "historical",
+      "title": "Handoff histórico — execução do Qoro v2 até 06/09/2026",
+      "source": "baseline"
+    },
+    {
+      "path": "handoff-track-o-2026-09-18.md",
+      "category": "historical",
+      "title": "Track O — handoff de execução de 18/09/2026",
+      "source": "baseline"
+    },
+    {
+      "path": "handoff-track-o-final.md",
+      "category": "historical",
+      "title": "Track O — handoff final (reconciliado em 25/09/2026)",
+      "source": "baseline"
+    },
+    {
+      "path": "index.md",
+      "category": "portal",
+      "title": "Documentação técnica do Qoro",
+      "source": "checkout"
+    },
+    {
+      "path": "integrations/providers.md",
+      "category": "portal",
+      "title": "Integrações externas",
+      "source": "baseline"
+    },
+    {
+      "path": "onboarding-spec.md",
+      "category": "bridge",
+      "title": "Cadastro e convites",
+      "source": "baseline"
+    },
+    {
+      "path": "onboarding/invitations.md",
+      "category": "portal",
+      "title": "Convites e compatibilidade",
+      "source": "checkout"
+    },
+    {
+      "path": "onboarding/signup.md",
+      "category": "portal",
+      "title": "Cadastro autônomo e retomada",
+      "source": "checkout"
+    },
+    {
+      "path": "operations/deployment-observability.md",
+      "category": "portal",
+      "title": "Deploy, observabilidade e retenção",
+      "source": "baseline"
+    },
+    {
+      "path": "overview/current-state.md",
+      "category": "portal",
+      "title": "Estado atual do repositório",
+      "source": "checkout"
+    },
+    {
+      "path": "overview/reading-paths.md",
+      "category": "portal",
+      "title": "Trilhas de leitura",
+      "source": "checkout"
+    },
+    {
+      "path": "PROGRESS.md",
+      "category": "bridge",
+      "title": "Progresso do sistema",
+      "source": "baseline"
+    },
+    {
+      "path": "prompts/auditoria-integral-testes-e2e-sem-whatsapp.md",
+      "category": "prompt",
+      "title": "Prompt — auditoria integral, execução e ampliação dos testes do Qoro",
+      "source": "baseline"
+    },
+    {
+      "path": "prompts/retomada-politica-financeira-2026-10-07.md",
+      "category": "prompt",
+      "title": "Retomada QoroV2 — política financeira e validação 2e2",
+      "source": "baseline"
+    },
+    {
+      "path": "qorov2.md",
+      "category": "historical",
+      "title": "Qoro v2 — Plano de Execução em Camadas (staff/principal, produção paga)",
+      "source": "baseline"
+    },
+    {
+      "path": "quality/aceite-risco-backup-2026-10-30.md",
+      "category": "evidence",
+      "title": "Aceite do founder — backup independente adiado",
+      "source": "baseline"
+    },
+    {
+      "path": "quality/admin-cadastros-e-trial-2026-11-03.md",
+      "category": "evidence",
+      "title": "Admin: contas autônomas, trial e regressão — 03/11/2026",
+      "source": "baseline"
+    },
+    {
+      "path": "quality/agendamento-continuidade-2026-11-04.md",
+      "category": "evidence",
+      "title": "Continuidade do atendimento e prontidão de cobrança",
+      "source": "baseline"
+    },
+    {
+      "path": "quality/asaas-plan-change-2026-10-17.md",
+      "category": "evidence",
+      "title": "Troca de plano SaaS e cobrança recorrente — 17/10/2026",
+      "source": "baseline"
+    },
+    {
+      "path": "quality/auditoria-compatibilidade-oferta-2026-10-27.md",
+      "category": "evidence",
+      "title": "Oferta 2026 — auditoria de compatibilidade e proteção dos contratos antigos",
+      "source": "baseline"
+    },
+    {
+      "path": "quality/auditoria-funil-cadastro-2026-11-03.md",
+      "category": "evidence",
+      "title": "Auditoria do funil de cadastro — 03/11/2026",
+      "source": "baseline"
+    },
+    {
+      "path": "quality/auditoria-integral-execucao.md",
+      "category": "evidence",
+      "title": "Auditoria integral — execução de 28/09/2026",
+      "source": "baseline"
+    },
+    {
+      "path": "quality/cadastro-senha-post-2026-11-04.md",
+      "category": "evidence",
+      "title": "Proteção do formulário de primeira senha — 04/11/2026",
+      "source": "baseline"
+    },
+    {
+      "path": "quality/cadastro-senha-unica-2026-10-31.md",
+      "category": "evidence",
+      "title": "Cadastro: senha após confirmação e continuação clara",
+      "source": "baseline"
+    },
+    {
+      "path": "quality/checkout-clique-unico-2026-11-04.md",
+      "category": "evidence",
+      "title": "Cadastro: continuar para o checkout com um clique",
+      "source": "baseline"
+    },
+    {
+      "path": "quality/contas-novas-e-legadas-2026-10-26.md",
+      "category": "evidence",
+      "title": "Oferta 2026 — conta nova versus contratos legados",
+      "source": "baseline"
+    },
+    {
+      "path": "quality/e2e-75-files-inventory.md",
+      "category": "evidence",
+      "title": "Inventario do checkpoint original de 75 arquivos",
+      "source": "baseline"
+    },
+    {
+      "path": "quality/e2e-coverage-audit.md",
+      "category": "evidence",
+      "title": "Auditoria de cobertura E2E",
+      "source": "baseline"
+    },
+    {
+      "path": "quality/e2e-coverage-matrix.md",
+      "category": "evidence",
+      "title": "Matriz de cobertura E2E",
+      "source": "baseline"
+    },
+    {
+      "path": "quality/entitlements-clinica-2026-10-29.md",
+      "category": "evidence",
+      "title": "Exclusividade dos recursos da Clínica — 29/10/2026",
+      "source": "baseline"
+    },
+    {
+      "path": "quality/evidencias/b2-pilot-preflight-20261030.json",
+      "category": "asset",
+      "title": "b2-pilot-preflight-20261030.json",
+      "source": "baseline"
+    },
+    {
+      "path": "quality/evidencias/b2-pilot-roundtrip-20261030.json",
+      "category": "asset",
+      "title": "b2-pilot-roundtrip-20261030.json",
+      "source": "baseline"
+    },
+    {
+      "path": "quality/evidencias/offer-release-readback-20261030.json",
+      "category": "asset",
+      "title": "offer-release-readback-20261030.json",
+      "source": "baseline"
+    },
+    {
+      "path": "quality/evidencias/offer-restored-backup-20261030.json",
+      "category": "asset",
+      "title": "offer-restored-backup-20261030.json",
+      "source": "baseline"
+    },
+    {
+      "path": "quality/evidencias/offer-schema-diff-20261030.json",
+      "category": "asset",
+      "title": "offer-schema-diff-20261030.json",
+      "source": "baseline"
+    },
+    {
+      "path": "quality/evidencias/publicacao-oferta-20261030.json",
+      "category": "asset",
+      "title": "publicacao-oferta-20261030.json",
+      "source": "baseline"
+    },
+    {
+      "path": "quality/evidencias/recovery-capacity-20261030.json",
+      "category": "asset",
+      "title": "recovery-capacity-20261030.json",
+      "source": "baseline"
+    },
+    {
+      "path": "quality/evidencias/signup-code-dev-migration-20261104.json",
+      "category": "asset",
+      "title": "signup-code-dev-migration-20261104.json",
+      "source": "baseline"
+    },
+    {
+      "path": "quality/evidencias/signup-preview-funnel-20261104.json",
+      "category": "asset",
+      "title": "signup-preview-funnel-20261104.json",
+      "source": "baseline"
+    },
+    {
+      "path": "quality/evidencias/turnstile-browser-diagnostic-20261030.json",
+      "category": "asset",
+      "title": "turnstile-browser-diagnostic-20261030.json",
+      "source": "baseline"
+    },
+    {
+      "path": "quality/fechamento-definitivo-oferta-2026-10-30.md",
+      "category": "evidence",
+      "title": "Fechamento da engenharia da oferta — 30/10/2026",
+      "source": "baseline"
+    },
+    {
+      "path": "quality/fechamento-oferta-2026-10-28.md",
+      "category": "evidence",
+      "title": "Fechamento técnico da oferta — 28/10/2026",
+      "source": "baseline"
+    },
+    {
+      "path": "quality/finalizacao-oferta-2026-10-26.md",
+      "category": "evidence",
+      "title": "Oferta 2026 — checkpoint de integração de 26/10/2026",
+      "source": "baseline"
+    },
+    {
+      "path": "quality/gates-tecnicos-oferta-2026-10-29.md",
+      "category": "evidence",
+      "title": "Gates finais da oferta mensal — 29/10/2026",
+      "source": "baseline"
+    },
+    {
+      "path": "quality/index.md",
+      "category": "portal",
+      "title": "Validação e evidências",
+      "source": "checkout"
+    },
+    {
+      "path": "quality/integracao-2026-10-09.md",
+      "category": "evidence",
+      "title": "Integração isolada de 09/10/2026",
+      "source": "baseline"
+    },
+    {
+      "path": "quality/organizacao-mintlify-2026-11-05.md",
+      "category": "evidence",
+      "title": "Organização técnica da documentação com Mintlify — 05/11/2026",
+      "source": "checkout"
+    },
+    {
+      "path": "quality/preview-pricing-integration-e2e-2026-10-18.md",
+      "category": "evidence",
+      "title": "E2E do Preview integrado — 18/10/2026",
+      "source": "baseline"
+    },
+    {
+      "path": "quality/production-44-execution.md",
+      "category": "evidence",
+      "title": "Execução das 44 suítes `production-*` — 29/09–01/10/2026",
+      "source": "baseline"
+    },
+    {
+      "path": "quality/prontidao-oferta-2026-10-25.md",
+      "category": "evidence",
+      "title": "Prontidão da oferta 2026 — medição de 25–26/10/2026",
+      "source": "baseline"
+    },
+    {
+      "path": "quality/publicacao-oferta-2026-10-30.md",
+      "category": "evidence",
+      "title": "Janela autorizada da oferta mensal — 30/10/2026",
+      "source": "baseline"
+    },
+    {
+      "path": "quality/validacao-autonoma-2026-10-21.md",
+      "category": "evidence",
+      "title": "Validação autônoma do candidato da nova oferta — 21/10/2026",
+      "source": "baseline"
+    },
+    {
+      "path": "quality/verificacao-turnstile-2026-10-30.md",
+      "category": "evidence",
+      "title": "Verificação real de Turnstile antes da reabertura",
+      "source": "baseline"
+    },
+    {
+      "path": "quality/waba-readback-2026-10-10.md",
+      "category": "evidence",
+      "title": "WABA de teste após cadastrar pagamento — leitura de 10/10/2026",
+      "source": "baseline"
+    },
+    {
+      "path": "quality/whatsapp-ai-hardening-2026-10-08.md",
+      "category": "evidence",
+      "title": "Hardening do agente de IA do WhatsApp — 08/10/2026",
+      "source": "baseline"
+    },
+    {
+      "path": "README.md",
+      "category": "bridge",
+      "title": "Documentação técnica do Qoro",
+      "source": "baseline"
+    },
+    {
+      "path": "roadmap/known-limitations.md",
+      "category": "portal",
+      "title": "Limites e validações por ambiente",
+      "source": "baseline"
+    },
+    {
+      "path": "runbooks/aceitacao-humana-cadastro.md",
+      "category": "procedure",
+      "title": "Runbook — aceitação humana do cadastro autônomo",
+      "source": "baseline"
+    },
+    {
+      "path": "runbooks/acoes-manuais-pendentes-pricing-2026-10.md",
+      "category": "procedure",
+      "title": "O que você precisa fazer — lançamento mensal do Qoro",
+      "source": "baseline"
+    },
+    {
+      "path": "runbooks/alerting-setup.md",
+      "category": "procedure",
+      "title": "Configuração de alertas",
+      "source": "baseline"
+    },
+    {
+      "path": "runbooks/asaas-webhook-assinatura.md",
+      "category": "procedure",
+      "title": "Runbook — webhook de assinatura (conta Asaas do Qoro)",
+      "source": "baseline"
+    },
+    {
+      "path": "runbooks/backup-independente-sem-custo-2026-10.md",
+      "category": "procedure",
+      "title": "Backup independente sem compra inicial — 30/10/2026",
+      "source": "baseline"
+    },
+    {
+      "path": "runbooks/backup-real-b2-bitwarden.md",
+      "category": "procedure",
+      "title": "Cópia real no B2 e senha no Bitwarden",
+      "source": "baseline"
+    },
+    {
+      "path": "runbooks/c14-validation.md",
+      "category": "procedure",
+      "title": "Validação C14 — mensagens proativas",
+      "source": "baseline"
+    },
+    {
+      "path": "runbooks/c2-validation.md",
+      "category": "procedure",
+      "title": "Validação C2 — tenancy e RLS",
+      "source": "baseline"
+    },
+    {
+      "path": "runbooks/c4-validation.md",
+      "category": "procedure",
+      "title": "Validação C4 — outbox",
+      "source": "baseline"
+    },
+    {
+      "path": "runbooks/c5-validation.md",
+      "category": "procedure",
+      "title": "Validação C5 — paciente e LGPD",
+      "source": "baseline"
+    },
+    {
+      "path": "runbooks/c7-validation.md",
+      "category": "procedure",
+      "title": "Validação C7 — clínico",
+      "source": "baseline"
+    },
+    {
+      "path": "runbooks/disaster-recovery.md",
+      "category": "portal",
+      "title": "Recuperação de banco — Qoro",
+      "source": "baseline"
+    },
+    {
+      "path": "runbooks/fechamento-operacional-oferta-2026-10.md",
+      "category": "procedure",
+      "title": "Fechamento operacional da oferta mensal — 30/10/2026",
+      "source": "baseline"
+    },
+    {
+      "path": "runbooks/incident-response.md",
+      "category": "procedure",
+      "title": "Resposta a incidentes",
+      "source": "baseline"
+    },
+    {
+      "path": "runbooks/index.md",
+      "category": "portal",
+      "title": "Procedimentos operacionais",
+      "source": "checkout"
+    },
+    {
+      "path": "runbooks/log-search.md",
+      "category": "procedure",
+      "title": "Busca de logs",
+      "source": "baseline"
+    },
+    {
+      "path": "runbooks/migrations.md",
+      "category": "portal",
+      "title": "Runbook de migrations",
+      "source": "baseline"
+    },
+    {
+      "path": "runbooks/payment-account-connect.md",
+      "category": "procedure",
+      "title": "Runbook — conta de pagamento da clínica (Asaas)",
+      "source": "baseline"
+    },
+    {
+      "path": "runbooks/production-readiness.md",
+      "category": "portal",
+      "title": "Prontidão de produção",
+      "source": "baseline"
+    },
+    {
+      "path": "runbooks/publicacao-coordenada-oferta-2026-10.md",
+      "category": "procedure",
+      "title": "Publicação coordenada da oferta 2026 — roteiro e registro da janela",
+      "source": "baseline"
+    },
+    {
+      "path": "runbooks/publicacao-funil-codigo-2026-11.md",
+      "category": "procedure",
+      "title": "Publicação e recuperação dos leads — cadastro por código",
+      "source": "baseline"
+    },
+    {
+      "path": "runbooks/README.md",
+      "category": "procedure",
+      "title": "Runbooks",
+      "source": "baseline"
+    },
+    {
+      "path": "runbooks/recuperacao-portavel-e-rotina-2026-10.md",
+      "category": "procedure",
+      "title": "Recuperação portável e rotina de backup — preparação de 29/10",
+      "source": "baseline"
+    },
+    {
+      "path": "runbooks/runtime-role-nobypassrls.md",
+      "category": "procedure",
+      "title": "Role runtime sem BYPASSRLS",
+      "source": "baseline"
+    },
+    {
+      "path": "runbooks/validacao-nova-oferta-2026-10.md",
+      "category": "procedure",
+      "title": "Fechamento da nova oferta de preços — roteiro de implementação e validação",
+      "source": "baseline"
+    },
+    {
+      "path": "security/acoes.md",
+      "category": "generated",
+      "title": "Inventário vivo de Server Actions, handlers e ambiente",
+      "source": "baseline"
+    },
+    {
+      "path": "security/endurecimento-local.md",
+      "category": "reference",
+      "title": "Endurecimento local — 2026-09-10",
+      "source": "baseline"
+    },
+    {
+      "path": "security/ia-privacidade-tests.json",
+      "category": "asset",
+      "title": "ia-privacidade-tests.json",
+      "source": "baseline"
+    },
+    {
+      "path": "security/ia-privacidade.md",
+      "category": "reference",
+      "title": "ia-privacidade.md",
+      "source": "baseline"
+    },
+    {
+      "path": "security/inventory-before.json",
+      "category": "asset",
+      "title": "inventory-before.json",
+      "source": "baseline"
+    },
+    {
+      "path": "security/model.md",
+      "category": "portal",
+      "title": "Modelo de segurança",
+      "source": "baseline"
+    },
+    {
+      "path": "security/README.md",
+      "category": "bridge",
+      "title": "Segurança do Qoro — o que foi feito, como, e o que falta",
+      "source": "baseline"
+    },
+    {
+      "path": "security/revisao-intermediaria-2026-09-14.md",
+      "category": "reference",
+      "title": "Revisão intermediária do Qoro v2 — 14/09/2026",
+      "source": "baseline"
+    },
+    {
+      "path": "security/riscos.md",
+      "category": "reference",
+      "title": "Registro de risco — endurecimento local",
+      "source": "baseline"
+    },
+    {
+      "path": "security/SECURITY-DELTA.md",
+      "category": "reference",
+      "title": "SECURITY-DELTA — auditoria adversarial × código real",
+      "source": "baseline"
+    },
+    {
+      "path": "security/webhooks.md",
+      "category": "reference",
+      "title": "Entradas externas: evidência local e correção",
+      "source": "baseline"
+    },
+    {
+      "path": "specs/cadastro-codigo-e-retomada-2026-11.md",
+      "category": "specification",
+      "title": "Cadastro por código e retomada — contrato de execução",
+      "source": "baseline"
+    },
+    {
+      "path": "specs/decisoes-oferta-e-precificacao-2026-10.md",
+      "category": "specification",
+      "title": "Decisões de oferta, preço ao paciente e repasse — outubro de 2026",
+      "source": "baseline"
+    },
+    {
+      "path": "specs/index.md",
+      "category": "portal",
+      "title": "Especificações e progresso",
+      "source": "checkout"
+    },
+    {
+      "path": "specs/politica-financeira-camadas.md",
+      "category": "specification",
+      "title": "Política financeira de cobranças de pacientes e repasse profissional",
+      "source": "baseline"
+    },
+    {
+      "path": "specs/precos-2026-preview.md",
+      "category": "specification",
+      "title": "Prévia da oferta por médico — outubro de 2026",
+      "source": "baseline"
+    },
+    {
+      "path": "testesC15.md",
+      "category": "bridge",
+      "title": "Evidência C15 — plataforma admin",
+      "source": "baseline"
+    },
+    {
+      "path": "tooling/catalog.mjs",
+      "category": "tooling",
+      "title": "catalog.mjs",
+      "source": "checkout"
+    },
+    {
+      "path": "tooling/catalog.test.mjs",
+      "category": "tooling",
+      "title": "catalog.test.mjs",
+      "source": "checkout"
+    },
+    {
+      "path": "VisãoGeral.md",
+      "category": "bridge",
+      "title": "Arquitetura do Qoro",
+      "source": "baseline"
+    },
+    {
+      "path": "whatsapp-connection-flow.md",
+      "category": "portal",
+      "title": "Conexão do WhatsApp",
+      "source": "baseline"
+    }
+  ]
+}

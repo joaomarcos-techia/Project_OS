@@ -1,251 +1,83 @@
-# Testes e gates
+---
+title: "Testes e gates"
+description: "Comandos reais, limites de execução e níveis de evidência para validar mudanças no Qoro."
+docType: "guide"
+---
 
-## Status
+## Escolha a validação pela mudança
 
-Canonical — comandos executáveis e interpretação da evidência.
+Leia `package.json`, a configuração do runner e `.github/workflows/ci.yml` antes
+de executar. Alguns smokes acessam provedores, enviam mensagens, escrevem dados
+ou geram pagamentos. O nome “teste” não torna essas operações inofensivas.
 
-## Gate local completo
+| Mudança | Verificação inicial | Limite |
+| --- | --- | --- |
+| Regra TypeScript | `pnpm exec vitest run caminho/do/arquivo.test.ts` | Mock não comprova provedor |
+| Tipos | `pnpm typecheck` | Não comprova execução |
+| Estilo e imports | `pnpm lint` e `pnpm format:check` | Markdown é ignorado pela configuração geral; usar os checks documentais abaixo |
+| Interface pública isolada | `pnpm security:build` e `pnpm test:e2e:ci` | Não equivale ao fluxo completo de cliente autenticado |
+| Isolamento | `pnpm security:tenant` | Ler requisitos de PostgreSQL e fixture antes |
+| Arquitetura | `pnpm arch:check` e `pnpm arch:db-check` | Grafos gerados podem exigir atualização separada |
+| Migrations versionadas | `pnpm check:migrations` | Não aplica nem comprova histórico remoto |
+| Contratos de rotas/crons | `pnpm check:observability` e `pnpm check:registry:strict` | Sem comprovação de cron ativo no deployment |
+| Build | `pnpm build` | Não comprova credenciais ou integrações externas |
+| Cobertura | `pnpm test:coverage` | Respeitar thresholds da configuração vigente |
 
-```bash
-pnpm format:check
-pnpm typecheck
-pnpm lint
-pnpm arch:check
-pnpm arch:graphs --check
-pnpm arch:db-check
-pnpm check:migrations
-pnpm check:observability
-pnpm check:registry:strict
-pnpm test:coverage
-pnpm build
-```
+`pnpm arch:graphs --check` compara os snapshots de arquitetura. Use
+`pnpm arch:graphs` para regenerar quando o acoplamento tiver mudado e revise o
+diff; não atualize snapshots para esconder uma dependência indevida.
 
-`pnpm arch:graphs --check` compara os snapshots de arquitetura em `docs/architecture/` com o
-código: se o acoplamento mudou, regenere com `pnpm arch:graphs` e commite o diff no mesmo PR
-(modelo lockfile — o diff é o que a revisão lê para julgar se o acoplamento novo era intencional).
+## O que a CI executa
 
-O CI executa todos acima exceto `format:check`; inclui também `pnpm audit --prod --audit-level high`. Thresholds Vitest atuais: lines 29%, functions 41%, branches 74%, statements 29%.
+Na revisão-base desta organização, o workflow verifica instalação congelada,
+auditoria de dependências de produção, TypeScript, lint, arquitetura, migrations,
+observabilidade, registry, cobertura e os gates de segurança e superfície pública
+configurados. **Não assuma que todos os comandos locais rodam na CI.** O próprio
+workflow é a fonte para a lista e sua ordem.
 
-## Gate E2E em CI (desde 2026-09-13)
+E2E autenticado, prova com e-mail externo, Checkout, webhook, Meta e pagamento
+precisam de ambiente e fixture autorizados. `SKIP` por falta de chave Turnstile
+não prova o desafio; positivo/negativo com chave de teste não comprovam o widget
+e domínio de Produção.
 
-```bash
-pnpm test:e2e:ci     # exige `pnpm security:build` antes
-```
+## Documentação Mintlify
 
-Roda `e2e/public-surface.spec.ts` contra o build isolado que `security:build`
-produz em `dist/security-local/app`. Cobre o que dispensa credencial: fronteira
-sem sessão (22 rotas, incluindo as 8 de `/admin`), cabeçalhos de segurança e
-integridade estrutural do formulário de login.
-
-**Por que só isso.** Os 51 specs `production-*` exigem variável de autorização
-própria, credenciais de clínica sintética e conexão ao Postgres de PRODUÇÃO —
-não podem rodar em CI, e até esta data **nenhum E2E rodava**. O diagnóstico
-completo e a matriz de cobertura estão em
-[`docs/quality/e2e-coverage-audit.md`](../quality/e2e-coverage-audit.md).
-
-Acrescentar um spec a `playwright.ci.config.ts` é decisão explícita: ele passa a
-poder quebrar o merge de todo mundo.
-
-```bash
-# Rode com E2E_AUTH_REUSE=1: o admin-boundary faz login de verdade, e a conta é
-# compartilhada com os outros cenários. Sem o reuse, repetir a suíte dentro de
-# 15 min esgota o rate limit DUAL (IP + e-mail) e o caso vira skip.
-E2E_AUTH_REUSE=1 pnpm test:e2e:public
-```
-
-Três specs: `public-surface`, `signup-session-api` e `admin-boundary-rbac`, todos
-contra `E2E_BASE_URL`.
-
-`signup-session-api` e `admin-boundary-rbac` ficam fora do CI: um precisa de banco,
-o outro de credencial. Ele exercita
-`/api/signup/*` por HTTP real e **pula com anotação** quando o orçamento de IP
-do próprio produto (20 aberturas/15 min) estoura — skip anotado, nunca verde,
-pelo mesmo motivo do `n/v` acima.
-
-### Cadastro autônomo local com persistência real
-
-Depois de `pnpm security:build`, execute:
-
-```bash
-pnpm exec tsx --conditions=react-server scripts/security/signup-regression.ts --browser
-```
-
-O runner não carrega `.env.local`: cria Postgres 17 temporário, aplica migrations 0096–0102, inicia
-Auth e Redis REST sintéticos pelos SDKs instalados e abre o build isolado no Chromium. O fixture Redis
-roda em processo separado, implementa pipeline/EVALSHA e pode simular indisponibilidade sem bloquear o
-Next. Um retry de transporte local só é permitido depois de provar que banco e contador do provider
-não mudaram.
-
-Ele cobre `/cadastro`, criação/`me`/`answers`, duas abas/CAS, identidade, confirmação, ownership,
-reenvio, `/cadastro/continuar`, `/cadastro/plano`, catálogo elegível, preço/trial server-side,
-adulteração do payload, seleção idempotente, plano inativo, TTL, rate limit/falha de rede na UI e
-cleanup zero. O resultado é gravado em `dist/signup-regression/results.json`; uma execução completa
-deve terminar com todos os checks `PASS`, cleanup zero e `own Postgres stopped`. Cloudflare, Upstash,
-Supabase e SMTP externos permanecem fora dessa prova. As portas locais usadas são 55447 (Postgres),
-55449 (Redis) e 3217 (Next); deixe-as livres.
-
-**No Windows, rode a partir do PowerShell.** O runner limpa o ambiente antes de subir o Postgres e a
-allow list preserva `SystemRoot`. Sob Git Bash as variáveis chegam em caixa alta (`SYSTEMROOT`), a
-limpeza remove essa, e o Postgres sobe sem Winsock utilizável — falha com
-`could not create IPv4 socket for address "???"`, sem relação com o código sob teste.
-
-**E exporte `NODE_OPTIONS=--conditions=react-server`.** A primeira fase (migrations e SQL) roda sem
-isso, mas a segunda importa o código da aplicação e morre em `server-only` — "This module cannot be
-imported from a Client Component module". Passar `--conditions` na linha do `node` não basta: o
-transformer CJS do tsx não herda a flag, só a variável.
+Na raiz do checkout:
 
 ```powershell
-$env:NODE_OPTIONS = '--conditions=react-server'
-node node_modules/tsx/dist/cli.mjs scripts/security/signup-regression.ts --browser
+node docs/tooling/catalog.mjs
+node --test docs/tooling/catalog.test.mjs
 ```
 
-### Onboarding operacional (O-7) e kill switch, com banco e navegador reais
+Depois, no diretório `docs`:
 
 ```powershell
-$env:NODE_OPTIONS = '--conditions=react-server'
-node node_modules/tsx/dist/cli.mjs scripts/security/onboarding-progress-db.ts
-node node_modules/tsx/dist/cli.mjs scripts/security/signup-kill-switch-browser.ts
+npx --yes mint@4.2.1203 --telemetry=false validate
+npx --yes mint@4.2.1203 --telemetry=false broken-links
+npx --yes mint@4.2.1203 --telemetry=false dev --port 3334 --no-open
 ```
 
-O primeiro sobe Postgres descartável com **todas** as migrations e exercita a máquina de estados do
-tour por `withTenant` — concorrência, idempotência, RLS por (clínica, pessoa) e os CHECKs que recusam
-estado impossível. O segundo serve o build de produção três vezes, com as duas chaves do cadastro em
-combinações diferentes, e confere no banco que o funil fechado não escreve nada.
-
-O runner do kill switch exige `pnpm build` antes (ele serve o `.next` da raiz) e **zera
-`NODE_OPTIONS`** para o `next start` filho: `--conditions=react-server` herdado muda a resolução de
-módulos do servidor e o Next não sobe com ele.
-
-### Carga sem credencial de DEV
+Após adicionar ou classificar arquivos, regenere o catálogo na raiz:
 
 ```powershell
-$env:LOAD_TEST_CONFIRM = 'LOCAL_SCRATCH_ONLY'
-$env:NODE_OPTIONS = '--conditions=react-server'
-node node_modules/tsx/dist/cli.mjs scripts/load-test.ts
+node docs/tooling/catalog.mjs --write
 ```
 
-Sem `DATABASE_URL_DEV` configurado, o gate monta o schema a partir das **migrations do repositório**
-em vez de extrair do DEV. Com `DATABASE_URL_DEV` presente, o caminho do `pg_dump` continua idêntico e
-com os mesmos guards. Precisa de `pnpm build` antes.
+O validador local cobre navegação, metadados, links internos, favicon e cobertura
+do catálogo. O `mint validate` compila as páginas; nenhum dos dois envia e-mail,
+aplica migration ou modifica integrações. O preview fica em `localhost` e não
+publica o acervo interno.
 
-## Verificações contra o provedor real (sandbox)
+## Testes externos
 
-```bash
-pnpm billing:live-check     # assinatura, na conta do Qoro
-pnpm payments:live-check    # cobrança de PACIENTE, com chave de clínica (modelo B)
-pnpm payments:refund-e2e    # PIX + cartão pagos e estornados, somente Sandbox e opt-in
-```
+Leia o script e sua autorização antes de usar `test:e2e:prod`, `billing:*`,
+`payments:*`, `email:*`, `wa:*`, `smoke:*` ou `ai:live-check`. Prepare fixture,
+resultado esperado, limpeza e identificação do ambiente. Nunca reutilize um
+cliente real como fixture nem repita um pagamento aprovado sem necessidade.
 
-Não rodam no CI (precisam de credencial). São o único jeito de pegar regra de
-provedor que a documentação não conta — o `payments:live-check` nasceu achando três:
-mínimo de R$ 5,00 por cobrança, `email` obrigatório no webhook, e restrições de
-formato no `authToken`. Depois achou uma quarta, que teria custado caro: **cobrança
-apagada NÃO devolve 404** — o Asaas responde 200 com `deleted: true` e o `status`
-congelado no que era antes. Rode-os **antes de qualquer release que toque pagamento**.
+## Como registrar
 
-`payments:live-check` recusa chave que não seja de sandbox: ele CRIA cobranças.
-
-`payments:refund-e2e` exige `ASAAS_REFUND_E2E=ALLOW_SANDBOX_REFUND` e uma chave
-Sandbox em `ASAAS_REFUND_E2E_API_KEY` (ou no alias canônico `ASAAS_API_KEY`). A URL
-fica presa no código a `https://api-sandbox.asaas.com/v3`. O runner
-cria fixtures sintéticas para PIX e cartão, confirma o PIX pela ação oficial do
-Sandbox, faz um único estorno por cobrança, espera o readback terminal e prova que
-uma repetição não cria outra devolução. Um manifesto ignorado em `.playwright/`
-fica preservado se a execução não chegar ao estado terminal; a execução seguinte
-retoma exatamente esses IDs. `ASAAS_REFUND_E2E_METHOD=PIX|CREDIT_CARD` permite
-continuar um método independente sem repetir o outro.
-
-Um passo pode aparecer como **`BLOCKED`** em vez de `PASS` ou `FAIL`: o pagamento
-foi exercitado, mas o provider ainda exige uma ação externa. Em 01/10/2026, o
-cartão chegou a refund terminal; o PIX ficou em
-`AWAITING_CRITICAL_ACTION_AUTHORIZATION`. Nunca repita o POST quando o manifesto
-já contém esse refund: autorize a ação no Sandbox e execute o mesmo runner para
-fazer apenas o readback.
-Ele não conta como falha (vermelho permanente treina todo mundo a ignorar vermelho)
-e **não vira verde** (check verde forjado é pior: passa a impressão de prova).
-
-### E-mail recebido pelo Resend em DEV
-
-Os runners abaixo exigem `SUPABASE_PROJECT_ENV=dev`, a chave Resend de DEV e
-`E2E_RESEND_INBOX_ADDRESS` apontando para um inbound address consentido do
-Resend. Valores nunca devem ser impressos nem versionados.
-
-```powershell
-npx tsx --conditions=react-server scripts/resend-inbox-check.ts
-npx tsx --conditions=react-server scripts/team-invite-inbox-check.ts
-```
-
-`email:inbox-check` prova envio, evento `delivered`, recebimento e conteúdo.
-`email:team-invite-e2e` também exige `DATABASE_URL_DEV` e um app atual em
-`APP_BASE_URL`/`E2E_BASE_URL`; ele cria um convidado sintético, lê os dois
-e-mails, prova rotação, aceite, tenant e replay, e remove Auth/profile/fixture.
-O alvo deve ser localhost ou Preview isolado. Preview protegido exige
-`VERCEL_AUTOMATION_BYPASS_SECRET`.
-
-## Testes focados
-
-```bash
-pnpm test -- caminho/do/arquivo.test.ts
-pnpm test:e2e -- caminho/do/spec.spec.ts
-```
-
-Use o comando real do manifesto; não desabilite teste nem altere threshold para obter verde.
-
-## E2E
-
-`pnpm test:e2e` roda Playwright no ambiente configurado. A suíte completa mistura specs locais e specs `production-*`; estes três testes read-only lançam erro em localhost em vez de fazer `skip`:
-
-- `production-dashboard-financial-rbac.spec.ts`;
-- `production-dashboard-operational-a.spec.ts`;
-- `production-whatsapp-settings-rbac.spec.ts`.
-
-Eles consultam o banco PROD, autenticam fixtures operacionais e comparam `app.qoro.dev`; o guard de host é a causa das três falhas locais. Para validação local, selecione explicitamente um spec compatível, por exemplo:
-
-```bash
-pnpm test:e2e e2e/login-and-navigation.spec.ts
-```
-
-`test:e2e:prod` pode operar em produção e exige autorização, contas/fixtures descartáveis e cleanup estrito. O CI atual executa somente a suíte pública segura `test:e2e:ci` e `security:browser-session`; os specs autenticados e `production-*` continuam fora do CI automático.
-
-### Execução read-only em produção — 2026-08-18
-
-Com contas sintéticas autorizadas e `E2E_BASE_URL=https://app.qoro.dev`, os três specs acima passaram: `3 passed` em 28,4 s, Chromium, um worker e zero retry.
-
-- `production-dashboard-financial-rbac`: médico sem `view:financial` não recebeu KPIs/gráfico financeiro, foi bloqueado em `/financeiro` e não viu o card financeiro em relatórios. O PDF permaneceu disponível, mas a rota o gera sem colunas financeiras para esse usuário.
-- `production-dashboard-operational-a`: KPIs, próximos atendimentos, checklist e atividade coincidiram com o banco; a atividade ficou oculta para o médico sem `view:audit`.
-- `production-whatsapp-settings-rbac`: médico sem `manage:settings` recebeu `Sem acesso` e não viu status, telefone ou controle de desconexão.
-
-Os objetos JSON impressos pelos specs financeiro e WhatsApp ainda contêm flags/resultados legados que contradizem as assertivas atuais. Considere o status Playwright e as assertivas como evidência; não use esses dois `console.log` como resultado semântico.
-
-## Smokes
-
-Existem smokes C3–C14, onboarding, admin, conversas e jornadas. Muitos escrevem no banco DEV; leia guard/cleanup do script antes. `ai:live-check`, `ai:adversarial`, `billing:*`, `email:live-check` e `wa:*` atingem providers e podem gerar custo/efeito externo.
-
-## Carga local descartável
-
-`test:load` exige um build atual e PostgreSQL 17 local. O DEV é usado **somente** como origem de
-`pg_dump --schema-only`; todas as fixtures, tráfego e escritas ficam num cluster PostgreSQL TLS criado
-sob o diretório temporário do sistema. Meta é substituído por provider falso e qualquer outro HTTP
-externo é bloqueado. O guard recusa produção, Preview, DEV compartilhado como destino e confirmação
-ausente/incorreta.
-
-```powershell
-pnpm build
-$env:LOAD_TEST_CONFIRM = 'LOCAL_SCRATCH_ONLY'
-pnpm test:load
-Remove-Item Env:LOAD_TEST_CONFIRM
-```
-
-Aceite P8: 500 consultas, 5.000 jobs C14, 1.000 webhooks, outbox 5.000, reconcile concorrente, 100
-amostras SQL, SLOs do `qorov2.md`, zero duplicata/retry/falha/deadlock e cleanup confirmado. Nunca
-reduza os guards nem aponte o harness a Preview, produção ou DEV compartilhado.
-
-## Níveis de prova
-
-- Unitário/integração local: contrato e regra determinística.
-- Smoke DEV: banco/RLS/worker reais, mas provider pode estar stubado.
-- CI: reprodutibilidade do commit.
-- E2E/deploy: comportamento do candidato no ambiente.
-- Live provider: borda externa real.
-
-Relate qual nível passou. Um build verde não prova Meta/Asaas/Gemini/e-mail; um teste live antigo não prova o commit atual.
+Registre comando, revisão, ambiente, resultado, cenário e limpeza. Diferencie
+unitário, banco isolado, DEV compartilhado, Preview, CI, provedor e Produção.
+Consulte [evidências](/quality/index) e [catálogo](/catalog) para execuções
+anteriores; os números antigos não foram reexecutados nesta reorganização.

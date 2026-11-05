@@ -8,7 +8,7 @@ Canonical — regras atuais para mudanças no repositório.
 
 - runtime e scripts: `package.json`;
 - boundaries/lint: `eslint.config.mjs`;
-- schema: `src/contexts/*/schema.ts`, `src/lib/db/schema` e `drizzle/*.sql`;
+- schema: `src/contexts/*/schema.ts`, `src/lib/db/schema` e `drizzle/migrations/*.sql`;
 - ambiente: `src/lib/env.ts`;
 - CI: `.github/workflows/ci.yml`;
 - jobs: `vercel.json` e `src/app/api/cron`.

@@ -1,4 +1,8 @@
-# Variáveis de ambiente
+---
+title: "Variáveis de ambiente"
+description: "Variáveis de ambiente — responsabilidades, fontes e limites da implementação."
+docType: "reference"
+---
 
 ## Status
 
@@ -45,4 +49,4 @@ O loader aceita somente os aliases DEV declarados em `src/lib/env.ts` e os norma
 - backends `env` e `gcp` de crypto exigem conjuntos diferentes de secrets.
 - providers opcionais falham quando a ação correspondente é chamada sem configuração.
 
-Consulte [integrações](../integrations/providers.md) para distinguir variável aceita de provider funcional.
+Consulte [integrações](/integrations/providers) para distinguir variável aceita de provider funcional.

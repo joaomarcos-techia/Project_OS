@@ -1,45 +1,53 @@
-# Limitações conhecidas e validações pendentes
+---
+title: "Limites e validações por ambiente"
+description: "Separe limites de implementação, dependências externas e achados históricos antes de decidir uma mudança."
+docType: "reference"
+reviewedAt: "2026-11-05"
+---
 
-## Status
+## Limites da implementação revisada
 
-Canonical — fatos confirmados no código e bordas que não podem ser inferidas. Não é um roadmap comercial.
-
-## Limitações confirmadas
-
-| Item | Classificação | Evidência/efeito |
+| Assunto | Limite ou condição | Referência |
 | --- | --- | --- |
-| Z-API | `NOT_IMPLEMENTED` | skeleton lança em todos os métodos; selecionar `zapi` não envia/recebe |
-| OpenAI | `NOT_IMPLEMENTED` | placeholder lança `openai_not_implemented` |
-| Compensação do onboarding | `PARTIALLY_IMPLEMENTED` | cancelamento Asaas best-effort; não existe cron `onboarding-reconcile` |
-| Secret Manager GCP | `PARTIALLY_IMPLEMENTED` | loader existe, mas SDK não está declarado em `package.json`/lockfile |
-| Checkout de cartão do convite (`/join`) | `IMPLEMENTED_WITH_CONSTRAINT` | PAN/CVV passam pelo Server Action e ficam apenas em memória; este fluxo legado não usa tokenização client-side/checkout hospedado. Não confundir com o cadastro autônomo planejado pela ADR-053. |
-| CSP | `IMPLEMENTED` | `Content-Security-Policy` bloqueante; testes e gate HTTP impedem regressão para `Report-Only` |
-| E2E no CI | `PARTIALLY_IMPLEMENTED` | workflow executa `test:e2e:ci` e `security:browser-session`; specs autenticados e `production-*` continuam fora do CI automático |
-| Playwright local completo | `KNOWN_LIMITATION` | três specs `production-*` lançam guard de host em localhost em vez de fazer `skip` |
-| Logs de dois specs PROD | `STALE_TEST_DIAGNOSTIC` | `dashboard-financial-rbac` e `whatsapp-settings-rbac` passam pelas assertivas corretas, mas imprimem flags/resultados legados invertidos |
-| Node local | `INCONSISTENT_CONFIG` | `.nvmrc` diz 20; `package.json` e CI exigem 22 |
-| Runtime fail-closed | `REQUIRES_MANUAL_VALIDATION` | `DATABASE_URL_RUNTIME` sem `BYPASSRLS` depende de role externo |
-| Migration `0051` | `DRIFT_CONFIRMED` | timestamp/ordem coincidem no DEV, mas o hash aplicado não corresponde ao arquivo nem a LF/CRLF; objetos atuais foram confirmados |
-| Trigger de plano | `LEAST_PRIVILEGE_GAP` | `bump_plan_claims_version()` é `SECURITY DEFINER` com `PUBLIC EXECUTE` no DEV; corrigir por nova migration |
-| Templates Meta | `EXTERNAL_DRIFT` | `cobranca_amigavel` ausente; reminder/follow-up aprovados como `MARKETING`, não `UTILITY` |
-| E-mail | `OPERATIONAL_RISK` | 33 dos 100 envios mais recentes da conta Resend observada estavam `bounced`; vínculo integral com PROD é incerto |
-| Signed URLs | `KNOWN_LIMITATION` | URL já emitida pode continuar válida até TTL/cache expirar |
-| Cash-flow rollup | `KNOWN_LIMITATION` | janela padrão de três dias pode não recomputar estorno muito antigo sem operação ampliada |
+| Nova oferta | Até 5 médicos e até 3 acessos administrativos; sem compra online do quarto administrativo | [Planos e acessos](/billing/plans-and-seats) |
+| Anual novo | Default de vendas desativado; contratos e código anual preservados | [Assinaturas](/billing/subscriptions) |
+| Uso de IA | Referência com avisos, sem cobrança automática de excedente ou bloqueio por essa franquia | [Planos e acessos](/billing/plans-and-seats) |
+| Estorno de paciente | Sem novas solicitações automáticas; decisão e ação da clínica, com fatos reconciliados | [Política financeira](/domains/financial-policy) |
+| Documento fiscal | Comprovante de pagamento não equivale a NF ou recibo fiscal | [Política financeira](/domains/financial-policy) |
+| IA | Provedor funcional Gemini; integração e capacidade dependem da configuração do ambiente | [Agente](/ai/agent) |
+| Mensageria | Caminho funcional Meta Cloud API; presença de um adaptador não comprova outro provedor operacional | [Provedores](/integrations/providers) |
+| Assinatura de URL | Uma URL já emitida pode continuar válida até TTL/cache; preferir os caminhos autenticados existentes | [Segurança](/security/model) |
+| Agregado de caixa | Estorno fora da janela de recálculo pode exigir operação ampliada autorizada | [Agenda e financeiro](/domains/scheduling-financial) |
 
-Adicionar o SDK GCP é dependência de produção e requer confirmação explícita; esta refatoração documental não o adiciona.
+## O que exige evidência no ambiente alvo
 
-## Estado externo a validar por ambiente
+- Revisão publicada, flags e segredos configurados no deployment.
+- Journal e hashes de migrations, grants, RLS, role runtime e pools.
+- Buckets privados, políticas, arquivos recuperáveis e configurações Auth.
+- Webhooks, templates, opt-in, janela de envio e aceite/entrega Meta.
+- Correspondência entre o provedor de pagamento e a persistência local.
+- Widget/domínio e validação real do Turnstile no caminho de risco aplicável.
+- Projeto, tier, faturamento e capacidade do Gemini, sem teste com dados clínicos.
+- Crons, heartbeats, alertas e recuperação operacional.
 
-- migrations `0000`–`0079`, grants/policies e role runtime em produção; DEV foi validado;
-- Data API desabilitada quando a arquitetura exige somente backend;
-- buckets, privacidade, CORS e políticas Storage;
-- crons ativos, heartbeats recentes e timezone operacional;
-- primeira cobrança/settlement real Asaas; cobranças atuais continuam pendentes;
-- atribuição dos e-mails Resend ao deploy e causa dos bounces;
-- Sentry, Better Stack e teste real dos canais de alerta;
-- restore isolado de um backup recente;
-- deploy/commit e variáveis corretas em Preview/Production.
+Esses itens não recebem `FAIL` apenas porque não foram consultados nesta tarefa.
+Uma revisão documental não deve repetir operações financeiras nem ampliar acesso.
 
-## Não criar por inferência
+## Achados de versões anteriores
 
-Não há evidência atual para plano `Pro+`, billing Stripe, failover Z-API, media/STT/TTS no agente, API pública, attachments em feedback ou editor visual de workflow. Eles não são roadmap oficial.
+A versão anterior desta página misturava limites estruturais com leituras remotas
+datadas: 80 migrations, drift de `0051`, grants DEV, templates Meta e bounces de
+e-mail. Esses registros continuam no histórico do Git e nos relatórios do
+[catálogo](/catalog), mas **não são aqui reapresentados como situação atual**.
+Também há provas de recuperação posteriores aos antigos marcadores “restore
+pendente”; use o relatório correspondente, com seu ambiente e alcance.
+
+Antes de reproduzir um achado histórico, confira se a mesma revisão, configuração
+e condição ainda existem. Registre certeza e limite da evidência.
+
+## Não inferir funcionalidade
+
+Presença em especificação, placeholder ou nome de rota não comprova API pública,
+failover de provedor, transcrição de áudio, editor visual de workflow, NF ou
+recurso externo contratado. Consulte implementação, testes e configuração antes
+de anunciar qualquer entrega.

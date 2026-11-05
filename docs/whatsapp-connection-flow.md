@@ -1,8 +1,12 @@
-# Conexão do WhatsApp
+---
+title: "Conexão do WhatsApp"
+description: "Conexão do WhatsApp — responsabilidades, fontes e limites da implementação."
+docType: "reference"
+---
 
 ## Status
 
-Reference — complemento de [integrações](integrations/providers.md).
+Reference — complemento de [integrações](/integrations/providers).
 
 ## Fluxo atual
 
@@ -15,7 +19,7 @@ Reference — complemento de [integrações](integrations/providers.md).
 7. cron `/api/cron/whatsapp-health` verifica conectividade;
 8. a saúde de ENVIO (`health_status` da Meta: a conta pode iniciar conversa?) é lida na conexão, na
    tela, no cron diário `/api/cron/whatsapp-messaging-health` e na primeira recusa por forma de
-   pagamento (131042/141006), e aparece na tela e no painel — [ADR-063](adr/063-saude-de-envio-whatsapp.md).
+   pagamento (131042/141006), e aparece na tela e no painel — [ADR-063](https://github.com/joaomarcos-techia/Project_OS/blob/af677c00cfb9a4faa8474ddbf1d69d489d8c8849/docs/adr/063-saude-de-envio-whatsapp.md).
 
 O cadastro usa o **Embedded Signup v4**: `META_CONFIG_ID` é uma configuração do Facebook Login for
 Business com a variação "Cadastro incorporado do WhatsApp" e o produto WhatsApp Cloud API, e o

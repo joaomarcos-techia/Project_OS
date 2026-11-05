@@ -1,4 +1,8 @@
-# Agente de IA no WhatsApp
+---
+title: "Agente de IA no WhatsApp"
+description: "Agente de IA no WhatsApp — responsabilidades, fontes e limites da implementação."
+docType: "reference"
+---
 
 ## Status
 

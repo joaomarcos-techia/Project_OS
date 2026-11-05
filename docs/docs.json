@@ -1,0 +1,119 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "Qoro",
+  "colors": {
+    "primary": "#5133F9",
+    "light": "#8270FF",
+    "dark": "#5133F9"
+  },
+  "favicon": "/assets/qoro-icon.svg",
+  "logo": {
+    "light": "/assets/qoro-logo.svg",
+    "dark": "/assets/qoro-logo-dark.svg"
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Visão geral",
+        "groups": [
+          {
+            "group": "Comece aqui",
+            "pages": ["index", "overview/current-state", "overview/reading-paths"]
+          },
+          { "group": "Mapa documental", "pages": ["catalog", "engineering/documentation"] }
+        ]
+      },
+      {
+        "tab": "Arquitetura",
+        "groups": [
+          {
+            "group": "Sistema",
+            "pages": [
+              "architecture/overview",
+              "architecture/context-map",
+              "architecture/c4",
+              "architecture/risks"
+            ]
+          },
+          {
+            "group": "Infraestrutura",
+            "pages": [
+              "database/schema",
+              "backend/http-jobs-outbox",
+              "frontend/routes-and-access",
+              "security/model",
+              "integrations/providers"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Domínios",
+        "groups": [
+          {
+            "group": "Identidade e contratação",
+            "pages": [
+              "onboarding/signup",
+              "onboarding/invitations",
+              "billing/subscriptions",
+              "billing/plans-and-seats"
+            ]
+          },
+          {
+            "group": "Operação da clínica",
+            "pages": [
+              "domains/patient-clinical-lgpd",
+              "domains/scheduling-financial",
+              "domains/financial-policy",
+              "ai/agent",
+              "whatsapp-connection-flow"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Desenvolvimento",
+        "groups": [
+          {
+            "group": "Preparação",
+            "pages": ["development/setup", "development/environment", "development/onboarding"]
+          },
+          {
+            "group": "Mudança e validação",
+            "pages": [
+              "development/testing",
+              "engineering/git-workflow",
+              "engineering/decision-guide",
+              "engineering/definition-of-done",
+              "engineering/ai-development"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Operação",
+        "groups": [
+          {
+            "group": "Procedimentos",
+            "pages": [
+              "runbooks/index",
+              "operations/deployment-observability",
+              "runbooks/migrations",
+              "runbooks/disaster-recovery",
+              "runbooks/production-readiness"
+            ]
+          },
+          {
+            "group": "Limites e evidências",
+            "pages": ["roadmap/known-limitations", "quality/index", "specs/index"]
+          }
+        ]
+      },
+      {
+        "tab": "Decisões",
+        "groups": [{ "group": "Registros de decisão", "pages": ["adr/index"] }]
+      }
+    ]
+  }
+}

@@ -1,4 +1,8 @@
-# Recuperação de banco — Qoro
+---
+title: "Recuperação de banco — Qoro"
+description: "Recuperação de banco — Qoro — responsabilidades, fontes e limites da implementação."
+docType: "reference"
+---
 
 ## Alcance do backup
 
@@ -14,7 +18,7 @@ Este snapshot **não** inclui objetos do Supabase Storage, nem substitui as conf
 - Nova cópia da Produção obtida **somente por leitura**, com Auth e public no mesmo `pg_dump`: GPG e `pg_dump` exit 0; 2.965.219 bytes decifrados em memória; 600.448 bytes cifrados; SHA-256 do arquivo cifrado `76f17b44e3d3e87b3735a0606295d389be7b013ff42a35eb7c4dee76292b778d`. Está em `%TEMP%/qoro-restore-lab-20261028/prod-20261028-public-auth.sql.gpg`, fora do Git. Não é o artifact antigo.
 - Restaurada com `psql` 17.11, `ON_ERROR_STOP=1`, função local `supabase_admin`, exit 0 e zero erros SQL. No destino: 135 tabelas public, 27 auth, 8 usuários Auth, 4 clínicas, 8 profiles, 4 assinaturas, 25 pacientes, 64 agendamentos, 1.486 eventos de auditoria, 254 FKs public, 145 políticas public e zero constraints public não validadas. Essas contagens agregadas coincidiram com leitura da origem após o backup.
 - Destino: dois contêineres descartáveis com `--network none`, nenhuma porta, `--log-driver none`, dados PostgreSQL em `tmpfs`, memória e limite de swap iguais; nenhum SQL decifrado foi gravado como arquivo. Após as verificações, os dois contêineres e o volume sintético de inicialização foram removidos. O arquivo GPG original de 26/10 foi preservado.
-- A sequência 0119–0132 passou, 14/14, numa segunda restauração isolada. Consultar [fechamento da oferta](../quality/fechamento-oferta-2026-10-28.md) para os readbacks.
+- A sequência 0119–0132 passou, 14/14, numa segunda restauração isolada. Consultar [fechamento da oferta](https://github.com/joaomarcos-techia/Project_OS/blob/af677c00cfb9a4faa8474ddbf1d69d489d8c8849/docs/quality/fechamento-oferta-2026-10-28.md) para os readbacks.
 
 **Limite da prova:** recuperação lógica de `public`+`auth` e compatibilidade das migrations. Não houve restauração de objetos Storage, configuração completa do serviço ou recuperação da Produção ativa.
 
@@ -138,10 +142,10 @@ Execução final após adequação ESM do SMTP: **103.893 ms** (a execução ant
 
 **PASS:** Auth real recuperado com identidades inteiramente sintéticas, hook/parser/RLS e e-mail local. **PARTIAL:** reconstrução do serviço completo com todas as dependências externas/chaves em cofre e HTTP de uma instância Next recuperada. O ensaio não restaura fatores MFA de pacientes reais, não envia e-mail real e não mede RTO de produção. A comparação Auth/Storage/banco deve continuar respeitando snapshots de horários diferentes.
 
-Pacote portável cifrado, prova de recuperação Linux sem DPAPI, rotina e monitor estão detalhados em [recuperação portável e rotina](recuperacao-portavel-e-rotina-2026-10.md). A exportação real e o agendamento Storage/Auth aguardam o destino independente aprovado. Não há ação de login administrativo pendente.
+Pacote portável cifrado, prova de recuperação Linux sem DPAPI, rotina e monitor estão detalhados em [recuperação portável e rotina](https://github.com/joaomarcos-techia/Project_OS/blob/af677c00cfb9a4faa8474ddbf1d69d489d8c8849/docs/runbooks/recuperacao-portavel-e-rotina-2026-10.md). A exportação real e o agendamento Storage/Auth aguardam o destino independente aprovado. Não há ação de login administrativo pendente.
 
 ## Consolidação corrente — 30/10/2026
 
-A nova [auditoria de fechamento](../quality/fechamento-definitivo-oferta-2026-10-30.md) encerrou a lacuna da 0133 no backup real: **15/15 migrations**, campos legados preservados e rollback/concorrência comprovados. O Auth real sintético passou 14 verificações com **134 migrations**. O E2E passou também com a sessão anterior ao downgrade, sem refresh e sem gravação. A configuração da IA tem fallback operacional já existente; corrigiu-se a leitura para que erro/corrupção não reative Gemini. As fotografias anteriores de 14 migrations e ausência de mecanismo identificado de fallback são históricas, não o estado corrente. Produção não foi alterada.
+A nova [auditoria de fechamento](https://github.com/joaomarcos-techia/Project_OS/blob/af677c00cfb9a4faa8474ddbf1d69d489d8c8849/docs/quality/fechamento-definitivo-oferta-2026-10-30.md) encerrou a lacuna da 0133 no backup real: **15/15 migrations**, campos legados preservados e rollback/concorrência comprovados. O Auth real sintético passou 14 verificações com **134 migrations**. O E2E passou também com a sessão anterior ao downgrade, sem refresh e sem gravação. A configuração da IA tem fallback operacional já existente; corrigiu-se a leitura para que erro/corrupção não reative Gemini. As fotografias anteriores de 14 migrations e ausência de mecanismo identificado de fallback são históricas, não o estado corrente. Produção não foi alterada.
 
-Cofre/cópia independente, configuração externa Auth, desafio real Turnstile, painel Gemini, RTO/contingência e aprovações seguem no [guia humano simplificado](../runbooks/acoes-manuais-pendentes-pricing-2026-10.md). A ausência de PITR e o aceite limitado do intervalo entre backups não encerram esses gates.
+Cofre/cópia independente, configuração externa Auth, desafio real Turnstile, painel Gemini, RTO/contingência e aprovações seguem no [guia humano simplificado](https://github.com/joaomarcos-techia/Project_OS/blob/af677c00cfb9a4faa8474ddbf1d69d489d8c8849/docs/runbooks/acoes-manuais-pendentes-pricing-2026-10.md). A ausência de PITR e o aceite limitado do intervalo entre backups não encerram esses gates.

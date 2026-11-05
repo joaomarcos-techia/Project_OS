@@ -1,4 +1,8 @@
-# Workflow Git
+---
+title: "Workflow Git"
+description: "Workflow Git — responsabilidades, fontes e limites da implementação."
+docType: "reference"
+---
 
 ## Status
 

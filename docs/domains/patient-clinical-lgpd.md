@@ -1,4 +1,8 @@
-# Pacientes, dados clínicos e LGPD
+---
+title: "Pacientes, dados clínicos e LGPD"
+description: "Pacientes, dados clínicos e LGPD — responsabilidades, fontes e limites da implementação."
+docType: "reference"
+---
 
 ## Status
 

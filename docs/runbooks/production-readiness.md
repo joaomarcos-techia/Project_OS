@@ -1,4 +1,8 @@
-# Prontidão de produção
+---
+title: "Prontidão de produção"
+description: "Prontidão de produção — responsabilidades, fontes e limites da implementação."
+docType: "reference"
+---
 
 ## Status
 
@@ -58,4 +62,4 @@ Confirme heartbeats/efeitos de cada grupo; presença no manifesto não prova exe
 
 Não declarar `GO-LIVE READY` com item obrigatório `FAIL`, `BLOCKED` ou `NOT TESTED`. Registre o resultado datado em evidência externa/release, não transforme este runbook em diário histórico.
 
-O snapshot de 2026-08-18 em [evidence snapshots](../archive/evidence-snapshots.md) confirma várias bordas e três controles E2E autenticados read-only, mas não fecha settlement Asaas, alert delivery, restore nem a matriz Browser E2E completa; portanto não é uma aprovação global de release.
+O snapshot de 2026-08-18 em [evidence snapshots](https://github.com/joaomarcos-techia/Project_OS/blob/af677c00cfb9a4faa8474ddbf1d69d489d8c8849/docs/archive/evidence-snapshots.md) confirma várias bordas e três controles E2E autenticados read-only, mas não fecha settlement Asaas, alert delivery, restore nem a matriz Browser E2E completa; portanto não é uma aprovação global de release.

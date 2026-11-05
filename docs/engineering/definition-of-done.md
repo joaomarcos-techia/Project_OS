@@ -1,4 +1,8 @@
-# Definition of Done
+---
+title: "Definition of Done"
+description: "Definition of Done — responsabilidades, fontes e limites da implementação."
+docType: "reference"
+---
 
 ## Status
 
@@ -14,4 +18,4 @@ Canonical — condição para concluir uma mudança.
 - bordas não testadas são declaradas como `NOT TESTED`/`REQUIRES_MANUAL_VALIDATION`;
 - migration, deploy, provider live ou operação destrutiva só foram executados com autorização.
 
-Checklist executável: [development/testing.md](../development/testing.md).
+Checklist executável: [development/testing.md](/development/testing).

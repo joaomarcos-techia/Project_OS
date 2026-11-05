@@ -1,118 +1,117 @@
-# Billing SaaS e assinaturas
+---
+title: "Assinaturas e cobrança do SaaS"
+description: "Contratação, trial, mudança de plano, cancelamento e reconciliação da assinatura Qoro no Asaas."
+docType: "reference"
+reviewedAt: "2026-11-05"
+---
 
-## Status
+## Responsabilidade
 
-Canonical — planos, quotas, Asaas, estados e acesso da clínica.
+`billing` controla o contrato entre a clínica e a Qoro. O pagamento do paciente
+à clínica pertence a `payments`; recebíveis, créditos e repasses pertencem a
+`financial`. Veja a [política financeira](/domains/financial-policy).
 
-## Source of Truth
+Asaas é o provedor implementado. Plano e preço são entidades diferentes; o preço
+efetivo da assinatura pode ter condição contratual própria. A nova oferta e os
+contratos legados convivem. A tabela atual e a classificação de médicos/equipe
+ficam em [planos e acessos](/billing/plans-and-seats), sem duplicar o catálogo aqui.
 
-`src/contexts/billing`, `scripts/seed-plans.ts`, onboarding, webhook/cron routes e migrations.
+Fontes: `src/contexts/billing`, `src/contexts/onboarding`,
+`src/app/api/webhooks/asaas`, `scripts/seed-plans.ts` e migrations.
 
-## Provider e catálogo
+## Contratação e trial
 
-Asaas é o único provider implementado. Plano e preço são entidades separadas; preços ativos podem incluir campanha. A UI/banco deve ler o catálogo, não hardcodear valores.
+O [cadastro autônomo](/onboarding/signup) preserva identidade, confirmação e
+plano antes de abrir o Checkout hospedado. Os valores são resolvidos no servidor.
+O [convite de clínica](/onboarding/invitations) é um fluxo distinto, mantido
+por compatibilidade; não deduza sua regra a partir da tela de cadastro autônomo.
 
-Defaults do seed versionado:
+Na oferta 2026, o trial termina **14 dias após `auth.users.created_at`**. Reenvio de
+código, retomada e provisionamento não reiniciam esse prazo. A recorrência e uma
+cobrança futura podem ser cadastradas antes do término; isso não significa uma
+cobrança paga antecipadamente. O primeiro vencimento usa a data UTC seguinte ao
+fim exato do prazo. Se o Checkout ocorrer após o trial, o vencimento pode ser
+hoje e a liberação depende do pagamento confirmado.
 
-| Plano | Mensal | Anual | Assentos | Agendamentos | IA |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Solo | R$ 149,00 | R$ 1.519,80 | 1 | 200 | 200 |
-| Clínica | R$ 349,00 | R$ 3.559,80 | 5 | 800 | 800 |
-| Pro | R$ 699,00 | R$ 7.129,80 | 10 | 2.500 | 2.500 |
+`OFFER_2026_ANNUAL_NEW_SALES_ENABLED` tem default `false`. A contratação anual
+nova é filtrada e recusada no servidor quando a flag está desativada. O código
+anual e os contratos existentes permanecem preservados. Verifique a configuração
+efetiva do deployment antes de declarar a modalidade disponível.
 
-Somente **assentos** bloqueiam operação. Agendamentos e IA são contadores/métricas, mesmo quando superam o valor do catálogo. Permissões granulares são feature dos planos Clínica e Pro. Não existe plano `Pro+` nem overage automático.
+## Checkout, webhook e persistência
 
-**Política planejada, ainda não promovida:** configuração de preço por meio de
-pagamento, base/regra de repasse profissional e relatórios econômicos avançados
-serão recursos dos planos **Clínica e Pro**, não do Solo. A visibilidade básica
-de bruto, tarifa e líquido por cobrança pertence a todos os planos, inclusive
-Solo. O desenho, os defaults, o tratamento de downgrade e os critérios de
-ativação estão em
-[Política financeira em camadas](../specs/politica-financeira-camadas.md).
+1. O servidor registra a intenção e reutiliza um Checkout pendente compatível.
+2. O Asaas recebe a contratação no ambiente correspondente.
+3. Webhook autenticado e reconciliação consultam fatos no provedor.
+4. Os registros locais de invoice, assinatura e provisionamento avançam de forma
+   idempotente. Retorno do navegador não é comprovante de pagamento.
+5. A interface consulta o estado persistido e comunica pendência ou conclusão.
 
-## Ciclo e estados
+O endpoint SaaS é `/api/webhooks/asaas`. Ele não se confunde com
+`/api/webhooks/asaas/patient/...`. Eventos duplicados são controlados em
+`processed_webhooks`; confirmações e cancelamentos de invoice têm tratamento
+terminal. Não repita uma operação financeira após timeout sem reler o provedor.
 
-- ciclos: `monthly`, `annual`;
-- assinatura: `trial`, `active`, `past_due`, `cancelled`;
-- invoice: `open`, `partial`, `paid`, `overdue`, `cancelled`;
-- trial do onboarding por convite (`/join`): 14 dias. O cadastro autônomo é um
-  fluxo separado e sua regra de trial não deve ser inferida desta constante.
-- na oferta 2026 do cadastro autônomo: **14 dias desde `auth.users.created_at`**,
-  sem reinício por reenvio, retomada do draft ou provisionamento. O Checkout pode
-  cadastrar a recorrência e uma parcela futura antes do fim; o primeiro vencimento
-  é a data UTC seguinte ao fim exato do trial, para evitar cobrança antecipada.
-  Se o Checkout ocorrer após o prazo, vence na data corrente e a clínica só é
-  liberada após confirmação do pagamento. Fonte: `onboarding/internal/signup-trial.ts`.
+## Upgrade e médico adicional
 
-Transições são monotônicas para tolerar webhook fora de ordem. `paid`/`cancelled` de invoice são terminais; refund vive em payment attempts. Assinatura `cancelled → active` só ocorre no fluxo auditado de reativação após aceite Asaas.
+O upgrade calcula a diferença proporcional em centavos sobre o preço efetivo,
+cria uma cobrança avulsa e só aplica a mudança após a confirmação exigida.
+`syncProviderPlanChange` confirma o valor recorrente no Asaas e as parcelas
+editáveis do novo ciclo antes de aplicar o plano local. A cota não pode aumentar
+apenas porque o cliente abriu o link ou voltou da página de pagamento.
 
-## Checkout e cobrança
+Na Clínica 2026, comprar um médico adicional é uma mudança para a variante de
+plano correspondente. Não existe compra online de um quarto acesso administrativo
+nesta oferta. Convites, reativação, papel e CRM devem respeitar as cotas separadas.
 
-O onboarding por convite (`/join`) cria customer/assinatura com cartão antes da
-transação local. Webhook `/api/webhooks/asaas` valida token, deduplica em
-`processed_webhooks` e consulta o payment no provider antes de aplicar a
-mudança; notificação não é tratada como verdade suficiente.
+## Downgrade e mudança de ciclo
 
-Reconciliação diária lista/consulta pagamentos e corrige invoices/assinatura/trocas agendadas ausentes. Resultados ambíguos falham fechados e são registrados; não repetir cobrança financeira sem confirmar o estado do provider.
+Downgrade fica agendado para o fim do ciclo. A solicitação e a aplicação conferem
+novamente os usuários ativos não excluídos e, na oferta 2026, as cotas de médicos
+e equipe. Se a clínica deixar de caber, a mudança falha sem desativar pessoas
+automaticamente.
 
-## Troca de plano
+A sincronização usa `updatePendingPayments: false` para não reprecificar dívidas
+anteriores indiscriminadamente. Parcelas editáveis a partir do novo ciclo são
+ajustadas explicitamente e relidas. Valor incompatível em cobrança processada
+impede aplicação local e exige revisão; histórico pago não é apagado.
 
-### Upgrade
+Troca mensal/anual vale no próximo vencimento, sem acerto proporcional de ciclo.
+A oferta anual nova começa por cartão; migração de mensal Pix/boleto para anual
+não deve contornar a necessidade de um meio de pagamento compatível. A política
+de vendas anuais desativadas continua valendo para novas contratações.
 
-Calcula prorrata em centavos sobre o preço efetivo/campanha, cria cobrança avulsa Asaas e aplica o plano somente após confirmação do pagamento.
+## Cancelamento e reativação
 
-**Histórico:** a lacuna identificada em 17/10 foi corrigida na integração da oferta.
-`syncProviderPlanChange` exige confirmação do valor recorrente no Asaas e ajusta,
-com releitura, as parcelas editáveis do novo ciclo antes de aplicar o plano local.
-Parcelas de ciclos anteriores e histórico pago são preservados. A compra de médico
-extra e a recorrência R$ 397 → R$ 544 foram comprovadas no Preview/Sandbox;
-ver [evidência de 26/10](../quality/finalizacao-oferta-2026-10-26.md).
+O fluxo cancela a renovação no provedor e confere o resultado antes de registrar
+o cancelamento local. Cobranças abertas abrangidas pela operação têm remoção e
+releitura; pagamentos anteriores e auditoria são preservados. O acesso segue até
+o fim do período pago ou trial segundo a política aplicável; inadimplência tem
+tratamento próprio.
 
-### Downgrade
+Repetir a solicitação não deve criar nova operação financeira. “Manter assinatura”
+revoga o cancelamento agendado após sincronizar o provedor; reativação de um
+contrato já cancelado segue o caminho auditado correspondente. No anual pré-pago,
+cancelar a renovação mantém o período contratado e não dispara estorno automático.
 
-Agenda para o fim do ciclo. Confere o teto do plano de destino na solicitação
-**e novamente** na aplicação, considerando somente usuários ativos e não excluídos.
-Na oferta 2026, confere também as vagas separadas de médicos e equipe. Se a
-condição mudou, a troca falha sem desativar pessoas automaticamente.
+## Permissões e inadimplência
 
-O sincronizador mantém `updatePendingPayments: false` na mudança da recorrência
-para não reprecificar indiscriminadamente dívidas antigas. Depois atualiza
-explicitamente cada parcela editável com vencimento a partir do novo ciclo e
-relê o resultado; uma cobrança processada com valor incompatível impede a
-aplicação local e exige revisão. O downgrade não apaga o histórico financeiro.
-O caminho Clínica 3 → Clínica 2 recebeu prova integrada com vencimento controlado
-no Preview/Sandbox; isso não equivale a uma troca executada em contrato real.
+O acesso depende da identidade, perfil ativo, estado da clínica, assinatura e
+política de autorização. Não use a frase “inadimplência nunca bloqueia login”
+como garantia universal: o gate de mutações de cobrança e a revogação individual
+de acesso são mecanismos diferentes.
 
-### Cancelamento
+Consulte `src/contexts/billing/internal/access.ts`, o gate de mutações e
+`src/lib/auth` para a política vigente. Direitos avançados da nova oferta ficam
+na Clínica; os direitos dos contratos legados são preservados conforme seu plano.
 
-Pode ser solicitado em `trial`, `active` ou `past_due`. A recorrência é pausada
-imediatamente no Asaas e as cobranças abertas são apagadas com releitura antes
-de o Qoro registrar o cancelamento. O acesso segue até o fim do período já pago
-ou do trial; em inadimplência, encerra em até um dia.
+## Diagnóstico e evidência
 
-A tela mantém uma confirmação visível tanto no cancelamento agendado quanto no
-estado final `cancelled`. Uma repetição idempotente retorna confirmação de que a
-assinatura já estava cancelada/agendada, sem nova chamada ao Asaas. Enquanto a
-mudança ainda não entrou em vigor, “Manter assinatura” religa a recorrência
-antes de revogar o registro local. Depois do estado final, “Reativar assinatura”
-sincroniza primeiro com o Asaas e reabre a clínica pelo caminho privilegiado.
+Compare intenção, Checkout, assinatura e payment no Asaas com invoice, assinatura,
+outbox e auditoria no Qoro. Use ids sanitizados; nunca registre chave, link com
+bypass, conteúdo de cartão ou dados pessoais. Teste com fixture rastreável e
+limpeza definida, em ambiente autorizado.
 
-## Inadimplência e acesso
-
-| Estágio | Efeito |
-| --- | --- |
-| D+1 | lembrete nativo Asaas |
-| D+3 | WhatsApp |
-| D+7 | WhatsApp + e-mail |
-| D+15 | `suspended_readonly`: mutations de negócio bloqueadas |
-| D+30 | `suspended`: mutations bloqueadas |
-
-Inadimplência nunca bloqueia login nem leitura de prontuário. O gate central de mutations abre exceções explícitas para worker/sistema, impersonação, pedido LGPD e reativação de assinatura.
-
-## Eventos e auditoria
-
-Outbox comunica ativações, mudanças, invoices, trial, dunning e acesso. `billing_events` é timeline auditável da conta e não substitui a outbox. Contrato: [events/billing](../contracts/events/billing.md).
-
-## Evidência externa
-
-Código/tests provam a estrutura. Customer, assinatura, webhook configurado, primeira cobrança/settlement, refund e reconciliação reais são `REQUIRES_MANUAL_VALIDATION` no ambiente-alvo.
+Os [relatórios](/quality/index) preservam as provas datadas de upgrade,
+downgrade, cadastro e médico adicional. Esta revisão documental não criou novos
+Checkouts, não consultou contratos reais e não comprovou renovação após um ano.

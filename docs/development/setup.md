@@ -1,4 +1,8 @@
-# Setup local
+---
+title: "Setup local"
+description: "Setup local — responsabilidades, fontes e limites da implementação."
+docType: "reference"
+---
 
 ## Status
 
@@ -16,7 +20,7 @@ Canonical — ambiente de desenvolvimento.
 pnpm install --frozen-lockfile
 ```
 
-Copie a estrutura de `.env.example` para `.env.local` e preencha somente credenciais DEV. O contrato real está em [environment.md](environment.md).
+Copie a estrutura de `.env.example` para `.env.local` e preencha somente credenciais DEV. O contrato real está em [environment.md](/development/environment).
 
 ## Executar
 
@@ -35,7 +39,7 @@ pnpm db:migrate:dev
 pnpm seed:dev
 ```
 
-Migrations/seeds alteram dados e não fazem parte do setup automático. Confirme o ambiente antes. Veja [runbooks/migrations.md](../runbooks/migrations.md).
+Migrations/seeds alteram dados e não fazem parte do setup automático. Confirme o ambiente antes. Veja [runbooks/migrations.md](/runbooks/migrations).
 
 ## Primeiro diagnóstico
 
@@ -45,4 +49,4 @@ pnpm lint
 pnpm test
 ```
 
-Para mudança completa, use todos os gates de [testing.md](testing.md).
+Para mudança completa, use todos os gates de [testing.md](/development/testing).

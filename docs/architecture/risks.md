@@ -1,8 +1,12 @@
-# Riscos arquiteturais — Camada -1
+---
+title: "Riscos arquiteturais — Camada -1"
+description: "Riscos arquiteturais — Camada -1 — responsabilidades, fontes e limites da implementação."
+docType: "reference"
+---
 
 ## Status
 
-Canonical — riscos levantados na **Camada -1** do [plano qorov2](../qorov2.md), com evidência no código.
+Canonical — riscos levantados na **Camada -1** do [plano qorov2](https://github.com/joaomarcos-techia/Project_OS/blob/af677c00cfb9a4faa8474ddbf1d69d489d8c8849/docs/qorov2.md), com evidência no código.
 
 ## Source of Truth
 
@@ -46,7 +50,7 @@ porque quase não enxerga arestas. O `pnpm arch:graphs` (que passa `tsConfig`) c
 de verdade, então o resultado histórico continua correto — mas por sorte, não por cobertura.
 
 **Decisão pendente:** corrigir o `arch:check` para passar o tsconfig. Fora do escopo da Camada -1
-(altera gate existente e pode acender CI). Está no [discovery log](../discovery-log.md).
+(altera gate existente e pode acender CI). Está no [discovery log](https://github.com/joaomarcos-techia/Project_OS/blob/af677c00cfb9a4faa8474ddbf1d69d489d8c8849/docs/discovery-log.md).
 
 ## R3 · `financial` ↔ `scheduling` é o único par mútuo entre contexts — `MÉDIA`
 
@@ -83,7 +87,7 @@ fecha (1.5).
 **Consequência:** o worker marca esses eventos como `skipped` — estado terminal **legítimo** para
 produtor que chegou antes do consumidor. O risco é o inverso: um evento que **deveria** ter handler
 entrar nesse balde e falhar em silêncio. A proteção existe (`pnpm check:registry:strict` falha para
-evento fora da allowlist), mas **não está no portão do §0.2**. Ver [discovery log](../discovery-log.md).
+evento fora da allowlist), mas **não está no portão do §0.2**. Ver [discovery log](https://github.com/joaomarcos-techia/Project_OS/blob/af677c00cfb9a4faa8474ddbf1d69d489d8c8849/docs/discovery-log.md).
 
 ## R7 · Migration `0051` com drift confirmado — `MÉDIA`
 
@@ -108,7 +112,7 @@ vai precisar ler agenda e paciente — deve usar **esta** via, não inventar uma
 outros só existem no histórico do git.
 
 **Consequência:** quem ler o comentário não acha o documento. Corrigir 34 referências espalhadas por
-`src/` seria mudança grande sem gap associado (§0.5) — vai para o [discovery log](../discovery-log.md)
+`src/` seria mudança grande sem gap associado (§0.5) — vai para o [discovery log](https://github.com/joaomarcos-techia/Project_OS/blob/af677c00cfb9a4faa8474ddbf1d69d489d8c8849/docs/discovery-log.md)
 com decisão do fundador sobre o destino (reintroduzir os ADRs citados ou limpar as citações).
 
 ## R10 · Ferramental de três gates não existe — `MÉDIA`
@@ -131,7 +135,7 @@ removido; o app scratch e o ferramental de carga continuam pendentes. `dependenc
 **Evidência:** `lib/db/schema/index.ts` reexporta `events.ts` de cada context; é isso que popula o
 catálogo onde `publishEvent` roda. Gera arestas `lib:db → context:*` no grafo.
 
-**Consequência:** parece inversão de camada e não é. Documentado no [c4.md](c4.md) para ninguém
+**Consequência:** parece inversão de camada e não é. Documentado no [c4.md](/architecture/c4) para ninguém
 "consertar" e quebrar o registro de eventos.
 
 ---
@@ -142,10 +146,10 @@ catálogo onde `publishEvent` roda. Gera arestas `lib:db → context:*` no grafo
 
 | ADR | Papel na Camada 1 |
 | --- | --- |
-| [049](../adr/049-pagamentos-paciente-sinal.md) | decisão do P0 — cobrança de paciente + sinal |
-| [007](../adr/007-rls-implementation-patterns.md) | RLS e dual-context: toda tabela nova é tenant-scoped |
-| [011](../adr/011-outbox-audit-idempotency-patterns.md) | outbox, auditoria e idempotência dos handlers |
-| [010](../adr/010-security-definer-patterns.md) | funções `SECURITY DEFINER`, se houver |
+| [049](https://github.com/joaomarcos-techia/Project_OS/blob/af677c00cfb9a4faa8474ddbf1d69d489d8c8849/docs/adr/049-pagamentos-paciente-sinal.md) | decisão do P0 — cobrança de paciente + sinal |
+| [007](https://github.com/joaomarcos-techia/Project_OS/blob/af677c00cfb9a4faa8474ddbf1d69d489d8c8849/docs/adr/007-rls-implementation-patterns.md) | RLS e dual-context: toda tabela nova é tenant-scoped |
+| [011](https://github.com/joaomarcos-techia/Project_OS/blob/af677c00cfb9a4faa8474ddbf1d69d489d8c8849/docs/adr/011-outbox-audit-idempotency-patterns.md) | outbox, auditoria e idempotência dos handlers |
+| [010](https://github.com/joaomarcos-techia/Project_OS/blob/af677c00cfb9a4faa8474ddbf1d69d489d8c8849/docs/adr/010-security-definer-patterns.md) | funções `SECURITY DEFINER`, se houver |
 
 ### Necessários (ainda não escritos)
 

@@ -1,4 +1,8 @@
-# Deploy, observabilidade e retenção
+---
+title: "Deploy, observabilidade e retenção"
+description: "Deploy, observabilidade e retenção — responsabilidades, fontes e limites da implementação."
+docType: "reference"
+---
 
 ## Status
 
@@ -16,7 +20,7 @@ Canonical — operação versionada; não é prova de saúde atual.
 - Playwright não roda no CI atual;
 - deploy bem-sucedido não prova provider, banco, Storage, cron ou jornada autenticada.
 
-Variáveis são validadas em `src/lib/env.ts`; veja [environment](../development/environment.md). `APP_BASE_URL` precisa apontar ao host canônico para links de convite.
+Variáveis são validadas em `src/lib/env.ts`; veja [environment](/development/environment). `APP_BASE_URL` precisa apontar ao host canônico para links de convite.
 
 ## Observabilidade
 
@@ -31,7 +35,7 @@ Em 2026-08-18, os três endpoints operacionais do deploy responderam 200 com aut
 
 Isso não prova notificação: a API Sentry não pôde ser lida com os tokens locais e não há credencial Better Stack. Regra, canal e teste de disparo continuam `REQUIRES_MANUAL_VALIDATION`.
 
-Buscas operacionais: [log-search](../runbooks/log-search.md). SLOs: [c16/slo](../c16/slo.md).
+Buscas operacionais: [log-search](https://github.com/joaomarcos-techia/Project_OS/blob/af677c00cfb9a4faa8474ddbf1d69d489d8c8849/docs/runbooks/log-search.md). SLOs: [c16/slo](https://github.com/joaomarcos-techia/Project_OS/blob/af677c00cfb9a4faa8474ddbf1d69d489d8c8849/docs/c16/slo.md).
 
 ## Retenção implementada
 
@@ -64,8 +68,8 @@ Para cada gate, reporte `PASS`, `FAIL`, `BLOCKED` ou `NOT TESTED` e identifique 
 4. configuração externa;
 5. jornada real autenticada/provider.
 
-Não use mock, bypass ou teste desabilitado para liberar uma borda externa. Matriz completa: [production-readiness](../runbooks/production-readiness.md).
+Não use mock, bypass ou teste desabilitado para liberar uma borda externa. Matriz completa: [production-readiness](/runbooks/production-readiness).
 
 ## Incidentes
 
-Triagem e cenários de Meta, Gemini, Asaas, Redis, LGPD e super-admin estão em [incident-response](../runbooks/incident-response.md). Desastre/restore em [disaster-recovery](../runbooks/disaster-recovery.md).
+Triagem e cenários de Meta, Gemini, Asaas, Redis, LGPD e super-admin estão em [incident-response](https://github.com/joaomarcos-techia/Project_OS/blob/af677c00cfb9a4faa8474ddbf1d69d489d8c8849/docs/runbooks/incident-response.md). Desastre/restore em [disaster-recovery](/runbooks/disaster-recovery).

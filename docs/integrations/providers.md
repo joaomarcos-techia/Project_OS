@@ -1,4 +1,8 @@
-# Integrações externas
+---
+title: "Integrações externas"
+description: "Integrações externas — responsabilidades, fontes e limites da implementação."
+docType: "reference"
+---
 
 ## Status
 
@@ -8,7 +12,9 @@ Canonical — providers implementados e limites de evidência.
 
 Adapters em `src/contexts`, `src/lib`, schemas de env e Route Handlers. Dashboard/credenciais externos exigem prova separada.
 
-## Matriz
+## Matriz de responsabilidades — evidência externa datada
+
+A coluna externa resume consultas históricas descritas abaixo. Não é um health check atual; nenhum provedor foi consultado durante esta reorganização.
 
 | Serviço | Uso | Estado no código | Estado externo |
 | --- | --- | --- | --- |
@@ -35,7 +41,7 @@ Adapters em `src/contexts`, `src/lib`, schemas de env e Route Handlers. Dashboar
 - Resend acessível pela credencial DEV: domínio `qoro.dev` verificado, envio habilitado; dos 100 envios mais recentes, 67 estavam `delivered` e 33 `bounced`;
 - Sentry não pôde ser inventariado: um token respondeu 401 e o token de build 403. Better Stack não possui credencial local.
 
-Detalhes datados: [evidence snapshots](../archive/evidence-snapshots.md). Evidência externa envelhece; revalide antes de release.
+Detalhes datados: [evidence snapshots](https://github.com/joaomarcos-techia/Project_OS/blob/af677c00cfb9a4faa8474ddbf1d69d489d8c8849/docs/archive/evidence-snapshots.md). Evidência externa envelhece; revalide antes de release.
 
 ## Evidência externa sanitizada — 2026-09-28
 
@@ -71,7 +77,7 @@ IDs de provider, chaves, destinatários e payloads não fazem parte deste regist
 - um refresh de credencial é tentado após 401/403;
 - formatos funcionais: texto e template. Mídia não está implementada;
 - conexão usa Embedded Signup v4 e health check a cada seis horas; falha não troca provider automaticamente;
-- coexistência com o app WhatsApp Business (0107): ver [whatsapp-connection-flow.md](../whatsapp-connection-flow.md#coexistência-app-whatsapp-business).
+- coexistência com o app WhatsApp Business (0107): ver [whatsapp-connection-flow.md](/whatsapp-connection-flow#coexistência-app-whatsapp-business).
 
 Templates no WABA conferidos pelo fundador em 2026-09-30 (todos ativos, qualidade pendente por ainda
 não terem envio):
@@ -92,7 +98,7 @@ operação/custo; não trate template aprovado como equivalente a categoria espe
 
 `MessagingProviderName` aceita `meta | zapi` para compatibilidade de schema. O `ZApiProvider` implementa a interface apenas para falhar explicitamente; não há endpoint, credencial, parser ou envio Z-API funcional.
 
-Detalhes de conexão: [whatsapp-connection-flow.md](../whatsapp-connection-flow.md).
+Detalhes de conexão: [whatsapp-connection-flow.md](/whatsapp-connection-flow).
 
 ## Gemini
 
@@ -115,4 +121,4 @@ Resend envia convites e notificações. Ausência de configuração não deve fa
 
 ## Secrets
 
-Crypto escolhe backend `env` ou `gcp`. Em produção o default do código é `gcp`, mas `@google-cloud/secret-manager` é carregado dinamicamente e não está declarado no manifesto atual; esse modo é uma limitação confirmada até o runtime fornecer a dependência. Veja [limitações](../roadmap/known-limitations.md).
+Crypto escolhe backend `env` ou `gcp`. Em produção o default do código é `gcp`, mas `@google-cloud/secret-manager` é carregado dinamicamente e não está declarado no manifesto atual; esse modo é uma limitação confirmada até o runtime fornecer a dependência. Veja [limitações](/roadmap/known-limitations).

@@ -1,4 +1,8 @@
-# Banco, migrations e multi-tenancy
+---
+title: "Banco, migrations e multi-tenancy"
+description: "Banco, migrations e multi-tenancy — responsabilidades, fontes e limites da implementação."
+docType: "reference"
+---
 
 ## Status
 
@@ -10,11 +14,11 @@ Canonical — schema versionado e modelo de acesso a dados.
 2. `src/contexts/*/schema.ts` e `src/lib/db/schema` para contratos TypeScript.
 3. `src/lib/db/index.ts`, `tenant.ts` e `rls.ts` para execução.
 
-O repositório contém 80 migrations SQL (`0000`–`0079`) e 90 tabelas Drizzle. Isso não comprova, sozinho, que um ambiente externo aplicou todas elas.
+Na revisão-base de 05/11/2026, o journal contém **136 entradas**, até `0135_ai_clinic_operational_info`. Isso não comprova aplicação remota. Os números e a tabela por owner do snapshot de agosto abaixo são históricos, não um inventário atual.
 
 ## Evidência conectada — DEV, 2026-08-18
 
-O localhost está configurado para o Supabase DEV remoto via Transaction Pooler; o PostgreSQL que escuta na máquina em `:5432` não é o banco usado pela aplicação.
+**Snapshot de 18/08/2026, não revalidado nesta organização.** O localhost estava configurado para o Supabase DEV remoto via Transaction Pooler; o PostgreSQL que escuta na máquina em `:5432` não é o banco usado pela aplicação.
 
 - os 80 registros de `drizzle.__drizzle_migrations` têm a mesma ordem e timestamps do journal local;
 - 42 diferenças de hash são explicadas somente por LF/CRLF;
@@ -25,7 +29,7 @@ O localhost está configurado para o Supabase DEV remoto via Transaction Pooler;
 
 O ambiente PROD não foi usado para validar migrations/grants/RLS nesta rodada.
 
-## Inventário por owner
+## Inventário por owner — snapshot de agosto
 
 | Owner | Tabelas | Principais entidades |
 | --- | ---: | --- |
@@ -64,14 +68,14 @@ Todos usam postgres.js com `prepare: false`, SSL requerido e timeouts configurad
 
 Tabelas tenant-scoped usam `ENABLE ROW LEVEL SECURITY` e `FORCE ROW LEVEL SECURITY`. As policies aceitam o contexto controlado do backend e/ou claims JWT conforme o tipo de tabela. Catálogos globais e tabelas de plataforma têm policies específicas; RBAC de tela/ação não é substituído por RLS.
 
-O fallback de `db` para `DATABASE_URL` pode usar um papel com `BYPASSRLS`. Em produção, configure `DATABASE_URL_RUNTIME` com um papel `NOBYPASSRLS`; siga [o runbook](../runbooks/runtime-role-nobypassrls.md).
+O fallback de `db` para `DATABASE_URL` pode usar um papel com `BYPASSRLS`. Em produção, configure `DATABASE_URL_RUNTIME` com um papel `NOBYPASSRLS`; siga [o runbook](https://github.com/joaomarcos-techia/Project_OS/blob/af677c00cfb9a4faa8474ddbf1d69d489d8c8849/docs/runbooks/runtime-role-nobypassrls.md).
 
 ## Migrations
 
 - São append-only e ordenadas pelo prefixo numérico.
 - Um arquivo já aplicado nunca deve ser reescrito. O drift da `0051` deve ser tratado por diagnóstico e, se necessário, nova migration aditiva.
 - O gate `pnpm check:migrations` rejeita operações destrutivas não autorizadas.
-- Aplicação usa lock e registro de versão; detalhes em [runbooks/migrations.md](../runbooks/migrations.md).
+- Aplicação usa lock e registro de versão; detalhes em [runbooks/migrations.md](/runbooks/migrations).
 - Schema Drizzle e migration devem mudar juntos.
 - Rodar migration, seed produtivo, restore ou exclusão exige autorização e ambiente explicitamente identificado.
 
@@ -86,5 +90,5 @@ O fallback de `db` para `DATABASE_URL` pode usar um papel com `BYPASSRLS`. Em pr
 ## Verificação
 
 - estrutura local: `pnpm arch:db-check` e `pnpm check:migrations`;
-- banco conectado: consultas read-only do catálogo e testes comportamentais descritos no [runbook do papel runtime](../runbooks/runtime-role-nobypassrls.md), apenas no ambiente autorizado;
+- banco conectado: consultas read-only do catálogo e testes comportamentais descritos no [runbook do papel runtime](https://github.com/joaomarcos-techia/Project_OS/blob/af677c00cfb9a4faa8474ddbf1d69d489d8c8849/docs/runbooks/runtime-role-nobypassrls.md), apenas no ambiente autorizado;
 - migrations/grants/RLS em produção: `REQUIRES_MANUAL_VALIDATION`.

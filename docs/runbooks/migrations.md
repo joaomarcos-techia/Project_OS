@@ -1,4 +1,8 @@
-# Runbook de migrations
+---
+title: "Runbook de migrations"
+description: "Runbook de migrations — responsabilidades, fontes e limites da implementação."
+docType: "reference"
+---
 
 ## Status
 

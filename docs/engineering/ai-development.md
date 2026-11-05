@@ -1,4 +1,8 @@
-# Desenvolvimento assistido por IA
+---
+title: "Desenvolvimento assistido por IA"
+description: "Desenvolvimento assistido por IA — responsabilidades, fontes e limites da implementação."
+docType: "reference"
+---
 
 ## Status
 
@@ -6,7 +10,7 @@ Reference — uso seguro da documentação por agentes.
 
 ## Contexto mínimo
 
-Leia [README](../README.md), [CURRENT-STATE](../CURRENT-STATE.md), o documento canônico do domínio e o código ao redor. Documentos `Historical` são pistas, não requisitos.
+Leia [README](/index), [CURRENT-STATE](/overview/current-state), o documento canônico do domínio e o código ao redor. Documentos `Historical` são pistas, não requisitos.
 
 ## Execução
 
@@ -19,6 +23,6 @@ Leia [README](../README.md), [CURRENT-STATE](../CURRENT-STATE.md), o documento c
 
 ## Documentação automática
 
-Mudança arquitetural atualiza [VisãoGeral](../VisãoGeral.md) ou [context map](../architecture/context-map.md). Regra de domínio atualiza sua fonte canônica. Variável atualiza [environment](../development/environment.md). Cron/rota atualiza [backend](../backend/http-jobs-outbox.md) e os arquivos verificados por `check:observability`. Decisão duradoura atualiza [ADRs](../adr/README.md).
+Mudança arquitetural atualiza [VisãoGeral](/architecture/overview) ou [context map](/architecture/context-map). Regra de domínio atualiza sua fonte canônica. Variável atualiza [environment](/development/environment). Cron/rota atualiza [backend](/backend/http-jobs-outbox) e os arquivos verificados por `check:observability`. Decisão duradoura atualiza [ADRs](/adr/index).
 
 Não crie relatório de implementação permanente quando um diff/teste/CHANGELOG já preserva o histórico.
