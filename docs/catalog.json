@@ -974,6 +974,12 @@
       "source": "baseline"
     },
     {
+      "path": "quality/confirmacao-email-logo-2026-11-05.md",
+      "category": "evidence",
+      "title": "Logo no e-mail de confirmação — 05/11/2026",
+      "source": "checkout"
+    },
+    {
       "path": "quality/contas-novas-e-legadas-2026-10-26.md",
       "category": "evidence",
       "title": "Oferta 2026 — conta nova versus contratos legados",
