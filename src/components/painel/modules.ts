@@ -18,7 +18,7 @@ export interface NavModule {
 }
 
 export const MODULES: NavModule[] = [
-  { id: 'dashboard', icon: 'dashboard', label: 'Dashboard', group: 'Operação', href: '/dashboard' },
+  { id: 'dashboard', icon: 'home', label: 'Dashboard', group: 'Operação', href: '/dashboard' },
   { id: 'agenda', icon: 'calendar', label: 'Agenda', group: 'Operação', href: '/agenda' },
   {
     id: 'consultorio',
@@ -28,7 +28,7 @@ export const MODULES: NavModule[] = [
     href: '/consultorio',
   },
   { id: 'pacientes', icon: 'users', label: 'Pacientes', group: 'Clínico', href: '/pacientes' },
-  { id: 'documentos', icon: 'docs', label: 'Documentos', group: 'Clínico', href: '/documentos' },
+  { id: 'documentos', icon: 'record', label: 'Documentos', group: 'Clínico', href: '/documentos' },
   { id: 'financeiro', icon: 'wallet', label: 'Financeiro', group: 'Gestão', href: '/financeiro' },
   { id: 'caixa', icon: 'cash', label: 'Caixa', group: 'Gestão', href: '/caixa' },
   { id: 'conversas', icon: 'chat', label: 'Conversas IA', group: 'Gestão', href: '/conversas' },

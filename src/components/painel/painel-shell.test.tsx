@@ -73,6 +73,25 @@ describe('shell tenant das referências HTML', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Fechar navegação' }));
     expect(trigger.getAttribute('aria-expanded')).toBe('false');
   });
+  it('alterna o rótulo de fixar o menu e mostra a clínica no link de início', () => {
+    render(
+      <PainelShell userName="Maria" clinicName="Clínica Sol" settingsHref="/configuracoes">
+        <h1>Painel</h1>
+      </PainelShell>,
+    );
+    expect(screen.getByRole('link', { name: 'Clínica Sol — início' }).getAttribute('href')).toBe(
+      '/',
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Fixar menu aberto' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Recolher menu' }));
+    expect(screen.getByRole('button', { name: 'Fixar menu aberto' })).toBeTruthy();
+  });
+  it('cada destino do menu mantém o nome exato, sem depender do rótulo visível', () => {
+    renderShell();
+    for (const name of ['Dashboard', 'Agenda', 'Caixa', 'Financeiro', 'Relatórios']) {
+      expect(screen.getByRole('link', { name })).toBeTruthy();
+    }
+  });
   it('isola a aparência e preserva acesso ao conteúdo e contagem de handoff', () => {
     const { container } = renderShell();
     expect(container.querySelector('[data-qoro-shell="tenant"]')).toBeTruthy();

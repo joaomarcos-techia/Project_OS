@@ -29,15 +29,21 @@ export type AppointmentStatus =
  * `chegou` é "Aguardando" e não "Chegou" pelo mesmo motivo: quem lê a agenda
  * precisa saber o que está acontecendo AGORA — que há alguém esperando —, não
  * registrar um fato que já passou.
+ *
+ * Tons do app v5 (novembro/2026), os mesmos em Agenda, Consultório e Dashboard:
+ * confirmada é verde (a boa notícia do dia), em atendimento é o azul da marca,
+ * finalizada é marinho (concluída, sem pedir nada), falta é laranja e só
+ * aguardando/falta ganham fundo colorido — são as que pedem alguém agir.
+ * Cancelada é só contorno: saiu da conta do dia.
  */
 const APPOINTMENT: Record<AppointmentStatus, { tone: Tone; label: string }> = {
   agendado: { tone: 'gray', label: 'Agendada' },
-  confirmado: { tone: 'blue', label: 'Confirmada' },
+  confirmado: { tone: 'green', label: 'Confirmada' },
   chegou: { tone: 'amber', label: 'Aguardando' },
-  em_atendimento: { tone: 'violet', label: 'Em atendimento' },
-  atendido: { tone: 'green', label: 'Finalizada' },
-  cancelado: { tone: 'gray', label: 'Cancelada' },
-  faltou: { tone: 'red', label: 'Falta' },
+  em_atendimento: { tone: 'blue', label: 'Em atendimento' },
+  atendido: { tone: 'navy', label: 'Finalizada' },
+  cancelado: { tone: 'line', label: 'Cancelada' },
+  faltou: { tone: 'orange', label: 'Falta' },
 };
 
 export function AppointmentStatusBadge({ status }: { status: AppointmentStatus }) {

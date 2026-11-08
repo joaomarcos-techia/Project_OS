@@ -107,6 +107,7 @@ export default async function ShellLayout({ children }: { children: ReactNode })
       <PainelShell
         userName={id.userName}
         userRole={id.userRole}
+        clinicName={id.clinicName}
         settingsHref={settingsHref}
         {...(user.permissions.includes(PERMISSIONS.MANAGE_SETTINGS)
           ? { clinicSettingsHref: '/configuracoes/perfil' }
