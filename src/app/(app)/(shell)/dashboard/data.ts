@@ -24,6 +24,11 @@ export interface DashboardUpcoming {
   nome: string;
   /** Procedimento agendado — a terceira coluna de "Próximos da agenda". */
   procedimento: string;
+  /**
+   * Quem atende, sob o nome do paciente. É o snapshot que a própria consulta já
+   * carrega (`snapshotDoctorNome`): nenhuma leitura nova para exibi-lo.
+   */
+  profissional?: string;
   status: AppointmentStatusDTO;
 }
 
@@ -150,6 +155,7 @@ export async function getDashboard(clinicId: string, timezone: string): Promise<
     horario: a.scheduledAt,
     nome: nomeDe(a.patientId),
     procedimento: a.snapshotProcedureName,
+    profissional: a.snapshotDoctorNome,
     status: a.status,
   }));
 

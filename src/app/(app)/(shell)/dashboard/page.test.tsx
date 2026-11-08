@@ -152,6 +152,7 @@ describe('DashboardPage', () => {
       recebidoHoje: 18_000,
       pagoHoje: 0,
       saldoHoje: 18_000,
+      contagens: { receber: 0, receberVencidos: 0, pagar: 0, recebimentos: 0, pagamentos: 0 },
     });
     listCashFlowDaily.mockResolvedValue([{ date: '2026-08-19', totalRecebido: 12_000 }]);
     getRecentActivity.mockResolvedValue([
@@ -265,7 +266,9 @@ describe('DashboardPage', () => {
 
     try {
       render(await DashboardPage());
-      expect(screen.getByText('Hoje · quinta-feira, 03 de set. de 2026')).toBeTruthy();
+      // 01:00 UTC de sexta ainda é 22:00 de quinta em São Paulo: a data e a hora
+      // do subtítulo saem do fuso da clínica, não do servidor.
+      expect(screen.getByText('Quinta-feira, 3 de setembro · atualizado às 22:00')).toBeTruthy();
     } finally {
       vi.useRealTimers();
     }
@@ -279,6 +282,7 @@ describe('DashboardPage', () => {
       recebidoHoje: 0,
       pagoHoje: 0,
       saldoHoje: 0,
+      contagens: { receber: 0, receberVencidos: 0, pagar: 0, recebimentos: 0, pagamentos: 0 },
     });
     listCashFlowDaily.mockResolvedValue([]);
     getRecentActivity.mockResolvedValue([]);
@@ -365,6 +369,7 @@ describe('DashboardPage — mensagens automáticas do WhatsApp', () => {
       recebidoHoje: 0,
       pagoHoje: 0,
       saldoHoje: 0,
+      contagens: { receber: 0, receberVencidos: 0, pagar: 0, recebimentos: 0, pagamentos: 0 },
     });
     listCashFlowDaily.mockResolvedValue([]);
 

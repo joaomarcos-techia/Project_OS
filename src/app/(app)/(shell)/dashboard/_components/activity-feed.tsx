@@ -13,6 +13,8 @@ import {
 
 import type { AuditActivity } from '@/lib/audit/recent';
 
+import styles from '../dashboard.module.css';
+
 /**
  * Terceira pessoa do pretérito — a referência escreve o feed como FRASE, com
  * quem agiu no começo: "Dra. Ana Moraes assinou o prontuário". A forma anterior
@@ -101,7 +103,11 @@ function horaOuData(iso: string): string {
   });
 }
 
-/** Feed de atividade (audit) — 5 mais recentes, data sem quebra. */
+/**
+ * Feed de atividade (audit) — 5 mais recentes, data sem quebra.
+ * Linha do app v5: ícone num quadrado de 28 px, a frase com o ator em negrito
+ * e a hora do relógio à direita.
+ */
 export function ActivityFeed({
   activity,
   actorNames,
@@ -110,22 +116,19 @@ export function ActivityFeed({
   actorNames: Map<string, string>;
 }) {
   return (
-    <ul className="flex flex-col">
+    <ul className={styles.list}>
       {activity.slice(0, 5).map((a) => {
         const who = a.userId ? (actorNames.get(a.userId) ?? 'Sistema') : 'Sistema';
         const { frase, Icon } = describe(a.action);
         return (
-          <li
-            key={a.id}
-            className="flex items-start gap-2.5 border-b border-border py-3 text-(length:--fs-sm) first:pt-0 last:border-b-0 last:pb-0"
-          >
-            <Icon aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-fg-subtle" />
-            <span className="min-w-0 flex-1 text-pretty text-fg-muted">
-              <span className="font-semibold text-fg">{who}</span> {frase}
+          <li key={a.id} className={styles.actRow}>
+            <span aria-hidden="true" className={styles.actIcon}>
+              <Icon />
             </span>
-            <span className="shrink-0 font-mono text-(length:--fs-2xs) whitespace-nowrap tabular-nums text-fg-subtle">
-              {horaOuData(a.createdAt)}
+            <span className={styles.actText}>
+              <b>{who}</b> {frase}
             </span>
+            <span className={styles.actTime}>{horaOuData(a.createdAt)}</span>
           </li>
         );
       })}

@@ -27,6 +27,7 @@ export function dashboardDemoData(userId: string, days: string[], now = new Date
         horario: appointmentAt(20),
         nome: 'Paciente ilustrativo A',
         procedimento: 'Consulta de retorno',
+        profissional: 'Profissional ilustrativo',
         status: 'chegou',
       },
       {
@@ -34,6 +35,7 @@ export function dashboardDemoData(userId: string, days: string[], now = new Date
         horario: appointmentAt(50),
         nome: 'Paciente ilustrativo B',
         procedimento: 'Primeira consulta',
+        profissional: 'Profissional ilustrativo',
         status: 'confirmado',
       },
       {
@@ -41,6 +43,7 @@ export function dashboardDemoData(userId: string, days: string[], now = new Date
         horario: appointmentAt(80),
         nome: 'Paciente ilustrativo C',
         procedimento: 'Consulta de acompanhamento',
+        profissional: 'Profissional ilustrativo',
         status: 'agendado',
       },
     ],

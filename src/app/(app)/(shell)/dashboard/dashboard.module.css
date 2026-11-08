@@ -1,315 +1,584 @@
-.metricsPanel {
-  --panel-header-margin: 0;
-  padding: 0;
-  overflow: hidden;
-}
+/* Dashboard — Qoro App v5 (novembro/2026).
+   Corpo em coluna com 16 px entre blocos; cada linha junta um cartão largo e
+   um estreito que dividem a largura e empilham sozinhos quando ela acaba
+   (flex-basis 520/320, sem breakpoint escrito à mão). Cores e tipos vêm dos
+   tokens do tenant em `globals.css`. */
 
-.metricsPanel > :first-child {
-  min-height: 44px;
-  margin: 0;
-  padding: 8px 16px;
-  border-bottom: 1px solid var(--border);
-}
-
-.liveMetrics,
-.summaryMetrics {
-  gap: 0;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.liveMetrics {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.liveMetrics :global([data-slot='stat-card']),
-.summaryMetrics :global([data-slot='stat-card']) {
-  min-width: 0;
-  padding: 14px 18px;
-  border: 0;
-  border-right: 1px solid var(--border);
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-}
-
-.liveMetrics :global([data-slot='stat-card']):last-child,
-.summaryMetrics :global([data-slot='stat-card']):last-child {
-  border-right: 0;
-}
-
-.liveMetrics {
-  --stat-value-size: 30px;
-}
-
-.summaryMetrics :global([data-slot='stat-card']) {
-  padding: 12px 16px;
-}
-
-.summaryMetrics {
-  --stat-value-size: 19px;
-}
-
-.summaryGrid,
-.contentGrid,
-.contentSingle {
-  display: grid;
-  gap: 14px;
-  margin-top: 14px;
-  min-width: 0;
-}
-
-.summaryGrid {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr));
-}
-
-.mainColumn {
+.body {
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
 }
 
-.panel {
+/* O checklist (onboarding) segue como está; só entra no ritmo de 16 px. */
+.body > :global([data-slot='activation-checklist']) {
+  margin-bottom: 0;
+}
+
+.row {
+  display: flex;
   min-width: 0;
-  align-self: stretch;
-  overflow: hidden;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 16px;
 }
 
-.appointments {
-  margin: -4px -16px -16px;
+.wide {
+  min-width: 0;
+  flex: 1.7 1 520px;
 }
 
-.appointments > li {
-  display: grid;
-  grid-template-columns: 64px minmax(0, 1fr) 210px 150px;
-  gap: 12px;
-  align-items: center;
-  min-height: 46px;
-  padding: 8px 16px;
-  border-bottom: 1px solid var(--border);
-  font-size: var(--fs-sm);
+.narrow {
+  min-width: 0;
+  flex: 1 1 320px;
 }
 
-.appointments > li:last-child {
-  border-bottom: 0;
+/* ---- Agora no consultório: quatro indicadores numa faixa só ---- */
+.kpis {
+  --kc-min: 220px;
 }
 
-.appointments > li > :last-child {
-  justify-self: end;
+.waitValue {
+  color: var(--warning-700);
 }
 
-.appointmentTime {
-  color: var(--text-2);
-  font-family: var(--font-mono);
-  font-size: var(--fs-xs);
+/* ---- Consultas hoje ---- */
+.turn {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px 20px 20px;
+}
+
+.turnTotal {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  margin: 0;
+}
+
+.turnValue {
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: clamp(20px, 2.2vw, 24px);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
 }
 
-.patientName {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: 500;
-}
-
-.revenue :global([data-slot='bar-chart']) > :last-child > div {
-  height: 100%;
-}
-
-.revenue
-  :global([data-slot='bar-chart'])
-  > :last-child
-  > div:not(:last-child)
-  :global(.bg-primary) {
-  background: var(--primary-soft);
-  border: 1px solid color-mix(in oklch, var(--primary) 25%, var(--border));
-}
-
-@media (min-width: 1200px) {
-  .contentGrid {
-    grid-template-columns: minmax(0, 1fr) 360px;
-  }
-}
-
-@media (max-width: 600px) {
-  .liveMetrics {
-    grid-template-columns: 1fr;
-  }
-
-  .liveMetrics :global([data-slot='stat-card']) {
-    border-right: 0;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .liveMetrics :global([data-slot='stat-card']):last-child {
-    border-bottom: 0;
-  }
-
-  .appointments > li {
-    grid-template-columns: 48px minmax(0, 1fr);
-    gap: 6px 10px;
-  }
-
-  /* O procedimento cede primeiro: hora, nome e status sao o que a recepcao le
-     de relance; o procedimento e detalhe e volta no desktop. */
-  .appointmentProcedure {
-    display: none;
-  }
-
-  .appointments > li > :last-child {
-    grid-column: 2;
-    justify-self: start;
-  }
-}
-
-.appointmentProcedure {
-  min-width: 0;
-  overflow: hidden;
+.muted {
   color: var(--text-2);
-  font-size: var(--fs-body-sm);
+  font-size: 13px;
+}
+
+.meter {
+  display: flex;
+  height: 8px;
+  gap: 2px;
+}
+
+.meter > span {
+  min-width: 4px;
+  border-radius: 2px;
+}
+
+.meterEmpty {
+  flex: 1;
+  background: var(--surface-hover);
+}
+
+/* Duas colunas no cartão estreito; sozinho na linha (perfil sem financeiro), os
+   itens se espalham em vez de afastar cada número do próprio rótulo. */
+.legend {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px 20px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Rótulo e número vêm de atributos: a legenda repete, só para o olho, o que o
+   `aria-label` do medidor já diz por extenso. Como texto de verdade, "Aguardando"
+   e cada número apareceriam duas vezes para quem procura o indicador na tela. */
+.legend > li {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-body);
+  font-size: 13px;
+}
+
+.legend > li::before {
+  content: attr(data-label);
+}
+
+.legend > li::after {
+  margin-left: auto;
+  color: var(--text);
+  content: attr(data-count);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.swatch {
+  flex: none;
+  order: -1;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+.done {
+  background: var(--meter-done);
+}
+
+.now {
+  background: var(--meter-now);
+}
+
+.waiting {
+  background: var(--meter-waiting);
+}
+
+.upcoming {
+  background: var(--meter-upcoming);
+}
+
+.missed {
+  background: var(--meter-missed);
+}
+
+.cancelled {
+  background: var(--meter-cancelled);
+  box-shadow: inset 0 0 0 1px var(--meter-cancelled-ring);
+}
+
+/* ---- Resumo financeiro do dia: indicadores dentro do cartão ---- */
+.finStrip {
+  --kc-min: 180px;
+  flex: 1;
+  border: 0;
+  border-radius: 0;
+}
+
+/* ---- Listas dentro de cartão: linhas de 52 px com divisória fina ---- */
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.list > li + li {
+  border-top: 1px solid var(--border-soft);
+}
+
+.upRow {
+  display: grid;
+  min-height: 52px;
+  grid-template-columns: 52px minmax(0, 1.2fr) minmax(0, 1fr) 120px;
+  align-items: center;
+  column-gap: 16px;
+  padding: 8px 20px;
+  font-size: 14px;
+}
+
+.upRow:hover {
+  background: var(--surface-head);
+}
+
+.upTime {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.cell {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.cell > b {
+  font-weight: 600;
+}
+
+.trunc {
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* Faixa de alertas — cada linha e um destino, nao um aviso mudo: a cor diz o
-   dominio (dinheiro / IA) e o texto sempre carrega para onde o clique leva. */
-.alerts {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 14px;
+.upProc {
+  color: var(--text-2);
 }
 
-.alert {
+.upStatus {
+  justify-self: end;
+}
+
+.foot {
   display: flex;
   min-height: 44px;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
-  padding: 0 14px;
-  border: 1px solid;
-  border-radius: 8px;
-  font-size: var(--fs-sm);
-  font-weight: 600;
-  line-height: 1.35;
-  text-decoration: none;
-  transition: border-color var(--dur-fast) ease;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin-top: auto;
+  padding: 8px 20px;
+  border-top: 1px solid var(--border-soft);
+  color: var(--text-2);
+  font-size: 13px;
 }
 
-.alert > svg:first-child {
+/* ---- Precisa de você: cada linha leva ao lugar onde a pendência se resolve ---- */
+.pending {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 20px;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.pending:hover {
+  background: var(--surface-head);
+  color: var(--text);
+}
+
+.pending:focus-visible {
+  outline-offset: -2px;
+}
+
+.pendingIcon {
+  display: inline-grid;
   flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--btn-radius);
+  background: var(--icon-bg);
+  color: var(--icon-fg);
+}
+
+.pendingIcon > svg {
   width: 16px;
   height: 16px;
 }
 
-.alertText {
-  flex: 1;
-  min-width: 0;
-  text-wrap: pretty;
+.pendingIcon[data-tone='warning'] {
+  --icon-bg: var(--tone-amber-bg);
+  --icon-fg: var(--warning-700);
 }
 
-.alertCta {
-  flex: none;
-  font-size: var(--fs-caption);
+.pendingIcon[data-tone='info'] {
+  --icon-bg: var(--tone-blue-bg);
+  --icon-fg: var(--tone-blue-fg);
 }
 
-.alert > svg:last-child {
-  flex: none;
-  width: 15px;
-  height: 15px;
+.pendingIcon[data-tone='danger'] {
+  --icon-bg: var(--tone-red-bg);
+  --icon-fg: var(--danger-600);
 }
 
-.alertBilling {
-  border-color: var(--warning-200);
-  background: var(--warning-50);
-  color: var(--warning-700);
-}
-
-.alertBilling:hover {
-  border-color: var(--warning-600);
-}
-
-.alertBilling > svg {
-  color: var(--warning-600);
-}
-
-/* Mensagens automáticas do WhatsApp: vermelho quando a Meta bloqueia os envios,
-   âmbar quando limita. O texto diz qual é; a cor só reforça (1.4.1). */
-.alertDanger {
-  border-color: var(--danger-200);
-  background: var(--danger-50);
-  color: var(--danger-700);
-}
-
-.alertDanger:hover {
-  border-color: var(--danger-600);
-}
-
-.alertDanger > svg {
-  color: var(--danger-600);
-}
-
-.alertWarning {
-  border-color: var(--warning-200);
-  background: var(--warning-50);
-  color: var(--warning-700);
-}
-
-.alertWarning:hover {
-  border-color: var(--warning-600);
-}
-
-.alertWarning > svg {
-  color: var(--warning-600);
-}
-
-.alertAi {
-  border-color: var(--ai-border);
-  background: var(--ai-soft);
-  color: var(--ai);
-}
-
-.alertAi:hover {
-  border-color: var(--brand-accent-500);
-}
-
-.alertAi > svg {
-  color: var(--brand-accent-500);
-}
-
-/* Cartao de espera fora do previsto: fundo ambar + regua inferior, como na
-   referencia. A regua e o segundo sinal nao-cromatico do estado (1.4.1). */
-.metricAlert {
-  background: var(--warning-50);
-  box-shadow: inset 0 -2px 0 var(--warning-600);
-}
-
-.metricAlert :global([data-slot='stat-label']) > span:first-child,
-.metricAlert > span:last-child {
-  color: var(--warning-700);
-}
-
-.metricAlert :global([data-slot='stat-label']) svg {
-  color: var(--warning-600);
-}
-
-.rightColumn {
+.pendingCopy {
   display: flex;
   min-width: 0;
+  flex: 1;
   flex-direction: column;
-  gap: 14px;
+  gap: 2px;
+  font-size: 14px;
+  line-height: 1.4;
 }
 
-/* Nota tracejada: diz o que a tela AINDA nao mostra, em vez de deixar o canto
-   vazio parecendo carregamento travado. */
-.note {
-  flex: none;
-  padding: 11px 14px;
-  border: 1px dashed var(--border-2);
-  border-radius: 8px;
-  background: var(--surface-2);
-  color: var(--text-3);
-  font-size: var(--fs-caption);
-  line-height: 1.45;
+.pendingCopy > b {
+  font-weight: 600;
   text-wrap: pretty;
+}
+
+.pendingCopy > span {
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+.pendingCta {
+  flex: none;
+  pointer-events: none;
+}
+
+/* ---- Atividade recente ---- */
+.actRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 20px;
+}
+
+.actRow:hover {
+  background: var(--surface-head);
+}
+
+.actIcon {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--btn-radius);
+  background: var(--surface-hover);
+  color: var(--text-2);
+}
+
+.actIcon > svg {
+  width: 14px;
+  height: 14px;
+}
+
+.actText {
+  min-width: 0;
+  flex: 1;
+  color: var(--text-body);
+  font-size: 13px;
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+
+.actText > b {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.actTime {
+  flex: none;
+  color: var(--text-3);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ---- Faturamento recebido: barras, grade, rótulos e dica ---- */
+.legendToday {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+.hatch {
+  background-color: var(--primary);
+  background-image: repeating-linear-gradient(135deg, var(--viz-hatch) 0 2px, transparent 2px 6px);
+}
+
+.legendSwatch {
+  width: 12px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+.chart {
+  padding: 20px 20px 16px;
+}
+
+.plot {
+  position: relative;
+  height: 184px;
+  margin-left: 40px;
+  border-bottom: 1px solid var(--viz-baseline);
+}
+
+.gridLine {
+  position: absolute;
+  right: 0;
+  left: 0;
+  border-top: 1px solid var(--viz-grid);
+}
+
+.axisLabel {
+  position: absolute;
+  left: -40px;
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+}
+
+.bars {
+  position: relative;
+  display: flex;
+  height: 100%;
+}
+
+.bar {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex: 1 1 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  height: 100%;
+  padding: 0 10px;
+}
+
+.barLabel {
+  min-height: 16px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.barBody {
+  position: relative;
+  display: block;
+  width: 100%;
+  max-width: 44px;
+  border-radius: 4px 4px 0 0;
+  background-color: var(--primary);
+}
+
+.barBody[data-empty='true'] {
+  background: var(--viz-closed);
+}
+
+.tip {
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  z-index: 10;
+  display: none;
+  padding: 6px 10px;
+  border-radius: var(--btn-radius);
+  background: var(--card);
+  box-shadow: var(--elev-overlay);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translate(-50%, -100%);
+}
+
+.bar:hover .tip {
+  display: block;
+}
+
+.bar:last-child .tip {
+  right: 0;
+  left: auto;
+  transform: translateY(-100%);
+}
+
+.days {
+  display: flex;
+  margin-left: 40px;
+  padding-top: 8px;
+}
+
+.days > span {
+  flex: 1 1 0;
+  color: var(--text-2);
+  font-size: 12px;
+  text-align: center;
+}
+
+.days > span[data-today='true'] {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* ---- Faixa: o que a tela ainda não mostra ---- */
+.occupancy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+  padding: 16px 20px;
+}
+
+.occIcon {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--card);
+  box-shadow:
+    0 0 0 1px var(--border),
+    var(--elev-1);
+  color: var(--text-2);
+}
+
+.occIcon > svg {
+  width: 18px;
+  height: 18px;
+}
+
+.occCopy {
+  min-width: 0;
+  flex: 1 1 320px;
+}
+
+.occCopy > h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.occCopy > p {
+  margin: 2px 0 0;
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+@media (max-width: 900px) {
+  .turn,
+  .upRow,
+  .foot,
+  .pending,
+  .actRow,
+  .occupancy {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+}
+
+@media (max-width: 720px) {
+  .upRow {
+    grid-template-columns: 44px minmax(0, 1fr) auto;
+  }
+
+  /* O procedimento cede primeiro: hora, nome e status são o que a recepção lê
+     de relance; o procedimento volta na largura de computador. */
+  .upProc {
+    display: none;
+  }
+
+  .legend {
+    gap: 8px 16px;
+  }
+
+  /* A ação desce para baixo do texto, alinhada a ele, em vez de espremê-lo. */
+  .pending {
+    flex-wrap: wrap;
+  }
+
+  .pendingCopy {
+    flex-basis: calc(100% - 44px);
+  }
+
+  .pendingCta {
+    margin-left: 44px;
+  }
 }

@@ -1,5 +1,45 @@
 # Component Decisions
 
+## Qoro App v5 — novembro de 2026 (shell e Dashboard)
+
+Pedido do founder: reproduzir fielmente o canvas "Qoro App v5" na área logada da clínica, sem tocar
+em `/admin`, cadastro ou checkout. Refatoração só visual; o onboarding fica para depois. Esta seção
+substitui, para o tenant, a referência de setembro abaixo. Tokens em `globals.css`, num bloco que só
+casa `[data-qoro-shell='tenant']`; `qorov2` (login, cadastro, checkout) segue no bloco de setembro.
+
+| Data       | Avaliados                                                        | Decisão                                                                                                                                                       |
+| ---------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-11-08 | `ShellSidebar`, `SideNavLink`, `MobileNavButton` (`shell-chrome`) | Não serviram: são do admin também e têm classes travadas por teste. Trilho novo só do tenant em `PainelShell` (`qoro-rail*`). `SidebarUserMenu` reutilizado. |
+| 2026-11-08 | `PanelCard`                                                      | Estendido com props opcionais (`headingLevel`, `count`, `description`, `aside`, `flush`). Sem elas, o admin renderiza igual.                                  |
+| 2026-11-08 | `StatCard`, `MetricStrip`                                        | Estendidos: `href` (indicador vira link) e `variant="joined"` (faixa única do v5).                                                                            |
+| 2026-11-08 | `Badge`, `StatusBadge`                                           | Tons `navy`, `orange` e `line`. Mapa de status de consulta do v5 em Agenda, Consultório e Dashboard.                                                          |
+| 2026-11-08 | `BarChart` (`ui/`)                                               | Não serviu: sem grade, dica, hachura ou `aria-label`, e é usado por Relatórios e Caixa. `RevenueChart` próprio do Dashboard.                                  |
+| 2026-11-08 | `StackedBar` (`ui/`)                                             | Não serviu: só tons de primária. Medidor de "Consultas hoje" composto na página.                                                                              |
+
+Desvios do canvas, todos por necessidade operacional (Contract §6):
+
+| Canvas                                    | Implementado                                                 | Motivo                                                                                       |
+| ----------------------------------------- | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
+| Botão "Trocar de clínica" + "Plano Clínica" | Link para o início com o nome da clínica                     | Não existe troca de clínica; o plano exigiria leitura nova do billing.                       |
+| Sair dentro da linha do usuário, 32 px    | Item próprio "Sair" no rodapé do menu                        | Fora dos 44 px recolhidos ficava inalcançável; 32 px fica abaixo do alvo de toque.           |
+| Celular: rodapé do menu some              | Barra igual ao canvas + "Abrir navegação" abre gaveta        | O canvas tiraria Sair, tema e conta do celular.                                              |
+| Rótulos `display:none` no celular         | Rótulos só visualmente ocultos                               | Cada link precisa continuar com nome acessível.                                              |
+| Contador no item Consultório              | Ausente                                                      | O shell não tem essa contagem; exigiria consulta nova.                                       |
+| Menu da conta inexistente                 | Mantido no bloco do usuário                                  | É o único caminho para "Perfil da clínica" e "Segurança da conta".                           |
+| "Consultas de hoje", "Atividade de hoje"  | "Consultas hoje", "Atividade recente"                        | Rótulos verificados por teste; o feed não é só do dia.                                       |
+| 12 no total incluindo canceladas          | Total sem canceladas; canceladas só na legenda               | `consultasHoje` exclui canceladas por regra.                                                 |
+| "Maria Souza, desde 10:30"; nomes e "7 cobranças preparadas pelo agente" em "Precisa de você" | "agora" e as três pendências que existem hoje, com os textos atuais | O DTO não tem esses dados. Não se fabrica métrica.                                           |
+| "Faturar", "Assumir"                      | "Abrir o Caixa", "Abrir Conversas IA"                        | O link só navega; o rótulo não promete ação que não executa.                                 |
+| "Cadastrar horários" na faixa de ocupação | Sem botão, com a frase atual                                 | Cadastrar horários não faz o número existir: ele ainda não tem fonte.                        |
+| Domingo "clínica fechada"                 | Barra zerada, R$ 0,00                                        | Exigiria cruzar com horários da clínica.                                                     |
+| Sem tema escuro                           | Escuro derivado da paleta v5, AA conferido par a par         | O produto tem tema escuro e o teste visual cobre os dois.                                    |
+
+| Ação                 | Antes                        | Depois                                 | Motivo                                                 |
+| -------------------- | ---------------------------- | -------------------------------------- | ------------------------------------------------------ |
+| Link "Financeiro"    | Cabeçalho do gráfico         | Removido; "Abrir o Financeiro" no cartão do resumo | Duplicado na mesma tela; o canvas põe a legenda ali.   |
+| Wordmark             | Topo da sidebar              | Marca Q + nome da clínica, mesmo destino | Canvas; continua levando ao início.                    |
+| Alertas do Dashboard | Faixas soltas                | Cartão "Precisa de você"               | Canvas; mesma ordem, textos, destinos e permissões.    |
+
 ## Referências HTML do tenant — setembro de 2026
 
 Escopo solicitado pelo founder: traduzir os HTMLs fornecidos para as telas atuais na

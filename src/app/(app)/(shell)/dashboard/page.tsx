@@ -1,22 +1,19 @@
 import {
-  Ban,
   Banknote,
   CalendarClock,
   CalendarDays,
-  ChevronRight,
   Clock3,
-  Sparkles,
-  Stethoscope,
-  Timer,
+  House,
+  MessageCircle,
   TriangleAlert,
-  UserX,
-  Wallet,
 } from 'lucide-react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
+import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
 import { buttonVariants } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { MetricStrip } from '@/components/ui/metric-strip';
 import { PageHeader } from '@/components/ui/page-header';
 import { PanelCard } from '@/components/ui/panel-card';
@@ -39,8 +36,9 @@ import { currentOnboardingProgress } from '../_painel/onboarding-progress';
 
 import { ActivationChecklist } from './_components/activation-checklist';
 import { ActivityFeed } from './_components/activity-feed';
+import { PendingItem } from './_components/pending-item';
 import { RefreshButton } from './_components/refresh-button';
-import { RevenueChart } from './_components/revenue-chart';
+import { RevenueChart, RevenueTodayLegend } from './_components/revenue-chart';
 import { WhatsappSendAlert, type WhatsappSendAlertData } from './_components/whatsapp-send-alert';
 import { getActivationChecklist, getDashboard, getWhatsappSendAlert } from './data';
 import { dashboardDemoData } from './demo-data';
@@ -78,6 +76,11 @@ const NO_CASH_FLOW: CashFlowDTO = {
 
 function hora(iso: string): string {
   return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+
+/** "1 cobrança" / "3 cobranças" — o número sempre acompanha a palavra certa. */
+function plural(count: number, one: string, many: string): string {
+  return `${count} ${count === 1 ? one : many}`;
 }
 
 export default async function DashboardPage() {
@@ -174,20 +177,20 @@ export default async function DashboardPage() {
       : await getProfileNames(clinicId, activity.map((a) => a.userId ?? '').filter(Boolean))
     : new Map<string, string>();
 
-  const hoje = new Intl.DateTimeFormat('pt-BR', {
+  // "Quinta-feira, 3 de setembro · atualizado às 22:00" — no fuso da clínica.
+  const agora = new Date();
+  const hojeExtenso = new Intl.DateTimeFormat('pt-BR', {
     timeZone: tz,
     weekday: 'long',
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  }).format(new Date());
+    day: 'numeric',
+    month: 'long',
+  }).format(agora);
+  const hojeTitulo = hojeExtenso.charAt(0).toUpperCase() + hojeExtenso.slice(1);
 
   // hourCycle:'h23' e nao hour12:false — o mesmo bug do ICU que renderiza
   // meia-noite como "24" ja mordeu em data.ts.
   const relogio = (opts: Intl.DateTimeFormatOptions) =>
-    new Intl.DateTimeFormat('pt-BR', { timeZone: tz, hourCycle: 'h23', ...opts }).format(
-      new Date(),
-    );
+    new Intl.DateTimeFormat('pt-BR', { timeZone: tz, hourCycle: 'h23', ...opts }).format(agora);
   const horaLocal = Number(relogio({ hour: '2-digit' }));
   const periodo = horaLocal < 12 ? 'Bom dia' : horaLocal < 18 ? 'Boa tarde' : 'Boa noite';
   const nomeCompleto = (user.name ?? '').trim();
@@ -196,73 +199,120 @@ export default async function DashboardPage() {
   // Quem ja chegou e ainda espera — o nome que o cartao "Aguardando" anuncia.
   const proximoNaFila = d.proximos.find((consulta) => consulta.status === 'chegou');
 
+  // Composição do turno. "A chegar" é o que sobra das consultas do dia depois
+  // de quem já está na sala, em atendimento, finalizado ou faltou — agendadas e
+  // confirmadas. Canceladas ficam FORA do total (regra de `consultasHoje`) e
+  // aparecem só como contagem à parte.
+  const aChegar = Math.max(
+    0,
+    d.consultasHoje - d.aguardando - d.emAtendimento - d.finalizadas - d.faltas,
+  );
+  const turno = [
+    { key: 'done', label: 'Finalizadas', count: d.finalizadas, className: styles.done },
+    { key: 'now', label: 'Em atendimento', count: d.emAtendimento, className: styles.now },
+    { key: 'waiting', label: 'Aguardando', count: d.aguardando, className: styles.waiting },
+    { key: 'upcoming', label: 'A chegar', count: aChegar, className: styles.upcoming },
+    { key: 'missed', label: 'Faltas', count: d.faltas, className: styles.missed },
+  ];
+  const turnoDescricao = `${plural(d.consultasHoje, 'consulta', 'consultas')} hoje: ${[
+    plural(d.finalizadas, 'finalizada', 'finalizadas'),
+    `${d.emAtendimento} em atendimento`,
+    `${d.aguardando} aguardando`,
+    `${aChegar} a chegar`,
+    plural(d.faltas, 'falta', 'faltas'),
+  ].join(', ')}; ${plural(d.cancelados, 'cancelada', 'canceladas')} fora do total`;
+
+  // Restam no dia: quem está na sala e quem ainda vai chegar.
+  const restantes = d.aguardando + aChegar;
+
+  // "Precisa de você": só o que existe de verdade e a pessoa pode resolver.
+  // Ordem fixa — com os envios do WhatsApp bloqueados, lembretes e links de
+  // sinal não chegam a NENHUM paciente, então isso vem primeiro.
+  const showUnbilled = canViewFinancial && d.naoFaturados > 0;
+  const pendencias =
+    (hasWhatsappAlert ? 1 : 0) + (showUnbilled ? 1 : 0) + (handoff.abertos > 0 ? 1 : 0);
+
   return (
     <>
       <PageHeader
-        crumbs={[{ label: 'Dashboard' }, { label: `Hoje · ${hoje}` }]}
+        crumbs={[
+          {
+            label: (
+              <>
+                <House aria-hidden="true" />
+                Dashboard
+              </>
+            ),
+          },
+        ]}
         title={nomeCompleto ? `${periodo}, ${nomeCompleto}` : periodo}
-        description={
-          demoMode
-            ? 'Dados ilustrativos somente nesta página. As demais áreas mostram dados reais.'
-            : 'O pulso da clínica agora'
-        }
-        meta={<span className="font-mono tabular-nums">atualizado {atualizadoEm}</span>}
+        description={`${hojeTitulo} · atualizado às ${atualizadoEm}`}
+        {...(demoMode
+          ? {
+              meta: 'Dados ilustrativos somente nesta página. As demais áreas mostram dados reais.',
+            }
+          : {})}
         actions={
           <>
             <RefreshButton />
-            <Link href="/consultorio" className={buttonVariants()}>
-              <Stethoscope aria-hidden="true" className="size-4" />
+            <Link href="/consultorio" prefetch={false} className={buttonVariants()}>
               Abrir o Consultório
             </Link>
           </>
         }
       />
 
-      {/* Antes do resto: enquanto a ativação não fecha, ela É a prioridade da
-          tela — e no rodapé ninguém a encontrava. Não polui o dashboard maduro
-          porque o componente se remove sozinho quando os passos terminam. */}
-      {!demoMode ? (
-        <ActivationChecklist
-          data={checklist}
-          dismissed={Boolean(onboarding?.checklistDismissedAt)}
-        />
-      ) : null}
+      <div className={styles.body}>
+        {/* Antes do resto: enquanto a ativação não fecha, ela É a prioridade da
+            tela. Não polui o dashboard maduro porque o componente se remove
+            sozinho quando os passos terminam. */}
+        {!demoMode ? (
+          <ActivationChecklist
+            data={checklist}
+            dismissed={Boolean(onboarding?.checklistDismissedAt)}
+          />
+        ) : null}
 
-      {/* ---- stat tiles (reais, exceto na prévia identificada acima) ---- */}
-      <PanelCard
-        title="Agora"
-        regionLabel="Sala de espera e atendimento"
-        action={{ label: 'Ver fila no Consultório', href: '/consultorio' }}
-        className={styles.metricsPanel ?? ''}
-      >
-        <MetricStrip className={styles.liveMetrics ?? ''}>
+        {/* ---- Agora no consultório: indicadores reais, um link para cada ---- */}
+        <MetricStrip
+          variant="joined"
+          aria-label="Sala de espera e atendimento"
+          className={styles.kpis}
+        >
           <StatCard
+            href="/consultorio"
             label="Aguardando"
             value={d.aguardando}
             hint={proximoNaFila ? `${proximoNaFila.nome} é o próximo` : 'na sala de espera'}
-            icon={<Clock3 />}
           />
-          {/* Só ganha o tom de alerta quando alguém está de fato atrasado; fila
-              em dia mostra o mesmo cartão neutro, sem gritar por nada. */}
+          {/* Só ganha o tom de alerta quando alguém está de fato esperando além
+              do previsto; fila em dia mostra o mesmo indicador neutro. */}
           <StatCard
+            href="/consultorio"
             label="Maior espera"
             value={d.maiorEsperaMin === null ? '—' : d.maiorEsperaMin}
-            {...(d.maiorEsperaMin === null ? {} : { suffix: 'min' })}
+            {...(d.maiorEsperaMin === null ? {} : { suffix: 'min', valueTone: 'warning' as const })}
             hint={
-              d.maiorEsperaNome
-                ? `${d.maiorEsperaNome} · acima do previsto`
-                : 'ninguém acima do previsto'
+              d.maiorEsperaNome ? (
+                <>
+                  <Badge tone="amber" dot>
+                    Acima do previsto
+                  </Badge>
+                  <span>{d.maiorEsperaNome}</span>
+                </>
+              ) : (
+                'ninguém acima do previsto'
+              )
             }
-            icon={<Timer />}
-            {...(d.maiorEsperaMin === null ? {} : { className: styles.metricAlert ?? '' })}
           />
           <StatCard
+            href="/consultorio"
             label="Em atendimento"
             value={d.emAtendimento}
             hint="agora"
-            icon={<Stethoscope />}
           />
           <StatCard
+            href="/agenda"
             label="Próxima consulta"
             value={d.proximos[0] ? hora(d.proximos[0].horario) : '—'}
             hint={
@@ -270,114 +320,106 @@ export default async function DashboardPage() {
                 ? `${d.proximos[0].nome} · ${d.proximos[0].procedimento}`
                 : 'Nenhuma consulta na fila de hoje'
             }
-            icon={<CalendarClock />}
           />
         </MetricStrip>
-      </PanelCard>
 
-      <div className={styles.summaryGrid ?? ''}>
-        <PanelCard
-          title="Operação do turno"
-          regionLabel="Operação do turno"
-          className={styles.metricsPanel ?? ''}
-        >
-          <MetricStrip className={styles.summaryMetrics ?? ''}>
-            <StatCard
-              label="Consultas hoje"
-              value={d.consultasHoje}
-              hint={`${d.finalizadas} ${d.finalizadas === 1 ? 'finalizada' : 'finalizadas'}`}
-              icon={<CalendarDays />}
-            />
-            <StatCard
-              label="Faltas"
-              value={d.faltas}
-              hint={d.faltaNome ?? (d.faltas === 0 ? 'ninguém faltou' : 'registradas hoje')}
-              icon={<UserX />}
-            />
-            <StatCard
-              label="Cancelados"
-              value={d.cancelados}
-              hint={d.cancelados === 0 ? 'nenhum cancelamento' : 'cancelados hoje'}
-              icon={<Ban />}
-            />
-          </MetricStrip>
-        </PanelCard>
-        {canViewFinancial ? (
+        <div className={styles.row}>
           <PanelCard
-            title="Resumo financeiro"
-            regionLabel="Resumo financeiro"
-            action={{ label: 'Abrir o Financeiro', href: '/financeiro' }}
-            className={styles.metricsPanel ?? ''}
+            title="Consultas hoje"
+            headingLevel={2}
+            regionLabel="Operação do turno"
+            action={{ label: 'Abrir a agenda', href: '/agenda' }}
+            flush
+            className={styles.narrow ?? ''}
           >
-            <MetricStrip className={styles.summaryMetrics ?? ''}>
-              <StatCard
-                label="A receber"
-                value={formatBRL(flow.receber)}
-                valueTone={flow.receber > 0 ? 'warning' : 'default'}
-                hint="pendências em aberto"
-                icon={<Wallet />}
-              />
-              <StatCard
-                label="Recebido hoje"
-                value={formatBRL(flow.recebidoHoje)}
-                valueTone={flow.recebidoHoje > 0 ? 'positive' : 'default'}
-                hint="recebido hoje"
-                icon={<Banknote />}
-              />
-              <StatCard
-                label="Saldo do dia"
-                value={formatBRL(flow.saldoHoje)}
-                hint="depois das saídas"
-                icon={<Wallet />}
-              />
-            </MetricStrip>
+            <div className={styles.turn}>
+              <p className={styles.turnTotal}>
+                <span className={styles.turnValue}>{d.consultasHoje}</span>
+                <span className={styles.muted}>no total ·</span>
+                <span className={styles.muted}>
+                  {plural(d.finalizadas, 'finalizada', 'finalizadas')}
+                </span>
+              </p>
+              <div className={styles.meter} role="img" aria-label={turnoDescricao}>
+                {d.consultasHoje > 0 ? (
+                  turno
+                    .filter((t) => t.count > 0)
+                    .map((t) => (
+                      <span key={t.key} className={t.className} style={{ flexGrow: t.count }} />
+                    ))
+                ) : (
+                  <span className={styles.meterEmpty} />
+                )}
+              </div>
+              {/* Só visual (ver .legend): a leitura completa está no medidor. */}
+              <ul className={styles.legend} aria-hidden="true">
+                {turno.map((t) => (
+                  <li key={t.key} data-label={t.label} data-count={t.count}>
+                    <span className={cn(styles.swatch, t.className)} />
+                  </li>
+                ))}
+                <li data-label="Canceladas" data-count={d.cancelados}>
+                  <span className={cn(styles.swatch, styles.cancelled)} />
+                </li>
+              </ul>
+            </div>
           </PanelCard>
-        ) : null}
-      </div>
 
-      {/* Pendências que valem interromper a leitura: dinheiro que ficou para
-          trás e gente esperando um humano. Cada faixa é um link para o lugar
-          onde aquilo se resolve — nunca um aviso mudo. */}
-      {(canViewFinancial && d.naoFaturados > 0) || handoff.abertos > 0 || hasWhatsappAlert ? (
-        <div className={styles.alerts ?? ''}>
-          {/* Primeiro: com os envios bloqueados, lembretes e links de sinal
-              não chegam a NENHUM paciente. */}
-          {hasWhatsappAlert ? <WhatsappSendAlert {...whatsappAlert} /> : null}
-          {canViewFinancial && d.naoFaturados > 0 ? (
-            <Link href="/caixa" className={cn(styles.alert, styles.alertBilling)}>
-              <TriangleAlert aria-hidden="true" />
-              <span className={styles.alertText ?? ''}>
-                {d.naoFaturados === 1
-                  ? '1 atendimento concluído hoje ainda não foi faturado'
-                  : `${d.naoFaturados} atendimentos concluídos hoje ainda não foram faturados`}
-              </span>
-              <span className={styles.alertCta ?? ''}>Abrir o Caixa</span>
-              <ChevronRight aria-hidden="true" />
-            </Link>
-          ) : null}
-          {handoff.abertos > 0 ? (
-            <Link href="/conversas" className={cn(styles.alert, styles.alertAi)}>
-              <Sparkles aria-hidden="true" />
-              <span className={styles.alertText ?? ''}>
-                {handoff.abertos === 1
-                  ? '1 conversa do agente aguardando atendimento humano'
-                  : `${handoff.abertos} conversas do agente aguardando atendimento humano`}
-                {handoff.vencidos > 0 ? ` · ${handoff.vencidos} com SLA vencido` : ''}
-              </span>
-              <span className={styles.alertCta ?? ''}>Abrir Conversas IA</span>
-              <ChevronRight aria-hidden="true" />
-            </Link>
+          {canViewFinancial ? (
+            <PanelCard
+              title="Resumo financeiro do dia"
+              headingLevel={2}
+              regionLabel="Resumo financeiro"
+              action={{ label: 'Abrir o Financeiro', href: '/financeiro' }}
+              flush
+              className={styles.wide ?? ''}
+            >
+              <MetricStrip
+                variant="joined"
+                aria-label="Indicadores financeiros do dia"
+                className={styles.finStrip}
+              >
+                <StatCard
+                  label="A receber"
+                  value={formatBRL(flow.receber)}
+                  hint={
+                    <>
+                      <span>{plural(flow.contagens.receber, 'cobrança', 'cobranças')}</span>
+                      {flow.contagens.receberVencidos > 0 ? (
+                        <Badge tone="red" dot>
+                          {plural(flow.contagens.receberVencidos, 'vencida', 'vencidas')}
+                        </Badge>
+                      ) : null}
+                    </>
+                  }
+                />
+                <StatCard
+                  label="Recebido hoje"
+                  value={formatBRL(flow.recebidoHoje)}
+                  valueTone={flow.recebidoHoje > 0 ? 'positive' : 'default'}
+                  hint={plural(flow.contagens.recebimentos, 'recebimento', 'recebimentos')}
+                />
+                <StatCard
+                  label="Saldo do dia"
+                  value={formatBRL(flow.saldoHoje)}
+                  hint={`Depois de ${formatBRL(flow.pagoHoje)} em saídas`}
+                />
+              </MetricStrip>
+            </PanelCard>
           ) : null}
         </div>
-      ) : null}
 
-      <div className={canAudit ? styles.contentGrid : styles.contentSingle}>
-        <div className={styles.mainColumn ?? ''}>
+        <div className={styles.row}>
           <PanelCard
             title="Próximos na agenda"
+            headingLevel={2}
             regionLabel="Próximos na agenda"
-            action={{ label: 'Ver agenda do dia', href: '/agenda' }}
-            className={styles.panel ?? ''}
+            {...(d.proximos.length > 0
+              ? { count: <span className="qoro-count">{d.proximos.length}</span> }
+              : {})}
+            action={{ label: 'Ver o dia inteiro', href: '/agenda' }}
+            flush
+            className={styles.wide ?? ''}
           >
             {d.proximos.length === 0 ? (
               <EmptyState
@@ -387,65 +429,153 @@ export default async function DashboardPage() {
                 description="Nenhum atendimento está agendado para hoje."
               />
             ) : (
-              <ul className={styles.appointments ?? ''}>
-                {d.proximos.map((p) => (
-                  <li key={p.appointmentId}>
-                    <span className={styles.appointmentTime ?? ''}>{hora(p.horario)}</span>
-                    <span className={styles.patientName ?? ''}>{p.nome}</span>
-                    <span className={styles.appointmentProcedure ?? ''}>{p.procedimento}</span>
-                    <AppointmentStatusBadge status={p.status} />
-                  </li>
-                ))}
-              </ul>
+              <>
+                <ul className={styles.list}>
+                  {d.proximos.map((p) => (
+                    <li key={p.appointmentId} className={styles.upRow}>
+                      <span className={styles.upTime}>{hora(p.horario)}</span>
+                      <span className={styles.cell}>
+                        <b className={styles.trunc}>{p.nome}</b>
+                        {p.profissional ? (
+                          <span className={cn(styles.trunc, styles.muted)}>{p.profissional}</span>
+                        ) : null}
+                      </span>
+                      <span className={cn(styles.trunc, styles.upProc)}>{p.procedimento}</span>
+                      <span className={styles.upStatus}>
+                        <AppointmentStatusBadge status={p.status} />
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <div className={styles.foot}>
+                  <span>
+                    {restantes > d.proximos.length
+                      ? `Mostrando ${d.proximos.length} das ${restantes} consultas que ainda faltam`
+                      : plural(d.proximos.length, 'consulta ainda falta', 'consultas ainda faltam')}
+                  </span>
+                  <span>{d.consultasHoje} no dia</span>
+                </div>
+              </>
             )}
           </PanelCard>
-          {/* AUTHZ-005 — série, total e o link para /financeiro só existem no
-            HTML quando a permissão existe. */}
-          {canViewFinancial ? (
+
+          {/* Pendências que valem interromper a leitura. Cada linha leva ao
+              lugar onde aquilo se resolve — nunca um aviso mudo. O cartão só
+              existe quando há pendência: vazio, diria "nada a fazer" a quem
+              talvez só não tenha permissão para ver. */}
+          {pendencias > 0 ? (
             <PanelCard
-              title="Faturamento recebido"
-              action={{ label: 'Financeiro', href: '/financeiro' }}
-              regionLabel="Faturamento recebido"
-              className={styles.panel ?? ''}
+              title="Precisa de você"
+              headingLevel={2}
+              regionLabel="Precisa de você"
+              count={
+                <span className="qoro-count" data-tone="danger">
+                  {pendencias}
+                </span>
+              }
+              flush
+              className={styles.narrow ?? ''}
             >
-              {chartTotal === 0 ? (
-                <EmptyState
-                  variant="compact"
-                  icon={<Banknote />}
-                  title="Sem recebimentos no período"
-                  description="Os valores recebidos aparecem aqui assim que forem registrados."
-                />
-              ) : (
-                <RevenueChart points={chart} />
-              )}
+              <ul className={styles.list}>
+                {hasWhatsappAlert ? <WhatsappSendAlert {...whatsappAlert} /> : null}
+                {showUnbilled ? (
+                  <PendingItem
+                    href="/caixa"
+                    tone="warning"
+                    icon={<TriangleAlert />}
+                    title={
+                      d.naoFaturados === 1
+                        ? '1 atendimento concluído hoje ainda não foi faturado'
+                        : `${d.naoFaturados} atendimentos concluídos hoje ainda não foram faturados`
+                    }
+                    cta="Abrir o Caixa"
+                  />
+                ) : null}
+                {handoff.abertos > 0 ? (
+                  <PendingItem
+                    href="/conversas"
+                    tone={handoff.vencidos > 0 ? 'danger' : 'info'}
+                    icon={<MessageCircle />}
+                    title={
+                      handoff.abertos === 1
+                        ? '1 conversa do agente aguardando atendimento humano'
+                        : `${handoff.abertos} conversas do agente aguardando atendimento humano`
+                    }
+                    {...(handoff.vencidos > 0
+                      ? { detail: `${handoff.vencidos} com SLA vencido` }
+                      : {})}
+                    cta="Abrir Conversas IA"
+                  />
+                ) : null}
+              </ul>
             </PanelCard>
           ) : null}
         </div>
 
-        {canAudit ? (
-          <div className={styles.rightColumn ?? ''}>
-            <PanelCard
-              title="Atividade recente"
-              regionLabel="Atividade recente"
-              className={styles.panel ?? ''}
-            >
-              {activity.length === 0 ? (
-                <EmptyState
-                  variant="compact"
-                  icon={<Clock3 />}
-                  title="Sem atividade recente"
-                  description="As próximas ações da equipe aparecerão aqui."
-                />
-              ) : (
-                <ActivityFeed activity={activity} actorNames={actorNames} />
-              )}
-            </PanelCard>
-            {/* Dizer o que a tela ainda NÃO mostra é mais honesto que deixar o
-                canto vazio parecendo carregamento travado. */}
-            <p className={styles.note ?? ''}>
-              Ocupação por profissional ainda não tem fonte de dados nesta clínica.
-            </p>
+        {canViewFinancial || canAudit ? (
+          <div className={styles.row}>
+            {/* AUTHZ-005 — série, total e o link para /financeiro só existem no
+                HTML quando a permissão existe. */}
+            {canViewFinancial ? (
+              <PanelCard
+                title="Faturamento recebido"
+                headingLevel={2}
+                regionLabel="Faturamento recebido"
+                description={`Últimos 7 dias · ${formatBRL(chartTotal)}`}
+                aside={
+                  chartTotal === 0 ? undefined : <RevenueTodayLegend updatedAt={atualizadoEm} />
+                }
+                flush
+                className={styles.wide ?? ''}
+              >
+                {chartTotal === 0 ? (
+                  <EmptyState
+                    variant="compact"
+                    icon={<Banknote />}
+                    title="Sem recebimentos no período"
+                    description="Os valores recebidos aparecem aqui assim que forem registrados."
+                  />
+                ) : (
+                  <RevenueChart points={chart} updatedAt={atualizadoEm} />
+                )}
+              </PanelCard>
+            ) : null}
+
+            {canAudit ? (
+              <PanelCard
+                title="Atividade recente"
+                headingLevel={2}
+                regionLabel="Atividade recente"
+                flush
+                className={styles.narrow ?? ''}
+              >
+                {activity.length === 0 ? (
+                  <EmptyState
+                    variant="compact"
+                    icon={<Clock3 />}
+                    title="Sem atividade recente"
+                    description="As próximas ações da equipe aparecerão aqui."
+                  />
+                ) : (
+                  <ActivityFeed activity={activity} actorNames={actorNames} />
+                )}
+              </PanelCard>
+            ) : null}
           </div>
+        ) : null}
+
+        {/* Dizer o que a tela ainda NÃO mostra é mais honesto que deixar o
+            canto vazio parecendo carregamento travado. Sem botão: cadastrar
+            horários não faz este número aparecer — ele ainda não tem fonte. */}
+        {canAudit ? (
+          <Card className={styles.occupancy}>
+            <span aria-hidden="true" className={styles.occIcon}>
+              <CalendarClock />
+            </span>
+            <div className={styles.occCopy}>
+              <h2>Ocupação por profissional ainda não tem fonte de dados nesta clínica.</h2>
+            </div>
+          </Card>
         ) : null}
       </div>
     </>
