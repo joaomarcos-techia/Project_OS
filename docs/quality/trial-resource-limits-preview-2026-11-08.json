@@ -1,0 +1,61 @@
+{
+  "observedAt": "2026-11-08T20:00:52.529Z",
+  "environment": "authorized_dev_and_preview",
+  "sourceCommit": "311e5dd0962433a8d3aafb5f7d6f9ce095cd8071",
+  "preview": "https://project-m9quqazzw-clinic-os-v2-s-projects.vercel.app",
+  "pullRequest": "https://github.com/joaomarcos-techia/Project_OS/pull/53",
+  "migration": {
+    "observedAt": "2026-11-08T19:48:18.918Z",
+    "environment": "known_dev_project",
+    "preflight": "PASS",
+    "localMigrations": 137,
+    "remoteMigrationsBefore": 136,
+    "historicalHashDifferences": [
+      "0033_messaging_connection_status",
+      "0037_profiles_invite_and_crm",
+      "0051_ai_conversations_panel",
+      "0071_runtime_role_timeouts",
+      "0093_ai_clinic_config_convenios",
+      "0124_offer_2026_trial_deadline"
+    ],
+    "pending": ["0136_trial_resource_limits"],
+    "applied": ["0136_trial_resource_limits"],
+    "productionWrites": 0,
+    "existingDataPreserved": true,
+    "postflight": {
+      "status": "PASS",
+      "migrations": 137,
+      "triggers": 13,
+      "existingContractsEnrolled": 0
+    }
+  },
+  "e2e": {
+    "runId": "09855457-fcd3-4d96-be61-43869a78b3b0",
+    "stages": [
+      "new_subscription_auto_enrolled",
+      "desktop_mobile_trial_counters",
+      "whatsapp_asaas_invites_blocked",
+      "ten_patients_via_ui_eleventh_denied_and_persisted",
+      "fifteenth_procedure_via_ui_sixteenth_denied",
+      "synthetic_paid_seam_removes_quota_and_restores_invite_ui"
+    ],
+    "status": "PASS",
+    "cleanup": "PASS",
+    "paymentScope": "Synthetic invoice seam only; no provider, checkout, payment or message",
+    "completedAt": "2026-11-08T19:59:33.505Z",
+    "testFile": "e2e/trial-resource-limits-preview.spec.ts",
+    "tests": 1,
+    "desktopWidth": 1440,
+    "mobileWidth": 390
+  },
+  "securityInventory": {
+    "status": "PASS",
+    "actions": 199,
+    "routeMethods": 61,
+    "props": 19,
+    "unresolved": []
+  },
+  "productionWrites": 0,
+  "externalPaymentE2E": "NOT RUN",
+  "publicSignupProvisioningE2E": "NOT RUN"
+}

@@ -60,4 +60,27 @@ O PostgreSQL é iniciado/parado pelo harness numa pasta sintética própria; o s
 
 Pagamento externo AbacatePay → worker → liberação não foi executado por esta frente. O ensaio prova a regra e a persistência locais; o gateway candidato permanece desligado. O fluxo Asaas existente recebe o hook após `markInvoicePaid`; sua origem continua autoritativa no webhook/reconcile. Não considerar o retorno do checkout, estado `ACTIVE` ou invoice sintética como homologação financeira externa.
 
-A migration 0136 e o Preview ainda exigem a autorização específica aplicável. Não existe mudança em produção e não foi usada uma clínica real para ensaio. A geração automática de migration encontrou drift pré-existente do snapshot e não foi concluída; a proposta é SQL aditivo revisado e testado, com journal correspondente, sem incorporar o rename sugerido.
+A aplicação remota inicialmente NOT RUN acima corresponde ao fechamento local. Após autorização específica do founder, a **0136 foi aplicada somente no DEV** em `2026-11-08T19:48:18.918Z`. Histórico conferido: 136 migrations na ordem do journal e nenhuma nova divergência, somente as seis diferenças históricas já documentadas. 0033/0037/0071 correspondem ao mesmo SQL com CRLF; a origem dos desvios 0051/0093/0124 continua não comprovada e não foi inventada. O campo/default da 0124 foi reconferido. Nenhum registro antigo de migration foi alterado ou reaplicado.
+
+Aplicação transacional com advisory lock, `lock_timeout=5s` e `statement_timeout=60s`: postflight de 137 migrations, 13 triggers, zero contratos existentes inscritos. Os hashes agregados de todas as clínicas, perfis e assinaturas permaneceram iguais dentro da transação. Não houve escrita em produção nem fixture de cliente real. O [PR #53](https://github.com/joaomarcos-techia/Project_OS/pull/53) permanece draft. O Preview imutável do source `311e5dd0` é `https://project-m9quqazzw-clinic-os-v2-s-projects.vercel.app`.
+
+A geração automática de migration encontrou drift pré-existente do snapshot e não foi concluída; a 0136 é SQL aditivo revisado e testado, com journal correspondente, sem incorporar o rename sugerido.
+
+## Ensaio Preview em continuidade
+
+`e2e/trial-resource-limits-preview.spec.ts` exige autorização explícita por env, origem Preview do projeto conhecido, fingerprint assinado de Auth/banco DEV e credenciais administrativas DEV antes de criar a fixture. Não envia e-mail/WhatsApp, conecta integração nem cria pagamento. O titular é criado por Auth Admin sem envio, seguido de clínica/assinatura sintéticas; isso **não é prova de provisionamento completo pelo cadastro público**. Trace, vídeo e screenshots ficam desativados. A fixture tem manifesto de IDs para cleanup preparado antes da primeira escrita.
+
+Primeira execução: inscrição automática, nove contadores em desktop/mobile sem overflow, bloqueios WhatsApp/Asaas/convite e dez pacientes criados pela UI com o 11º recusado e contagem persistida passaram. O teste parou porque a preparação de procedimentos usava `duracao_min`; o schema real usa `duracao_padrao_min`. A fixture foi corrigida após conferência do schema, sem alterar produto ou asserções; o cleanup dessa execução passou. Não atribuir PASS ao E2E inteiro dessa primeira execução; o reteste completo está registrado a seguir.
+
+**Reteste completo: PASS**, 1 E2E integrado em Chromium, cerca de 3 minutos, concluído em `2026-11-08T19:59:33.505Z`. Run ID `09855457-fcd3-4d96-be61-43869a78b3b0`. Seis estágios concluídos:
+
+1. Nova assinatura sintética inscrita automaticamente pela 0136 no DEV.
+2. Nove contadores na UI, desktop 1440 px e celular 390 px, sem overflow horizontal.
+3. Bloqueios de WhatsApp/Asaas e ausência do botão de convidar antes da liberação.
+4. Dez pacientes criados pela UI; 11º recusado com mensagem legível e dez linhas no banco.
+5. Quatorze procedimentos preparados via SQL real; 15º criado pela UI e 16º recusado, com quinze linhas persistidas.
+6. Invoice paga exclusivamente sintética e chamada da função privilegiada de liberação: aviso desaparece, convite reaparece e 11º paciente é criado pela UI. Contador histórico continua em dez.
+
+**Cleanup PASS:** a clínica exata e seus dados foram removidos; Auth Admin removeu somente o titular sintético e a consulta posterior confirmou ausência no Auth e no banco. Nenhum checkout, pagamento, mensagem ou integração foi criado. O estágio 6 não é prova de webhook ou pagamento externo, e a assinatura da fixture não foi tratada como contrato real.
+
+A primeira CI do PR falhou no inventário AST desatualizado: `unresolved=[]`, sem superfície sem guard, mas faltavam as três actions e as novas referências/linhas no artefato vivo. Regenerado apenas `docs/security/acoes.md` pelo gerador existente, sem editar snapshot inicial, allowlist ou configuração CI. `--check` passou: 199 actions, 61 métodos HTTP, 19 props, 453 referências de ambiente e zero pendências. [Evidência DEV/Preview sanitizada](trial-resource-limits-preview-2026-11-08.json).
