@@ -4,6 +4,8 @@ Atualizado em 07/11/2026. **Implementação local incremental autorizada; produ�
 
 **Continuação em 08/11:** os resultados iniciais abaixo são históricos. A [subentrega seguinte](CONTINUACAO-2026-11-07.md) acrescentou comandos Sandbox protegidos, checkout sintético ainda pendente, journal/inbox candidatos e prova PostgreSQL local. O founder aprovou **trial no Qoro e checkout ao final** e depois definiu as [cotas de avaliação e integrações após pagamento](../../specs/trial-interface-e-cotas-2026-11.md). Essas decisões não autorizam ativação de gateway, migration remota ou mudança dos contratos existentes. AbacatePay ainda não compõe a jornada pública.
 
+**Continuidade técnica atual:** [diário de execução e evidências](PLANO-EXECUCAO-CONTINUIDADE.md). A candidata local agora implementa aquisição diferida, origem persistida, checkout e aplicação do primeiro pagamento; a gestão completa do ciclo e a homologação externa continuam pendentes. A [ADR-068](../../adr/068-abacatepay-upgrade-policy.md) registra a regra aprovada de nova cota somente na próxima renovação paga. A [ADR-069](../../adr/069-abacatepay-trial-origin-and-initial-access.md) define o primeiro período de acesso sem inventar o vencimento remoto. Os estados históricos abaixo não substituem esse diário. Nenhuma nova composição está ativa em produção.
+
 ## 1. Escopo, procedência e segurança
 
 - Migrar somente **assinatura da clínica à Qoro**. Cobranças de pacientes, conta recebedora e repasses continuam fora da migração.

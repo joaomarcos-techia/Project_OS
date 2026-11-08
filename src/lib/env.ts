@@ -121,6 +121,35 @@ const EnvSchema = z
         .transform((v) => v === 'true'),
     ),
 
+    // Candidate acquisition only; never reroutes existing obligations.
+    SAAS_SIGNUP_PROVIDER: z.preprocess(
+      emptyToUndefined,
+      z.enum(['asaas', 'abacatepay_sandbox']).default('asaas'),
+    ),
+    ABACATEPAY_API_KEY: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+    ABACATEPAY_STORE_ID: z.preprocess(
+      emptyToUndefined,
+      z
+        .string()
+        .regex(/^store_[A-Za-z0-9_-]+$/)
+        .optional(),
+    ),
+    ABACATEPAY_SANDBOX_PROBE_PRODUCT_ID: z.preprocess(
+      emptyToUndefined,
+      z
+        .string()
+        .regex(/^prod_[A-Za-z0-9_-]+$/)
+        .optional(),
+    ),
+    ABACATEPAY_SANDBOX_PLAN_PRODUCTS: z.preprocess(
+      emptyToUndefined,
+      z.string().max(4096).optional(),
+    ),
+    ABACATEPAY_WEBHOOK_SECRET: z.preprocess(
+      emptyToUndefined,
+      z.string().min(32).max(1024).regex(/^\S+$/).optional(),
+    ),
+
     // --- Operational ---
     // Explicit opt-in for prod-targeting scripts (db:migrate:prod, db:backup:prod).
     // Default unset; only set in the operator's shell session right before a prod operation.

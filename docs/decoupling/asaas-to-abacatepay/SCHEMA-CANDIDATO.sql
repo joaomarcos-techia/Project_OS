@@ -147,3 +147,5 @@ GRANT SELECT,INSERT,UPDATE ON ALL TABLES IN SCHEMA billing_gateway TO service_ro
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA billing_gateway TO service_role;
 -- Intentionally no credentials, public REST access, DELETE grants, data backfill,
 -- lease-based POST retries, gateway failover, access grants or paid-period update.
+-- Historical design only. Do not apply this file.
+-- Executable source: drizzle/migrations/0138_saas_gateway_bindings.sql.

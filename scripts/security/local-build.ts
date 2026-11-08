@@ -89,6 +89,7 @@ Object.assign(childEnv, {
   SUPABASE_SECRET_KEY: 'security_bundle_canary_supabase_secret',
   GEMINI_API_KEY: 'security_bundle_canary_gemini_secret',
   ASAAS_API_KEY: 'security_bundle_canary_asaas_secret',
+  ABACATEPAY_API_KEY: 'security_bundle_canary_abacatepay_secret',
   CRYPTO_SECRET_BACKEND: 'env',
   APP_BASE_URL: 'http://localhost:3217',
 });

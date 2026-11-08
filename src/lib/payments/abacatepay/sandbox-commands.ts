@@ -33,6 +33,14 @@ const checkoutInput = operation
     expectedAmountMinor: amount,
     expectedCycle: cycle,
     expectedNativeTrialDays: z.number().int().min(1).max(90).nullable(),
+    returnUrl: z
+      .url()
+      .refine((value) => new URL(value).protocol === 'https:')
+      .optional(),
+    completionUrl: z
+      .url()
+      .refine((value) => new URL(value).protocol === 'https:')
+      .optional(),
   })
   .strict();
 const subscriptionInput = operation
@@ -214,6 +222,8 @@ export function createAbacatePaySandboxCommands(
             externalId: input.externalId,
             metadata: { qoroSandboxReference: input.externalId },
             retryPolicy: { maxRetry: 3, retryEvery: 1 },
+            ...(input.returnUrl ? { returnUrl: input.returnUrl } : {}),
+            ...(input.completionUrl ? { completionUrl: input.completionUrl } : {}),
           };
           const response = parseBillingValue(
             createdId,

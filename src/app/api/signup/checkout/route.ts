@@ -13,6 +13,7 @@ import { z } from 'zod';
 import {
   completeSignupHostedCheckout,
   provisionTenantFromSignup,
+  provisionFreeSignupTrial,
   readSignupBilling,
   reconcileSignupSubscription,
   resolveReadyOwnedSignupOnboarding,
@@ -25,6 +26,7 @@ import { env } from '@/lib/env';
 import { resolveTrustedApplicationOrigin } from '@/lib/http/application-url';
 import { readWebhookBodyCapped } from '@/lib/http/webhook-body';
 import { asaasProvider } from '@/lib/payments/asaas';
+import { deferredSaasSignupEnabled } from '@/lib/payments/saas/acquisition';
 import { parseDocument } from '@/lib/validation/document';
 
 export const runtime = 'nodejs';
@@ -140,6 +142,26 @@ export async function POST(req: Request): Promise<Response> {
     }
     const body = checkoutBodySchema.safeParse(parsed);
     if (!body.success) return json({ error: 'invalid_body' }, 400);
+
+    if (deferredSaasSignupEnabled()) {
+      const trial = await provisionFreeSignupTrial({
+        userId: onboarding.userId,
+        verifiedEmail: onboarding.email,
+      });
+      if (trial.ok) return json({ state: trial.state });
+      if (trial.reason !== 'legacy_checkout') {
+        return json(
+          { error: trial.reason },
+          trial.reason === 'unavailable'
+            ? 503
+            : trial.reason === 'forbidden'
+              ? 403
+              : trial.reason === 'gone'
+                ? 410
+                : 409,
+        );
+      }
+    }
 
     const checkout = await startSignupHostedCheckout({
       userId: onboarding.userId,

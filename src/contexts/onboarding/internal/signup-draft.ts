@@ -19,6 +19,7 @@ import { signupSessions } from '@/contexts/onboarding/schema';
 import { hashEmail } from '@/lib/auth/email-hash';
 import { dbAdmin } from '@/lib/db';
 import { env } from '@/lib/env';
+import { deferredSaasSignupEnabled } from '@/lib/payments/saas/acquisition';
 
 import { QORO_SELF_SERVICE_TRIAL_DAYS } from '../trial';
 import { signupAnswerValuesSchema, type SignupAnswerValues } from './signup-answer-values';
@@ -82,6 +83,8 @@ export interface SignupPlanState {
   trialDays: number;
   /** Fim absoluto dos planos 2026, derivado do Auth no servidor; null para catálogo legado. */
   offerTrialEndsAt: string | null;
+  /** Optional additive field: older deployments keep their existing checkout. */
+  signupFlow?: 'trial_first';
 }
 
 /** Sem `gone`: criar não depende de linha anterior; o que falha é disputa ou gate. */
@@ -341,6 +344,7 @@ export async function readSignupPlan(userId: string): Promise<PlanReadOutcome> {
       plans: availablePlans,
       trialDays: offerPlan ? PROPOSED_OFFER.proposedTrialDays : QORO_SELF_SERVICE_TRIAL_DAYS,
       offerTrialEndsAt,
+      ...(deferredSaasSignupEnabled() ? { signupFlow: 'trial_first' as const } : {}),
     },
   };
 }

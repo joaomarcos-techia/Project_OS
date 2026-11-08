@@ -14,7 +14,10 @@ async function walk(dir: string, htmlOnly = false): Promise<void> {
       const content = await readFile(file, 'utf8');
       for (const [rule, pattern] of [
         ['private-key', /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/],
-        ['server-secret-canary', /security_bundle_canary_(?:supabase|gemini|asaas)_secret/],
+        [
+          'server-secret-canary',
+          /security_bundle_canary_(?:supabase|gemini|asaas|abacatepay)_secret/,
+        ],
         ['vercel-live-script', /https?:\/\/vercel\.live\/_next-live\//],
         ['supabase-secret-key', /sb_secret_[A-Za-z0-9_-]{20,}/],
       ] as const) {

@@ -35,7 +35,7 @@ export const VALUE_PATTERNS: ReadonlyArray<Pattern> = [
   },
   // Query-string credential leak: "?password=...&token=...&token_hash=..."
   {
-    re: /\b(password|secret|token|token_hash|api_key|apikey)=([^&\s"]+)/gi,
+    re: /\b(password|secret|webhookSecret|token|token_hash|api_key|apikey)=([^&\s"]+)/gi,
     replacement: (m: string, _key: string, value: string) => m.replace(value, '[REDACTED]'),
   },
 ];

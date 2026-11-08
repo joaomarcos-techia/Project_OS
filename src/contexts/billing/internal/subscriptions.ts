@@ -393,12 +393,15 @@ export async function markInvoicePaid(
     providerPaymentId: string | null;
     idemSuffix: string;
     deferPeriodAdvance?: boolean;
+    /** Defaults preserve the existing Asaas callers; new origin stays explicit. */
+    provider?: 'asaas' | 'abacatepay';
   },
 ): Promise<void> {
   await tx.insert(paymentAttempts).values({
     clinicId,
     invoiceId: invoice.id,
     providerPaymentId: opts.providerPaymentId,
+    provider: opts.provider ?? 'asaas',
     status: 'confirmed',
   });
   if (canTransitionInvoice(invoice.status, 'paid') && invoice.status !== 'paid') {

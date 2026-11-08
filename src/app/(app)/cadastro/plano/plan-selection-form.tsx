@@ -49,6 +49,7 @@ function isPlanState(value: unknown): value is SignupPlanState {
       (typeof value.offerTrialEndsAt === 'string' &&
         value.offerTrialEndsAt.endsWith('Z') &&
         Number.isFinite(Date.parse(value.offerTrialEndsAt)))) &&
+    (value.signupFlow === undefined || value.signupFlow === 'trial_first') &&
     (value.plans.every((plan) => !isOffer2026PlanCode(plan.code)) ||
       value.offerTrialEndsAt !== null)
   );
@@ -327,9 +328,11 @@ export function PlanSelectionForm() {
       if (response.status === 409) {
         const reason = isRecord(body) ? body.error : null;
         setFinishError(
-          reason === 'reconcile_required'
-            ? 'Estamos confirmando sua assinatura com o provedor. Recarregue esta página em alguns minutos; não tente de novo agora para não duplicar a cobrança.'
-            : 'O cadastro mudou em outra aba. Recarregue a página e confira a escolha antes de continuar.',
+          reason === 'trial_used'
+            ? 'Esta conta já utilizou a avaliação gratuita. Entre na conta original para continuar; um novo cadastro não reinicia o prazo.'
+            : reason === 'reconcile_required'
+              ? 'Estamos confirmando sua assinatura com o provedor. Recarregue esta página em alguns minutos; não tente de novo agora para não duplicar a cobrança.'
+              : 'O cadastro mudou em outra aba. Recarregue a página e confira a escolha antes de continuar.',
         );
         return;
       }
@@ -496,8 +499,10 @@ export function PlanSelectionForm() {
       <div aria-live="polite" className="space-y-2">
         {saved ? (
           <Alert variant="success" title="Plano salvo">
-            {selectedTrialDescription(state, selectedPlanId, selectedCycle)}. O pagamento acontece
-            com segurança na página do Asaas.
+            {selectedTrialDescription(state, selectedPlanId, selectedCycle)}.{' '}
+            {state.signupFlow === 'trial_first'
+              ? 'Nenhum cartão ou pagamento é necessário para iniciar a avaliação.'
+              : 'O pagamento acontece com segurança na página do Asaas.'}
           </Alert>
         ) : null}
         {message ? <Alert variant="warning">{message}</Alert> : null}
@@ -508,7 +513,9 @@ export function PlanSelectionForm() {
           Voltar aos dados
         </a>
         <Button type="submit" loading={saving || finishing} className="sm:min-w-64">
-          Continuar para o checkout
+          {state.signupFlow === 'trial_first'
+            ? 'Começar avaliação gratuita'
+            : 'Continuar para o checkout'}
         </Button>
       </div>
     </form>

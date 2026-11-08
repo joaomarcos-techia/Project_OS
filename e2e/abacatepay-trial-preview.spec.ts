@@ -1,0 +1,191 @@
+/** DEV identity/draft prepared before this run; no real person or email delivery. */
+import { mkdir, writeFile } from 'node:fs/promises';
+
+import { expect, test } from '@playwright/test';
+import postgres from 'postgres';
+import { z } from 'zod';
+
+import { assertPreviewRuntimeIsDev, DEV_PROJECT_REF } from './preview-dev-runtime';
+import { installVercelBypassForOrigin } from './vercel-bypass';
+
+test.use({
+  storageState: { cookies: [], origins: [] },
+  extraHTTPHeaders: {},
+  trace: 'off',
+  video: 'off',
+  screenshot: 'off',
+});
+
+test('confirmed identity -> free trial -> server quota gates -> optional hosted Sandbox checkout', async ({
+  browser,
+}) => {
+  test.setTimeout(360_000);
+  const input = z
+    .object({
+      E2E_ABACATEPAY_FIXTURE: z.literal('ALLOW_DEV_ONLY'),
+      E2E_BASE_URL: z.url(),
+      DATABASE_URL_DEV: z.string().min(1),
+      E2E_ABACATEPAY_RUN_ID: z.uuid(),
+      E2E_ABACATEPAY_USER_ID: z.uuid(),
+      E2E_ABACATEPAY_EMAIL: z.email().regex(/^abaca-[a-f0-9-]+@example\.invalid$/),
+      E2E_ABACATEPAY_PASSWORD: z.string().min(20),
+      E2E_ABACATEPAY_PLAN: z.enum(['consultorio_2026', 'clinica_2026_2']),
+      E2E_ABACATEPAY_EXPIRED: z.enum(['true', 'false']),
+    })
+    .parse(process.env);
+  const origin = new URL(input.E2E_BASE_URL);
+  expect(origin.protocol).toBe('https:');
+  expect(origin.hostname).toMatch(/^project-[a-z0-9-]+-clinic-os-v2-s-projects\.vercel\.app$/);
+  const database = new URL(input.DATABASE_URL_DEV);
+  expect(decodeURIComponent(database.username)).toBe(`postgres.${DEV_PROJECT_REF}`);
+  expect(database.hostname).toMatch(/^[a-z0-9-]+\.pooler\.supabase\.com$/);
+  expect(input.DATABASE_URL_DEV).not.toBe(process.env.DATABASE_URL_PROD);
+  if (database.port === '6543') database.port = '5432';
+  await assertPreviewRuntimeIsDev(origin.origin);
+  const sql = postgres(database.toString(), { max: 1, prepare: false, ssl: 'require' });
+  const context = await browser.newContext({
+    viewport: { width: 1440, height: 1000 },
+    storageState: { cookies: [], origins: [] },
+  });
+  await installVercelBypassForOrigin(context, origin.origin);
+  const stages: string[] = [];
+  const evidence: {
+    runId: string;
+    userId: string;
+    status: string;
+    stages: string[];
+    retention: string;
+    scope: string;
+    clinicId?: string;
+    subscriptionId?: string;
+    checkoutId?: string;
+  } = {
+    runId: input.E2E_ABACATEPAY_RUN_ID,
+    userId: input.E2E_ABACATEPAY_USER_ID,
+    status: 'RUNNING',
+    stages,
+    retention: 'retained_until_financial_reconciliation; never delete on test timeout',
+    scope: 'Auth confirmed administratively; no proof of signup email delivery or external payment',
+  };
+  try {
+    const [identity] = await sql<{ email: string; created_at: Date; marker: string }[]>`
+      SELECT email,created_at,raw_user_meta_data->>'qoro_fixture_run' marker FROM auth.users
+      WHERE id=${input.E2E_ABACATEPAY_USER_ID}::uuid AND email_confirmed_at IS NOT NULL`;
+    expect(identity?.email).toBe(input.E2E_ABACATEPAY_EMAIL);
+    expect(identity?.marker).toBe(input.E2E_ABACATEPAY_RUN_ID);
+    const page = await context.newPage();
+    await page.goto(new URL('/login', origin.origin).toString());
+    try {
+      await page.locator('#email').fill(input.E2E_ABACATEPAY_EMAIL);
+      await page.locator('input[name="password"]').fill(input.E2E_ABACATEPAY_PASSWORD);
+    } catch {
+      throw new Error('Synthetic login fields unavailable; credential diagnostics suppressed');
+    }
+    await page.getByRole('button', { name: 'Entrar', exact: true }).click();
+    await expect(page).not.toHaveURL(/\/login(?:\?|$)/, { timeout: 90_000 });
+    stages.push('real_browser_login');
+    const [existing] = await sql<{ clinic_id: string }[]>`
+      SELECT clinic_id::text FROM public.profiles WHERE id=${input.E2E_ABACATEPAY_USER_ID}::uuid`;
+    if (!existing) {
+      await page.goto(new URL('/cadastro/plano', origin.origin).toString());
+      await expect(
+        page.getByText('sem cartão e sem cobrança inicial', { exact: false }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole('button', { name: 'Começar avaliação gratuita', exact: true }),
+      ).toBeEnabled();
+      await page.getByRole('button', { name: 'Começar avaliação gratuita', exact: true }).click();
+      await expect(page).toHaveURL(/\/dashboard(?:\?|$)/, { timeout: 90_000 });
+      stages.push('one_click_plan_to_trial_without_hosted_checkout');
+    }
+    const [contract] = await sql<
+      {
+        clinic_id: string;
+        subscription_id: string;
+        billing_provider: string;
+        code: string;
+        trial_ends_at: Date;
+        status: string;
+        external_checkout_id: string | null;
+        operations: number;
+        released_at: Date | null;
+        asaas_subscription_id: string | null;
+      }[]
+    >`SELECT s.clinic_id::text,s.id::text subscription_id,s.billing_provider,p.code,
+      s.trial_ends_at,s.billing_status status,b.external_checkout_id,t.released_at,s.asaas_subscription_id,
+      (SELECT count(*)::int FROM billing_gateway.operations o WHERE o.subscription_id=s.id) operations
+      FROM public.subscriptions s JOIN public.profiles u ON u.clinic_id=s.clinic_id
+      JOIN public.plans p ON p.id=s.plan_id JOIN billing_gateway.bindings b ON b.subscription_id=s.id
+      JOIN public.trial_access_policies t ON t.subscription_id=s.id
+      WHERE u.id=${input.E2E_ABACATEPAY_USER_ID}::uuid AND u.role='owner' AND u.ativo`;
+    expect(contract).toBeTruthy();
+    if (!contract || !identity) throw new Error('Synthetic trial did not persist');
+    evidence.clinicId = contract.clinic_id;
+    evidence.subscriptionId = contract.subscription_id;
+    expect(contract.billing_provider).toBe('abacatepay');
+    expect(contract.code).toBe(input.E2E_ABACATEPAY_PLAN);
+    expect(contract.asaas_subscription_id).toBeNull();
+    expect(contract.trial_ends_at.getTime()).toBe(identity.created_at.getTime() + 14 * 86_400_000);
+    expect(contract.released_at).toBeNull();
+    if (!existing) {
+      expect(contract.external_checkout_id).toBeNull();
+      expect(contract.operations).toBe(0);
+    }
+    stages.push('database_origin_absolute_deadline_and_no_initial_provider_operation');
+    for (const width of [1440, 390]) {
+      await page.setViewportSize({ width, height: 1000 });
+      await page.goto(new URL('/configuracoes/assinatura', origin.origin).toString());
+      await expect(page.getByRole('region', { name: 'Assinatura e avaliação' })).toBeVisible();
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+      ).toBe(true);
+    }
+    stages.push('desktop_mobile_subscription');
+    if (input.E2E_ABACATEPAY_EXPIRED === 'false') {
+      await expect(page.getByRole('button', { name: 'Contratar assinatura' })).toHaveCount(0);
+      const denied = await page.evaluate(async () => {
+        const response = await fetch('/api/billing/checkout', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: '{}',
+        });
+        return { status: response.status, body: await response.json() };
+      });
+      expect(denied).toEqual({ status: 409, body: { error: 'trial_active' } });
+      await page.goto(new URL('/configuracoes/whatsapp', origin.origin).toString());
+      await expect(
+        page.getByText('WhatsApp disponível após o pagamento', { exact: true }),
+      ).toBeVisible();
+      await page.goto(new URL('/configuracoes/pagamentos', origin.origin).toString());
+      await expect(
+        page.getByText('Asaas disponível após o pagamento', { exact: true }),
+      ).toBeVisible();
+      stages.push('active_trial_checkout_and_integrations_blocked');
+    } else {
+      await expect(page.getByText('Contratação pendente', { exact: true })).toBeVisible();
+      await page.getByRole('button', { name: 'Contratar assinatura', exact: true }).click();
+      await expect(page).toHaveURL(/^https:\/\/(?:app|pay)\.abacatepay\.com\//, {
+        timeout: 90_000,
+      });
+      const [binding] = await sql<{ id: string; n: number }[]>`
+        SELECT b.external_checkout_id id,
+        (SELECT count(*)::int FROM billing_gateway.operations o WHERE o.subscription_id=b.subscription_id AND o.kind='create_checkout') n
+        FROM billing_gateway.bindings b WHERE b.subscription_id=${contract.subscription_id}::uuid`;
+      expect(binding?.id).toMatch(/^bill_/);
+      expect(binding?.n).toBe(1);
+      if (!binding?.id) throw new Error('Synthetic checkout binding missing');
+      evidence.checkoutId = binding.id;
+      stages.push('real_qoro_route_to_hosted_sandbox_checkout_single_journal');
+    }
+    evidence.status = 'PASS';
+  } finally {
+    if (evidence.status === 'RUNNING') evidence.status = 'FAIL';
+    await mkdir('dist', { recursive: true });
+    await writeFile(
+      `dist/abacatepay-preview-${input.E2E_ABACATEPAY_RUN_ID}.json`,
+      JSON.stringify(evidence, null, 2),
+    );
+    await context.close();
+    await sql.end({ timeout: 5 });
+  }
+});

@@ -341,11 +341,15 @@ export const subscriptions = pgTable(
     cancelReason: text('cancel_reason'),
     cancelledBy: uuid('cancelled_by'), // FK auth.users via migration (sem FK, padrão *_by)
     asaasSubscriptionId: text('asaas_subscription_id'),
+    billingProvider: text('billing_provider', { enum: ['asaas', 'abacatepay'] })
+      .notNull()
+      .default('asaas'),
     dunningStage: integer('dunning_stage').notNull().default(0), // monotônico (0/1/3/7/15/30)
     ...timestampsPattern(),
   },
   (t) => ({
     clinicUniq: unique('subscriptions_clinic_uniq').on(t.clinicId),
+    gatewayTenantIdentity: unique('subscriptions_id_clinic_gateway_unique').on(t.id, t.clinicId),
     clinicIdx: index('subscriptions_clinic_id_idx').on(t.clinicId),
     statusIdx: index('subscriptions_billing_status_idx').on(t.billingStatus),
   }),
@@ -474,6 +478,11 @@ export const invoices = pgTable(
   },
   (t) => ({
     clinicStatusIdx: index('invoices_clinic_status_idx').on(t.clinicId, t.status),
+    gatewayTenantIdentity: unique('invoices_id_clinic_subscription_gateway_unique').on(
+      t.id,
+      t.clinicId,
+      t.subscriptionId,
+    ),
     dueIdx: index('invoices_due_idx').on(t.status, t.dueDate),
     // Resolução do webhook por asaas_payment_id (e dedup de geração).
     asaasPaymentUniq: uniqueIndex('invoices_asaas_payment_uniq')

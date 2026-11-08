@@ -4,8 +4,10 @@ import { PageHeader } from '@/components/ui/page-header';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
 import { getPlanChangeOverview, PlanChangeError } from '@/contexts/billing/internal/plan-changes';
+import { getDeferredSubscriptionOverview } from '@/contexts/billing/internal/deferred-checkout';
 
 import { PlanChangeForm } from './plan-change-form';
+import { DeferredSubscription } from './deferred-subscription';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,6 +30,17 @@ export default async function AssinaturaPage() {
     );
   }
   const clinicId = await requireClinicId();
+  const deferred = await getDeferredSubscriptionOverview(clinicId);
+  if (deferred)
+    return (
+      <>
+        <PageHeader
+          title="Assinatura"
+          description="Acompanhe sua avaliação e a contratação do plano."
+        />
+        <DeferredSubscription {...deferred} />
+      </>
+    );
   let overview;
   try {
     overview = await getPlanChangeOverview(clinicId);

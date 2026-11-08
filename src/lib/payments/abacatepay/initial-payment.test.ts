@@ -154,6 +154,13 @@ describe('authoritative initial subscription payment evidence', () => {
       code: 'binding_mismatch',
     });
   });
+  it('does not accept a second subscription from another customer sharing the dedicated checkout', async () => {
+    const { reader, subscriptions, subscription } = setup();
+    subscriptions.push({ ...subscription, id: 'subs_other', customerId: 'cust_other' });
+    await expect(reader.readInitialPayment(input)).rejects.toMatchObject({
+      code: 'binding_mismatch',
+    });
+  });
   it('does not associate a different subscription just because the customer/checkout match', async () => {
     const { reader, subscriptions, subscription } = setup();
     subscriptions.splice(0, 1, { ...subscription, id: 'subs_other' });

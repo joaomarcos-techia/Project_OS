@@ -68,7 +68,8 @@ function operationId(key: string, account: BillingAccount): string {
 }
 
 /**
- * Candidate repository for SCHEMA-CANDIDATO.sql. No production composition yet.
+ * Repository for migration 0138. Composed only in the test-only candidate;
+ * no production composition or migration of existing obligations is enabled.
  * The business-key constraint also catches retries using a newly generated UUID.
  */
 export function createPostgresGatewayOperationJournal(

@@ -343,6 +343,10 @@ export function collectInventory(root: string): Inventory {
       guard: 'asaas-shared-token',
       call: 'asaasProvider.validateWebhookToken',
     },
+    'src/app/api/webhooks/abacatepay/route.ts#POST': {
+      guard: 'abacatepay-secret-hmac-durable-inbox',
+      call: 'createAbacatePayWebhookHandler',
+    },
     'src/app/api/webhooks/asaas/patient/[ref]/route.ts#POST': {
       guard: 'asaas-tenant-token',
       call: 'safeEqual',

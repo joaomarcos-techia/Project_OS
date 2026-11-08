@@ -1,0 +1,36 @@
+# ADR-068 — alteração de plano na AbacatePay
+
+Status: **alternativa C aprovada pelo founder; implementação e homologação pendentes**. 08/11/2026. Aplica-se somente às futuras assinaturas SaaS AbacatePay. Não muda Asaas, contratos antigos ou pagamentos dos pacientes.
+
+## Evidência e problema
+
+A [API V2 change-plan](https://docs.abacatepay.com/pages/subscriptions/change-plan) agenda o novo produto para o próximo ciclo, devolve um pedido `PENDING` e substitui uma alteração pendente anterior. Não foi localizada uma consulta documentada desse pedido que comprove o próximo valor e sua data efetiva. `ACTIVE` da assinatura não comprova pagamento, preço futuro ou período pago. O [GET da assinatura](https://docs.abacatepay.com/pages/subscriptions/get) documenta identificadores, valor/estado atual e trial, mas não promete início/fim do período nem próximo vencimento. Não inventar esses campos.
+
+No Asaas, o Qoro libera upgrade após confirmar o proporcional e sincronizar a recorrência. Conservar o mesmo critério na AbacatePay exige comprovação adicional. O comando candidato retorna somente `pending/next_cycle`.
+
+## Alternativas
+
+| Alternativa | Suporte e implementação | Experiência e diferenças | Riscos e recuperação | Testes e condição de ativação |
+| --- | --- | --- | --- | --- |
+| A: imediato com proporcional e recorrência comprovada | Rateio Qoro já existe; API aceita mudança futura, sem readback documentado da pendência | Mais vagas após confirmação das duas obrigações; nenhum direito antecipado | Proporcional pago sem confirmação da recorrência exige revisão; não repetir POST nem reembolsar automaticamente | Pagamento do proporcional, lookup autoritativo, falhas parciais e concorrência; BLOCKED até suporte/readback equivalente |
+| B: imediato com complementar separado e recorrência agendada | Dois comandos e duas evidências; requer aprovar que aceite remoto `PENDING` é suficiente para liberar a cota atual após pagamento | Vaga imediata depois de pagar diferença; recorrência passa ao valor maior no ciclo seguinte | Outro change-plan pode substituir a pendência; divergência na renovação; reservar operação única, impedir mudanças simultâneas e alertar/reconciliar | Saga com fixture, pagamento recusado/duplicado, cancelamento concorrente, renovação com preço errado e revisão; aprovação comercial expressa e âncora de ciclo obrigatórias |
+| C: agendado para próximo ciclo | Usa change-plan nativo sem cobrança complementar; maior cota só após renovação paga do novo valor/produto | Menor complexidade; médico adicional não fica disponível imediatamente | Mudança pendente sem consulta continua exigindo monitoramento; se renovar errado, manter cota anterior e revisão, sem inventar pagamento | Próxima cobrança paga com item/valor/tenant corretos, retries, ocupação/downgrade, cancelamento e mudança substituída; aprovação comercial expressa |
+
+Alternativa escolhida pelo founder para o piloto: **C**, por reduzir a saga financeira e não depender de um proporcional separado. É diferente do upgrade imediato Asaas. A decisão comercial está aprovada; sua ativação continua dependendo de implementação e homologação. A e B ficam como registro da comparação, não como caminhos ativos.
+
+## Infraestrutura comum e limites
+
+Binding persistido por conta/ambiente, preço em centavos resolvido no servidor, operação durável com chave de negócio, bloqueio de mudanças simultâneas, envelope de eventos minimizado, readback e transação de direitos são comuns às alternativas. Nenhum desses componentes autoriza liberar vaga por redirect, pedido PENDING ou callback isolado.
+
+Até a implementação e a validação correspondentes: upgrade/médico adicional AbacatePay indisponíveis; Asaas legado preservado. Downgrade não apaga dados nem reduz cota antes do período pago terminar e da ocupação ser elegível. Anual novo continua fechado; troca de ciclo requer capacidade e política aprovadas.
+
+## Rollback
+
+Parar novas originações, conservar binding, invoices, comandos e inbox. Reconsultar o provedor antes de reenviar ou tentar outro gateway. Reverter código não desfaz uma cobrança nem cancela a recorrência; não fazer DOWN destrutivo, reembolso ou migração de contratos por efeito colateral.
+
+Decisão do founder em 08/11/2026: **C — agendar a nova cota para a próxima renovação paga, sem cobrança proporcional separada**. Homologação real: **NOT RUN**. A decisão define a regra, não prova que a renovação já pode ser conciliada pela API. Este documento não reduz critérios de aceite nem autoriza publicação.
+
+
+## Consequência da decisão aprovada
+
+O comando `change-plan` aceito não libera médicos, permissões ou cota. O contrato atual permanece até comprovar uma nova renovação paga, no novo produto e valor, vinculada à mesma conta/assinatura/cliente. Falha, timeout, substituição de pedido, pagamento antigo ou divergência permanecem em revisão. Não emitir cobrança proporcional. Downgrade também exige ocupação compatível e não apaga dados. A oferta mensal e os contratos Asaas continuam com suas regras atuais.

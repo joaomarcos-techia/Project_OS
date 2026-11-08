@@ -42,6 +42,7 @@ const subscriptionSchema = z.object({
   trialEndsAt: z.iso.datetime({ offset: true }).nullable(),
   // Documented GET schema does not promise frequency or the next due date.
   frequency: z.string().optional(),
+  createdAt: z.iso.datetime({ offset: true }).optional(),
 });
 const checkoutSchema = z.object({
   id: resourceId('bill_'),
@@ -105,11 +106,15 @@ export function createAbacatePayReadClient(
     schema: z.ZodType<T>,
     validate: (item: T) => void,
     filters: Record<string, string> = {},
+    bounds: { maxPages: number; maxItems: number } = {
+      maxPages: MAX_PAGES,
+      maxItems: PAGE_SIZE * MAX_PAGES,
+    },
   ): Promise<T[]> {
     const seenCursors = new Set<string>();
     const items: T[] = [];
     let cursor: string | null = null;
-    for (let page = 0; page < MAX_PAGES; page++) {
+    for (let page = 0; page < bounds.maxPages; page++) {
       const params = new URLSearchParams({ ...filters, limit: String(PAGE_SIZE) });
       if (cursor !== null) params.set('after', cursor);
       const envelope = parseBillingValue(
@@ -123,6 +128,7 @@ export function createAbacatePayReadClient(
       for (const item of envelope.data) {
         validate(item);
         items.push(item);
+        if (items.length > bounds.maxItems) throw new GatewayReadError('binding_mismatch');
       }
       if (!envelope.pagination.hasMore) {
         if (envelope.pagination.next !== null) throw new GatewayReadError('pagination_invalid');
@@ -188,6 +194,9 @@ export function createAbacatePayReadClient(
             throw new GatewayReadError('binding_mismatch');
         },
         { checkoutId },
+        // Initial checkout is owned by exactly one Qoro contract/customer.
+        // More than one subscription is ambiguous, not a reason for a long scan.
+        { maxPages: 2, maxItems: 1 },
       );
     },
   };

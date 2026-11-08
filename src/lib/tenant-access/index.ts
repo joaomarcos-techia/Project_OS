@@ -115,11 +115,23 @@ export async function assertClinicCanWriteTx(tx: Tx, clinicId: string): Promise<
     sql`SELECT c.status,
                (s.enforce_trial_deadline IS TRUE
                  AND s.billing_status = 'trial'
-                 AND s.trial_ends_at <= now()) AS trial_expired
+                 AND s.trial_ends_at <= now()) AS trial_expired,
+               (s.billing_provider = 'abacatepay'
+                 AND s.billing_status IN ('active','past_due')
+                 AND s.current_period_end <= now()
+                 AND coalesce(s.grace_period_until,s.current_period_end) <= now()) AS paid_period_expired
           FROM clinics c
           LEFT JOIN subscriptions s ON s.clinic_id = c.id
          WHERE c.id = ${clinicId}::uuid LIMIT 1`,
-  )) as unknown as Array<{ status: ClinicStatus; trial_expired: boolean }>;
-  const status = rows[0]?.trial_expired ? 'pending_payment' : (rows[0]?.status ?? null);
+  )) as unknown as Array<{
+    status: ClinicStatus;
+    trial_expired: boolean;
+    paid_period_expired: boolean;
+  }>;
+  const status = rows[0]?.trial_expired
+    ? 'pending_payment'
+    : rows[0]?.paid_period_expired
+      ? 'suspended_readonly'
+      : (rows[0]?.status ?? null);
   if (status && isWriteBlocked(status)) throw new ClinicAccessError(status);
 }

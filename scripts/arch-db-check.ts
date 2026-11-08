@@ -122,6 +122,11 @@ const ALLOWED_DB_VALUE_IMPORTS: Record<string, Set<string>> = {
     'src/contexts/onboarding/internal/signup-billing.ts',
     // O-6: consome signup_sessions e cria o tenant na mesma tx (ADR-027).
     'src/contexts/onboarding/internal/signup-provision.ts',
+    // ADR-069: exact GLOBAL PROTECTED seams; scope checked before any grant/POST.
+    'src/contexts/onboarding/internal/signup-free-trial.ts',
+    'src/contexts/billing/internal/deferred-checkout.ts',
+    'src/contexts/billing/internal/abacatepay-processing.ts',
+    'src/app/api/webhooks/abacatepay/route.ts',
     // Fase 2 (ADR-032): convite de funcionário insere profile via dbAdmin — profiles
     // não tem INSERT p/ authenticated (D31). Mesma justificativa da saga de onboarding.
     'src/contexts/identity/internal/members.ts',

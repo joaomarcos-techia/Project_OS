@@ -235,6 +235,13 @@ const config = [
       // asaas_payment_id (server-to-server, validado por token) e processa a
       // transição. Mesma justificativa dos crons. Só esta rota de webhook.
       'src/app/api/webhooks/asaas/**/*.{ts,tsx}',
+      // ADR-069: private gateway tables have FORCE RLS/no tenant policies.
+      // Exact paths only: authenticated secret+HMAC receiver, leased readback
+      // processor, server-authorized tenant checkout, and pre-tenant saga.
+      'src/app/api/webhooks/abacatepay/route.ts',
+      'src/contexts/billing/internal/abacatepay-processing.ts',
+      'src/contexts/billing/internal/deferred-checkout.ts',
+      'src/contexts/onboarding/internal/signup-free-trial.ts',
       // C14: read-models de "candidatos" (Scheduling/Financial são donos da regra
       // de "quem recebe") + repository da fila proativa fazem scan cross-tenant
       // read-only (sem PII, bound por LIMIT); writes per-clínica seguem em

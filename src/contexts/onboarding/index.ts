@@ -160,6 +160,10 @@ export {
   type ProvisionSignupOutcome,
 } from './internal/signup-provision';
 export {
+  provisionFreeSignupTrial,
+  type FreeSignupTrialOutcome,
+} from './internal/signup-free-trial';
+export {
   ONBOARDING_STEPS,
   EMPTY_STEP_STATE,
   advanceStep,

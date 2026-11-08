@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { Logo } from '@/components/shared/logo';
 import { Card, CardContent } from '@/components/ui/card';
 import { resolveReadyOwnedSignupOnboarding } from '@/contexts/onboarding';
+import { deferredSaasSignupEnabled } from '@/lib/payments/saas/acquisition';
 
 import { PlanSelectionForm } from './plan-selection-form';
 
@@ -12,6 +13,7 @@ export default async function SignupPlanPage() {
   const onboarding = await resolveReadyOwnedSignupOnboarding();
   if (!onboarding.ok) redirect('/login');
   if (onboarding.kind === 'redirect') redirect(onboarding.route);
+  const trialFirst = deferredSaasSignupEnabled();
 
   return (
     <main
@@ -29,8 +31,9 @@ export default async function SignupPlanPage() {
             </p>
             <h1 className="text-balance font-display text-2xl font-semibold">Escolha seu plano</h1>
             <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-fg-muted">
-              O plano fica salvo no seu cadastro. O pagamento será iniciado somente na próxima
-              etapa, com o valor confirmado no checkout.
+              {trialFirst
+                ? 'Escolha o plano que deseja conhecer. Comece a avaliação sem cartão e sem cobrança inicial; a contratação ficará disponível ao final dos 14 dias desde a criação da sua conta.'
+                : 'O plano fica salvo no seu cadastro. O pagamento será iniciado somente na próxima etapa, com o valor confirmado no checkout.'}
             </p>
             <div className="mt-4">
               <PlanSelectionForm />

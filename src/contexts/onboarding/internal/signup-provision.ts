@@ -81,7 +81,7 @@ export function slugifyClinicName(nome: string): string {
  * A checagem roda em `share` sobre `_reserved_slugs` e consulta `clinics` na
  * mesma transação; a corrida final continua protegida pelo UNIQUE do banco.
  */
-async function resolveAvailableSlug(tx: Tx, clinicName: string): Promise<string | null> {
+export async function resolveAvailableSlug(tx: Tx, clinicName: string): Promise<string | null> {
   const base = slugifyClinicName(clinicName);
   // Base curta demais não é erro do usuário: é um nome legítimo que não vira
   // subdomínio. Cai direto para o sufixo aleatório, sem tentar o inválido.

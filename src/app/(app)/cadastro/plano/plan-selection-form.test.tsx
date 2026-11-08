@@ -69,6 +69,40 @@ afterEach(() => {
 });
 
 describe('seleção de plano O-4', () => {
+  it('starts a selected free trial without redirecting to a payment provider', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        json(200, {
+          ...STATE,
+          signupFlow: 'trial_first',
+          selectedPlanId: CONSULTORIO_2026_ID,
+          trialDays: 14,
+          offerTrialEndsAt: '2026-11-15T12:00:00.000Z',
+          plans: [
+            {
+              id: CONSULTORIO_2026_ID,
+              code: 'consultorio_2026',
+              name: 'Consultório',
+              priceCents: 19700,
+              cycle: 'monthly',
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(json(200, { state: 'provisioned' }));
+    render(<PlanSelectionForm />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Começar avaliação gratuita' }));
+    await waitFor(() =>
+      expect(assignMock).toHaveBeenCalledWith('/auth/session-refresh?next=/dashboard'),
+    );
+    expect(
+      screen.getByText(/Nenhum cartão ou pagamento é necessário para iniciar a avaliação\./u),
+    ).toBeTruthy();
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      '/api/signup/plan',
+      '/api/signup/checkout',
+    ]);
+  });
   it('resumes the persisted plan at checkout without another selection or plan write', async () => {
     const checkoutUrl = 'https://sandbox.asaas.com/checkoutSession/show?id=existing_fixture';
     fetchMock

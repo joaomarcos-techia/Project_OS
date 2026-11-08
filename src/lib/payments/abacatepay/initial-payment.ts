@@ -28,6 +28,9 @@ export interface InitialPaymentEvidence {
   rawStatus: string;
   /** Provider charge/receipt confirmation does not prove available funds. */
   settlement: 'unknown';
+  /** Read from the provider. Not a remote next-due-date or paid-period claim. */
+  subscriptionCreatedAt: string | null;
+  recurrence: 'running' | 'stopped' | 'unknown';
 }
 
 /**
@@ -74,10 +77,12 @@ export function createAbacatePayInitialPaymentReader(
       ) {
         throw new GatewayReadError('binding_mismatch');
       }
-      const matches = (await read.listSubscriptionsForCheckout(expected.checkoutId)).filter(
-        (candidate) => candidate.customerId === expected.customerId,
-      );
-      if (matches.length !== 1 || matches[0]?.id !== expected.subscriptionId) {
+      const matches = await read.listSubscriptionsForCheckout(expected.checkoutId);
+      if (
+        matches.length !== 1 ||
+        matches[0]?.id !== expected.subscriptionId ||
+        matches[0]?.customerId !== expected.customerId
+      ) {
         throw new GatewayReadError('binding_mismatch');
       }
       if (checkout.status === 'PAID' && checkout.paidAmount !== expected.expectedAmountMinor) {
@@ -102,6 +107,13 @@ export function createAbacatePayInitialPaymentReader(
         state,
         rawStatus: checkout.status,
         settlement: 'unknown',
+        subscriptionCreatedAt: subscription.createdAt ?? null,
+        recurrence:
+          subscription.status === 'ACTIVE'
+            ? 'running'
+            : subscription.status === 'CANCELLED'
+              ? 'stopped'
+              : 'unknown',
       };
     },
   };

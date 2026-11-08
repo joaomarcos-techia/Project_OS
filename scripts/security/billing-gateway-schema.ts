@@ -1,7 +1,7 @@
 /** Real PostgreSQL + existing migrations + candidate DDL; synthetic data, loopback only. */
 import assert from 'node:assert/strict';
 import { createHmac, randomUUID } from 'node:crypto';
-import { access, readFile, writeFile } from 'node:fs/promises';
+import { access, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
@@ -35,9 +35,9 @@ async function fixture(sql: Sql, founder = false) {
   await sql`insert into public.profiles(id,clinic_id,nome,role,ativo,invite_accepted_at)
     values(${ownerId}::uuid,${clinicId}::uuid,'Synthetic owner','owner',true,now())`;
   const [subscription] = await sql<{ id: string }[]>`insert into public.subscriptions
-    (clinic_id,plan_id,price_id,billing_status,trial_ends_at,asaas_subscription_id)
+    (clinic_id,plan_id,price_id,billing_status,trial_ends_at,asaas_subscription_id,billing_provider)
     values(${clinicId}::uuid,${catalog.plan_id}::uuid,${catalog.price_id}::uuid,'active',now()+interval '14 days',
-      ${founder ? 'sub_synthetic_legacy' : null}) returning id::text`;
+      ${founder ? 'sub_synthetic_legacy' : null},${founder ? 'asaas' : 'abacatepay'}) returning id::text`;
   assert.ok(subscription);
   return { clinicId, subscriptionId: subscription.id };
 }
@@ -69,11 +69,14 @@ async function main(): Promise<void> {
     assert.equal(new URL(cluster.url).port, String(PORT));
     const legacy = await fixture(sql, true),
       first = await fixture(sql),
-      other = await fixture(sql);
+      other = await fixture(sql),
+      repositoryContract = await fixture(sql),
+      interruptedContract = await fixture(sql);
     const before = await snapshot(sql);
-    await sql.unsafe(
-      await readFile('docs/decoupling/asaas-to-abacatepay/SCHEMA-CANDIDATO.sql', 'utf8'),
-    );
+    const [installed] = await sql<
+      { ready: boolean }[]
+    >`SELECT to_regclass('billing_gateway.bindings') IS NOT NULL ready`;
+    assert.equal(installed?.ready, true, '0138 must be installed by the real migration sequence');
     assert.equal(await snapshot(sql), before);
     checks++;
     const a = randomUUID(),
@@ -215,11 +218,14 @@ async function main(): Promise<void> {
       accountId: 'same_external_id',
     } as const;
     const scope = {
-      subscriptionId: first.subscriptionId,
-      clinicId: first.clinicId,
+      subscriptionId: repositoryContract.subscriptionId,
+      clinicId: repositoryContract.clinicId,
       kind: 'create_checkout' as const,
       businessKey: 'repo_obligation',
     };
+    await sql`insert into billing_gateway.bindings(subscription_id,clinic_id,account_id) values
+      (${repositoryContract.subscriptionId}::uuid,${repositoryContract.clinicId}::uuid,${a}::uuid),
+      (${interruptedContract.subscriptionId}::uuid,${interruptedContract.clinicId}::uuid,${a}::uuid)`;
     let commands = 0;
     const execute = async () => {
       commands++;
@@ -244,7 +250,12 @@ async function main(): Promise<void> {
     assert.equal(commands, 1);
     checks++;
     await reject(() => run(randomUUID(), 'different_request'), 'operation_conflict');
-    const interruptedScope = { ...scope, businessKey: 'repo_unknown' };
+    const interruptedScope = {
+      ...scope,
+      subscriptionId: interruptedContract.subscriptionId,
+      clinicId: interruptedContract.clinicId,
+      businessKey: 'repo_unknown',
+    };
     let interruptedCommands = 0;
     const interrupted = () =>
       executeCommandOnce({
@@ -377,7 +388,7 @@ async function main(): Promise<void> {
     checks,
     environment: 'disposable_postgres_loopback',
     existingMigrations,
-    candidateMigrationRegistered: false,
+    candidateMigrationRegistered: true,
     remoteWrites: 0,
     providerCalls: 0,
     syntheticCleanup: cleanup,
