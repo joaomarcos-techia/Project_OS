@@ -10,6 +10,9 @@
  *   - o gate de permissão roda ANTES de tocar no segredo ou chamar o provedor.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { assertTrialPaidFeature } from '@/lib/trial-access';
+import { TrialAccessError } from '@/lib/trial-access/policy';
+vi.mock('@/lib/trial-access', () => ({ assertTrialPaidFeature: vi.fn(async () => {}) }));
 
 import type * as CryptoModule from 'node:crypto';
 import type * as AsaasModule from '@/lib/payments/asaas';
@@ -127,6 +130,16 @@ beforeEach(() => {
 });
 
 describe('connectPaymentAccount', () => {
+  it('trial blocks before reading a credential from Asaas or persisting a webhook', async () => {
+    vi.mocked(assertTrialPaidFeature).mockRejectedValueOnce(new TrialAccessError('asaas'));
+    await expect(connectPaymentAccount({ apiKey: SECRET })).rejects.toMatchObject({
+      code: 'trial_access_restricted',
+    });
+    expect(mocks.createAsaasClient).not.toHaveBeenCalled();
+    expect(mocks.getMyAccount).not.toHaveBeenCalled();
+    expect(upsertPaymentAccount).not.toHaveBeenCalled();
+    expect(mocks.createWebhook).not.toHaveBeenCalled();
+  });
   it('mantém gravação e configuração remota sob o mesmo lock da desconexão', async () => {
     const stages: string[] = [];
     vi.mocked(withPaymentWebhookLock).mockImplementationOnce(async (_clinicId, operation) => {

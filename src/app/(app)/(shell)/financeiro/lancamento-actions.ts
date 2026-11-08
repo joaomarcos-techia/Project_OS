@@ -1,6 +1,7 @@
 'use server';
 
 import { redirect } from 'next/navigation';
+import { TrialAccessError } from '@/lib/trial-access/policy';
 
 import { createLancamento } from '@/contexts/financial/actions';
 import { CreateLancamentoSchema } from '@/contexts/financial/types';
@@ -22,6 +23,7 @@ function str(fd: FormData, k: string): string | undefined {
  * mensagem escrita para a UI (mesmo critério de [action-result.ts]).
  */
 function messageFrom(err: unknown): string {
+  if (err instanceof TrialAccessError) return err.message;
   if (!(err instanceof Error)) return 'Erro inesperado.';
   if (err.name === 'AuthError') {
     const code = (err as { code?: string }).code;

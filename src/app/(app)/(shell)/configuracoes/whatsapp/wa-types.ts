@@ -4,6 +4,7 @@
  * consts vivem aqui). Mesmo contrato `ActionResult` do caixa/consultório.
  */
 import { ZodError } from 'zod';
+import { TrialAccessError } from '@/lib/trial-access/policy';
 
 import {
   MessagingRateLimitedError,
@@ -109,6 +110,7 @@ function camposDoZod(err: ZodError): Record<string, string> {
 
 /** Mapeia erros de domínio (por `name`) → ActionResult sem vazar internals. */
 export function fail(err: unknown): ActionResult<never> {
+  if (err instanceof TrialAccessError) return { ok: false, code: err.code, message: err.message };
   if (err instanceof ZodError) {
     const fields = camposDoZod(err);
     // "Revise os campos destacados" só é verdade se algum campo FOI destacado.

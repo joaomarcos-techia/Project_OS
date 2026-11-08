@@ -9,6 +9,9 @@
  *   - reenviar a mesma chave não escreve nada.
  */
 import type { SQL } from 'drizzle-orm';
+import { assertTrialPaidFeatureTx } from '@/lib/trial-access';
+import { TrialAccessError } from '@/lib/trial-access/policy';
+vi.mock('@/lib/trial-access', () => ({ assertTrialPaidFeatureTx: vi.fn(async () => {}) }));
 import { PgDialect } from 'drizzle-orm/pg-core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -72,6 +75,16 @@ beforeEach(() => {
 });
 
 describe('upsertPaymentAccount', () => {
+  it('trial denies persistence without rotating or saving a credential', async () => {
+    const { tx } = makeTx([]);
+    runWithTx(tx);
+    vi.mocked(assertTrialPaidFeatureTx).mockRejectedValueOnce(new TrialAccessError('asaas'));
+    await expect(upsertPaymentAccount(baseInput)).rejects.toMatchObject({
+      code: 'trial_access_restricted',
+    });
+    expect(tx.execute).not.toHaveBeenCalled();
+    expect(logAudit).not.toHaveBeenCalled();
+  });
   it('grava a chave cifrada, ativa a conta e audita na mesma tx', async () => {
     const { tx, sqls } = makeTx([[], [{ id: 'acc-1', key_version: 1 }]]);
     runWithTx(tx);

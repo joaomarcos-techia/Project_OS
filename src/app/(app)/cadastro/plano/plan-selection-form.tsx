@@ -12,6 +12,7 @@ import {
   PROPOSED_OFFER,
 } from '@/contexts/billing/proposed-offer';
 import type { SignupPlan, SignupPlanState } from '@/contexts/onboarding';
+import { TRIAL_RESOURCE_LIMITS } from '@/lib/trial-access/policy';
 
 type Phase = 'loading' | 'ready' | 'unavailable' | 'signed_out' | 'expired';
 
@@ -411,6 +412,16 @@ export function PlanSelectionForm() {
         <p className="text-xs font-medium text-fg-subtle">Clínica</p>
         <p className="truncate text-sm font-semibold text-fg">{state.clinicName}</p>
       </div>
+      {state.plans.every((plan) => isOffer2026PlanCode(plan.code)) ? (
+        <Alert variant="info" title="O que você pode testar">
+          Durante a avaliação: até {TRIAL_RESOURCE_LIMITS.patients.limit} pacientes,{' '}
+          {TRIAL_RESOURCE_LIMITS.appointments.limit} agendamentos e{' '}
+          {TRIAL_RESOURCE_LIMITS.documents.limit} documentos e receitas no total. Os demais
+          cadastros limitados têm cota de {TRIAL_RESOURCE_LIMITS.procedures.limit} por categoria.
+          WhatsApp, conexão com Asaas e convites de equipe ficam disponíveis após a confirmação do
+          pagamento da assinatura. As vagas de médicos e equipe seguem o plano contratado.
+        </Alert>
+      ) : null}
       {state.plans.some((plan) => plan.cycle === 'annual') ? (
         <div className="flex gap-2" role="group" aria-label="Ciclo de cobrança">
           {(['monthly', 'annual'] as const).map((cycle) => (

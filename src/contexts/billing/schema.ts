@@ -488,6 +488,50 @@ export const invoices = pgTable(
 );
 export type InvoiceRow = typeof invoices.$inferSelect;
 
+/** Evaluation-only cohort, enrolled by 0136 on NEW versioned trial subscriptions. */
+export const trialAccessPolicies = pgTable(
+  'trial_access_policies',
+  {
+    clinicId: tenantIdRef().primaryKey(),
+    subscriptionId: uuid('subscription_id')
+      .notNull()
+      .unique()
+      .references(() => subscriptions.id, { onDelete: 'cascade' }),
+    ownerUserId: uuid('owner_user_id').notNull(),
+    releasedAt: timestamp('released_at', { withTimezone: true }),
+    releasedByInvoiceId: uuid('released_by_invoice_id').references(() => invoices.id, {
+      onDelete: 'no action',
+    }),
+    ...timestampsPattern(),
+  },
+  (t) => ({
+    releasePair: check(
+      'trial_access_release_pair',
+      sql`(${t.releasedAt} IS NULL) = (${t.releasedByInvoiceId} IS NULL)`,
+    ),
+  }),
+);
+
+export const trialResourceUsage = pgTable(
+  'trial_resource_usage',
+  {
+    clinicId: uuid('clinic_id')
+      .notNull()
+      .references(() => trialAccessPolicies.clinicId, { onDelete: 'cascade' }),
+    metric: text('metric').notNull(),
+    consumed: integer('consumed').notNull().default(0),
+    ...timestampsPattern(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.clinicId, t.metric] }),
+    countCheck: check('trial_resource_usage_consumed_check', sql`${t.consumed} >= 0`),
+    metricCheck: check(
+      'trial_resource_metric_chk',
+      sql`${t.metric} IN ('patients','appointments','documents','payments','receivables','expenses','procedures','resources','document_templates')`,
+    ),
+  }),
+);
+
 export const invoiceItems = pgTable(
   'invoice_items',
   {

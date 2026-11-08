@@ -4,11 +4,14 @@ import { useRouter } from 'next/navigation';
 import { useMemo, useState, useTransition } from 'react';
 
 import {
-  createPrescriptionTemplate,
   deletePrescriptionTemplate,
-  duplicatePrescriptionTemplate,
   updatePrescriptionTemplate,
 } from '@/contexts/clinical/actions-templates';
+import {
+  createTemplateWithTrialLimit,
+  duplicateTemplateWithTrialLimit,
+} from '../_actions/create-limited';
+import { unwrapAction } from '@/contexts/scheduling/action-result';
 import type { PrescriptionTemplateSummary } from '@/contexts/clinical';
 import { Button } from '@/components/ui/button';
 import { DestructiveAction } from '@/components/ui/destructive-action';
@@ -98,7 +101,7 @@ export function TemplatesManager({ initial }: { initial: PrescriptionTemplateSum
     start(async () => {
       try {
         if (editing?.id) await updatePrescriptionTemplate(editing.id, input, uuidv4());
-        else await createPrescriptionTemplate(input, uuidv4());
+        else await unwrapAction(createTemplateWithTrialLimit(input, uuidv4()));
         setEditing(null);
         toast.success('Modelo salvo.');
         router.refresh();
@@ -111,7 +114,7 @@ export function TemplatesManager({ initial }: { initial: PrescriptionTemplateSum
   function duplicate(t: PrescriptionTemplateSummary) {
     start(async () => {
       try {
-        await duplicatePrescriptionTemplate(t.id, uuidv4());
+        await unwrapAction(duplicateTemplateWithTrialLimit(t.id, uuidv4()));
         router.refresh();
       } catch (err) {
         toast.error(err instanceof Error ? err.message : 'Erro ao duplicar.');

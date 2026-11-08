@@ -99,6 +99,32 @@ describe('seleção de plano O-4', () => {
     );
     expect(fetchMock).toHaveBeenCalledWith('/api/signup/plan', { cache: 'no-store' });
     expect(screen.queryByText(/Atendente: já está incluído/u)).toBeNull();
+    expect(screen.queryByText('O que você pode testar')).toBeNull();
+  });
+
+  it('discloses the new evaluation quotas before the checkout', async () => {
+    fetchMock.mockResolvedValueOnce(
+      json(200, {
+        ...STATE,
+        trialDays: 14,
+        offerTrialEndsAt: '2026-11-02T13:45:00.000Z',
+        plans: [
+          {
+            id: CONSULTORIO_2026_ID,
+            code: 'consultorio_2026',
+            name: 'Consultório',
+            priceCents: 19700,
+            cycle: 'monthly',
+          },
+        ],
+      }),
+    );
+    render(<PlanSelectionForm />);
+    expect(await screen.findByText('O que você pode testar')).toBeTruthy();
+    expect(screen.getByText(/10 pacientes, 15 agendamentos e 15 documentos/u)).toBeTruthy();
+    expect(
+      screen.getByText(/convites de equipe ficam disponíveis após a confirmação do pagamento/u),
+    ).toBeTruthy();
   });
 
   it('explica que o prazo da nova oferta começa na criação da conta, sem alterar o legado', async () => {
