@@ -32,6 +32,8 @@ A migration `0136_trial_resource_limits.sql` não faz backfill. Um trigger inscr
 
 As políticas têm vínculo com a assinatura e o titular; os contadores não armazenam conteúdo clínico. `authenticated` pode ler apenas a própria clínica e não pode inserir, alterar ou apagar políticas/contadores. A criação por SQL, IA, importação, recorrência, encaixe ou Server Action passa pelos mesmos triggers das tabelas de negócio.
 
+O readback DEV identificou DELETE administrativo herdado do default Supabase para `service_role`, sem permissão equivalente ao usuário comum. A correção proposta 0137 revoga os grants somente das duas tabelas e repõe SELECT/INSERT/UPDATE. Está testada localmente com o mesmo default, mas ainda depende de autorização própria antes de aplicação remota. A 0136 e seu histórico não são reescritos.
+
 Migration e funções verificam que seu proprietário tem os privilégios necessários para ler a coorte com FORCE RLS. Uma configuração inadequada falha explicitamente, em vez de tratar uma linha invisível como contrato legado. Depois de pago, os triggers não adquirem o lock de contagem da avaliação. A referência à invoice permite o cleanup autorizado da clínica inteira na mesma transação, sem permitir apagar isoladamente uma invoice ainda referenciada.
 
 ## Pagamento e liberação

@@ -84,3 +84,11 @@ Primeira execução: inscrição automática, nove contadores em desktop/mobile 
 **Cleanup PASS:** a clínica exata e seus dados foram removidos; Auth Admin removeu somente o titular sintético e a consulta posterior confirmou ausência no Auth e no banco. Nenhum checkout, pagamento, mensagem ou integração foi criado. O estágio 6 não é prova de webhook ou pagamento externo, e a assinatura da fixture não foi tratada como contrato real.
 
 A primeira CI do PR falhou no inventário AST desatualizado: `unresolved=[]`, sem superfície sem guard, mas faltavam as três actions e as novas referências/linhas no artefato vivo. Regenerado apenas `docs/security/acoes.md` pelo gerador existente, sem editar snapshot inicial, allowlist ou configuração CI. `--check` passou: 199 actions, 61 métodos HTTP, 19 props, 453 referências de ambiente e zero pendências. [Evidência DEV/Preview sanitizada](trial-resource-limits-preview-2026-11-08.json).
+
+## Privilégios administrativos herdados — correção 0137 preparada
+
+O readback adicional do DEV confirmou FORCE RLS, leitura por `authenticated`, nenhuma escrita por `authenticated` e nenhum acesso por `anon` nas duas tabelas. Contudo, `service_role` recebeu DELETE pelo default do Supabase: o GRANT restrito da 0136 não retira privilégios previamente atribuídos por default. Isso não demonstra bypass pelo usuário comum; é um excesso de privilégio administrativo nas tabelas de políticas/contadores, contrário à intenção de concessão mínima.
+
+A 0136 aplicada e seu hash foram preservados. A proposta aditiva **0137_trial_service_role_privileges.sql** revoga os privilégios de `service_role` somente nessas duas tabelas e concede novamente SELECT/INSERT/UPDATE. Não altera dados, contratos, RLS ou defaults globais. **Não foi aplicada remotamente:** a autorização atual cobre somente 0136 no DEV.
+
+O harness local agora reproduz o default Supabase (`GRANT ALL` para tabelas futuras) antes da 0136. Com a 0137, **45 verificações PASS** em `2026-11-08T20:06:20.672Z`, 138 migrations, zero escrita remota/provider: inclui os 43 casos anteriores, conferência dos privilégios restritos e DELETE real negado para `service_role` com 42501. [Evidência sintética](trial-service-role-2026-11-08.json). A aplicação exclusiva da 0137 no DEV e o readback dos privilégios exigem a confirmação específica prevista no AGENTS.md.

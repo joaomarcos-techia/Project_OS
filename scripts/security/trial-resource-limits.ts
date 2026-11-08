@@ -86,6 +86,8 @@ const cluster = await startScratchSchema({
     file: '0136_trial_resource_limits.sql',
     async run(sql) {
       legacy = await fixture(sql);
+      // Reproduce the Supabase default grants, absent from a bare Postgres.
+      await sql`ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO service_role`;
     },
   },
 });
@@ -93,6 +95,25 @@ try {
   assert.equal(new URL(cluster.url).hostname, '127.0.0.1');
   assert.equal(new URL(cluster.url).port, String(PORT));
   const { sql } = cluster;
+  const grants = await sql<{ readable: boolean; writable: boolean; excessive: boolean }[]>`
+    SELECT has_table_privilege('service_role',c.oid,'SELECT') AS readable,
+      has_table_privilege('service_role',c.oid,'INSERT') AND has_table_privilege('service_role',c.oid,'UPDATE') AS writable,
+      has_table_privilege('service_role',c.oid,'DELETE,TRUNCATE,REFERENCES,TRIGGER') AS excessive
+    FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+    WHERE n.nspname='public' AND c.relname IN ('trial_access_policies','trial_resource_usage')`;
+  assert.equal(grants.length, 2);
+  for (const row of grants)
+    assert.deepEqual(row, { readable: true, writable: true, excessive: false });
+  checks++;
+  await assert.rejects(
+    () =>
+      sql.begin(async (tx) => {
+        await tx`SET LOCAL ROLE service_role`;
+        await tx`DELETE FROM public.trial_resource_usage`;
+      }),
+    (error: unknown) => error instanceof Error && 'code' in error && error.code === '42501',
+  );
+  checks++;
   assert.ok(legacy);
   assert.equal(
     (await sql`SELECT * FROM trial_access_policies WHERE clinic_id=${legacy.clinicId}::uuid`)
@@ -375,7 +396,7 @@ try {
     status: 'PASS',
     checks,
     environment: 'synthetic_loopback_postgres',
-    migration: '0136_trial_resource_limits',
+    migrations: ['0136_trial_resource_limits', '0137_trial_service_role_privileges'],
     remoteWrites: 0,
     providerCalls: 0,
   };
