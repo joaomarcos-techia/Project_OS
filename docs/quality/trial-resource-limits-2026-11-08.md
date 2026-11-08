@@ -1,6 +1,6 @@
 # Validação das restrições de avaliação
 
-Ambiente: worktree local `C:/dev/Qoro_billing_abacatepay_20261107`, branch `feat/billing-abacatepay-20261107`. Nenhuma migration remota, deploy, mensagem, convite real, cobrança ou alteração de contrato executada nesta frente.
+Ambiente: worktree `C:/dev/Qoro_billing_abacatepay_20261107`, branch `feat/billing-abacatepay-20261107`. Validação iniciada localmente; depois de autorizações específicas, 0136/0137 aplicadas somente no DEV e Preview publicado/validado. As provas locais e remotas são diferenciadas nos checkpoints abaixo. Nenhuma mensagem, convite real, cobrança, alteração de contrato ou mudança em produção.
 
 Regras: [spec de avaliação](../specs/trial-interface-e-cotas-2026-11.md). Decisão de arquitetura: [ADR-067](../adr/067-cotas-temporarias-de-avaliacao.md).
 
@@ -21,7 +21,7 @@ Os resultados finais abaixo substituem somente os estados em andamento. As execu
 - Regressão integral inicial, em 17 lotes e com conjunto exato de **591 arquivos**: **6.402 PASS / 1 FAIL / 0 SKIP**. O único FAIL restante era a fixture administrativa WhatsApp, que não simulava a nova dependência de coorte e tentou o PostgreSQL fictício. Ela foi corrigida sem remover as asserções de permissão; acrescentada negativa de integração em trial mesmo pelo caminho administrativo.
 - Reteste focal final depois dessa correção e dos adapters de feedback: **190/190 em 18 arquivos, zero skips**, incluindo o arquivo anteriormente reprovado. A composição do resultado mais recente de cada arquivo contém **594 arquivos e 6.415 asserções aprovadas**. Isso combina os lotes iniciais com os retestes afetados; **não é uma execução integral única no snapshot final**. Não repetir a bateria inteira apenas para alterar essa descrição.
 
-## Gates finais
+## Gates do fechamento local, antes da autorização DEV
 
 | Verificação | Resultado e evidência local |
 | --- | --- |
@@ -85,10 +85,20 @@ Primeira execução: inscrição automática, nove contadores em desktop/mobile 
 
 A primeira CI do PR falhou no inventário AST desatualizado: `unresolved=[]`, sem superfície sem guard, mas faltavam as três actions e as novas referências/linhas no artefato vivo. Regenerado apenas `docs/security/acoes.md` pelo gerador existente, sem editar snapshot inicial, allowlist ou configuração CI. `--check` passou: 199 actions, 61 métodos HTTP, 19 props, 453 referências de ambiente e zero pendências. [Evidência DEV/Preview sanitizada](trial-resource-limits-preview-2026-11-08.json).
 
-## Privilégios administrativos herdados — correção 0137 preparada
+## Privilégios administrativos herdados — correção 0137 aplicada no DEV
 
 O readback adicional do DEV confirmou FORCE RLS, leitura por `authenticated`, nenhuma escrita por `authenticated` e nenhum acesso por `anon` nas duas tabelas. Contudo, `service_role` recebeu DELETE pelo default do Supabase: o GRANT restrito da 0136 não retira privilégios previamente atribuídos por default. Isso não demonstra bypass pelo usuário comum; é um excesso de privilégio administrativo nas tabelas de políticas/contadores, contrário à intenção de concessão mínima.
 
-A 0136 aplicada e seu hash foram preservados. A proposta aditiva **0137_trial_service_role_privileges.sql** revoga os privilégios de `service_role` somente nessas duas tabelas e concede novamente SELECT/INSERT/UPDATE. Não altera dados, contratos, RLS ou defaults globais. **Não foi aplicada remotamente:** a autorização atual cobre somente 0136 no DEV.
+A 0136 aplicada e seu hash foram preservados. A migration aditiva **0137_trial_service_role_privileges.sql** revoga os privilégios de `service_role` somente nessas duas tabelas e concede novamente SELECT/INSERT/UPDATE. Não altera dados, contratos, RLS ou defaults globais. Após aprovação específica do founder, foi aplicada exclusivamente no DEV em `2026-11-08T20:17:03.202Z`, com advisory lock, lock timeout de 5 segundos e statement timeout de 60 segundos. O histórico passou de 137 para 138 migrations; nenhum arquivo anterior foi reaplicado e os hashes agregados de clínicas, perfis, assinaturas, políticas e contadores foram preservados na transação.
 
-O harness local agora reproduz o default Supabase (`GRANT ALL` para tabelas futuras) antes da 0136. Com a 0137, **45 verificações PASS** em `2026-11-08T20:06:20.672Z`, 138 migrations, zero escrita remota/provider: inclui os 43 casos anteriores, conferência dos privilégios restritos e DELETE real negado para `service_role` com 42501. [Evidência sintética](trial-service-role-2026-11-08.json). A aplicação exclusiva da 0137 no DEV e o readback dos privilégios exigem a confirmação específica prevista no AGENTS.md.
+O harness local agora reproduz o default Supabase (`GRANT ALL` para tabelas futuras) antes da 0136. Com a 0137, **45 verificações PASS** em `2026-11-08T20:06:20.672Z`, 138 migrations, zero escrita remota/provider: inclui os 43 casos anteriores, conferência dos privilégios restritos e DELETE real negado para `service_role` com 42501. [Evidência sintética](trial-service-role-2026-11-08.json).
+
+**Readback efetivo DEV: PASS**, `2026-11-08T20:17:09.194Z`: FORCE RLS nas duas tabelas, `authenticated` com leitura e sem escrita, `anon` sem acesso, `service_role` com SELECT/INSERT/UPDATE e sem DELETE/TRUNCATE/REFERENCES/TRIGGER. As três funções de trigger mantêm SECURITY DEFINER, proprietário privilegiado, search_path fixo e nenhuma permissão de EXECUTE para `authenticated`. Nenhum DELETE foi tentado em dados remotos para fabricar essa prova; o teste de recusa real foi somente no banco sintético. [Evidência de aplicação e pós-teste](trial-service-role-dev-2026-11-08.json). Sem alteração em produção.
+
+O Preview imutável atualizado `https://project-n4xaxn7k6-clinic-os-v2-s-projects.vercel.app` passou smoke somente de leitura em `2026-11-08T20:14:10.952Z`: formulário de login hidratado, duas rotas privadas negadas ao anônimo e fingerprint assinado comprovando Auth/banco DEV. O source de runtime em `src` do commit `fb715b7a` é idêntico ao `311e5dd0` do E2E completo; não foi repetida a criação de pacientes/fixtures sem alteração funcional.
+
+## CI integral do código — PASS
+
+[Run 42518605760](https://github.com/joaomarcos-techia/Project_OS/actions/runs/42518605760), SHA `fb715b7ae31583504b008b08c0c138615615afd8`, concluído com `success` em `2026-11-08T20:23:32Z`: **594 arquivos / 6.415 testes aprovados**, coverage gate, TypeScript, lint, auditoria de dependências, arquitetura, segurança das migrations, inventário, isolamento entre clínicas, build, bundle e limites HTTP aprovados. A suíte pública do navegador teve **8 PASS / 2 SKIP**. Os SKIPs são verificações que dependem de `TURNSTILE_SECRET_KEY` e da presença do widget com site key; o build isolado não recebe essas chaves. Não contam como prova de desafio real ou configuração Production.
+
+Esta é uma execução integral real do código, posterior aos lotes locais históricos descritos acima. As atualizações seguintes deste fechamento são somente documentação/evidências: nenhum arquivo em `src`, `scripts` ou `drizzle` mudou depois desse SHA. Não atribuir o resultado automaticamente a uma futura mudança funcional; conferir o diff antes de reutilizar a prova. Produção e a homologação externa AbacatePay continuam fora deste aceite DEV/Preview.

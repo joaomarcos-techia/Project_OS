@@ -1,6 +1,6 @@
 # ADR-067 — Cotas temporárias por clínica durante a avaliação
 
-Status: aceito pelo founder em 08/11/2026; 0136 aplicada somente no DEV e E2E Preview aprovado. A correção adicional 0137 de grants administrativos está preparada/testada localmente, com aplicação remota pendente de autorização. Produção não alterada.
+Status: aceito pelo founder em 08/11/2026; 0136 e 0137 aplicadas somente no DEV com autorizações específicas, E2E Preview e readback dos privilégios aprovados. Produção não alterada.
 
 ## Contexto
 

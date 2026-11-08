@@ -1,6 +1,6 @@
 # Avaliação com cotas e integrações após pagamento
 
-Decisão do founder em 08/11/2026. Implementação candidata em `feat/billing-abacatepay-20261107`, sem ativação em ambiente remoto. O onboarding novo será discutido separadamente.
+Decisão do founder em 08/11/2026. Implementação candidata em `feat/billing-abacatepay-20261107`, com migrations 0136/0137 autorizadas e aplicadas somente no DEV e validação no Preview. Sem ativação em produção. O onboarding novo será discutido separadamente.
 
 ## Regra aprovada
 
@@ -32,7 +32,7 @@ A migration `0136_trial_resource_limits.sql` não faz backfill. Um trigger inscr
 
 As políticas têm vínculo com a assinatura e o titular; os contadores não armazenam conteúdo clínico. `authenticated` pode ler apenas a própria clínica e não pode inserir, alterar ou apagar políticas/contadores. A criação por SQL, IA, importação, recorrência, encaixe ou Server Action passa pelos mesmos triggers das tabelas de negócio.
 
-O readback DEV identificou DELETE administrativo herdado do default Supabase para `service_role`, sem permissão equivalente ao usuário comum. A correção proposta 0137 revoga os grants somente das duas tabelas e repõe SELECT/INSERT/UPDATE. Está testada localmente com o mesmo default, mas ainda depende de autorização própria antes de aplicação remota. A 0136 e seu histórico não são reescritos.
+O readback DEV identificou DELETE administrativo herdado do default Supabase para `service_role`, sem permissão equivalente ao usuário comum. A correção 0137 revoga os grants somente das duas tabelas e repõe SELECT/INSERT/UPDATE. Após teste local reproduzindo esse default e aprovação específica do founder, foi aplicada somente no DEV em 08/11, com readback PASS dos privilégios e preservação dos dados existentes. A 0136 e seu histórico não foram reescritos; produção não foi alterada.
 
 Migration e funções verificam que seu proprietário tem os privilégios necessários para ler a coorte com FORCE RLS. Uma configuração inadequada falha explicitamente, em vez de tratar uma linha invisível como contrato legado. Depois de pago, os triggers não adquirem o lock de contagem da avaliação. A referência à invoice permite o cleanup autorizado da clínica inteira na mesma transação, sem permitir apagar isoladamente uma invoice ainda referenciada.
 
