@@ -9,6 +9,7 @@
   min-width: 0;
   flex-direction: column;
   gap: 16px;
+  container: dash / inline-size;
 }
 
 /* O checklist (onboarding) segue como está; só entra no ritmo de 16 px. */
@@ -24,19 +25,29 @@
   gap: 16px;
 }
 
+/* Cada cartão é contêiner: o que ele carrega se adapta à largura dele, não à da
+   janela (o trilho e o cartão vizinho mudam quanto sobra). */
 .wide {
   min-width: 0;
   flex: 1.7 1 520px;
+  container-type: inline-size;
 }
 
 .narrow {
   min-width: 0;
   flex: 1 1 320px;
+  container-type: inline-size;
+}
+
+/* Corta a faixa interna, que tem fundo próprio e canto reto, na curva do cartão. */
+.clip {
+  overflow: hidden;
 }
 
 /* ---- Agora no consultório: quatro indicadores numa faixa só ---- */
 .kpis {
-  --kc-min: 220px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .waitValue {
@@ -94,7 +105,7 @@
    itens se espalham em vez de afastar cada número do próprio rótulo. */
 .legend {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 8px 20px;
   margin: 0;
   padding: 0;
@@ -160,8 +171,9 @@
 
 /* ---- Resumo financeiro do dia: indicadores dentro do cartão ---- */
 .finStrip {
-  --kc-min: 180px;
+  display: grid;
   flex: 1;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   border: 0;
   border-radius: 0;
 }
@@ -496,59 +508,115 @@
   font-weight: 600;
 }
 
-/* ---- Faixa: o que a tela ainda não mostra ---- */
-.occupancy {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px 16px;
-  padding: 16px 20px;
-}
-
-.occIcon {
-  display: inline-grid;
-  flex: none;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  background: var(--card);
-  box-shadow:
-    0 0 0 1px var(--border),
-    var(--elev-1);
-  color: var(--text-2);
-}
-
-.occIcon > svg {
-  width: 18px;
-  height: 18px;
-}
-
-.occCopy {
-  min-width: 0;
-  flex: 1 1 320px;
-}
-
-.occCopy > h2 {
-  margin: 0;
-  color: var(--text);
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.occCopy > p {
-  margin: 2px 0 0;
+/* Os valores exatos para toque e teclado: a dica das barras só abre com mouse. */
+.chartValues {
+  margin-top: 12px;
   color: var(--text-2);
   font-size: 13px;
 }
 
+.chartValues > summary {
+  width: fit-content;
+  padding-block: 2px;
+  cursor: pointer;
+}
+
+.chartValues > dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 4px 20px;
+  margin: 8px 0 0;
+}
+
+.chartValues dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.chartValues dd {
+  margin: 0;
+  color: var(--text);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Nota: o que a tela ainda não mostra ---- */
+.occupancy {
+  margin: 0;
+  padding: 0 4px;
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+/* ---- Esqueleto de carregamento: as mesmas faixas e alturas da tela pronta ---- */
+.skTitle {
+  width: 320px;
+  max-width: 100%;
+  height: 1.2em;
+}
+
+.skDate {
+  width: 240px;
+  max-width: 100%;
+  height: 14px;
+  margin-block: 3.5px;
+}
+
+.skAction {
+  width: 112px;
+  height: max(var(--control-h), var(--hit-target));
+}
+
+.skCell {
+  display: flex;
+  min-height: 110px;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.skLabel {
+  width: 60%;
+  height: 12px;
+}
+
+.skValue {
+  width: 40%;
+  height: 24px;
+}
+
+.skHint {
+  width: 75%;
+  height: 12px;
+}
+
+.skRowShift {
+  min-height: 228px;
+}
+
+.skRowAgenda {
+  min-height: 385px;
+}
+
+.skRowHistory {
+  min-height: 318px;
+}
+
 @media (max-width: 900px) {
+  .body {
+    --card-pad: 16px;
+  }
+
+  .body :global([data-slot='metric-strip']) > :global([data-slot='stat-card']) {
+    padding-inline: 16px;
+  }
+
   .turn,
   .upRow,
   .foot,
   .pending,
   .actRow,
-  .occupancy {
+  .chart {
     padding-right: 16px;
     padding-left: 16px;
   }
@@ -565,11 +633,74 @@
     display: none;
   }
 
+  /* Sem a coluna do procedimento, o nome pode ocupar duas linhas: em 390 px,
+     dois nomes longos cortados em uma linha ficavam iguais. */
+  .cell > b {
+    display: -webkit-box;
+    overflow-wrap: anywhere;
+    white-space: normal;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
   .legend {
     gap: 8px 16px;
   }
+}
 
-  /* A ação desce para baixo do texto, alinhada a ele, em vez de espremê-lo. */
+/* Largura da área de conteúdo, não da janela: o trilho fixado muda quanto sobra. */
+@container dash (max-width: 855px) {
+  /* Empilhado, o que pede ação sobe. Só a ordem visual muda: o DOM segue o do
+     desktop. Sem o `flex` zerado, a base de 520/320 px da linha viraria ALTURA
+     nesta coluna. */
+  .row {
+    display: contents;
+  }
+
+  .wide,
+  .narrow {
+    flex: 0 0 auto;
+  }
+
+  .body > :global([data-slot='activation-checklist']),
+  .setupCard {
+    order: -4;
+  }
+
+  .kpis {
+    order: -3;
+  }
+
+  .pendingCard {
+    order: -2;
+  }
+
+  .upcomingCard {
+    order: -1;
+  }
+}
+
+@container dash (max-width: 759px) {
+  .kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container dash (max-width: 479px) {
+  .kpis {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* A partir daqui a referência é o próprio cartão (.wide/.narrow). */
+@container (max-width: 479px) {
+  .finStrip {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* A ação desce para baixo do texto, alinhada a ele, em vez de espremê-lo. */
+@container (max-width: 400px) {
   .pending {
     flex-wrap: wrap;
   }
@@ -580,5 +711,13 @@
 
   .pendingCta {
     margin-left: 44px;
+  }
+}
+
+/* Cartão largo sozinho na linha (perfil sem financeiro): sem o limite, nome e
+   procedimento ficam a mais de 500 px um do outro. */
+@container (min-width: 900px) {
+  .upRow {
+    grid-template-columns: 52px 320px minmax(0, 1fr) 120px;
   }
 }

@@ -717,22 +717,25 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail {
     margin 0.16s ease;
 }
 /* Abre por cima: no hover, no foco por teclado e enquanto o menu da conta
-   estiver aberto (o conteúdo dele vai para um portal e o foco sai do trilho). */
-html:not([data-qoro-rail='pinned'])
-  [data-qoro-shell='tenant']
-  .qoro-rail:is(:hover, :focus-within, :has([data-state='open']))
-  .qoro-rail-inner {
-  width: var(--rail-peek-w);
-  /* Abre 6 px para cada lado: a marca fica à mesma distância do topo e da esquerda. */
-  margin: -6px 0 -6px -6px;
-  padding: 6px;
-  background: var(--card);
-  box-shadow: var(--elev-overlay);
+   estiver aberto (o conteúdo dele vai para um portal e o foco sai do trilho).
+   `:focus-visible`, e não `:focus-within`: o clique do mouse não prende o trilho. */
+@media (min-width: 721px) {
+  html:not([data-qoro-rail='pinned'])
+    [data-qoro-shell='tenant']
+    .qoro-rail:is(:hover, :has(:focus-visible), :has([data-state='open']))
+    .qoro-rail-inner {
+    width: var(--rail-peek-w);
+    /* Abre 6 px para cada lado: a marca fica à mesma distância do topo e da esquerda. */
+    margin: -6px 0 -6px -6px;
+    padding: 6px;
+    background: var(--card);
+    box-shadow: var(--elev-overlay);
+  }
 }
 html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail-inner {
   width: var(--rail-pin-w);
 }
-[data-qoro-shell='tenant'] .qoro-rail:is(:hover, :focus-within, :has([data-state='open'])),
+[data-qoro-shell='tenant'] .qoro-rail:is(:hover, :has(:focus-visible), :has([data-state='open'])),
 html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail {
   --rail-label-opacity: 1;
 }
@@ -909,7 +912,8 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail {
   min-height: 8px;
 }
 /* Fixar, tema e Sair: só os ícones, lado a lado, na mesma posição em qualquer
-   estado do menu. Os nomes continuam para leitores de tela e na dica do mouse. */
+   estado do menu. Os nomes continuam para leitores de tela e na dica, que abre
+   no mouse e no foco por teclado. */
 [data-qoro-shell='tenant'] .qoro-rail-foot {
   display: flex;
   flex: none;
@@ -922,6 +926,11 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail {
   width: auto;
   height: 32px;
   padding: 0;
+}
+@media (pointer: coarse) and (min-width: 721px) {
+  [data-qoro-shell='tenant'] .qoro-rail-foot .qoro-rail-item {
+    height: var(--hit-target);
+  }
 }
 [data-qoro-shell='tenant'] .qoro-rail-foot .qoro-rail-item > svg {
   width: 18px;
@@ -1041,7 +1050,7 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail {
   }
 }
 [data-qoro-shell='tenant']
-  .qoro-rail:is(:hover, :focus-within, :has([data-state='open']))
+  .qoro-rail:is(:hover, :has(:focus-visible), :has([data-state='open']))
   .qoro-rail-nav,
 html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail-nav {
   scrollbar-width: thin;
@@ -1078,10 +1087,6 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail-nav {
     transition: none;
   }
   [data-qoro-shell='tenant'] .qoro-rail .qoro-rail-inner,
-  html
-    [data-qoro-shell='tenant']
-    .qoro-rail:is(:hover, :focus-within, :has([data-state='open']))
-    .qoro-rail-inner,
   html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail-inner {
     position: static;
     width: auto;
@@ -1251,6 +1256,22 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail-nav {
   }
   [data-qoro-shell='tenant'] .qoro-panel {
     min-height: calc(100dvh - 74px);
+  }
+}
+/* Toque no celular: itens e botão de menu no alvo de toque. Cabem na barra de
+   48 px, então a marca segue a 12 px do topo e da esquerda. */
+@media (max-width: 720px) and (pointer: coarse) {
+  [data-qoro-shell='tenant'] .qoro-rail-item {
+    width: var(--hit-target);
+    height: var(--hit-target);
+    padding: 0 calc((var(--hit-target) - 20px) / 2);
+  }
+  [data-qoro-shell='tenant'] .qoro-rail-dot {
+    left: calc((var(--hit-target) - 20px) / 2 + 14px);
+  }
+  [data-qoro-shell='tenant'] .qoro-rail-toggle {
+    width: var(--hit-target);
+    height: var(--hit-target);
   }
 }
 /* Faixa de alerta acionável — Dashboard, Agenda e Caixa usam a MESMA peça.
@@ -1708,6 +1729,15 @@ body:has([data-qoro-shell='tenant'])
   color: var(--primary-hover);
   text-decoration: underline;
   text-underline-offset: 3px;
+}
+/* Toque: a margem negativa dá o alvo ao link sem mudar a altura do cabeçalho. */
+@media (pointer: coarse) {
+  [data-qoro-shell='tenant'] [data-slot='panel-header'] > a {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--hit-target);
+    margin-block: calc((var(--hit-target) - 20px) / -2);
+  }
 }
 [data-qoro-shell='tenant'] [data-slot='panel-card'][data-flush='true'] {
   padding: 0;

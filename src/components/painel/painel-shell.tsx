@@ -2,7 +2,15 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Fragment, useEffect, useState, type ReactNode } from 'react';
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactElement,
+  type ReactNode,
+} from 'react';
 import { Laptop, LogOut, Menu, Moon, PanelLeft, Sun, X } from 'lucide-react';
 
 import { QoroMark } from '@/components/shared/qoro-mark';
@@ -10,7 +18,7 @@ import { SidebarUserMenu } from '@/components/shared/shell-chrome';
 import { resolvePageLayout } from '@/components/shared/page-layout';
 import { useTheme } from '@/components/shared/use-theme';
 import { Toaster } from '@/components/ui/toaster';
-import { TooltipProvider } from '@/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { initialsFrom } from '@/components/ui/avatar';
 
 import { useOpenHandoffCount } from './handoff-store';
@@ -18,6 +26,26 @@ import { Icon } from './icons';
 import { GROUPS, MODULES } from './modules';
 import { RailAnimated } from './rail-animations';
 import { useRailPinned } from './use-rail-pinned';
+
+/** Até esta largura o menu é a barra do topo; `globals.css` usa o mesmo corte. */
+const MOBILE_BAR_QUERY = '(max-width: 720px)';
+
+/** O botão de tema é remontado a cada troca (o `key` muda a animação). */
+function refocusThemeButton() {
+  requestAnimationFrame(() => {
+    document.querySelector<HTMLButtonElement>('[data-rail-theme]')?.focus({ preventScroll: true });
+  });
+}
+
+/** Nome dos ícones do rodapé: aparece no mouse e no foco por teclado. */
+function RailFootTip({ label, children }: { label: string; children: ReactElement }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipContent side="top">{label}</TooltipContent>
+    </Tooltip>
+  );
+}
 
 /**
  * Chrome do app da clínica — Qoro App v5 (novembro/2026).
@@ -59,6 +87,17 @@ export function PainelShell({
   const handoffCount = useOpenHandoffCount();
   const [navOpen, setNavOpen] = useState(false);
   const pageLayout = resolvePageLayout(pathname);
+  const railInnerRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const toggleButtonRef = useRef<HTMLButtonElement>(null);
+  // Só volta ao botão de menu quem fechou a gaveta (X, máscara ou Esc). Na troca
+  // de rota o foco não é puxado de volta para o menu.
+  const refocusToggleOnClose = useRef(false);
+
+  const closeNav = useCallback(() => {
+    refocusToggleOnClose.current = true;
+    setNavOpen(false);
+  }, []);
 
   // fecha a gaveta do celular ao trocar de rota
   useEffect(() => {
@@ -67,20 +106,46 @@ export function PainelShell({
 
   useEffect(() => {
     if (!navOpen) return;
+    const root = document.documentElement;
+    const toggleButton = toggleButtonRef.current;
+    const previousOverflow = root.style.overflow;
+    root.style.overflow = 'hidden';
+    closeButtonRef.current?.focus();
+
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      setNavOpen(false);
-      requestAnimationFrame(() => {
-        document
-          .querySelector<HTMLButtonElement>(
-            '[data-qoro-shell="tenant"] button[aria-label="Abrir navegação"]',
-          )
-          ?.focus();
-      });
+      // `defaultPrevented`: o Esc já fechou uma dica ou o menu da conta.
+      if (event.key === 'Escape' && !event.defaultPrevented) closeNav();
+    };
+    // Girar o aparelho pode passar de 720 px, onde não há gaveta nem como fechá-la.
+    const mobileBar = window.matchMedia(MOBILE_BAR_QUERY);
+    const onViewportChange = () => {
+      if (!mobileBar.matches) setNavOpen(false);
     };
     document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [navOpen]);
+    mobileBar.addEventListener('change', onViewportChange);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      mobileBar.removeEventListener('change', onViewportChange);
+      root.style.overflow = previousOverflow;
+      if (refocusToggleOnClose.current) {
+        refocusToggleOnClose.current = false;
+        toggleButton?.focus();
+      }
+    };
+  }, [navOpen, closeNav]);
+
+  // Na barra do celular, traz o item ativo para a área visível. Espera a gaveta
+  // fechar: aberta, o menu não é a faixa horizontal e a medida sairia errada.
+  useEffect(() => {
+    const inner = railInnerRef.current;
+    if (navOpen || !inner || !window.matchMedia(MOBILE_BAR_QUERY).matches) return;
+    const item = inner.querySelector('.qoro-rail-nav [aria-current="page"]');
+    if (!item) return;
+    const bar = inner.getBoundingClientRect();
+    const { left, right } = item.getBoundingClientRect();
+    if (left < bar.left) inner.scrollLeft += left - bar.left;
+    else if (right > bar.right) inner.scrollLeft += right - bar.right;
+  }, [pathname, navOpen]);
 
   const isActive = (href?: string) =>
     !!href &&
@@ -88,6 +153,7 @@ export function PainelShell({
       (href === settingsHref && pathname.startsWith('/configuracoes/')));
 
   const userInitials = initialsFrom(userName);
+  const pinLabel = rail.pinned ? 'Recolher menu' : 'Fixar menu aberto';
   const themeLabel =
     theme === 'dark' ? 'Tema escuro' : theme === 'system' ? 'Tema do sistema' : 'Tema claro';
   const ThemeIcon = theme === 'dark' ? Moon : theme === 'system' ? Laptop : Sun;
@@ -102,7 +168,7 @@ export function PainelShell({
         </a>
 
         <aside data-slot="tenant-rail" className="qoro-rail">
-          <div className="qoro-rail-inner">
+          <div ref={railInnerRef} className="qoro-rail-inner">
             <div className="qoro-rail-top">
               <Link
                 href="/"
@@ -116,10 +182,11 @@ export function PainelShell({
                 <span className="qoro-rail-clinic-name qoro-rail-label">{clinicName}</span>
               </Link>
               <button
+                ref={closeButtonRef}
                 type="button"
                 className="qoro-rail-close"
                 aria-label="Fechar navegação"
-                onClick={() => setNavOpen(false)}
+                onClick={closeNav}
               >
                 <X aria-hidden="true" className="size-4" />
               </button>
@@ -195,22 +262,21 @@ export function PainelShell({
             <div className="qoro-rail-foot">
               <RailAnimated name="pin" size={24} fallback={<PanelLeft aria-hidden="true" />}>
                 {(icon, events) => (
-                  <button
-                    {...events}
-                    type="button"
-                    className="qoro-rail-item"
-                    data-pressed={rail.pinned ? 'true' : 'false'}
-                    onClick={(event) => {
-                      events?.onClick(event);
-                      rail.toggle();
-                    }}
-                    title={rail.pinned ? 'Recolher menu' : 'Fixar menu aberto'}
-                  >
-                    {icon}
-                    <span className="qoro-rail-label">
-                      {rail.pinned ? 'Recolher menu' : 'Fixar menu aberto'}
-                    </span>
-                  </button>
+                  <RailFootTip label={pinLabel}>
+                    <button
+                      {...events}
+                      type="button"
+                      className="qoro-rail-item"
+                      data-pressed={rail.pinned ? 'true' : 'false'}
+                      onClick={(event) => {
+                        events?.onClick(event);
+                        rail.toggle();
+                      }}
+                    >
+                      {icon}
+                      <span className="qoro-rail-label">{pinLabel}</span>
+                    </button>
+                  </RailFootTip>
                 )}
               </RailAnimated>
               <RailAnimated
@@ -220,20 +286,25 @@ export function PainelShell({
                 fallback={<ThemeIcon aria-hidden="true" />}
               >
                 {(icon, events) => (
-                  <button
-                    {...events}
-                    type="button"
-                    className="qoro-rail-item"
-                    onClick={(event) => {
-                      events?.onClick(event);
-                      toggle();
-                    }}
-                    aria-label={`${themeLabel}. Alternar tema`}
-                    title={themeLabel}
-                  >
-                    {icon}
-                    <span className="qoro-rail-label">{themeLabel}</span>
-                  </button>
+                  <RailFootTip label={themeLabel}>
+                    <button
+                      {...events}
+                      type="button"
+                      data-rail-theme
+                      className="qoro-rail-item"
+                      onClick={(event) => {
+                        events?.onClick(event);
+                        toggle();
+                        // Enter e Espaço chegam com `detail` 0. No clique do mouse o
+                        // foco não volta: reabriria a dica e poderia prender o trilho.
+                        if (event.detail === 0) refocusThemeButton();
+                      }}
+                      aria-label={`${themeLabel}. Alternar tema`}
+                    >
+                      {icon}
+                      <span className="qoro-rail-label">{themeLabel}</span>
+                    </button>
+                  </RailFootTip>
                 )}
               </RailAnimated>
               {/* Logout é mutação: POST de formulário, nunca GET. O mesmo form
@@ -241,16 +312,17 @@ export function PainelShell({
               <form id="painel-logout" action="/logout" method="post" hidden />
               <RailAnimated name="logout" size={24} fallback={<LogOut aria-hidden="true" />}>
                 {(icon, events) => (
-                  <button
-                    {...events}
-                    type="submit"
-                    form="painel-logout"
-                    className="qoro-rail-item"
-                    title="Sair da conta"
-                  >
-                    {icon}
-                    <span className="qoro-rail-label">Sair</span>
-                  </button>
+                  <RailFootTip label="Sair da conta">
+                    <button
+                      {...events}
+                      type="submit"
+                      form="painel-logout"
+                      className="qoro-rail-item"
+                    >
+                      {icon}
+                      <span className="qoro-rail-label">Sair</span>
+                    </button>
+                  </RailFootTip>
                 )}
               </RailAnimated>
             </div>
@@ -271,6 +343,7 @@ export function PainelShell({
           </div>
 
           <button
+            ref={toggleButtonRef}
             type="button"
             className="qoro-rail-toggle"
             aria-label="Abrir navegação"
@@ -280,9 +353,9 @@ export function PainelShell({
             <Menu aria-hidden="true" className="size-5" />
           </button>
         </aside>
-        <div className="qoro-rail-scrim" aria-hidden="true" onClick={() => setNavOpen(false)} />
+        <div className="qoro-rail-scrim" aria-hidden="true" onClick={closeNav} />
 
-        <div className="qoro-panel">
+        <div className="qoro-panel" inert={navOpen}>
           <main
             id="qoro-main"
             tabIndex={-1}

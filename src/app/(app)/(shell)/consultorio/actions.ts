@@ -216,7 +216,7 @@ export async function loadAtendimento(
     return ok({
       appointmentId,
       patientId: appt.patientId,
-      pacienteNome: card?.nome ?? (appt.patientId ? 'Paciente' : 'Walk-in'),
+      pacienteNome: card?.nome ?? (appt.patientId ? 'Paciente' : 'Paciente sem cadastro'),
       alergias: card?.alergias ?? [],
       idade: ageFromBirthdate(card?.dataNascimento ?? null),
       sexo: card?.sexo ?? null,

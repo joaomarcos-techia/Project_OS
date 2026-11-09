@@ -1,19 +1,18 @@
 import {
   Banknote,
-  CalendarClock,
   CalendarDays,
+  CircleAlert,
   Clock3,
   House,
   MessageCircle,
   TriangleAlert,
 } from 'lucide-react';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
+import { redirect, unstable_rethrow } from 'next/navigation';
 
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
 import { buttonVariants } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { MetricStrip } from '@/components/ui/metric-strip';
 import { PageHeader } from '@/components/ui/page-header';
 import { PanelCard } from '@/components/ui/panel-card';
@@ -28,9 +27,10 @@ import { getClinicTimezone } from '@/contexts/tenancy/queries';
 import { countOpenHandoffs, type HandoffPulse } from '@/contexts/ai-agent/queries';
 import { getRecentActivity, type AuditActivity } from '@/lib/audit/recent';
 import { PERMISSIONS } from '@/lib/auth/permissions';
-import { getCurrentUser } from '@/lib/auth/tenant-context';
+import { AuthError, getCurrentUser } from '@/lib/auth/tenant-context';
 import { env } from '@/lib/env';
 import { formatBRL } from '@/lib/format';
+import { captureBackgroundError } from '@/lib/observability/capture';
 
 import { currentOnboardingProgress } from '../_painel/onboarding-progress';
 
@@ -74,13 +74,64 @@ const NO_CASH_FLOW: CashFlowDTO = {
   contagens: { receber: 0, receberVencidos: 0, pagar: 0, recebimentos: 0, pagamentos: 0 },
 };
 
-function hora(iso: string): string {
-  return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+/** No fuso da clínica: o servidor roda em UTC e a recepção lê o relógio dela. */
+function hora(iso: string, tz: string): string {
+  return new Date(iso).toLocaleTimeString('pt-BR', {
+    timeZone: tz,
+    hourCycle: 'h23',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 /** "1 cobrança" / "3 cobranças" — o número sempre acompanha a palavra certa. */
 function plural(count: number, one: string, many: string): string {
   return `${count} ${count === 1 ? one : many}`;
+}
+
+type BlockRead<T> = { ok: true; value: T } | { ok: false };
+type CashFlowSeries = Awaited<ReturnType<typeof listCashFlowDaily>>;
+type ActivityBlock = { activity: AuditActivity[]; actorNames: Map<string, string> };
+
+function blockOk<T>(value: T): BlockRead<T> {
+  return { ok: true, value };
+}
+
+/**
+ * Leitura de um bloco secundário: se falhar, só esse bloco avisa. A agenda e a
+ * fila, que carregaram, continuam na tela da recepção.
+ *
+ * `unstable_rethrow` vem primeiro porque redirect e os sinais internos do Next
+ * também chegam aqui como exceção. `AuthError` sobe pelo mesmo motivo: sessão
+ * derrubada ou permissão negada não é falha de um bloco.
+ */
+async function readBlock<T>(
+  block: string,
+  clinicId: string,
+  read: () => Promise<T>,
+): Promise<BlockRead<T>> {
+  try {
+    return { ok: true, value: await read() };
+  } catch (error) {
+    unstable_rethrow(error);
+    if (error instanceof AuthError) throw error;
+    captureBackgroundError(error, { flow: `dashboard.${block}`, clinicId });
+    return { ok: false };
+  }
+}
+
+/**
+ * O que um bloco mostra quando a leitura falhou. Nunca zero nem bloco ausente:
+ * "R$ 0,00" diria que não entrou dinheiro, e sumir diria que não há pendência.
+ */
+function BlockUnavailable() {
+  return (
+    <EmptyState
+      variant="compact"
+      icon={<CircleAlert />}
+      title="Não foi possível carregar este bloco."
+    />
+  );
 }
 
 export default async function DashboardPage() {
@@ -127,55 +178,87 @@ export default async function DashboardPage() {
   // Gráfico: faturamento (recebido) dos últimos 7 dias. Histórico vem do
   // consolidado diário (cash_flow_daily); "hoje" usa o valor ao vivo (o rollup
   // roda 1x/dia, então ainda não fechou o dia corrente).
-  const [d, checklist, onboarding, flow, serie, activity, handoff, whatsappAlert] =
-    await Promise.all([
-      demoData ? Promise.resolve(demoData.dashboard) : getDashboard(clinicId, tz),
-      getActivationChecklist(clinicId),
-      // Memoizado por request: o layout já leu esta linha para montar o tour.
-      currentOnboardingProgress(),
-      // DTO neutro em vez da query: o zero aqui nunca é renderizado (os blocos
-      // financeiros somem abaixo), ele só mantém o tipo sem consultar o caixa.
-      canViewFinancial
-        ? demoData
-          ? Promise.resolve(demoData.flow)
-          : getCashFlowToday(clinicId, from, to)
-        : Promise.resolve(NO_CASH_FLOW),
-      canViewFinancial
-        ? demoData
-          ? Promise.resolve(demoData.serie)
-          : listCashFlowDaily(clinicId, dias[0]!, ymd(tz, 1))
-        : Promise.resolve<Awaited<ReturnType<typeof listCashFlowDaily>>>([]),
-      canAudit
-        ? demoData
-          ? Promise.resolve(demoData.activity)
-          : getRecentActivity(clinicId, 7)
-        : Promise.resolve<AuditActivity[]>([]),
-      canViewConversations
-        ? demoData
-          ? Promise.resolve(demoData.handoff)
-          : countOpenHandoffs(clinicId)
-        : Promise.resolve(NO_HANDOFF),
-      // A prévia ilustrativa não lê estado real de integração.
-      canManageSettings && !demoData
-        ? getWhatsappSendAlert(clinicId)
-        : Promise.resolve(NO_WHATSAPP_ALERT),
-    ]);
+  //
+  // Só `getDashboard` é fatal: sem ele não há tela. Cada leitura secundária
+  // passa por `readBlock`. `currentOnboardingProgress` já degrada por dentro.
+  const [
+    d,
+    checklistRead,
+    onboarding,
+    flowRead,
+    serieRead,
+    activityRead,
+    handoffRead,
+    whatsappRead,
+  ] = await Promise.all([
+    demoData ? Promise.resolve(demoData.dashboard) : getDashboard(clinicId, tz),
+    readBlock('checklist', clinicId, () => getActivationChecklist(clinicId)),
+    // Memoizado por request: o layout já leu esta linha para montar o tour.
+    currentOnboardingProgress(),
+    // DTO neutro em vez da query: o zero aqui nunca é renderizado (os blocos
+    // financeiros somem abaixo), ele só mantém o tipo sem consultar o caixa.
+    canViewFinancial
+      ? readBlock('cash_flow', clinicId, async () =>
+          demoData ? demoData.flow : getCashFlowToday(clinicId, from, to),
+        )
+      : blockOk(NO_CASH_FLOW),
+    canViewFinancial
+      ? readBlock('revenue_series', clinicId, async () =>
+          demoData ? demoData.serie : listCashFlowDaily(clinicId, dias[0]!, ymd(tz, 1)),
+        )
+      : blockOk<CashFlowSeries>([]),
+    // Atividade recente (audit) — feed sensível, gateado em view:audit
+    // (gestor/owner). Os nomes fazem parte do bloco: sem eles, todo mundo
+    // apareceria como "Sistema", o que seria falso.
+    canAudit
+      ? readBlock('activity', clinicId, async (): Promise<ActivityBlock> => {
+          if (demoData) {
+            return {
+              activity: demoData.activity,
+              actorNames: new Map([[user.userId, user.name ?? 'Conta de demonstração']]),
+            };
+          }
+          const activity = await getRecentActivity(clinicId, 7);
+          const actorNames = await getProfileNames(
+            clinicId,
+            activity.map((a) => a.userId ?? '').filter(Boolean),
+          );
+          return { activity, actorNames };
+        })
+      : blockOk<ActivityBlock>({ activity: [], actorNames: new Map() }),
+    canViewConversations
+      ? readBlock('handoff', clinicId, async () =>
+          demoData ? demoData.handoff : countOpenHandoffs(clinicId),
+        )
+      : blockOk(NO_HANDOFF),
+    // A prévia ilustrativa não lê estado real de integração.
+    canManageSettings && !demoData
+      ? readBlock('whatsapp_alert', clinicId, () => getWhatsappSendAlert(clinicId))
+      : blockOk(NO_WHATSAPP_ALERT),
+  ]);
+  const flow = flowRead.ok ? flowRead.value : null;
+  const serie = serieRead.ok ? serieRead.value : null;
+  const feed = activityRead.ok ? activityRead.value : null;
+  const handoff = handoffRead.ok ? handoffRead.value : NO_HANDOFF;
+  const whatsappAlert = whatsappRead.ok ? whatsappRead.value : NO_WHATSAPP_ALERT;
+  // Com uma destas leituras fora, não dá para afirmar que não há pendência.
+  const pendenciasIncertas = !handoffRead.ok || !whatsappRead.ok;
+  const checklistDismissed = Boolean(onboarding?.checklistDismissedAt);
+
   const hasWhatsappAlert =
     whatsappAlert.account !== null || (whatsappAlert.refusals?.count ?? 0) > 0;
-  const recByDate = new Map(serie.map((s) => [s.date, s.totalRecebido]));
-  const chart = dias.map((date, i) => ({
-    date,
-    label: weekdayLabel(date),
-    recebido: i === dias.length - 1 ? flow.recebidoHoje : (recByDate.get(date) ?? 0),
-  }));
-  const chartTotal = chart.reduce((s, c) => s + c.recebido, 0);
-
-  // Atividade recente (audit) — feed sensível, gateado em view:audit (gestor/owner).
-  const actorNames = canAudit
-    ? demoData
-      ? new Map([[user.userId, user.name ?? 'Conta de demonstração']])
-      : await getProfileNames(clinicId, activity.map((a) => a.userId ?? '').filter(Boolean))
-    : new Map<string, string>();
+  const recByDate = new Map((serie ?? []).map((s) => [s.date, s.totalRecebido]));
+  // Hoje vem do caixa e os outros dias da série: sem uma das duas, o gráfico
+  // desenharia barras zeradas que não aconteceram.
+  const chart =
+    flow && serie
+      ? dias.map((date, i) => ({
+          date,
+          label: weekdayLabel(date),
+          recebido: i === dias.length - 1 ? flow.recebidoHoje : (recByDate.get(date) ?? 0),
+        }))
+      : null;
+  const chartTotal = (chart ?? []).reduce((s, c) => s + c.recebido, 0);
 
   // "Quinta-feira, 3 de setembro · atualizado às 22:00" — no fuso da clínica.
   const agora = new Date();
@@ -198,6 +281,8 @@ export default async function DashboardPage() {
 
   // Quem ja chegou e ainda espera — o nome que o cartao "Aguardando" anuncia.
   const proximoNaFila = d.proximos.find((consulta) => consulta.status === 'chegou');
+  // Quem já chegou está no primeiro indicador; aqui interessa quem vem depois.
+  const proximaConsulta = d.proximos.find((c) => c.status !== 'chegou') ?? d.proximos[0];
 
   // Composição do turno. "A chegar" é o que sobra das consultas do dia depois
   // de quem já está na sala, em atendimento, finalizado ou faltou — agendadas e
@@ -266,12 +351,19 @@ export default async function DashboardPage() {
         {/* Antes do resto: enquanto a ativação não fecha, ela É a prioridade da
             tela. Não polui o dashboard maduro porque o componente se remove
             sozinho quando os passos terminam. */}
-        {!demoMode ? (
-          <ActivationChecklist
-            data={checklist}
-            dismissed={Boolean(onboarding?.checklistDismissedAt)}
-          />
-        ) : null}
+        {demoMode ? null : checklistRead.ok ? (
+          <ActivationChecklist data={checklistRead.value} dismissed={checklistDismissed} />
+        ) : checklistDismissed ? null : (
+          <PanelCard
+            title="Primeiros passos"
+            headingLevel={2}
+            regionLabel="Primeiros passos"
+            flush
+            className={styles.setupCard ?? ''}
+          >
+            <BlockUnavailable />
+          </PanelCard>
+        )}
 
         {/* ---- Agora no consultório: indicadores reais, um link para cada ---- */}
         <MetricStrip
@@ -283,26 +375,19 @@ export default async function DashboardPage() {
             href="/consultorio"
             label="Aguardando"
             value={d.aguardando}
-            hint={proximoNaFila ? `${proximoNaFila.nome} é o próximo` : 'na sala de espera'}
+            hint={proximoNaFila ? `A seguir: ${proximoNaFila.nome}` : 'na sala de espera'}
           />
-          {/* Só ganha o tom de alerta quando alguém está de fato esperando além
-              do previsto; fila em dia mostra o mesmo indicador neutro. */}
+          {/* Neutro: o produto não define espera aceitável, e um alerta aqui
+              afirmaria uma comparação que o sistema não faz. */}
           <StatCard
             href="/consultorio"
             label="Maior espera"
             value={d.maiorEsperaMin === null ? '—' : d.maiorEsperaMin}
-            {...(d.maiorEsperaMin === null ? {} : { suffix: 'min', valueTone: 'warning' as const })}
+            {...(d.maiorEsperaMin === null ? {} : { suffix: 'min' })}
             hint={
-              d.maiorEsperaNome ? (
-                <>
-                  <Badge tone="amber" dot>
-                    Acima do previsto
-                  </Badge>
-                  <span>{d.maiorEsperaNome}</span>
-                </>
-              ) : (
-                'ninguém acima do previsto'
-              )
+              d.maiorEsperaNome
+                ? `${d.maiorEsperaNome} espera há mais tempo`
+                : 'sem espera registrada'
             }
           />
           <StatCard
@@ -314,11 +399,11 @@ export default async function DashboardPage() {
           <StatCard
             href="/agenda"
             label="Próxima consulta"
-            value={d.proximos[0] ? hora(d.proximos[0].horario) : '—'}
+            value={proximaConsulta ? hora(proximaConsulta.horario, tz) : '—'}
             hint={
-              d.proximos[0]
-                ? `${d.proximos[0].nome} · ${d.proximos[0].procedimento}`
-                : 'Nenhuma consulta na fila de hoje'
+              proximaConsulta
+                ? `${proximaConsulta.nome} · ${proximaConsulta.procedimento}`
+                : 'Nenhuma consulta pela frente hoje'
             }
           />
         </MetricStrip>
@@ -340,28 +425,34 @@ export default async function DashboardPage() {
                   {plural(d.finalizadas, 'finalizada', 'finalizadas')}
                 </span>
               </p>
-              <div className={styles.meter} role="img" aria-label={turnoDescricao}>
-                {d.consultasHoje > 0 ? (
-                  turno
-                    .filter((t) => t.count > 0)
-                    .map((t) => (
-                      <span key={t.key} className={t.className} style={{ flexGrow: t.count }} />
-                    ))
-                ) : (
-                  <span className={styles.meterEmpty} />
-                )}
-              </div>
-              {/* Só visual (ver .legend): a leitura completa está no medidor. */}
-              <ul className={styles.legend} aria-hidden="true">
-                {turno.map((t) => (
-                  <li key={t.key} data-label={t.label} data-count={t.count}>
-                    <span className={cn(styles.swatch, t.className)} />
-                  </li>
-                ))}
-                <li data-label="Canceladas" data-count={d.cancelados}>
-                  <span className={cn(styles.swatch, styles.cancelled)} />
-                </li>
-              </ul>
+              {/* Dia sem consulta alguma: o total acima já diz tudo, e medidor
+                  vazio com seis linhas de "0" só repetiria. */}
+              {d.consultasHoje > 0 || d.cancelados > 0 ? (
+                <>
+                  <div className={styles.meter} role="img" aria-label={turnoDescricao}>
+                    {d.consultasHoje > 0 ? (
+                      turno
+                        .filter((t) => t.count > 0)
+                        .map((t) => (
+                          <span key={t.key} className={t.className} style={{ flexGrow: t.count }} />
+                        ))
+                    ) : (
+                      <span className={styles.meterEmpty} />
+                    )}
+                  </div>
+                  {/* Só visual (ver .legend): a leitura completa está no medidor. */}
+                  <ul className={styles.legend} aria-hidden="true">
+                    {turno.map((t) => (
+                      <li key={t.key} data-label={t.label} data-count={t.count}>
+                        <span className={cn(styles.swatch, t.className)} />
+                      </li>
+                    ))}
+                    <li data-label="Canceladas" data-count={d.cancelados}>
+                      <span className={cn(styles.swatch, styles.cancelled)} />
+                    </li>
+                  </ul>
+                </>
+              ) : null}
             </div>
           </PanelCard>
 
@@ -372,39 +463,47 @@ export default async function DashboardPage() {
               regionLabel="Resumo financeiro"
               action={{ label: 'Abrir o Financeiro', href: '/financeiro' }}
               flush
-              className={styles.wide ?? ''}
+              className={cn(styles.wide, styles.clip)}
             >
-              <MetricStrip
-                variant="joined"
-                aria-label="Indicadores financeiros do dia"
-                className={styles.finStrip}
-              >
-                <StatCard
-                  label="A receber"
-                  value={formatBRL(flow.receber)}
-                  hint={
-                    <>
-                      <span>{plural(flow.contagens.receber, 'cobrança', 'cobranças')}</span>
-                      {flow.contagens.receberVencidos > 0 ? (
-                        <Badge tone="red" dot>
-                          {plural(flow.contagens.receberVencidos, 'vencida', 'vencidas')}
-                        </Badge>
-                      ) : null}
-                    </>
-                  }
-                />
-                <StatCard
-                  label="Recebido hoje"
-                  value={formatBRL(flow.recebidoHoje)}
-                  valueTone={flow.recebidoHoje > 0 ? 'positive' : 'default'}
-                  hint={plural(flow.contagens.recebimentos, 'recebimento', 'recebimentos')}
-                />
-                <StatCard
-                  label="Saldo do dia"
-                  value={formatBRL(flow.saldoHoje)}
-                  hint={`Depois de ${formatBRL(flow.pagoHoje)} em saídas`}
-                />
-              </MetricStrip>
+              {flow ? (
+                <MetricStrip
+                  variant="joined"
+                  aria-label="Indicadores financeiros do dia"
+                  className={styles.finStrip}
+                >
+                  <StatCard
+                    label="A receber"
+                    value={formatBRL(flow.receber)}
+                    hint={
+                      <>
+                        <span>{plural(flow.contagens.receber, 'cobrança', 'cobranças')}</span>
+                        {flow.contagens.receberVencidos > 0 ? (
+                          <Badge tone="red" dot>
+                            {plural(flow.contagens.receberVencidos, 'vencida', 'vencidas')}
+                          </Badge>
+                        ) : null}
+                      </>
+                    }
+                  />
+                  <StatCard
+                    label="Recebido hoje"
+                    value={formatBRL(flow.recebidoHoje)}
+                    valueTone={flow.recebidoHoje > 0 ? 'positive' : 'default'}
+                    hint={plural(flow.contagens.recebimentos, 'recebimento', 'recebimentos')}
+                  />
+                  <StatCard
+                    label="Saldo do dia"
+                    value={formatBRL(flow.saldoHoje)}
+                    hint={
+                      flow.pagoHoje === 0
+                        ? 'Nenhuma saída hoje'
+                        : `Depois de ${formatBRL(flow.pagoHoje)} em saídas`
+                    }
+                  />
+                </MetricStrip>
+              ) : (
+                <BlockUnavailable />
+              )}
             </PanelCard>
           ) : null}
         </div>
@@ -419,28 +518,36 @@ export default async function DashboardPage() {
               : {})}
             action={{ label: 'Ver o dia inteiro', href: '/agenda' }}
             flush
-            className={styles.wide ?? ''}
+            className={cn(styles.wide, styles.upcomingCard)}
           >
             {d.proximos.length === 0 ? (
               <EmptyState
                 variant="compact"
                 icon={<CalendarDays />}
-                title="Agenda livre hoje"
-                description="Nenhum atendimento está agendado para hoje."
+                title={d.consultasHoje === 0 ? 'Agenda livre hoje' : 'Sem próximas consultas hoje'}
+                description={
+                  d.consultasHoje === 0
+                    ? 'Nenhum atendimento está agendado para hoje.'
+                    : 'Nenhum paciente a chegar ou aguardando.'
+                }
               />
             ) : (
               <>
                 <ul className={styles.list}>
                   {d.proximos.map((p) => (
                     <li key={p.appointmentId} className={styles.upRow}>
-                      <span className={styles.upTime}>{hora(p.horario)}</span>
+                      <span className={styles.upTime}>{hora(p.horario, tz)}</span>
                       <span className={styles.cell}>
-                        <b className={styles.trunc}>{p.nome}</b>
+                        <b className={styles.trunc} title={p.nome}>
+                          {p.nome}
+                        </b>
                         {p.profissional ? (
                           <span className={cn(styles.trunc, styles.muted)}>{p.profissional}</span>
                         ) : null}
                       </span>
-                      <span className={cn(styles.trunc, styles.upProc)}>{p.procedimento}</span>
+                      <span className={cn(styles.trunc, styles.upProc)} title={p.procedimento}>
+                        {p.procedimento}
+                      </span>
                       <span className={styles.upStatus}>
                         <AppointmentStatusBadge status={p.status} />
                       </span>
@@ -450,8 +557,10 @@ export default async function DashboardPage() {
                 <div className={styles.foot}>
                   <span>
                     {restantes > d.proximos.length
-                      ? `Mostrando ${d.proximos.length} das ${restantes} consultas que ainda faltam`
-                      : plural(d.proximos.length, 'consulta ainda falta', 'consultas ainda faltam')}
+                      ? `Mostrando ${d.proximos.length} das ${restantes} consultas restantes`
+                      : d.proximos.length === 1
+                        ? 'Resta 1 consulta hoje'
+                        : `Restam ${d.proximos.length} consultas hoje`}
                   </span>
                   <span>{d.consultasHoje} no dia</span>
                 </div>
@@ -461,53 +570,61 @@ export default async function DashboardPage() {
 
           {/* Pendências que valem interromper a leitura. Cada linha leva ao
               lugar onde aquilo se resolve — nunca um aviso mudo. O cartão só
-              existe quando há pendência: vazio, diria "nada a fazer" a quem
-              talvez só não tenha permissão para ver. */}
-          {pendencias > 0 ? (
+              existe quando há pendência ou quando não deu para saber: vazio,
+              diria "nada a fazer" a quem talvez só não tenha permissão para
+              ver. */}
+          {pendencias > 0 || pendenciasIncertas ? (
             <PanelCard
               title="Precisa de você"
               headingLevel={2}
               regionLabel="Precisa de você"
-              count={
-                <span className="qoro-count" data-tone="danger">
-                  {pendencias}
-                </span>
-              }
+              {...(pendencias > 0
+                ? {
+                    count: (
+                      <span className="qoro-count" data-tone="danger">
+                        {pendencias}
+                      </span>
+                    ),
+                  }
+                : {})}
               flush
-              className={styles.narrow ?? ''}
+              className={cn(styles.narrow, styles.pendingCard)}
             >
-              <ul className={styles.list}>
-                {hasWhatsappAlert ? <WhatsappSendAlert {...whatsappAlert} /> : null}
-                {showUnbilled ? (
-                  <PendingItem
-                    href="/caixa"
-                    tone="warning"
-                    icon={<TriangleAlert />}
-                    title={
-                      d.naoFaturados === 1
-                        ? '1 atendimento concluído hoje ainda não foi faturado'
-                        : `${d.naoFaturados} atendimentos concluídos hoje ainda não foram faturados`
-                    }
-                    cta="Abrir o Caixa"
-                  />
-                ) : null}
-                {handoff.abertos > 0 ? (
-                  <PendingItem
-                    href="/conversas"
-                    tone={handoff.vencidos > 0 ? 'danger' : 'info'}
-                    icon={<MessageCircle />}
-                    title={
-                      handoff.abertos === 1
-                        ? '1 conversa do agente aguardando atendimento humano'
-                        : `${handoff.abertos} conversas do agente aguardando atendimento humano`
-                    }
-                    {...(handoff.vencidos > 0
-                      ? { detail: `${handoff.vencidos} com SLA vencido` }
-                      : {})}
-                    cta="Abrir Conversas IA"
-                  />
-                ) : null}
-              </ul>
+              {pendencias > 0 ? (
+                <ul className={styles.list}>
+                  {hasWhatsappAlert ? <WhatsappSendAlert {...whatsappAlert} /> : null}
+                  {showUnbilled ? (
+                    <PendingItem
+                      href="/caixa"
+                      tone="warning"
+                      icon={<TriangleAlert />}
+                      title={
+                        d.naoFaturados === 1
+                          ? '1 atendimento concluído hoje ainda não foi faturado'
+                          : `${d.naoFaturados} atendimentos concluídos hoje ainda não foram faturados`
+                      }
+                      cta="Abrir o Caixa"
+                    />
+                  ) : null}
+                  {handoff.abertos > 0 ? (
+                    <PendingItem
+                      href="/conversas"
+                      tone={handoff.vencidos > 0 ? 'danger' : 'info'}
+                      icon={<MessageCircle />}
+                      title={
+                        handoff.abertos === 1
+                          ? '1 conversa da IA precisa de alguém da equipe'
+                          : `${handoff.abertos} conversas da IA precisam de alguém da equipe`
+                      }
+                      {...(handoff.vencidos > 0
+                        ? { detail: `${handoff.vencidos} com resposta atrasada` }
+                        : {})}
+                      cta="Abrir Conversas IA"
+                    />
+                  ) : null}
+                </ul>
+              ) : null}
+              {pendenciasIncertas ? <BlockUnavailable /> : null}
             </PanelCard>
           ) : null}
         </div>
@@ -521,14 +638,18 @@ export default async function DashboardPage() {
                 title="Faturamento recebido"
                 headingLevel={2}
                 regionLabel="Faturamento recebido"
-                description={`Últimos 7 dias · ${formatBRL(chartTotal)}`}
+                description={chart ? `Últimos 7 dias · ${formatBRL(chartTotal)}` : undefined}
                 aside={
-                  chartTotal === 0 ? undefined : <RevenueTodayLegend updatedAt={atualizadoEm} />
+                  chart && chartTotal > 0 ? (
+                    <RevenueTodayLegend updatedAt={atualizadoEm} />
+                  ) : undefined
                 }
                 flush
                 className={styles.wide ?? ''}
               >
-                {chartTotal === 0 ? (
+                {!chart ? (
+                  <BlockUnavailable />
+                ) : chartTotal === 0 ? (
                   <EmptyState
                     variant="compact"
                     icon={<Banknote />}
@@ -549,7 +670,9 @@ export default async function DashboardPage() {
                 flush
                 className={styles.narrow ?? ''}
               >
-                {activity.length === 0 ? (
+                {!feed ? (
+                  <BlockUnavailable />
+                ) : feed.activity.length === 0 ? (
                   <EmptyState
                     variant="compact"
                     icon={<Clock3 />}
@@ -557,7 +680,7 @@ export default async function DashboardPage() {
                     description="As próximas ações da equipe aparecerão aqui."
                   />
                 ) : (
-                  <ActivityFeed activity={activity} actorNames={actorNames} />
+                  <ActivityFeed activity={feed.activity} actorNames={feed.actorNames} tz={tz} />
                 )}
               </PanelCard>
             ) : null}
@@ -568,14 +691,7 @@ export default async function DashboardPage() {
             canto vazio parecendo carregamento travado. Sem botão: cadastrar
             horários não faz este número aparecer — ele ainda não tem fonte. */}
         {canAudit ? (
-          <Card className={styles.occupancy}>
-            <span aria-hidden="true" className={styles.occIcon}>
-              <CalendarClock />
-            </span>
-            <div className={styles.occCopy}>
-              <h2>Ocupação por profissional ainda não tem fonte de dados nesta clínica.</h2>
-            </div>
-          </Card>
+          <p className={styles.occupancy}>Ocupação por profissional ainda não está disponível.</p>
         ) : null}
       </div>
     </>

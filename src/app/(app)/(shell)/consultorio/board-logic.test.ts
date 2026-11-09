@@ -189,9 +189,9 @@ describe('board-logic — buildCard', () => {
     });
   });
 
-  it('walk-in (sem paciente) → nome "Walk-in", sem idade/sexo/alergias', () => {
+  it('walk-in (sem paciente) → nome "Paciente sem cadastro", sem idade/sexo/alergias', () => {
     const card = buildCard(appt({ patientId: null }), undefined, null, now);
-    expect(card.pacienteNome).toBe('Walk-in');
+    expect(card.pacienteNome).toBe('Paciente sem cadastro');
     expect(card.idade).toBeNull();
     expect(card.sexo).toBeNull();
     expect(card.alergias).toEqual([]);

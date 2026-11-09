@@ -29,6 +29,11 @@ function capitalize(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
+/** O mesmo rótulo na dica da barra e na lista de valores. */
+function pointName(point: RevenuePoint, today: boolean, updatedAt: string): string {
+  return today ? `Hoje até ${updatedAt}` : `${capitalize(point.label)}, ${ddmm(point.date)}`;
+}
+
 /**
  * Faturamento recebido nos últimos 7 dias — gráfico do app v5.
  *
@@ -71,9 +76,7 @@ export function RevenueChart({ points, updatedAt }: { points: RevenuePoint[]; up
               const empty = p.recebido <= 0;
               const height = empty ? 2 : Math.max(2, Math.round((p.recebido / top) * PLOT_PX));
               const showLabel = !empty && (today || i === maxIndex);
-              const tip = today
-                ? `Hoje até ${updatedAt} · ${formatBRL(p.recebido)}`
-                : `${capitalize(p.label)}, ${ddmm(p.date)} · ${formatBRL(p.recebido)}`;
+              const tip = `${pointName(p, today, updatedAt)} · ${formatBRL(p.recebido)}`;
               return (
                 <div key={p.date} className={styles.bar}>
                   <span className={styles.barLabel}>
@@ -99,6 +102,17 @@ export function RevenueChart({ points, updatedAt }: { points: RevenuePoint[]; up
           ))}
         </div>
       </div>
+      <details className={styles.chartValues}>
+        <summary>Ver valores por dia</summary>
+        <dl>
+          {points.map((p, i) => (
+            <div key={p.date}>
+              <dt>{pointName(p, i === lastIndex, updatedAt)}</dt>
+              <dd>{formatBRL(p.recebido)}</dd>
+            </div>
+          ))}
+        </dl>
+      </details>
     </div>
   );
 }

@@ -148,7 +148,7 @@ export async function getDashboard(clinicId: string, timezone: string): Promise<
   const cards = await listPatientCards(clinicId, ids);
   const nameOf = new Map(cards.map((c) => [c.id, c.nome]));
   const nomeDe = (patientId: string | null): string =>
-    patientId ? (nameOf.get(patientId) ?? 'Paciente') : 'Walk-in';
+    patientId ? (nameOf.get(patientId) ?? 'Paciente') : 'Paciente sem cadastro';
 
   const proximos: DashboardUpcoming[] = upcoming.map((a) => ({
     appointmentId: a.id,

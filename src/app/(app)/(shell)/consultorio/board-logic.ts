@@ -200,7 +200,7 @@ export function buildCard(
   return {
     appointmentId: a.id,
     patientId: a.patientId,
-    pacienteNome: patient?.nome ?? (a.patientId ? 'Paciente' : 'Walk-in'),
+    pacienteNome: patient?.nome ?? (a.patientId ? 'Paciente' : 'Paciente sem cadastro'),
     alergias: patient?.alergias ?? [],
     idade: ageFromBirthdate(patient?.dataNascimento ?? null, now),
     sexo: patient?.sexo ?? null,

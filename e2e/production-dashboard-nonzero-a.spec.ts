@@ -242,7 +242,7 @@ test.describe('produção: Dashboard não-zero sintético na Clínica A', () => 
 
       const upcomingPanel = page.getByText('Próximos na agenda', { exact: true }).locator('../..');
       await expect(upcomingPanel.getByRole('listitem')).toHaveCount(fixture.after.proximos);
-      await expect(upcomingPanel.getByText('Walk-in', { exact: true })).toHaveCount(
+      await expect(upcomingPanel.getByText('Paciente sem cadastro', { exact: true })).toHaveCount(
         fixture.after.upcoming_walkins,
       );
       const statusLabels: Record<string, string> = {

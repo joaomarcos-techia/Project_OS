@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import type { ComponentProps } from 'react';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const { navigation, toggleTheme } = vi.hoisted(() => ({
@@ -24,6 +24,7 @@ import { PainelShell } from './painel-shell';
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  vi.unstubAllGlobals();
   navigation.pathname = '/configuracoes/pagamentos';
 });
 
@@ -72,6 +73,53 @@ describe('shell tenant das referências HTML', () => {
     fireEvent.click(trigger);
     fireEvent.click(screen.getByRole('button', { name: 'Fechar navegação' }));
     expect(trigger.getAttribute('aria-expanded')).toBe('false');
+  });
+  it('a gaveta isola o conteúdo, recebe o foco e o devolve a quem a fechou', () => {
+    const { container } = renderShell();
+    const trigger = screen.getByRole('button', { name: 'Abrir navegação' });
+    const panel = container.querySelector('.qoro-panel');
+    fireEvent.click(trigger);
+    expect(panel?.hasAttribute('inert')).toBe(true);
+    expect(document.documentElement.style.overflow).toBe('hidden');
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Fechar navegação' }));
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(panel?.hasAttribute('inert')).toBe(false);
+    expect(document.documentElement.style.overflow).toBe('');
+    expect(document.activeElement).toBe(trigger);
+  });
+  it('a troca de rota fecha a gaveta sem puxar o foco para o botão de menu', () => {
+    const shell = () => (
+      <PainelShell userName="Maria" settingsHref="/configuracoes">
+        <h1>Painel</h1>
+      </PainelShell>
+    );
+    const { rerender } = render(shell());
+    const trigger = screen.getByRole('button', { name: 'Abrir navegação' });
+    fireEvent.click(trigger);
+    navigation.pathname = '/agenda';
+    rerender(shell());
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    expect(document.documentElement.style.overflow).toBe('');
+    expect(document.activeElement).not.toBe(trigger);
+  });
+  it('mostra o nome dos ícones do rodapé no foco, sem depender de title', () => {
+    renderShell();
+    const logout = screen.getByRole('button', { name: 'Sair' });
+    expect(logout.hasAttribute('title')).toBe(false);
+    act(() => logout.focus());
+    expect(document.querySelector('[role="tooltip"]')?.textContent).toBe('Sair da conta');
+  });
+  it('devolve o foco ao botão de tema só quando a troca veio do teclado', () => {
+    vi.stubGlobal('requestAnimationFrame', (run: FrameRequestCallback) => {
+      run(0);
+      return 0;
+    });
+    renderShell();
+    const theme = screen.getByRole('button', { name: 'Tema claro. Alternar tema' });
+    fireEvent.click(theme, { detail: 1 });
+    expect(document.activeElement).not.toBe(theme);
+    fireEvent.click(theme);
+    expect(document.activeElement).toBe(theme);
   });
   it('alterna o rótulo de fixar o menu e mostra a clínica no link de início', () => {
     render(

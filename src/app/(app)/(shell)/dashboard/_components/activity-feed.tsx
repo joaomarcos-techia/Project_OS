@@ -48,7 +48,17 @@ const ACT_VERBS: Record<string, string> = {
   scheduled: 'agendou',
   rescheduled: 'remarcou',
   confirmed: 'confirmou',
+  viewed: 'abriu',
+  corrected: 'corrigiu',
 };
+
+/** Eventos em que "verbo + o atendimento" não faz sentido: a frase vem pronta. */
+const ACT_PHRASES: Record<string, string> = {
+  checked_in: 'registrou a chegada do paciente',
+  no_show: 'registrou a falta do paciente',
+};
+
+const ACT_FALLBACK = 'registrou uma ação no sistema';
 
 /** `artigo` evita "assinou prontuário"; `icon` é o glifo da referência. */
 const ACT_ENTITIES: Record<string, { label: string; artigo: 'o' | 'a'; icon: LucideIcon }> = {
@@ -79,25 +89,29 @@ function describe(action: string): { frase: string; Icon: LucideIcon } {
     }
   }
   const Icon = entity?.icon ?? CircleDot;
-  const alvo = entity
-    ? `${entity.artigo} ${entity.label}`
-    : (segs[0] ?? '').replace(/_/g, ' ').trim();
 
-  // Verbo desconhecido cai no próprio token do audit: preferimos um rótulo feio
-  // e rastreável a inventar uma tradução que não corresponde ao evento.
-  const verbo = ACT_VERBS[last] ?? last;
-  return { frase: `${verbo} ${alvo}`.trim(), Icon };
+  const pronta = ACT_PHRASES[last];
+  if (pronta) return { frase: pronta, Icon };
+
+  // Sem tradução conhecida, uma frase genérica e verdadeira: o token do audit
+  // continua no `title` da linha para quem precisa rastrear o evento.
+  const verbo = ACT_VERBS[last];
+  if (!verbo || !entity) return { frase: ACT_FALLBACK, Icon };
+  return { frase: `${verbo} ${entity.artigo} ${entity.label}`, Icon };
 }
 
 /**
  * Hora do relógio, não "há 18 h". A referência escreve 13:12 porque o feed é do
  * TURNO: o operador cruza com o que lembra do próprio dia, e "há 18 h" o obriga
- * a fazer a subtração de cabeça. Fora de hoje, a data assume.
+ * a fazer a subtração de cabeça. Fora de hoje, a data assume. Sempre no fuso da
+ * clínica: o componente roda no servidor, que está em UTC.
  */
-function horaOuData(iso: string): string {
+function horaOuData(iso: string, tz: string): string {
   const quando = new Date(iso);
-  const mesmoDia = new Date().toDateString() === quando.toDateString();
+  const dia = new Intl.DateTimeFormat('en-CA', { timeZone: tz });
+  const mesmoDia = dia.format(new Date()) === dia.format(quando);
   return quando.toLocaleString('pt-BR', {
+    timeZone: tz,
     hourCycle: 'h23',
     ...(mesmoDia ? { hour: '2-digit', minute: '2-digit' } : { day: '2-digit', month: '2-digit' }),
   });
@@ -111,9 +125,11 @@ function horaOuData(iso: string): string {
 export function ActivityFeed({
   activity,
   actorNames,
+  tz,
 }: {
   activity: AuditActivity[];
   actorNames: Map<string, string>;
+  tz: string;
 }) {
   return (
     <ul className={styles.list}>
@@ -125,10 +141,10 @@ export function ActivityFeed({
             <span aria-hidden="true" className={styles.actIcon}>
               <Icon />
             </span>
-            <span className={styles.actText}>
+            <span className={styles.actText} title={a.action}>
               <b>{who}</b> {frase}
             </span>
-            <span className={styles.actTime}>{horaOuData(a.createdAt)}</span>
+            <span className={styles.actTime}>{horaOuData(a.createdAt, tz)}</span>
           </li>
         );
       })}

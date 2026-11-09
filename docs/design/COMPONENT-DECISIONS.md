@@ -30,7 +30,7 @@ Desvios do canvas, todos por necessidade operacional (Contract §6):
 | 12 no total incluindo canceladas          | Total sem canceladas; canceladas só na legenda               | `consultasHoje` exclui canceladas por regra.                                                 |
 | "Maria Souza, desde 10:30"; nomes e "7 cobranças preparadas pelo agente" em "Precisa de você" | "agora" e as três pendências que existem hoje, com os textos atuais | O DTO não tem esses dados. Não se fabrica métrica.                                           |
 | "Faturar", "Assumir"                      | "Abrir o Caixa", "Abrir Conversas IA"                        | O link só navega; o rótulo não promete ação que não executa.                                 |
-| "Cadastrar horários" na faixa de ocupação | Sem botão, com a frase atual                                 | Cadastrar horários não faz o número existir: ele ainda não tem fonte.                        |
+| "Cadastrar horários" na faixa de ocupação | Sem botão, como nota discreta                                 | Cadastrar horários não faz o número existir: ele ainda não tem fonte.                        |
 | Domingo "clínica fechada"                 | Barra zerada, R$ 0,00                                        | Exigiria cruzar com horários da clínica.                                                     |
 | Sem tema escuro                           | Escuro derivado da paleta v5, AA conferido par a par         | O produto tem tema escuro e o teste visual cobre os dois.                                    |
 

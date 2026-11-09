@@ -162,7 +162,7 @@ export function ConfirmPaymentPanel({
             size="sm"
             variant="ghost"
             className="ml-auto min-h-(--hit-target) text-danger-700"
-            aria-label={`Cancelar ${item.tipo === 'pagar' ? 'conta' : 'cobrança'} de ${item.tipo === 'pagar' ? item.descricao : (item.pacienteNome ?? 'Walk-in')}`}
+            aria-label={`Cancelar ${item.tipo === 'pagar' ? 'conta' : 'cobrança'} de ${item.tipo === 'pagar' ? item.descricao : (item.pacienteNome ?? 'Paciente sem cadastro')}`}
             onClick={onRequestCancel}
             disabled={pending}
           >
