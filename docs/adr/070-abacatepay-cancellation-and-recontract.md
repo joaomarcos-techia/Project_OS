@@ -1,6 +1,6 @@
 # ADR-070 — cancelamento da renovação e nova contratação AbacatePay
 
-Status: regra aprovada pelo founder em 08/11/2026 (Brasília); implementação local com 47 verificações PostgreSQL aprovadas, homologação externa pendente, somente candidata Sandbox. Não altera contratos Asaas nem autoriza Produção ou migrations remotas adicionais. [Evidências e limites](../quality/abacatepay-cancelamento-recontratacao-2026-11-08.md).
+Status: regra aprovada pelo founder em 08/11/2026 (Brasília); 47 verificações PostgreSQL aprovadas, 0139 autorizada/aplicada somente no DEV e cancelamento da fixture Sandbox comprovado em 09/11. Recontratação após passagem temporal real continua pendente; código testado com relógio/dados sintéticos locais. Não altera contratos Asaas nem autoriza Produção ou migrations remotas adicionais. [Evidências e limites](../quality/abacatepay-cancelamento-recontratacao-2026-11-08.md).
 
 ## Regra aprovada
 
@@ -12,7 +12,7 @@ Login e leitura seguem a política existente; cancelamento financeiro não desat
 
 ## Persistência e implementação
 
-O binding inicial da 0138 é imutável e será preservado. Preparar a migration aditiva 0139 com intenções de cancelamento e novas contratações privadas, FKs compostas, snapshots imutáveis, FORCE RLS, privilégios mínimos e deduplicação. O registro atual de subscriptions é a projeção vigente da clínica; cada contratação externa e sua invoice permanecem identificadas no histórico privado. O journal terá uma categoria própria para checkout de nova contratação. Não editar a 0138 já aplicada.
+O binding inicial da 0138 é imutável e foi preservado. A migration aditiva 0139 implementa intenções de cancelamento e novas contratações privadas, FKs compostas, snapshots imutáveis, FORCE RLS, privilégios mínimos e deduplicação. O registro atual de subscriptions é a projeção vigente da clínica; cada contratação externa e sua invoice permanecem identificadas no histórico privado. O journal possui uma categoria própria para checkout de nova contratação. Não editar a 0138 já aplicada.
 
 O cancelamento resolve o contrato externo vigente, congela período/identidade antes do comando, registra auditoria e só confirma o estado local após leitura da origem. A nova contratação fica vinculada ao cancelamento confirmado anterior, ao preço resolvido no servidor e a uma única obrigação. Cliques repetidos e resultados desconhecidos conservam a mesma operação. Webhook tardio do contrato anterior não pode cancelar ou reativar o contrato seguinte.
 
@@ -22,4 +22,4 @@ As rotas devem usar origem confiável, sessão/permissão fresca e clinicId do s
 
 PostgreSQL real com dados sintéticos: concorrência, rollback, histórico imutável, isolamento, cancelamento confirmado/timeout, período ainda ativo, fim do período, um novo checkout, pagamento completo/incompleto, invoice única, eventos antigos e trial não reiniciado. Testes de rota/UI e regressão Asaas. A homologação externa deve identificar a fixture antes de cancelar no Sandbox e preservar os registros financeiros. Passagem temporal simulada não é observação de um mês real.
 
-Aplicação da 0139 no DEV depende de autorização específica após os gates locais. Nenhuma nova cobrança real, migration de Produção ou migração de clientes está autorizada.
+Aplicação da 0139 no DEV foi autorizada especificamente após os gates: histórico 139 → 140, somente essa migration, dados anteriores preservados. Nenhuma nova cobrança real, migration de Produção ou migração de clientes está autorizada. A prova externa conservou a invoice paga e o acesso até o prazo original; não apagou a fixture nem emitiu novo checkout.
