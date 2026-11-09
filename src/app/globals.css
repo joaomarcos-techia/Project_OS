@@ -1,20 +1,5 @@
 @import 'tailwindcss';
 
-[data-qoro-shell='tenant'] .qoro-cash-metrics {
-  gap: 0;
-  overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: var(--r-lg);
-  background: var(--surface);
-}
-[data-qoro-shell='tenant'] .qoro-cash-metrics > div {
-  border: 0;
-  border-right: 1px solid var(--border);
-  border-radius: 0;
-}
-[data-qoro-shell='tenant'] .qoro-cash-metrics > div:last-child {
-  border-right: 0;
-}
 [data-qoro-shell='tenant'] .qoro-cash-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -191,7 +176,8 @@
    de tokens — nenhuma regra estrutural `[data-qoro-shell='tenant'] …` casa com
    ele, então o login não herda sidebar, nav nem grid de tabela do painel. */
 body:has([data-qoro-shell='tenant']),
-body:has([data-qoro-tokens='qorov2']) {
+body:has([data-qoro-tokens='qorov2']),
+body:has([data-qoro-tokens='app-v5']) {
   --background: oklch(0.988 0.0035 98);
   --foreground: oklch(0.216 0.006 106);
   --card: oklch(1 0 0);
@@ -305,7 +291,8 @@ body:has([data-qoro-tokens='qorov2']) {
 }
 
 .dark body:has([data-qoro-shell='tenant']),
-.dark body:has([data-qoro-tokens='qorov2']) {
+.dark body:has([data-qoro-tokens='qorov2']),
+.dark body:has([data-qoro-tokens='app-v5']) {
   --background: oklch(0.18 0.008 106);
   --foreground: oklch(0.95 0.006 98);
   --card: oklch(0.225 0.008 106);
@@ -356,7 +343,8 @@ body:has([data-qoro-tokens='qorov2']) {
    O design não tem tema escuro. O escuro abaixo é DERIVADO (mesmos matizes,
    contraste AA conferido par a par) e mora no bloco `.dark` seguinte.
    ========================================================================= */
-body:has([data-qoro-shell='tenant']) {
+body:has([data-qoro-shell='tenant']),
+body:has([data-qoro-tokens='app-v5']) {
   /* Superfícies */
   --shell-bg: #eef0f5;
   --background: #ffffff;
@@ -508,6 +496,7 @@ body:has([data-qoro-shell='tenant']) {
   --font-sans:
     var(--font-inter), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-display: var(--font-manrope), 'Segoe UI', system-ui, sans-serif;
+  --font-mono: var(--font-sans);
   --font-heading: var(--font-display);
   --fs-page: 24px;
   --fs-h1: 24px;
@@ -552,18 +541,21 @@ body:has([data-qoro-shell='tenant']) {
   background: var(--shell-bg);
 }
 @media (pointer: coarse) {
-  body:has([data-qoro-shell='tenant']) {
+  body:has([data-qoro-shell='tenant']),
+  body:has([data-qoro-tokens='app-v5']) {
     --hit-target: 44px;
   }
 }
 @media (max-width: 720px) {
-  body:has([data-qoro-shell='tenant']) {
+  body:has([data-qoro-shell='tenant']),
+  body:has([data-qoro-tokens='app-v5']) {
     --control-h: 40px;
     --control-h-sm: 36px;
   }
 }
 
-.dark body:has([data-qoro-shell='tenant']) {
+.dark body:has([data-qoro-shell='tenant']),
+.dark body:has([data-qoro-tokens='app-v5']) {
   --shell-bg: #0d0f1d;
   --background: #15172b;
   --card: #15172b;
@@ -1258,7 +1250,8 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail-nav {
 }
 
 /* Alert (aviso dentro da tela): borda fina, raio 12, ícone na cor do tom. */
-body:has([data-qoro-shell='tenant']) [data-slot='alert'] {
+:is(body:has([data-qoro-shell='tenant']), body:has([data-qoro-tokens='app-v5']))
+  [data-slot='alert'] {
   gap: 12px;
   padding: 12px 16px;
   border-color: var(--alert-border);
@@ -1267,32 +1260,40 @@ body:has([data-qoro-shell='tenant']) [data-slot='alert'] {
   color: var(--alert-fg);
   --alert-ic: var(--alert-icon);
 }
-body:has([data-qoro-shell='tenant']) [data-slot='alert'] :is(b, div) {
+:is(body:has([data-qoro-shell='tenant']), body:has([data-qoro-tokens='app-v5']))
+  [data-slot='alert']
+  :is(b, div) {
   color: inherit;
 }
-body:has([data-qoro-shell='tenant']) [data-slot='alert'] > svg {
+:is(body:has([data-qoro-shell='tenant']), body:has([data-qoro-tokens='app-v5']))
+  [data-slot='alert']
+  > svg {
   width: 18px;
   height: 18px;
 }
-body:has([data-qoro-shell='tenant']) [data-slot='alert'][data-variant='info'] {
+:is(body:has([data-qoro-shell='tenant']), body:has([data-qoro-tokens='app-v5']))
+  [data-slot='alert'][data-variant='info'] {
   --alert-bg: var(--alert-blue-bg);
   --alert-border: var(--alert-blue-border);
   --alert-fg: var(--alert-blue-fg);
   --alert-icon: var(--alert-blue-icon);
 }
-body:has([data-qoro-shell='tenant']) [data-slot='alert'][data-variant='warning'] {
+:is(body:has([data-qoro-shell='tenant']), body:has([data-qoro-tokens='app-v5']))
+  [data-slot='alert'][data-variant='warning'] {
   --alert-bg: var(--alert-amber-bg);
   --alert-border: var(--alert-amber-border);
   --alert-fg: var(--alert-amber-fg);
   --alert-icon: var(--alert-amber-icon);
 }
-body:has([data-qoro-shell='tenant']) [data-slot='alert'][data-variant='danger'] {
+:is(body:has([data-qoro-shell='tenant']), body:has([data-qoro-tokens='app-v5']))
+  [data-slot='alert'][data-variant='danger'] {
   --alert-bg: var(--alert-red-bg);
   --alert-border: var(--alert-red-border);
   --alert-fg: var(--alert-red-fg);
   --alert-icon: var(--alert-red-icon);
 }
-body:has([data-qoro-shell='tenant']) [data-slot='alert'][data-variant='success'] {
+:is(body:has([data-qoro-shell='tenant']), body:has([data-qoro-tokens='app-v5']))
+  [data-slot='alert'][data-variant='success'] {
   --alert-bg: var(--tone-green-bg);
   --alert-border: var(--success-200);
   --alert-fg: var(--tone-green-fg);
@@ -1323,7 +1324,7 @@ body:has([data-qoro-shell='tenant']) [data-slot='alert'][data-variant='success']
    A divisória é o ::before, que vira item da grade na primeira linha. */
 [data-qoro-shell='tenant'] [data-slot='page-header'] {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, max-content) minmax(0, 1fr) auto;
   align-items: center;
   column-gap: 10px;
   margin: 0 calc(-1 * var(--page-px)) 20px;
@@ -1342,7 +1343,12 @@ body:has([data-qoro-shell='tenant']) [data-slot='alert'][data-variant='success']
 /* Sem trilha nem ações a faixa ficaria vazia: some, e o título sobe. */
 [data-qoro-shell='tenant']
   [data-slot='page-header']:not(
-    :has(> nav, > :first-child:not([data-slot]), [data-slot='page-header-actions'])
+    :has(
+      > nav,
+      > :first-child:not([data-slot]),
+      [data-slot='page-header-screen'],
+      [data-slot='page-header-actions']
+    )
   )::before {
   display: none;
 }
@@ -1387,6 +1393,38 @@ body:has([data-qoro-shell='tenant']) [data-slot='alert'][data-variant='success']
   height: 16px;
   color: var(--text-2);
 }
+[data-qoro-shell='tenant'] [data-slot='page-header-screen'] {
+  grid-row: 1;
+  grid-column: 1;
+  min-width: 0;
+  padding-block: 10px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+[data-qoro-shell='tenant'] [data-slot='page-header-screen'] svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--text-2);
+}
+[data-qoro-shell='tenant'] [data-slot='page-header-search'] {
+  grid-row: 1;
+  grid-column: 2;
+  width: 100%;
+  max-width: 440px;
+  margin-left: 12px;
+  padding-block: 10px;
+}
+[data-qoro-shell='tenant'] [data-slot='page-header-controls'] {
+  grid-row: 2;
+  grid-column: 3;
+  align-self: end;
+  justify-self: end;
+  padding-top: 24px;
+}
 [data-qoro-shell='tenant'] [data-slot='page-header-row'] {
   display: contents;
 }
@@ -1398,7 +1436,17 @@ body:has([data-qoro-shell='tenant']) [data-slot='alert'][data-variant='success']
   gap: 4px;
   padding-top: 24px;
 }
-[data-qoro-shell='tenant'] [data-slot='page-header-copy'] h1 {
+[data-qoro-shell='tenant']
+  [data-slot='page-header']:has(> [data-slot='page-header-controls'])
+  [data-slot='page-header-copy'] {
+  grid-column: 1 / 3;
+}
+[data-qoro-shell='tenant']
+  [data-slot='page-header-copy']
+  :is(h1, [data-slot='page-header-headline']) {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--fs-page);
   line-height: 1.2;
   letter-spacing: -0.02em;
 }
@@ -1416,9 +1464,27 @@ body:has([data-qoro-shell='tenant']) [data-slot='alert'][data-variant='success']
   font-size: 13px;
   font-variant-numeric: tabular-nums;
 }
+/* Ficha: o título vira um bloco com avatar, situação e subtítulo. */
+[data-qoro-shell='tenant']
+  [data-slot='page-header'][data-hero='true']
+  [data-slot='page-header-copy'] {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 28px;
+  row-gap: 8px;
+  align-items: center;
+  margin-top: 16px;
+  padding: 28px 32px;
+  border: 1px solid var(--border);
+  border-radius: var(--card-radius);
+  background: var(--card);
+}
+[data-qoro-shell='tenant'] [data-slot='page-header-leading'] {
+  grid-row: 1 / span 3;
+}
 [data-qoro-shell='tenant'] [data-slot='page-header-actions'] {
   grid-row: 1;
-  grid-column: 2;
+  grid-column: 3;
   justify-self: end;
   padding-block: 10px;
 }
@@ -1436,7 +1502,27 @@ body:has([data-qoro-shell='tenant']) [data-slot='alert'][data-variant='success']
   border-block: 1px solid var(--border-soft);
   background: transparent;
 }
-[data-qoro-shell='tenant'] .qoro-toolbar span:has(> select) {
+[data-qoro-shell='tenant'] .qoro-checkin {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--card-radius);
+  background: var(--surface);
+}
+[data-qoro-shell='tenant'] .qoro-checkin-title {
+  margin: 0 6px 0 4px;
+  color: var(--text-body);
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+[data-qoro-shell='tenant']
+  :is(.qoro-toolbar, [data-slot='page-header-controls'])
+  span:has(> select) {
   width: auto;
   max-width: 100%;
 }
@@ -1465,6 +1551,18 @@ body:has([data-qoro-shell='tenant']) [data-slot='alert'][data-variant='success']
   font-size: var(--fs-section);
   font-weight: 600;
   letter-spacing: -0.01em;
+}
+[data-qoro-shell='tenant'] .qoro-section-header > h2 {
+  margin: 0;
+  font: inherit;
+  letter-spacing: inherit;
+}
+[data-qoro-shell='tenant'] .qoro-section-header > span {
+  color: var(--text-2);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0;
 }
 body:has([data-qoro-shell='tenant']) [data-slot='card'],
 body:has([data-qoro-shell='tenant']) [data-slot='panel-card'],
@@ -1523,6 +1621,12 @@ body:has([data-qoro-shell='tenant'])
   font-weight: 600;
   line-height: 1.3;
   letter-spacing: -0.01em;
+}
+[data-qoro-shell='tenant'] [data-slot='panel-header'] > span:not([data-slot]) {
+  color: var(--text-2);
+  font-size: 13px;
+  letter-spacing: 0;
+  text-transform: none;
 }
 [data-qoro-shell='tenant'] [data-slot='panel-header'] > a {
   color: var(--text-link);
@@ -1602,10 +1706,6 @@ body:has([data-qoro-shell='tenant'])
 }
 [data-qoro-shell='tenant'] a[data-slot='stat-card']:focus-visible {
   outline-offset: -2px;
-}
-[data-qoro-shell='tenant'] .qoro-grouped-metric [data-slot='stat-value'] {
-  overflow-wrap: anywhere;
-  font-size: 22px;
 }
 
 /* Status: ponto + texto em fundo neutro; fundo colorido só no que pede
@@ -1730,6 +1830,51 @@ body:has([data-qoro-shell='tenant']) [data-slot='empty-state'] > p {
 [data-qoro-shell='tenant'] [data-slot='avatar'] {
   border-radius: 999px;
 }
+[data-qoro-shell='tenant'] [data-slot='table-wrap'] {
+  border-radius: var(--card-radius);
+}
+[data-qoro-shell='tenant'] :is([data-slot='table-wrap'], .qoro-section) :is(th, td) {
+  border-color: var(--border-soft);
+}
+[data-qoro-shell='tenant'] :is([data-slot='table-wrap'], .qoro-section) :is(th, td):first-child {
+  padding-left: 20px;
+}
+[data-qoro-shell='tenant'] :is([data-slot='table-wrap'], .qoro-section) :is(th, td):last-child {
+  padding-right: 20px;
+}
+[data-qoro-shell='tenant'] [data-slot='table-wrap'] td.p-0:first-child {
+  padding-left: 0;
+}
+[data-qoro-shell='tenant'] [data-slot='table-wrap'] td.p-0:first-child > a {
+  padding-left: 20px;
+}
+[data-qoro-shell='tenant'] [data-slot='table-wrap'] tbody tr:hover {
+  background: var(--surface-head);
+}
+[data-qoro-shell='tenant'] [data-slot='table-head'] {
+  display: flex;
+  min-height: 52px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 12px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border-soft);
+}
+[data-qoro-shell='tenant'] [data-slot='table-head'] h2 {
+  margin: 0;
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: var(--fs-section);
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+[data-qoro-shell='tenant'] [data-slot='table-head'] p {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 13px;
+}
 [data-qoro-shell='tenant'] [data-slot='table-wrap'] thead th {
   height: 36px;
   padding-block: 8px;
@@ -1740,48 +1885,60 @@ body:has([data-qoro-shell='tenant']) [data-slot='empty-state'] > p {
 }
 [data-qoro-shell='tenant'] [data-slot='table-foot'] {
   min-height: 44px;
+  padding-inline: 20px;
   padding-block: 6px;
+  border-color: var(--border-soft);
   background: var(--surface);
   color: var(--text-2);
   font-size: 13px;
 }
-body:has([data-qoro-shell='tenant'])
+:is(body:has([data-qoro-shell='tenant']), body:has([data-qoro-tokens='app-v5']))
   :is(button, a, input, select, textarea, summary):focus-visible {
   outline: 2px solid var(--text-link);
   outline-offset: 2px;
 }
 @media (max-width: 720px) {
   [data-qoro-shell='tenant'] [data-slot='page-header'] {
-    grid-template-columns: minmax(0, 1fr);
+    display: flex;
+    flex-wrap: wrap;
+    column-gap: 8px;
   }
   [data-qoro-shell='tenant'] [data-slot='page-header']::before {
-    grid-row: 1 / span 2;
+    order: 3;
+    flex: 0 0 calc(100% + 2 * var(--page-px));
+    min-height: 0;
   }
   [data-qoro-shell='tenant'] [data-slot='page-header'] > nav,
-  [data-qoro-shell='tenant'] [data-slot='page-header'] > :first-child:not([data-slot]) {
-    padding-bottom: 0;
+  [data-qoro-shell='tenant'] [data-slot='page-header'] > :first-child:not([data-slot]),
+  [data-qoro-shell='tenant'] [data-slot='page-header-screen'] {
+    order: 1;
+    margin-right: auto;
+  }
+  [data-qoro-shell='tenant'] [data-slot='page-header-search'] {
+    order: 2;
+    flex: 1 0 100%;
+    max-width: none;
+    margin-left: 0;
+    padding-block: 0 10px;
   }
   [data-qoro-shell='tenant'] [data-slot='page-header-actions'] {
-    grid-row: 2;
-    grid-column: 1;
-    justify-self: start;
-    padding-top: 8px;
-  }
-  [data-qoro-shell='tenant']
-    [data-slot='page-header']:not(:has(> nav, > :first-child:not([data-slot])))
-    [data-slot='page-header-actions'] {
-    grid-row: 1;
-    padding-top: 10px;
-  }
-  [data-qoro-shell='tenant']
-    [data-slot='page-header']:not(:has(> nav, > :first-child:not([data-slot])))::before {
-    grid-row: 1;
+    order: 2;
+    max-width: 100%;
   }
   [data-qoro-shell='tenant'] [data-slot='page-header-copy'] {
-    grid-row: 3;
+    order: 4;
+    flex: 1 0 100%;
     padding-top: 20px;
   }
-  [data-qoro-shell='tenant'] [data-slot='page-header-copy'] h1 {
+  [data-qoro-shell='tenant'] [data-slot='page-header-controls'] {
+    order: 5;
+    flex: 1 0 100%;
+    justify-self: start;
+    padding-top: 12px;
+  }
+  [data-qoro-shell='tenant']
+    [data-slot='page-header-copy']
+    :is(h1, [data-slot='page-header-headline']) {
     font-size: 20px;
   }
   [data-qoro-shell='tenant'] [data-slot='page-header-actions'] > div {
@@ -1798,6 +1955,231 @@ body:has([data-qoro-shell='tenant'])
     scroll-behavior: auto;
     transition-duration: 0s;
     animation-duration: 0s;
+  }
+}
+
+/* =========================================================================
+   Microanimação dos ícones — app da clínica e login (novembro/2026).
+
+   Cada ícone se mexe uma vez quando alguém passa o mouse ou foca pelo teclado
+   no controle que o contém, ou no próprio ícone/caixa dele. A animação combina
+   com o que o ícone É (atualizar gira, seta avança, sino balança, lixeira
+   treme); o que não tem família própria faz um "pop". Lucide marca cada SVG com
+   `lucide-<nome>`, então nenhum componente precisou mudar.
+
+   Duram menos de meio segundo, rodam uma vez, só usam `transform`/`opacity` e
+   somem com "reduzir movimento". Ícone que já gira (carregando) fica de fora.
+   ========================================================================= */
+svg.lucide,
+.qoro-rail-mark svg {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+svg:is(.lucide-refresh-cw, .lucide-refresh-ccw) {
+  --icon-motion: qoro-icon-spin;
+  --icon-motion-time: 0.5s;
+}
+svg.lucide-rotate-ccw {
+  --icon-motion: qoro-icon-spin-back;
+  --icon-motion-time: 0.5s;
+}
+svg:is(.lucide-settings, .lucide-sun, .lucide-sliders-horizontal) {
+  --icon-motion: qoro-icon-turn;
+}
+svg:is(.lucide-chevron-right, .lucide-arrow-right, .lucide-log-out, .lucide-log-in, .lucide-truck) {
+  --icon-motion: qoro-icon-right;
+}
+svg:is(.lucide-chevron-left, .lucide-arrow-left, .lucide-panel-left) {
+  --icon-motion: qoro-icon-left;
+}
+svg:is(.lucide-chevron-down, .lucide-download, .lucide-list-filter, .lucide-funnel) {
+  --icon-motion: qoro-icon-down;
+}
+svg:is(.lucide-chevron-up, .lucide-upload, .lucide-rocket, .lucide-map-pin) {
+  --icon-motion: qoro-icon-up;
+}
+svg:is(.lucide-arrow-up-right, .lucide-external-link, .lucide-send, .lucide-share-2) {
+  --icon-motion: qoro-icon-launch;
+}
+svg.lucide-arrow-down-left {
+  --icon-motion: qoro-icon-land;
+}
+svg:is(
+  .lucide-bell,
+  .lucide-triangle-alert,
+  .lucide-circle-alert,
+  .lucide-siren,
+  .lucide-shield-alert,
+  .lucide-message-circle-warning,
+  .lucide-mail-warning,
+  .lucide-phone
+) {
+  --icon-motion: qoro-icon-ring;
+}
+svg:is(.lucide-trash-2, .lucide-ban, .lucide-user-x, .lucide-wifi-off, .lucide-shield-off) {
+  --icon-motion: qoro-icon-shake;
+}
+svg:is(
+  .lucide-moon,
+  .lucide-pen-line,
+  .lucide-pencil,
+  .lucide-key-round,
+  .lucide-stethoscope,
+  .lucide-pill,
+  .lucide-flask-conical,
+  .lucide-test-tube,
+  .lucide-scale,
+  .lucide-lightbulb
+),
+.qoro-rail-mark svg {
+  --icon-motion: qoro-icon-tilt;
+}
+svg:is(.lucide-eye, .lucide-eye-off) {
+  --icon-motion: qoro-icon-blink;
+}
+svg:is(.lucide-sparkles, .lucide-star) {
+  --icon-motion: qoro-icon-twinkle;
+}
+svg:is(.lucide-clock, .lucide-clock-3, .lucide-timer, .lucide-calendar-clock) {
+  --icon-motion: qoro-icon-tick;
+}
+svg:is(
+  .lucide-chart-column,
+  .lucide-trending-up,
+  .lucide-trending-down,
+  .lucide-wallet,
+  .lucide-banknote,
+  .lucide-house,
+  .lucide-calendar,
+  .lucide-calendar-days,
+  .lucide-building-2,
+  .lucide-users,
+  .lucide-user-round,
+  .lucide-user-plus,
+  .lucide-message-circle,
+  .lucide-messages-square,
+  .lucide-mail,
+  .lucide-mail-check
+) {
+  --icon-motion: qoro-icon-hop;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :is(body:has([data-qoro-shell='tenant']), body:has([data-qoro-tokens='app-v5']))
+    :is(
+      :is(
+          a,
+          button,
+          summary,
+          label,
+          [role='button'],
+          [role='menuitem'],
+          [role='tab'],
+          [role='option']
+        ):is(:hover, :focus-visible):not(:disabled, [aria-disabled='true'])
+        :is(svg.lucide, .qoro-rail-mark svg),
+      :hover > svg.lucide
+    ):not(.animate-spin, [class*='lucide-loader']) {
+    animation: var(--icon-motion, qoro-icon-pop) var(--icon-motion-time, 0.36s)
+      cubic-bezier(0.34, 1.4, 0.64, 1);
+  }
+}
+@keyframes qoro-icon-pop {
+  45% {
+    transform: scale(1.18);
+  }
+}
+@keyframes qoro-icon-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes qoro-icon-spin-back {
+  to {
+    transform: rotate(-360deg);
+  }
+}
+@keyframes qoro-icon-turn {
+  to {
+    transform: rotate(90deg);
+  }
+}
+@keyframes qoro-icon-right {
+  45% {
+    transform: translateX(3px);
+  }
+}
+@keyframes qoro-icon-left {
+  45% {
+    transform: translateX(-3px);
+  }
+}
+@keyframes qoro-icon-down {
+  45% {
+    transform: translateY(3px);
+  }
+}
+@keyframes qoro-icon-up {
+  45% {
+    transform: translateY(-3px);
+  }
+}
+@keyframes qoro-icon-launch {
+  45% {
+    transform: translate(2px, -2px);
+  }
+}
+@keyframes qoro-icon-land {
+  45% {
+    transform: translate(-2px, 2px);
+  }
+}
+@keyframes qoro-icon-ring {
+  20% {
+    transform: rotate(12deg);
+  }
+  45% {
+    transform: rotate(-10deg);
+  }
+  70% {
+    transform: rotate(6deg);
+  }
+}
+@keyframes qoro-icon-shake {
+  25% {
+    transform: translateX(-2px);
+  }
+  50% {
+    transform: translateX(2px);
+  }
+  75% {
+    transform: translateX(-1px);
+  }
+}
+@keyframes qoro-icon-tilt {
+  45% {
+    transform: rotate(-12deg) scale(1.06);
+  }
+}
+@keyframes qoro-icon-blink {
+  45% {
+    transform: scaleY(0.2);
+  }
+}
+@keyframes qoro-icon-twinkle {
+  40% {
+    opacity: 0.6;
+    transform: scale(1.22) rotate(12deg);
+  }
+}
+@keyframes qoro-icon-tick {
+  to {
+    transform: rotate(30deg);
+  }
+}
+@keyframes qoro-icon-hop {
+  45% {
+    transform: translateY(-2px) scale(1.06);
   }
 }
 

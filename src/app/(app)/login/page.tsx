@@ -22,14 +22,14 @@ const INITIAL: LoginActionState = { error: null };
 const SITE = 'https://qoro.dev';
 
 /**
- * `data-qoro-tokens="qorov2"` traz a camada de tokens dos designs de setembro/2026
- * (globals.css) para fora do shell: sem ele o login herda a paleta e a tipografia
- * legadas do `:root` e destoa do restante do produto.
+ * `data-qoro-tokens="app-v5"` traz os tokens do app atual (globals.css) para fora
+ * do shell: o login abre com a mesma paleta e tipografia da área logada. O cadastro
+ * segue em `qorov2` até o redesenho do onboarding.
  */
 // useSearchParams() força CSR bailout — boundary <Suspense> obrigatório p/ prerender.
 export default function LoginPage() {
   return (
-    <div data-qoro-tokens="qorov2">
+    <div data-qoro-tokens="app-v5">
       <Suspense fallback={<AuthScreenSkeleton variant="login" />}>
         <LoginScreen />
       </Suspense>
@@ -72,16 +72,16 @@ function LoginScreen() {
       <div className="grid flex-1 grid-cols-1 overflow-hidden bg-surface lg:grid-cols-2">
         {/* ============================ FORM (esquerda) ============================ */}
         <div className="flex min-w-0 flex-col px-6 py-8 sm:px-10 lg:px-14 lg:py-10">
-          <Logo className="h-auto w-[78px]" />
+          <Logo className="h-auto w-[78px] text-fg" />
 
           {/* `mx-auto` centra o formulário na faixa branca. Sem ele o bloco de
               392px encostava na borda do padding, e a coluna esquerda ficava
               com todo o respiro à direita e nenhum à esquerda. */}
           <div className="mx-auto my-auto w-full max-w-[392px] py-10">
-            <h1 className="font-display text-[26px] font-semibold leading-[1.15] tracking-[-0.024em] text-fg">
+            <h1 className="font-display text-(length:--fs-page) font-semibold leading-[1.2] tracking-[-0.02em] text-fg">
               Entrar na sua conta
             </h1>
-            <p className="mt-2 text-[14px] leading-[1.5] text-fg-subtle">
+            <p className="mt-1 text-[14px] leading-[1.5] text-fg-muted">
               Bem-vindo de volta. Informe seus dados para continuar.
             </p>
 
@@ -176,7 +176,7 @@ function LoginScreen() {
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-x-3.5 gap-y-2 text-[12px] leading-none text-border-strong">
+          <div className="flex flex-wrap items-center gap-x-3.5 gap-y-2 text-[12px] leading-none text-fg-subtle">
             <span>© {new Date().getFullYear()} Qoro</span>
             <a
               href={`${SITE}/politica-de-privacidade`}
@@ -190,7 +190,7 @@ function LoginScreen() {
             >
               Termos
             </a>
-            <span className="ml-auto inline-flex items-center gap-1.5 whitespace-nowrap font-mono text-[11.5px] font-medium">
+            <span className="ml-auto inline-flex items-center gap-1.5 whitespace-nowrap text-[12px] font-medium">
               <ShieldCheck aria-hidden="true" className="size-[13px]" />
               LGPD · dados no Brasil
             </span>
@@ -202,20 +202,17 @@ function LoginScreen() {
             `m-*` cria a faixa branca entre a borda da tela e a arte, e o raio
             arredonda os quatro cantos. Antes ele sangrava até as bordas. */}
         <aside
-          className="relative m-(--sp-5) hidden overflow-hidden rounded-(--r-3xl) lg:flex lg:flex-col"
-          style={{
-            background:
-              'linear-gradient(158deg, oklch(0.5 0.2 266) 0%, oklch(0.44 0.21 268) 42%, oklch(0.36 0.18 270) 100%)',
-            padding: '64px 0 0 52px',
-          }}
+          className="relative m-3 hidden overflow-hidden rounded-(--panel-radius) lg:flex lg:flex-col"
+          // O azul é literal: a arte da marca não muda com o tema de quem acessa.
+          style={{ background: '#1A1ED5', padding: '64px 0 0 52px' }}
         >
           <div className="relative pr-[52px]">
-            <h2 className="max-w-[19ch] font-display text-[31px] font-semibold leading-[1.2] tracking-[-0.028em] text-white">
+            <h2 className="max-w-[19ch] font-display text-[31px] font-semibold leading-[1.2] tracking-[-0.02em] text-white">
               Conduza o dia da clínica de um único lugar
             </h2>
             <p
               className="mt-3.5 max-w-[44ch] text-[14.5px] leading-[1.55]"
-              style={{ color: 'oklch(0.91 0.05 268)' }}
+              style={{ color: '#D6D8FA' }}
             >
               Entre para acompanhar agenda, prontuários, documentos e caixa em tempo real.
             </p>

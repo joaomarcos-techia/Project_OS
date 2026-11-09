@@ -1,29 +1,30 @@
 /**
- * Ilustração do painel de marca do login — réplica de `Qoro - Login.dc.html`.
+ * Ilustração do painel de marca do login, na paleta e nas fontes do app v5.
  *
  * É uma FIGURA do produto, não chrome do produto: fica sobre o gradiente escuro
  * do aside e precisa ler como o app no tema claro em qualquer tema do usuário.
- * Por isso os valores são literais (os mesmos oklch do design) em vez de tokens
+ * Por isso os valores são literais (os mesmos do design) em vez de tokens
  * — um `bg-surface` aqui escureceria junto com o tema e quebraria a figura.
  *
  * Dados sintéticos: nenhum paciente real aparece na tela pública (LGPD).
  */
 
-const INK = 'oklch(0.216 0.006 106)';
-const BODY = 'oklch(0.406 0.008 102)';
-const MUTED = 'oklch(0.498 0.009 100)';
-const FAINT = 'oklch(0.612 0.009 98)';
-const RULE = 'oklch(0.957 0.005 98)';
-const HAIRLINE = 'oklch(0.937 0.005 98)';
-const BORDER = 'oklch(0.918 0.006 98)';
-const PRIMARY = 'oklch(0.478 0.15 264)';
-const PRIMARY_SOFT = 'oklch(0.938 0.028 263)';
-const PRIMARY_DEEP = 'oklch(0.35 0.108 266)';
-const CHIP = 'oklch(0.945 0.005 98)';
+const INK = '#0A0C25';
+const BODY = '#33333B';
+const MUTED = '#5C5C66';
+const FAINT = '#6E6E79';
+const RULE = '#ECEEF4';
+const HAIRLINE = '#E3E5EE';
+const BORDER = '#E3E5EE';
+const PRIMARY = '#1A1ED5';
+const PRIMARY_SOFT = '#EEEFFF';
+const PRIMARY_DEEP = '#1A1ED5';
+const CHIP = '#F4F5F9';
 
-const SANS = "'Hanken Grotesk', ui-sans-serif, system-ui, sans-serif";
-const DISPLAY = 'Inter, ui-sans-serif, system-ui, sans-serif';
-const MONO = "'IBM Plex Mono', ui-monospace, Menlo, Consolas, monospace";
+const SANS = 'var(--font-inter), ui-sans-serif, system-ui, sans-serif';
+const DISPLAY = 'var(--font-manrope), ui-sans-serif, system-ui, sans-serif';
+// Números em Inter, como no app: o v5 não usa fonte monoespaçada.
+const MONO = SANS;
 
 const ROW_GRID = '64px minmax(0,1fr) 96px 88px';
 
@@ -44,8 +45,8 @@ const CONSULTAS: Consulta[] = [
 
 const ORIGENS = [
   { rotulo: 'Convênio', valor: '248', cor: PRIMARY },
-  { rotulo: 'Particular', valor: '121', cor: 'oklch(0.72 0.09 264)' },
-  { rotulo: 'Retorno', valor: '43', cor: 'oklch(0.9 0.03 264)' },
+  { rotulo: 'Particular', valor: '121', cor: '#8A8DF0' },
+  { rotulo: 'Retorno', valor: '43', cor: '#D6D8FA' },
 ];
 
 export function AuthProductPreview() {
@@ -58,9 +59,9 @@ export function AuthProductPreview() {
           left: 0,
           top: 0,
           width: 660,
-          borderRadius: 10,
-          background: 'oklch(0.988 0.0035 98)',
-          boxShadow: '0 34px 80px -24px oklch(0.16 0.1 268 / .75)',
+          borderRadius: 16,
+          background: '#F6F7FB',
+          boxShadow: '0 34px 80px -24px rgb(10 12 37 / .55)',
           overflow: 'hidden',
         }}
       >
@@ -105,7 +106,7 @@ export function AuthProductPreview() {
               gap: 6,
               padding: '0 9px',
               height: 24,
-              borderRadius: 999,
+              borderRadius: 6,
               background: PRIMARY_SOFT,
               font: `600 11px/24px ${SANS}`,
               color: PRIMARY_DEEP,
@@ -124,11 +125,11 @@ export function AuthProductPreview() {
             padding: '14px 16px',
           }}
         >
-          <div style={{ padding: '12px 14px', borderRadius: 9, background: PRIMARY }}>
+          <div style={{ padding: '12px 14px', borderRadius: 12, background: PRIMARY }}>
             <div
               style={{
                 font: `400 11px/1 ${SANS}`,
-                color: 'oklch(0.93 0.03 264)',
+                color: '#D6D8FA',
                 whiteSpace: 'nowrap',
               }}
             >
@@ -152,8 +153,8 @@ export function AuthProductPreview() {
                 gap: 5,
                 padding: '0 8px',
                 height: 21,
-                borderRadius: 999,
-                background: 'oklch(0.6 0.13 264)',
+                borderRadius: 6,
+                background: '#3A3EE6',
                 font: `600 10.5px/21px ${SANS}`,
                 color: '#fff',
                 whiteSpace: 'nowrap',
@@ -167,7 +168,7 @@ export function AuthProductPreview() {
             style={{
               padding: '12px 14px',
               border: `1px solid ${HAIRLINE}`,
-              borderRadius: 9,
+              borderRadius: 12,
               background: '#fff',
             }}
           >
@@ -206,7 +207,7 @@ export function AuthProductPreview() {
           <div
             style={{
               border: `1px solid ${HAIRLINE}`,
-              borderRadius: 9,
+              borderRadius: 12,
               background: '#fff',
               overflow: 'hidden',
             }}
@@ -283,7 +284,7 @@ export function AuthProductPreview() {
                     justifySelf: 'start',
                     padding: '0 8px',
                     height: 20,
-                    borderRadius: 999,
+                    borderRadius: 6,
                     background: consulta.ativo ? PRIMARY_SOFT : CHIP,
                     font: `600 10.5px/20px ${SANS}`,
                     color: consulta.ativo ? PRIMARY_DEEP : BODY,
@@ -308,7 +309,7 @@ export function AuthProductPreview() {
           padding: 16,
           borderRadius: 12,
           background: '#fff',
-          boxShadow: '0 30px 70px -20px oklch(0.14 0.1 268 / .8)',
+          boxShadow: '0 30px 70px -20px rgb(10 12 37 / .6)',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -326,7 +327,7 @@ export function AuthProductPreview() {
               <path
                 d="M10 60 A50 50 0 0 1 110 60"
                 fill="none"
-                stroke="oklch(0.93 0.012 98)"
+                stroke="#ECEEF4"
                 strokeWidth="12"
                 strokeLinecap="round"
               />
@@ -371,9 +372,7 @@ export function AuthProductPreview() {
               <span style={{ flex: 1, font: `400 11.5px/1 ${SANS}`, color: BODY }}>
                 {origem.rotulo}
               </span>
-              <span style={{ font: `500 11.5px/1 ${MONO}`, color: 'oklch(0.292 0.007 104)' }}>
-                {origem.valor}
-              </span>
+              <span style={{ font: `500 11.5px/1 ${MONO}`, color: '#33333B' }}>{origem.valor}</span>
             </div>
           ))}
         </div>

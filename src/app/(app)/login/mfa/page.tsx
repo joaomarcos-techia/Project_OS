@@ -22,7 +22,10 @@ export default function MfaPage() {
   const busy = pending || switchPending;
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-canvas px-4 py-12">
+    <main
+      data-qoro-tokens="app-v5"
+      className="flex min-h-screen flex-col items-center justify-center bg-canvas px-4 py-12"
+    >
       <div className="w-full max-w-sm">
         <div className="mb-6 flex flex-col items-center gap-2 text-center">
           <Logo className="h-7 w-auto" />
