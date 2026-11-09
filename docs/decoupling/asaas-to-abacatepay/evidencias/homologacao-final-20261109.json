@@ -573,15 +573,212 @@
     "recurring charge/cycle without webhook",
     "paid renewal after plan change",
     "refund/dispute/chargeback outcome",
-    "single-use subscription checkout after deletion",
+    "paid checkout closure, subscription/history survival and race before first webhook",
     "temporal expiry and recontract"
   ],
   "productionWrites": 0,
-  "newCheckouts": 0,
+  "newCheckouts": 1,
   "newCharges": 0,
   "newAuthAccounts": 0,
   "remoteCandidate": {
-    "status": "NOT RUN",
-    "reason": "New source not yet published at this checkpoint"
-  }
+    "status": "PASS",
+    "sha": "a3539abc4a77225b1a39eec73930616f958dea03",
+    "ciUrl": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/42615597795",
+    "ciConclusion": "success",
+    "steps": [
+      {
+        "name": "Set up job",
+        "conclusion": "success"
+      },
+      {
+        "name": "Run actions/checkout@v4",
+        "conclusion": "success"
+      },
+      {
+        "name": "Run pnpm/action-setup@v4",
+        "conclusion": "success"
+      },
+      {
+        "name": "Run actions/setup-node@v4",
+        "conclusion": "success"
+      },
+      {
+        "name": "Install dependencies",
+        "conclusion": "success"
+      },
+      {
+        "name": "Prod dependency audit gate (high+)",
+        "conclusion": "success"
+      },
+      {
+        "name": "Typecheck",
+        "conclusion": "success"
+      },
+      {
+        "name": "Lint",
+        "conclusion": "success"
+      },
+      {
+        "name": "Arch check (madge — circular deps)",
+        "conclusion": "success"
+      },
+      {
+        "name": "Arch DB check (AST connection-origin guard)",
+        "conclusion": "success"
+      },
+      {
+        "name": "Migration safety gate (anti-destructive)",
+        "conclusion": "success"
+      },
+      {
+        "name": "Observability drift gate (docs ⇔ vercel.json ⇔ eventos)",
+        "conclusion": "success"
+      },
+      {
+        "name": "Handler registry gate (catalog ⇔ registry)",
+        "conclusion": "success"
+      },
+      {
+        "name": "Test + coverage gate",
+        "conclusion": "success"
+      },
+      {
+        "name": "Security inventory (AST and explicit guard review)",
+        "conclusion": "success"
+      },
+      {
+        "name": "Two-tenant isolation (temporary local Postgres)",
+        "conclusion": "success"
+      },
+      {
+        "name": "Build",
+        "conclusion": "success"
+      },
+      {
+        "name": "Client bundle secrets and local HTTP boundaries",
+        "conclusion": "success"
+      },
+      {
+        "name": "Install Playwright browser (chromium)",
+        "conclusion": "success"
+      },
+      {
+        "name": "E2E gate (superfície pública, sem credencial)",
+        "conclusion": "success"
+      },
+      {
+        "name": "Upload E2E report on failure",
+        "conclusion": "skipped"
+      },
+      {
+        "name": "Post Run actions/setup-node@v4",
+        "conclusion": "success"
+      },
+      {
+        "name": "Post Run pnpm/action-setup@v4",
+        "conclusion": "success"
+      },
+      {
+        "name": "Post Run actions/checkout@v4",
+        "conclusion": "success"
+      },
+      {
+        "name": "Complete job",
+        "conclusion": "success"
+      }
+    ],
+    "tests": {
+      "passed": 6695,
+      "files": 609,
+      "coverage": {
+        "lines": 62.27,
+        "statements": 62.27,
+        "branches": 83.14,
+        "functions": 66.43
+      }
+    },
+    "publicE2e": {
+      "passed": 8,
+      "skipped": 2,
+      "reason": "Turnstile keys intentionally absent from isolated CI build; separate H7 proofs recorded"
+    },
+    "deployment": {
+      "observedAt": "2026-11-09T12:21:14.722Z",
+      "sha": "a3539abc4a77225b1a39eec73930616f958dea03",
+      "deployments": [
+        {
+          "id": "dpl_7ZaQF6AkvkUHeDknPLpRSHY55nSw",
+          "url": "project-mvz987crz-clinic-os-v2-s-projects.vercel.app",
+          "state": "READY",
+          "target": null,
+          "sha": "a3539abc4a77225b1a39eec73930616f958dea03",
+          "branch": "feat/billing-abacatepay-20261107"
+        }
+      ],
+      "mutations": 0
+    },
+    "authenticatedPreview": {
+      "observedAt": "2026-11-09T12:22:55.403Z",
+      "status": "PASS",
+      "sha": "a3539abc4a77225b1a39eec73930616f958dea03",
+      "origin": "https://project-mvz987crz-clinic-os-v2-s-projects.vercel.app",
+      "runtime": "signed_DEV_database_and_Auth",
+      "login": "real_synthetic_fixture",
+      "uiWidths": [1440, 390],
+      "cancelledPaidAccessPreserved": true,
+      "planSelectorHidden": true,
+      "earlyRecontractHidden": true,
+      "overflow": false,
+      "cancelledPlanChangeStatus": 409,
+      "forgedTenantBodyStatus": 400,
+      "subscriptionInvoicesOperationsAndIntentsUnchanged": true,
+      "newProviderCommands": 0,
+      "newCheckouts": 0,
+      "newPayments": 0,
+      "productionWrites": 0,
+      "notProofOf": "active plan-change paid renewal, refund outcome or future calendar"
+    }
+  },
+  "finalObservedAt": "2026-11-09T12:27:28.852Z",
+  "negativeReaderRealGet": {
+    "observedAt": "2026-11-09T12:21:13.162Z",
+    "environment": "sandbox_read_only",
+    "status": "PASS",
+    "requests": 5,
+    "refundDebitMinor": 0,
+    "evidenceLevel": "status_only",
+    "checkoutStatus": "PAID",
+    "providerMutations": 0,
+    "databaseWrites": 0,
+    "newCheckouts": 0,
+    "newPayments": 0,
+    "notProofOf": "refund, chargeback, dispute outcome or retry behavior"
+  },
+  "unpaidCheckoutDeletion": {
+    "observedAt": "2026-11-09T12:18:24.763Z",
+    "scope": "unpaid synthetic Sandbox checkout only",
+    "status": "PASS",
+    "newCheckouts": 1,
+    "deleteCommands": 1,
+    "newSubscriptions": 0,
+    "newPayments": 0,
+    "originalPaidFixtureUntouched": true,
+    "unlistedAfterDeletion": true,
+    "financialGetAfterDeletion": 200,
+    "paidHistorySurvival": "NOT RUN",
+    "hostedLinkReusability": "NOT RUN",
+    "productionWrites": 0,
+    "manifestRetained": true,
+    "hostedLink": {
+      "observedAt": "2026-11-09T12:19:23.727Z",
+      "http": 200,
+      "headings": ["Não encontramos este link"],
+      "inputs": 0,
+      "paymentButtons": 0,
+      "noPaymentAttempted": true
+    }
+  },
+  "newPayments": 0,
+  "deletedUnpaidCheckouts": 1,
+  "note": "One new unpublished unpaid checkout was created and deleted solely to validate documented deletion/readback; no recurring subscription or payment. Original paid fixture retained."
 }

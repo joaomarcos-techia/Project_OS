@@ -204,7 +204,7 @@ Não somar provas parciais para afirmar que um único usuário percorreu todos o
 | H6 contínuo temporal externo                      | NOT RUN                                                       | Sim                         | Fechar as subprovas financeiras faltantes; não reutilizar fixture cancelada                    |
 | H7 duas verificações públicas                     | PASS nos ambientes indicados                                  | Não para o recorte de teste | Não confundir com Production                                                                   |
 | H8 regressão local                                | PASS: 6.695 testes, typecheck, lint, inventário e arquitetura | Não no recorte local        | Build e checks remotos do novo SHA ainda precisam terminar                                     |
-| H8 build/CI novo                                  | NOT RUN no checkpoint local                                   | Sim                         | Ler o resultado do SHA publicado, sem herdar o baseline                                        |
+| H8 build/CI a3539abc                              | PASS, CI 42615597795 e Preview READY                          | Não para esse código        | Documentação posterior não muda src/schema/E2E; verificar checks do HEAD final                 |
 | H9 adversarial                                    | PASS como revisão documentada; riscos abertos não aprovados   | Sim nos P0/P1               | Resolver/validar itens abaixo                                                                  |
 | H10 pré-produção                                  | PASS como preparação, não execução                            | Sim nos pré-requisitos      | Nenhum cutover autorizado                                                                      |
 
@@ -241,6 +241,12 @@ O [diário anterior](PLANO-EXECUCAO-CONTINUIDADE.md) já registra que um checkou
 
 A documentação oferece [POST de exclusão do checkout](https://docs.abacatepay.com/pages/subscriptions/checkouts-delete), com permissão SUBSCRIPTION:DELETE, prometendo preservar assinaturas geradas. **Não comprova** a disponibilidade posterior do GET financeiro, do vínculo original, do recibo ou do próprio fluxo de mudança de plano após excluir. Não apagar o único checkout pago retido para descobrir isso. É necessário um ensaio rastreável específico de fechamento, perda de resposta, lista/GET/subscrição e pagamentos históricos. Não inventar `/close` nem considerar remoção visual da lista prova de impossibilidade de nova contratação.
 
+### Ensaio externo diferencial de exclusão, sem pagamento
+
+Em **09/11 às 12:18 UTC**, uma fixture nova, identificada e não divulgada, gerou somente um checkout Sandbox pendente de Consultório. O manifesto e o procedimento de limpeza foram gravados antes do POST; operação reservada e resultado desconhecido retido sem repetição cega. Confirmados status PENDING, nenhum cliente, valor pago nulo/zero e nenhuma assinatura antes de excluir **somente esse recurso** pela rota oficial.
+
+Resultado: exclusão aceita, checkout ausente da lista, **GET financeiro HTTP 200** após excluir. Em navegador novo, a URL mostrou **“Não encontramos este link”**, sem inputs ou botões de pagamento. **Zero pagamentos, zero assinaturas, zero dados de pacientes, fixture paga original intacta.** O manifesto permanece protegido para auditoria. Isso comprova o comportamento do recurso **não pago**; não prova histórico/recibo após pagamento, assinatura sobrevivente, concorrência entre duas conclusões antes do fechamento ou mudança de plano depois da exclusão. Não há fechamento automático implementado na composição: exige comando durável, reserva antes do I/O, recuperação de resposta perdida e essas provas antes de ativar. Não excluir a fixture paga atual nem declarar este P0 resolvido.
+
 ## 20. Produção, secrets e permissões
 
 Não houve composição de Production. API e comandos continuam guardados para Sandbox; uma chave ou flag sozinha não libera o provedor em Production. Não copiar `.env.local` para Vercel/Produção.
@@ -272,7 +278,7 @@ A 0141 é expansiva e pode permanecer com código anterior; não excluir tabela/
 
 ## 24. Checklist verificável de pré-produção
 
-- [ ] CI/build/segurança do SHA candidato aprovados e código revisável.
+- [x] CI/build/segurança do código a3539abc aprovados e código revisável; o HEAD documental posterior exige conferência própria.
 - [ ] 0141 e anteriores com preflight/backup/locks/rollback verificados na janela autorizada; nunca executar agora em Production.
 - [ ] Recorrência externa com cobrança/ciclo/valor/item/cliente/conta e calendário comprovados.
 - [ ] Fechamento de checkout reutilizável homologado sem perder recuperação financeira/histórico.
@@ -300,3 +306,21 @@ A 0141 é expansiva e pode permanecer com código anterior; não excluir tabela/
 **Continuação da configuração:** a CLI oficial renovou legitimamente a sessão. Em `2026-11-09T12:14:17Z`, o mapa dos cinco produtos foi atualizado apenas em Preview, branch `feat/billing-abacatepay-20261107`. Uma variável alterada; metadados das demais variáveis/ambientes preservados; zero escrita em Production. Exige novo deployment. A recusa 403 anterior permaneceu sem efeitos.
 
 [Evidências sanitizadas desta rodada](evidencias/homologacao-final-20261109.json). Os resultados remotos do novo SHA serão acrescentados depois de sua execução.
+
+### Registro remoto do código a3539abc
+
+**PASS:** [CI 42615597795](https://github.com/joaomarcos-techia/Project_OS/actions/runs/42615597795), 609 arquivos e 6.695/6.695 testes; cobertura 62,27% linhas/statements, 83,14% branches e 66,43% funções. Auditoria de dependências, TypeScript, lint, arquitetura, migrations, observabilidade, registry, inventário, isolamento entre dois tenants, build Next, bundle e HTTP boundaries aprovados. E2E público: **8 PASS/2 SKIP**, somente os dois caminhos Turnstile sem chaves nesse build, com suas provas separadas na seção 15. Upload do relatório de falha foi ignorado porque não houve falha; não é cenário funcional omitido. Semgrep, Snyk e Vercel SUCCESS; Agent Review NEUTRAL, sem tratá-lo como revisão humana.
+
+**Preview READY:** [project-mvz987crz](https://project-mvz987crz-clinic-os-v2-s-projects.vercel.app/configuracoes/assinatura), deployment dpl_7ZaQF6AkvkUHeDknPLpRSHY55nSw, mesmo SHA. E2E com assinatura de runtime confirmou DEV em Auth e DB; login real da fixture retida, desktop 1440 e mobile 390, nenhum overflow, cancelamento/período preservados e contratação antecipada ausente. A nova rota recusou mudança da assinatura cancelada com 409 e corpo contendo tenant forjado com 400. Hash da assinatura e contagens de invoices/operações/intents iguais antes/depois. Zero comandos financeiros novos nesse E2E. Não prova mudança de plano paga nem renovação temporal.
+
+**Readback negativo real:** cinco GETs Sandbox, sem mutações ou escrita DB. O leitor encontrou PAID e nenhum débito de refund, classificando corretamente como status_only. Não é prova de estorno ou desfecho de disputa. O catálogo foi incorporado ao novo deployment; o 403 administrativo intermediário foi resolvido por renovação legítima da sessão CLI.
+
+O primeiro format:check encontrou somente o snapshot JSON antigo de preservação sem formatação. Foi formatado sem mudar nenhum campo/hash, com igualdade de JSON verificada. Os arquivos alterados e o diff foram conferidos. A atualização documental posterior não altera src, migrations nem E2E desse código já aprovado.
+
+### Próxima intervenção humana realmente necessária
+
+Abra [o painel AbacatePay](https://app.abacatepay.com/), mantenha **Modo Teste (Sandbox)** e clique em **Suporte**. Encaminhe esta pergunta, sem dados de pacientes, API key ou payload:
+
+> Estamos homologando assinaturas recorrentes na API V2. Existe um método oficial para antecipar uma renovação no Sandbox? Como consultar o vínculo de um bill/payment de renovação com a assinatura quando nenhum webhook chegou? Onde consultar o ciclo/vencimento e o estado de retries/disputa? Verificamos que excluir um checkout não pago invalida o link e preserva seu GET. Para checkout já pago, a exclusão preserva GET financeiro, extrato/recibo, assinatura e futuras alterações de plano? Há uma garantia de uso único ou modo de impedir duas contratações antes da chegada do primeiro webhook?
+
+Resultado necessário: orientação oficial ou resposta vinculada a ticket/documentação, não uma alteração de datas que aparente um mês decorrido. Envie apenas a resposta e identificador do ticket, sem credenciais. Se o método exigir assinatura ativa, a engenharia preparará outra fixture antes de gerar link, com você disponível. Não pagar novamente o link antigo, não alterar seu cancelamento e não criar cobrança real. O uso de Sandbox não autoriza Production.
