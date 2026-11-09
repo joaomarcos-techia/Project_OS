@@ -1,6 +1,6 @@
 # Cenários financeiros e nível real de validação
 
-Atualizado em 09/11/2026 UTC (08/11 em Brasília). Esta tabela complementa a [matriz M01–M18 do plano mestre](PLANO-MESTRE-MIGRACAO-ASAAS-ABACATEPAY.md). A matriz geral de 79 casos continua preservada. A candidata agora tem **um primeiro pagamento integral real no modo de simulação Sandbox**, webhook autenticado aplicado, invoice e UI paga; somente os casos identificados abaixo recebem esse nível de evidência. A [continuação anterior](CONTINUACAO-2026-11-07.md) é histórica. O [diário atual](PLANO-EXECUCAO-CONTINUIDADE.md) contém SHAs, Preview, fixture, testes e limites. Nenhuma mudança de Produção ou migração de contratos reais foi realizada.
+Atualizado em 09/11/2026 UTC e Brasília. Esta tabela complementa a [matriz M01–M18 do plano mestre](PLANO-MESTRE-MIGRACAO-ASAAS-ABACATEPAY.md). A matriz geral de 79 casos continua preservada. A candidata agora tem **um primeiro pagamento integral real no modo de simulação Sandbox**, webhook autenticado aplicado, invoice e UI paga; o cancelamento posterior está discriminado abaixo. Somente os casos identificados recebem esse nível de evidência. A [continuação anterior](CONTINUACAO-2026-11-07.md) é histórica. O [diário atual](PLANO-EXECUCAO-CONTINUIDADE.md) contém SHAs, Preview, fixture, testes e limites. Nenhuma mudança de Produção ou migração de contratos reais foi realizada.
 
 O Qoro provisiona o trial absoluto e só solicita checkout após o prazo. Dois E2E reais partiram de identidades sintéticas confirmadas administrativamente: trial ativo sem checkout e trial vencido com checkout, sem prova de entrega do e-mail ou decurso real de 14 dias. O terceiro conferiu o estado pago após webhook real. As [cotas aprovadas](../../specs/trial-interface-e-cotas-2026-11.md) e os limites permanentes foram preservados.
 
@@ -28,7 +28,7 @@ Estado inicial e estímulo estão na segunda coluna. Estado final esperado está
 | F12 | Chargeback após acesso                                | Registrar risco e histórico, sem apagar pagamento        | Casos SaaS do novo provedor precisam especificação de recurso/evento                                         | NOT RUN                                      |
 | F13 | Trial com deadline antigo; upgrade/adesão             | Não reiniciar 14 dias, sem cobrança antecipada           | Provisionamento real em Preview/DEV, data Auth controlada antes da criação, comparação exata e bloqueio ativo | PASS no prazo simulado; 14 dias reais não observados |
 | F14 | Downgrade perto do vencimento                         | Elegibilidade e valor/cota remotos convergentes          | `billing/plan-changes.test.ts`, `plan-change-provider-sync.test.ts`                                          | NOT RUN                                      |
-| F15 | Cartão recusado                                       | Sem acesso pago indevido; erro seguro e retomada         | `onboarding/saga.test.ts`; cartões V2 não foram utilizados                                                   | NOT RUN                                      |
+| F15 | Cartão recusado                                       | Sem acesso pago indevido; erro seguro e retomada         | `onboarding/saga.test.ts`; recusa de cartão V2 não foi induzida                                               | NOT RUN                                      |
 | F16 | Pix/boleto quitado em atraso                          | Vínculo e período corretos, dívida única                 | Não presumir equivalência Pix Asaas/Pix Automático; boleto sem equivalente documentado                       | BLOCKED para boleto; Pix NOT RUN             |
 | F17 | Contrato antigo Asaas; default novo                   | Continua vinculado ao Asaas                              | Namespace unitário e snapshot de contratos sintéticos preservado no PostgreSQL, sem binding automático     | PARTIAL local; NOT RUN coexistência ativa    |
 | F18 | Recorrência ativa; cobrança futura pendente           | Acesso derivado do contrato/período, não de ACTIVE       | Readers novos não concedem acesso e não inventam próximo vencimento                                          | PARTIAL unitário; NOT RUN integrado          |
@@ -38,6 +38,19 @@ Estado inicial e estímulo estão na segunda coluna. Estado final esperado está
 | F22 | Refund da origem após novo gateway                    | Continua operável no provider original                   | Política registrada, nenhum contrato movido                                                                  | NOT RUN                                      |
 | F23 | Evento desconhecido/forjado/grande                    | Recusa ou classificação observável, zero efeito          | HMAC/cap e PG; endpoint Preview recusou secret inválido (401); evento financeiro legítimo aplicado          | PARTIAL externo: secret negativo e primeiro evento PASS; demais ataques sintéticos |
 | F24 | Anual existente e vendas novas fechadas               | Preservar contrato e flag, sem abrir venda anual         | `billing/billing-cycle-provider-sync.test.ts`, `plan-changes-cancellation.test.ts`, `proposed-offer.test.ts` | NOT RUN no novo gateway                      |
+
+## Cancelamento e recontratação — ADR-070
+
+A [0139 foi aplicada somente no DEV e o cancelamento autorizado passou no Sandbox](evidencias/cancellation-0139-20261109.json). São provas distintas das mudanças de plano/assentos, de falhas de cartão e de renovação. O ensaio não gerou nova cobrança nem deslocou datas da fixture.
+
+| Caso | Evidência | Estado |
+| --- | --- | --- |
+| Cancelar a renovação paga, repetir e recusar contratação antecipada | Provedor CANCELLED, Qoro ativo até o fim pago, uma operação, invoice/trial intactos; repetição HTTP 200 e novo checkout HTTP 409; UI 1440/390 px | PASS DEV/Preview/Sandbox |
+| Resultado intermediário e reconciliação por leitura | Resposta inicial 409, estado remoto CANCELLED e verificação posterior confirmada sem segunda operação; timeout/resposta perdida induzidos somente no PostgreSQL local | PASS na recuperação observada; timeout externo induzido NOT RUN |
+| Terminar o acesso no prazo, sem tolerância adicional | Relógio/dados sintéticos no PostgreSQL; período real da fixture permanece até 09/12/2026 00:31:10.888 UTC | PASS local; passagem temporal externa NOT RUN |
+| Recontratar sem reiniciar trial nem sobrescrever histórico | Duas gerações locais com webhook autenticado e HTTP sintético, preço/identidade/valor verificados, rollback e concorrência; parte das 47 verificações PostgreSQL | PASS local; contratação paga externa após o período NOT RUN |
+
+Não foi comprovada entrega de webhook de cancelamento: a prova externa usa comando/readback autenticados. Os eventos de pagamento da primeira contratação têm evidência própria e não provam renovação futura.
 
 ## Casos compostos aplicáveis
 
