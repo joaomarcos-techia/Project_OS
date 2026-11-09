@@ -24,6 +24,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableScroll,
 } from '@/components/ui/table';
 import { formatBRL } from '@/lib/format';
 import { cn } from '@/lib/ui/cn';
@@ -284,42 +285,48 @@ export default async function RelatoriosPage({
                         />
                       )}
                       <span className={styles.weekLabel ?? ''}>{semana.label}</span>
+                      {/* Coluna estreita: o intervalo por extenso viraria "0…". */}
+                      <span className={styles.weekLabelShort ?? ''}>
+                        {semana.weekStart.slice(8, 10)}/{semana.weekStart.slice(5, 7)}
+                      </span>
                     </div>
                   ))}
                 </div>
               </div>
 
-              <Table className={styles.weekTable ?? ''}>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Semana</TableHead>
-                    <TableHead>Recebido</TableHead>
-                    <TableHead>Pago</TableHead>
-                    <TableHead>Saldo</TableHead>
-                    <TableHead>Atendidas</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {/* A semana futura fica só no gráfico, onde serve de contexto.
-                      Na TABELA ela seria uma linha inteira de "sem dado" sobre
-                      dias que ainda não chegaram — ruído com cara de lacuna. */}
-                  {data.semanas
-                    .filter((semana) => !semana.futura)
-                    .map((semana) => (
-                      <TableRow key={semana.weekStart}>
-                        <TableCell className="font-medium">{semana.label}</TableCell>
-                        <TableCell>{moedaOuVazio(semana.recebido)}</TableCell>
-                        <TableCell>{moedaOuVazio(semana.pago)}</TableCell>
-                        <TableCell className="font-semibold text-fg">
-                          {moedaOuVazio(semana.saldo)}
-                        </TableCell>
-                        <TableCell>
-                          {semana.atendido == null ? SEM_DADO : semana.atendido}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                </TableBody>
-              </Table>
+              <TableScroll>
+                <Table className={styles.weekTable ?? ''}>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Semana</TableHead>
+                      <TableHead>Recebido</TableHead>
+                      <TableHead>Pago</TableHead>
+                      <TableHead>Saldo</TableHead>
+                      <TableHead>Atendidas</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {/* A semana futura fica só no gráfico, onde serve de contexto.
+                        Na TABELA ela seria uma linha inteira de "sem dado" sobre
+                        dias que ainda não chegaram — ruído com cara de lacuna. */}
+                    {data.semanas
+                      .filter((semana) => !semana.futura)
+                      .map((semana) => (
+                        <TableRow key={semana.weekStart}>
+                          <TableCell className="font-medium">{semana.label}</TableCell>
+                          <TableCell>{moedaOuVazio(semana.recebido)}</TableCell>
+                          <TableCell>{moedaOuVazio(semana.pago)}</TableCell>
+                          <TableCell className="font-semibold text-fg">
+                            {moedaOuVazio(semana.saldo)}
+                          </TableCell>
+                          <TableCell>
+                            {semana.atendido == null ? SEM_DADO : semana.atendido}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                  </TableBody>
+                </Table>
+              </TableScroll>
             </>
           )}
         </PanelCard>

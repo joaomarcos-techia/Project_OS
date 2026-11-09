@@ -324,7 +324,7 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: P
 
         <DataTable
           title="Lançamentos"
-          description={`${lancamentosResult.total} lançamentos · mais recentes primeiro`}
+          description={`${lancamentosResult.total} ${lancamentosResult.total === 1 ? 'lançamento' : 'lançamentos'} · mais recentes primeiro`}
           total={lancamentos.length === 0 ? 0 : lancamentosResult.total}
           page={page}
           pageCount={totalPages}

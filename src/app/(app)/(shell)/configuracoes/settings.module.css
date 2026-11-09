@@ -90,6 +90,12 @@
   white-space: nowrap;
 }
 
+/* No desktop os dois seguem filhos diretos da linha; o agrupamento só existe
+   para o celular, onde descem juntos para baixo do texto. */
+.aside {
+  display: contents;
+}
+
 .action {
   width: 16px;
   height: 16px;
@@ -102,5 +108,28 @@
   .groupHeader {
     padding-right: 16px;
     padding-left: 16px;
+  }
+
+  /* Em flex, a seta caía sozinha numa linha quando sobrava pouco espaço. */
+  .item {
+    display: grid;
+    grid-template-columns: 32px minmax(0, 1fr) 16px;
+  }
+
+  .copy {
+    grid-column: 2;
+  }
+
+  .action {
+    grid-row: 1;
+    grid-column: 3;
+  }
+
+  .aside {
+    display: flex;
+    flex-wrap: wrap;
+    grid-column: 2 / -1;
+    align-items: center;
+    gap: 6px 12px;
   }
 }

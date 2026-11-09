@@ -213,6 +213,7 @@
   justify-content: flex-end;
   gap: 8px;
   min-width: 0;
+  container-type: inline-size;
 }
 
 .weekValue {
@@ -287,11 +288,59 @@
   white-space: nowrap;
 }
 
+.weekLabelShort {
+  position: absolute;
+  bottom: -20px;
+  left: 50%;
+  display: none;
+  color: var(--text-3);
+  font-size: var(--fs-2xs);
+  font-variant-numeric: tabular-nums;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+/* A largura que importa é a da coluna, não a da tela: 90 dias apertam as barras
+   mesmo no tablet. Os valores somem porque a tabela logo abaixo traz cada um. */
+@container (max-width: 76px) {
+  .weekValue,
+  .weekOngoing,
+  .weekLabel {
+    display: none;
+  }
+
+  .weekLabelShort {
+    display: block;
+  }
+}
+
+@container (max-width: 22px) {
+  .weekBar:nth-child(even) .weekLabelShort {
+    visibility: hidden;
+  }
+}
+
+@media (max-width: 640px) {
+  .weekChart {
+    margin-right: 0;
+  }
+
+  .weekGrid,
+  .weekBars {
+    right: 4px;
+  }
+
+  .weekBars {
+    gap: 8px;
+  }
+}
+
 .weekTable td:not(:first-child),
 .weekTable th:not(:first-child) {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   text-align: right;
+  white-space: nowrap;
 }
 
 .weekTable th:not(:first-child) {
