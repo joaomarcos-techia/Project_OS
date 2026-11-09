@@ -2,6 +2,7 @@ import { Alert } from '@/components/ui/alert';
 import { PageHeader } from '@/components/ui/page-header';
 import { listEmployees } from '@/contexts/identity/queries';
 import { listLgpdRequestHistory, listLgpdRequests } from '@/contexts/patient/queries';
+import { getClinicTimezone } from '@/contexts/tenancy/queries';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import {
   AuthError,
@@ -44,10 +45,11 @@ export default async function LgpdOperationsPage({
   }
 
   const clinicId = await requireClinicId();
-  const [requests, employees, params] = await Promise.all([
+  const [requests, employees, params, timeZone] = await Promise.all([
     listLgpdRequests(clinicId),
     listEmployees(clinicId),
     searchParams,
+    getClinicTimezone(clinicId),
   ]);
   const managers = employees.filter(
     (employee) =>
@@ -80,6 +82,7 @@ export default async function LgpdOperationsPage({
         history={history}
         managers={managers}
         names={names}
+        timeZone={timeZone}
       />
     </>
   );

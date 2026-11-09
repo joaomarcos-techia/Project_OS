@@ -9,6 +9,7 @@ import { notFound } from 'next/navigation';
 import { z } from 'zod';
 
 import { readProntuarioAudited } from '@/contexts/clinical/prontuario-access';
+import { getClinicTimezone } from '@/contexts/tenancy/queries';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { resourceGate } from '@/lib/auth/page-guard';
 import { buttonVariants } from '@/components/ui/button';
@@ -46,6 +47,7 @@ export default async function ProntuarioEditorPage({
     prontuarioId: pidParsed.data,
   });
   if (!prontuario || prontuario.patientId !== patParsed.data) notFound();
+  const timeZone = await getClinicTimezone(clinicId);
 
   // AUTHZ-003 — cada controle deriva da SUA capacidade, não da presença na
   // tela. Sem isto, "Assinar"/"Emitir" apareciam para quem só podia ler e a
@@ -92,7 +94,11 @@ export default async function ProntuarioEditorPage({
 
       <div className="flex max-w-215 flex-col gap-(--sp-4)">
         <Card className="p-(--card-pad)">
-          <ProntuarioEditor prontuario={prontuario} canEdit={canEditProntuario} />
+          <ProntuarioEditor
+            prontuario={prontuario}
+            canEdit={canEditProntuario}
+            timeZone={timeZone}
+          />
         </Card>
 
         {canIssueDocuments ? (

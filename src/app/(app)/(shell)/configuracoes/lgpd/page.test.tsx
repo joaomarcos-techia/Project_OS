@@ -41,6 +41,9 @@ vi.mock('@/contexts/patient/queries', () => ({
   listLgpdRequestHistory,
   listLgpdRequests,
 }));
+vi.mock('@/contexts/tenancy/queries', () => ({
+  getClinicTimezone: vi.fn(async () => 'America/Sao_Paulo'),
+}));
 vi.mock('@/lib/auth/tenant-context', () => ({
   AuthError: AuthErrorMock,
   requireClinicId,
@@ -54,6 +57,7 @@ vi.mock('./actions', () => ({
   processLgpdRequestForm: vi.fn(),
 }));
 
+import { getClinicTimezone } from '@/contexts/tenancy/queries';
 import LgpdOperationsPage from './page';
 
 const clinicId = '11111111-1111-1111-1111-111111111111';
@@ -158,6 +162,16 @@ describe('LgpdOperationsPage', () => {
     expect(screen.queryByRole('heading', { name: 'Histórico de tratamento' })).toBeNull();
   });
 
+  it('mostra solicitação e prazo no fuso da clínica', async () => {
+    vi.mocked(getClinicTimezone).mockResolvedValueOnce('Asia/Tokyo');
+
+    render(await LgpdOperationsPage({ searchParams: Promise.resolve({}) }));
+
+    // 12:00Z é 21:00 em Tóquio e 09:00 em São Paulo.
+    expect(screen.getByText('Solicitada em 18/08/2026, 21:00:00')).toBeTruthy();
+    expect(screen.getByText('19/08/2026, 21:00:00')).toBeTruthy();
+  });
+
   it('mantém o gate antes de qualquer leitura tenant', async () => {
     requireFreshPermission.mockRejectedValue(new AuthErrorMock('forbidden'));
 
@@ -166,6 +180,7 @@ describe('LgpdOperationsPage', () => {
     expect(screen.getByText(/não tem permissão para operar solicitações LGPD/iu)).toBeTruthy();
     expect(requireClinicId).not.toHaveBeenCalled();
     expect(listLgpdRequests).not.toHaveBeenCalled();
+    expect(getClinicTimezone).not.toHaveBeenCalled();
     expect(listEmployees).not.toHaveBeenCalled();
     expect(listLgpdRequestHistory).not.toHaveBeenCalled();
   });

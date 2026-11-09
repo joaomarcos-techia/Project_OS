@@ -5,6 +5,7 @@ import { buttonVariants } from '@/components/ui/button';
 import { PageHeader } from '@/components/ui/page-header';
 import { listPatientCards } from '@/contexts/patient/queries';
 import { listProcedures, listWaitlistEntries } from '@/contexts/scheduling/queries';
+import { getClinicTimezone } from '@/contexts/tenancy/queries';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
 
@@ -33,10 +34,11 @@ export default async function ListaEsperaPage() {
       </>
     );
   }
-  const [entries, procedures, agendaData] = await Promise.all([
+  const [entries, procedures, agendaData, timeZone] = await Promise.all([
     listWaitlistEntries(clinicId, true),
     listProcedures(clinicId, { onlyActive: true }),
     getAgendaData({ view: 'day' }),
+    getClinicTimezone(clinicId),
   ]);
   const patientIds = [...new Set(entries.map((entry) => entry.patientId))];
   const patients = await listPatientCards(clinicId, patientIds);
@@ -65,6 +67,7 @@ export default async function ListaEsperaPage() {
           name: procedure.descricao,
         }))}
         doctors={agendaData.doctors.map((doctor) => ({ id: doctor.id, name: doctor.nome }))}
+        timeZone={timeZone}
       />
     </>
   );

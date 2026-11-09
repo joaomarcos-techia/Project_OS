@@ -312,6 +312,7 @@ export function ConsultorioBoard({
               onComplete={onComplete}
               onClose={() => setSelectedAppt(null)}
               onBoardRefresh={() => void refetch()}
+              timeZone={timeZone}
             />
           </section>
 

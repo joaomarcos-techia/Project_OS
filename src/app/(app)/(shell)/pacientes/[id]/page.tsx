@@ -24,6 +24,7 @@ import {
   listCurrentConsentDecisions,
   listPatientRelationships,
 } from '@/contexts/patient/queries';
+import { getClinicTimezone } from '@/contexts/tenancy/queries';
 import { Alert } from '@/components/ui/alert';
 import { initialsFrom } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -293,11 +294,12 @@ export async function PatientClinicalActivityData({
     return null;
   }
 
-  const [prontuarios, documents] = await Promise.all([
+  const [prontuarios, documents, timeZone] = await Promise.all([
     canViewProntuario ? listRecentProntuariosByPatient(clinicId, patientId) : Promise.resolve([]),
     canViewDocuments
       ? listClinicalDocumentFeed(clinicId, { patientId, limit: 8 })
       : Promise.resolve([]),
+    getClinicTimezone(clinicId),
   ]);
 
   return (
@@ -311,6 +313,7 @@ export async function PatientClinicalActivityData({
       canCreateDocuments={canCreateDocuments}
       initialCreate={initialCreate}
       deceased={deceased}
+      timeZone={timeZone}
     />
   );
 }
@@ -338,10 +341,11 @@ export async function DadosTab({
   canCreateDocuments: boolean;
   initialCreate: 'prescricao' | 'documento' | null;
 }) {
-  const [endereco, relationships, decisions] = await Promise.all([
+  const [endereco, relationships, decisions, timeZone] = await Promise.all([
     getPrincipalAddress(clinicId, p.id),
     listPatientRelationships(clinicId, p.id),
     listCurrentConsentDecisions(clinicId, p.id),
+    getClinicTimezone(clinicId),
   ]);
   const decisionByPurpose = new Map(decisions.map((d) => [d.purpose, d]));
   const consentPurposes: ConsentPurposeView[] = CONSENT_PURPOSES.map((c) => {
@@ -404,7 +408,12 @@ export async function DadosTab({
             />
           </Suspense>
         ) : null}
-        <ConsentCard patientId={p.id} purposes={consentPurposes} canEdit={canEditPatient} />
+        <ConsentCard
+          patientId={p.id}
+          purposes={consentPurposes}
+          canEdit={canEditPatient}
+          timeZone={timeZone}
+        />
       </aside>
 
       <PatientRelationshipsCard
@@ -450,6 +459,7 @@ async function ProntuariosTab({
   canSign: boolean;
 }) {
   const list = await listProntuariosByPatient(clinicId, patientId);
+  const timeZone = await getClinicTimezone(clinicId);
   return (
     <div className="flex flex-col gap-(--sp-4)">
       {deceased || !canCreate ? null : (
@@ -473,7 +483,7 @@ async function ProntuariosTab({
               >
                 <Badge tone={pr.status === 'assinado' ? 'green' : 'amber'}>{pr.status}</Badge>
                 <span className="text-sm text-fg-muted">
-                  {new Date(pr.createdAt).toLocaleString('pt-BR')}
+                  {new Date(pr.createdAt).toLocaleString('pt-BR', { timeZone })}
                 </span>
                 {pr.needsReturn ? (
                   <span className="text-xs text-fg-subtle">retorno em {pr.returnDays}d</span>

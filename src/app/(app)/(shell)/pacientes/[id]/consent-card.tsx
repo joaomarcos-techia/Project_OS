@@ -38,11 +38,13 @@ export function ConsentCard({
   patientId,
   purposes,
   canEdit,
+  timeZone,
 }: {
   patientId: string;
   purposes: ConsentPurposeView[];
   /** `edit:patient` — a mesma permissão que as actions de domínio exigem. */
   canEdit: boolean;
+  timeZone: string;
 }) {
   const [grantState, grant, granting] = useActionState(grantConsentForm, INITIAL);
   const [revokeState, revoke, revoking] = useActionState(revokeConsentForm, INITIAL);
@@ -86,7 +88,8 @@ export function ConsentCard({
               <p className="text-pretty text-(length:--fs-xs) text-fg-muted">{p.description}</p>
               {p.recordedAt ? (
                 <p className="text-(length:--fs-2xs) text-fg-subtle tabular-nums">
-                  versão {p.version} · {new Date(p.recordedAt).toLocaleString('pt-BR')}
+                  versão {p.version} ·{' '}
+                  {new Date(p.recordedAt).toLocaleString('pt-BR', { timeZone })}
                 </p>
               ) : (
                 <p className="text-(length:--fs-2xs) text-fg-subtle">Sem decisão registrada.</p>

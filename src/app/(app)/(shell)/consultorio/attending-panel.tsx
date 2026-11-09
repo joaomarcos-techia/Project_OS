@@ -46,6 +46,7 @@ export function AttendingPanel({
   onComplete,
   onClose,
   onBoardRefresh,
+  timeZone,
 }: {
   appointmentId: string | null;
   /** status atual do appointment segundo o board — dispara reload ao mudar. */
@@ -57,6 +58,7 @@ export function AttendingPanel({
   /** dispensa a visualização de uma consulta finalizada (volta ao estado vazio). */
   onClose: () => void;
   onBoardRefresh: () => void;
+  timeZone: string;
 }) {
   const [data, setData] = useState<AtendimentoDTO | null>(null);
   const [loading, setLoading] = useState(false);
@@ -201,6 +203,7 @@ export function AttendingPanel({
             key={data.prontuario.id}
             prontuario={data.prontuario}
             canEdit={data.canEditProntuario}
+            timeZone={timeZone}
           />
         </div>
       ) : data.patientId ? (
