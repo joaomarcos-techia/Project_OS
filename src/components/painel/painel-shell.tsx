@@ -16,13 +16,14 @@ import { initialsFrom } from '@/components/ui/avatar';
 import { useOpenHandoffCount } from './handoff-store';
 import { Icon } from './icons';
 import { GROUPS, MODULES } from './modules';
+import { RailAnimated } from './rail-animations';
 import { useRailPinned } from './use-rail-pinned';
 
 /**
  * Chrome do app da clínica — Qoro App v5 (novembro/2026).
  *
  * O menu fica sobre o fundo do app, fora do painel branco de conteúdo:
- * trilho de 44 px só com ícones, que abre por cima ao passar o mouse ou focar
+ * trilho de 72 px só com ícones, que abre por cima ao passar o mouse ou focar
  * pelo teclado, e que o usuário pode fixar aberto (216 px, empurra o painel).
  * No celular o mesmo menu vira uma barra no topo com rolagem lateral; o botão
  * "Abrir navegação" o expande em gaveta, que é onde ficam tema, conta e Sair.
@@ -90,6 +91,7 @@ export function PainelShell({
   const themeLabel =
     theme === 'dark' ? 'Tema escuro' : theme === 'system' ? 'Tema do sistema' : 'Tema claro';
   const ThemeIcon = theme === 'dark' ? Moon : theme === 'system' ? Laptop : Sun;
+  const themeAnimation = theme === 'dark' ? 'dark' : theme === 'system' ? 'system' : 'light';
   const visibleGroups = GROUPS.filter((group) => MODULES.some((m) => m.group === group));
 
   return (
@@ -139,39 +141,48 @@ export function PainelShell({
                       const showHandoff = m.id === 'conversas' && handoffCount > 0;
                       const countText = handoffCount > 9 ? '9+' : String(handoffCount);
                       return (
-                        <Link
+                        <RailAnimated
                           key={m.id}
-                          href={href}
-                          // Sem prefetch: com o modo automático, abrir qualquer
-                          // aba renderizava todas as outras em segundo plano
-                          // (medido no Preview, até 1,4 s por destino).
-                          prefetch={false}
-                          data-slot="rail-link"
-                          className="qoro-rail-item"
-                          aria-current={isActive(href) ? 'page' : undefined}
+                          name={m.icon}
+                          size={27}
+                          fallback={<Icon name={m.icon} size={20} sw={1.75} />}
                         >
-                          <Icon name={m.icon} size={20} sw={1.75} />
-                          <span className="qoro-rail-label">{m.label}</span>
-                          {showHandoff ? (
-                            <>
-                              {/* Um número só para leitura; o ponto sobre o
+                          {(icon, events) => (
+                            <Link
+                              {...events}
+                              href={href}
+                              // Sem prefetch: com o modo automático, abrir qualquer
+                              // aba renderizava todas as outras em segundo plano
+                              // (medido no Preview, até 1,4 s por destino).
+                              prefetch={false}
+                              data-slot="rail-link"
+                              className="qoro-rail-item"
+                              aria-current={isActive(href) ? 'page' : undefined}
+                            >
+                              {icon}
+                              <span className="qoro-rail-label">{m.label}</span>
+                              {showHandoff ? (
+                                <>
+                                  {/* Um número só para leitura; o ponto sobre o
                                   ícone é a cópia visual do trilho recolhido. */}
-                              <span
-                                className="qoro-rail-count qoro-rail-label"
-                                aria-label={`${handoffCount} ${
-                                  handoffCount === 1
-                                    ? 'conversa aguardando atendimento'
-                                    : 'conversas aguardando atendimento'
-                                }`}
-                              >
-                                {countText}
-                              </span>
-                              <span className="qoro-rail-dot" aria-hidden="true">
-                                {countText}
-                              </span>
-                            </>
-                          ) : null}
-                        </Link>
+                                  <span
+                                    className="qoro-rail-count qoro-rail-label"
+                                    aria-label={`${handoffCount} ${
+                                      handoffCount === 1
+                                        ? 'conversa aguardando atendimento'
+                                        : 'conversas aguardando atendimento'
+                                    }`}
+                                  >
+                                    {countText}
+                                  </span>
+                                  <span className="qoro-rail-dot" aria-hidden="true">
+                                    {countText}
+                                  </span>
+                                </>
+                              ) : null}
+                            </Link>
+                          )}
+                        </RailAnimated>
                       );
                     })}
                   </div>
@@ -182,38 +193,66 @@ export function PainelShell({
             <span className="qoro-rail-spacer" aria-hidden="true" />
 
             <div className="qoro-rail-foot">
-              <button
-                type="button"
-                className="qoro-rail-item"
-                data-pressed={rail.pinned ? 'true' : 'false'}
-                onClick={rail.toggle}
+              <RailAnimated name="pin" size={24} fallback={<PanelLeft aria-hidden="true" />}>
+                {(icon, events) => (
+                  <button
+                    {...events}
+                    type="button"
+                    className="qoro-rail-item"
+                    data-pressed={rail.pinned ? 'true' : 'false'}
+                    onClick={(event) => {
+                      events?.onClick(event);
+                      rail.toggle();
+                    }}
+                    title={rail.pinned ? 'Recolher menu' : 'Fixar menu aberto'}
+                  >
+                    {icon}
+                    <span className="qoro-rail-label">
+                      {rail.pinned ? 'Recolher menu' : 'Fixar menu aberto'}
+                    </span>
+                  </button>
+                )}
+              </RailAnimated>
+              <RailAnimated
+                key={themeAnimation}
+                name={themeAnimation}
+                size={24}
+                fallback={<ThemeIcon aria-hidden="true" />}
               >
-                <PanelLeft aria-hidden="true" />
-                <span className="qoro-rail-label">
-                  {rail.pinned ? 'Recolher menu' : 'Fixar menu aberto'}
-                </span>
-              </button>
-              <button
-                type="button"
-                className="qoro-rail-item"
-                onClick={toggle}
-                aria-label={`${themeLabel}. Alternar tema`}
-              >
-                <ThemeIcon aria-hidden="true" />
-                <span className="qoro-rail-label">{themeLabel}</span>
-              </button>
+                {(icon, events) => (
+                  <button
+                    {...events}
+                    type="button"
+                    className="qoro-rail-item"
+                    onClick={(event) => {
+                      events?.onClick(event);
+                      toggle();
+                    }}
+                    aria-label={`${themeLabel}. Alternar tema`}
+                    title={themeLabel}
+                  >
+                    {icon}
+                    <span className="qoro-rail-label">{themeLabel}</span>
+                  </button>
+                )}
+              </RailAnimated>
               {/* Logout é mutação: POST de formulário, nunca GET. O mesmo form
                   atende ao item do menu da conta, que vive num portal. */}
               <form id="painel-logout" action="/logout" method="post" hidden />
-              <button
-                type="submit"
-                form="painel-logout"
-                className="qoro-rail-item"
-                title="Sair da conta"
-              >
-                <LogOut aria-hidden="true" />
-                <span className="qoro-rail-label">Sair</span>
-              </button>
+              <RailAnimated name="logout" size={24} fallback={<LogOut aria-hidden="true" />}>
+                {(icon, events) => (
+                  <button
+                    {...events}
+                    type="submit"
+                    form="painel-logout"
+                    className="qoro-rail-item"
+                    title="Sair da conta"
+                  >
+                    {icon}
+                    <span className="qoro-rail-label">Sair</span>
+                  </button>
+                )}
+              </RailAnimated>
             </div>
 
             <div className="qoro-rail-user">

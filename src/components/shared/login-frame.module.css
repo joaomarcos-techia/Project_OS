@@ -3,18 +3,36 @@
  * Fonte: canvas "Login". O painel é arte da marca, então as cores são literais
  * e não mudam com o tema; a coluna do formulário segue os tokens do app.
  */
+/* A tela não rola. Se o formulário não couber (zoom alto, janela mínima), só a
+   coluna dele rola, para nenhum campo ficar inalcançável. */
+html:has(.split),
+body:has(.split) {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+main:has(> .split) {
+  min-height: 0;
+}
 .split {
   display: grid;
   grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
   gap: 16px;
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
   padding: 16px;
+  overflow: hidden;
 }
 .side {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 0;
   padding: 12px 32px 16px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.side::-webkit-scrollbar {
+  display: none;
 }
 .top {
   display: flex;
@@ -139,6 +157,7 @@
   flex-direction: column;
   gap: 40px;
   min-width: 0;
+  min-height: 0;
   padding: 56px 56px 0;
   overflow: hidden;
   border-radius: 40px;
@@ -219,6 +238,7 @@
   flex: 0 1 440px;
   flex-direction: column;
   min-width: 0;
+  min-height: 0;
   border-radius: 28px 28px 0 0;
   background: #ffffff;
   box-shadow: 0 30px 80px rgb(6 8 60 / 0.45);

@@ -105,6 +105,14 @@ os tokens que `Button`, `Input`, `Alert` e `OptionCardGroup` leem, então nenhum
 
 Por pedido do founder em 09/11, o favicon passou a ser a marca do menu lateral (quadrado azul com o Q branco), no lugar do Q em gradiente da ADR-035. Fica em `app/favicon.ico`. Como `app/icon.svg`, ele passava pelo middleware de sessão e, sem login, era redirecionado para `/login`; `favicon.ico` já fica fora do `matcher`.
 
+### Menu lateral (novembro de 2026, pedidos do founder)
+
+| Canvas                                | Implementado                                       | Motivo                                                                 |
+| ------------------------------------- | -------------------------------------------------- | ---------------------------------------------------------------------- |
+| Trilho de 44 px, marca de 44 px       | Trilho de 72 px, marca de 36 px                    | Os três ícones do rodapé lado a lado, com alvo de 24 px, e marca com respiro. |
+| Fixar, tema e Sair em lista com nome  | Só ícones, em linha; nome no leitor de tela e dica | Pedido do founder; libera altura para os destinos caberem sem rolagem. |
+| Ícones estáticos                      | `react-useanimations` (MIT) ao passar o mouse      | Pedido do founder. Consultório segue em Lucide: não há estetoscópio.   |
+
 ## Referências HTML do tenant — setembro de 2026
 
 Escopo solicitado pelo founder: traduzir os HTMLs fornecidos para as telas atuais na
