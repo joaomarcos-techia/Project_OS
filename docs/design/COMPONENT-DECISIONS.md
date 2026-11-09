@@ -103,7 +103,7 @@ os tokens que `Button`, `Input`, `Alert` e `OptionCardGroup` leem, então nenhum
 | "Hoje R$ 0,00 · 14 dias", "Sem fidelidade", taxas   | Prazo calculado do plano e textos atuais         | Não se escreve condição comercial que o sistema não aplica.             |
 | Título "Confirme o plano e o pagamento"             | "Escolha seu plano"                              | É o que a tela faz; e2e dependem do texto.                              |
 
-O favicon é o mesmo Q da ADR-035, agora em `app/favicon.ico`. Como `app/icon.svg`, ele passava pelo middleware de sessão e, sem login, era redirecionado para `/login`; `favicon.ico` já fica fora do `matcher`.
+Por pedido do founder em 09/11, o favicon passou a ser a marca do menu lateral (quadrado azul com o Q branco), no lugar do Q em gradiente da ADR-035. Fica em `app/favicon.ico`. Como `app/icon.svg`, ele passava pelo middleware de sessão e, sem login, era redirecionado para `/login`; `favicon.ico` já fica fora do `matcher`.
 
 ## Referências HTML do tenant — setembro de 2026
 
