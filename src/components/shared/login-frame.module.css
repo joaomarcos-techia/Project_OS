@@ -76,6 +76,10 @@
   flex-direction: column;
   gap: 24px;
 }
+/* Sem desafio o captcha tem altura zero: não pode somar o espaço entre os campos. */
+.form > [data-testid='turnstile-widget'] {
+  margin-top: -24px;
+}
 .field {
   display: flex;
   flex-direction: column;
