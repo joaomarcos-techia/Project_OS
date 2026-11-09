@@ -1,10 +1,14 @@
-import { CheckCircle2 } from 'lucide-react';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
-import { Logo } from '@/components/shared/logo';
+import {
+  PublicBlock,
+  PublicHeading,
+  PublicPage,
+  SignupStage,
+  signupFrame,
+} from '@/components/shared/signup-frame';
 import { buttonVariants } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import {
   ensureSignupDraftForVerifiedEmail,
   ensureVerifiedSignupAuthBinding,
@@ -22,28 +26,29 @@ import {
   SIGNUP_CONFIRMATION_GRANT_COOKIE,
 } from '@/lib/auth/signup-confirmation-grant';
 
+import styles from '../cadastro.module.css';
 import { SignupPasswordForm } from './signup-password-form';
 
 export const dynamic = 'force-dynamic';
 
 function TemporarilyUnavailable({ retryHref }: { retryHref: string }) {
   return (
-    <Card>
-      <CardContent className="text-center">
-        <h1 className="text-balance font-display text-2xl font-semibold">
-          Não foi possível verificar agora
-        </h1>
-        <p className="mt-3 text-sm leading-relaxed text-fg-muted">
-          Tente verificar a confirmação novamente em instantes.
-        </p>
-        <a
-          href={retryHref}
-          className={buttonVariants({ variant: 'subtle', size: 'sm', className: 'mt-5' })}
-        >
-          Tentar novamente
-        </a>
-      </CardContent>
-    </Card>
+    <PublicPage>
+      <SignupStage step={2}>
+        <PublicHeading
+          title="Não foi possível verificar agora"
+          lead="Tente verificar a confirmação novamente em instantes."
+        />
+        <PublicBlock narrow>
+          <a
+            href={retryHref}
+            className={buttonVariants({ variant: 'subtle', className: signupFrame.buttonFull })}
+          >
+            Tentar novamente
+          </a>
+        </PublicBlock>
+      </SignupStage>
+    </PublicPage>
   );
 }
 
@@ -65,13 +70,7 @@ export default async function CadastroConfirmadoPage() {
   const onboarding = await resolvePreTenantOnboarding();
   if (!onboarding.ok) {
     if (onboarding.reason === 'unavailable') {
-      return (
-        <main className="flex min-h-screen items-center justify-center bg-surface px-4 py-12">
-          <div className="w-full max-w-[420px]">
-            <TemporarilyUnavailable retryHref={retryHref} />
-          </div>
-        </main>
-      );
+      return <TemporarilyUnavailable retryHref={retryHref} />;
     }
     redirect('/login');
   }
@@ -86,13 +85,7 @@ export default async function CadastroConfirmadoPage() {
       : null;
   const owned = await readOwnedSignupReference(onboarding.userId, onboarding.email);
   if (!owned.ok && owned.reason === 'unavailable') {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-surface px-4 py-12">
-        <div className="w-full max-w-[420px]">
-          <TemporarilyUnavailable retryHref={retryHref} />
-        </div>
-      </main>
-    );
+    return <TemporarilyUnavailable retryHref={retryHref} />;
   }
 
   // O grant existe somente depois que este callback consumiu e validou o OTP.
@@ -116,13 +109,7 @@ export default async function CadastroConfirmadoPage() {
     });
     if (!validation.ok) {
       if (validation.reason === 'obfuscated') redirect('/auth/auth-error?reason=invalid_token');
-      return (
-        <main className="flex min-h-screen items-center justify-center bg-surface px-4 py-12">
-          <div className="w-full max-w-[420px]">
-            <TemporarilyUnavailable retryHref={retryHref} />
-          </div>
-        </main>
-      );
+      return <TemporarilyUnavailable retryHref={retryHref} />;
     }
     const claimed = await ensureSignupDraftForVerifiedEmail(
       onboarding.userId,
@@ -131,13 +118,7 @@ export default async function CadastroConfirmadoPage() {
     );
     if (!claimed.ok) {
       if (claimed.reason === 'gone') redirect('/auth/auth-error?reason=invalid_token');
-      return (
-        <main className="flex min-h-screen items-center justify-center bg-surface px-4 py-12">
-          <div className="w-full max-w-[420px]">
-            <TemporarilyUnavailable retryHref={retryHref} />
-          </div>
-        </main>
-      );
+      return <TemporarilyUnavailable retryHref={retryHref} />;
     }
   }
   if (!signupRef) redirect('/auth/auth-error?reason=invalid_token');
@@ -154,13 +135,7 @@ export default async function CadastroConfirmadoPage() {
       });
   if (!binding.ok) {
     if (binding.reason === 'obfuscated') redirect('/auth/auth-error?reason=invalid_token');
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-surface px-4 py-12">
-        <div className="w-full max-w-[420px]">
-          <TemporarilyUnavailable retryHref={retryHref} />
-        </div>
-      </main>
-    );
+    return <TemporarilyUnavailable retryHref={retryHref} />;
   }
   const ready = await resolveReadyOwnedSignupOnboarding();
   if (ready.ok && ready.kind === 'redirect') redirect(ready.route);
@@ -176,47 +151,35 @@ export default async function CadastroConfirmadoPage() {
     owned.ok &&
     (owned.credentialState === 'reserved' || owned.credentialState === 'uncertain');
   if (!ready.ok && ready.reason !== 'credentials_pending' && !reconcile) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-surface px-4 py-12">
-        <div className="w-full max-w-[420px]">
-          <TemporarilyUnavailable retryHref={retryHref} />
-        </div>
-      </main>
-    );
+    return <TemporarilyUnavailable retryHref={retryHref} />;
   }
   return (
-    <main
-      data-qoro-tokens="qorov2"
-      className="flex min-h-screen flex-col items-center justify-center bg-surface px-4 py-12 text-fg antialiased"
-    >
-      <div className="w-full max-w-[420px]">
-        <div className="mb-6 flex justify-center">
-          <Logo className="h-7 w-auto" />
-        </div>
-        <Card>
-          <CardContent className="text-center" data-slot="cadastro-confirmado">
-            <CheckCircle2 aria-hidden="true" className="mx-auto size-9 text-success-600" />
-            <h1 className="mt-4 text-balance font-display text-2xl font-semibold">
-              E-mail confirmado
-            </h1>
+    <PublicPage>
+      <SignupStage step={2}>
+        <div className={styles.stack} data-slot="cadastro-confirmado">
+          <PublicHeading
+            title="E-mail confirmado"
+            lead={
+              ready.ok ? 'Sua senha já está definida. Continue para escolher o plano.' : undefined
+            }
+          />
+          <PublicBlock narrow>
             {ready.ok ? (
-              <>
-                <p className="mt-3 text-sm text-fg-muted">
-                  Sua senha já está definida. Continue para escolher o plano.
-                </p>
-                <a
-                  href="/cadastro/plano"
-                  className={`${buttonVariants({ variant: 'primary' })} mt-6`}
-                >
-                  Escolher plano
-                </a>
-              </>
+              <a
+                href="/cadastro/plano"
+                className={buttonVariants({
+                  variant: 'primary',
+                  className: signupFrame.buttonFull,
+                })}
+              >
+                Escolher plano
+              </a>
             ) : (
               <SignupPasswordForm reconcile={reconcile} />
             )}
-          </CardContent>
-        </Card>
-      </div>
-    </main>
+          </PublicBlock>
+        </div>
+      </SignupStage>
+    </PublicPage>
   );
 }

@@ -1,12 +1,15 @@
 'use client';
 
-import { MailCheck } from 'lucide-react';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 
+import { PublicBlock, PublicHeading, signupFrame } from '@/components/shared/signup-frame';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { cn } from '@/lib/ui/cn';
+
+import styles from './cadastro.module.css';
 
 type Props = {
   rowVersion: number;
@@ -186,96 +189,101 @@ export function SignupCodeConfirmation({
     <section
       aria-labelledby="signup-code-title"
       data-slot="signup-code-confirmation"
-      className="mt-8 rounded-(--r-2xl) bg-surface-raised p-6 text-center shadow-[0_0_0_1px_oklch(0_0_0/0.06),0_8px_28px_oklch(0_0_0/0.07)] sm:p-8"
+      className={styles.stack}
     >
-      <MailCheck aria-hidden="true" className="mx-auto size-8 text-primary" />
-      <p className="mt-5 font-mono text-xs font-semibold uppercase tracking-[0.12em] text-primary">
-        Etapa 3 · confirmação
-      </p>
-      <h2 id="signup-code-title" className="mt-3 text-balance font-display text-2xl font-semibold">
-        Confirme seu e-mail aqui
-      </h2>
-      <p className="mx-auto mt-3 max-w-[46ch] text-pretty text-sm leading-relaxed text-fg-muted">
-        {destination ? (
+      <PublicHeading
+        id="signup-code-title"
+        title="Confirme seu e-mail aqui"
+        lead={
           <>
-            Confira a mensagem enviada para{' '}
-            <strong className="break-all font-medium text-fg">{destination}</strong>.
+            {destination ? (
+              <>
+                Confira a mensagem enviada para{' '}
+                <strong className="break-all font-medium text-fg">{destination}</strong>.
+              </>
+            ) : destinationLoading ? (
+              'Recuperando o e-mail do seu cadastro…'
+            ) : (
+              'Informe o e-mail que você usou no cadastro para continuar com o código recebido.'
+            )}{' '}
+            O código vale por 10 minutos. Você pode colar os 8 números de uma vez.
           </>
-        ) : destinationLoading ? (
-          'Recuperando o e-mail do seu cadastro…'
-        ) : (
-          'Informe o e-mail que você usou no cadastro para continuar com o código recebido.'
-        )}{' '}
-        O código vale por 10 minutos. Você pode colar os 8 números de uma vez.
-      </p>
-      <form onSubmit={submit} className="mx-auto mt-6 max-w-sm space-y-4">
-        {!destination && !destinationLoading ? (
-          <div className="space-y-2 text-left">
-            <Label htmlFor="signup-code-email">E-mail usado no cadastro</Label>
-            <Input
-              id="signup-code-email"
-              type="email"
-              autoComplete="email"
-              value={address}
-              onChange={(event) => setAddress(event.target.value)}
-              required
-              maxLength={160}
-              disabled={busy !== null}
-            />
+        }
+      />
+      <PublicBlock narrow>
+        <div className={styles.closing}>
+          <form onSubmit={submit} className={styles.form}>
+            {!destination && !destinationLoading ? (
+              <div className={signupFrame.field}>
+                <Label htmlFor="signup-code-email">E-mail usado no cadastro</Label>
+                <Input
+                  id="signup-code-email"
+                  type="email"
+                  autoComplete="email"
+                  value={address}
+                  onChange={(event) => setAddress(event.target.value)}
+                  required
+                  maxLength={160}
+                  disabled={busy !== null}
+                />
+              </div>
+            ) : null}
+            <div className={signupFrame.field}>
+              <Label htmlFor="signup-email-code">Código de confirmação</Label>
+              <Input
+                ref={inputRef}
+                id="signup-email-code"
+                name="verificationCode"
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                pattern="[0-9]{8}"
+                maxLength={8}
+                value={code}
+                disabled={busy !== null}
+                required
+                onChange={(event) =>
+                  setCode(event.target.value.replace(/[^0-9]/gu, '').slice(0, 8))
+                }
+                onPaste={(event) => {
+                  event.preventDefault();
+                  setCode(
+                    event.clipboardData
+                      .getData('text')
+                      .replace(/[^0-9]/gu, '')
+                      .slice(0, 8),
+                  );
+                }}
+                className={cn('text-center tabular-nums', styles.codeInput)}
+              />
+            </div>
+            <Button
+              type="submit"
+              loading={busy === 'confirm'}
+              disabled={busy !== null || destinationLoading}
+              className={signupFrame.buttonFull}
+            >
+              Confirmar e-mail
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              loading={busy === 'resend'}
+              disabled={busy !== null || destinationLoading}
+              onClick={() => void request('resend')}
+            >
+              Reenviar código
+            </Button>
+          </form>
+          <div aria-live="polite" className={styles.live}>
+            {message ? <Alert variant={success ? 'success' : 'warning'}>{message}</Alert> : null}
           </div>
-        ) : null}
-        <div className="space-y-2">
-          <Label htmlFor="signup-email-code">Código de confirmação</Label>
-          <Input
-            ref={inputRef}
-            id="signup-email-code"
-            name="verificationCode"
-            type="text"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            pattern="[0-9]{8}"
-            maxLength={8}
-            value={code}
-            disabled={busy !== null}
-            required
-            onChange={(event) => setCode(event.target.value.replace(/[^0-9]/gu, '').slice(0, 8))}
-            onPaste={(event) => {
-              event.preventDefault();
-              setCode(
-                event.clipboardData
-                  .getData('text')
-                  .replace(/[^0-9]/gu, '')
-                  .slice(0, 8),
-              );
-            }}
-            className="h-14 text-center font-mono text-2xl tracking-[0.35em] tabular-nums"
-          />
         </div>
-        <Button
-          type="submit"
-          loading={busy === 'confirm'}
-          disabled={busy !== null || destinationLoading}
-          className="w-full"
-        >
-          Confirmar e-mail
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          loading={busy === 'resend'}
-          disabled={busy !== null || destinationLoading}
-          onClick={() => void request('resend')}
-        >
-          Reenviar código
-        </Button>
-      </form>
-      <div aria-live="polite" className="mt-5 text-left">
-        {message ? <Alert variant={success ? 'success' : 'warning'}>{message}</Alert> : null}
-      </div>
-      <p className="mt-5 text-xs leading-relaxed text-fg-muted">
-        Não encontrou a mensagem? Confira Spam e Promoções. Seu cadastro continua salvo com
-        segurança. Não compartilhe o código ou sua senha com outras pessoas.
-      </p>
+        <p className={signupFrame.fine}>
+          Não encontrou a mensagem? Confira Spam e Promoções. Seu cadastro continua salvo com
+          segurança. Não compartilhe o código ou sua senha com outras pessoas.
+        </p>
+      </PublicBlock>
     </section>
   );
 }

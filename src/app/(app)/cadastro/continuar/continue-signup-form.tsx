@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 
+import { signupFrame } from '@/components/shared/signup-frame';
 import { Alert } from '@/components/ui/alert';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -10,6 +11,9 @@ import { fieldControlClassName, Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { SignupAnswerValues, SignupDraftState } from '@/contexts/onboarding';
 import { SIGNUP_INPUT_LIMITS } from '@/contexts/onboarding/signup-input-limits';
+import { cn } from '@/lib/ui/cn';
+
+import styles from '../cadastro.module.css';
 
 type Phase = 'loading' | 'form' | 'owned' | 'unavailable' | 'signed_out' | 'relogin';
 
@@ -225,12 +229,12 @@ export function ContinueSignupForm() {
 
   if (phase === 'loading') {
     return (
-      <div className="py-8 text-center" aria-live="polite">
+      <div className={signupFrame.center} aria-live="polite">
         <div
           aria-label="Carregando"
-          className="mx-auto size-6 animate-spin rounded-full border-2 border-border border-t-primary"
+          className="size-6 animate-spin rounded-full border-2 border-border border-t-primary"
         />
-        <p className="mt-3 text-sm text-fg-muted">Consultando seu cadastro verificado…</p>
+        <p className={signupFrame.text}>Consultando seu cadastro verificado…</p>
       </div>
     );
   }
@@ -259,38 +263,42 @@ export function ContinueSignupForm() {
 
   if (phase === 'unavailable') {
     return (
-      <div className="space-y-4">
+      <div className={styles.form}>
         <Alert variant="warning">{message}</Alert>
-        <Button type="button" variant="secondary" onClick={() => void load()}>
-          Tentar novamente
-        </Button>
+        <div className={cn(signupFrame.actions, signupFrame.actionsEnd)}>
+          <Button type="button" variant="secondary" onClick={() => void load()}>
+            Tentar novamente
+          </Button>
+        </div>
       </div>
     );
   }
 
   if (phase === 'owned' && owned) {
     return (
-      <div className="space-y-5">
+      <div className={styles.form}>
         <Alert variant="success" title="Cadastro recuperado na conta verificada">
           Estes são os dados do seu cadastro, mesmo que você tenha começado em outro aparelho. A
           criação da clínica ainda não foi iniciada.
         </Alert>
         <ReviewList draft={owned} />
-        <a href="/cadastro/plano" className={buttonVariants({ variant: 'primary' })}>
-          Escolher plano
-        </a>
+        <div className={cn(signupFrame.actions, signupFrame.actionsEnd)}>
+          <a href="/cadastro/plano" className={buttonVariants({ variant: 'primary' })}>
+            Escolher plano
+          </a>
+        </div>
       </div>
     );
   }
 
   return (
-    <form onSubmit={submit} noValidate className="space-y-5">
+    <form onSubmit={submit} noValidate className={styles.form}>
       <Alert variant="info" title="E-mail confirmado">
         Não encontramos um cadastro em andamento para este endereço — ele pode ter expirado.
         Preencha os dados novamente para continuar.
       </Alert>
-      <fieldset disabled={saving} className="space-y-4">
-        <div className="space-y-2">
+      <fieldset disabled={saving} className={signupFrame.fields}>
+        <div className={signupFrame.field}>
           <Label htmlFor="continue-owner">Seu nome</Label>
           <Input
             id="continue-owner"
@@ -300,7 +308,7 @@ export function ContinueSignupForm() {
             required
           />
         </div>
-        <div className="space-y-2">
+        <div className={signupFrame.field}>
           <Label htmlFor="continue-clinic">Nome da clínica</Label>
           <Input
             id="continue-clinic"
@@ -311,7 +319,7 @@ export function ContinueSignupForm() {
           />
         </div>
         <AnswerFields answers={answers} onChange={changeAnswer} />
-        <div className="flex min-h-10 items-start gap-3 pt-1">
+        <div className={signupFrame.check}>
           <Checkbox
             id="continue-accepted"
             checked={accepted}
@@ -319,15 +327,21 @@ export function ContinueSignupForm() {
             disabled={saving}
             className="mt-0.5"
           />
-          <Label htmlFor="continue-accepted" className="text-pretty text-sm leading-relaxed">
+          <Label htmlFor="continue-accepted" className="text-pretty font-normal">
             Confirmo os dados acima e aceito os Termos de Uso e a Política de Privacidade.
           </Label>
         </div>
       </fieldset>
-      <div aria-live="polite">{message ? <Alert variant="warning">{message}</Alert> : null}</div>
-      <Button type="submit" loading={saving} className="w-full">
-        Confirmar e continuar
-      </Button>
+      <div className={styles.closing}>
+        <div aria-live="polite" className={styles.live}>
+          {message ? <Alert variant="warning">{message}</Alert> : null}
+        </div>
+        <div className={cn(signupFrame.actions, signupFrame.actionsEnd)}>
+          <Button type="submit" loading={saving}>
+            Confirmar e continuar
+          </Button>
+        </div>
+      </div>
     </form>
   );
 }
@@ -387,7 +401,7 @@ function SelectField<T extends string>({
   onChange: (value: T) => void;
 }) {
   return (
-    <div className="space-y-2">
+    <div className={signupFrame.field}>
       <Label htmlFor={id}>{label}</Label>
       <select
         id={id}
@@ -409,7 +423,7 @@ function SelectField<T extends string>({
 
 function ReviewList({ draft }: { draft: SignupDraftState }) {
   return (
-    <dl className="grid gap-3 rounded-(--r-md) bg-surface-inset p-4 text-sm">
+    <dl className={signupFrame.panel}>
       <ReviewItem label="Responsável" value={draft.ownerName} />
       <ReviewItem label="Clínica" value={draft.clinicName} />
       <ReviewItem
@@ -428,9 +442,9 @@ function ReviewList({ draft }: { draft: SignupDraftState }) {
 
 function ReviewItem({ label, value }: { label: string; value: string }) {
   return (
-    <div>
-      <dt className="text-xs font-medium text-fg-subtle">{label}</dt>
-      <dd className="mt-0.5 font-medium text-fg">{value}</dd>
+    <div className={signupFrame.row}>
+      <dt>{label}</dt>
+      <dd className="min-w-0 break-words text-right font-semibold text-fg">{value}</dd>
     </div>
   );
 }

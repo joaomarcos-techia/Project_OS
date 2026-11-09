@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 
+import { PublicBlock, PublicHeading, signupFrame } from '@/components/shared/signup-frame';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -10,6 +11,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SIGNUP_INPUT_LIMITS } from '@/contexts/onboarding/signup-input-limits';
 import { SIGNUP_PASSWORD_RULES, signupPasswordMessage } from '@/lib/auth/signup-password';
+import { cn } from '@/lib/ui/cn';
+
+import styles from './cadastro.module.css';
 
 type Props = {
   rowVersion: number;
@@ -203,127 +207,123 @@ export function SignupIdentity({
   }
 
   return (
-    <section
-      aria-labelledby="signup-identity-title"
-      className="mt-8 rounded-(--r-2xl) bg-surface-raised p-5 shadow-[0_0_0_1px_oklch(0_0_0/0.06),0_8px_28px_oklch(0_0_0/0.07)] sm:p-7"
-    >
-      <p className="font-mono text-xs font-semibold uppercase tracking-[0.12em] text-primary">
-        Etapa 2 · dados e conta
-      </p>
-      <h2
+    <section aria-labelledby="signup-identity-title" className={styles.stack}>
+      <PublicHeading
         id="signup-identity-title"
-        className="mt-3 text-balance font-display text-2xl font-semibold"
-      >
-        Seus dados e o nome da clínica
-      </h2>
-      {saved && !editing ? (
-        <>
-          <p role="status" className="mt-3 text-pretty text-sm leading-relaxed text-fg-muted">
-            Seus dados foram salvos, mas a solicitação da conta ainda não foi confirmada. Por
-            segurança, preencha os campos novamente para continuar.
-          </p>
-          <Button
-            type="button"
-            variant="subtle"
-            className="mt-5 active:scale-[0.96]"
-            onClick={() => setEditing(true)}
-          >
-            Retomar criação da conta
-          </Button>
-        </>
-      ) : (
-        <form method="post" ref={formRef} onSubmit={submit} noValidate className="mt-5">
-          <p className="mb-5 text-pretty text-sm leading-relaxed text-fg-muted">
-            Defina sua senha uma única vez. Depois, confirme seu e-mail com o código recebido, sem
-            sair desta jornada.
-          </p>
-          <fieldset disabled={saving} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="signup-owner">Seu nome</Label>
-              <Input
-                id="signup-owner"
-                name="ownerName"
-                autoComplete="name"
-                required
-                maxLength={SIGNUP_INPUT_LIMITS.personName}
-              />
+        title="Seus dados e o nome da clínica"
+        lead={
+          saved && !editing
+            ? undefined
+            : 'Defina sua senha uma única vez. Depois, confirme seu e-mail com o código recebido, sem sair desta jornada.'
+        }
+      />
+      <PublicBlock>
+        {saved && !editing ? (
+          <>
+            <p role="status" className={cn(signupFrame.text, 'text-pretty')}>
+              Seus dados foram salvos, mas a solicitação da conta ainda não foi confirmada. Por
+              segurança, preencha os campos novamente para continuar.
+            </p>
+            <div className={cn(signupFrame.actions, signupFrame.actionsEnd)}>
+              <Button type="button" variant="subtle" onClick={() => setEditing(true)}>
+                Retomar criação da conta
+              </Button>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="signup-clinic">Nome da clínica</Label>
-              <Input
-                id="signup-clinic"
-                name="clinicName"
-                autoComplete="organization"
-                required
-                maxLength={SIGNUP_INPUT_LIMITS.clinicName}
-              />
+          </>
+        ) : (
+          <form method="post" ref={formRef} onSubmit={submit} noValidate className={styles.form}>
+            <fieldset disabled={saving} className={cn(signupFrame.fields, signupFrame.fieldsTwo)}>
+              <div className={signupFrame.field}>
+                <Label htmlFor="signup-owner">Seu nome</Label>
+                <Input
+                  id="signup-owner"
+                  name="ownerName"
+                  autoComplete="name"
+                  required
+                  maxLength={SIGNUP_INPUT_LIMITS.personName}
+                />
+              </div>
+              <div className={signupFrame.field}>
+                <Label htmlFor="signup-clinic">Nome da clínica</Label>
+                <Input
+                  id="signup-clinic"
+                  name="clinicName"
+                  autoComplete="organization"
+                  required
+                  maxLength={SIGNUP_INPUT_LIMITS.clinicName}
+                />
+              </div>
+              <div className={signupFrame.field}>
+                <Label htmlFor="signup-email">E-mail</Label>
+                <Input
+                  id="signup-email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  maxLength={SIGNUP_INPUT_LIMITS.email}
+                />
+              </div>
+              <div className={signupFrame.field}>
+                <Label htmlFor="signup-password">Crie sua senha</Label>
+                <Input
+                  id="signup-password"
+                  name="password"
+                  type="password"
+                  autoComplete="new-password"
+                  required
+                  minLength={8}
+                  maxLength={72}
+                  aria-describedby="signup-password-rules"
+                />
+                <p id="signup-password-rules" className={signupFrame.hint}>
+                  {SIGNUP_PASSWORD_RULES}
+                </p>
+              </div>
+              <div className={cn(signupFrame.check, signupFrame.fieldFull)}>
+                <Checkbox
+                  id="signup-accepted"
+                  checked={accepted}
+                  onCheckedChange={(value) => setAccepted(value === true)}
+                  disabled={saving}
+                  className="mt-0.5"
+                />
+                <Label htmlFor="signup-accepted" className="text-pretty font-normal">
+                  Li e aceito os{' '}
+                  <a
+                    href="https://qoro.dev/termos-de-uso"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline"
+                  >
+                    Termos de Uso
+                  </a>{' '}
+                  e a{' '}
+                  <a
+                    href="https://qoro.dev/politica-de-privacidade"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline"
+                  >
+                    Política de Privacidade
+                  </a>
+                  .
+                </Label>
+              </div>
+            </fieldset>
+            <div className={styles.closing}>
+              <div aria-live="polite" className={styles.live}>
+                {message ? <Alert variant="warning">{message}</Alert> : null}
+              </div>
+              <div className={cn(signupFrame.actions, signupFrame.actionsEnd)}>
+                <Button type="submit" loading={saving}>
+                  Enviar confirmação por e-mail
+                </Button>
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="signup-email">E-mail</Label>
-              <Input
-                id="signup-email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-                maxLength={SIGNUP_INPUT_LIMITS.email}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="signup-password">Crie sua senha</Label>
-              <Input
-                id="signup-password"
-                name="password"
-                type="password"
-                autoComplete="new-password"
-                required
-                minLength={8}
-                maxLength={72}
-                aria-describedby="signup-password-rules"
-              />
-              <p id="signup-password-rules" className="text-xs leading-relaxed text-fg-muted">
-                {SIGNUP_PASSWORD_RULES}
-              </p>
-            </div>
-            <div className="flex min-h-10 items-start gap-3 pt-2">
-              <Checkbox
-                id="signup-accepted"
-                checked={accepted}
-                onCheckedChange={(value) => setAccepted(value === true)}
-                disabled={saving}
-                className="mt-0.5"
-              />
-              <Label htmlFor="signup-accepted" className="text-pretty text-sm leading-relaxed">
-                Li e aceito os{' '}
-                <a
-                  href="https://qoro.dev/termos-de-uso"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline"
-                >
-                  Termos de Uso
-                </a>{' '}
-                e a{' '}
-                <a
-                  href="https://qoro.dev/politica-de-privacidade"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline"
-                >
-                  Política de Privacidade
-                </a>
-                .
-              </Label>
-            </div>
-          </fieldset>
-          <div aria-live="polite" className="mt-5">
-            {message ? <Alert variant="warning">{message}</Alert> : null}
-          </div>
-          <Button type="submit" loading={saving} className="mt-5 active:scale-[0.96]">
-            Enviar confirmação por e-mail
-          </Button>
-        </form>
-      )}
+          </form>
+        )}
+      </PublicBlock>
     </section>
   );
 }

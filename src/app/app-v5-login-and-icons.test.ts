@@ -48,12 +48,30 @@ describe('microanimação dos ícones', () => {
   });
 });
 
-describe('login no design atual', () => {
-  it('login e MFA usam os tokens do app; o cadastro continua nos de setembro', () => {
-    expect(read('src/app/(app)/login/page.tsx')).toContain('data-qoro-tokens="app-v5"');
-    expect(read('src/app/(app)/login/mfa/page.tsx')).toContain('data-qoro-tokens="app-v5"');
-    expect(read('src/app/(app)/cadastro/page.tsx')).toContain('data-qoro-tokens="qorov2"');
+describe('telas públicas no design atual', () => {
+  it('a moldura pública traz os tokens do app', () => {
+    expect(read('src/components/shared/signup-frame.tsx')).toContain('data-qoro-tokens="app-v5"');
   });
+
+  it.each([
+    'src/app/(app)/cadastro/page.tsx',
+    'src/app/(app)/cadastro/plano/page.tsx',
+    'src/app/(app)/cadastro/continuar/page.tsx',
+    'src/app/(app)/cadastro/confirmado/page.tsx',
+    'src/app/(app)/cadastro/pagamento/page.tsx',
+    'src/app/(app)/cadastro/verificacao/page.tsx',
+  ])('%s usa a moldura pública, sem os tokens de setembro', (file) => {
+    const source = read(file);
+    expect(source).toContain('<PublicPage>');
+    expect(source).not.toContain('qorov2');
+  });
+
+  it.each(['src/app/(app)/login/page.tsx', 'src/app/(app)/login/mfa/page.tsx'])(
+    '%s usa a tela dividida do login',
+    (file) => {
+      expect(read(file)).toContain('<LoginFrame');
+    },
+  );
 
   it('os tokens do app também alcançam o marcador do login, em claro e escuro', () => {
     expect(css).toMatch(/body:has\(\[data-qoro-tokens='app-v5'\]\) \{\s*\/\* Superfícies \*\//u);

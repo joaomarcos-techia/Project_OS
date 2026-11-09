@@ -3,12 +3,16 @@
 import { Eye, EyeOff } from 'lucide-react';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 
+import { signupFrame } from '@/components/shared/signup-frame';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SIGNUP_INPUT_LIMITS } from '@/contexts/onboarding/signup-input-limits';
 import { SIGNUP_PASSWORD_RULES, signupPasswordMessage } from '@/lib/auth/signup-password';
+import { cn } from '@/lib/ui/cn';
+
+import styles from '../cadastro.module.css';
 
 export function SignupPasswordForm({ reconcile = false }: { reconcile?: boolean }) {
   const [interactive, setInteractive] = useState(false);
@@ -105,18 +109,18 @@ export function SignupPasswordForm({ reconcile = false }: { reconcile?: boolean 
       onSubmit={submit}
       noValidate
       aria-busy={!interactive || saving}
-      className="mt-6 space-y-5 text-left"
+      className={styles.form}
     >
-      <p className="text-sm leading-relaxed text-fg-muted">
+      <p className={signupFrame.text}>
         {reconcile
           ? 'Seu e-mail foi confirmado, mas a última tentativa não terminou. Digite a mesma senha que criou para verificar o resultado e continuar. Sua senha não será alterada.'
           : 'Seu e-mail já foi confirmado. Crie agora sua senha de acesso para escolher o plano e continuar.'}
       </p>
-      <div className="space-y-2">
+      <div className={signupFrame.field}>
         <Label htmlFor="confirmed-signup-password">
           {reconcile ? 'Sua senha' : 'Crie sua senha'}
         </Label>
-        <div className="relative">
+        <div className={signupFrame.passwordField}>
           <Input
             id="confirmed-signup-password"
             name="password"
@@ -126,7 +130,6 @@ export function SignupPasswordForm({ reconcile = false }: { reconcile?: boolean 
             maxLength={SIGNUP_INPUT_LIMITS.password}
             disabled={!interactive || saving || expired}
             aria-describedby="confirmed-signup-password-help"
-            className="pr-11"
           />
           <button
             type="button"
@@ -134,44 +137,46 @@ export function SignupPasswordForm({ reconcile = false }: { reconcile?: boolean 
             disabled={!interactive || saving || expired}
             aria-label={visible ? 'Ocultar senha' : 'Mostrar senha'}
             aria-pressed={visible}
-            className="absolute right-0 top-0 flex size-(--control-h) min-h-(--hit-target) items-center justify-center rounded-(--field-radius) text-fg-subtle focus-visible:shadow-(--focus-ring) focus-visible:outline-none"
+            className={signupFrame.passwordToggle}
           >
-            {visible ? (
-              <EyeOff aria-hidden="true" className="size-4" />
-            ) : (
-              <Eye aria-hidden="true" className="size-4" />
-            )}
+            {visible ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
           </button>
         </div>
-        <p id="confirmed-signup-password-help" className="text-xs leading-relaxed text-fg-subtle">
+        <p id="confirmed-signup-password-help" className={signupFrame.hint}>
           {SIGNUP_PASSWORD_RULES}
         </p>
       </div>
-      <div aria-live="polite">{message ? <Alert variant="warning">{message}</Alert> : null}</div>
-      {loginNeeded ? (
-        <p className="text-sm text-fg-muted">
-          Se a tentativa anterior não terminar,{' '}
-          <a href="/login" className="font-medium text-primary underline">
-            entre ou recupere sua senha
-          </a>{' '}
-          para continuar com segurança.
-        </p>
-      ) : null}
-      {expired ? (
-        <a href="/cadastro" className="text-sm font-medium text-primary underline">
-          Iniciar novo cadastro
-        </a>
-      ) : (
-        <Button
-          type="submit"
-          disabled={!interactive}
-          loading={!interactive || saving}
-          className="w-full"
-        >
-          {reconcile ? 'Confirmar senha e continuar' : 'Criar senha e escolher plano'}
-        </Button>
-      )}
-      <noscript>Ative o JavaScript para criar sua senha com segurança.</noscript>
+      <div className={styles.closing}>
+        <div aria-live="polite" className={styles.live}>
+          {message ? <Alert variant="warning">{message}</Alert> : null}
+        </div>
+        <div className={styles.form}>
+          {loginNeeded ? (
+            <p className={signupFrame.note}>
+              Se a tentativa anterior não terminar,{' '}
+              <a href="/login" className={cn(signupFrame.inlineLink, 'underline')}>
+                entre ou recupere sua senha
+              </a>{' '}
+              para continuar com segurança.
+            </p>
+          ) : null}
+          {expired ? (
+            <a href="/cadastro" className={signupFrame.inlineLink}>
+              Iniciar novo cadastro
+            </a>
+          ) : (
+            <Button
+              type="submit"
+              disabled={!interactive}
+              loading={!interactive || saving}
+              className={signupFrame.buttonFull}
+            >
+              {reconcile ? 'Confirmar senha e continuar' : 'Criar senha e escolher plano'}
+            </Button>
+          )}
+          <noscript>Ative o JavaScript para criar sua senha com segurança.</noscript>
+        </div>
+      </div>
     </form>
   );
 }

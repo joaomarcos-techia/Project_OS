@@ -1,7 +1,6 @@
 import { redirect } from 'next/navigation';
 
-import { Logo } from '@/components/shared/logo';
-import { Card, CardContent } from '@/components/ui/card';
+import { PublicPage, SignupStage } from '@/components/shared/signup-frame';
 
 import { PaymentReturn } from './payment-return';
 
@@ -25,20 +24,10 @@ export default async function SignupPaymentReturnPage({
   }
 
   return (
-    <main
-      data-qoro-tokens="qorov2"
-      className="flex min-h-screen flex-col items-center justify-center bg-surface px-4 py-12 text-fg antialiased"
-    >
-      <div className="w-full max-w-[440px]">
-        <div className="mb-6 flex justify-center">
-          <Logo className="h-7 w-auto" />
-        </div>
-        <Card>
-          <CardContent>
-            <PaymentReturn result={resultado as Result} />
-          </CardContent>
-        </Card>
-      </div>
-    </main>
+    <PublicPage>
+      <SignupStage step={3}>
+        <PaymentReturn result={resultado as Result} />
+      </SignupStage>
+    </PublicPage>
   );
 }

@@ -42,9 +42,8 @@ Desvios do canvas, todos por necessidade operacional (Contract §6):
 
 ### Demais telas, login e microanimações (novembro de 2026)
 
-Todas as telas da área logada seguem a barra superior + faixa de título do canvas. O login (e a
-etapa MFA) adotaram os tokens do app com o marcador `data-qoro-tokens="app-v5"`; cadastro e checkout
-seguem em `qorov2` até o redesenho do onboarding. `/admin` não mudou.
+Todas as telas da área logada seguem a barra superior + faixa de título do canvas. Login, MFA,
+cadastro e checkout usam a moldura pública descrita na seção abaixo. `/admin` não mudou.
 
 | Data       | Avaliados                                      | Decisão                                                                                                                                       |
 | ---------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -70,6 +69,39 @@ Desvios do canvas nestas telas:
 | Busca (várias)    | Barra abaixo do título | Barra superior                 | Canvas; mesmos parâmetros.  |
 | Ver repasses      | Link solto           | Ação na barra de Relatórios    | Canvas; mesma permissão.    |
 | Tipo no Financeiro | `Select` + Filtrar   | Filtro segmentado por links    | Canvas; mesma URL `?tipo=`. |
+
+### Login, cadastro e checkout (novembro de 2026)
+
+`PublicPage` e os demais blocos de `components/shared/signup-frame` portam o CSS do canvas "Cadastro";
+`login-frame` porta o do canvas "Login" (tela dividida com a conversa animada). As molduras só trocam
+os tokens que `Button`, `Input`, `Alert` e `OptionCardGroup` leem, então nenhum controle foi reescrito.
+
+| Data       | Avaliados                                     | Decisão                                                                                                                 |
+| ---------- | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| 2026-11-09 | `shared/page-layout`, `PageHeader`, `Card`     | Não serviram: são do shell logado (barra superior, cartão branco). A moldura pública tem cabeçalho de etapas e bloco cinza. |
+| 2026-11-09 | `OptionCardGroup`                             | Reutilizado sem mudar o componente; o indicador é desenhado só no escopo público.                                       |
+
+| Canvas (login)                                     | Implementado                                       | Motivo                                                                        |
+| -------------------------------------------------- | -------------------------------------------------- | ----------------------------------------------------------------------------- |
+| "E-mail ou senha incorretos", "Acesso pausado"     | Mensagens atuais da server action                  | Só visual: os textos e o limite de tentativas vêm do servidor.                |
+| Código de recuperação no MFA                       | Ausente                                            | Não há códigos de recuperação no produto.                                     |
+| "Voltar" no MFA                                    | "Usar outra conta"                                 | A ação encerra a sessão; "Voltar" esconderia isso.                            |
+| "Código de verificação"                            | "Código de 6 dígitos"                              | E2E de produção e leitores de tela usam esse nome.                            |
+| "Link enviado para {e-mail}", "Trocar", "Reenviar" | Resposta genérica e "Voltar para o login"          | A resposta não pode revelar se a conta existe; reenviar exigiria novo captcha. |
+| "O link vale por 1 hora e só funciona uma vez"     | Ausente                                            | O prazo é configuração do provedor de autenticação; não se promete sem medir. |
+| `<details>` nativo em "Esqueci a senha"            | Troca de tela no cliente, como no canvas           | A rota já depende de JavaScript (`useSearchParams`).                          |
+
+| Canvas                                              | Implementado                                     | Motivo                                                                  |
+| --------------------------------------------------- | ------------------------------------------------ | ----------------------------------------------------------------------- |
+| Etapa 1 "Como conheceu", múltipla escolha           | "Perfil", quatro perguntas de escolha única      | O cadastro grava uma resposta por pergunta; mudar exigiria novo contrato. |
+| Indicador quadrado nas opções                       | Indicador redondo                                | As opções são rádio: quadrado promete seleção múltipla.                 |
+| Especialidade, WhatsApp, cidade e UF na etapa 2     | Ausentes                                         | Não existem no cadastro; exigiriam persistência nova.                   |
+| Grupos "Clínica" e "Seu acesso" na etapa 2          | Quatro campos em duas colunas, sem grupos        | O foco inicial é em "Seu nome", e o grupo "Clínica" viria antes dele.   |
+| "Já tem conta? Entrar" em todas as etapas           | Só nas perguntas iniciais                        | Com a conta criada ou o cadastro expirado, o fluxo não oferece login.   |
+| Medidor de força da senha                           | Regras de senha em texto                         | A regra real não é a do canvas; o medidor prometeria outro critério.    |
+| Cartão digitado na etapa 3                          | Escolha do plano; o cartão fica na página do provedor | O pagamento é hospedado; dados de cartão não passam pela Qoro.     |
+| "Hoje R$ 0,00 · 14 dias", "Sem fidelidade", taxas   | Prazo calculado do plano e textos atuais         | Não se escreve condição comercial que o sistema não aplica.             |
+| Título "Confirme o plano e o pagamento"             | "Escolha seu plano"                              | É o que a tela faz; e2e dependem do texto.                              |
 
 ## Referências HTML do tenant — setembro de 2026
 

@@ -1,9 +1,15 @@
 'use client';
 
-import { ArrowLeft, ArrowRight, LockKeyhole, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, ArrowRight, LockKeyhole } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { FormEvent, ReactNode } from 'react';
+import type { FormEvent } from 'react';
 
+import {
+  PublicBlock,
+  PublicHeading,
+  SignupStage,
+  signupFrame,
+} from '@/components/shared/signup-frame';
 import { TurnstileWidget } from '@/components/shared/turnstile-widget';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -13,7 +19,9 @@ import type {
   SignupSessionState,
   SignupSessionStatus,
 } from '@/contexts/onboarding';
+import { cn } from '@/lib/ui/cn';
 
+import styles from './cadastro.module.css';
 import { SignupEmailPending } from './signup-email-pending';
 import { SignupCodeConfirmation } from './signup-code-confirmation';
 import { SignupEmailVerified } from './signup-email-verified';
@@ -60,6 +68,22 @@ const DISCOVERY_OPTIONS: OptionCard<DiscoverySource>[] = [
   { value: 'evento', label: 'Evento ou congresso' },
   { value: 'outro', label: 'Outro' },
 ];
+
+/**
+ * `hint` existe só para a primeira tela. Repetir um subtítulo genérico nas
+ * quatro perguntas não informa nada e rouba a hierarquia do título; o que
+ * precisa ser dito — quantas perguntas são e que nenhuma pede dado pessoal —
+ * precisa ser dito antes da primeira resposta, e só uma vez.
+ */
+const QUESTION_HEADINGS: Record<QuestionIndex, { title: string; hint?: string }> = {
+  0: {
+    title: 'Quantos médicos atendem na clínica?',
+    hint: 'Conte apenas os médicos que atendem. Recepção, gestão e financeiro sem atendimento médico são equipe administrativa. Não pedimos dados de pacientes.',
+  },
+  1: { title: 'Quantos atendimentos são realizados por semana?' },
+  2: { title: 'Como a clínica se organiza hoje?' },
+  3: { title: 'Como você conheceu a Qoro?' },
+};
 
 const FIELD_NAMES = [
   'professionalsBand',
@@ -480,29 +504,27 @@ export function SignupQuestions({ identityEnabled = false }: { identityEnabled?:
 
   if (phase !== 'ready') {
     return (
-      <section className="mx-auto flex w-full max-w-[600px] flex-col items-center px-5 pb-16 pt-[12vh] text-center sm:px-8">
-        <div className="w-full rounded-(--r-2xl) bg-surface-raised px-6 py-8 shadow-[0_0_0_1px_oklch(0_0_0/0.06),0_8px_28px_oklch(0_0_0/0.08)] sm:px-9">
-          <ShieldCheck aria-hidden="true" className="mx-auto size-8 text-primary" />
-          <h1 className="mt-4 text-balance font-display text-2xl font-semibold tracking-[-0.024em]">
-            {phase === 'loading' ? 'Preparando seu cadastro' : 'Vamos retomar daqui'}
-          </h1>
-          <p
-            aria-live="polite"
-            className="mx-auto mt-2 max-w-[48ch] text-pretty text-sm leading-relaxed text-fg-muted"
-          >
-            {phase === 'loading'
-              ? 'Estamos abrindo uma sessão curta e segura. Nenhum dado pessoal é solicitado nesta etapa.'
-              : message}
-          </p>
+      <SignupStage step={1}>
+        <PublicHeading
+          title={phase === 'loading' ? 'Preparando seu cadastro' : 'Vamos retomar daqui'}
+          lead={
+            <p aria-live="polite">
+              {phase === 'loading'
+                ? 'Estamos abrindo uma sessão curta e segura. Nenhum dado pessoal é solicitado nesta etapa.'
+                : message}
+            </p>
+          }
+        />
+        <PublicBlock narrow>
           {phase === 'loading' ? (
             <div
               aria-label="Carregando"
-              className="mx-auto mt-6 size-6 animate-spin rounded-full border-2 border-border border-t-primary"
+              className="mx-auto size-6 animate-spin rounded-full border-2 border-border border-t-primary"
             />
           ) : phase === 'challenge' ? (
-            <form onSubmit={submitChallenge} className="mt-6 flex flex-col gap-4">
+            <form onSubmit={submitChallenge} className={styles.form}>
               <TurnstileWidget action="signup_start" resetSignal={challengeAttempt} />
-              <Button type="submit" className="mx-auto min-w-44 active:scale-[0.96]">
+              <Button type="submit" className={signupFrame.buttonFull}>
                 Continuar
               </Button>
             </form>
@@ -510,43 +532,48 @@ export function SignupQuestions({ identityEnabled = false }: { identityEnabled?:
             <Button
               type="button"
               onClick={() => void bootstrap()}
-              className="mt-6 active:scale-[0.96]"
+              className={signupFrame.buttonFull}
             >
               {phase === 'expired' ? 'Começar novamente' : 'Tentar novamente'}
             </Button>
           )}
           {phase === 'expired' ? (
-            <p className="mt-5 text-sm leading-relaxed text-fg-muted">
+            <p className={cn(signupFrame.note, 'text-center')}>
               Já recebeu um e-mail ou criou sua conta?{' '}
               <a
                 href="/cadastro/retomar"
-                className="font-medium text-primary underline underline-offset-4"
+                className={cn(signupFrame.inlineLink, 'underline underline-offset-4')}
               >
                 Recuperar meu cadastro por e-mail
               </a>
             </p>
           ) : null}
-        </div>
-      </section>
+        </PublicBlock>
+      </SignupStage>
     );
   }
 
   if (session?.status === 'email_verified' && session.verificationFlowVersion === 2) {
     return (
-      <section className="mx-auto w-full max-w-[680px] px-5 pb-16 pt-5 sm:px-8">
-        <h2 className="font-display text-2xl">E-mail confirmado</h2>
-        <p className="mt-3 text-sm text-fg-muted">
-          Continue para a próxima etapa do seu cadastro. Não é preciso definir sua senha novamente.
-        </p>
-        <Button className="mt-5" onClick={() => window.location.assign('/cadastro/confirmado')}>
-          Continuar cadastro
-        </Button>
-      </section>
+      <SignupStage step={2}>
+        <PublicHeading
+          title="E-mail confirmado"
+          lead="Continue para a próxima etapa do seu cadastro. Não é preciso definir sua senha novamente."
+        />
+        <PublicBlock narrow>
+          <Button
+            className={signupFrame.buttonFull}
+            onClick={() => window.location.assign('/cadastro/confirmado')}
+          >
+            Continuar cadastro
+          </Button>
+        </PublicBlock>
+      </SignupStage>
     );
   }
   if (session?.status === 'email_verified') {
     return (
-      <section className="mx-auto w-full max-w-[680px] px-5 pb-16 pt-5 sm:px-8 lg:pt-9">
+      <SignupStage step={2}>
         <SignupEmailVerified
           rowVersion={session.rowVersion}
           preparedCredentials={continuationCredentials.current}
@@ -557,15 +584,15 @@ export function SignupQuestions({ identityEnabled = false }: { identityEnabled?:
           onGone={expireSession}
           onCompleted={() => window.location.assign('/cadastro/plano')}
         />
-      </section>
+      </SignupStage>
     );
   }
 
   if (session?.status === 'email_pending') {
     return (
-      <section className="mx-auto w-full max-w-[680px] px-5 pb-16 pt-1 sm:px-8 lg:pt-5">
+      <SignupStage step={2}>
         {message ? (
-          <div className="mt-4">
+          <div className={cn(styles.notice, styles.noticeNarrow)}>
             <Alert variant={messageKind}>{message}</Alert>
           </div>
         ) : null}
@@ -586,15 +613,15 @@ export function SignupQuestions({ identityEnabled = false }: { identityEnabled?:
             onGone={expireSession}
           />
         )}
-      </section>
+      </SignupStage>
     );
   }
 
   if (identityEnabled && session?.answers) {
     return (
-      <section className="mx-auto w-full max-w-[680px] px-5 pb-16 pt-1 sm:px-8 lg:pt-5">
+      <SignupStage step={2}>
         {message ? (
-          <div className="mt-4">
+          <div className={styles.notice}>
             <Alert variant={messageKind}>{message}</Alert>
           </div>
         ) : null}
@@ -622,17 +649,20 @@ export function SignupQuestions({ identityEnabled = false }: { identityEnabled?:
           onReconcile={reconcileSession}
           onGone={expireSession}
         />
-      </section>
+      </SignupStage>
     );
   }
 
   if (session?.answers) {
     return (
-      <section className="mx-auto w-full max-w-[680px] px-5 pb-16 pt-5 sm:px-8 lg:pt-9">
-        <Alert variant={message ? messageKind : 'success'} title="Respostas salvas">
-          {message ?? 'A próxima etapa do cadastro ainda não está disponível neste ambiente.'}
-        </Alert>
-      </section>
+      <SignupStage step={2}>
+        <PublicHeading title="Respostas salvas" />
+        <PublicBlock narrow>
+          <Alert variant={message ? messageKind : 'success'}>
+            {message ?? 'A próxima etapa do cadastro ainda não está disponível neste ambiente.'}
+          </Alert>
+        </PublicBlock>
+      </SignupStage>
     );
   }
 
@@ -654,39 +684,37 @@ export function SignupQuestions({ identityEnabled = false }: { identityEnabled?:
     setQuestionIndex((questionIndex + 1) as QuestionIndex);
   };
 
-  return (
-    <section className="mx-auto w-full max-w-[680px] px-5 pb-16 pt-5 sm:px-8 lg:pt-9">
-      <div className="flex items-center justify-between gap-4">
-        <p className="font-mono text-xs font-semibold uppercase tracking-[0.12em] text-primary">
-          Etapa 1 · perfil da clínica
-        </p>
-        <span className="whitespace-nowrap font-mono text-xs font-medium tabular-nums text-fg-subtle">
-          Pergunta {questionIndex + 1} de {QUESTION_COUNT}
-        </span>
-      </div>
-      <div
-        className="mt-4 h-1.5 overflow-hidden rounded-full bg-surface-inset"
-        role="progressbar"
-        aria-label="Progresso do perfil da clínica"
-        aria-valuemin={1}
-        aria-valuemax={QUESTION_COUNT}
-        aria-valuenow={questionIndex + 1}
-      >
-        <div
-          className="h-full rounded-full bg-primary transition-[width] duration-200"
-          style={{ width: `${((questionIndex + 1) / QUESTION_COUNT) * 100}%` }}
-        />
-      </div>
+  const question = QUESTION_HEADINGS[questionIndex];
 
-      <form
-        onSubmit={handleQuestionSubmit}
-        className="mt-7 rounded-(--r-2xl) bg-surface-raised p-5 shadow-[0_0_0_1px_oklch(0_0_0/0.06),0_8px_28px_oklch(0_0_0/0.07)] sm:p-8"
-      >
-        {questionIndex === 0 ? (
-          <QuestionPage
-            title="Quantos médicos atendem na clínica?"
-            hint="Conte apenas os médicos que atendem. Recepção, gestão e financeiro sem atendimento médico são equipe administrativa. Não pedimos dados de pacientes."
+  return (
+    <SignupStage step={1} showLogin>
+      <form onSubmit={handleQuestionSubmit} className={styles.stack}>
+        <PublicHeading
+          id="signup-question-title"
+          eyebrow={
+            <>
+              Pergunta {questionIndex + 1} de {QUESTION_COUNT}
+            </>
+          }
+          title={question.title}
+          lead={question.hint}
+        />
+        <PublicBlock role="group" aria-labelledby="signup-question-title">
+          <div
+            className={styles.progress}
+            role="progressbar"
+            aria-label="Progresso do perfil da clínica"
+            aria-valuemin={1}
+            aria-valuemax={QUESTION_COUNT}
+            aria-valuenow={questionIndex + 1}
           >
+            <div
+              className={styles.progressFill}
+              style={{ width: `${((questionIndex + 1) / QUESTION_COUNT) * 100}%` }}
+            />
+          </div>
+
+          {questionIndex === 0 ? (
             <OptionCardGroup<ProfessionalsBand>
               name="professionalsBand"
               aria-label="Quantidade de médicos"
@@ -694,12 +722,10 @@ export function SignupQuestions({ identityEnabled = false }: { identityEnabled?:
               onValueChange={(value) => answer('professionalsBand', value)}
               options={PROFESSIONAL_OPTIONS}
               disabled={saving}
-              className="grid grid-cols-2"
+              className={cn(signupFrame.options)}
             />
-          </QuestionPage>
-        ) : null}
-        {questionIndex === 1 ? (
-          <QuestionPage title="Quantos atendimentos são realizados por semana?">
+          ) : null}
+          {questionIndex === 1 ? (
             <OptionCardGroup<WeeklyAppointmentsBand>
               name="weeklyAppointmentsBand"
               aria-label="Atendimentos por semana"
@@ -707,12 +733,10 @@ export function SignupQuestions({ identityEnabled = false }: { identityEnabled?:
               onValueChange={(value) => answer('weeklyAppointmentsBand', value)}
               options={APPOINTMENT_OPTIONS}
               disabled={saving}
-              className="grid grid-cols-2"
+              className={cn(signupFrame.options)}
             />
-          </QuestionPage>
-        ) : null}
-        {questionIndex === 2 ? (
-          <QuestionPage title="Como a clínica se organiza hoje?">
+          ) : null}
+          {questionIndex === 2 ? (
             <OptionCardGroup<CurrentTooling>
               name="currentTooling"
               aria-label="Ferramenta atual"
@@ -720,11 +744,10 @@ export function SignupQuestions({ identityEnabled = false }: { identityEnabled?:
               onValueChange={(value) => answer('currentTooling', value)}
               options={TOOLING_OPTIONS}
               disabled={saving}
+              className={cn(signupFrame.optionsSingle)}
             />
-          </QuestionPage>
-        ) : null}
-        {questionIndex === 3 ? (
-          <QuestionPage title="Como você conheceu a Qoro?">
+          ) : null}
+          {questionIndex === 3 ? (
             <OptionCardGroup<DiscoverySource>
               name="discoverySource"
               aria-label="Como conheceu a Qoro"
@@ -732,74 +755,43 @@ export function SignupQuestions({ identityEnabled = false }: { identityEnabled?:
               onValueChange={(value) => answer('discoverySource', value)}
               options={DISCOVERY_OPTIONS}
               disabled={saving}
-              className="grid grid-cols-1 sm:grid-cols-2"
+              className={cn(signupFrame.options)}
             />
-          </QuestionPage>
-        ) : null}
+          ) : null}
 
-        <div aria-live="polite" className="mt-6">
-          {message ? <Alert variant={messageKind}>{message}</Alert> : null}
-        </div>
-        <div className="mt-6 flex flex-col-reverse gap-4 border-t border-border pt-5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex min-h-10 items-center">
-            {questionIndex > 0 ? (
-              <Button
-                type="button"
-                variant="ghost"
-                className="gap-2 active:scale-[0.96]"
-                onClick={() => {
-                  setMessage(null);
-                  setQuestionIndex((questionIndex - 1) as QuestionIndex);
-                }}
-              >
-                <ArrowLeft aria-hidden="true" className="size-4" /> Voltar
+          <div className={styles.closing}>
+            <div aria-live="polite" className={styles.live}>
+              {message ? <Alert variant={messageKind}>{message}</Alert> : null}
+            </div>
+            <div className={signupFrame.actions}>
+              {questionIndex > 0 ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="gap-2"
+                  onClick={() => {
+                    setMessage(null);
+                    setQuestionIndex((questionIndex - 1) as QuestionIndex);
+                  }}
+                >
+                  <ArrowLeft aria-hidden="true" className="size-4" /> Voltar
+                </Button>
+              ) : (
+                <span
+                  className={cn(signupFrame.fine, 'inline-flex items-center gap-2 text-pretty')}
+                >
+                  <LockKeyhole aria-hidden="true" className="size-4 shrink-0" />
+                  Sessão protegida e temporária
+                </span>
+              )}
+              <Button type="submit" loading={saving} className="min-w-40 gap-2">
+                {questionIndex === QUESTION_COUNT - 1 ? 'Salvar e continuar' : 'Continuar'}
+                <ArrowRight aria-hidden="true" className="size-4" />
               </Button>
-            ) : (
-              <span className="inline-flex items-center gap-2 text-pretty text-xs text-fg-subtle">
-                <LockKeyhole aria-hidden="true" className="size-4 shrink-0" />
-                Sessão protegida e temporária
-              </span>
-            )}
+            </div>
           </div>
-          <Button type="submit" loading={saving} className="min-w-40 gap-2 active:scale-[0.96]">
-            {questionIndex === QUESTION_COUNT - 1 ? 'Salvar e continuar' : 'Continuar'}
-            <ArrowRight aria-hidden="true" className="size-4" />
-          </Button>
-        </div>
+        </PublicBlock>
       </form>
-    </section>
-  );
-}
-
-/**
- * `hint` existe só para a primeira tela. Repetir um subtítulo genérico nas
- * quatro perguntas não informa nada e rouba a hierarquia do título; o que
- * precisa ser dito — quantas perguntas são e que nenhuma pede dado pessoal —
- * precisa ser dito antes da primeira resposta, e só uma vez.
- */
-function QuestionPage({
-  title,
-  hint,
-  children,
-}: {
-  title: string;
-  hint?: string;
-  children: ReactNode;
-}) {
-  return (
-    <div role="group" aria-labelledby="signup-question-title">
-      <h1
-        id="signup-question-title"
-        className="max-w-[22ch] text-balance font-display text-3xl font-semibold leading-[1.12] tracking-[-0.03em] sm:text-4xl"
-      >
-        {title}
-      </h1>
-      {hint ? (
-        <p className="mt-3 max-w-[52ch] text-pretty text-sm leading-relaxed text-fg-muted">
-          {hint}
-        </p>
-      ) : null}
-      <div className="mt-6">{children}</div>
-    </div>
+    </SignupStage>
   );
 }
