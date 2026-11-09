@@ -1,0 +1,37 @@
+{
+  "observedAt": "2026-11-09T23:46:55.260Z",
+  "environment": "local_synthetic",
+  "migrations": 142,
+  "checks": [
+    {
+      "name": "correction preserves staging, risk, consent, limits and invalidates old receipt/code",
+      "status": "PASS"
+    },
+    {
+      "name": "two tabs can correct one epoch only once",
+      "status": "PASS"
+    },
+    {
+      "name": "verified, consumed or reserved confirmation cannot be reset",
+      "status": "PASS"
+    },
+    {
+      "name": "expired authority cannot revive fourteen-day retained staging",
+      "status": "PASS"
+    },
+    {
+      "name": "another browser or prior email cannot alter the draft",
+      "status": "PASS"
+    },
+    {
+      "name": "legacy flow and uncertain send cannot be changed anonymously",
+      "status": "PASS"
+    },
+    {
+      "name": "session feedback changes after provider event without exposing provider IDs",
+      "status": "PASS"
+    }
+  ],
+  "networkCalls": 0,
+  "productionWrites": 0
+}

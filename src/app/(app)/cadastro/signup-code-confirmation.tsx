@@ -7,10 +7,13 @@ import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import type { SignupEmailDelivery } from '@/contexts/onboarding/signup-email-feedback';
 
 type Props = {
   rowVersion: number;
   email?: string | undefined;
+  deliveryStatus?: SignupEmailDelivery | undefined;
+  onEmailCorrected?: ((rowVersion: number, email: string) => void) | undefined;
   onUpdated: (rowVersion: number) => void;
   onReconcile: (reason: 'conflict' | 'uncertain') => Promise<void>;
   onGone: () => void;
@@ -20,6 +23,8 @@ const DESTINATION_TIMEOUT_MS = 10_000;
 export function SignupCodeConfirmation({
   rowVersion,
   email,
+  deliveryStatus,
+  onEmailCorrected,
   onUpdated,
   onReconcile,
   onGone,
@@ -28,7 +33,9 @@ export function SignupCodeConfirmation({
   const [destination, setDestination] = useState(email);
   const [destinationLoading, setDestinationLoading] = useState(!email);
   const [code, setCode] = useState('');
-  const [busy, setBusy] = useState<'confirm' | 'resend' | null>(null);
+  const [busy, setBusy] = useState<'confirm' | 'resend' | 'correct' | null>(null);
+  const [editingEmail, setEditingEmail] = useState(false);
+  const [correctedEmail, setCorrectedEmail] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const inFlight = useRef(false);
@@ -182,6 +189,45 @@ export function SignupCodeConfirmation({
     void request('confirm');
   }
 
+  async function correctEmail(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (inFlight.current || !onEmailCorrected) return;
+    inFlight.current = true;
+    setBusy('correct');
+    setMessage(null);
+    setSuccess(false);
+    try {
+      const response = await fetch('/api/signup/sessions/email', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ rowVersion, currentEmail: address, email: correctedEmail.trim() }),
+      });
+      const body: unknown = await response.json();
+      if (
+        response.ok &&
+        typeof body === 'object' &&
+        body !== null &&
+        'rowVersion' in body &&
+        typeof body.rowVersion === 'number' &&
+        Number.isInteger(body.rowVersion) &&
+        body.rowVersion > rowVersion
+      ) {
+        onEmailCorrected(body.rowVersion, correctedEmail.trim());
+      } else if (response.status === 410) onGone();
+      else if (response.status === 409 || response.status === 503)
+        await onReconcile(response.status === 409 ? 'conflict' : 'uncertain');
+      else if (response.status === 429)
+        setMessage('Aguarde antes de corrigir o endereço novamente.');
+      else setMessage('Confira o novo e-mail. Ele deve ser diferente do endereço atual.');
+    } catch {
+      await onReconcile('uncertain');
+      setMessage('Não confirmamos a alteração. Confira o cadastro antes de tentar novamente.');
+    } finally {
+      inFlight.current = false;
+      setBusy(null);
+    }
+  }
+
   return (
     <section
       aria-labelledby="signup-code-title"
@@ -208,6 +254,22 @@ export function SignupCodeConfirmation({
         )}{' '}
         O código vale por 10 minutos. Você pode colar os 8 números de uma vez.
       </p>
+      {deliveryStatus === 'failed' ? (
+        <div className="mt-5 text-left">
+          <Alert variant="warning" title="Não conseguimos entregar o código">
+            O serviço de e-mail não concluiu a entrega. Confira o endereço acima e corrija-o se
+            necessário. Se estiver correto, tente um reenvio ou fale com o suporte. Não é preciso
+            repetir seu nome, clínica ou respostas.
+          </Alert>
+        </div>
+      ) : deliveryStatus === 'delayed' ? (
+        <div className="mt-5 text-left">
+          <Alert variant="warning" title="A entrega está demorando">
+            O servidor de e-mail está adiando a entrega. Aguarde e confira Spam e Promoções. Se o
+            código expirar, solicite outro.
+          </Alert>
+        </div>
+      ) : null}
       <form onSubmit={submit} className="mx-auto mt-6 max-w-sm space-y-4">
         {!destination && !destinationLoading ? (
           <div className="space-y-2 text-left">
@@ -254,7 +316,7 @@ export function SignupCodeConfirmation({
         <Button
           type="submit"
           loading={busy === 'confirm'}
-          disabled={busy !== null || destinationLoading}
+          disabled={busy !== null || destinationLoading || editingEmail}
           className="w-full"
         >
           Confirmar e-mail
@@ -269,12 +331,72 @@ export function SignupCodeConfirmation({
           Reenviar código
         </Button>
       </form>
+      {onEmailCorrected && !destinationLoading ? (
+        editingEmail ? (
+          <form
+            onSubmit={(event) => void correctEmail(event)}
+            className="mx-auto mt-5 max-w-sm space-y-3 text-left"
+          >
+            <p className="text-sm text-fg-muted">
+              Seu nome, clínica e respostas serão mantidos. O código anterior será invalidado. Para
+              o endereço corrigido, você informará a senha novamente; nenhuma conta existente terá o
+              e-mail alterado.
+            </p>
+            <Label htmlFor="signup-corrected-email">Novo e-mail</Label>
+            <Input
+              id="signup-corrected-email"
+              type="email"
+              autoComplete="email"
+              required
+              maxLength={160}
+              value={correctedEmail}
+              onChange={(event) => setCorrectedEmail(event.target.value)}
+              disabled={busy !== null}
+            />
+            <div className="flex flex-wrap gap-2">
+              <Button type="submit" loading={busy === 'correct'} disabled={busy !== null}>
+                Salvar endereço corrigido
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={busy !== null}
+                onClick={() => setEditingEmail(false)}
+              >
+                Voltar ao código
+              </Button>
+            </div>
+          </form>
+        ) : (
+          <Button
+            type="button"
+            variant="ghost"
+            className="mt-2"
+            disabled={busy !== null}
+            onClick={() => {
+              setCorrectedEmail(address);
+              setEditingEmail(true);
+            }}
+          >
+            Corrigir endereço de e-mail
+          </Button>
+        )
+      ) : null}
       <div aria-live="polite" className="mt-5 text-left">
         {message ? <Alert variant={success ? 'success' : 'warning'}>{message}</Alert> : null}
       </div>
       <p className="mt-5 text-xs leading-relaxed text-fg-muted">
         Não encontrou a mensagem? Confira Spam e Promoções. Seu cadastro continua salvo com
         segurança. Não compartilhe o código ou sua senha com outras pessoas.
+      </p>
+      <p className="mt-3 text-xs leading-relaxed text-fg-muted">
+        Começou em outro navegador ou aparelho?{' '}
+        <a
+          href="/cadastro/retomar"
+          className="font-medium text-primary underline underline-offset-4"
+        >
+          Retomar cadastro com segurança
+        </a>
       </p>
     </section>
   );

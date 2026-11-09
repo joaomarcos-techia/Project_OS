@@ -421,3 +421,15 @@ O suporte distingue falhas por `installmentId`, `installmentNumber` e `retryNumb
 ### Fechamento local do incremento de suporte
 
 TypeScript, lint integral, Prettier dos três arquivos executáveis, inventário e diff check passaram com exit 0. O inventário manteve 199 ações, 65 métodos HTTP e zero pendência de guard/env pública/teste de rota. [Evidência sanitizada](evidencias/resposta-suporte-20261109.json), com hashes do código executado. CI/build do novo commit devem ser conferidos no PR #53; a aprovação de `ffd4c635` continua histórica e não substitui os checks desta correção.
+
+## 29. Sincronização com o cadastro publicado — 09/11/2026
+
+O PR #54 foi autorizado e publicado independentemente em Production: main `5620a098`, CI 6.186/6.186 e smoke 9/9. A branch financeira incorporou essa main para preservar o feedback de entrega, correção por CAS e retomada do cadastro. O único conflito foi o inventário Markdown gerado, refeito a partir do código; não houve resolução manual de conflito funcional nem alteração do worktree do agente de UI.
+
+O incremento financeiro `862194fd` passou CI 42720100240 com **6.738/6.738**, build, segurança/isolamento e E2E público 8 PASS/2 SKIP. Essa evidência é anterior à incorporação da main; o merge exige sua própria regressão afetada/CI. A publicação autorizada do cadastro não autorizou ativar AbacatePay, rodar migrations financeiras em Production ou modificar a fixture paga. E1–E4 continuam com a classificação da seção 28.
+
+### Regressão após incorporar a main
+
+PASS: 141/141 testes focados, TypeScript, lint dos arquivos incorporados, inventário, Prettier e **7/7 verificações PostgreSQL com 142 migrations reais**, zero rede externa/escrita em Produção. A primeira inicialização do ensaio PostgreSQL não herdou a condição server de um processo filho; não executou asserções. O runner foi repetido com `NODE_OPTIONS=--conditions=react-server`, preservando o guard `server-only`. O JSON de evidência novo foi formatado sem alteração de conteúdo. [Prova do banco integrado](../../quality/evidencias/signup-email-correction-integrated-20261109.json).
+
+A CI e o Preview próprios do merge são registrados no corpo do PR #53 após execução, para não gerar outra bateria integral apenas por acrescentar o resultado documental. A prova financeira 51/51 continua aplicável ao código financeiro inalterado de `862194fd`; não foram criados novos pagamentos ou testes externos para repetir essa evidência.

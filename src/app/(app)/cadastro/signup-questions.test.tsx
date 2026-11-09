@@ -811,8 +811,10 @@ describe('cadastro — conta e espera O-3b.5', () => {
     expect(screen.queryByRole('textbox')).toBeNull();
     cleanup();
     await renderIdentity(identitySession);
-    expect(screen.queryByRole('textbox')).toBeNull();
-    expect(screen.getByRole('status').textContent).toContain('solicitação da conta ainda não foi');
+    expect(screen.queryByLabelText('Seu nome')).toBeNull();
+    expect(screen.queryByLabelText('Nome da clínica')).toBeNull();
+    expect(screen.getByLabelText('E-mail')).toBeTruthy();
+    expect(screen.getByText(/Seu nome, clínica e respostas estão salvos/)).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Salvar e continuar' })).toBeNull();
     cleanup();
     fetchMock.mockResolvedValueOnce(json(200, { session: EMPTY_SESSION }));
@@ -926,11 +928,13 @@ describe('cadastro — conta e espera O-3b.5', () => {
     });
   });
 
-  it('retoma identity_pending sem PII/senha e exige redigitação para continuar', async () => {
+  it('retoma identity_pending sem revelar dados e só repete nomes se a pessoa pedir para alterá-los', async () => {
     await renderIdentity(identitySession);
-    expect(screen.queryByRole('textbox')).toBeNull();
+    expect(screen.queryByLabelText('Seu nome')).toBeNull();
+    expect(screen.getByLabelText('E-mail')).toHaveProperty('value', '');
+    expect(screen.getByLabelText('Crie sua senha')).toHaveProperty('value', '');
     expect(screen.queryByLabelText('Senha')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Retomar criação da conta' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Alterar nome ou clínica' }));
     expect(
       screen
         .getAllByRole('textbox')
