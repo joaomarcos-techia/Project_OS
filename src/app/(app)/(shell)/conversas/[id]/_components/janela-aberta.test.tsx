@@ -39,13 +39,13 @@ describe('janela de 24 h', () => {
     // horário de fechamento depende só do prop, é idêntico nos dois ambientes,
     // e por isso permanece no HTML do servidor. O que dependia de "agora" saiu
     // dali — e é disso que os casos seguintes tratam.
-    render(<JanelaAberta closesAt={FECHA} />);
+    render(<JanelaAberta timeZone="America/Sao_Paulo" closesAt={FECHA} />);
 
     expect(screen.getByText(/fecha às/)).toBeTruthy();
   });
 
   it('mostra o tempo restante depois de montar', () => {
-    render(<JanelaAberta closesAt={FECHA} />);
+    render(<JanelaAberta timeZone="America/Sao_Paulo" closesAt={FECHA} />);
 
     expect(screen.getByText(/2 h\s*15 min/)).toBeTruthy();
   });
@@ -54,7 +54,7 @@ describe('janela de 24 h', () => {
     // O defeito silencioso: antes o número era calculado uma vez e congelava.
     // Um relógio de janela que não anda é pior que nenhum — o operador decide
     // se ainda dá tempo de escrever olhando para ele.
-    render(<JanelaAberta closesAt={FECHA} />);
+    render(<JanelaAberta timeZone="America/Sao_Paulo" closesAt={FECHA} />);
     expect(screen.getByText(/2 h\s*15 min/)).toBeTruthy();
 
     act(() => {
@@ -66,14 +66,14 @@ describe('janela de 24 h', () => {
 
   it('nunca mostra tempo negativo quando a janela já fechou', () => {
     const passado = new Date('2026-09-14T09:00:00Z').toISOString();
-    render(<JanelaAberta closesAt={passado} />);
+    render(<JanelaAberta timeZone="America/Sao_Paulo" closesAt={passado} />);
 
     expect(screen.queryByText(/-\d/)).toBeNull();
     expect(screen.getByText(/0 min/)).toBeTruthy();
   });
 
   it('sem prazo, não renderiza a linha da janela', () => {
-    render(<JanelaAberta closesAt={null} />);
+    render(<JanelaAberta timeZone="America/Sao_Paulo" closesAt={null} />);
 
     expect(screen.queryByText(/Janela de 24 h aberta/)).toBeNull();
   });

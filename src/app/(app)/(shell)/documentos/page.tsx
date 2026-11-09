@@ -14,6 +14,7 @@ import {
   type ClinicalDocumentKind,
   type ClinicalDocumentType,
 } from '@/contexts/clinical/queries';
+import { getClinicTimezone } from '@/contexts/tenancy/queries';
 import { PERMISSIONS, type Permission } from '@/lib/auth/permissions';
 import { pageGate } from '@/lib/auth/page-guard';
 import { PageNoAccess } from '@/components/shared/page-no-access';
@@ -87,6 +88,7 @@ export default async function DocumentosPage({
     );
   }
   const { clinicId, user } = gate;
+  const timeZone = await getClinicTimezone(clinicId);
   const capabilities = documentosPageCapabilities(user);
   const { q: rawSearch, tipo, page: rawPage } = await searchParams;
   const q = rawSearch?.trim().slice(0, 64) || undefined;
@@ -234,11 +236,14 @@ export default async function DocumentosPage({
                 ) : null}
               </TableCell>
               <TableCell className="font-mono text-fg-muted tabular-nums">
-                <span className="block">{new Date(d.createdAt).toLocaleDateString('pt-BR')}</span>
+                <span className="block">
+                  {new Date(d.createdAt).toLocaleDateString('pt-BR', { timeZone })}
+                </span>
                 <span className="mt-0.5 block text-(length:--fs-xs) text-fg-subtle">
                   {new Date(d.createdAt).toLocaleTimeString('pt-BR', {
                     hour: '2-digit',
                     minute: '2-digit',
+                    timeZone,
                   })}
                 </span>
               </TableCell>

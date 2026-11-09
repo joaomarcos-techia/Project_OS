@@ -18,6 +18,9 @@ vi.mock('next/link', () => ({
 vi.mock('@/lib/auth/page-guard', () => ({ pageGate }));
 vi.mock('@/contexts/ai-agent/queries', () => ({ getConversationThread }));
 vi.mock('@/contexts/identity/queries', () => ({ getProfileNames }));
+vi.mock('@/contexts/tenancy/queries', () => ({
+  getClinicTimezone: vi.fn(async () => 'America/Sao_Paulo'),
+}));
 vi.mock('./_components/conversa-actions', () => ({
   ConversaActions: () => <form aria-label="Composer persistente" />,
 }));

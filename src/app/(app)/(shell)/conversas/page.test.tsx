@@ -20,6 +20,9 @@ vi.mock('@/contexts/ai-agent/queries', () => ({
   countOpenHandoffs,
 }));
 vi.mock('@/contexts/identity/queries', () => ({ getProfileNames }));
+vi.mock('@/contexts/tenancy/queries', () => ({
+  getClinicTimezone: vi.fn(async () => 'America/Sao_Paulo'),
+}));
 vi.mock('./_components/conversation-auto-refresh', () => ({ ConversationAutoRefresh: () => null }));
 vi.mock('./[id]/_components/conversa-actions', () => ({
   ConversaActions: () => <form aria-label="Responder ao contato" />,

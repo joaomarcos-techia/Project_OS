@@ -286,7 +286,7 @@ export function ConsultorioBoard({
               {viewingFinalizada ? 'Consulta finalizada' : 'Em atendimento'}
             </ColumnTitle>
             {!viewingFinalizada && board.emAtendimento.length > 1 ? (
-              <div className="flex flex-wrap gap-2">
+              <div className={cn('flex flex-wrap gap-2', styles.attendingTabs)}>
                 {board.emAtendimento.map((c) => (
                   <button
                     key={c.appointmentId}

@@ -16,6 +16,11 @@
   flex: 1;
   overflow-y: auto;
 }
+/* Enquanto o painel carrega, o título ou as abas viram o último filho e esticavam. */
+.board > section > .columnTitle,
+.board > section > .attendingTabs {
+  flex: none;
+}
 .board > section {
   display: flex;
   min-width: 0;

@@ -24,6 +24,8 @@ import { identidadeDoContato } from './contact-identity';
 import { apresentacaoDoStatus, prazoRelativo } from './status-presentation';
 import { ConversasNoAccess } from './_components/no-access';
 import { ConversationAutoRefresh } from './_components/conversation-auto-refresh';
+import { getClinicTimezone } from '@/contexts/tenancy/queries';
+
 import { ConversationThread } from './_components/conversation-thread';
 import styles from './conversations.module.css';
 
@@ -62,7 +64,7 @@ export default async function ConversasPage({ searchParams }: { searchParams: Pr
   // vale é reduzir o número de queries (feito em `queries.ts`).
   //
   // Rodada 1: a lista e o pulso da fila, que não dependem um do outro.
-  const [result, pulso] = await Promise.all([
+  const [result, pulso, timeZone] = await Promise.all([
     listConversations(clinicId, {
       ...(status ? { status } : {}),
       ...(q ? { search: q } : {}),
@@ -72,6 +74,7 @@ export default async function ConversasPage({ searchParams }: { searchParams: Pr
     // Pulso da fila inteira, não só da página visível: quem abre a tela precisa
     // saber quantos esperam no total, e a paginação esconderia isso.
     countOpenHandoffs(clinicId),
+    getClinicTimezone(clinicId),
   ]);
 
   const selected =
@@ -207,15 +210,19 @@ export default async function ConversasPage({ searchParams }: { searchParams: Pr
                             <strong>{contato.titulo}</strong>
                             <time
                               dateTime={item.lastMessageAt}
-                              title={new Date(item.lastMessageAt).toLocaleString('pt-BR')}
+                              title={new Date(item.lastMessageAt).toLocaleString('pt-BR', {
+                                timeZone,
+                              })}
                             >
                               {new Date(item.lastMessageAt).toLocaleDateString('pt-BR', {
                                 day: '2-digit',
                                 month: '2-digit',
+                                timeZone,
                               })}{' '}
                               {new Date(item.lastMessageAt).toLocaleTimeString('pt-BR', {
                                 hour: '2-digit',
                                 minute: '2-digit',
+                                timeZone,
                               })}
                             </time>
                           </div>
@@ -264,6 +271,7 @@ export default async function ConversasPage({ searchParams }: { searchParams: Pr
         {thread ? (
           <ConversationThread
             thread={thread}
+            timeZone={timeZone}
             canManage={user.permissions.includes(PERMISSIONS.MANAGE_CONVERSATIONS)}
             currentUserId={user.userId}
             assignedToName={assignedToName}

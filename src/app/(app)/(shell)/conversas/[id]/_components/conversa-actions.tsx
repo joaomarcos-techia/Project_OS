@@ -36,6 +36,7 @@ type Props = {
   windowOpen: boolean;
   windowClosesAt: string | null;
   lastInboundAt: string | null;
+  timeZone: string;
   canManage: boolean;
   handoff: AIHandoffState | null;
   currentUserId: string;
@@ -50,6 +51,7 @@ export function ConversaActions({
   windowOpen,
   windowClosesAt,
   lastInboundAt,
+  timeZone,
   canManage,
   handoff,
   currentUserId,
@@ -72,6 +74,7 @@ export function ConversaActions({
         windowOpen={windowOpen}
         windowClosesAt={windowClosesAt}
         lastInboundAt={lastInboundAt}
+        timeZone={timeZone}
         handoff={handoff}
       />
     );
@@ -79,6 +82,7 @@ export function ConversaActions({
   return (
     <AssumePanel
       conversationId={conversationId}
+      timeZone={timeZone}
       handoff={status === 'handoff' ? handoff : null}
       assignedToName={assignedToName}
     />
@@ -87,10 +91,12 @@ export function ConversaActions({
 
 function AssumePanel({
   conversationId,
+  timeZone,
   handoff,
   assignedToName,
 }: {
   conversationId: string;
+  timeZone: string;
   handoff: AIHandoffState | null;
   assignedToName: string | null;
 }) {
@@ -125,7 +131,7 @@ function AssumePanel({
           {assignedToName
             ? `Atendimento atribuído a ${assignedToName}. Assumir agora transfere formalmente a responsabilidade para você.`
             : 'Nenhum membro assumiu formalmente este atendimento.'}{' '}
-          Prazo: {new Date(handoff.dueAt).toLocaleString('pt-BR')}.
+          Prazo: {new Date(handoff.dueAt).toLocaleString('pt-BR', { timeZone })}.
         </Alert>
       ) : (
         <Alert variant="info" title="O agente está respondendo">
@@ -181,12 +187,14 @@ function HandoffPanel({
   windowOpen,
   windowClosesAt,
   lastInboundAt,
+  timeZone,
   handoff,
 }: {
   conversationId: string;
   windowOpen: boolean;
   windowClosesAt: string | null;
   lastInboundAt: string | null;
+  timeZone: string;
   handoff: AIHandoffState;
 }) {
   const [replyState, replyAction, replying] = useActionState<ConversaActionState, FormData>(
@@ -231,11 +239,11 @@ function HandoffPanel({
           o campo de resposta para longe e ensina o operador a ignorar avisos.
           O que o rodapé precisa dizer é outra coisa — se ainda dá para escrever. */}
       {windowOpen ? (
-        <JanelaAberta closesAt={windowClosesAt} />
+        <JanelaAberta closesAt={windowClosesAt} timeZone={timeZone} />
       ) : (
         <Alert variant="warning" title="Janela de 24h da Meta expirada">
           {lastInboundAt
-            ? `A última mensagem do paciente foi em ${new Date(lastInboundAt).toLocaleString('pt-BR')}. `
+            ? `A última mensagem do paciente foi em ${new Date(lastInboundAt).toLocaleString('pt-BR', { timeZone })}. `
             : 'Este contato ainda não enviou nenhuma mensagem. '}
           O WhatsApp só aceita texto livre até 24h depois do último contato do paciente. Para
           retomar, é preciso que o paciente escreva de novo.
@@ -268,7 +276,7 @@ function HandoffPanel({
               focar o campo, sem que a mesma frase apareça duas vezes na tela. */}
           {windowOpen && windowClosesAt ? (
             <span id={`${textId}-hint`} className="sr-only">
-              A janela fecha em {new Date(windowClosesAt).toLocaleString('pt-BR')}.
+              A janela fecha em {new Date(windowClosesAt).toLocaleString('pt-BR', { timeZone })}.
             </span>
           ) : (
             <span />
@@ -347,7 +355,13 @@ function useAgoraAposMontar(): number | null {
   return agora;
 }
 
-export function JanelaAberta({ closesAt }: { closesAt: string | null }) {
+export function JanelaAberta({
+  closesAt,
+  timeZone,
+}: {
+  closesAt: string | null;
+  timeZone: string;
+}) {
   const agora = useAgoraAposMontar();
   if (!closesAt) return null;
   const fecha = new Date(closesAt);
@@ -358,6 +372,7 @@ export function JanelaAberta({ closesAt }: { closesAt: string | null }) {
     hour: '2-digit',
     minute: '2-digit',
     hourCycle: 'h23',
+    timeZone,
   });
 
   const restamMin =

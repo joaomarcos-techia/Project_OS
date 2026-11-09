@@ -7,6 +7,9 @@ const { listClinicalDocumentFeedPage, pageGate, redirect } = vi.hoisted(() => ({
 }));
 
 vi.mock('@/contexts/clinical/queries', () => ({ listClinicalDocumentFeedPage }));
+vi.mock('@/contexts/tenancy/queries', () => ({
+  getClinicTimezone: vi.fn(async () => 'America/Sao_Paulo'),
+}));
 vi.mock('@/lib/auth/page-guard', () => ({ pageGate }));
 vi.mock('next/navigation', () => ({ redirect }));
 

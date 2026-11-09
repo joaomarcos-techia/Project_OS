@@ -2,6 +2,7 @@
 import { notFound } from 'next/navigation';
 import { z } from 'zod';
 import { getConversationThread } from '@/contexts/ai-agent/queries';
+import { getClinicTimezone } from '@/contexts/tenancy/queries';
 import { getProfileNames } from '@/contexts/identity/queries';
 import { pageGate } from '@/lib/auth/page-guard';
 import { PERMISSIONS } from '@/lib/auth/permissions';
@@ -18,7 +19,10 @@ export default async function ConversaThreadPage({ params }: { params: Promise<{
   const { id } = await params;
   const parsed = z.string().uuid().safeParse(id);
   if (!parsed.success) notFound();
-  const thread = await getConversationThread(clinicId, parsed.data);
+  const [thread, timeZone] = await Promise.all([
+    getConversationThread(clinicId, parsed.data),
+    getClinicTimezone(clinicId),
+  ]);
   if (!thread) notFound();
   const assigneeNames = await getProfileNames(
     clinicId,
@@ -42,6 +46,7 @@ export default async function ConversaThreadPage({ params }: { params: Promise<{
       />
       <ConversationThread
         thread={thread}
+        timeZone={timeZone}
         canManage={user.permissions.includes(PERMISSIONS.MANAGE_CONVERSATIONS)}
         currentUserId={user.userId}
         assignedToName={assignedToName}
