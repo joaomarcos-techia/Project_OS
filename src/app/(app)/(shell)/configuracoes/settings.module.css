@@ -10,6 +10,7 @@
 
 .groupSection {
   min-width: 0;
+  container-type: inline-size;
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: var(--card-radius);
@@ -109,6 +110,13 @@
   color: var(--text-3);
 }
 
+/* Cartão estreito: status e contagem empilham para o texto não virar coluna fina. */
+@container (max-width: 560px) {
+  .aside {
+    max-width: 130px;
+  }
+}
+
 @media (max-width: 720px) {
   .item,
   .groupHeader {
@@ -129,6 +137,7 @@
     grid-row: 2;
     grid-column: 2 / -1;
     justify-content: flex-start;
+    max-width: none;
     gap: 6px 12px;
   }
 }

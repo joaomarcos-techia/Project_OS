@@ -303,15 +303,20 @@
 /* A largura que importa é a da coluna, não a da tela: 90 dias apertam as barras
    mesmo no tablet. Os valores somem porque a tabela logo abaixo traz cada um e
    marca a semana em curso. */
-@container (max-width: 76px) {
-  .weekValue,
-  .weekOngoing,
+@container (max-width: 100px) {
   .weekLabel {
     display: none;
   }
 
   .weekLabelShort {
     display: block;
+  }
+}
+
+@container (max-width: 56px) {
+  .weekValue,
+  .weekOngoing {
+    display: none;
   }
 
   /* Sem o texto "período futuro", a altura é o que separa esta coluna do traço
@@ -356,6 +361,11 @@
 .weekRowOngoing {
   color: var(--text-3);
   font-weight: 400;
+}
+
+/* As colunas numéricas não quebram; sem piso, a semana é que pagaria a conta. */
+.weekTable td:first-child {
+  min-width: 156px;
 }
 
 .weekTable td:not(:first-child),
