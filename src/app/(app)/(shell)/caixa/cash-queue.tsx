@@ -356,7 +356,7 @@ function ItemRows({
     (transaction) => transaction.kind === 'payment' && transaction.refundableAmount > 0,
   );
   const subject =
-    item.tipo === 'pagar' ? item.descricao : (item.pacienteNome ?? 'Paciente sem cadastro');
+    item.tipo === 'pagar' ? item.descricao : (item.pacienteNome ?? 'Sem paciente vinculado');
   const detail =
     item.tipo === 'pagar' ? 'Conta a pagar' : (item.snapshotProcedureName ?? item.descricao);
   const actionLabel = item.tipo === 'pagar' ? 'Pagar' : 'Receber';

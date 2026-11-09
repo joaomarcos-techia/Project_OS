@@ -1,4 +1,5 @@
 import { getCurrentPractitioner } from '@/contexts/identity/internal/practitioner';
+import { getClinicTimezone } from '@/contexts/tenancy/queries';
 import { Alert } from '@/components/ui/alert';
 import { PageHeader } from '@/components/ui/page-header';
 import { PERMISSIONS } from '@/lib/auth/permissions';
@@ -25,13 +26,17 @@ export default async function ConsultorioPage() {
     );
   }
 
-  const initialBoard = await getBoard();
+  const [initialBoard, timeZone] = await Promise.all([
+    getBoard(),
+    getClinicTimezone(user.clinicId!),
+  ]);
 
   return (
     <ConsultorioBoard
       clinicId={user.clinicId!}
       isPractitioner={await getCurrentPractitioner()}
       initialBoard={initialBoard}
+      timeZone={timeZone}
     />
   );
 }

@@ -20,11 +20,13 @@ import { formatHora } from './format';
  */
 export function CheckinStrip({
   cards,
+  timeZone,
   busyId,
   onCheckIn,
   onAbsent,
 }: {
   cards: BoardCardDTO[];
+  timeZone: string;
   busyId: string | null;
   onCheckIn: (id: string) => void;
   /** STATE-001 — falta só é transição válida ANTES do check-in. */
@@ -40,7 +42,7 @@ export function CheckinStrip({
           className="flex max-w-full flex-wrap items-center gap-x-2.5 gap-y-1.5 rounded-(--btn-radius) border border-border bg-surface py-1.5 pr-1.5 pl-3"
         >
           <span className="font-mono text-(length:--fs-caption) font-semibold tabular-nums text-fg-muted">
-            {formatHora(c.horario)}
+            {formatHora(c.horario, timeZone)}
           </span>
           <span className="max-w-52 truncate text-(length:--fs-sm) font-medium text-fg">
             {c.pacienteNome}

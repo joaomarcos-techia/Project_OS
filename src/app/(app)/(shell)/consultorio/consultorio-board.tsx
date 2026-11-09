@@ -75,10 +75,12 @@ function ColumnTitle({
 export function ConsultorioBoard({
   isPractitioner,
   initialBoard,
+  timeZone,
 }: {
   clinicId: string;
   isPractitioner: boolean;
   initialBoard: BoardDTO;
+  timeZone: string;
 }) {
   const [board, setBoard] = useState<BoardDTO>(initialBoard);
   const [selectedDoctorId, setSelectedDoctorId] = useState<string | null>(
@@ -221,6 +223,7 @@ export function ConsultorioBoard({
 
       <CheckinStrip
         cards={board.aChegar}
+        timeZone={timeZone}
         busyId={busyId}
         onCheckIn={onCheckIn}
         onAbsent={onAbsent}
@@ -268,6 +271,7 @@ export function ConsultorioBoard({
                     key={c.appointmentId}
                     card={c}
                     now={now}
+                    timeZone={timeZone}
                     busy={busyId === c.appointmentId}
                     onCall={onCall}
                   />
@@ -318,6 +322,7 @@ export function ConsultorioBoard({
             </ColumnTitle>
             <FinalizedList
               cards={board.finalizadas}
+              timeZone={timeZone}
               selectedId={selectedAppt}
               onOpen={(id) => setSelectedAppt(id)}
             />

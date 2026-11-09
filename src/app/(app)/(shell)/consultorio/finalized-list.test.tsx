@@ -24,7 +24,14 @@ const card: BoardCardDTO = {
 
 describe('lista de consultas finalizadas', () => {
   it('não chama a consulta de faturada sem prova de lançamento financeiro', () => {
-    render(<FinalizedList cards={[card]} selectedId={null} onOpen={() => {}} />);
+    render(
+      <FinalizedList
+        timeZone="America/Sao_Paulo"
+        cards={[card]}
+        selectedId={null}
+        onOpen={() => {}}
+      />,
+    );
 
     expect(screen.getByText('Concluída')).toBeTruthy();
     expect(screen.queryByText('Faturada')).toBeNull();
@@ -33,6 +40,7 @@ describe('lista de consultas finalizadas', () => {
   it('destaca uma pendência financeira registrada', () => {
     render(
       <FinalizedList
+        timeZone="America/Sao_Paulo"
         cards={[{ ...card, cobrancaPendente: true }]}
         selectedId={null}
         onOpen={() => {}}

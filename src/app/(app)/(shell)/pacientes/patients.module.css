@@ -50,6 +50,11 @@
     border-bottom: 0;
   }
 
+  /* O link da linha traz o recuo da tabela; no cartão, ele desalinhava do e-mail. */
+  .table td:first-child a {
+    padding-inline: 0;
+  }
+
   .table td {
     display: block;
     min-width: 0;
