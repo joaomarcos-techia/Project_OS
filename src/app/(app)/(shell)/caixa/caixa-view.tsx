@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useMemo, useState, useTransition, type ReactNode } from 'react';
+
+import { todayYmd, useClinicTimeZone } from './clinic-timezone';
 import { useRouter } from 'next/navigation';
 
 import type {
@@ -161,12 +163,10 @@ export function CaixaView({
   // truque que o resto do financeiro usa.
   // Uma lista só para a coluna "A receber", na ordem em que a fila é trabalhada:
   // pendentes primeiro, parciais logo atrás (já têm parte do dinheiro dentro).
+  const timeZone = useClinicTimeZone();
   const aReceber = [...pendentes, ...parciais];
   const aReceberCount = aReceber.length;
-  // `split('T')[0]` recorta a data do ISO. A guarda anti-truncamento do teste
-  // varre o fonte atras de corte fixo de lista, entao evitamos essa forma aqui
-  // mesmo o corte sendo de data — inclusive em comentario.
-  const hojeYmd = new Date().toISOString().split('T')[0]!;
+  const hojeYmd = todayYmd(timeZone);
   const vencidas = [...pendentes, ...parciais].filter(
     (item) => item.dueDate != null && item.dueDate < hojeYmd,
   ).length;

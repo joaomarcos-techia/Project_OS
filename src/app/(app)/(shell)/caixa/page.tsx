@@ -25,6 +25,7 @@ import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
 import { withQueryDeadline } from '@/lib/db/query-timeout';
 
 import { CaixaView } from './caixa-view';
+import { ClinicTimeZoneProvider } from './clinic-timezone';
 
 // Claims do usuário e o estado do caixa mudam por requisição.
 export const dynamic = 'force-dynamic';
@@ -163,41 +164,43 @@ export default async function CaixaPage() {
     advancedPoliciesEnabled && user.permissions.includes(PERMISSIONS.MANAGE_FINANCIAL);
 
   return (
-    <CaixaView
-      // Data e relógio vêm do SERVIDOR no fuso da clínica: calcular no cliente
-      // daria fuso do navegador e divergência de hidratação no primeiro render.
-      hoje={new Intl.DateTimeFormat('pt-BR', {
-        timeZone: tz,
-        day: 'numeric',
-        month: 'long',
-      }).format(new Date())}
-      atualizadoEm={new Intl.DateTimeFormat('pt-BR', {
-        timeZone: tz,
-        hourCycle: 'h23',
-        hour: '2-digit',
-        minute: '2-digit',
-      }).format(new Date())}
-      pendentes={lancs.pendentes.map(enrich)}
-      parciais={lancs.parciais.map(enrich)}
-      pagosHoje={lancs.pagosHoje.map(enrich)}
-      aPagar={pagaveis.map(enrich)}
-      pendencias={pendencias}
-      failedCharges={failedCharges.map((charge) => ({
-        ...charge,
-        pacienteNome: charge.patientId ? (nameById.get(charge.patientId) ?? null) : null,
-      }))}
-      manualRefundTasks={manualRefundTasks.map((task) => ({
-        ...task,
-        pacienteNome: task.patientId ? (nameById.get(task.patientId) ?? null) : null,
-      }))}
-      excessRefundStatuses={excessRefundStatuses}
-      collectionCases={collectionCases}
-      methods={methods}
-      paymentTransactions={paymentTransactions}
-      showAdvancedFinancialDetails={advancedPoliciesEnabled}
-      canOperate={canOperate}
-      canRefund={canRefund}
-      canReviewPayout={canReviewPayout}
-    />
+    <ClinicTimeZoneProvider timeZone={tz}>
+      <CaixaView
+        // Data e relógio vêm do SERVIDOR no fuso da clínica: calcular no cliente
+        // daria fuso do navegador e divergência de hidratação no primeiro render.
+        hoje={new Intl.DateTimeFormat('pt-BR', {
+          timeZone: tz,
+          day: 'numeric',
+          month: 'long',
+        }).format(new Date())}
+        atualizadoEm={new Intl.DateTimeFormat('pt-BR', {
+          timeZone: tz,
+          hourCycle: 'h23',
+          hour: '2-digit',
+          minute: '2-digit',
+        }).format(new Date())}
+        pendentes={lancs.pendentes.map(enrich)}
+        parciais={lancs.parciais.map(enrich)}
+        pagosHoje={lancs.pagosHoje.map(enrich)}
+        aPagar={pagaveis.map(enrich)}
+        pendencias={pendencias}
+        failedCharges={failedCharges.map((charge) => ({
+          ...charge,
+          pacienteNome: charge.patientId ? (nameById.get(charge.patientId) ?? null) : null,
+        }))}
+        manualRefundTasks={manualRefundTasks.map((task) => ({
+          ...task,
+          pacienteNome: task.patientId ? (nameById.get(task.patientId) ?? null) : null,
+        }))}
+        excessRefundStatuses={excessRefundStatuses}
+        collectionCases={collectionCases}
+        methods={methods}
+        paymentTransactions={paymentTransactions}
+        showAdvancedFinancialDetails={advancedPoliciesEnabled}
+        canOperate={canOperate}
+        canRefund={canRefund}
+        canReviewPayout={canReviewPayout}
+      />
+    </ClinicTimeZoneProvider>
   );
 }

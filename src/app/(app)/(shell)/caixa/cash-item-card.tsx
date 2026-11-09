@@ -6,6 +6,7 @@ import type {
   PaymentTransactionSummary,
 } from '@/contexts/financial/types';
 import { Button } from '@/components/ui/button';
+import { todayYmd, useClinicTimeZone } from './clinic-timezone';
 import { PaymentStatusBadge } from '@/components/ui/status-badge';
 import { formatBRL } from '@/lib/format';
 import { cn } from '@/lib/ui/cn';
@@ -179,11 +180,6 @@ function FinancialComposition({
   );
 }
 
-/** Data local de hoje em `YYYY-MM-DD`, para comparar com `dueDate`. */
-function todayYmd(): string {
-  return new Intl.DateTimeFormat('en-CA').format(new Date());
-}
-
 /** dd/MM — o ano só atrapalha numa fila que é toda do mês corrente. */
 function diaCurto(ymd: string): string {
   const [, mes, dia] = ymd.split('-');
@@ -269,7 +265,8 @@ export function CashItemCard({
     methods.find((m) => m.code === item.paymentMethod)?.label ?? item.paymentMethod;
   const panelId = panelMode ? `cash-panel-${item.id}-${panelMode}` : undefined;
   const emAberto = item.status === 'pendente' || item.status === 'parcial';
-  const hoje = todayYmd();
+  const timeZone = useClinicTimeZone();
+  const hoje = todayYmd(timeZone);
   const vencido = emAberto && item.dueDate != null && item.dueDate < hoje;
 
   /*
@@ -401,6 +398,7 @@ export function CashItemCard({
       formaDePagamento,
       quitado && item.paidAt
         ? new Intl.DateTimeFormat('pt-BR', {
+            timeZone,
             hourCycle: 'h23',
             hour: '2-digit',
             minute: '2-digit',
