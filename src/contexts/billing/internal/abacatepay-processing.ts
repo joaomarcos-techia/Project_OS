@@ -20,6 +20,7 @@ import { initialAbacatePayAccessPeriod } from './abacatepay-period';
 import { markInvoicePaid, recordBillingEvent } from './subscriptions';
 import { toCents, toReaisString } from './money';
 import { DUNNING_READONLY_DAYS } from './dunning';
+import { applyAbacatePayRenewalTx, readAbacatePayRenewalForEvent } from './abacatepay-renewals';
 import {
   abacatePayManagementReady,
   applyAbacatePayRecontractPaymentTx,
@@ -248,6 +249,61 @@ export async function reconcileAbacatePayInbox(input: { eventId?: string } = {})
       result.confirmed ? 'renewal_cancellation_verified' : 'cancellation_requires_review',
     );
     return { applied: result.confirmed, review: Number(result.confirmed === 0), scanned: 1 };
+  }
+  if (event.event_type === 'subscription.renewed') {
+    try {
+      const account = {
+        provider: 'abacatepay',
+        environment: 'sandbox',
+        accountId: env.ABACATEPAY_STORE_ID,
+      } as const;
+      const result = await readAbacatePayRenewalForEvent(
+        dbAdmin,
+        account,
+        event.event_id,
+        env.ABACATEPAY_API_KEY,
+      );
+      if (result.state !== 'paid') {
+        const retry = result.state === 'pending' && event.attempts < MAX_ATTEMPTS;
+        await finish(
+          retry ? 'received' : 'review',
+          retry ? 'renewal_payment_pending' : 'renewal_readback_requires_review',
+        );
+        return { applied: 0, review: Number(!retry), scanned: 1, retry };
+      }
+      const outcome = await dbAdmin.transaction(async (tx) => {
+        const lease = z
+          .array(z.object({ event_id: z.string() }))
+          .max(1)
+          .parse(
+            await tx.execute(sql`
+          SELECT event_id FROM billing_gateway.event_inbox WHERE account_id=${event.account_id}::uuid
+            AND event_id=${event.event_id} AND state='processing' AND lease_token=${token}::uuid
+            AND lease_until > now() FOR UPDATE`),
+          );
+        if (!lease[0]) return 'lease_lost';
+        const applied = await applyAbacatePayRenewalTx(tx, result.evidence, event.event_id);
+        await tx.execute(sql`UPDATE billing_gateway.event_inbox SET state=${applied === 'review' ? 'review' : 'applied'},
+          outcome_code=${applied === 'review' ? 'renewal_requires_review' : 'renewal_payment_applied'},
+          lease_token=NULL,lease_until=NULL,processed_at=now()
+          WHERE account_id=${event.account_id}::uuid AND event_id=${event.event_id} AND lease_token=${token}::uuid`);
+        return applied;
+      });
+      metrics.emit('billing.abacatepay.event_reconciled', { outcome });
+      return {
+        applied: Number(outcome === 'applied' || outcome === 'historical'),
+        review: Number(outcome === 'review'),
+        scanned: 1,
+        retry: outcome === 'lease_lost',
+      };
+    } catch {
+      const retry = event.attempts < MAX_ATTEMPTS;
+      await finish(retry ? 'received' : 'review', 'renewal_authoritative_readback_failed');
+      metrics.emit('billing.abacatepay.reconcile_failed', {
+        reason: 'renewal_readback_or_transaction',
+      });
+      return { applied: 0, review: Number(!retry), scanned: 1, retry };
+    }
   }
   if (event.event_type !== 'subscription.completed') {
     // Renewal must not reuse the initial bill's PAID status to extend access.

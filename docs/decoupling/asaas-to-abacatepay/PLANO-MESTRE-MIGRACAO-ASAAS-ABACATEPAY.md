@@ -8,6 +8,8 @@ Atualizado em 07/11/2026. **Implementação local incremental autorizada; produ�
 
 ## 1. Escopo, procedência e segurança
 
+**Rodada de renovação em 09/11:** [plano operacional, rastreabilidade e homologação](PLANO-CONTINUIDADE-RENOVACAO-E-HOMOLOGACAO.md). Preserva a 0139 e o cancelamento já comprovados; separa prova local, readback Sandbox e renovação temporal externa.
+
 - Migrar somente **assinatura da clínica à Qoro**. Cobranças de pacientes, conta recebedora e repasses continuam fora da migração.
 - Supabase, Vercel, preços, trial, descontos e direitos legados permanecem preservados.
 - Worktree de implementação: `C:/dev/Qoro_billing_abacatepay_20261107`, branch `feat/billing-abacatepay-20261107`.

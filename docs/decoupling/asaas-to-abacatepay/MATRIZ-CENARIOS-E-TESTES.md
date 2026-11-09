@@ -52,6 +52,23 @@ A [0139 foi aplicada somente no DEV e o cancelamento autorizado passou no Sandbo
 
 Não foi comprovada entrega de webhook de cancelamento: a prova externa usa comando/readback autenticados. Os eventos de pagamento da primeira contratação têm evidência própria e não provam renovação futura.
 
+## Renovação mensal — recorte 0140
+
+O [plano de continuidade da renovação](PLANO-CONTINUIDADE-RENOVACAO-E-HOMOLOGACAO.md) registra a decisão aprovada: manter o aniversário mensal original e revisar ambiguidades. Os resultados abaixo usam banco PostgreSQL real isolado e HTTP sintético; **não comprovam uma segunda mensalidade externa nem o calendário efetivo da AbacatePay**. A aprovação de cartão é distinta de liquidação.
+
+| Caso | Evidência | Estado |
+| --- | --- | --- |
+| Nova cobrança vinculada ao contrato, checkout de ciclo diferente da origem e valor integral | Leitor com 43 testes, mais 28 regressões do recibo; consulta de loja, produto, assinatura, checkout e extrato | PASS unitário/HTTP sintético; externo NOT RUN |
+| Renovação mantém o calendário original, inclusive atraso e fim de mês | 15 testes de calendário; constraints SQL em UTC verificadas também com sessão Pacific/Auckland | PASS local; correspondência com emissão temporal externa NOT RUN |
+| Repetição e concorrência | Um período e uma invoice; 12 aplicações concorrentes resultam em uma aplicação e 11 duplicatas | PASS PostgreSQL sintético |
+| Outro pagamento no mesmo ciclo e evento fora de ordem | Preserva observação financeira; não duplica benefício nem reduz o período atual; ciclo anterior pode gerar invoice histórica | PASS PostgreSQL sintético |
+| Falha de API ou de transação após evento recebido | Retry limitado, rollback atômico e aplicação posterior uma vez | PASS local; falha externa induzida NOT RUN |
+| Cancelamento solicitado, geração antiga, anual ou mudança de plano pendente | Nenhuma reativação/cota antecipada por confirmação de pagamento | PASS local no recorte de renovação; gestão completa de planos/refund/disputa permanece pendente |
+| Privilégios, isolamento e imutabilidade | FORCE RLS, sem anon/authenticated, service_role somente SELECT/INSERT, FKs compostas e snapshots imutáveis | PASS local e postflight DEV 0140; dados e privilégios anteriores preservados |
+| Evento de renovação totalmente ausente | Não inventa renovação a partir do pagamento inicial ou de cliente/preço parecidos | Sem concessão indevida PASS local; descoberta e recuperação do evento ausente NOT RUN |
+
+As provas de persistência e processamento acima fazem parte das **22 verificações PostgreSQL novas**. A regressão anterior de trial/cancelamento/recontratação também passou **47/47** com as 141 migrations. Nenhum desses ensaios criou cobrança remota ou alterou a fixture Sandbox retida.
+
 ## Casos compostos aplicáveis
 
 | ID          | Preparação/ação                                                          | Esperado                                                                   | Estado                                                            |

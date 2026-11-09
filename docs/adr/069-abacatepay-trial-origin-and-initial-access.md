@@ -26,6 +26,8 @@ O período pago não é infinito: o gate de escrita observa o fim e a tolerânci
 
 ## Limites e validação
 
+**Atualização de 09/11 — renovação candidata.** O founder aprovou manter o aniversário mensal original e revisar ciclos ambíguos. O [plano de renovação](../decoupling/asaas-to-abacatepay/PLANO-CONTINUIDADE-RENOVACAO-E-HOMOLOGACAO.md) registra o leitor específico, histórico privado 0140 e aplicação transacional do período. Há prova local com PostgreSQL/HTTP sintético; não há comprovação de renovação temporal externa. O pagamento inicial continua sem provar mensalidades posteriores. As pendências históricas descritas abaixo devem ser lidas com esse recorte, sem receber PASS externo.
+
 Um checkout pago inicial nunca prova a segunda mensalidade. `subscription.renewed`, falha, cancelamento, reembolso e disputa ainda exigem readback específico antes de efeitos. Eventos não implementados ficam em revisão, sem renovar nem conceder nova cota. O extrato V2 contém movimentos e referências de checkout/charge, mas sua equivalência com cada renovação, valor bruto e ambiente ainda precisa de prova; não preencher lacunas com campos inventados.
 
 Somente Sandbox é aceito nesta composição. Presença de chave ou alteração de flag não habilita produção. Migrations remotas, configuração do Preview e um pagamento Sandbox integral ainda são gates separados. Anual novo permanece fechado; Asaas legado e cobranças de pacientes não mudam.

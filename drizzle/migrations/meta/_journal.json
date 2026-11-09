@@ -981,6 +981,13 @@
       "when": 1794189600000,
       "tag": "0139_saas_gateway_recontracts",
       "breakpoints": true
+    },
+    {
+      "idx": 140,
+      "version": "7",
+      "when": 1794199882765,
+      "tag": "0140_saas_recurring_payment_observations",
+      "breakpoints": true
     }
   ]
 }
