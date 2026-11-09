@@ -13,6 +13,8 @@ const eventSchema = z.object({
   account_id: z.uuid(),
   event_id: z.string(),
   event_type: z.string(),
+  subscription_id: z.uuid().nullable(),
+  clinic_id: z.uuid().nullable(),
   external_subscription_id: z.string().nullable(),
   external_checkout_id: z.string().nullable(),
   external_customer_id: z.string().nullable(),
@@ -37,7 +39,7 @@ export async function readAbacatePayNegativeEvent(database: ManagementDatabase, 
     .array(eventSchema)
     .max(1)
     .parse(
-      await database.execute(sql`SELECT account_id::text,event_id,event_type,
+      await database.execute(sql`SELECT account_id::text,event_id,event_type,subscription_id::text,clinic_id::text,
     external_subscription_id,external_checkout_id,external_customer_id,received_at FROM billing_gateway.event_inbox
     WHERE event_id=${eventId} AND account_id IN(SELECT id FROM billing_gateway.accounts WHERE provider='abacatepay'
       AND environment='sandbox' AND external_account_id=${env.ABACATEPAY_STORE_ID})`),
@@ -67,6 +69,8 @@ export async function readAbacatePayNegativeEvent(database: ManagementDatabase, 
     FROM owned o JOIN public.subscriptions s ON s.id=o.subscription_id AND s.clinic_id=o.clinic_id
     JOIN billing_gateway.bindings b ON b.subscription_id=s.id AND b.account_id=o.account_id
     WHERE o.account_id=${event.account_id}::uuid AND s.billing_provider='abacatepay' AND s.asaas_subscription_id IS NULL
+      AND (${event.subscription_id}::uuid IS NULL OR o.subscription_id=${event.subscription_id}::uuid)
+      AND (${event.clinic_id}::uuid IS NULL OR o.clinic_id=${event.clinic_id}::uuid)
       AND (${event.external_subscription_id}::text IS NULL OR o.external_subscription_id=${event.external_subscription_id})
       AND (${event.external_customer_id}::text IS NULL OR o.external_customer_id=${event.external_customer_id})
       AND ((${event.external_checkout_id}::text IS NOT NULL AND o.external_checkout_id=${event.external_checkout_id})

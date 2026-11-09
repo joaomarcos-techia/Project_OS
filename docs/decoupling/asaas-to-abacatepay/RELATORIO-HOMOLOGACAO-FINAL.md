@@ -321,6 +321,39 @@ O primeiro format:check encontrou somente o snapshot JSON antigo de preservaçã
 
 Abra [o painel AbacatePay](https://app.abacatepay.com/), mantenha **Modo Teste (Sandbox)** e clique em **Suporte**. Encaminhe esta pergunta, sem dados de pacientes, API key ou payload:
 
-> Estamos homologando assinaturas recorrentes na API V2. Existe um método oficial para antecipar uma renovação no Sandbox? Como consultar o vínculo de um bill/payment de renovação com a assinatura quando nenhum webhook chegou? Onde consultar o ciclo/vencimento e o estado de retries/disputa? Verificamos que excluir um checkout não pago invalida o link e preserva seu GET. Para checkout já pago, a exclusão preserva GET financeiro, extrato/recibo, assinatura e futuras alterações de plano? Há uma garantia de uso único ou modo de impedir duas contratações antes da chegada do primeiro webhook?
+Utilize a [solicitação consolidada ao suporte](SOLICITACAO-SUPORTE-HOMOLOGACAO.md), apresentada integralmente no chat em 09/11. Ela substitui a pergunta curta anterior, que incluía retentativas já documentadas e não explicitava a incompatibilidade do endpoint de refund com assinaturas V2. A documentação já confirma que excluir o checkout não cancela as assinaturas geradas; a dúvida remanescente é sobre uso único e preservação das consultas/históricos. A mensagem foi preparada, **não enviada**; não há resposta externa nesta rodada.
 
 Resultado necessário: orientação oficial ou resposta vinculada a ticket/documentação, não uma alteração de datas que aparente um mês decorrido. Envie apenas a resposta e identificador do ticket, sem credenciais. Se o método exigir assinatura ativa, a engenharia preparará outra fixture antes de gerar link, com você disponível. Não pagar novamente o link antigo, não alterar seu cancelamento e não criar cobrança real. O uso de Sandbox não autoriza Production.
+
+## 26. Continuidade enquanto o suporte não responde — 09/11/2026
+
+Baseline conferida: `14d7f9d4a749b257bb4e7a2f8d6ae0a8f6382fa6`, worktree financeiro limpo, PR #53 OPEN/draft. A CI [42617193661](https://github.com/joaomarcos-techia/Project_OS/actions/runs/42617193661) terminou SUCCESS com 6.695 testes e build; seus dois SKIP Turnstile continuam SKIP no build isolado. As provas separadas anteriores não são reinterpretadas como execução desses caminhos na CI. Nenhuma mudança de CI/deploy ou nova configuração de chaves nesta rodada.
+
+### Revisão documental e gate S1
+
+A [solicitação única](SOLICITACAO-SUPORTE-HOMOLOGACAO.md) contém assunto, mensagem completa, seis referências verificadas e quatro respostas esperadas. Foi apresentada no chat antes da continuação técnica. **S1 concluído como preparação/entrega; envio e resposta não executados pela engenharia.** Não há autorização de contato remoto implícita nesse gate.
+
+A documentação atual de [refund](https://docs.abacatepay.com/pages/payment/refund) proíbe reembolsar cobranças de assinatura pela API V2 e não suporta parcial nesse endpoint. O leitor de débitos financeiros existente **não executa reembolso** e suas fixtures de parcial não afirmam capacidade de solicitar essa operação ao provedor. Refund/disputa de assinatura exigem procedimento suportado a esclarecer. O [simulador](https://docs.abacatepay.com/pages/transparents/simulate-payment) é de pagamento transparente; não foi encontrado acelerador oficial do ciclo mensal. A [exclusão de checkout](https://github.com/AbacatePay/documentation/blob/main/pages/subscriptions/checkouts-delete.mdx) preserva assinaturas geradas, mas não documenta todas as consultas financeiras posteriores nem uso único. A ausência de documentação suficiente não prova ausência do recurso.
+
+### Correção local confirmada
+
+`readAbacatePayNegativeEvent` verificava conta e identificadores externos, mas não filtrava o vínculo interno de clínica/assinatura previamente registrado no inbox. Uma fixture adversarial com referências conflitantes reproduziu **retentativa**, em vez de revisão imediata. O trigger de imutabilidade do inbox já impedia o commit cruzado; **não foi comprovado acesso cruzado nem alteração indevida de período**. A correção respeita também os IDs internos já vinculados antes de qualquer GET. O teste exige revisão, zero consultas externas e preservação do vínculo, das invoices e do acesso. Não exige migration, contrato público novo ou mudança de regra comercial.
+
+### Ampliação local e limites
+
+- Renovação: recuperação de lease abandonado e encerramento da última tentativa sem um 11º readback.
+- Eventos negativos: vínculo interno conflitante, namespace Asaas, lease perdido durante readback e falha real de INSERT da auditoria com rollback da política/inbox; retry posterior auditado uma vez.
+- Plano/adicionais: cancelamento intercalado entre reserva e confirmação do comando; uma cobrança alvo posterior preserva evidência financeira, sem liberar cota ou reaplicar o efeito em replay.
+- Calendário: tolerância de emissão em ±60 segundos e recusa fora dela; recontratação no instante exato de vencimento, um milissegundo antes/depois e representação equivalente de Brasília/UTC. É relógio/estado sintético, sem alterar a fixture remota.
+
+A [matriz diferencial](MATRIZ-CENARIOS-E-TESTES.md#continuidade-aguardando-suporte--gates-s1-l1l7-e-e1e4) separa cada prova local da dependência externa. Fechamento automático de checkout pago continua não implementado/não autorizado para ensaio remoto sem garantias; o link pago antigo permanece intacto. Não inventar ciclo a partir de preço/cliente, não usar o simulador transparente para declarar renovação e não usar `/checkouts/refund` para assinatura.
+
+### Resultados locais finais do incremento
+
+- **435/435 testes focados**, 20 arquivos, exit 0. Incluem HMAC/receptor HTTP, readers, journal/unknown, rotas de checkout/cancelamento/plano e calendário. Nove casos unitários novos, sem remoção de asserções.
+- **40/40 verificações PostgreSQL**, 142 migrations reais, exit 0, zero rede externa e 140 chamadas HTTP de fixtures. São os 33 checks anteriores do recorte com sete novos. As 8 provas H3 e 47 de trial/cancelamento/recontratação anteriores continuam evidência histórica, **não foram reexecutadas nem contadas como 95 checks novos**.
+- TypeScript, lint completo e inventário de segurança aprovados; nenhum guard/piso/skip foi enfraquecido. Build e E2E do código novo devem ser conferidos no PR/CI do novo SHA, sem reutilizar o build de `14d7f9d4` como se fosse deste incremento. Não foi necessário repetir inspeção visual sem alteração de UI.
+- Falha de regressão inicial reproduziu retry para o vínculo conflitante; corrigida e retestada. Duas execuções intermediárias encontraram problemas na preparação das fixtures novas (conta sintética Asaas ausente e campo obrigatório de período ausente), corrigidos sem alterar as regras de produção nem a schema para aceitar fixtures inválidas. O ensaio final passou inclusive com cancelamento intercalado durante o comando.
+- **Zero** novas contas/produtos/checkouts/pagamentos no provedor, zero migrations DEV/Production, nenhum GET/POST no Sandbox necessário nesta rodada, nenhuma alteração do checkout pago retido. Somente o worktree financeiro foi editado.
+
+[Evidência sanitizada local](evidencias/continuidade-suporte-20261109.json). A mensagem não foi enviada, nenhum ticket foi aberto e nenhuma resposta foi recebida pela engenharia. **NO-GO de Production preservado** pelos gates E1–E4; continuam necessárias as provas e garantias externas, mesmo com os gates locais aprovados.

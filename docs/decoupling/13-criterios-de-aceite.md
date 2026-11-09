@@ -20,6 +20,10 @@ A meta de cutover sem perder escrita confirmada não significa disponibilidade c
 
 ## Definition of Done por capacidade
 
+### Recorte de homologação AbacatePay com suporte pendente
+
+A [matriz diferencial](asaas-to-abacatepay/MATRIZ-CENARIOS-E-TESTES.md#continuidade-aguardando-suporte--gates-s1-l1l7-e-e1e4) separa S1/L1–L7 de E1–E4. O pacote local deve compilar, passar lint/testes/segurança e comprovar persistência/rollback com migrations reais. Isso não substitui os quatro gates externos: renovação real; recuperação autoritativa sem webhook; checkout sem múltiplas recorrências e com histórico preservado; procedimento/eventos de refund/disputa de assinatura. A [solicitação consolidada](asaas-to-abacatepay/SOLICITACAO-SUPORTE-HOMOLOGACAO.md) não foi enviada pela engenharia. Permanecer NO-GO de Production enquanto houver P0 ou critério obrigatório não comprovado; não usar aprovação local como aceitação de risco.
+
 Contrato e adapter atual equivalentes; alternativa suportada funcionando; testes e evidência reais; observabilidade e alerta; configuração/segredos corretos; isolamento e dados; cutover/retorno exercitados; documentação operacional; revisão/risco residual aprovados. Interface ou mock isolado não passa.
 
 ## Definition of Done global

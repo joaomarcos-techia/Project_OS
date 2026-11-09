@@ -152,6 +152,14 @@ Os registros anteriores são checkpoints históricos. O estado posterior fica no
 
 ## Estado final e produção
 
+### Incremento de suporte e resiliência local — 09/11/2026
+
+Baseline `14d7f9d4` conferida; PR #53 permanece draft. A [mensagem definitiva](SOLICITACAO-SUPORTE-HOMOLOGACAO.md) foi apresentada integralmente no chat e salva, não enviada. Referências atuais confirmam retries documentados, múltiplas assinaturas por checkout e a proibição de refund de assinatura pelo endpoint V2; não repetir perguntas resolvidas nem executar esse endpoint incompatível.
+
+Uma nova regressão PostgreSQL reproduziu retry indevido para evento financeiro negativo já vinculado internamente a outra clínica. O trigger existente impedia commit cruzado. O reader agora respeita também esse vínculo antes do GET e encaminha à revisão. Ampliados os ensaios de recuperação de lease, tentativa final, rollback de auditoria, namespace Asaas, cancelamento intercalado com plano e limites temporais exatos. Sem migration nova, configuração remota, pagamento, fechamento de checkout pago ou edição da UI paralela.
+
+O [relatório, seção 26](RELATORIO-HOMOLOGACAO-FINAL.md#26-continuidade-enquanto-o-suporte-não-responde--09112026) e a [matriz S/L/E](MATRIZ-CENARIOS-E-TESTES.md#continuidade-aguardando-suporte--gates-s1-l1l7-e-e1e4) registram resultados e limites. Gates externos permanecem separados; código/mocks não os aprovam. Após resposta oficial: validar correlação e semântica, ajustar somente o necessário, preparar fixture identificada antes de qualquer efeito remoto e ensaiar sem modificar o checkout pago retido. Produção continua NO-GO.
+
 Execução em andamento. Nenhuma ativação de produção autorizada ou realizada. Permanecem requisitos de publicação: aprovação de migrations/destino, secrets exclusivos por ambiente, webhook público validado, método contratado homologado, origens legadas preservadas, upgrade decidido ou explicitamente indisponível, E2E financeiro causal e autorização final de rollout. Supabase e Vercel permanecem.
 
 ## Cancelamento e nova contratação — continuidade após aprovação da ADR-070

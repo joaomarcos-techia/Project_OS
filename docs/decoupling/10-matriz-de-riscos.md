@@ -29,4 +29,16 @@ Estimativas qualitativas, baseadas nas fontes [E01–E25](../architecture/01-con
 
 ## Revisão adversarial do plano
 
+### Riscos específicos AbacatePay — suporte pendente em 09/11/2026
+
+| Risco | Situação/controle atual | Próxima evidência | Estado |
+|---|---|---|---|
+| Link de assinatura reutilizável, inclusive antes do webhook | Journal local evita segundo POST; não controla URL copiada do gateway; checkout pago preservado | Garantia oficial de uso único/contenção e ensaio novo autorizado sem perder histórico | P0 de ativação; E3 BLOCKED |
+| Renovação sem nenhum webhook | Não inventar vínculo por cliente/valor; leitura conhecida não descobre o ciclo ausente | Correlação oficial assinatura–cobrança–ciclo e ensaio | E2 BLOCKED |
+| Reembolso de assinatura por endpoint incompatível | API V2 de refund documentadamente recusa; nenhum comando de refund implementado/executado | Procedimento de painel/suporte, eventos e consultas | E4 BLOCKED |
+| Evento negativo com vínculo interno conflitante | Banco já recusava rebind; reader corrigido para revisão sem GET em vez de repetir até esgotar | Regressão PostgreSQL e checks do novo SHA | Correção local; sem incidente de acesso cruzado comprovado |
+| Interrupção de processo ou falha de auditoria | Lease limita worker; efeito de acesso/auditoria/inbox na mesma transação | Ensaios de expiração/rollback/retomada | Local; não comprova falha externa real |
+
+Resultados e limites na [seção 26 do relatório](asaas-to-abacatepay/RELATORIO-HOMOLOGACAO-FINAL.md#26-continuidade-enquanto-o-suporte-não-responde--09112026). Não aceitar risco financeiro implicitamente nem ativar Production porque a regressão local passou.
+
 Revisão própria realizada: (1) incluído GCP/Upstash/Meta/Resend para não confundir saída de host com saída de todos os serviços; (2) explicitado writer/scheduler único para evitar split-brain; (3) mantido reset/MFA/cutover como riscos de identidade distintos; (4) separado Supabase self-hosted de Postgres genérico; (5) proibida transferência presumida de cartão/mandato; (6) preservado refund da origem após troca; (7) atualizado estado real da landing main e seu Preview fixo; (8) restore histórico não recebe PASS atual; (9) não exigida nova compra/PITR nem retirado aceite anterior; (10) retorno de código não substitui retorno de estado; (11) quantidades/custos/SLAs ausentes marcados PENDENTES; (12) split e NF não inventados por nomes de tabelas. Não houve revisão independente por outro agente nesta rodada.

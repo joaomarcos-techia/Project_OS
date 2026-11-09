@@ -86,6 +86,47 @@ A01–A19 tratam substituição de identidade, sessão, MFA e retomada entre emi
 
 O [relatório final](RELATORIO-HOMOLOGACAO-FINAL.md) consolida o estado posterior aos checkpoints históricos acima: recuperação do POST desconhecido por GET único e fingerprint; gestão de plano/médico adicional no próximo ciclo integral; observações financeiras negativas; política de reembolso aprovada na [ADR-071](../../adr/071-abacatepay-refunds-and-review.md). Passaram 8 verificações H3, 47 trial/cancelamento/recontratação e 33 renovação/planos/negativos em PostgreSQL real com HTTP sintético e 142 migrations. A busca H3 também leu o checkout Sandbox já pago, com 4 GETs e zero mutações. Esses resultados não substituem a renovação financeira externa, os desfechos de disputa ou a prova de encerramento do checkout reutilizável.
 
-## Limite de conclusão
+## Continuidade aguardando suporte — gates S1, L1–L7 e E1–E4
+
+Baseline desta rodada: `14d7f9d4`; os checkpoints anteriores não são sobrescritos. Resultados novos em [relatório, seção 26](RELATORIO-HOMOLOGACAO-FINAL.md#26-continuidade-enquanto-o-suporte-não-responde--09112026). PostgreSQL usa as migrations reais e HTTP sintético; unitários usam mocks quando indicado. Nenhuma nova prova financeira remota foi executada.
+
+| Funcionalidade | Estado atual | Testes existentes | Lacuna | Ação local | Dependência do suporte | Status |
+|---|---|---|---|---|---|---|
+| Renovação | Calendário, cobrança e histórico atômicos | REN-001–020, leitor/PG | Ciclo externo e descoberta sem evento | Lease interrompido/final e fronteiras UTC | Acelerar ciclo e identificar cobrança | Local validável; externo BLOCKED |
+| Upgrade/downgrade/adicionais | Intenção durável; cota só na renovação integral alvo | H4/PG, rota de plano | Renovação alvo externa | Cancelamento durante comando e replay sem cota | Renovação após alteração | Local validável; externo BLOCKED |
+| Eventos negativos | Readback/revisão conforme ADR-071 | H2, negative-payment | Vínculo interno conflitante entrava em retry | Filtrar vínculo antes do GET; rollback/lease/provider | Procedimento de refund/disputa de assinatura | Correção local; externo BLOCKED |
+| Checkout desconhecido/duplicado | Reserva, fingerprint, descoberta única, sem POST cego | 35 unitários e 8 PG H3 históricos | Provedor permite várias assinaturas pelo link | Preservar guards; não excluir fixture paga | Uso único e consultas após fechar link | Local PASS histórico; garantia externa BLOCKED |
+| Recontratação | Geração nova, sem trial, após fim pago | 47 PG históricos e calendário | Instante exato/fuso; decurso real | Quatro casos de limite no calendário | Passagem temporal externa/procedimento oficial | Local ampliado; externo NOT RUN |
+| Conciliação/segurança | Inbox durável, lease, limites, review | HMAC/rota/journal/PG | Processo interrompido e auditoria indisponível | Retomar mesma obrigação, sem novos comandos | Correlação sem webhook completamente ausente | Local validável; ausência total BLOCKED |
+| Turnstile | Dois cenários ignorados na CI sem chaves | Provas isoladas históricas, seção 15 do relatório | Não comprova CI/Production real | Preservar status; nenhuma configuração alterada | Não depende de suporte AbacatePay | CI 8 PASS / 2 SKIP histórico |
+
+| ID | Estado inicial | Ação | Resultado esperado | Teste | Evidência | Status | Dependência externa |
+|---|---|---|---|---|---|---|---|
+| S1 | Perguntas anteriores parcialmente respondidas | Conferir fontes e entregar texto único | Somente quatro lacunas, sem segredos | Revisão documental | SOLICITACAO-SUPORTE-HOMOLOGACAO.md | PASS preparação/entrega; não enviado | Founder envia e retorna resposta |
+| L1-a | Cobrança de primeiro/segundo ciclo | Pagar/duplicar/atrasar evento sintético | Uma invoice por ciclo, calendário original | REN-001–004/012, H4 segundo ciclo | PG histórico + ensaio afetado | PASS histórico; regressão no fechamento | E1 |
+| L1-b | Worker morto com lease vencido | Nova conciliação do mesmo evento | Retomar uma vez; não criar cobrança | Novo check L1 de lease | JSON de execução desta rodada | PASS local; resultado no encerramento | Nenhuma para prova local |
+| L1-c | Cliente/tenant/gateway/valor divergentes | Readback/aplicação indevida | Revisão, sem concessão | REN-005–008/017 | Unitário/PG | PASS histórico | Nenhuma para prova local |
+| L1-d | Sem webhook de renovação | Consultar contrato inicial pago | Não inventar vínculo ou período | REN-019 | PG histórico | PASS de recusa; recuperação BLOCKED | E2 |
+| L1-e | Datas em mês/ano/fuso distintos | Projetar aniversário e tolerância | Mesmo instante, sem drift | renewal-period.test.ts, REN-013–015 | Testes locais | PASS local; resultado no encerramento | Calendário real em E1 |
+| L2-a | Plano alvo pendente | Pagar valor antigo/parcial/antecipado | Sem nova cota | H4 de valores | PG histórico | PASS histórico | E1 |
+| L2-b | Downgrade e ocupação | Reativar médico na última vaga | Reserva recusa excesso; não apaga usuário | H4 de downgrade | PG histórico | PASS histórico | E1 |
+| L2-c | Comando de plano sem resposta | Repetir/solicitar outro alvo | Uma obrigação unknown, sem segundo POST | H4 de lost response | PG histórico | PASS histórico | Conciliação oficial do resultado |
+| L2-d | Comando reservado antes do cancelamento | Cancelar antes do ACK; receber alvo pago | Preservar evidência sem mudar plano/cota | Novo check L2 | JSON de execução desta rodada | PASS local; resultado no encerramento | E1 para efeito remoto |
+| L3-a | Evento vinculado a outro tenant | Readback negativo conflitante | Revisão sem GET/rebinding | Novo check L3 de vínculo | Falha reproduzida e reteste | PASS local; resultado no encerramento | Nenhuma |
+| L3-b | Estorno parcial/integral sintético atual/antigo | Conciliar e repetir | ADR-071; ciclo novo não reduzido | H2 refund/reversal | PG + HTTP sintético | PASS histórico | E4; parcial não implica API suportada |
+| L3-c | Auditoria indisponível após cálculo da política | Falhar INSERT; reprocessar | Rollback completo e uma auditoria | Novo check L3 de rollback | JSON de execução desta rodada | PASS local; resultado no encerramento | Nenhuma |
+| L3-d | Lease perdido durante readback negativo | Tentar commit e retomar | Worker velho não altera estado | Novo check L3 de lease | JSON de execução desta rodada | PASS local; resultado no encerramento | Nenhuma |
+| L3-e | Evento negativo no namespace Asaas | Conciliar por ID | Sem GET/efeito AbacatePay | Novo check L3 de namespace | JSON de execução desta rodada | PASS local; resultado no encerramento | Nenhuma |
+| L3-f | Disputa aberta/encerrada sem prova suficiente | Receber notificação/status | Revisão; não inferir vitória/derrota | H2, tipo desconhecido, leitor negativo | PG/fixtures | PASS de segurança; desfecho BLOCKED | E4 |
+| L4 | POST de checkout perdido/concorrente | Recuperar por identidade única | Mesma intenção/operação; sem cobrar de novo | H3, journal e initial-payment | 8 PG históricos e unitários | PASS local/readback histórico | Uso único E3 continua BLOCKED |
+| L5 | Fim pago em UTC/Brasília | Criar período em -1ms/0/+1ms | Antes recusa; a partir do fim permite | abacatepay-period.test.ts | Testes locais | PASS local; resultado no encerramento | Recontratação temporal externa |
+| L6 | Worker final expirou em tentativa 10 | Reconciliar | Revisão sem 11º GET | Novo check L6 | JSON de execução desta rodada | PASS local; resultado no encerramento | Nenhuma |
+| L7 | Código/ensaios afetados | TypeScript/lint/testes/CI | Sem regressão, skips explícitos | Gates do projeto | Registro final do novo SHA | PASS local; resultado no encerramento | CI/Preview do SHA novo |
+| E1 | Assinatura ativa no Sandbox | Renovar/alterar/retry oficialmente | Ciclo e pagamento reais correlacionados | Não executado nesta rodada | Solicitação A | BLOCKED | Procedimento oficial |
+| E2 | Nenhum webhook de renovação entregue | Descobrir cobrança/ciclo | Correlação autoritativa, sem inferência | Não executado | Solicitação B | BLOCKED | API/procedimento oficial |
+| E3 | Checkout pago preservado | Invalidar link sem perder histórico | Uso único/recorrência/consultas preservados | Apenas probe não pago histórico | Solicitação C | BLOCKED | Garantia + fixture nova autorizada |
+| E4 | Cobrança de assinatura | Reembolsar/contestar oficialmente | Eventos/readback/revisão conhecidos | Fixtures somente | Solicitação D | BLOCKED | Recurso suportado fora do endpoint incompatível |
+
+### Histórico preservado da conclusão anterior
 
 Autenticação e ambiente Sandbox têm prova real; a [atestação inicial](SANDBOX-ATTESTATION-2026-11-07.json) de R$ 1 não substitui a mensalidade integral. A fixture atual pagou R$ 397 por cartão fictício na página de simulação do provedor, recebeu webhook real e confirmou direitos no DEV/Preview, sem invoice/evento positivo artificiais. O [snapshot sanitizado](evidencias/continuation-20261108.json) identifica o recorte. O E2E posterior conferiu UI paga, 409 ao contratar novamente e remoção dos bloqueios temporários, sem conectar integrações ou enviar convite. O callback no contexto isolado encontrou SSO da Vercel; a UI final foi testada após login legítimo. Ainda não há renovação temporal, chargeback, liquidação, coexistência financeira ativa ou paridade completa de gestão. Recuperação sem webhook foi testada com HTTP sintético; perda externa não foi induzida. Não repetir o pagamento já concluído nem usar o PAID inicial para renovar acesso.

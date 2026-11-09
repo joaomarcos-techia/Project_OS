@@ -20,3 +20,15 @@
 SHA/releases retornados, ambiente e capacidade; checkpoints; número agregado de operações/objetos reconciliados; verificações de isolamento/ACL; dívida/recorrência/benefício por operação sintética; duração real; owner/aprovador. Se houver dados reais, registro protegido com acesso mínimo e sem identificadores pessoais neste relatório Git.
 
 Não usar `DELETE`, reset scripts, migration DOWN ou restauração física de backup antigo como atalho de retorno. Nenhum comando destrutivo aparece aqui porque a reversão correta depende do estado da janela e deve ser revisada antes de execução.
+
+## AbacatePay Sandbox — recuperar trabalho interrompido ou revisar ambiguidade
+
+Aplicável somente à candidata da branch financeira; não autoriza Production, cobrança ou alteração de contrato real. [Evidências e gates atuais](../decoupling/asaas-to-abacatepay/RELATORIO-HOMOLOGACAO-FINAL.md#26-continuidade-enquanto-o-suporte-não-responde--09112026).
+
+1. Identificar em leitura o ambiente/conta, intenção, geração, event ID e estado interno. Conferir vínculo interno e externo; não exportar payloads, tokens, dados pessoais ou recibos para logs.
+2. Se o evento está `processing` e a lease ainda vale, não roubar a lease nem forçar reenvio. Se o processo morreu e a lease venceu, o conciliador existente retoma a mesma notificação; não há novo POST financeiro. Uma interrupção na última tentativa é encerrada como `review`, sem um 11º readback.
+3. Em falha de leitura/persistência, o worker mantém retry limitado. O efeito financeiro, a política de acesso, a auditoria e a conclusão do inbox só são reconhecidos após commit. Confirmar a invoice/período/auditoria reais; HTTP recebido ou texto da IA não os comprovam.
+4. `review` não significa pagamento recusado, reembolso executado nem permissão para estender acesso. O scanner normal não reabre automaticamente esses eventos. Responsável financeiro/engenharia deve reunir readback oficial e verificar geração/ciclo/valor/vínculos antes de propor reprocessamento explicitamente autorizado. Não editar estado financeiro para fabricar uma prova.
+5. Sem qualquer webhook de renovação, preservar a obrigação e solicitar correlação/replay oficial; não correlacionar por preço/data/cliente, não reutilizar o bill inicial nem criar cobrança substituta no Asaas. Usar a [solicitação de suporte](../decoupling/asaas-to-abacatepay/SOLICITACAO-SUPORTE-HOMOLOGACAO.md).
+6. Para refund/disputa, preservar período pago e revisão humana (ADR-071); evento antigo não encurta ciclo novo. Não executar `/checkouts/refund` para assinatura V2, não deduzir desfecho da disputa de PAID/ACTIVE e não excluir o checkout pago retido. Nenhum comando operacional destrutivo é necessário para o diagnóstico.
+7. Registrar gate, SHA, contagens, códigos seguros de erro e conclusão. Após orientação oficial, preparar fixture/limpeza antes de qualquer novo ensaio remoto. Esta rotina não recebeu prova de rollback em Production nem de renovação temporal externa.

@@ -51,4 +51,21 @@ describe('Qoro monthly access anchored to verified subscription creation', () =>
     expect(result?.end.toISOString()).toBe('2026-02-05T12:30:00.000Z');
     expect(result).not.toHaveProperty('nextDueDate');
   });
+  it.each([
+    ['2026-12-31T23:59:59.888Z', '2026-12-31T23:59:59.887Z', false],
+    ['2026-12-31T23:59:59.888Z', '2026-12-31T23:59:59.888Z', true],
+    ['2026-12-31T20:59:59.888-03:00', '2026-12-31T23:59:59.888Z', true],
+    ['2027-01-01T00:00:00.000Z', '2027-01-01T00:00:00.001Z', true],
+  ])(
+    'recontract boundary %s / %s permits a new verified period only at or after expiry',
+    (end, created, allowed) => {
+      const result = period({
+        trialEndsAt: new Date(end),
+        subscriptionCreatedAt: created,
+        now: new Date('2027-01-02T00:00:00Z'),
+      });
+      expect(result !== null).toBe(allowed);
+      if (allowed) expect(result?.start.getTime()).toBe(Date.parse(created));
+    },
+  );
 });

@@ -683,6 +683,161 @@ try {
     },
   );
   await check(
+    'L3 negative event already bound to another tenant cannot be rebound by remote identifiers',
+    async () => {
+      const f = await seed(),
+        other = await seed();
+      await accept(f);
+      assert.equal(await apply(f), 'applied');
+      const before = await state(f),
+        eventId = `log_bound_negative_${randomUUID()}`;
+      await accept(f, eventId, f.evidence, 'checkout.refunded');
+      await sql`UPDATE billing_gateway.event_inbox SET subscription_id=${other.subscription_id}::uuid,
+        clinic_id=${other.clinicId}::uuid WHERE event_id=${eventId}`;
+      installHttpFixture(f, { refundMinor: 39700 });
+      const reads = fixtureHttpCalls;
+      assert.equal((await reconcileAbacatePayInbox({ eventId })).review, 1);
+      assert.equal(fixtureHttpCalls, reads);
+      const [audit] = await sql`SELECT count(*)::int n FROM public.billing_events
+        WHERE type='subscription.financial.notification_checked' AND payload->>'eventId'=${eventId}`;
+      assert.deepEqual(audit, { n: 0 });
+      const [binding] =
+        await sql`SELECT subscription_id::text,clinic_id::text FROM billing_gateway.event_inbox
+        WHERE event_id=${eventId}`;
+      assert.deepEqual(binding, {
+        subscription_id: other.subscription_id,
+        clinic_id: other.clinicId,
+      });
+      assert.deepEqual(await state(f), before);
+    },
+  );
+  await check(
+    'L1 an expired worker lease recovers the same renewal after process interruption',
+    async () => {
+      const f = await seed();
+      await accept(f);
+      await sql`UPDATE billing_gateway.event_inbox SET state='processing',attempts=1,
+        lease_token=gen_random_uuid(),lease_until=now()-interval '1 second' WHERE event_id=${f.eventId}`;
+      installHttpFixture(f);
+      assert.equal((await reconcileAbacatePayInbox({ eventId: f.eventId })).applied, 1);
+      const before = await state(f);
+      assert.equal(before.invoices, 2);
+      assert.equal((await reconcileAbacatePayInbox({ eventId: f.eventId })).applied, 0);
+      assert.deepEqual(await state(f), before);
+    },
+  );
+  await check(
+    'L6 interruption of the final lease moves to review without an eleventh provider read',
+    async () => {
+      const f = await seed();
+      await accept(f);
+      await sql`UPDATE billing_gateway.event_inbox SET state='processing',attempts=10,
+        lease_token=gen_random_uuid(),lease_until=now()-interval '1 second' WHERE event_id=${f.eventId}`;
+      installHttpFixture(f);
+      const reads = fixtureHttpCalls,
+        before = await state(f);
+      assert.equal((await reconcileAbacatePayInbox({ eventId: f.eventId })).review, 1);
+      assert.equal(fixtureHttpCalls, reads);
+      assert.deepEqual(await state(f), before);
+      const [event] =
+        await sql`SELECT state,outcome_code FROM billing_gateway.event_inbox WHERE event_id=${f.eventId}`;
+      assert.deepEqual(event, { state: 'review', outcome_code: 'worker_attempts_exhausted' });
+    },
+  );
+  await check(
+    'L3 a negative-event worker that loses its lease cannot commit an audit or grace change',
+    async () => {
+      const f = await seed();
+      await accept(f);
+      assert.equal(await apply(f), 'applied');
+      const eventId = `log_lease_negative_${randomUUID()}`;
+      await accept(f, eventId, f.evidence, 'checkout.refunded');
+      installHttpFixture(f, { refundMinor: 39700 });
+      const provider = globalThis.fetch;
+      let expired = false;
+      globalThis.fetch = async (target, init) => {
+        if (!expired) {
+          expired = true;
+          await sql`UPDATE billing_gateway.event_inbox SET lease_until=now()-interval '1 second'
+            WHERE event_id=${eventId} AND state='processing'`;
+        }
+        return provider(target, init);
+      };
+      assert.equal((await reconcileAbacatePayInbox({ eventId })).retry, true);
+      const [before] = await sql`SELECT grace_period_until>current_period_end retained,
+        (SELECT count(*)::int FROM public.billing_events WHERE payload->>'eventId'=${eventId}) audits
+        FROM public.subscriptions WHERE id=${f.subscription_id}::uuid`;
+      assert.deepEqual(before, { retained: true, audits: 0 });
+      installHttpFixture(f, { refundMinor: 39700 });
+      assert.equal((await reconcileAbacatePayInbox({ eventId })).review, 1);
+      const [after] = await sql`SELECT grace_period_until=current_period_end bounded,
+        (SELECT count(*)::int FROM public.billing_events WHERE payload->>'eventId'=${eventId}) audits
+        FROM public.subscriptions WHERE id=${f.subscription_id}::uuid`;
+      assert.deepEqual(after, { bounded: true, audits: 1 });
+    },
+  );
+  await check(
+    'L3 negative-event audit failure rolls back access policy and inbox, then replay commits once',
+    async () => {
+      const f = await seed();
+      await accept(f);
+      assert.equal(await apply(f), 'applied');
+      const eventId = `log_rollback_negative_${randomUUID()}`;
+      await accept(f, eventId, f.evidence, 'checkout.refunded');
+      installHttpFixture(f, { refundMinor: 39700 });
+      await sql.unsafe(`CREATE FUNCTION public.synthetic_negative_audit_failure() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN IF NEW.type='subscription.financial.notification_checked' THEN
+          RAISE EXCEPTION 'Synthetic audit failure'; END IF; RETURN NEW; END $$;
+        CREATE TRIGGER synthetic_negative_audit_failure BEFORE INSERT ON public.billing_events
+          FOR EACH ROW EXECUTE FUNCTION public.synthetic_negative_audit_failure();`);
+      try {
+        assert.equal((await reconcileAbacatePayInbox({ eventId })).retry, true);
+        const [row] = await sql`SELECT s.grace_period_until>s.current_period_end retained,e.state,
+          (SELECT count(*)::int FROM public.billing_events WHERE payload->>'eventId'=${eventId}) audits
+          FROM public.subscriptions s JOIN billing_gateway.event_inbox e ON e.event_id=${eventId}
+          WHERE s.id=${f.subscription_id}::uuid`;
+        assert.deepEqual(row, { retained: true, state: 'received', audits: 0 });
+      } finally {
+        await sql.unsafe(`DROP TRIGGER synthetic_negative_audit_failure ON public.billing_events;
+          DROP FUNCTION public.synthetic_negative_audit_failure();`);
+      }
+      assert.equal((await reconcileAbacatePayInbox({ eventId })).review, 1);
+      const [row] =
+        await sql`SELECT count(*)::int n FROM public.billing_events WHERE payload->>'eventId'=${eventId}`;
+      assert.deepEqual(row, { n: 1 });
+    },
+  );
+  await check(
+    'L3 a negative notification in the Asaas namespace cannot affect AbacatePay or trigger remote reads',
+    async () => {
+      const f = await seed();
+      await accept(f);
+      assert.equal(await apply(f), 'applied');
+      const eventId = `log_asaas_negative_${randomUUID()}`;
+      const reads = fixtureHttpCalls;
+      // A notification naming a different provider account is never selected.
+      await sql`INSERT INTO billing_gateway.accounts(provider,environment,external_account_id)
+        VALUES('asaas','sandbox',${account.accountId}) ON CONFLICT DO NOTHING`;
+      const wrongInbox = createPostgresGatewayInbox({ ...account, provider: 'asaas' }, dbAdmin);
+      await wrongInbox.accept(
+        {
+          eventId,
+          eventType: 'checkout.disputed',
+          subscriptionId: f.evidence.subscriptionId,
+          customerId: f.evidence.customerId,
+          checkoutId: f.evidence.checkoutId,
+          paymentId: f.evidence.paymentId,
+        },
+        createHash('sha256').update(eventId).digest('hex'),
+      );
+      const before = await state(f);
+      const result = await reconcileAbacatePayInbox({ eventId });
+      assert.equal(result.scanned, 0);
+      assert.equal(fixtureHttpCalls, reads);
+      assert.deepEqual(await state(f), before);
+    },
+  );
+  await check(
     'H2 full/partial refund observations are idempotent and never cancel access or alter the paid invoice',
     async () => {
       for (const amount of [10000, 39700]) {
@@ -906,6 +1061,53 @@ try {
         'applied',
       );
       assert.equal((await projection(f)).code, 'consultorio_2026');
+    },
+  );
+  await check(
+    'L2 cancellation during a plan command preserves paid evidence without releasing the target quota',
+    async () => {
+      const f = await seed(86_400_000),
+        targetPlanId = await targetPlan('clinica_2026_3');
+      installPlanHttpFixture(f);
+      const provider = globalThis.fetch;
+      globalThis.fetch = async (target, init) => {
+        if (new URL(String(target)).pathname.endsWith('/change-plan')) {
+          // Interleave a cancellation after the intent committed, but before
+          // the remote plan command acknowledgement returns to the caller.
+          await sql`INSERT INTO billing_gateway.cancellations(account_id,external_subscription_id,subscription_id,clinic_id,
+            external_customer_id,external_checkout_id,paid_period_start,paid_period_end,requested_by)
+            VALUES(${f.account_id}::uuid,${f.evidence.subscriptionId},${f.subscription_id}::uuid,${f.clinicId}::uuid,
+              ${f.evidence.customerId},${f.evidence.originCheckoutId},${f.anchor},${f.end},${f.userId}::uuid)`;
+        }
+        return provider(target, init);
+      };
+      await changePlan(dbAdmin, {
+        clinicId: f.clinicId,
+        requestedBy: f.userId,
+        contractId: f.subscription_id,
+        targetPlanId,
+      });
+      const evidence = changedEvidence(f, 54400, 'prod_three');
+      await accept(f, f.eventId, evidence);
+      assert.equal(
+        await dbAdmin.transaction((tx) =>
+          applyAbacatePayRenewalTx(tx, evidence, f.eventId, new Date(f.end.getTime() + 2000)),
+        ),
+        'review',
+      );
+      assert.equal((await projection(f)).code, 'clinica_2026_2');
+      const before = await state(f);
+      assert.equal(before.invoices, 2);
+      assert.equal(
+        await dbAdmin.transaction((tx) =>
+          applyAbacatePayRenewalTx(tx, evidence, f.eventId, new Date(f.end.getTime() + 2000)),
+        ),
+        'review',
+      );
+      assert.deepEqual(await state(f), before);
+      const [intent] = await sql`SELECT invoice_id IS NULL pending FROM billing_gateway.plan_changes
+        WHERE clinic_id=${f.clinicId}::uuid`;
+      assert.deepEqual(intent, { pending: true });
     },
   );
   await check(

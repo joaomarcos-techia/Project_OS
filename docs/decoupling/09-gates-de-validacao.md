@@ -20,6 +20,10 @@ Use status terminal somente após execução: **PASS** prova suficiente; **FAIL*
 
 ## Ficha obrigatória de cada decisão
 
+### Recorte AbacatePay — continuidade com suporte pendente
+
+Os gates globais acima não mudam por um PASS local. A [matriz S1/L1–L7/E1–E4](asaas-to-abacatepay/MATRIZ-CENARIOS-E-TESTES.md#continuidade-aguardando-suporte--gates-s1-l1l7-e-e1e4) registra implementação, tipo de teste e dependência. S1 comprova somente mensagem preparada/entregue, não envio/resposta. L4 comprova proteção das operações Qoro, não uso único garantido no checkout hospedado. E1–E4 continuam BLOCKED até orientação/provas oficiais suficientes; não retirar esses critérios. O [registro final do incremento](asaas-to-abacatepay/RELATORIO-HOMOLOGACAO-FINAL.md#26-continuidade-enquanto-o-suporte-não-responde--09112026) contém os resultados dos gates afetados e do novo SHA.
+
 Registrar gate + SHA/release/ambiente + critérios/metas aprovados + comandos/resultados + links de evidência + falhas + risco residual + ação corretiva + aprovador/data + GO/NO-GO. Em falha: congelar a capacidade afetada e continuar trabalho independente seguro. Não prosseguir para cutover financeiro com efeito incerto ou autorização multi-tenant sem prova.
 
 ## Regras de interrupção

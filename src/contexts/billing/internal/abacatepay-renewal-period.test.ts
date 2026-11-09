@@ -77,4 +77,20 @@ describe('approved original monthly Qoro renewal calendar', () => {
   ])('ambiguous, initial, invalid or future evidence requires review: %j', (overrides) => {
     expect(period({ ...input, ...overrides })).toBeNull();
   });
+  it.each([-60_001, -60_000, 0, 60_000, 60_001])(
+    'the creation tolerance is bounded at exactly one minute (%i ms)',
+    (delta) => {
+      const boundary = Date.parse('2026-02-28T23:59:59.888Z');
+      const result = period({
+        ...input,
+        chargeCreatedAt: new Date(boundary + delta).toISOString(),
+        confirmedAt: '2026-03-01T00:05:00Z',
+      });
+      expect(result !== null).toBe(Math.abs(delta) <= 60_000);
+      if (result) {
+        expect(result.index).toBe(1);
+        expect(result.start.getTime()).toBe(boundary);
+      }
+    },
+  );
 });

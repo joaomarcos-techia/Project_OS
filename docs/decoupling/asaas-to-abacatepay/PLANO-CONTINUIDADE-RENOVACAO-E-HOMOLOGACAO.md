@@ -47,6 +47,12 @@ O recorte R1 acima foi implementado sem dependências novas, alterações de CI/
 
 ## Rastreabilidade e registro de execução
 
+### Continuação sem resposta do suporte — 09/11/2026
+
+A [solicitação única](SOLICITACAO-SUPORTE-HOMOLOGACAO.md) substitui perguntas anteriores: não foi enviada nem respondida pela engenharia. As quatro dependências são renovação Sandbox reproduzível, descoberta de cobrança/ciclo sem webhook, uso único/histórico após invalidar checkout e procedimento de reembolso/disputa de assinatura. O endpoint `/checkouts/refund` explicitamente não atende assinaturas V2; não é uma alternativa a ensaiar.
+
+Os ensaios adicionais cobrem recuperação de worker interrompido, limite final de tentativas sem nova leitura, rollback da auditoria/política negativa, namespace, vínculo interno e cancelamento durante mudança de plano. Calendário acrescenta bordas exatas de tolerância e vencimento em UTC/Brasília. Referência de execução/gates na [seção 26 do relatório](RELATORIO-HOMOLOGACAO-FINAL.md#26-continuidade-enquanto-o-suporte-não-responde--09112026). Não reimplementar recontratação ou repetir pagamento inicial já comprovado. Não fabricar renovação ou correlação por data/valor na ausência de resposta oficial.
+
 Requisito → regra aprovada → implementação → teste → evidência → gate. REN-016 anual novo permanece indisponível: o caso deve provar recusa e preservação do Asaas anual legado, não oferecer recorrência anual AbacatePay. REN-017 depende da ADR-068 C e de prova do novo produto/valor; aceite de `PENDING` não libera assentos.
 
 O primeiro checkpoint foi somente investigação. A execução posterior implementou R1a–R1c conforme as decisões acima, sem criar cobrança, nova conta ou evento financeiro externo. A prova PostgreSQL usa dados sintéticos e HTTP de fixture; **não é renovação temporal Sandbox**.
