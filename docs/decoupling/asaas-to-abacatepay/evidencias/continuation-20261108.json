@@ -140,6 +140,11 @@
     "typecheck": "PASS",
     "lint": "PASS",
     "architectureDb": "PASS_1718_files_zero_findings",
+    "inventory": "PASS_local_199_actions_63_methods_zero_unresolved_after_two_document_line_fixes",
+    "sourceCiRun": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/42547027487",
+    "sourceCiUnitTests": 6537,
+    "sourceCiTestFiles": 603,
+    "sourceCiConclusion": "FAIL_document_inventory_stale_later_gates_skipped",
     "unknownPostLostCheckoutIdDiscovery": "NOT_IMPLEMENTED"
   }
 }
