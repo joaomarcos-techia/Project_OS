@@ -31,6 +31,29 @@ function signed(body: unknown = event) {
 }
 
 describe('AbacatePay authenticated notification parser (no durable receiver)', () => {
+  it('accepts the support-confirmed lost dispute without inventing a subscription ID or financial effect', () => {
+    const notification = verifyAbacatePayNotification(
+      signed({
+        id: 'log_lost_fixture',
+        event: 'checkout.lost',
+        apiVersion: 2,
+        devMode: true,
+        data: {
+          checkout: { id: 'bill_cycle', status: 'LOST' },
+          customer: { id: 'cust_test', email: 'private@example.test' },
+          payerInformation: { method: 'CARD', CARD: { number: '1234', brand: 'VISA' } },
+        },
+      }),
+    );
+    expect(notification).toMatchObject({
+      eventType: 'checkout.lost',
+      checkoutId: 'bill_cycle',
+      customerId: 'cust_test',
+      subscriptionId: null,
+      paymentId: null,
+    });
+    expect(JSON.stringify(notification)).not.toMatch(/private@example|1234|LOST|payerInformation/);
+  });
   it('validates the secret AND the HMAC and returns only identifiers', () => {
     const notification = verifyAbacatePayNotification(signed());
     expect(notification).toEqual({

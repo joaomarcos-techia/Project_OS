@@ -52,6 +52,21 @@ Obrigado!
 
 Preparada em 09/11/2026; referências oficiais consultadas nessa data. No checkpoint `75fe1e74`, foi apresentada no chat e salva, sem envio pela engenharia.
 
-**Atualização informada pelo proprietário na rodada seguinte: a solicitação já foi enviada por ele ao suporte da AbacatePay. A resposta ainda está pendente.** Não reenviar a mensagem nem solicitar nova cobrança de resposta nesta rodada. As quatro perguntas já foram encaminhadas; E1–E4 permanecem `BLOCKED — AGUARDANDO SUPORTE` no recorte externo. Isso não impede desenvolvimento/testes locais independentes e não significa aprovação implícita do provedor.
+**Checkpoint anterior:** o proprietário enviou a solicitação. **Atualização de 09/11/2026: resposta recebida de Guilherme, encaminhada pelo proprietário no chat.** Não reenviar a solicitação. O estado atual está abaixo; a mensagem original permanece como histórico, não como lista de quatro perguntas ainda sem resposta. Não foi informado um número de ticket.
 
-Quando houver resposta, registrar ticket e orientações sanitizadas, sem chaves, tokens, payloads, dados pessoais ou cartão. O texto acima fica preservado como registro da solicitação original.
+O texto acima fica preservado como registro da solicitação original. Registrar eventual número de ticket posteriormente, sem chaves, tokens, payloads, dados pessoais ou cartão.
+
+## Resposta recebida e consequência técnica — 09/11/2026
+
+| Gate | Informação confirmada pelo suporte | Estado da homologação e próxima ação |
+|---|---|---|
+| E1 — renovação Sandbox | Não existe acelerador de ciclo, fixture ou procedimento assistido. O simulador transparente não cobre recorrência, mudança de plano nem falha/retry. | Limitação confirmada. Fixtures de webhooks validam o código local, não uma renovação financeira externa. Manter observação temporal separada e submeter eventual aceite de risco ao founder. Não pedir outro endpoint de simulação. |
+| E2 — ausência de todos os webhooks | Não há consulta de cobranças/ciclos por assinatura. A assinatura expõe somente o checkout original. O extrato não traz vínculo `subs_`. | Limitação confirmada. Persistir `payment.id` recebido e comparar com `paymentIntentId` do extrato; não inferir vínculo por preço/data/cliente. Recuperação do inbox recebido existe; descoberta de uma renovação nunca recebida não é garantida e exige procedimento operacional/aceite explícito. |
+| E3 — checkout reutilizável | Não existe uso único. `customerId` só preenche dados. Criar checkout por cliente com `externalId` e conferir assinaturas pelo checkout após conclusão. Excluir o checkout preserva assinaturas. | **Ainda pendente de confirmação do time do provedor:** se a URL deixa de aceitar pagamento e quais efeitos existem nas consultas, recibos, extrato, renovações, eventos e mudança de plano. Não excluir a fixture paga nem declarar que o monitor impede um segundo pagamento externo. |
+| E4 — refund/disputa | Refund integral pelo painel ou portal; a API de refund avulso não atende assinatura. Refund cancela a assinatura imediatamente e emite `checkout.refunded` + `subscription.cancelled`. Disputa emite `checkout.disputed` e, se perdida, `checkout.lost`. Sem simulador recorrente. | Procedimento esclarecido; execução externa ainda NOT RUN. Preservar ADR-071: não revogar o período pago automaticamente, registrar/revisar. Não oferecer reembolso parcial nem publicar portal sem revisar seus efeitos. |
+
+Eventos de renovação paga têm um novo `payment.id` e um `checkout.id` da própria renovação. A falha possui `installmentId`, `installmentNumber` e `retryNumber`, que distinguem ciclos e tentativas. O inbox atual preserva IDs financeiros e deduplica pelo evento; os detalhes de tentativa não são persistidos no DTO mínimo e não são usados para cobrar, conceder acesso ou contar um novo ciclo. Não afirmar visibilidade por tentativa que ainda não foi implementada.
+
+O receptor só confirma aceitação após persistência segura; responder 2xx antes de gravar o inbox perderia essa proteção. O código não usa o webhook isolado para conceder direitos sem as provas de vínculo/pagamento/ciclo existentes.
+
+Referências oficiais conferidas: [assinaturas](https://docs.abacatepay.com/pages/subscriptions/reference), [eventos recorrentes](https://docs.abacatepay.com/pages/webhooks/events/subscriptions), [eventos de checkout](https://docs.abacatepay.com/pages/webhooks/events/checkout), [refund](https://docs.abacatepay.com/pages/payment/refund) e [portal](https://docs.abacatepay.com/pages/customer-portal/reference). A confirmação direta de Guilherme complementa as limitações documentadas; não representa um teste externo executado pelo Qoro.

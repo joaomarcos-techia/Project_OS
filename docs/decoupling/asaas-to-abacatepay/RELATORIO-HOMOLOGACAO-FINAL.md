@@ -396,3 +396,28 @@ As duas provas Turnstile foram preparadas em cópia local sem `.env`, com chaves
 A capacidade do capturador Sentry existente é utilizada, mas **entrega de uma notificação ao responsável não foi ensaiada nesta rodada**. Antes de piloto real, conferir destino/roteamento do sinal e capacidade do cron para a quantidade de checkouts; a métrica de lote adiado não equivale a uma varredura completa. E1–E4 continuam pendências externas de homologação, não regressões locais presumidas.
 
 O [snapshot sanitizado desta rodada](evidencias/integridade-recorrencias-20261109.json) reúne as verificações, horários, limites e hashes dos arquivos executáveis. A revisão adversarial foi feita pelo mesmo executor, com casos de resposta malformada, tenant/gateway divergentes, cursor repetido, timeout, locks e falha de persistência; não representa uma revisão independente. **L1–L7 têm evidência local aplicável; L8 permanece PARTIAL** pelos dois cenários Turnstile não executados no runner atual e pela necessidade de conferir o novo Preview; **L9 depende também da CI própria**. Não há decisão comercial pendente nova nesta implementação. Após a resposta oficial, executar somente as provas E1–E4 que o mecanismo suportado permitir, em fixtures identificadas; não repetir a compra inicial nem reenviar a solicitação.
+
+## 28. Resposta do suporte incorporada — 09/11/2026
+
+A [resposta de Guilherme encaminhada pelo founder](SOLICITACAO-SUPORTE-HOMOLOGACAO.md#resposta-recebida-e-consequência-técnica--09112026) substitui o estado geral “aguardando suporte” dos checkpoints anteriores. E1 e E2 são limitações confirmadas; E4 tem procedimento esclarecido; somente parte de E3 ainda aguarda confirmação do time do provedor. Nenhum limite externo recebe PASS por uma fixture local.
+
+| Frente | Conclusão atual | Risco/ação restante |
+|---|---|---|
+| Renovação, planos e retries | Sem acelerador Sandbox. Calendário e efeitos já têm testes locais; o ciclo financeiro externo não foi antecipado. | Observar ciclo real ou tratar o requisito de aceite com autorização expressa; não repetir pagamento inicial. |
+| Renovação sem nenhum webhook | Não existe histórico de cobranças por assinatura nem vínculo `subs_` no extrato. Recuperação do inbox já recebido não resolve ausência integral de evento. | Operação precisa de reenvio pelo provedor/suporte e vínculo autoritativo. Não conceder acesso por aproximação de valor, cliente ou horário. Risco exige decisão explícita antes do piloto. |
+| URL reutilizável | `customerId` não impede outro pagador. Monitor/journal detectam inconsistência, sem impedir o pagamento externo. | Aguardar confirmação de invalidação da URL e efeitos após exclusão. Fixture paga intacta. Continua impedimento para ativação irrestrita. |
+| Refund e disputa | Refund integral pelo painel/portal cancela remotamente; refund parcial de assinatura não está disponível. Eventos negativos não equivalem a prova de débito. | ADR-071 mantém o acesso já pago e revisão humana. Nenhum refund, portal ou disputa real foi executado. |
+
+### Correção encontrada e executada
+
+O receptor já aceitava `checkout.lost`, mas o worker o encaminhava à revisão genérica, sem a mesma observação financeira auditada de `checkout.disputed`. O evento foi incluído no ramo de notificação financeira negativa. O vínculo de checkout/cliente continua sendo validado; a notificação não revoga acesso, não cancela recorrência e não afirma que o readback provou uma perda financeira.
+
+Provas novas: **35/35 testes focados** (processamento e receptor HMAC) e **51/51 checks PostgreSQL**, com **142 migrations reais**, 177 chamadas HTTP sintéticas e **zero rede externa**. O 51º check aplica um segundo ciclo sintético, recebe `checkout.lost` sem `subscriptionId`, confere uma auditoria conforme ADR-071, repete o evento sem outro GET e compara o estado financeiro integral. Os outros 50 checks são regressão afetada, não 50 provas novas. Os resultados de CI/build do novo commit devem ser lidos no fechamento remoto desta seção.
+
+O suporte distingue falhas por `installmentId`, `installmentNumber` e `retryNumber`. Esses detalhes ainda não são persistidos no DTO mínimo; não há cobrança/retry iniciado pelo Qoro nem concessão de novo ciclo a partir de falha. Deduplicação atual é por ID de evento. A informação por tentativa é uma melhoria de observabilidade, não uma capacidade já entregue.
+
+**NO-GO para ativar AbacatePay em Production mantido.** Sem migration nova, alteração de produção, envio externo, novo checkout, pagamento, cancelamento ou exclusão da fixture. As quatro exclusões locais de vídeos históricos detectadas antes da edição foram preservadas fora do commit; não representam alterações desta correção.
+
+### Fechamento local do incremento de suporte
+
+TypeScript, lint integral, Prettier dos três arquivos executáveis, inventário e diff check passaram com exit 0. O inventário manteve 199 ações, 65 métodos HTTP e zero pendência de guard/env pública/teste de rota. [Evidência sanitizada](evidencias/resposta-suporte-20261109.json), com hashes do código executado. CI/build do novo commit devem ser conferidos no PR #53; a aprovação de `ffd4c635` continua histórica e não substitui os checks desta correção.

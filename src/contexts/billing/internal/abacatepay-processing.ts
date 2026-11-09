@@ -310,9 +310,12 @@ export async function reconcileAbacatePayInbox(input: { eventId?: string } = {})
     }
   }
   if (
-    ['subscription.payment_failed', 'checkout.refunded', 'checkout.disputed'].includes(
-      event.event_type,
-    )
+    [
+      'subscription.payment_failed',
+      'checkout.refunded',
+      'checkout.disputed',
+      'checkout.lost',
+    ].includes(event.event_type)
   ) {
     try {
       const evidence = await readAbacatePayNegativeEvent(dbAdmin, event.event_id);

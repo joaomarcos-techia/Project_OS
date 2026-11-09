@@ -48,3 +48,13 @@ Aplicável somente à candidata da branch financeira; não autoriza Production, 
 5. Sem qualquer webhook de renovação, preservar a obrigação e solicitar correlação/replay oficial; não correlacionar por preço/data/cliente, não reutilizar o bill inicial nem criar cobrança substituta no Asaas. Usar a [solicitação de suporte](../decoupling/asaas-to-abacatepay/SOLICITACAO-SUPORTE-HOMOLOGACAO.md).
 6. Para refund/disputa, preservar período pago e revisão humana (ADR-071); evento antigo não encurta ciclo novo. Não executar `/checkouts/refund` para assinatura V2, não deduzir desfecho da disputa de PAID/ACTIVE e não excluir o checkout pago retido. Nenhum comando operacional destrutivo é necessário para o diagnóstico.
 7. Registrar gate, SHA, contagens, códigos seguros de erro e conclusão. Após orientação oficial, preparar fixture/limpeza antes de qualquer novo ensaio remoto. Esta rotina não recebeu prova de rollback em Production nem de renovação temporal externa.
+
+## AbacatePay — suporte e recuperação de eventos negativos (09/11/2026)
+
+1. Refund de assinatura é integral pelo painel ou portal oficial; a API de refund avulso não atende esse produto. Não acionar reembolso durante diagnóstico. O portal permite efeitos financeiros e não deve ser publicado automaticamente como simples link de consulta.
+2. Refund cancela a recorrência no provedor imediatamente. Esperar `checkout.refunded` e `subscription.cancelled`; disputa aberta usa `checkout.disputed`, perda usa `checkout.lost`. O Qoro mantém o período pago conforme ADR-071 e encaminha para revisão, sem nova cobrança ou revogação automática. Um evento antigo não deve retirar direitos de ciclo mais recente.
+3. Para um incidente, registrar somente IDs técnicos necessários, horário, tipo de evento e execução do inbox. Conferir vínculo previamente persistido; comparar `payment.id` com `paymentIntentId` do extrato quando disponíveis. Não publicar payloads ou dados de pagador.
+4. Sem webhook recebido não há API de cobranças por assinatura. Solicitar ao provedor reenvio e vínculo autoritativo, pelo canal aprovado. A lista da assinatura e o extrato sem esse vínculo não autorizam inferir ciclo nem ampliar acesso. Guardar a decisão operacional sem editar manualmente a invoice para aparentar reconciliação.
+5. `checkout.lost` possui teste de observação auditada e replay em PostgreSQL real com HTTP sintético. Não é uma contestação efetivamente simulada no Sandbox; o provedor confirmou que não existe esse simulador.
+
+[Resposta e limites](../decoupling/asaas-to-abacatepay/SOLICITACAO-SUPORTE-HOMOLOGACAO.md#resposta-recebida-e-consequência-técnica--09112026). A fixture paga permanece preservada até confirmação da invalidação da URL, sem testar delete ou cancelamento adicional.

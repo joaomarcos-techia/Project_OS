@@ -710,6 +710,41 @@ try {
     },
   );
   await check(
+    'support-confirmed checkout.lost records bound review once without a subscription reference or access change',
+    async () => {
+      const f = await seed();
+      await accept(f);
+      assert.equal(await apply(f), 'applied');
+      const before = await financialFingerprint(f),
+        eventId = `log_lost_support_${randomUUID()}`;
+      await inbox.accept(
+        {
+          eventId,
+          eventType: 'checkout.lost',
+          subscriptionId: null,
+          paymentId: null,
+          customerId: f.evidence.customerId,
+          checkoutId: f.evidence.checkoutId,
+        },
+        createHash('sha256').update(eventId).digest('hex'),
+      );
+      installHttpFixture(f);
+      assert.equal((await reconcileAbacatePayInbox({ eventId })).review, 1);
+      const [audit] = await sql`SELECT count(*)::int n,min(payload->>'eventType') event_type,
+        min(payload->>'accessEffect') effect FROM public.billing_events
+        WHERE clinic_id=${f.clinicId}::uuid AND type='subscription.financial.notification_checked' AND payload->>'eventId'=${eventId}`;
+      assert.deepEqual(audit, {
+        n: 1,
+        event_type: 'checkout.lost',
+        effect: 'keep_paid_period_human_review',
+      });
+      const reads = fixtureHttpCalls;
+      await reconcileAbacatePayInbox({ eventId });
+      assert.equal(fixtureHttpCalls, reads);
+      assert.deepEqual(await financialFingerprint(f), before);
+    },
+  );
+  await check(
     'L3 negative event already bound to another tenant cannot be rebound by remote identifiers',
     async () => {
       const f = await seed(),

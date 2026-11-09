@@ -46,3 +46,11 @@ Esse controle **não elimina o P0 de uso único** nem comprova entrega de alerta
 Resultados e limites na [seção 26 do relatório](asaas-to-abacatepay/RELATORIO-HOMOLOGACAO-FINAL.md#26-continuidade-enquanto-o-suporte-não-responde--09112026). Não aceitar risco financeiro implicitamente nem ativar Production porque a regressão local passou.
 
 Revisão própria realizada: (1) incluído GCP/Upstash/Meta/Resend para não confundir saída de host com saída de todos os serviços; (2) explicitado writer/scheduler único para evitar split-brain; (3) mantido reset/MFA/cutover como riscos de identidade distintos; (4) separado Supabase self-hosted de Postgres genérico; (5) proibida transferência presumida de cartão/mandato; (6) preservado refund da origem após troca; (7) atualizado estado real da landing main e seu Preview fixo; (8) restore histórico não recebe PASS atual; (9) não exigida nova compra/PITR nem retirado aceite anterior; (10) retorno de código não substitui retorno de estado; (11) quantidades/custos/SLAs ausentes marcados PENDENTES; (12) split e NF não inventados por nomes de tabelas. Não houve revisão independente por outro agente nesta rodada.
+
+## Atualização de risco após suporte — 09/11/2026
+
+E1/E2 não dependem mais de localizar um recurso de API: o suporte confirmou que não existem aceleração de ciclo Sandbox nem histórico de cobranças por assinatura. Testes locais não eliminam o risco de uma renovação sem webhook. É necessária operação de reenvio/correlação autoritativa e aceite explícito de eventual risco residual; não ampliar acesso por status da assinatura ou coincidência de valores.
+
+E3 continua alto risco: customerId não bloqueia outro pagador e falta a confirmação do efeito da exclusão na URL paga e no histórico. Monitoramento de recorrências múltiplas é detecção, não prevenção do pagamento. Manter NO-GO de ativação e a fixture paga intacta.
+
+E4 tem caminho oficial integral via dashboard/portal; não existe parcial nem simulador de refund/disputa recorrente. Refund cancela remotamente, mas o acesso local segue ADR-071. O tratamento auditado de checkout.lost foi corrigido e validado localmente; não prova um chargeback externo. Entrega de alertas, capacidade do cron e ensaio operacional continuam requisitos antes de piloto.

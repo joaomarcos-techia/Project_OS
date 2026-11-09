@@ -157,3 +157,17 @@ O status executado dos gates locais deve ser lido no encerramento do relatório.
 ### Histórico preservado da conclusão anterior
 
 Autenticação e ambiente Sandbox têm prova real; a [atestação inicial](SANDBOX-ATTESTATION-2026-11-07.json) de R$ 1 não substitui a mensalidade integral. A fixture atual pagou R$ 397 por cartão fictício na página de simulação do provedor, recebeu webhook real e confirmou direitos no DEV/Preview, sem invoice/evento positivo artificiais. O [snapshot sanitizado](evidencias/continuation-20261108.json) identifica o recorte. O E2E posterior conferiu UI paga, 409 ao contratar novamente e remoção dos bloqueios temporários, sem conectar integrações ou enviar convite. O callback no contexto isolado encontrou SSO da Vercel; a UI final foi testada após login legítimo. Ainda não há renovação temporal, chargeback, liquidação, coexistência financeira ativa ou paridade completa de gestão. Recuperação sem webhook foi testada com HTTP sintético; perda externa não foi induzida. Não repetir o pagamento já concluído nem usar o PAID inicial para renovar acesso.
+
+## Estado após resposta de Guilherme — 09/11/2026
+
+Este quadro substitui somente os estados atuais “aguardando suporte”; os quadros anteriores são históricos.
+
+| Gate | Estado | Evidência | Próxima ação |
+|---|---|---|---|
+| E1 | PARTIAL — limitação Sandbox confirmada | Suporte: nenhum acelerador; testes locais de ciclos/planos/retries existentes | Observação temporal ou aceite formal do risco; não confundir fixture com renovação externa |
+| E2 | PARTIAL — limitação da API confirmada | Suporte: sem endpoint de cobranças/ciclos por assinatura | Reenvio operacional com vínculo autoritativo e decisão de risco para ausência integral de webhook |
+| E3 | BLOCKED — confirmação parcial pendente | Checkout não é uso único; customerId só preenche; efeito da URL após delete ainda em apuração | Preservar fixture; aguardar confirmação específica de invalidação e histórico |
+| E4 | PARTIAL — procedimento esclarecido, ensaio externo NOT RUN | Dashboard/portal integral; refund cancela assinatura; sem simulador recorrente | Revisão humana ADR-071, procedimento operacional; não usar refund avulso nem oferecer parcial |
+| L3-f / checkout.lost | PASS local | 35 testes focados e 51 checks PG com 142 migrations/HTTP sintético | Conferir CI do novo commit; não alegar disputa perdida real |
+
+`checkout.lost` agora segue a observação financeira com auditoria/revisão e preservação do período pago. Replay não repete GET/efeito. `payment_failed` mantém revisão segura; metadados installment/retry ainda não são persistidos. Os IDs de pagamento recebidos são a base da conciliação; não inferir ciclos pela lista de assinaturas ou por valores parecidos.
