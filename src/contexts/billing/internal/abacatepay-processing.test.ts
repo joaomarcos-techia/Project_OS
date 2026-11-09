@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   transaction: vi.fn(),
   runtime: vi.fn(),
   emit: vi.fn(),
+  record: vi.fn(),
   env: { ABACATEPAY_STORE_ID: 'store_fixture', ABACATEPAY_API_KEY: 'synthetic-worker-unit-only' },
 }));
 vi.mock('@/lib/db', () => ({
@@ -13,8 +14,11 @@ vi.mock('@/lib/db', () => ({
 vi.mock('@/lib/env', () => ({ env: mocks.env }));
 vi.mock('@/lib/payments/saas/acquisition', () => ({ isAbacatePaySandboxRuntime: mocks.runtime }));
 vi.mock('@/lib/observability/metrics', () => ({ metrics: { emit: mocks.emit } }));
-vi.mock('./subscriptions', () => ({ markInvoicePaid: vi.fn(), recordBillingEvent: vi.fn() }));
-import { reconcileAbacatePayInbox } from './abacatepay-processing';
+vi.mock('./subscriptions', () => ({ markInvoicePaid: vi.fn(), recordBillingEvent: mocks.record }));
+import {
+  reconcileAbacatePayInbox,
+  reconcileMissingAbacatePayInitialPayment,
+} from './abacatepay-processing';
 
 beforeEach(() => {
   vi.stubGlobal(
@@ -23,9 +27,90 @@ beforeEach(() => {
   );
   vi.clearAllMocks();
   mocks.execute.mockReset();
+  mocks.transaction.mockReset();
+  mocks.transaction.mockImplementation((callback: (tx: object) => Promise<void>) => callback({}));
   mocks.runtime.mockReturnValue(true);
   mocks.env.ABACATEPAY_API_KEY = 'synthetic-worker-unit-only';
   mocks.execute.mockResolvedValue([]);
+});
+
+describe('missing initial webhook recovery (unit DB double)', () => {
+  const id = '11111111-1111-4111-8111-111111111111';
+  it('does not access the database or provider outside the Sandbox runtime', async () => {
+    mocks.runtime.mockReturnValue(false);
+    expect(await reconcileMissingAbacatePayInitialPayment()).toEqual({
+      scanned: 0,
+      applied: 0,
+      duplicate: 0,
+      review: 0,
+    });
+    expect(mocks.execute).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+  it('has no side effects without a key', async () => {
+    mocks.env.ABACATEPAY_API_KEY = '';
+    await reconcileMissingAbacatePayInitialPayment();
+    expect(mocks.execute).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+  it('rejects an invalid scoped identifier before querying', async () => {
+    await expect(
+      reconcileMissingAbacatePayInitialPayment({ subscriptionId: 'invalid' }),
+    ).rejects.toThrow();
+    expect(mocks.execute).not.toHaveBeenCalled();
+  });
+  it('does not contact the provider or write when no eligible checkout remains', async () => {
+    expect(await reconcileMissingAbacatePayInitialPayment({ subscriptionId: id })).toEqual({
+      scanned: 0,
+      applied: 0,
+      duplicate: 0,
+      review: 0,
+    });
+    expect(mocks.execute).toHaveBeenCalledOnce();
+    expect(mocks.transaction).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+  it('records a safe failure without granting access when provider readback fails', async () => {
+    mocks.execute.mockResolvedValueOnce([
+      {
+        subscription_id: id,
+        clinic_id: id,
+        checkout_id: 'bill_fixture',
+        product_id: 'prod_fixture',
+        amount_minor: '39700',
+      },
+    ]);
+    expect(await reconcileMissingAbacatePayInitialPayment({ subscriptionId: id })).toEqual({
+      scanned: 1,
+      applied: 0,
+      duplicate: 0,
+      review: 1,
+    });
+    expect(mocks.record).toHaveBeenCalledWith({}, id, 'subscription.initial_payment.checked', {
+      subscriptionId: id,
+      provider: 'abacatepay',
+      outcome: 'readback_or_transaction_failed',
+    });
+    expect(mocks.transaction).toHaveBeenCalledOnce();
+    expect(mocks.emit).toHaveBeenCalledWith('billing.abacatepay.reconcile_failed', {
+      reason: 'missing_initial_webhook',
+    });
+  });
+  it('propagates an audit persistence failure instead of claiming recovery', async () => {
+    mocks.execute.mockResolvedValueOnce([
+      {
+        subscription_id: id,
+        clinic_id: id,
+        checkout_id: 'bill_fixture',
+        product_id: 'prod_fixture',
+        amount_minor: '39700',
+      },
+    ]);
+    mocks.record.mockRejectedValueOnce(new Error('Synthetic audit unavailable'));
+    await expect(reconcileMissingAbacatePayInitialPayment({ subscriptionId: id })).rejects.toThrow(
+      'Synthetic audit unavailable',
+    );
+  });
 });
 afterEach(() => vi.unstubAllGlobals());
 describe('leased AbacatePay worker recovery (unit DB double)', () => {

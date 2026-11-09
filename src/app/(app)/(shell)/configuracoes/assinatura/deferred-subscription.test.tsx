@@ -15,6 +15,7 @@ const baseline = {
 };
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
@@ -79,5 +80,18 @@ describe('deferred subscription controls', () => {
     render(<DeferredSubscription {...baseline} />);
     fireEvent.click(screen.getByRole('button', { name: 'Contratar assinatura' }));
     await waitFor(() => expect(screen.getByText(/Não crie outra cobrança/)).toBeTruthy());
+  });
+  it('refreshes the subscription after authoritative recovery without reopening checkout', async () => {
+    const reload = vi.spyOn(window.location, 'reload').mockImplementation(() => undefined);
+    const assign = vi.spyOn(window.location, 'assign').mockImplementation(() => undefined);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(Response.json({ error: 'already_paid' }, { status: 409 })),
+    );
+    render(<DeferredSubscription {...baseline} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Contratar assinatura' }));
+    await waitFor(() => expect(reload).toHaveBeenCalledOnce());
+    expect(assign).not.toHaveBeenCalled();
+    expect(fetch).toHaveBeenCalledOnce();
   });
 });

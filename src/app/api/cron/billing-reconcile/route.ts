@@ -17,7 +17,10 @@ import { withTenant } from '@/lib/db/tenant';
 import { withCron } from '@/lib/http/cron';
 import { metrics } from '@/lib/observability/metrics';
 import { env } from '@/lib/env';
-import { reconcileAbacatePayInbox } from '@/contexts/billing/internal/abacatepay-processing';
+import {
+  reconcileAbacatePayInbox,
+  reconcileMissingAbacatePayInitialPayment,
+} from '@/contexts/billing/internal/abacatepay-processing';
 
 import { asaasProvider, BillingProviderError } from '@/lib/payments/asaas';
 import { removeSubscriptionCharges } from '@/contexts/billing/internal/cancellation-charges';
@@ -541,7 +544,12 @@ export const GET = withCron(
       if (env.ABACATEPAY_STORE_ID && env.ABACATEPAY_API_KEY && Date.now() - startedAt < 35_000) {
         // Separate origin; never route an existing Asaas payment through it.
         // One event with bounded GETs leaves the current 60s job budget intact.
-        await reconcileAbacatePayInbox();
+        const inbox = await reconcileAbacatePayInbox();
+        if (inbox.scanned === 0 && Date.now() - startedAt < 35_000) {
+          const recovered = await reconcileMissingAbacatePayInitialPayment();
+          found += recovered.applied;
+          fixed += recovered.applied;
+        }
       }
 
       await dbAdmin

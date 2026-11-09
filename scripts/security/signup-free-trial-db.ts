@@ -45,7 +45,7 @@ const { hashEmail } = await import('../../src/lib/auth/email-hash');
 const { provisionFreeSignupTrialTx: provision } =
   await import('../../src/contexts/onboarding/internal/signup-free-trial');
 const { assertClinicCanWriteTx } = await import('../../src/lib/tenant-access');
-const { applyInitialAbacatePayPaymentTx } =
+const { applyInitialAbacatePayPaymentTx, reconcileMissingAbacatePayInitialPayment } =
   await import('../../src/contexts/billing/internal/abacatepay-processing');
 type Evidence = import('../../src/lib/payments/abacatepay/initial-payment').InitialPaymentEvidence;
 const results: { name: string; status: 'PASS' | 'FAIL' }[] = [];
@@ -552,20 +552,6 @@ try {
     );
     assert.equal(fixtureHttpCalls, before);
   });
-  await check(
-    'a cached URL is not offered again after provider payment while the webhook is pending',
-    async () => {
-      const remote = external.get('bill_http1');
-      assert.ok(remote);
-      remote.paid = true;
-      await assert.rejects(
-        createDeferredSubscriptionCheckout({ clinicId: checkoutTrial.clinicId }),
-        (error: unknown) =>
-          error instanceof Error && 'code' in error && error.code === 'reconcile_required',
-      );
-      assert.equal(postCalls, 1);
-    },
-  );
   const body = JSON.stringify({
     id: 'log_http_initial',
     event: 'subscription.completed',
@@ -624,6 +610,67 @@ try {
       assert.equal(networkCalls, 0);
     },
   );
+  // Separate fixture: the original contract above is activated exclusively by
+  // the authenticated webhook. This one receives no event at all.
+  const lostOwner = await seed({ old: true });
+  const lostTrial = await run(lostOwner);
+  assert.ok(lostTrial.ok);
+  const [lostSubscription] = await sql<{ id: string }[]>`SELECT id::text FROM public.subscriptions
+    WHERE clinic_id=${lostTrial.clinicId}::uuid`;
+  assert.ok(lostSubscription);
+  await createDeferredSubscriptionCheckout({ clinicId: lostTrial.clinicId });
+  await check('missing-webhook readback keeps an unpaid checkout restricted', async () => {
+    assert.deepEqual(
+      await reconcileMissingAbacatePayInitialPayment({
+        subscriptionId: lostSubscription.id,
+      }),
+      { scanned: 1, applied: 0, duplicate: 0, review: 0 },
+    );
+    const [row] = await sql<{ invoices: number; released: boolean }[]>`SELECT
+      (SELECT count(*)::int FROM public.invoices WHERE clinic_id=${lostTrial.clinicId}::uuid) invoices,
+      released_at IS NOT NULL released FROM public.trial_access_policies
+      WHERE clinic_id=${lostTrial.clinicId}::uuid`;
+    assert.deepEqual(row, { invoices: 0, released: false });
+  });
+  await check(
+    'paid cached checkout recovers atomically without a fabricated webhook or second charge',
+    async () => {
+      const remote = external.get('bill_http2');
+      assert.ok(remote);
+      remote.paid = true;
+      await Promise.all(
+        Array.from({ length: 12 }, () =>
+          assert.rejects(
+            createDeferredSubscriptionCheckout({ clinicId: lostTrial.clinicId }),
+            (error: unknown) =>
+              error instanceof Error &&
+              'code' in error &&
+              (error.code === 'already_paid' || error.code === 'reconcile_required'),
+          ),
+        ),
+      );
+      const [row] = await sql<{ paid: number; inbox: number; released: boolean }[]>`SELECT
+      (SELECT count(*)::int FROM public.invoices WHERE clinic_id=${lostTrial.clinicId}::uuid AND status='paid') paid,
+      (SELECT count(*)::int FROM billing_gateway.event_inbox WHERE clinic_id=${lostTrial.clinicId}::uuid
+        OR external_checkout_id='bill_http2') inbox,
+      released_at IS NOT NULL released FROM public.trial_access_policies
+      WHERE clinic_id=${lostTrial.clinicId}::uuid`;
+      assert.deepEqual(row, { paid: 1, inbox: 0, released: true });
+      assert.equal(postCalls, 2);
+    },
+  );
+  await check('concurrent missing-webhook retries cannot duplicate a paid invoice', async () => {
+    await Promise.all(
+      Array.from({ length: 12 }, () =>
+        reconcileMissingAbacatePayInitialPayment({ subscriptionId: lostSubscription.id }),
+      ),
+    );
+    const [row] = await sql<{ n: number }[]>`SELECT count(*)::int n FROM public.invoices
+      WHERE clinic_id=${lostTrial.clinicId}::uuid`;
+    assert.equal(row?.n, 1);
+    assert.equal(postCalls, 2);
+    assert.equal(networkCalls, 0);
+  });
 } catch (error) {
   failure = error;
 } finally {

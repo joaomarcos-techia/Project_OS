@@ -353,3 +353,126 @@ export async function reconcileAbacatePayInbox(input: { eventId?: string } = {})
     };
   }
 }
+
+/**
+ * Recovers a known initial checkout if its webhook never arrived. No provider
+ * event is fabricated and no command/charge is emitted. Only one contract is
+ * read per invocation; the audit timestamp rotates pending candidates.
+ */
+export async function reconcileMissingAbacatePayInitialPayment(
+  input: { subscriptionId?: string } = {},
+): Promise<{
+  scanned: number;
+  applied: number;
+  duplicate: number;
+  review: number;
+}> {
+  const idle = { scanned: 0, applied: 0, duplicate: 0, review: 0 };
+  if (!env.ABACATEPAY_STORE_ID || !env.ABACATEPAY_API_KEY || !isAbacatePaySandboxRuntime())
+    return idle;
+  const subscriptionId =
+    input.subscriptionId === undefined ? null : z.uuid().parse(input.subscriptionId);
+  const [candidate] = z
+    .array(
+      z.object({
+        subscription_id: z.uuid(),
+        clinic_id: z.uuid(),
+        checkout_id: z.string(),
+        product_id: z.string(),
+        amount_minor: z.coerce.number().int().positive(),
+      }),
+    )
+    .max(1)
+    .parse(
+      await dbAdmin.execute(sql`
+    SELECT s.id::text subscription_id,s.clinic_id::text,b.external_checkout_id checkout_id,
+      i.product_id,i.amount_minor::text
+    FROM public.subscriptions s JOIN billing_gateway.bindings b ON b.subscription_id=s.id AND b.clinic_id=s.clinic_id
+    JOIN billing_gateway.accounts a ON a.id=b.account_id
+    JOIN billing_gateway.checkout_intents i ON i.subscription_id=s.id AND i.account_id=a.id AND i.price_id=s.price_id
+    JOIN public.trial_access_policies t ON t.subscription_id=s.id AND t.clinic_id=s.clinic_id
+    LEFT JOIN LATERAL (
+      SELECT max(e.created_at) checked_at FROM public.billing_events e WHERE e.clinic_id=s.clinic_id
+        AND e.type='subscription.initial_payment.checked' AND e.payload->>'subscriptionId'=s.id::text
+    ) checked ON true
+    WHERE s.billing_provider='abacatepay' AND s.billing_status='trial' AND s.asaas_subscription_id IS NULL
+      AND s.trial_ends_at <= now() AND t.released_at IS NULL
+      AND b.external_checkout_id IS NOT NULL AND b.external_subscription_id IS NULL
+      AND a.provider='abacatepay' AND a.environment='sandbox' AND a.external_account_id=${env.ABACATEPAY_STORE_ID}
+      AND (${subscriptionId}::uuid IS NULL OR s.id=${subscriptionId}::uuid)
+      AND (${subscriptionId}::uuid IS NOT NULL OR checked.checked_at IS NULL OR checked.checked_at < now()-interval '1 hour')
+    ORDER BY checked.checked_at NULLS FIRST,i.created_at LIMIT 1
+  `),
+    );
+  if (!candidate) return idle;
+  const checked = async (outcome: string) =>
+    dbAdmin.transaction((tx) =>
+      recordBillingEvent(tx, candidate.clinic_id, 'subscription.initial_payment.checked', {
+        subscriptionId: candidate.subscription_id,
+        provider: 'abacatepay',
+        outcome,
+      }),
+    );
+  try {
+    const config = {
+      apiKey: env.ABACATEPAY_API_KEY,
+      environment: 'sandbox' as const,
+      timeoutMs: 2000,
+    };
+    const account = {
+      provider: 'abacatepay',
+      environment: 'sandbox',
+      accountId: env.ABACATEPAY_STORE_ID,
+    } as const;
+    const read = createAbacatePayReadClient(config);
+    if ((await read.readStore()).id !== account.accountId)
+      throw new Error('Readback account mismatch');
+    const subscriptions = await read.listSubscriptionsForCheckout(candidate.checkout_id);
+    if (subscriptions.length === 0) {
+      await checked('pending');
+      return { ...idle, scanned: 1 };
+    }
+    const remote = subscriptions[0];
+    if (!remote) throw new Error('Readback subscription missing');
+    const product = await read.readProduct(candidate.product_id);
+    if (
+      product.cycle !== 'MONTHLY' ||
+      product.trialDays != null ||
+      product.price !== candidate.amount_minor
+    )
+      throw new Error('Readback product mismatch');
+    const evidence = await createAbacatePayInitialPaymentReader(account, config).readInitialPayment(
+      {
+        subscriptionId: remote.id,
+        customerId: remote.customerId,
+        checkoutId: candidate.checkout_id,
+        productId: candidate.product_id,
+        expectedAmountMinor: candidate.amount_minor,
+      },
+    );
+    if (evidence.state !== 'paid') {
+      await checked(evidence.state);
+      return { ...idle, scanned: 1, review: Number(evidence.state !== 'pending') };
+    }
+    const outcome = await dbAdmin.transaction(async (tx) => {
+      const applied = await applyInitialAbacatePayPaymentTx(tx, evidence);
+      await recordBillingEvent(tx, candidate.clinic_id, 'subscription.initial_payment.checked', {
+        subscriptionId: candidate.subscription_id,
+        provider: 'abacatepay',
+        outcome: applied,
+      });
+      return applied;
+    });
+    metrics.emit('billing.abacatepay.initial_payment_reconciled', { outcome });
+    return {
+      scanned: 1,
+      applied: Number(outcome === 'applied'),
+      duplicate: Number(outcome === 'duplicate'),
+      review: Number(outcome === 'review'),
+    };
+  } catch {
+    await checked('readback_or_transaction_failed');
+    metrics.emit('billing.abacatepay.reconcile_failed', { reason: 'missing_initial_webhook' });
+    return { ...idle, scanned: 1, review: 1 };
+  }
+}

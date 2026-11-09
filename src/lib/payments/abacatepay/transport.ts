@@ -18,6 +18,7 @@ const getPaths = new Set([
   '/subscriptions/list',
   '/subscriptions/checkouts/get',
   '/subscriptions/checkouts/list',
+  '/bank-statement/list',
 ]);
 const postPaths = new Set([
   '/products/create',

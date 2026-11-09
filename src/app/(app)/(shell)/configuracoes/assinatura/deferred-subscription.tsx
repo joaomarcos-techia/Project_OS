@@ -53,6 +53,10 @@ export function DeferredSubscription(props: Props) {
         }
       }
       const code = typeof body === 'object' && body !== null && 'error' in body ? body.error : null;
+      if (code === 'already_paid') {
+        window.location.reload();
+        return;
+      }
       setMessage(
         code === 'trial_active'
           ? 'Sua avaliação ainda está em andamento. A contratação fica disponível ao final do prazo.'

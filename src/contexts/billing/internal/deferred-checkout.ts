@@ -14,6 +14,7 @@ import { createAbacatePayReadClient } from '@/lib/payments/abacatepay/reader';
 
 import { OFFER_2026_PLAN_CODES } from '../proposed-offer';
 import { toCents } from './money';
+import { reconcileMissingAbacatePayInitialPayment } from './abacatepay-processing';
 
 const productMapSchema = z.partialRecord(
   z.enum(OFFER_2026_PLAN_CODES),
@@ -188,6 +189,12 @@ export async function createDeferredSubscriptionCheckout(input: { clinicId: stri
   if ((await read.readStore()).id !== contract.external_account_id)
     throw new DeferredCheckoutError('reconcile_required');
   const current = await read.readSubscriptionCheckoutFinancials(checkout.checkoutId);
+  if (current.status === 'PAID') {
+    const recovered = await reconcileMissingAbacatePayInitialPayment({
+      subscriptionId: contract.subscription_id,
+    });
+    if (recovered.applied || recovered.duplicate) throw new DeferredCheckoutError('already_paid');
+  }
   if (
     current.status !== 'PENDING' ||
     current.amount !== amountMinor ||

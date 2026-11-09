@@ -14,10 +14,12 @@ test.use({
   trace: 'off',
   video: 'off',
   screenshot: 'off',
+  viewport: { width: 1440, height: 1000 },
 });
 
 test('confirmed identity -> free trial -> server quota gates -> optional hosted Sandbox checkout', async ({
-  browser,
+  page,
+  context,
 }) => {
   test.setTimeout(360_000);
   const input = z
@@ -31,6 +33,7 @@ test('confirmed identity -> free trial -> server quota gates -> optional hosted 
       E2E_ABACATEPAY_PASSWORD: z.string().min(20),
       E2E_ABACATEPAY_PLAN: z.enum(['consultorio_2026', 'clinica_2026_2']),
       E2E_ABACATEPAY_EXPIRED: z.enum(['true', 'false']),
+      E2E_ABACATEPAY_EXPECT_PAID: z.enum(['true', 'false']).default('false'),
     })
     .parse(process.env);
   const origin = new URL(input.E2E_BASE_URL);
@@ -42,10 +45,11 @@ test('confirmed identity -> free trial -> server quota gates -> optional hosted 
   expect(input.DATABASE_URL_DEV).not.toBe(process.env.DATABASE_URL_PROD);
   if (database.port === '6543') database.port = '5432';
   await assertPreviewRuntimeIsDev(origin.origin);
-  const sql = postgres(database.toString(), { max: 1, prepare: false, ssl: 'require' });
-  const context = await browser.newContext({
-    viewport: { width: 1440, height: 1000 },
-    storageState: { cookies: [], origins: [] },
+  const sql = postgres(database.toString(), {
+    max: 1,
+    prepare: false,
+    ssl: 'require',
+    connect_timeout: 15,
   });
   await installVercelBypassForOrigin(context, origin.origin);
   const stages: string[] = [];
@@ -68,12 +72,12 @@ test('confirmed identity -> free trial -> server quota gates -> optional hosted 
     scope: 'Auth confirmed administratively; no proof of signup email delivery or external payment',
   };
   try {
+    await sql`SET statement_timeout='20s'`;
     const [identity] = await sql<{ email: string; created_at: Date; marker: string }[]>`
       SELECT email,created_at,raw_user_meta_data->>'qoro_fixture_run' marker FROM auth.users
       WHERE id=${input.E2E_ABACATEPAY_USER_ID}::uuid AND email_confirmed_at IS NOT NULL`;
     expect(identity?.email).toBe(input.E2E_ABACATEPAY_EMAIL);
     expect(identity?.marker).toBe(input.E2E_ABACATEPAY_RUN_ID);
-    const page = await context.newPage();
     await page.goto(new URL('/login', origin.origin).toString());
     try {
       await page.locator('#email').fill(input.E2E_ABACATEPAY_EMAIL);
@@ -126,6 +130,64 @@ test('confirmed identity -> free trial -> server quota gates -> optional hosted 
     expect(contract.code).toBe(input.E2E_ABACATEPAY_PLAN);
     expect(contract.asaas_subscription_id).toBeNull();
     expect(contract.trial_ends_at.getTime()).toBe(identity.created_at.getTime() + 14 * 86_400_000);
+    if (input.E2E_ABACATEPAY_EXPECT_PAID === 'true') {
+      expect(contract.status).toBe('active');
+      expect(contract.released_at).not.toBeNull();
+      const [financial] = await sql<
+        { invoices: number; payments: number; receipts: number; events: number }[]
+      >`SELECT
+        (SELECT count(*)::int FROM public.invoices WHERE subscription_id=${contract.subscription_id}::uuid AND status='paid' AND total_amount=397) invoices,
+        (SELECT count(*)::int FROM public.payment_attempts a JOIN public.invoices i ON i.id=a.invoice_id WHERE i.subscription_id=${contract.subscription_id}::uuid AND a.provider='abacatepay' AND a.status='confirmed') payments,
+        (SELECT count(*)::int FROM billing_gateway.paid_checkouts WHERE subscription_id=${contract.subscription_id}::uuid) receipts,
+        (SELECT count(*)::int FROM billing_gateway.event_inbox WHERE subscription_id=${contract.subscription_id}::uuid AND event_type='subscription.completed' AND state='applied') events`;
+      expect(financial?.invoices).toBe(1);
+      expect(financial?.payments).toBe(1);
+      expect(financial?.receipts).toBe(1);
+      expect(financial?.events).toBeGreaterThanOrEqual(1);
+      stages.push('paid_domain_records_verified');
+      for (const width of [1440, 390]) {
+        await page.setViewportSize({ width, height: 1000 });
+        await page.goto(new URL('/configuracoes/assinatura', origin.origin).toString());
+        await expect(
+          page
+            .getByRole('region', { name: 'Assinatura e avaliação' })
+            .getByText('Pagamento confirmado', { exact: true }),
+        ).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Contratar assinatura' })).toHaveCount(0);
+        expect(
+          await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+        ).toBe(true);
+        stages.push(`paid_ui_${width}`);
+      }
+      const repeated = await page.evaluate(async () => {
+        const response = await fetch('/api/billing/checkout', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: '{}',
+        });
+        return { status: response.status, body: await response.json() };
+      });
+      expect(repeated).toEqual({ status: 409, body: { error: 'already_paid' } });
+      stages.push('paid_checkout_repeat_denied');
+      await page.goto(new URL('/configuracoes/whatsapp', origin.origin).toString());
+      await expect(
+        page.getByText('WhatsApp disponível após o pagamento', { exact: true }),
+      ).toHaveCount(0);
+      stages.push('paid_whatsapp_gate_released');
+      await page.goto(new URL('/configuracoes/pagamentos', origin.origin).toString());
+      await expect(
+        page.getByText('Asaas disponível após o pagamento', { exact: true }),
+      ).toHaveCount(0);
+      stages.push('paid_asaas_gate_released');
+      await page.goto(new URL('/equipe', origin.origin).toString());
+      await expect(page.getByRole('button', { name: /Convidar/ }).first()).toBeVisible();
+      stages.push('real_sandbox_webhook_invoice_receipt_and_paid_ui');
+      stages.push('paid_checkout_repeat_denied_and_integration_invite_gates_released');
+      evidence.scope =
+        'Real Sandbox simulation, authenticated webhook, invoice and readbacks; no real charge';
+      evidence.status = 'PASS';
+      return;
+    }
     expect(contract.released_at).toBeNull();
     if (!existing) {
       expect(contract.external_checkout_id).toBeNull();
@@ -182,10 +244,9 @@ test('confirmed identity -> free trial -> server quota gates -> optional hosted 
     if (evidence.status === 'RUNNING') evidence.status = 'FAIL';
     await mkdir('dist', { recursive: true });
     await writeFile(
-      `dist/abacatepay-preview-${input.E2E_ABACATEPAY_RUN_ID}.json`,
+      `dist/abacatepay-preview-${input.E2E_ABACATEPAY_RUN_ID}${input.E2E_ABACATEPAY_EXPECT_PAID === 'true' ? '-paid' : ''}.json`,
       JSON.stringify(evidence, null, 2),
     );
-    await context.close();
     await sql.end({ timeout: 5 });
   }
 });
