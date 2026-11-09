@@ -218,6 +218,15 @@ Se já tem conta, entre para continuar.”** Não retornar existência, UUID Aut
 ou texto bruto do provider. Não prometer nova conta ou entrega. Provar body, status, caminhos e
 amostras de timing para evitar ramo óbvio de enumeração; atraso fixo não substitui essa prova.
 
+**Aviso ao dono de conta existente (09/11/2026).** Quando o envio ou reenvio é ofuscado e a conta
+encontrada já consegue entrar (e-mail confirmado, sem bloqueio e senha definida pelo cadastro ou
+perfil ativo com convite aceito), o endereço recebe "Você já tem uma conta na Qoro" com o link de
+`/login` e a indicação de "Esqueci a senha". Sem código, token ou link de uso único. A resposta
+pública não muda: mesmo status, corpo e piso de tempo, porque o envio real também chama o provedor.
+Uma falha do aviso é registrada sem e-mail e nunca altera o desfecho. Os limites do envio (3/h por
+e-mail) e do reenvio (3/h por e-mail) valem também para o aviso; a chave de idempotência é por
+tentativa. Conta pendente de outro cadastro em andamento continua sem mensagem.
+
 Limites iniciais de §21.7 a materializar no scope O-3b: envio **10/15 min/IP, 5/sessão, 3/h/e-mail**;
 reenvio **10/h/IP, 3/h/sessão e e-mail, cooldown 60 s**. Chaves de sessão/e-mail HMAC, IP
 normalizado por `ipRateLimitKey` e separação de ambiente, conforme infraestrutura vigente;
