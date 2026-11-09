@@ -31,6 +31,10 @@ Estimativas qualitativas, baseadas nas fontes [E01–E25](../architecture/01-con
 
 ### Riscos específicos AbacatePay — suporte pendente em 09/11/2026
 
+**Incremento posterior ao `75fe1e74`:** monitor somente leitura detecta recorrências múltiplas/referências divergentes/cancelamento inesperado, guarda auditoria deduplicada e emite sinal sanitizado. Cinquenta checks PG (dez novos), incluindo 16 workers e falha de commit, passaram. Cinco GETs Sandbox observaram a fixture conhecida sem alterá-la. O teste concorrente revelou disputa na gravação da observação, corrigida com espera limitada; não houve alteração de política financeira. O proprietário já enviou a solicitação, resposta pendente.
+
+Esse controle **não elimina o P0 de uso único** nem comprova entrega de alerta. Backlog/orçamento do cron e roteamento Sentry exigem conferência operacional antes do piloto. Nenhuma nova frequência de cron ou configuração externa foi ativada. [Evidências e limites atuais](asaas-to-abacatepay/RELATORIO-HOMOLOGACAO-FINAL.md#27-continuidade-sem-aguardar-suporte--09112026).
+
 | Risco | Situação/controle atual | Próxima evidência | Estado |
 |---|---|---|---|
 | Link de assinatura reutilizável, inclusive antes do webhook | Journal local evita segundo POST; não controla URL copiada do gateway; checkout pago preservado | Garantia oficial de uso único/contenção e ensaio novo autorizado sem perder histórico | P0 de ativação; E3 BLOCKED |

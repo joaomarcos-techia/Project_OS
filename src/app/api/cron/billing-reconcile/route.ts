@@ -23,6 +23,7 @@ import {
 } from '@/contexts/billing/internal/abacatepay-processing';
 import { reconcileAbacatePayManagement } from '@/contexts/billing/internal/abacatepay-management';
 import { reconcileAbacatePayUnknownCheckout } from '@/contexts/billing/internal/abacatepay-checkout-recovery';
+import { reconcileAbacatePayIntegrity } from '@/contexts/billing/internal/abacatepay-integrity';
 
 import { asaasProvider, BillingProviderError } from '@/lib/payments/asaas';
 import { removeSubscriptionCharges } from '@/contexts/billing/internal/cancellation-charges';
@@ -557,6 +558,8 @@ export const GET = withCron(
           fixed += recovered.applied;
         }
         if (Date.now() - startedAt < 35_000) await reconcileAbacatePayManagement(dbAdmin);
+        if (Date.now() - startedAt < 35_000)
+          await reconcileAbacatePayIntegrity(dbAdmin, { deadlineMs: startedAt + 35_000 });
       } else if (env.ABACATEPAY_STORE_ID && env.ABACATEPAY_API_KEY) {
         metrics.emit('billing.abacatepay.reconcile_deferred', { reason: 'job_budget' });
       }

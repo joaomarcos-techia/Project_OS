@@ -50,4 +50,8 @@ Obrigado!
 
 ## Controle da solicitação
 
-Preparada em 09/11/2026; referências oficiais consultadas nessa data. **Não enviada pela engenharia; nenhuma resposta do suporte recebida.** O founder deve copiar o assunto e a mensagem acima para o canal oficial. Não incluir chaves, tokens, payloads, dados pessoais ou cartão. A resposta e o número do ticket devem ser registrados sem credenciais.
+Preparada em 09/11/2026; referências oficiais consultadas nessa data. No checkpoint `75fe1e74`, foi apresentada no chat e salva, sem envio pela engenharia.
+
+**Atualização informada pelo proprietário na rodada seguinte: a solicitação já foi enviada por ele ao suporte da AbacatePay. A resposta ainda está pendente.** Não reenviar a mensagem nem solicitar nova cobrança de resposta nesta rodada. As quatro perguntas já foram encaminhadas; E1–E4 permanecem `BLOCKED — AGUARDANDO SUPORTE` no recorte externo. Isso não impede desenvolvimento/testes locais independentes e não significa aprovação implícita do provedor.
+
+Quando houver resposta, registrar ticket e orientações sanitizadas, sem chaves, tokens, payloads, dados pessoais ou cartão. O texto acima fica preservado como registro da solicitação original.

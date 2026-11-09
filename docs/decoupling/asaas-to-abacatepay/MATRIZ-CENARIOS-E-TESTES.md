@@ -127,6 +127,33 @@ Baseline desta rodada: `14d7f9d4`; os checkpoints anteriores não são sobrescri
 | E3 | Checkout pago preservado | Invalidar link sem perder histórico | Uso único/recorrência/consultas preservados | Apenas probe não pago histórico | Solicitação C | BLOCKED | Garantia + fixture nova autorizada |
 | E4 | Cobrança de assinatura | Reembolsar/contestar oficialmente | Eventos/readback/revisão conhecidos | Fixtures somente | Solicitação D | BLOCKED | Recurso suportado fora do endpoint incompatível |
 
+
+
+## Rodada sem espera do suporte — arquitetura e integridade de recorrências
+
+O proprietário informou que já enviou a solicitação; **não reenviar**. A [seção 27 do relatório](RELATORIO-HOMOLOGACAO-FINAL.md#27-continuidade-sem-aguardar-suporte--09112026) contém a implementação e o fechamento. Os IDs L1–L9 abaixo são os desta rodada e não renomeiam o histórico S1/L1–L7 anterior.
+
+| Área | Implementação | Teste local | Sandbox | Dependência suporte | Status |
+|---|---|---|---|---|---|
+| Renovação | Calendário original, observação/invoice/efeito atômicos | REN/H4 anteriores preservados; regressão PostgreSQL afetada | Contratação inicial anterior não é renovação | E1: ciclo externo; E2: vínculo sem evento | Local implementado; externo BLOCKED — AGUARDANDO SUPORTE |
+| Conciliação sem webhook | Recuperação inicial e do checkout desconhecido; integridade periódica sem evento | Journal, inbox, lease, H3, novo monitor | Cinco GETs reais do leitor de integridade; sem mutações | E2 só para cobrança de renovação sem vínculo identificável | Parcial externa; não inventar correlação |
+| Uso único do checkout | Intenções/journal e recusa de grants duplicados; novo monitor deduplica incidentes | Duas recorrências sintéticas e 16 monitores concorrentes | Leitura de uma recorrência existente; duplicação externa não criada | E3: garantia/invalidação paga e histórico | Proteção/detecção local; garantia externa BLOCKED |
+| Reembolso recorrente | Observação e revisão ADR-071 preservadas; sem comando incompatível | H2/rollback/lease/ciclo antigo anteriores | Sem refund de assinatura executado | E4: procedimento/eventos suportados | BLOCKED — AGUARDANDO SUPORTE no recorte externo |
+
+| Gate atual | Evidência aplicável | Limite |
+|---|---|---|
+| L1 Arquitetura | Contrato neutro; adapter valida DTO externo; seleção por binding/provider/account | Não migra Asaas nem promete independência completa de toda persistência |
+| L2 Renovação | Ciclos, valores, calendário, invoice e idempotência no PG real | Evento/ciclo financeiro externo continua E1/E2 |
+| L3 Checkout | Journal/recuperação existentes + monitor de referências/recorrências múltiplas | Não impede uso da URL externa, nem cancela assinatura desconhecida |
+| L4 Conciliação | Reserva antes do I/O, backoff, dedup e retomada; lotes parciais visíveis | Cron diário e limite de lote não são SLA de monitoramento |
+| L5 Negativos | ADR-071 e observação de cancelamento inesperado sem revogação | Reembolso/disputa reais ainda exigem E4 |
+| L6 Planos/adicionais | H4 próximo ciclo integral, cancelamento intercalado e cotas preservados | Não aceita PENDING como pagamento |
+| L7 Recontratação | Duas gerações anteriores; monitor inclui checkout antigo e pendente | Sem manipular a fixture remota ou alegar tempo decorrido |
+| L8 E2E/segurança | Spec original preservada; tentativa dummy em cópia isolada sem readiness; CI própria | Inicialização local BLOCKED; manter dois SKIP da CI e provas separadas históricas, sem novo PASS |
+| L9 Regressão | Gates locais/CI do novo SHA no encerramento | Não herdar totais de outro SHA |
+
+O status executado dos gates locais deve ser lido no encerramento do relatório. Testes ainda em execução não recebem PASS por este mapeamento.
+
 ### Histórico preservado da conclusão anterior
 
 Autenticação e ambiente Sandbox têm prova real; a [atestação inicial](SANDBOX-ATTESTATION-2026-11-07.json) de R$ 1 não substitui a mensalidade integral. A fixture atual pagou R$ 397 por cartão fictício na página de simulação do provedor, recebeu webhook real e confirmou direitos no DEV/Preview, sem invoice/evento positivo artificiais. O [snapshot sanitizado](evidencias/continuation-20261108.json) identifica o recorte. O E2E posterior conferiu UI paga, 409 ao contratar novamente e remoção dos bloqueios temporários, sem conectar integrações ou enviar convite. O callback no contexto isolado encontrou SSO da Vercel; a UI final foi testada após login legítimo. Ainda não há renovação temporal, chargeback, liquidação, coexistência financeira ativa ou paridade completa de gestão. Recuperação sem webhook foi testada com HTTP sintético; perda externa não foi induzida. Não repetir o pagamento já concluído nem usar o PAID inicial para renovar acesso.

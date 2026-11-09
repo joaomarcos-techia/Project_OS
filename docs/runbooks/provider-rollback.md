@@ -23,6 +23,22 @@ Não usar `DELETE`, reset scripts, migration DOWN ou restauração física de ba
 
 ## AbacatePay Sandbox — recuperar trabalho interrompido ou revisar ambiguidade
 
+### Monitor de integridade de recorrências
+
+O monitor da candidata inspeciona checkouts conhecidos, inclusive de gerações antigas e recontratação pendente. Faz somente GETs remotos; reserva/auditoria ficam no `billing_events` existente. Não altera valores, cotas, invoices, acesso ou recorrência. O propósito é sinalizar para revisão humana, **não impedir o pagamento de uma URL copiada no provedor**.
+
+1. Confirmar branch/SHA, Sandbox e a conta antes de acionar uma leitura administrativa. Não usar contrato real nem copiar payload/credencial para o chat. A [seção 27](../decoupling/asaas-to-abacatepay/RELATORIO-HOMOLOGACAO-FINAL.md#27-continuidade-sem-aguardar-suporte--09112026) identifica as provas.
+2. Consultar os eventos `subscription.recurrence.checked`, `observed`, `review_required` e `check_failed`. Correlacionar pelo `checkId`/`generationId` no ambiente protegido; `checked` sozinho significa reserva, não leitura concluída nem integridade financeira aprovada.
+3. Em `multiple_subscriptions`, consultar os IDs estritamente necessários pelo painel autorizado e preservar a evidência. Não dar acesso à assinatura extra, não substituir o binding e não cancelá-la/reembolsá-la automaticamente. Solicitar orientação oficial para qualquer operação financeira. O procedimento V2 de refund de assinatura continua pendente.
+4. Para cancelamento inesperado, referência ausente/divergente ou trial nativo, manter revisão e a política de acesso vigente. ACTIVE/CANCELLED não provam pagamento, vencimento, chargeback ou autorização para revogar direitos.
+5. As métricas `billing.abacatepay.integrity_review` e `integrity_failed` levam somente motivo seguro; o capturador Sentry recebe exceção sanitizada. Conferir que o responsável recebe o sinal no projeto correto. Não declarar alerta entregue apenas por existir chamada de captura.
+6. O cron existente continua diário. O monitor processa até três candidatos por chamada, com backoff de uma hora por geração, orçamento de tempo e exclusão concorrente. `integrity_scan.deferred=true` exige avaliar orçamento/backlog e cobertura; **não significa que todos os checkouts foram inspecionados**. Não alterar agenda/planos externos por conta própria.
+7. Falha de API/commit fica auditada e não origina cobrança substituta. A próxima leitura retoma após backoff; resultado superseded/vínculo mudado não pode ser aplicado ao novo contrato. Não apagar reserva/histórico para forçar outra execução.
+
+O proprietário já enviou a solicitação ao suporte; não reenviar. Registrar a resposta sanitizada quando chegar e só então preparar os ensaios remotos ainda bloqueados.
+
+### Recuperação de jobs e conciliação
+
 Aplicável somente à candidata da branch financeira; não autoriza Production, cobrança ou alteração de contrato real. [Evidências e gates atuais](../decoupling/asaas-to-abacatepay/RELATORIO-HOMOLOGACAO-FINAL.md#26-continuidade-enquanto-o-suporte-não-responde--09112026).
 
 1. Identificar em leitura o ambiente/conta, intenção, geração, event ID e estado interno. Conferir vínculo interno e externo; não exportar payloads, tokens, dados pessoais ou recibos para logs.

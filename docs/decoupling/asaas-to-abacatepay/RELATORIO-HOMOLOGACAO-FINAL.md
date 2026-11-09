@@ -1,5 +1,7 @@
 # Homologação financeira AbacatePay — Qoro
 
+**Leitura atual:** [seção 27 — continuidade sem aguardar suporte](#27-continuidade-sem-aguardar-suporte--09112026). O proprietário informou o envio da solicitação; a resposta está pendente. Checkpoints anteriores permanecem históricos, não instrução de reenviar ou repetir pagamentos.
+
 Iniciado em **09/11/2026**, antes das alterações desta rodada. **As seções 1–8 preservam o checkpoint H0 anterior à implementação; as seções 9–25 registram o fechamento diferencial.** Referência para futura ativação, **não autorização de Produção**. Este relatório consolida os [planos existentes](PLANO-MESTRE-MIGRACAO-ASAAS-ABACATEPAY.md), o [diário](PLANO-EXECUCAO-CONTINUIDADE.md), a [renovação](PLANO-CONTINUIDADE-RENOVACAO-E-HOMOLOGACAO.md) e a [matriz financeira](MATRIZ-CENARIOS-E-TESTES.md); não os substitui por regras comerciais novas.
 
 ## 1. Arquitetura e baseline H0
@@ -357,3 +359,40 @@ A [matriz diferencial](MATRIZ-CENARIOS-E-TESTES.md#continuidade-aguardando-supor
 - **Zero** novas contas/produtos/checkouts/pagamentos no provedor, zero migrations DEV/Production, nenhum GET/POST no Sandbox necessário nesta rodada, nenhuma alteração do checkout pago retido. Somente o worktree financeiro foi editado.
 
 [Evidência sanitizada local](evidencias/continuidade-suporte-20261109.json). A mensagem não foi enviada, nenhum ticket foi aberto e nenhuma resposta foi recebida pela engenharia. **NO-GO de Production preservado** pelos gates E1–E4; continuam necessárias as provas e garantias externas, mesmo com os gates locais aprovados.
+
+## 27. Continuidade sem aguardar suporte — 09/11/2026
+
+**Atualização do proprietário:** a solicitação já foi enviada por ele; a resposta permanece pendente. O registro anterior descreve o que a engenharia havia feito naquele checkpoint, não uma instrução para reenviar. A [solicitação original e seu controle](SOLICITACAO-SUPORTE-HOMOLOGACAO.md#controle-da-solicitação) foram atualizados sem modificar o corpo encaminhado. E1–E4 continuam `BLOCKED — AGUARDANDO SUPORTE` no recorte externo.
+
+### Lacuna local identificada e implementada
+
+O pagamento inicial já recusava uma lista com várias assinaturas, mas não existia monitoramento periódico dos checkouts conhecidos após a primeira ativação ou recontratação. Uma assinatura adicional criada no provedor poderia permanecer sem um incidente explícito no Qoro. Foi implementada uma inspeção de integridade **sem comandos financeiros**:
+
+- Contrato neutro em `src/lib/payments/saas/recurrence-integrity.ts`; observação não é pagamento, período, direito ou ordem de cancelamento.
+- Adapter `checkout-integrity.ts`: somente GETs documentados, loja/ambiente/recurso/cliente conferidos, no máximo duas páginas. Uma lista com dois IDs distintos gera evidência de recorrências múltiplas; lista incompleta/duplicada/inválida não recebe classificação saudável. A observação pode ser um limite inferior, sem afirmar totalidade.
+- `abacatepay-integrity.ts`: verifica bindings e gerações anteriores/pendentes de recontratação, mantém reserva/auditoria no histórico existente, revalida vínculo antes do commit e deduplica incidente por fingerprint. Não muda assinatura, invoice, cota, perfil, preço ou cancelamento.
+- Cancelamento remoto inesperado, referência divergente, trial nativo e estado desconhecido geram revisão humana. Cancelamento já solicitado localmente não é classificado como inesperado. Não inferir perda financeira de status remoto.
+- Auditoria `subscription.recurrence.checked/observed/review_required/check_failed`, métricas `billing.abacatepay.integrity_scan/integrity_review/integrity_failed` e chamada sanitizada ao capturador Sentry existente. Nenhum payload, cliente ou cartão vai à métrica/exceção. A emissão do sinal não comprova entrega de notificação ao operador.
+- Reserva sob lock de assinatura e nova leitura do predicado de backoff após adquirir o lock. A gravação da observação espera o lock por até 2s; usar SKIP LOCKED nessa segunda fase podia perder o registro durante a corrida dos próprios workers, comportamento detectado no ensaio e corrigido sem alterar política de acesso.
+- Integração no cron existente, sem mudança de agendamento/configuração: até três candidatos, prazo por GET de 1,5s, margem de 7s por candidato e backoff de uma hora. Gerações ainda não examinadas são sinalizadas por `deferred`; **isso não é promessa de varredura horária**. O cron continua diário e pode adiar AbacatePay após trabalho Asaas; capacidade/backlog devem ser monitorados no piloto.
+
+### Novas provas e limites
+
+O leitor e a integração do cron passaram inicialmente **50 testes focados**, sendo 33 novos do adapter e 17 da rota existente. O ensaio PostgreSQL foi ampliado para incluir concorrência de 16 monitores, deduplicação entre verificações, indisponibilidade de API, rollback da auditoria, cancelamento esperado/inesperado, isolamento, orçamento e gerações distintas. Os totais finais ficam no registro de encerramento deste incremento; não herdar o PASS do ensaio intermediário para alteração posterior.
+
+Readback real em **09/11 às 18:01 UTC (15:01 Brasília)**: cinco GETs, uma recorrência conhecida, status parado e lista completa, sem divergência. Loja validada pelo manifesto protegido e Sandbox validado pelo adapter. **Zero mutações remotas, escritas DB, contas, checkouts ou pagamentos novos**; fixture paga/cancelada intacta. Não comprova produção de assinatura duplicada, renovação, fechamento pago, refund ou passagem temporal.
+
+As duas provas Turnstile foram preparadas em cópia local sem `.env`, com chaves dummy oficiais, sem mudar Vercel/CI/Production. A tentativa não chegou aos testes: o servidor Next local não respondeu ao healthcheck de `/login` em 180s (ECONNREFUSED e depois ECONNRESET no encerramento). Foram corrigidos dois problemas do runner — cópia de `public` inexistente e quoting Windows — mas a inicialização continuou sem readiness. Havia cerca de 551 MB de memória física disponível; isso é indício de restrição ambiental, não causa exclusiva comprovada. Nenhum teste de widget ou de secret recebe FAIL/PASS por essa inicialização. Uma alteração experimental da assertion foi retirada; a spec ficou idêntica ao baseline. Os dois SKIP da CI permanecem SKIP, e as provas separadas históricas da seção 15 continuam com seu recorte. Não foi alterado código de Auth, chave real, segurança ou UI para forçar a execução.
+
+**Nenhuma migration nova. Nenhuma alteração comercial, no Asaas legado/pacientes ou na UI do outro agente. NO-GO de Production preservado.** O monitor detecta/anota incidentes; ele não garante uso único da URL e não executa fechamento remoto automático.
+
+### Registro local do monitor
+
+- **50/50 checks PostgreSQL**, 142 migrations reais, 173 chamadas HTTP sintéticas e zero rede externa, exit 0. Dez checks novos sobre os 40 do checkpoint `75fe1e74`. Reserva/backoff, 16 workers, dedup entre verificações, falha de persistência com rollback, indisponibilidade/retry, cancelamento esperado/inesperado, tenant, orçamento, backlog e checkout de geração anterior/pendente comprovados sem mudar direitos/valores/invoices/comandos.
+- O teste da fixture pendente inicialmente foi recusado por `gateway_recontract_not_eligible`; a preparação sintética foi corrigida para respeitar cancelamento confirmado e término do período. A constraint não foi afrouxada. Uma execução concorrente posterior revelou que SKIP LOCKED na gravação podia pular o registro; a espera limitada/revalidação corrigiu o caso, sem retirar asserções. O ensaio final acima passou.
+- Regressão afetada final: **493/493 testes em 23 arquivos**, incluindo os 33 novos do leitor e os 17 da rota. TypeScript final, lint integral, formatação dos arquivos alterados, inventário, AST de acesso ao banco, dependências circulares, drift de observabilidade e segurança de migrations passaram com exit 0. O inventário foi regenerado após a adição do módulo, sem guard novo sem revisão, sem drift de env pública e sem método HTTP novo. Build, regressão integral remota e Preview exigem o resultado do novo SHA no PR; não herdar o resultado `75fe1e74`.
+- O readback Sandbox usa a fixture paga/cancelada preservada, sem editar sua recorrência ou vencimento. Não é prova de duplicidade financeira externa. Nenhuma credencial nova foi solicitada.
+
+A capacidade do capturador Sentry existente é utilizada, mas **entrega de uma notificação ao responsável não foi ensaiada nesta rodada**. Antes de piloto real, conferir destino/roteamento do sinal e capacidade do cron para a quantidade de checkouts; a métrica de lote adiado não equivale a uma varredura completa. E1–E4 continuam pendências externas de homologação, não regressões locais presumidas.
+
+O [snapshot sanitizado desta rodada](evidencias/integridade-recorrencias-20261109.json) reúne as verificações, horários, limites e hashes dos arquivos executáveis. A revisão adversarial foi feita pelo mesmo executor, com casos de resposta malformada, tenant/gateway divergentes, cursor repetido, timeout, locks e falha de persistência; não representa uma revisão independente. **L1–L7 têm evidência local aplicável; L8 permanece PARTIAL** pelos dois cenários Turnstile não executados no runner atual e pela necessidade de conferir o novo Preview; **L9 depende também da CI própria**. Não há decisão comercial pendente nova nesta implementação. Após a resposta oficial, executar somente as provas E1–E4 que o mecanismo suportado permitir, em fixtures identificadas; não repetir a compra inicial nem reenviar a solicitação.

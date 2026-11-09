@@ -57,6 +57,8 @@ const { POST: webhook } = await import('../../src/app/api/webhooks/abacatepay/ro
 const { requestAbacatePayPlanChange: changePlan } =
   await import('../../src/contexts/billing/internal/abacatepay-plan-changes');
 const { assertClinicCanWriteTx } = await import('../../src/lib/tenant-access');
+const { reconcileAbacatePayIntegrity: inspectIntegrity } =
+  await import('../../src/contexts/billing/internal/abacatepay-integrity');
 type Evidence = import('../../src/lib/payments/saas/recurring-payment').RecurringPaymentEvidence;
 const account = {
   provider: 'abacatepay',
@@ -183,6 +185,22 @@ async function state(f: Fixture) {
   assert.ok(row);
   return row;
 }
+async function financialFingerprint(f: Fixture) {
+  const [row] = await sql`SELECT md5(row_to_json(s)::text) subscription,
+    (SELECT md5(string_agg(row_to_json(i)::text,'' ORDER BY i.id)) FROM public.invoices i WHERE i.clinic_id=s.clinic_id) invoices,
+    (SELECT count(*)::int FROM billing_gateway.operations o WHERE o.clinic_id=s.clinic_id) commands,
+    (SELECT count(*)::int FROM public.profiles p WHERE p.clinic_id=s.clinic_id) profiles
+    FROM public.subscriptions s WHERE s.id=${f.subscription_id}::uuid`;
+  assert.ok(row);
+  return row;
+}
+const inspect = (f: Fixture) =>
+  inspectIntegrity(dbAdmin, { checkoutId: f.evidence.originCheckoutId, maxCandidates: 1 });
+async function expireIntegrityCheck(f: Fixture) {
+  // Synthetic audit age only, not a provider cycle or clock change.
+  await sql`UPDATE public.billing_events SET created_at=now()-interval '2 hours'
+    WHERE clinic_id=${f.clinicId}::uuid AND type='subscription.recurrence.checked'`;
+}
 function installHttpFixture(
   f: Fixture,
   options: {
@@ -192,6 +210,8 @@ function installHttpFixture(
     refundMinor?: number;
     reversal?: boolean;
     refundedCheckoutId?: string;
+    extraSubscription?: boolean;
+    emptySubscriptions?: boolean;
   } = {},
 ) {
   globalThis.fetch = async (target, init) => {
@@ -233,7 +253,14 @@ function installHttpFixture(
       case '/v2/subscriptions/list':
         return Response.json({
           success: true,
-          data: [subscription],
+          data: options.emptySubscriptions
+            ? []
+            : [
+                subscription,
+                ...(options.extraSubscription
+                  ? [{ ...subscription, id: 'subs_unexpected', customerId: 'cust_unexpected' }]
+                  : []),
+              ],
           pagination: { hasMore: false, next: null },
         });
       case '/v2/subscriptions/checkouts/get':
@@ -1244,6 +1271,186 @@ try {
         ),
         'applied',
       );
+    },
+  );
+  await check(
+    'L3 integrity scan observes a healthy recurrence without altering any financial state',
+    async () => {
+      const f = await seed(),
+        before = await financialFingerprint(f);
+      installHttpFixture(f);
+      assert.deepEqual(await inspect(f), { scanned: 1, reviews: 0, failed: 0, deferred: false });
+      assert.deepEqual(await financialFingerprint(f), before);
+      const reads = fixtureHttpCalls;
+      assert.equal((await inspect(f)).scanned, 0);
+      assert.equal(fixtureHttpCalls, reads);
+    },
+  );
+  await check(
+    'L3 sixteen integrity workers reserve one scan and record one duplicate-recurrence incident',
+    async () => {
+      const f = await seed(),
+        before = await financialFingerprint(f);
+      installHttpFixture(f, { extraSubscription: true });
+      const results = await Promise.all(Array.from({ length: 16 }, () => inspect(f)));
+      assert.equal(
+        results.reduce((sum, r) => sum + r.scanned, 0),
+        1,
+      );
+      assert.equal(
+        results.reduce((sum, r) => sum + r.reviews, 0),
+        1,
+      );
+      const [audit] = await sql`SELECT count(*)::int n,min(payload->>'issue') issue
+      FROM public.billing_events WHERE clinic_id=${f.clinicId}::uuid AND type='subscription.recurrence.review_required'`;
+      assert.deepEqual(audit, { n: 1, issue: 'multiple_subscriptions' });
+      assert.deepEqual(await financialFingerprint(f), before);
+      await expireIntegrityCheck(f);
+      assert.equal((await inspect(f)).reviews, 0);
+      const [again] = await sql`SELECT count(*)::int n FROM public.billing_events
+      WHERE clinic_id=${f.clinicId}::uuid AND type='subscription.recurrence.review_required'`;
+      assert.deepEqual(again, { n: 1 });
+    },
+  );
+  await check(
+    'L4 integrity API outage is audited and resumes after backoff without granting or charging',
+    async () => {
+      const f = await seed(),
+        before = await financialFingerprint(f);
+      installHttpFixture(f, { fail: true });
+      assert.equal((await inspect(f)).failed, 1);
+      const [failure] = await sql`SELECT count(*)::int n FROM public.billing_events
+      WHERE clinic_id=${f.clinicId}::uuid AND type='subscription.recurrence.check_failed'`;
+      assert.deepEqual(failure, { n: 1 });
+      const reads = fixtureHttpCalls;
+      assert.equal((await inspect(f)).scanned, 0);
+      assert.equal(fixtureHttpCalls, reads);
+      await expireIntegrityCheck(f);
+      installHttpFixture(f);
+      assert.equal((await inspect(f)).failed, 0);
+      assert.deepEqual(await financialFingerprint(f), before);
+    },
+  );
+  await check(
+    'L3 integrity review persistence failure rolls back observation and permits a later retry',
+    async () => {
+      const f = await seed(),
+        before = await financialFingerprint(f);
+      installHttpFixture(f, { extraSubscription: true });
+      await sql.unsafe(`CREATE FUNCTION public.synthetic_integrity_failure() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN IF NEW.type='subscription.recurrence.review_required' THEN RAISE EXCEPTION 'Synthetic integrity persistence failure'; END IF;
+      RETURN NEW; END $$; CREATE TRIGGER synthetic_integrity_failure BEFORE INSERT ON public.billing_events
+        FOR EACH ROW EXECUTE FUNCTION public.synthetic_integrity_failure();`);
+      try {
+        assert.equal((await inspect(f)).failed, 1);
+        const [row] =
+          await sql`SELECT count(*)::int n FROM public.billing_events WHERE clinic_id=${f.clinicId}::uuid
+        AND type IN ('subscription.recurrence.observed','subscription.recurrence.review_required')`;
+        assert.deepEqual(row, { n: 0 });
+      } finally {
+        await sql.unsafe(
+          `DROP TRIGGER synthetic_integrity_failure ON public.billing_events; DROP FUNCTION public.synthetic_integrity_failure();`,
+        );
+      }
+      await expireIntegrityCheck(f);
+      assert.equal((await inspect(f)).reviews, 1);
+      assert.deepEqual(await financialFingerprint(f), before);
+    },
+  );
+  await check(
+    'L5 unexpected cancellation signals review without revoking paid access',
+    async () => {
+      const f = await seed(),
+        before = await financialFingerprint(f);
+      installHttpFixture(f, { status: 'CANCELLED' });
+      assert.equal((await inspect(f)).reviews, 1);
+      const [row] = await sql`SELECT payload->>'issue' issue FROM public.billing_events
+      WHERE clinic_id=${f.clinicId}::uuid AND type='subscription.recurrence.review_required'`;
+      assert.deepEqual(row, { issue: 'unexpected_cancellation' });
+      assert.deepEqual(await financialFingerprint(f), before);
+    },
+  );
+  await check(
+    'L5 an owned cancellation is not reported as an unexpected remote cancellation',
+    async () => {
+      const f = await seed();
+      await sql`INSERT INTO billing_gateway.cancellations(account_id,external_subscription_id,subscription_id,clinic_id,
+      external_customer_id,external_checkout_id,paid_period_start,paid_period_end,requested_by)
+      VALUES(${f.account_id}::uuid,${f.evidence.subscriptionId},${f.subscription_id}::uuid,${f.clinicId}::uuid,
+        ${f.evidence.customerId},${f.evidence.originCheckoutId},${f.anchor},${f.end},${f.userId}::uuid)`;
+      const before = await financialFingerprint(f);
+      installHttpFixture(f, { status: 'CANCELLED' });
+      assert.equal((await inspect(f)).reviews, 0);
+      assert.deepEqual(await financialFingerprint(f), before);
+    },
+  );
+  await check(
+    'L4 provider records for another tenant cannot be rebound by the integrity scanner',
+    async () => {
+      const f = await seed(),
+        other = await seed(),
+        before = await financialFingerprint(f),
+        otherBefore = await financialFingerprint(other);
+      installHttpFixture(other, { extraSubscription: true });
+      assert.equal((await inspect(f)).failed, 1);
+      assert.deepEqual(await financialFingerprint(f), before);
+      assert.deepEqual(await financialFingerprint(other), otherBefore);
+    },
+  );
+  await check(
+    'L4 scan with insufficient time performs neither provider reads nor an audit reservation',
+    async () => {
+      const f = await seed(),
+        reads = fixtureHttpCalls;
+      assert.deepEqual(
+        await inspectIntegrity(dbAdmin, {
+          checkoutId: f.evidence.originCheckoutId,
+          deadlineMs: Date.now() + 1000,
+        }),
+        { scanned: 0, reviews: 0, failed: 0, deferred: true },
+      );
+      assert.equal(fixtureHttpCalls, reads);
+      const [row] =
+        await sql`SELECT count(*)::int n FROM public.billing_events WHERE clinic_id=${f.clinicId}::uuid AND type='subscription.recurrence.checked'`;
+      assert.deepEqual(row, { n: 0 });
+    },
+  );
+  await check(
+    'L3 pending recontract and old generation are inspected separately without granting a new trial',
+    async () => {
+      const f = await seed();
+      await sql`UPDATE public.subscriptions SET cancel_at_period_end=true WHERE id=${f.subscription_id}::uuid`;
+      await sql`INSERT INTO billing_gateway.cancellations(account_id,external_subscription_id,subscription_id,clinic_id,
+      external_customer_id,external_checkout_id,paid_period_start,paid_period_end,requested_by,confirmed_at)
+      VALUES(${f.account_id}::uuid,${f.evidence.subscriptionId},${f.subscription_id}::uuid,${f.clinicId}::uuid,
+        ${f.evidence.customerId},${f.evidence.originCheckoutId},${f.anchor},${f.end},${f.userId}::uuid,now())`;
+      const nextCheckout = `bill_recontract_integrity_${randomUUID().replaceAll('-', '')}`;
+      await sql`INSERT INTO billing_gateway.recontracts(subscription_id,clinic_id,account_id,prior_external_subscription_id,
+      prior_period_end,prior_external_customer_id,price_id,product_id,amount_minor,external_checkout_id)
+      VALUES(${f.subscription_id}::uuid,${f.clinicId}::uuid,${f.account_id}::uuid,${f.evidence.subscriptionId},${f.end},
+        ${f.evidence.customerId},${f.price_id}::uuid,${f.evidence.productId},${f.evidence.amountMinor},${nextCheckout})`;
+      const before = await financialFingerprint(f);
+      installHttpFixture(f, { emptySubscriptions: true });
+      assert.deepEqual(
+        await inspectIntegrity(dbAdmin, { checkoutId: nextCheckout, maxCandidates: 1 }),
+        { scanned: 1, reviews: 0, failed: 0, deferred: false },
+      );
+      installHttpFixture(f, { status: 'CANCELLED', extraSubscription: true });
+      assert.equal((await inspect(f)).reviews, 1);
+      assert.deepEqual(await financialFingerprint(f), before);
+    },
+  );
+  await check(
+    'L4 bounded integrity batch signals remaining work instead of claiming every checkout is clean',
+    async () => {
+      const f = await seed(),
+        before = await financialFingerprint(f);
+      installHttpFixture(f, { fail: true });
+      const result = await inspectIntegrity(dbAdmin, { maxCandidates: 1 });
+      assert.equal(result.scanned, 1);
+      assert.equal(result.failed, 1);
+      assert.equal(result.deferred, true);
+      assert.deepEqual(await financialFingerprint(f), before);
     },
   );
   await check('schema is private, FORCE RLS, service_role read/insert only', async () => {

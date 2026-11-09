@@ -152,6 +152,12 @@ Os registros anteriores são checkpoints históricos. O estado posterior fica no
 
 ## Estado final e produção
 
+### Continuidade sem aguardar suporte — monitor de integridade
+
+O proprietário confirmou o envio da solicitação; resposta pendente, sem reenvio nesta rodada. Baseline `75fe1e74` conferida e preservada. Implementados contrato neutro/adapter de inspeção, monitor de checkouts conhecidos/gerações, reserva sob lock, deduplicação de incidentes, auditoria, sinais sanitizados e integração ao cron existente. Não há novo comando financeiro, migration, alteração de cron/deploy ou regra comercial.
+
+O [relatório, seção 27](RELATORIO-HOMOLOGACAO-FINAL.md#27-continuidade-sem-aguardar-suporte--09112026) registra arquivos e resultados. Provas do incremento: 33 testes do leitor; regressão da rota; 50 checks PG com 142 migrations/HTTP sintético e zero rede externa; cinco GETs reais Sandbox sem mutações. Os gates finais de TypeScript/lint/build/CI/E2E devem ser lidos no encerramento, sem herdar aprovação do baseline. O teste Turnstile foi preparado em cópia sem `.env` e com dummy oficial; tempo esgotado antes de iniciar testes não é PASS nem falha comprovada do widget.
+
 ### Incremento de suporte e resiliência local — 09/11/2026
 
 Baseline `14d7f9d4` conferida; PR #53 permanece draft. A [mensagem definitiva](SOLICITACAO-SUPORTE-HOMOLOGACAO.md) foi apresentada integralmente no chat e salva, não enviada. Referências atuais confirmam retries documentados, múltiplas assinaturas por checkout e a proibição de refund de assinatura pelo endpoint V2; não repetir perguntas resolvidas nem executar esse endpoint incompatível.

@@ -4,7 +4,14 @@ const abacate = vi.hoisted(() => {
     ABACATEPAY_API_KEY: string | undefined;
     ABACATEPAY_STORE_ID: string | undefined;
   } = { ABACATEPAY_API_KEY: undefined, ABACATEPAY_STORE_ID: undefined };
-  return { environment, inbox: vi.fn(), initial: vi.fn(), management: vi.fn(), unknown: vi.fn() };
+  return {
+    environment,
+    inbox: vi.fn(),
+    initial: vi.fn(),
+    management: vi.fn(),
+    unknown: vi.fn(),
+    integrity: vi.fn(),
+  };
 });
 vi.mock('@/lib/env', () => ({ env: abacate.environment }));
 vi.mock('@/contexts/billing/internal/abacatepay-processing', () => ({
@@ -16,6 +23,9 @@ vi.mock('@/contexts/billing/internal/abacatepay-management', () => ({
 }));
 vi.mock('@/contexts/billing/internal/abacatepay-checkout-recovery', () => ({
   reconcileAbacatePayUnknownCheckout: abacate.unknown,
+}));
+vi.mock('@/contexts/billing/internal/abacatepay-integrity', () => ({
+  reconcileAbacatePayIntegrity: abacate.integrity,
 }));
 
 const {
@@ -152,6 +162,7 @@ beforeEach(() => {
   abacate.initial.mockResolvedValue({ applied: 0 });
   abacate.management.mockResolvedValue(undefined);
   abacate.unknown.mockResolvedValue(undefined);
+  abacate.integrity.mockResolvedValue({ scanned: 0, reviews: 0, failed: 0, deferred: false });
   selectResults.length = 0;
   selectResults.push([]); // nenhuma troca de ciclo aguardando sync remoto por padrão
   capacityRows.splice(0, capacityRows.length, { active_users: 1, user_limit: 1 });
@@ -186,6 +197,8 @@ describe('billing reconcile', () => {
       abacate.initial.mock.invocationCallOrder[0]!,
     );
     expect(listSubscriptionPayments).not.toHaveBeenCalled();
+    expect(abacate.integrity).toHaveBeenCalledOnce();
+    expect(abacate.integrity.mock.calls[0]?.[1]).toEqual({ deadlineMs: expect.any(Number) });
   });
   it('signals exhausted cron budget without starting a provider readback that cannot finish safely', async () => {
     abacate.environment.ABACATEPAY_API_KEY = 'synthetic';
@@ -196,6 +209,7 @@ describe('billing reconcile', () => {
         200,
       );
       expect(abacate.inbox).not.toHaveBeenCalled();
+      expect(abacate.integrity).not.toHaveBeenCalled();
       expect(emit).toHaveBeenCalledWith('billing.abacatepay.reconcile_deferred', {
         reason: 'job_budget',
       });
