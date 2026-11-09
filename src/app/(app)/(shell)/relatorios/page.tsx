@@ -313,7 +313,12 @@ export default async function RelatoriosPage({
                       .filter((semana) => !semana.futura)
                       .map((semana) => (
                         <TableRow key={semana.weekStart}>
-                          <TableCell className="font-medium">{semana.label}</TableCell>
+                          <TableCell className="font-medium">
+                            {semana.label}
+                            {semana.emCurso ? (
+                              <span className={styles.weekRowOngoing ?? ''}> · em curso</span>
+                            ) : null}
+                          </TableCell>
                           <TableCell>{moedaOuVazio(semana.recebido)}</TableCell>
                           <TableCell>{moedaOuVazio(semana.pago)}</TableCell>
                           <TableCell className="font-semibold text-fg">

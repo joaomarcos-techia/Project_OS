@@ -301,7 +301,8 @@
 }
 
 /* A largura que importa é a da coluna, não a da tela: 90 dias apertam as barras
-   mesmo no tablet. Os valores somem porque a tabela logo abaixo traz cada um. */
+   mesmo no tablet. Os valores somem porque a tabela logo abaixo traz cada um e
+   marca a semana em curso. */
 @container (max-width: 76px) {
   .weekValue,
   .weekOngoing,
@@ -312,11 +313,28 @@
   .weekLabelShort {
     display: block;
   }
+
+  /* Sem o texto "período futuro", a altura é o que separa esta coluna do traço
+     de "sem dado", que diria que faltou registro numa semana que nem começou. */
+  .weekFillFuture {
+    height: 6px;
+  }
 }
 
 @container (max-width: 22px) {
   .weekBar:nth-child(even) .weekLabelShort {
     visibility: hidden;
+  }
+}
+
+/* 90 dias no celular: nem um rótulo sim, um não cabe. */
+@container (max-width: 9px) {
+  .weekBar:not(:nth-child(3n + 1)) .weekLabelShort {
+    visibility: hidden;
+  }
+
+  .weekBar:nth-child(3n + 1) .weekLabelShort {
+    visibility: visible;
   }
 }
 
@@ -333,6 +351,11 @@
   .weekBars {
     gap: 8px;
   }
+}
+
+.weekRowOngoing {
+  color: var(--text-3);
+  font-weight: 400;
 }
 
 .weekTable td:not(:first-child),
