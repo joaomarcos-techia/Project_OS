@@ -198,15 +198,17 @@ export function SignupCodeConfirmation({
           <>
             {destination ? (
               <>
-                Confira a mensagem enviada para{' '}
-                <strong className="break-all font-medium text-fg">{destination}</strong>.
+                Se houver uma etapa de confirmação para{' '}
+                <strong className="break-all font-medium text-fg">{destination}</strong>, você
+                receberá as instruções.
               </>
             ) : destinationLoading ? (
               'Recuperando o e-mail do seu cadastro…'
             ) : (
               'Informe o e-mail que você usou no cadastro para continuar com o código recebido.'
             )}{' '}
-            O código vale por 10 minutos. Você pode colar os 8 números de uma vez.
+            Se já tem conta, entre para continuar. O código vale por 10 minutos. Você pode colar os
+            8 números de uma vez.
           </>
         }
       />

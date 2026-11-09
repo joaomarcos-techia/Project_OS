@@ -75,6 +75,14 @@ describe('same-screen verification UI', () => {
     expect(document.querySelector('input[type="password"]')).toBeNull();
     expect(screen.queryByRole('link')).toBeNull();
   });
+
+  it('does not promise delivery, since an existing account receives nothing', () => {
+    mount();
+    const lead = screen.getByRole('heading', { name: 'Confirme seu e-mail aqui' }).parentElement;
+    expect(lead?.textContent).toContain('Se houver uma etapa de confirmação para');
+    expect(lead?.textContent).toContain('Se já tem conta, entre para continuar.');
+    expect(lead?.textContent).not.toContain('mensagem enviada');
+  });
   it('accepts a full pasted code and continues without asking identity or password', async () => {
     mount();
     fetchMock.mockResolvedValue(reply(200, { next: '/cadastro/plano' }));
