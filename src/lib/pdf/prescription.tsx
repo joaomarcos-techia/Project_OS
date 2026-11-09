@@ -32,7 +32,7 @@ export async function renderPrescriptionPDF(
           <Text>{data.observacoes}</Text>
         </View>
       ) : null}
-      <Text style={styles.dateLine}>Data: {formatDate(data.issuedAt)}</Text>
+      <Text style={styles.dateLine}>Data: {formatDate(data.issuedAt, data.timeZone)}</Text>
     </DocShell>,
   );
 }

@@ -216,7 +216,7 @@ function Via({
       <Medicamentos data={data} />
 
       <View style={s.signRow}>
-        <Text style={s.dateText}>Data: {formatDate(data.issuedAt)}</Text>
+        <Text style={s.dateText}>Data: {formatDate(data.issuedAt, data.timeZone)}</Text>
         <View style={s.signWrap}>
           <View style={s.signLine} />
           <Text style={s.signCaption}>Carimbo e assinatura do prescritor</Text>

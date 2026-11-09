@@ -43,6 +43,7 @@ const baseData: ReceituarioControleEspecialPdfData = {
   ],
   observacoes: 'Uso contínuo. Retornar em 30 dias.',
   issuedAt: '2026-06-01T12:00:00Z',
+  timeZone: 'America/Sao_Paulo',
 };
 
 function isPdf(buf: Buffer): boolean {

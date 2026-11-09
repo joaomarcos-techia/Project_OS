@@ -42,6 +42,7 @@ describe('PDF engine (funções puras → Buffer)', () => {
         ],
         observacoes: 'Retornar se piora.',
         issuedAt: '2026-06-01T12:00:00Z',
+        timeZone: 'America/Sao_Paulo',
       },
       branding,
       doctor,
@@ -56,6 +57,7 @@ describe('PDF engine (funções puras → Buffer)', () => {
         descricao: 'compareceu à consulta',
         dias: 2,
         issuedAt: '2026-06-01T12:00:00Z',
+        timeZone: 'America/Sao_Paulo',
       },
       branding,
       doctor,
@@ -69,12 +71,35 @@ describe('PDF engine (funções puras → Buffer)', () => {
         patientNome: 'João da Silva',
         exames: ['Hemograma', 'Glicemia'],
         issuedAt: '2026-06-01T12:00:00Z',
+        timeZone: 'America/Sao_Paulo',
       },
       branding,
       doctor,
     );
     expect(isPdf(buf)).toBe(true);
   });
+
+  it('imprime a data de emissão no dia local da clínica', async () => {
+    const buf = await renderAtestadoPDF(
+      {
+        patientNome: 'João da Silva',
+        descricao: 'compareceu à consulta',
+        // 22h30 de 01/06 em Brasília; em UTC já é 02/06.
+        issuedAt: '2026-06-02T01:30:00Z',
+        timeZone: 'America/Sao_Paulo',
+      },
+      branding,
+      doctor,
+    );
+    const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    const task = getDocument({ data: new Uint8Array(buf), useSystemFonts: true });
+    const doc = await task.promise;
+    const content = await (await doc.getPage(1)).getTextContent();
+    const text = content.items.map((it) => ('str' in it ? it.str : '')).join(' ');
+    await task.destroy();
+    expect(text).toContain('Data: 01/06/2026');
+    expect(text).not.toContain('02/06/2026');
+  }, 60_000);
 
   it('renderEncaminhamentoPDF gera um PDF válido', async () => {
     const buf = await renderEncaminhamentoPDF(
@@ -83,6 +108,7 @@ describe('PDF engine (funções puras → Buffer)', () => {
         especialidade: 'Cardiologia',
         motivo: 'avaliação de sopro',
         issuedAt: '2026-06-01T12:00:00Z',
+        timeZone: 'America/Sao_Paulo',
       },
       branding,
       doctor,

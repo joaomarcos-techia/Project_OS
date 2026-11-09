@@ -25,7 +25,7 @@ export async function renderExamePDF(
           <Text>{data.indicacaoClinica}</Text>
         </View>
       ) : null}
-      <Text style={styles.dateLine}>Data: {formatDate(data.issuedAt)}</Text>
+      <Text style={styles.dateLine}>Data: {formatDate(data.issuedAt, data.timeZone)}</Text>
     </DocShell>,
   );
 }
