@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 196 actions (0 inline); 61 métodos em 57 handlers; 19 props com referência de action; 451 acessos diretos a process.env; 9 nomes NEXT_PUBLIC.
+Contagem: 196 actions (0 inline); 62 métodos em 58 handlers; 19 props com referência de action; 464 acessos diretos a process.env; 9 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -265,6 +265,7 @@ O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase
 | `src/app/api/signup/sessions/auth/route.ts:36#POST`                  | NEW                     | SIGNUP_AUTH_ENABLED-origin-limit-cookie-cas                                     | `src/app/api/signup/sessions/auth/route.ts:68#reserveSignupAuthAttempt`                                                                                                      |
 | `src/app/api/signup/sessions/continue/route.ts:56#POST`              | NEW                     | SIGNUP_AUTH_ENABLED-origin-cookie-identity-limit-code-cas                       | `src/app/api/signup/sessions/continue/route.ts:80#assertSignupContinuationAllowed`                                                                                           |
 | `src/app/api/signup/sessions/destination/route.ts:12#GET`            | NEW                     | same-origin-short-browser-cookie-own-destination-read-limit                     | `src/app/api/signup/sessions/destination/route.ts:27#readSignupCodeDestination`                                                                                              |
+| `src/app/api/signup/sessions/email/route.ts:17#POST`                 | NEW                     | origin-identity-limit-live-cookie-current-email-cas-unverified-idle-only        | `src/app/api/signup/sessions/email/route.ts:54#correctSignupEmail`                                                                                                           |
 | `src/app/api/signup/sessions/identity/route.ts:24#POST`              | NEW                     | SIGNUP_IDENTITY_ENABLED-origin-limit-cookie-cas                                 | `src/app/api/signup/sessions/identity/route.ts:52#recordSignupIdentity`                                                                                                      |
 | `src/app/api/signup/sessions/me/route.ts:33#GET`                     | NEW                     | signup-cookie-and-read-rate-limit                                               | `src/app/api/signup/sessions/me/route.ts:46#readSignupSession`                                                                                                               |
 | `src/app/api/signup/sessions/resend/route.ts:33#POST`                | NEW                     | SIGNUP_AUTH_ENABLED-origin-resend-limit-cooldown-cas                            | `src/app/api/signup/sessions/resend/route.ts:67#reserveSignupResendAttempt`                                                                                                  |
@@ -610,6 +611,19 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/signup-code-db.ts:118`                   | `LOGIN_HASH_PEPPER`                    | `process.env.LOGIN_HASH_PEPPER`                                             |
 | `scripts/security/signup-code-db.ts:119`                   | `SIGNUP_AUTH_ENABLED`                  | `process.env.SIGNUP_AUTH_ENABLED`                                           |
 | `scripts/security/signup-code-db.ts:120`                   | `SIGNUP_IDENTITY_ENABLED`              | `process.env.SIGNUP_IDENTITY_ENABLED`                                       |
+| `scripts/security/signup-email-correction-db.ts:19`        | `<object>`                             | `process.env`                                                               |
+| `scripts/security/signup-email-correction-db.ts:19`        | `<dynamic>`                            | `process.env[key]`                                                          |
+| `scripts/security/signup-email-correction-db.ts:25`        | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
+| `scripts/security/signup-email-correction-db.ts:26`        | `DATABASE_URL_DEV`                     | `process.env.DATABASE_URL_DEV`                                              |
+| `scripts/security/signup-email-correction-db.ts:27`        | `DATABASE_URL_RUNTIME`                 | `process.env.DATABASE_URL_RUNTIME`                                          |
+| `scripts/security/signup-email-correction-db.ts:28`        | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                                          |
+| `scripts/security/signup-email-correction-db.ts:29`        | `SIGNUP_AUTH_ENABLED`                  | `process.env.SIGNUP_AUTH_ENABLED`                                           |
+| `scripts/security/signup-email-correction-db.ts:30`        | `SIGNUP_IDENTITY_ENABLED`              | `process.env.SIGNUP_IDENTITY_ENABLED`                                       |
+| `scripts/security/signup-email-correction-db.ts:31`        | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
+| `scripts/security/signup-email-correction-db.ts:32`        | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`                          |
+| `scripts/security/signup-email-correction-db.ts:33`        | `MAGIC_TOKEN_SECRET`                   | `process.env.MAGIC_TOKEN_SECRET`                                            |
+| `scripts/security/signup-email-correction-db.ts:34`        | `LOGIN_HASH_PEPPER`                    | `process.env.LOGIN_HASH_PEPPER`                                             |
+| `scripts/security/signup-email-correction-db.ts:35`        | `LOG_LEVEL`                            | `process.env.LOG_LEVEL`                                                     |
 | `scripts/security/signup-kill-switch-browser.ts:54`        | `<object>`                             | `process.env`                                                               |
 | `scripts/security/signup-local-backend.ts:85`              | `<dynamic>`                            | `process.env[key]`                                                          |
 | `scripts/security/signup-local-backend.ts:85`              | `<dynamic>`                            | `process.env[key]`                                                          |

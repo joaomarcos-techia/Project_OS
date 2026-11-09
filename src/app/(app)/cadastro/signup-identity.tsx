@@ -10,10 +10,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SIGNUP_INPUT_LIMITS } from '@/contexts/onboarding/signup-input-limits';
 import { SIGNUP_PASSWORD_RULES, signupPasswordMessage } from '@/lib/auth/signup-password';
+import { suggestEmailDomain } from '@/lib/auth/email-domain-suggestion';
 
 type Props = {
   rowVersion: number;
   saved: boolean;
+  initialEmail?: string | undefined;
   /**
    * O e-mail vai junto porque a tela de espera precisa dele para reenviar, e
    * NINGUÉM mais tem: o servidor guarda só o HMAC. Passá-lo em memória, entre
@@ -44,6 +46,7 @@ function readRowVersion(value: unknown, minimum: number): number | null {
 export function SignupIdentity({
   rowVersion,
   saved,
+  initialEmail,
   onCredentialsPrepared,
   onCredentialsCleared,
   onEmailPending,
@@ -54,6 +57,9 @@ export function SignupIdentity({
   const [accepted, setAccepted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [emailAddress, setEmailAddress] = useState(initialEmail ?? '');
+  const [acknowledgedEmail, setAcknowledgedEmail] = useState<string | null>(null);
+  const suggestion = suggestEmailDomain(emailAddress);
   const formRef = useRef<HTMLFormElement>(null);
   const currentVersion = useRef(rowVersion);
   const submitting = useRef(false);
@@ -71,13 +77,18 @@ export function SignupIdentity({
     const invalid = Array.from(
       form.querySelectorAll<HTMLInputElement>('input:not([type="hidden"])'),
     ).find((input) => !input.validity.valid || (input.type !== 'checkbox' && !input.value.trim()));
-    if (invalid || !accepted) {
+    if (invalid || (editing && !accepted)) {
       (invalid ?? form.querySelector<HTMLButtonElement>('[role="checkbox"]'))?.focus();
       setMessage('Preencha seus dados, a senha e confirme o aceite para continuar.');
       return;
     }
 
     const email = String(fields.get('email')).trim();
+    if (suggestion && acknowledgedEmail !== email.toLowerCase()) {
+      setMessage('Confira o domínio do e-mail abaixo antes de continuar.');
+      form.querySelector<HTMLInputElement>('input[name="email"]')?.focus();
+      return;
+    }
     const password = String(fields.get('password') ?? '');
     const passwordProblem = signupPasswordMessage(password);
     if (passwordProblem) {
@@ -96,38 +107,43 @@ export function SignupIdentity({
     setSaving(true);
     setMessage(null);
     try {
-      const identityResponse = await fetch('/api/signup/sessions/identity', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(identity),
-      });
-      if (identityResponse.status === 409) {
-        form.reset();
-        setAccepted(false);
-        await onReconcile('conflict');
-        return;
-      }
-      if (identityResponse.status === 410) {
-        onGone();
-        return;
-      }
-      if (!identityResponse.ok) {
-        setMessage(
-          identityResponse.status === 429
-            ? 'Muitas tentativas em pouco tempo. Aguarde antes de tentar novamente.'
-            : identityResponse.status === 503
-              ? 'O salvamento está temporariamente indisponível. Tente novamente mais tarde.'
-              : 'Não foi possível salvar. Confira os campos e tente novamente.',
-        );
-        return;
-      }
+      if (editing) {
+        const identityResponse = await fetch('/api/signup/sessions/identity', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(identity),
+        });
+        if (identityResponse.status === 409) {
+          form.reset();
+          setAccepted(false);
+          await onReconcile('conflict');
+          return;
+        }
+        if (identityResponse.status === 410) {
+          onGone();
+          return;
+        }
+        if (!identityResponse.ok) {
+          setMessage(
+            identityResponse.status === 429
+              ? 'Muitas tentativas em pouco tempo. Aguarde antes de tentar novamente.'
+              : identityResponse.status === 503
+                ? 'O salvamento está temporariamente indisponível. Tente novamente mais tarde.'
+                : 'Não foi possível salvar. Confira os campos e tente novamente.',
+          );
+          return;
+        }
 
-      const identityVersion = readRowVersion(await identityResponse.json(), currentVersion.current);
-      if (identityVersion === null) {
-        setMessage('Não foi possível confirmar o salvamento. Tente novamente.');
-        return;
+        const identityVersion = readRowVersion(
+          await identityResponse.json(),
+          currentVersion.current,
+        );
+        if (identityVersion === null) {
+          setMessage('Não foi possível confirmar o salvamento. Tente novamente.');
+          return;
+        }
+        currentVersion.current = identityVersion;
       }
-      currentVersion.current = identityVersion;
       onCredentialsPrepared(email);
 
       let authResponse: Response;
@@ -136,7 +152,7 @@ export function SignupIdentity({
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
-            rowVersion: identityVersion,
+            rowVersion: currentVersion.current,
             email,
             password,
             accepted: true,
@@ -155,7 +171,7 @@ export function SignupIdentity({
           await onReconcile('uncertain');
           return;
         }
-        const authVersion = readRowVersion(authBody, identityVersion);
+        const authVersion = readRowVersion(authBody, currentVersion.current);
         if (authVersion !== null) {
           onEmailPending(authVersion, email);
           return;
@@ -176,7 +192,7 @@ export function SignupIdentity({
           await onReconcile('uncertain');
           return;
         }
-        const retryVersion = readRowVersion(retryBody, identityVersion);
+        const retryVersion = readRowVersion(retryBody, currentVersion.current);
         if (retryVersion === null) {
           await onReconcile('uncertain');
           return;
@@ -216,75 +232,98 @@ export function SignupIdentity({
       >
         Seus dados e o nome da clínica
       </h2>
-      {saved && !editing ? (
-        <>
-          <p role="status" className="mt-3 text-pretty text-sm leading-relaxed text-fg-muted">
-            Seus dados foram salvos, mas a solicitação da conta ainda não foi confirmada. Por
-            segurança, preencha os campos novamente para continuar.
-          </p>
-          <Button
-            type="button"
-            variant="subtle"
-            className="mt-5 active:scale-[0.96]"
-            onClick={() => setEditing(true)}
-          >
-            Retomar criação da conta
-          </Button>
-        </>
-      ) : (
-        <form method="post" ref={formRef} onSubmit={submit} noValidate className="mt-5">
-          <p className="mb-5 text-pretty text-sm leading-relaxed text-fg-muted">
-            Defina sua senha uma única vez. Depois, confirme seu e-mail com o código recebido, sem
-            sair desta jornada.
-          </p>
-          <fieldset disabled={saving} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="signup-owner">Seu nome</Label>
-              <Input
-                id="signup-owner"
-                name="ownerName"
-                autoComplete="name"
-                required
-                maxLength={SIGNUP_INPUT_LIMITS.personName}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="signup-clinic">Nome da clínica</Label>
-              <Input
-                id="signup-clinic"
-                name="clinicName"
-                autoComplete="organization"
-                required
-                maxLength={SIGNUP_INPUT_LIMITS.clinicName}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="signup-email">E-mail</Label>
-              <Input
-                id="signup-email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-                maxLength={SIGNUP_INPUT_LIMITS.email}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="signup-password">Crie sua senha</Label>
-              <Input
-                id="signup-password"
-                name="password"
-                type="password"
-                autoComplete="new-password"
-                required
-                minLength={8}
-                maxLength={72}
-                aria-describedby="signup-password-rules"
-              />
-              <p id="signup-password-rules" className="text-xs leading-relaxed text-fg-muted">
-                {SIGNUP_PASSWORD_RULES}
-              </p>
-            </div>
+      <form method="post" ref={formRef} onSubmit={submit} noValidate className="mt-5">
+        <p className="mb-5 text-pretty text-sm leading-relaxed text-fg-muted">
+          {editing
+            ? 'Defina sua senha uma única vez. Depois, confirme seu e-mail com o código recebido, sem sair desta jornada.'
+            : 'Seu nome, clínica e respostas estão salvos. Confira o e-mail e informe a senha para este endereço. Se você corrigiu o endereço, a senha será definida para a conta corrigida.'}
+        </p>
+        <fieldset disabled={saving} className="space-y-4">
+          {editing ? (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="signup-owner">Seu nome</Label>
+                <Input
+                  id="signup-owner"
+                  name="ownerName"
+                  autoComplete="name"
+                  required
+                  maxLength={SIGNUP_INPUT_LIMITS.personName}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="signup-clinic">Nome da clínica</Label>
+                <Input
+                  id="signup-clinic"
+                  name="clinicName"
+                  autoComplete="organization"
+                  required
+                  maxLength={SIGNUP_INPUT_LIMITS.clinicName}
+                />
+              </div>
+            </>
+          ) : null}
+          <div className="space-y-2">
+            <Label htmlFor="signup-email">E-mail</Label>
+            <Input
+              id="signup-email"
+              name="email"
+              type="email"
+              autoComplete="email"
+              required
+              maxLength={SIGNUP_INPUT_LIMITS.email}
+              value={emailAddress}
+              onChange={(event) => {
+                setEmailAddress(event.target.value);
+                setAcknowledgedEmail(null);
+              }}
+            />
+            {suggestion && acknowledgedEmail !== emailAddress.trim().toLowerCase() ? (
+              <Alert variant="warning">
+                <p>
+                  Você quis dizer <strong className="break-all">{suggestion}</strong>?
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      setEmailAddress(suggestion);
+                      setAcknowledgedEmail(null);
+                    }}
+                  >
+                    Usar endereço sugerido
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setAcknowledgedEmail(emailAddress.trim().toLowerCase())}
+                  >
+                    Manter como digitei
+                  </Button>
+                </div>
+              </Alert>
+            ) : null}
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="signup-password">Crie sua senha</Label>
+            <Input
+              id="signup-password"
+              name="password"
+              type="password"
+              autoComplete="new-password"
+              required
+              minLength={8}
+              maxLength={72}
+              aria-describedby="signup-password-rules"
+            />
+            <p id="signup-password-rules" className="text-xs leading-relaxed text-fg-muted">
+              {SIGNUP_PASSWORD_RULES}
+            </p>
+          </div>
+          {editing ? (
             <div className="flex min-h-10 items-start gap-3 pt-2">
               <Checkbox
                 id="signup-accepted"
@@ -315,15 +354,26 @@ export function SignupIdentity({
                 .
               </Label>
             </div>
-          </fieldset>
-          <div aria-live="polite" className="mt-5">
-            {message ? <Alert variant="warning">{message}</Alert> : null}
-          </div>
-          <Button type="submit" loading={saving} className="mt-5 active:scale-[0.96]">
-            Enviar confirmação por e-mail
+          ) : null}
+        </fieldset>
+        <div aria-live="polite" className="mt-5">
+          {message ? <Alert variant="warning">{message}</Alert> : null}
+        </div>
+        <Button type="submit" loading={saving} className="mt-5 active:scale-[0.96]">
+          Enviar confirmação por e-mail
+        </Button>
+        {!editing ? (
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={saving}
+            onClick={() => setEditing(true)}
+            className="mt-3"
+          >
+            Alterar nome ou clínica
           </Button>
-        </form>
-      )}
+        ) : null}
+      </form>
     </section>
   );
 }
