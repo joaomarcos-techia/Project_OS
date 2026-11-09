@@ -11,10 +11,17 @@ import { assertAbacatePaySandboxRuntime } from '@/lib/payments/saas/acquisition'
 import { createPostgresGatewayOperationJournal } from '@/lib/payments/saas/postgres-store';
 import { createAbacatePaySandboxCommands } from '@/lib/payments/abacatepay/sandbox-commands';
 import { createAbacatePayReadClient } from '@/lib/payments/abacatepay/reader';
+import { CommandOperationError } from '@/lib/payments/saas/command-operation';
+import type { RecoveredCheckout } from '@/lib/payments/abacatepay/checkout-recovery';
 
 import { OFFER_2026_PLAN_CODES } from '../proposed-offer';
 import { toCents } from './money';
 import { reconcileMissingAbacatePayInitialPayment } from './abacatepay-processing';
+import { recoverAbacatePayCheckout } from './abacatepay-checkout-recovery';
+import {
+  getAbacatePayPlanChangeOverview,
+  requestAbacatePayPlanChange,
+} from './abacatepay-plan-changes';
 import {
   abacatePayManagementReady,
   getAbacatePayManagementContext,
@@ -29,6 +36,14 @@ export async function requestDeferredSubscriptionCancellation(input: {
   contractId: string;
 }) {
   return requestAbacatePayCancellation(dbAdmin, input);
+}
+export async function requestDeferredSubscriptionPlanChange(input: {
+  clinicId: string;
+  requestedBy: string;
+  contractId: string;
+  targetPlanId: string;
+}) {
+  return requestAbacatePayPlanChange(dbAdmin, input);
 }
 
 const productMapSchema = z.partialRecord(
@@ -185,16 +200,27 @@ export async function createDeferredSubscriptionCheckout(input: { clinicId: stri
     },
     journal,
   );
-  const checkout = await commands.createSubscriptionCheckout({
-    operationId: randomUUID(),
-    externalId: `qoro-initial-${contract.subscription_id}`,
-    productId,
-    expectedAmountMinor: amountMinor,
-    expectedCycle: 'MONTHLY',
-    expectedNativeTrialDays: null,
-    returnUrl: callbackUrl,
-    completionUrl: callbackUrl,
-  });
+  let checkout: RecoveredCheckout;
+  try {
+    checkout = await commands.createSubscriptionCheckout({
+      operationId: randomUUID(),
+      externalId: `qoro-initial-${contract.subscription_id}`,
+      productId,
+      expectedAmountMinor: amountMinor,
+      expectedCycle: 'MONTHLY',
+      expectedNativeTrialDays: null,
+      returnUrl: callbackUrl,
+      completionUrl: callbackUrl,
+    });
+  } catch (error) {
+    if (!(error instanceof CommandOperationError) || error.code === 'invalid_input') throw error;
+    const recovered = await recoverAbacatePayCheckout(dbAdmin, {
+      subscriptionId: contract.subscription_id,
+      clinicId,
+    });
+    if (recovered.state !== 'recovered') throw new DeferredCheckoutError('reconcile_required');
+    checkout = recovered.result;
+  }
   const attached = z.array(z.object({ subscription_id: z.uuid() })).parse(
     await dbAdmin.transaction(async (tx) => {
       // Match the payment processor's lock order: contract, then binding.
@@ -293,6 +319,9 @@ export async function getDeferredSubscriptionOverview(clinicId: string) {
         paid: overview.released_at !== null,
         billingStatus: overview.billing_status,
         paidPeriodActive: overview.paid_period_active,
+        planChanges: managementAvailable
+          ? await getAbacatePayPlanChangeOverview(dbAdmin, clinicId)
+          : null,
         managementAvailable,
         contractId: management?.generation_id ?? null,
         accessUntil: management?.period_end.toISOString() ?? null,

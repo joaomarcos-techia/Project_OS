@@ -266,10 +266,27 @@ export function createAbacatePaySandboxCommands(
       return execute(input.operationId, 'request_plan_change', parameters, schema, async () => {
         const subscription = await read.readSubscription(input.subscriptionId);
         const product = await read.readProduct(input.productId);
+        // GET does not promise frequency. Prove it through the paid origin product
+        // when absent; never infer a cycle from ACTIVE or the requested target.
+        let originalCycle = subscription.frequency;
+        if (originalCycle === undefined && subscription.checkoutId) {
+          const origin = await read.readSubscriptionCheckoutFinancials(subscription.checkoutId);
+          if (
+            origin.status === 'PAID' &&
+            origin.customerId === input.customerId &&
+            origin.amount === origin.paidAmount &&
+            origin.items.length === 1 &&
+            origin.items[0]?.quantity === 1
+          ) {
+            const originalProduct = await read.readProduct(origin.items[0].id);
+            if (originalProduct.trialDays == null)
+              originalCycle = originalProduct.cycle ?? undefined;
+          }
+        }
         if (
           subscription.customerId !== input.customerId ||
           subscription.status !== 'ACTIVE' ||
-          subscription.frequency !== input.expectedCycle ||
+          originalCycle !== input.expectedCycle ||
           product.cycle !== input.expectedCycle ||
           product.price !== input.expectedAmountMinor ||
           product.trialDays != null

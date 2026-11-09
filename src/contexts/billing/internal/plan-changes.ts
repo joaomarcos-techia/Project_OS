@@ -357,7 +357,7 @@ export function fitsPlanUserLimit(activeUsers: number, limit: number | null): bo
   return Number.isInteger(activeUsers) && activeUsers > 0 && limit !== null && activeUsers <= limit;
 }
 
-async function assertTargetPlanCapacity(
+export async function assertTargetPlanCapacity(
   tx: Tx,
   clinicId: string,
   targetPlanId: string,

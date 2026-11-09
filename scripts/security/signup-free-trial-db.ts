@@ -434,6 +434,7 @@ try {
   let postCalls = 0;
   let cancelCalls = 0;
   let loseCancellationResponse = false;
+  let loseCheckoutResponse = false;
   globalThis.fetch = async (input, init) => {
     fixtureHttpCalls++;
     const url = new URL(input instanceof Request ? input.url : String(input));
@@ -470,6 +471,10 @@ try {
       status: value.paid ? 'PAID' : 'PENDING',
       devMode: true,
       items: [{ id: 'prod_synthetic', quantity: 1 }],
+      methods: ['CARD'],
+      returnUrl: 'https://qoro.example/configuracoes/assinatura',
+      completionUrl: 'https://qoro.example/configuracoes/assinatura',
+      createdAt: value.createdAt,
     });
     let data: unknown;
     if (method === 'GET' && url.pathname === '/v2/stores/get') data = { id: 'store_synthetic' };
@@ -504,7 +509,16 @@ try {
         subscriptionId: `subs_http${postCalls}`,
         createdAt: new Date(Date.now() - 1000).toISOString(),
       });
+      if (loseCheckoutResponse) throw new Error('Synthetic checkout response lost after commit');
       data = { id: checkoutId };
+    } else if (method === 'GET' && url.pathname === '/v2/subscriptions/checkouts/list') {
+      return Response.json({
+        success: true,
+        data: [...external]
+          .filter(([, value]) => value.externalId === url.searchParams.get('externalId'))
+          .map(([checkoutId, value]) => checkout(checkoutId, value)),
+        pagination: { hasMore: false, next: null },
+      });
     } else if (
       method === 'GET' &&
       url.pathname === '/v2/subscriptions/checkouts/get' &&
@@ -792,13 +806,15 @@ try {
     },
   );
   await check(
-    'recontract checkout is unique across 12 concurrent attempts and cannot change price',
+    'lost recontract response is recovered across 12 concurrent attempts without a second checkout',
     async () => {
+      loseCheckoutResponse = true;
       const results = await Promise.allSettled(
         Array.from({ length: 12 }, () =>
           createDeferredSubscriptionCheckout({ clinicId: lostTrial.clinicId }),
         ),
       );
+      loseCheckoutResponse = false;
       if (!results.some((value) => value.status === 'fulfilled')) {
         const rejected = results.find((value) => value.status === 'rejected');
         if (rejected?.status === 'rejected') throw rejected.reason;
@@ -810,6 +826,9 @@ try {
       const [row] =
         await sql`SELECT count(*)::int n,min(amount_minor)::int amount FROM billing_gateway.recontracts WHERE clinic_id=${lostTrial.clinicId}::uuid`;
       assert.deepEqual(row, { n: 1, amount: 39700 });
+      const [recovery] = await sql`SELECT count(*)::int n FROM public.billing_events
+        WHERE clinic_id=${lostTrial.clinicId}::uuid AND type='subscription.checkout.result_recovered'`;
+      assert.deepEqual(recovery, { n: 1 });
       await assert.rejects(
         dbAdmin.transaction((tx) => assertClinicCanWriteTx(tx, lostTrial.clinicId)),
       );

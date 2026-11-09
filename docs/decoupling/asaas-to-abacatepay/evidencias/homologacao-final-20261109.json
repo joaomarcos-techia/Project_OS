@@ -1,0 +1,587 @@
+{
+  "observedAt": "2026-11-09T12:15:16.128Z",
+  "scope": "DEV, Sandbox and local synthetic proofs only; not production readiness",
+  "baselineSha": "3bacc7e78a6d84e1b93bd68165ffd6324361a90e",
+  "localGates": {
+    "observedAt": "2026-11-09T12:09:27.742Z",
+    "results": [
+      {
+        "name": "typecheck",
+        "exitCode": 0,
+        "signal": null,
+        "durationMs": 28216
+      },
+      {
+        "name": "lint",
+        "exitCode": 0,
+        "signal": null,
+        "durationMs": 103770
+      },
+      {
+        "name": "inventory",
+        "exitCode": 0,
+        "signal": null,
+        "durationMs": 41609
+      },
+      {
+        "name": "migration-safety",
+        "exitCode": 0,
+        "signal": null,
+        "durationMs": 796
+      },
+      {
+        "name": "observability",
+        "exitCode": 0,
+        "signal": null,
+        "durationMs": 1308
+      },
+      {
+        "name": "arch-db",
+        "exitCode": 0,
+        "signal": null,
+        "durationMs": 9023
+      },
+      {
+        "name": "arch-circular",
+        "exitCode": 0,
+        "signal": null,
+        "durationMs": 36958
+      },
+      {
+        "name": "focused",
+        "exitCode": 0,
+        "signal": null,
+        "durationMs": 3971
+      },
+      {
+        "name": "full",
+        "exitCode": 0,
+        "signal": null,
+        "durationMs": 751493
+      }
+    ]
+  },
+  "fullSuite": {
+    "files": 609,
+    "passed": 6695,
+    "failed": 0,
+    "exitCode": 0,
+    "coverageRun": false
+  },
+  "finalAffectedChecks": {
+    "typecheckExit": 0,
+    "lintExit": 0,
+    "focusedTests": 74
+  },
+  "postgres": {
+    "recovery": {
+      "observedAt": "2026-11-09T11:46:53.403Z",
+      "environment": "loopback_synthetic",
+      "migrations": 142,
+      "results": [
+        {
+          "name": "H3 timeout before remote processing is retained across retries without another POST",
+          "status": "PASS"
+        },
+        {
+          "name": "H3 response lost after provider processing recovers the original checkout without a second creation",
+          "status": "PASS"
+        },
+        {
+          "name": "H3 durable running reservation with lost journal acknowledgement is recoverable by GET",
+          "status": "PASS"
+        },
+        {
+          "name": "H3 concurrent read-only recovery confirms one original operation and one recovery audit",
+          "status": "PASS"
+        },
+        {
+          "name": "H3 database failure rolls back journal, attachment and audit; retry does not repeat POST",
+          "status": "PASS"
+        },
+        {
+          "name": "H3 a paid checkout is attached without granting access; separate payment readback applies one invoice",
+          "status": "PASS"
+        },
+        {
+          "name": "H3 ambiguity, wrong tenant and API failure preserve the unknown obligation",
+          "status": "PASS"
+        },
+        {
+          "name": "H5 bounded scanner applies authoritative recovery with durable backoff and no new command",
+          "status": "PASS"
+        }
+      ],
+      "networkCalls": 0,
+      "fixtureCalls": 137,
+      "syntheticPostAttempts": 8,
+      "productionWrites": 0,
+      "status": "PASS"
+    },
+    "renewalPlansNegative": {
+      "observedAt": "2026-11-09T12:05:24.605Z",
+      "environment": "loopback_synthetic",
+      "migrations": 142,
+      "results": [
+        {
+          "name": "REN-001 verified renewal records a second invoice and advances the original calendar once",
+          "status": "PASS"
+        },
+        {
+          "name": "REN-002/020 duplicate event and charge do not extend the same period twice",
+          "status": "PASS"
+        },
+        {
+          "name": "REN-003/004/018 older distinct charge keeps financial evidence without regressing the current period",
+          "status": "PASS"
+        },
+        {
+          "name": "REN-005 unknown event or subscription cannot create a financial effect",
+          "status": "PASS"
+        },
+        {
+          "name": "REN-006 authenticated references cannot be rebound to another tenant",
+          "status": "PASS"
+        },
+        {
+          "name": "REN-007 gateway/environment/store mismatch is rejected before writes",
+          "status": "PASS"
+        },
+        {
+          "name": "REN-008 cancellation intent wins over automatic renewal access and keeps paid evidence",
+          "status": "PASS"
+        },
+        {
+          "name": "REN-009/010 API outage remains retryable, then the same legitimate event regularizes once",
+          "status": "PASS"
+        },
+        {
+          "name": "REN-011 transaction rollback preserves state and permits a later successful replay",
+          "status": "PASS"
+        },
+        {
+          "name": "REN-012 twelve concurrent applications produce one invoice and paid cycle",
+          "status": "PASS"
+        },
+        {
+          "name": "REN-013/014/015 database calendar checks reject a shifted month even under another timezone",
+          "status": "PASS"
+        },
+        {
+          "name": "REN-016 unsupported annual readback does not create a new annual sale or advance access",
+          "status": "PASS"
+        },
+        {
+          "name": "REN-017 changed product or partial amount is reviewed before duplicate acknowledgement",
+          "status": "PASS"
+        },
+        {
+          "name": "REN-019 absent renewal references are not invented from the initial PAID checkout",
+          "status": "PASS"
+        },
+        {
+          "name": "real receiver + HMAC + inbox + HTTP readback + DB application survives duplicate and concurrent reconcile",
+          "status": "PASS"
+        },
+        {
+          "name": "REN-003/004 late earlier cycle records its own invoice without resetting the current access",
+          "status": "PASS"
+        },
+        {
+          "name": "REN-017 a local price change does not grant the pending plan from the old payment",
+          "status": "PASS"
+        },
+        {
+          "name": "failure/refund/dispute after success stays in review without undoing paid access",
+          "status": "PASS"
+        },
+        {
+          "name": "H2 full/partial refund observations are idempotent and never cancel access or alter the paid invoice",
+          "status": "PASS"
+        },
+        {
+          "name": "H2 a verified refund of an older cycle cannot shorten a newer paid cycle",
+          "status": "PASS"
+        },
+        {
+          "name": "H2 a reversal is recorded as ambiguous rather than a won dispute or restored payment",
+          "status": "PASS"
+        },
+        {
+          "name": "H4 extra doctor is scheduled once under concurrency and released only by its full paid renewal",
+          "status": "PASS"
+        },
+        {
+          "name": "H4 Consultorio to Clinica upgrade keeps the original plan until full next-cycle payment",
+          "status": "PASS"
+        },
+        {
+          "name": "H4 downgrade reserves target capacity and applies only its lower fully paid cycle",
+          "status": "PASS"
+        },
+        {
+          "name": "H4 lost plan-change response retains one obligation and never overwrites it with another POST",
+          "status": "PASS"
+        },
+        {
+          "name": "H4 another tenant, stale generation and cancelled contract cannot submit a plan command",
+          "status": "PASS"
+        },
+        {
+          "name": "H4 old amount, partial payment and early target payment cannot release the new plan",
+          "status": "PASS"
+        },
+        {
+          "name": "H4 rollback keeps both plan and pending intent before a successful payment replay",
+          "status": "PASS"
+        },
+        {
+          "name": "schema is private, FORCE RLS, service_role read/insert only",
+          "status": "PASS"
+        },
+        {
+          "name": "financial and access snapshots are immutable",
+          "status": "PASS"
+        },
+        {
+          "name": "H4 pending plan snapshots are immutable, private and deny destructive service privileges",
+          "status": "PASS"
+        },
+        {
+          "name": "paid period cannot reference an invoice belonging to another tenant",
+          "status": "PASS"
+        },
+        {
+          "name": "anon/authenticated cannot read private financial evidence, and service cannot update it",
+          "status": "PASS"
+        }
+      ],
+      "networkCalls": 0,
+      "fixtureHttpCalls": 106,
+      "productionWrites": 0,
+      "status": "PASS"
+    },
+    "trialRecontract": {
+      "observedAt": "2026-11-09T11:47:17.700Z",
+      "environment": "loopback_synthetic",
+      "migrations": 142,
+      "results": [
+        {
+          "name": "free trial creates complete tenant, quotas and immutable origin without provider IO",
+          "status": "PASS"
+        },
+        {
+          "name": "12 concurrent retries return the original tenant without restarting trial",
+          "status": "PASS"
+        },
+        {
+          "name": "12 concurrent initial requests create only one tenant",
+          "status": "PASS"
+        },
+        {
+          "name": "the same beneficiary with another Auth subject cannot gain another trial or access",
+          "status": "PASS"
+        },
+        {
+          "name": "expired Auth deadline does not grant a new trial and business writes are blocked",
+          "status": "PASS"
+        },
+        {
+          "name": "legacy plan cannot enter the new acquisition cohort",
+          "status": "PASS"
+        },
+        {
+          "name": "existing remote billing attempt is preserved for its original Asaas journey",
+          "status": "PASS"
+        },
+        {
+          "name": "existing owner/admin/invited profile cannot be reassigned",
+          "status": "PASS"
+        },
+        {
+          "name": "failure after provisioning rolls back tenant, claim, binding and draft consumption",
+          "status": "PASS"
+        },
+        {
+          "name": "deadline and external account identity cannot be rewritten",
+          "status": "PASS"
+        },
+        {
+          "name": "authenticated and anonymous cannot inspect or mutate the private gateway tables",
+          "status": "PASS"
+        },
+        {
+          "name": "trial has no initial invoice, charge or gateway operation",
+          "status": "PASS"
+        },
+        {
+          "name": "Consultorio uses its own monthly price and the same unpaid trial controls",
+          "status": "PASS"
+        },
+        {
+          "name": "verified initial payment atomically records one invoice, origin, paid period and releases quotas",
+          "status": "PASS"
+        },
+        {
+          "name": "12 simultaneous payment retries cannot duplicate invoices, attempts or entitlement",
+          "status": "PASS"
+        },
+        {
+          "name": "pending is never accepted as payment",
+          "status": "PASS"
+        },
+        {
+          "name": "expired is never accepted as payment",
+          "status": "PASS"
+        },
+        {
+          "name": "cancelled is never accepted as payment",
+          "status": "PASS"
+        },
+        {
+          "name": "refunded is never accepted as payment",
+          "status": "PASS"
+        },
+        {
+          "name": "unknown is never accepted as payment",
+          "status": "PASS"
+        },
+        {
+          "name": "wrong account, partial amount, stopped recurrence, future or stale period do not grant access",
+          "status": "PASS"
+        },
+        {
+          "name": "transaction failure rolls back payment, binding and quota release; retry succeeds",
+          "status": "PASS"
+        },
+        {
+          "name": "cancelled contract is not revived by a delayed initial payment",
+          "status": "PASS"
+        },
+        {
+          "name": "payment for another remote customer cannot replace the immutable binding",
+          "status": "PASS"
+        },
+        {
+          "name": "old paid checkout cannot extend expired period or evade write lock after existing grace",
+          "status": "PASS"
+        },
+        {
+          "name": "billing provider cannot be switched or mixed with an Asaas subscription ID",
+          "status": "PASS"
+        },
+        {
+          "name": "post-trial command uses server catalogue, durable journal and one checkout across retries",
+          "status": "PASS"
+        },
+        {
+          "name": "active trial cannot originate checkout or call provider",
+          "status": "PASS"
+        },
+        {
+          "name": "invalid webhook authentication has no readback or financial effect",
+          "status": "PASS"
+        },
+        {
+          "name": "authenticated webhook reads authoritative fixture API and atomically activates exactly one contract",
+          "status": "PASS"
+        },
+        {
+          "name": "replayed HTTP event creates no second payment and paid contract cannot originate again",
+          "status": "PASS"
+        },
+        {
+          "name": "missing-webhook readback keeps an unpaid checkout restricted",
+          "status": "PASS"
+        },
+        {
+          "name": "paid cached checkout recovers atomically without a fabricated webhook or second charge",
+          "status": "PASS"
+        },
+        {
+          "name": "concurrent missing-webhook retries cannot duplicate a paid invoice",
+          "status": "PASS"
+        },
+        {
+          "name": "another tenant actor or stale generation cannot request cancellation",
+          "status": "PASS"
+        },
+        {
+          "name": "12 cancellation clicks stop recurrence at most once without shortening access",
+          "status": "PASS"
+        },
+        {
+          "name": "replacement checkout before paid end is refused without a provider POST",
+          "status": "PASS"
+        },
+        {
+          "name": "lost cancellation response is recovered by authoritative GET, never another POST",
+          "status": "PASS"
+        },
+        {
+          "name": "lost recontract response is recovered across 12 concurrent attempts without a second checkout",
+          "status": "PASS"
+        },
+        {
+          "name": "pending, partial, old, future, stopped or other-store evidence cannot reactivate",
+          "status": "PASS"
+        },
+        {
+          "name": "recontract transaction rollback preserves cancelled state and original payment",
+          "status": "PASS"
+        },
+        {
+          "name": "authoritative missing-webhook recontract activates exactly once without restarting trial",
+          "status": "PASS"
+        },
+        {
+          "name": "late old cancellation and old checkout cannot cancel or reactivate the replacement",
+          "status": "PASS"
+        },
+        {
+          "name": "a paid replay with an altered gross amount is reviewed instead of acknowledged",
+          "status": "PASS"
+        },
+        {
+          "name": "private cancellation and recontract snapshots are immutable and not client-accessible",
+          "status": "PASS"
+        },
+        {
+          "name": "paid-end write gate does not grant delinquency grace after renewal cancellation",
+          "status": "PASS"
+        },
+        {
+          "name": "second-generation cancellation and authenticated new-checkout webhook keep lineage intact",
+          "status": "PASS"
+        }
+      ],
+      "networkCalls": 0,
+      "fixtureHttpCalls": 381,
+      "productionWrites": 0,
+      "status": "PASS"
+    }
+  },
+  "devMigration": {
+    "observedAt": "2026-11-09T12:10:13.705Z",
+    "environment": "known_dev_project",
+    "preflight": "PASS",
+    "remoteMigrationsBefore": 141,
+    "pending": ["0141_saas_scheduled_plan_changes"],
+    "applied": ["0141_saas_scheduled_plan_changes"],
+    "migrationHash": "a13faef1aa291981c3e4c337cbde868225d9d1433bdeed8dd320fd7a74fdf5fd",
+    "productionWrites": 0,
+    "schemaChecks": {
+      "privateTables": 12,
+      "forceRls": true,
+      "anonymousAccess": false,
+      "authenticatedAccess": false,
+      "servicePrivileges": ["SELECT", "INSERT", "UPDATE"],
+      "existingPrivilegesPreserved": true,
+      "triggers": 2,
+      "newPlanChanges": 0
+    },
+    "existingDataPreserved": true,
+    "existingTablesCompared": 20,
+    "postflight": "PASS",
+    "remoteMigrationsAfter": 142,
+    "completedAt": "2026-11-09T12:10:24.615Z"
+  },
+  "sandboxRecoveryReadOnly": {
+    "observedAt": "2026-11-09T11:14:37.468Z",
+    "environment": "sandbox_read_only",
+    "status": "PASS",
+    "uniqueResource": true,
+    "originalFingerprintMatched": true,
+    "existingCheckoutMatched": true,
+    "currentStatus": "PAID",
+    "requests": 4,
+    "providerMutations": 0,
+    "databaseWrites": 0,
+    "newFixtures": 0
+  },
+  "sandboxCatalog": {
+    "observedAt": "2026-11-09T11:50:53.799Z",
+    "environment": "sandbox",
+    "status": "PASS",
+    "apply": true,
+    "verifiedPlanCodes": [
+      "clinica_2026_2",
+      "clinica_2026_3",
+      "clinica_2026_4",
+      "clinica_2026_5",
+      "consultorio_2026"
+    ],
+    "productsCreated": 3,
+    "accountsCreated": 0,
+    "checkoutsCreated": 0,
+    "chargesCreated": 0,
+    "productionWrites": 0,
+    "cleanup": "Retain owned Sandbox catalog for homologation; remove only its new product IDs after confirming no checkout/subscription references."
+  },
+  "previewPlanMap": {
+    "observedAt": "2026-11-09T12:14:17.292Z",
+    "status": "PASS",
+    "apply": true,
+    "branch": "feat/billing-abacatepay-20261107",
+    "targets": ["preview"],
+    "variable": "ABACATEPAY_SANDBOX_PLAN_PRODUCTS",
+    "verifiedProducts": 5,
+    "updatedVariables": 1,
+    "productionWrites": 0,
+    "otherEnvironmentsPreserved": true,
+    "requiresNewDeployment": true
+  },
+  "publicWidget": {
+    "observedAt": "2026-11-09T10:56:39.999Z",
+    "origin": "https://project-myz43zotn-clinic-os-v2-s-projects.vercel.app",
+    "sourceSha": "3bacc7e78a6d84e1b93bd68165ffd6324361a90e",
+    "environment": "existing_branch_preview",
+    "secretScope": "existing_branch_preview",
+    "secretType": "not_used_by_widget_test",
+    "passed": 1,
+    "failed": 0,
+    "skipped": 0,
+    "cases": [
+      {
+        "title": "o desafio resolve e entrega token — não fica preso em \"loading\"",
+        "status": "passed",
+        "durationMs": 3732
+      }
+    ],
+    "exitCode": 0,
+    "credentialPersistence": false,
+    "productionWrites": 0,
+    "chargesCreated": 0,
+    "accountsCreated": 0
+  },
+  "publicSecret": {
+    "status": "PASS",
+    "tests": 1,
+    "skips": 0,
+    "environment": "isolated_099aa2f8_build_unchanged_auth_files",
+    "canary": "official_public_test_secret",
+    "notProofOf": "private masked preview or production secret"
+  },
+  "refundPolicy": {
+    "approvedByFounder": true,
+    "preservePaidEnd": true,
+    "humanReview": true,
+    "oldCycleDoesNotShortenNewPaidCycle": true,
+    "externalRefundNotRun": true
+  },
+  "externalLimitations": [
+    "recurring charge/cycle without webhook",
+    "paid renewal after plan change",
+    "refund/dispute/chargeback outcome",
+    "single-use subscription checkout after deletion",
+    "temporal expiry and recontract"
+  ],
+  "productionWrites": 0,
+  "newCheckouts": 0,
+  "newCharges": 0,
+  "newAuthAccounts": 0,
+  "remoteCandidate": {
+    "status": "NOT RUN",
+    "reason": "New source not yet published at this checkpoint"
+  }
+}

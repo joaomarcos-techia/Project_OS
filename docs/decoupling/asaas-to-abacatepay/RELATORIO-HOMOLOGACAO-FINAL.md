@@ -1,0 +1,302 @@
+# Homologação financeira AbacatePay — Qoro
+
+Iniciado em **09/11/2026**, antes das alterações desta rodada. **As seções 1–8 preservam o checkpoint H0 anterior à implementação; as seções 9–25 registram o fechamento diferencial.** Referência para futura ativação, **não autorização de Produção**. Este relatório consolida os [planos existentes](PLANO-MESTRE-MIGRACAO-ASAAS-ABACATEPAY.md), o [diário](PLANO-EXECUCAO-CONTINUIDADE.md), a [renovação](PLANO-CONTINUIDADE-RENOVACAO-E-HOMOLOGACAO.md) e a [matriz financeira](MATRIZ-CENARIOS-E-TESTES.md); não os substitui por regras comerciais novas.
+
+## 1. Arquitetura e baseline H0
+
+Somente assinaturas da clínica à Qoro são candidatas à AbacatePay. Contratos Asaas existentes, anuais legados, descontos e pagamentos de pacientes permanecem na origem. Supabase e Vercel continuam como infraestrutura. Nenhum cutover, cobrança real ou merge está autorizado.
+
+- Worktree `C:/dev/Qoro_billing_abacatepay_20261107`, branch `feat/billing-abacatepay-20261107`, HEAD inicial `af43c56572bfd2dad62b2ea28e14b4756a715ea7`, limpo. O commit local do backlog futuro foi preservado e não será alterado.
+- [PR #53](https://github.com/joaomarcos-techia/Project_OS/pull/53) OPEN/draft, HEAD remoto `3bacc7e78a6d84e1b93bd68165ffd6324361a90e`. Diferença local: somente dois documentos do registro futuro.
+- [CI do código](https://github.com/joaomarcos-techia/Project_OS/actions/runs/42567863264) SUCCESS: 6.616 testes/606 arquivos, build, segurança, isolamento, bundle/HTTP; E2E público 8 PASS/2 SKIP. Semgrep, Snyk e Vercel SUCCESS; Agent Review NEUTRAL não equivale a revisão humana.
+- Preflight DEV somente leitura em `2026-11-09T10:37:54Z` (**07:37:54 Brasília**): 141 migrations, nenhuma pendente, hash 0140 `98269c83b754785a7e9ecf0b2b4b142ff121cc22b56b8f3055575299ba8ca330`, zero escritas. Não reaplicar migrations históricas.
+- A [0140 passou no DEV](evidencias/renewal-0140-20261109.json): duas tabelas privadas, 18 tabelas anteriores preservadas, FORCE RLS e service_role somente SELECT/INSERT. Provas locais: 22 verificações de renovação e 47 de trial/cancelamento/recontratação com 141 migrations.
+- UI paralela: `C:/dev/Qoro_ui_refactor_20261108`, branch `ui/refactor-qoro-20261108`, HEAD observado `2ed6b71f`. Há mudanças não commitadas em dashboard, caixa, consultório, painel e CSS. Não serão editadas, copiadas nem descartadas nesta rodada. Alterações indispensáveis na assinatura devem permanecer funcionais e isoladas.
+- [Convênios, lotes e CID](../../roadmap/convenios-lotes-cid-futuro.md) fora do escopo, inclusive suas tabelas, documentos e IA.
+
+## 2. Inventário de capacidades antes da implementação
+
+“Testada” abaixo identifica o nível da prova, não homologação integral. Estados de teste neste relatório: PASS, FAIL, BLOCKED, NOT RUN ou NOT APPLICABLE. Capacidade incompleta é descrita por texto e gates distintos.
+
+| Funcionalidade          | Implementada                                               | Testada localmente                                 | Homologada Sandbox                                                                | Pendências reais                                                                                |
+| ----------------------- | ---------------------------------------------------------- | -------------------------------------------------- | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Cadastro e trial        | Sim, avaliação Qoro absoluta e sem checkout                | PASS: PG e testes anteriores                       | Preview: identidade confirmada administrativamente → trial; não entrega de e-mail | Prazo real de 14 dias não observado; preservação na regressão                                   |
+| Checkout                | Sim, preço no servidor e journal                           | PASS: concorrência/resultado desconhecido retido   | PASS: emissão Clínica R$397 anterior                                              | Recuperar checkout quando o resultado do POST se perdeu                                         |
+| Pagamento inicial       | Sim, readback integral e efeito atômico                    | PASS                                               | PASS: pagamento Sandbox anterior, webhook e UI paga                               | Não repetir esse pagamento                                                                      |
+| Webhook                 | Sim, secret+HMAC, inbox e lease                            | PASS: autenticação/replay/transação                | PASS para o primeiro pagamento                                                    | Demais eventos exigem provas próprias                                                           |
+| Renovação               | Sim, leitor e calendário original aprovado                 | PASS: 43 testes do leitor, 15 de calendário, 22 PG | NOT RUN para renovação temporal externa                                           | API sem período/vencimento; descoberta de evento totalmente ausente                             |
+| Falha de pagamento      | Evento em revisão; política de acesso existente preservada | PASS somente ausência de concessão indevida        | NOT RUN                                                                           | Registrar estado financeiro verificável, retries e causa do cancelamento sem inventar suspensão |
+| Cancelamento            | Sim, irreversível no provedor, acesso até fim pago         | PASS                                               | PASS: comando/readback e UI; não entrega do webhook                               | Distinguir cancelamento automático de voluntário                                                |
+| Recontratação           | Sim, gerações distintas e sem novo trial                   | PASS: duas gerações PostgreSQL                     | NOT RUN após fim temporal real                                                    | Fixture retida até fim do período, sem alterar suas datas                                       |
+| Upgrade                 | Comando adapter; composição de domínio indisponível        | PASS apenas comando PENDING                        | NOT RUN                                                                           | ADR-068 C: liberar só na renovação paga do novo valor/produto                                   |
+| Downgrade               | Comando adapter; composição de domínio indisponível        | Regressão Asaas existente; não paridade AbacatePay | NOT RUN                                                                           | Ocupação, reserva de cota e efetivação no próximo ciclo                                         |
+| Médico adicional        | Catálogo/cotas existentes; compra AbacatePay indisponível  | Não comprova ciclo completo AbacatePay             | NOT RUN                                                                           | Mesma ADR-068 C, preço aprovado, concorrência e renovação                                       |
+| Estorno e disputa       | Eventos ficam em revisão, sem revogar direitos             | PASS somente ausência de efeito indevido           | NOT RUN                                                                           | Readback por cobrança e política comercial para efeito no acesso                                |
+| Conciliação             | Inicial sem webhook, inbox e cancelamento                  | PASS nos recortes anteriores                       | PASS no cancelamento observado; inicial sem webhook só sintético                  | Descoberta de renovações/eventos negativos e divergências                                       |
+| Recuperação de checkout | Reserva durável impede novo POST; não descobre o resultado | PASS na retenção de unknown                        | NOT RUN para retorno perdido externo                                              | Consultar referência oficial, provar unicidade/identidade e completar a mesma operação          |
+
+## 3. Compatibilidade e decisões vigentes
+
+| Aspecto              | Asaas preservado                                 | Candidata AbacatePay                                                        |
+| -------------------- | ------------------------------------------------ | --------------------------------------------------------------------------- |
+| Origem               | Contratos antigos mantêm IDs, preço e desconto   | Binding por provedor/conta/ambiente imutável                                |
+| Trial                | Jornada atual e convites não são redirecionados  | 14 dias desde Auth; checkout somente ao fim                                 |
+| Período              | Sem alteração nesta rodada                       | ADR-069 e calendário mensal original aprovado; não afirma vencimento remoto |
+| Alteração de plano   | Upgrade proporcional/sincronização atual         | ADR-068 C: próximo ciclo integral pago, sem proporcional separado           |
+| Cancelamento         | Mantém reativação suportada                      | ADR-070: sem desfazer; nova contratação após fim pago                       |
+| Anual novo           | Flag fechada; contratos existentes preservados   | NOT APPLICABLE: não abrir nova oferta anual                                 |
+| Pacientes/repasse/NF | Fora desta migração; conta recebedora da clínica | Não implementados por este adapter                                          |
+
+## 4. Jornadas e gates — checkpoint inicial
+
+| ID   | Requisito              | Cenário                                                             | Ambiente                 | Resultado esperado                                  | Resultado real                                                               | Evidência                                      | Status  | Bloqueio                                           |
+| ---- | ---------------------- | ------------------------------------------------------------------- | ------------------------ | --------------------------------------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------- | ------- | -------------------------------------------------- |
+| H0   | Baseline real          | Git/CI/DEV e trabalho paralelo                                      | Local/API DEV/PR         | Nenhuma pendência presumida                         | Matriz acima e preflight sem escrita                                         | Baseline desta seção                           | PASS    | Não                                                |
+| H1-L | Renovação              | Cobrança distinta, calendário, duplicidade, ordem, rollback, tenant | PG/HTTP sintéticos       | Um benefício por ciclo validado                     | 22 verificações anteriores passaram                                          | `evidencias/renewal-0140-20261109.json`        | PASS    | Não no recorte local                               |
+| H1-E | Renovação externa      | Ciclos sucessivos reais                                             | Sandbox                  | Provar pagamento/ciclo/efeito                       | Sem aceleração oficial localizada; fixture já cancelada não será reutilizada | Documentação oficial e plano anterior          | BLOCKED | Dependência externa; não inferir pelo PAID inicial |
+| H2   | Eventos negativos      | Falha/refund/disputa e reversão                                     | A executar               | Estado financeiro rastreável sem política inventada | Revisão segura existe; demais etapas pendentes                               | Worker e contratos atuais                      | NOT RUN | Engenharia/readback e regras de acesso             |
+| H3   | Resultado desconhecido | POST remoto sem resposta persistida                                 | A executar               | Recuperar a mesma operação sem novo POST            | Journal retém unknown, mas recuperação não existe                            | `command-operation.ts`, `deferred-checkout.ts` | NOT RUN | Implementável por leitura oficial                  |
+| H4   | Planos/adicionais      | Próxima renovação no novo preço/produto                             | A executar               | Cota só após condição financeira aprovada           | ADR-068 C aprovada; composição bloqueada                                     | ADR-068                                        | NOT RUN | Engenharia e homologação                           |
+| H5   | Conciliação            | Dados ausentes/divergentes e repetição                              | A executar               | Recuperar com prova, sem criar cobranças            | Recortes inicial/cancelamento existentes                                     | Diário/matriz anteriores                       | NOT RUN | Completar novos recortes                           |
+| H6   | Jornada completa       | Trial → pago → renovação → cancelamento → recontratação             | PG/Preview/Sandbox       | Provas por subcenário e nível                       | Inicial/cancelamento externos; outros recortes locais                        | Matriz anterior                                | NOT RUN | Não confundir soma de provas com temporal contínuo |
+| H7   | E2E público            | Secret ausente no browser e widget resolvido                        | Build isolado específico | Executar os dois SKIP com chaves oficiais de teste  | Ausência de chaves no build padrão confirmada                                | `e2e/public-surface.spec.ts`, Cloudflare       | NOT RUN | Configuração local isolada viável                  |
+| H8   | Regressão              | Gates após novas mudanças                                           | A executar               | Nenhuma regressão crítica                           | Baseline 6.616 válida antes de alterações                                    | CI 42567863264                                 | NOT RUN | Reexecutar somente após mudanças pertinentes       |
+| H9   | Revisão adversarial    | 22 questões do prompt                                               | A executar               | Riscos corrigidos ou classificados                  | Baseline sem conclusão integral                                              | Este relatório será atualizado                 | NOT RUN | Revisão diferencial                                |
+| H10  | Pré-produção           | Flags, secrets, legado, monitoramento e rollback                    | Documentação             | Material revisável, sem ativação                    | [Rollback](../../runbooks/provider-rollback.md) existente                    | Checklist abaixo                               | NOT RUN | Gates financeiros anteriores                       |
+
+## 5. Fontes e limites externos
+
+Documentação oficial AbacatePay conferida em 09/11, repositório `AbacatePay/documentation` HEAD `b221a381d3363ab3eb384134ff4567e60c001225`, igual à baseline. [Assinaturas](https://docs.abacatepay.com/pages/subscriptions/reference), [eventos](https://docs.abacatepay.com/pages/webhooks/events/subscriptions), [busca de checkout](https://docs.abacatepay.com/pages/subscriptions/checkouts-get), [lista de checkouts](https://docs.abacatepay.com/pages/subscriptions/checkouts-list), [Cloudflare — chaves de teste](https://developers.cloudflare.com/turnstile/troubleshooting/testing/).
+
+O GET de assinatura não documenta próximo vencimento/período pago. A lista de checkouts aceita referência e paginação; um GET por referência sozinho não comprova unicidade. A simulação documentada de pagamento transparente não é aceleração de assinatura. Não criar transação nova para repetir prova anterior.
+
+## 6. Ordem de execução e condições de segurança
+
+1. H0 acima; preservar contratos/fixture, backlog e UI.
+2. H1 diferencial: confirmar limites oficiais e completar apenas lacunas locais executáveis. Não inventar evento ausente.
+3. H3/H5: recuperar checkout desconhecido por consulta autenticada, referência estável, fingerprint e unicidade, sem segundo POST.
+4. H2: persistir observações verificadas de eventos negativos sem criar política de revogação; separar acesso de obrigação.
+5. H4 conforme ADR-068 C, sem escolher novamente upgrade imediato; falta de prova remota bloqueia benefício.
+6. H7 em cópia local sem `.env` real e chaves oficiais de teste, sem alterar CI/Produção. Positivo de teste não comprova domínio real ou negativo.
+7. H6/H8/H9/H10, evidências e gates por nível. As etapas bloqueadas não interrompem as independentes.
+
+## 7. Checklist de ativação futura e rollback
+
+- [ ] H1–H6 críticos comprovados no nível exigido, com ambiguidades sem concessão de direitos.
+- [ ] H7 público executado; configuração real separada verificada antes de abertura.
+- [ ] Migrations futuras compatíveis, preflight, backup e autorização da janela de Produção.
+- [ ] Secrets próprios de Produção, conta/permissões e produto/valor conferidos, sem copiar credenciais DEV.
+- [ ] Webhook HTTPS estável, secret/HMAC, inbox durável, alertas/retries e conciliação verificados.
+- [ ] Origem por assinatura preservada, Asaas ativo para obrigações antigas; nenhuma cobrança em ambos.
+- [ ] Trial, cotas, planos e landing coerentes; oferta anual nova continua fechada.
+- [ ] Piloto gradual autorizado, monitoramento de backlog/review/valor/período/duplicidade e critérios de contenção.
+- [ ] Rollback ensaiado: parar novas originações, manter recepção/conciliadores das obrigações, preservar binding e histórico. Voltar código não desfaz comando remoto; sem DOWN destrutivo ou failover de cobrança.
+- [ ] Aceites comerciais pendentes resolvidos; homologação temporal não pode ser substituída silenciosamente por mock.
+
+## 8. Decisão deste checkpoint
+
+**NO-GO para ativação de Produção.** H0 concluído; nenhum novo teste externo, escrita remota ou alteração de código feita antes desta matriz. Os próximos registros devem informar comandos, resultados, arquivos e limites reais. Não há autorização de cutover nesta rodada.
+
+## 9. Implementação diferencial
+
+O código novo permanece exclusivamente na branch financeira. O [journal](../../../src/lib/payments/saas/command-operation.ts) exporta o mesmo cálculo de fingerprint já utilizado, sem alterar sua identidade. O [leitor de recuperação](../../../src/lib/payments/abacatepay/checkout-recovery.ts) verifica loja, Sandbox, produto mensal sem trial nativo, preço, referência, callbacks, data e **todas as páginas** da busca. Dois resultados, cursor repetido, limite de páginas ou divergência encerram a leitura sem recuperação. Um GET por referência que retorna o último resultado não basta.
+
+A [recuperação no domínio](../../../src/contexts/billing/internal/abacatepay-checkout-recovery.ts) confirma a **operação original** e anexa o ID na mesma transação. Não repete POST nem cria invoice, período ou direito. Abrange aquisição e recontratação, com geração anterior efetivamente cancelada. A releitura financeira posterior decide se o checkout ainda pode ser apresentado; um checkout pago nunca vira um novo link de contratação. O cron passa por recuperação antes de buscar o pagamento inicial ausente, respeita o orçamento e registra adiamento por `job_budget`.
+
+O [novo domínio de planos](../../../src/contexts/billing/internal/abacatepay-plan-changes.ts) implementa a alternativa C da ADR-068: uma intenção privada por geração, catálogo/preço/produto no servidor, nenhuma cobrança proporcional e nenhuma cota antecipada. Pedidos concorrentes usam a mesma obrigação. Outro plano não sobrescreve uma pendência desconhecida. O downgrade reserva a capacidade no banco desde a intenção; o plano e seus benefícios mudam atomicamente com a invoice da renovação integral no produto autorizado, mantendo o aniversário original.
+
+O GET de assinatura não promete `frequency`. O comando agora só admite sua ausência quando consegue provar o ciclo pelo **produto do checkout original pago**, com cliente, item e valor verificados. Não presume MONTHLY a partir de ACTIVE ou do produto desejado. Frequência explicitamente incompatível continua recusada.
+
+## 10. Estado externo, financeiro e acesso
+
+| Entrada                                           | Estado comprovável                                              | Efeito financeiro/local                                                | Acesso/cota                                           | Recuperação                                                                 |
+| ------------------------------------------------- | --------------------------------------------------------------- | ---------------------------------------------------------------------- | ----------------------------------------------------- | --------------------------------------------------------------------------- |
+| Resposta perdida na criação                       | Busca única + fingerprint original                              | Completa a mesma operação e binding; nenhum pagamento criado           | Nenhum                                                | Readback financeiro separado; ausência/ambiguidade fica retida              |
+| Primeiro pagamento integral                       | Checkout e assinatura vinculados                                | Uma invoice e snapshot inicial                                         | Remove cotas temporárias, mantém teto do plano        | Caminho anterior preservado; sem repetir pagamento                          |
+| Renovação integral                                | Checkout distinto + extrato aprovado + conta/cliente/assinatura | Uma observação, uma invoice por ciclo                                  | Avança somente calendário elegível                    | Inbox com lease e retries limitados                                         |
+| Plano novo aceito PENDING                         | Comando reconhecido, não pagamento                              | Intenção congelada; nenhuma invoice complementar                       | Plano atual permanece; downgrade reserva teto         | Próxima renovação tem de provar produto e valor novos                       |
+| Pagamento parcial, preço antigo ou produto errado | Insuficiente para plano novo                                    | Revisão; não inventa complemento                                       | Sem liberação de médicos extras                       | Corrigir divergência na origem e reconciliar com prova                      |
+| Falha de pagamento/disputa notificada             | Notificação autenticada + estado atual da assinatura            | Auditoria distingue notificação de prova financeira                    | Nenhum direito novo nem suspensão por suposição       | Revisão; API não comprova por esse GET o retry/ciclo ou desfecho da disputa |
+| Estorno                                           | Checkout próprio + débitos `category=refund` no extrato         | Registra valor parcial/integral observado, sem reescrever invoice paga | Mantém o período pago e encaminha para revisão humana | Reversão ou ausência de débito suficiente continua ambígua                  |
+| Cancelamento confirmado                           | Recorrência parada no provedor                                  | Snapshot preserva período pago                                         | Até fim pago, sem tolerância adicional                | Irreversível; nova contratação apenas depois                                |
+| Recontratação após fim pago                       | Outra geração e pagamento integral                              | Nova invoice; história anterior intacta                                | Novo período, sem novo trial                          | Não reutiliza IDs anteriores nem mantém duas recorrências                   |
+
+Nos contratos não cancelados, o gate de escrita existente também verifica `current_period_end` e a tolerância persistida; não depende apenas do rótulo ACTIVE para permitir escrita indefinidamente. A regra geral foi preservada; a exceção de refund do ciclo atual segue a aprovação descrita abaixo. Cancelados não recebem esse intervalo adicional.
+
+## 11. Eventos negativos: limite deliberado
+
+[Leitor financeiro](../../../src/lib/payments/abacatepay/negative-payment.ts), [vínculo/auditoria](../../../src/contexts/billing/internal/abacatepay-negative-events.ts) e worker distinguem `refund_debit_verified`, `status_only` e `subscription_status_only`. O extrato é paginado e limitado, sem registrar clientes, descrições, cartões ou payload bruto. Repetir o evento não duplica a observação de domínio. Falha de API/transação mantém retry limitado e nenhum efeito parcial.
+
+**REFUNDED isolado não comprova valor estornado; PAID não comprova disputa ganha.** Débito de estorno parcial não é perda integral. Uma movimentação `reversal` não autoriza declarar pagamento recuperado. Notificação de falha não basta para afirmar número do retry, vencimento ou cancelamento por inadimplência. A API consultada não fornece todos esses vínculos/desfechos, e o parser não transforma campos descartados do webhook em verdade financeira.
+
+**Decisão expressa do founder em 09/11/2026:** manter o acesso até o fim do período pago e encaminhar estorno/chargeback para revisão humana. Evento de ciclo antigo não pode bloquear ciclo novo já pago. A implementação não cancela a recorrência, não encurta o período pago e não reescreve a invoice como se tivesse sido quitada novamente. Um débito de refund confirmado para o exato período e geração atuais limita a carência ao fim já contratado; não cria quinze dias adicionais não pagos após esse período. Eventos históricos, ambíguos, disputas sem perda comprovada e notificações de falha não reduzem o período nem a carência de um ciclo novo. Uma renovação nova comprovada segue sua regra normal.
+
+Os testes PostgreSQL reais passaram para reembolso parcial/integral, oito workers concorrentes, uma única auditoria, permissão de escrita preservada durante o período e bloqueio após projeção temporal local do seu fim. Um refund verificado do checkout inicial, recebido depois de uma renovação paga, preservou integralmente o novo período e sua carência. Não houve reembolso externo nem alteração de direitos de cliente real. A política está aprovada e testada localmente; falta a prova financeira externa correspondente para homologar H2 por completo.
+
+## 12. Migration 0141 e isolamento
+
+[0141](../../../drizzle/migrations/0141_saas_scheduled_plan_changes.sql) acrescenta `billing_gateway.plan_changes`, um índice único de intenção pendente por geração, snapshots protegidos, FKs compostas e um guard adicional de capacidade em `profiles`. Preserva a trigger anterior e os contratos Asaas. Não altera preços, contratos, permissões já contratadas, dados clínicos ou a 0140 aplicada.
+
+A tabela tem FORCE RLS, nenhum acesso anon/authenticated e service_role somente SELECT/INSERT/UPDATE, sem DELETE/TRUNCATE/REFERENCES/TRIGGER. A trigger não aceita alterar os termos congelados nem reescrever uma aplicação concluída. A ordem é **schema aditivo → aplicação candidata → validação**, evitando receber renovação com código novo e schema ausente. A autorização desta rodada cobre somente DEV verificado; **não aplicar em Produção**.
+
+Preflight somente leitura em `2026-11-09T11:36:00Z`: 141 migrations existentes; única pendente `0141_saas_scheduled_plan_changes`; hash `a13faef1aa291981c3e4c337cbde868225d9d1433bdeed8dd320fd7a74fdf5fd`. Histórico é comparado por timestamp/hash, incluindo apenas divergências antigas já auditadas; contagem sozinha não basta. **Aplicação autorizada DEV: PASS**, `2026-11-09T12:10:13Z–12:10:24Z`. Histórico 141 → 142, somente 0141; hashes e timestamps conferidos, locks com prazo e transação. Hashes/contagens das 20 tabelas anteriores iguais antes/depois; privilégios das onze tabelas privadas anteriores iguais. Nova tabela vazia, FORCE RLS, zero acesso anon/authenticated, service_role SELECT/INSERT/UPDATE, duas funções/triggers conferidas. Zero escrita em Production. Não repetir a migration.
+
+## 13. Provas locais e comando de reprodução
+
+No worktree financeiro, com dependências existentes e sem carregar `.env.local` real nos ensaios sintéticos:
+
+```powershell
+Set-Location 'C:\dev\Qoro_billing_abacatepay_20261107'
+node node_modules/typescript/bin/tsc --noEmit
+node node_modules/eslint/bin/eslint.js .
+node node_modules/vitest/vitest.mjs run --coverage --minWorkers=1 --maxWorkers=1
+node node_modules/tsx/dist/cli.mjs --conditions=react-server scripts/security/abacatepay-checkout-recovery-db.ts
+node node_modules/tsx/dist/cli.mjs --conditions=react-server scripts/security/abacatepay-renewal-db.ts
+node node_modules/tsx/dist/cli.mjs --conditions=react-server scripts/security/signup-free-trial-db.ts
+```
+
+Os scripts PG inicializam clusters locais descartáveis, aplicam as migrations reais e usam **HTTP sintético**, sem credenciais reais nem acesso de rede ao provedor. Seeds e relógios/datas controlados só nesses clusters. Validações incluem divisão por zero/rollback real, concorrência, tenant, valor parcial, referência errada, snapshots, geração e cotas. Não são prova de cobrança temporal externa.
+
+Checkpoint executado: 8 verificações H3; 47 trial/cancelamento/recontratação; **33 renovação/planos/negativos**, incluindo a política aprovada. Esses últimos 33 passaram com exit 0, 142 migrations reais e zero chamadas de rede externa. Também foi corrigido o replay de um ciclo já marcado para revisão: a repetição continua em revisão, em vez de ser rotulada como aplicação duplicada bem-sucedida. Os totais finais de regressão, build e CI devem ser lidos no registro de fechamento, sem herdar PASS do baseline para código alterado.
+
+## 14. Sandbox real nesta rodada
+
+Em `2026-11-09T11:14:37Z`, o novo leitor descobriu a cobrança **já existente** da fixture retida: recurso único, checkout original igual e fingerprint igual; estado atual PAID. **4 GETs, zero POSTs, zero escritas DB e zero contas/fixtures criadas.** A loja foi conferida contra o hash do manifesto protegido e o produto retornou Sandbox. Isso prova a busca/leitura oficial utilizada na recuperação; não houve timeout externo induzido nem nova mensalidade.
+
+Não deslocar datas, recancelar ou excluir a fixture paga/cancelada. Seu período termina em `2026-12-09T00:31:10.888Z` (**08/12 às 21:31:10 em Brasília**). Pagamento inicial, webhook e cancelamento observados anteriormente continuam válidos no seu recorte; não recebem rótulo de renovação por terem PAID.
+
+## 15. E2E público e os dois SKIP
+
+Os 8 PASS/2 SKIP da CI anterior continuam registrados. Ausência de chaves no build isolado é intencional; não afrouxar teste ou copiar segredo privado para a CI. Nesta rodada:
+
+- **PASS:** teste original do widget no Preview imutável `3bacc7e7`, Chromium, 3.732 ms, 1 PASS/0 SKIP; ambos os widgets obtiveram token e o script permaneceu único. Chave pública oficial de teste always-pass; **não** prova desafio real, hostname real, rejeição ou replay server-side.
+- **PASS:** teste original de ausência da secret no HTML em build local isolado anterior compatível nos arquivos de Auth/login/env/middleware, com canário oficial conhecido em runtime; 1 PASS/0 SKIP. Não leu nem comprovou a secret privada mascarada do Preview, nem declara build financeiro novo a partir desse artefato.
+- **Correção do harness:** `storageState` vazio da spec eliminava o cookie da proteção Vercel e o teste observava SSO em vez do Qoro. O acesso de automação agora é limitado à origem Vercel; não acompanha chamadas Cloudflare. O teste espera o campo de senha visível após hidratação e não faz SKIP silencioso quando há chave esperada e o widget não aparece.
+
+Nenhuma conta ou cobrança criada. A conferência de Production real permanece fora desta autorização; os resultados acima não a substituem.
+
+## 16. E2E financeiro por subcenário
+
+| Jornada                                                  | Local/PG/HTTP sintético                       | Preview/Sandbox real                               | Limite                                                                    |
+| -------------------------------------------------------- | --------------------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------- |
+| Identidade confirmada administrativamente → trial        | PASS anterior e regressão                     | PASS anterior                                      | Não prova entrega do e-mail                                               |
+| Trial vencido → checkout → pagamento → webhook → UI paga | PASS                                          | PASS anterior                                      | Sem repetir cobrança; callback em contexto novo encontrou proteção Vercel |
+| Resposta perdida → recuperação → pagamento separado      | PASS H3                                       | PASS somente busca/leitura do recurso já existente | Falha externa não induzida                                                |
+| Renovação → invoice → mesmo calendário → acesso          | PASS                                          | NOT RUN                                            | Falta ciclo financeiro externo com vínculo verificável                    |
+| Cancelar → acesso até fim → nova contratação             | PASS, duas gerações                           | PASS cancelamento e recusa antecipada anteriores   | Fim temporal/recontratação externa ainda NOT RUN                          |
+| Plano/extra médico → renovação integral → cota           | PASS nos recortes PG novos                    | NOT RUN                                            | Precisa assinatura Sandbox ativa e renovação no novo produto              |
+| Falha/refund/disputa → readback → revisão                | PASS no recorte seguro e na política aprovada | NOT RUN                                            | Falta evento financeiro externo                                           |
+
+Não somar provas parciais para afirmar que um único usuário percorreu todos os meses no Sandbox. Os testes de componente validam interação, não liquidação, persistência ou provedor; os scripts PG cobrem persistência; o Sandbox tem prova própria.
+
+## 17. Matriz diferencial dos gates
+
+| Frente                                            | Estado da prova                                               | Bloqueio de ativação?       | Próximo gate concreto                                                                          |
+| ------------------------------------------------- | ------------------------------------------------------------- | --------------------------- | ---------------------------------------------------------------------------------------------- |
+| H0 baseline/isolamento                            | PASS                                                          | Não                         | Preservar branch, legado e UI paralela                                                         |
+| H1 renovação local                                | PASS no recorte ampliado                                      | Não no recorte local        | Evidência PG final com 33 verificações                                                         |
+| H1 renovação externa e webhook totalmente ausente | BLOCKED                                                       | Sim                         | Vínculo cobrança/ciclo pela API ou suporte e observação externa; não inferir por cliente/valor |
+| H2 observação negativa e acesso local             | PASS no recorte implementado                                  | Não no recorte local        | Política aprovada: manter período e revisar; falta prova externa                               |
+| H2 falhas e desfecho financeiro externo           | BLOCKED                                                       | Sim                         | Evidência financeira específica; decisão de acesso já aprovada                                 |
+| H3 recuperação local e busca real                 | PASS                                                          | Não para esse recorte       | Falha remota induzida continua NOT RUN                                                         |
+| H4 planos/adicionais                              | PASS local no recorte novo                                    | Sim para oferta ao público  | Homologar comando + renovação Sandbox de plano alterado                                        |
+| H5 inbox/inicial/unknown/cancelamento             | PASS por recortes locais                                      | Sim na lacuna externa       | Não há descoberta segura de renovação completamente sem referências                            |
+| H6 contínuo temporal externo                      | NOT RUN                                                       | Sim                         | Fechar as subprovas financeiras faltantes; não reutilizar fixture cancelada                    |
+| H7 duas verificações públicas                     | PASS nos ambientes indicados                                  | Não para o recorte de teste | Não confundir com Production                                                                   |
+| H8 regressão local                                | PASS: 6.695 testes, typecheck, lint, inventário e arquitetura | Não no recorte local        | Build e checks remotos do novo SHA ainda precisam terminar                                     |
+| H8 build/CI novo                                  | NOT RUN no checkpoint local                                   | Sim                         | Ler o resultado do SHA publicado, sem herdar o baseline                                        |
+| H9 adversarial                                    | PASS como revisão documentada; riscos abertos não aprovados   | Sim nos P0/P1               | Resolver/validar itens abaixo                                                                  |
+| H10 pré-produção                                  | PASS como preparação, não execução                            | Sim nos pré-requisitos      | Nenhum cutover autorizado                                                                      |
+
+## 18. Revisão adversarial — 22 perguntas
+
+| #   | Pergunta/risco                          | Conclusão e evidência                                                                                                                                                                                                                 |
+| --- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Cobrar duas vezes?                      | Journal durável + obrigação única impedem repetição pelo Qoro; não há failover cego. **Risco aberto:** URL de checkout do provedor é reutilizável fora do app; o fechamento precisa de prova própria.                                 |
+| 2   | Mesmo pagamento concede duas vezes?     | PK financeira/ciclo, invoice e direitos atômicos; PG concorrente prova uma aplicação.                                                                                                                                                 |
+| 3   | Webhook falso libera?                   | Secret privado + HMAC + ambiente + inbox; direito exige GET financeiro vinculado. HMAC publicado pelo provedor não é segredo de autenticação.                                                                                         |
+| 4   | Outro tenant acessa financeiro?         | Identidade/permissão no servidor, IDs do body não escolhem clínica, FKs compostas e contexto de conta; PG/HTTP negativos.                                                                                                             |
+| 5   | Asaas altera assinatura AbacatePay?     | Nova composição exige billing_provider/conta/ambiente e nenhum asaas_subscription_id; scanners Asaas conservam seus IDs. Não há roteamento automático por flag global de obrigação antiga.                                            |
+| 6   | Evento antigo sobrescreve atual?        | Geração, calendário, snapshots e origem preservados; evento histórico não rebaixa período.                                                                                                                                            |
+| 7   | Renovar sem pagamento?                  | ACTIVE, PENDING, webhook ou bill inicial não bastam; valor integral, outro checkout e recibo vinculados são necessários.                                                                                                              |
+| 8   | Cancelar encurta período pago?          | Snapshot exato e gate de fim pago; comando irreversível só interrompe recorrência. Provas anteriores preservadas.                                                                                                                     |
+| 9   | Checkout desconhecido duplica cobrança? | Recuperação GET-only, fingerprint e unicidade; ausência não autoriza novo POST. Corrigido nesta rodada.                                                                                                                               |
+| 10  | Rollback incompatível?                  | Schema expansivo e binding preservado; voltar release não desfaz comando remoto. Não fazer DOWN destrutivo nem migrar obrigações ao Asaas.                                                                                            |
+| 11  | Banco falha após confirmação?           | Reserva/evento persistidos antes; efeito DB atômico/rollback testado. Readback retoma sem segunda cobrança.                                                                                                                           |
+| 12  | API falha e estado se perde?            | Reserva unknown fica retida; retries de GET e auditoria. Ambiguidade pode exigir suporte; retenção segura não equivale a recuperação automática completa.                                                                             |
+| 13  | Renovação depois de cancelar?           | Pagamento recebido ainda pode ser observado/histórico; cancelamento solicitado impede extensão automática. Divergência exige revisão e não nova cobrança.                                                                             |
+| 14  | Recontratação cria duas recorrências?   | Confirma a geração anterior CANCELLED, fim pago e geração nova; não reusa contrato inicial. Paridade temporal externa ainda pendente.                                                                                                 |
+| 15  | Disputa antiga suspende ciclo novo?     | Política aprovada preserva o período pago e exige revisão humana; refund antigo verificado não encurta período/carência novos. PG cobre a separação por período e geração.                                                            |
+| 16  | Plano gera valor errado?                | Servidor resolve catálogo mensal congelado; browser manda só plano; produto/preço comparados; sem proporcional. Preço/produto divergente não libera.                                                                                  |
+| 17  | Médicos divergem do contratado?         | Intenção não concede cota; só renovação integral aplica plano, invoice e histórico. Downgrade reserva teto no PostgreSQL e confere ocupação novamente.                                                                                |
+| 18  | Legado Asaas continua?                  | Nenhuma reprecificação/migração de contrato; suíte de regressão precisa ficar verde. Trial antigo, anual existente e desconto vitalício não foram alterados.                                                                          |
+| 19  | Adapter isolado?                        | HTTP/provider DTOs em lib/payments/abacatepay; aplicação de direitos em billing. SQL e Next não entram no adapter. Composição financeira ainda é específica e não é portabilidade total.                                              |
+| 20  | Terceiro gateway fácil?                 | Contratos neutros, bindings e journal ajudam. Um terceiro exige adapter, capacidades comerciais, esquema de eventos/períodos, testes e cutover; trocar uma env não migra contratos.                                                   |
+| 21  | Dependências ocultas de host/DB?        | Cron Vercel, URLs, HTTP/SSO e PostgreSQL/RLS/transações continuam explícitos. Não foram substituídos; arquitetura não é neutra a infraestrutura inteira.                                                                              |
+| 22  | O que falta externamente?               | Renovação sucessiva, recuperação sem evento, plano no ciclo seguinte, falha de cartão/retries/auto-cancel, refund/disputa/reversão, fechamento de checkout e recontratação após fim pago. Não marcar esses itens PASS por mock ou CI. |
+
+## 19. Risco de checkout reutilizável
+
+O [diário anterior](PLANO-EXECUCAO-CONTINUIDADE.md) já registra que um checkout de assinatura pode ser reutilizado para outro comprador. O Qoro não reapresenta link pago e não concede direitos quando a lista encontra mais de uma assinatura, mas não controla uma URL previamente copiada no provedor. Isso continua **P0 de ativação**, e não foi ocultado pela correção de recuperação.
+
+A documentação oferece [POST de exclusão do checkout](https://docs.abacatepay.com/pages/subscriptions/checkouts-delete), com permissão SUBSCRIPTION:DELETE, prometendo preservar assinaturas geradas. **Não comprova** a disponibilidade posterior do GET financeiro, do vínculo original, do recibo ou do próprio fluxo de mudança de plano após excluir. Não apagar o único checkout pago retido para descobrir isso. É necessário um ensaio rastreável específico de fechamento, perda de resposta, lista/GET/subscrição e pagamentos históricos. Não inventar `/close` nem considerar remoção visual da lista prova de impossibilidade de nova contratação.
+
+## 20. Produção, secrets e permissões
+
+Não houve composição de Production. API e comandos continuam guardados para Sandbox; uma chave ou flag sozinha não libera o provedor em Production. Não copiar `.env.local` para Vercel/Produção.
+
+Futura ativação exige conta/loja, chave própria, verificação dos produtos mensais sem trial nativo, webhook HTTPS estável com secret próprio, callbacks corretos e permissões mínimas efetivamente necessárias. Conferir o catálogo oficial antes de emitir a chave: SUBSCRIPTION:CREATE para criar/alterar, SUBSCRIPTION:READ para consultar e BANK_STATEMENT:READ para o extrato. O [cancelamento](https://docs.abacatepay.com/pages/subscriptions/cancel) já requer **SUBSCRIPTION:DELETE**, a mesma permissão documentada para excluir checkout; não existe fundamento para inventar SUBSCRIPTION:CANCEL. Conferir também as permissões documentadas de leitura da loja e dos produtos. Não atribuir autorização a uma chave antiga por ela autenticar GET.
+
+`SAAS_SIGNUP_PROVIDER` controla **novas originações**, não muda o provider persistido. `ABACATEPAY_STORE_ID`, `ABACATEPAY_API_KEY`, `ABACATEPAY_SANDBOX_PROBE_PRODUCT_ID`, `ABACATEPAY_SANDBOX_PLAN_PRODUCTS` e `ABACATEPAY_WEBHOOK_SECRET` são da candidata Sandbox, não receita de Production. Modalidade anual nova permanece fechada; contratos anuais antigos ficam no Asaas.
+
+## 21. Monitoramento e conciliação
+
+Monitorar `billing.abacatepay.event_reconciled`, `reconcile_failed`, `checkout_reconciled`, `negative_event_review`, `plan_change_pending` e `reconcile_deferred`, além do heartbeat `billing-reconcile`, leases expirados, `review`, operações unknown e backlog crescente. Não registrar payload, recibo, URL de checkout com segredo, cliente ou cartão.
+
+O cron existente limita cada trabalho e guarda auditoria de verificação/backoff; não tem fila isolada nem SLA novo implantado nesta rodada. Processamento de Asaas pode consumir o orçamento e adiar AbacatePay; agora há sinal explícito. Antes do piloto real, validar capacidade/alerta e responsável. Métrica emitida **não significa alerta externo configurado**.
+
+Para webhook totalmente ausente de uma renovação, extrato com cliente/preço iguais não prova assinatura. Solicitar replay oficial ou vínculo oficial cobrança → assinatura. Não inserir evento positivo artificial, não alterar período manualmente para aparentar conciliação e não renovar pelo bill inicial.
+
+## 22. Rollback e contenção
+
+Seguir [provider-rollback](../../runbooks/provider-rollback.md): parar novas originações/operações na candidata, preservar recepção durável e conciliação das obrigações já existentes, guardar journals/leases/snapshots e reconsultar o provedor de origem. Não usar Asaas como repetição de uma obrigação AbacatePay desconhecida. Nenhuma flag desfaz cancelamento irreversível ou cobrança remota.
+
+A 0141 é expansiva e pode permanecer com código anterior; não excluir tabela/histórico nem remover guard via DOWN em incidente. Promover somente release compatível, conferir origem/valores/quotas e reconciliar o intervalo antes de retomar. Este procedimento foi revisado por código e testes locais, **não executado como rollback de Production**.
+
+## 23. Próximos gates externos e ações humanas indispensáveis
+
+1. **Política financeira já aprovada e implementada:** manter período pago e revisão humana, sem suspender ciclo novo por perda de ciclo antigo. Não há nova decisão humana pendente sobre essa regra; falta sua homologação com eventos externos.
+2. **Suporte AbacatePay, sem dados de pacientes:** pedir método oficial para acelerar recorrência Sandbox; vínculo autoritativo de novo bill/payment com assinatura quando o webhook nunca chega; consulta de ciclo/vencimento/retries e desfecho de disputa; comportamento de GET/recibo após excluir checkout e garantia de não reutilização. Encaminhar IDs de fixture somente por canal administrativo autorizado, nunca chaves ou payload no Git.
+3. **Pagamento novo somente quando necessário e acompanhado:** a fixture atual já está cancelada e precisa ser preservada. Se o provedor exigir outra assinatura ativa para provar alteração/renovação/fechamento, preparar manifesto com estado inicial, expected values, geração, responsável, evidência e cleanup **antes** de gerar checkout. Não criar link antecipado que expire enquanto o founder está ausente.
+4. **Futuro piloto de Production:** autorização específica após os gates, chave/configuração próprias e plano de observabilidade. Não há solicitação de cartão real, cobrança ou migração de cliente nesta rodada.
+
+## 24. Checklist verificável de pré-produção
+
+- [ ] CI/build/segurança do SHA candidato aprovados e código revisável.
+- [ ] 0141 e anteriores com preflight/backup/locks/rollback verificados na janela autorizada; nunca executar agora em Production.
+- [ ] Recorrência externa com cobrança/ciclo/valor/item/cliente/conta e calendário comprovados.
+- [ ] Fechamento de checkout reutilizável homologado sem perder recuperação financeira/histórico.
+- [ ] Upgrade, downgrade e médico adicional comprovados no ciclo integral real, sem cota antecipada.
+- [ ] Falhas, retries e auto-cancelamento conhecidos; política de estorno/disputa aprovada e validada.
+- [ ] Ausência total de webhook com recuperação autoritativa ou requisito de aceitação explicitamente tratado pelo responsável.
+- [ ] Webhook público de destino estável, secret mínimo, inbox/lease/replay e alertas operacionais verificados.
+- [ ] Trial/cotas/termos/landing coerentes com checkout ao final e novas regras de alteração; anual não anunciado como disponível.
+- [ ] Origem Asaas legada/paciente e desconto vitalício preservados; nenhum failover financeiro automático.
+- [ ] Rollout gradual autorizado e monitorado; contenção pronta, sem DOWN destrutivo.
+
+## 25. Decisão
+
+**NO-GO para ativação de AbacatePay em Production.** Há avanços concretos implementados: recuperação de resultado perdido, intenção/plano/cotas no próximo ciclo e observação financeira negativa com política de acesso aprovada. Provas locais e readback real têm limites explícitos. Permanecem gates financeiros externos, além do risco já conhecido de checkout reutilizável. A plataforma de Production não foi alterada e o Asaas não foi desligado. O registro final de execução abaixo deve completar totais, hashes, DEV, CI e Preview do código novo, sem reclassificar limites temporais como prova externa.
+
+### Registro de fechamento local — 09/11/2026
+
+- **PASS:** suíte completa, 609 arquivos, **6.695/6.695**, exit 0, 749,41 s. O harness registrou o código de saída real de cada processo. TypeScript, lint completo, inventário, segurança de migrations, drift de observabilidade e arquitetura DB/ciclos também saíram 0.
+- **PASS após a última alteração de acesso:** TypeScript, lint dos arquivos afetados, 74 testes focados (35 recuperação, 20 negativos e 19 HTTP/autorização de plano), mais os 33 checks PostgreSQL. Um primeiro typecheck desse teste detectou linha possivelmente ausente; foi corrigido com asserção explícita, sem cast ou supressão.
+- **Transparência:** uma execução anterior exibiu 6.692 asserções aprovadas e cobertura, mas o comando composto retornou 1 e o código ainda estava sendo revisado. Não foi usada como PASS integral. O lint intermediário também encontrou import de banco na rota e nomes de helpers interpretados como hooks; os problemas foram corrigidos, sem desativar regras. O gate completo posterior acima terminou exit 0.
+- **Sandbox:** catálogo mensal de cinco variantes conferido; três produtos sintéticos adicionais criados com manifesto prévio, externalId estável e resultado desconhecido retido antes do POST. Valores 197/397/544/691/838 reais por mês, sem trial nativo. **Zero contas, checkouts ou cobranças novas**. IDs e procedimento de limpeza ficam no manifesto protegido; não remover produtos referenciados por contratação.
+- **Configuração do Preview:** a tentativa de atualizar somente o mapa de produtos da branch foi interrompida antes da escrita: API administrativa Vercel retornou 403 para a sessão disponível. A configuração não foi alterada nessa tentativa; não confundir login CLI antigo com permissão atual. Conferir a continuação abaixo antes de declarar o catálogo incorporado ao novo deployment.
+- **Build novo local: NOT RUN:** máquina com memória disponível insuficiente para outro build Next simultâneo. Usar CI e deployment do SHA novo; build de outro SHA não substitui esse gate.
+
+**Continuação da configuração:** a CLI oficial renovou legitimamente a sessão. Em `2026-11-09T12:14:17Z`, o mapa dos cinco produtos foi atualizado apenas em Preview, branch `feat/billing-abacatepay-20261107`. Uma variável alterada; metadados das demais variáveis/ambientes preservados; zero escrita em Production. Exige novo deployment. A recusa 403 anterior permaneceu sem efeitos.
+
+[Evidências sanitizadas desta rodada](evidencias/homologacao-final-20261109.json). Os resultados remotos do novo SHA serão acrescentados depois de sua execução.

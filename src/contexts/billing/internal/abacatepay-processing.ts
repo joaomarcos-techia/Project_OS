@@ -26,6 +26,10 @@ import {
   applyAbacatePayRecontractPaymentTx,
   reconcileAbacatePayCancellation,
 } from './abacatepay-management';
+import {
+  readAbacatePayNegativeEvent,
+  recordAbacatePayNegativeEventTx,
+} from './abacatepay-negative-events';
 
 const bindingSchema = z.object({
   account_id: z.uuid(),
@@ -301,6 +305,47 @@ export async function reconcileAbacatePayInbox(input: { eventId?: string } = {})
       await finish(retry ? 'received' : 'review', 'renewal_authoritative_readback_failed');
       metrics.emit('billing.abacatepay.reconcile_failed', {
         reason: 'renewal_readback_or_transaction',
+      });
+      return { applied: 0, review: Number(!retry), scanned: 1, retry };
+    }
+  }
+  if (
+    ['subscription.payment_failed', 'checkout.refunded', 'checkout.disputed'].includes(
+      event.event_type,
+    )
+  ) {
+    try {
+      const evidence = await readAbacatePayNegativeEvent(dbAdmin, event.event_id);
+      if (!evidence) {
+        await finish('review', 'negative_event_binding_requires_review');
+        return { applied: 0, review: 1, scanned: 1 };
+      }
+      const recorded = await dbAdmin.transaction(async (tx) => {
+        const lease = z
+          .array(z.object({ event_id: z.string() }))
+          .max(1)
+          .parse(
+            await tx.execute(sql`
+          SELECT event_id FROM billing_gateway.event_inbox WHERE account_id=${event.account_id}::uuid
+            AND event_id=${event.event_id} AND state='processing' AND lease_token=${token}::uuid AND lease_until>now() FOR UPDATE`),
+          );
+        if (!lease.length) return false;
+        await recordAbacatePayNegativeEventTx(tx, evidence);
+        await tx.execute(sql`UPDATE billing_gateway.event_inbox SET state='review',outcome_code='negative_readback_recorded_human_review',
+          lease_token=NULL,lease_until=NULL,processed_at=now(),subscription_id=${evidence.subscriptionId}::uuid,clinic_id=${evidence.clinicId}::uuid
+          WHERE account_id=${event.account_id}::uuid AND event_id=${event.event_id} AND lease_token=${token}::uuid`);
+        return true;
+      });
+      metrics.emit('billing.abacatepay.negative_event_review', {
+        evidenceLevel: evidence.evidenceLevel,
+        recorded,
+      });
+      return { applied: 0, review: Number(recorded), scanned: 1, retry: !recorded };
+    } catch {
+      const retry = event.attempts < MAX_ATTEMPTS;
+      await finish(retry ? 'received' : 'review', 'negative_authoritative_readback_failed');
+      metrics.emit('billing.abacatepay.reconcile_failed', {
+        reason: 'negative_readback_or_transaction',
       });
       return { applied: 0, review: Number(!retry), scanned: 1, retry };
     }

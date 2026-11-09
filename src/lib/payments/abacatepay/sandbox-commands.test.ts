@@ -38,6 +38,7 @@ function setup() {
     changeStatus: string;
     cancellationPersists: boolean;
     postFailure: boolean;
+    originPaid: boolean;
   } = {
     storeId: 'store_test',
     devMode: true,
@@ -53,6 +54,7 @@ function setup() {
     changeStatus: 'PENDING',
     cancellationPersists: true,
     postFailure: false,
+    originPaid: false,
   };
   const journal = new TestCommandJournal();
   const fetcher = vi.fn<typeof fetch>(async (target, options) => {
@@ -99,8 +101,9 @@ function setup() {
         externalId: scenario.checkoutReference,
         amount: scenario.checkoutAmount,
         devMode: scenario.devMode,
-        status: 'PENDING',
-        customerId: null,
+        status: scenario.originPaid ? 'PAID' : 'PENDING',
+        paidAmount: scenario.originPaid ? scenario.checkoutAmount : null,
+        customerId: scenario.originPaid ? scenario.subscriptionCustomer : null,
         url: scenario.checkoutUrl,
         items: [{ id: scenario.checkoutProduct, quantity: 1 }],
       });
@@ -311,6 +314,21 @@ describe('AbacatePay commands isolated to Sandbox', () => {
       expect(posts()).toHaveLength(0);
     },
   );
+  it('proves an omitted frequency through the paid original product rather than assuming MONTHLY', async () => {
+    const { client, scenario, posts } = setup();
+    scenario.trialDays = null;
+    scenario.subscriptionCycle = undefined;
+    scenario.originPaid = true;
+    await expect(
+      client.requestPlanChange({
+        ...subscriptionInput,
+        productId: 'prod_created',
+        expectedAmountMinor: 100,
+        expectedCycle: 'MONTHLY',
+      }),
+    ).resolves.toMatchObject({ state: 'pending', effective: 'next_cycle' });
+    expect(posts()).toHaveLength(1);
+  });
   it('confirms cancellation by GET without revoking local paid access', async () => {
     const { client, posts } = setup();
     expect(await client.cancelSubscription(subscriptionInput)).toEqual({

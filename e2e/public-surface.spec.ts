@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+import { installVercelBypassForOrigin, vercelBypassHeaders } from './vercel-bypass';
+
 /**
  * Superfície pública — o que dá para provar SEM conta nenhuma.
  *
@@ -49,6 +51,20 @@ const PROTECTED_ROUTES = [
 ] as const;
 
 test.use({ storageState: { cookies: [], origins: [] } });
+
+test.beforeEach(async ({ context, request, baseURL }) => {
+  if (!baseURL || !new URL(baseURL).hostname.endsWith('.vercel.app')) return;
+  const headers = vercelBypassHeaders();
+  if (Object.keys(headers).length === 0) return;
+  const origin = new URL(baseURL).origin;
+  // Deployment protection is separate from Qoro authentication. Keep the
+  // application session empty and never forward this header to Cloudflare.
+  await installVercelBypassForOrigin(context, origin);
+  await request.get(`${origin}/login`, {
+    headers: { ...headers, 'x-vercel-set-bypass-cookie': 'true' },
+    maxRedirects: 0,
+  });
+});
 
 test('retorno público do Checkout informa verificação sem afirmar pagamento', async ({ page }) => {
   await page.goto('/?payment=success', { waitUntil: 'domcontentloaded' });
@@ -228,6 +244,7 @@ test.describe('integridade estrutural do formulário de login', () => {
 
   test('o campo do captcha acompanha a presença da site key', async ({ page }) => {
     await page.goto('/login');
+    await expect(page.locator('form input[name="password"]')).toBeVisible();
 
     const field = page.locator('form:has(input[name="password"]) input[name="captchaToken"]');
     const widget = page.getByTestId('turnstile-widget');
@@ -245,8 +262,14 @@ test.describe('integridade estrutural do formulário de login', () => {
 
   test('o desafio resolve e entrega token — não fica preso em "loading"', async ({ page }) => {
     await page.goto('/login');
+    // The login form is hydrated on the client. Counting before it appears
+    // incorrectly skips a configured widget as though the site key were absent.
+    await expect(page.locator('form input[name="password"]')).toBeVisible();
 
     const hosts = page.getByTestId('turnstile-widget');
+    if (process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY) {
+      await expect(hosts.first(), 'site key configurada sem widget renderizado').toBeVisible();
+    }
     const total = await hosts.count();
     test.skip(total === 0, 'Ambiente sem NEXT_PUBLIC_TURNSTILE_SITE_KEY — não há widget.');
 

@@ -63,8 +63,8 @@ export async function recordAbacatePayRecurringPaymentTx(
     .parse(
       await tx.execute(sql`
     SELECT a.id::text account_id,b.subscription_id::text,b.clinic_id::text,
-      coalesce(r.price_id,i.price_id)::text price_id,coalesce(r.product_id,i.product_id) product_id,
-      coalesce(r.amount_minor,i.amount_minor)::text amount_minor
+      coalesce(pc.to_price_id,r.price_id,i.price_id)::text price_id,coalesce(pc.product_id,r.product_id,i.product_id) product_id,
+      coalesce(pc.amount_minor,r.amount_minor,i.amount_minor)::text amount_minor
     FROM billing_gateway.event_inbox e JOIN billing_gateway.accounts a ON a.id=e.account_id
     JOIN billing_gateway.bindings b ON b.account_id=a.id
     JOIN public.subscriptions s ON s.id=b.subscription_id AND s.clinic_id=b.clinic_id
@@ -72,6 +72,11 @@ export async function recordAbacatePayRecurringPaymentTx(
       AND r.subscription_id=s.id AND r.clinic_id=s.clinic_id
       AND r.external_subscription_id=${evidence.subscriptionId} AND r.invoice_id IS NOT NULL
     LEFT JOIN billing_gateway.checkout_intents i ON i.subscription_id=s.id AND i.account_id=a.id AND i.clinic_id=s.clinic_id
+    LEFT JOIN LATERAL (SELECT * FROM billing_gateway.plan_changes change WHERE change.account_id=a.id
+      AND change.subscription_id=s.id AND change.clinic_id=s.clinic_id AND change.external_subscription_id=${evidence.subscriptionId}
+      AND change.product_id=${evidence.productId} AND change.amount_minor=${evidence.amountMinor}
+      AND (change.invoice_id IS NOT NULL OR change.from_price_id=s.price_id)
+      ORDER BY change.requested_at DESC,change.id DESC LIMIT 1) pc ON true
     WHERE a.provider='abacatepay' AND a.environment='sandbox' AND a.external_account_id=${evidence.account.accountId}
       AND s.billing_provider='abacatepay' AND s.asaas_subscription_id IS NULL
       AND e.event_id=${sourceEventId} AND e.event_type='subscription.renewed'

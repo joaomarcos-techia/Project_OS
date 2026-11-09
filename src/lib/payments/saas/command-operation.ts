@@ -37,6 +37,19 @@ export class CommandOperationError extends Error {
   }
 }
 
+/** Stable request identity shared with read-only recovery of an uncertain command. */
+export function commandOperationFingerprint(kind: string, parameters: unknown): string {
+  if (!/^[a-z_]{1,64}$/.test(kind)) throw new CommandOperationError('invalid_input');
+  let serialized: string | undefined;
+  try {
+    serialized = stringify({ kind, parameters });
+  } catch {
+    throw new CommandOperationError('invalid_input');
+  }
+  if (!serialized) throw new CommandOperationError('invalid_input');
+  return createHash('sha256').update(serialized).digest('hex');
+}
+
 /**
  * At-most-one attempt per account/operation ID, NOT a uniqueness constraint for
  * the underlying business obligation. The caller must reuse its persisted ID.
@@ -56,20 +69,13 @@ export async function executeCommandOnce<T>(input: {
   if (!account.success || !operationId.success || !/^[a-z_]{1,64}$/.test(input.kind)) {
     throw new CommandOperationError('invalid_input');
   }
-  let serialized: string | undefined;
-  try {
-    serialized = stringify({ kind: input.kind, parameters: input.parameters });
-  } catch {
-    throw new CommandOperationError('invalid_input');
-  }
-  if (!serialized) throw new CommandOperationError('invalid_input');
   const key = JSON.stringify([
     account.data.provider,
     account.data.environment,
     account.data.accountId,
     operationId.data,
   ]);
-  const fingerprint = createHash('sha256').update(serialized).digest('hex');
+  const fingerprint = commandOperationFingerprint(input.kind, input.parameters);
   let reservation: Awaited<ReturnType<CommandOperationJournal['reserve']>>;
   try {
     reservation = await input.journal.reserve(key, fingerprint);

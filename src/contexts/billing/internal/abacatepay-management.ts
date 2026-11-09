@@ -19,6 +19,8 @@ import {
 } from '@/lib/payments/saas/postgres-store';
 import { createAbacatePaySandboxCommands } from '@/lib/payments/abacatepay/sandbox-commands';
 import { createAbacatePayReadClient } from '@/lib/payments/abacatepay/reader';
+import { CommandOperationError } from '@/lib/payments/saas/command-operation';
+import type { RecoveredCheckout } from '@/lib/payments/abacatepay/checkout-recovery';
 import {
   createAbacatePayInitialPaymentReader,
   type InitialPaymentEvidence,
@@ -29,6 +31,7 @@ import { initialAbacatePayAccessPeriod } from './abacatepay-period';
 import { DUNNING_READONLY_DAYS } from './dunning';
 import { toCents, toReaisString } from './money';
 import { markInvoicePaid, recordBillingEvent } from './subscriptions';
+import { recoverAbacatePayCheckout } from './abacatepay-checkout-recovery';
 
 export interface ManagementDatabase extends BillingGatewaySql {
   transaction<T>(work: (tx: Tx) => Promise<T>): Promise<T>;
@@ -375,19 +378,28 @@ export async function createAbacatePayRecontractCheckout(
     },
     database,
   );
-  const checkout = await createAbacatePaySandboxCommands(
-    settings,
-    journal,
-  ).createSubscriptionCheckout({
-    operationId: randomUUID(),
-    externalId: `qoro-recontract-${reserved.id}`,
-    productId: reserved.product_id,
-    expectedAmountMinor: reserved.amount_minor,
-    expectedCycle: 'MONTHLY',
-    expectedNativeTrialDays: null,
-    returnUrl: input.callbackUrl,
-    completionUrl: input.callbackUrl,
-  });
+  let checkout: RecoveredCheckout;
+  try {
+    checkout = await createAbacatePaySandboxCommands(settings, journal).createSubscriptionCheckout({
+      operationId: randomUUID(),
+      externalId: `qoro-recontract-${reserved.id}`,
+      productId: reserved.product_id,
+      expectedAmountMinor: reserved.amount_minor,
+      expectedCycle: 'MONTHLY',
+      expectedNativeTrialDays: null,
+      returnUrl: input.callbackUrl,
+      completionUrl: input.callbackUrl,
+    });
+  } catch (error) {
+    if (!(error instanceof CommandOperationError) || error.code === 'invalid_input') throw error;
+    const recovered = await recoverAbacatePayCheckout(database, {
+      subscriptionId: reserved.subscription_id,
+      clinicId: reserved.clinic_id,
+      recontractId: reserved.id,
+    });
+    if (recovered.state !== 'recovered') throw new AbacatePayManagementError('reconcile_required');
+    checkout = recovered.result;
+  }
   await database.transaction(async (tx) => {
     await tx.execute(
       sql`SELECT id FROM public.subscriptions WHERE id=${reserved.subscription_id}::uuid FOR UPDATE`,

@@ -22,7 +22,8 @@ Object.assign(process.env, {
   ABACATEPAY_STORE_ID: 'store_synthetic',
   ABACATEPAY_API_KEY: 'synthetic-loopback-renewal-only',
   ABACATEPAY_SANDBOX_PROBE_PRODUCT_ID: 'prod_probe',
-  ABACATEPAY_SANDBOX_PLAN_PRODUCTS: '{"clinica_2026_2":"prod_synthetic"}',
+  ABACATEPAY_SANDBOX_PLAN_PRODUCTS:
+    '{"clinica_2026_2":"prod_synthetic","clinica_2026_3":"prod_three","consultorio_2026":"prod_one"}',
   ABACATEPAY_WEBHOOK_SECRET: 'synthetic-renewal-webhook-secret-32-characters',
   APP_BASE_URL: 'https://qoro.example',
   LOGIN_HASH_PEPPER: 'synthetic-renewal-local-hash-pepper-only',
@@ -53,6 +54,9 @@ const { reconcileAbacatePayInbox } =
   await import('../../src/contexts/billing/internal/abacatepay-processing');
 const { createPostgresGatewayInbox } = await import('../../src/lib/payments/saas/postgres-store');
 const { POST: webhook } = await import('../../src/app/api/webhooks/abacatepay/route');
+const { requestAbacatePayPlanChange: changePlan } =
+  await import('../../src/contexts/billing/internal/abacatepay-plan-changes');
+const { assertClinicCanWriteTx } = await import('../../src/lib/tenant-access');
 type Evidence = import('../../src/lib/payments/saas/recurring-payment').RecurringPaymentEvidence;
 const account = {
   provider: 'abacatepay',
@@ -74,14 +78,16 @@ function month(date: Date, delta: number) {
   const iso = date.toISOString();
   return new Date(`${addCalendarMonths(iso.slice(0, 10), delta)}${iso.slice(10)}`);
 }
-async function seed() {
+async function seed(endOffsetMs = -120_000, planCode = 'clinica_2026_2') {
+  const amount = planCode === 'consultorio_2026' ? 19700 : 39700,
+    productId = planCode === 'consultorio_2026' ? 'prod_one' : 'prod_synthetic';
   const userId = randomUUID(),
     email = `${userId}@example.invalid`,
     authCreatedAt = new Date(Date.now() - 55 * 86_400_000);
   await sql`INSERT INTO auth.users(id,email,email_confirmed_at,created_at) VALUES(${userId}::uuid,${email},now(),${authCreatedAt})`;
   const [plan] = await sql<
     { id: string }[]
-  >`SELECT id::text FROM public.plans WHERE code='clinica_2026_2'`;
+  >`SELECT id::text FROM public.plans WHERE code=${planCode}`;
   assert.ok(plan);
   await sql`INSERT INTO public.signup_sessions(token_hash,status,idle_expires_at,absolute_expires_at,consumed_at,auth_user_id,
     owner_name,clinic_name,email_hash,accepted_at,answered_at,professionals_band,weekly_appointments_band,current_tooling,discovery_source,selected_plan_id)
@@ -99,17 +105,17 @@ async function seed() {
     origin = `bill_origin_${suffix}`,
     externalSub = `subs_${suffix}`,
     customer = `cust_${suffix}`;
-  const end = new Date(Date.now() - 120_000),
+  const end = new Date(Date.now() + endOffsetMs),
     anchor = month(end, -1);
   await sql`UPDATE billing_gateway.bindings SET external_checkout_id=${origin},external_subscription_id=${externalSub},external_customer_id=${customer}
     WHERE subscription_id=${row.subscription_id}::uuid`;
   await sql`INSERT INTO billing_gateway.checkout_intents(subscription_id,clinic_id,account_id,price_id,product_id,amount_minor)
-    VALUES(${row.subscription_id}::uuid,${trial.clinicId}::uuid,${row.account_id}::uuid,${row.price_id}::uuid,'prod_synthetic',39700)`;
+    VALUES(${row.subscription_id}::uuid,${trial.clinicId}::uuid,${row.account_id}::uuid,${row.price_id}::uuid,${productId},${amount})`;
   // Explicit synthetic S0, not a simulated or claimed external first payment.
   const [invoice] = await sql<
     { id: string }[]
   >`INSERT INTO public.invoices(clinic_id,subscription_id,total_amount,status,due_date,period_start,period_end,paid_at,payment_method)
-    VALUES(${trial.clinicId}::uuid,${row.subscription_id}::uuid,397,'paid',${anchor.toISOString().slice(0, 10)},
+    VALUES(${trial.clinicId}::uuid,${row.subscription_id}::uuid,${amount / 100},'paid',${anchor.toISOString().slice(0, 10)},
       ${anchor.toISOString().slice(0, 10)},${end.toISOString().slice(0, 10)},${anchor},'CARD') RETURNING id::text`;
   assert.ok(invoice);
   await sql`INSERT INTO billing_gateway.paid_checkouts(account_id,checkout_id,subscription_id,clinic_id,invoice_id,period_start,period_end)
@@ -123,11 +129,11 @@ async function seed() {
     customerId: customer,
     originCheckoutId: origin,
     checkoutId: `bill_cycle_${suffix}`,
-    productId: 'prod_synthetic',
+    productId,
     paymentId: `char_${suffix}`,
     statementId: `tran_${suffix}`,
-    amountMinor: 39700,
-    paidAmountMinor: 39700,
+    amountMinor: amount,
+    paidAmountMinor: amount,
     currency: 'BRL',
     chargeCreatedAt: new Date(end.getTime() - 500).toISOString(),
     confirmedAt: new Date(end.getTime() + 1000).toISOString(),
@@ -177,7 +183,17 @@ async function state(f: Fixture) {
   assert.ok(row);
   return row;
 }
-function useHttp(f: Fixture, options: { fail?: boolean; cycle?: string; status?: string } = {}) {
+function installHttpFixture(
+  f: Fixture,
+  options: {
+    fail?: boolean;
+    cycle?: string;
+    status?: string;
+    refundMinor?: number;
+    reversal?: boolean;
+    refundedCheckoutId?: string;
+  } = {},
+) {
   globalThis.fetch = async (target, init) => {
     fixtureHttpCalls++;
     const url = new URL(target instanceof Request ? target.url : String(target));
@@ -222,7 +238,7 @@ function useHttp(f: Fixture, options: { fail?: boolean; cycle?: string; status?:
         });
       case '/v2/subscriptions/checkouts/get':
         data = {
-          id: f.evidence.checkoutId,
+          id: url.searchParams.get('id') ?? f.evidence.checkoutId,
           frequency: 'SUBSCRIPTION',
           customerId: f.evidence.customerId,
           amount: 39700,
@@ -241,7 +257,7 @@ function useHttp(f: Fixture, options: { fail?: boolean; cycle?: string; status?:
               id: f.evidence.statementId,
               currency: 'BRL',
               createdAt: f.evidence.confirmedAt,
-              checkoutId: f.evidence.checkoutId,
+              checkoutId: options.refundedCheckoutId ?? f.evidence.checkoutId,
               paymentIntentId: f.evidence.paymentId,
               customer: { publicId: f.evidence.customerId },
               movements: [
@@ -252,6 +268,12 @@ function useHttp(f: Fixture, options: { fail?: boolean; cycle?: string; status?:
                   category: 'transaction',
                   balanceEffect: 'none',
                 },
+                ...(options.refundMinor
+                  ? [{ amount: options.refundMinor, category: 'refund', balanceEffect: 'debit' }]
+                  : []),
+                ...(options.reversal
+                  ? [{ amount: 39700, category: 'reversal', balanceEffect: 'credit' }]
+                  : []),
               ],
             },
           ],
@@ -263,6 +285,85 @@ function useHttp(f: Fixture, options: { fail?: boolean; cycle?: string; status?:
     }
     return Response.json({ success: true, data });
   };
+}
+let planPosts = 0;
+function installPlanHttpFixture(f: Fixture, loseResponse = false) {
+  globalThis.fetch = async (target, init) => {
+    fixtureHttpCalls++;
+    const url = new URL(String(target));
+    assert.equal(url.origin, 'https://api.abacatepay.com');
+    const prices: Record<string, number> = {
+      prod_probe: 100,
+      prod_synthetic: 39700,
+      prod_one: 19700,
+      prod_three: 54400,
+    };
+    let data: unknown;
+    if (url.pathname.endsWith('/stores/get')) data = { id: account.accountId };
+    else if (url.pathname.endsWith('/products/get'))
+      data = {
+        id: url.searchParams.get('id'),
+        externalId: 'synthetic-plan',
+        price: prices[url.searchParams.get('id') ?? ''],
+        currency: 'BRL',
+        cycle: 'MONTHLY',
+        trialDays: null,
+        devMode: true,
+      };
+    else if (url.pathname.endsWith('/subscriptions/get'))
+      data = {
+        id: f.evidence.subscriptionId,
+        checkoutId: f.evidence.originCheckoutId,
+        customerId: f.evidence.customerId,
+        amount: f.evidence.amountMinor,
+        status: 'ACTIVE',
+        method: 'CARD',
+        devMode: true,
+        trialEndsAt: null,
+        createdAt: f.anchor.toISOString(),
+      };
+    else if (url.pathname.endsWith('/checkouts/get'))
+      data = {
+        id: f.evidence.originCheckoutId,
+        frequency: 'SUBSCRIPTION',
+        customerId: f.evidence.customerId,
+        amount: f.evidence.amountMinor,
+        paidAmount: f.evidence.amountMinor,
+        status: 'PAID',
+        devMode: true,
+        items: [{ id: f.evidence.productId, quantity: 1 }],
+      };
+    else if (url.pathname.endsWith('/change-plan')) {
+      assert.equal(init?.method, 'POST');
+      planPosts++;
+      const body = JSON.parse(String(init.body));
+      assert.equal(body.id, f.evidence.subscriptionId);
+      if (loseResponse) throw Error('Synthetic plan response lost after effect');
+      data = {
+        id: `subu_${randomUUID().replaceAll('-', '')}`,
+        subscriptionId: body.id,
+        productId: body.productId,
+        quantity: 1,
+        status: 'PENDING',
+        newAmount: prices[body.productId],
+      };
+    } else throw Error('Unexpected synthetic plan route');
+    return Response.json({ success: true, data });
+  };
+}
+async function targetPlan(code: string) {
+  const [row] = await sql<{ id: string }[]>`SELECT id::text FROM public.plans WHERE code=${code}`;
+  assert.ok(row);
+  return row.id;
+}
+async function projection(f: Fixture) {
+  const [row] = await sql`SELECT s.plan_id::text,s.price_id::text,p.code FROM public.subscriptions s
+  JOIN public.plans p ON p.id=s.plan_id WHERE s.id=${f.subscription_id}::uuid`;
+  assert.ok(row);
+  return row;
+}
+function changedEvidence(f: Fixture, amount: number, productId: string): Evidence {
+  return { ...f.evidence, amountMinor: amount, paidAmountMinor: amount, productId };
 }
 const publicKey =
   't9dXRhHHo3yDEj5pVDYz0frf7q6bMKyMRmxxCPIPp3RCplBfXRxqlC6ZpiWmOqj4L63qEaeUOtrCI8P0VMUgo6iIga2ri9ogaHFs0WIIywSMg0q7RmBfybe1E5XJcfC4IW3alNqym0tXoAKkzvfEjZxV6bE0oG2zJrNNYmUCKZyV0KZ3JS8Votf9EAWWYdiDkMkpbMdPggfh1EqHlVkMiTady6jOR3hyzGEHrIz2Ret0xHKMbiqkr9HS1JhNHDX9';
@@ -293,7 +394,7 @@ function notification(f: Fixture) {
 }
 let failure: unknown;
 try {
-  await sql`UPDATE public.plans SET ativo=true WHERE code='clinica_2026_2'`;
+  await sql`UPDATE public.plans SET ativo=true WHERE code IN ('clinica_2026_2','clinica_2026_3','consultorio_2026')`;
   const first = await seed();
   await accept(first);
   await check(
@@ -384,6 +485,14 @@ try {
       assert.equal(after.current_period_end, before.current_period_end);
       assert.equal(after.invoices, 2);
       assert.equal(after.cycles, 1);
+      const duplicateEvent = `log_review_duplicate_${randomUUID()}`;
+      await accept(f, duplicateEvent);
+      assert.equal(
+        await apply(f, f.evidence, duplicateEvent),
+        'review',
+        'A replay must not turn a retained review into successful application',
+      );
+      assert.deepEqual(await state(f), after);
     },
   );
   await check(
@@ -391,10 +500,10 @@ try {
     async () => {
       const f = await seed();
       await accept(f);
-      useHttp(f, { fail: true });
+      installHttpFixture(f, { fail: true });
       assert.equal((await reconcileAbacatePayInbox({ eventId: f.eventId })).retry, true);
       assert.equal((await state(f)).invoices, 1);
-      useHttp(f);
+      installHttpFixture(f);
       assert.equal((await reconcileAbacatePayInbox({ eventId: f.eventId })).applied, 1);
       assert.equal((await state(f)).invoices, 2);
     },
@@ -459,7 +568,7 @@ try {
     async () => {
       const f = await seed();
       await accept(f);
-      useHttp(f, { cycle: 'ANNUALLY' });
+      installHttpFixture(f, { cycle: 'ANNUALLY' });
       const before = await state(f);
       assert.equal((await reconcileAbacatePayInbox({ eventId: f.eventId })).applied, 0);
       assert.deepEqual(await state(f), before);
@@ -491,7 +600,7 @@ try {
     'real receiver + HMAC + inbox + HTTP readback + DB application survives duplicate and concurrent reconcile',
     async () => {
       const f = await seed();
-      useHttp(f);
+      installHttpFixture(f);
       const response = await webhook(notification(f));
       assert.equal(response.status, 202);
       assert.equal((await webhook(notification(f))).status, 200);
@@ -559,6 +668,7 @@ try {
       await accept(f);
       assert.equal(await apply(f), 'applied');
       const before = await state(f);
+      installHttpFixture(f);
       for (const type of [
         'subscription.payment_failed',
         'checkout.refunded',
@@ -570,6 +680,368 @@ try {
         assert.equal((await reconcileAbacatePayInbox({ eventId })).review, 1);
       }
       assert.deepEqual(await state(f), before);
+    },
+  );
+  await check(
+    'H2 full/partial refund observations are idempotent and never cancel access or alter the paid invoice',
+    async () => {
+      for (const amount of [10000, 39700]) {
+        const f = await seed();
+        await accept(f);
+        assert.equal(await apply(f), 'applied');
+        const before = await state(f),
+          eventId = `log_refund_${randomUUID()}`;
+        await accept(f, eventId, f.evidence, 'checkout.refunded');
+        installHttpFixture(f, { fail: true });
+        assert.equal((await reconcileAbacatePayInbox({ eventId })).retry, true);
+        installHttpFixture(f, { refundMinor: amount });
+        const results = await Promise.all(
+          Array.from({ length: 8 }, () => reconcileAbacatePayInbox({ eventId })),
+        );
+        assert.ok(results.some((r) => r.review === 1));
+        await reconcileAbacatePayInbox({ eventId });
+        assert.deepEqual(await state(f), before);
+        const [row] =
+          await sql`SELECT count(*)::int n,min(payload->>'refundDebitMinor') amount,min(payload->>'evidenceLevel') level
+        FROM public.billing_events WHERE clinic_id=${f.clinicId}::uuid AND type='subscription.financial.notification_checked' AND payload->>'eventId'=${eventId}`;
+        assert.deepEqual(row, { n: 1, amount: String(amount), level: 'refund_debit_verified' });
+        const [period] = await sql`SELECT grace_period_until=current_period_end at_paid_end
+          FROM public.subscriptions WHERE id=${f.subscription_id}::uuid`;
+        assert.ok(period);
+        assert.equal(period.at_paid_end, true);
+        await dbAdmin.transaction((tx) => assertClinicCanWriteTx(tx, f.clinicId));
+        // Controlled local clock projection only: do not claim real month-long observation.
+        await sql`UPDATE public.subscriptions SET current_period_end=now()-interval '1 second',
+          grace_period_until=now()-interval '1 second' WHERE id=${f.subscription_id}::uuid`;
+        await assert.rejects(
+          dbAdmin.transaction((tx) => assertClinicCanWriteTx(tx, f.clinicId)),
+          { code: 'clinic_write_blocked' },
+        );
+      }
+    },
+  );
+  await check(
+    'H2 a verified refund of an older cycle cannot shorten a newer paid cycle',
+    async () => {
+      const f = await seed();
+      await accept(f);
+      assert.equal(await apply(f), 'applied');
+      const before = await state(f);
+      const [graceBefore] =
+        await sql`SELECT grace_period_until::text value FROM public.subscriptions
+      WHERE id=${f.subscription_id}::uuid`;
+      const eventId = `log_old_refund_${randomUUID()}`;
+      await accept(
+        f,
+        eventId,
+        { ...f.evidence, checkoutId: f.evidence.originCheckoutId },
+        'checkout.refunded',
+      );
+      installHttpFixture(f, {
+        refundMinor: 39700,
+        refundedCheckoutId: f.evidence.originCheckoutId,
+      });
+      assert.equal((await reconcileAbacatePayInbox({ eventId })).review, 1);
+      assert.deepEqual(await state(f), before);
+      const [graceAfter] = await sql`SELECT grace_period_until::text value FROM public.subscriptions
+      WHERE id=${f.subscription_id}::uuid`;
+      assert.deepEqual(graceAfter, graceBefore);
+      const [audit] =
+        await sql`SELECT payload->>'evidenceLevel' level,payload->>'accessEffect' effect
+      FROM public.billing_events WHERE clinic_id=${f.clinicId}::uuid
+        AND type='subscription.financial.notification_checked' AND payload->>'eventId'=${eventId}`;
+      assert.deepEqual(audit, {
+        level: 'refund_debit_verified',
+        effect: 'keep_paid_period_human_review',
+      });
+      await dbAdmin.transaction((tx) => assertClinicCanWriteTx(tx, f.clinicId));
+    },
+  );
+  await check(
+    'H2 a reversal is recorded as ambiguous rather than a won dispute or restored payment',
+    async () => {
+      const f = await seed();
+      await accept(f);
+      assert.equal(await apply(f), 'applied');
+      const before = await state(f),
+        eventId = `log_reversal_${randomUUID()}`;
+      await accept(f, eventId, f.evidence, 'checkout.refunded');
+      installHttpFixture(f, { refundMinor: 39700, reversal: true });
+      assert.equal((await reconcileAbacatePayInbox({ eventId })).review, 1);
+      const [row] =
+        await sql`SELECT payload->>'evidenceLevel' level,payload->>'reversalObserved' reversal FROM public.billing_events
+      WHERE clinic_id=${f.clinicId}::uuid AND type='subscription.financial.notification_checked'`;
+      assert.deepEqual(row, { level: 'status_only', reversal: 'true' });
+      assert.deepEqual(await state(f), before);
+    },
+  );
+  await check(
+    'H4 extra doctor is scheduled once under concurrency and released only by its full paid renewal',
+    async () => {
+      const f = await seed(86_400_000),
+        targetPlanId = await targetPlan('clinica_2026_3');
+      installPlanHttpFixture(f);
+      const beforePosts = planPosts,
+        before = await projection(f),
+        financial = await state(f);
+      const request = () =>
+        changePlan(dbAdmin, {
+          clinicId: f.clinicId,
+          requestedBy: f.userId,
+          contractId: f.subscription_id,
+          targetPlanId,
+        });
+      const results = await Promise.allSettled(Array.from({ length: 12 }, request));
+      assert.ok(results.some((r) => r.status === 'fulfilled'));
+      await request();
+      assert.equal(planPosts - beforePosts, 1);
+      assert.deepEqual(await projection(f), before);
+      assert.deepEqual(await state(f), financial);
+      const [one] =
+        await sql`SELECT count(*)::int n FROM billing_gateway.plan_changes WHERE clinic_id=${f.clinicId}::uuid`;
+      assert.deepEqual(one, { n: 1 });
+      const evidence = changedEvidence(f, 54400, 'prod_three');
+      await accept(f, f.eventId, evidence);
+      const outcomes = await Promise.all(
+        Array.from({ length: 12 }, () =>
+          dbAdmin.transaction((tx) =>
+            applyAbacatePayRenewalTx(tx, evidence, f.eventId, new Date(f.end.getTime() + 2000)),
+          ),
+        ),
+      );
+      assert.equal(outcomes.filter((v) => v === 'applied').length, 1);
+      assert.equal(outcomes.filter((v) => v === 'duplicate').length, 11);
+      assert.equal((await projection(f)).code, 'clinica_2026_3');
+      assert.equal((await state(f)).invoices, 2);
+      const [applied] =
+        await sql`SELECT invoice_id IS NOT NULL applied FROM billing_gateway.plan_changes WHERE clinic_id=${f.clinicId}::uuid`;
+      assert.deepEqual(applied, { applied: true });
+      const nextDate = month(f.end, 1),
+        suffix = randomUUID(),
+        next = {
+          ...evidence,
+          paymentId: `char_next_${suffix}`,
+          checkoutId: `bill_next_${suffix}`,
+          statementId: `tran_next_${suffix}`,
+          chargeCreatedAt: nextDate.toISOString(),
+          confirmedAt: new Date(nextDate.getTime() + 1000).toISOString(),
+        };
+      const nextEvent = `log_next_${suffix}`;
+      await accept(f, nextEvent, next);
+      assert.equal(
+        await dbAdmin.transaction((tx) =>
+          applyAbacatePayRenewalTx(tx, next, nextEvent, new Date(nextDate.getTime() + 2000)),
+        ),
+        'applied',
+      );
+      assert.equal((await state(f)).invoices, 3);
+      assert.equal((await projection(f)).code, 'clinica_2026_3');
+    },
+  );
+  await check(
+    'H4 Consultorio to Clinica upgrade keeps the original plan until full next-cycle payment',
+    async () => {
+      const f = await seed(86_400_000, 'consultorio_2026'),
+        targetPlanId = await targetPlan('clinica_2026_2');
+      installPlanHttpFixture(f);
+      await changePlan(dbAdmin, {
+        clinicId: f.clinicId,
+        requestedBy: f.userId,
+        contractId: f.subscription_id,
+        targetPlanId,
+      });
+      assert.equal((await projection(f)).code, 'consultorio_2026');
+      const evidence = changedEvidence(f, 39700, 'prod_synthetic');
+      await accept(f, f.eventId, evidence);
+      assert.equal(
+        await dbAdmin.transaction((tx) =>
+          applyAbacatePayRenewalTx(tx, evidence, f.eventId, new Date(f.end.getTime() + 2000)),
+        ),
+        'applied',
+      );
+      assert.equal((await projection(f)).code, 'clinica_2026_2');
+    },
+  );
+  await check(
+    'H4 downgrade reserves target capacity and applies only its lower fully paid cycle',
+    async () => {
+      const f = await seed(86_400_000),
+        targetPlanId = await targetPlan('consultorio_2026');
+      installPlanHttpFixture(f);
+      const doctor = await sql<
+        { id: string }[]
+      >`INSERT INTO auth.users(id,email,created_at) VALUES(gen_random_uuid(),'synthetic-doctor@example.invalid',now()) RETURNING id::text`;
+      const id = doctor[0]?.id;
+      assert.ok(id);
+      await sql`INSERT INTO public.profiles(id,clinic_id,nome,role,crm,ativo) VALUES(${id}::uuid,${f.clinicId}::uuid,'Synthetic doctor','doctor','SYNTHETIC',true)`;
+      // Owner is administrative, so one doctor fits; the next would exhaust the downgrade.
+      await sql`UPDATE public.profiles SET crm='SYNTHETIC-OWNER' WHERE id=${f.userId}::uuid`;
+      const beforePosts = planPosts;
+      const request = () =>
+        changePlan(dbAdmin, {
+          clinicId: f.clinicId,
+          requestedBy: f.userId,
+          contractId: f.subscription_id,
+          targetPlanId,
+        });
+      await assert.rejects(
+        request(),
+        (e: unknown) =>
+          e instanceof Error && 'code' in e && e.code === 'downgrade_capacity_exceeded',
+      );
+      assert.equal(planPosts, beforePosts);
+      await sql`UPDATE public.profiles SET ativo=false WHERE id=${id}::uuid`;
+      await request();
+      await assert.rejects(sql`UPDATE public.profiles SET ativo=true WHERE id=${id}::uuid`, {
+        code: '23514',
+        constraint_name: 'gateway_pending_seat_limit',
+      });
+      assert.equal((await projection(f)).code, 'clinica_2026_2');
+      const evidence = changedEvidence(f, 19700, 'prod_one');
+      await accept(f, f.eventId, evidence);
+      assert.equal(
+        await dbAdmin.transaction((tx) =>
+          applyAbacatePayRenewalTx(tx, evidence, f.eventId, new Date(f.end.getTime() + 2000)),
+        ),
+        'applied',
+      );
+      assert.equal((await projection(f)).code, 'consultorio_2026');
+    },
+  );
+  await check(
+    'H4 lost plan-change response retains one obligation and never overwrites it with another POST',
+    async () => {
+      const f = await seed(86_400_000),
+        targetPlanId = await targetPlan('clinica_2026_3');
+      installPlanHttpFixture(f, true);
+      const before = planPosts;
+      const request = () =>
+        changePlan(dbAdmin, {
+          clinicId: f.clinicId,
+          requestedBy: f.userId,
+          contractId: f.subscription_id,
+          targetPlanId,
+        });
+      await assert.rejects(request());
+      await assert.rejects(request());
+      assert.equal(planPosts - before, 1);
+      await assert.rejects(
+        changePlan(dbAdmin, {
+          clinicId: f.clinicId,
+          requestedBy: f.userId,
+          contractId: f.subscription_id,
+          targetPlanId: await targetPlan('consultorio_2026'),
+        }),
+      );
+      assert.equal(planPosts - before, 1);
+      assert.equal((await projection(f)).code, 'clinica_2026_2');
+      const evidence = changedEvidence(f, 54400, 'prod_three');
+      await accept(f, f.eventId, evidence);
+      assert.equal(
+        await dbAdmin.transaction((tx) =>
+          applyAbacatePayRenewalTx(tx, evidence, f.eventId, new Date(f.end.getTime() + 2000)),
+        ),
+        'applied',
+      );
+    },
+  );
+  await check(
+    'H4 another tenant, stale generation and cancelled contract cannot submit a plan command',
+    async () => {
+      const f = await seed(86_400_000),
+        other = await seed(),
+        targetPlanId = await targetPlan('clinica_2026_3');
+      installPlanHttpFixture(f);
+      const before = planPosts;
+      for (const input of [
+        { requestedBy: other.userId, contractId: f.subscription_id },
+        { requestedBy: f.userId, contractId: randomUUID() },
+      ])
+        await assert.rejects(changePlan(dbAdmin, { clinicId: f.clinicId, targetPlanId, ...input }));
+      await sql`UPDATE public.subscriptions SET cancel_at_period_end=true WHERE id=${f.subscription_id}::uuid`;
+      await assert.rejects(
+        changePlan(dbAdmin, {
+          clinicId: f.clinicId,
+          targetPlanId,
+          requestedBy: f.userId,
+          contractId: f.subscription_id,
+        }),
+      );
+      assert.equal(planPosts, before);
+    },
+  );
+  await check(
+    'H4 old amount, partial payment and early target payment cannot release the new plan',
+    async () => {
+      for (const mode of ['old', 'partial', 'early']) {
+        const f = await seed(86_400_000),
+          targetPlanId = await targetPlan('clinica_2026_3');
+        installPlanHttpFixture(f);
+        await changePlan(dbAdmin, {
+          clinicId: f.clinicId,
+          targetPlanId,
+          requestedBy: f.userId,
+          contractId: f.subscription_id,
+        });
+        const target = changedEvidence(f, 54400, 'prod_three');
+        const evidence =
+          mode === 'old'
+            ? f.evidence
+            : mode === 'partial'
+              ? { ...target, paidAmountMinor: 54399 }
+              : {
+                  ...target,
+                  chargeCreatedAt: f.anchor.toISOString(),
+                  confirmedAt: new Date(f.anchor.getTime() + 1000).toISOString(),
+                };
+        await accept(f, f.eventId, evidence);
+        assert.notEqual(
+          await dbAdmin.transaction((tx) =>
+            applyAbacatePayRenewalTx(tx, evidence, f.eventId, new Date(f.end.getTime() + 2000)),
+          ),
+          'applied',
+        );
+        assert.equal((await projection(f)).code, 'clinica_2026_2');
+      }
+    },
+  );
+  await check(
+    'H4 rollback keeps both plan and pending intent before a successful payment replay',
+    async () => {
+      const f = await seed(86_400_000),
+        targetPlanId = await targetPlan('clinica_2026_3');
+      installPlanHttpFixture(f);
+      await changePlan(dbAdmin, {
+        clinicId: f.clinicId,
+        targetPlanId,
+        requestedBy: f.userId,
+        contractId: f.subscription_id,
+      });
+      const evidence = changedEvidence(f, 54400, 'prod_three');
+      await accept(f, f.eventId, evidence);
+      const before = await state(f);
+      await assert.rejects(
+        dbAdmin.transaction(async (tx) => {
+          assert.equal(
+            await applyAbacatePayRenewalTx(
+              tx,
+              evidence,
+              f.eventId,
+              new Date(f.end.getTime() + 2000),
+            ),
+            'applied',
+          );
+          throw Error('Synthetic rollback');
+        }),
+      );
+      assert.deepEqual(await state(f), before);
+      assert.equal((await projection(f)).code, 'clinica_2026_2');
+      assert.equal(
+        await dbAdmin.transaction((tx) =>
+          applyAbacatePayRenewalTx(tx, evidence, f.eventId, new Date(f.end.getTime() + 2000)),
+        ),
+        'applied',
+      );
     },
   );
   await check('schema is private, FORCE RLS, service_role read/insert only', async () => {
@@ -591,6 +1063,20 @@ try {
       { code: '23514', constraint_name: 'gateway_snapshot_immutable' },
     );
   });
+  await check(
+    'H4 pending plan snapshots are immutable, private and deny destructive service privileges',
+    async () => {
+      await assert.rejects(sql`UPDATE billing_gateway.plan_changes SET amount_minor=1`, {
+        code: '23514',
+        constraint_name: 'gateway_plan_change_immutable',
+      });
+      const [row] = await sql`SELECT c.relrowsecurity AND c.relforcerowsecurity rls,
+      has_table_privilege('anon',c.oid,'SELECT,INSERT,UPDATE,DELETE') OR has_table_privilege('authenticated',c.oid,'SELECT,INSERT,UPDATE,DELETE') public_access,
+      has_table_privilege('service_role',c.oid,'DELETE,TRUNCATE,REFERENCES,TRIGGER') excess
+      FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='billing_gateway' AND c.relname='plan_changes'`;
+      assert.deepEqual(row, { rls: true, public_access: false, excess: false });
+    },
+  );
   await check('paid period cannot reference an invoice belonging to another tenant', async () => {
     const f = await seed(),
       other = await seed();

@@ -19,6 +19,10 @@ interface Props {
   accessUntil?: string | null;
   cancellationState?: 'none' | 'requested' | 'confirmed';
   canRecontract?: boolean;
+  planChanges?: {
+    options: { id: string; name: string; code: string; amountMinor: number }[];
+    pending: { planId: string; confirmed: boolean; effectiveNotBefore: string } | null;
+  } | null;
 }
 
 export function DeferredSubscription(props: Props) {
@@ -26,7 +30,45 @@ export function DeferredSubscription(props: Props) {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [targetPlan, setTargetPlan] = useState('');
   const cancelled = props.cancellationState === 'confirmed';
+  async function schedulePlan() {
+    if (busy.current || !targetPlan || !props.contractId) return;
+    busy.current = true;
+    setLoading(true);
+    setMessage(null);
+    try {
+      const result = await fetch('/api/billing/plan-change', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contractId: props.contractId, targetPlanId: targetPlan }),
+      });
+      const body: unknown = await result.json();
+      if (
+        result.ok &&
+        typeof body === 'object' &&
+        body !== null &&
+        'state' in body &&
+        body.state === 'scheduled'
+      ) {
+        window.location.reload();
+        return;
+      }
+      const code = typeof body === 'object' && body !== null && 'error' in body ? body.error : null;
+      setMessage(
+        code === 'downgrade_capacity_exceeded'
+          ? 'A equipe ativa excede o plano escolhido. Ajuste os médicos e administrativos antes de solicitar a redução.'
+          : 'A alteração ainda não foi confirmada. Atualize esta página antes de tentar novamente; a solicitação anterior será preservada.',
+      );
+    } catch {
+      setMessage(
+        'A conexão foi interrompida. Atualize a página antes de tentar novamente; não há cobrança proporcional nesta alteração.',
+      );
+    } finally {
+      busy.current = false;
+      setLoading(false);
+    }
+  }
   const accessUntil = props.accessUntil
     ? new Intl.DateTimeFormat('pt-BR', {
         dateStyle: 'short',
@@ -209,10 +251,65 @@ export function DeferredSubscription(props: Props) {
         )
       ) : null}
       {message ? <Alert variant="warning">{message}</Alert> : null}
-      <p className="text-sm text-fg-muted">
-        Alterações de plano e médicos adicionais ainda não estão disponíveis nesta integração em
-        validação.
-      </p>
+      {props.planChanges ? (
+        <div className="space-y-3">
+          <h3 className="font-semibold">Plano e médicos adicionais</h3>
+          <p className="text-sm text-fg-muted">
+            A mudança vale somente após a próxima renovação paga no novo valor. Não há cobrança
+            proporcional nem liberação antecipada de médicos. Os 3 acessos administrativos continuam
+            incluídos; não há compra de um quarto acesso.
+          </p>
+          {props.planChanges.pending ? (
+            <Alert
+              variant="info"
+              title={
+                props.planChanges.pending.confirmed
+                  ? 'Alteração agendada'
+                  : 'Alteração em verificação'
+              }
+            >
+              O plano atual e seus limites permanecem até confirmarmos a renovação no novo valor.
+              Não envie outro pedido. Uma redução reserva desde já a capacidade do plano escolhido.
+            </Alert>
+          ) : (
+            <>
+              <label htmlFor="next-billing-plan" className="block text-sm font-medium">
+                Plano para a próxima renovação
+              </label>
+              <select
+                id="next-billing-plan"
+                value={targetPlan}
+                onChange={(event) => setTargetPlan(event.target.value)}
+                disabled={loading}
+                className="w-full rounded-md border border-border bg-surface p-2 text-fg"
+              >
+                <option value="">Selecione um plano</option>
+                {props.planChanges.options.map((plan) => (
+                  <option key={plan.id} value={plan.id}>
+                    {plan.name} —{' '}
+                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+                      plan.amountMinor / 100,
+                    )}
+                    /mês
+                  </option>
+                ))}
+              </select>
+              <Button
+                type="button"
+                disabled={!targetPlan}
+                loading={loading}
+                onClick={() => void schedulePlan()}
+              >
+                Agendar mudança para a próxima renovação
+              </Button>
+            </>
+          )}
+        </div>
+      ) : (
+        <p className="text-sm text-fg-muted">
+          Alterações de plano e médicos adicionais não estão disponíveis para esta assinatura agora.
+        </p>
+      )}
     </section>
   );
 }
