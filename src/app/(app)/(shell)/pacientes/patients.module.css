@@ -55,6 +55,11 @@
     padding-inline: var(--sp-2) !important;
   }
 
+  /* Em Removidos a célula não tem link: o recuo vem da própria célula. */
+  .table td:first-child:not(:has(a)) {
+    padding-left: var(--sp-2) !important;
+  }
+
   .table td {
     display: block;
     min-width: 0;
@@ -92,7 +97,7 @@
 
   /* Nascimento e vinculo saem no telefone: a linha vira nome + contato + Abrir. */
   .table td:nth-child(3),
-  .table td:nth-child(4) {
+  .table td:nth-child(4):not(:last-child) {
     display: none;
   }
 

@@ -13,6 +13,7 @@ vi.mock('@/contexts/tenancy/queries', () => ({
 vi.mock('@/lib/auth/page-guard', () => ({ pageGate }));
 vi.mock('next/navigation', () => ({ redirect }));
 
+import { getClinicTimezone } from '@/contexts/tenancy/queries';
 import DocumentosPage, { documentosPageCapabilities } from './page';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 
@@ -35,6 +36,7 @@ describe('/documentos pagination', () => {
     await DocumentosPage({ searchParams: Promise.resolve({}) });
 
     expect(listClinicalDocumentFeedPage).not.toHaveBeenCalled();
+    expect(getClinicTimezone).not.toHaveBeenCalled();
   });
 
   it('normaliza busca, tipo e página antes da consulta', async () => {

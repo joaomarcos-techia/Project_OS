@@ -65,6 +65,22 @@ describe('menu do usuário no rodapé', () => {
     logoutFormId: 'painel-logout',
   };
 
+  it('Sair envia o formulário de logout', async () => {
+    const form = document.createElement('form');
+    form.id = base.logoutFormId;
+    form.requestSubmit = vi.fn();
+    document.body.append(form);
+
+    render(<SidebarUserMenu {...base} />);
+    const gatilho = screen.getByRole('button', { name: /Olívia Owner/ });
+    gatilho.focus();
+    fireEvent.keyDown(gatilho, { key: 'Enter' });
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Sair' }));
+
+    expect(form.requestSubmit).toHaveBeenCalledOnce();
+    form.remove();
+  });
+
   it('mostra nome e cargo no gatilho, sem exigir abrir o menu', () => {
     render(<SidebarUserMenu {...base} />);
     expect(screen.getByRole('button', { name: /Olívia Owner/ })).toBeTruthy();

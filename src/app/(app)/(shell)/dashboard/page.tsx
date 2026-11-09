@@ -84,12 +84,13 @@ function hora(iso: string, tz: string): string {
   });
 }
 
-/** "1 cobrança" / "3 cobranças" — o número sempre acompanha a palavra certa. */
-function seloEspera(minutos: number | null): string {
-  if (minutos === null) return 'Sem espera';
-  return minutos < 1 ? 'Menos de 1 min' : `${minutos} min de espera`;
+/** Sem minutos completos e com gente na fila, a pessoa acabou de chegar. */
+function seloEspera(minutos: number | null, aguardando: number): string {
+  if (minutos !== null) return `${minutos} min de espera`;
+  return aguardando > 0 ? 'Menos de 1 min' : 'Sem espera';
 }
 
+/** "1 cobrança" / "3 cobranças" — o número sempre acompanha a palavra certa. */
 function plural(count: number, one: string, many: string): string {
   return `${count} ${count === 1 ? one : many}`;
 }
@@ -391,8 +392,8 @@ export default async function DashboardPage() {
             {...(d.maiorEsperaMin === null ? {} : { suffix: 'min' })}
             hint={
               <>
-                <Badge tone={d.maiorEsperaMin === null ? 'gray' : 'amber'} dot>
-                  {seloEspera(d.maiorEsperaMin)}
+                <Badge tone={d.aguardando === 0 ? 'gray' : 'amber'} dot>
+                  {seloEspera(d.maiorEsperaMin, d.aguardando)}
                 </Badge>
                 {d.maiorEsperaNome ? <span>{d.maiorEsperaNome}</span> : null}
               </>

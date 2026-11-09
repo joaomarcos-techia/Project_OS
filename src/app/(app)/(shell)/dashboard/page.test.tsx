@@ -319,13 +319,14 @@ describe('DashboardPage', () => {
   });
 
   it.each([
-    [0, 'Menos de 1 min'],
-    [null, 'Sem espera'],
-  ])('o selo continua presente com espera %s', async (maiorEsperaMin, selo) => {
+    [1, 'Menos de 1 min'],
+    [0, 'Sem espera'],
+  ])('sem minutos completos e %s na fila, o selo não some', async (aguardando, selo) => {
     getDashboard.mockResolvedValue({
       ...dashboard,
-      maiorEsperaMin,
-      maiorEsperaNome: maiorEsperaMin === null ? null : 'Marina Rezende',
+      aguardando,
+      maiorEsperaMin: null,
+      maiorEsperaNome: null,
     });
 
     render(await DashboardPage());

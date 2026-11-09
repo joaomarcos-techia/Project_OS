@@ -378,7 +378,9 @@ export function JanelaAberta({
   const restamMin =
     agora === null ? null : Math.max(0, Math.round((fecha.getTime() - agora) / 60_000));
   const horas = restamMin === null ? 0 : Math.floor(restamMin / 60);
-  const hoje = agora === null ? null : new Date(agora).toDateString() === fecha.toDateString();
+  // O dia é o da clínica, o mesmo fuso do horário mostrado ao lado.
+  const dia = new Intl.DateTimeFormat('en-CA', { timeZone });
+  const hoje = agora === null ? null : dia.format(agora) === dia.format(fecha);
 
   return (
     <p className="flex flex-wrap items-center gap-(--sp-2) text-(length:--fs-sm)">

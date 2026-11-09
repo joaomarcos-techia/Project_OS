@@ -33,6 +33,14 @@ afterEach(() => {
 });
 
 describe('janela de 24 h', () => {
+  it('compara o dia no fuso da clínica', () => {
+    vi.useFakeTimers({ now: new Date('2026-11-09T20:00:00Z') });
+
+    render(<JanelaAberta timeZone="America/Sao_Paulo" closesAt="2026-11-10T03:30:00Z" />);
+
+    expect(screen.getByText(/00:30 de amanhã/)).toBeTruthy();
+  });
+
   it('o horário absoluto sai do PROP — é a parte que o servidor pode escrever', () => {
     // `render` já roda os efeitos, então este teste não consegue observar o
     // primeiro render isolado. O que ele fixa é o outro lado do contrato: o

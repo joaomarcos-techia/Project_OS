@@ -44,6 +44,23 @@ const original: AIConversationThread = {
 };
 afterEach(cleanup);
 
+describe('horários da conversa', () => {
+  it('saem no fuso da clínica, não no do servidor', () => {
+    render(
+      <ConversationThread
+        timeZone="Asia/Tokyo"
+        thread={original}
+        canManage
+        currentUserId="user-1"
+        assignedToName={null}
+      />,
+    );
+
+    // 12:00Z é 21:00 em Tóquio e 09:00 em São Paulo.
+    expect(screen.getByText('21:00', { selector: 'time' })).toBeTruthy();
+  });
+});
+
 describe('continuidade do atendimento humano', () => {
   it('explica a pausa e a retomada sem prometer reprocessar mensagens antigas', () => {
     render(

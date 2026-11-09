@@ -28,6 +28,7 @@ vi.mock('./[id]/_components/conversa-actions', () => ({
   ConversaActions: () => <form aria-label="Responder ao contato" />,
 }));
 
+import { getClinicTimezone } from '@/contexts/tenancy/queries';
 import ConversasPage from './page';
 
 const firstId = '11111111-1111-4111-8111-111111111111';
@@ -196,6 +197,7 @@ describe('inbox de conversas', () => {
     pageGate.mockResolvedValue({ allowed: false });
     render(await ConversasPage({ searchParams: Promise.resolve({}) }));
     expect(listConversations).not.toHaveBeenCalled();
+    expect(getClinicTimezone).not.toHaveBeenCalled();
     expect(getConversationThread).not.toHaveBeenCalled();
   });
 });

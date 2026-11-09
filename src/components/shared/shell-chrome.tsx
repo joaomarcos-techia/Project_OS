@@ -354,11 +354,16 @@ export function SidebarUserMenu({
           </DropdownMenuItem>
         ) : null}
         <DropdownMenuSeparator />
-        <DropdownMenuItem asChild danger>
-          <button type="submit" form={logoutFormId}>
-            <LogOut />
-            Sair
-          </button>
+        {/* O formulário fica fora do portal. Um botão de submit dentro do menu saía
+            do DOM ao fechar, antes de o clique enviar, e o logout não acontecia. */}
+        <DropdownMenuItem
+          danger
+          onSelect={() =>
+            (document.getElementById(logoutFormId) as HTMLFormElement | null)?.requestSubmit()
+          }
+        >
+          <LogOut />
+          Sair
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

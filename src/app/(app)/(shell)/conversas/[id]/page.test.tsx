@@ -31,6 +31,7 @@ vi.mock('../_components/no-access', () => ({
   ConversasNoAccess: () => <p>Sem acesso às conversas</p>,
 }));
 
+import { getClinicTimezone } from '@/contexts/tenancy/queries';
 import ConversaThreadPage from './page';
 
 const conversationId = '11111111-1111-4111-8111-111111111111';
@@ -118,5 +119,6 @@ describe('workspace da conversa', () => {
 
     expect(screen.getByText('Sem acesso às conversas')).toBeTruthy();
     expect(getConversationThread).not.toHaveBeenCalled();
+    expect(getClinicTimezone).not.toHaveBeenCalled();
   });
 });
