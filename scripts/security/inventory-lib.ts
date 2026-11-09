@@ -286,6 +286,10 @@ export function collectInventory(root: string): Inventory {
       guard: 'SIGNUP_IDENTITY_ENABLED-origin-limit-cookie-cas',
       call: 'recordSignupIdentity',
     },
+    'src/app/api/signup/sessions/email/route.ts#POST': {
+      guard: 'origin-identity-limit-live-cookie-current-email-cas-unverified-idle-only',
+      call: 'correctSignupEmail',
+    },
     'src/app/api/signup/sessions/auth/route.ts#POST': {
       guard: 'SIGNUP_AUTH_ENABLED-origin-limit-cookie-cas',
       call: 'reserveSignupAuthAttempt',
