@@ -85,8 +85,8 @@ test('esqueci a senha: o link do e-mail real abre o formulário de nova senha', 
   await page.goto('/login', { timeout: 180_000 });
   await page.getByText('Esqueci a senha').click();
   await page.locator('#recovery-email').fill(email);
-  await page.getByRole('button', { name: 'Enviar link seguro' }).click();
-  await expect(page.getByText('Verifique seu e-mail')).toBeVisible({ timeout: 180_000 });
+  await page.getByRole('button', { name: 'Enviar link' }).click();
+  await expect(page.getByText('Confira o seu e-mail')).toBeVisible({ timeout: 180_000 });
 
   const html = await waitForResetEmail(email, since);
   const href = /href="([^"]+)"[^>]*>Redefinir minha senha</u.exec(html)?.[1];
