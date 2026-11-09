@@ -119,7 +119,7 @@ export async function assertClinicCanWriteTx(tx: Tx, clinicId: string): Promise<
                (s.billing_provider = 'abacatepay'
                  AND s.billing_status IN ('active','past_due')
                  AND s.current_period_end <= now()
-                 AND coalesce(s.grace_period_until,s.current_period_end) <= now()) AS paid_period_expired
+                 AND (s.cancel_at_period_end OR coalesce(s.grace_period_until,s.current_period_end) <= now())) AS paid_period_expired
           FROM clinics c
           LEFT JOIN subscriptions s ON s.clinic_id = c.id
          WHERE c.id = ${clinicId}::uuid LIMIT 1`,

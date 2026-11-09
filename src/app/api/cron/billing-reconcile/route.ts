@@ -21,6 +21,7 @@ import {
   reconcileAbacatePayInbox,
   reconcileMissingAbacatePayInitialPayment,
 } from '@/contexts/billing/internal/abacatepay-processing';
+import { reconcileAbacatePayManagement } from '@/contexts/billing/internal/abacatepay-management';
 
 import { asaasProvider, BillingProviderError } from '@/lib/payments/asaas';
 import { removeSubscriptionCharges } from '@/contexts/billing/internal/cancellation-charges';
@@ -550,6 +551,7 @@ export const GET = withCron(
           found += recovered.applied;
           fixed += recovered.applied;
         }
+        if (Date.now() - startedAt < 35_000) await reconcileAbacatePayManagement(dbAdmin);
       }
 
       await dbAdmin

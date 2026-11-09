@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
 interface Props {
   planName: string;
@@ -13,12 +14,60 @@ interface Props {
   paid: boolean;
   billingStatus: 'trial' | 'active' | 'past_due' | 'cancelled';
   paidPeriodActive: boolean;
+  managementAvailable?: boolean;
+  contractId?: string | null;
+  accessUntil?: string | null;
+  cancellationState?: 'none' | 'requested' | 'confirmed';
+  canRecontract?: boolean;
 }
 
 export function DeferredSubscription(props: Props) {
   const busy = useRef(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const cancelled = props.cancellationState === 'confirmed';
+  const accessUntil = props.accessUntil
+    ? new Intl.DateTimeFormat('pt-BR', {
+        dateStyle: 'short',
+        timeStyle: 'short',
+        timeZone: 'America/Sao_Paulo',
+      }).format(new Date(props.accessUntil))
+    : null;
+  async function cancelRenewal() {
+    if (busy.current || !props.contractId) return;
+    busy.current = true;
+    setLoading(true);
+    setMessage(null);
+    try {
+      const response = await fetch('/api/billing/cancellation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contractId: props.contractId }),
+      });
+      const body: unknown = await response.json();
+      if (
+        response.ok &&
+        typeof body === 'object' &&
+        body !== null &&
+        'state' in body &&
+        body.state === 'renewal_cancelled'
+      ) {
+        window.location.reload();
+        return;
+      }
+      setMessage(
+        'Ainda não foi possível confirmar o cancelamento da renovação. Verifique novamente nesta página antes de considerar a cobrança encerrada.',
+      );
+    } catch {
+      setMessage(
+        'A conexão foi interrompida. Verifique o cancelamento nesta página; a solicitação anterior será preservada.',
+      );
+    } finally {
+      busy.current = false;
+      setLoading(false);
+    }
+  }
   async function checkout() {
     if (busy.current) return;
     busy.current = true;
@@ -82,7 +131,21 @@ export function DeferredSubscription(props: Props) {
         )}
         /mês
       </p>
-      {props.paid && props.paidPeriodActive ? (
+      {cancelled ? (
+        <Alert
+          variant="info"
+          title={props.canRecontract ? 'Assinatura encerrada' : 'Renovação cancelada'}
+        >
+          {props.canRecontract
+            ? 'O período pago terminou. Seus dados foram preservados. Para retomar o uso, faça uma nova contratação e aguarde a confirmação do pagamento. Não haverá uma nova avaliação gratuita.'
+            : `Seu acesso permanece até ${accessUntil} (Brasília). O cancelamento da renovação é definitivo. Uma nova contratação ficará disponível após esse prazo, sem estorno automático.`}
+        </Alert>
+      ) : props.cancellationState === 'requested' ? (
+        <Alert variant="warning" title="Cancelamento em verificação">
+          Sua solicitação foi registrada, mas a interrupção da renovação ainda não foi confirmada.
+          Verifique novamente abaixo.
+        </Alert>
+      ) : props.paid && props.paidPeriodActive ? (
         <Alert variant="success" title="Pagamento confirmado">
           As restrições temporárias da avaliação foram removidas. Os limites do seu plano continuam
           valendo.
@@ -113,6 +176,37 @@ export function DeferredSubscription(props: Props) {
         <Button type="button" loading={loading} onClick={() => void checkout()}>
           Contratar assinatura
         </Button>
+      ) : null}
+      {props.canRecontract ? (
+        <Button type="button" loading={loading} onClick={() => void checkout()}>
+          Contratar novamente
+        </Button>
+      ) : null}
+      {props.managementAvailable && props.contractId && !cancelled ? (
+        props.cancellationState === 'requested' ? (
+          <Button type="button" loading={loading} onClick={() => void cancelRenewal()}>
+            Verificar cancelamento
+          </Button>
+        ) : (
+          <ConfirmDialog
+            open={confirmOpen}
+            onOpenChange={setConfirmOpen}
+            trigger={
+              <Button type="button" variant="secondary" disabled={loading}>
+                Cancelar renovação
+              </Button>
+            }
+            title="Cancelar a renovação?"
+            description={`O acesso permanece até ${accessUntil} (Brasília). Esta ação é definitiva e não gera estorno automático. Você poderá contratar novamente apenas depois do período pago.`}
+            confirmLabel="Confirmar cancelamento"
+            cancelLabel="Voltar"
+            tone="danger"
+            loading={loading}
+            onConfirm={cancelRenewal}
+          >
+            {message ? <Alert variant="warning">{message}</Alert> : null}
+          </ConfirmDialog>
+        )
       ) : null}
       {message ? <Alert variant="warning">{message}</Alert> : null}
       <p className="text-sm text-fg-muted">

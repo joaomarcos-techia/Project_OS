@@ -974,6 +974,13 @@
       "when": 1794171600000,
       "tag": "0138_saas_gateway_bindings",
       "breakpoints": true
+    },
+    {
+      "idx": 139,
+      "version": "7",
+      "when": 1794189600000,
+      "tag": "0139_saas_gateway_recontracts",
+      "breakpoints": true
     }
   ]
 }

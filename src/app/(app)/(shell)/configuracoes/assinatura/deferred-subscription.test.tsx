@@ -20,6 +20,74 @@ afterEach(() => {
 });
 
 describe('deferred subscription controls', () => {
+  const managed = {
+    ...baseline,
+    paid: true,
+    paidPeriodActive: true,
+    billingStatus: 'active' as const,
+    managementAvailable: true,
+    contractId: '2d0c7853-147a-4b91-a178-3d081617c132',
+    accessUntil: '2026-12-01T12:00:00.000Z',
+    cancellationState: 'none' as const,
+  };
+  it('explains irreversible cancellation and asks before making a request', () => {
+    const fetcher = vi.fn();
+    vi.stubGlobal('fetch', fetcher);
+    render(<DeferredSubscription {...managed} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar renovação' }));
+    expect(screen.getByRole('dialog')).toBeTruthy();
+    expect(screen.getByText(/Esta ação é definitiva/)).toBeTruthy();
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: 'Manter assinatura' })).toBeNull();
+  });
+  it('deduplicates cancellation clicks and refreshes only after confirmation', async () => {
+    const reload = vi.spyOn(window.location, 'reload').mockImplementation(() => undefined);
+    const fetcher = vi.fn().mockResolvedValue(Response.json({ state: 'renewal_cancelled' }));
+    vi.stubGlobal('fetch', fetcher);
+    render(<DeferredSubscription {...managed} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar renovação' }));
+    const button = screen.getByRole('button', { name: 'Confirmar cancelamento' });
+    fireEvent.click(button);
+    fireEvent.click(button);
+    await waitFor(() => expect(reload).toHaveBeenCalledOnce());
+    expect(fetcher).toHaveBeenCalledOnce();
+    expect(fetcher).toHaveBeenCalledWith(
+      '/api/billing/cancellation',
+      expect.objectContaining({ body: JSON.stringify({ contractId: managed.contractId }) }),
+    );
+  });
+  it('keeps uncertain cancellation visible without claiming the renewal stopped', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(Response.json({ error: 'reconcile_required' }, { status: 409 })),
+    );
+    const reload = vi.spyOn(window.location, 'reload').mockImplementation(() => undefined);
+    render(<DeferredSubscription {...managed} cancellationState="requested" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Verificar cancelamento' }));
+    await waitFor(() => expect(screen.getByText(/Ainda não foi possível confirmar/)).toBeTruthy());
+    expect(reload).not.toHaveBeenCalled();
+  });
+  it('does not offer a replacement while the cancelled paid period is active', () => {
+    render(<DeferredSubscription {...managed} cancellationState="confirmed" />);
+    expect(screen.getByText('Renovação cancelada')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Contratar novamente' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Cancelar renovação' })).toBeNull();
+  });
+  it('offers a new checkout only after the server confirms the ended cancellation', () => {
+    render(
+      <DeferredSubscription
+        {...managed}
+        cancellationState="confirmed"
+        paidPeriodActive={false}
+        canRecontract
+        billingStatus="cancelled"
+      />,
+    );
+    expect(screen.getByText('Assinatura encerrada')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Contratar novamente' })).toBeTruthy();
+    expect(screen.queryByText('Renovação em verificação')).toBeNull();
+    expect(screen.getByText(/Não haverá uma nova avaliação gratuita/)).toBeTruthy();
+  });
   it('does not deny that a charge may already exist while awaiting confirmation', () => {
     render(<DeferredSubscription {...baseline} />);
     expect(screen.getByText(/Se já pagou, não faça outra assinatura/)).toBeTruthy();

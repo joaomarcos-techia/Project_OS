@@ -29,7 +29,13 @@ const scopeSchema = z
   .object({
     subscriptionId: z.uuid(),
     clinicId: z.uuid(),
-    kind: z.enum(['create_checkout', 'change_plan', 'cancel_subscription', 'proration_checkout']),
+    kind: z.enum([
+      'create_checkout',
+      'change_plan',
+      'cancel_subscription',
+      'proration_checkout',
+      'recontract_checkout',
+    ]),
     businessKey: z.string().min(1).max(200).regex(/\S/),
   })
   .strict();

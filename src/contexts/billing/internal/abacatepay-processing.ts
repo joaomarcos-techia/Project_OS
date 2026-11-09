@@ -20,6 +20,11 @@ import { initialAbacatePayAccessPeriod } from './abacatepay-period';
 import { markInvoicePaid, recordBillingEvent } from './subscriptions';
 import { toCents, toReaisString } from './money';
 import { DUNNING_READONLY_DAYS } from './dunning';
+import {
+  abacatePayManagementReady,
+  applyAbacatePayRecontractPaymentTx,
+  reconcileAbacatePayCancellation,
+} from './abacatepay-management';
 
 const bindingSchema = z.object({
   account_id: z.uuid(),
@@ -164,6 +169,7 @@ const intentSchema = z.object({
   external_checkout_id: z.string(),
   product_id: z.string(),
   amount_minor: z.coerce.number().int().positive(),
+  recontract_id: z.uuid().optional(),
 });
 const MAX_ATTEMPTS = 10;
 
@@ -235,6 +241,14 @@ export async function reconcileAbacatePayInbox(input: { eventId?: string } = {})
     await finish('review', 'worker_attempts_exhausted');
     return { applied: 0, review: 1, scanned: 1 };
   }
+  if (event.event_type === 'subscription.cancelled' && event.external_subscription_id) {
+    const result = await reconcileAbacatePayCancellation(dbAdmin, event.external_subscription_id);
+    await finish(
+      result.confirmed ? 'applied' : 'review',
+      result.confirmed ? 'renewal_cancellation_verified' : 'cancellation_requires_review',
+    );
+    return { applied: result.confirmed, review: Number(result.confirmed === 0), scanned: 1 };
+  }
   if (event.event_type !== 'subscription.completed') {
     // Renewal must not reuse the initial bill's PAID status to extend access.
     const known =
@@ -265,7 +279,7 @@ export async function reconcileAbacatePayInbox(input: { eventId?: string } = {})
       await finish('review', 'event_binding_mismatch');
       return { applied: 0, review: 1, scanned: 1 };
     }
-    const [intent] = z
+    let [intent] = z
       .array(intentSchema)
       .max(1)
       .parse(
@@ -275,6 +289,16 @@ export async function reconcileAbacatePayInbox(input: { eventId?: string } = {})
         ON i.subscription_id=b.subscription_id AND i.account_id=b.account_id AND i.clinic_id=b.clinic_id
       WHERE b.account_id=${event.account_id}::uuid AND b.external_checkout_id=${remote.checkoutId}`),
       );
+    if (!intent && (await abacatePayManagementReady(dbAdmin))) {
+      [intent] = z
+        .array(intentSchema)
+        .max(1)
+        .parse(
+          await dbAdmin.execute(sql`
+        SELECT subscription_id::text,clinic_id::text,external_checkout_id,product_id,amount_minor::text,id::text recontract_id
+        FROM billing_gateway.recontracts WHERE account_id=${event.account_id}::uuid AND external_checkout_id=${remote.checkoutId}`),
+        );
+    }
     if (!intent) {
       await finish(event.attempts >= MAX_ATTEMPTS ? 'review' : 'received', 'binding_not_ready');
       return {
@@ -284,6 +308,7 @@ export async function reconcileAbacatePayInbox(input: { eventId?: string } = {})
         retry: event.attempts < MAX_ATTEMPTS,
       };
     }
+    const verifiedIntent = intent;
     const product = await read.readProduct(intent.product_id);
     if (
       product.cycle !== 'MONTHLY' ||
@@ -323,11 +348,13 @@ export async function reconcileAbacatePayInbox(input: { eventId?: string } = {})
           AND lease_until > now() FOR UPDATE`),
       );
       if (!lease[0]) return 'review';
-      const outcome = await applyInitialAbacatePayPaymentTx(tx, evidence);
+      const outcome = verifiedIntent.recontract_id
+        ? await applyAbacatePayRecontractPaymentTx(tx, evidence)
+        : await applyInitialAbacatePayPaymentTx(tx, evidence);
       await tx.execute(sql`UPDATE billing_gateway.event_inbox SET state=${outcome === 'review' ? 'review' : 'applied'},
         outcome_code=${outcome === 'review' ? 'initial_payment_not_applicable' : 'initial_payment_applied'},
         lease_token=NULL,lease_until=NULL,processed_at=now(),
-        subscription_id=${intent.subscription_id}::uuid,clinic_id=${intent.clinic_id}::uuid
+        subscription_id=${verifiedIntent.subscription_id}::uuid,clinic_id=${verifiedIntent.clinic_id}::uuid
         WHERE account_id=${event.account_id}::uuid AND event_id=${event.event_id} AND lease_token=${token}::uuid`);
       return outcome;
     });

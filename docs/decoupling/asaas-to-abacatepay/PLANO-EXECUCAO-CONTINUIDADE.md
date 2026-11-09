@@ -18,6 +18,8 @@ Implementar e testar localmente com dados sintéticos, preparar integração San
 
 O trial permanece em 14 dias desde Auth.created_at, sem checkout inicial ou trial nativo adicional. Cotas não mudam. Checkout pós-trial não concede direitos por redirect. O founder aprovou a alternativa C da [ADR-068](../../adr/068-abacatepay-upgrade-policy.md): nova cota somente na próxima renovação paga no novo valor, sem proporcional separado. A âncora técnica do primeiro período está na [ADR-069](../../adr/069-abacatepay-trial-origin-and-initial-access.md). Preservar Asaas legado. Novas vendas anuais continuam fechadas.
 
+O founder aprovou também a [ADR-070](../../adr/070-abacatepay-cancellation-and-recontract.md): cancelar a renovação AbacatePay, preservar o período pago e permitir nova contratação somente depois dele. Essa aprovação comercial não autoriza a migration 0139 em banco remoto. Os checkpoints abaixo distinguem a implementação local dessa homologação externa ainda pendente.
+
 ## Execução rastreável
 
 | ID | Descrição | Arquivos | Dependências | Implementação | Testes | Evidências | Riscos | Rollback | Status | Gate |
@@ -147,3 +149,11 @@ Os quatro pontos de integração visual (formulário de plano, aviso do trial, p
 ## Estado final e produção
 
 Execução em andamento. Nenhuma ativação de produção autorizada ou realizada. Permanecem requisitos de publicação: aprovação de migrations/destino, secrets exclusivos por ambiente, webhook público validado, método contratado homologado, origens legadas preservadas, upgrade decidido ou explicitamente indisponível, E2E financeiro causal e autorização final de rollout. Supabase e Vercel permanecem.
+
+## Cancelamento e nova contratação — continuidade após aprovação da ADR-070
+
+Implementados localmente os intents de cancelamento, reconciliação por leitura, acesso até o fim pago e novo checkout após o término, com histórico separado e sem novo trial. A **0139 continua não aplicada remotamente**. O código preserva o comportamento Asaas e não oferece a nova gestão se as duas tabelas ainda não existem.
+
+Em `2026-11-09T02:55:30Z` (08/11 em Brasília), passaram **46/46 verificações PostgreSQL**, 140 migrations reais, zero rede externa. Incluem concorrência, resposta perdida, microssegundos preservados no snapshot, bloqueio antes/depois do prazo, rollback e duas gerações de contratação; a segunda passa pelo receptor autenticado de webhook, com HTTP sintético. Também passaram 71 testes focados de rota/UI/processor/cron/acesso. A suíte integral e o build ainda estavam em execução no checkpoint. [Relatório e limites](../../quality/abacatepay-cancelamento-recontratacao-2026-11-08.md).
+
+O cancelamento real da fixture Sandbox e sua recontratação temporal ainda **não foram executados**. Não usar os 46 PASS locais como prova externa, não pagar novamente a fixture já conciliada e não sobrescrever IDs antigos. Renovação, mudanças de plano/assentos, falhas/estornos/disputas e descoberta de checkout cujo POST ficou desconhecido continuam gates próprios, não cobertos por este cancelamento.

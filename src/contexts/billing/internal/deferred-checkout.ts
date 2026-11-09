@@ -15,6 +15,21 @@ import { createAbacatePayReadClient } from '@/lib/payments/abacatepay/reader';
 import { OFFER_2026_PLAN_CODES } from '../proposed-offer';
 import { toCents } from './money';
 import { reconcileMissingAbacatePayInitialPayment } from './abacatepay-processing';
+import {
+  abacatePayManagementReady,
+  getAbacatePayManagementContext,
+  createAbacatePayRecontractCheckout,
+  AbacatePayManagementError,
+  requestAbacatePayCancellation,
+} from './abacatepay-management';
+
+export async function requestDeferredSubscriptionCancellation(input: {
+  clinicId: string;
+  requestedBy: string;
+  contractId: string;
+}) {
+  return requestAbacatePayCancellation(dbAdmin, input);
+}
 
 const productMapSchema = z.partialRecord(
   z.enum(OFFER_2026_PLAN_CODES),
@@ -34,6 +49,7 @@ const contractSchema = z.object({
   currency: z.literal('BRL'),
   billing_cycle: z.literal('monthly'),
   billing_status: z.enum(['trial', 'active', 'past_due', 'cancelled']),
+  cancel_at_period_end: z.boolean(),
   trial_ends_at: z.coerce.date(),
   released_at: z.coerce.date().nullable(),
   trial_active: z.boolean(),
@@ -81,7 +97,7 @@ export async function createDeferredSubscriptionCheckout(input: { clinicId: stri
     SELECT s.id::text subscription_id,s.clinic_id::text,a.id::text account_id,
       a.external_account_id,a.provider,a.environment,b.external_subscription_id,
       pr.id::text price_id,p.code plan_code,pr.amount::text,pr.currency,pr.billing_cycle,
-      s.billing_status,s.trial_ends_at,ta.released_at,(s.trial_ends_at > now()) trial_active
+      s.billing_status,s.cancel_at_period_end,s.trial_ends_at,ta.released_at,(s.trial_ends_at > now()) trial_active
     FROM public.subscriptions s JOIN public.plans p ON p.id=s.plan_id
     JOIN public.prices pr ON pr.id=s.price_id
     JOIN billing_gateway.bindings b ON b.subscription_id=s.id AND b.clinic_id=s.clinic_id
@@ -94,6 +110,22 @@ export async function createDeferredSubscriptionCheckout(input: { clinicId: stri
   const contract = rows[0];
   if (!contract || contract.external_account_id !== env.ABACATEPAY_STORE_ID)
     throw new DeferredCheckoutError('not_eligible');
+  if (contract.cancel_at_period_end) {
+    const selected = z.enum(OFFER_2026_PLAN_CODES).safeParse(contract.plan_code);
+    try {
+      return await createAbacatePayRecontractCheckout(dbAdmin, {
+        clinicId,
+        productId: selected.success ? productMap[selected.data] : undefined,
+        callbackUrl,
+      });
+    } catch (error) {
+      if (error instanceof AbacatePayManagementError)
+        throw new DeferredCheckoutError(
+          error.code === 'period_active' ? 'already_paid' : error.code,
+        );
+      throw error;
+    }
+  }
   if (contract.billing_status === 'cancelled') throw new DeferredCheckoutError('cancelled');
   if (
     contract.released_at ||
@@ -247,6 +279,11 @@ export async function getDeferredSubscriptionOverview(clinicId: string) {
       AND s.billing_provider='abacatepay'
   `),
     );
+  const managementAvailable =
+    Boolean(overview?.released_at) && (await abacatePayManagementReady(dbAdmin));
+  const management = managementAvailable
+    ? await getAbacatePayManagementContext(dbAdmin, clinicId)
+    : null;
   return overview
     ? {
         planName: overview.plan_name,
@@ -256,6 +293,18 @@ export async function getDeferredSubscriptionOverview(clinicId: string) {
         paid: overview.released_at !== null,
         billingStatus: overview.billing_status,
         paidPeriodActive: overview.paid_period_active,
+        managementAvailable,
+        contractId: management?.generation_id ?? null,
+        accessUntil: management?.period_end.toISOString() ?? null,
+        cancellationState: management?.cancellation_confirmed
+          ? ('confirmed' as const)
+          : management?.cancellation_requested
+            ? ('requested' as const)
+            : ('none' as const),
+        canRecontract:
+          management?.cancellation_confirmed === true &&
+          management.cancel_at_period_end &&
+          management.period_ended,
       }
     : null;
 }

@@ -428,9 +428,12 @@ try {
       customerId: string;
       subscriptionId: string;
       createdAt: string;
+      cancelled?: boolean;
     }
   >();
   let postCalls = 0;
+  let cancelCalls = 0;
+  let loseCancellationResponse = false;
   globalThis.fetch = async (input, init) => {
     fixtureHttpCalls++;
     const url = new URL(input instanceof Request ? input.url : String(input));
@@ -450,7 +453,7 @@ try {
       customerId: value.customerId,
       amount: 39700,
       currency: 'BRL',
-      status: 'ACTIVE',
+      status: value.cancelled ? 'CANCELLED' : 'ACTIVE',
       method: 'CARD',
       devMode: true,
       trialEndsAt: null,
@@ -509,6 +512,22 @@ try {
       external.has(id)
     ) {
       data = checkout(id, external.get(id)!);
+    } else if (method === 'POST' && url.pathname === '/v2/subscriptions/cancel') {
+      const body: unknown = JSON.parse(String(init?.body));
+      assert.ok(typeof body === 'object' && body !== null && 'id' in body);
+      const entry = [...external].find(
+        ([, value]) => value.subscriptionId === body.id && value.paid,
+      );
+      assert.ok(entry);
+      assert.equal(
+        entry[1].cancelled,
+        undefined,
+        'a cancelled subscription must not receive another POST',
+      );
+      cancelCalls++;
+      entry[1].cancelled = true;
+      if (loseCancellationResponse) throw new Error('Synthetic acknowledgement lost after commit');
+      data = subscription(entry[0], entry[1]);
     } else if (method === 'GET' && url.pathname === '/v2/subscriptions/get') {
       const entry = [...external].find(([, value]) => value.subscriptionId === id && value.paid);
       assert.ok(entry);
@@ -671,6 +690,334 @@ try {
     assert.equal(postCalls, 2);
     assert.equal(networkCalls, 0);
   });
+
+  // Cancellation/recontract proof uses synthetic dates and HTTP fixtures only.
+  // It does not claim a real paid month elapsed or a new Sandbox payment.
+  const {
+    requestAbacatePayCancellation: cancel,
+    getAbacatePayManagementContext: context,
+    applyAbacatePayRecontractPaymentTx: applyRecontract,
+    reconcileAbacatePayManagement,
+    recoverAbacatePayRecontract,
+  } = await import('../../src/contexts/billing/internal/abacatepay-management');
+  const live = await context(dbAdmin, checkoutTrial.clinicId);
+  assert.ok(live);
+  const cancelLive = () =>
+    cancel(dbAdmin, {
+      clinicId: checkoutTrial.clinicId,
+      requestedBy: checkoutOwner.userId,
+      contractId: live.generation_id,
+    });
+  await check('another tenant actor or stale generation cannot request cancellation', async () => {
+    for (const input of [
+      {
+        clinicId: checkoutTrial.clinicId,
+        requestedBy: lostOwner.userId,
+        contractId: live.generation_id,
+      },
+      {
+        clinicId: checkoutTrial.clinicId,
+        requestedBy: checkoutOwner.userId,
+        contractId: randomUUID(),
+      },
+    ])
+      await assert.rejects(cancel(dbAdmin, input));
+    assert.equal(cancelCalls, 0);
+  });
+  await check(
+    '12 cancellation clicks stop recurrence at most once without shortening access',
+    async () => {
+      const results = await Promise.allSettled(Array.from({ length: 12 }, cancelLive));
+      assert.ok(results.some((value) => value.status === 'fulfilled'));
+      for (const result of results)
+        if (result.status === 'rejected') {
+          assert.ok(
+            result.reason instanceof Error &&
+              'code' in result.reason &&
+              result.reason.code === 'reconcile_required',
+          );
+        }
+      await cancelLive();
+      assert.equal(cancelCalls, 1);
+      const current = await context(dbAdmin, checkoutTrial.clinicId);
+      assert.ok(current?.cancellation_confirmed && current.cancel_at_period_end);
+      assert.equal(current.period_end.toISOString(), live.period_end.toISOString());
+      assert.equal(current.billing_status, 'active');
+      await dbAdmin.transaction((tx) => assertClinicCanWriteTx(tx, checkoutTrial.clinicId));
+    },
+  );
+  await check(
+    'replacement checkout before paid end is refused without a provider POST',
+    async () => {
+      const before = postCalls;
+      await assert.rejects(
+        createDeferredSubscriptionCheckout({ clinicId: checkoutTrial.clinicId }),
+        (error: unknown) =>
+          error instanceof Error && 'code' in error && error.code === 'already_paid',
+      );
+      assert.equal(postCalls, before);
+    },
+  );
+  // Age only this isolated synthetic projection BEFORE cancellation snapshots.
+  await sql`UPDATE public.subscriptions SET current_period_start=now()-interval '1 month'-interval '1 day',
+    current_period_end=now()-interval '1 day',grace_period_until=now()+interval '14 days'
+    WHERE id=${lostSubscription.id}::uuid`;
+  const ended = await context(dbAdmin, lostTrial.clinicId);
+  assert.ok(ended);
+  const [beforeRecontract] =
+    await sql`SELECT row_to_json(t)::text policy FROM public.trial_access_policies t WHERE t.clinic_id=${lostTrial.clinicId}::uuid`;
+  const [oldBinding] =
+    await sql`SELECT row_to_json(b)::text binding FROM billing_gateway.bindings b WHERE b.clinic_id=${lostTrial.clinicId}::uuid`;
+  await check(
+    'lost cancellation response is recovered by authoritative GET, never another POST',
+    async () => {
+      loseCancellationResponse = true;
+      const input = {
+        clinicId: lostTrial.clinicId,
+        requestedBy: lostOwner.userId,
+        contractId: ended.generation_id,
+      };
+      await cancel(dbAdmin, input);
+      await cancel(dbAdmin, input);
+      loseCancellationResponse = false;
+      assert.equal(cancelCalls, 2);
+      const current = await context(dbAdmin, lostTrial.clinicId);
+      assert.equal(current?.billing_status, 'cancelled');
+      const [operation] = await sql`SELECT state FROM billing_gateway.operations
+      WHERE subscription_id=${lostSubscription.id}::uuid AND kind='cancel_subscription'`;
+      assert.equal(operation?.state, 'confirmed');
+      await assert.rejects(
+        dbAdmin.transaction((tx) => assertClinicCanWriteTx(tx, lostTrial.clinicId)),
+      );
+    },
+  );
+  await check(
+    'recontract checkout is unique across 12 concurrent attempts and cannot change price',
+    async () => {
+      const results = await Promise.allSettled(
+        Array.from({ length: 12 }, () =>
+          createDeferredSubscriptionCheckout({ clinicId: lostTrial.clinicId }),
+        ),
+      );
+      if (!results.some((value) => value.status === 'fulfilled')) {
+        const rejected = results.find((value) => value.status === 'rejected');
+        if (rejected?.status === 'rejected') throw rejected.reason;
+      }
+      assert.ok(results.some((value) => value.status === 'fulfilled'));
+      const cached = await createDeferredSubscriptionCheckout({ clinicId: lostTrial.clinicId });
+      assert.equal(cached.checkoutUrl, 'https://app.abacatepay.com/pay/bill_http3');
+      assert.equal(postCalls, 3);
+      const [row] =
+        await sql`SELECT count(*)::int n,min(amount_minor)::int amount FROM billing_gateway.recontracts WHERE clinic_id=${lostTrial.clinicId}::uuid`;
+      assert.deepEqual(row, { n: 1, amount: 39700 });
+      await assert.rejects(
+        dbAdmin.transaction((tx) => assertClinicCanWriteTx(tx, lostTrial.clinicId)),
+      );
+    },
+  );
+  const replacement = external.get('bill_http3');
+  assert.ok(replacement);
+  const recontractEvidence: Evidence = {
+    account: { provider: 'abacatepay', environment: 'sandbox', accountId: 'store_synthetic' },
+    subscriptionId: replacement.subscriptionId,
+    customerId: replacement.customerId,
+    checkoutId: 'bill_http3',
+    amountMinor: 39700,
+    paidAmountMinor: 39700,
+    currency: 'BRL',
+    state: 'paid',
+    rawStatus: 'PAID',
+    settlement: 'unknown',
+    recurrence: 'running',
+    subscriptionCreatedAt: replacement.createdAt,
+  };
+  await check(
+    'pending, partial, old, future, stopped or other-store evidence cannot reactivate',
+    async () => {
+      const invalid: Evidence[] = [
+        { ...recontractEvidence, state: 'pending' },
+        { ...recontractEvidence, paidAmountMinor: 39699 },
+        { ...recontractEvidence, recurrence: 'stopped' },
+        {
+          ...recontractEvidence,
+          subscriptionCreatedAt: new Date(Date.now() + 60_000).toISOString(),
+        },
+        {
+          ...recontractEvidence,
+          subscriptionCreatedAt: new Date(Date.now() - 60 * 86_400_000).toISOString(),
+        },
+        {
+          ...recontractEvidence,
+          account: { ...recontractEvidence.account, accountId: 'store_other' },
+        },
+        { ...recontractEvidence, checkoutId: 'bill_http2', subscriptionId: 'subs_http2' },
+      ];
+      for (const evidence of invalid)
+        assert.equal(await dbAdmin.transaction((tx) => applyRecontract(tx, evidence)), 'review');
+      assert.equal((await context(dbAdmin, lostTrial.clinicId))?.billing_status, 'cancelled');
+    },
+  );
+  await check(
+    'recontract transaction rollback preserves cancelled state and original payment',
+    async () => {
+      await assert.rejects(
+        dbAdmin.transaction(async (tx) => {
+          assert.equal(await applyRecontract(tx, recontractEvidence), 'applied');
+          throw new Error('Synthetic recontract rollback');
+        }),
+        /Synthetic recontract rollback/,
+      );
+      assert.equal((await context(dbAdmin, lostTrial.clinicId))?.billing_status, 'cancelled');
+      const [row] =
+        await sql`SELECT count(*)::int n FROM public.invoices WHERE clinic_id=${lostTrial.clinicId}::uuid`;
+      assert.equal(row?.n, 1);
+    },
+  );
+  await check(
+    'authoritative missing-webhook recontract activates exactly once without restarting trial',
+    async () => {
+      replacement.paid = true;
+      const outcomes = await Promise.all(
+        Array.from({ length: 12 }, () =>
+          recoverAbacatePayRecontract(dbAdmin, { clinicId: lostTrial.clinicId }),
+        ),
+      );
+      assert.equal(
+        outcomes.reduce((sum, value) => sum + value.applied, 0),
+        1,
+      );
+      const current = await context(dbAdmin, lostTrial.clinicId);
+      assert.equal(current?.billing_status, 'active');
+      assert.equal(current?.external_subscription_id, 'subs_http3');
+      assert.notEqual(current?.generation_id, ended.generation_id);
+      assert.equal(current?.cancel_at_period_end, false);
+      await dbAdmin.transaction((tx) => assertClinicCanWriteTx(tx, lostTrial.clinicId));
+      const [row] =
+        await sql`SELECT count(*)::int n FROM public.invoices WHERE clinic_id=${lostTrial.clinicId}::uuid`;
+      assert.equal(row?.n, 2);
+      const [after] =
+        await sql`SELECT row_to_json(t)::text policy FROM public.trial_access_policies t WHERE t.clinic_id=${lostTrial.clinicId}::uuid`;
+      assert.deepEqual(after, beforeRecontract);
+      const [binding] =
+        await sql`SELECT row_to_json(b)::text binding FROM billing_gateway.bindings b WHERE b.clinic_id=${lostTrial.clinicId}::uuid`;
+      assert.deepEqual(binding, oldBinding);
+    },
+  );
+  await check(
+    'late old cancellation and old checkout cannot cancel or reactivate the replacement',
+    async () => {
+      await assert.rejects(
+        cancel(dbAdmin, {
+          clinicId: lostTrial.clinicId,
+          requestedBy: lostOwner.userId,
+          contractId: ended.generation_id,
+        }),
+      );
+      assert.equal(
+        await dbAdmin.transaction((tx) => applyRecontract(tx, recontractEvidence)),
+        'duplicate',
+      );
+      await reconcileAbacatePayManagement(dbAdmin);
+      assert.equal((await context(dbAdmin, lostTrial.clinicId))?.billing_status, 'active');
+      assert.equal(cancelCalls, 2);
+      assert.equal(postCalls, 3);
+      assert.equal(networkCalls, 0);
+    },
+  );
+  await check(
+    'private cancellation and recontract snapshots are immutable and not client-accessible',
+    async () => {
+      await assert.rejects(
+        sql`UPDATE billing_gateway.cancellations SET confirmed_at=NULL WHERE subscription_id=${lostSubscription.id}::uuid`,
+      );
+      await assert.rejects(
+        sql`UPDATE billing_gateway.recontracts SET amount_minor=1 WHERE clinic_id=${lostTrial.clinicId}::uuid`,
+      );
+      for (const table of ['cancellations', 'recontracts']) {
+        for (const role of ['anon', 'authenticated', 'service_role']) {
+          await assert.rejects(
+            sql.begin(async (tx) => {
+              await tx.unsafe(`SET LOCAL ROLE ${role}`);
+              await tx.unsafe(
+                `${role === 'service_role' ? 'DELETE FROM' : 'SELECT * FROM'} billing_gateway.${table}`,
+              );
+            }),
+          );
+        }
+      }
+    },
+  );
+  await check(
+    'paid-end write gate does not grant delinquency grace after renewal cancellation',
+    async () => {
+      const pending = await paymentFixture();
+      assert.equal(await apply(pending.evidence), 'applied');
+      await sql`UPDATE public.subscriptions SET cancel_at_period_end=true,current_period_end=now()-interval '1 second',
+      grace_period_until=now()+interval '14 days' WHERE id=${pending.subscription_id}::uuid`;
+      await assert.rejects(
+        dbAdmin.transaction((tx) => assertClinicCanWriteTx(tx, pending.clinicId)),
+      );
+    },
+  );
+  await check(
+    'second-generation cancellation and authenticated new-checkout webhook keep lineage intact',
+    async () => {
+      // Controlled local state only: not an observation of a real monthly cycle.
+      await sql`UPDATE public.subscriptions SET current_period_start=now()-interval '1 month'-interval '1 day',
+      current_period_end=now()-interval '1 day' WHERE id=${lostSubscription.id}::uuid`;
+      const current = await context(dbAdmin, lostTrial.clinicId);
+      assert.ok(current);
+      await cancel(dbAdmin, {
+        clinicId: lostTrial.clinicId,
+        requestedBy: lostOwner.userId,
+        contractId: current.generation_id,
+      });
+      await createDeferredSubscriptionCheckout({ clinicId: lostTrial.clinicId });
+      const next = external.get('bill_http4');
+      assert.ok(next);
+      const [before] =
+        await sql`SELECT billing_status FROM public.subscriptions WHERE id=${lostSubscription.id}::uuid`;
+      assert.equal(before?.billing_status, 'cancelled');
+      next.paid = true;
+      const payload = JSON.stringify({
+        id: 'log_http_recontract',
+        event: 'subscription.completed',
+        apiVersion: 2,
+        devMode: true,
+        data: {
+          subscription: { id: next.subscriptionId },
+          checkout: { id: 'bill_http4' },
+          customer: { id: next.customerId },
+        },
+      });
+      const notification = () =>
+        new Request(
+          `https://qoro.example/api/webhooks/abacatepay?webhookSecret=${process.env.ABACATEPAY_WEBHOOK_SECRET}`,
+          {
+            method: 'POST',
+            body: payload,
+            headers: {
+              'X-Webhook-Signature': createHmac('sha256', publicKey)
+                .update(payload)
+                .digest('base64'),
+            },
+          },
+        );
+      assert.equal((await webhook(notification())).status, 202);
+      assert.equal((await webhook(notification())).status, 200);
+      const active = await context(dbAdmin, lostTrial.clinicId);
+      assert.equal(active?.billing_status, 'active');
+      assert.equal(active?.external_subscription_id, 'subs_http4');
+      const [row] = await sql`SELECT
+      (SELECT count(*)::int FROM public.invoices WHERE clinic_id=${lostTrial.clinicId}::uuid) invoices,
+      (SELECT count(*)::int FROM billing_gateway.recontracts WHERE clinic_id=${lostTrial.clinicId}::uuid AND invoice_id IS NOT NULL) recontracts,
+      (SELECT state FROM billing_gateway.event_inbox WHERE event_id='log_http_recontract') state`;
+      assert.deepEqual(row, { invoices: 3, recontracts: 2, state: 'applied' });
+      assert.equal(cancelCalls, 3);
+      assert.equal(postCalls, 4);
+      assert.equal(networkCalls, 0);
+    },
+  );
 } catch (error) {
   failure = error;
 } finally {
