@@ -622,7 +622,7 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/signup-free-trial-db.ts:34`              | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                                                    |
 | `scripts/security/signup-free-trial-db.ts:35`              | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
 | `scripts/security/signup-free-trial-db.ts:588`             | `ABACATEPAY_WEBHOOK_SECRET`            | `process.env.ABACATEPAY_WEBHOOK_SECRET`                                     |
-| `scripts/security/signup-free-trial-db.ts:995`             | `ABACATEPAY_WEBHOOK_SECRET`            | `process.env.ABACATEPAY_WEBHOOK_SECRET`                                     |
+| `scripts/security/signup-free-trial-db.ts:1013`            | `ABACATEPAY_WEBHOOK_SECRET`            | `process.env.ABACATEPAY_WEBHOOK_SECRET`                                     |
 | `scripts/security/signup-kill-switch-browser.ts:54`        | `<object>`                             | `process.env`                                                               |
 | `scripts/security/signup-local-backend.ts:85`              | `<dynamic>`                            | `process.env[key]`                                                          |
 | `scripts/security/signup-local-backend.ts:85`              | `<dynamic>`                            | `process.env[key]`                                                          |

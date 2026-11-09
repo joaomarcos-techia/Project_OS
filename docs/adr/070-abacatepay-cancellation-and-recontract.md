@@ -1,6 +1,6 @@
 # ADR-070 — cancelamento da renovação e nova contratação AbacatePay
 
-Status: regra aprovada pelo founder em 08/11/2026 (Brasília); implementação e validação em andamento, somente candidata Sandbox. Não altera contratos Asaas nem autoriza Produção ou migrations remotas adicionais.
+Status: regra aprovada pelo founder em 08/11/2026 (Brasília); implementação local com 47 verificações PostgreSQL aprovadas, homologação externa pendente, somente candidata Sandbox. Não altera contratos Asaas nem autoriza Produção ou migrations remotas adicionais. [Evidências e limites](../quality/abacatepay-cancelamento-recontratacao-2026-11-08.md).
 
 ## Regra aprovada
 

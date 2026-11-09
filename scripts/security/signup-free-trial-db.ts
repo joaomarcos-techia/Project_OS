@@ -925,6 +925,24 @@ try {
     },
   );
   await check(
+    'a paid replay with an altered gross amount is reviewed instead of acknowledged',
+    async () => {
+      assert.equal(
+        await dbAdmin.transaction((tx) =>
+          applyRecontract(tx, {
+            ...recontractEvidence,
+            amountMinor: 19700,
+            paidAmountMinor: 19700,
+          }),
+        ),
+        'review',
+      );
+      const [row] =
+        await sql`SELECT count(*)::int n FROM public.invoices WHERE clinic_id=${lostTrial.clinicId}::uuid`;
+      assert.equal(row?.n, 2);
+    },
+  );
+  await check(
     'private cancellation and recontract snapshots are immutable and not client-accessible',
     async () => {
       await assert.rejects(

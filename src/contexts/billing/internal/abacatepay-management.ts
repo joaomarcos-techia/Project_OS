@@ -446,7 +446,7 @@ export async function applyAbacatePayRecontractPaymentTx(
       AND r.external_checkout_id=${evidence.checkoutId} AND s.billing_provider='abacatepay' AND s.asaas_subscription_id IS NULL
     FOR UPDATE OF s,r`),
     );
-  if (!row) return 'review';
+  if (!row || row.amount_minor !== evidence.amountMinor) return 'review';
   if (
     row.external_subscription_id !== null &&
     (row.external_subscription_id !== evidence.subscriptionId ||
@@ -462,8 +462,7 @@ export async function applyAbacatePayRecontractPaymentTx(
     current.external_subscription_id !== row.prior_external_subscription_id ||
     current.period_end.getTime() !== row.prior_period_end.getTime() ||
     current.price_id !== row.price_id ||
-    toCents(current.amount) !== row.amount_minor ||
-    row.amount_minor !== evidence.amountMinor
+    toCents(current.amount) !== row.amount_minor
   )
     return 'review';
   const period = initialAbacatePayAccessPeriod({
