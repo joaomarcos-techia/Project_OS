@@ -157,21 +157,15 @@ export function CashQueue({
   if (fixedMode) {
     return (
       <section
-        className="qoro-cash-queue flex min-w-0 flex-col overflow-hidden rounded-(--r-lg) border border-border bg-surface"
+        className="qoro-cash-queue flex min-w-0 flex-col overflow-hidden rounded-(--card-radius) border border-border bg-surface"
         aria-label={QUEUE_LABEL[fixedMode]}
       >
-        <div className="flex min-h-11 flex-none items-center gap-2 border-b border-border px-3.5">
-          <h2 className="text-(length:--fs-subsection) font-semibold text-fg">
+        <div className="qoro-section-header flex-none">
+          <h2 className="flex items-center gap-2">
             {QUEUE_LABEL[fixedMode]}
+            <span className="qoro-count">{items.length}</span>
           </h2>
-          <span className="font-mono text-(length:--fs-sm) font-semibold tabular-nums text-fg-subtle">
-            {items.length}
-          </span>
-          {headerTotal ? (
-            <span className="ml-auto font-mono text-(length:--fs-sm) font-semibold tabular-nums text-fg">
-              {headerTotal}
-            </span>
-          ) : null}
+          {headerTotal ? <strong className="tabular-nums">{headerTotal}</strong> : null}
         </div>
 
         <div className="min-h-0 flex-1">

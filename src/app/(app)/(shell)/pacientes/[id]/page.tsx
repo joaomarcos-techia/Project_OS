@@ -4,7 +4,7 @@
  * getPatientWithDecryptedFields (the single decrypt point). RLS + key derivation
  * make a cross-tenant id both unreadable and undecryptable.
  */
-import { FileText } from 'lucide-react';
+import { ArrowLeft, FileText } from 'lucide-react';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { Suspense } from 'react';
@@ -25,6 +25,7 @@ import {
   listPatientRelationships,
 } from '@/contexts/patient/queries';
 import { Alert } from '@/components/ui/alert';
+import { initialsFrom } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { buttonVariants } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -86,10 +87,10 @@ function HubTabs({
       href={`/pacientes/${patientId}?tab=${t}`}
       aria-current={active === t ? 'page' : undefined}
       className={cn(
-        'relative shrink-0 px-3.5 py-2.5 text-(length:--fs-sm) font-medium transition-colors duration-(--dur-fast)',
-        'after:absolute after:right-2 after:-bottom-px after:left-2 after:h-0.5 after:bg-primary after:transition-opacity',
+        'relative inline-flex h-10 shrink-0 items-center px-2.5 text-(length:--fs-base) font-medium transition-colors duration-(--dur-fast)',
+        'after:absolute after:right-0 after:-bottom-px after:left-0 after:h-0.5 after:bg-(--text-link) after:transition-opacity',
         active === t
-          ? 'text-primary after:opacity-100'
+          ? 'font-semibold text-fg after:opacity-100'
           : 'text-fg-muted after:opacity-0 hover:text-fg',
       )}
     >
@@ -98,7 +99,7 @@ function HubTabs({
   );
   return (
     <nav
-      className="mb-(--sp-5) flex gap-0.5 overflow-x-auto border-b border-border"
+      className="mb-(--sp-5) flex gap-1 overflow-x-auto border-b border-border"
       aria-label="Seções do paciente"
     >
       {tab('dados', 'Visão geral')}
@@ -170,11 +171,26 @@ export default async function PacienteDetailPage({
         crumbs={[{ label: 'Pacientes', href: '/pacientes' }, { label: p.nome }]}
         title={p.nome}
         description="Visão operacional, histórico clínico e governança do cadastro."
-        actions={
-          <Link
-            href="/pacientes"
-            className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), 'min-h-(--hit-target)')}
+        leading={
+          <span
+            aria-hidden="true"
+            className="grid size-14 place-items-center rounded-full bg-(--primary-soft) font-semibold text-(--text-link)"
           >
+            {initialsFrom(p.nome)}
+          </span>
+        }
+        titleAside={
+          p.obitoEm ? (
+            <Badge tone="line">Óbito registrado</Badge>
+          ) : (
+            <Badge tone="green" dot>
+              Cadastro ativo
+            </Badge>
+          )
+        }
+        actions={
+          <Link href="/pacientes" className={buttonVariants({ variant: 'secondary' })}>
+            <ArrowLeft aria-hidden="true" className="size-4" />
             Voltar
           </Link>
         }

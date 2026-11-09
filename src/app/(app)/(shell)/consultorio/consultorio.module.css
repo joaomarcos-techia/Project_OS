@@ -22,7 +22,7 @@
   flex-direction: column;
   overflow: hidden;
   border: 1px solid var(--border);
-  border-radius: var(--r-lg);
+  border-radius: var(--card-radius);
   background: var(--surface);
 }
 .columnTitle {

@@ -40,6 +40,37 @@ Desvios do canvas, todos por necessidade operacional (Contract §6):
 | Wordmark             | Topo da sidebar              | Marca Q + nome da clínica, mesmo destino | Canvas; continua levando ao início.                    |
 | Alertas do Dashboard | Faixas soltas                | Cartão "Precisa de você"               | Canvas; mesma ordem, textos, destinos e permissões.    |
 
+### Demais telas, login e microanimações (novembro de 2026)
+
+Todas as telas da área logada seguem a barra superior + faixa de título do canvas. O login (e a
+etapa MFA) adotaram os tokens do app com o marcador `data-qoro-tokens="app-v5"`; cadastro e checkout
+seguem em `qorov2` até o redesenho do onboarding. `/admin` não mudou.
+
+| Data       | Avaliados                                      | Decisão                                                                                                                                       |
+| ---------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-11-08 | `PageHeader`                                   | Estendido com `headline`, `icon`, `search`, `controls`, `leading`, `titleAside`. Sem elas o markup é o de sempre, usado pelo /admin.        |
+| 2026-11-08 | `Segmented`, abas inline de Agenda e Pacientes | `Segmented` é radiogroup de cliente; os filtros moram na URL. Criado `LinkSegmented`, que substituiu as versões inline.                       |
+| 2026-11-08 | `DataTable`, `TableToolbar`                    | `DataTable` ganhou `title`/`description` opcionais: cabeçalho de cartão, também no estado vazio.                                            |
+| 2026-11-08 | Lucide por tela                                | Microanimação só em CSS, pela classe `lucide-<nome>`, com pop como padrão. Nenhum componente mudou; desligada com "reduzir movimento".        |
+
+Desvios do canvas nestas telas:
+
+| Canvas                                        | Implementado                                       | Motivo                                                                                   |
+| --------------------------------------------- | -------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| h1 contextual ("Novembro de 2026")            | O nome da tela segue como `<h1>`, na barra superior | E2E e leitores de tela procuram o nome da tela; o título contextual mantém a aparência.  |
+| Busca de Pacientes por nome, CPF ou telefone  | "Buscar por nome"                                  | A busca só cobre o nome.                                                                 |
+| "Todos os profissionais" na Agenda            | Ausente                                            | Não existe esse filtro.                                                                  |
+| Status "Filtrar" como lista do Financeiro     | `Select` + "Filtrar"                               | Mantém o envio do formulário sem JavaScript novo.                                        |
+| Cinco indicadores em Conversas                | Só o pulso existente, no subtítulo                 | "Agente respondendo", "Encerradas" e "Abandonadas" exigiriam consulta nova.              |
+| Pílulas clínicas na ficha, "Editar dados" no topo | Só situação do cadastro; editar segue no cartão | Os dados não são carregados ali; mover o botão exigiria subir estado.                    |
+| Equipe em barra + faixa de título             | Só CSS                                             | `equipe/page.tsx` é zona do agente de billing.                                           |
+
+| Ação              | Antes                | Depois                         | Motivo                      |
+| ----------------- | -------------------- | ------------------------------ | --------------------------- |
+| Busca (várias)    | Barra abaixo do título | Barra superior                 | Canvas; mesmos parâmetros.  |
+| Ver repasses      | Link solto           | Ação na barra de Relatórios    | Canvas; mesma permissão.    |
+| Tipo no Financeiro | `Select` + Filtrar   | Filtro segmentado por links    | Canvas; mesma URL `?tipo=`. |
+
 ## Referências HTML do tenant — setembro de 2026
 
 Escopo solicitado pelo founder: traduzir os HTMLs fornecidos para as telas atuais na

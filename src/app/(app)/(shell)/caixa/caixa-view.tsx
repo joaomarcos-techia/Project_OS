@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  Banknote,
   ArrowDownLeft,
   ArrowUpRight,
   ChevronRight,
@@ -193,10 +194,10 @@ export function CaixaView({
   return (
     <>
       <PageHeader
-        crumbs={[{ label: 'Gestão' }, { label: 'Caixa' }]}
+        icon={<Banknote aria-hidden="true" />}
         title="Caixa"
-        description={`Recebimentos e pagamentos de hoje, ${hoje}`}
-        meta={<span className="font-mono tabular-nums">atualizado {atualizadoEm}</span>}
+        headline={`Hoje, ${hoje}`}
+        description={`Recebimentos e pagamentos do dia · atualizado às ${atualizadoEm}`}
         actions={
           <Link href="/financeiro" className={buttonVariants({ variant: 'secondary' })}>
             <Wallet aria-hidden="true" className="size-4 text-fg-subtle" />
@@ -207,7 +208,7 @@ export function CaixaView({
 
       {/* As três métricas saíram do slot de ações do header: ação e indicador não
           são a mesma coisa, e amontoá-las lá fazia número parecer botão. */}
-      <MetricStrip className="qoro-cash-metrics mb-(--sp-4)">
+      <MetricStrip variant="joined" className="mb-(--sp-4)">
         {/* Neutro de propósito: a referência reserva cor para o resultado
             (verde) e para o alerta (as faixas abaixo). Pintar "a receber" de
             âmbar fazia toda cobrança em aberto parecer problema, inclusive as

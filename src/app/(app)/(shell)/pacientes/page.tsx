@@ -16,15 +16,14 @@ import { buttonVariants } from '@/components/ui/button';
 import { DataTable } from '@/components/ui/data-table';
 import { EmptyState } from '@/components/ui/empty-state';
 import { EntityCell } from '@/components/ui/entity-cell';
-import { FilterBar, SearchField } from '@/components/ui/filter-bar';
+import { SearchField } from '@/components/ui/filter-bar';
+import { LinkSegmented } from '@/components/ui/link-segmented';
 import { PageHeader } from '@/components/ui/page-header';
-import { StatsInline } from '@/components/ui/stats-inline';
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 import { PATIENT_RESTORE_WINDOW_DAYS } from '@/contexts/patient/internal/restore-policy';
 import { formatDatePt } from '@/lib/format';
 import { ageFromBirthdate } from '../consultorio/board-logic';
-import { cn } from '@/lib/ui/cn';
 
 import styles from './patients.module.css';
 
@@ -106,18 +105,60 @@ export default async function PacientesPage({
   return (
     <>
       <PageHeader
-        crumbs={[{ label: 'Clínico' }, { label: 'Pacientes' }]}
+        icon={<Users aria-hidden="true" />}
         title="Pacientes"
+        headline={`${result.total.toLocaleString('pt-BR')} ${
+          showTrash
+            ? result.total === 1
+              ? 'paciente removido'
+              : 'pacientes removidos'
+            : result.total === 1
+              ? 'paciente ativo'
+              : 'pacientes ativos'
+        }`}
         description={
           showTrash
             ? `Pacientes removidos nos últimos ${PATIENT_RESTORE_WINDOW_DAYS} dias. Depois disso a remoção é definitiva.`
-            : 'Busca, cadastro e hub de cada paciente.'
+            : 'Selecione um paciente para ver a ficha completa'
         }
-        meta={
-          <span className="font-mono tabular-nums">
-            {result.total.toLocaleString('pt-BR')} {showTrash ? 'removidos' : 'ativos'}
-          </span>
-        }
+        {...(result.total === 0 && !filtering
+          ? {}
+          : {
+              search: (
+                <form role="search">
+                  {showTrash ? <input type="hidden" name="removidos" value="1" /> : null}
+                  <SearchField
+                    name="q"
+                    defaultValue={sp.q ?? ''}
+                    placeholder="Buscar por nome"
+                    aria-label="Buscar pacientes por nome"
+                    grow={false}
+                    className="w-full"
+                  />
+                </form>
+              ),
+            })}
+        {...(canRestore && !(result.total === 0 && !filtering)
+          ? {
+              controls: (
+                <LinkSegmented
+                  label="Situação dos pacientes"
+                  items={[
+                    { label: 'Ativos', removed: false },
+                    { label: 'Removidos', removed: true },
+                  ].map((item) => ({
+                    label: item.label,
+                    href: patientListHref(currentParams, {
+                      removidos: item.removed ? '1' : undefined,
+                      novo: undefined,
+                      page: undefined,
+                    }),
+                    active: showTrash === item.removed,
+                  }))}
+                />
+              ),
+            }
+          : {})}
         actions={
           <NewPatientDrawer
             defaultOpen={drawerOpen}
@@ -136,59 +177,18 @@ export default async function PacientesPage({
         />
       ) : (
         <>
-          <FilterBar className="qoro-toolbar">
-            <form className="flex w-full min-w-0 items-center gap-(--sp-2) sm:w-68" role="search">
-              {showTrash ? <input type="hidden" name="removidos" value="1" /> : null}
-              <SearchField
-                name="q"
-                defaultValue={sp.q ?? ''}
-                placeholder="Buscar por nome…"
-                aria-label="Buscar pacientes por nome"
-                className="min-w-0"
-              />
-            </form>
-            {canRestore ? (
-              <nav
-                aria-label="Situação dos pacientes"
-                className="inline-flex rounded-(--r-md) border border-border bg-surface-inset p-0.5"
-              >
-                {[
-                  { label: 'Ativos', removed: false },
-                  { label: 'Removidos', removed: true },
-                ].map((item) => (
-                  <Link
-                    key={item.label}
-                    href={patientListHref(currentParams, {
-                      removidos: item.removed ? '1' : undefined,
-                      novo: undefined,
-                      page: undefined,
-                    })}
-                    aria-current={showTrash === item.removed ? 'page' : undefined}
-                    className={cn(
-                      'inline-flex min-h-(--hit-target) items-center rounded-(--r-sm) px-3 text-(length:--fs-sm)',
-                      showTrash === item.removed
-                        ? 'bg-surface font-semibold text-fg shadow-xs'
-                        : 'text-fg-muted hover:bg-surface-hover',
-                    )}
-                  >
-                    {item.label}
-                  </Link>
-                ))}
-              </nav>
-            ) : null}
-            <StatsInline
-              className="ml-auto"
-              items={[
-                {
-                  label: `${result.total.toLocaleString('pt-BR')} ${showTrash ? 'removido' : 'paciente'}${result.total === 1 ? '' : 's'}`,
-                },
-                ...(q ? [{ label: `filtrando por “${q}”`, tone: 'attention' as const }] : []),
-              ]}
-            />
-          </FilterBar>
-
           <DataTable
             className={styles.table ?? ''}
+            title={
+              showTrash
+                ? `Removidos nos últimos ${PATIENT_RESTORE_WINDOW_DAYS} dias`
+                : 'Todos os pacientes'
+            }
+            {...(q
+              ? { description: `Filtrando por “${q}”` }
+              : showTrash
+                ? { description: 'Restaure antes da remoção definitiva' }
+                : {})}
             total={result.items.length === 0 ? 0 : result.total}
             page={page}
             pageCount={totalPages}

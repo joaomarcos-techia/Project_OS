@@ -37,10 +37,7 @@ function SettingsCard({
       )}
     >
       <div className={styles.identity ?? ''}>
-        {/* Ícone SOLTO, sem ladrilho: a referência não emoldura nenhum dos nove.
-            O quadradinho cinza dobrava o peso visual de um glifo que só serve
-            para reconhecer a linha de relance. */}
-        <Icon aria-hidden="true" className="size-4.5 shrink-0 text-fg-subtle" />
+        <Icon aria-hidden="true" className="size-4.5 shrink-0" />
       </div>
       <div className={styles.copy ?? ''}>
         <h3 className="mt-1 text-(length:--fs-subsection) font-semibold">

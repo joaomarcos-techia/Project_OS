@@ -1,49 +1,91 @@
-.list {
+/* Índice de Configurações — app v5: um cartão por grupo, em duas colunas que
+   viram uma sozinhas; cada linha é um destino com ícone em quadrado de 32 px. */
+.groupStack {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr));
+  align-items: start;
+  gap: 16px;
+}
+
+.groupSection {
+  min-width: 0;
   overflow: hidden;
   border: 1px solid var(--border);
-  border-radius: var(--r-lg);
+  border-radius: var(--card-radius);
   background: var(--surface);
 }
-/* 56px de altura mínima, como a referência — a linha é um DESTINO, não um
-   cartão: 16px de padding vertical a esticavam para quase 100px e faziam nove
-   configurações ocuparem duas rolagens. */
+
+.groupHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+  padding: 16px 20px 12px;
+}
+
+.groupHeader h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.groupHeader p {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 13px;
+  text-wrap: pretty;
+}
+
 .item {
   display: flex;
-  min-height: 56px;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
-  padding: 8px 16px;
+  gap: 8px 14px;
+  padding: 14px 20px;
   border: 0;
-  border-bottom: 1px solid var(--border-subtle, var(--border));
+  border-top: 1px solid var(--border-soft);
   border-radius: 0;
   box-shadow: none;
 }
-.item:last-child {
-  border-bottom: 0;
-}
+
 .item:hover {
-  background: var(--surface-hover);
+  background: var(--surface-head);
 }
+
 .identity {
+  display: inline-grid;
   flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--btn-radius);
+  background: var(--tone-gray-bg);
+  color: var(--text-body);
 }
+
 .copy {
-  flex: 1;
   min-width: 0;
+  flex: 1 1 180px;
 }
+
 .copy h3 {
-  margin: 0 0 4px;
-  font-size: 13.5px;
+  margin: 0 0 2px;
+  font-size: 14px;
+  font-weight: 600;
 }
+
 .copy p {
-  font-size: 12.5px;
-  line-height: 1.3;
+  font-size: 13px;
+  line-height: 1.45;
 }
+
 .meta {
   flex: none;
-  font-family: var(--font-mono);
-  font-size: var(--fs-2xs);
-  color: var(--text-3);
+  color: var(--text-2);
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -54,73 +96,11 @@
   flex-shrink: 0;
   color: var(--text-3);
 }
-@media (max-width: 600px) {
-  .navigation {
-    padding-left: 64px;
+
+@media (max-width: 720px) {
+  .item,
+  .groupHeader {
+    padding-right: 16px;
+    padding-left: 16px;
   }
-  .item {
-    flex-wrap: wrap;
-    gap: 8px;
-    padding: 14px;
-  }
-  .copy {
-    flex-basis: calc(100% - 52px);
-  }
-  .action {
-    margin-left: auto;
-  }
-}
-
-/* Indice: uma secao por categoria, empilhadas. O cabecalho da secao repete o
-   rotulo que antes vivia na aba — quem rola precisa saber onde esta. */
-.groupStack {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 10px;
-}
-
-/* Cada grupo é UM cartão, e o título é a primeira faixa dele — não um rótulo
-   solto sobre o fundo da página. Flutuando, o título de um grupo ficava tão
-   perto do cartão anterior quanto do seu, e a leitura tinha de adivinhar a
-   quem ele pertencia. Dentro, a borda responde isso sozinha. */
-.groupSection {
-  min-width: 0;
-  overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: var(--r-lg);
-  background: var(--surface);
-}
-
-.groupSection .list {
-  border: 0;
-  border-radius: 0;
-}
-
-.groupHeader {
-  display: flex;
-  min-height: 38px;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 12px;
-  padding: 0 16px;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface-2);
-}
-
-.groupHeader h2 {
-  margin: 0;
-  color: var(--text-3);
-  font-size: 11.5px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  line-height: 1;
-  text-transform: uppercase;
-}
-
-.groupHeader p {
-  margin: 0 0 0 auto;
-  color: var(--text-3);
-  font-size: 12px;
-  text-wrap: pretty;
 }

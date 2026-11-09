@@ -1,3 +1,5 @@
+import { Settings } from 'lucide-react';
+
 import { requireUser } from '@/lib/auth/tenant-context';
 import { PageHeader } from '@/components/ui/page-header';
 
@@ -42,9 +44,10 @@ export default async function ConfiguracoesPage() {
   return (
     <>
       <PageHeader
-        crumbs={[{ label: 'Administração' }, { label: 'Configurações' }]}
+        icon={<Settings aria-hidden="true" />}
         title="Configurações"
-        description="Clínica, operação, integrações, conformidade e conta"
+        headline={user.clinicName?.trim() || 'Configurações'}
+        description="Dados da clínica, horários, integrações e conta"
       />
       <div className={styles.groupStack ?? ''}>
         {groups.map((group) => (

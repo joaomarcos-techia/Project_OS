@@ -1,6 +1,6 @@
 'use client';
 
-import { Calendar, RefreshCw } from 'lucide-react';
+import { Calendar, RefreshCw, Stethoscope } from 'lucide-react';
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 
@@ -184,12 +184,12 @@ export function ConsultorioBoard({
   return (
     <>
       <PageHeader
-        crumbs={[{ label: 'Operação' }, { label: 'Consultório' }]}
+        icon={<Stethoscope aria-hidden="true" />}
         title="Consultório"
-        description="Atenda um turno inteiro sem trocar de tela."
-        meta={`${board.salaEspera.length} na fila · ${board.emAtendimento.length} em atendimento`}
+        headline="Turno de hoje"
+        description={`${board.salaEspera.length} na fila · ${board.emAtendimento.length} em atendimento`}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {!isPractitioner && board.doctors.length > 0 ? (
               <Select
                 value={selectedDoctorId ?? ''}

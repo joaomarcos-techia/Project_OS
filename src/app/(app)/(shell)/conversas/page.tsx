@@ -1,5 +1,5 @@
 /** Inbox renderizada no servidor: permissão antes de ler e decifrar qualquer contato. */
-import { MessagesSquare, SlidersHorizontal, Timer } from 'lucide-react';
+import { MessagesSquare, SlidersHorizontal, Timer, MessageCircle } from 'lucide-react';
 import Link from 'next/link';
 import { z } from 'zod';
 import {
@@ -16,7 +16,7 @@ import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { buttonVariants } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
-import { FilterBar, SearchField } from '@/components/ui/filter-bar';
+import { SearchField } from '@/components/ui/filter-bar';
 import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
 import { TablePager } from '@/components/ui/table-pager';
@@ -108,64 +108,63 @@ export default async function ConversasPage({ searchParams }: { searchParams: Pr
     <>
       <ConversationAutoRefresh />
       <PageHeader
-        crumbs={[{ label: 'Gestão' }, { label: 'Conversas IA' }]}
+        icon={<MessageCircle aria-hidden="true" />}
         title="Conversas IA"
-        description="Agente no WhatsApp e fila de atendimento humano"
-        {...(pulso.abertos > 0
-          ? {
-              meta: (
-                <span className="font-mono tabular-nums">
-                  {pulso.abertos} aguardando humano
-                  {pulso.vencidos > 0 ? ` · ${pulso.vencidos} SLA vencido` : ''}
-                </span>
-              ),
-            }
-          : {})}
+        headline="Atendimento no WhatsApp"
+        description={
+          pulso.abertos > 0
+            ? `${pulso.abertos} aguardando humano${pulso.vencidos > 0 ? ` · ${pulso.vencidos} SLA vencido` : ''}`
+            : 'Agente no WhatsApp e fila de atendimento humano'
+        }
+        search={
+          <SearchField
+            form="conversas-filtros"
+            name="q"
+            defaultValue={sp.q ?? ''}
+            placeholder="Buscar por paciente ou telefone"
+            aria-label="Buscar conversas por nome do paciente ou telefone"
+            grow={false}
+            className="w-full"
+          />
+        }
         actions={
           <Link href="/configuracoes/agente" className={buttonVariants({ variant: 'secondary' })}>
             <SlidersHorizontal aria-hidden="true" className="size-4 text-fg-subtle" />
             Configurar o agente
           </Link>
         }
+        controls={
+          <form id="conversas-filtros" className="flex flex-wrap items-center gap-2">
+            <Select
+              name="status"
+              defaultValue={status ?? ''}
+              aria-label="Filtrar por status"
+              className="max-w-48"
+            >
+              <option value="">Todos os status</option>
+              <option value="handoff">Aguardando humano</option>
+              <option value="active">Agente respondendo</option>
+              <option value="closed">Encerradas</option>
+              <option value="abandoned">Abandonadas</option>
+            </Select>
+            <Select
+              name="sla"
+              defaultValue={overdueOnly ? 'overdue' : ''}
+              aria-label="Filtrar por SLA"
+              className="max-w-44"
+            >
+              <option value="">Todos os prazos</option>
+              <option value="overdue">SLA vencido</option>
+            </Select>
+            <button type="submit" className={buttonVariants({ variant: 'secondary' })}>
+              Filtrar
+            </button>
+            <span className={styles.count}>
+              {result.total.toLocaleString('pt-BR')} conversa{result.total === 1 ? '' : 's'}
+            </span>
+          </form>
+        }
       />
-      <FilterBar className="qoro-toolbar">
-        <form className="flex min-w-0 flex-1 flex-wrap items-center gap-(--sp-2)">
-          <SearchField
-            name="q"
-            defaultValue={sp.q ?? ''}
-            placeholder="Buscar por paciente ou telefone…"
-            aria-label="Buscar conversas por nome do paciente ou telefone"
-            className="sm:max-w-68"
-          />
-          <Select
-            name="status"
-            defaultValue={status ?? ''}
-            aria-label="Filtrar por status"
-            className="max-w-48"
-          >
-            <option value="">Todos os status</option>
-            <option value="handoff">Aguardando humano</option>
-            <option value="active">Agente respondendo</option>
-            <option value="closed">Encerradas</option>
-            <option value="abandoned">Abandonadas</option>
-          </Select>
-          <Select
-            name="sla"
-            defaultValue={overdueOnly ? 'overdue' : ''}
-            aria-label="Filtrar por SLA"
-            className="max-w-44"
-          >
-            <option value="">Todos os prazos</option>
-            <option value="overdue">SLA vencido</option>
-          </Select>
-          <button type="submit" className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
-            Filtrar
-          </button>
-          <span className={styles.count}>
-            {result.total.toLocaleString('pt-BR')} conversa{result.total === 1 ? '' : 's'}
-          </span>
-        </form>
-      </FilterBar>
       <div className={cn('qoro-fill', styles.workspace)} data-detail={hasExplicitSelection}>
         <section className={styles.inbox} aria-label="Lista de conversas">
           <div className={styles.inboxHeader}>
