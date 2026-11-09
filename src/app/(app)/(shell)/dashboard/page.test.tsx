@@ -311,11 +311,26 @@ describe('DashboardPage', () => {
     expect(screen.getByText('Bia Reis · Consulta cardiologia')).toBeTruthy();
   });
 
-  it('não afirma alerta de espera sem limite definido', async () => {
+  it('o selo mostra o tempo de espera sem comparar com um limite', async () => {
     render(await DashboardPage());
 
-    expect(screen.getByText('Marina Rezende espera há mais tempo')).toBeTruthy();
+    expect(screen.getByText('24 min de espera')).toBeTruthy();
     expect(screen.queryByText('Acima do previsto')).toBeNull();
+  });
+
+  it.each([
+    [0, 'Menos de 1 min'],
+    [null, 'Sem espera'],
+  ])('o selo continua presente com espera %s', async (maiorEsperaMin, selo) => {
+    getDashboard.mockResolvedValue({
+      ...dashboard,
+      maiorEsperaMin,
+      maiorEsperaNome: maiorEsperaMin === null ? null : 'Marina Rezende',
+    });
+
+    render(await DashboardPage());
+
+    expect(screen.getByText(selo)).toBeTruthy();
   });
 
   it('traduz o evento do audit e guarda o token só no title', async () => {

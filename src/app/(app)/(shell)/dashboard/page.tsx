@@ -85,6 +85,11 @@ function hora(iso: string, tz: string): string {
 }
 
 /** "1 cobrança" / "3 cobranças" — o número sempre acompanha a palavra certa. */
+function seloEspera(minutos: number | null): string {
+  if (minutos === null) return 'Sem espera';
+  return minutos < 1 ? 'Menos de 1 min' : `${minutos} min de espera`;
+}
+
 function plural(count: number, one: string, many: string): string {
   return `${count} ${count === 1 ? one : many}`;
 }
@@ -377,17 +382,20 @@ export default async function DashboardPage() {
             value={d.aguardando}
             hint={proximoNaFila ? `A seguir: ${proximoNaFila.nome}` : 'na sala de espera'}
           />
-          {/* Neutro: o produto não define espera aceitável, e um alerta aqui
-              afirmaria uma comparação que o sistema não faz. */}
+          {/* O selo diz só o tempo: o produto não define espera aceitável, então
+              ele não compara com limite nenhum. */}
           <StatCard
             href="/consultorio"
             label="Maior espera"
             value={d.maiorEsperaMin === null ? '—' : d.maiorEsperaMin}
             {...(d.maiorEsperaMin === null ? {} : { suffix: 'min' })}
             hint={
-              d.maiorEsperaNome
-                ? `${d.maiorEsperaNome} espera há mais tempo`
-                : 'sem espera registrada'
+              <>
+                <Badge tone={d.maiorEsperaMin === null ? 'gray' : 'amber'} dot>
+                  {seloEspera(d.maiorEsperaMin)}
+                </Badge>
+                {d.maiorEsperaNome ? <span>{d.maiorEsperaNome}</span> : null}
+              </>
             }
           />
           <StatCard
