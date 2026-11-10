@@ -5,6 +5,9 @@ import type { FormEvent } from 'react';
 
 import { Alert } from '@/components/ui/alert';
 import { Button, buttonVariants } from '@/components/ui/button';
+import { PublicBlock, signupFrame } from '@/components/shared/signup-frame';
+import { cn } from '@/lib/ui/cn';
+import styles from './plano.module.css';
 import { OptionCardGroup, type OptionCard } from '@/components/ui/option-card-group';
 import {
   isOffer2026PlanCode,
@@ -353,171 +356,234 @@ export function PlanSelectionForm() {
 
   if (phase === 'loading') {
     return (
-      <div className="py-8 text-center" aria-live="polite">
-        <div
-          aria-label="Carregando"
-          className="mx-auto size-6 animate-spin rounded-full border-2 border-border border-t-primary"
-        />
-        <p className="mt-3 text-sm text-fg-muted">Consultando planos disponíveis…</p>
-      </div>
+      <PublicBlock narrow>
+        <div className={signupFrame.center} aria-live="polite">
+          <div
+            aria-label="Carregando"
+            className="size-6 animate-spin rounded-full border-2 border-border border-t-primary"
+          />
+          <p className={signupFrame.note}>Consultando planos disponíveis…</p>
+        </div>
+      </PublicBlock>
     );
   }
 
   if (phase === 'signed_out') {
     return (
-      <Alert variant="warning" title="Sessão encerrada">
-        <p>Entre novamente para continuar com a conta verificada.</p>
-        <a href="/login" className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
-          Ir para o login
-        </a>
-      </Alert>
+      <PublicBlock narrow>
+        <Alert variant="warning" title="Sessão encerrada">
+          <p>Entre novamente para continuar com a conta verificada.</p>
+          <a href="/login" className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
+            Ir para o login
+          </a>
+        </Alert>
+      </PublicBlock>
     );
   }
 
   if (phase === 'expired') {
     return (
-      <Alert variant="warning" title="Cadastro temporário expirado">
-        <p>Inicie um novo cadastro para escolher o plano.</p>
-        <a href="/cadastro" className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
-          Recomeçar cadastro
-        </a>
-      </Alert>
+      <PublicBlock narrow>
+        <Alert variant="warning" title="Cadastro temporário expirado">
+          <p>Inicie um novo cadastro para escolher o plano.</p>
+          <a href="/cadastro" className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
+            Recomeçar cadastro
+          </a>
+        </Alert>
+      </PublicBlock>
     );
   }
 
   if (phase === 'unavailable') {
     return (
-      <div className="space-y-4">
+      <PublicBlock narrow>
         <Alert variant="warning">{message}</Alert>
-        <Button type="button" variant="secondary" onClick={() => void load()}>
-          Tentar novamente
-        </Button>
-      </div>
+        <div className={signupFrame.actions}>
+          <Button
+            type="button"
+            variant="secondary"
+            className={signupFrame.buttonFull}
+            onClick={() => void load()}
+          >
+            Tentar novamente
+          </Button>
+        </div>
+      </PublicBlock>
     );
   }
 
   if (!state || state.plans.length === 0) {
     return (
-      <div className="space-y-4">
+      <PublicBlock narrow>
         <Alert variant="warning" title="Planos indisponíveis">
           Nenhum plano pode ser contratado neste momento.
         </Alert>
-        <Button type="button" variant="secondary" onClick={() => void load()}>
-          Atualizar planos
-        </Button>
-      </div>
+        <div className={signupFrame.actions}>
+          <Button
+            type="button"
+            variant="secondary"
+            className={signupFrame.buttonFull}
+            onClick={() => void load()}
+          >
+            Atualizar planos
+          </Button>
+        </div>
+      </PublicBlock>
     );
   }
 
+  const selectedPlan = state.plans.find(
+    (plan) => plan.id === selectedPlanId && plan.cycle === selectedCycle,
+  );
+
   return (
-    <form onSubmit={submit} className="space-y-4">
-      <div className="flex items-center justify-between gap-3 rounded-(--r-md) bg-surface-inset px-4 py-2.5">
-        <p className="text-xs font-medium text-fg-subtle">Clínica</p>
-        <p className="truncate text-sm font-semibold text-fg">{state.clinicName}</p>
-      </div>
-      {state.plans.every((plan) => isOffer2026PlanCode(plan.code)) ? (
-        <Alert variant="info" title="O que você pode testar">
-          Durante a avaliação: até {TRIAL_RESOURCE_LIMITS.patients.limit} pacientes,{' '}
-          {TRIAL_RESOURCE_LIMITS.appointments.limit} agendamentos e{' '}
-          {TRIAL_RESOURCE_LIMITS.documents.limit} documentos e receitas no total. Os demais
-          cadastros limitados têm cota de {TRIAL_RESOURCE_LIMITS.procedures.limit} por categoria.
-          WhatsApp, conexão com Asaas e convites de equipe ficam disponíveis após a confirmação do
-          pagamento da assinatura. As vagas de médicos e equipe seguem o plano contratado.
-        </Alert>
-      ) : null}
-      {state.plans.some((plan) => plan.cycle === 'annual') ? (
-        <div className="flex gap-2" role="group" aria-label="Ciclo de cobrança">
-          {(['monthly', 'annual'] as const).map((cycle) => (
-            <Button
-              key={cycle}
-              type="button"
-              variant={selectedCycle === cycle ? 'primary' : 'secondary'}
-              aria-pressed={selectedCycle === cycle}
-              disabled={saving || finishing}
-              onClick={() => {
-                setSelectedCycle(cycle);
-                if (
-                  !state.plans.some((plan) => plan.id === selectedPlanId && plan.cycle === cycle)
-                ) {
-                  setSelectedPlanId(undefined);
-                }
-                setSaved(false);
-                setMessage(null);
-              }}
-            >
-              {cycle === 'monthly' ? 'Mensal' : 'Anual · preço de 10 meses'}
-            </Button>
-          ))}
-        </div>
-      ) : null}
-      {selectedCycle === 'annual' ? (
-        <p className="text-sm text-fg-muted">
-          Cobrança integral no cartão após o prazo de avaliação, com renovação automática a cada
-          ano. Pix anual estará disponível posteriormente.
-        </p>
-      ) : null}
-      <fieldset disabled={saving || finishing} className="space-y-2.5">
-        <legend className="mb-2.5 text-sm font-semibold text-fg">
-          Plano {selectedCycle === 'annual' ? 'anual' : 'mensal'}
-        </legend>
-        <OptionCardGroup
-          name="signupPlan"
-          value={selectedPlanId}
-          onValueChange={(value) => {
-            setSelectedPlanId(value);
-            setSaved(false);
-            setMessage(null);
-            setFinishError(null);
-          }}
-          options={options}
-          disabled={saving || finishing}
-          aria-label="Planos disponíveis"
-          className="grid gap-3 md:grid-cols-3"
-        />
-      </fieldset>
-      {state.plans.some((plan) => isOffer2026PlanCode(plan.code)) ? (
-        <div className="space-y-2 text-sm leading-relaxed text-fg-muted">
-          <p>
-            Atendente: já está incluído nos {PROPOSED_OFFER.clinicaIncludedStaffLogins} acessos
-            administrativos, assim como gestão e financeiro. Hoje não há compra online de um quarto
-            acesso administrativo.
-          </p>
-          <p>
-            Médicos extras na Clínica: R$ {PROPOSED_OFFER.additionalProfessionalMonthly}/mês por
-            médico, até chegar a {PROPOSED_OFFER.maxSelfServiceProfessionals} médicos +{' '}
-            {PROPOSED_OFFER.clinicaIncludedStaffLogins} administrativos = até{' '}
-            {PROPOSED_OFFER.maxSelfServiceProfessionals + PROPOSED_OFFER.clinicaIncludedStaffLogins}{' '}
-            logins.
-          </p>
-          <p>
-            O papel Médico ocupa uma vaga médica, mesmo antes de preencher o CRM. Dono ou gestor com
-            CRM cadastrado também conta como médico, sem ocupar outro acesso administrativo; sem
-            CRM, conta na equipe administrativa.
-          </p>
-        </div>
-      ) : null}
-      <div aria-live="polite" className="space-y-2">
-        {saved ? (
-          <Alert variant="success" title="Plano salvo">
-            {selectedTrialDescription(state, selectedPlanId, selectedCycle)}.{' '}
-            {state.signupFlow === 'trial_first'
-              ? 'Nenhum cartão ou pagamento é necessário para iniciar a avaliação.'
-              : 'O pagamento acontece com segurança na página do Asaas.'}
+    <form onSubmit={submit} className={signupFrame.checkout}>
+      <section className={signupFrame.pay}>
+        <h2 className={signupFrame.subtitle}>Planos disponíveis</h2>
+        {state.plans.every((plan) => isOffer2026PlanCode(plan.code)) ? (
+          <Alert variant="info" title="O que você pode testar">
+            Durante a avaliação: até {TRIAL_RESOURCE_LIMITS.patients.limit} pacientes,{' '}
+            {TRIAL_RESOURCE_LIMITS.appointments.limit} agendamentos e{' '}
+            {TRIAL_RESOURCE_LIMITS.documents.limit} documentos e receitas no total. Os demais
+            cadastros limitados têm cota de {TRIAL_RESOURCE_LIMITS.procedures.limit} por categoria.
+            WhatsApp, conexão com Asaas e convites de equipe ficam disponíveis após a confirmação do
+            pagamento da assinatura. As vagas de médicos e equipe seguem o plano contratado.
           </Alert>
         ) : null}
-        {message ? <Alert variant="warning">{message}</Alert> : null}
-        {finishError ? <Alert variant="warning">{finishError}</Alert> : null}
-      </div>
-      <div className="flex flex-col-reverse gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
-        <a href="/cadastro/continuar" className={buttonVariants({ variant: 'secondary' })}>
-          Voltar aos dados
-        </a>
-        <Button type="submit" loading={saving || finishing} className="sm:min-w-64">
-          {state.signupFlow === 'trial_first'
-            ? 'Começar avaliação gratuita'
-            : 'Continuar para o checkout'}
-        </Button>
-      </div>
+        {state.plans.some((plan) => plan.cycle === 'annual') ? (
+          <div className={signupFrame.segmented} role="group" aria-label="Ciclo de cobrança">
+            {(['monthly', 'annual'] as const).map((cycle) => (
+              <Button
+                key={cycle}
+                type="button"
+                variant={selectedCycle === cycle ? 'primary' : 'secondary'}
+                aria-pressed={selectedCycle === cycle}
+                disabled={saving || finishing}
+                onClick={() => {
+                  setSelectedCycle(cycle);
+                  if (
+                    !state.plans.some((plan) => plan.id === selectedPlanId && plan.cycle === cycle)
+                  ) {
+                    setSelectedPlanId(undefined);
+                  }
+                  setSaved(false);
+                  setMessage(null);
+                }}
+              >
+                {cycle === 'monthly' ? 'Mensal' : 'Anual · preço de 10 meses'}
+              </Button>
+            ))}
+          </div>
+        ) : null}
+        {selectedCycle === 'annual' ? (
+          <p className={signupFrame.note}>
+            Cobrança integral no cartão após o prazo de avaliação, com renovação automática a cada
+            ano. Pix anual estará disponível posteriormente.
+          </p>
+        ) : null}
+        <fieldset disabled={saving || finishing} className={signupFrame.fields}>
+          <legend className="mb-2.5 text-sm font-semibold text-fg">
+            Plano {selectedCycle === 'annual' ? 'anual' : 'mensal'}
+          </legend>
+          <OptionCardGroup
+            name="signupPlan"
+            value={selectedPlanId}
+            onValueChange={(value) => {
+              setSelectedPlanId(value);
+              setSaved(false);
+              setMessage(null);
+              setFinishError(null);
+            }}
+            options={options}
+            disabled={saving || finishing}
+            aria-label="Planos disponíveis"
+            className={cn(signupFrame.optionsSingle)}
+          />
+        </fieldset>
+        <div aria-live="polite" className={cn('space-y-2', styles.live)}>
+          {saved ? (
+            <Alert variant="success" title="Plano salvo">
+              {selectedTrialDescription(state, selectedPlanId, selectedCycle)}.{' '}
+              {state.signupFlow === 'trial_first'
+                ? 'Nenhum cartão ou pagamento é necessário para iniciar a avaliação.'
+                : 'O pagamento acontece com segurança na página do Asaas.'}
+            </Alert>
+          ) : null}
+          {message ? <Alert variant="warning">{message}</Alert> : null}
+          {finishError ? <Alert variant="warning">{finishError}</Alert> : null}
+        </div>
+        <div className={cn(signupFrame.actions, styles.actionsBottom)}>
+          <a href="/cadastro/continuar" className={buttonVariants({ variant: 'secondary' })}>
+            Voltar aos dados
+          </a>
+          <Button type="submit" loading={saving || finishing} className="sm:min-w-64">
+            {state.signupFlow === 'trial_first'
+              ? 'Começar avaliação gratuita'
+              : 'Continuar para o checkout'}
+          </Button>
+        </div>
+      </section>
+
+      <aside className={signupFrame.summary} aria-labelledby="signup-plan-summary">
+        <div>
+          <span className={signupFrame.eyebrow}>Plano escolhido</span>
+          <h2 id="signup-plan-summary" className={signupFrame.planName}>
+            {selectedPlan ? selectedPlan.name : 'Selecione um plano'}
+          </h2>
+        </div>
+        <div className={signupFrame.lines}>
+          <p className={signupFrame.row}>
+            <span>Clínica</span>
+            <b className="min-w-0 break-words">{state.clinicName}</b>
+          </p>
+        </div>
+        {selectedPlan ? (
+          <>
+            <div className={signupFrame.separator} />
+            <div className={signupFrame.total}>
+              <span className={signupFrame.totalLabel}>
+                {state.signupFlow === 'trial_first'
+                  ? 'Mensalidade após a avaliação'
+                  : selectedCycle === 'annual'
+                    ? 'Total anual'
+                    : 'Total mensal'}
+              </span>
+              <b>
+                {formatPrice(selectedPlan.priceCents)}
+                <small>/{selectedCycle === 'annual' ? 'ano' : 'mês'}</small>
+              </b>
+            </div>
+            <div className={signupFrame.panel}>
+              <p className={signupFrame.row}>
+                <span>Avaliação</span>
+                <b>{trialDescription(selectedPlan, state)}</b>
+              </p>
+            </div>
+          </>
+        ) : null}
+        {state.plans.some((plan) => isOffer2026PlanCode(plan.code)) ? (
+          <div className={signupFrame.lines}>
+            <p className={signupFrame.fine}>
+              Atendente: já está incluído nos {PROPOSED_OFFER.clinicaIncludedStaffLogins} acessos
+              administrativos, assim como gestão e financeiro. Hoje não há compra online de um
+              quarto acesso administrativo.
+            </p>
+            <p className={signupFrame.fine}>
+              Médicos extras na Clínica: R$ {PROPOSED_OFFER.additionalProfessionalMonthly}/mês por
+              médico, até chegar a {PROPOSED_OFFER.maxSelfServiceProfessionals} médicos +{' '}
+              {PROPOSED_OFFER.clinicaIncludedStaffLogins} administrativos = até{' '}
+              {PROPOSED_OFFER.maxSelfServiceProfessionals +
+                PROPOSED_OFFER.clinicaIncludedStaffLogins}{' '}
+              logins.
+            </p>
+            <p className={signupFrame.fine}>
+              O papel Médico ocupa uma vaga médica, mesmo antes de preencher o CRM. Dono ou gestor
+              com CRM cadastrado também conta como médico, sem ocupar outro acesso administrativo;
+              sem CRM, conta na equipe administrativa.
+            </p>
+          </div>
+        ) : null}
+      </aside>
     </form>
   );
 }

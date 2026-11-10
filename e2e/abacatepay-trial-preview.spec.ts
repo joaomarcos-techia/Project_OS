@@ -99,6 +99,53 @@ test('confirmed identity -> free trial -> server quota gates -> optional hosted 
       await expect(
         page.getByRole('button', { name: 'Começar avaliação gratuita', exact: true }),
       ).toBeEnabled();
+      const plansResponse = await page.request.get(
+        new URL('/api/signup/plan', origin.origin).toString(),
+      );
+      expect(plansResponse.status()).toBe(200);
+      const initialPlans = z
+        .object({
+          plans: z.array(
+            z.object({
+              id: z.uuid(),
+              code: entryPlan,
+              priceCents: z.number().int().positive(),
+              cycle: z.literal('monthly'),
+            }),
+          ),
+        })
+        .parse(await plansResponse.json());
+      expect(initialPlans.plans.map((plan) => plan.code).sort()).toEqual(
+        [...entryPlan.options].sort(),
+      );
+      for (const width of [1440, 390]) {
+        await page.setViewportSize({ width, height: 900 });
+        for (const doctors of [2, 3, 4, 5]) {
+          const code = entryPlan.parse(`clinica_2026_${doctors}`);
+          const offered = initialPlans.plans.find((plan) => plan.code === code);
+          expect(offered?.priceCents).toBe(expectedAmount(code));
+          if (!offered) throw new Error('Expected initial doctor plan missing');
+          await page
+            .locator('label')
+            .filter({ has: page.locator(`input[value="${offered.id}"]`) })
+            .click();
+          const summary = page.getByRole('complementary');
+          await expect(summary.getByText('Mensalidade após a avaliação')).toBeVisible();
+          await expect(summary).toContainText(
+            new RegExp(`R\\$\\s*${(expectedAmount(code) / 100).toFixed(2).replace('.', ',')}`),
+          );
+          expect(
+            await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+          ).toBe(true);
+        }
+        stages.push(`initial_catalog_summary_${width}`);
+      }
+      const chosen = initialPlans.plans.find((plan) => plan.code === input.E2E_ABACATEPAY_PLAN);
+      if (!chosen) throw new Error('Chosen initial plan missing');
+      await page
+        .locator('label')
+        .filter({ has: page.locator(`input[value="${chosen.id}"]`) })
+        .click();
       await page.getByRole('button', { name: 'Começar avaliação gratuita', exact: true }).click();
       await expect(page).toHaveURL(/\/dashboard(?:\?|$)/, { timeout: 90_000 });
       stages.push('one_click_plan_to_trial_without_hosted_checkout');
@@ -226,6 +273,16 @@ test('confirmed identity -> free trial -> server quota gates -> optional hosted 
       stages.push('active_trial_checkout_and_integrations_blocked');
     } else {
       await expect(page.getByText('Contratação pendente', { exact: true })).toBeVisible();
+      const adulterated = await page.evaluate(async () => {
+        const response = await fetch('/api/billing/checkout', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ amount: 1, doctors: 6 }),
+        });
+        return { status: response.status, body: await response.json() };
+      });
+      expect(adulterated).toEqual({ status: 400, body: { error: 'invalid_body' } });
+      stages.push('browser_amount_and_quantity_rejected_before_checkout');
       await page.getByRole('button', { name: 'Contratar assinatura', exact: true }).click();
       await expect(page).toHaveURL(/^https:\/\/(?:app|pay)\.abacatepay\.com\//, {
         timeout: 90_000,
@@ -238,6 +295,36 @@ test('confirmed identity -> free trial -> server quota gates -> optional hosted 
       expect(binding?.n).toBe(1);
       if (!binding?.id) throw new Error('Synthetic checkout binding missing');
       evidence.checkoutId = binding.id;
+      const hostedUrl = page.url();
+      await page.goto(new URL('/configuracoes/assinatura', origin.origin).toString());
+      await page.reload();
+      await expect(page.getByText('Contratação pendente', { exact: true })).toBeVisible();
+      const resumed = await page.evaluate(async () => {
+        const response = await fetch('/api/billing/checkout', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: '{}',
+        });
+        return { status: response.status, body: await response.json() };
+      });
+      expect(resumed).toMatchObject({
+        status: 200,
+        body: { state: 'checkout_pending', checkoutUrl: hostedUrl },
+      });
+      const [pending] = await sql`
+        SELECT s.billing_status,t.released_at,
+        (SELECT count(*)::int FROM public.invoices i WHERE i.subscription_id=s.id) invoices,
+        (SELECT count(*)::int FROM billing_gateway.operations o WHERE o.subscription_id=s.id AND o.kind='create_checkout') operations
+        FROM public.subscriptions s JOIN public.trial_access_policies t ON t.subscription_id=s.id
+        WHERE s.id=${contract.subscription_id}::uuid`;
+      expect(pending).toMatchObject({
+        billing_status: 'trial',
+        released_at: null,
+        invoices: 0,
+        operations: 1,
+      });
+      stages.push('abandoned_checkout_reload_and_retry_reuse_one_intent_without_activation');
+      await page.goto(hostedUrl);
       stages.push('real_qoro_route_to_hosted_sandbox_checkout_single_journal');
     }
     evidence.status = 'PASS';

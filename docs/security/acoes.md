@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 200 actions (0 inline); 66 métodos em 62 handlers; 19 props com referência de action; 485 acessos diretos a process.env; 9 nomes NEXT_PUBLIC.
+Contagem: 200 actions (0 inline); 66 métodos em 62 handlers; 19 props com referência de action; 489 acessos diretos a process.env; 9 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -360,9 +360,13 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `next.config.ts:86`                                        | `NODE_ENV`                             | `process.env.NODE_ENV`                                                      |
 | `next.config.ts:142`                                       | `CI`                                   | `process.env.CI`                                                            |
 | `playwright.ci.config.ts:40`                               | `E2E_ARTIFACTS`                        | `process.env.E2E_ARTIFACTS`                                                 |
-| `playwright.ci.config.ts:64`                               | `CI`                                   | `process.env.CI`                                                            |
-| `playwright.ci.config.ts:65`                               | `CI`                                   | `process.env.CI`                                                            |
-| `playwright.ci.config.ts:66`                               | `CI`                                   | `process.env.CI`                                                            |
+| `playwright.ci.config.ts:68`                               | `NEXT_PUBLIC_TURNSTILE_SITE_KEY`       | `process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY`                                |
+| `playwright.ci.config.ts:69`                               | `TURNSTILE_SECRET_KEY`                 | `process.env.TURNSTILE_SECRET_KEY`                                          |
+| `playwright.ci.config.ts:70`                               | `E2E_ABACATEPAY_PLAN_UI`               | `process.env.E2E_ABACATEPAY_PLAN_UI`                                        |
+| `playwright.ci.config.ts:71`                               | `E2E_BASE_URL`                         | `process.env.E2E_BASE_URL`                                                  |
+| `playwright.ci.config.ts:80`                               | `CI`                                   | `process.env.CI`                                                            |
+| `playwright.ci.config.ts:81`                               | `CI`                                   | `process.env.CI`                                                            |
+| `playwright.ci.config.ts:82`                               | `CI`                                   | `process.env.CI`                                                            |
 | `playwright.config.ts:12`                                  | `E2E_BASE_URL`                         | `process.env.E2E_BASE_URL`                                                  |
 | `playwright.config.ts:13`                                  | `E2E_MUTATION`                         | `process.env.E2E_MUTATION`                                                  |
 | `playwright.config.ts:14`                                  | `E2E_ARTIFACTS`                        | `process.env.E2E_ARTIFACTS`                                                 |
@@ -588,9 +592,9 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/ai-handoff-reliability-db.ts:31`         | `<object>`                             | `process.env`                                                               |
 | `scripts/security/ai-handoff-reliability-db.ts:32`         | `<dynamic>`                            | `process.env[key]`                                                          |
 | `scripts/security/ai-handoff-reliability-db.ts:34`         | `<object>`                             | `process.env`                                                               |
-| `scripts/security/local-build.ts:76`                       | `<dynamic>`                            | `process.env[key]`                                                          |
-| `scripts/security/local-build.ts:76`                       | `<dynamic>`                            | `process.env[key]`                                                          |
-| `scripts/security/local-build.ts:102`                      | `CI`                                   | `process.env.CI`                                                            |
+| `scripts/security/local-build.ts:91`                       | `<dynamic>`                            | `process.env[key]`                                                          |
+| `scripts/security/local-build.ts:91`                       | `<dynamic>`                            | `process.env[key]`                                                          |
+| `scripts/security/local-build.ts:121`                      | `CI`                                   | `process.env.CI`                                                            |
 | `scripts/security/offer-restored-backup-db.ts:34`          | `<object>`                             | `process.env`                                                               |
 | `scripts/security/offer-restored-backup-db.ts:328`         | `BACKUP_PASSPHRASE`                    | `process.env.BACKUP_PASSPHRASE`                                             |
 | `scripts/security/onboarding-progress-db.ts:44`            | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |

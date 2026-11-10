@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { SignupPlanState } from '@/contexts/onboarding';
@@ -69,6 +69,58 @@ afterEach(() => {
 });
 
 describe('seleção de plano O-4', () => {
+  it.each([2, 3, 4, 5])(
+    'preserva resumo e seleção de %i médicos no redesign sem cobrança inicial',
+    async (doctors) => {
+      const id = `00000000-0000-4000-8000-00000000000${doctors}`;
+      const amount = 39700 + (doctors - 2) * 14700;
+      const checkout = deferredResponse();
+      fetchMock
+        .mockResolvedValueOnce(
+          json(200, {
+            ...STATE,
+            signupFlow: 'trial_first',
+            trialDays: 14,
+            offerTrialEndsAt: '2026-11-24T12:00:00.000Z',
+            plans: [2, 3, 4, 5].map((count) => ({
+              id: `00000000-0000-4000-8000-00000000000${count}`,
+              code: `clinica_2026_${count}`,
+              name: `Clínica ${count}`,
+              priceCents: 39700 + (count - 2) * 14700,
+              cycle: 'monthly',
+            })),
+          }),
+        )
+        .mockResolvedValueOnce(
+          json(200, { rowVersion: 8, selectedPlanId: id, selectedBillingCycle: 'monthly' }),
+        )
+        .mockReturnValueOnce(checkout.promise);
+      render(<PlanSelectionForm />);
+      fireEvent.click(await screen.findByRole('radio', { name: new RegExp(`Clínica ${doctors}`) }));
+      const summary = within(screen.getByRole('complementary'));
+      expect(summary.getByRole('heading', { name: `Clínica ${doctors}` })).toBeTruthy();
+      expect(summary.getByText('Mensalidade após a avaliação')).toBeTruthy();
+      expect(
+        summary.getByText(new RegExp(`R\\$\\s*${(amount / 100).toFixed(2).replace('.', ',')}`)),
+      ).toBeTruthy();
+      const button = screen.getByRole('button', { name: 'Começar avaliação gratuita' });
+      fireEvent.click(button);
+      fireEvent.click(button);
+      await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+      expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({
+        rowVersion: 7,
+        planId: id,
+        cycle: 'monthly',
+      });
+      expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))).toEqual({});
+      expect(assignMock).not.toHaveBeenCalled();
+      checkout.resolve(json(200, { state: 'provisioned' }));
+      await waitFor(() =>
+        expect(assignMock).toHaveBeenCalledWith('/auth/session-refresh?next=/dashboard'),
+      );
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+    },
+  );
   it('starts a selected free trial without redirecting to a payment provider', async () => {
     fetchMock
       .mockResolvedValueOnce(
@@ -128,9 +180,7 @@ describe('seleção de plano O-4', () => {
     expect(screen.getByText(/R\$.*249,90/u)).toBeTruthy();
     expect(screen.getAllByText('/mês')).toHaveLength(2);
     expect(screen.getAllByText('7 dias grátis após a ativação')).toHaveLength(2);
-    expect(screen.getByRole('radiogroup', { name: 'Planos disponíveis' }).className).toContain(
-      'md:grid-cols-3',
-    );
+    expect(within(screen.getByRole('complementary')).getByText('Clínica Sintética')).toBeTruthy();
     expect(fetchMock).toHaveBeenCalledWith('/api/signup/plan', { cache: 'no-store' });
     expect(screen.queryByText(/Atendente: já está incluído/u)).toBeNull();
     expect(screen.queryByText('O que você pode testar')).toBeNull();

@@ -1010,27 +1010,30 @@ describe('signup plan contract O-4', () => {
     });
     expect(tx.update).not.toHaveBeenCalled();
   });
-  it.each(['clinica_2026_6', 'equipe_extra'])(
-    'não aceita %s como primeira contratação AbacatePay',
-    async (code) => {
-      mocks.deferred.mockReturnValue(true);
-      const tx = {
-        select: vi
-          .fn()
-          .mockReturnValueOnce(selectChain([{ id: planId, code }]))
-          .mockReturnValueOnce(selectChain([{ id: 'active-offer' }])),
-        update: vi.fn(),
-      };
-      mocks.transaction.mockImplementationOnce(
-        async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx),
-      );
-      expect(await writeSignupPlan(userId, { rowVersion: 7, planId })).toEqual({
-        ok: false,
-        reason: 'invalid_plan',
-      });
-      expect(tx.update).not.toHaveBeenCalled();
-    },
-  );
+  it.each([
+    'clinica_2026_0',
+    'clinica_2026_1',
+    'clinica_2026_2.5',
+    'clinica_2026_6',
+    'equipe_extra',
+  ])('não aceita %s como primeira contratação AbacatePay', async (code) => {
+    mocks.deferred.mockReturnValue(true);
+    const tx = {
+      select: vi
+        .fn()
+        .mockReturnValueOnce(selectChain([{ id: planId, code }]))
+        .mockReturnValueOnce(selectChain([{ id: 'active-offer' }])),
+      update: vi.fn(),
+    };
+    mocks.transaction.mockImplementationOnce(
+      async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx),
+    );
+    expect(await writeSignupPlan(userId, { rowVersion: 7, planId })).toEqual({
+      ok: false,
+      reason: 'invalid_plan',
+    });
+    expect(tx.update).not.toHaveBeenCalled();
+  });
 
   it('preserva o cadastro legado quando a nova oferta ainda está inativa', async () => {
     const tx = {

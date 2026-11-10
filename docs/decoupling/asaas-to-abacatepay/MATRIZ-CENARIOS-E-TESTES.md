@@ -1,5 +1,26 @@
 # Cenários financeiros e nível real de validação
 
+## Recorte atual — primeira contratação 2–5 médicos (10/11/2026)
+
+Fonte operacional: [relatório final, seção 36](RELATORIO-HOMOLOGACAO-FINAL.md#36-fechamento-da-primeira-contratação-e-integração-visual--10112026). Os estados históricos abaixo continuam com suas próprias datas/limites. CI, novo Preview e pagamento externo de 5 médicos são registrados no PR #53 somente após execução.
+
+| Cenário | Esperado | Prova existente / ambiente | Estado e limite |
+|---|---|---|---|
+| Clínica com 2 médicos | R$397, 2 médicos + 3 administrativos após pagamento | Primeiro pagamento real, webhook, invoice e UI: seção 33; casos PostgreSQL inicial/recorrente | PASS Sandbox histórico e local; não repetir cobrança |
+| Clínica com 3 médicos | R$544 e cota 3+3 | 18 checks de primeiro pagamento e 85 de renovação/cotas; PostgreSQL real/HTTP sintético | PASS local; pagamento externo NOT RUN |
+| Clínica com 4 médicos | R$691 e cota 4+3 | Mesma matriz, preço/produto exatos e ausência de vagas antecipadas | PASS local; pagamento externo NOT RUN |
+| Clínica com 5 médicos | R$838 e cota 5+3 | Matriz local aprovada; fixture externa nova autorizada nesta rodada | PASS local; externo PARTIAL até pagamento/webhook/cotas reais |
+| Clínica com 0/1/fracionário/6 médicos | Código inexistente recusado | Validação do catálogo e contrato de gravação; não há parâmetro de quantidade arbitrário | Testes dirigidos da rodada; Consultório com 1 médico/R$197 continua válido |
+| Preço/quantidade adulterados | Backend recusa sem criar intenção | Corpo estrito das rotas; E2E externo ampliado para HTTP400 antes da primeira compra | PASS unitário; novo externo só após execução |
+| Pendente/abandono/refresh | Sem liberação; reutilizar intenção e checkout | Casos de recuperação PostgreSQL; E2E Preview ampliado | PASS local; novo Preview a executar |
+| Pago | Uma invoice, uma liberação e cota exata | Primeiro pagamento integral, 6 cliques/uma criação e reaplicação local; real de 2 médicos | PASS nos níveis indicados; 5 médicos depende da nova prova |
+| Recusado/incompleto/valor divergente | Não ativar | Leitores, processamento e casos locais de valor insuficiente/divergente | PASS local; recusa real de cartão recorrente NOT RUN |
+| Webhook duplicado/fora de ordem | Um efeito, sem reduzir período atual | Inbox/observações e matriz PostgreSQL de renovação | PASS local; não provocar cobrança externa só para forçar evento |
+| Rede/API indisponível | Conservar obrigação incerta, sem segundo POST cego | Oito cenários anteriores de recuperação e releitura real após falha temporária | PASS local e recuperação de leitura observada; timeout remoto induzido NOT RUN |
+| UI redesenhada | Mesmo plano/preço/CAS; acessível e sem overflow | 39 testes de componente antes dos casos adicionais de catálogo; oito E2E novos no harness isolado | Componente PASS; E2E só após CI própria |
+| Turnstile no build isolado | Dois casos condicionais executados sem chaves reais | Par público oficial no `security:build`; estado resolvido/token e sigilo na página | Não contar os dois SKIPs anteriores como PASS; consultar nova CI |
+
+
 Atualizado em 09/11/2026 UTC e Brasília. Esta tabela complementa a [matriz M01–M18 do plano mestre](PLANO-MESTRE-MIGRACAO-ASAAS-ABACATEPAY.md). A matriz geral de 79 casos continua preservada. A candidata agora tem **um primeiro pagamento integral real no modo de simulação Sandbox**, webhook autenticado aplicado, invoice e UI paga; o cancelamento posterior está discriminado abaixo. Somente os casos identificados recebem esse nível de evidência. A [continuação anterior](CONTINUACAO-2026-11-07.md) é histórica. O [diário atual](PLANO-EXECUCAO-CONTINUIDADE.md) contém SHAs, Preview, fixture, testes e limites. Nenhuma mudança de Produção ou migração de contratos reais foi realizada.
 
 O Qoro provisiona o trial absoluto e só solicita checkout após o prazo. Dois E2E reais partiram de identidades sintéticas confirmadas administrativamente: trial ativo sem checkout e trial vencido com checkout, sem prova de entrega do e-mail ou decurso real de 14 dias. O terceiro conferiu o estado pago após webhook real. As [cotas aprovadas](../../specs/trial-interface-e-cotas-2026-11.md) e os limites permanentes foram preservados.

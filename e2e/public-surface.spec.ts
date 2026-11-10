@@ -268,7 +268,9 @@ test.describe('integridade estrutural do formulário de login', () => {
 
     const hosts = page.getByTestId('turnstile-widget');
     if (process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY) {
-      await expect(hosts.first(), 'site key configurada sem widget renderizado').toBeVisible();
+      // interaction-only legitimately keeps this host at zero height. The proof
+      // is attachment followed by solved state and a token, never box visibility.
+      await expect(hosts.first(), 'site key configurada sem widget renderizado').toBeAttached();
     }
     const total = await hosts.count();
     test.skip(total === 0, 'Ambiente sem NEXT_PUBLIC_TURNSTILE_SITE_KEY — não há widget.');

@@ -39,6 +39,21 @@ for (const entry of copied) {
   await rm(path.join(target, entry), { recursive: true, force: true });
   await cp(path.join(root, entry), path.join(target, entry), { recursive: true });
 }
+// Presentation-only fixture, generated ONLY in the isolated copy. The public
+// signup prefix retains its real middleware; HTTP doubles do not prove Auth/DB.
+const planUiFixture = path.join(target, 'src/app/(app)/cadastro/qoro-billing-harness/page.tsx');
+await mkdir(path.dirname(planUiFixture), { recursive: true });
+await writeFile(
+  planUiFixture,
+  `import { PublicPage, SignupStage, PublicHeading } from '@/components/shared/signup-frame';
+import { PlanSelectionForm } from '../plano/plan-selection-form';
+export default function Harness() {
+  return <PublicPage><SignupStage step={3} trialFirst>
+    <PublicHeading title="Escolha seu plano" lead="Harness sintético de apresentação" />
+    <PlanSelectionForm />
+  </SignupStage></PublicPage>;
+}`,
+);
 // Copia o config de lint; os plugins são resolvidos pelo pacote eslint-config-next.
 const lintConfig = path.join(target, 'eslint.config.mjs');
 try {
@@ -92,6 +107,10 @@ Object.assign(childEnv, {
   ABACATEPAY_API_KEY: 'security_bundle_canary_abacatepay_secret',
   CRYPTO_SECRET_BACKEND: 'env',
   APP_BASE_URL: 'http://localhost:3217',
+  // Public dummy pair, exclusively in this isolated build with synthetic backends.
+  // https://developers.cloudflare.com/turnstile/troubleshooting/testing/
+  NEXT_PUBLIC_TURNSTILE_SITE_KEY: '1x00000000000000000000AA',
+  TURNSTILE_SECRET_KEY: '1x0000000000000000000000000000000AA',
 });
 // Somente fixtures públicas/sintéticas; útil para reproduzir next start sem dotenv.
 await writeFile(path.join(output, 'runtime-env.json'), JSON.stringify(childEnv, null, 2));
