@@ -1,5 +1,5 @@
 {
-  "observedAt": "2026-11-10T15:38:25.695Z",
+  "observedAt": "2026-11-10T16:05:26.828Z",
   "status": "PARTIAL",
   "scope": "initial 2-5 doctor acquisition; isolated UI integration, no production activation",
   "baseline": "4e120afeb712787ac6120f46f953605ce7cf639b",
@@ -17,7 +17,7 @@
     "fullRedesignMerged": false,
     "scope": "plan page, form, shared presentation frame and CSS; financial handlers preserved",
     "plannedBrowserScenarios": 8,
-    "browserStatus": "NOT RUN in final isolated CI until its own run finishes",
+    "browserStatus": "PARTIAL; all 10 public tests passed, eight UI cases reached a synthetic heading with corrupted accents before the UTF8 fixture correction; followup CI pending",
     "otherWorktreesModified": false,
     "tissModified": false
   },
@@ -329,9 +329,70 @@
     "scripts/security/local-build.ts": "0486d3f03e7265004871d1d4cfa6e4eaf82dfffc34cc2c7d5b968970c58a003f",
     "playwright.ci.config.ts": "9e370f07e6276b3ea401ad91d8f5ac27ab079dfbb0b70391385cc68bc9f98463",
     "e2e/public-surface.spec.ts": "0875d27b10a20d4a3d83b1d9ec52b2219b2e8758453fd43890e89d6e39c07971",
-    "e2e/abacatepay-plan-ui.spec.ts": "16a9565d25837f72da59a701141dc02411e7d69ff0d35630007f8f3e9b8f9a4d",
+    "e2e/abacatepay-plan-ui.spec.ts": "9213300ad1741d53aafac0b7a3013ce72fa7cba19cb023af4912128b9ac5412f",
     "e2e/abacatepay-trial-preview.spec.ts": "e8048742f95373c80a26553b9df2b6851c08cc2f3b7d0e3c4dd1476c6a3e4564"
   },
   "productionWrites": 0,
-  "productionGo": "NO-GO; live composition/cohort and prior risk gates remain"
+  "productionGo": "NO-GO; live composition/cohort and prior risk gates remain",
+  "ciBeforeFixtureCorrection": {
+    "runId": 42846932199,
+    "sha": "01a3af710e870256ab6d36be416f44e21a283f90",
+    "status": "FAIL",
+    "unitPassed": 6897,
+    "publicPassed": 10,
+    "planUiFailed": 8,
+    "skipped": 0,
+    "cause": "Synthetic destination HTML omitted charset=utf-8; report confirmed mojibake heading",
+    "correction": "Only fixture Content-Type changed; navigation and financial assertions preserved",
+    "chromiumCharsetRegression": {
+      "passed": 2,
+      "scope": "loopback HTTP; original failure reproduced and UTF8 exact heading verified; not full UI E2E"
+    },
+    "followupCi": "PENDING"
+  },
+  "externalPreflight": {
+    "observedAt": "2026-11-10T15:56:33.686Z",
+    "status": "BLOCKED",
+    "scope": "read-only preflight before any new five-doctor fixture",
+    "sha": "01a3af710e870256ab6d36be416f44e21a283f90",
+    "preview": "https://project-8ruxlt5ic-clinic-os-v2-s-projects.vercel.app",
+    "checks": {
+      "previewReady": true,
+      "signedDevRuntime": true,
+      "devAuthAdminReadiness": true,
+      "sandboxProducts": 5,
+      "webhookTargetSameRelease": true,
+      "invalidWebhookHttp": 401,
+      "devCanonicalReadOnlyConnect": "CONNECT_TIMEOUT",
+      "devCatalogRestHttp": 503,
+      "devDatabaseTcp": "PASS to both resolved IPv4 addresses"
+    },
+    "attempts": [
+      {
+        "action": "preflight",
+        "stage": "sandbox_store",
+        "result": "unavailable"
+      },
+      {
+        "action": "preflight",
+        "stage": "dev_schema_and_catalog",
+        "result": "CONNECT_TIMEOUT"
+      },
+      {
+        "action": "canonical DEV SELECT 1 in READ ONLY",
+        "result": "CONNECT_TIMEOUT",
+        "executions": 2
+      },
+      {
+        "action": "DEV REST plan catalog GET",
+        "result": "HTTP 503"
+      }
+    ],
+    "rootCause": "not established; DEV database service unavailable through canonical connection and REST",
+    "nextAction": "Repeat read-only readiness after DEV recovery; prepare/create only after all gates pass",
+    "newAuthUsers": 0,
+    "newCheckouts": 0,
+    "payments": 0,
+    "productionWrites": 0
+  }
 }

@@ -63,7 +63,7 @@ for (const width of [1440, 390]) {
       });
       await page.route('**/auth/session-refresh?next=/dashboard', (route) =>
         route.fulfill({
-          contentType: 'text/html',
+          contentType: 'text/html; charset=utf-8',
           body: '<h1>Destino sintético da avaliação</h1>',
         }),
       );
