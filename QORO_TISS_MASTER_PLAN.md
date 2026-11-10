@@ -41,15 +41,15 @@
 | --- | --- |
 | Data da última atualização | 10/11/2026 |
 | Fase atual | **P0 — Preparação** |
-| Tarefa em andamento | P0.4 (revisão rev.2 deste documento; conclui com o commit da revisão) |
-| Última tarefa concluída | P0.5 — base e numeração reconferidas (máximo remoto 0142 no PR #53, aberto) |
-| Progresso | **5 de 109 tarefas concluídas (4,6%)**: P0.1, P0.2, P0.3, P0.4 (ao commitar) e P0.5. Critério: só conta tarefa com evidência no [Registro](#m-registro-de-execução). Destas 109, **7 dependem de terceiros ou de aprovação humana** (L.2). |
+| Tarefa em andamento | nenhuma (P0.10 é a próxima) |
+| Última tarefa concluída | P0.9 — terminologia TUSS 202609 versionada (61 tabelas, commit `62956289`) |
+| Progresso | **9 de 109 tarefas concluídas (8,3%)**: P0.1–P0.9. Critério: só conta tarefa com evidência no [Registro](#m-registro-de-execução). Destas 109, **7 dependem de terceiros ou de aprovação humana** (L.2). |
 | Capacidades em produção | nenhuma (ver A.5) |
 | Testes aprovados | nenhum teste do módulo ainda |
 | Bloqueios ativos | B4 (ordem de merge com o PR #53), B5 (operadora e clínica piloto para homologação), B6 (orientação jurídica de retenção), B7 (instalar o validador desktop exige autorização). Nenhum bloqueia o início de P0.6–P1. |
 | Decisões | D1–D12 aprovadas ou adotadas; D13–D17 novas, adotadas pelo agente dentro do escopo delegado (L.1) |
-| Arquivos alterados | `QORO_TISS_MASTER_PLAN.md` |
-| Próxima ação exata | **P0.6** ADR-067; em seguida **P0.7** (XSDs no repositório com manifesto) e **P0.8** (avaliação do `xmllint-wasm` em ambiente isolado). |
+| Arquivos alterados | este documento; `docs/adr/067-convenios-e-tiss.md`; `src/contexts/health-insurance/tiss/schemas/**`; `src/contexts/health-insurance/tiss/terminology/**`; `src/lib/xlsx/**`; `scripts/tiss/terminology/**`; `data/tiss/terminologia/202609/**`; `docs/architecture/*` (snapshots regenerados) |
+| Próxima ação exata | **P0.10** (infraestrutura do corpus de validação); em seguida **P1.1** (esqueleto do contexto `health-insurance`) e **P14.1** (testes de caracterização do fluxo particular, antes de qualquer mudança em agenda, financeiro ou Payments). |
 
 ---
 
@@ -414,6 +414,12 @@ URL base: `https://www.gov.br/ans/pt-br/assuntos/prestadores/padrao-para-troca-d
 10. **Modelos impressos** (PDF do Conteúdo e Estrutura): Guia de Consulta na p. 469, com campos 1–29 e legenda na p. 470–473. Inclui nome do beneficiário (obrigatório no papel), nome social, validade da carteira (só na contingência) e assinaturas. **O modelo da SP/SADT está no mesmo PDF; mapear em P8.5.**
 11. **CNPJ alfanumérico:** `st_CNPJ = [A-Z0-9]{12}[0-9]{2}`.
 12. **Conceitos:** TISS é o padrão de troca; TUSS é a terminologia; CID é diagnóstico clínico, fica só no prontuário e nunca vai para guia.
+13. **Cruzamento TUSS 202609 × XSD 4.03.00** (P0.9, `artifacts.test.ts`):
+    - 15 domínios batem exatamente: caráter (23), conselho (26), acidente (36), motivo de encerramento (39), técnica (48), tipo de atendimento (50), tipo de consulta (52), UF (59), via de acesso (61), tipo de identificação (72), ausência de código de validação (74), cobertura especial (75), regime (76), saúde ocupacional (77) e código da despesa (25);
+    - `dm_tabela` (7 valores) está contido na tabela 87 (68);
+    - **CBO:** o XSD lista 172 valores, 170 únicos; `225190` e `225245` existem só no XSD. A referência de vigência é a tabela 24;
+    - **glosas:** 323 códigos antigos só no XSD e **24 códigos da tabela 38 (5063–5086) ausentes do XSD**. Um demonstrativo com esses códigos falha no XSD; o importador (P9.5) trata isso como aviso, com a tabela 38 como referência;
+    - **CBO `999999`** existe na tabela 24 como "CBO do prestador **solicitante** desconhecido ou não informado". O XSD aceita, mas o validador interno o recusa para o **executante** (P7.3/P8.3).
 
 ### B.11 Validadores externos [VERIFICADO nas páginas públicas em 10/11/2026]
 
@@ -808,8 +814,8 @@ Logs estruturados sem PII. Alertas: handler `failed`, convênio sem guia após 3
   - commit específico.
 - **Testes:** revisão de consistência (H.3).
 - **Resultado:** plano de produção.
-- **Evidência:** commit da revisão (hash no Registro).
-- **Status:** **Em execução** (conclui no commit).
+- **Evidência:** commit `54e10039`.
+- **Status:** **Concluído**.
 
 **P0.5 · Base e numeração** (T0.4)
 - **Objetivo:** fixar a base e o primeiro número de migration.
@@ -832,8 +838,8 @@ Logs estruturados sem PII. Alertas: handler `failed`, convênio sem guia após 3
 - **Aceite:** ADR com contexto, decisão, consequências e alternativas.
 - **Testes:** links.
 - **Resultado:** decisão rastreável.
-- **Evidência:** commit.
-- **Status:** Pendente.
+- **Evidência:** commit `f03e449b` (ADR-067 e índice).
+- **Status:** **Concluído**.
 
 **P0.7 · XSDs no repositório** (T0.6)
 - **Objetivo:** XSDs 4.03.00 oficiais com manifesto.
@@ -844,8 +850,8 @@ Logs estruturados sem PII. Alertas: handler `failed`, convênio sem guia após 3
 - **Aceite:** o teste recalcula e confere; os imports e includes resolvem localmente.
 - **Testes:** unitário do manifesto.
 - **Resultado:** schemas íntegros.
-- **Evidência:** saída do teste.
-- **Status:** Pendente.
+- **Evidência:** commit `dfb9a054`; `manifest.test.ts` 6/6; converter um XSD de CRLF para LF faz o teste falhar (prova da trava); `.gitattributes` local (`-text`) mantém os bytes, conferidos no índice do Git.
+- **Status:** **Concluído**.
 
 **P0.8 · Avaliação do `xmllint-wasm` (D7)**
 - **Objetivo:** provar a compatibilidade antes de adicionar a dependência.
@@ -855,13 +861,13 @@ Logs estruturados sem PII. Alertas: handler `failed`, convênio sem guia após 3
 - **Procedimento:**
   1. Instalar a versão fixada em diretório isolado.
   2. Validar com os XSDs oficiais e seus imports.
-  3. Medir: XML de 1, 100 e 1.000 guias (tempo e memória); XML ISO-8859-1; erros (quantidade e formato); Node 22; execução numa função Next/Vercel (rota Node de Preview).
+  3. Medir: XML de 1, 100 e 1.000 guias (tempo e memória); XML ISO-8859-1; erros (quantidade e formato); Node 22. A execução numa função Next/Vercel passou a ser critério de P9.2, porque depende de integrar o pacote ao app.
   4. Comparar com `xmllint` nativo (libxml2), se disponível, nos mesmos arquivos.
 - **Aceite:** todos os critérios de D7 aprovados com números; senão, registrar a alternativa.
 - **Testes:** protótipo.
 - **Resultado:** dependência aprovada ou rejeitada com dados.
-- **Evidência:** relatório.
-- **Status:** Pendente.
+- **Evidência:** Registro de 10/11 (P0.6–P0.9), com tempos, memória e os 16 casos.
+- **Status:** **Concluído** (avaliação local aprovada; o runtime da Vercel é gate de P9.2).
 
 **P0.9 · Artefatos de terminologia** (parte de T0.7)
 - **Objetivo:** gerar dados TUSS normalizados a partir das planilhas oficiais.
@@ -871,15 +877,15 @@ Logs estruturados sem PII. Alertas: handler `failed`, convênio sem guia após 3
 - **Procedimento:**
   1. Leitor de xlsx (zip + XML) sem dependência nova.
   2. Normalizar código, termo e datas (serial Excel → ISO).
-  3. Tabelas 22, 23, 24, 26, 36, 38, 52, 59, 72, 74, 75, 76, 77 e 87.
+  3. Todas as tabelas das duas planilhas: 61, da 22 à 87.
 - **Aceite:**
   - contagens iguais às planilhas;
   - `10101012` presente com vigência;
   - reprodutível (mesmo SHA ao reexecutar).
 - **Testes:** unitários do parser; teste de contagem.
 - **Resultado:** terminologia versionada.
-- **Evidência:** contagens e SHA.
-- **Status:** Pendente.
+- **Evidência:** commit `62956289`; 61 tabelas (5.969 termos na 22); manifesto `b50b6a4e…` idêntico em duas execuções; `artifacts.test.ts` 22/22 cruzando com o XSD.
+- **Status:** **Concluído**.
 
 **P0.10 · Infraestrutura do corpus de validação**
 - **Objetivo:** estrutura para gerar o corpus sintético a partir do código real, com manifesto.
@@ -973,7 +979,7 @@ Os números marcados com `*` são provisórios e devem ser reconferidos (E.5). P
 | --- | --- | --- | --- | --- | --- | --- |
 | **P7.1** (T6.1) | numeração de guia, lote, transação e recurso | P1.4, P1.8 | `internal/numbering.ts` | 100 chamadas concorrentes dão números únicos | concorrência no DEV | Pendente |
 | **P7.2** (T6.2) | `GuideAssembler` Consulta | P2.x, P3.1, P4.1 | `internal/guides/consulta/assembler.ts` | puro; teste prova a ausência de CID; padrões D11 | U3 | Pendente |
-| **P7.3** (T6.3) | `GuideValidator` Consulta: regras de B.10.9 | P7.2, P1.3 | `…/consulta/validator.ts` | cada regra com teste positivo e negativo | U4 | Pendente |
+| **P7.3** (T6.3) | `GuideValidator` Consulta: regras de B.10.9 e B.10.13 (CBO `999999` recusado no executante) | P7.2, P1.3 | `…/consulta/validator.ts` | cada regra com teste positivo e negativo | U4 | Pendente |
 | **P7.4** (T6.4) | handler de conclusão (genérico por tipo) + reconcile "convênio sem guia" | P7.1–P7.3 | `internal/handlers/appointment-completed.ts`, `scheduling/events.ts` | reentrega não duplica; particular não cria guia | U10, E8, E9 | Pendente |
 | **P7.5** (T6.5) | ciclo de vida genérico: estados, edição controlada, aprovação, cancelamento, substituição, histórico | P7.4 | `internal/guide-lifecycle.ts` | transições inválidas recusadas; "enviada" só com registro | U6 | Pendente |
 | **P7.6** (T6.6) | PDF oficial da Consulta (campos 1–29) | P7.2 | `src/lib/pdf/guia-consulta.tsx`, rota | 29 rótulos no PDF; comparação visual com o modelo oficial (P13.7) | `pdfjs` + captura | Pendente |
@@ -996,10 +1002,10 @@ Os números marcados com `*` são provisórios e devem ser reconferidos (E.5). P
 | ID (antigo) | Objetivo | Dependências | Arquivos | Aceite | Testes | Status |
 | --- | --- | --- | --- | --- | --- | --- |
 | **P9.1** (T7.1) | `TissXmlBuilder`: lote (Consulta e SP/SADT), recurso de glosa, solicitação de procedimento; ISO-8859-1; MD5 | P7.2, P0.7 | `tiss/xml-builder/*` | hash recalculado de forma independente; não-latin1 recusado | golden files | Pendente |
-| **P9.2** (T7.2) | `TissXsdValidator` | P0.8 | `tiss/xsd-validator.ts` | C.13; validação em rota Node com memória e tempo medidos | P13.2 | Pendente |
+| **P9.2** (T7.2) | `TissXsdValidator` | P0.8 | `tiss/xsd-validator.ts` | C.13; `xmllint-wasm` em `serverExternalPackages`; validação numa rota Node **na Preview da Vercel** (worker_threads e `.wasm` incluídos no bundle), com memória e tempo medidos; checagem própria de codificação (o XSD não detecta UTF-8 declarado como ISO-8859-1) | P13.2 | Pendente |
 | **P9.3** (T7.3) | lotes: regras (operadora, tipo, versão, até 100), numeração, exportação só se o XSD aprovar, `hi_files` com SHA | P9.1, P9.2, P7.5 | `internal/batches.ts`, rota | 101 recusado; guia em dois lotes recusada; concorrência segura | unitários, concorrência | Pendente |
 | **P9.4** | envio: registro manual (data, quem, protocolo, comprovante) e envio pelo conector (P6.5) com recibo real | P9.3, P6.4 | `internal/batches.ts` | nenhum "enviado" sem registro ou recibo | unitários | Pendente |
-| **P9.5** (F13.5) | importação de demonstrativos XML (análise de conta, pagamento): validação no XSD, conciliação por guia e item, divergências | P9.2, P1.9 | `internal/return-importer.ts`, tela | idempotente por SHA; divergência listada, nunca aplicada em silêncio | corpus de retorno sintético | Pendente |
+| **P9.5** (F13.5) | importação de demonstrativos XML (análise de conta, pagamento): validação no XSD, conciliação por guia e item, divergências | P9.2, P1.9 | `internal/return-importer.ts`, tela | idempotente por SHA; divergência listada, nunca aplicada em silêncio; códigos de glosa da tabela 38 fora do XSD (B.10.13) aceitos com aviso | corpus de retorno sintético | Pendente |
 | **P9.6** (T7.4) | ciclo de glosa (6 estados), registro manual ou importado | P1.9 | `internal/glosses.ts` | só "definitiva" gera `write_off` (P10.3) | unitários | Pendente |
 | **P9.7** (F12.6) | recurso de glosa: XML oficial (`recursoGlosa`), PDF ou registro, protocolo, resposta | P9.6, P9.1 | `internal/gloss-appeals.ts` | XML no XSD; estados coerentes | corpus | Pendente |
 | **P9.8** (T7.4/F13.6) | pagamentos parciais e integrais; conciliação com divergência; ajustes | P10.2 | `internal/payments.ts`, `insurance-reconcile` | faturado = recebido + glosado definitivo + pendente | unitários, integração | Pendente |
@@ -1108,7 +1114,7 @@ Instruções específicas deste repositório, nas 20 rubricas pedidas.
 
 - Worktree `C:/dev/Qoro_convenios_tiss_20261110`. Nunca a `main`, nunca o checkout `C:/dev/ClinicaOS_V2` (snapshot com alterações locais), nunca worktrees de outros agentes (billing, UI).
 - Dependências:
-  - crie a junction `node_modules → C:\dev\ClinicaOS_V2\node_modules`;
+  - crie a junction `node_modules → C:\dev\ClinicaOS_V2_pricing_depcheck_20261027\node_modules` (`cmd /c mklink /J node_modules <destino>`). **Não use o `node_modules` do checkout principal**: ele está desatualizado (zod 3 e next 15.5.24, contra zod 4 e next 15.5.28 da `main`). Antes de criar, confira as versões do destino contra o `package.json` da branch;
   - **remova só com `cmd /c rmdir node_modules`**, porque `rm -rf` apaga o `node_modules` compartilhado;
   - **nunca rode `pnpm <script>` aqui**, porque ele tenta purgar o compartilhado. Use `npx`, `node` ou `tsx` direto.
 - Variáveis de ambiente: `.env.local` do checkout principal (lido por scripts). Nunca imprimir segredos.
@@ -1664,7 +1670,7 @@ O módulo só é **Pronto para produção** quando todos os itens tiverem evidê
 | D4 | recebível da operadora na aprovação para faturamento | **Aprovada** |
 | D5 | ~~coparticipação simples~~ → **ciclo completo** (C.8), cobrança só depois de confirmada e se a política permitir | **Aprovada** (diretriz §3.9) |
 | D6 | terminologia em tabelas globais importadas do oficial com SHA | **Adotada**: decorre do requisito "versões e códigos configuráveis"; pode ser vetada |
-| D7 | `xmllint-wasm` 5.3.0 (MIT) | **Avaliação autorizada**; adoção condicionada aos critérios de P0.8 |
+| D7 | `xmllint-wasm` 5.3.0 (MIT, libxml2 2.13.8, 892 KB, sem dependência de runtime; `@types/node` é peer `>=16`) | **Aprovada para adoção** depois da avaliação local de P0.8; o runtime na Vercel é critério de aceite de P9.2. A dependência só entra no `package.json` em P9.2. |
 | D8 | matriz I.2; **sem vínculo a plano comercial**; flag por clínica + controle de plataforma; nada ligado por padrão | **Aprovada** |
 | D9 | carteirinha cifrada + hash + últimos 4 | **Adotada**: requisito de proteção (§7.5) |
 | D10 | snapshot da guia cifrado com hash | **Adotada**: idem |
@@ -1742,3 +1748,50 @@ B1–B3 da rev.1 foram resolvidos pela diretriz de 10/11 (D1–D8).
 - **Validadores externos:** páginas lidas e resumidas em B.11. Nenhuma validação executada ainda.
 - **Documento reescrito** (esta revisão): 109 tarefas e mapa D.0.
 - **Próxima ação:** P0.6.
+
+### 10/11/2026 — P0.6 a P0.9: ADR, schemas, avaliação do validador e terminologia
+
+- **P0.4 concluída:** plano rev.2 no commit `54e10039`.
+- **Ambiente:** junction `node_modules` → `C:\dev\ClinicaOS_V2_pricing_depcheck_20261027\node_modules`, com versões conferidas contra o `package.json` da branch (a única divergência apontada era o prefixo `v` em `@upstash/ratelimit`). O `node_modules` do checkout principal está desatualizado (zod 3.25.76, next 15.5.24); o harness E.1 foi corrigido.
+- **P0.6:** ADR-067 e índice, commit `f03e449b`.
+- **P0.7:** 7 XSDs 4.03.00 copiados do pacote oficial com `MANIFEST.json`, commit `dfb9a054`.
+  - O repositório usa `core.autocrlf=input`; sem o `.gitattributes` local, os CRLF virariam LF e os SHA quebrariam.
+  - `npx vitest run src/contexts/health-insurance/tiss/schemas/manifest.test.ts` → 6/6.
+  - Mutação (CRLF→LF em `tissV4_03_00.xsd`) → falha `expected '5f05f8e9…' to be 'd4c421c7…'`; arquivo restaurado → 6/6.
+  - SHA no índice do Git igual ao manifesto nos 7 arquivos.
+- **P0.8 (avaliação local do `xmllint-wasm` 5.3.0, Node v22.23.4, fora do repositório):**
+  - **Válidos:**
+
+    | Caso | Tempo | Tamanho |
+    | --- | --- | --- |
+    | 1 guia, primeira chamada | 197 ms | — |
+    | 1 guia, chamadas seguintes | 119 ms | — |
+    | 100 guias | 155 ms | 120 KB |
+    | acentos em ISO-8859-1 | — | — |
+
+  - **Recusados com mensagem e linha:**
+    - 101 guias (`not expected`, linha 807);
+    - 1.000 guias (1,2 MB, 164 ms);
+    - registro ANS com 5 dígitos (pattern);
+    - carteira com 21 caracteres (maxLength);
+    - CBO `000000` (enumeration);
+    - valor com 3 casas (fractionDigits);
+    - namespace errado;
+    - versão `9.99.99`;
+    - XML truncado;
+    - bytes latin1 declarados UTF-8.
+  - **Limitação:** UTF-8 declarado como ISO-8859-1 **passa** (mojibake) → checagem própria (P9.2).
+  - **Achado:** o caso "CBO `999999` inválido" estava errado. O código existe na tabela 24 ("solicitante desconhecido") e virou regra interna.
+  - **Memória e ritmo:** RSS 40–67 MB; 20 validações seguidas de 100 guias em 5,8 s (cerca de 290 ms cada, com um worker novo por chamada).
+  - **Runtime:** o pacote cria `worker_threads` e lê o `.wasm` de `__dirname`; no Next exige `serverExternalPackages`, e a confirmação na Vercel fica em P9.2.
+  - **Pacote:** sem dependência de runtime; `@types/node` é peer `>=16`.
+- **P0.9:** `src/lib/xlsx` (ZIP e XLSX sem dependência, com limites e CRC), conversor por cabeçalho e gerador. Commit `62956289`.
+  - 61 tabelas; tabela 22 com 5.969 termos (bate com a extração independente: 5.971 linhas menos título e cabeçalho).
+  - Duas execuções deram o mesmo `MANIFEST.json` (`b50b6a4e…`).
+  - Testes: xlsx 13/13, conversor 10/10, artefatos 22/22, manifesto 6/6 (51 no total).
+  - `npx eslint` 0; `npx tsc --noEmit` 0 erros (projeto inteiro); madge sem ciclo.
+  - Duas expectativas de teste estavam erradas (datas `2006-08-15` e `2014-09-01`). Conferi pelos seriais conhecidos 38718 = 01/01/2006 e 41640 = 01/01/2014: o código estava certo e o teste foi corrigido.
+  - A tabela 63 usa a coluna "Grupo": o conversor a recusou (sem descarte silencioso) até ganhar o mapeamento e o teste.
+  - Cruzamento com o XSD registrado em B.10.13.
+- **Arquitetura:** `arch:graphs --check` já acusava drift na `origin/main` (eventos entre financial, payments, messaging e ai-agent; 807 → 918 módulos). Regenerado em `c0192f4b`, incluindo o contexto novo e `lib:xlsx`.
+- **Próxima ação:** P0.10.
