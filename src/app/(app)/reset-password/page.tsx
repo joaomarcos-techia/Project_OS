@@ -85,7 +85,8 @@ export default async function ResetPasswordPage({
         ) : (
           <div className={loginFrame.form}>
             <Alert variant="danger" title="Link inválido ou expirado">
-              Ele já foi usado ou venceu. Peça um novo em “Esqueci a senha”, na tela de entrada.
+              Ele já foi usado ou venceu. Volte ao login e solicite um novo link em “Esqueci a
+              senha”.
             </Alert>
             <div className={signupFrame.actions}>
               <Link href="/login" className={buttonVariants({ variant: 'secondary' })}>

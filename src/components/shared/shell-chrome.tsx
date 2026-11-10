@@ -95,7 +95,7 @@ export function SideNavGroupLabel({ children }: { children: ReactNode }) {
   return (
     <span
       data-slot="nav-group-label"
-      className="mb-1 block px-(--sp-3) text-[11px] leading-4 font-semibold tracking-[0.06em] text-(--muted-foreground) uppercase"
+      className="mb-1 block px-(--sp-3) text-(length:--fs-2xs) leading-4 font-semibold tracking-[0.06em] text-(--muted-foreground) uppercase"
     >
       {children}
     </span>
