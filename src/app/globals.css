@@ -533,8 +533,8 @@ body:has([data-qoro-tokens='app-v5']) {
   /* Recolhido 44 px (o valor do canvas) e aberto 176 px (+12 px de borda ao abrir
      por cima): o founder pediu o menu mais estreito em 10/11, com a barra da
      referência dele como medida. Marca e quadrado do ativo têm 36 px e as mesmas
-     bordas; aberto, o nome mais longo ("Fixar menu aberto") fica a ~28 px da
-     borda da pílula. */
+     bordas; aberto, os nomes mais longos ("Recolher menu", "Configurações") ficam
+     a ~28 px da borda da pílula. */
   --rail-w: 44px;
   --rail-logo: 36px;
   --rail-logo-inset: calc((var(--rail-w) - var(--rail-logo)) / 2);

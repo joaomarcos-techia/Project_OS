@@ -112,7 +112,7 @@ describe('shell tenant das referências HTML', () => {
       (label) => label.textContent ?? '',
     );
     expect(labels).toHaveLength(3);
-    expect(labels[0]).toBe('Fixar menu aberto');
+    expect(labels[0]).toBe('Fixar menu');
     expect(labels[1]).toMatch(/^Tema /);
     expect(labels[2]).toBe('Sair');
     act(() => screen.getByRole('button', { name: 'Sair' }).focus());
@@ -139,9 +139,9 @@ describe('shell tenant das referências HTML', () => {
     expect(screen.getByRole('link', { name: 'Clínica Sol — início' }).getAttribute('href')).toBe(
       '/',
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Fixar menu aberto' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Fixar menu' }));
     fireEvent.click(screen.getByRole('button', { name: 'Recolher menu' }));
-    expect(screen.getByRole('button', { name: 'Fixar menu aberto' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Fixar menu' })).toBeTruthy();
   });
   it('cada destino do menu mantém o nome exato, sem depender do rótulo visível', () => {
     renderShell();

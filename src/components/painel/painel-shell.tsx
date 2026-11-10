@@ -192,7 +192,8 @@ export function PainelShell({
       (href === settingsHref && pathname.startsWith('/configuracoes/')));
 
   const userInitials = initialsFrom(userName);
-  const pinLabel = rail.pinned ? 'Recolher menu' : 'Fixar menu aberto';
+  // Curto para caber na pílula aberta (176 px): "Fixar menu aberto" encostava na borda.
+  const pinLabel = rail.pinned ? 'Recolher menu' : 'Fixar menu';
   const themeLabel =
     theme === 'dark' ? 'Tema escuro' : theme === 'system' ? 'Tema do sistema' : 'Tema claro';
   const ThemeIcon = theme === 'dark' ? Moon : theme === 'system' ? Laptop : Sun;
