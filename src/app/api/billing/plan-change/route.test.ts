@@ -72,6 +72,9 @@ describe('scheduled AbacatePay plan-change HTTP boundary (unit)', () => {
     JSON.stringify({ contractId, targetPlanId, amountMinor: 1 }),
     JSON.stringify({ contractId, targetPlanId, clinicId: 'other' }),
     JSON.stringify({ contractId, targetPlanId, requestedBy: 'other' }),
+    JSON.stringify({ contractId, targetPlanId, doctors: 6 }),
+    JSON.stringify({ contractId, targetPlanId, staff: 4 }),
+    JSON.stringify({ contractId, targetPlanId, quantity: 5, price: 1 }),
     JSON.stringify({ contractId: 'subs_provider', targetPlanId }),
   ])('rejects unsafe body %s', async (body) => {
     expect((await POST(request(body))).status).toBe(400);

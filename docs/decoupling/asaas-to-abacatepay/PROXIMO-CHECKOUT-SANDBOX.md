@@ -85,4 +85,10 @@ O primeiro ensaio de criação identificou incompatibilidade de timestamps no ro
 
 Renovação recorrente externa, falha/retentativa, refund/disputa recorrentes e garantia de invalidação da URL paga continuam separados da contratação inicial. Testar um novo pagamento inicial não encerra esses gates nem autoriza go-live. Ver [plano de produção](PLANO-FINAL-GO-LIVE-ABACATEPAY.md), [operação](../../runbooks/abacatepay-operacao.md) e [resposta do suporte](SUPORTE-RESPOSTA-INTEGRAL-20261110.md).
 
+## Quantidades de médicos e próximos ciclos
+
+A candidata oferece **Consultório (1 médico, R$ 197)** e **Clínica (2 médicos, R$ 397)** na contratação inicial. Depois de pagar, o titular pode solicitar na assinatura as variantes de **3 médicos (R$ 544), 4 (R$ 691) ou 5 (R$ 838)**. A mudança só vale na próxima renovação integralmente paga; não existe liberação imediata de vaga nem pró-rata. As três vagas administrativas continuam incluídas e separadas das médicas. Selecionar médicos adicionais no primeiro checkout seria uma mudança de jornada ainda não implementada.
+
+Essa matriz passou **85/85 checks no PostgreSQL local**, incluindo 19 novos, e **168/168 testes dirigidos**, incluindo 14 novos. Cobertos quantidade paga, owner com CRM, teto de médicos/administração, cliques concorrentes, replay, valor/produto divergentes e downgrade com excesso de equipe. No Preview, as opções reais da fixture paga foram lidas sem executar alteração. [Evidências e limites](evidencias/checkout-variantes-20261110.json). Os testes de renovação utilizam respostas de provedor sintéticas e relógio explícito da aplicação; não representam novas renovações pagas externamente. **Não há outro checkout a pagar para esta matriz automática.**
+
 Referências oficiais conferidas em 10/11: [webhooks de assinatura](https://docs.abacatepay.com/pages/webhooks/events/subscriptions), [listar webhooks](https://docs.abacatepay.com/pages/webhooks/list) e [assinaturas](https://docs.abacatepay.com/pages/subscriptions/reference). O checkout pode gerar mais de uma assinatura remota; o teste não promete uso único hospedado.

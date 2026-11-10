@@ -20,49 +20,66 @@ afterEach(() => {
 });
 
 describe('deferred subscription controls', () => {
-  it('schedules a paid next-cycle plan once and does not promise an immediate doctor seat', async () => {
-    const reload = vi.spyOn(window.location, 'reload').mockImplementation(() => undefined);
-    const fetcher = vi.fn().mockResolvedValue(Response.json({ state: 'scheduled' }));
-    vi.stubGlobal('fetch', fetcher);
-    render(
-      <DeferredSubscription
-        {...baseline}
-        paid
-        paidPeriodActive
-        billingStatus="active"
-        contractId="2d0c7853-147a-4b91-a178-3d081617c132"
-        planChanges={{
-          options: [
-            {
-              id: 'target-plan',
-              name: 'Clínica — 3 médicos',
-              code: 'clinica_2026_3',
-              amountMinor: 54400,
-            },
-          ],
-          pending: null,
-        }}
-      />,
-    );
-    expect(screen.getByText(/Não há cobrança proporcional nem liberação antecipada/)).toBeTruthy();
-    fireEvent.change(screen.getByLabelText('Plano para a próxima renovação'), {
-      target: { value: 'target-plan' },
-    });
-    const button = screen.getByRole('button', { name: 'Agendar mudança para a próxima renovação' });
-    fireEvent.click(button);
-    fireEvent.click(button);
-    await waitFor(() => expect(reload).toHaveBeenCalledOnce());
-    expect(fetcher).toHaveBeenCalledOnce();
-    expect(fetcher).toHaveBeenCalledWith(
-      '/api/billing/plan-change',
-      expect.objectContaining({
-        body: JSON.stringify({
-          contractId: '2d0c7853-147a-4b91-a178-3d081617c132',
-          targetPlanId: 'target-plan',
+  it.each([
+    [3, 54400, '544,00'],
+    [4, 69100, '691,00'],
+    [5, 83800, '838,00'],
+  ])(
+    'schedules %i doctors at the full server price with one request and no early seat',
+    async (doctors, amountMinor, displayedPrice) => {
+      const reload = vi.spyOn(window.location, 'reload').mockImplementation(() => undefined);
+      const fetcher = vi.fn().mockResolvedValue(Response.json({ state: 'scheduled' }));
+      vi.stubGlobal('fetch', fetcher);
+      render(
+        <DeferredSubscription
+          {...baseline}
+          paid
+          paidPeriodActive
+          billingStatus="active"
+          contractId="2d0c7853-147a-4b91-a178-3d081617c132"
+          planChanges={{
+            options: [
+              {
+                id: 'target-plan',
+                name: `Clínica — ${doctors} médicos`,
+                code: `clinica_2026_${doctors}`,
+                amountMinor,
+              },
+            ],
+            pending: null,
+          }}
+        />,
+      );
+      expect(
+        screen.getByText(/Não há cobrança proporcional nem liberação antecipada/),
+      ).toBeTruthy();
+      expect(
+        screen.getByRole('option', {
+          name: new RegExp(`${doctors} médicos.*${displayedPrice}/mês`),
         }),
-      }),
-    );
-  });
+      ).toBeTruthy();
+      expect(screen.getByText(/Os 3 acessos administrativos continuam incluídos/)).toBeTruthy();
+      fireEvent.change(screen.getByLabelText('Plano para a próxima renovação'), {
+        target: { value: 'target-plan' },
+      });
+      const button = screen.getByRole('button', {
+        name: 'Agendar mudança para a próxima renovação',
+      });
+      fireEvent.click(button);
+      fireEvent.click(button);
+      await waitFor(() => expect(reload).toHaveBeenCalledOnce());
+      expect(fetcher).toHaveBeenCalledOnce();
+      expect(fetcher).toHaveBeenCalledWith(
+        '/api/billing/plan-change',
+        expect.objectContaining({
+          body: JSON.stringify({
+            contractId: '2d0c7853-147a-4b91-a178-3d081617c132',
+            targetPlanId: 'target-plan',
+          }),
+        }),
+      );
+    },
+  );
   it('does not offer a replacement plan while a prior request is uncertain', () => {
     render(
       <DeferredSubscription

@@ -14,12 +14,12 @@ const input = {
   productId: 'prod_test',
   expectedAmountMinor: 19700,
 };
-function setup() {
+function setup(amountMinor = 19700) {
   const subscription = {
     id: 'subs_test',
     customerId: 'cust_test',
     checkoutId: 'bill_test',
-    amount: 19700,
+    amount: amountMinor,
     status: 'ACTIVE',
     method: 'CARD',
     devMode: true,
@@ -28,10 +28,10 @@ function setup() {
   const checkout = {
     id: 'bill_test',
     customerId: 'cust_test',
-    amount: 19700,
+    amount: amountMinor,
     frequency: 'SUBSCRIPTION',
     status: 'PAID',
-    paidAmount: 19700 as number | null,
+    paidAmount: amountMinor as number | null,
     devMode: true,
     currency: 'BRL',
     items: [{ id: 'prod_test', quantity: 1 }],
@@ -68,6 +68,22 @@ function setup() {
 }
 
 describe('authoritative initial subscription payment evidence', () => {
+  it.each([19700, 39700, 54400, 69100, 83800])(
+    'verifies an exact approved monthly amount of %i cents instead of hardcoding the entry plan',
+    async (amountMinor) => {
+      const { reader, checkout } = setup(amountMinor);
+      const expected = { ...input, expectedAmountMinor: amountMinor };
+      expect(await reader.readInitialPayment(expected)).toMatchObject({
+        state: 'paid',
+        amountMinor,
+        paidAmountMinor: amountMinor,
+      });
+      checkout.paidAmount = amountMinor - 1;
+      await expect(reader.readInitialPayment(expected)).rejects.toMatchObject({
+        code: 'invalid_response',
+      });
+    },
+  );
   it('verifies store, subscription, customer, bill, product, quantity and paid amount', async () => {
     const { reader, fetcher } = setup();
     const result = await reader.readInitialPayment(input);

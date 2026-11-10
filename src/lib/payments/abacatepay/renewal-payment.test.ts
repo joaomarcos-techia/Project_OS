@@ -148,6 +148,40 @@ function fixture(options: Options = {}) {
 }
 
 describe('renewal charge readback (no billing-period assertion or access grant)', () => {
+  it.each([39700, 54400, 69100, 83800])(
+    'requires matching product, subscription, checkout and card receipt for %i cents',
+    async (amountMinor) => {
+      const options: Options = {
+        product: { price: amountMinor },
+        subscription: { amount: amountMinor },
+        checkout: { amount: amountMinor, paidAmount: amountMinor },
+        statements: [
+          statement({
+            movements: [
+              {
+                amount: amountMinor,
+                kind: 'CARD_APPROVED',
+                method: 'CARD',
+                category: 'transaction',
+                balanceEffect: 'none',
+              },
+            ],
+          }),
+        ],
+      };
+      const expected = { ...input, expectedAmountMinor: amountMinor };
+      const { reader } = fixture(options);
+      expect(await reader.readRenewalPayment(expected)).toMatchObject({
+        state: 'paid',
+        evidence: { amountMinor, paidAmountMinor: amountMinor },
+      });
+      const partial = fixture({
+        ...options,
+        checkout: { amount: amountMinor, paidAmount: amountMinor - 1 },
+      });
+      expect(await partial.reader.readRenewalPayment(expected)).toEqual({ state: 'review' });
+    },
+  );
   it('REN-001 separates the original subscription checkout from the cycle checkout and exact payment', async () => {
     const { reader, calls } = fixture();
     const result = await reader.readRenewalPayment(input);

@@ -487,3 +487,25 @@ A primeira execução foi `BLOCKED` em `sandbox_store` por erro de socket em um 
 Com o pagamento conciliado, o commit local `e8a97ab3` de timestamps e esta evidência podem seguir para o PR draft #53. Os **61/61 testes dirigidos**, TypeScript, lint e formato da correção continuam aplicáveis ao código inalterado; a CI própria do novo HEAD será registrada no corpo do PR, com os dois SKIP de Turnstile explicitados. Nenhuma publicação financeira em Production, merge, alteração de contrato Asaas, nova cobrança ou mensagem externa foi realizada.
 
 **Restante para go-live:** garantia/controle suficiente da URL reutilizável e da recuperação de renovação sem evento; prova operacional de alerta e superadmin/MFA; tratamento explícito dos riscos de renovação/refund/disputa não simuláveis; e implementação/revisão da composição live com cohort autorizado. [Plano final](PLANO-FINAL-GO-LIVE-ABACATEPAY.md). Este PASS fecha a contratação inicial desta fixture, não os gates externos nem o NO-GO financeiro de Production.
+
+Fechamento remoto deste incremento: `49b2df95`, [CI 42828598836 SUCCESS](https://github.com/joaomarcos-techia/Project_OS/actions/runs/42828598836), **6.855/6.855 testes**, cobertura, TypeScript, lint, build Next, arquitetura, migrations, isolamento e segurança. E2E público **8 PASS / 2 SKIP** por ausência de chaves Turnstile no build isolado. O incremento seguinte de matriz tem sua própria CI registrada no PR; este resultado não deve ser apresentado como aprovação de testes ainda não publicados.
+
+## 34. Matriz de médicos e valores solicitada pelo founder — 10/11/2026
+
+O founder perguntou sobre testar diferentes quantidades de médicos. **Regra efetiva na candidata AbacatePay:** o cadastro inicial aceita Consultório ou Clínica com 2 médicos; médicos adicionais são uma alteração da assinatura existente, válida apenas na **próxima renovação integralmente paga**, conforme ADR-068. Não foi implementada seleção de 3–5 médicos no primeiro checkout, nem compra imediata com pró-rata. Isso seria outra mudança de jornada, que não deve ser confundida com os testes desta regra aprovada.
+
+| Plano/cota | Mensalidade comprovada no catálogo | Administrativo |
+|---|---|---|
+| Consultório, 1 médico | R$ 197 | Até 3 acessos incluídos |
+| Clínica, 2 médicos | R$ 397 | Até 3 acessos incluídos |
+| Clínica, 3 médicos | R$ 544 | Até 3 acessos incluídos |
+| Clínica, 4 médicos | R$ 691 | Até 3 acessos incluídos |
+| Clínica, 5 médicos | R$ 838 | Até 3 acessos incluídos |
+
+**Implementação deste incremento:** somente testes, fixtures locais e documentação. Estendida a prova existente `scripts/security/abacatepay-renewal-db.ts` para todas as variantes de 3–5 médicos, sem novo framework, dependência, migration ou alteração de runtime. A fixture conserva o preço do checkout original após o upgrade; o valor da assinatura subsequente varia separadamente, como no fluxo real.
+
+**PASS 85/85 verificações PostgreSQL**, 143 migrations reais, 349 chamadas HTTP sintéticas e **zero rede externa**. São **19 casos novos** sobre os 66 existentes: para cada quantidade, preço exato, 8 pedidos concorrentes/um comando, nenhuma vaga antecipada, 8 aplicações do mesmo pagamento/uma invoice, owner com CRM contado como médico, ocupação exata da cota, próximo médico recusado, 3 administrativos incluídos/quarto recusado, downgrade recusado com excesso e liberado após ajuste/pagamento correspondente. Em cada variante, valor antigo, pagamento parcial, valor pago maior, produto diferente e pagamento antecipado não liberam a cota. Plano desconhecido, legado ou já contratado não gera comando. Os dois primeiros ensaios novos falharam na preparação: CRM fictício repetido e expectativa sobre qual trigger de cota deveria recusar. Foram corrigidas as fixtures/expectativas específicas; os controles do produto e as asserções de bloqueio permaneceram.
+
+**PASS 168/168 testes dirigidos em 6 arquivos**, incluindo **14 novos** de UI, fronteira HTTP e leitores inicial/recorrente. Verificam preço inteiro e pagamento exato em todas as variantes, recusa de parâmetros financeiros/quantidade enviados pelo navegador e deduplicação do botão. TypeScript, lint e Prettier passaram. A inspeção autenticada de leitura da fixture paga no Preview `ea45fb8e` mostrou as opções R$ 197/544/691/838 para troca do plano atual de R$ 397; **zero POST financeiro**, convite ou nova assinatura. Não representa execução externa de `change-plan`.
+
+[Evidência sanitizada, nomes dos 19 casos, contagens e hashes](evidencias/checkout-variantes-20261110.json). A prova externa nova continua sendo o pagamento inicial da seção 33. As renovações dos planos maiores foram simuladas localmente com relógio explícito da aplicação; não houve nova cobrança Sandbox nem observação de passagem temporal. PR #53 segue draft; CI/build do novo HEAD são registrados no corpo do PR após conclusão. NO-GO financeiro de Production e as condições dos contratos existentes permanecem.

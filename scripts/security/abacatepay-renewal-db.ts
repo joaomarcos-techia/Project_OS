@@ -23,7 +23,7 @@ Object.assign(process.env, {
   ABACATEPAY_API_KEY: 'synthetic-loopback-renewal-only',
   ABACATEPAY_SANDBOX_PROBE_PRODUCT_ID: 'prod_probe',
   ABACATEPAY_SANDBOX_PLAN_PRODUCTS:
-    '{"clinica_2026_2":"prod_synthetic","clinica_2026_3":"prod_three","consultorio_2026":"prod_one"}',
+    '{"clinica_2026_2":"prod_synthetic","clinica_2026_3":"prod_three","clinica_2026_4":"prod_four","clinica_2026_5":"prod_five","consultorio_2026":"prod_one"}',
   ABACATEPAY_WEBHOOK_SECRET: 'synthetic-renewal-webhook-secret-32-characters',
   APP_BASE_URL: 'https://qoro.example',
   LOGIN_HASH_PEPPER: 'synthetic-renewal-local-hash-pepper-only',
@@ -322,7 +322,11 @@ function installHttpFixture(
   };
 }
 let planPosts = 0;
-function installPlanHttpFixture(f: Fixture, loseResponse = false) {
+function installPlanHttpFixture(
+  f: Fixture,
+  loseResponse = false,
+  currentAmountMinor = f.evidence.amountMinor,
+) {
   globalThis.fetch = async (target, init) => {
     fixtureHttpCalls++;
     const url = new URL(String(target));
@@ -332,6 +336,8 @@ function installPlanHttpFixture(f: Fixture, loseResponse = false) {
       prod_synthetic: 39700,
       prod_one: 19700,
       prod_three: 54400,
+      prod_four: 69100,
+      prod_five: 83800,
     };
     let data: unknown;
     if (url.pathname.endsWith('/stores/get')) data = { id: account.accountId };
@@ -350,7 +356,7 @@ function installPlanHttpFixture(f: Fixture, loseResponse = false) {
         id: f.evidence.subscriptionId,
         checkoutId: f.evidence.originCheckoutId,
         customerId: f.evidence.customerId,
-        amount: f.evidence.amountMinor,
+        amount: currentAmountMinor,
         status: 'ACTIVE',
         method: 'CARD',
         devMode: true,
@@ -429,7 +435,7 @@ function notification(f: Fixture) {
 }
 let failure: unknown;
 try {
-  await sql`UPDATE public.plans SET ativo=true WHERE code IN ('clinica_2026_2','clinica_2026_3','consultorio_2026')`;
+  await sql`UPDATE public.plans SET ativo=true WHERE code IN ('clinica_2026_2','clinica_2026_3','clinica_2026_4','clinica_2026_5','consultorio_2026')`;
   const first = await seed();
   await accept(first);
   await check(
@@ -1854,6 +1860,230 @@ try {
       assert.ok(operations.quarantined.some((row) => row.event_id === eventId));
       assert.ok(!operations.reviews.some((row) => row.event_id === eventId));
       assert.ok(operations.backlog.reviews > 0);
+    },
+  );
+  for (const [doctors, code, amountMinor, productId] of [
+    [3, 'clinica_2026_3', 54400, 'prod_three'],
+    [4, 'clinica_2026_4', 69100, 'prod_four'],
+    [5, 'clinica_2026_5', 83800, 'prod_five'],
+  ] as const) {
+    await check(
+      `MATRIX-${doctors} exact catalog amount, concurrent upgrade, paid quota and downgrade`,
+      async () => {
+        const f = await seed(86_400_000),
+          targetPlanId = await targetPlan(code);
+        const [catalog] = await sql`SELECT pr.amount::text,l.doctors,l.staff FROM public.prices pr
+          JOIN public.plan_seat_limits l ON l.plan_id=pr.plan_id
+          WHERE pr.plan_id=${targetPlanId}::uuid AND pr.billing_cycle='monthly' AND pr.campaign_code IS NULL`;
+        assert.deepEqual(catalog, { amount: `${amountMinor / 100}.00`, doctors, staff: 3 });
+        // An owner with CRM consumes one doctor seat, not an administrative seat.
+        await sql`UPDATE public.profiles SET crm='SYNTHETIC-OWNER' WHERE id=${f.userId}::uuid`;
+        const doctorIds: string[] = [];
+        for (let index = 0; index < doctors; index++) {
+          const id = randomUUID();
+          await sql`INSERT INTO auth.users(id,email,created_at) VALUES(${id}::uuid,${`${id}@example.invalid`},now())`;
+          await sql`INSERT INTO public.profiles(id,clinic_id,nome,role,crm,ativo)
+            VALUES(${id}::uuid,${f.clinicId}::uuid,'Synthetic matrix doctor','doctor',${`SYNTHETIC-${index}`},${index === 0})`;
+          doctorIds.push(id);
+        }
+        const thirdDoctor = doctorIds[1];
+        assert.ok(thirdDoctor);
+        installPlanHttpFixture(f);
+        const beforePosts = planPosts,
+          before = await projection(f),
+          financial = await state(f);
+        const request = () =>
+          changePlan(dbAdmin, {
+            clinicId: f.clinicId,
+            requestedBy: f.userId,
+            contractId: f.subscription_id,
+            targetPlanId,
+          });
+        const requests = await Promise.allSettled(Array.from({ length: 8 }, request));
+        assert.ok(requests.some((result) => result.status === 'fulfilled'));
+        await request();
+        assert.equal(planPosts - beforePosts, 1);
+        assert.deepEqual(await projection(f), before);
+        assert.deepEqual(await state(f), financial);
+        await assert.rejects(
+          sql`UPDATE public.profiles SET ativo=true WHERE id=${thirdDoctor}::uuid`,
+          {
+            code: '23514',
+            constraint_name: 'offer_2026_seat_limit',
+          },
+        );
+        const evidence = changedEvidence(f, amountMinor, productId);
+        await accept(f, f.eventId, evidence);
+        const outcomes = await Promise.all(
+          Array.from({ length: 8 }, () =>
+            dbAdmin.transaction((tx) =>
+              applyAbacatePayRenewalTx(tx, evidence, f.eventId, new Date(f.end.getTime() + 2000)),
+            ),
+          ),
+        );
+        assert.equal(outcomes.filter((result) => result === 'applied').length, 1);
+        assert.equal(outcomes.filter((result) => result === 'duplicate').length, 7);
+        assert.equal((await projection(f)).code, code);
+        const [invoice] = await sql`SELECT i.total_amount::text FROM public.invoices i
+          JOIN billing_gateway.plan_changes c ON c.invoice_id=i.id WHERE c.subscription_id=${f.subscription_id}::uuid`;
+        assert.equal(invoice?.total_amount, `${amountMinor / 100}.00`);
+        assert.equal((await state(f)).invoices, 2);
+        // Fill every newly paid doctor seat; an additional seat remains forbidden.
+        for (const id of doctorIds.slice(1, doctors - 1))
+          await sql`UPDATE public.profiles SET ativo=true WHERE id=${id}::uuid`;
+        const overflow = doctorIds[doctors - 1];
+        assert.ok(overflow);
+        await assert.rejects(
+          sql`UPDATE public.profiles SET ativo=true WHERE id=${overflow}::uuid`,
+          {
+            code: '23514',
+            constraint_name: 'offer_2026_seat_limit',
+          },
+        );
+        const [count] =
+          await sql`SELECT count(*)::int n FROM public.profiles WHERE clinic_id=${f.clinicId}::uuid
+          AND ativo AND (role='doctor' OR (role IN ('owner','gestor') AND nullif(btrim(crm),'') IS NOT NULL))`;
+        assert.equal(count?.n, doctors);
+        // Administrative seats stay at three; paying for doctors does not buy staff logins.
+        for (let index = 0; index < 4; index++) {
+          const id = randomUUID();
+          await sql`INSERT INTO auth.users(id,email,created_at) VALUES(${id}::uuid,${`${id}@example.invalid`},now())`;
+          const insert = () => sql`INSERT INTO public.profiles(id,clinic_id,nome,role,ativo)
+            VALUES(${id}::uuid,${f.clinicId}::uuid,'Synthetic matrix staff','attendant',true)`;
+          if (index < 3) await insert();
+          else
+            await assert.rejects(insert(), {
+              code: '23514',
+              constraint_name: 'offer_2026_seat_limit',
+            });
+        }
+        // The original paid checkout keeps its original price after an upgrade.
+        installPlanHttpFixture(f, false, amountMinor);
+        const basePlanId = await targetPlan('clinica_2026_2');
+        const downgrade = () =>
+          changePlan(dbAdmin, {
+            clinicId: f.clinicId,
+            requestedBy: f.userId,
+            contractId: f.subscription_id,
+            targetPlanId: basePlanId,
+          });
+        await assert.rejects(
+          downgrade(),
+          (error: unknown) =>
+            error instanceof Error &&
+            'code' in error &&
+            error.code === 'downgrade_capacity_exceeded',
+        );
+        for (const id of doctorIds.slice(1, doctors - 1))
+          await sql`UPDATE public.profiles SET ativo=false WHERE id=${id}::uuid`;
+        await downgrade();
+        assert.equal((await projection(f)).code, code);
+        await assert.rejects(
+          sql`UPDATE public.profiles SET ativo=true WHERE id=${thirdDoctor}::uuid`,
+          {
+            code: '23514',
+            constraint_name: 'gateway_pending_seat_limit',
+          },
+        );
+        const next = month(f.end, 1),
+          suffix = randomUUID().replaceAll('-', ''),
+          downEventId = `log_matrix_down_${suffix}`;
+        const downEvidence: Evidence = {
+          ...evidence,
+          amountMinor: 39700,
+          paidAmountMinor: 39700,
+          productId: 'prod_synthetic',
+          paymentId: `char_down_${suffix}`,
+          checkoutId: `bill_down_${suffix}`,
+          statementId: `tran_down_${suffix}`,
+          chargeCreatedAt: next.toISOString(),
+          confirmedAt: new Date(next.getTime() + 1000).toISOString(),
+        };
+        await accept(f, downEventId, downEvidence);
+        assert.equal(
+          await dbAdmin.transaction((tx) =>
+            applyAbacatePayRenewalTx(
+              tx,
+              downEvidence,
+              downEventId,
+              new Date(next.getTime() + 2000),
+            ),
+          ),
+          'applied',
+        );
+        assert.equal((await projection(f)).code, 'clinica_2026_2');
+        assert.equal((await state(f)).invoices, 3);
+      },
+    );
+    for (const mode of ['old_amount', 'partial', 'overpaid', 'wrong_product', 'early'] as const) {
+      await check(`MATRIX-${doctors} ${mode} cannot release a higher quota`, async () => {
+        const f = await seed(86_400_000);
+        installPlanHttpFixture(f);
+        await changePlan(dbAdmin, {
+          clinicId: f.clinicId,
+          requestedBy: f.userId,
+          contractId: f.subscription_id,
+          targetPlanId: await targetPlan(code),
+        });
+        const target = changedEvidence(f, amountMinor, productId);
+        const evidence =
+          mode === 'old_amount'
+            ? f.evidence
+            : mode === 'partial'
+              ? { ...target, paidAmountMinor: amountMinor - 1 }
+              : mode === 'overpaid'
+                ? { ...target, paidAmountMinor: amountMinor + 1 }
+                : mode === 'wrong_product'
+                  ? { ...target, productId: 'prod_unrelated' }
+                  : {
+                      ...target,
+                      chargeCreatedAt: f.anchor.toISOString(),
+                      confirmedAt: new Date(f.anchor.getTime() + 1000).toISOString(),
+                    };
+        const before = await state(f);
+        await accept(f, f.eventId, evidence);
+        assert.notEqual(
+          await dbAdmin.transaction((tx) =>
+            applyAbacatePayRenewalTx(tx, evidence, f.eventId, new Date(f.end.getTime() + 2000)),
+          ),
+          'applied',
+        );
+        const after = await state(f);
+        assert.equal((await projection(f)).code, 'clinica_2026_2');
+        assert.equal(after.current_period_start, before.current_period_start);
+        assert.equal(after.current_period_end, before.current_period_end);
+        const [intent] =
+          await sql`SELECT invoice_id IS NULL pending FROM billing_gateway.plan_changes
+          WHERE subscription_id=${f.subscription_id}::uuid`;
+        assert.equal(intent?.pending, true);
+      });
+    }
+  }
+  await check(
+    'MATRIX unknown, legacy and current plan are refused without provider commands',
+    async () => {
+      const f = await seed(86_400_000);
+      installPlanHttpFixture(f);
+      const before = planPosts;
+      for (const targetPlanId of [
+        randomUUID(),
+        await targetPlan('solo'),
+        await targetPlan('clinica_2026_2'),
+      ])
+        await assert.rejects(
+          changePlan(dbAdmin, {
+            clinicId: f.clinicId,
+            requestedBy: f.userId,
+            contractId: f.subscription_id,
+            targetPlanId,
+          }),
+          (error: unknown) =>
+            error instanceof Error && 'code' in error && error.code === 'not_eligible',
+        );
+      assert.equal(planPosts, before);
+      const [pending] =
+        await sql`SELECT count(*)::int n FROM billing_gateway.plan_changes WHERE subscription_id=${f.subscription_id}::uuid`;
+      assert.equal(pending?.n, 0);
     },
   );
   assert.equal(networkCalls, 0);
