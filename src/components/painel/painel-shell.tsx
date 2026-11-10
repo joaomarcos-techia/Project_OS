@@ -319,7 +319,7 @@ export function PainelShell({
             <span className="qoro-rail-spacer" aria-hidden="true" />
 
             <div className="qoro-rail-foot">
-              <RailAnimated name="pin" size={24} fallback={<PanelLeft aria-hidden="true" />}>
+              <RailAnimated name="pin" size={27} fallback={<PanelLeft aria-hidden="true" />}>
                 {(icon, events) => (
                   <button
                     {...events}
@@ -339,7 +339,7 @@ export function PainelShell({
               <RailAnimated
                 key={themeAnimation}
                 name={themeAnimation}
-                size={24}
+                size={27}
                 fallback={<ThemeIcon aria-hidden="true" />}
               >
                 {(icon, events) => (
@@ -365,7 +365,7 @@ export function PainelShell({
               {/* Logout é mutação: POST de formulário, nunca GET. O mesmo form
                   atende ao item do menu da conta, que vive num portal. */}
               <form id="painel-logout" action="/logout" method="post" hidden />
-              <RailAnimated name="logout" size={24} fallback={<LogOut aria-hidden="true" />}>
+              <RailAnimated name="logout" size={27} fallback={<LogOut aria-hidden="true" />}>
                 {(icon, events) => (
                   <button {...events} type="submit" form="painel-logout" className="qoro-rail-item">
                     {icon}
