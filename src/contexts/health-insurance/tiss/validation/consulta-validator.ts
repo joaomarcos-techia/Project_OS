@@ -11,12 +11,11 @@
  * exigido (Componente Organizacional, item 28).
  */
 import { isValidCpf } from '@/lib/validation/document';
-import { isValidCnpjAlphanumeric } from '@/lib/validation/cnpj-alfanumerico';
 
 import type { ConsultaGuideData } from '../guides/consulta';
 import { isTermEffectiveOn, type TerminologyLookup } from '../terminology/lookup';
 
-import { isRealDate, lengthBetween, type GuideIssue, type IssueOwner } from './common';
+import { isRealDate, isTissCnpj, lengthBetween, type GuideIssue, type IssueOwner } from './common';
 
 export type { GuideIssue, IssueOwner } from './common';
 
@@ -136,7 +135,7 @@ export function validateConsultaGuide(
       'gestor',
     );
   }
-  if (kind === 'cnpjContratado' && !isValidCnpjAlphanumeric(value)) {
+  if (kind === 'cnpjContratado' && !isTissCnpj(value)) {
     add(
       'CONTRACTOR_CNPJ',
       'contratado.value',

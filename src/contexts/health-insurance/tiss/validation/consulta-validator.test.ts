@@ -104,6 +104,12 @@ describe('validateConsultaGuide', () => {
       (d) => (d.contratado = { kind: 'cnpjContratado', value: '12ABC34501DE36', cnes: '9999999' }),
       'CONTRACTOR_CNPJ',
     ],
+    [
+      'CNPJ válido, mas com pontuação e minúsculas (o XML exige a forma canônica)',
+      (d) =>
+        (d.contratado = { kind: 'cnpjContratado', value: '12.abc.345/01de-35', cnes: '9999999' }),
+      'CONTRACTOR_CNPJ',
+    ],
     ['CNES com 8 dígitos', (d) => (d.contratado.cnes = '12345678'), 'CNES_FORMAT'],
     ['CNES vazio', (d) => (d.contratado.cnes = ''), 'CNES_FORMAT'],
     [

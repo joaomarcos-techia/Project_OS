@@ -26,6 +26,7 @@ import { isOnboardingInviteToken } from '@/lib/auth/onboarding-invite-fragment';
 import { createServerClient } from '@/lib/auth/supabase-server';
 import { captureBackgroundError } from '@/lib/observability/capture';
 import { logger } from '@/lib/observability/logger';
+import { CNPJ_INVALID_MESSAGE, parseOptionalCnpj } from '@/lib/validation/cnpj';
 
 export type JoinStepState = { error: string | null; ok?: boolean };
 
@@ -44,7 +45,19 @@ function slugify(nome: string): string {
 
 const ClinicStep = z.object({
   nome: z.string().trim().min(2).max(120),
-  cnpj: z.string().trim().max(20).optional().or(z.literal('')),
+  // Mesma regra do perfil da clínica (VAL-001/R16): valida e grava a forma
+  // canônica, para o `cnpj_hash` representar o documento e não a grafia.
+  cnpj: z
+    .string()
+    .trim()
+    .max(20)
+    .optional()
+    .or(z.literal(''))
+    .refine((value) => parseOptionalCnpj(value).ok, { message: CNPJ_INVALID_MESSAGE })
+    .transform((value) => {
+      const parsed = parseOptionalCnpj(value);
+      return parsed.ok ? (parsed.value ?? undefined) : undefined;
+    }),
   telefone: z.string().trim().max(20).optional().or(z.literal('')),
   email: z.string().trim().max(160).optional().or(z.literal('')),
   endereco: z.string().trim().max(240).optional().or(z.literal('')),
@@ -78,7 +91,11 @@ export async function saveStepAction(
   let merged = current;
   if (step === 'clinic') {
     const p = ClinicStep.safeParse(Object.fromEntries(formData));
-    if (!p.success) return { error: 'Verifique os dados da clínica (nome obrigatório).' };
+    if (!p.success) {
+      return p.error.issues.some((issue) => issue.path[0] === 'cnpj')
+        ? { error: CNPJ_INVALID_MESSAGE }
+        : { error: 'Verifique os dados da clínica (nome obrigatório).' };
+    }
     merged = advanceStep(
       {
         ...current,
@@ -158,7 +175,12 @@ export async function submitCheckoutAction(
   const billingHolderName = String(formData.get('billingHolderName') ?? '').trim();
   const billingHolderEmail = String(formData.get('billingHolderEmail') ?? '').trim();
   const billingHolderPhone = onlyDigits(formData.get('billingHolderPhone'));
-  const cpfCnpj = onlyDigits(formData.get('billingHolderCpfCnpj'));
+  const rawHolderDocument = String(formData.get('billingHolderCpfCnpj') ?? '');
+  // Letras não são descartadas: um CNPJ alfanumérico sem as letras pode virar os
+  // 11 dígitos de um CPF de outra pessoa. O gateway ainda não documenta aceitar
+  // CNPJ alfanumérico, então ele é recusado aqui (R16).
+  const holderDocumentHasLetters = /[A-Za-z]/u.test(rawHolderDocument);
+  const cpfCnpj = onlyDigits(rawHolderDocument);
   const cep = onlyDigits(formData.get('cep'));
   const addressNumber = String(formData.get('addressNumber') ?? '').trim();
   const password = String(formData.get('password') ?? '');
@@ -177,6 +199,7 @@ export async function submitCheckoutAction(
     !exp ||
     cvv.length < 3 ||
     cvv.length > 4 ||
+    holderDocumentHasLetters ||
     (cpfCnpj.length !== 11 && cpfCnpj.length !== 14) ||
     cep.length !== 8 ||
     addressNumber.length < 1 ||

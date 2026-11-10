@@ -11,7 +11,6 @@
  * para o faturamento (D17).
  */
 import { isValidCpf } from '@/lib/validation/document';
-import { isValidCnpjAlphanumeric } from '@/lib/validation/cnpj-alfanumerico';
 
 import {
   sadtItemTotalCents,
@@ -27,6 +26,7 @@ import {
   hasNonLatin1,
   isRealDate,
   isRealTime,
+  isTissCnpj,
   lengthBetween,
   type GuideIssue,
 } from './common';
@@ -261,7 +261,7 @@ export function validateSpSadtGuide(
       'recepcao',
     );
   }
-  if (req.contratado.kind === 'cnpjContratado' && !isValidCnpjAlphanumeric(req.contratado.value)) {
+  if (req.contratado.kind === 'cnpjContratado' && !isTissCnpj(req.contratado.value)) {
     c.add(
       'REQUESTER_CNPJ',
       'solicitante.contratado.value',
@@ -367,7 +367,7 @@ export function validateSpSadtGuide(
       'gestor',
     );
   }
-  if (ex.contratado.kind === 'cnpjContratado' && !isValidCnpjAlphanumeric(ex.contratado.value)) {
+  if (ex.contratado.kind === 'cnpjContratado' && !isTissCnpj(ex.contratado.value)) {
     c.add('CONTRACTOR_CNPJ', 'executante.contratado.value', 'CNPJ da clínica inválido.', 'gestor');
   }
   if (!/^\d{7}$/u.test(ex.cnes)) {

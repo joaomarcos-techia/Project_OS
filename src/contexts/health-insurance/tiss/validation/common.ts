@@ -1,6 +1,8 @@
 /**
  * Peças comuns dos validadores de guia TISS.
  */
+import { isValidCnpj } from '@/lib/validation/cnpj';
+
 import type { TerminologyLookup } from '../terminology/lookup';
 
 /** Quem normalmente resolve a pendência. `medico` só para dado clínico que só ele pode informar. */
@@ -51,3 +53,13 @@ export function hasNonLatin1(value: string | null | undefined): boolean {
 
 /** Maior valor representável em `st_decimal10-2` (8 inteiros + 2 decimais), em centavos. */
 export const TISS_MAX_MONEY_CENTS = 9_999_999_999;
+
+/**
+ * CNPJ como o XML exige (`st_CNPJ`): 14 caracteres já canônicos, sem pontuação
+ * e em maiúsculas, com os dígitos verificadores corretos (numérico ou
+ * alfanumérico). Mais estrito que o cadastro: aqui não se normaliza, porque o
+ * valor vai literalmente para o arquivo.
+ */
+export function isTissCnpj(value: string | null | undefined): boolean {
+  return value != null && /^[A-Z0-9]{12}[0-9]{2}$/u.test(value) && isValidCnpj(value);
+}
