@@ -20,23 +20,27 @@ describe('estado ativo da navegação lateral', () => {
     expect(screen.getByRole('link').getAttribute('aria-current')).toBe('page');
   });
 
-  it('não distingue o ativo só por cor — usa peso junto', () => {
-    // 1.4.1: cor sozinha nao pode carregar a informacao. O ativo perdeu o fundo
-    // azul para seguir a referencia, entao o peso passou a ser o segundo sinal.
+  it('não distingue o ativo só por cor — peso e barra lateral junto', () => {
+    // 1.4.1: cor sozinha nao pode carregar a informacao. Como no menu da
+    // clinica, o ativo e uma peca elevada com peso maior e uma barra a esquerda.
     render(<SideNavLink href="/pacientes" active icon={icon} label="Pacientes" />);
-    expect(screen.getByRole('link').className).toContain('font-medium');
+    const cls = screen.getByRole('link').className;
+    expect(cls).toContain('font-semibold');
+    expect(cls).toContain('before:bg-(--primary)');
+    expect(cls).toContain('bg-(--card)');
   });
 
-  it('não pinta fundo no ativo: a referência distingue por contraste', () => {
+  it('não usa a pílula azul antiga no ativo', () => {
     render(<SideNavLink href="/pacientes" active icon={icon} label="Pacientes" />);
     expect(screen.getByRole('link').className).not.toContain('--primary-soft');
   });
 
-  it('reserva o fundo para o hover, que é transitório', () => {
+  it('o item comum só ganha fundo no hover, que é transitório', () => {
     render(<SideNavLink href="/agenda" active={false} icon={icon} label="Agenda" />);
     const cls = screen.getByRole('link').className;
-    expect(cls).toContain('hover:bg-surface-hover');
-    expect(cls).toContain('text-fg-muted');
+    expect(cls).toContain('hover:bg-(--rail-hover)');
+    expect(cls).not.toContain('bg-(--card)');
+    expect(cls).not.toContain('font-semibold');
   });
 });
 
