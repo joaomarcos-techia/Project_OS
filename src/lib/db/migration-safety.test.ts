@@ -11,9 +11,50 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { scanSql } from '../../../scripts/check-migration-safety';
+import { scanSql, assertMigrationJournalOrder } from '../../../scripts/check-migration-safety';
 
 const kinds = (sql: string): string[] => scanSql('t.sql', sql).map((f) => f.kind);
+
+describe('migration logical ordering', () => {
+  const first = { idx: 0, when: 10, tag: '0000_initial' };
+  const second = { idx: 1, when: 20, tag: '0001_next' };
+  it('accepts increasing logical versions without interpreting them as an execution clock', () => {
+    expect(() =>
+      assertMigrationJournalOrder({
+        entries: [first, { ...second, when: Date.now() + 86_400_000 }],
+      }),
+    ).not.toThrow();
+  });
+  it.each([9, 10])('rejects regressing or repeated logical version %i', (when) => {
+    expect(() => assertMigrationJournalOrder({ entries: [first, { ...second, when }] })).toThrow(
+      'Migration journal order invalid',
+    );
+  });
+  it('rejects a skipped ordinal even when timestamps increase', () => {
+    expect(() =>
+      assertMigrationJournalOrder({ entries: [first, { ...second, idx: 2 }] }),
+    ).toThrow();
+  });
+  it('rejects a filename prefix that differs from its position', () => {
+    expect(() =>
+      assertMigrationJournalOrder({ entries: [first, { ...second, tag: '0002_next' }] }),
+    ).toThrow();
+  });
+  it.each([
+    undefined,
+    { entries: [] },
+    { entries: [{ ...first, when: '10' }] },
+    { entries: [{ ...first, when: NaN }] },
+  ])('rejects malformed or missing journal metadata', (raw) => {
+    expect(() => assertMigrationJournalOrder(raw)).toThrow();
+  });
+  it('never sorts or changes historical entries to make invalid metadata pass', () => {
+    const raw = { entries: [first, { ...second, when: 9 }] },
+      before = JSON.stringify(raw);
+    expect(() => assertMigrationJournalOrder(raw)).toThrow();
+    expect(JSON.stringify(raw)).toBe(before);
+  });
+});
 
 describe('scanSql — TRUNCATE: privilégio vs comando', () => {
   it('NÃO acusa TRUNCATE como nome de privilégio em REVOKE (o caso da 0040)', () => {

@@ -11,6 +11,12 @@ Reference — procedimento atual. Fonte executável: `scripts/db-migrate-*.ts` e
 3. revise SQL, lock, duração, grants, RLS, rollback e compatibilidade com código anterior;
 4. confirme URL/ambiente sem imprimir credencial.
 
+### Ordem lógica do journal
+
+O Drizzle seleciona migrations pendentes pelo `when` do journal, não apenas pelo prefixo do arquivo. O gate `check:migrations` exige índices/prefixos contíguos e valores `when` estritamente crescentes antes de qualquer aplicação. Um arquivo novo com timestamp menor ou igual ao último aplicado pode ser ignorado pelo migrador; não use uma contagem como prova de aplicação.
+
+O `when` é uma versão lógica, não o horário observado da execução. A 0142 usa `1794326400000` (10/11/2026 16:00 UTC), embora tenha sido aplicada no DEV às 04:36 UTC. **Não regravar esse histórico.** Ao preparar uma migration nova ainda não aplicada, a engenharia deve usar uma versão maior que a anterior (`max(horário atual, versão anterior + 1)`), validar o gate e confrontar o prefixo/journal com o histórico remoto. Esse ajuste vale só para a entrada nova não aplicada; não reescreve migrations anteriores ou o banco. Nenhuma configuração de CI/deploy foi alterada para adicionar essa verificação ao checker existente.
+
 ## Desenvolvimento
 
 ```bash
