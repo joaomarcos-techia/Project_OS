@@ -1108,16 +1108,23 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail {
   outline: none;
 }
 
-/* Telas baixas: itens e títulos encolhem para todos os destinos caberem sem
-   rolagem. Abaixo de 740 px de altura o nome do grupo dá lugar ao traço em
-   qualquer estado; a lista só rola abaixo de ~560 px. */
-@media (min-width: 721px) and (max-height: 820px) {
+/* Telas baixas: itens e títulos encolhem para todos os destinos e o rodapé
+   (Fixar, Tema e Sair, em lista) caberem sem rolagem. Cada degrau cabe inteiro
+   até a altura do degrau seguinte: altura útil = 128 + 15 itens + 4 títulos +
+   conta. Abaixo de 752 px o nome do grupo dá lugar ao traço em qualquer estado;
+   a lista só rola abaixo de ~620 px, com barra visível no menu aberto. */
+@media (min-width: 721px) and (max-height: 895px) {
   body:has([data-qoro-shell='tenant']) {
     --rail-item-h: 36px;
     --rail-heading-h: 22px;
   }
 }
-@media (min-width: 721px) and (max-height: 740px) {
+@media (min-width: 721px) and (max-height: 811px) {
+  body:has([data-qoro-shell='tenant']) {
+    --rail-item-h: 32px;
+  }
+}
+@media (min-width: 721px) and (max-height: 751px) {
   body:has([data-qoro-shell='tenant']) {
     --rail-heading-h: 13px;
   }
@@ -1128,9 +1135,9 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail {
     opacity: 1;
   }
 }
-@media (min-width: 721px) and (max-height: 690px) {
+@media (min-width: 721px) and (max-height: 715px) {
   body:has([data-qoro-shell='tenant']) {
-    --rail-item-h: 32px;
+    --rail-item-h: 30px;
     --rail-heading-h: 10px;
   }
   [data-qoro-shell='tenant'] .qoro-rail-user {
@@ -1138,7 +1145,7 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail {
     margin-top: 0;
   }
 }
-@media (min-width: 721px) and (max-height: 610px) {
+@media (min-width: 721px) and (max-height: 665px) {
   body:has([data-qoro-shell='tenant']) {
     --rail-item-h: 28px;
     --rail-heading-h: 6px;
