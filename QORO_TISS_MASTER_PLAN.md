@@ -41,15 +41,15 @@
 | --- | --- |
 | Data da última atualização | 10/11/2026 |
 | Fase atual | **P0 — Preparação** |
-| Tarefa em andamento | P9.1 (gerador XML: Consulta e lote prontos; SP/SADT, recurso de glosa e solicitação pendentes) |
-| Última tarefa concluída | P7.3 — validador da Guia de Consulta (commit `71dc5b46`) |
-| Progresso | **13 de 109 tarefas concluídas (11,9%)**: P0.1–P0.9, P1.1, P1.2, P7.3 e P14.1. Critério: só conta tarefa com evidência no [Registro](#m-registro-de-execução). Destas 109, **7 dependem de terceiros ou de aprovação humana** (L.2). |
+| Tarefa em andamento | P9.1 (gerador XML: Consulta, SP/SADT e lote prontos; recurso de glosa e solicitação pendentes) e P8.6 (camada interna aprovada; externa pendente) |
+| Última tarefa concluída | P8.3 — validador da SP/SADT (commit `c28b927c`) |
+| Progresso | **16 de 109 tarefas concluídas (14,7%)**: P0.1–P0.9, P1.1, P1.2, P1.3, P7.3, P8.1, P8.3 e P14.1. Critério: só conta tarefa com evidência no [Registro](#m-registro-de-execução). Destas 109, **7 dependem de terceiros ou de aprovação humana** (L.2). |
 | Capacidades em produção | nenhuma (ver A.5) |
 | Testes aprovados | nenhum teste do módulo ainda |
-| Bloqueios ativos | **B9** conexão com o DEV instável em 10/11 (CONNECT_TIMEOUT/ECONNRESET no pooler `us-west-1`): segura P1.3 (carga da terminologia, código pronto em `7378e8c9`). B4, B5, B6, B7 como antes; nenhum bloqueia o trabalho puro (P7, P8, P9). |
+| Bloqueios ativos | B4 (ordem de merge com o PR #53), B5 (operadora e clínica piloto), B6 (retenção legal), B7 (instalar o Validador C). **B9 resolvido**: a carga entrou em 10/11 depois de várias tentativas; o DEV continua lento (R17). |
 | Decisões | D1–D12 aprovadas ou adotadas; D13–D17 novas, adotadas pelo agente dentro do escopo delegado (L.1) |
 | Arquivos alterados | este documento; `docs/adr/067-convenios-e-tiss.md`; `src/contexts/health-insurance/tiss/schemas/**`; `src/contexts/health-insurance/tiss/terminology/**`; `src/lib/xlsx/**`; `scripts/tiss/terminology/**`; `data/tiss/terminologia/202609/**`; `docs/architecture/*` (snapshots regenerados) |
-| Próxima ação exata | Rodar de novo `scripts/tiss/terminology/load.ts` quando o DEV responder (conferir antes com consulta só de leitura). Em paralelo: P8.1–P8.3 (modelo, montador e validador da SP/SADT, puros) e P9.1 para SP/SADT. |
+| Próxima ação exata | **P1.4** (migration 0144: operadoras, planos, perfil TISS, credenciamento e contratos, com RLS por clínica) e em seguida **P1.5–P1.9**; em paralelo, puros: **P8.2** (montador da SP/SADT) e **P7.2** (montador da Consulta). |
 
 ---
 
@@ -907,7 +907,7 @@ Todas dependem de P0.5 e D1–D3. Cada migration segue E.5: numeração, `check:
 | --- | --- | --- | --- | --- | --- | --- |
 | **P1.1** (T1.1) | contexto `health-insurance`: README, `index`/`api`, `schema`, `errors`, `events`, `types`; boundaries | P0.6 | `src/contexts/health-insurance/*`, `eslint.config.mjs`, `docs/architecture/context-map.md` | `arch:check` e `lint` verdes; `internal` bloqueado de fora | gates | **Concluído** (README, `index.ts`, `schema.ts` e agregador `src/lib/db/schema`; `errors`/`events`/`api` nascem com o primeiro uso, sem superfície vazia; mapa de contextos atualizado) |
 | **P1.2** (T1.2) | catálogo global (`tiss_terminology_versions`, `tiss_terms`, `tiss_schema_versions`) | P1.1 | migration 0143*, `schema.ts` | gates; aplicada no DEV; grants só SELECT | migration + grants | **Concluído** (0143 aplicada no DEV, 144 migrations; RLS FORCE nas 3 tabelas; `authenticated` lê e tem INSERT/DELETE recusados com 42501; `anon` recusado) |
-| **P1.3** (T0.7) | carga da terminologia no banco por script idempotente | P1.2, P0.9 | `scripts/tiss/terminology/load.ts` | contagens no DEV iguais ao artefato; reexecução sem duplicar | integração no DEV | **Bloqueado (B9)**: código pronto e revisado (`7378e8c9`); 4 tentativas em 10/11 caíram em conexão; nada persistiu (transação única, conferido) |
+| **P1.3** (T0.7) | carga da terminologia no banco por script idempotente | P1.2, P0.9 | `scripts/tiss/terminology/load.ts` | contagens no DEV iguais ao artefato; reexecução sem duplicar | integração no DEV | **Concluído**: carga no DEV com 61 tabelas e 7.331 termos conferidos no banco, versão TISS 4.03.00 registrada; a reexecução terminou com as mesmas contagens (idempotente). Correção do `sql.json` confirmada no banco |
 | **P1.4** (T1.3) | `hi_clinic_settings`, `hi_counters`, `hi_insurers`, `hi_insurer_credentials`, `hi_plans`, `hi_professional_profiles`, `hi_credentials`, `hi_procedure_contracts`, `hi_contract_imports` | P1.2 | migration 0144* | RLS FORCE; CHECKs (ANS 6 dígitos, valores ≥ 0, vigência coerente); contratos append-only por trigger | migration, isolamento | Pendente |
 | **P1.5** (T1.4) | `hi_memberships` | P1.4 | 0145* | número só cifrado; preferencial único | migration, cifra | Pendente |
 | **P1.6** (T1.5) | `appointments.billing_mode`, `hi_appointment_coverages`, `hi_copayments` | P1.5 | 0146*, `scheduling/schema.ts` | atendimentos existentes `particular`; trigger de snapshot respeitado | migration, trigger | Pendente |
@@ -989,12 +989,12 @@ Os números marcados com `*` são provisórios e devem ser reconferidos (E.5). P
 
 | ID | Objetivo | Dependências | Arquivos | Aceite | Testes | Status |
 | --- | --- | --- | --- | --- | --- | --- |
-| **P8.1** | modelo SP/SADT: itens, solicitante e executante, equipe, autorização, valores, guia principal | P1.8 | `internal/guides/sp-sadt/types.ts` | cobre `ctm_sp-sadtGuia` (B.10.3), sem outras despesas (D13) | tipos + testes | Pendente |
+| **P8.1** | modelo SP/SADT: itens, solicitante e executante, equipe, autorização, valores, guia principal | P1.8 | `internal/guides/sp-sadt/types.ts` | cobre `ctm_sp-sadtGuia` (B.10.3), sem outras despesas (D13) | tipos + testes | **Concluído** (`06377f7a`): modelo e elemento XML na ordem do XSD; valores em centavos com fator e arredondamento testados; 6 XMLs aprovados no XSD oficial |
 | **P8.2** | `GuideAssembler` SP/SADT: a partir de atendimentos, autorização e contrato; **agrupamento de sessões** sob a mesma autorização conforme regra da operadora | P8.1, P6.1, P4.7 | `…/sp-sadt/assembler.ts` | soma dos itens = valor total; sequenciais corretos | unitários | Pendente |
-| **P8.3** | `GuideValidator` SP/SADT (regras da aba `loteGuias` SP/SADT) | P8.2 | `…/sp-sadt/validator.ts` | uma regra por teste | unitários | Pendente |
+| **P8.3** | `GuideValidator` SP/SADT (regras da aba `loteGuias` SP/SADT) | P8.2 | `…/sp-sadt/validator.ts` | uma regra por teste | unitários | **Concluído** (`c28b927c`): 36 regras negativas, positivos com a terminologia real, conferência das quantidades autorizadas e indicação clínica direcionada ao médico |
 | **P8.4** | itens executados adicionais: registro opcional no consultório (só itens de contrato, sem campo clínico) e na conferência | P8.1, P2.3 | consultório e tela da guia | o médico não é obrigado; a recepção completa | componente, e2e | Pendente |
 | **P8.5** | PDF oficial SP/SADT (solicitação e cobrança), conforme o modelo do Conteúdo e Estrutura | P8.2 | `src/lib/pdf/guia-sp-sadt.tsx` | campos e numeração do modelo oficial (mapeamento registrado) | `pdfjs` + captura | Pendente |
-| **P8.6** | XML SP/SADT no builder | P8.2, P9.1 | `tiss/xml-builder` | corpus SP/SADT de P13 aprovado | P13 | Pendente |
+| **P8.6** | XML SP/SADT no builder | P8.2, P9.1 | `tiss/xml-builder` | corpus SP/SADT de P13 aprovado | P13 | **Em execução**: SP/SADT no gerador do lote (`06377f7a`); camada interna (XSD) aprovada; camada externa (P13.3–P13.5) pendente |
 | **P8.7** | automação na conclusão (handler P7.4 com tipo SP/SADT, agrupamento e consumo da autorização) | P8.2, P7.4 | handler | idempotente; consumo correto | E2 SP/SADT | Pendente |
 
 ### P9 — Faturamento, lotes, retornos e glosas
@@ -1697,7 +1697,7 @@ O módulo só é **Pronto para produção** quando todos os itens tiverem evidê
 | B6 | orientação jurídica de retenção de guias e carteirinhas | P12.3 | orientação |
 | B7 | instalar o Validador C (software de terceiros no Windows) | P13.5 | autorização |
 | B8 | aprovação humana de release e ativação | P15.8, P15.9 | fundador |
-| B9 | conexão com o DEV instável (10/11, tarde) | P1.3 e tudo que precisar do banco | conexão estável; repetir a carga |
+| B9 | ~~conexão com o DEV instável (10/11, tarde)~~ **resolvido** | P1.3 | a carga entrou; a lentidão segue registrada em R17 |
 
 B1–B3 da rev.1 foram resolvidos pela diretriz de 10/11 (D1–D8).
 
@@ -1847,3 +1847,30 @@ B1–B3 da rev.1 foram resolvidos pela diretriz de 10/11 (D1–D8).
 - **P7.3:** `validateConsultaGuide` com pendências explicadas por código, campo e responsável; 36 regras negativas e positivos com a terminologia real (`71dc5b46`). Testes do contexto: 149 verdes; `tsc` e `eslint` sem erro.
 - **Achado transversal (R16):** `src/lib/validation/cnpj.ts` só aceita dígitos e recusaria CNPJ alfanumérico válido (IN RFB 2.229, emissão desde jul/2026) em todo o Qoro. Criado `isValidCnpjAlphanumeric` (exemplo oficial `12.ABC.345/01DE-35`); a troca do compartilhado fica para decisão.
 - **Próxima ação:** repetir P1.3 quando o DEV responder; seguir com SP/SADT (P8.1–P8.3, P8.6).
+
+### 10/11/2026 — P1.3, P8.1, P8.3 e SP/SADT no lote
+
+- **P1.3 concluída:**
+  - 5ª tentativa de carga: conectou em 6,3 s; `conferido no banco: 61 tabelas, 7331 termos; versões TISS 4.03.00`; `transação confirmada` em 235,5 s.
+  - 6ª tentativa: caiu com `CONNECTION_CLOSED` e foi desfeita.
+  - 7ª tentativa (reexecução): mesmas contagens, sem duplicar, confirmada em 340,5 s.
+  - A correção do `sql.json` está provada no banco.
+- **P8.1:** modelo e elemento XML da SP/SADT na ordem do XSD (`06377f7a`); 110 testes no núcleo TISS.
+  - **XMLs SP/SADT gerados pelo código real × XSD oficial 4.03.00** (`scratchpad/xmllint-eval/corpus-v1`):
+
+    | Arquivo | SHA-256 (início) | XSD |
+    | --- | --- | --- |
+    | V2a 2 sessões com autorização e equipe | `92be3591…` | **válido** |
+    | V2b sem autorização nem indicação | `42dcdef8…` | **válido** |
+    | V2c itens variados (quantidade, fator 0,70, horários, valor 0) | `60d73f59…` | **válido** |
+    | V2d solicitante externo (`99999999999999`, CBO `999999`) | `66ff826b…` | **válido** |
+    | V2e consulta como SP/SADT (tipo 04) | `c38fcd88…` | **válido** |
+    | V2f lote com 100 guias (378 KB) | `ac34118e…` | **válido** |
+
+- **P8.3:** `validateSpSadtGuide` (`c28b927c`); 84 testes nos dois validadores. Os auxiliares comuns foram para `validation/common.ts`, e o validador da Consulta foi refatorado sem mudar o comportamento (42 testes verdes antes e depois).
+- **Achados das regras oficiais da SP/SADT:**
+  - a indicação clínica é exigida em terapia e pequena cirurgia. Com a D17, vira pendência do **médico**, e o prontuário nunca é copiado;
+  - o solicitante sem código usa `99999999999999`;
+  - o CBO `999999` é aceito só no solicitante;
+  - a equipe por item (`equipeSadt`) leva grau de participação da tabela 35 (`12` = clínico). **[HIPÓTESE]** As operadoras divergem sobre exigir a equipe em sessões. Confirmar na homologação (P15.4) e deixar configurável por operadora (P2.5).
+- **Próxima ação:** P1.4 (migration 0144).
