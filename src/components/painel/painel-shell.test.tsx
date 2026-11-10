@@ -149,6 +149,12 @@ describe('shell tenant das referências HTML', () => {
       expect(screen.getByRole('link', { name })).toBeTruthy();
     }
   });
+  it('mostra "Equipe" no menu e anuncia o nome inteiro da tela', () => {
+    renderShell();
+    const link = screen.getByRole('link', { name: 'Equipe & Permissões' });
+    expect(link.querySelector('.qoro-rail-label')?.textContent).toBe('Equipe');
+    expect(link.getAttribute('href')).toBe('/equipe');
+  });
   it('isola a aparência e preserva acesso ao conteúdo e contagem de handoff', () => {
     const { container } = renderShell();
     expect(container.querySelector('[data-qoro-shell="tenant"]')).toBeTruthy();

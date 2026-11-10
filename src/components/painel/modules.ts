@@ -12,6 +12,11 @@ export interface NavModule {
   id: string;
   icon: string;
   label: string;
+  /**
+   * Nome mais curto só para o menu, quando o inteiro não cabe na pílula aberta
+   * (204 px). O link continua anunciado com `label`.
+   */
+  navLabel?: string;
   group: Group;
   /** rota real quando a tela existe; ausente = "em breve". */
   href?: string;
@@ -89,6 +94,7 @@ export const MODULES: NavModule[] = [
     id: 'equipe',
     icon: 'shield',
     label: 'Equipe & Permissões',
+    navLabel: 'Equipe',
     group: 'Administração',
     href: '/equipe',
     requires: PERMISSIONS.MANAGE_EMPLOYEES,

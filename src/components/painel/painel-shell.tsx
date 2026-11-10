@@ -287,9 +287,12 @@ export function PainelShell({
                                 data-slot="rail-link"
                                 className="qoro-rail-item"
                                 aria-current={isActive(href) ? 'page' : undefined}
+                                // Nome curto no menu, nome inteiro para o leitor de
+                                // tela (o visível está contido nele).
+                                {...(m.navLabel ? { 'aria-label': m.label } : {})}
                               >
                                 {icon}
-                                <span className="qoro-rail-label">{m.label}</span>
+                                <span className="qoro-rail-label">{m.navLabel ?? m.label}</span>
                                 {withCount ? (
                                   <>
                                     {/* Um número só para leitura; o ponto sobre o

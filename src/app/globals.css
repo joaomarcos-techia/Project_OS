@@ -537,6 +537,10 @@ body:has([data-qoro-tokens='app-v5']) {
   --rail-logo: 36px;
   --rail-logo-inset: calc((var(--rail-w) - var(--rail-logo)) / 2);
   --rail-icon-inset: calc((var(--rail-w) - 20px) / 2);
+  /* Cada item é um bloco recuado das bordas: no menu recolhido vira um quadrado
+     de 40 px em volta do ícone; aberto, uma pílula da largura do menu. */
+  --rail-pill-inset: 10px;
+  --rail-pill-radius: 12px;
   --rail-item-h: 40px;
   --rail-heading-h: 28px;
   --rail-peek-w: 216px;
@@ -735,7 +739,8 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail {
     /* Abre 6 px para cada lado: a marca fica à mesma distância do topo e da esquerda. */
     margin: -6px 0 -6px -6px;
     padding: 6px;
-    background: var(--card);
+    /* O mesmo cinza do trilho: o item ativo, branco, se destaca aberto ou não. */
+    background: var(--shell-bg);
     box-shadow: var(--elev-overlay);
   }
 }
@@ -746,10 +751,6 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail {
   html:not([data-qoro-rail='pinned']) [data-qoro-shell='tenant'] .qoro-rail:hover .qoro-rail-inner,
   html:not([data-qoro-rail='pinned']) [data-qoro-shell='tenant'] .qoro-rail:hover .qoro-rail-label,
   html:not([data-qoro-rail='pinned']) [data-qoro-shell='tenant'] .qoro-rail:hover .qoro-rail-dot,
-  html:not([data-qoro-rail='pinned'])
-    [data-qoro-shell='tenant']
-    .qoro-rail:hover
-    .qoro-rail-heading::before,
   html:not([data-qoro-rail='pinned'])
     [data-qoro-shell='tenant']
     .qoro-rail:hover
@@ -844,20 +845,6 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail {
   height: var(--rail-heading-h);
   padding: 0 8px 6px var(--rail-icon-inset);
 }
-[data-qoro-shell='tenant'] .qoro-rail-heading::before {
-  content: '';
-  position: absolute;
-  top: calc(50% - 0.5px);
-  left: calc(var(--rail-w) / 2 - 12px);
-  width: 24px;
-  height: 1px;
-  background: var(--rail-sep);
-  opacity: calc(1 - var(--rail-label-opacity));
-  transition: opacity 0.14s ease;
-}
-[data-qoro-shell='tenant'] .qoro-rail-group:first-child .qoro-rail-heading::before {
-  content: none;
-}
 [data-qoro-shell='tenant'] .qoro-rail-heading-text {
   min-width: 0;
   overflow: hidden;
@@ -877,11 +864,12 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail {
   flex: none;
   align-items: center;
   gap: 12px;
-  width: 100%;
+  width: calc(100% - 2 * var(--rail-pill-inset));
   height: var(--rail-item-h);
-  padding: 0 var(--rail-icon-inset);
+  margin: 0 var(--rail-pill-inset);
+  padding: 0 calc(var(--rail-icon-inset) - var(--rail-pill-inset));
   border: 0;
-  border-radius: var(--btn-radius);
+  border-radius: var(--rail-pill-radius);
   background: transparent;
   color: var(--nav-link-fg);
   font: inherit;
@@ -917,29 +905,15 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail {
   background: var(--rail-hover);
   color: var(--text);
 }
-/* Item ativo: peça branca elevada, texto na cor da marca, peso maior e uma
-   barra à esquerda. Forma, peso e barra dizem "você está aqui" sem depender
-   só da cor. */
+/* Item ativo: bloco branco sobre o cinza do menu, sem borda nem barra, texto
+   escuro e peso maior (referência visual do founder, 10/11). Forma, elevação e
+   peso dizem "você está aqui" sem depender só da cor. */
 [data-qoro-shell='tenant'] .qoro-rail-item[aria-current='page'],
 [data-qoro-shell='tenant'] .qoro-rail-item[aria-current='page']:hover {
   background: var(--card);
-  /* Contorno para dentro: por fora, o limite do menu cortava os lados. */
-  box-shadow:
-    inset 0 0 0 1px var(--border),
-    var(--elev-1);
-  color: var(--text-link);
+  box-shadow: var(--elev-1);
+  color: var(--text);
   font-weight: 600;
-}
-[data-qoro-shell='tenant'] .qoro-rail-item[aria-current='page']::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 0;
-  width: 3px;
-  height: 18px;
-  border-radius: 0 3px 3px 0;
-  background: var(--primary);
-  transform: translateY(-50%);
 }
 [data-qoro-shell='tenant'] .qoro-rail-item[data-pressed='true'] {
   background: var(--rail-pressed);
@@ -1006,7 +980,7 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail {
 [data-qoro-shell='tenant'] .qoro-rail-dot {
   position: absolute;
   top: 4px;
-  left: calc(var(--rail-icon-inset) + 14px);
+  left: calc(var(--rail-icon-inset) - var(--rail-pill-inset) + 14px);
   min-width: 16px;
   height: 16px;
   padding: 0 4px;
@@ -1046,14 +1020,15 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail {
   align-items: center;
   height: 52px;
   margin-top: 4px;
-  border-top: 1px solid var(--rail-sep);
   white-space: nowrap;
 }
 [data-qoro-shell='tenant'] .qoro-rail-user [data-slot='sidebar-user'] {
+  width: calc(100% - 2 * var(--rail-pill-inset));
   min-height: 44px;
   gap: 10px;
-  padding: 0 calc((var(--rail-w) - 32px) / 2);
-  border-radius: var(--btn-radius);
+  margin: 0 var(--rail-pill-inset);
+  padding: 0 calc((var(--rail-w) - 32px) / 2 - var(--rail-pill-inset));
+  border-radius: var(--rail-pill-radius);
 }
 [data-qoro-shell='tenant'] .qoro-rail-user [data-slot='sidebar-user']:hover {
   background: var(--rail-hover);
@@ -1114,7 +1089,7 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail {
 /* Telas baixas: itens e títulos encolhem para todos os destinos e o rodapé
    (Fixar, Tema e Sair, em lista) caberem sem rolagem. Cada degrau cabe inteiro
    até a altura do degrau seguinte: altura útil = 128 + 15 itens + 4 títulos +
-   conta. Abaixo de 752 px o nome do grupo dá lugar ao traço em qualquer estado;
+   conta. Abaixo de 752 px o nome do grupo some e fica só o espaço entre grupos;
    a lista só rola abaixo de ~620 px, com barra visível no menu aberto. */
 @media (min-width: 721px) and (max-height: 895px) {
   body:has([data-qoro-shell='tenant']) {
@@ -1133,9 +1108,6 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail {
   }
   [data-qoro-shell='tenant'] .qoro-rail-heading-text {
     display: none;
-  }
-  [data-qoro-shell='tenant'] .qoro-rail-heading::before {
-    opacity: 1;
   }
 }
 @media (min-width: 721px) and (max-height: 715px) {
@@ -1275,7 +1247,7 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail-nav {
     overflow-y: auto;
     overscroll-behavior: contain;
     border-radius: 0 var(--panel-radius) var(--panel-radius) 0;
-    background: var(--card);
+    background: var(--shell-bg);
     box-shadow: var(--elev-modal);
     animation: qoro-drawer-in 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
   }
@@ -1291,11 +1263,9 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail-nav {
   [data-qoro-shell='tenant'][data-nav-open='true'] .qoro-rail-heading {
     padding-left: 12px;
   }
-  [data-qoro-shell='tenant'][data-nav-open='true'] .qoro-rail-heading::before {
-    content: none;
-  }
   [data-qoro-shell='tenant'][data-nav-open='true'] .qoro-rail-item {
     width: 100%;
+    margin: 0;
     padding: 0 12px;
   }
   [data-qoro-shell='tenant'][data-nav-open='true'] .qoro-rail-dot {
@@ -1317,6 +1287,8 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail-nav {
     display: flex;
   }
   [data-qoro-shell='tenant'][data-nav-open='true'] .qoro-rail-user [data-slot='sidebar-user'] {
+    width: 100%;
+    margin: 0;
     padding: 0 12px;
   }
   [data-qoro-shell='tenant'][data-nav-open='true'] .qoro-rail-close {
