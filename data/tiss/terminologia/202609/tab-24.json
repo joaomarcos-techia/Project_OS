@@ -1,0 +1,1186 @@
+{
+  "standard": "TUSS — Terminologia Unificada da Saúde Suplementar",
+  "version": "202609",
+  "table": "24",
+  "title": "Tabela 24 - Terminologia do código brasileiro de ocupação (CBO)",
+  "source": "TUSS - Demais terminologias - VERSÃO 202609.xlsx",
+  "count": 168,
+  "terms": [
+    {
+      "code": "201115",
+      "term": "Geneticista",
+      "startsOn": "2008-09-26",
+      "endsOn": null,
+      "implantationEndsOn": "2008-09-26"
+    },
+    {
+      "code": "203015",
+      "term": "Pesquisador em biologia de microorganismos e parasitas",
+      "startsOn": "2008-09-26",
+      "endsOn": null,
+      "implantationEndsOn": "2008-09-26"
+    },
+    {
+      "code": "213150",
+      "term": "Físico médico",
+      "startsOn": "2008-09-26",
+      "endsOn": null,
+      "implantationEndsOn": "2008-09-26"
+    },
+    {
+      "code": "221105",
+      "term": "Biólogo",
+      "startsOn": "2008-09-26",
+      "endsOn": null,
+      "implantationEndsOn": "2008-09-26"
+    },
+    {
+      "code": "223204",
+      "term": "Cirurgião dentista - auditor",
+      "startsOn": "2008-09-26",
+      "endsOn": null,
+      "implantationEndsOn": "2008-09-26"
+    },
+    {
+      "code": "223208",
+      "term": "Cirurgião dentista - clínico geral",
+      "startsOn": "2008-09-26",
+      "endsOn": null,
+      "implantationEndsOn": "2008-09-26"
+    },
+    {
+      "code": "223212",
+      "term": "Cirurgião dentista - endodontista",
+      "startsOn": "2008-09-26",
+      "endsOn": null,
+      "implantationEndsOn": "2008-09-26"
+    },
+    {
+      "code": "223216",
+      "term": "Cirurgião dentista - epidemiologista",
+      "startsOn": "2008-09-26",
+      "endsOn": null,
+      "implantationEndsOn": "2008-09-26"
+    },
+    {
+      "code": "223220",
+      "term": "Cirurgião dentista - estomatologista",
+      "startsOn": "2008-09-26",
+      "endsOn": null,
+      "implantationEndsOn": "2008-09-26"
+    },
+    {
+      "code": "223224",
+      "term": "Cirurgião dentista - implantodontista",
+      "startsOn": "2008-09-26",
+      "endsOn": null,
+      "implantationEndsOn": "2008-09-26"
+    },
+    {
+      "code": "223228",
+      "term": "Cirurgião dentista - odontogeriatra",
+      "startsOn": "2008-09-26",
+      "endsOn": null,
+      "implantationEndsOn": "2008-09-26"
+    },
+    {
+      "code": "223232",
+      "term": "Cirurgião dentista - odontologista legal",
+      "startsOn": "2008-09-26",
+      "endsOn": null,
+      "implantationEndsOn": "2008-09-26"
+    },
+    {
+      "code": "223236",
+      "term": "Cirurgião dentista - odontopediatra",
+      "startsOn": "2008-09-26",
+      "endsOn": null,
+      "implantationEndsOn": "2008-09-26"
+    },
+    {
+      "code": "223240",
+      "term": "Cirurgião dentista - ortopedista e ortodontista",
+      "startsOn": "2008-09-26",
+      "endsOn": null,
+      "implantationEndsOn": "2008-09-26"
+    },
+    {
+      "code": "223244",
+      "term": "Cirurgião dentista - patologista bucal",
+      "startsOn": "2008-09-26",
+      "endsOn": null,
+      "implantationEndsOn": "2008-09-26"
+    },
+    {
+      "code": "223248",
+      "term": "Cirurgião dentista - periodontista",
+      "startsOn": "2008-09-26",
+      "endsOn": null,
+      "implantationEndsOn": "2008-09-26"
+    },
+    {
+      "code": "223252",
+      "term": "Cirurgião dentista - protesiólogo bucomaxilofacial",
+      "startsOn": "2008-09-26",
+      "endsOn": null,
+      "implantationEndsOn": "2008-09-26"
+    },
+    {
+      "code": "223256",
+      "term": "Cirurgião dentista - protesista",
+      "startsOn": "2008-09-26",
+      "endsOn": null,
+      "implantationEndsOn": "2008-09-26"
+    },
+    {
+      "code": "223260",
+      "term": "Cirurgião dentista - radiologista",
+      "startsOn": "2008-09-26",
+      "endsOn": null,
+      "implantationEndsOn": "2008-09-26"
+    },
+    {
+      "code": "223264",
+      "term": "Cirurgião dentista - reabilitador oral",
+      "startsOn": "2008-09-26",
+      "endsOn": null,
+      "implantationEndsOn": "2008-09-26"
+    },
+    {
+      "code": "223268",
+      "term": "Cirurgião dentista - traumatologista bucomaxilofacial",
+      "startsOn": "2008-09-26",
+      "endsOn": null,
+      "implantationEndsOn": "2008-09-26"
+    },
+    {
+      "code": "223272",
+      "term": "Cirurgião dentista de saúde coletiva",
+      "startsOn": "2008-09-26",
+      "endsOn": null,
+      "implantationEndsOn": "2008-09-26"
+    },
+    {
+      "code": "223276",
+      "term": "Cirurgião dentista - odontologia do trabalho",
+      "startsOn": "2013-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "223280",
+      "term": "Cirurgião dentista - dentística",
+      "startsOn": "2013-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "223284",
+      "term": "Cirurgião dentista - disfunção temporomandibular e dor orofacial",
+      "startsOn": "2013-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "223288",
+      "term": "Cirurgião dentista - odontologia para pacientes com necessidades especiais",
+      "startsOn": "2013-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "223293",
+      "term": "Cirurgião-dentista da estratégia de saúde da família",
+      "startsOn": "2013-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "223505",
+      "term": "Enfermeiro",
+      "startsOn": "2008-09-26",
+      "endsOn": null,
+      "implantationEndsOn": "2008-09-26"
+    },
+    {
+      "code": "223605",
+      "term": "Fisioterapeuta geral",
+      "startsOn": "2008-09-26",
+      "endsOn": null,
+      "implantationEndsOn": "2008-09-26"
+    },
+    {
+      "code": "223625",
+      "term": "Fisioterapeuta respiratória",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "223630",
+      "term": "Fisioterapeuta neurofuncional",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "223635",
+      "term": "Fisioterapeuta traumato-ortopédica funcional",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "223640",
+      "term": "Fisioterapeuta osteopata",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "223645",
+      "term": "Fisioterapeuta quiropraxista",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "223650",
+      "term": "Fisioterapeuta acupunturista",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "223655",
+      "term": "Fisioterapeuta esportivo",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "223660",
+      "term": "Fisioterapeuta do trabalho",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "223710",
+      "term": "Nutricionista",
+      "startsOn": "2008-09-26",
+      "endsOn": null,
+      "implantationEndsOn": "2008-09-26"
+    },
+    {
+      "code": "223810",
+      "term": "Fonoaudiólogo",
+      "startsOn": "2008-09-26",
+      "endsOn": null,
+      "implantationEndsOn": "2008-09-26"
+    },
+    {
+      "code": "223905",
+      "term": "Terapeuta ocupacional",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "223910",
+      "term": "Ortoptista",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225103",
+      "term": "Médico infectologista",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225105",
+      "term": "Médico acupunturista",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225106",
+      "term": "Médico legista",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225109",
+      "term": "Médico Nefrologista",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225110",
+      "term": "Médico alergista e imunologista",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225112",
+      "term": "Médico neurologista",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225115",
+      "term": "Médico angiologista",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225118",
+      "term": "Médico nutrologista",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225120",
+      "term": "Médico cardiologista",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225121",
+      "term": "Médico oncologista clínico",
+      "startsOn": "2013-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225122",
+      "term": "Médico cancerologista pediátrico",
+      "startsOn": "2013-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225124",
+      "term": "Médico pediatra",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225125",
+      "term": "Médico clínico",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225127",
+      "term": "Médico pneumologista",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225130",
+      "term": "Médico de família e comunidade",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225133",
+      "term": "Médico psiquiatra",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225135",
+      "term": "Médico dermatologista",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225136",
+      "term": "Médico reumatologista",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225139",
+      "term": "Médico sanitarista",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225140",
+      "term": "Médico do trabalho",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225142",
+      "term": "Médico da estratégia de saúde da família",
+      "startsOn": "2013-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225145",
+      "term": "Médico em medicina de tráfego",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225148",
+      "term": "Médico anatomopatologista",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225150",
+      "term": "Médico em medicina intensiva",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225151",
+      "term": "Médico anestesiologista",
+      "startsOn": "2013-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225155",
+      "term": "Médico endocrinologista e metabologista",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225160",
+      "term": "Médico fisiatra",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225165",
+      "term": "Médico gastroenterologista",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225170",
+      "term": "Médico generalista",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225175",
+      "term": "Médico geneticista",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225180",
+      "term": "Médico geriatra",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225185",
+      "term": "Médico Hematologista",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225195",
+      "term": "Médico Homeopata",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225203",
+      "term": "Médico em cirurgia vascular",
+      "startsOn": "2013-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225210",
+      "term": "Médico cirurgião cardiovascular",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225215",
+      "term": "Médico cirurgião de cabeça e pescoço",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225220",
+      "term": "Médico cirurgião do aparelho digestivo",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225225",
+      "term": "Médico cirurgião geral",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225230",
+      "term": "Médico cirurgião pediátrico",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225235",
+      "term": "Médico cirurgião plástico",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225240",
+      "term": "Médico cirurgião torácico",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225250",
+      "term": "Médico ginecologista e obstetra",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225255",
+      "term": "Médico Mastologista",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225260",
+      "term": "Médico neurocirurgião",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225265",
+      "term": "Médico oftalmologista",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225270",
+      "term": "Médico ortopedista e traumatologista",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225275",
+      "term": "Médico otorrinolaringologista",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225280",
+      "term": "Médico proctologista",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225285",
+      "term": "Médico urologista",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225290",
+      "term": "Médico cancerologista cirúrgico",
+      "startsOn": "2013-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225295",
+      "term": "Médico cirurgião da mão",
+      "startsOn": "2013-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225305",
+      "term": "Médico citopatologista",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225310",
+      "term": "Médico em endoscopia",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225315",
+      "term": "Médico em medicina nuclear",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225320",
+      "term": "Médico em radiologia e diagnóstico por imagem",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225325",
+      "term": "Médico patologista",
+      "startsOn": "2013-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225330",
+      "term": "Médico radioterapeuta",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225335",
+      "term": "Médico patologista clínico / medicina laboratorial",
+      "startsOn": "2013-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225340",
+      "term": "Médico hemoterapeuta",
+      "startsOn": "2013-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225345",
+      "term": "Médico hiperbarista",
+      "startsOn": "2013-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "225350",
+      "term": "Médico neurofisiologista",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "239425",
+      "term": "Psicopedagogo",
+      "startsOn": "2008-09-26",
+      "endsOn": null,
+      "implantationEndsOn": "2008-09-26"
+    },
+    {
+      "code": "251510",
+      "term": "Psicólogo clínico",
+      "startsOn": "2008-09-26",
+      "endsOn": null,
+      "implantationEndsOn": "2008-09-26"
+    },
+    {
+      "code": "251545",
+      "term": "Neuropsicólogo",
+      "startsOn": "2008-09-26",
+      "endsOn": null,
+      "implantationEndsOn": "2008-09-26"
+    },
+    {
+      "code": "251550",
+      "term": "Psicanalista",
+      "startsOn": "2008-09-26",
+      "endsOn": null,
+      "implantationEndsOn": "2008-09-26"
+    },
+    {
+      "code": "251605",
+      "term": "Assistente social",
+      "startsOn": "2008-09-26",
+      "endsOn": null,
+      "implantationEndsOn": "2008-09-26"
+    },
+    {
+      "code": "322205",
+      "term": "Técnico de enfermagem",
+      "startsOn": "2008-09-26",
+      "endsOn": null,
+      "implantationEndsOn": "2008-09-26"
+    },
+    {
+      "code": "322220",
+      "term": "Técnico de enfermagem psiquiátrica",
+      "startsOn": "2008-09-26",
+      "endsOn": null,
+      "implantationEndsOn": "2008-09-26"
+    },
+    {
+      "code": "322225",
+      "term": "Instrumentador cirúrgico",
+      "startsOn": "2008-09-26",
+      "endsOn": null,
+      "implantationEndsOn": "2008-09-26"
+    },
+    {
+      "code": "322230",
+      "term": "Auxiliar de enfermagem",
+      "startsOn": "2008-09-26",
+      "endsOn": null,
+      "implantationEndsOn": "2008-09-26"
+    },
+    {
+      "code": "516210",
+      "term": "Cuidador de idosos",
+      "startsOn": "2008-09-26",
+      "endsOn": null,
+      "implantationEndsOn": "2008-09-26"
+    },
+    {
+      "code": "223435",
+      "term": "Farmacêutico industrial",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "223430",
+      "term": "Farmacêutico em saúde pública",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "223415",
+      "term": "Farmacêutico analista clínico",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "223405",
+      "term": "Farmacêutico",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "223420",
+      "term": "Farmacêutico de alimentos",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "223440",
+      "term": "Farmacêutico toxicologista",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "223445",
+      "term": "Farmacêutico hospitalar e clínico",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "223425",
+      "term": "Farmacêutico práticas integrativas e complementares",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "223565",
+      "term": "Enfermeiro da estratégia de saúde da família",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "223560",
+      "term": "Enfermeiro sanitarista",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "223555",
+      "term": "Enfermeiro puericultor e pediátrico",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "223550",
+      "term": "Enfermeiro psiquiátrico",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "223545",
+      "term": "Enfermeiro obstétrico",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "223540",
+      "term": "Enfermeiro neonatologista",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "223535",
+      "term": "Enfermeiro nefrologista",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "223530",
+      "term": "Enfermeiro do trabalho",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "223525",
+      "term": "Enfermeiro de terapia intensiva",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "223520",
+      "term": "Enfermeiro de centro cirúrgico",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "223515",
+      "term": "Enfermeiro de bordo",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "223510",
+      "term": "Enfermeiro auditor",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "223570",
+      "term": "Perfusionista",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "223705",
+      "term": "Dietista",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "223845",
+      "term": "Fonoaudiólogo em voz",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "223830",
+      "term": "Fonoaudiólogo em linguagem",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "223825",
+      "term": "Fonoaudiólogo em disfagia",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "223835",
+      "term": "Fonoaudiólogo em motricidade orofacial",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "223840",
+      "term": "Fonoaudiólogo em saúde coletiva",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "223820",
+      "term": "Fonoaudiólogo em audiologia",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "223815",
+      "term": "Fonoaudiólogo educacional",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "225154",
+      "term": "Médico antroposófico",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "999999",
+      "term": "CBO do prestador solicitante desconhecido ou não informado",
+      "startsOn": "2019-03-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "221205",
+      "term": "Biomédico",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "224105",
+      "term": "Avaliador físico",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "224110",
+      "term": "Ludomotricista",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "224115",
+      "term": "Preparador de atleta",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "224120",
+      "term": "Preparador físico",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "224125",
+      "term": "Técnico de desporto individual e coletivo (exceto futebol)",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "224130",
+      "term": "Técnico de laboratório e fiscalização desportiva",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "224135",
+      "term": "Treinador profissional de futebol",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "226305",
+      "term": "Musicoterapeuta",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "225355",
+      "term": "Médico radiologista intervencionista",
+      "startsOn": "2021-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "239440",
+      "term": "Neuropsicopedagogo clinico",
+      "startsOn": "2021-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "239445",
+      "term": "Neuropsicopedagogo institucional",
+      "startsOn": "2021-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "251555",
+      "term": "Psicólogo acupunturista",
+      "startsOn": "2021-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "223915",
+      "term": "Psicomotricista",
+      "startsOn": "2021-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "226310",
+      "term": "Arteterapeuta",
+      "startsOn": "2021-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "226315",
+      "term": "Equoterapeuta",
+      "startsOn": "2021-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "322120",
+      "term": "Massoterapeuta",
+      "startsOn": "2021-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "322125",
+      "term": "Terapeuta holístico",
+      "startsOn": "2021-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "224140",
+      "term": "Profissional de educação física na saúde",
+      "startsOn": "2021-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "131220",
+      "term": "Gerontólogo",
+      "startsOn": "2021-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "226105",
+      "term": "Quiropraxista",
+      "startsOn": "2021-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "226110",
+      "term": "Osteopata",
+      "startsOn": "2021-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "226320",
+      "term": "Naturólogo",
+      "startsOn": "2021-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "322135",
+      "term": "Doula",
+      "startsOn": "2021-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "223575",
+      "term": "Obstetriz",
+      "startsOn": "2025-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2025-11-30"
+    }
+  ]
+}

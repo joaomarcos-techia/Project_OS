@@ -1,0 +1,38 @@
+{
+  "standard": "TUSS — Terminologia Unificada da Saúde Suplementar",
+  "version": "202609",
+  "table": "58",
+  "title": "Tabela 58 - Terminologia de tipo de quimioterapia",
+  "source": "TUSS - Demais terminologias - VERSÃO 202609.xlsx",
+  "count": 4,
+  "terms": [
+    {
+      "code": "1",
+      "term": "1a linha",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "2",
+      "term": "2a linha",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "3",
+      "term": "3a linha",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "4",
+      "term": "Outras linhas",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    }
+  ]
+}

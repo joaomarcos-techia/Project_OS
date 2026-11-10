@@ -1,0 +1,108 @@
+{
+  "standard": "TUSS — Terminologia Unificada da Saúde Suplementar",
+  "version": "202609",
+  "table": "35",
+  "title": "Tabela 35 - Terminologia de grau de participação",
+  "source": "TUSS - Demais terminologias - VERSÃO 202609.xlsx",
+  "count": 14,
+  "terms": [
+    {
+      "code": "00",
+      "term": "Cirurgião",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "01",
+      "term": "Primeiro Auxiliar",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "02",
+      "term": "Segundo Auxiliar",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "03",
+      "term": "Terceiro Auxiliar",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "04",
+      "term": "Quarto Auxiliar",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "05",
+      "term": "Instrumentador",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "06",
+      "term": "Anestesista",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "07",
+      "term": "Auxiliar de Anestesista",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "08",
+      "term": "Consultor",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "09",
+      "term": "Perfusionista",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "10",
+      "term": "Pediatra na sala de parto",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "11",
+      "term": "Auxiliar SADT",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "12",
+      "term": "Clínico",
+      "startsOn": "2006-08-14",
+      "endsOn": null,
+      "implantationEndsOn": "2006-08-14"
+    },
+    {
+      "code": "13",
+      "term": "Intensivista",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    }
+  ]
+}

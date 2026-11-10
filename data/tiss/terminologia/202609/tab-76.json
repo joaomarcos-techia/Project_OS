@@ -1,0 +1,45 @@
+{
+  "standard": "TUSS — Terminologia Unificada da Saúde Suplementar",
+  "version": "202609",
+  "table": "76",
+  "title": "Tabela 76 - Terminologia de Regime de atendimento",
+  "source": "TUSS - Demais terminologias - VERSÃO 202609.xlsx",
+  "count": 5,
+  "terms": [
+    {
+      "code": "01",
+      "term": "Ambulatorial",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "02",
+      "term": "Domiciliar",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "03",
+      "term": "Internação",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "04",
+      "term": "Pronto-socorro",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "05",
+      "term": "TELESSAÚDE",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    }
+  ]
+}

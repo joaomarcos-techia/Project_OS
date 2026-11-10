@@ -1,0 +1,430 @@
+{
+  "standard": "TUSS — Terminologia Unificada da Saúde Suplementar",
+  "version": "202609",
+  "table": "28",
+  "title": "Tabela 28 - Terminologia de dentes",
+  "source": "TUSS - Demais terminologias - VERSÃO 202609.xlsx",
+  "count": 60,
+  "terms": [
+    {
+      "code": "11",
+      "term": "Incisivo Central Superior Direito",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "12",
+      "term": "Incisivo Lateral Superior Direito",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "13",
+      "term": "Canino Superior Direito",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "14",
+      "term": "Primeiro Pré-molar Superior Direito",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "15",
+      "term": "Segundo Pré-molar Superior Direito",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "16",
+      "term": "Primeiro Molar Superior Direito",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "17",
+      "term": "Segundo Molar Superior Direito",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "18",
+      "term": "Terceiro Molar Superior Direito",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "19",
+      "term": "Dente Permanente Supranumerário em Hemi-arco Superior Direito",
+      "startsOn": "2007-10-29",
+      "endsOn": null,
+      "implantationEndsOn": "2007-10-29"
+    },
+    {
+      "code": "21",
+      "term": "Incisivo Central Superior Esquerdo",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "22",
+      "term": "Incisivo Lateral Superior Esquerdo",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "23",
+      "term": "Canino Superior Esquerdo",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "24",
+      "term": "Primeiro Pré-molar Superior Esquerdo",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "25",
+      "term": "Segundo Pré-molar Superior Esquerdo",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "26",
+      "term": "Primeiro Molar Superior Esquerdo",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "27",
+      "term": "Segundo Molar Superior Esquerdo",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "28",
+      "term": "Terceiro Molar Superior Esquerdo",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "29",
+      "term": "Dente Permanente Supranumerário em Hemi-arco Superior Esquerdo",
+      "startsOn": "2007-10-29",
+      "endsOn": null,
+      "implantationEndsOn": "2007-10-29"
+    },
+    {
+      "code": "31",
+      "term": "Incisivo Central Inferior Esquerdo",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "32",
+      "term": "Incisivo Lateral Inferior Esquerdo",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "33",
+      "term": "Canino Inferior Esquerdo",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "34",
+      "term": "Primeiro Pré-molar Inferior Esquerdo",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "35",
+      "term": "Segundo Pré-molar Inferior Esquerdo",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "36",
+      "term": "Primeiro Molar Inferior Esquerdo",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "37",
+      "term": "Segundo Molar Inferior Esquerdo",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "38",
+      "term": "Terceiro Molar Inferior Esquerdo",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "39",
+      "term": "Dente Permanente Supranumerário em Hemi-arco Inferior Esquerdo",
+      "startsOn": "2007-10-29",
+      "endsOn": null,
+      "implantationEndsOn": "2007-10-29"
+    },
+    {
+      "code": "41",
+      "term": "Incisivo Central Inferior Direito",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "42",
+      "term": "Incisivo Lateral Inferior Direito",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "43",
+      "term": "Canino Inferior Direito",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "44",
+      "term": "Primeiro Pré-molar Inferior Direito",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "45",
+      "term": "Segundo Pré-molar Inferior Direito",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "46",
+      "term": "Primeiro Molar Inferior Direito",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "47",
+      "term": "Segundo Molar Inferior Direito",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "48",
+      "term": "Terceiro Molar Inferior Direito",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "49",
+      "term": "Dente Permanente Supranumerário em Hemi-arco Inferior Direito",
+      "startsOn": "2007-10-29",
+      "endsOn": null,
+      "implantationEndsOn": "2007-10-29"
+    },
+    {
+      "code": "51",
+      "term": "Incisivo Central Decíduo Superior Direito",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "52",
+      "term": "Incisivo Lateral Decíduo Superior Direito",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "53",
+      "term": "Canino Decíduo Superior Direito",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "54",
+      "term": "Primeiro Molar Decíduo Superior Direito",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "55",
+      "term": "Segundo Molar Decíduo Superior Direito",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "59",
+      "term": "Dente Decíduo Supranumerário em Hemi-arco Superior Direito",
+      "startsOn": "2007-10-29",
+      "endsOn": null,
+      "implantationEndsOn": "2007-10-29"
+    },
+    {
+      "code": "61",
+      "term": "Incisivo Central Decíduo Superior Esquerdo",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "62",
+      "term": "Incisivo Lateral Decíduo Superior Esquerdo",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "63",
+      "term": "Canino Decíduo Superior Esquerdo",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "64",
+      "term": "Primeiro Molar Decíduo Superior Esquerdo",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "65",
+      "term": "Segundo Molar Decíduo Superior Esquerdo",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "69",
+      "term": "Dente Decíduo Supranumerário em Hemi-arco Superior Esquerdo",
+      "startsOn": "2007-10-29",
+      "endsOn": null,
+      "implantationEndsOn": "2007-10-29"
+    },
+    {
+      "code": "71",
+      "term": "Incisivo Central Decíduo Inferior Esquerdo",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "72",
+      "term": "Incisivo Lateral Decíduo Inferior Esquerdo",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "73",
+      "term": "Canino Decíduo Inferior Esquerdo",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "74",
+      "term": "Primeiro Molar Decíduo Inferior Esquerdo",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "75",
+      "term": "Segundo Molar Decíduo Inferior Esquerdo",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "79",
+      "term": "Dente Decíduo Supranumerário em Hemi-arco Inferior Esquerdo",
+      "startsOn": "2007-10-29",
+      "endsOn": null,
+      "implantationEndsOn": "2007-10-29"
+    },
+    {
+      "code": "81",
+      "term": "Incisivo Central Decíduo Inferior Direito",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "82",
+      "term": "Incisivo Lateral Decíduo Inferior Direito",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "83",
+      "term": "Canino Decíduo Inferior Direito",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "84",
+      "term": "Primeiro Molar Decíduo Inferior Direito",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "85",
+      "term": "Segundo molar Decíduo Inferior Direito",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "89",
+      "term": "Dente Decíduo Supranumerário em Hemi-arco Inferior Direito",
+      "startsOn": "2007-10-29",
+      "endsOn": null,
+      "implantationEndsOn": "2007-10-29"
+    }
+  ]
+}

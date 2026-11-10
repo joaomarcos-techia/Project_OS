@@ -1,0 +1,24 @@
+{
+  "standard": "TUSS — Terminologia Unificada da Saúde Suplementar",
+  "version": "202609",
+  "table": "71",
+  "title": "Tabela 71 - Terminologia de Tipo de atendimento por operadora intermediária",
+  "source": "TUSS - Demais terminologias - VERSÃO 202609.xlsx",
+  "count": 2,
+  "terms": [
+    {
+      "code": "1",
+      "term": "Atendimento eventual",
+      "startsOn": "2018-01-01",
+      "endsOn": null,
+      "implantationEndsOn": "2018-03-31"
+    },
+    {
+      "code": "2",
+      "term": "Atendimento continuado",
+      "startsOn": "2018-01-01",
+      "endsOn": null,
+      "implantationEndsOn": "2018-03-31"
+    }
+  ]
+}

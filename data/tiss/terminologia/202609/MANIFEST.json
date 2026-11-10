@@ -1,0 +1,326 @@
+{
+  "standard": "Padrão TISS — Componente de Representação de Conceitos em Saúde (TUSS)",
+  "version": "202609",
+  "archive": {
+    "url": "https://www.ans.gov.br/arquivos/extras/tiss/Padrao_TISS_Representacao_de_Conceitos_em_Saude_202609.zip",
+    "sha256": "7f3d7a9794a8929fddd6f13af26dd9496087bf8b8670f275bd7ecd9a2f64172d"
+  },
+  "sources": [
+    {
+      "file": "TUSS 22 - PROCEDIMENTOS E EVENTOS EM SAÚDE - VERSÃO 202609.xlsx",
+      "sha256": "d64d044efa4367a1e932ec28bd2dfea92d2288c914622c9b5b9bf76724892dbb"
+    },
+    {
+      "file": "TUSS - Demais terminologias - VERSÃO 202609.xlsx",
+      "sha256": "ad62541b18a4a7652bb883c9aa89940f712d54630c3610c067626acc3fba13c7"
+    }
+  ],
+  "generatedBy": "scripts/tiss/terminology/build-artifacts.ts",
+  "tables": {
+    "22": {
+      "file": "tab-22.json",
+      "sha256": "5f06d98ad66fbbf4016d3af657d9c72e3e4ed183159e945d9943e68139b5dd61",
+      "count": 5969
+    },
+    "23": {
+      "file": "tab-23.json",
+      "sha256": "259436ee4f6b41a34ef660645075ab74e97ec63864165ad06c57bce5f339e27a",
+      "count": 2
+    },
+    "24": {
+      "file": "tab-24.json",
+      "sha256": "e9c39f62e1adb1efd7aae42278ea3eb5573f40dbbbc5982f438021fc42e772ca",
+      "count": 168
+    },
+    "25": {
+      "file": "tab-25.json",
+      "sha256": "5aa5b0dbe0c6fd5b319ca3e2eecc2c48dea23f0e086605bbd2ed59ba79337fde",
+      "count": 6
+    },
+    "26": {
+      "file": "tab-26.json",
+      "sha256": "9ed49321ba1fbf88d8e3107b308ec7f02987ace0036f9c957ab2539231f947a2",
+      "count": 15
+    },
+    "27": {
+      "file": "tab-27.json",
+      "sha256": "8c9d03924f9c1798517bf10a73ad9a42346f6e9c020854b0654470a9cdccd299",
+      "count": 9
+    },
+    "28": {
+      "file": "tab-28.json",
+      "sha256": "d7d714a40f49b6152e872adfb5e340767c2b531fb87e77a434ef8ffd68152206",
+      "count": 60
+    },
+    "29": {
+      "file": "tab-29.json",
+      "sha256": "bc8c001b170058a29ec805fdd30d8bcbbad9ef8fc792c0f88ef51bdf0e0aeaf6",
+      "count": 6
+    },
+    "30": {
+      "file": "tab-30.json",
+      "sha256": "9e22a9cc3f577cfa2d2ebc745aeeefa804129d2954cfaefffec7674eeaaa63e2",
+      "count": 5
+    },
+    "31": {
+      "file": "tab-31.json",
+      "sha256": "deff2effd644c956d4b9613eb1870ffc3ceed4eeffa58fa8a274f5073f59c9ae",
+      "count": 6
+    },
+    "32": {
+      "file": "tab-32.json",
+      "sha256": "efa1ba844eeeac63ce44a53e6adcc7c8b77f6aa76a7d57d3cc1832b16e654bd9",
+      "count": 7
+    },
+    "33": {
+      "file": "tab-33.json",
+      "sha256": "28047987e89eeef3b442dd167d67630f9e99d59efe592cc3337ff741482ec022",
+      "count": 5
+    },
+    "34": {
+      "file": "tab-34.json",
+      "sha256": "a7fae9a00c7be578a0af828d512382acd89764c6948ea0bc47a463b4a25a3bc6",
+      "count": 4
+    },
+    "35": {
+      "file": "tab-35.json",
+      "sha256": "b6775c43e85a15d3458d827a04c6c0d0d9f2781d7e7acccae19d0f1051281a29",
+      "count": 14
+    },
+    "36": {
+      "file": "tab-36.json",
+      "sha256": "0e8cfc58e3c4a0722a3256a0483fcef62474fbc4ceedf5c1f6f34e3c4b0b972c",
+      "count": 4
+    },
+    "37": {
+      "file": "tab-37.json",
+      "sha256": "98018aefad8bdb1055e79ed91ca8a0942cbff4927151ce22d73d5ab4dcd16cbd",
+      "count": 2
+    },
+    "38": {
+      "file": "tab-38.json",
+      "sha256": "5e861400ded04a6372e6c11675e462fe5fe34aed1203ecf60bb62a08348feaa2",
+      "count": 470
+    },
+    "39": {
+      "file": "tab-39.json",
+      "sha256": "c8dec5f5aee11b3eec8af31b160ffe58e3e3e4d748a7be239c399549d5c966e2",
+      "count": 28
+    },
+    "40": {
+      "file": "tab-40.json",
+      "sha256": "633e3ea42eefd05ff1de69d00abcadcfb0608dc79576f989b9a4f605b39d40f0",
+      "count": 5
+    },
+    "41": {
+      "file": "tab-41.json",
+      "sha256": "2f114b0b2eea30f7fa28aec6425d3e42b8a7ae1f982c3d356197814f5d347b9c",
+      "count": 3
+    },
+    "42": {
+      "file": "tab-42.json",
+      "sha256": "fefcc8feed2d4471c50c9f355cf152a8c2b049fa5108d0669e0f0f20e7989d62",
+      "count": 61
+    },
+    "43": {
+      "file": "tab-43.json",
+      "sha256": "4b6bac665b5733cffe52b861359c4436320efda4281c1719a035089bfe334927",
+      "count": 2
+    },
+    "44": {
+      "file": "tab-44.json",
+      "sha256": "973e9b97b556a4982f76bdf3ba6707912c354480809f0995b2a994d394287e47",
+      "count": 5
+    },
+    "45": {
+      "file": "tab-45.json",
+      "sha256": "dc2f0d181336c3faa6c7a7c3b6a72265008241b25efa8f25478dfea4f098674d",
+      "count": 7
+    },
+    "46": {
+      "file": "tab-46.json",
+      "sha256": "f21edfea4d3f786f70c0554b9a750c1230cd62fd9452a312d829712b0eaae58c",
+      "count": 6
+    },
+    "47": {
+      "file": "tab-47.json",
+      "sha256": "8487aa92274bf8af1137603fbb171f051611421fbb4fef74c7c5f25a4031b750",
+      "count": 10
+    },
+    "48": {
+      "file": "tab-48.json",
+      "sha256": "cdfa5ab0d678424343e10bb12a1a5ca5424ad4690cc5dd8261b072da032bb9f1",
+      "count": 3
+    },
+    "49": {
+      "file": "tab-49.json",
+      "sha256": "611e300678034198dcd0598266d3056f42d1a02bc4a9b8dd46f8f038293cb8bd",
+      "count": 45
+    },
+    "50": {
+      "file": "tab-50.json",
+      "sha256": "bfa37e362c54628a193a6728c9623bc05eea991b72d0b736a134c30697bca494",
+      "count": 9
+    },
+    "51": {
+      "file": "tab-51.json",
+      "sha256": "a4d42c7ca4468dc31f3e88a9cece72ea9978c5dd4fbfa0ca5587923076fb7e5e",
+      "count": 5
+    },
+    "52": {
+      "file": "tab-52.json",
+      "sha256": "e7e3777f07b86918a6a1a8b13a4db53a23449aa416af71e2df6d1c3a09aa1315",
+      "count": 4
+    },
+    "53": {
+      "file": "tab-53.json",
+      "sha256": "e21209da13cbd5cdce461c6cb6f6e88eb1d3ae9ad1fea290718947270170d72e",
+      "count": 3
+    },
+    "54": {
+      "file": "tab-54.json",
+      "sha256": "74a14c9285464e8fcfd90f85e973284187851927024263d65e7c3354d86ac5fa",
+      "count": 5
+    },
+    "55": {
+      "file": "tab-55.json",
+      "sha256": "c96261449454d2f6b913d96e0aa1bcea88acb125865b0d2f55b332fd815fad07",
+      "count": 4
+    },
+    "56": {
+      "file": "tab-56.json",
+      "sha256": "33ae191f4be7014ead4c2a195ff653698addf395497541c27adb54dc33f2c959",
+      "count": 3
+    },
+    "57": {
+      "file": "tab-57.json",
+      "sha256": "53ea44e18cf3620d58cb11206795b21b40b12af044527ec1b1f639a455424836",
+      "count": 5
+    },
+    "58": {
+      "file": "tab-58.json",
+      "sha256": "f706db99a9191dfb7d172e9faa176e4b785be7a9d564f273ea03c74e4e5a1835",
+      "count": 4
+    },
+    "59": {
+      "file": "tab-59.json",
+      "sha256": "507092a5c7b8c9b8aab6edccaaa48053ff754d29bac818238e1ded31d7c9a710",
+      "count": 28
+    },
+    "60": {
+      "file": "tab-60.json",
+      "sha256": "6c92d71eece14b6594bec00b99a883f8b890cc2475289a25f6564d26ba82901e",
+      "count": 61
+    },
+    "61": {
+      "file": "tab-61.json",
+      "sha256": "cfa7662f1246ca3aca830b7128fd175eb51d56bc1a9a45f6646081f2d5194cec",
+      "count": 3
+    },
+    "62": {
+      "file": "tab-62.json",
+      "sha256": "1a0aa05f114c9959e2335c790e72b9ed7a4f0adb5874280e3135a104836bf281",
+      "count": 35
+    },
+    "63": {
+      "file": "tab-63.json",
+      "sha256": "a9241053879efa028ce7b04a4df6614a150bb95dcbd1fc9906b9b0a4b92c7cd2",
+      "count": 31
+    },
+    "65": {
+      "file": "tab-65.json",
+      "sha256": "4b45241c1dde00a2bfb14a82dbb4028dbf6231a3de712216698eb41bf1f1b4b7",
+      "count": 5
+    },
+    "66": {
+      "file": "tab-66.json",
+      "sha256": "b4f75a5fa16203af1980828b0cd4379987edf3727924e765d5f30456a0ccfa1d",
+      "count": 7
+    },
+    "67": {
+      "file": "tab-67.json",
+      "sha256": "cf734894407ba5e4251aa800d3e1cd18eff25a638326afb52d8f90c5231bcb6a",
+      "count": 9
+    },
+    "68": {
+      "file": "tab-68.json",
+      "sha256": "c52d0c444057e9a8b76bf54b6291966d0c3e36b793aeea1c82bd6e55e8050a13",
+      "count": 5
+    },
+    "69": {
+      "file": "tab-69.json",
+      "sha256": "c021438412583c88eaeab6c40f3cad089dfdbe258d70b52f9909a5baae1d6813",
+      "count": 27
+    },
+    "70": {
+      "file": "tab-70.json",
+      "sha256": "3f83b524cd2a3c065ec9109de2aa0f52019412b9f21a5b6d621d20a156a5b199",
+      "count": 4
+    },
+    "71": {
+      "file": "tab-71.json",
+      "sha256": "79261b8c59ed3a56af7b6468ed3e8a8383476a2948bcb53788af75053b48881f",
+      "count": 2
+    },
+    "72": {
+      "file": "tab-72.json",
+      "sha256": "11ad0a535464cf75962877bbb88aab9139d96b69ae43e12d300966baff41f7af",
+      "count": 9
+    },
+    "73": {
+      "file": "tab-73.json",
+      "sha256": "3f3ea5c873f27eb736892572d44125b35930dc58b3d1c7c5e8d01f3a9426ba87",
+      "count": 2
+    },
+    "74": {
+      "file": "tab-74.json",
+      "sha256": "cfd49f07e50746c1985b5a2665b89759deb7d472e75fe38ba8da9e79a44ede0d",
+      "count": 7
+    },
+    "75": {
+      "file": "tab-75.json",
+      "sha256": "cd43737b2a2752cff95484a0c5dfcd6e4630bb79b55e1103d748ce321ae8d6a9",
+      "count": 3
+    },
+    "76": {
+      "file": "tab-76.json",
+      "sha256": "87d4ce7d214833d17c2276a19a3ec8d2956051a038738a52324170a3c77f2c75",
+      "count": 5
+    },
+    "77": {
+      "file": "tab-77.json",
+      "sha256": "900736e0acb840941660112ca5d4c57a010d981e7ee12e9f24b5ae20e2d0584e",
+      "count": 6
+    },
+    "78": {
+      "file": "tab-78.json",
+      "sha256": "2f87897398184e740afdcdfd81f75be617d36d4bc3d66c9fdf247a086dab72fb",
+      "count": 2
+    },
+    "79": {
+      "file": "tab-79.json",
+      "sha256": "cc57d07dcb0b643d085ca960bf814b5c21bcb53258d7fe0c6309a15e487e5b8c",
+      "count": 7
+    },
+    "80": {
+      "file": "tab-80.json",
+      "sha256": "9f9ffdb31d1fbd0d4c94806f6a27cf1ceeca28701c8368050940a71a8bf75522",
+      "count": 9
+    },
+    "81": {
+      "file": "tab-81.json",
+      "sha256": "4a7cf1c08c8b929b94918907cc853da4fb3457b374b08a6372be2c3eedfda492",
+      "count": 17
+    },
+    "82": {
+      "file": "tab-82.json",
+      "sha256": "13c42dfa64f33bd38df096933600a00c0ccb6c2c4280f760f4c686ea937f9053",
+      "count": 10
+    },
+    "87": {
+      "file": "tab-87.json",
+      "sha256": "bfe40279bf758033d02193d66952e57d12a07efb5b09fa821978689b28e5efae",
+      "count": 68
+    }
+  }
+}
