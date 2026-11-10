@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   assertSamePreparation,
   checkoutUrl,
+  checkoutSnapshotSchema,
   expectedAmount,
   guardedDevDatabase,
   previewOrigin,
@@ -55,6 +56,51 @@ afterEach(async () => {
 });
 
 describe('checkout operator environment and immutable preparation', () => {
+  const rawSnapshot = {
+    subscription_id: sample.planId,
+    clinic_id: sample.runId,
+    external_checkout_id: 'bill_synthetic',
+    external_subscription_id: 'subs_synthetic',
+    billing_status: 'active',
+    released_at: '2026-11-10 10:00:00+00',
+    trial_end: '2026-11-09 10:00:00+00',
+    period_start: '2026-11-10 10:00:00+00',
+    period_end: '2026-12-10 10:00:00+00',
+    url: 'https://pay.abacatepay.com/synthetic',
+    paid_invoices: 1,
+    invoices: 1,
+    attempts: 1,
+    receipts: 1,
+    applied_events: 1,
+    operations: 1,
+  };
+  it('normalizes timestamp strings from the canonical Drizzle client before payment verification', () => {
+    const snapshot = checkoutSnapshotSchema.parse(rawSnapshot);
+    expect(snapshot.period_start?.toISOString()).toBe('2026-11-10T10:00:00.000Z');
+    expect(snapshot.period_end?.toISOString()).toBe('2026-12-10T10:00:00.000Z');
+    expect(snapshot.trial_end.toISOString()).toBe('2026-11-09T10:00:00.000Z');
+    expect(snapshot.released_at?.toISOString()).toBe('2026-11-10T10:00:00.000Z');
+  });
+  it('accepts Date values from the standalone client and unpaid null fields', () => {
+    const snapshot = checkoutSnapshotSchema.parse({
+      ...rawSnapshot,
+      trial_end: new Date('2026-11-09T10:00:00Z'),
+      period_start: null,
+      period_end: null,
+      released_at: null,
+    });
+    expect(snapshot.trial_end.toISOString()).toBe('2026-11-09T10:00:00.000Z');
+    expect(snapshot.period_end).toBeNull();
+    expect(snapshot.released_at).toBeNull();
+  });
+  it.each([null, 0, '', 'invalid'])(
+    'rejects missing or invalid trial timestamps: %j',
+    (trialEnd) => {
+      expect(
+        checkoutSnapshotSchema.safeParse({ ...rawSnapshot, trial_end: trialEnd }).success,
+      ).toBe(false);
+    },
+  );
   it.each([
     ['--preview', 'https://app.qoro.dev'],
     ['--preview', sample.origin, '--session', '../retained'],

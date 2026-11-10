@@ -2,6 +2,8 @@
 
 Atualizado em 10/11/2026. Pedido do founder: deixar a operação preparada para ele dizer **“criar checkout”**, pagar no Sandbox e ter o resultado conferido. Não aguardar nova resposta do suporte para essa contratação inicial suportada. Isso não dispensa os gates financeiros de produção.
 
+**Pedido executado em 10/11:** slot `next-checkout-20261110`, run `2d072b20-dab5-4073-bdaf-2c8f1989c739`, checkout `bill_6WgrJ0S5pfFrkZyhJcyNTKLE`, Clínica mensal R$ 397 **PENDING no Sandbox**, aguardando pagamento humano. Não gerar outro checkout nem limpar a fixture. A próxima ação é `verify` depois de o founder informar “pago”. O endpoint e o manifesto continuam presos ao Preview imutável `ea45fb8e`; a correção local do roteiro não deve avançar o alias da branch durante este pagamento.
+
 ## O que o founder precisa fazer
 
 1. Dizer **“criar checkout”**. O padrão preparado é **Clínica mensal, R$ 397 no Sandbox**. Para testar Consultório, dizer “criar checkout Consultório”; o valor aprovado é R$ 197. Não há cobrança real nem contratação anual nesta rodada.
@@ -73,7 +75,9 @@ Não existe limpeza automática ao fechar navegador, expirar teste ou usuário s
 
 Em 10/11 o preflight real passou sobre `a27be74240bf72bdef088b9017fbb9d6b4f94fbd`, incluindo 2 produtos Sandbox, mesma release no destino do webhook, HTTP 401 negativo, DEV assinado e schema/histórico. `prepare` também passou com roundtrip DPAPI e ACL privada, **sem conta, checkout ou pagamento**; slot de validação `next-checkout-validation-20261110`, run `a9e58df5-a2c0-403f-b967-c698f70c0ccb`. Esse slot prova a preparação e não deve ser confundido com a fixture paga nem com o slot final do novo HEAD.
 
-Os testes focados incluem filesystem real, concorrência entre operadores, retenção após erro, lock após crash, corrupção/limite do manifesto, preços e bindings de ambiente. Os caminhos `create`/`verify` deste operador novo **não foram executados com uma compra nova nesta rodada**: aguardam o pedido e pagamento do founder. As provas financeiras anteriores permanecem válidas; o harness da UI foi reaproveitado.
+Os testes focados incluem filesystem real, concorrência entre operadores, retenção após erro, lock após crash, corrupção/limite do manifesto, preços e bindings de ambiente. Após o pedido do founder, `create` passou pelo login real, provisionamento, trial de 14 dias desde Auth, interface desktop/mobile e rota real do Qoro até o checkout hospedado. Readback confirmou valor/produto Sandbox, pendência, nenhuma assinatura remota gerada e uma operação local. **Pagamento e `verify` positivos ainda NOT RUN**: aguardam “pago”. As provas financeiras anteriores permanecem válidas; o harness da UI foi reaproveitado.
+
+O primeiro ensaio de criação identificou incompatibilidade de timestamps no roteiro: o cliente canônico do Drizzle trabalha com strings, em vez de aceitar `Date` no SQL bruto. A transação de draft falhou e fez rollback; a identidade foi conservada e reutilizada. Corrigido o parâmetro para ISO com cast `timestamptz` e normalizados os timestamps do readback. PASS 61 testes focados (38 do operador), TypeScript, lint, Prettier e consulta SQL somente de leitura reproduzindo a falha/validando o roundtrip ISO. O E2E de criação real passou após a correção. Runtime da aplicação e Preview não foram alterados; build/CI da baseline permanecem as evidências aplicáveis ao app.
 
 Renovação recorrente externa, falha/retentativa, refund/disputa recorrentes e garantia de invalidação da URL paga continuam separados da contratação inicial. Testar um novo pagamento inicial não encerra esses gates nem autoriza go-live. Ver [plano de produção](PLANO-FINAL-GO-LIVE-ABACATEPAY.md), [operação](../../runbooks/abacatepay-operacao.md) e [resposta do suporte](SUPORTE-RESPOSTA-INTEGRAL-20261110.md).
 

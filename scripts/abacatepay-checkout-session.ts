@@ -36,6 +36,29 @@ export const checkoutUrl = z.url().refine((raw) => {
   );
 });
 const prefixed = (prefix: string) => z.string().regex(new RegExp(`^${prefix}_[A-Za-z0-9_-]+$`));
+// Drizzle's canonical postgres client returns timestamps as strings, while a
+// standalone postgres client can return Date. Normalize both before comparing.
+const databaseDate = z.union([z.date(), z.string().min(1)]).pipe(z.coerce.date());
+const count = z.number().int().nonnegative();
+export const checkoutSnapshotSchema = z.object({
+  subscription_id: z.uuid(),
+  clinic_id: z.uuid(),
+  external_checkout_id: prefixed('bill').nullable(),
+  external_subscription_id: prefixed('subs').nullable(),
+  billing_status: z.enum(['trial', 'active', 'past_due', 'cancelled']),
+  released_at: databaseDate.nullable(),
+  trial_end: databaseDate,
+  period_start: databaseDate.nullable(),
+  period_end: databaseDate.nullable(),
+  url: checkoutUrl.nullable(),
+  paid_invoices: count,
+  invoices: count,
+  attempts: count,
+  receipts: count,
+  applied_events: count,
+  operations: count,
+});
+export type CheckoutSnapshot = z.infer<typeof checkoutSnapshotSchema>;
 export const sessionSchema = z
   .object({
     version: z.literal(1),

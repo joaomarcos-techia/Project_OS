@@ -15,6 +15,7 @@ import {
   assertSamePreparation,
   BILLING_BRANCH,
   checkoutUrl,
+  checkoutSnapshotSchema,
   DEV_REF,
   entryPlan,
   expectedAmount,
@@ -24,6 +25,7 @@ import {
   saveSession,
   withSessionLock,
   type CheckoutSession,
+  type CheckoutSnapshot,
 } from './abacatepay-checkout-session';
 
 const PROJECT = 'prj_GYB0Y9e02ka9jurpJvF6m0feH3eZ';
@@ -472,7 +474,7 @@ async function main(): Promise<void> {
           const profile = await tx`SELECT id FROM public.profiles WHERE id=${userId}::uuid`;
           assert.equal(profile.length, 0, 'Never move the clock on a provisioned account');
           // Only this identified synthetic identity, before provisioning, simulates an expired trial.
-          await tx`UPDATE auth.users SET created_at=${new Date(Date.parse(session.createdAt) - 15 * 86_400_000)}
+          await tx`UPDATE auth.users SET created_at=${new Date(Date.parse(session.createdAt) - 15 * 86_400_000).toISOString()}::timestamptz
             WHERE id=${userId}::uuid AND email=${email} AND raw_user_meta_data->>'qoro_fixture_run'=${session.runId}`;
           await tx`INSERT INTO public.signup_sessions(token_hash,status,idle_expires_at,absolute_expires_at,consumed_at,auth_user_id,
             owner_name,clinic_name,email_hash,accepted_at,answered_at,professionals_band,weekly_appointments_band,current_tooling,discovery_source,selected_plan_id)
@@ -543,28 +545,12 @@ async function main(): Promise<void> {
           'Browser journey failed; preserve fixture and inspect sanitized evidence',
         );
       }
-      type Snapshot = {
-        subscription_id: string;
-        clinic_id: string;
-        external_checkout_id: string | null;
-        external_subscription_id: string | null;
-        billing_status: string;
-        released_at: Date | null;
-        trial_end: Date;
-        period_start: Date | null;
-        period_end: Date | null;
-        url: string | null;
-        paid_invoices: number;
-        invoices: number;
-        attempts: number;
-        receipts: number;
-        applied_events: number;
-        operations: number;
-      };
-      async function snapshot(): Promise<Snapshot | null> {
-        const result = await sql<
-          Snapshot[]
-        >`SELECT s.id::text subscription_id,s.clinic_id::text,b.external_checkout_id,b.external_subscription_id,
+      async function snapshot(): Promise<CheckoutSnapshot | null> {
+        const result = z
+          .array(checkoutSnapshotSchema)
+          .max(1)
+          .parse(
+            await sql`SELECT s.id::text subscription_id,s.clinic_id::text,b.external_checkout_id,b.external_subscription_id,
           s.billing_status,t.released_at,s.trial_ends_at trial_end,s.current_period_start period_start,s.current_period_end period_end,
           (SELECT result->>'checkoutUrl' FROM billing_gateway.operations WHERE subscription_id=s.id AND kind='create_checkout' AND state='confirmed') url,
           (SELECT count(*)::int FROM public.invoices WHERE subscription_id=s.id AND status='paid' AND total_amount=${session.amountMinor / 100}) paid_invoices,
@@ -577,8 +563,8 @@ async function main(): Promise<void> {
           JOIN billing_gateway.bindings b ON b.subscription_id=s.id JOIN public.trial_access_policies t ON t.subscription_id=s.id
           JOIN billing_gateway.accounts a ON a.id=b.account_id
           WHERE p.id=${userId}::uuid AND p.role='owner' AND p.ativo AND s.billing_provider='abacatepay'
-            AND a.environment='sandbox' AND a.external_account_id=${store.id}`;
-        assert.ok(result.length <= 1);
+            AND a.environment='sandbox' AND a.external_account_id=${store.id}`,
+          );
         return result[0] ?? null;
       }
       stage = 'checkout_or_verification';
