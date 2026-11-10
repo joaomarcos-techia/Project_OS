@@ -41,15 +41,15 @@
 | --- | --- |
 | Data da última atualização | 10/11/2026 |
 | Fase atual | **P0 — Preparação** |
-| Tarefa em andamento | nenhuma (P0.10 é a próxima) |
-| Última tarefa concluída | P0.9 — terminologia TUSS 202609 versionada (61 tabelas, commit `62956289`) |
-| Progresso | **9 de 109 tarefas concluídas (8,3%)**: P0.1–P0.9. Critério: só conta tarefa com evidência no [Registro](#m-registro-de-execução). Destas 109, **7 dependem de terceiros ou de aprovação humana** (L.2). |
+| Tarefa em andamento | P9.1 (gerador XML: Consulta e lote prontos; SP/SADT, recurso de glosa e solicitação pendentes) |
+| Última tarefa concluída | P7.3 — validador da Guia de Consulta (commit `71dc5b46`) |
+| Progresso | **13 de 109 tarefas concluídas (11,9%)**: P0.1–P0.9, P1.1, P1.2, P7.3 e P14.1. Critério: só conta tarefa com evidência no [Registro](#m-registro-de-execução). Destas 109, **7 dependem de terceiros ou de aprovação humana** (L.2). |
 | Capacidades em produção | nenhuma (ver A.5) |
 | Testes aprovados | nenhum teste do módulo ainda |
-| Bloqueios ativos | B4 (ordem de merge com o PR #53), B5 (operadora e clínica piloto para homologação), B6 (orientação jurídica de retenção), B7 (instalar o validador desktop exige autorização). Nenhum bloqueia o início de P0.6–P1. |
+| Bloqueios ativos | **B9** conexão com o DEV instável em 10/11 (CONNECT_TIMEOUT/ECONNRESET no pooler `us-west-1`): segura P1.3 (carga da terminologia, código pronto em `7378e8c9`). B4, B5, B6, B7 como antes; nenhum bloqueia o trabalho puro (P7, P8, P9). |
 | Decisões | D1–D12 aprovadas ou adotadas; D13–D17 novas, adotadas pelo agente dentro do escopo delegado (L.1) |
 | Arquivos alterados | este documento; `docs/adr/067-convenios-e-tiss.md`; `src/contexts/health-insurance/tiss/schemas/**`; `src/contexts/health-insurance/tiss/terminology/**`; `src/lib/xlsx/**`; `scripts/tiss/terminology/**`; `data/tiss/terminologia/202609/**`; `docs/architecture/*` (snapshots regenerados) |
-| Próxima ação exata | **P0.10** (infraestrutura do corpus de validação); em seguida **P1.1** (esqueleto do contexto `health-insurance`) e **P14.1** (testes de caracterização do fluxo particular, antes de qualquer mudança em agenda, financeiro ou Payments). |
+| Próxima ação exata | Rodar de novo `scripts/tiss/terminology/load.ts` quando o DEV responder (conferir antes com consulta só de leitura). Em paralelo: P8.1–P8.3 (modelo, montador e validador da SP/SADT, puros) e P9.1 para SP/SADT. |
 
 ---
 
@@ -890,7 +890,7 @@ Logs estruturados sem PII. Alertas: handler `failed`, convênio sem guia após 3
 **P0.10 · Infraestrutura do corpus de validação**
 - **Objetivo:** estrutura para gerar o corpus sintético a partir do código real, com manifesto.
 - **Contexto:** P13.
-- **Dependências:** P0.7.
+- **Dependências:** P9.1 e P9.2 (corrigido em 10/11: sem o gerador e o validador, a estrutura seria vazia e não provaria nada).
 - **Arquivos:** `src/contexts/health-insurance/tiss/__corpus__/` (definições de cenário), `scripts/tiss/corpus.ts`.
 - **Procedimento:** cenário = dados sintéticos + expectativa; o script gera o XML com o builder real, valida e grava o SHA.
 - **Aceite:** um cenário vazio roda ponta a ponta.
@@ -905,9 +905,9 @@ Todas dependem de P0.5 e D1–D3. Cada migration segue E.5: numeração, `check:
 
 | ID (antigo) | Objetivo | Dependências | Arquivos | Aceite | Testes | Status |
 | --- | --- | --- | --- | --- | --- | --- |
-| **P1.1** (T1.1) | contexto `health-insurance`: README, `index`/`api`, `schema`, `errors`, `events`, `types`; boundaries | P0.6 | `src/contexts/health-insurance/*`, `eslint.config.mjs`, `docs/architecture/context-map.md` | `arch:check` e `lint` verdes; `internal` bloqueado de fora | gates | Pendente |
-| **P1.2** (T1.2) | catálogo global (`tiss_terminology_versions`, `tiss_terms`, `tiss_schema_versions`) | P1.1 | migration 0143*, `schema.ts` | gates; aplicada no DEV; grants só SELECT | migration + grants | Pendente |
-| **P1.3** (T0.7) | carga da terminologia no banco por script idempotente | P1.2, P0.9 | `scripts/tiss/terminology/load.ts` | contagens no DEV iguais ao artefato; reexecução sem duplicar | integração no DEV | Pendente |
+| **P1.1** (T1.1) | contexto `health-insurance`: README, `index`/`api`, `schema`, `errors`, `events`, `types`; boundaries | P0.6 | `src/contexts/health-insurance/*`, `eslint.config.mjs`, `docs/architecture/context-map.md` | `arch:check` e `lint` verdes; `internal` bloqueado de fora | gates | **Concluído** (README, `index.ts`, `schema.ts` e agregador `src/lib/db/schema`; `errors`/`events`/`api` nascem com o primeiro uso, sem superfície vazia; mapa de contextos atualizado) |
+| **P1.2** (T1.2) | catálogo global (`tiss_terminology_versions`, `tiss_terms`, `tiss_schema_versions`) | P1.1 | migration 0143*, `schema.ts` | gates; aplicada no DEV; grants só SELECT | migration + grants | **Concluído** (0143 aplicada no DEV, 144 migrations; RLS FORCE nas 3 tabelas; `authenticated` lê e tem INSERT/DELETE recusados com 42501; `anon` recusado) |
+| **P1.3** (T0.7) | carga da terminologia no banco por script idempotente | P1.2, P0.9 | `scripts/tiss/terminology/load.ts` | contagens no DEV iguais ao artefato; reexecução sem duplicar | integração no DEV | **Bloqueado (B9)**: código pronto e revisado (`7378e8c9`); 4 tentativas em 10/11 caíram em conexão; nada persistiu (transação única, conferido) |
 | **P1.4** (T1.3) | `hi_clinic_settings`, `hi_counters`, `hi_insurers`, `hi_insurer_credentials`, `hi_plans`, `hi_professional_profiles`, `hi_credentials`, `hi_procedure_contracts`, `hi_contract_imports` | P1.2 | migration 0144* | RLS FORCE; CHECKs (ANS 6 dígitos, valores ≥ 0, vigência coerente); contratos append-only por trigger | migration, isolamento | Pendente |
 | **P1.5** (T1.4) | `hi_memberships` | P1.4 | 0145* | número só cifrado; preferencial único | migration, cifra | Pendente |
 | **P1.6** (T1.5) | `appointments.billing_mode`, `hi_appointment_coverages`, `hi_copayments` | P1.5 | 0146*, `scheduling/schema.ts` | atendimentos existentes `particular`; trigger de snapshot respeitado | migration, trigger | Pendente |
@@ -929,7 +929,7 @@ Os números marcados com `*` são provisórios e devem ser reconferidos (E.5). P
 | **P2.1** (T2.1) | operadoras, planos e categorias: criar, editar, ativar e desativar | P1.4, P1.12 | `health-insurance/actions.ts`, `internal/insurers.ts` | auditado; sem acesso cross-tenant; desativada some do agendamento | unitários, integração | Pendente |
 | **P2.2** (T2.2) | credenciamento da clínica e do profissional por plano e vigência; perfil TISS | P2.1 | `internal/credentials.ts`, `internal/professional-profile.ts` | sem perfil TISS vira pendência, não erro; sugestão a partir do CRM sempre confirmada | U1 | Pendente |
 | **P2.3** (T2.3) | contratos por procedimento: tipo de guia, TUSS vigente, valor, vigência, autorização, coparticipação e retorno | P2.1, P1.3 | `internal/procedure-contracts.ts` | TUSS inexistente ou fora de vigência recusado; alteração cria versão; histórico intacto | U2 | Pendente |
-| **P2.4** (T2.4) | identificação do prestador; normalização de CNPJ alfanumérico; CNES ou declaração de ausência (9999999) | P2.1 | `internal/clinic-settings.ts` | CNPJ inválido vira pendência; 9999999 só com declaração | unitários | Pendente |
+| **P2.4** (T2.4) | identificação do prestador; normalização de CNPJ alfanumérico; CNES ou declaração de ausência (9999999) | P2.1 | `internal/clinic-settings.ts` | CNPJ inválido vira pendência; 9999999 só com declaração; decidir com o fundador a troca do validador compartilhado (R16) | unitários | Pendente (`isValidCnpjAlphanumeric` já existe, `71dc5b46`) |
 | **P2.5** | configurações por operadora: versão TISS, código de validação, prazo de envio, tipo de identificação, conector, credenciais cifradas | P2.1 | `internal/insurer-settings.ts` | Zod; credencial nunca volta ao cliente | unitários, segurança | Pendente |
 | **P2.6** (T2.5) | telas Configurações › Convênios no design system: lista, detalhe, gavetas, estados vazio, carregando e erro, histórico, confirmação de ação irreversível, termos explicados | P2.1–P2.5 | `configuracoes/convenios/*`, `settings-navigation.ts` | 375/768/1024/1440 sem rolagem lateral; acessível; só com permissão | componente, e2e, capturas | Pendente |
 | **P2.7** | importação de tabela contratual por planilha (CSV/XLSX), com pré-visualização, validação por linha e confirmação | P2.3 | `internal/contract-import.ts`, tela | linha inválida não entra; tudo auditado em `hi_contract_imports` | unitários, e2e | Pendente |
@@ -979,7 +979,7 @@ Os números marcados com `*` são provisórios e devem ser reconferidos (E.5). P
 | --- | --- | --- | --- | --- | --- | --- |
 | **P7.1** (T6.1) | numeração de guia, lote, transação e recurso | P1.4, P1.8 | `internal/numbering.ts` | 100 chamadas concorrentes dão números únicos | concorrência no DEV | Pendente |
 | **P7.2** (T6.2) | `GuideAssembler` Consulta | P2.x, P3.1, P4.1 | `internal/guides/consulta/assembler.ts` | puro; teste prova a ausência de CID; padrões D11 | U3 | Pendente |
-| **P7.3** (T6.3) | `GuideValidator` Consulta: regras de B.10.9 e B.10.13 (CBO `999999` recusado no executante) | P7.2, P1.3 | `…/consulta/validator.ts` | cada regra com teste positivo e negativo | U4 | Pendente |
+| **P7.3** (T6.3) | `GuideValidator` Consulta: regras de B.10.9 e B.10.13 (CBO `999999` recusado no executante) | P7.2, P1.3 | `…/consulta/validator.ts` | cada regra com teste positivo e negativo | U4 | **Concluído** (`71dc5b46`): 36 regras negativas + positivos com a terminologia real 202609; a ordem P7.2 → P7.3 era só sequência, o validador recebe os dados prontos |
 | **P7.4** (T6.4) | handler de conclusão (genérico por tipo) + reconcile "convênio sem guia" | P7.1–P7.3 | `internal/handlers/appointment-completed.ts`, `scheduling/events.ts` | reentrega não duplica; particular não cria guia | U10, E8, E9 | Pendente |
 | **P7.5** (T6.5) | ciclo de vida genérico: estados, edição controlada, aprovação, cancelamento, substituição, histórico | P7.4 | `internal/guide-lifecycle.ts` | transições inválidas recusadas; "enviada" só com registro | U6 | Pendente |
 | **P7.6** (T6.6) | PDF oficial da Consulta (campos 1–29) | P7.2 | `src/lib/pdf/guia-consulta.tsx`, rota | 29 rótulos no PDF; comparação visual com o modelo oficial (P13.7) | `pdfjs` + captura | Pendente |
@@ -1001,7 +1001,7 @@ Os números marcados com `*` são provisórios e devem ser reconferidos (E.5). P
 
 | ID (antigo) | Objetivo | Dependências | Arquivos | Aceite | Testes | Status |
 | --- | --- | --- | --- | --- | --- | --- |
-| **P9.1** (T7.1) | `TissXmlBuilder`: lote (Consulta e SP/SADT), recurso de glosa, solicitação de procedimento; ISO-8859-1; MD5 | P7.2, P0.7 | `tiss/xml-builder/*` | hash recalculado de forma independente; não-latin1 recusado | golden files | Pendente |
+| **P9.1** (T7.1) | `TissXmlBuilder`: lote (Consulta e SP/SADT), recurso de glosa, solicitação de procedimento; ISO-8859-1; MD5 | P7.2, P0.7 | `tiss/xml-builder/*` | hash recalculado de forma independente; não-latin1 recusado | golden files | **Em execução**: núcleo XML, hash do epílogo, Guia de Consulta e lote prontos (`dc56b5d4`); 8 XMLs gerados pelo código passaram no XSD oficial (Registro de 10/11); faltam SP/SADT (P8.6), recurso de glosa (P9.7) e solicitação (P6.2) |
 | **P9.2** (T7.2) | `TissXsdValidator` | P0.8 | `tiss/xsd-validator.ts` | C.13; `xmllint-wasm` em `serverExternalPackages`; validação numa rota Node **na Preview da Vercel** (worker_threads e `.wasm` incluídos no bundle), com memória e tempo medidos; checagem própria de codificação (o XSD não detecta UTF-8 declarado como ISO-8859-1) | P13.2 | Pendente |
 | **P9.3** (T7.3) | lotes: regras (operadora, tipo, versão, até 100), numeração, exportação só se o XSD aprovar, `hi_files` com SHA | P9.1, P9.2, P7.5 | `internal/batches.ts`, rota | 101 recusado; guia em dois lotes recusada; concorrência segura | unitários, concorrência | Pendente |
 | **P9.4** | envio: registro manual (data, quem, protocolo, comprovante) e envio pelo conector (P6.5) com recibo real | P9.3, P6.4 | `internal/batches.ts` | nenhum "enviado" sem registro ou recibo | unitários | Pendente |
@@ -1058,7 +1058,7 @@ Os números marcados com `*` são provisórios e devem ser reconferidos (E.5). P
 
 | ID (antigo) | Objetivo | Dependências | Aceite | Status |
 | --- | --- | --- | --- | --- |
-| **P14.1** | testes de caracterização **antes** de mexer em agenda, financeiro, payments e IA: sinal, saldo, régua, reconcile, repasse, Caixa, jornadas | — | linha de base verde registrada | Pendente |
+| **P14.1** | testes de caracterização **antes** de mexer em agenda, financeiro, payments e IA: sinal, saldo, régua, reconcile, repasse, Caixa, jornadas | — | linha de base verde registrada | **Concluído**: inventário dos testes existentes por comportamento (sinal, saldo, régua, reconcile, repasse NET/GROSS) + 1.233 testes verdes + caracterização nova da régua (`76ceff59`) |
 | **P14.2** | concorrência (G.7) | P7.4, P9.3, P10.2 | sem duplicata nem inconsistência | Pendente |
 | **P14.3** (T11.1) | E2E na Preview (G.3) | P2–P11 | todos verdes | Pendente |
 | **P14.4** (T11.5) | desempenho (H.2) com números reais | P7–P10 | metas cumpridas ou desvio registrado | Pendente |
@@ -1153,7 +1153,13 @@ Rode também `npx tsx scripts/arch-db-check.ts`. Nenhum import de `internal/*` e
    ```
 3. Usar o próximo número livre global e conferir `meta/_journal.json`.
 4. `npx tsx scripts/check-migration-safety.ts` e `arch-db-check`.
-5. Aplicar só no DEV pelo script oficial (`scripts/db-migrate-dev.ts`), **depois de conferir quais migrations o DEV já tem**. O DEV é compartilhado com outras branches; se houver migrations do #53 aplicadas no DEV e ausentes nesta branch, **pare** e registre o bloqueio.
+5. Aplicar só no DEV pelo script oficial (`scripts/db-migrate-dev.ts`), **depois de conferir quais migrations o DEV já tem** (consulta só de leitura em `drizzle.__drizzle_migrations`). O DEV é compartilhado com outras branches. Regras (refinadas em 10/11, depois de ler o script):
+   - o `drizzle-kit migrate` aplica as entradas do journal com `when` maior que o da última aplicada no DEV. Em 10/11 a última era a 0142 do billing, com `when` = `1794326400000` (16:00 UTC, valor redondo no futuro). A nova entrada precisa de `when` maior: a 0143 usa `1794330000000`;
+   - migration **só aditiva** com `when` posterior pode ser aplicada no DEV;
+   - **troca de constraint, mudança de dado ou qualquer coisa que altere o comportamento de outras branches no DEV exige coordenação explícita** (registrar em L.2 antes);
+   - o `idx` do journal é sequencial nesta branch (0143 = `idx` 136). No rebase depois do #53, as entradas do billing (`idx` 136–142) entram antes e as nossas passam a 143+;
+   - o worktree não tem `.env.local`, e segredo não é copiado para ele. O invólucro lê o `.env.local` do checkout principal, confirma o projeto DEV (`pqhkirrszzpwezdaqrai`) e recusa o de produção antes de passar as variáveis ao processo;
+   - **latência:** o pooler do DEV (`us-west-1`) leva cerca de 10 s para aceitar conexão daqui, e o pool do app tem `connect_timeout` 10 s. Espere `CONNECT_TIMEOUT` intermitente. Rode em segundo plano, com log em arquivo, e confira o estado por consulta só de leitura antes de repetir. Matar o processo desfaz a transação (verificado).
 
 ### E.6 Escolher a próxima tarefa
 
@@ -1691,6 +1697,7 @@ O módulo só é **Pronto para produção** quando todos os itens tiverem evidê
 | B6 | orientação jurídica de retenção de guias e carteirinhas | P12.3 | orientação |
 | B7 | instalar o Validador C (software de terceiros no Windows) | P13.5 | autorização |
 | B8 | aprovação humana de release e ativação | P15.8, P15.9 | fundador |
+| B9 | conexão com o DEV instável (10/11, tarde) | P1.3 e tudo que precisar do banco | conexão estável; repetir a carga |
 
 B1–B3 da rev.1 foram resolvidos pela diretriz de 10/11 (D1–D8).
 
@@ -1713,6 +1720,8 @@ B1–B3 da rev.1 foram resolvidos pela diretriz de 10/11 (D1–D8).
 | R13 | DEV compartilhado com migrations de outras branches | média | alto | E.5 passo 5 |
 | R14 | agrupamento de sessões diferente por operadora | alta | médio | regra por operadora (P2.5) + conferência humana |
 | R15 | escopo grande demais para uma clínica piloto inicial | média | médio | flag por clínica e por operadora; tipos de guia liberados um a um |
+| R16 | **o validador de CNPJ compartilhado (`src/lib/validation/cnpj.ts`) só aceita dígitos**: desde jul/2026 a Receita emite CNPJ alfanumérico, e o Qoro recusaria um CNPJ novo válido em fornecedor, perfil e onboarding | alta | médio | `isValidCnpjAlphanumeric` criado sem tocar o compartilhado; trocar a normalização (afeta hash e persistência) é decisão do fundador, fora do escopo de convênios |
+| R17 | DEV compartilhado instável ou lento (pooler em outra região) atrasa a validação conectada | média | médio | scripts com log, conexão própria e transação única; repetir; código puro avança em paralelo |
 
 ---
 
@@ -1795,3 +1804,46 @@ B1–B3 da rev.1 foram resolvidos pela diretriz de 10/11 (D1–D8).
   - Cruzamento com o XSD registrado em B.10.13.
 - **Arquitetura:** `arch:graphs --check` já acusava drift na `origin/main` (eventos entre financial, payments, messaging e ai-agent; 807 → 918 módulos). Regenerado em `c0192f4b`, incluindo o contexto novo e `lib:xlsx`.
 - **Próxima ação:** P0.10.
+
+### 10/11/2026 — P14.1, P1.1–P1.3, P9.1 (Consulta) e P7.3
+
+- **P14.1 (caracterização antes de mudar fluxo existente):**
+  - `npx vitest run src/contexts/financial src/contexts/payments src/app/api/cron/financial-reconcile src/contexts/scheduling src/contexts/ai-agent/proactive-jobs src/contexts/ai-agent/tools` → **129 arquivos, 1.233 testes verdes** (linha de base).
+  - Cobertura existente conferida por comportamento:
+    - recebível cheio na conclusão: `appointment-completed.test.ts`;
+    - "sem recebível em aberto NÃO cobra" e saldo por `appointment_id`: `remainder-charge.test.ts`, `appointment-balance.test.ts`;
+    - NET pendente até o recebível ser pago: `professional-payout.test.ts`;
+    - pendência idempotente: reconcile.
+  - Lacuna fechada: a régua só cobra recebível com paciente (`76ceff59`).
+- **P1.1/P1.2:** contexto, schema, agregador e migration **0143** (`a5faadda`).
+  - Leitura do DEV antes de aplicar: **143 migrations aplicadas**, 136 na `main` mais 7 do billing; a última com `when` = `1794326400000` (0142, 16:00 UTC de 10/11, valor redondo no futuro). Daí a 0143 com `when` = `1794330000000`.
+  - **Aplicação no DEV** (script oficial com invólucro que confere o projeto):
+    - 1ª tentativa: `CONNECT_TIMEOUT` no primeiro comando;
+    - 2ª: encerrada aos 300 s; estado conferido, nada aplicado (transação desfeita);
+    - 3ª: sucesso. **144 migrations**, 3 tabelas com RLS ENABLE+FORCE, índices e `_schema_version` `0143-tiss-catalog`.
+  - **Privilégios testados no DEV com rollback:** `authenticated` SELECT ok; INSERT e DELETE → `42501 permission denied`; `anon` SELECT → `42501`.
+  - Testes: `catalog-migration.test.ts` 9/9. Um falso positivo inicial (a palavra DROP no comentário de rollback) foi corrigido no teste, que agora remove comentários.
+- **P1.3 (carga da terminologia): BLOQUEADA (B9).**
+  - **Causa medida:** o pooler do DEV (`us-west-1`) leva 9,5–16 s para aceitar conexão daqui, e o pool do app desiste em 10 s. O carregador ganhou conexão própria guardada (`--expected-ref`, recusa prod, lista de exceções do lint e do `arch-db-check`, como `run-signup-recovery-dev.ts`). Commit `7378e8c9`.
+  - **Bug encontrado na 1ª carga conectada:** `jsonb_to_recordset(${JSON.stringify(x)}::jsonb)` → "cannot call jsonb_to_recordset on a non-array". O driver descobre que o parâmetro é jsonb e serializa a string de novo. Corrigido com `sql.json(...)`; a confirmação no banco depende do DEV.
+  - Tentativas seguintes: `CONNECT_TIMEOUT` (45 s) e `ECONNRESET`. Em todas, **nada persistiu** (0 termos e nenhuma versão, conferido por consulta só de leitura).
+  - Nenhum processo órfão ficou rodando (conferido via `Win32_Process`).
+- **P9.1 (parcial):** árvore XML, hash do epílogo, Guia de Consulta e mensagem de lote (`dc56b5d4`); 58 testes.
+  - O hash bate com um cálculo independente sobre o texto serializado.
+  - **XMLs gerados pelo código real × XSD oficial 4.03.00** (`xmllint-wasm` 5.3.0 fora do repositório; corpus em `scratchpad/xmllint-eval/corpus-v0`):
+
+    | Arquivo | SHA-256 (início) | XSD |
+    | --- | --- | --- |
+    | V1a Consulta PJ, código na operadora | `383c483b…` | **válido** |
+    | V1b CNPJ alfanumérico + CNES real | `33cd527a…` | **válido** |
+    | V1c PF por CPF, sem nome | `ddf6d9a7…` | **válido** |
+    | V1d tipos 1–4 × regimes 01–05 (20 guias) | `744c6cf2…` | **válido** |
+    | V1e opcionais presentes e valor máximo | `990150d9…` | **válido** |
+    | V4 lote com 100 guias | `86c5ef05…` | **válido** |
+    | V18 acentos latin1 | `60588ec7…` | **válido** |
+    | V5 101 guias | — | recusado pelo próprio gerador |
+    | Nome com caractere fora do latin1 | — | recusado pelo próprio gerador |
+
+- **P7.3:** `validateConsultaGuide` com pendências explicadas por código, campo e responsável; 36 regras negativas e positivos com a terminologia real (`71dc5b46`). Testes do contexto: 149 verdes; `tsc` e `eslint` sem erro.
+- **Achado transversal (R16):** `src/lib/validation/cnpj.ts` só aceita dígitos e recusaria CNPJ alfanumérico válido (IN RFB 2.229, emissão desde jul/2026) em todo o Qoro. Criado `isValidCnpjAlphanumeric` (exemplo oficial `12.ABC.345/01DE-35`); a troca do compartilhado fica para decisão.
+- **Próxima ação:** repetir P1.3 quando o DEV responder; seguir com SP/SADT (P8.1–P8.3, P8.6).
