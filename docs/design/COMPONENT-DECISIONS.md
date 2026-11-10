@@ -109,7 +109,7 @@ Por pedido do founder em 09/11, o favicon passou a ser a marca do menu lateral (
 
 | Canvas                                | Implementado                                       | Motivo                                                                 |
 | ------------------------------------- | -------------------------------------------------- | ---------------------------------------------------------------------- |
-| Trilho de 44 px, marca de 44 px       | Trilho de 72 px, marca de 36 px                    | Marca com respiro, à mesma distância do topo e da esquerda. |
+| Trilho de 44 px, marca de 44 px       | Trilho de 60 px, marca de 36 px; aberto com 204 px | Marca com respiro. Era 72/216 px; o founder pediu menos largura em 10/11. |
 | Fixar, tema e Sair em lista com nome  | Lista com nome, como o canvas                      | Em 09/11 viraram ícones em linha; em 10/11 o founder pediu a lista de volta. |
 | Ícones estáticos                      | `react-useanimations` (MIT) ao passar o mouse      | Pedido do founder. Consultório segue em Lucide: não há estetoscópio.   |
 | Sair no rodapé em qualquer aparelho   | Em tablet com toque, Sair só no menu da conta      | Decisão delegada pelo founder: nada de saída por engano.              |

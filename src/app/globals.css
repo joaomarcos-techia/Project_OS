@@ -530,14 +530,17 @@ body:has([data-qoro-tokens='app-v5']) {
 
   /* Shell: fundo do app, menu e painel */
   --shell-gap: 12px;
-  --rail-w: 72px;
+  /* Recolhido 60 px e aberto 204 px (+12 px de borda ao abrir por cima): pedido do
+     founder em 10/11. Aberto, o limite é "Equipe & Permissões" (141 px) com
+     respiro à direita. */
+  --rail-w: 60px;
   --rail-logo: 36px;
   --rail-logo-inset: calc((var(--rail-w) - var(--rail-logo)) / 2);
   --rail-icon-inset: calc((var(--rail-w) - 20px) / 2);
   --rail-item-h: 40px;
   --rail-heading-h: 28px;
-  --rail-peek-w: 228px;
-  --rail-pin-w: 216px;
+  --rail-peek-w: 216px;
+  --rail-pin-w: 204px;
   --page-px: 24px;
   --page-pt: 0px;
   --page-pt-mobile: 0px;
