@@ -3,9 +3,10 @@ import type { ComponentProps } from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-const { navigation, toggleTheme } = vi.hoisted(() => ({
+const { navigation, toggleTheme, linkStatus } = vi.hoisted(() => ({
   navigation: { pathname: '/configuracoes/pagamentos' },
   toggleTheme: vi.fn(),
+  linkStatus: { pending: false },
 }));
 vi.mock('next/navigation', () => ({ usePathname: () => navigation.pathname }));
 vi.mock('next/link', () => ({
@@ -13,6 +14,7 @@ vi.mock('next/link', () => ({
     prefetch: _prefetch,
     ...props
   }: ComponentProps<'a'> & { prefetch?: boolean | null }) => <a {...props} />,
+  useLinkStatus: () => linkStatus,
 }));
 vi.mock('@/components/shared/use-theme', () => ({
   useTheme: () => ({ theme: 'light', toggle: toggleTheme }),
@@ -26,6 +28,7 @@ afterEach(() => {
   vi.clearAllMocks();
   vi.unstubAllGlobals();
   navigation.pathname = '/configuracoes/pagamentos';
+  linkStatus.pending = false;
 });
 
 function renderShell() {
@@ -149,5 +152,72 @@ describe('shell tenant das referências HTML', () => {
     expect(screen.getByRole('main').id).toBe('qoro-main');
     expect(screen.getByLabelText('2 conversas aguardando atendimento')).toBeTruthy();
     expect(screen.getByText('MS')).toBeTruthy();
+  });
+});
+
+describe('sidebar: permissões, grupos e estados', () => {
+  it('mostra só os módulos permitidos e esconde o grupo que ficou vazio', () => {
+    render(
+      <PainelShell
+        userName="Recepção"
+        settingsHref="/configuracoes"
+        allowedModuleIds={['dashboard', 'agenda', 'pacientes', 'config', 'ajuda']}
+      >
+        <h1>Painel</h1>
+      </PainelShell>,
+    );
+    for (const name of ['Dashboard', 'Agenda', 'Pacientes', 'Configurações', 'Ajuda']) {
+      expect(screen.getByRole('link', { name })).toBeTruthy();
+    }
+    for (const name of ['Financeiro', 'Caixa', 'Consultório', 'Equipe & Permissões']) {
+      expect(screen.queryByRole('link', { name })).toBeNull();
+    }
+    // Gestão ficou sem nenhum módulo permitido: nem o título aparece.
+    expect(screen.queryByRole('group', { name: 'Gestão' })).toBeNull();
+    // Sem Conversas, o contador de atendimento não aparece em lugar nenhum.
+    expect(screen.queryByLabelText('2 conversas aguardando atendimento')).toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'Abrir navegação' }).hasAttribute('aria-describedby'),
+    ).toBe(false);
+  });
+
+  it('nomeia cada grupo pelo título visível, na ordem do menu', () => {
+    renderShell();
+    const groups = screen
+      .getAllByRole('group')
+      .map((group) => group.getAttribute('data-nav-group'));
+    expect(groups).toEqual(['Operação', 'Clínico', 'Gestão', 'Administração']);
+    const operacao = screen.getByRole('group', { name: 'Operação' });
+    expect(operacao.querySelectorAll('a')).toHaveLength(3);
+  });
+
+  it('marca o item que está carregando a próxima tela', () => {
+    linkStatus.pending = true;
+    const { container } = renderShell();
+    expect(container.querySelectorAll('.qoro-rail-nav .qoro-rail-pending').length).toBeGreaterThan(
+      0,
+    );
+    linkStatus.pending = false;
+  });
+
+  it('não mostra indicador de carregamento quando nada está pendente', () => {
+    const { container } = renderShell();
+    expect(container.querySelector('.qoro-rail-pending')).toBeNull();
+  });
+
+  it('o botão Menu descreve as conversas pendentes e sai do foco com a gaveta aberta', () => {
+    renderShell();
+    const trigger = screen.getByRole('button', { name: 'Abrir navegação' });
+    const describedBy = trigger.getAttribute('aria-describedby');
+    expect(describedBy && document.getElementById(describedBy)?.textContent).toBe(
+      '2 conversas aguardando atendimento',
+    );
+    fireEvent.click(trigger);
+    expect(trigger.hasAttribute('inert')).toBe(true);
+    const dialog = screen.getByRole('dialog', { name: 'Navegação' });
+    expect(dialog.getAttribute('aria-modal')).toBe('true');
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(trigger.hasAttribute('inert')).toBe(false);
+    expect(screen.queryByRole('dialog', { name: 'Navegação' })).toBeNull();
   });
 });

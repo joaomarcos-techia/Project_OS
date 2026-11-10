@@ -1,11 +1,11 @@
 'use client';
 
-import Link from 'next/link';
+import Link, { useLinkStatus } from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  Fragment,
   useCallback,
   useEffect,
+  useId,
   useRef,
   useState,
   type ReactElement,
@@ -30,6 +30,10 @@ import { useRailPinned } from './use-rail-pinned';
 /** Até esta largura o menu é a barra do topo; `globals.css` usa o mesmo corte. */
 const MOBILE_BAR_QUERY = '(max-width: 720px)';
 
+/** Elementos que recebem foco por Tab dentro da gaveta do celular. */
+const FOCUSABLE =
+  'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"]), input, select, textarea';
+
 /** O botão de tema é remontado a cada troca (o `key` muda a animação). */
 function refocusThemeButton() {
   requestAnimationFrame(() => {
@@ -48,13 +52,31 @@ function RailFootTip({ label, children }: { label: string; children: ReactElemen
 }
 
 /**
+ * Mostra que a troca de tela começou. Algumas rotas levam mais de 1 s para
+ * responder e, sem isto, o clique parecia não ter sido aceito.
+ */
+function RailPending() {
+  const { pending } = useLinkStatus();
+  return pending ? <span className="qoro-rail-pending" aria-hidden="true" /> : null;
+}
+
+function conversationsWaiting(count: number): string {
+  return `${count} ${count === 1 ? 'conversa aguardando atendimento' : 'conversas aguardando atendimento'}`;
+}
+
+/**
  * Chrome do app da clínica — Qoro App v5 (novembro/2026).
  *
  * O menu fica sobre o fundo do app, fora do painel branco de conteúdo:
- * trilho de 72 px só com ícones, que abre por cima ao passar o mouse ou focar
- * pelo teclado, e que o usuário pode fixar aberto (216 px, empurra o painel).
- * No celular o mesmo menu vira uma barra no topo com rolagem lateral; o botão
- * "Abrir navegação" o expande em gaveta, que é onde ficam tema, conta e Sair.
+ * trilho de 72 px só com ícones, que abre por cima ao passar o mouse (com um
+ * instante de intenção, para não abrir ao cruzar a borda) ou focar pelo
+ * teclado, e que o usuário pode fixar aberto (216 px, empurra o painel). Os
+ * grupos têm título: aberto, o nome; recolhido, um traço no mesmo espaço, então
+ * nada pula de lugar ao abrir.
+ *
+ * No celular o topo é só a marca, a clínica e o botão "Menu"; a navegação
+ * inteira, com títulos, tema, conta e Sair, abre numa gaveta que prende o foco,
+ * fecha com Esc, na máscara ou ao trocar de tela, e devolve o foco ao botão.
  *
  * As peças são só do tenant (classes `qoro-rail*` em `globals.css`): o
  * `shell-chrome` continua servindo o /admin sem mudança. O menu da conta
@@ -68,6 +90,7 @@ export function PainelShell({
   clinicName = 'Qoro',
   settingsHref,
   clinicSettingsHref,
+  allowedModuleIds,
 }: {
   children: ReactNode;
   userName?: string;
@@ -78,6 +101,11 @@ export function PainelShell({
   settingsHref: string;
   /** Só vem preenchido para quem tem `manage:settings` (ver o layout do shell). */
   clinicSettingsHref?: string;
+  /**
+   * Módulos que a pessoa consegue abrir (`visibleModuleIds`). Ausente, mostra
+   * todos — o gate de cada página continua valendo de qualquer forma.
+   */
+  allowedModuleIds?: readonly string[];
 }) {
   const pathname = usePathname();
   const { theme, toggle } = useTheme();
@@ -90,6 +118,7 @@ export function PainelShell({
   const railInnerRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const toggleButtonRef = useRef<HTMLButtonElement>(null);
+  const idBase = useId();
   // Só volta ao botão de menu quem fechou a gaveta (X, máscara ou Esc). Na troca
   // de rota o foco não é puxado de volta para o menu.
   const refocusToggleOnClose = useRef(false);
@@ -114,7 +143,27 @@ export function PainelShell({
 
     const onKeyDown = (event: KeyboardEvent) => {
       // `defaultPrevented`: o Esc já fechou uma dica ou o menu da conta.
-      if (event.key === 'Escape' && !event.defaultPrevented) closeNav();
+      if (event.key === 'Escape' && !event.defaultPrevented) {
+        closeNav();
+        return;
+      }
+      // Prende o Tab na gaveta: o painel por trás está `inert`, mas o link de
+      // pular conteúdo e o fim do documento ainda receberiam o foco.
+      const drawer = railInnerRef.current;
+      if (event.key !== 'Tab' || !drawer || !drawer.contains(document.activeElement)) return;
+      const focusables = Array.from(drawer.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
+        (el) => el.getClientRects().length > 0,
+      );
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (!first || !last) return;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
     // Girar o aparelho pode passar de 720 px, onde não há gaveta nem como fechá-la.
     const mobileBar = window.matchMedia(MOBILE_BAR_QUERY);
@@ -134,19 +183,6 @@ export function PainelShell({
     };
   }, [navOpen, closeNav]);
 
-  // Na barra do celular, traz o item ativo para a área visível. Espera a gaveta
-  // fechar: aberta, o menu não é a faixa horizontal e a medida sairia errada.
-  useEffect(() => {
-    const inner = railInnerRef.current;
-    if (navOpen || !inner || !window.matchMedia(MOBILE_BAR_QUERY).matches) return;
-    const item = inner.querySelector('.qoro-rail-nav [aria-current="page"]');
-    if (!item) return;
-    const bar = inner.getBoundingClientRect();
-    const { left, right } = item.getBoundingClientRect();
-    if (left < bar.left) inner.scrollLeft += left - bar.left;
-    else if (right > bar.right) inner.scrollLeft += right - bar.right;
-  }, [pathname, navOpen]);
-
   const isActive = (href?: string) =>
     !!href &&
     ([href, encodeURI(href)].some((path) => pathname === path || pathname.startsWith(path + '/')) ||
@@ -158,7 +194,13 @@ export function PainelShell({
     theme === 'dark' ? 'Tema escuro' : theme === 'system' ? 'Tema do sistema' : 'Tema claro';
   const ThemeIcon = theme === 'dark' ? Moon : theme === 'system' ? Laptop : Sun;
   const themeAnimation = theme === 'dark' ? 'dark' : theme === 'system' ? 'system' : 'light';
-  const visibleGroups = GROUPS.filter((group) => MODULES.some((m) => m.group === group));
+  const visibleModules = MODULES.filter(
+    (m) => !m.soon && m.href && (!allowedModuleIds || allowedModuleIds.includes(m.id)),
+  );
+  const visibleGroups = GROUPS.filter((group) => visibleModules.some((m) => m.group === group));
+  const handoffText = handoffCount > 9 ? '9+' : String(handoffCount);
+  const showHandoff =
+    handoffCount > 0 && visibleModules.some((module) => module.id === 'conversas');
 
   return (
     <TooltipProvider delayDuration={300}>
@@ -168,7 +210,11 @@ export function PainelShell({
         </a>
 
         <aside data-slot="tenant-rail" className="qoro-rail">
-          <div ref={railInnerRef} className="qoro-rail-inner">
+          <div
+            ref={railInnerRef}
+            className="qoro-rail-inner"
+            {...(navOpen ? { role: 'dialog', 'aria-modal': true, 'aria-label': 'Navegação' } : {})}
+          >
             <div className="qoro-rail-top">
               <Link
                 href="/"
@@ -193,68 +239,71 @@ export function PainelShell({
             </div>
 
             <nav className="qoro-rail-nav" aria-label="Navegação principal">
-              {visibleGroups.map((group, index) => (
-                <Fragment key={group}>
-                  {index > 0 ? <span className="qoro-rail-sep" aria-hidden="true" /> : null}
+              {visibleGroups.map((group, index) => {
+                const headingId = `${idBase}-grupo-${index}`;
+                return (
                   <div
+                    key={group}
                     role="group"
-                    aria-label={group}
+                    aria-labelledby={headingId}
                     data-nav-group={group}
                     className="qoro-rail-group"
                   >
-                    {MODULES.filter((m) => m.group === group).map((m) => {
-                      const href = m.id === 'config' ? settingsHref : m.href;
-                      if (m.soon || !href) return null;
-                      const showHandoff = m.id === 'conversas' && handoffCount > 0;
-                      const countText = handoffCount > 9 ? '9+' : String(handoffCount);
-                      return (
-                        <RailAnimated
-                          key={m.id}
-                          name={m.icon}
-                          size={27}
-                          fallback={<Icon name={m.icon} size={20} sw={1.75} />}
-                        >
-                          {(icon, events) => (
-                            <Link
-                              {...events}
-                              href={href}
-                              // Sem prefetch: com o modo automático, abrir qualquer
-                              // aba renderizava todas as outras em segundo plano
-                              // (medido no Preview, até 1,4 s por destino).
-                              prefetch={false}
-                              data-slot="rail-link"
-                              className="qoro-rail-item"
-                              aria-current={isActive(href) ? 'page' : undefined}
-                            >
-                              {icon}
-                              <span className="qoro-rail-label">{m.label}</span>
-                              {showHandoff ? (
-                                <>
-                                  {/* Um número só para leitura; o ponto sobre o
-                                  ícone é a cópia visual do trilho recolhido. */}
-                                  <span
-                                    className="qoro-rail-count qoro-rail-label"
-                                    aria-label={`${handoffCount} ${
-                                      handoffCount === 1
-                                        ? 'conversa aguardando atendimento'
-                                        : 'conversas aguardando atendimento'
-                                    }`}
-                                  >
-                                    {countText}
-                                  </span>
-                                  <span className="qoro-rail-dot" aria-hidden="true">
-                                    {countText}
-                                  </span>
-                                </>
-                              ) : null}
-                            </Link>
-                          )}
-                        </RailAnimated>
-                      );
-                    })}
+                    <span className="qoro-rail-heading">
+                      <span id={headingId} className="qoro-rail-heading-text qoro-rail-label">
+                        {group}
+                      </span>
+                    </span>
+                    {visibleModules
+                      .filter((m) => m.group === group)
+                      .map((m) => {
+                        const href = m.id === 'config' ? settingsHref : m.href!;
+                        const withCount = m.id === 'conversas' && showHandoff;
+                        return (
+                          <RailAnimated
+                            key={m.id}
+                            name={m.icon}
+                            size={27}
+                            fallback={<Icon name={m.icon} size={20} sw={1.75} />}
+                          >
+                            {(icon, events) => (
+                              <Link
+                                {...events}
+                                href={href}
+                                // Sem prefetch: com o modo automático, abrir qualquer
+                                // aba renderizava todas as outras em segundo plano
+                                // (medido no Preview, até 1,4 s por destino).
+                                prefetch={false}
+                                data-slot="rail-link"
+                                className="qoro-rail-item"
+                                aria-current={isActive(href) ? 'page' : undefined}
+                              >
+                                {icon}
+                                <span className="qoro-rail-label">{m.label}</span>
+                                {withCount ? (
+                                  <>
+                                    {/* Um número só para leitura; o ponto sobre o
+                                    ícone é a cópia visual do trilho recolhido. */}
+                                    <span
+                                      className="qoro-rail-count qoro-rail-label"
+                                      aria-label={conversationsWaiting(handoffCount)}
+                                    >
+                                      {handoffText}
+                                    </span>
+                                    <span className="qoro-rail-dot" aria-hidden="true">
+                                      {handoffText}
+                                    </span>
+                                  </>
+                                ) : null}
+                                <RailPending />
+                              </Link>
+                            )}
+                          </RailAnimated>
+                        );
+                      })}
                   </div>
-                </Fragment>
-              ))}
+                );
+              })}
             </nav>
 
             <span className="qoro-rail-spacer" aria-hidden="true" />
@@ -348,10 +397,26 @@ export function PainelShell({
             className="qoro-rail-toggle"
             aria-label="Abrir navegação"
             aria-expanded={navOpen}
+            {...(showHandoff ? { 'aria-describedby': `${idBase}-pendentes` } : {})}
+            // Aberta, a gaveta cobre o botão: ele sai da ordem de foco.
+            inert={navOpen}
             onClick={() => setNavOpen((open) => !open)}
           >
             <Menu aria-hidden="true" className="size-5" />
+            <span className="qoro-rail-toggle-text" aria-hidden="true">
+              Menu
+            </span>
+            {showHandoff ? (
+              <span className="qoro-rail-toggle-count" aria-hidden="true">
+                {handoffText}
+              </span>
+            ) : null}
           </button>
+          {showHandoff ? (
+            <span id={`${idBase}-pendentes`} hidden>
+              {conversationsWaiting(handoffCount)}
+            </span>
+          ) : null}
         </aside>
         <div className="qoro-rail-scrim" aria-hidden="true" onClick={closeNav} />
 

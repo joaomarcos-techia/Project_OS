@@ -7,6 +7,7 @@ import type { ReactNode } from 'react';
 import './_painel/ds.css';
 import './_painel/app-shell.css';
 import { ImpersonationBanner } from '@/components/admin/impersonation-banner';
+import { visibleModuleIds } from '@/components/painel/modules';
 import { PainelShell } from '@/components/painel/painel-shell';
 import { getShellIdentity } from '@/components/painel/shell-identity';
 import { AnnouncementPopup } from '@/components/shared/announcement-popup';
@@ -83,6 +84,12 @@ export default async function ShellLayout({ children }: { children: ReactNode })
   );
   const settingsHref =
     settingsGroups.length > 0 ? '/configuracoes' : firstSettingsHref(settingsGroups);
+  // O menu mostra só o que a pessoa consegue abrir; cada página mantém o próprio
+  // gate. Mesma regra de super_admin do `pageGate` e das categorias acima.
+  const allowedModuleIds = visibleModuleIds(
+    user.permissions,
+    user.isSuperAdmin && user.aal === 'aal2',
+  );
 
   // Depois do guard de `user`: a leitura abre `withTenant`, e abrir transação
   // para quem o layout vai redirecionar seria trabalho jogado fora. Memoizada
@@ -109,6 +116,7 @@ export default async function ShellLayout({ children }: { children: ReactNode })
         userRole={id.userRole}
         clinicName={id.clinicName}
         settingsHref={settingsHref}
+        allowedModuleIds={allowedModuleIds}
         {...(user.permissions.includes(PERMISSIONS.MANAGE_SETTINGS)
           ? { clinicSettingsHref: '/configuracoes/perfil' }
           : {})}

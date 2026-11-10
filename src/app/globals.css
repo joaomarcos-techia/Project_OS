@@ -535,6 +535,7 @@ body:has([data-qoro-tokens='app-v5']) {
   --rail-logo-inset: calc((var(--rail-w) - var(--rail-logo)) / 2);
   --rail-icon-inset: calc((var(--rail-w) - 20px) / 2);
   --rail-item-h: 40px;
+  --rail-heading-h: 28px;
   --rail-peek-w: 228px;
   --rail-pin-w: 216px;
   --page-px: 24px;
@@ -664,10 +665,13 @@ body:has([data-qoro-tokens='app-v5']) {
 
 /* ---- Shell v5: fundo do app, menu lateral e painel de conteúdo ----------
    O menu fica SOBRE o fundo do app, fora do painel. Três estados:
-   - recolhido (padrão): trilho de 44 px só com ícones e contadores;
-   - ao passar o mouse ou focar com o teclado: abre por cima com 228 px, sem
-     mover a tela, e o contador vira etiqueta ao lado do nome;
+   - recolhido (padrão): trilho de 72 px só com ícones, contadores e um traço
+     curto no lugar do título de cada grupo;
+   - ao passar o mouse (depois de um instante de intenção) ou focar com o
+     teclado: abre por cima com 228 px, sem mover a tela; o traço vira o nome
+     do grupo e o contador vira etiqueta ao lado do nome;
    - fixado: 216 px que empurram o painel para o lado.
+   Título e traço ocupam a mesma altura, então nada sobe ou desce ao abrir.
    A preferência de fixar vive em `html[data-qoro-rail='pinned']`, aplicada pelo
    script de antes da pintura no layout raiz — sem salto na hidratação. */
 [data-qoro-shell='tenant'].qoro-app {
@@ -692,7 +696,7 @@ body:has([data-qoro-tokens='app-v5']) {
   align-self: flex-start;
   width: var(--rail-w);
   height: calc(100dvh - 2 * var(--shell-gap));
-  transition: width 0.16s ease;
+  transition: width 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail {
   width: var(--rail-pin-w);
@@ -710,11 +714,11 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail {
   border-radius: var(--card-radius);
   background: transparent;
   transition:
-    width 0.16s ease,
-    box-shadow 0.16s ease,
-    background-color 0.16s ease,
-    padding 0.16s ease,
-    margin 0.16s ease;
+    width 0.18s cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 0.18s ease,
+    background-color 0.18s ease,
+    padding 0.18s cubic-bezier(0.2, 0.8, 0.2, 1),
+    margin 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 /* Abre por cima: no hover, no foco por teclado e enquanto o menu da conta
    estiver aberto (o conteúdo dele vai para um portal e o foco sai do trilho).
@@ -732,6 +736,26 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail {
     box-shadow: var(--elev-overlay);
   }
 }
+/* Intenção: cruzar a borda com o mouse a caminho de outro lugar não abre o
+   menu por cima da tela. Só o hover espera; o foco por teclado abre na hora e
+   fechar é sempre imediato (a espera some junto com o :hover). */
+@media (min-width: 721px) and (hover: hover) {
+  html:not([data-qoro-rail='pinned']) [data-qoro-shell='tenant'] .qoro-rail:hover .qoro-rail-inner,
+  html:not([data-qoro-rail='pinned']) [data-qoro-shell='tenant'] .qoro-rail:hover .qoro-rail-label,
+  html:not([data-qoro-rail='pinned']) [data-qoro-shell='tenant'] .qoro-rail:hover .qoro-rail-dot,
+  html:not([data-qoro-rail='pinned'])
+    [data-qoro-shell='tenant']
+    .qoro-rail:hover
+    .qoro-rail-heading::before,
+  html:not([data-qoro-rail='pinned'])
+    [data-qoro-shell='tenant']
+    .qoro-rail:hover
+    .qoro-rail-user
+    [data-slot='sidebar-user']
+    > :not(:first-child) {
+    transition-delay: 0.12s;
+  }
+}
 html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail-inner {
   width: var(--rail-pin-w);
 }
@@ -742,14 +766,14 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail {
 [data-qoro-shell='tenant'] .qoro-rail-label {
   opacity: var(--rail-label-opacity);
   white-space: nowrap;
-  transition: opacity 0.12s ease;
+  transition: opacity 0.14s ease;
 }
 [data-qoro-shell='tenant'] .qoro-rail-top {
   display: flex;
   flex: none;
   align-items: center;
   gap: 8px;
-  margin-bottom: 10px;
+  margin-bottom: 2px;
   padding: var(--rail-logo-inset) var(--rail-logo-inset) 0;
 }
 [data-qoro-shell='tenant'] .qoro-rail-clinic {
@@ -772,6 +796,8 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail {
   height: var(--rail-logo);
   border-radius: var(--card-radius);
   background: var(--primary);
+  /* Um brilho interno de 1 px dá volume à marca sem sombra externa. */
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.18);
   color: var(--primary-foreground);
 }
 [data-qoro-shell='tenant'] .qoro-rail-mark svg {
@@ -791,7 +817,6 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail {
   min-height: 0;
   flex: 0 1 auto;
   flex-direction: column;
-  gap: 2px;
   overflow-x: hidden;
   overflow-y: auto;
   scrollbar-width: none;
@@ -801,14 +826,44 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail {
 }
 [data-qoro-shell='tenant'] .qoro-rail-group {
   display: flex;
+  flex: none;
   flex-direction: column;
   gap: 2px;
 }
-[data-qoro-shell='tenant'] .qoro-rail-sep {
+/* Título do grupo. Aberto: o nome, alinhado ao ícone. Recolhido: um traço
+   curto no mesmo espaço (o primeiro grupo dispensa o traço, a marca já separa). */
+[data-qoro-shell='tenant'] .qoro-rail-heading {
+  position: relative;
+  display: flex;
   flex: none;
+  align-items: flex-end;
+  height: var(--rail-heading-h);
+  padding: 0 8px 6px var(--rail-icon-inset);
+}
+[data-qoro-shell='tenant'] .qoro-rail-heading::before {
+  content: '';
+  position: absolute;
+  top: calc(50% - 0.5px);
+  left: calc(var(--rail-w) / 2 - 12px);
+  width: 24px;
   height: 1px;
-  margin: 6px 8px;
   background: var(--rail-sep);
+  opacity: calc(1 - var(--rail-label-opacity));
+  transition: opacity 0.14s ease;
+}
+[data-qoro-shell='tenant'] .qoro-rail-group:first-child .qoro-rail-heading::before {
+  content: none;
+}
+[data-qoro-shell='tenant'] .qoro-rail-heading-text {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
 }
 [data-qoro-shell='tenant'] .qoro-rail-item {
   position: relative;
@@ -832,7 +887,8 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail {
   cursor: pointer;
   transition:
     background-color 0.12s ease,
-    color 0.12s ease;
+    color 0.12s ease,
+    box-shadow 0.12s ease;
 }
 [data-qoro-shell='tenant'] .qoro-rail-item > svg {
   flex: none;
@@ -855,7 +911,9 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail {
   background: var(--rail-hover);
   color: var(--text);
 }
-/* O item ativo vira uma peça branca com texto azul, sobre o fundo do app. */
+/* Item ativo: peça branca elevada, texto na cor da marca, peso maior e uma
+   barra à esquerda. Forma, peso e barra dizem "você está aqui" sem depender
+   só da cor. */
 [data-qoro-shell='tenant'] .qoro-rail-item[aria-current='page'],
 [data-qoro-shell='tenant'] .qoro-rail-item[aria-current='page']:hover {
   background: var(--card);
@@ -866,12 +924,62 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail {
   color: var(--text-link);
   font-weight: 600;
 }
+[data-qoro-shell='tenant'] .qoro-rail-item[aria-current='page']::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 3px;
+  height: 18px;
+  border-radius: 0 3px 3px 0;
+  background: var(--primary);
+  transform: translateY(-50%);
+}
 [data-qoro-shell='tenant'] .qoro-rail-item[data-pressed='true'] {
   background: var(--rail-pressed);
   color: var(--text);
 }
 [data-qoro-shell='tenant'] .qoro-rail :is(.qoro-rail-item, .qoro-rail-clinic):focus-visible {
   outline-offset: -2px;
+}
+/* Carregando: a troca de tela começou e a rota ainda não respondeu. Uma linha
+   fina na base do item, que corre; com movimento reduzido, fica parada. */
+[data-qoro-shell='tenant'] .qoro-rail-pending {
+  position: absolute;
+  right: 10px;
+  bottom: 3px;
+  left: 10px;
+  height: 2px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--primary) 18%, transparent);
+  pointer-events: none;
+}
+[data-qoro-shell='tenant'] .qoro-rail-pending::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 40%;
+  border-radius: inherit;
+  background: var(--primary);
+  animation: qoro-rail-pending 0.9s ease-in-out infinite;
+}
+@keyframes qoro-rail-pending {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(250%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-qoro-shell='tenant'] .qoro-rail-pending::after {
+    width: 100%;
+    opacity: 0.6;
+    animation: none;
+  }
 }
 /* Contador: ponto sobre o ícone no trilho recolhido, etiqueta ao lado do nome
    quando o menu abre. É UM número só; o ponto é a cópia visual, sem leitura. */
@@ -905,20 +1013,22 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail {
   line-height: 16px;
   text-align: center;
   opacity: calc(1 - var(--rail-label-opacity));
-  transition: opacity 0.12s ease;
+  transition: opacity 0.14s ease;
 }
 [data-qoro-shell='tenant'] .qoro-rail-spacer {
   flex: 1 1 auto;
   min-height: 8px;
 }
 /* Fixar, tema e Sair: só os ícones, lado a lado, na mesma posição em qualquer
-   estado do menu. Os nomes continuam para leitores de tela e na dica, que abre
-   no mouse e no foco por teclado. */
+   estado do menu (pedido do founder). Os nomes continuam para leitores de tela
+   e na dica, que abre no mouse e no foco por teclado. */
 [data-qoro-shell='tenant'] .qoro-rail-foot {
   display: flex;
   flex: none;
   flex-direction: row;
+  gap: 2px;
   width: var(--rail-w);
+  padding: 0 4px;
 }
 [data-qoro-shell='tenant'] .qoro-rail-foot .qoro-rail-item {
   flex: 1 1 0;
@@ -926,6 +1036,7 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail {
   width: auto;
   height: 32px;
   padding: 0;
+  border-radius: var(--tag-radius);
 }
 /* Tablet com toque: três ícones davam 24 px de largura a cada um, e Sair encerra
    a sessão na hora. Ele continua no menu da conta, logo abaixo. */
@@ -981,7 +1092,7 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail {
 }
 [data-qoro-shell='tenant'] .qoro-rail-user [data-slot='sidebar-user'] > :not(:first-child) {
   opacity: var(--rail-label-opacity);
-  transition: opacity 0.12s ease;
+  transition: opacity 0.14s ease;
 }
 [data-qoro-shell='tenant']
   .qoro-rail-user
@@ -1024,22 +1135,30 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail {
   outline: none;
 }
 
-/* Telas baixas: os itens encolhem para todos os destinos caberem sem rolagem.
-   A lista só rola abaixo de 570 px de altura, para nada ficar inalcançável. */
+/* Telas baixas: itens e títulos encolhem para todos os destinos caberem sem
+   rolagem. Abaixo de 740 px de altura o nome do grupo dá lugar ao traço em
+   qualquer estado; a lista só rola abaixo de ~560 px. */
 @media (min-width: 721px) and (max-height: 820px) {
   body:has([data-qoro-shell='tenant']) {
     --rail-item-h: 36px;
+    --rail-heading-h: 22px;
   }
-  [data-qoro-shell='tenant'] .qoro-rail-sep {
-    margin: 4px 8px;
+}
+@media (min-width: 721px) and (max-height: 740px) {
+  body:has([data-qoro-shell='tenant']) {
+    --rail-heading-h: 13px;
+  }
+  [data-qoro-shell='tenant'] .qoro-rail-heading-text {
+    display: none;
+  }
+  [data-qoro-shell='tenant'] .qoro-rail-heading::before {
+    opacity: 1;
   }
 }
 @media (min-width: 721px) and (max-height: 690px) {
   body:has([data-qoro-shell='tenant']) {
     --rail-item-h: 32px;
-  }
-  [data-qoro-shell='tenant'] .qoro-rail-sep {
-    margin: 3px 8px;
+    --rail-heading-h: 10px;
   }
   [data-qoro-shell='tenant'] .qoro-rail-user {
     height: 48px;
@@ -1049,9 +1168,7 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail {
 @media (min-width: 721px) and (max-height: 610px) {
   body:has([data-qoro-shell='tenant']) {
     --rail-item-h: 28px;
-  }
-  [data-qoro-shell='tenant'] .qoro-rail-sep {
-    margin: 2px 8px;
+    --rail-heading-h: 6px;
   }
 }
 [data-qoro-shell='tenant']
@@ -1067,10 +1184,11 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail-nav {
   }
 }
 
-/* Celular: o menu vira uma barra no topo, com rolagem lateral. Os rótulos
-   saem da TELA, não da árvore de acessibilidade (cada link segue com nome).
-   O botão "Abrir navegação" abre o menu inteiro em gaveta — é por ali que
-   ficam tema, conta e Sair, que o design esconde nesta largura. */
+/* Celular: a barra do topo é a marca, o nome da clínica e o botão "Menu", com o
+   contador de conversas quando houver. A navegação inteira — títulos dos
+   grupos, tema, conta e Sair — abre numa gaveta que desliza da esquerda. Uma
+   faixa só de ícones obrigava a adivinhar cada destino e escondia os últimos
+   fora da tela. */
 @media (max-width: 720px) {
   [data-qoro-shell='tenant'].qoro-app {
     display: block;
@@ -1083,11 +1201,10 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail-nav {
     top: auto;
     display: flex;
     width: auto;
-    height: auto;
+    height: 60px;
     align-items: center;
-    gap: 4px;
-    /* A marca fica a 12 px do topo e da esquerda. */
-    padding: 6px 0 4px;
+    gap: 8px;
+    padding: 0;
     background: var(--shell-bg);
     transition: none;
   }
@@ -1096,75 +1213,64 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail-nav {
     position: static;
     width: auto;
     min-width: 0;
-    height: 48px;
+    height: auto;
     flex: 1 1 auto;
     flex-direction: row;
     align-items: center;
     margin: 0;
     padding: 0;
-    overflow-x: auto;
-    overflow-y: hidden;
+    overflow: hidden;
+    border-radius: 0;
     background: transparent;
     box-shadow: none;
-    scrollbar-width: none;
-  }
-  [data-qoro-shell='tenant'] .qoro-rail-inner::-webkit-scrollbar {
-    display: none;
   }
   [data-qoro-shell='tenant'] .qoro-rail-top {
-    margin: 0 6px 0 0;
+    min-width: 0;
+    flex: 1 1 auto;
+    margin: 0;
     padding: 0;
-  }
-  [data-qoro-shell='tenant'] .qoro-rail-clinic {
-    width: var(--rail-logo);
-    height: var(--rail-logo);
-    flex: none;
-  }
-  [data-qoro-shell='tenant'] .qoro-rail-nav,
-  [data-qoro-shell='tenant'] .qoro-rail-group {
-    flex: none;
-    flex-direction: row;
-    overflow: visible;
-  }
-  [data-qoro-shell='tenant'] .qoro-rail-item {
-    width: 40px;
-    padding: 0 10px;
-  }
-  [data-qoro-shell='tenant'] .qoro-rail-dot {
-    left: 24px;
-    opacity: 1;
   }
   [data-qoro-shell='tenant']
     .qoro-rail
-    :is(.qoro-rail-label, .qoro-rail-count, .qoro-rail-clinic-name) {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    margin: -1px;
-    padding: 0;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    white-space: nowrap;
-    border: 0;
-  }
-  [data-qoro-shell='tenant']
-    .qoro-rail
-    :is(.qoro-rail-sep, .qoro-rail-spacer, .qoro-rail-foot, .qoro-rail-user) {
+    :is(.qoro-rail-nav, .qoro-rail-spacer, .qoro-rail-foot, .qoro-rail-user) {
     display: none;
   }
   [data-qoro-shell='tenant'] .qoro-rail-toggle {
-    display: inline-grid;
+    position: relative;
+    display: inline-flex;
     flex: none;
-    place-items: center;
-    width: 40px;
+    align-items: center;
+    gap: 6px;
     height: 40px;
+    padding: 0 14px 0 11px;
     border: 1px solid var(--border);
     border-radius: var(--btn-radius);
     background: var(--card);
+    box-shadow: var(--elev-1);
     color: var(--text-body);
+    font: inherit;
+    font-size: 14px;
+    font-weight: 500;
+  }
+  [data-qoro-shell='tenant'] .qoro-rail-toggle-count {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: var(--primary);
+    box-shadow: 0 0 0 2px var(--shell-bg);
+    color: var(--primary-foreground);
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 18px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
   }
 
-  /* Gaveta: o mesmo menu, com rótulos, rodapé e Sair. */
+  /* Gaveta: a navegação inteira, com nomes, títulos, tema, conta e Sair. */
   [data-qoro-shell='tenant'][data-nav-open='true'] .qoro-rail {
     z-index: var(--z-drawer);
   }
@@ -1174,69 +1280,78 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail-nav {
     bottom: 0;
     left: 0;
     z-index: var(--z-drawer);
-    width: min(300px, 86vw);
+    width: min(320px, 88vw);
     height: auto;
     flex-direction: column;
     align-items: stretch;
-    padding: 12px;
+    padding: 14px 12px 12px;
     overflow-x: hidden;
     overflow-y: auto;
+    overscroll-behavior: contain;
     border-radius: 0 var(--panel-radius) var(--panel-radius) 0;
     background: var(--card);
     box-shadow: var(--elev-modal);
+    animation: qoro-drawer-in 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
   }
   [data-qoro-shell='tenant'][data-nav-open='true'] .qoro-rail-top {
-    margin: 0 0 14px;
+    flex: none;
+    margin: 0 0 6px;
   }
-  [data-qoro-shell='tenant'][data-nav-open='true'] .qoro-rail-clinic {
-    width: auto;
-    flex: 1 1 auto;
+  [data-qoro-shell='tenant'][data-nav-open='true'] .qoro-rail-nav {
+    display: flex;
+    flex: none;
+    overflow: visible;
   }
-  [data-qoro-shell='tenant'][data-nav-open='true'] :is(.qoro-rail-nav, .qoro-rail-group) {
-    flex-direction: column;
+  [data-qoro-shell='tenant'][data-nav-open='true'] .qoro-rail-heading {
+    padding-left: 12px;
+  }
+  [data-qoro-shell='tenant'][data-nav-open='true'] .qoro-rail-heading::before {
+    content: none;
   }
   [data-qoro-shell='tenant'][data-nav-open='true'] .qoro-rail-item {
     width: 100%;
     padding: 0 12px;
   }
-  [data-qoro-shell='tenant'][data-nav-open='true'] .qoro-rail-foot {
-    width: auto;
-    gap: 4px;
-  }
-  [data-qoro-shell='tenant'][data-nav-open='true'] .qoro-rail-foot .qoro-rail-item {
-    flex: none;
-    width: var(--hit-target);
-    height: var(--hit-target);
-    padding: 0;
-  }
   [data-qoro-shell='tenant'][data-nav-open='true'] .qoro-rail-dot {
     opacity: 0;
   }
-  [data-qoro-shell='tenant'][data-nav-open='true']
-    .qoro-rail
-    :is(.qoro-rail-label, .qoro-rail-count, .qoro-rail-clinic-name):not(.qoro-rail-foot *) {
+  [data-qoro-shell='tenant'][data-nav-open='true'] .qoro-rail-spacer {
+    display: block;
+    min-height: 16px;
+  }
+  /* Tema e Sair com nome: na gaveta há espaço, e o toque pede alvo claro. */
+  [data-qoro-shell='tenant'][data-nav-open='true'] .qoro-rail-foot {
+    display: flex;
+    width: auto;
+    gap: 8px;
+    padding: 0;
+  }
+  [data-qoro-shell='tenant'][data-nav-open='true'] .qoro-rail-foot .qoro-rail-item {
+    flex: 1 1 0;
+    gap: 8px;
+    height: var(--hit-target);
+    padding: 0 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--btn-radius);
+  }
+  [data-qoro-shell='tenant'][data-nav-open='true'] .qoro-rail .qoro-rail-foot .qoro-rail-label {
     position: static;
     width: auto;
     height: auto;
     margin: 0;
     overflow: visible;
     clip: auto;
+    font-size: 14px;
   }
-  [data-qoro-shell='tenant'][data-nav-open='true'] .qoro-rail-count {
-    margin-left: auto;
-  }
-  [data-qoro-shell='tenant'][data-nav-open='true'] .qoro-rail-sep {
-    display: block;
-  }
-  [data-qoro-shell='tenant'][data-nav-open='true'] .qoro-rail-spacer {
-    display: block;
-  }
-  [data-qoro-shell='tenant'][data-nav-open='true'] :is(.qoro-rail-foot, .qoro-rail-user) {
-    display: flex;
-  }
-  /* No celular o menu é barra/gaveta, não trilho: não há o que fixar. */
+  /* No celular o menu é gaveta, não trilho: não há o que fixar. */
   [data-qoro-shell='tenant'] .qoro-rail-foot > [data-pressed] {
     display: none;
+  }
+  [data-qoro-shell='tenant'][data-nav-open='true'] .qoro-rail-user {
+    display: flex;
+  }
+  [data-qoro-shell='tenant'][data-nav-open='true'] .qoro-rail-user [data-slot='sidebar-user'] {
+    padding: 0 12px;
   }
   [data-qoro-shell='tenant'][data-nav-open='true'] .qoro-rail-close {
     display: inline-grid;
@@ -1249,6 +1364,9 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail-nav {
     background: transparent;
     color: var(--text-body);
   }
+  [data-qoro-shell='tenant'][data-nav-open='true'] .qoro-rail-close:hover {
+    background: var(--rail-hover);
+  }
   [data-qoro-shell='tenant'][data-nav-open='true'] .qoro-rail-toggle {
     visibility: hidden;
   }
@@ -1258,24 +1376,34 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail-nav {
     z-index: calc(var(--z-drawer) - 1);
     display: block;
     background: rgb(10 12 37 / 0.42);
+    animation: qoro-scrim-in 0.22s ease;
   }
   [data-qoro-shell='tenant'] .qoro-panel {
-    min-height: calc(100dvh - 74px);
+    min-height: calc(100dvh - 72px);
   }
 }
-/* Toque no celular: itens e botão de menu no alvo de toque. Cabem na barra de
-   48 px, então a marca segue a 12 px do topo e da esquerda. */
-@media (max-width: 720px) and (pointer: coarse) {
-  [data-qoro-shell='tenant'] .qoro-rail-item {
-    width: var(--hit-target);
-    height: var(--hit-target);
-    padding: 0 calc((var(--hit-target) - 20px) / 2);
+@keyframes qoro-drawer-in {
+  from {
+    transform: translateX(-100%);
   }
-  [data-qoro-shell='tenant'] .qoro-rail-dot {
-    left: calc((var(--hit-target) - 20px) / 2 + 14px);
+  to {
+    transform: none;
+  }
+}
+@keyframes qoro-scrim-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+/* Toque no celular: itens da gaveta e botão de menu no alvo de toque. */
+@media (max-width: 720px) and (pointer: coarse) {
+  [data-qoro-shell='tenant'][data-nav-open='true'] .qoro-rail-item {
+    height: var(--hit-target);
   }
   [data-qoro-shell='tenant'] .qoro-rail-toggle {
-    width: var(--hit-target);
     height: var(--hit-target);
   }
 }
