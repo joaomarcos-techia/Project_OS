@@ -8,6 +8,7 @@
  *  - o hash do epílogo é calculado sobre a própria árvore gerada.
  */
 import { consultaGuideElement, type ConsultaGuideData } from '../guides/consulta';
+import { spSadtGuideElement, type SpSadtGuideData } from '../guides/sp-sadt';
 import { tissEpilogueHash } from '../xml/hash';
 import { leaf, node, serializeDocument, toLatin1Bytes, type XmlElement } from '../xml/tree';
 
@@ -15,7 +16,9 @@ export const TISS_MAX_GUIDES_PER_BATCH = 100;
 
 export type ProviderIdKind = 'CNPJ' | 'CPF' | 'codigoPrestadorNaOperadora';
 
-export type BatchGuides = { type: 'consulta'; guides: readonly ConsultaGuideData[] };
+export type BatchGuides =
+  | { type: 'consulta'; guides: readonly ConsultaGuideData[] }
+  | { type: 'sp_sadt'; guides: readonly SpSadtGuideData[] };
 
 export interface LoteGuiasInput {
   /** Versão de comunicação (`Padrao`). */
@@ -53,6 +56,8 @@ function guideElements(lote: BatchGuides): XmlElement[] {
   switch (lote.type) {
     case 'consulta':
       return lote.guides.map(consultaGuideElement);
+    case 'sp_sadt':
+      return lote.guides.map(spSadtGuideElement);
   }
 }
 
