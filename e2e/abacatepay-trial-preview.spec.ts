@@ -5,6 +5,7 @@ import { expect, test } from '@playwright/test';
 import postgres from 'postgres';
 import { z } from 'zod';
 
+import { expectedAmount } from '../scripts/abacatepay-checkout-session';
 import { assertPreviewRuntimeIsDev, DEV_PROJECT_REF } from './preview-dev-runtime';
 import { installVercelBypassForOrigin } from './vercel-bypass';
 
@@ -136,7 +137,7 @@ test('confirmed identity -> free trial -> server quota gates -> optional hosted 
       const [financial] = await sql<
         { invoices: number; payments: number; receipts: number; events: number }[]
       >`SELECT
-        (SELECT count(*)::int FROM public.invoices WHERE subscription_id=${contract.subscription_id}::uuid AND status='paid' AND total_amount=397) invoices,
+        (SELECT count(*)::int FROM public.invoices WHERE subscription_id=${contract.subscription_id}::uuid AND status='paid' AND total_amount=${expectedAmount(input.E2E_ABACATEPAY_PLAN) / 100}) invoices,
         (SELECT count(*)::int FROM public.payment_attempts a JOIN public.invoices i ON i.id=a.invoice_id WHERE i.subscription_id=${contract.subscription_id}::uuid AND a.provider='abacatepay' AND a.status='confirmed') payments,
         (SELECT count(*)::int FROM billing_gateway.paid_checkouts WHERE subscription_id=${contract.subscription_id}::uuid) receipts,
         (SELECT count(*)::int FROM billing_gateway.event_inbox WHERE subscription_id=${contract.subscription_id}::uuid AND event_type='subscription.completed' AND state='applied') events`;

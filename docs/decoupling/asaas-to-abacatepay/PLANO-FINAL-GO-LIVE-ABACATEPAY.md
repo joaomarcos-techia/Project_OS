@@ -118,7 +118,9 @@ O aceite deve registrar risco/versão, cohort máximo, responsável, prazo de re
 | Turnstile | Dois cenários sem chaves na CI isolada | SKIP histórico explícito | Não reduzir proteção nem usar dummy em Production |
 | Produção | Composição live, cohort e autorização | BLOCKED; não implementados/ativados nesta rodada | Fechar gates externos/operacionais e preparar incremento específico |
 
-## Próxima intervenção humana mínima
+## Pendências externas antes de produção
+
+**Atualização do pedido em 10/11:** a engenharia prossegue sem aguardar o atendimento para a próxima contratação inicial **Sandbox**. O [operador preparado](PROXIMO-CHECKOUT-SANDBOX.md) separa preparação, criação somente quando o founder disser “criar checkout” e verificação depois de “pago”. Nenhuma compra foi criada nesta preparação. As perguntas abaixo continuam sendo lacunas de garantia para produção; não são uma nova tarefa obrigatória antes desse teste Sandbox. A aprovação do teste não aceita R1–R4 nem dispensa B1/B3.
 
 Não repetir pagamentos, cadastro PR #54 ou instalar ferramenta. Encaminhar ao atendimento **já aberto** apenas: “A exclusão do checkout de assinatura bloqueia novos pagamentos pela URL? Quais garantias e efeitos sobre recibo, extrato, renovações, webhooks e change-plan? Para uma renovação cujo webhook não chegou, qual procedimento oficial entrega novamente o evento original com payment.id e bill da renovação?” Os demais pontos já foram respondidos. Não enviar fixture paga para exclusão nem autorizar operação financeira.
 

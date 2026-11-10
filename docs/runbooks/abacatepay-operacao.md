@@ -68,6 +68,8 @@ Antes do piloto, definir volume, capacidade, responsável e alerta externo; comp
 
 ## 7. Reproduzir as provas locais
 
+Para o próximo pagamento humano **Sandbox**, não repetir a fixture antiga nem esta suíte PostgreSQL: seguir [operação preparada do checkout](../decoupling/asaas-to-abacatepay/PROXIMO-CHECKOUT-SANDBOX.md). O comando `prepare` deixa somente manifesto/credencial locais; `create` depende do pedido explícito “criar checkout” e `verify` confere o pagamento informado. Não há limpeza automática em caso de demora do founder.
+
 No PowerShell, na branch financeira com dependências instaladas:
 
 ```powershell

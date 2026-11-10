@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 200 actions (0 inline); 66 métodos em 62 handlers; 19 props com referência de action; 478 acessos diretos a process.env; 9 nomes NEXT_PUBLIC.
+Contagem: 200 actions (0 inline); 66 métodos em 62 handlers; 19 props com referência de action; 485 acessos diretos a process.env; 9 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -396,6 +396,13 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/_env.ts:111`                                      | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                                          |
 | `scripts/_env.ts:174`                                      | `USER`                                 | `process.env.USER`                                                          |
 | `scripts/_env.ts:174`                                      | `USERNAME`                             | `process.env.USERNAME`                                                      |
+| `scripts/abacatepay-checkout-operator.ts:67`               | `LOCALAPPDATA`                         | `process.env.LOCALAPPDATA`                                                  |
+| `scripts/abacatepay-checkout-operator.ts:248`              | `<object>`                             | `process.env`                                                               |
+| `scripts/abacatepay-checkout-operator.ts:256`              | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
+| `scripts/abacatepay-checkout-operator.ts:336`              | `<object>`                             | `process.env`                                                               |
+| `scripts/abacatepay-checkout-operator.ts:381`              | `<object>`                             | `process.env`                                                               |
+| `scripts/abacatepay-checkout-operator.ts:506`              | `<dynamic>`                            | `process.env[key]`                                                          |
+| `scripts/abacatepay-checkout-operator.ts:506`              | `<dynamic>`                            | `process.env[key]`                                                          |
 | `scripts/abacatepay-readonly-check.ts:17`                  | `ABACATEPAY_API_KEY`                   | `process.env.ABACATEPAY_API_KEY`                                            |
 | `scripts/abacatepay-sandbox-draft.ts:74`                   | `LOCALAPPDATA`                         | `process.env.LOCALAPPDATA`                                                  |
 | `scripts/activate-offer-extras-preview-dev.ts:20`          | `E2E_OFFER_DEV_ACTIVATION`             | `process.env.E2E_OFFER_DEV_ACTIVATION`                                      |

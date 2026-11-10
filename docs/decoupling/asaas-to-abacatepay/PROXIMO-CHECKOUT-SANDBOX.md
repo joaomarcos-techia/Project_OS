@@ -1,0 +1,80 @@
+# Próximo Checkout Sandbox — operação preparada
+
+Atualizado em 10/11/2026. Pedido do founder: deixar a operação preparada para ele dizer **“criar checkout”**, pagar no Sandbox e ter o resultado conferido. Não aguardar nova resposta do suporte para essa contratação inicial suportada. Isso não dispensa os gates financeiros de produção.
+
+## O que o founder precisa fazer
+
+1. Dizer **“criar checkout”**. O padrão preparado é **Clínica mensal, R$ 397 no Sandbox**. Para testar Consultório, dizer “criar checkout Consultório”; o valor aprovado é R$ 197. Não há cobrança real nem contratação anual nesta rodada.
+2. Abrir o link que a engenharia enviar, conferir a indicação de Sandbox/modo de teste e concluir usando somente o mecanismo/dados fictícios do provedor. Não usar cartão real nem enviar dados de cartão, recibos, códigos ou tokens pelo chat.
+3. Dizer **“pago”**, ou informar somente a mensagem de erro. Não pagar de novo se o Qoro ainda estiver aguardando conciliação.
+
+Não é necessário criar outro produto, instalar ferramentas, fornecer credenciais ou acionar o suporte para começar esse teste inicial. A engenharia refaz somente o preflight de ambiente antes de criar e antes de verificar; credenciais/Preview indisponíveis serão um bloqueio concreto, não uma autorização para usar Production.
+
+## Implementação e efeitos por comando
+
+Operador versionado: `scripts/abacatepay-checkout-operator.ts`. Persistência e validações: `scripts/abacatepay-checkout-session.ts`. O E2E existente `e2e/abacatepay-trial-preview.spec.ts` foi reaproveitado; a conferência da invoice agora usa o preço do plano selecionado, permitindo também Consultório, em vez de fixar R$ 397.
+
+| Ação | Efeitos autorizados | Critério e saída |
+| --- | --- | --- |
+| `preflight` | GETs autenticados; prova assinada Preview/DEV e POST negativo ao webhook, sem evento aceito; transação DB `READ ONLY` | `PASS preflight`, sem identidade ou transação criada |
+| `prepare` | Mesmo preflight; manifesto e senha aleatória somente locais, ACL do Windows restrita e cifra DPAPI CurrentUser | `PASS prepared`; reabertura conserva run/credencial. Não cria Auth, clínica, cliente ou checkout |
+| `create` | Somente após o pedido: identidade sintética DEV, draft identificado e jornada real na UI até a rota do Qoro criar o checkout com journal | `PARTIAL awaiting_human_sandbox_payment`, um checkout e um link. Não paga nem preenche cartão |
+| `verify` | Leitura autenticada no provedor e DEV; quando pago e conciliado, login da fixture para E2E desktop/mobile e teste de repetição recusada | `PASS` só com pagamento integral, webhook aplicado, invoice/receipt/tentativa únicos e UI paga. Antes disso, `PARTIAL` |
+
+Um resultado incerto não é “ausente”: Auth iniciado sem readback impede outro POST de criação; operação financeira incerta permanece no journal e usa a recuperação existente. Um checkout pago nunca é devolvido como link pendente. Duas execuções locais competindo não entram juntas. Um crash preserva o lock para investigação; não remover por timeout nem inventar outro run para contornar resultado desconhecido.
+
+## Preflight obrigatório da engenharia
+
+O operador confere: projeto/time/branch exatos na Vercel, deployment READY não Production; Auth e DB apontando para `pqhkirrszzpwezdaqrai` por prova assinada; loja atestada pelo catálogo já aprovado; `devMode=true` nos produtos; BRL, mensal, preços aprovados e ausência de trial nativo; webhook V2 `subscription.completed` apontando para a mesma release e runtime DEV; segredo inválido recusado com HTTP 401; 143 migrations e hash da última 0142, schema efetivo e conta Sandbox; preço vigente de tabela sem campanha.
+
+A checagem rápida de histórico não substitui a auditoria completa já aprovada nem regrava os seis hashes históricos DEV. Qualquer mudança posterior de schema/release exige reconferir a preparação. Não trocar a URL/SHA do manifesto de uma fixture em andamento para fazer o preflight passar.
+
+## Comandos da engenharia
+
+Executar **no worktree financeiro**, em PowerShell. A CLI da Vercel deve continuar autenticada legitimamente. O caminho abaixo já foi conferido nesta máquina; se a cache for removida, localizar a instalação oficial em vez de substituir por um executável desconhecido. Nenhum valor secreto vai no comando.
+
+```powershell
+Set-Location 'C:\dev\Qoro_billing_abacatepay_20261107'
+$env:NODE_OPTIONS = '--conditions=react-server --use-system-ca'
+$vercelCli = Join-Path $env:LOCALAPPDATA 'npm-cache\_npx\67eb4586ca667318\node_modules\vercel\dist\vc.js'
+```
+
+O parâmetro `--preview` deve receber o **Preview imutável da release preparada**, obtido pelo deployment do HEAD do PR #53. O alias pode avançar; não fixar o link antigo desta prova como se fosse o HEAD futuro. Os exemplos usam `$previewQoro`, a ser definido pela engenharia com o deployment READY verificado, sem query string ou token:
+
+```powershell
+node node_modules/tsx/dist/cli.mjs scripts/abacatepay-checkout-operator.ts --action prepare --preview $previewQoro --vercel-cli $vercelCli --session next-checkout-20261110
+```
+
+**Somente depois de “criar checkout”:**
+
+```powershell
+node node_modules/tsx/dist/cli.mjs scripts/abacatepay-checkout-operator.ts --action create --preview $previewQoro --vercel-cli $vercelCli --session next-checkout-20261110
+```
+
+**Depois de “pago”:**
+
+```powershell
+node node_modules/tsx/dist/cli.mjs scripts/abacatepay-checkout-operator.ts --action verify --preview $previewQoro --vercel-cli $vercelCli --session next-checkout-20261110
+```
+
+Para Consultório, usar outro slot identificado, por exemplo `--session next-checkout-consultorio-20261110 --plan consultorio_2026`, consistentemente em todas as ações. Nunca alterar um slot que já tenha identidade/checkout para testar outro plano. Não gerar dois checkouts se o founder pediu apenas um.
+
+## Fixture, credenciais e retenção
+
+O slot final fica em `%LOCALAPPDATA%\Qoro\SandboxBilling\next-checkout-20261110`. `session.json` contém correlação e hash do draft, sem senha ou sessão. `password.dpapi` só pode ser aberto pelo perfil Windows atual. `preflight.json` e `verified.json` registram evidências sanitizadas. Link de checkout fica apenas nesse destino restrito e é exibido ao founder na ação de criação. Saídas brutas do Playwright não são gravadas, porque podem conter valores de formulário; trace, vídeo e screenshots de sessão ficam desativados.
+
+Só na criação futura: identidade `abaca-<run UUID>@example.invalid`, confirmada administrativamente, sem e-mail externo. A data Auth **dessa identidade sintética nova e ainda sem profile** simula trial vencido antes do provisionamento. O E2E exige exatamente 14 dias desde Auth; não é observação natural de tempo nem mudança em cliente existente. Manifesto antecede qualquer efeito remoto; o journal financeiro continua no DEV.
+
+Não existe limpeza automática ao fechar navegador, expirar teste ou usuário se ausentar. Após o pagamento, reter assinatura, checkout, binding, invoice, receipt, inbox e evidências. Qualquer cancelamento de recorrência exige a autorização específica e o procedimento existente; exclusão do checkout pago continua bloqueada enquanto não houver garantia suficiente. Não usar DELETE no banco para “limpar” um pagamento tardio.
+
+**Intocável:** a fixture histórica `qoro-trial-deferred-20261108/ui-expired.json`, checkout `bill_dKcTZUwUXYK2kgfqDnu6nLnq`, assinatura já cancelada e período preservado até 09/12. O novo operador apenas lê o catálogo desse diretório; não usa sua identidade, checkout ou assinatura.
+
+## Resultado comprovado e limites
+
+Em 10/11 o preflight real passou sobre `a27be74240bf72bdef088b9017fbb9d6b4f94fbd`, incluindo 2 produtos Sandbox, mesma release no destino do webhook, HTTP 401 negativo, DEV assinado e schema/histórico. `prepare` também passou com roundtrip DPAPI e ACL privada, **sem conta, checkout ou pagamento**; slot de validação `next-checkout-validation-20261110`, run `a9e58df5-a2c0-403f-b967-c698f70c0ccb`. Esse slot prova a preparação e não deve ser confundido com a fixture paga nem com o slot final do novo HEAD.
+
+Os testes focados incluem filesystem real, concorrência entre operadores, retenção após erro, lock após crash, corrupção/limite do manifesto, preços e bindings de ambiente. Os caminhos `create`/`verify` deste operador novo **não foram executados com uma compra nova nesta rodada**: aguardam o pedido e pagamento do founder. As provas financeiras anteriores permanecem válidas; o harness da UI foi reaproveitado.
+
+Renovação recorrente externa, falha/retentativa, refund/disputa recorrentes e garantia de invalidação da URL paga continuam separados da contratação inicial. Testar um novo pagamento inicial não encerra esses gates nem autoriza go-live. Ver [plano de produção](PLANO-FINAL-GO-LIVE-ABACATEPAY.md), [operação](../../runbooks/abacatepay-operacao.md) e [resposta do suporte](SUPORTE-RESPOSTA-INTEGRAL-20261110.md).
+
+Referências oficiais conferidas em 10/11: [webhooks de assinatura](https://docs.abacatepay.com/pages/webhooks/events/subscriptions), [listar webhooks](https://docs.abacatepay.com/pages/webhooks/list) e [assinaturas](https://docs.abacatepay.com/pages/subscriptions/reference). O checkout pode gerar mais de uma assinatura remota; o teste não promete uso único hospedado.
