@@ -24,6 +24,7 @@ import {
 import { reconcileAbacatePayManagement } from '@/contexts/billing/internal/abacatepay-management';
 import { reconcileAbacatePayUnknownCheckout } from '@/contexts/billing/internal/abacatepay-checkout-recovery';
 import { reconcileAbacatePayIntegrity } from '@/contexts/billing/internal/abacatepay-integrity';
+import { observeAbacatePayRenewals } from '@/contexts/billing/internal/abacatepay-renewal-watch';
 
 import { asaasProvider, BillingProviderError } from '@/lib/payments/asaas';
 import { removeSubscriptionCharges } from '@/contexts/billing/internal/cancellation-charges';
@@ -545,9 +546,13 @@ export const GET = withCron(
       }
 
       if (env.ABACATEPAY_STORE_ID && env.ABACATEPAY_API_KEY && Date.now() - startedAt < 35_000) {
+        await observeAbacatePayRenewals(dbAdmin);
         // Separate origin; never route an existing Asaas payment through it.
         // One event with bounded GETs leaves the current 60s job budget intact.
-        const inbox = await reconcileAbacatePayInbox();
+        const inbox =
+          Date.now() - startedAt < 35_000 ? await reconcileAbacatePayInbox() : { scanned: 0 };
+        if (Date.now() - startedAt >= 35_000)
+          metrics.emit('billing.abacatepay.reconcile_deferred', { reason: 'job_budget' });
         if (inbox.scanned === 0 && Date.now() - startedAt < 35_000) {
           // Attach an unknown original checkout before looking for its lost payment event.
           await reconcileAbacatePayUnknownCheckout(dbAdmin);

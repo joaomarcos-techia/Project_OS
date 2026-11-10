@@ -171,3 +171,9 @@ Este quadro substitui somente os estados atuais “aguardando suporte”; os qua
 | L3-f / checkout.lost | PASS local | 35 testes focados e 51 checks PG com 142 migrations/HTTP sintético | Conferir CI do novo commit; não alegar disputa perdida real |
 
 `checkout.lost` agora segue a observação financeira com auditoria/revisão e preservação do período pago. Replay não repete GET/efeito. `payment_failed` mantém revisão segura; metadados installment/retry ainda não são persistidos. Os IDs de pagamento recebidos são a base da conciliação; não inferir ciclos pela lista de assinaturas ou por valores parecidos.
+
+## Fechamento operacional — 10/11/2026
+
+[Plano final com arquivos, requisitos, riscos e matriz OPS-001–015](PLANO-FINAL-GO-LIVE-ABACATEPAY.md). [Prova 66/66](evidencias/operacao-final-20261110.json), PostgreSQL real/143 migrations, HTTP sintético/zero rede externa. Os 15 novos checks cobrem autorização única sob corrida, prova financeira obrigatória, contador/limite, owner recusado, snapshot/tenant divergente, estados terminais, RLS/grants, monitor concorrente, resolução, exclusões de trial/Asaas, rollback, dois eventos para o mesmo pagamento e quarentena sem associação artificial. Outros 51 checks foram regressão afetada do worker modificado.
+
+O replay administrativo é uma nova leitura de evento **já recebido**, superadmin AAL2/TOTP atual, auditoria atômica e no máximo 3 autorizações/24h. Não reconstrói evento ausente nem permite editar invoice/período. O monitor sinaliza vencimento local sem pagamento conciliado; isso não prova falha do gateway nem pagamento perdido. Cron diário e limites de lote continuam explícitos. Entrega de alerta e jornada admin/MFA real no Preview: NOT RUN; testes de tela/unidade não as substituem. B1/B3 externos continuam bloqueados segundo a resposta recebida, sem repetir compra ou alterar a fixture paga retida.

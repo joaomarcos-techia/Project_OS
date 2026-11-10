@@ -54,3 +54,9 @@ E1/E2 não dependem mais de localizar um recurso de API: o suporte confirmou que
 E3 continua alto risco: customerId não bloqueia outro pagador e falta a confirmação do efeito da exclusão na URL paga e no histórico. Monitoramento de recorrências múltiplas é detecção, não prevenção do pagamento. Manter NO-GO de ativação e a fixture paga intacta.
 
 E4 tem caminho oficial integral via dashboard/portal; não existe parcial nem simulador de refund/disputa recorrente. Refund cancela remotamente, mas o acesso local segue ADR-071. O tratamento auditado de checkout.lost foi corrigido e validado localmente; não prova um chargeback externo. Entrega de alertas, capacidade do cron e ensaio operacional continuam requisitos antes de piloto.
+
+## Controles operacionais adicionados — 10/11/2026
+
+O [plano final](asaas-to-abacatepay/PLANO-FINAL-GO-LIVE-ABACATEPAY.md#termos-de-aceitação-de-risco--todos-pendentes) contém R1–R4 com causa, probabilidade desconhecida, impacto, prevenção/detecção/recuperação, responsável, abort e alternativas. Não há aceite em nome do founder. B2 recebeu monitor de período vencido sem renovação, fila/quarentena, autorização superadmin com TOTP atual e uma releitura auditada por snapshot, preservando contador e prova financeira. Migration 0142 aplicada só no DEV, 66 checks PostgreSQL e 63 testes finais afetados PASS. Não altera carência nem concede período por relato.
+
+Os controles não invalidam a URL hospedada no gateway e não recriam histórico de ciclos inexistente na API. Nenhuma garantia externa nova foi inferida. Alertas externos, capacidade operacional, composição Production e cohort restrito continuam requisitos; não basta inserir chave live na candidata Sandbox. NO-GO financeiro permanece.

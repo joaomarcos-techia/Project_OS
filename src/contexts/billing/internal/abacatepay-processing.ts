@@ -167,6 +167,7 @@ const queuedSchema = z.object({
   external_checkout_id: z.string().nullable(),
   external_customer_id: z.string().nullable(),
   attempts: z.number().int(),
+  attempt_limit: z.number().int().positive(),
 });
 const intentSchema = z.object({
   subscription_id: z.uuid(),
@@ -200,18 +201,22 @@ export async function reconcileAbacatePayInbox(input: { eventId?: string } = {})
     .parse(
       await dbAdmin.execute(sql`
     WITH candidate AS (
-      SELECT i.account_id,i.event_id FROM billing_gateway.event_inbox i
+      SELECT i.account_id,i.event_id,coalesce(replay.authorized_attempt,${MAX_ATTEMPTS}) attempt_limit
+      FROM billing_gateway.event_inbox i
       JOIN billing_gateway.accounts a ON a.id=i.account_id
+      LEFT JOIN LATERAL (SELECT authorized_attempt FROM billing_gateway.review_replays r
+        WHERE r.account_id=i.account_id AND r.event_id=i.event_id
+        ORDER BY authorized_attempt DESC LIMIT 1) replay ON true
       WHERE a.provider='abacatepay' AND a.environment='sandbox' AND a.external_account_id=${env.ABACATEPAY_STORE_ID}
         AND (${eventId}::text IS NULL OR i.event_id=${eventId})
-        AND i.attempts <= ${MAX_ATTEMPTS}
+        AND i.attempts <= coalesce(replay.authorized_attempt,${MAX_ATTEMPTS})
         AND (i.state='received' OR (i.state='processing' AND i.lease_until < now()))
       ORDER BY i.received_at FOR UPDATE OF i SKIP LOCKED LIMIT 1
     ) UPDATE billing_gateway.event_inbox i SET state='processing',attempts=attempts+1,
       lease_token=${token}::uuid,lease_until=now()+interval '60 seconds'
     FROM candidate c WHERE i.account_id=c.account_id AND i.event_id=c.event_id
     RETURNING i.account_id::text,i.event_id,i.event_type,i.lease_token::text,
-      i.external_subscription_id,i.external_checkout_id,i.external_customer_id,i.attempts`),
+      i.external_subscription_id,i.external_checkout_id,i.external_customer_id,i.attempts,c.attempt_limit`),
     );
   if (!event) {
     if (eventId) {
@@ -242,7 +247,7 @@ export async function reconcileAbacatePayInbox(input: { eventId?: string } = {})
   }
   // A process can die during its final lease. One final reservation only
   // closes that stale lease for review; it never performs an eleventh readback.
-  if (event.attempts > MAX_ATTEMPTS) {
+  if (event.attempts > event.attempt_limit) {
     await finish('review', 'worker_attempts_exhausted');
     return { applied: 0, review: 1, scanned: 1 };
   }
@@ -268,7 +273,7 @@ export async function reconcileAbacatePayInbox(input: { eventId?: string } = {})
         env.ABACATEPAY_API_KEY,
       );
       if (result.state !== 'paid') {
-        const retry = result.state === 'pending' && event.attempts < MAX_ATTEMPTS;
+        const retry = result.state === 'pending' && event.attempts < event.attempt_limit;
         await finish(
           retry ? 'received' : 'review',
           retry ? 'renewal_payment_pending' : 'renewal_readback_requires_review',
@@ -301,7 +306,7 @@ export async function reconcileAbacatePayInbox(input: { eventId?: string } = {})
         retry: outcome === 'lease_lost',
       };
     } catch {
-      const retry = event.attempts < MAX_ATTEMPTS;
+      const retry = event.attempts < event.attempt_limit;
       await finish(retry ? 'received' : 'review', 'renewal_authoritative_readback_failed');
       metrics.emit('billing.abacatepay.reconcile_failed', {
         reason: 'renewal_readback_or_transaction',
@@ -345,7 +350,7 @@ export async function reconcileAbacatePayInbox(input: { eventId?: string } = {})
       });
       return { applied: 0, review: Number(recorded), scanned: 1, retry: !recorded };
     } catch {
-      const retry = event.attempts < MAX_ATTEMPTS;
+      const retry = event.attempts < event.attempt_limit;
       await finish(retry ? 'received' : 'review', 'negative_authoritative_readback_failed');
       metrics.emit('billing.abacatepay.reconcile_failed', {
         reason: 'negative_readback_or_transaction',
@@ -404,12 +409,15 @@ export async function reconcileAbacatePayInbox(input: { eventId?: string } = {})
         );
     }
     if (!intent) {
-      await finish(event.attempts >= MAX_ATTEMPTS ? 'review' : 'received', 'binding_not_ready');
+      await finish(
+        event.attempts >= event.attempt_limit ? 'review' : 'received',
+        'binding_not_ready',
+      );
       return {
         applied: 0,
-        review: Number(event.attempts >= MAX_ATTEMPTS),
+        review: Number(event.attempts >= event.attempt_limit),
         scanned: 1,
-        retry: event.attempts < MAX_ATTEMPTS,
+        retry: event.attempts < event.attempt_limit,
       };
     }
     const verifiedIntent = intent;
@@ -439,7 +447,7 @@ export async function reconcileAbacatePayInbox(input: { eventId?: string } = {})
     // A completed notification can arrive before provider reads converge.
     // Retry a pending bill within the existing bound; never grant from it.
     if (evidence.state === 'pending') {
-      const exhausted = event.attempts >= MAX_ATTEMPTS;
+      const exhausted = event.attempts >= event.attempt_limit;
       await finish(exhausted ? 'review' : 'received', 'initial_payment_pending');
       return { applied: 0, review: Number(exhausted), scanned: 1, retry: !exhausted };
     }
@@ -470,7 +478,7 @@ export async function reconcileAbacatePayInbox(input: { eventId?: string } = {})
     };
   } catch {
     await finish(
-      event.attempts >= MAX_ATTEMPTS ? 'review' : 'received',
+      event.attempts >= event.attempt_limit ? 'review' : 'received',
       'authoritative_readback_failed',
     );
     metrics.emit('billing.abacatepay.reconcile_failed', {
@@ -478,9 +486,9 @@ export async function reconcileAbacatePayInbox(input: { eventId?: string } = {})
     });
     return {
       applied: 0,
-      review: Number(event.attempts >= MAX_ATTEMPTS),
+      review: Number(event.attempts >= event.attempt_limit),
       scanned: 1,
-      retry: event.attempts < MAX_ATTEMPTS,
+      retry: event.attempts < event.attempt_limit,
     };
   }
 }

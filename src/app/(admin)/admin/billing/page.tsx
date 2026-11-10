@@ -56,6 +56,10 @@ export default async function BillingPage() {
         description="Faturamento consolidado — recebíveis, inadimplência, dunning e reembolsos."
       />
 
+      <Link href="/admin/billing/operacao" className="mb-4 inline-block underline">
+        Conciliação AbacatePay Sandbox
+      </Link>
+
       <div className="grid grid-cols-2 gap-(--sp-4) lg:grid-cols-3 2xl:grid-cols-5">
         <StatCard
           label="MRR"

@@ -11,6 +11,7 @@ const abacate = vi.hoisted(() => {
     management: vi.fn(),
     unknown: vi.fn(),
     integrity: vi.fn(),
+    renewalWatch: vi.fn(),
   };
 });
 vi.mock('@/lib/env', () => ({ env: abacate.environment }));
@@ -26,6 +27,9 @@ vi.mock('@/contexts/billing/internal/abacatepay-checkout-recovery', () => ({
 }));
 vi.mock('@/contexts/billing/internal/abacatepay-integrity', () => ({
   reconcileAbacatePayIntegrity: abacate.integrity,
+}));
+vi.mock('@/contexts/billing/internal/abacatepay-renewal-watch', () => ({
+  observeAbacatePayRenewals: abacate.renewalWatch,
 }));
 
 const {
@@ -163,6 +167,9 @@ beforeEach(() => {
   abacate.management.mockResolvedValue(undefined);
   abacate.unknown.mockResolvedValue(undefined);
   abacate.integrity.mockResolvedValue({ scanned: 0, reviews: 0, failed: 0, deferred: false });
+  abacate.renewalWatch
+    .mockReset()
+    .mockResolvedValue({ scanned: 0, due: 0, opened: 0, resolved: 0, deferred: false });
   selectResults.length = 0;
   selectResults.push([]); // nenhuma troca de ciclo aguardando sync remoto por padrão
   capacityRows.splice(0, capacityRows.length, { active_users: 1, user_limit: 1 });
@@ -197,6 +204,10 @@ describe('billing reconcile', () => {
       abacate.initial.mock.invocationCallOrder[0]!,
     );
     expect(listSubscriptionPayments).not.toHaveBeenCalled();
+    expect(abacate.renewalWatch).toHaveBeenCalledOnce();
+    expect(abacate.renewalWatch.mock.invocationCallOrder[0]).toBeLessThan(
+      abacate.inbox.mock.invocationCallOrder[0]!,
+    );
     expect(abacate.integrity).toHaveBeenCalledOnce();
     expect(abacate.integrity.mock.calls[0]?.[1]).toEqual({ deadlineMs: expect.any(Number) });
   });
@@ -204,6 +215,28 @@ describe('billing reconcile', () => {
     abacate.environment.ABACATEPAY_API_KEY = 'synthetic';
     abacate.environment.ABACATEPAY_STORE_ID = 'store_synthetic';
     const clock = vi.spyOn(Date, 'now').mockReturnValueOnce(0).mockReturnValue(40_000);
+    try {
+      expect((await GET(new Request('http://localhost/api/cron/billing-reconcile'))).status).toBe(
+        200,
+      );
+      expect(abacate.inbox).not.toHaveBeenCalled();
+      expect(abacate.renewalWatch).not.toHaveBeenCalled();
+      expect(abacate.integrity).not.toHaveBeenCalled();
+      expect(emit).toHaveBeenCalledWith('billing.abacatepay.reconcile_deferred', {
+        reason: 'job_budget',
+      });
+    } finally {
+      clock.mockRestore();
+    }
+  });
+  it('does not start remote work when the renewal watch exhausted the remaining cron budget', async () => {
+    abacate.environment.ABACATEPAY_API_KEY = 'synthetic';
+    abacate.environment.ABACATEPAY_STORE_ID = 'store_synthetic';
+    let now = 0;
+    const clock = vi.spyOn(Date, 'now').mockImplementation(() => now);
+    abacate.renewalWatch.mockImplementation(async () => {
+      now = 40_000;
+    });
     try {
       expect((await GET(new Request('http://localhost/api/cron/billing-reconcile'))).status).toBe(
         200,

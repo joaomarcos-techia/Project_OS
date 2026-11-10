@@ -158,26 +158,30 @@ describe('leased AbacatePay worker recovery (unit DB double)', () => {
     await reconcileAbacatePayInbox();
     expect(mocks.execute).not.toHaveBeenCalled();
   });
-  it('closes a crashed final lease for review without an eleventh financial attempt', async () => {
-    mocks.execute.mockResolvedValueOnce([
-      {
-        account_id: '11111111-1111-4111-8111-111111111111',
-        event_id: 'log_last',
-        event_type: 'subscription.completed',
-        lease_token: '22222222-2222-4222-8222-222222222222',
-        external_subscription_id: 'subs_fixture',
-        external_checkout_id: 'bill_fixture',
-        external_customer_id: 'cust_fixture',
-        attempts: 11,
-      },
-    ]);
-    expect(await reconcileAbacatePayInbox({ eventId: 'log_last' })).toEqual({
-      applied: 0,
-      review: 1,
-      scanned: 1,
-    });
-    expect(mocks.execute).toHaveBeenCalledTimes(2);
-    expect(mocks.transaction).not.toHaveBeenCalled();
-    expect(fetch).not.toHaveBeenCalled();
-  });
+  it.each([10, 11])(
+    'closes a crashed final lease with limit %i without another financial attempt',
+    async (limit) => {
+      mocks.execute.mockResolvedValueOnce([
+        {
+          account_id: '11111111-1111-4111-8111-111111111111',
+          event_id: 'log_last',
+          event_type: 'subscription.completed',
+          lease_token: '22222222-2222-4222-8222-222222222222',
+          external_subscription_id: 'subs_fixture',
+          external_checkout_id: 'bill_fixture',
+          external_customer_id: 'cust_fixture',
+          attempts: limit + 1,
+          attempt_limit: limit,
+        },
+      ]);
+      expect(await reconcileAbacatePayInbox({ eventId: 'log_last' })).toEqual({
+        applied: 0,
+        review: 1,
+        scanned: 1,
+      });
+      expect(mocks.execute).toHaveBeenCalledTimes(2);
+      expect(mocks.transaction).not.toHaveBeenCalled();
+      expect(fetch).not.toHaveBeenCalled();
+    },
+  );
 });

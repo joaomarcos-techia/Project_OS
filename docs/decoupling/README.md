@@ -8,6 +8,10 @@ Para iniciar a execução com outra IA, use o [prompt de implementação por cam
 
 Este pacote é documentação **interna de engenharia**. Não integra a central de ajuda pública do produto.
 
+## Execução financeira atual — 10/11/2026
+
+O planejamento geral abaixo é histórico; a migração Asaas → AbacatePay tem execução própria no PR #53, ainda draft e restrita a DEV/Preview/Sandbox. Comece pelo [plano final de go-live](asaas-to-abacatepay/PLANO-FINAL-GO-LIVE-ABACATEPAY.md), [relatório](asaas-to-abacatepay/RELATORIO-HOMOLOGACAO-FINAL.md#30-fechamento-dos-bloqueios-e-operação-auditável--10112026) e [operação com MFA](../runbooks/abacatepay-operacao.md). A resposta recebida do suporte já está registrada integralmente. O monitor e a recuperação auditável não eliminam os limites externos nem autorizam publicação financeira em Production.
+
 ## Mapa de leitura
 
 | Pergunta                                  | Documento                                                                                                                                                                |

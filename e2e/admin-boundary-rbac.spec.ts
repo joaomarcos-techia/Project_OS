@@ -41,6 +41,7 @@ const ADMIN_ROUTES = [
   '/admin',
   '/admin/audit',
   '/admin/billing',
+  '/admin/billing/operacao',
   '/admin/clinicas',
   '/admin/config',
   '/admin/conversas-ia',

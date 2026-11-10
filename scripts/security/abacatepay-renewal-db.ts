@@ -59,6 +59,12 @@ const { requestAbacatePayPlanChange: changePlan } =
 const { assertClinicCanWriteTx } = await import('../../src/lib/tenant-access');
 const { reconcileAbacatePayIntegrity: inspectIntegrity } =
   await import('../../src/contexts/billing/internal/abacatepay-integrity');
+const { observeAbacatePayRenewals: watchRenewals } =
+  await import('../../src/contexts/billing/internal/abacatepay-renewal-watch');
+const { listAbacatePayReviews: listReviews, authorizeAbacatePayReplayTx: authorizeReplay } =
+  await import('../../src/contexts/billing/internal/abacatepay-review');
+const { getAbacatePayOperations } =
+  await import('../../src/app/(admin)/admin/_lib/repositories/abacatepay-operations.repo');
 type Evidence = import('../../src/lib/payments/saas/recurring-payment').RecurringPaymentEvidence;
 const account = {
   provider: 'abacatepay',
@@ -80,7 +86,7 @@ function month(date: Date, delta: number) {
   const iso = date.toISOString();
   return new Date(`${addCalendarMonths(iso.slice(0, 10), delta)}${iso.slice(10)}`);
 }
-async function seed(endOffsetMs = -120_000, planCode = 'clinica_2026_2') {
+async function seed(endOffsetMs = -120_000, planCode = 'clinica_2026_2', paid = true) {
   const amount = planCode === 'consultorio_2026' ? 19700 : 39700,
     productId = planCode === 'consultorio_2026' ? 'prod_one' : 'prod_synthetic';
   const userId = randomUUID(),
@@ -114,17 +120,19 @@ async function seed(endOffsetMs = -120_000, planCode = 'clinica_2026_2') {
   await sql`INSERT INTO billing_gateway.checkout_intents(subscription_id,clinic_id,account_id,price_id,product_id,amount_minor)
     VALUES(${row.subscription_id}::uuid,${trial.clinicId}::uuid,${row.account_id}::uuid,${row.price_id}::uuid,${productId},${amount})`;
   // Explicit synthetic S0, not a simulated or claimed external first payment.
-  const [invoice] = await sql<
-    { id: string }[]
-  >`INSERT INTO public.invoices(clinic_id,subscription_id,total_amount,status,due_date,period_start,period_end,paid_at,payment_method)
+  if (paid) {
+    const [invoice] = await sql<
+      { id: string }[]
+    >`INSERT INTO public.invoices(clinic_id,subscription_id,total_amount,status,due_date,period_start,period_end,paid_at,payment_method)
     VALUES(${trial.clinicId}::uuid,${row.subscription_id}::uuid,${amount / 100},'paid',${anchor.toISOString().slice(0, 10)},
       ${anchor.toISOString().slice(0, 10)},${end.toISOString().slice(0, 10)},${anchor},'CARD') RETURNING id::text`;
-  assert.ok(invoice);
-  await sql`INSERT INTO billing_gateway.paid_checkouts(account_id,checkout_id,subscription_id,clinic_id,invoice_id,period_start,period_end)
+    assert.ok(invoice);
+    await sql`INSERT INTO billing_gateway.paid_checkouts(account_id,checkout_id,subscription_id,clinic_id,invoice_id,period_start,period_end)
     VALUES(${row.account_id}::uuid,${origin},${row.subscription_id}::uuid,${trial.clinicId}::uuid,${invoice.id}::uuid,${anchor},${end})`;
-  await sql`UPDATE public.trial_access_policies SET released_at=${anchor},released_by_invoice_id=${invoice.id}::uuid WHERE clinic_id=${trial.clinicId}::uuid`;
-  await sql`UPDATE public.subscriptions SET billing_status='active',current_period_start=${anchor},current_period_end=${end},
+    await sql`UPDATE public.trial_access_policies SET released_at=${anchor},released_by_invoice_id=${invoice.id}::uuid WHERE clinic_id=${trial.clinicId}::uuid`;
+    await sql`UPDATE public.subscriptions SET billing_status='active',current_period_start=${anchor},current_period_end=${end},
     grace_period_until=${new Date(end.getTime() + 15 * 86_400_000)} WHERE id=${row.subscription_id}::uuid`;
+  }
   const evidence: Evidence = {
     account,
     subscriptionId: externalSub,
@@ -1567,6 +1575,285 @@ try {
         }),
         { code: '42501' },
       );
+    },
+  );
+  const operatorId = randomUUID();
+  await sql`INSERT INTO auth.users(id,email) VALUES(${operatorId}::uuid,${`${operatorId}@example.invalid`})`;
+  await sql`INSERT INTO public.profiles(id,clinic_id,nome,role,ativo) VALUES(${operatorId}::uuid,NULL,'Synthetic operator','super_admin',true)`;
+  async function reviewFixture() {
+    const f = await seed();
+    await accept(f);
+    await sql`UPDATE billing_gateway.event_inbox SET state='review',attempts=10,outcome_code='synthetic_readback_failure'
+      WHERE account_id=${f.account_id}::uuid AND event_id=${f.eventId}`;
+    return f;
+  }
+  async function approvalInput(f: Fixture) {
+    const row = (await listReviews(dbAdmin)).find((r) => r.event_id === f.eventId);
+    assert.ok(row);
+    return {
+      accountId: row.account_id,
+      eventId: row.event_id,
+      clinicId: row.clinic_id,
+      snapshot: row.snapshot,
+      reason: 'provider_recovered',
+      evidenceReference: 'INC-20261110-DB',
+    };
+  }
+  const queue = (input: unknown, actor = operatorId) =>
+    dbAdmin.transaction((tx) => authorizeReplay(tx, input, actor));
+  await check(
+    'OPS-001 one audited replay preserves all financial fields and cumulative attempts',
+    async () => {
+      const f = await reviewFixture(),
+        before = await financialFingerprint(f);
+      await queue(await approvalInput(f));
+      assert.deepEqual(await financialFingerprint(f), before);
+      const [row] =
+        await sql`SELECT state,attempts,(SELECT count(*)::int FROM billing_gateway.review_replays
+      WHERE account_id=${f.account_id}::uuid AND event_id=${f.eventId}) approvals FROM billing_gateway.event_inbox
+      WHERE account_id=${f.account_id}::uuid AND event_id=${f.eventId}`;
+      assert.equal(row?.state, 'received');
+      assert.equal(row?.attempts, 10);
+      assert.equal(row?.approvals, 1);
+      installHttpFixture(f, { fail: true });
+      const first = await reconcileAbacatePayInbox({ eventId: f.eventId });
+      assert.equal(first.review, 1);
+      assert.equal(first.retry, false);
+      const calls = fixtureHttpCalls;
+      assert.equal((await reconcileAbacatePayInbox({ eventId: f.eventId })).scanned, 0);
+      assert.equal(fixtureHttpCalls, calls);
+    },
+  );
+  await check(
+    'OPS-002 review recovery verifies the same remote payment and grants exactly one cycle',
+    async () => {
+      const f = await reviewFixture();
+      await queue(await approvalInput(f));
+      installHttpFixture(f);
+      assert.equal((await reconcileAbacatePayInbox({ eventId: f.eventId })).applied, 1);
+      const after = await state(f);
+      assert.equal(after.cycles, 1);
+      assert.equal(after.invoices, 2);
+      assert.equal((await reconcileAbacatePayInbox({ eventId: f.eventId })).scanned, 0);
+      assert.deepEqual(await state(f), after);
+    },
+  );
+  await check(
+    'OPS-003 concurrent operators authorize only once from the same snapshot',
+    async () => {
+      const f = await reviewFixture(),
+        input = await approvalInput(f),
+        before = await financialFingerprint(f);
+      const result = await Promise.allSettled(Array.from({ length: 8 }, () => queue(input)));
+      assert.equal(result.filter((r) => r.status === 'fulfilled').length, 1);
+      assert.deepEqual(await financialFingerprint(f), before);
+    },
+  );
+  await check('OPS-004 clinic owners cannot authorize a platform financial replay', async () => {
+    const f = await reviewFixture();
+    await assert.rejects(queue(await approvalInput(f), f.userId), (error) => {
+      assert.ok(error instanceof Error && typeof error.cause === 'object' && error.cause !== null);
+      assert.ok('code' in error.cause && error.cause.code === '23514');
+      assert.ok(
+        'constraint_name' in error.cause &&
+          error.cause.constraint_name === 'gateway_review_actor_binding',
+      );
+      return true;
+    });
+    const [row] =
+      await sql`SELECT count(*)::int count FROM billing_gateway.review_replays WHERE event_id=${f.eventId}`;
+    assert.equal(row?.count, 0);
+  });
+  await check(
+    'OPS-005 stale snapshots and cross-tenant requests never queue an event',
+    async () => {
+      const f = await reviewFixture(),
+        other = await seed(),
+        input = await approvalInput(f);
+      await assert.rejects(queue({ ...input, clinicId: other.clinicId }));
+      await assert.rejects(queue({ ...input, snapshot: 'a'.repeat(64) }));
+      assert.equal(
+        (await listReviews(dbAdmin)).find((r) => r.event_id === f.eventId)?.attempts,
+        10,
+      );
+    },
+  );
+  await check('OPS-006 applied/processing events cannot be manually reopened', async () => {
+    for (const state of ['applied', 'processing']) {
+      const f = await reviewFixture(),
+        input = await approvalInput(f);
+      await sql`UPDATE billing_gateway.event_inbox SET state=${state},lease_token=${state === 'processing' ? randomUUID() : null}::uuid,
+        lease_until=${state === 'processing' ? new Date(Date.now() + 60000) : null} WHERE account_id=${f.account_id}::uuid AND event_id=${f.eventId}`;
+      await assert.rejects(queue(input));
+    }
+  });
+  await check(
+    'OPS-007 three manual attempts per day are enforced without financial override',
+    async () => {
+      const f = await reviewFixture();
+      installHttpFixture(f, { fail: true });
+      for (let i = 0; i < 3; i++) {
+        await queue(await approvalInput(f));
+        assert.equal((await reconcileAbacatePayInbox({ eventId: f.eventId })).review, 1);
+      }
+      await assert.rejects(queue(await approvalInput(f)), /replay_limit/);
+      const [row] =
+        await sql`SELECT attempts FROM billing_gateway.event_inbox WHERE event_id=${f.eventId}`;
+      assert.equal(row?.attempts, 13);
+    },
+  );
+  await check(
+    'OPS-008 private replay evidence denies anon, authenticated and service mutation',
+    async () => {
+      for (const role of ['anon', 'authenticated', 'qoro_runtime', 'service_role']) {
+        await assert.rejects(
+          sql.begin(async (tx) => {
+            await tx.unsafe(`SET LOCAL ROLE ${role}`);
+            await tx`DELETE FROM billing_gateway.review_replays WHERE false`;
+          }),
+          { code: '42501' },
+        );
+      }
+      await assert.rejects(
+        sql.begin(async (tx) => {
+          await tx`SET LOCAL ROLE service_role`;
+          await tx`UPDATE billing_gateway.review_replays SET reason='provider_recovered' WHERE false`;
+        }),
+        { code: '42501' },
+      );
+      for (const role of ['anon', 'authenticated', 'qoro_runtime']) {
+        await assert.rejects(
+          sql.begin(async (tx) => {
+            await tx.unsafe(`SET LOCAL ROLE ${role}`);
+            await tx`SELECT * FROM billing_gateway.review_replays`;
+          }),
+          { code: '42501' },
+        );
+      }
+    },
+  );
+  await check(
+    'OPS-009 no duplicate renewal incident under parallel scans and no access changes',
+    async () => {
+      const f = await seed(),
+        before = await financialFingerprint(f);
+      const calls = fixtureHttpCalls;
+      await Promise.all(Array.from({ length: 8 }, () => watchRenewals(dbAdmin)));
+      const [count] =
+        await sql`SELECT count(*)::int count FROM public.billing_events WHERE clinic_id=${f.clinicId}::uuid
+      AND type='subscription.renewal_watch.observed' AND payload->>'state'='due'`;
+      assert.equal(count?.count, 1);
+      assert.deepEqual(await financialFingerprint(f), before);
+      assert.equal(fixtureHttpCalls, calls);
+    },
+  );
+  await check(
+    'OPS-010 a verified renewal resolves the incident without replaying financial effects',
+    async () => {
+      const f = await seed();
+      await watchRenewals(dbAdmin);
+      await accept(f);
+      await apply(f);
+      await watchRenewals(dbAdmin);
+      const [row] =
+        await sql`SELECT payload->>'state' state FROM public.billing_events WHERE clinic_id=${f.clinicId}::uuid
+      AND type='subscription.renewal_watch.observed' ORDER BY created_at DESC,id DESC LIMIT 1`;
+      assert.equal(row?.state, 'resolved');
+      assert.equal((await state(f)).cycles, 1);
+    },
+  );
+  await check(
+    'OPS-011 cancelled contracts and future periods never report an expected renewal',
+    async () => {
+      const cancelled = await seed(),
+        future = await seed(86_400_000);
+      await sql`UPDATE public.subscriptions SET cancel_at_period_end=true WHERE id=${cancelled.subscription_id}::uuid`;
+      await watchRenewals(dbAdmin);
+      const [row] =
+        await sql`SELECT count(*)::int count FROM public.billing_events WHERE clinic_id IN (${cancelled.clinicId}::uuid,${future.clinicId}::uuid)
+      AND type='subscription.renewal_watch.observed' AND payload->>'state'='due'`;
+      assert.equal(row?.count, 0);
+    },
+  );
+  await check(
+    'OPS-012 trial without paid evidence and Asaas legacy are outside the monitor',
+    async () => {
+      const f = await seed(-120_000, 'clinica_2026_2', false),
+        before = await financialFingerprint(f);
+      const clinicId = randomUUID(),
+        ownerId = randomUUID();
+      await sql`INSERT INTO auth.users(id,email) VALUES(${ownerId}::uuid,${`${ownerId}@example.invalid`})`;
+      await sql`INSERT INTO public.clinics(id,slug,nome,status) VALUES(${clinicId}::uuid,${`legacy-watch-${clinicId.slice(0, 8)}`},'Synthetic legacy watch','active')`;
+      await sql`INSERT INTO public.profiles(id,clinic_id,nome,role,ativo) VALUES(${ownerId}::uuid,${clinicId}::uuid,'Synthetic legacy owner','owner',true)`;
+      await sql`INSERT INTO public.subscriptions(clinic_id,plan_id,price_id,billing_status,trial_ends_at,billing_provider,asaas_subscription_id,
+        current_period_start,current_period_end) SELECT ${clinicId}::uuid,plan_id,price_id,'active',trial_ends_at,'asaas','sub_synthetic_legacy_watch',
+        now()-interval '32 days',now()-interval '2 days' FROM public.subscriptions WHERE id=${f.subscription_id}::uuid`;
+      await watchRenewals(dbAdmin);
+      const [row] =
+        await sql`SELECT count(*)::int count FROM public.billing_events WHERE clinic_id IN (${f.clinicId}::uuid,${clinicId}::uuid)
+      AND type='subscription.renewal_watch.observed'`;
+      assert.equal(row?.count, 0);
+      assert.deepEqual(await financialFingerprint(f), before);
+    },
+  );
+  await check(
+    'OPS-013 a failed audit transaction rolls back the authorization and queue atomically',
+    async () => {
+      const f = await reviewFixture(),
+        input = await approvalInput(f),
+        before = await financialFingerprint(f);
+      await assert.rejects(
+        dbAdmin.transaction(async (tx) => {
+          await authorizeReplay(tx, input, operatorId);
+          throw new Error('Synthetic audit failure after approval');
+        }),
+        /Synthetic audit failure/,
+      );
+      assert.deepEqual(await financialFingerprint(f), before);
+      const [row] =
+        await sql`SELECT state,(SELECT count(*)::int FROM billing_gateway.review_replays WHERE event_id=${f.eventId}) approvals
+      FROM billing_gateway.event_inbox WHERE event_id=${f.eventId}`;
+      assert.equal(row?.state, 'review');
+      assert.equal(row?.approvals, 0);
+    },
+  );
+  await check(
+    'OPS-014 two manually retried event IDs for one payment never grant two cycles',
+    async () => {
+      const f = await reviewFixture();
+      await queue(await approvalInput(f));
+      installHttpFixture(f);
+      assert.equal((await reconcileAbacatePayInbox({ eventId: f.eventId })).applied, 1);
+      const duplicateId = `log_duplicate_${randomUUID().replaceAll('-', '')}`;
+      await accept(f, duplicateId);
+      await sql`UPDATE billing_gateway.event_inbox SET state='review',attempts=10 WHERE event_id=${duplicateId}`;
+      await queue(await approvalInput({ ...f, eventId: duplicateId }));
+      await reconcileAbacatePayInbox({ eventId: duplicateId });
+      assert.equal((await state(f)).cycles, 1);
+      assert.equal((await state(f)).invoices, 2);
+    },
+  );
+  await check(
+    'OPS-015 operator repository exposes quarantined references without an authorization path',
+    async () => {
+      const eventId = `log_quarantine_${randomUUID().replaceAll('-', '')}`;
+      await inbox.accept(
+        {
+          eventId,
+          eventType: 'subscription.renewed',
+          subscriptionId: 'subs_unmatched_operator',
+          customerId: 'cust_unmatched_operator',
+          checkoutId: 'bill_unmatched_operator',
+          paymentId: 'char_unmatched_operator',
+        },
+        createHash('sha256').update(eventId).digest('hex'),
+      );
+      await sql`UPDATE billing_gateway.event_inbox SET state='review',outcome_code='unmatched_fixture' WHERE event_id=${eventId}`;
+      const operations = await getAbacatePayOperations();
+      assert.ok(operations);
+      assert.ok(operations.quarantined.some((row) => row.event_id === eventId));
+      assert.ok(!operations.reviews.some((row) => row.event_id === eventId));
+      assert.ok(operations.backlog.reviews > 0);
     },
   );
   assert.equal(networkCalls, 0);
