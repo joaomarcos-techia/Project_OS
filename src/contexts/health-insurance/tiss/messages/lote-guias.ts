@@ -69,7 +69,21 @@ export function buildLoteGuiasMessage(input: LoteGuiasInput): BuiltTissMessage {
       `lote com ${count} guias excede o limite de ${TISS_MAX_GUIDES_PER_BATCH} do Padrão TISS`,
     );
   }
+  return assembleLoteGuiasMessage(input, guideElements(input.lote));
+}
 
+export type LoteGuiasHeader = Omit<LoteGuiasInput, 'lote'>;
+
+/**
+ * Monta a mensagem a partir de elementos de guia já prontos, SEM as travas de
+ * `buildLoteGuiasMessage` (quantidade e tipo único). O app usa sempre
+ * `buildLoteGuiasMessage`; esta função existe para o corpus negativo de
+ * validação (P13.1) gerar, pelo mesmo código, lotes que o padrão proíbe.
+ */
+export function assembleLoteGuiasMessage(
+  input: LoteGuiasHeader,
+  guides: readonly XmlElement[],
+): BuiltTissMessage {
   const body = [
     node('cabecalho', [
       node('identificacaoTransacao', [
@@ -85,10 +99,7 @@ export function buildLoteGuiasMessage(input: LoteGuiasInput): BuiltTissMessage {
       leaf('Padrao', input.padrao),
     ]),
     node('prestadorParaOperadora', [
-      node('loteGuias', [
-        leaf('numeroLote', input.numeroLote),
-        node('guiasTISS', guideElements(input.lote)),
-      ]),
+      node('loteGuias', [leaf('numeroLote', input.numeroLote), node('guiasTISS', [...guides])]),
     ]),
   ];
   // O hash cobre cabeçalho e corpo; o epílogo entra depois, com ele.
