@@ -773,7 +773,7 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail {
   flex: none;
   align-items: center;
   gap: 8px;
-  margin-bottom: 2px;
+  margin-bottom: 6px;
   padding: var(--rail-logo-inset) var(--rail-logo-inset) 0;
 }
 [data-qoro-shell='tenant'] .qoro-rail-clinic {
@@ -861,7 +861,9 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail {
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.06em;
-  line-height: 1;
+  /* Altura de linha folgada: com 1, o `overflow` cortava o til e o acento das
+     maiúsculas ("OPERAÇÃO" saía "OPERAÇAO"). */
+  line-height: 16px;
   text-overflow: ellipsis;
   text-transform: uppercase;
 }
@@ -1273,6 +1275,9 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail-nav {
   /* Gaveta: a navegação inteira, com nomes, títulos, tema, conta e Sair. */
   [data-qoro-shell='tenant'][data-nav-open='true'] .qoro-rail {
     z-index: var(--z-drawer);
+    /* A barra fica acima da máscara para a gaveta (filha dela) ficar também;
+       transparente, ela deixa a máscara escurecer o topo junto com o resto. */
+    background: transparent;
   }
   [data-qoro-shell='tenant'][data-nav-open='true'] .qoro-rail .qoro-rail-inner {
     position: fixed;
