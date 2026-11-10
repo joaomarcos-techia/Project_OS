@@ -161,6 +161,11 @@ const config = [
       'scripts/security/signup-browser.integration.ts',
       // Guarded Preview/DEV operator; synthetic resend.dev recipients only.
       'scripts/run-signup-recovery-dev.ts',
+      // Guarded DEV operator (ADR-067, P1.3): carga one-shot da terminologia TUSS nas
+      // tabelas globais tiss_*; exige --expected-ref do projeto e recusa prod. Conexão
+      // própria porque o pooler do DEV leva ~10–16 s para conectar e o pool do app
+      // desiste em 10 s.
+      'scripts/tiss/terminology/load.ts',
       // Reset operacional de pré-go-live: conexão one-shot explícita em
       // DATABASE_URL_PROD, backup obrigatório e confirmação fail-closed.
       'scripts/reset-prod-data.ts',
