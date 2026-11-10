@@ -5,6 +5,14 @@ import { mkdir, writeFile } from 'node:fs/promises';
 
 import { readMigrations, startScratchSchema } from './scratch-schema';
 
+const catalog = {
+  consultorio_2026: { productId: 'prod_one', amountMinor: 19700 },
+  clinica_2026_2: { productId: 'prod_synthetic', amountMinor: 39700 },
+  clinica_2026_3: { productId: 'prod_three', amountMinor: 54400 },
+  clinica_2026_4: { productId: 'prod_four', amountMinor: 69100 },
+  clinica_2026_5: { productId: 'prod_five', amountMinor: 83800 },
+} as const;
+type PlanCode = keyof typeof catalog;
 const cluster = await startScratchSchema({ port: 55493 });
 assert.equal(new URL(cluster.url).hostname, '127.0.0.1');
 const sql = cluster.sql;
@@ -22,7 +30,9 @@ Object.assign(process.env, {
   ABACATEPAY_STORE_ID: 'store_synthetic',
   ABACATEPAY_API_KEY: 'synthetic-loopback-only',
   ABACATEPAY_SANDBOX_PROBE_PRODUCT_ID: 'prod_probe',
-  ABACATEPAY_SANDBOX_PLAN_PRODUCTS: '{"clinica_2026_2":"prod_synthetic"}',
+  ABACATEPAY_SANDBOX_PLAN_PRODUCTS: JSON.stringify(
+    Object.fromEntries(Object.entries(catalog).map(([code, product]) => [code, product.productId])),
+  ),
   APP_BASE_URL: 'https://qoro.example',
   LOGIN_HASH_PEPPER: 'synthetic-loopback-checkout-hash-pepper',
   CRYPTO_SECRET_BACKEND: 'env',
@@ -70,7 +80,12 @@ globalThis.fetch = async (raw, init) => {
     data = {
       id: url.searchParams.get('id'),
       externalId: 'synthetic-product',
-      price: 39700,
+      price:
+        url.searchParams.get('id') === 'prod_probe'
+          ? 100
+          : Object.values(catalog).find(
+              (product) => product.productId === url.searchParams.get('id'),
+            )?.amountMinor,
       currency: 'BRL',
       cycle: 'MONTHLY',
       trialDays: null,
@@ -82,13 +97,18 @@ globalThis.fetch = async (raw, init) => {
     if (beforeSendFailure) throw new Error('Synthetic failure before processing');
     const body = JSON.parse(String(init.body));
     assert.equal(typeof body.externalId, 'string');
+    const product = Object.values(catalog).find(
+      (product) => product.productId === body.items?.[0]?.id,
+    );
+    assert.ok(product);
+    assert.deepEqual(body.items, [{ id: product.productId, quantity: 1 }]);
     const item: Checkout = {
       id: `bill_${randomUUID().replaceAll('-', '')}`,
       externalId: body.externalId,
       url: 'https://app.abacatepay.com/pay/synthetic',
       frequency: 'SUBSCRIPTION',
       devMode: true,
-      amount: 39700,
+      amount: product.amountMinor,
       paidAmount: null,
       status: 'PENDING',
       customerId: null,
@@ -123,7 +143,7 @@ globalThis.fetch = async (raw, init) => {
               id: `subs_${item.id.slice(5)}`,
               checkoutId: item.id,
               customerId: 'cust_synthetic',
-              amount: 39700,
+              amount: item.amount,
               currency: 'BRL',
               method: 'CARD',
               status: 'ACTIVE',
@@ -143,7 +163,7 @@ globalThis.fetch = async (raw, init) => {
       id: url.searchParams.get('id'),
       checkoutId: item.id,
       customerId: 'cust_synthetic',
-      amount: 39700,
+      amount: item.amount,
       currency: 'BRL',
       method: 'CARD',
       status: 'ACTIVE',
@@ -179,14 +199,12 @@ async function check(name: string, run: () => Promise<void>) {
     throw error;
   }
 }
-async function seed() {
+async function seed(code: PlanCode = 'clinica_2026_2') {
   const userId = randomUUID(),
     email = `${userId}@example.invalid`,
     authCreatedAt = new Date(Date.now() - 16 * 86400000);
   await sql`INSERT INTO auth.users(id,email,email_confirmed_at,created_at)VALUES(${userId}::uuid,${email},now(),${authCreatedAt})`;
-  const [plan] = await sql<
-    { id: string }[]
-  >`SELECT id::text FROM public.plans WHERE code='clinica_2026_2'`;
+  const [plan] = await sql<{ id: string }[]>`SELECT id::text FROM public.plans WHERE code=${code}`;
   assert.ok(plan);
   await sql`INSERT INTO public.signup_sessions(token_hash,status,idle_expires_at,absolute_expires_at,consumed_at,auth_user_id,
  owner_name,clinic_name,email_hash,accepted_at,answered_at,professionals_band,weekly_appointments_band,current_tooling,discovery_source,selected_plan_id)
@@ -201,7 +219,13 @@ async function seed() {
   >`SELECT s.id::text "subscriptionId",s.price_id::text "priceId",b.account_id::text "accountId"
  FROM public.subscriptions s JOIN billing_gateway.bindings b ON b.subscription_id=s.id WHERE s.clinic_id=${trial.clinicId}::uuid`;
   assert.ok(row);
-  return { ...row, clinicId: trial.clinicId, reference: `qoro-initial-${row.subscriptionId}` };
+  return {
+    ...row,
+    ...catalog[code],
+    authCreatedAt,
+    clinicId: trial.clinicId,
+    reference: `qoro-initial-${row.subscriptionId}`,
+  };
 }
 type Fixture = Awaited<ReturnType<typeof seed>>;
 async function state(f: Fixture) {
@@ -217,7 +241,7 @@ async function state(f: Fixture) {
 }
 async function reserveWithLostAcknowledgement(f: Fixture) {
   await sql`INSERT INTO billing_gateway.checkout_intents(subscription_id,clinic_id,account_id,price_id,product_id,amount_minor)
- VALUES(${f.subscriptionId}::uuid,${f.clinicId}::uuid,${f.accountId}::uuid,${f.priceId}::uuid,'prod_synthetic',39700)`;
+ VALUES(${f.subscriptionId}::uuid,${f.clinicId}::uuid,${f.accountId}::uuid,${f.priceId}::uuid,${f.productId},${f.amountMinor})`;
   const journal = createPostgresGatewayOperationJournal(
     { provider: 'abacatepay', environment: 'sandbox', accountId: 'store_synthetic' },
     {
@@ -241,8 +265,8 @@ async function reserveWithLostAcknowledgement(f: Fixture) {
     commands.createSubscriptionCheckout({
       operationId: randomUUID(),
       externalId: f.reference,
-      productId: 'prod_synthetic',
-      expectedAmountMinor: 39700,
+      productId: f.productId,
+      expectedAmountMinor: f.amountMinor,
       expectedCycle: 'MONTHLY',
       expectedNativeTrialDays: null,
       returnUrl: 'https://qoro.example/configuracoes/assinatura',
@@ -252,7 +276,7 @@ async function reserveWithLostAcknowledgement(f: Fixture) {
 }
 let failure: unknown;
 try {
-  await sql`UPDATE public.plans SET ativo=true WHERE code IN ('clinica_2026_2','consultorio_2026')`;
+  await sql`UPDATE public.plans SET ativo=true WHERE code IN ('consultorio_2026','clinica_2026_2','clinica_2026_3','clinica_2026_4','clinica_2026_5')`;
   await check(
     'H3 timeout before remote processing is retained across retries without another POST',
     async () => {
@@ -417,6 +441,90 @@ try {
       assert.equal(posts, before);
     },
   );
+  for (const code of [
+    'consultorio_2026',
+    'clinica_2026_2',
+    'clinica_2026_3',
+    'clinica_2026_4',
+    'clinica_2026_5',
+  ] as const) {
+    await check(
+      `INITIAL-${code} first checkout freezes the exact price and releases only its paid quota`,
+      async () => {
+        const f = await seed(code),
+          before = posts;
+        const [unpaid] = await sql`SELECT p.code,pr.amount::text,s.trial_ends_at,ta.released_at
+        FROM public.subscriptions s JOIN public.plans p ON p.id=s.plan_id JOIN public.prices pr ON pr.id=s.price_id
+        JOIN public.trial_access_policies ta ON ta.subscription_id=s.id WHERE s.id=${f.subscriptionId}::uuid`;
+        assert.equal(unpaid?.code, code);
+        assert.equal(Number(unpaid?.amount) * 100, f.amountMinor);
+        assert.equal(unpaid?.released_at, null);
+        assert.equal(unpaid?.trial_ends_at.getTime(), f.authCreatedAt.getTime() + 14 * 86_400_000);
+        assert.equal((await state(f)).operations, 0);
+        assert.equal((await create({ clinicId: f.clinicId })).state, 'checkout_pending');
+        await Promise.all(Array.from({ length: 6 }, () => create({ clinicId: f.clinicId })));
+        assert.equal(posts - before, 1);
+        const item = remote.get(f.reference)?.[0];
+        assert.ok(item);
+        assert.equal(item.amount, f.amountMinor);
+        assert.deepEqual(item.items, [{ id: f.productId, quantity: 1 }]);
+        const [frozen] =
+          await sql`SELECT amount_minor::int,product_id,price_id::text FROM billing_gateway.checkout_intents
+        WHERE subscription_id=${f.subscriptionId}::uuid`;
+        assert.deepEqual(frozen, {
+          amount_minor: f.amountMinor,
+          product_id: f.productId,
+          price_id: f.priceId,
+        });
+        assert.equal((await state(f)).released, false);
+        assert.equal((await state(f)).invoices, 0);
+        item.status = 'PAID';
+        item.paidAmount = f.amountMinor;
+        item.customerId = 'cust_synthetic';
+        assert.equal((await applyPayment({ subscriptionId: f.subscriptionId })).applied, 1);
+        await applyPayment({ subscriptionId: f.subscriptionId });
+        await assert.rejects(
+          create({ clinicId: f.clinicId }),
+          (error) => error instanceof Error && 'code' in error && error.code === 'already_paid',
+        );
+        const paid = await state(f);
+        assert.equal(paid.billing_status, 'active');
+        assert.equal(paid.released, true);
+        assert.equal(paid.invoices, 1);
+        assert.equal(paid.operations, 1);
+        const [paidPlan] =
+          await sql`SELECT p.code,i.total_amount::text,l.doctors,l.staff,s.trial_ends_at
+        FROM public.subscriptions s JOIN public.plans p ON p.id=s.plan_id JOIN public.invoices i ON i.subscription_id=s.id
+        JOIN public.plan_seat_limits l ON l.plan_id=p.id WHERE s.id=${f.subscriptionId}::uuid`;
+        assert.equal(paidPlan?.code, code);
+        assert.equal(Number(paidPlan?.total_amount) * 100, f.amountMinor);
+        assert.equal(paidPlan?.doctors, code === 'consultorio_2026' ? 1 : Number(code.slice(-1)));
+        assert.equal(paidPlan?.staff, 3);
+        assert.equal(paidPlan?.trial_ends_at.getTime(), unpaid?.trial_ends_at.getTime());
+        assert.equal(posts - before, 1);
+      },
+    );
+    await check(
+      `INITIAL-${code} underpayment cannot release the trial or create a second checkout`,
+      async () => {
+        const f = await seed(code),
+          before = posts;
+        await create({ clinicId: f.clinicId });
+        const item = remote.get(f.reference)?.[0];
+        assert.ok(item);
+        item.status = 'PAID';
+        item.paidAmount = f.amountMinor - 1;
+        item.customerId = 'cust_synthetic';
+        await applyPayment({ subscriptionId: f.subscriptionId });
+        await assert.rejects(create({ clinicId: f.clinicId }));
+        const unpaid = await state(f);
+        assert.equal(unpaid.billing_status, 'trial');
+        assert.equal(unpaid.invoices, 0);
+        assert.equal(unpaid.released, false);
+        assert.equal(posts - before, 1);
+      },
+    );
+  }
   assert.equal(networkCalls, 0);
 } catch (error) {
   failure = error;

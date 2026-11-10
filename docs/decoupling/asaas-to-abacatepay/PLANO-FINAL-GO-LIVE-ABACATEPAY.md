@@ -6,6 +6,8 @@ Execução na branch `feat/billing-abacatepay-20261107`, worktree `C:/dev/Qoro_b
 
 Produção, contratos Asaas, desconto vitalício, pagamentos de pacientes e a fixture paga retida ficam intactos. Não há merge, ativação financeira, nova cobrança ou deleção remota nesta rodada. O agente de UI trabalha separadamente.
 
+**Decisão complementar do founder, 10/11:** permitir **2–5 médicos já na primeira contratação AbacatePay**, a R$ 397/544/691/838 por mês, mantendo Consultório R$ 197 e 3 administrativos incluídos. Implementada na candidata, preservando trial, bloqueios e preços do servidor; mudanças após uma assinatura já paga continuam na próxima renovação paga. A UI `ui/refactor-qoro-20261108` foi lida e já aceita o mesmo protocolo; não foi reescrita nem mesclada neste incremento. PASS 222 testes dirigidos e 18 checks PostgreSQL de criação/recuperação/primeiro pagamento (10 novos). [Evidência](evidencias/contratacao-inicial-catalogo-20261110.json). Isso não equivale a novo pagamento externo de 3–5 médicos nem à junção visual das branches. Gates de go-live abaixo permanecem.
+
 ## Fonte e garantias
 
 Ver [resposta integral encaminhada pelo founder](SUPORTE-RESPOSTA-INTEGRAL-20261110.md), [solicitação e matriz E1–E4](SOLICITACAO-SUPORTE-HOMOLOGACAO.md), ADR-068 a ADR-071 e [relatório anterior](RELATORIO-HOMOLOGACAO-FINAL.md). Consulta oficial de 10/11: [eventos de assinatura](https://docs.abacatepay.com/pages/webhooks/events/subscriptions), [webhooks](https://docs.abacatepay.com/pages/webhooks/reference), [fonte oficial de exclusão](https://github.com/AbacatePay/documentation/blob/main/pages/subscriptions/checkouts-delete.mdx).

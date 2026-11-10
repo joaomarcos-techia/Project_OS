@@ -29,7 +29,7 @@ Um resultado incerto não é “ausente”: Auth iniciado sem readback impede ou
 
 ## Preflight obrigatório da engenharia
 
-O operador confere: projeto/time/branch exatos na Vercel, deployment READY não Production; Auth e DB apontando para `pqhkirrszzpwezdaqrai` por prova assinada; loja atestada pelo catálogo já aprovado; `devMode=true` nos produtos; BRL, mensal, preços aprovados e ausência de trial nativo; webhook V2 `subscription.completed` apontando para a mesma release e runtime DEV; segredo inválido recusado com HTTP 401; 143 migrations e hash da última 0142, schema efetivo e conta Sandbox; preço vigente de tabela sem campanha.
+O operador confere: projeto/time/branch exatos na Vercel, deployment READY não Production; Auth e DB apontando para `pqhkirrszzpwezdaqrai` por prova assinada; loja atestada pelos catálogos já aprovados; **cinco produtos** em `devMode=true`; BRL, mensal, preços aprovados e ausência de trial nativo; webhook V2 `subscription.completed` apontando para a mesma release e runtime DEV; segredo inválido recusado com HTTP 401; 143 migrations e hash da última 0142, schema efetivo e conta Sandbox; preço vigente de tabela sem campanha. As correlações completas vêm de `%LOCALAPPDATA%\Qoro\SandboxBilling\plan-catalog-20261109\products.json`, sem alterar o catálogo retido de 08/11.
 
 A checagem rápida de histórico não substitui a auditoria completa já aprovada nem regrava os seis hashes históricos DEV. Qualquer mudança posterior de schema/release exige reconferir a preparação. Não trocar a URL/SHA do manifesto de uma fixture em andamento para fazer o preflight passar.
 
@@ -87,7 +87,13 @@ Renovação recorrente externa, falha/retentativa, refund/disputa recorrentes e 
 
 ## Quantidades de médicos e próximos ciclos
 
-A candidata oferece **Consultório (1 médico, R$ 197)** e **Clínica (2 médicos, R$ 397)** na contratação inicial. Depois de pagar, o titular pode solicitar na assinatura as variantes de **3 médicos (R$ 544), 4 (R$ 691) ou 5 (R$ 838)**. A mudança só vale na próxima renovação integralmente paga; não existe liberação imediata de vaga nem pró-rata. As três vagas administrativas continuam incluídas e separadas das médicas. Selecionar médicos adicionais no primeiro checkout seria uma mudança de jornada ainda não implementada.
+A candidata AbacatePay agora oferece **Consultório (1 médico, R$ 197)** e **Clínica com 2 médicos (R$ 397), 3 (R$ 544), 4 (R$ 691) ou 5 (R$ 838) já na contratação inicial**, conforme a decisão complementar do founder em 10/11. O primeiro pagamento integral libera a cota escolhida. São 3 acessos administrativos incluídos em qualquer variante; pagar mais médicos não compra acesso administrativo adicional.
+
+Para uma assinatura **já paga**, a alteração posterior continua valendo somente na próxima renovação integralmente paga, sem pró-rata ou vaga antecipada. A aquisição Asaas publicada permanece com as regras anteriores. O trial continua com 14 dias desde Auth, sem cobrança/cartão inicial e com todas as restrições já aprovadas.
+
+O operador aceita `--plan clinica_2026_3`, `_4` ou `_5` usando outro slot identificado. Para o próximo ensaio representativo de 5 médicos, preparar `--session next-checkout-five-20261110 --plan clinica_2026_5` sobre o Preview do novo HEAD. `prepare` não cria identidade nem transação; `create` só deve ser executado quando o founder pedir o novo checkout, e `verify` depois de “pago”. **Não reutilizar o slot já pago de R$ 397.** Nenhum link novo foi gerado por habilitar essa escolha.
+
+PASS **18/18 checks PostgreSQL**, incluindo 10 novos de primeira contratação nas cinco variantes, e **222/222 testes dirigidos** de catálogo, CAS, provisioning, rotas, UI e operador. A UI do worktree `ui/refactor-qoro-20261108` já renderiza os IDs/valores retornados pelo servidor; foi inspecionada sem alteração ou merge amplo. [Evidência inicial e limites](evidencias/contratacao-inicial-catalogo-20261110.json). As cobranças novas desses testes são somente respostas sintéticas: não equivalem a novos pagamentos externos dos planos de 3–5 médicos.
 
 Essa matriz passou **85/85 checks no PostgreSQL local**, incluindo 19 novos, e **168/168 testes dirigidos**, incluindo 14 novos. Cobertos quantidade paga, owner com CRM, teto de médicos/administração, cliques concorrentes, replay, valor/produto divergentes e downgrade com excesso de equipe. No Preview, as opções reais da fixture paga foram lidas sem executar alteração. [Evidências e limites](evidencias/checkout-variantes-20261110.json). Os testes de renovação utilizam respostas de provedor sintéticas e relógio explícito da aplicação; não representam novas renovações pagas externamente. **Não há outro checkout a pagar para esta matriz automática.**
 

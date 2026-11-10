@@ -33,3 +33,11 @@ Decisão do founder em 08/11/2026: **C — agendar a nova cota para a próxima r
 ## Consequência da decisão aprovada
 
 O comando `change-plan` aceito não libera médicos, permissões ou cota. O contrato atual permanece até comprovar uma nova renovação paga, no novo produto e valor, vinculada à mesma conta/assinatura/cliente. Falha, timeout, substituição de pedido, pagamento antigo ou divergência permanecem em revisão. Não emitir cobrança proporcional. Downgrade também exige ocupação compatível e não apaga dados. A oferta mensal e os contratos Asaas continuam com suas regras atuais.
+
+## Contratação inicial — decisão complementar de 10/11/2026
+
+O founder aprovou **escolher de 2 a 5 médicos já no primeiro pagamento AbacatePay**, com a mensalidade integral correspondente: R$ 397/544/691/838. Consultório permanece R$ 197 para 1 médico. Todos conservam até 3 acessos administrativos incluídos. Essa é a seleção inicial de um contrato ainda não pago; não é um `change-plan` nem uma cobrança proporcional.
+
+O cadastro da candidata deve listar essas variantes e conservar o ID escolhido; o servidor resolve preço, produto e quantidade antes de criar o checkout após o trial de 14 dias desde Auth. Um SKU de plano representa o total contratado e vai como um item de quantidade 1. O primeiro pagamento integral libera a cota desse plano. Após um contrato já pago, a alternativa C acima continua valendo: aumento ou redução somente na próxima renovação paga correspondente.
+
+A aquisição Asaas publicada e os contratos antigos permanecem com os filtros e regras anteriores. A UI do outro agente consome o mesmo protocolo de plano; não houve reimplementação visual nem merge amplo. [Provas locais, catálogo Sandbox e limites](../decoupling/asaas-to-abacatepay/evidencias/contratacao-inicial-catalogo-20261110.json). Não há autorização de go-live nem outra cobrança nesta decisão.

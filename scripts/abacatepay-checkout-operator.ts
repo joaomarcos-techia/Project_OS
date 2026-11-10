@@ -171,17 +171,37 @@ async function main(): Promise<void> {
   assert.equal(hash(store.id), catalog.storeIdSha256);
   stage = 'sandbox_probe';
   await reader.readProduct(PROBE);
-  const products = z
-    .object({ products: z.object({ consultorio_2026: z.string(), clinica_2026_2: z.string() }) })
+  const planCatalog = z
+    .object({
+      storeHash: z.string().regex(/^[a-f0-9]{64}$/),
+      products: z.record(entryPlan, z.string().regex(/^prod_[A-Za-z0-9_-]+$/)),
+    })
     .parse(
-      JSON.parse(await readFile(path.join(catalogDirectory, 'products.json'), 'utf8')),
-    ).products;
+      JSON.parse(
+        await readFile(
+          path.join(
+            localAppData,
+            'Qoro',
+            'SandboxBilling',
+            'plan-catalog-20261109',
+            'products.json',
+          ),
+          'utf8',
+        ),
+      ),
+    );
+  assert.equal(planCatalog.storeHash, hash(store.id));
+  const products = planCatalog.products;
   for (const code of entryPlan.options) {
     stage = `sandbox_product_${code}`;
     const product = await reader.readProduct(products[code]);
     assert.equal(product.price, expectedAmount(code));
     assert.equal(product.currency, 'BRL');
-    assert.equal(product.externalId, `qoro-trial-deferred-20261108-${code}`);
+    const prefix =
+      code === 'consultorio_2026' || code === 'clinica_2026_2'
+        ? 'qoro-trial-deferred-20261108'
+        : 'plan-catalog-20261109';
+    assert.equal(product.externalId, `${prefix}-${code}`);
     assert.equal(product.cycle, 'MONTHLY');
     assert.equal(product.trialDays ?? null, null);
   }
@@ -309,7 +329,7 @@ async function main(): Promise<void> {
       amountMinor: preparation.amountMinor,
       signedDevRuntime: true,
       devAuthAdminReadiness: true,
-      sandboxProducts: 2,
+      sandboxProducts: entryPlan.options.length,
       webhookTargetSameRelease: true,
       invalidWebhookHttp: denied.status,
       databaseHistoryCount: 143,

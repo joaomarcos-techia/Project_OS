@@ -259,6 +259,8 @@ function priceToCents(value: string): number {
 
 /** Catálogo autônomo: preços BRL de tabela, nunca campanha de convite. */
 async function listSelfServicePlans(): Promise<SignupPlan[]> {
+  const deferredSignup = deferredSaasSignupEnabled();
+  const initialPlanCodes = deferredSignup ? OFFER_2026_PLAN_CODES : OFFER_2026_ENTRY_PLAN_CODES;
   const rows = await dbAdmin
     .select({
       id: plans.id,
@@ -283,14 +285,16 @@ async function listSelfServicePlans(): Promise<SignupPlan[]> {
 
   // Durante a transição, contratos legados continuam ativos para seus clientes.
   // Quando a oferta versionada estiver ativa, o cadastro novo mostra só ela.
-  const offerRows = rows.filter((row) =>
-    OFFER_2026_ENTRY_PLAN_CODES.some((code) => code === row.code),
-  );
-  const availableRows = rows.some((row) => isOffer2026PlanCode(row.code))
-    ? offerRows
-    : rows.filter((row) => row.cycle === 'monthly');
+  const offerRows = rows.filter((row) => initialPlanCodes.some((code) => code === row.code));
+  const availableRows =
+    deferredSignup || rows.some((row) => isOffer2026PlanCode(row.code))
+      ? offerRows
+      : rows.filter((row) => row.cycle === 'monthly');
   return availableRows
-    .filter((row) => row.cycle === 'monthly' || env.OFFER_2026_ANNUAL_NEW_SALES_ENABLED)
+    .filter(
+      (row) =>
+        row.cycle === 'monthly' || (!deferredSignup && env.OFFER_2026_ANNUAL_NEW_SALES_ENABLED),
+    )
     .map((row) => ({
       id: row.id,
       code: row.code,
@@ -357,7 +361,9 @@ export async function writeSignupPlan(userId: string, input: unknown): Promise<P
   if (!parsed.success) throw new Error('[signup] invalid_plan');
 
   const { planId, rowVersion, cycle } = parsed.data;
-  if (cycle === 'annual' && !env.OFFER_2026_ANNUAL_NEW_SALES_ENABLED) {
+  const deferredSignup = deferredSaasSignupEnabled();
+  const initialPlanCodes = deferredSignup ? OFFER_2026_PLAN_CODES : OFFER_2026_ENTRY_PLAN_CODES;
+  if (cycle === 'annual' && (deferredSignup || !env.OFFER_2026_ANNUAL_NEW_SALES_ENABLED)) {
     return { ok: false, reason: 'invalid_plan' };
   }
   return dbAdmin.transaction(async (tx) => {
@@ -379,12 +385,15 @@ export async function writeSignupPlan(userId: string, input: unknown): Promise<P
       .for('share')
       .limit(1);
     if (!availablePlan) return { ok: false, reason: 'invalid_plan' };
+    if (deferredSignup && !isOffer2026PlanCode(availablePlan.code)) {
+      return { ok: false, reason: 'invalid_plan' };
+    }
     if (cycle === 'annual' && !isOffer2026PlanCode(availablePlan.code)) {
       return { ok: false, reason: 'invalid_plan' };
     }
     if (
       isOffer2026PlanCode(availablePlan.code) &&
-      !OFFER_2026_ENTRY_PLAN_CODES.some((code) => code === availablePlan.code)
+      !initialPlanCodes.some((code) => code === availablePlan.code)
     ) {
       return { ok: false, reason: 'invalid_plan' };
     }

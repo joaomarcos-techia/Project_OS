@@ -166,8 +166,22 @@ describe('checkout operator environment and immutable preparation', () => {
   it('uses approved entry prices for both plans', () => {
     expect(expectedAmount('consultorio_2026')).toBe(19700);
     expect(expectedAmount('clinica_2026_2')).toBe(39700);
+    expect(expectedAmount('clinica_2026_3')).toBe(54400);
+    expect(expectedAmount('clinica_2026_4')).toBe(69100);
+    expect(expectedAmount('clinica_2026_5')).toBe(83800);
     expect(sessionSchema.safeParse({ ...sample, amountMinor: 100 }).success).toBe(false);
   });
+  it.each([
+    ['clinica_2026_3', 54400],
+    ['clinica_2026_4', 69100],
+    ['clinica_2026_5', 83800],
+  ])(
+    'prepares %s as an initial full-price checkout and rejects the base amount',
+    (plan, amountMinor) => {
+      expect(sessionSchema.safeParse({ ...sample, plan, amountMinor }).success).toBe(true);
+      expect(sessionSchema.safeParse({ ...sample, plan, amountMinor: 39700 }).success).toBe(false);
+    },
+  );
   it.each(['origin', 'sha', 'storeHash', 'plan', 'planId', 'productId', 'amountMinor'] as const)(
     'refuses a changed %s instead of replacing a retained fixture',
     (key) => {

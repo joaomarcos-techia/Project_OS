@@ -5,7 +5,7 @@ import { z } from 'zod';
 
 /* eslint-disable boundaries/element-types -- ADR-027: signup orchestrates the tenant and its internal subscription. */
 import { plans, prices, subscriptions } from '@/contexts/billing/schema';
-import { OFFER_2026_ENTRY_PLAN_CODES } from '@/contexts/billing/proposed-offer';
+import { OFFER_2026_PLAN_CODES } from '@/contexts/billing/proposed-offer';
 import { profiles } from '@/contexts/identity/schema';
 /* eslint-enable boundaries/element-types */
 import { hashEmail } from '@/lib/auth/email-hash';
@@ -150,7 +150,7 @@ export async function provisionFreeSignupTrialTx(
     .where(and(eq(plans.id, draft.selectedPlanId), eq(plans.ativo, true)))
     .for('share')
     .limit(1);
-  if (!price || !OFFER_2026_ENTRY_PLAN_CODES.some((code) => code === price.planCode)) {
+  if (!price || !OFFER_2026_PLAN_CODES.some((code) => code === price.planCode)) {
     return { ok: false, reason: 'invalid_plan' };
   }
   const terms = resolveDeferredSignupTrialTerms({

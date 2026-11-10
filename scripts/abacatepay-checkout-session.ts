@@ -4,11 +4,11 @@ import { lstat, mkdir, open, readFile, rename, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
 
-import { PROPOSED_OFFER } from '../src/contexts/billing/proposed-offer';
+import { OFFER_2026_PLAN_CODES, quoteProposedOffer } from '../src/contexts/billing/proposed-offer';
 
 export const DEV_REF = 'pqhkirrszzpwezdaqrai';
 export const BILLING_BRANCH = 'feat/billing-abacatepay-20261107';
-export const entryPlan = z.enum(['consultorio_2026', 'clinica_2026_2']);
+export const entryPlan = z.enum(OFFER_2026_PLAN_CODES);
 export const previewOrigin = z
   .url()
   .refine((raw) => {
@@ -100,12 +100,9 @@ export const sessionSchema = z
   });
 export type CheckoutSession = z.infer<typeof sessionSchema>;
 export function expectedAmount(plan: z.infer<typeof entryPlan>): number {
-  return (
-    100 *
-    (plan === 'consultorio_2026'
-      ? PROPOSED_OFFER.consultorioMonthly
-      : PROPOSED_OFFER.clinicaMonthlyForTwo)
-  );
+  const quote = quoteProposedOffer(OFFER_2026_PLAN_CODES.indexOf(plan) + 1);
+  if (!quote) throw new Error('Unsupported checkout plan');
+  return quote.monthly * 100;
 }
 export function guardedDevDatabase(raw: string): string {
   const url = new URL(raw);

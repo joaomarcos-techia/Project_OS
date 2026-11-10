@@ -5,7 +5,7 @@ import { expect, test } from '@playwright/test';
 import postgres from 'postgres';
 import { z } from 'zod';
 
-import { expectedAmount } from '../scripts/abacatepay-checkout-session';
+import { entryPlan, expectedAmount } from '../scripts/abacatepay-checkout-session';
 import { assertPreviewRuntimeIsDev, DEV_PROJECT_REF } from './preview-dev-runtime';
 import { installVercelBypassForOrigin } from './vercel-bypass';
 
@@ -32,7 +32,7 @@ test('confirmed identity -> free trial -> server quota gates -> optional hosted 
       E2E_ABACATEPAY_USER_ID: z.uuid(),
       E2E_ABACATEPAY_EMAIL: z.email().regex(/^abaca-[a-f0-9-]+@example\.invalid$/),
       E2E_ABACATEPAY_PASSWORD: z.string().min(20),
-      E2E_ABACATEPAY_PLAN: z.enum(['consultorio_2026', 'clinica_2026_2']),
+      E2E_ABACATEPAY_PLAN: entryPlan,
       E2E_ABACATEPAY_EXPIRED: z.enum(['true', 'false']),
       E2E_ABACATEPAY_EXPECT_PAID: z.enum(['true', 'false']).default('false'),
     })
