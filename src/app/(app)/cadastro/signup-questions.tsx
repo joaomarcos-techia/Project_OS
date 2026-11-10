@@ -200,6 +200,8 @@ function isSession(value: unknown): value is SignupSessionState {
     typeof value.rowVersion === 'number' &&
     Number.isInteger(value.rowVersion) &&
     value.rowVersion >= 1 &&
+    (value.emailDelivery === undefined ||
+      ['pending', 'delivered', 'delayed', 'failed'].includes(String(value.emailDelivery))) &&
     (value.answers === null || isAnswers(value.answers))
   );
 }
@@ -600,6 +602,21 @@ export function SignupQuestions({ identityEnabled = false }: { identityEnabled?:
           <SignupCodeConfirmation
             rowVersion={session.rowVersion}
             email={emailPendente}
+            deliveryStatus={session.emailDelivery}
+            onEmailCorrected={(rowVersion, email) => {
+              continuationCredentials.current = null;
+              setEmailPendente(email);
+              setSession({
+                ...session,
+                status: 'identity_pending',
+                rowVersion,
+                emailDelivery: 'pending',
+              });
+              setMessage(
+                'Endereço corrigido. Nome, clínica e respostas foram preservados. Informe a senha para continuar com este endereço.',
+              );
+              setMessageKind('success');
+            }}
             onUpdated={(rowVersion) => setSession({ ...session, rowVersion })}
             onReconcile={reconcileSession}
             onGone={expireSession}
@@ -629,6 +646,7 @@ export function SignupQuestions({ identityEnabled = false }: { identityEnabled?:
           key={session.rowVersion}
           rowVersion={session.rowVersion}
           saved={session.status === 'identity_pending'}
+          initialEmail={emailPendente}
           onCredentialsPrepared={(email) => {
             continuationCredentials.current = { email };
             setEmailPendente(email);

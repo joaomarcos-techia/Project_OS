@@ -35,6 +35,78 @@ afterEach(() => {
 });
 
 describe('same-screen verification UI', () => {
+  it.each(['failed', 'delayed'] as const)(
+    'shows %s delivery feedback without claiming inbox placement',
+    (deliveryStatus) => {
+      render(
+        <SignupCodeConfirmation
+          email={email}
+          rowVersion={5}
+          deliveryStatus={deliveryStatus}
+          onUpdated={updated}
+          onReconcile={reconcile}
+          onGone={gone}
+        />,
+      );
+      expect(
+        screen.getByText(
+          deliveryStatus === 'failed'
+            ? 'Não conseguimos entregar o código'
+            : 'A entrega está demorando',
+        ),
+      ).toBeTruthy();
+      expect(screen.getByLabelText('Código de confirmação')).toBeTruthy();
+      expect(document.querySelector('input[type="password"]')).toBeNull();
+    },
+  );
+  it('corrects only the destination and never automatically sends, renames or verifies an account', async () => {
+    const corrected = vi.fn();
+    render(
+      <SignupCodeConfirmation
+        email={email}
+        rowVersion={5}
+        onEmailCorrected={corrected}
+        onUpdated={updated}
+        onReconcile={reconcile}
+        onGone={gone}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Corrigir endereço de e-mail' }));
+    fireEvent.change(screen.getByLabelText('Novo e-mail'), {
+      target: { value: 'corrected@example.test' },
+    });
+    fetchMock.mockResolvedValue(reply(200, { rowVersion: 6 }));
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar endereço corrigido' }));
+    await waitFor(() => expect(corrected).toHaveBeenCalledWith(6, 'corrected@example.test'));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/signup/sessions/email');
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({
+      rowVersion: 5,
+      currentEmail: email,
+      email: 'corrected@example.test',
+    });
+    expect(assign).not.toHaveBeenCalled();
+  });
+  it('does not retry a correction after a conflict', async () => {
+    render(
+      <SignupCodeConfirmation
+        email={email}
+        rowVersion={5}
+        onEmailCorrected={vi.fn()}
+        onUpdated={updated}
+        onReconcile={reconcile}
+        onGone={gone}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Corrigir endereço de e-mail' }));
+    fireEvent.change(screen.getByLabelText('Novo e-mail'), {
+      target: { value: 'corrected@example.test' },
+    });
+    fetchMock.mockResolvedValue(reply(409, { error: 'conflict' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar endereço corrigido' }));
+    await waitFor(() => expect(reconcile).toHaveBeenCalledWith('conflict'));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
   it('waits for the original address before enabling confirmation after reload', async () => {
     let resolve: (response: Response) => void = () => {
       throw new Error('not initialized');
@@ -73,7 +145,9 @@ describe('same-screen verification UI', () => {
     expect(field.getAttribute('autocomplete')).toBe('one-time-code');
     expect(field.getAttribute('inputmode')).toBe('numeric');
     expect(document.querySelector('input[type="password"]')).toBeNull();
-    expect(screen.queryByRole('link')).toBeNull();
+    expect(
+      screen.getByRole('link', { name: 'Retomar cadastro com segurança' }).getAttribute('href'),
+    ).toBe('/cadastro/retomar');
   });
 
   it('does not promise delivery, since an existing account receives nothing', () => {

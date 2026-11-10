@@ -33,6 +33,7 @@ import { metrics } from '@/lib/observability/metrics';
 
 import { signupAnswerValuesSchema, type SignupAnswerValues } from './signup-answer-values';
 import { SIGNUP_EMAIL_CODE_TTL_SECONDS } from './signup-verification-policy';
+import { signupEmailDeliveryFeedback, type SignupEmailDelivery } from '../signup-email-feedback';
 
 /**
  * TTLs em SEGUNDOS, e computados pelo relógio do BANCO (`now()`), não pelo do
@@ -103,6 +104,7 @@ export interface SignupSessionState {
   /** Respostas sanitizadas para refresh/retomada; nenhuma PII ou id interno. */
   answers: SignupAnswerValues | null;
   verificationFlowVersion?: number;
+  emailDelivery?: SignupEmailDelivery;
 }
 
 type PersistedAnswers = {
@@ -349,6 +351,7 @@ export async function readSignupSession(rawToken: string): Promise<SignupSession
       emailHash: signupSessions.emailHash,
       authAttemptState: signupSessions.authAttemptState,
       verificationFlowVersion: signupSessions.verificationFlowVersion,
+      confirmationDeliveryStatus: signupSessions.confirmationDeliveryStatus,
     });
 
   if (!row) {
@@ -432,6 +435,9 @@ export async function readSignupSession(rawToken: string): Promise<SignupSession
     expiresAt: row.idleExpiresAt.toISOString(),
     rowVersion: row.rowVersion,
     ...(row.verificationFlowVersion === 2 ? { verificationFlowVersion: 2 } : {}),
+    ...(status === 'email_pending' && row.verificationFlowVersion === 2
+      ? { emailDelivery: signupEmailDeliveryFeedback(row.confirmationDeliveryStatus) }
+      : {}),
     answers: readPersistedAnswers({
       professionalsBand: row.professionalsBand,
       weeklyAppointmentsBand: row.weeklyAppointmentsBand,
@@ -639,6 +645,79 @@ export const signupResendSchema = z
     email: z.string().trim().max(160).email(),
   })
   .strict();
+
+export const signupEmailCorrectionSchema = z
+  .object({
+    rowVersion: z.number().int().min(1).max(2_147_483_645),
+    currentEmail: z.string().trim().max(160).email(),
+    email: z.string().trim().max(160).email(),
+  })
+  .strict()
+  .refine((value) => value.email.toLowerCase() !== value.currentEmail.toLowerCase());
+
+/**
+ * Correct only a live, unverified v2 draft. No Auth identity is renamed, adopted or deleted.
+ * Resetting the code/receipt atomically prevents an old destination or delayed webhook
+ * from verifying the corrected draft. Names, answers, risk and deadlines remain unchanged.
+ */
+export async function correctSignupEmail(
+  rawToken: string,
+  input: unknown,
+): Promise<IdentityOutcome> {
+  if (!env.SIGNUP_AUTH_ENABLED || !env.SIGNUP_IDENTITY_ENABLED)
+    return { ok: false, reason: 'unavailable' };
+  const parsed = signupEmailCorrectionSchema.safeParse(input);
+  if (!parsed.success) throw new Error('[signup] invalid_email_correction');
+  if (!/^[A-Za-z0-9_-]{43}$/u.test(rawToken)) return { ok: false, reason: 'gone' };
+  const tokenHash = hashSignupToken(rawToken);
+  const [changed] = await dbAdmin
+    .update(signupSessions)
+    .set({
+      status: 'identity_pending',
+      emailHash: hashEmail(parsed.data.email),
+      pendingAuthUserId: null,
+      authAttemptKind: null,
+      authAttemptState: null,
+      authAttemptedAt: null,
+      emailCodeState: 'none',
+      emailCodeAttempts: 0,
+      emailCodeExpiresAt: null,
+      emailCodeReservedAt: null,
+      emailCodeVerifiedAt: null,
+      confirmationMessageId: null,
+      confirmationDeliveryStatus: null,
+      confirmationDeliveryAt: null,
+      rowVersion: sql`${signupSessions.rowVersion} + 1`,
+    })
+    .where(
+      and(
+        eq(signupSessions.tokenHash, tokenHash),
+        liveCondition(),
+        eq(signupSessions.rowVersion, parsed.data.rowVersion),
+        eq(signupSessions.status, 'email_pending'),
+        eq(signupSessions.verificationFlowVersion, 2),
+        eq(signupSessions.emailHash, hashEmail(parsed.data.currentEmail)),
+        eq(signupSessions.authAttemptState, 'completed'),
+        inArray(signupSessions.emailCodeState, ['issued', 'locked']),
+        isNull(signupSessions.authUserId),
+        isNull(signupSessions.consumedAt),
+        isNull(signupSessions.selectedPlanId),
+        isNull(signupSessions.billingAttemptState),
+        isNull(signupSessions.billingAttemptedAt),
+        isNull(signupSessions.asaasCustomerId),
+        isNull(signupSessions.asaasCheckoutId),
+        isNull(signupSessions.asaasSubscriptionId),
+      ),
+    )
+    .returning({ rowVersion: signupSessions.rowVersion });
+  if (changed) return { ok: true, rowVersion: changed.rowVersion };
+  const [live] = await dbAdmin
+    .select({ id: signupSessions.id })
+    .from(signupSessions)
+    .where(and(eq(signupSessions.tokenHash, tokenHash), liveCondition()))
+    .limit(1);
+  return { ok: false, reason: live ? 'conflict' : 'gone' };
+}
 
 /**
  * Credenciais usadas uma única vez pela aba que iniciou o cadastro para abrir

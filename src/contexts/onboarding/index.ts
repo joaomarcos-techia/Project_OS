@@ -63,6 +63,8 @@ export {
   signupAuthSchema,
   signupContinuationSchema,
   signupResendSchema,
+  signupEmailCorrectionSchema,
+  correctSignupEmail,
   adoptVerifiedSignupForContinuation,
   readSignupContinuationIdentity,
   readReservedSignupAttemptEpoch,
