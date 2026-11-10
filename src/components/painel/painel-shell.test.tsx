@@ -105,12 +105,18 @@ describe('shell tenant das referências HTML', () => {
     expect(document.documentElement.style.overflow).toBe('');
     expect(document.activeElement).not.toBe(trigger);
   });
-  it('mostra o nome dos ícones do rodapé no foco, sem depender de title', () => {
+  it('mostra Fixar, tema e Sair em lista com nome, como os destinos', () => {
     renderShell();
-    const logout = screen.getByRole('button', { name: 'Sair' });
-    expect(logout.hasAttribute('title')).toBe(false);
-    act(() => logout.focus());
-    expect(document.querySelector('[role="tooltip"]')?.textContent).toBe('Sair da conta');
+    const foot = document.querySelector('.qoro-rail-foot');
+    const labels = [...(foot?.querySelectorAll('.qoro-rail-item > .qoro-rail-label') ?? [])].map(
+      (label) => label.textContent ?? '',
+    );
+    expect(labels).toHaveLength(3);
+    expect(labels[0]).toBe('Fixar menu aberto');
+    expect(labels[1]).toMatch(/^Tema /);
+    expect(labels[2]).toBe('Sair');
+    act(() => screen.getByRole('button', { name: 'Sair' }).focus());
+    expect(document.querySelector('[role="tooltip"]')).toBeNull();
   });
   it('devolve o foco ao botão de tema só quando a troca veio do teclado', () => {
     vi.stubGlobal('requestAnimationFrame', (run: FrameRequestCallback) => {

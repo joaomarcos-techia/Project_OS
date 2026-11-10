@@ -1022,50 +1022,20 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail {
   flex: 1 1 auto;
   min-height: 8px;
 }
-/* Fixar, tema e Sair: só os ícones, lado a lado, na mesma posição em qualquer
-   estado do menu (pedido do founder). Os nomes continuam para leitores de tela
-   e na dica, que abre no mouse e no foco por teclado. */
+/* Fixar, tema e Sair: lista com nome, como os destinos, igual ao canvas. O
+   founder desfez a linha de ícones em 10/11. Recolhido, só o ícone aparece. */
 [data-qoro-shell='tenant'] .qoro-rail-foot {
   display: flex;
   flex: none;
-  flex-direction: row;
+  flex-direction: column;
   gap: 2px;
-  width: var(--rail-w);
-  padding: 0 4px;
 }
-[data-qoro-shell='tenant'] .qoro-rail-foot .qoro-rail-item {
-  flex: 1 1 0;
-  justify-content: center;
-  width: auto;
-  height: 32px;
-  padding: 0;
-  border-radius: var(--tag-radius);
-}
-/* Tablet com toque: três ícones davam 24 px de largura a cada um, e Sair encerra
-   a sessão na hora. Ele continua no menu da conta, logo abaixo. */
+/* Tablet com toque: Sair encerra a sessão na hora, então fica só no menu da
+   conta, logo abaixo, longe de um toque por engano. */
 @media (pointer: coarse) and (min-width: 721px) {
-  [data-qoro-shell='tenant'] .qoro-rail-foot .qoro-rail-item {
-    height: var(--hit-target);
-  }
   [data-qoro-shell='tenant'] .qoro-rail-foot [form='painel-logout'] {
     display: none;
   }
-}
-[data-qoro-shell='tenant'] .qoro-rail-foot .qoro-rail-item > svg {
-  width: 18px;
-  height: 18px;
-}
-[data-qoro-shell='tenant'] .qoro-rail-foot .qoro-rail-item > [data-useanimations] {
-  margin: -3px;
-}
-[data-qoro-shell='tenant'] .qoro-rail .qoro-rail-foot .qoro-rail-label {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
 }
 [data-qoro-shell='tenant'] .qoro-rail-user {
   display: flex;
@@ -1325,29 +1295,9 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail-nav {
     display: block;
     min-height: 16px;
   }
-  /* Tema e Sair com nome: na gaveta há espaço, e o toque pede alvo claro. */
+  /* Tema e Sair na gaveta: a mesma lista dos destinos. */
   [data-qoro-shell='tenant'][data-nav-open='true'] .qoro-rail-foot {
     display: flex;
-    width: auto;
-    gap: 8px;
-    padding: 0;
-  }
-  [data-qoro-shell='tenant'][data-nav-open='true'] .qoro-rail-foot .qoro-rail-item {
-    flex: 1 1 0;
-    gap: 8px;
-    height: var(--hit-target);
-    padding: 0 12px;
-    border: 1px solid var(--border);
-    border-radius: var(--btn-radius);
-  }
-  [data-qoro-shell='tenant'][data-nav-open='true'] .qoro-rail .qoro-rail-foot .qoro-rail-label {
-    position: static;
-    width: auto;
-    height: auto;
-    margin: 0;
-    overflow: visible;
-    clip: auto;
-    font-size: 14px;
   }
   /* No celular o menu é gaveta, não trilho: não há o que fixar. */
   [data-qoro-shell='tenant'] .qoro-rail-foot > [data-pressed] {

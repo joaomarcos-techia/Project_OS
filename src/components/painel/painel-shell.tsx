@@ -2,15 +2,7 @@
 
 import Link, { useLinkStatus } from 'next/link';
 import { usePathname } from 'next/navigation';
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useRef,
-  useState,
-  type ReactElement,
-  type ReactNode,
-} from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Laptop, LogOut, Menu, Moon, PanelLeft, Sun, X } from 'lucide-react';
 
 import { QoroMark } from '@/components/shared/qoro-mark';
@@ -18,7 +10,7 @@ import { SidebarUserMenu } from '@/components/shared/shell-chrome';
 import { resolvePageLayout } from '@/components/shared/page-layout';
 import { useTheme } from '@/components/shared/use-theme';
 import { Toaster } from '@/components/ui/toaster';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import { initialsFrom } from '@/components/ui/avatar';
 
 import { useOpenHandoffCount } from './handoff-store';
@@ -39,16 +31,6 @@ function refocusThemeButton() {
   requestAnimationFrame(() => {
     document.querySelector<HTMLButtonElement>('[data-rail-theme]')?.focus({ preventScroll: true });
   });
-}
-
-/** Nome dos ícones do rodapé: aparece no mouse e no foco por teclado. */
-function RailFootTip({ label, children }: { label: string; children: ReactElement }) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>{children}</TooltipTrigger>
-      <TooltipContent side="top">{label}</TooltipContent>
-    </Tooltip>
-  );
 }
 
 /**
@@ -339,21 +321,19 @@ export function PainelShell({
             <div className="qoro-rail-foot">
               <RailAnimated name="pin" size={24} fallback={<PanelLeft aria-hidden="true" />}>
                 {(icon, events) => (
-                  <RailFootTip label={pinLabel}>
-                    <button
-                      {...events}
-                      type="button"
-                      className="qoro-rail-item"
-                      data-pressed={rail.pinned ? 'true' : 'false'}
-                      onClick={(event) => {
-                        events?.onClick(event);
-                        rail.toggle();
-                      }}
-                    >
-                      {icon}
-                      <span className="qoro-rail-label">{pinLabel}</span>
-                    </button>
-                  </RailFootTip>
+                  <button
+                    {...events}
+                    type="button"
+                    className="qoro-rail-item"
+                    data-pressed={rail.pinned ? 'true' : 'false'}
+                    onClick={(event) => {
+                      events?.onClick(event);
+                      rail.toggle();
+                    }}
+                  >
+                    {icon}
+                    <span className="qoro-rail-label">{pinLabel}</span>
+                  </button>
                 )}
               </RailAnimated>
               <RailAnimated
@@ -363,25 +343,23 @@ export function PainelShell({
                 fallback={<ThemeIcon aria-hidden="true" />}
               >
                 {(icon, events) => (
-                  <RailFootTip label={themeLabel}>
-                    <button
-                      {...events}
-                      type="button"
-                      data-rail-theme
-                      className="qoro-rail-item"
-                      onClick={(event) => {
-                        events?.onClick(event);
-                        toggle();
-                        // Enter e Espaço chegam com `detail` 0. No clique do mouse o
-                        // foco não volta: reabriria a dica e poderia prender o trilho.
-                        if (event.detail === 0) refocusThemeButton();
-                      }}
-                      aria-label={`${themeLabel}. Alternar tema`}
-                    >
-                      {icon}
-                      <span className="qoro-rail-label">{themeLabel}</span>
-                    </button>
-                  </RailFootTip>
+                  <button
+                    {...events}
+                    type="button"
+                    data-rail-theme
+                    className="qoro-rail-item"
+                    onClick={(event) => {
+                      events?.onClick(event);
+                      toggle();
+                      // Enter e Espaço chegam com `detail` 0. No clique do mouse o
+                      // foco não volta: deixaria o menu aberto depois do clique.
+                      if (event.detail === 0) refocusThemeButton();
+                    }}
+                    aria-label={`${themeLabel}. Alternar tema`}
+                  >
+                    {icon}
+                    <span className="qoro-rail-label">{themeLabel}</span>
+                  </button>
                 )}
               </RailAnimated>
               {/* Logout é mutação: POST de formulário, nunca GET. O mesmo form
@@ -389,17 +367,10 @@ export function PainelShell({
               <form id="painel-logout" action="/logout" method="post" hidden />
               <RailAnimated name="logout" size={24} fallback={<LogOut aria-hidden="true" />}>
                 {(icon, events) => (
-                  <RailFootTip label="Sair da conta">
-                    <button
-                      {...events}
-                      type="submit"
-                      form="painel-logout"
-                      className="qoro-rail-item"
-                    >
-                      {icon}
-                      <span className="qoro-rail-label">Sair</span>
-                    </button>
-                  </RailFootTip>
+                  <button {...events} type="submit" form="painel-logout" className="qoro-rail-item">
+                    {icon}
+                    <span className="qoro-rail-label">Sair</span>
+                  </button>
                 )}
               </RailAnimated>
             </div>
