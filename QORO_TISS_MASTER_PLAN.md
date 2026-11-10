@@ -1,25 +1,35 @@
-# QORO_TISS_MASTER_PLAN — Convênios e Guias TISS
+# QORO_TISS_MASTER_PLAN — Convênios e Guias TISS (produção)
 
 > **Fonte única de verdade** do módulo Qoro Convênios — Guias TISS Inteligentes.
-> Qualquer agente ou pessoa que assumir este trabalho começa pela seção
-> [ESTADO ATUAL DA IMPLEMENTAÇÃO](#estado-atual-da-implementação) e segue o
-> [Protocolo de Retomada](#protocolo-de-retomada). Não confie só no status escrito:
+> Comece pela seção [ESTADO ATUAL](#estado-atual-da-implementação) e siga o
+> [Protocolo de Retomada](#protocolo-de-retomada). O status escrito não basta:
 > confira o repositório e as evidências.
 
 | Campo | Valor |
 | --- | --- |
+| Revisão | **rev.2: plano de produção** (10/11/2026). A rev.1 (MVP) está no commit `62b53f4e`. |
+| Objetivo | **Production Ready.** Não é MVP nem prova de conceito. |
 | Repositório | `joaomarcos-techia/Project_OS` |
 | Worktree | `C:/dev/Qoro_convenios_tiss_20261110` |
-| Branch | `feat/convenios-tiss-20261110` (criada de `origin/main` em `5620a098`) |
-| Criado em | 10/11/2026 |
-| Versão TISS de referência | Padrão TISS **setembro/2026**; Componente de Comunicação **4.03.00** |
-| Terminologia de referência | TUSS **202609** |
+| Branch | `feat/convenios-tiss-20261110` (de `origin/main` `5620a098`) |
+| Versão TISS de referência | Padrão TISS **setembro/2026**; Comunicação **4.03.00**; TUSS **202609** |
 
-**Legenda usada no documento**
+**Legenda**
 
-- **[VERIFICADO]**: lido no código, no banco de dados de schema ou em fonte oficial, com caminho citado.
-- **[HIPÓTESE]**: inferência ainda não comprovada; precisa de verificação antes de virar decisão.
-- **[DECISÃO PENDENTE]**: exige aprovação humana antes de implementar.
+- **[VERIFICADO]**: lido no código ou em fonte oficial, com caminho citado.
+- **[HIPÓTESE]**: falta comprovar.
+- **[DECISÃO]**: ver seção L.1.
+
+**Estados de maturidade** (não confundir; cada capacidade avança por eles em ordem, ver A.5):
+
+| Estado | Significa |
+| --- | --- |
+| **Implementado** | o código existe |
+| **Testado** | os testes rodaram e o resultado está registrado |
+| **Validado** | os critérios funcionais e técnicos foram aprovados |
+| **Homologado** | o fluxo foi aceito no ambiente externo exigido (operadora) |
+| **Pronto para produção** | os requisitos técnicos, operacionais, de segurança e de liberação estão satisfeitos |
+| **Publicado** | implantado e habilitado, com autorização |
 
 ---
 
@@ -30,1706 +40,1504 @@
 | Campo | Valor |
 | --- | --- |
 | Data da última atualização | 10/11/2026 |
-| Fase atual | **F0 — Preparação** |
-| Tarefa em andamento | nenhuma (aguardando aprovação humana do plano) |
-| Última tarefa concluída | T0.3 — Documento mestre escrito |
-| Progresso do MVP | **3 de 58 tarefas do MVP concluídas (5%)**. Critério: tarefa só conta com evidência registrada no [Registro de execução](#m-registro-de-execução). |
-| Testes aprovados | nenhum teste do módulo existe ainda |
-| Testes pendentes | todos os da [seção G](#g-estratégia-de-testes) |
-| Bloqueios ativos | **B1** aprovação do plano e das decisões D1–D12; **B2** plano comercial que libera o módulo (D8); **B3** nova dependência de validação XSD (D7); **B4** ordem de merge com o PR #53 (migrations 0136–0142) |
-| Decisões técnicas tomadas | ver [L.1 Registro de decisões](#l1-registro-de-decisões); nenhuma aprovada ainda |
-| Arquivos alterados | só este documento |
-| Próxima ação exata | O fundador aprova (ou ajusta) as decisões D1–D12 da seção L.1. Depois disso, executar **T0.4** (rever base e numeração de migrations) e **T0.5** (ADR-067). |
+| Fase atual | **P0 — Preparação** |
+| Tarefa em andamento | P0.4 (revisão rev.2 deste documento; conclui com o commit da revisão) |
+| Última tarefa concluída | P0.5 — base e numeração reconferidas (máximo remoto 0142 no PR #53, aberto) |
+| Progresso | **5 de 109 tarefas concluídas (4,6%)**: P0.1, P0.2, P0.3, P0.4 (ao commitar) e P0.5. Critério: só conta tarefa com evidência no [Registro](#m-registro-de-execução). Destas 109, **7 dependem de terceiros ou de aprovação humana** (L.2). |
+| Capacidades em produção | nenhuma (ver A.5) |
+| Testes aprovados | nenhum teste do módulo ainda |
+| Bloqueios ativos | B4 (ordem de merge com o PR #53), B5 (operadora e clínica piloto para homologação), B6 (orientação jurídica de retenção), B7 (instalar o validador desktop exige autorização). Nenhum bloqueia o início de P0.6–P1. |
+| Decisões | D1–D12 aprovadas ou adotadas; D13–D17 novas, adotadas pelo agente dentro do escopo delegado (L.1) |
+| Arquivos alterados | `QORO_TISS_MASTER_PLAN.md` |
+| Próxima ação exata | **P0.6** ADR-067; em seguida **P0.7** (XSDs no repositório com manifesto) e **P0.8** (avaliação do `xmllint-wasm` em ambiente isolado). |
 
 ---
 
 ## Protocolo de Retomada
 
-Toda sessão nova, de qualquer agente, executa nesta ordem antes de mexer em código:
-
-1. Ler este documento inteiro, com atenção a ESTADO ATUAL, [L. Decisões, bloqueios e riscos](#l-decisões-bloqueios-e-riscos) e o fim do [Registro de execução](#m-registro-de-execução).
-2. Conferir o repositório real:
+1. Ler este documento inteiro, em especial ESTADO ATUAL, L e o fim de M.
+2. Conferir o repositório:
    ```bash
    git -C C:/dev/Qoro_convenios_tiss_20261110 --literal-pathspecs status --short
    git -C C:/dev/Qoro_convenios_tiss_20261110 --literal-pathspecs log --oneline -15
    git -C C:/dev/Qoro_convenios_tiss_20261110 --literal-pathspecs fetch -q origin
-   git -C C:/dev/Qoro_convenios_tiss_20261110 --literal-pathspecs log --oneline -5 origin/main
+   gh pr view 53 --json state,mergedAt
    ```
-3. Para cada tarefa marcada **Concluído**, abrir a evidência registrada e confirmar que o código ainda está lá (arquivo existe, teste existe e passa). Se não bater, rebaixar a tarefa para **Em execução** e registrar a divergência no Registro de execução.
-4. Identificar a última tarefa **comprovadamente** concluída e os bloqueios ativos.
-5. Conferir se as decisões da seção L.1 continuam aprovadas. Decisão pendente bloqueia as tarefas que dependem dela.
-6. Conferir a numeração de migrations antes de criar qualquer uma (ver [E.5](#e5-executar-alterações-com-segurança)).
-7. Escolher a próxima tarefa disponível pela regra de [E.3](#e3-identificar-a-próxima-tarefa).
-8. Atualizar ESTADO ATUAL com "Tarefa em andamento" antes de começar.
+3. Para cada tarefa **Concluído**, reabrir a evidência (arquivo, teste e saída) e rodar o teste. Se não bater, rebaixar a tarefa para **Em execução** e registrar no Registro.
+4. Conferir os bloqueios de L.2 e as decisões de L.1.
+5. Conferir a numeração de migrations (E.5) antes de criar qualquer uma.
+6. Escolher a próxima tarefa (E.6) e anotá-la em ESTADO ATUAL antes de começar.
 
 ---
 
-## A. Visão geral e contexto
+## A. Visão geral, escopo e definição de pronto
 
-### A.1 Problema comercial
+### A.1 Problema e objetivo
 
-Clínicas que atendem por plano de saúde precisam faturar as consultas às operadoras no Padrão TISS da ANS. Sem isso, a clínica digita a guia em outro sistema ou no portal de cada operadora, o que gera retrabalho, glosas por erro de digitação e perda de receita. O Qoro já cobre agenda, atendimento, prontuário, financeiro e cobrança ao paciente pelo Asaas. Falta o caminho do convênio.
+Clínicas que atendem por plano de saúde precisam faturar às operadoras no Padrão TISS da ANS, acompanhar autorizações, glosas e pagamentos, e conciliar o que receberam. Hoje o Qoro não faz nada disso.
 
-### A.2 Objetivos do módulo
+**Objetivo:** um módulo de convênios **definitivo**. A clínica atende por convênio, gera as guias corretas automaticamente, fatura, acompanha recebimentos e glosas e opera o financeiro com segurança e o mínimo de retrabalho.
 
-1. A clínica cadastra as operadoras, planos, credenciamentos e valores com que trabalha.
-2. O paciente guarda os dados da carteirinha uma vez, com histórico.
-3. O agendamento distingue **particular** de **convênio** sem quebrar o fluxo particular.
-4. A recepção vê e completa as pendências administrativas sem bloquear o atendimento clínico.
-5. Ao encerrar uma consulta por convênio, o Qoro prepara a Guia de Consulta sozinho, de forma idempotente.
-6. O financeiro confere, aprova, agrupa em lotes, exporta o XML validado e registra retorno, glosa e pagamento.
-7. O financeiro distingue recebível do paciente e recebível da operadora, sem cobrança Asaas indevida.
+**Princípio:** o médico atende, o Qoro organiza, a recepção confere, o financeiro fatura. A guia é consequência do atendimento.
 
-**Princípio do produto:** o médico atende, o Qoro organiza os dados, a recepção confere as pendências e o financeiro fatura. A guia é consequência do atendimento, não outro formulário.
+### A.2 O que mudou da rev.1 para a rev.2
 
-### A.3 Escopo completo (três fases)
-
-| Fase | Conteúdo |
+| rev.1 (MVP) | rev.2 (produção) |
 | --- | --- |
-| **Fase 1 — MVP** | cadastro de convênios e planos; credenciamento por profissional; convênio no cadastro do paciente; particular ou convênio no agendamento (recepção e WhatsApp); conferência administrativa no check-in; mapeamento de procedimentos TUSS; geração automática da **Guia de Consulta**; visualização, edição controlada e PDF no modelo oficial; listagem de guias e pendências; exportação de XML em lotes validado contra o XSD oficial; recebível da operadora; registro manual de protocolo, retorno, glosa e pagamento; auditoria, testes e controle de acesso. |
-| Fase 2 | Guia SP/SADT; exames, terapias e procedimentos; solicitação e autorização; vários procedimentos por guia; outros tipos de atendimento; relatórios de produção; glosa completa e recurso de glosa. |
-| Fase 3 | integração real com operadoras que ofereçam interface (webservices TISS); elegibilidade eletrônica; autorização eletrônica; transmissão de lotes; recebimento de demonstrativos; conciliação automática; painéis de glosa e rentabilidade. |
+| só Guia de Consulta | Consulta **e SP/SADT** (solicitação e execução, vários itens, autorização e senha) |
+| autorização só "informada" na cobertura | **processo de autorização completo**: solicitação, número, senha, validade, comprovantes, vínculo com itens e guias, porta para conector de operadora |
+| glosa e pagamento só registrados à mão | **ciclo de glosa com 6 estados**, recurso de glosa (XML oficial), **importação de demonstrativos XML**, pagamentos parciais e integrais, conciliação |
+| coparticipação só configurável | **ciclo completo**: estimar, conferir, confirmar, cobrar (Asaas quando autorizado), pagar, estornar e ajustar |
+| repasse "investigar depois" | investigação feita (B.9) e **elegibilidade de repasse por recebimento da operadora** |
+| validação só por XSD interno | **validação em três camadas**: ANS, validador interno e três validadores externos independentes, com matriz e evidência |
+| homologação como pendência solta | **fase própria de homologação e publicação**, com estados de maturidade |
+| 58 tarefas | **109 tarefas** (P0–P15) com mapa para os IDs antigos (D.0) |
 
-### A.4 Fora do MVP (explicitamente excluído)
+### A.3 Matriz de escopo de guias e mensagens TISS (D13)
 
-- Guias SP/SADT, honorários, resumo de internação, odontologia e anexos.
-- Qualquer chamada a webservice de operadora, elegibilidade eletrônica ou transmissão automática.
-- Assinatura digital ICP-Brasil da guia ou da mensagem (o campo é opcional no XSD; ver C.9).
-- Biometria e identificação eletrônica do beneficiário (`tipoIdent`, `identificadorBeneficiario`).
-- Conciliação automática de demonstrativos de pagamento.
-- Qualquer simulação apresentada como integração real.
+Avaliada contra o que o Qoro atende hoje: clínica ambulatorial (consultas, sessões, procedimentos de consultório, solicitação de exames). **Não há internação nem odontologia no produto.**
 
-### A.5 Resultados esperados
+| Guia ou mensagem TISS 4.03.00 | Uso no Padrão | Decisão | Justificativa |
+| --- | --- | --- | --- |
+| **Guia de Consulta** (`ctm_consultaGuia`) | cobrança de consulta eletiva (item 62.1) | **Suportada integralmente** | núcleo do atendimento |
+| **Guia SP/SADT, cobrança** (`ctm_sp-sadtGuia`) | cobrança de procedimentos, exames e terapias em paciente não internado (62.6–62.8) | **Suportada integralmente para itens da tabela 22** (procedimentos e eventos): vários itens, quantidades, valores, solicitante, executante, autorização e senha, guia principal | sessões (psicoterapia e outras terapias), procedimentos de consultório e exames feitos na clínica |
+| **Guia SP/SADT, solicitação** (impressa; eletrônica via `solicitacaoProcedimento`) | solicitação de autorização de exames e procedimentos (62.3–62.4) | **Suportada:** PDF oficial, solicitação manual rastreável e mensagem eletrônica só via conector (P6.5) | o médico pede exames, e o paciente ou a clínica precisam da guia |
+| SP/SADT **Outras despesas** (`ct_outrasDespesas`, tabelas 18/19/20) | materiais, medicamentos, taxas e gases | **Fora desta versão, declarado na UI e na documentação** | o público atual (psiquiatria e consultório) não fatura materiais; a tabela 19 tem mais de 200 MB. Reavaliar com demanda real (D13) |
+| Guia de Honorários (`ctm_honorarioIndividualGuia`) | honorários vinculados a internação | **Não se aplica** | o Qoro não tem internação |
+| Resumo de Internação, Solicitação de Internação, Prorrogação, Comunicação de Internação | internação | **Não se aplica** | idem |
+| Guia Odontológica e anexos odonto | odontologia | **Não se aplica** | sem módulo odontológico |
+| Anexos de Quimioterapia, Radioterapia e OPME | oncologia, cirurgia | **Não se aplica** | fora do público |
+| **Lote de guias** (`loteGuias`) | envio de cobrança | **Suportado** (Consulta e SP/SADT) | — |
+| **Recurso de glosa** (`recursoGlosa`, `ct_guiaRecursoLote`) | contestação | **Suportado** (XML validado + registro manual) | requisito de glosa |
+| **Demonstrativos** (`demonstrativoAnaliseConta`, `demonstrativoPagamento`) | retorno da operadora | **Suportado: importação de arquivo XML** | a clínica baixa do portal da operadora |
+| Elegibilidade, solicitação e status de autorização, envio de lote, status de protocolo e cancelamento de guia por **webservice** | troca eletrônica | **Porta implementada; conector genérico SOAP 4.03.00 testado contra stub. Homologado só com operadora real** (B5) | sem credencial de operadora não há homologação |
 
-- Consulta por convênio encerrada vira guia "pronta para conferência" ou "com pendências" em até **2 minutos** no caso normal. Esse é o alvo; a medição está na tarefa T11.5. Base: o cron do outbox roda a cada minuto, conforme `vercel.json` [VERIFICADO].
-- O médico não digita nenhum dado administrativo para a guia existir.
-- O XML exportado passa no XSD oficial 4.03.00.
-- Nenhum paciente recebe cobrança Asaas pelo valor cheio de uma consulta de convênio.
+**Declaração de suporte:** o Qoro suporta **Guia de Consulta e Guia SP/SADT (procedimentos da tabela 22)**, lotes, recurso de glosa e importação de demonstrativos no Padrão TISS 4.03.00. **Não declarar suporte universal ao TISS.**
+
+### A.4 Escopo funcional de produção
+
+1. **Gestão de convênios:**
+   - operadoras e registro ANS;
+   - planos e categorias;
+   - credenciamento da clínica e por profissional;
+   - procedimentos aceitos e códigos TUSS;
+   - tabelas contratuais com vigência, inclusive importação por planilha;
+   - valores negociados;
+   - regras de retorno;
+   - coparticipação;
+   - exigência de autorização;
+   - identificação do prestador;
+   - configurações por operadora;
+   - histórico sem efeito retroativo.
+2. **Pacientes:** várias carteirinhas por paciente, protegidas, com validade, histórico e preferencial, e pendências visíveis antes da consulta.
+3. **Agendamento e WhatsApp:** particular ou convênio, respeitando:
+   - profissional credenciado, plano e procedimento contratado;
+   - agenda real;
+   - carteirinha;
+   - autorização;
+   - coparticipação.
+
+   A IA só usa convênios cadastrados e nunca promete cobertura, elegibilidade ou autorização.
+4. **Prontuário integrado:** sem dado administrativo novo para o médico; CID nunca exigido nem enviado para faturamento; guias preparadas na conclusão, com conferência e aprovação.
+5. **Guias:** Consulta e SP/SADT conforme A.3, cada uma com geração automática, validação, conferência, PDF no modelo oficial, XML e faturamento.
+6. **Autorizações:**
+   - solicitação administrativa;
+   - número, senha, data e validade;
+   - status, pendências, comprovantes e histórico;
+   - vínculo com itens e guias;
+   - conferência humana;
+   - conector quando houver.
+
+   Nunca simulada.
+7. **Faturamento:**
+   - guias, aprovação, lotes, XML, histórico de arquivos;
+   - envio e protocolo;
+   - retornos e demonstrativos;
+   - glosas, recurso e contestação;
+   - pagamentos parciais e integrais, ajustes, conciliação;
+   - relatórios por operadora e período; indicadores de faturamento e inadimplência.
+8. **Financeiro:**
+   - recebível da operadora ligado à guia, criado na aprovação;
+   - recebível do paciente preservado;
+   - particular separado de convênio;
+   - coparticipação com controle próprio;
+   - nenhuma cobrança Asaas pelo valor cheio a paciente de convênio;
+   - valores previsto, aprovado, faturado, glosado, recebido e pendente, separados.
+9. **Coparticipação:** configuração contratual, estimativa, conferência, confirmação, cobrança pelo Asaas (quando autorizada e aplicável), pagamento, estorno e ajuste. Nunca cobra automaticamente valor que dependa de confirmação externa.
+10. **Glosas:** informada, em análise, contestada, recurso apresentado, revertida e definitiva. Só a definitiva baixa no ledger. Tudo rastreável.
+11. **Repasses:** calculado, elegível, autorizado, realizado e ajustes, respeitando a política configurada, sem antecipação indevida e sem mudar silenciosamente as regras atuais.
+12. **Operação:**
+   - feature flag por clínica e controle de plataforma;
+   - disponibilidade comercial configurável, sem amarrar a plano;
+   - observabilidade, alertas, reconciliação e recuperação;
+   - documentação operacional.
+
+### A.5 Rastreador de maturidade por capacidade
+
+| Capacidade | Implementado | Testado | Validado | Homologado | Pronto | Publicado |
+| --- | :-: | :-: | :-: | :-: | :-: | :-: |
+| Cadastro de convênios | — | — | — | n/a | — | — |
+| Carteirinhas | — | — | — | n/a | — | — |
+| Agendamento por convênio (recepção) | — | — | — | n/a | — | — |
+| Agendamento por convênio (WhatsApp) | — | — | — | n/a | — | — |
+| Autorizações (manual) | — | — | — | n/a | — | — |
+| Autorizações (conector) | — | — | — | — | — | — |
+| Guia de Consulta | — | — | — | — | — | — |
+| Guia SP/SADT | — | — | — | — | — | — |
+| Lotes e XML | — | — | — | — | — | — |
+| Demonstrativos (importação) | — | — | — | — | — | — |
+| Glosas e recurso | — | — | — | — | — | — |
+| Coparticipação | — | — | — | n/a | — | — |
+| Recebíveis e conciliação | — | — | — | n/a | — | — |
+| Repasses de convênio | — | — | — | n/a | — | — |
+| Observabilidade | — | — | — | n/a | — | — |
+
+`n/a` em Homologado: não depende de operadora. Essas capacidades passam por homologação interna (P15.2).
 
 ### A.6 Premissas e restrições
 
-- Reaproveitar a stack, os contextos, os chokepoints de mutação, a outbox, a auditoria, a criptografia e o design system existentes (ver B).
-- Migrations só aditivas, salvo aprovação explícita. Nada roda em produção sem autorização.
-- Escrita em banco só no ambiente DEV/Preview. Produção nunca recebe dado de teste.
-- CID nunca é pré-requisito nem é copiado do prontuário para a guia.
-- Versão TISS, versão da terminologia e códigos TUSS ficam em dados versionados, não em constantes espalhadas.
-- Clínicas sem convênio e atendimentos particulares continuam idênticos.
+- Reaproveitar a stack, os contextos, os chokepoints, a outbox, a auditoria, a criptografia, o PDF e o design system existentes (B).
+- Migrations aditivas. Mudança de constraint só com teste rigoroso e registro (D3).
+- Escrita em banco só em DEV/Preview. **Produção nunca sem autorização explícita.**
+- CID nunca é pré-requisito nem alimenta guia.
+- Versões TISS e TUSS em dados versionados, nunca em constantes espalhadas.
+- O Qoro gera e valida os próprios XMLs **sem depender** de site de terceiros. Os validadores externos são só verificação cruzada.
+- Dados de teste sempre sintéticos. Nada real vai a serviço externo.
+- Clínicas sem convênio e fluxos particulares ficam idênticos.
 
-### A.7 Definição objetiva de sucesso
+### A.7 Definição de Pronto para Produção
 
-O MVP está pronto quando todos os critérios da [seção K](#k-definition-of-done) estiverem satisfeitos com evidência registrada. Os 15 critérios de aceite do pedido original estão mapeados para tarefas e testes na [seção H](#h-resultados-mensuráveis-e-critérios-de-sucesso).
+Ver a [seção K](#k-definition-of-done-production-ready). Restrição de deploy não justifica entrega incompleta: tudo que puder ser implementado e comprovado nos ambientes autorizados deve ser concluído.
 
 ---
 
 ## B. Auditoria real do projeto
 
-Auditoria feita em 10/11/2026 sobre `origin/main` em `5620a098`.
+Feita em 10/11/2026 sobre `origin/main` `5620a098`. Atualizada na rev.2 (B.9 e B.11).
 
 ### B.1 Stack [VERIFICADO em `package.json`]
 
-| Item | Versão/uso |
+| Camada | Tecnologia |
 | --- | --- |
 | Runtime | Node 22.x, pnpm 11.17.0 |
-| Web | Next.js 15.5.28 (App Router, Server Actions), React 19.2.6 |
-| Banco | PostgreSQL no Supabase; `drizzle-orm` 0.45.2 + `postgres` 3.4.5 (`prepare: false`) |
-| Auth | Supabase Auth (`@supabase/ssr` 0.10.3, `@supabase/supabase-js` 2.106.2) |
-| Validação | `zod` ^4.6.6 |
-| PDF | `@react-pdf/renderer` 4.5.1 (`src/lib/pdf`) |
-| UI | Tailwind v4, Radix (dialog, popover, tabs, tooltip, switch, checkbox, dropdown), `lucide-react` |
-| Observabilidade | Sentry (`@sentry/nextjs`), métricas próprias em `src/lib/observability` |
-| Rate limit | Upstash (`@upstash/ratelimit`) |
-| Testes | Vitest 2.1.x + happy-dom, Playwright, `@testing-library/react` |
-| Arquitetura | `eslint-plugin-boundaries`, `madge`, scripts `arch:*` |
-| IA | agente de WhatsApp com Gemini (`src/contexts/ai-agent`); o modelo e o estado do PR #28 precisam ser conferidos antes da fase F9 |
+| Aplicação | Next.js 15.5.28, React 19.2.6 |
+| Banco | `drizzle-orm` 0.45.2 + `postgres` 3.4.5 (Supabase Postgres) |
+| Autenticação | Supabase Auth (`@supabase/ssr` 0.10.3) |
+| Validação | Zod ^4.6.6 |
+| PDF | `@react-pdf/renderer` 4.5.1 |
+| Interface | Tailwind v4, Radix, `lucide-react` |
+| Observabilidade | Sentry |
+| Rate limit | Upstash |
+| Testes | Vitest 2.1 + happy-dom, Playwright |
+| Arquitetura | `eslint-plugin-boundaries`, `madge` |
+| `pdfjs-dist` | devDependency, útil para testar PDF |
 
 ### B.2 Organização [VERIFICADO]
 
-- `src/contexts/<contexto>`: bounded contexts com `schema.ts`, `index.ts`/`api.ts` públicos, `internal/` privado, `events.ts`, `actions.ts`, `queries.ts` e README. Contextos atuais: `ai-agent`, `billing`, `clinical`, `feedback`, `financial`, `identity`, `messaging`, `onboarding`, `patient`, `payments`, `platform-admin`, `scheduling` e `tenancy`.
-- `src/lib`: infraestrutura sem dependência de contexto (`db`, `audit`, `outbox`, `crypto`, `pdf`, `auth`, `idempotency`, `storage`, `platform-settings` e outros).
-- `src/app/(app)/(shell)/…`: telas autenticadas da clínica. As configurações ficam em `configuracoes/*`, com navegação em `configuracoes/settings-navigation.ts`.
-- `drizzle/migrations/NNNN_*.sql` + `meta/_journal.json`: migrations append-only.
-- Documentação canônica em `docs/` (`CONVENTIONS.md`, `architecture/context-map.md`, `database/schema.md`, `domains/*`, `adr/*` até ADR-066).
+Bounded contexts em `src/contexts/*`: `ai-agent`, `billing`, `clinical`, `feedback`, `financial`, `identity`, `messaging`, `onboarding`, `patient`, `payments`, `platform-admin`, `scheduling` e `tenancy`. Cada um tem `schema.ts`, `index.ts`/`api.ts` públicos e `internal/` privado. A infraestrutura fica em `src/lib`, as telas em `src/app/(app)/(shell)/…` e a documentação canônica em `docs/`, com ADRs até o 066.
 
-### B.3 Banco, multi-tenancy e acesso [VERIFICADO em `docs/database/schema.md`, `src/lib/db`]
+### B.3 Banco e multi-tenancy [VERIFICADO em `docs/database/schema.md`, `src/lib/db`]
 
-- Toda tabela tenant-scoped tem `clinic_id`, RLS `ENABLE` + `FORCE` e policy. O runtime usa `withTenant(clinicId, fn, actorUserId?)`: transação no pool runtime, `SET LOCAL ROLE authenticated` e GUCs `app.current_clinic`/`app.current_user`.
-- Pools: `db` (runtime, `NOBYPASSRLS` em produção), `dbAdmin` (plataforma, BYPASSRLS) e `dbWorker` (jobs). Não trocar um pelo outro por conveniência.
-- Valores monetários: `numeric(12,2)`; cálculo de domínio em centavos.
-- Migrations: `origin/main` vai de `0000` a `0135`. **O PR #53 (billing) traz `0136`–`0142`** e a branch de UI carrega `0136` (herdada do billing). **Próximo número livre seguro: `0143`**, a reconferir no momento da criação (T0.4).
-- Regra da casa: uma sessão por checkout; conferir `ls drizzle/migrations` e `meta/_journal.json` antes de numerar; commitar com caminhos explícitos (`docs/CONVENTIONS.md`).
+- RLS `ENABLE`+`FORCE` em toda tabela tenant-scoped.
+- `withTenant(clinicId, fn, actorUserId?)` com `SET LOCAL ROLE authenticated` e GUCs.
+- Pools `db`, `dbAdmin` e `dbWorker`.
+- Dinheiro em `numeric(12,2)`, cálculo em centavos.
+- Migrations append-only.
+- **Numeração em 10/11/2026:**
+
+  | Ref. | Última migration | Estado |
+  | --- | --- | --- |
+  | `origin/main` | 0135 | — |
+  | PR #53 (billing) | 0142 | **aberto** |
+  | branch de UI | 0136 | — |
+
+  Primeiro número livre: **0143**, a reconferir a cada migration.
 
 ### B.4 Autenticação e autorização [VERIFICADO]
 
-- Papéis (`role_enum`): `owner`, `gestor`, `doctor`, `attendant`, `financial` e `super_admin` (`src/contexts/identity/schema.ts`).
-- Catálogo de permissões em `src/lib/auth/permissions.ts`. Relevantes aqui: `view:agenda`, `edit:agenda`, `manage:procedures`, `view:patient`, `edit:patient`, `view:prontuario`, `view:financial`, `manage:financial`, `operate:caixa`, `manage:settings`, `manage:agent`, `view:consultorio` e `view:audit`.
-- A resolução efetiva usa a view `effective_permissions_v` (migration `0133`), que soma o bundle do papel (`role_permissions`) e overrides por usuário só nos planos com permissões granulares. Permissão nova exige seed, bundles e incremento de `claims_version` (script `bump-role-claims`; ADR-009).
-- Mutação nova usa os chokepoints existentes: `idempotentMutation` (idempotência + auditoria na mesma transação) é o padrão; `auditedMutation` é exceção (`src/lib/audit/mutation.ts`).
+- Papéis: `owner`, `gestor`, `doctor`, `attendant`, `financial` e `super_admin`.
+- Catálogo de permissões em `src/lib/auth/permissions.ts`.
+- `effective_permissions_v` (migration 0133): bundle por papel mais overrides nos planos granulares.
+- Permissão nova exige seed, bundles e incremento de `claims_version` (script `bump-role-claims`).
+- Mutação via `idempotentMutation` (padrão) ou `auditedMutation` (exceção), em `src/lib/audit/mutation.ts`.
 
-### B.5 Entidades existentes que o módulo reaproveita [VERIFICADO]
+### B.5 Entidades reaproveitadas [VERIFICADO]
 
-| Entidade | Onde | O que interessa |
+| Entidade | Arquivo | Campos relevantes |
 | --- | --- | --- |
-| `clinics` | `src/contexts/tenancy/schema.ts` | `cnpj_encrypted` (cifrado; **não normalizado nem validado**), `cnes` (nullable), `endereco`, `telefone`, `timezone` |
-| `profiles` | `src/contexts/identity/schema.ts` | `nome`, `crm`, `crm_uf`, `especialidade`, `role`. **Não há conselho além de CRM nem CBO.** |
-| `patients` | `src/contexts/patient/schema.ts` | `nome`, `cpf_encrypted`/`cpf_hash`, `data_nascimento`. Não existe nome social. |
-| `procedures` | `src/contexts/scheduling/schema.ts` | catálogo da clínica: `codigo` (texto livre), `descricao`, `valor_padrao`, `duracao_padrao_min` |
-| `appointments` | idem | `doctor_id`, `patient_id`, `procedure_id`, `status`, `valor`, snapshots imutáveis (`snapshot_procedure_*`, `snapshot_doctor_nome`, `snapshot_doctor_crm`), `deposit_status`, `faturamento_pendente`, `pricing_policy_mode`, `commercial_*` |
-| `appointment_corrections`, `appointment_state_log` | idem | trilha de correção e de estados |
-| `lancamentos` | `src/contexts/financial/schema.ts` | `tipo` receber/pagar, `valor`, `valor_pago`, `status`, `patient_id`, `appointment_id`, `payment_method` → `payment_methods`. **UNIQUE parcial `lancamentos_appointment_uniq`: no máximo um lançamento por atendimento.** CHECK `lancamentos_auto_origin_chk`: lançamento `auto` precisa de `appointment_id` ou de origem do Payments. |
-| `payment_methods` | idem | catálogo global; `convenio` existe desde a migration `0079` (segundo `docs/domains/scheduling-financial.md`) |
-| `faturamento_pendencias` | idem | banner de pendência do Caixa |
-| `prontuarios`/`prontuario_versions` | `src/contexts/clinical/schema.ts` | prontuário versionado e cifrado (ADR-044). `cid` é **opcional** nos tipos clínicos (`src/contexts/clinical/types.ts`). |
-| `ai_clinic_config.convenios` | `src/contexts/ai-agent/config-types.ts` | lista de **nomes** em texto livre, até 40, usada pela tool `provide_clinic_info` para responder se a clínica aceita um convênio |
+| `clinics` | `tenancy/schema.ts` | `cnpj_encrypted` (**não normalizado nem validado**), `cnes` nullable, `endereco`, `telefone`, `timezone` |
+| `profiles` | `identity/schema.ts` | `nome`, `crm`, `crm_uf`, `especialidade`. **Sem CBO e sem conselho além de CRM.** |
+| `patients` | `patient/schema.ts` | `nome`, `cpf_encrypted`/`cpf_hash`, `data_nascimento`. Sem nome social. |
+| `procedures` | `scheduling/schema.ts` | catálogo da clínica com `codigo` em texto livre e `valor_padrao` |
+| `appointments` | `scheduling/schema.ts` | um `procedure_id` por atendimento, `valor`, snapshots imutáveis, `deposit_status`, `pricing_policy_mode`, `commercial_*`, `recurrence_series_id` |
+| `lancamentos` | `financial/schema.ts` | **UNIQUE parcial `appointment_id`**; CHECK `lancamentos_auto_origin_chk` |
+| `payment_transactions` | `financial/schema.ts` | ledger append-only com `kind` em `payment` e `refund` |
+| `payment_methods.convenio` | `financial/schema.ts` | desde a migration 0079 |
+| `faturamento_pendencias` | `financial/schema.ts` | — |
+| `professional_payouts` | `financial/schema.ts` | status `pending_economics`, `calculated`, `cancelled` e `reviewed`; base `gross` ou `net` por política versionada |
+| prontuário | `clinical` | versionado e cifrado; `cid` opcional em `clinical/types.ts` |
+| solicitação de exame | `src/lib/pdf/exame.tsx` | documento médico com PDF próprio [HIPÓTESE: sem código TUSS estruturado; confirmar em P6.2] |
+| `ai_clinic_config.convenios` | `ai-agent` | lista de nomes em texto livre |
 
-### B.6 Fluxos atuais relevantes [VERIFICADO]
+### B.6 Fluxos atuais [VERIFICADO]
 
-**Agenda.** Estados: `agendado → confirmado → chegou → em_atendimento → atendido`, mais `cancelado` e `faltou` (`docs/domains/scheduling-financial.md`). A criação passa por `createAppointmentCore` (`src/contexts/scheduling/internal/appointment-core.ts`), com entrada validada por `CreateAppointmentSchema` (`src/contexts/scheduling/types.ts`).
+- **Agenda:** `agendado → confirmado → chegou → em_atendimento → atendido`, mais `cancelado` e `faltou`. Criação em `scheduling/internal/appointment-core.ts`, com `CreateAppointmentSchema`.
+- **Conclusão:** publica `scheduling.appointment.completed`, com payload sem modalidade.
+- **Financeiro:** `financial/internal/handlers/appointment-completed.ts` cria o **recebível do paciente pelo valor cheio**, abate créditos e cria o snapshot de repasse.
+- **Reconciliação:** `/api/cron/financial-reconcile` (a cada 15 min) abre pendência para atendido sem lançamento.
+- **Cobrança ao paciente:**
+  - sinal: `scheduling/deposit-candidates.ts`, `payments/policy.ts`;
+  - saldo: `payments/internal/remainder-charge.ts` gera link Asaas do saldo calculado por `financialApiV1.getAppointmentBalance`;
+  - régua: `financial/dunning-candidates.ts` pega todo recebível vencido com `patient_id`.
+- **IA:** tools em `ai-agent/tools` (`list_slots`, `prepare_appointment`, `provide_clinic_info` e outras).
+- **PDF:** `src/lib/pdf` e rotas autenticadas (`app/(app)/_lib/clinical-pdf-route.ts`).
+- **Criptografia:** `src/lib/crypto` (`encryptForTenant` e companhia).
+- **Crons:** outbox a cada minuto; reconcile, sinal e proativos a cada 15 min.
+- **Outbox:** retentativa com backoff; `PoisonPillError` leva a `status='failed'`; janitor e circuit breaker em `src/lib/outbox`.
 
-**Encerramento.** Ao concluir o atendimento, o Scheduling publica `scheduling.appointment.completed`. O payload (`AppointmentCompletedSchema` em `src/contexts/scheduling/events.ts`) leva `appointmentId`, `clinicId`, `doctorId`, `patientId`, `procedureId`, `unitId`, `valor`, `snapshotProcedureName`, `snapshotDoctorNome` e `scheduledAt`.
+### B.7 Convênio existente [VERIFICADO]
 
-**Financeiro automático.** O handler `src/contexts/financial/internal/handlers/appointment-completed.ts` cria **um recebível do paciente pelo valor cheio**, idempotente pelo UNIQUE de `appointment_id`. Também abate créditos (sinal pago), cria o snapshot de repasse (`createProfessionalPayoutSnapshot`) e publica `financial.lancamento.created`.
-
-**Reconciliação.** O cron `/api/cron/financial-reconcile` (a cada 15 min) procura atendimentos `atendido` sem lançamento e abre `faturamento_pendencias`.
-
-**Cobrança ao paciente.**
-
-- **Sinal no agendamento:** `src/contexts/scheduling/deposit-candidates.ts` e `src/contexts/payments/policy.ts`.
-- **Saldo após o atendimento:** `src/contexts/payments/internal/remainder-charge.ts` gera link Asaas do saldo em aberto do atendimento, calculado por `financialApiV1.getAppointmentBalance`.
-- **Régua de cobrança:** `src/contexts/financial/dunning-candidates.ts` pega **todo recebível vencido com `patient_id`**.
-
-**Consequência direta:** se uma consulta de convênio seguir o fluxo atual, o paciente vira devedor do valor cheio, recebe link Asaas do saldo e entra na régua de cobrança. O módulo precisa desviar isso (ver C.11 e T8.1).
-
-**Agente de IA.** As tools de agendamento ficam em `src/contexts/ai-agent/tools`: `list_slots`, `prepare_appointment` (booking consolidado), `confirm_pending_action`, `provide_clinic_info`, `provide_procedure_price`, `request_human_handoff` e outras. Hoje convênio aparece só como lista de nomes.
-
-**PDF.** Renderizadores puros em `src/lib/pdf` e rotas autenticadas em `src/app/(app)/_lib/clinical-pdf-route.ts` e `src/app/(app)/(shell)/relatorios/pdf/route.ts`. Regras: runtime Node, RBAC, rate limit, `Cache-Control: no-store` e nome de arquivo do servidor (ADR-059).
-
-**Criptografia.** `src/lib/crypto` expõe `encryptForTenant`, `decryptForTenant`, `hashForLookup` e normalizadores. Ponto único de decifragem.
-
-**Crons.** Ver `vercel.json`: outbox a cada minuto; `financial-reconcile`, `payments-deposit` e `proactive-*` a cada 15 min.
-
-**Desligamento de plataforma.** `src/lib/platform-settings` (por exemplo `isProactiveEnabled`). Será reaproveitado para um interruptor do módulo.
-
-### B.7 O que já existe de convênio [VERIFICADO]
-
-| Peça | Estado |
+| O que existe | Situação |
 | --- | --- |
-| `payment_methods.convenio` | forma de pagamento manual no Financeiro/Caixa; não tem operadora, carteirinha, glosa nem repasse (comentário de `e2e/production-convenio-payment-a.spec.ts`) |
-| `ai_clinic_config.convenios` | nomes livres para a IA responder; não filtra por profissional nem por plano |
-| Consentimento LGPD | a ficha do paciente já descreve o envio de dados a convênios (`pacientes/[id]/page.tsx`) |
-| Worktree `C:/dev/ClinicaOS_V2_ai_convenios` | `main` antiga (`93da840f`), **sem trabalho pendente**, ancestral da `origin/main` |
+| `payment_methods.convenio` | forma de pagamento manual, sem operadora |
+| `ai_clinic_config.convenios` | nomes livres |
+| Consentimento LGPD | menciona convênios |
+| Worktree `ClinicaOS_V2_ai_convenios` | main antiga, sem trabalho |
 
-Não existe cadastro de operadora, plano, carteirinha, credenciamento, TUSS, guia, lote nem glosa.
+Não existe cadastro de operadora, plano, carteirinha, TUSS, guia, lote nem glosa.
 
-### B.8 Arquivos que serão modificados [VERIFICADO quanto à existência; o impacto exato se confirma em cada tarefa]
+### B.8 Arquivos que serão modificados
 
-- **Scheduling:** `schema.ts` (coluna `billing_mode`), `types.ts` (entrada de agendamento), `events.ts` (`billingMode` aditivo no payload de conclusão), `internal/appointment-core.ts`, `deposit-candidates.ts`, `actions.ts`.
-- **Financial:** `schema.ts` (vínculo com a guia), `internal/handlers/appointment-completed.ts`, `api.ts`/`queries.ts` (saldo), `dunning-candidates.ts` (só confirmar o filtro).
-- **Rota:** `src/app/api/cron/financial-reconcile/route.ts`.
-- **Payments:** `internal/remainder-charge.ts` e `policy.ts` (só guardas).
-- **AI agent:** `tools/prepare-appointment.ts`, `tools/provide-clinic-info.ts`, `tools/registry.ts`, `prompts/system.ts` e a tool nova.
-- **Identity/auth:** `src/lib/auth/permissions.ts`, mais migration de permissões e bundles.
-- **Patient:** só leitura pela API pública; a ficha ganha a aba de convênio (UI).
-- **UI:** `configuracoes/settings-navigation.ts`, `agenda/new-appointment-drawer.tsx`, a ficha do paciente e `financeiro/*`.
-- **PDF:** `src/lib/pdf/guia-consulta.tsx` (novo) e `src/lib/pdf/index.ts`.
-- **Arquitetura:** `eslint.config.mjs` (boundary do contexto novo) e os snapshots de `docs/architecture/*`.
-- **Segurança:** `scripts/security/inventory-lib.ts` (superfícies novas).
-- **Documentação:** `docs/domains/*`, `docs/database/schema.md`, `docs/roadmap/known-limitations.md` e o ADR novo.
+| Área | Arquivos |
+| --- | --- |
+| scheduling | `schema.ts`, `types.ts`, `events.ts`, `internal/appointment-core.ts`, `deposit-candidates.ts`, `actions.ts`, `recurrence` (séries) |
+| financial | `schema.ts`, `internal/handlers/appointment-completed.ts`, `internal/professional-payout.ts`, `api.ts`/`queries.ts`, `dunning-candidates.ts` |
+| cron | `financial-reconcile/route.ts` |
+| payments | `policy.ts`, `internal/remainder-charge.ts` |
+| clinical | integração da solicitação de exame com a guia de solicitação SP/SADT, só pela API pública |
+| ai-agent | `tools/*`, `prompts/system.ts` |
+| auth | `src/lib/auth/permissions.ts` |
+| PDF | `src/lib/pdf/guia-consulta.tsx` e `guia-sp-sadt.tsx` (novos) |
+| UI | configurações, agenda, paciente, consultório, financeiro |
+| arquitetura e segurança | `eslint.config.mjs`, `scripts/security/*`, `docs/*` |
+| contexto novo | `src/contexts/health-insurance/**` |
 
-### B.9 Incompatibilidades e riscos encontrados na auditoria
+### B.9 Achados críticos e investigação de repasse
 
-1. **Um lançamento por atendimento** (UNIQUE `appointment_id`) não comporta paciente e operadora no mesmo atendimento. Resolução proposta em C.11 (D3).
-2. **Cobrança automática ao paciente** (saldo, régua e sinal) dispararia em consulta de convênio. Precisa de guardas (T4.5, T8.1).
-3. **Repasse ao profissional** usa o valor bruto na conclusão (`createProfessionalPayoutSnapshot`); a regra `net` depende de recebimento. Recebimento de operadora chega semanas depois. Investigação em T8.3 [HIPÓTESE de impacto].
-4. **Dados obrigatórios da guia que o Qoro não tem:**
-   - CBO do profissional e código do conselho (o Qoro só guarda CRM);
-   - UF no código da tabela 59 (o Qoro guarda sigla);
-   - código do prestador na operadora;
-   - CNES, que é nullable no Qoro e na guia tem a regra "9999999".
-   Viram pendências claras, nunca invenção.
-5. **CNPJ da clínica não é normalizado nem validado** (comentário em `tenancy/schema.ts`). O XSD 4.03.00 exige `[A-Z0-9]{12}[0-9]{2}` (CNPJ alfanumérico). A normalização precisa existir antes de usar o CNPJ na guia.
-6. **Numeração de migrations** disputada com o PR #53 (0136–0142).
-7. **Branch de UI** (`ui/refactor-qoro-20261108`) muda o visual global sem estar mergeada. As telas novas devem usar só os primitivos compartilhados (`src/components/ui`, `components/shared`) para herdar o redesign sem retrabalho.
-8. **Agente de IA** com Gemini: o PR #28 (hotfix de assinatura do Gemini 3) está aberto. Conferir o estado antes de F9.
+1. **Um lançamento por atendimento** (UNIQUE `appointment_id`): operadora e paciente não cabem no mesmo atendimento. Resolvido por D3: recebível da operadora ligado à guia.
+2. **Cobrança automática ao paciente** (sinal, link do saldo, régua) dispararia em consulta de convênio. Guardas em P4.5 e P10.1, com testes de caracterização antes (P14.1).
+3. **Repasse** [VERIFICADO em `financial/internal/professional-payout.ts`]:
+   - o snapshot nasce na conclusão com `grossAmount = valor do atendimento`;
+   - **GROSS:** calcula na hora. Para convênio, isso pagaria o profissional antes de a operadora pagar, uma antecipação.
+   - **NET:** espera o recebível **do atendimento** ficar `pago` (`receivable?.status !== 'pago' → not_paid`). Para convênio sem recebível de paciente, **ficaria preso para sempre**.
+   - **Conclusão:** o repasse de convênio precisa de uma regra de elegibilidade própria (D16, P10.4), sem mudar o comportamento particular.
+4. **Dados obrigatórios ausentes no Qoro:** CBO, conselho, código do prestador na operadora, CNES (nullable) e UF no código da tabela 59. Viram pendência e configuração guiada, nunca invenção.
+5. **CNPJ não normalizado.** O XSD exige `[A-Z0-9]{12}[0-9]{2}`. Normalizar antes do uso (P2.4).
+6. **Ledger só tem `payment` e `refund`.** A glosa definitiva precisa de `write_off` (enum aditivo, P1.10).
+7. **Agendamento com um procedimento só.** A SP/SADT com vários itens precisa de itens executados adicionais ligados ao atendimento (P8.4).
+8. **Concorrência com o billing (#53) e a UI** (redesign não mergeado): numeração e primitivos compartilhados.
+9. **Agente de IA (Gemini):** o PR #28 está aberto. Conferir antes de P11.
 
----
+### B.10 Referência regulatória verificada
 
-## B.10 Referência regulatória verificada
+Fontes baixadas em 10/11/2026, com SHA-256:
 
-Fontes baixadas em 10/11/2026 do site da ANS e conferidas localmente. As cópias de trabalho ficam fora do repositório (scratchpad). A tarefa T0.6 traz para o repositório só os XSDs e um manifesto.
-
-| Componente | Versão | Arquivo oficial | SHA-256 |
+| Componente | Versão | Arquivo | SHA-256 |
 | --- | --- | --- | --- |
-| Página da competência | Setembro/2026 (publicação 30/09/2026; vigência 01/10/2026; implantação até 31/12/2026, segundo a página de histórico) | `…/padrao-tiss-setembro-2026` | — |
+| Competência | **Setembro/2026**: publicação 30/09/2026, vigência 01/10/2026, implantação até 31/12/2026 (página de histórico) | `…/padrao-tiss-setembro-2026` | — |
 | Organizacional | 202609 | `PadroTISS_ComponenteOrganizacional_202609.pdf` | `fc973a683f772143d3355604e6e0566491756c49c657e1b12b0b33564d63d2d3` |
 | Conteúdo e Estrutura | 202511 | `PadroTISS_ComponentedeContedoeEstrutura_202511.zip` | `6a720ed27da8397fef584e30d794aa56f18906d253ccdf460c30b1019a3a4d3b` |
-| Comunicação (XSD/WSDL) | **4.03.00** e monitoramento 1.06.00 | `PadroTISSComunicao_202511.zip` | `db8640e1c3b87085892f54f838bfcea9934439ff365798c8428559f88c13d62d` |
-| Representação de Conceitos (TUSS) | 202609 | `Padrao_TISS_Representacao_de_Conceitos_em_Saude_202609.zip` | `7f3d7a9794a8929fddd6f13af26dd9496087bf8b8670f275bd7ecd9a2f64172d` |
+| Comunicação | **4.03.00** + monitoramento 1.06.00 | `PadroTISSComunicao_202511.zip` | `db8640e1c3b87085892f54f838bfcea9934439ff365798c8428559f88c13d62d` |
+| TUSS | 202609 | `Padrao_TISS_Representacao_de_Conceitos_em_Saude_202609.zip` | `7f3d7a9794a8929fddd6f13af26dd9496087bf8b8670f275bd7ecd9a2f64172d` |
 
 URL base: `https://www.gov.br/ans/pt-br/assuntos/prestadores/padrao-para-troca-de-informacao-de-saude-suplementar-2013-tiss/`. O arquivo TUSS vem de `https://www.ans.gov.br/arquivos/extras/tiss/`.
 
-**Fatos confirmados nas fontes oficiais:**
+**Fatos confirmados:**
 
-1. **CID vedado.** Componente Organizacional 202609, item 28: "Fica vedada a exigência por parte das operadoras […] do preenchimento do Código Internacional de Doenças - CID nas guias […]". O item 271 restringe os campos de CID às guias de Resumo de Internação. **A Guia de Consulta 4.03.00 não tem campo de CID** (`ctm_consultaGuia`).
-2. **Uso da Guia de Consulta** (item 62.1): cobrança de consultas eletivas, sem vínculo com outras guias.
-3. **Estrutura XML** (`tissGuiasV4_03_00.xsd`, `ctm_consultaGuia`):
-   - `cabecalhoConsulta`: `registroANS` (6 dígitos) e `numeroGuiaPrestador` (até 20);
+1. **CID vedado** (item 28 do Organizacional). Os campos de CID só existem em Resumo de Internação (item 271). **Consulta e SP/SADT 4.03.00 não têm CID.** A SP/SADT tem `indicacaoClinica` (texto até 500, **opcional**): o Qoro **não** preenche automaticamente a partir do prontuário (D17).
+2. **Guia de Consulta:** cobrança de consulta eletiva, sem vínculo (62.1). Estrutura `ctm_consultaGuia`:
+   - `cabecalhoConsulta`: `registroANS` e `numeroGuiaPrestador`;
    - `numeroGuiaOperadora`?, `ausenciaCodValidacao`? e `codValidacao`?;
-   - `dadosBeneficiario`: `numeroCarteira` (até 20), `atendimentoRN` (S/N), `tipoIdent`? e `identificadorBeneficiario`?;
-   - `contratadoExecutante`: **um** entre `codigoPrestadorNaOperadora` (até 14), `cpfContratado` e `cnpjContratado`, mais `CNES` (7);
+   - `dadosBeneficiario`: `numeroCarteira` até 20, `atendimentoRN`, `tipoIdent`? e `identificadorBeneficiario`?;
+   - `contratadoExecutante`: código na operadora, CPF ou CNPJ, mais `CNES`;
    - `profissionalExecutante`: `nomeProfissional`?, `conselhoProfissional`, `numeroConselhoProfissional`, `UF` e `CBOS`;
    - `indicacaoAcidente`;
-   - `dadosAtendimento`: `coberturaEspecial`?, `regimeAtendimento`, `saudeOcupacional`?, `dataAtendimento`, `tipoConsulta` e `procedimento` (`codigoTabela`, `codigoProcedimento` até 10, `valorProcedimento` decimal 10,2);
-   - `observacao`? (500) e `assinaturaDigitalGuia`?.
+   - `dadosAtendimento`: `coberturaEspecial`?, `regimeAtendimento`, `saudeOcupacional`?, `dataAtendimento`, `tipoConsulta` e `procedimento` (tabela, código até 10, valor 10,2);
+   - `observacao`? e `assinaturaDigitalGuia`?.
 
-   **O nome e o CNS do beneficiário foram retirados na 4.00.00.**
-4. **Lote** (`ctm_guiaLote`): `numeroLote` (até 12) e `guiasTISS` com **um único tipo de guia e no máximo 100 guias**.
-5. **Mensagem** (`tissV4_03_00.xsd`, `mensagemTISS`):
-   - `cabecalho`, com `tipoTransacao=ENVIO_LOTE_GUIAS`, `sequencialTransacao` (até 12), data, hora, `origem/identificacaoPrestador`, `destino/registroANS` e `Padrao` (enum contém `4.03.00`);
-   - `prestadorParaOperadora/loteGuias`;
+   Nome e CNS do beneficiário saíram na 4.00.00.
+3. **Guia SP/SADT** (`ctm_sp-sadtGuia`):
+   - `cabecalhoGuia`, com `guiaPrincipal`?;
+   - `dadosAutorizacao`? (`ct_autorizacaoSADT`: `numeroGuiaOperadora`?, `dataAutorizacao`, `senha`?, `dataValidadeSenha`? e código de validação);
+   - `dadosBeneficiario`;
+   - `dadosSolicitante`: contratado, nome e profissional;
+   - `dadosSolicitacao`: data?, `caraterAtendimento` (1 eletivo, 2 urgência), `indicacaoClinica`? e `indCobEspecial`?;
+   - `dadosExecutante`: contratado e CNES;
+   - `dadosAtendimento`: `tipoAtendimento` (domínio com 9 valores), `indicacaoAcidente`, `tipoConsulta`?, `motivoEncerramento`?, `regimeAtendimento` e `saudeOcupacional`?;
+   - `procedimentosExecutados`? (`ct_procedimentoExecutadoSadt`: sequencial, data, horas?, procedimento com tabela, código e descrição, quantidade, via?, técnica?, `reducaoAcrescimo`, valor unitário, valor total e equipe?);
+   - `outrasDespesas`?, `observacao`?, `valorTotal` (`ct_guiaValorTotal`, com `valorTotalGeral` obrigatório) e assinatura?.
+
+   A solicitação eletrônica é `ctm_sp-sadtSolicitacaoGuia`, com `tipoEtapaAutorizacao` e `procedimentosSolicitados`.
+4. **Lote** (`ctm_guiaLote`): `numeroLote` até 12; **um tipo de guia por lote, até 100 guias**.
+5. **Mensagem** (`mensagemTISS`):
+   - `cabecalho`: `ENVIO_LOTE_GUIAS`, sequencial até 12, data, hora, `origem/identificacaoPrestador`, `destino/registroANS` e `Padrao` = `4.03.00`;
+   - corpo `prestadorParaOperadora`, com `loteGuias`, `recursoGlosa`, `solicitacaoProcedimento`, `verificaElegibilidade`, `cancelaGuia` e outros;
    - `epilogo/hash`;
    - `ds:Signature`?.
-6. **Hash do epílogo** (Organizacional, p. 49): MD5 em hexadecimal da concatenação literal do conteúdo das tags, sem nomes de elementos nem atributos, em **ISO-8859-1**.
-7. **Domínios usados na Guia de Consulta**, conferidos no XSD e nas planilhas TUSS 202609:
 
-   | Campo | Tabela | Valores |
+   A operadora responde com `operadoraParaPrestador`: `recebimentoLote`, `demonstrativosRetorno` (`demonstrativoAnaliseConta` até 30, `demonstrativoPagamento`), `respostaRecursoGlosa`, `situacaoAutorizacao` e outros.
+6. **Hash** (Organizacional, p. 49): MD5 em hexadecimal da concatenação literal do conteúdo das tags, sem nomes de elementos nem atributos, em **ISO-8859-1**.
+7. **Domínios:**
+
+   | Tabela | Conteúdo | Exemplos |
    | --- | --- | --- |
-   | Conselho | 26 | `06` = CRM |
-   | UF | 59 | código numérico, por exemplo `35` = SP |
-   | CBO | 24 | 172 códigos no XSD, por exemplo `225133` médico psiquiatra, `225125` médico clínico |
-   | Indicação de acidente | 36 | `0` trabalho, `1` trânsito, `2` outros, `9` não acidente |
-   | Tipo de consulta | 52 | `1` primeira, `2` retorno, `3` pré-natal, `4` por encaminhamento |
-   | Regime de atendimento | 76 | `01` ambulatorial, `02` domiciliar, `03` internação, `04` pronto-socorro, `05` telessaúde |
-   | Tabela de referência | 87 | `22` = procedimentos e eventos em saúde |
-   | Ausência de código de validação | 74 | — |
-   | Cobertura especial | 75 | — |
-   | Saúde ocupacional | 77 | — |
-   | Tipo de identificação | 72 | — |
+   | 26 | conselho | `06` = CRM |
+   | 59 | UF | numérico, `35` = SP |
+   | 24 | CBO | 172 no XSD; `225133` psiquiatra, `225125` clínico |
+   | 36 | indicação de acidente | `0`, `1`, `2`, `9` |
+   | 52 | tipo de consulta | 1–4 |
+   | 76 | regime de atendimento | `01`–`05` |
+   | 87 | tabela de referência | `22` = procedimentos |
+   | 23 | caráter do atendimento | — |
+   | 38 / `dm_tipoGlosa` | glosas | 769 códigos no XSD |
+   | 72, 74, 75, 77 | — | — |
 
-8. **Consulta em consultório:** TUSS 22 `10101012` "Consulta em consultório (no horário normal ou preestabelecido)", com vigência registrada na planilha. A tabela 22 tem cerca de 5.960 termos com datas de início e fim de vigência.
-9. **Regras de preenchimento** (planilha Conteúdo e Estrutura 202511, aba `loteGuias`, Guia de Consulta):
-   - CNES obrigatório; "Caso o prestador ainda não possua o código do CNES preencher o campo com 9999999".
-   - Nome do profissional obrigatório quando o contratado é pessoa jurídica.
-   - Valor obrigatório; zero quando não puder ser definido previamente por contrato.
-   - `numeroGuiaOperadora` só se a operadora atribuir número próprio.
-   - Código de validação só quando operadora e prestador o usam.
-   - **A Guia de Consulta não tem campos de senha nem de autorização**; eles existem na SP/SADT.
-10. **Modelo impresso** (PDF do Conteúdo e Estrutura, p. 469–473): campos numerados de 1 a 29. Inclui alguns que o XML não tem:
-    - 5 Validade da carteira: só na contingência em papel com autorização prévia;
-    - 7 Nome do beneficiário: obrigatório no papel;
-    - 10 Nome do contratado: obrigatório;
-    - 24 Assinatura do profissional;
-    - 25 Assinatura do beneficiário ou responsável: obrigatória;
-    - 26 Nome social;
-    - 27 Cobertura especial, 28 Regime e 29 Saúde ocupacional.
-11. **CNPJ alfanumérico:** `st_CNPJ` = `[A-Z0-9]{12}[0-9]{2}` (IN RFB 2.229).
+   `dm_tipoAtendimento`: 9 valores. `dm_objetoRecurso`: 1–2.
+8. **TUSS 22** `10101012` = "Consulta em consultório (no horário normal ou preestabelecido)". A tabela 22 tem cerca de 5.960 termos com vigência.
+9. **Regras de preenchimento** (planilha 202511, aba `loteGuias`):
+   - CNES obrigatório, "9999999" se o prestador não tiver;
+   - nome do profissional obrigatório quando o contratado é PJ;
+   - valor zero quando não definível por contrato;
+   - `numeroGuiaOperadora` só se a operadora atribuir;
+   - código de validação só se for usado;
+   - **a Guia de Consulta não tem senha nem autorização; a SP/SADT tem.**
+10. **Modelos impressos** (PDF do Conteúdo e Estrutura): Guia de Consulta na p. 469, com campos 1–29 e legenda na p. 470–473. Inclui nome do beneficiário (obrigatório no papel), nome social, validade da carteira (só na contingência) e assinaturas. **O modelo da SP/SADT está no mesmo PDF; mapear em P8.5.**
+11. **CNPJ alfanumérico:** `st_CNPJ = [A-Z0-9]{12}[0-9]{2}`.
+12. **Conceitos:** TISS é o padrão de troca; TUSS é a terminologia; CID é diagnóstico clínico, fica só no prontuário e nunca vai para guia.
 
-**Diferença entre os conceitos:**
+### B.11 Validadores externos [VERIFICADO nas páginas públicas em 10/11/2026]
 
-- **TISS** é o padrão de troca: mensagens, guias e regras.
-- **TUSS** é a terminologia: códigos de procedimentos e tabelas de domínio.
-- **CID** é diagnóstico clínico. Fica só no prontuário e nunca alimenta a Guia de Consulta.
+O que segue é declaração das próprias páginas. Ainda **não** foi verificado contra o software.
+
+| Validador | Tipo | Versões TISS declaradas | O que declara validar | Processamento | Custo e limites | API |
+| --- | --- | --- | --- | --- | --- | --- |
+| **A — Paniquar** (`paniquar.com/validador-tiss/`) | web | 4.03.00 | "schemas oficiais da ANS", estrutura, valores, hash e versão; avisa sobre guia repetida e data futura | **local no navegador** ("Seu arquivo não sai do seu computador") | gratuito, sem cadastro, sem limite declarado | não |
+| **B — TISS Manager** (`tissmanager.com.br/validador-tiss-online`) | web | 2.02.03 a 4.03.00 (15 versões) | XSD oficial com libxml2; **presença** do hash MD5; somatórios; tipo único de guia por lote; CPF/CNS/CNPJ; limites de guias por lote | **plano grátis envia ao servidor** ("descartado em seguida", não verificado); o app logado valida no navegador | grátis mostra só a contagem de erros; detalhe exige conta (7 dias grátis); 3 MB por arquivo | não |
+| **C — Validador TISS** (`validadortiss.com.br`) | programa **Windows** (`ValidadorTISS_Instalador-4.30.0.exe`, 30 MB), v4.30 de 13/10/2026 ("versões até Setembro/2026") | 4.03.00 (desde a v4.28) | histórico cita TUSS inativo ou fora de vigência, lote com mais de 100 guias e valores unitário e total; XSD e MD5 não citados | local | versões grátis e comercial, com licença e ativação por conta | não |
+
+**Consequências para o plano** (P13):
+
+- Nenhum oferece API. A validação externa é **manual e reproduzível**, com roteiro e registro.
+- B envia o arquivo ao servidor no plano grátis: **só arquivos sintéticos**.
+- C exige instalar software de terceiros na máquina do fundador: **precisa de autorização (B7).**
+- Divergência entre validadores é resolvida pelo XSD e pelas regras oficiais da ANS (B.10).
 
 ---
 
-## C. Arquitetura proposta
+## C. Arquitetura
 
-### C.1 Novo bounded context
+### C.1 Contexto `health-insurance` (D2, confirmado)
 
-**`src/contexts/health-insurance`** (nome na UI: "Convênios"). É dono de operadoras, planos, credenciamento, perfil TISS do profissional, contratos de procedimento, carteirinhas, cobertura por atendimento, autorizações informadas, guias, lotes, retornos, glosas e terminologia. Segue o padrão dos demais: `schema.ts`, `index.ts`/`api.ts`, `internal/`, `events.ts` e README. A alternativa seria espalhar tabelas por `patient`, `scheduling` e `financial`. Foi descartada porque o ciclo da guia é um domínio próprio, e o mapa de contextos já trata faturamento SaaS (`billing`) e cobrança ao paciente (`payments`) como contextos separados.
+O contexto novo é dono de:
 
-**O que fica nos contextos existentes, por ownership:**
+- operadoras, planos, credenciamento, perfil TISS do profissional e contratos;
+- carteirinhas, coberturas por atendimento, coparticipação e autorizações;
+- guias e itens, lotes e arquivos, demonstrativos, glosas, recursos e conectores;
+- terminologia.
 
-- `scheduling`: só `appointments.billing_mode`, porque agenda, sinal e conclusão precisam ler sem atravessar contexto.
-- `financial`: os recebíveis (`lancamentos`) e a ligação opaca com a guia.
-- `payments`: só guardas.
+Os contextos existentes mantêm o que é deles:
 
-### C.2 Diagrama lógico
+- `scheduling`: `billing_mode`;
+- `financial`: recebíveis, ledger e repasse;
+- `payments`: cobrança Asaas;
+- `clinical`: prontuário e solicitação de exame.
+
+A expansão de escopo **cabe** nesse desenho: as fronteiras são as mesmas, só aumenta o interior do contexto.
+
+### C.2 Diagrama
 
 ```mermaid
 flowchart LR
   subgraph UI[App da clínica]
     CFG[Configurações › Convênios]
     PAC[Paciente › Convênios]
-    AG[Agenda: particular ou convênio]
-    REC[Recepção: resumo administrativo]
-    GU[Guia: conferir, editar, PDF, aprovar]
-    FAT[Financeiro › Convênios › Guias, Lotes, Retornos]
+    AG[Agenda]
+    REC[Recepção / check-in]
+    CON[Consultório: itens executados]
+    AUT[Autorizações]
+    GU[Guias]
+    FAT[Financeiro › Convênios]
   end
-  WA[WhatsApp + agente de IA] --> TOOLS[tools: list_insurance_options, prepare_appointment]
-  CFG & PAC & REC & GU & FAT --> HI[(health-insurance)]
+  WA[WhatsApp + IA] --> TOOLS[tools]
+  CFG & PAC & REC & AUT & GU & FAT & CON --> HI[(health-insurance)]
   AG --> SCH[(scheduling)]
-  TOOLS --> HIAPI[healthInsuranceApiV1]
-  TOOLS --> SCH
-  SCH -- scheduling.appointment.completed --> OUTBOX{{outbox}}
-  OUTBOX --> GEN[GuideAssembler + GuideValidator]
-  GEN --> HI
-  OUTBOX --> FINH[financial handler]
-  FINH --> FIN[(financial)]
-  HI -- health_insurance.guide.approved --> OUTBOX2{{outbox}}
-  OUTBOX2 --> FINR[financial: recebível da operadora]
-  FINR --> FIN
-  FAT --> XML[XmlBuilder + XsdValidator]
-  GU --> PDF[lib/pdf guia-consulta]
-  HI --- TERM[(terminologia TUSS/TISS global, versionada)]
+  TOOLS --> HIAPI[healthInsuranceApiV1] & SCH
+  CLI[(clinical: solicitação de exame)] -- evento/API --> HI
+  SCH -- appointment.completed --> OB{{outbox}}
+  OB --> GEN[Assembler + Validator por tipo de guia] --> HI
+  OB --> FINH[financial: desvio particular/convênio + coparticipação]
+  HI -- guide.approved / outcome.recorded --> OB2{{outbox}} --> FINR[financial: recebível operadora, baixa, write-off, repasse]
+  FAT --> XML[TissXmlBuilder + TissXsdValidator] --> ST[(Storage privado: XML/PDF/comprovantes)]
+  FAT --> IMP[Importador de demonstrativos XML]
+  AUT & FAT --> PORT[OperatorConnector] --> MAN[ManualAdapter] & SOAP[TissSoapAdapter 4.03.00]
+  HI --- TERM[(Terminologia TUSS/TISS versionada)]
 ```
 
-### C.3 Fluxo completo dos dados
+### C.3 Fluxos de ponta a ponta
 
-1. **Configuração.** O gestor cadastra a operadora (registro ANS, identificação do prestador na operadora), os planos, os profissionais habilitados por plano, o perfil TISS de cada profissional (conselho, número, UF e CBO) e os procedimentos aceitos. Cada procedimento é ligado ao `procedures` do Qoro, com tabela 22, código TUSS, valor contratado, vigência, exigência de autorização e coparticipação.
-2. **Paciente.** A recepção vincula uma ou mais carteirinhas: operadora, plano, número cifrado, validade, titular ou dependente, e preferencial.
-3. **Agendamento.** Forma de atendimento particular ou convênio.
-   - **Convênio:** a lista mostra só as operadoras e planos ativos que aceitam aquele profissional e procedimento, e pré-seleciona a carteirinha preferencial.
-   - O valor do agendamento é o valor contratado vigente.
-   - **Sem sinal.** A cobertura do atendimento é gravada no `health-insurance`, com as pendências.
-4. **Recepção.** O resumo administrativo mostra a situação (dados incompletos, pendente de autorização, autorização informada ou conferido). A recepção completa os dados sem bloquear o atendimento.
-5. **Atendimento.** O médico usa o prontuário como hoje, sem campo novo obrigatório.
-6. **Conclusão.** O Scheduling publica `scheduling.appointment.completed` com `billingMode`. Dois handlers reagem, cada um no seu contexto:
-   - **`health-insurance`:** monta o snapshot, valida e cria a guia (idempotente por atendimento), que fica "pronta para conferência" ou "com pendências".
-   - **`financial`:** se for convênio, **não** cria o recebível cheio do paciente. Cria só a coparticipação, quando houver, conforme D5.
-7. **Conferência.** A recepção ou o financeiro conferem, corrigem campos administrativos autorizados e aprovam para faturamento. A aprovação publica `health_insurance.guide.approved`, e o financeiro cria o **recebível da operadora** ligado à guia (D3/D4).
-8. **Lote.** O financeiro agrupa as guias aprovadas: mesma operadora, mesmo tipo e mesma versão, até 100. O XML é gerado em ISO-8859-1 com o hash MD5, **validado no XSD** e guardado. "Exportado" não significa "enviado".
-9. **Retorno.** O financeiro registra à mão o protocolo, a data de envio, o retorno, as glosas (por guia, com código e valor) e o pagamento. O recebível da operadora recebe as baixas e as glosas pelo caminho aprovado em D3.
+1. **Configuração.**
+   - Operadora, com registro ANS, identificação do prestador e configurações (versão TISS, código de validação, prazos, regras).
+   - Planos e categorias.
+   - Credenciamento da clínica e dos profissionais, por plano e vigência.
+   - Perfil TISS do profissional: conselho, número, UF e CBO.
+   - Contratos por procedimento: tipo de guia (Consulta ou SP/SADT), TUSS, valor, vigência, autorização, coparticipação e regra de retorno. Importação por planilha opcional.
+2. **Paciente.** Carteirinhas cifradas, preferencial e histórico. Pendências pré-consulta (vencida, ausente).
+3. **Agendamento** (recepção ou IA).
+   - Particular continua como hoje.
+   - Convênio passa pelo filtro de elegibilidade cadastral (profissional × plano × procedimento × data). O valor é o contratado; não há sinal. Grava cobertura, coparticipação estimada e autorização exigida.
+   - Séries de sessões podem ficar sob uma mesma autorização.
+4. **Autorização** (quando o contrato exige).
+   - Pedido administrativo com itens e quantidades.
+   - Manual: PDF da SP/SADT de solicitação, registro de número, senha, validade e comprovante.
+   - Eletrônica: só por conector homologado.
+   - O status nunca vira "autorizada" sem registro humano ou resposta real do conector.
+5. **Check-in.** Resumo administrativo, pendências, coparticipação conferida e confirmada. Nada bloqueia o atendimento clínico.
+6. **Atendimento.** Prontuário igual. Itens executados adicionais só quando o procedimento os tiver, registrados pelo médico ou pela recepção sem campo clínico.
+7. **Conclusão.** `appointment.completed` com `billingMode`.
+   - `health-insurance` monta a guia do tipo do contrato (Consulta ou SP/SADT, agrupando sessões quando a regra mandar), valida e cria a guia como "pronta para conferência" ou "com pendências", de forma idempotente.
+   - `financial` não cria o recebível cheio do paciente; cria só a coparticipação **confirmada**.
+8. **Conferência e aprovação.** A aprovação gera o recebível da operadora.
+9. **Lote.** Mesma operadora, tipo e versão, até 100 guias. XML em ISO-8859-1 com MD5, validado no XSD e guardado com SHA. "Exportado" não é "enviado".
+10. **Envio.** Registro manual (data, quem, protocolo) ou pelo conector, com recibo real.
+11. **Retorno.**
+    - Importação de demonstrativo XML (análise de conta, pagamento) ou registro manual.
+    - Glosas por item com código da tabela 38 e ciclo de 6 estados.
+    - Recurso em XML.
+    - Pagamentos parciais e integrais com conciliação.
+12. **Financeiro.**
+    - Baixas no recebível da operadora.
+    - `write_off` só para glosa **definitiva**.
+    - Repasse fica elegível conforme a política de convênio (D16).
+    - Indicadores e relatórios.
 
-### C.4 Responsabilidades dos serviços
+### C.4 Serviços
 
 | Serviço | Natureza | Responsabilidade |
 | --- | --- | --- |
-| `InsurerCatalogService` | domínio + mutações | operadoras, planos, credenciamento, perfil TISS, contratos de procedimento, dados do prestador |
-| `MembershipService` | domínio + mutações | carteirinhas do paciente (cifra, hash, últimos 4, preferencial, histórico) |
-| `CoverageService` | domínio + mutações | cobertura por atendimento, elegibilidade **cadastral** (não da operadora), pendências e estados administrativos, autorização informada |
-| `EligibilityFilter` | puro | dado profissional, procedimento e data, lista operadoras e planos aceitos e o contrato vigente |
-| `GuideAssembler` | puro | monta o snapshot administrativo da Guia de Consulta a partir das fontes; nunca lê o prontuário |
-| `GuideValidator` | puro | regras estruturais (tamanho, domínio, obrigatoriedade) e semânticas (vigência TUSS, CNES/9999999, contratado PF ou PJ), devolvendo pendências com explicação |
-| `GuideLifecycle` | domínio + mutações | máquina de estados, edição controlada, substituição, cancelamento e histórico |
-| `GuideNumbering` | domínio | número da guia no prestador e do lote, por clínica, com contador sob lock de linha |
-| `GuidePdfRenderer` | puro (`src/lib/pdf`) | modelo oficial da Guia de Consulta, campos 1–29 |
-| `TissXmlBuilder` | puro | `mensagemTISS/loteGuias`, ordem do XSD, ISO-8859-1, hash MD5 |
-| `TissXsdValidator` | infraestrutura | valida o XML contra os XSDs 4.03.00 versionados no repositório |
-| `BatchService` | domínio + mutações | montar, exportar, registrar envio, protocolo, retorno, glosa e pagamento |
-| `TerminologyCatalog` | leitura | termos TUSS e domínios por versão, com vigência |
-| Handlers de outbox | assíncrono | `appointment.completed` → guia; `guide.approved` → recebível; correção, cancelamento e reabertura → reprocessamento seguro |
+| `InsurerCatalogService` | mutações | operadoras, planos, categorias, credenciamento, perfil TISS, contratos (append-only por vigência), importação de tabela, configurações por operadora |
+| `MembershipService` | mutações | carteirinhas (cifra, hash, últimos 4, preferencial, histórico) |
+| `EligibilityFilter` | puro | opções aceitas e contrato vigente por profissional × procedimento × data × plano; **cadastral, não elegibilidade da operadora** |
+| `CoverageService` | mutações | cobertura por atendimento, estados administrativos, pendências |
+| `CopayService` | mutações | ciclo da coparticipação |
+| `AuthorizationService` | mutações | pedidos, itens, estados, senha e validade, comprovantes, consumo por sessão |
+| `OperatorConnector` (porta) | infraestrutura | `ManualAdapter` (padrão) e `TissSoapAdapter` (WSDL 4.03.00, por operadora e com credencial) |
+| `GuideAssembler` (Consulta, SP/SADT) | puro | snapshot a partir das fontes; **nunca lê prontuário nem CID** |
+| `GuideValidator` (Consulta, SP/SADT) | puro | estrutura, domínio, obrigatoriedade, vigência TUSS e regras semânticas, com pendências explicadas |
+| `GuideLifecycle` | mutações | estados, edição controlada, substituição, cancelamento, histórico |
+| `GuideNumbering` | domínio | guia, lote, transação, recurso; contadores por clínica |
+| `GuidePdfRenderer` | puro | modelos oficiais de Consulta e SP/SADT (solicitação e cobrança) |
+| `TissXmlBuilder` | puro | lote, recurso de glosa e solicitação de procedimento; ISO-8859-1; MD5 |
+| `TissXsdValidator` | infraestrutura | XSD 4.03.00 versionado (D7) |
+| `TissReturnImporter` | puro + mutação | parse e validação de demonstrativos XML, conciliando por guia e item |
+| `BatchService` | mutações | lotes, arquivos, envio, protocolo |
+| `GlossService` | mutações | ciclo de glosa, recurso, reversão, definitiva |
+| `InsuranceReconciliation` | mutações + cron | conciliação de pagamentos, divergências, reconciliação de eventos perdidos |
+| `TerminologyCatalog` | leitura | termos por versão e vigência |
+| Handlers de outbox | assíncrono | conclusão → guia; aprovação → recebível; desfecho → ledger e repasse; correção e cancelamento → reprocessamento seguro |
 
-### C.5 Entidades e relacionamentos (proposta para aprovação)
+### C.5 Modelo de dados (rev.2)
 
-As tabelas globais não têm `clinic_id` e são só leitura para `authenticated`. As demais são tenant-scoped, com RLS `ENABLE`+`FORCE`, policy por `app.current_clinic` e índices liderados por `clinic_id` e pelas FKs.
+**Global** (sem `clinic_id`, só leitura para `authenticated`):
 
-| Tabela | Escopo | Campos principais | Observações |
-| --- | --- | --- | --- |
-| `tiss_terminology_versions` | global | `id`, `version` (`202609`), `source_url`, `source_sha256`, `imported_at` | uma linha por pacote TUSS importado |
-| `tiss_terms` | global | `version_id`, `table_code` (`22`, `24`, `26`, `36`, `52`, `59`, `72`, `74`, `75`, `76`, `77`, `87`, `38`…), `code`, `term`, `starts_on`, `ends_on`, `implantation_ends_on` | UNIQUE (`version_id`, `table_code`, `code`); importada por script, nunca por constante |
-| `tiss_schema_versions` | global | `version` (`4.03.00`), `xsd_manifest_sha256`, `active` | versões de comunicação suportadas pelo código |
-| `hi_clinic_settings` | tenant | `enabled`, `provider_kind` (PJ/PF), `contractor_name`, `cnes_override` | 1 por clínica; liga o módulo |
-| `hi_counters` | tenant | `kind` (`guide`, `batch`, `transaction`), `next_value` | UPDATE … RETURNING sob lock de linha |
-| `hi_insurers` | tenant | `name`, `ans_registry` (6 dígitos), `status`, `provider_id_kind` (`operator_code`/`cnpj`/`cpf`), `provider_id_value`, `tiss_version`, `uses_validation_code`, `billing_settings` (jsonb validado) | UNIQUE (`clinic_id`, `ans_registry`) |
-| `hi_plans` | tenant | `insurer_id`, `name`, `operator_code`, `status`, `requires_authorization` | |
-| `hi_professional_profiles` | tenant | `professional_id` (opaco → `profiles`), `council_code` (T26), `council_number`, `council_uf_code` (T59), `cbo_code` (T24) | defaults sugeridos a partir de `profiles.crm`/`crm_uf`, sempre confirmados por pessoa |
-| `hi_credentials` | tenant | `insurer_id`, `plan_id` (nulo = todos os planos), `professional_id`, `operator_code_pf`, `starts_on`, `ends_on`, `status` | "não presumir que todos aceitam todos" |
-| `hi_procedure_contracts` | tenant | `insurer_id`, `plan_id`?, `procedure_id` (opaco → `procedures`), `tuss_table` (`22`), `tuss_code`, `contract_value`, `requires_authorization`, `copay_kind` (none/fixed/percent), `copay_value`, `starts_on`, `ends_on` | **append-only por vigência**; alteração cria linha nova |
-| `hi_memberships` | tenant | `patient_id` (opaco), `insurer_id`, `plan_id`, `card_number_encrypted`, `card_number_hash`, `card_last4`, `valid_until`, `holder_kind` (titular/dependente), `holder_name_encrypted`?, `is_preferred`, `status`, `replaced_by_id` | UNIQUE parcial: um preferencial ativo por paciente; desativar em vez de apagar |
-| `hi_appointment_coverages` | tenant | `appointment_id` (UNIQUE), `insurer_id`, `plan_id`, `membership_id`, `contract_id`, `admin_status`, `pending_items` (jsonb), `reviewed_by`, `reviewed_at` | a cobertura escolhida no agendamento |
-| `hi_authorizations` | tenant | `coverage_id`, `kind` (`informed_manual`), `number`, `password`, `authorized_on`, `valid_until`, `notes` | nunca "confirmada pela operadora" no MVP |
-| `hi_guides` | tenant | `appointment_id`, `guide_type` (`consulta`), `number` (≤20), `status`, `revision`, `replaces_guide_id`, `tiss_version`, `terminology_version`, `snapshot_encrypted`, `snapshot_hash`, `validation` (jsonb sem PII), `amount`, `approved_at`/`by` | UNIQUE (`clinic_id`, `number`); UNIQUE parcial (`clinic_id`, `appointment_id`, `guide_type`) onde `status NOT IN ('cancelada','substituida')` |
-| `hi_guide_events` | tenant | `guide_id`, `type`, `from_status`, `to_status`, `changed_fields` (nomes, sem valores sensíveis), `actor_id`, `at` | histórico e rastreabilidade |
-| `hi_batches` | tenant | `insurer_id`, `number` (≤12), `guide_type`, `tiss_version`, `status`, `xml_storage_path`, `xml_sha256`, `epilogue_hash`, `exported_at`, `sent_at`, `protocol_number` | UNIQUE (`clinic_id`, `insurer_id`, `number`) |
-| `hi_batch_guides` | tenant | `batch_id`, `guide_id` | UNIQUE parcial: guia em no máximo um lote ativo |
-| `hi_guide_outcomes` | tenant | `guide_id`, `kind` (`glosa`/`pagamento`/`ajuste`), `amount`, `gloss_code` (T38), `occurred_on`, `notes` | append-only |
+| Tabela | Conteúdo |
+| --- | --- |
+| `tiss_terminology_versions` | uma linha por pacote TUSS importado |
+| `tiss_terms` | termos por tabela, código e vigência; UNIQUE (`version_id`, `table_code`, `code`) |
+| `tiss_schema_versions` | versões de comunicação suportadas |
 
-**Fora do contexto novo:**
+**Tenant** (RLS FORCE, índices liderados por `clinic_id` e pelas FKs):
+
+| Tabela | Campos e regras principais |
+| --- | --- |
+| `hi_clinic_settings` | `enabled` (feature flag), `provider_kind`, `contractor_name`, `cnes_status` (`has`/`none_declared`) |
+| `hi_counters` | contadores de guia, lote, transação e recurso |
+| `hi_insurers` | registro ANS, status, identificação do prestador, versão TISS, configurações validadas por Zod, `connector_kind` (`manual`/`soap`) |
+| `hi_insurer_credentials` | credenciais de webservice **cifradas**, rotação, `last_used_at`; acesso só pelo adapter |
+| `hi_plans` | planos, com `category` |
+| `hi_professional_profiles` | conselho, número, UF e CBO |
+| `hi_credentials` | credenciamento da clínica (`professional_id` nulo) ou do profissional, por plano e vigência |
+| `hi_procedure_contracts` | `guide_type` (`consulta`/`sp_sadt`), TUSS, valor, vigência, autorização, coparticipação (tipo e valor), retorno (dias e se é faturável); **append-only** |
+| `hi_contract_imports` | auditoria das importações de tabela |
+| `hi_memberships` | número cifrado + hash + últimos 4, validade, titular ou dependente, preferencial, status, `replaced_by_id` |
+| `hi_appointment_coverages` | 1 por atendimento; plano, carteirinha, contrato, estado administrativo, pendências |
+| `hi_copayments` | `coverage_id`, valor estimado, conferido e confirmado, status, quem confirmou, `charge_ref` opaco |
+| `hi_authorizations` | operadora, plano, carteirinha, tipo (`consulta`/`sp_sadt`), status, `operator_guide_number`, `password`, `authorized_on`, `valid_until`, origem (`manual`/`connector`), `connector_receipt` |
+| `hi_authorization_items` | TUSS, quantidade solicitada, autorizada e consumida |
+| `hi_authorization_attachments` | comprovantes em Storage privado: caminho, SHA, tipo |
+| `hi_authorization_events` | histórico |
+| `hi_guides` | `guide_type`, `number`, `status`, `revision`, `replaces_guide_id`, `main_guide_id`, `authorization_id`, `tiss_version`, `terminology_version`, `snapshot_encrypted` + hash, `validation` (sem PII), valores (previsto, aprovado, faturado) |
+| `hi_guide_items` | `sequence`, data e hora, tabela e código TUSS, descrição, quantidade, redução e acréscimo, valores unitário e total, `appointment_id` de origem, `authorization_item_id`; uma linha por sessão em guias agrupadas |
+| `hi_guide_events` | transições e nomes dos campos alterados |
+| `hi_batches` | operadora, número, tipo, versão, status, timestamps de envio e protocolo |
+| `hi_batch_guides` | uma guia em um lote ativo |
+| `hi_files` | todo XML ou PDF gerado ou importado: tipo, Storage privado, SHA-256, hash do epílogo, resultado da validação, quem e quando |
+| `hi_return_imports` | demonstrativo importado: arquivo, tipo, protocolo, status, divergências |
+| `hi_glosses` | item ou guia, código da tabela 38, valor, **estado** (`informada`, `em_analise`, `contestada`, `recurso_apresentado`, `revertida`, `definitiva`), origem (manual/demonstrativo) |
+| `hi_gloss_appeals` | recurso: guias e itens, justificativa, arquivo XML, protocolo, resposta |
+| `hi_payments` | pagamento da operadora por guia ou item (parcial ou integral), data, origem, conciliado ou não |
+
+**Contextos existentes:**
 
 | Mudança | Contexto | Natureza |
 | --- | --- | --- |
-| `appointments.billing_mode` (`particular`/`convenio`, default `particular`) | scheduling | aditiva |
-| `AppointmentCompletedSchema.billingMode` | scheduling | evento aditivo e opcional, porque eventos antigos não o têm |
-| `lancamentos.tiss_guide_id`, `lancamentos.health_insurer_id` (opacos, sem FK cross-context) + UNIQUE parcial em `tiss_guide_id` + ajuste do CHECK `lancamentos_auto_origin_chk` | financial | **troca de constraint: exige aprovação (D3)** |
+| `appointments.billing_mode` | scheduling | aditiva |
+| `AppointmentCompletedSchema.billingMode` | scheduling | opcional e aditivo |
+| `lancamentos.tiss_guide_id`, `health_insurer_id` + UNIQUE parcial + troca do CHECK `lancamentos_auto_origin_chk` | financial | **constraint: testes rigorosos antes (D3)** |
+| `payment_transaction_kind` + `write_off` | financial | ADD VALUE, aditivo |
+| política de repasse para convênio (`insurance_payout_eligibility`) em `clinic_financial_policies`/versões | financial | aditiva; default sem antecipação (D16) |
 
 ### C.6 APIs e contratos
 
-**Server Actions**, todas com `idempotentMutation`, permissão checada no backend e auditoria:
+- **Actions:** uma por operação de A.4, sempre com `idempotentMutation`, permissão no backend e auditoria.
+- **`healthInsuranceApiV1`:** `listAcceptedInsurers`, `getPreferredMembership`, `getCoverageSummary`, `quoteContractValue`, `getAuthorizationStatus`.
+- **Rotas de arquivo** (PDF da guia, PDF de solicitação, XML de lote e recurso, comprovante): runtime Node, `no-store`, rate limit, RBAC e acesso por id do tenant.
+- **Eventos** (Zod, versionados, no registry), sem PII:
+  - `health_insurance.guide.prepared`, `.guide.approved`, `.guide.cancelled`, `.guide.replaced`;
+  - `.batch.exported`, `.batch.sent`;
+  - `.outcome.recorded` (pagamento ou glosa definitiva ou reversão);
+  - `.authorization.updated`;
+  - `.copay.confirmed`.
 
-- operadoras e planos: criar, editar, ativar e desativar;
-- credenciamento, perfil TISS e contratos;
-- carteirinhas: vincular, editar (cria nova versão), desativar e tornar preferencial;
-- cobertura: definir no agendamento, trocar de modalidade, completar dados e registrar autorização informada;
-- guia: conferir, editar campo autorizado, aprovar, cancelar e substituir;
-- lote: montar, exportar, registrar envio e protocolo, retorno, glosa e pagamento.
-
-**`healthInsuranceApiV1`** (API interna pública, padrão M14), lida pelas tools da IA e pelo Scheduling:
-
-- `listAcceptedInsurers({ doctorId, procedureId, on })`
-- `getPreferredMembership(patientId)`
-- `getCoverageSummary(appointmentId)`
-- `quoteContractValue(...)`
-
-**Rotas:**
-
-- PDF da guia: `GET /financeiro/convenios/guias/[id]/pdf`, runtime Node, `no-store`, rate limit e RBAC.
-- XML do lote: `GET …/lotes/[id]/xml`, download autenticado sem cache.
-
-**Eventos novos** (Zod, versionados e registrados no registry, conforme ADR-015):
-
-- `health_insurance.guide.prepared`
-- `health_insurance.guide.approved`
-- `health_insurance.guide.cancelled`
-- `health_insurance.batch.exported`
-- `health_insurance.outcome.recorded`
-
-Nenhum payload leva PII: só ids e valores.
-
-### C.7 Eventos e gatilhos
+### C.7 Gatilhos
 
 | Gatilho | Reação |
 | --- | --- |
-| `scheduling.appointment.completed` com `billingMode=convenio` | criar guia (handler idempotente pelo UNIQUE parcial) |
-| `scheduling.appointment.completed` com `billingMode=particular` ou ausente | nada no `health-insurance`; o financeiro segue como hoje |
-| `scheduling.appointment.corrected` / reabertura | se houver guia não exportada: substituir (nova revisão) ou marcar pendência; se já exportada: pendência "guia exportada precisa de substituição manual" |
-| `scheduling.appointment.cancelled` antes de atender | cobertura vira inativa; nenhuma guia |
-| `health_insurance.guide.approved` | financial cria o recebível da operadora (idempotente por `tiss_guide_id`) |
-| `health_insurance.guide.cancelled` | financial cancela o recebível da operadora ainda sem baixa; com baixa, abre pendência |
-| Cron `financial-reconcile` | passa a ignorar convênio sem coparticipação; abre pendência "convênio atendido sem guia" quando a guia não nasceu |
+| `appointment.completed` com `billingMode=convenio` | criar ou atualizar a guia (Consulta, ou item em SP/SADT agrupada), idempotente |
+| `appointment.completed` particular ou sem modalidade | nada no `health-insurance` |
+| `appointment.corrected` / reabertura | guia não exportada: nova revisão; exportada: pendência de substituição |
+| `appointment.cancelled` / `no_show` | cobertura inativa; autorização não consumida |
+| `guide.approved` | recebível da operadora |
+| `guide.cancelled` / `replaced` | cancelar o recebível sem baixa; com baixa, pendência |
+| `outcome.recorded` | `payment` vira baixa; glosa definitiva vira `write_off`; reversão volta o saldo; repasse reavaliado |
+| `copay.confirmed` | recebível do paciente com o valor confirmado; link Asaas só se a política da clínica permitir |
+| Cron `financial-reconcile` | ignora convênio sem coparticipação confirmada; abre pendência para convênio sem guia |
+| Cron novo `insurance-reconcile` | guias aprovadas sem recebível, lotes exportados sem envio após prazo, senhas vencendo, divergência de pagamento |
 
-### C.8 Máquina de estados
+### C.8 Máquinas de estado
 
-**Guia:**
-
-```text
-                ┌──────────────── editar/corrigir ───────────────┐
-                ▼                                                │
- (criada) ─▶ com_pendencias ⇄ pronta_para_conferencia ─▶ conferida ─▶ aprovada_para_faturamento
-                                                                        │
-                                       ┌────────────────────────────────┘
-                                       ▼
-                                    em_lote ─▶ exportada ─▶ enviada* ─▶ retorno_registrado ─▶ paga | paga_parcial | glosada
- qualquer estado antes de "enviada" ─▶ cancelada
- qualquer estado ─▶ substituida (quando uma revisão nova a substitui)
-```
-
-`enviada` só existe com registro manual de envio, com data e quem registrou, e protocolo quando houver. **Nunca é automático.**
-
-Rótulos na UI: "Pendente", "Pronta para conferência", "Conferida", "Aprovada", "No lote", "XML exportado", "Enviada (registro manual)", "Paga", "Paga parcialmente", "Glosada", "Cancelada" e "Substituída".
-
-**Cobertura do atendimento** (requisito da recepção): `dados_incompletos` → `pendente_autorizacao` → `autorizacao_informada` → `conferido`. Estados independentes do status clínico. Nenhum deles bloqueia `chegou → em_atendimento → atendido`.
+| Entidade | Estados |
+| --- | --- |
+| **Guia** | `com_pendencias` ⇄ `pronta_para_conferencia` → `conferida` → `aprovada_para_faturamento` → `em_lote` → `exportada` → `enviada` (só com registro manual ou recibo de conector) → `em_analise_operadora` → `paga` / `paga_parcialmente` / `glosada_parcial` / `glosada_total` → `encerrada`. Também `cancelada` (antes de enviada) e `substituida`. |
+| **Autorização** | `rascunho` → `solicitada` (manual ou conector) → `em_analise` → `autorizada` (registro humano com número ou recibo real) / `autorizada_parcial` / `negada` → `vencida`, `consumida` ou `cancelada` |
+| **Glosa** | `informada` → `em_analise` → `contestada` → `recurso_apresentado` → `revertida` / `definitiva`; `informada` → `definitiva` (aceita pela clínica) |
+| **Coparticipação** | `estimada` → `conferida` → `confirmada` → `cobrada` → `paga`, mais `dispensada`, `estornada` e `ajustada` |
+| **Cobertura** | `dados_incompletos`, `pendente_autorizacao`, `autorizacao_informada`, `conferido`. Nunca bloqueia o atendimento clínico. |
+| **Repasse de convênio** | `calculado` → `elegivel` (conforme D16) → `autorizado` (revisão humana existente) → `realizado` → `ajustado`. Mapeado nos status atuais de `professional_payouts` e na revisão existente; status novo só com prova de necessidade (P10.4). |
 
 ### C.9 Versionamento TISS
 
-- A versão de comunicação suportada vem de `tiss_schema_versions`. O código implementa a 4.03.00. Os XSDs ficam versionados em `src/contexts/health-insurance/tiss/schemas/4.03.00/`, com `MANIFEST.json` (SHA-256 de cada arquivo e do zip oficial).
-- A versão da terminologia fica em `tiss_terminology_versions`. Atualizar é: baixar o pacote da ANS, rodar o script de import e registrar o SHA.
-- Cada guia grava `tiss_version` e `terminology_version` usadas na emissão. Guia antiga nunca é recalculada por mudança de versão; reemissão é substituição explícita.
-- Uma versão nova de comunicação (por exemplo 4.04.00) entra como builder novo, ao lado do atual, com testes de XSD próprios. A operadora define qual versão aceita (`hi_insurers.tiss_version`).
-- Assinatura digital (`ds:Signature`) fica fora do MVP. O campo é opcional no XSD.
+Versões de comunicação e terminologia ficam nas tabelas globais. Os XSDs ficam no repositório com `MANIFEST.json` (SHA-256). Cada guia, arquivo e lote grava a versão usada. Lote só com uma versão. Versão nova entra como builder e XSD novos, com corpus de validação próprio (P13). Assinatura digital continua opcional e fora deste escopo; o campo é opcional no XSD.
 
-### C.10 Isolamento por clínica
+### C.10 Isolamento, segurança e LGPD
 
-RLS em todas as tabelas novas, com o padrão `clinic_id = current_setting('app.current_clinic')` do projeto. Toda leitura e escrita passa por `withTenant`. Ids opacos cross-context são sempre resolvidos dentro do mesmo tenant. Os testes de isolamento entram em `scripts/security/tenant-isolation.ts` (T10.1). As tabelas globais de terminologia têm só SELECT para `authenticated`.
+- RLS em tudo.
+- `withTenant` em toda operação.
+- Ids opacos resolvidos no mesmo tenant.
+- Carteirinha, snapshot e credencial de operadora cifrados.
+- Arquivos em Storage privado com acesso por rota autenticada.
+- Logs sem PII.
+- Visualização do número completo da carteirinha auditada.
 
-### C.11 Integração financeira (proposta, D3/D4/D5)
+### C.11 Integração financeira (D3, D4, D16 — aprovadas como direção)
 
-**Recebível do paciente:** continua no máximo um por atendimento (UNIQUE atual mantido).
+| Valor | Momento | Regra |
+| --- | --- | --- |
+| Previsto | agendamento | contrato vigente |
+| Aprovado | guia aprovada | **cria o recebível da operadora**: `lancamentos` com `tipo=receber`, `patient_id`/`appointment_id` NULL, `tiss_guide_id`, `payment_method=convenio` |
+| Faturado | guia enviada | registro de envio |
+| Recebido | `payment_transactions.kind=payment` | por pagamento registrado ou importado |
+| Glosado | glosa **definitiva** | `payment_transactions.kind=write_off` |
+| Pendente | — | aprovado − recebido − write_off |
 
-- Particular: igual a hoje.
-- Convênio com coparticipação: o recebível do paciente tem o valor da coparticipação.
-- Convênio sem coparticipação: não existe recebível do paciente.
+- **Coparticipação:** recebível do paciente ligado ao atendimento (UNIQUE atual respeitado), **só depois de confirmada**. O link Asaas do saldo cobre só esse recebível. Nunca o valor cheio.
+- **Reversão de glosa:** `write_off` nunca é apagado. Reverter cria lançamento compensatório auditado (padrão de estorno existente) e reabre o saldo.
+- **Trava de cobrança indevida:** teste e métrica `insurance.patient_charge_blocked` sempre que um caminho de cobrança ao paciente for barrado por convênio.
 
-**Recebível da operadora:**
+### C.12 Idempotência e concorrência
 
-- `lancamentos` com `tipo='receber'`, `patient_id = NULL`, `appointment_id = NULL`, `tiss_guide_id` e `health_insurer_id` preenchidos, `payment_method='convenio'`, `created_via='auto'`.
-- Criado quando a guia é **aprovada para faturamento**.
-- Por não ter `appointment_id` nem `patient_id`, não entra no saldo do atendimento (link Asaas), nem na régua de cobrança, nem no UNIQUE atual.
-- Exige estender o CHECK `lancamentos_auto_origin_chk` para aceitar `tiss_guide_id` como origem. **Isso troca uma constraint e precisa de aprovação.**
+- UNIQUE parciais: guia viva por (atendimento, tipo); recebível por guia; lote ativo por guia; item por (guia, sequencial).
+- Contadores com `UPDATE … RETURNING` sob lock de linha.
+- Aprovação concorrente: `UPDATE … WHERE status = 'conferida'`; o perdedor recebe conflito legível.
+- Montagem de lote: `SELECT … FOR UPDATE SKIP LOCKED` nas guias aprovadas.
+- Handlers idempotentes por `eventId`.
+- Importação de demonstrativo idempotente por SHA do arquivo.
 
-**Glosa e pagamento:**
+### C.13 Erros e resiliência
 
-- Pagamento: baixa no ledger existente (`payment_transactions`, `kind='payment'`).
-- Glosa: duas opções [DECISÃO PENDENTE D3b].
-  - (a) Novo `kind='write_off'` no ledger, append-only, que reduz o saldo sem fingir pagamento.
-  - (b) Glosa registrada só no `health-insurance`, com o saldo da operadora calculado lá.
-
-  Recomendação: **(a)**, porque mantém o Caixa e os relatórios financeiros como fonte única do saldo.
-
-**Outros pontos:**
-
-- Indicadores por guia e por operadora: valor previsto (contrato no agendamento), faturado (guia aprovada), glosado, recebido, saldo e data de pagamento.
-- Repasse ao profissional: comportamento atual mantido até a investigação T8.3. Nenhuma mudança sem decisão.
-
-### C.12 Idempotência
-
-| Operação | Garantia |
+| Tipo de erro | Tratamento |
 | --- | --- |
-| Criar guia | UNIQUE parcial (`clinic_id`, `appointment_id`, `guide_type`) para guias vivas + handler com `onConflictDoNothing` + chave da outbox `guide-prepare:<eventId>` |
-| Número da guia | contador com `UPDATE … RETURNING` na mesma transação da guia; buraco na numeração por rollback é aceitável e documentado |
-| Recebível da operadora | UNIQUE parcial em `lancamentos.tiss_guide_id` |
-| Lote | montagem idempotente por chave de idempotência da action; uma guia só fica em um lote ativo |
-| Substituição | só por ação explícita; a anterior vira `substituida` e a nova aponta `replaces_guide_id` |
-| Actions | `idempotentMutation` com chave do cliente |
+| Negócio | pendência explicada, nunca exceção |
+| Transitório | retentativa da outbox; reconcile cobre a perda |
+| Contrato violado | `PoisonPillError` → `failed` (dead letter existente) com alerta |
+| XML inválido | exportação recusada com os erros |
+| Caractere fora de latin1 | recusado por campo |
+| Conector fora do ar | circuito aberto, fallback manual, nenhum estado falso |
 
-### C.13 Tratamento de erros
+### C.14 Observabilidade
 
-- **Erro de negócio** (dado faltante): vira pendência legível. Nunca exceção que trava o worker.
-- **Erro transitório** (banco, timeout): retentável pela outbox. O reconcile cobre a perda.
-- **Erro de contrato** (`clinicId` divergente, payload inválido): `PoisonPillError`, como os handlers atuais.
-- **XML inválido no XSD:** exportação recusada com a lista de erros do validador. Nunca exporta "quase válido".
-- **Caractere fora de ISO-8859-1:** recusado com indicação do campo. Nunca substituído em silêncio.
+Métricas pelos mecanismos atuais (`src/lib/observability`, nomes registrados em `check:observability`):
 
-### C.14 Auditoria e rastreabilidade
+- `insurance.guide.created{type,status}`, `insurance.guide.failed`, `insurance.pending{kind}`;
+- `insurance.xml.validation_failed`, `insurance.pdf.failed`, `insurance.batch.rejected`;
+- `insurance.financial.divergence`, `insurance.patient_charge_blocked`;
+- `insurance.gloss.recorded{code}`, `insurance.duplicate_prevented`;
+- `insurance.authorization.expiring`, `insurance.connector.error`;
+- latência da conclusão até a guia.
 
-- Toda mutação audita pelos chokepoints existentes.
-- `hi_guide_events` registra cada transição e os nomes dos campos alterados, sem valores sensíveis.
-- O snapshot da guia é cifrado com `encryptForTenant`, com hash para detectar alteração.
-- XML exportado: SHA-256 e hash do epílogo gravados no lote. O arquivo fica em armazenamento privado.
-- Logs, métricas e eventos nunca levam carteirinha, nome ou CPF.
+Logs estruturados sem PII. Alertas: handler `failed`, convênio sem guia após 30 min, guia aprovada sem recebível, lote exportado sem envio após o prazo da operadora, divergência financeira, conector com erro.
 
 ---
 
 ## D. Plano de implementação
 
-**Formato de cada tarefa:** ID · Objetivo · Contexto · Dependências · Arquivos · Procedimento · Critério de aceite · Testes · Resultado esperado · Evidência · Status.
+**Fases P0–P15:** marcos de execução, **não entregas MVP**. Todas as tarefas compõem o escopo de produção.
 
-**Status possíveis:** Pendente / Em execução / Bloqueado / Concluído. Tarefa só vira **Concluído** com evidência no Registro de execução.
+**Formato de cada tarefa:** ID (ID antigo) · Objetivo · Contexto · Dependências · Arquivos · Procedimento · Aceite · Testes · Resultado · Evidência · Status.
 
-**Total de tarefas do MVP: 58** (F0 a F11). As fases F12 e F13 ficam fora da conta.
+**Status:** Pendente / Em execução / Bloqueado / Concluído (só com evidência).
 
-### F0 — Preparação
+### D.0 Mapa dos IDs antigos (rev.1 → rev.2)
 
-**T0.1 · Auditoria do código**
+| rev.1 | rev.2 |
+| --- | --- |
+| T0.1, T0.2, T0.3 | P0.1, P0.2, P0.3 |
+| T0.4 | P0.5 |
+| T0.5 | P0.6 |
+| T0.6 | P0.7 |
+| T0.7 | P0.9 (artefatos) + P1.3 (carga no banco). Corrige a dependência invertida da rev.1 com T1.2. |
+| T1.1 | P1.1 |
+| T1.2 | P1.2 |
+| T1.3 | P1.4 |
+| T1.4 | P1.5 |
+| T1.5 | P1.6 + P1.7 |
+| T1.6 | P1.8 + P1.9 |
+| T1.7 | P1.10 |
+| T1.8 | P1.12 |
+| T1.9 | P1.14 |
+| T2.1–T2.5 | P2.1, P2.2, P2.3, P2.4, P2.6 |
+| T3.1–T3.2 | P3.1–P3.2 |
+| T4.1–T4.5 | P4.1–P4.5 |
+| T5.1–T5.2 | P5.1–P5.2 |
+| T6.1–T6.7 | P7.1–P7.7 |
+| T7.1 | P9.1 |
+| T7.2 | P9.2 |
+| T7.3 | P9.3 |
+| T7.4 | P9.6 + P9.8 |
+| T7.5 | P9.9 |
+| T8.1 | P10.1 |
+| T8.2 | P10.2 |
+| T8.3 | P10.4 |
+| T8.4 | P9.10 |
+| T9.1–T9.2 | P11.1–P11.2 |
+| T10.1–T10.4 | P12.1–P12.4 |
+| T10.5 | P1.13 |
+| T11.1 | P14.3 |
+| T11.2 | P13.2 |
+| T11.3 | P14.5 |
+| T11.4 | P15.1 |
+| T11.5 | P14.4 |
+| T11.6 | P15.3 |
+| F12.1 | P8.* |
+| F12.2 | P6.* |
+| F12.3 | P8.1 |
+| F12.4 | A.3 (matriz de escopo) |
+| F12.5 | P9.10 |
+| F12.6 | P9.6–P9.7 |
+| F13.1–F13.4 | P6.4–P6.5 + P9.4 |
+| F13.5 | P9.5 |
+| F13.6 | P9.8 |
+| F13.7 | P9.10 |
+
+### P0 — Preparação
+
+**P0.1 · Auditoria do código** (T0.1)
 - **Objetivo:** levantar a arquitetura real.
 - **Contexto:** pré-requisito do plano.
 - **Dependências:** —
 - **Arquivos:** seção B.
 - **Procedimento:** leitura do código e da documentação.
-- **Critério de aceite:** seção B escrita com caminhos citados.
-- **Testes:** n/a.
-- **Resultado esperado:** mapa de impactos.
-- **Evidência:** seção B; Registro de execução 10/11.
+- **Aceite:** seção B com caminhos.
+- **Testes:** —
+- **Resultado:** mapa de impacto.
+- **Evidência:** M, 10/11.
 - **Status:** **Concluído**.
 
-**T0.2 · Verificação regulatória**
+**P0.2 · Verificação regulatória** (T0.2)
 - **Objetivo:** confirmar versão, XSD, regras e TUSS.
-- **Contexto:** exigência de conformidade.
+- **Contexto:** conformidade.
 - **Dependências:** —
-- **Arquivos:** seção B.10.
-- **Procedimento:** download das fontes oficiais; extração do XSD, da planilha e do PDF; SHA-256.
-- **Critério de aceite:** fatos com fonte e hash.
-- **Testes:** n/a.
-- **Resultado esperado:** base regulatória.
-- **Evidência:** tabela de SHA-256 em B.10.
+- **Arquivos:** B.10.
+- **Procedimento:** download oficial e extração.
+- **Aceite:** fatos com fonte e SHA.
+- **Testes:** —
+- **Resultado:** base regulatória.
+- **Evidência:** B.10; M, 10/11.
 - **Status:** **Concluído**.
 
-**T0.3 · Documento mestre**
-- **Objetivo:** este arquivo.
-- **Contexto:** pedido explícito (§19).
-- **Dependências:** T0.1, T0.2.
-- **Arquivos:** `QORO_TISS_MASTER_PLAN.md`.
+**P0.3 · Plano rev.1** (T0.3)
+- **Objetivo:** primeira versão deste documento.
+- **Contexto:** §19 do pedido original.
+- **Dependências:** P0.1, P0.2.
+- **Arquivos:** este arquivo.
 - **Procedimento:** —
-- **Critério de aceite:** seções A–M presentes.
-- **Testes:** revisão humana.
-- **Resultado esperado:** SSOT.
-- **Evidência:** arquivo no worktree.
+- **Aceite:** seções A–M.
+- **Testes:** —
+- **Resultado:** plano MVP.
+- **Evidência:** commit `62b53f4e`.
 - **Status:** **Concluído**.
 
-**T0.4 · Base e numeração**
-- **Objetivo:** fixar a base da branch e o primeiro número de migration.
-- **Contexto:** PR #53 ocupa 0136–0142; a UI ainda não foi mergeada.
-- **Dependências:** D1 aprovada.
+**P0.4 · Plano rev.2 (produção)**
+- **Objetivo:** reescrever para production-ready, com validação cruzada e harness completo.
+- **Contexto:** diretriz de 10/11 ("não é MVP").
+- **Dependências:** P0.3.
+- **Arquivos:** este arquivo.
+- **Procedimento:** etapas A–H da diretriz.
+- **Aceite:**
+  - toda funcionalidade de A.4 tem tarefa, teste e aceite (H.3);
+  - ids antigos mapeados (D.0);
+  - commit específico.
+- **Testes:** revisão de consistência (H.3).
+- **Resultado:** plano de produção.
+- **Evidência:** commit da revisão (hash no Registro).
+- **Status:** **Em execução** (conclui no commit).
+
+**P0.5 · Base e numeração** (T0.4)
+- **Objetivo:** fixar a base e o primeiro número de migration.
+- **Contexto:** PR #53 e UI.
+- **Dependências:** D1.
 - **Arquivos:** —
-- **Procedimento:**
-  1. `git fetch`.
-  2. Listar o último número em `origin/main` e nos PRs abertos.
-  3. Se a #53 já tiver entrado, rebase na `main`.
-  4. Registrar o primeiro número livre.
-- **Critério de aceite:** número registrado em ESTADO ATUAL e sem colisão em nenhuma branch remota.
-- **Testes:** comando de listagem.
-- **Resultado esperado:** zero colisão.
-- **Evidência:** saída do comando no Registro.
-- **Status:** Bloqueado (B1, B4).
+- **Procedimento:** fetch; maior número por branch remota; estado do #53.
+- **Aceite:** registrado em B.3 sem colisão.
+- **Testes:** comando de E.5.
+- **Resultado:** 0143 livre.
+- **Evidência:** M, 10/11 (rev.2): max 0142 (#53 aberto, head `4e120afe`).
+- **Status:** **Concluído**. A reconferência a cada migration é gate permanente (E.5).
 
-**T0.5 · ADR-067 "Convênios e TISS"**
-- **Objetivo:** registrar as decisões transversais (contexto novo, vínculo financeiro, versionamento).
-- **Contexto:** `docs/CONVENTIONS.md` pede ADR para decisão duradoura.
-- **Dependências:** D1–D12 aprovadas.
+**P0.6 · ADR-067 "Convênios e TISS"** (T0.5)
+- **Objetivo:** registrar D1–D17.
+- **Contexto:** `docs/CONVENTIONS.md`.
+- **Dependências:** P0.4.
 - **Arquivos:** `docs/adr/067-convenios-e-tiss.md`, `docs/adr/README.md`.
-- **Procedimento:** escrever o ADR a partir de L.1.
-- **Critério de aceite:** ADR aprovado.
-- **Testes:** links válidos.
-- **Resultado esperado:** decisão rastreável.
+- **Procedimento:** escrever a partir de L.1.
+- **Aceite:** ADR com contexto, decisão, consequências e alternativas.
+- **Testes:** links.
+- **Resultado:** decisão rastreável.
 - **Evidência:** commit.
-- **Status:** Bloqueado (B1).
+- **Status:** Pendente.
 
-**T0.6 · XSDs no repositório**
-- **Objetivo:** versionar os XSDs 4.03.00 oficiais com manifesto.
+**P0.7 · XSDs no repositório** (T0.6)
+- **Objetivo:** XSDs 4.03.00 oficiais com manifesto.
 - **Contexto:** validação reproduzível.
-- **Dependências:** D7.
-- **Arquivos:** `src/contexts/health-insurance/tiss/schemas/4.03.00/*.xsd`, `MANIFEST.json`.
-- **Procedimento:**
-  1. Copiar do zip oficial (SHA em B.10) só os `.xsd` necessários: `tissV4_03_00`, `tissGuias`, `tissComplexTypes`, `tissSimpleTypes`, `xmldsig-core-schema` e `tissAssinaturaDigital`.
-  2. Gerar o manifesto.
-- **Critério de aceite:** SHA de cada arquivo confere com o zip.
-- **Testes:** teste que recalcula o manifesto.
-- **Resultado esperado:** schemas íntegros.
+- **Dependências:** P0.2.
+- **Arquivos:** `src/contexts/health-insurance/tiss/schemas/4.03.00/*.xsd`, `MANIFEST.json`, teste do manifesto.
+- **Procedimento:** copiar do zip oficial (SHA em B.10) os XSDs de que `tissV4_03_00.xsd` depende; manifesto com SHA de cada arquivo e do zip.
+- **Aceite:** o teste recalcula e confere; os imports e includes resolvem localmente.
+- **Testes:** unitário do manifesto.
+- **Resultado:** schemas íntegros.
 - **Evidência:** saída do teste.
 - **Status:** Pendente.
 
-**T0.7 · Pipeline de terminologia**
-- **Objetivo:** importar TUSS e domínios de forma versionada.
-- **Contexto:** nada de constante espalhada.
-- **Dependências:** T1.2.
-- **Arquivos:** `scripts/tiss/import-terminology.ts`, `data/tiss/terminologia/202609/*.json` (normalizado) com `MANIFEST.json`.
+**P0.8 · Avaliação do `xmllint-wasm` (D7)**
+- **Objetivo:** provar a compatibilidade antes de adicionar a dependência.
+- **Contexto:** autorização condicionada.
+- **Dependências:** P0.7.
+- **Arquivos:** relatório no Registro; protótipo fora do repositório (scratchpad).
 - **Procedimento:**
-  1. Ler a planilha oficial.
-  2. Normalizar código, termo e as três datas (serial Excel → ISO).
-  3. Gravar o JSON e o manifesto.
-  4. Carregar no banco DEV por script idempotente.
-- **Critério de aceite:**
-  - tabela 22 com o mesmo número de linhas da planilha (cerca de 5.960);
-  - tabelas 24, 26, 36, 52, 59, 72, 74, 75, 76, 77, 87 e 38 presentes;
-  - reimport sem duplicar.
-- **Testes:** unitários do parser; teste de contagem; reimport.
-- **Resultado esperado:** catálogo consultável.
-- **Evidência:** contagens no Registro.
-- **Status:** Pendente.
-
-### F1 — Fundação de dados
-
-Todas as tarefas desta fase dependem de T0.4 e D1–D3.
-
-**T1.1 · Contexto `health-insurance`**
-- **Objetivo:** esqueleto do bounded context.
-- **Contexto:** C.1.
-- **Dependências:** D2.
-- **Arquivos:**
-  - `src/contexts/health-insurance/{README.md,index.ts,api.ts,schema.ts,errors.ts,events.ts,types.ts}`;
-  - `eslint.config.mjs`;
-  - `docs/architecture/context-map.md`.
-- **Procedimento:** seguir o padrão de `financial`/`payments`; registrar o elemento no boundaries.
-- **Critério de aceite:** `arch:check` e `lint` verdes; import de `internal` de fora bloqueado.
-- **Testes:** `arch:check`, `lint`.
-- **Resultado esperado:** contexto isolado.
-- **Evidência:** saída dos gates.
-- **Status:** Pendente.
-
-**T1.2 · Migration de catálogo global**
-- **Objetivo:** `tiss_terminology_versions`, `tiss_terms`, `tiss_schema_versions`.
-- **Contexto:** C.5/C.9.
-- **Dependências:** T1.1.
-- **Arquivos:** `drizzle/migrations/0143_tiss_catalog.sql` (número a confirmar), `schema.ts`, `meta`.
-- **Procedimento:** tabelas, índices, RLS (SELECT para `authenticated`, escrita só admin), `_schema_version`.
-- **Critério de aceite:** `check:migrations` e `arch:db-check` verdes; aplicada no DEV; sem DML de terminologia.
-- **Testes:** gates + teste de grants.
-- **Resultado esperado:** catálogo vazio pronto.
-- **Evidência:** saída + consulta read-only no DEV.
-- **Status:** Pendente.
-
-**T1.3 · Migration de convênios da clínica**
-- **Objetivo:** criar `hi_clinic_settings`, `hi_counters`, `hi_insurers`, `hi_plans`, `hi_professional_profiles`, `hi_credentials` e `hi_procedure_contracts`.
-- **Contexto:** seção 4 do pedido.
-- **Dependências:** T1.2.
-- **Arquivos:** `0144_*.sql`, `schema.ts`.
-- **Procedimento:**
-  1. Criar as tabelas com RLS FORCE, policies, grants, índices liderados e CHECKs (registro ANS com 6 dígitos, valores ≥ 0, vigência coerente).
-  2. Deixar os contratos append-only, sem UPDATE de valor.
-- **Critério de aceite:** gates verdes; isolamento provado (T10.1).
-- **Testes:** migrations; tenant isolation.
-- **Resultado esperado:** cadastro persistível.
-- **Evidência:** saída.
-- **Status:** Pendente.
-
-**T1.4 · Migration de carteirinhas**
-- **Objetivo:** `hi_memberships`.
-- **Contexto:** seção 5 do pedido.
-- **Dependências:** T1.3.
-- **Arquivos:** `0145_*.sql`.
-- **Procedimento:** número cifrado, hash, últimos 4, UNIQUE parcial de preferencial ativo, histórico por `replaced_by_id`.
-- **Critério de aceite:** gates verdes; nenhum número em claro no banco.
-- **Testes:** teste de cifra; consulta no DEV mostra só o cifrado.
-- **Resultado esperado:** carteirinha protegida.
-- **Evidência:** saída.
-- **Status:** Pendente.
-
-**T1.5 · Modalidade no agendamento**
-- **Objetivo:** criar `appointments.billing_mode`, `hi_appointment_coverages` e `hi_authorizations`.
-- **Contexto:** seções 6 e 8 do pedido.
-- **Dependências:** T1.3, T1.4.
-- **Arquivos:** `0146_*.sql`, `scheduling/schema.ts`, `health-insurance/schema.ts`.
-- **Procedimento:**
-  1. Coluna `billing_mode` aditiva com default `particular` e CHECK.
-  2. Conferir que o trigger de snapshot imutável do `appointments` não bloqueia a coluna nova.
-  3. Criar as tabelas de cobertura e autorização.
-- **Critério de aceite:** agendamentos existentes continuam `particular`; gates verdes.
-- **Testes:** migrations; teste do trigger.
-- **Resultado esperado:** modalidade persistível.
-- **Evidência:** saída.
-- **Status:** Pendente.
-
-**T1.6 · Guias e lotes**
-- **Objetivo:** criar `hi_guides`, `hi_guide_events`, `hi_batches`, `hi_batch_guides` e `hi_guide_outcomes`.
-- **Contexto:** seções 10 e 11 do pedido.
-- **Dependências:** T1.5.
-- **Arquivos:** `0147_*.sql`.
-- **Procedimento:** UNIQUEs de idempotência (C.12), CHECK de estados e índices por status e operadora.
-- **Critério de aceite:** gates verdes.
-- **Testes:** migrations; teste de UNIQUE.
-- **Resultado esperado:** guia persistível.
-- **Evidência:** saída.
-- **Status:** Pendente.
-
-**T1.7 · Vínculo financeiro**
-- **Objetivo:** `lancamentos.tiss_guide_id` e `health_insurer_id`, UNIQUE parcial e ajuste do CHECK `lancamentos_auto_origin_chk`.
-- **Contexto:** C.11.
-- **Dependências:** D3 aprovada (troca de constraint).
-- **Arquivos:** `0148_*.sql`, `financial/schema.ts`.
-- **Procedimento:**
-  1. ADD COLUMN nullable.
-  2. Criar o CHECK novo `NOT VALID` e depois `VALIDATE`.
-  3. Remover o antigo na mesma migration.
-  4. Documentar o rollback.
-- **Critério de aceite:** `check:migrations` com aprovação registrada; lançamentos atuais continuam válidos.
-- **Testes:** testes de migration do financeiro (padrão `*-migration.test.ts`).
-- **Resultado esperado:** recebível da operadora possível.
-- **Evidência:** saída.
-- **Status:** Bloqueado (D3).
-
-**T1.8 · Permissões**
-- **Objetivo:** criar `view:convenios`, `manage:convenios`, `operate:convenios`, `view:faturamento_convenio` e `manage:faturamento_convenio`.
-- **Contexto:** seção 13 do pedido.
-- **Dependências:** D8.
-- **Arquivos:** `0149_*.sql`, `src/lib/auth/permissions.ts`, script de claims.
-- **Procedimento:**
-  1. Seed das permissões.
-  2. Bundles conforme a matriz de I.2.
-  3. Incrementar `claims_version`.
-- **Critério de aceite:** a matriz de I.2 bate no `effective_permissions_v` do DEV.
-- **Testes:** teste da matriz; `security:inventory`.
-- **Resultado esperado:** RBAC no backend.
-- **Evidência:** saída.
-- **Status:** Pendente.
-
-**T1.9 · Inventário de segurança**
-- **Objetivo:** registrar as superfícies novas (actions, rotas PDF e XML).
-- **Contexto:** gate de CI.
-- **Dependências:** T2–T7 conforme forem nascendo.
-- **Arquivos:** `scripts/security/inventory-lib.ts`, inventário gerado.
-- **Procedimento:** guardas declaradas por superfície.
-- **Critério de aceite:** `security:inventory --check` verde.
-- **Testes:** gate.
-- **Resultado esperado:** inventário fiel.
-- **Evidência:** saída.
-- **Status:** Pendente.
-
-### F2 — Cadastro de convênios (Configurações)
-
-**T2.1 · Operadoras e planos**
-- **Objetivo:** CRUD com ativar e desativar.
-- **Contexto:** seção 4 do pedido.
-- **Dependências:** T1.3, T1.8.
-- **Arquivos:** `health-insurance/actions.ts`, `internal/insurers.ts`, `types.ts`.
-- **Procedimento:**
-  1. Validar com Zod (registro ANS com 6 dígitos; código do prestador até 14; CPF ou CNPJ conforme o tipo).
-  2. Desativar em vez de excluir quando houver uso.
-- **Critério de aceite:** CRUD auditado; sem acesso cross-tenant; desativada some das listas de agendamento.
-- **Testes:** unitários de validação; integração com o banco DEV.
-- **Resultado esperado:** operadoras gerenciáveis.
-- **Evidência:** testes.
-- **Status:** Pendente.
-
-**T2.2 · Credenciamento e perfil TISS**
-- **Objetivo:** profissional × operadora × plano, com vigência; conselho, número, UF e CBO.
-- **Contexto:** "não presumir que todos aceitam todos".
-- **Dependências:** T2.1.
-- **Arquivos:** `internal/credentials.ts`, `internal/professional-profile.ts`.
-- **Procedimento:**
-  1. Sugerir conselho `06` e UF a partir de `profiles.crm_uf`, sempre com confirmação humana.
-  2. CBO escolhido da tabela 24.
-- **Critério de aceite:** profissional sem perfil TISS gera pendência na guia, não erro.
-- **Testes:** unitários do `EligibilityFilter`.
-- **Resultado esperado:** credenciamento real.
-- **Evidência:** testes.
-- **Status:** Pendente.
-
-**T2.3 · Contratos de procedimento**
-- **Objetivo:** `procedures` do Qoro × operadora/plano → tabela 22 + código TUSS + valor + autorização + coparticipação + vigência.
-- **Contexto:** seção 4 do pedido.
-- **Dependências:** T0.7, T2.1.
-- **Arquivos:** `internal/procedure-contracts.ts`.
-- **Procedimento:**
-  1. Buscar o TUSS na terminologia vigente.
-  2. Rejeitar código fora de vigência.
-  3. Criar versão nova por alteração.
-- **Critério de aceite:** código inexistente rejeitado; histórico preservado.
-- **Testes:** unitários de vigência.
-- **Resultado esperado:** valores negociados.
-- **Evidência:** testes.
-- **Status:** Pendente.
-
-**T2.4 · Dados do prestador**
-- **Objetivo:** PF ou PJ, nome do contratado, CNES (ou 9999999) e identificação por operadora.
-- **Contexto:** campos 9–11 e regras de B.10.
-- **Dependências:** T2.1; normalização do CNPJ (ver risco R5).
-- **Arquivos:** `internal/clinic-settings.ts`.
-- **Procedimento:** ler `clinics.cnes` e o CNPJ decifrado; normalizar o CNPJ alfanumérico; preencher 9999999 só quando a clínica declarar que não tem CNES.
-- **Critério de aceite:** CNPJ inválido vira pendência.
-- **Testes:** unitários de normalização (inclui o alfanumérico).
-- **Resultado esperado:** prestador correto.
-- **Evidência:** testes.
-- **Status:** Pendente.
-
-**T2.5 · Tela Configurações › Convênios**
-- **Objetivo:** lista, detalhe e formulários em gavetas curtas, com termos explicados.
-- **Contexto:** seção 15 do pedido.
-- **Dependências:** T2.1–T2.4.
-- **Arquivos:** `src/app/(app)/(shell)/configuracoes/convenios/*`, `settings-navigation.ts`.
-- **Procedimento:** usar os primitivos de `src/components/ui`; categoria "Gestão".
-- **Critério de aceite:** funciona em 375, 768, 1024 e 1440; sem rolagem lateral; só aparece com `view:convenios`.
-- **Testes:** testes de componente; e2e na Preview.
-- **Resultado esperado:** gestor configura sozinho.
-- **Evidência:** capturas e e2e.
-- **Status:** Pendente.
-
-### F3 — Paciente
-
-**T3.1 · Carteirinhas**
-- **Objetivo:** vincular, editar (nova versão), desativar e tornar preferencial.
-- **Contexto:** seção 5 do pedido.
-- **Dependências:** T1.4, T2.1.
-- **Arquivos:** `internal/memberships.ts`, `actions.ts`.
-- **Procedimento:** cifrar o número; hash para busca; últimos 4 para exibir; manter a versão antiga ligada às guias.
-- **Critério de aceite:** editar não muda guia antiga; um preferencial ativo por paciente.
-- **Testes:** unitários e integração.
-- **Resultado esperado:** dados reutilizáveis.
-- **Evidência:** testes.
-- **Status:** Pendente.
-
-**T3.2 · Aba "Convênios" na ficha**
-- **Objetivo:** listar e editar.
-- **Contexto:** seção 5 do pedido.
-- **Dependências:** T3.1.
-- **Arquivos:** `src/app/(app)/(shell)/pacientes/[id]/*`.
-- **Procedimento:** número mascarado (últimos 4); completo só para quem tem `operate:convenios`, com auditoria de visualização.
-- **Critério de aceite:** médico sem permissão não vê o número completo.
-- **Testes:** componente; e2e.
-- **Resultado esperado:** recepção cadastra uma vez.
-- **Evidência:** capturas.
-- **Status:** Pendente.
-
-### F4 — Agendamento
-
-**T4.1 · Modalidade no agendamento**
-- **Objetivo:** `billingMode` na entrada; cobertura gravada na mesma unidade de trabalho.
-- **Contexto:** seção 6 do pedido.
-- **Dependências:** T1.5, T2.2, T2.3, T3.1.
-- **Arquivos:**
-  - `scheduling/types.ts`, `internal/appointment-core.ts`, `actions.ts`;
-  - `healthInsuranceApiV1`.
-- **Procedimento:**
-  1. Particular: nada muda.
-  2. Convênio: o `EligibilityFilter` define as opções e o valor contratado.
-  3. Recusar convênio ou plano não aceito por aquele profissional e procedimento.
-  4. Gravar a cobertura com pendências.
-- **Critério de aceite:**
-  - particular idêntico (regressão);
-  - convênio grava `billing_mode`, cobertura e valor do contrato;
-  - combinação não aceita é recusada no backend.
-- **Testes:** unitários e integração; regressão do agendamento particular.
-- **Resultado esperado:** modalidade salva.
-- **Evidência:** testes.
-- **Status:** Pendente.
-
-**T4.2 · Valor e política comercial**
-- **Objetivo:** o valor do convênio vem do contrato; política `absorb_fees`; sem método comercial.
-- **Contexto:** CHECK `appointments_commercial_price_snapshot_chk`.
-- **Dependências:** T4.1.
-- **Arquivos:** `appointment-core.ts`.
-- **Procedimento:** snapshot do valor contratado e do nome do procedimento.
-- **Critério de aceite:** CHECK satisfeito.
-- **Testes:** unitários.
-- **Resultado esperado:** valor previsto correto.
-- **Evidência:** testes.
-- **Status:** Pendente.
-
-**T4.3 · Troca de modalidade**
-- **Objetivo:** permitir trocar até `chegou`. Depois disso, só pelo fluxo de correção.
-- **Contexto:** "permitir alterar até o momento adequado".
-- **Dependências:** T4.1.
-- **Arquivos:** `scheduling/actions.ts`, `health-insurance/internal/coverage.ts`.
-- **Procedimento:** registrar a troca no histórico; desfazer a cobertura com segurança.
-- **Critério de aceite:** troca após `atendido` recusada com orientação.
-- **Testes:** unitários de estado.
-- **Resultado esperado:** histórico coerente.
-- **Evidência:** testes.
-- **Status:** Pendente.
-
-**T4.4 · Tela de agendamento**
-- **Objetivo:** controle "Forma de atendimento" e pendências visíveis.
-- **Contexto:** seção 6 do pedido.
-- **Dependências:** T4.1.
-- **Arquivos:** `agenda/new-appointment-drawer.tsx` e afins.
-- **Procedimento:**
-  1. Particular continua como padrão.
-  2. Convênio mostra as opções filtradas e a carteirinha preferencial.
-  3. Alertas de "carteirinha não cadastrada" e "autorização necessária".
-- **Critério de aceite:** recepção agenda os dois tipos; nada muda para clínica sem convênio.
-- **Testes:** componente; e2e.
-- **Resultado esperado:** fluxo simples.
-- **Evidência:** capturas e e2e.
-- **Status:** Pendente.
-
-**T4.5 · Guardas de cobrança ao paciente**
-- **Objetivo:** sem sinal, sem link do saldo cheio e sem régua para convênio.
-- **Contexto:** B.6 e B.9.
-- **Dependências:** T4.1, T8.1.
-- **Arquivos:**
-  - `scheduling/deposit-candidates.ts`;
-  - `payments/policy.ts` e `internal/remainder-charge.ts`;
-  - `financial/dunning-candidates.ts`.
-- **Procedimento:** filtrar por `billing_mode = 'particular'` onde se decide cobrar; o recebível da operadora não tem paciente.
-- **Critério de aceite:**
-  - consulta de convênio não gera hold de sinal nem link Asaas do valor cheio;
-  - particular inalterado.
-- **Testes:** regressão de sinal e saldo; testes novos de convênio.
-- **Resultado esperado:** zero cobrança indevida.
-- **Evidência:** testes.
-- **Status:** Pendente.
-
-### F5 — Recepção e check-in
-
-**T5.1 · Estados administrativos**
-- **Objetivo:** `dados_incompletos`, `pendente_autorizacao`, `autorizacao_informada`, `conferido`; autorização manual.
-- **Contexto:** seção 8 do pedido.
-- **Dependências:** T1.5, T4.1.
-- **Arquivos:** `internal/coverage.ts`, `actions.ts`.
-- **Procedimento:**
-  1. Recalcular as pendências a cada mudança.
-  2. Gravar a autorização como "informada" com quem registrou.
-  3. Não tocar o status clínico.
-- **Critério de aceite:** nenhuma pendência bloqueia `chegou → em_atendimento → atendido`.
-- **Testes:** unitários; integração com o consultório.
-- **Resultado esperado:** recepção completa sem travar.
-- **Evidência:** testes.
-- **Status:** Pendente.
-
-**T5.2 · Resumo administrativo**
-- **Objetivo:** cartão na agenda e no consultório.
-- **Contexto:** seção 8 do pedido.
-- **Dependências:** T5.1.
-- **Arquivos:** telas da agenda e do consultório.
-- **Procedimento:** mostrar modalidade, operadora, plano, carteirinha mascarada, profissional, procedimento, autorização e pendências.
-- **Critério de aceite:** apresentação conforme o perfil.
-- **Testes:** componente; e2e.
-- **Resultado esperado:** visão clara.
-- **Evidência:** capturas.
-- **Status:** Pendente.
-
-### F6 — Guia de Consulta
-
-**T6.1 · Numeração**
-- **Objetivo:** número da guia no prestador (até 20) por clínica.
-- **Contexto:** campo 2.
-- **Dependências:** T1.3, T1.6.
-- **Arquivos:** `internal/numbering.ts`.
-- **Procedimento:** `UPDATE hi_counters … RETURNING` na mesma transação.
-- **Critério de aceite:** 100 chamadas concorrentes geram números únicos.
-- **Testes:** teste de concorrência no DEV.
-- **Resultado esperado:** sem duplicata.
-- **Evidência:** saída.
-- **Status:** Pendente.
-
-**T6.2 · `GuideAssembler`**
-- **Objetivo:** snapshot completo a partir das fontes.
-- **Contexto:** seção 9 do pedido, "não redigitar".
-- **Dependências:** T2.x, T3.1, T4.1.
-- **Arquivos:** `internal/guide-assembler.ts`.
-- **Procedimento:**
-  1. Juntar cobertura, carteirinha, operadora, credenciamento, perfil TISS, prestador e contrato vigente na data do atendimento.
-  2. **Nunca** ler o prontuário nem o CID.
-  3. Valores padrão:
-     - tipo de consulta `1`, ou `2` quando houver retorno contratual (D11);
-     - regime `01`;
-     - indicação de acidente `9`.
-- **Critério de aceite:** função pura; teste prova a ausência de CID.
-- **Testes:** unitários com fixtures.
-- **Resultado esperado:** dados preenchidos.
-- **Evidência:** testes.
-- **Status:** Pendente.
-
-**T6.3 · `GuideValidator`**
-- **Objetivo:** regras estruturais e semânticas com mensagens claras.
-- **Contexto:** B.10 itens 3, 7 e 9.
-- **Dependências:** T6.2, T0.7.
-- **Arquivos:** `internal/guide-validator.ts`.
-- **Procedimento:**
-  1. Tabelas de regras: tamanho, domínio, obrigatoriedade, vigência TUSS, CNES/9999999, PF/PJ, ISO-8859-1.
-  2. Cada pendência sai com código, campo, explicação curta e quem resolve.
-- **Critério de aceite:** cada regra tem teste positivo e negativo; CID ausente nunca gera pendência.
-- **Testes:** unitários (matriz).
-- **Resultado esperado:** pendências úteis.
-- **Evidência:** testes.
-- **Status:** Pendente.
-
-**T6.4 · Handler de conclusão**
-- **Objetivo:** consulta de convênio encerrada vira guia.
-- **Contexto:** seção 10 do pedido, itens 1–8.
-- **Dependências:** T6.1–T6.3; `billingMode` no evento.
-- **Arquivos:** `health-insurance/internal/handlers/appointment-completed.ts`, `scheduling/events.ts`.
-- **Procedimento:**
-  1. Ler `billingMode`.
-  2. Montar, validar e inserir com `onConflictDoNothing`.
-  3. Status `pronta_para_conferencia` ou `com_pendencias`.
-  4. Publicar `guide.prepared`.
-  5. Estender o reconcile para "convênio sem guia".
-- **Critério de aceite:**
-  - reentrega do evento não duplica;
-  - particular não cria guia;
-  - falha transitória é retentada.
-- **Testes:** unitários do handler; integração com a outbox no DEV; reprocessamento.
-- **Resultado esperado:** guia automática.
-- **Evidência:** testes e consulta.
-- **Status:** Pendente.
-
-**T6.5 · Ciclo de vida da guia**
-- **Objetivo:** estados (C.8), edição controlada, aprovação, cancelamento, substituição e histórico.
-- **Contexto:** seção 10, "Interface".
-- **Dependências:** T6.4.
-- **Arquivos:** `internal/guide-lifecycle.ts`, `actions.ts`.
-- **Procedimento:**
-  1. Definir a lista de campos editáveis por permissão.
-  2. Edição gera evento com os nomes dos campos.
-  3. Depois de exportada, só por substituição.
-- **Critério de aceite:** transições inválidas recusadas; "enviada" só com registro manual.
-- **Testes:** unitários da máquina de estados.
-- **Resultado esperado:** rastreabilidade.
-- **Evidência:** testes.
-- **Status:** Pendente.
-
-**T6.6 · PDF no modelo oficial**
-- **Objetivo:** Guia de Consulta, campos 1–29 numerados como no Conteúdo e Estrutura 202511.
-- **Contexto:** "não PDF genérico".
-- **Dependências:** T6.2.
-- **Arquivos:** `src/lib/pdf/guia-consulta.tsx`, rota autenticada.
-- **Procedimento:**
-  1. Reproduzir a disposição do modelo (p. 469 do PDF oficial).
-  2. Campos 24 e 25 com espaço para assinatura física.
-  3. Nome do beneficiário (7) decifrado só na renderização.
-- **Critério de aceite:** comparação visual lado a lado com o modelo oficial registrada; teste extrai o texto do PDF e acha os 29 rótulos.
-- **Testes:** `pdfjs-dist` (já é devDependency) no teste; captura.
-- **Resultado esperado:** PDF conferível e imprimível.
-- **Evidência:** imagem lado a lado e teste.
-- **Status:** Pendente.
-
-**T6.7 · Tela da guia**
-- **Objetivo:** visualizar, conferir, editar, ver inconsistências, PDF, aprovar e histórico.
-- **Contexto:** seção 10 do pedido.
-- **Dependências:** T6.5, T6.6.
-- **Arquivos:** `src/app/(app)/(shell)/financeiro/convenios/guias/[id]/*`.
-- **Procedimento:** pendências no topo, com explicação e link para onde resolver.
-- **Critério de aceite:** recepção e financeiro conseguem; médico só vê as guias dos próprios atendimentos.
-- **Testes:** componente; e2e.
-- **Resultado esperado:** conferência simples.
-- **Evidência:** capturas.
-- **Status:** Pendente.
-
-### F7 — Faturamento e XML
-
-**T7.1 · `TissXmlBuilder`**
-- **Objetivo:** `mensagemTISS` com `loteGuias` e `guiaConsulta` na ordem do XSD.
-- **Contexto:** B.10 itens 4–6.
-- **Dependências:** T6.2, T0.6.
-- **Arquivos:** `internal/tiss/xml-builder.ts`.
-- **Procedimento:**
-  1. Serializador próprio, sem dependência, com escape de XML.
-  2. Codificação ISO-8859-1 (`Buffer` latin1).
-  3. Hash MD5 do conteúdo em ordem de documento.
-- **Critério de aceite:** hash recalculado de forma independente bate; caractere fora de latin1 recusado.
-- **Testes:** unitários (golden files).
-- **Resultado esperado:** XML determinístico.
-- **Evidência:** testes.
-- **Status:** Pendente.
-
-**T7.2 · `TissXsdValidator`**
-- **Objetivo:** validar contra o XSD 4.03.00.
-- **Contexto:** seção 11 do pedido.
-- **Dependências:** D7, T0.6.
-- **Arquivos:** `internal/tiss/xsd-validator.ts`.
-- **Procedimento:** biblioteca aprovada em D7; carregar os XSDs do manifesto.
-- **Critério de aceite:**
-  - 100% dos XMLs de teste válidos passam;
-  - 100% dos inválidos (um por regra) falham com mensagem.
-- **Testes:** matriz de golden files.
-- **Resultado esperado:** validação real.
-- **Evidência:** relatório da matriz.
-- **Status:** Bloqueado (D7).
-
-**T7.3 · Lotes**
-- **Objetivo:** montar (mesma operadora, tipo e versão, até 100), numerar, exportar e guardar.
-- **Contexto:** seção 11 do pedido.
-- **Dependências:** T7.1, T7.2, T6.5.
-- **Arquivos:** `internal/batches.ts`, rota do XML.
-- **Procedimento:**
-  1. Exportar só se o XSD aprovar.
-  2. Guardar o XML em armazenamento privado com SHA.
-  3. Status "XML exportado", nunca "enviado".
-- **Critério de aceite:** lote com 101 guias recusado; guia em dois lotes ativos recusada.
-- **Testes:** unitários e integração.
-- **Resultado esperado:** lote exportável.
-- **Evidência:** testes e arquivo.
-- **Status:** Pendente.
-
-**T7.4 · Registro manual de retorno**
-- **Objetivo:** envio, protocolo, retorno, glosas (tabela 38) e pagamentos.
-- **Contexto:** seção 11 do pedido.
-- **Dependências:** T7.3, T8.2.
-- **Arquivos:** `internal/outcomes.ts`.
-- **Procedimento:** append-only; cada registro com autor e data.
-- **Critério de aceite:** totais coerentes (faturado = recebido + glosado + saldo).
-- **Testes:** unitários.
-- **Resultado esperado:** acompanhamento.
-- **Evidência:** testes.
-- **Status:** Pendente.
-
-**T7.5 · Telas do financeiro**
-- **Objetivo:** Financeiro › Convênios › Guias (filtros: operadora, profissional, período, status), Lotes e Retornos.
-- **Contexto:** seção 11 do pedido.
-- **Dependências:** T7.3, T7.4.
-- **Arquivos:** `src/app/(app)/(shell)/financeiro/convenios/*`.
-- **Procedimento:** listas paginadas; seleção em massa das prontas para faturar.
-- **Critério de aceite:** funciona no celular; filtros no servidor.
-- **Testes:** componente; e2e.
-- **Resultado esperado:** financeiro opera.
-- **Evidência:** capturas.
-- **Status:** Pendente.
-
-### F8 — Financeiro existente
-
-**T8.1 · Desvio no handler de conclusão**
-- **Objetivo:** convênio sem recebível cheio do paciente; coparticipação conforme D5; reconcile coerente.
-- **Contexto:** B.6 e B.9.
-- **Dependências:** D3, D5; `billingMode` no evento.
-- **Arquivos:** `financial/internal/handlers/appointment-completed.ts`, `api/cron/financial-reconcile/route.ts`.
-- **Procedimento:**
-  1. Ramo explícito por `billingMode`; ausência significa `particular`.
-  2. O reconcile não abre pendência para convênio sem coparticipação.
-- **Critério de aceite:** testes atuais do handler continuam verdes; testes novos cobrem convênio.
-- **Testes:** `appointment-completed.test.ts`; testes do reconcile.
-- **Resultado esperado:** sem dívida falsa.
-- **Evidência:** testes.
-- **Status:** Bloqueado (D3, D5).
-
-**T8.2 · Recebível da operadora**
-- **Objetivo:** criar na aprovação; baixas e glosas.
-- **Contexto:** C.11.
-- **Dependências:** T1.7, T6.5.
-- **Arquivos:** `financial/internal/handlers/guide-approved.ts`.
-- **Procedimento:**
-  1. Idempotente por `tiss_guide_id`.
-  2. Cancelar se a guia for cancelada sem baixa.
-  3. Glosa conforme D3b.
-- **Critério de aceite:** previsto, faturado, glosado, recebido e saldo corretos em teste.
-- **Testes:** unitários e integração.
-- **Resultado esperado:** recebível da operadora.
-- **Evidência:** testes.
-- **Status:** Bloqueado (D3).
-
-**T8.3 · Repasse**
-- **Objetivo:** entender o efeito de convênio no repasse (gross/net).
-- **Contexto:** B.9 item 3.
-- **Dependências:** —
-- **Arquivos:** `financial/internal/professional-payout.ts`.
-- **Procedimento:** leitura e teste do comportamento atual; proposta registrada como decisão.
-- **Critério de aceite:** decisão escrita e aprovada.
-- **Testes:** testes de caracterização.
-- **Resultado esperado:** sem mudança silenciosa.
-- **Evidência:** decisão.
-- **Status:** Pendente.
-
-**T8.4 · Indicadores**
-- **Objetivo:** previsto, faturado, glosado, recebido, saldo e data de pagamento por guia e por operadora.
-- **Contexto:** seção 12 do pedido.
-- **Dependências:** T8.2, T7.4.
-- **Arquivos:** queries e tela de T7.5.
-- **Procedimento:** queries no servidor.
-- **Critério de aceite:** somatórios conferem com os lançamentos.
-- **Testes:** unitários de query.
-- **Resultado esperado:** visão financeira.
-- **Evidência:** testes.
-- **Status:** Pendente.
-
-### F9 — Agendamento por WhatsApp
-
-**T9.1 · Tool `list_insurance_options` + `prepare_appointment`**
-- **Objetivo:** perguntar particular ou convênio; listar só convênios cadastrados e aceitos; seguir o fluxo atual.
-- **Contexto:** seção 7 do pedido.
-- **Dependências:** T4.1; estado do PR #28.
-- **Arquivos:** `ai-agent/tools/*`, `prompts/system.ts`, `registry.ts`.
-- **Procedimento:**
-  1. Dados reais pela `healthInsuranceApiV1`.
-  2. Sem elegibilidade, sem dado clínico.
-  3. Handoff em dúvida de cobertura ou autorização.
-  4. Fallback para `ai_clinic_config.convenios` só se a clínica não usa o módulo (D12).
-- **Critério de aceite:** a tool nunca devolve operadora que não esteja cadastrada; a resposta nunca afirma cobertura.
-- **Testes:** unitários das tools; guardas.
-- **Resultado esperado:** IA coerente.
-- **Evidência:** testes.
-- **Status:** Pendente.
-
-**T9.2 · Jornadas**
-- **Objetivo:** roteiros de conversa (particular, convênio, convênio não aceito, dúvida de cobertura).
-- **Contexto:** "não quebrar agendamentos particulares".
-- **Dependências:** T9.1.
-- **Arquivos:** padrão de `scripts/smoke-agent-journeys.ts`.
-- **Procedimento:** roteiros determinísticos com modelo simulado no CI; validação ao vivo só na Preview e com autorização.
-- **Critério de aceite:** jornadas particulares atuais intactas.
-- **Testes:** smoke.
-- **Resultado esperado:** sem regressão.
-- **Evidência:** saída.
-- **Status:** Pendente.
-
-### F10 — Segurança, auditoria e LGPD
-
-**T10.1 · Isolamento entre clínicas**
-- **Objetivo:** provar o isolamento de todas as tabelas `hi_*`.
-- **Contexto:** seção 13 do pedido.
-- **Dependências:** F1.
-- **Arquivos:** `scripts/security/tenant-isolation.ts`.
-- **Procedimento:** dois tenants no DEV; leitura e escrita cruzadas.
-- **Critério de aceite:** zero linhas cruzadas.
-- **Testes:** `security:tenant`.
-- **Resultado esperado:** isolamento provado.
-- **Evidência:** saída.
-- **Status:** Pendente.
-
-**T10.2 · Matriz de permissões**
-- **Objetivo:** cada action e rota testada por papel (I.2).
-- **Contexto:** seção 13 do pedido.
-- **Dependências:** T1.8.
-- **Arquivos:** testes de actions.
-- **Procedimento:** chamar como cada papel e esperar recusa no backend.
-- **Critério de aceite:** financeiro não lê anamnese; médico não vê guia de outro médico.
-- **Testes:** unitários e integração.
-- **Resultado esperado:** RBAC correto.
-- **Evidência:** testes.
-- **Status:** Pendente.
-
-**T10.3 · LGPD**
-- **Objetivo:** exportação, anonimização e retenção das carteirinhas e guias.
-- **Contexto:** finalidade limitada.
-- **Dependências:** F3, F6.
-- **Arquivos:** fluxos LGPD do `patient` (via API).
-- **Procedimento:**
-  1. Incluir os dados de convênio no export do paciente.
-  2. Anonimizar a carteirinha no hard delete.
-  3. Manter a guia faturada pelo prazo legal, com o titular anonimizado [HIPÓTESE jurídica a validar].
-- **Critério de aceite:** decisão de retenção aprovada.
-- **Testes:** testes LGPD.
-- **Resultado esperado:** conformidade.
-- **Evidência:** testes e decisão.
-- **Status:** Pendente.
-
-**T10.4 · Auditoria**
-- **Objetivo:** toda mutação nova auditada; visualização do número completo da carteirinha auditada.
-- **Contexto:** seção 13 do pedido.
-- **Dependências:** F2–F7.
-- **Arquivos:** —
-- **Procedimento:** conferir pelo inventário e por testes.
-- **Critério de aceite:** 100% das actions com auditoria.
-- **Testes:** inventário.
-- **Resultado esperado:** rastreabilidade.
-- **Evidência:** saída.
-- **Status:** Pendente.
-
-**T10.5 · Interruptor do módulo**
-- **Objetivo:** `hi_clinic_settings.enabled` por clínica e interruptor de plataforma.
-- **Contexto:** J.
-- **Dependências:** T1.3.
-- **Arquivos:** `src/lib/platform-settings`.
-- **Procedimento:**
-  1. Desligado: UI oculta, agendamento só particular.
-  2. Guias existentes continuam legíveis.
-- **Critério de aceite:** desligar não perde dado.
-- **Testes:** unitários.
-- **Resultado esperado:** rollback rápido.
-- **Evidência:** testes.
-- **Status:** Pendente.
-
-### F11 — Validação final do MVP
-
-**T11.1 · E2E na Preview**
-- **Objetivo:** cenários de G.3 com a conta de teste autorizada.
-- **Contexto:** seção 17 do pedido.
-- **Dependências:** F2–F9.
-- **Arquivos:** `e2e/convenios-*.spec.ts` (nunca `production-*`).
-- **Procedimento:** Preview e banco DEV.
-- **Critério de aceite:** todos verdes.
-- **Testes:** Playwright.
-- **Resultado esperado:** fluxo ponta a ponta.
-- **Evidência:** relatório e capturas.
-- **Status:** Pendente.
-
-**T11.2 · Matriz regulatória**
-- **Objetivo:** G.4 completa.
-- **Contexto:** seção 19.5 do pedido.
-- **Dependências:** T7.2.
-- **Arquivos:** relatório no Registro.
-- **Procedimento:** —
-- **Critério de aceite:** 100% conforme H.
-- **Testes:** —
-- **Resultado esperado:** evidência de conformidade estrutural.
+  1. Instalar a versão fixada em diretório isolado.
+  2. Validar com os XSDs oficiais e seus imports.
+  3. Medir: XML de 1, 100 e 1.000 guias (tempo e memória); XML ISO-8859-1; erros (quantidade e formato); Node 22; execução numa função Next/Vercel (rota Node de Preview).
+  4. Comparar com `xmllint` nativo (libxml2), se disponível, nos mesmos arquivos.
+- **Aceite:** todos os critérios de D7 aprovados com números; senão, registrar a alternativa.
+- **Testes:** protótipo.
+- **Resultado:** dependência aprovada ou rejeitada com dados.
 - **Evidência:** relatório.
 - **Status:** Pendente.
 
-**T11.3 · Gates completos**
-- **Objetivo:** todos os gates de `docs/development/testing.md`.
-- **Contexto:** regressão.
-- **Dependências:** tudo.
-- **Arquivos:** —
-- **Procedimento:** ver E.7.
-- **Critério de aceite:** todos verdes, ou falhas preexistentes provadas na base.
-- **Testes:** —
-- **Resultado esperado:** sem regressão.
-- **Evidência:** saídas.
+**P0.9 · Artefatos de terminologia** (parte de T0.7)
+- **Objetivo:** gerar dados TUSS normalizados a partir das planilhas oficiais.
+- **Contexto:** sem constantes.
+- **Dependências:** P0.2.
+- **Arquivos:** `scripts/tiss/terminology/*.ts`, `data/tiss/terminologia/202609/*.json`, `MANIFEST.json`.
+- **Procedimento:**
+  1. Leitor de xlsx (zip + XML) sem dependência nova.
+  2. Normalizar código, termo e datas (serial Excel → ISO).
+  3. Tabelas 22, 23, 24, 26, 36, 38, 52, 59, 72, 74, 75, 76, 77 e 87.
+- **Aceite:**
+  - contagens iguais às planilhas;
+  - `10101012` presente com vigência;
+  - reprodutível (mesmo SHA ao reexecutar).
+- **Testes:** unitários do parser; teste de contagem.
+- **Resultado:** terminologia versionada.
+- **Evidência:** contagens e SHA.
 - **Status:** Pendente.
 
-**T11.4 · Documentação**
-- **Objetivo:** atualizar `docs/domains/*`, `docs/database/schema.md`, `known-limitations.md`, a central de ajuda e o ADR.
-- **Contexto:** fonte canônica.
-- **Dependências:** tudo.
-- **Arquivos:** —
-- **Procedimento:** —
-- **Critério de aceite:** links válidos.
-- **Testes:** —
-- **Resultado esperado:** docs fiéis.
-- **Evidência:** diff.
+**P0.10 · Infraestrutura do corpus de validação**
+- **Objetivo:** estrutura para gerar o corpus sintético a partir do código real, com manifesto.
+- **Contexto:** P13.
+- **Dependências:** P0.7.
+- **Arquivos:** `src/contexts/health-insurance/tiss/__corpus__/` (definições de cenário), `scripts/tiss/corpus.ts`.
+- **Procedimento:** cenário = dados sintéticos + expectativa; o script gera o XML com o builder real, valida e grava o SHA.
+- **Aceite:** um cenário vazio roda ponta a ponta.
+- **Testes:** unitário.
+- **Resultado:** base do P13.
+- **Evidência:** saída.
 - **Status:** Pendente.
 
-**T11.5 · Medição de desempenho**
-- **Objetivo:** tempo da conclusão até a guia, geração de PDF e geração e validação de XML com 100 guias.
-- **Contexto:** H.2.
-- **Dependências:** T6.4, T7.3.
-- **Arquivos:** script de medição.
-- **Procedimento:** medir na Preview.
-- **Critério de aceite:** alvos de H.2 cumpridos ou desvio registrado.
-- **Testes:** —
-- **Resultado esperado:** números reais.
-- **Evidência:** relatório.
-- **Status:** Pendente.
+### P1 — Fundação de dados
 
-**T11.6 · Homologação com operadora**
-- **Objetivo:** aceitar um lote real em ambiente da operadora.
-- **Contexto:** XSD válido não significa aceito.
-- **Dependências:** clínica piloto e operadora.
-- **Arquivos:** —
-- **Procedimento:** só com autorização e dados reais da clínica.
-- **Critério de aceite:** protocolo de aceite registrado.
-- **Testes:** —
-- **Resultado esperado:** validação externa.
-- **Evidência:** protocolo.
-- **Status:** Bloqueado (externo).
+Todas dependem de P0.5 e D1–D3. Cada migration segue E.5: numeração, `check:migrations`, `arch:db-check`, aplicação no DEV, testes de grants e RLS, plano de rollback no cabeçalho do SQL.
 
-**Contagem do MVP:**
+| ID (antigo) | Objetivo | Dependências | Arquivos | Aceite | Testes | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| **P1.1** (T1.1) | contexto `health-insurance`: README, `index`/`api`, `schema`, `errors`, `events`, `types`; boundaries | P0.6 | `src/contexts/health-insurance/*`, `eslint.config.mjs`, `docs/architecture/context-map.md` | `arch:check` e `lint` verdes; `internal` bloqueado de fora | gates | Pendente |
+| **P1.2** (T1.2) | catálogo global (`tiss_terminology_versions`, `tiss_terms`, `tiss_schema_versions`) | P1.1 | migration 0143*, `schema.ts` | gates; aplicada no DEV; grants só SELECT | migration + grants | Pendente |
+| **P1.3** (T0.7) | carga da terminologia no banco por script idempotente | P1.2, P0.9 | `scripts/tiss/terminology/load.ts` | contagens no DEV iguais ao artefato; reexecução sem duplicar | integração no DEV | Pendente |
+| **P1.4** (T1.3) | `hi_clinic_settings`, `hi_counters`, `hi_insurers`, `hi_insurer_credentials`, `hi_plans`, `hi_professional_profiles`, `hi_credentials`, `hi_procedure_contracts`, `hi_contract_imports` | P1.2 | migration 0144* | RLS FORCE; CHECKs (ANS 6 dígitos, valores ≥ 0, vigência coerente); contratos append-only por trigger | migration, isolamento | Pendente |
+| **P1.5** (T1.4) | `hi_memberships` | P1.4 | 0145* | número só cifrado; preferencial único | migration, cifra | Pendente |
+| **P1.6** (T1.5) | `appointments.billing_mode`, `hi_appointment_coverages`, `hi_copayments` | P1.5 | 0146*, `scheduling/schema.ts` | atendimentos existentes `particular`; trigger de snapshot respeitado | migration, trigger | Pendente |
+| **P1.7** (T1.5) | `hi_authorizations`, `hi_authorization_items`, `hi_authorization_attachments`, `hi_authorization_events` | P1.6 | 0147* | gates | migration | Pendente |
+| **P1.8** (T1.6) | `hi_guides`, `hi_guide_items`, `hi_guide_events` | P1.7 | 0148* | UNIQUEs de C.12 | migration, UNIQUE | Pendente |
+| **P1.9** (T1.6) | `hi_batches`, `hi_batch_guides`, `hi_files`, `hi_return_imports`, `hi_glosses`, `hi_gloss_appeals`, `hi_payments` | P1.8 | 0149* | gates | migration | Pendente |
+| **P1.10** (T1.7) | `lancamentos.tiss_guide_id`/`health_insurer_id` + UNIQUE + troca do CHECK; `payment_transaction_kind += write_off`; política de repasse de convênio | P1.8, D3, D16 | 0150*, `financial/schema.ts` | **testes rigorosos antes de aplicar**: os lançamentos existentes continuam válidos (`VALIDATE` no DEV com dados reais de DEV); recebível de operadora aceito; órfão recusado; ADD VALUE não quebra código atual | migration tests do financeiro + DEV | Pendente |
+| **P1.11** | reservado (sem tarefa; mantém a numeração estável) | — | — | — | — | — |
+| **P1.12** (T1.8) | permissões e bundles (I.2) + incremento de claims | P1.4 | 0151*, `permissions.ts` | matriz de I.2 no `effective_permissions_v` do DEV | matriz, `security:inventory` | Pendente |
+| **P1.13** (T10.5) | feature flag por clínica + interruptor e disponibilidade comercial na plataforma (sem plano fixo, D8); nada ligado por padrão | P1.4 | `hi_clinic_settings`, `src/lib/platform-settings`, painel de plataforma | desligado: nada aparece e o agendamento é só particular; ligar para uma clínica não afeta outras | unitários + e2e | Pendente |
+| **P1.14** (T1.9) | inventário de segurança das superfícies novas (contínuo) | P2+ | `scripts/security/inventory-lib.ts` | `security:inventory --check` verde | gate | Pendente |
+
+Os números marcados com `*` são provisórios e devem ser reconferidos (E.5). P1.11 é só reserva: **não conta** nas 109 tarefas.
+
+### P2 — Configuração de convênios
+
+| ID (antigo) | Objetivo | Dependências | Arquivos | Aceite | Testes | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| **P2.1** (T2.1) | operadoras, planos e categorias: criar, editar, ativar e desativar | P1.4, P1.12 | `health-insurance/actions.ts`, `internal/insurers.ts` | auditado; sem acesso cross-tenant; desativada some do agendamento | unitários, integração | Pendente |
+| **P2.2** (T2.2) | credenciamento da clínica e do profissional por plano e vigência; perfil TISS | P2.1 | `internal/credentials.ts`, `internal/professional-profile.ts` | sem perfil TISS vira pendência, não erro; sugestão a partir do CRM sempre confirmada | U1 | Pendente |
+| **P2.3** (T2.3) | contratos por procedimento: tipo de guia, TUSS vigente, valor, vigência, autorização, coparticipação e retorno | P2.1, P1.3 | `internal/procedure-contracts.ts` | TUSS inexistente ou fora de vigência recusado; alteração cria versão; histórico intacto | U2 | Pendente |
+| **P2.4** (T2.4) | identificação do prestador; normalização de CNPJ alfanumérico; CNES ou declaração de ausência (9999999) | P2.1 | `internal/clinic-settings.ts` | CNPJ inválido vira pendência; 9999999 só com declaração | unitários | Pendente |
+| **P2.5** | configurações por operadora: versão TISS, código de validação, prazo de envio, tipo de identificação, conector, credenciais cifradas | P2.1 | `internal/insurer-settings.ts` | Zod; credencial nunca volta ao cliente | unitários, segurança | Pendente |
+| **P2.6** (T2.5) | telas Configurações › Convênios no design system: lista, detalhe, gavetas, estados vazio, carregando e erro, histórico, confirmação de ação irreversível, termos explicados | P2.1–P2.5 | `configuracoes/convenios/*`, `settings-navigation.ts` | 375/768/1024/1440 sem rolagem lateral; acessível; só com permissão | componente, e2e, capturas | Pendente |
+| **P2.7** | importação de tabela contratual por planilha (CSV/XLSX), com pré-visualização, validação por linha e confirmação | P2.3 | `internal/contract-import.ts`, tela | linha inválida não entra; tudo auditado em `hi_contract_imports` | unitários, e2e | Pendente |
+
+### P3 — Pacientes
+
+| ID (antigo) | Objetivo | Dependências | Arquivos | Aceite | Testes | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| **P3.1** (T3.1) | carteirinhas: vincular, editar (nova versão), desativar, preferencial | P1.5, P2.1 | `internal/memberships.ts` | edição não muda guia antiga; um preferencial | U9, integração | Pendente |
+| **P3.2** (T3.2) | aba "Convênios" na ficha | P3.1 | `pacientes/[id]/*` | número mascarado; completo só com `operate:convenios` e auditado | componente, e2e | Pendente |
+| **P3.3** | pendências pré-consulta na agenda do dia (carteirinha ausente ou vencida, autorização faltando, perfil TISS incompleto) | P3.1, P4.1 | agenda | lista de pendências com ação para resolver | componente, e2e | Pendente |
+
+### P4 — Agendamento
+
+| ID (antigo) | Objetivo | Dependências | Arquivos | Aceite | Testes | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| **P4.1** (T4.1) | `billingMode` na criação; filtro de elegibilidade; cobertura e coparticipação estimada gravadas | P1.6, P2.2, P2.3, P3.1, P14.1 | `scheduling/types.ts`, `internal/appointment-core.ts`, `actions.ts`, `healthInsuranceApiV1` | particular idêntico; combinação não aceita recusada no backend | unitários, integração, regressão | Pendente |
+| **P4.2** (T4.2) | valor do contrato; política `absorb_fees`; sem método comercial | P4.1 | `appointment-core.ts` | CHECK de preço satisfeito | unitários | Pendente |
+| **P4.3** (T4.3) | troca de modalidade até `chegou`; depois, só pelo fluxo de correção | P4.1 | `scheduling/actions.ts`, `internal/coverage.ts` | histórico; troca pós-atendido recusada com orientação | unitários | Pendente |
+| **P4.4** (T4.4) | tela de agendamento: "Forma de atendimento", opções filtradas, carteirinha preferencial, alertas | P4.1 | `agenda/new-appointment-drawer.tsx` | nada muda sem convênio; acessível | componente, e2e | Pendente |
+| **P4.5** (T4.5) | guardas: sem sinal, sem link do saldo cheio, sem régua para convênio; métrica `patient_charge_blocked` | P4.1, P10.1, P14.1 | `deposit-candidates.ts`, `payments/policy.ts`, `remainder-charge.ts`, `dunning-candidates.ts` | zero cobrança indevida; particular inalterado | caracterização + novos | Pendente |
+| **P4.6** | regras de retorno contratual (prazo; tipo de consulta 2; faturável ou não) aplicadas na cobertura e na guia | P2.3, P4.1 | `internal/coverage.ts`, `guide-assembler` | retorno dentro do prazo marcado conforme o contrato; editável antes da aprovação | unitários | Pendente |
+| **P4.7** | séries recorrentes e importação de agenda com convênio; sessões ligadas à mesma autorização | P4.1, P6.1 | `scheduling/recurrence*`, `appointment-import` | cada ocorrência com cobertura; consumo da autorização correto | unitários, integração | Pendente |
+
+### P5 — Recepção, check-in e coparticipação
+
+| ID (antigo) | Objetivo | Dependências | Arquivos | Aceite | Testes | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| **P5.1** (T5.1) | estados administrativos da cobertura e pendências | P1.6, P4.1 | `internal/coverage.ts` | nenhum estado bloqueia o atendimento clínico | unitários, integração | Pendente |
+| **P5.2** (T5.2) | resumo administrativo na agenda e no consultório | P5.1 | telas | conforme o perfil; carteirinha mascarada | componente, e2e | Pendente |
+| **P5.3** | ciclo da coparticipação: estimar, conferir, confirmar, cobrar (Asaas se a política permitir), pagar, estornar, ajustar | P5.1, P10.5 | `internal/copay.ts`, telas | nada é cobrado sem confirmação; estorno pelo fluxo existente | unitários, integração, e2e | Pendente |
+
+### P6 — Autorizações
+
+| ID | Objetivo | Dependências | Arquivos | Aceite | Testes | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| **P6.1** | domínio: pedido, itens, estados (C.8), número, senha, validade, comprovantes (Storage privado), histórico, consumo por sessão, vínculo com itens de guia | P1.7 | `internal/authorizations.ts` | "autorizada" só com número ou recibo real e autor; consumo nunca passa do autorizado | unitários (estado, consumo), integração | Pendente |
+| **P6.2** | SP/SADT de **solicitação**: gerada a partir da solicitação de exame do prontuário (API pública do `clinical`) ou do plano de sessões; itens TUSS escolhidos pela recepção (busca), sem redigitar dado clínico | P6.1, P8.5 | `internal/sadt-request.ts`, integração com `clinical` | sem `indicacaoClinica` automática (D17); PDF oficial | unitários, e2e | Pendente |
+| **P6.3** | telas: fila de pendentes, vencimentos, registro, comprovantes | P6.1 | `convenios/autorizacoes/*` | acessível e responsiva | componente, e2e | Pendente |
+| **P6.4** | porta `OperatorConnector` + `ManualAdapter` (padrão) | P6.1 | `internal/connectors/*` | o manual é o comportamento padrão e completo | unitários | Pendente |
+| **P6.5** | `TissSoapAdapter` genérico (WSDL 4.03.00: lote, solicitação e status de autorização, elegibilidade, status de protocolo, demonstrativo, recurso), credenciais cifradas, circuito, timeouts | P6.4, P9.1, P12.5 | `internal/connectors/tiss-soap/*` | testado contra stub que valida o envelope pelo XSD; **sem operadora, estado máximo "Testado"** | contrato + stub | Pendente (homologação depende de B5) |
+| **P6.6** | alertas de senha vencendo e de sessões autorizadas acabando | P6.1, P12.6 | cron `insurance-reconcile` | alerta antes do vencimento | unitários | Pendente |
+
+### P7 — Guia de Consulta
+
+| ID (antigo) | Objetivo | Dependências | Arquivos | Aceite | Testes | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| **P7.1** (T6.1) | numeração de guia, lote, transação e recurso | P1.4, P1.8 | `internal/numbering.ts` | 100 chamadas concorrentes dão números únicos | concorrência no DEV | Pendente |
+| **P7.2** (T6.2) | `GuideAssembler` Consulta | P2.x, P3.1, P4.1 | `internal/guides/consulta/assembler.ts` | puro; teste prova a ausência de CID; padrões D11 | U3 | Pendente |
+| **P7.3** (T6.3) | `GuideValidator` Consulta: regras de B.10.9 | P7.2, P1.3 | `…/consulta/validator.ts` | cada regra com teste positivo e negativo | U4 | Pendente |
+| **P7.4** (T6.4) | handler de conclusão (genérico por tipo) + reconcile "convênio sem guia" | P7.1–P7.3 | `internal/handlers/appointment-completed.ts`, `scheduling/events.ts` | reentrega não duplica; particular não cria guia | U10, E8, E9 | Pendente |
+| **P7.5** (T6.5) | ciclo de vida genérico: estados, edição controlada, aprovação, cancelamento, substituição, histórico | P7.4 | `internal/guide-lifecycle.ts` | transições inválidas recusadas; "enviada" só com registro | U6 | Pendente |
+| **P7.6** (T6.6) | PDF oficial da Consulta (campos 1–29) | P7.2 | `src/lib/pdf/guia-consulta.tsx`, rota | 29 rótulos no PDF; comparação visual com o modelo oficial (P13.7) | `pdfjs` + captura | Pendente |
+| **P7.7** (T6.7) | tela da guia (todos os tipos): pendências no topo com ação, edição, PDF, aprovação, histórico | P7.5, P7.6 | `financeiro/convenios/guias/[id]/*` | médico vê só os próprios atendimentos | componente, e2e | Pendente |
+
+### P8 — Guia SP/SADT
+
+| ID | Objetivo | Dependências | Arquivos | Aceite | Testes | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| **P8.1** | modelo SP/SADT: itens, solicitante e executante, equipe, autorização, valores, guia principal | P1.8 | `internal/guides/sp-sadt/types.ts` | cobre `ctm_sp-sadtGuia` (B.10.3), sem outras despesas (D13) | tipos + testes | Pendente |
+| **P8.2** | `GuideAssembler` SP/SADT: a partir de atendimentos, autorização e contrato; **agrupamento de sessões** sob a mesma autorização conforme regra da operadora | P8.1, P6.1, P4.7 | `…/sp-sadt/assembler.ts` | soma dos itens = valor total; sequenciais corretos | unitários | Pendente |
+| **P8.3** | `GuideValidator` SP/SADT (regras da aba `loteGuias` SP/SADT) | P8.2 | `…/sp-sadt/validator.ts` | uma regra por teste | unitários | Pendente |
+| **P8.4** | itens executados adicionais: registro opcional no consultório (só itens de contrato, sem campo clínico) e na conferência | P8.1, P2.3 | consultório e tela da guia | o médico não é obrigado; a recepção completa | componente, e2e | Pendente |
+| **P8.5** | PDF oficial SP/SADT (solicitação e cobrança), conforme o modelo do Conteúdo e Estrutura | P8.2 | `src/lib/pdf/guia-sp-sadt.tsx` | campos e numeração do modelo oficial (mapeamento registrado) | `pdfjs` + captura | Pendente |
+| **P8.6** | XML SP/SADT no builder | P8.2, P9.1 | `tiss/xml-builder` | corpus SP/SADT de P13 aprovado | P13 | Pendente |
+| **P8.7** | automação na conclusão (handler P7.4 com tipo SP/SADT, agrupamento e consumo da autorização) | P8.2, P7.4 | handler | idempotente; consumo correto | E2 SP/SADT | Pendente |
+
+### P9 — Faturamento, lotes, retornos e glosas
+
+| ID (antigo) | Objetivo | Dependências | Arquivos | Aceite | Testes | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| **P9.1** (T7.1) | `TissXmlBuilder`: lote (Consulta e SP/SADT), recurso de glosa, solicitação de procedimento; ISO-8859-1; MD5 | P7.2, P0.7 | `tiss/xml-builder/*` | hash recalculado de forma independente; não-latin1 recusado | golden files | Pendente |
+| **P9.2** (T7.2) | `TissXsdValidator` | P0.8 | `tiss/xsd-validator.ts` | C.13; validação em rota Node com memória e tempo medidos | P13.2 | Pendente |
+| **P9.3** (T7.3) | lotes: regras (operadora, tipo, versão, até 100), numeração, exportação só se o XSD aprovar, `hi_files` com SHA | P9.1, P9.2, P7.5 | `internal/batches.ts`, rota | 101 recusado; guia em dois lotes recusada; concorrência segura | unitários, concorrência | Pendente |
+| **P9.4** | envio: registro manual (data, quem, protocolo, comprovante) e envio pelo conector (P6.5) com recibo real | P9.3, P6.4 | `internal/batches.ts` | nenhum "enviado" sem registro ou recibo | unitários | Pendente |
+| **P9.5** (F13.5) | importação de demonstrativos XML (análise de conta, pagamento): validação no XSD, conciliação por guia e item, divergências | P9.2, P1.9 | `internal/return-importer.ts`, tela | idempotente por SHA; divergência listada, nunca aplicada em silêncio | corpus de retorno sintético | Pendente |
+| **P9.6** (T7.4) | ciclo de glosa (6 estados), registro manual ou importado | P1.9 | `internal/glosses.ts` | só "definitiva" gera `write_off` (P10.3) | unitários | Pendente |
+| **P9.7** (F12.6) | recurso de glosa: XML oficial (`recursoGlosa`), PDF ou registro, protocolo, resposta | P9.6, P9.1 | `internal/gloss-appeals.ts` | XML no XSD; estados coerentes | corpus | Pendente |
+| **P9.8** (T7.4/F13.6) | pagamentos parciais e integrais; conciliação com divergência; ajustes | P10.2 | `internal/payments.ts`, `insurance-reconcile` | faturado = recebido + glosado definitivo + pendente | unitários, integração | Pendente |
+| **P9.9** (T7.5) | telas Financeiro › Convênios: guias (filtros, busca, paginação), lotes, arquivos, retornos, glosas, recursos | P9.3–P9.8 | `financeiro/convenios/*` | ações de correção; estados claros; responsivo; acessível | componente, e2e | Pendente |
+| **P9.10** (T8.4/F12.5) | relatórios por operadora e período; indicadores de faturamento, glosa, prazo médio e inadimplência; exportação CSV | P9.8 | queries + tela | somas conferem com o ledger | unitários de query | Pendente |
+
+### P10 — Financeiro existente
+
+| ID (antigo) | Objetivo | Dependências | Arquivos | Aceite | Testes | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| **P10.1** (T8.1) | desvio no handler de conclusão por `billingMode`; reconcile coerente | P1.10, P14.1 | `financial/internal/handlers/appointment-completed.ts`, `financial-reconcile` | testes atuais verdes; convênio sem recebível cheio | caracterização + novos | Pendente |
+| **P10.2** (T8.2) | recebível da operadora na aprovação; cancelamento na cancelada sem baixa | P1.10, P7.5 | `financial/internal/handlers/guide-approved.ts` | idempotente por guia | unitários, integração, falha no meio | Pendente |
+| **P10.3** | `write_off` para glosa definitiva; reversão por lançamento compensatório auditado | P10.2, P9.6 | handler de desfecho | `write_off` nunca apagado | unitários | Pendente |
+| **P10.4** (T8.3) | repasse de convênio: testes de caracterização do atual (feito na leitura, B.9) + elegibilidade por política (D16), mapeada nos status e revisão atuais | P10.2, P14.1 | `financial/internal/professional-payout.ts` | particular inalterado; convênio sem antecipação; ajustes rastreáveis | caracterização + novos | Pendente |
+| **P10.5** | coparticipação no financeiro: recebível do paciente com valor confirmado; link Asaas só desse recebível e só se a política permitir | P5.3, P10.1 | handlers, `payments/policy.ts` | sem cobrança automática não confirmada | unitários, integração | Pendente |
+| **P10.6** | Caixa e relatórios existentes separam paciente × operadora | P10.2 | `financeiro/*`, `caixa/*` | totais e filtros coerentes | componente | Pendente |
+
+### P11 — WhatsApp e IA
+
+| ID (antigo) | Objetivo | Dependências | Arquivos | Aceite | Testes | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| **P11.1** (T9.1) | `list_insurance_options` + `prepare_appointment` com modalidade; prompt; handoff; fallback D12 | P4.1; estado do PR #28 | `ai-agent/tools/*`, `prompts/system.ts` | só dados cadastrados; nunca afirma cobertura, elegibilidade ou autorização; sem dado clínico | unitários, guardas | Pendente |
+| **P11.2** (T9.2) | jornadas (particular, convênio, não aceito, dúvida, autorização exigida) | P11.1 | `scripts/smoke-agent-journeys.ts` | particulares intactas | smoke | Pendente |
+
+### P12 — Segurança, LGPD, auditoria e observabilidade
+
+| ID (antigo) | Objetivo | Dependências | Aceite | Testes | Status |
+| --- | --- | --- | --- | --- | --- |
+| **P12.1** (T10.1) | isolamento de todas as tabelas `hi_*` | P1.x | zero linhas cruzadas | `security:tenant` | Pendente |
+| **P12.2** (T10.2) | matriz de permissões por action e rota; negativos | P1.12 | financeiro sem anamnese; médico só os próprios | unitários, integração | Pendente |
+| **P12.3** (T10.3) | LGPD: exportação, anonimização e retenção (B6) | P3, P7 | decisão aprovada | testes LGPD | Pendente |
+| **P12.4** (T10.4) | auditoria completa | P2–P10 | 100% das actions | inventário | Pendente |
+| **P12.5** | credenciais de operadora: cifra, rotação, acesso só pelo adapter, nunca em log | P2.5 | teste de vazamento | segurança | Pendente |
+| **P12.6** | observabilidade (C.14): métricas, logs, alertas, `insurance-reconcile`, dead letters | P7.4, P10.2 | métricas no `check:observability`; alerta disparando em teste | unitários + ensaio | Pendente |
+| **P12.7** | arquivos XML, PDF e comprovantes: Storage privado, acesso autenticado, sem URL pública | P9.3, P6.1 | IDOR negativo | segurança | Pendente |
+
+### P13 — Validação TISS em múltiplas camadas
+
+| ID | Objetivo | Dependências | Aceite | Status |
+| --- | --- | --- | --- | --- |
+| **P13.1** | corpus sintético (G.4) gerado pelo código real: um cenário por linha da matriz, todos os tipos suportados | P0.10, P9.1, P8.6 | manifesto com SHA de cada arquivo; dados 100% fictícios | Pendente |
+| **P13.2** (T11.2) | camada interna no CI: XSD + regras; válidos passam, inválidos falham com o erro esperado | P9.2, P13.1 | 100% / 100% | Pendente |
+| **P13.3** | Validador A (Paniquar), roteiro manual de G.5 | P13.1 | resultado registrado por arquivo | Pendente |
+| **P13.4** | Validador B (TISS Manager), roteiro de G.5, **só sintéticos** (envio ao servidor) | P13.1 | idem | Pendente |
+| **P13.5** | Validador C (Validador TISS, Windows) | P13.1, **B7** | idem | Bloqueado (B7) |
+| **P13.6** | análise de divergências e ciclo de correção (G.5 passos 5–10) | P13.2–P13.5 | toda divergência classificada pela ANS; correção no código, nunca no XML | Pendente |
+| **P13.7** | conformidade dos PDFs com os modelos oficiais (Consulta, SP/SADT solicitação e cobrança), comparação lado a lado | P7.6, P8.5 | relatório com capturas | Pendente |
+
+### P14 — Qualidade
+
+| ID (antigo) | Objetivo | Dependências | Aceite | Status |
+| --- | --- | --- | --- | --- |
+| **P14.1** | testes de caracterização **antes** de mexer em agenda, financeiro, payments e IA: sinal, saldo, régua, reconcile, repasse, Caixa, jornadas | — | linha de base verde registrada | Pendente |
+| **P14.2** | concorrência (G.7) | P7.4, P9.3, P10.2 | sem duplicata nem inconsistência | Pendente |
+| **P14.3** (T11.1) | E2E na Preview (G.3) | P2–P11 | todos verdes | Pendente |
+| **P14.4** (T11.5) | desempenho (H.2) com números reais | P7–P10 | metas cumpridas ou desvio registrado | Pendente |
+| **P14.5** (T11.3) | gates completos | tudo | verdes ou preexistentes provados | Pendente |
+
+### P15 — Documentação, homologação e publicação
+
+| ID (antigo) | Objetivo | Dependências | Aceite | Status |
+| --- | --- | --- | --- | --- |
+| **P15.1** (T11.4) | documentação: domínios, schema, `known-limitations` (declaração de suporte de A.3), central de ajuda, **runbooks operacionais** (faturar, corrigir guia, reprocessar, rollback, incidente) | tudo | links válidos; revisão | Pendente |
+| **P15.2** | homologação interna na Preview com clínica de teste e fluxos reais de clínica (dados sintéticos), roteiro por perfil | P14.3 | roteiro executado com evidência | Pendente |
+| **P15.3** (T11.6) | homologação com operadora: Guia de Consulta | P13, B5 | protocolo de aceite real | Bloqueado (B5) |
+| **P15.4** | homologação com operadora: SP/SADT | P13, B5 | idem | Bloqueado (B5) |
+| **P15.5** | revisão de segurança (checklist + `/security-review`) | P12 | sem achado crítico aberto | Pendente |
+| **P15.6** | revisão financeira (conciliação ponta a ponta com o fundador) | P10 | aprovada | Pendente |
+| **P15.7** | ensaio de migrations e rollback em banco descartável ou branch de DB | P1 | ensaio registrado | Pendente |
+| **P15.8** | prontidão de release + aprovação humana + ativação controlada por flag numa clínica piloto | P15.1–P15.7 | aprovação registrada | Bloqueado (humano) |
+| **P15.9** | monitoramento pós-implantação (7 dias) | P15.8 | sem alerta crítico sem tratamento | Bloqueado (depende de P15.8) |
+
+**Contagem:**
 
 | Fase | Tarefas | Quantidade |
 | --- | --- | ---: |
-| F0 | T0.1–T0.7 | 7 |
-| F1 | T1.1–T1.9 | 9 |
-| F2 | T2.1–T2.5 | 5 |
-| F3 | T3.1–T3.2 | 2 |
-| F4 | T4.1–T4.5 | 5 |
-| F5 | T5.1–T5.2 | 2 |
-| F6 | T6.1–T6.7 | 7 |
-| F7 | T7.1–T7.5 | 5 |
-| F8 | T8.1–T8.4 | 4 |
-| F9 | T9.1–T9.2 | 2 |
-| F10 | T10.1–T10.5 | 5 |
-| F11 | T11.1–T11.6 | 6 |
-| | **Tarefas listadas** | **59** |
+| P0 | P0.1–P0.10 | 10 |
+| P1 | P1.1–P1.14, sem P1.11 | 13 |
+| P2 | P2.1–P2.7 | 7 |
+| P3 | P3.1–P3.3 | 3 |
+| P4 | P4.1–P4.7 | 7 |
+| P5 | P5.1–P5.3 | 3 |
+| P6 | P6.1–P6.6 | 6 |
+| P7 | P7.1–P7.7 | 7 |
+| P8 | P8.1–P8.7 | 7 |
+| P9 | P9.1–P9.10 | 10 |
+| P10 | P10.1–P10.6 | 6 |
+| P11 | P11.1–P11.2 | 2 |
+| P12 | P12.1–P12.7 | 7 |
+| P13 | P13.1–P13.7 | 7 |
+| P14 | P14.1–P14.5 | 5 |
+| P15 | P15.1–P15.9 | 9 |
+| | **Total** | **109** |
 
-Das 59, **T11.6** depende de terceiro e conta à parte. **Base do percentual: 58 tarefas.**
+Fórmula do percentual: `Concluído ÷ 109`.
 
-### F12 — Fase 2 (fora do MVP; detalhar só depois do MVP validado)
-
-F12.1 Guia SP/SADT (XSD `ctm_sp-sadtGuia`) · F12.2 Solicitação e autorização · F12.3 Vários procedimentos por guia · F12.4 Outros tipos de atendimento e regras · F12.5 Relatórios de produção · F12.6 Glosa completa e recurso de glosa.
-
-**Status de todas:** Pendente (fora do MVP).
-
-### F13 — Fase 3 (fora do MVP)
-
-F13.1 Webservices TISS por operadora (WSDLs do pacote 4.03.00) · F13.2 Elegibilidade · F13.3 Autorização eletrônica · F13.4 Transmissão de lotes · F13.5 Demonstrativos · F13.6 Conciliação automática · F13.7 Painéis.
-
-**Só com operadora real, credenciais e contrato.** Nada simulado.
+As tarefas que dependem de terceiros ou de humanos entram no total, mas aparecem em L.2. São 7: P6.5 (homologação), P13.5, P15.3, P15.4, P15.8, P15.9 e P15.2 (só a parte de clínica real).
 
 ---
 
 ## E. Harness de desenvolvimento
 
-Específico deste repositório. Cada item diz o que fazer, não boas práticas genéricas.
+Instruções específicas deste repositório, nas 20 rubricas pedidas.
 
-### E.1 Carregar o contexto
+### E.1 Preparar o ambiente
 
-1. Ler este documento, em especial ESTADO ATUAL e L.
-2. Ler `docs/CONVENTIONS.md`, `docs/architecture/context-map.md`, `docs/database/schema.md` e `docs/domains/scheduling-financial.md`.
-3. Ler o README do contexto envolvido (`src/contexts/<ctx>/README.md`).
-4. Ler a memória persistente do projeto, quando houver. Ela traz restrições operacionais: escrita só em Preview, nunca `production-*`, cuidado com `pnpm` em worktree.
+- Worktree `C:/dev/Qoro_convenios_tiss_20261110`. Nunca a `main`, nunca o checkout `C:/dev/ClinicaOS_V2` (snapshot com alterações locais), nunca worktrees de outros agentes (billing, UI).
+- Dependências:
+  - crie a junction `node_modules → C:\dev\ClinicaOS_V2\node_modules`;
+  - **remova só com `cmd /c rmdir node_modules`**, porque `rm -rf` apaga o `node_modules` compartilhado;
+  - **nunca rode `pnpm <script>` aqui**, porque ele tenta purgar o compartilhado. Use `npx`, `node` ou `tsx` direto.
+- Variáveis de ambiente: `.env.local` do checkout principal (lido por scripts). Nunca imprimir segredos.
+- Banco: só DEV/Preview (`pqhkirrszzpwezdaqrai`). Produção (`shlcbxawrxuaebazuiue`) é proibida sem autorização. Leitura de produção só com `BEGIN READ ONLY`, nunca `SET SESSION` (pooler).
+- Fontes ANS: ver B.10. Cópias de trabalho no scratchpad da sessão; no repositório entram só XSDs e artefatos de terminologia com manifesto.
 
-### E.2 O que ler antes de cada tarefa
+### E.2 Carregar o contexto
 
-| Tarefa toca em | Leia antes |
-| --- | --- |
-| migration | as 3 últimas migrations, `meta/_journal.json`, `scripts/check-migration-safety.ts`, `docs/runbooks/migrations.md` |
-| `appointments` | `scheduling/schema.ts`, `internal/appointment-core.ts`, `state-machine.ts`, triggers da migration de snapshot |
-| financeiro | `financial/schema.ts`, `internal/handlers/appointment-completed.ts`, ADR-051, `docs/specs/politica-financeira-camadas.md` |
-| cobrança ao paciente | `payments/policy.ts`, `internal/remainder-charge.ts`, `scheduling/deposit-candidates.ts`, ADR-049 |
-| action nova | `src/lib/audit/mutation.ts`, `src/lib/idempotency`, um action vizinho do mesmo contexto |
-| PDF | `src/lib/pdf/README.md`, `app/(app)/_lib/clinical-pdf-route.ts`, ADR-059 |
-| IA | `ai-agent/README.md`, `tools/prepare-appointment.ts`, `tools/registry.ts`, ADR-048 |
-| TISS/XML | seção B.10 e o XSD em `src/contexts/health-insurance/tiss/schemas/4.03.00` |
+1. Este documento.
+2. `docs/CONVENTIONS.md`, `docs/architecture/context-map.md`, `docs/database/schema.md`, `docs/domains/scheduling-financial.md`.
+3. README do contexto tocado.
+4. ADRs 049, 051, 059 e 067 (quando existir).
 
-### E.3 Identificar a próxima tarefa
+### E.3 Identificar a branch correta
 
-A próxima tarefa é a de **menor ID** com status Pendente cujas dependências estão todas **Concluído** e cujas decisões estão aprovadas. Se não houver nenhuma, a próxima ação é resolver o bloqueio mais antigo da seção L.2.
+`git -C <worktree> branch --show-current` precisa mostrar `feat/convenios-tiss-20261110`. Se o #53 tiver sido mergeado, rebase na `origin/main` antes de criar migration, sem force push de branch alheia. Divergência de base vai para o Registro.
 
-### E.4 Verificar dependências
-
-Para cada dependência listada:
-
-1. confira o status no documento;
-2. confira a evidência (arquivo e teste existem; rode o teste da dependência);
-3. se a evidência falhar, a dependência volta a **Em execução** e a tarefa atual fica **Bloqueado**.
-
-### E.5 Executar alterações com segurança
-
-- **Worktree próprio** (`C:/dev/Qoro_convenios_tiss_20261110`). Nunca a `main`, nem o checkout `C:/dev/ClinicaOS_V2` (snapshot com alterações locais), nem worktrees de outros agentes.
-- **Dependências:** este worktree não tem `node_modules`.
-  - Para rodar ferramentas, crie a junction `node_modules → C:\dev\ClinicaOS_V2\node_modules`.
-  - **Remova a junction só com `cmd /c rmdir node_modules`.** `rm -rf` desce e apaga o `node_modules` compartilhado.
-- **Nunca rode `pnpm <script>` neste worktree:** ele tenta purgar o `node_modules` compartilhado. Use `npx <bin>` ou `node`/`tsx` direto, por exemplo `npx vitest run <arquivo>`, `npx tsc --noEmit`, `npx eslint <arquivos>`.
-- **Migration:**
-  1. `git fetch`.
-  2. `git ls-tree --name-only origin/main drizzle/migrations/` e o mesmo nas branches abertas (comando do Registro de 10/11).
-  3. Usar o próximo número livre global.
-  4. Append-only. Nada de DROP ou troca de constraint sem decisão aprovada.
-- **Banco:** só DEV/Preview (`pqhkirrszzpwezdaqrai`). Produção (`shlcbxawrxuaebazuiue`) é proibida para escrita, migration e seed sem autorização explícita. Leitura de produção só com `BEGIN READ ONLY`, nunca `SET SESSION` (pooler em modo transação).
-- **Git:**
-  - `git --literal-pathspecs` sempre;
-  - commit com caminhos explícitos (`git commit -- <arquivos>` ou `add` só dos arquivos da tarefa);
-  - nunca `add -A` com os `.webm` de evidência apagados no disco;
-  - sem force push; sem merge de PR.
-- **Credenciais:** nunca impressas. O bypass da Vercel só vai para a origem da Preview.
-
-### E.6 Validar cada mudança
-
-Gate mínimo por tarefa, cada comando com o código de saída próprio. Não encadeie com pipe, porque o pipe esconde a falha.
+### E.4 Verificar a arquitetura
 
 ```bash
-npx prettier --check <arquivos alterados>
-npx eslint <arquivos alterados>
-npx tsc --noEmit
-npx vitest run <testes da tarefa>
+npx madge --circular --extensions ts,tsx --ts-config tsconfig.json src
+npx eslint <arquivos>
+npx tsx scripts/arch-graphs.ts --check
 ```
 
-Tarefa com migration acrescenta `npx tsx scripts/check-migration-safety.ts` e `npx tsx scripts/arch-db-check.ts`.
+Rode também `npx tsx scripts/arch-db-check.ts`. Nenhum import de `internal/*` entre contextos.
 
-Tarefa com tela acrescenta capturas em 375, 768, 1024 e 1440 na Preview, sem rolagem lateral nem erro de console.
+### E.5 Verificar migrations
 
-### E.7 Executar os testes
+1. `git fetch -q origin`.
+2. Listar o maior número em todas as branches remotas:
+   ```bash
+   for b in $(git branch -r --format='%(refname:short)' | grep -v HEAD); do
+     git ls-tree --name-only $b drizzle/migrations/ | grep -o '/0[0-9]\{3\}' | sort | tail -1 | sed "s#^#$b #"
+   done | sort -k2 -r | head
+   ```
+3. Usar o próximo número livre global e conferir `meta/_journal.json`.
+4. `npx tsx scripts/check-migration-safety.ts` e `arch-db-check`.
+5. Aplicar só no DEV pelo script oficial (`scripts/db-migrate-dev.ts`), **depois de conferir quais migrations o DEV já tem**. O DEV é compartilhado com outras branches; se houver migrations do #53 aplicadas no DEV e ausentes nesta branch, **pare** e registre o bloqueio.
 
-- **Focados:** `npx vitest run <caminho>`.
-- **Suíte completa antes de cada PR:** `npx vitest run` (cerca de 5 min na máquina atual).
-- **E2E:**
-  - contra a Preview, com `E2E_AUTH_REUSE=1` e a conta de UI autorizada;
-  - nunca specs `production-*`;
-  - nunca em paralelo com outra automação logada.
-- **Gates de CI:** `docs/development/testing.md` (`arch:check`, `arch:graphs --check`, `arch:db-check`, `check:migrations`, `check:observability`, `check:registry:strict`, `test:coverage`, `build`, `security:inventory`).
+### E.6 Escolher a próxima tarefa
 
-### E.8 Identificar regressões
+A de menor ID com status Pendente, dependências Concluído e decisões aprovadas. Bloqueio externo não para tarefas independentes: escolha a próxima disponível.
 
-- Antes de alterar arquivo existente, rode os testes vizinhos e guarde o resultado (linha de base).
-- Fluxos críticos que nunca podem mudar sem teste novo provando a intenção:
-  - agendamento particular;
-  - sinal;
-  - recebível do paciente;
-  - link do saldo;
-  - régua de cobrança;
-  - reconcile;
-  - jornadas da IA.
-- Falha que já existia na base é provada rodando o mesmo teste em `origin/main` e registrada como preexistente.
+### E.7 Identificar dependências
 
-### E.9 Registrar evidências
+Leia a coluna de dependências. Para cada uma, confira o status **e** reexecute o teste da evidência. Falhou: a dependência volta a Em execução e a tarefa fica Bloqueado.
 
-No Registro de execução: data, tarefa, arquivos, comandos com o resultado resumido (contagens de testes, saída dos gates), capturas (caminho) e hash de commit. **Sem segredo, sem PII, sem dado de paciente real.**
+### E.8 Executar modificações
 
-### E.10 Atualizar o progresso
+Só os arquivos da tarefa, com os padrões existentes:
 
-Ao terminar ou bloquear:
+- `withTenant`;
+- `idempotentMutation`;
+- outbox com `publishEvent`;
+- `encryptForTenant`;
+- Zod na borda;
+- dinheiro em centavos.
 
-1. status da tarefa;
-2. ESTADO ATUAL (fase, última concluída, percentual = concluídas ÷ 58, bloqueios, próxima ação);
-3. entrada no Registro.
+Nada de `any`, `@ts-ignore` ou cast sem prova. Commit com caminhos explícitos e `git --literal-pathspecs`. Nunca `add -A` (há `.webm` de evidência apagados no disco).
 
-### E.11 Retomar uma implementação interrompida
+### E.9 Validar o código
 
-Siga o Protocolo de Retomada. Se o Registro mostrar uma tarefa "Em execução" sem conclusão:
+Cada comando com seu próprio código de saída. Não encadeie com pipe.
 
-1. veja o `git status` e o diff;
-2. rode os testes da tarefa;
-3. decida entre continuar e reverter só o que é seu, nunca arquivos de outra frente.
+```bash
+npx prettier --check <arquivos>
+npx eslint <arquivos>
+npx tsc --noEmit
+```
 
-### E.12 Quando parar por risco técnico
+### E.10 Testes unitários
 
-Pare e registre o bloqueio quando:
+`npx vitest run <caminhos>`. Suíte completa antes de cada PR: `npx vitest run` (cerca de 5 min).
 
-- a tarefa exigir mudar constraint, DROP ou dado existente;
-- surgir efeito em cobrança real ao paciente;
-- um teste do financeiro ou do Payments quebrar sem explicação;
-- houver dúvida regulatória sem fonte oficial;
-- for preciso tocar produção;
-- uma dependência nova for necessária;
-- houver conflito com a branch de billing ou de UI.
+### E.11 Testes de integração
 
-### E.13 Falhas, bloqueios e inconsistências
+Contra o DEV, com scripts `tsx --conditions=react-server` no padrão de `scripts/smoke-*`. Dados sintéticos com prefixo identificável (`TISS-TESTE`). Limpeza só dos próprios ids, nunca em lote.
 
-- Falha de teste: diagnosticar a causa raiz; não desabilitar o teste; não usar `--no-verify`.
-- Inconsistência entre documento e código: o código manda; o documento é corrigido com nota no Registro.
-- Bloqueio: entrada em L.2 com dono, o que destrava e a data.
+### E.12 Testes E2E
 
-### E.14 O que exige aprovação humana
+Playwright contra a Preview da branch, com `E2E_AUTH_REUSE=1` e a conta de teste autorizada. **Nunca specs `production-*`.** Nunca em paralelo com outra automação logada.
 
-- Decisões D1–D12.
-- Nova dependência npm.
-- Migration que troca constraint, apaga ou altera dado existente.
-- Qualquer escrita em produção, deploy de produção, merge de PR.
-- Mudança de comportamento financeiro além do desenhado em C.11.
-- Mudança de preço, plano ou permissão fora da matriz I.2.
-- Uso de credenciais de super admin.
+### E.13 Validar arquivos TISS
+
+1. `npx tsx scripts/tiss/corpus.ts` gera o corpus com o código real e valida internamente (XSD + regras), gravando o SHA.
+2. Validadores externos: roteiro de G.5.
+3. Registro na tabela de G.6.
+
+**Nunca editar XML à mão para passar.**
+
+### E.14 Registrar resultados
+
+Entrada no Registro (M) com:
+
+- data, tarefa e arquivos;
+- comandos e resultado resumido (contagens);
+- capturas (caminho) e SHA de arquivos;
+- commit.
+
+Sem segredo, PII ou dado real.
+
+### E.15 Registrar falhas
+
+Mesmo formato, com sintoma, causa raiz, correção e teste que prova. Falha preexistente é provada na `origin/main`.
+
+### E.16 Resolver bloqueios
+
+Entrada em L.2 com dono e o que destrava. Siga com tarefas independentes. Bloqueio externo nunca vira Concluído.
+
+### E.17 Executar rollback
+
+| Alteração | Procedimento |
+| --- | --- |
+| Código | revert do commit ou deploy |
+| Migration | migration nova compensatória; nunca reescrever a aplicada |
+| Dado financeiro | estorno ou lançamento compensatório auditado, nunca DELETE |
+| Guia e XML | cancelar ou substituir, nunca apagar |
+| Módulo | flag por clínica e interruptor de plataforma (P1.13) |
+
+Detalhes em J.
+
+### E.18 Retomar uma sessão interrompida
+
+Protocolo de Retomada + `git status`/`diff` + testes da tarefa "Em execução". Reverter só o que é seu.
+
+### E.19 Verificar a Definition of Done
+
+Percorrer K item por item, com o link da evidência de cada um. Faltando uma, **não é Pronto para produção**.
+
+### E.20 Preparar e homologar uma versão
+
+1. P14.5 (gates).
+2. P13 (validação).
+3. P15.2 (homologação interna).
+4. P15.3–P15.4 (operadora, quando houver).
+5. P15.5–P15.7 (revisões e ensaio).
+6. P15.8: aprovação humana e flag numa clínica piloto.
+7. P15.9: monitoramento.
+
+**Deploy de produção e ativação são do fundador.**
+
+### E.21 Quando parar (risco)
+
+Pare e registre quando a tarefa:
+
+- trocar constraint ou dado existente fora do previsto;
+- afetar cobrança real;
+- quebrar teste de financeiro ou Payments sem explicação;
+- esbarrar em dúvida regulatória sem fonte oficial;
+- precisar de produção;
+- precisar de dependência nova não aprovada;
+- conflitar com billing ou UI;
+- precisar instalar software de terceiros.
+
+### E.22 O que exige aprovação humana
+
+- Decisões novas materiais.
+- Dependência npm nova além do `xmllint-wasm` (D7).
+- Migration destrutiva.
+- Produção: escrita, migration ou deploy.
+- Merge de PR.
+- Habilitar cliente.
 - Contato com operadora real.
-
-### E.15 Nunca declarar pronto sem prova
-
-- Tarefa só vira Concluído com evidência que outro agente consiga reproduzir: comando, resultado e arquivo.
-- "Compila" não é evidência de funcionalidade.
-- Conformidade TISS só com a matriz XSD (T7.2/T11.2).
-- "Aceito pela operadora" só com protocolo real (T11.6).
+- Instalar o Validador C (B7).
+- Uso de credencial de super admin.
 
 ---
 
-## F. Ciclo obrigatório de execução
+## F. Ciclo de execução
 
-`ANALISAR → PLANEJAR → IMPLEMENTAR → TESTAR → VALIDAR → REGISTRAR → AVANÇAR`
+`ANALISAR → IMPLEMENTAR → TESTAR → VALIDAR → DOCUMENTAR → REVISAR → AVANÇAR`
 
-| Etapa | Neste projeto significa |
+| Etapa | Neste projeto |
 | --- | --- |
-| ANALISAR | E.1, E.2 e E.4; ler os arquivos da tarefa; rodar a linha de base dos testes vizinhos |
-| PLANEJAR | escrever no Registro o que vai mudar, os riscos e como validar; conferir se cai em E.14 |
-| IMPLEMENTAR | só os arquivos da tarefa; padrões existentes (`withTenant`, `idempotentMutation`, outbox, `encryptForTenant`) |
-| TESTAR | gate de E.6 mais os testes da tarefa; regressão de E.8 |
-| VALIDAR | comparar com o critério de aceite e as regras de B.10 |
-| REGISTRAR | E.9 e E.10 |
-| AVANÇAR | E.3; nunca com bloqueio aberto na própria tarefa |
+| ANALISAR | E.2, E.7 e E.21; ler os arquivos; linha de base dos testes vizinhos; planejar no Registro |
+| IMPLEMENTAR | E.8 |
+| TESTAR | E.9–E.12 + regressão (P14.1) |
+| VALIDAR | aceite da tarefa + B.10 + G.4 quando houver TISS |
+| DOCUMENTAR | E.14 e ESTADO ATUAL |
+| REVISAR | diff contém só o objetivo; tipos, nulos e erros tratados; sem PII em log; autoavaliação contra K |
+| AVANÇAR | E.6 |
 
 ---
 
 ## G. Estratégia de testes
 
-Formato de registro de cada cenário: **entrada · pré-condições · passos · esperado · obtido · evidência**. "Obtido" e "evidência" ficam vazios até a execução; preencher só com resultado real.
+Formato de cada cenário: **entrada · pré-condições · passos · esperado · obtido · evidência**. "Obtido" só com resultado real.
 
-### G.1 Unitários (Vitest)
+### G.1 Funcionais (unitários e de componente)
 
 | ID | Alvo | Cenários mínimos |
 | --- | --- | --- |
-| U1 | `EligibilityFilter` | profissional credenciado, não credenciado, plano específico × todos, credenciamento vencido, contrato fora de vigência |
-| U2 | contratos TUSS | código inexistente, fora de vigência, valor negativo, nova versão preserva a antiga |
-| U3 | `GuideAssembler` | snapshot completo; **ausência de CID mesmo com CID no prontuário de entrada**; contratado PF e PJ; CNES nulo com e sem declaração |
-| U4 | `GuideValidator` | uma regra por teste, positivo e negativo; mensagens com campo e explicação |
-| U5 | valores | centavos; coparticipação fixa e percentual; arredondamento; valor zero contratual |
-| U6 | máquina de estados | todas as transições válidas e inválidas; "enviada" só com registro manual |
-| U7 | numeração | formato e limite de 20 e 12 caracteres |
-| U8 | `TissXmlBuilder` | golden files; escape; ordem; ISO-8859-1; hash MD5 recalculado de forma independente |
-| U9 | carteirinha | cifra, hash, últimos 4, preferencial único |
-| U10 | handlers | idempotência por evento; `billingMode` ausente = particular |
+| U1 | elegibilidade cadastral | credenciado, não credenciado, plano específico × todos, vencido, contrato fora de vigência |
+| U2 | contratos | TUSS inexistente, fora de vigência, valor negativo, nova versão preserva a antiga, importação com linha inválida |
+| U3 | assembler Consulta e SP/SADT | snapshot completo; **sem CID mesmo com CID no prontuário de entrada**; sem `indicacaoClinica` automática; PF/PJ; CNES nulo com e sem declaração; agrupamento de sessões |
+| U4 | validators | uma regra por teste, positivo e negativo |
+| U5 | valores | centavos; coparticipação fixa e percentual; arredondamento; zero contratual; redução e acréscimo SP/SADT; soma = total |
+| U6 | máquinas de estado | guia, autorização, glosa, coparticipação, cobertura: válidas e inválidas |
+| U7 | numeração | formatos e limites (20, 12) |
+| U8 | XML | golden files por tipo; escape; ordem; latin1; MD5 independente |
+| U9 | carteirinha | cifra, hash, últimos 4, preferencial |
+| U10 | handlers | idempotência; modalidade ausente = particular |
+| U11 | glosa → ledger | só definitiva gera `write_off`; reversão compensatória |
+| U12 | repasse de convênio | elegibilidade conforme D16; particular inalterado |
+| U13 | importador de demonstrativo | arquivo válido, inválido, repetido (SHA), divergente |
+| U14 | autorizações | consumo, vencimento, parcial, negada |
 
 ### G.2 Integração (banco DEV, outbox real)
 
-Agendamento com convênio; vínculo com o paciente; conclusão gera guia; PDF gerado pela rota; XML do lote validado; criação de lote; recebível da operadora criado na aprovação; reconcile coerente.
+Eventos entre contextos: conclusão → guia; aprovação → recebível; desfecho → ledger e repasse. Reconcile (financeiro e `insurance-reconcile`). Proteções contra cobrança indevida (sinal, saldo, régua). Rotas de PDF e XML. Importação de demonstrativo.
 
-### G.3 Ponta a ponta (Playwright na Preview)
+### G.3 Ponta a ponta (Playwright, Preview)
 
 | ID | Cenário | Esperado |
 | --- | --- | --- |
-| E1 | atendimento particular completo | igual a hoje: recebível do paciente, sem guia |
-| E2 | atendimento por convênio completo | guia "pronta para conferência", PDF, aprovação, lote, XML válido, recebível da operadora; paciente sem cobrança |
-| E3 | convênio não aceito pelo profissional | opção não aparece; backend recusa a submissão forjada |
-| E4 | carteirinha incompleta | agenda; guia nasce "com pendências" |
-| E5 | autorização pendente | atendimento não bloqueado; pendência visível |
-| E6 | guia com dados faltantes (sem CBO) | pendência "CBO do profissional" com link para resolver |
-| E7 | correção de guia | edição auditada; depois de exportada, só substituição |
-| E8 | geração duplicada (reentrega do evento) | uma guia só |
-| E9 | reprocessamento após falha | guia criada após retentativa; sem duplicata |
+| E1 | particular completo | igual a hoje |
+| E2 | Consulta por convênio completa | guia pronta, PDF, aprovação, lote, XML válido, recebível da operadora, sem cobrança ao paciente |
+| E3 | SP/SADT com autorização e sessões | solicitação, autorização registrada, sessões, guia agrupada, lote, XML válido |
+| E4 | convênio não aceito pelo profissional | opção ausente; backend recusa a submissão forjada |
+| E5 | carteirinha incompleta | agenda; guia com pendências |
+| E6 | autorização pendente | atendimento não bloqueado |
+| E7 | guia com dados faltantes (CBO) | pendência com link para resolver |
+| E8 | duplicidade (reentrega) | uma guia |
+| E9 | reprocessamento após falha | guia criada, sem duplicata |
+| E10 | correção depois da exportação | só substituição |
+| E11 | coparticipação | estimada → confirmada → cobrada → paga; estorno |
+| E12 | glosa | informada → recurso (XML) → revertida e definitiva → ledger coerente |
+| E13 | demonstrativo importado | pagamentos e glosas conciliados; divergência listada |
+| E14 | WhatsApp convênio | lista só cadastrados; handoff na dúvida |
+| E15 | flag desligada | nada aparece; particular normal |
 
-### G.4 Regulatórios
+### G.4 Matriz de validação TISS (corpus sintético)
 
-| ID | Verificação | Critério |
+Cada linha é gerada pelo código real, para Consulta e SP/SADT quando aplicável.
+
+| # | Cenário | Esperado |
 | --- | --- | --- |
-| R1 | XMLs válidos (variações PF/PJ, CNES real e 9999999, tipos de consulta 1–4, regimes 01–05) | 100% aprovados no XSD 4.03.00 |
-| R2 | XMLs inválidos, um por regra (carteira com 21 caracteres, registro ANS com 5, UF fora do domínio, 101 guias, sem CNES, valor com 3 casas) | 100% rejeitados |
-| R3 | hash do epílogo | igual a uma implementação independente |
-| R4 | domínios | todos os códigos usados existem na terminologia 202609 vigente na data |
-| R5 | modelo impresso | 29 campos presentes e na disposição do modelo oficial (comparação visual) |
-| R6 | CID | nenhum caminho gera ou exige CID; teste de busca no código (`cid`) no `health-insurance` |
-| R7 | lote | um tipo de guia por lote; até 100 |
+| V1 | Consulta válida (PF, PJ, CNES real, 9999999, tipos 1–4, regimes 01–05) | válido |
+| V2 | SP/SADT válida (1 item; vários itens; sessões agrupadas; com e sem autorização; com redução e acréscimo) | válido |
+| V3 | lote com 1 guia | válido |
+| V4 | lote com 100 guias | válido |
+| V5 | lote com 101 guias | inválido (XSD) |
+| V6 | registro ANS com 5 dígitos ou não numérico | inválido |
+| V7 | carteira com 21 caracteres ou vazia | inválido |
+| V8 | CBO fora do domínio | inválido |
+| V9 | conselho fora do domínio | inválido |
+| V10 | TUSS inexistente | inválido (regra interna; XSD aceita texto). Esperado: rejeição pelo validador interno e possivelmente pelos externos com TUSS |
+| V11 | TUSS fora de vigência na data | inválido (regra interna) |
+| V12 | CNES ausente ou com 8 dígitos | inválido |
+| V13 | CNPJ em formato incorreto | inválido |
+| V14 | campo obrigatório ausente (um por obrigatório principal) | inválido |
+| V15 | datas inconsistentes (atendimento futuro; validade da senha antes da autorização) | inválido (regra) |
+| V16 | valor com 3 casas ou negativo | inválido |
+| V17 | arquivo em UTF-8 com acento declarando ISO-8859-1 | inválido |
+| V18 | caracteres especiais válidos em latin1 (acentos, `&`, `<`) | válido, com escape |
+| V19 | namespace incorreto | inválido |
+| V20 | hash MD5 incorreto | inválido (hash) |
+| V21 | XML corrompido (truncado) | inválido |
+| V22 | guias duplicadas no lote (mesmo número) | inválido (regra) |
+| V23 | tipos de guia misturados no lote | inválido (XSD `choice`) |
+| V24 | versão `Padrao` incompatível (ex.: 4.02.00 com estrutura 4.03.00) | inválido |
+| V25 | recurso de glosa válido e inválido | conforme |
+| V26 | demonstrativo de retorno válido e inválido (entrada do importador) | conforme |
 
-### G.5 Segurança
+**Ciclo por cenário:**
 
-Isolamento por tenant (T10.1); matriz de permissões (T10.2); IDOR com troca de id em actions e rotas de PDF e XML; financeiro sem acesso a anamnese; logs sem PII (teste de sanitização); auditoria presente; `security:inventory`.
+1. Gerar com o código.
+2. Validar internamente.
+3. Submeter a pelo menos dois validadores externos acessíveis.
+4. Registrar.
+5. Investigar divergências.
+6. Corrigir o código.
+7. Regerar.
+8. Repetir.
+9. Guardar a evidência.
+10. Atualizar este documento.
 
-### G.6 Regressão
+### G.5 Roteiro dos validadores externos (manual e reproduzível)
 
-Suítes atuais de scheduling, financial, payments e ai-agent verdes; jornadas da IA; agendamento particular, sinal, saldo, régua e reconcile com testes de caracterização escritos **antes** das mudanças de F4/F8.
+**Regras comuns:**
+
+- Só arquivos do corpus sintético, nunca dado real.
+- Registrar o SHA-256 do arquivo **antes** da submissão.
+- Captura da tela de resultado.
+- Data e hora.
+- Versão do validador declarada na página.
+
+| Validador | Procedimento |
+| --- | --- |
+| **A — Paniquar** | abrir `https://www.paniquar.com/validador-tiss/` num navegador limpo; arrastar o arquivo; anotar o resultado e as mensagens. Processamento local declarado pela página. |
+| **B — TISS Manager** | abrir `https://tissmanager.com.br/validador-tiss-online` (plano grátis: **o arquivo vai ao servidor deles**, por isso só sintético); arrastar; anotar a contagem de erros. O detalhe exige conta: **não criar conta sem autorização**. Arquivo até 3 MB, então lotes grandes ficam só nas camadas A e C. |
+| **C — Validador TISS (Windows)** | só após autorização B7: instalar `ValidadorTISS_Instalador-4.30.0.exe` (versão gratuita); abrir o arquivo; anotar o resultado. Registrar a licença usada. |
+
+**Automação:** nenhuma das três tem API. Não automatizar envio a sites de terceiros. O próprio agente pode operar A e B pelo navegador controlado, se o fundador autorizar a sessão de navegador, **somente com o corpus sintético**.
+
+### G.6 Registro de validação cruzada
+
+| Arquivo | SHA-256 | Esperado | Interno | A (versão, data) | B (versão, data) | C (versão, data) | Divergência | Classificação ANS | Correção | Evidência |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| _(vazio até P13.3)_ | | | | | | | | | | |
+
+**Critério de aprovação:**
+
+- válidos aprovados em todos os validadores aplicáveis;
+- inválidos rejeitados de forma coerente com o erro introduzido;
+- divergência sem explicação bloqueia P13.6.
+
+**Nunca registrar resultado não executado.**
+
+### G.7 Concorrência
+
+| Cenário | Esperado |
+| --- | --- |
+| finalizações simultâneas da mesma consulta | uma guia |
+| evento entregue N vezes | sem efeito duplicado |
+| aprovação concorrente | uma vence, a outra recebe conflito |
+| dois usuários montando lote | guias não repetidas |
+| correção após exportação | só substituição |
+| falha no meio da criação do recebível | rollback, retentativa e um recebível |
+| retentativa do worker; processo interrompido | consistência transacional |
+| importação concorrente do mesmo demonstrativo | uma aplicação |
+
+### G.8 Segurança
+
+- Isolamento e RLS.
+- Papéis, com testes negativos por action e rota.
+- IDOR nas rotas de arquivo.
+- Carteirinha e snapshot cifrados no banco (consulta direta não mostra o claro).
+- Auditoria presente.
+- Exportação protegida.
+- Credencial de operadora nunca devolvida nem logada.
+- Logs sem PII (teste de sanitização).
+- `security:inventory`.
+
+### G.9 Regressão
+
+Caracterização (P14.1) antes das mudanças, cobrindo:
+
+- agendamento particular;
+- sinal, saldo, Asaas e régua;
+- prontuário;
+- Caixa;
+- repasses;
+- jornadas da IA.
+
+As suítes atuais de scheduling, financial, payments e ai-agent ficam verdes.
+
+### G.10 Desempenho
+
+Ver H.2. Os números entram só depois de medidos (P14.4).
 
 ---
 
-## H. Resultados mensuráveis e critérios de sucesso
+## H. Resultados mensuráveis
 
-### H.1 Critérios de aceite do pedido → prova
+### H.1 Indicadores de aprovação
 
-| # | Critério | Tarefa | Teste |
-| --- | --- | --- | --- |
-| 1 | clínica cadastra convênios | T2.1, T2.5 | U2, E2 |
-| 2 | profissional com convênios e planos habilitados | T2.2 | U1, E3 |
-| 3 | recepção agenda particular ou convênio | T4.1, T4.4 | E1, E2 |
-| 4 | dados do plano reutilizados | T3.1, T4.1 | E2 |
-| 5 | particular continua normal | T4.5, T8.1 | E1, G.6 |
-| 6 | conclusão gera rascunho sem duplicar | T6.4 | E8, E9, U10 |
-| 7 | preenchimento automático | T6.2 | U3, E2 |
-| 8 | ausentes viram pendências claras | T6.3 | U4, E4, E6 |
-| 9 | guia conferida e em PDF no layout aplicável | T6.6, T6.7 | R5 |
-| 10 | XML exportado conforme o padrão | T7.1–T7.3 | R1–R3, R7 |
-| 11 | financeiro distingue paciente × operadora | T8.1, T8.2 | E2, U5 |
-| 12 | sem acesso a outra clínica | T10.1 | G.5 |
-| 13 | alteração posterior não muda guia emitida | T3.1, T6.2 | U3, U9 |
-| 14 | nenhum CID exigido | T6.2, T6.3 | R6, U3 |
-| 15 | testes cobrem fluxos, validações e segurança | F10, F11 | G inteira |
+| Indicador | Meta |
+| --- | --- |
+| guias de aceite com vínculos corretos | 100% |
+| duplicatas em reprocessamento e concorrência | 0 |
+| acesso entre clínicas | 0 |
+| corpus válido aprovado, interno e externo | 100% |
+| corpus inválido rejeitado com erro coerente | 100% |
+| guia "enviada" sem registro ou recibo | 0 |
+| CID exigido ou enviado | 0 |
+| cobrança Asaas indevida a paciente de convênio em testes | 0, com métrica de bloqueio > 0 nos cenários de convênio |
+| `write_off` sem glosa definitiva | 0 |
 
-### H.2 Metas
+### H.2 Desempenho (metas a confirmar com medição real em P14.4)
 
-| Indicador | Alvo | Justificativa |
+| Operação | Meta | Justificativa |
 | --- | --- | --- |
-| Guias de aceite com vínculo correto (atendimento, paciente, profissional, clínica) | 100% | invariante de modelo |
-| Duplicatas em reprocessamento | 0 | UNIQUE + handler |
-| Acesso entre clínicas | 0 | RLS |
-| XML válido aprovado / inválido rejeitado | 100% / 100% | R1/R2 |
-| Guia marcada como enviada sem registro manual | 0 | máquina de estados |
-| CID exigido | 0 | regra ANS |
-| Tempo da conclusão até a guia (p95, caso normal) | ≤ 2 min | outbox a cada minuto (`vercel.json`); medir em T11.5 |
-| PDF da guia | ≤ 2 s por guia | a medir em T11.5 contra os PDFs clínicos atuais |
-| XML de lote com 100 guias, gerado e validado | ≤ 5 s | a medir; função Vercel com `maxDuration` 60 s |
-| Cliques extras do médico | 0 | princípio do produto |
-| Agendamento por convênio pela recepção com carteirinha cadastrada | ≤ 3 interações a mais que o particular | a validar com a recepção (usabilidade) |
+| conclusão → guia (p95) | ≤ 2 min | outbox a cada minuto (`vercel.json`) |
+| PDF de guia | ≤ 2 s | comparável aos PDFs clínicos atuais |
+| XML de lote com 100 guias, gerado e validado | ≤ 5 s, memória < 256 MB | função Vercel com `maxDuration` 60 s |
+| validação de XML com 1.000 guias (importação de retorno grande) | ≤ 15 s | medir no P0.8 |
+| consultas de faturamento (lista de 10 mil guias, filtros) | p95 ≤ 800 ms | índices por status e operadora |
+| import da TUSS 22 (cerca de 6 mil termos) | ≤ 30 s | script em lote |
+| pico: 50 conclusões por minuto numa clínica | sem atraso acumulado > 5 min | outbox em paralelo |
+
+### H.3 Matriz de consistência (Etapa G): funcionalidade → tarefa → teste
+
+| Funcionalidade (A.4) | Tarefas | Testes |
+| --- | --- | --- |
+| operadoras, planos, categorias | P2.1, P2.6 | U1, E2 |
+| credenciamento da clínica e do profissional | P2.2 | U1, E4 |
+| contratos, TUSS, vigência, valores, importação | P2.3, P2.7 | U2 |
+| regras de retorno | P4.6 | U3, U5 |
+| coparticipação | P5.3, P10.5 | U5, E11 |
+| autorização (manual e conector) | P6.1–P6.6 | U14, E3 |
+| identificação do prestador e configurações por operadora | P2.4, P2.5 | U4, G.8 |
+| carteirinhas e pendências pré-consulta | P3.1–P3.3 | U9, E5 |
+| agendamento (recepção) | P4.1–P4.5, P4.7 | E1, E2, E4 |
+| WhatsApp | P11.1–P11.2 | E14 |
+| check-in e resumo | P5.1–P5.2 | E6 |
+| prontuário integrado sem CID | P7.2, P8.2, P8.4 | U3, V-matriz |
+| Guia de Consulta | P7.x, P9.x | E2, V1 |
+| Guia SP/SADT | P8.x, P9.x | E3, V2 |
+| lotes, XML, histórico de arquivos | P9.1–P9.3 | V3–V24 |
+| envio e protocolo | P9.4 | U6 |
+| demonstrativos | P9.5 | U13, E13, V26 |
+| glosas e recurso | P9.6, P9.7, P10.3 | U11, E12, V25 |
+| pagamentos e conciliação | P9.8 | G.2 |
+| relatórios e indicadores | P9.10 | queries |
+| recebíveis paciente × operadora | P10.1, P10.2, P10.6 | E2, G.2 |
+| repasse de convênio | P10.4 | U12 |
+| proteção contra cobrança indevida | P4.5, P10.1, P10.5 | G.2, H.1 |
+| flag, disponibilidade e plataforma | P1.13 | E15 |
+| permissões | P1.12, P12.2 | G.8 |
+| segurança, LGPD e auditoria | P12.x | G.8 |
+| observabilidade | P12.6 | ensaio |
+| validação multicamadas | P13.x | G.4–G.6 |
+| homologação e publicação | P15.x | K |
+
+Resultado da revisão: **todas as funcionalidades de A.4 têm tarefa, dependência, aceite e teste.**
 
 ---
 
-## I. Governança
+## I. Governança e permissões
 
 ### I.1 Regras
 
-Valem as regras do §19.8 do pedido, mais o harness de E.12–E.15. Resumo do que o agente **não** faz sem aprovação:
+O agente não faz nada disso sem aprovação:
 
 - marcar tarefa sem validação;
-- inventar teste ou resultado;
-- afirmar conformidade sem matriz XSD;
+- inventar resultado;
+- afirmar conformidade ou homologação sem evidência;
 - usar mock em produção;
 - esconder erro;
 - remover funcionalidade;
@@ -1737,98 +1545,109 @@ Valem as regras do §19.8 do pedido, mais o harness de E.12–E.15. Resumo do qu
 - produção;
 - dado crítico sem backup e rollback;
 - decisão sem registro;
-- mudança fora do escopo sem justificativa;
-- avançar com bloqueio regulatório ou de segurança.
+- avançar com bloqueio de segurança ou regulatório.
 
-### I.2 Matriz de permissões proposta (D8)
+### I.2 Matriz de permissões (direção aprovada; validar com os papéis em P1.12)
 
 | Permissão | owner | gestor | attendant | financial | doctor |
 | --- | :-: | :-: | :-: | :-: | :-: |
-| `view:convenios` (ler configuração e cobertura) | ✔ | ✔ | ✔ | ✔ | ✔ (só o necessário ao próprio atendimento) |
-| `manage:convenios` (operadoras, planos, credenciamento, contratos) | ✔ | ✔ | — | — | — |
-| `operate:convenios` (carteirinha, cobertura, autorização informada, conferir guia) | ✔ | ✔ | ✔ | — | — |
-| `view:faturamento_convenio` (guias, lotes, valores, glosas) | ✔ | ✔ | — | ✔ | guias dos próprios atendimentos |
-| `manage:faturamento_convenio` (aprovar, lotes, XML, retornos) | ✔ | ✔ | — | ✔ | — |
+| `view:convenios` | ✔ | ✔ | ✔ | ✔ | ✔ (só o necessário ao próprio atendimento) |
+| `manage:convenios` | ✔ | ✔ | — | — | — |
+| `operate:convenios` | ✔ | ✔ | ✔ | — | — |
+| `view:faturamento_convenio` | ✔ | ✔ | — | ✔ | só as guias dos próprios atendimentos |
+| `manage:faturamento_convenio` | ✔ | ✔ | — | ✔ | — |
 
-O financeiro **não** ganha `view:prontuario`. O escopo "próprios atendimentos" do médico é filtro no backend, não só na tela.
+O financeiro não ganha `view:prontuario`. O escopo "próprios" do médico é filtro no backend. Sem vínculo a plano comercial por enquanto (D8). O controle é pela flag da clínica e pelo interruptor de plataforma (P1.13).
 
 ---
 
-## J. Publicação e rollback
+## J. Publicação, rollback e recuperação
 
-### J.1 Migrations
+### J.1 Caminho até produção
 
-São 7 migrations (0143–0149, números a confirmar), todas aditivas exceto a troca do CHECK em T1.7. Ordem: catálogo → convênios → carteirinhas → modalidade → guias → financeiro → permissões. Cada uma é compatível com o código anterior, porque colunas novas têm default ou aceitam nulo, e o código antigo ignora as tabelas novas.
+1. desenvolvimento;
+2. testes automatizados;
+3. validação XSD oficial;
+4. validação cruzada externa;
+5. homologação interna na Preview;
+6. fluxos reais de clínica com dados sintéticos;
+7. homologação com operadora (B5);
+8. revisão de segurança;
+9. revisão financeira;
+10. verificação e ensaio de migrations;
+11. preparação da release;
+12. **aprovação humana**;
+13. ativação por flag numa clínica piloto;
+14. monitoramento;
+15. critérios de rollback (J.4).
 
-### J.2 Compatibilidade
+### J.2 Migrations
 
-Agendamentos existentes ficam `particular`. Eventos antigos sem `billingMode` são tratados como particular. Clínica sem `hi_clinic_settings.enabled` não vê nada novo.
+0143–0151 (provisório), em ordem de dependência. Todas aditivas, salvo a troca do CHECK (P1.10), testada antes. Cada uma compatível com o código anterior.
 
-### J.3 Interruptores
+### J.3 Ativação
 
-- `hi_clinic_settings.enabled`, por clínica.
-- Interruptor de plataforma em `platform-settings`.
+Flag por clínica, desligada por padrão. Interruptor de plataforma. **Nunca ligar para a base inteira.**
 
-Desligado: UI oculta, agendamento só particular, handlers de guia não criam guia nova. As guias existentes continuam legíveis para faturar o que já foi atendido.
+### J.4 Critérios de rollback
 
-### J.4 Homologação
-
-Preview com banco DEV e a conta de teste. Piloto com uma clínica real só depois do MVP validado, com autorização do fundador (T11.6).
-
-### J.5 Antes de publicar
-
-Gates de E.7; matriz G.4; E2E G.3; backup de produção pelo script oficial; migrations revisadas; janela definida. O deploy de produção é decisão do fundador.
-
-### J.6 Monitoramento
-
-Métricas novas, nomes a registrar em `check:observability`:
-
-- guias criadas por status;
-- pendências por tipo;
-- tempo da conclusão até a guia;
-- falhas de handler;
-- XMLs rejeitados no XSD.
-
-Alertas: falha de handler de guia e convênio atendido sem guia após 30 min.
-
-### J.7 Rollback
-
-| Alteração | Reversível como |
+| Gatilho | Ação |
 | --- | --- |
-| código | revert do deploy; dados novos ficam inertes |
-| tabelas novas | podem ficar (sem uso) ou ser removidas por migration nova aprovada; nunca reescrever migration aplicada |
-| `appointments.billing_mode` | coluna fica; código antigo ignora |
-| CHECK de `lancamentos` (T1.7) | só por migration nova, depois de conferir que não há recebível de operadora; exige aprovação |
-| recebíveis de operadora já criados | **exigem recuperação de dados**: cancelar por estorno auditado, nunca DELETE |
-| guias e XML exportados | documentos fiscais e de faturamento: não apagar; cancelar ou substituir |
+| cobrança indevida detectada | desligar a flag da clínica e corrigir; estornar pelo fluxo existente |
+| divergência financeira > 0 sem explicação | idem |
+| handler `failed` recorrente | desligar a geração automática (interruptor) e manter o manual |
+| XML rejeitado em massa pela operadora | suspender lotes daquela operadora |
 
-### J.8 Mudança de versão TISS
+### J.5 Reversibilidade
 
-Guias antigas mantêm `tiss_version`. Lote só agrupa guias da mesma versão. A versão nova entra como builder e XSD novos, com testes próprios.
+| Alteração | Como reverter |
+| --- | --- |
+| código | revert; dados novos ficam inertes |
+| tabelas novas | ficam (sem uso) ou saem por migration nova aprovada |
+| `billing_mode` | ignorada pelo código antigo |
+| CHECK (P1.10) | migration nova, depois de conferir que não há recebível de operadora; exige aprovação |
+| recebíveis, `write_off`, guias, XML | **exigem recuperação de dados**: estorno ou compensação, cancelamento ou substituição; **nunca DELETE** |
 
-### J.9 Recuperação de falha
+### J.6 Versões TISS
 
-- Handler parado: o reconcile abre a pendência "convênio sem guia" e a reentrega cria a guia.
-- XML perdido: regenerar a partir do snapshot cifrado da guia; o hash precisa bater com o registrado.
+Guias antigas mantêm a versão. Lote com uma versão só. Versão nova = builder + XSD + corpus novos.
+
+### J.7 Recuperação
+
+| Falha | Recuperação |
+| --- | --- |
+| handler parado | reconcile abre pendência; reentrega cria a guia |
+| XML perdido | regenerar do snapshot cifrado (o hash precisa bater) |
+| demonstrativo aplicado errado | reverter por lançamentos compensatórios |
+| conector fora do ar | fallback manual |
 
 ---
 
-## K. Definition of Done
+## K. Definition of Done (Production Ready)
 
-O módulo só é declarado pronto quando:
+O módulo só é **Pronto para produção** quando todos os itens tiverem evidência:
 
-1. todos os requisitos do MVP (A.3) estão implementados;
-2. os 15 critérios (H.1) têm evidência;
-3. G.1–G.6 foram executados e aprovados;
-4. os fluxos existentes estão intactos (G.6);
-5. segurança e isolamento estão validados (T10.1–T10.4);
-6. o PDF foi conferido (R5);
-7. os XMLs passam no XSD (R1–R3, R7);
-8. pendências e limitações estão documentadas (L.3 e `known-limitations.md`);
-9. este documento reflete o código;
-10. há evidência suficiente para auditoria e homologação.
+1. escopo de A.4 implementado conforme a matriz A.3;
+2. jornadas de G.3 aprovadas;
+3. fluxos financeiros consistentes (H.1);
+4. zero cobrança indevida conhecida;
+5. guias suportadas geradas corretamente;
+6. PDFs conforme os modelos oficiais (P13.7);
+7. XMLs aprovados na validação oficial (P13.2);
+8. validação externa executada e divergências resolvidas (P13.3–P13.6), com P13.5 dependente de B7;
+9. arquivos versionados com SHA;
+10. regras TISS e TUSS respeitadas;
+11. geração idempotente (G.7);
+12. multi-tenant validado (P12.1);
+13. testes críticos aprovados;
+14. nenhum bug crítico ou bloqueante aberto;
+15. observabilidade funcionando (P12.6);
+16. rollback documentado e ensaiado (P15.7);
+17. este documento atualizado;
+18. documentação operacional completa (P15.1);
+19. homologações exigidas comprovadas (P15.3–P15.4) para os tipos de guia liberados.
 
-Aprovação técnica não é homologação de produção nem aceite por todas as operadoras (T11.6).
+**Estado "Publicado":** P15.8 e P15.9, com autorização. Aprovação técnica não equivale a aceite por todas as operadoras.
 
 ---
 
@@ -1836,49 +1655,58 @@ Aprovação técnica não é homologação de produção nem aceite por todas as
 
 ### L.1 Registro de decisões
 
-| ID | Decisão proposta | Alternativa | Status |
-| --- | --- | --- | --- |
-| D1 | Branch a partir de `origin/main`; migrations a partir de **0143**; rebase depois que a #53 entrar; telas só com primitivos compartilhados para herdar o redesign | basear na branch de UI (traz billing não revisado) | **Pendente** |
-| D2 | Contexto novo `health-insurance` (UI "Convênios") | espalhar nas tabelas de `patient`, `scheduling` e `financial` | **Pendente** |
-| D3 | Recebível da operadora em `lancamentos` ligado à **guia** (`tiss_guide_id`), sem `appointment_id` nem `patient_id`; trocar o CHECK `lancamentos_auto_origin_chk` | trocar o UNIQUE por (`appointment_id`, pagador), o que mexe no saldo do Payments e em todo `onConflict` atual | **Pendente** (troca de constraint) |
-| D3b | Glosa como lançamento `write_off` append-only no ledger | glosa só no `health-insurance` | **Pendente** |
-| D4 | Recebível da operadora nasce na **aprovação para faturamento** | na conclusão do atendimento | **Pendente** |
-| D5 | Coparticipação no MVP: o valor fica no contrato e vira recebível do paciente na conclusão (com link Asaas só da coparticipação, se a clínica cobrar pelo Qoro) | só registrar, sem recebível | **Pendente** |
-| D6 | Terminologia em tabelas globais importadas por script a partir da planilha oficial, com SHA | constantes ou JSON lidos em tempo de execução | **Pendente** |
-| D7 | Validação XSD com `xmllint-wasm` 5.3.0 (MIT, libxml2 em WASM, sem build nativo; publicado em 05/08/2026) | `libxmljs2` (nativo, problema em Windows e Vercel) ou validador próprio (não é validação real) | **Pendente** (dependência nova) |
-| D8 | Permissões e matriz de I.2; **quais planos comerciais liberam o módulo** | — | **Pendente** (produto) |
-| D9 | Número da carteirinha cifrado (`encryptForTenant`) + hash + últimos 4 | texto puro | **Pendente** |
-| D10 | Snapshot da guia cifrado, com hash de integridade | snapshot em claro | **Pendente** |
-| D11 | Valores padrão da Guia de Consulta: regime `01`, acidente `9`, tipo de consulta `1`, ou `2` para retorno dentro da regra contratual, sempre editáveis antes da aprovação | exigir escolha manual em toda guia | **Pendente** |
-| D12 | `ai_clinic_config.convenios` (texto livre) continua só como fallback de clínica que não usa o módulo; com o módulo ligado, a IA usa só o cadastro estruturado | migrar e apagar o campo | **Pendente** |
+| ID | Decisão | Status |
+| --- | --- | --- |
+| D1 | base `origin/main`; migrations a partir de 0143 com reconferência; rebase depois do #53; telas só com primitivos compartilhados | **Aprovada** (diretriz de 10/11, com reconferência obrigatória) |
+| D2 | contexto `health-insurance` | **Aprovada** (auditoria rev.2 confirma, C.1) |
+| D3 | recebível da operadora ligado à guia; troca do CHECK `lancamentos_auto_origin_chk` | **Aprovada como direção**; a troca só é aplicada depois dos testes rigorosos de P1.10 |
+| D3b | ~~glosa como `write_off` direto~~ → **só glosa definitiva gera `write_off`**; os demais estados não mexem no ledger; reversão compensatória | **Aprovada** (diretriz §3.10) |
+| D4 | recebível da operadora na aprovação para faturamento | **Aprovada** |
+| D5 | ~~coparticipação simples~~ → **ciclo completo** (C.8), cobrança só depois de confirmada e se a política permitir | **Aprovada** (diretriz §3.9) |
+| D6 | terminologia em tabelas globais importadas do oficial com SHA | **Adotada**: decorre do requisito "versões e códigos configuráveis"; pode ser vetada |
+| D7 | `xmllint-wasm` 5.3.0 (MIT) | **Avaliação autorizada**; adoção condicionada aos critérios de P0.8 |
+| D8 | matriz I.2; **sem vínculo a plano comercial**; flag por clínica + controle de plataforma; nada ligado por padrão | **Aprovada** |
+| D9 | carteirinha cifrada + hash + últimos 4 | **Adotada**: requisito de proteção (§7.5) |
+| D10 | snapshot da guia cifrado com hash | **Adotada**: idem |
+| D11 | valores padrão da Consulta (regime 01, acidente 9, tipo 1, ou 2 em retorno contratual), editáveis antes da aprovação | **Adotada** |
+| D12 | `ai_clinic_config.convenios` só como fallback sem o módulo | **Adotada** |
+| D13 | matriz de escopo A.3: Consulta e SP/SADT (tabela 22) integrais; outras despesas fora desta versão e declarado; internação, honorários, odonto e anexos n/a | **Adotada** pelo agente (escopo delegado pela diretriz §3.5); reavaliar outras despesas com demanda |
+| D14 | validação externa manual, só com corpus sintético; sem automação contra sites de terceiros | **Adotada** (diretriz §4.3 e §4.6) |
+| D15 | conectores de operadora: porta + adapter manual + adapter SOAP genérico testado contra stub; "Homologado" só com operadora real | **Adotada** (diretriz §3.6) |
+| D16 | repasse de convênio: elegibilidade configurável por clínica (`na_conclusao` / `na_aprovacao` / `no_recebimento`), **padrão `no_recebimento`** (sem antecipação); fluxo particular inalterado | **Adotada** (diretriz §3.11); a clínica muda a política conscientemente |
+| D17 | `indicacaoClinica` da SP/SADT (opcional) nunca preenchida automaticamente a partir do prontuário; só com ação explícita do médico, quando a operadora exigir | **Adotada** (finalidade limitada, LGPD) |
 
 ### L.2 Bloqueios
 
-| ID | Bloqueio | Dono | Destrava quando |
+| ID | Bloqueio | Afeta | Destrava quando |
 | --- | --- | --- | --- |
-| B1 | aprovação do plano e de D1–D12 | fundador | decisões marcadas como aprovadas aqui |
-| B2 | planos comerciais com Convênios (D8) | fundador | decisão de produto |
-| B3 | dependência nova para XSD (D7) | fundador | aprovação |
-| B4 | ordem de merge com o PR #53 (0136–0142) e a branch de UI | fundador | merge ou decisão de ordem |
-| B5 | homologação com operadora real (T11.6) | fundador e clínica piloto | piloto definido |
-| B6 | retenção legal de guias e carteirinhas (T10.3) | fundador e jurídico | orientação |
+| B4 | PR #53 aberto (0136–0142) e UI não mergeada | aplicação de migrations no DEV (E.5) e merge final | merge ou ordem decidida; até lá desenvolver sem aplicar o que colidir |
+| B5 | operadora e clínica piloto para homologação | P6.5 (homologação), P15.3, P15.4 | piloto definido pelo fundador |
+| B6 | orientação jurídica de retenção de guias e carteirinhas | P12.3 | orientação |
+| B7 | instalar o Validador C (software de terceiros no Windows) | P13.5 | autorização |
+| B8 | aprovação humana de release e ativação | P15.8, P15.9 | fundador |
+
+B1–B3 da rev.1 foram resolvidos pela diretriz de 10/11 (D1–D8).
 
 ### L.3 Riscos
 
 | ID | Risco | Prob. | Impacto | Mitigação |
 | --- | --- | :-: | :-: | --- |
-| R1 | cobrança Asaas indevida ao paciente de convênio | média | alto | T4.5 + T8.1 com testes de caracterização antes |
-| R2 | quebra do invariante "1 lançamento por atendimento" | baixa (com D3) | alto | recebível da operadora ligado à guia |
-| R3 | XML válido no XSD mas recusado pela operadora | média | médio | registro manual de retorno; homologação T11.6; mensagens claras |
-| R4 | dados obrigatórios ausentes (CBO, código na operadora, CNES) | alta | médio | pendências claras e configuração guiada |
-| R5 | CNPJ não normalizado | alta | médio | normalizar antes de usar (T2.4) |
-| R6 | colisão de migrations com o billing | média | alto | T0.4 e numeração a partir de 0143 |
-| R7 | conflito visual com a branch de UI | alta | baixo | primitivos compartilhados |
-| R8 | IA prometer cobertura | média | alto | tool só com dados cadastrados; guardas; handoff |
-| R9 | repasse calculado sobre valor ainda não recebido | média | médio | T8.3 antes de mudar |
-| R10 | terminologia desatualizada | média | médio | vigência por termo; import a cada competência |
-| R11 | caractere fora de ISO-8859-1 em nome | média | baixo | validação explícita por campo |
-| R12 | `xmllint-wasm` pesado no bundle | baixa | baixo | carregar só na rota de exportação (runtime Node) |
+| R1 | cobrança Asaas indevida | média | alto | P14.1 antes; P4.5, P10.1, P10.5; métrica de bloqueio |
+| R2 | quebra do UNIQUE de lançamento por atendimento | baixa | alto | D3 |
+| R3 | XML válido recusado pela operadora | média | médio | P13 + P15.3/4 + mensagens claras |
+| R4 | dados obrigatórios ausentes | alta | médio | pendências guiadas |
+| R5 | CNPJ não normalizado | alta | médio | P2.4 |
+| R6 | colisão de migrations | média | alto | E.5 |
+| R7 | conflito visual com a UI | alta | baixo | primitivos compartilhados |
+| R8 | IA prometer cobertura | média | alto | P11 + guardas |
+| R9 | repasse antecipado ou preso | média | médio | D16 + P10.4 |
+| R10 | terminologia desatualizada | média | médio | vigência por termo; import por competência |
+| R11 | `xmllint-wasm` inadequado em produção | baixa | médio | P0.8 antes de adotar |
+| R12 | validador externo indisponível ou divergente | média | baixo | três camadas; ANS como referência; operação nunca depende deles |
+| R13 | DEV compartilhado com migrations de outras branches | média | alto | E.5 passo 5 |
+| R14 | agrupamento de sessões diferente por operadora | alta | médio | regra por operadora (P2.5) + conferência humana |
+| R15 | escopo grande demais para uma clínica piloto inicial | média | médio | flag por clínica e por operadora; tipos de guia liberados um a um |
 
 ---
 
@@ -1886,19 +1714,31 @@ Aprovação técnica não é homologação de produção nem aceite por todas as
 
 > Append-only. Mais recente no fim.
 
-### 10/11/2026 — F0: auditoria, verificação regulatória e plano
+### 10/11/2026 — F0 (rev.1): auditoria, verificação regulatória e plano
 
-- **Tarefas:** T0.1, T0.2 e T0.3, as três concluídas.
-- **Branch e worktree criados:** `git worktree add -b feat/convenios-tiss-20261110 C:/dev/Qoro_convenios_tiss_20261110 origin/main` (HEAD `5620a098`).
-- **Numeração conferida:** a busca pelo maior número de migration em cada branch remota deu `origin/feat/billing-abacatepay-20261107` = **0142**, `origin/ui/refactor-qoro-20261108` = 0136 e `origin/main` = 0135.
-- **Worktree `C:/dev/ClinicaOS_V2_ai_convenios`:** em `93da840f` (ancestral da main) e sem alterações próprias, exceto os 4 `.webm` apagados que aparecem em todos os checkouts.
-- **Fontes da ANS:** baixadas e conferidas, com SHA-256 em B.10.
-  - XSD 4.03.00 extraído; tipos `ctm_consultaGuia`, `ct_guiaCabecalho`, `ct_beneficiarioDados`, `ct_contratadoDados`, `ct_contratadoProfissionalDados`, `ctm_consultaAtendimento`, `ctm_guiaLote` e `mensagemTISS` lidos.
-  - Domínios contados no XSD.
-  - Organizacional 202609: itens 28, 62.1 e 271 e a regra do hash (p. 49).
-  - Planilha 202511, aba `loteGuias`: regras da Guia de Consulta.
+- **Tarefas:** T0.1, T0.2, T0.3 (agora P0.1–P0.3), concluídas.
+- **Worktree:** `git worktree add -b feat/convenios-tiss-20261110 C:/dev/Qoro_convenios_tiss_20261110 origin/main` (HEAD `5620a098`).
+- **Numeração:** máximo por branch: billing 0142, UI 0136, main 0135.
+- **Worktree `ClinicaOS_V2_ai_convenios`:** em `93da840f`, ancestral da main e sem trabalho.
+- **Fontes da ANS:** baixadas e conferidas, com SHA em B.10.
+  - XSD 4.03.00: tipos da Consulta, lote e mensagem lidos.
+  - Organizacional 202609: itens 28, 62.1, 271 e p. 49.
+  - Planilha 202511: aba `loteGuias`.
   - Modelo impresso: p. 469–473.
-  - TUSS 202609: tabela 22 (`10101012`) e tabelas 24, 26, 36, 52, 59, 76 e 87.
-- **Candidato a validador XSD consultado:** `npm view xmllint-wasm` → 5.3.0, MIT, modificado em 05/08/2026. Nada instalado.
-- **Nenhum código, migration ou dado alterado.** Nenhuma escrita em banco.
-- **Próxima ação:** aprovação humana de D1–D12.
+  - TUSS 202609: tabelas 22, 24, 26, 36, 52, 59, 76 e 87.
+- **`npm view xmllint-wasm`:** 5.3.0, MIT, 05/08/2026. Nada instalado.
+- **Commit:** `62b53f4e` (rev.1).
+
+### 10/11/2026 — P0.4/P0.5 (rev.2): replanejamento para produção
+
+- **Diretriz do fundador:** "não é MVP". Aprova D1, D2, D3 (com teste rigoroso da constraint), D4, D8 e as diretrizes de coparticipação, glosa e repasse. Autoriza avaliar o `xmllint-wasm`.
+- **Reconferência (P0.5):** `git fetch`; máximo remoto **0142** (`origin/feat/billing-abacatepay-20261107`); UI 0136; main 0135. `gh pr view 53` → OPEN, head `4e120afe`.
+- **Verificações novas no XSD 4.03.00:**
+  - `ctm_sp-sadtGuia`, `ct_procedimentoExecutadoSadt`, `ct_outrasDespesas`, `ct_autorizacaoSADT`, `ctm_sp-sadtAtendimento`, `ct_guiaValorTotal`, `ctm_sp-sadtSolicitacaoGuia`, `ctm_recursoGlosa`, `ct_demonstrativoRetorno`;
+  - escolhas de `prestadorOperadora` e `operadoraPrestador`;
+  - domínios `dm_caraterAtendimento` (2), `dm_tipoAtendimento` (9), `dm_objetoRecurso` (2), `dm_tipoGlosa` (769) e `dm_etapasAutorizacao` (2).
+- **Repasse investigado:** `financial/internal/professional-payout.ts` (B.9.3). GROSS calcula na conclusão; NET espera o recebível do atendimento `pago`. Daí D16.
+- **Outbox:** `PoisonPillError` → `failed`; janitor e circuit em `src/lib/outbox`.
+- **Validadores externos:** páginas lidas e resumidas em B.11. Nenhuma validação executada ainda.
+- **Documento reescrito** (esta revisão): 109 tarefas e mapa D.0.
+- **Próxima ação:** P0.6.
