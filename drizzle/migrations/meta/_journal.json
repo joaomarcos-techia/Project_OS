@@ -953,6 +953,13 @@
       "when": 1793804271309,
       "tag": "0135_ai_clinic_operational_info",
       "breakpoints": true
+    },
+    {
+      "idx": 136,
+      "version": "7",
+      "when": 1794330000000,
+      "tag": "0143_tiss_catalog",
+      "breakpoints": true
     }
   ]
 }

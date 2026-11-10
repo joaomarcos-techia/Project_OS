@@ -24,6 +24,7 @@ Canonical — ownership e dependências de domínio.
 | `billing` | catálogo de planos, clientes, assinaturas, invoices e uso | Asaas, identity, tenancy e outbox |
 | `feedback` | sugestões privadas e histórico | identity/actor GUC e super-admin |
 | `platform-admin` | consultas e operações cross-tenant do admin | `dbAdmin`, impersonação e auditoria |
+| `health-insurance` | convênios e faturamento TISS: operadoras, contratos, carteirinhas, coberturas, autorizações, guias, lotes, glosas e terminologia TUSS ([ADR-067](../adr/067-convenios-e-tiss.md)) | scheduling, financial, payments, clinical (API pública) e AI |
 
 ## Regras de dependência
 
@@ -38,6 +39,7 @@ Canonical — ownership e dependências de domínio.
 ```text
 onboarding -> tenancy + identity + billing
 patient <-> scheduling -> financial
+scheduling -> health-insurance -> financial (recebível da operadora pela guia)
 patient -> clinical
 messaging -> ai-agent -> patient/scheduling/financial
 scheduling/ai-agent -> billing usage metrics
