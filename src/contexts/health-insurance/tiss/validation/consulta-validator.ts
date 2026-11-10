@@ -16,17 +16,9 @@ import { isValidCnpjAlphanumeric } from '@/lib/validation/cnpj-alfanumerico';
 import type { ConsultaGuideData } from '../guides/consulta';
 import { isTermEffectiveOn, type TerminologyLookup } from '../terminology/lookup';
 
-export type IssueOwner = 'gestor' | 'recepcao' | 'financeiro';
+import { isRealDate, lengthBetween, type GuideIssue, type IssueOwner } from './common';
 
-export interface GuideIssue {
-  code: string;
-  /** Caminho do campo na guia (ex.: `profissional.cbo`). */
-  field: string;
-  /** Explicação para quem não conhece o TISS. */
-  message: string;
-  /** Quem normalmente resolve. */
-  owner: IssueOwner;
-}
+export type { GuideIssue, IssueOwner } from './common';
 
 export interface ConsultaValidationContext {
   terminology: TerminologyLookup;
@@ -37,19 +29,7 @@ export interface ConsultaValidationContext {
 }
 
 /** CBO de "solicitante desconhecido" (tabela 24): o XSD aceita, mas não serve para o executante. */
-const CBO_UNKNOWN_REQUESTER = '999999';
-
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/u;
-
-function isRealDate(value: string): boolean {
-  if (!ISO_DATE.test(value)) return false;
-  const d = new Date(`${value}T00:00:00Z`);
-  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === value;
-}
-
-function lengthBetween(value: string | null | undefined, min: number, max: number): boolean {
-  return value != null && value.length >= min && value.length <= max;
-}
+export const CBO_UNKNOWN_REQUESTER = '999999';
 
 /** Todos os textos da guia com o caminho, para a checagem de codificação. */
 function textFields(d: ConsultaGuideData): Array<[string, string | null | undefined]> {
