@@ -11,6 +11,11 @@ import type { SignupEmailDelivery } from '@/contexts/onboarding/signup-email-fee
 import { cn } from '@/lib/ui/cn';
 
 import styles from './cadastro.module.css';
+import {
+  forgetSignupDestination,
+  recallSignupDestination,
+  rememberSignupDestination,
+} from './signup-destination-memory';
 
 type Props = {
   rowVersion: number;
@@ -21,7 +26,6 @@ type Props = {
   onReconcile: (reason: 'conflict' | 'uncertain') => Promise<void>;
   onGone: () => void;
 };
-const DESTINATION_TIMEOUT_MS = 10_000;
 
 export function SignupCodeConfirmation({
   rowVersion,
@@ -44,49 +48,25 @@ export function SignupCodeConfirmation({
   const inFlight = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // O endereço vem de quem acabou de digitá-lo, ou da memória desta aba. Nunca
+  // do servidor: a resposta dele mudava quando o e-mail já tinha conta.
   useEffect(() => {
-    if (email) return;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => {
-      controller.abort();
-      setDestinationLoading(false);
-      setMessage(
-        'A consulta do endereço demorou mais que o esperado. Informe o e-mail usado no cadastro para continuar; os demais dados foram preservados.',
-      );
-    }, DESTINATION_TIMEOUT_MS);
-    void fetch('/api/signup/sessions/destination', { cache: 'no-store', signal: controller.signal })
-      .then(async (response) => {
-        if (!response.ok) throw new Error('destination_unavailable');
-        const body: unknown = await response.json();
-        if (
-          typeof body !== 'object' ||
-          body === null ||
-          !('email' in body) ||
-          typeof body.email !== 'string'
-        ) {
-          throw new Error('destination_invalid');
-        }
-        if (!controller.signal.aborted) {
-          setDestination(body.email);
-          setAddress(body.email);
-          setDestinationLoading(false);
-          clearTimeout(timeout);
-        }
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) {
-          setDestinationLoading(false);
-          clearTimeout(timeout);
-          setMessage(
-            'Não conseguimos recuperar o endereço agora. Informe o mesmo e-mail usado no cadastro; os demais dados não precisam ser repetidos.',
-          );
-        }
-      });
-    return () => {
-      clearTimeout(timeout);
-      controller.abort();
-    };
+    if (email) {
+      rememberSignupDestination(email);
+      return;
+    }
+    const remembered = recallSignupDestination();
+    if (remembered) {
+      setDestination(remembered);
+      setAddress(remembered);
+    }
+    setDestinationLoading(false);
   }, [email]);
+
+  const leave = () => {
+    forgetSignupDestination();
+    onGone();
+  };
 
   async function request(action: 'confirm' | 'resend') {
     if (inFlight.current || destinationLoading) return;
@@ -130,6 +110,7 @@ export function SignupCodeConfirmation({
         ) {
           setSuccess(true);
           setMessage('E-mail confirmado. Continuando seu cadastro…');
+          forgetSignupDestination();
           window.location.assign(result.next);
           return;
         }
@@ -152,7 +133,7 @@ export function SignupCodeConfirmation({
         return;
       }
       if (response.status === 410) {
-        onGone();
+        leave();
         return;
       }
       const error = 'error' in result ? result.error : null;
@@ -216,7 +197,7 @@ export function SignupCodeConfirmation({
         body.rowVersion > rowVersion
       ) {
         onEmailCorrected(body.rowVersion, correctedEmail.trim());
-      } else if (response.status === 410) onGone();
+      } else if (response.status === 410) leave();
       else if (response.status === 409 || response.status === 503)
         await onReconcile(response.status === 409 ? 'conflict' : 'uncertain');
       else if (response.status === 429)

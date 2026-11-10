@@ -5,6 +5,7 @@ const seams = vi.hoisted(() => ({
   readProfile: vi.fn(),
   loggerWarn: vi.fn(),
   metricsEmit: vi.fn(),
+  record: vi.fn(),
 }));
 
 vi.mock('@/lib/email/retry', () => ({ sendTransactionalEmailRetried: seams.send }));
@@ -14,6 +15,7 @@ vi.mock('@/lib/env', () => ({
 }));
 vi.mock('@/lib/observability/logger', () => ({ logger: { warn: seams.loggerWarn } }));
 vi.mock('@/lib/observability/metrics', () => ({ metrics: { emit: seams.metricsEmit } }));
+vi.mock('./signup-email-code-repository', () => ({ recordSignupCodeDelivery: seams.record }));
 
 import type { User } from '@supabase/supabase-js';
 
@@ -55,11 +57,35 @@ const activeProfile = { deletedAt: null, ativo: true, inviteAcceptedAt: new Date
 
 beforeEach(() => {
   vi.clearAllMocks();
-  seams.send.mockResolvedValue({ providerMessageId: 'msg_1' });
+  seams.send.mockResolvedValue({ providerMessageId: '11111111-1111-4111-8111-111111111111' });
+  seams.record.mockResolvedValue(undefined);
   seams.readProfile.mockResolvedValue(null);
 });
 
 describe('notifyExistingSignupAccount', () => {
+  it('registra o recibo na sessão, para o status de entrega sair igual ao de um código', async () => {
+    await notify(user());
+    expect(seams.record).toHaveBeenCalledWith({
+      signupRef,
+      attemptEpoch,
+      messageId: '11111111-1111-4111-8111-111111111111',
+    });
+  });
+
+  it('sem aviso (conta que não entra), não registra recibo', async () => {
+    await notify(user({ email_confirmed_at: '' }));
+    expect(seams.record).not.toHaveBeenCalled();
+  });
+
+  it('falha ao registrar o recibo não muda o desfecho', async () => {
+    seams.record.mockRejectedValue(new Error('[signup] stale email receipt'));
+    await expect(notify(user())).resolves.toBeUndefined();
+    expect(seams.loggerWarn).toHaveBeenCalledWith('signup.existing_account_notice.failed', {
+      stage: 'initial',
+      reason: 'Error',
+    });
+  });
+
   it('avisa quem já tem senha definida, só com o link de entrada', async () => {
     await notify(user());
 

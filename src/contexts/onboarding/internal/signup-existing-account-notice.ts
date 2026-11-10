@@ -12,6 +12,7 @@ import { logger } from '@/lib/observability/logger';
 import { metrics } from '@/lib/observability/metrics';
 
 import { readSignupAuthBinding } from './signup-auth-binding';
+import { recordSignupCodeDelivery } from './signup-email-code-repository';
 
 type Stage = 'initial' | 'resend';
 
@@ -65,12 +66,21 @@ export async function notifyExistingSignupAccount(input: {
       }),
       publicOrigin: input.publicOrigin,
     });
-    await sendTransactionalEmailRetried({
+    const result = await sendTransactionalEmailRetried({
       to: input.email,
       ...content,
       idempotencyKey: noticeIdempotencyKey(input.stage, input.signupRef, input.attemptEpoch),
     });
     metrics.emit('signup.existing_account_notice.sent', { stage: input.stage });
+    // O recibo entra na sessão como o de um código: o webhook do Resend
+    // atualiza o status de entrega (`/me`) igual nas duas jornadas. Sem isto,
+    // um cadastro real virava "entregue" e o de conta existente ficava
+    // "pendente" para sempre, o que dizia qual endereço já tinha conta.
+    await recordSignupCodeDelivery({
+      signupRef: input.signupRef,
+      attemptEpoch: input.attemptEpoch,
+      messageId: result.providerMessageId,
+    });
   } catch (error) {
     logger.warn('signup.existing_account_notice.failed', {
       stage: input.stage,

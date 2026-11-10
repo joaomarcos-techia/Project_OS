@@ -30,6 +30,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  sessionStorage.clear();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
@@ -107,15 +108,8 @@ describe('same-screen verification UI', () => {
     await waitFor(() => expect(reconcile).toHaveBeenCalledWith('conflict'));
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
-  it('waits for the original address before enabling confirmation after reload', async () => {
-    let resolve: (response: Response) => void = () => {
-      throw new Error('not initialized');
-    };
-    fetchMock.mockReturnValue(
-      new Promise<Response>((done) => {
-        resolve = done;
-      }),
-    );
+  it('after a reload, uses the address remembered in this tab and never asks the server', async () => {
+    sessionStorage.setItem('qoro-signup-destination', email);
     render(
       <SignupCodeConfirmation
         rowVersion={5}
@@ -124,19 +118,13 @@ describe('same-screen verification UI', () => {
         onGone={gone}
       />,
     );
-    expect(screen.getByRole('button', { name: 'Confirmar e-mail' })).toHaveProperty(
-      'disabled',
-      true,
-    );
-    expect(screen.queryByLabelText('E-mail usado no cadastro')).toBeNull();
-    await act(async () => {
-      resolve(reply(200, { email }));
-    });
     await screen.findByText(email);
     expect(screen.getByRole('button', { name: 'Confirmar e-mail' })).toHaveProperty(
       'disabled',
       false,
     );
+    expect(screen.queryByLabelText('E-mail usado no cadastro')).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
   it('shows destination and a single accessible numeric code input, without a second password', () => {
     mount();
@@ -231,8 +219,7 @@ describe('same-screen verification UI', () => {
       rowVersion: 5,
     });
   });
-  it('retrieves only its server-bound destination after reload', async () => {
-    fetchMock.mockResolvedValue(reply(200, { email }));
+  it('without a remembered address, asks for the email and never asks the server', async () => {
     render(
       <SignupCodeConfirmation
         rowVersion={5}
@@ -241,24 +228,32 @@ describe('same-screen verification UI', () => {
         onGone={gone}
       />,
     );
-    await screen.findByText(email);
-    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/signup/sessions/destination');
-    expect(document.querySelector('input[type="password"]')).toBeNull();
-  });
-  it('falls back to the original email on destination failure without repeating other data', async () => {
-    fetchMock.mockResolvedValue(reply(503, { error: 'unavailable' }));
-    render(
-      <SignupCodeConfirmation
-        rowVersion={5}
-        onUpdated={updated}
-        onReconcile={reconcile}
-        onGone={gone}
-      />,
-    );
-    await screen.findByText(/Não conseguimos recuperar o endereço/u);
-    expect(screen.getByLabelText('E-mail usado no cadastro')).toBeTruthy();
+    expect(await screen.findByLabelText('E-mail usado no cadastro')).toBeTruthy();
     expect(screen.queryByLabelText('Seu nome')).toBeNull();
     expect(document.querySelector('input[type="password"]')).toBeNull();
+    // A rota de destino respondia diferente quando o e-mail já tinha conta.
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it('remembers the typed address for this tab and forgets it once the email is confirmed', async () => {
+    mount();
+    expect(sessionStorage.getItem('qoro-signup-destination')).toBe(email);
+    fetchMock.mockResolvedValue(reply(200, { next: '/cadastro/plano' }));
+    fireEvent.change(screen.getByLabelText('Código de confirmação'), {
+      target: { value: '12345678' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar e-mail' }));
+    await waitFor(() => expect(assign).toHaveBeenCalledWith('/cadastro/plano'));
+    expect(sessionStorage.getItem('qoro-signup-destination')).toBeNull();
+  });
+  it('forgets the remembered address when the session is gone', async () => {
+    mount();
+    fetchMock.mockResolvedValue(reply(410, { error: 'gone' }));
+    fireEvent.change(screen.getByLabelText('Código de confirmação'), {
+      target: { value: '12345678' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar e-mail' }));
+    await waitFor(() => expect(gone).toHaveBeenCalledOnce());
+    expect(sessionStorage.getItem('qoro-signup-destination')).toBeNull();
   });
   it('never follows a next URL supplied outside the allowed signup pages', async () => {
     mount();
