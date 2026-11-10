@@ -14,7 +14,7 @@ export interface NavModule {
   label: string;
   /**
    * Nome mais curto só para o menu, quando o inteiro não cabe na pílula aberta
-   * (204 px). O link continua anunciado com `label`.
+   * (168 px). O link continua anunciado com `label`.
    */
   navLabel?: string;
   group: Group;

@@ -40,7 +40,8 @@ Fotos em `scratchpad/shots-sidebar/antes` (14 estados). Problemas reais:
 Mantido por decisão anterior do fundador: marca de 36 px, `react-useanimations`,
 Sair no menu da conta em tablet com toque. Fixar, Tema e Sair voltaram a ser lista com nome em
 10/11, a pedido do fundador (a linha de ícones de 09/11 foi desfeita). No mesmo dia o trilho
-passou de 72 para 60 px recolhido e de 216 para 204 px aberto, também a pedido dele.
+passou de 72 para 60 e depois 44 px recolhido, e de 216 para 204 e depois 176 px aberto, também a
+pedido dele.
 
 ## 5. Objetivos da nova sidebar
 

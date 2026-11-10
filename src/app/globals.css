@@ -530,21 +530,23 @@ body:has([data-qoro-tokens='app-v5']) {
 
   /* Shell: fundo do app, menu e painel */
   --shell-gap: 12px;
-  /* Recolhido 60 px e aberto 204 px (+12 px de borda ao abrir por cima): pedido do
-     founder em 10/11. Aberto, o limite é "Equipe & Permissões" (141 px) com
-     respiro à direita. */
-  --rail-w: 60px;
+  /* Recolhido 44 px (o valor do canvas) e aberto 176 px (+12 px de borda ao abrir
+     por cima): o founder pediu o menu mais estreito em 10/11, com a barra da
+     referência dele como medida. Marca e quadrado do ativo têm 36 px e as mesmas
+     bordas; aberto, o nome mais longo ("Fixar menu aberto") fica a ~28 px da
+     borda da pílula. */
+  --rail-w: 44px;
   --rail-logo: 36px;
   --rail-logo-inset: calc((var(--rail-w) - var(--rail-logo)) / 2);
   --rail-icon-inset: calc((var(--rail-w) - 20px) / 2);
   /* Cada item é um bloco recuado das bordas: no menu recolhido vira um quadrado
-     de 40 px em volta do ícone; aberto, uma pílula da largura do menu. */
-  --rail-pill-inset: 10px;
-  --rail-pill-radius: 12px;
+     de 36 px em volta do ícone, alinhado à marca; aberto, uma pílula. */
+  --rail-pill-inset: 4px;
+  --rail-pill-radius: 10px;
   --rail-item-h: 40px;
   --rail-heading-h: 28px;
-  --rail-peek-w: 216px;
-  --rail-pin-w: 204px;
+  --rail-peek-w: 188px;
+  --rail-pin-w: 176px;
   --page-px: 24px;
   --page-pt: 0px;
   --page-pt-mobile: 0px;
@@ -1088,7 +1090,7 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail {
 
 /* Telas baixas: itens e títulos encolhem para todos os destinos e o rodapé
    (Fixar, Tema e Sair, em lista) caberem sem rolagem. Cada degrau cabe inteiro
-   até a altura do degrau seguinte: altura útil = 128 + 15 itens + 4 títulos +
+   até a altura do degrau seguinte: altura útil = 120 + 15 itens + 4 títulos +
    conta. Abaixo de 752 px o nome do grupo some e fica só o espaço entre grupos;
    a lista só rola abaixo de ~620 px, com barra visível no menu aberto. */
 @media (min-width: 721px) and (max-height: 895px) {

@@ -109,11 +109,11 @@ Por pedido do founder em 09/11, o favicon passou a ser a marca do menu lateral (
 
 | Canvas                                | Implementado                                       | Motivo                                                                 |
 | ------------------------------------- | -------------------------------------------------- | ---------------------------------------------------------------------- |
-| Trilho de 44 px, marca de 44 px       | Trilho de 60 px, marca de 36 px; aberto com 204 px | Marca com respiro. Era 72/216 px; o founder pediu menos largura em 10/11. |
+| Trilho de 44 px, marca de 44 px       | Trilho de 44 px, marca de 36 px; aberto com 176 px | Foi 72/216 e depois 60/204; em 10/11 o founder pediu menos largura duas vezes, com a barra da referência dele como medida. |
 | Fixar, tema e Sair em lista com nome  | Lista com nome, como o canvas                      | Em 09/11 viraram ícones em linha; em 10/11 o founder pediu a lista de volta. |
 | Ícones estáticos                      | `react-useanimations` (MIT) ao passar o mouse      | Pedido do founder. Consultório segue em Lucide: não há estetoscópio.   |
 | Sair no rodapé em qualquer aparelho   | Em tablet com toque, Sair só no menu da conta      | Decisão delegada pelo founder: nada de saída por engano.              |
-| Ativo com contorno e barra azul       | Bloco branco sem borda nem barra, texto escuro; aberto no cinza do trilho; sem traço entre grupos | Referência visual do founder (10/11). Recolhido, o ativo é um quadrado de 40 px. "Equipe & Permissões" aparece como "Equipe" para caber nos 204 px; o link segue anunciado com o nome inteiro. |
+| Ativo com contorno e barra azul       | Bloco branco sem borda nem barra, texto escuro; aberto no cinza do trilho; sem traço entre grupos | Referência visual do founder (10/11). Recolhido, o ativo é um quadrado de 36 px alinhado à marca. "Equipe & Permissões" aparece como "Equipe" para caber na pílula aberta; o link segue anunciado com o nome inteiro. |
 
 ## Referências HTML do tenant — setembro de 2026
 
