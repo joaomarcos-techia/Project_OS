@@ -726,7 +726,7 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail {
 @media (min-width: 721px) {
   html:not([data-qoro-rail='pinned'])
     [data-qoro-shell='tenant']
-    .qoro-rail:is(:hover, :has(:focus-visible), :has([data-state='open']))
+    .qoro-rail:is(:hover, :has(:focus-visible), :has([data-state='open'])):not([data-peek='off'])
     .qoro-rail-inner {
     width: var(--rail-peek-w);
     /* Abre 6 px para cada lado: a marca fica à mesma distância do topo e da esquerda. */
@@ -759,7 +759,8 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail {
 html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail-inner {
   width: var(--rail-pin-w);
 }
-[data-qoro-shell='tenant'] .qoro-rail:is(:hover, :has(:focus-visible), :has([data-state='open'])),
+[data-qoro-shell='tenant']
+  .qoro-rail:is(:hover, :has(:focus-visible), :has([data-state='open'])):not([data-peek='off']),
 html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail {
   --rail-label-opacity: 1;
 }
@@ -1174,7 +1175,7 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail {
   }
 }
 [data-qoro-shell='tenant']
-  .qoro-rail:is(:hover, :has(:focus-visible), :has([data-state='open']))
+  .qoro-rail:is(:hover, :has(:focus-visible), :has([data-state='open'])):not([data-peek='off'])
   .qoro-rail-nav,
 html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail-nav {
   scrollbar-width: thin;

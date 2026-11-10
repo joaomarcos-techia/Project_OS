@@ -133,6 +133,27 @@ export function PainelShell({
     setNavOpen(false);
   }, [pathname]);
 
+  // Depois de escolher um destino no menu aberto por cima, ele recolhe mesmo com
+  // o mouse ainda em cima: senão o painel ficava cobrindo a esquerda da tela nova
+  // até a pessoa tirar o ponteiro dali. Volta a abrir quando o ponteiro sai e
+  // entra de novo, ou com qualquer tecla dentro do menu.
+  const railRef = useRef<HTMLElement>(null);
+  const [peekOff, setPeekOff] = useState(false);
+  const lastPathname = useRef(pathname);
+  useEffect(() => {
+    if (lastPathname.current === pathname) return;
+    lastPathname.current = pathname;
+    const rail = railRef.current;
+    if (!rail) return;
+    let engaged = rail.matches(':hover');
+    try {
+      engaged ||= rail.matches(':has(:focus-visible)');
+    } catch {
+      // Navegador sem `:has()` em `matches`: fica só o caso do mouse.
+    }
+    if (engaged) setPeekOff(true);
+  }, [pathname]);
+
   useEffect(() => {
     if (!navOpen) return;
     const root = document.documentElement;
@@ -209,7 +230,14 @@ export function PainelShell({
           Pular para o conteúdo
         </a>
 
-        <aside data-slot="tenant-rail" className="qoro-rail">
+        <aside
+          ref={railRef}
+          data-slot="tenant-rail"
+          className="qoro-rail"
+          data-peek={peekOff ? 'off' : undefined}
+          onPointerLeave={peekOff ? () => setPeekOff(false) : undefined}
+          onKeyDown={peekOff ? () => setPeekOff(false) : undefined}
+        >
           <div
             ref={railInnerRef}
             className="qoro-rail-inner"
