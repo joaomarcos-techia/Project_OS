@@ -133,12 +133,10 @@ export async function getBoard(input: { doctorId?: string | null } = {}): Promis
   const now = new Date();
   const pick = (statuses: AppointmentStatusDTO[]) =>
     pickByStatus(scoped, statuses).map((a) =>
-      buildCard(
-        a,
-        a.patientId ? cardMap.get(a.patientId) : undefined,
-        checkInTimes[a.id] ?? null,
+      buildCard(a, a.patientId ? cardMap.get(a.patientId) : undefined, checkInTimes[a.id] ?? null, {
         now,
-      ),
+        timeZone: tz,
+      }),
     );
   const waiting = pickByStatus(scoped, ['chegou'])
     .slice()
@@ -153,7 +151,7 @@ export async function getBoard(input: { doctorId?: string | null } = {}): Promis
         appointment,
         appointment.patientId ? cardMap.get(appointment.patientId) : undefined,
         checkInTimes[appointment.id] ?? null,
-        now,
+        { now, timeZone: tz },
         queue
           ? {
               position: queue.position,
@@ -218,7 +216,7 @@ export async function loadAtendimento(
       patientId: appt.patientId,
       pacienteNome: card?.nome ?? (appt.patientId ? 'Paciente' : 'Paciente sem cadastro'),
       alergias: card?.alergias ?? [],
-      idade: ageFromBirthdate(card?.dataNascimento ?? null),
+      idade: ageFromBirthdate(card?.dataNascimento ?? null, await clinicTimezoneCached(clinicId)),
       sexo: card?.sexo ?? null,
       motivo: motivoOf(appt),
       status: appt.status,

@@ -60,22 +60,35 @@ describe('board-logic — fail (erro de domínio → ActionResult)', () => {
 
 describe('board-logic — ageFromBirthdate', () => {
   const now = new Date('2026-06-04T12:00:00Z');
+  const SP = 'America/Sao_Paulo';
 
   it('calcula a idade em anos completos', () => {
-    expect(ageFromBirthdate('1984-06-03', now)).toBe(42); // aniversário já passou
-    expect(ageFromBirthdate('1984-06-04', now)).toBe(42); // aniversário é hoje
-    expect(ageFromBirthdate('1984-06-05', now)).toBe(41); // aniversário ainda não chegou
+    expect(ageFromBirthdate('1984-06-03', SP, now)).toBe(42); // aniversário já passou
+    expect(ageFromBirthdate('1984-06-04', SP, now)).toBe(42); // aniversário é hoje
+    expect(ageFromBirthdate('1984-06-05', SP, now)).toBe(41); // aniversário ainda não chegou
+  });
+
+  it('usa o dia da clínica: véspera do aniversário às 22h de Brasília ainda não conta', () => {
+    const vesperaAs22h = new Date('2026-06-04T01:00:00Z'); // 03/06 22h em Brasília
+    expect(ageFromBirthdate('1984-06-04', SP, vesperaAs22h)).toBe(41);
+    expect(ageFromBirthdate('1984-06-04', 'UTC', vesperaAs22h)).toBe(42);
+    // Às 00h de Brasília o aniversário chega.
+    expect(ageFromBirthdate('1984-06-04', SP, new Date('2026-06-04T03:00:00Z'))).toBe(42);
+  });
+
+  it('aceita o valor com hora e usa só a data civil', () => {
+    expect(ageFromBirthdate('1984-06-04T00:00:00.000Z', SP, now)).toBe(42);
   });
 
   it('retorna null para ausente/inválida', () => {
-    expect(ageFromBirthdate(null, now)).toBeNull();
-    expect(ageFromBirthdate('', now)).toBeNull();
-    expect(ageFromBirthdate('not-a-date', now)).toBeNull();
+    expect(ageFromBirthdate(null, SP, now)).toBeNull();
+    expect(ageFromBirthdate('', SP, now)).toBeNull();
+    expect(ageFromBirthdate('not-a-date', SP, now)).toBeNull();
   });
 
   it('rejeita idades absurdas (futuro / > 200 anos)', () => {
-    expect(ageFromBirthdate('2999-01-01', now)).toBeNull();
-    expect(ageFromBirthdate('1500-01-01', now)).toBeNull();
+    expect(ageFromBirthdate('2999-01-01', SP, now)).toBeNull();
+    expect(ageFromBirthdate('1500-01-01', SP, now)).toBeNull();
   });
 });
 
@@ -173,7 +186,10 @@ describe('board-logic — buildCard', () => {
   const now = new Date('2026-06-04T12:00:00Z');
 
   it('monta o card com idade/sexo/alergias do paciente', () => {
-    const card = buildCard(appt(), patient, '2026-06-04T12:30:00.000Z', now);
+    const card = buildCard(appt(), patient, '2026-06-04T12:30:00.000Z', {
+      now,
+      timeZone: 'America/Sao_Paulo',
+    });
     expect(card).toMatchObject({
       appointmentId: 'a1',
       patientId: 'p1',
@@ -190,7 +206,10 @@ describe('board-logic — buildCard', () => {
   });
 
   it('walk-in (sem paciente) → nome "Paciente sem cadastro", sem idade/sexo/alergias', () => {
-    const card = buildCard(appt({ patientId: null }), undefined, null, now);
+    const card = buildCard(appt({ patientId: null }), undefined, null, {
+      now,
+      timeZone: 'America/Sao_Paulo',
+    });
     expect(card.pacienteNome).toBe('Paciente sem cadastro');
     expect(card.idade).toBeNull();
     expect(card.sexo).toBeNull();
@@ -199,7 +218,10 @@ describe('board-logic — buildCard', () => {
   });
 
   it('paciente referenciado mas card ausente → fallback "Paciente"', () => {
-    const card = buildCard(appt({ patientId: 'p9' }), undefined, null, now);
+    const card = buildCard(appt({ patientId: 'p9' }), undefined, null, {
+      now,
+      timeZone: 'America/Sao_Paulo',
+    });
     expect(card.pacienteNome).toBe('Paciente');
   });
 });

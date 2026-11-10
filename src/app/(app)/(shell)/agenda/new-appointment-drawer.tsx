@@ -27,20 +27,18 @@ import { toast } from '@/components/ui/use-toast';
 
 import { buscarPacientes, criarAtendimento, type CriarAtendimentoInput } from './actions';
 import type { AgendaData } from './data';
+import { todayYmd } from './range';
 
 type Modo = 'agendar' | 'agora';
-
-/** YYYY-MM-DD de hoje (local do browser) para o `min` do input de data. */
-function hojeISODate(): string {
-  const d = new Date();
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-}
 
 /** Novo atendimento em Drawer — default AGENDAR (decisão do founder); Enter submete. */
 export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  // Hoje no fuso da CLÍNICA, que é como o servidor lê a data e a hora
+  // digitadas. O dia do navegador divergia depois das 21h e para quem atende
+  // de outro fuso.
+  const hojeISODate = () => todayYmd(data.tz);
 
   const [modo, setModo] = useState<Modo>('agendar');
   const [paciente, setPaciente] = useState<ComboboxItem | null>(null);

@@ -7,6 +7,7 @@ import { PublicPage, signupFrame } from '@/components/shared/signup-frame';
 import { cn } from '@/lib/ui/cn';
 
 import styles from './login-frame.module.css';
+import { DEFAULT_CLINIC_TIME_ZONE, yearInTimeZone } from '@/lib/datetime/clinic-calendar';
 
 export { styles as loginFrame };
 
@@ -41,7 +42,7 @@ export function LoginFrame({
           </header>
           <div className={styles.mid}>{children}</div>
           <footer className={styles.foot}>
-            <span>© {new Date().getFullYear()} Qoro</span>
+            <span>© {yearInTimeZone(DEFAULT_CLINIC_TIME_ZONE)} Qoro</span>
             <a href={`${MARKETING_SITE}/termos-de-uso`}>Termos de Uso</a>
             <a href={`${MARKETING_SITE}/politica-de-privacidade`}>Política de Privacidade</a>
           </footer>

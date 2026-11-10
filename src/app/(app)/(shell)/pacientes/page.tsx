@@ -23,7 +23,8 @@ import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/compon
 
 import { PATIENT_RESTORE_WINDOW_DAYS } from '@/contexts/patient/internal/restore-policy';
 import { formatDatePt } from '@/lib/format';
-import { ageFromBirthdate } from '../consultorio/board-logic';
+import { getClinicTimezone } from '@/contexts/tenancy/queries';
+import { ageOnDate, todayInTimeZone } from '@/lib/datetime/clinic-calendar';
 
 import styles from './patients.module.css';
 
@@ -74,7 +75,7 @@ export default async function PacientesPage({
   // O drawer continua em paralelo porque é outra transação — e transações
   // paralelas são de fato simultâneas (pool max:6), ao contrário de duas
   // queries dentro da mesma.
-  const [{ bonds, ...result }, guardianCandidates] = await Promise.all([
+  const [{ bonds, ...result }, guardianCandidates, timeZone] = await Promise.all([
     listPatientsPageWithBonds(clinicId, {
       page,
       // Na lixeira o vínculo não faz sentido: ele descreve operação corrente.
@@ -85,7 +86,10 @@ export default async function PacientesPage({
     // Os candidatos só são necessários dentro do formulário aberto. A listagem
     // normal não carrega mais 200 pacientes adicionais em toda navegação.
     drawerOpen ? listPatients(clinicId, { limit: 200 }) : Promise.resolve([]),
+    getClinicTimezone(clinicId),
   ]);
+  // Idade pelo dia de hoje da clínica: nascimento é data civil, não instante.
+  const hoje = todayInTimeZone(timeZone);
   const totalPages = Math.max(1, Math.ceil(result.total / result.pageSize));
   const filtering = Boolean(q || showTrash);
   const currentParams: PatientListSearchParams = {
@@ -277,9 +281,9 @@ export default async function PacientesPage({
                             <span className="block font-mono text-(length:--fs-sm) tabular-nums text-fg-muted">
                               {formatDatePt(p.dataNascimento)}
                             </span>
-                            {ageFromBirthdate(p.dataNascimento) !== null ? (
+                            {ageOnDate(p.dataNascimento, hoje) !== null ? (
                               <span className="mt-0.5 block text-(length:--fs-2xs) text-fg-subtle">
-                                {ageFromBirthdate(p.dataNascimento)} anos
+                                {ageOnDate(p.dataNascimento, hoje)} anos
                               </span>
                             ) : null}
                           </>

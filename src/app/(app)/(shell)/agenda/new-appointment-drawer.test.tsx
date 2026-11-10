@@ -29,7 +29,36 @@ const baseData: AgendaData = {
   ymd: '2026-10-03',
 };
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
+
+describe('data padrão no fuso da clínica', () => {
+  it.each([
+    ['antes das 21h em Brasília', '2026-08-16T23:30:00.000Z', 'America/Sao_Paulo', '2026-08-16'],
+    [
+      'às 21h em Brasília (UTC já é dia 17)',
+      '2026-08-17T00:00:00.000Z',
+      'America/Sao_Paulo',
+      '2026-08-16',
+    ],
+    [
+      'depois das 21h, virando o ano',
+      '2027-01-01T01:00:00.000Z',
+      'America/Sao_Paulo',
+      '2026-12-31',
+    ],
+    ['clínica em UTC no mesmo instante', '2026-08-17T00:00:00.000Z', 'UTC', '2026-08-17'],
+  ])('%s', (_case, now, tz, expected) => {
+    vi.useFakeTimers({ now: new Date(now), toFake: ['Date'] });
+    render(<NewAppointmentDrawer data={{ ...baseData, tz }} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Novo atendimento' }));
+    const date = screen.getByLabelText('Data') as HTMLInputElement;
+    expect(date.value).toBe(expected);
+    expect(date.min).toBe(expected);
+  });
+});
 
 describe('recorrência com preço único', () => {
   it('permite selecionar uma série sem exigir forma de pagamento', () => {

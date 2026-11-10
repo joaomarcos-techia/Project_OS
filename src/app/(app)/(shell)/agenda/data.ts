@@ -286,7 +286,7 @@ export async function getAgendaData(query: AgendaQuery = { view: 'day' }): Promi
     doctorId: a.doctorId,
     horario: a.scheduledAt,
     pacienteNome: a.patientId ? (nameOf.get(a.patientId) ?? 'Paciente') : 'Encaixe',
-    pacienteIdade: ageFromBirthdate(a.patientId ? (birthOf.get(a.patientId) ?? null) : null),
+    pacienteIdade: ageFromBirthdate(a.patientId ? (birthOf.get(a.patientId) ?? null) : null, tz),
     medicoNome: doctorNameOf.get(a.doctorId) ?? a.snapshotDoctorNome,
     procedimento: a.snapshotProcedureName,
     duracaoMin: a.durationMin,
