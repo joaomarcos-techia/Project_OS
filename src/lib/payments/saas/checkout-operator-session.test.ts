@@ -6,12 +6,14 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import {
   assertSamePreparation,
+  assertCheckoutDevHistory,
   checkoutUrl,
   checkoutSnapshotSchema,
   expectedAmount,
   guardedDevDatabase,
   previewOrigin,
   readSession,
+  readCheckoutRequiredMigrations,
   saveSession,
   sessionSchema,
   withSessionLock,
@@ -56,6 +58,66 @@ afterEach(async () => {
 });
 
 describe('checkout operator environment and immutable preparation', () => {
+  const requiredMigrations = Array.from({ length: 7 }, (_, index) => ({
+    tag: `0${136 + index}_synthetic`,
+    when: 1794000000000 + index,
+    hash: (index + 1).toString(16).padStart(64, '0'),
+  }));
+  const appliedMigrations = requiredMigrations.map((entry) => ({
+    hash: entry.hash,
+    created_at: String(entry.when),
+  }));
+  const reviewedTissMigration = {
+    hash: '9f9b483aaeff60a9ca4f5b182c3b071408a7d3eec9ecea7cfe8f98bcf602e807',
+    created_at: '1794330000000',
+  };
+  it('keeps the exact financial history valid without a parallel migration', () => {
+    expect(assertCheckoutDevHistory(143, appliedMigrations, requiredMigrations)).toEqual({
+      migrations: 143,
+      parallelMigrations: [],
+    });
+  });
+  it('recognizes only the reviewed additive TISS migration without running it', () => {
+    expect(
+      assertCheckoutDevHistory(
+        144,
+        [...appliedMigrations, reviewedTissMigration],
+        requiredMigrations,
+      ),
+    ).toEqual({
+      migrations: 144,
+      parallelMigrations: ['0143_tiss_catalog'],
+    });
+  });
+  it.each([
+    [
+      'required financial hash',
+      [{ ...appliedMigrations[0], hash: 'f'.repeat(64) }, ...appliedMigrations.slice(1)],
+      143,
+    ],
+    ['missing financial migration', appliedMigrations.slice(1), 143],
+    [
+      'unknown parallel migration',
+      [...appliedMigrations, { hash: 'f'.repeat(64), created_at: '1794330000001' }],
+      144,
+    ],
+    [
+      'changed reviewed migration',
+      [...appliedMigrations, { ...reviewedTissMigration, hash: 'f'.repeat(64) }],
+      144,
+    ],
+    ['duplicate timestamp', [...appliedMigrations, appliedMigrations[0]], 144],
+    ['unexplained count', appliedMigrations, 144],
+  ] as const)('rejects %s instead of ignoring shared DEV drift', (_label, applied, count) => {
+    expect(() => assertCheckoutDevHistory(count, applied, requiredMigrations)).toThrow();
+  });
+  it('reads all seven actual trial and billing migration hashes from this checkout', async () => {
+    const entries = await readCheckoutRequiredMigrations();
+    expect(entries).toHaveLength(7);
+    expect(entries[0]?.tag).toBe('0136_trial_resource_limits');
+    expect(entries[6]?.tag).toBe('0142_saas_review_replays');
+    expect(new Set(entries.map((entry) => entry.hash)).size).toBe(7);
+  });
   const rawSnapshot = {
     subscription_id: sample.planId,
     clinic_id: sample.runId,

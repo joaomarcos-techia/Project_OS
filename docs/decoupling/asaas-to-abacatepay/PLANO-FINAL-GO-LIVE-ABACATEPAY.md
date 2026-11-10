@@ -2,6 +2,8 @@
 
 ## Escopo e baseline preservada
 
+**Checkpoint mais recente — lote sob pedido 10/11:** [relatório §37](RELATORIO-HOMOLOGACAO-FINAL.md#37-dev-recuperado-inventário-financeiro-e-lote-sob-pedido--10112026). Data API DEV foi habilitada pelo founder e REST voltou 200; schema financeiro privado e dados anônimos protegidos. Preflight144 passou, incluindo a 0143 TISS exata revisada, sem aplicar/copiar migrations. CI `fd90ded7` passou 6.897 testes e 18 E2E/zero SKIP. A regressão nova passou 2.247 testes; a CI própria do incremento é registrada no PR. O founder agora pediu **aguardar “crie os checkouts”**: Consultório 1 e Clínica 3/4/5 pendentes,2 pago preservado. [Auditoria Vercel](AUDITORIA-VARIAVEIS-VERCEL.md) e [inventário financeiro](INVENTARIO-FLUXOS-FINANCEIROS.md) distinguem legado, paciente, Sandbox e live. Esta preparação não dispensa B1–B4 ou implementa composição live; **NO-GO financeiro Production** permanece.
+
 Execução na branch `feat/billing-abacatepay-20261107`, worktree `C:/dev/Qoro_billing_abacatepay_20261107`, PR #53 draft. Baseline `c712b743dbb14556c2878d05a1877f77a055b623`: CI `42723322325` aprovada, 6.777 testes, build e gates; E2E público 8 PASS / 2 SKIP de Turnstile sem chaves. A `main` contém o PR #54, merge `5620a0987ec53db7d7358728eb7d457d9d373df3`, publicado com autorização anterior. Não reimplementar o cadastro. Quatro exclusões antigas de vídeos no worktree são alheias e ficam fora dos commits.
 
 Produção, contratos Asaas, desconto vitalício, pagamentos de pacientes e a fixture paga retida ficam intactos. Não há merge, ativação financeira, nova cobrança ou deleção remota nesta rodada. O agente de UI trabalha separadamente.

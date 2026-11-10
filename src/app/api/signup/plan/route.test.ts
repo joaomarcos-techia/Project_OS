@@ -186,6 +186,9 @@ describe('PUT /api/signup/plan', () => {
     JSON.stringify({ ...input, trialDays: 999 }),
     JSON.stringify({ ...input, campaignCode: 'fundador' }),
     JSON.stringify({ ...input, planId: 'not-a-uuid' }),
+    ...[0, 1, 6, -1, 2.5, 'cinco', null, {}, []].map((doctors) =>
+      JSON.stringify({ ...input, doctors }),
+    ),
   ])('recusa body estrito sem chamar writer: %s', async (body) => {
     const response = await PUT(request('PUT', body));
     expect(response.status).toBe(400);

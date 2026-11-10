@@ -1,5 +1,5 @@
 /** Local operator state, separate from the application's financial journal. */
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { lstat, mkdir, open, readFile, rename, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
@@ -8,6 +8,91 @@ import { OFFER_2026_PLAN_CODES, quoteProposedOffer } from '../src/contexts/billi
 
 export const DEV_REF = 'pqhkirrszzpwezdaqrai';
 export const BILLING_BRANCH = 'feat/billing-abacatepay-20261107';
+const CHECKOUT_BASELINE_MIGRATIONS = 143;
+const CRITICAL_MIGRATION_FIRST_INDEX = 136;
+const CRITICAL_MIGRATION_LAST_INDEX = 142;
+// Reviewed read-only in the parallel TISS branch. This recognizes its exact
+// additive catalog migration in shared DEV; it never runs or copies that module.
+const REVIEWED_PARALLEL_DEV_MIGRATION = {
+  tag: '0143_tiss_catalog',
+  when: 1794330000000,
+  hash: '9f9b483aaeff60a9ca4f5b182c3b071408a7d3eec9ecea7cfe8f98bcf602e807',
+} as const;
+const migrationHash = z.string().regex(/^[a-f0-9]{64}$/);
+const migrationEntry = z.object({
+  tag: z.string().regex(/^\d{4}_[a-z0-9_]+$/),
+  when: z.number().int().positive(),
+  hash: migrationHash,
+});
+export type CheckoutRequiredMigration = z.infer<typeof migrationEntry>;
+
+export async function readCheckoutRequiredMigrations(): Promise<CheckoutRequiredMigration[]> {
+  const journal = z
+    .object({
+      entries: z.array(
+        z.object({
+          idx: z.number().int().nonnegative(),
+          when: z.number().int().positive(),
+          tag: z.string().regex(/^\d{4}_[a-z0-9_]+$/),
+        }),
+      ),
+    })
+    .parse(JSON.parse(await readFile('drizzle/migrations/meta/_journal.json', 'utf8')));
+  const entries = journal.entries.filter(
+    (entry) =>
+      entry.idx >= CRITICAL_MIGRATION_FIRST_INDEX && entry.idx <= CRITICAL_MIGRATION_LAST_INDEX,
+  );
+  if (entries.length !== CRITICAL_MIGRATION_LAST_INDEX - CRITICAL_MIGRATION_FIRST_INDEX + 1)
+    throw new Error('Missing required checkout migration files');
+  return Promise.all(
+    entries.map(async (entry) => ({
+      tag: entry.tag,
+      when: entry.when,
+      hash: createHash('sha256')
+        .update(await readFile(path.join('drizzle/migrations', `${entry.tag}.sql`)))
+        .digest('hex'),
+    })),
+  );
+}
+
+/** Preserve the required financial prefix; reject unreviewed shared-DEV drift. */
+export function assertCheckoutDevHistory(
+  historyCount: number,
+  rows: unknown,
+  requiredInput: CheckoutRequiredMigration[],
+): { migrations: number; parallelMigrations: string[] } {
+  const required = z
+    .array(migrationEntry)
+    .length(CRITICAL_MIGRATION_LAST_INDEX - CRITICAL_MIGRATION_FIRST_INDEX + 1)
+    .parse(requiredInput);
+  const applied = z
+    .array(z.object({ hash: migrationHash, created_at: z.string().regex(/^\d+$/) }))
+    .parse(rows);
+  if (new Set(applied.map((row) => row.created_at)).size !== applied.length)
+    throw new Error('Duplicate checkout migration timestamp');
+  const requiredTimes = new Set(required.map((entry) => String(entry.when)));
+  if (requiredTimes.size !== required.length)
+    throw new Error('Duplicate required migration timestamp');
+  for (const entry of required) {
+    const actual = applied.find((row) => row.created_at === String(entry.when));
+    if (actual?.hash !== entry.hash) throw new Error('Required checkout migration differs');
+  }
+  const extras = applied.filter((row) => !requiredTimes.has(row.created_at));
+  if (
+    extras.some(
+      (row) =>
+        row.created_at !== String(REVIEWED_PARALLEL_DEV_MIGRATION.when) ||
+        row.hash !== REVIEWED_PARALLEL_DEV_MIGRATION.hash,
+    )
+  )
+    throw new Error('Unreviewed parallel DEV migration');
+  if (historyCount !== CHECKOUT_BASELINE_MIGRATIONS + extras.length)
+    throw new Error('Unexpected DEV migration count');
+  return {
+    migrations: historyCount,
+    parallelMigrations: extras.map(() => REVIEWED_PARALLEL_DEV_MIGRATION.tag),
+  };
+}
 export const entryPlan = z.enum(OFFER_2026_PLAN_CODES);
 export const previewOrigin = z
   .url()

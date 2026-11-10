@@ -1,11 +1,11 @@
 /**
- * POST /api/signup/checkout — cria uma jornada recorrente hospedada no Asaas.
+ * POST /api/signup/checkout — inicia o trial Qoro ou o Checkout Asaas legado.
  *
  * O browser não escolhe nem envia dados de cobrança. Plano, preço, ciclo,
- * trial, tenant e papel continuam resolvidos no servidor, e o Asaas coleta os
- * dados do pagador na página hospedada. Um 200 desta rota
- * significa apenas "Checkout criado"; o tenant nasce somente na rota de status,
- * depois do readback autoritativo da assinatura.
+ * trial, tenant e papel continuam resolvidos no servidor. Na candidata AbacatePay,
+ * provisiona apenas a avaliação, sem cobrança ou cartão; a contratação posterior
+ * usa /api/billing/checkout. No ramo Asaas, 200/checkout_pending só informa criação
+ * do Checkout; o tenant depende da conciliação autoritativa na rota de status.
  */
 import { NextResponse } from 'next/server';
 import { z } from 'zod';

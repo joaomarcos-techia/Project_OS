@@ -1,0 +1,2189 @@
+{
+  "observedAt": "2026-11-10T18:00:43.229Z",
+  "projectId": "prj_GYB0Y9e02ka9jurpJvF6m0feH3eZ",
+  "branch": "feat/billing-abacatepay-20261107",
+  "mode": "metadata_only_decrypt_false_no_values_requested_or_persisted",
+  "deployment": {
+    "origin": "https://project-12rylgozs-clinic-os-v2-s-projects.vercel.app",
+    "sha": "fd90ded7ad6d67332fbcf5216fe2b048f19f2378",
+    "createdAt": 1794326771253
+  },
+  "variables": [
+    {
+      "name": "ABACATEPAY_API_KEY",
+      "consumers": [
+        "src/app/api/cron/billing-reconcile/route.ts:548",
+        "src/app/api/cron/billing-reconcile/route.ts:568",
+        "src/contexts/billing/internal/abacatepay-checkout-recovery.ts:115",
+        "src/contexts/billing/internal/abacatepay-checkout-recovery.ts:127",
+        "src/contexts/billing/internal/abacatepay-checkout-recovery.ts:140",
+        "src/contexts/billing/internal/abacatepay-checkout-recovery.ts:210",
+        "src/contexts/billing/internal/abacatepay-integrity.ts:165",
+        "src/contexts/billing/internal/abacatepay-integrity.ts:223",
+        "src/contexts/billing/internal/abacatepay-management.ts:531",
+        "src/contexts/billing/internal/abacatepay-management.ts:612",
+        "src/contexts/billing/internal/abacatepay-management.ts:91",
+        "src/contexts/billing/internal/abacatepay-management.ts:97",
+        "src/contexts/billing/internal/abacatepay-negative-events.ts:47",
+        "src/contexts/billing/internal/abacatepay-negative-events.ts:83",
+        "src/contexts/billing/internal/abacatepay-plan-changes.ts:194",
+        "src/contexts/billing/internal/abacatepay-plan-changes.ts:98",
+        "src/contexts/billing/internal/abacatepay-processing.ts:189",
+        "src/contexts/billing/internal/abacatepay-processing.ts:273",
+        "src/contexts/billing/internal/abacatepay-processing.ts:377",
+        "src/contexts/billing/internal/abacatepay-processing.ts:510",
+        "src/contexts/billing/internal/abacatepay-processing.ts:557",
+        "src/contexts/billing/internal/deferred-checkout.ts:197",
+        "src/contexts/billing/internal/deferred-checkout.ts:243",
+        "src/contexts/billing/internal/deferred-checkout.ts:91"
+      ],
+      "declarations": [
+        {
+          "id": "AIeczNIHjwmint6v",
+          "key": "ABACATEPAY_API_KEY",
+          "type": "sensitive",
+          "target": ["preview"],
+          "gitBranch": null,
+          "createdAt": 1794329814145,
+          "updatedAt": 1794329814145
+        },
+        {
+          "id": "HxdUuz6tnlPXevNS",
+          "key": "ABACATEPAY_API_KEY",
+          "type": "encrypted",
+          "target": ["preview"],
+          "gitBranch": "feat/billing-abacatepay-20261107",
+          "createdAt": 1794181026195,
+          "updatedAt": 1794181026195
+        }
+      ],
+      "development": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "preview": {
+        "status": "configured",
+        "scope": "branch",
+        "ids": ["HxdUuz6tnlPXevNS"],
+        "updatedAt": 1794181026195
+      },
+      "production": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "ABACATEPAY_SANDBOX_PLAN_PRODUCTS",
+      "consumers": [
+        "src/contexts/billing/internal/abacatepay-plan-changes.ts:108",
+        "src/contexts/billing/internal/abacatepay-plan-changes.ts:249",
+        "src/contexts/billing/internal/deferred-checkout.ts:103"
+      ],
+      "declarations": [
+        {
+          "id": "WFz6yuXEi7zbD5gH",
+          "key": "ABACATEPAY_SANDBOX_PLAN_PRODUCTS",
+          "type": "encrypted",
+          "target": ["preview"],
+          "gitBranch": "feat/billing-abacatepay-20261107",
+          "createdAt": 1794181027280,
+          "updatedAt": 1794226459013
+        }
+      ],
+      "development": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "preview": {
+        "status": "configured",
+        "scope": "branch",
+        "ids": ["WFz6yuXEi7zbD5gH"],
+        "updatedAt": 1794226459013
+      },
+      "production": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "ABACATEPAY_SANDBOX_PROBE_PRODUCT_ID",
+      "consumers": [
+        "src/contexts/billing/internal/abacatepay-management.ts:93",
+        "src/contexts/billing/internal/abacatepay-management.ts:99",
+        "src/contexts/billing/internal/abacatepay-plan-changes.ts:100",
+        "src/contexts/billing/internal/abacatepay-plan-changes.ts:196",
+        "src/contexts/billing/internal/deferred-checkout.ts:199",
+        "src/contexts/billing/internal/deferred-checkout.ts:93"
+      ],
+      "declarations": [
+        {
+          "id": "hfCDeHAKLIUIbzWj",
+          "key": "ABACATEPAY_SANDBOX_PROBE_PRODUCT_ID",
+          "type": "encrypted",
+          "target": ["preview"],
+          "gitBranch": "feat/billing-abacatepay-20261107",
+          "createdAt": 1794181026937,
+          "updatedAt": 1794181026937
+        }
+      ],
+      "development": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "preview": {
+        "status": "configured",
+        "scope": "branch",
+        "ids": ["hfCDeHAKLIUIbzWj"],
+        "updatedAt": 1794181026937
+      },
+      "production": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "ABACATEPAY_STORE_ID",
+      "consumers": [
+        "src/app/(admin)/admin/_lib/repositories/abacatepay-operations.repo.ts:11",
+        "src/app/(admin)/admin/_lib/repositories/abacatepay-operations.repo.ts:21",
+        "src/app/(admin)/admin/_lib/repositories/abacatepay-operations.repo.ts:29",
+        "src/app/(admin)/admin/_lib/repositories/abacatepay-operations.repo.ts:32",
+        "src/app/api/cron/billing-reconcile/route.ts:548",
+        "src/app/api/cron/billing-reconcile/route.ts:568",
+        "src/app/api/webhooks/abacatepay/route.ts:16",
+        "src/app/api/webhooks/abacatepay/route.ts:21",
+        "src/contexts/billing/internal/abacatepay-checkout-recovery.ts:115",
+        "src/contexts/billing/internal/abacatepay-checkout-recovery.ts:210",
+        "src/contexts/billing/internal/abacatepay-checkout-recovery.ts:231",
+        "src/contexts/billing/internal/abacatepay-checkout-recovery.ts:72",
+        "src/contexts/billing/internal/abacatepay-checkout-recovery.ts:98",
+        "src/contexts/billing/internal/abacatepay-integrity.ts:165",
+        "src/contexts/billing/internal/abacatepay-integrity.ts:221",
+        "src/contexts/billing/internal/abacatepay-integrity.ts:64",
+        "src/contexts/billing/internal/abacatepay-management.ts:105",
+        "src/contexts/billing/internal/abacatepay-management.ts:145",
+        "src/contexts/billing/internal/abacatepay-management.ts:532",
+        "src/contexts/billing/internal/abacatepay-management.ts:547",
+        "src/contexts/billing/internal/abacatepay-management.ts:613",
+        "src/contexts/billing/internal/abacatepay-management.ts:634",
+        "src/contexts/billing/internal/abacatepay-management.ts:674",
+        "src/contexts/billing/internal/abacatepay-management.ts:92",
+        "src/contexts/billing/internal/abacatepay-management.ts:98",
+        "src/contexts/billing/internal/abacatepay-negative-events.ts:45",
+        "src/contexts/billing/internal/abacatepay-negative-events.ts:47",
+        "src/contexts/billing/internal/abacatepay-negative-events.ts:88",
+        "src/contexts/billing/internal/abacatepay-negative-events.ts:98",
+        "src/contexts/billing/internal/abacatepay-plan-changes.ts:180",
+        "src/contexts/billing/internal/abacatepay-plan-changes.ts:195",
+        "src/contexts/billing/internal/abacatepay-plan-changes.ts:99",
+        "src/contexts/billing/internal/abacatepay-processing.ts:189",
+        "src/contexts/billing/internal/abacatepay-processing.ts:210",
+        "src/contexts/billing/internal/abacatepay-processing.ts:232",
+        "src/contexts/billing/internal/abacatepay-processing.ts:267",
+        "src/contexts/billing/internal/abacatepay-processing.ts:436",
+        "src/contexts/billing/internal/abacatepay-processing.ts:510",
+        "src/contexts/billing/internal/abacatepay-processing.ts:540",
+        "src/contexts/billing/internal/abacatepay-processing.ts:564",
+        "src/contexts/billing/internal/abacatepay-renewal-watch.ts:29",
+        "src/contexts/billing/internal/abacatepay-renewal-watch.ts:58",
+        "src/contexts/billing/internal/abacatepay-review.ts:54",
+        "src/contexts/billing/internal/abacatepay-review.ts:72",
+        "src/contexts/billing/internal/deferred-checkout.ts:126",
+        "src/contexts/billing/internal/deferred-checkout.ts:279",
+        "src/contexts/billing/internal/deferred-checkout.ts:304",
+        "src/contexts/billing/internal/deferred-checkout.ts:92",
+        "src/contexts/onboarding/internal/signup-free-trial.ts:255",
+        "src/lib/payments/saas/acquisition.ts:17"
+      ],
+      "declarations": [
+        {
+          "id": "Bd2IspiPAPYL8zv5",
+          "key": "ABACATEPAY_STORE_ID",
+          "type": "encrypted",
+          "target": ["preview"],
+          "gitBranch": "feat/billing-abacatepay-20261107",
+          "createdAt": 1794181026572,
+          "updatedAt": 1794181026572
+        }
+      ],
+      "development": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "preview": {
+        "status": "configured",
+        "scope": "branch",
+        "ids": ["Bd2IspiPAPYL8zv5"],
+        "updatedAt": 1794181026572
+      },
+      "production": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "ABACATEPAY_WEBHOOK_SECRET",
+      "consumers": [
+        "src/app/api/webhooks/abacatepay/route.ts:16",
+        "src/app/api/webhooks/abacatepay/route.ts:27"
+      ],
+      "declarations": [
+        {
+          "id": "xAyQ2nFUEUpcuLgT",
+          "key": "ABACATEPAY_WEBHOOK_SECRET",
+          "type": "encrypted",
+          "target": ["preview"],
+          "gitBranch": "feat/billing-abacatepay-20261107",
+          "createdAt": 1794181027662,
+          "updatedAt": 1794181027662
+        }
+      ],
+      "development": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "preview": {
+        "status": "configured",
+        "scope": "branch",
+        "ids": ["xAyQ2nFUEUpcuLgT"],
+        "updatedAt": 1794181027662
+      },
+      "production": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "APP_BASE_URL",
+      "consumers": [
+        "src/app/api/signup/sessions/route.ts:53",
+        "src/app/api/signup/sessions/route.ts:55",
+        "src/contexts/billing/internal/deferred-checkout.ts:98",
+        "src/contexts/billing/internal/plan-change-payment.ts:32",
+        "src/contexts/identity/internal/password-reset-email.ts:85",
+        "src/contexts/identity/internal/team-invite-email.ts:34",
+        "src/contexts/onboarding/internal/signup-hosted-checkout.ts:129",
+        "src/contexts/onboarding/internal/signup-recovery.ts:188",
+        "src/contexts/payments/actions.ts:191",
+        "src/contexts/payments/internal/hosted-checkout.ts:52",
+        "src/lib/http/application-url.ts:100",
+        "src/lib/http/application-url.ts:47",
+        "src/lib/http/application-url.ts:52"
+      ],
+      "declarations": [
+        {
+          "id": "IgjWGsVrUdJrcRye",
+          "key": "APP_BASE_URL",
+          "type": "sensitive",
+          "target": ["preview"],
+          "gitBranch": null,
+          "createdAt": 1787428143585,
+          "updatedAt": 1791397183720
+        },
+        {
+          "id": "QsJoswFARzPgYLEv",
+          "key": "APP_BASE_URL",
+          "type": "sensitive",
+          "target": ["production"],
+          "gitBranch": null,
+          "createdAt": 1786595187795,
+          "updatedAt": 1791842141286
+        },
+        {
+          "id": "rGt0n3o9vfYXhE5A",
+          "key": "APP_BASE_URL",
+          "type": "encrypted",
+          "target": ["preview"],
+          "gitBranch": "fix/signup-hosted-checkout-input-limits",
+          "createdAt": 1790456542132,
+          "updatedAt": 1790456542132
+        },
+        {
+          "id": "w1YDDuZJS1QF0lP6",
+          "key": "APP_BASE_URL",
+          "type": "sensitive",
+          "target": ["preview"],
+          "gitBranch": "docs/funil-com-entrada",
+          "createdAt": 1790340823668,
+          "updatedAt": 1790340823668
+        }
+      ],
+      "development": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "preview": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["IgjWGsVrUdJrcRye"],
+        "updatedAt": 1791397183720
+      },
+      "production": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["QsJoswFARzPgYLEv"],
+        "updatedAt": 1791842141286
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "ASAAS_API_KEY",
+      "consumers": [
+        "src/app/(admin)/admin/_lib/services/health.service.ts:68",
+        "src/app/(admin)/admin/_lib/services/health.service.ts:73",
+        "src/app/(admin)/admin/config/page.tsx:196",
+        "src/app/api/signup/runtime-fingerprint/route.ts:119",
+        "src/lib/env.ts:619",
+        "src/lib/http/health-probes.ts:110",
+        "src/lib/http/health-probes.ts:117",
+        "src/lib/http/health-probes.ts:145",
+        "src/lib/payments/asaas/index.ts:1505"
+      ],
+      "declarations": [
+        {
+          "id": "5gP4fTY2xnRJEJFh",
+          "key": "ASAAS_API_KEY",
+          "type": "sensitive",
+          "target": ["production"],
+          "gitBranch": null,
+          "createdAt": 1781754830822,
+          "updatedAt": 1787426838140
+        },
+        {
+          "id": "lEWE1iLjgjj81Ugf",
+          "key": "ASAAS_API_KEY",
+          "type": "sensitive",
+          "target": ["preview"],
+          "gitBranch": null,
+          "createdAt": 1787427244345,
+          "updatedAt": 1788236914388
+        }
+      ],
+      "development": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "preview": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["lEWE1iLjgjj81Ugf"],
+        "updatedAt": 1788236914388
+      },
+      "production": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["5gP4fTY2xnRJEJFh"],
+        "updatedAt": 1787426838140
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "ASAAS_BASE_URL",
+      "consumers": [
+        "src/app/(admin)/admin/_lib/services/health.service.ts:72",
+        "src/app/api/signup/runtime-fingerprint/route.ts:118",
+        "src/lib/http/health-probes.ts:116",
+        "src/lib/payments/asaas/index.ts:1032",
+        "src/lib/payments/asaas/index.ts:1507",
+        "src/lib/payments/asaas/index.ts:701"
+      ],
+      "declarations": [
+        {
+          "id": "dUwgTy77AD4eL8sU",
+          "key": "ASAAS_BASE_URL",
+          "type": "encrypted",
+          "target": ["preview"],
+          "gitBranch": null,
+          "createdAt": 1787629771746,
+          "updatedAt": 1788233469345
+        },
+        {
+          "id": "VBb5oxtkkQ6e3n8t",
+          "key": "ASAAS_BASE_URL",
+          "type": "sensitive",
+          "target": ["production"],
+          "gitBranch": null,
+          "createdAt": 1781755337354,
+          "updatedAt": 1787629720937
+        }
+      ],
+      "development": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "preview": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["dUwgTy77AD4eL8sU"],
+        "updatedAt": 1788233469345
+      },
+      "production": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["VBb5oxtkkQ6e3n8t"],
+        "updatedAt": 1787629720937
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "ASAAS_HTTP_TIMEOUT_MS",
+      "consumers": ["src/lib/payments/asaas/index.ts:713", "src/lib/payments/asaas/index.ts:714"],
+      "declarations": [],
+      "development": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "preview": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "production": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "ASAAS_WEBHOOK_TOKEN",
+      "consumers": [
+        "src/app/(admin)/admin/config/page.tsx:197",
+        "src/lib/env.ts:626",
+        "src/lib/payments/asaas/index.ts:1508"
+      ],
+      "declarations": [
+        {
+          "id": "Hpib2hUCWE8zUSMv",
+          "key": "ASAAS_WEBHOOK_TOKEN",
+          "type": "sensitive",
+          "target": ["preview"],
+          "gitBranch": null,
+          "createdAt": 1787427282556,
+          "updatedAt": 1788222642161
+        },
+        {
+          "id": "SeBZe0Bv7e7XkotY",
+          "key": "ASAAS_WEBHOOK_TOKEN",
+          "type": "sensitive",
+          "target": ["production"],
+          "gitBranch": null,
+          "createdAt": 1781754883394,
+          "updatedAt": 1787426825380
+        }
+      ],
+      "development": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "preview": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["Hpib2hUCWE8zUSMv"],
+        "updatedAt": 1788222642161
+      },
+      "production": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["SeBZe0Bv7e7XkotY"],
+        "updatedAt": 1787426825380
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "CRON_SECRET",
+      "consumers": [
+        "src/app/(admin)/admin/config/page.tsx:203",
+        "src/lib/env.ts:527",
+        "src/lib/http/cron-auth.ts:45",
+        "src/lib/http/cron-auth.ts:46",
+        "src/lib/http/health-auth.ts:35"
+      ],
+      "declarations": [
+        {
+          "id": "ZFd9Y1XbWoJNeUij",
+          "key": "CRON_SECRET",
+          "type": "sensitive",
+          "target": ["production", "preview"],
+          "gitBranch": null,
+          "createdAt": 1780371925047,
+          "updatedAt": 1784291889221
+        }
+      ],
+      "development": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "preview": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["ZFd9Y1XbWoJNeUij"],
+        "updatedAt": 1784291889221
+      },
+      "production": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["ZFd9Y1XbWoJNeUij"],
+        "updatedAt": 1784291889221
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "CRON_SECRET_DESTRUCTIVE",
+      "consumers": ["src/lib/http/cron-auth.ts:45"],
+      "declarations": [],
+      "development": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "preview": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "production": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "CRYPTO_LOOKUP_SALT",
+      "consumers": [
+        "src/lib/crypto/secret-provider.ts:71",
+        "src/lib/crypto/secret-provider.ts:75",
+        "src/lib/env.ts:550"
+      ],
+      "declarations": [
+        {
+          "id": "RxcoO0xKk3ZAa1cQ",
+          "key": "CRYPTO_LOOKUP_SALT",
+          "type": "sensitive",
+          "target": ["production", "preview"],
+          "gitBranch": null,
+          "createdAt": 1781152816948,
+          "updatedAt": 1784291898923
+        }
+      ],
+      "development": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "preview": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["RxcoO0xKk3ZAa1cQ"],
+        "updatedAt": 1784291898923
+      },
+      "production": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["RxcoO0xKk3ZAa1cQ"],
+        "updatedAt": 1784291898923
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "CRYPTO_MASTER_KEY_V1",
+      "consumers": [
+        "src/app/(admin)/admin/config/page.tsx:208",
+        "src/lib/crypto/secret-provider.ts:51",
+        "src/lib/env.ts:545"
+      ],
+      "declarations": [
+        {
+          "id": "SMmgaZUZCDnxm4AU",
+          "key": "CRYPTO_MASTER_KEY_V1",
+          "type": "sensitive",
+          "target": ["production", "preview"],
+          "gitBranch": null,
+          "createdAt": 1781152794817,
+          "updatedAt": 1784291858923
+        }
+      ],
+      "development": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "preview": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["SMmgaZUZCDnxm4AU"],
+        "updatedAt": 1784291858923
+      },
+      "production": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["SMmgaZUZCDnxm4AU"],
+        "updatedAt": 1784291858923
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "CRYPTO_MASTER_KEY_V2",
+      "consumers": ["src/lib/crypto/secret-provider.ts:53"],
+      "declarations": [],
+      "development": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "preview": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "production": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "CRYPTO_SECRET_BACKEND",
+      "consumers": ["src/lib/env.ts:539"],
+      "declarations": [
+        {
+          "id": "vMIe0cXPwIveWcS5",
+          "key": "CRYPTO_SECRET_BACKEND",
+          "type": "sensitive",
+          "target": ["production", "preview"],
+          "gitBranch": null,
+          "createdAt": 1783568842103,
+          "updatedAt": 1784388872975
+        }
+      ],
+      "development": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "preview": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["vMIe0cXPwIveWcS5"],
+        "updatedAt": 1784388872975
+      },
+      "production": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["vMIe0cXPwIveWcS5"],
+        "updatedAt": 1784388872975
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "DATABASE_URL",
+      "consumers": [
+        "src/app/api/signup/runtime-fingerprint/route.ts:108",
+        "src/lib/db/index.ts:128",
+        "src/lib/db/index.ts:141",
+        "src/lib/db/index.ts:144",
+        "src/lib/db/index.ts:28",
+        "src/lib/db/index.ts:45"
+      ],
+      "declarations": [
+        {
+          "id": "TLE2UWd59NbiPX4j",
+          "key": "DATABASE_URL",
+          "type": "sensitive",
+          "target": ["production"],
+          "gitBranch": null,
+          "createdAt": 1779833686806,
+          "updatedAt": 1788013665294
+        },
+        {
+          "id": "ZAOwwINNTb0Dibt8",
+          "key": "DATABASE_URL",
+          "type": "sensitive",
+          "target": ["preview"],
+          "gitBranch": null,
+          "createdAt": 1784291221338,
+          "updatedAt": 1787422526407
+        }
+      ],
+      "development": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "preview": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["ZAOwwINNTb0Dibt8"],
+        "updatedAt": 1787422526407
+      },
+      "production": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["TLE2UWd59NbiPX4j"],
+        "updatedAt": 1788013665294
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "DATABASE_URL_RUNTIME",
+      "consumers": ["src/lib/db/index.ts:128"],
+      "declarations": [
+        {
+          "id": "jIODFgcS5WOCmLEJ",
+          "key": "DATABASE_URL_RUNTIME",
+          "type": "sensitive",
+          "target": ["production"],
+          "gitBranch": null,
+          "createdAt": 1784262780016,
+          "updatedAt": 1784290925409
+        },
+        {
+          "id": "pJCjkZlkTBvjkSTm",
+          "key": "DATABASE_URL_RUNTIME",
+          "type": "sensitive",
+          "target": ["preview"],
+          "gitBranch": null,
+          "createdAt": 1784291463585,
+          "updatedAt": 1787423710554
+        }
+      ],
+      "development": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "preview": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["pJCjkZlkTBvjkSTm"],
+        "updatedAt": 1787423710554
+      },
+      "production": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["jIODFgcS5WOCmLEJ"],
+        "updatedAt": 1784290925409
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "EMAIL_FROM",
+      "consumers": ["src/lib/email/resend.ts:92", "src/lib/env.ts:633"],
+      "declarations": [
+        {
+          "id": "tEjAqvtateElS4HB",
+          "key": "EMAIL_FROM",
+          "type": "sensitive",
+          "target": ["production", "preview"],
+          "gitBranch": null,
+          "createdAt": 1786335732151,
+          "updatedAt": 1786458333871
+        }
+      ],
+      "development": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "preview": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["tEjAqvtateElS4HB"],
+        "updatedAt": 1786458333871
+      },
+      "production": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["tEjAqvtateElS4HB"],
+        "updatedAt": 1786458333871
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "GCP_PROJECT_ID",
+      "consumers": ["src/lib/crypto/secret-provider.ts:106", "src/lib/env.ts:557"],
+      "declarations": [],
+      "development": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "preview": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "production": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "GCP_SECRET_LOOKUP_SALT_NAME",
+      "consumers": ["src/lib/crypto/secret-provider.ts:127", "src/lib/env.ts:559"],
+      "declarations": [],
+      "development": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "preview": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "production": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "GCP_SECRET_MASTER_KEY_NAME",
+      "consumers": ["src/lib/crypto/secret-provider.ts:117", "src/lib/env.ts:558"],
+      "declarations": [],
+      "development": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "preview": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "production": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "LOGIN_HASH_PEPPER",
+      "consumers": [
+        "src/app/(admin)/admin/config/page.tsx:210",
+        "src/lib/auth/email-hash.ts:18",
+        "src/lib/auth/email-hash.ts:24",
+        "src/lib/auth/signup-user-hash.ts:12",
+        "src/lib/auth/signup-user-hash.ts:9"
+      ],
+      "declarations": [
+        {
+          "id": "6Vyu0V49rDMGF5Fc",
+          "key": "LOGIN_HASH_PEPPER",
+          "type": "sensitive",
+          "target": ["production", "preview"],
+          "gitBranch": null,
+          "createdAt": 1781152845871,
+          "updatedAt": 1784342970208
+        }
+      ],
+      "development": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "preview": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["6Vyu0V49rDMGF5Fc"],
+        "updatedAt": 1784342970208
+      },
+      "production": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["6Vyu0V49rDMGF5Fc"],
+        "updatedAt": 1784342970208
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "LOGTAIL_SOURCE_TOKEN",
+      "consumers": [],
+      "declarations": [
+        {
+          "id": "x1HWbKpEbMIebNla",
+          "key": "LOGTAIL_SOURCE_TOKEN",
+          "type": "encrypted",
+          "target": ["development", "preview", "production"],
+          "gitBranch": null,
+          "createdAt": 1782704889187,
+          "updatedAt": 1782704889187
+        }
+      ],
+      "development": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["x1HWbKpEbMIebNla"],
+        "updatedAt": 1782704889187
+      },
+      "preview": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["x1HWbKpEbMIebNla"],
+        "updatedAt": 1782704889187
+      },
+      "production": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["x1HWbKpEbMIebNla"],
+        "updatedAt": 1782704889187
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "LOGTAIL_URL",
+      "consumers": [],
+      "declarations": [
+        {
+          "id": "KZjf8NDxMjuxMet4",
+          "key": "LOGTAIL_URL",
+          "type": "encrypted",
+          "target": ["development", "preview", "production"],
+          "gitBranch": null,
+          "createdAt": 1782704888904,
+          "updatedAt": 1782704888904
+        }
+      ],
+      "development": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["KZjf8NDxMjuxMet4"],
+        "updatedAt": 1782704888904
+      },
+      "preview": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["KZjf8NDxMjuxMet4"],
+        "updatedAt": 1782704888904
+      },
+      "production": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["KZjf8NDxMjuxMet4"],
+        "updatedAt": 1782704888904
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "MAGIC_TOKEN_SECRET",
+      "consumers": [
+        "src/app/api/signup/runtime-fingerprint/route.ts:97",
+        "src/contexts/identity/internal/password-reset-email.ts:45",
+        "src/contexts/identity/internal/team-invite-email.ts:14",
+        "src/contexts/onboarding/internal/signup-auth-binding.ts:223",
+        "src/contexts/onboarding/internal/signup-confirmation-email.ts:556",
+        "src/contexts/onboarding/internal/signup-recovery.ts:83",
+        "src/contexts/onboarding/internal/signup-recovery.ts:84",
+        "src/contexts/onboarding/internal/signup-session.ts:151",
+        "src/contexts/onboarding/internal/token.ts:12",
+        "src/lib/env.ts:656"
+      ],
+      "declarations": [
+        {
+          "id": "UzNLgVl20jgTPZko",
+          "key": "MAGIC_TOKEN_SECRET",
+          "type": "sensitive",
+          "target": ["preview", "production"],
+          "gitBranch": null,
+          "createdAt": 1783541568174,
+          "updatedAt": 1783541568174
+        }
+      ],
+      "development": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "preview": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["UzNLgVl20jgTPZko"],
+        "updatedAt": 1783541568174
+      },
+      "production": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["UzNLgVl20jgTPZko"],
+        "updatedAt": 1783541568174
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "NEXT_PUBLIC_SENTRY_DSN",
+      "consumers": [
+        "sentry.edge.config.ts:9",
+        "sentry.server.config.ts:10",
+        "src/instrumentation-client.ts:9"
+      ],
+      "declarations": [],
+      "development": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "preview": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "production": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+      "consumers": ["src/lib/auth/supabase-server.ts:56"],
+      "declarations": [],
+      "development": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "preview": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "production": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+      "consumers": ["src/lib/auth/supabase-server.ts:56"],
+      "declarations": [
+        {
+          "id": "3esffeqsD1mvDnve",
+          "key": "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+          "type": "sensitive",
+          "target": ["preview"],
+          "gitBranch": null,
+          "createdAt": 1784291632508,
+          "updatedAt": 1787423607756
+        },
+        {
+          "id": "9pqSbVuAI7ZMUQOv",
+          "key": "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+          "type": "sensitive",
+          "target": ["production"],
+          "gitBranch": null,
+          "createdAt": 1779927306240,
+          "updatedAt": 1784290988769
+        }
+      ],
+      "development": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "preview": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["3esffeqsD1mvDnve"],
+        "updatedAt": 1787423607756
+      },
+      "production": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["9pqSbVuAI7ZMUQOv"],
+        "updatedAt": 1784290988769
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "NEXT_PUBLIC_SUPABASE_URL",
+      "consumers": [
+        "next.config.ts:16",
+        "next.config.ts:85",
+        "src/app/api/signup/runtime-fingerprint/route.ts:107",
+        "src/lib/auth/supabase-admin.ts:33",
+        "src/lib/auth/supabase-server.ts:55",
+        "src/middleware.ts:82",
+        "src/middleware.ts:88"
+      ],
+      "declarations": [
+        {
+          "id": "IVcEl1ivl9ygJ5jg",
+          "key": "NEXT_PUBLIC_SUPABASE_URL",
+          "type": "sensitive",
+          "target": ["production"],
+          "gitBranch": null,
+          "createdAt": 1779833711433,
+          "updatedAt": 1784290966415
+        },
+        {
+          "id": "zhIVxrOxpv0KMqjQ",
+          "key": "NEXT_PUBLIC_SUPABASE_URL",
+          "type": "sensitive",
+          "target": ["preview"],
+          "gitBranch": null,
+          "createdAt": 1784291551337,
+          "updatedAt": 1787423781303
+        }
+      ],
+      "development": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "preview": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["zhIVxrOxpv0KMqjQ"],
+        "updatedAt": 1787423781303
+      },
+      "production": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["IVcEl1ivl9ygJ5jg"],
+        "updatedAt": 1784290966415
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "NEXT_PUBLIC_TURNSTILE_SITE_KEY",
+      "consumers": [
+        "src/components/shared/turnstile-widget.tsx:144",
+        "src/components/shared/turnstile-widget.tsx:152"
+      ],
+      "declarations": [
+        {
+          "id": "Ddt9AN8CmLjc4kji",
+          "key": "NEXT_PUBLIC_TURNSTILE_SITE_KEY",
+          "type": "encrypted",
+          "target": ["production"],
+          "gitBranch": null,
+          "createdAt": 1789316856890,
+          "updatedAt": 1789316873806
+        },
+        {
+          "id": "xYrLHPUEA3N5Z4r9",
+          "key": "NEXT_PUBLIC_TURNSTILE_SITE_KEY",
+          "type": "encrypted",
+          "target": ["preview"],
+          "gitBranch": null,
+          "createdAt": 1789321830230,
+          "updatedAt": 1789324957885
+        }
+      ],
+      "development": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "preview": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["xYrLHPUEA3N5Z4r9"],
+        "updatedAt": 1789324957885
+      },
+      "production": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["Ddt9AN8CmLjc4kji"],
+        "updatedAt": 1789316873806
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "OFFER_2026_ANNUAL_NEW_SALES_ENABLED",
+      "consumers": [
+        "src/contexts/billing/internal/plan-changes.ts:1931",
+        "src/contexts/billing/internal/plan-changes.ts:642",
+        "src/contexts/onboarding/internal/signup-billing.ts:181",
+        "src/contexts/onboarding/internal/signup-draft.ts:296",
+        "src/contexts/onboarding/internal/signup-draft.ts:366"
+      ],
+      "declarations": [
+        {
+          "id": "BM8JuSEjuR225fAz",
+          "key": "OFFER_2026_ANNUAL_NEW_SALES_ENABLED",
+          "type": "encrypted",
+          "target": ["production"],
+          "gitBranch": null,
+          "createdAt": 1793383886359,
+          "updatedAt": 1793383886359
+        }
+      ],
+      "development": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "preview": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "production": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["BM8JuSEjuR225fAz"],
+        "updatedAt": 1793383886359
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "RESEND_API_KEY",
+      "consumers": [
+        "src/contexts/onboarding/internal/signup-recovery.ts:191",
+        "src/contexts/onboarding/internal/signup-recovery.ts:200",
+        "src/lib/email/resend.ts:92",
+        "src/lib/env.ts:633"
+      ],
+      "declarations": [
+        {
+          "id": "PxMucPxGp1wrT1aX",
+          "key": "RESEND_API_KEY",
+          "type": "sensitive",
+          "target": ["production"],
+          "gitBranch": null,
+          "createdAt": 1786335724999,
+          "updatedAt": 1787426928767
+        },
+        {
+          "id": "UrvEspIRmj7wq6Jr",
+          "key": "RESEND_API_KEY",
+          "type": "sensitive",
+          "target": ["preview"],
+          "gitBranch": null,
+          "createdAt": 1787426945636,
+          "updatedAt": 1787426945636
+        }
+      ],
+      "development": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "preview": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["UrvEspIRmj7wq6Jr"],
+        "updatedAt": 1787426945636
+      },
+      "production": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["PxMucPxGp1wrT1aX"],
+        "updatedAt": 1787426928767
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "RESEND_WEBHOOK_SECRET",
+      "consumers": [
+        "src/app/api/webhooks/resend/route.ts:15",
+        "src/app/api/webhooks/resend/route.ts:19"
+      ],
+      "declarations": [
+        {
+          "id": "1ADDlvXATMXlMTtl",
+          "key": "RESEND_WEBHOOK_SECRET",
+          "type": "sensitive",
+          "target": ["preview"],
+          "gitBranch": "fix/signup-code-funnel-20261103",
+          "createdAt": 1793790990556,
+          "updatedAt": 1793790990556
+        },
+        {
+          "id": "Fit6C49slWmWvGXR",
+          "key": "RESEND_WEBHOOK_SECRET",
+          "type": "sensitive",
+          "target": ["production"],
+          "gitBranch": null,
+          "createdAt": 1793797657417,
+          "updatedAt": 1793797657417
+        }
+      ],
+      "development": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "preview": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "production": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["Fit6C49slWmWvGXR"],
+        "updatedAt": 1793797657417
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "SAAS_SIGNUP_PROVIDER",
+      "consumers": ["src/lib/payments/saas/acquisition.ts:7"],
+      "declarations": [
+        {
+          "id": "5fPxbUgTk3JnvLyP",
+          "key": "SAAS_SIGNUP_PROVIDER",
+          "type": "encrypted",
+          "target": ["preview"],
+          "gitBranch": "feat/billing-abacatepay-20261107",
+          "createdAt": 1794181025645,
+          "updatedAt": 1794181025645
+        }
+      ],
+      "development": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "preview": {
+        "status": "configured",
+        "scope": "branch",
+        "ids": ["5fPxbUgTk3JnvLyP"],
+        "updatedAt": 1794181025645
+      },
+      "production": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "SENTRY_AUTH_TOKEN",
+      "consumers": [],
+      "declarations": [
+        {
+          "id": "taxeoWYmMglZBNaC",
+          "key": "SENTRY_AUTH_TOKEN",
+          "type": "sensitive",
+          "target": ["production", "preview"],
+          "gitBranch": null,
+          "createdAt": 1782933020304,
+          "updatedAt": 1784265725882
+        }
+      ],
+      "development": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "preview": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["taxeoWYmMglZBNaC"],
+        "updatedAt": 1784265725882
+      },
+      "production": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["taxeoWYmMglZBNaC"],
+        "updatedAt": 1784265725882
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "SENTRY_DNS",
+      "consumers": [],
+      "declarations": [
+        {
+          "id": "Ebxf7ZsnnUQQHTLO",
+          "key": "SENTRY_DNS",
+          "type": "sensitive",
+          "target": ["preview", "production"],
+          "gitBranch": null,
+          "createdAt": 1784265050142,
+          "updatedAt": 1784265050142
+        }
+      ],
+      "development": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "preview": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["Ebxf7ZsnnUQQHTLO"],
+        "updatedAt": 1784265050142
+      },
+      "production": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["Ebxf7ZsnnUQQHTLO"],
+        "updatedAt": 1784265050142
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "SENTRY_DSN",
+      "consumers": ["sentry.edge.config.ts:10", "sentry.server.config.ts:11"],
+      "declarations": [],
+      "development": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "preview": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "production": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "SENTRY_ORG",
+      "consumers": [],
+      "declarations": [
+        {
+          "id": "Q1QFFfAefG1a0fb6",
+          "key": "SENTRY_ORG",
+          "type": "sensitive",
+          "target": ["preview", "production"],
+          "gitBranch": null,
+          "createdAt": 1784264154041,
+          "updatedAt": 1784264154041
+        }
+      ],
+      "development": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "preview": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["Q1QFFfAefG1a0fb6"],
+        "updatedAt": 1784264154041
+      },
+      "production": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["Q1QFFfAefG1a0fb6"],
+        "updatedAt": 1784264154041
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "SENTRY_PROJECT",
+      "consumers": [],
+      "declarations": [
+        {
+          "id": "RB4OZY8rncwA9l8j",
+          "key": "SENTRY_PROJECT",
+          "type": "sensitive",
+          "target": ["preview", "production"],
+          "gitBranch": null,
+          "createdAt": 1784264183737,
+          "updatedAt": 1784264183737
+        }
+      ],
+      "development": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "preview": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["RB4OZY8rncwA9l8j"],
+        "updatedAt": 1784264183737
+      },
+      "production": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["RB4OZY8rncwA9l8j"],
+        "updatedAt": 1784264183737
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "SIGNUP_AUTH_ENABLED",
+      "consumers": [
+        "src/app/api/signup/checkout/cancel/route.ts:36",
+        "src/app/api/signup/checkout/route.ts:110",
+        "src/app/api/signup/checkout/status/route.ts:27",
+        "src/app/api/signup/draft/route.ts:102",
+        "src/app/api/signup/draft/route.ts:68",
+        "src/app/api/signup/password/route.ts:40",
+        "src/app/api/signup/plan/route.ts:57",
+        "src/app/api/signup/plan/route.ts:80",
+        "src/app/api/signup/recovery/consume/route.ts:25",
+        "src/app/api/signup/recovery/request/route.ts:19",
+        "src/app/api/signup/sessions/auth/route.ts:38",
+        "src/app/api/signup/sessions/continue/route.ts:57",
+        "src/app/api/signup/sessions/destination/route.ts:18",
+        "src/app/api/signup/sessions/email/route.ts:20",
+        "src/app/api/signup/sessions/resend/route.ts:35",
+        "src/app/api/signup/sessions/verify/route.ts:31",
+        "src/contexts/onboarding/internal/signup-billing.ts:103",
+        "src/contexts/onboarding/internal/signup-draft.ts:125",
+        "src/contexts/onboarding/internal/signup-free-trial.ts:234",
+        "src/contexts/onboarding/internal/signup-provision.ts:140",
+        "src/contexts/onboarding/internal/signup-session.ts:1123",
+        "src/contexts/onboarding/internal/signup-session.ts:1195",
+        "src/contexts/onboarding/internal/signup-session.ts:1271",
+        "src/contexts/onboarding/internal/signup-session.ts:1362",
+        "src/contexts/onboarding/internal/signup-session.ts:1415",
+        "src/contexts/onboarding/internal/signup-session.ts:1472",
+        "src/contexts/onboarding/internal/signup-session.ts:1515",
+        "src/contexts/onboarding/internal/signup-session.ts:1588",
+        "src/contexts/onboarding/internal/signup-session.ts:1633",
+        "src/contexts/onboarding/internal/signup-session.ts:667",
+        "src/contexts/onboarding/internal/signup-session.ts:773",
+        "src/contexts/onboarding/internal/signup-session.ts:828",
+        "src/contexts/onboarding/internal/signup-session.ts:983",
+        "src/lib/auth/pretenant-onboarding.ts:79"
+      ],
+      "declarations": [
+        {
+          "id": "05202qBJ5FuDwq0B",
+          "key": "SIGNUP_AUTH_ENABLED",
+          "type": "encrypted",
+          "target": ["preview"],
+          "gitBranch": null,
+          "createdAt": 1789584409851,
+          "updatedAt": 1789584409851
+        },
+        {
+          "id": "Q4trGeFOaiJUKzsx",
+          "key": "SIGNUP_AUTH_ENABLED",
+          "type": "sensitive",
+          "target": ["production"],
+          "gitBranch": null,
+          "createdAt": 1789856862914,
+          "updatedAt": 1789856862914
+        }
+      ],
+      "development": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "preview": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["05202qBJ5FuDwq0B"],
+        "updatedAt": 1789584409851
+      },
+      "production": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["Q4trGeFOaiJUKzsx"],
+        "updatedAt": 1789856862914
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "SIGNUP_ENABLED",
+      "consumers": [
+        "src/app/(app)/cadastro/page.tsx:30",
+        "src/app/(app)/cadastro/verificacao/page.tsx:14",
+        "src/app/api/signup/sessions/route.ts:67",
+        "src/app/api/signup/verificacao/route.ts:26"
+      ],
+      "declarations": [
+        {
+          "id": "PZb7aVoVbwr6X2Ug",
+          "key": "SIGNUP_ENABLED",
+          "type": "encrypted",
+          "target": ["production"],
+          "gitBranch": null,
+          "createdAt": 1793383883078,
+          "updatedAt": 1793798818436
+        }
+      ],
+      "development": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "preview": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "production": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["PZb7aVoVbwr6X2Ug"],
+        "updatedAt": 1793798818436
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "SIGNUP_IDENTITY_ENABLED",
+      "consumers": [
+        "src/app/(app)/cadastro/page.tsx:30",
+        "src/app/(app)/cadastro/page.tsx:38",
+        "src/app/api/signup/checkout/cancel/route.ts:36",
+        "src/app/api/signup/checkout/route.ts:110",
+        "src/app/api/signup/checkout/status/route.ts:27",
+        "src/app/api/signup/draft/route.ts:102",
+        "src/app/api/signup/draft/route.ts:68",
+        "src/app/api/signup/password/route.ts:40",
+        "src/app/api/signup/plan/route.ts:57",
+        "src/app/api/signup/plan/route.ts:80",
+        "src/app/api/signup/recovery/consume/route.ts:25",
+        "src/app/api/signup/recovery/request/route.ts:19",
+        "src/app/api/signup/sessions/auth/route.ts:38",
+        "src/app/api/signup/sessions/continue/route.ts:57",
+        "src/app/api/signup/sessions/destination/route.ts:18",
+        "src/app/api/signup/sessions/email/route.ts:20",
+        "src/app/api/signup/sessions/identity/route.ts:25",
+        "src/app/api/signup/sessions/resend/route.ts:35",
+        "src/app/api/signup/sessions/verify/route.ts:31",
+        "src/contexts/onboarding/internal/signup-billing.ts:103",
+        "src/contexts/onboarding/internal/signup-draft.ts:125",
+        "src/contexts/onboarding/internal/signup-free-trial.ts:234",
+        "src/contexts/onboarding/internal/signup-provision.ts:140",
+        "src/contexts/onboarding/internal/signup-session.ts:1123",
+        "src/contexts/onboarding/internal/signup-session.ts:1195",
+        "src/contexts/onboarding/internal/signup-session.ts:1271",
+        "src/contexts/onboarding/internal/signup-session.ts:1362",
+        "src/contexts/onboarding/internal/signup-session.ts:1415",
+        "src/contexts/onboarding/internal/signup-session.ts:1472",
+        "src/contexts/onboarding/internal/signup-session.ts:1515",
+        "src/contexts/onboarding/internal/signup-session.ts:1588",
+        "src/contexts/onboarding/internal/signup-session.ts:1633",
+        "src/contexts/onboarding/internal/signup-session.ts:596",
+        "src/contexts/onboarding/internal/signup-session.ts:667",
+        "src/contexts/onboarding/internal/signup-session.ts:773",
+        "src/contexts/onboarding/internal/signup-session.ts:828",
+        "src/contexts/onboarding/internal/signup-session.ts:983"
+      ],
+      "declarations": [
+        {
+          "id": "8dGbPsiRvXZbBdab",
+          "key": "SIGNUP_IDENTITY_ENABLED",
+          "type": "encrypted",
+          "target": ["preview"],
+          "gitBranch": null,
+          "createdAt": 1789584394270,
+          "updatedAt": 1789584394270
+        },
+        {
+          "id": "KHiEWBrOSCCAWuqp",
+          "key": "SIGNUP_IDENTITY_ENABLED",
+          "type": "sensitive",
+          "target": ["production"],
+          "gitBranch": null,
+          "createdAt": 1789856829039,
+          "updatedAt": 1789856829039
+        }
+      ],
+      "development": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "preview": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["8dGbPsiRvXZbBdab"],
+        "updatedAt": 1789584394270
+      },
+      "production": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["KHiEWBrOSCCAWuqp"],
+        "updatedAt": 1789856829039
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "SUPABASE_PROJECT_ENV",
+      "consumers": ["src/lib/db/index.ts:39", "src/lib/db/index.ts:53"],
+      "declarations": [],
+      "development": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "preview": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "production": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "SUPABASE_SECRET_KEY",
+      "consumers": [
+        "src/lib/auth/recovery-grant.ts:30",
+        "src/lib/auth/signup-confirmation-grant.ts:25",
+        "src/lib/auth/supabase-admin.ts:34"
+      ],
+      "declarations": [
+        {
+          "id": "p57ru2Z1mtE5Ys9H",
+          "key": "SUPABASE_SECRET_KEY",
+          "type": "sensitive",
+          "target": ["preview"],
+          "gitBranch": null,
+          "createdAt": 1784292090071,
+          "updatedAt": 1787423682298
+        },
+        {
+          "id": "UklmlQY548Fz3onb",
+          "key": "SUPABASE_SECRET_KEY",
+          "type": "sensitive",
+          "target": ["production"],
+          "gitBranch": null,
+          "createdAt": 1781152695066,
+          "updatedAt": 1781153341703
+        }
+      ],
+      "development": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "preview": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["p57ru2Z1mtE5Ys9H"],
+        "updatedAt": 1787423682298
+      },
+      "production": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["UklmlQY548Fz3onb"],
+        "updatedAt": 1781153341703
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "SUPABASE_SERVICE_ROLE_KEY",
+      "consumers": [
+        "src/lib/auth/recovery-grant.ts:30",
+        "src/lib/auth/signup-confirmation-grant.ts:25",
+        "src/lib/auth/supabase-admin.ts:34"
+      ],
+      "declarations": [],
+      "development": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "preview": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "production": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "TURNSTILE_SECRET_KEY",
+      "consumers": ["src/contexts/onboarding/internal/turnstile.ts:65"],
+      "declarations": [
+        {
+          "id": "AzRnCFzxIy6bTwyH",
+          "key": "TURNSTILE_SECRET_KEY",
+          "type": "sensitive",
+          "target": ["preview"],
+          "gitBranch": null,
+          "createdAt": 1789321848761,
+          "updatedAt": 1789324979096
+        },
+        {
+          "id": "bocZAz0CNOp05k0X",
+          "key": "TURNSTILE_SECRET_KEY",
+          "type": "sensitive",
+          "target": ["production"],
+          "gitBranch": null,
+          "createdAt": 1789316888512,
+          "updatedAt": 1789317259256
+        }
+      ],
+      "development": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "preview": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["AzRnCFzxIy6bTwyH"],
+        "updatedAt": 1789324979096
+      },
+      "production": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["bocZAz0CNOp05k0X"],
+        "updatedAt": 1789317259256
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "UPSTASH_REDIS_REST_TOKEN",
+      "consumers": [
+        "src/app/(admin)/admin/config/page.tsx:206",
+        "src/lib/auth/rate-limit.ts:286",
+        "src/lib/auth/rate-limit.ts:294",
+        "src/lib/auth/rate-limit.ts:521",
+        "src/lib/auth/rate-limit.ts:526",
+        "src/lib/auth/rate-limit.ts:547",
+        "src/lib/auth/rate-limit.ts:578",
+        "src/lib/auth/rate-limit.ts:583",
+        "src/lib/auth/rate-limit.ts:613",
+        "src/lib/auth/rate-limit.ts:644",
+        "src/lib/auth/rate-limit.ts:649",
+        "src/lib/auth/rate-limit.ts:679",
+        "src/lib/auth/rate-limit.ts:710",
+        "src/lib/auth/rate-limit.ts:715",
+        "src/lib/auth/rate-limit.ts:741",
+        "src/lib/auth/rate-limit.ts:777",
+        "src/lib/auth/rate-limit.ts:782",
+        "src/lib/auth/rate-limit.ts:808",
+        "src/lib/http/health-probes.ts:125",
+        "src/lib/http/health-probes.ts:127"
+      ],
+      "declarations": [
+        {
+          "id": "Q2yZzpUIw3J6FERk",
+          "key": "UPSTASH_REDIS_REST_TOKEN",
+          "type": "sensitive",
+          "target": ["preview"],
+          "gitBranch": null,
+          "createdAt": 1787427107350,
+          "updatedAt": 1787427107350
+        },
+        {
+          "id": "StqXVwWe6doGdOve",
+          "key": "UPSTASH_REDIS_REST_TOKEN",
+          "type": "sensitive",
+          "target": ["production"],
+          "gitBranch": null,
+          "createdAt": 1781153082790,
+          "updatedAt": 1787427059885
+        }
+      ],
+      "development": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "preview": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["Q2yZzpUIw3J6FERk"],
+        "updatedAt": 1787427107350
+      },
+      "production": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["StqXVwWe6doGdOve"],
+        "updatedAt": 1787427059885
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "UPSTASH_REDIS_REST_URL",
+      "consumers": [
+        "src/app/(admin)/admin/config/page.tsx:206",
+        "src/lib/auth/rate-limit.ts:286",
+        "src/lib/auth/rate-limit.ts:293",
+        "src/lib/auth/rate-limit.ts:521",
+        "src/lib/auth/rate-limit.ts:525",
+        "src/lib/auth/rate-limit.ts:547",
+        "src/lib/auth/rate-limit.ts:578",
+        "src/lib/auth/rate-limit.ts:582",
+        "src/lib/auth/rate-limit.ts:613",
+        "src/lib/auth/rate-limit.ts:644",
+        "src/lib/auth/rate-limit.ts:648",
+        "src/lib/auth/rate-limit.ts:679",
+        "src/lib/auth/rate-limit.ts:710",
+        "src/lib/auth/rate-limit.ts:714",
+        "src/lib/auth/rate-limit.ts:741",
+        "src/lib/auth/rate-limit.ts:777",
+        "src/lib/auth/rate-limit.ts:781",
+        "src/lib/auth/rate-limit.ts:808",
+        "src/lib/http/health-probes.ts:125",
+        "src/lib/http/health-probes.ts:126",
+        "src/lib/http/health-probes.ts:146"
+      ],
+      "declarations": [
+        {
+          "id": "dNehOKpmtJKXJnfF",
+          "key": "UPSTASH_REDIS_REST_URL",
+          "type": "sensitive",
+          "target": ["preview"],
+          "gitBranch": null,
+          "createdAt": 1787427083144,
+          "updatedAt": 1787427083144
+        },
+        {
+          "id": "Er1ASGM6wDTxe9ds",
+          "key": "UPSTASH_REDIS_REST_URL",
+          "type": "sensitive",
+          "target": ["production"],
+          "gitBranch": null,
+          "createdAt": 1781153028041,
+          "updatedAt": 1787427071573
+        }
+      ],
+      "development": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "preview": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["dNehOKpmtJKXJnfF"],
+        "updatedAt": 1787427083144
+      },
+      "production": {
+        "status": "configured",
+        "scope": "general",
+        "ids": ["Er1ASGM6wDTxe9ds"],
+        "updatedAt": 1787427071573
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "VERCEL_BRANCH_URL",
+      "consumers": ["src/lib/http/application-url.ts:110", "src/lib/http/application-url.ts:83"],
+      "declarations": [],
+      "development": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "preview": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "production": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "VERCEL_ENV",
+      "consumers": [
+        "next.config.ts:84",
+        "src/app/(app)/oferta-preview/page.tsx:14",
+        "src/app/api/signup/runtime-fingerprint/route.ts:115",
+        "src/app/api/signup/runtime-fingerprint/route.ts:71",
+        "src/app/api/signup/runtime-fingerprint/route.ts:72",
+        "src/contexts/billing/internal/plan-change-payment.ts:32",
+        "src/contexts/payments/actions.ts:152",
+        "src/contexts/payments/actions.ts:191",
+        "src/contexts/payments/actions.ts:197",
+        "src/contexts/payments/actions.ts:233",
+        "src/contexts/payments/internal/hosted-checkout.ts:52",
+        "src/contexts/payments/internal/hosted-checkout.ts:55",
+        "src/lib/auth/rate-limit.ts:167",
+        "src/lib/http/application-url.ts:109",
+        "src/lib/http/application-url.ts:129",
+        "src/lib/http/application-url.ts:171",
+        "src/lib/http/application-url.ts:82",
+        "src/lib/payments/saas/acquisition.ts:15",
+        "src/lib/payments/saas/acquisition.ts:16"
+      ],
+      "declarations": [],
+      "development": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "preview": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "production": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    },
+    {
+      "name": "VERCEL_URL",
+      "consumers": ["src/lib/http/application-url.ts:110", "src/lib/http/application-url.ts:83"],
+      "declarations": [],
+      "development": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "preview": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "production": {
+        "status": "absent",
+        "scope": "general",
+        "ids": [],
+        "updatedAt": null
+      },
+      "previewMetadataUpdatedAfterDeployment": false
+    }
+  ],
+  "unrelatedVariableNames": [
+    "AUTH_TOKEN",
+    "DASHBOARD_DEMO_CLINIC_ID",
+    "DASHBOARD_DEMO_USER_ID",
+    "E2E_WHATSAPP_PROFILE_WRITE",
+    "GEMINI_API_KEY",
+    "IMPERSONATION_SECRET",
+    "META_APP_ID",
+    "META_APP_SECRET",
+    "META_CONFIG_ID",
+    "META_TEMPLATE_CONFIRMATION_REMINDER_ID",
+    "META_TEMPLATE_DEPOSIT_LINK_ID",
+    "META_TEMPLATE_DUNNING_FRIENDLY_ID",
+    "META_TEMPLATE_FOLLOWUP_RETURN_ID",
+    "META_TEMPLATE_LANG",
+    "META_TEMPLATE_NO_SHOW_FOLLOWUP_ID",
+    "META_TEMPLATE_REMAINDER_LINK_ID",
+    "META_TEMPLATE_WAITLIST_OFFER_ID",
+    "META_WEBHOOK_VERIFY_TOKEN",
+    "NEXT_PUBLIC_BETTER_STACK_INGESTING_URL",
+    "NEXT_PUBLIC_BETTER_STACK_SOURCE_TOKEN",
+    "NEXT_PUBLIC_LOGTAIL_SOURCE_TOKEN",
+    "VERCEL_AUTOMATION_BYPASS_SECRET"
+  ],
+  "valuesExposed": false,
+  "configurationChanges": 0,
+  "productionWrites": 0
+}

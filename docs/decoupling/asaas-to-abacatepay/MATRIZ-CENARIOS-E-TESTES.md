@@ -2,23 +2,25 @@
 
 ## Recorte atual — primeira contratação 2–5 médicos (10/11/2026)
 
-Fonte operacional: [relatório final, seção 36](RELATORIO-HOMOLOGACAO-FINAL.md#36-fechamento-da-primeira-contratação-e-integração-visual--10112026). Os estados históricos abaixo continuam com suas próprias datas/limites. CI, novo Preview e pagamento externo de 5 médicos são registrados no PR #53 somente após execução.
+**Checkpoint posterior:** [seção37 do relatório](RELATORIO-HOMOLOGACAO-FINAL.md#37-dev-recuperado-inventário-financeiro-e-lote-sob-pedido--10112026). DEV recuperado após o founder habilitar Data API; preflight 144 passou com apêndice TISS exato revisado. CI `fd90ded7` **6.897 testes e 18 E2E PASS, zero SKIP**. A nova regressão dirigida passou 2.247/2.247; CI própria do incremento fica no PR. UI e Turnstile isolados passaram nessa CI; isso não é pagamento externo nem widget real de Production. A primeira compra de 5 médicos ainda **NOT RUN externamente**: última orientação é aguardar **“crie os checkouts”**. O lote contém Consultório 1 e Clínica 3/4/5, sem repetir2 pago. [Inventário completo](INVENTARIO-FLUXOS-FINANCEIROS.md), [variáveis](AUDITORIA-VARIAVEIS-VERCEL.md) e [operação](PROXIMO-CHECKOUT-SANDBOX.md).
+
+Quadro da seção 36, atualizado pelo checkpoint acima: [relatório final, seção 36](RELATORIO-HOMOLOGACAO-FINAL.md#36-fechamento-da-primeira-contratação-e-integração-visual--10112026). Os estados históricos abaixo continuam com suas próprias datas/limites. CI nova e preparo do lote ficam no PR #53; pagamento externo continua pendente da frase combinada.
 
 | Cenário | Esperado | Prova existente / ambiente | Estado e limite |
 |---|---|---|---|
-| Clínica com 2 médicos | R$397, 2 médicos + 3 administrativos após pagamento | Primeiro pagamento real, webhook, invoice e UI: seção 33; casos PostgreSQL inicial/recorrente | PASS Sandbox histórico e local; não repetir cobrança |
-| Clínica com 3 médicos | R$544 e cota 3+3 | 18 checks de primeiro pagamento e 85 de renovação/cotas; PostgreSQL real/HTTP sintético | PASS local; pagamento externo NOT RUN |
-| Clínica com 4 médicos | R$691 e cota 4+3 | Mesma matriz, preço/produto exatos e ausência de vagas antecipadas | PASS local; pagamento externo NOT RUN |
-| Clínica com 5 médicos | R$838 e cota 5+3 | Matriz local aprovada; fixture externa nova autorizada nesta rodada | PASS local; externo PARTIAL até pagamento/webhook/cotas reais |
-| Clínica com 0/1/fracionário/6 médicos | Código inexistente recusado | Validação do catálogo e contrato de gravação; não há parâmetro de quantidade arbitrário | Testes dirigidos da rodada; Consultório com 1 médico/R$197 continua válido |
+| Clínica com 2 médicos | R$ 397, 2 médicos + 3 administrativos após pagamento | Primeiro pagamento real, webhook, invoice e UI: seção 33; casos PostgreSQL inicial/recorrente | PASS Sandbox histórico e local; não repetir cobrança |
+| Clínica com 3 médicos | R$ 544 e cota 3+3 | 18 checks de primeiro pagamento e 85 de renovação/cotas; PostgreSQL real/HTTP sintético | PASS local; pagamento externo NOT RUN |
+| Clínica com 4 médicos | R$ 691 e cota 4+3 | Mesma matriz, preço/produto exatos e ausência de vagas antecipadas | PASS local; pagamento externo NOT RUN |
+| Clínica com 5 médicos | R$ 838 e cota 5+3 | Matriz local aprovada; criação do lote adiada a pedido do founder | PASS local; pagamento externo NOT RUN |
+| Clínica com 0/1/fracionário/6 médicos | Código inexistente recusado | Validação do catálogo e contrato de gravação; não há parâmetro de quantidade arbitrário | PASS unitário de rejeição; Consultório com 1 médico/R$ 197 continua válido |
 | Preço/quantidade adulterados | Backend recusa sem criar intenção | Corpo estrito das rotas; E2E externo ampliado para HTTP400 antes da primeira compra | PASS unitário; novo externo só após execução |
 | Pendente/abandono/refresh | Sem liberação; reutilizar intenção e checkout | Casos de recuperação PostgreSQL; E2E Preview ampliado | PASS local; novo Preview a executar |
 | Pago | Uma invoice, uma liberação e cota exata | Primeiro pagamento integral, 6 cliques/uma criação e reaplicação local; real de 2 médicos | PASS nos níveis indicados; 5 médicos depende da nova prova |
 | Recusado/incompleto/valor divergente | Não ativar | Leitores, processamento e casos locais de valor insuficiente/divergente | PASS local; recusa real de cartão recorrente NOT RUN |
 | Webhook duplicado/fora de ordem | Um efeito, sem reduzir período atual | Inbox/observações e matriz PostgreSQL de renovação | PASS local; não provocar cobrança externa só para forçar evento |
 | Rede/API indisponível | Conservar obrigação incerta, sem segundo POST cego | Oito cenários anteriores de recuperação e releitura real após falha temporária | PASS local e recuperação de leitura observada; timeout remoto induzido NOT RUN |
-| UI redesenhada | Mesmo plano/preço/CAS; acessível e sem overflow | 39 testes de componente antes dos casos adicionais de catálogo; oito E2E novos no harness isolado | Componente PASS; E2E só após CI própria |
-| Turnstile no build isolado | Dois casos condicionais executados sem chaves reais | Par público oficial no `security:build`; estado resolvido/token e sigilo na página | Não contar os dois SKIPs anteriores como PASS; consultar nova CI |
+| UI redesenhada | Mesmo plano/preço/CAS; acessível e sem overflow | 39 testes de componente antes dos casos adicionais de catálogo; oito E2E novos no harness isolado | Componente e oito E2E PASS na CI fd90ded7; HTTP controlado |
+| Turnstile no build isolado | Dois casos condicionais executados sem chaves reais | Par público oficial no `security:build`; estado resolvido/token e sigilo na página | Dois casos PASS na CI fd90ded7, zero SKIP; não prova chaves Production |
 
 
 Atualizado em 09/11/2026 UTC e Brasília. Esta tabela complementa a [matriz M01–M18 do plano mestre](PLANO-MESTRE-MIGRACAO-ASAAS-ABACATEPAY.md). A matriz geral de 79 casos continua preservada. A candidata agora tem **um primeiro pagamento integral real no modo de simulação Sandbox**, webhook autenticado aplicado, invoice e UI paga; o cancelamento posterior está discriminado abaixo. Somente os casos identificados recebem esse nível de evidência. A [continuação anterior](CONTINUACAO-2026-11-07.md) é histórica. O [diário atual](PLANO-EXECUCAO-CONTINUIDADE.md) contém SHAs, Preview, fixture, testes e limites. Nenhuma mudança de Produção ou migração de contratos reais foi realizada.
@@ -120,7 +122,6 @@ Baseline desta rodada: `14d7f9d4`; os checkpoints anteriores não são sobrescri
 | Recontratação | Geração nova, sem trial, após fim pago | 47 PG históricos e calendário | Instante exato/fuso; decurso real | Quatro casos de limite no calendário | Passagem temporal externa/procedimento oficial | Local ampliado; externo NOT RUN |
 | Conciliação/segurança | Inbox durável, lease, limites, review | HMAC/rota/journal/PG | Processo interrompido e auditoria indisponível | Retomar mesma obrigação, sem novos comandos | Correlação sem webhook completamente ausente | Local validável; ausência total BLOCKED |
 | Turnstile | Dois cenários ignorados na CI sem chaves | Provas isoladas históricas, seção 15 do relatório | Não comprova CI/Production real | Preservar status; nenhuma configuração alterada | Não depende de suporte AbacatePay | CI 8 PASS / 2 SKIP histórico |
-
 | ID | Estado inicial | Ação | Resultado esperado | Teste | Evidência | Status | Dependência externa |
 |---|---|---|---|---|---|---|---|
 | S1 | Perguntas anteriores parcialmente respondidas | Conferir fontes e entregar texto único | Somente quatro lacunas, sem segredos | Revisão documental | SOLICITACAO-SUPORTE-HOMOLOGACAO.md | PASS preparação/entrega; não enviado | Founder envia e retorna resposta |
@@ -160,7 +161,6 @@ O proprietário informou que já enviou a solicitação; **não reenviar**. A [s
 | Conciliação sem webhook | Recuperação inicial e do checkout desconhecido; integridade periódica sem evento | Journal, inbox, lease, H3, novo monitor | Cinco GETs reais do leitor de integridade; sem mutações | E2 só para cobrança de renovação sem vínculo identificável | Parcial externa; não inventar correlação |
 | Uso único do checkout | Intenções/journal e recusa de grants duplicados; novo monitor deduplica incidentes | Duas recorrências sintéticas e 16 monitores concorrentes | Leitura de uma recorrência existente; duplicação externa não criada | E3: garantia/invalidação paga e histórico | Proteção/detecção local; garantia externa BLOCKED |
 | Reembolso recorrente | Observação e revisão ADR-071 preservadas; sem comando incompatível | H2/rollback/lease/ciclo antigo anteriores | Sem refund de assinatura executado | E4: procedimento/eventos suportados | BLOCKED — AGUARDANDO SUPORTE no recorte externo |
-
 | Gate atual | Evidência aplicável | Limite |
 |---|---|---|
 | L1 Arquitetura | Contrato neutro; adapter valida DTO externo; seleção por binding/provider/account | Não migra Asaas nem promete independência completa de toda persistência |

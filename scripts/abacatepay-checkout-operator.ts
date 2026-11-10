@@ -13,6 +13,7 @@ import { GatewayReadError } from '../src/lib/payments/saas/contracts';
 import { initialAbacatePayAccessPeriod } from '../src/contexts/billing/internal/abacatepay-period';
 import {
   assertSamePreparation,
+  assertCheckoutDevHistory,
   BILLING_BRANCH,
   checkoutUrl,
   checkoutSnapshotSchema,
@@ -22,6 +23,7 @@ import {
   guardedDevDatabase,
   previewOrigin,
   readSession,
+  readCheckoutRequiredMigrations,
   saveSession,
   withSessionLock,
   type CheckoutSession,
@@ -280,6 +282,8 @@ async function main(): Promise<void> {
   const sql = dbAdmin.$client;
   try {
     stage = 'dev_schema_and_catalog';
+    const requiredMigrations = await readCheckoutRequiredMigrations();
+    let verifiedHistory: ReturnType<typeof assertCheckoutDevHistory> | undefined;
     const price = await sql.begin(async (tx) => {
       await tx`SET TRANSACTION READ ONLY`;
       await tx`SET LOCAL statement_timeout='15s'`;
@@ -287,15 +291,12 @@ async function main(): Promise<void> {
         await tx`SELECT to_regclass('billing_gateway.review_replays') IS NOT NULL ready`;
       stage = 'dev_history_count';
       const [journal] = await tx`SELECT count(*)::int n FROM drizzle.__drizzle_migrations`;
-      assert.equal(journal?.n, 143);
       assert.equal(schema?.ready, true);
-      stage = 'dev_history_latest_hash';
-      const [latest] =
-        await tx`SELECT hash FROM drizzle.__drizzle_migrations ORDER BY created_at DESC,id DESC LIMIT 1`;
-      assert.equal(
-        latest?.hash,
-        hash(await readFile('drizzle/migrations/0142_saas_review_replays.sql', 'utf8')),
-      );
+      stage = 'dev_history_required_prefix';
+      const history = await tx`SELECT hash,created_at::text FROM drizzle.__drizzle_migrations
+        WHERE created_at >= ${Math.min(...requiredMigrations.map((entry) => entry.when))}
+        ORDER BY created_at,id`;
+      verifiedHistory = assertCheckoutDevHistory(journal?.n, history, requiredMigrations);
       stage = 'dev_sandbox_account';
       const [account] = await tx`SELECT count(*)::int n FROM billing_gateway.accounts
         WHERE provider='abacatepay' AND environment='sandbox' AND external_account_id=${store.id}`;
@@ -332,7 +333,8 @@ async function main(): Promise<void> {
       sandboxProducts: entryPlan.options.length,
       webhookTargetSameRelease: true,
       invalidWebhookHttp: denied.status,
-      databaseHistoryCount: 143,
+      databaseHistoryCount: verifiedHistory?.migrations,
+      reviewedParallelDevMigrations: verifiedHistory?.parallelMigrations,
       newAuthUsers: 0,
       newCheckouts: 0,
       payments: 0,
