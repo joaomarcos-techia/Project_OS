@@ -49,6 +49,11 @@ export interface RecordCoverageInput {
   membershipId: string | null;
   authorizationId: string | null;
   actor: { kind: 'automation' } | { kind: 'user'; userId: string };
+  /**
+   * Correção administrativa depois do atendimento (0149): só com pendência de
+   * faturamento aberta, por um usuário, com nota. O banco confere tudo de novo.
+   */
+  correction?: { note: string };
 }
 
 export interface CoverageResult {
@@ -86,6 +91,17 @@ export async function recordAppointmentCoverage(
 ): Promise<CoverageResult> {
   const { clinicId } = input;
   const issues: GuideIssue[] = [];
+  if (input.correction && input.actor.kind !== 'user') {
+    throw new CoverageInputError('a correção da cobertura é de um usuário');
+  }
+  const note = input.correction?.note.trim();
+  if (input.correction && (!note || note.length < 10 || note.length > 500)) {
+    throw new CoverageInputError('a correção exige o motivo (10 a 500 caracteres)');
+  }
+  const correction =
+    input.correction && input.actor.kind === 'user'
+      ? { correctionNote: note!, correctedBy: input.actor.userId }
+      : {};
 
   const [insurer] = await tx
     .select({ id: hiInsurers.id, status: hiInsurers.status })
@@ -279,6 +295,7 @@ export async function recordAppointmentCoverage(
     status,
     issues,
     expectedValueCents: line?.unitValueCents ?? null,
+    ...correction,
   };
   const [existing] = await tx
     .select({ id: hiAppointmentCoverages.id })

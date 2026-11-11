@@ -197,6 +197,10 @@ const ALLOWED_DB_VALUE_IMPORTS: Record<string, Set<string>> = {
     // lista agendamentos elegíveis a sinal em várias clínicas num scan só.
     'src/contexts/scheduling/deposit-candidates.ts',
     'src/contexts/financial/dunning-candidates.ts',
+    // Convênios P7.4 — mesma forma do dunning-candidates: o SCAN "convênio sem
+    // guia" é cross-tenant, só leitura, só ids + estado do evento, com LIMIT; o
+    // processamento de cada atendimento roda em withTenant, sob RLS.
+    'src/contexts/health-insurance/billing-gap-candidates.ts',
     // WAIT-001 — mesma forma: o SCAN de ofertas vencidas é cross-tenant e só
     // devolve ids; a liberação/repasse de cada uma roda em withTenant, sob RLS.
     'src/contexts/scheduling/waitlist-expiry.ts',

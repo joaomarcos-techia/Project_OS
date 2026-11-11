@@ -14,3 +14,12 @@ export {
   type TissTermRow,
   type TissTerminologyVersionRow,
 } from './schema';
+// P7.4 — reconcile "convênio sem guia" (chamado pelo cron financial-reconcile; C.7).
+export {
+  listBillingGapCandidates,
+  type BillingGapCandidate,
+} from './billing-gap-candidates';
+export {
+  reconcileInsuranceBilling,
+  type InsuranceReconcileSummary,
+} from './internal/billing-reconcile';

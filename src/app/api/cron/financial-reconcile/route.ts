@@ -19,6 +19,11 @@
 import { sql } from 'drizzle-orm';
 
 import { FINANCIAL_EVENTS, faturamentoPendencias } from '@/contexts/financial';
+import {
+  listBillingGapCandidates,
+  reconcileInsuranceBilling,
+  type InsuranceReconcileSummary,
+} from '@/contexts/health-insurance';
 import { recordHeartbeat } from '@/lib/cron-heartbeat';
 import { dbAdmin } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
@@ -46,6 +51,11 @@ const PAYMENT_ECONOMICS_LIMIT = 2;
 const PAYMENT_CORRECTION_LIMIT = 4;
 const PAYMENT_ANOMALY_LIMIT = 1;
 const PAYMENT_BACKSTOP_START_DEADLINE_MS = 30_000;
+// Convênio sem guia (P7.4): roda por último, só com orçamento sobrando, e nunca
+// derruba a obrigação primária deste cron (recebíveis do particular).
+const INSURANCE_LIMIT = 25;
+const INSURANCE_START_DEADLINE_MS = 45_000;
+const INSURANCE_END_DEADLINE_MS = 52_000;
 const GRACE = "interval '15 minutes'";
 const MOTIVO = 'Atendimento concluído sem lançamento — verificar faturamento.';
 const TERMINAL_APPOINTMENT_STATUSES = new Set(['atendido', 'cancelado', 'faltou']);
@@ -216,8 +226,29 @@ export const GET = withCron(
         count: paymentEconomics.mismatched,
       });
     }
+    let insurance: InsuranceReconcileSummary | null = null;
+    let insuranceFailed = false;
+    if (Date.now() - startedAt < INSURANCE_START_DEADLINE_MS) {
+      try {
+        const candidates = await listBillingGapCandidates(INSURANCE_LIMIT);
+        insurance = await reconcileInsuranceBilling(candidates, {
+          deadlineAt: startedAt + INSURANCE_END_DEADLINE_MS,
+        });
+      } catch (error) {
+        insuranceFailed = true;
+        metrics.emit('insurance.reconcile.error', {
+          error: error instanceof Error ? error.name : 'unknown',
+        });
+      }
+    } else {
+      metrics.emit('insurance.reconcile.skipped_budget', {});
+    }
     const runFields = {
       opened,
+      insuranceCandidates: insurance?.candidates ?? 0,
+      insuranceGuideReady: insurance?.guideReady ?? 0,
+      insuranceGapOpen: insurance?.gapOpen ?? 0,
+      insuranceFailed,
       clinics: byClinic.size,
       orphanCredits,
       orphanClinics: orphanClinicIds.size,

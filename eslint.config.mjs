@@ -247,6 +247,9 @@ const config = [
       // arch:db-check. Só estes 3 arquivos.
       'src/contexts/scheduling/reminder-candidates.ts',
       'src/contexts/financial/dunning-candidates.ts',
+      // Convênios P7.4: scan "convênio sem guia" (só ids + estado do evento, LIMIT);
+      // processamento por atendimento em withTenant. Também no arch:db-check.
+      'src/contexts/health-insurance/billing-gap-candidates.ts',
       'src/contexts/ai-agent/proactive-jobs/infra/repository.ts',
       // ADR-049 1.3b: mesma forma, para o sinal. `deposit-candidates` é o
       // read-model do Scheduling ("quem ainda pode ser cobrado"); `deposit-scan`

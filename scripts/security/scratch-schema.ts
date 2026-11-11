@@ -83,6 +83,11 @@ export async function startScratchSchema(options: {
   beforeMigration?: { file: string; run: (sql: Sql) => Promise<void> };
   /** Conexões do pool (padrão 4). Provas de concorrência pedem mais. */
   maxConnections?: number;
+  /**
+   * Cadeia explícita (ex.: a união com as migrations de outra branch, na ordem do
+   * histórico de um ambiente). Sem ela, as do repositório, em ordem.
+   */
+  migrations?: { file: string; body: string }[];
 }): Promise<ScratchCluster> {
   const cluster = await mkdtemp(path.join(os.tmpdir(), 'qoro-scratch-schema-'));
   const data = path.join(cluster, 'data');
@@ -162,7 +167,7 @@ export async function startScratchSchema(options: {
   try {
     await sql.unsafe(SUPABASE_SCAFFOLD);
     let beforeMigrationRan = false;
-    for (const { file, body } of await readMigrations()) {
+    for (const { file, body } of options.migrations ?? (await readMigrations())) {
       try {
         if (file === options.beforeMigration?.file) {
           await options.beforeMigration.run(sql);

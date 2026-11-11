@@ -599,6 +599,10 @@ export const hiAppointmentCoverages = pgTable('hi_appointment_coverages', {
   version: integer('version').notNull(),
   createdVia: text('created_via').$type<HiCreatedVia>().notNull(),
   createdBy: uuid('created_by'),
+  /** Correção administrativa depois do atendimento (0149): só com pendência aberta, nota e autor. */
+  correctionNote: text('correction_note'),
+  correctedBy: uuid('corrected_by'),
+  correctedAt: timestamp('corrected_at', { withTimezone: true }),
   ...timestampsPattern(),
 });
 
@@ -651,6 +655,89 @@ export const hiCopayments = pgTable('hi_copayments', {
   ...timestampsPattern(),
 });
 
+/**
+ * Pendência de faturamento de convênio (0149, P7.4): atendimento de convênio
+ * concluído sem guia pronta. Uma por atendimento; fecha só com prova (gatilho).
+ */
+export type HiBillingGapStatus = 'open' | 'resolved' | 'dismissed';
+export type HiBillingGapReason =
+  | 'coverage_missing'
+  | 'coverage_cancelled'
+  | 'coverage_incomplete'
+  | 'authorization_pending'
+  | 'authorization_denied'
+  | 'contract_missing'
+  | 'membership_invalid'
+  | 'guide_pending_data'
+  | 'guide_inconsistent'
+  | 'guide_cancelled'
+  | 'sp_sadt_manual'
+  | 'module_disabled'
+  | 'return_within_window'
+  | 'event_not_processed'
+  | 'processing_failed';
+export type HiBillingGapOwner = 'recepcao' | 'gestor' | 'financeiro' | 'medico' | 'suporte';
+export type HiBillingGapEventState =
+  | 'processed'
+  | 'pending'
+  | 'processing'
+  | 'failed'
+  | 'missing'
+  | 'not_checked';
+export type HiBillingGapResolution =
+  | 'guide_ready'
+  | 'return_not_billable'
+  | 'not_applicable'
+  | 'dismissed';
+
+export const hiBillingGaps = pgTable('hi_billing_gaps', {
+  id: uuidPk(),
+  clinicId: tenantIdRef(),
+  appointmentId: uuid('appointment_id').notNull(),
+  coverageId: uuid('coverage_id'),
+  guideId: uuid('guide_id'),
+  status: text('status').$type<HiBillingGapStatus>().notNull(),
+  reason: text('reason').$type<HiBillingGapReason>().notNull(),
+  owner: text('owner').$type<HiBillingGapOwner>().notNull(),
+  recovery: text('recovery').$type<'automatic' | 'human'>().notNull(),
+  eventState: text('event_state').$type<HiBillingGapEventState>().notNull(),
+  issues: jsonb('issues')
+    .$type<Array<{ code: string; field: string; owner: string; message: string }>>()
+    .notNull(),
+  attempts: integer('attempts').notNull(),
+  lastAttemptAt: timestamp('last_attempt_at', { withTimezone: true }),
+  nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }),
+  lastErrorCode: text('last_error_code'),
+  detectedBy: text('detected_by').$type<'event' | 'reconcile' | 'correction'>().notNull(),
+  resolution: text('resolution').$type<HiBillingGapResolution>(),
+  resolutionNote: text('resolution_note'),
+  resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+  resolvedBy: uuid('resolved_by'),
+  reopenedCount: integer('reopened_count').notNull(),
+  openedAt: timestamp('opened_at', { withTimezone: true }).notNull(),
+  version: integer('version').notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),
+});
+
+/** Histórico da pendência (0149): gravado só pelo gatilho do banco. */
+export const hiBillingGapEvents = pgTable('hi_billing_gap_events', {
+  id: uuidPk(),
+  clinicId: tenantIdRef(),
+  gapId: uuid('gap_id').notNull(),
+  fromStatus: text('from_status'),
+  toStatus: text('to_status').notNull(),
+  reason: text('reason').notNull(),
+  owner: text('owner').notNull(),
+  attempts: integer('attempts').notNull(),
+  errorCode: text('error_code'),
+  changedFields: text('changed_fields').array().notNull(),
+  actorId: uuid('actor_id'),
+  actorKind: text('actor_kind').$type<'user' | 'system'>().notNull(),
+  note: text('note'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+});
+
+export type HiBillingGapRow = typeof hiBillingGaps.$inferSelect;
 export type HiGuideRow = typeof hiGuides.$inferSelect;
 export type HiGuideItemRow = typeof hiGuideItems.$inferSelect;
 export type HiInsurerRow = typeof hiInsurers.$inferSelect;

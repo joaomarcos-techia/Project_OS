@@ -31,6 +31,7 @@ import type { Tx } from '@/lib/db';
 import {
   hiAuthorizations,
   hiClinicSettings,
+  hiGuideEvents,
   hiGuideItems,
   hiGuides,
   hiInsurers,
@@ -131,8 +132,119 @@ export async function createConsultaGuideForAppointment(
   const existing = await findByKey(tx, clinicId, key);
   if (existing) return { kind: 'existing', guideId: existing.id, number: existing.number };
   if (!args.coverage) return { kind: 'needs_coverage' };
-  const coverage = args.coverage;
 
+  const derived = await deriveConsultaGuide(tx, {
+    clinicId,
+    appointment: ap,
+    coverage: args.coverage,
+    settings,
+  });
+  if (derived.kind !== 'derived') return derived;
+  const { insurerId, membershipId, line, authorizationId, issues, status } = derived;
+  const coverage = args.coverage;
+  try {
+    return await tx.transaction(async (sp) => {
+      const number = await allocateTissNumber(sp, { clinicId, kind: 'guide' });
+      const [guide] = await sp
+        .insert(hiGuides)
+        .values({
+          clinicId,
+          guideType: 'consulta',
+          number,
+          insurerId,
+          planId: coverage.planId,
+          patientId: ap.patientId,
+          membershipId,
+          authorizationId,
+          executantProfessionalId: ap.professionalId,
+          status,
+          live: true,
+          revision: 1,
+          version: 1,
+          tissVersion: '4.03.00',
+          terminologyVersion: args.terminologyVersion,
+          issues,
+          expectedValueCents: line ? line.unitValueCents : null,
+          totalValueCents: line ? line.unitValueCents : 0,
+          idempotencyKey: key,
+          createdVia: args.actor.kind === 'user' ? 'user' : 'automation',
+          createdBy: args.actor.kind === 'user' ? args.actor.userId : null,
+        })
+        .returning({ id: hiGuides.id, number: hiGuides.number });
+      if (line) {
+        await sp.insert(hiGuideItems).values(itemValues(clinicId, guide!.id, ap, line));
+      }
+      return {
+        kind: 'created' as const,
+        guideId: guide!.id,
+        number: guide!.number,
+        status,
+        issues,
+      };
+    });
+  } catch (e) {
+    const { code, constraint } = pgError(e);
+    if (code === '23505' && constraint === 'hi_guides_idem_uniq') {
+      const winner = await findByKey(tx, clinicId, key);
+      if (winner) return { kind: 'existing', guideId: winner.id, number: winner.number };
+    }
+    if (code === '23505' && constraint === 'hi_guide_items_live_consulta_uniq') {
+      return { kind: 'live_guide_exists' };
+    }
+    throw e;
+  }
+}
+
+type ClinicSettings = typeof hiClinicSettings.$inferSelect;
+
+type Derivation =
+  | { kind: 'needs_coverage' }
+  | { kind: 'skipped_return'; reason: string }
+  | {
+      kind: 'derived';
+      insurerId: string;
+      membershipId: string | null;
+      line: ContractLine | null;
+      authorizationId: string | null;
+      issues: GuideIssue[];
+      status: 'pending_data' | 'ready_for_review';
+    };
+
+function itemValues(clinicId: string, guideId: string, ap: CompletedAppointment, line: ContractLine) {
+  return {
+    clinicId,
+    guideId,
+    guideType: 'consulta' as const,
+    live: true,
+    sequence: 1,
+    appointmentId: ap.id,
+    contractLineId: line.id,
+    executedOn: ap.date,
+    tableCode: line.tableCode,
+    procedureCode: line.procedureCode,
+    description: line.description,
+    quantity: 1,
+    factorHundredths: 100,
+    unitValueCents: line.unitValueCents,
+    totalValueCents: line.unitValueCents,
+  };
+}
+
+/**
+ * As regras da Guia de Consulta, sem gravar nada: operadora, carteirinha, contrato
+ * do procedimento, janela de retorno, autorização concedida e pendências. A criação
+ * e a reavaliação de uma guia em edição usam exatamente esta derivação.
+ */
+async function deriveConsultaGuide(
+  tx: Tx,
+  args: {
+    clinicId: string;
+    appointment: CompletedAppointment;
+    coverage: AppointmentCoverage;
+    settings: ClinicSettings;
+  },
+): Promise<Derivation> {
+  const { clinicId, appointment: ap, coverage, settings } = args;
   const [insurer] = await tx
     .select()
     .from(hiInsurers)
@@ -363,71 +475,156 @@ export async function createConsultaGuideForAppointment(
   }
 
   const status = issues.length > 0 ? 'pending_data' : 'ready_for_review';
-  try {
-    return await tx.transaction(async (sp) => {
-      const number = await allocateTissNumber(sp, { clinicId, kind: 'guide' });
-      const [guide] = await sp
-        .insert(hiGuides)
-        .values({
-          clinicId,
-          guideType: 'consulta',
-          number,
-          insurerId: insurer.id,
-          planId: coverage.planId,
-          patientId: ap.patientId,
-          membershipId,
-          authorizationId,
-          executantProfessionalId: ap.professionalId,
-          status,
-          live: true,
-          revision: 1,
-          version: 1,
-          tissVersion: '4.03.00',
-          terminologyVersion: args.terminologyVersion,
-          issues,
-          expectedValueCents: line ? line.unitValueCents : null,
-          totalValueCents: line ? line.unitValueCents : 0,
-          idempotencyKey: key,
-          createdVia: args.actor.kind === 'user' ? 'user' : 'automation',
-          createdBy: args.actor.kind === 'user' ? args.actor.userId : null,
-        })
-        .returning({ id: hiGuides.id, number: hiGuides.number });
-      if (line) {
-        await sp.insert(hiGuideItems).values({
-          clinicId,
-          guideId: guide!.id,
-          guideType: 'consulta',
-          live: true,
-          sequence: 1,
-          appointmentId: ap.id,
-          contractLineId: line.id,
-          executedOn: ap.date,
-          tableCode: line.tableCode,
-          procedureCode: line.procedureCode,
-          description: line.description,
-          quantity: 1,
-          factorHundredths: 100,
-          unitValueCents: line.unitValueCents,
-          totalValueCents: line.unitValueCents,
-        });
-      }
-      return {
-        kind: 'created' as const,
-        guideId: guide!.id,
-        number: guide!.number,
-        status,
-        issues,
-      };
-    });
-  } catch (e) {
-    const { code, constraint } = pgError(e);
-    if (code === '23505' && constraint === 'hi_guides_idem_uniq') {
-      const winner = await findByKey(tx, clinicId, key);
-      if (winner) return { kind: 'existing', guideId: winner.id, number: winner.number };
-    }
-    if (code === '23505' && constraint === 'hi_guide_items_live_consulta_uniq') {
-      return { kind: 'live_guide_exists' };
-    }
-    throw e;
+  return {
+    kind: 'derived',
+    insurerId: insurer.id,
+    membershipId,
+    line: line ?? null,
+    authorizationId,
+    issues,
+    status,
+  };
+}
+
+export type ConsultaRefreshOutcome =
+  | { kind: 'refreshed'; guideId: string; status: 'pending_data' | 'ready_for_review'; issues: GuideIssue[] }
+  | { kind: 'unchanged'; guideId: string; issues: GuideIssue[] }
+  | { kind: 'not_refreshable'; reason: 'not_pending' | 'not_automatic' | 'edited_by_user' | 'insurer_changed' | 'module_disabled' | 'version_conflict' }
+  | { kind: 'return_detected'; reason: string }
+  | { kind: 'needs_coverage' };
+
+/**
+ * Reavalia uma Guia de Consulta que nasceu automaticamente com pendências (P7.4),
+ * depois que a cobertura, o contrato ou a autorização foram corrigidos.
+ *
+ * Só toca a guia que é do automático e ainda está intocada: `pending_data`, chave de
+ * origem do atendimento e nenhum evento de usuário no histórico. Se um humano já
+ * mexeu, a guia é dele (a pendência aponta o responsável). Mesmas regras da criação
+ * (`deriveConsultaGuide`); número e operadora não mudam; concorrência otimista pela
+ * versão da guia. Nada é presumido: sem autorização concedida, continua pendente.
+ */
+export async function refreshConsultaGuide(
+  tx: Tx,
+  args: {
+    clinicId: string;
+    guideId: string;
+    appointment: CompletedAppointment;
+    coverage: AppointmentCoverage | null;
+    terminologyVersion: string | null;
+  },
+): Promise<ConsultaRefreshOutcome> {
+  const { clinicId, appointment: ap } = args;
+  const [guide] = await tx
+    .select({
+      id: hiGuides.id,
+      status: hiGuides.status,
+      version: hiGuides.version,
+      insurerId: hiGuides.insurerId,
+      idempotencyKey: hiGuides.idempotencyKey,
+      issues: hiGuides.issues,
+    })
+    .from(hiGuides)
+    .where(and(eq(hiGuides.clinicId, clinicId), eq(hiGuides.id, args.guideId)))
+    .limit(1);
+  if (!guide || guide.status !== 'pending_data') return { kind: 'not_refreshable', reason: 'not_pending' };
+  if (guide.idempotencyKey !== consultaGuideKey(ap.id)) {
+    return { kind: 'not_refreshable', reason: 'not_automatic' };
   }
+  const [userEvent] = await tx
+    .select({ id: hiGuideEvents.id })
+    .from(hiGuideEvents)
+    .where(
+      and(
+        eq(hiGuideEvents.clinicId, clinicId),
+        eq(hiGuideEvents.guideId, guide.id),
+        eq(hiGuideEvents.actorKind, 'user'),
+      ),
+    )
+    .limit(1);
+  if (userEvent) return { kind: 'not_refreshable', reason: 'edited_by_user' };
+
+  const [settings] = await tx
+    .select()
+    .from(hiClinicSettings)
+    .where(eq(hiClinicSettings.clinicId, clinicId))
+    .limit(1);
+  if (!settings?.enabled) return { kind: 'not_refreshable', reason: 'module_disabled' };
+  if (!args.coverage) return { kind: 'needs_coverage' };
+  if (args.coverage.insurerId !== guide.insurerId) {
+    return { kind: 'not_refreshable', reason: 'insurer_changed' };
+  }
+
+  const derived = await deriveConsultaGuide(tx, {
+    clinicId,
+    appointment: ap,
+    coverage: args.coverage,
+    settings,
+  });
+  if (derived.kind === 'needs_coverage') return derived;
+  if (derived.kind === 'skipped_return') return { kind: 'return_detected', reason: derived.reason };
+  const { line, membershipId, authorizationId, issues, status } = derived;
+
+  return tx.transaction(async (sp) => {
+    const items = await sp
+      .select({
+        id: hiGuideItems.id,
+        contractLineId: hiGuideItems.contractLineId,
+        unitValueCents: hiGuideItems.unitValueCents,
+        executedOn: hiGuideItems.executedOn,
+      })
+      .from(hiGuideItems)
+      .where(and(eq(hiGuideItems.clinicId, clinicId), eq(hiGuideItems.guideId, guide.id)));
+    const keep =
+      line !== null &&
+      items.length === 1 &&
+      items[0]!.contractLineId === line.id &&
+      items[0]!.unitValueCents === line.unitValueCents &&
+      items[0]!.executedOn === ap.date;
+    const updated = await sp
+      .update(hiGuides)
+      .set({
+        planId: args.coverage!.planId,
+        membershipId,
+        authorizationId,
+        issues,
+        terminologyVersion: args.terminologyVersion,
+        expectedValueCents: line ? line.unitValueCents : null,
+        totalValueCents: line ? line.unitValueCents : 0,
+      })
+      .where(
+        and(
+          eq(hiGuides.clinicId, clinicId),
+          eq(hiGuides.id, guide.id),
+          eq(hiGuides.version, guide.version),
+          eq(hiGuides.status, 'pending_data'),
+        ),
+      )
+      .returning({ id: hiGuides.id });
+    if (updated.length === 0) return { kind: 'not_refreshable' as const, reason: 'version_conflict' as const };
+    if (!keep) {
+      if (items.length > 0) {
+        await sp.delete(hiGuideItems).where(
+          and(
+            eq(hiGuideItems.clinicId, clinicId),
+            inArray(
+              hiGuideItems.id,
+              items.map((i) => i.id),
+            ),
+          ),
+        );
+      }
+      if (line) await sp.insert(hiGuideItems).values(itemValues(clinicId, guide.id, ap, line));
+    }
+    if (status === 'ready_for_review') {
+      await sp
+        .update(hiGuides)
+        .set({ status: 'ready_for_review' })
+        .where(and(eq(hiGuides.clinicId, clinicId), eq(hiGuides.id, guide.id)));
+      return { kind: 'refreshed' as const, guideId: guide.id, status, issues };
+    }
+    const sameIssues = JSON.stringify(guide.issues) === JSON.stringify(issues) && keep;
+    return sameIssues
+      ? { kind: 'unchanged' as const, guideId: guide.id, issues }
+      : { kind: 'refreshed' as const, guideId: guide.id, status, issues };
+  });
 }
