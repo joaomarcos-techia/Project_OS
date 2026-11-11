@@ -1577,5 +1577,153 @@
     "workflowChanges": 0,
     "extraRunsCreated": 0,
     "productionWrites": 0
+  },
+  "productionCredentialCorrection": {
+    "observedAt": "2026-11-11T21:14:12.539Z",
+    "scope": "Vercel variable names and targets only; decrypt=false; no values requested, emitted or persisted",
+    "variables": [
+      {
+        "name": "ABACATEPAY_API_KEY",
+        "production": {
+          "count": 1,
+          "status": "configured"
+        },
+        "preview": {
+          "count": 1,
+          "status": "configured",
+          "scope": "branch"
+        }
+      },
+      {
+        "name": "ABACATEPAY_STORE_ID",
+        "production": {
+          "count": 0,
+          "status": "absent"
+        },
+        "preview": {
+          "count": 1,
+          "status": "configured",
+          "scope": "branch"
+        }
+      },
+      {
+        "name": "ABACATEPAY_WEBHOOK_SECRET",
+        "production": {
+          "count": 0,
+          "status": "absent"
+        },
+        "preview": {
+          "count": 1,
+          "status": "configured",
+          "scope": "branch"
+        }
+      },
+      {
+        "name": "SAAS_SIGNUP_PROVIDER",
+        "production": {
+          "count": 0,
+          "status": "absent"
+        },
+        "preview": {
+          "count": 1,
+          "status": "configured",
+          "scope": "branch"
+        }
+      },
+      {
+        "name": "ABACATEPAY_SANDBOX_PLAN_PRODUCTS",
+        "production": {
+          "count": 0,
+          "status": "absent"
+        },
+        "preview": {
+          "count": 1,
+          "status": "configured",
+          "scope": "branch"
+        }
+      },
+      {
+        "name": "ABACATEPAY_SANDBOX_PROBE_PRODUCT_ID",
+        "production": {
+          "count": 0,
+          "status": "absent"
+        },
+        "preview": {
+          "count": 1,
+          "status": "configured",
+          "scope": "branch"
+        }
+      }
+    ],
+    "abacatepayDeclarations": [
+      {
+        "name": "ABACATEPAY_API_KEY",
+        "targets": ["production"],
+        "branch": null
+      },
+      {
+        "name": "ABACATEPAY_API_KEY",
+        "targets": ["preview"],
+        "branch": null
+      },
+      {
+        "name": "ABACATEPAY_WEBHOOK_SECRET",
+        "targets": ["preview"],
+        "branch": "feat/billing-abacatepay-20261107"
+      },
+      {
+        "name": "ABACATEPAY_SANDBOX_PLAN_PRODUCTS",
+        "targets": ["preview"],
+        "branch": "feat/billing-abacatepay-20261107"
+      },
+      {
+        "name": "ABACATEPAY_SANDBOX_PROBE_PRODUCT_ID",
+        "targets": ["preview"],
+        "branch": "feat/billing-abacatepay-20261107"
+      },
+      {
+        "name": "ABACATEPAY_STORE_ID",
+        "targets": ["preview"],
+        "branch": "feat/billing-abacatepay-20261107"
+      },
+      {
+        "name": "ABACATEPAY_API_KEY",
+        "targets": ["preview"],
+        "branch": "feat/billing-abacatepay-20261107"
+      }
+    ],
+    "localProdAlias": "ABACATEPAY_API_KEY_PROD is not a consumed application variable; local value not inspected",
+    "accountApproval": "reported by owner; not independently queried with a live credential",
+    "productionComposition": "not implemented; Sandbox runtime still rejects Production",
+    "productionDeploymentChanges": 0,
+    "configurationChanges": 0,
+    "providerCalls": 0,
+    "valuesExposed": false,
+    "ownerStatement": "owner reported correction completed",
+    "result": "PASS_NAME_AND_SCOPE_ONLY",
+    "credentialValidity": "NOT_QUERIED",
+    "previousCredentialRevocation": "NOT_VERIFIED",
+    "activationAuthorized": false
+  },
+  "ciInventoryFollowup": {
+    "observedAt": "2026-11-11T21:16:39.824Z",
+    "runId": "43100201006",
+    "sha": "e8309aeef76024da299cb6027cd2c10d67ffdc0a",
+    "url": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/43100201006",
+    "state": "FAIL",
+    "completedUnitTests": 7016,
+    "failedStep": "Security inventory (AST and explicit guard review)",
+    "cause": "Generated inventory stale after test harness changes: two extra process.env reads and moved source lines",
+    "correction": "Regenerate and review docs/security/acoes.md; no changes to inventory enforcement, workflow or production code",
+    "laterBuildAndE2E": "NOT_RUN_IN_THIS_FAILED_RUN",
+    "finalCorrectiveCI": "Follow current head checks on PR53; do not inherit baseline result",
+    "localCorrectiveCheck": {
+      "command": "node node_modules/tsx/dist/cli.mjs scripts/security/inventory.ts --check",
+      "exitCode": 0,
+      "environmentReads": 495,
+      "unresolved": 0,
+      "publicEnvironmentDrift": 0,
+      "routeTestDrift": 0
+    }
   }
 }
