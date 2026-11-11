@@ -87,7 +87,23 @@ function daysBetween(from: string, to: string): number {
   return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
 }
 
-export function assembleConsultaGuide(input: ConsultaAssemblyInput): ConsultaAssembly {
+/**
+ * Entrada do PLANEJAMENTO: tudo o que decide se há guia e com que contrato, sem
+ * a carteirinha em claro e sem o número. A criação automática (P7.4) usa só o
+ * plano; a carteirinha é decifrada (com auditoria) apenas na emissão.
+ */
+export type ConsultaPlanInput = Omit<
+  ConsultaAssemblyInput,
+  'membership' | 'guideNumber' | 'authorization' | 'overrides'
+> & { hasMembership: boolean };
+
+export type ConsultaPlan =
+  | { decision: 'bill'; line: ContractLine; isReturn: boolean; requiresAuthorization: boolean }
+  | { decision: 'skip_return'; contractLineId: string; reason: string }
+  /** `line` vem quando o contrato foi achado, mesmo com outras pendências (o item já pode existir). */
+  | { decision: 'blocked'; issues: GuideIssue[]; line: ContractLine | null };
+
+export function planConsultaGuide(input: ConsultaPlanInput): ConsultaPlan {
   const issues: GuideIssue[] = [];
   const block = (
     code: string,
@@ -98,7 +114,7 @@ export function assembleConsultaGuide(input: ConsultaAssemblyInput): ConsultaAss
     issues.push({ code, field, message, owner });
   };
 
-  if (!input.membership) {
+  if (!input.hasMembership) {
     block(
       'MEMBERSHIP_MISSING',
       'beneficiario.numeroCarteira',
@@ -146,7 +162,13 @@ export function assembleConsultaGuide(input: ConsultaAssemblyInput): ConsultaAss
       'gestor',
     );
   }
-  if (issues.length > 0 || selection.kind !== 'found') return { decision: 'blocked', issues };
+  if (issues.length > 0 || selection.kind !== 'found') {
+    return {
+      decision: 'blocked',
+      issues,
+      line: selection.kind === 'found' ? selection.line : null,
+    };
+  }
 
   const line = selection.line;
   const prev = input.appointment.previousConsultationDate;
@@ -162,6 +184,14 @@ export function assembleConsultaGuide(input: ConsultaAssemblyInput): ConsultaAss
       reason: `Retorno em ${daysBetween(prev!, input.appointment.date)} dia(s), dentro da janela de ${line.returnDays} do contrato, que não paga retorno.`,
     };
   }
+  return { decision: 'bill', line, isReturn, requiresAuthorization: line.requiresAuthorization };
+}
+
+export function assembleConsultaGuide(input: ConsultaAssemblyInput): ConsultaAssembly {
+  const plan = planConsultaGuide({ ...input, hasMembership: input.membership !== null });
+  if (plan.decision === 'blocked') return { decision: 'blocked', issues: plan.issues };
+  if (plan.decision === 'skip_return') return plan;
+  const { line, isReturn } = plan;
 
   const o = input.overrides ?? {};
   const professional = input.professional!;

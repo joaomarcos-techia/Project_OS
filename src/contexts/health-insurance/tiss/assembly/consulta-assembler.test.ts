@@ -10,7 +10,11 @@ import type { TerminologyTerm } from '../terminology/official-sheet';
 import { validateConsultaGuide } from '../validation/consulta-validator';
 import { verifyEpilogueHash } from '../xml/hash-verify';
 
-import { assembleConsultaGuide, type ConsultaAssemblyInput } from './consulta-assembler';
+import {
+  assembleConsultaGuide,
+  planConsultaGuide,
+  type ConsultaAssemblyInput,
+} from './consulta-assembler';
 import { selectEffectiveContract, type ContractLine } from './contract-selection';
 
 const TERMS = path.join(process.cwd(), 'data/tiss/terminologia/202609');
@@ -232,5 +236,37 @@ describe('assembleConsultaGuide', () => {
     const r = assembleConsultaGuide(input({ contracts: [line({ requiresAuthorization: true })] }));
     expect(r).toMatchObject({ decision: 'bill', requiresAuthorization: true });
     if (r.decision === 'bill') expect(r.guide.numeroGuiaOperadora).toBeNull();
+  });
+});
+
+describe('planConsultaGuide (criação automática, sem carteirinha em claro)', () => {
+  const planInput = (over: Partial<ConsultaAssemblyInput> = {}) => {
+    const { membership, guideNumber: _n, authorization: _a, overrides: _o, ...rest } = input(over);
+    return { ...rest, hasMembership: membership !== null };
+  };
+
+  it('não recebe carteirinha nem número: decide com a mesma regra da montagem', () => {
+    const plan = planConsultaGuide(planInput());
+    expect(plan).toMatchObject({ decision: 'bill', isReturn: false });
+    const full = assembleConsultaGuide(input());
+    expect(full.decision).toBe('bill');
+    if (plan.decision === 'bill' && full.decision === 'bill') {
+      expect(plan.line.id).toBe(full.contractLineId);
+      expect(JSON.stringify(plan)).not.toContain(input().membership!.cardNumber);
+    }
+  });
+
+  it('pendência com contrato achado devolve a linha (o item já pode existir na guia pendente)', () => {
+    const plan = planConsultaGuide(planInput({ membership: null }));
+    expect(plan.decision).toBe('blocked');
+    if (plan.decision === 'blocked') {
+      expect(plan.issues.map((i) => i.code)).toEqual(['MEMBERSHIP_MISSING']);
+      expect(plan.line?.procedureCode).toBe('10101012');
+    }
+  });
+
+  it('sem contrato vigente: pendência e nenhuma linha', () => {
+    const plan = planConsultaGuide(planInput({ contracts: [] }));
+    expect(plan).toMatchObject({ decision: 'blocked', line: null });
   });
 });

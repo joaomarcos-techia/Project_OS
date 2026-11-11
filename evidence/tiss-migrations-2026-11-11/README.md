@@ -14,6 +14,7 @@ estiver aberto. Cada migration nova é provada de duas formas, sem gravar nada.
 | Postgres descartável 0144–0146 depois da correção do CHECK de excesso da 0146 | `scripts/security/health-insurance-clinic-db.ts` | **29/29** (com a regressão "aprovador sem motivo não libera excesso") | `scratch-schema-0144-0146.log` |
 | Ensaio transacional no DEV: 0144 + 0145 + 0146 (corrigida) + 0147 → sondas → `ROLLBACK` | `rehearse-0147.mjs` | **26/26** (dono da tabela = dono das funções DEFINER = `postgres`; `postgres` com BYPASSRLS) | `rehearse-0144-0147-dev.log` |
 | Ledger do DEV, só leitura: cada linha de `drizzle.__drizzle_migrations` casada por SHA-256 com os arquivos de `main`, #53 e #55 | `drizzle-ledger.mjs` | 144 linhas; última = `0143_tiss_catalog`; 0136–0142 do #53 com `created_at` = `when` | `dev-ledger-2026-11-11.log` |
+| Serviço `createConsultaGuideForAppointment` (P7.4) rodando como o runtime sobre o schema real com a 0147 | `scripts/security/health-insurance-guide-service-db.ts` (com `NODE_OPTIONS=--conditions=react-server`) | **9/9** (10 entregas simultâneas → 1 guia, contador +1; retorno não faturável sem número; autorização só a concedida; rollback devolve o número) | `scratch-schema-servico-consulta.log` |
 
 Os UUIDs foram trocados por `<uuid>` nos logs. O ensaio da 0147 usa clínicas e um profissional existentes do DEV; pacientes, procedimento e atendimentos são sintéticos e criados dentro da transação.
 
