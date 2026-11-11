@@ -44,6 +44,7 @@ export type {
   AppointmentCheckedInPayload,
   AppointmentStartedPayload,
   AppointmentCompletedPayload,
+  AppointmentInsuranceCompletedPayload,
   AppointmentCancelledPayload,
   AppointmentNoShowPayload,
   AppointmentRescheduledPayload,

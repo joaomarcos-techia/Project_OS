@@ -24,6 +24,9 @@ import {
 
 import { uuidPk } from '@/lib/db/types';
 
+// Registra os eventos do contexto no catálogo do outbox (mesmo padrão dos outros contexts).
+import './events';
+
 export const tissTerminologyVersions = pgTable(
   'tiss_terminology_versions',
   {

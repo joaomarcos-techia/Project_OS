@@ -1,0 +1,15 @@
+ok  conexão — postgres | PostgreSQL 17.6 on aarch64-unk
+ok  0144_hi_clinic_setup.sql executada
+ok  0145_hi_memberships.sql executada
+ok  0146_hi_authorizations.sql executada
+ok  0147_hi_guides.sql executada
+ok  0148_hi_coverage_copay.sql executada (lock de appointments/lancamentos a partir daqui)
+ok  atendimentos reais: todos nascem particular e o CHECK foi validado [esperado predicado, obtido ok] — [{"other":0,"valid":true}]
+ok  atendimento real: convênio recusado em clínica sem o módulo (nada é gravado) [esperado 55000, obtido 55000] — Convênio não está habilitado para esta clínica.
+ok  convênio aceito com o módulo ligado (atendimento sintético agendado) [esperado ok, obtido ok]
+ok  rede de segurança no DEV: recebível cheio de convênio recusado [esperado 23514, obtido 23514] — Atendimento por convênio: o paciente só é cobrado pela coparticipação confirmada (limite: 0 centavos).
+ok  particular segue igual: recebível cheio aceito (sintético, desfeito no fim) [esperado ok, obtido ok]
+ok  cobertura de outro paciente recusada pelo banco [esperado 23514, obtido 23514] — A carteirinha deve ser do paciente do atendimento.
+ok  depois do ROLLBACK: sem coluna, gatilho, tabela, linha sintética ou registro de migration — {"col":0,"trg":0,"cov":null,"g":null,"n":144,"pt":0}
+lock das tabelas vivas por ~7.6 s
+RESUMO 13/13 em 12.7 s

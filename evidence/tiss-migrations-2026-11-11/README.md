@@ -1,4 +1,4 @@
-# Ensaios das migrations 0144 a 0147 (convênios), 11/11/2026
+# Ensaios das migrations 0144 a 0148 (convênios), 11/11/2026
 
 Método da D19 do `QORO_TISS_MASTER_PLAN.md`: nenhuma aplicação persistente no DEV compartilhado enquanto o PR #53
 estiver aberto. Cada migration nova é provada de duas formas, sem gravar nada.
@@ -15,6 +15,9 @@ estiver aberto. Cada migration nova é provada de duas formas, sem gravar nada.
 | Ensaio transacional no DEV: 0144 + 0145 + 0146 (corrigida) + 0147 → sondas → `ROLLBACK` | `rehearse-0147.mjs` | **26/26** (dono da tabela = dono das funções DEFINER = `postgres`; `postgres` com BYPASSRLS) | `rehearse-0144-0147-dev.log` |
 | Ledger do DEV, só leitura: cada linha de `drizzle.__drizzle_migrations` casada por SHA-256 com os arquivos de `main`, #53 e #55 | `drizzle-ledger.mjs` | 144 linhas; última = `0143_tiss_catalog`; 0136–0142 do #53 com `created_at` = `when` | `dev-ledger-2026-11-11.log` |
 | Serviço `createConsultaGuideForAppointment` (P7.4) dentro do `withTenant` real da aplicação, com o pool apontado para o Postgres descartável (schema real com a 0147) | `scripts/security/health-insurance-guide-service-db.ts` (com `NODE_OPTIONS=--conditions=react-server`) | **9/9** (10 entregas simultâneas → 1 guia, contador +1; retorno não faturável sem número; autorização só a concedida; rollback devolve o número) | `scratch-schema-servico-consulta.log` |
+| **0148 + ponta a ponta** (P1.6, P10.1, P4.5, P7.4): cobertura pelo serviço, conclusão pelo `applyTransition` real, eventos entregues pelo worker real (`runOutboxOnce`) aos handlers reais | `scripts/security/health-insurance-coverage-db.ts` | **12/12**: particular gera o recebível cheio como antes; convênio gera a guia, nenhum recebível e nenhuma cobrança; sinal, saldo e régua não alcançam convênio; reentrega sem duplicar; coparticipação confirmada → recebível só de R$ 45; falha no meio retenta sem duplicar | `scratch-schema-0148-ponta-a-ponta.log` |
+| Ensaio transacional no DEV: 0144–0148 com ROLLBACK, uma ida ao banco por migration e `lock_timeout` de 2 s | `rehearse-0148.mjs` | **13/13**: atendimentos reais todos `particular` e CHECK validado; atendimento real recusado como convênio (clínica sem o módulo); rede de segurança ativa; lock das tabelas vivas ~7,6 s | `rehearse-0144-0148-dev.log` |
+| Ledger do DEV (tarde de 11/11), só leitura | `drizzle-ledger.mjs` | 144 linhas; última = 0143; 0144–0147 sem linha | `dev-ledger-2026-11-11-tarde.log` |
 
 Os UUIDs foram trocados por `<uuid>` nos logs. O ensaio da 0147 usa clínicas e um profissional existentes do DEV; pacientes, procedimento e atendimentos são sintéticos e criados dentro da transação.
 

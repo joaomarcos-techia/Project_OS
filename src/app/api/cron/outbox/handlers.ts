@@ -43,6 +43,12 @@ import '@/contexts/financial/internal/handlers/appointment-completed';
 import '@/contexts/scheduling/internal/handlers/financial-faturamento-pendente';
 import '@/contexts/scheduling/internal/handlers/financial-lancamento-created';
 
+// Convênios (ADR-072, P7.4/P10.5): atendimento de convênio concluído → guia
+// automática (o `completed` segue com o Financeiro, que não cobra o valor cheio
+// de convênio); coparticipação confirmada → recebível do paciente por esse valor.
+import '@/contexts/health-insurance/internal/handlers/insurance-completed';
+import '@/contexts/financial/internal/handlers/copay-confirmed';
+
 // C11 — AI Agent: messaging.inbound.received → turno de conversa (saga
 // multi-fase, LLM fora de TX — ADR-022). Idempotente via eventId checkpoints.
 import '@/contexts/ai-agent/internal/handlers/inbound-received';

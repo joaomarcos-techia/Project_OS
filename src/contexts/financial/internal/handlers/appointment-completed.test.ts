@@ -295,3 +295,29 @@ describe('idempotência e falhas', () => {
     expect(mocks.allocateCredit).not.toHaveBeenCalled();
   });
 });
+
+describe('convênios (0148; P10.1): o paciente nunca recebe o valor cheio de convênio', () => {
+  it('atendimento de convênio: nenhum recebível, nenhum repasse, nenhum evento', async () => {
+    await run({ billingMode: 'convenio' });
+    expect(mocks.lancamentoValues).not.toHaveBeenCalled();
+    expect(mocks.pendenciaValues).not.toHaveBeenCalled();
+    expect(mocks.listAvailableCredits).not.toHaveBeenCalled();
+    expect(mocks.createProfessionalPayoutSnapshot).not.toHaveBeenCalled();
+    expect(mocks.publishEvent).not.toHaveBeenCalled();
+  });
+
+  it('convênio com valor zerado também não abre pendência de faturamento do paciente', async () => {
+    await run({ billingMode: 'convenio', valor: 0 });
+    expect(mocks.pendenciaValues).not.toHaveBeenCalled();
+  });
+
+  it.each([{ billingMode: 'particular' }, {}])(
+    'particular (ou evento anterior à 0148, sem a chave) segue idêntico: recebível cheio e repasse — %o',
+    async (over) => {
+      await run(over);
+      expect(lancamento()).toMatchObject({ tipo: 'receber', valor: '200.00', status: 'pendente' });
+      expect(mocks.createProfessionalPayoutSnapshot).toHaveBeenCalledTimes(1);
+      expect(mocks.publishEvent).toHaveBeenCalledTimes(1);
+    },
+  );
+});

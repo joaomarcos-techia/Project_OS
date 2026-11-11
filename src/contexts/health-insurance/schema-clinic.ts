@@ -564,6 +564,93 @@ export const hiFiles = pgTable('hi_files', {
   createdAt: createdAt(),
 });
 
+/**
+ * Cobertura do atendimento (0148, P1.6): 1 por atendimento, congelada quando o
+ * atendimento começa. Gatilho confere paciente, carteirinha, contrato e
+ * autorização; "pronta" só sem pendência e com autorização quando exigida.
+ */
+export type HiCoverageStatus =
+  | 'incomplete'
+  | 'pending_authorization'
+  | 'authorization_recorded'
+  | 'authorization_denied'
+  | 'ready'
+  | 'cancelled';
+
+export const hiAppointmentCoverages = pgTable('hi_appointment_coverages', {
+  id: uuidPk(),
+  clinicId: tenantIdRef(),
+  appointmentId: uuid('appointment_id').notNull(),
+  patientId: uuid('patient_id').notNull(),
+  guideType: text('guide_type').$type<HiGuideType>().notNull(),
+  insurerId: uuid('insurer_id').notNull(),
+  planId: uuid('plan_id'),
+  membershipId: uuid('membership_id'),
+  contractLineId: uuid('contract_line_id'),
+  authorizationRequirement: text('authorization_requirement')
+    .$type<'unknown' | 'not_required' | 'required'>()
+    .notNull(),
+  authorizationId: uuid('authorization_id'),
+  status: text('status').$type<HiCoverageStatus>().notNull(),
+  issues: jsonb('issues')
+    .$type<Array<{ code: string; field: string; owner: string; message: string }>>()
+    .notNull(),
+  expectedValueCents: bigint('expected_value_cents', { mode: 'number' }),
+  version: integer('version').notNull(),
+  createdVia: text('created_via').$type<HiCreatedVia>().notNull(),
+  createdBy: uuid('created_by'),
+  ...timestampsPattern(),
+});
+
+/**
+ * Coparticipação (0148): os seis valores ficam separados. Nada é cobrado sem
+ * confirmação; o recebível do paciente só nasce do valor cobrável confirmado (e o
+ * banco recusa qualquer recebível de convênio acima dele).
+ */
+export type HiCopayStatus =
+  | 'estimated'
+  | 'calculated'
+  | 'checked'
+  | 'confirmed'
+  | 'charged'
+  | 'paid'
+  | 'refunded'
+  | 'waived'
+  | 'cancelled';
+
+export const hiCopayments = pgTable('hi_copayments', {
+  id: uuidPk(),
+  clinicId: tenantIdRef(),
+  coverageId: uuid('coverage_id').notNull(),
+  appointmentId: uuid('appointment_id').notNull(),
+  patientId: uuid('patient_id').notNull(),
+  kind: text('kind').$type<'fixed' | 'percentage'>().notNull(),
+  /** `numeric(5,2)` vem como texto do driver. */
+  percentage: numeric('percentage', { precision: 5, scale: 2 }),
+  /** Previsto no agendamento (contrato). */
+  expectedCents: bigint('expected_cents', { mode: 'number' }).notNull(),
+  /** Calculado na conclusão (contrato × itens da guia). */
+  calculatedCents: bigint('calculated_cents', { mode: 'number' }),
+  /** Conferido pela recepção. */
+  checkedCents: bigint('checked_cents', { mode: 'number' }),
+  /** Confirmado por quem tem a permissão. */
+  confirmedCents: bigint('confirmed_cents', { mode: 'number' }),
+  /** Cobrável: o teto do recebível do paciente. */
+  chargeableCents: bigint('chargeable_cents', { mode: 'number' }),
+  /** Recebido (espelho do financeiro, P10.5). */
+  receivedCents: bigint('received_cents', { mode: 'number' }).notNull(),
+  status: text('status').$type<HiCopayStatus>().notNull(),
+  checkedBy: uuid('checked_by'),
+  checkedAt: timestamp('checked_at', { withTimezone: true }),
+  confirmedBy: uuid('confirmed_by'),
+  confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
+  waiveReason: text('waive_reason'),
+  chargeRef: uuid('charge_ref'),
+  transitionNote: text('transition_note'),
+  version: integer('version').notNull(),
+  ...timestampsPattern(),
+});
+
 export type HiGuideRow = typeof hiGuides.$inferSelect;
 export type HiGuideItemRow = typeof hiGuideItems.$inferSelect;
 export type HiInsurerRow = typeof hiInsurers.$inferSelect;

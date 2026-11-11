@@ -77,6 +77,7 @@ export const GET = withCron(
                                                 FROM appointments a
                                                WHERE a.status = 'atendido'
                                                  AND a.faturamento_pendente = false
+                                                 AND a.billing_mode = 'particular'
                                                  AND a.updated_at < now() - ${sql.raw(GRACE)}
                                                  AND NOT EXISTS (SELECT 1 FROM lancamentos l WHERE l.appointment_id = a.id)
                                                ORDER BY a.updated_at ASC

@@ -2,6 +2,11 @@
 // TISS; ADR-072). Outros contexts só importam deste arquivo
 // (eslint-plugin-boundaries). O plano de execução é o QORO_TISS_MASTER_PLAN.md.
 export {
+  CopayConfirmedSchema,
+  HEALTH_INSURANCE_EVENTS,
+  type CopayConfirmedPayload,
+} from './events';
+export {
   tissSchemaVersions,
   tissTerminologyVersions,
   tissTerms,

@@ -61,6 +61,8 @@ export interface AppointmentCoverage {
   insurerId: string;
   planId: string | null;
   membershipId: string | null;
+  /** Autorização escolhida na cobertura; sem ela, a única concedida válida na data. */
+  authorizationId?: string | null;
 }
 
 export type ConsultaGuideOutcome =
@@ -335,6 +337,7 @@ export async function createConsultaGuideForAppointment(
       : [];
     const valid = candidates.filter(
       (a) =>
+        (!coverage.authorizationId || a.id === coverage.authorizationId) &&
         a.authorizedOn !== null &&
         a.authorizedOn <= ap.date &&
         (a.validUntil === null || a.validUntil >= ap.date),
