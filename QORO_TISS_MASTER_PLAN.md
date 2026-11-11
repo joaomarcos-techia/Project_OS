@@ -41,15 +41,15 @@
 | --- | --- |
 | Data da última atualização | 11/11/2026 |
 | Fase atual | **P1 — Fundação de dados**, com P7/P8 (montadores) e P13 (validação) em paralelo |
-| Tarefa em andamento | P9.1 e P8.6 (gerador pronto para Consulta, SP/SADT e lote; recurso de glosa e solicitação pendentes); P13.2 (XSD por script; falta o CI, que depende de P9.2); P13.6 (divergências classificadas, nenhuma exige mudança no gerador) |
-| Última tarefa concluída | P8.2 — montador da SP/SADT (`a0858182`); antes, P7.2 (`80236869`) e P1.4 (`807f9035`) |
-| Progresso | **22 de 110 tarefas concluídas (20,0%)**: P0.1–P0.9, P1.1, P1.2, P1.3, P1.4, P7.2, P7.3, P8.1, P8.2, P8.3, P13.1, P13.3, P13.4 e P14.1. Critério: só conta tarefa com evidência no [Registro](#m-registro-de-execução). Destas 110, **8 dependem de terceiros ou de aprovação humana** (L.2). |
+| Tarefa em andamento | P12.8 (análise da seção N concluída; implementação aguardando S1–S9); P9.1 e P8.6 (recurso de glosa e solicitação pendentes); P13.2 (XSD com dois motores por script; falta o CI, que depende de P9.2); P13.6 (divergências classificadas e documentadas) |
+| Última tarefa concluída | P1.5 — carteirinhas (migration 0145) e P7.1 — numeração atômica (`9e702b27`) |
+| Progresso | **24 de 110 tarefas concluídas (21,8%)**: P0.1–P0.9, P1.1, P1.2, P1.3, P1.4, P1.5, P7.1, P7.2, P7.3, P8.1, P8.2, P8.3, P13.1, P13.3, P13.4 e P14.1. Critério: só conta tarefa com evidência no [Registro](#m-registro-de-execução). Destas 110, **8 dependem de terceiros ou de aprovação humana** (L.2). |
 | Capacidades em produção | nenhuma (ver A.5) |
 | Testes aprovados | **Testes do módulo executados e verdes em 11/11:** 16 arquivos, 437 aprovados e 3 pulados (cenário sem arquivo), em `src/contexts/health-insurance`, `src/lib/xlsx`, `src/lib/validation` e na caracterização da régua de cobrança. Regressão dos consumidores do CNPJ: 119 arquivos, 1.826 aprovados. XSD oficial: 38/38 arquivos do corpus como esperado. Validadores externos A e B executados (G.6). A linha "nenhum teste do módulo ainda" das versões anteriores estava desatualizada desde `dc56b5d4` (10/11), quando os primeiros testes do núcleo XML já rodavam verdes. |
-| Bloqueios ativos | B4 (ordem de merge com o PR #53), B5 (operadora e clínica piloto), B6 (retenção legal), B7 (Validador C: avaliado em 11/11, falta decidir ambiente isolado e licença), **B10** (aderência do Qoro ao Componente de Segurança e Privacidade da ANS: decisão do fundador), **B11** (Asaas e AbacatePay aceitarem CNPJ alfanumérico do titular: prova em sandbox) |
-| Decisões | D1–D12 aprovadas ou adotadas; D13–D17 adotadas pelo agente no escopo delegado; **D18** (CNPJ alfanumérico no validador compartilhado, autorizado pelo fundador em 11/11) e **D19** (estratégia de migrations no DEV compartilhado) (L.1) |
+| Bloqueios ativos | B4 (integração: #53 primeiro, depois reconciliar o #55, D22), B5 (operadora e clínica piloto), B6 (retenção legal), B7 (Validador TISS para Windows: **instalação não autorizada** pelo fundador em 11/11; candidato pendente), **B10** (segurança ANS: decisões S1–S9 da seção N), **B11** (AbacatePay: com o agente do #53; Asaas: sandbox ok) |
+| Decisões | D1–D12 aprovadas ou adotadas; D13–D17 adotadas no escopo delegado; D18 aprovada; D19 adotada e mantida pelo fundador em 11/11; **D20** (arquivos no banco), **D21** (HMAC da carteirinha por clínica e operadora) e **D22** (ordem de integração) (L.1) |
 | Arquivos alterados | este documento; `docs/adr/072-convenios-e-tiss.md` (era 067); `src/contexts/health-insurance/**`; `src/lib/xlsx/**`; `src/lib/validation/cnpj.ts`, `document.ts`; `src/lib/masks.ts`; campos de CNPJ do perfil, fornecedores e `/join`; `scripts/tiss/**`; `data/tiss/**`; `evidence/tiss-validadores-2026-11-10/**`; `docs/architecture/*` |
-| Próxima ação exata | **P1.5** (migration 0145, `hi_memberships`: número só cifrado + hash + últimos 4, preferencial único), com o método da 0144 (teste estático, ensaio transacional no DEV com ROLLBACK, harness local com todas as migrations; sem aplicar no DEV, D19); em seguida **P7.1** (numeração sobre `hi_counters`, com prova de concorrência no harness local). |
+| Próxima ação exata | **P1.7** (migration 0146: `hi_authorizations`, itens, anexos no banco (D20) e eventos), com os dois métodos de prova da D19 e sem aplicar no DEV; em paralelo, **leitores auditados com finalidade** (R85, parte do módulo) para carteirinha decifrada. P1.6 (`appointments.billing_mode`) depende de mexer no contexto de agenda e fica para depois da integração com o #53. |
 
 ---
 
@@ -918,7 +918,7 @@ Todas dependem de P0.5 e D1–D3. Cada migration segue E.5: numeração, `check:
 | **P1.2** (T1.2) | catálogo global (`tiss_terminology_versions`, `tiss_terms`, `tiss_schema_versions`) | P1.1 | migration 0143*, `schema.ts` | gates; aplicada no DEV; grants só SELECT | migration + grants | **Concluído** (0143 aplicada no DEV, 144 migrations; RLS FORCE nas 3 tabelas; `authenticated` lê e tem INSERT/DELETE recusados com 42501; `anon` recusado) |
 | **P1.3** (T0.7) | carga da terminologia no banco por script idempotente | P1.2, P0.9 | `scripts/tiss/terminology/load.ts` | contagens no DEV iguais ao artefato; reexecução sem duplicar | integração no DEV | **Concluído**: carga no DEV com 61 tabelas e 7.331 termos conferidos no banco, versão TISS 4.03.00 registrada; a reexecução terminou com as mesmas contagens (idempotente). Correção do `sql.json` confirmada no banco |
 | **P1.4** (T1.3) | `hi_clinic_settings`, `hi_counters`, `hi_insurers`, `hi_insurer_credentials`, `hi_plans`, `hi_professional_profiles`, `hi_credentials`, `hi_procedure_contracts`, `hi_contract_imports` | P1.2 | migration 0144 | RLS FORCE; CHECKs (ANS 6 dígitos, valores ≥ 0, vigência coerente); contratos append-only por trigger | migration, isolamento | **Concluído** (`807f9035`): 9 tabelas com a política literal do `defaultTenantPolicy` v2, FKs compostas `(clinic_id, id)`, profissional da mesma clínica por gatilho, vigências ativas sem sobreposição (`EXCLUDE`), contratos imutáveis. Provas: teste estático (25), **ensaio transacional no DEV com ROLLBACK, 26/26** (Postgres 17.6; nada ficou no banco) e **harness local com todas as migrations reais, 9/9** (`scripts/security/health-insurance-clinic-db.ts`). **Não aplicada no DEV** (D19): a aplicação persistente fica para a integração depois do merge do #53 (B4) |
-| **P1.5** (T1.4) | `hi_memberships` | P1.4 | 0145* | número só cifrado; preferencial único | migration, cifra | Pendente |
+| **P1.5** (T1.4) | `hi_memberships` | P1.4 | 0145 | número só cifrado; preferencial único | migration, cifra | **Concluído** (`9e702b27`): número só como ciphertext por clínica + HMAC de busca sobre clínica + operadora + número (D21) + últimos 4; paciente da mesma clínica (gatilho); operadora, plano e substituição por FK composta; um número ativo por operadora; uma preferencial por paciente; número, paciente e operadora imutáveis; substituição só para frente; runtime sem DELETE; exclusão definitiva do paciente leva o número. Provas: estático (7), **harness local 6 provas**, **ensaio no DEV com ROLLBACK 16/16** (com a 0144). Não aplicada no DEV (D19) |
 | **P1.6** (T1.5) | `appointments.billing_mode`, `hi_appointment_coverages`, `hi_copayments` | P1.5 | 0146*, `scheduling/schema.ts` | atendimentos existentes `particular`; trigger de snapshot respeitado | migration, trigger | Pendente |
 | **P1.7** (T1.5) | `hi_authorizations`, `hi_authorization_items`, `hi_authorization_attachments`, `hi_authorization_events` | P1.6 | 0147* | gates | migration | Pendente |
 | **P1.8** (T1.6) | `hi_guides`, `hi_guide_items`, `hi_guide_events` | P1.7 | 0148* | UNIQUEs de C.12 | migration, UNIQUE | Pendente |
@@ -986,7 +986,7 @@ Os números marcados com `*` são provisórios e devem ser reconferidos (E.5). P
 
 | ID (antigo) | Objetivo | Dependências | Arquivos | Aceite | Testes | Status |
 | --- | --- | --- | --- | --- | --- | --- |
-| **P7.1** (T6.1) | numeração de guia, lote, transação e recurso | P1.4, P1.8 | `internal/numbering.ts` | 100 chamadas concorrentes dão números únicos | concorrência no DEV | Pendente |
+| **P7.1** (T6.1) | numeração de guia, lote, transação e recurso | P1.4, P1.8 | `hi_next_counter` (0144), `tiss/numbering.ts`, `internal/numbering.ts` | 100 chamadas concorrentes dão números únicos | concorrência | **Concluído** (`9e702b27`): alocação atômica no banco (`INSERT … ON CONFLICT DO UPDATE … RETURNING`, SECURITY INVOKER) na transação do documento; formato com limites do XSD, sem truncar; ordem canônica contra deadlock. Provas no harness local: **400 alocações concorrentes em 24 conexões = 1..400**, independência por clínica/tipo/escopo, rollback devolve o número, retentativa da transação inteira não pula, RLS, limite 999999999999 recusado; no DEV com ROLLBACK: sequência, independência, RLS e `anon` sem EXECUTE |
 | **P7.2** (T6.2) | `GuideAssembler` Consulta | P2.x, P3.1, P4.1 | `tiss/assembly/consulta-assembler.ts` | puro; teste prova a ausência de CID; padrões D11 | U3 | **Concluído** (`80236869`): montador puro e escolha do contrato vigente (plano específico antes do geral, versão substituída ignorada, ambiguidade apontada); retorno dentro da janela vira tipo 2 ou não gera guia; pendências com responsável; a guia montada passa no validador com a terminologia real e gera lote com hash conferido. 12 testes. A ligação com os cadastros reais é da P7.4 |
 | **P7.3** (T6.3) | `GuideValidator` Consulta: regras de B.10.9 e B.10.13 (CBO `999999` recusado no executante) | P7.2, P1.3 | `…/consulta/validator.ts` | cada regra com teste positivo e negativo | U4 | **Concluído** (`71dc5b46`): 36 regras negativas + positivos com a terminologia real 202609; a ordem P7.2 → P7.3 era só sequência, o validador recebe os dados prontos |
 | **P7.4** (T6.4) | handler de conclusão (genérico por tipo) + reconcile "convênio sem guia" | P7.1–P7.3 | `internal/handlers/appointment-completed.ts`, `scheduling/events.ts` | reentrega não duplica; particular não cria guia | U10, E8, E9 | Pendente |
@@ -1060,7 +1060,7 @@ Os números marcados com `*` são provisórios e devem ser reconferidos (E.5). P
 | **P13.2** (T11.2) | camada interna no CI: XSD + regras; válidos passam, inválidos falham com o erro esperado | P9.2, P13.1 | 100% / 100% | **Em execução**: regras, hash e codificação rodam no `vitest` (195 testes do corpus); o XSD roda por `scripts/tiss/corpus/validate-xsd.ts` (38/38) e o teste confere o resultado gravado. Falta o XSD no CI, que depende do `xmllint-wasm` no `package.json` (P9.2) |
 | **P13.3** | Validador A (Paniquar), roteiro manual de G.5 | P13.1 | resultado registrado por arquivo | **Concluído** (`6dd862e3`): 38 arquivos em 10/11; resultado, captura e SHA por arquivo em `evidence/tiss-validadores-2026-11-10/paniquar/` |
 | **P13.4** | Validador B (TISS Manager), roteiro de G.5, **só sintéticos** (envio ao servidor) | P13.1 | idem | **Concluído** (`6dd862e3`): 37 de 38 arquivos com resultado (M21 sem resposta em 60 s); defeitos B1–B3 do validador classificados (B.11) |
-| **P13.5** | Validador C (Validador TISS, Windows) | P13.1, **B7** | idem | **Bloqueado (B7).** Avaliação feita em 11/11 sem instalar: origem, assinatura e SHA do instalador conferidos; telemetria e restrição de licença comercial registradas (B.11) |
+| **P13.5** | Validador C (Validador TISS, Windows) | P13.1, **B7** | idem | **Bloqueado (B7). Instalação na máquina principal não autorizada** (fundador, 11/11): telemetria do aparelho e dos arquivos e licença grátis que veda uso comercial. Candidato pendente; alternativas em B7. **Substituto da independência de motor:** XSD validado também com o motor .NET `System.Xml.Schema` da Microsoft, que já vem no Windows (`validate-xsd-dotnet.ps1`, 38/38), sem software de terceiros |
 | **P13.6** | análise de divergências e ciclo de correção (G.5 passos 5–10) | P13.2–P13.5 | toda divergência classificada pela ANS; correção no código, nunca no XML | **Em execução**: todas as divergências de A e B classificadas (G.6); nenhuma exige mudança no gerador. Pendentes: B1 (`schemaLocation`) a confirmar com a operadora piloto (P15.4) e a camada C |
 | **P13.7** | conformidade dos PDFs com os modelos oficiais (Consulta, SP/SADT solicitação e cobrança), comparação lado a lado | P7.6, P8.5 | relatório com capturas | Pendente |
 
@@ -1712,6 +1712,8 @@ O módulo só é **Pronto para produção** quando todos os itens tiverem evidê
 | D18 | CNPJ alfanumérico aceito no validador compartilhado (`src/lib/validation/cnpj.ts`), com forma canônica idêntica para CNPJ numérico (hash e dados existentes inalterados) e `/join` normalizando como o perfil; o documento do **titular da cobrança** continua só numérico até cada gateway provar suporte (B11), mas as letras deixaram de ser descartadas | **Aprovada** pelo fundador em 11/11 (correção transversal autorizada); commit isolado `fcfaa449` |
 | D19 | DEV compartilhado: nenhuma migration nova é aplicada de forma persistente enquanto o PR #53 estiver aberto; cada migration nova é validada por **ensaio transacional no DEV** (`BEGIN` → SQL → sondas de RLS e privilégio → `ROLLBACK`), sem tocar em `drizzle.__drizzle_migrations`; o `when` do journal é o relógio real do momento da criação, nunca um valor no futuro | **Adotada** pelo agente (diretriz de 11/11: "evitar interferências entre os agentes") |
 | D20 | arquivos do convênio (XML, PDF, comprovantes, demonstrativos) ficam **no banco**, cifrados por clínica, com SHA-256; não em Storage | **Adotada** pelo agente em 11/11 (requisito 56 do Componente de Segurança: dado identificado não fica fora do SGBD depois da operação); muda a P12.7 |
+| D21 | HMAC de busca da carteirinha sobre `clínica:registro ANS:número normalizado` (não o HMAC global do CPF): a mesma carteirinha não gera o mesmo hash em duas clínicas | **Adotada** pelo agente em 11/11 (privacidade; requisitos 62 e 79) |
+| D22 | ordem de integração: **primeiro estabilizar e integrar o #53; depois reconciliar e integrar o #55**. Na reconciliação: (1) rebase sobre a `main` com o #53; (2) as migrations do #55 **não aplicadas** (0144, 0145 e seguintes) podem ser renumeradas para depois da última do #53, com `idx` = prefixo e `when` crescente; (3) a **0143 já está aplicada no DEV** e mantém número e conteúdo; se o #53 criar migration nova antes do merge, ela deve começar em **0146 ou acima** (pedido a fazer ao agente do #53), ou a reconciliação prova outra saída no harness local antes de tocar no DEV; (4) só então a aplicação persistente no DEV | **Direção do fundador** (11/11); não autoriza merge |
 
 ### L.2 Bloqueios
 
@@ -1720,11 +1722,11 @@ O módulo só é **Pronto para produção** quando todos os itens tiverem evidê
 | B4 | PR #53 aberto (0136–0142) e UI não mergeada | aplicação de migrations no DEV (E.5) e merge final | merge ou ordem decidida; até lá desenvolver sem aplicar o que colidir |
 | B5 | operadora e clínica piloto para homologação | P6.5 (homologação), P15.3, P15.4 | piloto definido pelo fundador |
 | B6 | orientação jurídica de retenção de guias e carteirinhas | P12.3 | orientação |
-| B7 | Validador C (Validador TISS): software de terceiros com telemetria do aparelho e dos arquivos e licença grátis que veda uso por "empresa comercial" (B.11) | P13.5 | o fundador decidir: (a) ambiente isolado (outra máquina, VM com hipervisor à parte ou VM na nuvem; o Windows 11 Home daqui não tem Sandbox) e (b) licença (plano pago ou autorização do fornecedor) |
+| B7 | Validador C (Validador TISS para Windows) | P13.5 | **instalação na máquina principal não autorizada** (11/11). Alternativas a avaliar: licença comercial (preço não público; contato com o fornecedor), máquina ou VM isolada sem dado real, autorização expressa do fornecedor para uso no desenvolvimento. Validação já em vigor: XSD oficial com dois motores independentes (libxml2 e .NET), camada interna e validação cruzada A/B. O Qoro **não depende** desse validador para operar |
 | B8 | aprovação humana de release e ativação | P15.8, P15.9 | fundador |
 | B9 | ~~conexão com o DEV instável (10/11, tarde)~~ **resolvido** | P1.3 | a carga entrou; a lentidão segue registrada em R17 |
 | B10 | aderência do Qoro ao Componente de Segurança e Privacidade da ANS: os requisitos obrigatórios 81–85, 67, 41, 36, 42 e 43 atingem a autenticação e a auditoria compartilhadas (seção N) | P12.8, P15 (Pronto para produção) | o fundador aprovar S1–S9 (N.6) |
-| B11 | Asaas e AbacatePay aceitarem CNPJ alfanumérico no documento do titular | liberar o alfanumérico na cobrança (D18) | teste no sandbox de cada gateway com o CNPJ de exemplo da Receita |
+| B11 | CNPJ alfanumérico do titular da cobrança | liberar o alfanumérico na cobrança (D18) | **Asaas: sandbox aceita e confere o DV** (11/11, `evidence/tiss-gateways-2026-11-11`); falta produção ou assinatura e decisão do fundador. **AbacatePay: delegado ao agente do PR #53** (não testado aqui, para não concorrer nos mesmos endpoints) |
 
 B1–B3 da rev.1 foram resolvidos pela diretriz de 10/11 (D1–D8).
 
@@ -1753,6 +1755,8 @@ B1–B3 da rev.1 foram resolvidos pela diretriz de 10/11 (D1–D8).
 | R19 | **sombra de `when` no DEV**: o `drizzle-kit migrate` só aplica entradas com `when` maior que a última aplicada; uma migration nossa com `when` no futuro faria o DEV pular em silêncio uma migration do billing criada depois com `when` menor | média | alto | D19: `when` = relógio real e nada persistente até o merge do #53. Em 11/11 17:34 UTC a 0143 (17:00 UTC) já estava no passado |
 | R20 | validador externo com defeito induzir correção errada (ex.: "corrigir" o hash para o cálculo em UTF-8 do B) | média | alto | ANS como referência; correção só com classificação em G.6; nunca editar XML para passar |
 | R21 | bloqueio por inatividade de 10 min (R83 da ANS) gerar fricção na recepção e no consultório ou perda de dado em formulário | alta | médio | rascunho no servidor antes do bloqueio; aviso aos 9 min; desbloqueio que restaura o contexto; perfil só nas clínicas com convênio (N.4) |
+| R22 | colisão de número com migration nova do #53 (a 0143 já está aplicada no DEV) | média | alto | D22: pedir que novas migrations do #53 comecem em 0146+; reconciliação provada no harness local antes do DEV |
+| R23 | variáveis `ASAAS_*` sem sufixo no `.env.local` apontam para **produção**; um script de teste que as usasse cobraria ou cadastraria de verdade | média | alto | scripts de teste usam só `_DEV` e abortam se a URL não for sandbox e a chave não for de homologação |
 
 ---
 
@@ -2164,3 +2168,36 @@ Até a decisão, **nenhuma** dessas mudanças entra no código. Bloqueio B10.
 - **P8.2 (`a0858182`):** `assembleSpSadtGuide`, 11 testes (23 nos montadores). A guia montada passa no `validateSpSadtGuide` com a terminologia real e gera lote com hash conferido. Sem indicação clínica, o validador aponta pendência do **médico**, e o montador nunca a preenche sozinho.
 
 - **Suíte completa do `vitest` depois da correção do journal (antes do push):** 596 arquivos, **6.630 aprovados**, 3 pulados, 0 falhas. Os montadores entraram depois e rodaram verdes à parte (23 testes).
+
+### 11/11/2026 — CI do #55, segurança ANS (seção N), P1.5, P7.1, XSD independente, divergências e Asaas
+
+- **CI do PR #55, commit `f3842d88`:** todas as etapas `success`:
+  - auditoria de dependências, typecheck, lint, `madge`, `arch:db-check`, `check:migrations`, `check:observability` e `check:registry:strict`;
+  - testes com cobertura, inventário de segurança, isolamento entre duas clínicas (Postgres local), build, bundle/HTTP e E2E público;
+  - aviso de ADR, Vercel (preview), Snyk e Semgrep: `pass`.
+  - O CI não roda o harness `*-db.ts` nem os scripts de XSD; eles estão registrados aqui.
+- **Seção N (`035f2f3b`):** pacote oficial 202511 baixado da página de setembro/2026 e extraído integralmente (`data/tiss/seguranca/202511`), com 53 requisitos vigentes. A auditoria da autenticação confirmou no código:
+  - bloqueio após 5 tentativas por e-mail e 10 por IP em 15 min, que falha aberto na queda do Upstash;
+  - revogação por epoch na saída e na troca de senha;
+  - cookies HttpOnly e Secure por geração; token de 15 min com rotação (runbook);
+  - **sem inatividade, sem expiração de senha, sem histórico de senha, sem símbolo na senha**;
+  - `login_attempts` apagado aos 90 dias;
+  - auditoria de leitura só no prontuário;
+  - sem CPF do usuário; sem exibição da versão do software.
+  - Proposta: "perfil de segurança TISS" por clínica. Decisões S1–S9. **Nenhuma mudança global feita.**
+- **P1.5 + P7.1 (`9e702b27`):**
+  - migration 0145 e a função `hi_next_counter` na 0144, que nunca foi aplicada;
+  - harness local **21/21**, ensaio no DEV com ROLLBACK **16/16**; o DEV conferido ficou com 144 migrations e nenhum objeto `hi_*`;
+  - evidências e procedimento de recuperação em `evidence/tiss-migrations-2026-11-11/`.
+- **XSD com motor independente (`2a95a4a0`):**
+  - .NET `System.Xml.Schema` em modo estrito: **38/38** como esperado, concordando com o libxml2 em todos os arquivos;
+  - o modo padrão do .NET aceitava o arquivo com namespace errado (validação frouxa), e o modo estrito recusa.
+- **Divergências do TISS Manager (`ad1c28d2`):** `DIVERGENCIAS-TISS-MANAGER.md`, com os campos pedidos por divergência. Reprodução independente: **12/12** hashes "esperados" pelo validador saem da leitura do arquivo como UTF-8. Rascunho de comunicado ao fornecedor **não enviado**.
+- **Asaas no sandbox (`9c312bd6`):**
+  - aceita o CNPJ alfanumérico (com e sem pontuação) e recusa o DV errado;
+  - os 3 clientes criados foram apagados; nenhuma cobrança;
+  - a AbacatePay fica com o agente do #53, e nenhum agente estava ativo nesta máquina;
+  - achado R23: as variáveis `ASAAS_*` sem sufixo no ambiente local apontam para produção.
+- **Validador TISS para Windows:** instalação não autorizada pelo fundador; segue como candidato (B7).
+- **Próxima ação:** P1.7 (0146, autorizações) e os leitores auditados com finalidade.
+
