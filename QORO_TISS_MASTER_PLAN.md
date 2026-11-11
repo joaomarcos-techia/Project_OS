@@ -41,15 +41,15 @@
 | --- | --- |
 | Data da última atualização | 11/11/2026 |
 | Fase atual | **P1 — Fundação de dados**, com P7/P8 (montadores) e P13 (validação) em paralelo |
-| Tarefa em andamento | P12.8 (análise da seção N concluída; implementação aguardando S1–S9); P9.1 e P8.6 (recurso de glosa e solicitação pendentes); P13.2 (XSD com dois motores por script; falta o CI, que depende de P9.2); P13.6 (divergências classificadas e documentadas) |
-| Última tarefa concluída | P1.5 — carteirinhas (migration 0145) e P7.1 — numeração atômica (`9e702b27`) |
-| Progresso | **24 de 110 tarefas concluídas (21,8%)**: P0.1–P0.9, P1.1, P1.2, P1.3, P1.4, P1.5, P7.1, P7.2, P7.3, P8.1, P8.2, P8.3, P13.1, P13.3, P13.4 e P14.1. Critério: só conta tarefa com evidência no [Registro](#m-registro-de-execução). Destas 110, **8 dependem de terceiros ou de aprovação humana** (L.2). |
+| Tarefa em andamento | P12.8 (matriz S9 concluída; S1–S10 com direção do fundador, ligações aguardando aprovação); P12.9 (políticas preparadas); P9.1 e P8.6 (recurso de glosa e solicitação pendentes); P13.2 (XSD com dois motores por script; falta o CI, que depende de P9.2) |
+| Última tarefa concluída | P1.7 — autorizações (migration 0146) e leitura auditada da carteirinha (`10d153b8`) |
+| Progresso | **25 de 114 tarefas concluídas (21,9%)**: P0.1–P0.9, P1.1–P1.5, P1.7, P7.1, P7.2, P7.3, P8.1, P8.2, P8.3, P13.1, P13.3, P13.4 e P14.1. O total passou de 110 para 114 com P12.9–P12.12, abertas pela análise de segurança (11/11). Critério: só conta tarefa com evidência no [Registro](#m-registro-de-execução). |
 | Capacidades em produção | nenhuma (ver A.5) |
 | Testes aprovados | **Testes do módulo executados e verdes em 11/11:** 16 arquivos, 437 aprovados e 3 pulados (cenário sem arquivo), em `src/contexts/health-insurance`, `src/lib/xlsx`, `src/lib/validation` e na caracterização da régua de cobrança. Regressão dos consumidores do CNPJ: 119 arquivos, 1.826 aprovados. XSD oficial: 38/38 arquivos do corpus como esperado. Validadores externos A e B executados (G.6). A linha "nenhum teste do módulo ainda" das versões anteriores estava desatualizada desde `dc56b5d4` (10/11), quando os primeiros testes do núcleo XML já rodavam verdes. |
 | Bloqueios ativos | B4 (integração: #53 primeiro, depois reconciliar o #55, D22), B5 (operadora e clínica piloto), B6 (retenção legal), B7 (Validador TISS para Windows: **instalação não autorizada** pelo fundador em 11/11; candidato pendente), **B10** (segurança ANS: decisões S1–S9 da seção N), **B11** (AbacatePay: com o agente do #53; Asaas: sandbox ok) |
 | Decisões | D1–D12 aprovadas ou adotadas; D13–D17 adotadas no escopo delegado; D18 aprovada; D19 adotada e mantida pelo fundador em 11/11; **D20** (arquivos no banco), **D21** (HMAC da carteirinha por clínica e operadora) e **D22** (ordem de integração) (L.1) |
 | Arquivos alterados | este documento; `docs/adr/072-convenios-e-tiss.md` (era 067); `src/contexts/health-insurance/**`; `src/lib/xlsx/**`; `src/lib/validation/cnpj.ts`, `document.ts`; `src/lib/masks.ts`; campos de CNPJ do perfil, fornecedores e `/join`; `scripts/tiss/**`; `data/tiss/**`; `evidence/tiss-validadores-2026-11-10/**`; `docs/architecture/*` |
-| Próxima ação exata | **P1.7** (migration 0146: `hi_authorizations`, itens, anexos no banco (D20) e eventos), com os dois métodos de prova da D19 e sem aplicar no DEV; em paralelo, **leitores auditados com finalidade** (R85, parte do módulo) para carteirinha decifrada. P1.6 (`appointments.billing_mode`) depende de mexer no contexto de agenda e fica para depois da integração com o #53. |
+| Próxima ação exata | **P1.8** (migration 0147: `hi_guides`, `hi_guide_items`, `hi_guide_events`, com os UNIQUEs de C.12 e a numeração de P7.1 na mesma transação), com os dois métodos de prova da D19 e sem aplicar no DEV; em paralelo, a leitura auditada com finalidade de guia e lote (R85) e o `build-info` de P12.11 fora do shell. **Faixa de migrations em uso nesta branch: 0143 (aplicada no DEV), 0144–0146 (não aplicadas). 0147 é só candidata**: reconferir antes de criar (E.5, D22). |
 
 ---
 
@@ -920,7 +920,7 @@ Todas dependem de P0.5 e D1–D3. Cada migration segue E.5: numeração, `check:
 | **P1.4** (T1.3) | `hi_clinic_settings`, `hi_counters`, `hi_insurers`, `hi_insurer_credentials`, `hi_plans`, `hi_professional_profiles`, `hi_credentials`, `hi_procedure_contracts`, `hi_contract_imports` | P1.2 | migration 0144 | RLS FORCE; CHECKs (ANS 6 dígitos, valores ≥ 0, vigência coerente); contratos append-only por trigger | migration, isolamento | **Concluído** (`807f9035`): 9 tabelas com a política literal do `defaultTenantPolicy` v2, FKs compostas `(clinic_id, id)`, profissional da mesma clínica por gatilho, vigências ativas sem sobreposição (`EXCLUDE`), contratos imutáveis. Provas: teste estático (25), **ensaio transacional no DEV com ROLLBACK, 26/26** (Postgres 17.6; nada ficou no banco) e **harness local com todas as migrations reais, 9/9** (`scripts/security/health-insurance-clinic-db.ts`). **Não aplicada no DEV** (D19): a aplicação persistente fica para a integração depois do merge do #53 (B4) |
 | **P1.5** (T1.4) | `hi_memberships` | P1.4 | 0145 | número só cifrado; preferencial único | migration, cifra | **Concluído** (`9e702b27`): número só como ciphertext por clínica + HMAC de busca sobre clínica + operadora + número (D21) + últimos 4; paciente da mesma clínica (gatilho); operadora, plano e substituição por FK composta; um número ativo por operadora; uma preferencial por paciente; número, paciente e operadora imutáveis; substituição só para frente; runtime sem DELETE; exclusão definitiva do paciente leva o número. Provas: estático (7), **harness local 6 provas**, **ensaio no DEV com ROLLBACK 16/16** (com a 0144). Não aplicada no DEV (D19) |
 | **P1.6** (T1.5) | `appointments.billing_mode`, `hi_appointment_coverages`, `hi_copayments` | P1.5 | 0146*, `scheduling/schema.ts` | atendimentos existentes `particular`; trigger de snapshot respeitado | migration, trigger | Pendente |
-| **P1.7** (T1.5) | `hi_authorizations`, `hi_authorization_items`, `hi_authorization_attachments`, `hi_authorization_events` | P1.6 | 0147* | gates | migration | Pendente |
+| **P1.7** (T1.5) | `hi_authorizations`, `hi_authorization_items`, `hi_authorization_attachments`, `hi_authorization_events` | P1.6 | 0146 | gates | migration | **Concluído** (`10d153b8`): autorização só com evidência da operadora (CHECK); senha só cifrada; consumo append-only com trava, idempotência antes do saldo, exceção explícita e estorno único; o runtime não reescreve o consumido (privilégio por coluna) nem o histórico; versão a cada mudança; comprovante só como referência + SHA-256 (D20 revisada). Provas: estático (12), **harness local 29/29** (30 consumos simultâneos contra saldo 10 → 10), **ensaio no DEV com ROLLBACK 25/25**. Não aplicada no DEV (D19). Dependência formal de P1.6 dispensada: a autorização liga à carteirinha, não ao atendimento |
 | **P1.8** (T1.6) | `hi_guides`, `hi_guide_items`, `hi_guide_events` | P1.7 | 0148* | UNIQUEs de C.12 | migration, UNIQUE | Pendente |
 | **P1.9** (T1.6) | `hi_batches`, `hi_batch_guides`, `hi_files`, `hi_return_imports`, `hi_glosses`, `hi_gloss_appeals`, `hi_payments` | P1.8 | 0149* | gates | migration | Pendente |
 | **P1.10** (T1.7) | `lancamentos.tiss_guide_id`/`health_insurer_id` + UNIQUE + troca do CHECK; `payment_transaction_kind += write_off`; política de repasse de convênio | P1.8, D3, D16 | 0150*, `financial/schema.ts` | **testes rigorosos antes de aplicar**: os lançamentos existentes continuam válidos (`VALIDATE` no DEV com dados reais de DEV); recebível de operadora aceito; órfão recusado; ADD VALUE não quebra código atual | migration tests do financeiro + DEV | Pendente |
@@ -1051,6 +1051,10 @@ Os números marcados com `*` são provisórios e devem ser reconferidos (E.5). P
 | **P12.6** | observabilidade (C.14): métricas, logs, alertas, `insurance-reconcile`, dead letters | P7.4, P10.2 | métricas no `check:observability`; alerta disparando em teste | unitários + ensaio | Pendente |
 | **P12.7** | arquivos XML, PDF e comprovantes **dentro do banco** (D20), cifrados por clínica, acesso autenticado e auditado, sem URL pública | P9.3, P6.1 | IDOR negativo; nenhum arquivo identificado fora do SGBD | segurança | Pendente |
 | **P12.8** | aderência ao **Componente de Segurança e Privacidade** da ANS (202511): análise transversal na **seção N** (fonte, matriz dos 53 requisitos vigentes, detalhamento de 81–85, 67, 41, 36, 42, 43, 69 e 77, arquitetura do "perfil de segurança TISS" e decisões S1–S9) | — | decisões S1–S9 aprovadas e cada obrigatório atendido ou com exceção decidida | testes por requisito (N.3) | **Em execução**: análise e matriz concluídas em 11/11 (`data/tiss/seguranca/202511/requisitos.json`); implementação global aguardando aprovação (B10) |
+| **P12.9** | perfil de segurança TISS ligado: inatividade no servidor (R83), prazo e histórico de senha (R81, R82), símbolo (R67), por clínica com convênio (S1–S4) | P12.8, aprovação | sessão bloqueada recusa action com token válido; E2E de N.9 | unitários (já), integração, E2E | Preparado (políticas em `security-profile`), aguardando S1–S4 |
+| **P12.10** | auditoria compartilhada imutável por 180 dias e retenção de acesso (R84, R85, S5): N.9 | aprovação S5 | adulteração bloqueada e detectável; DETACH < 180 d recusado | integração | Pendente (S5) |
+| **P12.11** | identificação do software (R36, S7): fornecedor, software e versão do build nas telas e PDFs | branch de UI | valor vem do build, nunca manual | componente, PDF | Pendente (aguarda a UI) |
+| **P12.12** | login (S8): último acesso (R42), fail-safe do limite de tentativas sem Upstash (R69), interpretação do R43 | aprovação S8 | ≤ 5 tentativas mesmo sem Upstash; recuperação disponível | unitários, disponibilidade | Pendente (S8) |
 
 ### P13 — Validação TISS em múltiplas camadas
 
@@ -1711,7 +1715,7 @@ O módulo só é **Pronto para produção** quando todos os itens tiverem evidê
 | D17 | `indicacaoClinica` da SP/SADT (opcional) nunca preenchida automaticamente a partir do prontuário; só com ação explícita do médico, quando a operadora exigir | **Adotada** (finalidade limitada, LGPD) |
 | D18 | CNPJ alfanumérico aceito no validador compartilhado (`src/lib/validation/cnpj.ts`), com forma canônica idêntica para CNPJ numérico (hash e dados existentes inalterados) e `/join` normalizando como o perfil; o documento do **titular da cobrança** continua só numérico até cada gateway provar suporte (B11), mas as letras deixaram de ser descartadas | **Aprovada** pelo fundador em 11/11 (correção transversal autorizada); commit isolado `fcfaa449` |
 | D19 | DEV compartilhado: nenhuma migration nova é aplicada de forma persistente enquanto o PR #53 estiver aberto; cada migration nova é validada por **ensaio transacional no DEV** (`BEGIN` → SQL → sondas de RLS e privilégio → `ROLLBACK`), sem tocar em `drizzle.__drizzle_migrations`; o `when` do journal é o relógio real do momento da criação, nunca um valor no futuro | **Adotada** pelo agente (diretriz de 11/11: "evitar interferências entre os agentes") |
-| D20 | arquivos do convênio (XML, PDF, comprovantes, demonstrativos) ficam **no banco**, cifrados por clínica, com SHA-256; não em Storage | **Adotada** pelo agente em 11/11 (requisito 56 do Componente de Segurança: dado identificado não fica fora do SGBD depois da operação); muda a P12.7 |
+| D20 | ~~arquivos do convênio no banco~~ **revisada em 11/11 (N.7):** o requisito 79 prevê dado não estruturado fora do SGBD com confidencialidade. **Recomendação: opção B** (metadados e SHA-256 no Postgres; bytes cifrados por clínica em bucket privado, gerados em memória, sem `upsert`) | **Proposta, aguardando aprovação (S10)**; a 0146 já segue B nos comprovantes |
 | D21 | HMAC de busca da carteirinha sobre `clínica:registro ANS:número normalizado` (não o HMAC global do CPF): a mesma carteirinha não gera o mesmo hash em duas clínicas | **Adotada** pelo agente em 11/11 (privacidade; requisitos 62 e 79) |
 | D22 | ordem de integração: **primeiro estabilizar e integrar o #53; depois reconciliar e integrar o #55**. Na reconciliação: (1) rebase sobre a `main` com o #53; (2) as migrations do #55 **não aplicadas** (0144, 0145 e seguintes) podem ser renumeradas para depois da última do #53, com `idx` = prefixo e `when` crescente; (3) a **0143 já está aplicada no DEV** e mantém número e conteúdo; se o #53 criar migration nova antes do merge, ela deve começar em **0146 ou acima** (pedido a fazer ao agente do #53), ou a reconciliação prova outra saída no harness local antes de tocar no DEV; (4) só então a aplicação persistente no DEV | **Direção do fundador** (11/11); não autoriza merge |
 
@@ -1725,7 +1729,7 @@ O módulo só é **Pronto para produção** quando todos os itens tiverem evidê
 | B7 | Validador C (Validador TISS para Windows) | P13.5 | **instalação na máquina principal não autorizada** (11/11). Alternativas a avaliar: licença comercial (preço não público; contato com o fornecedor), máquina ou VM isolada sem dado real, autorização expressa do fornecedor para uso no desenvolvimento. Validação já em vigor: XSD oficial com dois motores independentes (libxml2 e .NET), camada interna e validação cruzada A/B. O Qoro **não depende** desse validador para operar |
 | B8 | aprovação humana de release e ativação | P15.8, P15.9 | fundador |
 | B9 | ~~conexão com o DEV instável (10/11, tarde)~~ **resolvido** | P1.3 | a carga entrou; a lentidão segue registrada em R17 |
-| B10 | aderência do Qoro ao Componente de Segurança e Privacidade da ANS: os requisitos obrigatórios 81–85, 67, 41, 36, 42 e 43 atingem a autenticação e a auditoria compartilhadas (seção N) | P12.8, P15 (Pronto para produção) | o fundador aprovar S1–S9 (N.6) |
+| B10 | aderência do Qoro ao Componente de Segurança e Privacidade da ANS (seção N): direção do fundador em 11/11 para S1–S9; **ligações globais (P12.9–P12.12) e a D20 revisada (S10) aguardam aprovação específica** | P12.9–P12.12, P15 | aprovação de cada ligação e respostas da consulta S9 |
 | B11 | CNPJ alfanumérico do titular da cobrança | liberar o alfanumérico na cobrança (D18) | **Asaas: sandbox aceita e confere o DV** (11/11, `evidence/tiss-gateways-2026-11-11`); falta produção ou assinatura e decisão do fundador. **AbacatePay: delegado ao agente do PR #53** (não testado aqui, para não concorrer nos mesmos endpoints) |
 
 B1–B3 da rev.1 foram resolvidos pela diretriz de 10/11 (D1–D8).
@@ -1756,7 +1760,8 @@ B1–B3 da rev.1 foram resolvidos pela diretriz de 10/11 (D1–D8).
 | R20 | validador externo com defeito induzir correção errada (ex.: "corrigir" o hash para o cálculo em UTF-8 do B) | média | alto | ANS como referência; correção só com classificação em G.6; nunca editar XML para passar |
 | R21 | bloqueio por inatividade de 10 min (R83 da ANS) gerar fricção na recepção e no consultório ou perda de dado em formulário | alta | médio | rascunho no servidor antes do bloqueio; aviso aos 9 min; desbloqueio que restaura o contexto; perfil só nas clínicas com convênio (N.4) |
 | R22 | colisão de número com migration nova do #53 (a 0143 já está aplicada no DEV) | média | alto | D22: pedir que novas migrations do #53 comecem em 0146+; reconciliação provada no harness local antes do DEV |
-| R23 | variáveis `ASAAS_*` sem sufixo no `.env.local` apontam para **produção**; um script de teste que as usasse cobraria ou cadastraria de verdade | média | alto | scripts de teste usam só `_DEV` e abortam se a URL não for sandbox e a chave não for de homologação |
+| R23 | variáveis `ASAAS_*` sem sufixo no `.env.local` apontam para **produção** | média | alto | **trava `src/lib/payments/sandbox-guard.ts`** (`eed6ab06`): lê só `_DEV`, sem fallback, e exige host de sandbox e chave de homologação |
+| R24 | a D20 original (bytes no banco) ter sido adotada com leitura incompleta do requisito 56 | baixa (corrigida) | médio | revisão N.7; nenhum byte de arquivo foi gravado no banco; a 0146 já segue a opção B |
 
 ---
 
@@ -1950,7 +1955,7 @@ O fundador pode decidir estender a todos (S1).
 
 ### N.5 O que o módulo faz agora, sem mexer na autenticação global
 
-- **D20 (adotada, R56):** XML, PDF e comprovantes do convênio ficam **dentro do banco** (cifrados por clínica, com SHA), e não no Storage. Isso cumpre "não manter dados identificados fora do SGBD após o término da operação". Muda a P12.7 (antes "Storage privado").
+- **D20:** ~~arquivos dentro do banco~~. **Revisada em N.7** (requisito 79): a recomendação é a opção B, com bytes cifrados em bucket privado e metadados no banco, aguardando aprovação (S10).
 - **R85, parte do módulo:** leitores auditados com finalidade para carteirinha, guia e lote, a partir da P1.5 (carteirinhas).
 - **R53:** validação no servidor (já é o padrão).
 
@@ -1969,6 +1974,91 @@ O fundador pode decidir estender a todos (S1).
 | S9 | consulta formal à ANS ou assessoria sobre o alcance (N.1) e sobre o R77 | recomendada antes de publicar |
 
 Até a decisão, **nenhuma** dessas mudanças entra no código. Bloqueio B10.
+
+
+### N.7 Revisão da D20: onde ficam os bytes de XML, PDF e comprovantes (11/11)
+
+**Texto oficial** (`data/tiss/seguranca/202511/requisitos.json`):
+
+- **56 (obrigatório):** "Componentes que manipulam dados identificados do sistema para fins de interoperabilidade, visualização, assinatura e outros, não devem manter tais dados fora do SGBD após o término da operação."
+- **79 (obrigatório):** "Dados pessoais e pessoais sensíveis estruturados devem ser armazenados por Sistema(s) de Gerenciamento de Banco de Dados (SGBD) e dados pessoais e pessoais sensíveis não estruturados e não armazenados em SGBD devem atender à requisitos de confidencialidade."
+- **62 (obrigatório):** "As bases de dados, mídias ou arquivos que contém dados pessoais e/ou dados pessoais sensíveis devem ser protegidas para garantir a confidencialidade (por exemplo: criptografia, somente acessos autorizados, etc.)"
+
+**Leitura:**
+
+- O 79 **prevê expressamente** dado não estruturado fora do SGBD, desde que confidencial, e o 62 fala em "arquivos" protegidos por criptografia e acesso autorizado.
+- O 56 trata de **componentes** (interoperabilidade, visualização, assinatura) que não devem **manter** dado identificado fora do SGBD **depois da operação**: cópias temporárias, arquivos em disco local, caches.
+- A D20 original ("todos os bytes no banco") tinha lido o 56 sem o 79. **Ela é substituída pela recomendação abaixo, que aguarda aprovação.**
+
+**Fato do Qoro:** os PDFs clínicos, mais sensíveis que um XML de guia, já ficam no bucket privado `clinical-pdfs`. Upload e download só pelo servidor com `service_role`, e o navegador recebe o arquivo por rota do próprio app que revalida sessão, permissão e clínica (`src/lib/storage/clinical.ts`).
+
+| Critério | A: bytes no Postgres | B: metadados no Postgres, bytes cifrados em bucket privado |
+| --- | --- | --- |
+| Conformidade | atende 56/79/62 | atende 79/62; atende 56 se a geração não deixar cópia temporária (gerar em memória) e o bucket só guardar **ciphertext** |
+| Segurança | RLS no banco; bytes no backup do banco | bytes cifrados por clínica antes do upload (chave fora do Storage); acesso só pelo servidor; nenhuma URL pública |
+| Crescimento e custo | o banco cresce com lotes de até 3 MB e PDFs; o plano de banco custa mais por GB | Storage mais barato por GB; o banco só guarda metadados |
+| Backup e recuperação | pg_dump maior e mais lento (afeta `db-backup.yml` e o RPO de todo o Qoro) | backup do banco leve; o Storage precisa de cópia própria (runbook) |
+| Performance | linhas grandes, TOAST, mais I/O em consultas vizinhas | streaming pelo servidor; banco leve |
+| Limites | linhas de vários MB e memória do pooler | limite por objeto do Storage, sobra para PDFs de 10 MB |
+| RLS e permissões | RLS direta | RLS nos metadados; o bucket sem acesso de `authenticated` |
+| Integridade | hash na mesma linha | SHA-256 do claro e do cifrado nos metadados; conferido no download |
+| Retenção e exclusão (LGPD) | DELETE na linha | apagar o objeto e a linha; job de conferência de órfãos |
+| Auditoria | igual | igual (leitura pelo servidor, auditada) |
+
+**Recomendação: opção B, com quatro salvaguardas.**
+
+1. Cifrar os bytes por clínica antes do upload (AES-256-GCM, como o `encryptForTenant`).
+2. Gerar em memória, sem arquivo temporário (56).
+3. Guardar o SHA-256 do claro e do cifrado, conferindo nos dois sentidos.
+4. Bucket privado novo, sem `upsert` (imutável), com exclusão ligada à linha.
+
+A 0146 já segue B: os comprovantes guardam só `storage_ref` e SHA-256. **Aprovação pedida (S10)**, e a dúvida sobre o alcance do 56 entra na consulta S9.
+
+### N.8 Decisões S1–S9: estado em 11/11 (direção do fundador e o que foi feito)
+
+| ID | Direção do fundador | Investigado ou feito | Ainda exige aprovação |
+| --- | --- | --- | --- |
+| S1 | aprovada: perfil TISS para clínicas com convênio, se a separação for segura | **Investigado:** cada usuário tem **uma** clínica (`profiles.clinic_id`; nulo só para super admin), não há troca de clínica para usuário comum, e mudar a clínica do perfil invalida a sessão (`claims_version`). Toda requisição passa pela leitura autoritativa do perfil e pelo epoch (`tenant-context.ts`), então a política avaliada ali vale para token já emitido. Pontos que pedem regra própria: **super admin**, que deve ficar sempre no perfil mais estrito; **workers e crons**, que não têm sessão, então a auditoria registra a identidade do sistema; e **módulos compartilhados** que venham a ler dado TISS, que só podem fazê-lo pela API do módulo com finalidade | a ativação do perfil e a regra do super admin |
+| S2 | direção aprovada; sem mudança global ainda | decisão de servidor preparada (`security-profile/tiss-policies.ts`: só interação renova; polling marcado como fundo; bloqueio definitivo até reautenticar); desenho em N.3; testes E2E planejados em N.9 | o desenho de N.3 e N.9 antes de ligar |
+| S3 | aprovada, condicionada ao Supabase | a configuração do Supabase de exigir símbolo é **do projeto inteiro** e só vale na próxima troca. Como todas as trocas passam pelo servidor do Qoro (sem SDK no navegador), a regra do perfil TISS entra no servidor. Política preparada e testada | a ligação aos fluxos (cadastro, convite, reset, recuperação, troca logada) |
+| S4 | preparação aprovada | o Supabase **não** tem expiração nem histórico nativos (documentação de senha e do hook de verificação); verificador `scrypt` com sal e pepper e decisão de prazo com transição de 90 dias preparados | tabela de histórico (só `service_role`), eventos de troca e a ligação |
+| S5 | aprovada no módulo; preparar o compartilhado | **feito no módulo:** leitura de carteirinha com finalidade, permissão e auditoria fail-closed (`membership-access.ts`) | o compartilhado (N.9) |
+| S6 | só levantamento | requisito 41: "vinculada minimamente a um documento de identificação pessoal unívoco", com unicidade na inclusão e proibição de excluir quem operou. Hoje: e-mail único, sem documento pessoal. Alternativas a confirmar na S9: CPF para todos, ou registro do conselho + UF para profissionais de saúde e CPF para os demais | a estratégia; CPF **não** obrigatório até lá |
+| S7 | aprovada para implementar | **não feito neste ciclo:** o rodapé vive no shell, que a branch de UI está reescrevendo. Plano: `build-info` a partir de `VERCEL_GIT_COMMIT_SHA` e da versão do pacote, no shell e nos PDFs, depois da UI | — |
+| S8 | preparação e correções de baixo risco | **proposta de fail-safe do Upstash:** na queda, contar as falhas por `email_hash` nos últimos 15 min em `login_attempts` (Postgres, índice existente), mantendo o teto de 5. Se os dois falharem, bloquear o login com mensagem e métrica (`auth.ratelimit.fallback`), sem bloquear a recuperação, que tem limite próprio. Último acesso: aviso pós-login a partir de `login_attempts`. Gerenciador de senha: manter, com a interpretação registrada (S9) | a solução antes de mexer no login |
+| S9 | investigação aprovada | **matriz completa dos 53 vigentes** em `data/tiss/seguranca/202511/matriz-qoro.json`, com teste de cobertura. Obrigatórios: 16 atendem, 6 parciais, 7 lacunas, 4 de interpretação, 9 não aplicáveis. Recomendados: 5 atendem, 2 parciais, 3 pendentes, 1 não aplicável | a consulta formal (perguntas abaixo) |
+
+**Perguntas para a ANS ou assessoria (S9):**
+
+1. No SaaS multi-clínica, o componente vale para toda a plataforma ou só para as clínicas que trocam dados TISS por ela?
+2. O requisito 56 impede guardar XML e PDF cifrados em armazenamento de objetos privado, à luz do 79?
+3. O 41 aceita o registro do conselho como documento unívoco do profissional?
+4. O 43 obriga a bloquear gerenciadores de senha?
+5. bcrypt atende ao "no mínimo 256 bits" do 77?
+
+### N.9 Auditoria compartilhada (S5) e testes E2E do bloqueio (S2): propostas
+
+**Auditoria imutável por 180 dias** (impacto global, aguarda aprovação):
+
+1. Gatilho em `audit_events` que recusa UPDATE e DELETE para **qualquer** papel, inclusive o dono. A exclusão vale só para a função de retenção, com 180 dias ou mais.
+2. O script de partições recusa `DETACH` de partição mais nova que 180 dias.
+3. Encadeamento de hash por clínica: cada evento guarda o SHA-256 do anterior, e um job confere a cadeia e alerta.
+4. `login_attempts` passa de 90 para 180 dias.
+5. Exportação por titular e para a ANS, com o próprio acesso auditado.
+
+Um registro append-only sozinho **não** prova imutabilidade; os itens 1–3 são o que torna a adulteração detectável e bloqueada.
+
+**E2E do bloqueio por inatividade** (Playwright, relógio controlado):
+
+- recepção com polling do Consultório ativa e sem interação: bloqueia aos 10 min;
+- digitação contínua no prontuário: não bloqueia;
+- duas abas: a interação em uma renova a outra;
+- aviso aos 9 min, anunciado para leitor de tela;
+- bloqueio remove o conteúdo do DOM;
+- action chamada com token válido depois do bloqueio responde `SESSION_LOCKED`;
+- rascunho do prontuário salvo antes do bloqueio e restaurado após reautenticar;
+- falha de rede durante o aviso: o bloqueio acontece localmente e o servidor confirma na reconexão;
+- usuário de clínica sem convênio: comportamento atual.
 
 ---
 
@@ -2200,4 +2290,22 @@ Até a decisão, **nenhuma** dessas mudanças entra no código. Bloqueio B10.
   - achado R23: as variáveis `ASAAS_*` sem sufixo no ambiente local apontam para produção.
 - **Validador TISS para Windows:** instalação não autorizada pelo fundador; segue como candidato (B7).
 - **Próxima ação:** P1.7 (0146, autorizações) e os leitores auditados com finalidade.
+
+### 11/11/2026 (noite) — P1.7, leitura auditada, D20 revisada, S1–S9, matriz S9, trava de sandbox
+
+- **Estado conferido:** #55 em draft, com CI verde em `8caf27e9` (todas as etapas). O #53 está em draft no head `d9180228`, ainda terminando na 0142. Faixa desta branch: 0143 (aplicada no DEV) e 0144–0146 (não aplicadas).
+- **P1.7 (`10d153b8`):** migration 0146. O harness local deu **29/29** depois de duas correções:
+  1. **idempotência:** uma retentativa com a mesma chave recebia "sem saldo". Agora o gatilho confere a chave antes do saldo e responde 23505;
+  2. **fixture:** o teste reusava uma chave que podia ter sido recusada na corrida.
+  - Ensaio no DEV com ROLLBACK: **25/25**; o DEV seguiu com 144 migrations e nenhum objeto `hi_*`.
+  - Achado de revisão corrigido antes do teste: o runtime podia alterar `quantity_consumed` direto; agora vale privilégio por coluna.
+- **Leitura auditada da carteirinha (R85, parte do módulo):** `membership-access.ts`, com 9 testes, incluindo um invariante: nenhum outro arquivo decifra o número. Um falso positivo de fixture foi corrigido (UUID terminado em 0001).
+- **D20 revisada (N.7):** o requisito 79 prevê dado não estruturado fora do SGBD. Recomendação: opção B (S10).
+- **S1–S9 (N.8):**
+  - S1 investigado: usuário com clínica única e gate autoritativo por requisição;
+  - Supabase: regra de composição só no projeto inteiro, sem expiração nem histórico nativos;
+  - políticas R67, R81, R82 e R83 preparadas sem ligar (`a5b8ba89`, 9 testes);
+  - matriz dos 53 vigentes com teste de cobertura.
+- **Trava de sandbox (`eed6ab06`):** R23 mitigado nos scripts novos.
+- **Tarefas:** P12.9–P12.12 abertas, total 114; progresso 25/114.
 

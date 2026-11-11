@@ -1,0 +1,279 @@
+{
+  "componente": "Segurança e Privacidade 202511",
+  "avaliadoEm": "2026-11-11",
+  "legenda": {
+    "atende": "atendido, com evidência no código ou na infraestrutura",
+    "parcial": "atendido em parte; lacuna descrita",
+    "lacuna": "não atendido",
+    "nao_aplicavel": "não se aplica ao Qoro, com justificativa",
+    "interpretacao": "depende de interpretação jurídica ou regulatória (S9)",
+    "recomendado_pendente": "recomendado, não adotado; decisão registrada"
+  },
+  "requisitos": [
+    {
+      "id": 1,
+      "situacao": "atende",
+      "evidencia": "toda rota e action exige sessão: requireUser/page-guard (src/lib/auth/tenant-context.ts, page-guard.ts)"
+    },
+    {
+      "id": 2,
+      "situacao": "atende",
+      "evidencia": "login e senha no Supabase Auth (src/app/(app)/login/actions.ts)"
+    },
+    {
+      "id": 3,
+      "situacao": "nao_aplicavel",
+      "evidencia": "o Qoro não expõe webservice TISS autenticado por usuário; o conector de operadora (P6.5) usará a credencial da clínica"
+    },
+    {
+      "id": 12,
+      "situacao": "nao_aplicavel",
+      "evidencia": "sem certificado digital hoje; passa a valer com assinatura XAdES ou conector (P6.5)"
+    },
+    {
+      "id": 13,
+      "situacao": "nao_aplicavel",
+      "evidencia": "requisito de certificado digital: sem certificado hoje; passa a valer com assinatura XAdES ou conector de operadora (P6.5)"
+    },
+    {
+      "id": 14,
+      "situacao": "nao_aplicavel",
+      "evidencia": "requisito de certificado digital: sem certificado hoje; passa a valer com assinatura XAdES ou conector de operadora (P6.5)"
+    },
+    {
+      "id": 15,
+      "situacao": "nao_aplicavel",
+      "evidencia": "requisito de certificado digital: sem certificado hoje; passa a valer com assinatura XAdES ou conector de operadora (P6.5)"
+    },
+    {
+      "id": 18,
+      "situacao": "nao_aplicavel",
+      "evidencia": "requisito de certificado digital: sem certificado hoje; passa a valer com assinatura XAdES ou conector de operadora (P6.5)"
+    },
+    {
+      "id": 30,
+      "situacao": "recomendado_pendente",
+      "evidencia": "sem assinatura XAdES da mensagem; o XSD a deixa opcional; perguntar à operadora piloto (roteiro de homologação, pergunta 4)"
+    },
+    {
+      "id": 31,
+      "situacao": "nao_aplicavel",
+      "evidencia": "assinatura da operadora na mensagem ao prestador: obrigação da operadora; o Qoro deve validá-la quando vier (P9.5)"
+    },
+    {
+      "id": 34,
+      "situacao": "atende",
+      "evidencia": "HTTPS; tokens só em cookie HttpOnly/Secure por geração (supabase-session-cookie.ts); refresh com rotação; epoch revoga sessões (session-epoch.ts)"
+    },
+    {
+      "id": 35,
+      "situacao": "nao_aplicavel",
+      "evidencia": "certificado digital com criptografia ≥ 256 bits: vale quando houver certificado (idem 12)"
+    },
+    {
+      "id": 36,
+      "situacao": "lacuna",
+      "evidencia": "nome do software, fornecedor e versão não aparecem nas telas nem nas impressões (S7 aprovado; aguarda a branch de UI)"
+    },
+    {
+      "id": 37,
+      "situacao": "atende",
+      "evidencia": "identificação e autenticação antes de qualquer dado ou funcionalidade (tenant-context.ts)"
+    },
+    {
+      "id": 38,
+      "situacao": "atende",
+      "evidencia": "usuário e senha; TOTP opcional (src/lib/auth/mfa.ts)"
+    },
+    {
+      "id": 41,
+      "situacao": "interpretacao",
+      "evidencia": "usuário identificado individualmente por e-mail; sem documento pessoal único (CPF); exclusão com deleted_at e proteção do titular. Necessidade e finalidade do CPF a confirmar (S6)"
+    },
+    {
+      "id": 42,
+      "situacao": "lacuna",
+      "evidencia": "não mostra último acesso nem falhas desde então; os dados existem em login_attempts (S8)"
+    },
+    {
+      "id": 43,
+      "situacao": "interpretacao",
+      "evidencia": "senha mascarada e campo limpo após erro; autocomplete=current-password permite gerenciador de senha, em conflito com o texto do requisito e com as boas práticas atuais (S8)"
+    },
+    {
+      "id": 44,
+      "situacao": "atende",
+      "evidencia": "RLS FORCE por clínica e permissões por action"
+    },
+    {
+      "id": 45,
+      "situacao": "atende",
+      "evidencia": "dados só pelos canais do app; sem SDK do Supabase no navegador (no-browser-supabase.arch.test.ts)"
+    },
+    {
+      "id": 46,
+      "situacao": "atende",
+      "evidencia": "TLS da Vercel e do Supabase; cifras do provedor não conferidas por nós"
+    },
+    {
+      "id": 49,
+      "situacao": "atende",
+      "evidencia": "Zod em toda Server Action, no servidor"
+    },
+    {
+      "id": 50,
+      "situacao": "atende",
+      "evidencia": "convites, papéis, overrides e desativação (contexto identity)"
+    },
+    {
+      "id": 51,
+      "situacao": "atende",
+      "evidencia": "mensagem única 'Email ou senha inválidos.' (login/actions.ts)"
+    },
+    {
+      "id": 53,
+      "situacao": "atende",
+      "evidencia": "validação de regras no back-end (Zod + validadores TISS no servidor)"
+    },
+    {
+      "id": 54,
+      "situacao": "atende",
+      "evidencia": "camadas; banco segregado da aplicação"
+    },
+    {
+      "id": 55,
+      "situacao": "atende",
+      "evidencia": "acesso ao banco só por pools com papéis próprios"
+    },
+    {
+      "id": 56,
+      "situacao": "interpretacao",
+      "evidencia": "geração de XML/PDF em memória, sem arquivo temporário; arquivos guardados cifrados no armazenamento privado (D20 revisada, N.7). Alcance de 'fora do SGBD' a confirmar (S9)"
+    },
+    {
+      "id": 57,
+      "situacao": "parcial",
+      "evidencia": "audit_events em toda mutação; leitura auditada no prontuário e na carteirinha (membership-access.ts); falta leitura auditada de guia e lote"
+    },
+    {
+      "id": 58,
+      "situacao": "parcial",
+      "evidencia": "append-only por RLS e sem policy de UPDATE/DELETE; o dono do banco ainda apaga e as partições saem por DETACH manual (S5)"
+    },
+    {
+      "id": 59,
+      "situacao": "parcial",
+      "evidencia": "consultas recentes de auditoria (src/lib/audit/recent.ts); sem tela cronológica completa"
+    },
+    {
+      "id": 60,
+      "situacao": "parcial",
+      "evidencia": "requireFreshPermission em ações críticas e AAL2 para super admin; sem reautenticação de senha por operação"
+    },
+    {
+      "id": 62,
+      "situacao": "atende",
+      "evidencia": "CPF, CNPJ, prontuário e carteirinha cifrados por clínica; buckets privados"
+    },
+    {
+      "id": 63,
+      "situacao": "atende",
+      "evidencia": "Turnstile no login (captcha.ts)"
+    },
+    {
+      "id": 64,
+      "situacao": "atende",
+      "evidencia": "TLS entre as partes"
+    },
+    {
+      "id": 65,
+      "situacao": "atende",
+      "evidencia": "Turnstile e limite na recuperação de senha"
+    },
+    {
+      "id": 67,
+      "situacao": "parcial",
+      "evidencia": "8+, maiúscula, minúscula e dígito (signup-password.ts); falta símbolo; política preparada em security-profile/tiss-policies.ts (S3)"
+    },
+    {
+      "id": 69,
+      "situacao": "parcial",
+      "evidencia": "5 por e-mail e 10 por IP em 15 min (rate-limit.ts); falha aberto com contador local na queda do Upstash (S8)"
+    },
+    {
+      "id": 71,
+      "situacao": "atende",
+      "evidencia": "TLS ≥ 1.2 na Vercel e no Supabase (padrão dos provedores; não medido por nós)"
+    },
+    {
+      "id": 72,
+      "situacao": "lacuna",
+      "evidencia": "sem SLA formal de 48 h para interrupção da troca TISS; runbook a criar (P15)"
+    },
+    {
+      "id": 73,
+      "situacao": "nao_aplicavel",
+      "evidencia": "dirigido às operadoras"
+    },
+    {
+      "id": 74,
+      "situacao": "parcial",
+      "evidencia": "obrigação do prestador (a clínica), apoiada pelos controles técnicos do Qoro; falta orientação documentada à clínica"
+    },
+    {
+      "id": 77,
+      "situacao": "interpretacao",
+      "evidencia": "senhas no Supabase Auth (bcrypt), sem controle do algoritmo; 'no mínimo 256 bits' não se aplica diretamente a bcrypt (S9)"
+    },
+    {
+      "id": 78,
+      "situacao": "atende",
+      "evidencia": "app ↔ banco com TLS (ssl: 'require', src/lib/db/index.ts) e papéis por pool"
+    },
+    {
+      "id": 79,
+      "situacao": "atende",
+      "evidencia": "dados estruturados no Postgres; não estruturados (PDF) em bucket privado com acesso só pelo servidor (src/lib/storage/clinical.ts)"
+    },
+    {
+      "id": 80,
+      "situacao": "nao_aplicavel",
+      "evidencia": "dirigido às operadoras"
+    },
+    {
+      "id": 81,
+      "situacao": "lacuna",
+      "evidencia": "sem prazo de troca; Supabase não oferece; política preparada (S4)"
+    },
+    {
+      "id": 82,
+      "situacao": "lacuna",
+      "evidencia": "sem histórico; Supabase não oferece; verificador scrypt preparado (S4)"
+    },
+    {
+      "id": 83,
+      "situacao": "lacuna",
+      "evidencia": "sem bloqueio por inatividade; decisão de servidor preparada (S2)"
+    },
+    {
+      "id": 84,
+      "situacao": "lacuna",
+      "evidencia": "login_attempts apagado aos 90 dias (src/lib/db/retention-policy.ts:43); exige 180 (S5)"
+    },
+    {
+      "id": 85,
+      "situacao": "parcial",
+      "evidencia": "leitura de carteirinha com finalidade e auditoria fail-closed; faltam guia, lote e a imutabilidade de 180 dias da audit_events (S5)"
+    },
+    {
+      "id": 86,
+      "situacao": "recomendado_pendente",
+      "evidencia": "segundo fator por e-mail/SMS não existe; TOTP opcional"
+    },
+    {
+      "id": 87,
+      "situacao": "recomendado_pendente",
+      "evidencia": "segundo fator na troca de e-mail/celular não existe"
+    }
+  ]
+}
