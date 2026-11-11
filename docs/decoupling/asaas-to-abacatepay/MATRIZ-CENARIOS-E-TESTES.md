@@ -216,3 +216,18 @@ Este quadro substitui somente os estados atuais “aguardando suporte”; os qua
 O replay administrativo é uma nova leitura de evento **já recebido**, superadmin AAL2/TOTP atual, auditoria atômica e no máximo 3 autorizações/24h. Não reconstrói evento ausente nem permite editar invoice/período. O monitor sinaliza vencimento local sem pagamento conciliado; isso não prova falha do gateway nem pagamento perdido. Cron diário e limites de lote continuam explícitos. Entrega de alerta e jornada admin/MFA real no Preview: NOT RUN; testes de tela/unidade não as substituem. B1/B3 externos continuam bloqueados segundo a resposta recebida, sem repetir compra ou alterar a fixture paga retida.
 
 **Estado mais recente — 11/11:** [checkpoint de operação contínua §39](RELATORIO-HOMOLOGACAO-FINAL.md#39-operação-contínua-contrato-atual-do-provedor-e-controles--11112026). Cinco primeiras compras preservadas. 29 checks de recuperação e 92 de ciclo de vida PASS locais; SQL de período pago é candidato isolado, fora do journal por dependência TISS 0143–0146. API real agora confirma datas de período/próxima cobrança; o novo modelo de checkout compartilhado exige schema adicional. Detecção sem webhook e controles de aquisição implementados; recovery financeiro sem evento, MFA/alerta recebido e composição live continuam PARTIAL. Ingestão Sentry preview HTTP 200 não comprova notificação humana. [Evidência](evidencias/operacao-continua-20261111.json).
+
+## Recuperação sem webhook e fechamento — incremento de 11/11/2026
+
+Fonte atual: [relatório §41](RELATORIO-HOMOLOGACAO-FINAL.md#41-recuperação-financeira-e-fechamento-preparado--11112026). Os cinco pagamentos iniciais da matriz permanecem homologados; não foram repetidos.
+
+| Grupo | Prova efetivamente executada | Limite |
+|---|---|---|
+| Recuperação sem evento | Receita de cartão exata + período + dono, origem API privada; zero evento fabricado | HTTP sintético/PG loopback; schema remoto ainda pendente |
+| Concorrência/retry | Oito workers, evento posterior/duplicado, invoice ausente, ledger pago/período antigo, falha transacional e retry | Não comprova renovação temporal real |
+| Segurança | Cliente/tenant/loja/ambiente/valor/período incoerentes recusados, fonte com hash/FK, RLS e ausência de UPDATE/DELETE | Ambiguidade não concede mês/cota |
+| Checkout consumido | Uma operação sob concorrência, timeout unknown sem segundo POST; invoice/binding intactos | Nenhuma exclusão real executada |
+| Leituras pós-fechamento | Renovação, completed repetido, plano e refund sem GET do bill removido | Contrato externo dos GETs ainda precisa de prova |
+| TISS/schema | 5/5: ambas ordens SQL/rollback, histórico comum e schema/RLS/catálogo preservados | Não é merge nem homologação funcional TISS |
+
+A suíte PG financeira consolidada passou 115/115, incluindo 92 anteriores. Não somar os checks aos testes unitários nem aos pagamentos reais. CI/build/E2E do novo SHA são registrados nos checks do PR53 e na evidência final, sem herdar os resultados da baseline.

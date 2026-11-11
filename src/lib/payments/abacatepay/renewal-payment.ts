@@ -28,6 +28,12 @@ const inputSchema = z
     windowEnd: z.iso.datetime({ offset: true }),
   })
   .strict();
+const discoverySchema = inputSchema.omit({
+  paymentId: true,
+  checkoutId: true,
+  windowStart: true,
+  windowEnd: true,
+});
 
 const renewalCheckoutSchema = z.object({
   success: z.literal(true),
@@ -54,6 +60,7 @@ export function createAbacatePayRenewalPaymentReader(
   accountInput: BillingAccount,
   config: AbacatePayReadConfig,
   fetcher: typeof fetch = fetch,
+  consumedOrigin?: { subscriptionId: string; customerId: string; checkoutId: string },
 ) {
   const parsed = billingAccountSchema.safeParse(accountInput);
   if (!parsed.success) throw new GatewayReadError('invalid_input');
@@ -63,7 +70,14 @@ export function createAbacatePayRenewalPaymentReader(
   const read = createAbacatePayReadClient(config, fetcher);
   const request = createAbacatePayTransport(config, fetcher);
   const expectedDevMode = config.environment === 'sandbox';
-  return {
+  const consumed =
+    consumedOrigin === undefined
+      ? null
+      : parseBillingValue(
+          inputSchema.pick({ subscriptionId: true, customerId: true, checkoutId: true }).strict(),
+          consumedOrigin,
+        );
+  const client = {
     account,
     async readRenewalPayment(raw: z.input<typeof inputSchema>): Promise<RecurringPaymentRead> {
       const input = inputSchema.safeParse(raw);
@@ -108,27 +122,41 @@ export function createAbacatePayRenewalPaymentReader(
         subscriptions[0]?.customerId !== expected.customerId
       )
         throw new GatewayReadError('binding_mismatch');
-      const { data: checkout } = parseBillingValue(
-        renewalCheckoutSchema,
-        await request({
-          method: 'GET',
-          path: '/subscriptions/checkouts/get',
-          params: new URLSearchParams({ id: expected.checkoutId }),
-        }),
-      );
+      const consumedCheckout =
+        originalCheckout &&
+        consumed !== null &&
+        consumed.subscriptionId === expected.subscriptionId &&
+        consumed.customerId === expected.customerId &&
+        consumed.checkoutId === expected.originCheckoutId;
+      // A consumed local generation is immutable. The new receipt and provider
+      // paid period prove renewal; the original bill's PAID flag never does.
+      const checkout = consumedCheckout
+        ? null
+        : parseBillingValue(
+            renewalCheckoutSchema,
+            await request({
+              method: 'GET',
+              path: '/subscriptions/checkouts/get',
+              params: new URLSearchParams({ id: expected.checkoutId }),
+            }),
+          ).data;
       if (
-        checkout.id !== expected.checkoutId ||
-        checkout.devMode !== expectedDevMode ||
-        checkout.customerId !== expected.customerId ||
-        checkout.amount !== expected.expectedAmountMinor ||
-        checkout.items.length !== 1 ||
-        checkout.items[0]?.id !== expected.productId ||
-        checkout.items[0]?.quantity !== 1
+        checkout &&
+        (checkout.id !== expected.checkoutId ||
+          checkout.devMode !== expectedDevMode ||
+          checkout.customerId !== expected.customerId ||
+          checkout.amount !== expected.expectedAmountMinor ||
+          checkout.items.length !== 1 ||
+          checkout.items[0]?.id !== expected.productId ||
+          checkout.items[0]?.quantity !== 1)
       )
         throw new GatewayReadError('binding_mismatch');
-      if (checkout.status === 'PENDING' && checkout.paidAmount === null)
+      if (checkout?.status === 'PENDING' && checkout.paidAmount === null)
         return { state: 'pending' };
-      if (checkout.status !== 'PAID' || checkout.paidAmount !== expected.expectedAmountMinor)
+      if (
+        checkout &&
+        (checkout.status !== 'PAID' || checkout.paidAmount !== expected.expectedAmountMinor)
+      )
         return { state: 'review' };
       const receipt = await readApprovedCardStatement(request, {
         checkoutId: expected.checkoutId,
@@ -137,6 +165,7 @@ export function createAbacatePayRenewalPaymentReader(
         expectedAmountMinor: expected.expectedAmountMinor,
         periodStart: expected.windowStart,
         periodEnd: expected.windowEnd,
+        ...(consumedCheckout ? { requireCustomer: true } : {}),
       });
       if (!receipt) return { state: 'pending' };
       const receiptDay = new Date(receipt.createdAt).toISOString().slice(0, 10);
@@ -152,14 +181,14 @@ export function createAbacatePayRenewalPaymentReader(
           subscriptionId: subscription.id,
           customerId: subscription.customerId,
           originCheckoutId: expected.originCheckoutId,
-          checkoutId: checkout.id,
+          checkoutId: expected.checkoutId,
           productId: product.id,
           paymentId: receipt.paymentId,
           statementId: receipt.statementId,
           amountMinor: expected.expectedAmountMinor,
-          paidAmountMinor: checkout.paidAmount,
+          paidAmountMinor: receipt.amountMinor,
           currency: 'BRL',
-          chargeCreatedAt: originalCheckout ? receipt.createdAt : checkout.createdAt,
+          chargeCreatedAt: checkout && !originalCheckout ? checkout.createdAt : receipt.createdAt,
           confirmedAt: receipt.createdAt,
           method: 'card',
           recurrence: subscription.status === 'ACTIVE' ? 'running' : 'stopped',
@@ -171,5 +200,41 @@ export function createAbacatePayRenewalPaymentReader(
         },
       };
     },
+    /** Discover one exact receipt in the provider's paid period, then verify it normally. */
+    async discoverRenewalPayment(
+      raw: z.input<typeof discoverySchema>,
+    ): Promise<RecurringPaymentRead> {
+      const parsed = discoverySchema.safeParse(raw);
+      if (!parsed.success) throw new GatewayReadError('invalid_input');
+      const expected = parsed.data;
+      const subscription = await read.readSubscription(expected.subscriptionId);
+      if (
+        subscription.checkoutId !== expected.originCheckoutId ||
+        subscription.customerId !== expected.customerId
+      )
+        throw new GatewayReadError('binding_mismatch');
+      const start = subscription.currentPeriodStart,
+        end = subscription.currentPeriodEnd;
+      if (!start || !end || end <= start) return { state: 'review' };
+      const windowStart = `${start}T00:00:00.000Z`,
+        windowEnd = `${end}T00:00:00.000Z`;
+      const receipt = await readApprovedCardStatement(request, {
+        checkoutId: expected.originCheckoutId,
+        customerId: expected.customerId,
+        expectedAmountMinor: expected.expectedAmountMinor,
+        periodStart: windowStart,
+        periodEnd: windowEnd,
+        requireCustomer: true,
+      });
+      if (!receipt) return { state: 'pending' };
+      return client.readRenewalPayment({
+        ...expected,
+        checkoutId: expected.originCheckoutId,
+        paymentId: receipt.paymentId,
+        windowStart,
+        windowEnd,
+      });
+    },
   };
+  return client;
 }

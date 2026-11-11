@@ -12,6 +12,7 @@ const abacate = vi.hoisted(() => {
     unknown: vi.fn(),
     integrity: vi.fn(),
     renewalWatch: vi.fn(),
+    renewalRecovery: vi.fn(),
   };
 });
 vi.mock('@/lib/env', () => ({ env: abacate.environment }));
@@ -30,6 +31,9 @@ vi.mock('@/contexts/billing/internal/abacatepay-integrity', () => ({
 }));
 vi.mock('@/contexts/billing/internal/abacatepay-renewal-watch', () => ({
   observeAbacatePayRenewals: abacate.renewalWatch,
+}));
+vi.mock('@/contexts/billing/internal/abacatepay-renewal-recovery', () => ({
+  reconcileAbacatePayMissingRenewal: abacate.renewalRecovery,
 }));
 
 const {
@@ -164,6 +168,7 @@ beforeEach(() => {
   abacate.environment.ABACATEPAY_STORE_ID = undefined;
   abacate.inbox.mockResolvedValue({ scanned: 0 });
   abacate.initial.mockResolvedValue({ applied: 0 });
+  abacate.renewalRecovery.mockResolvedValue({ applied: 0 });
   abacate.management.mockResolvedValue(undefined);
   abacate.unknown.mockResolvedValue(undefined);
   abacate.integrity.mockResolvedValue({ scanned: 0, reviews: 0, failed: 0, deferred: false });
@@ -209,6 +214,8 @@ describe('billing reconcile', () => {
       abacate.inbox.mock.invocationCallOrder[0]!,
     );
     expect(abacate.integrity).toHaveBeenCalledOnce();
+    expect(abacate.renewalRecovery).toHaveBeenCalledOnce();
+    expect(abacate.renewalRecovery.mock.calls[0]?.[1]).toEqual({ deadlineMs: expect.any(Number) });
     expect(abacate.integrity.mock.calls[0]?.[1]).toEqual({ deadlineMs: expect.any(Number) });
   });
   it('signals exhausted cron budget without starting a provider readback that cannot finish safely', async () => {
@@ -222,6 +229,7 @@ describe('billing reconcile', () => {
       expect(abacate.inbox).not.toHaveBeenCalled();
       expect(abacate.renewalWatch).not.toHaveBeenCalled();
       expect(abacate.integrity).not.toHaveBeenCalled();
+      expect(abacate.renewalRecovery).not.toHaveBeenCalled();
       expect(emit).toHaveBeenCalledWith('billing.abacatepay.reconcile_deferred', {
         reason: 'job_budget',
       });

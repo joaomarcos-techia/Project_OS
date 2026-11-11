@@ -29,6 +29,7 @@ function setup(
     store?: string;
     mode?: boolean;
     status?: number;
+    consumed?: boolean;
     pages?: { data: unknown[]; pagination: { hasMore: boolean; next: string | null } }[];
   } = {},
 ) {
@@ -68,11 +69,32 @@ function setup(
       account,
       { apiKey: 'synthetic-key', environment: 'sandbox' },
       fetcher,
+      options.consumed
+        ? {
+            checkoutId: input.checkoutId,
+            customerId: input.customerId,
+            productId: input.productId,
+            amountMinor: input.expectedAmountMinor,
+          }
+        : undefined,
     ),
     fetcher,
   };
 }
 describe('negative financial readback never infers access or dispute outcomes', () => {
+  it('verifies a bound refund from the statement after a consumed link was removed, without inventing checkout status', async () => {
+    const { read, fetcher } = setup({ consumed: true });
+    expect(await read.readRefund(input)).toMatchObject({
+      refundDebitMinor: 39700,
+      checkoutStatus: null,
+      evidenceLevel: 'refund_debit_verified',
+    });
+    expect(fetcher.mock.calls.some(([url]) => String(url).includes('/checkouts/get'))).toBe(false);
+  });
+  it('requires exact receipt customer identity when relying on the consumed contract snapshot', async () => {
+    const { read } = setup({ consumed: true, patch: { customer: null } });
+    await expect(read.readRefund(input)).rejects.toMatchObject({ code: 'binding_mismatch' });
+  });
   it('verifies refund debits independently of a PAID checkout, without sending a command', async () => {
     const { read } = setup({ checkout: { status: 'PAID' } });
     expect(await read.readRefund(input)).toEqual({

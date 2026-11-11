@@ -25,6 +25,7 @@ import { reconcileAbacatePayManagement } from '@/contexts/billing/internal/abaca
 import { reconcileAbacatePayUnknownCheckout } from '@/contexts/billing/internal/abacatepay-checkout-recovery';
 import { reconcileAbacatePayIntegrity } from '@/contexts/billing/internal/abacatepay-integrity';
 import { observeAbacatePayRenewals } from '@/contexts/billing/internal/abacatepay-renewal-watch';
+import { reconcileAbacatePayMissingRenewal } from '@/contexts/billing/internal/abacatepay-renewal-recovery';
 
 import { asaasProvider, BillingProviderError } from '@/lib/payments/asaas';
 import { removeSubscriptionCharges } from '@/contexts/billing/internal/cancellation-charges';
@@ -561,6 +562,13 @@ export const GET = withCron(
           const recovered = await reconcileMissingAbacatePayInitialPayment();
           found += recovered.applied;
           fixed += recovered.applied;
+        }
+        if (Date.now() - startedAt < 35_000) {
+          const renewal = await reconcileAbacatePayMissingRenewal(dbAdmin, {
+            deadlineMs: startedAt + 35_000,
+          });
+          found += renewal.applied;
+          fixed += renewal.applied;
         }
         if (Date.now() - startedAt < 35_000) await reconcileAbacatePayManagement(dbAdmin);
         if (Date.now() - startedAt < 35_000)

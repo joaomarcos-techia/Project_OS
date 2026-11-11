@@ -36,7 +36,8 @@ delete process.env.VERCEL_ENV;
 delete process.env.DATABASE_URL_PROD;
 const originalFetch = globalThis.fetch;
 let networkCalls = 0,
-  fixtureHttpCalls = 0;
+  fixtureHttpCalls = 0,
+  closurePosts = 0;
 globalThis.fetch = async () => {
   networkCalls++;
   throw new Error('External network forbidden in renewal DB proof');
@@ -48,6 +49,10 @@ const { provisionFreeSignupTrialTx: provision } =
 const { addCalendarMonths } = await import('../../src/contexts/billing/internal/billing-period');
 const { applyAbacatePayRenewalTx } =
   await import('../../src/contexts/billing/internal/abacatepay-renewals');
+const { reconcileAbacatePayMissingRenewal: recoverRenewal } =
+  await import('../../src/contexts/billing/internal/abacatepay-renewal-recovery');
+const { closeConsumedAbacatePayCheckout: closeCheckout } =
+  await import('../../src/contexts/billing/internal/abacatepay-checkout-closure');
 const { recordAbacatePayRecurringPaymentTx } =
   await import('../../src/contexts/billing/internal/abacatepay-recurring-observations');
 const { reconcileAbacatePayInbox } =
@@ -221,12 +226,31 @@ function installHttpFixture(
     extraSubscription?: boolean;
     emptySubscriptions?: boolean;
     providerPeriod?: { start: string; end: string };
+    subscription?: Record<string, unknown>;
+    emptyStatements?: boolean;
+    extraStatement?: boolean;
+    beforeStatement?: () => Promise<void>;
+    close?: 'success' | 'timeout' | 'subscription_changed';
+    deletedCheckout?: boolean;
   } = {},
 ) {
+  let closed = options.deletedCheckout ?? false;
   globalThis.fetch = async (target, init) => {
     fixtureHttpCalls++;
     const url = new URL(target instanceof Request ? target.url : String(target));
     assert.equal(url.origin, 'https://api.abacatepay.com');
+    if (init?.method === 'POST') {
+      assert.ok(options.close);
+      assert.equal(url.pathname, '/v2/subscriptions/checkouts/delete');
+      assert.equal(url.searchParams.get('id'), f.evidence.originCheckoutId);
+      closurePosts++;
+      closed = true;
+      if (options.close === 'timeout') throw new Error('Synthetic closure timeout');
+      return Response.json({
+        success: true,
+        data: { id: f.evidence.originCheckoutId, devMode: true },
+      });
+    }
     assert.equal(init?.method, 'GET');
     if (options.fail) return new Response('{}', { status: 503 });
     const subscription = {
@@ -234,7 +258,10 @@ function installHttpFixture(
       checkoutId: f.evidence.originCheckoutId,
       customerId: f.evidence.customerId,
       amount: 39700,
-      status: options.status ?? 'ACTIVE',
+      status:
+        closed && options.close === 'subscription_changed'
+          ? 'CANCELLED'
+          : (options.status ?? 'ACTIVE'),
       method: 'CARD',
       devMode: true,
       trialEndsAt: null,
@@ -245,6 +272,7 @@ function installHttpFixture(
             currentPeriodEnd: options.providerPeriod.end,
           }
         : {}),
+      ...options.subscription,
     };
     let data: unknown;
     switch (url.pathname) {
@@ -253,7 +281,7 @@ function installHttpFixture(
         break;
       case '/v2/products/get':
         data = {
-          id: 'prod_synthetic',
+          id: url.searchParams.get('id') ?? 'prod_synthetic',
           externalId: 'local-renewal',
           price: 39700,
           currency: 'BRL',
@@ -279,6 +307,7 @@ function installHttpFixture(
           pagination: { hasMore: false, next: null },
         });
       case '/v2/subscriptions/checkouts/get':
+        if (closed) return new Response('{}', { status: 404 });
         data = {
           id: url.searchParams.get('id') ?? f.evidence.checkoutId,
           frequency: 'SUBSCRIPTION',
@@ -292,6 +321,13 @@ function installHttpFixture(
         };
         break;
       case '/v2/bank-statement/list':
+        await options.beforeStatement?.();
+        if (options.emptyStatements)
+          return Response.json({
+            success: true,
+            data: [],
+            pagination: { hasMore: false, next: null },
+          });
         return Response.json({
           success: true,
           data: [
@@ -318,6 +354,27 @@ function installHttpFixture(
                   : []),
               ],
             },
+            ...(options.extraStatement
+              ? [
+                  {
+                    id: 'tran_extra',
+                    currency: 'BRL',
+                    createdAt: f.evidence.confirmedAt,
+                    checkoutId: f.evidence.checkoutId,
+                    paymentIntentId: 'char_extra',
+                    customer: { publicId: f.evidence.customerId },
+                    movements: [
+                      {
+                        amount: 39700,
+                        kind: 'CARD_APPROVED',
+                        method: 'CARD',
+                        category: 'transaction',
+                        balanceEffect: 'none',
+                      },
+                    ],
+                  },
+                ]
+              : []),
           ],
           pagination: { hasMore: false, next: null },
         });
@@ -2131,6 +2188,28 @@ try {
       assert.deepEqual(await state(f), before);
     },
   );
+  await check(
+    'RECOVERY schema N/N-1 starts no API recovery or closure command before candidate DDL',
+    async () => {
+      const f = await seed(),
+        before = await state(f),
+        calls = fixtureHttpCalls,
+        posts = closurePosts;
+      const result = await recoverRenewal(dbAdmin, { subscriptionId: f.subscription_id });
+      assert.equal(result.scanned, 0);
+      assert.equal(result.applied, 0);
+      await assert.rejects(
+        closeCheckout(dbAdmin, {
+          subscriptionId: f.subscription_id,
+          checkoutId: f.evidence.originCheckoutId,
+        }),
+        { code: 'unavailable' },
+      );
+      assert.equal(fixtureHttpCalls, calls);
+      assert.equal(closurePosts, posts);
+      assert.deepEqual(await state(f), before);
+    },
+  );
   const candidateSql = await readFile(
     new URL(
       '../../docs/decoupling/asaas-to-abacatepay/migrations/saas_period_snapshot.candidate.sql',
@@ -2239,6 +2318,424 @@ try {
         'review',
       );
       assert.deepEqual(await state(f), before);
+    },
+  );
+  async function recoveryFixture(options: Parameters<typeof installHttpFixture>[1] = {}) {
+    const f = await seed();
+    f.evidence = {
+      ...f.evidence,
+      checkoutId: f.evidence.originCheckoutId,
+      chargeCreatedAt: f.evidence.confirmedAt,
+      providerPeriodStart: f.end.toISOString().slice(0, 10),
+      providerPeriodEnd: month(f.anchor, 2).toISOString().slice(0, 10),
+    };
+    installHttpFixture(f, {
+      providerPeriod: providerDates(f),
+      ...options,
+    });
+    return f;
+  }
+  function providerDates(f: Fixture) {
+    const start = f.evidence.providerPeriodStart,
+      end = f.evidence.providerPeriodEnd;
+    assert.ok(start && end);
+    return { start, end };
+  }
+  const recover = (f: Fixture) => recoverRenewal(dbAdmin, { subscriptionId: f.subscription_id });
+  async function sourceCount(f: Fixture) {
+    const [row] =
+      await sql`SELECT count(*)::int n FROM billing_gateway.renewal_api_readbacks WHERE subscription_id=${f.subscription_id}::uuid`;
+    return row?.n;
+  }
+  await check(
+    'RECOVERY no webhook creates one paid invoice and entitlement from immutable API provenance',
+    async () => {
+      const f = await recoveryFixture(),
+        before = await financialFingerprint(f);
+      assert.equal((await recover(f)).applied, 1);
+      const s = await state(f);
+      assert.equal(s.invoices, 2);
+      assert.equal(s.cycles, 1);
+      assert.equal(s.observations, 1);
+      assert.equal(await sourceCount(f), 1);
+      const [source] =
+        await sql`SELECT source_event_id IS NULL no_event,source_readback_id IS NOT NULL api_origin
+      FROM billing_gateway.recurring_payment_observations WHERE subscription_id=${f.subscription_id}::uuid`;
+      assert.deepEqual(source, { no_event: true, api_origin: true });
+      const [inbox] =
+        await sql`SELECT count(*)::int n FROM billing_gateway.event_inbox WHERE external_subscription_id=${f.evidence.subscriptionId}`;
+      assert.equal(inbox?.n, 0);
+      assert.equal((await financialFingerprint(f)).commands, before.commands);
+      assert.equal((await financialFingerprint(f)).profiles, before.profiles);
+    },
+  );
+  await check('RECOVERY concurrent workers commit one payment, invoice and cycle', async () => {
+    const f = await recoveryFixture();
+    const results = await Promise.all(Array.from({ length: 8 }, () => recover(f)));
+    assert.equal(
+      results.reduce((n, r) => n + r.applied, 0),
+      1,
+    );
+    assert.equal(
+      results.reduce((n, r) => n + r.failed, 0),
+      0,
+    );
+    assert.equal((await state(f)).invoices, 2);
+    assert.equal((await state(f)).cycles, 1);
+    assert.equal(await sourceCount(f), 1);
+  });
+  await check(
+    'RECOVERY late and duplicated authenticated webhooks do not undo recovered rights or add invoices',
+    async () => {
+      const f = await recoveryFixture();
+      assert.equal((await recover(f)).applied, 1);
+      const before = await state(f);
+      for (let i = 0; i < 2; i++) {
+        const eventId = 'log_after_recovery_' + i + '_' + f.userId.replaceAll('-', '');
+        await accept(f, eventId, f.evidence);
+        assert.equal((await reconcileAbacatePayInbox({ eventId })).review, 0);
+        assert.deepEqual(await state(f), before);
+      }
+    },
+  );
+  await check(
+    'RECOVERY a received observation without invoice is completed without a fabricated event',
+    async () => {
+      const f = await recoveryFixture();
+      await accept(f);
+      assert.equal(
+        await dbAdmin.transaction((tx) =>
+          recordAbacatePayRecurringPaymentTx(tx, f.evidence, f.eventId),
+        ),
+        'recorded',
+      );
+      assert.equal((await state(f)).invoices, 1);
+      assert.equal((await recover(f)).applied, 1);
+      assert.equal((await state(f)).invoices, 2);
+      assert.equal((await state(f)).observations, 1);
+    },
+  );
+  await check(
+    'RECOVERY a paid ledger repairs only its stale local period without another invoice/payment',
+    async () => {
+      const f = await recoveryFixture();
+      assert.equal((await recover(f)).applied, 1);
+      const before = await state(f);
+      await sql`UPDATE public.subscriptions SET current_period_start=${f.anchor},current_period_end=${f.end},billing_status='past_due',dunning_stage=1 WHERE id=${f.subscription_id}::uuid`;
+      assert.equal((await recover(f)).applied, 1);
+      const after = await state(f);
+      assert.equal(after.current_period_end, before.current_period_end);
+      assert.equal(after.invoices, 2);
+      assert.equal(after.cycles, 1);
+      assert.equal(after.billing_status, 'active');
+      assert.equal((await recover(f)).applied, 0);
+      const [attempts] =
+        await sql`SELECT count(*)::int n FROM public.payment_attempts p JOIN public.invoices i ON i.id=p.invoice_id WHERE i.subscription_id=${f.subscription_id}::uuid`;
+      assert.equal(attempts?.n, 1);
+    },
+  );
+  for (const phase of ['invoice', 'period'] as const) {
+    await check(
+      `RECOVERY ${phase} persistence failure rolls back provenance, invoice and rights; retry succeeds`,
+      async () => {
+        const f = await recoveryFixture(),
+          before = await state(f);
+        const table = phase === 'invoice' ? 'public.invoices' : 'public.subscriptions';
+        await sql.unsafe(`CREATE FUNCTION public.synthetic_recovery_failure() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN RAISE EXCEPTION 'Synthetic recovery persistence failure'; END $$;
+        CREATE TRIGGER synthetic_recovery_failure BEFORE ${phase === 'invoice' ? 'INSERT' : 'UPDATE'} ON ${table}
+        FOR EACH ROW EXECUTE FUNCTION public.synthetic_recovery_failure();`);
+        try {
+          assert.equal((await recover(f)).failed, 1);
+          assert.deepEqual(await state(f), before);
+          assert.equal(await sourceCount(f), 0);
+        } finally {
+          await sql.unsafe(
+            `DROP TRIGGER synthetic_recovery_failure ON ${table}; DROP FUNCTION public.synthetic_recovery_failure();`,
+          );
+        }
+        assert.equal((await recover(f)).applied, 1);
+        assert.equal((await state(f)).invoices, 2);
+      },
+    );
+  }
+  await check(
+    'RECOVERY transient provider failure and timeout preserve proof and recover with GET only',
+    async () => {
+      for (const timeout of [false, true]) {
+        const f = await recoveryFixture(),
+          before = await state(f);
+        if (timeout)
+          globalThis.fetch = async () => {
+            fixtureHttpCalls++;
+            throw new Error('Synthetic timeout');
+          };
+        else installHttpFixture(f, { fail: true });
+        assert.equal((await recover(f)).failed, 1);
+        assert.deepEqual(await state(f), before);
+        assert.equal(await sourceCount(f), 0);
+        installHttpFixture(f, {
+          providerPeriod: providerDates(f),
+        });
+        assert.equal((await recover(f)).applied, 1);
+      }
+    },
+  );
+  for (const mode of [
+    'no_receipt',
+    'multiple_receipts',
+    'wrong_customer',
+    'missing_dates',
+    'live_resource',
+  ] as const) {
+    await check(`RECOVERY ${mode} cannot fabricate a payment or grant access`, async () => {
+      const options =
+        mode === 'no_receipt'
+          ? { emptyStatements: true }
+          : mode === 'multiple_receipts'
+            ? { extraStatement: true }
+            : mode === 'wrong_customer'
+              ? { subscription: { customerId: 'cust_unrelated' } }
+              : mode === 'live_resource'
+                ? { subscription: { devMode: false } }
+                : { subscription: { currentPeriodStart: undefined, currentPeriodEnd: undefined } };
+      const f = await recoveryFixture(options),
+        before = await state(f);
+      const result = await recover(f);
+      assert.equal(result.applied, 0);
+      assert.ok(result.pending + result.review + result.failed > 0);
+      assert.deepEqual(await state(f), before);
+      assert.equal(await sourceCount(f), 0);
+    });
+  }
+  await check(
+    'RECOVERY cancellation during GET records money for review without extending access',
+    async () => {
+      const f = await recoveryFixture();
+      installHttpFixture(f, {
+        providerPeriod: providerDates(f),
+        beforeStatement: async () => {
+          await sql`UPDATE public.subscriptions SET cancel_at_period_end=true WHERE id=${f.subscription_id}::uuid`;
+        },
+      });
+      const before = await state(f),
+        result = await recover(f);
+      assert.equal(result.applied, 0);
+      assert.equal(result.review, 1);
+      const after = await state(f);
+      assert.equal(after.current_period_end, before.current_period_end);
+      assert.equal(after.invoices, 2);
+    },
+  );
+  await check(
+    'RECOVERY insufficient job budget starts no API read or payment attempt',
+    async () => {
+      const f = await recoveryFixture(),
+        before = await financialFingerprint(f),
+        calls = fixtureHttpCalls;
+      const result = await recoverRenewal(dbAdmin, {
+        subscriptionId: f.subscription_id,
+        deadlineMs: Date.now() + 1000,
+      });
+      assert.equal(result.deferred, true);
+      assert.equal(result.scanned, 0);
+      assert.equal(fixtureHttpCalls, calls);
+      assert.deepEqual(await financialFingerprint(f), before);
+    },
+  );
+  await check('RECOVERY API provenance denies other tenants and altered evidence', async () => {
+    const f = await recoveryFixture();
+    assert.equal((await recover(f)).applied, 1);
+    const [row] = await sql<
+      { id: string }[]
+    >`SELECT id::text FROM billing_gateway.renewal_api_readbacks WHERE subscription_id=${f.subscription_id}::uuid`;
+    assert.ok(row);
+    const before = await state(f);
+    assert.equal(
+      await dbAdmin.transaction((tx) =>
+        applyAbacatePayRenewalTx(
+          tx,
+          {
+            ...f.evidence,
+            confirmedAt: new Date(Date.parse(f.evidence.confirmedAt) + 1000).toISOString(),
+          },
+          { kind: 'provider_api', id: row.id },
+        ),
+      ),
+      'review',
+    );
+    const other = await recoveryFixture();
+    assert.equal(
+      await dbAdmin.transaction((tx) =>
+        applyAbacatePayRenewalTx(tx, other.evidence, { kind: 'provider_api', id: row.id }),
+      ),
+      'review',
+    );
+    assert.deepEqual(await state(f), before);
+    assert.equal((await state(other)).invoices, 1);
+  });
+  await check(
+    'RECOVERY source snapshots are private, immutable and cannot be deleted by service_role',
+    async () => {
+      for (const role of ['anon', 'authenticated', 'qoro_runtime', 'service_role']) {
+        await assert.rejects(
+          sql.begin(async (tx) => {
+            await tx.unsafe(`SET LOCAL ROLE ${role}`);
+            await tx`DELETE FROM billing_gateway.renewal_api_readbacks WHERE false`;
+          }),
+          { code: '42501' },
+        );
+        if (role !== 'service_role')
+          await assert.rejects(
+            sql.begin(async (tx) => {
+              await tx.unsafe(`SET LOCAL ROLE ${role}`);
+              await tx`SELECT * FROM billing_gateway.renewal_api_readbacks`;
+            }),
+            { code: '42501' },
+          );
+      }
+      await assert.rejects(
+        sql.begin(async (tx) => {
+          await tx`SET LOCAL ROLE service_role`;
+          await tx`UPDATE billing_gateway.renewal_api_readbacks SET proof_hash=repeat('a',64) WHERE false`;
+        }),
+        { code: '42501' },
+      );
+    },
+  );
+  await check(
+    'CLOSURE private paid generation and unchanged ledger survive one concurrent remote close',
+    async () => {
+      const f = await recoveryFixture();
+      installHttpFixture(f, { close: 'success', providerPeriod: providerDates(f) });
+      const before = await state(f),
+        posts = closurePosts;
+      const close = () =>
+        closeCheckout(dbAdmin, {
+          subscriptionId: f.subscription_id,
+          checkoutId: f.evidence.originCheckoutId,
+        });
+      const outcomes = await Promise.allSettled(Array.from({ length: 8 }, close));
+      assert.ok(outcomes.some((result) => result.status === 'fulfilled'));
+      assert.equal((await close()).closed, true);
+      assert.equal(closurePosts - posts, 1);
+      assert.deepEqual(await state(f), before);
+      const [journal] =
+        await sql`SELECT state,result->>'checkoutId' checkout FROM billing_gateway.operations
+      WHERE subscription_id=${f.subscription_id}::uuid AND kind='close_paid_checkout'`;
+      assert.deepEqual(journal, { state: 'confirmed', checkout: f.evidence.originCheckoutId });
+      assert.equal((await recover(f)).applied, 1);
+      assert.equal((await state(f)).invoices, 2);
+      await accept(f);
+      assert.equal((await reconcileAbacatePayInbox({ eventId: f.eventId })).review, 0);
+      assert.equal((await state(f)).invoices, 2);
+      const initialEvent = `log_closed_initial_${randomUUID()}`;
+      await accept(f, initialEvent, f.evidence, 'subscription.completed');
+      assert.equal((await reconcileAbacatePayInbox({ eventId: initialEvent })).review, 0);
+      assert.equal((await state(f)).invoices, 2);
+      installPlanHttpFixture(f);
+      const financialRead = globalThis.fetch;
+      globalThis.fetch = async (target, init) => {
+        assert.equal(new URL(String(target)).pathname.endsWith('/checkouts/get'), false);
+        return financialRead(target, init);
+      };
+      const result = await changePlan(dbAdmin, {
+        clinicId: f.clinicId,
+        requestedBy: f.userId,
+        contractId: f.subscription_id,
+        targetPlanId: await targetPlan('clinica_2026_3'),
+      });
+      assert.equal(result.state, 'scheduled');
+      assert.equal((await state(f)).invoices, 2);
+    },
+  );
+  await check(
+    'CLOSURE timeout is durable unknown and never resends; receipt recovery remains available',
+    async () => {
+      const f = await recoveryFixture(),
+        posts = closurePosts;
+      installHttpFixture(f, { close: 'timeout', providerPeriod: providerDates(f) });
+      const close = () =>
+        closeCheckout(dbAdmin, {
+          subscriptionId: f.subscription_id,
+          checkoutId: f.evidence.originCheckoutId,
+        });
+      for (let i = 0; i < 2; i++) await assert.rejects(close(), { code: 'operation_unknown' });
+      assert.equal(closurePosts - posts, 1);
+      const [operation] =
+        await sql`SELECT state FROM billing_gateway.operations WHERE subscription_id=${f.subscription_id}::uuid AND kind='close_paid_checkout'`;
+      assert.equal(operation?.state, 'unknown');
+      assert.equal((await recover(f)).applied, 1);
+    },
+  );
+  await check(
+    'CLOSURE post-command subscription inconsistency remains unknown without a second POST',
+    async () => {
+      const f = await recoveryFixture(),
+        before = await state(f),
+        posts = closurePosts;
+      installHttpFixture(f, { close: 'subscription_changed' });
+      const close = () =>
+        closeCheckout(dbAdmin, {
+          subscriptionId: f.subscription_id,
+          checkoutId: f.evidence.originCheckoutId,
+        });
+      for (let i = 0; i < 2; i++) await assert.rejects(close(), { code: 'operation_unknown' });
+      assert.equal(closurePosts - posts, 1);
+      assert.deepEqual(await state(f), before);
+    },
+  );
+  await check(
+    'CLOSURE refuses an unpaid intent, another tenant and multiple subscriptions before POST',
+    async () => {
+      const f = await seed(-120_000, 'clinica_2026_2', false),
+        other = await recoveryFixture(),
+        posts = closurePosts;
+      installHttpFixture(f, { close: 'success' });
+      await assert.rejects(
+        closeCheckout(dbAdmin, {
+          subscriptionId: f.subscription_id,
+          checkoutId: f.evidence.originCheckoutId,
+        }),
+        { code: 'binding_mismatch' },
+      );
+      await assert.rejects(
+        closeCheckout(dbAdmin, {
+          subscriptionId: f.subscription_id,
+          checkoutId: other.evidence.originCheckoutId,
+        }),
+        { code: 'binding_mismatch' },
+      );
+      installHttpFixture(other, { close: 'success', extraSubscription: true });
+      await assert.rejects(
+        closeCheckout(dbAdmin, {
+          subscriptionId: other.subscription_id,
+          checkoutId: other.evidence.originCheckoutId,
+        }),
+        { code: 'operation_unknown' },
+      );
+      assert.equal(closurePosts, posts);
+    },
+  );
+  await check(
+    'CLOSURE refund statement remains readable without the consumed checkout or access revocation',
+    async () => {
+      const f = await recoveryFixture();
+      installHttpFixture(f, { close: 'success', refundMinor: 39700 });
+      await closeCheckout(dbAdmin, {
+        subscriptionId: f.subscription_id,
+        checkoutId: f.evidence.originCheckoutId,
+      });
+      const before = await state(f),
+        eventId = `log_closed_refund_${randomUUID()}`;
+      await accept(f, eventId, f.evidence, 'checkout.refunded');
+      const result = await reconcileAbacatePayInbox({ eventId });
+      assert.equal(result.review, 1);
+      assert.deepEqual(await state(f), before);
+      const [proof] =
+        await sql`SELECT payload->>'evidenceLevel' level,payload->>'checkoutStatus' status
+      FROM public.billing_events WHERE clinic_id=${f.clinicId}::uuid AND type='subscription.financial.notification_checked'`;
+      assert.deepEqual(proof, { level: 'refund_debit_verified', status: null });
     },
   );
   assert.equal(networkCalls, 0);

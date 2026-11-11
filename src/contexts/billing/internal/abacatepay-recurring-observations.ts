@@ -6,6 +6,13 @@ import { z } from 'zod';
 import type { Tx } from '@/lib/db';
 import { billingAccountSchema, opaqueBillingId } from '@/lib/payments/saas/contracts';
 import type { RecurringPaymentEvidence } from '@/lib/payments/saas/recurring-payment';
+import {
+  abacatePayRenewalSourceRows,
+  abacatePayRenewalProofHash,
+  lockAbacatePayRenewalSubscription,
+  parseAbacatePayRenewalSource,
+  type AbacatePayRenewalSource,
+} from './abacatepay-renewal-source';
 
 const evidenceSchema = z
   .object({
@@ -41,16 +48,17 @@ const contextSchema = z.object({
 
 /**
  * Financial observation only: no invoice, access extension, dunning reset or quota
- * release. Ownership comes from the authenticated inbox and the immutable paid
- * generation. A future entitlement decision must link this evidence separately.
+ * release. Ownership comes from an authenticated inbox or private API readback,
+ * and the immutable paid generation. Neither source is a manual payment override.
  */
 export async function recordAbacatePayRecurringPaymentTx(
   tx: Tx,
   evidenceInput: RecurringPaymentEvidence,
-  sourceEventId: string,
+  sourceInput: string | AbacatePayRenewalSource,
 ): Promise<'recorded' | 'duplicate' | 'review'> {
   const parsed = evidenceSchema.safeParse(evidenceInput);
-  if (!parsed.success || !opaqueBillingId.safeParse(sourceEventId).success) return 'review';
+  const source = parseAbacatePayRenewalSource(sourceInput);
+  if (!parsed.success || !source) return 'review';
   const evidence = parsed.data;
   if (
     evidence.account.provider !== 'abacatepay' ||
@@ -75,6 +83,7 @@ export async function recordAbacatePayRecurringPaymentTx(
       WHERE table_schema='billing_gateway' AND table_name='recurring_payment_observations' AND column_name='provider_period_start') ready`);
     if (!schema?.ready) return 'review';
   }
+  await lockAbacatePayRenewalSubscription(tx, evidence.account, source);
   const [context] = z
     .array(contextSchema)
     .max(1)
@@ -83,7 +92,7 @@ export async function recordAbacatePayRecurringPaymentTx(
     SELECT a.id::text account_id,b.subscription_id::text,b.clinic_id::text,
       coalesce(pc.to_price_id,r.price_id,i.price_id)::text price_id,coalesce(pc.product_id,r.product_id,i.product_id) product_id,
       coalesce(pc.amount_minor,r.amount_minor,i.amount_minor)::text amount_minor
-    FROM billing_gateway.event_inbox e JOIN billing_gateway.accounts a ON a.id=e.account_id
+    FROM ${abacatePayRenewalSourceRows(source)} e JOIN billing_gateway.accounts a ON a.id=e.account_id
     JOIN billing_gateway.bindings b ON b.account_id=a.id
     JOIN public.subscriptions s ON s.id=b.subscription_id AND s.clinic_id=b.clinic_id
     LEFT JOIN billing_gateway.recontracts r ON r.account_id=a.id
@@ -97,7 +106,7 @@ export async function recordAbacatePayRecurringPaymentTx(
       ORDER BY change.requested_at DESC,change.id DESC LIMIT 1) pc ON true
     WHERE a.provider='abacatepay' AND a.environment='sandbox' AND a.external_account_id=${evidence.account.accountId}
       AND s.billing_provider='abacatepay' AND s.asaas_subscription_id IS NULL
-      AND e.event_id=${sourceEventId} AND e.event_type='subscription.renewed'
+      AND (${source.kind === 'webhook'} OR e.proof_hash=${abacatePayRenewalProofHash(evidence)})
       AND (e.subscription_id IS NULL OR e.subscription_id=b.subscription_id)
       AND (e.clinic_id IS NULL OR e.clinic_id=b.clinic_id)
       AND e.external_subscription_id=${evidence.subscriptionId} AND e.external_customer_id=${evidence.customerId}
@@ -124,13 +133,15 @@ export async function recordAbacatePayRecurringPaymentTx(
       (account_id,payment_id,statement_id,checkout_id,origin_checkout_id,external_subscription_id,
         external_customer_id,subscription_id,clinic_id,source_event_id,price_id,product_id,amount_minor,
         currency,charge_created_at,confirmed_at,observed_recurrence,settlement
-        ${originalCheckout ? sql`,provider_period_start,provider_period_end` : sql``})
+        ${originalCheckout ? sql`,provider_period_start,provider_period_end` : sql``}
+        ${source.kind === 'provider_api' ? sql`,source_readback_id` : sql``})
     VALUES(${context.account_id}::uuid,${evidence.paymentId},${evidence.statementId},${evidence.checkoutId},
       ${evidence.originCheckoutId},${evidence.subscriptionId},${evidence.customerId},
-      ${context.subscription_id}::uuid,${context.clinic_id}::uuid,${sourceEventId},
+      ${context.subscription_id}::uuid,${context.clinic_id}::uuid,${source.kind === 'webhook' ? source.id : null},
       ${context.price_id}::uuid,${evidence.productId},${evidence.amountMinor},'BRL',
       ${evidence.chargeCreatedAt}::timestamptz,${evidence.confirmedAt}::timestamptz,${evidence.recurrence},'unknown'
-      ${originalCheckout ? sql`,${evidence.providerPeriodStart}::date,${evidence.providerPeriodEnd}::date` : sql``})
+      ${originalCheckout ? sql`,${evidence.providerPeriodStart}::date,${evidence.providerPeriodEnd}::date` : sql``}
+      ${source.kind === 'provider_api' ? sql`,${source.id}::uuid` : sql``})
     ON CONFLICT DO NOTHING RETURNING payment_id`),
     );
   if (inserted.length === 1) return 'recorded';

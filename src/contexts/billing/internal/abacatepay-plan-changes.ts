@@ -1,4 +1,5 @@
 import 'server-only';
+import { readConsumedAbacatePayCheckout } from './abacatepay-checkout-closure';
 
 import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
@@ -189,6 +190,12 @@ export async function requestAbacatePayPlanChange(
     },
     database,
   );
+  const consumed = await readConsumedAbacatePayCheckout(database, {
+    subscriptionId: reserved.current.subscription_id,
+    checkoutId: reserved.current.external_checkout_id,
+    storeId: env.ABACATEPAY_STORE_ID,
+  });
+  if (!consumed) throw new AbacatePayPlanChangeError('reconcile_required');
   const commands = createAbacatePaySandboxCommands(
     {
       apiKey: env.ABACATEPAY_API_KEY,
@@ -196,6 +203,13 @@ export async function requestAbacatePayPlanChange(
       probeProductId: env.ABACATEPAY_SANDBOX_PROBE_PRODUCT_ID,
     },
     journal,
+    fetch,
+    {
+      subscriptionId: consumed.external_subscription_id,
+      customerId: consumed.external_customer_id,
+      checkoutId: reserved.current.external_checkout_id,
+      productId: consumed.product_id,
+    },
   );
   const result = await commands.requestPlanChange({
     operationId: randomUUID(),

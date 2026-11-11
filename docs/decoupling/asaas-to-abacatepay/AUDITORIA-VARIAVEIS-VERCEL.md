@@ -110,3 +110,9 @@ ABACATEPAY_NEW_CHECKOUTS_ENABLED=false pausa somente novos checkouts; omissão p
 **Production continua proibida pelo runtime.** Não configure SAAS_SIGNUP_PROVIDER=abacatepay_sandbox em Production. Após a futura composição live ser implementada/autorizada, será necessário chave API real específica, identidade de loja conferida, catálogo real e segredo de webhook próprio, preservando Asaas/pacientes. Os produtos e probe Sandbox não são catálogo de Production. Novos controles não substituem esse incremento nem geram um seletor live inexistente.
 
 Em 11/11, o SDK Sentry do navegador passou a consumir **NEXT_PUBLIC_VERCEL_ENV**, metadata pública que a Vercel fornece automaticamente ao framework Next.js. Não é uma credencial nem exige criar uma variável na Vercel nesta rodada. Ausente fora da plataforma, preserva NODE_ENV. Foi registrada no schema e no inventário público; nenhuma chave de DEV foi copiada para Production.
+
+## Incremento de recuperação/fechamento — 11/11
+
+Nenhuma variável nova é necessária para o código de recuperação GET-only ou para preparar o fechamento. Usa os nomes Sandbox já auditados, schema readiness e um comando interno explícito; não há cron de exclusão habilitado. O cron de conciliação não mudou de horário. O SQL candidato continua fora do DEV, portanto sua recuperação independente ainda não está ativa no Preview compartilhado.
+
+Os cinco pagamentos iniciais foram concluídos; a menção anterior à frase de criação é histórica. Não pagar/criar outro checkout para testar este incremento. Nenhuma variável de Production foi lida em claro, alterada ou copiada. A composição live continua sendo implementação/revisão própria: não basta trocar a API key ou o valor de um seletor para liberar Production.

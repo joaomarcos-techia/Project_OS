@@ -22,13 +22,14 @@ const checkoutInput = {
 };
 const subscriptionInput = { operationId, subscriptionId: 'subs_test', customerId: 'cust_test' };
 
-function setup() {
+function setup(consumedOrigin = false) {
   const scenario: {
     storeId: string;
     devMode: boolean;
     price: number;
     trialDays: number | null;
     subscriptionStatus: string;
+    subscriptionAmount: number;
     subscriptionCustomer: string;
     subscriptionCycle: string | undefined;
     checkoutProduct: string;
@@ -39,12 +40,15 @@ function setup() {
     cancellationPersists: boolean;
     postFailure: boolean;
     originPaid: boolean;
+    closed: boolean;
+    extraSubscription: boolean;
   } = {
     storeId: 'store_test',
     devMode: true,
     price: 100,
     trialDays: 14,
     subscriptionStatus: 'ACTIVE',
+    subscriptionAmount: 19700,
     subscriptionCustomer: 'cust_test',
     subscriptionCycle: 'MONTHLY',
     checkoutProduct: 'prod_created',
@@ -55,6 +59,8 @@ function setup() {
     cancellationPersists: true,
     postFailure: false,
     originPaid: false,
+    closed: false,
+    extraSubscription: false,
   };
   const journal = new TestCommandJournal();
   const fetcher = vi.fn<typeof fetch>(async (target, options) => {
@@ -64,6 +70,11 @@ function setup() {
       if (scenario.postFailure) throw new Error('private fixture-key');
       if (url.pathname.endsWith('/products/create')) return envelope({ id: 'prod_created' });
       if (url.pathname.endsWith('/subscriptions/create')) return envelope({ id: 'bill_test' });
+      if (url.pathname.endsWith('/subscriptions/checkouts/delete')) {
+        expect(url.searchParams.get('id')).toBe('bill_test');
+        scenario.closed = true;
+        return envelope({ id: 'bill_test', devMode: true });
+      }
       if (url.pathname.endsWith('/change-plan'))
         return envelope({
           id: 'subu_test',
@@ -94,7 +105,8 @@ function setup() {
         cycle: 'MONTHLY',
         trialDays: scenario.trialDays,
       });
-    if (url.pathname.endsWith('/subscriptions/checkouts/get'))
+    if (url.pathname.endsWith('/subscriptions/checkouts/get')) {
+      if (scenario.closed) return new Response('{}', { status: 404 });
       return envelope({
         id: 'bill_test',
         frequency: 'SUBSCRIPTION',
@@ -107,12 +119,44 @@ function setup() {
         url: scenario.checkoutUrl,
         items: [{ id: scenario.checkoutProduct, quantity: 1 }],
       });
+    }
+    if (url.pathname.endsWith('/subscriptions/list'))
+      return Response.json({
+        success: true,
+        data: [
+          {
+            id: 'subs_test',
+            customerId: 'cust_test',
+            checkoutId: 'bill_test',
+            amount: scenario.subscriptionAmount,
+            status: scenario.subscriptionStatus,
+            method: 'CARD',
+            devMode: true,
+            trialEndsAt: null,
+          },
+          ...(scenario.extraSubscription
+            ? [
+                {
+                  id: 'subs_extra',
+                  customerId: 'cust_extra',
+                  checkoutId: 'bill_test',
+                  amount: 19700,
+                  status: 'ACTIVE',
+                  method: 'CARD',
+                  devMode: true,
+                  trialEndsAt: null,
+                },
+              ]
+            : []),
+        ],
+        pagination: { hasMore: false, next: null },
+      });
     if (url.pathname.endsWith('/subscriptions/get'))
       return envelope({
         id: 'subs_test',
         checkoutId: 'bill_test',
         customerId: scenario.subscriptionCustomer,
-        amount: 19700,
+        amount: scenario.subscriptionAmount,
         status: scenario.subscriptionStatus,
         method: 'CARD',
         devMode: true,
@@ -127,12 +171,96 @@ function setup() {
     { apiKey: 'fixture-key', storeId: 'store_test', probeProductId: 'prod_probe' },
     journal,
     fetcher,
+    consumedOrigin
+      ? {
+          subscriptionId: 'subs_test',
+          customerId: 'cust_test',
+          checkoutId: 'bill_test',
+          productId: 'prod_created',
+        }
+      : undefined,
   );
   const posts = () => fetcher.mock.calls.filter((call) => call[1]?.method === 'POST');
   return { scenario, journal, fetcher, client, posts };
 }
 
 describe('AbacatePay commands isolated to Sandbox', () => {
+  const closeInput = {
+    ...subscriptionInput,
+    checkoutId: 'bill_test',
+    productId: 'prod_created',
+    expectedAmountMinor: 19700,
+  };
+  it('closes a paid link once while preserving the subscription and immutable journal result', async () => {
+    const { client, scenario, posts } = setup();
+    scenario.originPaid = true;
+    scenario.checkoutAmount = 19700;
+    expect(await client.closePaidCheckout(closeInput)).toMatchObject({
+      closed: true,
+      checkoutId: 'bill_test',
+      amountMinor: 19700,
+    });
+    expect(scenario.subscriptionStatus).toBe('ACTIVE');
+    await client.closePaidCheckout(closeInput);
+    expect(posts()).toHaveLength(1);
+  });
+  it('preserves a subscription whose current plan differs from the consumed original price', async () => {
+    const { client, scenario } = setup();
+    scenario.originPaid = true;
+    scenario.checkoutAmount = 19700;
+    scenario.subscriptionAmount = 54400;
+    await expect(client.closePaidCheckout(closeInput)).resolves.toMatchObject({
+      closed: true,
+      amountMinor: 19700,
+    });
+    expect(scenario.subscriptionAmount).toBe(54400);
+  });
+  it.each(['pending', 'multiple', 'customer', 'amount', 'live'] as const)(
+    'refuses unsafe closure: %s',
+    async (mode) => {
+      const { client, scenario, posts } = setup();
+      scenario.originPaid = mode !== 'pending';
+      scenario.checkoutAmount = 19700;
+      if (mode === 'multiple') scenario.extraSubscription = true;
+      if (mode === 'customer') scenario.subscriptionCustomer = 'cust_other';
+      if (mode === 'amount') scenario.checkoutAmount = 19699;
+      if (mode === 'live') scenario.devMode = false;
+      await expect(client.closePaidCheckout(closeInput)).rejects.toMatchObject({
+        code: 'operation_unknown',
+      });
+      expect(posts()).toHaveLength(0);
+    },
+  );
+  it('keeps a timed-out closure unknown and never repeats its POST', async () => {
+    const { client, scenario, posts } = setup();
+    scenario.originPaid = true;
+    scenario.checkoutAmount = 19700;
+    scenario.postFailure = true;
+    await expect(client.closePaidCheckout(closeInput)).rejects.toMatchObject({
+      code: 'operation_unknown',
+    });
+    scenario.postFailure = false;
+    await expect(client.closePaidCheckout(closeInput)).rejects.toMatchObject({
+      code: 'operation_unknown',
+    });
+    expect(posts()).toHaveLength(1);
+  });
+  it('can prove the monthly origin from the consumed snapshot when the original link no longer exists', async () => {
+    const { client, scenario, posts, fetcher } = setup(true);
+    scenario.closed = true;
+    scenario.trialDays = null;
+    scenario.subscriptionCycle = undefined;
+    await expect(
+      client.requestPlanChange({
+        ...subscriptionInput,
+        productId: 'prod_created',
+        expectedAmountMinor: 100,
+        expectedCycle: 'MONTHLY',
+      }),
+    ).resolves.toMatchObject({ state: 'pending' });
+    expect(posts()).toHaveLength(1);
+    expect(fetcher.mock.calls.some(([url]) => String(url).includes('/checkouts/get'))).toBe(false);
+  });
   it('creates and reads back the product, replaying without a second POST', async () => {
     const { client, posts, fetcher } = setup();
     await expect(client.createProduct(productInput)).resolves.toMatchObject({

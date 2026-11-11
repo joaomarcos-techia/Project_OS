@@ -1,6 +1,6 @@
 # Operação e recuperação AbacatePay
 
-Atualizado em 10/11/2026. Executável somente na candidata Sandbox do PR #53. Não usar em Produção. Não substituir o gateway de uma assinatura Asaas nem modificar pagamentos de pacientes.
+Atualizado em 11/11/2026. Executável somente na candidata Sandbox do PR #53. Não usar em Produção. Não substituir o gateway de uma assinatura Asaas nem modificar pagamentos de pacientes. A [seção 9](#9-recuperação-sem-webhook-fechamento-e-integração-de-schema) descreve o novo código; a [seção 10](#10-ações-humanas-que-continuam-necessárias) contém as ações humanas ainda não comprovadas. O SQL candidato não foi aplicado ao DEV compartilhado.
 
 ## 1. Detectar e abrir incidente
 
@@ -103,7 +103,7 @@ A API administrativa disponível retornou **401**, por isso a engenharia não co
 
 ### Coordenar o SQL financeiro com TISS
 
-O [SQL candidato](../decoupling/asaas-to-abacatepay/migrations/saas_period_snapshot.candidate.sql) está testado somente no PostgreSQL local. **Não execute esse arquivo manualmente em DEV ou Production.** O PR #55 contém 0143–0146, e o financeiro não escolheu um prefixo concorrente nem editou o journal desse agente.
+O [SQL candidato](../decoupling/asaas-to-abacatepay/migrations/saas_period_snapshot.candidate.sql) está testado somente no PostgreSQL local. **Não execute esse arquivo manualmente em DEV ou Production.** O PR #55 contém 0143–0147, e o financeiro não escolheu um prefixo concorrente nem editou o journal desse agente. A estratégia e os ensaios atualizados estão na seção 9.
 
 A engenharia precisa conciliar o histórico exato das duas branches e do DEV, registrar o candidato na próxima versão livre, executar os gates e obter a autorização específica antes da aplicação remota. A sua parte é aprovar essa integração de schema quando apresentada; não há comando SQL que você precise executar agora. Não há autorização implícita de merge/main/Production.
 
@@ -118,7 +118,7 @@ A engenharia precisa conciliar o histórico exato das duas branches e do DEV, re
 | Período pago do provedor à frente do Qoro | P1 | Audit deduplicado, sem fabricar evento/invoice | Recuperar a origem oficial; não conceder mês por ACTIVE/valor/data |
 | Webhook não autenticado | Métrica de segurança | Não enviar alerta por request; investigar agregados | Recusar antes da persistência; não expor a URL com segredo |
 
-Destinatário e recebimento ainda dependem da conferência Sentry acima. Não há SLA de aviso em 120 s: o sinal é emitido na próxima execução/conclusão, e o cron de contingência continua diário. Nenhuma agenda, custo ou plano foi alterado. A nova detecção sem webhook não implementa recuperação financeira automática de uma renovação cuja origem autenticada está totalmente ausente.
+Destinatário e recebimento ainda dependem da conferência Sentry acima. Não há SLA de aviso em 120 s: o sinal é emitido na próxima execução/conclusão, e o cron de contingência continua diário. Nenhuma agenda, custo ou plano foi alterado. A recuperação sem webhook agora está implementada conforme seção 9, mas depende do schema ainda não aplicado e de prova financeira inequívoca; o código novo não significa ativação no DEV ou em Production.
 
 ### Kill switch e rollout futuro, sem execução agora
 
@@ -129,3 +129,83 @@ Destinatário e recebimento ainda dependem da conferência Sentry acima. Não h�
 ### Retorno do operador sobre o probe
 
 Em 11/11 o founder confirmou a Issue **7842026780** no painel e informou que **não recebeu notificação fora do Sentry**. Não precisa procurar o evento ou repetir o probe novamente. Falta conferir/criar a regra de alerta de Preview, definir responsável/canal e, só depois, ensaiar uma nova notificação sintética. A API administrativa retornou 401; nenhuma regra ou destinatário foi alterado automaticamente. Os erros históricos de localhost e de hidratação em outro Preview não são falhas financeiras deste probe; a classificação do ambiente no browser foi corrigida na candidata, sem afirmar reparo da hidratação.
+
+## 9. Recuperação sem webhook, fechamento e integração de schema
+
+### O que a engenharia executa
+
+O novo worker só faz GETs externos, exige geração paga e confere loja, assinatura, cliente, produto/valor, período e um receipt de cartão exato. Guarda uma origem API imutável, sem fabricar webhook. Aplicação financeira é atômica e idempotente; fonte insuficiente fica em revisão. O cron existente é diário, processa um candidato por chamada e respeita o orçamento restante; não há SLA de recuperação em 120s. A ausência do schema novo o mantém inativo, sem fallback permissivo.
+
+Uma assinatura marcada ACTIVE, um checkout PAID antigo, `nextChargeAt` ou uma coincidência de valor/data não permitem completar a conciliação. Não criar outra cobrança, editar status manualmente ou preencher um paymentId por suposição. Uma ambiguidade/ausência de histórico de ciclos exige triagem financeira, preservando os direitos já pagos.
+
+O comando interno de fechamento exige uma invoice já paga e vínculo imutável. Tem journal `close_paid_checkout`, um único POST e resultado `confirmed` ou `unknown`. Em `unknown`, não repetir com outro UUID/chave: inspecionar a assinatura, o journal e os readbacks. Fechamento de link não cancela assinatura. O código está preparado, mas não há fechamento automático habilitado nem autorização para apagar as cinco fixtures retidas nesta rodada.
+
+### Estratégia coordenada com PR55
+
+1. Manter os dois PRs draft. Não editar journal/migrations no worktree TISS. Conferir os HEADs novamente: o ensaio local usou financeiro base `a5984e23` e TISS `9382c462`, com 0143–0147.
+2. Conferir no DEV hashes **e timestamps**, não só contagem: 144 entradas no readback, 0143 exata já aplicada; 0144–0147 e o candidato financeiro ainda não aplicados pelo executor. Guardar preflight sanitizado. Qualquer novo registro/deriva interrompe o preparo.
+3. Preservar 0143–0147. A ordem desejada de revisão/merge PR53→PR55 é possível sem executar o candidato antes. O journal integrado deve conter 0–147 contínuos e `when` estritamente crescente; o candidato recebe a próxima posição livre **após nova coordenação**, não uma reserva unilateral de 0148.
+4. Não registrar o financeiro com timestamp alto e tentar aplicar TISS antigo depois. O Drizzle usa o último timestamp aplicado; migrations inseridas para trás podem ser ignoradas. Não renumerar/recriar 0143 já aplicada. Caso a ordem SQL precise mudar, acordar a alocação dos ainda não aplicados com TISS e repetir somente o ensaio afetado.
+5. Após registro conjunto, executar gates de migrations e o ensaio abaixo. Só solicitar autorização de aplicação DEV com diff, número, hash e ordem definitivos. **O founder não precisa rodar SQL manualmente.**
+
+Ensaio reprodutível, somente PostgreSQL descartável e arquivos TISS lidos sem modificá-los:
+
+```powershell
+Set-Location 'C:\dev\Qoro_billing_abacatepay_20261107'
+$env:QORO_TISS_WORKTREE = 'C:\dev\Qoro_convenios_tiss_20261110'
+node node_modules/tsx/dist/cli.mjs scripts/security/abacatepay-tiss-schema-db.ts
+```
+
+Esperado: `status: PASS`, 5 checks, zero escrita remota ou no worktree TISS. O script recusa automaticamente um TISS que ultrapasse 0147: revisar o histórico novo antes de ampliar o escopo. Essa prova compara ordem SQL, schema/constraints/RLS e catálogo; os testes financeiros de dados são os 115 checks do harness de renovação. Não representa homologação integral do TISS.
+
+### Preflight e postflight do candidato financeiro
+
+A engenharia deve confirmar backup recuperável e versão compatível do código; schema de origem até0142 e histórico0143/TISS reconciliado; constraints originais esperadas; inexistência da nova tabela/colunas/categoria; permissões do executor; nenhuma duplicidade financeira preexistente por payment/statement/ciclo; zero outra janela de schema em andamento.
+
+O SQL usa `lock_timeout=2s` e `statement_timeout=15s`. ALTER TABLE requer lock forte em `operations` e `recurring_payment_observations`, mantido até commit; pode competir com webhook/worker. Não prometer duração ou disponibilidade de Production com base no banco pequeno do teste local. Interromper em timeout, schema/hash inesperado, lock prolongado, violação de constraint ou mudança em contratos/valores. Não repetir cegamente.
+
+No postflight conferir: todos os contratos/invoices/bindings anteriores preservados; unicidade por pagamento/extrato e ciclo mantida; origem XOR webhook/API e FK compostas; tabela nova com RLS forçada; anon/authenticated/runtime sem acesso; service_role só SELECT/INSERT, sem UPDATE/DELETE; operação de fechamento suportada; contagem/hash exatos no journal. Verificar readiness em Preview antes de ensaiar uma fixture.
+
+Recuperação: antes de commit uma falha aborta a transação. Depois de commit, não executar DOWN, apagar ledger, cancelar assinatura nem restaurar banco compartilhado por iniciativa própria. Conter novas aquisições, manter consumidores dos dois provedores e usar correção à frente/release compatível. Se houver perda/inconsistência, parar e executar o plano de recuperação autorizado. Reverter código não desfaz comando remoto.
+
+### Prova externa futura do fechamento, sem novo pagamento
+
+Depois do schema DEV autorizado, a engenharia apresentará **um checkout Sandbox já pago**, a clínica sintética exata e o snapshot anterior para autorizar seu fechamento. Não precisa criar/pagar outro checkout.
+
+O ensaio deve: comprovar devMode e loja; preservar invoice/receipt/IDs; chamar uma única vez o endpoint documentado; conferir que o link não aceita novo pagamento sem efetuar transação; reler assinatura e lista pelo checkout; reler extrato e os IDs já pagos; verificar histórico/recibo; conferir mudança de plano e cancelamento somente nos limites autorizados; testar reprocessamento local sem invoice/vaga nova. Renovação futura não vira PASS por fechar o link. Se a resposta se perder, preservar `unknown` e não reenviar o comando. Enquanto essa prova não existir, B1 permanece PARTIAL.
+
+## 10. Ações humanas que continuam necessárias
+
+### 10.1 Configurar ou conferir somente o alerta Preview
+
+**Motivo:** evento e ingestão já foram comprovados. Não houve aviso recebido. A API administrativa retorna401 e o browser host está indisponível; a engenharia não conseguiu ler regra/destinatário/histórico. Não é problema de pagar outro plano ou trocar chave financeira.
+
+1. Abra [Monitors → Alerts no Sentry](https://sentry.io/monitors/alerts), entre na organização do projeto **qoro** e procure uma regra existente para **preview**. Se ela já cobre erros financeiros, edite essa regra; não duplique nem altere Production.
+2. Se faltar uma regra Preview, clique **Create Alert**. Escolha a origem **Alert on all issues in selected projects**, projeto **qoro**, ambiente **preview**. Use o nome `Qoro - Billing AbacatePay - Preview`.
+3. Em **When**, selecione **An event or issue activity is captured**. Em **If**, use **all**: **Tagged event**, tag `flow`, **starts with** `billing.abacatepay.`; **Event level**, **greater than or equal**, `error`. Isso inclui reincidência da mesma Issue; limitar a “new issue” não prova o novo disparo do probe já agrupado.
+4. Em **Then**, selecione **Notify on preferred channel → Member → sua própria conta**. Confira nas [preferências pessoais de notificação](https://sentry.io/settings/account/notifications/) que Alertas chegam ao seu e-mail/canal desejado. Não escolha um destinatário desconhecido, não envie segredo e não configure um canal pago. Use throttling de **5 minutes** e confira que a regra não está desligada/silenciada.
+5. Use **Send Test Notification** no bloco, confira caixa de entrada/spam e salve com **Create Alert** ou o botão de salvar da regra existente. Anote nome da regra, ambiente, horário e recebimento. Esse botão prova o canal, não o disparo pelo evento financeiro.
+6. Avise `Regra Preview [nome] salva; teste de canal [recebi/não recebi], horário [BRT]`. A engenharia então envia **um** novo probe sintético do fluxo financeiro e correlaciona evento→regra→disparo→envio→recebimento. Você apenas confirma o recebimento fora do painel. Não repetir o pagamento nem a Issue antiga como se fossem um alerta novo.
+
+Se alguma opção não aparecer, informe só seu rótulo/permissão e a etapa. Não criar regra All Environments como substituto. A fonte dos controles é a [documentação oficial atual de alertas](https://docs.sentry.io/product/monitors-and-alerts/alerts/create-alerts/). O intervalo de throttle e preferências pessoais podem impedir aviso mesmo com evento visível; não declarar entrega antes de recebê-lo.
+
+### 10.2 Conferir MFA do operador e dos serviços externos
+
+O DEV já tem 2/2 superadmins com fator nativo verificado. Não precisa criar outro usuário/fator ou compartilhar OTP. No Preview do SHA final do PR53, faça login normal com o superadmin/MFA e abra `/admin/billing/operacao`. Confira o acesso administrativo. **Não solicite replay de contrato real ou das fixtures pagas para testar:** a engenharia prepara uma ocorrência sintética específica antes do ensaio positivo da ação que exige TOTP atual. Informe apenas `Login superadmin/MFA funcionou` ou a mensagem sanitizada de erro.
+
+Depois confira separadamente as contas de administração usadas nestes serviços:
+
+| Acesso | Página inicial | O que confirmar, sem compartilhar códigos |
+|---|---|---|
+| GitHub | [Settings → segurança](https://github.com/settings/security) | 2FA habilitado na conta que revisa/mescla; recuperação disponível em cofre |
+| Vercel | [Conta](https://vercel.com/account) | Proteção de acesso/MFA da conta ou do IdP efetivo; equipe correta |
+| AbacatePay | [Dashboard](https://app.abacatepay.com/) | Segurança/MFA oferecido para o administrador financeiro; se não aparecer, informar a ausência para tratamento operacional, não presumir proteção |
+| Supabase | [Conta/projetos](https://supabase.com/dashboard) | MFA da conta administrativa/IdP e responsáveis de recuperação |
+| Sentry | [Segurança pessoal](https://sentry.io/settings/account/security/) | MFA/IdP efetivo da conta que administra alertas |
+| Cofre | Conta corporativa já aprovada | MFA e recuperação independente do mesmo aparelho; não enviar chave/código |
+
+Os painéis externos não foram inspecionados em sessão autenticada nesta rodada; seus menus internos podem variar. A proteção de um serviço não prova a dos outros. Responda `MFA: GitHub [...], Vercel [...], AbacatePay [...], Supabase [...], Sentry [...], cofre [...]` usando `ativo`, `pendente` ou `indisponível no painel`. Nenhuma autenticação global do Qoro foi alterada.
+
+### 10.3 Aprovações técnicas que ainda não são comandos para o founder
+
+Depois da coordenação com TISS e do diff/hash definitivos, aprovar ou rejeitar o schema financeiro **somente no DEV**. Separadamente, aprovar o fechamento de uma fixture Sandbox já paga para comprovar os readbacks posteriores. A engenharia executará as operações e a limpeza autorizada. Não editar journal, rodar SQL, deletar checkout ou pagar links antigos manualmente. Production, merge e credenciais reais continuam fora da autorização.

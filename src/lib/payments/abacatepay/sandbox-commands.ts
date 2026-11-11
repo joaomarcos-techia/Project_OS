@@ -56,6 +56,23 @@ const changeInput = subscriptionInput
     expectedCycle: cycle,
   })
   .strict();
+const closeInput = subscriptionInput
+  .extend({
+    checkoutId: prefixedId('bill_'),
+    productId: prefixedId('prod_'),
+    expectedAmountMinor: amount,
+  })
+  .strict();
+const closeResult = z
+  .object({
+    checkoutId: prefixedId('bill_'),
+    subscriptionId: prefixedId('subs_'),
+    customerId: prefixedId('cust_'),
+    productId: prefixedId('prod_'),
+    amountMinor: amount,
+    closed: z.literal(true),
+  })
+  .strict();
 const productResult = z.object({
   id: prefixedId('prod_'),
   externalId,
@@ -120,7 +137,8 @@ function inputValue<T>(schema: z.ZodType<T>, value: unknown): T {
 
 /**
  * Sandbox homologation only. No production mode, active composition, customer
- * creation, payment simulation, delete, grant or gateway fallback is exposed.
+ * creation, payment simulation, grant or gateway fallback is exposed.
+ * Closing a consumed checkout is explicit, journaled and never retried.
  * Every attempted command requires a durable journal and a fresh environment
  * read. Product/checkout creation does not claim a subscription exists or is paid.
  */
@@ -128,6 +146,12 @@ export function createAbacatePaySandboxCommands(
   config: { apiKey: string; storeId: string; probeProductId: string; timeoutMs?: number },
   journal: CommandOperationJournal,
   fetcher: typeof fetch = fetch,
+  consumedOrigin?: {
+    subscriptionId: string;
+    customerId: string;
+    checkoutId: string;
+    productId: string;
+  },
 ) {
   const account = inputValue(billingAccountSchema, {
     provider: 'abacatepay',
@@ -167,6 +191,89 @@ export function createAbacatePaySandboxCommands(
 
   return {
     account,
+    async closePaidCheckout(raw: z.input<typeof closeInput>) {
+      const input = inputValue(closeInput, raw);
+      const parameters = {
+        checkoutId: input.checkoutId,
+        subscriptionId: input.subscriptionId,
+        customerId: input.customerId,
+        productId: input.productId,
+        expectedAmountMinor: input.expectedAmountMinor,
+      };
+      const resultSchema = closeResult.refine(
+        (value) =>
+          value.checkoutId === input.checkoutId &&
+          value.subscriptionId === input.subscriptionId &&
+          value.customerId === input.customerId &&
+          value.productId === input.productId &&
+          value.amountMinor === input.expectedAmountMinor,
+      );
+      return execute(
+        input.operationId,
+        'close_paid_checkout',
+        parameters,
+        resultSchema,
+        async () => {
+          const checkout = await read.readSubscriptionCheckoutFinancials(input.checkoutId);
+          const before = await read.readSubscription(input.subscriptionId);
+          const linked = await read.listSubscriptionsForCheckout(input.checkoutId);
+          if (
+            checkout.status !== 'PAID' ||
+            checkout.customerId !== input.customerId ||
+            checkout.amount !== input.expectedAmountMinor ||
+            checkout.paidAmount !== input.expectedAmountMinor ||
+            checkout.items.length !== 1 ||
+            checkout.items[0]?.id !== input.productId ||
+            checkout.items[0]?.quantity !== 1 ||
+            before.checkoutId !== input.checkoutId ||
+            before.customerId !== input.customerId ||
+            before.method !== 'CARD' ||
+            before.trialEndsAt !== null ||
+            !['ACTIVE', 'CANCELLED'].includes(before.status) ||
+            linked.length !== 1 ||
+            linked[0]?.id !== input.subscriptionId ||
+            linked[0]?.customerId !== input.customerId
+          )
+            throw new GatewayReadError('binding_mismatch');
+          const response = parseBillingValue(
+            z.object({
+              success: z.literal(true),
+              data: z.object({
+                id: prefixedId('bill_'),
+                devMode: z.literal(true),
+              }),
+            }),
+            await request({
+              method: 'POST',
+              path: '/subscriptions/checkouts/delete',
+              params: new URLSearchParams({ id: input.checkoutId }),
+              body: {},
+            }),
+          );
+          if (response.data.id !== input.checkoutId) throw new GatewayReadError('binding_mismatch');
+          const after = await read.readSubscription(input.subscriptionId);
+          const remaining = await read.listSubscriptionsForCheckout(input.checkoutId);
+          if (
+            after.checkoutId !== before.checkoutId ||
+            after.customerId !== before.customerId ||
+            after.status !== before.status ||
+            after.amount !== before.amount ||
+            remaining.length !== 1 ||
+            remaining[0]?.id !== before.id ||
+            remaining[0]?.customerId !== before.customerId
+          )
+            throw new GatewayReadError('binding_mismatch');
+          return {
+            checkoutId: input.checkoutId,
+            subscriptionId: input.subscriptionId,
+            customerId: input.customerId,
+            productId: input.productId,
+            amountMinor: input.expectedAmountMinor,
+            closed: true as const,
+          };
+        },
+      );
+    },
     async createProduct(raw: z.input<typeof productInput>) {
       const input = inputValue(productInput, raw);
       const body = {
@@ -270,17 +377,28 @@ export function createAbacatePaySandboxCommands(
         // when absent; never infer a cycle from ACTIVE or the requested target.
         let originalCycle = subscription.frequency;
         if (originalCycle === undefined && subscription.checkoutId) {
-          const origin = await read.readSubscriptionCheckoutFinancials(subscription.checkoutId);
           if (
-            origin.status === 'PAID' &&
-            origin.customerId === input.customerId &&
-            origin.amount === origin.paidAmount &&
-            origin.items.length === 1 &&
-            origin.items[0]?.quantity === 1
+            consumedOrigin &&
+            consumedOrigin.subscriptionId === subscription.id &&
+            consumedOrigin.customerId === subscription.customerId &&
+            consumedOrigin.checkoutId === subscription.checkoutId
           ) {
-            const originalProduct = await read.readProduct(origin.items[0].id);
+            const originalProduct = await read.readProduct(consumedOrigin.productId);
             if (originalProduct.trialDays == null)
               originalCycle = originalProduct.cycle ?? undefined;
+          } else {
+            const origin = await read.readSubscriptionCheckoutFinancials(subscription.checkoutId);
+            if (
+              origin.status === 'PAID' &&
+              origin.customerId === input.customerId &&
+              origin.amount === origin.paidAmount &&
+              origin.items.length === 1 &&
+              origin.items[0]?.quantity === 1
+            ) {
+              const originalProduct = await read.readProduct(origin.items[0].id);
+              if (originalProduct.trialDays == null)
+                originalCycle = originalProduct.cycle ?? undefined;
+            }
           }
         }
         if (

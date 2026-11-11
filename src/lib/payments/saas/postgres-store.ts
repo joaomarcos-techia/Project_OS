@@ -35,6 +35,7 @@ const scopeSchema = z
       'cancel_subscription',
       'proration_checkout',
       'recontract_checkout',
+      'close_paid_checkout',
     ]),
     businessKey: z.string().min(1).max(200).regex(/\S/),
   })

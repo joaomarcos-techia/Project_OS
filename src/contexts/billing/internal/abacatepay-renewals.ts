@@ -4,11 +4,7 @@ import { eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
 import type { Tx } from '@/lib/db';
-import {
-  billingResourceKey,
-  opaqueBillingId,
-  type BillingAccount,
-} from '@/lib/payments/saas/contracts';
+import { billingResourceKey, type BillingAccount } from '@/lib/payments/saas/contracts';
 import type { BillingGatewaySql } from '@/lib/payments/saas/postgres-store';
 import type {
   RecurringPaymentEvidence,
@@ -20,10 +16,21 @@ import { publishEvent } from '@/lib/outbox/publish';
 
 import { invoices, paymentAttempts, subscriptions } from '../schema';
 import { recordAbacatePayRecurringPaymentTx } from './abacatepay-recurring-observations';
+import {
+  abacatePayRenewalSourceRows,
+  parseAbacatePayRenewalSource,
+  lockAbacatePayRenewalSubscription,
+  type AbacatePayRenewalSource,
+} from './abacatepay-renewal-source';
 import { abacatePayRenewalPeriod } from './abacatepay-renewal-period';
 import { DUNNING_READONLY_DAYS } from './dunning';
 import { toCents, toReaisString } from './money';
-import { markInvoicePaid, recordBillingEvent } from './subscriptions';
+import {
+  markInvoicePaid,
+  recordBillingEvent,
+  activateSubscription,
+  setClinicAccess,
+} from './subscriptions';
 import { assertTargetPlanCapacity } from './plan-changes';
 import { BILLING_EVENTS } from '../events';
 import { toPlanCode } from './subscriptions';
@@ -61,17 +68,13 @@ type Context = z.infer<typeof contextSchema>;
 const SEARCH_WINDOW_DAYS = 31;
 const SEARCH_CLOCK_SKEW_MS = 60_000;
 
-async function contextForEvent(
+async function contextForAbacatePayRenewalSource(
   database: BillingGatewaySql,
   account: BillingAccount,
-  eventId: string,
-  lock = false,
+  sourceInput: string | AbacatePayRenewalSource,
 ): Promise<Context | null> {
-  if (
-    !opaqueBillingId.safeParse(eventId).success ||
-    account.provider !== 'abacatepay' ||
-    account.environment !== 'sandbox'
-  )
+  const source = parseAbacatePayRenewalSource(sourceInput);
+  if (!source || account.provider !== 'abacatepay' || account.environment !== 'sandbox')
     return null;
   const [context] = z
     .array(contextSchema)
@@ -92,7 +95,7 @@ async function contextForEvent(
         AND change.status::text NOT IN ('applied','cancelled','expired','failed')) plan_change_pending,
       pending.id::text pending_change_id,pending.product_id pending_product_id,pending.to_price_id::text pending_price_id,
       pending.to_plan_id::text pending_plan_id,pending.amount_minor::text pending_amount,pending.effective_not_before pending_effective
-    FROM billing_gateway.event_inbox e JOIN billing_gateway.accounts a ON a.id=e.account_id
+    FROM ${abacatePayRenewalSourceRows(source)} e JOIN billing_gateway.accounts a ON a.id=e.account_id
     JOIN billing_gateway.bindings b ON b.account_id=a.id
     JOIN public.subscriptions s ON s.id=b.subscription_id AND s.clinic_id=b.clinic_id
     JOIN public.prices pr ON pr.id=s.price_id
@@ -110,13 +113,12 @@ async function contextForEvent(
       AND pending.external_subscription_id=e.external_subscription_id AND pending.invoice_id IS NULL AND pending.from_price_id=s.price_id
     WHERE a.provider='abacatepay' AND a.environment='sandbox' AND a.external_account_id=${account.accountId}
       AND s.billing_provider='abacatepay' AND s.asaas_subscription_id IS NULL
-      AND e.event_id=${eventId} AND e.event_type='subscription.renewed'
       AND e.external_checkout_id IS NOT NULL AND e.external_payment_id IS NOT NULL AND e.external_customer_id IS NOT NULL
       AND (e.subscription_id IS NULL OR e.subscription_id=s.id) AND (e.clinic_id IS NULL OR e.clinic_id=s.clinic_id)
       AND ((r.id IS NOT NULL AND r.external_customer_id=e.external_customer_id)
         OR (r.id IS NULL AND p.invoice_id IS NOT NULL AND b.external_subscription_id=e.external_subscription_id
           AND b.external_customer_id=e.external_customer_id))
-    ${lock ? sql`FOR UPDATE OF s,b` : sql``}`),
+    `),
     );
   return context ?? null;
 }
@@ -142,23 +144,38 @@ export async function readAbacatePayRenewalForEvent(
   apiKey: string,
 ): Promise<RecurringPaymentRead> {
   if (!(await recurringSchemaReady(database))) return { state: 'review' };
-  const context = await contextForEvent(database, account, eventId);
+  const context = await contextForAbacatePayRenewalSource(database, account, eventId);
   if (!context) return { state: 'review' };
-  const checkout = await createAbacatePayReadClient({
+  const read = createAbacatePayReadClient({
     apiKey,
     environment: 'sandbox',
     timeoutMs: 2000,
-  }).readSubscriptionCheckoutFinancials(context.checkout_id);
+  });
+  const original = context.checkout_id === context.origin_checkout_id;
+  const snapshot = original
+    ? await read.readSubscription(context.external_subscription_id)
+    : await read.readSubscriptionCheckoutFinancials(context.checkout_id);
   const target =
-    checkout.amount === context.pending_amount &&
-    checkout.items.length === 1 &&
-    checkout.items[0]?.id === context.pending_product_id;
+    snapshot.amount === context.pending_amount &&
+    (original ||
+      ('items' in snapshot &&
+        snapshot.items.length === 1 &&
+        snapshot.items[0]?.id === context.pending_product_id));
   const center = context.received_at.getTime();
-  return createAbacatePayRenewalPaymentReader(account, {
-    apiKey,
-    environment: 'sandbox',
-    timeoutMs: 2000,
-  }).readRenewalPayment({
+  return createAbacatePayRenewalPaymentReader(
+    account,
+    {
+      apiKey,
+      environment: 'sandbox',
+      timeoutMs: 2000,
+    },
+    fetch,
+    {
+      subscriptionId: context.external_subscription_id,
+      customerId: context.external_customer_id,
+      checkoutId: context.origin_checkout_id,
+    },
+  ).readRenewalPayment({
     subscriptionId: context.external_subscription_id,
     customerId: context.external_customer_id,
     originCheckoutId: context.origin_checkout_id,
@@ -179,21 +196,24 @@ export type RenewalApplication = 'applied' | 'duplicate' | 'historical' | 'revie
 export async function applyAbacatePayRenewalTx(
   tx: Tx,
   evidence: RecurringPaymentEvidence,
-  sourceEventId: string,
+  sourceInput: string | AbacatePayRenewalSource,
   now = new Date(),
 ): Promise<RenewalApplication> {
-  const recorded = await recordAbacatePayRecurringPaymentTx(tx, evidence, sourceEventId);
+  const source = parseAbacatePayRenewalSource(sourceInput);
+  if (!source) return 'review';
+  await lockAbacatePayRenewalSubscription(tx, evidence.account, source);
+  const context = await contextForAbacatePayRenewalSource(tx, evidence.account, source);
+  if (!context) return 'review';
+  const recorded = await recordAbacatePayRecurringPaymentTx(tx, evidence, sourceInput);
   if (recorded === 'review') return 'review';
-  const context = await contextForEvent(tx, evidence.account, sourceEventId, true);
   const target = Boolean(
     context?.pending_change_id &&
     context.pending_product_id === evidence.productId &&
     context.pending_amount === evidence.amountMinor,
   );
   if (
-    !context ||
-    (!target &&
-      (context.amount_minor !== evidence.amountMinor || context.product_id !== evidence.productId))
+    !target &&
+    (context.amount_minor !== evidence.amountMinor || context.product_id !== evidence.productId)
   )
     return 'review';
   const period = abacatePayRenewalPeriod({
@@ -223,10 +243,6 @@ export async function applyAbacatePayRenewalTx(
     WHERE account_id=${context.account_id}::uuid AND external_subscription_id=${evidence.subscriptionId}
       AND cycle_index=${period.index}`),
     );
-  if (existing.length)
-    return existing[0]?.payment_id === evidence.paymentId && existing[0]?.access_effect !== 'review'
-      ? 'duplicate'
-      : 'review';
   const canAdvance =
     context.current_generation &&
     context.monthly &&
@@ -242,6 +258,48 @@ export async function applyAbacatePayRenewalTx(
     (context.billing_status === 'active' || context.billing_status === 'past_due') &&
     period.end.getTime() > context.current_period_end.getTime() &&
     period.end.getTime() > now.getTime();
+  if (existing.length) {
+    if (existing[0]?.payment_id !== evidence.paymentId || existing[0]?.access_effect === 'review')
+      return 'review';
+    if (canAdvance && existing[0]?.access_effect === 'advanced') {
+      const [proof] = await tx.execute<{ valid: boolean }>(sql`
+        SELECT EXISTS(SELECT 1 FROM billing_gateway.recurring_access_periods r
+          JOIN public.invoices i ON i.id=r.invoice_id AND i.clinic_id=r.clinic_id AND i.subscription_id=r.subscription_id
+          WHERE r.account_id=${context.account_id}::uuid AND r.payment_id=${evidence.paymentId}
+            AND r.period_start=${period.start.toISOString()}::timestamptz AND r.period_end=${period.end.toISOString()}::timestamptz
+            AND i.status='paid' AND i.total_amount=${toReaisString(evidence.amountMinor)}
+            AND i.period_start=${period.start.toISOString().slice(0, 10)}::date AND i.period_end=${period.end.toISOString().slice(0, 10)}::date
+            AND EXISTS(SELECT 1 FROM public.payment_attempts p WHERE p.invoice_id=i.id AND p.clinic_id=i.clinic_id
+              AND p.provider='abacatepay' AND p.status='confirmed'
+              AND p.provider_payment_id=${billingResourceKey(evidence.account, 'payment', evidence.paymentId)})) valid`);
+      if (!proof?.valid) return 'review';
+      // Repair only the exact already-paid entitlement. Never add an invoice or another month.
+      await tx
+        .update(subscriptions)
+        .set({
+          currentPeriodStart: period.start,
+          currentPeriodEnd: period.end,
+          gracePeriodUntil: new Date(period.end.getTime() + DUNNING_READONLY_DAYS * 86_400_000),
+        })
+        .where(eq(subscriptions.id, context.subscription_id));
+      const idem = `abacatepay:${context.account_id}:${evidence.paymentId}`;
+      await activateSubscription(tx, context.clinic_id, idem);
+      await setClinicAccess(
+        tx,
+        context.clinic_id,
+        'enabled',
+        'verified renewal period repair',
+        idem,
+      );
+      await recordBillingEvent(tx, context.clinic_id, 'subscription.renewal.period_repaired', {
+        provider: 'abacatepay',
+        cycleIndex: period.index,
+        periodSource: 'existing_paid_ledger_and_fresh_readback',
+      });
+      return 'applied';
+    }
+    return 'duplicate';
+  }
   const historical =
     period.end.getTime() <= context.current_period_end.getTime() ||
     period.end.getTime() <= now.getTime();

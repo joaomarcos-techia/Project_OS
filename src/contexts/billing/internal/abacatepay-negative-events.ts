@@ -97,6 +97,15 @@ export async function readAbacatePayNegativeEvent(database: ManagementDatabase, 
       ? await createAbacatePayNegativePaymentReader(
           { provider: 'abacatepay', environment: 'sandbox', accountId: env.ABACATEPAY_STORE_ID },
           config,
+          fetch,
+          context.external_checkout_id === context.origin_checkout_id
+            ? {
+                checkoutId: context.external_checkout_id,
+                customerId: context.external_customer_id,
+                productId: context.product_id,
+                amountMinor: context.amount_minor,
+              }
+            : undefined,
         ).readRefund({
           checkoutId: context.external_checkout_id,
           customerId: context.external_customer_id,

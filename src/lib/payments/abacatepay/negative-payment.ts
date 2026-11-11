@@ -54,6 +54,12 @@ export function createAbacatePayNegativePaymentReader(
   account: BillingAccount,
   config: AbacatePayReadConfig,
   fetcher: typeof fetch = fetch,
+  consumedCheckout?: {
+    checkoutId: string;
+    customerId: string;
+    productId: string;
+    amountMinor: number;
+  },
 ) {
   billingAccountSchema.parse(account);
   if (
@@ -75,13 +81,21 @@ export function createAbacatePayNegativePaymentReader(
         throw new GatewayReadError('invalid_input');
       if ((await read.readStore()).id !== account.accountId)
         throw new GatewayReadError('binding_mismatch');
-      const checkout = await read.readSubscriptionCheckoutFinancials(expected.checkoutId);
+      const consumed =
+        consumedCheckout?.checkoutId === expected.checkoutId &&
+        consumedCheckout.customerId === expected.customerId &&
+        consumedCheckout.productId === expected.productId &&
+        consumedCheckout.amountMinor === expected.expectedAmountMinor;
+      const checkout = consumed
+        ? null
+        : await read.readSubscriptionCheckoutFinancials(expected.checkoutId);
       if (
-        checkout.customerId !== expected.customerId ||
-        checkout.amount !== expected.expectedAmountMinor ||
-        checkout.items.length !== 1 ||
-        checkout.items[0]?.id !== expected.productId ||
-        checkout.items[0]?.quantity !== 1
+        checkout &&
+        (checkout.customerId !== expected.customerId ||
+          checkout.amount !== expected.expectedAmountMinor ||
+          checkout.items.length !== 1 ||
+          checkout.items[0]?.id !== expected.productId ||
+          checkout.items[0]?.quantity !== 1)
       )
         throw new GatewayReadError('binding_mismatch');
       const ids = new Set<string>(),
@@ -106,8 +120,9 @@ export function createAbacatePayNegativePaymentReader(
           const time = Date.parse(item.createdAt);
           if (item.checkoutId !== expected.checkoutId || time < start || time >= end) continue;
           if (
-            item.customer?.publicId !== undefined &&
-            item.customer.publicId !== expected.customerId
+            (consumed && item.customer?.publicId !== expected.customerId) ||
+            (item.customer?.publicId !== undefined &&
+              item.customer.publicId !== expected.customerId)
           )
             throw new GatewayReadError('binding_mismatch');
           for (const movement of item.movements) {
@@ -121,7 +136,7 @@ export function createAbacatePayNegativePaymentReader(
         if (!result.pagination.hasMore) {
           if (result.pagination.next !== null) throw new GatewayReadError('pagination_invalid');
           return {
-            checkoutStatus: checkout.status,
+            checkoutStatus: checkout?.status ?? null,
             refundDebitMinor: total,
             reversalObserved: reversal,
             evidenceLevel:

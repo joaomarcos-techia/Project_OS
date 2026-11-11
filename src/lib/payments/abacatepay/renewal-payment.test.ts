@@ -51,6 +51,8 @@ type Options = {
   statements?: unknown[];
   extraSubscription?: boolean;
   statementStatus?: number;
+  consumedOrigin?: boolean;
+  deletedCheckout?: boolean;
 };
 function fixture(options: Options = {}) {
   const calls: URL[] = [];
@@ -107,6 +109,7 @@ function fixture(options: Options = {}) {
         };
         break;
       case '/v2/subscriptions/checkouts/get':
+        if (options.deletedCheckout) return new Response('{}', { status: 404 });
         expect(url.searchParams.get('id')).toBe(options.checkout?.id ?? 'bill_cycle');
         body = {
           success: true,
@@ -144,10 +147,105 @@ function fixture(options: Options = {}) {
       headers: { 'content-type': 'application/json' },
     });
   };
-  return { calls, reader: createAbacatePayRenewalPaymentReader(account, config, fetcher) };
+  return {
+    calls,
+    reader: createAbacatePayRenewalPaymentReader(
+      account,
+      config,
+      fetcher,
+      options.consumedOrigin
+        ? {
+            subscriptionId: input.subscriptionId,
+            customerId: input.customerId,
+            checkoutId: input.originCheckoutId,
+          }
+        : undefined,
+    ),
+  };
 }
 
 describe('renewal charge readback (no billing-period assertion or access grant)', () => {
+  const discoveryInput = {
+    subscriptionId: input.subscriptionId,
+    customerId: input.customerId,
+    originCheckoutId: input.originCheckoutId,
+    productId: input.productId,
+    expectedAmountMinor: input.expectedAmountMinor,
+  };
+  function recoveryFixture(overrides: Options = {}) {
+    return fixture({
+      subscription: { currentPeriodStart: '2026-12-09', currentPeriodEnd: '2027-01-09' },
+      checkout: { id: 'bill_origin', createdAt: '2026-11-09T00:31:00Z' },
+      statements: [statement({ checkoutId: 'bill_origin' })],
+      ...overrides,
+    });
+  }
+  it('discovers an exact new payment by GET without inventing a webhook or charge', async () => {
+    const { reader, calls } = recoveryFixture();
+    expect(await reader.discoverRenewalPayment(discoveryInput)).toMatchObject({
+      state: 'paid',
+      evidence: {
+        paymentId: 'char_cycle',
+        statementId: 'tran_cycle',
+        providerPeriodStart: '2026-12-09',
+      },
+    });
+    expect(calls.some((url) => url.pathname === '/v2/bank-statement/list')).toBe(true);
+  });
+  it('recovers an exact renewal after the consumed original checkout is no longer queryable', async () => {
+    const { reader, calls } = recoveryFixture({
+      consumedOrigin: true,
+      deletedCheckout: true,
+      subscription: { currentPeriodStart: '2026-12-09', currentPeriodEnd: '2027-01-09' },
+      statements: [statement({ checkoutId: 'bill_origin' })],
+    });
+    expect(await reader.discoverRenewalPayment(discoveryInput)).toMatchObject({
+      state: 'paid',
+      evidence: { paymentId: 'char_cycle', paidAmountMinor: 39700 },
+    });
+    expect(calls.some((url) => url.pathname === '/v2/subscriptions/checkouts/get')).toBe(false);
+  });
+  it('does not use a consumed-origin proof to bypass a different cycle checkout', async () => {
+    const { reader } = fixture({ consumedOrigin: true, deletedCheckout: true });
+    await expect(reader.readRenewalPayment(input)).rejects.toMatchObject({ code: 'not_found' });
+  });
+  it.each([
+    [
+      statement({ checkoutId: 'bill_origin' }),
+      statement({ id: 'tran_second', paymentIntentId: 'char_second', checkoutId: 'bill_origin' }),
+    ],
+    [statement({ checkoutId: 'bill_origin', customer: null })],
+    [statement({ checkoutId: 'bill_origin', customer: { publicId: 'cust_other' } })],
+    [
+      statement({
+        checkoutId: 'bill_origin',
+        movements: [
+          {
+            kind: 'CARD_APPROVED',
+            amount: 39699,
+            method: 'CARD',
+            category: 'transaction',
+            balanceEffect: 'none',
+          },
+        ],
+      }),
+    ],
+  ])('refuses ambiguous or unbound receipt discovery %j', async (...statements) => {
+    const { reader } = recoveryFixture({ statements });
+    await expect(reader.discoverRenewalPayment(discoveryInput)).rejects.toMatchObject({
+      code: 'binding_mismatch',
+    });
+  });
+  it('does not turn an absent payment into confirmation', async () => {
+    expect(
+      await recoveryFixture({ statements: [] }).reader.discoverRenewalPayment(discoveryInput),
+    ).toEqual({ state: 'pending' });
+  });
+  it('requires a provider paid-period snapshot for discovery', async () => {
+    expect(
+      await recoveryFixture({ subscription: {} }).reader.discoverRenewalPayment(discoveryInput),
+    ).toEqual({ state: 'review' });
+  });
   it('accepts the current original-checkout contract only with a new API paid period and exact new card receipt', async () => {
     const { reader } = fixture({
       subscription: { currentPeriodStart: '2026-12-09', currentPeriodEnd: '2027-01-09' },

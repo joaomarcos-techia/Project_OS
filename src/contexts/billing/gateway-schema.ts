@@ -76,7 +76,14 @@ export const gatewayOperations = gateway.table(
     subscriptionId: uuid('subscription_id').notNull(),
     clinicId: uuid('clinic_id').notNull(),
     kind: text('kind', {
-      enum: ['create_checkout', 'change_plan', 'cancel_subscription', 'proration_checkout'],
+      enum: [
+        'create_checkout',
+        'change_plan',
+        'cancel_subscription',
+        'proration_checkout',
+        'recontract_checkout',
+        'close_paid_checkout',
+      ],
     }).notNull(),
     businessKey: text('business_key').notNull(),
     requestHash: text('request_hash').notNull(),

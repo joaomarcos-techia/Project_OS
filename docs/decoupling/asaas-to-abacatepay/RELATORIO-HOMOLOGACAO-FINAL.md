@@ -1,6 +1,6 @@
 # Homologação financeira AbacatePay — Qoro
 
-**Leitura atual:** [seção 27 — continuidade sem aguardar suporte](#27-continuidade-sem-aguardar-suporte--09112026). O proprietário informou o envio da solicitação; a resposta está pendente. Checkpoints anteriores permanecem históricos, não instrução de reenviar ou repetir pagamentos.
+**Leitura atual:** [seção 41 — recuperação financeira e fechamento preparado](#41-recuperação-financeira-e-fechamento-preparado--11112026). As cinco compras iniciais permanecem homologadas. A resposta do suporte já foi recebida; não reenviar solicitação nem repetir pagamentos. Os checkpoints anteriores são históricos e não descrevem necessariamente a implementação mais recente.
 
 Iniciado em **09/11/2026**, antes das alterações desta rodada. **As seções 1–8 preservam o checkpoint H0 anterior à implementação; as seções 9–25 registram o fechamento diferencial.** Referência para futura ativação, **não autorização de Produção**. Este relatório consolida os [planos existentes](PLANO-MESTRE-MIGRACAO-ASAAS-ABACATEPAY.md), o [diário](PLANO-EXECUCAO-CONTINUIDADE.md), a [renovação](PLANO-CONTINUIDADE-RENOVACAO-E-HOMOLOGACAO.md) e a [matriz financeira](MATRIZ-CENARIOS-E-TESTES.md); não os substitui por regras comerciais novas.
 
@@ -697,3 +697,57 @@ Os outros registros fornecidos são distintos: **7590707702**, de 09/11, é CONN
 Foi confirmada uma falha de classificação no código atual: o SDK do navegador usava NODE_ENV, que é production também no build de Preview. A candidata passa a usar **NEXT_PUBLIC_VERCEL_ENV**, metadata pública automática da Vercel para Next.js, com fallback local; [contrato oficial](https://vercel.com/docs/environment-variables/framework-environment-variables#next_public_vercel_env). Não houve configuração de env/deploy ou inclusão de segredo. Schema e registro público/inventário foram atualizados; scrub, ausência de PII e Session Replay desligado foram preservados. **58/58 testes afetados PASS**, incluindo 8 de ambiente, sanitização e headers. Esses testes se sobrepõem aos testes anteriores e não devem ser somados.
 
 O E2E de fixture paga agora registra somente categorias sanitizadas de erros não tratados do navegador e reprova hidratação/parentNode ou outro erro não tratado. Sua execução na nova versão do Preview e a CI final são registradas nos checks/corpo do PR #53. Não é correção comprovada da origem do erro histórico nem homologação nova de pagamento.
+
+## 41. Recuperação financeira e fechamento preparado — 11/11/2026
+
+Baseline preservada: `a5984e2316c596cb4228ae37daa47b1ef4036872`, [CI 43020053694 SUCCESS](https://github.com/joaomarcos-techia/Project_OS/actions/runs/43020053694), 6.971 testes e 22 E2E/zero SKIP. O incremento desta seção tem provas próprias; não herda a aprovação da baseline. Nenhum novo checkout, pagamento, SQL remoto, merge ou mudança de Production. As quatro exclusões antigas de vídeos continuam fora do trabalho financeiro.
+
+### Recuperação financeira sem evento
+
+Implementados `abacatepay-renewal-recovery.ts` e `abacatepay-renewal-source.ts`. O cron existente pode descobrir uma renovação por **GETs autenticados**: loja, produto, assinatura exata, vínculo único do checkout e extrato paginado. Exige cliente exato, cartão aprovado integral, payment/statement novos e período pago posterior ao inicial. Não consulta uma API inexistente de faturas por assinatura. Datas ou ACTIVE sozinhos não concedem acesso. Mais de um receipt, ambiente, valor ou vínculo divergente exigem revisão.
+
+A origem independente fica em `billing_gateway.renewal_api_readbacks`, privada, imutável, com hash canônico e FKs. Não é criada uma linha fictícia no inbox. A observação aceita exatamente **uma** origem: webhook autenticado ou readback da API. Invoice, pagamento, ledger, plano/cotas e período são aplicados na mesma transação; falha reverte o conjunto. O calendário original do Qoro permanece. Um ledger já pago só repara seu período local exato após conferir invoice, valor, datas e tentativa confirmada; não cria outro mês nem invoice.
+
+A revisão encontrou uma corrida ao adquirir lock e ler joins de plano na mesma instrução: uma consulta que aguardou podia conservar a visão antiga do join. Agora o lock da assinatura precede a leitura do contexto, e ambos os caminhos usam a mesma ordem. Os 12 processamentos concorrentes da troca de plano voltaram a produzir uma aplicação e 11 duplicatas. Nenhuma asserção foi retirada.
+
+O novo worker faz no máximo uma descoberta por chamada, duas tentativas por GET, timeout por leitura de 1,5s e orçamento total de 12s. Não inicia sem orçamento nem sem o novo schema. O cron atual é diário e compartilha orçamento com Asaas/inbox/gestão; **não promete recuperação imediata ou processamento ilimitado**. A capacidade/frequência de um piloto real precisa de dimensionamento e autorização operacional. Não houve alteração da agenda nem custo.
+
+**Limites:** o modo atual recupera um receipt inequívoco no período remoto atual. Ausência das datas, múltiplos recibos, ciclos antigos não enumeráveis e associações ambíguas continuam para revisão humana. Não há override administrativo para marcar como pago. Sem o SQL coordenado, o novo worker fica inativo e o modelo de renovação com checkout original continua em revisão.
+
+### Checkout consumido e fechamento
+
+O ledger `paid_checkouts` e a invoice paga continuam sendo a prova de consumo local. Um novo `subscription.completed` da mesma assinatura/cliente já consumidos é reconhecido sem recriar invoice ou ativar direitos, mesmo depois de apagar o link remoto. Mais de uma assinatura remota ou outra identidade gera revisão.
+
+Preparado `closeConsumedAbacatePayCheckout`, exclusivamente interno e Sandbox. Ele exige geração paga vinculada, invoice/valor corretos e schema adequado, confere o recurso e a assinatura, reserva `close_paid_checkout` no journal durável e usa o [endpoint oficial de exclusão](https://docs.abacatepay.com/pages/subscriptions/checkouts-delete). Depois confere que a assinatura sobreviveu. Resposta perdida, divergência ou falha do journal permanecem `unknown`; **não há segundo POST automático**. Snapshot/resultados ficam preservados. Não remove ledger, invoice, binding, assinatura nem histórico local.
+
+As leituras de renovação, prova do ciclo para mudança de plano e refund do checkout original podem usar a geração local consumida, mantendo a consulta real de assinatura/produto/extrato e cliente. Não inventam um status de checkout quando ele deixou de existir. Refund de ciclo sem associação inequívoca continua em revisão, sem revogar o período pago.
+
+**O comando não foi conectado ao cron nem disparado contra as fixtures retidas.** A invalidação remota e os GETs posteriores ainda precisam do ensaio externo específico. Os testes locais abaixo não são prova de exclusão real, recibo público disponível ou futura renovação no provedor. O intervalo antes do webhook ainda pode permitir outro pagador remoto; o monitor de multiplicidade continua necessário. Não existe garantia nativa de link de uso único.
+
+### Schema financeiro e TISS
+
+Readback DEV: 144 entradas, com `0143_tiss_catalog` exata (`when=1794330000000`, hash `9f9b483a…`). Nenhuma 0144–0147 nem candidato financeiro aplicada pelo executor. Financeiro conserva journal 0–142. O TISS avançou localmente para `9382c4629d873dc6d2cdbec3ff045a7539ccff0d` durante esta rodada; 0143–0147 estão ocupadas. A branch remota deve ser conferida de novo no momento da integração.
+
+O SQL permanece em `migrations/saas_period_snapshot.candidate.sql`, **sem número e fora do journal**, com período/proveniência privados e ampliação aditiva da categoria de operação. Não se alterou nenhuma migration já aplicada.
+
+O harness `abacatepay-tiss-schema-db.ts` passou **5/5**: financeiro→TISS, TISS→financeiro, rollback dos dois ensaios e identidade/ordem do histórico comum. Confere schema, constraints, RLS, catálogo de planos/preços e ausência de escrita no worktree TISS. Não prova toda a funcionalidade TISS nem equivale a aplicar migrations no histórico remoto.
+
+**Estratégia recomendada:** preservar integralmente 0143–0147 e seus timestamps/hashes; preparar revisão/merge do PR53 antes do PR55 sem aplicar o candidato isoladamente. Na integração autorizada, construir um journal único 0–147 e só então registrar o financeiro na próxima posição realmente livre, com `when` posterior ao último TISS. Não assumir que 0148 continuará livre. A ordem de merge de código não precisa coincidir com a ordem de aplicação SQL. Nunca aplicar um timestamp financeiro mais alto e depois tentar inserir TISS com timestamps antigos: o migrator pode ignorá-los. Se o financeiro tiver que ir ao DEV antes do TISS, será necessária uma alocação conjunta diferente dos **ainda não aplicados**, com novo ensaio; não renumerar silenciosamente o trabalho do outro agente.
+
+Pré/postflight, impacto e recuperação estão no runbook §9. Falta autorização específica do founder para o schema reconciliado no DEV; não há SQL que ele precise executar manualmente agora.
+
+### Operação, Sentry e MFA
+
+A ingestão/visibilidade do probe Issue7842026780 está comprovada pelo provider e pelo founder. O founder confirmou **nenhuma notificação externa recebida**. API administrativa continua HTTP401; inventário do navegador nesta rodada retornou `browser access host is unavailable`/native pipe indisponível. Nenhuma regra, destinatário ou MFA foi alterado e nenhum probe repetido. O [runbook §10](../../runbooks/abacatepay-operacao.md#10-ações-humanas-que-continuam-necessárias) contém os controles e rótulos atuais para conferir a regra Preview, testar a ação e só depois testar o disparo real.
+
+O Sentry de cliente/server/edge conserva a correção de identificação de Preview e os testes da baseline; não houve alteração nesses arquivos neste incremento. Isso não corrige retrospectivamente a causa de hidratação da Issue7730223576, que não foi reproduzida. A causa do CONNECT_TIMEOUT local da Issue7590707702 continua indeterminada.
+
+Readback DEV em 11/11: 2 superadmins ativos, 2 com MFA marcado e 2 fatores nativos verificados. Os controles de AAL2/TOTP e os testes de RBAC permanecem. A jornada interativa e MFA de cada provedor externo exigem a conferência do titular; nenhum token foi usado para contornar MFA.
+
+### Resultados e decisão
+
+- PostgreSQL loopback: **115/115**, 143 migrations reais mais candidato, 537 chamadas HTTP sintéticas, **zero rede externa**. Preserva os 92 anteriores e acrescenta descoberta sem evento, oito workers concorrentes, webhook posterior, invoice ausente, período local desatualizado, rollback/retry, ausência de prova, tenant incorreto, RLS, fechamento/timeout e leitura posterior de renovação/plano/refund. Fonte: `scripts/security/abacatepay-renewal-db.ts`.
+- SQL financeiro/TISS: **5/5**, conforme escopo restrito acima. Fonte: `scripts/security/abacatepay-tiss-schema-db.ts`, com `QORO_TISS_WORKTREE` apontando para a cópia autorizada somente leitura.
+- Os gates globais, CI e Preview do commit publicado ficam no checkpoint de evidências desta seção e nos checks do PR53; o resultado final é registrado após execução, sem inferir PASS.
+
+**NO-GO para ativar AbacatePay em Production.** Engenharia deste incremento preparada/testada localmente; aplicação integrada do schema e prova externa do fechamento ainda pendentes. Também permanecem: notificação efetivamente entregue, MFA operacional, eventos recorrentes externos não simuláveis e composição live revisada. Nenhum requisito de aceite foi removido. Trial, preços, cotas, cancelamento, contratos legados e cobranças de pacientes Asaas permanecem preservados. O trabalho não exigiu novo pagamento humano.

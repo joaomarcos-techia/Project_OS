@@ -14,6 +14,7 @@ const inputSchema = z.object({
   periodStart: z.iso.datetime({ offset: true }),
   periodEnd: z.iso.datetime({ offset: true }),
   paymentId: opaqueBillingId.optional(),
+  requireCustomer: z.boolean().optional(),
 });
 const statementSchema = z.object({
   id: resource('tran_'),
@@ -111,6 +112,7 @@ export async function readApprovedCardStatement(
         continue;
       if (
         !item.paymentIntentId ||
+        (expected.requireCustomer === true && item.customer?.publicId !== expected.customerId) ||
         (item.customer && item.customer.publicId !== expected.customerId)
       )
         throw new GatewayReadError('binding_mismatch');

@@ -35,6 +35,7 @@ const postPaths = new Set([
   '/subscriptions/create',
   '/subscriptions/change-plan',
   '/subscriptions/cancel',
+  '/subscriptions/checkouts/delete',
 ]);
 
 /** A POST may have committed even if HTTP/parsing fails. No raw cause/body is retained. */
@@ -67,12 +68,21 @@ export function createAbacatePayTransport(
   async function requestOnce(
     input:
       | { method: 'GET'; path: string; params?: URLSearchParams }
-      | { method: 'POST'; path: string; body: unknown },
+      | { method: 'POST'; path: string; body: unknown; params?: URLSearchParams },
   ): Promise<unknown> {
     if (!(input.method === 'GET' ? getPaths : postPaths).has(input.path)) {
       throw new GatewayReadError('invalid_input');
     }
-    const params = input.method === 'GET' ? input.params : undefined;
+    if (
+      input.method === 'POST' &&
+      (input.path === '/subscriptions/checkouts/delete'
+        ? !input.params ||
+          [...input.params.keys()].join(',') !== 'id' ||
+          !/^bill_[A-Za-z0-9_-]+$/.test(input.params.get('id') ?? '')
+        : input.params !== undefined)
+    )
+      throw new GatewayReadError('invalid_input');
+    const params = input.params;
     const url = `${API_V2}${input.path}${params ? `?${params.toString()}` : ''}`;
     let body: string | undefined;
     if (input.method === 'POST') {

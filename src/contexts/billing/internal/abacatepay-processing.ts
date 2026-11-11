@@ -281,7 +281,8 @@ export async function reconcileAbacatePayInbox(input: { eventId?: string } = {})
       lease_token=NULL,lease_until=NULL,processed_at=now()
       WHERE account_id=${event!.account_id}::uuid AND event_id=${event!.event_id}
         AND state='processing' AND lease_token=${token}::uuid RETURNING event_id`);
-    if (changed.length) observeOutcome(state, reason);
+    if (changed.length)
+      observeOutcome(reason === 'initial_payment_already_consumed' ? 'duplicate' : state, reason);
   }
   // A process can die during its final lease. One final reservation only
   // closes that stale lease for review; it never performs an eleventh readback.
@@ -457,6 +458,40 @@ export async function reconcileAbacatePayInbox(input: { eventId?: string } = {})
       };
     }
     const verifiedIntent = intent;
+    const [consumed] = z
+      .array(z.object({ paid: z.boolean() }))
+      .max(1)
+      .parse(
+        await dbAdmin.execute(sql`
+        SELECT EXISTS(
+          SELECT 1 FROM public.invoices invoice WHERE invoice.clinic_id=${intent.clinic_id}::uuid
+            AND invoice.subscription_id=${intent.subscription_id}::uuid AND invoice.status='paid'
+            AND invoice.total_amount=${toReaisString(intent.amount_minor)} AND (
+              EXISTS(SELECT 1 FROM billing_gateway.paid_checkouts p JOIN billing_gateway.bindings b
+                ON b.account_id=p.account_id AND b.subscription_id=p.subscription_id AND b.clinic_id=p.clinic_id
+                WHERE p.invoice_id=invoice.id AND p.account_id=${event.account_id}::uuid
+                  AND p.checkout_id=${remote.checkoutId} AND b.external_subscription_id=${remote.id}
+                  AND b.external_customer_id=${remote.customerId})
+              OR EXISTS(SELECT 1 FROM billing_gateway.recontracts r WHERE r.invoice_id=invoice.id
+                AND r.account_id=${event.account_id}::uuid AND r.external_checkout_id=${remote.checkoutId}
+                AND r.external_subscription_id=${remote.id} AND r.external_customer_id=${remote.customerId})
+            )) paid`),
+      );
+    if (consumed?.paid) {
+      const linked = await read.listSubscriptionsForCheckout(remote.checkoutId);
+      if (
+        linked.length !== 1 ||
+        linked[0]?.id !== remote.id ||
+        linked[0]?.customerId !== remote.customerId
+      ) {
+        await finish('review', 'consumed_checkout_binding_mismatch');
+        return { applied: 0, review: 1, scanned: 1 };
+      }
+      // No activation or financial mutation: the original intent already has a
+      // paid immutable ledger. This remains valid after the remote link closes.
+      await finish('applied', 'initial_payment_already_consumed');
+      return { applied: 0, review: 0, scanned: 1 };
+    }
     const product = await read.readProduct(intent.product_id);
     if (
       product.cycle !== 'MONTHLY' ||
