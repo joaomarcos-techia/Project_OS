@@ -116,3 +116,9 @@ Em 11/11, o SDK Sentry do navegador passou a consumir **NEXT_PUBLIC_VERCEL_ENV**
 Nenhuma variável nova é necessária para o código de recuperação GET-only ou para preparar o fechamento. Usa os nomes Sandbox já auditados, schema readiness e um comando interno explícito; não há cron de exclusão habilitado. O cron de conciliação não mudou de horário. O SQL candidato continua fora do DEV, portanto sua recuperação independente ainda não está ativa no Preview compartilhado.
 
 Os cinco pagamentos iniciais foram concluídos; a menção anterior à frase de criação é histórica. Não pagar/criar outro checkout para testar este incremento. Nenhuma variável de Production foi lida em claro, alterada ou copiada. A composição live continua sendo implementação/revisão própria: não basta trocar a API key ou o valor de um seletor para liberar Production.
+
+## Continuidade e falha de banco — 11/11
+
+A fronteira de captura adicionada ao worker usa o mesmo flow Sentry e as variáveis existentes. Não requer nova variável, segredo, mudança de Vercel ou configuração do workflow. A indisponibilidade anterior de apt/DNS não foi tratada trocando credenciais ou enfraquecendo TLS: a nova tentativa da CI de `b6965447` passou sem essas alterações. O histórico de nomes/escopos acima permanece datado da auditoria original, não uma nova leitura em claro de Production.
+
+A instrução de manter migrations das branches separadas não cria um segundo banco nem um journal financeiro paralelo. O DEV permanece compartilhado e exige uma sequência futura acordada antes de aplicar o candidato. Nenhuma variável pode substituir essa dependência ou habilitar a composição live ainda não implementada.

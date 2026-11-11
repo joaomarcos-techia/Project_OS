@@ -226,6 +226,7 @@ function installHttpFixture(
     extraSubscription?: boolean;
     emptySubscriptions?: boolean;
     providerPeriod?: { start: string; end: string };
+    amountMinor?: number;
     subscription?: Record<string, unknown>;
     emptyStatements?: boolean;
     extraStatement?: boolean;
@@ -257,7 +258,7 @@ function installHttpFixture(
       id: f.evidence.subscriptionId,
       checkoutId: f.evidence.originCheckoutId,
       customerId: f.evidence.customerId,
-      amount: 39700,
+      amount: options.amountMinor ?? 39700,
       status:
         closed && options.close === 'subscription_changed'
           ? 'CANCELLED'
@@ -283,7 +284,7 @@ function installHttpFixture(
         data = {
           id: url.searchParams.get('id') ?? 'prod_synthetic',
           externalId: 'local-renewal',
-          price: 39700,
+          price: options.amountMinor ?? 39700,
           currency: 'BRL',
           devMode: true,
           cycle: options.cycle ?? 'MONTHLY',
@@ -340,7 +341,7 @@ function installHttpFixture(
               customer: { publicId: f.evidence.customerId },
               movements: [
                 {
-                  amount: 39700,
+                  amount: options.amountMinor ?? 39700,
                   kind: 'CARD_APPROVED',
                   method: 'CARD',
                   category: 'transaction',
@@ -350,7 +351,13 @@ function installHttpFixture(
                   ? [{ amount: options.refundMinor, category: 'refund', balanceEffect: 'debit' }]
                   : []),
                 ...(options.reversal
-                  ? [{ amount: 39700, category: 'reversal', balanceEffect: 'credit' }]
+                  ? [
+                      {
+                        amount: options.amountMinor ?? 39700,
+                        category: 'reversal',
+                        balanceEffect: 'credit',
+                      },
+                    ]
                   : []),
               ],
             },
@@ -365,7 +372,7 @@ function installHttpFixture(
                     customer: { publicId: f.evidence.customerId },
                     movements: [
                       {
-                        amount: 39700,
+                        amount: options.amountMinor ?? 39700,
                         kind: 'CARD_APPROVED',
                         method: 'CARD',
                         category: 'transaction',
@@ -1671,6 +1678,36 @@ try {
   }
   const queue = (input: unknown, actor = operatorId) =>
     dbAdmin.transaction((tx) => authorizeReplay(tx, input, actor));
+  for (const condition of ['inactive', 'soft_deleted'] as const) {
+    await check(
+      `OPS revoked ${condition} operator cannot authorize a financial replay`,
+      async () => {
+        const f = await reviewFixture(),
+          revokedId = randomUUID(),
+          before = await financialFingerprint(f);
+        await sql`INSERT INTO auth.users(id,email) VALUES(${revokedId}::uuid,${`${revokedId}@example.invalid`})`;
+        await sql`INSERT INTO public.profiles(id,clinic_id,nome,role,ativo,deleted_at)
+        VALUES(${revokedId}::uuid,NULL,'Synthetic revoked operator','super_admin',
+          ${condition !== 'inactive'},${condition === 'soft_deleted' ? new Date() : null})`;
+        await assert.rejects(queue(await approvalInput(f), revokedId), (error) => {
+          assert.ok(
+            error instanceof Error && typeof error.cause === 'object' && error.cause !== null,
+          );
+          assert.ok('code' in error.cause && error.cause.code === '23514');
+          assert.ok(
+            'constraint_name' in error.cause &&
+              error.cause.constraint_name === 'gateway_review_actor_binding',
+          );
+          return true;
+        });
+        assert.deepEqual(await financialFingerprint(f), before);
+        const [row] = await sql`SELECT state,attempts,
+        (SELECT count(*)::int FROM billing_gateway.review_replays WHERE event_id=${f.eventId}) approvals
+        FROM billing_gateway.event_inbox WHERE event_id=${f.eventId}`;
+        assert.deepEqual(row, { state: 'review', attempts: 10, approvals: 0 });
+      },
+    );
+  }
   await check(
     'OPS-001 one audited replay preserves all financial fields and cumulative attempts',
     async () => {
@@ -2320,8 +2357,11 @@ try {
       assert.deepEqual(await state(f), before);
     },
   );
-  async function recoveryFixture(options: Parameters<typeof installHttpFixture>[1] = {}) {
-    const f = await seed();
+  async function recoveryFixture(
+    options: Parameters<typeof installHttpFixture>[1] = {},
+    endOffsetMs = -120_000,
+  ) {
+    const f = await seed(endOffsetMs);
     f.evidence = {
       ...f.evidence,
       checkoutId: f.evidence.originCheckoutId,
@@ -2459,6 +2499,130 @@ try {
       },
     );
   }
+  await check(
+    'RECOVERY quota-change failure rolls back payment, provenance and pending plan; retry grants exactly three seats',
+    async () => {
+      const f = await recoveryFixture();
+      // Synthetic intent requested during the preceding paid period. The real
+      // scheduling command is covered by MATRIX; an expired period correctly
+      // rejects a new command, so do not weaken that guard to prepare recovery.
+      const targetPlanId = await targetPlan('clinica_2026_3');
+      await sql`INSERT INTO billing_gateway.plan_changes(account_id,subscription_id,clinic_id,
+        external_subscription_id,generation_id,from_price_id,to_price_id,to_plan_id,product_id,
+        amount_minor,effective_not_before,requested_by,requested_at,external_change_id)
+        SELECT ${f.account_id}::uuid,${f.subscription_id}::uuid,${f.clinicId}::uuid,
+          ${f.evidence.subscriptionId},${f.subscription_id}::uuid,s.price_id,p.id,${targetPlanId}::uuid,
+          'prod_three',54400,${f.end},${f.userId}::uuid,${f.anchor},${`subu_${randomUUID().replaceAll('-', '')}`}
+        FROM public.subscriptions s JOIN public.prices p ON p.plan_id=${targetPlanId}::uuid
+          AND p.billing_cycle='monthly' AND p.campaign_code IS NULL
+        WHERE s.id=${f.subscription_id}::uuid`;
+      f.evidence = changedEvidence(f, 54400, 'prod_three');
+      installHttpFixture(f, { providerPeriod: providerDates(f), amountMinor: 54400 });
+      const before = await state(f),
+        planBefore = await projection(f),
+        commandsBefore = planPosts;
+      await sql.unsafe(`CREATE FUNCTION public.synthetic_quota_failure() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN RAISE EXCEPTION 'Synthetic quota persistence failure'; END $$;
+        CREATE TRIGGER synthetic_quota_failure BEFORE UPDATE OF plan_id ON public.subscriptions
+        FOR EACH ROW WHEN (OLD.plan_id IS DISTINCT FROM NEW.plan_id)
+        EXECUTE FUNCTION public.synthetic_quota_failure();`);
+      try {
+        assert.equal((await recover(f)).failed, 1);
+        assert.deepEqual(await state(f), before);
+        assert.deepEqual(await projection(f), planBefore);
+        assert.equal(await sourceCount(f), 0);
+        const [pending] =
+          await sql`SELECT invoice_id IS NULL pending FROM billing_gateway.plan_changes
+          WHERE subscription_id=${f.subscription_id}::uuid`;
+        assert.equal(pending?.pending, true);
+      } finally {
+        await sql.unsafe(`DROP TRIGGER synthetic_quota_failure ON public.subscriptions;
+          DROP FUNCTION public.synthetic_quota_failure();`);
+      }
+      assert.equal((await recover(f)).applied, 1);
+      assert.equal((await projection(f)).code, 'clinica_2026_3');
+      assert.equal((await state(f)).invoices, 2);
+      assert.equal(await sourceCount(f), 1);
+      assert.equal((await recover(f)).applied, 0);
+      assert.equal(planPosts, commandsBefore, 'Recovery must not issue another plan command');
+      const [invoice] = await sql`SELECT i.total_amount::text amount FROM public.invoices i
+        JOIN billing_gateway.plan_changes p ON p.invoice_id=i.id WHERE p.subscription_id=${f.subscription_id}::uuid`;
+      assert.equal(invoice?.amount, '544.00');
+      for (let index = 0; index < 4; index++) {
+        const id = randomUUID();
+        await sql`INSERT INTO auth.users(id,email) VALUES(${id}::uuid,${`${id}@example.invalid`})`;
+        const insert = () => sql`INSERT INTO public.profiles(id,clinic_id,nome,role,ativo)
+          VALUES(${id}::uuid,${f.clinicId}::uuid,'Synthetic recovered doctor','doctor',true)`;
+        if (index < 3) await insert();
+        else
+          await assert.rejects(insert(), {
+            code: '23514',
+            constraint_name: 'offer_2026_seat_limit',
+          });
+      }
+    },
+  );
+  await check(
+    'RECOVERY interruption in operational audit after financial commit never duplicates the paid cycle on retry',
+    async () => {
+      const f = await recoveryFixture();
+      await sql.unsafe(`CREATE FUNCTION public.synthetic_observation_audit_failure() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN
+          IF NEW.type='subscription.renewal_recovery.observed' THEN
+            RAISE EXCEPTION 'Synthetic post-commit observation failure';
+          END IF;
+          RETURN NEW;
+        END $$;
+        CREATE TRIGGER synthetic_observation_audit_failure BEFORE INSERT ON public.billing_events
+        FOR EACH ROW EXECUTE FUNCTION public.synthetic_observation_audit_failure();`);
+      try {
+        const result = await recover(f);
+        assert.equal(result.applied, 1);
+        assert.equal(result.failed, 1);
+        assert.equal((await state(f)).invoices, 2);
+        assert.equal((await state(f)).cycles, 1);
+      } finally {
+        await sql.unsafe(`DROP TRIGGER synthetic_observation_audit_failure ON public.billing_events;
+          DROP FUNCTION public.synthetic_observation_audit_failure();`);
+      }
+      const paid = await state(f);
+      assert.equal((await recover(f)).applied, 0);
+      assert.deepEqual(await state(f), paid);
+      assert.equal(await sourceCount(f), 1);
+    },
+  );
+  await check(
+    'RECOVERY an older API receipt after a newer paid cycle cannot regress the subscription or issue another invoice',
+    async () => {
+      const f = await recoveryFixture({}, -35 * 86_400_000),
+        oldEvidence = f.evidence;
+      const historical = await recover(f);
+      assert.equal(historical.applied, 0);
+      assert.equal(historical.historical, 1);
+      const start = month(f.anchor, 2),
+        end = month(f.anchor, 3),
+        suffix = randomUUID().replaceAll('-', '');
+      f.evidence = {
+        ...oldEvidence,
+        paymentId: `char_newer_${suffix}`,
+        statementId: `tran_newer_${suffix}`,
+        providerPeriodStart: start.toISOString().slice(0, 10),
+        providerPeriodEnd: end.toISOString().slice(0, 10),
+        chargeCreatedAt: start.toISOString(),
+        confirmedAt: new Date(start.getTime() + 1000).toISOString(),
+      };
+      installHttpFixture(f, { providerPeriod: providerDates(f) });
+      assert.equal((await recover(f)).applied, 1);
+      const paid = await state(f);
+      assert.equal(paid.invoices, 3);
+      assert.equal(paid.cycles, 2);
+      f.evidence = oldEvidence;
+      installHttpFixture(f, { providerPeriod: providerDates(f) });
+      assert.equal((await recover(f)).applied, 0);
+      assert.deepEqual(await state(f), paid);
+      assert.equal(await sourceCount(f), 2);
+    },
+  );
   await check(
     'RECOVERY transient provider failure and timeout preserve proof and recover with GET only',
     async () => {

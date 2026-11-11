@@ -679,5 +679,291 @@
     "source": "GitHub Actions checks for final published HEAD, linked in PR53 body",
     "fixedResultNotEmbedded": true
   },
-  "readiness": "NO_GO_PRODUCTION"
+  "readiness": "NO_GO_PRODUCTION",
+  "followup": {
+    "observedAt": "2026-11-11T17:25:07.296Z",
+    "baseline": "b6965447fa4052a35732040f170b155eb053bff3",
+    "sourceHashesLF": {
+      "scripts/security/abacatepay-renewal-db.ts": "65628a43c75bf19dc4b0e2ebb8a3270cd0cb09232dd2dba32a9731f528d53fdd",
+      "src/app/(admin)/admin/actions/abacatepay-review.test.ts": "d8c4ee8bd46b5751e75288ef5e1248d25e1ee89190847bd7349c40506bd9e675",
+      "src/contexts/billing/internal/abacatepay-renewal-recovery.ts": "2ec51ddac2208e0c1325e05f3d5512c217c915940331979c504bad499a4f4889",
+      "src/contexts/billing/internal/abacatepay-renewal-recovery.test.ts": "bc418d6324a7da2584bde238a2f803f051ff673f9643b3b9928641de064310ac"
+    },
+    "scope": "Financial branch only; no TISS migration or journal imported",
+    "confirmedBug": "Schema/candidate/failure-audit database failures escaped the billing-specific Sentry flow; three RED tests before the fix",
+    "postgres": {
+      "status": "PASS",
+      "checks": 120,
+      "includesPrevious": 115,
+      "newCheckNames": [
+        "OPS revoked inactive operator cannot authorize a financial replay",
+        "OPS revoked soft_deleted operator cannot authorize a financial replay",
+        "RECOVERY quota-change failure rolls back payment, provenance and pending plan; retry grants exactly three seats",
+        "RECOVERY interruption in operational audit after financial commit never duplicates the paid cycle on retry",
+        "RECOVERY an older API receipt after a newer paid cycle cannot regress the subscription or issue another invoice"
+      ],
+      "fixtureHttpCalls": 601,
+      "externalNetworkCalls": 0
+    },
+    "unit": {
+      "startedAt": "2026-11-11T17:22:55.249Z",
+      "finishedAt": "2026-11-11T17:23:02.129Z",
+      "exitCode": 0,
+      "status": "PASS",
+      "passed": 101,
+      "files": [
+        "src/contexts/billing/internal/abacatepay-renewal-recovery.test.ts",
+        "src/app/(admin)/admin/actions/abacatepay-review.test.ts",
+        "src/app/(admin)/admin/_lib/guard.test.ts",
+        "src/lib/auth/tenant-context.test.ts",
+        "src/lib/auth/session-epoch.test.ts",
+        "src/lib/auth/recovery-grant.test.ts",
+        "src/lib/auth/recovery-consumption.test.ts",
+        "src/app/(app)/login/mfa/actions.test.ts",
+        "src/app/(app)/login/mfa/page.test.tsx",
+        "src/app/(app)/(shell)/account/security/actions.test.ts"
+      ],
+      "mockBoundary": "Auth/Supabase and financial I/O are mocked; not an interactive MFA proof"
+    },
+    "checks": {
+      "typecheck": {
+        "status": "PASS",
+        "startedAt": "2026-11-11T17:17:11.484Z",
+        "finishedAt": "2026-11-11T17:17:41.226Z",
+        "exitCode": 0
+      },
+      "lint": {
+        "status": "PASS",
+        "startedAt": "2026-11-11T17:17:11.582Z",
+        "finishedAt": "2026-11-11T17:18:36.438Z",
+        "exitCode": 0
+      }
+    },
+    "baselineCI": {
+      "observedAt": "2026-11-11T17:17:53.394Z",
+      "status": "PASS",
+      "runId": "43036700032",
+      "sha": "b6965447fa4052a35732040f170b155eb053bff3",
+      "url": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/43036700032",
+      "unitPassed": 7005,
+      "publicE2E": {
+        "passed": 22,
+        "skipped": 0
+      },
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run pnpm/action-setup@v4",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/setup-node@v4",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Install dependencies",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Prod dependency audit gate (high+)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Typecheck",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Lint",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Arch check (madge — circular deps)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Arch DB check (AST connection-origin guard)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Migration safety gate (anti-destructive)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Observability drift gate (docs ⇔ vercel.json ⇔ eventos)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Handler registry gate (catalog ⇔ registry)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Test + coverage gate",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Security inventory (AST and explicit guard review)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Two-tenant isolation (temporary local Postgres)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Build",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Client bundle secrets and local HTTP boundaries",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Install Playwright browser (chromium)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "E2E gate (superfície pública, sem credencial)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Upload E2E report on failure",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ],
+      "productionWrites": 0,
+      "attempt": 2,
+      "appliesToNewSource": false
+    },
+    "finalCI": "Refer to PR53 checks for the published follow-up SHA; baseline CI is not reused as approval",
+    "devReadOnly": {
+      "observedAt": "2026-11-11T17:00:58.034Z",
+      "scope": "read_only_DEV_and_TISS_branch_metadata_no_mutation",
+      "financialJournalEntries": 143,
+      "devHistoryCount": 144,
+      "tissHead": "3edb45328ef2ce4174ac75f804cc5add7ac24e06",
+      "tissDraft": true,
+      "tissMigrations": [
+        {
+          "tag": "0143_tiss_catalog",
+          "when": "1794330000000",
+          "hash": "9f9b483aaeff60a9ca4f5b182c3b071408a7d3eec9ecea7cfe8f98bcf602e807",
+          "devApplied": true,
+          "timestampConflict": false
+        },
+        {
+          "tag": "0144_hi_clinic_setup",
+          "when": "1794367436665",
+          "hash": "b9ac6c7a0b335582f3bf69385a3b004cf9d0784955f27d7c3cd22776a4590589",
+          "devApplied": false,
+          "timestampConflict": false
+        },
+        {
+          "tag": "0145_hi_memberships",
+          "when": "1794391493822",
+          "hash": "98425850e4c2dae613734aa337ce588df641e5c3b67476c055147cb9c82632c4",
+          "devApplied": false,
+          "timestampConflict": false
+        },
+        {
+          "tag": "0146_hi_authorizations",
+          "when": "1794395869610",
+          "hash": "15cbf34c1439cc1d7a0ca4be40267729b44c1cdea1760d5090deb10288493cb6",
+          "devApplied": false,
+          "timestampConflict": false
+        },
+        {
+          "tag": "0147_hi_guides",
+          "when": "1794399173366",
+          "hash": "a344a7e86074d90a4b13b007ef6f9e3357ac23e3b8bc43743158d131ca45238a",
+          "devApplied": false,
+          "timestampConflict": false
+        },
+        {
+          "tag": "0148_hi_coverage_copay",
+          "when": "1794405160338",
+          "hash": "45f0b90b9307c5888e8e0ac61fab9685561f89a62cdf54ea60d2bd3becfdcb0b",
+          "devApplied": false,
+          "timestampConflict": false
+        }
+      ],
+      "candidatePeriodColumn": false,
+      "productionWrites": 0,
+      "devWrites": 0,
+      "tissWorktreeChanges": 0
+    },
+    "tiss": {
+      "reservedByFounder": [149],
+      "state": "0149 being written in separate TISS branch; not read as final or imported",
+      "compatibility5Checks": "Historical proof only, TISS head9382c462 through0147; not a proof for the evolving0149",
+      "financialCandidateAllocated": false
+    },
+    "officialPlaywrightImage": {
+      "observedAt": "2026-11-11T17:17:12.749Z",
+      "status": "PASS",
+      "image": "mcr.microsoft.com/playwright:v1.62.0-noble",
+      "digest": "sha256:baed2032d533817f3dbe6425de795788430ba345e819a1201337009ba17c9d07",
+      "platforms": [
+        {
+          "architecture": "amd64",
+          "os": "linux"
+        },
+        {
+          "architecture": "arm64",
+          "os": "linux"
+        }
+      ],
+      "metadataOnly": true,
+      "imagePulled": false,
+      "imageExecuted": false,
+      "workflowChanged": false
+    },
+    "sentry": {
+      "previewRule": "Not configured per founder",
+      "testNotificationReceived": false,
+      "probeSent": false
+    },
+    "mfa": {
+      "unitAndLocalDbCoverage": "PASS",
+      "interactivePreviewJourney": "NOT RUN",
+      "externalAccounts": "NOT RUN"
+    },
+    "productionWrites": 0,
+    "sharedDevWrites": 0,
+    "tissWorktreeWrites": 0,
+    "newPayments": 0,
+    "newCheckouts": 0,
+    "remoteClosures": 0
+  }
 }

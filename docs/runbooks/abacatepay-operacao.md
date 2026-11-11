@@ -142,9 +142,9 @@ O comando interno de fechamento exige uma invoice já paga e vínculo imutável.
 
 ### Estratégia coordenada com PR55
 
-1. Manter os dois PRs draft. Não editar journal/migrations no worktree TISS. Conferir os HEADs novamente: o ensaio local usou financeiro base `a5984e23` e TISS `9382c462`, com 0143–0147.
+1. Manter os dois PRs draft. **Instrução posterior do founder: não importar nem misturar migrations TISS na branch financeira.** Não editar journal/migrations no worktree TISS. A prova anterior usou financeiro base `a5984e23` e TISS `9382c462`, com 0143–0147; não a atribuir à 0149 em elaboração.
 2. Conferir no DEV hashes **e timestamps**, não só contagem: 144 entradas no readback, 0143 exata já aplicada; 0144–0147 e o candidato financeiro ainda não aplicados pelo executor. Guardar preflight sanitizado. Qualquer novo registro/deriva interrompe o preparo.
-3. Preservar 0143–0147. A ordem desejada de revisão/merge PR53→PR55 é possível sem executar o candidato antes. O journal integrado deve conter 0–147 contínuos e `when` estritamente crescente; o candidato recebe a próxima posição livre **após nova coordenação**, não uma reserva unilateral de 0148.
+3. Preservar os números/hashes TISS. O readback de 11/11 às 17:00 UTC encontrou HEAD `3edb4532` até 0148; o founder informou que o agente está escrevendo 0149. **0149 é da frente TISS; não reservar 0150 ou outro número financeiro unilateralmente.** A ordem de revisão PR53→PR55 não autoriza aplicar SQL fora da sequência compartilhada. O candidato financeiro fica separado, sem número, até o histórico futuro ser acordado.
 4. Não registrar o financeiro com timestamp alto e tentar aplicar TISS antigo depois. O Drizzle usa o último timestamp aplicado; migrations inseridas para trás podem ser ignoradas. Não renumerar/recriar 0143 já aplicada. Caso a ordem SQL precise mudar, acordar a alocação dos ainda não aplicados com TISS e repetir somente o ensaio afetado.
 5. Após registro conjunto, executar gates de migrations e o ensaio abaixo. Só solicitar autorização de aplicação DEV com diff, número, hash e ordem definitivos. **O founder não precisa rodar SQL manualmente.**
 
@@ -156,7 +156,15 @@ $env:QORO_TISS_WORKTREE = 'C:\dev\Qoro_convenios_tiss_20261110'
 node node_modules/tsx/dist/cli.mjs scripts/security/abacatepay-tiss-schema-db.ts
 ```
 
-Esperado: `status: PASS`, 5 checks, zero escrita remota ou no worktree TISS. O script recusa automaticamente um TISS que ultrapasse 0147: revisar o histórico novo antes de ampliar o escopo. Essa prova compara ordem SQL, schema/constraints/RLS e catálogo; os testes financeiros de dados são os 115 checks do harness de renovação. Não representa homologação integral do TISS.
+Este é o comando histórico da prova de 5 checks até 0147, não uma instrução para executar contra a branch atual. O script recusa TISS além de0147 de propósito. A 0149 ainda não foi congelada; não ampliar o limite apenas para obter PASS. Os testes financeiros atuais de dados passaram120/120, usando somente143 migrations financeiras e o candidato SQL no banco descartável, sem importar migrations TISS. Não representa homologação integral do TISS.
+
+**Sequência recomendada depois do congelamento TISS:** preservar a revisão independente dos PRs; deixar a ativação financeira bloqueada sem seu schema; o responsável TISS integra seu histórico sobre a base financeira aprovada; então preparar uma migration financeira em etapa separada, com a próxima posição realmente livre, timestamp posterior e preflight exato do DEV. Nada disso autoriza merge ou aplicação agora. Não inserir uma migration financeira de timestamp alto e tentar aplicar TISS mais antigo depois.
+
+| Alternativa | Consequência | Avaliação atual |
+|---|---|---|
+| Revisar PR53 primeiro, sem ativar o SQL candidato | Preserva as branches; código permanece inativo quando falta schema | Compatível com a ordem pedida, não é ativação da integração |
+| Registrar o SQL financeiro numa etapa posterior e separada | Permite preservar0143–0149 e validar o histórico efetivamente congelado | Recomendada após o acordo entre responsáveis; nenhum número reservado agora |
+| Compor os journals nesta branch agora | Importaria trabalho TISS ainda em elaboração e anteciparia uma decisão compartilhada | Não executar, conforme instrução posterior do founder |
 
 ### Preflight e postflight do candidato financeiro
 
@@ -185,13 +193,24 @@ O ensaio deve: comprovar devMode e loja; preservar invoice/receipt/IDs; chamar u
 3. Em **When**, selecione **An event or issue activity is captured**. Em **If**, use **all**: **Tagged event**, tag `flow`, **starts with** `billing.abacatepay.`; **Event level**, **greater than or equal**, `error`. Isso inclui reincidência da mesma Issue; limitar a “new issue” não prova o novo disparo do probe já agrupado.
 4. Em **Then**, selecione **Notify on preferred channel → Member → sua própria conta**. Confira nas [preferências pessoais de notificação](https://sentry.io/settings/account/notifications/) que Alertas chegam ao seu e-mail/canal desejado. Não escolha um destinatário desconhecido, não envie segredo e não configure um canal pago. Use throttling de **5 minutes** e confira que a regra não está desligada/silenciada.
 5. Use **Send Test Notification** no bloco, confira caixa de entrada/spam e salve com **Create Alert** ou o botão de salvar da regra existente. Anote nome da regra, ambiente, horário e recebimento. Esse botão prova o canal, não o disparo pelo evento financeiro.
-6. Avise `Regra Preview [nome] salva; teste de canal [recebi/não recebi], horário [BRT]`. A engenharia então envia **um** novo probe sintético do fluxo financeiro e correlaciona evento→regra→disparo→envio→recebimento. Você apenas confirma o recebimento fora do painel. Não repetir o pagamento nem a Issue antiga como se fossem um alerta novo.
+6. Avise `Regra Preview [nome] salva; teste de canal [recebi/não recebi], horário [BRT]`. **Somente se você confirmar que recebeu o Send Test Notification**, a engenharia envia um novo probe sintético e correlaciona evento→regra→disparo→envio→recebimento. Se não recebeu, primeiro investigar canal, destinatário, preferências e spam; não enviar probe. Não repetir pagamento nem a Issue antiga como alerta novo.
 
 Se alguma opção não aparecer, informe só seu rótulo/permissão e a etapa. Não criar regra All Environments como substituto. A fonte dos controles é a [documentação oficial atual de alertas](https://docs.sentry.io/product/monitors-and-alerts/alerts/create-alerts/). O intervalo de throttle e preferências pessoais podem impedir aviso mesmo com evento visível; não declarar entrega antes de recebê-lo.
 
 ### 10.2 Conferir MFA do operador e dos serviços externos
 
 O DEV já tem 2/2 superadmins com fator nativo verificado. Não precisa criar outro usuário/fator ou compartilhar OTP. No Preview do SHA final do PR53, faça login normal com o superadmin/MFA e abra `/admin/billing/operacao`. Confira o acesso administrativo. **Não solicite replay de contrato real ou das fixtures pagas para testar:** a engenharia prepara uma ocorrência sintética específica antes do ensaio positivo da ação que exige TOTP atual. Informe apenas `Login superadmin/MFA funcionou` ou a mensagem sanitizada de erro.
+
+Roteiro sem alterar fatores ou credenciais:
+
+1. Abra o Preview financeiro informado no PR53, use `/login` e conclua o desafio normal do autenticador. Se o sistema enviar para `/account/security?force=1`, não remova fator: informe a tela encontrada.
+2. Abra `/admin/billing/operacao`. O superadmin com segundo fator deve alcançar a página; não clique em autorizar reprocessamento de uma fixture paga. Registre só acesso aprovado/erro, sem nomes de pacientes, OTP ou cookies.
+3. Saia pelo comando normal do Qoro, volte à URL administrativa e recarregue. O conteúdo financeiro deve ficar inacessível. Faça novo login e conclua novamente o segundo fator. Não usar apenas o botão Voltar como prova de sessão válida.
+4. Se quiser conferir outro dispositivo, faça login legítimo em janela privativa ou outro aparelho, com o próprio autenticador. A sessão do primeiro navegador não deve ser tratada como autenticação do segundo. Não enviar senha/código pelo chat.
+5. Expiração, remoção do fator, recuperação após perda do aparelho e revogação global não serão forçadas na conta administrativa existente. Os testes automatizados cobrem recusa de sessão/fator/operador inválidos, mas não são prova dessa operação real. Um ensaio destrutivo exige operador sintético dedicado e autorização própria.
+6. O Qoro informa em sua tela de segurança que o TOTP do Supabase não emite códigos de recuperação. Confira se o backup do autenticador/segredo original já está em cofre, sem mostrá-lo. Redefinir a senha não deve ser usado como procedimento presumido de remoção de MFA. Na ausência do fator e de seu backup, parar e solicitar recuperação assistida aprovada; não desativar proteção por script.
+
+Resposta segura: `Preview [SHA]; login/MFA [PASS/erro]; operação financeira [acessível/negada]; logout e novo login [PASS/erro]; segundo dispositivo [PASS/não executado]; recuperação em cofre [disponível/pendente]`. Isso não confirma MFA das plataformas externas abaixo.
 
 Depois confira separadamente as contas de administração usadas nestes serviços:
 

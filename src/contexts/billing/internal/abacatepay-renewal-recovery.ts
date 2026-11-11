@@ -138,10 +138,11 @@ async function persistReadback(
   return row?.id ?? null;
 }
 
-/** Internal bounded GET-only worker. A directed invocation still cannot override proof. */
-export async function reconcileAbacatePayMissingRenewal(
+type RenewalRecoveryInput = { subscriptionId?: string; deadlineMs?: number };
+
+async function runMissingRenewalRecovery(
   database: ManagementDatabase,
-  input: { subscriptionId?: string; deadlineMs?: number } = {},
+  input: RenewalRecoveryInput,
 ) {
   const result = {
     scanned: 0,
@@ -306,4 +307,25 @@ export async function reconcileAbacatePayMissingRenewal(
   }
   metrics.emit('billing.abacatepay.renewal_recovery', result);
   return result;
+}
+
+/** Internal bounded GET-only worker. A directed invocation still cannot override proof. */
+export async function reconcileAbacatePayMissingRenewal(
+  database: ManagementDatabase,
+  input: RenewalRecoveryInput = {},
+) {
+  try {
+    return await runMissingRenewalRecovery(database, input);
+  } catch (error) {
+    // Schema/candidate reads and even the failure-audit transaction can fail.
+    // Emit without another DB attempt; retain the rejection for the cron caller.
+    captureBackgroundError(new Error('AbacatePay renewal recovery stopped before completion'), {
+      flow: 'billing.abacatepay.renewal_recovery',
+    });
+    metrics.emit('billing.abacatepay.renewal_recovery', {
+      failed: 1,
+      stage: 'unhandled_persistence_or_readback',
+    });
+    throw error;
+  }
 }

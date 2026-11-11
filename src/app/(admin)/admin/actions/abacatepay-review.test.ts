@@ -89,6 +89,55 @@ describe('financial review authorization boundary', () => {
     expect(result.error).not.toContain('synthetic-sensitive');
     expect(m.audit).not.toHaveBeenCalled();
   });
+  it('does not reuse an unverified or revoked factor from an earlier session', async () => {
+    m.factors.mockResolvedValue([{ id: 'factor_revoked', status: 'unverified' }]);
+    expect((await replay({ error: null }, form())).error).toBeTruthy();
+    expect(m.verify).not.toHaveBeenCalled();
+    expect(m.audit).not.toHaveBeenCalled();
+    expect(m.worker).not.toHaveBeenCalled();
+  });
+  it('selects a currently verified factor rather than the first listed factor', async () => {
+    m.factors.mockResolvedValue([
+      { id: 'factor_pending', status: 'unverified' },
+      { id: 'factor_verified', status: 'verified' },
+    ]);
+    expect((await replay({ error: null }, form())).error).toBeNull();
+    expect(m.verify).toHaveBeenCalledWith({}, 'factor_verified', '123456');
+  });
+  it('verifies every request and stops a replay when Auth rejects the reused TOTP', async () => {
+    m.verify
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('synthetic-reused-code-rejected'));
+    expect((await replay({ error: null }, form())).error).toBeNull();
+    expect((await replay({ error: null }, form())).error).toBeTruthy();
+    expect(m.verify).toHaveBeenCalledTimes(2);
+    expect(m.audit).toHaveBeenCalledOnce();
+    expect(m.worker).toHaveBeenCalledOnce();
+  });
+  it('requires the authenticated actor after step-up and rechecks MFA after reauthentication', async () => {
+    m.user.mockRejectedValueOnce(new Error('synthetic-session-expired'));
+    await expect(replay({ error: null }, form())).rejects.toThrow('synthetic-session-expired');
+    expect(m.audit).not.toHaveBeenCalled();
+    expect(m.worker).not.toHaveBeenCalled();
+    const resumed = form();
+    resumed.set('code', '654321');
+    expect((await replay({ error: null }, resumed)).error).toBeNull();
+    expect(m.verify).toHaveBeenCalledTimes(2);
+    expect(m.verify).toHaveBeenLastCalledWith({}, 'factor_synthetic', '654321');
+    expect(m.audit).toHaveBeenCalledOnce();
+  });
+  it.each(['client', 'factors'] as const)(
+    'fails closed when %s cannot establish the current MFA context',
+    async (operation) => {
+      m[operation].mockRejectedValue(new Error('synthetic-sensitive-context-error'));
+      const result = await replay({ error: null }, form());
+      expect(result.error).toBeTruthy();
+      expect(result.error).not.toContain('synthetic-sensitive');
+      expect(m.verify).not.toHaveBeenCalled();
+      expect(m.audit).not.toHaveBeenCalled();
+      expect(m.worker).not.toHaveBeenCalled();
+    },
+  );
   it('uses the server actor and atomic audit; no OTP or arbitrary financial values in audit', async () => {
     const input = form();
     input.set('requestedBy', 'spoofed');

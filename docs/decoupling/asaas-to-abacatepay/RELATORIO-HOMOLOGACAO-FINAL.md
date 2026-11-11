@@ -1,6 +1,6 @@
 # Homologação financeira AbacatePay — Qoro
 
-**Leitura atual:** [seção 41 — recuperação financeira e fechamento preparado](#41-recuperação-financeira-e-fechamento-preparado--11112026). As cinco compras iniciais permanecem homologadas. A resposta do suporte já foi recebida; não reenviar solicitação nem repetir pagamentos. Os checkpoints anteriores são históricos e não descrevem necessariamente a implementação mais recente.
+**Leitura atual:** [seção 42 — continuidade com branches independentes](#42-continuidade-com-branches-independentes--11112026). As cinco compras iniciais permanecem homologadas. A resposta do suporte já foi recebida; não reenviar solicitação nem repetir pagamentos. Os checkpoints anteriores são históricos e não descrevem necessariamente a implementação mais recente.
 
 Iniciado em **09/11/2026**, antes das alterações desta rodada. **As seções 1–8 preservam o checkpoint H0 anterior à implementação; as seções 9–25 registram o fechamento diferencial.** Referência para futura ativação, **não autorização de Produção**. Este relatório consolida os [planos existentes](PLANO-MESTRE-MIGRACAO-ASAAS-ABACATEPAY.md), o [diário](PLANO-EXECUCAO-CONTINUIDADE.md), a [renovação](PLANO-CONTINUIDADE-RENOVACAO-E-HOMOLOGACAO.md) e a [matriz financeira](MATRIZ-CENARIOS-E-TESTES.md); não os substitui por regras comerciais novas.
 
@@ -752,3 +752,35 @@ Readback DEV em 11/11: 2 superadmins ativos, 2 com MFA marcado e 2 fatores nativ
 - O [Preview imutável 6dbfe46a](https://project-qouiqh791-clinic-os-v2-s-projects.vercel.app) ficou READY e passou regressão autenticada em 1440/390 px, usando a fixture Clínica 5 já paga: login, readback DEV, invoice/período/cotas, compra repetida recusada HTTP409 sem nova operação e nenhum erro não tratado do navegador. Não houve novo checkout, pagamento, webhook ou convite. A leitura de 18 bundles confirmou inicialização Sentry Preview e nenhuma Production; cliente/server/edge mantêm os testes de ambiente já aprovados. Os registros financeiros históricos foram relidos, não apresentados como nova entrega.
 
 **NO-GO para ativar AbacatePay em Production.** Engenharia deste incremento preparada/testada localmente; aplicação integrada do schema e prova externa do fechamento ainda pendentes. Também permanecem: notificação efetivamente entregue, MFA operacional, eventos recorrentes externos não simuláveis e composição live revisada. Nenhum requisito de aceite foi removido. Trial, preços, cotas, cancelamento, contratos legados e cobranças de pacientes Asaas permanecem preservados. O trabalho não exigiu novo pagamento humano.
+
+## 42. Continuidade com branches independentes — 11/11/2026
+
+**Escopo ajustado pelo founder durante a execução:** não misturar migrations com o outro agente. Ele confirmou a escrita da 0149 TISS. Nenhum arquivo/journal TISS foi importado, renumerado ou alterado pela frente financeira; o candidato financeiro continua separado, sem número. Não houve SQL no DEV compartilhado, merge, mudança em Production, pagamento, fechamento remoto ou novo probe Sentry.
+
+### Correção e novas provas financeiras
+
+Foi reproduzida uma lacuna de observabilidade em três testes unitários: falhas na leitura do schema, na seleção do candidato e na auditoria de erro podiam propagar ao cron sem captura no flow financeiro específico. O cron ainda podia registrar a falha geral; não era prova de ausência completa de telemetria. A correção envolve o worker numa fronteira que emite erro sanitizado e métrica sem tentar acessar novamente o banco, e relança a exceção original. Não altera a regra financeira nem transforma falha em sucesso. Os três testes reprovaram antes e passaram depois; dois testes adicionais preservam o estado inativo sem schema/Sandbox.
+
+O PostgreSQL descartável passou **120/120** (115 preservados + 5 novos), com 143 migrations financeiras reais e o candidato SQL local, zero rede externa. Novos cenários: falha na aplicação da cota de três médicos com rollback de origem/invoice/plano, retry com uma invoice e teto real de três; interrupção da auditoria operacional após commit sem repetir o ciclo; receipt antigo após período mais recente; operadores inativo e excluído logicamente recusados pelo banco. O comando de mudança de plano não foi chamado pela recuperação. As cinco compras externas anteriores permanecem intactas.
+
+Os primeiros ensaios novos tinham duas falhas de preparação: tentativa de agendar mudança num período já vencido (corretamente recusada pelo produto) e fixture HTTP presa ao valor de R$ 397 em vez de R$ 544. Foram corrigidos somente o estado sintético histórico e a resposta HTTP da fixture; nenhum guard/asserção de segurança foi removido. O teste histórico também exige que um ciclo já vencido seja contabilizado sem conceder acesso futuro. Os limites financeiros não foram relaxados.
+
+### Banco, TISS e ordem futura
+
+Readback somente leitura de 11/11, 17:00 UTC: DEV com 144 entradas, 0143 TISS com hash/timestamp exatos, 0144–0148 não aplicadas, colunas candidatas ausentes. HEAD TISS lido `3edb45328ef2ce4174ac75f804cc5add7ac24e06`, com 0148; 0149 está em elaboração em outra branch. A branch financeira preserva 0–0142. O ensaio anterior de 5 checks pertence à versão TISS até 0147 e não comprova a 0149 ainda não congelada.
+
+Recomendação: preservar as revisões independentes; não ativar AbacatePay sem schema; depois de o responsável TISS congelar e integrar seu histórico sobre a base aprovada, preparar o SQL financeiro numa etapa separada com número/timestamp realmente livres. O [runbook §9](../../runbooks/abacatepay-operacao.md#estratégia-coordenada-com-pr55) compara as alternativas. Não reservar 0150 por suposição, compor journals nesta branch ou aplicar um timestamp financeiro alto antes das migrations TISS anteriores. A aprovação futura do DEV deve nomear a sequência e os hashes definitivos; o founder não executa SQL manualmente.
+
+### CI, Sentry e MFA
+
+A [CI 43036700032, tentativa 2](https://github.com/joaomarcos-techia/Project_OS/actions/runs/43036700032), do commit `b6965447`, concluiu **SUCCESS: 7.005 testes e 22 E2E/zero SKIP**, além de build/tipos/lint/segurança/isolamento. As falhas anteriores de DNS ficam preservadas como históricas. O runner anterior era Ubuntu 26.04, imagem 20261101.186.1; o bloqueio ocorreu ao obter dependências via apt, não na execução de um E2E. Nenhuma configuração de workflow/proxy/DNS foi alterada.
+
+Foi conferida somente a metadata da imagem oficial `mcr.microsoft.com/playwright:v1.62.0-noble`, versão correspondente ao lockfile, digest `sha256:baed2032d533817f3dbe6425de795788430ba345e819a1201337009ba17c9d07`. A imagem existe para amd64/arm64, mas não foi baixada/executada. A [documentação Playwright](https://playwright.dev/docs/docker) informa que a imagem inclui browsers/dependências de sistema e precisa do pacote correspondente no projeto. Essa é uma alternativa de contingência para avaliação conjunta se apt voltar a falhar; cache de browser sozinho não fornece as bibliotecas do sistema. Não foi aplicada nenhuma proposta ao workflow compartilhado nem tratada metadata como prova de E2E em contêiner.
+
+Os controles MFA ganharam seis testes na ação financeira: fator não verificado, seleção do fator atual, recusa de OTP reutilizado pelo Auth, sessão perdida com nova verificação após reautenticação e falhas de contexto/cookies/listagem. São testes com I/O simulado, não uma sessão real AAL2. A prova de operadores revogados é banco real isolado. O [roteiro humano §10](../../runbooks/abacatepay-operacao.md#10-ações-humanas-que-continuam-necessárias) separa login, logout, outro dispositivo, recuperação em cofre e MFA de cada serviço. Não remover fatores de contas existentes para testar recuperação.
+
+Sentry Preview segue sem regra/recebimento confirmados. **Não enviar probe até o founder confirmar recebimento do Send Test Notification.** Nenhum alerta Production foi alterado. O incremento usa as variáveis existentes, sem novo segredo. Os checks da CI própria do próximo commit ficam no PR53, sem atribuir automaticamente a aprovação de `b6965447` à correção nova.
+
+### Prontidão
+
+**NO-GO Production mantido.** A nova captura é corrigida e testada; a recuperação financeira continua condicionada ao schema ainda não aplicado. Renovação temporal externa, fechamento da fixture paga e readbacks posteriores, entrega de alerta, operação MFA interativa, composição live e autorização de janela permanecem gates distintos. Não remover Asaas das cobranças de pacientes nem migrar contratos antigos. A próxima etapa de banco depende do congelamento/acordo com TISS e de aprovação específica; nenhum pagamento humano novo é necessário.

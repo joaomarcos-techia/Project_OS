@@ -231,3 +231,9 @@ Fonte atual: [relatório §41](RELATORIO-HOMOLOGACAO-FINAL.md#41-recuperação-f
 | TISS/schema | 5/5: ambas ordens SQL/rollback, histórico comum e schema/RLS/catálogo preservados | Não é merge nem homologação funcional TISS |
 
 A suíte PG financeira consolidada passou 115/115, incluindo 92 anteriores. Não somar os checks aos testes unitários nem aos pagamentos reais. CI/build/E2E do novo SHA são registrados nos checks do PR53 e na evidência final, sem herdar os resultados da baseline.
+
+## Continuidade com branches independentes — 11/11/2026
+
+[Checkpoint atual §42](RELATORIO-HOMOLOGACAO-FINAL.md#42-continuidade-com-branches-independentes--11112026). Os 120 checks financeiros preservam os 115 anteriores e acrescentam: rollback da nova cota, interrupção depois do commit, prova de ciclo anterior e dois estados de operador revogado. Cinco novos testes unitários da captura financeira passaram (três reproduziram a falha antes da correção); seis testes MFA adicionais passaram. O recorte de dez arquivos de autenticação/recuperação passou 101/101; esses números se sobrepõem e não devem ser somados.
+
+A CI de `b6965447` concluiu na tentativa 2 com 7.005 testes e 22 E2E/zero SKIP. A CI da correção nova é vinculada ao seu próprio SHA no PR53. Não houve pagamento/probe/fechamento externo. A 0149 TISS em elaboração não foi incorporada e não recebe PASS de compatibilidade por herança da prova antiga até 0147. A instrução do founder é preservar branches/journals separados nesta rodada.
