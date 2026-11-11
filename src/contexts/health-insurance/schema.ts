@@ -82,3 +82,6 @@ export const tissSchemaVersions = pgTable('tiss_schema_versions', {
 export type TissTerminologyVersionRow = typeof tissTerminologyVersions.$inferSelect;
 export type TissTermRow = typeof tissTerms.$inferSelect;
 export type TissSchemaVersionRow = typeof tissSchemaVersions.$inferSelect;
+
+// Tabelas por clínica (0144, P1.4).
+export * from './schema-clinic';

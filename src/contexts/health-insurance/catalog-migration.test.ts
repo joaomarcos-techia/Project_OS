@@ -60,7 +60,8 @@ describe('migration 0143 — catálogo global TISS/TUSS (P1.2)', () => {
     // 0142_saas_review_replays (PR #53) foi gravada no DEV com when=1794326400000.
     // O migrador só aplica entradas com `when` maior que a última aplicada.
     expect(entry!.when).toBeGreaterThan(1_794_326_400_000);
-    expect(journal.entries.at(-1)?.tag).toBe('0143_tiss_catalog');
+    // idx = prefixo do arquivo (regra de migration-journal.test.ts); a 0144 vem depois.
+    expect(entry!.idx).toBe(143);
   });
 
   it('registra a versão de schema', () => {

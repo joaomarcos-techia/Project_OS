@@ -955,10 +955,17 @@
       "breakpoints": true
     },
     {
-      "idx": 136,
+      "idx": 143,
       "version": "7",
       "when": 1794330000000,
       "tag": "0143_tiss_catalog",
+      "breakpoints": true
+    },
+    {
+      "idx": 144,
+      "version": "7",
+      "when": 1794367436665,
+      "tag": "0144_hi_clinic_setup",
       "breakpoints": true
     }
   ]
