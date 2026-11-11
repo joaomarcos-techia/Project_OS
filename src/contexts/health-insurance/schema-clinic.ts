@@ -542,7 +542,12 @@ export const hiGuideEvents = pgTable('hi_guide_events', {
   createdAt: createdAt(),
 });
 
-export type HiFileKind = 'guide_pdf' | 'authorization_request_xml' | 'authorization_request_pdf';
+export type HiFileKind =
+  | 'guide_pdf'
+  | 'authorization_request_xml'
+  | 'authorization_request_pdf'
+  | 'batch_xml'
+  | 'batch_return';
 
 export const hiFiles = pgTable('hi_files', {
   id: uuidPk(),
@@ -551,6 +556,8 @@ export const hiFiles = pgTable('hi_files', {
   guideId: uuid('guide_id'),
   snapshotId: uuid('snapshot_id'),
   authorizationId: uuid('authorization_id'),
+  /** Lote do XML ou do documento de retorno (0150). */
+  batchId: uuid('batch_id'),
   supersedesFileId: uuid('supersedes_file_id'),
   /** `<clinic_id>/<uuid>` no armazenamento privado; bytes cifrados fora do banco (D20). */
   storageRef: text('storage_ref').notNull(),
@@ -738,6 +745,105 @@ export const hiBillingGapEvents = pgTable('hi_billing_gap_events', {
 });
 
 export type HiBillingGapRow = typeof hiBillingGaps.$inferSelect;
+
+/**
+ * Lotes TISS (0150, P1.9). O runtime só LÊ: toda escrita passa pelas funções
+ * SECURITY DEFINER `hi_batch_*` (ver `internal/batch-service.ts`).
+ */
+export type HiBatchStatus =
+  | 'prepared'
+  | 'validated'
+  | 'exported'
+  | 'sent'
+  | 'received'
+  | 'under_review'
+  | 'processed'
+  | 'cancelled';
+
+export const hiBatches = pgTable('hi_batches', {
+  id: uuidPk(),
+  clinicId: tenantIdRef(),
+  insurerId: uuid('insurer_id').notNull(),
+  guideType: text('guide_type').$type<HiGuideType>().notNull(),
+  tissVersion: text('tiss_version').notNull(),
+  number: text('number').notNull(),
+  status: text('status').$type<HiBatchStatus>().notNull(),
+  guideCount: integer('guide_count').notNull(),
+  itemCount: integer('item_count').notNull(),
+  totalValueCents: bigint('total_value_cents', { mode: 'number' }).notNull(),
+  transactionNumber: text('transaction_number'),
+  contentSha256: text('content_sha256'),
+  epilogueHash: text('epilogue_hash'),
+  validation: jsonb('validation').$type<Record<string, unknown>>().notNull(),
+  fileId: uuid('file_id'),
+  exportCount: integer('export_count').notNull(),
+  sendChannel: text('send_channel').$type<'manual' | 'connector'>(),
+  sentOn: date('sent_on'),
+  sentAt: timestamp('sent_at', { withTimezone: true }),
+  sentBy: uuid('sent_by'),
+  sendEvidence: text('send_evidence'),
+  sendCount: integer('send_count').notNull(),
+  protocolNumber: text('protocol_number'),
+  receivedOn: date('received_on'),
+  receivedAt: timestamp('received_at', { withTimezone: true }),
+  underReviewAt: timestamp('under_review_at', { withTimezone: true }),
+  processedAt: timestamp('processed_at', { withTimezone: true }),
+  processedBy: uuid('processed_by'),
+  cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+  cancelledBy: uuid('cancelled_by'),
+  cancelReason: text('cancel_reason'),
+  replacesBatchId: uuid('replaces_batch_id'),
+  idempotencyKey: text('idempotency_key').notNull(),
+  version: integer('version').notNull(),
+  createdBy: uuid('created_by'),
+  ...timestampsPattern(),
+});
+
+export const hiBatchGuides = pgTable('hi_batch_guides', {
+  clinicId: tenantIdRef(),
+  batchId: uuid('batch_id').notNull(),
+  guideId: uuid('guide_id').notNull(),
+  insurerId: uuid('insurer_id').notNull(),
+  guideType: text('guide_type').$type<HiGuideType>().notNull(),
+  snapshotId: uuid('snapshot_id').notNull(),
+  revision: integer('revision').notNull(),
+  active: boolean('active').notNull(),
+  addedAt: timestamp('added_at', { withTimezone: true }).notNull(),
+  removedAt: timestamp('removed_at', { withTimezone: true }),
+});
+
+export const hiBatchEvents = pgTable('hi_batch_events', {
+  id: uuidPk(),
+  clinicId: tenantIdRef(),
+  batchId: uuid('batch_id').notNull(),
+  action: text('action').notNull(),
+  fromStatus: text('from_status'),
+  toStatus: text('to_status').notNull(),
+  actorId: uuid('actor_id'),
+  actorKind: text('actor_kind').$type<'user' | 'system'>().notNull(),
+  note: text('note'),
+  details: jsonb('details').$type<Record<string, unknown>>().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+});
+
+export const hiBatchReturns = pgTable('hi_batch_returns', {
+  id: uuidPk(),
+  clinicId: tenantIdRef(),
+  batchId: uuid('batch_id').notNull(),
+  insurerId: uuid('insurer_id').notNull(),
+  kind: text('kind')
+    .$type<'protocol_receipt' | 'analysis_statement' | 'payment_statement' | 'administrative_conference'>()
+    .notNull(),
+  contentSha256: text('content_sha256').notNull(),
+  fileId: uuid('file_id'),
+  protocolNumber: text('protocol_number'),
+  receivedOn: date('received_on').notNull(),
+  note: text('note'),
+  recordedBy: uuid('recorded_by'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+});
+
+export type HiBatchRow = typeof hiBatches.$inferSelect;
 export type HiGuideRow = typeof hiGuides.$inferSelect;
 export type HiGuideItemRow = typeof hiGuideItems.$inferSelect;
 export type HiInsurerRow = typeof hiInsurers.$inferSelect;

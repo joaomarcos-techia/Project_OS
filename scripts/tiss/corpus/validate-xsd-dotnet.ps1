@@ -1,11 +1,12 @@
 # Camada XSD com motor INDEPENDENTE do libxml2: System.Xml.Schema do .NET (Microsoft), que já vem no Windows.
 # Valida cada arquivo do corpus contra os XSDs oficiais versionados e confere com a expectativa do manifesto.
 # Nada sai da máquina; nenhum software de terceiros é instalado.
-# Uso (na raiz do repositório): powershell -NoProfile -ExecutionPolicy Bypass -File scripts/tiss/corpus/validate-xsd-dotnet.ps1
+# Uso (na raiz do repositório): powershell -NoProfile -ExecutionPolicy Bypass -File scripts/tiss/corpus/validate-xsd-dotnet.ps1 [-CorpusName c1|c2]
+param([ValidatePattern('^c[0-9]+$')][string]$CorpusName = 'c1')
 $ErrorActionPreference = 'Stop'
 $root = (Get-Location).Path
 $schemaDir = Join-Path $root 'src/contexts/health-insurance/tiss/schemas/4.03.00'
-$corpus = Join-Path $root 'data/tiss/corpus/4.03.00/c1'
+$corpus = Join-Path $root ('data/tiss/corpus/4.03.00/' + $CorpusName)
 $manifest = Get-Content -Raw -Encoding UTF8 (Join-Path $corpus 'MANIFEST.json') | ConvertFrom-Json
 
 $schemaSettings = New-Object System.Xml.XmlReaderSettings

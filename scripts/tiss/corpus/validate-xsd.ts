@@ -6,7 +6,7 @@
  * `xmllint-wasm` (libxml2 compilada para WebAssembly, MIT) foi avaliado em
  * P0.8 e só entra no `package.json` em P9.2. Até lá, informe onde ele está:
  *   TISS_XMLLINT_WASM_DIR=<pasta com node_modules/xmllint-wasm> \
- *     npx tsx scripts/tiss/corpus/validate-xsd.ts
+ *     npx tsx scripts/tiss/corpus/validate-xsd.ts   (TISS_CORPUS=c2 para o corpus c2)
  *
  * Sai com código 1 se algum arquivo divergir do esperado.
  */
@@ -36,7 +36,8 @@ function loadXmllint(): { mod: XmllintModule; version: string } {
 
 const SCHEMA_DIR = path.join(process.cwd(), 'src/contexts/health-insurance/tiss/schemas/4.03.00');
 const ROOT_SCHEMA = 'tissV4_03_00.xsd';
-const dir = path.join(process.cwd(), CORPUS_DIR);
+// `TISS_CORPUS=c2` valida o corpus da solicitação e do recurso de glosa; o padrão continua o c1.
+const dir = path.join(process.cwd(), process.env.TISS_CORPUS ? CORPUS_DIR.replace(/c1$/u, process.env.TISS_CORPUS) : CORPUS_DIR);
 
 const { mod, version } = loadXmllint();
 const xsds = readdirSync(SCHEMA_DIR)

@@ -2,8 +2,19 @@ import { PgDialect } from 'drizzle-orm/pg-core';
 import type { SQL } from 'drizzle-orm';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { transactionMock, execute, emit, recordHeartbeat, publishEvent, withTenant } = vi.hoisted(
+const {
+  transactionMock,
+  execute,
+  emit,
+  recordHeartbeat,
+  publishEvent,
+  withTenant,
+  listBillingGapCandidates,
+  reconcileInsuranceBilling,
+} = vi.hoisted(
   () => ({
+    listBillingGapCandidates: vi.fn(),
+    reconcileInsuranceBilling: vi.fn(),
     transactionMock: vi.fn(),
     execute: vi.fn(),
     emit: vi.fn(),
@@ -19,6 +30,8 @@ vi.mock('@/lib/db/tenant', () => ({ withTenant }));
 vi.mock('@/lib/cron-heartbeat', () => ({ recordHeartbeat }));
 vi.mock('@/lib/observability/metrics', () => ({ metrics: { emit } }));
 vi.mock('@/lib/outbox/publish', () => ({ publishEvent }));
+// O passo de convênio (P7.4) tem a própria prova em banco descartável; aqui só a costura com o cron.
+vi.mock('@/contexts/health-insurance', () => ({ listBillingGapCandidates, reconcileInsuranceBilling }));
 vi.mock('@/contexts/financial', () => ({
   FINANCIAL_EVENTS: { FATURAMENTO_PENDENTE: 'financial.faturamento.pendente' },
   faturamentoPendencias: {},
@@ -31,6 +44,17 @@ const dialect = new PgDialect();
 beforeEach(() => {
   vi.clearAllMocks();
   execute.mockResolvedValue([]);
+  listBillingGapCandidates.mockResolvedValue([]);
+  reconcileInsuranceBilling.mockResolvedValue({
+    candidates: 0,
+    processed: 0,
+    guideReady: 0,
+    gapOpen: 0,
+    closed: 0,
+    busy: 0,
+    failed: 0,
+    skippedForBudget: 0,
+  });
   transactionMock.mockImplementation(
     async (callback: (tx: { execute: typeof execute }) => unknown) => callback({ execute }),
   );
@@ -84,6 +108,10 @@ describe('financial reconcile', () => {
       paymentAnomalySkipped: 0,
       paymentAnomalyFailed: 0,
       paymentBackstopSkippedForBudget: false,
+      insuranceCandidates: 0,
+      insuranceGuideReady: 0,
+      insuranceGapOpen: 0,
+      insuranceFailed: false,
     });
   });
 
@@ -135,6 +163,10 @@ describe('financial reconcile', () => {
       paymentAnomalySkipped: 0,
       paymentAnomalyFailed: 0,
       paymentBackstopSkippedForBudget: false,
+      insuranceCandidates: 0,
+      insuranceGuideReady: 0,
+      insuranceGapOpen: 0,
+      insuranceFailed: false,
     });
     expect(withTenant).not.toHaveBeenCalled();
     expect(publishEvent).not.toHaveBeenCalled();
@@ -205,5 +237,24 @@ describe('financial reconcile', () => {
     } finally {
       clock.mockRestore();
     }
+  });
+
+  it('convênio sem guia (P7.4): roda depois do trabalho financeiro e uma falha dele não derruba o cron', async () => {
+    const response = await GET(new Request('https://app.qoro.dev/api/cron/financial-reconcile'));
+    expect(response.status).toBe(200);
+    expect(listBillingGapCandidates).toHaveBeenCalledWith(25);
+    expect(reconcileInsuranceBilling).toHaveBeenCalledWith([], { deadlineAt: expect.any(Number) });
+
+    vi.clearAllMocks();
+    execute.mockResolvedValue([]);
+    listBillingGapCandidates.mockRejectedValue(new TypeError('banco fora'));
+    const failed = await GET(new Request('https://app.qoro.dev/api/cron/financial-reconcile'));
+    expect(failed.status).toBe(200);
+    expect(emit).toHaveBeenCalledWith('insurance.reconcile.error', { error: 'TypeError' });
+    expect(recordHeartbeat).toHaveBeenCalledWith(
+      'financial-reconcile',
+      'success',
+      expect.objectContaining({ insuranceFailed: true, insuranceCandidates: 0 }),
+    );
   });
 });
