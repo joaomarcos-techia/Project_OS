@@ -147,18 +147,28 @@ describe('corpus sintético TISS 4.03.00', () => {
     });
   });
 
-  it('o resultado XSD registrado corresponde ao corpus atual e à expectativa', () => {
-    const file = path.join(DIR, 'XSD_RESULTS.json');
-    expect(existsSync(file), 'rode scripts/tiss/corpus/validate-xsd.ts').toBe(true);
-    const recorded = JSON.parse(readFileSync(file, 'utf8')) as {
-      results: Array<{ id: string; sha256: string; xsdValid: boolean }>;
-    };
-    const withFile = committed.scenarios.filter((s) => s.file);
-    expect(recorded.results.map((r) => r.id).sort()).toEqual(withFile.map((s) => s.id).sort());
-    for (const r of recorded.results) {
-      const entry = withFile.find((s) => s.id === r.id)!;
-      expect(r.sha256, r.id).toBe(entry.sha256);
-      expect(r.xsdValid, r.id).toBe(!entry.rejectedBy.includes('xsd'));
-    }
-  });
+  it.each([
+    ['libxml2 (xmllint-wasm)', 'XSD_RESULTS.json', 'scripts/tiss/corpus/validate-xsd.ts'],
+    [
+      '.NET System.Xml.Schema',
+      'XSD_RESULTS_DOTNET.json',
+      'scripts/tiss/corpus/validate-xsd-dotnet.ps1',
+    ],
+  ])(
+    'o resultado XSD registrado (%s) corresponde ao corpus atual e à expectativa',
+    (_engine, name, script) => {
+      const file = path.join(DIR, name);
+      expect(existsSync(file), `rode ${script}`).toBe(true);
+      const recorded = JSON.parse(readFileSync(file, 'utf8')) as {
+        results: Array<{ id: string; sha256: string; xsdValid: boolean }>;
+      };
+      const withFile = committed.scenarios.filter((s) => s.file);
+      expect(recorded.results.map((r) => r.id).sort()).toEqual(withFile.map((s) => s.id).sort());
+      for (const r of recorded.results) {
+        const entry = withFile.find((s) => s.id === r.id)!;
+        expect(r.sha256, r.id).toBe(entry.sha256);
+        expect(r.xsdValid, r.id).toBe(!entry.rejectedBy.includes('xsd'));
+      }
+    },
+  );
 });
