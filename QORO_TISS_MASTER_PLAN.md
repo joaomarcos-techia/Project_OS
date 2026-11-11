@@ -1049,8 +1049,8 @@ Os números marcados com `*` são provisórios e devem ser reconferidos (E.5). P
 | **P12.4** (T10.4) | auditoria completa | P2–P10 | 100% das actions | inventário | Pendente |
 | **P12.5** | credenciais de operadora: cifra, rotação, acesso só pelo adapter, nunca em log | P2.5 | teste de vazamento | segurança | Pendente |
 | **P12.6** | observabilidade (C.14): métricas, logs, alertas, `insurance-reconcile`, dead letters | P7.4, P10.2 | métricas no `check:observability`; alerta disparando em teste | unitários + ensaio | Pendente |
-| **P12.7** | arquivos XML, PDF e comprovantes: Storage privado, acesso autenticado, sem URL pública | P9.3, P6.1 | IDOR negativo | segurança | Pendente |
-| **P12.8** | aderência ao **Componente de Segurança e Privacidade** da ANS (pacote `PadroTISS_segurana_202511.zip`, SHA-256 `09af14231ae40b95d055fb3effbadfba1f71bdf676a5a3c69a057bace0d2ff73`). O escopo vale para "todos os sistemas e portais que tratam os dados que fazem parte do Padrão TISS". Matriz requisito × situação do Qoro, com destaque para os **obrigatórios vigentes desde 01/12/2025, implantação até 30/06/2026**: troca de senha em até 90 dias (81), sem repetir as 10 últimas (82), sessão encerrada em até 10 min de inatividade (83), log de acesso por 180 dias (84), auditoria imutável com finalidade declarada por 180 dias (85); e os anteriores 36, 41, 42, 53, 56, 57, 58, 62, 67, 69, 79. O segundo fator (86, 87) e a assinatura digital da mensagem (30) são **recomendados** | — | matriz aprovada pelo fundador (B10) e cada obrigatório atendido ou com exceção decidida | revisão + testes por requisito | Pendente (B10) |
+| **P12.7** | arquivos XML, PDF e comprovantes **dentro do banco** (D20), cifrados por clínica, acesso autenticado e auditado, sem URL pública | P9.3, P6.1 | IDOR negativo; nenhum arquivo identificado fora do SGBD | segurança | Pendente |
+| **P12.8** | aderência ao **Componente de Segurança e Privacidade** da ANS (202511): análise transversal na **seção N** (fonte, matriz dos 53 requisitos vigentes, detalhamento de 81–85, 67, 41, 36, 42, 43, 69 e 77, arquitetura do "perfil de segurança TISS" e decisões S1–S9) | — | decisões S1–S9 aprovadas e cada obrigatório atendido ou com exceção decidida | testes por requisito (N.3) | **Em execução**: análise e matriz concluídas em 11/11 (`data/tiss/seguranca/202511/requisitos.json`); implementação global aguardando aprovação (B10) |
 
 ### P13 — Validação TISS em múltiplas camadas
 
@@ -1711,6 +1711,7 @@ O módulo só é **Pronto para produção** quando todos os itens tiverem evidê
 | D17 | `indicacaoClinica` da SP/SADT (opcional) nunca preenchida automaticamente a partir do prontuário; só com ação explícita do médico, quando a operadora exigir | **Adotada** (finalidade limitada, LGPD) |
 | D18 | CNPJ alfanumérico aceito no validador compartilhado (`src/lib/validation/cnpj.ts`), com forma canônica idêntica para CNPJ numérico (hash e dados existentes inalterados) e `/join` normalizando como o perfil; o documento do **titular da cobrança** continua só numérico até cada gateway provar suporte (B11), mas as letras deixaram de ser descartadas | **Aprovada** pelo fundador em 11/11 (correção transversal autorizada); commit isolado `fcfaa449` |
 | D19 | DEV compartilhado: nenhuma migration nova é aplicada de forma persistente enquanto o PR #53 estiver aberto; cada migration nova é validada por **ensaio transacional no DEV** (`BEGIN` → SQL → sondas de RLS e privilégio → `ROLLBACK`), sem tocar em `drizzle.__drizzle_migrations`; o `when` do journal é o relógio real do momento da criação, nunca um valor no futuro | **Adotada** pelo agente (diretriz de 11/11: "evitar interferências entre os agentes") |
+| D20 | arquivos do convênio (XML, PDF, comprovantes, demonstrativos) ficam **no banco**, cifrados por clínica, com SHA-256; não em Storage | **Adotada** pelo agente em 11/11 (requisito 56 do Componente de Segurança: dado identificado não fica fora do SGBD depois da operação); muda a P12.7 |
 
 ### L.2 Bloqueios
 
@@ -1722,7 +1723,7 @@ O módulo só é **Pronto para produção** quando todos os itens tiverem evidê
 | B7 | Validador C (Validador TISS): software de terceiros com telemetria do aparelho e dos arquivos e licença grátis que veda uso por "empresa comercial" (B.11) | P13.5 | o fundador decidir: (a) ambiente isolado (outra máquina, VM com hipervisor à parte ou VM na nuvem; o Windows 11 Home daqui não tem Sandbox) e (b) licença (plano pago ou autorização do fornecedor) |
 | B8 | aprovação humana de release e ativação | P15.8, P15.9 | fundador |
 | B9 | ~~conexão com o DEV instável (10/11, tarde)~~ **resolvido** | P1.3 | a carga entrou; a lentidão segue registrada em R17 |
-| B10 | aderência do Qoro ao Componente de Segurança e Privacidade da ANS (P12.8): os requisitos obrigatórios atingem a autenticação e a auditoria do Qoro inteiro, não só o módulo | P12.8, P15 (Pronto para produção) | o fundador decidir o escopo (atender, ou exceção justificada por requisito) |
+| B10 | aderência do Qoro ao Componente de Segurança e Privacidade da ANS: os requisitos obrigatórios 81–85, 67, 41, 36, 42 e 43 atingem a autenticação e a auditoria compartilhadas (seção N) | P12.8, P15 (Pronto para produção) | o fundador aprovar S1–S9 (N.6) |
 | B11 | Asaas e AbacatePay aceitarem CNPJ alfanumérico no documento do titular | liberar o alfanumérico na cobrança (D18) | teste no sandbox de cada gateway com o CNPJ de exemplo da Receita |
 
 B1–B3 da rev.1 foram resolvidos pela diretriz de 10/11 (D1–D8).
@@ -1751,6 +1752,219 @@ B1–B3 da rev.1 foram resolvidos pela diretriz de 10/11 (D1–D8).
 | R18 | o Qoro não atender aos requisitos obrigatórios do Componente de Segurança e Privacidade da ANS ao tratar dados TISS | alta | alto | P12.8 + B10 antes de "Pronto para produção" |
 | R19 | **sombra de `when` no DEV**: o `drizzle-kit migrate` só aplica entradas com `when` maior que a última aplicada; uma migration nossa com `when` no futuro faria o DEV pular em silêncio uma migration do billing criada depois com `when` menor | média | alto | D19: `when` = relógio real e nada persistente até o merge do #53. Em 11/11 17:34 UTC a 0143 (17:00 UTC) já estava no passado |
 | R20 | validador externo com defeito induzir correção errada (ex.: "corrigir" o hash para o cálculo em UTF-8 do B) | média | alto | ANS como referência; correção só com classificação em G.6; nunca editar XML para passar |
+| R21 | bloqueio por inatividade de 10 min (R83 da ANS) gerar fricção na recepção e no consultório ou perda de dado em formulário | alta | médio | rascunho no servidor antes do bloqueio; aviso aos 9 min; desbloqueio que restaura o contexto; perfil só nas clínicas com convênio (N.4) |
+
+---
+
+## N. Análise transversal: Segurança e Privacidade ANS (aberta em 11/11/2026)
+
+> Seção separada porque o alcance é o Qoro inteiro, não só convênios. **Nada desta seção altera a
+> autenticação global sem aprovação (S1–S9 em N.6).** A seção M (Registro) continua sendo a última
+> do documento.
+
+### N.1 Fonte, versão e escopo [VERIFICADO no pacote oficial]
+
+- **Fonte:** página oficial do Padrão TISS de setembro/2026 (`gov.br/ans/.../padrao-tiss-setembro-2026`), link "Baixar Componente de Segurança e Privacidade" → `PadroTISS_segurana_202511.zip` (SHA-256 `09af14231ae40b95d055fb3effbadfba1f71bdf676a5a3c69a057bace0d2ff73`), com PDF e planilha de mesmo conteúdo.
+- **Extração reproduzível:** `scripts/tiss/security/extract-requirements.ts` → [`data/tiss/seguranca/202511/requisitos.json`](data/tiss/seguranca/202511/requisitos.json) (texto integral de cada requisito, SHA da planilha). A análise abaixo cita esse texto, não resumos.
+- **Contagem:** 58 requisitos. Em 11/11/2026, **53 vigentes**: 42 obrigatórios e 11 recomendados. 66, 68, 70, 75 e 76 terminaram em 30/06/2026, substituídos por 85, 81, 84, 82 e 83.
+- **Escopo, texto oficial:** "Os requisitos que compõem esta relação, se aplicam a todos os sistemas e portais que tratam os dados que fazem parte do Padrão TISS para troca de informações na saúde suplementar." O Componente Organizacional 202609 (itens 119–126) liga o componente à RN 501.
+- **Interpretação do alcance (a confirmar com assessoria regulatória, S9):**
+  - a obrigação recai sobre operadoras e prestadores (a clínica), e alcança o Qoro por ser o sistema que a clínica usa para tratar esses dados;
+  - "dados que fazem parte do Padrão TISS" são os das mensagens e guias: beneficiário, carteirinha, atendimento, procedimentos, valores e glosas;
+  - uma clínica que não fatura convênio pelo Qoro não trata esses dados no Qoro;
+  - mas, numa clínica com convênio ligado, o mesmo login dá acesso aos dados TISS, então os controles de autenticação valem para os usuários dessa clínica.
+- **Requisitos por sujeito:** vários se dirigem só a operadoras (73, 80) ou a certificados digitais (12–18), e valem só quando houver certificado (assinatura ou conector, P6.5).
+
+### N.2 Matriz requisito × Qoro (situação verificada no código em 11/11)
+
+Legenda: **A** atende · **P** parcial · **L** lacuna · **n/a** não se aplica · **?** depende de configuração do provedor não verificada.
+
+| Req. | Condição | Vigência / prazo | Aplica-se a | Qoro hoje (evidência) | Sit. |
+| --- | --- | --- | --- | --- | --- |
+| 1, 37 | Obrig. | 2012/2014; 2018 | todo acesso a dado identificado | toda rota e action exige sessão (`requireUser`, `page-guard.ts`; middleware não é o controle primário, ADR-008 D22) | A |
+| 2, 3, 38 | Obrig. | 2012/2014; 2018 | portal e webservice | login e senha no Supabase Auth; TOTP opcional (`src/lib/auth/mfa.ts`) | A |
+| 12–15, 18 | Obrig. | 2012/2014 | quando houver certificado digital | sem certificado hoje; entram com assinatura ou conector (P6.5) | n/a hoje |
+| 30, 31 | Recom. | 2018 | mensagem prestador↔operadora | sem assinatura XAdES; XSD a deixa opcional | recom. |
+| 34 | Obrig. | 2018/2018 | sessão cliente-servidor | HTTPS; tokens só em cookie HttpOnly e Secure com geração por sessão (`supabase-session-cookie.ts`); refresh com rotação; epoch revoga na saída e na troca de senha (`session-epoch.ts`) | A |
+| 35, 64, 71, 46 | Obrig./Recom. | 2018–2023 | transporte | TLS da Vercel e do Supabase; banco com `ssl: 'require'` (`src/lib/db/index.ts:77`). Versão mínima de TLS e cifras do provedor não conferidas | A? |
+| **36** | Obrig. | 2018/2018 | todas as telas e impressões | **não exibe nome do fornecedor nem versão/build** nas telas e PDFs | **L** |
+| **41** | Obrig. | 2018/2018 | identidade do usuário | usuário identificado por e-mail; **sem documento pessoal único (CPF) do usuário**; CRM opcional; exclusão: perfil tem `deleted_at` e o último titular é protegido, mas não há regra geral de "não excluir quem operou" | **L** |
+| **42** | Obrig. | 2018/2018 | pós-login | **não mostra último acesso nem tentativas falhas** (dados existem em `login_attempts`) | **L** |
+| **43** | Obrig. | 2018/2018 | tela de login | senha mascarada e campo limpo após erro (`clear-password-field.ts`); **`autoComplete="current-password"` permite o gerenciador de senhas**, contra o texto do requisito | **P** |
+| 44, 45 | Obrig. | 2018/2018 | controle de acesso | RLS FORCE por clínica + permissões por action (`tenant-context.ts`, `permissions.ts`); acesso só pelos canais do app | A |
+| 49, 53 | Obrig. | 2018; 2021/2023 | validação | Zod em toda Server Action, no servidor | A |
+| 50 | Obrig. | 2018/2018 | gestão de usuários e papéis | convites, papéis, overrides e desativação (`identity`) | A |
+| 51 | Obrig. | 2018/2018 | erro de login | mensagem única "Email ou senha inválidos." (`login/actions.ts`) | A |
+| 54, 55 | Recom. | 2018 | arquitetura | camadas; banco segregado; acesso por pools com papéis distintos | A |
+| **56** | Obrig. | 2021/2023 | componentes de interoperabilidade | módulo novo: **decisão D20** (N.5): XML e PDF de guia ficam no banco (cifrados), não em Storage | decisão do módulo |
+| 57, 58 | Obrig. | 2021/2023 | trilha de auditoria | `audit_events` append-only por RLS, na mesma transação (`src/lib/audit`); leitura de prontuário auditada (`prontuario-access.ts`). **O dono do banco ainda pode apagar, e as partições saem por DETACH manual** | **P** |
+| 59 | Recom. | 2018 | visualização da auditoria | consultas recentes (`src/lib/audit/recent.ts`); sem tela completa | P |
+| 60 | Recom. | 2018 | reautenticação em operação crítica | `requireFreshPermission` e AAL2 do super admin; sem reautenticação de senha por operação | P |
+| 62, 79 | Obrig. | 2021/2023 | confidencialidade | CPF, CNPJ e prontuário cifrados por clínica; arquivos privados | A |
+| 63, 65 | Recom. | 2021 | captcha | Turnstile próprio no login e na recuperação (`captcha.ts`) | A |
+| **67** | Obrig. | 2021/2023 | senha | 8+, maiúscula, minúscula e dígito (`signup-password.ts`, usado no cadastro, reset e convite); **não exige símbolo**; Supabase com mínimo de 6 e HIBP | **P** |
+| **69** | Obrig. | 2021/2023 | tentativas inválidas | 5 por e-mail e 10 por IP em 15 min (Upstash, `rate-limit.ts`), bloqueio ≥ 5 min. **Na queda do Upstash, falha aberta com contador local por instância** (F-08) | **P** |
+| 72 | Obrig. | 2021/2023 | interrupção da troca eletrônica | sem SLA formal de 48 h para a troca TISS | L (operacional) |
+| 73, 80 | Obrig. | 2021/2023 | **operadoras** | Qoro atende prestadores | n/a |
+| 74 | Obrig. | 2021/2023 | prestadores | responsabilidade da clínica, com os controles do Qoro | compartilhado |
+| **77** | Obrig. | 2021/2023 | armazenamento de senha | senhas no Supabase Auth com **bcrypt**; o texto pede "algoritmo criptográfico no mínimo igual a 256 bits". Sementes TOTP no Supabase | **?** (interpretação) |
+| 78 | Obrig. | 2021/2023 | app ↔ banco | TLS e papéis por pool | A |
+| **81** | Obrig. | **2025-12-01 / 2026-06-30** | senha | **sem expiração de senha** (o Supabase não oferece) | **L** |
+| **82** | Obrig. | **2025-12-01 / 2026-06-30** | troca de senha | **sem histórico**: só impede repetir a atual se o provedor recusar | **L** |
+| **83** | Obrig. | **2025-12-01 / 2026-06-30** | sessão | **sem bloqueio por inatividade**: o access token dura 15 min e o refresh renova enquanto houver requisição; o polling do Consultório (20 s) mantém a sessão viva sem ação do usuário | **L** |
+| **84** | Obrig. | **2025-12-01 / 2026-06-30** | log de acesso | `login_attempts` (sucesso e falha, `email_hash`, IP) **apagado aos 90 dias** (`retention-policy.ts:43`); o requisito pede ≥ 180 | **L** |
+| **85** | Obrig. | **2025-12-01 / 2026-06-30** | dados TISS | auditoria de mutação existe; **leitura de dado TISS sem trilha e sem "finalidade declarada"**; retenção da `audit_events` (90 d quente / 1 a morno, DETACH manual) não garante 180 d imutáveis | **L** (do módulo) |
+| 86, 87 | Recom. | 2025-12-01 | segundo fator por e-mail/SMS | TOTP opcional; obrigatório só para super admin (`mfa-policy.ts`) | recom. |
+
+### N.3 Requisitos de maior impacto (os 11 campos pedidos)
+
+**R83 — bloqueio por inatividade (obrigatório; vigente desde 01/12/2025, implantação até 30/06/2026)**
+
+1. Identificador: 83 (substitui o 76, que dava 30 min).
+2. Texto e interpretação: "a sessão de usuário deve ser automaticamente bloqueada ou encerrada forçadamente pelo aplicativo após um período de inatividade [...] não [...] superior a 10 (dez) minutos"; a tela deixa de mostrar dados; desbloqueio só com nova autenticação; usuário nenhum desativa o controle. Bloquear não é esconder: a **credencial também** deixa de servir até reautenticar.
+3. Condição: obrigatório.
+4. Vigência e prazo: 01/12/2025 a 30/06/2026 (prazo vencido).
+5. Aplica-se a: sessões de usuários do sistema que trata dados TISS.
+6. Qoro hoje: access token de 15 min e refresh com rotação; renovação no servidor (`/auth/session-refresh`); nenhum controle de inatividade no cliente ou no servidor; requisições de fundo (polling de 20 s do Consultório) mantêm a sessão.
+7. Lacuna: total.
+8. Solução recomendada: **bloqueio no servidor** por geração de sessão. Uma tabela `auth_session_activity` (geração do cookie, usuário, clínica, `last_activity_at`, `locked_at`), atualizada só por **interação do usuário**: requisições com o cabeçalho `x-qoro-activity`, emitido pelo cliente quando há tecla, clique ou rolagem. Polling e prefetch não contam. Na porta única de autorização (`tenant-context.ts`, que já confere o epoch a cada requisição), sessão com `now - last_activity_at > 10 min` passa a `locked`: actions e rotas respondem `SESSION_LOCKED` e páginas mostram a tela de bloqueio. Desbloqueio = senha, mais TOTP se cadastrado, gerando uma nova geração de sessão. No cliente: temporizador sincronizado entre abas (`BroadcastChannel`), aviso aos 9 min, sobreposição que remove o conteúdo sensível do DOM aos 10 min, e salvamento do rascunho (prontuário já tem estado `rascunho` no banco) antes de bloquear.
+9. Impacto: usuários das clínicas com o controle ligado reautenticam após 10 min sem interação. Recepção e consultório são os mais afetados. Formulário longo: o rascunho no servidor evita perda. Upload em andamento conta como atividade.
+10. Testes: unitários do relógio e da regra; integração da porta de autorização (sessão bloqueada recusa action e rota mesmo com token válido); e2e com relógio controlado (múltiplas abas, polling não renova, rascunho preservado, desbloqueio restaura o contexto); acessibilidade do aviso (anúncio por `aria-live` e tempo para estender).
+11. Evidências: relatório dos testes, captura da tela bloqueada, registro do bloqueio e do desbloqueio na auditoria.
+
+**R81 — troca de senha em até 90 dias (obrigatório; 01/12/2025 / 30/06/2026)**
+
+1–4. Id 81 (substitui o 68, que dava 180 dias). "Definir o período máximo de troca de senha como controle do sistema. Este período não deve ser superior a 90 (noventa dias). O sistema deve permitir que o usuário troque sua senha a qualquer momento." Obrigatório.
+5. Usuários que autenticam por senha.
+6. Qoro hoje: troca a qualquer momento (reset e convite); **sem prazo**. O Supabase Auth não tem expiração de senha.
+7. Lacuna: prazo máximo.
+8. Solução: tabela `auth_password_events (user_id, changed_at, source)` gravada por **todo** caminho de troca (reset, convite, troca logada, cadastro). Na autorização, se a última troca tiver mais de 90 dias, só a tela de troca fica disponível. **Transição:** para as contas atuais, o relógio começa na data de ativação do controle, com 90 dias de carência e aviso desde o 75º.
+9. Impacto: uma troca a cada 90 dias por usuário das clínicas cobertas.
+10. Testes: cada caminho de troca grava o evento; conta vencida só acessa a troca; carência da transição.
+11. Evidência: testes e registros de evento.
+
+**R82 — sem repetir as 10 últimas senhas (obrigatório; 01/12/2025 / 30/06/2026)**
+
+1–4. Id 82 (substitui o 75, que dava 3). Obrigatório.
+5. Todo processo de troca de senha.
+6. Qoro hoje: sem histórico.
+7. Lacuna: total.
+8. Solução segura:
+   - histórico **só de derivações lentas e irreversíveis**: `scrypt` com sal aleatório por registro e um *pepper* em variável de ambiente, calculado no servidor no instante da troca, quando a senha nova passa pelo backend;
+   - tabela acessível só ao `service_role`, sem leitura pelo runtime nem pelo usuário; guarda as 10 últimas e descarta as anteriores;
+   - na troca, a senha nova é comparada com cada derivação (custo controlado);
+   - nunca se guarda senha em claro, hash reversível ou o bcrypt do provedor.
+
+   **Transição:** a senha atual de quem já existe é desconhecida, então o histórico começa na primeira troca depois da ativação. A recuperação de acesso continua igual.
+9. Impacto: o usuário não pode voltar a uma das 10 últimas senhas.
+10. Testes: rejeita a 1ª e a 10ª, aceita a 11ª; derivação não reversível; tabela sem SELECT para o runtime.
+11. Evidência: testes, inventário de privilégio e revisão de segurança.
+
+**R84 — log de acesso por 180 dias (obrigatório; 01/12/2025 / 30/06/2026)**
+
+1–4. Id 84 (substitui o 70, que dava 90 dias). "Registrar log de acessos e de tentativas de acesso [...] no mínimo, 180 (cento e oitenta) dias." Obrigatório.
+5. Acessos ao sistema.
+6. Qoro hoje: `login_attempts` registra sucesso e falha com `email_hash` e IP; retenção de 90 dias em `src/lib/db/retention-policy.ts:43`.
+7. Lacuna: retenção.
+8. Solução: elevar `LOGIN_ATTEMPTS_DAYS` para 180. É mudança global da política de retenção, então afeta a LGPD: o registro já guarda só o HMAC do e-mail.
+9. Impacto: mais 90 dias de linhas pequenas; nenhuma mudança para o usuário.
+10. Testes: o teste da política de retenção com o novo valor.
+11. Evidência: teste e consulta da linha mais antiga depois de 180 dias.
+
+**R85 — auditoria completa com finalidade, 180 dias imutáveis (obrigatório; 01/12/2025 / 30/06/2026)**
+
+1–4. Id 85 (substitui o 66). O log precisa conter identificação do usuário ou sistema, data e hora, dados acessados, tipo de operação (consulta, inserção, alteração, exclusão) e **finalidade declarada**. Fica disponível à ANS e ao titular por ≥ 180 dias, sem alteração nem remoção nesse período. Obrigatório.
+5. "Soluções que operam com dados do padrão TISS": **o módulo de convênios**.
+6. Qoro hoje: `audit_events` (mutação, append-only por RLS); leitura auditada só no prontuário; sem finalidade; retenção quente de 90 dias e DETACH manual.
+7. Lacunas: leitura de dado TISS, finalidade e imutabilidade de 180 dias.
+8. Solução em duas partes:
+   - **no módulo, sem mudança global, a fazer junto com P1.5+:** toda leitura de carteirinha decifrada, guia e lote passa por um leitor auditado, como o `prontuario-access.ts`, com `purpose` de um catálogo fechado (`atendimento`, `autorizacao`, `faturamento`, `conferencia`, `recurso`, `atendimento_ao_titular`). Grava só metadado, nunca o conteúdo;
+   - **na infraestrutura de auditoria, que é global (S5):** impedir UPDATE e DELETE por qualquer papel enquanto o registro tiver menos de 180 dias, e proibir DETACH de partição antes disso, mais exportação por titular e para a ANS.
+9. Impacto: o módulo tem custo de uma linha por leitura sensível; a parte global muda o runbook de retenção.
+10. Testes: cada leitor grava o evento com finalidade; leitura sem finalidade falha fechada; DELETE antes de 180 d recusado.
+11. Evidência: testes, consulta de exemplo e runbook atualizado.
+
+**R67 — composição da senha (obrigatório; 2021/2023)**: o Qoro exige maiúscula, minúscula e dígito, **falta o símbolo**. Solução: acrescentar a regra em `signup-password.ts`, a única fonte, já usada no cadastro, no reset e no convite. Impacto: só na próxima troca; senhas atuais seguem válidas até a troca de 90 dias (R81). Testes: a regra nova nos três caminhos. **Global (S3).**
+
+**R41 — identidade vinculada a documento único (obrigatório; 2018)**:
+- **Situação:** o Qoro não coleta documento pessoal do usuário.
+- **Solução:** CPF do usuário, cifrado com hash único por clínica, nas clínicas cobertas; inativar em vez de excluir quem operou (o perfil já tem `deleted_at` e `ativo`). Os fluxos de exclusão LGPD da conta precisam ser compatíveis.
+- **Impacto:** cadastro de usuário e convite. **Global (S6).**
+
+**R36 — identificação do software (obrigatório; 2018)**:
+- **Solução:** rodapé fixo com "Qoro · <fornecedor> · versão <commit/release>" no shell e nos PDFs.
+- **Impacto:** visual, e a branch de UI (`ui/refactor-qoro-20261108`) mexe no shell. **Coordenar com a UI (S7).**
+
+**R42 — último acesso e tentativas falhas (obrigatório; 2018)**:
+- **Solução:** aviso pós-login a partir de `login_attempts`; o hash do e-mail já existe.
+- **Impacto:** baixo. **Global (S8).**
+
+**R43 — tela de login sem memorização (obrigatório; 2018)**:
+- **Conflito:** o texto pede impedir "lembrança automática de senhas associadas a um login", o que hoje significa bloquear gerenciadores de senha. As recomendações atuais de segurança (NIST SP 800-63B) favorecem gerenciadores.
+- **Opções:** `autocomplete="off"` só nas clínicas cobertas, ou registrar a interpretação. **Decisão (S8).**
+
+**R69 — bloqueio após 5 tentativas (obrigatório)**:
+- **Situação:** atende no caminho normal. Durante uma queda do Upstash o limite vira local por instância.
+- **Opção:** falhar fechado para clínicas cobertas, com o custo de indisponibilidade de login durante a queda. **Decisão (S8).**
+
+**R77 — armazenamento da senha**:
+- **Situação:** o Supabase usa bcrypt, e não dá para trocar o algoritmo do provedor.
+- **Leitura:** "algoritmo criptográfico no mínimo igual a 256 bits" não é um parâmetro de bcrypt.
+- **Encaminhamento:** registrar a interpretação, ou perguntar à ANS pelo canal oficial (S9).
+
+### N.4 Arquitetura proposta: "perfil de segurança TISS" por clínica
+
+**Princípio:** os controles novos valem para as **clínicas com o convênio ligado** (`hi_clinic_settings.enabled`), para todos os usuários dessas clínicas, e não para a base inteira do SaaS. Motivos:
+- só essas clínicas tratam dado TISS no Qoro;
+- o login é compartilhado, então os usuários dessas clínicas acessam dado TISS;
+- clínicas que não faturam convênio não sofrem fricção nova.
+
+O fundador pode decidir estender a todos (S1).
+
+| Componente | Arquivos e serviços | Mudança |
+| --- | --- | --- |
+| Política de segurança | novo `src/lib/auth/security-profile.ts` | perfil por clínica (`standard` ou `tiss`), lido do banco e conferido a cada requisição |
+| Porta de autorização | `src/lib/auth/tenant-context.ts` (já confere o epoch a cada requisição) | bloqueio por inatividade, senha vencida e sessão bloqueada |
+| Sessão | `supabase-session-cookie.ts`, `/auth/session-refresh`, `src/middleware.ts` | geração da sessão como chave de atividade; refresh recusado se bloqueada |
+| Cliente | shell do app (com a branch de UI), hook de atividade e sobreposição de bloqueio | aviso, bloqueio e desbloqueio; `x-qoro-activity`; polling marcado como fundo |
+| Senha | `signup-password.ts`, `reset-password/actions.ts`, `convite/actions.ts`, troca logada | símbolo; eventos de troca; histórico com `scrypt` |
+| Banco | migrations novas: `auth_session_activity`, `auth_password_events`, `auth_password_history` | aditivas, com RLS; histórico só para `service_role` |
+| Retenção e auditoria | `src/lib/db/retention-policy.ts`, `src/lib/audit/*`, runbook de retenção | 180 dias; imutabilidade; exportação |
+| Login | `login/page.tsx`, `login/actions.ts` | aviso de último acesso; `autocomplete` conforme S8 |
+
+- **Compatibilidade e transição:**
+  - flag desligada = comportamento atual, byte a byte;
+  - ligar para uma clínica dá 90 dias de carência na senha e aviso prévio;
+  - nada some para os usuários atuais;
+  - a recuperação de acesso continua igual.
+- **Riscos:** fricção na recepção (R21); perda de dado em formulário (mitigada por rascunho no servidor); falso bloqueio por relógio do cliente (o servidor é a autoridade); conflito visual com a branch de UI (R7).
+- **Rollback:**
+  - desligar o perfil `tiss` da clínica: volta ao comportamento atual na próxima requisição;
+  - as tabelas novas ficam e não são lidas;
+  - a regra de símbolo é a única irreversível por usuário, e só vale na próxima troca.
+- **Testes:** os de N.3, mais a regressão completa da autenticação (`security:browser-session`, `security:unit`, `tenant-isolation`) com a flag desligada e ligada.
+
+### N.5 O que o módulo faz agora, sem mexer na autenticação global
+
+- **D20 (adotada, R56):** XML, PDF e comprovantes do convênio ficam **dentro do banco** (cifrados por clínica, com SHA), e não no Storage. Isso cumpre "não manter dados identificados fora do SGBD após o término da operação". Muda a P12.7 (antes "Storage privado").
+- **R85, parte do módulo:** leitores auditados com finalidade para carteirinha, guia e lote, a partir da P1.5 (carteirinhas).
+- **R53:** validação no servidor (já é o padrão).
+
+### N.6 Decisões que exigem aprovação do fundador
+
+| ID | Decisão | Recomendação do agente |
+| --- | --- | --- |
+| S1 | alcance: só clínicas com convênio ligado, ou toda a base | só clínicas com convênio (N.4) |
+| S2 | bloqueio por inatividade de 10 min no servidor + cliente (R83) | aprovar o desenho de N.3 |
+| S3 | símbolo obrigatório na senha (R67), global ou só no perfil `tiss` | só no perfil `tiss` |
+| S4 | expiração de 90 dias e histórico de 10 senhas com `scrypt` (R81, R82) | aprovar, com 90 dias de carência |
+| S5 | auditoria imutável por 180 dias e retenção de `login_attempts` de 90 → 180 dias (R84, R85) | aprovar; é global e afeta o runbook de retenção |
+| S6 | CPF do usuário e regra de inativar em vez de excluir (R41) | aprovar só no perfil `tiss` |
+| S7 | rodapé com fornecedor e versão (R36) | aprovar, coordenando com a branch de UI |
+| S8 | tela de login sem memorização (R43), aviso de último acesso (R42) e limite de tentativas fechado na queda do Upstash (R69) | aprovar R42; decidir R43 e R69 |
+| S9 | consulta formal à ANS ou assessoria sobre o alcance (N.1) e sobre o R77 | recomendada antes de publicar |
+
+Até a decisão, **nenhuma** dessas mudanças entra no código. Bloqueio B10.
 
 ---
 
