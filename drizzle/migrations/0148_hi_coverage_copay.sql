@@ -77,7 +77,9 @@ CREATE TABLE public.hi_appointment_coverages (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
   clinic_id uuid NOT NULL REFERENCES public.clinics(id) ON DELETE CASCADE,
   appointment_id uuid NOT NULL REFERENCES public.appointments(id) ON DELETE CASCADE,
-  patient_id uuid NOT NULL REFERENCES public.patients(id),
+  -- Cobertura é dado administrativo pré-faturamento: sai com o paciente (LGPD). Quem
+  -- retém o paciente por obrigação é a GUIA (0147, FK sem cascata), não a cobertura.
+  patient_id uuid NOT NULL REFERENCES public.patients(id) ON DELETE CASCADE,
   guide_type text NOT NULL DEFAULT 'consulta',
   insurer_id uuid NOT NULL,
   plan_id uuid,

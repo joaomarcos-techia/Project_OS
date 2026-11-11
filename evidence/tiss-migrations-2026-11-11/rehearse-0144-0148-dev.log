@@ -12,4 +12,4 @@ ok  particular segue igual: recebível cheio aceito (sintético, desfeito no fim
 ok  cobertura de outro paciente recusada pelo banco [esperado 23514, obtido 23514] — A carteirinha deve ser do paciente do atendimento.
 ok  depois do ROLLBACK: sem coluna, gatilho, tabela, linha sintética ou registro de migration — {"col":0,"trg":0,"cov":null,"g":null,"n":144,"pt":0}
 lock das tabelas vivas por ~7.6 s
-RESUMO 13/13 em 12.7 s
+RESUMO 13/13 em 11.9 s

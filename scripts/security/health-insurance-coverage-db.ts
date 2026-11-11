@@ -32,6 +32,10 @@ delete process.env.DATABASE_URL_RUNTIME;
 process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://ci.supabase.co';
 process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_ci';
 process.env.OUTBOX_CRON_ALLOW_NON_VERCEL = 'true';
+// Chave mestra e sal SINTÉTICOS, só para este cluster local (a anonimização LGPD cifra o CPF vazio).
+process.env.CRYPTO_SECRET_BACKEND = 'env';
+process.env.CRYPTO_MASTER_KEY_V1 = Buffer.alloc(32, 7).toString('base64');
+process.env.CRYPTO_LOOKUP_SALT = Buffer.alloc(32, 9).toString('base64');
 if (!/@(?:127\.0\.0\.1|localhost):55504\//u.test(cluster.url))
   throw new Error('não é o cluster local');
 
@@ -547,6 +551,67 @@ try {
   assert.ok(dunned.has(lp!.id as string));
   assert.ok(!dunned.has(lc!.id as string));
   pass('régua de cobrança: o recebível particular vencido entra; o de atendimento de convênio não');
+
+  // ── 12. LGPD (P12.13): exclusão de paciente com guia ─────────────────
+  const { hardDeletePatients } = await import('../../src/contexts/patient/internal/hard-delete');
+  const { createConsultaGuideForAppointment } =
+    await import('../../src/contexts/health-insurance/internal/consulta-guide-service');
+  const freshPatient = async (tag: string) =>
+    (
+      await sql`insert into public.patients (clinic_id, nome, cpf_encrypted, cpf_hash, email)
+        values (${A.clinicId}::uuid, ${`Paciente ${tag}`}, 'ciphertext-de-teste', ${`hash-${randomUUID()}`},
+          ${`${tag}@example.invalid`}) returning id`
+    )[0]!.id as string;
+  const pX = await freshPatient('com-guia');
+  const [cardX] = await sql`insert into public.hi_memberships
+      (clinic_id, patient_id, insurer_id, card_number_encrypted, card_number_hash, card_last4, created_by)
+    values (${A.clinicId}::uuid, ${pX}::uuid, ${A.insurerId}::uuid, 'AQAAAAAAAAAAAAAAAAAAAAAAAAAAAA==', ${'e'.repeat(64)}, '1111', ${SYS}::uuid)
+    returning id`;
+  const apX = await A.appointment(pX, A.consulta, 'atendido');
+  const outX = await withTenant(A.clinicId, (tx) =>
+    createConsultaGuideForAppointment(tx, {
+      clinicId: A.clinicId,
+      appointment: {
+        id: apX,
+        patientId: pX,
+        professionalId: A.doctorId,
+        procedureId: A.consulta,
+        date: '2026-11-12',
+        billingMode: 'convenio',
+      },
+      coverage: { insurerId: A.insurerId, planId: null, membershipId: cardX!.id as string },
+      terminologyVersion: null,
+      actor: { kind: 'automation' },
+    }),
+  );
+  assert.equal(outX.kind, 'created');
+  const pY = await freshPatient('so-cobertura');
+  const apY = await A.appointment(pY, A.consulta);
+  await recordCoverage(A, apY, pY, null, A.consulta);
+  const outcome = await hardDeletePatients(A.clinicId, [pX, pY]);
+  assert.deepEqual([outcome.deleted, outcome.anonymized, outcome.failed], [1, 1, 0]);
+  const [px] =
+    await sql`select nome, anonymized_at is not null as anon from public.patients where id = ${pX}::uuid`;
+  assert.deepEqual([px!.nome, px!.anon], ['Paciente anonimizado (LGPD)', true]);
+  assert.equal(
+    await count(
+      sql`select count(*)::int as n from public.hi_guides where patient_id = ${pX}::uuid`,
+    ),
+    1,
+  );
+  assert.equal(
+    await count(sql`select count(*)::int as n from public.patients where id = ${pY}::uuid`),
+    0,
+  );
+  assert.equal(
+    await count(
+      sql`select count(*)::int as n from public.hi_appointment_coverages where patient_id = ${pY}::uuid`,
+    ),
+    0,
+  );
+  pass(
+    'LGPD: paciente com guia é ANONIMIZADO (cadastro sem dado pessoal) e a guia fica, sem bloqueio silencioso; paciente só com cobertura é excluído por inteiro',
+  );
 
   console.log(
     `OK: ${passed} provas da 0148 e do fluxo ponta a ponta (particular x convênio) sobre o schema real`,

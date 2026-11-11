@@ -10,4 +10,5 @@ PASS: reentrega dos dois eventos: nenhuma guia, número, recebível ou históric
 PASS: convênio concluído sem cobertura: nada é inventado (sem guia, sem recebível); a cobertura não entra depois por fora (vai para correção)
 PASS: coparticipação conferida e confirmada: recebível do paciente só de R$ 45 (nunca R$ 150); falha no meio retenta sem duplicar; acima do confirmado é recusado; não se dispensa depois de virar recebível
 PASS: régua de cobrança: o recebível particular vencido entra; o de atendimento de convênio não
-OK: 12 provas da 0148 e do fluxo ponta a ponta (particular x convênio) sobre o schema real
+PASS: LGPD: paciente com guia é ANONIMIZADO (cadastro sem dado pessoal) e a guia fica, sem bloqueio silencioso; paciente só com cobertura é excluído por inteiro
+OK: 13 provas da 0148 e do fluxo ponta a ponta (particular x convênio) sobre o schema real
