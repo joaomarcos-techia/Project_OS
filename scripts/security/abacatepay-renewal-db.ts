@@ -4,10 +4,22 @@ import { createHash, createHmac, randomUUID } from 'node:crypto';
 import { mkdir, writeFile, readFile } from 'node:fs/promises';
 
 import { readMigrations, startScratchSchema } from './scratch-schema';
+import { loadTissProofInputs } from './abacatepay-tiss-input';
 
+const tissProof = process.env.QORO_TISS_REF ? await loadTissProofInputs() : null;
 const cluster = await startScratchSchema({ port: 55492 });
 assert.equal(new URL(cluster.url).hostname, '127.0.0.1');
 const sql = cluster.sql;
+try {
+  if (tissProof) {
+    await sql.begin(async (tx) => {
+      for (const migration of tissProof.sources) await tx.unsafe(migration.body);
+    });
+  }
+} catch (error) {
+  await cluster.stop();
+  throw error;
+}
 Object.assign(process.env, {
   NODE_ENV: 'test',
   DATABASE_URL: cluster.url,
@@ -2909,12 +2921,27 @@ try {
   globalThis.fetch = originalFetch;
   await mkdir('dist', { recursive: true });
   await writeFile(
-    'dist/abacatepay-renewal-db.json',
+    tissProof
+      ? `dist/abacatepay-renewal-tiss-${String(tissProof.lastIndex).padStart(4, '0')}-db.json`
+      : 'dist/abacatepay-renewal-db.json',
     JSON.stringify(
       {
         observedAt: new Date().toISOString(),
         environment: 'loopback_synthetic',
         migrations: (await readMigrations()).length,
+        ...(tissProof
+          ? {
+              tissHead: tissProof.head,
+              tissSources: tissProof.sources.map(({ idx, when, tag, sha256 }) => ({
+                idx,
+                when,
+                tag,
+                sha256,
+              })),
+              combinedMigrationCount: tissProof.ordered.length,
+              tissSourceAccess: tissProof.sourceAccess,
+            }
+          : {}),
         additionalCandidateDdl:
           'saas_period_snapshot.candidate.sql; loopback only, not in migration journal',
         results,

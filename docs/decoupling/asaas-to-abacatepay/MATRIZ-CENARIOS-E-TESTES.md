@@ -237,3 +237,19 @@ A suíte PG financeira consolidada passou 115/115, incluindo 92 anteriores. Não
 [Checkpoint atual §42](RELATORIO-HOMOLOGACAO-FINAL.md#42-continuidade-com-branches-independentes--11112026). Os 120 checks financeiros preservam os 115 anteriores e acrescentam: rollback da nova cota, interrupção depois do commit, prova de ciclo anterior e dois estados de operador revogado. Cinco novos testes unitários da captura financeira passaram (três reproduziram a falha antes da correção); seis testes MFA adicionais passaram. O recorte de dez arquivos de autenticação/recuperação passou 101/101; esses números se sobrepõem e não devem ser somados.
 
 A CI de `b6965447` concluiu na tentativa 2 com 7.005 testes e 22 E2E/zero SKIP. A CI da correção nova é vinculada ao seu próprio SHA no PR53. Não houve pagamento/probe/fechamento externo. A 0149 TISS em elaboração não foi incorporada e não recebe PASS de compatibilidade por herança da prova antiga até 0147. A instrução do founder é preservar branches/journals separados nesta rodada.
+
+## Alerta entregue e composição fixada na 0149 — 11/11/2026
+
+[Checkpoint atual §43](RELATORIO-HOMOLOGACAO-FINAL.md#43-alerta-entregue-e-composição-sql-fixada-na-0149--11112026). As provas anteriores permanecem datadas; esta atualização usou SQL TISS commitado em `b450a560897d4004b2de305ac91c3ffa1197ec89` até0149, depois estendido à0150 publicada em `6b101e892e4e856c5653e7bb89a1791ce452815c`. Somente objetos Git imutáveis; não lê SQL em edição nem altera journals.
+
+| Grupo | Evidência desta rodada | Limite |
+|---|---|---|
+| Alerta Preview | Test Notification recebido; único probe414eb196 aceito HTTP200 e recebido pelo founder | Emissor direto Sentry; regras internas não auditadas por API401; não prova Production/SLA |
+| Composição SQL até0150 | 21/21 nas duas ordens/rollback, índices/constraints/RLS/funções e dados anteriores preservados | Não é aplicação DEV, merge TypeScript ou homologação integral TISS |
+| Gatilhos compartilhados | Trial/convênio coexistem; cobrança integral recusada antes de consumir quota; particular preservado | Dados sintéticos, sem chamada Asaas |
+| Função substituída0149 | Congelamento sem gap; correção com gap/autor; duplicidade e leitura cruzada recusadas | Não muda regra de convênio |
+| Financeiro com TISS | 120/120 cenários financeiros em banco composto0000–0150 + candidato; prova até0149 preservada | São os mesmos120, não somar como novas compras; zero rede externa |
+| MFA normal Preview | Titular confirmou login/TOTP, página administrativa, logout negado e novo login | Não prova recuperação do fator, expiração forçada, replay ou MFA dos serviços externos |
+| CI | Baseline b18407c3:7016 testes +22 E2E/zeroSKIP | Novo incremento tem CI própria no PR53 |
+
+Os erros iniciais da fixture (slug longo e savepoint mal utilizado) foram corrigidos no harness, sem relaxar guards de produto. Fechamento real de fixture, renovação externa e composição live seguem pendentes. Não repetir pagamento inicial, probe entregue ou jornada normal MFA aprovada; recuperação/incidentes de acesso continuam separados.

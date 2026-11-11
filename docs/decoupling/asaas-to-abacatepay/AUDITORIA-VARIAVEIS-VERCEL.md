@@ -122,3 +122,9 @@ Os cinco pagamentos iniciais foram concluídos; a menção anterior à frase de 
 A fronteira de captura adicionada ao worker usa o mesmo flow Sentry e as variáveis existentes. Não requer nova variável, segredo, mudança de Vercel ou configuração do workflow. A indisponibilidade anterior de apt/DNS não foi tratada trocando credenciais ou enfraquecendo TLS: a nova tentativa da CI de `b6965447` passou sem essas alterações. O histórico de nomes/escopos acima permanece datado da auditoria original, não uma nova leitura em claro de Production.
 
 A instrução de manter migrations das branches separadas não cria um segundo banco nem um journal financeiro paralelo. O DEV permanece compartilhado e exige uma sequência futura acordada antes de aplicar o candidato. Nenhuma variável pode substituir essa dependência ou habilitar a composição live ainda não implementada.
+
+## Alerta Preview e ensaio SQL fixado — 11/11
+
+O founder confirmou teste de canal e recebimento do único probe414eb196; entrega Preview PASS. Não foi necessário criar variável, copiar segredo ou alterar regra Production. A API administrativa continuou401; essa prova externa usa confirmação do destinatário, não inventário autenticado de regras.
+
+`QORO_TISS_WORKTREE` e `QORO_TISS_REF` são somente entradas locais dos harnesses, não variáveis da Vercel. O SHA completo fixa o SQL TISS até0149; o journal da candidata financeira e o DEV continuam inalterados. Não cadastrar esses nomes em Production/Preview nem tratar o ensaio local como ativação da recuperação.

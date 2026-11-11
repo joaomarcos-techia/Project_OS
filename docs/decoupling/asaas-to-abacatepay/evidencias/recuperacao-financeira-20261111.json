@@ -965,5 +965,459 @@
     "newPayments": 0,
     "newCheckouts": 0,
     "remoteClosures": 0
+  },
+  "operationalFollowup": {
+    "recordedAt": "2026-11-11T20:56:07.045Z",
+    "scope": "single Sentry Preview alert delivery and immutable pinned TISS compatibility through 0150",
+    "sources": [
+      {
+        "path": "scripts/security/abacatepay-tiss-input.ts",
+        "sha256LF": "c1513eae5a2a1f028f98234a5ee46ca533e0a76326562a11a8f43094a99795ff"
+      },
+      {
+        "path": "scripts/security/abacatepay-tiss-schema-db.ts",
+        "sha256LF": "55b4e0661e74b89843a2b4a3a5919592e0eeaa5bb0532bce00a67da5b37b5834"
+      },
+      {
+        "path": "scripts/security/abacatepay-renewal-db.ts",
+        "sha256LF": "cef8bc4c11126eba34714acf1bb14833fe714b38c9af56d96aa3cb2d2ccc3316"
+      },
+      {
+        "path": "docs/decoupling/asaas-to-abacatepay/migrations/saas_period_snapshot.candidate.sql",
+        "sha256LF": "5a1c7bd1a6f073972d7010998703d6f26667ee133f404dd358153fc5e2164b1a"
+      }
+    ],
+    "sentry": {
+      "observedAt": "2026-11-11T18:29:32.727Z",
+      "state": "ingest_accepted",
+      "eventId": "04822f778d5649b3a0a19e28ce798236",
+      "runId": "414eb196-882f-4627-bcbd-d4465e1ada5b",
+      "shortCode": "414eb196",
+      "channelTestReceipt": "owner_confirmed_received_2026-11-11",
+      "environment": "preview",
+      "scope": "one synthetic ingestion event; not an application webhook or financial event",
+      "notificationReceipt": "OWNER_CONFIRMED_RECEIVED_EXACT_PROBE_414eb196",
+      "patients": 0,
+      "payments": 0,
+      "configurationChanges": 0,
+      "productionWrites": 0,
+      "httpStatus": 200,
+      "completedAt": "2026-11-11T18:29:33.262Z",
+      "receiptRecordedAt": "2026-11-11T20:56:07.038Z",
+      "status": "PASS_DELIVERY_OF_THIS_PREVIEW_PROBE",
+      "flow": "billing.abacatepay.sandbox_probe",
+      "probePosts": 1,
+      "adminApiHttp": 401,
+      "ruleDetailsDirectlyAudited": false,
+      "deliveryEvidence": "owner confirmed exact short code; no inbox/API log inspected",
+      "limitation": "direct Sentry ingestion probe, not an induced deployment cron/DB failure; not Production or SLA proof"
+    },
+    "schema": {
+      "observedAt": "2026-11-11T20:48:31.949Z",
+      "status": "PASS",
+      "tissHead": "6b101e892e4e856c5653e7bb89a1791ce452815c",
+      "tissSources": [
+        {
+          "idx": 143,
+          "when": 1794330000000,
+          "tag": "0143_tiss_catalog",
+          "sha256": "9f9b483aaeff60a9ca4f5b182c3b071408a7d3eec9ecea7cfe8f98bcf602e807"
+        },
+        {
+          "idx": 144,
+          "when": 1794367436665,
+          "tag": "0144_hi_clinic_setup",
+          "sha256": "b9ac6c7a0b335582f3bf69385a3b004cf9d0784955f27d7c3cd22776a4590589"
+        },
+        {
+          "idx": 145,
+          "when": 1794391493822,
+          "tag": "0145_hi_memberships",
+          "sha256": "98425850e4c2dae613734aa337ce588df641e5c3b67476c055147cb9c82632c4"
+        },
+        {
+          "idx": 146,
+          "when": 1794395869610,
+          "tag": "0146_hi_authorizations",
+          "sha256": "15cbf34c1439cc1d7a0ca4be40267729b44c1cdea1760d5090deb10288493cb6"
+        },
+        {
+          "idx": 147,
+          "when": 1794399173366,
+          "tag": "0147_hi_guides",
+          "sha256": "a344a7e86074d90a4b13b007ef6f9e3357ac23e3b8bc43743158d131ca45238a"
+        },
+        {
+          "idx": 148,
+          "when": 1794405160338,
+          "tag": "0148_hi_coverage_copay",
+          "sha256": "45f0b90b9307c5888e8e0ac61fab9685561f89a62cdf54ea60d2bd3becfdcb0b"
+        },
+        {
+          "idx": 149,
+          "when": 1794416643149,
+          "tag": "0149_hi_billing_gaps",
+          "sha256": "56c0d5f29a409b65e0fe4fc1ac7512bbd8c979150c2252e375a375b85139d183"
+        },
+        {
+          "idx": 150,
+          "when": 1794418524711,
+          "tag": "0150_hi_batches",
+          "sha256": "e7dc279a073501a4f2e03dd95ff9773564cbc690ea2591a3e94a03f9a273c992"
+        }
+      ],
+      "sourceAccess": "immutable git show only; uncommitted work is excluded",
+      "candidateSha256": "5a1c7bd1a6f073972d7010998703d6f26667ee133f404dd358153fc5e2164b1a",
+      "checks": [
+        {
+          "name": "financial_then_tiss",
+          "status": "PASS",
+          "fingerprint": "d355c0abacec07ed86c48eb9078ab8fe28ad5381425a84247df02512846e0d5a"
+        },
+        {
+          "name": "financial_then_tiss: legacy and AbacatePay contracts invoices and private receivables preserved",
+          "status": "PASS"
+        },
+        {
+          "name": "financial_then_tiss: trial and insurance guards coexist",
+          "status": "PASS"
+        },
+        {
+          "name": "financial_then_tiss: existing private appointment remains private",
+          "status": "PASS"
+        },
+        {
+          "name": "financial_then_tiss: insurance full charge refused without consuming trial quota",
+          "status": "PASS"
+        },
+        {
+          "name": "financial_then_tiss: 0149 keeps completed coverage frozen without an open gap",
+          "status": "PASS"
+        },
+        {
+          "name": "financial_then_tiss: 0149 correction needs an open gap and stamps the authenticated actor",
+          "status": "PASS"
+        },
+        {
+          "name": "financial_then_tiss: 0149 duplicate gap is refused",
+          "status": "PASS"
+        },
+        {
+          "name": "financial_then_tiss: tenant cannot read another clinic gap or private recovery provenance",
+          "status": "PASS"
+        },
+        {
+          "name": "financial_then_tiss_rollback",
+          "status": "PASS"
+        },
+        {
+          "name": "tiss_then_financial",
+          "status": "PASS",
+          "fingerprint": "3d0b6a9b336316508d175820cf80cfd34713466f0510f72f19349d3d4e745ef6"
+        },
+        {
+          "name": "tiss_then_financial: legacy and AbacatePay contracts invoices and private receivables preserved",
+          "status": "PASS"
+        },
+        {
+          "name": "tiss_then_financial: trial and insurance guards coexist",
+          "status": "PASS"
+        },
+        {
+          "name": "tiss_then_financial: existing private appointment remains private",
+          "status": "PASS"
+        },
+        {
+          "name": "tiss_then_financial: insurance full charge refused without consuming trial quota",
+          "status": "PASS"
+        },
+        {
+          "name": "tiss_then_financial: 0149 keeps completed coverage frozen without an open gap",
+          "status": "PASS"
+        },
+        {
+          "name": "tiss_then_financial: 0149 correction needs an open gap and stamps the authenticated actor",
+          "status": "PASS"
+        },
+        {
+          "name": "tiss_then_financial: 0149 duplicate gap is refused",
+          "status": "PASS"
+        },
+        {
+          "name": "tiss_then_financial: tenant cannot read another clinic gap or private recovery provenance",
+          "status": "PASS"
+        },
+        {
+          "name": "tiss_then_financial_rollback",
+          "status": "PASS"
+        },
+        {
+          "name": "common_journal_identity_order_and_readonly_tiss_inputs",
+          "status": "PASS"
+        }
+      ],
+      "sqlOrders": ["financial_then_tiss", "tiss_then_financial"],
+      "journalEntriesInMemory": 151,
+      "journalFilesModified": 0,
+      "migrationFilesImported": 0,
+      "excludes": "Any commit after the pinned TISS SHA or uncommitted work",
+      "applicationMergeValidated": false,
+      "schemaAggregatorReview": "preserve both billing/gateway-schema and health-insurance/schema exports at future integration"
+    },
+    "financial": {
+      "observedAt": "2026-11-11T20:50:03.608Z",
+      "status": "PASS_LOCAL",
+      "checks": 120,
+      "combinedMigrationCount": 151,
+      "tissHead": "6b101e892e4e856c5653e7bb89a1791ce452815c",
+      "networkCalls": 0,
+      "fixtureHttpCalls": 601,
+      "proof": "actual local financial application + 150 real SQL migrations and candidate, synthetic provider HTTP; not external renewal"
+    },
+    "previous149Proof": {
+      "observedAt": "2026-11-11T20:41:02.066Z",
+      "tissHead": "b450a560897d4004b2de305ac91c3ffa1197ec89",
+      "checks": [
+        {
+          "name": "financial_then_tiss",
+          "status": "PASS",
+          "fingerprint": "46ee1d4d7c2c6fd3aa5edae1c3c43cee34ab0c05a1f2f9aa3986fbf4721a4ac9"
+        },
+        {
+          "name": "financial_then_tiss: legacy and AbacatePay contracts invoices and private receivables preserved",
+          "status": "PASS"
+        },
+        {
+          "name": "financial_then_tiss: trial and insurance guards coexist",
+          "status": "PASS"
+        },
+        {
+          "name": "financial_then_tiss: existing private appointment remains private",
+          "status": "PASS"
+        },
+        {
+          "name": "financial_then_tiss: insurance full charge refused without consuming trial quota",
+          "status": "PASS"
+        },
+        {
+          "name": "financial_then_tiss: 0149 keeps completed coverage frozen without an open gap",
+          "status": "PASS"
+        },
+        {
+          "name": "financial_then_tiss: 0149 correction needs an open gap and stamps the authenticated actor",
+          "status": "PASS"
+        },
+        {
+          "name": "financial_then_tiss: 0149 duplicate gap is refused",
+          "status": "PASS"
+        },
+        {
+          "name": "financial_then_tiss: tenant cannot read another clinic gap or private recovery provenance",
+          "status": "PASS"
+        },
+        {
+          "name": "financial_then_tiss_rollback",
+          "status": "PASS"
+        },
+        {
+          "name": "tiss_then_financial",
+          "status": "PASS",
+          "fingerprint": "48b954a4476e432e6702784ba47ad799d10aadfcf0338a72fd012d55963b9003"
+        },
+        {
+          "name": "tiss_then_financial: legacy and AbacatePay contracts invoices and private receivables preserved",
+          "status": "PASS"
+        },
+        {
+          "name": "tiss_then_financial: trial and insurance guards coexist",
+          "status": "PASS"
+        },
+        {
+          "name": "tiss_then_financial: existing private appointment remains private",
+          "status": "PASS"
+        },
+        {
+          "name": "tiss_then_financial: insurance full charge refused without consuming trial quota",
+          "status": "PASS"
+        },
+        {
+          "name": "tiss_then_financial: 0149 keeps completed coverage frozen without an open gap",
+          "status": "PASS"
+        },
+        {
+          "name": "tiss_then_financial: 0149 correction needs an open gap and stamps the authenticated actor",
+          "status": "PASS"
+        },
+        {
+          "name": "tiss_then_financial: 0149 duplicate gap is refused",
+          "status": "PASS"
+        },
+        {
+          "name": "tiss_then_financial: tenant cannot read another clinic gap or private recovery provenance",
+          "status": "PASS"
+        },
+        {
+          "name": "tiss_then_financial_rollback",
+          "status": "PASS"
+        },
+        {
+          "name": "common_journal_identity_order_and_readonly_tiss_inputs",
+          "status": "PASS"
+        }
+      ],
+      "status": "PASS",
+      "financial": {
+        "checks": 120,
+        "scope": "same scenarios on the pinned 0149 SQL, separate execution; not new payments"
+      }
+    },
+    "localValidation": [
+      {
+        "name": "tiss",
+        "startedAt": "2026-11-11T20:48:10.429Z",
+        "finishedAt": "2026-11-11T20:48:32.156Z",
+        "exitCode": 0,
+        "status": "PASS",
+        "log": "dist/pinned-0150-tiss.log"
+      },
+      {
+        "name": "renewal",
+        "startedAt": "2026-11-11T20:48:32.168Z",
+        "finishedAt": "2026-11-11T20:50:04.890Z",
+        "exitCode": 0,
+        "status": "PASS",
+        "log": "dist/pinned-0150-renewal.log"
+      },
+      {
+        "name": "typecheck",
+        "startedAt": "2026-11-11T20:50:04.893Z",
+        "finishedAt": "2026-11-11T20:50:46.071Z",
+        "exitCode": 0,
+        "status": "PASS",
+        "log": "dist/pinned-0150-typecheck.log"
+      },
+      {
+        "name": "lint",
+        "startedAt": "2026-11-11T20:50:46.075Z",
+        "finishedAt": "2026-11-11T20:52:43.727Z",
+        "exitCode": 0,
+        "status": "PASS",
+        "log": "dist/pinned-0150-lint.log"
+      }
+    ],
+    "lintFollowup": "Full lint exited 0 with one unused metadata-variable warning; replaced with explicit fields, then all three scripts checked with --max-warnings 0; current CI remains required",
+    "previousCi": {
+      "sha": "b18407c31e0f5506ae4e049ab1857d373620c26b",
+      "runId": "43069046940",
+      "unitPassed": 7016,
+      "e2ePassed": 22,
+      "e2eSkipped": 0,
+      "status": "PASS",
+      "appliesToNewHarness": false
+    },
+    "currentCi": "See PR53 checks for the final commit; do not inherit baseline approval",
+    "devReadback": {
+      "observedAt": "2026-11-11T20:49:03.536Z",
+      "scope": "read_only_DEV_and_TISS_branch_metadata_no_mutation",
+      "financialJournalEntries": 143,
+      "devHistoryCount": 144,
+      "tissHead": "6b101e892e4e856c5653e7bb89a1791ce452815c",
+      "tissDraft": true,
+      "tissMigrations": [
+        {
+          "tag": "0143_tiss_catalog",
+          "when": "1794330000000",
+          "hash": "9f9b483aaeff60a9ca4f5b182c3b071408a7d3eec9ecea7cfe8f98bcf602e807",
+          "devApplied": true,
+          "timestampConflict": false
+        },
+        {
+          "tag": "0144_hi_clinic_setup",
+          "when": "1794367436665",
+          "hash": "b9ac6c7a0b335582f3bf69385a3b004cf9d0784955f27d7c3cd22776a4590589",
+          "devApplied": false,
+          "timestampConflict": false
+        },
+        {
+          "tag": "0145_hi_memberships",
+          "when": "1794391493822",
+          "hash": "98425850e4c2dae613734aa337ce588df641e5c3b67476c055147cb9c82632c4",
+          "devApplied": false,
+          "timestampConflict": false
+        },
+        {
+          "tag": "0146_hi_authorizations",
+          "when": "1794395869610",
+          "hash": "15cbf34c1439cc1d7a0ca4be40267729b44c1cdea1760d5090deb10288493cb6",
+          "devApplied": false,
+          "timestampConflict": false
+        },
+        {
+          "tag": "0147_hi_guides",
+          "when": "1794399173366",
+          "hash": "a344a7e86074d90a4b13b007ef6f9e3357ac23e3b8bc43743158d131ca45238a",
+          "devApplied": false,
+          "timestampConflict": false
+        },
+        {
+          "tag": "0148_hi_coverage_copay",
+          "when": "1794405160338",
+          "hash": "45f0b90b9307c5888e8e0ac61fab9685561f89a62cdf54ea60d2bd3becfdcb0b",
+          "devApplied": false,
+          "timestampConflict": false
+        },
+        {
+          "tag": "0149_hi_billing_gaps",
+          "when": "1794416643149",
+          "hash": "56c0d5f29a409b65e0fe4fc1ac7512bbd8c979150c2252e375a375b85139d183",
+          "devApplied": false,
+          "timestampConflict": false
+        },
+        {
+          "tag": "0150_hi_batches",
+          "when": "1794418524711",
+          "hash": "e7dc279a073501a4f2e03dd95ff9773564cbc690ea2591a3e94a03f9a273c992",
+          "devApplied": false,
+          "timestampConflict": false
+        }
+      ],
+      "candidatePeriodColumn": false,
+      "productionWrites": 0,
+      "devWrites": 0,
+      "tissWorktreeChanges": 0
+    },
+    "fixturePreparationFailures": [
+      "synthetic clinic slug too long; corrected only synthetic slug",
+      "expected permission error ran on outer connection instead of nested savepoint; corrected harness connection",
+      "ignored local validation runner omitted react-server condition in child NODE_OPTIONS; corrected runner, no application change"
+    ],
+    "mfa": {
+      "status": "PASS_NORMAL_OPERATOR_JOURNEY_OWNER_CONFIRMED",
+      "previewSha": "b18407c31e0f5506ae4e049ab1857d373620c26b",
+      "evidence": "owner replied tudo ok to login/TOTP, admin page, logout denial and new MFA login; not inspected by automation",
+      "interactiveLogin": "PASS_OWNER_CONFIRMED",
+      "adminPage": "PASS_OWNER_CONFIRMED",
+      "logoutDenial": "PASS_OWNER_CONFIRMED",
+      "reauthentication": "PASS_OWNER_CONFIRMED",
+      "invalidTotp": "UNIT_ONLY",
+      "forcedSessionExpiration": "UNIT_ONLY",
+      "factorRecovery": "NOT_RUN",
+      "globalRevocation": "NOT_RUN",
+      "financialReplayStepUp": "UNIT_ONLY",
+      "externalServiceMfa": "NOT_RUN",
+      "automatedEvidence": "101 focused tests and revoked-operator DB checks from previous increment; not repeated"
+    },
+    "productionWrites": 0,
+    "sharedDevWrites": 0,
+    "providerPaymentMutations": 0,
+    "providerCheckoutClosures": 0,
+    "newPayments": 0,
+    "nextGates": [
+      "TISS history freeze and specific DEV schema approval",
+      "specific paid-checkout closure authorization/readbacks",
+      "MFA incident/recovery and external-service checks remain distinct from approved normal journey",
+      "external recurring lifecycle evidence or authorized risk decision",
+      "reviewed Production composition; no activation authorized"
+    ]
   }
 }
