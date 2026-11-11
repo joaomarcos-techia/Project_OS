@@ -39,17 +39,17 @@
 
 | Campo | Valor |
 | --- | --- |
-| Data da última atualização | 10/11/2026 |
-| Fase atual | **P0 — Preparação** |
-| Tarefa em andamento | P9.1 (gerador XML: Consulta, SP/SADT e lote prontos; recurso de glosa e solicitação pendentes) e P8.6 (camada interna aprovada; externa pendente) |
-| Última tarefa concluída | P8.3 — validador da SP/SADT (commit `c28b927c`) |
-| Progresso | **16 de 109 tarefas concluídas (14,7%)**: P0.1–P0.9, P1.1, P1.2, P1.3, P7.3, P8.1, P8.3 e P14.1. Critério: só conta tarefa com evidência no [Registro](#m-registro-de-execução). Destas 109, **7 dependem de terceiros ou de aprovação humana** (L.2). |
+| Data da última atualização | 11/11/2026 |
+| Fase atual | **P1 — Fundação de dados**, com P7/P8 (montadores) e P13 (validação) em paralelo |
+| Tarefa em andamento | **P1.4** (migration 0144, validada só por ensaio transacional no DEV: ver E.5); P9.1 e P8.6 (ver status nas tabelas: gerador pronto para Consulta, SP/SADT e lote; recurso de glosa e solicitação pendentes); P13.2 (camada XSD roda por script; falta o CI, que depende de P9.2); P13.6 (divergências classificadas, nenhuma exige mudança de código) |
+| Última tarefa concluída | P13.4 — Validador B (TISS Manager) executado com o corpus sintético (commit `6dd862e3`) |
+| Progresso | **19 de 110 tarefas concluídas (17,3%)**: P0.1–P0.9, P1.1, P1.2, P1.3, P7.3, P8.1, P8.3, P13.1, P13.3, P13.4 e P14.1. O total passou de 109 para 110 com a P12.8 (Componente de Segurança e Privacidade, 11/11). Critério: só conta tarefa com evidência no [Registro](#m-registro-de-execução). Destas 110, **8 dependem de terceiros ou de aprovação humana** (L.2). |
 | Capacidades em produção | nenhuma (ver A.5) |
-| Testes aprovados | nenhum teste do módulo ainda |
-| Bloqueios ativos | B4 (ordem de merge com o PR #53), B5 (operadora e clínica piloto), B6 (retenção legal), B7 (instalar o Validador C). **B9 resolvido**: a carga entrou em 10/11 depois de várias tentativas; o DEV continua lento (R17). |
-| Decisões | D1–D12 aprovadas ou adotadas; D13–D17 novas, adotadas pelo agente dentro do escopo delegado (L.1) |
-| Arquivos alterados | este documento; `docs/adr/072-convenios-e-tiss.md`; `src/contexts/health-insurance/tiss/schemas/**`; `src/contexts/health-insurance/tiss/terminology/**`; `src/lib/xlsx/**`; `scripts/tiss/terminology/**`; `data/tiss/terminologia/202609/**`; `docs/architecture/*` (snapshots regenerados) |
-| Próxima ação exata | **P1.4** (migration 0144: operadoras, planos, perfil TISS, credenciamento e contratos, com RLS por clínica) e em seguida **P1.5–P1.9**; em paralelo, puros: **P8.2** (montador da SP/SADT) e **P7.2** (montador da Consulta). |
+| Testes aprovados | **Testes do módulo executados e verdes em 11/11:** 16 arquivos, 437 aprovados e 3 pulados (cenário sem arquivo), em `src/contexts/health-insurance`, `src/lib/xlsx`, `src/lib/validation` e na caracterização da régua de cobrança. Regressão dos consumidores do CNPJ: 119 arquivos, 1.826 aprovados. XSD oficial: 38/38 arquivos do corpus como esperado. Validadores externos A e B executados (G.6). A linha "nenhum teste do módulo ainda" das versões anteriores estava desatualizada desde `dc56b5d4` (10/11), quando os primeiros testes do núcleo XML já rodavam verdes. |
+| Bloqueios ativos | B4 (ordem de merge com o PR #53), B5 (operadora e clínica piloto), B6 (retenção legal), B7 (Validador C: avaliado em 11/11, falta decidir ambiente isolado e licença), **B10** (aderência do Qoro ao Componente de Segurança e Privacidade da ANS: decisão do fundador), **B11** (Asaas e AbacatePay aceitarem CNPJ alfanumérico do titular: prova em sandbox) |
+| Decisões | D1–D12 aprovadas ou adotadas; D13–D17 adotadas pelo agente no escopo delegado; **D18** (CNPJ alfanumérico no validador compartilhado, autorizado pelo fundador em 11/11) e **D19** (estratégia de migrations no DEV compartilhado) (L.1) |
+| Arquivos alterados | este documento; `docs/adr/072-convenios-e-tiss.md` (era 067); `src/contexts/health-insurance/**`; `src/lib/xlsx/**`; `src/lib/validation/cnpj.ts`, `document.ts`; `src/lib/masks.ts`; campos de CNPJ do perfil, fornecedores e `/join`; `scripts/tiss/**`; `data/tiss/**`; `evidence/tiss-validadores-2026-11-10/**`; `docs/architecture/*` |
+| Próxima ação exata | **P1.4**: escrever a migration 0144 (operadoras, planos, perfil TISS, credenciamento e contratos, RLS por clínica) com `when` igual ao relógio real e validá-la **por ensaio transacional no DEV com ROLLBACK** (D19), sem aplicar; em paralelo, **P7.2** (montador da Consulta) e **P8.2** (montador da SP/SADT). |
 
 ---
 
@@ -182,15 +182,17 @@ Avaliada contra o que o Qoro atende hoje: clínica ambulatorial (consultas, sess
 | Agendamento por convênio (WhatsApp) | — | — | — | n/a | — | — |
 | Autorizações (manual) | — | — | — | n/a | — | — |
 | Autorizações (conector) | — | — | — | — | — | — |
-| Guia de Consulta | — | — | — | — | — | — |
-| Guia SP/SADT | — | — | — | — | — | — |
-| Lotes e XML | — | — | — | — | — | — |
+| Guia de Consulta | parcial: modelo, XML e validador (sem montador, tela, PDF nem persistência) | parcial: unitários + corpus | parcial: XSD oficial, A e B (G.6) | — | — | — |
+| Guia SP/SADT | parcial: modelo, XML e validador (idem) | parcial: unitários + corpus | parcial: XSD oficial, A e B (G.6) | — | — | — |
+| Lotes e XML | parcial: lote, hash, verificação independente, codificação, regras de lote (sem numeração, persistência nem exportação) | parcial: unitários + corpus | parcial: XSD oficial, A e B (G.6) | — | — | — |
 | Demonstrativos (importação) | — | — | — | — | — | — |
 | Glosas e recurso | — | — | — | — | — | — |
 | Coparticipação | — | — | — | n/a | — | — |
 | Recebíveis e conciliação | — | — | — | n/a | — | — |
 | Repasses de convênio | — | — | — | n/a | — | — |
 | Observabilidade | — | — | — | n/a | — | — |
+
+"Parcial" quer dizer: só o que está escrito na célula. Nenhuma capacidade passou de Validado parcial; "Homologado" e "Pronto" seguem vazios porque dependem de operadora (B5) e das demais camadas.
 
 `n/a` em Homologado: não depende de operadora. Essas capacidades passam por homologação interna (P15.2).
 
@@ -437,6 +439,13 @@ O que segue é declaração das próprias páginas. Ainda **não** foi verificad
 - B envia o arquivo ao servidor no plano grátis: **só arquivos sintéticos**.
 - C exige instalar software de terceiros na máquina do fundador: **precisa de autorização (B7).**
 - Divergência entre validadores é resolvida pelo XSD e pelas regras oficiais da ANS (B.10).
+
+**Verificado na execução (10–11/11/2026), além do que as páginas declaram:**
+
+- **A (Paniquar)** roda `xmllint.wasm` (libxml2) no navegador. Durante os 38 envios só houve GETs dos XSDs e do `.wasm`, sem nenhuma requisição com corpo: a promessa de processamento local foi confirmada na prática.
+- **B (TISS Manager)** recebe o arquivo por `POST /api/public/tiss/validar-express` e também declara libxml2. **A e B usam o mesmo motor de XSD que a nossa camada interna**, então o XSD deles não é verificação independente da nossa; o valor deles está nas regras próprias.
+- **B tem três defeitos comprovados** (G.6): exige `xsi:schemaLocation` sem base no XSD nem no Componente Organizacional 202609 (B1); conta zero guias de Consulta sem o `numeroGuiaOperadora`, opcional no XSD (B2); recalcula o hash lendo o arquivo ISO-8859-1 como UTF-8, trocando acentos por "?" (B3, reproduzido em 11 de 11 arquivos). Por causa do B3, ele acusa hash errado em arquivo correto e não acusa o arquivo de fato gravado em UTF-8 (M17). Também declarou "vigente" o TUSS inexistente `99999999` e o TUSS vencido do N11, e não confere o DV do CNPJ, embora declare.
+- **C (Validador TISS)** tem também um **app web** (`app.validadortiss.com.br`), SaaS com "hospedagem do software e banco de dados". Os termos (11/11) dizem que o programa registra, de cada arquivo validado, caminho completo, tamanho, versão, nome, CPF/CNPJ e CNES do prestador e registro ANS da operadora, além de atributos do aparelho (UUID, usuário do sistema operacional, número de série do disco, geolocalização), com possível armazenamento fora do Brasil. A licença proíbe usar o aplicativo "para qualquer empreendimento de geração de receita, empresa comercial": o uso do plano grátis no desenvolvimento do Qoro precisa de decisão (plano pago ou autorização do fornecedor). Instalador conferido sem executar: `ValidadorTISS_Instalador-4.30.0.exe`, 38.020.192 bytes, SHA-256 `aca9952fa6dce7fbaf463ff11176d497d5e9d7a130c5c355c83d0cce067966ce`, assinatura Authenticode **válida** de "Plataforma Tecnologia em Sistemas Ltda" (DigiCert, válida até 03/04/2027, com carimbo de tempo), `Last-Modified` 13/10/2026, igual à data da v4.30. Esta máquina tem Windows 11 Home, sem Windows Sandbox nem Hyper-V: isolar exige outra máquina, VM com hipervisor instalado à parte ou VM Windows na nuvem (B7).
 
 ---
 
@@ -994,14 +1003,14 @@ Os números marcados com `*` são provisórios e devem ser reconferidos (E.5). P
 | **P8.3** | `GuideValidator` SP/SADT (regras da aba `loteGuias` SP/SADT) | P8.2 | `…/sp-sadt/validator.ts` | uma regra por teste | unitários | **Concluído** (`c28b927c`): 36 regras negativas, positivos com a terminologia real, conferência das quantidades autorizadas e indicação clínica direcionada ao médico |
 | **P8.4** | itens executados adicionais: registro opcional no consultório (só itens de contrato, sem campo clínico) e na conferência | P8.1, P2.3 | consultório e tela da guia | o médico não é obrigado; a recepção completa | componente, e2e | Pendente |
 | **P8.5** | PDF oficial SP/SADT (solicitação e cobrança), conforme o modelo do Conteúdo e Estrutura | P8.2 | `src/lib/pdf/guia-sp-sadt.tsx` | campos e numeração do modelo oficial (mapeamento registrado) | `pdfjs` + captura | Pendente |
-| **P8.6** | XML SP/SADT no builder | P8.2, P9.1 | `tiss/xml-builder` | corpus SP/SADT de P13 aprovado | P13 | **Em execução**: SP/SADT no gerador do lote (`06377f7a`); camada interna (XSD) aprovada; camada externa (P13.3–P13.5) pendente |
+| **P8.6** | XML SP/SADT no builder | P8.2, P9.1 | `tiss/xml-builder` | corpus SP/SADT de P13 aprovado | P13 | **Em execução.** Implementado: SP/SADT no gerador do lote (`06377f7a`). Validação interna: 6 válidos e 3 negativos de SP/SADT no corpus `c1` como esperado no XSD oficial e nas regras. Externa: A aceitou os 6 válidos; B não apontou erro próprio além dos defeitos B1–B3 (G.6). Falta: P8.2 (montador) e o arquivo vir do fluxo real, não do corpus |
 | **P8.7** | automação na conclusão (handler P7.4 com tipo SP/SADT, agrupamento e consumo da autorização) | P8.2, P7.4 | handler | idempotente; consumo correto | E2 SP/SADT | Pendente |
 
 ### P9 — Faturamento, lotes, retornos e glosas
 
 | ID (antigo) | Objetivo | Dependências | Arquivos | Aceite | Testes | Status |
 | --- | --- | --- | --- | --- | --- | --- |
-| **P9.1** (T7.1) | `TissXmlBuilder`: lote (Consulta e SP/SADT), recurso de glosa, solicitação de procedimento; ISO-8859-1; MD5 | P7.2, P0.7 | `tiss/xml-builder/*` | hash recalculado de forma independente; não-latin1 recusado | golden files | **Em execução**: núcleo XML, hash do epílogo, Guia de Consulta e lote prontos (`dc56b5d4`); 8 XMLs gerados pelo código passaram no XSD oficial (Registro de 10/11); faltam SP/SADT (P8.6), recurso de glosa (P9.7) e solicitação (P6.2) |
+| **P9.1** (T7.1) | `TissXmlBuilder`: lote (Consulta e SP/SADT), recurso de glosa, solicitação de procedimento; ISO-8859-1; MD5 | P7.2, P0.7 | `tiss/xml-builder/*` | hash recalculado de forma independente; não-latin1 recusado | golden files | **Em execução.** Pronto e testado: núcleo XML, hash do epílogo, Guia de Consulta, SP/SADT e lote (`dc56b5d4`, `06377f7a`); verificador independente do hash a partir do texto do arquivo e checagem de codificação (`d29ddc44`). Validação: corpus `c1` com 13 válidos e 25 negativos, 38/38 como esperado no XSD oficial; A e B executados (G.6). Faltam: recurso de glosa (P9.7) e solicitação de procedimento (P6.2) |
 | **P9.2** (T7.2) | `TissXsdValidator` | P0.8 | `tiss/xsd-validator.ts` | C.13; `xmllint-wasm` em `serverExternalPackages`; validação numa rota Node **na Preview da Vercel** (worker_threads e `.wasm` incluídos no bundle), com memória e tempo medidos; checagem própria de codificação (o XSD não detecta UTF-8 declarado como ISO-8859-1) | P13.2 | Pendente |
 | **P9.3** (T7.3) | lotes: regras (operadora, tipo, versão, até 100), numeração, exportação só se o XSD aprovar, `hi_files` com SHA | P9.1, P9.2, P7.5 | `internal/batches.ts`, rota | 101 recusado; guia em dois lotes recusada; concorrência segura | unitários, concorrência | Pendente |
 | **P9.4** | envio: registro manual (data, quem, protocolo, comprovante) e envio pelo conector (P6.5) com recibo real | P9.3, P6.4 | `internal/batches.ts` | nenhum "enviado" sem registro ou recibo | unitários | Pendente |
@@ -1041,17 +1050,18 @@ Os números marcados com `*` são provisórios e devem ser reconferidos (E.5). P
 | **P12.5** | credenciais de operadora: cifra, rotação, acesso só pelo adapter, nunca em log | P2.5 | teste de vazamento | segurança | Pendente |
 | **P12.6** | observabilidade (C.14): métricas, logs, alertas, `insurance-reconcile`, dead letters | P7.4, P10.2 | métricas no `check:observability`; alerta disparando em teste | unitários + ensaio | Pendente |
 | **P12.7** | arquivos XML, PDF e comprovantes: Storage privado, acesso autenticado, sem URL pública | P9.3, P6.1 | IDOR negativo | segurança | Pendente |
+| **P12.8** | aderência ao **Componente de Segurança e Privacidade** da ANS (pacote `PadroTISS_segurana_202511.zip`, SHA-256 `09af14231ae40b95d055fb3effbadfba1f71bdf676a5a3c69a057bace0d2ff73`). O escopo vale para "todos os sistemas e portais que tratam os dados que fazem parte do Padrão TISS". Matriz requisito × situação do Qoro, com destaque para os **obrigatórios vigentes desde 01/12/2025, implantação até 30/06/2026**: troca de senha em até 90 dias (81), sem repetir as 10 últimas (82), sessão encerrada em até 10 min de inatividade (83), log de acesso por 180 dias (84), auditoria imutável com finalidade declarada por 180 dias (85); e os anteriores 36, 41, 42, 53, 56, 57, 58, 62, 67, 69, 79. O segundo fator (86, 87) e a assinatura digital da mensagem (30) são **recomendados** | — | matriz aprovada pelo fundador (B10) e cada obrigatório atendido ou com exceção decidida | revisão + testes por requisito | Pendente (B10) |
 
 ### P13 — Validação TISS em múltiplas camadas
 
 | ID | Objetivo | Dependências | Aceite | Status |
 | --- | --- | --- | --- | --- |
-| **P13.1** | corpus sintético (G.4) gerado pelo código real: um cenário por linha da matriz, todos os tipos suportados | P0.10, P9.1, P8.6 | manifesto com SHA de cada arquivo; dados 100% fictícios | Pendente |
-| **P13.2** (T11.2) | camada interna no CI: XSD + regras; válidos passam, inválidos falham com o erro esperado | P9.2, P13.1 | 100% / 100% | Pendente |
-| **P13.3** | Validador A (Paniquar), roteiro manual de G.5 | P13.1 | resultado registrado por arquivo | Pendente |
-| **P13.4** | Validador B (TISS Manager), roteiro de G.5, **só sintéticos** (envio ao servidor) | P13.1 | idem | Pendente |
-| **P13.5** | Validador C (Validador TISS, Windows) | P13.1, **B7** | idem | Bloqueado (B7) |
-| **P13.6** | análise de divergências e ciclo de correção (G.5 passos 5–10) | P13.2–P13.5 | toda divergência classificada pela ANS; correção no código, nunca no XML | Pendente |
+| **P13.1** | corpus sintético (G.4) gerado pelo código real: um cenário por linha da matriz, todos os tipos suportados | P0.10, P9.1, P8.6 | manifesto com SHA de cada arquivo; dados 100% fictícios | **Concluído** (`d29ddc44`): `data/tiss/corpus/4.03.00/c1`, 39 cenários e 38 arquivos, oráculo nos dois sentidos por camada; regenerado byte a byte pelo teste. Ficam para o corpus `c2`: V25 (recurso de glosa) e V26 (demonstrativo), que dependem de P9.7 e P9.5 |
+| **P13.2** (T11.2) | camada interna no CI: XSD + regras; válidos passam, inválidos falham com o erro esperado | P9.2, P13.1 | 100% / 100% | **Em execução**: regras, hash e codificação rodam no `vitest` (195 testes do corpus); o XSD roda por `scripts/tiss/corpus/validate-xsd.ts` (38/38) e o teste confere o resultado gravado. Falta o XSD no CI, que depende do `xmllint-wasm` no `package.json` (P9.2) |
+| **P13.3** | Validador A (Paniquar), roteiro manual de G.5 | P13.1 | resultado registrado por arquivo | **Concluído** (`6dd862e3`): 38 arquivos em 10/11; resultado, captura e SHA por arquivo em `evidence/tiss-validadores-2026-11-10/paniquar/` |
+| **P13.4** | Validador B (TISS Manager), roteiro de G.5, **só sintéticos** (envio ao servidor) | P13.1 | idem | **Concluído** (`6dd862e3`): 37 de 38 arquivos com resultado (M21 sem resposta em 60 s); defeitos B1–B3 do validador classificados (B.11) |
+| **P13.5** | Validador C (Validador TISS, Windows) | P13.1, **B7** | idem | **Bloqueado (B7).** Avaliação feita em 11/11 sem instalar: origem, assinatura e SHA do instalador conferidos; telemetria e restrição de licença comercial registradas (B.11) |
+| **P13.6** | análise de divergências e ciclo de correção (G.5 passos 5–10) | P13.2–P13.5 | toda divergência classificada pela ANS; correção no código, nunca no XML | **Em execução**: todas as divergências de A e B classificadas (G.6); nenhuma exige mudança no gerador. Pendentes: B1 (`schemaLocation`) a confirmar com a operadora piloto (P15.4) e a camada C |
 | **P13.7** | conformidade dos PDFs com os modelos oficiais (Consulta, SP/SADT solicitação e cobrança), comparação lado a lado | P7.6, P8.5 | relatório com capturas | Pendente |
 
 ### P14 — Qualidade
@@ -1159,6 +1169,9 @@ Rode também `npx tsx scripts/arch-db-check.ts`. Nenhum import de `internal/*` e
    - **troca de constraint, mudança de dado ou qualquer coisa que altere o comportamento de outras branches no DEV exige coordenação explícita** (registrar em L.2 antes);
    - o `idx` do journal é sequencial nesta branch (0143 = `idx` 136). No rebase depois do #53, as entradas do billing (`idx` 136–142) entram antes e as nossas passam a 143+;
    - o worktree não tem `.env.local`, e segredo não é copiado para ele. O invólucro lê o `.env.local` do checkout principal, confirma o projeto DEV (`pqhkirrszzpwezdaqrai`) e recusa o de produção antes de passar as variáveis ao processo;
+   - **estratégia desde 11/11 (D19):** enquanto o PR #53 estiver aberto, migration nova **não** é aplicada de forma persistente. Ela é validada por ensaio transacional: abrir transação, executar o SQL, rodar as sondas (RLS por clínica, `authenticated`, `anon`, `service_role`), conferir e dar `ROLLBACK`. O ensaio não grava em `drizzle.__drizzle_migrations` e não muda o estado visto pelas outras branches;
+   - **`when` do journal = relógio real** no momento da criação. Valor no futuro faz o DEV pular, em silêncio, migrations de outras branches criadas depois com `when` menor (R19);
+   - antes de criar: ler `drizzle.__drizzle_migrations` (só leitura) e o journal de `origin/feat/billing-abacatepay-20261107` e `origin/ui/refactor-qoro-20261108`. Em 11/11: DEV com 161 registros, o último é a nossa 0143 (`1794330000000`); o billing segue até a 0142; a UI carrega só a 0136 do billing;
    - **latência:** o pooler do DEV (`us-west-1`) leva cerca de 10 s para aceitar conexão daqui, e o pool do app tem `connect_timeout` 10 s. Espere `CONNECT_TIMEOUT` intermitente. Rode em segundo plano, com log em arquivo, e confira o estado por consulta só de leitura antes de repetir. Matar o processo desfaz a transação (verificado).
 
 ### E.6 Escolher a próxima tarefa
@@ -1421,7 +1434,15 @@ Cada linha é gerada pelo código real, para Consulta e SP/SADT quando aplicáve
 
 | Arquivo | SHA-256 | Esperado | Interno | A (versão, data) | B (versão, data) | C (versão, data) | Divergência | Classificação ANS | Correção | Evidência |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| _(vazio até P13.3)_ | | | | | | | | | | |
+| Corpus `c1`: 13 válidos (Consulta e SP/SADT, inclusive lotes de 100) | no `MANIFEST.json` | válido | XSD 13/13; regras, hash e codificação sem pendência | **aceito 13/13** (10/11, página "4.03.00") | **sem erro próprio 13/13**; só B1, B2 e B3 (10/11) | não executado (B7) | B1–B3 | defeitos do validador B, sem base na ANS (B.11) | nenhuma | `evidence/tiss-validadores-2026-11-10/` |
+| 12 negativos de XSD (N05–N16a, N23, M19, M21) | idem | inválido | XSD recusa 12/12 | **recusa 12/12** | recusa 11/11 executados (M21 sem resposta) | — | nenhuma | coerente | nenhuma | idem |
+| M20 (hash zerado) | idem | inválido | hash recusa | **recusa** (hash não confere) | **recusa** | — | nenhuma | coerente | nenhuma | idem |
+| M17 (UTF-8 declarado ISO-8859-1) | idem | inválido | codificação e hash recusam; XSD aceita | **recusa** (pelo hash) | **não detecta** | — | B não detecta | consequência do defeito B3 | nenhuma no Qoro | idem |
+| N22, N24, N15a, N11 (guia repetida, versão 4.02.00, data futura) | idem | inválido | regras recusam | **atenção ou aviso** em todos | **recusa** em todos | — | A só avisa | A trata como alerta; coerente | nenhuma | idem |
+| N-cpf-dígito-errado | idem | inválido | regras recusam | aceita | **recusa** | — | A não confere DV | limite de A | nenhuma | idem |
+| N16b, N10, N15b, N-sadt-sem-indicação, N-operadora-diferente, N-cnpj-dígito-errado; e a vigência TUSS do N11 | idem | inválido | **só as regras internas recusam** | aceita | aceita | — | nenhum externo cobre | regras de negócio fora do escopo dos dois; B declara TUSS "vigente" sem conferir | nenhuma | idem |
+
+Consolidação por arquivo, com SHA-256 e veredito de cada camada: [`evidence/tiss-validadores-2026-11-10/cross-validation.json`](evidence/tiss-validadores-2026-11-10/cross-validation.json).
 
 **Critério de aprovação:**
 
@@ -1687,6 +1708,8 @@ O módulo só é **Pronto para produção** quando todos os itens tiverem evidê
 | D15 | conectores de operadora: porta + adapter manual + adapter SOAP genérico testado contra stub; "Homologado" só com operadora real | **Adotada** (diretriz §3.6) |
 | D16 | repasse de convênio: elegibilidade configurável por clínica (`na_conclusao` / `na_aprovacao` / `no_recebimento`), **padrão `no_recebimento`** (sem antecipação); fluxo particular inalterado | **Adotada** (diretriz §3.11); a clínica muda a política conscientemente |
 | D17 | `indicacaoClinica` da SP/SADT (opcional) nunca preenchida automaticamente a partir do prontuário; só com ação explícita do médico, quando a operadora exigir | **Adotada** (finalidade limitada, LGPD) |
+| D18 | CNPJ alfanumérico aceito no validador compartilhado (`src/lib/validation/cnpj.ts`), com forma canônica idêntica para CNPJ numérico (hash e dados existentes inalterados) e `/join` normalizando como o perfil; o documento do **titular da cobrança** continua só numérico até cada gateway provar suporte (B11), mas as letras deixaram de ser descartadas | **Aprovada** pelo fundador em 11/11 (correção transversal autorizada); commit isolado `fcfaa449` |
+| D19 | DEV compartilhado: nenhuma migration nova é aplicada de forma persistente enquanto o PR #53 estiver aberto; cada migration nova é validada por **ensaio transacional no DEV** (`BEGIN` → SQL → sondas de RLS e privilégio → `ROLLBACK`), sem tocar em `drizzle.__drizzle_migrations`; o `when` do journal é o relógio real do momento da criação, nunca um valor no futuro | **Adotada** pelo agente (diretriz de 11/11: "evitar interferências entre os agentes") |
 
 ### L.2 Bloqueios
 
@@ -1695,9 +1718,11 @@ O módulo só é **Pronto para produção** quando todos os itens tiverem evidê
 | B4 | PR #53 aberto (0136–0142) e UI não mergeada | aplicação de migrations no DEV (E.5) e merge final | merge ou ordem decidida; até lá desenvolver sem aplicar o que colidir |
 | B5 | operadora e clínica piloto para homologação | P6.5 (homologação), P15.3, P15.4 | piloto definido pelo fundador |
 | B6 | orientação jurídica de retenção de guias e carteirinhas | P12.3 | orientação |
-| B7 | instalar o Validador C (software de terceiros no Windows) | P13.5 | autorização |
+| B7 | Validador C (Validador TISS): software de terceiros com telemetria do aparelho e dos arquivos e licença grátis que veda uso por "empresa comercial" (B.11) | P13.5 | o fundador decidir: (a) ambiente isolado (outra máquina, VM com hipervisor à parte ou VM na nuvem; o Windows 11 Home daqui não tem Sandbox) e (b) licença (plano pago ou autorização do fornecedor) |
 | B8 | aprovação humana de release e ativação | P15.8, P15.9 | fundador |
 | B9 | ~~conexão com o DEV instável (10/11, tarde)~~ **resolvido** | P1.3 | a carga entrou; a lentidão segue registrada em R17 |
+| B10 | aderência do Qoro ao Componente de Segurança e Privacidade da ANS (P12.8): os requisitos obrigatórios atingem a autenticação e a auditoria do Qoro inteiro, não só o módulo | P12.8, P15 (Pronto para produção) | o fundador decidir o escopo (atender, ou exceção justificada por requisito) |
+| B11 | Asaas e AbacatePay aceitarem CNPJ alfanumérico no documento do titular | liberar o alfanumérico na cobrança (D18) | teste no sandbox de cada gateway com o CNPJ de exemplo da Receita |
 
 B1–B3 da rev.1 foram resolvidos pela diretriz de 10/11 (D1–D8).
 
@@ -1709,7 +1734,7 @@ B1–B3 da rev.1 foram resolvidos pela diretriz de 10/11 (D1–D8).
 | R2 | quebra do UNIQUE de lançamento por atendimento | baixa | alto | D3 |
 | R3 | XML válido recusado pela operadora | média | médio | P13 + P15.3/4 + mensagens claras |
 | R4 | dados obrigatórios ausentes | alta | médio | pendências guiadas |
-| R5 | CNPJ não normalizado | alta | médio | P2.4 |
+| R5 | CNPJ não normalizado | média | médio | D18: perfil, fornecedores e `/join` normalizam e validam; restam os CNPJs já gravados pelo `/join` com a pontuação digitada (sem migração; o `cnpj_hash` não é usado em consulta) |
 | R6 | colisão de migrations | média | alto | E.5 |
 | R7 | conflito visual com a UI | alta | baixo | primitivos compartilhados |
 | R8 | IA prometer cobertura | média | alto | P11 + guardas |
@@ -1720,8 +1745,11 @@ B1–B3 da rev.1 foram resolvidos pela diretriz de 10/11 (D1–D8).
 | R13 | DEV compartilhado com migrations de outras branches | média | alto | E.5 passo 5 |
 | R14 | agrupamento de sessões diferente por operadora | alta | médio | regra por operadora (P2.5) + conferência humana |
 | R15 | escopo grande demais para uma clínica piloto inicial | média | médio | flag por clínica e por operadora; tipos de guia liberados um a um |
-| R16 | **o validador de CNPJ compartilhado (`src/lib/validation/cnpj.ts`) só aceita dígitos**: desde jul/2026 a Receita emite CNPJ alfanumérico, e o Qoro recusaria um CNPJ novo válido em fornecedor, perfil e onboarding | alta | médio | `isValidCnpjAlphanumeric` criado sem tocar o compartilhado; trocar a normalização (afeta hash e persistência) é decisão do fundador, fora do escopo de convênios |
+| R16 | ~~o validador de CNPJ compartilhado só aceita dígitos~~ **mitigado em 11/11** (D18, `fcfaa449`): os dois formatos são aceitos no cadastro, com compatibilidade provada contra a implementação antiga em 5.000 CNPJs numéricos; segue aberto só o titular da cobrança (B11) | baixa | médio | B11 |
 | R17 | DEV compartilhado instável ou lento (pooler em outra região) atrasa a validação conectada | média | médio | scripts com log, conexão própria e transação única; repetir; código puro avança em paralelo |
+| R18 | o Qoro não atender aos requisitos obrigatórios do Componente de Segurança e Privacidade da ANS ao tratar dados TISS | alta | alto | P12.8 + B10 antes de "Pronto para produção" |
+| R19 | **sombra de `when` no DEV**: o `drizzle-kit migrate` só aplica entradas com `when` maior que a última aplicada; uma migration nossa com `when` no futuro faria o DEV pular em silêncio uma migration do billing criada depois com `when` menor | média | alto | D19: `when` = relógio real e nada persistente até o merge do #53. Em 11/11 17:34 UTC a 0143 (17:00 UTC) já estava no passado |
+| R20 | validador externo com defeito induzir correção errada (ex.: "corrigir" o hash para o cálculo em UTF-8 do B) | média | alto | ANS como referência; correção só com classificação em G.6; nunca editar XML para passar |
 
 ---
 
@@ -1874,3 +1902,35 @@ B1–B3 da rev.1 foram resolvidos pela diretriz de 10/11 (D1–D8).
   - o CBO `999999` é aceito só no solicitante;
   - a equipe por item (`equipeSadt`) leva grau de participação da tabela 35 (`12` = clínico). **[HIPÓTESE]** As operadoras divergem sobre exigir a equipe em sessões. Confirmar na homologação (P15.4) e deixar configurável por operadora (P2.5).
 - **Próxima ação:** P1.4 (migration 0144).
+
+### 11/11/2026 — corpus, validadores externos, CNPJ alfanumérico e consistência do plano
+
+- **Consistência (pedido do fundador em 11/11):**
+  - "Testes aprovados: nenhum teste do módulo ainda" estava desatualizado. Rodado de novo: 16 arquivos, 437 aprovados e 3 pulados.
+  - **Os "14 XMLs válidos"** eram 14 arquivos com 13 conteúdos distintos: `V3-lote-1-guia.xml` era byte a byte igual ao `V1a` (SHA `383c483b…`), e a tabela de 10/11 omitia o V3.
+  - **Dois arquivos daquele lote só passavam no XSD, não nas regras:** o V1b usava o CNPJ `AB12CD34EF5612`, com DV errado, porque o XSD só confere o formato; e o V2b era terapia sem indicação clínica. Os dois foram corrigidos no corpus `c1`. Os outros 11 saem byte a byte iguais aos SHA de 10/11.
+  - P8.6 e P9.1 reescritos com o que está implementado, validado internamente e validado por fora.
+- **P13.1 (`d29ddc44`):** corpus `tiss-4.03.00-c1` com 39 cenários e 38 arquivos, gerado pelo código do app:
+  - 13 válidos e 25 negativos: XSD, regras, hash, codificação, mais os recusados pelo gerador;
+  - origem de cada arquivo explícita: gerador, montagem sem travas (101 guias, tipos misturados) ou mutação controlada (UTF-8, namespace, hash, truncado);
+  - novos: `verifyEpilogueHash` (hash conferido a partir do texto), `checkTissEncoding` (UTF-8 declarado ISO, que o XSD aceita) e `validateLoteGuias` (guia repetida, operadora diferente, versão, tamanho);
+  - XSD oficial: **38/38 como esperado** (`XSD_RESULTS.json`); `vitest`: 195 testes do corpus, oráculo nos dois sentidos.
+- **P13.3 e P13.4 (`6dd862e3`):** A e B executados com o corpus, SHA conferido antes de cada envio; resultados em G.6 e B.11.
+  - **A (Paniquar):** 13/13 válidos aceitos; negativos de XSD e de hash recusados; nenhuma requisição com corpo.
+  - **B (TISS Manager):** os três defeitos foram rastreados até a causa. O cálculo de hash deles foi reproduzido exatamente: MD5 do texto lido como UTF-8, com "?" no lugar dos acentos, em 11 de 11 arquivos.
+  - **Nenhuma divergência exigiu mudar o gerador.**
+- **Componente de Segurança e Privacidade (202511):** baixado da página oficial e lido. A assinatura digital da mensagem é *recomendada* (req. 30), não obrigatória como afirma o B. Há requisitos obrigatórios que atingem o Qoro inteiro (P12.8, B10, R18).
+- **Validador C:** avaliado sem instalar (B.11, B7).
+- **CNPJ alfanumérico (D18, `fcfaa449`):**
+  - inventário dos consumidores: perfil da clínica (cifra e `hashForLookup`), fornecedores, `/join` (passo da clínica e titular do cartão), `signup/checkout` e checkout hospedado (`parseDocument`), Asaas, AbacatePay (`taxId` não documenta letras), PDF, admin, exportação contábil e validadores TISS;
+  - o `/join` gravava o CNPJ com a pontuação digitada, então o hash dependia da grafia. Corrigido no schema do passo, sem tocar na `saga.ts`, que o PR #53 altera;
+  - no titular da cobrança, um CNPJ alfanumérico com 3 letras podia virar os 11 dígitos de um CPF de outra pessoa. Corrigido;
+  - regressão: linha de base de 120 arquivos e 1.813 testes; depois, 119 arquivos e 1.826 testes. O arquivo a menos é o validador duplicado, que foi removido;
+  - nenhum arquivo do PR #53 nem da UI foi tocado; sem migração.
+- **ADR renumerado de 067 para 072** (`3a1ad4ae`): o PR #53 usa 067–071. O comentário da `0143` não foi alterado, porque a migration está aplicada no DEV.
+- **Migrations (E.5, D19, R19):**
+  - DEV lido em 11/11: 161 registros; o último é a nossa 0143;
+  - o billing segue em 0136–0142 (`fd90ded7`); a UI carrega só a 0136; a `main` está parada em `5620a098`;
+  - a partir daqui, nada persistente no DEV até o merge do #53.
+- **Próxima ação:** P1.4 com ensaio transacional; P7.2 e P8.2.
+
