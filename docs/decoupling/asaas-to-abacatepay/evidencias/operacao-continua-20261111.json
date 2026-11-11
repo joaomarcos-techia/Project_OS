@@ -767,7 +767,36 @@
     },
     "githubMfa": "NOT_VERIFIED; own-user API omitted the value",
     "vercelAndProviderMfa": "NOT_VERIFIED; no interactive security settings changed",
-    "notificationReceipt": "NOT_VERIFIED"
+    "notificationReceipt": "NOT_VERIFIED",
+    "ownerReadback": {
+      "source": "Founder supplied Sentry issue export and explicit reply in this session",
+      "probeIssueId": "7842026780",
+      "probeVisible": true,
+      "notificationOutsideDashboard": "NOT_RECEIVED_BY_OWNER",
+      "alertRuleRouting": "NOT_VERIFIED",
+      "historicalIssues": [
+        {
+          "id": "7590707702",
+          "environment": "development",
+          "scope": "localhost_dashboard_connection_timeout",
+          "rootCause": "NOT_ESTABLISHED"
+        },
+        {
+          "id": "7730223576",
+          "environment": "preview_url_mislabeled_production",
+          "scope": "React418_then_parentNode",
+          "rootCause": "NOT_REPRODUCED"
+        }
+      ]
+    },
+    "browserEnvironment": {
+      "implementation": "NEXT_PUBLIC_VERCEL_ENV with NODE_ENV fallback",
+      "source": "Automatic public Vercel framework metadata; no external env configuration",
+      "affectedUnitPassed": 58,
+      "overlapsPreviousTests": true,
+      "previewValidation": "See final PR #53 evidence",
+      "fixes": "Environment classification only; not the historical hydration root cause"
+    }
   },
   "candidateDdl": {
     "file": "docs/decoupling/asaas-to-abacatepay/migrations/saas_period_snapshot.candidate.sql",
@@ -809,7 +838,7 @@
     "src/contexts/billing/internal/abacatepay-renewal-period.ts": "f6d446e374154105e97d2b3edb1e73762a320bf5a9df3f30423ac7af34b748b6",
     "src/contexts/billing/internal/abacatepay-renewals.ts": "3f6a81acc32d61b24fc316d7df1729e68f196d8a3b732f97b29b6551bff7a739",
     "src/contexts/billing/internal/deferred-checkout.ts": "9c4fad5e926a3d21a303c67035f634af02569d63603b0179a13335a390130629",
-    "src/lib/env.ts": "57ddb755e4400c1ae69448dfa06f6f91958b1b2b790ff62cfa8998220719193b",
+    "src/lib/env.ts": "e7f561847cc74365cbcf5988102b532614b042c5a158ededc93afd5232abdd94",
     "src/lib/payments/abacatepay/checkout-integrity.ts": "e861195420f8101ac5419bacdf93c462ca77eacae11242efd9c6c115ad62513b",
     "src/lib/payments/abacatepay/reader.test.ts": "8f4d629b29e6f9ca059198ddbb30f814e5baa70e6a843ab46b18acf85b3164f1",
     "src/lib/payments/abacatepay/reader.ts": "90cd46a778da0d3b1920f8ca78b0b68d55778b58ae2a8f47909276049dec32e0",
@@ -821,9 +850,12 @@
     "src/lib/payments/saas/acquisition.ts": "1e44c59d58f3e9e423d202fbee619936632e4c15b06b47adec4d2d121064f90d",
     "src/lib/payments/saas/recurrence-integrity.ts": "4fc4d1e2fb587f89985430bc7a9c052c7ee94faa731a3f162645b5ea95afa8ec",
     "src/lib/payments/saas/recurring-payment.ts": "6d4a4e1ef7b069b55c28f99925b7662505a0ba2bd540d4744bbb012891a2cba5",
-    "src/lib/observability/sentry-environment.test.ts": "064de3890577a944e8b7aa1d396662eae8169a47b789aee3283cdcd6ee88461b",
+    "src/lib/observability/sentry-environment.test.ts": "c3fa7c9fe0353d818e114ea6b99036270d8da053ad40778d84fc68391cb62991",
     "src/lib/payments/saas/acquisition-env.test.ts": "c0c79efc46368c6465e9ac3264b5c4d74a34223d37bd81dc67436d4dd515c5a0",
-    "docs/decoupling/asaas-to-abacatepay/migrations/saas_period_snapshot.candidate.sql": "96e043c9b751a1af3c2a770be63edc2ea06a20854e21560d935802bb3c18ebd9"
+    "docs/decoupling/asaas-to-abacatepay/migrations/saas_period_snapshot.candidate.sql": "96e043c9b751a1af3c2a770be63edc2ea06a20854e21560d935802bb3c18ebd9",
+    "src/instrumentation-client.ts": "e1c9cda611c6d1a592b6920fc1cc856e32f625bf082638332339e59739226c8a",
+    "scripts/security/public-env-registry.ts": "862b4abd1d1189895d6b6591d1d95df8e8daf45bcc4493e2123570a556d6f90b",
+    "e2e/abacatepay-trial-preview.spec.ts": "1d1f90af31d136df3eb09e3e8ad05a880d882c2b7434a1fb43c2d9954bc207a5"
   },
   "productionWrites": 0,
   "newExternalCheckouts": 0,

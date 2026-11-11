@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 200 actions (0 inline); 66 métodos em 62 handlers; 19 props com referência de action; 491 acessos diretos a process.env; 9 nomes NEXT_PUBLIC.
+Contagem: 200 actions (0 inline); 66 métodos em 62 handlers; 19 props com referência de action; 492 acessos diretos a process.env; 10 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -329,6 +329,7 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY`           | plataforma | Identificador público do widget Cloudflare Turnstile no browser.            | public-by-design | O browser precisa enviar a site key à Cloudflare para renderizar o desafio. Ela identifica o widget, mas não valida tokens; essa autoridade pertence à TURNSTILE_SECRET_KEY, lida apenas no servidor.                                                                        |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY_DEV`       | plataforma | Site key pública do Turnstile para o ambiente de desenvolvimento.           | public-by-design | Mesmo contrato público da chave canônica, segregado para que desenvolvimento não exercite o widget de produção.                                                                                                                                                              |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY_LOCAL`     | plataforma | Site key pública do Turnstile para localhost.                               | public-by-design | Mesmo contrato público da chave canônica, com precedência local explícita. A chave secreta correspondente não usa NEXT*PUBLIC*.                                                                                                                                              |
+| `NEXT_PUBLIC_VERCEL_ENV`                   | plataforma | Separar eventos Sentry do navegador entre Preview e Production.             | public-by-design | Metadata pública de ambiente adicionada pela Vercel para Next.js; contém somente development, preview ou production. Não identifica usuário nem concede acesso. Ausente em execução local, preserva NODE_ENV.                                                                |
 
 ## Acessos process.env (nomes, sem valores)
 
@@ -341,13 +342,14 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `src/components/shared/turnstile-widget.tsx:151`           | `NEXT_PUBLIC_TURNSTILE_SITE_KEY_DEV`   | `process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY_DEV`                            |
 | `src/components/shared/turnstile-widget.tsx:152`           | `NEXT_PUBLIC_TURNSTILE_SITE_KEY`       | `process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY`                                |
 | `src/instrumentation-client.ts:9`                          | `NEXT_PUBLIC_SENTRY_DSN`               | `process.env.NEXT_PUBLIC_SENTRY_DSN`                                        |
+| `src/instrumentation-client.ts:15`                         | `NEXT_PUBLIC_VERCEL_ENV`               | `process.env.NEXT_PUBLIC_VERCEL_ENV`                                        |
 | `src/instrumentation-client.ts:15`                         | `NODE_ENV`                             | `process.env.NODE_ENV`                                                      |
 | `src/instrumentation.ts:4`                                 | `NEXT_RUNTIME`                         | `process.env.NEXT_RUNTIME`                                                  |
 | `src/instrumentation.ts:8`                                 | `NEXT_RUNTIME`                         | `process.env.NEXT_RUNTIME`                                                  |
 | `src/lib/auth/supabase-session-cookie.ts:5`                | `NODE_ENV`                             | `process.env.NODE_ENV`                                                      |
 | `src/lib/db/index.ts:39`                                   | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                                          |
 | `src/lib/db/index.ts:53`                                   | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                                          |
-| `src/lib/env.ts:512`                                       | `<object>`                             | `process.env`                                                               |
+| `src/lib/env.ts:517`                                       | `<object>`                             | `process.env`                                                               |
 | `src/lib/impersonation/index.ts:64`                        | `NODE_ENV`                             | `process.env.NODE_ENV`                                                      |
 | `src/middleware.ts:82`                                     | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
 | `src/middleware.ts:88`                                     | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |

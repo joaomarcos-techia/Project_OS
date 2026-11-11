@@ -54,6 +54,15 @@ test('confirmed identity -> free trial -> server quota gates -> optional hosted 
   });
   await installVercelBypassForOrigin(context, origin.origin);
   const stages: string[] = [];
+  const browserErrorClasses: string[] = [];
+  page.on('pageerror', (error) => {
+    const category = /hydration|React error #418/i.test(error.message)
+      ? 'hydration_mismatch'
+      : /parentNode/.test(error.message)
+        ? 'stream_parent_missing'
+        : 'other_unhandled_browser_error';
+    if (!browserErrorClasses.includes(category)) browserErrorClasses.push(category);
+  });
   const evidence: {
     runId: string;
     userId: string;
@@ -61,6 +70,7 @@ test('confirmed identity -> free trial -> server quota gates -> optional hosted 
     stages: string[];
     retention: string;
     scope: string;
+    browserErrorClasses: string[];
     clinicId?: string;
     subscriptionId?: string;
     checkoutId?: string;
@@ -71,6 +81,7 @@ test('confirmed identity -> free trial -> server quota gates -> optional hosted 
     stages,
     retention: 'retained_until_financial_reconciliation; never delete on test timeout',
     scope: 'Auth confirmed administratively; no proof of signup email delivery or external payment',
+    browserErrorClasses,
   };
   try {
     await sql`SET statement_timeout='20s'`;
@@ -236,6 +247,7 @@ test('confirmed identity -> free trial -> server quota gates -> optional hosted 
       stages.push('paid_checkout_repeat_denied_and_integration_invite_gates_released');
       evidence.scope =
         'Real Sandbox simulation, authenticated webhook, invoice and readbacks; no real charge';
+      expect(browserErrorClasses).toEqual([]);
       evidence.status = 'PASS';
       return;
     }
@@ -330,6 +342,7 @@ test('confirmed identity -> free trial -> server quota gates -> optional hosted 
       await page.goto(hostedUrl);
       stages.push('real_qoro_route_to_hosted_sandbox_checkout_single_journal');
     }
+    expect(browserErrorClasses).toEqual([]);
     evidence.status = 'PASS';
   } finally {
     if (evidence.status === 'RUNNING') evidence.status = 'FAIL';

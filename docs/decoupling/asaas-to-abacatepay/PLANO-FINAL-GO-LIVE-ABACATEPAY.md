@@ -121,12 +121,12 @@ O aceite deve registrar risco/versão, cohort máximo, responsável, prazo de re
 |---|---|---|---|
 | Checkout e janela pré-webhook | Controles e readbacks suficientes após fechamento | PARTIAL; uso único não garantido | Invalidação documentada; preparar ensaio seguro dos readbacks, sem alterar a fixture paga retida |
 | Renovação/inbox | Idempotência, lease, prova financeira | PASS local/PG; evidências externas históricas preservadas | Ciclo natural não acelerado |
-| Ausência de webhook | Detecção e operação viável | CONDITIONAL; monitor e replay recebidos implementados | Canal oficial para evento ausente, plantão e alerta efetivo |
+| Ausência de webhook | Detecção e recuperação financeira viável | PARTIAL; detecção independente PASS local; recovery sem evento ainda não implementado | Ledger com origem oficial verificável, schema coordenado e prova de recuperação |
 | Conciliação | Nenhum ciclo por valor/data/ACTIVE | PASS local | Preservar correlação e revisar toda ambiguidade |
 | Refund/disputa | ADR-071 e prova externa | PASS local / BLOCKED externo | Sem simulador; não inventar refund de assinatura via API avulsa |
 | Cadastro PR #54 | Código publicado preservado | PASS baseline integrada e regressão financeira | CI própria do novo SHA; nenhum reenvio a leads |
 | Segurança | MFA, CAS, tenant e privilégios | PASS local e PG | Jornada superadmin real no Preview e alerta de teste |
-| Banco | 0142 aditiva, histórico e contratos | PASS DEV | Janela Production futura autorizada; seis desvios históricos DEV não regravados |
+| Banco | Histórico/contratos e novo formato de renovação | 0142 PASS DEV; SQL adicional PASS local, fora do journal | Coordenar TISS 0143–0146 e autorizar aplicação DEV; sem Production |
 | Asaas/legados | Binding e desconto vitalício preservados | PASS regressão; nenhuma alteração de contrato | Readback na janela aprovada |
 | Sandbox | Não repetir compra inicial | PASS nas provas anteriores; B1/B3 continuam pendentes | Somente mecanismo oficial novo ou tempo natural |
 | Build/CI/Preview | Checks no SHA correto | Resultado remoto no corpo do PR #53 | Não usar CI da baseline como aprovação do incremento |
@@ -137,7 +137,7 @@ O aceite deve registrar risco/versão, cohort máximo, responsável, prazo de re
 
 **Atualização do pedido em 10/11:** a contratação inicial **Sandbox** solicitada pelo founder foi concluída e verificada às 13:49 UTC. O [operador](PROXIMO-CHECKOUT-SANDBOX.md) executou preparação → checkout real pelo Qoro → pagamento humano → webhook aplicado → DB/invoice/período/cotas → UI desktop/mobile, **PASS**, com repetição recusada (HTTP 409). [Evidência](evidencias/checkout-pago-20261110.json). Não há outro pagamento humano solicitado. As perguntas abaixo continuam sendo lacunas de garantia para produção; a aprovação deste teste não aceita R1–R4 nem dispensa B1/B3. A fixture paga fica retida; não repetir a compra para tentar comprovar renovação.
 
-Não repetir pagamentos, cadastro PR #54 ou instalar ferramenta. Encaminhar ao atendimento **já aberto** apenas: “A exclusão do checkout de assinatura bloqueia novos pagamentos pela URL? Quais garantias e efeitos sobre recibo, extrato, renovações, webhooks e change-plan? Para uma renovação cujo webhook não chegou, qual procedimento oficial entrega novamente o evento original com payment.id e bill da renovação?” Os demais pontos já foram respondidos. Não enviar fixture paga para exclusão nem autorizar operação financeira.
+Não repetir pagamentos, cadastro PR #54 ou instalar ferramenta. A invalidação da URL e a continuidade da assinatura após excluir o checkout já constam na documentação oficial atual; não repetir essas perguntas. Se houver necessidade de suporte, limitar a consulta aos efeitos nos readbacks financeiros após exclusão e à recuperação inequívoca de cobrança sem nenhum evento recebido. A documentação atual usa o checkout original nas renovações; não exigir um bill distinto por suposição histórica. Não enviar a fixture paga para exclusão nem autorizar operação financeira. As demais tarefas de engenharia continuam independentes dessa consulta.
 
 Antes de piloto, nomear responsável financeiro/plantão técnico e ensaiar o recebimento do alerta e a página admin com MFA. Aceites R1–R4 e qualquer alteração de configuração/capacidade exigem decisão concreta. Nenhum pagamento humano novo foi solicitado nesta rodada.
 

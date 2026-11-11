@@ -408,6 +408,11 @@ const EnvSchema = z
     // process.env nos arquivos sentry.*.config.ts (rodam em edge/client e não
     // podem importar este módulo). Ausente → usa o DSN baked-in do wizard.
     NEXT_PUBLIC_SENTRY_DSN: z.preprocess(emptyToUndefined, z.string().url().optional()),
+    // Public framework metadata supplied automatically by Vercel at build time.
+    NEXT_PUBLIC_VERCEL_ENV: z.preprocess(
+      emptyToUndefined,
+      z.enum(['development', 'preview', 'production']).optional(),
+    ),
     // Token de upload de source maps (build-time, server-only, SECRET). Vive em
     // .env.sentry-build-plugin (gitignored). Ausente → build sem upload de maps.
     SENTRY_AUTH_TOKEN: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
