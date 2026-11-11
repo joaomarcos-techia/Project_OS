@@ -322,6 +322,97 @@ export const hiMemberships = pgTable(
 );
 
 export type HiMembershipRow = typeof hiMemberships.$inferSelect;
+
+/**
+ * Autorizações (0146, P1.7). O SQL guarda as regras: estado autorizado só com
+ * evidência da operadora; senha só cifrada; consumo por lançamento append-only
+ * com trava e idempotência; comprovante só como referência + SHA-256.
+ */
+export type HiAuthorizationStatus =
+  | 'draft'
+  | 'requested'
+  | 'pending_operator'
+  | 'authorized'
+  | 'partially_authorized'
+  | 'denied'
+  | 'expired'
+  | 'cancelled';
+
+export const hiAuthorizations = pgTable('hi_authorizations', {
+  id: uuidPk(),
+  clinicId: tenantIdRef(),
+  insurerId: uuid('insurer_id').notNull(),
+  planId: uuid('plan_id'),
+  membershipId: uuid('membership_id').notNull(),
+  guideType: text('guide_type').$type<'consulta' | 'sp_sadt'>().notNull(),
+  status: text('status').$type<HiAuthorizationStatus>().notNull(),
+  origin: text('origin').$type<'manual' | 'connector'>().notNull(),
+  requestedOn: date('requested_on'),
+  operatorGuideNumber: text('operator_guide_number'),
+  operatorProtocol: text('operator_protocol'),
+  /** Ciphertext de encryptForTenant; nunca em claro. */
+  passwordEncrypted: text('password_encrypted'),
+  authorizedOn: date('authorized_on'),
+  passwordValidUntil: date('password_valid_until'),
+  connectorReceipt: jsonb('connector_receipt').$type<Record<string, unknown>>(),
+  denialReason: text('denial_reason'),
+  recordedBy: uuid('recorded_by'),
+  version: integer('version').notNull().default(1),
+  createdBy: uuid('created_by').notNull(),
+  ...timestampsPattern(),
+});
+
+export const hiAuthorizationItems = pgTable('hi_authorization_items', {
+  id: uuidPk(),
+  clinicId: tenantIdRef(),
+  authorizationId: uuid('authorization_id').notNull(),
+  tableCode: text('table_code').notNull(),
+  procedureCode: text('procedure_code').notNull(),
+  quantityRequested: integer('quantity_requested').notNull(),
+  quantityAuthorized: integer('quantity_authorized').notNull().default(0),
+  /** Só o gatilho de consumo altera; o runtime não tem UPDATE nesta coluna. */
+  quantityConsumed: integer('quantity_consumed').notNull().default(0),
+  ...timestampsPattern(),
+});
+
+export const hiAuthorizationConsumptions = pgTable('hi_authorization_consumptions', {
+  id: uuidPk(),
+  clinicId: tenantIdRef(),
+  itemId: uuid('item_id').notNull(),
+  /** Positivo = consumo; negativo = estorno de `reversesId`. */
+  quantity: integer('quantity').notNull(),
+  idempotencyKey: text('idempotency_key').notNull(),
+  reversesId: uuid('reverses_id'),
+  overrunReason: text('overrun_reason'),
+  overrunApprovedBy: uuid('overrun_approved_by'),
+  createdBy: uuid('created_by').notNull(),
+  createdAt: createdAt(),
+});
+
+export const hiAuthorizationAttachments = pgTable('hi_authorization_attachments', {
+  id: uuidPk(),
+  clinicId: tenantIdRef(),
+  authorizationId: uuid('authorization_id').notNull(),
+  /** `<clinic_id>/<uuid>` no armazenamento privado; bytes cifrados fora do banco. */
+  storageRef: text('storage_ref').notNull(),
+  contentSha256: text('content_sha256').notNull(),
+  ciphertextSha256: text('ciphertext_sha256').notNull(),
+  sizeBytes: integer('size_bytes').notNull(),
+  mediaType: text('media_type').notNull(),
+  uploadedBy: uuid('uploaded_by').notNull(),
+  createdAt: createdAt(),
+});
+
+export const hiAuthorizationEvents = pgTable('hi_authorization_events', {
+  id: uuidPk(),
+  clinicId: tenantIdRef(),
+  authorizationId: uuid('authorization_id').notNull(),
+  fromStatus: text('from_status'),
+  toStatus: text('to_status').notNull(),
+  actorId: uuid('actor_id'),
+  note: text('note'),
+  createdAt: createdAt(),
+});
 export type HiInsurerRow = typeof hiInsurers.$inferSelect;
 export type HiPlanRow = typeof hiPlans.$inferSelect;
 export type HiProcedureContractRow = typeof hiProcedureContracts.$inferSelect;

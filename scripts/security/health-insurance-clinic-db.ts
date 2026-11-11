@@ -369,6 +369,131 @@ try {
   await rejects('23514', () => next(sql, A.clinicId, 'batch'));
   pass('numeração: no limite do Padrão TISS (999999999999) recusa, nunca volta a 1');
 
+  // ── Autorizações (0146, P1.7) ────────────────────────────────────────
+  const newAuth = (db: Sql, clinicId: string, membershipId: string, insurerId: string) =>
+    db`insert into public.hi_authorizations (clinic_id, insurer_id, membership_id, guide_type, origin, created_by)
+       values (${clinicId}::uuid, ${insurerId}::uuid, ${membershipId}::uuid, 'sp_sadt', 'manual', ${SYS}::uuid)
+       returning id, version`;
+  const [cardB] = await insertCard(sql, B.clinicId, patB, insB!.id, HASH('f'));
+  await rejects('23503', () => newAuth(sql, A.clinicId, cardB!.id, insA!.id));
+  const [auth] = await newAuth(sql, A.clinicId, card2!.id, insA!.id);
+  pass('autorização: carteirinha e operadora só da mesma clínica');
+
+  await rejects(
+    '23514',
+    () =>
+      sql`update public.hi_authorizations set status = 'authorized' where id = ${auth!.id}::uuid`,
+  );
+  await rejects(
+    '23514',
+    () =>
+      sql`update public.hi_authorizations set status = 'authorized', authorized_on = '2026-11-01',
+      recorded_by = ${SYS}::uuid where id = ${auth!.id}::uuid`,
+  );
+  await rejects(
+    '23514',
+    () => sql`update public.hi_authorizations set status = 'denied' where id = ${auth!.id}::uuid`,
+  );
+  pass(
+    'autorização: "autorizada" só com data, quem registrou e evidência da operadora; negada só com motivo',
+  );
+
+  const [item] = await sql`insert into public.hi_authorization_items
+    (clinic_id, authorization_id, table_code, procedure_code, quantity_requested, quantity_authorized)
+    values (${A.clinicId}::uuid, ${auth!.id}::uuid, '22', '20104219', 12, 10) returning id`;
+  const consume = (
+    db: Sql,
+    key: string,
+    qty = 1,
+    extra: { reverses?: string; reason?: string } = {},
+  ) =>
+    db`insert into public.hi_authorization_consumptions
+         (clinic_id, item_id, quantity, idempotency_key, reverses_id, overrun_reason, overrun_approved_by, created_by)
+       values (${A.clinicId}::uuid, ${item!.id}::uuid, ${qty}, ${key}, ${extra.reverses ?? null},
+         ${extra.reason ?? null}, ${extra.reason ? SYS : null}, ${SYS}::uuid)
+       returning id`;
+  await rejects('55000', () => consume(sql, 'consumo-antes-de-autorizar'));
+  pass('consumo: só depois de a operadora autorizar');
+
+  const [v2] =
+    await sql`update public.hi_authorizations set status = 'authorized', authorized_on = '2026-11-01',
+    recorded_by = ${SYS}::uuid, operator_guide_number = 'OP-998877' where id = ${auth!.id}::uuid returning version`;
+  assert.equal(v2!.version, 2);
+  await rejects(
+    '55000',
+    () =>
+      sql`update public.hi_authorizations set membership_id = ${card1!.id}::uuid where id = ${auth!.id}::uuid`,
+  );
+  pass('autorização: versão sobe a cada mudança; carteirinha e operadora não mudam');
+
+  const results = await Promise.allSettled(
+    Array.from({ length: 30 }, (_, i) =>
+      sql.begin((tx) => consume(tx as unknown as Sql, `sessao-concorrente-${i}`)),
+    ),
+  );
+  const ok = results.filter((r) => r.status === 'fulfilled').length;
+  assert.equal(ok, 10);
+  const [after] =
+    await sql`select quantity_consumed::int as c from public.hi_authorization_items where id = ${item!.id}::uuid`;
+  assert.equal(after!.c, 10);
+  pass(
+    'consumo: 30 consumos simultâneos contra saldo de 10 → exatamente 10 aceitos, saldo nunca negativo',
+  );
+
+  const [acceptedKey] =
+    await sql`select idempotency_key as k from public.hi_authorization_consumptions
+    where item_id = ${item!.id}::uuid limit 1`;
+  await rejects('23505', () => consume(sql, acceptedKey!.k as string));
+  await rejects('23514', () => consume(sql, 'acima-do-saldo'));
+  const [exc] = await consume(sql, 'excecao-aprovada', 1, {
+    reason: 'Sessão extra aprovada pela operadora por telefone, protocolo 123',
+  });
+  const [rev] = await consume(sql, 'estorno-da-excecao', -1, { reverses: exc!.id });
+  assert.ok(rev);
+  await rejects('23505', () => consume(sql, 'estorno-de-novo', -1, { reverses: exc!.id }));
+  pass(
+    'consumo: idempotente pela chave; acima do saldo só com exceção justificada; estorno uma vez',
+  );
+
+  await rejects('42501', () =>
+    asTenant(
+      A.clinicId,
+      (tx) =>
+        tx`update public.hi_authorization_items set quantity_consumed = 0 where id = ${item!.id}::uuid`,
+    ),
+  );
+  await asTenant(
+    A.clinicId,
+    (tx) =>
+      tx`update public.hi_authorization_items set quantity_authorized = 11 where id = ${item!.id}::uuid`,
+  );
+  await rejects('42501', () =>
+    asTenant(
+      A.clinicId,
+      (tx) =>
+        tx`update public.hi_authorization_consumptions set quantity = 5 where id = ${exc!.id}::uuid`,
+    ),
+  );
+  await rejects(
+    '55000',
+    () =>
+      sql`update public.hi_authorization_consumptions set quantity = 5 where id = ${exc!.id}::uuid`,
+  );
+  pass('runtime não reescreve o consumido nem o histórico; só a quantidade pedida/autorizada');
+
+  await rejects(
+    '23514',
+    () => sql`insert into public.hi_authorization_attachments
+    (clinic_id, authorization_id, storage_ref, content_sha256, ciphertext_sha256, size_bytes, media_type, uploaded_by)
+    values (${A.clinicId}::uuid, ${auth!.id}::uuid, 'publico/comprovante.pdf', ${HASH('1')}, ${HASH('2')}, 10, 'application/pdf', ${SYS}::uuid)`,
+  );
+  await sql`insert into public.hi_authorization_attachments
+    (clinic_id, authorization_id, storage_ref, content_sha256, ciphertext_sha256, size_bytes, media_type, uploaded_by)
+    values (${A.clinicId}::uuid, ${auth!.id}::uuid, ${`${A.clinicId}/${randomUUID()}`}, ${HASH('1')}, ${HASH('2')}, 10, 'application/pdf', ${SYS}::uuid)`;
+  const bAuth = await asTenant(B.clinicId, (tx) => tx`select id from public.hi_authorizations`);
+  assert.equal(bAuth.length, 0);
+  pass('comprovante: só referência opaca e SHA-256 (bytes fora do banco); RLS por clínica');
+
   // ── Exclusão da clínica em cascata ───────────────────────────────────
   await sql`delete from public.clinics where id = ${A.clinicId}::uuid`;
   const [left] = await sql`select
@@ -385,7 +510,7 @@ try {
   );
 
   console.log(
-    `OK: ${passed} provas das migrations 0144 e 0145 (P1.4, P1.5, P7.1) sobre o schema real`,
+    `OK: ${passed} provas das migrations 0144–0146 (P1.4, P1.5, P1.7, P7.1) sobre o schema real`,
   );
 } finally {
   await cluster.stop();

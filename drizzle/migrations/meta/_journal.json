@@ -974,6 +974,13 @@
       "when": 1794391493822,
       "tag": "0145_hi_memberships",
       "breakpoints": true
+    },
+    {
+      "idx": 146,
+      "version": "7",
+      "when": 1794395869610,
+      "tag": "0146_hi_authorizations",
+      "breakpoints": true
     }
   ]
 }

@@ -8,6 +8,8 @@ estiver aberto. Cada migration nova é provada de duas formas, sem gravar nada.
 | Postgres 17 descartável local, com **todas** as migrations reais em ordem (`scripts/security/scratch-schema.ts`) | `scripts/security/health-insurance-clinic-db.ts` | **21/21** (0144, 0145 e numeração; 400 alocações concorrentes em 24 conexões) | `scratch-schema-0144-0145.log` |
 | Ensaio transacional no DEV: SQL da 0144 → sondas → `ROLLBACK` | `rehearse-0144.mjs` | **26/26** | `rehearse-0144-dev.log` |
 | Ensaio transacional no DEV: SQL da 0144 + 0145 → sondas → `ROLLBACK` | `rehearse-0145.mjs` | **16/16** | `rehearse-0144-0145-dev.log` |
+| Postgres descartável com todas as migrations, incluindo a 0146 (autorizações) | `scripts/security/health-insurance-clinic-db.ts` | **29/29** (30 consumos simultâneos contra saldo de 10 → exatamente 10) | `scratch-schema-0144-0146.log` |
+| Ensaio transacional no DEV: 0144 + 0145 + 0146 → sondas → `ROLLBACK` | `rehearse-0146.mjs` | **25/25** | `rehearse-0144-0146-dev.log` |
 
 Os UUIDs de clínicas do DEV foram trocados por `<uuid>` nos logs.
 
