@@ -28,7 +28,7 @@ em `b6965447`, `feat/convenios-tiss-20261110`) e do `drizzle.__drizzle_migration
 - Seis arquivos antigos (0033, 0037, 0051, 0071, 0093, 0124) não batem por hash com a linha aplicada: foram editados
   depois de aplicados, há meses, e são iguais na `main`, no #53 e no #55. O Drizzle não confere hash, só `created_at`,
   então isso não afeta a ordem. Fica registrado, sem ação neste PR.
-- O #53 está em `b6965447` (cinco commits de 11/11, sem migration nova; a última continua sendo a 0142, e `drizzle/` não mudou desde `a5984e23`). A UI segue na 0136. O commit `a27be742` do #53 trouxe o gate
+- O #53 está em `b18407c3` (seis commits de 11/11, sem migration nova; a última continua sendo a 0142, e `drizzle/` não mudou desde `a5984e23`). A prova da cadeia unida (seção 5) rodou em `b6965447`; o commit seguinte não toca `drizzle/`. A UI segue na 0136. O commit `a27be742` do #53 trouxe o gate
   `assertMigrationJournalOrder`: `idx` contíguo, prefixo do arquivo = posição, `when` estritamente crescente.
 
 ## 2. Como o Drizzle decide o que aplicar
