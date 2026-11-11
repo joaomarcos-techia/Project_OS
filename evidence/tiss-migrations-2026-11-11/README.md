@@ -1,4 +1,4 @@
-# Ensaios das migrations 0144 e 0145 (convênios), 11/11/2026
+# Ensaios das migrations 0144 a 0147 (convênios), 11/11/2026
 
 Método da D19 do `QORO_TISS_MASTER_PLAN.md`: nenhuma aplicação persistente no DEV compartilhado enquanto o PR #53
 estiver aberto. Cada migration nova é provada de duas formas, sem gravar nada.
@@ -10,8 +10,14 @@ estiver aberto. Cada migration nova é provada de duas formas, sem gravar nada.
 | Ensaio transacional no DEV: SQL da 0144 + 0145 → sondas → `ROLLBACK` | `rehearse-0145.mjs` | **16/16** | `rehearse-0144-0145-dev.log` |
 | Postgres descartável com todas as migrations, incluindo a 0146 (autorizações) | `scripts/security/health-insurance-clinic-db.ts` | **29/29** (30 consumos simultâneos contra saldo de 10 → exatamente 10) | `scratch-schema-0144-0146.log` |
 | Ensaio transacional no DEV: 0144 + 0145 + 0146 → sondas → `ROLLBACK` | `rehearse-0146.mjs` | **25/25** | `rehearse-0144-0146-dev.log` |
+| Postgres descartável com todas as migrations, incluindo a 0147 (guias) | `scripts/security/health-insurance-guides-db.ts` | **24/24** (40 guias em paralelo → números 2..41; 20 tentativas para o mesmo atendimento → 1 guia, contador +1; substituição, reabertura, cancelamento, retenção) | `scratch-schema-0147-guias.log` |
+| Postgres descartável 0144–0146 depois da correção do CHECK de excesso da 0146 | `scripts/security/health-insurance-clinic-db.ts` | **29/29** (com a regressão "aprovador sem motivo não libera excesso") | `scratch-schema-0144-0146.log` |
+| Ensaio transacional no DEV: 0144 + 0145 + 0146 (corrigida) + 0147 → sondas → `ROLLBACK` | `rehearse-0147.mjs` | **26/26** (dono da tabela = dono das funções DEFINER = `postgres`; `postgres` com BYPASSRLS) | `rehearse-0144-0147-dev.log` |
+| Ledger do DEV, só leitura: cada linha de `drizzle.__drizzle_migrations` casada por SHA-256 com os arquivos de `main`, #53 e #55 | `drizzle-ledger.mjs` | 144 linhas; última = `0143_tiss_catalog`; 0136–0142 do #53 com `created_at` = `when` | `dev-ledger-2026-11-11.log` |
 
-Os UUIDs de clínicas do DEV foram trocados por `<uuid>` nos logs.
+Os UUIDs foram trocados por `<uuid>` nos logs. O ensaio da 0147 usa clínicas e um profissional existentes do DEV; pacientes, procedimento e atendimentos são sintéticos e criados dentro da transação.
+
+O log `rehearse-0144-0146-dev.log` (25/25) é anterior à correção do CHECK `hi_authorization_consumptions_overrun_chk` da 0146; o ensaio da 0147 executa a 0146 já corrigida.
 
 ## Garantia de não persistência
 

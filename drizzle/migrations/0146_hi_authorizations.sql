@@ -150,7 +150,9 @@ CREATE TABLE public.hi_authorization_consumptions (
   ),
   CONSTRAINT hi_authorization_consumptions_overrun_chk CHECK (
     (overrun_reason IS NULL AND overrun_approved_by IS NULL)
-    OR (char_length(btrim(overrun_reason)) BETWEEN 10 AND 500 AND overrun_approved_by IS NOT NULL)
+    -- `overrun_reason IS NOT NULL` explícito: sem ele, aprovador sem motivo dava NULL e passava.
+    OR (overrun_reason IS NOT NULL AND char_length(btrim(overrun_reason)) BETWEEN 10 AND 500
+        AND overrun_approved_by IS NOT NULL)
   )
 );
 --> statement-breakpoint

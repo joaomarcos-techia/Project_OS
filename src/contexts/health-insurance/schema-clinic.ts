@@ -413,6 +413,159 @@ export const hiAuthorizationEvents = pgTable('hi_authorization_events', {
   note: text('note'),
   createdAt: createdAt(),
 });
+
+/**
+ * Guias TISS (0147, P1.8). O SQL guarda as regras: estado com transições
+ * editoriais do runtime e as de lote/envio/retorno/substituição só por código do
+ * banco com dono; conteúdo congelado depois da conferência; item só do contrato
+ * vigente; sem cobrança dupla (SP/SADT agrupada permitida); snapshot cifrado,
+ * histórico gravado pelo banco e arquivos append-only.
+ */
+export type HiGuideStatus =
+  | 'pending_data'
+  | 'ready_for_review'
+  | 'reviewed'
+  | 'approved'
+  | 'in_batch'
+  | 'exported'
+  | 'sent'
+  | 'under_review'
+  | 'paid'
+  | 'partially_paid'
+  | 'partially_glossed'
+  | 'fully_glossed'
+  | 'closed'
+  | 'cancelled'
+  | 'replaced';
+
+export type HiGuideType = 'consulta' | 'sp_sadt';
+export type HiCreatedVia = 'user' | 'automation';
+
+export const hiGuides = pgTable('hi_guides', {
+  id: uuidPk(),
+  clinicId: tenantIdRef(),
+  guideType: text('guide_type').$type<HiGuideType>().notNull(),
+  /** `numeroGuiaPrestador`, alocado por P7.1 na mesma transação. Imutável. */
+  number: text('number').notNull(),
+  insurerId: uuid('insurer_id').notNull(),
+  planId: uuid('plan_id'),
+  patientId: uuid('patient_id').notNull(),
+  membershipId: uuid('membership_id'),
+  authorizationId: uuid('authorization_id'),
+  executantProfessionalId: uuid('executant_professional_id'),
+  requesterProfessionalId: uuid('requester_professional_id'),
+  mainGuideId: uuid('main_guide_id'),
+  replacesGuideId: uuid('replaces_guide_id'),
+  status: text('status').$type<HiGuideStatus>().notNull(),
+  /** Mantido pelo gatilho: a guia "segura" os atendimentos dela contra outra cobrança. */
+  live: boolean('live').notNull(),
+  revision: integer('revision').notNull(),
+  version: integer('version').notNull(),
+  tissVersion: text('tiss_version').$type<'4.03.00'>().notNull(),
+  terminologyVersion: text('terminology_version'),
+  /** Pendências (código, campo, responsável, mensagem); nunca dado pessoal. */
+  issues: jsonb('issues')
+    .$type<Array<{ code: string; field: string; owner: string; message: string }>>()
+    .notNull(),
+  expectedValueCents: bigint('expected_value_cents', { mode: 'number' }),
+  totalValueCents: bigint('total_value_cents', { mode: 'number' }).notNull(),
+  idempotencyKey: text('idempotency_key').notNull(),
+  reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+  reviewedBy: uuid('reviewed_by'),
+  approvedSnapshotId: uuid('approved_snapshot_id'),
+  approvedAt: timestamp('approved_at', { withTimezone: true }),
+  approvedBy: uuid('approved_by'),
+  cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+  cancelledBy: uuid('cancelled_by'),
+  cancelReason: text('cancel_reason'),
+  /** Nota da transição corrente (motivo da reabertura etc.); vai para o histórico. */
+  transitionNote: text('transition_note'),
+  createdVia: text('created_via').$type<HiCreatedVia>().notNull(),
+  createdBy: uuid('created_by'),
+  ...timestampsPattern(),
+});
+
+export const hiGuideSnapshots = pgTable('hi_guide_snapshots', {
+  id: uuidPk(),
+  clinicId: tenantIdRef(),
+  guideId: uuid('guide_id').notNull(),
+  revision: integer('revision').notNull(),
+  /** encryptForTenant do JSON canônico da guia emitida (tem a carteirinha). */
+  contentEncrypted: text('content_encrypted').notNull(),
+  /** SHA-256 do JSON canônico em claro. */
+  contentSha256: text('content_sha256').notNull(),
+  tissVersion: text('tiss_version').notNull(),
+  terminologyVersion: text('terminology_version').notNull(),
+  createdVia: text('created_via').$type<HiCreatedVia>().notNull(),
+  createdBy: uuid('created_by'),
+  createdAt: createdAt(),
+});
+
+export const hiGuideItems = pgTable('hi_guide_items', {
+  id: uuidPk(),
+  clinicId: tenantIdRef(),
+  guideId: uuid('guide_id').notNull(),
+  /** Espelhos da guia, mantidos pelo banco. */
+  guideType: text('guide_type').$type<HiGuideType>().notNull(),
+  live: boolean('live').notNull(),
+  sequence: integer('sequence').notNull(),
+  appointmentId: uuid('appointment_id'),
+  contractLineId: uuid('contract_line_id').notNull(),
+  authorizationItemId: uuid('authorization_item_id'),
+  executedOn: date('executed_on').notNull(),
+  startTime: text('start_time'),
+  endTime: text('end_time'),
+  tableCode: text('table_code').notNull(),
+  procedureCode: text('procedure_code').notNull(),
+  description: text('description').notNull(),
+  quantity: integer('quantity').notNull(),
+  accessRoute: text('access_route'),
+  technique: text('technique'),
+  factorHundredths: integer('factor_hundredths').notNull().default(100),
+  unitValueCents: bigint('unit_value_cents', { mode: 'number' }).notNull(),
+  totalValueCents: bigint('total_value_cents', { mode: 'number' }).notNull(),
+  ...timestampsPattern(),
+});
+
+export const hiGuideEvents = pgTable('hi_guide_events', {
+  id: uuidPk(),
+  clinicId: tenantIdRef(),
+  guideId: uuid('guide_id').notNull(),
+  fromStatus: text('from_status').$type<HiGuideStatus>(),
+  toStatus: text('to_status').$type<HiGuideStatus>().notNull(),
+  revision: integer('revision').notNull(),
+  /** Só NOMES de colunas; valores nunca entram no histórico. */
+  changedFields: text('changed_fields').array().notNull(),
+  actorId: uuid('actor_id'),
+  actorKind: text('actor_kind').$type<'user' | 'system'>().notNull(),
+  note: text('note'),
+  createdAt: createdAt(),
+});
+
+export type HiFileKind = 'guide_pdf' | 'authorization_request_xml' | 'authorization_request_pdf';
+
+export const hiFiles = pgTable('hi_files', {
+  id: uuidPk(),
+  clinicId: tenantIdRef(),
+  kind: text('kind').$type<HiFileKind>().notNull(),
+  guideId: uuid('guide_id'),
+  snapshotId: uuid('snapshot_id'),
+  authorizationId: uuid('authorization_id'),
+  supersedesFileId: uuid('supersedes_file_id'),
+  /** `<clinic_id>/<uuid>` no armazenamento privado; bytes cifrados fora do banco (D20). */
+  storageRef: text('storage_ref').notNull(),
+  contentSha256: text('content_sha256').notNull(),
+  ciphertextSha256: text('ciphertext_sha256').notNull(),
+  sizeBytes: integer('size_bytes').notNull(),
+  mediaType: text('media_type').notNull(),
+  tissVersion: text('tiss_version').notNull(),
+  createdVia: text('created_via').$type<HiCreatedVia>().notNull(),
+  createdBy: uuid('created_by'),
+  createdAt: createdAt(),
+});
+
+export type HiGuideRow = typeof hiGuides.$inferSelect;
+export type HiGuideItemRow = typeof hiGuideItems.$inferSelect;
 export type HiInsurerRow = typeof hiInsurers.$inferSelect;
 export type HiPlanRow = typeof hiPlans.$inferSelect;
 export type HiProcedureContractRow = typeof hiProcedureContracts.$inferSelect;

@@ -445,6 +445,14 @@ try {
     where item_id = ${item!.id}::uuid limit 1`;
   await rejects('23505', () => consume(sql, acceptedKey!.k as string));
   await rejects('23514', () => consume(sql, 'acima-do-saldo'));
+  // Regressão: aprovador SEM motivo não libera o excesso (o CHECK com NULL passava).
+  await rejects(
+    '23514',
+    () =>
+      sql`insert into public.hi_authorization_consumptions
+        (clinic_id, item_id, quantity, idempotency_key, overrun_approved_by, created_by)
+        values (${A.clinicId}::uuid, ${item!.id}::uuid, 1, 'aprovador-sem-motivo', ${SYS}::uuid, ${SYS}::uuid)`,
+  );
   const [exc] = await consume(sql, 'excecao-aprovada', 1, {
     reason: 'Sessão extra aprovada pela operadora por telefone, protocolo 123',
   });
