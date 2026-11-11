@@ -2371,5 +2371,6 @@ Um registro append-only sozinho **não** prova imutabilidade; os itens 1–3 sã
   - emissão com snapshot cifrado (P7.5);
   - ligação ao evento (P7.4, depende da P1.6);
   - `build-info` (S7).
+- **CI do `5ee43f6c`: falhou** no passo `arch:db-check` (guard de origem de conexão F-01). O script novo da prova do serviço importava `drizzle-orm/postgres-js`. Causa de processo: rodei o gate antes de criar esse script e não repeti depois. **Correção:** a prova passou a usar o `withTenant` real da aplicação, com o pool apontado para o Postgres descartável, sem origem de conexão nova (9/9 de novo). Entraram também 14 testes unitários do serviço, que rodam no CI. Cobertura local: linhas 63,6% e ramos 82,9% (pisos 29% e 74%). Regra reforçada: todos os gates rodam **depois** da última mudança, antes do push.
 - **Tarefas:** P1.8 concluída; P12.13 aberta; total 115; progresso **26/115**.
 - **Próxima ação:** P1.6 (0148 candidata), refazendo o E.5 antes.

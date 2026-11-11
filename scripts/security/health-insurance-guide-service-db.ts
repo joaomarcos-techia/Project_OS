@@ -1,7 +1,9 @@
 /**
  * Convênios (P7.4 + P1.8): prova do SERVIÇO `createConsultaGuideForAppointment`
- * sobre o schema real (todas as migrations), rodando o código de produção numa
- * transação Drizzle como o runtime (`authenticated` + `app.current_clinic`).
+ * sobre o schema real (todas as migrations), rodando o código de produção dentro
+ * do `withTenant` REAL da aplicação (`src/lib/db/tenant.ts`: SET LOCAL ROLE
+ * authenticated verificado + `app.current_clinic`), com o pool do app apontado
+ * para o Postgres descartável. Nenhuma origem de conexão nova (F-01).
  *
  * Confere: particular não gera guia; módulo desligado não gera; consulta por
  * convênio gera guia com o TUSS e o valor do contrato; reentrega e corrida não
@@ -15,10 +17,6 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 
-import { sql as dsql } from 'drizzle-orm';
-import { drizzle } from 'drizzle-orm/postgres-js';
-
-import type { Tx } from '../../src/lib/db';
 import {
   createConsultaGuideForAppointment,
   type AppointmentCoverage,
@@ -30,7 +28,15 @@ import { startScratchSchema } from './scratch-schema';
 
 const cluster = await startScratchSchema({ port: 55503, maxConnections: 24 });
 const { sql } = cluster;
-const db = drizzle(sql);
+// O pool do app lê o ambiente ao ser importado: aponta para o cluster local ANTES do import.
+// As variáveis públicas são os mesmos valores falsos do CI; nada aponta para DEV ou produção.
+process.env.DATABASE_URL = cluster.url;
+delete process.env.DATABASE_URL_RUNTIME;
+process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://ci.supabase.co';
+process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_ci';
+if (!/@(?:127\.0\.0\.1|localhost):55503\//u.test(cluster.url))
+  throw new Error('não é o cluster local');
+const { withTenant } = await import('../../src/lib/db/tenant');
 const SYS = '00000000-0000-0000-0000-0000000000aa';
 let passed = 0;
 const pass = (msg: string): void => {
@@ -45,10 +51,8 @@ async function run(
   coverage: AppointmentCoverage | null,
   after?: () => never,
 ): Promise<ConsultaGuideOutcome> {
-  return db.transaction(async (tx) => {
-    await tx.execute(dsql`SET LOCAL ROLE authenticated`);
-    await tx.execute(dsql`select set_config('app.current_clinic', ${clinicId}, true)`);
-    const out = await createConsultaGuideForAppointment(tx as unknown as Tx, {
+  return withTenant(clinicId, async (tx) => {
+    const out = await createConsultaGuideForAppointment(tx, {
       clinicId,
       appointment,
       coverage,
@@ -346,3 +350,5 @@ try {
 } finally {
   await cluster.stop();
 }
+// O pool do app (idle_timeout 20 s) manteria o processo vivo depois do sucesso.
+process.exit(0);
