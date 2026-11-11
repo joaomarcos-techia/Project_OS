@@ -105,6 +105,6 @@ Em linguagem simples: no Preview já existem os seis nomes candidatos `SAAS_SIGN
 
 ## Controles novos preparados, sem configuração externa — 11/11
 
-ABACATEPAY_NEW_CHECKOUTS_ENABLED=false pausa somente novos checkouts; omissão preserva a candidata Sandbox anterior. ABACATEPAY_CHECKOUT_CLINIC_IDS recebe UUIDs separados por vírgula, no máximo100, sem duplicatas; valor malformado bloqueia. Omissão mantém o cohort Sandbox existente. São configurações servidor, não segredos, e não foram cadastradas na Vercel. Não desligam consumidores, conciliação ou cancelamento.
+ABACATEPAY_NEW_CHECKOUTS_ENABLED=false pausa somente novos checkouts; omissão preserva a candidata Sandbox anterior. ABACATEPAY_CHECKOUT_CLINIC_IDS recebe UUIDs separados por vírgula, no máximo 100, sem duplicatas; valor malformado bloqueia. Omissão mantém o cohort Sandbox existente. São configurações servidor, não segredos, e não foram cadastradas na Vercel. Não desligam consumidores, conciliação ou cancelamento.
 
 **Production continua proibida pelo runtime.** Não configure SAAS_SIGNUP_PROVIDER=abacatepay_sandbox em Production. Após a futura composição live ser implementada/autorizada, será necessário chave API real específica, identidade de loja conferida, catálogo real e segredo de webhook próprio, preservando Asaas/pacientes. Os produtos e probe Sandbox não são catálogo de Production. Novos controles não substituem esse incremento nem geram um seletor live inexistente.

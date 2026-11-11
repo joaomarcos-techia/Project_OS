@@ -831,5 +831,36 @@
   "remoteMigrations": 0,
   "externalNotifications": "One synthetic preview Sentry envelope accepted; no lead/patient message",
   "prState": "draft",
-  "finalLocalObservedAt": "2026-11-11T12:05:41.010Z"
+  "finalLocalObservedAt": "2026-11-11T12:05:41.010Z",
+  "currentCodeSha": "68de428c20f9e7f6fe0964665d5541991d2b6c7a",
+  "previewRegression": {
+    "observedAt": "2026-11-11T12:10:54.443Z",
+    "sha": "68de428c20f9e7f6fe0964665d5541991d2b6c7a",
+    "origin": "https://project-6xv2jd9kf-clinic-os-v2-s-projects.vercel.app",
+    "status": "PASS",
+    "browserRuns": 1,
+    "widths": [1440, 390],
+    "scope": "Existing paid synthetic fixture: login, authenticated DB/domain readback, paid UI, repeated checkout denied 409, integration/invite gates. This is not a new payment or webhook delivery.",
+    "stages": [
+      "real_browser_login",
+      "paid_domain_records_verified",
+      "paid_ui_1440",
+      "paid_ui_390",
+      "paid_checkout_repeat_denied",
+      "paid_whatsapp_gate_released",
+      "paid_asaas_gate_released",
+      "real_sandbox_webhook_invoice_receipt_and_paid_ui",
+      "paid_checkout_repeat_denied_and_integration_invite_gates_released"
+    ],
+    "newExternalCheckouts": 0,
+    "newExternalPayments": 0,
+    "historicalManifestChanged": false
+  },
+  "remoteQuality": {
+    "status": "IN_PROGRESS_AT_SNAPSHOT",
+    "runId": "43017429283",
+    "sha": "68de428c20f9e7f6fe0964665d5541991d2b6c7a",
+    "url": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/43017429283",
+    "finalResult": "See the PR #53 checks for the final documentation-only commit; no PASS inherited from baseline"
+  }
 }

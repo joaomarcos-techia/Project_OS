@@ -56,7 +56,7 @@ Usar quando o evento original já foi recebido e autenticado, mas sua prova aind
 
 O cron atual é **diário às 09:00 UTC**, não horário. Nenhuma configuração de agenda foi alterada. O monitor novo processa até **10 contratos por chamada**, com backoff de uma hora, orçamento local de 7 segundos, timeout SQL de 5 segundos e lock de 2 segundos. Parada pelo orçamento marca lote adiado; o próximo lote retoma pela auditoria. O monitor remoto existente inspeciona até 3 gerações por chamada. Em cohort maior que esses limites, não existe SLA de detecção em 24 horas comprovado. O cron preserva seu orçamento de 35 segundos para iniciar trabalho AbacatePay e não inicia GET após esgotá-lo.
 
-Antes do piloto, definir volume, capacidade, responsável e alerta externo; comprovar recebimento de erro sintético sem dados de clientes. Isso ainda não foi executado. Alertas de cobertura adiada também usam captura Sentry sanitizada, sem garantir roteamento do serviço externo.
+Antes do piloto, definir volume, capacidade, responsável e alerta externo; comprovar recebimento de erro sintético sem dados de clientes. Em 11/11 um probe sintético foi aceito pela ingestão Sentry, mas o recebimento da notificação pelo responsável continua sem comprovação; ver seção 8. Alertas de cobertura adiada também usam captura Sentry sanitizada, sem garantir roteamento do serviço externo.
 
 ## 6. Contenção e rollback
 

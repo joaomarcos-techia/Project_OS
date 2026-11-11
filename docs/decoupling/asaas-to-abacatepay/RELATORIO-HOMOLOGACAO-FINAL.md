@@ -674,7 +674,7 @@ Meta técnica proposta: confirmação saudável em até 30 s após inbox, leitur
 
 DEV somente leitura: 2 operadores ativos, 2 marcados MFA e 2 fatores nativos verificados, sem divulgar identidades. AAL2+TOTP atual na ação administrativa permanece coberto por testes; **login/reprocessamento interativo não executado**. O próprio usuário da API GitHub não informou two_factor_authentication; não se presume desativado. Vercel/AbacatePay/MFA de outros serviços não foram inferidos a partir do MFA Qoro.
 
-Sentry administrativo retornou 401. Foi enviado **um** envelope sintético preview, sem paciente/pagamento, aceito HTTP 200 em 11:43:25 UTC: evento fc2862ce570d48c6966747db2022aa5b. Isso comprova ingestão no projeto, não envio de e-mail/Slack, configuração da regra ou recebimento pelo responsável. O probe não passou pelo webhook financeiro nem foi chamado de pagamento real. [Procedimento do responsável](../../runbooks/abacatepay-operacao.md#8-fechamento-operacional-de-11112026).
+Sentry administrativo retornou 401. Foi enviado **um** envelope sintético preview, sem paciente/pagamento, aceito HTTP 200 em 11:43:25  UTC: evento fc2862ce570d48c6966747db2022aa5b. Isso comprova ingestão no projeto, não envio de e-mail/Slack, configuração da regra ou recebimento pelo responsável. O probe não passou pelo webhook financeiro nem foi chamado de pagamento real. [Procedimento do responsável](../../runbooks/abacatepay-operacao.md#8-fechamento-operacional-de-11112026).
 
 ### Qualidade e estado
 
@@ -683,3 +683,7 @@ PASS **29/29** checks de checkout/recuperação, 143 migrations reais, 553 chama
 A primeira execução nova de fixture usou um nome incorreto de enum; corrigida a preparação sem retirar asserções. Uma edição do sinal de atraso foi detectada fora do escopo pelo TypeScript e pela regressão; movida para o observador correto e repetidos os gates afetados. Não são falhas de Production. Quatro novos E2E desktop/mobile exercitam pausa e processamento sem POST em harness isolado; resultado do build/CI do novo commit é registrado no PR, sem herdar a CI anterior.
 
 **PARTIAL / NO-GO financeiro Production.** Restam: registrar/aplicar schema candidato após coordenar 0143–0146; completar recovery financeiro sem nenhum evento sem criar origem fictícia; fechamento remoto do link com histórico/readbacks preservados; MFA operacional e recebimento do alerta; composição live e rollout autorizado. Controles de cohort/kill estão implementados na composição Sandbox; **não** existe seletor live nem ativação automática em Production. Nenhum risco foi aceito em nome do founder.
+
+### Regressão no Preview do código novo
+
+O commit `68de428c` gerou [Preview READY](https://project-6xv2jd9kf-clinic-os-v2-s-projects.vercel.app/configuracoes/assinatura). Uma execução Chromium com a fixture sintética Clínica 5 já paga passou: login real, readback autenticado da invoice/pagamento/inbox, UI em 1440/390 px, tentativa de nova compra recusada HTTP 409 e gates de integrações/convite liberados. Não houve novo checkout, pagamento ou evento financeiro; os registros pagos históricos foram relidos. O manifesto histórico não foi modificado. Os quatro E2E de processamento/pausa pertencem ao harness isolado da CI e são provas separadas. O resultado final da CI fica nos checks do PR #53; esta evidência não herda os números do commit anterior.
