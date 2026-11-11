@@ -11,7 +11,7 @@
 | Objetivo | **Production Ready.** Não é MVP nem prova de conceito. |
 | Repositório | `joaomarcos-techia/Project_OS` |
 | Worktree | `C:/dev/Qoro_convenios_tiss_20261110` |
-| Branch | `feat/convenios-tiss-20261110` (de `origin/main` `5620a098`) |
+| Branch | `feat/convenios-tiss-20261110` (de `origin/main` `5620a098`); no GitHub desde 11/11 como backup, com **PR draft [#55](https://github.com/joaomarcos-techia/Project_OS/pull/55)** (não mergear) |
 | Versão TISS de referência | Padrão TISS **setembro/2026**; Comunicação **4.03.00**; TUSS **202609** |
 
 **Legenda**
