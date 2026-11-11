@@ -1,8 +1,10 @@
-# ADR-067 — Convênios e faturamento TISS num contexto próprio, ligado ao financeiro pela guia
+# ADR-072 — Convênios e faturamento TISS num contexto próprio, ligado ao financeiro pela guia
 
 ## Status
 
-Accepted em 10/11/2026 como direção de arquitetura. Ainda não há código nem migration. A
+Accepted em 10/11/2026 como direção de arquitetura. Renumerado de 067 para 072 em 11/11/2026,
+porque a 067–071 pertencem ao PR #53 (AbacatePay); o comentário da migration `0143_tiss_catalog.sql`
+ainda cita "ADR-067" e não foi alterado, porque a migration já está aplicada no DEV. A
 execução, as tarefas e as evidências ficam em
 [`QORO_TISS_MASTER_PLAN.md`](../../QORO_TISS_MASTER_PLAN.md), a fonte única do módulo. Este ADR
 registra só as decisões duradouras. Branch: `feat/convenios-tiss-20261110`.

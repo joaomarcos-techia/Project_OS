@@ -51,7 +51,7 @@ const ALLOWED_POSTGRES_IMPORTS = new Set([
   'scripts/security/signup-browser.integration.ts',
   // Guarded Preview/DEV operator; synthetic resend.dev recipients only.
   'scripts/run-signup-recovery-dev.ts',
-  // Guarded DEV operator (ADR-067, P1.3): carga one-shot da terminologia TUSS;
+  // Guarded DEV operator (ADR-072, P1.3): carga one-shot da terminologia TUSS;
   // --expected-ref obrigatório, prod recusado, conexão própria por latência do DEV.
   'scripts/tiss/terminology/load.ts',
   'scripts/db-migrate-prod.ts',

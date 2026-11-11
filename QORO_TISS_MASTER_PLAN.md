@@ -48,7 +48,7 @@
 | Testes aprovados | nenhum teste do módulo ainda |
 | Bloqueios ativos | B4 (ordem de merge com o PR #53), B5 (operadora e clínica piloto), B6 (retenção legal), B7 (instalar o Validador C). **B9 resolvido**: a carga entrou em 10/11 depois de várias tentativas; o DEV continua lento (R17). |
 | Decisões | D1–D12 aprovadas ou adotadas; D13–D17 novas, adotadas pelo agente dentro do escopo delegado (L.1) |
-| Arquivos alterados | este documento; `docs/adr/067-convenios-e-tiss.md`; `src/contexts/health-insurance/tiss/schemas/**`; `src/contexts/health-insurance/tiss/terminology/**`; `src/lib/xlsx/**`; `scripts/tiss/terminology/**`; `data/tiss/terminologia/202609/**`; `docs/architecture/*` (snapshots regenerados) |
+| Arquivos alterados | este documento; `docs/adr/072-convenios-e-tiss.md`; `src/contexts/health-insurance/tiss/schemas/**`; `src/contexts/health-insurance/tiss/terminology/**`; `src/lib/xlsx/**`; `scripts/tiss/terminology/**`; `data/tiss/terminologia/202609/**`; `docs/architecture/*` (snapshots regenerados) |
 | Próxima ação exata | **P1.4** (migration 0144: operadoras, planos, perfil TISS, credenciamento e contratos, com RLS por clínica) e em seguida **P1.5–P1.9**; em paralelo, puros: **P8.2** (montador da SP/SADT) e **P7.2** (montador da Consulta). |
 
 ---
@@ -829,16 +829,16 @@ Logs estruturados sem PII. Alertas: handler `failed`, convênio sem guia após 3
 - **Evidência:** M, 10/11 (rev.2): max 0142 (#53 aberto, head `4e120afe`).
 - **Status:** **Concluído**. A reconferência a cada migration é gate permanente (E.5).
 
-**P0.6 · ADR-067 "Convênios e TISS"** (T0.5)
+**P0.6 · ADR-072 "Convênios e TISS"** (T0.5)
 - **Objetivo:** registrar D1–D17.
 - **Contexto:** `docs/CONVENTIONS.md`.
 - **Dependências:** P0.4.
-- **Arquivos:** `docs/adr/067-convenios-e-tiss.md`, `docs/adr/README.md`.
+- **Arquivos:** `docs/adr/072-convenios-e-tiss.md`, `docs/adr/README.md`.
 - **Procedimento:** escrever a partir de L.1.
 - **Aceite:** ADR com contexto, decisão, consequências e alternativas.
 - **Testes:** links.
 - **Resultado:** decisão rastreável.
-- **Evidência:** commit `f03e449b` (ADR-067 e índice).
+- **Evidência:** commit `f03e449b` (ADR-072 e índice).
 - **Status:** **Concluído**.
 
 **P0.7 · XSDs no repositório** (T0.6)
@@ -1762,7 +1762,7 @@ B1–B3 da rev.1 foram resolvidos pela diretriz de 10/11 (D1–D8).
 
 - **P0.4 concluída:** plano rev.2 no commit `54e10039`.
 - **Ambiente:** junction `node_modules` → `C:\dev\ClinicaOS_V2_pricing_depcheck_20261027\node_modules`, com versões conferidas contra o `package.json` da branch (a única divergência apontada era o prefixo `v` em `@upstash/ratelimit`). O `node_modules` do checkout principal está desatualizado (zod 3.25.76, next 15.5.24); o harness E.1 foi corrigido.
-- **P0.6:** ADR-067 e índice, commit `f03e449b`.
+- **P0.6:** ADR-072 e índice, commit `f03e449b`.
 - **P0.7:** 7 XSDs 4.03.00 copiados do pacote oficial com `MANIFEST.json`, commit `dfb9a054`.
   - O repositório usa `core.autocrlf=input`; sem o `.gitattributes` local, os CRLF virariam LF e os SHA quebrariam.
   - `npx vitest run src/contexts/health-insurance/tiss/schemas/manifest.test.ts` → 6/6.

@@ -1,5 +1,5 @@
 /**
- * Schema do context `health-insurance` (convênios e faturamento TISS; ADR-067).
+ * Schema do context `health-insurance` (convênios e faturamento TISS; ADR-072).
  *
  * Esta primeira fatia (migration 0143) traz só o catálogo GLOBAL: versões de
  * terminologia TUSS, termos e versões de comunicação TISS. Não tem clinic_id:

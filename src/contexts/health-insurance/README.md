@@ -4,7 +4,7 @@ Convênios e faturamento no Padrão TISS da ANS: operadoras, planos, credenciame
 carteirinhas, coberturas, coparticipação, autorizações, guias (Consulta e SP/SADT), lotes, XML,
 demonstrativos, glosas, recursos e conectores.
 
-- Decisões duradouras: [ADR-067](../../../docs/adr/067-convenios-e-tiss.md).
+- Decisões duradouras: [ADR-072](../../../docs/adr/072-convenios-e-tiss.md).
 - Plano, tarefas, harness e evidências: [`QORO_TISS_MASTER_PLAN.md`](../../../QORO_TISS_MASTER_PLAN.md),
   a fonte única do módulo.
 - Schemas XSD oficiais: `tiss/schemas/<versão>/` com `MANIFEST.json` (bytes idênticos aos da ANS).

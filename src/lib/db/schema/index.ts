@@ -46,7 +46,7 @@ export * from '@/contexts/feedback/schema';
 // ADR-049 — Payments (cobranca de PACIENTE na conta da propria clinica).
 // Sem eventos proprios nesta fase: 1.1 e so a credencial.
 export * from '@/contexts/payments/schema';
-// ADR-067 — Convênios e faturamento TISS. Primeira fatia (0143): catálogo
+// ADR-072 — Convênios e faturamento TISS. Primeira fatia (0143): catálogo
 // global de terminologia TUSS e versões TISS; sem eventos ainda.
 export * from '@/contexts/health-insurance/schema';
 // C4 infra — cross-cutting tables (outbox, audit_events, super_admin_actions,
