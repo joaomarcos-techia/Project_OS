@@ -14,6 +14,8 @@ interface Props {
   paid: boolean;
   billingStatus: 'trial' | 'active' | 'past_due' | 'cancelled';
   paidPeriodActive: boolean;
+  activationPending?: boolean;
+  checkoutAvailable?: boolean;
   managementAvailable?: boolean;
   contractId?: string | null;
   accessUntil?: string | null;
@@ -197,6 +199,12 @@ export function DeferredSubscription(props: Props) {
           O período pago terminou. Estamos verificando a renovação; não faça outra assinatura. Se a
           situação persistir, fale com o suporte.
         </Alert>
+      ) : props.activationPending ? (
+        <Alert variant="info" title="Pagamento em verificação">
+          Recebemos uma notificação do provedor e estamos conferindo o pagamento para liberar seu
+          plano. Não pague novamente. Você pode atualizar a confirmação abaixo; se a situação
+          persistir, fale com o suporte.
+        </Alert>
       ) : (
         <Alert
           variant="info"
@@ -214,12 +222,29 @@ export function DeferredSubscription(props: Props) {
             : 'Após concluir o checkout, aguarde a confirmação do pagamento. Se já pagou, não faça outra assinatura. A escrita e as integrações serão liberadas após essa confirmação.'}
         </Alert>
       )}
-      {!props.paid && !props.trialActive && props.billingStatus !== 'cancelled' ? (
+      {props.activationPending && !props.paid ? (
+        <Button type="button" variant="secondary" onClick={() => window.location.reload()}>
+          Atualizar confirmação
+        </Button>
+      ) : null}
+      {!props.paid &&
+      !props.trialActive &&
+      !props.activationPending &&
+      props.checkoutAvailable === false ? (
+        <Alert variant="info" title="Contratação temporariamente indisponível">
+          Novas contratações estão pausadas. Seus dados e tentativas anteriores foram preservados.
+        </Alert>
+      ) : null}
+      {!props.paid &&
+      !props.trialActive &&
+      !props.activationPending &&
+      props.checkoutAvailable !== false &&
+      props.billingStatus !== 'cancelled' ? (
         <Button type="button" loading={loading} onClick={() => void checkout()}>
           Contratar assinatura
         </Button>
       ) : null}
-      {props.canRecontract ? (
+      {props.canRecontract && props.checkoutAvailable !== false ? (
         <Button type="button" loading={loading} onClick={() => void checkout()}>
           Contratar novamente
         </Button>

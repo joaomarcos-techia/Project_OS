@@ -71,11 +71,7 @@ export function createAbacatePayRenewalPaymentReader(
       const expected = input.data;
       const start = Date.parse(expected.windowStart),
         end = Date.parse(expected.windowEnd);
-      if (
-        end <= start ||
-        end - start > MAX_CARD_RECEIPT_WINDOW_MS ||
-        expected.checkoutId === expected.originCheckoutId
-      )
+      if (end <= start || end - start > MAX_CARD_RECEIPT_WINDOW_MS)
         throw new GatewayReadError('invalid_input');
       if ((await read.readStore()).id !== account.accountId)
         throw new GatewayReadError('binding_mismatch');
@@ -93,6 +89,18 @@ export function createAbacatePayRenewalPaymentReader(
         !['ACTIVE', 'CANCELLED'].includes(subscription.status)
       )
         throw new GatewayReadError('binding_mismatch');
+      const originalCheckout = expected.checkoutId === expected.originCheckoutId;
+      const providerStart = subscription.currentPeriodStart;
+      const providerEnd = subscription.currentPeriodEnd;
+      if (
+        originalCheckout &&
+        (!providerStart ||
+          !providerEnd ||
+          providerEnd <= providerStart ||
+          !subscription.createdAt ||
+          providerStart <= subscription.createdAt.slice(0, 10))
+      )
+        return { state: 'review' };
       const subscriptions = await read.listSubscriptionsForCheckout(expected.originCheckoutId);
       if (
         subscriptions.length !== 1 ||
@@ -131,6 +139,12 @@ export function createAbacatePayRenewalPaymentReader(
         periodEnd: expected.windowEnd,
       });
       if (!receipt) return { state: 'pending' };
+      const receiptDay = new Date(receipt.createdAt).toISOString().slice(0, 10);
+      if (
+        originalCheckout &&
+        (!providerStart || !providerEnd || receiptDay < providerStart || receiptDay >= providerEnd)
+      )
+        return { state: 'review' };
       return {
         state: 'paid',
         evidence: {
@@ -145,12 +159,15 @@ export function createAbacatePayRenewalPaymentReader(
           amountMinor: expected.expectedAmountMinor,
           paidAmountMinor: checkout.paidAmount,
           currency: 'BRL',
-          chargeCreatedAt: checkout.createdAt,
+          chargeCreatedAt: originalCheckout ? receipt.createdAt : checkout.createdAt,
           confirmedAt: receipt.createdAt,
           method: 'card',
           recurrence: subscription.status === 'ACTIVE' ? 'running' : 'stopped',
           obligation: 'paid',
           settlement: 'unknown',
+          ...(originalCheckout && providerStart && providerEnd
+            ? { providerPeriodStart: providerStart, providerPeriodEnd: providerEnd }
+            : {}),
         },
       };
     },

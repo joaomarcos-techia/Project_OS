@@ -45,6 +45,32 @@ function setup() {
 }
 
 describe('AbacatePay V2 read transport', () => {
+  it('reads provider paid-period dates as metadata without claiming a payment', async () => {
+    const { fetcher, client } = setup();
+    fetcher.mockResolvedValue(
+      envelope({
+        ...subscription,
+        currentPeriodStart: '2026-11-11',
+        currentPeriodEnd: '2026-12-11',
+        nextChargeAt: '2026-12-11',
+      }),
+    );
+    await expect(client.readSubscription('subs_test')).resolves.toMatchObject({
+      currentPeriodStart: '2026-11-11',
+      currentPeriodEnd: '2026-12-11',
+      nextChargeAt: '2026-12-11',
+    });
+  });
+  it.each(['not-a-date', '2026-02-30', '2026-11-11T00:00:00Z'])(
+    'rejects an invalid provider date %s',
+    async (nextChargeAt) => {
+      const { fetcher, client } = setup();
+      fetcher.mockResolvedValue(envelope({ ...subscription, nextChargeAt }));
+      await expect(client.readSubscription('subs_test')).rejects.toMatchObject({
+        code: 'invalid_response',
+      });
+    },
+  );
   it('uses only the official V2 HTTPS origin, Bearer, no-store and an explicit deadline', async () => {
     const { fetcher, client } = setup();
     fetcher.mockResolvedValue(envelope(product));

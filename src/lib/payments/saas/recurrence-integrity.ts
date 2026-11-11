@@ -14,6 +14,7 @@ export interface CheckoutRecurrenceObservation {
   recurrence: 'running' | 'stopped' | 'unknown' | 'unbound';
   observedSubscriptionIds: string[];
   complete: boolean;
+  providerPaidPeriod?: { start: string; end: string };
 }
 
 export interface CheckoutRecurrenceInput {

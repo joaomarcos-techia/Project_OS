@@ -49,6 +49,8 @@ let networkCalls = 0,
   responseLost = false,
   beforeSendFailure = false,
   unavailable = false;
+let transientInitialRead: 'network' | '503' | undefined;
+let expireInitialLease: string | undefined;
 type Checkout = {
   id: string;
   externalId: string;
@@ -73,6 +75,12 @@ globalThis.fetch = async (raw, init) => {
     throw new Error('External network forbidden');
   }
   fixtureCalls++;
+  if (url.pathname.endsWith('/subscriptions/get') && transientInitialRead) {
+    const failure = transientInitialRead;
+    transientInitialRead = undefined;
+    if (failure === 'network') throw new Error('Synthetic transient network failure');
+    return new Response('Synthetic unavailable', { status: 503 });
+  }
   if (unavailable) return Response.json({}, { status: 503 });
   let data: unknown;
   if (url.pathname.endsWith('/stores/get')) data = { id: 'store_synthetic' };
@@ -133,6 +141,10 @@ globalThis.fetch = async (raw, init) => {
     data = [...remote.values()].flat().find((item) => item.id === url.searchParams.get('id'));
     assert.ok(data);
   } else if (url.pathname.endsWith('/subscriptions/list')) {
+    if (expireInitialLease) {
+      await sql`UPDATE billing_gateway.event_inbox SET lease_until=now()-interval '1 second' WHERE event_id=${expireInitialLease}`;
+      expireInitialLease = undefined;
+    }
     const item = [...remote.values()]
       .flat()
       .find((c) => c.id === url.searchParams.get('checkoutId'));
@@ -178,24 +190,31 @@ const { dbAdmin } = await import('../../src/lib/db');
 const { hashEmail } = await import('../../src/lib/auth/email-hash');
 const { provisionFreeSignupTrialTx: provision } =
   await import('../../src/contexts/onboarding/internal/signup-free-trial');
-const { createDeferredSubscriptionCheckout: create } =
+const { createDeferredSubscriptionCheckout: create, getDeferredSubscriptionOverview: overview } =
   await import('../../src/contexts/billing/internal/deferred-checkout');
 const { recoverAbacatePayCheckout: recover, reconcileAbacatePayUnknownCheckout: scan } =
   await import('../../src/contexts/billing/internal/abacatepay-checkout-recovery');
-const { reconcileMissingAbacatePayInitialPayment: applyPayment } =
-  await import('../../src/contexts/billing/internal/abacatepay-processing');
-const { createPostgresGatewayOperationJournal } =
+const {
+  reconcileMissingAbacatePayInitialPayment: applyPayment,
+  applyInitialAbacatePayPaymentTx: applyInitial,
+  reconcileAbacatePayInbox: processInbox,
+} = await import('../../src/contexts/billing/internal/abacatepay-processing');
+const { createPostgresGatewayOperationJournal, createPostgresGatewayInbox } =
   await import('../../src/lib/payments/saas/postgres-store');
 const { createAbacatePaySandboxCommands } =
   await import('../../src/lib/payments/abacatepay/sandbox-commands');
 const { sql: drizzleSql } = await import('drizzle-orm');
-const results: { name: string; status: 'PASS' | 'FAIL' }[] = [];
+const { env: runtimeEnv } = await import('../../src/lib/env');
+const { createAbacatePayInitialPaymentReader } =
+  await import('../../src/lib/payments/abacatepay/initial-payment');
+const results: { name: string; status: 'PASS' | 'FAIL'; durationMs: number }[] = [];
 async function check(name: string, run: () => Promise<void>) {
+  const started = performance.now();
   try {
     await run();
-    results.push({ name, status: 'PASS' });
+    results.push({ name, status: 'PASS', durationMs: Math.round(performance.now() - started) });
   } catch (error) {
-    results.push({ name, status: 'FAIL' });
+    results.push({ name, status: 'FAIL', durationMs: Math.round(performance.now() - started) });
     throw error;
   }
 }
@@ -525,6 +544,166 @@ try {
       },
     );
   }
+  for (const mode of ['network', '503', 'expired_lease'] as const) {
+    await check(
+      `ACTIVATION-${mode} bounded readback or lease recovery never creates another charge`,
+      async () => {
+        const f = await seed();
+        await create({ clinicId: f.clinicId });
+        const item = remote.get(f.reference)?.[0];
+        assert.ok(item);
+        item.status = 'PAID';
+        item.paidAmount = f.amountMinor;
+        item.customerId = 'cust_synthetic';
+        const eventId = 'log_retry_' + randomUUID().replaceAll('-', '');
+        await createPostgresGatewayInbox(
+          { provider: 'abacatepay', environment: 'sandbox', accountId: 'store_synthetic' },
+          dbAdmin,
+        ).accept(
+          {
+            eventId,
+            eventType: 'subscription.completed',
+            subscriptionId: `subs_${item.id.slice(5)}`,
+            checkoutId: item.id,
+            customerId: 'cust_synthetic',
+            paymentId: 'card_' + randomUUID().replaceAll('-', ''),
+          },
+          createHash('sha256').update(eventId).digest('hex'),
+        );
+        const before = posts;
+        if (mode === 'expired_lease') expireInitialLease = eventId;
+        else transientInitialRead = mode;
+        const first = await processInbox({ eventId });
+        if (mode === 'expired_lease') {
+          assert.equal(first.applied, 0);
+          assert.equal(first.retry, true);
+          assert.equal((await state(f)).invoices, 0);
+          assert.equal((await state(f)).released, false);
+          assert.equal((await processInbox({ eventId })).applied, 1);
+        } else assert.equal(first.applied, 1);
+        assert.equal(posts, before);
+        assert.equal((await state(f)).invoices, 1);
+        assert.equal((await state(f)).released, true);
+        const [event] =
+          await sql`SELECT state,attempts FROM billing_gateway.event_inbox WHERE event_id=${eventId}`;
+        assert.deepEqual(event, { state: 'applied', attempts: mode === 'expired_lease' ? 2 : 1 });
+      },
+    );
+  }
+  for (const status of ['active', 'past_due', 'cancelled'] as const) {
+    await check(
+      `CONSUMED-${status} old paid checkout cannot reactivate or grant another period under concurrent replay`,
+      async () => {
+        const f = await seed();
+        await create({ clinicId: f.clinicId });
+        const item = remote.get(f.reference)?.[0];
+        assert.ok(item);
+        item.status = 'PAID';
+        item.paidAmount = f.amountMinor;
+        item.customerId = 'cust_synthetic';
+        assert.equal((await applyPayment({ subscriptionId: f.subscriptionId })).applied, 1);
+        await sql`UPDATE public.subscriptions SET billing_status=${status} WHERE id=${f.subscriptionId}::uuid`;
+        const evidence = await createAbacatePayInitialPaymentReader(
+          { provider: 'abacatepay', environment: 'sandbox', accountId: 'store_synthetic' },
+          { apiKey: 'synthetic', environment: 'sandbox' },
+        ).readInitialPayment({
+          subscriptionId: `subs_${item.id.slice(5)}`,
+          customerId: 'cust_synthetic',
+          checkoutId: item.id,
+          productId: f.productId,
+          expectedAmountMinor: f.amountMinor,
+        });
+        const before = await state(f);
+        const [period] =
+          await sql`SELECT current_period_start,current_period_end FROM public.subscriptions WHERE id=${f.subscriptionId}::uuid`;
+        const outcomes = await Promise.all(
+          Array.from({ length: 8 }, () => dbAdmin.transaction((tx) => applyInitial(tx, evidence))),
+        );
+        assert.ok(outcomes.every((x) => x === 'duplicate'));
+        assert.equal(
+          await dbAdmin.transaction((tx) =>
+            applyInitial(tx, { ...evidence, subscriptionId: 'subs_different_payer' }),
+          ),
+          'review',
+        );
+        assert.deepEqual(await state(f), before);
+        const [after] =
+          await sql`SELECT current_period_start,current_period_end FROM public.subscriptions WHERE id=${f.subscriptionId}::uuid`;
+        assert.deepEqual(after, period);
+      },
+    );
+  }
+  await check(
+    'ROLLOUT kill switch blocks new obligations but not reconciliation of a paid checkout',
+    async () => {
+      const pending = await seed();
+      await create({ clinicId: pending.clinicId });
+      const blocked = await seed();
+      const before = posts;
+      runtimeEnv.ABACATEPAY_NEW_CHECKOUTS_ENABLED = false;
+      try {
+        await assert.rejects(create({ clinicId: blocked.clinicId }), /unavailable/);
+        assert.equal(posts, before);
+        assert.equal((await state(blocked)).operations, 0);
+        const item = remote.get(pending.reference)?.[0];
+        assert.ok(item);
+        item.status = 'PAID';
+        item.paidAmount = pending.amountMinor;
+        item.customerId = 'cust_synthetic';
+        assert.equal((await applyPayment({ subscriptionId: pending.subscriptionId })).applied, 1);
+        assert.equal((await state(pending)).released, true);
+      } finally {
+        runtimeEnv.ABACATEPAY_NEW_CHECKOUTS_ENABLED = true;
+      }
+    },
+  );
+  await check(
+    'ROLLOUT exact clinic cohort refuses another tenant before any financial operation',
+    async () => {
+      const allowed = await seed(),
+        denied = await seed();
+      const before = posts;
+      runtimeEnv.ABACATEPAY_CHECKOUT_CLINIC_IDS = allowed.clinicId;
+      try {
+        await assert.rejects(create({ clinicId: denied.clinicId }), /unavailable/);
+        assert.equal(posts, before);
+        assert.equal((await state(denied)).operations, 0);
+        assert.equal((await create({ clinicId: allowed.clinicId })).state, 'checkout_pending');
+        assert.equal(posts, before + 1);
+      } finally {
+        runtimeEnv.ABACATEPAY_CHECKOUT_CLINIC_IDS = undefined;
+      }
+    },
+  );
+  await check(
+    'PENDING overview reflects a durable event without claiming payment or releasing quotas',
+    async () => {
+      const f = await seed();
+      await create({ clinicId: f.clinicId });
+      const item = remote.get(f.reference)?.[0];
+      assert.ok(item);
+      assert.equal((await overview(f.clinicId))?.activationPending, false);
+      await createPostgresGatewayInbox(
+        { provider: 'abacatepay', environment: 'sandbox', accountId: 'store_synthetic' },
+        dbAdmin,
+      ).accept(
+        {
+          eventId: 'log_pending_' + randomUUID().replaceAll('-', ''),
+          eventType: 'subscription.completed',
+          subscriptionId: 'subs_pending',
+          checkoutId: item.id,
+          customerId: 'cust_synthetic',
+          paymentId: 'card_pending',
+        },
+        createHash('sha256').update(f.reference).digest('hex'),
+      );
+      const result = await overview(f.clinicId);
+      assert.equal(result?.activationPending, true);
+      assert.equal(result?.paid, false);
+      assert.equal((await state(f)).invoices, 0);
+      assert.equal((await state(f)).released, false);
+    },
+  );
   for (const failurePoint of ['invoice', 'trial_quota_release'] as const) {
     await check(
       `INITIAL-ATOMIC-${failurePoint} database failure rolls back activation and retries without another charge`,

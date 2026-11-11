@@ -1,6 +1,7 @@
 import { dbAdmin } from '@/lib/db';
 import { env } from '@/lib/env';
 import { metrics } from '@/lib/observability/metrics';
+import { captureBackgroundError } from '@/lib/observability/capture';
 import { assertAbacatePaySandboxRuntime } from '@/lib/payments/saas/acquisition';
 import { createPostgresGatewayInbox } from '@/lib/payments/saas/postgres-store';
 import { createAbacatePayWebhookHandler } from '@/lib/payments/abacatepay/webhook-handler';
@@ -33,7 +34,15 @@ export async function POST(request: Request): Promise<Response> {
           return outcome;
         },
       },
-      onFailure: (reason) => metrics.emit('billing.abacatepay.webhook_failed', { reason }),
+      onFailure: (reason) => {
+        metrics.emit('billing.abacatepay.webhook_failed', { reason });
+        // Authenticated persistence/conflict failures need an operational alert.
+        // Unauthenticated internet traffic remains metrics-only to avoid alert flooding.
+        if (reason === 'persistence_failed' || reason === 'content_conflict')
+          captureBackgroundError(new Error(`AbacatePay authenticated webhook failure: ${reason}`), {
+            flow: 'billing.abacatepay.webhook',
+          });
+      },
     })(request);
     if ((accepted.status === 202 || accepted.status === 200) && eventId) {
       const outcome = await reconcileAbacatePayInbox({ eventId });

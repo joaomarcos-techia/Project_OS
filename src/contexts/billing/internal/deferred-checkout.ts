@@ -7,7 +7,10 @@ import { z } from 'zod';
 import { dbAdmin } from '@/lib/db';
 import { env } from '@/lib/env';
 import { buildApplicationUrl, resolvePreviewCallbackOrigin } from '@/lib/http/application-url';
-import { assertAbacatePaySandboxRuntime } from '@/lib/payments/saas/acquisition';
+import {
+  assertAbacatePaySandboxRuntime,
+  abacatePayCheckoutAllowed,
+} from '@/lib/payments/saas/acquisition';
 import { createPostgresGatewayOperationJournal } from '@/lib/payments/saas/postgres-store';
 import { createAbacatePaySandboxCommands } from '@/lib/payments/abacatepay/sandbox-commands';
 import { createAbacatePayReadClient } from '@/lib/payments/abacatepay/reader';
@@ -95,6 +98,7 @@ export async function createDeferredSubscriptionCheckout(input: { clinicId: stri
     throw new DeferredCheckoutError('unavailable');
   }
   const clinicId = z.uuid().parse(input.clinicId);
+  if (!abacatePayCheckoutAllowed(clinicId)) throw new DeferredCheckoutError('unavailable');
   const callbackOrigin = resolvePreviewCallbackOrigin() ?? env.APP_BASE_URL;
   if (!callbackOrigin) throw new DeferredCheckoutError('unavailable');
   const callbackUrl = buildApplicationUrl(callbackOrigin, '/configuracoes/assinatura');
@@ -274,6 +278,7 @@ const overviewSchema = z.object({
   released_at: z.coerce.date().nullable(),
   billing_status: z.enum(['trial', 'active', 'past_due', 'cancelled']),
   paid_period_active: z.boolean(),
+  activation_pending: z.boolean(),
 });
 export async function getDeferredSubscriptionOverview(clinicId: string) {
   if (!env.ABACATEPAY_STORE_ID) return null;
@@ -294,7 +299,10 @@ export async function getDeferredSubscriptionOverview(clinicId: string) {
       await dbAdmin.execute(sql`
     SELECT p.name plan_name,pr.amount::text,s.trial_ends_at,
       (s.trial_ends_at > now()) trial_active,ta.released_at,s.billing_status,
-      coalesce(s.current_period_end > now(),false) paid_period_active
+      coalesce(s.current_period_end > now(),false) paid_period_active,
+      (ta.released_at IS NULL AND EXISTS(SELECT 1 FROM billing_gateway.event_inbox e
+        WHERE e.account_id=a.id AND e.external_checkout_id=b.external_checkout_id
+          AND e.event_type='subscription.completed' AND e.state IN ('received','processing','review'))) activation_pending
     FROM public.subscriptions s JOIN public.plans p ON p.id=s.plan_id
     JOIN public.prices pr ON pr.id=s.price_id
     JOIN billing_gateway.bindings b ON b.subscription_id=s.id AND b.clinic_id=s.clinic_id
@@ -319,6 +327,8 @@ export async function getDeferredSubscriptionOverview(clinicId: string) {
         paid: overview.released_at !== null,
         billingStatus: overview.billing_status,
         paidPeriodActive: overview.paid_period_active,
+        activationPending: overview.activation_pending,
+        checkoutAvailable: abacatePayCheckoutAllowed(clinicId),
         planChanges: managementAvailable
           ? await getAbacatePayPlanChangeOverview(dbAdmin, clinicId)
           : null,

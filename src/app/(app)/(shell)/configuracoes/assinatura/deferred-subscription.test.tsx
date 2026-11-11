@@ -20,6 +20,23 @@ afterEach(() => {
 });
 
 describe('deferred subscription controls', () => {
+  it('explains authenticated pending activation without promising payment or offering another checkout', () => {
+    const reload = vi.spyOn(window.location, 'reload').mockImplementation(() => undefined);
+    const fetcher = vi.fn();
+    vi.stubGlobal('fetch', fetcher);
+    render(<DeferredSubscription {...baseline} activationPending />);
+    expect(screen.getByText('Pagamento em verificação')).toBeTruthy();
+    expect(screen.queryByText('Pagamento confirmado')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Contratar assinatura' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Atualizar confirmação' }));
+    expect(reload).toHaveBeenCalledOnce();
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+  it('hides new checkout when acquisition is paused', () => {
+    render(<DeferredSubscription {...baseline} checkoutAvailable={false} />);
+    expect(screen.getByText('Contratação temporariamente indisponível')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Contratar assinatura' })).toBeNull();
+  });
   it.each([
     [3, 54400, '544,00'],
     [4, 69100, '691,00'],

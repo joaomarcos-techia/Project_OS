@@ -9,6 +9,28 @@ const input = {
   now: new Date('2026-03-04T00:00:00Z'),
 };
 describe('approved original monthly Qoro renewal calendar', () => {
+  it('uses authoritative paid-period dates for a late shared-checkout receipt without moving the anniversary', () => {
+    expect(
+      period({
+        ...input,
+        chargeCreatedAt: '2026-03-07T12:00:00Z',
+        confirmedAt: '2026-03-07T12:00:01Z',
+        now: new Date('2026-03-08T00:00:00Z'),
+        providerPeriodStart: '2026-02-28',
+        providerPeriodEnd: '2026-03-31',
+      }),
+    ).toEqual(period(input));
+  });
+  it.each([
+    { providerPeriodStart: '2026-03-01', providerPeriodEnd: '2026-03-31' },
+    { providerPeriodStart: '2026-02-28', providerPeriodEnd: '2026-03-30' },
+    { providerPeriodStart: '2026-02-28' },
+  ])(
+    'reviews missing or contradictory provider period instead of resetting the calendar %j',
+    (metadata) => {
+      expect(period({ ...input, ...metadata })).toBeNull();
+    },
+  );
   it('clamps February without drifting the following anniversary to the 28th', () => {
     expect(period(input)).toEqual({
       index: 1,

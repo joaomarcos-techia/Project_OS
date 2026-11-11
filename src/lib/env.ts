@@ -127,6 +127,16 @@ const EnvSchema = z
       z.enum(['asaas', 'abacatepay_sandbox']).default('asaas'),
     ),
     ABACATEPAY_API_KEY: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+    // Acquisition only; never stops webhooks, reconciliation or cancellation.
+    ABACATEPAY_NEW_CHECKOUTS_ENABLED: z.preprocess(
+      emptyToUndefined,
+      z
+        .enum(['true', 'false'])
+        .optional()
+        .transform((v) => v !== 'false'),
+    ),
+    // An explicitly empty cohort must fail closed, not become an omitted cohort.
+    ABACATEPAY_CHECKOUT_CLINIC_IDS: z.string().max(4096).optional(),
     ABACATEPAY_STORE_ID: z.preprocess(
       emptyToUndefined,
       z

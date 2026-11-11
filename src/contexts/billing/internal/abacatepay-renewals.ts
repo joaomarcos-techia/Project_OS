@@ -201,6 +201,12 @@ export async function applyAbacatePayRenewalTx(
     chargeCreatedAt: evidence.chargeCreatedAt,
     confirmedAt: evidence.confirmedAt,
     now,
+    ...(evidence.providerPeriodStart === undefined
+      ? {}
+      : { providerPeriodStart: evidence.providerPeriodStart }),
+    ...(evidence.providerPeriodEnd === undefined
+      ? {}
+      : { providerPeriodEnd: evidence.providerPeriodEnd }),
   });
   if (!period) return 'review';
   const existing = z

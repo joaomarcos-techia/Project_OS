@@ -19,6 +19,9 @@ export interface RecurringPaymentEvidence {
   recurrence: 'running' | 'stopped';
   obligation: 'paid';
   settlement: 'unknown';
+  /** Read-only API paid-period metadata; never replaces the Qoro calendar. */
+  providerPeriodStart?: string;
+  providerPeriodEnd?: string;
 }
 
 export type RecurringPaymentRead =

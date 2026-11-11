@@ -1,7 +1,7 @@
 /** Real migrations/application/receiver; synthetic identities and provider HTTP, loopback DB only. */
 import assert from 'node:assert/strict';
 import { createHash, createHmac, randomUUID } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile, readFile } from 'node:fs/promises';
 
 import { readMigrations, startScratchSchema } from './scratch-schema';
 
@@ -220,6 +220,7 @@ function installHttpFixture(
     refundedCheckoutId?: string;
     extraSubscription?: boolean;
     emptySubscriptions?: boolean;
+    providerPeriod?: { start: string; end: string };
   } = {},
 ) {
   globalThis.fetch = async (target, init) => {
@@ -238,6 +239,12 @@ function installHttpFixture(
       devMode: true,
       trialEndsAt: null,
       createdAt: f.anchor.toISOString(),
+      ...(options.providerPeriod
+        ? {
+            currentPeriodStart: options.providerPeriod.start,
+            currentPeriodEnd: options.providerPeriod.end,
+          }
+        : {}),
     };
     let data: unknown;
     switch (url.pathname) {
@@ -2086,6 +2093,154 @@ try {
       assert.equal(pending?.n, 0);
     },
   );
+  await check(
+    'PERIOD missing webhook is detected independently by authenticated provider period with no fabricated event or entitlement',
+    async () => {
+      const f = await seed(),
+        before = await financialFingerprint(f);
+      installHttpFixture(f, {
+        providerPeriod: {
+          start: f.end.toISOString().slice(0, 10),
+          end: new Date(f.end.getTime() + 31 * 86400000).toISOString().slice(0, 10),
+        },
+      });
+      assert.equal((await inspect(f)).reviews, 1);
+      assert.deepEqual(await financialFingerprint(f), before);
+      const [issue] =
+        await sql`SELECT payload->>'issue' issue FROM public.billing_events WHERE clinic_id=${f.clinicId}::uuid AND type='subscription.recurrence.review_required'`;
+      assert.equal(issue?.issue, 'provider_period_ahead');
+      const [inboxCount] =
+        await sql`SELECT count(*)::int n FROM billing_gateway.event_inbox WHERE external_subscription_id=${f.evidence.subscriptionId}`;
+      assert.equal(inboxCount?.n, 0);
+    },
+  );
+  await check(
+    'PERIOD schema N/N-1 keeps shared-checkout renewal in review before candidate DDL',
+    async () => {
+      const f = await seed(),
+        before = await state(f);
+      const evidence = {
+        ...f.evidence,
+        checkoutId: f.evidence.originCheckoutId,
+        chargeCreatedAt: f.end.toISOString(),
+        providerPeriodStart: f.end.toISOString().slice(0, 10),
+        providerPeriodEnd: new Date(f.end.getTime() + 31 * 86400000).toISOString().slice(0, 10),
+      };
+      await accept(f, f.eventId, evidence);
+      assert.equal(await apply(f, evidence), 'review');
+      assert.deepEqual(await state(f), before);
+    },
+  );
+  const candidateSql = await readFile(
+    new URL(
+      '../../docs/decoupling/asaas-to-abacatepay/migrations/saas_period_snapshot.candidate.sql',
+      import.meta.url,
+    ),
+    'utf8',
+  );
+  await check(
+    'PERIOD candidate DDL preserves all existing subscriptions and invoices and private RLS',
+    async () => {
+      const snapshot = async () => sql`SELECT
+      (SELECT md5(coalesce(jsonb_agg(to_jsonb(s) ORDER BY s.id)::text,'')) FROM public.subscriptions s) subscriptions,
+      (SELECT md5(coalesce(jsonb_agg(to_jsonb(i) ORDER BY i.id)::text,'')) FROM public.invoices i) invoices,
+      (SELECT md5(coalesce(jsonb_agg(to_jsonb(p) ORDER BY p.id)::text,'')) FROM public.prices p) prices`;
+      const before = await snapshot();
+      await sql.begin((tx) => tx.unsafe(candidateSql));
+      assert.deepEqual(await snapshot(), before);
+      const [rls] = await sql`SELECT relrowsecurity,relforcerowsecurity FROM pg_class
+      WHERE oid='billing_gateway.recurring_payment_observations'::regclass`;
+      assert.deepEqual(rls, { relrowsecurity: true, relforcerowsecurity: true });
+    },
+  );
+  await check(
+    'PERIOD two original-checkout renewals have distinct payment ledgers and one effect per cycle',
+    async () => {
+      const f = await seed();
+      for (let cycle = 1; cycle <= 2; cycle++) {
+        const iso = f.anchor.toISOString();
+        const start = new Date(addCalendarMonths(iso.slice(0, 10), cycle) + iso.slice(10));
+        const end = new Date(addCalendarMonths(iso.slice(0, 10), cycle + 1) + iso.slice(10));
+        const evidence = {
+          ...f.evidence,
+          checkoutId: f.evidence.originCheckoutId,
+          paymentId: 'char_same_' + cycle + '_' + f.userId.replaceAll('-', ''),
+          statementId: 'tran_same_' + cycle + '_' + f.userId.replaceAll('-', ''),
+          chargeCreatedAt: start.toISOString(),
+          confirmedAt: new Date(start.getTime() + 1000).toISOString(),
+          providerPeriodStart: start.toISOString().slice(0, 10),
+          providerPeriodEnd: end.toISOString().slice(0, 10),
+        };
+        const eventId = 'log_same_' + cycle + '_' + f.userId.replaceAll('-', '');
+        await accept(f, eventId, evidence);
+        const applyOne = () =>
+          dbAdmin.transaction((tx) =>
+            applyAbacatePayRenewalTx(tx, evidence, eventId, new Date(start.getTime() + 2000)),
+          );
+        const outcomes = await Promise.all(Array.from({ length: 6 }, applyOne));
+        assert.equal(outcomes.filter((x) => x === 'applied').length, 1);
+        assert.ok(outcomes.every((x) => x === 'applied' || x === 'duplicate'));
+      }
+      const result = await state(f);
+      assert.equal(result.invoices, 3);
+      assert.equal(result.cycles, 2);
+      assert.equal(result.observations, 2);
+    },
+  );
+  await check('PERIOD database refuses shared checkout without paid-period evidence', async () => {
+    const f = await seed();
+    await accept(f);
+    assert.equal(
+      await apply(f, { ...f.evidence, checkoutId: f.evidence.originCheckoutId }),
+      'review',
+    );
+    assert.equal((await state(f)).observations, 0);
+  });
+  await check(
+    'PERIOD late original-checkout payment preserves the original anniversary calendar',
+    async () => {
+      const f = await seed(),
+        iso = f.anchor.toISOString();
+      const end = new Date(addCalendarMonths(iso.slice(0, 10), 2) + iso.slice(10));
+      const paidAt = new Date(f.end.getTime() + 7 * 86400000);
+      const evidence = {
+        ...f.evidence,
+        checkoutId: f.evidence.originCheckoutId,
+        chargeCreatedAt: paidAt.toISOString(),
+        confirmedAt: paidAt.toISOString(),
+        providerPeriodStart: f.end.toISOString().slice(0, 10),
+        providerPeriodEnd: end.toISOString().slice(0, 10),
+      };
+      await accept(f, f.eventId, evidence);
+      assert.equal(
+        await dbAdmin.transaction((tx) =>
+          applyAbacatePayRenewalTx(tx, evidence, f.eventId, new Date(paidAt.getTime() + 1000)),
+        ),
+        'applied',
+      );
+      const [row] =
+        await sql`SELECT current_period_start,current_period_end FROM public.subscriptions WHERE id=${f.subscription_id}::uuid`;
+      assert.equal(row?.current_period_start.getTime(), f.end.getTime());
+      assert.equal(row?.current_period_end.getTime(), end.getTime());
+    },
+  );
+  await check(
+    'PERIOD a distinct-checkout proof cannot smuggle unaudited provider-period metadata',
+    async () => {
+      const f = await seed();
+      await accept(f);
+      const before = await state(f);
+      assert.equal(
+        await apply(f, {
+          ...f.evidence,
+          providerPeriodStart: f.end.toISOString().slice(0, 10),
+          providerPeriodEnd: new Date(f.end.getTime() + 31 * 86400000).toISOString().slice(0, 10),
+        }),
+        'review',
+      );
+      assert.deepEqual(await state(f), before);
+    },
+  );
   assert.equal(networkCalls, 0);
 } catch (error) {
   failure = error;
@@ -2099,6 +2254,8 @@ try {
         observedAt: new Date().toISOString(),
         environment: 'loopback_synthetic',
         migrations: (await readMigrations()).length,
+        additionalCandidateDdl:
+          'saas_period_snapshot.candidate.sql; loopback only, not in migration journal',
         results,
         networkCalls,
         fixtureHttpCalls,

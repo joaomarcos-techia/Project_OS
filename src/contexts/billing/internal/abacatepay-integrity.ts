@@ -26,6 +26,7 @@ const candidateSchema = z.object({
   external_subscription_id: z.string().nullable(),
   external_customer_id: z.string().nullable(),
   cancellation_requested: z.boolean(),
+  current_period_end: z.coerce.date().nullable(),
 });
 type Candidate = z.infer<typeof candidateSchema>;
 
@@ -46,7 +47,7 @@ async function candidate(
     .parse(
       await database.execute(sql`
     SELECT a.id::text account_id,s.id::text subscription_id,s.clinic_id::text,g.generation_id::text,
-      g.checkout_id,g.external_subscription_id,g.external_customer_id,
+      g.checkout_id,g.external_subscription_id,g.external_customer_id,s.current_period_end,
       EXISTS(SELECT 1 FROM billing_gateway.cancellations c WHERE c.account_id=a.id
         AND c.external_subscription_id=g.external_subscription_id) cancellation_requested
     FROM public.subscriptions s JOIN billing_gateway.bindings b ON b.subscription_id=s.id AND b.clinic_id=s.clinic_id
@@ -112,7 +113,12 @@ async function saveObservation(
         ? 'unexpected_cancellation'
         : observation.recurrence === 'unknown'
           ? 'unknown_recurrence'
-          : null);
+          : observation.providerPaidPeriod &&
+              current.current_period_end &&
+              observation.providerPaidPeriod.end >
+                current.current_period_end.toISOString().slice(0, 10)
+            ? 'provider_period_ahead'
+            : null);
     await recordBillingEvent(tx, current.clinic_id, 'subscription.recurrence.observed', {
       provider: 'abacatepay',
       checkId,
@@ -122,6 +128,7 @@ async function saveObservation(
       complete: observation.complete,
       observedSubscriptionIds: observation.observedSubscriptionIds,
       accessEffect: 'none_human_review_only',
+      providerPaidPeriod: observation.providerPaidPeriod ?? null,
     });
     if (!issue) return { issue: null, recorded: false, deferred: false };
     const fingerprint = createHash('sha256')
@@ -131,6 +138,7 @@ async function saveObservation(
           current.generation_id,
           issue,
           observation.observedSubscriptionIds,
+          observation.providerPaidPeriod ?? null,
         ]),
       )
       .digest('hex');

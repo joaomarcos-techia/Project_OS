@@ -7,8 +7,9 @@ import { z } from 'zod';
 import { dbAdmin, type Tx } from '@/lib/db';
 import { env } from '@/lib/env';
 import { metrics } from '@/lib/observability/metrics';
+import { captureBackgroundError } from '@/lib/observability/capture';
 import { isAbacatePaySandboxRuntime } from '@/lib/payments/saas/acquisition';
-import { billingResourceKey } from '@/lib/payments/saas/contracts';
+import { billingResourceKey, GatewayReadError } from '@/lib/payments/saas/contracts';
 import { createAbacatePayReadClient } from '@/lib/payments/abacatepay/reader';
 import {
   createAbacatePayInitialPaymentReader,
@@ -168,6 +169,7 @@ const queuedSchema = z.object({
   external_customer_id: z.string().nullable(),
   attempts: z.number().int(),
   attempt_limit: z.number().int().positive(),
+  received_at: z.coerce.date(),
 });
 const intentSchema = z.object({
   subscription_id: z.uuid(),
@@ -178,6 +180,8 @@ const intentSchema = z.object({
   recontract_id: z.uuid().optional(),
 });
 const MAX_ATTEMPTS = 10;
+const READBACK_BUDGET_MS = 20_000;
+const ACTIVATION_REVIEW_AFTER_MS = 120_000;
 
 /** One bounded event per invocation. Leased work survives process interruption. */
 export async function reconcileAbacatePayInbox(input: { eventId?: string } = {}): Promise<{
@@ -192,6 +196,7 @@ export async function reconcileAbacatePayInbox(input: { eventId?: string } = {})
     metrics.emit('billing.abacatepay.reconcile_disabled', { reason: 'runtime_guard' });
     return { applied: 0, review: 0, scanned: 0 };
   }
+  const startedAt = Date.now();
   const token = randomUUID();
   const eventId =
     input.eventId === undefined ? null : z.string().min(1).max(200).parse(input.eventId);
@@ -216,7 +221,7 @@ export async function reconcileAbacatePayInbox(input: { eventId?: string } = {})
       lease_token=${token}::uuid,lease_until=now()+interval '60 seconds'
     FROM candidate c WHERE i.account_id=c.account_id AND i.event_id=c.event_id
     RETURNING i.account_id::text,i.event_id,i.event_type,i.lease_token::text,
-      i.external_subscription_id,i.external_checkout_id,i.external_customer_id,i.attempts,c.attempt_limit`),
+      i.external_subscription_id,i.external_checkout_id,i.external_customer_id,i.attempts,c.attempt_limit,i.received_at`),
     );
   if (!event) {
     if (eventId) {
@@ -239,11 +244,44 @@ export async function reconcileAbacatePayInbox(input: { eventId?: string } = {})
     }
     return { applied: 0, review: 0, scanned: 0 };
   }
+  function observeOutcome(state: string, reason: string) {
+    const eventAgeMs = Math.max(0, Date.now() - event!.received_at.getTime());
+    metrics.emit('billing.abacatepay.event_reconciled', {
+      outcome: state,
+      reason,
+      attempts: event!.attempts,
+      processingMs: Date.now() - startedAt,
+      eventAgeMs,
+    });
+    if (state === 'review')
+      captureBackgroundError(new Error(`AbacatePay event requires review: ${reason}`), {
+        flow: 'billing.abacatepay.inbox',
+      });
+    if (
+      state === 'applied' &&
+      event!.event_type === 'subscription.completed' &&
+      eventAgeMs >= ACTIVATION_REVIEW_AFTER_MS
+    )
+      captureBackgroundError(new Error('AbacatePay activation exceeded the processing target'), {
+        flow: 'billing.abacatepay.activation_late',
+      });
+  }
+  function observeFailure(error: unknown, reason: string) {
+    metrics.emit('billing.abacatepay.reconcile_failed', {
+      reason,
+      code: error instanceof GatewayReadError ? error.code : 'transaction_or_unknown',
+      httpStatus: error instanceof GatewayReadError ? error.httpStatus : null,
+      processingMs: Date.now() - startedAt,
+      attempts: event!.attempts,
+    });
+  }
   async function finish(state: 'received' | 'applied' | 'ignored' | 'review', reason: string) {
-    await dbAdmin.execute(sql`UPDATE billing_gateway.event_inbox SET state=${state},outcome_code=${reason},
+    const changed =
+      await dbAdmin.execute(sql`UPDATE billing_gateway.event_inbox SET state=${state},outcome_code=${reason},
       lease_token=NULL,lease_until=NULL,processed_at=now()
       WHERE account_id=${event!.account_id}::uuid AND event_id=${event!.event_id}
-        AND state='processing' AND lease_token=${token}::uuid`);
+        AND state='processing' AND lease_token=${token}::uuid RETURNING event_id`);
+    if (changed.length) observeOutcome(state, reason);
   }
   // A process can die during its final lease. One final reservation only
   // closes that stale lease for review; it never performs an eleventh readback.
@@ -298,19 +336,17 @@ export async function reconcileAbacatePayInbox(input: { eventId?: string } = {})
           WHERE account_id=${event.account_id}::uuid AND event_id=${event.event_id} AND lease_token=${token}::uuid`);
         return applied;
       });
-      metrics.emit('billing.abacatepay.event_reconciled', { outcome });
+      observeOutcome(outcome, 'renewal_payment');
       return {
         applied: Number(outcome === 'applied' || outcome === 'historical'),
         review: Number(outcome === 'review'),
         scanned: 1,
         retry: outcome === 'lease_lost',
       };
-    } catch {
+    } catch (error) {
       const retry = event.attempts < event.attempt_limit;
       await finish(retry ? 'received' : 'review', 'renewal_authoritative_readback_failed');
-      metrics.emit('billing.abacatepay.reconcile_failed', {
-        reason: 'renewal_readback_or_transaction',
-      });
+      observeFailure(error, 'renewal_readback_or_transaction');
       return { applied: 0, review: Number(!retry), scanned: 1, retry };
     }
   }
@@ -349,12 +385,10 @@ export async function reconcileAbacatePayInbox(input: { eventId?: string } = {})
         recorded,
       });
       return { applied: 0, review: Number(recorded), scanned: 1, retry: !recorded };
-    } catch {
+    } catch (error) {
       const retry = event.attempts < event.attempt_limit;
       await finish(retry ? 'received' : 'review', 'negative_authoritative_readback_failed');
-      metrics.emit('billing.abacatepay.reconcile_failed', {
-        reason: 'negative_readback_or_transaction',
-      });
+      observeFailure(error, 'negative_readback_or_transaction');
       return { applied: 0, review: Number(!retry), scanned: 1, retry };
     }
   }
@@ -377,6 +411,8 @@ export async function reconcileAbacatePayInbox(input: { eventId?: string } = {})
       apiKey: env.ABACATEPAY_API_KEY,
       environment: 'sandbox' as const,
       timeoutMs: 2000,
+      readAttempts: 2 as const,
+      deadlineMs: startedAt + READBACK_BUDGET_MS,
     };
     const read = createAbacatePayReadClient(config);
     const remote = await read.readSubscription(event.external_subscription_id);
@@ -459,7 +495,7 @@ export async function reconcileAbacatePayInbox(input: { eventId?: string } = {})
           AND event_id=${event.event_id} AND state='processing' AND lease_token=${token}::uuid
           AND lease_until > now() FOR UPDATE`),
       );
-      if (!lease[0]) return 'review';
+      if (!lease[0]) return 'lease_lost';
       const outcome = verifiedIntent.recontract_id
         ? await applyAbacatePayRecontractPaymentTx(tx, evidence)
         : await applyInitialAbacatePayPaymentTx(tx, evidence);
@@ -470,20 +506,19 @@ export async function reconcileAbacatePayInbox(input: { eventId?: string } = {})
         WHERE account_id=${event.account_id}::uuid AND event_id=${event.event_id} AND lease_token=${token}::uuid`);
       return outcome;
     });
-    metrics.emit('billing.abacatepay.event_reconciled', { outcome: applied });
+    observeOutcome(applied, 'initial_payment');
     return {
       applied: Number(applied === 'applied'),
       review: Number(applied === 'review'),
       scanned: 1,
+      retry: applied === 'lease_lost',
     };
-  } catch {
+  } catch (error) {
     await finish(
       event.attempts >= event.attempt_limit ? 'review' : 'received',
       'authoritative_readback_failed',
     );
-    metrics.emit('billing.abacatepay.reconcile_failed', {
-      reason: 'authoritative_readback_or_transaction',
-    });
+    observeFailure(error, 'authoritative_readback_or_transaction');
     return {
       applied: 0,
       review: Number(event.attempts >= event.attempt_limit),

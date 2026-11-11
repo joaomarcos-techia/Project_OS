@@ -79,3 +79,49 @@ node node_modules/tsx/dist/cli.mjs scripts/security/abacatepay-renewal-db.ts
 ```
 
 O script inicia um PostgreSQL loopback descartável com todas as migrations reais, usa identidades sintéticas, bloqueia rede externa e para o cluster ao terminar. O resultado fica em `dist/abacatepay-renewal-db.json`. O snapshot versionado da execução aprovada está ligado no plano final. **Não é um comando de replay em DEV/Production, nem simula financeiramente uma renovação real no Sandbox.** Não precisa ser repetido para cada operador.
+
+## 8. Fechamento operacional de 11/11/2026
+
+As cinco primeiras compras estão homologadas e preservadas. **Não criar checkout, pagar, cancelar, excluir ou reenviar o pagamento antigo para executar este roteiro.** [Evidência e limites atuais](../decoupling/asaas-to-abacatepay/evidencias/operacao-continua-20261111.json).
+
+### Conferir o alerta sem credenciais no chat
+
+1. Abra o [Sentry](https://sentry.io/) na sua conta administrativa. Selecione o projeto cujo ID é **4511646341726208**. Não precisa criar conta nem contratar plano.
+2. Em Issues, filtre o ambiente **preview** e procure a mensagem **Qoro Sandbox operational alert probe**. O evento aceito tem ID `fc2862ce570d48c6966747db2022aa5b`; run `f4b90206-b481-4764-a227-4bc8066aa9d1`, enviado em 11/11 às **08:43:25 de Brasília**. Não contém pagamento ou paciente. Encontrar o evento confirma visibilidade; não confirma recebimento de notificação.
+3. Abra [Monitors → Alerts](https://sentry.io/monitors/alerts). Confira a regra desse projeto e ambiente **preview**, seus filtros e a ação de entrega ao responsável. A documentação atual é [Creating an Alert](https://docs.sentry.io/product/monitors-and-alerts/alerts/create-alerts/). Não altere a regra de Production nesta validação. Se faltar regra Preview, informe isso antes de escolher destinatários ou canal.
+4. Se já existe uma regra, confira se você recebeu a notificação do probe no canal previsto. Se a regra foi criada depois dele, o evento anterior não prova entrega: a engenharia pode enviar **um novo probe sintético**, sem cobrança, após a regra estar pronta.
+5. Responda somente: `Sentry: evento visível [sim/não]; regra Preview [presente/ausente]; notificação [recebida/não recebida]; responsável [função]`. Não envie token, screenshot de eventos clínicos ou configuração com segredos.
+
+A API administrativa disponível retornou **401**, por isso a engenharia não conseguiu ler destinatários/regras automaticamente. O HTTP 200 obtido comprova apenas ingestão de um envelope sintético, não a passagem de um pagamento pelo webhook ou a entrega de e-mail/Slack. Não é necessário trocar uma chave financeira para resolver isso.
+
+### Conferir MFA operacional
+
+1. Abra o [PR #53](https://github.com/joaomarcos-techia/Project_OS/pull/53), confirme o commit do relatório e acesse o Preview pelo check Vercel correspondente. Entre com seu **superadmin DEV** e o MFA legítimo; não compartilhe senha ou código.
+2. Abra `/admin/billing/operacao`. Confira que uma sessão comum/sem MFA não obtém a função de autorizar nova leitura e que o superadmin precisa de TOTP atual na ação. **Não faça replay de nenhum evento ou contrato deste lote**: a engenharia deverá preparar uma fixture específica antes de ensaiar a autorização positiva completa.
+3. Informe apenas `MFA Qoro: login confirmado [sim/não]; operação exige código atual [sim/não]`. A consulta automática já encontrou **2/2 superadmins DEV com fator nativo verificado**; não é necessário cadastrar outro operador. Isso não prova a jornada interativa positiva.
+4. MFA de Qoro, GitHub, Vercel, AbacatePay e cofre são independentes. Não presuma que a autenticação no GitHub protege a conta do provedor. Nenhuma política global foi alterada; o campo de MFA não foi informado pela API própria do GitHub, e os demais painéis não foram auditados por sessão autenticada.
+
+### Coordenar o SQL financeiro com TISS
+
+O [SQL candidato](../decoupling/asaas-to-abacatepay/migrations/saas_period_snapshot.candidate.sql) está testado somente no PostgreSQL local. **Não execute esse arquivo manualmente em DEV ou Production.** O PR #55 contém 0143–0146, e o financeiro não escolheu um prefixo concorrente nem editou o journal desse agente.
+
+A engenharia precisa conciliar o histórico exato das duas branches e do DEV, registrar o candidato na próxima versão livre, executar os gates e obter a autorização específica antes da aplicação remota. A sua parte é aprovar essa integração de schema quando apresentada; não há comando SQL que você precise executar agora. Não há autorização implícita de merge/main/Production.
+
+### Condições de interrupção e níveis de alerta
+
+| Sinal | Prioridade | Deduplicação e responsável | Ação |
+|---|---|---|---|
+| Mais de uma assinatura por checkout, vínculo/tenant divergente | P1 | Audit por fingerprint/geração; financeiro + engenharia | Conter novas aquisições; conferir IDs sem cancelar/refundar por suposição |
+| Evento autenticado não persistido ou conteúdo conflitante | P1 | Inbox e agrupamento Sentry; plantão técnico | Preservar retorno não-2xx e a mesma obrigação; não cobrar novamente |
+| Tentativas esgotadas/revisão de prova | P1 | Estado terminal por lease; uma captura na transição | Releitura autorizada com MFA, sem zerar contador |
+| Ativação concluída depois de 120s | P2 | Somente aplicação efetiva, sem alertar duplicate | Medir idade e duração; investigar o HTTP sanitizado |
+| Período pago do provedor à frente do Qoro | P1 | Audit deduplicado, sem fabricar evento/invoice | Recuperar a origem oficial; não conceder mês por ACTIVE/valor/data |
+| Webhook não autenticado | Métrica de segurança | Não enviar alerta por request; investigar agregados | Recusar antes da persistência; não expor a URL com segredo |
+
+Destinatário e recebimento ainda dependem da conferência Sentry acima. Não há SLA de aviso em 120 s: o sinal é emitido na próxima execução/conclusão, e o cron de contingência continua diário. Nenhuma agenda, custo ou plano foi alterado. A nova detecção sem webhook não implementa recuperação financeira automática de uma renovação cuja origem autenticada está totalmente ausente.
+
+### Kill switch e rollout futuro, sem execução agora
+
+`ABACATEPAY_NEW_CHECKOUTS_ENABLED=false` recusa novas obrigações antes do journal/POST. `ABACATEPAY_CHECKOUT_CLINIC_IDS` aceita UUIDs exatos separados por vírgula; inválidos/duplicados bloqueiam. Consumidores, conciliação e cancelamento não dependem dessas flags. Alterar env na Vercel exige **novo deployment**. As flags foram implementadas, sem configurar qualquer ambiente externo.
+
+**O runtime permanece Sandbox e rejeita Production.** Não copie credenciais nem configure `abacatepay_sandbox` no ambiente real. Antes de um piloto: schema coordenado e aplicado com autorização, recovery sem evento completo, contrato de leitura após fechamento de checkout validado, MFA/alerta reais, composição live implementada/testada e janela aprovada. Backup/rollback e consumidores Asaas continuam obrigatórios. Nenhuma alteração de contrato, pagamento de paciente ou desconto vitalício está incluída.

@@ -3,6 +3,87 @@ import { describe, expect, it, vi } from 'vitest';
 import { createAbacatePayTransport } from './transport';
 
 describe('AbacatePay command transport', () => {
+  it.each([502, 503, 504, null])(
+    'recovers one transient GET %s inside an explicit read budget',
+    async (status) => {
+      const fetcher = vi.fn<typeof fetch>();
+      if (status === null)
+        fetcher.mockRejectedValueOnce(new Error('secret fixture network details'));
+      else fetcher.mockResolvedValueOnce(new Response('private body', { status }));
+      fetcher.mockResolvedValueOnce(
+        Response.json({ success: true, data: { id: 'store_fixture' } }),
+      );
+      const request = createAbacatePayTransport(
+        { apiKey: 'fixture-key', readAttempts: 2, deadlineMs: Date.now() + 5000 },
+        fetcher,
+      );
+      await expect(request({ method: 'GET', path: '/stores/get' })).resolves.toEqual({
+        success: true,
+        data: { id: 'store_fixture' },
+      });
+      expect(fetcher).toHaveBeenCalledTimes(2);
+    },
+  );
+  it.each([400, 401, 403, 404, 422, 429, 500])(
+    'does not retry permanent or rate-limited GET HTTP %s',
+    async (status) => {
+      const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response('private', { status }));
+      const request = createAbacatePayTransport(
+        { apiKey: 'fixture-key', readAttempts: 2 },
+        fetcher,
+      );
+      await expect(request({ method: 'GET', path: '/stores/get' })).rejects.toMatchObject({
+        httpStatus: status,
+      });
+      expect(fetcher).toHaveBeenCalledTimes(1);
+    },
+  );
+  it('keeps read retries opt-in and bounded to two attempts', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockRejectedValue(new Error('private'));
+    await expect(
+      createAbacatePayTransport(
+        { apiKey: 'fixture-key' },
+        fetcher,
+      )({ method: 'GET', path: '/stores/get' }),
+    ).rejects.toMatchObject({ code: 'unavailable' });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    fetcher.mockClear();
+    await expect(
+      createAbacatePayTransport(
+        { apiKey: 'fixture-key', readAttempts: 2 },
+        fetcher,
+      )({ method: 'GET', path: '/stores/get' }),
+    ).rejects.toMatchObject({ code: 'unavailable' });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+  it('does not start another attempt beyond the shared deadline', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockRejectedValue(new Error('private'));
+    const request = createAbacatePayTransport(
+      { apiKey: 'fixture-key', readAttempts: 2, deadlineMs: Date.now() + 50 },
+      fetcher,
+    );
+    await expect(request({ method: 'GET', path: '/stores/get' })).rejects.toMatchObject({
+      code: 'unavailable',
+    });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    fetcher.mockClear();
+    const expired = createAbacatePayTransport(
+      { apiKey: 'fixture-key', readAttempts: 2, deadlineMs: Date.now() - 1 },
+      fetcher,
+    );
+    await expect(expired({ method: 'GET', path: '/stores/get' })).rejects.toMatchObject({
+      code: 'unavailable',
+    });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+  it('never retries a financial command even when GET recovery is enabled', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockRejectedValue(new Error('private'));
+    const request = createAbacatePayTransport({ apiKey: 'fixture-key', readAttempts: 2 }, fetcher);
+    await expect(
+      request({ method: 'POST', path: '/subscriptions/cancel', body: {} }),
+    ).rejects.toMatchObject({ name: 'AbacatePayCommandError' });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
   it('uses one POST to the fixed official V2 origin, with no redirect/cache/retry', async () => {
     const fetcher = vi
       .fn<typeof fetch>()

@@ -26,6 +26,8 @@ const evidenceSchema = z
     recurrence: z.enum(['running', 'stopped']),
     obligation: z.literal('paid'),
     settlement: z.literal('unknown'),
+    providerPeriodStart: z.iso.date().optional(),
+    providerPeriodEnd: z.iso.date().optional(),
   })
   .strict();
 const contextSchema = z.object({
@@ -53,10 +55,26 @@ export async function recordAbacatePayRecurringPaymentTx(
   if (
     evidence.account.provider !== 'abacatepay' ||
     evidence.account.environment !== 'sandbox' ||
-    evidence.amountMinor !== evidence.paidAmountMinor ||
-    evidence.checkoutId === evidence.originCheckoutId
+    evidence.amountMinor !== evidence.paidAmountMinor
   )
     return 'review';
+  const originalCheckout = evidence.checkoutId === evidence.originCheckoutId;
+  if (
+    !originalCheckout &&
+    (evidence.providerPeriodStart !== undefined || evidence.providerPeriodEnd !== undefined)
+  )
+    return 'review';
+  if (originalCheckout) {
+    const start = evidence.providerPeriodStart,
+      end = evidence.providerPeriodEnd;
+    const day = new Date(evidence.chargeCreatedAt).toISOString().slice(0, 10);
+    if (!start || !end || end <= start || day < start || day >= end) return 'review';
+    const [schema] = await tx.execute<{
+      ready: boolean;
+    }>(sql`SELECT EXISTS(SELECT 1 FROM information_schema.columns
+      WHERE table_schema='billing_gateway' AND table_name='recurring_payment_observations' AND column_name='provider_period_start') ready`);
+    if (!schema?.ready) return 'review';
+  }
   const [context] = z
     .array(contextSchema)
     .max(1)
@@ -105,12 +123,14 @@ export async function recordAbacatePayRecurringPaymentTx(
     INSERT INTO billing_gateway.recurring_payment_observations
       (account_id,payment_id,statement_id,checkout_id,origin_checkout_id,external_subscription_id,
         external_customer_id,subscription_id,clinic_id,source_event_id,price_id,product_id,amount_minor,
-        currency,charge_created_at,confirmed_at,observed_recurrence,settlement)
+        currency,charge_created_at,confirmed_at,observed_recurrence,settlement
+        ${originalCheckout ? sql`,provider_period_start,provider_period_end` : sql``})
     VALUES(${context.account_id}::uuid,${evidence.paymentId},${evidence.statementId},${evidence.checkoutId},
       ${evidence.originCheckoutId},${evidence.subscriptionId},${evidence.customerId},
       ${context.subscription_id}::uuid,${context.clinic_id}::uuid,${sourceEventId},
       ${context.price_id}::uuid,${evidence.productId},${evidence.amountMinor},'BRL',
-      ${evidence.chargeCreatedAt}::timestamptz,${evidence.confirmedAt}::timestamptz,${evidence.recurrence},'unknown')
+      ${evidence.chargeCreatedAt}::timestamptz,${evidence.confirmedAt}::timestamptz,${evidence.recurrence},'unknown'
+      ${originalCheckout ? sql`,${evidence.providerPeriodStart}::date,${evidence.providerPeriodEnd}::date` : sql``})
     ON CONFLICT DO NOTHING RETURNING payment_id`),
     );
   if (inserted.length === 1) return 'recorded';
@@ -127,7 +147,8 @@ export async function recordAbacatePayRecurringPaymentTx(
       AND clinic_id=${context.clinic_id}::uuid AND price_id=${context.price_id}::uuid
       AND product_id=${evidence.productId} AND amount_minor=${evidence.amountMinor}
       AND charge_created_at=${evidence.chargeCreatedAt}::timestamptz
-      AND confirmed_at=${evidence.confirmedAt}::timestamptz`),
+      AND confirmed_at=${evidence.confirmedAt}::timestamptz
+      ${originalCheckout ? sql`AND provider_period_start=${evidence.providerPeriodStart}::date AND provider_period_end=${evidence.providerPeriodEnd}::date` : sql``}`),
     );
   return same.length === 1 ? 'duplicate' : 'review';
 }

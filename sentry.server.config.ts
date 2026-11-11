@@ -14,7 +14,7 @@ const dsn =
 Sentry.init({
   dsn,
   enabled: Boolean(dsn),
-  environment: process.env.NODE_ENV,
+  environment: process.env.VERCEL_ENV ?? process.env.NODE_ENV,
   // 10% (não 100%) — controle de custo/volume em produção.
   tracesSampleRate: 0.1,
   // LGPD/clínico: NUNCA enviar PII por padrão (cookies/headers/IP/usuário).

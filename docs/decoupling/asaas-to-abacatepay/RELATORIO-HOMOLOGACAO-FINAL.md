@@ -638,3 +638,48 @@ Baseline CI `6b89b9e2`: [42872281354 SUCCESS](https://github.com/joaomarcos-tech
 ### O que permanece
 
 Não há outro pagamento inicial humano pendente. Manter as fixtures e não pagar links antigos. Os cinco PASS são de **primeira contratação Sandbox**. Renovação natural/change-plan/falha recorrente/refund/disputa sem simulador oficial continuam com prova local e limites externos explícitos. Permanecem B1 (URL reutilizável), B2 (ciclo sem qualquer evento), B3 (ciclo externo), prova operacional admin/MFA/alerta e implementação live/cohort. **PR #53 draft; NO-GO para ativar AbacatePay em Production.** Não houve merge/deploy/configuração de Production nem repricing de contratos legados.
+
+## 39. Operação contínua, contrato atual do provedor e controles — 11/11/2026
+
+Baseline remota d9180228/CI 43005109295 confirmada, PR #53 draft; main continua 5620a098. As cinco compras da seção 38 foram preservadas, sem outro checkout/pagamento. [Evidência desta rodada](evidencias/operacao-continua-20261111.json). Não há escrita em Production, configuração Vercel, merge, alteração TISS ou migration remota.
+
+### Implementado e validado localmente
+
+- GET transitório: opt-in de duas tentativas para rede/502/503/504, espera de 100 ms e orçamento compartilhado de 20 s no primeiro readback. POST nunca é repetido; 401/403/429, resposta inválida e erro de vínculo não recebem retry curto. Retentativa do inbox continua cumulativa, máximo 10; lease expirada não concede direitos e agora pede recuperação em vez de relatar revisão como encerramento.
+- Diagnóstico: métricas com código sanitizado, HTTP, tentativas, duração e idade do evento. Erros de revisão/esgotamento e ativação concluída após 120 s acionam captura Sentry. Persistência/conflito de webhook autenticado também geram captura; tráfego não autenticado fica em métricas para não gerar alerta por requisição de atacante.
+- Aquisição: kill switch e cohort exato de UUIDs no servidor, antes de qualquer operação nova. Cancelamento/reconciliação/webhooks existentes continuam habilitados. UI explica notificação em verificação, oferece atualização sem POST financeiro e oculta nova contratação nesse estado; pausa de aquisição tem feedback próprio.
+- Sentry server/edge distinguem VERCEL_ENV=preview de production. NODE_ENV=production do build deixava os dois indistinguíveis. A alteração é candidata, não deploy em produção; SDK preserva scrub/PII.
+
+### Nova evidência oficial e incompatibilidade corrigida na candidata
+
+O [índice oficial atual](https://docs.abacatepay.com/llms.txt) e a [fonte atual do GET](https://github.com/AbacatePay/documentation/blob/main/pages/subscriptions/get.mdx) agora documentam currentPeriodStart/currentPeriodEnd/nextChargeAt. **GETs reais HTTP 200** nas fixtures Consultório e Clínica 5 confirmaram os três campos, com datas 2026-11-11/2026-12-11/2026-12-11. Não são horários nem autorização para substituir o calendário Qoro aprovado. O leitor passa a validar essas datas como metadata; a próxima cobrança não é pagamento confirmado.
+
+A [documentação de eventos](https://docs.abacatepay.com/pages/webhooks/events/subscriptions) atual diz que o checkout original permanece nas renovações; isso difere da resposta histórica do suporte. O leitor e o ledger antigos recusavam esse modelo por exigir bill distinto e UNIQUE(account_id,checkout_id). A candidata aceita também o modelo com checkout original **somente** com período posterior ao inicial e receipt de cartão exato/novo, preservando o caminho anterior e o calendário Qoro. Prova ausente/contraditória continua em revisão.
+
+O [SQL candidato](migrations/saas_period_snapshot.candidate.sql) adiciona datas auditáveis e substitui a unicidade por checkout pela combinação existente de pagamento/extrato e período. Mantém RLS e snapshots imutáveis. **Não está no journal nem em DEV/Production**: PR #55 avançou para 0143–0146 (head 4fb419f8 no readback), então não foi inventado um prefixo livre, copiada migration ou feito merge entre agentes. Em N/N-1, o novo modelo permanece em revisão se o schema adicional não existir. Não basta publicar este código para liberar renovação do contrato novo.
+
+**Atualização B1:** a [fonte oficial atual de exclusão](https://github.com/AbacatePay/documentation/blob/main/pages/subscriptions/checkouts-delete.mdx), consultada diretamente nesta rodada, agora afirma que o link para de aceitar pagamentos e que a assinatura gerada continua ativa. Não é necessário repetir essa pergunta ao suporte. Ainda falta comprovar o fechamento de um checkout pago e os readbacks posteriores, pois a conciliação consulta esse recurso. Nenhum checkout pago foi excluído e nenhum comando automático de fechamento foi ativado por suposição. A janela anterior ao webhook também continua exigindo contenção/monitoramento de duplicidade remota.
+
+### Renovação totalmente sem webhook
+
+O monitor agora compara o período remoto autenticado com o local e abre incidente provider_period_ahead, mesmo com **zero evento no inbox**. O teste comprova que não fabrica webhook, invoice, pagamento ou extensão de acesso. **Detecção PASS local; recuperação financeira automática ainda não implementada.** A trilha atual exige evento autenticado como origem: substituir essa origem por prova de extrato requer um ledger/readback específico, migração coordenada e provas de associação inequívoca. Não foi inferida uma cobrança por valor/data/ACTIVE. Evento já recebido continua recuperável por worker/releitura autorizada.
+
+### Latência e limites mensuráveis
+
+Antes, 4/5 médicos tiveram 316,13/316,39s entre inbox e aplicação, três tentativas reais. Logs Vercel foram obtidos: quatro falhas genéricas de readback/transação, sem HTTP/causa preservados; não é possível afirmar retrospectivamente timeout, HTTP503 ou consistência eventual. Depois da correção, testes PostgreSQL com falha de rede/HTTP503 sintéticos recuperam na primeira lease; durações exatas estão no JSON. **Esses milissegundos locais não comprovam melhoria externa nem P95 do provedor.** Não repetimos pagamentos.
+
+Meta técnica proposta: confirmação saudável em até 30 s após inbox, leituras limitadas a 20 s; sinal de atraso quando aplicação exceder 120 s, e revisão/alerta ao esgotar tentativas. O sinal de atraso ocorre na próxima execução/conclusão; não é temporizador autônomo de 120 s. Backstop atual continua cron diário às 09:00 UTC; redelivery observado demorou cerca de 5 min. Ainda não existe SLA de detecção/ativação em 120 s nem observação externa após a correção. Volume, fila e destino do alerta precisam de ensaio operacional antes do piloto.
+
+### MFA, alertas e prova real
+
+DEV somente leitura: 2 operadores ativos, 2 marcados MFA e 2 fatores nativos verificados, sem divulgar identidades. AAL2+TOTP atual na ação administrativa permanece coberto por testes; **login/reprocessamento interativo não executado**. O próprio usuário da API GitHub não informou two_factor_authentication; não se presume desativado. Vercel/AbacatePay/MFA de outros serviços não foram inferidos a partir do MFA Qoro.
+
+Sentry administrativo retornou 401. Foi enviado **um** envelope sintético preview, sem paciente/pagamento, aceito HTTP 200 em 11:43:25 UTC: evento fc2862ce570d48c6966747db2022aa5b. Isso comprova ingestão no projeto, não envio de e-mail/Slack, configuração da regra ou recebimento pelo responsável. O probe não passou pelo webhook financeiro nem foi chamado de pagamento real. [Procedimento do responsável](../../runbooks/abacatepay-operacao.md#8-fechamento-operacional-de-11112026).
+
+### Qualidade e estado
+
+PASS **29/29** checks de checkout/recuperação, 143 migrations reais, 553 chamadas HTTP sintéticas e zero rede externa; inclui os 20 anteriores, 24 replays concorrentes e dois erros transacionais. PASS **92/92** checks de ciclo de vida/segurança: 143 migrations reais **mais o SQL candidato local**, 352 chamadas sintéticas, zero rede externa; inclui 85 anteriores, detecção sem evento, N/N-1, preservação de dados/RLS e duas renovações no mesmo checkout sob concorrência. Não somar essas contagens a testes unitários. Passaram **965 testes dirigidos em 53 arquivos** na regressão final; as verificações anteriores de alerta/ambiente são sobrepostas.
+
+A primeira execução nova de fixture usou um nome incorreto de enum; corrigida a preparação sem retirar asserções. Uma edição do sinal de atraso foi detectada fora do escopo pelo TypeScript e pela regressão; movida para o observador correto e repetidos os gates afetados. Não são falhas de Production. Quatro novos E2E desktop/mobile exercitam pausa e processamento sem POST em harness isolado; resultado do build/CI do novo commit é registrado no PR, sem herdar a CI anterior.
+
+**PARTIAL / NO-GO financeiro Production.** Restam: registrar/aplicar schema candidato após coordenar 0143–0146; completar recovery financeiro sem nenhum evento sem criar origem fictícia; fechamento remoto do link com histórico/readbacks preservados; MFA operacional e recebimento do alerta; composição live e rollout autorizado. Controles de cohort/kill estão implementados na composição Sandbox; **não** existe seletor live nem ativação automática em Production. Nenhum risco foi aceito em nome do founder.

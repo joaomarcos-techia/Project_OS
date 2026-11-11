@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { setTimeout as delay } from 'node:timers/promises';
 import { z } from 'zod';
 
 import { GatewayReadError, gatewayHttpReadError, parseBillingValue } from '../saas/contracts';
@@ -7,6 +8,15 @@ import { GatewayReadError, gatewayHttpReadError, parseBillingValue } from '../sa
 const API_V2 = 'https://api.abacatepay.com/v2';
 const DEFAULT_TIMEOUT_MS = 10_000;
 const MAX_RESPONSE_BYTES = 1_048_576;
+const READ_RETRY_DELAY_MS = 100;
+const RETRYABLE_HTTP = new Set([502, 503, 504]);
+export interface AbacatePayTransportConfig {
+  apiKey: string;
+  timeoutMs?: number;
+  /** Opt-in GET recovery only. A shared deadline bounds the entire readback. */
+  readAttempts?: 1 | 2;
+  deadlineMs?: number;
+}
 const envelopeSchema = z
   .object({ success: z.literal(true), data: z.unknown() })
   .refine((value) => value.data !== undefined);
@@ -36,21 +46,25 @@ export class AbacatePayCommandError extends Error {
 }
 
 export function createAbacatePayTransport(
-  config: { apiKey: string; timeoutMs?: number },
+  config: AbacatePayTransportConfig,
   fetcher: typeof fetch = fetch,
 ) {
   const timeoutMs = config.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const readAttempts = config.readAttempts ?? 1;
+  const deadline = config.deadlineMs;
   if (
     !config.apiKey ||
     /\s/.test(config.apiKey) ||
     !Number.isSafeInteger(timeoutMs) ||
     timeoutMs < 1 ||
-    timeoutMs > 60_000
+    timeoutMs > 60_000 ||
+    ![1, 2].includes(readAttempts) ||
+    (deadline !== undefined && !Number.isSafeInteger(deadline))
   ) {
     throw new GatewayReadError('invalid_input');
   }
   const apiKey = config.apiKey;
-  return async function request(
+  async function requestOnce(
     input:
       | { method: 'GET'; path: string; params?: URLSearchParams }
       | { method: 'POST'; path: string; body: unknown },
@@ -76,6 +90,9 @@ export function createAbacatePayTransport(
           ? new GatewayReadError('unavailable')
           : gatewayHttpReadError(status);
     let response: Response;
+    const remaining =
+      deadline === undefined ? timeoutMs : Math.min(timeoutMs, deadline - Date.now());
+    if (remaining <= 0) throw failure();
     try {
       response = await fetcher(url, {
         method: input.method,
@@ -87,7 +104,7 @@ export function createAbacatePayTransport(
           ...(input.method === 'POST' ? { 'Content-Type': 'application/json' } : {}),
         },
         ...(body === undefined ? {} : { body }),
-        signal: AbortSignal.timeout(timeoutMs),
+        signal: AbortSignal.timeout(remaining),
       });
     } catch {
       throw failure();
@@ -137,5 +154,25 @@ export function createAbacatePayTransport(
       throw invalid();
     }
     return parsed;
+  }
+  return async function request(input: Parameters<typeof requestOnce>[0]): Promise<unknown> {
+    const attempts = input.method === 'GET' ? readAttempts : 1;
+    for (let attempt = 1; ; attempt++) {
+      try {
+        return await requestOnce(input);
+      } catch (error) {
+        const transient =
+          error instanceof GatewayReadError &&
+          error.code === 'unavailable' &&
+          (error.httpStatus === null || RETRYABLE_HTTP.has(error.httpStatus));
+        if (
+          !transient ||
+          attempt >= attempts ||
+          (deadline !== undefined && Date.now() + READ_RETRY_DELAY_MS >= deadline)
+        )
+          throw error;
+        await delay(READ_RETRY_DELAY_MS);
+      }
+    }
   };
 }

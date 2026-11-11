@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   accept: vi.fn(),
   process: vi.fn(),
   emit: vi.fn(),
+  capture: vi.fn(),
 }));
 vi.mock('@/lib/env', () => ({ env: mocks.env }));
 vi.mock('@/lib/db', () => ({ dbAdmin: {} }));
@@ -29,6 +30,7 @@ vi.mock('@/contexts/billing/internal/abacatepay-processing', () => ({
   reconcileAbacatePayInbox: mocks.process,
 }));
 vi.mock('@/lib/observability/metrics', () => ({ metrics: { emit: mocks.emit } }));
+vi.mock('@/lib/observability/capture', () => ({ captureBackgroundError: mocks.capture }));
 import { POST } from './route';
 const publicKey =
   't9dXRhHHo3yDEj5pVDYz0frf7q6bMKyMRmxxCPIPp3RCplBfXRxqlC6ZpiWmOqj4L63qEaeUOtrCI8P0VMUgo6iIga2ri9ogaHFs0WIIywSMg0q7RmBfybe1E5XJcfC4IW3alNqym0tXoAKkzvfEjZxV6bE0oG2zJrNNYmUCKZyV0KZ3JS8Votf9EAWWYdiDkMkpbMdPggfh1EqHlVkMiTady6jOR3hyzGEHrIz2Ret0xHKMbiqkr9HS1JhNHDX9';
@@ -80,6 +82,7 @@ describe('AbacatePay webhook composition (real authentication, unit persistence/
     expect((await POST(request(body, 'wrong-secret'))).status).toBe(401);
     expect(mocks.accept).not.toHaveBeenCalled();
     expect(mocks.process).not.toHaveBeenCalled();
+    expect(mocks.capture).not.toHaveBeenCalled();
   });
   it('rejects malformed authenticated payload before persistence', async () => {
     expect((await POST(request('not-json'))).status).toBe(400);
@@ -90,6 +93,9 @@ describe('AbacatePay webhook composition (real authentication, unit persistence/
     mocks.accept.mockRejectedValue(new Error('synthetic persistence unavailable'));
     expect((await POST(request())).status).toBe(503);
     expect(mocks.process).not.toHaveBeenCalled();
+    expect(mocks.capture).toHaveBeenCalledWith(expect.any(Error), {
+      flow: 'billing.abacatepay.webhook',
+    });
   });
   it('blocks production before accessing inbox or processing', async () => {
     mocks.guard.mockImplementation(() => {

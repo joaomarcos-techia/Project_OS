@@ -12,6 +12,39 @@ const catalog = [1, 2, 3, 4, 5].map((doctors) => ({
 
 /** Actual TSX/CSS in an isolated local Next harness; HTTP doubles, no Auth/DB/payment proof. */
 for (const width of [1440, 390]) {
+  for (const state of ['processing', 'paused']) {
+    test(`billing ${state} at ${width}px preserves progress without another financial POST`, async ({
+      page,
+    }) => {
+      test.skip(!enabled, 'Explicit isolated local harness required');
+      expect(origin && new URL(origin).hostname).toBe('127.0.0.1');
+      await page.setViewportSize({ width, height: 1000 });
+      let writes = 0;
+      await page.route('**/api/billing/**', (route) => {
+        if (route.request().method() === 'POST') writes++;
+        return route.abort();
+      });
+      await page.goto('/cadastro/qoro-billing-harness?billingState=' + state);
+      await expect(
+        page.getByText(
+          state === 'processing'
+            ? 'Pagamento em verificação'
+            : 'Contratação temporariamente indisponível',
+          { exact: true },
+        ),
+      ).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Contratar assinatura' })).toHaveCount(0);
+      await expect(page.getByText('Pagamento confirmado', { exact: true })).toHaveCount(0);
+      if (state === 'processing') {
+        await page.getByRole('button', { name: 'Atualizar confirmação' }).click();
+        await expect(page.getByText('Pagamento em verificação', { exact: true })).toBeVisible();
+      }
+      expect(writes).toBe(0);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      );
+    });
+  }
   for (const doctors of [2, 3, 4, 5]) {
     test(`${doctors} doctors: redesigned summary, one click and preserved price at ${width}px`, async ({
       page,

@@ -12,7 +12,7 @@ import {
   type SaasSubscriptionReader,
   type SubscriptionSnapshot,
 } from '../saas/contracts';
-import { createAbacatePayTransport } from './transport';
+import { createAbacatePayTransport, type AbacatePayTransportConfig } from './transport';
 
 const PAGE_SIZE = 100;
 const MAX_PAGES = 100;
@@ -40,9 +40,12 @@ const subscriptionSchema = z.object({
   method: z.string().min(1).max(128),
   devMode: z.boolean(),
   trialEndsAt: z.iso.datetime({ offset: true }).nullable(),
-  // Documented GET schema does not promise frequency or the next due date.
+  // Optional for old responses; read-only metadata never grants a paid cycle.
   frequency: z.string().optional(),
   createdAt: z.iso.datetime({ offset: true }).optional(),
+  currentPeriodStart: z.iso.date().nullable().optional(),
+  currentPeriodEnd: z.iso.date().nullable().optional(),
+  nextChargeAt: z.iso.date().nullable().optional(),
 });
 const checkoutSchema = z.object({
   id: resourceId('bill_'),
@@ -62,15 +65,13 @@ export type AbacatePayProduct = z.infer<typeof productSchema>;
 export type AbacatePaySubscriptionCheckout = z.infer<typeof checkoutSchema>;
 export type AbacatePayCheckoutFinancials = z.infer<typeof checkoutFinancialSchema>;
 
-export interface AbacatePayReadConfig {
-  apiKey: string;
+export interface AbacatePayReadConfig extends AbacatePayTransportConfig {
   environment: BillingAccount['environment'];
-  timeoutMs?: number;
 }
 
 /**
  * Read-only V2 preparation. No create/cancel/update method, active composition,
- * automatic retries or gateway fallback exists in this client.
+ * gateway fallback exists in this client. GET retries require explicit opt-in.
  */
 export function createAbacatePayReadClient(
   config: AbacatePayReadConfig,
@@ -252,8 +253,8 @@ export function createAbacatePaySubscriptionReader(
             : subscription.method === 'PIX'
               ? 'pix'
               : 'unknown',
-        // No GET field documented: never infer renewal from createdAt or status.
-        nextChargeDate: null,
+        // Provider schedule metadata is not proof of a paid renewal.
+        nextChargeDate: subscription.nextChargeAt ?? null,
         trialEndsAt: subscription.trialEndsAt,
       };
     },

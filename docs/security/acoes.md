@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 200 actions (0 inline); 66 métodos em 62 handlers; 19 props com referência de action; 489 acessos diretos a process.env; 9 nomes NEXT_PUBLIC.
+Contagem: 200 actions (0 inline); 66 métodos em 62 handlers; 19 props com referência de action; 491 acessos diretos a process.env; 9 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -279,7 +279,7 @@ O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase
 | `src/app/api/signup/sessions/route.ts:63#POST`                       | NEW                     | public-signup-rate-limit-risk-and-cap                                           | `src/app/api/signup/sessions/route.ts:108#createSignupSession`                                                                                                               |
 | `src/app/api/signup/sessions/verify/route.ts:30#POST`                | NEW                     | origin-limit-cookie-email-code-expiry-attempts-cas                              | `src/app/api/signup/sessions/verify/route.ts:67#confirmSignupEmailCode`                                                                                                      |
 | `src/app/api/signup/verificacao/route.ts:25#POST`                    | NEW                     | closed-signup-expiry-origin-rate-limit-provider-proof-no-session                | `src/app/api/signup/verificacao/route.ts:55#verifySignupTurnstileProbe`                                                                                                      |
-| `src/app/api/webhooks/abacatepay/route.ts:12#POST`                   | NEW                     | abacatepay-secret-hmac-durable-inbox                                            | `src/app/api/webhooks/abacatepay/route.ts:25#createAbacatePayWebhookHandler`                                                                                                 |
+| `src/app/api/webhooks/abacatepay/route.ts:13#POST`                   | NEW                     | abacatepay-secret-hmac-durable-inbox                                            | `src/app/api/webhooks/abacatepay/route.ts:26#createAbacatePayWebhookHandler`                                                                                                 |
 | `src/app/api/webhooks/asaas/patient/[ref]/route.ts:68#POST`          | asaas-tenant-token      | asaas-tenant-token                                                              | `src/app/api/webhooks/asaas/patient/[ref]/route.ts:108#safeEqual` → `src/lib/payments/asaas/index.ts:1482#safeEqual`                                                         |
 | `src/app/api/webhooks/asaas/route.ts:96#POST`                        | asaas-shared-token      | asaas-shared-token                                                              | `src/app/api/webhooks/asaas/route.ts:116#asaasProvider.validateWebhookToken`                                                                                                 |
 | `src/app/api/webhooks/meta/route.ts:78#GET`                          | meta-handshake-token    | meta-handshake-token                                                            | `src/app/api/webhooks/meta/route.ts:91#safeEqual`                                                                                                                            |
@@ -347,7 +347,7 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `src/lib/auth/supabase-session-cookie.ts:5`                | `NODE_ENV`                             | `process.env.NODE_ENV`                                                      |
 | `src/lib/db/index.ts:39`                                   | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                                          |
 | `src/lib/db/index.ts:53`                                   | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                                          |
-| `src/lib/env.ts:502`                                       | `<object>`                             | `process.env`                                                               |
+| `src/lib/env.ts:512`                                       | `<object>`                             | `process.env`                                                               |
 | `src/lib/impersonation/index.ts:64`                        | `NODE_ENV`                             | `process.env.NODE_ENV`                                                      |
 | `src/middleware.ts:82`                                     | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
 | `src/middleware.ts:88`                                     | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
@@ -588,13 +588,13 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/abacatepay-renewal-db.ts:11`             | `<object>`                             | `process.env`                                                               |
 | `scripts/security/abacatepay-renewal-db.ts:35`             | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                                                    |
 | `scripts/security/abacatepay-renewal-db.ts:36`             | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
-| `scripts/security/abacatepay-renewal-db.ts:425`            | `ABACATEPAY_WEBHOOK_SECRET`            | `process.env.ABACATEPAY_WEBHOOK_SECRET`                                     |
+| `scripts/security/abacatepay-renewal-db.ts:432`            | `ABACATEPAY_WEBHOOK_SECRET`            | `process.env.ABACATEPAY_WEBHOOK_SECRET`                                     |
 | `scripts/security/ai-handoff-reliability-db.ts:31`         | `<object>`                             | `process.env`                                                               |
 | `scripts/security/ai-handoff-reliability-db.ts:32`         | `<dynamic>`                            | `process.env[key]`                                                          |
 | `scripts/security/ai-handoff-reliability-db.ts:34`         | `<object>`                             | `process.env`                                                               |
-| `scripts/security/local-build.ts:91`                       | `<dynamic>`                            | `process.env[key]`                                                          |
-| `scripts/security/local-build.ts:91`                       | `<dynamic>`                            | `process.env[key]`                                                          |
-| `scripts/security/local-build.ts:121`                      | `CI`                                   | `process.env.CI`                                                            |
+| `scripts/security/local-build.ts:98`                       | `<dynamic>`                            | `process.env[key]`                                                          |
+| `scripts/security/local-build.ts:98`                       | `<dynamic>`                            | `process.env[key]`                                                          |
+| `scripts/security/local-build.ts:128`                      | `CI`                                   | `process.env.CI`                                                            |
 | `scripts/security/offer-restored-backup-db.ts:34`          | `<object>`                             | `process.env`                                                               |
 | `scripts/security/offer-restored-backup-db.ts:328`         | `BACKUP_PASSPHRASE`                    | `process.env.BACKUP_PASSPHRASE`                                             |
 | `scripts/security/onboarding-progress-db.ts:44`            | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
@@ -819,7 +819,9 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/turnstile-production-gate.ts:5`                   | `TURNSTILE_SECRET_KEY`                 | `process.env.TURNSTILE_SECRET_KEY`                                          |
 | `sentry.edge.config.ts:9`                                  | `NEXT_PUBLIC_SENTRY_DSN`               | `process.env.NEXT_PUBLIC_SENTRY_DSN`                                        |
 | `sentry.edge.config.ts:10`                                 | `SENTRY_DSN`                           | `process.env.SENTRY_DSN`                                                    |
+| `sentry.edge.config.ts:16`                                 | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                                                    |
 | `sentry.edge.config.ts:16`                                 | `NODE_ENV`                             | `process.env.NODE_ENV`                                                      |
 | `sentry.server.config.ts:10`                               | `NEXT_PUBLIC_SENTRY_DSN`               | `process.env.NEXT_PUBLIC_SENTRY_DSN`                                        |
 | `sentry.server.config.ts:11`                               | `SENTRY_DSN`                           | `process.env.SENTRY_DSN`                                                    |
+| `sentry.server.config.ts:17`                               | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                                                    |
 | `sentry.server.config.ts:17`                               | `NODE_ENV`                             | `process.env.NODE_ENV`                                                      |

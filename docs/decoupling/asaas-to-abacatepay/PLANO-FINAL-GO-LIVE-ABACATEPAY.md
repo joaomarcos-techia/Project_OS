@@ -1,5 +1,8 @@
 # Fechamento operacional da AbacatePay — 10/11/2026
 
+**Atualização11/11:** [checkpoint de operação contínua §39](RELATORIO-HOMOLOGACAO-FINAL.md#39-operação-contínua-contrato-atual-do-provedor-e-controles--11112026). Contrato atual mudou: datas de período foram comprovadas por GET Sandbox e o checkout original consta na documentação de renovação. O SQL preparado fica fora do journal aguardando alinhamento com TISS0143–0146; não aplicar sobre DEV divergente.29/92 checks locais PASS, cohort/kill preparados, detecção remota sem evento e ingestão Sentry preview comprovadas. Recovery financeiro sem evento, leitura após fechamento de checkout pago, MFA/alerta recebido e composição live permanecem pendentes. **NO-GO Production mantido**, sem repetir as cinco compras.
+
+
 ## Escopo e baseline preservada
 
 **Checkpoint mais recente — lote pago 11/11:** [relatório §38](RELATORIO-HOMOLOGACAO-FINAL.md#38-cinco-contratações-iniciais-homologadas--11112026). **Cinco cenários iniciais homologados**: Consultório1/R$197 e Clínica2/3/4/5 a R$397/544/691/838. Dois médicos usa a prova anterior sem outra compra; os quatro novos passaram por webhook, invoice, assinatura, cota e UI desktop/mobile reais no Sandbox. Readback de 4/5 recuperou automaticamente na terceira tentativa, sem efeito duplicado. Isolamento READ ONLY 4 próprios/12 cruzados negados e PostgreSQL 20/20 com falhas de invoice/quota. CI baseline 6b89b9e2 passou 6.921 testes e 18 E2E sem SKIP; a CI do novo incremento fica no PR. **Não há novo pagamento inicial a solicitar.** B1–B4/operação/live/cohort permanecem; **NO-GO financeiro Production**. [Evidência](evidencias/checkouts-lote-20261111.json).

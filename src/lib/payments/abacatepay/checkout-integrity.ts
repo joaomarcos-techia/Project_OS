@@ -91,6 +91,16 @@ export function createAbacatePayCheckoutIntegrityReader(
           expectedSubscriptionId: input.subscriptionId,
           observedSubscriptionIds: ids.slice(0, 2),
           complete: !response.pagination.hasMore && ids.length <= 2,
+          ...(bound?.currentPeriodStart &&
+          bound.currentPeriodEnd &&
+          bound.currentPeriodEnd > bound.currentPeriodStart
+            ? {
+                providerPaidPeriod: {
+                  start: bound.currentPeriodStart,
+                  end: bound.currentPeriodEnd,
+                },
+              }
+            : {}),
         };
         if (ids.length > 1)
           return { ...base, issue: 'multiple_subscriptions', recurrence: 'unknown' };

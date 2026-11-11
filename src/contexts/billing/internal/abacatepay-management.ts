@@ -11,6 +11,7 @@ import { metrics } from '@/lib/observability/metrics';
 import {
   assertAbacatePaySandboxRuntime,
   isAbacatePaySandboxRuntime,
+  abacatePayCheckoutAllowed,
 } from '@/lib/payments/saas/acquisition';
 import { billingResourceKey } from '@/lib/payments/saas/contracts';
 import {
@@ -314,6 +315,8 @@ export async function createAbacatePayRecontractCheckout(
   database: ManagementDatabase,
   input: { clinicId: string; productId: string | undefined; callbackUrl: string },
 ) {
+  if (!abacatePayCheckoutAllowed(input.clinicId))
+    throw new AbacatePayManagementError('unavailable');
   const settings = config();
   if (!(await abacatePayManagementReady(database)))
     throw new AbacatePayManagementError('unavailable');

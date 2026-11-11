@@ -47,7 +47,14 @@ await writeFile(
   planUiFixture,
   `import { PublicPage, SignupStage, PublicHeading } from '@/components/shared/signup-frame';
 import { PlanSelectionForm } from '../plano/plan-selection-form';
-export default function Harness() {
+import { DeferredSubscription } from '@/app/(app)/(shell)/configuracoes/assinatura/deferred-subscription';
+export default async function Harness({searchParams}:{searchParams:Promise<{billingState?:string}>}) {
+  const {billingState}=await searchParams;
+  if(billingState==='processing'||billingState==='paused')return <PublicPage><DeferredSubscription
+    planName="Clínica sintética" amountMinor={39700} trialEndsAt="2026-11-08T12:00:00Z"
+    trialActive={false} paid={false} billingStatus="trial" paidPeriodActive={false}
+    activationPending={billingState==='processing'} checkoutAvailable={billingState!=='paused'}
+  /></PublicPage>;
   return <PublicPage><SignupStage step={3} trialFirst>
     <PublicHeading title="Escolha seu plano" lead="Harness sintético de apresentação" />
     <PlanSelectionForm />

@@ -107,7 +107,7 @@ function fixture(options: Options = {}) {
         };
         break;
       case '/v2/subscriptions/checkouts/get':
-        expect(url.searchParams.get('id')).toBe('bill_cycle');
+        expect(url.searchParams.get('id')).toBe(options.checkout?.id ?? 'bill_cycle');
         body = {
           success: true,
           data: {
@@ -148,6 +148,39 @@ function fixture(options: Options = {}) {
 }
 
 describe('renewal charge readback (no billing-period assertion or access grant)', () => {
+  it('accepts the current original-checkout contract only with a new API paid period and exact new card receipt', async () => {
+    const { reader } = fixture({
+      subscription: { currentPeriodStart: '2026-12-09', currentPeriodEnd: '2027-01-09' },
+      checkout: { id: 'bill_origin', createdAt: '2026-11-09T00:31:00Z' },
+      statements: [statement({ checkoutId: 'bill_origin' })],
+    });
+    const result = await reader.readRenewalPayment({ ...input, checkoutId: 'bill_origin' });
+    expect(result).toMatchObject({
+      state: 'paid',
+      evidence: {
+        providerPeriodStart: '2026-12-09',
+        providerPeriodEnd: '2027-01-09',
+        chargeCreatedAt: '2026-12-09T00:31:11.888Z',
+      },
+    });
+  });
+  it.each([
+    {},
+    { currentPeriodStart: '2026-11-09', currentPeriodEnd: '2026-12-09' },
+    { currentPeriodStart: '2027-01-09', currentPeriodEnd: '2027-02-09' },
+  ])(
+    'does not reuse the initial receipt or guess an absent/contradictory paid period %j',
+    async (subscription) => {
+      const { reader } = fixture({
+        subscription,
+        checkout: { id: 'bill_origin' },
+        statements: [statement({ checkoutId: 'bill_origin' })],
+      });
+      expect(await reader.readRenewalPayment({ ...input, checkoutId: 'bill_origin' })).toEqual({
+        state: 'review',
+      });
+    },
+  );
   it.each([39700, 54400, 69100, 83800])(
     'requires matching product, subscription, checkout and card receipt for %i cents',
     async (amountMinor) => {
@@ -234,7 +267,6 @@ describe('renewal charge readback (no billing-period assertion or access grant)'
   it.each([
     { subscriptionId: 'unknown' },
     { paymentId: '' },
-    { checkoutId: 'bill_origin' },
     { expectedAmountMinor: 0 },
     { expectedAmountMinor: 0.5 },
     { windowEnd: input.windowStart },
