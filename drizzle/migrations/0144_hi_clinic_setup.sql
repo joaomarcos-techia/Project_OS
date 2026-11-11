@@ -29,6 +29,7 @@
 --     public.hi_credentials, public.hi_professional_profiles, public.hi_plans,
 --     public.hi_insurer_credentials, public.hi_insurers, public.hi_counters,
 --     public.hi_clinic_settings CASCADE;
+--   DROP FUNCTION IF EXISTS public.hi_next_counter(uuid, text, text);
 --   DROP FUNCTION IF EXISTS public.hi_assert_professional_in_clinic();
 --   DROP FUNCTION IF EXISTS public.hi_block_contract_update();
 --   DELETE FROM public._schema_version WHERE version = '0144-hi-clinic-setup';
@@ -74,6 +75,26 @@ CREATE TABLE public.hi_counters (
   CONSTRAINT hi_counters_value_chk CHECK (last_value >= 0 AND last_value <= 999999999999),
   CONSTRAINT hi_counters_scope_chk CHECK (char_length(scope_key) <= 64)
 );
+--> statement-breakpoint
+-- Numeração (P7.1): alocação atômica do próximo número. A linha do contador fica
+-- travada até o fim da transação de quem chama; transações concorrentes recebem
+-- números distintos e em sequência. Se a transação que alocou for desfeita, o
+-- incremento também é: o número nunca foi emitido (a guia nasce na MESMA
+-- transação) e volta a ser usado, sem buraco. Número de transação confirmada
+-- nunca se repete. SECURITY INVOKER: a RLS de hi_counters vale para o runtime.
+-- Ao chegar a 999999999999 (limite de st_texto12), o CHECK recusa: nunca volta a 1.
+CREATE OR REPLACE FUNCTION public.hi_next_counter(p_clinic_id uuid, p_kind text, p_scope_key text DEFAULT '')
+  RETURNS bigint LANGUAGE sql VOLATILE SECURITY INVOKER SET search_path = public, pg_temp AS $$
+  INSERT INTO public.hi_counters AS c (clinic_id, kind, scope_key, last_value)
+  VALUES (p_clinic_id, p_kind, p_scope_key, 1)
+  ON CONFLICT (clinic_id, kind, scope_key)
+  DO UPDATE SET last_value = c.last_value + 1, updated_at = now()
+  RETURNING c.last_value;
+$$;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION public.hi_next_counter(uuid, text, text) FROM PUBLIC, anon;
+--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION public.hi_next_counter(uuid, text, text) TO authenticated, service_role;
 --> statement-breakpoint
 
 -- ── Operadoras ─────────────────────────────────────────────────────────

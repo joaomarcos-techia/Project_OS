@@ -81,6 +81,8 @@ const SUPABASE_SCAFFOLD = `
 export async function startScratchSchema(options: {
   port: number;
   beforeMigration?: { file: string; run: (sql: Sql) => Promise<void> };
+  /** Conexões do pool (padrão 4). Provas de concorrência pedem mais. */
+  maxConnections?: number;
 }): Promise<ScratchCluster> {
   const cluster = await mkdtemp(path.join(os.tmpdir(), 'qoro-scratch-schema-'));
   const data = path.join(cluster, 'data');
@@ -131,7 +133,7 @@ export async function startScratchSchema(options: {
   const url = `postgres://postgres@127.0.0.1:${options.port}/postgres?sslmode=require`;
   const sql = postgres(url, {
     ssl: 'require',
-    max: 4,
+    max: options.maxConnections ?? 4,
     connect_timeout: 2,
     onnotice: () => undefined,
   });

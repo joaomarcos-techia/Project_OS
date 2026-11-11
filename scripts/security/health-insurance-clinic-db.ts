@@ -1,5 +1,5 @@
 /**
- * Convênios (ADR-072, P1.4): prova da migration 0144 sobre o SCHEMA REAL.
+ * Convênios (ADR-072, P1.4, P1.5, P7.1): prova das migrations 0144 e 0145 sobre o SCHEMA REAL.
  *
  * Sobe o Postgres descartável de `scratch-schema` (todas as migrations, em
  * ordem) e confere, como o runtime faz (`qoro_runtime` → `authenticated` +
@@ -21,7 +21,7 @@ import { startScratchSchema, type ScratchCluster } from './scratch-schema';
 
 type Sql = ScratchCluster['sql'];
 
-const cluster = await startScratchSchema({ port: 55501 });
+const cluster = await startScratchSchema({ port: 55501, maxConnections: 24 });
 const { sql } = cluster;
 const SYS = '00000000-0000-0000-0000-0000000000aa';
 let passed = 0;
@@ -213,6 +213,162 @@ try {
     'privilégios: runtime sem UPDATE/DELETE em contrato e sem EXECUTE nos gatilhos; anon sem acesso',
   );
 
+  // ── Carteirinhas (0145, P1.5) ────────────────────────────────────────
+  const createPatient = async (clinicId: string, tag: string): Promise<string> => {
+    const [p] = await sql`insert into public.patients (clinic_id, nome, cpf_encrypted, cpf_hash)
+      values (${clinicId}::uuid, ${`Paciente ${tag}`}, 'ciphertext-de-teste', ${`hash-${tag}-${randomUUID()}`})
+      returning id`;
+    return p!.id as string;
+  };
+  const patA = await createPatient(A.clinicId, 'A');
+  const patB = await createPatient(B.clinicId, 'B');
+  const HASH = (c: string): string => c.repeat(64).slice(0, 64);
+  const insertCard = (
+    db: Sql,
+    clinicId: string,
+    patientId: string,
+    insurerId: string,
+    hash: string,
+  ) =>
+    db`insert into public.hi_memberships
+         (clinic_id, patient_id, insurer_id, card_number_encrypted, card_number_hash, card_last4, created_by)
+       values (${clinicId}::uuid, ${patientId}::uuid, ${insurerId}::uuid,
+         'AQAAAAAAAAAAAAAAAAAAAAAAAAAAAA==', ${hash}, '0001', ${SYS}::uuid)
+       returning id`;
+
+  await rejects('23503', () => insertCard(sql, A.clinicId, patB, insA!.id, HASH('a')));
+  await rejects('23503', () => insertCard(sql, A.clinicId, patA, insB!.id, HASH('a')));
+  pass('carteirinha: paciente e operadora só da mesma clínica');
+
+  const [card1] = await insertCard(sql, A.clinicId, patA, insA!.id, HASH('a'));
+  await rejects('23505', () => insertCard(sql, A.clinicId, patA, insA!.id, HASH('a')));
+  await rejects('23514', () =>
+    insertCard(sql, A.clinicId, patA, insA!.id, 'NUMERO-EM-CLARO-0000000000000001'),
+  );
+  pass('carteirinha: número ativo único por operadora; só HMAC hex no campo de busca');
+
+  await sql`update public.hi_memberships set is_preferred = true where id = ${card1!.id}::uuid`;
+  const [card2] = await insertCard(sql, A.clinicId, patA, insA!.id, HASH('b'));
+  await rejects(
+    '23505',
+    () => sql`update public.hi_memberships set is_preferred = true where id = ${card2!.id}::uuid`,
+  );
+  pass('carteirinha: uma preferencial por paciente');
+
+  await rejects(
+    '55000',
+    () =>
+      sql`update public.hi_memberships set card_number_hash = ${HASH('c')} where id = ${card1!.id}::uuid`,
+  );
+  await rejects(
+    '55000',
+    () =>
+      sql`update public.hi_memberships set insurer_id = ${insB!.id}::uuid where id = ${card1!.id}::uuid`,
+  );
+  await sql`update public.hi_memberships set status = 'replaced', is_preferred = false,
+    replaced_by_id = ${card2!.id}::uuid where id = ${card1!.id}::uuid`;
+  await rejects(
+    '55000',
+    () =>
+      sql`update public.hi_memberships set status = 'active', replaced_by_id = null where id = ${card1!.id}::uuid`,
+  );
+  await rejects(
+    '23514',
+    () =>
+      sql`update public.hi_memberships set replaced_by_id = ${card1!.id}::uuid where id = ${card2!.id}::uuid`,
+  );
+  pass(
+    'carteirinha: número, paciente e operadora imutáveis; substituição só para frente, com histórico',
+  );
+
+  const cardsSeen = await asTenant(A.clinicId, (tx) => tx`select id from public.hi_memberships`);
+  assert.equal(cardsSeen.length, 2);
+  await rejects('42501', () =>
+    asTenant(
+      A.clinicId,
+      (tx) => tx`delete from public.hi_memberships where id = ${card2!.id}::uuid`,
+    ),
+  );
+  await rejects('42501', () =>
+    asTenant(A.clinicId, (tx) => insertCard(tx, B.clinicId, patB, insB!.id, HASH('d'))),
+  );
+  const bSees = await asTenant(B.clinicId, (tx) => tx`select id from public.hi_memberships`);
+  assert.equal(bSees.length, 0);
+  pass('carteirinha: RLS por clínica; o runtime não apaga (inativa)');
+
+  const tempPatient = await createPatient(A.clinicId, 'T');
+  await insertCard(sql, A.clinicId, tempPatient, insA!.id, HASH('e'));
+  await sql`delete from public.patients where id = ${tempPatient}::uuid`;
+  const [gone] =
+    await sql`select count(*)::int as n from public.hi_memberships where patient_id = ${tempPatient}::uuid`;
+  assert.equal(gone!.n, 0);
+  pass('carteirinha: exclusão definitiva do paciente leva o número junto (LGPD)');
+
+  // ── Numeração (P7.1) ─────────────────────────────────────────────────
+  const next = (db: Sql, clinicId: string, kind: string, scope = ''): Promise<number> =>
+    db`select public.hi_next_counter(${clinicId}::uuid, ${kind}, ${scope}) as v`.then((r) =>
+      Number(r[0]!.v),
+    );
+
+  const CONC = 400;
+  const values = await Promise.all(
+    Array.from({ length: CONC }, () =>
+      sql.begin((tx) => next(tx as unknown as Sql, A.clinicId, 'guide')),
+    ),
+  );
+  assert.equal(new Set(values).size, CONC);
+  assert.deepEqual(
+    [...values].sort((a, b) => a - b),
+    Array.from({ length: CONC }, (_, i) => i + 1),
+  );
+  pass(
+    `numeração: ${CONC} alocações concorrentes (24 conexões) dão 1..${CONC}, sem repetição nem buraco`,
+  );
+
+  assert.equal(await next(sql, B.clinicId, 'guide'), 1);
+  assert.equal(await next(sql, A.clinicId, 'batch'), 1);
+  assert.equal(await next(sql, A.clinicId, 'guide', insA!.id), 1);
+  assert.equal(await next(sql, A.clinicId, 'guide'), CONC + 1);
+  pass('numeração: contadores independentes por clínica, tipo e escopo');
+
+  await assert.rejects(
+    sql.begin(async (tx) => {
+      const v = await next(tx as unknown as Sql, A.clinicId, 'guide');
+      assert.equal(v, CONC + 2);
+      throw new Error('falha depois de alocar');
+    }),
+    /falha depois de alocar/u,
+  );
+  assert.equal(await next(sql, A.clinicId, 'guide'), CONC + 2);
+  pass('numeração: transação desfeita devolve o número (nunca emitido); confirmado não se repete');
+
+  let attempts = 0;
+  let emitted = 0;
+  while (attempts < 3) {
+    attempts += 1;
+    try {
+      emitted = await sql.begin(async (tx) => {
+        const v = await next(tx as unknown as Sql, A.clinicId, 'transaction');
+        if (attempts < 3) throw new Error('falha transitória');
+        return v;
+      });
+      break;
+    } catch {
+      // retenta a transação inteira
+    }
+  }
+  assert.equal(emitted, 1);
+  pass('numeração: retentativa da transação inteira após 2 falhas emite o número 1, sem pular');
+
+  await rejects('42501', () => asTenant(A.clinicId, (tx) => next(tx, B.clinicId, 'guide')));
+  assert.equal(await asTenant(A.clinicId, (tx) => next(tx, A.clinicId, 'appeal')), 1);
+  pass('numeração: o runtime de uma clínica não move o contador de outra (RLS)');
+
+  await sql`update public.hi_counters set last_value = 999999999999
+    where clinic_id = ${A.clinicId}::uuid and kind = 'batch' and scope_key = ''`;
+  await rejects('23514', () => next(sql, A.clinicId, 'batch'));
+  pass('numeração: no limite do Padrão TISS (999999999999) recusa, nunca volta a 1');
+
   // ── Exclusão da clínica em cascata ───────────────────────────────────
   await sql`delete from public.clinics where id = ${A.clinicId}::uuid`;
   const [left] = await sql`select
@@ -228,7 +384,9 @@ try {
     'excluir a clínica remove os dados de convênio dela (inclusive contratos) e não toca nas outras',
   );
 
-  console.log(`OK: ${passed} provas da migration 0144 sobre o schema real`);
+  console.log(
+    `OK: ${passed} provas das migrations 0144 e 0145 (P1.4, P1.5, P7.1) sobre o schema real`,
+  );
 } finally {
   await cluster.stop();
 }

@@ -40,7 +40,8 @@ describe('migration 0144 — configuração de convênios por clínica (P1.4)', 
   });
 
   it('não liga nada: sem linha inserida em tabela hi_*, flag nasce desligada', () => {
-    expect(statements).not.toMatch(/INSERT INTO public\.hi_/u);
+    // Corpo de função ($$…$$) não grava nada na migration (ex.: hi_next_counter).
+    expect(statements.replace(/\$\$[\s\S]*?\$\$/gu, '')).not.toMatch(/INSERT INTO public\.hi_/u);
     expect(migration).toMatch(/enabled boolean NOT NULL DEFAULT false/u);
   });
 

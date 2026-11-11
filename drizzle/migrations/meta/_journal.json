@@ -967,6 +967,13 @@
       "when": 1794367436665,
       "tag": "0144_hi_clinic_setup",
       "breakpoints": true
+    },
+    {
+      "idx": 145,
+      "version": "7",
+      "when": 1794391493822,
+      "tag": "0145_hi_memberships",
+      "breakpoints": true
     }
   ]
 }

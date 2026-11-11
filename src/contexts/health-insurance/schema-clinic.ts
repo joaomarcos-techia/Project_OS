@@ -280,6 +280,48 @@ export const hiProcedureContracts = pgTable(
   }),
 );
 
+/**
+ * Carteirinhas (0145, P1.5). O número nunca fica em claro: ciphertext por
+ * clínica + HMAC de busca por clínica e operadora (D21) + últimos 4. Número,
+ * operadora e paciente são imutáveis (gatilho); trocar é nova carteirinha.
+ */
+export const hiMemberships = pgTable(
+  'hi_memberships',
+  {
+    id: uuidPk(),
+    clinicId: tenantIdRef(),
+    /** `patients.id`; FK com CASCADE + gatilho de mesma clínica no SQL. */
+    patientId: uuid('patient_id').notNull(),
+    insurerId: uuid('insurer_id').notNull(),
+    planId: uuid('plan_id'),
+    cardNumberEncrypted: text('card_number_encrypted').notNull(),
+    cardNumberHash: text('card_number_hash').notNull(),
+    cardLast4: text('card_last4').notNull(),
+    holderKind: text('holder_kind').$type<'titular' | 'dependente'>().notNull(),
+    validUntil: date('valid_until'),
+    isPreferred: boolean('is_preferred').notNull().default(false),
+    status: text('status').$type<'active' | 'inactive' | 'replaced'>().notNull(),
+    replacedById: uuid('replaced_by_id'),
+    createdBy: uuid('created_by').notNull(),
+    ...timestampsPattern(),
+  },
+  (t) => ({
+    clinicIdUniq: unique('hi_memberships_clinic_id_uniq').on(t.clinicId, t.id),
+    insurerFk: foreignKey({
+      name: 'hi_memberships_insurer_fk',
+      columns: [t.clinicId, t.insurerId],
+      foreignColumns: [hiInsurers.clinicId, hiInsurers.id],
+    }).onDelete('cascade'),
+    planFk: foreignKey({
+      name: 'hi_memberships_plan_fk',
+      columns: [t.clinicId, t.planId],
+      foreignColumns: [hiPlans.clinicId, hiPlans.id],
+    }).onDelete('cascade'),
+    patientIdx: index('hi_memberships_patient_idx').on(t.clinicId, t.patientId, t.status),
+  }),
+);
+
+export type HiMembershipRow = typeof hiMemberships.$inferSelect;
 export type HiInsurerRow = typeof hiInsurers.$inferSelect;
 export type HiPlanRow = typeof hiPlans.$inferSelect;
 export type HiProcedureContractRow = typeof hiProcedureContracts.$inferSelect;
