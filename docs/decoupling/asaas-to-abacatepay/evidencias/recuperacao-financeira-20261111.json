@@ -1419,5 +1419,163 @@
       "external recurring lifecycle evidence or authorized risk decision",
       "reviewed Production composition; no activation authorized"
     ]
+  },
+  "productionCredentialUpdate": {
+    "observedAt": "2026-11-11T21:03:40.992Z",
+    "scope": "Vercel variable names and targets only; decrypt=false; no values requested, emitted or persisted",
+    "variables": [
+      {
+        "name": "ABACATEPAY_API_KEY",
+        "production": {
+          "count": 0,
+          "status": "absent"
+        },
+        "preview": {
+          "count": 1,
+          "status": "configured",
+          "scope": "branch"
+        }
+      },
+      {
+        "name": "ABACATEPAY_STORE_ID",
+        "production": {
+          "count": 0,
+          "status": "absent"
+        },
+        "preview": {
+          "count": 1,
+          "status": "configured",
+          "scope": "branch"
+        }
+      },
+      {
+        "name": "ABACATEPAY_WEBHOOK_SECRET",
+        "production": {
+          "count": 0,
+          "status": "absent"
+        },
+        "preview": {
+          "count": 1,
+          "status": "configured",
+          "scope": "branch"
+        }
+      },
+      {
+        "name": "SAAS_SIGNUP_PROVIDER",
+        "production": {
+          "count": 0,
+          "status": "absent"
+        },
+        "preview": {
+          "count": 1,
+          "status": "configured",
+          "scope": "branch"
+        }
+      },
+      {
+        "name": "ABACATEPAY_SANDBOX_PLAN_PRODUCTS",
+        "production": {
+          "count": 0,
+          "status": "absent"
+        },
+        "preview": {
+          "count": 1,
+          "status": "configured",
+          "scope": "branch"
+        }
+      },
+      {
+        "name": "ABACATEPAY_SANDBOX_PROBE_PRODUCT_ID",
+        "production": {
+          "count": 0,
+          "status": "absent"
+        },
+        "preview": {
+          "count": 1,
+          "status": "configured",
+          "scope": "branch"
+        }
+      }
+    ],
+    "abacatepayDeclarations": [
+      {
+        "name": "ABACATEPAY_API_KAY",
+        "targets": ["production"],
+        "branch": null
+      },
+      {
+        "name": "ABACATEPAY_API_KEY",
+        "targets": ["preview"],
+        "branch": null
+      },
+      {
+        "name": "ABACATEPAY_WEBHOOK_SECRET",
+        "targets": ["preview"],
+        "branch": "feat/billing-abacatepay-20261107"
+      },
+      {
+        "name": "ABACATEPAY_SANDBOX_PLAN_PRODUCTS",
+        "targets": ["preview"],
+        "branch": "feat/billing-abacatepay-20261107"
+      },
+      {
+        "name": "ABACATEPAY_SANDBOX_PROBE_PRODUCT_ID",
+        "targets": ["preview"],
+        "branch": "feat/billing-abacatepay-20261107"
+      },
+      {
+        "name": "ABACATEPAY_STORE_ID",
+        "targets": ["preview"],
+        "branch": "feat/billing-abacatepay-20261107"
+      },
+      {
+        "name": "ABACATEPAY_API_KEY",
+        "targets": ["preview"],
+        "branch": "feat/billing-abacatepay-20261107"
+      }
+    ],
+    "localProdAlias": "ABACATEPAY_API_KEY_PROD is not a consumed application variable; local value not inspected",
+    "accountApproval": "reported by owner; not independently queried with a live credential",
+    "productionComposition": "not implemented; Sandbox runtime still rejects Production",
+    "productionDeploymentChanges": 0,
+    "configurationChanges": 0,
+    "providerCalls": 0,
+    "valuesExposed": false,
+    "currentName": "ABACATEPAY_API_KAY",
+    "expectedName": "ABACATEPAY_API_KEY",
+    "action": "owner stated will replace exposed credential and fix name; completion not yet confirmed",
+    "credentialValueStored": false,
+    "ownerExposureNotice": "credential appeared in IDE selection; value never repeated or written to artifacts",
+    "activationAuthorized": false
+  },
+  "ciInfrastructureFollowup": {
+    "observedAt": "2026-11-11T21:01:41.589Z",
+    "state": "BLOCKED_EXTERNAL_SERVICE",
+    "run": {
+      "id": "43099008464",
+      "sha": "be73f827c8817ad48f2deae5de663616f3eca9b8",
+      "status": "queued",
+      "conclusion": "",
+      "url": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/43099008464",
+      "steps": []
+    },
+    "officialStatus": {
+      "url": "https://www.githubstatus.com/api/v2/summary.json",
+      "updatedAt": "2026-11-11T20:59:33.752Z",
+      "actions": "major_outage",
+      "incidents": [
+        {
+          "id": "dvy0t3mvh1lg",
+          "name": "Impact across multiple GitHub products including Actions, Pages, and Copilot products.",
+          "status": "investigating",
+          "startedAt": "2026-11-11T20:48:12.260Z",
+          "updatedAt": "2026-11-11T20:59:33.747Z"
+        }
+      ]
+    },
+    "jobSpecificCause": "Job is queued before first step; concurrent official Actions outage is consistent with external infrastructure delay, not proof of a code failure",
+    "workflowChanges": 0,
+    "extraRunsCreated": 0,
+    "productionWrites": 0
   }
 }
