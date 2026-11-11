@@ -41,15 +41,15 @@
 | --- | --- |
 | Data da última atualização | 11/11/2026 |
 | Fase atual | **P1 — Fundação de dados**, com P7/P8 (montadores) e P13 (validação) em paralelo |
-| Tarefa em andamento | **P1.4** (migration 0144, validada só por ensaio transacional no DEV: ver E.5); P9.1 e P8.6 (ver status nas tabelas: gerador pronto para Consulta, SP/SADT e lote; recurso de glosa e solicitação pendentes); P13.2 (camada XSD roda por script; falta o CI, que depende de P9.2); P13.6 (divergências classificadas, nenhuma exige mudança de código) |
-| Última tarefa concluída | P13.4 — Validador B (TISS Manager) executado com o corpus sintético (commit `6dd862e3`) |
-| Progresso | **19 de 110 tarefas concluídas (17,3%)**: P0.1–P0.9, P1.1, P1.2, P1.3, P7.3, P8.1, P8.3, P13.1, P13.3, P13.4 e P14.1. O total passou de 109 para 110 com a P12.8 (Componente de Segurança e Privacidade, 11/11). Critério: só conta tarefa com evidência no [Registro](#m-registro-de-execução). Destas 110, **8 dependem de terceiros ou de aprovação humana** (L.2). |
+| Tarefa em andamento | **P8.2** (montador da SP/SADT, puro); P9.1 e P8.6 (gerador pronto para Consulta, SP/SADT e lote; recurso de glosa e solicitação pendentes); P13.2 (XSD por script; falta o CI, que depende de P9.2); P13.6 (divergências classificadas, nenhuma exige mudança no gerador) |
+| Última tarefa concluída | P7.2 — montador da Guia de Consulta (`80236869`); antes, P1.4 — migration 0144 (`807f9035`), provada sem aplicar no DEV |
+| Progresso | **21 de 110 tarefas concluídas (19,1%)**: P0.1–P0.9, P1.1, P1.2, P1.3, P1.4, P7.2, P7.3, P8.1, P8.3, P13.1, P13.3, P13.4 e P14.1. Critério: só conta tarefa com evidência no [Registro](#m-registro-de-execução). Destas 110, **8 dependem de terceiros ou de aprovação humana** (L.2). |
 | Capacidades em produção | nenhuma (ver A.5) |
 | Testes aprovados | **Testes do módulo executados e verdes em 11/11:** 16 arquivos, 437 aprovados e 3 pulados (cenário sem arquivo), em `src/contexts/health-insurance`, `src/lib/xlsx`, `src/lib/validation` e na caracterização da régua de cobrança. Regressão dos consumidores do CNPJ: 119 arquivos, 1.826 aprovados. XSD oficial: 38/38 arquivos do corpus como esperado. Validadores externos A e B executados (G.6). A linha "nenhum teste do módulo ainda" das versões anteriores estava desatualizada desde `dc56b5d4` (10/11), quando os primeiros testes do núcleo XML já rodavam verdes. |
 | Bloqueios ativos | B4 (ordem de merge com o PR #53), B5 (operadora e clínica piloto), B6 (retenção legal), B7 (Validador C: avaliado em 11/11, falta decidir ambiente isolado e licença), **B10** (aderência do Qoro ao Componente de Segurança e Privacidade da ANS: decisão do fundador), **B11** (Asaas e AbacatePay aceitarem CNPJ alfanumérico do titular: prova em sandbox) |
 | Decisões | D1–D12 aprovadas ou adotadas; D13–D17 adotadas pelo agente no escopo delegado; **D18** (CNPJ alfanumérico no validador compartilhado, autorizado pelo fundador em 11/11) e **D19** (estratégia de migrations no DEV compartilhado) (L.1) |
 | Arquivos alterados | este documento; `docs/adr/072-convenios-e-tiss.md` (era 067); `src/contexts/health-insurance/**`; `src/lib/xlsx/**`; `src/lib/validation/cnpj.ts`, `document.ts`; `src/lib/masks.ts`; campos de CNPJ do perfil, fornecedores e `/join`; `scripts/tiss/**`; `data/tiss/**`; `evidence/tiss-validadores-2026-11-10/**`; `docs/architecture/*` |
-| Próxima ação exata | **P1.4**: escrever a migration 0144 (operadoras, planos, perfil TISS, credenciamento e contratos, RLS por clínica) com `when` igual ao relógio real e validá-la **por ensaio transacional no DEV com ROLLBACK** (D19), sem aplicar; em paralelo, **P7.2** (montador da Consulta) e **P8.2** (montador da SP/SADT). |
+| Próxima ação exata | **P8.2** (montador da SP/SADT, com agrupamento de sessões sob a mesma autorização e consumo das quantidades autorizadas); depois **P1.5** (migration 0145, `hi_memberships`, com o mesmo método da 0144: ensaio transacional no DEV + harness local com todas as migrations, sem aplicar no DEV, D19) e **P7.1** (numeração sobre `hi_counters`). |
 
 ---
 
@@ -917,7 +917,7 @@ Todas dependem de P0.5 e D1–D3. Cada migration segue E.5: numeração, `check:
 | **P1.1** (T1.1) | contexto `health-insurance`: README, `index`/`api`, `schema`, `errors`, `events`, `types`; boundaries | P0.6 | `src/contexts/health-insurance/*`, `eslint.config.mjs`, `docs/architecture/context-map.md` | `arch:check` e `lint` verdes; `internal` bloqueado de fora | gates | **Concluído** (README, `index.ts`, `schema.ts` e agregador `src/lib/db/schema`; `errors`/`events`/`api` nascem com o primeiro uso, sem superfície vazia; mapa de contextos atualizado) |
 | **P1.2** (T1.2) | catálogo global (`tiss_terminology_versions`, `tiss_terms`, `tiss_schema_versions`) | P1.1 | migration 0143*, `schema.ts` | gates; aplicada no DEV; grants só SELECT | migration + grants | **Concluído** (0143 aplicada no DEV, 144 migrations; RLS FORCE nas 3 tabelas; `authenticated` lê e tem INSERT/DELETE recusados com 42501; `anon` recusado) |
 | **P1.3** (T0.7) | carga da terminologia no banco por script idempotente | P1.2, P0.9 | `scripts/tiss/terminology/load.ts` | contagens no DEV iguais ao artefato; reexecução sem duplicar | integração no DEV | **Concluído**: carga no DEV com 61 tabelas e 7.331 termos conferidos no banco, versão TISS 4.03.00 registrada; a reexecução terminou com as mesmas contagens (idempotente). Correção do `sql.json` confirmada no banco |
-| **P1.4** (T1.3) | `hi_clinic_settings`, `hi_counters`, `hi_insurers`, `hi_insurer_credentials`, `hi_plans`, `hi_professional_profiles`, `hi_credentials`, `hi_procedure_contracts`, `hi_contract_imports` | P1.2 | migration 0144* | RLS FORCE; CHECKs (ANS 6 dígitos, valores ≥ 0, vigência coerente); contratos append-only por trigger | migration, isolamento | Pendente |
+| **P1.4** (T1.3) | `hi_clinic_settings`, `hi_counters`, `hi_insurers`, `hi_insurer_credentials`, `hi_plans`, `hi_professional_profiles`, `hi_credentials`, `hi_procedure_contracts`, `hi_contract_imports` | P1.2 | migration 0144 | RLS FORCE; CHECKs (ANS 6 dígitos, valores ≥ 0, vigência coerente); contratos append-only por trigger | migration, isolamento | **Concluído** (`807f9035`): 9 tabelas com a política literal do `defaultTenantPolicy` v2, FKs compostas `(clinic_id, id)`, profissional da mesma clínica por gatilho, vigências ativas sem sobreposição (`EXCLUDE`), contratos imutáveis. Provas: teste estático (25), **ensaio transacional no DEV com ROLLBACK, 26/26** (Postgres 17.6; nada ficou no banco) e **harness local com todas as migrations reais, 9/9** (`scripts/security/health-insurance-clinic-db.ts`). **Não aplicada no DEV** (D19): a aplicação persistente fica para a integração depois do merge do #53 (B4) |
 | **P1.5** (T1.4) | `hi_memberships` | P1.4 | 0145* | número só cifrado; preferencial único | migration, cifra | Pendente |
 | **P1.6** (T1.5) | `appointments.billing_mode`, `hi_appointment_coverages`, `hi_copayments` | P1.5 | 0146*, `scheduling/schema.ts` | atendimentos existentes `particular`; trigger de snapshot respeitado | migration, trigger | Pendente |
 | **P1.7** (T1.5) | `hi_authorizations`, `hi_authorization_items`, `hi_authorization_attachments`, `hi_authorization_events` | P1.6 | 0147* | gates | migration | Pendente |
@@ -987,7 +987,7 @@ Os números marcados com `*` são provisórios e devem ser reconferidos (E.5). P
 | ID (antigo) | Objetivo | Dependências | Arquivos | Aceite | Testes | Status |
 | --- | --- | --- | --- | --- | --- | --- |
 | **P7.1** (T6.1) | numeração de guia, lote, transação e recurso | P1.4, P1.8 | `internal/numbering.ts` | 100 chamadas concorrentes dão números únicos | concorrência no DEV | Pendente |
-| **P7.2** (T6.2) | `GuideAssembler` Consulta | P2.x, P3.1, P4.1 | `internal/guides/consulta/assembler.ts` | puro; teste prova a ausência de CID; padrões D11 | U3 | Pendente |
+| **P7.2** (T6.2) | `GuideAssembler` Consulta | P2.x, P3.1, P4.1 | `tiss/assembly/consulta-assembler.ts` | puro; teste prova a ausência de CID; padrões D11 | U3 | **Concluído** (`80236869`): montador puro e escolha do contrato vigente (plano específico antes do geral, versão substituída ignorada, ambiguidade apontada); retorno dentro da janela vira tipo 2 ou não gera guia; pendências com responsável; a guia montada passa no validador com a terminologia real e gera lote com hash conferido. 12 testes. A ligação com os cadastros reais é da P7.4 |
 | **P7.3** (T6.3) | `GuideValidator` Consulta: regras de B.10.9 e B.10.13 (CBO `999999` recusado no executante) | P7.2, P1.3 | `…/consulta/validator.ts` | cada regra com teste positivo e negativo | U4 | **Concluído** (`71dc5b46`): 36 regras negativas + positivos com a terminologia real 202609; a ordem P7.2 → P7.3 era só sequência, o validador recebe os dados prontos |
 | **P7.4** (T6.4) | handler de conclusão (genérico por tipo) + reconcile "convênio sem guia" | P7.1–P7.3 | `internal/handlers/appointment-completed.ts`, `scheduling/events.ts` | reentrega não duplica; particular não cria guia | U10, E8, E9 | Pendente |
 | **P7.5** (T6.5) | ciclo de vida genérico: estados, edição controlada, aprovação, cancelamento, substituição, histórico | P7.4 | `internal/guide-lifecycle.ts` | transições inválidas recusadas; "enviada" só com registro | U6 | Pendente |
@@ -1080,8 +1080,8 @@ Os números marcados com `*` são provisórios e devem ser reconferidos (E.5). P
 | --- | --- | --- | --- | --- |
 | **P15.1** (T11.4) | documentação: domínios, schema, `known-limitations` (declaração de suporte de A.3), central de ajuda, **runbooks operacionais** (faturar, corrigir guia, reprocessar, rollback, incidente) | tudo | links válidos; revisão | Pendente |
 | **P15.2** | homologação interna na Preview com clínica de teste e fluxos reais de clínica (dados sintéticos), roteiro por perfil | P14.3 | roteiro executado com evidência | Pendente |
-| **P15.3** (T11.6) | homologação com operadora: Guia de Consulta | P13, B5 | protocolo de aceite real | Bloqueado (B5) |
-| **P15.4** | homologação com operadora: SP/SADT | P13, B5 | idem | Bloqueado (B5) |
+| **P15.3** (T11.6) | homologação com operadora: Guia de Consulta | P13, B5 | protocolo de aceite real | **Bloqueado (B5).** Roteiro, perguntas para a operadora, cenários H1–H12 e modelo de registro prontos em [`docs/convenios/homologacao-operadora.md`](docs/convenios/homologacao-operadora.md) (11/11). Nenhum cenário executado |
+| **P15.4** | homologação com operadora: SP/SADT | P13, B5 | idem | **Bloqueado (B5).** Mesmo roteiro (H5, H6, H9–H12) |
 | **P15.5** | revisão de segurança (checklist + `/security-review`) | P12 | sem achado crítico aberto | Pendente |
 | **P15.6** | revisão financeira (conciliação ponta a ponta com o fundador) | P10 | aprovada | Pendente |
 | **P15.7** | ensaio de migrations e rollback em banco descartável ou branch de DB | P1 | ensaio registrado | Pendente |
@@ -1167,11 +1167,12 @@ Rode também `npx tsx scripts/arch-db-check.ts`. Nenhum import de `internal/*` e
    - o `drizzle-kit migrate` aplica as entradas do journal com `when` maior que o da última aplicada no DEV. Em 10/11 a última era a 0142 do billing, com `when` = `1794326400000` (16:00 UTC, valor redondo no futuro). A nova entrada precisa de `when` maior: a 0143 usa `1794330000000`;
    - migration **só aditiva** com `when` posterior pode ser aplicada no DEV;
    - **troca de constraint, mudança de dado ou qualquer coisa que altere o comportamento de outras branches no DEV exige coordenação explícita** (registrar em L.2 antes);
-   - o `idx` do journal é sequencial nesta branch (0143 = `idx` 136). No rebase depois do #53, as entradas do billing (`idx` 136–142) entram antes e as nossas passam a 143+;
+   - o `idx` do journal **é o prefixo do arquivo** (regra de `src/lib/db/migration-journal.test.ts`): 0143 = `idx` 143, 0144 = `idx` 144. A rev. anterior deste item dizia "sequencial, 136", o que quebrava esse teste desde `a5faadda`; corrigido em 11/11 sem tocar no SQL aplicado. O migrator usa a `tag` e o `when`, não o `idx`;
+   - **método de prova sem tocar no DEV:** além do ensaio transacional, `scripts/security/health-insurance-clinic-db.ts` sobe um Postgres 17 descartável local com **todas** as migrations reais (`scripts/security/scratch-schema.ts`) e roda as provas como o runtime. Cada migration nova ganha um harness assim;
    - o worktree não tem `.env.local`, e segredo não é copiado para ele. O invólucro lê o `.env.local` do checkout principal, confirma o projeto DEV (`pqhkirrszzpwezdaqrai`) e recusa o de produção antes de passar as variáveis ao processo;
    - **estratégia desde 11/11 (D19):** enquanto o PR #53 estiver aberto, migration nova **não** é aplicada de forma persistente. Ela é validada por ensaio transacional: abrir transação, executar o SQL, rodar as sondas (RLS por clínica, `authenticated`, `anon`, `service_role`), conferir e dar `ROLLBACK`. O ensaio não grava em `drizzle.__drizzle_migrations` e não muda o estado visto pelas outras branches;
    - **`when` do journal = relógio real** no momento da criação. Valor no futuro faz o DEV pular, em silêncio, migrations de outras branches criadas depois com `when` menor (R19);
-   - antes de criar: ler `drizzle.__drizzle_migrations` (só leitura) e o journal de `origin/feat/billing-abacatepay-20261107` e `origin/ui/refactor-qoro-20261108`. Em 11/11: DEV com 161 registros, o último é a nossa 0143 (`1794330000000`); o billing segue até a 0142; a UI carrega só a 0136 do billing;
+   - antes de criar: ler `drizzle.__drizzle_migrations` (só leitura) e o journal de `origin/feat/billing-abacatepay-20261107` e `origin/ui/refactor-qoro-20261108`. Em 11/11: DEV com **144 registros** (o maior `id` é 161), o último é a nossa 0143 (`1794330000000`); o billing segue até a 0142; a UI carrega só a 0136 do billing;
    - **latência:** o pooler do DEV (`us-west-1`) leva cerca de 10 s para aceitar conexão daqui, e o pool do app tem `connect_timeout` 10 s. Espere `CONNECT_TIMEOUT` intermitente. Rode em segundo plano, com log em arquivo, e confira o estado por consulta só de leitura antes de repetir. Matar o processo desfaz a transação (verificado).
 
 ### E.6 Escolher a próxima tarefa
@@ -1929,8 +1930,21 @@ B1–B3 da rev.1 foram resolvidos pela diretriz de 10/11 (D1–D8).
   - nenhum arquivo do PR #53 nem da UI foi tocado; sem migração.
 - **ADR renumerado de 067 para 072** (`3a1ad4ae`): o PR #53 usa 067–071. O comentário da `0143` não foi alterado, porque a migration está aplicada no DEV.
 - **Migrations (E.5, D19, R19):**
-  - DEV lido em 11/11: 161 registros; o último é a nossa 0143;
+  - DEV lido em 11/11: 144 registros (maior `id` 161; o texto anterior dizia "161 registros", confundindo o `id` com a contagem); o último é a nossa 0143;
   - o billing segue em 0136–0142 (`fd90ded7`); a UI carrega só a 0136; a `main` está parada em `5620a098`;
   - a partir daqui, nada persistente no DEV até o merge do #53.
 - **Próxima ação:** P1.4 com ensaio transacional; P7.2 e P8.2.
+
+### 11/11/2026 — P1.4 (0144), P7.2, roteiro de homologação e suíte completa
+
+- **Suíte completa do `vitest`** (como o CI) rodada pela primeira vez nesta branch: 6.592 aprovados e **1 falha preexistente**. O `migration-journal.test.ts` exige `idx` = prefixo do arquivo, e a 0143 tinha `idx` 136 desde `a5faadda`. Os gates de 10/11 (`tsc`, `eslint`, `check:migrations`, `arch:db-check`) não pegavam isso. Corrigido para 143 no journal, sem tocar no SQL aplicado.
+- **Gates locais do CI antes do push:** `arch:db-check`, `check:migrations`, `check:observability`, `check:registry:strict` (com os valores falsos do CI) e `madge` sem ciclos. O `security:inventory` estava desatualizado: as linhas do `/join` tinham mudado. Foi regenerado (`bfb875b3`).
+- **P1.4 (`807f9035`):** migration 0144 com 9 tabelas por clínica; `when` = relógio real (`1794367436665`), D19.
+  - Teste estático: 25 aprovados (política literal do helper, FKs compostas, privilégios, sem seed, journal).
+  - **Ensaio transacional no DEV com ROLLBACK: 26/26.** A primeira rodada deu 21/26 por defeito do script de sonda: o `RESET ROLE` em transação abortada mascarava o código do erro, e o nome `'X'` disparava o CHECK do nome em vez do CHECK do CNPJ. Depois de corrigido, 26/26, e o DEV conferido sem tabela, registro nem `_schema_version` novos.
+  - **Harness local com todas as migrations reais: 9/9**, inclusive a exclusão da clínica em cascata apesar do contrato imutável.
+  - **Não aplicada no DEV.**
+- **P7.2 (`80236869`):** `selectEffectiveContract` e `assembleConsultaGuide`, 12 testes. Um falso positivo do teste foi corrigido: `/cid/i` casava com "indicacaoA*cid*ente"; agora a checagem é por elemento.
+- **Item 8:** roteiro de homologação em `docs/convenios/homologacao-operadora.md`, com regras, pré-requisitos R1–R8, 15 perguntas para a operadora, cenários H1–H12 e modelo de registro. **Nenhuma homologação executada** (B5).
+- **Próxima ação:** P8.2; depois P1.5 e P7.1.
 
