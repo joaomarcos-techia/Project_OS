@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 196 actions (0 inline); 62 métodos em 58 handlers; 19 props com referência de action; 466 acessos diretos a process.env; 9 nomes NEXT_PUBLIC.
+Contagem: 196 actions (0 inline); 62 métodos em 58 handlers; 19 props com referência de action; 470 acessos diretos a process.env; 9 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -564,6 +564,10 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/ai-handoff-reliability-db.ts:31`         | `<object>`                             | `process.env`                                                               |
 | `scripts/security/ai-handoff-reliability-db.ts:32`         | `<dynamic>`                            | `process.env[key]`                                                          |
 | `scripts/security/ai-handoff-reliability-db.ts:34`         | `<object>`                             | `process.env`                                                               |
+| `scripts/security/health-insurance-guide-service-db.ts:33` | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
+| `scripts/security/health-insurance-guide-service-db.ts:34` | `DATABASE_URL_RUNTIME`                 | `process.env.DATABASE_URL_RUNTIME`                                          |
+| `scripts/security/health-insurance-guide-service-db.ts:35` | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
+| `scripts/security/health-insurance-guide-service-db.ts:36` | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`                          |
 | `scripts/security/local-build.ts:76`                       | `<dynamic>`                            | `process.env[key]`                                                          |
 | `scripts/security/local-build.ts:76`                       | `<dynamic>`                            | `process.env[key]`                                                          |
 | `scripts/security/local-build.ts:101`                      | `CI`                                   | `process.env.CI`                                                            |
