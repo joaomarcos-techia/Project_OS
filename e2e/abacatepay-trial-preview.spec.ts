@@ -7,7 +7,7 @@ import { z } from 'zod';
 
 import { entryPlan, expectedAmount } from '../scripts/abacatepay-checkout-session';
 import { assertPreviewRuntimeIsDev, DEV_PROJECT_REF } from './preview-dev-runtime';
-import { installVercelBypassForOrigin } from './vercel-bypass';
+import { installVercelBypassForOrigin, vercelBypassHeaders } from './vercel-bypass';
 
 test.use({
   storageState: { cookies: [], origins: [] },
@@ -101,6 +101,9 @@ test('confirmed identity -> free trial -> server quota gates -> optional hosted 
       ).toBeEnabled();
       const plansResponse = await page.request.get(
         new URL('/api/signup/plan', origin.origin).toString(),
+        // APIRequestContext does not use the browser context's route handler.
+        // Scope the header to this known Preview request, never the hosted checkout.
+        { headers: vercelBypassHeaders() },
       );
       expect(plansResponse.status()).toBe(200);
       const initialPlans = z

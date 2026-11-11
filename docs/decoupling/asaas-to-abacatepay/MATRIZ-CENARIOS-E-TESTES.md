@@ -1,5 +1,21 @@
 # Cenários financeiros e nível real de validação
 
+## Recorte atual — cinco primeiras contratações (11/11/2026)
+
+[relatório §38](RELATORIO-HOMOLOGACAO-FINAL.md#38-cinco-contratações-iniciais-homologadas--11112026). Quatro compras pendentes efetivamente pagas e verificadas em DEV/Preview/Sandbox. Clínica2 preservada, sem repetir pagamento. [Evidência consolidada](evidencias/checkouts-lote-20261111.json).
+
+| Jornada mensal | Valor | Checkout / pagamento | Webhook / assinatura / invoice | Médicos + administrativos | UI / segurança | Evidência |
+|---|---:|---|---|---|---|---|
+| Consultório | R$ 197 | PASS / PAID | PASS / ativa / 1 paga | 1 + até 3 | PASS 1440/390, nova compra 409 | Lote 11/11 |
+| Clínica 2 médicos | R$ 397 | PASS histórico; não repetido | PASS histórico / ativa / 1 paga | 2 + até 3 | PASS histórico 1440/390 e 409 | 10/11, seção 33 |
+| Clínica 3 médicos | R$ 544 | PASS / PAID | PASS / ativa / 1 paga | 3 + até 3 | PASS 1440/390, nova compra 409 | Lote 11/11 |
+| Clínica 4 médicos | R$ 691 | PASS / PAID | PASS / ativa / 1 paga | 4 + até 3 | PASS 1440/390, nova compra 409 | Lote 11/11 |
+| Clínica 5 médicos | R$ 838 | PASS / PAID | PASS / ativa / 1 paga | 5 + até 3 | PASS 1440/390, nova compra 409 | Lote 11/11 |
+
+Cada PASS novo inclui correlação remota, um webhook aplicado, invoice/receipt/tentativa/operação únicos, período correto, cotas persistidas e UI paga em nova sessão. Isolamento READ ONLY: 4 leituras próprias e 12 cruzadas negadas. Teto/concorrência de médicos: prova local anterior de 85 checks, não convite externo. Falhas de invoice/quota: 20/20 checks PostgreSQL atuais, zero rede externa. Primeira contratação não comprova renovação temporal. B1–B4/live/cohort seguem no [plano final](PLANO-FINAL-GO-LIVE-ABACATEPAY.md).
+
+**Histórico abaixo:** preservado com suas datas; o checkpoint acima substitui NOT RUN de primeira compra, sem promover casos de renovação, falha, refund ou disputa sem prova.
+
 ## Recorte atual — primeira contratação 2–5 médicos (10/11/2026)
 
 **Checkpoint posterior:** [seção37 do relatório](RELATORIO-HOMOLOGACAO-FINAL.md#37-dev-recuperado-inventário-financeiro-e-lote-sob-pedido--10112026). DEV recuperado após o founder habilitar Data API; preflight 144 passou com apêndice TISS exato revisado. CI `fd90ded7` **6.897 testes e 18 E2E PASS, zero SKIP**. A nova regressão dirigida passou 2.247/2.247; CI própria do incremento fica no PR. UI e Turnstile isolados passaram nessa CI; isso não é pagamento externo nem widget real de Production. A primeira compra de 5 médicos ainda **NOT RUN externamente**: última orientação é aguardar **“crie os checkouts”**. O lote contém Consultório 1 e Clínica 3/4/5, sem repetir2 pago. [Inventário completo](INVENTARIO-FLUXOS-FINANCEIROS.md), [variáveis](AUDITORIA-VARIAVEIS-VERCEL.md) e [operação](PROXIMO-CHECKOUT-SANDBOX.md).

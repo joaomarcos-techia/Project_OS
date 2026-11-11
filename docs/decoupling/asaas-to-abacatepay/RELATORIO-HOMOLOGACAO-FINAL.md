@@ -601,3 +601,40 @@ O corretivo anterior `fd90ded7` fechou a [CI 42851519029 SUCCESS](https://github
 O preparo histórico `next-checkout-five-ui-20261110` passou em `fd90ded7`, run `b717a123-ec3d-47f7-9d41-79b24624dc53`, sem userId/checkoutId. Como o novo incremento terá outro SHA, seus quatro slots finais serão preparados no Preview imutável final, preservando os anteriores. A fase efetiva e o readback do preparo ficam no checkpoint do PR; criação somente sob a frase combinada. Não haverá segundo pagamento de dois médicos.
 
 [Inventário completo dos fluxos SaaS, legados, pacientes e registros manuais](INVENTARIO-FLUXOS-FINANCEIROS.md) e [evidência sanitizada de prontidão/CI/privacidade](evidencias/prontidao-dev-lote-20261110.json). Renovação, mudança após pagamento, falhas/retentativas e refund/disputa não viram compras iniciais para receber PASS. B1–B4 e composição live/cohort permanecem próprios; Production continua NO-GO financeiro, PR draft e sem merge. As quatro exclusões antigas de vídeos permanecem alheias e fora dos commits.
+
+## 38. Cinco contratações iniciais homologadas — 11/11/2026
+
+O founder autorizou criar os quatro pendentes e informou **“todos pagos”**. As quatro verificações terminaram PASS no Preview imutável de runtime `6b89b9e2`. A compra de dois médicos da seção 33 foi preservada sem novo pagamento. [Evidência consolidada, IDs, horários, fontes e limites](evidencias/checkouts-lote-20261111.json).
+
+| Jornada mensal | Valor | Checkout / pagamento | Webhook / assinatura / invoice | Médicos + administrativos | UI / segurança | Evidência |
+|---|---:|---|---|---|---|---|
+| Consultório | R$ 197 | PASS / PAID | PASS / ativa / 1 paga | 1 + até 3 | PASS 1440/390, nova compra 409 | Lote 11/11 |
+| Clínica 2 médicos | R$ 397 | PASS histórico; não repetido | PASS histórico / ativa / 1 paga | 2 + até 3 | PASS histórico 1440/390 e 409 | 10/11, seção 33 |
+| Clínica 3 médicos | R$ 544 | PASS / PAID | PASS / ativa / 1 paga | 3 + até 3 | PASS 1440/390, nova compra 409 | Lote 11/11 |
+| Clínica 4 médicos | R$ 691 | PASS / PAID | PASS / ativa / 1 paga | 4 + até 3 | PASS 1440/390, nova compra 409 | Lote 11/11 |
+| Clínica 5 médicos | R$ 838 | PASS / PAID | PASS / ativa / 1 paga | 5 + até 3 | PASS 1440/390, nova compra 409 | Lote 11/11 |
+
+### Prova externa efetivamente executada
+
+Preflight real confirmou DEV/Auth assinados, 144 migrations com apêndice TISS exato, loja e cinco produtos devMode/BRL/mês/preços aprovados e webhook na mesma release. Antes da criação, os quatro slots não tinham identidade/checkout; cada jornada criou uma operação e manteve zero invoice/acesso pago antes da confirmação. Foram usados somente Sandbox e identidades sintéticas retidas com DPAPI/ACL privada. Nenhuma cobrança real, pagamento pelo agente, alteração de Production, migration ou edição do worktree TISS.
+
+Após o pagamento humano, o operador confirmou PAID integral, produto/cliente/externalId e assinatura remota única ACTIVE por checkout, cartão e ausência de trial nativo. No DEV: assinatura ativa, um evento autenticado aplicado, uma invoice paga no valor exato, tentativa/receipt únicos e trial liberado. Datas do período coincidem com a âncora aprovada do Qoro; não são prova de próximo vencimento fornecido pela API. Nova sessão de navegador conferiu a UI paga em 1440/390, retirada dos bloqueios temporários de WhatsApp/Asaas/convite e HTTP409 `already_paid` sem nova operação. Não houve conexão ou convite externo.
+
+As cotas persistidas são 1/3/4/5 médicos e até 3 administrativos nas respectivas fixtures. O teto sob concorrência/CRM e alterações de plano conserva a prova PostgreSQL anterior de 85 checks, com HTTP sintético; não foi confundido com convite real. Nova conferência READ ONLY das quatro invoices provou o próprio registro visível em 4/4 contextos e **12/12 leituras cruzadas negadas** usando o `withTenant` canônico/role authenticated. Invoice, receipt, período e provider conferidos; nenhum ID Asaas foi usado.
+
+### Falhas encontradas, recuperação e correção
+
+1. O request API do E2E não herdava o bypass já instalado na navegação; era redirecionado ao SSO e recebia HTML200 da Vercel. Corrigido somente o header do GET de mesma origem no spec. Segredo não é enviado ao checkout externo; proteção do produto não foi relaxada. Quatro criações e quatro verificações pagas passaram pelo navegador após a correção.
+2. Consultas locais ao provedor tiveram `UND_ERR_SOCKET`. Um helper ignorado repetiu **somente GET real uma vez**, nunca POST financeiro. Indisponibilidade histórica não foi atribuída a uma causa de rede sem prova.
+3. As contratações de 4 e 5 médicos tiveram inbox recebido e `authoritative_readback_failed` em duas tentativas. Enquanto isso, nenhuma invoice/acesso pago foi liberado. A **terceira tentativa automática** aplicou o evento: 4 médicos às 10:25:52.636142 UTC e 5 às 10:26:24.734665 UTC, cerca de 5m16s após o recebimento. Não houve replay manual nem mudança artificial de status. Essa latência é evidência real de recuperação, não de disponibilidade instantânea; a causa subjacente da falha remota não foi estabelecida.
+4. Diagnósticos de login atingiram o limite de 5/15min de uma fixture; aguardou-se o prazo sem apagar Redis, trocar senha ou relaxar guard.
+
+### Novos testes e regressão pertinente
+
+O harness existente ganhou dois cenários de atomicidade: falha de INSERT da invoice e falha na liberação de cota. Em Postgres loopback descartável com 143 migrations reais, cada falha conserva zero invoice/receipt/tentativa e vínculo não ativado; retirar apenas a falha sintética permite repetir a conciliação real uma vez, sem outro POST cobrante. **20/20 checks PASS**, 424 chamadas HTTP sintéticas, 20 tentativas POST sintéticas e **zero rede externa**. Inclui os 18 anteriores; não são 20 novos testes. Os 85 checks de ciclo de vida continuam aplicáveis porque o runtime financeiro não mudou.
+
+Baseline CI `6b89b9e2`: [42872281354 SUCCESS](https://github.com/joaomarcos-techia/Project_OS/actions/runs/42872281354), **6.921 testes e 18 E2E, zero SKIP**. TypeScript/lint/formato/inventário e CI próprios do incremento são registrados no fechamento do PR #53. Nenhum resultado da baseline é apresentado como execução do commit novo. A branch só é publicada depois de conciliar as quatro fixtures, preservando o SHA do manifesto e o destinatário do webhook durante os pagamentos.
+
+### O que permanece
+
+Não há outro pagamento inicial humano pendente. Manter as fixtures e não pagar links antigos. Os cinco PASS são de **primeira contratação Sandbox**. Renovação natural/change-plan/falha recorrente/refund/disputa sem simulador oficial continuam com prova local e limites externos explícitos. Permanecem B1 (URL reutilizável), B2 (ciclo sem qualquer evento), B3 (ciclo externo), prova operacional admin/MFA/alerta e implementação live/cohort. **PR #53 draft; NO-GO para ativar AbacatePay em Production.** Não houve merge/deploy/configuração de Production nem repricing de contratos legados.

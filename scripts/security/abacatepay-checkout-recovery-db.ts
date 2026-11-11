@@ -525,6 +525,70 @@ try {
       },
     );
   }
+  for (const failurePoint of ['invoice', 'trial_quota_release'] as const) {
+    await check(
+      `INITIAL-ATOMIC-${failurePoint} database failure rolls back activation and retries without another charge`,
+      async () => {
+        const f = await seed('clinica_2026_5'),
+          before = posts;
+        await create({ clinicId: f.clinicId });
+        const item = remote.get(f.reference)?.[0];
+        assert.ok(item);
+        item.status = 'PAID';
+        item.paidAmount = f.amountMinor;
+        item.customerId = 'cust_synthetic';
+        const unchanged = await state(f);
+        // Only this disposable loopback cluster receives fault-injection DDL.
+        // Both SQL strings are static; no remote data or identifier is interpolated.
+        const target =
+          failurePoint === 'invoice' ? 'public.invoices' : 'public.trial_access_policies';
+        await sql.unsafe(
+          failurePoint === 'invoice'
+            ? `CREATE FUNCTION public.synthetic_initial_payment_failure() RETURNS trigger LANGUAGE plpgsql AS $$
+              BEGIN RAISE EXCEPTION 'Synthetic invoice persistence failure'; END $$;
+              CREATE TRIGGER synthetic_initial_payment_failure BEFORE INSERT ON public.invoices
+                FOR EACH ROW EXECUTE FUNCTION public.synthetic_initial_payment_failure();`
+            : `CREATE FUNCTION public.synthetic_initial_payment_failure() RETURNS trigger LANGUAGE plpgsql AS $$
+              BEGIN IF NEW.released_at IS NOT NULL THEN RAISE EXCEPTION 'Synthetic quota release failure'; END IF;
+              RETURN NEW; END $$;
+              CREATE TRIGGER synthetic_initial_payment_failure BEFORE UPDATE ON public.trial_access_policies
+                FOR EACH ROW EXECUTE FUNCTION public.synthetic_initial_payment_failure();`,
+        );
+        try {
+          const failed = await applyPayment({ subscriptionId: f.subscriptionId });
+          assert.equal(failed.applied, 0);
+          assert.equal(failed.review, 1);
+          assert.deepEqual(await state(f), unchanged);
+          const [rolledBack] = await sql`SELECT b.external_subscription_id,b.external_customer_id,
+            (SELECT count(*)::int FROM billing_gateway.paid_checkouts WHERE subscription_id=b.subscription_id) receipts,
+            (SELECT count(*)::int FROM public.payment_attempts a JOIN public.invoices i ON i.id=a.invoice_id
+              WHERE i.subscription_id=b.subscription_id) attempts
+            FROM billing_gateway.bindings b WHERE subscription_id=${f.subscriptionId}::uuid`;
+          assert.deepEqual(rolledBack, {
+            external_subscription_id: null,
+            external_customer_id: null,
+            receipts: 0,
+            attempts: 0,
+          });
+        } finally {
+          await sql.unsafe(
+            `DROP TRIGGER synthetic_initial_payment_failure ON ${target}; DROP FUNCTION public.synthetic_initial_payment_failure();`,
+          );
+        }
+        assert.equal((await applyPayment({ subscriptionId: f.subscriptionId })).applied, 1);
+        await applyPayment({ subscriptionId: f.subscriptionId });
+        const recovered = await state(f);
+        assert.equal(recovered.billing_status, 'active');
+        assert.equal(recovered.released, true);
+        assert.equal(recovered.invoices, 1);
+        assert.equal(recovered.operations, 1);
+        assert.equal(posts - before, 1);
+        const [paid] = await sql`SELECT count(*)::int n FROM public.invoices
+          WHERE subscription_id=${f.subscriptionId}::uuid AND status='paid' AND total_amount=${f.amountMinor / 100}`;
+        assert.equal(paid?.n, 1);
+      },
+    );
+  }
   assert.equal(networkCalls, 0);
 } catch (error) {
   failure = error;

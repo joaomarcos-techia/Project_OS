@@ -1,6 +1,10 @@
-# Próximos checkouts Sandbox — lote preparado, criação sob pedido
+# Checkouts Sandbox — lote pago e verificado
 
-Atualizado em 10/11/2026. Última orientação do founder: **deixar preparado para dizer “crie os checkouts”, pagar os pendentes e ter cada resultado conferido**. Substitui a autorização anterior de criar imediatamente cinco médicos. **Não criar agora.** Nenhuma identidade, clínica ou checkout novo foi criado nesta rodada. Sem Production, anual, cobrança real ou alteração de contratos.
+**Atualização 11/11/2026:** o founder pediu a criação e informou **“todos pagos”**. Consultório1 e Clínica3/4/5 estão **PAID e verificados de ponta a ponta**. Clínica2 permanece homologada sem repetição. Não criar nem pagar novamente estes checkouts. [relatório §38](RELATORIO-HOMOLOGACAO-FINAL.md#38-cinco-contratações-iniciais-homologadas--11112026); [evidência](evidencias/checkouts-lote-20261111.json). Links ficam somente no chat e nos slots protegidos, fora do Git. Não há outra ação humana de pagamento inicial pendente; gates de ciclo/operação/live continuam no plano final.
+
+## Histórico de preparação — superado pelo pagamento acima
+
+Registro de 10/11/2026. Última orientação do founder: **deixar preparado para dizer “crie os checkouts”, pagar os pendentes e ter cada resultado conferido**. Substitui a autorização anterior de criar imediatamente cinco médicos. **Não criar agora.** Nenhuma identidade, clínica ou checkout novo foi criado nesta rodada. Sem Production, anual, cobrança real ou alteração de contratos.
 
 ## Lote pendente
 

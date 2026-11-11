@@ -2,7 +2,7 @@
 
 ## Escopo e baseline preservada
 
-**Checkpoint mais recente — lote sob pedido 10/11:** [relatório §37](RELATORIO-HOMOLOGACAO-FINAL.md#37-dev-recuperado-inventário-financeiro-e-lote-sob-pedido--10112026). Data API DEV foi habilitada pelo founder e REST voltou 200; schema financeiro privado e dados anônimos protegidos. Preflight144 passou, incluindo a 0143 TISS exata revisada, sem aplicar/copiar migrations. CI `fd90ded7` passou 6.897 testes e 18 E2E/zero SKIP. A regressão nova passou 2.247 testes; a CI própria do incremento é registrada no PR. O founder agora pediu **aguardar “crie os checkouts”**: Consultório 1 e Clínica 3/4/5 pendentes,2 pago preservado. [Auditoria Vercel](AUDITORIA-VARIAVEIS-VERCEL.md) e [inventário financeiro](INVENTARIO-FLUXOS-FINANCEIROS.md) distinguem legado, paciente, Sandbox e live. Esta preparação não dispensa B1–B4 ou implementa composição live; **NO-GO financeiro Production** permanece.
+**Checkpoint mais recente — lote pago 11/11:** [relatório §38](RELATORIO-HOMOLOGACAO-FINAL.md#38-cinco-contratações-iniciais-homologadas--11112026). **Cinco cenários iniciais homologados**: Consultório1/R$197 e Clínica2/3/4/5 a R$397/544/691/838. Dois médicos usa a prova anterior sem outra compra; os quatro novos passaram por webhook, invoice, assinatura, cota e UI desktop/mobile reais no Sandbox. Readback de 4/5 recuperou automaticamente na terceira tentativa, sem efeito duplicado. Isolamento READ ONLY 4 próprios/12 cruzados negados e PostgreSQL 20/20 com falhas de invoice/quota. CI baseline 6b89b9e2 passou 6.921 testes e 18 E2E sem SKIP; a CI do novo incremento fica no PR. **Não há novo pagamento inicial a solicitar.** B1–B4/operação/live/cohort permanecem; **NO-GO financeiro Production**. [Evidência](evidencias/checkouts-lote-20261111.json).
 
 Execução na branch `feat/billing-abacatepay-20261107`, worktree `C:/dev/Qoro_billing_abacatepay_20261107`, PR #53 draft. Baseline `c712b743dbb14556c2878d05a1877f77a055b623`: CI `42723322325` aprovada, 6.777 testes, build e gates; E2E público 8 PASS / 2 SKIP de Turnstile sem chaves. A `main` contém o PR #54, merge `5620a0987ec53db7d7358728eb7d457d9d373df3`, publicado com autorização anterior. Não reimplementar o cadastro. Quatro exclusões antigas de vídeos no worktree são alheias e ficam fora dos commits.
 
@@ -127,7 +127,7 @@ O aceite deve registrar risco/versão, cohort máximo, responsável, prazo de re
 | Asaas/legados | Binding e desconto vitalício preservados | PASS regressão; nenhuma alteração de contrato | Readback na janela aprovada |
 | Sandbox | Não repetir compra inicial | PASS nas provas anteriores; B1/B3 continuam pendentes | Somente mecanismo oficial novo ou tempo natural |
 | Build/CI/Preview | Checks no SHA correto | Resultado remoto no corpo do PR #53 | Não usar CI da baseline como aprovação do incremento |
-| Turnstile | Dois cenários sem chaves na CI isolada | SKIP histórico explícito | Não reduzir proteção nem usar dummy em Production |
+| Turnstile | Dois cenários isolados com par público oficial | PASS na CI 6b89b9e2; 18 E2E e zero SKIP | Não equivale a chaves reais de Production; preservá-las |
 | Produção | Composição live, cohort e autorização | BLOCKED; não implementados/ativados nesta rodada | Fechar gates externos/operacionais e preparar incremento específico |
 
 ## Pendências externas antes de produção

@@ -96,3 +96,9 @@ Todos os nomes abaixo estão **ausentes no escopo gerenciado Development**. Prev
 ## Limites
 
 O AST cobre acessos explícitos `env.X/process.env.X` em src (sem testes) e next.config/sentry server/edge. Dependências podem ler variáveis internamente. Este auditor não mede validade de segredo, saldo, tier, domínio Turnstile ou equivalência entre credenciais. Nomes de outras integrações existentes foram listados no JSON como fora do recorte, sem valores nem alteração.
+
+## Revalidação somente leitura — lote pago em 11/11/2026
+
+Em 11/11 às 09:58:31 UTC, metadata de 52 nomes relevantes foi conferida novamente com `decrypt=false`. A configuração Preview específica desta branch continuou suficiente para as quatro contratações: mesma release/runtime DEV, cinco produtos devMode e webhook correspondente. A precedência da chave da branch sobre a variável Preview geral foi preservada. **Nenhuma variável foi criada, alterada ou copiada para Production.** O inventário histórico acima não foi substituído.
+
+Em linguagem simples: no Preview já existem os seis nomes candidatos `SAAS_SIGNUP_PROVIDER`, `ABACATEPAY_API_KEY`, `ABACATEPAY_STORE_ID`, `ABACATEPAY_SANDBOX_PROBE_PRODUCT_ID`, `ABACATEPAY_SANDBOX_PLAN_PRODUCTS` e `ABACATEPAY_WEBHOOK_SECRET`. Não precisa cadastrar outros para este lote. Para futura Production, chave de API, identidade da loja, catálogo e segredo de webhook deverão ser próprios do ambiente real. **Não basta colocar a chave real:** o seletor atual `abacatepay_sandbox` é recusado em Production; a composição live/cohort ainda precisa ser implementada e revisada. Os nomes Sandbox não autorizam copiar seus valores para Production, nem definem por antecipação a configuração live. Credenciais Asaas e integrações de pacientes permanecem preservadas.
