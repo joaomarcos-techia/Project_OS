@@ -53,7 +53,7 @@ export async function POST(request: Request): Promise<Response> {
           { received: true, retry: true },
           {
             status: 503,
-            headers: { 'Cache-Control': 'no-store' },
+            headers: { 'Cache-Control': 'no-store', 'Retry-After': '30' },
           },
         );
     }

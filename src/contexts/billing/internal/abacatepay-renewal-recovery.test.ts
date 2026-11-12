@@ -10,7 +10,11 @@ const m = vi.hoisted(() => ({
   emit: vi.fn(),
 }));
 vi.mock('@/lib/env', () => ({
-  env: { ABACATEPAY_API_KEY: 'synthetic-unit-key', ABACATEPAY_STORE_ID: 'store_synthetic' },
+  env: {
+    NODE_ENV: 'test',
+    ABACATEPAY_API_KEY: 'synthetic-unit-key',
+    ABACATEPAY_STORE_ID: 'store_synthetic',
+  },
 }));
 vi.mock('@/lib/payments/saas/acquisition', () => ({ isAbacatePaySandboxRuntime: m.runtime }));
 vi.mock('@/lib/observability/capture', () => ({ captureBackgroundError: m.capture }));

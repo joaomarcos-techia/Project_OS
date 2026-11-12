@@ -148,3 +148,13 @@ A instrução de manter migrations das branches separadas não cria um segundo b
 O founder confirmou teste de canal e recebimento do único probe414eb196; entrega Preview PASS. Não foi necessário criar variável, copiar segredo ou alterar regra Production. A API administrativa continuou401; essa prova externa usa confirmação do destinatário, não inventário autenticado de regras.
 
 `QORO_TISS_WORKTREE` e `QORO_TISS_REF` são somente entradas locais dos harnesses, não variáveis da Vercel. O SHA completo fixa o SQL TISS até0149; o journal da candidata financeira e o DEV continuam inalterados. Não cadastrar esses nomes em Production/Preview nem tratar o ensaio local como ativação da recuperação.
+
+## Contenção distribuída — 12/11
+
+Nenhuma variável ou dependência de produção nova foi criada. O transporte passa a depender também de `UPSTASH_REDIS_REST_URL` e `UPSTASH_REDIS_REST_TOKEN`, presentes no inventário Preview anterior. Não foram lidos seus valores nem alterados seus escopos nesta rodada. Conferir a integração efetiva no deployment novo; presença histórica não comprova validade atual. Usa `ABACATEPAY_STORE_ID` para dividir a contenção por loja, sem usar chave API como identificador.
+
+Sem Redis/loja configurados, o transporte fecha de maneira segura. Isso precisa ser conferido antes de qualquer futura ativação live. Não copiar token Preview para Production nem remover a proteção para contornar indisponibilidade. A validação determinística local não faz I/O externo; o Lua foi exercitado em Redis7.4 real, somente loopback.
+
+Uma chamada admitida normalmente executa uma avaliação de admissão e uma de resultado; contenção pode executar até3 avaliações de admissão por tentativa. Chamadas GET opcionais podem repetir somente conforme o orçamento já existente. O custo depende do número real de operações, quotas e contrato do Redis; não foi comprovado custo zero, aumentado plano ou contratado serviço. Medir consumo/latência/quota antes de ampliar cohort. Não foram criadas filas em serviço pago.
+
+`QORO_ABACATEPAY_SCALE`, `QORO_DOCKER_BIN`, `QORO_TISS_WORKTREE` e `QORO_TISS_REF` são exclusivamente controles locais dos ensaios; não cadastrá-los na Vercel. A chave live permanece **configurada, não testada ou ativada**. O inventário não transforma `abacatepay_sandbox` em uma composição de produção.

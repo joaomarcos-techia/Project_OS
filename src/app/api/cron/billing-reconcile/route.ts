@@ -69,6 +69,10 @@ const PAID_STATUSES = new Set(['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH']);
 const RECONCILE_SUBSCRIPTION_LIMIT = 50;
 const SCHEDULED_PLAN_CHANGE_LIMIT = 50;
 const PENDING_UPGRADE_LIMIT = 50;
+const ABACATEPAY_INBOX_BATCH_LIMIT = 10;
+// A readback can take 20s: do not begin another batch item after 15s of this
+// shared job. The original first item retains its 35s admission cutoff.
+const ABACATEPAY_BATCH_START_BUDGET_MS = 15_000;
 type ReconciliationAction = 'paid' | 'overdue' | 'refunded';
 type MaterializationResult = {
   materialized: boolean;
@@ -552,6 +556,22 @@ export const GET = withCron(
         // One event with bounded GETs leaves the current 60s job budget intact.
         const inbox =
           Date.now() - startedAt < 35_000 ? await reconcileAbacatePayInbox() : { scanned: 0 };
+        let inboxScanned = inbox.scanned;
+        for (
+          let item = 1;
+          inbox.scanned > 0 &&
+          item < ABACATEPAY_INBOX_BATCH_LIMIT &&
+          Date.now() - startedAt < ABACATEPAY_BATCH_START_BUDGET_MS;
+          item++
+        ) {
+          const next = await reconcileAbacatePayInbox();
+          inboxScanned += next.scanned;
+          if (next.scanned === 0) break;
+        }
+        metrics.emit('billing.abacatepay.inbox_batch', {
+          scanned: inboxScanned,
+          limit: ABACATEPAY_INBOX_BATCH_LIMIT,
+        });
         if (Date.now() - startedAt >= 35_000)
           metrics.emit('billing.abacatepay.reconcile_deferred', { reason: 'job_budget' });
         if (inbox.scanned === 0 && Date.now() - startedAt < 35_000) {

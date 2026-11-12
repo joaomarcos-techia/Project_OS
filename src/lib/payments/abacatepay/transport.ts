@@ -4,11 +4,14 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { z } from 'zod';
 
 import { GatewayReadError, gatewayHttpReadError, parseBillingValue } from '../saas/contracts';
+import { defaultAbacatePayRequestControl, type AbacatePayRequestControl } from './request-control';
+import { env } from '@/lib/env';
 
 const API_V2 = 'https://api.abacatepay.com/v2';
 const DEFAULT_TIMEOUT_MS = 10_000;
 const MAX_RESPONSE_BYTES = 1_048_576;
 const READ_RETRY_DELAY_MS = 100;
+const MAX_ADMISSION_ATTEMPTS = 3;
 const RETRYABLE_HTTP = new Set([502, 503, 504]);
 export interface AbacatePayTransportConfig {
   apiKey: string;
@@ -16,6 +19,8 @@ export interface AbacatePayTransportConfig {
   /** Opt-in GET recovery only. A shared deadline bounds the entire readback. */
   readAttempts?: 1 | 2;
   deadlineMs?: number;
+  storeId?: string;
+  requestControl?: AbacatePayRequestControl;
 }
 const envelopeSchema = z
   .object({ success: z.literal(true), data: z.unknown() })
@@ -65,6 +70,9 @@ export function createAbacatePayTransport(
     throw new GatewayReadError('invalid_input');
   }
   const apiKey = config.apiKey;
+  const control =
+    config.requestControl ??
+    defaultAbacatePayRequestControl(config.storeId ?? env.ABACATEPAY_STORE_ID);
   async function requestOnce(
     input:
       | { method: 'GET'; path: string; params?: URLSearchParams }
@@ -100,8 +108,20 @@ export function createAbacatePayTransport(
           ? new GatewayReadError('unavailable')
           : gatewayHttpReadError(status);
     let response: Response;
-    const remaining =
-      deadline === undefined ? timeoutMs : Math.min(timeoutMs, deadline - Date.now());
+    const admissionDeadline = Math.min(deadline ?? Infinity, Date.now() + timeoutMs);
+    if (control) {
+      for (let attempt = 1; ; attempt++) {
+        const admission = await control.admit();
+        if (admission.allowed) break;
+        if (
+          attempt >= MAX_ADMISSION_ATTEMPTS ||
+          Date.now() + admission.retryAfterMs >= admissionDeadline
+        )
+          throw new GatewayReadError('rate_limited', 429);
+        await delay(Math.max(1, admission.retryAfterMs));
+      }
+    }
+    const remaining = Math.min(timeoutMs, admissionDeadline - Date.now());
     if (remaining <= 0) throw failure();
     try {
       response = await fetcher(url, {
@@ -117,9 +137,26 @@ export function createAbacatePayTransport(
         signal: AbortSignal.timeout(remaining),
       });
     } catch {
+      try {
+        await control?.observe(null);
+      } catch {
+        throw failure();
+      }
       throw failure();
     }
     if (!response.ok) {
+      try {
+        if (response.status === 429) await control?.throttle(response.headers);
+        else await control?.observe(response.status);
+        await response.body?.cancel();
+      } catch {
+        throw failure(response.status);
+      }
+      throw failure(response.status);
+    }
+    try {
+      await control?.observe(response.status);
+    } catch {
       try {
         await response.body?.cancel();
       } catch {

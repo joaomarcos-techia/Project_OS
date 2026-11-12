@@ -64,7 +64,9 @@ describe('AbacatePay webhook composition (real authentication, unit persistence/
   });
   it('retries transient readback failures through provider redelivery, retaining the event', async () => {
     mocks.process.mockResolvedValue({ applied: 0, review: 0, scanned: 1, retry: true });
-    expect((await POST(request())).status).toBe(503);
+    const response = await POST(request());
+    expect(response.status).toBe(503);
+    expect(response.headers.get('retry-after')).toBe('30');
     mocks.accept.mockResolvedValue('duplicate');
     expect((await POST(request())).status).toBe(503);
     expect(mocks.process).toHaveBeenCalledTimes(2);

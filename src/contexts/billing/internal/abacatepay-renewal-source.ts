@@ -49,8 +49,14 @@ export async function lockAbacatePayRenewalSubscription(
       JOIN billing_gateway.accounts a ON a.id=e.account_id
       JOIN billing_gateway.bindings b ON b.account_id=a.id
       WHERE b.subscription_id=s.id AND b.clinic_id=s.clinic_id
+        AND s.billing_provider='abacatepay' AND s.asaas_subscription_id IS NULL
         AND a.provider='abacatepay' AND a.environment='sandbox'
         AND a.external_account_id=${account.accountId}
+        AND (b.external_subscription_id=e.external_subscription_id OR EXISTS(
+          SELECT 1 FROM billing_gateway.recontracts r
+          WHERE r.account_id=b.account_id AND r.subscription_id=b.subscription_id
+            AND r.clinic_id=b.clinic_id AND r.external_subscription_id=e.external_subscription_id
+            AND r.invoice_id IS NOT NULL))
         AND (e.subscription_id IS NULL OR e.subscription_id=s.id)
         AND (e.clinic_id IS NULL OR e.clinic_id=s.clinic_id)
     ) FOR UPDATE OF s`);

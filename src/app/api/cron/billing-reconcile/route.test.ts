@@ -198,6 +198,18 @@ beforeEach(() => {
 });
 
 describe('billing reconcile', () => {
+  it('drains a bounded inbox batch without replaying commands or starving the rest of the cron', async () => {
+    abacate.environment.ABACATEPAY_API_KEY = 'synthetic';
+    abacate.environment.ABACATEPAY_STORE_ID = 'store_synthetic';
+    abacate.inbox.mockResolvedValue({ scanned: 1, applied: 1 });
+    expect((await GET(new Request('http://localhost/api/cron/billing-reconcile'))).status).toBe(
+      200,
+    );
+    expect(abacate.inbox).toHaveBeenCalledTimes(10);
+    expect(abacate.renewalRecovery).toHaveBeenCalledOnce();
+    expect(abacate.integrity).toHaveBeenCalledOnce();
+    expect(emit).toHaveBeenCalledWith('billing.abacatepay.inbox_batch', { scanned: 10, limit: 10 });
+  });
   it('recovers the original checkout before missing-payment reconciliation without invoking Asaas for it', async () => {
     abacate.environment.ABACATEPAY_API_KEY = 'synthetic';
     abacate.environment.ABACATEPAY_STORE_ID = 'store_synthetic';

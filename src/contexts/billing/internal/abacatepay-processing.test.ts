@@ -7,7 +7,11 @@ const mocks = vi.hoisted(() => ({
   emit: vi.fn(),
   record: vi.fn(),
   capture: vi.fn(),
-  env: { ABACATEPAY_STORE_ID: 'store_fixture', ABACATEPAY_API_KEY: 'synthetic-worker-unit-only' },
+  env: {
+    NODE_ENV: 'test',
+    ABACATEPAY_STORE_ID: 'store_fixture',
+    ABACATEPAY_API_KEY: 'synthetic-worker-unit-only',
+  },
 }));
 vi.mock('@/lib/db', () => ({
   dbAdmin: { execute: mocks.execute, transaction: mocks.transaction },

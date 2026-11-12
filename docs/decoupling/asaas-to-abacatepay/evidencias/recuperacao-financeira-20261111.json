@@ -4164,5 +4164,2421 @@
       },
       "scope": "Same application and E2E source as the code SHA. Follow-up commit updates documentation/evidence only; its own required checks remain on PR53."
     }
+  },
+  "scalabilityFollowup": {
+    "observedAt": "2026-11-12T07:24:31.517Z",
+    "baseline": "9ddc432a733d2f314b50b33437aa17e92c693685",
+    "scope": "isolated synthetic concurrency, distributed request admission and read-only shared DEV inventory",
+    "fixes": [
+      "signup slug race 23505 reproduced then serialized by candidate",
+      "renewal lock 40P01 reproduced then scoped to external contract",
+      "distributed store admission and circuit breaker",
+      "persistent exponential inbox backoff and bounded cron batch"
+    ],
+    "databaseLoad": {
+      "observedAt": "2026-11-12T06:56:37.054Z",
+      "status": "PASS",
+      "environment": "loopback_synthetic",
+      "scope": "Real provision, inbox dedup and atomic renewal domain services, production migrations plus pinned TISS and financial candidate",
+      "exclusions": [
+        "No provider HTTP load",
+        "No production or shared DEV",
+        "No scheduler throughput claim",
+        "No first external payment claim"
+      ],
+      "targets": {
+        "invariantErrors": 0,
+        "deadlocks": 0,
+        "p95DiagnosticMs": 2000,
+        "note": "Local diagnostic target, not a production SLA"
+      },
+      "peaks": {
+        "databaseConnections": 13,
+        "waitingLocks": 7,
+        "nodeRssBytes": 296656896
+      },
+      "databaseStats": {
+        "deadlocks": "0",
+        "temp_bytes": "0",
+        "xact_rollback": "0"
+      },
+      "inboxPlan": [
+        {
+          "QUERY PLAN": [
+            {
+              "Plan": {
+                "Node Type": "Limit",
+                "Parallel Aware": false,
+                "Async Capable": false,
+                "Startup Cost": 74,
+                "Total Cost": 74.01,
+                "Plan Rows": 1,
+                "Plan Width": 51,
+                "Actual Startup Time": 2.704,
+                "Actual Total Time": 2.707,
+                "Actual Rows": 1,
+                "Actual Loops": 1,
+                "Shared Hit Blocks": 53,
+                "Shared Read Blocks": 0,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0,
+                "Plans": [
+                  {
+                    "Node Type": "LockRows",
+                    "Parent Relationship": "Outer",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 74,
+                    "Total Cost": 86.5,
+                    "Plan Rows": 1000,
+                    "Plan Width": 51,
+                    "Actual Startup Time": 2.701,
+                    "Actual Total Time": 2.703,
+                    "Actual Rows": 1,
+                    "Actual Loops": 1,
+                    "Shared Hit Blocks": 53,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Sort",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Startup Cost": 74,
+                        "Total Cost": 76.5,
+                        "Plan Rows": 1000,
+                        "Plan Width": 51,
+                        "Actual Startup Time": 2.665,
+                        "Actual Total Time": 2.667,
+                        "Actual Rows": 1,
+                        "Actual Loops": 1,
+                        "Sort Key": ["received_at"],
+                        "Sort Method": "quicksort",
+                        "Sort Space Used": 95,
+                        "Sort Space Type": "Memory",
+                        "Shared Hit Blocks": 52,
+                        "Shared Read Blocks": 0,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 0,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0,
+                        "Plans": [
+                          {
+                            "Node Type": "Seq Scan",
+                            "Parent Relationship": "Outer",
+                            "Parallel Aware": false,
+                            "Async Capable": false,
+                            "Relation Name": "event_inbox",
+                            "Alias": "event_inbox",
+                            "Startup Cost": 0,
+                            "Total Cost": 69,
+                            "Plan Rows": 1000,
+                            "Plan Width": 51,
+                            "Actual Startup Time": 0.12,
+                            "Actual Total Time": 1.594,
+                            "Actual Rows": 1000,
+                            "Actual Loops": 1,
+                            "Filter": "((state = 'received'::text) AND ((processed_at IS NULL) OR (processed_at < (now() - '01:00:00'::interval))))",
+                            "Rows Removed by Filter": 0,
+                            "Shared Hit Blocks": 49,
+                            "Shared Read Blocks": 0,
+                            "Shared Dirtied Blocks": 0,
+                            "Shared Written Blocks": 0,
+                            "Local Hit Blocks": 0,
+                            "Local Read Blocks": 0,
+                            "Local Dirtied Blocks": 0,
+                            "Local Written Blocks": 0,
+                            "Temp Read Blocks": 0,
+                            "Temp Written Blocks": 0
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              "Planning": {
+                "Shared Hit Blocks": 68,
+                "Shared Read Blocks": 0,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0
+              },
+              "Planning Time": 2.3,
+              "Triggers": [],
+              "Execution Time": 2.864
+            }
+          ]
+        }
+      ],
+      "runs": [
+        {
+          "clinics": 100,
+          "provision": {
+            "count": 100,
+            "concurrency": 32,
+            "elapsedMs": 7386.285999999996,
+            "throughputPerSecond": 13.53860383960221,
+            "p50Ms": 2078.8496000000014,
+            "p95Ms": 2947.3181000000004,
+            "p99Ms": 3245.0770999999986,
+            "errors": 0
+          },
+          "duplicateIngress": {
+            "count": 100,
+            "concurrency": 32,
+            "elapsedMs": 406.28250000000116,
+            "throughputPerSecond": 246.13415542141172,
+            "p50Ms": 125.13750000000437,
+            "p95Ms": 148.7864000000045,
+            "p99Ms": 154.65439999999944,
+            "errors": 0
+          },
+          "duplicateRenewalApplication": {
+            "count": 100,
+            "concurrency": 32,
+            "elapsedMs": 4654.027600000001,
+            "throughputPerSecond": 21.486765570535074,
+            "p50Ms": 1308.6434999999983,
+            "p95Ms": 1790.5265999999974,
+            "p99Ms": 1880.8862000000008,
+            "errors": 0
+          },
+          "state": {
+            "clinics": 100,
+            "invoices": 200,
+            "cycles": 100,
+            "inbox": 100,
+            "unpaid": 0,
+            "crossed": 0
+          }
+        },
+        {
+          "clinics": 500,
+          "provision": {
+            "count": 400,
+            "concurrency": 32,
+            "elapsedMs": 28179.075099999995,
+            "throughputPerSecond": 14.194930052902981,
+            "p50Ms": 1762.5286999999953,
+            "p95Ms": 5627.1510999999955,
+            "p99Ms": 5910.1829,
+            "errors": 0
+          },
+          "duplicateIngress": {
+            "count": 500,
+            "concurrency": 32,
+            "elapsedMs": 1683.137200000012,
+            "throughputPerSecond": 297.06431537488237,
+            "p50Ms": 100.00410000000556,
+            "p95Ms": 149.46980000000622,
+            "p99Ms": 172.92389999999432,
+            "errors": 0
+          },
+          "duplicateRenewalApplication": {
+            "count": 500,
+            "concurrency": 32,
+            "elapsedMs": 27654.3891,
+            "throughputPerSecond": 18.080312611208612,
+            "p50Ms": 1589.8200999999972,
+            "p95Ms": 3603.4812999999995,
+            "p99Ms": 3712.160499999998,
+            "errors": 0
+          },
+          "state": {
+            "clinics": 500,
+            "invoices": 1000,
+            "cycles": 500,
+            "inbox": 500,
+            "unpaid": 0,
+            "crossed": 0
+          }
+        },
+        {
+          "clinics": 1000,
+          "provision": {
+            "count": 500,
+            "concurrency": 32,
+            "elapsedMs": 22586.108399999997,
+            "throughputPerSecond": 22.137501119936182,
+            "p50Ms": 1399.599199999997,
+            "p95Ms": 2071.2678999999916,
+            "p99Ms": 2274.751199999999,
+            "errors": 0
+          },
+          "duplicateIngress": {
+            "count": 1000,
+            "concurrency": 32,
+            "elapsedMs": 2766.987200000003,
+            "throughputPerSecond": 361.4039125298443,
+            "p50Ms": 80.70569999999134,
+            "p95Ms": 136.495900000009,
+            "p99Ms": 149.92889999999898,
+            "errors": 0
+          },
+          "duplicateRenewalApplication": {
+            "count": 1000,
+            "concurrency": 32,
+            "elapsedMs": 39605.2718,
+            "throughputPerSecond": 25.249163925697385,
+            "p50Ms": 1252.416600000026,
+            "p95Ms": 1818.4690999999875,
+            "p99Ms": 2099.9231000000145,
+            "errors": 0
+          },
+          "state": {
+            "clinics": 1000,
+            "invoices": 2000,
+            "cycles": 1000,
+            "inbox": 1000,
+            "unpaid": 0,
+            "crossed": 0
+          }
+        }
+      ],
+      "queueNote": "Inbox is retained received: this harness applies the domain seam directly, not the HTTP/leased worker. Worker recovery is proved separately.",
+      "externalRequests": 0
+    },
+    "redis": {
+      "observedAt": "2026-11-12T06:50:17.662Z",
+      "status": "PASS",
+      "environment": "loopback_Redis_7.4",
+      "lua": "production atomic script",
+      "instances": 20,
+      "concurrentAdmissions": 1000,
+      "admitted": 5,
+      "deferred": 995,
+      "elapsedMs": 135.54309999999998,
+      "oneSecondSmoothedAdmissions": 30,
+      "admissionTimesMs": [
+        3.901499999999942, 42.7636, 72.87419999999997, 106.55629999999996, 140.9833000000001,
+        173.84320000000002, 207.4112, 242.7403999999999, 275.0906, 307.1301000000001,
+        338.83320000000003, 372.8155999999999, 408.73710000000005, 441.3835999999999,
+        476.04600000000005, 508.17920000000004, 539.2689, 573.0781, 605.7846999999999,
+        638.3004000000001, 672.387, 706.5862999999999, 739.7502, 772.2248999999999, 804.4329,
+        840.5099, 872.0644, 908.1044999999999, 938.9257, 971.606
+      ],
+      "evaluations": 1041,
+      "assertions": [
+        "shared store coordination",
+        "independent stores",
+        "five failures open 30s circuit",
+        "success does not erase cooldown",
+        "429 honors Retry-After"
+      ],
+      "externalProviderRequests": 0,
+      "externalRedisRequests": 0
+    },
+    "financialRegression": {
+      "observedAt": "2026-11-12T07:01:50.331Z",
+      "environment": "loopback_synthetic",
+      "migrations": 143,
+      "tissHead": "1be40b15ed7533fcac54a3d89cbc821f2e17af22",
+      "tissSources": [
+        {
+          "idx": 143,
+          "when": 1794330000000,
+          "tag": "0143_tiss_catalog",
+          "sha256": "9f9b483aaeff60a9ca4f5b182c3b071408a7d3eec9ecea7cfe8f98bcf602e807"
+        },
+        {
+          "idx": 144,
+          "when": 1794367436665,
+          "tag": "0144_hi_clinic_setup",
+          "sha256": "b9ac6c7a0b335582f3bf69385a3b004cf9d0784955f27d7c3cd22776a4590589"
+        },
+        {
+          "idx": 145,
+          "when": 1794391493822,
+          "tag": "0145_hi_memberships",
+          "sha256": "98425850e4c2dae613734aa337ce588df641e5c3b67476c055147cb9c82632c4"
+        },
+        {
+          "idx": 146,
+          "when": 1794395869610,
+          "tag": "0146_hi_authorizations",
+          "sha256": "15cbf34c1439cc1d7a0ca4be40267729b44c1cdea1760d5090deb10288493cb6"
+        },
+        {
+          "idx": 147,
+          "when": 1794399173366,
+          "tag": "0147_hi_guides",
+          "sha256": "a344a7e86074d90a4b13b007ef6f9e3357ac23e3b8bc43743158d131ca45238a"
+        },
+        {
+          "idx": 148,
+          "when": 1794405160338,
+          "tag": "0148_hi_coverage_copay",
+          "sha256": "45f0b90b9307c5888e8e0ac61fab9685561f89a62cdf54ea60d2bd3becfdcb0b"
+        },
+        {
+          "idx": 149,
+          "when": 1794416643149,
+          "tag": "0149_hi_billing_gaps",
+          "sha256": "56c0d5f29a409b65e0fe4fc1ac7512bbd8c979150c2252e375a375b85139d183"
+        },
+        {
+          "idx": 150,
+          "when": 1794418524711,
+          "tag": "0150_hi_batches",
+          "sha256": "e7dc279a073501a4f2e03dd95ff9773564cbc690ea2591a3e94a03f9a273c992"
+        },
+        {
+          "idx": 151,
+          "when": 1794432173857,
+          "tag": "0151_hi_premium_gate",
+          "sha256": "a0e446dbce4121c538c4a3e206a406e0977d5d1729ed14b03417a3937b71ae0b"
+        }
+      ],
+      "combinedMigrationCount": 152,
+      "tissSourceAccess": "immutable git show only; uncommitted work is excluded",
+      "additionalCandidateDdl": "saas_period_snapshot.candidate.sql; loopback only, not in migration journal",
+      "results": [
+        {
+          "name": "REN-001 verified renewal records a second invoice and advances the original calendar once",
+          "status": "PASS"
+        },
+        {
+          "name": "REN-002/020 duplicate event and charge do not extend the same period twice",
+          "status": "PASS"
+        },
+        {
+          "name": "REN-003/004/018 older distinct charge keeps financial evidence without regressing the current period",
+          "status": "PASS"
+        },
+        {
+          "name": "REN-005 unknown event or subscription cannot create a financial effect",
+          "status": "PASS"
+        },
+        {
+          "name": "REN-006 authenticated references cannot be rebound to another tenant",
+          "status": "PASS"
+        },
+        {
+          "name": "REN-007 gateway/environment/store mismatch is rejected before writes",
+          "status": "PASS"
+        },
+        {
+          "name": "REN-008 cancellation intent wins over automatic renewal access and keeps paid evidence",
+          "status": "PASS"
+        },
+        {
+          "name": "REN-009/010 API outage remains retryable, then the same legitimate event regularizes once",
+          "status": "PASS"
+        },
+        {
+          "name": "REN-011 transaction rollback preserves state and permits a later successful replay",
+          "status": "PASS"
+        },
+        {
+          "name": "REN-012 twelve concurrent applications produce one invoice and paid cycle",
+          "status": "PASS"
+        },
+        {
+          "name": "REN-013/014/015 database calendar checks reject a shifted month even under another timezone",
+          "status": "PASS"
+        },
+        {
+          "name": "REN-016 unsupported annual readback does not create a new annual sale or advance access",
+          "status": "PASS"
+        },
+        {
+          "name": "REN-017 changed product or partial amount is reviewed before duplicate acknowledgement",
+          "status": "PASS"
+        },
+        {
+          "name": "REN-019 absent renewal references are not invented from the initial PAID checkout",
+          "status": "PASS"
+        },
+        {
+          "name": "real receiver + HMAC + inbox + HTTP readback + DB application survives duplicate and concurrent reconcile",
+          "status": "PASS"
+        },
+        {
+          "name": "REN-003/004 late earlier cycle records its own invoice without resetting the current access",
+          "status": "PASS"
+        },
+        {
+          "name": "REN-017 a local price change does not grant the pending plan from the old payment",
+          "status": "PASS"
+        },
+        {
+          "name": "failure/refund/dispute after success stays in review without undoing paid access",
+          "status": "PASS"
+        },
+        {
+          "name": "support-confirmed checkout.lost records bound review once without a subscription reference or access change",
+          "status": "PASS"
+        },
+        {
+          "name": "L3 negative event already bound to another tenant cannot be rebound by remote identifiers",
+          "status": "PASS"
+        },
+        {
+          "name": "L1 an expired worker lease recovers the same renewal after process interruption",
+          "status": "PASS"
+        },
+        {
+          "name": "L6 interruption of the final lease moves to review without an eleventh provider read",
+          "status": "PASS"
+        },
+        {
+          "name": "L3 a negative-event worker that loses its lease cannot commit an audit or grace change",
+          "status": "PASS"
+        },
+        {
+          "name": "L3 negative-event audit failure rolls back access policy and inbox, then replay commits once",
+          "status": "PASS"
+        },
+        {
+          "name": "L3 a negative notification in the Asaas namespace cannot affect AbacatePay or trigger remote reads",
+          "status": "PASS"
+        },
+        {
+          "name": "H2 full/partial refund observations are idempotent and never cancel access or alter the paid invoice",
+          "status": "PASS"
+        },
+        {
+          "name": "H2 a verified refund of an older cycle cannot shorten a newer paid cycle",
+          "status": "PASS"
+        },
+        {
+          "name": "H2 a reversal is recorded as ambiguous rather than a won dispute or restored payment",
+          "status": "PASS"
+        },
+        {
+          "name": "H4 extra doctor is scheduled once under concurrency and released only by its full paid renewal",
+          "status": "PASS"
+        },
+        {
+          "name": "H4 Consultorio to Clinica upgrade keeps the original plan until full next-cycle payment",
+          "status": "PASS"
+        },
+        {
+          "name": "H4 downgrade reserves target capacity and applies only its lower fully paid cycle",
+          "status": "PASS"
+        },
+        {
+          "name": "L2 cancellation during a plan command preserves paid evidence without releasing the target quota",
+          "status": "PASS"
+        },
+        {
+          "name": "H4 lost plan-change response retains one obligation and never overwrites it with another POST",
+          "status": "PASS"
+        },
+        {
+          "name": "H4 another tenant, stale generation and cancelled contract cannot submit a plan command",
+          "status": "PASS"
+        },
+        {
+          "name": "H4 old amount, partial payment and early target payment cannot release the new plan",
+          "status": "PASS"
+        },
+        {
+          "name": "H4 rollback keeps both plan and pending intent before a successful payment replay",
+          "status": "PASS"
+        },
+        {
+          "name": "L3 integrity scan observes a healthy recurrence without altering any financial state",
+          "status": "PASS"
+        },
+        {
+          "name": "L3 sixteen integrity workers reserve one scan and record one duplicate-recurrence incident",
+          "status": "PASS"
+        },
+        {
+          "name": "L4 integrity API outage is audited and resumes after backoff without granting or charging",
+          "status": "PASS"
+        },
+        {
+          "name": "L3 integrity review persistence failure rolls back observation and permits a later retry",
+          "status": "PASS"
+        },
+        {
+          "name": "L5 unexpected cancellation signals review without revoking paid access",
+          "status": "PASS"
+        },
+        {
+          "name": "L5 an owned cancellation is not reported as an unexpected remote cancellation",
+          "status": "PASS"
+        },
+        {
+          "name": "L4 provider records for another tenant cannot be rebound by the integrity scanner",
+          "status": "PASS"
+        },
+        {
+          "name": "L4 scan with insufficient time performs neither provider reads nor an audit reservation",
+          "status": "PASS"
+        },
+        {
+          "name": "L3 pending recontract and old generation are inspected separately without granting a new trial",
+          "status": "PASS"
+        },
+        {
+          "name": "L4 bounded integrity batch signals remaining work instead of claiming every checkout is clean",
+          "status": "PASS"
+        },
+        {
+          "name": "schema is private, FORCE RLS, service_role read/insert only",
+          "status": "PASS"
+        },
+        {
+          "name": "financial and access snapshots are immutable",
+          "status": "PASS"
+        },
+        {
+          "name": "H4 pending plan snapshots are immutable, private and deny destructive service privileges",
+          "status": "PASS"
+        },
+        {
+          "name": "paid period cannot reference an invoice belonging to another tenant",
+          "status": "PASS"
+        },
+        {
+          "name": "anon/authenticated cannot read private financial evidence, and service cannot update it",
+          "status": "PASS"
+        },
+        {
+          "name": "OPS revoked inactive operator cannot authorize a financial replay",
+          "status": "PASS"
+        },
+        {
+          "name": "OPS revoked soft_deleted operator cannot authorize a financial replay",
+          "status": "PASS"
+        },
+        {
+          "name": "OPS-001 one audited replay preserves all financial fields and cumulative attempts",
+          "status": "PASS"
+        },
+        {
+          "name": "OPS-002 review recovery verifies the same remote payment and grants exactly one cycle",
+          "status": "PASS"
+        },
+        {
+          "name": "OPS-003 concurrent operators authorize only once from the same snapshot",
+          "status": "PASS"
+        },
+        {
+          "name": "OPS-004 clinic owners cannot authorize a platform financial replay",
+          "status": "PASS"
+        },
+        {
+          "name": "OPS-005 stale snapshots and cross-tenant requests never queue an event",
+          "status": "PASS"
+        },
+        {
+          "name": "OPS-006 applied/processing events cannot be manually reopened",
+          "status": "PASS"
+        },
+        {
+          "name": "OPS-007 three manual attempts per day are enforced without financial override",
+          "status": "PASS"
+        },
+        {
+          "name": "OPS-008 private replay evidence denies anon, authenticated and service mutation",
+          "status": "PASS"
+        },
+        {
+          "name": "OPS-009 no duplicate renewal incident under parallel scans and no access changes",
+          "status": "PASS"
+        },
+        {
+          "name": "OPS-010 a verified renewal resolves the incident without replaying financial effects",
+          "status": "PASS"
+        },
+        {
+          "name": "OPS-011 cancelled contracts and future periods never report an expected renewal",
+          "status": "PASS"
+        },
+        {
+          "name": "OPS-012 trial without paid evidence and Asaas legacy are outside the monitor",
+          "status": "PASS"
+        },
+        {
+          "name": "OPS-013 a failed audit transaction rolls back the authorization and queue atomically",
+          "status": "PASS"
+        },
+        {
+          "name": "OPS-014 two manually retried event IDs for one payment never grant two cycles",
+          "status": "PASS"
+        },
+        {
+          "name": "OPS-015 operator repository exposes quarantined references without an authorization path",
+          "status": "PASS"
+        },
+        {
+          "name": "MATRIX-3 exact catalog amount, concurrent upgrade, paid quota and downgrade",
+          "status": "PASS"
+        },
+        {
+          "name": "MATRIX-3 old_amount cannot release a higher quota",
+          "status": "PASS"
+        },
+        {
+          "name": "MATRIX-3 partial cannot release a higher quota",
+          "status": "PASS"
+        },
+        {
+          "name": "MATRIX-3 overpaid cannot release a higher quota",
+          "status": "PASS"
+        },
+        {
+          "name": "MATRIX-3 wrong_product cannot release a higher quota",
+          "status": "PASS"
+        },
+        {
+          "name": "MATRIX-3 early cannot release a higher quota",
+          "status": "PASS"
+        },
+        {
+          "name": "MATRIX-4 exact catalog amount, concurrent upgrade, paid quota and downgrade",
+          "status": "PASS"
+        },
+        {
+          "name": "MATRIX-4 old_amount cannot release a higher quota",
+          "status": "PASS"
+        },
+        {
+          "name": "MATRIX-4 partial cannot release a higher quota",
+          "status": "PASS"
+        },
+        {
+          "name": "MATRIX-4 overpaid cannot release a higher quota",
+          "status": "PASS"
+        },
+        {
+          "name": "MATRIX-4 wrong_product cannot release a higher quota",
+          "status": "PASS"
+        },
+        {
+          "name": "MATRIX-4 early cannot release a higher quota",
+          "status": "PASS"
+        },
+        {
+          "name": "MATRIX-5 exact catalog amount, concurrent upgrade, paid quota and downgrade",
+          "status": "PASS"
+        },
+        {
+          "name": "MATRIX-5 old_amount cannot release a higher quota",
+          "status": "PASS"
+        },
+        {
+          "name": "MATRIX-5 partial cannot release a higher quota",
+          "status": "PASS"
+        },
+        {
+          "name": "MATRIX-5 overpaid cannot release a higher quota",
+          "status": "PASS"
+        },
+        {
+          "name": "MATRIX-5 wrong_product cannot release a higher quota",
+          "status": "PASS"
+        },
+        {
+          "name": "MATRIX-5 early cannot release a higher quota",
+          "status": "PASS"
+        },
+        {
+          "name": "MATRIX unknown, legacy and current plan are refused without provider commands",
+          "status": "PASS"
+        },
+        {
+          "name": "PERIOD missing webhook is detected independently by authenticated provider period with no fabricated event or entitlement",
+          "status": "PASS"
+        },
+        {
+          "name": "PERIOD schema N/N-1 keeps shared-checkout renewal in review before candidate DDL",
+          "status": "PASS"
+        },
+        {
+          "name": "RECOVERY schema N/N-1 starts no API recovery or closure command before candidate DDL",
+          "status": "PASS"
+        },
+        {
+          "name": "PERIOD candidate DDL preserves all existing subscriptions and invoices and private RLS",
+          "status": "PASS"
+        },
+        {
+          "name": "PERIOD two original-checkout renewals have distinct payment ledgers and one effect per cycle",
+          "status": "PASS"
+        },
+        {
+          "name": "PERIOD database refuses shared checkout without paid-period evidence",
+          "status": "PASS"
+        },
+        {
+          "name": "PERIOD late original-checkout payment preserves the original anniversary calendar",
+          "status": "PASS"
+        },
+        {
+          "name": "PERIOD a distinct-checkout proof cannot smuggle unaudited provider-period metadata",
+          "status": "PASS"
+        },
+        {
+          "name": "RECOVERY no webhook creates one paid invoice and entitlement from immutable API provenance",
+          "status": "PASS"
+        },
+        {
+          "name": "RECOVERY concurrent workers commit one payment, invoice and cycle",
+          "status": "PASS"
+        },
+        {
+          "name": "RECOVERY late and duplicated authenticated webhooks do not undo recovered rights or add invoices",
+          "status": "PASS"
+        },
+        {
+          "name": "RECOVERY a received observation without invoice is completed without a fabricated event",
+          "status": "PASS"
+        },
+        {
+          "name": "RECOVERY a paid ledger repairs only its stale local period without another invoice/payment",
+          "status": "PASS"
+        },
+        {
+          "name": "RECOVERY invoice persistence failure rolls back provenance, invoice and rights; retry succeeds",
+          "status": "PASS"
+        },
+        {
+          "name": "RECOVERY period persistence failure rolls back provenance, invoice and rights; retry succeeds",
+          "status": "PASS"
+        },
+        {
+          "name": "RECOVERY quota-change failure rolls back payment, provenance and pending plan; retry grants exactly three seats",
+          "status": "PASS"
+        },
+        {
+          "name": "RECOVERY interruption in operational audit after financial commit never duplicates the paid cycle on retry",
+          "status": "PASS"
+        },
+        {
+          "name": "RECOVERY an older API receipt after a newer paid cycle cannot regress the subscription or issue another invoice",
+          "status": "PASS"
+        },
+        {
+          "name": "RECOVERY transient provider failure and timeout preserve proof and recover with GET only",
+          "status": "PASS"
+        },
+        {
+          "name": "RECOVERY no_receipt cannot fabricate a payment or grant access",
+          "status": "PASS"
+        },
+        {
+          "name": "RECOVERY multiple_receipts cannot fabricate a payment or grant access",
+          "status": "PASS"
+        },
+        {
+          "name": "RECOVERY wrong_customer cannot fabricate a payment or grant access",
+          "status": "PASS"
+        },
+        {
+          "name": "RECOVERY missing_dates cannot fabricate a payment or grant access",
+          "status": "PASS"
+        },
+        {
+          "name": "RECOVERY live_resource cannot fabricate a payment or grant access",
+          "status": "PASS"
+        },
+        {
+          "name": "RECOVERY cancellation during GET records money for review without extending access",
+          "status": "PASS"
+        },
+        {
+          "name": "RECOVERY insufficient job budget starts no API read or payment attempt",
+          "status": "PASS"
+        },
+        {
+          "name": "RECOVERY API provenance denies other tenants and altered evidence",
+          "status": "PASS"
+        },
+        {
+          "name": "RECOVERY source snapshots are private, immutable and cannot be deleted by service_role",
+          "status": "PASS"
+        },
+        {
+          "name": "CLOSURE private paid generation and unchanged ledger survive one concurrent remote close",
+          "status": "PASS"
+        },
+        {
+          "name": "CLOSURE timeout is durable unknown and never resends; receipt recovery remains available",
+          "status": "PASS"
+        },
+        {
+          "name": "CLOSURE post-command subscription inconsistency remains unknown without a second POST",
+          "status": "PASS"
+        },
+        {
+          "name": "CLOSURE refuses an unpaid intent, another tenant and multiple subscriptions before POST",
+          "status": "PASS"
+        },
+        {
+          "name": "CLOSURE refund statement remains readable without the consumed checkout or access revocation",
+          "status": "PASS"
+        }
+      ],
+      "networkCalls": 0,
+      "fixtureHttpCalls": 609,
+      "productionWrites": 0,
+      "status": "PASS"
+    },
+    "sqlCompatibility": {
+      "observedAt": "2026-11-12T06:58:42.910Z",
+      "environment": "loopback_synthetic_pinned_tiss_sql_and_data",
+      "status": "PASS",
+      "tissHead": "1be40b15ed7533fcac54a3d89cbc821f2e17af22",
+      "sourceAccess": "immutable git show only; uncommitted work is excluded",
+      "composedJournalEntries": [
+        {
+          "idx": 0,
+          "when": 1779772243720,
+          "tag": "0000_schema_version"
+        },
+        {
+          "idx": 1,
+          "when": 1779905754993,
+          "tag": "0001_tenancy_foundation"
+        },
+        {
+          "idx": 2,
+          "when": 1779934800000,
+          "tag": "0002_tenancy_hardening"
+        },
+        {
+          "idx": 3,
+          "when": 1779975882600,
+          "tag": "0003_identity_core"
+        },
+        {
+          "idx": 4,
+          "when": 1779975900000,
+          "tag": "0004_identity_hardening"
+        },
+        {
+          "idx": 5,
+          "when": 1779975920000,
+          "tag": "0005_identity_mark_mfa"
+        },
+        {
+          "idx": 6,
+          "when": 1779998500000,
+          "tag": "0006_identity_postrest_compat"
+        },
+        {
+          "idx": 7,
+          "when": 1779999900000,
+          "tag": "0007_identity_mark_mfa_revoke_anon"
+        },
+        {
+          "idx": 8,
+          "when": 1780010000000,
+          "tag": "0008_c4_outbox_core"
+        },
+        {
+          "idx": 9,
+          "when": 1780010100000,
+          "tag": "0009_c4_audit_partitioned"
+        },
+        {
+          "idx": 10,
+          "when": 1780020000000,
+          "tag": "0010_c4_hardening"
+        },
+        {
+          "idx": 11,
+          "when": 1780030000000,
+          "tag": "0011_patient_core"
+        },
+        {
+          "idx": 12,
+          "when": 1780184865348,
+          "tag": "0012_patient_grants"
+        },
+        {
+          "idx": 13,
+          "when": 1780187297300,
+          "tag": "0013_export_patient_permission"
+        },
+        {
+          "idx": 14,
+          "when": 1780187374396,
+          "tag": "0014_outbox_skipped_status"
+        },
+        {
+          "idx": 15,
+          "when": 1780243275098,
+          "tag": "0015_heavy_red_wolf"
+        },
+        {
+          "idx": 16,
+          "when": 1780243440053,
+          "tag": "0016_scheduling_permissions"
+        },
+        {
+          "idx": 17,
+          "when": 1780288400683,
+          "tag": "0017_clinical_core"
+        },
+        {
+          "idx": 18,
+          "when": 1780413563967,
+          "tag": "0018_consultorio_chamadas"
+        },
+        {
+          "idx": 19,
+          "when": 1780533180333,
+          "tag": "0019_drop_chamadas"
+        },
+        {
+          "idx": 20,
+          "when": 1780642847976,
+          "tag": "0020_financial_core"
+        },
+        {
+          "idx": 21,
+          "when": 1780644604572,
+          "tag": "0021_financial_grants_hardening"
+        },
+        {
+          "idx": 22,
+          "when": 1780800000000,
+          "tag": "0022_messaging_core"
+        },
+        {
+          "idx": 23,
+          "when": 1781130475870,
+          "tag": "0023_wooden_risque"
+        },
+        {
+          "idx": 24,
+          "when": 1781190728883,
+          "tag": "0024_ai_agent_core"
+        },
+        {
+          "idx": 25,
+          "when": 1781468711020,
+          "tag": "0025_white_sugar_man"
+        },
+        {
+          "idx": 26,
+          "when": 1781707326904,
+          "tag": "0026_square_blazing_skull"
+        },
+        {
+          "idx": 27,
+          "when": 1781761318565,
+          "tag": "0027_heavy_carmella_unuscione"
+        },
+        {
+          "idx": 28,
+          "when": 1781844447321,
+          "tag": "0028_magical_bloodscream"
+        },
+        {
+          "idx": 29,
+          "when": 1782077564396,
+          "tag": "0029_open_sinister_six"
+        },
+        {
+          "idx": 30,
+          "when": 1782096794583,
+          "tag": "0030_chilly_energizer"
+        },
+        {
+          "idx": 31,
+          "when": 1782136750243,
+          "tag": "0031_wandering_forgotten_one"
+        },
+        {
+          "idx": 32,
+          "when": 1782223150243,
+          "tag": "0032_seal_clinic_invites"
+        },
+        {
+          "idx": 33,
+          "when": 1782272213408,
+          "tag": "0033_messaging_connection_status"
+        },
+        {
+          "idx": 34,
+          "when": 1782403612271,
+          "tag": "0034_melted_the_hunter"
+        },
+        {
+          "idx": 35,
+          "when": 1782593498411,
+          "tag": "0035_soft_daimon_hellstrom"
+        },
+        {
+          "idx": 36,
+          "when": 1782702410125,
+          "tag": "0036_system_metrics_daily"
+        },
+        {
+          "idx": 37,
+          "when": 1783272435137,
+          "tag": "0037_profiles_invite_and_crm"
+        },
+        {
+          "idx": 38,
+          "when": 1783300000000,
+          "tag": "0038_security_definer_hardening"
+        },
+        {
+          "idx": 39,
+          "when": 1784131200000,
+          "tag": "0039_plan_pro_seats_10"
+        },
+        {
+          "idx": 40,
+          "when": 1784217600000,
+          "tag": "0040_auth_epoch_and_overrides_lockdown"
+        },
+        {
+          "idx": 41,
+          "when": 1784217700000,
+          "tag": "0041_invite_acceptance_gate"
+        },
+        {
+          "idx": 42,
+          "when": 1784217800000,
+          "tag": "0042_revoke_login_attempt_anon"
+        },
+        {
+          "idx": 43,
+          "when": 1784217900000,
+          "tag": "0043_revoke_bump_overrides_trigger_fn"
+        },
+        {
+          "idx": 44,
+          "when": 1784293566483,
+          "tag": "0044_fk_and_tenant_indexes"
+        },
+        {
+          "idx": 45,
+          "when": 1784293567483,
+          "tag": "0045_rls_v2_and_least_privilege"
+        },
+        {
+          "idx": 46,
+          "when": 1784293568483,
+          "tag": "0046_clinical_content_encrypt_add"
+        },
+        {
+          "idx": 47,
+          "when": 1784293569483,
+          "tag": "0047_clinical_content_encrypt_drop"
+        },
+        {
+          "idx": 48,
+          "when": 1784293570483,
+          "tag": "0048_business_pii_encrypt_add"
+        },
+        {
+          "idx": 49,
+          "when": 1784293571483,
+          "tag": "0049_business_pii_encrypt_drop"
+        },
+        {
+          "idx": 50,
+          "when": 1784293572483,
+          "tag": "0050_profiles_self_select_initplan"
+        },
+        {
+          "idx": 51,
+          "when": 1784293573483,
+          "tag": "0051_ai_conversations_panel"
+        },
+        {
+          "idx": 52,
+          "when": 1784293574483,
+          "tag": "0052_pro_seat_limit_10"
+        },
+        {
+          "idx": 53,
+          "when": 1784293575483,
+          "tag": "0053_appointment_patient_slot_uniq"
+        },
+        {
+          "idx": 54,
+          "when": 1784293576483,
+          "tag": "0054_solo_seat_limit_1"
+        },
+        {
+          "idx": 55,
+          "when": 1784293577483,
+          "tag": "0055_granular_permissions_plan_gate"
+        },
+        {
+          "idx": 56,
+          "when": 1784293578483,
+          "tag": "0056_ai_pending_actions"
+        },
+        {
+          "idx": 57,
+          "when": 1784293579483,
+          "tag": "0057_financial_payment_ledger"
+        },
+        {
+          "idx": 58,
+          "when": 1784293580483,
+          "tag": "0058_financial_collection_cases"
+        },
+        {
+          "idx": 59,
+          "when": 1784293581483,
+          "tag": "0059_appointment_recovery"
+        },
+        {
+          "idx": 60,
+          "when": 1784293582483,
+          "tag": "0060_doctor_absences"
+        },
+        {
+          "idx": 61,
+          "when": 1784293583483,
+          "tag": "0061_schedulable_resources"
+        },
+        {
+          "idx": 62,
+          "when": 1784293584483,
+          "tag": "0062_waiting_queue"
+        },
+        {
+          "idx": 63,
+          "when": 1784293585483,
+          "tag": "0063_waitlist_recurrence"
+        },
+        {
+          "idx": 64,
+          "when": 1784293586483,
+          "tag": "0064_outbound_delivery_status"
+        },
+        {
+          "idx": 65,
+          "when": 1784293587483,
+          "tag": "0065_granular_consent_decisions"
+        },
+        {
+          "idx": 66,
+          "when": 1784293588483,
+          "tag": "0066_lgpd_operational_workflow"
+        },
+        {
+          "idx": 67,
+          "when": 1784293589483,
+          "tag": "0067_appointment_import_provenance"
+        },
+        {
+          "idx": 68,
+          "when": 1784293590483,
+          "tag": "0068_proactive_job_leases"
+        },
+        {
+          "idx": 69,
+          "when": 1784293591483,
+          "tag": "0069_patient_relationships_merge"
+        },
+        {
+          "idx": 70,
+          "when": 1784293592483,
+          "tag": "0070_handoff_sla_assignment"
+        },
+        {
+          "idx": 71,
+          "when": 1784293593483,
+          "tag": "0071_runtime_role_timeouts"
+        },
+        {
+          "idx": 72,
+          "when": 1784293594483,
+          "tag": "0072_plan_changes_and_feedback"
+        },
+        {
+          "idx": 73,
+          "when": 1786541269740,
+          "tag": "0073_refund_ledger_lock_privilege"
+        },
+        {
+          "idx": 74,
+          "when": 1786705200000,
+          "tag": "0074_inbound_pending_by_contact_idx"
+        },
+        {
+          "idx": 75,
+          "when": 1786791600000,
+          "tag": "0075_waitlist_offer_proactive_job"
+        },
+        {
+          "idx": 76,
+          "when": 1786791700000,
+          "tag": "0076_financial_audit_export_least_privilege"
+        },
+        {
+          "idx": 77,
+          "when": 1786878100000,
+          "tag": "0077_founder_campaign_prices"
+        },
+        {
+          "idx": 78,
+          "when": 1786878200000,
+          "tag": "0078_founder_prices_replace_active_uniq"
+        },
+        {
+          "idx": 79,
+          "when": 1786964400000,
+          "tag": "0079_payment_method_convenio"
+        },
+        {
+          "idx": 80,
+          "when": 1787177700000,
+          "tag": "0080_ai_clinic_config_authenticated_write"
+        },
+        {
+          "idx": 81,
+          "when": 1787264100000,
+          "tag": "0081_clinic_payment_accounts"
+        },
+        {
+          "idx": 82,
+          "when": 1787350500000,
+          "tag": "0082_clinic_deposit_policy"
+        },
+        {
+          "idx": 83,
+          "when": 1787436900000,
+          "tag": "0083_patient_charges"
+        },
+        {
+          "idx": 84,
+          "when": 1787523300000,
+          "tag": "0084_patient_payment_customers"
+        },
+        {
+          "idx": 85,
+          "when": 1787609700000,
+          "tag": "0085_appointment_deposit_hold"
+        },
+        {
+          "idx": 86,
+          "when": 1787696100000,
+          "tag": "0086_patient_webhook"
+        },
+        {
+          "idx": 87,
+          "when": 1787782500000,
+          "tag": "0087_proactive_deposit_link"
+        },
+        {
+          "idx": 88,
+          "when": 1787868900000,
+          "tag": "0088_patient_credits"
+        },
+        {
+          "idx": 89,
+          "when": 1787955300000,
+          "tag": "0089_patient_webhook_authenticated_insert"
+        },
+        {
+          "idx": 90,
+          "when": 1788041700000,
+          "tag": "0090_proactive_remainder_link"
+        },
+        {
+          "idx": 91,
+          "when": 1788128100000,
+          "tag": "0091_patient_checkout_generations"
+        },
+        {
+          "idx": 92,
+          "when": 1788214500000,
+          "tag": "0092_patient_money_adjustments"
+        },
+        {
+          "idx": 93,
+          "when": 1788300900000,
+          "tag": "0093_ai_clinic_config_convenios"
+        },
+        {
+          "idx": 94,
+          "when": 1788560100000,
+          "tag": "0094_patient_refund_terminal_confirmation"
+        },
+        {
+          "idx": 95,
+          "when": 1788783000000,
+          "tag": "0095_proactive_no_show_followup"
+        },
+        {
+          "idx": 96,
+          "when": 1789256256141,
+          "tag": "0096_signup_sessions"
+        },
+        {
+          "idx": 97,
+          "when": 1789258657051,
+          "tag": "0097_signup_sessions_runtime_revoke"
+        },
+        {
+          "idx": 98,
+          "when": 1789342146785,
+          "tag": "0098_signup_session_answers"
+        },
+        {
+          "idx": 99,
+          "when": 1789473600000,
+          "tag": "0099_signup_session_identity"
+        },
+        {
+          "idx": 100,
+          "when": 1789518398429,
+          "tag": "0100_signup_auth_attempt"
+        },
+        {
+          "idx": 101,
+          "when": 1789526400000,
+          "tag": "0101_signup_draft_ownership"
+        },
+        {
+          "idx": 102,
+          "when": 1789603200000,
+          "tag": "0102_signup_plan_selection"
+        },
+        {
+          "idx": 103,
+          "when": 1789732094000,
+          "tag": "0103_signup_billing_attempt"
+        },
+        {
+          "idx": 104,
+          "when": 1789767364000,
+          "tag": "0104_onboarding_progress"
+        },
+        {
+          "idx": 105,
+          "when": 1790394660472,
+          "tag": "0105_signup_hosted_checkout"
+        },
+        {
+          "idx": 106,
+          "when": 1790452800000,
+          "tag": "0106_signup_checkout_collects_payer"
+        },
+        {
+          "idx": 107,
+          "when": 1790781546069,
+          "tag": "0107_whatsapp_coexistence"
+        },
+        {
+          "idx": 108,
+          "when": 1790918400000,
+          "tag": "0108_patient_payment_economics"
+        },
+        {
+          "idx": 109,
+          "when": 1791004800000,
+          "tag": "0109_patient_payment_reconcile_guard"
+        },
+        {
+          "idx": 110,
+          "when": 1791177600000,
+          "tag": "0110_patient_payment_fee_corrections"
+        },
+        {
+          "idx": 111,
+          "when": 1791264000000,
+          "tag": "0111_payment_account_pause"
+        },
+        {
+          "idx": 112,
+          "when": 1791350400000,
+          "tag": "0112_payment_account_pause_default"
+        },
+        {
+          "idx": 113,
+          "when": 1791436800000,
+          "tag": "0113_professional_payout_reviews"
+        },
+        {
+          "idx": 114,
+          "when": 1791523200000,
+          "tag": "0114_whatsapp_contact_name"
+        },
+        {
+          "idx": 115,
+          "when": 1791609600000,
+          "tag": "0115_payment_account_closure"
+        },
+        {
+          "idx": 116,
+          "when": 1791696000000,
+          "tag": "0116_whatsapp_messaging_health"
+        },
+        {
+          "idx": 117,
+          "when": 1791782400000,
+          "tag": "0117_inbound_message_type"
+        },
+        {
+          "idx": 118,
+          "when": 1791868800000,
+          "tag": "0118_proactive_job_send_key"
+        },
+        {
+          "idx": 119,
+          "when": 1791955200000,
+          "tag": "0119_patient_whatsapp_scheduling_consent_enum"
+        },
+        {
+          "idx": 120,
+          "when": 1791955200001,
+          "tag": "0120_patient_whatsapp_scheduling_consent_check"
+        },
+        {
+          "idx": 121,
+          "when": 1792108800000,
+          "tag": "0121_retire_payment_method_pricing"
+        },
+        {
+          "idx": 122,
+          "when": 1792368000000,
+          "tag": "0122_offer_2026_seats"
+        },
+        {
+          "idx": 123,
+          "when": 1792368000001,
+          "tag": "0123_offer_2026_scheduled_seats"
+        },
+        {
+          "idx": 124,
+          "when": 1792368000002,
+          "tag": "0124_offer_2026_trial_deadline"
+        },
+        {
+          "idx": 125,
+          "when": 1792368000003,
+          "tag": "0125_offer_2026_pending_checkout_catalog"
+        },
+        {
+          "idx": 126,
+          "when": 1792368000004,
+          "tag": "0126_offer_2026_catalog_trigger_fields"
+        },
+        {
+          "idx": 127,
+          "when": 1792368000005,
+          "tag": "0127_offer_2026_seat_catalog_read"
+        },
+        {
+          "idx": 128,
+          "when": 1792368000006,
+          "tag": "0128_signup_billing_cycle"
+        },
+        {
+          "idx": 129,
+          "when": 1792368000007,
+          "tag": "0129_subscription_cycle_change_kind"
+        },
+        {
+          "idx": 130,
+          "when": 1792368000008,
+          "tag": "0130_subscription_cycle_change_sync"
+        },
+        {
+          "idx": 131,
+          "when": 1792368000009,
+          "tag": "0131_subscription_upgrade_checkout"
+        },
+        {
+          "idx": 132,
+          "when": 1792368000010,
+          "tag": "0132_preserve_contract_owner"
+        },
+        {
+          "idx": 133,
+          "when": 1793232000000,
+          "tag": "0133_offer_2026_feature_permissions"
+        },
+        {
+          "idx": 134,
+          "when": 1793746800000,
+          "tag": "0134_signup_code_and_recovery"
+        },
+        {
+          "idx": 135,
+          "when": 1793804271309,
+          "tag": "0135_ai_clinic_operational_info"
+        },
+        {
+          "idx": 136,
+          "when": 1794096000000,
+          "tag": "0136_trial_resource_limits"
+        },
+        {
+          "idx": 137,
+          "when": 1794168300000,
+          "tag": "0137_trial_service_role_privileges"
+        },
+        {
+          "idx": 138,
+          "when": 1794171600000,
+          "tag": "0138_saas_gateway_bindings"
+        },
+        {
+          "idx": 139,
+          "when": 1794189600000,
+          "tag": "0139_saas_gateway_recontracts"
+        },
+        {
+          "idx": 140,
+          "when": 1794199882765,
+          "tag": "0140_saas_recurring_payment_observations"
+        },
+        {
+          "idx": 141,
+          "when": 1794222981810,
+          "tag": "0141_saas_scheduled_plan_changes"
+        },
+        {
+          "idx": 142,
+          "when": 1794326400000,
+          "tag": "0142_saas_review_replays"
+        },
+        {
+          "idx": 143,
+          "when": 1794330000000,
+          "tag": "0143_tiss_catalog"
+        },
+        {
+          "idx": 144,
+          "when": 1794367436665,
+          "tag": "0144_hi_clinic_setup"
+        },
+        {
+          "idx": 145,
+          "when": 1794391493822,
+          "tag": "0145_hi_memberships"
+        },
+        {
+          "idx": 146,
+          "when": 1794395869610,
+          "tag": "0146_hi_authorizations"
+        },
+        {
+          "idx": 147,
+          "when": 1794399173366,
+          "tag": "0147_hi_guides"
+        },
+        {
+          "idx": 148,
+          "when": 1794405160338,
+          "tag": "0148_hi_coverage_copay"
+        },
+        {
+          "idx": 149,
+          "when": 1794416643149,
+          "tag": "0149_hi_billing_gaps"
+        },
+        {
+          "idx": 150,
+          "when": 1794418524711,
+          "tag": "0150_hi_batches"
+        },
+        {
+          "idx": 151,
+          "when": 1794432173857,
+          "tag": "0151_hi_premium_gate"
+        }
+      ],
+      "excludedUncommittedMigrations": "All SQL after the pinned commit, including uncommitted changes",
+      "financialBase": "9ddc432a733d2f314b50b33437aa17e92c693685",
+      "tissSources": [
+        {
+          "idx": 143,
+          "when": 1794330000000,
+          "tag": "0143_tiss_catalog",
+          "sha256": "9f9b483aaeff60a9ca4f5b182c3b071408a7d3eec9ecea7cfe8f98bcf602e807"
+        },
+        {
+          "idx": 144,
+          "when": 1794367436665,
+          "tag": "0144_hi_clinic_setup",
+          "sha256": "b9ac6c7a0b335582f3bf69385a3b004cf9d0784955f27d7c3cd22776a4590589"
+        },
+        {
+          "idx": 145,
+          "when": 1794391493822,
+          "tag": "0145_hi_memberships",
+          "sha256": "98425850e4c2dae613734aa337ce588df641e5c3b67476c055147cb9c82632c4"
+        },
+        {
+          "idx": 146,
+          "when": 1794395869610,
+          "tag": "0146_hi_authorizations",
+          "sha256": "15cbf34c1439cc1d7a0ca4be40267729b44c1cdea1760d5090deb10288493cb6"
+        },
+        {
+          "idx": 147,
+          "when": 1794399173366,
+          "tag": "0147_hi_guides",
+          "sha256": "a344a7e86074d90a4b13b007ef6f9e3357ac23e3b8bc43743158d131ca45238a"
+        },
+        {
+          "idx": 148,
+          "when": 1794405160338,
+          "tag": "0148_hi_coverage_copay",
+          "sha256": "45f0b90b9307c5888e8e0ac61fab9685561f89a62cdf54ea60d2bd3becfdcb0b"
+        },
+        {
+          "idx": 149,
+          "when": 1794416643149,
+          "tag": "0149_hi_billing_gaps",
+          "sha256": "56c0d5f29a409b65e0fe4fc1ac7512bbd8c979150c2252e375a375b85139d183"
+        },
+        {
+          "idx": 150,
+          "when": 1794418524711,
+          "tag": "0150_hi_batches",
+          "sha256": "e7dc279a073501a4f2e03dd95ff9773564cbc690ea2591a3e94a03f9a273c992"
+        },
+        {
+          "idx": 151,
+          "when": 1794432173857,
+          "tag": "0151_hi_premium_gate",
+          "sha256": "a0e446dbce4121c538c4a3e206a406e0977d5d1729ed14b03417a3937b71ae0b"
+        }
+      ],
+      "candidateSha256": "5a1c7bd1a6f073972d7010998703d6f26667ee133f404dd358153fc5e2164b1a",
+      "checks": [
+        {
+          "name": "financial_then_tiss",
+          "status": "PASS",
+          "fingerprint": "10843aa6d2dc41d9c8b240aa5f74af8228c1fc4958464e2663919526ddafcceb"
+        },
+        {
+          "name": "financial_then_tiss: legacy and AbacatePay contracts invoices and private receivables preserved",
+          "status": "PASS"
+        },
+        {
+          "name": "financial_then_tiss: 0151 all three commercial decisions distinguish trial and verified paid contract",
+          "status": "PASS"
+        },
+        {
+          "name": "financial_then_tiss: 0151 trial cannot enable TISS by direct SQL and leaves no setting",
+          "status": "PASS"
+        },
+        {
+          "name": "financial_then_tiss: 0151 trial cannot convert an appointment to insurance",
+          "status": "PASS"
+        },
+        {
+          "name": "financial_then_tiss: 0151 an active status without invoice release cannot bypass commercial denial",
+          "status": "PASS"
+        },
+        {
+          "name": "financial_then_tiss: 0151 session wrapper is tenant-bound and core is not callable by authenticated",
+          "status": "PASS"
+        },
+        {
+          "name": "financial_then_tiss: 0151 anonymous role cannot inspect commercial access",
+          "status": "PASS"
+        },
+        {
+          "name": "financial_then_tiss: trial and insurance guards coexist",
+          "status": "PASS"
+        },
+        {
+          "name": "financial_then_tiss: existing private appointment remains private",
+          "status": "PASS"
+        },
+        {
+          "name": "financial_then_tiss: insurance full charge refused even for a verified paid contract",
+          "status": "PASS"
+        },
+        {
+          "name": "financial_then_tiss: 0149 keeps completed coverage frozen without an open gap",
+          "status": "PASS"
+        },
+        {
+          "name": "financial_then_tiss: 0149 correction needs an open gap and stamps the authenticated actor",
+          "status": "PASS"
+        },
+        {
+          "name": "financial_then_tiss: 0149 duplicate gap is refused",
+          "status": "PASS"
+        },
+        {
+          "name": "financial_then_tiss: tenant cannot read another clinic gap or private recovery provenance",
+          "status": "PASS"
+        },
+        {
+          "name": "financial_then_tiss_rollback",
+          "status": "PASS"
+        },
+        {
+          "name": "tiss_then_financial",
+          "status": "PASS",
+          "fingerprint": "104889623cd9c268bb6b32d67f297611eb68f2c28ae8dd23acec14dc079dbc8f"
+        },
+        {
+          "name": "tiss_then_financial: legacy and AbacatePay contracts invoices and private receivables preserved",
+          "status": "PASS"
+        },
+        {
+          "name": "tiss_then_financial: 0151 all three commercial decisions distinguish trial and verified paid contract",
+          "status": "PASS"
+        },
+        {
+          "name": "tiss_then_financial: 0151 trial cannot enable TISS by direct SQL and leaves no setting",
+          "status": "PASS"
+        },
+        {
+          "name": "tiss_then_financial: 0151 trial cannot convert an appointment to insurance",
+          "status": "PASS"
+        },
+        {
+          "name": "tiss_then_financial: 0151 an active status without invoice release cannot bypass commercial denial",
+          "status": "PASS"
+        },
+        {
+          "name": "tiss_then_financial: 0151 session wrapper is tenant-bound and core is not callable by authenticated",
+          "status": "PASS"
+        },
+        {
+          "name": "tiss_then_financial: 0151 anonymous role cannot inspect commercial access",
+          "status": "PASS"
+        },
+        {
+          "name": "tiss_then_financial: trial and insurance guards coexist",
+          "status": "PASS"
+        },
+        {
+          "name": "tiss_then_financial: existing private appointment remains private",
+          "status": "PASS"
+        },
+        {
+          "name": "tiss_then_financial: insurance full charge refused even for a verified paid contract",
+          "status": "PASS"
+        },
+        {
+          "name": "tiss_then_financial: 0149 keeps completed coverage frozen without an open gap",
+          "status": "PASS"
+        },
+        {
+          "name": "tiss_then_financial: 0149 correction needs an open gap and stamps the authenticated actor",
+          "status": "PASS"
+        },
+        {
+          "name": "tiss_then_financial: 0149 duplicate gap is refused",
+          "status": "PASS"
+        },
+        {
+          "name": "tiss_then_financial: tenant cannot read another clinic gap or private recovery provenance",
+          "status": "PASS"
+        },
+        {
+          "name": "tiss_then_financial_rollback",
+          "status": "PASS"
+        },
+        {
+          "name": "common_journal_identity_order_and_readonly_tiss_inputs",
+          "status": "PASS"
+        }
+      ],
+      "remoteWrites": 0,
+      "otherWorktreeWrites": 0,
+      "billingDataCoverage": "SQL composition, shared triggers, trial guards, financial-row preservation and RLS; not the full TISS application"
+    },
+    "compositionChecks": {
+      "observedAt": "2026-11-12T07:09:00.452Z",
+      "status": "PASS",
+      "environment": "loopback_synthetic",
+      "tissHead": "1be40b15ed7533fcac54a3d89cbc821f2e17af22",
+      "checks": [
+        "exact generated preflight SQL executes",
+        "pinned combined schema applies atomically",
+        "exact generated postflight SQL executes",
+        "RLS forced and sensitive grants refused"
+      ],
+      "journalWrites": 0,
+      "remoteWrites": 0
+    },
+    "sharedDev": {
+      "observedAt": "2026-11-12T06:38:39.106Z",
+      "scope": "read_only_DEV_and_TISS_branch_metadata_no_mutation",
+      "financialJournalEntries": 143,
+      "devHistoryCount": 144,
+      "tissHead": "1be40b15ed7533fcac54a3d89cbc821f2e17af22",
+      "tissDraft": true,
+      "tissMigrations": [
+        {
+          "tag": "0143_tiss_catalog",
+          "when": "1794330000000",
+          "hash": "9f9b483aaeff60a9ca4f5b182c3b071408a7d3eec9ecea7cfe8f98bcf602e807",
+          "devApplied": true,
+          "timestampConflict": false
+        },
+        {
+          "tag": "0144_hi_clinic_setup",
+          "when": "1794367436665",
+          "hash": "b9ac6c7a0b335582f3bf69385a3b004cf9d0784955f27d7c3cd22776a4590589",
+          "devApplied": false,
+          "timestampConflict": false
+        },
+        {
+          "tag": "0145_hi_memberships",
+          "when": "1794391493822",
+          "hash": "98425850e4c2dae613734aa337ce588df641e5c3b67476c055147cb9c82632c4",
+          "devApplied": false,
+          "timestampConflict": false
+        },
+        {
+          "tag": "0146_hi_authorizations",
+          "when": "1794395869610",
+          "hash": "15cbf34c1439cc1d7a0ca4be40267729b44c1cdea1760d5090deb10288493cb6",
+          "devApplied": false,
+          "timestampConflict": false
+        },
+        {
+          "tag": "0147_hi_guides",
+          "when": "1794399173366",
+          "hash": "a344a7e86074d90a4b13b007ef6f9e3357ac23e3b8bc43743158d131ca45238a",
+          "devApplied": false,
+          "timestampConflict": false
+        },
+        {
+          "tag": "0148_hi_coverage_copay",
+          "when": "1794405160338",
+          "hash": "45f0b90b9307c5888e8e0ac61fab9685561f89a62cdf54ea60d2bd3becfdcb0b",
+          "devApplied": false,
+          "timestampConflict": false
+        },
+        {
+          "tag": "0149_hi_billing_gaps",
+          "when": "1794416643149",
+          "hash": "56c0d5f29a409b65e0fe4fc1ac7512bbd8c979150c2252e375a375b85139d183",
+          "devApplied": false,
+          "timestampConflict": false
+        },
+        {
+          "tag": "0150_hi_batches",
+          "when": "1794418524711",
+          "hash": "e7dc279a073501a4f2e03dd95ff9773564cbc690ea2591a3e94a03f9a273c992",
+          "devApplied": false,
+          "timestampConflict": false
+        },
+        {
+          "tag": "0151_hi_premium_gate",
+          "when": "1794432173857",
+          "hash": "a0e446dbce4121c538c4a3e206a406e0977d5d1729ed14b03417a3937b71ae0b",
+          "devApplied": false,
+          "timestampConflict": false
+        }
+      ],
+      "candidatePeriodColumn": false,
+      "productionWrites": 0,
+      "devWrites": 0,
+      "tissWorktreeChanges": 0
+    },
+    "composition": {
+      "observedAt": "2026-11-12T07:08:35.955Z",
+      "status": "PREPARED_NOT_APPLICABLE_TO_SHARED_DATABASE",
+      "source": {
+        "tissRef": "1be40b15ed7533fcac54a3d89cbc821f2e17af22",
+        "financialBaseEntries": 143,
+        "orderedSnapshotEntries": 152,
+        "access": "immutable git show only; uncommitted work is excluded"
+      },
+      "tiss": [
+        {
+          "tag": "0143_tiss_catalog",
+          "idx": 143,
+          "when": 1794330000000,
+          "sha256": "9f9b483aaeff60a9ca4f5b182c3b071408a7d3eec9ecea7cfe8f98bcf602e807"
+        },
+        {
+          "tag": "0144_hi_clinic_setup",
+          "idx": 144,
+          "when": 1794367436665,
+          "sha256": "b9ac6c7a0b335582f3bf69385a3b004cf9d0784955f27d7c3cd22776a4590589"
+        },
+        {
+          "tag": "0145_hi_memberships",
+          "idx": 145,
+          "when": 1794391493822,
+          "sha256": "98425850e4c2dae613734aa337ce588df641e5c3b67476c055147cb9c82632c4"
+        },
+        {
+          "tag": "0146_hi_authorizations",
+          "idx": 146,
+          "when": 1794395869610,
+          "sha256": "15cbf34c1439cc1d7a0ca4be40267729b44c1cdea1760d5090deb10288493cb6"
+        },
+        {
+          "tag": "0147_hi_guides",
+          "idx": 147,
+          "when": 1794399173366,
+          "sha256": "a344a7e86074d90a4b13b007ef6f9e3357ac23e3b8bc43743158d131ca45238a"
+        },
+        {
+          "tag": "0148_hi_coverage_copay",
+          "idx": 148,
+          "when": 1794405160338,
+          "sha256": "45f0b90b9307c5888e8e0ac61fab9685561f89a62cdf54ea60d2bd3becfdcb0b"
+        },
+        {
+          "tag": "0149_hi_billing_gaps",
+          "idx": 149,
+          "when": 1794416643149,
+          "sha256": "56c0d5f29a409b65e0fe4fc1ac7512bbd8c979150c2252e375a375b85139d183"
+        },
+        {
+          "tag": "0150_hi_batches",
+          "idx": 150,
+          "when": 1794418524711,
+          "sha256": "e7dc279a073501a4f2e03dd95ff9773564cbc690ea2591a3e94a03f9a273c992"
+        },
+        {
+          "tag": "0151_hi_premium_gate",
+          "idx": 151,
+          "when": 1794432173857,
+          "sha256": "a0e446dbce4121c538c4a3e206a406e0977d5d1729ed14b03417a3937b71ae0b"
+        }
+      ],
+      "draft": {
+        "file": "0151_hi_premium_gate.sql",
+        "sha256": "a0e446dbce4121c538c4a3e206a406e0977d5d1729ed14b03417a3937b71ae0b",
+        "state": "PINNED_COMMIT_NOT_APPLIED_BY_THIS_MANIFEST"
+      },
+      "financialCandidate": {
+        "file": "docs/decoupling/asaas-to-abacatepay/migrations/saas_period_snapshot.candidate.sql",
+        "sha256": "5a1c7bd1a6f073972d7010998703d6f26667ee133f404dd358153fc5e2164b1a",
+        "journalEntry": null,
+        "sequencePosition": "AFTER_THE_AGREED_FROZEN_TISS_TAIL"
+      },
+      "integrationContract": {
+        "sql": "public.qoro_premium_denial(uuid,text)",
+        "tenantScope": "app.current_clinic must equal the authorized clinic",
+        "features": ["patient_charges", "ai_agents", "health_insurance"],
+        "paidAccess": "Verified invoice release, contracted rights, existing grace and fresh period; no grant from checkout state",
+        "moduleRelease": "Commercial permission does not enable an unapproved operational module",
+        "compatibility": "App gate may further restrict; never broaden a denial from the shared SQL gate"
+      },
+      "applicationStages": [
+        "Freeze and review the TISS tail including its premium gate; recompute all source hashes",
+        "Agree the journal position and timestamp after that tail; never backfill an older timestamp",
+        "Run disposable composition, trial, RLS, concurrency and recovery proofs on those exact inputs",
+        "Obtain specific shared-DEV SQL approval for the final reviewed hashes and execute a fresh preflight",
+        "Apply only the approved sequence atomically with lock and statement limits; run postflight"
+      ],
+      "sharedDevBaseline": {
+        "expectedLastTissTag": "0143_tiss_catalog",
+        "verifyAgainst": "Fresh authenticated history read, not migration count alone",
+        "sequence": [
+          {
+            "tag": "0144_hi_clinic_setup",
+            "idx": 144,
+            "when": 1794367436665,
+            "sha256": "b9ac6c7a0b335582f3bf69385a3b004cf9d0784955f27d7c3cd22776a4590589"
+          },
+          {
+            "tag": "0145_hi_memberships",
+            "idx": 145,
+            "when": 1794391493822,
+            "sha256": "98425850e4c2dae613734aa337ce588df641e5c3b67476c055147cb9c82632c4"
+          },
+          {
+            "tag": "0146_hi_authorizations",
+            "idx": 146,
+            "when": 1794395869610,
+            "sha256": "15cbf34c1439cc1d7a0ca4be40267729b44c1cdea1760d5090deb10288493cb6"
+          },
+          {
+            "tag": "0147_hi_guides",
+            "idx": 147,
+            "when": 1794399173366,
+            "sha256": "a344a7e86074d90a4b13b007ef6f9e3357ac23e3b8bc43743158d131ca45238a"
+          },
+          {
+            "tag": "0148_hi_coverage_copay",
+            "idx": 148,
+            "when": 1794405160338,
+            "sha256": "45f0b90b9307c5888e8e0ac61fab9685561f89a62cdf54ea60d2bd3becfdcb0b"
+          },
+          {
+            "tag": "0149_hi_billing_gaps",
+            "idx": 149,
+            "when": 1794416643149,
+            "sha256": "56c0d5f29a409b65e0fe4fc1ac7512bbd8c979150c2252e375a375b85139d183"
+          },
+          {
+            "tag": "0150_hi_batches",
+            "idx": 150,
+            "when": 1794418524711,
+            "sha256": "e7dc279a073501a4f2e03dd95ff9773564cbc690ea2591a3e94a03f9a273c992"
+          },
+          {
+            "tag": "0151_hi_premium_gate",
+            "idx": 151,
+            "when": 1794432173857,
+            "sha256": "a0e446dbce4121c538c4a3e206a406e0977d5d1729ed14b03417a3937b71ae0b"
+          }
+        ],
+        "financialFinalStep": {
+          "file": "docs/decoupling/asaas-to-abacatepay/migrations/saas_period_snapshot.candidate.sql",
+          "sha256": "5a1c7bd1a6f073972d7010998703d6f26667ee133f404dd358153fc5e2164b1a",
+          "version": "UNASSIGNED_UNTIL_TAIL_FREEZE"
+        }
+      },
+      "lockBudget": {
+        "lockTimeout": "2 seconds",
+        "statementTimeout": "15 seconds per candidate statement",
+        "impact": "ALTER TABLE obtains AccessExclusiveLock; new CHECK validates existing observations. No estimate for shared data without preflight size/long-transaction measurements.",
+        "stop": "Any timeout or changed history/hash: rollback transaction, no automatic retry or DOWN"
+      },
+      "readOnlyChecks": [
+        "dist/abacatepay-tiss-preflight.sql",
+        "dist/abacatepay-tiss-postflight.sql"
+      ],
+      "interruption": [
+        "Any source/history hash drift",
+        "Uncommitted tail",
+        "Lock timeout",
+        "Contract or tenant invariants fail"
+      ],
+      "recovery": "Rollback the failed local transaction. Shared rollout needs its approved backup and forward-fix plan; no ledger deletion or invented down migration.",
+      "journalWrites": 0,
+      "databaseWrites": 0,
+      "otherWorktreeWrites": 0
+    },
+    "trial": {
+      "observedAt": "2026-11-12T07:10:23.524Z",
+      "environment": "loopback_synthetic",
+      "migrations": 143,
+      "tissHead": "1be40b15ed7533fcac54a3d89cbc821f2e17af22",
+      "tissSources": [
+        {
+          "idx": 143,
+          "when": 1794330000000,
+          "tag": "0143_tiss_catalog",
+          "sha256": "9f9b483aaeff60a9ca4f5b182c3b071408a7d3eec9ecea7cfe8f98bcf602e807"
+        },
+        {
+          "idx": 144,
+          "when": 1794367436665,
+          "tag": "0144_hi_clinic_setup",
+          "sha256": "b9ac6c7a0b335582f3bf69385a3b004cf9d0784955f27d7c3cd22776a4590589"
+        },
+        {
+          "idx": 145,
+          "when": 1794391493822,
+          "tag": "0145_hi_memberships",
+          "sha256": "98425850e4c2dae613734aa337ce588df641e5c3b67476c055147cb9c82632c4"
+        },
+        {
+          "idx": 146,
+          "when": 1794395869610,
+          "tag": "0146_hi_authorizations",
+          "sha256": "15cbf34c1439cc1d7a0ca4be40267729b44c1cdea1760d5090deb10288493cb6"
+        },
+        {
+          "idx": 147,
+          "when": 1794399173366,
+          "tag": "0147_hi_guides",
+          "sha256": "a344a7e86074d90a4b13b007ef6f9e3357ac23e3b8bc43743158d131ca45238a"
+        },
+        {
+          "idx": 148,
+          "when": 1794405160338,
+          "tag": "0148_hi_coverage_copay",
+          "sha256": "45f0b90b9307c5888e8e0ac61fab9685561f89a62cdf54ea60d2bd3becfdcb0b"
+        },
+        {
+          "idx": 149,
+          "when": 1794416643149,
+          "tag": "0149_hi_billing_gaps",
+          "sha256": "56c0d5f29a409b65e0fe4fc1ac7512bbd8c979150c2252e375a375b85139d183"
+        },
+        {
+          "idx": 150,
+          "when": 1794418524711,
+          "tag": "0150_hi_batches",
+          "sha256": "e7dc279a073501a4f2e03dd95ff9773564cbc690ea2591a3e94a03f9a273c992"
+        },
+        {
+          "idx": 151,
+          "when": 1794432173857,
+          "tag": "0151_hi_premium_gate",
+          "sha256": "a0e446dbce4121c538c4a3e206a406e0977d5d1729ed14b03417a3937b71ae0b"
+        }
+      ],
+      "combinedMigrationCount": 152,
+      "tissSourceAccess": "immutable git show only; uncommitted work is excluded",
+      "managedBaselineGrants": {
+        "table": "public.clinics",
+        "columns": ["id", "status"],
+        "privilege": "SELECT",
+        "role": "authenticated",
+        "provenance": "DEV read-only column privileges checked 2026-11-12",
+        "appliedOnlyToLoopbackScaffold": true
+      },
+      "results": [
+        {
+          "name": "free trial creates complete tenant, quotas and immutable origin without provider IO",
+          "status": "PASS"
+        },
+        {
+          "name": "12 concurrent retries return the original tenant without restarting trial",
+          "status": "PASS"
+        },
+        {
+          "name": "12 concurrent initial requests create only one tenant",
+          "status": "PASS"
+        },
+        {
+          "name": "the same beneficiary with another Auth subject cannot gain another trial or access",
+          "status": "PASS"
+        },
+        {
+          "name": "expired Auth deadline does not grant a new trial and business writes are blocked",
+          "status": "PASS"
+        },
+        {
+          "name": "legacy plan cannot enter the new acquisition cohort",
+          "status": "PASS"
+        },
+        {
+          "name": "existing remote billing attempt is preserved for its original Asaas journey",
+          "status": "PASS"
+        },
+        {
+          "name": "existing owner/admin/invited profile cannot be reassigned",
+          "status": "PASS"
+        },
+        {
+          "name": "failure after provisioning rolls back tenant, claim, binding and draft consumption",
+          "status": "PASS"
+        },
+        {
+          "name": "deadline and external account identity cannot be rewritten",
+          "status": "PASS"
+        },
+        {
+          "name": "authenticated and anonymous cannot inspect or mutate the private gateway tables",
+          "status": "PASS"
+        },
+        {
+          "name": "trial has no initial invoice, charge or gateway operation",
+          "status": "PASS"
+        },
+        {
+          "name": "Consultorio uses its own monthly price and the same unpaid trial controls",
+          "status": "PASS"
+        },
+        {
+          "name": "verified initial payment atomically records one invoice, origin, paid period and releases quotas",
+          "status": "PASS"
+        },
+        {
+          "name": "12 simultaneous payment retries cannot duplicate invoices, attempts or entitlement",
+          "status": "PASS"
+        },
+        {
+          "name": "pending is never accepted as payment",
+          "status": "PASS"
+        },
+        {
+          "name": "expired is never accepted as payment",
+          "status": "PASS"
+        },
+        {
+          "name": "cancelled is never accepted as payment",
+          "status": "PASS"
+        },
+        {
+          "name": "refunded is never accepted as payment",
+          "status": "PASS"
+        },
+        {
+          "name": "unknown is never accepted as payment",
+          "status": "PASS"
+        },
+        {
+          "name": "wrong account, partial amount, stopped recurrence, future or stale period do not grant access",
+          "status": "PASS"
+        },
+        {
+          "name": "transaction failure rolls back payment, binding and quota release; retry succeeds",
+          "status": "PASS"
+        },
+        {
+          "name": "cancelled contract is not revived by a delayed initial payment",
+          "status": "PASS"
+        },
+        {
+          "name": "payment for another remote customer cannot replace the immutable binding",
+          "status": "PASS"
+        },
+        {
+          "name": "old paid checkout cannot extend expired period or evade write lock after existing grace",
+          "status": "PASS"
+        },
+        {
+          "name": "billing provider cannot be switched or mixed with an Asaas subscription ID",
+          "status": "PASS"
+        },
+        {
+          "name": "post-trial command uses server catalogue, durable journal and one checkout across retries",
+          "status": "PASS"
+        },
+        {
+          "name": "an active trial has no operational entitlement or invoice before conversion",
+          "status": "PASS"
+        },
+        {
+          "name": "invalid webhook authentication has no readback or financial effect",
+          "status": "PASS"
+        },
+        {
+          "name": "authenticated webhook reads authoritative fixture API and atomically activates exactly one contract",
+          "status": "PASS"
+        },
+        {
+          "name": "replayed HTTP event creates no second payment and paid contract cannot originate again",
+          "status": "PASS"
+        },
+        {
+          "name": "missing-webhook readback keeps an unpaid checkout restricted",
+          "status": "PASS"
+        },
+        {
+          "name": "paid cached checkout recovers atomically without a fabricated webhook or second charge",
+          "status": "PASS"
+        },
+        {
+          "name": "concurrent missing-webhook retries cannot duplicate a paid invoice",
+          "status": "PASS"
+        },
+        {
+          "name": "another tenant actor or stale generation cannot request cancellation",
+          "status": "PASS"
+        },
+        {
+          "name": "12 cancellation clicks stop recurrence at most once without shortening access",
+          "status": "PASS"
+        },
+        {
+          "name": "replacement checkout before paid end is refused without a provider POST",
+          "status": "PASS"
+        },
+        {
+          "name": "lost cancellation response is recovered by authoritative GET, never another POST",
+          "status": "PASS"
+        },
+        {
+          "name": "lost recontract response is recovered across 12 concurrent attempts without a second checkout",
+          "status": "PASS"
+        },
+        {
+          "name": "pending, partial, old, future, stopped or other-store evidence cannot reactivate",
+          "status": "PASS"
+        },
+        {
+          "name": "recontract transaction rollback preserves cancelled state and original payment",
+          "status": "PASS"
+        },
+        {
+          "name": "authoritative missing-webhook recontract activates exactly once without restarting trial",
+          "status": "PASS"
+        },
+        {
+          "name": "late old cancellation and old checkout cannot cancel or reactivate the replacement",
+          "status": "PASS"
+        },
+        {
+          "name": "a paid replay with an altered gross amount is reviewed instead of acknowledged",
+          "status": "PASS"
+        },
+        {
+          "name": "private cancellation and recontract snapshots are immutable and not client-accessible",
+          "status": "PASS"
+        },
+        {
+          "name": "paid-end write gate does not grant delinquency grace after renewal cancellation",
+          "status": "PASS"
+        },
+        {
+          "name": "second-generation cancellation and authenticated new-checkout webhook keep lineage intact",
+          "status": "PASS"
+        },
+        {
+          "name": "early trial conversion uses one checkout, verified webhook and atomic premium release",
+          "status": "PASS"
+        },
+        {
+          "name": "tenant-scoped entitlement cannot borrow another paid clinic",
+          "status": "PASS"
+        }
+      ],
+      "networkCalls": 0,
+      "fixtureHttpCalls": 393,
+      "productionWrites": 0,
+      "status": "PASS"
+    },
+    "validation": {
+      "state": "IN_PROGRESS",
+      "fullFirstAttempt": {
+        "pass": 7073,
+        "failed": 6,
+        "pending": 0,
+        "issues": [
+          "five unit transaction doubles did not provide new execute seam; corrected",
+          "unrelated async UI wait failed under full local resource load; focused rerun passed"
+        ]
+      },
+      "focusedFixed": {
+        "pass": 70,
+        "failed": 0,
+        "pending": 0
+      },
+      "localBuildFirstAttempt": "BLOCKED_ENV: Windows CA chain unavailable in isolated child; stopped only that build; retry using Windows system CAs without disabling TLS"
+    },
+    "remainingEngineering": [
+      "consolidated migration journal and combined application composition",
+      "incremental store statement scanning and operational queue cadence",
+      "live composition and final integrated release"
+    ],
+    "externalProofsNotRepeated": [
+      "five paid first purchases",
+      "Sentry Preview alert414eb196",
+      "normal MFA Preview journey"
+    ],
+    "newPayments": 0,
+    "closedPaidFixtures": 0,
+    "productionWrites": 0,
+    "sharedDevWrites": 0,
+    "tissWorktreeWrites": 0,
+    "decision": "NO_GO_PRODUCTION"
   }
 }

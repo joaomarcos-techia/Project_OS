@@ -517,6 +517,23 @@ function notification(f: Fixture) {
   );
 }
 let failure: unknown;
+if (process.env.QORO_ABACATEPAY_SCALE === '1') {
+  try {
+    await sql`UPDATE public.plans SET ativo=true WHERE code IN ('clinica_2026_2','clinica_2026_3','clinica_2026_4','clinica_2026_5','consultorio_2026')`;
+    const candidate = await readFile(
+      'docs/decoupling/asaas-to-abacatepay/migrations/saas_period_snapshot.candidate.sql',
+      'utf8',
+    );
+    await sql.begin((tx) => tx.unsafe(candidate));
+    const { runAbacatePayScaleProof } = await import('./abacatepay-scale-proof');
+    await runAbacatePayScaleProof({ sql, seed, accept, apply });
+    assert.equal(networkCalls, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+    await cluster.stop();
+  }
+  process.exit(0);
+}
 try {
   await sql`UPDATE public.plans SET ativo=true WHERE code IN ('clinica_2026_2','clinica_2026_3','clinica_2026_4','clinica_2026_5','consultorio_2026')`;
   const first = await seed();
@@ -627,6 +644,16 @@ try {
       installHttpFixture(f, { fail: true });
       assert.equal((await reconcileAbacatePayInbox({ eventId: f.eventId })).retry, true);
       assert.equal((await state(f)).invoices, 1);
+      const beforeRetryReads = fixtureHttpCalls;
+      assert.deepEqual(await reconcileAbacatePayInbox({ eventId: f.eventId }), {
+        applied: 0,
+        review: 0,
+        scanned: 0,
+        retry: true,
+      });
+      assert.equal(fixtureHttpCalls, beforeRetryReads);
+      await sql`UPDATE billing_gateway.event_inbox SET processed_at=now()-interval '1 day'
+        WHERE event_id=${f.eventId} AND state='received'`;
       installHttpFixture(f);
       assert.equal((await reconcileAbacatePayInbox({ eventId: f.eventId })).applied, 1);
       assert.equal((await state(f)).invoices, 2);
@@ -960,6 +987,8 @@ try {
         await sql.unsafe(`DROP TRIGGER synthetic_negative_audit_failure ON public.billing_events;
           DROP FUNCTION public.synthetic_negative_audit_failure();`);
       }
+      await sql`UPDATE billing_gateway.event_inbox SET processed_at=now()-interval '1 day'
+        WHERE event_id=${eventId} AND state='received'`;
       assert.equal((await reconcileAbacatePayInbox({ eventId })).review, 1);
       const [row] =
         await sql`SELECT count(*)::int n FROM public.billing_events WHERE payload->>'eventId'=${eventId}`;
@@ -1008,6 +1037,8 @@ try {
         await accept(f, eventId, f.evidence, 'checkout.refunded');
         installHttpFixture(f, { fail: true });
         assert.equal((await reconcileAbacatePayInbox({ eventId })).retry, true);
+        await sql`UPDATE billing_gateway.event_inbox SET processed_at=now()-interval '1 day'
+          WHERE event_id=${eventId} AND state='received'`;
         installHttpFixture(f, { refundMinor: amount });
         const results = await Promise.all(
           Array.from({ length: 8 }, () => reconcileAbacatePayInbox({ eventId })),

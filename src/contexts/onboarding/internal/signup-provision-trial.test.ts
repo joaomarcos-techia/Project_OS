@@ -71,9 +71,8 @@ function setup(planCode: string, cycle: 'monthly' | 'annual' = 'monthly'): void 
     for: () => chain,
     limit: async () => mocks.results.shift() ?? [],
   };
-  mocks.transaction.mockImplementation(
-    async (run: (tx: { select: () => typeof chain }) => unknown) => run({ select: () => chain }),
-  );
+  const tx = { select: () => chain, execute: vi.fn().mockResolvedValue([]) };
+  mocks.transaction.mockImplementation(async (run: (transaction: typeof tx) => unknown) => run(tx));
 }
 
 beforeEach(() => {

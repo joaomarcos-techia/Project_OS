@@ -220,7 +220,9 @@ export async function reconcileAbacatePayInbox(input: { eventId?: string } = {})
       WHERE a.provider='abacatepay' AND a.environment='sandbox' AND a.external_account_id=${env.ABACATEPAY_STORE_ID}
         AND (${eventId}::text IS NULL OR i.event_id=${eventId})
         AND i.attempts <= coalesce(replay.authorized_attempt,${MAX_ATTEMPTS})
-        AND (i.state='received' OR (i.state='processing' AND i.lease_until < now()))
+        AND ((i.state='received' AND (i.processed_at IS NULL OR
+          i.processed_at + interval '1 second' * least(3600,5 * power(2,least(greatest(i.attempts-1,0),10))) <= now()))
+          OR (i.state='processing' AND i.lease_until < now()))
       ORDER BY i.received_at FOR UPDATE OF i SKIP LOCKED LIMIT 1
     ) UPDATE billing_gateway.event_inbox i SET state='processing',attempts=attempts+1,
       lease_token=${token}::uuid,lease_until=now()+interval '60 seconds'

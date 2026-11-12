@@ -78,8 +78,9 @@ export function slugifyClinicName(nome: string): string {
  *   - nome que colide com clínica existente;
  *   - nome que bate num subdomínio reservado da plataforma ("admin", "api").
  *
- * A checagem roda em `share` sobre `_reserved_slugs` e consulta `clinics` na
- * mesma transação; a corrida final continua protegida pelo UNIQUE do banco.
+ * Serializa a escolha do mesmo candidato entre cadastros. A leitura é feita
+ * depois do lock, para observar o commit concorrente; UNIQUE continua sendo
+ * a última proteção. Não bloqueia cadastros com candidatos diferentes.
  */
 export async function resolveAvailableSlug(tx: Tx, clinicName: string): Promise<string | null> {
   const base = slugifyClinicName(clinicName);
@@ -94,6 +95,10 @@ export async function resolveAvailableSlug(tx: Tx, clinicName: string): Promise<
         : `${seed.slice(0, SLUG_MAX - 5)}-${randomBytes(2).toString('hex')}`.replace(/^-+/u, '');
 
     if (candidate.length < SLUG_MIN || candidate.length > SLUG_MAX) continue;
+
+    await tx.execute(
+      sql`SELECT pg_advisory_xact_lock(hashtextextended(${`qoro:signup-slug:${candidate}`},0))`,
+    );
 
     const [reserved] = await tx
       .select({ slug: reservedSlugs.slug })

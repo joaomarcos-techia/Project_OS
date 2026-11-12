@@ -889,3 +889,40 @@ A [CI43154102122](https://github.com/joaomarcos-techia/Project_OS/actions/runs/4
 O teste adicional autenticado usou a fixture sintética existente de08/11, sem criar outra conta. PASS1/1 em43,3s (53,4s total), sem erro de browser. Readbacks de12/11,04:26 e04:33UTC preservaram identidade, contrato, trial até22/11, nenhum binding remoto, zero invoices/operações. Login real altera metadados de sessão Auth; não é classificado como operação Auth somente leitura. Os primeiros preflights locais falharam antes do navegador; CLI Vercel autenticada e certificados do Windows via `--use-system-ca` resolveram o operador, sem desabilitar TLS, mudar app/Vercel ou relaxar o fingerprint DEV.
 
 Esta atualização posterior altera somente documentação/evidência. O resultado completo do código acima fica preservado, e os checks obrigatórios do novo SHA documental continuam no PR53. Nenhuma suíte financeira externa foi repetida.
+
+## 45. Concorrência, contenção distribuída e pacote SQL — 12/11/2026
+
+Esta seção substitui o status corrente, preservando os checkpoints anteriores como históricos. Baseline confirmada `9ddc432a`; PR53 continua draft. A nova implementação ainda precisa dos checks de seu próprio SHA. Não foram repetidos pagamentos, encerradas fixtures ou usados segredos live.
+
+### Problemas reproduzidos e corrigidos
+
+1. **Cadastro simultâneo com o mesmo nome:** o SELECT de disponibilidade do slug podia retornar livre para duas transações. O teste de carga reproduziu `23505/clinics_slug_unique`. `resolveAvailableSlug` agora adquire um advisory lock transacional por candidato antes de consultar a disponibilidade. A constraint UNIQUE permanece; nomes distintos não são serializados globalmente.
+2. **Lock de renovação amplo demais:** notificações ainda sem IDs internos podiam selecionar todas as assinaturas da loja para `FOR UPDATE`. A carga reproduziu `40P01`. A reserva agora exige o vínculo da assinatura externa original ou da recontratação paga da mesma clínica/conta. A validação financeira e a transação continuam obrigatórias.
+3. **Sem coordenação entre instâncias:** o transporte passou a usar o Redis existente, por loja, com Lua atômico e relógio do servidor. Admissão espaçada em20ms (teto interno50/s), até3 consultas de admissão por tentativa, tratamento429/Retry-After/RateLimit-Reset, circuito30s após5 falhas e pausa60s em401/403. Redis indisponível bloqueia a chamada. Cada comando POST continua tendo uma única tentativa; erro posterior ao envio permanece resultado desconhecido.
+4. **Retentativa imediata de inbox:** espera persistida5s,10s,20s…até1h, mantendo leases, limite de tentativas, revisão e replay administrativo. O webhook transitório responde503 com Retry-After30; isso não comprova que o provedor respeita esse header. Replays autorizados continuam explícitos. O cron drena até10 eventos dentro do orçamento, sem mudar seu agendamento.
+
+### Provas executadas
+
+| Prova | Resultado | Abrangência e limite |
+| --- | --- | --- |
+| PostgreSQL,100/500/1000 clínicas sintéticas | PASS de integridade | Provisionamento real, ingressos duplicados e aplicação atômica concorrente de renovação.32 tarefas, pool admin8. Não é carga HTTP no provedor ou na Vercel |
+|1000 clínicas, última etapa |25,25 clínicas/s; p50 1252ms; p95 1818ms; p99 2100ms | Cada tarefa disputa duas aplicações do mesmo ciclo; etapas anteriores são reexecutadas como duplicatas |
+| Banco e memória |13 conexões observadas; pico7 aguardando locks; RSS Node283MiB; zero deadlocks/temp spill/rollback na execução final | Medição amostral local, não dimensionamento de Supabase/Vercel |
+| Integridade final |1000 clínicas/2000 invoices/1000 ciclos/1000 eventos; zero vínculo cruzado | A primeira invoice de cada clínica é fixture sintética S0; não representa outro pagamento externo |
+| Meta diagnóstica p95≤2s | PARTIAL | A etapa500 teve p95 3603ms na aplicação e5627ms no provisionamento. A etapa1000 teve2071ms no provisionamento. Não se aprovou SLA de2s |
+| Redis7.4 real | PASS |1000 admissões concorrentes/20 controladores, loja compartilhada, isolamento de lojas, circuito e429;5 admissões/135,5ms e30 admissões no ensaio contínuo de1s. Zero chamadas ao provedor/Redis externo |
+| Financeiro com TISS0151 |120/120 PASS | HTTP controlado/PG real; espera de retry também comprovada sem antecipar calendário externo |
+| Composição TISS0151 |33/33 PASS | Snapshot imutável `1be40b15ed7533fcac54a3d89cbc821f2e17af22`, ambas ordens/rollback, dados e RLS |
+| SQL de pré/pós-verificação gerado |4/4 PASS | Queries exatas executadas em PG descartável; não aplicadas no DEV/Production |
+
+Evidência e números completos no incremento `scalabilityFollowup` do [registro canônico](evidencias/recuperacao-financeira-20261111.json). Os scripts são `abacatepay-renewal-db.ts` em modo `QORO_ABACATEPAY_SCALE=1`, `abacatepay-scale-proof.ts`, `abacatepay-rate-db.ts` e `abacatepay-composition-checks-db.ts`, sob `scripts/security`. A carga usa o serviço de domínio diretamente: **não drena o inbox por HTTP/worker nem mede o scheduler**. Os1000 eventos ficam recebidos no banco descartável, depois removido com o cluster; nenhuma atualização artificial os marcou processados.
+
+### Composição e limites ainda reais
+
+O readback DEV de12/11,06:38UTC confirmou144 entradas, com0143 exata;0144–0151 e candidato financeiro ausentes. Não houve divergência por timestamp nas fontes TISS. O journal financeiro permanece0000–0142. A composição preparada ordena0144–0151 e, depois da cauda acordada, o candidato financeiro de hash LF `5a1c7bd1a6f073972d7010998703d6f26667ee133f404dd358153fc5e2164b1a`. **Nenhum número final foi reservado, nenhum journal foi adulterado.** A integração definitiva dos journals e do código dos dois PRs continua trabalho pendente, não prova de merge por esses ensaios SQL.
+
+Há limites técnicos que impedem GO irrestrito: agendamento diário não oferece recuperação rápida para muitas clínicas; a busca de receipt exige terminar até5 páginas de100 registros no período; acima disso fecha em erro seguro, sem conceder acesso. Não foram inventados filtros por assinatura/checkout no extrato. Preparar varredura com checkpoint e execução frequente com capacidade medida continua necessário para escala operacional. A composição live também não existe: o runtime só aceita Sandbox fora de Production. Presença de API key live não a implementa.
+
+A documentação oficial confirma100 requisições/s por loja e os filtros/paginação disponíveis: [índice oficial](https://docs.abacatepay.com/llms.txt), [extrato](https://docs.abacatepay.com/pages/bank-statement/list). Nenhum teste local substitui a renovação externa ou o readback após fechamento real. O fechamento das fixtures continua sem autorização; não foi executado.
+
+**Decisão: NO-GO de Production.** Os avanços de concorrência são comprovados, mas não justificam declarar toda a operação pronta para1000 clínicas. A matriz única G01–G24 está em [cenários e testes](MATRIZ-CENARIOS-E-TESTES.md#matriz-única-g01g24--12112026); não se transferem ao founder os itens de engenharia que ainda faltam.
