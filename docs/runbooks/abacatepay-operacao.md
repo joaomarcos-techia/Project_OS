@@ -316,3 +316,9 @@ O gate central usa a mesma transação/escopo da clínica e consulta `qoro_premi
 **Nenhuma ação humana ou pagamento novo é necessário para repetir os gates já aprovados.** Dependências restantes são acordo do schema final, autorização da aplicação compartilhada, prova externa de renovação/fechamento e implementação/revisão da composição live. A variável live já cadastrada não dispensa nenhuma dessas etapas.
 
 **Verificação posterior do código4b666cc0:** CI43154102122 PASS7061/22E2E semSKIP, build/segurança/isolamento; E2E autenticado ativo PASS1/1 no Preview, desktop/celular, usando fixture antiga sem nova conta/checkout/invoice. Readbacks antes/depois preservados. A autenticação de teste não é leitura pura do Auth. Não repetir a prova para fechar gates já aprovados; consultar os checks do PR53 para o commit documental posterior.
+
+## Restrição operacional após o incidente da CLI
+
+Não usar `vercel env run` neste ambiente até esclarecer o despacho observado em12/11. Uma tentativa Preview/local criou um projeto auxiliar remoto, sem alterar o Qoro. Não repetir comandos de deploy/ambiente para diagnosticar. Preferir inspeções GET explícitas com projeto/time/ambiente conferidos; não usar `env pull` para criar cópia em texto claro de segredos. Operadores antigos de `dist` não são o runbook e não devem ser executados por inferência, especialmente os que escolhem uma chave genérica.
+
+A limpeza pendente diz respeito somente a `run-scale-preview-redis` / `prj_htYpK9lthoj7LG78fVa8JsH3VzRn` e `dpl_HX9mrERFQab1U74efzo4NjX7yKdh`; exige a confirmação específica já solicitada. Não remover `project-os`, projeto Supabase, Git, integrações ou contratos. O arquivo do auxiliar é um wrapper sem credenciais, protegido por SSO; inventário/prova do SHA estão no registro canônico. Esta exceção não autoriza Production, nem deve ser ocultada pelo resultado verde dos testes.

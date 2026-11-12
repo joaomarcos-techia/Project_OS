@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 200 actions (0 inline); 66 métodos em 62 handlers; 19 props com referência de action; 502 acessos diretos a process.env; 10 nomes NEXT_PUBLIC.
+Contagem: 200 actions (0 inline); 66 métodos em 62 handlers; 19 props com referência de action; 505 acessos diretos a process.env; 10 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -587,6 +587,9 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/abacatepay-checkout-recovery-db.ts:19`   | `<object>`                             | `process.env`                                                               |
 | `scripts/security/abacatepay-checkout-recovery-db.ts:43`   | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                                                    |
 | `scripts/security/abacatepay-checkout-recovery-db.ts:44`   | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
+| `scripts/security/abacatepay-composition-checks-db.ts:67`  | `<object>`                             | `process.env`                                                               |
+| `scripts/security/abacatepay-composition-checks-db.ts:76`  | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                                                    |
+| `scripts/security/abacatepay-composition-checks-db.ts:77`  | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
 | `scripts/security/abacatepay-rate-db.ts:10`                | `<object>`                             | `process.env`                                                               |
 | `scripts/security/abacatepay-rate-db.ts:16`                | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                                                    |
 | `scripts/security/abacatepay-rate-db.ts:17`                | `QORO_DOCKER_BIN`                      | `process.env.QORO_DOCKER_BIN`                                               |
@@ -596,9 +599,9 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/abacatepay-renewal-db.ts:48`             | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
 | `scripts/security/abacatepay-renewal-db.ts:508`            | `ABACATEPAY_WEBHOOK_SECRET`            | `process.env.ABACATEPAY_WEBHOOK_SECRET`                                     |
 | `scripts/security/abacatepay-renewal-db.ts:520`            | `QORO_ABACATEPAY_SCALE`                | `process.env.QORO_ABACATEPAY_SCALE`                                         |
-| `scripts/security/abacatepay-tiss-composition.ts:15`       | `QORO_TISS_WORKTREE`                   | `process.env.QORO_TISS_WORKTREE`                                            |
-| `scripts/security/abacatepay-tiss-input.ts:19`             | `QORO_TISS_WORKTREE`                   | `process.env.QORO_TISS_WORKTREE`                                            |
-| `scripts/security/abacatepay-tiss-input.ts:20`             | `QORO_TISS_REF`                        | `process.env.QORO_TISS_REF`                                                 |
+| `scripts/security/abacatepay-tiss-composition.ts:29`       | `QORO_TISS_WORKTREE`                   | `process.env.QORO_TISS_WORKTREE`                                            |
+| `scripts/security/abacatepay-tiss-input.ts:23`             | `QORO_TISS_WORKTREE`                   | `process.env.QORO_TISS_WORKTREE`                                            |
+| `scripts/security/abacatepay-tiss-input.ts:24`             | `QORO_TISS_REF`                        | `process.env.QORO_TISS_REF`                                                 |
 | `scripts/security/ai-handoff-reliability-db.ts:31`         | `<object>`                             | `process.env`                                                               |
 | `scripts/security/ai-handoff-reliability-db.ts:32`         | `<dynamic>`                            | `process.env[key]`                                                          |
 | `scripts/security/ai-handoff-reliability-db.ts:34`         | `<object>`                             | `process.env`                                                               |
