@@ -1,0 +1,154 @@
+{"seededMs":185753,"sizes":{"lancamentos":1000000,"pagamentos":333333,"atendimentos":500000,"size":"661 MB"}}
+0144# 0    118 ms  clinics:AccessShareLock, clinics:ShareRowExclusiveLock                                     CREATE TABLE public.hi_clinic_settings (
+0144# 1      8 ms  clinics:AccessShareLock, clinics:ShareRowExclusiveLock                                     CREATE TABLE public.hi_counters (
+0144# 5     12 ms  clinics:AccessShareLock, clinics:ShareRowExclusiveLock                                     CREATE TABLE public.hi_insurers (
+0144# 7      9 ms  clinics:AccessShareLock, clinics:ShareRowExclusiveLock                                     CREATE TABLE public.hi_insurer_credentials (
+0144# 9     11 ms  clinics:AccessShareLock, clinics:ShareRowExclusiveLock                                     CREATE TABLE public.hi_plans (
+0144#10     11 ms  clinics:AccessShareLock, clinics:ShareRowExclusiveLock                                     CREATE TABLE public.hi_professional_profiles (
+0144#11     16 ms  clinics:AccessShareLock, clinics:ShareRowExclusiveLock                                     CREATE TABLE public.hi_credentials (
+0144#13      9 ms  clinics:AccessShareLock, clinics:ShareRowExclusiveLock                                     CREATE TABLE public.hi_contract_imports (
+0144#14     14 ms  clinics:AccessShareLock, clinics:ShareRowExclusiveLock                                     CREATE TABLE public.hi_procedure_contracts (
+0145# 0     10 ms  clinics:AccessShareLock, clinics:ShareRowExclusiveLock, patients:AccessShareLock, patients:ShareRowExclusiveLock CREATE TABLE public.hi_memberships (
+0146# 0     15 ms  clinics:AccessShareLock, clinics:ShareRowExclusiveLock                                     CREATE TABLE public.hi_authorizations (
+0146# 3     12 ms  clinics:AccessShareLock, clinics:ShareRowExclusiveLock                                     CREATE TABLE public.hi_authorization_items (
+0146# 4     12 ms  clinics:AccessShareLock, clinics:ShareRowExclusiveLock                                     CREATE TABLE public.hi_authorization_consumptions (
+0146# 5     10 ms  clinics:AccessShareLock, clinics:ShareRowExclusiveLock                                     CREATE TABLE public.hi_authorization_attachments (
+0146# 6     10 ms  clinics:AccessShareLock, clinics:ShareRowExclusiveLock                                     CREATE TABLE public.hi_authorization_events (
+0147# 3     18 ms  clinics:AccessShareLock, clinics:ShareRowExclusiveLock, patients:AccessShareLock, patients:ShareRowExclusiveLock CREATE TABLE public.hi_guides (
+0147# 9      9 ms  clinics:AccessShareLock, clinics:ShareRowExclusiveLock                                     CREATE TABLE public.hi_guide_snapshots (
+0147#11     12 ms  appointments:AccessShareLock, appointments:ShareRowExclusiveLock, clinics:AccessShareLock, clinics:ShareRowExclusiveLock CREATE TABLE public.hi_guide_items (
+0147#16     24 ms  clinics:AccessShareLock, clinics:ShareRowExclusiveLock                                     CREATE TABLE public.hi_guide_events (
+0147#18     15 ms  clinics:AccessShareLock, clinics:ShareRowExclusiveLock                                     CREATE TABLE public.hi_files (
+0148# 0      4 ms  appointments:AccessExclusiveLock                                                           ALTER TABLE public.appointments ADD COLUMN billing_mode text NOT NULL DEFAULT 'particular'
+0148# 1      3 ms  appointments:AccessExclusiveLock                                                           ALTER TABLE public.appointments ADD CONSTRAINT appointments_billing_mode_chk
+0148# 2    158 ms  appointments:ShareUpdateExclusiveLock                                                      ALTER TABLE public.appointments VALIDATE CONSTRAINT appointments_billing_mode_chk;
+0148# 5      4 ms  appointments:ShareRowExclusiveLock                                                         CREATE TRIGGER appointments_billing_mode_guard BEFORE INSERT OR UPDATE OF billing_mode ON 
+0148# 6     16 ms  appointments:AccessShareLock, appointments:ShareRowExclusiveLock, clinics:AccessShareLock, clinics:ShareRowExclusiveLock, patients:AccessShareLock, patients:ShareRowExclusiveLock CREATE TABLE public.hi_appointment_coverages (
+0148#12     16 ms  clinics:AccessShareLock, clinics:ShareRowExclusiveLock                                     CREATE TABLE public.hi_copayments (
+0148#18    183 ms  lancamentos:ShareRowExclusiveLock                                                          CREATE TRIGGER lancamentos_convenio_patient_guard
+0148#21     99 ms                                                                                             CREATE POLICY hi_appointment_coverages_tenant_access ON public.hi_appointment_coverages FO
+0148#22     98 ms                                                                                             ALTER TABLE public.hi_copayments ENABLE ROW LEVEL SECURITY;
+0148#25     51 ms                                                                                             REVOKE ALL ON public.hi_appointment_coverages, public.hi_copayments FROM PUBLIC, anon, aut
+0148#26     99 ms                                                                                             GRANT SELECT, INSERT ON public.hi_appointment_coverages, public.hi_copayments TO authentic
+0148#27    102 ms                                                                                             GRANT UPDATE (guide_type, insurer_id, plan_id, membership_id, contract_line_id, authorizat
+0148#28    104 ms                                                                                             GRANT UPDATE (kind, percentage, expected_cents, calculated_cents, checked_cents, confirmed
+0148#29     51 ms                                                                                             INSERT INTO public._schema_version (version) VALUES ('0148-hi-coverage-copay')
+0149# 0    152 ms                                                                                             ALTER TABLE public.hi_appointment_coverages
+0149# 1    101 ms                                                                                             ALTER TABLE public.hi_appointment_coverages ADD CONSTRAINT hi_appointment_coverages_correc
+0149# 2     54 ms  appointments:AccessShareLock, appointments:ShareRowExclusiveLock, clinics:AccessShareLock, clinics:ShareRowExclusiveLock CREATE TABLE public.hi_billing_gaps (
+0149# 3     51 ms                                                                                             CREATE INDEX hi_billing_gaps_open_idx ON public.hi_billing_gaps (clinic_id, next_attempt_a
+0149# 4     52 ms                                                                                             CREATE INDEX hi_billing_gaps_owner_idx ON public.hi_billing_gaps (clinic_id, owner, opened
+0149# 6     51 ms                                                                                             CREATE INDEX hi_billing_gaps_guide_idx ON public.hi_billing_gaps (guide_id) WHERE guide_id
+0149# 7     55 ms  clinics:AccessShareLock, clinics:ShareRowExclusiveLock                                     CREATE TABLE public.hi_billing_gap_events (
+0149# 8     53 ms                                                                                             CREATE INDEX hi_billing_gap_events_idx ON public.hi_billing_gap_events (clinic_id, gap_id,
+0149# 9     53 ms                                                                                             CREATE OR REPLACE FUNCTION public.hi_guard_billing_gap() RETURNS trigger
+0149#10     53 ms                                                                                             REVOKE ALL ON FUNCTION public.hi_guard_billing_gap() FROM PUBLIC, anon, authenticated;
+0149#11     54 ms                                                                                             CREATE TRIGGER hi_billing_gaps_guard BEFORE INSERT OR UPDATE ON public.hi_billing_gaps
+0149#12     51 ms                                                                                             CREATE OR REPLACE FUNCTION public.hi_billing_gap_attempts() RETURNS trigger
+0149#13     56 ms                                                                                             REVOKE ALL ON FUNCTION public.hi_billing_gap_attempts() FROM PUBLIC, anon, authenticated;
+0149#14     57 ms                                                                                             CREATE TRIGGER hi_billing_gaps_b_attempts BEFORE UPDATE OF attempts ON public.hi_billing_g
+0149#15     53 ms                                                                                             CREATE OR REPLACE FUNCTION public.hi_billing_gap_record_event() RETURNS trigger
+0149#16     52 ms                                                                                             REVOKE ALL ON FUNCTION public.hi_billing_gap_record_event() FROM PUBLIC, anon, authenticat
+0149#17     52 ms                                                                                             CREATE TRIGGER hi_billing_gaps_z_event AFTER INSERT OR UPDATE ON public.hi_billing_gaps
+0149#18     54 ms                                                                                             CREATE OR REPLACE FUNCTION public.hi_guard_coverage() RETURNS trigger
+0149#19     53 ms                                                                                             REVOKE ALL ON FUNCTION public.hi_guard_coverage() FROM PUBLIC, anon, authenticated;
+0149#20     60 ms                                                                                             ALTER TABLE public.hi_billing_gaps ENABLE ROW LEVEL SECURITY;
+0149#21     53 ms                                                                                             ALTER TABLE public.hi_billing_gaps FORCE  ROW LEVEL SECURITY;
+0149#22     52 ms                                                                                             CREATE POLICY hi_billing_gaps_tenant_access ON public.hi_billing_gaps FOR ALL
+0149#23     53 ms                                                                                             ALTER TABLE public.hi_billing_gap_events ENABLE ROW LEVEL SECURITY;
+0149#24     52 ms                                                                                             ALTER TABLE public.hi_billing_gap_events FORCE  ROW LEVEL SECURITY;
+0149#26     52 ms                                                                                             REVOKE ALL ON public.hi_billing_gaps, public.hi_billing_gap_events FROM PUBLIC, anon, auth
+0149#27     52 ms                                                                                             GRANT SELECT, INSERT ON public.hi_billing_gaps TO authenticated, service_role;
+0149#28     51 ms                                                                                             GRANT UPDATE (coverage_id, guide_id, status, reason, owner, recovery, event_state, issues,
+0149#29     51 ms                                                                                             GRANT SELECT ON public.hi_billing_gap_events TO authenticated, service_role;
+0149#30     53 ms                                                                                             GRANT UPDATE (correction_note, corrected_by) ON public.hi_appointment_coverages TO authent
+0149#31     55 ms                                                                                             INSERT INTO public._schema_version (version) VALUES ('0149-hi-billing-gaps')
+0150# 0     87 ms  clinics:AccessShareLock, clinics:ShareRowExclusiveLock                                     CREATE TABLE public.hi_batches (
+0150# 3     18 ms  clinics:AccessShareLock, clinics:ShareRowExclusiveLock                                     CREATE TABLE public.hi_batch_guides (
+0150# 4     51 ms                                                                                             CREATE UNIQUE INDEX hi_batch_guides_active_uniq ON public.hi_batch_guides (clinic_id, guid
+0150# 5     23 ms  clinics:AccessShareLock, clinics:ShareRowExclusiveLock                                     CREATE TABLE public.hi_batch_events (
+0150#17     21 ms  clinics:AccessShareLock, clinics:ShareRowExclusiveLock                                     CREATE TABLE public.hi_batch_returns (
+0150#21     52 ms                                                                                             REVOKE ALL ON FUNCTION public.hi_batch_transition() FROM PUBLIC, anon, authenticated;
+0150#55     52 ms                                                                                             ALTER TABLE public.hi_batches ENABLE ROW LEVEL SECURITY;
+0151#14      3 ms  appointments:ShareRowExclusiveLock                                                         CREATE TRIGGER a0_hi_premium_appointment BEFORE INSERT OR UPDATE OF billing_mode ON public
+0152# 0     15 ms  clinics:AccessShareLock, clinics:ShareRowExclusiveLock                                     CREATE TABLE public.hi_glosses (
+0152# 3     51 ms  clinics:AccessShareLock, clinics:ShareRowExclusiveLock                                     CREATE TABLE public.hi_gloss_appeals (
+0152# 6     16 ms  clinics:AccessShareLock, clinics:ShareRowExclusiveLock                                     CREATE TABLE public.hi_gloss_appeal_items (
+0152# 8     16 ms  clinics:AccessShareLock, clinics:ShareRowExclusiveLock                                     CREATE TABLE public.hi_payments (
+0152#10     13 ms  clinics:AccessShareLock, clinics:ShareRowExclusiveLock                                     CREATE TABLE public.hi_payment_allocations (
+0152#14     15 ms  clinics:AccessShareLock, clinics:ShareRowExclusiveLock                                     CREATE TABLE public.hi_account_events (
+0152#23     59 ms                                                                                             ALTER TABLE public.hi_files ADD CONSTRAINT hi_files_kind_chk CHECK (kind IN (
+0152#63     60 ms                                                                                             CREATE VIEW public.hi_guide_accounts WITH (security_invoker = true) AS
+0153# 0    105 ms  lancamentos:AccessExclusiveLock                                                            ALTER TABLE public.lancamentos
+0153# 1    169 ms  lancamentos:AccessExclusiveLock                                                            ALTER TABLE public.lancamentos ADD CONSTRAINT lancamentos_valor_glosado_chk CHECK (
+0153# 2    403 ms  lancamentos:ShareUpdateExclusiveLock                                                       ALTER TABLE public.lancamentos VALIDATE CONSTRAINT lancamentos_valor_glosado_chk;
+0153# 3     26 ms  lancamentos:AccessExclusiveLock                                                            ALTER TABLE public.lancamentos ADD CONSTRAINT lancamentos_insurer_receivable_chk CHECK (
+0153# 4    241 ms  lancamentos:ShareUpdateExclusiveLock                                                       ALTER TABLE public.lancamentos VALIDATE CONSTRAINT lancamentos_insurer_receivable_chk;
+0153# 5     27 ms  lancamentos:AccessExclusiveLock                                                            ALTER TABLE public.lancamentos DROP CONSTRAINT IF EXISTS lancamentos_auto_origin_chk;
+0153# 6     57 ms  lancamentos:AccessExclusiveLock                                                            ALTER TABLE public.lancamentos ADD CONSTRAINT lancamentos_auto_origin_chk CHECK (
+0153# 7    247 ms  lancamentos:ShareUpdateExclusiveLock                                                       ALTER TABLE public.lancamentos VALIDATE CONSTRAINT lancamentos_auto_origin_chk;
+0153# 8    290 ms  lancamentos:ShareLock                                                                      CREATE UNIQUE INDEX lancamentos_hi_guide_uniq ON public.lancamentos (clinic_id, source_hi_
+0153# 9    108 ms  clinics:AccessShareLock, clinics:ShareRowExclusiveLock, lancamentos:AccessShareLock, lancamentos:ShareRowExclusiveLock, payment_transactions:AccessShareLock, payment_transactions:ShareRowExclusiveLock CREATE TABLE public.hi_ledger_entries (
+0153#17     32 ms  lancamentos:ShareRowExclusiveLock                                                          CREATE TRIGGER lancamentos_insurer_receivable_guard BEFORE INSERT OR UPDATE ON public.lanc
+0153#20     52 ms  payment_transactions:ShareRowExclusiveLock                                                 CREATE TRIGGER payment_transactions_insurer_guard BEFORE INSERT ON public.payment_transact
+0153#33      6 ms  lancamentos:AccessShareLock                                                                CREATE VIEW public.hi_ledger_drift WITH (security_invoker = true) AS
+0154# 3     58 ms  invoices:AccessShareLock, subscriptions:AccessShareLock                                    CREATE VIEW public.qoro_subscription_period_audit AS
+0156# 3     25 ms  appointments:AccessShareLock, appointments:ShareRowExclusiveLock, clinics:AccessShareLock, clinics:ShareRowExclusiveLock, patients:AccessShareLock, patients:ShareRowExclusiveLock CREATE TABLE public.hi_sadt_requests (
+0156# 6     18 ms  clinics:AccessShareLock, clinics:ShareRowExclusiveLock                                     CREATE TABLE public.hi_sadt_request_items (
+0156# 8     54 ms  clinics:AccessShareLock, clinics:ShareRowExclusiveLock                                     CREATE TABLE public.hi_sadt_request_events (
+0156#18     54 ms                                                                                             CREATE TRIGGER hi_sadt_requests_guard BEFORE UPDATE ON public.hi_sadt_requests
+0156#30     53 ms                                                                                             CREATE POLICY hi_sadt_request_events_tenant_access ON public.hi_sadt_request_events FOR AL
+0157# 2     51 ms                                                                                             ALTER TABLE public.hi_clinic_settings VALIDATE CONSTRAINT hi_clinic_settings_payout_eligib
+0157# 3     24 ms  appointments:AccessShareLock, appointments:ShareRowExclusiveLock, clinics:AccessShareLock, clinics:ShareRowExclusiveLock CREATE TABLE public.hi_payouts (
+0157# 5     15 ms  clinics:AccessShareLock, clinics:ShareRowExclusiveLock                                     CREATE TABLE public.hi_payout_movements (
+0157#19     51 ms                                                                                             ALTER TABLE public.hi_payout_movements FORCE  ROW LEVEL SECURITY;
+0157#20     52 ms                                                                                             CREATE POLICY hi_payout_movements_tenant_access ON public.hi_payout_movements FOR ALL
+0157#21     51 ms                                                                                             REVOKE ALL ON public.hi_payouts, public.hi_payout_movements, public.hi_payout_positions FR
+0157#22     51 ms                                                                                             GRANT SELECT, INSERT ON public.hi_payouts TO authenticated;
+0157#23     52 ms                                                                                             GRANT UPDATE (status, cancel_reason, cancelled_by, cancelled_at) ON public.hi_payouts TO a
+9999# 0     52 ms                                                                                             SET LOCAL lock_timeout='2s';
+{
+  "rows": 1000000,
+  "statements": 566,
+  "totalMs": 8509,
+  "perMigrationMs": {
+    "9999": 52,
+    "0144": 380,
+    "0145": 96,
+    "0146": 185,
+    "0147": 273,
+    "0148": 1313,
+    "0149": 1799,
+    "0150": 634,
+    "0151": 68,
+    "0152": 674,
+    "0153": 1887,
+    "0154": 80,
+    "0155": 16,
+    "0156": 463,
+    "0157": 564,
+    "0158": 25
+  },
+  "concurrentWrites": 149,
+  "maxConcurrentWriteWaitMs": 397,
+  "versions": [
+    "0144-hi-clinic-setup",
+    "0145-hi-memberships",
+    "0146-hi-authorizations",
+    "0147-hi-guides",
+    "0148-hi-coverage-copay",
+    "0149-hi-billing-gaps",
+    "0150-hi-batches",
+    "0151-hi-premium-gate",
+    "0152-hi-glosses-payments",
+    "0153-hi-ledger-bridge",
+    "0154-hi-premium-period-evidence",
+    "0155-ledger-payment-sum-by-clinic",
+    "0156-hi-sadt-requests",
+    "0157-hi-professional-payouts",
+    "0158-hi-copay-charge"
+  ]
+}
+
+OK — 0144→0158 + candidata do #53 aplicadas sobre 1000000 lançamentos e 500000 atendimentos: 8509 ms; escrita particular concorrente esperou no máximo 397 ms; particular inalterado.
+rc=0

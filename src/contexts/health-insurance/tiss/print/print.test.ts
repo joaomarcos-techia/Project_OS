@@ -57,7 +57,38 @@ interface PdfText {
   y: number;
   width: number;
 }
-async function readPdf(pdf: Buffer): Promise<{ pages: PdfText[][]; info: Record<string, unknown>; raw: string }> {
+/**
+ * Custo legítimo e medido (P7, 12/11): cada render faz o layout completo do modelo oficial
+ * e o pdf.js relê o arquivo. Isolado: 0,3 a 1,0 s por teste. Com a CPU disputada (24
+ * processos em 12 núcleos) e cobertura v8, como na suíte completa: 5,6 a 12,9 s por teste
+ * (soma 68 s), e o padrão de 30 s estourava. Por isso:
+ *  - o mesmo documento é renderizado e lido UMA vez no arquivo (cache pela view);
+ *  - só os blocos que renderizam têm limite próprio, PDF_RENDER_TIMEOUT_MS = 90 s; com o cache,
+ *    3 rodadas seguidas sob a mesma disputa: 22/22, pior teste 18,5 s (margem de ~4,9×). As
+ *    asserções e os demais testes seguem no padrão.
+ * Nenhum cenário foi removido nem pulado.
+ */
+const PDF_RENDER_TIMEOUT_MS = 90_000;
+const renders = new Map<string, ReturnType<typeof renderGuidePdf>>();
+function render(view: GuidePrintView): ReturnType<typeof renderGuidePdf> {
+  const key = JSON.stringify(view);
+  let out = renders.get(key);
+  if (!out) {
+    out = renderGuidePdf(view, META(view));
+    renders.set(key, out);
+  }
+  return out;
+}
+const reads = new WeakMap<Buffer, Promise<{ pages: PdfText[][]; info: Record<string, unknown>; raw: string }>>();
+function readPdf(pdf: Buffer): Promise<{ pages: PdfText[][]; info: Record<string, unknown>; raw: string }> {
+  let out = reads.get(pdf);
+  if (!out) {
+    out = readPdfUncached(pdf);
+    reads.set(pdf, out);
+  }
+  return out;
+}
+async function readPdfUncached(pdf: Buffer): Promise<{ pages: PdfText[][]; info: Record<string, unknown>; raw: string }> {
   const doc = await pdfjs.getDocument({ data: new Uint8Array(pdf), disableFontFace: true, verbosity: 0 }).promise;
   const pages: PdfText[][] = [];
   for (let n = 1; n <= doc.numPages; n++) {
@@ -151,10 +182,10 @@ describe('formatação do papel', () => {
   });
 });
 
-describe('Guia de Consulta (P7.6) — o PDF reproduz o modelo da p. 469', () => {
+describe('Guia de Consulta (P7.6) — o PDF reproduz o modelo da p. 469', { timeout: PDF_RENDER_TIMEOUT_MS }, () => {
   it('cada rótulo oficial no mesmo lugar (< 0,6 pt) e cada valor dentro da caixa do seu campo', async () => {
     const view = consultaView({ observacao: 'Retorno combinado com a operadora.' });
-    const { pdf, layout } = await renderGuidePdf(view, META(view));
+    const { pdf, layout } = await render(view);
     const { pages } = await readPdf(pdf);
     expect(pages).toHaveLength(1);
     expectLabelsAt(CONSULTA_MODEL, pages[0]!);
@@ -170,7 +201,7 @@ describe('Guia de Consulta (P7.6) — o PDF reproduz o modelo da p. 469', () => 
 
   it('dados corretos do snapshot, nos campos certos; exemplo do modelo não aparece', async () => {
     const view = consultaView();
-    const { pdf } = await renderGuidePdf(view, META(view));
+    const { pdf } = await render(view);
     const text = (await readPdf(pdf)).pages[0]!.map((i) => i.str);
     for (const expected of [
       SYNTHETIC.registroANS,
@@ -193,7 +224,7 @@ describe('Guia de Consulta (P7.6) — o PDF reproduz o modelo da p. 469', () => 
     const data = consultaGuide(1);
     const xml = serializeDocument(consultaGuideElement(data));
     const view = consultaPrintView(data, PRINT);
-    const { pdf } = await renderGuidePdf(view, META(view));
+    const { pdf } = await render(view);
     const text = (await readPdf(pdf)).pages[0]!.map((i) => i.str).join(' | ');
     for (const value of [data.registroANS, data.numeroGuiaPrestador, data.beneficiario.numeroCarteira, data.contratado.cnes, data.profissional.numeroConselho, data.profissional.cbo, data.atendimento.procedimento.codigoProcedimento]) {
       expect(xml).toContain(`>${value}<`);
@@ -216,7 +247,7 @@ describe('Guia de Consulta (P7.6) — o PDF reproduz o modelo da p. 469', () => 
   it('observação de 500 caracteres cabe no campo 23 sem corte (sem folha de continuação); acentos preservados', async () => {
     const obs = `${'Observação com acentuação e cedilha: ção, ã, é, ü, nº 1. '.repeat(9)}`.slice(0, 500);
     const view = consultaView({ observacao: obs });
-    const { pdf, layout } = await renderGuidePdf(view, META(view));
+    const { pdf, layout } = await render(view);
     expect(layout.continuation).toEqual([]);
     const lines = layout.pages[0]!.filter((o): o is DrawText => o.t === 'text' && o.field === 23).map((o) => o.text);
     expect(lines.join(' ').replace(/\s+/gu, ' ')).toBe(obs.replace(/\s+/gu, ' ').trim());
@@ -235,8 +266,9 @@ describe('Guia de Consulta (P7.6) — o PDF reproduz o modelo da p. 469', () => 
   it('metadados do PDF sem dado pessoal; nenhum log durante a geração', async () => {
     const spies = (['log', 'info', 'warn', 'error', 'debug'] as const).map((m) => vi.spyOn(console, m).mockImplementation(() => undefined));
     const view = consultaView();
+    // Geração NOVA (sem o cache): o que se observa aqui é o console durante a geração.
     const { pdf } = await renderGuidePdf(view, META(view));
-    const { info, raw } = await readPdf(pdf);
+    const { info, raw } = await readPdfUncached(pdf);
     expect(info.Title).toBe('Guia de Consulta nº G0000001');
     expect(JSON.stringify(info)).not.toContain('Maria');
     expect(JSON.stringify(info)).not.toContain(SYNTHETIC.carteira);
@@ -245,7 +277,7 @@ describe('Guia de Consulta (P7.6) — o PDF reproduz o modelo da p. 469', () => 
   });
 });
 
-describe('Guia SP/SADT (P8.5) — o mesmo modelo da p. 520 para cobrança e solicitação', () => {
+describe('Guia SP/SADT (P8.5) — o mesmo modelo da p. 520 para cobrança e solicitação', { timeout: PDF_RENDER_TIMEOUT_MS }, () => {
   afterEach(() => vi.restoreAllMocks());
   const cobranca = (n: number, over: Parameters<typeof sadtGuide>[1] = {}, print: Partial<GuidePrintData> = {}) =>
     spSadtCobrancaPrintView(
@@ -255,7 +287,7 @@ describe('Guia SP/SADT (P8.5) — o mesmo modelo da p. 520 para cobrança e soli
 
   it('cobrança: rótulos oficiais no lugar; itens, totais e autorização do snapshot', async () => {
     const view = cobranca(2);
-    const { pdf, layout } = await renderGuidePdf(view, META(view));
+    const { pdf, layout } = await render(view);
     const { pages } = await readPdf(pdf);
     expect(pages).toHaveLength(1);
     expectLabelsAt(SP_SADT_MODEL, pages[0]!);
@@ -286,7 +318,7 @@ describe('Guia SP/SADT (P8.5) — o mesmo modelo da p. 520 para cobrança e soli
 
   it('12 procedimentos: 3 folhas do MESMO modelo, linhas numeradas 1–12, totais só na última', async () => {
     const view = cobranca(12);
-    const { pdf, layout } = await renderGuidePdf(view, META(view));
+    const { pdf, layout } = await render(view);
     const { pages } = await readPdf(pdf);
     expect(pages).toHaveLength(3);
     pages.forEach((p, i) => expectLabelsAt(SP_SADT_MODEL, p, { rowNumbers: i === 0 }));
@@ -312,7 +344,7 @@ describe('Guia SP/SADT (P8.5) — o mesmo modelo da p. 520 para cobrança e soli
   it('indicação clínica de 500 caracteres: nada cortado em silêncio (o texto integral vai à folha de continuação)', async () => {
     const indicacao = 'Texto escrito pelo profissional solicitante, com acentuação. '.repeat(10).slice(0, 500);
     const view = spSadtSolicitacaoPrintView(sadtRequest({ indicacaoClinica: indicacao }), PRINT);
-    const { pdf, layout } = await renderGuidePdf(view, META(view));
+    const { pdf, layout } = await render(view);
     const { pages } = await readPdf(pdf);
     if (layout.continuation.length > 0) {
       expect(layout.continuation.map((c) => c.field)).toContain(23);
