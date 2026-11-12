@@ -59,7 +59,11 @@ const tiss = journal.entries.filter((e) => e.idx >= 136);
 describe('ordem das migrations depois do merge do #53 (D22)', () => {
   it('esta branch só acrescenta a faixa do convênio, começando na 0143', () => {
     expect(tiss.map((e) => e.idx)).toEqual(Array.from({ length: tiss.length }, (_, i) => 143 + i));
-    expect(tiss.every((e) => /^01\d\d_(?:tiss|hi)_/u.test(e.tag))).toBe(true);
+    // Exceção única e nominal: a 0155 corrige a função compartilhada do livro (R38, autorizada
+    // pelo fundador em 12/11 nesta branch, porque redefine o corpo que a 0153 estendeu).
+    expect(tiss.filter((e) => !/^01\d\d_(?:tiss|hi)_/u.test(e.tag)).map((e) => e.tag)).toEqual([
+      '0155_ledger_payment_sum_by_clinic',
+    ]);
   });
 
   it('a 0143 é a que está aplicada no DEV: mesmo número, nome e versão lógica', () => {

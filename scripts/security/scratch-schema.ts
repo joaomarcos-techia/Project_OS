@@ -242,3 +242,9 @@ export async function grantPaidSubscription(
     returning id`;
   assert.equal(rows.length, 1, `plano ${planCode} sem preço no catálogo das migrations`);
 }
+
+/** Conexão extra ao MESMO cluster descartável (ex.: um backend só, para medir a CPU dele). */
+export function connectScratch(url: string, max = 1): Sql {
+  if (!/@(?:127\.0\.0\.1|localhost):\d+\//u.test(url)) throw new Error('só para o cluster local descartável');
+  return postgres(url, { ssl: 'require', max, onnotice: () => undefined });
+}

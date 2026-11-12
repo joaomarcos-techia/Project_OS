@@ -1037,6 +1037,13 @@
       "when": 1794691373857,
       "tag": "0154_hi_premium_period_evidence",
       "breakpoints": true
+    },
+    {
+      "idx": 155,
+      "version": "7",
+      "when": 1794777773857,
+      "tag": "0155_ledger_payment_sum_by_clinic",
+      "breakpoints": true
     }
   ]
 }

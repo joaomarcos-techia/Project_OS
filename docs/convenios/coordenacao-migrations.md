@@ -26,6 +26,7 @@ em `b6965447`, `feat/convenios-tiss-20261110`) e do `drizzle.__drizzle_migration
 | 0152 `hi_glosses_payments` | #55: glosas (6 estados), recursos, pagamentos, conta da guia; decisão comercial com período e carência | só no #55 | não | sim, pelo #55 |
 | 0153 `hi_ledger_bridge` | #55: ponte da conta da guia com `lancamentos`/`payment_transactions` (candidata; plano em `aplicacao-0153.md`) | só no #55 | não | sim, pelo #55 |
 | 0154 `hi_premium_period_evidence` | #55: D24-b (regras de período do #53 no banco) e D24-c (`period_unverified`, visão administrativa) | só no #55 | não | sim, pelo #55 |
+| 0155 `ledger_payment_sum_by_clinic` | #55, **função compartilhada** (R38, autorizada pelo fundador em 12/11): soma de pagamentos do gatilho do livro pela clínica; só `CREATE OR REPLACE FUNCTION`, sem tabela, índice ou lock | só no #55 | não | sim, pelo #55 |
 | 0153 (candidata) | #55: ponte com o livro financeiro (P1.10: `lancamentos` da operadora, `write_off`) | ainda não existe; exige validação com dados do DEV (D23) | não | — |
 
 - O DEV tem **144 linhas** em `drizzle.__drizzle_migrations`, a última é a 0143 do convênio. As 0136–0142 do #53 vêm
@@ -148,3 +149,10 @@ existir, por consulta dinâmica: aplica sozinha na cadeia do #55 e, na ordem do 
 - **#55:** 0153 (ponte com o livro) e 0154 (período pago verificável) no journal, `when` crescente, prefixos contíguos. A candidata do #53 entra depois da 0154 (número e `when` decididos juntos).
 - **Cadeia unida 10/10** (main + #53 `8c591c8f` + #55 0143–0154): aplica inteira; gatilhos de trial do #53 convivem com as guardas da 0153 em `lancamentos` e `payment_transactions`; a decisão do banco = código real do #53 em 10 estados (os 8 anteriores + período no futuro + coorte do #53 sem período).
 - **Mensagem para o agente do #53:** (1) a 0153 redefine `validate_payment_transaction_insert` com o caminho não-convênio idêntico ao da 0073 (teste estático) — se o #53 tocar essa função, avisar; (2) a 0154 alinha o banco às regras de período do `evaluateModuleAccess`; (3) a visão `qoro_subscription_period_audit` (D24-c) é a lista para a reconciliação do billing; (4) achado R38: o gatilho do livro (código da `main`) faz varredura por pagamento — correção proposta ao fundador.
+
+## 8. Atualização de 12/11 (noite): 0155 (R38) e a candidata do #53
+
+- **Reconferido antes de criar a 0155:** `main` em `5620a098` (0135), #53 em `8c591c8f` (0142, sem migration nova; a candidata `saas_period_snapshot.candidate.sql` continua fora do journal dele), UI `ui/refactor-qoro-20261108` em `e47ec2f0` (0136 do #53), DEV com 144 linhas e a última `created_at` = 1794330000000 (0143), só leitura.
+- **0155** (`when` 1794777773857, idx 155): redefine `validate_payment_transaction_insert()` com o corpo da 0153 e uma condição a mais. A função é compartilhada: **se o #53 precisar tocá-la, parte do texto da 0155** (não do da 0073 nem do da 0153), e avisa. A candidata do #53 não toca `lancamentos`, `payment_transactions` nem essa função (só o schema `billing_gateway`): sem conflito.
+- **Ordem proposta para a candidata do #53:** depois da 0155, como 0156, com `when` > 1794777773857 (decisão conjunta).
+- **Teste do ledger:** `migration-ledger.test.ts` aceita uma exceção nominal na faixa do #55 (a 0155), além de `tiss_`/`hi_`.

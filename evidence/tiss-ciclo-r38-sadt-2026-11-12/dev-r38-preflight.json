@@ -1,0 +1,24 @@
+{
+  "devRef": "pqhkirrszzpwezdaqrai",
+  "at": "2026-11-12T17:16:30.609Z",
+  "invariant": {
+    "ledger_rows": 14,
+    "clinic_mismatch": 0,
+    "clinics": 2
+  },
+  "orphans": 0,
+  "fn": [
+    {
+      "body_md5": "f0328cdb27ab70508c66408bb19a3af2",
+      "has_clinic_filter": false,
+      "has_insurer_branch": false
+    }
+  ],
+  "ledger": {
+    "rows": 144,
+    "last_created_at": "1794330000000"
+  },
+  "versions": [
+    "0143-tiss-catalog"
+  ]
+}

@@ -63,13 +63,26 @@ Escrita concorrente durante todo o ensaio (520 inserções particulares): **maio
 No DEV (28 linhas), tudo é de milissegundos. Evidência: `evidence/tiss-ciclo-infra-0153-2026-11-12/ensaio-aplicacao-0153-0154-1M.log`. Em produção, o tempo do VALIDATE e do índice cresce com o volume; a
 medição de 1 milhão de linhas é a referência para decidir a janela.
 
-**Achado de escala (R38, código existente, NÃO alterado):** o gatilho `validate_payment_transaction_insert` (0057/0073)
-soma os pagamentos com `WHERE lancamento_id = …`, mas o único índice com essa coluna é `(clinic_id, lancamento_id)`. No
-Postgres 17 isso vira varredura da tabela inteira a cada pagamento: **61 ms por pagamento particular com 333 mil
-pagamentos**, crescendo linearmente (plano: `Parallel Seq Scan`). O ramo de convênio da 0153 já filtra por `clinic_id`
-(14 ms, constante). A correção do caminho particular é acrescentar `clinic_id = NEW.clinic_id` às duas somas do gatilho
-(comportamento idêntico, o gatilho já garante a mesma clínica) — muda função compartilhada, então fica **para a sua
-aprovação**, como migration própria.
+**R38 (gatilho do livro, código da `main`) — corrigido na branch pela 0155, autorizada pelo fundador em 12/11:** o
+gatilho `validate_payment_transaction_insert` (0057/0073) somava os pagamentos com `WHERE lancamento_id = …`, mas o
+único índice com essa coluna é `(clinic_id, lancamento_id)` e a política RLS compara `clinic_id::text` (não usa índice):
+a soma lia o livro inteiro, de todas as clínicas, a cada pagamento. A 0155 acrescenta `clinic_id = NEW.clinic_id` à soma
+do caminho particular (o ramo de convênio da 0153 já fazia isso; o estorno do app também). Resultado medido
+(`hi-r38-ledger-trigger-bench.ts`, 50 clínicas, 200 amostras por ponto, Postgres 17.5):
+
+| Pagamentos no livro | Páginas lidas pela soma V0 → V1 | Insert no livro pelo runtime V0 → V1 (média, ms) | Pelo service_role V0 → V1 (média, ms) | 16 clínicas simultâneas V0 → V1 (pagamentos/s) |
+| --- | --- | --- | --- | --- |
+| 1.000 | 21 → 3 | 0,74 → 0,58 | 1,29 → 0,91 | 232 → 739 |
+| 100.000 | 825 → 4 | 2,99 → 1,27 | 7,86 → 1,11 | 470 → 761 |
+| 333.000 | 2.534 → 4 | 9,18 → 0,96 | 25,53 → 0,77 | 310 → 741 |
+| 1.000.000 | 8.137 → 4 | 24,91 → 0,66 | 110,19 → 0,58 | 148 → 785 |
+
+Equivalência: `hi-r38-ledger-equivalence-db.ts` roda o mesmo roteiro (366 operações: particular, parcial, excesso,
+estorno, repagamento, cancelado, duplicada, rollback, clínica errada, disputa concorrente, trial do #53, paga, suspensa,
+coparticipação real de R$ 45, convênio pela ponte, 300 operações aleatórias) antes e depois da 0155: **transcrição e
+estado final idênticos**. A única diferença possível é uma linha do livro com clínica diferente da do seu lançamento (só
+existe se gravada com o gatilho desligado); o pré-voo conta essas linhas — **no DEV em 12/11: 0 de 14** (só leitura).
+Aplicação da 0155 com escrita concorrente sobre 1 M de pagamentos: **11 ms, nenhum lock de tabela**.
 
 ## 4. Critérios de interrupção
 
