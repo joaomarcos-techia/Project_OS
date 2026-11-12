@@ -12,19 +12,24 @@ const candidatePath =
 const candidate = await readFile(candidatePath, 'utf8');
 const sha256 = (text: string) =>
   createHash('sha256').update(text.replaceAll('\r\n', '\n')).digest('hex');
-// The preparation time is fixed for reproducibility, not a reserved migration.
-// Any different TISS tail requires a new review, number and timestamp.
+// Proposed ordering only; neither the number nor timestamp is reserved. The
+// current TISS journal contains future ordering timestamps, so its successor
+// is not presented as a creation date. Joint review must approve the final entry.
 const proposal =
-  proof.lastIndex === 151
+  proof.lastIndex === 151 || proof.lastIndex === 154
     ? {
-        idx: 152,
+        idx: proof.lastIndex + 1,
         version: '7' as const,
         breakpoints: true,
-        when: Date.parse('2026-11-12T07:42:38.000Z'),
-        tag: '0152_saas_period_snapshot',
+        when:
+          proof.lastIndex === 151
+            ? Date.parse('2026-11-12T07:42:38.000Z')
+            : (proof.ordered.at(-1)?.when ?? Infinity) + 1,
+        tag: `${String(proof.lastIndex + 1).padStart(4, '0')}_saas_period_snapshot`,
       }
     : null;
 if (proposal) assert.ok(proposal.when > (proof.ordered.at(-1)?.when ?? Infinity));
+const releaseDirectory = `dist/abacatepay-tiss-release-${proof.lastIndex}-${proof.head.slice(0, 8)}`;
 // Compare an announced tail with the immutable inputs without importing or applying it.
 const authorizedRoot = process.env.QORO_TISS_WORKTREE;
 if (!authorizedRoot) throw new Error('Missing authorized read-only TISS worktree');
@@ -68,7 +73,8 @@ const manifest = {
     ? {
         entry: proposal,
         state: 'REVIEW_ONLY_NOT_RESERVED',
-        directory: 'dist/abacatepay-tiss-release',
+        directory: releaseDirectory,
+        timestampMeaning: 'Proposed ordering key, not creation time or shared-DEV approval',
         rule: 'Do not apply before a fresh tail/history check, joint review and specific shared-DEV approval',
       }
     : null,
@@ -122,7 +128,7 @@ const manifest = {
 };
 await mkdir('dist', { recursive: true });
 if (proposal) {
-  const directory = 'dist/abacatepay-tiss-release/drizzle/migrations';
+  const directory = `${releaseDirectory}/drizzle/migrations`;
   await mkdir(`${directory}/meta`, { recursive: true });
   for (const entry of proof.financial) {
     const body = await readFile(`drizzle/migrations/${entry.tag}.sql`, 'utf8');

@@ -14,22 +14,34 @@ execFileSync(
   { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] },
 );
 const proof = await loadTissProofInputs();
+const manifest = z
+  .object({
+    journalProposal: z.object({
+      directory: z.string().regex(/^dist\/abacatepay-tiss-release-\d{3}-[a-f0-9]{8}$/),
+      entry: z.object({ idx: z.number().int(), tag: z.string() }),
+    }),
+  })
+  .parse(JSON.parse(await readFile('dist/abacatepay-tiss-composition.json', 'utf8')));
+const migrationsFolder = `${manifest.journalProposal.directory}/drizzle/migrations`;
+const expectedEntries = proof.ordered.length + 1;
+const pendingEntries = expectedEntries - 144;
+assert.equal(manifest.journalProposal.entry.idx, proof.lastIndex + 1);
+assert.equal(
+  manifest.journalProposal.entry.tag,
+  `${String(proof.lastIndex + 1).padStart(4, '0')}_saas_period_snapshot`,
+);
 const journal = z
   .object({
     entries: z.array(z.object({ idx: z.number().int(), when: z.number().int(), tag: z.string() })),
   })
-  .parse(
-    JSON.parse(
-      await readFile('dist/abacatepay-tiss-release/drizzle/migrations/meta/_journal.json', 'utf8'),
-    ),
-  );
-assert.equal(journal.entries.length, 153);
+  .parse(JSON.parse(await readFile(`${migrationsFolder}/meta/_journal.json`, 'utf8')));
+assert.equal(journal.entries.length, expectedEntries);
 for (const [index, entry] of journal.entries.entries()) {
   assert.equal(entry.idx, index);
   if (index) assert.ok(entry.when > (journal.entries[index - 1]?.when ?? Infinity));
 }
 const proposedSql = await readFile(
-  'dist/abacatepay-tiss-release/drizzle/migrations/0152_saas_period_snapshot.sql',
+  `${migrationsFolder}/${manifest.journalProposal.entry.tag}.sql`,
   'utf8',
 );
 const candidateSql = await readFile(
@@ -86,10 +98,7 @@ try {
   assert.equal(first.idx, 143);
   await cluster.sql.unsafe(first.body);
   for (const entry of journal.entries.filter((e) => e.idx <= 143)) {
-    const body = await readFile(
-      `dist/abacatepay-tiss-release/drizzle/migrations/${entry.tag}.sql`,
-      'utf8',
-    );
+    const body = await readFile(`${migrationsFolder}/${entry.tag}.sql`, 'utf8');
     const historic = historyFixture.find((e) => e.tag === entry.tag);
     if (historic) assert.equal(historic.when, String(entry.when));
     await cluster.sql`INSERT INTO drizzle.__drizzle_migrations(hash,created_at) VALUES(${historic?.appliedHash ?? hash(body)},${entry.when})`;
@@ -114,17 +123,17 @@ try {
   } finally {
     session.release();
   }
-  const options = { migrationsFolder: 'dist/abacatepay-tiss-release/drizzle/migrations' };
+  const options = { migrationsFolder };
   await migrate(database, options);
   assert.deepEqual(await fingerprint(), before);
   const [history] =
     await cluster.sql`SELECT count(*)::int count,max(created_at)::text last FROM drizzle.__drizzle_migrations`;
-  assert.equal(history?.count, 153);
+  assert.equal(history?.count, expectedEntries);
   assert.equal(history.last, String(journal.entries.at(-1)?.when));
   await migrate(database, options);
   const [repeated] =
     await cluster.sql`SELECT count(*)::int count FROM drizzle.__drizzle_migrations`;
-  assert.equal(repeated?.count, 153);
+  assert.equal(repeated?.count, expectedEntries);
   assert.deepEqual(await fingerprint(), before);
   assert.deepEqual(await historyFingerprint(), historyBefore);
   const postSession = await cluster.sql.reserve();
@@ -144,17 +153,17 @@ try {
     environment: 'loopback_synthetic',
     tissHead: proof.head,
     checks: [
-      'review-only journal has 153 consecutive entries and increasing timestamps',
+      `review-only journal has ${expectedEntries} consecutive entries and increasing timestamps`,
       'proposed financial SQL equals the reviewed candidate hash',
       'exact generated preflight SQL executes',
-      'real Drizzle upgrade from 0143 applies exactly nine pending entries and preserves catalog',
+      `real Drizzle upgrade from 0143 applies exactly ${pendingEntries} pending entries and preserves catalog`,
       'second real migrator run applies no entries or catalog changes',
       'all 144 baseline history entries including six historical applied hashes remain unchanged',
       'exact generated postflight SQL executes',
       'RLS forced and sensitive grants refused',
     ],
     repositoryJournalWrites: 0,
-    scratchJournalEntries: 153,
+    scratchJournalEntries: expectedEntries,
     schemaSource:
       'Repository schema plus pinned TISS; history-shaped DEV baseline, not a clone of DEV data',
     remoteWrites: 0,

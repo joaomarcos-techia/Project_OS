@@ -76,6 +76,9 @@ async function seedExisting(tx: ScratchTransaction, legacy: boolean, trial = fal
     assert.ok(invoice);
     await tx`UPDATE public.trial_access_policies SET released_at=now(),released_by_invoice_id=${invoice.id}::uuid
       WHERE clinic_id=${clinicId}::uuid`;
+    await tx`UPDATE public.subscriptions
+      SET current_period_start=now()-interval '1 day',current_period_end=now()+interval '29 days'
+      WHERE id=${subscription.id}::uuid`;
   }
   await tx`INSERT INTO public.patients(id,clinic_id,nome,cpf_encrypted,cpf_hash)
     VALUES(${patientId}::uuid,${clinicId}::uuid,'Synthetic patient','synthetic-ciphertext',${randomUUID()})`;
@@ -96,7 +99,8 @@ async function preservedData(tx: ScratchTransaction) {
     (SELECT jsonb_agg(to_jsonb(s) ORDER BY s.id) FROM public.subscriptions s) subscriptions,
     (SELECT jsonb_agg(to_jsonb(i) ORDER BY i.id) FROM public.invoices i) invoices,
     (SELECT jsonb_agg(to_jsonb(a)-'billing_mode' ORDER BY a.id) FROM public.appointments a) appointments,
-    (SELECT jsonb_agg(to_jsonb(l) ORDER BY l.id) FROM public.lancamentos l) receivables`;
+    (SELECT jsonb_agg(to_jsonb(l)-'source_hi_guide_id'-'valor_glosado' ORDER BY l.id)
+      FROM public.lancamentos l) receivables`;
 }
 async function rejectsSql(
   tx: ScratchTransaction,
@@ -325,6 +329,15 @@ try {
           name: `${order}: legacy and AbacatePay contracts invoices and private receivables preserved`,
           status: 'PASS',
         });
+        if (proof.lastIndex >= 154) {
+          const [privateReceivables] = await tx`SELECT count(*)::int unexpected_defaults
+            FROM public.lancamentos WHERE source_hi_guide_id IS NOT NULL OR valor_glosado<>0`;
+          assert.equal(privateReceivables?.unexpected_defaults, 0);
+          checks.push({
+            name: `${order}: additive TISS columns leave existing private receivables unlinked and without glosses`,
+            status: 'PASS',
+          });
+        }
         if (proof.lastIndex >= 151) {
           await premiumChecks(tx, trial, current, order);
           // 0151 intentionally forbids operational TISS in trial; exercise the

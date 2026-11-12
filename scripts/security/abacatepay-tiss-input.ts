@@ -72,8 +72,8 @@ export async function loadTissProofInputs() {
   assert.equal(financial.at(-1)?.idx, 142, 'Financial base changed: review before recomposing');
   const lastIndex = tiss.at(-1)?.idx;
   assert.ok(
-    lastIndex === 149 || lastIndex === 150 || lastIndex === 151,
-    'Only reviewed 0149/0150/0151 snapshots are supported; do not include moving work',
+    lastIndex === 149 || lastIndex === 150 || lastIndex === 151 || lastIndex === 154,
+    'Only reviewed 0149/0150/0151/0154 snapshots are supported; do not include moving work',
   );
   const additions = tiss.filter((entry) => entry.idx >= 143);
   assert.deepEqual(

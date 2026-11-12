@@ -587,9 +587,9 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/abacatepay-checkout-recovery-db.ts:19`   | `<object>`                             | `process.env`                                                               |
 | `scripts/security/abacatepay-checkout-recovery-db.ts:43`   | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                                                    |
 | `scripts/security/abacatepay-checkout-recovery-db.ts:44`   | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
-| `scripts/security/abacatepay-composition-checks-db.ts:67`  | `<object>`                             | `process.env`                                                               |
-| `scripts/security/abacatepay-composition-checks-db.ts:76`  | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                                                    |
-| `scripts/security/abacatepay-composition-checks-db.ts:77`  | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
+| `scripts/security/abacatepay-composition-checks-db.ts:79`  | `<object>`                             | `process.env`                                                               |
+| `scripts/security/abacatepay-composition-checks-db.ts:88`  | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                                                    |
+| `scripts/security/abacatepay-composition-checks-db.ts:89`  | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
 | `scripts/security/abacatepay-rate-db.ts:10`                | `<object>`                             | `process.env`                                                               |
 | `scripts/security/abacatepay-rate-db.ts:16`                | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                                                    |
 | `scripts/security/abacatepay-rate-db.ts:17`                | `QORO_DOCKER_BIN`                      | `process.env.QORO_DOCKER_BIN`                                               |
@@ -599,7 +599,7 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/abacatepay-renewal-db.ts:48`             | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
 | `scripts/security/abacatepay-renewal-db.ts:508`            | `ABACATEPAY_WEBHOOK_SECRET`            | `process.env.ABACATEPAY_WEBHOOK_SECRET`                                     |
 | `scripts/security/abacatepay-renewal-db.ts:520`            | `QORO_ABACATEPAY_SCALE`                | `process.env.QORO_ABACATEPAY_SCALE`                                         |
-| `scripts/security/abacatepay-tiss-composition.ts:29`       | `QORO_TISS_WORKTREE`                   | `process.env.QORO_TISS_WORKTREE`                                            |
+| `scripts/security/abacatepay-tiss-composition.ts:34`       | `QORO_TISS_WORKTREE`                   | `process.env.QORO_TISS_WORKTREE`                                            |
 | `scripts/security/abacatepay-tiss-input.ts:23`             | `QORO_TISS_WORKTREE`                   | `process.env.QORO_TISS_WORKTREE`                                            |
 | `scripts/security/abacatepay-tiss-input.ts:24`             | `QORO_TISS_REF`                        | `process.env.QORO_TISS_REF`                                                 |
 | `scripts/security/ai-handoff-reliability-db.ts:31`         | `<object>`                             | `process.env`                                                               |

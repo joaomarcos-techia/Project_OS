@@ -2,7 +2,7 @@
 
 ## Incremento operacional de12/11 — contenção e escala
 
-Estado corrente: [relatório45](../decoupling/asaas-to-abacatepay/RELATORIO-HOMOLOGACAO-FINAL.md#45-concorrência-contenção-distribuída-e-pacote-sql--12112026) e [matriz G01–G24](../decoupling/asaas-to-abacatepay/MATRIZ-CENARIOS-E-TESTES.md#matriz-única-g01g24--12112026). Nenhum comando deste incremento autoriza DEV compartilhado ou Production.
+Estado corrente: [relatório46](../decoupling/asaas-to-abacatepay/RELATORIO-HOMOLOGACAO-FINAL.md#46-atualização-da-cauda-tiss-para-0154--12112026) e [matriz G01–G24](../decoupling/asaas-to-abacatepay/MATRIZ-CENARIOS-E-TESTES.md#matriz-única-g01g24--12112026). Nenhum comando deste incremento autoriza DEV compartilhado ou Production.
 
 O transporte usa o par `UPSTASH_REDIS_REST_URL/TOKEN` já existente, com chave opaca por loja. Redis indisponível fecha o acesso ao provedor; não contornar desligando o guard.502/503/504 e falha de rede alimentam circuito;401/403 pausam60s;429 respeita cooldown limitado. Investigue disponibilidade/permissões pelo painel sem copiar a chave e sem repetir POST desconhecido. O circuito é distribuído; reiniciar uma instância não o limpa. Uma resposta positiva não apaga uma pausa vigente.
 
@@ -17,23 +17,22 @@ Métricas de contenção: `billing.abacatepay.request_control`, outcomes `deferr
 Em PowerShell, pasta `C:\dev\Qoro_billing_abacatepay_20261107`, usando Node22 e as dependências existentes:
 
 ```powershell
-$env:NODE_OPTIONS='--conditions=react-server'
 $env:QORO_TISS_WORKTREE='C:\dev\Qoro_convenios_tiss_20261110'
-$env:QORO_TISS_REF='1be40b15ed7533fcac54a3d89cbc821f2e17af22'
-node node_modules/tsx/dist/cli.mjs scripts/security/abacatepay-composition-checks-db.ts
+$env:QORO_TISS_REF='8a947e10bd77ae941a48b5340c14bf1bd0131c0b'
+node node_modules/tsx/dist/cli.mjs --conditions=react-server scripts/security/abacatepay-composition-checks-db.ts
 $env:QORO_ABACATEPAY_SCALE='1'
-node node_modules/tsx/dist/cli.mjs scripts/security/abacatepay-renewal-db.ts
+node node_modules/tsx/dist/cli.mjs --conditions=react-server scripts/security/abacatepay-renewal-db.ts
 Remove-Item Env:QORO_ABACATEPAY_SCALE
-node node_modules/tsx/dist/cli.mjs scripts/security/abacatepay-renewal-db.ts
+node node_modules/tsx/dist/cli.mjs --conditions=react-server scripts/security/abacatepay-renewal-db.ts
 ```
 
-O primeiro comando gera também o pacote `dist/abacatepay-tiss-release`, com journal proposto0000–0152 (153 entradas). Essa0152 não está reservada; o journal do repositório permanece intacto. O migrador real ensaia localmente144→153, preservando o catálogo e os hashes históricos, e comprova uma segunda execução sem reaplicar. O primeiro comando gera manifest e queries somente leitura em `dist/abacatepay-tiss-{composition.json,preflight.sql,postflight.sql}` e executa as queries em banco local descartável. **Não é um journal aplicado nem um comando de migration remota.** A prova de carga grava `dist/abacatepay-scale-db.json`: contadores/p50/p95/p99/conexões/locks/RSS/EXPLAIN, sem dados reais. A prova financeira grava o JSON do snapshot TISS correspondente. A falha interrompe o teste; não converter FAIL em PASS pela presença parcial de um arquivo antigo. Fixar novamente o SHA se houver mudança real do TISS e repetir apenas as provas afetadas.
+O primeiro comando gera o pacote `dist/abacatepay-tiss-release-154-8a947e10`, com journal proposto 0000–0155 (156 entradas). A proposta financeira 0155 não está reservada; a proposta 0152 anterior foi superada pelo avanço do TISS. O journal do repositório permanece intacto. O migrador real ensaiou localmente 144→156, preservando o catálogo e os hashes históricos, e comprovou uma segunda execução sem reaplicar. O `when` proposto é uma chave de ordenação posterior à 0154, que já contém timestamp futuro; não é a data de criação e exige revisão conjunta. O primeiro comando gera manifest e queries somente leitura em `dist/abacatepay-tiss-{composition.json,preflight.sql,postflight.sql}` e executa as queries em banco local descartável. **Não é um journal aplicado nem um comando de migration remota.** A prova de carga grava `dist/abacatepay-scale-db.json`: contadores/p50/p95/p99/conexões/locks/RSS/EXPLAIN, sem dados reais. A prova financeira grava o JSON do snapshot TISS correspondente. A falha interrompe o teste; não converter FAIL em PASS pela presença parcial de um arquivo antigo. Fixar novamente o SHA se houver mudança real do TISS e repetir apenas as provas afetadas.
 
 O ensaio Redis usa exclusivamente um contêiner descartável identificado, porta `127.0.0.1:63799`, imagem oficial Redis7.4, sem persistência ou API financeira. Com Docker disponível:
 
 ```powershell
 docker run -d --name qoro-abacate-scale-20261112 --label qoro.synthetic=abacate-scale-20261112 -p 127.0.0.1:63799:6379 redis:7.4-alpine redis-server --save '' --appendonly no
-node node_modules/tsx/dist/cli.mjs scripts/security/abacatepay-rate-db.ts
+node node_modules/tsx/dist/cli.mjs --conditions=react-server scripts/security/abacatepay-rate-db.ts
 docker stop qoro-abacate-scale-20261112
 ```
 
@@ -41,7 +40,7 @@ Se esse contêiner identificado já existir parado, use `docker start qoro-abaca
 
 RPO continua dependente do backup efetivamente saudável; não declarar perda zero. A restauração de banco/Storage/Auth tem evidências históricas próprias e o aceite anterior sem PITR permanece restrito a esse risco. Um replay financeiro após restore precisa consultar o provedor e preservar IDs/ledger, sem recriar checkout/pagamento. O ensaio local de recuperação financeira não mede o RTO de reconstrução de todos os serviços.
 
-Atualizado em 12/11/2026. Executável somente na candidata Sandbox do PR #53. Não usar em Produção. Não substituir o gateway de uma assinatura Asaas nem modificar pagamentos de pacientes. A [seção 11](#11-trial-entitlements-e-composição-com-0151--1211) registra a decisão definitiva de trial e o snapshot TISS atual; as seções anteriores preservam a cronologia. O SQL candidato não foi aplicado ao DEV compartilhado. Sentry Preview e jornada normal MFA já passaram; não repetir probes/login para esses gates.
+Atualizado em 12/11/2026. Executável somente na candidata Sandbox do PR #53. Não usar em Produção. Não substituir o gateway de uma assinatura Asaas nem modificar pagamentos de pacientes. A seção 11 preserva a decisão de trial e o ensaio histórico com 0151; a seção 46 do relatório e o início deste runbook registram o snapshot atual até 0154. O SQL candidato não foi aplicado ao DEV compartilhado. Sentry Preview e jornada normal MFA já passaram; não repetir probes/login para esses gates.
 
 ## 1. Detectar e abrir incidente
 
