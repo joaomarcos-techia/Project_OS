@@ -148,6 +148,15 @@ export function createAbacatePayTransport(
       try {
         if (response.status === 429) await control?.throttle(response.headers);
         else await control?.observe(response.status);
+      } catch {
+        try {
+          await response.body?.cancel();
+        } catch {
+          throw failure(response.status);
+        }
+        throw failure(response.status);
+      }
+      try {
         await response.body?.cancel();
       } catch {
         throw failure(response.status);

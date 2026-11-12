@@ -119,9 +119,10 @@ describe('AbacatePay distributed admission boundary', () => {
         observe: vi.fn().mockRejectedValue(new Error('private-coordination')),
         throttle: vi.fn(),
       };
-      const fetcher = vi
-        .fn<typeof fetch>()
-        .mockResolvedValue(Response.json({ success: true, data: {} }, { status }));
+      const response = Response.json({ success: true, data: {} }, { status });
+      if (!response.body) throw new Error('Synthetic response body missing');
+      const cancel = vi.spyOn(response.body, 'cancel');
+      const fetcher = vi.fn<typeof fetch>().mockResolvedValue(response);
       const request = createAbacatePayTransport(
         { apiKey: 'synthetic', requestControl: control },
         fetcher,
@@ -130,6 +131,7 @@ describe('AbacatePay distributed admission boundary', () => {
         request({ method: 'POST', path: '/subscriptions/create', body: {} }),
       ).rejects.toMatchObject({ name: 'AbacatePayCommandError', httpStatus: status });
       expect(fetcher).toHaveBeenCalledOnce();
+      expect(cancel).toHaveBeenCalledOnce();
     },
   );
 });
