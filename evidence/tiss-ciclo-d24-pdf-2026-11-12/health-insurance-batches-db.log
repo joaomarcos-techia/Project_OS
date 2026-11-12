@@ -1,0 +1,16 @@
+# health-insurance-batches-db.ts — Postgres 17 descartável; árvore de trabalho sobre 6b101e89 (código do ciclo D24, ver README)
+PASS: lote com 1 guia: XML dos snapshots aprovados passa no XSD oficial (xmllint-wasm), regras, hash e codificação; o arquivo fica CIFRADO (sem carteirinha nem nome em claro), com SHA-256 conferido na leitura e acesso auditado
+PASS: arquivo adulterado no armazenamento: a leitura confere o SHA-256 do cifrado e recusa (nenhum XML apresentado como emitido sem integridade)
+PASS: lote com 3 guias: contagens (3 guias, 3 procedimentos) e total (R$ 450) coerentes entre guias, banco e XML
+PASS: lote com 100 guias exportado e válido no XSD (388 ms do lote ao arquivo); 101 guias recusado pelo banco
+PASS: mistura recusada: outra operadora, outro tipo de guia, versão TISS diferente no conteúdo, guia repetida no pedido, guia já em lote ativo e guia fora de "aprovada"
+PASS: exportação concorrente (3 ao mesmo tempo): 1 exporta, as outras não geram nada (2 recusadas, 0 viram "já exportado"); 1 arquivo e 1 objeto
+PASS: falhas: XSD reprovado, validador ausente, gravação do arquivo e banco caindo depois da gravação → o lote continua "preparado", sem arquivo, sem número de transação consumido; a compensação remove o objeto; se ela falhar, sobra só um objeto cifrado sem referência (métrica), nunca um "exportado" sem arquivo; corrigido, exporta
+PASS: reprocessamento antes do envio: com motivo, o lote volta a "preparado" e reexporta; o XML novo SUBSTITUI o anterior na cadeia de versões (o anterior fica, imutável)
+PASS: estados com prova: "enviado" só com registro, autor e evidência (exportar não envia); reenvio rastreado; "recebido" só com protocolo, que é idempotente, não troca e não serve a outro lote da operadora; "processado" só com retorno; o MESMO retorno registrado 2× entra uma vez; histórico completo
+PASS: cancelamento só antes do envio e por um usuário: as guias voltam a "aprovada" e o arquivo do lote cancelado fica; o lote substituto (ligado ao cancelado) reúne as mesmas guias; substituir lote não cancelado é recusado
+PASS: guia em lote não se edita nem reabre pelo runtime: o faturamento só muda por revisão/substituição controlada
+PASS: runtime não escreve nas tabelas do lote (só pelas funções); a função recusa clínica fora da sessão; a clínica B não vê lote nem lê o XML da A
+PASS: nenhum lançamento financeiro criado em todo o ciclo de lotes (exportar, reexportar, enviar, reenviar, retorno duplicado): o recebível da operadora é da P10.2
+PASS: assinatura cancelada: lote novo, exportação, validação direta no banco e envio são barrados com a mensagem comercial; protocolo, análise, retorno e processado do lote JÁ ENVIADO entram; o XML emitido continua legível (auditado); nada é apagado; regularizada, o lote preparado exporta
+OK — 14/14 provas da P1.9 (0150) em Postgres descartável, XSD oficial pelo xmllint-wasm.

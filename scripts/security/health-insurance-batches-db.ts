@@ -26,7 +26,7 @@
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 
-import { startScratchSchema } from './scratch-schema';
+import { startScratchSchema, grantPaidSubscription } from './scratch-schema';
 
 const cluster = await startScratchSchema({ port: 55508, maxConnections: 24 });
 const { sql } = cluster;
@@ -47,6 +47,7 @@ const { readGuidesAsSystem } = await import('../../src/contexts/health-insurance
 const svc = await import('../../src/contexts/health-insurance/internal/batch-service');
 const { loadXmllintValidator } = await import('../../src/contexts/health-insurance/tiss/xml/xsd-validator');
 const { hiBatches } = await import('../../src/contexts/health-insurance/schema-clinic');
+const { PremiumAccessError, premiumAccessErrorFrom } = await import('../../src/lib/premium-access');
 
 const xsd = loadXmllintValidator();
 if (!xsd) throw new Error('xmllint-wasm não encontrado: defina TISS_XMLLINT_WASM_DIR');
@@ -96,6 +97,7 @@ async function setupClinic(label: string) {
   await sql`insert into auth.users (id, email) values (${doctorId}::uuid, ${`${doctorId}@example.invalid`})`;
   await sql`insert into public.clinics (id, slug, nome, status)
     values (${clinicId}::uuid, ${`bt-${clinicId.slice(0, 8)}`}, ${`Clínica ${label}`}, 'active')`;
+  await grantPaidSubscription(sql, clinicId);
   await sql`insert into public.profiles (id, clinic_id, nome, role, ativo)
     values (${doctorId}::uuid, ${clinicId}::uuid, 'Dra. Sintética', 'doctor', true)`;
   await sql`insert into public.hi_clinic_settings (clinic_id, enabled, enabled_at, enabled_by, provider_kind, cnes_status)
@@ -424,7 +426,44 @@ try {
   assert.equal(lancAfter, lancBefore);
   pass('nenhum lançamento financeiro criado em todo o ciclo de lotes (exportar, reexportar, enviar, reenviar, retorno duplicado): o recebível da operadora é da P10.2');
 
-  console.log(`\nOK — ${passed}/13 provas da P1.9 (0150) em Postgres descartável, XSD oficial pelo xmllint-wasm.`);
+  // ── 13. Assinatura cai (D24, 0151): fatos do trabalho entregue entram; operação nova, não ──
+  const gLate = await A.approvedGuide();
+  const bPrepared = await create(A, [gLate]);
+  await sql`update public.subscriptions set billing_status = 'cancelled' where clinic_id = ${A.clinicId}::uuid`;
+  const premium = (e: unknown) => {
+    assert.ok(e instanceof PremiumAccessError, String((e as Error)?.message));
+    assert.equal(e.reason, 'subscription_cancelled');
+    return true;
+  };
+  await assert.rejects(() => create(A, [randomUUID()]), premium);
+  await assert.rejects(() => exportIt(A, bPrepared), premium);
+  const s3b = await batchRow(b3);
+  await assert.rejects(
+    () => inTenant(A, (tx) => svc.markBatchSentInTx(tx, { clinicId: A.clinicId, batchId: b3, version: s3b.version as number, channel: 'manual', sentOn: '2026-11-12', evidence: 'Reenvio depois do cancelamento da assinatura' })),
+    premium,
+  );
+  // Direto no banco (como a API faria): validar o lote preparado também é barrado pelo gatilho.
+  const okValidation = JSON.stringify({ xsd: 'valid', internal: 'valid', hash: 'valid', encoding: 'valid', guides: 1, items: 1 });
+  await assert.rejects(
+    () => inTenant(A, (tx) => tx.execute(sqlTag`select public.hi_batch_validate(${A.clinicId}::uuid, ${bPrepared}::uuid, NULL, '9', ${'d'.repeat(64)}, ${'e'.repeat(32)}, ${okValidation}::jsonb)`)),
+    (e: unknown) => premiumAccessErrorFrom(e)?.reason === 'subscription_cancelled',
+  );
+  // O lote já ENVIADO continua recebendo os fatos da operadora (perder isso seria perder dado financeiro).
+  let v3b = await inTenant(A, (tx) => svc.recordBatchProtocolInTx(tx, { clinicId: A.clinicId, batchId: b3, version: s3b.version as number, protocol: 'PROT-2026-002', receivedOn: '2026-11-12', evidenceSha256: sha('recibo-3') }));
+  v3b = await inTenant(A, (tx) => svc.markBatchUnderReviewInTx(tx, { clinicId: A.clinicId, batchId: b3, version: v3b }));
+  await inTenant(A, (tx) => svc.recordBatchReturnInTx(tx, { clinicId: A.clinicId, batchId: b3, kind: 'analysis_statement', contentSha256: sha('demonstrativo-3'), receivedOn: '2026-11-25' }));
+  await inTenant(A, (tx) => svc.markBatchProcessedInTx(tx, { clinicId: A.clinicId, batchId: b3, version: v3b }));
+  // Leitura do XML já emitido continua (auditada) e o lote preparado continua lá, intacto.
+  const lateRead = await inTenant(A, (tx) => svc.readBatchXmlInTx(tx, store, { clinicId: A.clinicId, batchId: b1, userId: A.doctorId, requestContext: audit }));
+  assert.ok(lateRead && lateRead.bytes.length > 0);
+  assert.deepEqual([(await batchRow(b3)).status, (await batchRow(bPrepared)).status], ['processed', 'prepared']);
+  // Regularizada a assinatura, o lote preparado exporta.
+  await sql`update public.subscriptions set billing_status = 'active' where clinic_id = ${A.clinicId}::uuid`;
+  const eLate = await exportIt(A, bPrepared);
+  assert.equal(eLate.kind, 'exported');
+  pass('assinatura cancelada: lote novo, exportação, validação direta no banco e envio são barrados com a mensagem comercial; protocolo, análise, retorno e processado do lote JÁ ENVIADO entram; o XML emitido continua legível (auditado); nada é apagado; regularizada, o lote preparado exporta');
+
+  console.log(`\nOK — ${passed}/14 provas da P1.9 (0150) em Postgres descartável, XSD oficial pelo xmllint-wasm.`);
 } finally {
   await cluster.stop();
 }

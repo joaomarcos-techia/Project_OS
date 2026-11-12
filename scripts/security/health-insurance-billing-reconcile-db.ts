@@ -24,7 +24,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 
-import { startScratchSchema } from './scratch-schema';
+import { startScratchSchema, grantPaidSubscription } from './scratch-schema';
 
 const cluster = await startScratchSchema({ port: 55506, maxConnections: 32 });
 const { sql } = cluster;
@@ -97,6 +97,7 @@ async function setupClinic(label: string) {
   }
   await sql`insert into public.clinics (id, slug, nome, status)
     values (${clinicId}::uuid, ${`gap-${clinicId.slice(0, 8)}`}, ${`Clínica ${label}`}, 'active')`;
+  await grantPaidSubscription(sql, clinicId);
   await sql`insert into public.profiles (id, clinic_id, nome, role, ativo)
     values (${doctorId}::uuid, ${clinicId}::uuid, 'Profissional sintético', 'doctor', true),
            (${billerId}::uuid, ${clinicId}::uuid, 'Faturista sintética', 'financial', true)`;

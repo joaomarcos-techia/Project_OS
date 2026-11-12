@@ -8,6 +8,8 @@
  * autorização concedida, a resposta é pendência para uma pessoa, não uma guia
  * faturável.
  */
+import { premiumDenialMessage, type PremiumDenial } from '@/lib/premium-access/policy';
+
 import type { GuideIssue } from '../tiss/validation/common';
 import type {
   HiBillingGapOwner,
@@ -41,6 +43,11 @@ export interface BillingFacts {
   /** O atendimento tem procedimento do Qoro (o contrato liga o TUSS a ele). */
   hasProcedure: boolean;
   moduleEnabled: boolean;
+  /**
+   * Decisão comercial (D24, `qoro_premium_denial`): `null` = assinatura paga e
+   * ativa no plano que inclui Convênios. Qualquer motivo = nenhuma guia nova.
+   */
+  premiumDenial: PremiumDenial | null;
   coverage: CoverageFact | null;
   /** Guias ligadas ao atendimento (pela chave de origem ou por item). */
   guides: GuideFact[];
@@ -135,6 +142,25 @@ export function decideBilling(f: BillingFacts, opts: DecideOptions = {}): Billin
   }
 
   const pending = f.guides.find((g) => g.live && g.status === 'pending_data');
+
+  // Assinatura não está paga e ativa: nenhuma guia é criada nem reavaliada. A
+  // pendência é AUTOMÁTICA (reavaliada a cada 24 h, sem teto): regularizada a
+  // assinatura, o reconcile gera a guia sem ninguém precisar lembrar.
+  if (f.premiumDenial) {
+    return {
+      action: 'open_gap',
+      gap: {
+        reason: 'subscription_inactive',
+        owner: 'gestor',
+        recovery: 'automatic',
+        issues: [
+          gi('SUBSCRIPTION_INACTIVE', 'clinica', premiumDenialMessage('health_insurance', f.premiumDenial), 'gestor'),
+        ],
+        guideId: pending?.id ?? null,
+      },
+    };
+  }
+
   if (pending) {
     if (!f.moduleEnabled) return human('module_disabled', 'gestor', [], pending.id);
     if (pending.automatic && !pending.editedByUser && !opts.refreshTried) {

@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 196 actions (0 inline); 62 métodos em 58 handlers; 19 props com referência de action; 512 acessos diretos a process.env; 9 nomes NEXT_PUBLIC.
+Contagem: 196 actions (0 inline); 62 métodos em 58 handlers; 19 props com referência de action; 521 acessos diretos a process.env; 9 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -599,15 +599,23 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/health-insurance-guide-service-db.ts:34`     | `DATABASE_URL_RUNTIME`                 | `process.env.DATABASE_URL_RUNTIME`                                          |
 | `scripts/security/health-insurance-guide-service-db.ts:35`     | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
 | `scripts/security/health-insurance-guide-service-db.ts:36`     | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`                          |
-| `scripts/security/health-insurance-union-chain-db.ts:30`       | `PR53_REF`                             | `process.env.PR53_REF`                                                      |
-| `scripts/security/health-insurance-union-chain-db.ts:48`       | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
-| `scripts/security/health-insurance-union-chain-db.ts:49`       | `DATABASE_URL_RUNTIME`                 | `process.env.DATABASE_URL_RUNTIME`                                          |
-| `scripts/security/health-insurance-union-chain-db.ts:50`       | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
-| `scripts/security/health-insurance-union-chain-db.ts:51`       | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`                          |
-| `scripts/security/health-insurance-union-chain-db.ts:52`       | `OUTBOX_CRON_ALLOW_NON_VERCEL`         | `process.env.OUTBOX_CRON_ALLOW_NON_VERCEL`                                  |
-| `scripts/security/health-insurance-union-chain-db.ts:53`       | `CRYPTO_SECRET_BACKEND`                | `process.env.CRYPTO_SECRET_BACKEND`                                         |
-| `scripts/security/health-insurance-union-chain-db.ts:54`       | `CRYPTO_MASTER_KEY_V1`                 | `process.env.CRYPTO_MASTER_KEY_V1`                                          |
-| `scripts/security/health-insurance-union-chain-db.ts:55`       | `CRYPTO_LOOKUP_SALT`                   | `process.env.CRYPTO_LOOKUP_SALT`                                            |
+| `scripts/security/health-insurance-premium-gate-db.ts:26`      | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
+| `scripts/security/health-insurance-premium-gate-db.ts:27`      | `DATABASE_URL_RUNTIME`                 | `process.env.DATABASE_URL_RUNTIME`                                          |
+| `scripts/security/health-insurance-premium-gate-db.ts:28`      | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
+| `scripts/security/health-insurance-premium-gate-db.ts:29`      | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`                          |
+| `scripts/security/health-insurance-premium-gate-db.ts:30`      | `OUTBOX_CRON_ALLOW_NON_VERCEL`         | `process.env.OUTBOX_CRON_ALLOW_NON_VERCEL`                                  |
+| `scripts/security/health-insurance-premium-gate-db.ts:31`      | `CRYPTO_SECRET_BACKEND`                | `process.env.CRYPTO_SECRET_BACKEND`                                         |
+| `scripts/security/health-insurance-premium-gate-db.ts:32`      | `CRYPTO_MASTER_KEY_V1`                 | `process.env.CRYPTO_MASTER_KEY_V1`                                          |
+| `scripts/security/health-insurance-premium-gate-db.ts:33`      | `CRYPTO_LOOKUP_SALT`                   | `process.env.CRYPTO_LOOKUP_SALT`                                            |
+| `scripts/security/health-insurance-union-chain-db.ts:36`       | `PR53_REF`                             | `process.env.PR53_REF`                                                      |
+| `scripts/security/health-insurance-union-chain-db.ts:54`       | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
+| `scripts/security/health-insurance-union-chain-db.ts:55`       | `DATABASE_URL_RUNTIME`                 | `process.env.DATABASE_URL_RUNTIME`                                          |
+| `scripts/security/health-insurance-union-chain-db.ts:56`       | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
+| `scripts/security/health-insurance-union-chain-db.ts:57`       | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`                          |
+| `scripts/security/health-insurance-union-chain-db.ts:58`       | `OUTBOX_CRON_ALLOW_NON_VERCEL`         | `process.env.OUTBOX_CRON_ALLOW_NON_VERCEL`                                  |
+| `scripts/security/health-insurance-union-chain-db.ts:59`       | `CRYPTO_SECRET_BACKEND`                | `process.env.CRYPTO_SECRET_BACKEND`                                         |
+| `scripts/security/health-insurance-union-chain-db.ts:60`       | `CRYPTO_MASTER_KEY_V1`                 | `process.env.CRYPTO_MASTER_KEY_V1`                                          |
+| `scripts/security/health-insurance-union-chain-db.ts:61`       | `CRYPTO_LOOKUP_SALT`                   | `process.env.CRYPTO_LOOKUP_SALT`                                            |
 | `scripts/security/local-build.ts:76`                           | `<dynamic>`                            | `process.env[key]`                                                          |
 | `scripts/security/local-build.ts:76`                           | `<dynamic>`                            | `process.env[key]`                                                          |
 | `scripts/security/local-build.ts:101`                          | `CI`                                   | `process.env.CI`                                                            |
@@ -830,6 +838,7 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/tiss/corpus/validate-xsd.ts:30`                       | `TISS_XMLLINT_WASM_DIR`                | `process.env.TISS_XMLLINT_WASM_DIR`                                         |
 | `scripts/tiss/corpus/validate-xsd.ts:40`                       | `TISS_CORPUS`                          | `process.env.TISS_CORPUS`                                                   |
 | `scripts/tiss/corpus/validate-xsd.ts:40`                       | `TISS_CORPUS`                          | `process.env.TISS_CORPUS`                                                   |
+| `scripts/tiss/print/extract-official-model.ts:18`              | `TISS_CONTEUDO_PDF`                    | `process.env.TISS_CONTEUDO_PDF`                                             |
 | `scripts/turnstile-production-gate.ts:4`                       | `TURNSTILE_PRODUCTION_GATE`            | `process.env.TURNSTILE_PRODUCTION_GATE`                                     |
 | `scripts/turnstile-production-gate.ts:5`                       | `TURNSTILE_SECRET_KEY`                 | `process.env.TURNSTILE_SECRET_KEY`                                          |
 | `sentry.edge.config.ts:9`                                      | `NEXT_PUBLIC_SENTRY_DSN`               | `process.env.NEXT_PUBLIC_SENTRY_DSN`                                        |

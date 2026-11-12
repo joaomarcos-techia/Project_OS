@@ -24,7 +24,7 @@ import {
   type ConsultaGuideOutcome,
 } from '../../src/contexts/health-insurance/internal/consulta-guide-service';
 
-import { startScratchSchema } from './scratch-schema';
+import { startScratchSchema, grantPaidSubscription } from './scratch-schema';
 
 const cluster = await startScratchSchema({ port: 55503, maxConnections: 24 });
 const { sql } = cluster;
@@ -74,6 +74,7 @@ async function setupClinic(label: string, enabled: boolean) {
   }
   await sql`insert into public.clinics (id, slug, nome, status)
     values (${clinicId}::uuid, ${`gs-${clinicId.slice(0, 8)}`}, ${`Clínica ${label}`}, 'active')`;
+  await grantPaidSubscription(sql, clinicId);
   for (const id of [doctorId, doctor2Id]) {
     await sql`insert into public.profiles (id, clinic_id, nome, role, ativo)
       values (${id}::uuid, ${clinicId}::uuid, 'Profissional sintético', 'doctor', true)`;

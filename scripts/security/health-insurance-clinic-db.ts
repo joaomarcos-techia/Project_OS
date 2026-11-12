@@ -17,7 +17,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 
-import { startScratchSchema, type ScratchCluster } from './scratch-schema';
+import { startScratchSchema, type ScratchCluster, grantPaidSubscription } from './scratch-schema';
 
 type Sql = ScratchCluster['sql'];
 
@@ -36,6 +36,7 @@ async function createClinic(label: string): Promise<{ clinicId: string; profileI
   await sql`insert into auth.users (id, email) values (${profileId}::uuid, ${`${profileId}@example.invalid`})`;
   await sql`insert into public.clinics (id, slug, nome, status)
     values (${clinicId}::uuid, ${`hi-${clinicId.slice(0, 8)}`}, ${`Clínica ${label}`}, 'active')`;
+  await grantPaidSubscription(sql, clinicId);
   await sql`insert into public.profiles (id, clinic_id, nome, role, ativo)
     values (${profileId}::uuid, ${clinicId}::uuid, ${`Profissional ${label}`}, 'doctor', true)`;
   return { clinicId, profileId };

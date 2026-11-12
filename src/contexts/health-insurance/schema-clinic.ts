@@ -682,7 +682,8 @@ export type HiBillingGapReason =
   | 'module_disabled'
   | 'return_within_window'
   | 'event_not_processed'
-  | 'processing_failed';
+  | 'processing_failed'
+  | 'subscription_inactive';
 export type HiBillingGapOwner = 'recepcao' | 'gestor' | 'financeiro' | 'medico' | 'suporte';
 export type HiBillingGapEventState =
   | 'processed'

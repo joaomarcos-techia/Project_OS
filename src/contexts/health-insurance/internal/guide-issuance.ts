@@ -27,6 +27,7 @@ import { requireFreshPermission, requireUser } from '@/lib/auth/tenant-context';
 import { encryptForTenant } from '@/lib/crypto/encryption';
 import type { Tx } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
+import { assertPremiumFeatureTx } from '@/lib/premium-access';
 
 import { tissTerminologyVersions, tissTerms } from '../schema';
 import {
@@ -144,6 +145,8 @@ export async function issueConsultaGuide(
   args: IssueArgs,
 ): Promise<{ snapshotId: string; revision: number; sha256: string }> {
   const { clinicId } = args;
+  // D24: operação nova de Convênios só com assinatura paga e ativa (o banco confere de novo).
+  await assertPremiumFeatureTx(tx, clinicId, 'health_insurance');
   const [g] = await tx
     .select()
     .from(hiGuides)

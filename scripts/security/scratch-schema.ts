@@ -215,3 +215,26 @@ export async function buildSchemaSqlFromMigrations(): Promise<string> {
   // sem ele, a falha aponta para uma linha de um script de 20 mil linhas.
   return migrations.map(({ file, body }) => [`-- >>> ${file}`, body, ''].join('\n')).join('\n');
 }
+
+/**
+ * Assinatura PAGA e ATIVA para uma clínica sintética (D24, 0151): Convênios, cobrança
+ * de pacientes e Agentes de IA só funcionam assim. Os harnesses de Convênios provam
+ * o módulo numa clínica que pode usá-lo; o bloqueio do trial tem harness próprio
+ * (`health-insurance-premium-gate-db.ts`). Plano do catálogo real das migrations.
+ */
+export async function grantPaidSubscription(
+  sql: Sql,
+  clinicId: string,
+  planCode = 'clinica_2026_2',
+): Promise<void> {
+  const rows = await sql`
+    insert into public.subscriptions (clinic_id, plan_id, price_id, billing_status)
+    select ${clinicId}::uuid, pl.id, pr.id, 'active'
+      from public.plans pl
+      join public.prices pr on pr.plan_id = pl.id
+     where pl.code = ${planCode}
+     order by pr.id
+     limit 1
+    returning id`;
+  assert.equal(rows.length, 1, `plano ${planCode} sem preço no catálogo das migrations`);
+}

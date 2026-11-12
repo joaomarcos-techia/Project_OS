@@ -22,6 +22,7 @@ import { PERMISSIONS } from '@/lib/auth/permissions';
 import { requireFreshPermission, requireUser } from '@/lib/auth/tenant-context';
 import type { Tx } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
+import { assertPremiumFeatureTx } from '@/lib/premium-access';
 
 import { hiBillingGaps, type HiGuideType } from '../schema-clinic';
 
@@ -66,6 +67,8 @@ export async function correctCoverageInTx(
   input: CoverageCorrectionInput,
   userId: string,
 ): Promise<BillingProcessOutcome> {
+  // D24: operação nova de Convênios só com assinatura paga e ativa (o banco confere de novo).
+  await assertPremiumFeatureTx(tx, input.clinicId, 'health_insurance');
   await lockAppointmentBilling(tx, input.appointmentId, 'wait');
   const gap = await openGapFor(tx, input.clinicId, input.appointmentId);
   if (!gap || gap.status !== 'open') {

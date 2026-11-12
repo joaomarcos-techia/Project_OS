@@ -20,6 +20,7 @@ import { and, desc, eq, sql } from 'drizzle-orm';
 
 import type { Tx } from '@/lib/db';
 import { metrics } from '@/lib/observability/metrics';
+import { getPremiumDenialTx } from '@/lib/premium-access';
 
 import { tissTerminologyVersions } from '../schema';
 import {
@@ -265,6 +266,8 @@ export async function processInsuranceBilling(
     return { kind: 'return_not_billable' };
   }
 
+  // Decisão comercial (D24) na MESMA transação: sem assinatura paga e ativa, nada de guia nova.
+  const premiumDenial = await getPremiumDenialTx(tx, clinicId, 'health_insurance');
   const [settings] = await tx
     .select({ enabled: hiClinicSettings.enabled })
     .from(hiClinicSettings)
@@ -320,6 +323,7 @@ export async function processInsuranceBilling(
       hasPatient: appt.patient_id !== null,
       hasProcedure: appt.procedure_id !== null,
       moduleEnabled: settings?.enabled === true,
+      premiumDenial,
       coverage: coverage
         ? { id: coverage.id, status: coverage.status, guideType: coverage.guideType }
         : null,

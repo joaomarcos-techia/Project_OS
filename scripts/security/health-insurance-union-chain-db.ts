@@ -3,20 +3,24 @@
  * das duas branches (não só o teste de ordem do journal):
  *
  *   main 0000–0135 → #53 0136–0142 (lidas do commit do #53 por `git show`)
- *   → #55 0143–0149
+ *   → #55 0143–0151
  *
- * A 0136 do #53 (já aplicada no DEV) cria gatilhos AFTER INSERT de limite do trial
- * em `appointments` e `lancamentos`; a 0148 do convênio cria gatilhos BEFORE nas
- * mesmas tabelas. Nenhuma prova anterior do convênio rodou com a 0136. Aqui:
+ * D24 (decisão definitiva do fundador, 11/11/2026): o trial de 14 dias é para
+ * conhecer o Qoro; Convênios, cobrança de pacientes pelo Asaas e Agentes de IA só
+ * com assinatura paga e ativa. Aqui, com a política de trial REAL do #53
+ * (`trial_access_policies`, liberada só por fatura paga verificada):
  *  1. a cadeia aplica inteira, contígua, sem colisão de prefixo;
  *  2. os gatilhos das duas branches convivem nas tabelas compartilhadas;
- *  3. clínica em trial: particular igual (recebível + consumo do trial); convênio
- *     sem recebível e SEM consumir o limite de recebíveis do trial;
- *  4. a rede de segurança do convênio recusa ANTES do gatilho do trial (nada é
- *     consumido por um INSERT recusado);
- *  5. a coparticipação confirmada vira recebível e conta no trial (política do #53);
- *  6. no limite do trial, o recebível da coparticipação é barrado pelo #53 e o
- *     evento fica para retentativa, sem estado parcial.
+ *  3. clínica em trial: Convênios não liga, atendimento não vira convênio; a decisão
+ *     central nega os 3 recursos; os gatilhos do #53 barram conectar Asaas e WhatsApp
+ *     (o canal do Agente de IA);
+ *  4. particular no trial igual ao #53 (recebível + consumo da cota);
+ *  5. R33 resolvido pela regra: no limite de recebíveis do trial não existe
+ *     coparticipação, porque não existe convênio no trial (sem exceção ao limite);
+ *  6. assinatura marcada ativa SEM pagamento verificado continua negada;
+ *  7. pagamento verificado (liberação do #53): Convênios liga, guia automática,
+ *     coparticipação de R$ 45 vira recebível, sem cota de trial;
+ *  8. a rede da 0148 segue recusando recebível cheio de convênio na clínica paga.
  *
  * Não toca o worktree do #53 (só lê objetos git) nem DEV/produção. Uso:
  *   NODE_OPTIONS=--conditions=react-server npx tsx scripts/security/health-insurance-union-chain-db.ts [ref-do-53]
@@ -25,9 +29,11 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 
+import { sql as dsql } from 'drizzle-orm';
+
 import { readMigrations, startScratchSchema } from './scratch-schema';
 
-const REF = process.argv[2] ?? process.env.PR53_REF ?? 'b6965447';
+const REF = process.argv[2] ?? process.env.PR53_REF ?? 'e8309aee';
 const git = (...args: string[]) => execFileSync('git', args, { encoding: 'utf8', maxBuffer: 64 << 20 });
 const pr53Files = git('ls-tree', '--name-only', REF, 'drizzle/migrations/')
   .split('\n')
@@ -77,7 +83,7 @@ try {
   const [{ n: applied }] = (await sql`select count(*)::int as n from public._schema_version`) as unknown as [{ n: number }];
   const has = async (table: string) =>
     ((await sql`select to_regclass(${`public.${table}`}) is not null as ok`)[0] as { ok: boolean }).ok;
-  assert.ok((await has('trial_resource_usage')) && (await has('hi_billing_gaps')));
+  assert.ok((await has('trial_resource_usage')) && (await has('hi_billing_gaps')) && (await has('hi_batches')));
   pass(`cadeia unida aplica inteira no Postgres 17: ${chain.length} migrations (0000–${String(chain.length - 1).padStart(4, '0')}), 0136–0142 do #53 em ${REF}, prefixos contíguos; ${applied} marcas de versão`);
 
   // ── 2. Gatilhos das duas branches nas tabelas compartilhadas ─────────
@@ -88,17 +94,18 @@ try {
   for (const expected of [
     'appointments.trial_appointments',
     'appointments.appointments_billing_mode_guard',
+    'appointments.a0_hi_premium_appointment',
     'lancamentos.trial_financial_entries',
     'lancamentos.lancamentos_convenio_patient_guard',
   ]) {
     assert.ok(names.includes(expected), `falta ${expected}: ${names.join(', ')}`);
   }
-  pass('gatilhos convivem: trial do #53 (AFTER INSERT) e convênio (BEFORE) em appointments e lancamentos');
+  pass('gatilhos convivem: trial do #53 (AFTER INSERT), convênio e bloqueio comercial (BEFORE) em appointments e lancamentos');
 
-  // ── Fixture: clínica em TRIAL (plano 2026) com o módulo de convênio ligado ──
+  // ── Fixture: clínica em TRIAL (plano 2026), inscrita na política do #53 ──
   const clinicId = randomUUID();
   const ownerId = randomUUID();
-  for (const id of [ownerId]) await sql`insert into auth.users (id, email) values (${id}::uuid, ${`${id}@example.invalid`})`;
+  await sql`insert into auth.users (id, email) values (${ownerId}::uuid, ${`${ownerId}@example.invalid`})`;
   await sql`insert into public.clinics (id, slug, nome, status)
     values (${clinicId}::uuid, ${`union-${clinicId.slice(0, 8)}`}, 'Clínica sintética em trial', 'active')`;
   await sql`insert into public.profiles (id, clinic_id, nome, role, ativo, invite_accepted_at)
@@ -108,58 +115,55 @@ try {
      where p.code = 'clinica_2026_2' and pr.billing_cycle = 'monthly' and pr.active_until is null
        and pr.campaign_code is null limit 1`;
   assert.ok(catalog, 'catálogo 2026 ausente na cadeia');
-  await sql`insert into public.subscriptions (clinic_id, plan_id, price_id, billing_status, trial_ends_at, enforce_trial_deadline, billing_provider)
-    values (${clinicId}::uuid, ${catalog.plan_id}::uuid, ${catalog.price_id}::uuid, 'trial', now() + interval '14 days', true, 'abacatepay')`;
+  const [sub] = await sql`insert into public.subscriptions (clinic_id, plan_id, price_id, billing_status, trial_ends_at, enforce_trial_deadline, billing_provider)
+    values (${clinicId}::uuid, ${catalog.plan_id}::uuid, ${catalog.price_id}::uuid, 'trial', now() + interval '14 days', true, 'abacatepay')
+    returning id`;
   const [policy] = await sql`select released_at from public.trial_access_policies where clinic_id = ${clinicId}::uuid`;
   assert.ok(policy && policy.released_at === null, 'a assinatura nova deveria entrar no trial com limites');
-  await sql`insert into public.hi_clinic_settings (clinic_id, enabled, enabled_at, enabled_by, provider_kind, cnes_status)
-    values (${clinicId}::uuid, true, now(), ${SYS}, 'PJ', 'none_declared')`;
-  const [ins] = await sql`insert into public.hi_insurers
-      (clinic_id, name, registro_ans, provider_id_kind, provider_id_value, status, created_by)
-    values (${clinicId}::uuid, 'Operadora Um', '123456', 'codigoPrestadorNaOperadora', 'TESTE001', 'active', ${SYS}::uuid) returning id`;
-  await sql`insert into public.hi_professional_profiles (clinic_id, professional_id, council, council_number, council_uf, cbo)
-    values (${clinicId}::uuid, ${ownerId}::uuid, '06', '12345', '35', '225125')`;
+  const denial = (feature: string) =>
+    withTenant(clinicId, async (tx) =>
+      ((await tx.execute(dsql`select public.qoro_premium_denial(${clinicId}::uuid, ${feature}) as d`)) as unknown as Array<{ d: string | null }>)[0]!.d);
   const [proc] = await sql`insert into public.procedures (clinic_id, codigo, descricao, valor_padrao, duracao_padrao_min, ativo)
     values (${clinicId}::uuid, 'CONS', 'Consulta sintética', 150, 30, true) returning id`;
-  await sql`insert into public.hi_procedure_contracts
-      (clinic_id, insurer_id, guide_type, table_code, procedure_code, description, procedure_id,
-       unit_value_cents, valid_from, copay_kind, copay_percentage, created_by)
-    values (${clinicId}::uuid, ${ins!.id}::uuid, 'consulta', '22', '10101012', 'Consulta em consultório',
-      ${proc!.id}::uuid, 15000, '2026-01-01', 'percentage', 30, ${SYS}::uuid)`;
-  await sql`insert into public.tiss_terminology_versions (version, archive_url, archive_sha256, manifest_sha256)
-    values ('202609', 'https://example.invalid/tuss.zip', ${'a'.repeat(64)}, ${'b'.repeat(64)}) on conflict (version) do nothing`;
+  const enableInsurance = async () => {
+    await sql`insert into public.hi_clinic_settings (clinic_id, enabled, enabled_at, enabled_by, provider_kind, cnes_status)
+      values (${clinicId}::uuid, true, now(), ${SYS}, 'PJ', 'none_declared')
+      on conflict (clinic_id) do update set enabled = true, enabled_at = now(), enabled_by = ${SYS}`;
+  };
+  const premiumBlocked = (reason: string) => (e: unknown) => {
+    const err = e as { code?: string; constraint_name?: string; detail?: string };
+    assert.deepEqual([err.code, err.constraint_name, err.detail], ['23514', 'qoro_premium_health_insurance', reason]);
+    return true;
+  };
+  const trialBlocked = (feature: string) => (e: unknown) => {
+    const err = e as { code?: string; constraint_name?: string };
+    assert.deepEqual([err.code, err.constraint_name], ['23514', `qoro_trial_limit_${feature}`]);
+    return true;
+  };
   let slot = 0;
-  const visit = async (mode: 'particular' | 'convenio') => {
+  const newPatient = async () => {
     slot += 1;
     const [p] = await sql`insert into public.patients (clinic_id, nome, cpf_encrypted, cpf_hash)
       values (${clinicId}::uuid, ${`Paciente ${slot}`}, 'ciphertext-de-teste', ${`hash-${randomUUID()}`}) returning id`;
-    const [card] = await sql`insert into public.hi_memberships
-        (clinic_id, patient_id, insurer_id, card_number_encrypted, card_number_hash, card_last4, created_by)
-      values (${clinicId}::uuid, ${p!.id}::uuid, ${ins!.id}::uuid, 'AQAAAAAAAAAAAAAAAAAAAAAAAAAAAA==', ${randomUUID().replace(/-/g, '').padEnd(64, '0')}, '9876', ${SYS}::uuid) returning id`;
+    return p!.id as string;
+  };
+  const newAppointment = async (patientId: string) => {
+    slot += 1;
     const [a] = await sql`insert into public.appointments (
         clinic_id, doctor_id, patient_id, procedure_id, scheduled_at, duration_min, status, valor,
         snapshot_procedure_name, snapshot_procedure_valor, snapshot_procedure_duracao_min, snapshot_doctor_nome, created_via)
-      values (${clinicId}::uuid, ${ownerId}::uuid, ${p!.id}::uuid, ${proc!.id}::uuid,
+      values (${clinicId}::uuid, ${ownerId}::uuid, ${patientId}::uuid, ${proc!.id}::uuid,
         '2026-11-12T12:00:00Z'::timestamptz + ${slot} * interval '1 hour', 30, 'agendado', 150,
         'Consulta', 150, 30, 'Profissional sintético', 'attendant') returning id`;
-    const v = { appointmentId: a!.id as string, patientId: p!.id as string, cardId: card!.id as string };
-    if (mode === 'convenio') {
-      await sql`update public.appointments set billing_mode = 'convenio' where id = ${v.appointmentId}::uuid`;
-      await withTenant(clinicId, (tx) => recordAppointmentCoverage(tx, {
-        clinicId, appointmentId: v.appointmentId, patientId: v.patientId, procedureId: proc!.id as string,
-        appointmentDate: '2026-11-12', guideType: 'consulta', insurerId: ins!.id as string, planId: null,
-        membershipId: v.cardId, authorizationId: null, actor: { kind: 'user', userId: ownerId },
-      }), ownerId);
-    }
-    return v;
+    return a!.id as string;
   };
-  const complete = async (v: { appointmentId: string; patientId: string }) => {
-    await sql`update public.appointments set status = 'em_atendimento' where id = ${v.appointmentId}::uuid`;
+  const complete = async (appointmentId: string, patientId: string) => {
+    await sql`update public.appointments set status = 'em_atendimento' where id = ${appointmentId}::uuid`;
     await sql`insert into public.prontuarios (clinic_id, patient_id, doctor_id, appointment_id, status, signed_at, signed_by, content_encrypted)
-      values (${clinicId}::uuid, ${v.patientId}::uuid, ${ownerId}::uuid, ${v.appointmentId}::uuid, 'assinado', now(), ${ownerId}::uuid, 'ciphertext-sintetico')`;
+      values (${clinicId}::uuid, ${patientId}::uuid, ${ownerId}::uuid, ${appointmentId}::uuid, 'assinado', now(), ${ownerId}::uuid, 'ciphertext-sintetico')`;
     await withTenant(clinicId, (tx) => applyTransition(tx, {
-      clinicId, appointmentId: v.appointmentId, target: 'atendido', transitionedBy: ownerId, actorType: 'user',
-      clientKey: `concluir-${v.appointmentId}`, correlationId: null,
+      clinicId, appointmentId, target: 'atendido', transitionedBy: ownerId, actorType: 'user',
+      clientKey: `concluir-${appointmentId}`, correlationId: null,
     }), ownerId);
     for (let i = 0; i < 6; i++) await runOutboxOnce({ batchSize: 50, parallelism: 1 });
   };
@@ -168,24 +172,114 @@ try {
         where clinic_id = ${clinicId}::uuid and metric = 'receivables'), 0)::int as n`)[0] as { n: number }).n;
   const lanc = async (id: string) =>
     sql`select valor::text as valor from public.lancamentos where appointment_id = ${id}::uuid and tipo = 'receber'`;
+  const tissRows = async () =>
+    ((await sql`select ((select count(*) from public.hi_clinic_settings where clinic_id = ${clinicId}::uuid)
+        + (select count(*) from public.hi_appointment_coverages where clinic_id = ${clinicId}::uuid)
+        + (select count(*) from public.hi_copayments where clinic_id = ${clinicId}::uuid)
+        + (select count(*) from public.hi_guides where clinic_id = ${clinicId}::uuid))::int as n`)[0] as { n: number }).n;
 
-  // ── 3. Trial: particular igual; convênio não consome recebível ───────
-  const vPart = await visit('particular');
+  // ── 3. Trial: Convênios, Asaas e WhatsApp (canal do Agente de IA) barrados ──
+  for (const feature of ['health_insurance', 'patient_charges', 'ai_agents']) {
+    assert.equal(await denial(feature), 'trial');
+  }
+  await assert.rejects(enableInsurance, premiumBlocked('trial'));
+  const pTrial = await newPatient();
+  const aTrial = await newAppointment(pTrial);
+  await assert.rejects(
+    () => sql`update public.appointments set billing_mode = 'convenio' where id = ${aTrial}::uuid`,
+    premiumBlocked('trial'),
+  );
+  await assert.rejects(
+    () => sql`insert into public.clinic_payment_accounts (clinic_id, api_key_encrypted, api_key_hash, active, connected_at)
+      values (${clinicId}::uuid, 'ciphertext-sintetico', ${'c'.repeat(64)}, true, now())`,
+    trialBlocked('asaas'),
+  );
+  await assert.rejects(
+    () => sql`insert into public.clinic_whatsapp_numbers (clinic_id, phone_number, meta_phone_id, token_encrypted, active)
+      values (${clinicId}::uuid, '+5500000000000', 'phone-sintetico', 'ciphertext-sintetico', true)`,
+    trialBlocked('whatsapp'),
+  );
+  assert.equal(await tissRows(), 0);
+  pass('clínica em trial (política do #53): a decisão central nega Convênios, cobrança e IA; o módulo não liga e o atendimento não vira convênio; os gatilhos do #53 barram conectar Asaas e WhatsApp (canal do Agente de IA)');
+
+  // ── 4. Particular no trial igual ao #53 ──────────────────────────────
   const r0 = await receivablesUsed();
-  await complete(vPart);
-  assert.deepEqual([(await lanc(vPart.appointmentId)).map((l) => l.valor), await receivablesUsed()], [['150.00'], r0 + 1]);
-  const vConv = await visit('convenio');
-  const r1 = await receivablesUsed();
-  await complete(vConv);
-  const [guide] = await sql`select status from public.hi_guides where idempotency_key = ${`appointment:${vConv.appointmentId}:consulta`}`;
-  assert.deepEqual([guide!.status, (await lanc(vConv.appointmentId)).length, await receivablesUsed()], ['ready_for_review', 0, r1]);
-  pass('clínica em trial: particular gera o recebível de R$ 150 e consome 1 do limite, como no #53; convênio gera a guia, nenhum recebível e não consome o limite de recebíveis');
+  await complete(aTrial, pTrial);
+  assert.deepEqual([(await lanc(aTrial)).map((l) => l.valor), await receivablesUsed()], [['150.00'], r0 + 1]);
+  pass('particular no trial: recebível de R$ 150 e 1 da cota consumida, exatamente como no #53');
 
-  // ── 4. A rede do convênio recusa ANTES do gatilho do trial ───────────
-  const r2 = await receivablesUsed();
+  // ── 5. R33: no limite do trial não existe coparticipação ─────────────
+  await sql`update public.trial_resource_usage set consumed = 15 where clinic_id = ${clinicId}::uuid and metric = 'receivables'`;
+  await assert.rejects(enableInsurance, premiumBlocked('trial'));
+  const pLimit = await newPatient();
+  const aLimit = await newAppointment(pLimit);
+  await assert.rejects(
+    () => sql`update public.appointments set billing_mode = 'convenio' where id = ${aLimit}::uuid`,
+    premiumBlocked('trial'),
+  );
+  const [{ consumed }] = (await sql`select consumed from public.trial_resource_usage
+    where clinic_id = ${clinicId}::uuid and metric = 'receivables'`) as unknown as [{ consumed: number }];
+  assert.deepEqual([consumed, await tissRows()], [15, 0]);
+  pass('R33 resolvido pela regra comercial: no limite de 15 recebíveis do trial não há convênio, logo não há coparticipação presa; o limite não muda (sem exceção) e nenhuma linha de Convênios existe');
+
+  // ── 6. "Ativa" sem pagamento verificado continua negada ──────────────
+  await sql`update public.subscriptions set billing_status = 'active' where clinic_id = ${clinicId}::uuid`;
+  assert.equal(await denial('health_insurance'), 'payment_pending');
+  await assert.rejects(enableInsurance, premiumBlocked('payment_pending'));
+  pass('assinatura marcada ativa SEM a liberação do #53 (fatura paga verificada): Convênios continua negado ("pagamento pendente")');
+
+  // ── 7. Pagamento verificado: liberação do #53 e Convênios funcionando ─
+  const [invoice] = await sql`insert into public.invoices (clinic_id, subscription_id, total_amount, status, due_date, paid_at)
+    values (${clinicId}::uuid, ${sub!.id}::uuid, '199.00', 'paid', current_date, now()) returning id`;
+  // Mesmo UPDATE de `releaseTrialAfterVerifiedPaymentTx` (#53, src/lib/trial-access): só fatura paga > 0 libera.
+  await sql`UPDATE public.trial_access_policies AS policy
+       SET released_at = now(), released_by_invoice_id = invoice.id, updated_at = now()
+      FROM public.invoices AS invoice
+     WHERE policy.clinic_id = ${clinicId}::uuid AND policy.released_at IS NULL
+       AND invoice.id = ${invoice!.id}::uuid AND invoice.clinic_id = policy.clinic_id
+       AND invoice.subscription_id = policy.subscription_id
+       AND invoice.status = 'paid' AND invoice.paid_at IS NOT NULL AND invoice.total_amount > 0`;
+  for (const feature of ['health_insurance', 'patient_charges', 'ai_agents']) {
+    assert.equal(await denial(feature), null);
+  }
+  await enableInsurance();
+  const [ins] = await sql`insert into public.hi_insurers
+      (clinic_id, name, registro_ans, provider_id_kind, provider_id_value, status, created_by)
+    values (${clinicId}::uuid, 'Operadora Um', '123456', 'codigoPrestadorNaOperadora', 'TESTE001', 'active', ${SYS}::uuid) returning id`;
+  await sql`insert into public.hi_professional_profiles (clinic_id, professional_id, council, council_number, council_uf, cbo)
+    values (${clinicId}::uuid, ${ownerId}::uuid, '06', '12345', '35', '225125')`;
+  await sql`insert into public.hi_procedure_contracts
+      (clinic_id, insurer_id, guide_type, table_code, procedure_code, description, procedure_id,
+       unit_value_cents, valid_from, copay_kind, copay_percentage, created_by)
+    values (${clinicId}::uuid, ${ins!.id}::uuid, 'consulta', '22', '10101012', 'Consulta em consultório',
+      ${proc!.id}::uuid, 15000, '2026-01-01', 'percentage', 30, ${SYS}::uuid)`;
+  await sql`insert into public.tiss_terminology_versions (version, archive_url, archive_sha256, manifest_sha256)
+    values ('202609', 'https://example.invalid/tuss.zip', ${'a'.repeat(64)}, ${'b'.repeat(64)}) on conflict (version) do nothing`;
+  const pConv = await newPatient();
+  const [card] = await sql`insert into public.hi_memberships
+      (clinic_id, patient_id, insurer_id, card_number_encrypted, card_number_hash, card_last4, created_by)
+    values (${clinicId}::uuid, ${pConv}::uuid, ${ins!.id}::uuid, 'AQAAAAAAAAAAAAAAAAAAAAAAAAAAAA==', ${randomUUID().replace(/-/g, '').padEnd(64, '0')}, '9876', ${SYS}::uuid) returning id`;
+  const aConv = await newAppointment(pConv);
+  await sql`update public.appointments set billing_mode = 'convenio' where id = ${aConv}::uuid`;
+  await withTenant(clinicId, (tx) => recordAppointmentCoverage(tx, {
+    clinicId, appointmentId: aConv, patientId: pConv, procedureId: proc!.id as string,
+    appointmentDate: '2026-11-12', guideType: 'consulta', insurerId: ins!.id as string, planId: null,
+    membershipId: card!.id as string, authorizationId: null, actor: { kind: 'user', userId: ownerId },
+  }), ownerId);
+  await complete(aConv, pConv);
+  const [guide] = await sql`select status from public.hi_guides where idempotency_key = ${`appointment:${aConv}:consulta`}`;
+  assert.deepEqual([guide?.status, (await lanc(aConv)).length], ['ready_for_review', 0]);
+  const [cp] = await sql`select id from public.hi_copayments where appointment_id = ${aConv}::uuid`;
+  await withTenant(clinicId, (tx) => checkCopay(tx, { clinicId, copaymentId: cp!.id as string, checkedCents: 4500, actorUserId: ownerId }), ownerId);
+  await withTenant(clinicId, (tx) => confirmCopay(tx, { clinicId, copaymentId: cp!.id as string, confirmedCents: 4500, chargeableCents: 4500, actorUserId: ownerId, procedureName: 'Consulta' }), ownerId);
+  for (let i = 0; i < 4; i++) await runOutboxOnce({ batchSize: 50, parallelism: 1 });
+  assert.deepEqual((await lanc(aConv)).map((l) => l.valor), ['45.00']);
+  pass('pagamento verificado (fatura paga libera a política do #53): os 3 recursos liberados; Convênios liga, guia automática, coparticipação confirmada vira recebível de R$ 45 (nunca R$ 150), sem cota de trial');
+
+  // ── 8. A rede da 0148 segue valendo na clínica paga ──────────────────
   await assert.rejects(
     () => sql`insert into public.lancamentos (clinic_id, tipo, descricao, valor, status, due_date, patient_id, appointment_id, created_via)
-      values (${clinicId}::uuid, 'receber', 'Consulta', '150.00', 'pendente', current_date, ${vConv.patientId}::uuid, ${vConv.appointmentId}::uuid, 'manual')`,
+      values (${clinicId}::uuid, 'receber', 'Consulta', '150.00', 'pendente', current_date, ${pConv}::uuid, ${aConv}::uuid, 'manual')`,
     (e: unknown) => {
       const err = e as { code?: string; message?: string };
       assert.equal(err.code, '23514');
@@ -193,32 +287,10 @@ try {
       return true;
     },
   );
-  assert.equal(await receivablesUsed(), r2);
-  pass('recebível cheio de convênio recusado pela rede da 0148 antes do gatilho do trial: nada consumido');
+  pass('clínica paga: recebível cheio de convênio continua recusado pela rede da 0148');
 
-  // ── 5 e 6. Coparticipação confirmada no trial ────────────────────────
-  const confirm = async (appointmentId: string) => {
-    const [cp] = await sql`select id from public.hi_copayments where appointment_id = ${appointmentId}::uuid`;
-    await withTenant(clinicId, (tx) => checkCopay(tx, { clinicId, copaymentId: cp!.id as string, checkedCents: 4500, actorUserId: ownerId }), ownerId);
-    await withTenant(clinicId, (tx) => confirmCopay(tx, { clinicId, copaymentId: cp!.id as string, confirmedCents: 4500, chargeableCents: 4500, actorUserId: ownerId, procedureName: 'Consulta' }), ownerId);
-    for (let i = 0; i < 4; i++) await runOutboxOnce({ batchSize: 50, parallelism: 1 });
-  };
-  const r3 = await receivablesUsed();
-  await confirm(vConv.appointmentId);
-  assert.deepEqual([(await lanc(vConv.appointmentId)).map((l) => l.valor), await receivablesUsed()], [['45.00'], r3 + 1]);
-  pass('coparticipação confirmada: recebível de R$ 45 (nunca R$ 150), que conta no limite de recebíveis do trial (política do #53)');
-
-  const vLimit = await visit('convenio');
-  await complete(vLimit);
-  await sql`update public.trial_resource_usage set consumed = 15 where clinic_id = ${clinicId}::uuid and metric = 'receivables'`;
-  await confirm(vLimit.appointmentId);
-  const [ev] = await sql`select status, attempts, error_code from public.outbox
-    where event_type = 'health_insurance.copay.confirmed' and payload->>'appointmentId' = ${vLimit.appointmentId} `;
-  const [cpLimit] = await sql`select status from public.hi_copayments where appointment_id = ${vLimit.appointmentId}::uuid`;
-  assert.deepEqual([(await lanc(vLimit.appointmentId)).length, ev!.status !== 'processed', ev!.attempts > 0, cpLimit!.status], [0, true, true, 'confirmed']);
-  pass(`no limite do trial, o recebível da coparticipação é barrado pelo #53: nenhum lançamento parcial, a coparticipação fica confirmada e o evento fica para retentativa (estado ${ev!.status}, ${ev!.attempts} tentativa(s)) — risco registrado para a política de trial`);
-
-  console.log(`\nOK — ${passed}/6 provas da cadeia unida (main + #53 ${REF} + #55) em Postgres descartável.`);
+  console.log(`\nOK — ${passed}/8 provas da cadeia unida (main + #53 ${REF} + #55) em Postgres descartável.`);
+  assert.equal(passed, 8);
 } finally {
   await cluster.stop();
 }

@@ -1,0 +1,8 @@
+# health-insurance-guide-issuance-db.ts — Postgres 17 descartável; árvore de trabalho sobre 6b101e89 (código do ciclo D24, ver README)
+PASS: emissão: monta, valida, cifra (sem a carteirinha em claro no banco) e aprova; o leitor auditado decifra e o SHA-256 confere
+PASS: duas emissões simultâneas da mesma guia: uma aprova, a outra falha inteira (nenhum snapshot órfão)
+PASS: validação TISS reprovada (CBO fora da terminologia; o 999999 já é barrado no cadastro pela 0144): nada é emitido, a guia segue conferida, com as pendências devolvidas
+PASS: reabertura e nova emissão: revisão 2 cifrada e aprovada; a revisão 1 continua no histórico
+PASS: snapshot adulterado (por superusuário, com o gatilho desligado): o leitor recusa e registra a falha de integridade
+PASS: outra clínica não lê (negado e registrado na clínica de quem tentou); a auditoria nunca leva carteirinha nem hash
+OK: 6 provas da emissão com snapshot cifrado sobre o schema real

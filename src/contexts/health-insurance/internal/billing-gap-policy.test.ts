@@ -16,6 +16,7 @@ const base: BillingFacts = {
   hasPatient: true,
   hasProcedure: true,
   moduleEnabled: true,
+  premiumDenial: null,
   coverage: { id: 'c1', status: 'ready', guideType: 'consulta' },
   guides: [],
 };
@@ -113,6 +114,43 @@ describe('decideBilling (P7.4)', () => {
   it('dados completos e sem guia: cria; se a criação não resultou em guia, pendência (sem laço)', () => {
     expect(decideBilling(base)).toEqual({ action: 'create_guide' });
     expect(gapOf(base, { createTried: true }).reason).toBe('coverage_incomplete');
+  });
+});
+
+describe('decideBilling — bloqueio comercial (D24)', () => {
+  it.each(['trial', 'trial_expired', 'no_subscription', 'payment_pending', 'clinic_suspended', 'subscription_cancelled', 'plan_excludes'] as const)(
+    '%s: nenhuma guia criada nem reavaliada; pendência automática do gestor, com a mensagem comercial',
+    (premiumDenial) => {
+      const create = gapOf({ ...base, premiumDenial });
+      expect([create.reason, create.owner, create.recovery, create.guideId]).toEqual([
+        'subscription_inactive',
+        'gestor',
+        'automatic',
+        null,
+      ]);
+      expect(create.issues[0]!.code).toBe('SUBSCRIPTION_INACTIVE');
+      expect(create.issues[0]!.message).not.toMatch(/sql|constraint|23514/i);
+      const pending = gapOf({ ...base, premiumDenial, guides: [guide({ status: 'pending_data' })] });
+      expect([pending.reason, pending.guideId]).toEqual(['subscription_inactive', 'g1']);
+    },
+  );
+
+  it('guia já pronta fecha a pendência mesmo com a assinatura inativa (não é operação nova)', () => {
+    expect(decideBilling({ ...base, premiumDenial: 'subscription_cancelled', guides: [guide()] })).toEqual({
+      action: 'close_guide_ready',
+      guideId: 'g1',
+    });
+  });
+
+  it('particular e atendimento não concluído não dependem da assinatura', () => {
+    expect(decideBilling({ ...base, billingMode: 'particular', premiumDenial: 'trial' })).toEqual({ action: 'ignore' });
+    expect(decideBilling({ ...base, appointmentStatus: 'cancelado', premiumDenial: 'trial' })).toEqual({
+      action: 'close_not_applicable',
+    });
+  });
+
+  it('regularizada (premiumDenial null), a mesma situação cria a guia', () => {
+    expect(decideBilling(base)).toEqual({ action: 'create_guide' });
   });
 });
 

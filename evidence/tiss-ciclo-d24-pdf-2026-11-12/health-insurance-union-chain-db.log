@@ -1,0 +1,10 @@
+# health-insurance-union-chain-db.ts — Postgres 17 descartável; árvore de trabalho sobre 6b101e89 (código do ciclo D24, ver README)
+PASS: cadeia unida aplica inteira no Postgres 17: 152 migrations (0000–0151), 0136–0142 do #53 em e8309aee, prefixos contíguos; 122 marcas de versão
+PASS: gatilhos convivem: trial do #53 (AFTER INSERT), convênio e bloqueio comercial (BEFORE) em appointments e lancamentos
+PASS: clínica em trial (política do #53): a decisão central nega Convênios, cobrança e IA; o módulo não liga e o atendimento não vira convênio; os gatilhos do #53 barram conectar Asaas e WhatsApp (canal do Agente de IA)
+PASS: particular no trial: recebível de R$ 150 e 1 da cota consumida, exatamente como no #53
+PASS: R33 resolvido pela regra comercial: no limite de 15 recebíveis do trial não há convênio, logo não há coparticipação presa; o limite não muda (sem exceção) e nenhuma linha de Convênios existe
+PASS: assinatura marcada ativa SEM a liberação do #53 (fatura paga verificada): Convênios continua negado ("pagamento pendente")
+PASS: pagamento verificado (fatura paga libera a política do #53): os 3 recursos liberados; Convênios liga, guia automática, coparticipação confirmada vira recebível de R$ 45 (nunca R$ 150), sem cota de trial
+PASS: clínica paga: recebível cheio de convênio continua recusado pela rede da 0148
+OK — 8/8 provas da cadeia unida (main + #53 e8309aee + #55) em Postgres descartável.

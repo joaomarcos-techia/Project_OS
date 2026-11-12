@@ -27,6 +27,7 @@ import 'server-only';
 import { and, eq, inArray, lt, max, notInArray } from 'drizzle-orm';
 
 import type { Tx } from '@/lib/db';
+import { assertPremiumFeatureTx } from '@/lib/premium-access';
 
 import {
   hiAuthorizations,
@@ -120,6 +121,8 @@ export async function createConsultaGuideForAppointment(
 ): Promise<ConsultaGuideOutcome> {
   const { clinicId, appointment: ap } = args;
   if (ap.billingMode !== 'convenio') return { kind: 'not_insurance' };
+  // D24: operação nova de Convênios só com assinatura paga e ativa (o banco confere de novo).
+  await assertPremiumFeatureTx(tx, clinicId, 'health_insurance');
 
   const [settings] = await tx
     .select()
@@ -514,6 +517,8 @@ export async function refreshConsultaGuide(
   },
 ): Promise<ConsultaRefreshOutcome> {
   const { clinicId, appointment: ap } = args;
+  // D24: operação nova de Convênios só com assinatura paga e ativa (o banco confere de novo).
+  await assertPremiumFeatureTx(tx, clinicId, 'health_insurance');
   const [guide] = await tx
     .select({
       id: hiGuides.id,
