@@ -32,6 +32,7 @@ const { createAbacatePayTransport } = await import('../../src/lib/payments/abaca
 const { GatewayReadError } = await import('../../src/lib/payments/saas/contracts');
 const {
   createPersistentAbacatePayStatementReader: reader,
+  createPersistentAbacatePayRefundReader: refundReader,
   advanceAbacatePayStatementScans: advance,
   AbacatePayStatementScanPending: Pending,
 } = await import('../../src/contexts/billing/internal/abacatepay-statement-scan');
@@ -46,6 +47,8 @@ const checks: string[] = [],
   latencies: number[] = [];
 let failure: unknown;
 let mode: 'ok' | 'unavailable' | 'rate_limit' | 'loop' | 'fence' = 'ok';
+let adjustmentReversed = false;
+let adjustmentForeignCustomer = false;
 let records: Statement[] = Array.from({ length: 10_000 }, (_, i) => ({
   id: `tran_${String(i).padStart(6, '0')}`,
   currency: 'BRL',
@@ -78,7 +81,22 @@ const fetcher: typeof fetch = async (input, init) => {
   const start = url.searchParams.get('startDate'),
     end = url.searchParams.get('endDate');
   assert.ok(start && end);
-  const filtered = records.filter((r) => {
+  const source = url.searchParams.has('method')
+    ? records
+    : records.map((r) => ({
+        ...r,
+        customer:
+          adjustmentForeignCustomer && r.id === 'tran_009999'
+            ? { publicId: 'cust_foreign' }
+            : r.customer,
+        movements: [
+          { amount: 39700, category: 'refund', balanceEffect: 'debit' },
+          ...(adjustmentReversed && r.id === 'tran_009999'
+            ? [{ amount: 39700, category: 'reversal', balanceEffect: 'credit' }]
+            : []),
+        ],
+      }));
+  const filtered = source.filter((r) => {
     const day = new Date(Date.parse(r.createdAt) - 3 * 3600_000).toISOString().slice(0, 10);
     return day >= start && day <= end;
   });
@@ -325,6 +343,165 @@ try {
         )?.paymentId,
         'char_backfill',
       );
+    },
+  );
+  await check('partial adjustment cache cannot prove a refund beyond 500 records', async () => {
+    const c = criteria(9999);
+    await assert.rejects(
+      refundReader(dbAdmin, account)(request, {
+        checkoutId: c.checkoutId,
+        customerId: c.customerId,
+        expectedAmountMinor: c.expectedAmountMinor,
+        windowStart: c.periodStart,
+        windowEnd: c.periodEnd,
+        requireCustomer: true,
+      }),
+      Pending,
+    );
+    const [progress] = await pg`SELECT rows_scanned::int n FROM billing_gateway.statement_scans
+      WHERE purpose='adjustments'`;
+    assert.equal(progress?.n, 200);
+  });
+  await check(
+    'durable adjustment scan reaches the 10000th refund without borrowing card proof',
+    async () => {
+      await drain();
+      const c = criteria(9999);
+      const result = await refundReader(dbAdmin, account)(request, {
+        checkoutId: c.checkoutId,
+        customerId: c.customerId,
+        expectedAmountMinor: c.expectedAmountMinor,
+        windowStart: c.periodStart,
+        windowEnd: c.periodEnd,
+        requireCustomer: true,
+      });
+      assert.deepEqual(result, {
+        refundDebitMinor: 39700,
+        reversalObserved: false,
+        evidenceLevel: 'refund_debit_verified',
+      });
+      const [purposes] =
+        await pg`SELECT count(DISTINCT purpose)::int n,count(*) FILTER(WHERE conflict)::int conflicts
+      FROM billing_gateway.statement_scan_items WHERE statement_id='tran_009999'`;
+      assert.deepEqual(purposes, { n: 2, conflicts: 0 });
+      assert.equal((await reader(dbAdmin, account)(request, c))?.amountMinor, 39700);
+    },
+  );
+  await check(
+    'card and adjustment partitions both progress under the shared worker budget',
+    async () => {
+      await pg`UPDATE billing_gateway.statement_scans SET completed_at=now()-interval '61 seconds',
+      full_completed_at=now()-interval '16 minutes' WHERE month_start='2026-01-01'`;
+      const c = criteria(9999);
+      await assert.rejects(reader(dbAdmin, account)(request, c), Pending);
+      await assert.rejects(
+        refundReader(dbAdmin, account)(request, {
+          checkoutId: c.checkoutId,
+          customerId: c.customerId,
+          expectedAmountMinor: c.expectedAmountMinor,
+          windowStart: c.periodStart,
+          windowEnd: c.periodEnd,
+          requireCustomer: true,
+        }),
+        Pending,
+      );
+      await advance(dbAdmin, account, request, { maxPages: 2 });
+      const jobs = await pg`SELECT purpose,rows_scanned::int n FROM billing_gateway.statement_scans
+      WHERE month_start='2026-01-01' ORDER BY purpose`;
+      assert.equal(jobs.length, 2);
+      assert.ok(
+        jobs.every((j) => j.n >= 300),
+        'Each purpose must receive a page before either monopolizes the store',
+      );
+      await drain();
+    },
+  );
+  await check(
+    'fresh adjustment observations can record a reversal without mutating card receipt evidence',
+    async () => {
+      adjustmentReversed = true;
+      await pg`UPDATE billing_gateway.statement_scans SET completed_at=now()-interval '61 seconds',
+      full_completed_at=now()-interval '16 minutes' WHERE purpose='adjustments'`;
+      const c = criteria(9999),
+        input = {
+          checkoutId: c.checkoutId,
+          customerId: c.customerId,
+          expectedAmountMinor: c.expectedAmountMinor,
+          windowStart: c.periodStart,
+          windowEnd: c.periodEnd,
+          requireCustomer: true,
+        };
+      await assert.rejects(refundReader(dbAdmin, account)(request, input), Pending);
+      await drain();
+      assert.deepEqual(await refundReader(dbAdmin, account)(request, input), {
+        refundDebitMinor: 39700,
+        reversalObserved: true,
+        evidenceLevel: 'status_only',
+      });
+      assert.equal((await reader(dbAdmin, account)(request, c))?.paymentId, 'char_9999');
+    },
+  );
+  await check('adjustment evidence cannot cross customers or purposes', async () => {
+    const c = criteria(9999);
+    await assert.rejects(
+      refundReader(dbAdmin, account)(request, {
+        checkoutId: c.checkoutId,
+        customerId: 'cust_foreign',
+        expectedAmountMinor: c.expectedAmountMinor,
+        windowStart: c.periodStart,
+        windowEnd: c.periodEnd,
+        requireCustomer: true,
+      }),
+      { code: 'binding_mismatch' },
+    );
+    const [scan] = await pg`SELECT id,account_id,generation FROM billing_gateway.statement_scans
+      WHERE purpose='adjustments' LIMIT 1`;
+    assert.ok(scan);
+    await assert.rejects(
+      pg.begin(async (tx) => {
+        await tx`INSERT INTO billing_gateway.statement_scan_items(account_id,purpose,statement_id,scan_id,seen_generation,
+        checkout_id,statement_created_at,fingerprint,payload)
+        VALUES(${scan.account_id}::uuid,'card_approved','tran_cross_purpose',${scan.id}::uuid,${scan.generation}::uuid,
+          NULL,now(),${'a'.repeat(64)},${tx.json({ id: 'tran_cross_purpose', checkoutId: null })})`;
+      }),
+      { code: '23503' },
+    );
+  });
+  await check(
+    'changed adjustment identity is quarantined and cannot poison approved-card evidence',
+    async () => {
+      adjustmentForeignCustomer = true;
+      await pg`UPDATE billing_gateway.statement_scans SET completed_at=now()-interval '61 seconds',
+      full_completed_at=now()-interval '16 minutes' WHERE purpose='adjustments'`;
+      const c = criteria(9999),
+        input = {
+          checkoutId: c.checkoutId,
+          customerId: c.customerId,
+          expectedAmountMinor: c.expectedAmountMinor,
+          windowStart: c.periodStart,
+          windowEnd: c.periodEnd,
+          requireCustomer: true,
+        };
+      await assert.rejects(refundReader(dbAdmin, account)(request, input), Pending);
+      let conflicts = 0,
+        complete = false;
+      for (let attempt = 0; attempt < 20; attempt++) {
+        const result = await advance(dbAdmin, account, request, { maxPages: 10 });
+        assert.equal(result.failed, 0);
+        conflicts += result.conflicts;
+        const [pending] =
+          await pg`SELECT count(*)::int n FROM billing_gateway.statement_scans WHERE state='pending'`;
+        if (pending?.n === 0) {
+          complete = true;
+          break;
+        }
+      }
+      assert.equal(complete, true);
+      assert.equal(conflicts, 1);
+      await assert.rejects(refundReader(dbAdmin, account)(request, input), {
+        code: 'binding_mismatch',
+      });
+      assert.equal((await reader(dbAdmin, account)(request, c))?.paymentId, 'char_9999');
     },
   );
   await check('minimal receipt cache has no names, email, document numbers or fees', async () => {

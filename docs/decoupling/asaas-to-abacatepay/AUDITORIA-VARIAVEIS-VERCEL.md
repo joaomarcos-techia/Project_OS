@@ -166,3 +166,9 @@ O scanner durável não exige variável nova na Vercel. Reutiliza a conta Sandbo
 `QORO_ABACATEPAY_SCALE_CONCURRENCY` ajusta somente o ensaio sintético local (inteiro 1–64, padrão 32); não cadastrar na Vercel. A carga não consulta o provedor nem mede quota ou custo do Redis. Nenhum valor secreto foi lido para este incremento. O projeto auxiliar foi inventariado com GET/list fixos; não repetir `vercel env run` para executar scripts locais.
 
 O snapshot TISS revisado passou a `233d225e0ddb1fe56ee3975471a4c0260454bec7`, até 0156. As referências anteriores a 0149/0154 são históricas. Isso não autoriza DDL compartilhado nem reserva o próximo número, pois existe trabalho posterior ainda em edição.
+
+Metadata conferida novamente em 12/11 às 19:52 UTC, com `decrypt=false`: os três overrides de chave/store/probe pertencem exatamente à branch financeira e ao target Preview; os dois nomes Redis estão no Preview geral. Nenhuma variável foi alterada. Redis está marcado como `sensitive`: o valor não é recuperável por leitura administrativa, por desenho da [Vercel](https://vercel.com/docs/environment-variables/sensitive-environment-variables). Não usar `env pull`, copiar segredo de Production ou diminuir essa proteção para testar. A prova funcional de transporte deve executar dentro do Preview com autenticação e escopo de fixture; é trabalho de engenharia pendente, não solicitação de senha ao founder. Presença de nomes não recebeu PASS de runtime.
+
+## Continuidade do inbox e scanner de estornos
+
+Não há nome novo de configuração. A mesma variável ABACATEPAY_SANDBOX_PROBE_PRODUCT_ID já auditada é obrigatória para atestar o modo antes da varredura global; ausência, id divergente ou devMode=false interrompem o lote antes do extrato. Isso evita confiar apenas no id de loja. Não cadastrar a chave live nessa branch nem relaxar a atestação. O snapshot SQL revisado avançou até0158/120e8195; o candidato permanece fora do journal e não aplicado.

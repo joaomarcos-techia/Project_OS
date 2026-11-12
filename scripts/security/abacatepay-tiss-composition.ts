@@ -16,7 +16,7 @@ const sha256 = (text: string) =>
 // Proposed ordering only; neither the number nor timestamp is reserved. The
 // current TISS journal contains future ordering timestamps, so its successor
 // is not presented as a creation date. Joint review must approve the final entry.
-const proposal = [151, 154, 155, 156].includes(proof.lastIndex)
+const proposal = [151, 154, 155, 156, 158].includes(proof.lastIndex)
   ? {
       idx: proof.lastIndex + 1,
       version: '7' as const,

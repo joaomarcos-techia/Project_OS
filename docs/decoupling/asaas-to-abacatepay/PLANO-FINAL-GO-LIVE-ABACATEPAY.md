@@ -1,5 +1,7 @@
 # Fechamento operacional da AbacatePay — 10/11/2026
 
+**Checkpoint mais recente: [preparação do scanner](#atualização-de-preparação--scanner-durável-1211) e [matriz G01–G28](MATRIZ-CENARIOS-E-TESTES.md).** Snapshot SQL revisado até0156; número financeiro não atribuído. Os registros anteriores abaixo são históricos. Production permanece NO-GO.
+
 ## Atualização de decisão — 12/11/2026
 
 Fonte corrente: [matriz única G01–G24](MATRIZ-CENARIOS-E-TESTES.md#matriz-única-g01g24--12112026), [relatório46](RELATORIO-HOMOLOGACAO-FINAL.md#46-atualização-da-cauda-tiss-para-0154--12112026). **NO-GO de Production.** O código novo corrige duas falhas de concorrência reproduzidas, adiciona contenção distribuída, backoff e batch limitado; não ativa a composição live nem supre os requisitos externos por inferência.
@@ -190,12 +192,12 @@ Fontes oficiais verificadas nesta rodada: [eventos de assinatura](https://docs.a
 
 ## Atualização de preparação — scanner durável, 12/11
 
-Este checkpoint substitui as referências anteriores à cauda 0154 e à recuperação apenas diária. O SQL financeiro continua fora do journal; foi ensaiado depois do snapshot TISS 233d225e0ddb1fe56ee3975471a4c0260454bec7, até 0156. A posição seguinte no pacote de laboratório é somente proposta descartável: há cauda TISS posterior em edição. Preflight e postflight executaram no PostgreSQL isolado, inclusive RLS forçada e ausência de grants de tenant/DELETE do serviço nas três tabelas privadas. O migrator real preservou as 144 entradas anteriores e as seis diferenças históricas conhecidas; a segunda execução não alterou o catálogo.
+Este checkpoint substitui as referências anteriores à cauda 0154 e à recuperação apenas diária. O SQL financeiro continua fora do journal; foi ensaiado depois do snapshot TISS 120e8195e4ad267a64157239cb9bc0c22b432033, até 0158. A posição seguinte no pacote de laboratório é somente proposta descartável: há cauda TISS posterior em edição. Preflight e postflight executaram no PostgreSQL isolado, inclusive RLS forçada e ausência de grants de tenant/DELETE do serviço nas três tabelas privadas. O migrator real preservou as 144 entradas anteriores e as seis diferenças históricas conhecidas; a segunda execução não alterou o catálogo.
 
 A busca CARD_APPROVED usa cursor persistido por loja/mês, geração e lease. O código preparado reutiliza o cron de minuto de outbox com até 35 segundos de recuperação; não altera a agenda externa. Sem schema, continua o fallback limitado. A composição precisa ser aplicada e testada em DEV somente após aprovação dos hashes finais e acordo da cauda TISS. Nenhum comando deste documento deve ser aplicado automaticamente em banco compartilhado.
 
 A recuperação de pagamentos antecipados agora inclui trial ainda vigente, sempre mediante comprovante integral e vínculo correto. Cache parcial nunca ativa assinatura. As provas locais não substituem renovação externa, comportamento pós-fechamento do checkout nem composição live. A modalidade de produção continua ausente e bloqueada; chave live configurada não a habilita.
 
-Antes do GO: conferir transporte/Redis no Preview sem nova compra, medir fila/HTTP do ambiente-alvo, fechar gates externos, revisar regras operacionais/backup e obter janela específica. O leitor de débitos de estorno/disputa ainda tem limite independente de cinco páginas; não alegar cobertura incremental de todo tipo financeiro. A remoção do projeto auxiliar requer aprovação própria e preflight recente; não é parte de um deploy financeiro.
+Antes do GO: conferir transporte/Redis no Preview sem nova compra, medir fila/HTTP do ambiente-alvo, fechar gates externos, revisar regras operacionais/backup e obter janela específica. Estornos usam agora checkpoints de finalidade própria; o limite de cinco páginas permanece apenas no fallback N-1. Disputas ainda exigem as provas externas apropriadas. A remoção do projeto auxiliar requer aprovação própria e preflight recente; não é parte de um deploy financeiro.
 
 A matriz corrente é [G01–G28](MATRIZ-CENARIOS-E-TESTES.md). **NO-GO de Production**: a engenharia remanescente não será transferida ao founder como teste manual. Não repetir as cinco compras nem Sentry/MFA já comprovados.

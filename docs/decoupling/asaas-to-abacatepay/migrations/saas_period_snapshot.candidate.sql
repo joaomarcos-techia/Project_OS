@@ -72,12 +72,15 @@ ALTER TABLE billing_gateway.recurring_payment_observations
     REFERENCES billing_gateway.renewal_api_readbacks(account_id,id,subscription_id,clinic_id,payment_id,statement_id)
     ON DELETE RESTRICT;
 
--- Shared, resumable CARD_APPROVED statement scan. Monthly partitions avoid a
+-- Shared, resumable statement scans. Purpose separates approved-card receipts
+-- from adjustment observations; neither stream can prove the other.
+-- Monthly partitions avoid a
 -- repeated store-wide scan for each tenant. No invoice or access is granted here.
 CREATE TABLE billing_gateway.statement_scans (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   account_id uuid NOT NULL REFERENCES billing_gateway.accounts(id) ON DELETE RESTRICT,
   month_start date NOT NULL CHECK (extract(day FROM month_start)=1),
+  purpose text NOT NULL DEFAULT 'card_approved' CHECK (purpose IN ('card_approved','adjustments')),
   generation uuid NOT NULL DEFAULT gen_random_uuid(),
   state text NOT NULL DEFAULT 'pending' CHECK (state IN ('pending','complete')),
   refresh_kind text NOT NULL DEFAULT 'full' CHECK (refresh_kind IN ('full','head')),
@@ -94,8 +97,8 @@ CREATE TABLE billing_gateway.statement_scans (
   started_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   last_error text CHECK (last_error IN ('unavailable','pagination_invalid','invalid_response','binding_mismatch')),
-  UNIQUE(account_id,month_start),
-  UNIQUE(id,account_id),
+  UNIQUE(account_id,month_start,purpose),
+  UNIQUE(id,account_id,purpose),
   CHECK ((lease_token IS NULL)=(lease_until IS NULL)),
   CHECK ((state='complete')=(completed_at IS NOT NULL))
 );
@@ -103,6 +106,7 @@ CREATE INDEX statement_scans_due_idx ON billing_gateway.statement_scans(account_
   WHERE state='pending';
 CREATE TABLE billing_gateway.statement_scan_items (
   account_id uuid NOT NULL,
+  purpose text NOT NULL DEFAULT 'card_approved' CHECK (purpose IN ('card_approved','adjustments')),
   statement_id text NOT NULL CHECK (statement_id ~ '^tran_[A-Za-z0-9_-]+$'),
   scan_id uuid NOT NULL,
   seen_generation uuid NOT NULL,
@@ -111,8 +115,8 @@ CREATE TABLE billing_gateway.statement_scan_items (
   fingerprint text NOT NULL CHECK (fingerprint ~ '^[a-f0-9]{64}$'),
   conflict boolean NOT NULL DEFAULT false,
   payload jsonb NOT NULL CHECK (jsonb_typeof(payload)='object'),
-  PRIMARY KEY(account_id,statement_id),
-  FOREIGN KEY(scan_id,account_id) REFERENCES billing_gateway.statement_scans(id,account_id) ON DELETE RESTRICT,
+  PRIMARY KEY(account_id,purpose,statement_id),
+  FOREIGN KEY(scan_id,account_id,purpose) REFERENCES billing_gateway.statement_scans(id,account_id,purpose) ON DELETE RESTRICT,
   CHECK (payload->>'id'=statement_id),
   CHECK ((payload->>'checkoutId') IS NOT DISTINCT FROM checkout_id)
 );

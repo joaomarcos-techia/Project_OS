@@ -2,11 +2,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   sandbox: true,
-  env: { ABACATEPAY_API_KEY: 'synthetic', ABACATEPAY_STORE_ID: 'store_synthetic' },
+  env: {
+    ABACATEPAY_API_KEY: 'synthetic',
+    ABACATEPAY_STORE_ID: 'store_synthetic',
+    ABACATEPAY_SANDBOX_PROBE_PRODUCT_ID: 'prod_probe',
+  },
   scan: vi.fn(),
   initial: vi.fn(),
   renewal: vi.fn(),
   transport: vi.fn(),
+  request: vi.fn(),
   emit: vi.fn(),
 }));
 vi.mock('@/lib/env', () => ({ env: mocks.env }));
@@ -36,8 +41,25 @@ beforeEach(() => {
   mocks.scan.mockResolvedValue({ pages: 3, failed: 0, deferred: false });
   mocks.renewal.mockResolvedValue(empty);
   mocks.initial.mockResolvedValue({ scanned: 0, applied: 0, review: 0 });
+  mocks.transport.mockReturnValue(mocks.request);
+  mocks.request.mockResolvedValue({ success: true, data: { id: 'prod_probe', devMode: true } });
 });
 describe('bounded shared recovery batch', () => {
+  it.each([
+    { id: 'prod_probe', devMode: false },
+    { id: 'prod_other', devMode: true },
+  ])(
+    'refuses an unproven test resource %j before any bank scan or contract reconciliation',
+    async (data) => {
+      mocks.request.mockResolvedValue({ success: true, data });
+      await expect(
+        reconcileAbacatePayRecoveryBatch(database, Date.now() + 30_000, mocks.initial),
+      ).rejects.toMatchObject({ code: 'environment_mismatch' });
+      expect(mocks.scan).not.toHaveBeenCalled();
+      expect(mocks.initial).not.toHaveBeenCalled();
+      expect(mocks.renewal).not.toHaveBeenCalled();
+    },
+  );
   it('does not read provider or database in Production', async () => {
     mocks.sandbox = false;
     expect(

@@ -8,6 +8,7 @@ import { createAbacatePayReadClient } from '@/lib/payments/abacatepay/reader';
 import { createAbacatePayNegativePaymentReader } from '@/lib/payments/abacatepay/negative-payment';
 import type { ManagementDatabase } from './abacatepay-management';
 import { recordBillingEvent } from './subscriptions';
+import { createPersistentAbacatePayRefundReader } from './abacatepay-statement-scan';
 const READBACK_BUDGET_MS = 20_000;
 
 const eventSchema = z.object({
@@ -112,6 +113,11 @@ export async function readAbacatePayNegativeEvent(
                 amountMinor: context.amount_minor,
               }
             : undefined,
+          createPersistentAbacatePayRefundReader(database, {
+            provider: 'abacatepay',
+            environment: 'sandbox',
+            accountId: env.ABACATEPAY_STORE_ID,
+          }),
         ).readRefund({
           checkoutId: context.external_checkout_id,
           customerId: context.external_customer_id,

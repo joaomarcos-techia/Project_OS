@@ -344,6 +344,59 @@ try {
           // existing coverage/receivable protections with the verified paid fixture.
           await sharedTableChecks(tx, current, trial, order);
         } else await sharedTableChecks(tx, trial, current, order);
+        if (proof.lastIndex >= 158) {
+          const payouts = await tx`SELECT relname,relrowsecurity,relforcerowsecurity,
+            has_table_privilege('authenticated',oid,'DELETE') tenant_delete FROM pg_class
+            WHERE oid IN('public.hi_payouts'::regclass,'public.hi_payout_movements'::regclass)`;
+          assert.equal(payouts.length, 2);
+          for (const row of payouts) {
+            assert.equal(row.relrowsecurity, true);
+            assert.equal(row.relforcerowsecurity, true);
+            assert.equal(row.tenant_delete, false);
+          }
+          const [view] =
+            await tx`SELECT reloptions FROM pg_class WHERE oid='public.hi_payout_positions'::regclass`;
+          assert.ok(view?.reloptions.includes('security_invoker=true'));
+          checks.push({
+            name: `${order}: 0157 payouts keep forced tenant RLS and an invoker view`,
+            status: 'PASS',
+          });
+          await tx.savepoint(async (scoped) => {
+            await scoped`SET LOCAL ROLE authenticated`;
+            await scoped`SELECT set_config('app.current_clinic',${current.clinicId},true)`;
+            await rejectsSql(
+              scoped,
+              (nested) =>
+                nested`SELECT public.hi_copay_sync_charge(${trial.clinicId}::uuid,${randomUUID()}::uuid)`,
+              '42501',
+            );
+            await rejectsSql(
+              scoped,
+              (nested) =>
+                nested`SELECT public.hi_copay_sync_charge(${current.clinicId}::uuid,${randomUUID()}::uuid)`,
+              '23503',
+            );
+            await scoped`RESET ROLE`;
+          });
+          checks.push({
+            name: `${order}: 0158 charge synchronization rejects another clinic and a missing copayment`,
+            status: 'PASS',
+          });
+          await tx.savepoint(async (scoped) => {
+            await scoped`SET LOCAL ROLE anon`;
+            await rejectsSql(
+              scoped,
+              (nested) =>
+                nested`SELECT public.hi_copay_sync_charge(${current.clinicId}::uuid,${randomUUID()}::uuid)`,
+              '42501',
+            );
+            await scoped`RESET ROLE`;
+          });
+          checks.push({
+            name: `${order}: anonymous role cannot invoke 0158 security definer`,
+            status: 'PASS',
+          });
+        }
         throw new RollbackProof();
       });
     } catch (error) {

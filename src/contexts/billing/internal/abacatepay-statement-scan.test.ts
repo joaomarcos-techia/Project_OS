@@ -10,6 +10,7 @@ vi.mock('@/lib/observability/capture', () => ({ captureBackgroundError: mocks.ca
 import {
   advanceAbacatePayStatementScans as advance,
   createPersistentAbacatePayStatementReader as reader,
+  createPersistentAbacatePayRefundReader as refundReader,
   AbacatePayStatementScanPending,
 } from './abacatepay-statement-scan';
 
@@ -56,6 +57,7 @@ const claim = {
   started_at: new Date(),
   failures: 0,
   refresh_kind: 'full',
+  purpose: 'card_approved',
 };
 const backlog = [{ pending: 0, oldest_ms: 0 }];
 function database(responses: unknown[]) {
@@ -82,6 +84,106 @@ describe('durable statement scan boundary (SQL doubles; PostgreSQL proof is sepa
     expect((await advance(db, account, read)).pages).toBe(0);
     expect(read).not.toHaveBeenCalled();
   });
+  it('refuses a Production account before account lookup or provider access', async () => {
+    const db = database([[{ ready: true }]]),
+      read = request();
+    await expect(
+      advance(db, { ...account, environment: 'production' }, read),
+    ).rejects.toMatchObject({ code: 'environment_mismatch' });
+    expect(db.execute).toHaveBeenCalledOnce();
+    expect(read).not.toHaveBeenCalled();
+  });
+  it('keeps adjustment requests unfiltered by CARD and stores only refund/reversal movements', async () => {
+    const read = request()
+      .mockResolvedValueOnce({ success: true, data: { id: account.accountId } })
+      .mockResolvedValueOnce({
+        ...page,
+        data: [
+          {
+            ...payload,
+            movements: [
+              ...payload.movements,
+              { amount: 39700, category: 'refund', balanceEffect: 'debit' },
+            ],
+          },
+        ],
+      });
+    const db = database([
+      [{ ready: true }],
+      [{ id }],
+      [{ ...claim, purpose: 'adjustments' }],
+      [{ updated: 1, conflicts: 0, complete: true }],
+      backlog,
+    ]);
+    expect((await advance(db, account, read, { maxPages: 1 })).pages).toBe(1);
+    const params = read.mock.calls[1]?.[0].params;
+    expect(params?.has('method')).toBe(false);
+    expect(params?.has('kind')).toBe(false);
+    const statement = db.statements[3];
+    if (!statement) throw new Error('Expected an atomic page checkpoint');
+    const persisted = JSON.stringify(new PgDialect().sqlToQuery(statement).params);
+    expect(persisted).toContain('refund');
+    expect(persisted).not.toContain('CARD_APPROVED');
+  });
+  it('partial adjustment coverage never returns a refund amount', async () => {
+    const db = database([
+      [{ ready: true }],
+      [{ id }],
+      [],
+      [{ id }],
+      [],
+      backlog,
+      [{ complete: 0 }],
+    ]);
+    await expect(
+      refundReader(db, account)(request(), {
+        checkoutId: expected.checkoutId,
+        customerId: expected.customerId,
+        expectedAmountMinor: 39700,
+        windowStart: expected.periodStart,
+        windowEnd: expected.periodEnd,
+        requireCustomer: true,
+      }),
+    ).rejects.toBeInstanceOf(AbacatePayStatementScanPending);
+  });
+  it.each([false, true])(
+    'complete adjustment cache conflict=%s preserves bound refund semantics',
+    async (conflict) => {
+      const db = database([
+        [{ ready: true }],
+        [{ id }],
+        [],
+        [{ id }],
+        [],
+        backlog,
+        [{ complete: 1 }],
+        [
+          {
+            payload: {
+              ...payload,
+              movements: [{ amount: 39700, category: 'refund', balanceEffect: 'debit' }],
+            },
+            conflict,
+          },
+        ],
+      ]);
+      const result = refundReader(db, account)(request(), {
+        checkoutId: expected.checkoutId,
+        customerId: expected.customerId,
+        expectedAmountMinor: 39700,
+        windowStart: expected.periodStart,
+        windowEnd: expected.periodEnd,
+        requireCustomer: true,
+      });
+      if (conflict) await expect(result).rejects.toMatchObject({ code: 'binding_mismatch' });
+      else
+        await expect(result).resolves.toEqual({
+          refundDebitMinor: 39700,
+          reversalObserved: false,
+          evidenceLevel: 'refund_debit_verified',
+        });
+    },
+  );
   it('refuses an account that is absent in the exact environment before provider access', async () => {
     const db = database([[{ ready: true }], []]),
       read = request();

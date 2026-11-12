@@ -2,7 +2,7 @@
 
 ## Incremento operacional de12/11 — contenção e escala
 
-Estado corrente: [relatório46](../decoupling/asaas-to-abacatepay/RELATORIO-HOMOLOGACAO-FINAL.md#46-atualização-da-cauda-tiss-para-0154--12112026) e [matriz G01–G24](../decoupling/asaas-to-abacatepay/MATRIZ-CENARIOS-E-TESTES.md#matriz-única-g01g24--12112026). Nenhum comando deste incremento autoriza DEV compartilhado ou Production.
+Estado corrente: [relatório §48](../decoupling/asaas-to-abacatepay/RELATORIO-HOMOLOGACAO-FINAL.md#48-inbox-de-minuto-estornos-e-tiss-até-0158--12112026), [matriz G01–G28](../decoupling/asaas-to-abacatepay/MATRIZ-CENARIOS-E-TESTES.md#matriz-corrente-g01g28--scanner-incremental-12112026) e seção final deste runbook. Nenhum comando autoriza DEV compartilhado ou Production. As provas e instruções explicitamente históricas abaixo não substituem este checkpoint.
 
 O transporte usa o par `UPSTASH_REDIS_REST_URL/TOKEN` já existente, com chave opaca por loja. Redis indisponível fecha o acesso ao provedor; não contornar desligando o guard.502/503/504 e falha de rede alimentam circuito;401/403 pausam60s;429 respeita cooldown limitado. Investigue disponibilidade/permissões pelo painel sem copiar a chave e sem repetir POST desconhecido. O circuito é distribuído; reiniciar uma instância não o limpa. Uma resposta positiva não apaga uma pausa vigente.
 
@@ -10,7 +10,7 @@ O inbox continua durável, com lease60s, até10 tentativas e revisão autorizada
 
 Métricas de contenção: `billing.abacatepay.request_control`, outcomes `deferred`, `provider_rate_limited`, `provider_failure`, `coordination_unavailable`, sem corpo/credenciais/IDs de paciente. Persistência/revisão e heartbeat continuam as fontes operacionais; Sentry indisponível não é confirmação de saúde. Alertas propostos: qualquer401/403 ou coordenação indisponível;429 persistente; idade de inbox>2min; lease>60s sem resolução; período pago vencido sem receipt novo. Antes de Production, testar regras e entrega no canal aprovado. Não criar probes financeiros reais.
 
-**Capacidade não liberada:** o cron permanece diário09UTC; aumentar o batch não torna a recuperação contínua. Em cenário puramente teórico,1000 eventos/10 por execução exigiriam100 execuções, fora outros limites; não é um RTO aceitável de operação em escala. A recuperação sem webhook continua limitada por uma pesquisa de até500 registros do extrato na janela. Nenhum novo índice, horário ou infraestrutura paga foi ativado. Projetar/medir varredura incremental e agenda compatível antes de ampliar cohort.
+**Capacidade ainda não homologada remotamente:** a candidata reutiliza o tick de minuto de outbox para recuperação em lotes, além do cron diário. Não foi alterada a agenda externa. Com SQL aprovado, o scanner CARD_APPROVED retoma cursores entre execuções sem teto acumulado de 500; sem as tabelas, permanece o fallback limitado. Estornos também usam checkpoint de finalidade própria; o limite de cinco páginas permanece somente no fallback N-1. As cargas locais preservaram invariantes, mas não comprovam capacidade HTTP/worker/provedor. Nenhum novo índice, plano pago ou configuração de Production foi ativado.
 
 ## Reproduzir as novas provas locais
 
@@ -18,7 +18,7 @@ Em PowerShell, pasta `C:\dev\Qoro_billing_abacatepay_20261107`, usando Node22 e 
 
 ```powershell
 $env:QORO_TISS_WORKTREE='C:\dev\Qoro_convenios_tiss_20261110'
-$env:QORO_TISS_REF='8a947e10bd77ae941a48b5340c14bf1bd0131c0b'
+$env:QORO_TISS_REF='120e8195e4ad267a64157239cb9bc0c22b432033'
 node node_modules/tsx/dist/cli.mjs --conditions=react-server scripts/security/abacatepay-composition-checks-db.ts
 $env:QORO_ABACATEPAY_SCALE='1'
 node node_modules/tsx/dist/cli.mjs --conditions=react-server scripts/security/abacatepay-renewal-db.ts
@@ -26,7 +26,7 @@ Remove-Item Env:QORO_ABACATEPAY_SCALE
 node node_modules/tsx/dist/cli.mjs --conditions=react-server scripts/security/abacatepay-renewal-db.ts
 ```
 
-O primeiro comando gera o pacote `dist/abacatepay-tiss-release-154-8a947e10`, com journal proposto 0000–0155 (156 entradas). A proposta financeira 0155 não está reservada; a proposta 0152 anterior foi superada pelo avanço do TISS. O journal do repositório permanece intacto. O migrador real ensaiou localmente 144→156, preservando o catálogo e os hashes históricos, e comprovou uma segunda execução sem reaplicar. O `when` proposto é uma chave de ordenação posterior à 0154, que já contém timestamp futuro; não é a data de criação e exige revisão conjunta. O primeiro comando gera manifest e queries somente leitura em `dist/abacatepay-tiss-{composition.json,preflight.sql,postflight.sql}` e executa as queries em banco local descartável. **Não é um journal aplicado nem um comando de migration remota.** A prova de carga grava `dist/abacatepay-scale-db.json`: contadores/p50/p95/p99/conexões/locks/RSS/EXPLAIN, sem dados reais. A prova financeira grava o JSON do snapshot TISS correspondente. A falha interrompe o teste; não converter FAIL em PASS pela presença parcial de um arquivo antigo. Fixar novamente o SHA se houver mudança real do TISS e repetir apenas as provas afetadas.
+O primeiro comando gera `dist/abacatepay-tiss-release-158-120e8195`, com 160 entradas somente no pacote descartável. O migrador real ensaiou 144→160, preservou catálogo/hashes históricos e comprovou segunda execução sem reaplicar. A posição financeira após 0156 não está reservada; há trabalho TISS posterior em edição. **Não usar essa proposta no DEV compartilhado.** O `when` é chave de ordenação posterior à cauda fixada, não data de criação. Manifest e queries ficam em `dist/abacatepay-tiss-{composition.json,preflight.sql,postflight.sql}` e foram exercitados no scratch. O journal do repositório permanece intacto. A carga grava `dist/abacatepay-scale-db.json` e `dist/abacatepay-scale-concurrency-N-db.json`: p50/p95/p99, pool/transação, conexões, locks, RSS e plano SQL, sem dados reais. O padrão é 32 tarefas; use `QORO_ABACATEPAY_SCALE_CONCURRENCY=8` apenas no ensaio local para comparar a fila. Falha interrompe o teste; arquivo antigo não comprova PASS. Após congelar uma nova cauda, revisar o helper e repetir apenas os gates afetados.
 
 O ensaio Redis usa exclusivamente um contêiner descartável identificado, porta `127.0.0.1:63799`, imagem oficial Redis7.4, sem persistência ou API financeira. Com Docker disponível:
 
@@ -40,7 +40,7 @@ Se esse contêiner identificado já existir parado, use `docker start qoro-abaca
 
 RPO continua dependente do backup efetivamente saudável; não declarar perda zero. A restauração de banco/Storage/Auth tem evidências históricas próprias e o aceite anterior sem PITR permanece restrito a esse risco. Um replay financeiro após restore precisa consultar o provedor e preservar IDs/ledger, sem recriar checkout/pagamento. O ensaio local de recuperação financeira não mede o RTO de reconstrução de todos os serviços.
 
-Atualizado em 12/11/2026. Executável somente na candidata Sandbox do PR #53. Não usar em Produção. Não substituir o gateway de uma assinatura Asaas nem modificar pagamentos de pacientes. A seção 11 preserva a decisão de trial e o ensaio histórico com 0151; a seção 46 do relatório e o início deste runbook registram o snapshot atual até 0154. O SQL candidato não foi aplicado ao DEV compartilhado. Sentry Preview e jornada normal MFA já passaram; não repetir probes/login para esses gates.
+Atualizado em 12/11/2026. Executável somente na candidata Sandbox do PR #53. Não usar em Produção. Não substituir o gateway de uma assinatura Asaas nem modificar pagamentos de pacientes. A seção 11 preserva o ensaio histórico com 0151; a seção 47 do relatório e o início deste runbook registram o snapshot revisado até 0158. O SQL candidato não foi aplicado ao DEV compartilhado. Sentry Preview e jornada normal MFA já passaram; não repetir probes/login para esses gates.
 
 ## 1. Detectar e abrir incidente
 
@@ -326,7 +326,7 @@ A limpeza pendente diz respeito somente a `run-scale-preview-redis` / `prj_htYpK
 
 O SQL `saas_period_snapshot.candidate.sql` continua fora do journal. Sem suas tabelas novas, a aplicação usa o caminho N-1 limitado: **não declarar a fila incremental operacional no DEV/Preview antes da aplicação especificamente autorizada**. A numeração financeira deve ser escolhida após congelar a cauda TISS; 0155/0156 já são da outra frente e há trabalho posterior em edição.
 
-O serviço persiste páginas de até 100 registros por loja/mês. Cada execução faz no máximo dez páginas no lote de cron e duas na leitura interativa. Não há limite acumulado de 500. Um snapshot completo é necessário antes de usar os comprovantes. Depois, a leitura curta do topo evita repetir toda a loja por clínica; varredura integral periódica alcança backfills antigos. Horizonte de frescor e revisão integral: 60 segundos/15 minutos na candidata. Sem tick saudável isso não é garantia temporal.
+O serviço persiste páginas de até 100 registros por loja/mês/finalidade (card_approved ou adjustments), sem misturar prova de pagamento e observação de estorno. Cada execução faz no máximo dez páginas no lote de cron e duas na leitura interativa. Não há limite acumulado de 500. Um snapshot completo é necessário antes de usar os comprovantes. Depois, a leitura curta do topo evita repetir toda a loja por clínica; varredura integral periódica alcança backfills antigos. Horizonte de frescor e revisão integral: 60 segundos/15 minutos na candidata. Sem tick saudável isso não é garantia temporal.
 
 `/api/cron/outbox` já tem agenda de minuto; o código candidato reutiliza esse tick, com lote financeiro paralelo de até 35 segundos, **ainda bloqueado em Production**. Não foi alterada a agenda externa. O reconciliador diário permanece adicional. A Vercel executa crons no ambiente de produção; publicar um Preview não prova execução recorrente. Validar a rotina em Preview com chamada autenticada de teste após o schema aprovado, preservando fixtures e sem expor CRON_SECRET. A futura composição live deve ativar consumidores por binding e preservar Asaas; não remover o guard Sandbox para fazer um teste passar.
 
@@ -347,7 +347,7 @@ O serviço persiste páginas de até 100 registros por loja/mês. Cada execuçã
 ```powershell
 Set-Location 'C:\dev\Qoro_billing_abacatepay_20261107'
 $env:QORO_TISS_WORKTREE = 'C:/dev/Qoro_convenios_tiss_20261110'
-$env:QORO_TISS_REF = '233d225e0ddb1fe56ee3975471a4c0260454bec7'
+$env:QORO_TISS_REF = '120e8195e4ad267a64157239cb9bc0c22b432033'
 node node_modules/tsx/dist/cli.mjs --conditions=react-server scripts/security/abacatepay-statement-scan-db.ts
 node node_modules/tsx/dist/cli.mjs --conditions=react-server scripts/security/abacatepay-composition-checks-db.ts
 node node_modules/tsx/dist/cli.mjs --conditions=react-server scripts/security/abacatepay-renewal-db.ts
@@ -362,3 +362,11 @@ Esses scripts exigem PostgreSQL local e recusam rede externa. Produzem JSON em `
 Preflight: `node node_modules/tsx/dist/cli.mjs scripts/security/vercel-auxiliary-preflight.ts '<caminho absoluto do vercel/dist/vc.js já instalado>'`. O helper valida ID/time, lista domínios/recursos e confere o Qoro por GET. Saída sanitizada em `dist/vercel-auxiliary-preflight.json`. Não usa comandos default da CLI nem lê valores de env.
 
 Após **aprovação específica** e novo preflight, a operação exata prevista é `DELETE /v9/projects/prj_htYpK9lthoj7LG78fVa8JsH3VzRn?teamId=team_ml9fFeF262JqUMwFB6Vy61Cj`. Não executada. Conferir ausência de domínio personalizado, variável, Git, recurso vinculado e uso por outro operador. Parar se qualquer dependência aparecer. O Qoro `prj_GYB0Y9e02ka9jurpJvF6m0feH3eZ` deve permanecer intacto. Depois, exigir GET404 do auxiliar e readback inalterado do Qoro. Não presumir custo zero nem apagar recurso externo associado por inferência.
+
+### Atualização final do tick e do schema revisado
+
+Além da busca sem webhook, o tick retoma até dez eventos já recebidos no inbox, com lease/backoff e deadline propagado a todos os leitores. Aguarda outbox, recuperação e inbox terminarem antes de responder com erro. Comprovantes de cartão são imutáveis; movimentos do cache de estornos podem ser atualizados sob a mesma identidade, preservando o histórico processado no audit. Alteração de identidade gera revisão e nunca contamina a finalidade de cartão.
+
+Snapshot SQL revisado até 0158 (120e8195), 160 entradas no pacote de laboratório, sem reserva do número financeiro. Provas atuais: scanner 22, financeiro 122, trial 50, SQL 41 e Drizzle 8. As verificações adicionais de TISS cobrem compatibilidade e segurança; não substituem a homologação funcional do PR #55. Acordar a cauda e aprovar os hashes antes de qualquer DDL compartilhado.
+
+**Preview não recebe a agenda automática:** a [Vercel invoca cron somente em deployments Production](https://vercel.com/docs/schedules/cron-jobs/quickstart). Portanto, o código de minuto está preparado, não comprovado como scheduler ativo do Sandbox. A validação futura precisa de uma execução autenticada e restrita à fixture financeira, depois da aprovação do schema. Não disparar o outbox global do DEV compartilhado para medir Redis: ele também contém handlers de mensagens e outras clínicas. Não usar `vercel crons run` como se aceitasse Preview nem recorrer ao caminho `env run` do incidente. A ausência de tick automático não é um bug de código ou autorização para ativar Production.
