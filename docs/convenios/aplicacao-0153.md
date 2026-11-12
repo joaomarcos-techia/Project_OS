@@ -1,9 +1,17 @@
 # Plano de aplicação no DEV — cauda do convênio 0144 → 0158 (e a candidata do #53)
 
-**Situação (12/11/2026, noite):** procedimento PRONTO PARA APROVAÇÃO. **Nada aplicado no DEV compartilhado nem em
-produção** além do que já estava (0143). Executar exige a aprovação específica do fundador para esta sequência;
-produção é outra aprovação, depois. O nome do arquivo continua `aplicacao-0153.md` porque é a referência usada nas
-decisões; o conteúdo cobre a cauda inteira.
+**Situação (12/11/2026, noite 3):** aplicação no DEV **APROVADA** pelo fundador (orientação "autorização executiva
+ampla", seção 2) para 0144–0158; a candidata do #53 fica com o agente dele (seção 3 da mesma orientação). Produção
+continua intocada e é outra aprovação, depois do GO. O nome do arquivo continua `aplicacao-0153.md` porque é a
+referência usada nas decisões; o conteúdo cobre a cauda inteira. Registro da execução: seção 11.
+
+**Correção deste procedimento (12/11, noite 3):** a versão anterior dizia que o migrador aplica "cada migration em
+transação própria". **Não é assim no Drizzle 0.45.2:** `drizzle-orm/pg-core/dialect.js` (`migrate`) aplica TODAS as
+pendentes numa transação só. Consequências, já incorporadas abaixo: (a) não existe aplicação parcial — entram as 15
+ou nenhuma; (b) os locks das tabelas compartilhadas ficam até o fim da transação (no DEV, ~550 instruções × 174 ms de
+ida e volta medidos ≈ 1,5 min); (c) a CLI não recebe `lock_timeout` pelo pooler de sessão (o Supavisor ignora
+parâmetros de inicialização na URL; medido: `lock_timeout` = 0), por isso o aplicador guardado
+`scripts/db-migrate-dev-limited.ts` roda o MESMO migrador com os limites na sessão.
 
 ## 1. Verificação (seção 2.1 da orientação de 12/11)
 
@@ -48,18 +56,26 @@ decisões; o conteúdo cobre a cauda inteira.
    `0155_ledger_payment_sum_by_clinic` → `0156_hi_sadt_requests` → `0157_hi_professional_payouts` →
    `0158_hi_copay_charge`; depois, em janela própria e por decisão conjunta, a candidata do #53 como **0159**
    (`when` > 1794951…, gerado na hora, maior que o da 0158).
-3. **Ferramenta:** o migrador do repositório (`drizzle-kit migrate` / `scripts/db-migrate-*`), que aplica cada migration
-   em transação própria e registra a linha no ledger; nunca colar SQL à mão.
-4. **Conexão:** direta (5432) do papel de migração; nunca o pooler de transação (6543): `SET` de sessão vaza no pooler.
-5. **Limites de sessão:** `lock_timeout = '2s'`, `statement_timeout = '60s'`.
+3. **Ferramenta:** o migrador do Drizzle, o mesmo código do `drizzle-kit migrate`, pelo aplicador guardado
+   `scripts/db-migrate-dev-limited.ts` (`--expected-ref` do DEV, `--expect-from 0143_tiss_catalog`,
+   `--expect-to 0158_hi_copay_charge`): confere o ledger e a lista exata de pendentes ANTES de abrir a transação e
+   o resultado DEPOIS; aplica todas as pendentes numa transação só; nunca colar SQL à mão. Provado igual à CLI no
+   ensaio (`hi-dev-migrator-rehearsal.ts`, prova 5: catálogo byte a byte igual).
+4. **Conexão:** pooler de SESSÃO (5432) do papel `postgres`; nunca o pooler de transação (6543): `SET` de sessão vaza
+   no pooler (o aplicador recusa 6543). O ambiente do processo leva só a URL do DEV — o `.env.local` da máquina tem
+   credenciais de produção e não é carregado.
+5. **Limites de sessão:** `lock_timeout = '2s'`, `statement_timeout = '60s'`, `RESET` no fim (mesmo em falha).
 
 ## 4. Pré-requisitos e backup
 
 - **Aprovação específica** do fundador para esta sequência no DEV; o #53 de acordo com a posição da candidata.
-- **Backup:** confirmar no painel do Supabase o backup diário/PITR do projeto DEV com horário anterior à janela; gerar
-  antes o dump de ESTRUTURA (sem dados) dos objetos afetados:
-  `pg_dump --schema-only -t public.lancamentos -t public.payment_transactions -t public.appointments -t public.subscriptions -t public.invoices`
-  e salvar o texto atual de `validate_payment_transaction_insert()`.
+- **Backup da janela (verificável, feito pelo executor):** `pg_dump` (cliente 17, `PGGSSENCMODE=disable` — o Supavisor
+  derruba a negociação GSS da libpq) de (1) estrutura completa de `public` + `drizzle`, (2) dados das três tabelas que a
+  cauda altera (`appointments`, `lancamentos`, `payment_transactions`) e (3) o ledger do Drizzle. Fica só na máquina do
+  executor (fora do repositório); no repositório vão os sha256. **Verificação:** o ensaio restaura (2) e (3) num
+  Postgres descartável e confere contagens e md5 das linhas IGUAIS aos do pré-voo do DEV. O backup da plataforma
+  (painel do Supabase) é camada adicional; a Management API recusou o token local (401) em 12/11, então ele não é
+  contado como verificado.
 - **Pré-voo só de leitura** (nenhuma escrita; agregados sem dado pessoal):
   - última linha do ledger = 0143 (`created_at` 1794330000000) e `_schema_version` sem nenhuma `0144`…`0158`;
   - md5 do corpo de `validate_payment_transaction_insert()` = o da 0073 (`f0328cdb…`);
@@ -103,14 +119,10 @@ Qualquer um destes **para** a janela (o migrador desfaz a migration corrente; na
 
 ## 7. Aplicação parcial
 
-Cada migration é uma transação: ou entra inteira, ou não entra. Se a janela parar no meio (ex.: depois da 0150):
-
-- **não** se aplica nenhuma migration posterior fora de ordem;
-- o estado intermediário é coerente por construção (cada migration só depende das anteriores) e o código da branch
-  do #55 **não** é publicado no DEV até a cauda completa (as telas de Convênios verificam o schema instalado e mostram
-  "módulo não instalado");
-- o próximo passo é decidido pelo fundador: completar a cauda numa nova janela (pré-voo de novo a partir do ponto
-  em que parou) ou reverter pela seção 8.
+**Não existe** com o migrador real: as 15 migrations entram numa transação só. Qualquer erro, `lock_timeout` ou
+`statement_timeout` desfaz tudo e o DEV fica exatamente na 0143 (o aplicador confere o ledger depois e falha alto).
+O próximo passo é decidido pelo fundador: nova janela com pré-voo completo. Se a transação confirmar e o pós-voo
+reprovar, a recuperação é a seção 8.
 
 ## 8. Pós-voo e recuperação
 
@@ -126,12 +138,14 @@ Cada migration é uma transação: ou entra inteira, ou não entra. Se a janela 
 health do XSD na Preview; abrir `/convenios` numa clínica sintética paga (módulo desligado → "não habilitado");
 nenhuma clínica real é habilitada.
 
-**Recuperação** (só enquanto **não** existir dado de convênio — `SELECT count(*) FROM hi_guides` = 0 e nenhum recebível
-de operadora): reverter em ordem inversa pelos blocos "Reversão" do cabeçalho de cada migration (0158 → 0144),
-restaurando `validate_payment_transaction_insert()` da 0073 e `lancamentos_auto_origin_chk` da 0108, e apagando as
-linhas `0144…0158` de `_schema_version` e do ledger do Drizzle. **Com dado de convênio já criado, a correção é para a
-frente** (nova migration), nunca apagar lançamento financeiro. Último recurso: PITR do Supabase para o horário anterior
-à janela (perde o que foi escrito no DEV depois dele; decisão do fundador).
+**Recuperação** (só enquanto **não** existir dado de convênio): `docs/convenios/reversao-cauda-0144-0158.sql`, uma
+transação, gerada da diferença de catálogo 0143 → 0158 e **provada** no ensaio: depois dela o dump de estrutura de
+`public` + `drizzle` é byte a byte igual ao de antes, o ledger volta a 144 linhas e os dados não mudam. Ela recusa
+sozinha se qualquer tabela `hi_*` tiver linha, se algum atendimento não for particular ou se algum lançamento tiver
+valor de convênio. No DEV, a conferência depois de uma reversão é o `pg_dump --schema-only` comparado com o dump de
+estrutura do backup da janela. **Com dado de convênio já criado, a correção é para a frente** (nova migration), nunca
+apagar lançamento financeiro. Último recurso: restaurar do backup da janela (estrutura + dados das três tabelas
+compartilhadas) ou do backup da plataforma (decisão do fundador).
 
 ## 9. Responsáveis
 
@@ -144,6 +158,9 @@ frente** (nova migration), nunca apagar lançamento financeiro. Último recurso:
 
 ## 10. Provas
 
+- `scripts/security/hi-dev-migrator-rehearsal.ts` — o MIGRADOR REAL (CLI e aplicador guardado) num Postgres
+  equivalente ao DEV (ledger e dados do backup da janela): exatamente 0144–0158, segunda execução sem efeito, dados
+  intocados, reversão byte a byte, candidata do #53 como 0159 num pacote descartável (8 provas).
 - `scripts/security/hi-tail-apply-rehearsal.ts` — a cauda inteira + candidata do #53 na ordem do DEV, 1 M de linhas.
 - `scripts/security/hi-0153-apply-rehearsal.ts` — 0153/0154 (ciclo anterior).
 - `scripts/security/health-insurance-union-chain-db.ts` — gatilhos das duas branches juntos; decisão = código real do #53.

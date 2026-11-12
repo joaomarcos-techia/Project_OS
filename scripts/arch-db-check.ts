@@ -54,6 +54,9 @@ const ALLOWED_POSTGRES_IMPORTS = new Set([
   // Guarded DEV operator (ADR-072, P1.3): carga one-shot da terminologia TUSS;
   // --expected-ref obrigatório, prod recusado, conexão própria por latência do DEV.
   'scripts/tiss/terminology/load.ts',
+  // Guarded DEV migrator (docs/convenios/aplicacao-0153.md): o migrador do Drizzle numa
+  // conexão única com lock_timeout/statement_timeout de sessão; --expected-ref, recusa 6543.
+  'scripts/db-migrate-dev-limited.ts',
   'scripts/db-migrate-prod.ts',
   'scripts/delete-test-clinics-prod.ts',
   // P8: conexões descartáveis, guardadas por loopback + prefixo do banco.
@@ -63,7 +66,11 @@ const ALLOWED_POSTGRES_IMPORTS = new Set([
   // DATABASE_URL_PROD após opt-in explícito e gera backup antes da transação.
   'scripts/reset-prod-data.ts',
 ]);
-const ALLOWED_DRIZZLE_PG_IMPORTS = new Set(['src/lib/db/index.ts']);
+// O migrador guardado do DEV usa o migrador do Drizzle (o mesmo código do `drizzle-kit migrate`).
+const ALLOWED_DRIZZLE_PG_IMPORTS = new Set([
+  'src/lib/db/index.ts',
+  'scripts/db-migrate-dev-limited.ts',
+]);
 const ALLOWED_DB_VALUE_IMPORTS: Record<string, Set<string>> = {
   db: new Set(['src/lib/db/tenant.ts']),
   dbAdmin: new Set([

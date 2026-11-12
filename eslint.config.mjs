@@ -166,6 +166,9 @@ const config = [
       // própria porque o pooler do DEV leva ~10–16 s para conectar e o pool do app
       // desiste em 10 s.
       'scripts/tiss/terminology/load.ts',
+      // Guarded DEV migrator (docs/convenios/aplicacao-0153.md): migrador do Drizzle numa
+      // conexão única com lock_timeout/statement_timeout de sessão; recusa o pooler 6543.
+      'scripts/db-migrate-dev-limited.ts',
       // Reset operacional de pré-go-live: conexão one-shot explícita em
       // DATABASE_URL_PROD, backup obrigatório e confirmação fail-closed.
       'scripts/reset-prod-data.ts',
