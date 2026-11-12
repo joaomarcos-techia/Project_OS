@@ -48,6 +48,7 @@ import {
   type CompletedAppointment,
 } from './consulta-guide-service';
 import { calculateCopayForAppointment } from './copay-service';
+import { ensureInsurancePayoutTx } from './insurance-payout-service';
 import { recordSadtExecutionForAppointment } from './sadt-guide-service';
 
 const DEFAULT_TZ = 'America/Sao_Paulo';
@@ -383,6 +384,8 @@ export async function processInsuranceBilling(
         if (total > 0) {
           await calculateCopayForAppointment(tx, { clinicId, appointmentId, guideTotalCents: total });
         }
+        // Repasse do profissional (P10.4): nasce com a guia pronta; o valor segue a conta da guia.
+        await ensureInsurancePayoutTx(tx, { clinicId, appointmentId });
         let gapClosed = false;
         if (gap && gap.status === 'open') {
           await closeGap(tx, clinicId, gap, 'guide_ready', { guideId: decision.guideId });

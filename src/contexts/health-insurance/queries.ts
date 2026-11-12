@@ -12,6 +12,8 @@ import { sql } from 'drizzle-orm';
 
 import { withTenant } from '@/lib/db/tenant';
 
+import { listInsurancePayoutPositionsTx, type InsurancePayoutPosition } from './internal/insurance-payout-service';
+
 import type { GuideIssue } from './tiss/validation/common';
 
 type Row = Record<string, unknown>;
@@ -937,3 +939,45 @@ export async function getSadtRequestFormData(clinicId: string): Promise<{
     };
   });
 }
+
+// ── Repasse profissional de convênio (0157) ─────────────────────────────
+
+export interface InsurancePayoutRow extends InsurancePayoutPosition {
+  professionalName: string;
+  patientName: string;
+  guideNumber: string | null;
+  executedOn: string | null;
+}
+
+export async function listInsurancePayouts(clinicId: string): Promise<{ rows: InsurancePayoutRow[]; eligibility: string }> {
+  return withTenant(clinicId, async (tx) => {
+    const positions = await listInsurancePayoutPositionsTx(tx, clinicId);
+    const meta = positions.length
+      ? ((await tx.execute(sql`
+          SELECT p.id AS payout_id, pr.nome AS professional_name, pt.nome AS patient_name, g.number AS guide_number, gi.executed_on
+            FROM public.hi_payouts p
+            JOIN public.appointments a ON a.clinic_id = p.clinic_id AND a.id = p.appointment_id
+            LEFT JOIN public.profiles pr ON pr.clinic_id = p.clinic_id AND pr.id = p.professional_id
+            LEFT JOIN public.patients pt ON pt.clinic_id = a.clinic_id AND pt.id = a.patient_id
+            LEFT JOIN public.hi_guide_items gi ON gi.clinic_id = p.clinic_id AND gi.appointment_id = p.appointment_id AND gi.live
+            LEFT JOIN public.hi_guides g ON g.clinic_id = gi.clinic_id AND g.id = gi.guide_id
+           WHERE p.clinic_id = ${clinicId}::uuid`)) as unknown as Row[])
+      : [];
+    const byId = new Map(meta.map((m) => [String(m.payout_id), m]));
+    const [settings] = (await tx.execute(sql`SELECT payout_eligibility FROM public.hi_clinic_settings WHERE clinic_id = ${clinicId}::uuid`)) as unknown as Row[];
+    return {
+      eligibility: String(settings?.payout_eligibility ?? 'on_receipt'),
+      rows: positions.map((p) => {
+        const m = byId.get(p.payoutId);
+        return {
+          ...p,
+          professionalName: String(m?.professional_name ?? ''),
+          patientName: String(m?.patient_name ?? ''),
+          guideNumber: s(m?.guide_number),
+          executedOn: s(m?.executed_on),
+        };
+      }),
+    };
+  });
+}
+

@@ -43,6 +43,8 @@ export const hiClinicSettings = pgTable('hi_clinic_settings', {
   contractorName: text('contractor_name'),
   cnes: text('cnes'),
   cnesStatus: text('cnes_status').$type<'unknown' | 'has' | 'none_declared'>().notNull(),
+  /** Repasse de convênio (D16, 0157): sobre o recebido (padrão), na aprovação ou na conclusão. */
+  payoutEligibility: text('payout_eligibility').$type<HiPayoutEligibility>().notNull().default('on_receipt'),
   ...timestampsPattern(),
 });
 
@@ -1125,6 +1127,44 @@ export const hiSadtRequestEvents = pgTable('hi_sadt_request_events', {
   note: text('note'),
   createdVia: text('created_via').$type<HiCreatedVia>().notNull(),
   actorUserId: uuid('actor_user_id'),
+  createdAt: createdAt(),
+});
+
+/** Repasse profissional de convênio (0157, P10.4). */
+export type HiPayoutEligibility = 'on_receipt' | 'on_approval' | 'on_completion';
+
+export const hiPayouts = pgTable('hi_payouts', {
+  id: uuidPk(),
+  clinicId: tenantIdRef(),
+  appointmentId: uuid('appointment_id').notNull(),
+  professionalId: uuid('professional_id').notNull(),
+  procedureId: uuid('procedure_id'),
+  /** Regra de professional_payout_rules vigente na data, congelada abaixo. */
+  ruleId: uuid('rule_id').notNull(),
+  ruleKind: text('rule_kind').$type<'percentage' | 'fixed'>().notNull(),
+  rulePercentage: numeric('rule_percentage', { precision: 7, scale: 4 }),
+  ruleFixedCents: bigint('rule_fixed_cents', { mode: 'number' }),
+  eligibility: text('eligibility').$type<HiPayoutEligibility>().notNull(),
+  status: text('status').$type<'active' | 'cancelled'>().notNull(),
+  cancelReason: text('cancel_reason'),
+  cancelledBy: uuid('cancelled_by'),
+  cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+  createdVia: text('created_via').$type<HiCreatedVia>().notNull(),
+  createdBy: uuid('created_by'),
+  createdAt: createdAt(),
+});
+
+export const hiPayoutMovements = pgTable('hi_payout_movements', {
+  id: uuidPk(),
+  clinicId: tenantIdRef(),
+  payoutId: uuid('payout_id').notNull(),
+  kind: text('kind').$type<'authorization' | 'settlement' | 'adjustment'>().notNull(),
+  amountCents: bigint('amount_cents', { mode: 'number' }).notNull(),
+  paidOn: date('paid_on'),
+  reference: text('reference'),
+  reason: text('reason'),
+  idempotencyKey: text('idempotency_key').notNull(),
+  createdBy: uuid('created_by').notNull(),
   createdAt: createdAt(),
 });
 

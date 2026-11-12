@@ -8,6 +8,7 @@ const TABS = [
   { label: 'Guias', href: '/convenios/guias' },
   { label: 'Lotes', href: '/convenios/lotes' },
   { label: 'Conciliação', href: '/convenios/conciliacao' },
+  { label: 'Repasses', href: '/convenios/repasses' },
 ];
 
 export function ConveniosTabs() {

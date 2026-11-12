@@ -1051,6 +1051,13 @@
       "when": 1794864173857,
       "tag": "0156_hi_sadt_requests",
       "breakpoints": true
+    },
+    {
+      "idx": 157,
+      "version": "7",
+      "when": 1794950573857,
+      "tag": "0157_hi_professional_payouts",
+      "breakpoints": true
     }
   ]
 }

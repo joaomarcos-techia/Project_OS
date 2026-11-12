@@ -31,6 +31,7 @@ import { readBatchGuidesAudited } from './internal/guide-access';
 import { CoverageInputError, recordAppointmentCoverage } from './internal/coverage-service';
 import { approveConsultaGuide } from './internal/guide-issuance';
 import * as acct from './internal/insurance-account-service';
+import * as payouts from './internal/insurance-payout-service';
 import * as sadt from './internal/sadt-request-service';
 import { importOperatorStatement, StatementImportError, type StatementImportResult } from './internal/statement-import-service';
 import { loadXmllintValidator } from './tiss/xml/xsd-validator';
@@ -70,7 +71,7 @@ function messageOf(error: unknown): string {
     return first ? `${error.message}: ${first}` : error.message;
   }
   if (error instanceof StatementImportError) return error.message;
-  if (error instanceof sadt.SadtRequestError || error instanceof CoverageInputError) {
+  if (error instanceof sadt.SadtRequestError || error instanceof CoverageInputError || error instanceof payouts.InsurancePayoutError) {
     return error.message.charAt(0).toUpperCase() + error.message.slice(1);
   }
   if (error instanceof TissStorageError) return 'O armazenamento de arquivos está indisponível agora. Tente de novo em instantes.';
@@ -688,6 +689,86 @@ export async function linkAppointmentToSadtItemAction(input: { requestId: string
         sadtRequestItemId: d.itemId,
         actor: { kind: 'user', userId: ctx.userId },
       });
+    });
+    return null;
+  });
+}
+
+// ── Repasse profissional de convênio (P10.4) ─────────────────────────────
+
+const PayoutRef = z.object({ payoutId: uuid, idempotencyKey: key });
+
+export async function authorizeInsurancePayoutAction(input: { payoutId: string; amountCents: number; idempotencyKey: string }): Promise<ActionResult<null>> {
+  return run(async () => {
+    const d = PayoutRef.extend({ amountCents: cents }).parse(input);
+    await write('health_insurance.payout.authorized', { type: 'hi_payout', id: d.payoutId }, (tx, ctx) =>
+      payouts.authorizeInsurancePayoutTx(tx, { clinicId: ctx.clinicId, payoutId: d.payoutId, amountCents: d.amountCents, idempotencyKey: `ui:${d.idempotencyKey}`, actorUserId: ctx.userId }),
+    );
+    return null;
+  });
+}
+
+export async function settleInsurancePayoutAction(input: {
+  payoutId: string;
+  amountCents: number;
+  paidOn: string;
+  reference: string | null;
+  idempotencyKey: string;
+}): Promise<ActionResult<null>> {
+  return run(async () => {
+    const d = PayoutRef.extend({ amountCents: cents, paidOn: day, reference: z.string().trim().max(100).nullable() }).parse(input);
+    await write('health_insurance.payout.settled', { type: 'hi_payout', id: d.payoutId }, (tx, ctx) =>
+      payouts.settleInsurancePayoutTx(tx, {
+        clinicId: ctx.clinicId,
+        payoutId: d.payoutId,
+        amountCents: d.amountCents,
+        paidOn: d.paidOn,
+        reference: d.reference || null,
+        idempotencyKey: `ui:${d.idempotencyKey}`,
+        actorUserId: ctx.userId,
+      }),
+    );
+    return null;
+  });
+}
+
+export async function adjustInsurancePayoutAction(input: { payoutId: string; amountCents: number; reason: string; idempotencyKey: string }): Promise<ActionResult<null>> {
+  return run(async () => {
+    const d = PayoutRef.extend({
+      amountCents: z.number().int().min(-9_999_999_999).max(9_999_999_999).refine((v) => v !== 0, 'Informe um valor diferente de zero.'),
+      reason,
+    }).parse(input);
+    await write('health_insurance.payout.adjusted', { type: 'hi_payout', id: d.payoutId }, (tx, ctx) =>
+      payouts.adjustInsurancePayoutTx(tx, { clinicId: ctx.clinicId, payoutId: d.payoutId, amountCents: d.amountCents, reason: d.reason, idempotencyKey: `ui:${d.idempotencyKey}`, actorUserId: ctx.userId }),
+    );
+    return null;
+  });
+}
+
+export async function cancelInsurancePayoutAction(input: { payoutId: string; reason: string }): Promise<ActionResult<null>> {
+  return run(async () => {
+    const d = z.object({ payoutId: uuid, reason }).parse(input);
+    await write('health_insurance.payout.cancelled', { type: 'hi_payout', id: d.payoutId }, (tx, ctx) =>
+      payouts.cancelInsurancePayoutTx(tx, { clinicId: ctx.clinicId, payoutId: d.payoutId, reason: d.reason, actorUserId: ctx.userId }),
+    );
+    return null;
+  });
+}
+
+/** Cria os repasses que faltam (guias vivas sem repasse), com as regras atuais. */
+export async function syncInsurancePayoutsAction(): Promise<ActionResult<number>> {
+  return run(() =>
+    write('health_insurance.payout.synced', { type: 'hi_payout', id: null }, (tx, ctx) => payouts.syncInsurancePayoutsTx(tx, ctx.clinicId, ctx.userId)),
+  );
+}
+
+/** Política D16 da clínica (vale para os repasses criados daqui em diante). */
+export async function setPayoutEligibilityAction(input: { eligibility: string }): Promise<ActionResult<null>> {
+  return run(async () => {
+    const d = z.object({ eligibility: z.enum(['on_receipt', 'on_approval', 'on_completion']) }).parse(input);
+    await write('health_insurance.payout.policy_changed', { type: 'hi_clinic_settings', id: null }, async (tx, ctx) => {
+      await tx.execute(sql`UPDATE public.hi_clinic_settings SET payout_eligibility = ${d.eligibility} WHERE clinic_id = ${ctx.clinicId}::uuid`);
+      return d.eligibility;
     });
     return null;
   });
