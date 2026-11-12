@@ -69,6 +69,12 @@ interface Observation {
   cspReportOnly: string;
 }
 const observations: Observation[] = [];
+/**
+ * Corpo inteiro da resposta, para quem precisa ler o JSON: o relatório (`observations`)
+ * guarda só os 700 primeiros caracteres, e um JSON maior que isso não se lê do `body`.
+ */
+const fullBodies = new WeakMap<Observation, string>();
+const fullBody = (o: Observation): string => fullBodies.get(o) ?? o.body;
 async function request(
   test: string,
   route: string,
@@ -85,7 +91,7 @@ async function request(
         res.on('data', (chunk: Buffer) => chunks.push(chunk));
         res.on('end', () => {
           const text = Buffer.concat(chunks).toString();
-          resolve({
+          const observation: Observation = {
             test,
             path: route,
             method,
@@ -97,7 +103,9 @@ async function request(
             cors: String(res.headers['access-control-allow-origin'] ?? ''),
             csp: String(res.headers['content-security-policy'] ?? ''),
             cspReportOnly: String(res.headers['content-security-policy-report-only'] ?? ''),
-          });
+          };
+          fullBodies.set(observation, text);
+          resolve(observation);
         });
       },
     );
@@ -174,7 +182,7 @@ try {
       ms: z.object({ valid: z.number(), invalid: z.number(), total: z.number() }),
       rssMb: z.number(),
     })
-    .parse(JSON.parse(xsdCheck.body));
+    .parse(JSON.parse(fullBody(xsdCheck)));
   assert.equal(xsdCheck.status, 200);
   // Sonda de limites no build real: namespace, lote grande, timeout, teto de memória e fila.
   const limitsCheck = await request('tiss-xsd:limits', '/api/health/tiss-xsd?probe=limits', 'GET', {
@@ -194,7 +202,7 @@ try {
         ms: z.object({ largeBatch: z.number(), total: z.number() }).passthrough(),
       }),
     })
-    .parse(JSON.parse(limitsCheck.body));
+    .parse(JSON.parse(fullBody(limitsCheck)));
   assert.equal(limitsCheck.status, 200);
   // O rastreamento de arquivos (o que a Vercel empacota na função) inclui o worker, o
   // `.wasm` e os XSD: a rota não depende de arquivo fora do bundle.
