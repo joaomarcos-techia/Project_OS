@@ -7,12 +7,14 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type * as PolicyModule from '@/lib/premium-access/policy';
+
 vi.mock('server-only', () => ({}));
 // D24: o gate comercial é provado contra o banco real (health-insurance-premium-gate-db.ts);
 // aqui ele responde "liberado" por padrão e "negado" no caso específico abaixo.
 const premium = vi.hoisted(() => ({ denial: null as null | 'trial' }));
 vi.mock('@/lib/premium-access', async () => {
-  const policy = await vi.importActual<typeof import('@/lib/premium-access/policy')>('@/lib/premium-access/policy');
+  const policy = await vi.importActual<typeof PolicyModule>('@/lib/premium-access/policy');
   return {
     assertPremiumFeatureTx: async () => {
       if (premium.denial) throw new policy.PremiumAccessError('health_insurance', premium.denial);
