@@ -1,0 +1,73 @@
+{
+  "devRef": "pqhkirrszzpwezdaqrai",
+  "checkedAt": "2026-11-12T13:10:04.420Z",
+  "storageListStatus": 200,
+  "buckets": [
+    {
+      "id": "lgpd-exports",
+      "public": false,
+      "fileSizeLimit": null,
+      "mime": null
+    },
+    {
+      "id": "clinical-pdfs",
+      "public": false,
+      "fileSizeLimit": null,
+      "mime": null
+    },
+    {
+      "id": "admin-exports",
+      "public": false,
+      "fileSizeLimit": null,
+      "mime": null
+    },
+    {
+      "id": "clinic-logos",
+      "public": true,
+      "fileSizeLimit": 5242880,
+      "mime": [
+        "image/png",
+        "image/jpeg",
+        "image/webp"
+      ]
+    },
+    {
+      "id": "logo_qoro",
+      "public": true,
+      "fileSizeLimit": null,
+      "mime": null
+    }
+  ],
+  "tissFilesExists": false,
+  "storageRls": [
+    {
+      "relname": "buckets",
+      "rls": true,
+      "force": false
+    },
+    {
+      "relname": "objects",
+      "rls": true,
+      "force": false
+    }
+  ],
+  "bucketColumns": [
+    "id",
+    "name",
+    "owner",
+    "created_at",
+    "updated_at",
+    "public",
+    "avif_autodetection",
+    "file_size_limit",
+    "allowed_mime_types",
+    "owner_id",
+    "type",
+    "versioning_status",
+    "lifecycle_configuration",
+    "lifecycle_configuration_generation"
+  ],
+  "pg": "17.6",
+  "policies": [],
+  "unscopedObjectPolicies": []
+}

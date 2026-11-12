@@ -19,6 +19,8 @@
  */
 import 'server-only';
 
+import type { SupabaseClient } from '@supabase/supabase-js';
+
 import { createAdminClient } from '@/lib/auth/supabase-admin';
 
 export const TISS_FILES_BUCKET = 'tiss-files';
@@ -55,11 +57,23 @@ export class TissStorageError extends Error {
   }
 }
 
-const NOT_FOUND = /not.?found|does not exist|no such|404/iu;
+/**
+ * O Storage responde 400 com `statusCode: "404"` tanto para objeto ausente ("Object not
+ * found", NoSuchKey) quanto para chave recusada ou bucket inexistente ("Bucket not found",
+ * NoSuchBucket: a role sem acesso não enxerga o bucket). Só o PRIMEIRO é arquivo ausente
+ * (crítico, 409); o segundo é configuração/credencial (indisponível, 503). Medido contra o
+ * bucket real do DEV em 12/11 — o regex genérico anterior confundia os dois.
+ */
+const OBJECT_NOT_FOUND = /\bobject not found\b|NoSuchKey/iu;
+const BUCKET_NOT_FOUND = /\bbucket not found\b|NoSuchBucket/iu;
 const CLINIC_PREFIX = /^[0-9a-f-]{36}$/u;
 
-export function supabaseTissObjectStore(): TissObjectStore {
-  const bucket = () => createAdminClient().storage.from(TISS_FILES_BUCKET);
+/**
+ * `client` só existe para a prova contra o bucket real (falha de credencial/rede de
+ * verdade); o app usa sempre o cliente admin do servidor.
+ */
+export function supabaseTissObjectStore(client: () => SupabaseClient = createAdminClient): TissObjectStore {
+  const bucket = () => client().storage.from(TISS_FILES_BUCKET);
   return {
     async put(ref, bytes) {
       const { error } = await bucket().upload(ref, bytes, { contentType: 'application/octet-stream', upsert: false });
@@ -69,7 +83,7 @@ export function supabaseTissObjectStore(): TissObjectStore {
       const { data, error } = await bucket().download(ref);
       if (error || !data) {
         const detail = error?.message ?? 'sem dados';
-        throw new TissStorageError('get', detail, NOT_FOUND.test(detail) ? 'not_found' : 'unavailable');
+        throw new TissStorageError('get', detail, OBJECT_NOT_FOUND.test(detail) ? 'not_found' : 'unavailable');
       }
       return new Uint8Array(await data.arrayBuffer());
     },
@@ -96,7 +110,7 @@ export function supabaseTissObjectStore(): TissObjectStore {
 export async function checkTissBucketReadiness(): Promise<{ ok: boolean; reason: 'ready' | 'missing' | 'public' | 'error' }> {
   try {
     const { data, error } = await createAdminClient().storage.getBucket(TISS_FILES_BUCKET);
-    if (error || !data) return { ok: false, reason: error && NOT_FOUND.test(error.message) ? 'missing' : 'error' };
+    if (error || !data) return { ok: false, reason: error && BUCKET_NOT_FOUND.test(error.message) ? 'missing' : 'error' };
     return data.public ? { ok: false, reason: 'public' } : { ok: true, reason: 'ready' };
   } catch {
     return { ok: false, reason: 'error' };

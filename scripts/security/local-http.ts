@@ -176,6 +176,26 @@ try {
     })
     .parse(JSON.parse(xsdCheck.body));
   assert.equal(xsdCheck.status, 200);
+  // Sonda de limites no build real: namespace, lote grande, timeout, teto de memória e fila.
+  const limitsCheck = await request('tiss-xsd:limits', '/api/health/tiss-xsd?probe=limits', 'GET', {
+    Authorization: `Bearer ${env.CRON_SECRET}`,
+  });
+  const limitsReport = z
+    .object({
+      limits: z.object({
+        status: z.literal('ok'),
+        checks: z.object({
+          namespaceRejected: z.literal(true),
+          largeBatchAccepted: z.literal(true),
+          timeoutEnforced: z.literal(true),
+          memoryLimitEnforced: z.literal(true),
+          queueEnforced: z.literal(true),
+        }),
+        ms: z.object({ largeBatch: z.number(), total: z.number() }).passthrough(),
+      }),
+    })
+    .parse(JSON.parse(limitsCheck.body));
+  assert.equal(limitsCheck.status, 200);
   // O rastreamento de arquivos (o que a Vercel empacota na função) inclui o worker, o
   // `.wasm` e os XSD: a rota não depende de arquivo fora do bundle.
   const trace = z
@@ -299,7 +319,7 @@ try {
     JSON.stringify(
       {
         healthVectors: 12,
-        tissXsd: { engine: xsdReport.engine, validMs: xsdReport.ms.valid, totalMs: xsdReport.ms.total, rssMb: xsdReport.rssMb, tracedFiles: 6 },
+        tissXsd: { engine: xsdReport.engine, validMs: xsdReport.ms.valid, totalMs: xsdReport.ms.total, rssMb: xsdReport.rssMb, tracedFiles: 6, limitsLargeBatchMs: limitsReport.limits.ms.largeBatch, limitsTotalMs: limitsReport.limits.ms.total },
         actions: Object.keys(manifest.node).length,
         actionRequests: observations.filter((item) => item.test.startsWith('action:')).length,
         action200WithExplicitDenial: failures.length,

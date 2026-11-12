@@ -8,22 +8,41 @@
  * que o pacote, o `.wasm` e os XSD entraram no bundle (ver `outputFileTracingIncludes`
  * no next.config.ts) — o `security:http` do CI chama esta rota contra o `next start`.
  *
+ * `?probe=limits` acrescenta a sonda de limites (namespace, lote grande, timeout, teto de
+ * memória e fila), com instâncias próprias do motor: é a prova de que os limites valem no
+ * runtime efetivo da Preview. Só depois da credencial; custo limitado (ver a sonda).
+ *
  * Auth idêntica a /api/health (MEDIUM-19): Bearer CRON_SECRET ou super_admin AAL2.
  * Sem credencial → 401 (evita profiling público). Nenhum dado de clínica é lido.
  */
-import { tissXsdSelfCheck } from '@/contexts/health-insurance';
+import { tissXsdLimitsProbe, tissXsdSelfCheck } from '@/contexts/health-insurance';
 import { healthAuthLevel } from '@/lib/http/health-auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
+
+const NO_STORE = { 'cache-control': 'no-store' };
 
 export async function GET(req: Request): Promise<Response> {
   if ((await healthAuthLevel(req)) === 'denied') {
-    return Response.json({ error: 'unauthorized' }, { status: 401, headers: { 'cache-control': 'no-store' } });
+    return Response.json({ error: 'unauthorized' }, { status: 401, headers: NO_STORE });
   }
   const report = await tissXsdSelfCheck();
-  return Response.json(report, {
-    status: report.status === 'ok' ? 200 : 503,
-    headers: { 'cache-control': 'no-store' },
-  });
+  const wantsLimits = new URL(req.url).searchParams.get('probe') === 'limits';
+  const limits = wantsLimits && report.status === 'ok' ? await tissXsdLimitsProbe() : null;
+  const ok = report.status === 'ok' && (!wantsLimits || limits?.status === 'ok');
+  return Response.json(
+    {
+      ...report,
+      ...(wantsLimits ? { limits } : {}),
+      runtime: {
+        node: process.version,
+        region: process.env.VERCEL_REGION ?? null,
+        commit: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 12) ?? null,
+        env: process.env.VERCEL_ENV ?? null,
+      },
+    },
+    { status: ok ? 200 : 503, headers: NO_STORE },
+  );
 }
