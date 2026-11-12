@@ -39,7 +39,7 @@ import { sql as dsql } from 'drizzle-orm';
 
 import { readMigrations, startScratchSchema } from './scratch-schema';
 
-const REF = process.argv[2] ?? process.env.PR53_REF ?? '9ddc432a';
+const REF = process.argv[2] ?? process.env.PR53_REF ?? '8c591c8f';
 const git = (...args: string[]) => execFileSync('git', args, { encoding: 'utf8', maxBuffer: 64 << 20 });
 const pr53Files = git('ls-tree', '--name-only', REF, 'drizzle/migrations/')
   .split('\n')
@@ -95,7 +95,7 @@ try {
   // ── 2. Gatilhos das duas branches nas tabelas compartilhadas ─────────
   const triggers = await sql`select c.relname as tbl, t.tgname as name
       from pg_trigger t join pg_class c on c.oid = t.tgrelid
-     where not t.tgisinternal and c.relname in ('appointments', 'lancamentos') order by 1, 2`;
+     where not t.tgisinternal and c.relname in ('appointments', 'lancamentos', 'payment_transactions') order by 1, 2`;
   const names = triggers.map((t) => `${t.tbl}.${t.name}`);
   for (const expected of [
     'appointments.trial_appointments',
@@ -103,10 +103,14 @@ try {
     'appointments.a0_hi_premium_appointment',
     'lancamentos.trial_financial_entries',
     'lancamentos.lancamentos_convenio_patient_guard',
+    'lancamentos.lancamentos_insurer_receivable_guard',
+    'payment_transactions.trial_payment_records',
+    'payment_transactions.trg_payment_transactions_validate_insert',
+    'payment_transactions.payment_transactions_insurer_guard',
   ]) {
     assert.ok(names.includes(expected), `falta ${expected}: ${names.join(', ')}`);
   }
-  pass('gatilhos convivem: trial do #53 (AFTER INSERT), convênio e bloqueio comercial (BEFORE) em appointments e lancamentos');
+  pass('gatilhos convivem: trial do #53 (AFTER INSERT), convênio, bloqueio comercial e a ponte financeira da 0153 (BEFORE) em appointments, lancamentos e payment_transactions');
 
   // ── Fixture: clínica em TRIAL (plano 2026), inscrita na política do #53 ──
   const clinicId = randomUUID();
@@ -245,6 +249,9 @@ try {
        AND invoice.id = ${invoice!.id}::uuid AND invoice.clinic_id = policy.clinic_id
        AND invoice.subscription_id = policy.subscription_id
        AND invoice.status = 'paid' AND invoice.paid_at IS NOT NULL AND invoice.total_amount > 0`;
+  // A ativação paga do #53 grava o período pago; sem ele, a própria regra do #53 nega (0154, D24-b).
+  await sql`update public.subscriptions set current_period_start = now() - interval '1 minute', current_period_end = now() + interval '30 days'
+    where clinic_id = ${clinicId}::uuid`;
   for (const feature of ['health_insurance', 'patient_charges', 'ai_agents']) {
     assert.equal(await denial(feature), null);
   }
@@ -295,6 +302,31 @@ try {
   );
   pass('clínica paga: recebível cheio de convênio continua recusado pela rede da 0148');
 
+  // ── 8b. Ponte da 0153 com os gatilhos do #53 (trial e livro) na clínica paga ──
+  // Caminho do dono (o que a projeção da 0153 faz dentro da função SECURITY DEFINER) e
+  // caminho do runtime (Caixa), com a política de trial do #53 presente.
+  const fakeGuide = randomUUID();
+  const [opRec] = await sql.begin(async (t) => {
+    await t`select set_config('app.current_clinic', ${clinicId}, true)`;
+    return t`insert into public.lancamentos (clinic_id, tipo, descricao, valor, status, payment_method, created_via, source_hi_guide_id)
+      values (${clinicId}::uuid, 'receber', 'Convênio sintético — guia 1', '150.00', 'pendente', 'convenio', 'auto', ${fakeGuide}::uuid)
+      returning id`;
+  });
+  await sql.begin(async (t) => {
+    await t`select set_config('app.current_clinic', ${clinicId}, true)`;
+    await t`insert into public.payment_transactions (clinic_id, lancamento_id, kind, amount, payment_method)
+      values (${clinicId}::uuid, ${opRec!.id}::uuid, 'payment', '150.00', 'convenio')`;
+  });
+  await assert.rejects(
+    () =>
+      withTenant(clinicId, (tx) =>
+        tx.execute(dsql`insert into public.payment_transactions (clinic_id, lancamento_id, kind, amount, payment_method)
+          values (${clinicId}::uuid, ${opRec!.id}::uuid, 'payment', '1.00', 'pix')`),
+      ),
+    (e: unknown) => (e as { cause?: { code?: string } }).cause?.code === '42501',
+  );
+  pass('ponte 0153 com os gatilhos do #53: recebível de operadora e pagamento pelo caminho da ponte passam pelo trial e pela validação do livro; pelo runtime (Caixa) o pagamento de operadora é recusado (42501)');
+
   // ── 9. A decisão do banco (0151/0152) e a do #53 (entitlements) concordam ─
   // O código REAL do #53 em REF: a regra pura (`evaluateModuleAccess`) e a consulta que a
   // alimenta (`getOperationalModuleAccessTx`), lidas por `git show`, sem tocar o worktree dele.
@@ -319,10 +351,10 @@ try {
       // decide só o direito comercial, e a habilitação operacional (hi_clinic_settings) segue à parte.
       assert.equal(pr53.evaluateModuleAccess(row ?? null, 'health_insurance', new Date()).allowed, false);
     };
-    const setState = (s: { billing: string; start: string; end: string | null; grace: string | null; cancelAtEnd?: boolean; clinic?: string }) =>
+    const setState = (s: { billing: string; start: string | null; end: string | null; grace: string | null; cancelAtEnd?: boolean; clinic?: string }) =>
       sql.begin(async (t) => {
         await t`update public.subscriptions set billing_status = ${s.billing},
-                 current_period_start = now() + ${s.start}::interval,
+                 current_period_start = ${s.start === null ? null : t`now() + ${s.start}::interval`},
                  current_period_end = ${s.end === null ? null : t`now() + ${s.end}::interval`},
                  grace_period_until = ${s.grace === null ? null : t`now() + ${s.grace}::interval`},
                  cancel_at_period_end = ${s.cancelAtEnd ?? false}
@@ -338,18 +370,21 @@ try {
       ['clínica suspensa pelo dunning', { billing: 'past_due', start: '-40 days', end: '-10 days', grace: '-3 days', clinic: 'suspended_readonly' }],
       ['pagamento pendente', { billing: 'active', start: '-10 days', end: '20 days', grace: '23 days', clinic: 'pending_payment' }],
       ['de volta ao trial', { billing: 'trial', start: '-1 day', end: '13 days', grace: null }],
+      // 0154 (D24-b): as duas regras de período do #53 que o banco passou a seguir.
+      ['período que ainda não começou', { billing: 'active', start: '2 days', end: '32 days', grace: '35 days' }],
+      ['coorte do #53 liberada, sem período registrado', { billing: 'active', start: null, end: null, grace: null }],
     ];
     for (const [label, state] of matrix) {
       await setState(state);
       await compare(label);
     }
     await setState(matrix[0]![1]);
-    pass(`mesma decisão que o código REAL do #53 em ${REF} (evaluateModuleAccess + a consulta dele) para cobrança de pacientes e Agentes de IA em ${matrix.length} estados: ativa, past_due dentro e fora da carência, cancelada no fim do período, cancelada, suspensa, pagamento pendente e trial; Convênios segue indisponível no #53 até a liberação controlada`);
+    pass(`mesma decisão que o código REAL do #53 em ${REF} (evaluateModuleAccess + a consulta dele) para cobrança de pacientes e Agentes de IA em ${matrix.length} estados: ativa, past_due dentro e fora da carência, cancelada no fim do período, cancelada, suspensa, pagamento pendente, trial, período que ainda não começou e coorte do #53 sem período (0154); Convênios segue indisponível no #53 até a liberação controlada`);
   } else {
     console.log(`(sem src/lib/entitlements em ${REF}: comparação com o #53 não se aplica)`);
   }
 
-  const expected = hasEntitlements ? 9 : 8;
+  const expected = hasEntitlements ? 10 : 9;
   console.log(`\nOK — ${passed}/${expected} provas da cadeia unida (main + #53 ${REF} + #55) em Postgres descartável.`);
   assert.equal(passed, expected);
 } finally {

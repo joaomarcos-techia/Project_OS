@@ -221,6 +221,10 @@ export async function buildSchemaSqlFromMigrations(): Promise<string> {
  * de pacientes e Agentes de IA só funcionam assim. Os harnesses de Convênios provam
  * o módulo numa clínica que pode usá-lo; o bloqueio do trial tem harness próprio
  * (`health-insurance-premium-gate-db.ts`). Plano do catálogo real das migrations.
+ *
+ * Com PERÍODO PAGO registrado (como o billing grava na ativação): desde a 0154 (D24-c), a
+ * assinatura antiga sem período verificável não libera Convênios — esse caso tem prova
+ * própria no harness do bloqueio comercial.
  */
 export async function grantPaidSubscription(
   sql: Sql,
@@ -228,8 +232,8 @@ export async function grantPaidSubscription(
   planCode = 'clinica_2026_2',
 ): Promise<void> {
   const rows = await sql`
-    insert into public.subscriptions (clinic_id, plan_id, price_id, billing_status)
-    select ${clinicId}::uuid, pl.id, pr.id, 'active'
+    insert into public.subscriptions (clinic_id, plan_id, price_id, billing_status, current_period_start, current_period_end)
+    select ${clinicId}::uuid, pl.id, pr.id, 'active', now() - interval '1 day', now() + interval '30 days'
       from public.plans pl
       join public.prices pr on pr.plan_id = pl.id
      where pl.code = ${planCode}

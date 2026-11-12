@@ -402,3 +402,54 @@ export async function readPaymentBalanceInTx(tx: Tx, clinicId: string, paymentId
     : null;
 }
 
+
+// ── 0153: o livro da clínica (projeção da conta da guia) ──────────────
+
+/** Por operadora: o que foi faturado, recebido, glosado (em aberto e definitivo) e falta receber. */
+export interface InsurerReceivables {
+  insurerId: string;
+  guides: number;
+  billedCents: number;
+  paidCents: number;
+  glossOpenCents: number;
+  glossDefinitiveCents: number;
+  pendingCents: number;
+  /** Dinheiro recebido da operadora e ainda não alocado a guias (conciliação). */
+  unreconciledCents: number;
+}
+
+export async function listInsurerReceivablesInTx(tx: Tx, clinicId: string): Promise<InsurerReceivables[]> {
+  const rows = (await tx.execute(
+    sql`SELECT insurer_id, guides, billed_cents, paid_cents, gloss_open_cents, gloss_definitive_cents, pending_cents,
+               unreconciled_cents
+          FROM public.hi_insurer_receivables WHERE clinic_id = ${clinicId}::uuid ORDER BY insurer_id`,
+  )) as unknown as Array<Record<string, string | number>>;
+  return rows.map((r) => ({
+    insurerId: String(r.insurer_id),
+    guides: Number(r.guides),
+    billedCents: Number(r.billed_cents),
+    paidCents: Number(r.paid_cents),
+    glossOpenCents: Number(r.gloss_open_cents),
+    glossDefinitiveCents: Number(r.gloss_definitive_cents),
+    pendingCents: Number(r.pending_cents),
+    unreconciledCents: Number(r.unreconciled_cents),
+  }));
+}
+
+export type LedgerDriftKind = 'missing_receivable' | 'billed_mismatch' | 'paid_mismatch' | 'gloss_mismatch' | 'stale_receivable';
+
+/** Guias em que o livro não bate com a conta (deve ser sempre vazio; alerta se não for). */
+export async function listLedgerDriftInTx(
+  tx: Tx,
+  clinicId: string,
+): Promise<Array<{ guideId: string; number: string; drift: LedgerDriftKind }>> {
+  const rows = (await tx.execute(
+    sql`SELECT guide_id, number, drift FROM public.hi_ledger_drift WHERE clinic_id = ${clinicId}::uuid ORDER BY number`,
+  )) as unknown as Array<Record<string, string>>;
+  return rows.map((r) => ({ guideId: String(r.guide_id), number: String(r.number), drift: r.drift as LedgerDriftKind }));
+}
+
+/** Reprocessa a ponte da clínica da sessão (idempotente). Devolve quantas guias conferiu. */
+export async function syncLedgerForClinicInTx(tx: Tx, clinicId: string): Promise<number> {
+  return Number(await call<number>(tx, sql`SELECT public.hi_ledger_sync_clinic(${clinicId}::uuid) AS n`));
+}

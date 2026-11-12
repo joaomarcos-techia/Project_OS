@@ -23,6 +23,10 @@ export interface LancamentoSummary {
   descricao: string;
   valor: number;
   valorPago: number;
+  /** Baixa sem caixa por glosa definitiva da operadora (0153); 0 fora do convênio. */
+  valorGlosado: number;
+  /** Guia de convênio de origem (0153): recebível da operadora, mantido pelo Convênios. */
+  sourceHiGuideId: string | null;
   status: LancamentoStatus;
   dueDate: string | null; // 'YYYY-MM-DD'
   paidAt: string | null; // ISO

@@ -85,7 +85,7 @@ Permissão do usuário continua no lugar de sempre (`requireFreshPermission`) e 
 os dois se somam. Feature flag operacional (`hi_clinic_settings.enabled`) também se soma: assinatura paga com o módulo
 desligado não opera Convênios.
 
-## 6. Integração com o PR #53 (estado em `9ddc432a`) e nota para o agente da AbacatePay
+## 6. Integração com o PR #53 (estado em `8c591c8f`) e nota para o agente da AbacatePay
 
 **O que o #53 já fechou** (lido no diff `e8309aee..9ddc432a`, sem tocar o worktree dele): central própria
 `src/lib/entitlements` (`getOperationalModuleAccess`), que consulta a `qoro_premium_denial` do #55 quando ela existe
@@ -95,7 +95,9 @@ checkout hospedado de cobrança e prazo único de trial (`QORO_TRIAL_DAYS` no lu
 
 **Alinhamento provado:** a 0152 trouxe para o banco a mesma regra de período e carência do `evaluateModuleAccess`
 (período vencido sem carência, carência expirada e cancelamento no fim do período negam). A cadeia unida compara as
-duas decisões em 8 estados e elas concordam.
+duas decisões em 8 estados e elas concordam. A 0154 acrescentou as duas regras de período do #53 que faltavam no banco
+(período que ainda não começou; coorte do #53 sem período) e a comparação passou a 10 estados. De `9ddc432a` para
+`8c591c8f` o #53 não mudou migrations nem a política central (só billing, renovação e um ensaio da composição com o TISS).
 
 **Nota objetiva para o agente do #53** (nada foi alterado no worktree dele):
 
@@ -136,12 +138,82 @@ Atendimento concluído enquanto a assinatura está caída vira **pendência auto
 cada 24 h, sem teto); a guia é gerada quando a clínica regulariza — a suspensão nunca apaga nem impede tratar o que já
 existe.
 
-**Decisões comerciais que ainda precisam da sua aprovação:**
+Linhas acrescentadas pela 0154 (D24-b/D24-c):
 
-- **D24-a — Recurso de glosa com a assinatura suspensa:** classifiquei como preservação (contesta obrigação já faturada;
-  bloquear pode fazer a clínica perder o prazo do recurso e o dinheiro). Se preferir tratar como operação nova, é uma
-  linha no gatilho comercial da 0152.
-- **D24-b — Duração da carência:** hoje é a que o billing grava (`DUNNING_READONLY_DAYS` do #53). Se a carência de
-  Convênios deve ser diferente da do resto do Qoro, é decisão sua com o agente da AbacatePay.
-- **D24-c — Assinatura antiga sem período registrado:** segue o status do dunning na clínica (como no #53). Se quiser
-  exigir período registrado também para elas, o banco e o #53 precisam mudar juntos.
+| Estado da assinatura | Operação nova | Preservação |
+| --- | --- | --- |
+| Período que ainda não começou (dado inconsistente) | **negada** (`period_expired`, regra do #53) | **permitida** |
+| Coorte do #53 (com `trial_access_policies`) sem período registrado | **negada** (`period_expired`, regra do #53) | **permitida** |
+| Antiga sem período, com fatura PAGA cobrindo hoje | permitida (evidência verificável) | permitida |
+| Antiga sem período e sem evidência | Convênios **negado** (`period_unverified`); cobrança e IA na compatibilidade transitória do #53 | **permitida** |
+
+## 8. Decisões do fundador (12/11) e o que foi implementado
+
+### D24-a — recurso de glosa com a assinatura suspensa: preservação (aprovado)
+
+Decisão: a clínica suspensa continua tratando glosas de serviços já realizados e guias já emitidas — consultar, preparar
+a justificativa, apresentar o recurso, registrar o protocolo, receber a resposta, corrigir pendência, registrar a
+reversão e conciliar. Não serve para criar atendimento, guia, lote ou qualquer operação premium nova.
+
+Como o vínculo real com a obrigação anterior é verificado (no banco, em toda chamada):
+
+- glosa só de guia **enviada à operadora num lote enviado** (`hi_account_lock_guide`, 0152) — guia fictícia ou nunca
+  enviada é recusada;
+- recurso só com itens que são glosas **daquela guia**, ainda em aberto, e justificativa de **uma pessoa** (sem
+  justificativa automática);
+- apresentação só com protocolo real ou evidência do envio; resposta decide cada glosa;
+- o XML oficial do recurso (`gloss_appeal_xml`) é preservação no gatilho comercial; lote, guia, cobertura, exportação e
+  envio novos continuam negados;
+- permissão do usuário: as funções exigem a pessoa da sessão; as ações da interface exigem gerenciar financeiro.
+
+Prova: harness de glosas, cenário 15 — com a assinatura cancelada, glosa do demonstrativo, conciliação e o recurso
+inteiro (criar, apresentar com protocolo, resposta deferida) passam; recurso sem glosa ou com glosa de outra guia é
+recusado; lote novo segue negado. Toda operação fica no histórico da conta (`hi_account_events`) e na auditoria.
+
+### D24-b — carência: só a política central do billing (aprovado)
+
+Decisão: nenhuma regra de prazo própria em Convênios; a única fonte é o billing do #53 (assinatura, período pago,
+dunning, carência, cancelamento, suspensão).
+
+Implementado: a decisão do banco (`qoro_premium_denial_for`) lê só o que o billing grava (`current_period_*`,
+`grace_period_until`, `cancel_at_period_end`, status do dunning) e reproduz a `evaluateModuleAccess` do #53. A 0154
+fechou as duas diferenças que a cadeia unida ainda não exercitava: **período que ainda não começou** e **coorte do #53
+sem período registrado** passam a ser negados também no banco (antes o banco liberava o que o #53 negava). Nenhuma
+carência ilimitada; `past_due` nunca vira pagamento; nenhum período é estendido sem evidência.
+
+Prova: cadeia unida (main + #53 `8c591c8f` + #55) compara o banco com o código REAL do #53 em 10 estados — os 8
+anteriores mais os dois novos — e as decisões concordam.
+
+### D24-c — assinatura antiga sem período verificável (aprovado; estratégia conjunta com o #53)
+
+Decisão: sem acesso premium indefinido só por status favorável; sem bloquear em silêncio clínica legítima por falha de
+migração de dados; dependência só do dunning é compatibilidade transitória, não autorização permanente.
+
+Implementado (0154, candidata, sem backfill):
+
+1. **Identificação e classificação:** a visão administrativa `qoro_subscription_period_audit` (só `service_role`) lista
+   toda assinatura ativa ou em atraso com a classificação `verified_period`, `inconsistent_period` (início sem fim,
+   início depois do fim, início no futuro), `paid_without_period_update` (fatura paga cobrindo hoje mas período
+   registrado vencido), `legacy_paid_invoice_evidence` (sem período, com fatura paga cobrindo hoje) ou
+   `legacy_unverified` (sem período e sem evidência).
+2. **Convênios:** sem período registrado, só com evidência verificável — fatura **paga** da assinatura cujo período cobre
+   hoje. Sem ela: `period_unverified`, com mensagem explícita ("não encontramos o período pago vigente; fale com o
+   suporte") — operação nova negada, preservação liberada (D24-a). Fatura vencida, em aberto ou duplicada não estende
+   nada.
+3. **Cobrança de pacientes e Agentes de IA:** continuam na compatibilidade transitória do #53 (status do dunning), para
+   não derrubar sem aviso clínicas pagantes por dado legado — e aparecem no alerta administrativo até a regularização.
+4. **Período registrado vence a fatura:** se há período e ele venceu, a fatura não o substitui (uma fonte só: o
+   billing); o caso vira alerta `paid_without_period_update` para a reconciliação do #53.
+5. **Regularização (não executada; precisa de autorização):** para `legacy_paid_invoice_evidence`, gravar
+   `current_period_start/end` a partir da fatura paga pelo fluxo de reconciliação do billing (#53), com
+   `subscription_history`; para `legacy_unverified`, conferir no provedor (Asaas legado ou AbacatePay) antes de qualquer
+   mudança. Nada é apagado, nenhum histórico financeiro é alterado.
+
+Prova: harness do bloqueio comercial, cenário 11 — antiga paga, antiga vencida, fatura em aberto, cancelada, ausência
+de período, período inconsistente, dados parcialmente migrados, pagamento sem atualização do período, reconciliação
+posterior, duplicidade e o alerta inacessível ao runtime.
+
+**Mensagem para o agente do #53 (D24-c):** (1) a classificação acima está em `qoro_subscription_period_audit`; a
+regularização das assinaturas `legacy_*` é do billing — sugerimos que o monitor de operação do #53 leia essa visão e
+abra o caso de reconciliação; (2) quando o #53 decidir encerrar a compatibilidade transitória para cobrança e IA, a
+mudança é a mesma regra da 0154 para os três recursos (uma linha), e a cadeia unida acusa qualquer divergência.

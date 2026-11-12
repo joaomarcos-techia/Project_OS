@@ -32,6 +32,11 @@ export const PREMIUM_DENIALS = [
   'subscription_inactive',
   /** Período pago vencido e fora da carência gravada pelo billing (0152; sem carência ilimitada). */
   'period_expired',
+  /**
+   * Assinatura antiga sem período pago registrado e sem fatura paga que cubra hoje (0154,
+   * D24-c). Só para Convênios; cobrança e IA seguem a compatibilidade do billing (#53).
+   */
+  'period_unverified',
   'plan_excludes',
 ] as const;
 export type PremiumDenial = (typeof PREMIUM_DENIALS)[number];
@@ -62,6 +67,8 @@ export function premiumDenialMessage(feature: PremiumFeature, reason: PremiumDen
       return `${label}: a assinatura da clínica não está ativa. Regularize a assinatura para voltar a usar este recurso. Os registros já feitos continuam disponíveis para consulta.`;
     case 'period_expired':
       return `${label}: o período pago da assinatura terminou e a carência acabou. Regularize o pagamento para voltar a criar novas operações. Os registros já feitos, os retornos, as glosas e os pagamentos da operadora continuam disponíveis.`;
+    case 'period_unverified':
+      return `${label}: não encontramos o período pago vigente da assinatura. Fale com o suporte do Qoro para conferir o pagamento; os registros já feitos, os retornos, as glosas e os pagamentos da operadora continuam disponíveis.`;
     case 'plan_excludes':
       return `${label}: o plano atual da clínica não inclui este recurso. ${PLANS_CTA}`;
   }

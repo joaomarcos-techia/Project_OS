@@ -199,7 +199,7 @@ try {
            (${tv!.id}::uuid, '87', '22', 'Procedimentos e eventos em saúde', '2010-01-01')`;
   const A = await setupClinic('A');
   const B = await setupClinic('B');
-  const [{ n: lancBefore }] = (await sql`select count(*)::int as n from public.lancamentos`) as unknown as [{ n: number }];
+  const [{ n: lancBefore }] = (await sql`select count(*)::int as n from public.lancamentos where source_hi_guide_id is null`) as unknown as [{ n: number }];
 
   // ── 1. Glosa parcial (do demonstrativo) e pagamento do resto ─────────
   const L1 = await sentBatch(A, 4);
@@ -404,15 +404,39 @@ try {
   const [{ denial }] = (await sql`select public.qoro_premium_denial_for(${A.clinicId}::uuid, 'health_insurance') as denial`) as unknown as [{ denial: string }];
   const glPres = await asSystem(A, (tx) => acct.recordGlossInTx(tx, { clinicId: A.clinicId, batchId: L2.batchId, guideId: L2.guides[1]!, code: '1705', amountCents: 1000, source: 'statement', returnId: L2.analysisReturn, idempotencyKey: key('gl') }));
   await asUser(A, (tx) => acct.allocatePaymentInTx(tx, { clinicId: A.clinicId, paymentId: pInexact, allocationKey: key('conc'), allocations: [{ guideId: L2.guides[2]!, batchId: L2.batchId, amountCents: VALUE - 100 }] }));
+  // D24-a (decisão do fundador, 12/11): o RECURSO da glosa anterior segue com a assinatura
+  // suspensa — preparar a justificativa humana, apresentar com protocolo e receber a resposta.
+  const apPres = await asUser(A, (tx) => acct.createAppealInTx(tx, { clinicId: A.clinicId, guideId: L2.guides[1]!, items: [{ glossId: glPres }], justification: 'Procedimento realizado conforme autorização prévia da operadora; segue a comprovação do atendimento.', idempotencyKey: key('rec') }));
+  await asUser(A, (tx) => acct.fileAppealInTx(tx, { clinicId: A.clinicId, appealId: apPres, version: 1, channel: 'manual', filedOn: '2026-11-12', protocol: 'REC-SUSP-01' }));
+  await asUser(A, (tx) => acct.answerAppealInTx(tx, { clinicId: A.clinicId, appealId: apPres, version: 2, answeredOn: '2026-11-12', items: [{ glossId: glPres, acceptedCents: 1000 }], note: 'Deferido' }));
+  assert.equal((await glossRow(glPres)).status, 'reversed');
+  // Limite: o vínculo com uma obrigação ANTERIOR real é exigido — recurso sem glosa, glosa de
+  // outra guia ou guia que nunca foi enviada é recusado; e operação nova continua negada.
+  await assert.rejects(() => asUser(A, (tx) => acct.createAppealInTx(tx, { clinicId: A.clinicId, guideId: L2.guides[0]!, items: [{ glossId: glPres }], justification: 'Tentativa de usar a glosa de outra guia no recurso', idempotencyKey: key('rec') })));
+  await assert.rejects(() => asUser(A, (tx) => acct.createAppealInTx(tx, { clinicId: A.clinicId, guideId: L2.guides[0]!, items: [], justification: 'Recurso sem nenhuma glosa vinculada não pode existir', idempotencyKey: key('rec') })));
+  const unsent = await sql`select id from public.hi_guides where clinic_id = ${A.clinicId}::uuid and status = 'approved' limit 1`;
+  if (unsent[0]) {
+    await rejects('state', () => asUser(A, (tx) => acct.recordGlossInTx(tx, { clinicId: A.clinicId, batchId: L2.batchId, guideId: unsent[0]!.id as string, code: '1705', amountCents: 100, source: 'manual', idempotencyKey: key('gl') })));
+  }
+  await assert.rejects(() => asUser(A, async (tx) => batches.createBatchInTx(tx, { clinicId: A.clinicId, insurerId: A.insurerId, guideType: 'consulta', guideIds: [await A.approvedGuide()], idempotencyKey: key('lote') })));
   await sql`update public.subscriptions set billing_status = 'active' where clinic_id = ${A.clinicId}::uuid`;
   assert.ok(denial === 'subscription_cancelled' && glPres);
-  pass('D24 (preservação): com a assinatura cancelada (novas operações negadas: "subscription_cancelled"), glosa do demonstrativo e conciliação de pagamento de lote já enviado continuam aceitas');
+  pass('D24-a (preservação): com a assinatura cancelada ("subscription_cancelled"), glosa do demonstrativo, conciliação de pagamento e o RECURSO da glosa anterior (justificativa humana, protocolo e resposta) continuam; recurso sem glosa ou com glosa de outra guia é recusado e lote novo segue negado');
 
-  // ── 16. Nenhum lançamento no livro financeiro da clínica ─────────────
-  const [{ n: lancAfter }] = (await sql`select count(*)::int as n from public.lancamentos`) as unknown as [{ n: number }];
+  // ── 16. Livro financeiro (0153): só a projeção da conta das guias enviadas ─
+  const [{ n: lancAfter }] = (await sql`select count(*)::int as n from public.lancamentos where source_hi_guide_id is null`) as unknown as [{ n: number }];
+  // A guia do cenário 12 foi posta em "substituída" COM OS GATILHOS DESLIGADOS (replica):
+  // a conferência acusa o recebível vivo dela, e o reprocessamento corrige.
+  const driftBefore = (await sql`select guide_id, drift from public.hi_ledger_drift`).map((r) => [r.guide_id, r.drift]);
+  assert.deepEqual(driftBefore, [[gr, 'stale_receivable']]);
+  await asUser(A, (tx) => acct.syncLedgerForClinicInTx(tx, A.clinicId));
+  const [{ n: billedGuides }] = (await sql`select count(*)::int as n from public.hi_guides where status in ('sent','under_review','paid','partially_paid','partially_glossed','fully_glossed','closed')`) as unknown as [{ n: number }];
+  const [{ n: liveReceivables }] = (await sql`select count(*)::int as n from public.lancamentos where source_hi_guide_id is not null and status <> 'cancelado'`) as unknown as [{ n: number }];
+  const [{ n: driftRows }] = (await sql`select count(*)::int as n from public.hi_ledger_drift`) as unknown as [{ n: number }];
+  assert.deepEqual([liveReceivables, driftRows], [billedGuides, 0]);
   const [{ n: histNoPii }] = (await sql`select count(*)::int as n from public.hi_account_events where details::text ilike '%Paciente%' or note ilike ${`%${CARD}%`}`) as unknown as [{ n: number }];
   assert.deepEqual([lancAfter, histNoPii], [lancBefore, 0]);
-  pass('nenhum lançamento em `lancamentos` em todo o ciclo (a ponte com o livro financeiro é da P1.10/P10.2, ainda não aplicada); histórico sem nome de paciente nem carteirinha');
+  pass('livro financeiro: nenhum lançamento particular criado em todo o ciclo; cada guia enviada tem UM recebível da operadora (0153); a guia substituída por fora dos gatilhos aparece na conferência (recebível vivo) e o reprocessamento a cancela; divergência vazia; histórico sem nome de paciente nem carteirinha');
 
   console.log(`\nOK — ${passed}/16 provas da 0152 (glosas, recursos, pagamentos e conta da guia) em Postgres descartável.`);
 } finally {

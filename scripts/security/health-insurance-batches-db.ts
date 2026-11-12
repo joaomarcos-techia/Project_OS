@@ -239,7 +239,7 @@ try {
            (${tv!.id}::uuid, '87', '22', 'Procedimentos e eventos em saúde', '2010-01-01')`;
   const A = await setupClinic('A');
   const B = await setupClinic('B');
-  const [{ n: lancBefore }] = (await sql`select count(*)::int as n from public.lancamentos`) as unknown as [{ n: number }];
+  const [{ n: lancBefore }] = (await sql`select count(*)::int as n from public.lancamentos where source_hi_guide_id is null`) as unknown as [{ n: number }];
 
   // ── 1. Uma guia: do lote ao arquivo cifrado, conferido na leitura ─────
   const g1 = await A.approvedGuide();
@@ -503,10 +503,14 @@ try {
   assert.equal(crossRead, null);
   pass('runtime não escreve nas tabelas do lote (só pelas funções); a função recusa clínica fora da sessão; a clínica B não vê lote nem lê o XML da A');
 
-  // ── 12. Nenhum efeito financeiro ────────────────────────────────────
-  const [{ n: lancAfter }] = (await sql`select count(*)::int as n from public.lancamentos`) as unknown as [{ n: number }];
+  // ── 12. Efeito financeiro só pela ponte (0153): recebível por guia enviada, nenhum dinheiro ──
+  const [{ n: lancAfter }] = (await sql`select count(*)::int as n from public.lancamentos where source_hi_guide_id is null`) as unknown as [{ n: number }];
   assert.equal(lancAfter, lancBefore);
-  pass('nenhum lançamento financeiro criado em todo o ciclo de lotes (exportar, reexportar, enviar, reenviar, retorno duplicado): o recebível da operadora é da P10.2');
+  const [{ n: sentGuides }] = (await sql`select count(*)::int as n from public.hi_guides where status in ('sent','under_review','paid','partially_paid','partially_glossed','fully_glossed','closed')`) as unknown as [{ n: number }];
+  const [{ n: receivables }] = (await sql`select count(*)::int as n from public.lancamentos where source_hi_guide_id is not null and status <> 'cancelado'`) as unknown as [{ n: number }];
+  const [{ n: money }] = (await sql`select count(*)::int as n from public.payment_transactions`) as unknown as [{ n: number }];
+  assert.deepEqual([receivables, money], [sentGuides, 0]);
+  pass('efeito financeiro do ciclo de lotes: nenhum lançamento particular; UM recebível da operadora por guia enviada (0153), nenhum em exportar/reexportar/retorno; nenhum dinheiro no livro (enviar não é receber)');
 
   // ── 13. Assinatura cai (D24, 0151): fatos do trabalho entregue entram; operação nova, não ──
   const gLate = await A.approvedGuide();

@@ -417,8 +417,11 @@ try {
   {
     const c = await setupClinic('trial-para-paga', { kind: 'trial', endsIn: '2 days' });
     await premiumRejects('trial', () => enableInsurance(c));
-    // Pagamento confirmado (o #53 faz isto ao materializar a fatura paga): assinatura ativa.
-    await sql`update public.subscriptions set billing_status = 'active', trial_ends_at = null where clinic_id = ${c.clinicId}::uuid`;
+    // Pagamento confirmado (o #53 faz isto ao materializar a fatura paga): assinatura ativa
+    // COM o período pago gravado (sem ele, desde a 0154, Convênios fica "period_unverified").
+    await sql`update public.subscriptions set billing_status = 'active', trial_ends_at = null,
+        current_period_start = now(), current_period_end = now() + interval '30 days'
+      where clinic_id = ${c.clinicId}::uuid`;
     assert.equal(await denial(c.clinicId), null);
     const ins = await enableInsurance(c);
     const patientId = await newPatient(c);
@@ -460,18 +463,22 @@ try {
             billing_status = ${set.status ?? 'active'}
           where clinic_id = ${c.clinicId}::uuid`;
     const c = await setupClinic('carencia', { kind: 'paid' });
-    const cases: Array<[string, Parameters<typeof sub>[1], string | null]> = [
-      ['período em curso', { end: '20 days', grace: '23 days' }, null],
-      ['assinatura antiga sem período registrado (vale o status do dunning)', { end: null, grace: null }, null],
-      ['período vencido sem carência gravada', { end: '-1 day', grace: null }, 'period_expired'],
-      ['past_due dentro da carência do dunning', { end: '-2 days', grace: '1 day', status: 'past_due' }, null],
-      ['past_due depois da carência', { end: '-4 days', grace: '-1 hour', status: 'past_due' }, 'period_expired'],
-      ['cancelada no fim do período: sem carência', { end: '-1 hour', grace: '2 days', cancelAtEnd: true }, 'period_expired'],
+    // [caso, estado, Convênios, cobrança e IA]
+    const cases: Array<[string, Parameters<typeof sub>[1], string | null, string | null]> = [
+      ['período em curso', { end: '20 days', grace: '23 days' }, null, null],
+      // 0154 (D24-c): fim do período sem registro = dado parcial; Convênios exige evidência,
+      // cobrança e IA seguem a compatibilidade transitória do #53 (cenário 11 detalha).
+      ['período sem fim registrado (dado parcial)', { end: null, grace: null }, 'period_unverified', null],
+      ['período vencido sem carência gravada', { end: '-1 day', grace: null }, 'period_expired', 'period_expired'],
+      ['past_due dentro da carência do dunning', { end: '-2 days', grace: '1 day', status: 'past_due' }, null, null],
+      ['past_due depois da carência', { end: '-4 days', grace: '-1 hour', status: 'past_due' }, 'period_expired', 'period_expired'],
+      ['cancelada no fim do período: sem carência', { end: '-1 hour', grace: '2 days', cancelAtEnd: true }, 'period_expired', 'period_expired'],
     ];
-    for (const [name, set, expected] of cases) {
+    for (const [name, set, forInsurance, forOthers] of cases) {
       await sub(c, set);
-      for (const feature of ['health_insurance', 'patient_charges', 'ai_agents']) {
-        assert.equal(await denial(c.clinicId, feature), expected, `${name} (${feature})`);
+      assert.equal(await denial(c.clinicId, 'health_insurance'), forInsurance, `${name} (health_insurance)`);
+      for (const feature of ['patient_charges', 'ai_agents']) {
+        assert.equal(await denial(c.clinicId, feature), forOthers, `${name} (${feature})`);
       }
     }
     await sub(c, { end: '-4 days', grace: '-1 hour', status: 'past_due' });
@@ -481,11 +488,85 @@ try {
     await enableInsurance(c);
     await sub(c, { end: '-4 days', grace: '-1 hour', status: 'past_due' });
     await sql`update public.hi_clinic_settings set enabled = false where clinic_id = ${c.clinicId}::uuid`;
-    pass('carência limitada: past_due só dentro do `grace_period_until` gravado pelo billing; período vencido sem carência, carência expirada e cancelamento no fim do período = "period_expired" para os 3 recursos; assinatura antiga sem período segue o status do dunning; desligar continua permitido');
+    pass('carência limitada: past_due só dentro do `grace_period_until` gravado pelo billing; período vencido sem carência, carência expirada e cancelamento no fim do período = "period_expired" para os 3 recursos; desligar continua permitido');
   }
 
-  console.log(`\nRESULT: ${passed}/10 PASS`);
-  assert.equal(passed, 10);
+  // ── 11. D24-c (0154): assinatura antiga sem período pago verificável ────────
+  {
+    const c = await setupClinic('legada', { kind: 'paid' });
+    const [subRow] = await sql`select id from public.subscriptions where clinic_id = ${c.clinicId}::uuid`;
+    const subId = subRow!.id as string;
+    const setSub = (s: { start: string | null; end: string | null; grace?: string | null; status?: string }) =>
+      sql`update public.subscriptions set
+            current_period_start = ${s.start === null ? null : sql`now() + ${s.start}::interval`},
+            current_period_end = ${s.end === null ? null : sql`now() + ${s.end}::interval`},
+            grace_period_until = ${s.grace == null ? null : sql`now() + ${s.grace}::interval`},
+            billing_status = ${s.status ?? 'active'}
+          where clinic_id = ${c.clinicId}::uuid`;
+    const invoice = (from: string, to: string, status = 'paid') =>
+      sql`insert into public.invoices (clinic_id, subscription_id, total_amount, status, due_date, paid_at, period_start, period_end)
+        values (${c.clinicId}::uuid, ${subId}::uuid, '199.00', ${status}, current_date,
+          ${status === 'paid' ? sql`now()` : null}, current_date + ${from}::interval, current_date + ${to}::interval)`;
+    const audit = async () =>
+      ((await sql`select classification from public.qoro_subscription_period_audit where clinic_id = ${c.clinicId}::uuid`)[0]?.classification ?? null) as string | null;
+    const expect3 = async (label: string, insurance: string | null, others: string | null) => {
+      assert.equal(await denial(c.clinicId, 'health_insurance'), insurance, `${label} (health_insurance)`);
+      for (const f of ['patient_charges', 'ai_agents']) assert.equal(await denial(c.clinicId, f), others, `${label} (${f})`);
+    };
+
+    // Ausência de período, sem nenhuma evidência: Convênios negado com motivo explícito;
+    // cobrança e IA na compatibilidade transitória do #53; aparece no alerta administrativo.
+    await setSub({ start: null, end: null });
+    await expect3('antiga sem período e sem fatura', 'period_unverified', null);
+    assert.equal(await audit(), 'legacy_unverified');
+    await premiumRejects('period_unverified', () => enableInsurance(c));
+    // Antiga VENCIDA: a última fatura paga já terminou → não serve de evidência.
+    await invoice('-40 days', '-10 days');
+    await expect3('antiga com fatura paga vencida', 'period_unverified', null);
+    // Fatura em aberto (não paga) nunca libera.
+    await invoice('-5 days', '25 days', 'open');
+    await expect3('antiga com fatura em aberto', 'period_unverified', null);
+    assert.equal(await audit(), 'legacy_unverified');
+    // Antiga PAGA: fatura paga cobrindo hoje = evidência verificável.
+    await invoice('-5 days', '25 days');
+    await expect3('antiga com fatura paga cobrindo hoje', null, null);
+    assert.equal(await audit(), 'legacy_paid_invoice_evidence');
+    // Duplicidade: duas faturas pagas do mesmo período não estendem nada (só cobrem o período).
+    await invoice('-5 days', '25 days');
+    const [{ covering }] = (await sql`select covering_paid_invoices as covering from public.qoro_subscription_period_audit where clinic_id = ${c.clinicId}::uuid`) as unknown as [{ covering: number }];
+    assert.equal(covering, 2);
+    await sql`update public.invoices set period_end = current_date - 1 where subscription_id = ${subId}::uuid and status = 'paid'`;
+    await expect3('duas faturas pagas do mesmo período, já vencidas', 'period_unverified', null);
+    // Dados parcialmente migrados: início sem fim (ou o contrário).
+    await setSub({ start: '-10 days', end: null });
+    await expect3('só o início registrado', 'period_unverified', null);
+    assert.equal(await audit(), 'inconsistent_period');
+    // Período inconsistente: começa no futuro (a regra do #53 nega para os 3 recursos).
+    await setSub({ start: '5 days', end: '35 days' });
+    await expect3('período que ainda não começou', 'period_expired', 'period_expired');
+    assert.equal(await audit(), 'inconsistent_period');
+    // Pagamento existente sem atualização do período: o período REGISTRADO venceu; a fatura
+    // não o substitui (uma fonte só: o billing) — nega e alerta para a reconciliação.
+    await invoice('-1 day', '29 days');
+    await setSub({ start: '-32 days', end: '-2 days' });
+    await expect3('pago, mas o período registrado não foi atualizado', 'period_expired', 'period_expired');
+    assert.equal(await audit(), 'paid_without_period_update');
+    // Reconciliação posterior (feita pelo billing do #53, com autorização): período gravado → liberado.
+    await setSub({ start: '-1 day', end: '29 days' });
+    await expect3('depois da reconciliação do período', null, null);
+    assert.equal(await audit(), 'verified_period');
+    // Cancelada: negada para os 3, com ou sem evidência.
+    await setSub({ start: null, end: null, status: 'cancelled' });
+    await expect3('cancelada', 'subscription_cancelled', 'subscription_cancelled');
+    assert.equal(await audit(), null);
+    // O alerta é só administrativo: o runtime da clínica não lê.
+    await assert.rejects(() => asTenant(c.clinicId, (tx) => tx`select * from public.qoro_subscription_period_audit`), (e: unknown) => (e as { code?: string }).code === '42501');
+    await setSub({ start: '-1 day', end: '29 days' });
+    pass('D24-c: antiga sem período só libera Convênios com fatura PAGA cobrindo hoje (vencida, em aberto ou duplicada não estende); sem evidência = "period_unverified" explícito, com cobrança e IA na compatibilidade transitória do #53; início sem fim, período no futuro e pago-sem-atualização aparecem no alerta administrativo; o período registrado vence a fatura (uma fonte: o billing); reconciliação posterior libera; cancelada nega; alerta não é legível pelo runtime');
+  }
+
+  console.log(`\nRESULT: ${passed}/11 PASS`);
+  assert.equal(passed, 11);
 } finally {
   await cluster.stop();
 }

@@ -73,6 +73,8 @@ export function toLancamentoSummary(row: LancamentoRow): LancamentoSummary {
     descricao: row.descricao,
     valor: num(row.valor),
     valorPago: num(row.valorPago),
+    valorGlosado: num(row.valorGlosado),
+    sourceHiGuideId: row.sourceHiGuideId ?? null,
     status: row.status as LancamentoStatus,
     dueDate: (row.dueDate as string | null) ?? null,
     paidAt: toIso(row.paidAt),
@@ -456,6 +458,8 @@ export async function getCaixaLancamentos(
       .where(
         and(
           eq(lancamentos.tipo, 'receber'),
+          // 0153: recebível da OPERADORA não é cobrado na recepção (vive em Convênios).
+          isNull(lancamentos.sourceHiGuideId),
           or(
             inArray(lancamentos.status, ['pendente', 'parcial']),
             and(
@@ -572,7 +576,8 @@ export async function getCashFlowToday(
   return withTenant(clinicId, async (tx) => {
     const [aberto] = await tx
       .select({
-        receber: sql<string>`coalesce(sum(case when ${lancamentos.tipo} = 'receber' then ${lancamentos.valor} - ${lancamentos.valorPago} else 0 end), 0)`,
+        // 0153: a glosa definitiva da operadora não está mais a receber (0 fora do convênio).
+        receber: sql<string>`coalesce(sum(case when ${lancamentos.tipo} = 'receber' then ${lancamentos.valor} - ${lancamentos.valorPago} - ${lancamentos.valorGlosado} else 0 end), 0)`,
         pagar: sql<string>`coalesce(sum(case when ${lancamentos.tipo} = 'pagar' then ${lancamentos.valor} - ${lancamentos.valorPago} else 0 end), 0)`,
         // Contagens vêm da MESMA varredura dos totais: uma query a mais só para
         // contar as linhas que já estão sendo somadas seria ida redundante.

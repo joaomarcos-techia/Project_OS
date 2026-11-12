@@ -995,3 +995,33 @@ export type HiGlossAppealRow = typeof hiGlossAppeals.$inferSelect;
 export type HiPaymentRow = typeof hiPayments.$inferSelect;
 export type HiPaymentAllocationRow = typeof hiPaymentAllocations.$inferSelect;
 export type HiAccountEventRow = typeof hiAccountEvents.$inferSelect;
+
+// ── 0153: ponte da conta da guia com o livro financeiro da clínica ─────
+
+export const HI_LEDGER_ENTRY_KINDS = [
+  'receivable_opened',
+  'payment',
+  'payment_reversal',
+  'gloss_final',
+  'receivable_cancelled',
+] as const;
+export type HiLedgerEntryKind = (typeof HI_LEDGER_ENTRY_KINDS)[number];
+
+/**
+ * Diário da ponte (só inclusão): cada fato da conta da guia projetado UMA vez no livro
+ * (`lancamentos`/`payment_transactions`), com origem única (alocação, glosa ou guia).
+ * O runtime só lê; quem escreve são os gatilhos e funções da 0153.
+ */
+export const hiLedgerEntries = pgTable('hi_ledger_entries', {
+  id: uuidPk(),
+  clinicId: tenantIdRef(),
+  guideId: uuid('guide_id').notNull(),
+  lancamentoId: uuid('lancamento_id').notNull(),
+  kind: text('kind').$type<HiLedgerEntryKind>().notNull(),
+  sourceId: uuid('source_id').notNull(),
+  amountCents: bigint('amount_cents', { mode: 'number' }).notNull(),
+  paymentTransactionId: uuid('payment_transaction_id'),
+  createdAt: createdAt(),
+});
+
+export type HiLedgerEntryRow = typeof hiLedgerEntries.$inferSelect;
