@@ -25,7 +25,7 @@ export default async function LotesPage({ searchParams }: { searchParams: Search
 
   return (
     <>
-      <ConveniosHeader title="Lotes" description="Guias aprovadas agrupadas por operadora, com o XML oficial validado." crumbs={[{ label: 'Lotes' }]} />
+      <ConveniosHeader commercial={access.commercial} title="Lotes" description="Guias aprovadas agrupadas por operadora, com o XML oficial validado." crumbs={[{ label: 'Lotes' }]} />
       {access.canManage ? (
         <PanelCard title="Montar lote" regionLabel="Montar lote" className="mb-(--sp-4)">
           <NewBatchForm candidates={candidates} />

@@ -42,7 +42,7 @@ export default async function LotePage({ params }: { params: Promise<{ batchId: 
 
   return (
     <>
-      <ConveniosHeader
+      <ConveniosHeader commercial={access.commercial}
         title={`Lote ${b.number}`}
         description={`${b.insurerName} · ${b.guideCount} guia(s) · ${brl(b.totalValueCents)}`}
         crumbs={[{ label: 'Lotes', href: '/convenios/lotes' }, { label: b.number }]}

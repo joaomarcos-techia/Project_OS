@@ -26,7 +26,7 @@ export default async function SolicitacoesPage({ searchParams }: { searchParams:
 
   return (
     <>
-      <ConveniosHeader
+      <ConveniosHeader commercial={access.commercial}
         title="Solicitações SP/SADT"
         description="Pedido do profissional, autorização da operadora e as sessões executadas que viram guia."
         crumbs={[{ label: 'Solicitações' }]}

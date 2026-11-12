@@ -72,6 +72,24 @@ describe('interface de Convênios', () => {
     expect(recepcao.textContent).toContain('3');
   });
 
+  it('D24: no trial o recurso aparece como contratável; suspensa = consulta; liberada = sem aviso', async () => {
+    m.conveniosAccess.mockResolvedValue({ ok: true, clinicId: 'c1', canManage: true, commercial: 'trial' });
+    render(await ConveniosPage());
+    const trial = screen.getByTestId('convenios-commercial-notice');
+    expect(trial.dataset.denial).toBe('trial');
+    expect(screen.getByText('Convênios faz parte das assinaturas ativas')).toBeTruthy();
+    expect(trial.textContent).toContain('assinatura ativa');
+    cleanup();
+    m.conveniosAccess.mockResolvedValue({ ok: true, clinicId: 'c1', canManage: true, commercial: 'period_expired' });
+    render(await ConveniosPage());
+    expect(screen.getByText('Convênios em modo de consulta')).toBeTruthy();
+    expect(screen.getByTestId('convenios-commercial-notice').textContent).toContain('continuam disponíveis');
+    cleanup();
+    m.conveniosAccess.mockResolvedValue({ ok: true, clinicId: 'c1', canManage: true, commercial: null });
+    render(await ConveniosPage());
+    expect(screen.queryByTestId('convenios-commercial-notice')).toBeNull();
+  });
+
   it('sem acesso: a página da regra de acesso substitui o conteúdo', async () => {
     m.conveniosAccess.mockResolvedValue({ ok: false, view: <p>Sem acesso ao convênio</p> });
     render(await ConveniosPage());

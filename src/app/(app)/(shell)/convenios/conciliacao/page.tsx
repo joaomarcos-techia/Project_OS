@@ -24,7 +24,7 @@ export default async function ConciliacaoPage() {
 
   return (
     <>
-      <ConveniosHeader
+      <ConveniosHeader commercial={access.commercial}
         title="Conciliação"
         description="Dinheiro recebido das operadoras e a guia de cada parte. Só entra no financeiro da clínica o que estiver alocado a uma guia."
         crumbs={[{ label: 'Conciliação' }]}

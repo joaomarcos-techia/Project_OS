@@ -11,6 +11,7 @@ import 'server-only';
 import { sql } from 'drizzle-orm';
 
 import { withTenant } from '@/lib/db/tenant';
+import { getPremiumDenialTx, type PremiumDenial } from '@/lib/premium-access';
 
 import { listCopayChargesTx } from './internal/copay-charge-service';
 import { listInsurancePayoutPositionsTx, type InsurancePayoutPosition } from './internal/insurance-payout-service';
@@ -78,6 +79,15 @@ export async function isInsuranceSchemaInstalled(clinicId: string): Promise<bool
     )) as unknown as Row[];
     return r?.ok === true;
   });
+}
+
+/**
+ * Estado comercial de Convênios para a TELA (D24): a mesma decisão do banco
+ * (`qoro_premium_denial`) que barra as ações. `null` = liberado. Ver não é operar: a tela
+ * mostra o aviso; as ações e o banco continuam recusando sozinhos.
+ */
+export async function getConveniosCommercialDenial(clinicId: string): Promise<PremiumDenial | null> {
+  return withTenant(clinicId, (tx) => getPremiumDenialTx(tx, clinicId, 'health_insurance'));
 }
 
 // ── Painel ────────────────────────────────────────────────────────────────

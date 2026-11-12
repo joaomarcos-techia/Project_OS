@@ -43,7 +43,7 @@ export default async function GuiaPage({ params }: { params: Promise<{ guideId: 
 
   return (
     <>
-      <ConveniosHeader
+      <ConveniosHeader commercial={access.commercial}
         title={`Guia ${label}`}
         description={`${g.insurerName}${g.patientName ? ` · ${g.patientName}` : ''}`}
         crumbs={[{ label: 'Guias', href: '/convenios/guias' }, { label }]}

@@ -2,14 +2,15 @@ import type { ReactNode } from 'react';
 
 import { Alert } from '@/components/ui/alert';
 import { PageHeader } from '@/components/ui/page-header';
-import { isInsuranceSchemaInstalled } from '@/contexts/health-insurance/queries';
+import { getConveniosCommercialDenial, isInsuranceSchemaInstalled } from '@/contexts/health-insurance/queries';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
+import { premiumDenialMessage, type PremiumDenial } from '@/lib/premium-access';
 
 import { ConveniosTabs } from './tabs';
 
 export type ConveniosAccess =
-  | { ok: true; clinicId: string; canManage: boolean }
+  | { ok: true; clinicId: string; canManage: boolean; commercial: PremiumDenial | null }
   | { ok: false; view: ReactNode };
 
 /**
@@ -45,7 +46,37 @@ export async function conveniosAccess(title: string): Promise<ConveniosAccess> {
       ),
     };
   }
-  return { ok: true, clinicId: user.clinicId, canManage: user.permissions.includes(PERMISSIONS.MANAGE_FINANCIAL) };
+  return {
+    ok: true,
+    clinicId: user.clinicId,
+    canManage: user.permissions.includes(PERMISSIONS.MANAGE_FINANCIAL),
+    // D24: a mesma decisão do banco que barra as ações, para a tela avisar antes.
+    commercial: await getConveniosCommercialDenial(user.clinicId),
+  };
+}
+
+/** Avaliação ou sem plano: recurso contratável; nada é operado. */
+const CONTRACTABLE: readonly PremiumDenial[] = ['trial', 'trial_expired', 'no_subscription', 'clinic_unknown', 'plan_excludes'];
+
+/**
+ * Aviso comercial (D24) na tela: a mesma decisão do banco que barra as ações. No trial, o
+ * recurso aparece como contratável; com a assinatura parada, os registros continuam
+ * disponíveis para consulta e só as operações novas ficam bloqueadas.
+ */
+function CommercialNotice({ denial }: { denial: PremiumDenial | null | undefined }) {
+  if (!denial) return null;
+  const contractable = CONTRACTABLE.includes(denial);
+  return (
+    <Alert
+      variant={contractable ? 'info' : 'warning'}
+      title={contractable ? 'Convênios faz parte das assinaturas ativas' : 'Convênios em modo de consulta'}
+      className="mb-(--sp-4)"
+    >
+      <span data-testid="convenios-commercial-notice" data-denial={denial}>
+        {premiumDenialMessage('health_insurance', denial)}
+      </span>
+    </Alert>
+  );
 }
 
 export function ConveniosHeader({
@@ -53,11 +84,14 @@ export function ConveniosHeader({
   description,
   crumbs = [],
   actions,
+  commercial,
 }: {
   title: string;
   description?: string;
   crumbs?: Array<{ label: string; href?: string }>;
   actions?: ReactNode;
+  /** Estado comercial de `conveniosAccess` (D24): aviso de recurso contratável ou de consulta. */
+  commercial?: PremiumDenial | null;
 }) {
   return (
     <>
@@ -67,6 +101,7 @@ export function ConveniosHeader({
         {...(description ? { description } : {})}
         {...(actions ? { actions } : {})}
       />
+      <CommercialNotice denial={commercial} />
       <ConveniosTabs />
     </>
   );

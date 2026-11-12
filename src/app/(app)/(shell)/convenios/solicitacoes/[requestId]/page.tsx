@@ -42,7 +42,7 @@ export default async function SolicitacaoPage({ params }: { params: Promise<{ re
 
   return (
     <>
-      <ConveniosHeader
+      <ConveniosHeader commercial={access.commercial}
         title={`Solicitação ${r.requestNumber ?? '(rascunho)'}`}
         description={`${r.patientName} · ${r.insurerName} · solicitada em ${shortDate(r.requestedOn)}`}
         crumbs={[{ label: 'Solicitações', href: '/convenios/solicitacoes' }, { label: r.requestNumber ?? 'rascunho' }]}

@@ -35,7 +35,7 @@ export default async function RepassesPage() {
 
   return (
     <>
-      <ConveniosHeader
+      <ConveniosHeader commercial={access.commercial}
         title="Repasses de convênio"
         description="Quanto cada profissional tem a receber pelos atendimentos de convênio, conforme a regra de repasse dele e o que a operadora pagou."
         crumbs={[{ label: 'Repasses' }]}

@@ -36,7 +36,7 @@ export default async function ConveniosPage() {
 
   return (
     <>
-      <ConveniosHeader title="Convênios" description="Faturamento TISS: do atendimento ao recebimento da operadora." />
+      <ConveniosHeader commercial={access.commercial} title="Convênios" description="Faturamento TISS: do atendimento ao recebimento da operadora." />
       {!o.enabled ? (
         <Alert variant="info" title="Convênios não está habilitado nesta clínica" className="mb-(--sp-4)">
           A habilitação é controlada pelo Qoro durante a liberação do módulo. Os registros já existentes continuam disponíveis

@@ -57,7 +57,7 @@ export default async function GuiasPage({ searchParams }: { searchParams: Search
 
   return (
     <>
-      <ConveniosHeader title="Guias" description="Guias de convênio da clínica: o que falta, quem resolve e em que etapa estão." crumbs={[{ label: 'Guias' }]} />
+      <ConveniosHeader commercial={access.commercial} title="Guias" description="Guias de convênio da clínica: o que falta, quem resolve e em que etapa estão." crumbs={[{ label: 'Guias' }]} />
       <form method="get" className="mb-(--sp-4) grid gap-(--sp-2) md:grid-cols-[repeat(4,minmax(0,1fr))_auto]" aria-label="Filtrar guias">
         <Select name="status" defaultValue={filters.status ?? ''} aria-label="Etapa">
           {GROUPS.map(([value, label]) => (
