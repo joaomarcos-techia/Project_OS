@@ -3,7 +3,7 @@
  * das duas branches (não só o teste de ordem do journal):
  *
  *   main 0000–0135 → #53 0136–0142 (lidas do commit do #53 por `git show`)
- *   → #55 0143–0151
+ *   → #55 0143–0152
  *
  * D24 (decisão definitiva do fundador, 11/11/2026): o trial de 14 dias é para
  * conhecer o Qoro; Convênios, cobrança de pacientes pelo Asaas e Agentes de IA só
@@ -20,7 +20,9 @@
  *  6. assinatura marcada ativa SEM pagamento verificado continua negada;
  *  7. pagamento verificado (liberação do #53): Convênios liga, guia automática,
  *     coparticipação de R$ 45 vira recebível, sem cota de trial;
- *  8. a rede da 0148 segue recusando recebível cheio de convênio na clínica paga.
+ *  8. a rede da 0148 segue recusando recebível cheio de convênio na clínica paga;
+ *  9. a decisão do banco e a do código REAL do #53 (src/lib/entitlements) concordam
+ *     numa matriz de estados (carência, cancelamento no fim do período, suspensa…).
  *
  * Não toca o worktree do #53 (só lê objetos git) nem DEV/produção. Uso:
  *   NODE_OPTIONS=--conditions=react-server npx tsx scripts/security/health-insurance-union-chain-db.ts [ref-do-53]
@@ -28,12 +30,16 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 import { sql as dsql } from 'drizzle-orm';
 
 import { readMigrations, startScratchSchema } from './scratch-schema';
 
-const REF = process.argv[2] ?? process.env.PR53_REF ?? 'e8309aee';
+const REF = process.argv[2] ?? process.env.PR53_REF ?? '9ddc432a';
 const git = (...args: string[]) => execFileSync('git', args, { encoding: 'utf8', maxBuffer: 64 << 20 });
 const pr53Files = git('ls-tree', '--name-only', REF, 'drizzle/migrations/')
   .split('\n')
@@ -289,8 +295,63 @@ try {
   );
   pass('clínica paga: recebível cheio de convênio continua recusado pela rede da 0148');
 
-  console.log(`\nOK — ${passed}/8 provas da cadeia unida (main + #53 ${REF} + #55) em Postgres descartável.`);
-  assert.equal(passed, 8);
+  // ── 9. A decisão do banco (0151/0152) e a do #53 (entitlements) concordam ─
+  // O código REAL do #53 em REF: a regra pura (`evaluateModuleAccess`) e a consulta que a
+  // alimenta (`getOperationalModuleAccessTx`), lidas por `git show`, sem tocar o worktree dele.
+  const hasEntitlements = git('ls-tree', '--name-only', REF, 'src/lib/entitlements/').includes('policy.ts');
+  if (hasEntitlements) {
+    const dir = mkdtempSync(path.join(tmpdir(), 'pr53-entitlements-'));
+    const policyFile = path.join(dir, 'policy.mts');
+    writeFileSync(policyFile, git('show', `${REF}:src/lib/entitlements/policy.ts`));
+    const pr53 = (await import(pathToFileURL(policyFile).href)) as {
+      evaluateModuleAccess: (s: unknown, m: string, now: Date) => { allowed: boolean; reason?: string };
+    };
+    const indexSrc = git('show', `${REF}:src/lib/entitlements/index.ts`);
+    const query = /tx\.execute\(sql`([\s\S]*?)`\)/u.exec(indexSrc)![1]!.replace('${clinicId}', '$1');
+    const compare = async (label: string) => {
+      const [row] = await sql.unsafe(query, [clinicId]);
+      for (const [module, feature] of [['patient_payments', 'patient_charges'], ['ai_agents', 'ai_agents']] as const) {
+        const theirs = pr53.evaluateModuleAccess(row ?? null, module, new Date());
+        const ours = await denial(feature);
+        assert.equal(ours === null, theirs.allowed, `${label} / ${module}: #53 ${JSON.stringify(theirs)} × banco ${ours}`);
+      }
+      // Convênios: o #53 mantém o módulo indisponível até a liberação controlada; o banco
+      // decide só o direito comercial, e a habilitação operacional (hi_clinic_settings) segue à parte.
+      assert.equal(pr53.evaluateModuleAccess(row ?? null, 'health_insurance', new Date()).allowed, false);
+    };
+    const setState = (s: { billing: string; start: string; end: string | null; grace: string | null; cancelAtEnd?: boolean; clinic?: string }) =>
+      sql.begin(async (t) => {
+        await t`update public.subscriptions set billing_status = ${s.billing},
+                 current_period_start = now() + ${s.start}::interval,
+                 current_period_end = ${s.end === null ? null : t`now() + ${s.end}::interval`},
+                 grace_period_until = ${s.grace === null ? null : t`now() + ${s.grace}::interval`},
+                 cancel_at_period_end = ${s.cancelAtEnd ?? false}
+               where clinic_id = ${clinicId}::uuid`;
+        await t`update public.clinics set status = ${s.clinic ?? 'active'}::clinic_status where id = ${clinicId}::uuid`;
+      });
+    const matrix: Array<[string, Parameters<typeof setState>[0]]> = [
+      ['ativa, liberada, período em curso', { billing: 'active', start: '-10 days', end: '20 days', grace: '23 days' }],
+      ['past_due dentro da carência', { billing: 'past_due', start: '-32 days', end: '-2 days', grace: '1 day' }],
+      ['past_due depois da carência', { billing: 'past_due', start: '-34 days', end: '-4 days', grace: '-1 hour' }],
+      ['cancelada no fim do período, já vencido', { billing: 'active', start: '-30 days', end: '-1 hour', grace: '2 days', cancelAtEnd: true }],
+      ['cancelada', { billing: 'cancelled', start: '-10 days', end: '20 days', grace: '23 days' }],
+      ['clínica suspensa pelo dunning', { billing: 'past_due', start: '-40 days', end: '-10 days', grace: '-3 days', clinic: 'suspended_readonly' }],
+      ['pagamento pendente', { billing: 'active', start: '-10 days', end: '20 days', grace: '23 days', clinic: 'pending_payment' }],
+      ['de volta ao trial', { billing: 'trial', start: '-1 day', end: '13 days', grace: null }],
+    ];
+    for (const [label, state] of matrix) {
+      await setState(state);
+      await compare(label);
+    }
+    await setState(matrix[0]![1]);
+    pass(`mesma decisão que o código REAL do #53 em ${REF} (evaluateModuleAccess + a consulta dele) para cobrança de pacientes e Agentes de IA em ${matrix.length} estados: ativa, past_due dentro e fora da carência, cancelada no fim do período, cancelada, suspensa, pagamento pendente e trial; Convênios segue indisponível no #53 até a liberação controlada`);
+  } else {
+    console.log(`(sem src/lib/entitlements em ${REF}: comparação com o #53 não se aplica)`);
+  }
+
+  const expected = hasEntitlements ? 9 : 8;
+  console.log(`\nOK — ${passed}/${expected} provas da cadeia unida (main + #53 ${REF} + #55) em Postgres descartável.`);
+  assert.equal(passed, expected);
 } finally {
   await cluster.stop();
 }

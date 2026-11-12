@@ -450,8 +450,42 @@ try {
     pass('assinatura paga com o módulo desligado: convênio não entra (habilitação operacional continua obrigatória); desligar nunca é barrado');
   }
 
-  console.log(`\nRESULT: ${passed}/9 PASS`);
-  assert.equal(passed, 9);
+  // ── 10. Carência limitada (0152; orientação de 12/11, seção 7) ─────────────
+  {
+    const sub = (c: Clinic, set: { end: string | null; grace: string | null; cancelAtEnd?: boolean; status?: string }) =>
+      sql`update public.subscriptions set
+            current_period_end = ${set.end === null ? null : sql`now() + ${set.end}::interval`},
+            grace_period_until = ${set.grace === null ? null : sql`now() + ${set.grace}::interval`},
+            cancel_at_period_end = ${set.cancelAtEnd ?? false},
+            billing_status = ${set.status ?? 'active'}
+          where clinic_id = ${c.clinicId}::uuid`;
+    const c = await setupClinic('carencia', { kind: 'paid' });
+    const cases: Array<[string, Parameters<typeof sub>[1], string | null]> = [
+      ['período em curso', { end: '20 days', grace: '23 days' }, null],
+      ['assinatura antiga sem período registrado (vale o status do dunning)', { end: null, grace: null }, null],
+      ['período vencido sem carência gravada', { end: '-1 day', grace: null }, 'period_expired'],
+      ['past_due dentro da carência do dunning', { end: '-2 days', grace: '1 day', status: 'past_due' }, null],
+      ['past_due depois da carência', { end: '-4 days', grace: '-1 hour', status: 'past_due' }, 'period_expired'],
+      ['cancelada no fim do período: sem carência', { end: '-1 hour', grace: '2 days', cancelAtEnd: true }, 'period_expired'],
+    ];
+    for (const [name, set, expected] of cases) {
+      await sub(c, set);
+      for (const feature of ['health_insurance', 'patient_charges', 'ai_agents']) {
+        assert.equal(await denial(c.clinicId, feature), expected, `${name} (${feature})`);
+      }
+    }
+    await sub(c, { end: '-4 days', grace: '-1 hour', status: 'past_due' });
+    await premiumRejects('period_expired', () => enableInsurance(c));
+    // Preservação: com o período vencido, desligar continua permitido (nada é apagado).
+    await sub(c, { end: '20 days', grace: '23 days' });
+    await enableInsurance(c);
+    await sub(c, { end: '-4 days', grace: '-1 hour', status: 'past_due' });
+    await sql`update public.hi_clinic_settings set enabled = false where clinic_id = ${c.clinicId}::uuid`;
+    pass('carência limitada: past_due só dentro do `grace_period_until` gravado pelo billing; período vencido sem carência, carência expirada e cancelamento no fim do período = "period_expired" para os 3 recursos; assinatura antiga sem período segue o status do dunning; desligar continua permitido');
+  }
+
+  console.log(`\nRESULT: ${passed}/10 PASS`);
+  assert.equal(passed, 10);
 } finally {
   await cluster.stop();
 }

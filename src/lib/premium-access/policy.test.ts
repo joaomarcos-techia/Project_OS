@@ -15,10 +15,15 @@ const MIGRATION = readFileSync(
   path.join(process.cwd(), 'drizzle/migrations/0151_hi_premium_gate.sql'),
   'utf8',
 );
+// A 0152 substitui a decisão (período pago e carência): o contrato vale contra a versão vigente.
+const CURRENT_DECISION = readFileSync(
+  path.join(process.cwd(), 'drizzle/migrations/0152_hi_glosses_payments.sql'),
+  'utf8',
+).match(/CREATE OR REPLACE FUNCTION public\.qoro_premium_denial_for\([\s\S]*?\n\$\$;/u)![0];
 
-describe('premium-access — contrato com o banco (0151)', () => {
+describe('premium-access — contrato com o banco (0151, decisão vigente na 0152)', () => {
   it('todo motivo que o banco devolve é conhecido do app, e vice-versa', () => {
-    const fromSql = new Set([...MIGRATION.matchAll(/RETURN '([a-z_]+)';/gu)].map((m) => m[1]));
+    const fromSql = new Set([...CURRENT_DECISION.matchAll(/RETURN '([a-z_]+)';/gu)].map((m) => m[1]));
     expect([...fromSql].sort()).toEqual([...PREMIUM_DENIALS].sort());
   });
 

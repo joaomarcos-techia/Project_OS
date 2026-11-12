@@ -547,7 +547,8 @@ export type HiFileKind =
   | 'authorization_request_xml'
   | 'authorization_request_pdf'
   | 'batch_xml'
-  | 'batch_return';
+  | 'batch_return'
+  | 'gloss_appeal_xml';
 
 export const hiFiles = pgTable('hi_files', {
   id: uuidPk(),
@@ -558,6 +559,8 @@ export const hiFiles = pgTable('hi_files', {
   authorizationId: uuid('authorization_id'),
   /** Lote do XML ou do documento de retorno (0150). */
   batchId: uuid('batch_id'),
+  /** Recurso de glosa do XML (0152). */
+  appealId: uuid('appeal_id'),
   supersedesFileId: uuid('supersedes_file_id'),
   /** `<clinic_id>/<uuid>` no armazenamento privado; bytes cifrados fora do banco (D20). */
   storageRef: text('storage_ref').notNull(),
@@ -853,3 +856,142 @@ export type HiProcedureContractRow = typeof hiProcedureContracts.$inferSelect;
 export type HiCredentialRow = typeof hiCredentials.$inferSelect;
 export type HiProfessionalProfileRow = typeof hiProfessionalProfiles.$inferSelect;
 export type HiClinicSettingsRow = typeof hiClinicSettings.$inferSelect;
+
+/**
+ * Glosas, recursos e pagamentos da operadora (0152; P9.6–P9.8). O runtime só LÊ:
+ * toda escrita é pelas funções SECURITY DEFINER `hi_gloss_*`, `hi_payment_*` e
+ * `hi_guide_reconcile`, presas à clínica da sessão.
+ */
+export type HiGlossStatus = 'informed' | 'under_analysis' | 'contested' | 'appeal_filed' | 'reversed' | 'definitive';
+export const HI_GLOSS_OPEN_STATUSES = ['informed', 'under_analysis', 'contested', 'appeal_filed'] as const;
+export type HiAccountSource = 'manual' | 'statement';
+
+export const hiGlosses = pgTable('hi_glosses', {
+  id: uuidPk(),
+  clinicId: tenantIdRef(),
+  insurerId: uuid('insurer_id').notNull(),
+  batchId: uuid('batch_id').notNull(),
+  guideId: uuid('guide_id').notNull(),
+  guideItemId: uuid('guide_item_id'),
+  /** Tabela 38 da TUSS (motivo da glosa), 4 dígitos. */
+  glossCode: text('gloss_code').notNull(),
+  amountCents: bigint('amount_cents', { mode: 'number' }).notNull(),
+  status: text('status').$type<HiGlossStatus>().notNull(),
+  source: text('source').$type<HiAccountSource>().notNull(),
+  returnId: uuid('return_id'),
+  idempotencyKey: text('idempotency_key').notNull(),
+  operatorNote: text('operator_note'),
+  reversedCents: bigint('reversed_cents', { mode: 'number' }).notNull(),
+  definitiveCents: bigint('definitive_cents', { mode: 'number' }).notNull(),
+  decidedReason: text('decided_reason'),
+  decidedBy: uuid('decided_by'),
+  decidedAt: timestamp('decided_at', { withTimezone: true }),
+  version: integer('version').notNull(),
+  createdBy: uuid('created_by'),
+  createdAt: createdAt(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),
+});
+
+export type HiAppealStatus = 'draft' | 'filed' | 'answered' | 'cancelled';
+export type HiAppealAnswer = 'accepted' | 'partially_accepted' | 'denied';
+
+export const hiGlossAppeals = pgTable('hi_gloss_appeals', {
+  id: uuidPk(),
+  clinicId: tenantIdRef(),
+  insurerId: uuid('insurer_id').notNull(),
+  batchId: uuid('batch_id').notNull(),
+  guideId: uuid('guide_id').notNull(),
+  status: text('status').$type<HiAppealStatus>().notNull(),
+  /** Escrita por uma pessoa (nunca gerada pelo sistema). */
+  justification: text('justification').notNull(),
+  justifiedBy: uuid('justified_by').notNull(),
+  requestedCents: bigint('requested_cents', { mode: 'number' }).notNull(),
+  fileId: uuid('file_id'),
+  channel: text('channel').$type<'manual' | 'connector'>(),
+  filedOn: date('filed_on'),
+  filedBy: uuid('filed_by'),
+  protocolNumber: text('protocol_number'),
+  evidence: text('evidence'),
+  answer: text('answer').$type<HiAppealAnswer>(),
+  answeredOn: date('answered_on'),
+  acceptedCents: bigint('accepted_cents', { mode: 'number' }),
+  answerNote: text('answer_note'),
+  answeredBy: uuid('answered_by'),
+  cancelReason: text('cancel_reason'),
+  idempotencyKey: text('idempotency_key').notNull(),
+  version: integer('version').notNull(),
+  createdAt: createdAt(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),
+});
+
+export const hiGlossAppealItems = pgTable(
+  'hi_gloss_appeal_items',
+  {
+    clinicId: tenantIdRef(),
+    appealId: uuid('appeal_id').notNull(),
+    glossId: uuid('gloss_id').notNull(),
+    requestedCents: bigint('requested_cents', { mode: 'number' }).notNull(),
+    acceptedCents: bigint('accepted_cents', { mode: 'number' }),
+    active: boolean('active').notNull(),
+  },
+  (t) => ({ pk: primaryKey({ name: 'hi_gloss_appeal_items_pk', columns: [t.clinicId, t.appealId, t.glossId] }) }),
+);
+
+export const hiPayments = pgTable('hi_payments', {
+  id: uuidPk(),
+  clinicId: tenantIdRef(),
+  insurerId: uuid('insurer_id').notNull(),
+  batchId: uuid('batch_id'),
+  /** Identificador do demonstrativo de pagamento da operadora (único por operadora). */
+  statementRef: text('statement_ref'),
+  paidOn: date('paid_on').notNull(),
+  amountCents: bigint('amount_cents', { mode: 'number' }).notNull(),
+  source: text('source').$type<HiAccountSource>().notNull(),
+  returnId: uuid('return_id'),
+  idempotencyKey: text('idempotency_key').notNull(),
+  note: text('note'),
+  recordedBy: uuid('recorded_by'),
+  createdAt: createdAt(),
+});
+
+export const hiPaymentAllocations = pgTable('hi_payment_allocations', {
+  id: uuidPk(),
+  clinicId: tenantIdRef(),
+  paymentId: uuid('payment_id').notNull(),
+  insurerId: uuid('insurer_id').notNull(),
+  batchId: uuid('batch_id').notNull(),
+  guideId: uuid('guide_id').notNull(),
+  guideItemId: uuid('guide_item_id'),
+  /** `reversal` é o estorno compensatório de uma `allocation` (nada se apaga). */
+  kind: text('kind').$type<'allocation' | 'reversal'>().notNull(),
+  amountCents: bigint('amount_cents', { mode: 'number' }).notNull(),
+  allocationKey: text('allocation_key').notNull(),
+  reversesId: uuid('reverses_id'),
+  reason: text('reason'),
+  createdBy: uuid('created_by'),
+  createdAt: createdAt(),
+});
+
+export const hiAccountEvents = pgTable('hi_account_events', {
+  id: uuidPk(),
+  clinicId: tenantIdRef(),
+  guideId: uuid('guide_id'),
+  glossId: uuid('gloss_id'),
+  appealId: uuid('appeal_id'),
+  paymentId: uuid('payment_id'),
+  action: text('action').notNull(),
+  fromStatus: text('from_status'),
+  toStatus: text('to_status'),
+  amountCents: bigint('amount_cents', { mode: 'number' }),
+  actorId: uuid('actor_id'),
+  actorKind: text('actor_kind').$type<'user' | 'system'>().notNull(),
+  note: text('note'),
+  details: jsonb('details').notNull(),
+  createdAt: createdAt(),
+});
+
+export type HiGlossRow = typeof hiGlosses.$inferSelect;
+export type HiGlossAppealRow = typeof hiGlossAppeals.$inferSelect;
+export type HiPaymentRow = typeof hiPayments.$inferSelect;
+export type HiPaymentAllocationRow = typeof hiPaymentAllocations.$inferSelect;
+export type HiAccountEventRow = typeof hiAccountEvents.$inferSelect;

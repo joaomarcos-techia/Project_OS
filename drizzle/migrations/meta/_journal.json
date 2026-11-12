@@ -1016,6 +1016,13 @@
       "when": 1794432173857,
       "tag": "0151_hi_premium_gate",
       "breakpoints": true
+    },
+    {
+      "idx": 152,
+      "version": "7",
+      "when": 1794518573857,
+      "tag": "0152_hi_glosses_payments",
+      "breakpoints": true
     }
   ]
 }

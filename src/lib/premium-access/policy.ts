@@ -30,6 +30,8 @@ export const PREMIUM_DENIALS = [
   'clinic_suspended',
   'subscription_cancelled',
   'subscription_inactive',
+  /** Período pago vencido e fora da carência gravada pelo billing (0152; sem carência ilimitada). */
+  'period_expired',
   'plan_excludes',
 ] as const;
 export type PremiumDenial = (typeof PREMIUM_DENIALS)[number];
@@ -58,6 +60,8 @@ export function premiumDenialMessage(feature: PremiumFeature, reason: PremiumDen
     case 'subscription_cancelled':
     case 'subscription_inactive':
       return `${label}: a assinatura da clínica não está ativa. Regularize a assinatura para voltar a usar este recurso. Os registros já feitos continuam disponíveis para consulta.`;
+    case 'period_expired':
+      return `${label}: o período pago da assinatura terminou e a carência acabou. Regularize o pagamento para voltar a criar novas operações. Os registros já feitos, os retornos, as glosas e os pagamentos da operadora continuam disponíveis.`;
     case 'plan_excludes':
       return `${label}: o plano atual da clínica não inclui este recurso. ${PLANS_CTA}`;
   }
