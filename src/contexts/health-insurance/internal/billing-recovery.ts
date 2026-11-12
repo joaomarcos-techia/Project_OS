@@ -385,7 +385,13 @@ export async function processInsuranceBilling(
           await calculateCopayForAppointment(tx, { clinicId, appointmentId, guideTotalCents: total });
         }
         // Repasse do profissional (P10.4): nasce com a guia pronta; o valor segue a conta da guia.
-        await ensureInsurancePayoutTx(tx, { clinicId, appointmentId });
+        // Num ponto de salvamento: falha no repasse NUNCA desfaz a guia nem a pendência; fica a
+        // métrica e o repasse é criado depois ("Criar repasses que faltam").
+        try {
+          await tx.transaction((sp) => ensureInsurancePayoutTx(sp, { clinicId, appointmentId }));
+        } catch {
+          metrics.emit('insurance.payout.ensure_failed', { clinicId });
+        }
         let gapClosed = false;
         if (gap && gap.status === 'open') {
           await closeGap(tx, clinicId, gap, 'guide_ready', { guideId: decision.guideId });

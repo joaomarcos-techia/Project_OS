@@ -60,14 +60,6 @@ export async function ensureInsurancePayoutTx(
   if (!ap || !ap.doctor_id) return null;
   const professionalId = String(ap.doctor_id);
 
-  // Mesmo critério do repasse particular (payout-professional-eligibility.ts).
-  const eligible = (await tx.execute(sql`
-    SELECT 1 FROM public.profiles
-     WHERE id = ${professionalId}::uuid AND clinic_id = ${clinicId}::uuid AND deleted_at IS NULL AND ativo = true
-       AND role <> 'owner' AND (role = 'doctor' OR (crm IS NOT NULL AND btrim(crm) <> ''))
-     LIMIT 1`)) as unknown as Row[];
-  if (eligible.length === 0) return null;
-
   // Regra vigente na data do atendimento: a do procedimento vence a geral.
   const [rule] = (await tx.execute(sql`
     SELECT r.id, r.kind, r.percentage, r.fixed_amount
@@ -79,6 +71,15 @@ export async function ensureInsurancePayoutTx(
      ORDER BY (r.procedure_id IS NOT NULL) DESC
      LIMIT 1`)) as unknown as Row[];
   if (!rule) return null;
+
+  // Mesmo critério e ordem do repasse particular (regra, depois o profissional elegível).
+  const eligible = (await tx.execute(sql`
+    SELECT 1 FROM public.profiles
+     WHERE id = ${professionalId}::uuid AND clinic_id = ${clinicId}::uuid AND deleted_at IS NULL AND ativo = true
+       AND role <> 'owner' AND (role = 'doctor' OR (crm IS NOT NULL AND btrim(crm) <> ''))
+     LIMIT 1`)) as unknown as Row[];
+  if (eligible.length === 0) return null;
+
 
   const [settings] = await tx
     .select({ payoutEligibility: hiClinicSettings.payoutEligibility })

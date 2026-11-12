@@ -27,6 +27,9 @@ em `b6965447`, `feat/convenios-tiss-20261110`) e do `drizzle.__drizzle_migration
 | 0153 `hi_ledger_bridge` | #55: ponte da conta da guia com `lancamentos`/`payment_transactions` (candidata; plano em `aplicacao-0153.md`) | só no #55 | não | sim, pelo #55 |
 | 0154 `hi_premium_period_evidence` | #55: D24-b (regras de período do #53 no banco) e D24-c (`period_unverified`, visão administrativa) | só no #55 | não | sim, pelo #55 |
 | 0155 `ledger_payment_sum_by_clinic` | #55, **função compartilhada** (R38, autorizada pelo fundador em 12/11): soma de pagamentos do gatilho do livro pela clínica; só `CREATE OR REPLACE FUNCTION`, sem tabela, índice ou lock | só no #55 | não | sim, pelo #55 |
+| 0156 `hi_sadt_requests` | #55: solicitação SP/SADT, regra de agrupamento por operadora, vínculo do atendimento ao item | só no #55 | não | sim, pelo #55 |
+| 0157 `hi_professional_payouts` | #55: repasse de convênio (só LÊ `professional_payout_rules`) | só no #55 | não | sim, pelo #55 |
+| 0158 `hi_copay_charge` | #55: estado da cobrança da coparticipação (só LÊ `patient_charges`) | só no #55 | não | sim, pelo #55 |
 | 0153 (candidata) | #55: ponte com o livro financeiro (P1.10: `lancamentos` da operadora, `write_off`) | ainda não existe; exige validação com dados do DEV (D23) | não | — |
 
 - O DEV tem **144 linhas** em `drizzle.__drizzle_migrations`, a última é a 0143 do convênio. As 0136–0142 do #53 vêm
@@ -156,3 +159,11 @@ existir, por consulta dinâmica: aplica sozinha na cadeia do #55 e, na ordem do 
 - **0155** (`when` 1794777773857, idx 155): redefine `validate_payment_transaction_insert()` com o corpo da 0153 e uma condição a mais. A função é compartilhada: **se o #53 precisar tocá-la, parte do texto da 0155** (não do da 0073 nem do da 0153), e avisa. A candidata do #53 não toca `lancamentos`, `payment_transactions` nem essa função (só o schema `billing_gateway`): sem conflito.
 - **Ordem proposta para a candidata do #53:** depois da 0155, como 0156, com `when` > 1794777773857 (decisão conjunta).
 - **Teste do ledger:** `migration-ledger.test.ts` aceita uma exceção nominal na faixa do #55 (a 0155), além de `tiss_`/`hi_`.
+
+## 9. Atualização de 12/11 (noite 2): 0156–0158 e o #53 em `1be8dd01`
+
+- **Reconferido antes de cada migration nova:** `main` `5620a098` (0135); #53 `8c591c8f` → `1be8dd01` (sem migration nova; a candidata continua fora do journal); UI `e47ec2f0`; DEV com a 0143 como última linha.
+- **0156–0158** só criam objetos `hi_*` e funções próprias; nenhuma toca tabela do #53. Leem `professional_payout_rules` e `patient_charges` (Qoro), sem alterar.
+- **Composição:** a cauda 0144→0158 seguida da candidata do #53 aplica inteira na ordem do DEV (`hi-tail-apply-rehearsal.ts`, 1 M de linhas); a candidata entra como **0159**, `when` maior que o da 0158 (decisão conjunta).
+- **Mensagem ao agente do #53:** a função `validate_payment_transaction_insert` agora parte da 0155; o caminho Asaas de convênio é só o da coparticipação confirmada (`paymentsApiV1.createCopayCheckout`), e a varredura de saldo continua só para particular.
+
