@@ -46,4 +46,24 @@ describe('existing outbox minute tick', () => {
     await expect(GET(request())).rejects.toThrow('Synthetic failed checkpoint');
     expect(mocks.heartbeat).not.toHaveBeenCalledWith('outbox', 'success', expect.anything());
   });
+  it('finishes independent outbox work before reporting a financial failure', async () => {
+    let release: (() => void) | undefined;
+    mocks.run.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          release = resolve;
+        }),
+    );
+    mocks.recovery.mockRejectedValueOnce(new Error('Synthetic financial failure'));
+    const finished = vi.fn();
+    const pending = GET(request());
+    void pending.then(finished, finished);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(finished).not.toHaveBeenCalled();
+    expect(release).toBeDefined();
+    release?.();
+    await expect(pending).rejects.toThrow('Synthetic financial failure');
+    expect(mocks.heartbeat).not.toHaveBeenCalled();
+  });
 });

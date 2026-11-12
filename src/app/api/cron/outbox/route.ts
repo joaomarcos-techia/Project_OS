@@ -35,10 +35,15 @@ export const GET = withCron(
     // Reuse the existing minute tick without changing vercel.json. This branch
     // still refuses Production. Independent work runs beside the outbox rather
     // than consuming the daily Asaas reconciler's remaining time budget.
-    const [summary] = await Promise.all([
+    const [outbox, recovery] = await Promise.allSettled([
       runOutboxOnce(),
       reconcileAbacatePayRecoveryTick(Date.now() + 35_000),
     ]);
+    // Await both bounded jobs before reporting failure. An early financial
+    // rejection must not abandon an independent outbox write at HTTP teardown.
+    if (outbox.status === 'rejected') throw outbox.reason;
+    if (recovery.status === 'rejected') throw recovery.reason;
+    const summary = outbox.value;
     await recordHeartbeat('outbox', 'success', summary);
     return Response.json({ ok: true, ...summary }, { status: 200 });
   },

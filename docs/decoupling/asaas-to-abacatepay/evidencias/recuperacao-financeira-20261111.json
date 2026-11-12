@@ -8750,7 +8750,8 @@
       "src/contexts/billing/internal/abacatepay-renewal-source.ts": "9ae33cc2bd2fc4355cd6aae56243005a61d7136ee5f5bd422724a6838bfeabb3",
       "src/contexts/billing/internal/abacatepay-renewal-recovery.ts": "126b609feded7b7344bcef1cfefe2687aaa7603a0f498e8e8e3c4080043a00ea",
       "src/lib/payments/abacatepay/card-statement.ts": "3f6337f1873da1dc054af352e28f7c9ca7df618d99e8645ebbb5b96b4c51402e",
-      "docs/decoupling/asaas-to-abacatepay/migrations/saas_period_snapshot.candidate.sql": "f82d4f85b57542e6ba02fd0e61ba1c2d198363a747bb60cff5589baeb196e03e"
+      "docs/decoupling/asaas-to-abacatepay/migrations/saas_period_snapshot.candidate.sql": "f82d4f85b57542e6ba02fd0e61ba1c2d198363a747bb60cff5589baeb196e03e",
+      "src/app/api/cron/outbox/route.ts": "7c77e696344920b475916fa39722d6216698c138abf8d21eaba6ebb25df0ae5d"
     },
     "scanner": {
       "observedAt": "2026-11-12T18:42:02.119Z",
@@ -12192,7 +12193,12 @@
       "observability": "PASS",
       "format": "PASS for supported file types; SQL checked by PostgreSQL harness",
       "finalCI": "PENDING_FOR_THIS_INCREMENT; baseline CI is not assigned to new code",
-      "localBuild": "IN_PROGRESS using system CA trust; initial local attempt failed certificate verification, not bypassed"
+      "localBuild": "FAIL_LOCAL_RESOURCE: initial attempt certificate-chain failure; system CA retry passed download and exhausted default V8 heap (exit134). TLS was not bypassed; authoritative CI build pending.",
+      "outboxFailureIsolation": {
+        "tests": 4,
+        "status": "PASS",
+        "behavior": "Wait for both bounded jobs to settle before reporting failure; no outbox abandonment on financial rejection"
+      }
     },
     "preservedProofs": [
       "Five paid initial Sandbox scenarios",
