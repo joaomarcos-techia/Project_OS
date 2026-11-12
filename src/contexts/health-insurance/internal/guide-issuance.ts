@@ -20,7 +20,7 @@
  */
 import 'server-only';
 
-import { and, eq, inArray, lt, max, ne, notInArray, sql } from 'drizzle-orm';
+import { and, eq, lt, max, ne, notInArray, sql } from 'drizzle-orm';
 
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { requireFreshPermission, requireUser } from '@/lib/auth/tenant-context';
@@ -29,7 +29,6 @@ import type { Tx } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
 import { assertPremiumFeatureTx } from '@/lib/premium-access';
 
-import { tissTerminologyVersions, tissTerms } from '../schema';
 import {
   hiAuthorizations,
   hiClinicSettings,
@@ -43,102 +42,21 @@ import {
 import { assembleConsultaGuide } from '../tiss/assembly/consulta-assembler';
 import type { ContractLine } from '../tiss/assembly/contract-selection';
 import { serializeGuideSnapshot, type GuideSnapshotContent } from '../tiss/guides/snapshot';
-import { assertGuidePrintData, GuidePrintError, type GuidePrintData } from '../tiss/print/print-data';
-import { inMemoryLookup } from '../tiss/terminology/lookup';
-import type { TerminologyTerm } from '../tiss/terminology/official-sheet';
-import type { GuideIssue } from '../tiss/validation/common';
 import { validateConsultaGuide } from '../tiss/validation/consulta-validator';
 
-import { readMembershipCardNumberAudited, type CardNumberRead } from './membership-access';
+import {
+  freezePrintData,
+  GuideIssuanceError,
+  loadTerms,
+  todayInTz,
+  type IssueArgs,
+} from './issuance-common';
+import { readMembershipCardNumberAudited } from './membership-access';
+import { issueSpSadtGuide } from './sadt-issuance';
 
-export class GuideIssuanceError extends Error {
-  constructor(
-    message: string,
-    readonly issues: GuideIssue[] = [],
-  ) {
-    super(message);
-    this.name = 'GuideIssuanceError';
-  }
-}
+export { CONSULTA_DOMAIN_TABLES, GuideIssuanceError } from './issuance-common';
 
-/**
- * Tabelas de domínio pequenas que o validador da Consulta consulta inteiras
- * (conselho, indicação de acidente, tipo de consulta, UF, ausência de código de
- * validação, cobertura especial, regime, saúde ocupacional, tabela de referência).
- */
-export const CONSULTA_DOMAIN_TABLES = [
-  '26',
-  '36',
-  '52',
-  '59',
-  '74',
-  '75',
-  '76',
-  '77',
-  '87',
-] as const;
-
-/** Termos da guia na versão dela: as tabelas de domínio inteiras; da 22 (TUSS) e da 24 (CBO), só os códigos usados. */
-async function loadTerms(
-  tx: Tx,
-  version: string,
-  needs: ReadonlyArray<[table: string, code: string]>,
-) {
-  const [v] = await tx
-    .select({ id: tissTerminologyVersions.id })
-    .from(tissTerminologyVersions)
-    .where(eq(tissTerminologyVersions.version, version))
-    .limit(1);
-  if (!v) throw new GuideIssuanceError(`terminologia ${version} não carregada`);
-  const tables: Record<string, TerminologyTerm[]> = {};
-  const domain = await tx
-    .select({
-      tableCode: tissTerms.tableCode,
-      code: tissTerms.code,
-      term: tissTerms.term,
-      startsOn: tissTerms.startsOn,
-      endsOn: tissTerms.endsOn,
-      implantationEndsOn: tissTerms.implantationEndsOn,
-    })
-    .from(tissTerms)
-    .where(
-      and(eq(tissTerms.versionId, v.id), inArray(tissTerms.tableCode, [...CONSULTA_DOMAIN_TABLES])),
-    );
-  for (const { tableCode, ...term } of domain)
-    tables[tableCode] = [...(tables[tableCode] ?? []), term];
-  for (const [table, code] of needs) {
-    const rows = await tx
-      .select({
-        code: tissTerms.code,
-        term: tissTerms.term,
-        startsOn: tissTerms.startsOn,
-        endsOn: tissTerms.endsOn,
-        implantationEndsOn: tissTerms.implantationEndsOn,
-      })
-      .from(tissTerms)
-      .where(
-        and(
-          eq(tissTerms.versionId, v.id),
-          eq(tissTerms.tableCode, table),
-          inArray(tissTerms.code, [code]),
-        ),
-      );
-    tables[table] = [...(tables[table] ?? []), ...rows];
-  }
-  return inMemoryLookup(version, tables);
-}
-
-export interface IssueArgs {
-  clinicId: string;
-  guideId: string;
-  /** Leitura auditada da carteirinha DA GUIA (conferida contra `membership_id`). */
-  card: CardNumberRead;
-  newborn: boolean;
-  professionalName: string | null;
-  actorUserId: string;
-  /** `AAAA-MM-DD` de hoje no fuso da clínica (regra de "atendimento no futuro"). */
-  today: string;
-}
+export type { IssueArgs } from './issuance-common';
 
 /** Núcleo transacional da emissão. Roda na transação do chamador. */
 export async function issueConsultaGuide(
@@ -282,28 +200,13 @@ export async function issueConsultaGuide(
   });
   if (errors.length > 0) throw new GuideIssuanceError('a guia não passa na validação TISS', errors);
 
-  // Dados que só existem no impresso (P7.6), congelados AGORA com o resto da guia:
-  // o PDF nunca relê o cadastro atual (o paciente pode mudar de nome depois).
-  const [names] = await tx.execute<{ patient_nome: string | null; clinic_nome: string | null }>(sql`
-    SELECT (SELECT p.nome FROM public.patients p WHERE p.clinic_id = ${clinicId}::uuid AND p.id = ${g.patientId}::uuid) AS patient_nome,
-           (SELECT c.nome FROM public.clinics c WHERE c.id = ${clinicId}::uuid) AS clinic_nome`);
-  const print: GuidePrintData = {
-    schema: 'qoro.hi.guide-print/1',
-    beneficiarioNome: names?.patient_nome?.trim() ?? '',
-    nomeSocial: null,
-    contratadoNome: (settings.contractorName ?? names?.clinic_nome ?? '').trim(),
-    operadoraNome: insurer.name?.trim() || null,
-  };
-  try {
-    assertGuidePrintData(print);
-  } catch (e) {
-    if (e instanceof GuidePrintError) {
-      throw new GuideIssuanceError(`dado obrigatório do impresso: ${e.message}`, [
-        { code: 'PRINT_DATA_INVALID', field: 'impresso', message: e.message, owner: 'gestor' },
-      ]);
-    }
-    throw e;
-  }
+  // Dados que só existem no impresso (P7.6), congelados AGORA com o resto da guia.
+  const print = await freezePrintData(tx, {
+    clinicId,
+    patientId: g.patientId,
+    contractorName: settings.contractorName,
+    insurerName: insurer.name,
+  });
 
   const content: GuideSnapshotContent = {
     schema: 'qoro.hi.guide-snapshot/1',
@@ -349,15 +252,6 @@ export async function issueConsultaGuide(
   return { snapshotId: snap!.id, revision: g.revision, sha256 };
 }
 
-function todayInTz(tz: string): string {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: tz,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date());
-}
-
 /**
  * Aprovação com emissão, como o usuário faz na tela (P7.7). Permissão fresca,
  * leitura auditada da carteirinha e emissão transacional.
@@ -370,6 +264,7 @@ export async function approveConsultaGuide(clinicId: string, guideId: string) {
       .select({
         membershipId: hiGuides.membershipId,
         executant: hiGuides.executantProfessionalId,
+        guideType: hiGuides.guideType,
       })
       .from(hiGuides)
       .where(and(eq(hiGuides.clinicId, clinicId), eq(hiGuides.id, guideId)))
@@ -394,10 +289,11 @@ export async function approveConsultaGuide(clinicId: string, guideId: string) {
     'convenios/guias/aprovar',
   );
   if (!card) throw new GuideIssuanceError('carteirinha inexistente nesta clínica');
+  const issue = head.guideType === 'sp_sadt' ? issueSpSadtGuide : issueConsultaGuide;
   return withTenant(
     clinicId,
     (tx) =>
-      issueConsultaGuide(tx, {
+      issue(tx, {
         clinicId,
         guideId,
         card,

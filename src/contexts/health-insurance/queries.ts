@@ -693,3 +693,247 @@ export async function listInsurers(clinicId: string): Promise<Array<{ id: string
     return rows.map((r) => ({ id: String(r.id), name: String(r.name) }));
   });
 }
+
+// ── Solicitações SP/SADT (0156) ─────────────────────────────────────────
+
+export interface SadtRequestListRow {
+  id: string;
+  requestNumber: string | null;
+  status: string;
+  version: number;
+  patientName: string;
+  insurerName: string;
+  requestedOn: string;
+  requesterName: string;
+  authorizationRequirement: string;
+  items: number;
+  requested: number;
+  executed: number;
+  createdAt: string | null;
+}
+
+export async function listSadtRequests(clinicId: string, f: { status?: string } = {}): Promise<SadtRequestListRow[]> {
+  return withTenant(clinicId, async (tx) => {
+    const rows = (await tx.execute(
+      sql`SELECT r.id, r.request_number, r.status, r.version, p.nome AS patient_name, i.name AS insurer_name, r.requested_on,
+                 coalesce(pr.nome, r.requester_external->>'name') AS requester_name, r.authorization_requirement, r.created_at,
+                 (SELECT count(*) FROM public.hi_sadt_request_items ri WHERE ri.clinic_id = r.clinic_id AND ri.request_id = r.id AND ri.status = 'active') AS items,
+                 (SELECT coalesce(sum(ri.quantity_requested), 0) FROM public.hi_sadt_request_items ri WHERE ri.clinic_id = r.clinic_id AND ri.request_id = r.id AND ri.status = 'active') AS requested,
+                 (SELECT count(*) FROM public.hi_sadt_request_items ri
+                    JOIN public.hi_appointment_coverages c ON c.clinic_id = ri.clinic_id AND c.sadt_request_item_id = ri.id
+                    JOIN public.hi_guide_items gi ON gi.clinic_id = c.clinic_id AND gi.appointment_id = c.appointment_id AND gi.live
+                   WHERE ri.clinic_id = r.clinic_id AND ri.request_id = r.id) AS executed
+            FROM public.hi_sadt_requests r
+            JOIN public.patients p ON p.clinic_id = r.clinic_id AND p.id = r.patient_id
+            JOIN public.hi_insurers i ON i.clinic_id = r.clinic_id AND i.id = r.insurer_id
+            LEFT JOIN public.profiles pr ON pr.clinic_id = r.clinic_id AND pr.id = r.requester_professional_id
+           WHERE r.clinic_id = ${clinicId}::uuid
+             AND (${f.status ?? null}::text IS NULL OR r.status = ${f.status ?? null}::text)
+           ORDER BY r.created_at DESC LIMIT 200`,
+    )) as unknown as Row[];
+    return rows.map((r) => ({
+      id: String(r.id),
+      requestNumber: s(r.request_number),
+      status: String(r.status),
+      version: n(r.version),
+      patientName: String(r.patient_name ?? ''),
+      insurerName: String(r.insurer_name),
+      requestedOn: String(r.requested_on),
+      requesterName: String(r.requester_name ?? ''),
+      authorizationRequirement: String(r.authorization_requirement),
+      items: n(r.items),
+      requested: n(r.requested),
+      executed: n(r.executed),
+      createdAt: iso(r.created_at),
+    }));
+  });
+}
+
+export interface SadtRequestItemRow {
+  id: string;
+  sequence: number;
+  tableCode: string;
+  procedureCode: string;
+  description: string;
+  quantityRequested: number;
+  quantityAuthorized: number | null;
+  executed: number;
+  status: string;
+  cancelReason: string | null;
+}
+
+export interface SadtRequestDetail extends SadtRequestListRow {
+  patientId: string;
+  membershipId: string;
+  requesterKind: 'internal' | 'external';
+  requesterProfessionalId: string | null;
+  careCharacter: string;
+  careType: string | null;
+  consultationType: string | null;
+  /** Só se há indicação; o texto não sai daqui. */
+  hasClinicalIndication: boolean;
+  issues: GuideIssue[];
+  note: string | null;
+  cancelReason: string | null;
+  authorization: {
+    status: string;
+    operatorGuideNumber: string | null;
+    operatorProtocol: string | null;
+    authorizedOn: string | null;
+    passwordValidUntil: string | null;
+    hasPassword: boolean;
+    denialReason: string | null;
+  } | null;
+  itemRows: SadtRequestItemRow[];
+  events: Array<{ from: string | null; to: string; note: string | null; at: string | null; via: string }>;
+  guides: Array<{ id: string; number: string; status: string; totalValueCents: number; sessions: number }>;
+  /** Atendimentos de convênio do paciente ainda sem sessão SP/SADT ligada (para ligar ao item). */
+  linkableAppointments: Array<{ id: string; scheduledAt: string | null; status: string }>;
+}
+
+export async function getSadtRequestDetail(clinicId: string, requestId: string): Promise<SadtRequestDetail | null> {
+  const found = await withTenant(clinicId, async (tx) => {
+    const [r] = (await tx.execute(
+      sql`SELECT r.*, p.nome AS patient_name, i.name AS insurer_name, coalesce(pr.nome, r.requester_external->>'name') AS requester_name,
+                 a.status AS auth_status, a.operator_guide_number, a.operator_protocol, a.authorized_on, a.password_valid_until,
+                 a.password_encrypted IS NOT NULL AS has_password, a.denial_reason
+            FROM public.hi_sadt_requests r
+            JOIN public.patients p ON p.clinic_id = r.clinic_id AND p.id = r.patient_id
+            JOIN public.hi_insurers i ON i.clinic_id = r.clinic_id AND i.id = r.insurer_id
+            LEFT JOIN public.profiles pr ON pr.clinic_id = r.clinic_id AND pr.id = r.requester_professional_id
+            LEFT JOIN public.hi_authorizations a ON a.clinic_id = r.clinic_id AND a.id = r.authorization_id
+           WHERE r.clinic_id = ${clinicId}::uuid AND r.id = ${requestId}::uuid`,
+    )) as unknown as Row[];
+    if (!r) return null;
+    const items = (await tx.execute(
+      sql`SELECT ri.id, ri.sequence, ri.table_code, ri.procedure_code, ri.description, ri.quantity_requested, ri.status, ri.cancel_reason,
+                 ai.quantity_authorized,
+                 (SELECT count(*) FROM public.hi_appointment_coverages c
+                    JOIN public.hi_guide_items gi ON gi.clinic_id = c.clinic_id AND gi.appointment_id = c.appointment_id AND gi.live
+                   WHERE c.clinic_id = ri.clinic_id AND c.sadt_request_item_id = ri.id) AS executed
+            FROM public.hi_sadt_request_items ri
+            LEFT JOIN public.hi_authorization_items ai ON ai.clinic_id = ri.clinic_id AND ai.id = ri.authorization_item_id
+           WHERE ri.clinic_id = ${clinicId}::uuid AND ri.request_id = ${requestId}::uuid
+           ORDER BY ri.sequence`,
+    )) as unknown as Row[];
+    const events = (await tx.execute(
+      sql`SELECT from_status, to_status, note, created_at, created_via FROM public.hi_sadt_request_events
+           WHERE clinic_id = ${clinicId}::uuid AND request_id = ${requestId}::uuid ORDER BY created_at`,
+    )) as unknown as Row[];
+    const guides = (await tx.execute(
+      sql`SELECT g.id, g.number, g.status, g.total_value_cents, count(gi.id) AS sessions
+            FROM public.hi_guides g
+            JOIN public.hi_guide_items gi ON gi.clinic_id = g.clinic_id AND gi.guide_id = g.id
+            JOIN public.hi_appointment_coverages c ON c.clinic_id = gi.clinic_id AND c.appointment_id = gi.appointment_id
+            JOIN public.hi_sadt_request_items ri ON ri.clinic_id = c.clinic_id AND ri.id = c.sadt_request_item_id
+           WHERE g.clinic_id = ${clinicId}::uuid AND ri.request_id = ${requestId}::uuid
+           GROUP BY g.id ORDER BY g.created_at`,
+    )) as unknown as Row[];
+    const linkable = (await tx.execute(
+      sql`SELECT ap.id, ap.scheduled_at, ap.status::text AS status FROM public.appointments ap
+           WHERE ap.clinic_id = ${clinicId}::uuid AND ap.patient_id = ${String(r.patient_id)}::uuid
+             AND ap.billing_mode = 'convenio' AND ap.status::text IN ('agendado', 'confirmado', 'chegou')
+             AND NOT EXISTS (SELECT 1 FROM public.hi_appointment_coverages c
+                              WHERE c.clinic_id = ap.clinic_id AND c.appointment_id = ap.id AND c.sadt_request_item_id IS NOT NULL)
+           ORDER BY ap.scheduled_at LIMIT 50`,
+    )) as unknown as Row[];
+    return { r, items, events, guides, linkable };
+  });
+  if (!found) return null;
+  const { r, items, events, guides, linkable } = found;
+  const itemRows: SadtRequestItemRow[] = items.map((i) => ({
+    id: String(i.id),
+    sequence: n(i.sequence),
+    tableCode: String(i.table_code),
+    procedureCode: String(i.procedure_code),
+    description: String(i.description),
+    quantityRequested: n(i.quantity_requested),
+    quantityAuthorized: i.quantity_authorized === null || i.quantity_authorized === undefined ? null : n(i.quantity_authorized),
+    executed: n(i.executed),
+    status: String(i.status),
+    cancelReason: s(i.cancel_reason),
+  }));
+  const active = itemRows.filter((i) => i.status === 'active');
+  return {
+    id: String(r.id),
+    requestNumber: s(r.request_number),
+    status: String(r.status),
+    version: n(r.version),
+    patientName: String(r.patient_name ?? ''),
+    insurerName: String(r.insurer_name),
+    requestedOn: String(r.requested_on),
+    requesterName: String(r.requester_name ?? ''),
+    authorizationRequirement: String(r.authorization_requirement),
+    items: active.length,
+    requested: active.reduce((a, i) => a + i.quantityRequested, 0),
+    executed: itemRows.reduce((a, i) => a + i.executed, 0),
+    createdAt: iso(r.created_at),
+    patientId: String(r.patient_id),
+    membershipId: String(r.membership_id),
+    requesterKind: r.requester_kind === 'external' ? 'external' : 'internal',
+    requesterProfessionalId: s(r.requester_professional_id),
+    careCharacter: String(r.care_character),
+    careType: s(r.care_type),
+    consultationType: s(r.consultation_type),
+    hasClinicalIndication: r.clinical_indication_encrypted !== null && r.clinical_indication_encrypted !== undefined,
+    issues: (r.issues as GuideIssue[] | null) ?? [],
+    note: s(r.note),
+    cancelReason: s(r.cancel_reason),
+    authorization: r.auth_status
+      ? {
+          status: String(r.auth_status),
+          operatorGuideNumber: s(r.operator_guide_number),
+          operatorProtocol: s(r.operator_protocol),
+          authorizedOn: s(r.authorized_on),
+          passwordValidUntil: s(r.password_valid_until),
+          hasPassword: r.has_password === true,
+          denialReason: s(r.denial_reason),
+        }
+      : null,
+    itemRows,
+    events: events.map((e) => ({ from: s(e.from_status), to: String(e.to_status), note: s(e.note), at: iso(e.created_at), via: String(e.created_via) })),
+    guides: guides.map((g) => ({ id: String(g.id), number: String(g.number), status: String(g.status), totalValueCents: n(g.total_value_cents), sessions: n(g.sessions) })),
+    linkableAppointments: linkable.map((a) => ({ id: String(a.id), scheduledAt: iso(a.scheduled_at), status: String(a.status) })),
+  };
+}
+
+/** Para formar uma solicitação: carteirinhas ativas, solicitantes da clínica e procedimentos SP/SADT do contrato. */
+export async function getSadtRequestFormData(clinicId: string): Promise<{
+  memberships: Array<{ membershipId: string; patientId: string; label: string }>;
+  professionals: Array<{ id: string; name: string }>;
+  procedures: Array<{ tableCode: string; procedureCode: string; description: string; insurerName: string }>;
+}> {
+  return withTenant(clinicId, async (tx) => {
+    const memberships = (await tx.execute(
+      sql`SELECT m.id, m.patient_id, p.nome, i.name AS insurer_name, m.card_last4 FROM public.hi_memberships m
+            JOIN public.patients p ON p.clinic_id = m.clinic_id AND p.id = m.patient_id
+            JOIN public.hi_insurers i ON i.clinic_id = m.clinic_id AND i.id = m.insurer_id
+           WHERE m.clinic_id = ${clinicId}::uuid AND m.status = 'active' ORDER BY p.nome LIMIT 500`,
+    )) as unknown as Row[];
+    const professionals = (await tx.execute(
+      sql`SELECT pp.professional_id AS id, pr.nome FROM public.hi_professional_profiles pp
+            JOIN public.profiles pr ON pr.clinic_id = pp.clinic_id AND pr.id = pp.professional_id
+           WHERE pp.clinic_id = ${clinicId}::uuid ORDER BY pr.nome`,
+    )) as unknown as Row[];
+    const procedures = (await tx.execute(
+      sql`SELECT DISTINCT ON (c.insurer_id, c.table_code, c.procedure_code) c.table_code, c.procedure_code, c.description, i.name AS insurer_name
+            FROM public.hi_procedure_contracts c JOIN public.hi_insurers i ON i.clinic_id = c.clinic_id AND i.id = c.insurer_id
+           WHERE c.clinic_id = ${clinicId}::uuid AND c.guide_type = 'sp_sadt'
+           ORDER BY c.insurer_id, c.table_code, c.procedure_code, c.valid_from DESC`,
+    )) as unknown as Row[];
+    return {
+      memberships: memberships.map((m) => ({
+        membershipId: String(m.id),
+        patientId: String(m.patient_id),
+        label: `${String(m.nome ?? '')} · ${String(m.insurer_name)} · final ${String(m.card_last4 ?? '')}`,
+      })),
+      professionals: professionals.map((p) => ({ id: String(p.id), name: String(p.nome ?? '') })),
+      procedures: procedures.map((p) => ({
+        tableCode: String(p.table_code),
+        procedureCode: String(p.procedure_code),
+        description: String(p.description),
+        insurerName: String(p.insurer_name),
+      })),
+    };
+  });
+}

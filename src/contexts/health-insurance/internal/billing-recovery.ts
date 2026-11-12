@@ -48,6 +48,7 @@ import {
   type CompletedAppointment,
 } from './consulta-guide-service';
 import { calculateCopayForAppointment } from './copay-service';
+import { recordSadtExecutionForAppointment } from './sadt-guide-service';
 
 const DEFAULT_TZ = 'America/Sao_Paulo';
 
@@ -129,12 +130,15 @@ type GuideFactRow = {
   items: number | string;
   user_edited: boolean;
   total: number | string;
+  appointment_total: number | string;
 };
 
 /** Guias do atendimento: pela chave de origem do automático ou por item (manual, SP/SADT). */
 async function loadGuides(tx: Tx, clinicId: string, appointmentId: string) {
   const rows = await tx.execute<GuideFactRow>(
     sql`SELECT g.id, g.status, g.live, g.issues, g.idempotency_key, g.total_value_cents AS total,
+               (SELECT coalesce(sum(i.total_value_cents), 0) FROM hi_guide_items i
+                 WHERE i.clinic_id = g.clinic_id AND i.guide_id = g.id AND i.appointment_id = ${appointmentId}) AS appointment_total,
                (SELECT count(*) FROM hi_guide_items i WHERE i.clinic_id = g.clinic_id AND i.guide_id = g.id) AS items,
                EXISTS (SELECT 1 FROM hi_guide_events e
                         WHERE e.clinic_id = g.clinic_id AND e.guide_id = g.id AND e.actor_kind = 'user') AS user_edited
@@ -157,6 +161,8 @@ async function loadGuides(tx: Tx, clinicId: string, appointmentId: string) {
       editedByUser: r.user_edited,
     } satisfies GuideFact,
     total: Number(r.total),
+    /** Valor DESTE atendimento na guia (na SP/SADT agrupada, a sessão; na Consulta, a guia). */
+    appointmentTotal: Number(r.appointment_total),
   }));
 }
 
@@ -372,7 +378,8 @@ export async function processInsuranceBilling(
         }
         return { kind: 'not_applicable', gapClosed: false };
       case 'close_guide_ready': {
-        const total = guides.find((g) => g.fact.id === decision.guideId)?.total ?? 0;
+        // Base da coparticipação: o valor deste atendimento (na SP/SADT agrupada, a sessão).
+        const total = guides.find((g) => g.fact.id === decision.guideId)?.appointmentTotal ?? 0;
         if (total > 0) {
           await calculateCopayForAppointment(tx, { clinicId, appointmentId, guideTotalCents: total });
         }
@@ -386,6 +393,33 @@ export async function processInsuranceBilling(
       case 'create_guide': {
         createTried = true;
         if (!completed) continue;
+        if (coverage?.guideType === 'sp_sadt') {
+          // P8.7: a sessão executada entra na guia SP/SADT (ou vira pendência específica).
+          const sadt = await recordSadtExecutionForAppointment(tx, {
+            clinicId,
+            appointment: completed,
+            terminologyVersion: terminology?.version ?? null,
+            actor: { kind: 'automation' },
+          });
+          metrics.emit('insurance.guide.sp_sadt', { clinicId, outcome: sadt.kind });
+          if (sadt.kind === 'created' || sadt.kind === 'attached') {
+            created = true;
+            refreshTried = true;
+          }
+          if (sadt.kind === 'blocked') {
+            const spec: GapSpec = {
+              reason: sadt.reason,
+              owner: sadt.owner,
+              recovery: sadt.recovery,
+              issues: sadt.issues,
+              guideId: null,
+            };
+            const result = await openGap(tx, gap, ctx, spec, 'data', null);
+            if (result === 'dismissed') return { kind: 'dismissed' };
+            return { kind: 'gap_open', reason: spec.reason, owner: spec.owner, recovery: spec.recovery, guideId: null };
+          }
+          continue;
+        }
         const outcome = await createConsultaGuideForAppointment(tx, {
           clinicId,
           appointment: completed,

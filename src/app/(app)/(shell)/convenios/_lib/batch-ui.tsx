@@ -55,10 +55,12 @@ export function NewBatchForm({
   const router = useRouter();
   const [insurerId, setInsurerId] = useState(candidates.find((c) => c.guides.length > 0)?.insurerId ?? '');
   const [chosen, setChosen] = useState<string[]>([]);
+  const [guideType, setGuideType] = useState<'consulta' | 'sp_sadt'>('consulta');
   const [key] = useState(() => uuidv4());
   const { pending, submit } = useSubmit();
   const current = candidates.find((c) => c.insurerId === insurerId);
-  const consulta = useMemo(() => (current?.guides ?? []).filter((g) => g.guideType === 'consulta'), [current]);
+  // Um lote tem um tipo de guia só (padrão TISS): Consulta ou SP/SADT.
+  const consulta = useMemo(() => (current?.guides ?? []).filter((g) => g.guideType === guideType), [current, guideType]);
   const total = consulta.filter((g) => chosen.includes(g.id)).reduce((s, g) => s + g.totalValueCents, 0);
   if (!candidates.some((c) => c.guides.length > 0)) {
     return <p className="text-(length:--fs-sm) text-fg-muted">Nenhuma guia aprovada esperando lote.</p>;
@@ -68,7 +70,7 @@ export function NewBatchForm({
       className="flex flex-col gap-(--sp-3)"
       onSubmit={(e) => {
         e.preventDefault();
-        submit(() => createBatchAction({ insurerId, guideIds: chosen, idempotencyKey: key }), 'Lote montado', (batchId) => router.push(`/convenios/lotes/${batchId}`));
+        submit(() => createBatchAction({ insurerId, guideType, guideIds: chosen, idempotencyKey: key }), 'Lote montado', (batchId) => router.push(`/convenios/lotes/${batchId}`));
       }}
     >
       <Field label="Operadora" htmlFor={`${id}-ins`} required>
@@ -82,13 +84,26 @@ export function NewBatchForm({
         >
           {candidates.map((c) => (
             <option key={c.insurerId} value={c.insurerId}>
-              {c.name} ({c.guides.filter((g) => g.guideType === 'consulta').length} aprovadas)
+              {c.name} ({c.guides.length} aprovadas)
             </option>
           ))}
         </Select>
       </Field>
+      <Field label="Tipo de guia" htmlFor={`${id}-type`} required>
+        <Select
+          id={`${id}-type`}
+          value={guideType}
+          onChange={(e) => {
+            setGuideType(e.target.value === 'sp_sadt' ? 'sp_sadt' : 'consulta');
+            setChosen([]);
+          }}
+        >
+          <option value="consulta">Consulta</option>
+          <option value="sp_sadt">SP/SADT</option>
+        </Select>
+      </Field>
       <fieldset className="flex max-h-72 flex-col gap-1 overflow-y-auto rounded-(--r-md) border border-border p-(--sp-2)">
-        <legend className="px-1 text-(length:--fs-sm) font-medium">Guias de consulta aprovadas</legend>
+        <legend className="px-1 text-(length:--fs-sm) font-medium">{guideType === 'consulta' ? 'Guias de consulta aprovadas' : 'Guias SP/SADT aprovadas'}</legend>
         <label className="flex items-center gap-2 text-(length:--fs-sm) font-medium">
           <input
             type="checkbox"

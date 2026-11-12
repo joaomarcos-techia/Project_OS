@@ -96,13 +96,21 @@ describe('decideBilling (P7.4)', () => {
     [{ coverage: null }, 'coverage_missing', 'recepcao'],
     [{ hasPatient: false }, 'coverage_missing', 'recepcao'],
     [{ coverage: { id: 'c', status: 'cancelled' as const, guideType: 'consulta' as const } }, 'coverage_cancelled', 'recepcao'],
-    [{ coverage: { id: 'c', status: 'ready' as const, guideType: 'sp_sadt' as const } }, 'sp_sadt_manual', 'financeiro'],
     [{ coverage: { id: 'c', status: 'authorization_denied' as const, guideType: 'consulta' as const } }, 'authorization_denied', 'gestor'],
     [{ hasProcedure: false }, 'contract_missing', 'gestor'],
     [{ moduleEnabled: false }, 'module_disabled', 'gestor'],
   ])('sem guia: %o → %s (%s), recuperação humana', (over, reason, owner) => {
     const g = gapOf({ ...base, ...over });
     expect([g.reason, g.owner, g.recovery]).toEqual([reason, owner, 'human']);
+  });
+
+  it('SP/SADT (P8.7): sem guia, cria pelo serviço de execução; se a criação não resultou em guia, pendência da recepção', () => {
+    const sadt = { ...base, coverage: { id: 'c', status: 'ready' as const, guideType: 'sp_sadt' as const } };
+    expect(decideBilling(sadt)).toEqual({ action: 'create_guide' });
+    // o procedimento do atendimento não manda na SP/SADT (vem do item da solicitação)
+    expect(decideBilling({ ...sadt, hasProcedure: false })).toEqual({ action: 'create_guide' });
+    const g = gapOf(sadt, { createTried: true });
+    expect([g.reason, g.owner, g.recovery, g.issues[0]?.code]).toEqual(['coverage_incomplete', 'recepcao', 'human', 'SADT_NOT_BILLED']);
   });
 
   it('autorização negada nunca vira guia; pendente de autorização vira guia em edição (nada presumido)', () => {

@@ -156,12 +156,12 @@ export async function loadHiFixtures(sql: Sql, deps: FixtureDeps) {
   const asSystem = <T>(c: Clinic, fn: (tx: Tx) => Promise<T>) => withTenant(c.clinicId, fn);
   const batchVersion = async (id: string) => (await sql`select version from public.hi_batches where id = ${id}::uuid`)[0]!.version as number;
 
-  const createBatch = (c: Clinic, guideIds: string[], opts: { insurerId?: string; key?: string } = {}) =>
+  const createBatch = (c: Clinic, guideIds: string[], opts: { insurerId?: string; key?: string; guideType?: 'consulta' | 'sp_sadt' } = {}) =>
     asUser(c, (tx) =>
       batches.createBatchInTx(tx, {
         clinicId: c.clinicId,
         insurerId: opts.insurerId ?? c.insurerId,
-        guideType: 'consulta',
+        guideType: opts.guideType ?? 'consulta',
         guideIds,
         idempotencyKey: opts.key ?? `lote-${randomUUID()}`,
       }),

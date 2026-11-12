@@ -30,6 +30,8 @@ import {
   hiInsurers,
   hiMemberships,
   hiProcedureContracts,
+  hiSadtRequestItems,
+  hiSadtRequests,
   type HiCoverageStatus,
   type HiGuideType,
 } from '../schema-clinic';
@@ -49,6 +51,12 @@ export interface RecordCoverageInput {
   planId: string | null;
   membershipId: string | null;
   authorizationId: string | null;
+  /**
+   * Sessão SP/SADT (0156): o item da solicitação que este atendimento executa. O código
+   * TUSS e a autorização vêm DA SOLICITAÇÃO (não do procedimento do atendimento); a
+   * solicitação precisa ser do mesmo paciente, operadora e carteirinha e aceitar sessões.
+   */
+  sadtRequestItemId?: string | null;
   actor: { kind: 'automation' } | { kind: 'user'; userId: string };
   /**
    * Correção administrativa depois do atendimento (0149): só com pendência de
@@ -171,7 +179,67 @@ export async function recordAppointmentCoverage(
     );
   }
 
-  // Contrato vigente do procedimento do Qoro.
+  // Sessão SP/SADT: o item da solicitação manda no código TUSS e na autorização.
+  let sadtItem: {
+    id: string;
+    tableCode: string;
+    procedureCode: string;
+    authorizationId: string | null;
+  } | null = null;
+  if (input.sadtRequestItemId) {
+    if (input.guideType !== 'sp_sadt') {
+      throw new CoverageInputError('item de solicitação só em atendimento de SP/SADT');
+    }
+    const [row] = await tx
+      .select({
+        id: hiSadtRequestItems.id,
+        tableCode: hiSadtRequestItems.tableCode,
+        procedureCode: hiSadtRequestItems.procedureCode,
+        itemStatus: hiSadtRequestItems.status,
+        requestStatus: hiSadtRequests.status,
+        patientId: hiSadtRequests.patientId,
+        insurerId: hiSadtRequests.insurerId,
+        membershipId: hiSadtRequests.membershipId,
+        authorizationId: hiSadtRequests.authorizationId,
+      })
+      .from(hiSadtRequestItems)
+      .innerJoin(
+        hiSadtRequests,
+        and(
+          eq(hiSadtRequests.clinicId, hiSadtRequestItems.clinicId),
+          eq(hiSadtRequests.id, hiSadtRequestItems.requestId),
+        ),
+      )
+      .where(
+        and(
+          eq(hiSadtRequestItems.clinicId, clinicId),
+          eq(hiSadtRequestItems.id, input.sadtRequestItemId),
+        ),
+      )
+      .limit(1);
+    if (!row) throw new CoverageInputError('item de solicitação inexistente nesta clínica');
+    if (
+      row.patientId !== input.patientId ||
+      row.insurerId !== insurer.id ||
+      row.membershipId !== membershipId
+    ) {
+      throw new CoverageInputError('a solicitação é de outro paciente, operadora ou carteirinha');
+    }
+    if (
+      row.itemStatus !== 'active' ||
+      !['awaiting_authorization', 'authorized', 'partially_authorized', 'ready'].includes(
+        row.requestStatus,
+      )
+    ) {
+      throw new CoverageInputError(
+        `a solicitação não aceita sessões agora (estado: ${row.requestStatus}, item: ${row.itemStatus})`,
+      );
+    }
+    sadtItem = row;
+  }
+  const authorizationId = sadtItem ? sadtItem.authorizationId : input.authorizationId;
+
+  // Contrato vigente do procedimento do Qoro (ou do item da solicitação SP/SADT).
   const lines = await tx
     .select()
     .from(hiProcedureContracts)
@@ -182,13 +250,15 @@ export async function recordAppointmentCoverage(
         eq(hiProcedureContracts.guideType, input.guideType),
       ),
     );
-  const codes = [
-    ...new Set(
-      lines
-        .filter((l) => l.procedureId === input.procedureId)
-        .map((l) => `${l.tableCode}:${l.procedureCode}`),
-    ),
-  ];
+  const codes = sadtItem
+    ? [`${sadtItem.tableCode}:${sadtItem.procedureCode}`]
+    : [
+        ...new Set(
+          lines
+            .filter((l) => l.procedureId === input.procedureId)
+            .map((l) => `${l.tableCode}:${l.procedureCode}`),
+        ),
+      ];
   let line: ContractLine | null = null;
   if (codes.length === 1) {
     const [tableCode, procedureCode] = codes[0]!.split(':') as [string, string];
@@ -243,7 +313,7 @@ export async function recordAppointmentCoverage(
       : 'not_required'
     : 'unknown';
   let authorizationStatus: string | null = null;
-  if (input.authorizationId) {
+  if (authorizationId) {
     const [auth] = await tx
       .select({
         status: hiAuthorizations.status,
@@ -255,7 +325,7 @@ export async function recordAppointmentCoverage(
       .where(
         and(
           eq(hiAuthorizations.clinicId, clinicId),
-          eq(hiAuthorizations.id, input.authorizationId),
+          eq(hiAuthorizations.id, authorizationId),
         ),
       )
       .limit(1);
@@ -294,7 +364,8 @@ export async function recordAppointmentCoverage(
     membershipId,
     contractLineId: line?.id ?? null,
     authorizationRequirement: requirement,
-    authorizationId: input.authorizationId,
+    authorizationId,
+    sadtRequestItemId: sadtItem?.id ?? null,
     status,
     issues,
     expectedValueCents: line?.unitValueCents ?? null,

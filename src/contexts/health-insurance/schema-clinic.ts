@@ -79,6 +79,8 @@ export const hiInsurers = pgTable(
     providerIdValue: text('provider_id_value').notNull(),
     tissVersion: text('tiss_version').$type<'4.03.00'>().notNull(),
     connectorKind: text('connector_kind').$type<'manual' | 'soap'>().notNull(),
+    /** Sessões SP/SADT (0156): uma guia por sessão ou as da mesma solicitação juntas (regra da operadora). */
+    sadtGrouping: text('sadt_grouping').$type<'per_session' | 'per_request'>().notNull().default('per_session'),
     /** Validado por Zod na aplicação; o banco só garante que é objeto. */
     settings: jsonb('settings').$type<Record<string, unknown>>().notNull(),
     createdBy: uuid('created_by').notNull(),
@@ -601,6 +603,8 @@ export const hiAppointmentCoverages = pgTable('hi_appointment_coverages', {
     .$type<'unknown' | 'not_required' | 'required'>()
     .notNull(),
   authorizationId: uuid('authorization_id'),
+  /** Item da solicitação SP/SADT que este atendimento executa (0156). */
+  sadtRequestItemId: uuid('sadt_request_item_id'),
   status: text('status').$type<HiCoverageStatus>().notNull(),
   issues: jsonb('issues')
     .$type<Array<{ code: string; field: string; owner: string; message: string }>>()
@@ -1025,3 +1029,102 @@ export const hiLedgerEntries = pgTable('hi_ledger_entries', {
 });
 
 export type HiLedgerEntryRow = typeof hiLedgerEntries.$inferSelect;
+
+/**
+ * Solicitação SP/SADT persistida (0156, P6.2). A indicação clínica é digitada pelo
+ * profissional e guardada cifrada por clínica; nunca vem do prontuário (D17).
+ * Solicitação não é execução: o faturamento nasce do atendimento que executa um item.
+ */
+export type HiSadtRequestStatus =
+  | 'draft'
+  | 'checked'
+  | 'awaiting_authorization'
+  | 'authorized'
+  | 'partially_authorized'
+  | 'denied'
+  | 'ready'
+  | 'completed'
+  | 'cancelled'
+  | 'expired';
+
+export interface HiExternalRequester {
+  name: string;
+  council: string;
+  councilNumber: string;
+  councilUf: string;
+  cbo: string | null;
+}
+
+export const hiSadtRequests = pgTable('hi_sadt_requests', {
+  id: uuidPk(),
+  clinicId: tenantIdRef(),
+  guideType: text('guide_type').$type<'sp_sadt'>().notNull().default('sp_sadt'),
+  patientId: uuid('patient_id').notNull(),
+  insurerId: uuid('insurer_id').notNull(),
+  planId: uuid('plan_id'),
+  membershipId: uuid('membership_id').notNull(),
+  requesterKind: text('requester_kind').$type<'internal' | 'external'>().notNull(),
+  requesterProfessionalId: uuid('requester_professional_id'),
+  requesterExternal: jsonb('requester_external').$type<HiExternalRequester>(),
+  sourceAppointmentId: uuid('source_appointment_id'),
+  requestedOn: date('requested_on').notNull(),
+  /** Tabela 23: 1 eletivo, 2 urgência/emergência. */
+  careCharacter: text('care_character').$type<'1' | '2'>().notNull(),
+  /** Tabela 50 (tipo de atendimento), escolhido pela recepção; obrigatório na conferência. */
+  careType: text('care_type'),
+  /** Tabela 52, só quando o tipo de atendimento é consulta (04). */
+  consultationType: text('consultation_type'),
+  /** Ciphertext de encryptForTenant; texto informado pelo profissional. */
+  clinicalIndicationEncrypted: text('clinical_indication_encrypted'),
+  clinicalIndicationBy: uuid('clinical_indication_by'),
+  clinicalIndicationAt: timestamp('clinical_indication_at', { withTimezone: true }),
+  requestNumber: text('request_number'),
+  authorizationRequirement: text('authorization_requirement')
+    .$type<'unknown' | 'not_required' | 'required'>()
+    .notNull(),
+  authorizationId: uuid('authorization_id'),
+  status: text('status').$type<HiSadtRequestStatus>().notNull(),
+  issues: jsonb('issues')
+    .$type<Array<{ code: string; field: string; owner: string; message: string }>>()
+    .notNull(),
+  note: text('note'),
+  version: integer('version').notNull().default(1),
+  checkedAt: timestamp('checked_at', { withTimezone: true }),
+  checkedBy: uuid('checked_by'),
+  cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+  cancelledBy: uuid('cancelled_by'),
+  cancelReason: text('cancel_reason'),
+  createdBy: uuid('created_by').notNull(),
+  ...timestampsPattern(),
+});
+
+export const hiSadtRequestItems = pgTable('hi_sadt_request_items', {
+  id: uuidPk(),
+  clinicId: tenantIdRef(),
+  requestId: uuid('request_id').notNull(),
+  sequence: integer('sequence').notNull(),
+  tableCode: text('table_code').notNull(),
+  procedureCode: text('procedure_code').notNull(),
+  description: text('description').notNull(),
+  quantityRequested: integer('quantity_requested').notNull(),
+  contractLineId: uuid('contract_line_id'),
+  authorizationItemId: uuid('authorization_item_id'),
+  status: text('status').$type<'active' | 'cancelled'>().notNull(),
+  cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+  cancelledBy: uuid('cancelled_by'),
+  cancelReason: text('cancel_reason'),
+  ...timestampsPattern(),
+});
+
+export const hiSadtRequestEvents = pgTable('hi_sadt_request_events', {
+  id: uuidPk(),
+  clinicId: tenantIdRef(),
+  requestId: uuid('request_id').notNull(),
+  fromStatus: text('from_status').$type<HiSadtRequestStatus>(),
+  toStatus: text('to_status').$type<HiSadtRequestStatus>().notNull(),
+  note: text('note'),
+  createdVia: text('created_via').$type<HiCreatedVia>().notNull(),
+  actorUserId: uuid('actor_user_id'),
+  createdAt: createdAt(),
+});
+

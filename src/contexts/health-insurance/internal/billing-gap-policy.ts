@@ -214,14 +214,20 @@ export function decideBilling(f: BillingFacts, opts: DecideOptions = {}): Billin
     ]);
   }
   if (f.coverage.guideType === 'sp_sadt') {
-    return human('sp_sadt_manual', 'financeiro', [
-      gi(
-        'SP_SADT_MANUAL',
-        'guia',
-        'Atendimento de SP/SADT: a guia ainda é montada na conferência (a geração automática da SP/SADT é a P8.7).',
-        'financeiro',
-      ),
-    ]);
+    // P8.7: a sessão que executa um item da solicitação entra na guia SP/SADT. O serviço
+    // de execução devolve as pendências específicas (sem solicitação, aguardando a
+    // operadora, saldo esgotado, senha vencida, contrato); aqui só a rede de segurança.
+    if (opts.createTried) {
+      return human('coverage_incomplete', 'recepcao', [
+        gi(
+          'SADT_NOT_BILLED',
+          'solicitacao',
+          'A sessão de SP/SADT não entrou em guia. Confira a solicitação, a autorização e o contrato.',
+          'recepcao',
+        ),
+      ]);
+    }
+    return { action: 'create_guide' };
   }
   if (!f.hasProcedure) {
     return human('contract_missing', 'gestor', [

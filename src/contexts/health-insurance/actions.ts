@@ -28,8 +28,10 @@ import { supabaseTissObjectStore, TissStorageError } from '@/lib/storage/tiss-fi
 import { AppealXmlError, exportAppealXml } from './internal/appeal-xml-service';
 import * as batches from './internal/batch-service';
 import { readBatchGuidesAudited } from './internal/guide-access';
+import { CoverageInputError, recordAppointmentCoverage } from './internal/coverage-service';
 import { approveConsultaGuide } from './internal/guide-issuance';
 import * as acct from './internal/insurance-account-service';
+import * as sadt from './internal/sadt-request-service';
 import { importOperatorStatement, StatementImportError, type StatementImportResult } from './internal/statement-import-service';
 import { loadXmllintValidator } from './tiss/xml/xsd-validator';
 
@@ -68,6 +70,9 @@ function messageOf(error: unknown): string {
     return first ? `${error.message}: ${first}` : error.message;
   }
   if (error instanceof StatementImportError) return error.message;
+  if (error instanceof sadt.SadtRequestError || error instanceof CoverageInputError) {
+    return error.message.charAt(0).toUpperCase() + error.message.slice(1);
+  }
   if (error instanceof TissStorageError) return 'O armazenamento de arquivos está indisponível agora. Tente de novo em instantes.';
   const e = error as { code?: string; cause?: { code?: string; message?: string } };
   const code = e.code ?? e.cause?.code;
@@ -173,7 +178,12 @@ export async function approveGuideAction(input: { guideId: string }): Promise<Ac
 
 // ── Lotes ─────────────────────────────────────────────────────────────────
 
-const CreateBatch = z.object({ insurerId: uuid, guideIds: z.array(uuid).min(1).max(100), idempotencyKey: key });
+const CreateBatch = z.object({
+  insurerId: uuid,
+  guideType: z.enum(['consulta', 'sp_sadt']).default('consulta'),
+  guideIds: z.array(uuid).min(1).max(100),
+  idempotencyKey: key,
+});
 
 export async function createBatchAction(input: z.input<typeof CreateBatch>): Promise<ActionResult<string>> {
   return run(async () => {
@@ -182,7 +192,7 @@ export async function createBatchAction(input: z.input<typeof CreateBatch>): Pro
       batches.createBatchInTx(tx, {
         clinicId: ctx.clinicId,
         insurerId: d.insurerId,
-        guideType: 'consulta',
+        guideType: d.guideType,
         guideIds: d.guideIds,
         idempotencyKey: `ui:${d.idempotencyKey}`,
       }),
@@ -455,5 +465,230 @@ export async function importStatementAction(form: FormData): Promise<ActionResul
         receivedOn: d.receivedOn,
       },
     );
+  });
+}
+
+// ── Solicitações SP/SADT (P6.2) ───────────────────────────────────────────
+
+const SadtCreate = z.object({
+  membershipId: uuid,
+  patientId: uuid,
+  requester: z.discriminatedUnion('kind', [
+    z.object({ kind: z.literal('internal'), professionalId: uuid }),
+    z.object({
+      kind: z.literal('external'),
+      name: z.string().trim().min(3, 'Nome do solicitante (3 a 70 caracteres).').max(70),
+      council: z.string().regex(/^\d{2}$/u, 'Conselho (tabela 26).'),
+      councilNumber: z.string().trim().min(1, 'Número no conselho.').max(15),
+      councilUf: z.string().regex(/^\d{2}$/u, 'UF do conselho (código IBGE).'),
+      cbo: z.string().regex(/^\d{6}$/u).nullable(),
+    }),
+  ]),
+  requestedOn: day,
+  careCharacter: z.enum(['1', '2']),
+  careType: z.string().regex(/^\d{2}$/u, 'Tipo de atendimento (tabela 50).').nullable(),
+  items: z
+    .array(z.object({ tableCode: z.string().regex(/^\d{2}$/u), procedureCode: z.string().trim().min(1).max(10), quantity: z.number().int().min(1).max(999) }))
+    .min(1, 'Inclua pelo menos um procedimento.')
+    .max(99),
+  note: z.string().trim().max(500).nullable(),
+});
+
+export async function createSadtRequestAction(input: z.input<typeof SadtCreate>): Promise<ActionResult<string>> {
+  return run(async () => {
+    const d = SadtCreate.parse(input);
+    return write('health_insurance.sadt_request.created', { type: 'hi_sadt_request', id: null }, async (tx, ctx) =>
+      (await sadt.createSadtRequestInTx(tx, { ...d, clinicId: ctx.clinicId, actorUserId: ctx.userId })).requestId,
+    );
+  });
+}
+
+const SadtRef = z.object({ requestId: uuid, version });
+
+export async function checkSadtRequestAction(
+  input: z.input<typeof SadtRef> & { careType?: string | null; consultationType?: string | null },
+): Promise<ActionResult<string>> {
+  return run(async () => {
+    const d = SadtRef.extend({
+      careType: z.string().regex(/^\d{2}$/u).nullable().optional(),
+      consultationType: z.string().regex(/^[1-4]$/u).nullable().optional(),
+    }).parse(input);
+    return write('health_insurance.sadt_request.checked', { type: 'hi_sadt_request', id: d.requestId }, async (tx, ctx) => {
+      const out = await sadt.checkSadtRequestInTx(tx, {
+        clinicId: ctx.clinicId,
+        requestId: d.requestId,
+        version: d.version,
+        careType: d.careType ?? null,
+        consultationType: d.consultationType ?? null,
+        actorUserId: ctx.userId,
+      });
+      if (out.kind === 'pending') {
+        // Pendências gravadas; a mensagem leva a primeira, sem dado pessoal.
+        return `pendente: ${out.issues[0]?.message ?? 'conferir dados'}`;
+      }
+      return out.kind;
+    });
+  });
+}
+
+const SadtAuthorize = SadtRef.extend({
+  authorizedOn: day,
+  operatorGuideNumber: z.string().trim().max(20).nullable(),
+  operatorProtocol: z.string().trim().max(40).nullable(),
+  password: z.string().trim().max(20).nullable(),
+  passwordValidUntil: day.nullable(),
+  items: z.array(z.object({ requestItemId: uuid, quantityAuthorized: z.number().int().min(0).max(999) })).min(1),
+});
+
+export async function recordSadtAuthorizationAction(input: z.input<typeof SadtAuthorize>): Promise<ActionResult<string>> {
+  return run(async () => {
+    const d = SadtAuthorize.parse(input);
+    const blank = (v: string | null) => (v && v.length > 0 ? v : null);
+    return write('health_insurance.sadt_request.authorization_recorded', { type: 'hi_sadt_request', id: d.requestId }, async (tx, ctx) =>
+      (
+        await sadt.recordSadtAuthorizationInTx(tx, {
+          decision: 'authorized',
+          clinicId: ctx.clinicId,
+          requestId: d.requestId,
+          version: d.version,
+          authorizedOn: d.authorizedOn,
+          operatorGuideNumber: blank(d.operatorGuideNumber),
+          operatorProtocol: blank(d.operatorProtocol),
+          password: blank(d.password),
+          passwordValidUntil: d.passwordValidUntil,
+          items: d.items,
+          actorUserId: ctx.userId,
+        })
+      ).status,
+    );
+  });
+}
+
+export async function denySadtRequestAction(input: z.input<typeof SadtRef> & { denialReason: string }): Promise<ActionResult<string>> {
+  return run(async () => {
+    const d = SadtRef.extend({ denialReason: z.string().trim().min(3, 'Motivo da negativa da operadora.').max(500) }).parse(input);
+    return write('health_insurance.sadt_request.denied', { type: 'hi_sadt_request', id: d.requestId }, async (tx, ctx) =>
+      (
+        await sadt.recordSadtAuthorizationInTx(tx, {
+          decision: 'denied',
+          clinicId: ctx.clinicId,
+          requestId: d.requestId,
+          version: d.version,
+          denialReason: d.denialReason,
+          actorUserId: ctx.userId,
+        })
+      ).status,
+    );
+  });
+}
+
+export async function cancelSadtRequestAction(input: z.input<typeof SadtRef> & { reason: string }): Promise<ActionResult<null>> {
+  return run(async () => {
+    const d = SadtRef.extend({ reason }).parse(input);
+    await write('health_insurance.sadt_request.cancelled', { type: 'hi_sadt_request', id: d.requestId }, async (tx, ctx) =>
+      sadt.cancelSadtRequestInTx(tx, { clinicId: ctx.clinicId, requestId: d.requestId, version: d.version, reason: d.reason, actorUserId: ctx.userId }),
+    );
+    return null;
+  });
+}
+
+export async function completeSadtRequestAction(input: z.input<typeof SadtRef> & { note: string }): Promise<ActionResult<null>> {
+  return run(async () => {
+    const d = SadtRef.extend({ note: reason }).parse(input);
+    await write('health_insurance.sadt_request.completed', { type: 'hi_sadt_request', id: d.requestId }, async (tx, ctx) =>
+      sadt.completeSadtRequestInTx(tx, { clinicId: ctx.clinicId, requestId: d.requestId, version: d.version, note: d.note, actorUserId: ctx.userId }),
+    );
+    return null;
+  });
+}
+
+export async function cancelSadtRequestItemAction(input: { requestId: string; itemId: string; reason: string }): Promise<ActionResult<null>> {
+  return run(async () => {
+    const d = z.object({ requestId: uuid, itemId: uuid, reason }).parse(input);
+    await write('health_insurance.sadt_request.item_cancelled', { type: 'hi_sadt_request', id: d.requestId }, async (tx, ctx) =>
+      sadt.cancelSadtRequestItemInTx(tx, { clinicId: ctx.clinicId, requestId: d.requestId, itemId: d.itemId, reason: d.reason, actorUserId: ctx.userId }),
+    );
+    return null;
+  });
+}
+
+/**
+ * Indicação clínica: do PROFISSIONAL solicitante (permissão clínica; o serviço confere que
+ * é ele). Solicitante externo: a recepção transcreve o pedido dele (permissão de gestão).
+ * A auditoria registra que foi informada, nunca o texto.
+ */
+export async function setSadtClinicalIndicationAction(input: z.input<typeof SadtRef> & { text: string }): Promise<ActionResult<null>> {
+  return run(async () => {
+    const d = SadtRef.extend({ text: z.string().trim().min(3, 'Indicação clínica de 3 a 500 caracteres.').max(500) }).parse(input);
+    const user = await requireUser();
+    const clinicId = await requireClinicId();
+    const kind = await withTenant(clinicId, async (tx) => {
+      const rows = (await tx.execute(
+        sql`SELECT requester_kind FROM public.hi_sadt_requests WHERE clinic_id = ${clinicId}::uuid AND id = ${d.requestId}::uuid`,
+      )) as unknown as Array<{ requester_kind: string }>;
+      return rows[0]?.requester_kind ?? null;
+    });
+    if (!kind) throw new sadt.SadtRequestError('Solicitação inexistente nesta clínica.', 'not_found');
+    await requireCachedPermission(kind === 'internal' ? PERMISSIONS.CREATE_PRONTUARIO : PERMISSIONS.MANAGE_FINANCIAL);
+    const rc = await requestContext();
+    await withTenant(
+      clinicId,
+      async (tx) => {
+        await sadt.setClinicalIndicationInTx(tx, { clinicId, requestId: d.requestId, version: d.version, text: d.text, actorUserId: user.userId });
+        await logAudit(tx, {
+          clinicId,
+          userId: user.userId,
+          action: 'health_insurance.sadt_request.indication_set',
+          resourceType: 'hi_sadt_request',
+          resourceId: d.requestId,
+          before: null,
+          after: { result: 'informada' },
+          requestContext: rc,
+        });
+      },
+      user.userId,
+    );
+    return null;
+  });
+}
+
+/** Liga um atendimento de convênio ao procedimento da solicitação (a sessão que o executa). */
+export async function linkAppointmentToSadtItemAction(input: { requestId: string; itemId: string; appointmentId: string }): Promise<ActionResult<null>> {
+  return run(async () => {
+    const d = z.object({ requestId: uuid, itemId: uuid, appointmentId: uuid }).parse(input);
+    await write('health_insurance.sadt_request.session_linked', { type: 'hi_sadt_request', id: d.requestId }, async (tx, ctx) => {
+      const rows = (await tx.execute(sql`
+        SELECT ap.patient_id, ap.procedure_id, ap.scheduled_at, c.timezone, r.insurer_id, r.plan_id, r.membership_id
+          FROM public.appointments ap
+          JOIN public.clinics c ON c.id = ap.clinic_id
+          JOIN public.hi_sadt_request_items ri ON ri.clinic_id = ap.clinic_id AND ri.id = ${d.itemId}::uuid
+          JOIN public.hi_sadt_requests r ON r.clinic_id = ri.clinic_id AND r.id = ri.request_id AND r.id = ${d.requestId}::uuid
+         WHERE ap.clinic_id = ${ctx.clinicId}::uuid AND ap.id = ${d.appointmentId}::uuid`)) as unknown as Array<Record<string, unknown>>;
+      const r = rows[0];
+      if (!r || !r.patient_id || !r.procedure_id) {
+        throw new sadt.SadtRequestError('Atendimento ou solicitação inexistente nesta clínica.', 'not_found');
+      }
+      const date = new Intl.DateTimeFormat('en-CA', {
+        timeZone: String(r.timezone ?? 'America/Sao_Paulo'),
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).format(new Date(String(r.scheduled_at)));
+      await recordAppointmentCoverage(tx, {
+        clinicId: ctx.clinicId,
+        appointmentId: d.appointmentId,
+        patientId: String(r.patient_id),
+        procedureId: String(r.procedure_id),
+        appointmentDate: date,
+        guideType: 'sp_sadt',
+        insurerId: String(r.insurer_id),
+        planId: r.plan_id ? String(r.plan_id) : null,
+        membershipId: String(r.membership_id),
+        authorizationId: null,
+        sadtRequestItemId: d.itemId,
+        actor: { kind: 'user', userId: ctx.userId },
+      });
+    });
+    return null;
   });
 }
