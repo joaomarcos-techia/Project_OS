@@ -37,6 +37,22 @@ export function abacatePayRenewalSourceRows(source: AbacatePayRenewalSource) {
         observed_at received_at,proof_hash FROM billing_gateway.renewal_api_readbacks WHERE id=${source.id}::uuid)`;
 }
 
+/** Resolve the immutable generation before tenant-specific lateral snapshots.
+ * Both branches use existing (account_id,external_subscription_id) indexes.
+ * UNION deduplicates a generation without broadening ownership or locking peers.
+ * The enclosing query must provide the authenticated source `e` and account `a`.
+ */
+export function abacatePayRenewalBindingRows() {
+  return sql`LATERAL (
+    SELECT origin.subscription_id,origin.clinic_id FROM billing_gateway.bindings origin
+      WHERE origin.account_id=a.id AND origin.external_subscription_id=e.external_subscription_id
+    UNION
+    SELECT replacement.subscription_id,replacement.clinic_id FROM billing_gateway.recontracts replacement
+      WHERE replacement.account_id=a.id AND replacement.external_subscription_id=e.external_subscription_id
+        AND replacement.invoice_id IS NOT NULL
+  )`;
+}
+
 /** Lock before reading joined plan snapshots: a waiting SELECT can retain an old join. */
 export async function lockAbacatePayRenewalSubscription(
   database: BillingGatewaySql,
@@ -44,22 +60,18 @@ export async function lockAbacatePayRenewalSubscription(
   source: AbacatePayRenewalSource,
 ): Promise<void> {
   await database.execute(sql`
-    SELECT s.id FROM public.subscriptions s WHERE EXISTS (
-      SELECT 1 FROM ${abacatePayRenewalSourceRows(source)} e
+    SELECT s.id FROM ${abacatePayRenewalSourceRows(source)} e
       JOIN billing_gateway.accounts a ON a.id=e.account_id
-      JOIN billing_gateway.bindings b ON b.account_id=a.id
-      WHERE b.subscription_id=s.id AND b.clinic_id=s.clinic_id
+      JOIN ${abacatePayRenewalBindingRows()} bound ON true
+      JOIN billing_gateway.bindings b ON b.account_id=a.id AND b.subscription_id=bound.subscription_id AND b.clinic_id=bound.clinic_id
+      JOIN public.subscriptions s ON s.id=b.subscription_id AND s.clinic_id=b.clinic_id
+      WHERE true
         AND s.billing_provider='abacatepay' AND s.asaas_subscription_id IS NULL
         AND a.provider='abacatepay' AND a.environment='sandbox'
         AND a.external_account_id=${account.accountId}
-        AND (b.external_subscription_id=e.external_subscription_id OR EXISTS(
-          SELECT 1 FROM billing_gateway.recontracts r
-          WHERE r.account_id=b.account_id AND r.subscription_id=b.subscription_id
-            AND r.clinic_id=b.clinic_id AND r.external_subscription_id=e.external_subscription_id
-            AND r.invoice_id IS NOT NULL))
         AND (e.subscription_id IS NULL OR e.subscription_id=s.id)
         AND (e.clinic_id IS NULL OR e.clinic_id=s.clinic_id)
-    ) FOR UPDATE OF s`);
+    FOR UPDATE OF s`);
 }
 
 export function abacatePayRenewalProofHash(

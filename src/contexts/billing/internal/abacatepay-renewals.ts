@@ -18,6 +18,7 @@ import { invoices, paymentAttempts, subscriptions } from '../schema';
 import { recordAbacatePayRecurringPaymentTx } from './abacatepay-recurring-observations';
 import {
   abacatePayRenewalSourceRows,
+  abacatePayRenewalBindingRows,
   parseAbacatePayRenewalSource,
   lockAbacatePayRenewalSubscription,
   type AbacatePayRenewalSource,
@@ -34,6 +35,7 @@ import {
 import { assertTargetPlanCapacity } from './plan-changes';
 import { BILLING_EVENTS } from '../events';
 import { toPlanCode } from './subscriptions';
+import { createPersistentAbacatePayStatementReader } from './abacatepay-statement-scan';
 
 const contextSchema = z.object({
   account_id: z.uuid(),
@@ -96,7 +98,8 @@ async function contextForAbacatePayRenewalSource(
       pending.id::text pending_change_id,pending.product_id pending_product_id,pending.to_price_id::text pending_price_id,
       pending.to_plan_id::text pending_plan_id,pending.amount_minor::text pending_amount,pending.effective_not_before pending_effective
     FROM ${abacatePayRenewalSourceRows(source)} e JOIN billing_gateway.accounts a ON a.id=e.account_id
-    JOIN billing_gateway.bindings b ON b.account_id=a.id
+    JOIN ${abacatePayRenewalBindingRows()} bound ON true
+    JOIN billing_gateway.bindings b ON b.account_id=a.id AND b.subscription_id=bound.subscription_id AND b.clinic_id=bound.clinic_id
     JOIN public.subscriptions s ON s.id=b.subscription_id AND s.clinic_id=b.clinic_id
     JOIN public.prices pr ON pr.id=s.price_id
     LEFT JOIN billing_gateway.checkout_intents i ON i.subscription_id=s.id AND i.account_id=a.id AND i.clinic_id=s.clinic_id
@@ -175,6 +178,7 @@ export async function readAbacatePayRenewalForEvent(
       customerId: context.external_customer_id,
       checkoutId: context.origin_checkout_id,
     },
+    createPersistentAbacatePayStatementReader(database, account),
   ).readRenewalPayment({
     subscriptionId: context.external_subscription_id,
     customerId: context.external_customer_id,

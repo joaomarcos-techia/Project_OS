@@ -10,7 +10,11 @@ import {
   type BillingAccount,
 } from '../saas/contracts';
 import type { RecurringPaymentRead } from '../saas/recurring-payment';
-import { MAX_CARD_RECEIPT_WINDOW_MS, readApprovedCardStatement } from './card-statement';
+import {
+  MAX_CARD_RECEIPT_WINDOW_MS,
+  readApprovedCardStatement,
+  type CardStatementReader,
+} from './card-statement';
 import { createAbacatePayReadClient, type AbacatePayReadConfig } from './reader';
 import { createAbacatePayTransport } from './transport';
 
@@ -61,6 +65,7 @@ export function createAbacatePayRenewalPaymentReader(
   config: AbacatePayReadConfig,
   fetcher: typeof fetch = fetch,
   consumedOrigin?: { subscriptionId: string; customerId: string; checkoutId: string },
+  statementReader: CardStatementReader = readApprovedCardStatement,
 ) {
   const parsed = billingAccountSchema.safeParse(accountInput);
   if (!parsed.success) throw new GatewayReadError('invalid_input');
@@ -158,7 +163,7 @@ export function createAbacatePayRenewalPaymentReader(
         (checkout.status !== 'PAID' || checkout.paidAmount !== expected.expectedAmountMinor)
       )
         return { state: 'review' };
-      const receipt = await readApprovedCardStatement(request, {
+      const receipt = await statementReader(request, {
         checkoutId: expected.checkoutId,
         customerId: expected.customerId,
         paymentId: expected.paymentId,
@@ -218,7 +223,7 @@ export function createAbacatePayRenewalPaymentReader(
       if (!start || !end || end <= start) return { state: 'review' };
       const windowStart = `${start}T00:00:00.000Z`,
         windowEnd = `${end}T00:00:00.000Z`;
-      const receipt = await readApprovedCardStatement(request, {
+      const receipt = await statementReader(request, {
         checkoutId: expected.originCheckoutId,
         customerId: expected.customerId,
         expectedAmountMinor: expected.expectedAmountMinor,

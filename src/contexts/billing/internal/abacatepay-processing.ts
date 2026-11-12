@@ -31,6 +31,7 @@ import {
   readAbacatePayNegativeEvent,
   recordAbacatePayNegativeEventTx,
 } from './abacatepay-negative-events';
+import { reconcileAbacatePayRecoveryBatch } from './abacatepay-recovery-batch';
 
 const bindingSchema = z.object({
   account_id: z.uuid(),
@@ -47,6 +48,15 @@ const bindingSchema = z.object({
   auth_created_at: z.coerce.date(),
 });
 export type InitialPaymentApplication = 'applied' | 'duplicate' | 'review';
+
+/** Keep the scheduled entrypoint behind the existing privileged billing seam. */
+export async function reconcileAbacatePayRecoveryTick(deadlineMs: number) {
+  return reconcileAbacatePayRecoveryBatch(
+    dbAdmin,
+    deadlineMs,
+    reconcileMissingAbacatePayInitialPayment,
+  );
+}
 
 /**
  * Privileged domain seam, never exposed as a request payload. Evidence must come
@@ -576,7 +586,7 @@ export async function reconcileAbacatePayInbox(input: { eventId?: string } = {})
  * read per invocation; the audit timestamp rotates pending candidates.
  */
 export async function reconcileMissingAbacatePayInitialPayment(
-  input: { subscriptionId?: string } = {},
+  input: { subscriptionId?: string; deadlineMs?: number } = {},
 ): Promise<{
   scanned: number;
   applied: number;
@@ -588,6 +598,11 @@ export async function reconcileMissingAbacatePayInitialPayment(
     return idle;
   const subscriptionId =
     input.subscriptionId === undefined ? null : z.uuid().parse(input.subscriptionId);
+  const deadline = Math.min(
+    Date.now() + 12_000,
+    input.deadlineMs === undefined ? Infinity : z.number().int().positive().parse(input.deadlineMs),
+  );
+  if (deadline - Date.now() < 2000) return idle;
   const [candidate] = z
     .array(
       z.object({
@@ -612,11 +627,11 @@ export async function reconcileMissingAbacatePayInitialPayment(
         AND e.type='subscription.initial_payment.checked' AND e.payload->>'subscriptionId'=s.id::text
     ) checked ON true
     WHERE s.billing_provider='abacatepay' AND s.billing_status='trial' AND s.asaas_subscription_id IS NULL
-      AND s.trial_ends_at <= now() AND t.released_at IS NULL
+      AND t.released_at IS NULL
       AND b.external_checkout_id IS NOT NULL AND b.external_subscription_id IS NULL
       AND a.provider='abacatepay' AND a.environment='sandbox' AND a.external_account_id=${env.ABACATEPAY_STORE_ID}
       AND (${subscriptionId}::uuid IS NULL OR s.id=${subscriptionId}::uuid)
-      AND (${subscriptionId}::uuid IS NOT NULL OR checked.checked_at IS NULL OR checked.checked_at < now()-interval '1 hour')
+      AND (${subscriptionId}::uuid IS NOT NULL OR checked.checked_at IS NULL OR checked.checked_at < now()-interval '5 minutes')
     ORDER BY checked.checked_at NULLS FIRST,i.created_at LIMIT 1
   `),
     );
@@ -634,6 +649,7 @@ export async function reconcileMissingAbacatePayInitialPayment(
       apiKey: env.ABACATEPAY_API_KEY,
       environment: 'sandbox' as const,
       timeoutMs: 2000,
+      deadlineMs: deadline,
     };
     const account = {
       provider: 'abacatepay',
@@ -689,6 +705,9 @@ export async function reconcileMissingAbacatePayInitialPayment(
   } catch {
     await checked('readback_or_transaction_failed');
     metrics.emit('billing.abacatepay.reconcile_failed', { reason: 'missing_initial_webhook' });
+    captureBackgroundError(new Error('AbacatePay initial payment recovery needs attention'), {
+      flow: 'billing.abacatepay.initial_recovery',
+    });
     return { ...idle, scanned: 1, review: 1 };
   }
 }

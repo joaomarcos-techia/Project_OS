@@ -142,11 +142,14 @@ try {
   } finally {
     postSession.release();
   }
-  const [security] = await cluster.sql`SELECT relrowsecurity AND relforcerowsecurity secured,
-    has_table_privilege('authenticated','billing_gateway.renewal_api_readbacks','SELECT') tenant_read,
-    has_table_privilege('service_role','billing_gateway.renewal_api_readbacks','DELETE') service_delete
-    FROM pg_class WHERE oid='billing_gateway.renewal_api_readbacks'::regclass`;
-  assert.deepEqual(security, { secured: true, tenant_read: false, service_delete: false });
+  const security = await cluster.sql`SELECT relrowsecurity AND relforcerowsecurity secured,
+    has_table_privilege('authenticated',oid,'SELECT') tenant_read,
+    has_table_privilege('service_role',oid,'DELETE') service_delete
+    FROM pg_class WHERE oid IN('billing_gateway.renewal_api_readbacks'::regclass,
+      'billing_gateway.statement_scans'::regclass,'billing_gateway.statement_scan_items'::regclass)`;
+  assert.equal(security.length, 3);
+  for (const row of security)
+    assert.deepEqual(row, { secured: true, tenant_read: false, service_delete: false });
   const report = {
     observedAt: new Date().toISOString(),
     status: 'PASS',

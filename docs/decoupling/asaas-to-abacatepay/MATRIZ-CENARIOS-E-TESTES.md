@@ -273,7 +273,9 @@ Estado atual em [relatório §44](RELATORIO-HOMOLOGACAO-FINAL.md#44-trial-defini
 
 Próxima dependência de banco: acordar cauda final/número/timestamp, refazer preflight de hashes e obter aprovação específica DEV. Nenhum pagamento novo precisa ser solicitado para estes resultados. Fechamento externo, renovação real e composição live continuam gates independentes.
 
-## Matriz única G01–G24 — 12/11/2026
+## Histórico da matriz G01–G24 — 12/11/2026, antes do scanner
+
+**Esta versão foi substituída pela matriz G01–G28 ao final do documento.** A numeração antiga fica preservada para interpretar os registros anteriores; não é a decisão corrente.
 
 Esta é a matriz corrente de decisão. Os checkpoints anteriores preservam evidências históricas; não são outras matrizes GO. `PASS local` não implica homologação externa ou autorização de publicação. Fonte detalhada: [relatório46](RELATORIO-HOMOLOGACAO-FINAL.md#46-atualização-da-cauda-tiss-para-0154--12112026) e incremento `scalabilityFollowup` no [registro canônico](evidencias/recuperacao-financeira-20261111.json). Estados abaixo se referem ao gate inteiro, incluindo suas dependências.
 
@@ -305,3 +307,42 @@ Esta é a matriz corrente de decisão. Os checkpoints anteriores preservam evid�
 | G24 | Aprovação | Risco/cohort/plantão/janela autorizados | Termos de risco preparados | Nenhum aceite novo inventado | Revisão humana posterior aos gates | Não solicitado prematuramente | Cobrança/acesso de clientes | Founder/financeiro/operação | Gates críticos completos | BLOCKED | Submeter pacote final; não publicar nesta rodada |
 
 **NO-GO de Production.** G17/G18/G21 incluem engenharia ainda pendente; não são genericamente dependências humanas. Renovação temporal e semântica pós-fechamento exigem prova externa; não se dispensam critérios por inferência. Testes novos e CI são vinculados ao SHA da implementação no registro de evidência, sem atribuir a ele os checks da baseline.
+
+## Matriz corrente G01–G28 — scanner incremental, 12/11/2026
+
+Numeração conforme a última missão do founder; os IDs G10–G24 da matriz anterior não devem ser interpretados com os significados novos. Evidência detalhada: [relatório47](RELATORIO-HOMOLOGACAO-FINAL.md#47-scanner-durável-e-recuperação-contínua--12112026) e `incrementalScannerFollowup` no [registro canônico](evidencias/recuperacao-financeira-20261111.json). **Implementação/teste local não equivalem a homologação externa, Production Ready ou publicação.**
+
+Tipos de dependência: **A** engenharia; **B** ambiente; **C** validação externa; **D** aprovação humana. Responsável padrão dos testes/código é Engenharia; gates operacionais/comerciais pertencem ao founder e aos responsáveis nomeados. Nenhum PASS é autorização de escrita compartilhada.
+
+| ID | Critério e aceite | Implementação / teste / evidência | Estado do gate completo | Bloqueio / responsável | Próxima ação |
+|---|---|---|---|---|---|
+| G01 | Trial 14 dias desde Auth | Claims, provisionamento e prova PG de trial/expiração/pagamento antecipado | PASS local | Não; Engenharia | Preservar marco no rollout |
+| G02 | Entitlements seguros | Trial nega IA/Asaas/TISS; pagamento não ativa módulo indisponível; SQL/runtime/worker | PASS local | Não na candidata; Engenharia | Revalidar pacote final/live |
+| G03 | Checkout idempotente | Journal, binding, leases e cinco compras preservadas; não repetir pagamentos | PARTIAL | A/C; Engenharia | Conferir transporte distribuído no Preview após schema aprovado |
+| G04 | Pagamento confirmado | R$197/397/544/691/838 com comprovação externa histórica | PASS Sandbox inicial | Não para primeira compra; Engenharia | Preservar evidências |
+| G05 | Ativação única | PG121 inclui 10.000º comprovante, concorrência e falha transacional | PASS local | Não; Engenharia | Postflight na futura aplicação |
+| G06 | Invoice correta | Uma invoice por obrigação/ciclo, valor e vínculo verificados, rollback/duplicata | PASS local | Não; Engenharia | Preservar invariantes |
+| G07 | Cotas corretas | Plano pago, variantes 1–5 médicos, reservas e testes de capacidade | PASS local / Sandbox inicial | Não na contratação inicial; Engenharia | Homologação externa de mudança de ciclo separada |
+| G08 | Renovação | Receipt novo e calendário original; atraso, duplicata, fora de ordem | PARTIAL | C; Engenharia/provedor | Evento natural ou aceite formal; não afirmar transcurso mensal |
+| G09 | Recuperação sem webhook | Proveniência GET privada, cache completo, valor/dono/período; 121 checks PG | PARTIAL | A/C; Engenharia/provedor | Aplicar schema aprovado; API precisa fornecer vínculo/período suficiente, ambiguidades em revisão |
+| G10 | Scanner incremental | Cursor durável, geração, fencing, backoff, concorrência, topo e varredura integral; PG16 com 10.000 registros | PASS local, não ativado remotamente | D para DEV; Engenharia | Congelar schema e obter aprovação específica dos hashes |
+| G11 | Fechamento/readback | Journal de comando, timeout, consulta histórica, webhook tardio testados em PG | PARTIAL | C/D; Engenharia/provedor/founder | Autorizar fixture específica antes de qualquer fechamento irreversível |
+| G12 | Cancelamento/reativação | Preserva período pago; recontratação posterior; eventos negativos vão à revisão | PARTIAL | A/C; Engenharia | Validar composição final; sem reativação remota fictícia nem refund automático |
+| G13 | Upgrade/downgrade | Nova cota somente na renovação paga; capacidade e período protegidos | PARTIAL | C; Engenharia/provedor | Observar ciclo externo; não inventar proporcional |
+| G14 | Concorrência | Leases, fencing, transações, contrato correto antes do lock; PG121/16 e carga1000 | PASS local | Não; Engenharia | Preservar sob pacote integrado |
+| G15 | Escalabilidade | Cargas100/500/1000 e admissão/transação instrumentadas; prova10.000 e atualização curta | PARTIAL | A/B; Engenharia | Confirmar comparação final e capacidade HTTP/worker/Redis no ambiente-alvo |
+| G16 | Rate limit/circuit | Redis real anterior, limites globais por loja, 429/outage/reset/retry em testes | PASS local | C para latência/quota externa; Engenharia | Conferir transporte no Preview sem nova compra |
+| G17 | Multi-tenant | RLS forçada, vínculos de loja/cliente/geração, sem invoice/cota cruzada | PASS local | Não; Engenharia | CI/isolamento e postflight finais |
+| G18 | MFA | Login/TOTP/página/logout/novo login confirmados pelo founder no Preview | PASS Preview histórico | Não; Operador | Não repetir sem mudança relevante |
+| G19 | Sentry/alertas | Probe414eb196 entregue; métricas de scanner/backlog e falha de ativação | PARTIAL | D; Operação | Aprovar/ensaiar regras Production sem novo probe financeiro |
+| G20 | CI completa | Baseline1be8dd01:7080/22E2E sem SKIP; incremento exige checks próprios | PARTIAL até CI do SHA final | A; Engenharia | Publicar draft e conferir todos os checks do código novo |
+| G21 | SQL/journal reconciliados | Snapshot TISS233d225e até0156, 158 entradas descartáveis; DEV144/sem DDL | PARTIAL | A/D; Engenharia financeira/TISS/founder | Congelar cauda ainda em edição, acordar número/when e aprovar DEV por hash |
+| G22 | Compatibilidade TISS | Drizzle real preserva histórico/catálogo; SQL/financeiro/trial em snapshot fixo | PARTIAL | A; Engenharia financeira/TISS | Composição final de código/runtime depende da cauda congelada; não equivale a merge |
+| G23 | Homologação externa | Cinco iniciais, Sentry e MFA preservados; renovação/fechamento não simuláveis integralmente | PARTIAL | C/D; Provedor/founder | Fechar provas pendentes sem repetir compra ou cobrança real |
+| G24 | Rollout/rollback | Flags, aquisição/cohort, backups, preflight/postflight e recuperação à frente documentados | PARTIAL | A/D; Engenharia/operação | Completar composição live e ensaiar pacote final |
+| G25 | Incidente Vercel | IDs/time/domínio/env/Git/Marketplace conferidos por GET; Production Qoro preservada | PARTIAL | D; Founder/Engenharia | Aprovação específica de remoção; confirmar uso por outro operador e custos residuais |
+| G26 | Aprovação operacional | Responsável, monitoramento, capacidade, backup/recuperação e janela definidos no runbook | BLOCKED | D; Operação/founder | Aceitar pacote operacional depois dos gates técnicos |
+| G27 | Aprovação comercial | Trial/preços/cotas/cancelamento preservados; risco de renovação separado | BLOCKED | D; Founder/financeiro | Aprovação final dos riscos externos e modalidades efetivas |
+| G28 | Aprovação Production | Nenhum merge/deploy/migration live nesta rodada | BLOCKED | D; Founder | Autorizar somente após evidências e critérios críticos tratados |
+
+**Decisão: NO-GO de Production.** O scanner e a primeira contratação não eliminam os gates externos nem implementam a composição live. Engenharia remanescente não será apresentada como tarefa humana: a extensão live segura, composição final de runtime e medição do ambiente-alvo ainda precisam de execução. O leitor legado de estornos conserva uma busca limitada a cinco páginas; fica separado da nova busca CARD_APPROVED e precisa de revisão incremental antes de alegar varredura financeira ilimitada para todos os tipos de evento. Não alterar contratos/cotas nem usar cobranças adicionais para resolver divergências.

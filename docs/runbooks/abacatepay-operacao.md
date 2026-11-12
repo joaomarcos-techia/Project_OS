@@ -321,3 +321,44 @@ O gate central usa a mesma transação/escopo da clínica e consulta `qoro_premi
 Não usar `vercel env run` neste ambiente até esclarecer o despacho observado em12/11. Uma tentativa Preview/local criou um projeto auxiliar remoto, sem alterar o Qoro. Não repetir comandos de deploy/ambiente para diagnosticar. Preferir inspeções GET explícitas com projeto/time/ambiente conferidos; não usar `env pull` para criar cópia em texto claro de segredos. Operadores antigos de `dist` não são o runbook e não devem ser executados por inferência, especialmente os que escolhem uma chave genérica.
 
 A limpeza pendente diz respeito somente a `run-scale-preview-redis` / `prj_htYpK9lthoj7LG78fVa8JsH3VzRn` e `dpl_HX9mrERFQab1U74efzo4NjX7yKdh`; exige a confirmação específica já solicitada. Não remover `project-os`, projeto Supabase, Git, integrações ou contratos. O arquivo do auxiliar é um wrapper sem credenciais, protegido por SSO; inventário/prova do SHA estão no registro canônico. Esta exceção não autoriza Production, nem deve ser ocultada pelo resultado verde dos testes.
+
+## Scanner incremental e tick de recuperação — candidato de 12/11
+
+O SQL `saas_period_snapshot.candidate.sql` continua fora do journal. Sem suas tabelas novas, a aplicação usa o caminho N-1 limitado: **não declarar a fila incremental operacional no DEV/Preview antes da aplicação especificamente autorizada**. A numeração financeira deve ser escolhida após congelar a cauda TISS; 0155/0156 já são da outra frente e há trabalho posterior em edição.
+
+O serviço persiste páginas de até 100 registros por loja/mês. Cada execução faz no máximo dez páginas no lote de cron e duas na leitura interativa. Não há limite acumulado de 500. Um snapshot completo é necessário antes de usar os comprovantes. Depois, a leitura curta do topo evita repetir toda a loja por clínica; varredura integral periódica alcança backfills antigos. Horizonte de frescor e revisão integral: 60 segundos/15 minutos na candidata. Sem tick saudável isso não é garantia temporal.
+
+`/api/cron/outbox` já tem agenda de minuto; o código candidato reutiliza esse tick, com lote financeiro paralelo de até 35 segundos, **ainda bloqueado em Production**. Não foi alterada a agenda externa. O reconciliador diário permanece adicional. A Vercel executa crons no ambiente de produção; publicar um Preview não prova execução recorrente. Validar a rotina em Preview com chamada autenticada de teste após o schema aprovado, preservando fixtures e sem expor CRON_SECRET. A futura composição live deve ativar consumidores por binding e preservar Asaas; não remover o guard Sandbox para fazer um teste passar.
+
+### Diagnosticar atraso sem criar nova cobrança
+
+1. Identificar o ambiente e o SHA. Consultar somente metadata e a clínica autorizada; não copiar chave live para Preview.
+2. Conferir heartbeat `outbox`, `billing.abacatepay.recovery_batch` e `billing.abacatepay.statement_scan`: páginas/linhas, `pendingPartitions`, `oldestPendingMs`, falhas, `leaseLost`, `providerMs`, `databaseMs` e duração total. Os tempos de banco incluem admissão no pool; não representam tempo puro de CPU/lock.
+3. Em banco autorizado, consultar apenas estado, contadores e idade dos jobs. Não copiar payload, cursor, token de lease ou identificadores de clientes em alertas. `next_attempt_at` futuro indica backoff; lease válida não deve ser removida manualmente.
+4. Verificar os eventos privados `subscription.renewal_recovery.checked`/`observed` e o inbox. `statement_scan_pending` significa continuidade automática; não é prova de pagamento nem exige criar outro checkout.
+5. Falha transitória retoma sem reenviar POST. Cursor inválido reinicia geração com backoff. Conflito de identidade, valor, cliente ou período exige revisão, sem crédito provisório.
+6. Persistência de cinco falhas no scanner gera alerta. Monitorar também ausência de heartbeat/backlog crescente: um job que nunca roda não emite seu próprio alerta. Preparar regra Production equivalente à de Preview; configuração externa ainda exige aprovação.
+7. Se o provedor não informar vínculo/período suficiente para uma renovação sem webhook, manter revisão. O scanner não inventa a associação `subs_` ausente no extrato. Guardar `payment.id`/evento autenticado existente; usar somente o operador de revisão autorizado.
+
+**SLOs propostos, ainda não aprovados nem comprovados em Production:** confirmação HTTP do inbox p95≤500 ms; ativação assíncrona usual≤5 min; alerta de pagamento não tratado/backlog sem progresso≤10 min. Medir ingresso, fila, provider/Redis, admissão no banco, transação e processamento separadamente. Carga do domínio não prova latência HTTP, SLA do provedor ou capacidade da Vercel. Registrar indisponibilidade externa e limites da máquina; não aumentar pools/planos sem avaliar limites e custos.
+
+### Ensaiar localmente, sem serviços remotos
+
+```powershell
+Set-Location 'C:\dev\Qoro_billing_abacatepay_20261107'
+$env:QORO_TISS_WORKTREE = 'C:/dev/Qoro_convenios_tiss_20261110'
+$env:QORO_TISS_REF = '233d225e0ddb1fe56ee3975471a4c0260454bec7'
+node node_modules/tsx/dist/cli.mjs --conditions=react-server scripts/security/abacatepay-statement-scan-db.ts
+node node_modules/tsx/dist/cli.mjs --conditions=react-server scripts/security/abacatepay-composition-checks-db.ts
+node node_modules/tsx/dist/cli.mjs --conditions=react-server scripts/security/abacatepay-renewal-db.ts
+node node_modules/tsx/dist/cli.mjs --conditions=react-server scripts/security/signup-free-trial-db.ts
+Remove-Item Env:QORO_TISS_WORKTREE,Env:QORO_TISS_REF -ErrorAction SilentlyContinue
+```
+
+Esses scripts exigem PostgreSQL local e recusam rede externa. Produzem JSON em `dist`, com ambiente `loopback_synthetic`. Não adicionar `--env-file`, chave real ou endpoint remoto. A prova do scanner distingue cache de comprovantes de invoices/acesso; a prova financeira valida sua aplicação transacional. Não somar testes locais como pagamentos externos.
+
+### Inspeção e futura remoção exclusiva do auxiliar
+
+Preflight: `node node_modules/tsx/dist/cli.mjs scripts/security/vercel-auxiliary-preflight.ts '<caminho absoluto do vercel/dist/vc.js já instalado>'`. O helper valida ID/time, lista domínios/recursos e confere o Qoro por GET. Saída sanitizada em `dist/vercel-auxiliary-preflight.json`. Não usa comandos default da CLI nem lê valores de env.
+
+Após **aprovação específica** e novo preflight, a operação exata prevista é `DELETE /v9/projects/prj_htYpK9lthoj7LG78fVa8JsH3VzRn?teamId=team_ml9fFeF262JqUMwFB6Vy61Cj`. Não executada. Conferir ausência de domínio personalizado, variável, Git, recurso vinculado e uso por outro operador. Parar se qualquer dependência aparecer. O Qoro `prj_GYB0Y9e02ka9jurpJvF6m0feH3eZ` deve permanecer intacto. Depois, exigir GET404 do auxiliar e readback inalterado do Qoro. Não presumir custo zero nem apagar recurso externo associado por inferência.

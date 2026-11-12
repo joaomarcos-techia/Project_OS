@@ -1162,6 +1162,46 @@ try {
     assert.deepEqual(decision, { allowed: false, reason: 'subscription_required' });
     assert.equal(networkCalls, 0);
   });
+  await check(
+    'lost webhook during an active trial recovers early payment without waiting fourteen days',
+    async () => {
+      const earlyIdentity = await seed(),
+        early = await run(earlyIdentity);
+      assert.ok(early.ok);
+      await createDeferredSubscriptionCheckout({ clinicId: early.clinicId });
+      const [binding] = await sql<
+        { subscription_id: string; external_checkout_id: string; still_trial: boolean }[]
+      >`
+      SELECT b.subscription_id::text,b.external_checkout_id,s.trial_ends_at>now() still_trial
+      FROM billing_gateway.bindings b JOIN public.subscriptions s ON s.id=b.subscription_id
+      WHERE b.clinic_id=${early.clinicId}::uuid`;
+      assert.ok(binding);
+      assert.equal(binding.still_trial, true);
+      const remote = external.get(binding.external_checkout_id);
+      assert.ok(remote);
+      remote.paid = true;
+      assert.equal(
+        (
+          await reconcileMissingAbacatePayInitialPayment({
+            subscriptionId: binding.subscription_id,
+          })
+        ).applied,
+        1,
+      );
+      assert.equal(
+        (
+          await reconcileMissingAbacatePayInitialPayment({
+            subscriptionId: binding.subscription_id,
+          })
+        ).applied,
+        0,
+      );
+      const [state] = await sql`SELECT released_at IS NOT NULL released,
+      (SELECT count(*)::int FROM public.invoices WHERE clinic_id=${early.clinicId}::uuid AND status='paid') invoices
+      FROM public.trial_access_policies WHERE clinic_id=${early.clinicId}::uuid`;
+      assert.deepEqual(state, { released: true, invoices: 1 });
+    },
+  );
 } catch (error) {
   failure = error;
 } finally {

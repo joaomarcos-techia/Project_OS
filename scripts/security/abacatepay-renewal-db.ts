@@ -198,8 +198,21 @@ async function accept(
     createHash('sha256').update(eventId).digest('hex'),
   );
 }
-const apply = (f: Fixture, evidence = f.evidence, eventId = f.eventId) =>
-  dbAdmin.transaction((tx) => applyAbacatePayRenewalTx(tx, evidence, eventId));
+const applicationTimings: { connectionAdmissionMs: number; transactionMs: number }[] = [];
+const apply = async (f: Fixture, evidence = f.evidence, eventId = f.eventId) => {
+  const started = performance.now();
+  let admitted = started;
+  const result = await dbAdmin.transaction((tx) => {
+    admitted = performance.now();
+    return applyAbacatePayRenewalTx(tx, evidence, eventId);
+  });
+  if (process.env.QORO_ABACATEPAY_SCALE === '1')
+    applicationTimings.push({
+      connectionAdmissionMs: admitted - started,
+      transactionMs: performance.now() - admitted,
+    });
+  return result;
+};
 async function state(f: Fixture) {
   const [row] =
     await sql`SELECT s.billing_status,s.current_period_start::text,s.current_period_end::text,s.dunning_stage,
@@ -335,7 +348,19 @@ function installHttpFixture(
         break;
       case '/v2/bank-statement/list':
         await options.beforeStatement?.();
-        if (options.emptyStatements)
+        // The official date filters use inclusive Brazilian calendar days. A
+        // monthly scan must not receive this fixture's November item in December.
+        if (
+          options.emptyStatements ||
+          (() => {
+            const day = new Date(Date.parse(f.evidence.confirmedAt) - 3 * 3600_000)
+              .toISOString()
+              .slice(0, 10);
+            const start = url.searchParams.get('startDate'),
+              end = url.searchParams.get('endDate');
+            return (start !== null && day < start) || (end !== null && day > end);
+          })()
+        )
           return Response.json({
             success: true,
             data: [],
@@ -526,7 +551,25 @@ if (process.env.QORO_ABACATEPAY_SCALE === '1') {
     );
     await sql.begin((tx) => tx.unsafe(candidate));
     const { runAbacatePayScaleProof } = await import('./abacatepay-scale-proof');
-    await runAbacatePayScaleProof({ sql, seed, accept, apply });
+    await runAbacatePayScaleProof({
+      sql,
+      seed,
+      accept,
+      apply,
+      applicationTimings,
+      explainBinding: async () => {
+        const { sql: query } = await import('drizzle-orm');
+        const { abacatePayRenewalBindingRows } =
+          await import('../../src/contexts/billing/internal/abacatepay-renewal-source');
+        return dbAdmin.execute(query`EXPLAIN (ANALYZE,BUFFERS,FORMAT JSON)
+          SELECT b.subscription_id FROM billing_gateway.event_inbox e
+          JOIN billing_gateway.accounts a ON a.id=e.account_id
+          JOIN ${abacatePayRenewalBindingRows()} bound ON true
+          JOIN billing_gateway.bindings b ON b.account_id=a.id AND b.subscription_id=bound.subscription_id AND b.clinic_id=bound.clinic_id
+          WHERE e.event_id=(SELECT event_id FROM billing_gateway.event_inbox ORDER BY received_at LIMIT 1)
+            AND a.external_account_id=${account.accountId}`);
+      },
+    });
     assert.equal(networkCalls, 0);
   } finally {
     globalThis.fetch = originalFetch;
@@ -2416,6 +2459,9 @@ try {
       providerPeriod: providerDates(f),
       ...options,
     });
+    // Each recovery fixture installs a different synthetic provider dataset.
+    // Advance only the cache-refresh clock; never edit a financial state.
+    await sql`UPDATE billing_gateway.statement_scans SET completed_at=now()-interval '61 seconds' WHERE state='complete'`;
     return f;
   }
   function providerDates(f: Fixture) {
@@ -2467,6 +2513,84 @@ try {
     assert.equal((await state(f)).cycles, 1);
     assert.equal(await sourceCount(f), 1);
   });
+  await check(
+    'RECOVERY reaches the 10,000th statement across persisted batches and activates once',
+    async () => {
+      const f = await recoveryFixture(),
+        previousFetch = globalThis.fetch;
+      const items = Array.from({ length: 10_000 }, (_, index) => {
+        const target = index === 9999;
+        return {
+          id: target ? f.evidence.statementId : `tran_bulk_${index}`,
+          currency: 'BRL',
+          createdAt: new Date(Date.parse(f.evidence.confirmedAt) + (9999 - index)).toISOString(),
+          checkoutId: target ? f.evidence.originCheckoutId : `bill_bulk_${index}`,
+          paymentIntentId: target ? f.evidence.paymentId : `char_bulk_${index}`,
+          customer: { publicId: target ? f.evidence.customerId : 'cust_unrelated' },
+          movements: [
+            {
+              amount: 39700,
+              kind: 'CARD_APPROVED',
+              method: 'CARD',
+              category: 'transaction',
+              balanceEffect: 'credit',
+            },
+          ],
+        };
+      });
+      globalThis.fetch = async (input, init) => {
+        const url = new URL(String(input));
+        if (!url.pathname.endsWith('/bank-statement/list')) return previousFetch(input, init);
+        fixtureHttpCalls++;
+        const day = new Date(Date.parse(f.evidence.confirmedAt) - 3 * 3600_000)
+          .toISOString()
+          .slice(0, 10);
+        const start = url.searchParams.get('startDate'),
+          end = url.searchParams.get('endDate');
+        const filtered = start && end && day >= start && day <= end ? items : [];
+        const cursor = url.searchParams.get('after');
+        const offset = cursor === null ? 0 : filtered.findIndex((item) => item.id === cursor) + 1;
+        assert.ok(cursor === null || offset > 0);
+        const data = filtered.slice(offset, offset + 100),
+          more = offset + data.length < filtered.length;
+        return Response.json({
+          success: true,
+          data,
+          pagination: { hasMore: more, next: more ? data.at(-1)?.id : null },
+        });
+      };
+      try {
+        const before = await state(f);
+        assert.equal((await recover(f)).deferred, true);
+        assert.deepEqual(await state(f), before);
+        const { advanceAbacatePayStatementScans } =
+          await import('../../src/contexts/billing/internal/abacatepay-statement-scan');
+        const { createAbacatePayTransport } =
+          await import('../../src/lib/payments/abacatepay/transport');
+        const request = createAbacatePayTransport({
+          apiKey: 'synthetic-only',
+          storeId: account.accountId,
+          timeoutMs: 1500,
+        });
+        for (let batch = 0; batch < 30; batch++) {
+          const step = await advanceAbacatePayStatementScans(dbAdmin, account, request, {
+            maxPages: 10,
+          });
+          assert.equal(step.failed, 0);
+          const [remaining] =
+            await sql`SELECT count(*)::int n FROM billing_gateway.statement_scans WHERE state='pending'`;
+          if (remaining?.n === 0) break;
+        }
+        assert.equal((await recover(f)).applied, 1);
+        assert.equal((await state(f)).invoices, 2);
+        assert.equal((await state(f)).cycles, 1);
+        assert.equal(await sourceCount(f), 1);
+        assert.equal((await recover(f)).applied, 0);
+      } finally {
+        globalThis.fetch = previousFetch;
+      }
+    },
+  );
   await check(
     'RECOVERY late and duplicated authenticated webhooks do not undo recovered rights or add invoices',
     async () => {
@@ -2655,12 +2779,14 @@ try {
         confirmedAt: new Date(start.getTime() + 1000).toISOString(),
       };
       installHttpFixture(f, { providerPeriod: providerDates(f) });
+      await sql`UPDATE billing_gateway.statement_scans SET completed_at=now()-interval '61 seconds' WHERE state='complete'`;
       assert.equal((await recover(f)).applied, 1);
       const paid = await state(f);
       assert.equal(paid.invoices, 3);
       assert.equal(paid.cycles, 2);
       f.evidence = oldEvidence;
       installHttpFixture(f, { providerPeriod: providerDates(f) });
+      await sql`UPDATE billing_gateway.statement_scans SET completed_at=now()-interval '61 seconds' WHERE state='complete'`;
       assert.equal((await recover(f)).applied, 0);
       assert.deepEqual(await state(f), paid);
       assert.equal(await sourceCount(f), 2);

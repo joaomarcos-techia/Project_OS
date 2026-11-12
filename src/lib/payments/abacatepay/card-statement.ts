@@ -7,7 +7,7 @@ import type { createAbacatePayTransport } from './transport';
 
 const resource = (prefix: string) => opaqueBillingId.refine((id) => id.startsWith(prefix));
 const amount = z.number().int().positive().max(999_999_999_999);
-const inputSchema = z.object({
+export const cardStatementInputSchema = z.object({
   checkoutId: resource('bill_'),
   customerId: resource('cust_'),
   expectedAmountMinor: amount,
@@ -16,7 +16,7 @@ const inputSchema = z.object({
   paymentId: opaqueBillingId.optional(),
   requireCustomer: z.boolean().optional(),
 });
-const statementSchema = z.object({
+export const cardStatementSchema = z.object({
   id: resource('tran_'),
   currency: z.literal('BRL'),
   createdAt: z.iso.datetime({ offset: true }),
@@ -39,16 +39,16 @@ const statementSchema = z.object({
     .min(1)
     .max(20),
 });
-const envelopeSchema = z.object({
+export const cardStatementPageSchema = z.object({
   success: z.literal(true),
-  data: z.array(statementSchema).max(100),
+  data: z.array(cardStatementSchema).max(100),
   pagination: z.object({ hasMore: z.boolean(), next: opaqueBillingId.nullable() }),
 });
-const RECEIPT_CLOCK_SKEW_MS = 60_000;
+export const RECEIPT_CLOCK_SKEW_MS = 60_000;
 export const MAX_CARD_RECEIPT_WINDOW_MS = 32 * 86_400_000;
 const MAX_PAGES = 5;
 
-function brazilDate(timestamp: number): string {
+export function cardStatementBrazilDate(timestamp: number): string {
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/Sao_Paulo',
     year: 'numeric',
@@ -68,22 +68,81 @@ export type ApprovedCardStatement = {
   amountMinor: number;
   createdAt: string;
 };
+export type CardStatementInput = z.input<typeof cardStatementInputSchema>;
+export type CardStatement = z.infer<typeof cardStatementSchema>;
+export type CardStatementReader = (
+  request: ReturnType<typeof createAbacatePayTransport>,
+  input: CardStatementInput,
+) => Promise<ApprovedCardStatement | null>;
+
+export function validateCardStatementInput(raw: CardStatementInput) {
+  const parsed = cardStatementInputSchema.safeParse(raw);
+  if (!parsed.success) throw new GatewayReadError('invalid_input');
+  const start = Date.parse(parsed.data.periodStart),
+    end = Date.parse(parsed.data.periodEnd);
+  if (end <= start || end - start > MAX_CARD_RECEIPT_WINDOW_MS)
+    throw new GatewayReadError('invalid_input');
+  return parsed.data;
+}
+
+/** Matching is shared by the bounded reader and the durable scanner. */
+export function selectApprovedCardStatement(items: CardStatement[], raw: CardStatementInput) {
+  const expected = validateCardStatementInput(raw);
+  const start = Date.parse(expected.periodStart),
+    end = Date.parse(expected.periodEnd);
+  const seen = new Set<string>();
+  const candidates: ApprovedCardStatement[] = [];
+  for (const item of items) {
+    if (seen.has(item.id)) throw new GatewayReadError('pagination_invalid');
+    seen.add(item.id);
+    const createdAt = Date.parse(item.createdAt);
+    if (
+      item.checkoutId !== expected.checkoutId ||
+      createdAt < start - RECEIPT_CLOCK_SKEW_MS ||
+      createdAt >= end ||
+      (expected.paymentId !== undefined && item.paymentIntentId !== expected.paymentId)
+    )
+      continue;
+    if (
+      !item.paymentIntentId ||
+      (expected.requireCustomer === true && item.customer?.publicId !== expected.customerId) ||
+      (item.customer && item.customer.publicId !== expected.customerId)
+    )
+      throw new GatewayReadError('binding_mismatch');
+    const gross = item.movements.filter((movement) => movement.kind === 'CARD_APPROVED');
+    if (
+      gross.length !== 1 ||
+      gross[0]?.amount !== expected.expectedAmountMinor ||
+      gross[0]?.method !== 'CARD' ||
+      gross[0]?.category !== 'transaction' ||
+      gross[0]?.balanceEffect === 'debit'
+    )
+      throw new GatewayReadError('binding_mismatch');
+    candidates.push({
+      statementId: item.id,
+      paymentId: item.paymentIntentId,
+      checkoutId: expected.checkoutId,
+      amountMinor: expected.expectedAmountMinor,
+      createdAt: item.createdAt,
+    });
+  }
+  if (candidates.length > 1) throw new GatewayReadError('binding_mismatch');
+  return candidates[0] ?? null;
+}
 
 /** Shared bounded financial read. The caller proves the contract/checkout relationship. */
 export async function readApprovedCardStatement(
   request: ReturnType<typeof createAbacatePayTransport>,
-  raw: z.input<typeof inputSchema>,
+  raw: CardStatementInput,
 ): Promise<ApprovedCardStatement | null> {
-  const parsed = inputSchema.safeParse(raw);
-  if (!parsed.success) throw new GatewayReadError('invalid_input');
-  const expected = parsed.data;
+  const expected = validateCardStatementInput(raw);
   const start = Date.parse(expected.periodStart),
     end = Date.parse(expected.periodEnd);
   if (end <= start || end - start > MAX_CARD_RECEIPT_WINDOW_MS)
     throw new GatewayReadError('invalid_input');
   const seenCursors = new Set<string>(),
     seenStatements = new Set<string>();
-  const candidates: ApprovedCardStatement[] = [];
+  const items: CardStatement[] = [];
   let cursor: string | null = null;
   for (let page = 0; page < MAX_PAGES; page++) {
     const params = new URLSearchParams({
@@ -91,52 +150,22 @@ export async function readApprovedCardStatement(
       method: 'CARD',
       kind: 'CARD_APPROVED',
       status: 'APPROVED',
-      startDate: brazilDate(start - RECEIPT_CLOCK_SKEW_MS),
-      endDate: brazilDate(end),
+      startDate: cardStatementBrazilDate(start - RECEIPT_CLOCK_SKEW_MS),
+      endDate: cardStatementBrazilDate(end),
     });
     if (cursor) params.set('after', cursor);
     const envelope = parseBillingValue(
-      envelopeSchema,
+      cardStatementPageSchema,
       await request({ method: 'GET', path: '/bank-statement/list', params }),
     );
     for (const item of envelope.data) {
       if (seenStatements.has(item.id)) throw new GatewayReadError('pagination_invalid');
       seenStatements.add(item.id);
-      const createdAt = Date.parse(item.createdAt);
-      if (
-        item.checkoutId !== expected.checkoutId ||
-        createdAt < start - RECEIPT_CLOCK_SKEW_MS ||
-        createdAt >= end ||
-        (expected.paymentId !== undefined && item.paymentIntentId !== expected.paymentId)
-      )
-        continue;
-      if (
-        !item.paymentIntentId ||
-        (expected.requireCustomer === true && item.customer?.publicId !== expected.customerId) ||
-        (item.customer && item.customer.publicId !== expected.customerId)
-      )
-        throw new GatewayReadError('binding_mismatch');
-      const gross = item.movements.filter((movement) => movement.kind === 'CARD_APPROVED');
-      if (
-        gross.length !== 1 ||
-        gross[0]?.amount !== expected.expectedAmountMinor ||
-        gross[0]?.method !== 'CARD' ||
-        gross[0]?.category !== 'transaction' ||
-        gross[0]?.balanceEffect === 'debit'
-      )
-        throw new GatewayReadError('binding_mismatch');
-      candidates.push({
-        statementId: item.id,
-        paymentId: item.paymentIntentId,
-        checkoutId: expected.checkoutId,
-        amountMinor: expected.expectedAmountMinor,
-        createdAt: item.createdAt,
-      });
+      items.push(item);
     }
     if (!envelope.pagination.hasMore) {
       if (envelope.pagination.next !== null) throw new GatewayReadError('pagination_invalid');
-      if (candidates.length > 1) throw new GatewayReadError('binding_mismatch');
-      return candidates[0] ?? null;
+      return selectApprovedCardStatement(items, expected);
     }
     const next = envelope.pagination.next;
     if (next === null || seenCursors.has(next)) throw new GatewayReadError('pagination_invalid');

@@ -65,6 +65,16 @@ describe('missing initial webhook recovery (unit DB double)', () => {
     ).rejects.toThrow();
     expect(mocks.execute).not.toHaveBeenCalled();
   });
+  it('defers without querying or reading the provider when the worker budget has expired', async () => {
+    expect(await reconcileMissingAbacatePayInitialPayment({ deadlineMs: Date.now() - 1 })).toEqual({
+      scanned: 0,
+      applied: 0,
+      duplicate: 0,
+      review: 0,
+    });
+    expect(mocks.execute).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
+  });
   it('does not contact the provider or write when no eligible checkout remains', async () => {
     expect(await reconcileMissingAbacatePayInitialPayment({ subscriptionId: id })).toEqual({
       scanned: 0,
@@ -100,6 +110,9 @@ describe('missing initial webhook recovery (unit DB double)', () => {
     expect(mocks.transaction).toHaveBeenCalledOnce();
     expect(mocks.emit).toHaveBeenCalledWith('billing.abacatepay.reconcile_failed', {
       reason: 'missing_initial_webhook',
+    });
+    expect(mocks.capture).toHaveBeenCalledWith(expect.any(Error), {
+      flow: 'billing.abacatepay.initial_recovery',
     });
   });
   it('propagates an audit persistence failure instead of claiming recovery', async () => {

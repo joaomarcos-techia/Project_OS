@@ -187,3 +187,15 @@ Esta tabela é um roteiro de execução futura, não configuração já aplicada
 **Rollback:** somente release compatível com o schema aditivo e bindings já existentes. Se o rollback eliminaria recebimento/conciliação AbacatePay, manter aquisição parada e corrigir à frente. Código revertido não cancela obrigação remota. Backup/restore de produção depende de plano e autorização próprios; não sobrescrever fatos financeiros recentes. A recuperação GET-only pode restabelecer estado comprovado, nunca inventar pagamento ou extensão provisória.
 
 Fontes oficiais verificadas nesta rodada: [eventos de assinatura](https://docs.abacatepay.com/pages/webhooks/events/subscriptions), [GET assinatura](https://docs.abacatepay.com/pages/subscriptions/get), [exclusão de checkout](https://docs.abacatepay.com/pages/subscriptions/checkouts-delete), [CLI e simuladores disponíveis](https://docs.abacatepay.com/pages/cli/overview). A documentação não substitui a prova externa exigida.
+
+## Atualização de preparação — scanner durável, 12/11
+
+Este checkpoint substitui as referências anteriores à cauda 0154 e à recuperação apenas diária. O SQL financeiro continua fora do journal; foi ensaiado depois do snapshot TISS 233d225e0ddb1fe56ee3975471a4c0260454bec7, até 0156. A posição seguinte no pacote de laboratório é somente proposta descartável: há cauda TISS posterior em edição. Preflight e postflight executaram no PostgreSQL isolado, inclusive RLS forçada e ausência de grants de tenant/DELETE do serviço nas três tabelas privadas. O migrator real preservou as 144 entradas anteriores e as seis diferenças históricas conhecidas; a segunda execução não alterou o catálogo.
+
+A busca CARD_APPROVED usa cursor persistido por loja/mês, geração e lease. O código preparado reutiliza o cron de minuto de outbox com até 35 segundos de recuperação; não altera a agenda externa. Sem schema, continua o fallback limitado. A composição precisa ser aplicada e testada em DEV somente após aprovação dos hashes finais e acordo da cauda TISS. Nenhum comando deste documento deve ser aplicado automaticamente em banco compartilhado.
+
+A recuperação de pagamentos antecipados agora inclui trial ainda vigente, sempre mediante comprovante integral e vínculo correto. Cache parcial nunca ativa assinatura. As provas locais não substituem renovação externa, comportamento pós-fechamento do checkout nem composição live. A modalidade de produção continua ausente e bloqueada; chave live configurada não a habilita.
+
+Antes do GO: conferir transporte/Redis no Preview sem nova compra, medir fila/HTTP do ambiente-alvo, fechar gates externos, revisar regras operacionais/backup e obter janela específica. O leitor de débitos de estorno/disputa ainda tem limite independente de cinco páginas; não alegar cobertura incremental de todo tipo financeiro. A remoção do projeto auxiliar requer aprovação própria e preflight recente; não é parte de um deploy financeiro.
+
+A matriz corrente é [G01–G28](MATRIZ-CENARIOS-E-TESTES.md). **NO-GO de Production**: a engenharia remanescente não será transferida ao founder como teste manual. Não repetir as cinco compras nem Sentry/MFA já comprovados.

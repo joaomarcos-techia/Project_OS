@@ -5,11 +5,18 @@ import { performance } from 'node:perf_hooks';
 import type { ScratchCluster } from './scratch-schema';
 
 type Fixture = { clinicId: string; subscription_id: string; eventId: string };
+const concurrency = Number(process.env.QORO_ABACATEPAY_SCALE_CONCURRENCY ?? 32);
+assert.ok(
+  Number.isSafeInteger(concurrency) && concurrency >= 1 && concurrency <= 64,
+  'Synthetic load concurrency must be an integer between 1 and 64',
+);
 type Dependencies<F extends Fixture> = {
   sql: ScratchCluster['sql'];
   seed: () => Promise<F>;
   accept: (fixture: F) => Promise<void>;
   apply: (fixture: F) => Promise<string>;
+  applicationTimings: { connectionAdmissionMs: number; transactionMs: number }[];
+  explainBinding: () => Promise<unknown>;
 };
 
 async function concurrent<T>(items: T[], work: (item: T) => Promise<void>) {
@@ -17,7 +24,7 @@ async function concurrent<T>(items: T[], work: (item: T) => Promise<void>) {
   const latency: number[] = [];
   const started = performance.now();
   const completed = await Promise.allSettled(
-    Array.from({ length: 32 }, async () => {
+    Array.from({ length: concurrency }, async () => {
       while (cursor < items.length) {
         const item = items[cursor++];
         assert.ok(item !== undefined);
@@ -35,7 +42,7 @@ async function concurrent<T>(items: T[], work: (item: T) => Promise<void>) {
     latency[Math.min(latency.length - 1, Math.ceil(latency.length * p) - 1)] ?? 0;
   return {
     count: items.length,
-    concurrency: 32,
+    concurrency,
     elapsedMs,
     throughputPerSecond: (items.length / elapsedMs) * 1000,
     p50Ms: percentile(0.5),
@@ -50,6 +57,8 @@ export async function runAbacatePayScaleProof<F extends Fixture>({
   seed,
   accept,
   apply,
+  applicationTimings,
+  explainBinding,
 }: Dependencies<F>) {
   const fixtures: F[] = [];
   const runs: Record<string, unknown>[] = [];
@@ -96,6 +105,18 @@ export async function runAbacatePayScaleProof<F extends Fixture>({
         assert.ok(outcomes.every((v) => v === 'applied' || v === 'duplicate'));
         assert.ok(outcomes.filter((v) => v === 'applied').length <= 1);
       });
+      const values = applicationTimings.splice(0);
+      const timing = (key: 'connectionAdmissionMs' | 'transactionMs') => {
+        const sorted = values.map((v) => v[key]).sort((a, b) => a - b);
+        const percentile = (p: number) =>
+          sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * p) - 1)] ?? 0;
+        return {
+          samples: sorted.length,
+          p50Ms: percentile(0.5),
+          p95Ms: percentile(0.95),
+          p99Ms: percentile(0.99),
+        };
+      };
       const [state] = await sql`SELECT (SELECT count(*)::int FROM public.clinics) clinics,
         (SELECT count(*)::int FROM public.invoices) invoices,
         (SELECT count(*)::int FROM billing_gateway.recurring_access_periods) cycles,
@@ -114,6 +135,11 @@ export async function runAbacatePayScaleProof<F extends Fixture>({
         provision,
         duplicateIngress: ingress,
         duplicateRenewalApplication: processing,
+        stages: {
+          connectionAdmission: timing('connectionAdmissionMs'),
+          transactionThroughCommit: timing('transactionMs'),
+          note: 'Admission includes pool wait and BEGIN. Transaction includes SQL, lock wait and COMMIT. Provider HTTP and HTTP receiver are not exercised in this domain load.',
+        },
         state,
       });
     }
@@ -148,12 +174,17 @@ export async function runAbacatePayScaleProof<F extends Fixture>({
       peaks: { databaseConnections: connections, waitingLocks, nodeRssBytes: rss },
       databaseStats: stats,
       inboxPlan: plan,
+      renewalBindingPlan: await explainBinding(),
       runs,
       queueNote:
         'Inbox is retained received: this harness applies the domain seam directly, not the HTTP/leased worker. Worker recovery is proved separately.',
       externalRequests: 0,
     };
     await writeFile('dist/abacatepay-scale-db.json', JSON.stringify(report, null, 2) + '\n');
+    await writeFile(
+      `dist/abacatepay-scale-concurrency-${concurrency}-db.json`,
+      JSON.stringify(report, null, 2) + '\n',
+    );
     console.log(
       JSON.stringify({
         status: 'PASS',

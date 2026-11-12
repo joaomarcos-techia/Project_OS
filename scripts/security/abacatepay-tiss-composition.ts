@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
 import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { z } from 'zod';
 
 import { loadTissProofInputs } from './abacatepay-tiss-input';
 
@@ -15,24 +16,35 @@ const sha256 = (text: string) =>
 // Proposed ordering only; neither the number nor timestamp is reserved. The
 // current TISS journal contains future ordering timestamps, so its successor
 // is not presented as a creation date. Joint review must approve the final entry.
-const proposal =
-  proof.lastIndex === 151 || proof.lastIndex === 154
-    ? {
-        idx: proof.lastIndex + 1,
-        version: '7' as const,
-        breakpoints: true,
-        when:
-          proof.lastIndex === 151
-            ? Date.parse('2026-11-12T07:42:38.000Z')
-            : (proof.ordered.at(-1)?.when ?? Infinity) + 1,
-        tag: `${String(proof.lastIndex + 1).padStart(4, '0')}_saas_period_snapshot`,
-      }
-    : null;
+const proposal = [151, 154, 155, 156].includes(proof.lastIndex)
+  ? {
+      idx: proof.lastIndex + 1,
+      version: '7' as const,
+      breakpoints: true,
+      when:
+        proof.lastIndex === 151
+          ? Date.parse('2026-11-12T07:42:38.000Z')
+          : (proof.ordered.at(-1)?.when ?? Infinity) + 1,
+      tag: `${String(proof.lastIndex + 1).padStart(4, '0')}_saas_period_snapshot`,
+    }
+  : null;
 if (proposal) assert.ok(proposal.when > (proof.ordered.at(-1)?.when ?? Infinity));
 const releaseDirectory = `dist/abacatepay-tiss-release-${proof.lastIndex}-${proof.head.slice(0, 8)}`;
 // Compare an announced tail with the immutable inputs without importing or applying it.
 const authorizedRoot = process.env.QORO_TISS_WORKTREE;
 if (!authorizedRoot) throw new Error('Missing authorized read-only TISS worktree');
+const worktreeTail = z
+  .object({
+    entries: z
+      .array(z.object({ idx: z.number().int(), tag: z.string(), when: z.number().int() }))
+      .min(1),
+  })
+  .parse(
+    JSON.parse(
+      await readFile(path.join(authorizedRoot, 'drizzle/migrations/meta/_journal.json'), 'utf8'),
+    ),
+  )
+  .entries.at(-1);
 let draft: { file: string; sha256: string; state: string } | null = null;
 try {
   const file = path.join(authorizedRoot, 'drizzle/migrations/0151_hi_premium_gate.sql');
@@ -63,6 +75,12 @@ const manifest = {
   },
   tiss: proof.sources.map(({ tag, idx, when, sha256 }) => ({ tag, idx, when, sha256 })),
   draft,
+  worktreeTail: {
+    ...worktreeTail,
+    imported: false,
+    matchesPinnedTail:
+      worktreeTail?.idx === proof.lastIndex && worktreeTail.tag === proof.ordered.at(-1)?.tag,
+  },
   financialCandidate: {
     file: candidatePath,
     sha256: sha256(candidate),
@@ -154,7 +172,9 @@ SET LOCAL statement_timeout='10s';
 SELECT hash,created_at FROM drizzle.__drizzle_migrations ORDER BY created_at;
 SELECT to_regclass('public.tiss_terms') IS NOT NULL tiss_catalog_present,
   to_regclass('public.hi_guides') IS NOT NULL tiss_guides_present,
-  to_regclass('billing_gateway.renewal_api_readbacks') IS NOT NULL financial_candidate_present;
+  to_regclass('billing_gateway.renewal_api_readbacks') IS NOT NULL financial_candidate_present,
+  to_regclass('billing_gateway.statement_scans') IS NOT NULL scan_jobs_present,
+  to_regclass('billing_gateway.statement_scan_items') IS NOT NULL scan_items_present;
 SELECT relname,pg_total_relation_size(oid) bytes FROM pg_class
   WHERE oid IN ('public.subscriptions'::regclass,'public.invoices'::regclass,
     'billing_gateway.operations'::regclass,'billing_gateway.recurring_payment_observations'::regclass);
@@ -174,8 +194,13 @@ await writeFile(
 BEGIN READ ONLY;
 SET LOCAL statement_timeout='10s';
 SELECT hash,created_at FROM drizzle.__drizzle_migrations ORDER BY created_at;
-SELECT relrowsecurity,relforcerowsecurity FROM pg_class
-  WHERE oid='billing_gateway.renewal_api_readbacks'::regclass;
+SELECT relname,relrowsecurity,relforcerowsecurity FROM pg_class
+  WHERE oid IN('billing_gateway.renewal_api_readbacks'::regclass,'billing_gateway.statement_scans'::regclass,'billing_gateway.statement_scan_items'::regclass);
+SELECT c.relname,has_table_privilege('authenticated',c.oid,'SELECT') tenant_select,
+  has_table_privilege('service_role',c.oid,'DELETE') service_delete
+  FROM pg_class c WHERE c.oid IN('billing_gateway.statement_scans'::regclass,'billing_gateway.statement_scan_items'::regclass);
+SELECT count(*) scan_inconsistent FROM billing_gateway.statement_scans
+  WHERE (state='complete')<>(completed_at IS NOT NULL) OR (lease_token IS NULL)<>(lease_until IS NULL);
 SELECT has_table_privilege('authenticated','billing_gateway.renewal_api_readbacks','SELECT') tenant_select,
   has_table_privilege('service_role','billing_gateway.renewal_api_readbacks','DELETE') service_delete,
   has_table_privilege('service_role','billing_gateway.renewal_api_readbacks','INSERT') service_insert;

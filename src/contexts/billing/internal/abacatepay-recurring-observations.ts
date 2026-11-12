@@ -8,6 +8,7 @@ import { billingAccountSchema, opaqueBillingId } from '@/lib/payments/saas/contr
 import type { RecurringPaymentEvidence } from '@/lib/payments/saas/recurring-payment';
 import {
   abacatePayRenewalSourceRows,
+  abacatePayRenewalBindingRows,
   abacatePayRenewalProofHash,
   lockAbacatePayRenewalSubscription,
   parseAbacatePayRenewalSource,
@@ -93,7 +94,8 @@ export async function recordAbacatePayRecurringPaymentTx(
       coalesce(pc.to_price_id,r.price_id,i.price_id)::text price_id,coalesce(pc.product_id,r.product_id,i.product_id) product_id,
       coalesce(pc.amount_minor,r.amount_minor,i.amount_minor)::text amount_minor
     FROM ${abacatePayRenewalSourceRows(source)} e JOIN billing_gateway.accounts a ON a.id=e.account_id
-    JOIN billing_gateway.bindings b ON b.account_id=a.id
+    JOIN ${abacatePayRenewalBindingRows()} bound ON true
+    JOIN billing_gateway.bindings b ON b.account_id=a.id AND b.subscription_id=bound.subscription_id AND b.clinic_id=bound.clinic_id
     JOIN public.subscriptions s ON s.id=b.subscription_id AND s.clinic_id=b.clinic_id
     LEFT JOIN billing_gateway.recontracts r ON r.account_id=a.id
       AND r.subscription_id=s.id AND r.clinic_id=s.clinic_id

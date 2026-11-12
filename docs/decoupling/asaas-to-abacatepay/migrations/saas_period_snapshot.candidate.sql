@@ -1,5 +1,5 @@
 -- Candidate only: NOT in the Drizzle journal, NOT applied remotely.
--- Choose the next free version after reconciling TISS, including its local 0147.
+-- Choose the next free version only after freezing/reconciling the TISS tail.
 -- Existing prices, invoices, access periods and provider bindings are preserved.
 SET LOCAL lock_timeout='2s';
 SET LOCAL statement_timeout='15s';
@@ -71,3 +71,55 @@ ALTER TABLE billing_gateway.recurring_payment_observations
     (account_id,source_readback_id,subscription_id,clinic_id,payment_id,statement_id)
     REFERENCES billing_gateway.renewal_api_readbacks(account_id,id,subscription_id,clinic_id,payment_id,statement_id)
     ON DELETE RESTRICT;
+
+-- Shared, resumable CARD_APPROVED statement scan. Monthly partitions avoid a
+-- repeated store-wide scan for each tenant. No invoice or access is granted here.
+CREATE TABLE billing_gateway.statement_scans (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  account_id uuid NOT NULL REFERENCES billing_gateway.accounts(id) ON DELETE RESTRICT,
+  month_start date NOT NULL CHECK (extract(day FROM month_start)=1),
+  generation uuid NOT NULL DEFAULT gen_random_uuid(),
+  state text NOT NULL DEFAULT 'pending' CHECK (state IN ('pending','complete')),
+  refresh_kind text NOT NULL DEFAULT 'full' CHECK (refresh_kind IN ('full','head')),
+  full_completed_at timestamptz,
+  after_cursor text,
+  seen_cursor_hashes text[] NOT NULL DEFAULT '{}',
+  pages_scanned integer NOT NULL DEFAULT 0 CHECK (pages_scanned>=0),
+  rows_scanned bigint NOT NULL DEFAULT 0 CHECK (rows_scanned>=0),
+  lease_token uuid,
+  lease_until timestamptz,
+  next_attempt_at timestamptz NOT NULL DEFAULT now(),
+  failures integer NOT NULL DEFAULT 0 CHECK (failures>=0),
+  completed_at timestamptz,
+  started_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  last_error text CHECK (last_error IN ('unavailable','pagination_invalid','invalid_response','binding_mismatch')),
+  UNIQUE(account_id,month_start),
+  UNIQUE(id,account_id),
+  CHECK ((lease_token IS NULL)=(lease_until IS NULL)),
+  CHECK ((state='complete')=(completed_at IS NOT NULL))
+);
+CREATE INDEX statement_scans_due_idx ON billing_gateway.statement_scans(account_id,next_attempt_at,updated_at,id)
+  WHERE state='pending';
+CREATE TABLE billing_gateway.statement_scan_items (
+  account_id uuid NOT NULL,
+  statement_id text NOT NULL CHECK (statement_id ~ '^tran_[A-Za-z0-9_-]+$'),
+  scan_id uuid NOT NULL,
+  seen_generation uuid NOT NULL,
+  checkout_id text,
+  statement_created_at timestamptz NOT NULL,
+  fingerprint text NOT NULL CHECK (fingerprint ~ '^[a-f0-9]{64}$'),
+  conflict boolean NOT NULL DEFAULT false,
+  payload jsonb NOT NULL CHECK (jsonb_typeof(payload)='object'),
+  PRIMARY KEY(account_id,statement_id),
+  FOREIGN KEY(scan_id,account_id) REFERENCES billing_gateway.statement_scans(id,account_id) ON DELETE RESTRICT,
+  CHECK (payload->>'id'=statement_id),
+  CHECK ((payload->>'checkoutId') IS NOT DISTINCT FROM checkout_id)
+);
+CREATE INDEX statement_scan_items_receipt_idx ON billing_gateway.statement_scan_items(scan_id,seen_generation,checkout_id,statement_created_at);
+ALTER TABLE billing_gateway.statement_scans ENABLE ROW LEVEL SECURITY;
+ALTER TABLE billing_gateway.statement_scans FORCE ROW LEVEL SECURITY;
+ALTER TABLE billing_gateway.statement_scan_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE billing_gateway.statement_scan_items FORCE ROW LEVEL SECURITY;
+REVOKE ALL ON billing_gateway.statement_scans,billing_gateway.statement_scan_items FROM PUBLIC,anon,authenticated,service_role,qoro_runtime;
+GRANT SELECT,INSERT,UPDATE ON billing_gateway.statement_scans,billing_gateway.statement_scan_items TO service_role;

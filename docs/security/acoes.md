@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 200 actions (0 inline); 66 métodos em 62 handlers; 19 props com referência de action; 505 acessos diretos a process.env; 10 nomes NEXT_PUBLIC.
+Contagem: 200 actions (0 inline); 66 métodos em 62 handlers; 19 props com referência de action; 511 acessos diretos a process.env; 10 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -241,7 +241,7 @@ O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase
 | `src/app/api/cron/financial-reconcile/route.ts:53#GET`               | cron-token              | cron-token                                                                      | `src/app/api/cron/financial-reconcile/route.ts:53#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                  |
 | `src/app/api/cron/invites-cleanup/route.ts:31#GET`                   | cron-token              | cron-token                                                                      | `src/app/api/cron/invites-cleanup/route.ts:31#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                      |
 | `src/app/api/cron/metrics-rollup/route.ts:108#GET`                   | cron-token              | cron-token                                                                      | `src/app/api/cron/metrics-rollup/route.ts:108#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                      |
-| `src/app/api/cron/outbox/route.ts:31#GET`                            | cron-token              | cron-token                                                                      | `src/app/api/cron/outbox/route.ts:31#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                               |
+| `src/app/api/cron/outbox/route.ts:32#GET`                            | cron-token              | cron-token                                                                      | `src/app/api/cron/outbox/route.ts:32#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                               |
 | `src/app/api/cron/patient-hard-delete/route.ts:50#GET`               | cron-token              | cron-token                                                                      | `src/app/api/cron/patient-hard-delete/route.ts:50#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                  |
 | `src/app/api/cron/payments-account-closure/route.ts:38#GET`          | NEW                     | cron-token                                                                      | `src/app/api/cron/payments-account-closure/route.ts:38#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                             |
 | `src/app/api/cron/payments-deposit/route.ts:50#GET`                  | cron-token              | cron-token                                                                      | `src/app/api/cron/payments-deposit/route.ts:50#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                     |
@@ -597,8 +597,13 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/abacatepay-renewal-db.ts:23`             | `<object>`                             | `process.env`                                                               |
 | `scripts/security/abacatepay-renewal-db.ts:47`             | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                                                    |
 | `scripts/security/abacatepay-renewal-db.ts:48`             | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
-| `scripts/security/abacatepay-renewal-db.ts:508`            | `ABACATEPAY_WEBHOOK_SECRET`            | `process.env.ABACATEPAY_WEBHOOK_SECRET`                                     |
-| `scripts/security/abacatepay-renewal-db.ts:520`            | `QORO_ABACATEPAY_SCALE`                | `process.env.QORO_ABACATEPAY_SCALE`                                         |
+| `scripts/security/abacatepay-renewal-db.ts:209`            | `QORO_ABACATEPAY_SCALE`                | `process.env.QORO_ABACATEPAY_SCALE`                                         |
+| `scripts/security/abacatepay-renewal-db.ts:533`            | `ABACATEPAY_WEBHOOK_SECRET`            | `process.env.ABACATEPAY_WEBHOOK_SECRET`                                     |
+| `scripts/security/abacatepay-renewal-db.ts:545`            | `QORO_ABACATEPAY_SCALE`                | `process.env.QORO_ABACATEPAY_SCALE`                                         |
+| `scripts/security/abacatepay-scale-proof.ts:8`             | `QORO_ABACATEPAY_SCALE_CONCURRENCY`    | `process.env.QORO_ABACATEPAY_SCALE_CONCURRENCY`                             |
+| `scripts/security/abacatepay-statement-scan-db.ts:10`      | `<object>`                             | `process.env`                                                               |
+| `scripts/security/abacatepay-statement-scan-db.ts:20`      | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
+| `scripts/security/abacatepay-statement-scan-db.ts:21`      | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                                                    |
 | `scripts/security/abacatepay-tiss-composition.ts:34`       | `QORO_TISS_WORKTREE`                   | `process.env.QORO_TISS_WORKTREE`                                            |
 | `scripts/security/abacatepay-tiss-input.ts:23`             | `QORO_TISS_WORKTREE`                   | `process.env.QORO_TISS_WORKTREE`                                            |
 | `scripts/security/abacatepay-tiss-input.ts:24`             | `QORO_TISS_REF`                        | `process.env.QORO_TISS_REF`                                                 |
@@ -756,6 +761,7 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/track-o-load.ts:98`                      | `CRYPTO_MASTER_KEY_V1`                 | `process.env.CRYPTO_MASTER_KEY_V1`                                          |
 | `scripts/security/track-o-load.ts:99`                      | `CRYPTO_LOOKUP_SALT`                   | `process.env.CRYPTO_LOOKUP_SALT`                                            |
 | `scripts/security/track-o-load.ts:100`                     | `LOG_LEVEL`                            | `process.env.LOG_LEVEL`                                                     |
+| `scripts/security/vercel-auxiliary-preflight.ts:48`        | `<object>`                             | `process.env`                                                               |
 | `scripts/seed-c9-test.ts:38`                               | `SEED_C9_PASSWORD`                     | `process.env.SEED_C9_PASSWORD`                                              |
 | `scripts/seed-clinic-user.ts:36`                           | `SEED_USER_EMAIL`                      | `process.env.SEED_USER_EMAIL`                                               |
 | `scripts/seed-clinic-user.ts:37`                           | `SEED_USER_PASSWORD`                   | `process.env.SEED_USER_PASSWORD`                                            |

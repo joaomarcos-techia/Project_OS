@@ -18,6 +18,10 @@ import { abacatePayRenewalPeriod } from './abacatepay-renewal-period';
 import { applyAbacatePayRenewalTx } from './abacatepay-renewals';
 import { abacatePayRenewalProofHash } from './abacatepay-renewal-source';
 import { recordBillingEvent } from './subscriptions';
+import {
+  createPersistentAbacatePayStatementReader,
+  AbacatePayStatementScanPending,
+} from './abacatepay-statement-scan';
 
 const READ_BUDGET_MS = 12_000;
 const READ_TIMEOUT_MS = 1500;
@@ -85,16 +89,20 @@ async function candidate(
     LEFT JOIN billing_gateway.plan_changes pending ON pending.account_id=a.id AND pending.subscription_id=s.id
       AND pending.clinic_id=s.clinic_id AND pending.external_subscription_id=coalesce(r.external_subscription_id,b.external_subscription_id)
       AND pending.invoice_id IS NULL AND pending.from_price_id=s.price_id
-    LEFT JOIN LATERAL (SELECT max(e.created_at) checked_at FROM public.billing_events e WHERE e.clinic_id=s.clinic_id
+    LEFT JOIN LATERAL (SELECT e.created_at checked_at,CASE WHEN e.payload->>'retryAfterSeconds' ~ '^[0-9]{1,5}$'
+      THEN (e.payload->>'retryAfterSeconds')::int ELSE 3600 END retry_after
+      FROM public.billing_events e WHERE e.clinic_id=s.clinic_id
       AND e.type='subscription.renewal_recovery.checked'
-      AND e.payload->>'externalSubscriptionId'=coalesce(r.external_subscription_id,b.external_subscription_id)) checked ON true
+      AND e.payload->>'externalSubscriptionId'=coalesce(r.external_subscription_id,b.external_subscription_id)
+      ORDER BY e.created_at DESC,e.id DESC LIMIT 1) checked ON true
     WHERE a.provider='abacatepay' AND a.environment='sandbox' AND a.external_account_id=${env.ABACATEPAY_STORE_ID}
       AND s.billing_provider='abacatepay' AND s.asaas_subscription_id IS NULL AND pr.billing_cycle='monthly'
       AND coalesce(r.external_subscription_id,b.external_subscription_id) IS NOT NULL
       AND (s.billing_status IN ('active','past_due') OR (${subscriptionId}::uuid IS NOT NULL AND s.billing_status='cancelled'))
       AND (${subscriptionId}::uuid IS NOT NULL OR s.current_period_end <= now()+interval '1 day')
       AND (${subscriptionId}::uuid IS NULL OR s.id=${subscriptionId}::uuid)
-      AND (${subscriptionId}::uuid IS NOT NULL OR checked.checked_at IS NULL OR checked.checked_at<now()-interval '1 hour')
+      AND (${subscriptionId}::uuid IS NOT NULL OR checked.checked_at IS NULL
+        OR checked.checked_at<now()-make_interval(secs=>checked.retry_after))
     ORDER BY checked.checked_at NULLS FIRST,s.id LIMIT 1 ${lock ? sql`FOR UPDATE OF s SKIP LOCKED` : sql``}`),
     );
   return row ?? null;
@@ -217,11 +225,17 @@ async function runMissingRenewalRecovery(
       priceId = target ? before.pending_price_id : before.price_id,
       amount = target ? before.pending_amount : before.amount_minor;
     if (!productId || !priceId || !amount) throw new GatewayReadError('binding_mismatch');
-    const readback = await createAbacatePayRenewalPaymentReader(account, config, fetch, {
-      subscriptionId: before.external_subscription_id,
-      customerId: before.external_customer_id,
-      checkoutId: before.checkout_id,
-    }).discoverRenewalPayment({
+    const readback = await createAbacatePayRenewalPaymentReader(
+      account,
+      config,
+      fetch,
+      {
+        subscriptionId: before.external_subscription_id,
+        customerId: before.external_customer_id,
+        checkoutId: before.checkout_id,
+      },
+      createPersistentAbacatePayStatementReader(database, account),
+    ).discoverRenewalPayment({
       subscriptionId: before.external_subscription_id,
       customerId: before.external_customer_id,
       originCheckoutId: before.checkout_id,
@@ -274,6 +288,20 @@ async function runMissingRenewalRecovery(
         clinicId: before.clinic_id,
       });
   } catch (error) {
+    if (error instanceof AbacatePayStatementScanPending) {
+      result.deferred = true;
+      await database.transaction((tx) =>
+        recordBillingEvent(tx, before.clinic_id, 'subscription.renewal_recovery.checked', {
+          provider: 'abacatepay',
+          checkId,
+          externalSubscriptionId: before.external_subscription_id,
+          outcome: 'statement_scan_pending',
+          retryAfterSeconds: 5,
+        }),
+      );
+      metrics.emit('billing.abacatepay.renewal_recovery', result);
+      return result;
+    }
     const inconsistent =
       error instanceof GatewayReadError &&
       [

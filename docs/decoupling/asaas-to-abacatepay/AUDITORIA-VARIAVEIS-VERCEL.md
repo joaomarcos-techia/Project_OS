@@ -158,3 +158,11 @@ Sem Redis/loja configurados, o transporte fecha de maneira segura. Isso precisa 
 Uma chamada admitida normalmente executa uma avaliação de admissão e uma de resultado; contenção pode executar até3 avaliações de admissão por tentativa. Chamadas GET opcionais podem repetir somente conforme o orçamento já existente. O custo depende do número real de operações, quotas e contrato do Redis; não foi comprovado custo zero, aumentado plano ou contratado serviço. Medir consumo/latência/quota antes de ampliar cohort. Não foram criadas filas em serviço pago.
 
 `QORO_ABACATEPAY_SCALE`, `QORO_DOCKER_BIN`, `QORO_TISS_WORKTREE` e `QORO_TISS_REF` são exclusivamente controles locais dos ensaios; não cadastrá-los na Vercel. A chave live permanece **configurada, não testada ou ativada**. O inventário não transforma `abacatepay_sandbox` em uma composição de produção.
+
+## Scanner incremental e tick existente — 12/11, candidato não ativado
+
+O scanner durável não exige variável nova na Vercel. Reutiliza a conta Sandbox, Redis, segredo do cron e tabelas privadas de checkpoints. A cadência preparada usa o tick já existente de outbox; nenhum horário em `vercel.json` nem configuração de Production foi alterado. Sem a aplicação autorizada do SQL candidato, a varredura persistente não fica disponível; a leitura N-1 conserva seu limite explícito.
+
+`QORO_ABACATEPAY_SCALE_CONCURRENCY` ajusta somente o ensaio sintético local (inteiro 1–64, padrão 32); não cadastrar na Vercel. A carga não consulta o provedor nem mede quota ou custo do Redis. Nenhum valor secreto foi lido para este incremento. O projeto auxiliar foi inventariado com GET/list fixos; não repetir `vercel env run` para executar scripts locais.
+
+O snapshot TISS revisado passou a `233d225e0ddb1fe56ee3975471a4c0260454bec7`, até 0156. As referências anteriores a 0149/0154 são históricas. Isso não autoriza DDL compartilhado nem reserva o próximo número, pois existe trabalho posterior ainda em edição.

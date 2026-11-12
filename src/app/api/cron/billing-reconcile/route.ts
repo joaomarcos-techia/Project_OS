@@ -20,12 +20,12 @@ import { env } from '@/lib/env';
 import {
   reconcileAbacatePayInbox,
   reconcileMissingAbacatePayInitialPayment,
+  reconcileAbacatePayRecoveryTick,
 } from '@/contexts/billing/internal/abacatepay-processing';
 import { reconcileAbacatePayManagement } from '@/contexts/billing/internal/abacatepay-management';
 import { reconcileAbacatePayUnknownCheckout } from '@/contexts/billing/internal/abacatepay-checkout-recovery';
 import { reconcileAbacatePayIntegrity } from '@/contexts/billing/internal/abacatepay-integrity';
 import { observeAbacatePayRenewals } from '@/contexts/billing/internal/abacatepay-renewal-watch';
-import { reconcileAbacatePayMissingRenewal } from '@/contexts/billing/internal/abacatepay-renewal-recovery';
 
 import { asaasProvider, BillingProviderError } from '@/lib/payments/asaas';
 import { removeSubscriptionCharges } from '@/contexts/billing/internal/cancellation-charges';
@@ -584,9 +584,7 @@ export const GET = withCron(
           fixed += recovered.applied;
         }
         if (Date.now() - startedAt < 35_000) {
-          const renewal = await reconcileAbacatePayMissingRenewal(dbAdmin, {
-            deadlineMs: startedAt + 35_000,
-          });
+          const renewal = await reconcileAbacatePayRecoveryTick(startedAt + 35_000);
           found += renewal.applied;
           fixed += renewal.applied;
         }

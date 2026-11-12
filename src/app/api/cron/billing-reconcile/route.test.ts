@@ -19,6 +19,7 @@ vi.mock('@/lib/env', () => ({ env: abacate.environment }));
 vi.mock('@/contexts/billing/internal/abacatepay-processing', () => ({
   reconcileAbacatePayInbox: abacate.inbox,
   reconcileMissingAbacatePayInitialPayment: abacate.initial,
+  reconcileAbacatePayRecoveryTick: abacate.renewalRecovery,
 }));
 vi.mock('@/contexts/billing/internal/abacatepay-management', () => ({
   reconcileAbacatePayManagement: abacate.management,
@@ -31,9 +32,6 @@ vi.mock('@/contexts/billing/internal/abacatepay-integrity', () => ({
 }));
 vi.mock('@/contexts/billing/internal/abacatepay-renewal-watch', () => ({
   observeAbacatePayRenewals: abacate.renewalWatch,
-}));
-vi.mock('@/contexts/billing/internal/abacatepay-renewal-recovery', () => ({
-  reconcileAbacatePayMissingRenewal: abacate.renewalRecovery,
 }));
 
 const {
@@ -227,7 +225,7 @@ describe('billing reconcile', () => {
     );
     expect(abacate.integrity).toHaveBeenCalledOnce();
     expect(abacate.renewalRecovery).toHaveBeenCalledOnce();
-    expect(abacate.renewalRecovery.mock.calls[0]?.[1]).toEqual({ deadlineMs: expect.any(Number) });
+    expect(abacate.renewalRecovery.mock.calls[0]?.[0]).toEqual(expect.any(Number));
     expect(abacate.integrity.mock.calls[0]?.[1]).toEqual({ deadlineMs: expect.any(Number) });
   });
   it('signals exhausted cron budget without starting a provider readback that cannot finish safely', async () => {
