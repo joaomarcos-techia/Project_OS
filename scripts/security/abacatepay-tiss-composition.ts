@@ -1,5 +1,6 @@
 /** Review-only manifest. Never writes a journal, database, branch or another worktree. */
 import { createHash } from 'node:crypto';
+import assert from 'node:assert/strict';
 import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -11,6 +12,19 @@ const candidatePath =
 const candidate = await readFile(candidatePath, 'utf8');
 const sha256 = (text: string) =>
   createHash('sha256').update(text.replaceAll('\r\n', '\n')).digest('hex');
+// The preparation time is fixed for reproducibility, not a reserved migration.
+// Any different TISS tail requires a new review, number and timestamp.
+const proposal =
+  proof.lastIndex === 151
+    ? {
+        idx: 152,
+        version: '7' as const,
+        breakpoints: true,
+        when: Date.parse('2026-11-12T07:42:38.000Z'),
+        tag: '0152_saas_period_snapshot',
+      }
+    : null;
+if (proposal) assert.ok(proposal.when > (proof.ordered.at(-1)?.when ?? Infinity));
 // Compare an announced tail with the immutable inputs without importing or applying it.
 const authorizedRoot = process.env.QORO_TISS_WORKTREE;
 if (!authorizedRoot) throw new Error('Missing authorized read-only TISS worktree');
@@ -50,6 +64,14 @@ const manifest = {
     journalEntry: null,
     sequencePosition: 'AFTER_THE_AGREED_FROZEN_TISS_TAIL',
   },
+  journalProposal: proposal
+    ? {
+        entry: proposal,
+        state: 'REVIEW_ONLY_NOT_RESERVED',
+        directory: 'dist/abacatepay-tiss-release',
+        rule: 'Do not apply before a fresh tail/history check, joint review and specific shared-DEV approval',
+      }
+    : null,
   integrationContract: {
     sql: 'public.qoro_premium_denial(uuid,text)',
     tenantScope: 'app.current_clinic must equal the authorized clinic',
@@ -99,6 +121,25 @@ const manifest = {
   otherWorktreeWrites: 0,
 };
 await mkdir('dist', { recursive: true });
+if (proposal) {
+  const directory = 'dist/abacatepay-tiss-release/drizzle/migrations';
+  await mkdir(`${directory}/meta`, { recursive: true });
+  for (const entry of proof.financial) {
+    const body = await readFile(`drizzle/migrations/${entry.tag}.sql`, 'utf8');
+    await writeFile(`${directory}/${entry.tag}.sql`, body.replaceAll('\r\n', '\n'));
+  }
+  for (const source of proof.sources)
+    await writeFile(`${directory}/${source.tag}.sql`, source.body.replaceAll('\r\n', '\n'));
+  await writeFile(`${directory}/${proposal.tag}.sql`, candidate.replaceAll('\r\n', '\n'));
+  await writeFile(
+    `${directory}/meta/_journal.json`,
+    JSON.stringify(
+      { version: '7', dialect: 'postgresql', entries: [...proof.ordered, proposal] },
+      null,
+      2,
+    ) + '\n',
+  );
+}
 await writeFile(
   'dist/abacatepay-tiss-preflight.sql',
   `-- READ ONLY. Verify the intended environment separately before using.

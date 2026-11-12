@@ -4,6 +4,9 @@ import { execFileSync } from 'node:child_process';
 import { readFile, writeFile } from 'node:fs/promises';
 import { startScratchSchema } from './scratch-schema';
 import { loadTissProofInputs } from './abacatepay-tiss-input';
+import { createHash } from 'node:crypto';
+import { z } from 'zod';
+import { migrate } from 'drizzle-orm/postgres-js/migrator';
 
 execFileSync(
   process.execPath,
@@ -11,28 +14,119 @@ execFileSync(
   { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] },
 );
 const proof = await loadTissProofInputs();
+const journal = z
+  .object({
+    entries: z.array(z.object({ idx: z.number().int(), when: z.number().int(), tag: z.string() })),
+  })
+  .parse(
+    JSON.parse(
+      await readFile('dist/abacatepay-tiss-release/drizzle/migrations/meta/_journal.json', 'utf8'),
+    ),
+  );
+assert.equal(journal.entries.length, 153);
+for (const [index, entry] of journal.entries.entries()) {
+  assert.equal(entry.idx, index);
+  if (index) assert.ok(entry.when > (journal.entries[index - 1]?.when ?? Infinity));
+}
+const proposedSql = await readFile(
+  'dist/abacatepay-tiss-release/drizzle/migrations/0152_saas_period_snapshot.sql',
+  'utf8',
+);
+const candidateSql = await readFile(
+  'docs/decoupling/asaas-to-abacatepay/migrations/saas_period_snapshot.candidate.sql',
+  'utf8',
+);
+const hash = (s: string) => createHash('sha256').update(s.replaceAll('\r\n', '\n')).digest('hex');
+assert.equal(hash(proposedSql), hash(candidateSql));
+const historyFixture = z
+  .object({
+    scalabilityFollowup: z.object({
+      sharedDevFinal: z.object({
+        historicalDifferenceDetails: z
+          .array(
+            z.object({
+              tag: z.string(),
+              when: z.string(),
+              appliedHash: z.string().regex(/^[a-f0-9]{64}$/),
+            }),
+          )
+          .length(6),
+      }),
+    }),
+  })
+  .parse(
+    JSON.parse(
+      await readFile(
+        'docs/decoupling/asaas-to-abacatepay/evidencias/recuperacao-financeira-20261111.json',
+        'utf8',
+      ),
+    ),
+  ).scalabilityFollowup.sharedDevFinal.historicalDifferenceDetails;
 const cluster = await startScratchSchema({ port: 55494 });
 assert.equal(new URL(cluster.url).hostname, '127.0.0.1');
+Object.assign(process.env, {
+  NODE_ENV: 'test',
+  DATABASE_URL: cluster.url,
+  DATABASE_URL_DEV: cluster.url,
+  DATABASE_URL_RUNTIME: cluster.url,
+  SUPABASE_PROJECT_ENV: 'dev',
+  NEXT_PUBLIC_SUPABASE_URL: 'https://test.supabase.co',
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_synthetic_journal',
+});
+delete process.env.VERCEL_ENV;
+delete process.env.DATABASE_URL_PROD;
+const { dbAdmin: database } = await import('../../src/lib/db');
 try {
-  // Scratch applies SQL directly. A history-shaped fixture lets the exact
-  // read-only queries execute; it does not assert a remotely applied journal.
+  // Reconstruct the observed DEV baseline locally: through 0143, with exact
+  // hashes/timestamps. No shared history is fabricated or changed.
   await cluster.sql`CREATE SCHEMA drizzle`;
-  await cluster.sql`CREATE TABLE drizzle.__drizzle_migrations(hash text NOT NULL,created_at bigint NOT NULL)`;
+  await cluster.sql`CREATE TABLE drizzle.__drizzle_migrations(id serial PRIMARY KEY,hash text NOT NULL,created_at bigint NOT NULL)`;
+  const first = proof.sources[0];
+  assert.ok(first);
+  assert.equal(first.idx, 143);
+  await cluster.sql.unsafe(first.body);
+  for (const entry of journal.entries.filter((e) => e.idx <= 143)) {
+    const body = await readFile(
+      `dist/abacatepay-tiss-release/drizzle/migrations/${entry.tag}.sql`,
+      'utf8',
+    );
+    const historic = historyFixture.find((e) => e.tag === entry.tag);
+    if (historic) assert.equal(historic.when, String(entry.when));
+    await cluster.sql`INSERT INTO drizzle.__drizzle_migrations(hash,created_at) VALUES(${historic?.appliedHash ?? hash(body)},${entry.when})`;
+  }
+  const historyFingerprint = async () => {
+    const [row] =
+      await cluster.sql`SELECT md5(string_agg(hash||created_at::text,'' ORDER BY created_at)) fingerprint
+      FROM drizzle.__drizzle_migrations WHERE created_at<=${first.when}`;
+    return row;
+  };
+  const historyBefore = await historyFingerprint();
+  const fingerprint = async () => {
+    const [row] = await cluster.sql`SELECT
+      (SELECT md5(string_agg(row_to_json(p)::text,'' ORDER BY p.id)) FROM public.plans p) plans,
+      (SELECT md5(string_agg(row_to_json(p)::text,'' ORDER BY p.id)) FROM public.prices p) prices`;
+    return row;
+  };
+  const before = await fingerprint();
   const session = await cluster.sql.reserve();
   try {
     await session.unsafe(await readFile('dist/abacatepay-tiss-preflight.sql', 'utf8'));
   } finally {
     session.release();
   }
-  await cluster.sql.begin(async (tx) => {
-    for (const source of proof.sources) await tx.unsafe(source.body);
-    await tx.unsafe(
-      await readFile(
-        'docs/decoupling/asaas-to-abacatepay/migrations/saas_period_snapshot.candidate.sql',
-        'utf8',
-      ),
-    );
-  });
+  const options = { migrationsFolder: 'dist/abacatepay-tiss-release/drizzle/migrations' };
+  await migrate(database, options);
+  assert.deepEqual(await fingerprint(), before);
+  const [history] =
+    await cluster.sql`SELECT count(*)::int count,max(created_at)::text last FROM drizzle.__drizzle_migrations`;
+  assert.equal(history?.count, 153);
+  assert.equal(history.last, String(journal.entries.at(-1)?.when));
+  await migrate(database, options);
+  const [repeated] =
+    await cluster.sql`SELECT count(*)::int count FROM drizzle.__drizzle_migrations`;
+  assert.equal(repeated?.count, 153);
+  assert.deepEqual(await fingerprint(), before);
+  assert.deepEqual(await historyFingerprint(), historyBefore);
   const postSession = await cluster.sql.reserve();
   try {
     await postSession.unsafe(await readFile('dist/abacatepay-tiss-postflight.sql', 'utf8'));
@@ -50,12 +144,19 @@ try {
     environment: 'loopback_synthetic',
     tissHead: proof.head,
     checks: [
+      'review-only journal has 153 consecutive entries and increasing timestamps',
+      'proposed financial SQL equals the reviewed candidate hash',
       'exact generated preflight SQL executes',
-      'pinned combined schema applies atomically',
+      'real Drizzle upgrade from 0143 applies exactly nine pending entries and preserves catalog',
+      'second real migrator run applies no entries or catalog changes',
+      'all 144 baseline history entries including six historical applied hashes remain unchanged',
       'exact generated postflight SQL executes',
       'RLS forced and sensitive grants refused',
     ],
-    journalWrites: 0,
+    repositoryJournalWrites: 0,
+    scratchJournalEntries: 153,
+    schemaSource:
+      'Repository schema plus pinned TISS; history-shaped DEV baseline, not a clone of DEV data',
     remoteWrites: 0,
   };
   await writeFile(

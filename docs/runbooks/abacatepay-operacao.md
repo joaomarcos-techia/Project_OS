@@ -1,5 +1,46 @@
 # Operação e recuperação AbacatePay
 
+## Incremento operacional de12/11 — contenção e escala
+
+Estado corrente: [relatório45](../decoupling/asaas-to-abacatepay/RELATORIO-HOMOLOGACAO-FINAL.md#45-concorrência-contenção-distribuída-e-pacote-sql--12112026) e [matriz G01–G24](../decoupling/asaas-to-abacatepay/MATRIZ-CENARIOS-E-TESTES.md#matriz-única-g01g24--12112026). Nenhum comando deste incremento autoriza DEV compartilhado ou Production.
+
+O transporte usa o par `UPSTASH_REDIS_REST_URL/TOKEN` já existente, com chave opaca por loja. Redis indisponível fecha o acesso ao provedor; não contornar desligando o guard.502/503/504 e falha de rede alimentam circuito;401/403 pausam60s;429 respeita cooldown limitado. Investigue disponibilidade/permissões pelo painel sem copiar a chave e sem repetir POST desconhecido. O circuito é distribuído; reiniciar uma instância não o limpa. Uma resposta positiva não apaga uma pausa vigente.
+
+O inbox continua durável, com lease60s, até10 tentativas e revisão autorizada. Falha transitória aguarda5s,10s,20s…até3600s, contadas a partir de `processed_at`; evento recebido pela primeira vez não espera. Não alterar `attempts/processed_at` no ambiente compartilhado para forçar retry. O replay administrativo existente exige superadmin/MFA, motivo e autorização. O cron processa até10 eventos, sem iniciar item adicional depois de15s do job compartilhado; seu primeiro item conserva a admissão até35s. Cada item mantém reserva independente e só faz consultas financeiras verificadas. Métrica nova: `billing.abacatepay.inbox_batch` com `scanned/limit`.
+
+Métricas de contenção: `billing.abacatepay.request_control`, outcomes `deferred`, `provider_rate_limited`, `provider_failure`, `coordination_unavailable`, sem corpo/credenciais/IDs de paciente. Persistência/revisão e heartbeat continuam as fontes operacionais; Sentry indisponível não é confirmação de saúde. Alertas propostos: qualquer401/403 ou coordenação indisponível;429 persistente; idade de inbox>2min; lease>60s sem resolução; período pago vencido sem receipt novo. Antes de Production, testar regras e entrega no canal aprovado. Não criar probes financeiros reais.
+
+**Capacidade não liberada:** o cron permanece diário09UTC; aumentar o batch não torna a recuperação contínua. Em cenário puramente teórico,1000 eventos/10 por execução exigiriam100 execuções, fora outros limites; não é um RTO aceitável de operação em escala. A recuperação sem webhook continua limitada por uma pesquisa de até500 registros do extrato na janela. Nenhum novo índice, horário ou infraestrutura paga foi ativado. Projetar/medir varredura incremental e agenda compatível antes de ampliar cohort.
+
+## Reproduzir as novas provas locais
+
+Em PowerShell, pasta `C:\dev\Qoro_billing_abacatepay_20261107`, usando Node22 e as dependências existentes:
+
+```powershell
+$env:NODE_OPTIONS='--conditions=react-server'
+$env:QORO_TISS_WORKTREE='C:\dev\Qoro_convenios_tiss_20261110'
+$env:QORO_TISS_REF='1be40b15ed7533fcac54a3d89cbc821f2e17af22'
+node node_modules/tsx/dist/cli.mjs scripts/security/abacatepay-composition-checks-db.ts
+$env:QORO_ABACATEPAY_SCALE='1'
+node node_modules/tsx/dist/cli.mjs scripts/security/abacatepay-renewal-db.ts
+Remove-Item Env:QORO_ABACATEPAY_SCALE
+node node_modules/tsx/dist/cli.mjs scripts/security/abacatepay-renewal-db.ts
+```
+
+O primeiro comando gera também o pacote `dist/abacatepay-tiss-release`, com journal proposto0000–0152 (153 entradas). Essa0152 não está reservada; o journal do repositório permanece intacto. O migrador real ensaia localmente144→153, preservando o catálogo e os hashes históricos, e comprova uma segunda execução sem reaplicar. O primeiro comando gera manifest e queries somente leitura em `dist/abacatepay-tiss-{composition.json,preflight.sql,postflight.sql}` e executa as queries em banco local descartável. **Não é um journal aplicado nem um comando de migration remota.** A prova de carga grava `dist/abacatepay-scale-db.json`: contadores/p50/p95/p99/conexões/locks/RSS/EXPLAIN, sem dados reais. A prova financeira grava o JSON do snapshot TISS correspondente. A falha interrompe o teste; não converter FAIL em PASS pela presença parcial de um arquivo antigo. Fixar novamente o SHA se houver mudança real do TISS e repetir apenas as provas afetadas.
+
+O ensaio Redis usa exclusivamente um contêiner descartável identificado, porta `127.0.0.1:63799`, imagem oficial Redis7.4, sem persistência ou API financeira. Com Docker disponível:
+
+```powershell
+docker run -d --name qoro-abacate-scale-20261112 --label qoro.synthetic=abacate-scale-20261112 -p 127.0.0.1:63799:6379 redis:7.4-alpine redis-server --save '' --appendonly no
+node node_modules/tsx/dist/cli.mjs scripts/security/abacatepay-rate-db.ts
+docker stop qoro-abacate-scale-20261112
+```
+
+Se esse contêiner identificado já existir parado, use `docker start qoro-abacate-scale-20261112` em vez de criar outro. O harness confere o label e recusa outro destino. `QORO_DOCKER_BIN` pode apontar ao executável oficial quando não estiver no PATH. O teste não comprova o plano, a latência ou a capacidade do Redis gerenciado. Não subir carga em Preview, DEV compartilhado ou Production.
+
+RPO continua dependente do backup efetivamente saudável; não declarar perda zero. A restauração de banco/Storage/Auth tem evidências históricas próprias e o aceite anterior sem PITR permanece restrito a esse risco. Um replay financeiro após restore precisa consultar o provedor e preservar IDs/ledger, sem recriar checkout/pagamento. O ensaio local de recuperação financeira não mede o RTO de reconstrução de todos os serviços.
+
 Atualizado em 12/11/2026. Executável somente na candidata Sandbox do PR #53. Não usar em Produção. Não substituir o gateway de uma assinatura Asaas nem modificar pagamentos de pacientes. A [seção 11](#11-trial-entitlements-e-composição-com-0151--1211) registra a decisão definitiva de trial e o snapshot TISS atual; as seções anteriores preservam a cronologia. O SQL candidato não foi aplicado ao DEV compartilhado. Sentry Preview e jornada normal MFA já passaram; não repetir probes/login para esses gates.
 
 ## 1. Detectar e abrir incidente
@@ -275,43 +316,3 @@ O gate central usa a mesma transação/escopo da clínica e consulta `qoro_premi
 **Nenhuma ação humana ou pagamento novo é necessário para repetir os gates já aprovados.** Dependências restantes são acordo do schema final, autorização da aplicação compartilhada, prova externa de renovação/fechamento e implementação/revisão da composição live. A variável live já cadastrada não dispensa nenhuma dessas etapas.
 
 **Verificação posterior do código4b666cc0:** CI43154102122 PASS7061/22E2E semSKIP, build/segurança/isolamento; E2E autenticado ativo PASS1/1 no Preview, desktop/celular, usando fixture antiga sem nova conta/checkout/invoice. Readbacks antes/depois preservados. A autenticação de teste não é leitura pura do Auth. Não repetir a prova para fechar gates já aprovados; consultar os checks do PR53 para o commit documental posterior.
-# Incremento operacional de12/11 — contenção e escala
-
-Estado corrente: [relatório45](../decoupling/asaas-to-abacatepay/RELATORIO-HOMOLOGACAO-FINAL.md#45-concorrência-contenção-distribuída-e-pacote-sql--12112026) e [matriz G01–G24](../decoupling/asaas-to-abacatepay/MATRIZ-CENARIOS-E-TESTES.md#matriz-única-g01g24--12112026). Nenhum comando deste incremento autoriza DEV compartilhado ou Production.
-
-O transporte usa o par `UPSTASH_REDIS_REST_URL/TOKEN` já existente, com chave opaca por loja. Redis indisponível fecha o acesso ao provedor; não contornar desligando o guard.502/503/504 e falha de rede alimentam circuito;401/403 pausam60s;429 respeita cooldown limitado. Investigue disponibilidade/permissões pelo painel sem copiar a chave e sem repetir POST desconhecido. O circuito é distribuído; reiniciar uma instância não o limpa. Uma resposta positiva não apaga uma pausa vigente.
-
-O inbox continua durável, com lease60s, até10 tentativas e revisão autorizada. Falha transitória aguarda5s,10s,20s…até3600s, contadas a partir de `processed_at`; evento recebido pela primeira vez não espera. Não alterar `attempts/processed_at` no ambiente compartilhado para forçar retry. O replay administrativo existente exige superadmin/MFA, motivo e autorização. O cron processa até10 eventos, sem iniciar item adicional depois de15s do job compartilhado; seu primeiro item conserva a admissão até35s. Cada item mantém reserva independente e só faz consultas financeiras verificadas. Métrica nova: `billing.abacatepay.inbox_batch` com `scanned/limit`.
-
-Métricas de contenção: `billing.abacatepay.request_control`, outcomes `deferred`, `provider_rate_limited`, `provider_failure`, `coordination_unavailable`, sem corpo/credenciais/IDs de paciente. Persistência/revisão e heartbeat continuam as fontes operacionais; Sentry indisponível não é confirmação de saúde. Alertas propostos: qualquer401/403 ou coordenação indisponível;429 persistente; idade de inbox>2min; lease>60s sem resolução; período pago vencido sem receipt novo. Antes de Production, testar regras e entrega no canal aprovado. Não criar probes financeiros reais.
-
-**Capacidade não liberada:** o cron permanece diário09UTC; aumentar o batch não torna a recuperação contínua. Em cenário puramente teórico,1000 eventos/10 por execução exigiriam100 execuções, fora outros limites; não é um RTO aceitável de operação em escala. A recuperação sem webhook continua limitada por uma pesquisa de até500 registros do extrato na janela. Nenhum novo índice, horário ou infraestrutura paga foi ativado. Projetar/medir varredura incremental e agenda compatível antes de ampliar cohort.
-
-## Reproduzir as novas provas locais
-
-Em PowerShell, pasta `C:\dev\Qoro_billing_abacatepay_20261107`, usando Node22 e as dependências existentes:
-
-```powershell
-$env:NODE_OPTIONS='--conditions=react-server'
-$env:QORO_TISS_WORKTREE='C:\dev\Qoro_convenios_tiss_20261110'
-$env:QORO_TISS_REF='1be40b15ed7533fcac54a3d89cbc821f2e17af22'
-node node_modules/tsx/dist/cli.mjs scripts/security/abacatepay-composition-checks-db.ts
-$env:QORO_ABACATEPAY_SCALE='1'
-node node_modules/tsx/dist/cli.mjs scripts/security/abacatepay-renewal-db.ts
-Remove-Item Env:QORO_ABACATEPAY_SCALE
-node node_modules/tsx/dist/cli.mjs scripts/security/abacatepay-renewal-db.ts
-```
-
-O primeiro comando gera manifest e queries somente leitura em `dist/abacatepay-tiss-{composition.json,preflight.sql,postflight.sql}` e executa as queries em banco local descartável. **Não é um journal aplicado nem um comando de migration remota.** A prova de carga grava `dist/abacatepay-scale-db.json`: contadores/p50/p95/p99/conexões/locks/RSS/EXPLAIN, sem dados reais. A prova financeira grava o JSON do snapshot TISS correspondente. A falha interrompe o teste; não converter FAIL em PASS pela presença parcial de um arquivo antigo. Fixar novamente o SHA se houver mudança real do TISS e repetir apenas as provas afetadas.
-
-O ensaio Redis usa exclusivamente um contêiner descartável identificado, porta `127.0.0.1:63799`, imagem oficial Redis7.4, sem persistência ou API financeira. Com Docker disponível:
-
-```powershell
-docker run -d --name qoro-abacate-scale-20261112 --label qoro.synthetic=abacate-scale-20261112 -p 127.0.0.1:63799:6379 redis:7.4-alpine redis-server --save '' --appendonly no
-node node_modules/tsx/dist/cli.mjs scripts/security/abacatepay-rate-db.ts
-docker stop qoro-abacate-scale-20261112
-```
-
-Se esse contêiner identificado já existir parado, use `docker start qoro-abacate-scale-20261112` em vez de criar outro. O harness confere o label e recusa outro destino. `QORO_DOCKER_BIN` pode apontar ao executável oficial quando não estiver no PATH. O teste não comprova o plano, a latência ou a capacidade do Redis gerenciado. Não subir carga em Preview, DEV compartilhado ou Production.
-
-RPO continua dependente do backup efetivamente saudável; não declarar perda zero. A restauração de banco/Storage/Auth tem evidências históricas próprias e o aceite anterior sem PITR permanece restrito a esse risco. Um replay financeiro após restore precisa consultar o provedor e preservar IDs/ledger, sem recriar checkout/pagamento. O ensaio local de recuperação financeira não mede o RTO de reconstrução de todos os serviços.

@@ -6547,7 +6547,7 @@
       "status": "PASS"
     },
     "validation": {
-      "state": "IN_PROGRESS",
+      "state": "PASS_RUNTIME_AND_LOCAL_PACKAGE_CHECKS",
       "fullFirstAttempt": {
         "pass": 7073,
         "failed": 6,
@@ -6562,7 +6562,146 @@
         "failed": 0,
         "pending": 0
       },
-      "localBuildFirstAttempt": "BLOCKED_ENV: Windows CA chain unavailable in isolated child; stopped only that build; retry using Windows system CAs without disabling TLS"
+      "localBuildFirstAttempt": "BLOCKED_ENV: Windows CA chain unavailable in isolated child; stopped only that build; retry using Windows system CAs without disabling TLS",
+      "localFullRetest": {
+        "passed": 7080,
+        "failed": 0,
+        "pending": 0,
+        "workers": 2,
+        "source": "dist/scalability-full-retest.json"
+      },
+      "transportCleanup": {
+        "passed": 49,
+        "failed": 0,
+        "source": "dist/scalability-cleanup-tests.json"
+      },
+      "localBuildFinal": "NOT COMPLETED: isolated build first lacked Windows CA chain; secure retry retained TLS but was stopped for memory pressure (83MB free observed). Use actual Vercel/CI build results, not a local PASS.",
+      "runtimeCi": {
+        "observedAt": "2026-11-12T07:56:06.601Z",
+        "status": "PASS",
+        "runId": "43176421120",
+        "sha": "c65311e0fcf86a2fde8fdf6dc1b27ff1dd00ef05",
+        "url": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/43176421120",
+        "unitPassed": 7080,
+        "publicE2E": {
+          "passed": 22,
+          "skipped": 0
+        },
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/checkout@v4",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run pnpm/action-setup@v4",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/setup-node@v4",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Install dependencies",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Prod dependency audit gate (high+)",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Typecheck",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Lint",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Arch check (madge — circular deps)",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Arch DB check (AST connection-origin guard)",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Migration safety gate (anti-destructive)",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Observability drift gate (docs ⇔ vercel.json ⇔ eventos)",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Handler registry gate (catalog ⇔ registry)",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Test + coverage gate",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Security inventory (AST and explicit guard review)",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Two-tenant isolation (temporary local Postgres)",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Build",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Client bundle secrets and local HTTP boundaries",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Install Playwright browser (chromium)",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "E2E gate (superfície pública, sem credencial)",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Upload E2E report on failure",
+            "status": "completed",
+            "conclusion": "skipped"
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success"
+          }
+        ],
+        "productionWrites": 0
+      },
+      "finalCommitChecks": "Required checks for the final combined scripts/documentation SHA are published on PR53; do not infer them from this prior runtime run."
     },
     "remainingEngineering": [
       "consolidated migration journal and combined application composition",
@@ -6579,6 +6718,651 @@
     "productionWrites": 0,
     "sharedDevWrites": 0,
     "tissWorktreeWrites": 0,
-    "decision": "NO_GO_PRODUCTION"
+    "decision": "NO_GO_PRODUCTION",
+    "sharedDevFinal": {
+      "coreHistoryAudit": {
+        "expected": 144,
+        "matched": 138,
+        "mismatches": [
+          "0033_messaging_connection_status",
+          "0037_profiles_invite_and_crm",
+          "0051_ai_conversations_panel",
+          "0071_runtime_role_timeouts",
+          "0093_ai_clinic_config_convenios",
+          "0124_offer_2026_trial_deadline"
+        ],
+        "unknownTimestamps": [],
+        "duplicateTimestamps": []
+      },
+      "historicalDifferenceDetails": [
+        {
+          "tag": "0033_messaging_connection_status",
+          "when": "1782272213408",
+          "appliedHash": "62ee45d29883c7c6902fff1263dfb11fb0a2eea3c58d42b6cc1d1ee673e09533",
+          "repositoryLfHash": "5d4adf2be3846b99a9c1ad551464b38716cfb2b813ccdc4ced3bf0fce30aa5a8",
+          "crlfEquivalent": true,
+          "sameRecordedHistoricalPrefix": true
+        },
+        {
+          "tag": "0037_profiles_invite_and_crm",
+          "when": "1783272435137",
+          "appliedHash": "2c534ae3507d76b1f2719f906c5b5c16fecb02e143fcc27822d72c5058ddbcc0",
+          "repositoryLfHash": "9846484ad215d659463bc0ce17c383e0170df06fbae1d34381c099da5619a983",
+          "crlfEquivalent": true,
+          "sameRecordedHistoricalPrefix": true
+        },
+        {
+          "tag": "0051_ai_conversations_panel",
+          "when": "1784293573483",
+          "appliedHash": "69152b982938ae92519104adfe0b1e2902ebb0c2845085b61156070d40fd5f04",
+          "repositoryLfHash": "ea9e22ba96c1060546c58afe904f261d215adae69bf568381fc4c063784e6a47",
+          "crlfEquivalent": false,
+          "sameRecordedHistoricalPrefix": true
+        },
+        {
+          "tag": "0071_runtime_role_timeouts",
+          "when": "1784293593483",
+          "appliedHash": "bad37d1e907b4ed642df3633db2be54343e4ae9273c78d0f8876f83f1d0a878b",
+          "repositoryLfHash": "da6e590bd926a0faeb163c315a1f78d638357a5dc16af43f7bbb5e697347c1f5",
+          "crlfEquivalent": true,
+          "sameRecordedHistoricalPrefix": true
+        },
+        {
+          "tag": "0093_ai_clinic_config_convenios",
+          "when": "1788300900000",
+          "appliedHash": "4e9c4587de28fcb0c7d9b9ff919f612c19ba69ddee5954ffa39f9e7b76e102b7",
+          "repositoryLfHash": "92c284c71d95f70378781297a8213c7213b78bbbfb741466f57ac6949ac7e8b3",
+          "crlfEquivalent": false,
+          "sameRecordedHistoricalPrefix": true
+        },
+        {
+          "tag": "0124_offer_2026_trial_deadline",
+          "when": "1792368000002",
+          "appliedHash": "d924aa270afd13bd6528aaf200b1d53440f0a79e317755485458e6382e1a16d0",
+          "repositoryLfHash": "a354f71adc49266b36aa1c2a5a21915e3b6252fd8f8e9bad3fd8b4caed7ab689",
+          "crlfEquivalent": false,
+          "sameRecordedHistoricalPrefix": true
+        }
+      ],
+      "observedAt": "2026-11-12T07:52:01.013Z",
+      "scope": "read_only_DEV_and_TISS_branch_metadata_no_mutation",
+      "financialJournalEntries": 143,
+      "devHistoryCount": 144,
+      "tissHead": "1be40b15ed7533fcac54a3d89cbc821f2e17af22",
+      "tissDraft": true,
+      "tissMigrations": [
+        {
+          "tag": "0143_tiss_catalog",
+          "when": "1794330000000",
+          "hash": "9f9b483aaeff60a9ca4f5b182c3b071408a7d3eec9ecea7cfe8f98bcf602e807",
+          "devApplied": true,
+          "timestampConflict": false
+        },
+        {
+          "tag": "0144_hi_clinic_setup",
+          "when": "1794367436665",
+          "hash": "b9ac6c7a0b335582f3bf69385a3b004cf9d0784955f27d7c3cd22776a4590589",
+          "devApplied": false,
+          "timestampConflict": false
+        },
+        {
+          "tag": "0145_hi_memberships",
+          "when": "1794391493822",
+          "hash": "98425850e4c2dae613734aa337ce588df641e5c3b67476c055147cb9c82632c4",
+          "devApplied": false,
+          "timestampConflict": false
+        },
+        {
+          "tag": "0146_hi_authorizations",
+          "when": "1794395869610",
+          "hash": "15cbf34c1439cc1d7a0ca4be40267729b44c1cdea1760d5090deb10288493cb6",
+          "devApplied": false,
+          "timestampConflict": false
+        },
+        {
+          "tag": "0147_hi_guides",
+          "when": "1794399173366",
+          "hash": "a344a7e86074d90a4b13b007ef6f9e3357ac23e3b8bc43743158d131ca45238a",
+          "devApplied": false,
+          "timestampConflict": false
+        },
+        {
+          "tag": "0148_hi_coverage_copay",
+          "when": "1794405160338",
+          "hash": "45f0b90b9307c5888e8e0ac61fab9685561f89a62cdf54ea60d2bd3becfdcb0b",
+          "devApplied": false,
+          "timestampConflict": false
+        },
+        {
+          "tag": "0149_hi_billing_gaps",
+          "when": "1794416643149",
+          "hash": "56c0d5f29a409b65e0fe4fc1ac7512bbd8c979150c2252e375a375b85139d183",
+          "devApplied": false,
+          "timestampConflict": false
+        },
+        {
+          "tag": "0150_hi_batches",
+          "when": "1794418524711",
+          "hash": "e7dc279a073501a4f2e03dd95ff9773564cbc690ea2591a3e94a03f9a273c992",
+          "devApplied": false,
+          "timestampConflict": false
+        },
+        {
+          "tag": "0151_hi_premium_gate",
+          "when": "1794432173857",
+          "hash": "a0e446dbce4121c538c4a3e206a406e0977d5d1729ed14b03417a3937b71ae0b",
+          "devApplied": false,
+          "timestampConflict": false
+        }
+      ],
+      "candidatePeriodColumn": false,
+      "productionWrites": 0,
+      "devWrites": 0,
+      "tissWorktreeChanges": 0
+    },
+    "databaseLoadFinal": {
+      "observedAt": "2026-11-12T07:41:16.585Z",
+      "status": "PASS",
+      "environment": "loopback_synthetic",
+      "scope": "Real provision, inbox dedup and atomic renewal domain services, production migrations plus pinned TISS and financial candidate",
+      "exclusions": [
+        "No provider HTTP load",
+        "No production or shared DEV",
+        "No scheduler throughput claim",
+        "No first external payment claim"
+      ],
+      "targets": {
+        "invariantErrors": 0,
+        "deadlocks": 0,
+        "p95DiagnosticMs": 2000,
+        "note": "Local diagnostic target, not a production SLA"
+      },
+      "peaks": {
+        "databaseConnections": 13,
+        "waitingLocks": 8,
+        "nodeRssBytes": 120971264
+      },
+      "databaseStats": {
+        "deadlocks": "0",
+        "temp_bytes": "0",
+        "xact_rollback": "0"
+      },
+      "inboxPlan": [
+        {
+          "QUERY PLAN": [
+            {
+              "Plan": {
+                "Node Type": "Limit",
+                "Parallel Aware": false,
+                "Async Capable": false,
+                "Startup Cost": 78,
+                "Total Cost": 78.01,
+                "Plan Rows": 1,
+                "Plan Width": 51,
+                "Actual Startup Time": 2.523,
+                "Actual Total Time": 2.526,
+                "Actual Rows": 1,
+                "Actual Loops": 1,
+                "Shared Hit Blocks": 57,
+                "Shared Read Blocks": 0,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0,
+                "Plans": [
+                  {
+                    "Node Type": "LockRows",
+                    "Parent Relationship": "Outer",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 78,
+                    "Total Cost": 90.5,
+                    "Plan Rows": 1000,
+                    "Plan Width": 51,
+                    "Actual Startup Time": 2.518,
+                    "Actual Total Time": 2.518,
+                    "Actual Rows": 1,
+                    "Actual Loops": 1,
+                    "Shared Hit Blocks": 57,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Sort",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Startup Cost": 78,
+                        "Total Cost": 80.5,
+                        "Plan Rows": 1000,
+                        "Plan Width": 51,
+                        "Actual Startup Time": 2.357,
+                        "Actual Total Time": 2.357,
+                        "Actual Rows": 1,
+                        "Actual Loops": 1,
+                        "Sort Key": ["received_at"],
+                        "Sort Method": "quicksort",
+                        "Sort Space Used": 95,
+                        "Sort Space Type": "Memory",
+                        "Shared Hit Blocks": 56,
+                        "Shared Read Blocks": 0,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 0,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0,
+                        "Plans": [
+                          {
+                            "Node Type": "Seq Scan",
+                            "Parent Relationship": "Outer",
+                            "Parallel Aware": false,
+                            "Async Capable": false,
+                            "Relation Name": "event_inbox",
+                            "Alias": "event_inbox",
+                            "Startup Cost": 0,
+                            "Total Cost": 73,
+                            "Plan Rows": 1000,
+                            "Plan Width": 51,
+                            "Actual Startup Time": 0.149,
+                            "Actual Total Time": 1.511,
+                            "Actual Rows": 1000,
+                            "Actual Loops": 1,
+                            "Filter": "((state = 'received'::text) AND ((processed_at IS NULL) OR (processed_at < (now() - '01:00:00'::interval))))",
+                            "Rows Removed by Filter": 0,
+                            "Shared Hit Blocks": 53,
+                            "Shared Read Blocks": 0,
+                            "Shared Dirtied Blocks": 0,
+                            "Shared Written Blocks": 0,
+                            "Local Hit Blocks": 0,
+                            "Local Read Blocks": 0,
+                            "Local Dirtied Blocks": 0,
+                            "Local Written Blocks": 0,
+                            "Temp Read Blocks": 0,
+                            "Temp Written Blocks": 0
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              "Planning": {
+                "Shared Hit Blocks": 30,
+                "Shared Read Blocks": 0,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0
+              },
+              "Planning Time": 1.204,
+              "Triggers": [],
+              "Execution Time": 15.195
+            }
+          ]
+        }
+      ],
+      "runs": [
+        {
+          "clinics": 100,
+          "provision": {
+            "count": 100,
+            "concurrency": 32,
+            "elapsedMs": 16622.8309,
+            "throughputPerSecond": 6.01582249146263,
+            "p50Ms": 4382.686400000006,
+            "p95Ms": 7039.227899999998,
+            "p99Ms": 7688.01909999999,
+            "errors": 0
+          },
+          "duplicateIngress": {
+            "count": 100,
+            "concurrency": 32,
+            "elapsedMs": 1098.7212,
+            "throughputPerSecond": 91.01489986722747,
+            "p50Ms": 331.26660000000265,
+            "p95Ms": 418.6591000000044,
+            "p99Ms": 428.39890000000014,
+            "errors": 0
+          },
+          "duplicateRenewalApplication": {
+            "count": 100,
+            "concurrency": 32,
+            "elapsedMs": 13837.736099999995,
+            "throughputPerSecond": 7.226615631150824,
+            "p50Ms": 4308.678899999999,
+            "p95Ms": 4911.9026999999915,
+            "p99Ms": 5020.548899999994,
+            "errors": 0
+          },
+          "state": {
+            "clinics": 100,
+            "invoices": 200,
+            "cycles": 100,
+            "inbox": 100,
+            "unpaid": 0,
+            "crossed": 0
+          }
+        },
+        {
+          "clinics": 500,
+          "provision": {
+            "count": 400,
+            "concurrency": 32,
+            "elapsedMs": 58789.26819999999,
+            "throughputPerSecond": 6.8039629042363226,
+            "p50Ms": 4572.204599999997,
+            "p95Ms": 5972.996100000004,
+            "p99Ms": 6074.442999999999,
+            "errors": 0
+          },
+          "duplicateIngress": {
+            "count": 500,
+            "concurrency": 32,
+            "elapsedMs": 9168.357799999998,
+            "throughputPerSecond": 54.535393459448116,
+            "p50Ms": 564.0076000000117,
+            "p95Ms": 924.5475999999908,
+            "p99Ms": 1030.200599999982,
+            "errors": 0
+          },
+          "duplicateRenewalApplication": {
+            "count": 500,
+            "concurrency": 32,
+            "elapsedMs": 79947.1195,
+            "throughputPerSecond": 6.254134021676666,
+            "p50Ms": 5381.902100000007,
+            "p95Ms": 6744.754799999995,
+            "p99Ms": 7176.713500000013,
+            "errors": 0
+          },
+          "state": {
+            "clinics": 500,
+            "invoices": 1000,
+            "cycles": 500,
+            "inbox": 500,
+            "unpaid": 0,
+            "crossed": 0
+          }
+        },
+        {
+          "clinics": 1000,
+          "provision": {
+            "count": 500,
+            "concurrency": 32,
+            "elapsedMs": 82229.91339999999,
+            "throughputPerSecond": 6.080512301743468,
+            "p50Ms": 5015.032399999967,
+            "p95Ms": 7540.935600000026,
+            "p99Ms": 8805.215399999986,
+            "errors": 0
+          },
+          "duplicateIngress": {
+            "count": 1000,
+            "concurrency": 32,
+            "elapsedMs": 15610.904299999995,
+            "throughputPerSecond": 64.05778811929558,
+            "p50Ms": 492.65889999998035,
+            "p95Ms": 745.8736999999965,
+            "p99Ms": 846.9951000000001,
+            "errors": 0
+          },
+          "duplicateRenewalApplication": {
+            "count": 1000,
+            "concurrency": 32,
+            "elapsedMs": 200955.15639999998,
+            "throughputPerSecond": 4.976234588424824,
+            "p50Ms": 6190.990999999922,
+            "p95Ms": 10325.885999999999,
+            "p99Ms": 11250.96259999997,
+            "errors": 0
+          },
+          "state": {
+            "clinics": 1000,
+            "invoices": 2000,
+            "cycles": 1000,
+            "inbox": 1000,
+            "unpaid": 0,
+            "crossed": 0
+          }
+        }
+      ],
+      "queueNote": "Inbox is retained received: this harness applies the domain seam directly, not the HTTP/leased worker. Worker recovery is proved separately.",
+      "externalRequests": 0,
+      "sourceRuntimeCommit": "c65311e0fcf86a2fde8fdf6dc1b27ff1dd00ef05",
+      "interpretation": "Integrity PASS; latency diagnostic target not met. Concurrent local test workload and severe memory pressure; not a production capacity measurement.",
+      "capacityState": "PARTIAL",
+      "invariantState": "PASS",
+      "latencyDiagnosticState": "FAIL"
+    },
+    "historicalHashAssessment": {
+      "knownTagsMatchBaseline": true,
+      "allSixRecordedPrefixesMatch": true,
+      "crlfEquivalent": 3,
+      "originUnprovedHistorical": 3,
+      "knownBeforeThisTask": true,
+      "noHistoryRewritten": true,
+      "baselineSource": "docs/quality/evidencias/signup-code-dev-migration-20261104.json; dist/trial-dev-history-diagnostic.json retained from prior run"
+    },
+    "finalJournalProposal": {
+      "observedAt": "2026-11-12T07:55:08.661Z",
+      "status": "PREPARED_NOT_APPLICABLE_TO_SHARED_DATABASE",
+      "source": {
+        "tissRef": "1be40b15ed7533fcac54a3d89cbc821f2e17af22",
+        "financialBaseEntries": 143,
+        "orderedSnapshotEntries": 152,
+        "access": "immutable git show only; uncommitted work is excluded"
+      },
+      "tiss": [
+        {
+          "tag": "0143_tiss_catalog",
+          "idx": 143,
+          "when": 1794330000000,
+          "sha256": "9f9b483aaeff60a9ca4f5b182c3b071408a7d3eec9ecea7cfe8f98bcf602e807"
+        },
+        {
+          "tag": "0144_hi_clinic_setup",
+          "idx": 144,
+          "when": 1794367436665,
+          "sha256": "b9ac6c7a0b335582f3bf69385a3b004cf9d0784955f27d7c3cd22776a4590589"
+        },
+        {
+          "tag": "0145_hi_memberships",
+          "idx": 145,
+          "when": 1794391493822,
+          "sha256": "98425850e4c2dae613734aa337ce588df641e5c3b67476c055147cb9c82632c4"
+        },
+        {
+          "tag": "0146_hi_authorizations",
+          "idx": 146,
+          "when": 1794395869610,
+          "sha256": "15cbf34c1439cc1d7a0ca4be40267729b44c1cdea1760d5090deb10288493cb6"
+        },
+        {
+          "tag": "0147_hi_guides",
+          "idx": 147,
+          "when": 1794399173366,
+          "sha256": "a344a7e86074d90a4b13b007ef6f9e3357ac23e3b8bc43743158d131ca45238a"
+        },
+        {
+          "tag": "0148_hi_coverage_copay",
+          "idx": 148,
+          "when": 1794405160338,
+          "sha256": "45f0b90b9307c5888e8e0ac61fab9685561f89a62cdf54ea60d2bd3becfdcb0b"
+        },
+        {
+          "tag": "0149_hi_billing_gaps",
+          "idx": 149,
+          "when": 1794416643149,
+          "sha256": "56c0d5f29a409b65e0fe4fc1ac7512bbd8c979150c2252e375a375b85139d183"
+        },
+        {
+          "tag": "0150_hi_batches",
+          "idx": 150,
+          "when": 1794418524711,
+          "sha256": "e7dc279a073501a4f2e03dd95ff9773564cbc690ea2591a3e94a03f9a273c992"
+        },
+        {
+          "tag": "0151_hi_premium_gate",
+          "idx": 151,
+          "when": 1794432173857,
+          "sha256": "a0e446dbce4121c538c4a3e206a406e0977d5d1729ed14b03417a3937b71ae0b"
+        }
+      ],
+      "draft": {
+        "file": "0151_hi_premium_gate.sql",
+        "sha256": "a0e446dbce4121c538c4a3e206a406e0977d5d1729ed14b03417a3937b71ae0b",
+        "state": "PINNED_COMMIT_NOT_APPLIED_BY_THIS_MANIFEST"
+      },
+      "financialCandidate": {
+        "file": "docs/decoupling/asaas-to-abacatepay/migrations/saas_period_snapshot.candidate.sql",
+        "sha256": "5a1c7bd1a6f073972d7010998703d6f26667ee133f404dd358153fc5e2164b1a",
+        "journalEntry": null,
+        "sequencePosition": "AFTER_THE_AGREED_FROZEN_TISS_TAIL"
+      },
+      "journalProposal": {
+        "entry": {
+          "idx": 152,
+          "version": "7",
+          "breakpoints": true,
+          "when": 1794469358000,
+          "tag": "0152_saas_period_snapshot"
+        },
+        "state": "REVIEW_ONLY_NOT_RESERVED",
+        "directory": "dist/abacatepay-tiss-release",
+        "rule": "Do not apply before a fresh tail/history check, joint review and specific shared-DEV approval"
+      },
+      "integrationContract": {
+        "sql": "public.qoro_premium_denial(uuid,text)",
+        "tenantScope": "app.current_clinic must equal the authorized clinic",
+        "features": ["patient_charges", "ai_agents", "health_insurance"],
+        "paidAccess": "Verified invoice release, contracted rights, existing grace and fresh period; no grant from checkout state",
+        "moduleRelease": "Commercial permission does not enable an unapproved operational module",
+        "compatibility": "App gate may further restrict; never broaden a denial from the shared SQL gate"
+      },
+      "applicationStages": [
+        "Freeze and review the TISS tail including its premium gate; recompute all source hashes",
+        "Agree the journal position and timestamp after that tail; never backfill an older timestamp",
+        "Run disposable composition, trial, RLS, concurrency and recovery proofs on those exact inputs",
+        "Obtain specific shared-DEV SQL approval for the final reviewed hashes and execute a fresh preflight",
+        "Apply only the approved sequence atomically with lock and statement limits; run postflight"
+      ],
+      "sharedDevBaseline": {
+        "expectedLastTissTag": "0143_tiss_catalog",
+        "verifyAgainst": "Fresh authenticated history read, not migration count alone",
+        "sequence": [
+          {
+            "tag": "0144_hi_clinic_setup",
+            "idx": 144,
+            "when": 1794367436665,
+            "sha256": "b9ac6c7a0b335582f3bf69385a3b004cf9d0784955f27d7c3cd22776a4590589"
+          },
+          {
+            "tag": "0145_hi_memberships",
+            "idx": 145,
+            "when": 1794391493822,
+            "sha256": "98425850e4c2dae613734aa337ce588df641e5c3b67476c055147cb9c82632c4"
+          },
+          {
+            "tag": "0146_hi_authorizations",
+            "idx": 146,
+            "when": 1794395869610,
+            "sha256": "15cbf34c1439cc1d7a0ca4be40267729b44c1cdea1760d5090deb10288493cb6"
+          },
+          {
+            "tag": "0147_hi_guides",
+            "idx": 147,
+            "when": 1794399173366,
+            "sha256": "a344a7e86074d90a4b13b007ef6f9e3357ac23e3b8bc43743158d131ca45238a"
+          },
+          {
+            "tag": "0148_hi_coverage_copay",
+            "idx": 148,
+            "when": 1794405160338,
+            "sha256": "45f0b90b9307c5888e8e0ac61fab9685561f89a62cdf54ea60d2bd3becfdcb0b"
+          },
+          {
+            "tag": "0149_hi_billing_gaps",
+            "idx": 149,
+            "when": 1794416643149,
+            "sha256": "56c0d5f29a409b65e0fe4fc1ac7512bbd8c979150c2252e375a375b85139d183"
+          },
+          {
+            "tag": "0150_hi_batches",
+            "idx": 150,
+            "when": 1794418524711,
+            "sha256": "e7dc279a073501a4f2e03dd95ff9773564cbc690ea2591a3e94a03f9a273c992"
+          },
+          {
+            "tag": "0151_hi_premium_gate",
+            "idx": 151,
+            "when": 1794432173857,
+            "sha256": "a0e446dbce4121c538c4a3e206a406e0977d5d1729ed14b03417a3937b71ae0b"
+          }
+        ],
+        "financialFinalStep": {
+          "file": "docs/decoupling/asaas-to-abacatepay/migrations/saas_period_snapshot.candidate.sql",
+          "sha256": "5a1c7bd1a6f073972d7010998703d6f26667ee133f404dd358153fc5e2164b1a",
+          "version": "UNASSIGNED_UNTIL_TAIL_FREEZE"
+        }
+      },
+      "lockBudget": {
+        "lockTimeout": "2 seconds",
+        "statementTimeout": "15 seconds per candidate statement",
+        "impact": "ALTER TABLE obtains AccessExclusiveLock; new CHECK validates existing observations. No estimate for shared data without preflight size/long-transaction measurements.",
+        "stop": "Any timeout or changed history/hash: rollback transaction, no automatic retry or DOWN"
+      },
+      "readOnlyChecks": [
+        "dist/abacatepay-tiss-preflight.sql",
+        "dist/abacatepay-tiss-postflight.sql"
+      ],
+      "interruption": [
+        "Any source/history hash drift",
+        "Uncommitted tail",
+        "Lock timeout",
+        "Contract or tenant invariants fail"
+      ],
+      "recovery": "Rollback the failed local transaction. Shared rollout needs its approved backup and forward-fix plan; no ledger deletion or invented down migration.",
+      "journalWrites": 0,
+      "databaseWrites": 0,
+      "otherWorktreeWrites": 0
+    },
+    "finalJournalProof": {
+      "observedAt": "2026-11-12T07:55:20.155Z",
+      "status": "PASS",
+      "environment": "loopback_synthetic",
+      "tissHead": "1be40b15ed7533fcac54a3d89cbc821f2e17af22",
+      "checks": [
+        "review-only journal has 153 consecutive entries and increasing timestamps",
+        "proposed financial SQL equals the reviewed candidate hash",
+        "exact generated preflight SQL executes",
+        "real Drizzle upgrade from 0143 applies exactly nine pending entries and preserves catalog",
+        "second real migrator run applies no entries or catalog changes",
+        "all 144 baseline history entries including six historical applied hashes remain unchanged",
+        "exact generated postflight SQL executes",
+        "RLS forced and sensitive grants refused"
+      ],
+      "repositoryJournalWrites": 0,
+      "scratchJournalEntries": 153,
+      "schemaSource": "Repository schema plus pinned TISS; history-shaped DEV baseline, not a clone of DEV data",
+      "remoteWrites": 0
+    }
   }
 }

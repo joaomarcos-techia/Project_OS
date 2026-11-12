@@ -1,5 +1,15 @@
 # Execução de continuidade — novas assinaturas AbacatePay
 
+## Estado corrente de12/11/2026
+
+Os checkpoints abaixo são históricos. A fonte corrente é o [relatório45](RELATORIO-HOMOLOGACAO-FINAL.md#45-concorrência-contenção-distribuída-e-pacote-sql--12112026), com [matriz única G01–G24](MATRIZ-CENARIOS-E-TESTES.md#matriz-única-g01g24--12112026) e incremento `scalabilityFollowup` no registro de evidências existente.
+
+Implementados nesta rodada: correção reproduzida de corrida no slug de cadastro, correção reproduzida do lock de renovação que alcançava outras clínicas, contenção distribuída/circuito/429 no Redis existente, backoff persistido no inbox e batch limitado no cron. Carga100/500/1000 preservou invariantes; não comprova fila HTTP/provedor em escala. Provas financeiras120, SQL33, trial49 e pré/pós SQL4 passaram em isolamento. Os checks do SHA novo são independentes da baseline e estão registrados no PR53.
+
+A composição SQL continua fixada ao commit TISS `1be40b15ed7533fcac54a3d89cbc821f2e17af22` até0151; apenas0143 está aplicada no DEV. O candidato financeiro continua sem versão, fora do journal. Não houve escrita DEV/Production/TISS, novo pagamento ou fechamento de fixture.
+
+**NO-GO Production.** Engenharia restante: journal/composição final, varredura incremental do extrato/capacidade de execução, composição live e validação integrada final. Dependências externas: renovação não antecipável e readbacks após fechamento autorizado. Não solicitar outro pagamento inicial, probe já entregue, reinstalação de ferramentas ou repetição de MFA normal. Founder só precisa deliberar depois de receber pacote técnico concreto para o gate correspondente.
+
 **Estado mais recente — 12/11:** [trial definitivo e composição com 0151, §44](RELATORIO-HOMOLOGACAO-FINAL.md#44-trial-definitivo-e-composição-com-0151--12112026). Implementados bloqueio operacional de Asaas/IA no trial e contratação antecipada opcional, sem concessão por checkout pendente. TISS continua sem liberação operacional automática. Snapshot TISS publicado `2a707880`, até0151: **33 checks SQL, 49 trial/entitlements e 120 financeiros PASS**, somente banco local/HTTP sintético. Adapter exercitado com a função SQL real de0151; sem copiar migrations/alterar journals. SQL financeiro continua sem número/aplicação DEV. Cinco compras, Sentry Preview e MFA normal preservados, sem repetição. Baseline `c0db176a` CI PASS7016/22E2E semSKIP não aprova o incremento; Código4b666cc0 aprovado na CI43154102122:7061 testes/22E2E semSKIP; mais1/1 E2E autenticado de trial, desktop/celular, fixture antiga e contrato preservados, sem checkout. Commit documental tem checks próprios no PR53. Fechamento/renovação externos e composição live permanecem pendentes. [Evidência](evidencias/recuperacao-financeira-20261111.json). Checkpoints abaixo são históricos.
 
 
@@ -196,12 +206,3 @@ O [relatório §41](RELATORIO-HOMOLOGACAO-FINAL.md#41-recuperação-financeira-e
 PostgreSQL: 115/115 com HTTP sintético e zero rede externa; inclui os 92 anteriores. Ensaio financeiro/TISS: 5/5 sobre 0143–0147, preservando schema/RLS/catálogo em ambas as ordens e sem escrever no worktree TISS. O SQL permanece candidato sem número; DEV não foi alterado. A [coordenação, preflight e recuperação](../../runbooks/abacatepay-operacao.md#9-recuperação-sem-webhook-fechamento-e-integração-de-schema) precisam preceder autorização remota.
 
 Cinco pagamentos iniciais continuam homologados, sem repetições. Não apagar as fixtures retidas: fechamento externo e readbacks ainda exigem ensaio específico. Sentry tem ingestão/visibilidade, mas nenhuma notificação externa confirmada; API401 e browser host indisponível. MFA interno tem prova estrutural/testes, não jornada interativa; conferir provedores separadamente pelo runbook §10. Nenhuma alteração de preço/trial/cancelamento, paciente Asaas ou Production.
-# Estado corrente de12/11/2026
-
-Os checkpoints abaixo são históricos. A fonte corrente é o [relatório45](RELATORIO-HOMOLOGACAO-FINAL.md#45-concorrência-contenção-distribuída-e-pacote-sql--12112026), com [matriz única G01–G24](MATRIZ-CENARIOS-E-TESTES.md#matriz-única-g01g24--12112026) e incremento `scalabilityFollowup` no registro de evidências existente.
-
-Implementados nesta rodada: correção reproduzida de corrida no slug de cadastro, correção reproduzida do lock de renovação que alcançava outras clínicas, contenção distribuída/circuito/429 no Redis existente, backoff persistido no inbox e batch limitado no cron. Carga100/500/1000 preservou invariantes; não comprova fila HTTP/provedor em escala. Provas financeiras120, SQL33, trial49 e pré/pós SQL4 passaram em isolamento. Os checks do SHA novo são independentes da baseline e estão registrados no PR53.
-
-A composição SQL continua fixada ao commit TISS `1be40b15ed7533fcac54a3d89cbc821f2e17af22` até0151; apenas0143 está aplicada no DEV. O candidato financeiro continua sem versão, fora do journal. Não houve escrita DEV/Production/TISS, novo pagamento ou fechamento de fixture.
-
-**NO-GO Production.** Engenharia restante: journal/composição final, varredura incremental do extrato/capacidade de execução, composição live e validação integrada final. Dependências externas: renovação não antecipável e readbacks após fechamento autorizado. Não solicitar outro pagamento inicial, probe já entregue, reinstalação de ferramentas ou repetição de MFA normal. Founder só precisa deliberar depois de receber pacote técnico concreto para o gate correspondente.

@@ -6,9 +6,13 @@ import { readFile, realpath } from 'node:fs/promises';
 import { z } from 'zod';
 
 const journalSchema = z.object({
+  version: z.literal('7'),
+  dialect: z.literal('postgresql'),
   entries: z.array(
     z.object({
       idx: z.number().int(),
+      version: z.literal('7'),
+      breakpoints: z.boolean(),
       when: z.number().int(),
       tag: z.string().regex(/^\d{4}_[a-z0-9_]+$/),
     }),
