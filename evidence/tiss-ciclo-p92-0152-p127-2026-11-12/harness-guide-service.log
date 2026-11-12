@@ -1,0 +1,10 @@
+PASS: particular ou sem modalidade não gera guia; clínica com o módulo desligado também não
+PASS: consulta por convênio gera a guia pronta para conferência, com TUSS e valor do contrato e data do atendimento
+PASS: reentrega do evento devolve a guia existente, sem consumir número
+PASS: 10 entregas simultâneas do mesmo atendimento: 1 guia, contador +1 (9 viram "existente")
+PASS: dado faltando vira pendência com responsável (recepção ou gestor), sem dado pessoal e sem exigir CID; TUSS só do contrato
+PASS: retorno dentro da janela, com contrato que não paga retorno: sem guia e sem consumir número
+PASS: contrato que exige autorização: sem autorização concedida vira pendência (nenhuma é criada); com uma válida, ela é ligada
+PASS: operadora de outra clínica não é vista (RLS): sem guia, a cobertura volta como pendente
+PASS: falha do chamador desfaz a guia e devolve o número; a nova entrega cria normalmente
+OK: 9 provas do serviço de geração da Guia de Consulta sobre o schema real

@@ -1,6 +1,6 @@
 # Coordenação de migrations entre o PR #53 (billing) e o PR #55 (convênios)
 
-Atualizado em 12/11/2026 (reconferido antes de criar a 0151; antes, em 11/11 à noite, para a 0149 e a 0150). Fonte das conclusões: leitura do git (`origin/main`, `origin/feat/billing-abacatepay-20261107`
+Atualizado em 12/11/2026 (reconferido antes de criar a 0152 — main 0135, #53 0142 em `9ddc432a`, #55 0151, DEV com a 0143 como última linha conforme o ledger lido em 11/11 —; antes, para a 0151; antes, em 11/11 à noite, para a 0149 e a 0150). Fonte das conclusões: leitura do git (`origin/main`, `origin/feat/billing-abacatepay-20261107`
 em `b6965447`, `feat/convenios-tiss-20261110`) e do `drizzle.__drizzle_migrations` do DEV, só leitura
 (`evidence/tiss-migrations-2026-11-11/dev-ledger-2026-11-11.log`).
 
@@ -23,14 +23,15 @@ em `b6965447`, `feat/convenios-tiss-20261110`) e do `drizzle.__drizzle_migration
 | 0149 `hi_billing_gaps` | #55 | só no #55 | não | sim, pelo #55 |
 | 0150 `hi_batches` | #55 | só no #55 | não | sim, pelo #55 |
 | 0151 `hi_premium_gate` | #55 (D24: bloqueio comercial do trial) | só no #55 | não | sim, pelo #55 |
-| 0152 (candidata) | #55: glosas, recursos e pagamentos | ainda não existe | não | — |
+| 0152 `hi_glosses_payments` | #55: glosas (6 estados), recursos, pagamentos, conta da guia; decisão comercial com período e carência | só no #55 | não | sim, pelo #55 |
+| 0153 (candidata) | #55: ponte com o livro financeiro (P1.10: `lancamentos` da operadora, `write_off`) | ainda não existe; exige validação com dados do DEV (D23) | não | — |
 
 - O DEV tem **144 linhas** em `drizzle.__drizzle_migrations`, a última é a 0143 do convênio. As 0136–0142 do #53 vêm
   antes dela, com `when` menor, então a ordem lógica no DEV já é `…0142 (#53) → 0143 (#55)`.
 - Seis arquivos antigos (0033, 0037, 0051, 0071, 0093, 0124) não batem por hash com a linha aplicada: foram editados
   depois de aplicados, há meses, e são iguais na `main`, no #53 e no #55. O Drizzle não confere hash, só `created_at`,
   então isso não afeta a ordem. Fica registrado, sem ação neste PR.
-- O #53 está em `e8309aee` (12/11: dois commits depois de `b18407c3`, só docs e harnesses; sem migration nova, a última continua sendo a 0142, e `drizzle/` não mudou desde `a5984e23`). A prova da cadeia unida (seção 5) rodou em `e8309aee`. A UI segue na 0136. O commit `a27be742` do #53 trouxe o gate
+- O #53 está em `9ddc432a` (12/11: `4b666cc0` trouxe `src/lib/entitlements` e os gates de IA, jobs proativos e checkout; sem migration nova, a última continua sendo a 0142, e `drizzle/` não mudou desde `a5984e23`). A prova da cadeia unida (seção 5) rodou em `9ddc432a`. A UI segue na 0136. O commit `a27be742` do #53 trouxe o gate
   `assertMigrationJournalOrder`: `idx` contíguo, prefixo do arquivo = posição, `when` estritamente crescente.
 
 ## 2. Como o Drizzle decide o que aplicar
@@ -96,17 +97,17 @@ conferido e registrado no plano antes de qualquer aplicação no DEV:
 8. **Conflitos de arquivo previstos:** `_journal.json`, `docs/security/acoes.md` (inventário: regenerar), `src/lib/env.ts`,
    `src/app/api/cron/outbox/handlers.ts`, `scripts/check-handler-registry.ts`, índice de ADRs.
 
-## 5. Prova da cadeia unida com o SQL real (12/11, refeita com a 0151)
+## 5. Prova da cadeia unida com o SQL real (12/11, refeita com a 0152 e o #53 em `9ddc432a`)
 
 `scripts/security/health-insurance-union-chain-db.ts` lê as 0136–0142 do commit do #53 por `git show` (sem tocar o
 worktree dele), junta com as do #55 e aplica tudo num Postgres 17 descartável, **na ordem do DEV**: `main` 0000–0135 →
-#53 0136–0142 → #55 0143–0151. Resultado: **8/8**, com o #53 em `e8309aee` (152 migrations, prefixos contíguos).
+#53 0136–0142 → #55 0143–0152. Resultado: **9/9**, com o #53 em `9ddc432a` (153 migrations, prefixos contíguos). A rodada anterior com a 0151 deu 8/8 com o #53 em `e8309aee`.
 A rodada anterior (11/11, #53 em `b6965447`, até a 0150) deu 6/6 e encontrou o R33; com a decisão D24 os cenários
 mudaram, porque Convênios deixou de existir no trial.
 
 | Prova | Resultado |
 | --- | --- |
-| a cadeia aplica inteira (prefixos 0000–0151 contíguos) | ok |
+| a cadeia aplica inteira (prefixos 0000–0152 contíguos) | ok |
 | gatilhos das duas branches convivem em `appointments` e `lancamentos` (trial do #53 AFTER INSERT; convênio e bloqueio comercial BEFORE) | ok |
 | clínica em trial (política do #53): a decisão central nega Convênios, cobrança e IA; o módulo não liga; atendimento não vira convênio; os gatilhos do #53 barram Asaas e WhatsApp | ok |
 | particular no trial: recebível de R$ 150 e consumo da cota, como no #53 | ok |
@@ -114,6 +115,7 @@ mudaram, porque Convênios deixou de existir no trial.
 | assinatura marcada ativa sem a liberação do #53 (fatura paga verificada): Convênios continua negado | ok |
 | fatura paga libera a política do #53: Convênios liga, guia automática, coparticipação de R$ 45 | ok |
 | clínica paga: recebível cheio de convênio continua recusado pela 0148 | ok |
+| **a decisão do banco (0151/0152) e o código REAL do #53 (`evaluateModuleAccess` + a consulta de `getOperationalModuleAccessTx`, lidos por `git show`) concordam** em 8 estados (ativa, `past_due` dentro e fora da carência, cancelada no fim do período, cancelada, suspensa, pagamento pendente, trial) para cobrança de pacientes e IA | ok |
 
 **R33 (encerrado em 12/11 pela D24):** o achado de 11/11 (coparticipação barrada no limite do trial) deixou de existir no
 fluxo do produto: clínica em trial não usa Convênios, no servidor e no banco. Não houve exceção ao limite de 15 nem
@@ -125,7 +127,7 @@ existir, por consulta dinâmica: aplica sozinha na cadeia do #55 e, na ordem do 
 ## 6. Mensagem para o agente do #53
 
 > No #55 (convênios), as migrations são 0143 (`tiss_catalog`, **aplicada no DEV**, última linha, `when`
-> 1794330000000), mais 0144 a 0151 (não aplicadas). A cadeia unida com as suas 0136–0142 (`e8309aee`) foi aplicada e provada
+> 1794330000000), mais 0144 a 0152 (não aplicadas). A cadeia unida com as suas 0136–0142 (`9ddc432a`) foi aplicada e provada
 > num Postgres descartável, inclusive os seus gatilhos de trial em `appointments` e `lancamentos` ao lado dos do convênio. O pedido anterior de "começar em 0146 ou acima" estava
 > errado e fica cancelado. Com o seu gate de `idx` contíguo, qualquer migration nova sua antes do merge colide com a
 > faixa do convênio. Peço:

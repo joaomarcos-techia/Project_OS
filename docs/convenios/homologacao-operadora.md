@@ -81,6 +81,9 @@ continua sendo a prova interna e de validadores (P13).
 | H13 | Guia de Consulta impressa (PDF oficial, modelo da p. 469) | guia emitida | operadora aceita o impresso na contingência e na conferência de assinatura | PDF + aceite da operadora |
 | H14 | SP/SADT de solicitação impressa (modelo da p. 520) | solicitação registrada | operadora autoriza a partir do impresso; devolve senha e quantidade autorizada | PDF + autorização registrada |
 | H15 | Clínica piloto com assinatura paga e ativa (D24) | assinatura liberada pelo #53 | o módulo é ligado pela habilitação controlada; nenhum recurso premium em clínica em trial | estado da assinatura + registro da habilitação |
+| H16 | Demonstrativo de análise com glosa por item (tabela 38) | lote em análise | glosa registrada uma vez (reenvio do mesmo demonstrativo não duplica); guia "parcialmente glosada"; pendente correto | demonstrativo + conta da guia |
+| H17 | Recurso de glosa (XML `recursoGlosa` ou portal) com justificativa da clínica | glosa contestada | operadora devolve protocolo real; resposta (aceito, parcial, negado) decide cada glosa | protocolo + resposta registrada |
+| H18 | Demonstrativo de pagamento (integral, parcial e por lote) | guias em análise | pagamento atribuído às guias certas; parcial não quita; valor sem guia fica "não conciliado"; conciliação por uma pessoa | demonstrativo + conta e conciliação |
 
 ### 4.1 O que já pode ser testado sem operadora (12/11)
 
@@ -89,7 +92,9 @@ continua sendo a prova interna e de validadores (P13).
 | XML de lote, solicitação SP/SADT e recurso de glosa contra o XSD oficial (dois motores) | corpus `c1`/`c2`, harness de lotes | provado internamente; **não é homologação** |
 | PDF oficial da Consulta e da SP/SADT (cobrança e solicitação) contra o modelo da ANS | `tiss/print/print.test.ts`, `scripts/tiss/print/visual-check.ts` | provado internamente (posição dos rótulos, campos, paginação); aceite da operadora pendente (H13, H14) |
 | Bloqueio comercial do trial | `health-insurance-premium-gate-db.ts`, cadeia unida com o #53 | provado em Postgres descartável |
-| Protocolo, retorno, glosa, recurso e pagamento | só com operadora e clínica piloto | dependem de credenciais e de demonstrativo real (H8–H11) |
+| Validador XSD dentro do app (motor, 13 passos da exportação, rota de prontidão no build) | `xsd-engine.test.ts`, harness de lotes, `security:http` | provado internamente; falta a chamada na Preview da Vercel; **não é homologação** |
+| Glosas (6 estados), recurso (registro, protocolo, resposta), pagamentos e conta da guia | `health-insurance-glosses-payments-db.ts` (16/16) | regras provadas com dados sintéticos; o comportamento com demonstrativo real é H16–H18 |
+| Protocolo, retorno, glosa, recurso e pagamento REAIS | só com operadora e clínica piloto | dependem de credenciais e de demonstrativo real (H8–H11, H16–H18) |
 
 ## 5. Registro de cada execução
 

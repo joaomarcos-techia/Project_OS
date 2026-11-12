@@ -75,37 +75,73 @@ pode ser ligado pela habilitação controlada (`hi_clinic_settings.enabled`, ope
 
 | Harness | Resultado | O que cobre |
 | --- | --- | --- |
-| `health-insurance-premium-gate-db.ts` | 9/9 | trial 1º e 14º dia, expirado, sem assinatura, pagamento pendente, ativa, cancelada, vencida (dunning), graça, plano sem o recurso, API direta (insert como `authenticated`), serviço, worker com evento atrasado, reprocesso, recuperação após regularização (uma guia só), trial → paga, módulo desligado, isolamento entre clínicas |
-| `health-insurance-union-chain-db.ts` (main + #53 `e8309aee` + #55) | 8/8 | política REAL do #53: trial nega os 3 recursos; Convênios não liga; gatilhos do #53 barram Asaas e WhatsApp; particular igual ao #53; **R33 resolvido**: no limite de 15 recebíveis não existe convênio, logo não existe coparticipação presa, e o limite não muda; "ativa" sem fatura paga verificada continua negada; fatura paga libera, guia automática e coparticipação de R$ 45 |
-| `health-insurance-batches-db.ts` | 14/14 | assinatura cancelada: lote novo, exportação, validação direta e envio barrados; protocolo, retorno e processado do lote enviado entram; XML emitido legível; regularizada, exporta |
-| Regressões | 19/19, 29, 13, 6, 9, 24 | P7.4, clínica, cobertura, emissão, serviço da guia e guias, todos com clínica paga |
-| Unitários | `premium-access/policy.test.ts`, `billing-gap-policy.test.ts`, `consulta-guide-service.test.ts` | contrato motivo ⇔ banco, mensagens sem termo técnico, tradução só do erro conhecido, decisão do faturamento com a assinatura caída |
+| `health-insurance-premium-gate-db.ts` | 10/10 | trial 1º e 14º dia, expirado, sem assinatura, pagamento pendente, ativa, cancelada, suspensa (dunning), plano sem o recurso, API direta, serviço, worker com evento atrasado, reprocesso, recuperação após regularização, trial → paga, módulo desligado, isolamento; **carência limitada (0152)**: período em curso, assinatura antiga sem período, período vencido sem carência, `past_due` dentro e fora do `grace_period_until`, cancelada no fim do período |
+| `health-insurance-union-chain-db.ts` (main + #53 `9ddc432a` + #55) | 9/9 | política REAL do #53; R33; "ativa" sem fatura paga verificada negada; fatura paga libera; **a decisão do banco e o código REAL do #53 (`evaluateModuleAccess` + a consulta dele, lidos por `git show`) concordam em 8 estados** para cobrança de pacientes e Agentes de IA; Convênios segue indisponível no #53 até a liberação controlada |
+| `health-insurance-glosses-payments-db.ts` | 16/16 | com a assinatura cancelada, glosa do demonstrativo e conciliação de pagamento de lote já enviado continuam aceitas (preservação) |
+| `health-insurance-batches-db.ts` | 16/16 | assinatura cancelada: lote novo, exportação e envio barrados; protocolo, retorno e processado do lote enviado entram; XML emitido legível e baixável (auditado) |
+| Unitários | `premium-access/policy.test.ts`, `billing-gap-policy.test.ts`, `consulta-guide-service.test.ts`, `glosses-migration.test.ts` | contrato motivo ⇔ banco (vigente na 0152), mensagens, decisão com a assinatura caída |
 
-Permissão do usuário continua no lugar de sempre (`requireFreshPermission`: `EDIT_AGENDA`, `MANAGE_FINANCIAL`) e não é
-afrouxada pelo gate comercial; os dois se somam.
+Permissão do usuário continua no lugar de sempre (`requireFreshPermission`) e não é afrouxada pelo gate comercial;
+os dois se somam. Feature flag operacional (`hi_clinic_settings.enabled`) também se soma: assinatura paga com o módulo
+desligado não opera Convênios.
 
-## 6. O que depende do agente do PR #53 (nota objetiva)
+## 6. Integração com o PR #53 (estado em `9ddc432a`) e nota para o agente da AbacatePay
 
-O #55 **não** altera Asaas, WhatsApp nem Agente de IA (arquivos do #53 e do núcleo), para não conflitar nem mudar
-produção por dentro do PR de convênio. A integração recomendada:
+**O que o #53 já fechou** (lido no diff `e8309aee..9ddc432a`, sem tocar o worktree dele): central própria
+`src/lib/entitlements` (`getOperationalModuleAccess`), que consulta a `qoro_premium_denial` do #55 quando ela existe
+(N/N-1); gate na entrada do Agente de IA (`inbound-received`), nos jobs proativos (sinal, saldo e dunning = cobrança;
+o resto = IA; job negado é cancelado com o motivo), revalidação dentro da transação da ferramenta do agente, gate no
+checkout hospedado de cobrança e prazo único de trial (`QORO_TRIAL_DAYS` no lugar do `QORO_SELF_SERVICE_TRIAL_DAYS`).
 
-1. **Usar a decisão central** antes de qualquer efeito de cobrança de paciente ou de IA:
-   `assertPremiumFeatureTx(tx, clinicId, 'patient_charges' | 'ai_agents')` (de `src/lib/premium-access`, que entra
-   com o #55), além do `assertTrialPaidFeatureTx` atual. Pontos: `createInitialHostedCheckout` e
-   `renewRemainderHostedCheckout` (`payments/internal/hosted-checkout.ts`), conexão da conta (`account-store.ts`),
-   `processProactiveBatch` (crons `proactive-*`), entrada do webhook do WhatsApp antes do turno do agente, e as ações
-   de `ai-agent/actions.ts`.
-2. **Fechar a brecha (b)** (assinatura paga que cancela): hoje a política liberada não volta e o ator de sistema ignora
-   o status. A decisão central já nega `subscription_cancelled`/`clinic_suspended`; basta consultá-la nesses fluxos
-   automáticos. Isso não apaga nada: só impede efeito novo (cobrança, mensagem do agente).
-3. **Brecha (a)** (trials e planos legados não inscritos): a decisão central nega pelo `billing_status = 'trial'`,
-   inscrito ou não. Se o #53 quiser a mesma regra nos gatilhos dele, é ampliar a inscrição; não há prazo comercial
-   novo nisso.
-4. **Prazo do trial:** a oferta 2026 usa 14 dias; o caminho antigo ainda usa `QORO_SELF_SERVICE_TRIAL_DAYS = 7`. Vale
-   confirmar se esse caminho ainda é alcançável, à luz da decisão de 14 dias.
-5. **Telas:** o aviso "este recurso está disponível para clínicas com assinatura ativa" deve seguir o redesign; o #55
-   não cria tela provisória. `premiumDenialMessage(feature, reason)` dá o texto.
-6. **Ordem de merge:** a 0151 do #55 lê `trial_access_policies` só se a tabela existir; com o #53 aplicado antes (ordem
-   do DEV), a política dele passa a valer na decisão central sem mudança de código.
+**Alinhamento provado:** a 0152 trouxe para o banco a mesma regra de período e carência do `evaluateModuleAccess`
+(período vencido sem carência, carência expirada e cancelamento no fim do período negam). A cadeia unida compara as
+duas decisões em 8 estados e elas concordam.
 
-Nada disso foi feito no worktree do #53.
+**Nota objetiva para o agente do #53** (nada foi alterado no worktree dele):
+
+1. **Conexão da conta Asaas e do WhatsApp com assinatura paga que caiu:** os gatilhos `qoro_trial_limit_*` cobrem o
+   trial inscrito; para clínica paga que cancelou ou foi suspensa, conferir se `account-store` e a conexão do
+   WhatsApp também consultam `getOperationalModuleAccess` (o diff de `9ddc432a` não mostra mudança nesses arquivos).
+2. **Trials antigos não inscritos em `trial_access_policies`:** a decisão do banco nega por `billing_status = 'trial'`,
+   inscrito ou não, e a do #53 também (`billing_status === 'trial'`). Fica coberto pelas duas.
+3. **`grace_period_until`:** a regra do banco (0152) depende de o billing gravar a carência, como o #53 já faz
+   (fim do período + dias de dunning; cancelamento = fim do período). Assinatura antiga sem período registrado segue o
+   status que o dunning escreve na clínica. Se o #53 mudar essa política, a 0152 precisa acompanhar (a prova da cadeia
+   unida falha na hora se divergir).
+4. **Convênios no #53:** `module_unavailable` até a liberação controlada é coerente com a D24 e com a habilitação
+   operacional do #55; não exige mudança.
+5. **Teste intermitente da assinatura** (`plan-change-form.test.tsx`): reprodução determinística e correção proposta
+   em `docs/convenios/teste-intermitente-assinatura.md`; o arquivo é da área do #53.
+6. **Ordem de merge:** #53 antes (ordem do DEV: 0136–0142), depois #55 (0143–0152). A central do #53 já é N/N-1: sem a
+   0151/0152 ela decide sozinha; com elas, o banco restringe junto.
+
+## 7. Assinatura com fatura em atraso (`past_due`) e dunning — matriz de estados
+
+Direção do fundador (12/11): não mudar agora a política global de dunning; separar **operações comerciais novas** de
+**operações de preservação e regularização**; carência só a prevista; nunca ilimitada; `past_due` nunca é pagamento.
+
+| Estado da assinatura | Operação nova (ligar módulo, criar guia, lote, exportar, enviar, confirmar coparticipação) | Preservação (ler guia, baixar PDF/XML emitido, protocolo e retorno de lote enviado, glosa, recurso, pagamento da operadora, conciliação, auditoria, desligar módulo) |
+| --- | --- | --- |
+| Trial (qualquer dia) ou trial expirado | **negada** (`trial`/`trial_expired`) | não há o que preservar (nada de Convênios existe no trial) |
+| Paga, ativa, período em curso | permitida (com a habilitação operacional) | permitida |
+| `past_due` dentro de `grace_period_until` | permitida (carência gravada pelo billing) | permitida |
+| `past_due` depois da carência | **negada** (`period_expired`) | **permitida** |
+| Cancelada no fim do período, período vencido | **negada** (`period_expired`, sem carência) | **permitida** |
+| Cancelada | **negada** (`subscription_cancelled`) | **permitida** |
+| Clínica suspensa pelo dunning | **negada** (`clinic_suspended`) | **permitida** (leitura; o gate de escrita da clínica continua valendo para o resto do app) |
+| "Ativa" sem fatura paga verificada (#53) | **negada** (`payment_pending`) | permitida |
+| Plano sem o recurso | **negada** (`plan_excludes`) | permitida |
+
+Atendimento concluído enquanto a assinatura está caída vira **pendência automática** "assinatura inativa" (reavaliada a
+cada 24 h, sem teto); a guia é gerada quando a clínica regulariza — a suspensão nunca apaga nem impede tratar o que já
+existe.
+
+**Decisões comerciais que ainda precisam da sua aprovação:**
+
+- **D24-a — Recurso de glosa com a assinatura suspensa:** classifiquei como preservação (contesta obrigação já faturada;
+  bloquear pode fazer a clínica perder o prazo do recurso e o dinheiro). Se preferir tratar como operação nova, é uma
+  linha no gatilho comercial da 0152.
+- **D24-b — Duração da carência:** hoje é a que o billing grava (`DUNNING_READONLY_DAYS` do #53). Se a carência de
+  Convênios deve ser diferente da do resto do Qoro, é decisão sua com o agente da AbacatePay.
+- **D24-c — Assinatura antiga sem período registrado:** segue o status do dunning na clínica (como no #53). Se quiser
+  exigir período registrado também para elas, o banco e o #53 precisam mudar juntos.
