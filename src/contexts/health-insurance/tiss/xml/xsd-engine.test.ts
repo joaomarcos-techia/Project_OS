@@ -73,6 +73,9 @@ describe('motor XSD dentro do app', () => {
   });
 
   it('confere o corpus c1 e c2 inteiro com a expectativa do XSD (P13.2 no CI)', async () => {
+    // Motor próprio com 4 workers: o corpus tem ~50 arquivos e cada validação compila os XSD.
+    const corpusEngine = createTissXsdEngine({ maxConcurrency: 4, maxQueue: 100, timeoutMs: 120_000 });
+    const checks: Array<Promise<void>> = [];
     for (const corpus of ['c1', 'c2']) {
       const dir = path.join(process.cwd(), 'data/tiss/corpus/4.03.00', corpus);
       const manifest = JSON.parse(readFileSync(path.join(dir, 'MANIFEST.json'), 'utf8')) as {
@@ -80,14 +83,20 @@ describe('motor XSD dentro do app', () => {
       };
       for (const e of manifest.scenarios) {
         if (!e.file) continue;
-        const r = await engine.validate({ bytes: readFileSync(path.join(dir, e.file)) });
-        // A versão antiga no cabeçalho passa no XSD, mas o Qoro recusa antes (envelope).
-        const oldVersion = e.expectedIssues?.includes('BATCH_VERSION') ?? false;
-        expect(r.valid, `${corpus}/${e.id}`).toBe(!e.rejectedBy.includes('xsd') && !oldVersion);
-        if (oldVersion) expect(r.errors[0], e.id).toMatch(/^VERSION_UNSUPPORTED/u);
+        const file = e.file;
+        checks.push(
+          corpusEngine.validate({ bytes: readFileSync(path.join(dir, file)) }).then((r) => {
+            // A versão antiga no cabeçalho passa no XSD, mas o Qoro recusa antes (envelope).
+            const oldVersion = e.expectedIssues?.includes('BATCH_VERSION') ?? false;
+            expect(r.valid, `${corpus}/${e.id}`).toBe(!e.rejectedBy.includes('xsd') && !oldVersion);
+            if (oldVersion) expect(r.errors[0], e.id).toMatch(/^VERSION_UNSUPPORTED/u);
+          }),
+        );
       }
     }
-  }, 120_000);
+    expect(checks.length).toBeGreaterThan(40);
+    await Promise.all(checks);
+  }, 300_000);
 
   it('campo obrigatório ausente e procedimento fora do formato são recusados pelo XSD', async () => {
     const text = validBytes().toString('latin1');
