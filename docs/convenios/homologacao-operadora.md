@@ -84,6 +84,9 @@ continua sendo a prova interna e de validadores (P13).
 | H16 | Demonstrativo de análise com glosa por item (tabela 38) | lote em análise | glosa registrada uma vez (reenvio do mesmo demonstrativo não duplica); guia "parcialmente glosada"; pendente correto | demonstrativo + conta da guia |
 | H17 | Recurso de glosa (XML `recursoGlosa` ou portal) com justificativa da clínica | glosa contestada | operadora devolve protocolo real; resposta (aceito, parcial, negado) decide cada glosa | protocolo + resposta registrada |
 | H18 | Demonstrativo de pagamento (integral, parcial e por lote) | guias em análise | pagamento atribuído às guias certas; parcial não quita; valor sem guia fica "não conciliado"; conciliação por uma pessoa | demonstrativo + conta e conciliação |
+| H19 | Demonstrativo XML REAL da operadora importado pelo Qoro (P9.5) | lote enviado com protocolo | o arquivo passa no XSD e no hash; operadora e prestador conferem; glosas e pagamentos aplicados uma vez; o que não confere aparece como divergência (nunca aplicado "por aproximação"); débitos da operadora conferidos por uma pessoa | arquivo da operadora (guardado cifrado) + resultado da importação + auditoria |
+| H20 | XML de recurso de glosa gerado pelo Qoro aceito pela operadora (P9.7) | glosa contestada com justificativa da clínica | a operadora aceita o `recursoGlosa` (protocolo real) e responde | XML enviado (SHA-256) + protocolo + resposta |
+| H21 | Recebível no financeiro da clínica (0153) igual ao extrato da operadora | 0144–0154 aplicadas no ambiente, guias pagas e glosadas | faturado, recebido e glosa definitiva no Caixa e nos relatórios batem com o demonstrativo; nada cobrado do paciente | conferência do financeiro × demonstrativo |
 
 ### 4.1 O que já pode ser testado sem operadora (12/11)
 

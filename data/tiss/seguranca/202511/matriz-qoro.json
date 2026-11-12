@@ -148,12 +148,12 @@
     {
       "id": 56,
       "situacao": "interpretacao",
-      "evidencia": "geração de XML/PDF em memória, sem arquivo temporário; arquivos guardados cifrados por clínica no armazenamento privado, lidos só pelo servidor com os dois SHA-256 conferidos (tiss-file-access.ts, P12.7; bucket ainda não criado, depende de autorização). Alcance de 'fora do SGBD' a confirmar (S9)"
+      "evidencia": "geração de XML/PDF em memória, sem arquivo temporário; arquivos guardados cifrados por clínica no armazenamento privado, lidos só pelo servidor com os dois SHA-256 conferidos (tiss-file-access.ts, P12.7; bucket ainda não criado, depende de autorização). Alcance de 'fora do SGBD' a confirmar (S9); 12/11 (tarde): bucket privado tiss-files criado só no DEV (sem política pública) e aceite 13/13 contra o bucket real: objeto guardado sem XML nem dado em claro, chave publicável não lê/lista/grava, sem URL pública ou assinada"
     },
     {
       "id": 57,
       "situacao": "parcial",
-      "evidencia": "audit_events em toda mutação; leitura auditada com finalidade do prontuário, da carteirinha (membership-access.ts), do conteúdo emitido da guia, inclusive a impressão do PDF (guide-access.ts, operação guide_pdf), do XML do lote e de todo arquivo TISS baixado (tiss-file-access.ts: concedida, adulterada ou ausente, com a auditoria da falha confirmada antes do erro); exportação de lote auditada (health_insurance.batch.exported); faltam as leituras de cadastro e listagens fora do módulo"
+      "evidencia": "audit_events em toda mutação; leitura auditada com finalidade do prontuário, da carteirinha (membership-access.ts), do conteúdo emitido da guia, inclusive a impressão do PDF (guide-access.ts, operação guide_pdf), do XML do lote e de todo arquivo TISS baixado (tiss-file-access.ts: concedida, adulterada ou ausente, com a auditoria da falha confirmada antes do erro); exportação de lote auditada (health_insurance.batch.exported); faltam as leituras de cadastro e listagens fora do módulo; 12/11 (tarde): auditoria também da geração do XML do recurso de glosa (sem o texto da justificativa), da importação de demonstrativos (tipo, SHA-256, lotes, efeitos e divergências) e das 20 ações da interface de Convênios, na mesma transação"
     },
     {
       "id": 58,
@@ -263,7 +263,7 @@
     {
       "id": 85,
       "situacao": "parcial",
-      "evidencia": "leitura de carteirinha, guia emitida (tela, PDF, lote, faturamento), XML do lote e arquivos TISS baixados com usuário ou serviço, data, dado acessado, operação e finalidade declarada, auditoria fail-closed e falha de integridade/ausência registrada (guide-access.ts, tiss-file-access.ts); falta a imutabilidade de 180 dias da audit_events (S5) e a disponibilização ao titular"
+      "evidencia": "leitura de carteirinha, guia emitida (tela, PDF, lote, faturamento), XML do lote e arquivos TISS baixados com usuário ou serviço, data, dado acessado, operação e finalidade declarada, auditoria fail-closed e falha de integridade/ausência registrada (guide-access.ts, tiss-file-access.ts); falta a imutabilidade de 180 dias da audit_events (S5) e a disponibilização ao titular; 12/11 (tarde): importação de demonstrativo auditada sem beneficiário nem carteirinha; leitura de XML de recurso pelo download auditado"
     },
     {
       "id": 86,
