@@ -52,7 +52,7 @@ export default async function GuiasPage({ searchParams }: { searchParams: Search
   const pageHref = (p: number) => {
     const q = new URLSearchParams();
     for (const [k, v] of Object.entries({ ...filters, page: String(p) })) if (v) q.set(k, String(v));
-    return `/financeiro/convenios/guias?${q.toString()}`;
+    return `/convenios/guias?${q.toString()}`;
   };
 
   return (
@@ -111,7 +111,7 @@ export default async function GuiasPage({ searchParams }: { searchParams: Search
                 return (
                   <TableRow key={g.id}>
                     <TableCell>
-                      <Link href={`/financeiro/convenios/guias/${g.id}`} className="font-medium hover:underline">
+                      <Link href={`/convenios/guias/${g.id}`} className="font-medium hover:underline">
                         {g.guideType === 'sp_sadt' ? 'SP/SADT' : 'Consulta'} {g.number}
                       </Link>
                     </TableCell>

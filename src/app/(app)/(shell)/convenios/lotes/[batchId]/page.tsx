@@ -45,7 +45,7 @@ export default async function LotePage({ params }: { params: Promise<{ batchId: 
       <ConveniosHeader
         title={`Lote ${b.number}`}
         description={`${b.insurerName} · ${b.guideCount} guia(s) · ${brl(b.totalValueCents)}`}
-        crumbs={[{ label: 'Lotes', href: '/financeiro/convenios/lotes' }, { label: b.number }]}
+        crumbs={[{ label: 'Lotes', href: '/convenios/lotes' }, { label: b.number }]}
         actions={
           b.fileId ? (
             <a href={`/financeiro/convenios/arquivos/${b.fileId}`} className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
@@ -120,7 +120,7 @@ export default async function LotePage({ params }: { params: Promise<{ batchId: 
               {b.guides.map((g) => (
                 <TableRow key={g.id}>
                   <TableCell>
-                    <Link href={`/financeiro/convenios/guias/${g.id}`} className="hover:underline">
+                    <Link href={`/convenios/guias/${g.id}`} className="hover:underline">
                       {g.number}
                     </Link>
                   </TableCell>
@@ -150,7 +150,7 @@ export default async function LotePage({ params }: { params: Promise<{ batchId: 
                   <span className="text-fg-muted">em {shortDate(p.paidOn)}</span>
                   {p.statementRef ? <span>demonstrativo {p.statementRef}</span> : null}
                   {p.unreconciledCents > 0 ? (
-                    <Link href="/financeiro/convenios/conciliacao" className="text-warning-700 hover:underline">
+                    <Link href="/convenios/conciliacao" className="text-warning-700 hover:underline">
                       {brl(p.unreconciledCents)} sem conciliar
                     </Link>
                   ) : (

@@ -82,7 +82,7 @@ describe('ações de Convênios', () => {
     expect(r).toEqual({ ok: true, data: 'lote-1' });
     expect(m.createBatchInTx).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ clinicId: CLINIC, idempotencyKey: 'ui:chave-123456' }));
     expect(m.logAudit).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ clinicId: CLINIC, userId: 'u1', action: 'health_insurance.batch.created', resourceId: 'lote-1' }));
-    expect(m.revalidatePath).toHaveBeenCalledWith('/financeiro/convenios', 'layout');
+    expect(m.revalidatePath).toHaveBeenCalledWith('/convenios', 'layout');
   });
 
   it('regra do banco vira a mensagem do banco; erro desconhecido vira mensagem genérica (sem detalhe técnico)', async () => {

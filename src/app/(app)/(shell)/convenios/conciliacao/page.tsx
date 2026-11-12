@@ -60,7 +60,7 @@ export default async function ConciliacaoPage() {
                 <span className="tabular-nums">{brl(p.amountCents)}</span>
                 <span className="text-fg-muted">alocado {brl(p.allocatedCents)}</span>
                 {p.batchNumber ? (
-                  <Link href={`/financeiro/convenios/lotes?status=`} className="text-fg-muted hover:underline">
+                  <Link href={`/convenios/lotes?status=`} className="text-fg-muted hover:underline">
                     lote {p.batchNumber}
                   </Link>
                 ) : null}

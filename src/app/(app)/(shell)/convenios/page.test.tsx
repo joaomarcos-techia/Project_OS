@@ -12,7 +12,7 @@ const m = vi.hoisted(() => ({
   getGuideDetail: vi.fn(),
 }));
 
-vi.mock('next/navigation', () => ({ usePathname: () => '/financeiro/convenios', useSearchParams: () => new URLSearchParams(), useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }), notFound: () => { throw new Error('404'); } }));
+vi.mock('next/navigation', () => ({ usePathname: () => '/convenios', useSearchParams: () => new URLSearchParams(), useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }), notFound: () => { throw new Error('404'); } }));
 vi.mock('@/contexts/health-insurance/actions', () => {
   const a = () => Object.assign(vi.fn(), { bind: () => vi.fn() });
   return {

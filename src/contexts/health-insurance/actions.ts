@@ -34,7 +34,7 @@ import { loadXmllintValidator } from './tiss/xml/xsd-validator';
 
 export type ActionResult<T = null> = { ok: true; data: T } | { ok: false; error: string };
 
-const BASE = '/financeiro/convenios';
+const BASE = '/convenios';
 const uuid = z.string().uuid();
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/u, 'Data inválida');
 const version = z.number().int().min(1);

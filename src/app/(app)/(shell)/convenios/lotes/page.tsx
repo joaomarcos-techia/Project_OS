@@ -51,7 +51,7 @@ export default async function LotesPage({ searchParams }: { searchParams: Search
               {batches.map((b) => (
                 <TableRow key={b.id}>
                   <TableCell>
-                    <Link href={`/financeiro/convenios/lotes/${b.id}`} className="font-medium hover:underline">
+                    <Link href={`/convenios/lotes/${b.id}`} className="font-medium hover:underline">
                       {b.number}
                     </Link>
                   </TableCell>

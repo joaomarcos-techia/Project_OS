@@ -1,6 +1,6 @@
 # Coordenação de migrations entre o PR #53 (billing) e o PR #55 (convênios)
 
-Atualizado em 12/11/2026 (reconferido antes de criar a 0152 — main 0135, #53 0142 em `9ddc432a`, #55 0151, DEV com a 0143 como última linha conforme o ledger lido em 11/11 —; antes, para a 0151; antes, em 11/11 à noite, para a 0149 e a 0150). Fonte das conclusões: leitura do git (`origin/main`, `origin/feat/billing-abacatepay-20261107`
+Atualizado em 12/11/2026, tarde (reconferido antes de criar a 0153 e a 0154 — main 0135, #53 0142 em `8c591c8f`, sem migration nova desde `9ddc432a`, #55 0152 —; antes, para a 0152 — main 0135, #53 0142 em `9ddc432a`, #55 0151, DEV com a 0143 como última linha conforme o ledger lido em 11/11 —; antes, para a 0151; antes, em 11/11 à noite, para a 0149 e a 0150). Fonte das conclusões: leitura do git (`origin/main`, `origin/feat/billing-abacatepay-20261107`
 em `b6965447`, `feat/convenios-tiss-20261110`) e do `drizzle.__drizzle_migrations` do DEV, só leitura
 (`evidence/tiss-migrations-2026-11-11/dev-ledger-2026-11-11.log`).
 
@@ -24,6 +24,8 @@ em `b6965447`, `feat/convenios-tiss-20261110`) e do `drizzle.__drizzle_migration
 | 0150 `hi_batches` | #55 | só no #55 | não | sim, pelo #55 |
 | 0151 `hi_premium_gate` | #55 (D24: bloqueio comercial do trial) | só no #55 | não | sim, pelo #55 |
 | 0152 `hi_glosses_payments` | #55: glosas (6 estados), recursos, pagamentos, conta da guia; decisão comercial com período e carência | só no #55 | não | sim, pelo #55 |
+| 0153 `hi_ledger_bridge` | #55: ponte da conta da guia com `lancamentos`/`payment_transactions` (candidata; plano em `aplicacao-0153.md`) | só no #55 | não | sim, pelo #55 |
+| 0154 `hi_premium_period_evidence` | #55: D24-b (regras de período do #53 no banco) e D24-c (`period_unverified`, visão administrativa) | só no #55 | não | sim, pelo #55 |
 | 0153 (candidata) | #55: ponte com o livro financeiro (P1.10: `lancamentos` da operadora, `write_off`) | ainda não existe; exige validação com dados do DEV (D23) | não | — |
 
 - O DEV tem **144 linhas** em `drizzle.__drizzle_migrations`, a última é a 0143 do convênio. As 0136–0142 do #53 vêm
@@ -138,3 +140,11 @@ existir, por consulta dinâmica: aplica sozinha na cadeia do #55 e, na ordem do 
 > 3. nunca usar `when` menor ou igual a 1794330000000: no DEV ela seria ignorada em silêncio.
 >
 > Detalhes: `docs/convenios/coordenacao-migrations.md` no branch `feat/convenios-tiss-20261110`.
+
+
+## 7. Atualização de 12/11 (tarde): 0153, 0154 e o #53 em `8c591c8f`
+
+- **#53 em `8c591c8f`:** sem migration nova; acrescentou `scripts/security/abacatepay-tiss-composition.ts`, que lê a cauda do TISS e só propõe a candidata financeira dele (`saas_period_snapshot.candidate.sql`) **depois** da cauda congelada (a proposta "0152" dele se anula quando o TISS já tem a 0152 — e tem). Nada foi alterado no worktree do #53.
+- **#55:** 0153 (ponte com o livro) e 0154 (período pago verificável) no journal, `when` crescente, prefixos contíguos. A candidata do #53 entra depois da 0154 (número e `when` decididos juntos).
+- **Cadeia unida 10/10** (main + #53 `8c591c8f` + #55 0143–0154): aplica inteira; gatilhos de trial do #53 convivem com as guardas da 0153 em `lancamentos` e `payment_transactions`; a decisão do banco = código real do #53 em 10 estados (os 8 anteriores + período no futuro + coorte do #53 sem período).
+- **Mensagem para o agente do #53:** (1) a 0153 redefine `validate_payment_transaction_insert` com o caminho não-convênio idêntico ao da 0073 (teste estático) — se o #53 tocar essa função, avisar; (2) a 0154 alinha o banco às regras de período do `evaluateModuleAccess`; (3) a visão `qoro_subscription_period_audit` (D24-c) é a lista para a reconciliação do billing; (4) achado R38: o gatilho do livro (código da `main`) faz varredura por pagamento — correção proposta ao fundador.

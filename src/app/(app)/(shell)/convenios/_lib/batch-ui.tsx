@@ -68,7 +68,7 @@ export function NewBatchForm({
       className="flex flex-col gap-(--sp-3)"
       onSubmit={(e) => {
         e.preventDefault();
-        submit(() => createBatchAction({ insurerId, guideIds: chosen, idempotencyKey: key }), 'Lote montado', (batchId) => router.push(`/financeiro/convenios/lotes/${batchId}`));
+        submit(() => createBatchAction({ insurerId, guideIds: chosen, idempotencyKey: key }), 'Lote montado', (batchId) => router.push(`/convenios/lotes/${batchId}`));
       }}
     >
       <Field label="Operadora" htmlFor={`${id}-ins`} required>

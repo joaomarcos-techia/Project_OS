@@ -1,7 +1,6 @@
 # Armazenamento privado dos arquivos TISS (P12.7)
 
-**Estado:** implementado e testado em ambiente isolado. **O bucket `tiss-files` ainda não existe em DEV nem em
-produção**: criar bucket compartilhado exige autorização específica do fundador. Sem o bucket, nenhuma exportação
+**Estado (12/11, tarde):** implementado, testado e **validado no DEV**: o bucket privado `tiss-files` foi criado **só no DEV** (autorização do fundador de 12/11) pela API de Storage — sem SQL/DDL e sem nenhuma política para `anon`/`authenticated` — e o aceite rodou contra ele (13/13). **Em produção o bucket não existe**: criar exige outra autorização. Sem o bucket, nenhuma exportação
 grava arquivo (a gravação falha, a transação não confirma e o lote fica "preparado"), então ligar Convênios para uma
 clínica depende deste passo.
 
@@ -45,7 +44,7 @@ depois do gate e da consulta presa à clínica da sessão.
 - **Encerramento da clínica:** o `ON DELETE CASCADE` de `clinics` remove os metadados; o objeto vira órfão e só é
   descartado pela conferência. A política de guarda depois do encerramento é parte de B6.
 
-## Provisionamento (pendente de autorização)
+## Provisionamento (DEV feito em 12/11; produção pendente de autorização)
 
 1. Rodar `docs/convenios/infra/tiss-files-bucket.sql` no projeto alvo (DEV primeiro), com autorização.
 2. Conferir: uma linha com `public = false`, nenhuma política de `storage.objects` para o bucket.
@@ -59,4 +58,5 @@ depois do gate e da consulta presa à clínica da sessão.
   conferência (ausente e órfão), descarte só de órfão fora da carência.
 - `src/contexts/health-insurance/internal/tiss-file-access.test.ts`: plano de consistência (órfão, ausente,
   carência, sem data, retenção).
-- Pendente: prova contra o bucket real (depende do provisionamento autorizado).
+- `scripts/security/health-insurance-storage-dev-bucket.ts` — **contra o bucket real do DEV** (metadados em Postgres descartável): upload e download autorizados, outra clínica e chave publicável negadas (sem download, listagem ou gravação), URL "pública" 400, cifrado, SHA-256, adulterado e ausente recusados com auditoria, falha REAL de credencial (lote fica preparado, nada no bucket), reprocessamento idempotente, 6 exportações concorrentes, só `application/octet-stream`, órfão dentro/fora da carência, sem dado sensível em log; objetos sintéticos removidos no fim. Evidência: `evidence/tiss-ciclo-infra-0153-2026-11-12/`.
+- **Reversão no DEV** (só enquanto o bucket tiver apenas dados sintéticos): esvaziar e apagar o bucket pela API de Storage (`POST /storage/v1/bucket/tiss-files/empty`, `DELETE /storage/v1/bucket/tiss-files`).

@@ -46,7 +46,7 @@ export default async function GuiaPage({ params }: { params: Promise<{ guideId: 
       <ConveniosHeader
         title={`Guia ${label}`}
         description={`${g.insurerName}${g.patientName ? ` · ${g.patientName}` : ''}`}
-        crumbs={[{ label: 'Guias', href: '/financeiro/convenios/guias' }, { label }]}
+        crumbs={[{ label: 'Guias', href: '/convenios/guias' }, { label }]}
         actions={
           ISSUED.includes(g.status) ? (
             <a href={`/financeiro/convenios/guias/${g.id}/pdf`} target="_blank" rel="noopener" className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
@@ -69,7 +69,7 @@ export default async function GuiaPage({ params }: { params: Promise<{ guideId: 
             </div>
             <div>
               <dt className="text-fg-muted">Lote</dt>
-              <dd>{g.batchId ? <Link href={`/financeiro/convenios/lotes/${g.batchId}`} className="hover:underline">{g.batchNumber}</Link> : '—'}</dd>
+              <dd>{g.batchId ? <Link href={`/convenios/lotes/${g.batchId}`} className="hover:underline">{g.batchNumber}</Link> : '—'}</dd>
             </div>
             <div>
               <dt className="text-fg-muted">Revisão</dt>

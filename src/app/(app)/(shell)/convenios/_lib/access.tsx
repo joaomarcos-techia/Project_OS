@@ -62,7 +62,7 @@ export function ConveniosHeader({
   return (
     <>
       <PageHeader
-        crumbs={[{ label: 'Financeiro', href: '/financeiro' }, { label: 'Convênios', href: '/financeiro/convenios' }, ...crumbs]}
+        crumbs={[{ label: 'Convênios', href: '/convenios' }, ...crumbs]}
         title={title}
         {...(description ? { description } : {})}
         {...(actions ? { actions } : {})}
