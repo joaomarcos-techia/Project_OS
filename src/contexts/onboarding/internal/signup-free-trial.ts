@@ -16,7 +16,7 @@ import { env } from '@/lib/env';
 import { deferredSaasSignupEnabled } from '@/lib/payments/saas/acquisition';
 
 import { signupSessions } from '../schema';
-import { QORO_SELF_SERVICE_TRIAL_DAYS } from '../trial';
+import { QORO_TRIAL_DAYS } from '../trial';
 import { OnboardingProvisionError, provisionTenantCoreTx } from './saga';
 import { resolveAvailableSlug } from './signup-provision';
 import { resolveDeferredSignupTrialTerms } from './signup-deferred-trial';
@@ -173,7 +173,7 @@ export async function provisionFreeSignupTrialTx(
       priceId: price.priceId,
       priceAmount: Number(price.amount),
       billingCycle: 'monthly',
-      trialDays: QORO_SELF_SERVICE_TRIAL_DAYS,
+      trialDays: QORO_TRIAL_DAYS,
       trialEndsAt: terms.trialEndsAt,
       enforceTrialDeadline: true,
       rejectExistingOwner: true,

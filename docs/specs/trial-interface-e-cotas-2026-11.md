@@ -4,7 +4,7 @@ Decisão do founder em 08/11/2026. Implementação candidata em `feat/billing-ab
 
 ## Regra aprovada
 
-O trial continua com prazo absoluto de 14 dias desde a criação no Auth. Na jornada candidata AbacatePay, o Qoro controla o prazo e solicita o checkout ao final. Esta entrega de cotas não troca a jornada Asaas existente nem ativa o gateway candidato.
+O trial continua com prazo absoluto de 14 dias desde a criação no Auth. Na jornada candidata AbacatePay, o Qoro controla o prazo e permite contratar durante ou após a avaliação, conforme a decisão definitiva do founder incorporada em 12/11. O período pago começa na contratação financeiramente confirmada, sem somar os dias restantes do trial. A avaliação não cria checkout nem cobrança por conta própria. Esta candidata não troca a jornada Asaas existente nem ativa o gateway em produção.
 
 | Categoria | Total permitido durante a avaliação |
 | --- | ---: |
@@ -24,7 +24,9 @@ As cotas são por clínica, cumulativas durante toda a avaliação, sem reiníci
 
 Estornos e correções financeiras referenciadas não são novas vendas e não devem ser impedidos pela cota. Eventos, auditorias, versões técnicas e processamento de pagamentos não recebem cotas arbitrárias: limitar essas linhas quebraria consistência e segurança. As cotas aprovadas são as entidades comerciais da tabela, não todo `INSERT` técnico.
 
-Após o pagamento, as restrições desta avaliação desaparecem. Permanecem as vagas de médicos/equipe contratadas, permissões, limites técnicos de segurança, rate limits e obrigações de reconciliação. Não há alteração de preço, vencimento, desconto vitalício ou direito legado.
+Durante a avaliação, cobranças e links Asaas de pacientes, réguas automáticas, agentes de IA e operações de Convênios TISS ficam bloqueados no servidor. Não basta esconder menus. O checkout SaaS AbacatePay continua disponível para a contratação opcional. Pagamento pendente, callback e estado informado pelo navegador não concedem direitos.
+
+Após o pagamento verificado, as cotas temporárias desta avaliação deixam de limitar a clínica. Permanecem as vagas de médicos/equipe contratadas, permissões, flags, disponibilidade operacional do módulo, limites técnicos de segurança, rate limits e obrigações de reconciliação. **Pagamento não libera TISS ou agentes ainda não aprovados operacionalmente.** Não há alteração do preço nem do desconto vitalício de contratos existentes. Os estados de inadimplência preservam a tolerância já aprovada, sem inventar um novo período pago.
 
 ## Quem recebe a regra
 
@@ -40,12 +42,14 @@ Migration e funções verificam que seu proprietário tem os privilégios necess
 
 `releaseTrialAfterVerifiedPaymentTx` só deve ser chamado por código privilegiado após leitura autoritativa do provedor. O fluxo Asaas existente chama a função na mesma transação de `markInvoicePaid`, após a ativação válida e a atualização do acesso. Uma assinatura cancelada não passa por essa liberação.
 
-A função exige invoice positiva, paga, com data de pagamento e pertencente à mesma clínica/assinatura. Não aceita pagamento de paciente, invoice de outra clínica, invoice aberta ou zero. Não existe RPC pública de liberação. Marcar a assinatura como `active`, voltar pelo callback ou forjar uma invoice com a sessão `authenticated` não concede UPDATE na política. A integração candidata AbacatePay ainda precisa materializar a invoice verificada no worker e usar essa mesma fronteira; o parser do webhook sozinho não concede acesso.
+A função exige invoice positiva, paga, com data de pagamento e pertencente à mesma clínica/assinatura. Não aceita pagamento de paciente, invoice de outra clínica, invoice aberta ou zero. Não existe RPC pública de liberação. Marcar a assinatura como `active`, voltar pelo callback ou forjar uma invoice com a sessão `authenticated` não concede UPDATE na política. A integração candidata AbacatePay materializa a invoice verificada, período e liberação na mesma transação do worker; o parser do webhook sozinho não concede acesso.
 
 Liberação e consumo se serializam na linha da política. Isso evita passar da cota na última vaga ou liberar parcialmente uma clínica. A liberação é idempotente e não zera/apaga os contadores históricos. Inadimplência posterior continua regida pelos controles de acesso do Billing; não transforma o cliente pago em novo trial.
 
 ## Arquivos e pontos de controle
 
+- `src/lib/entitlements/`: decisão comercial de operação, sem confiar em JWT/cache/estado da UI; escopo da clínica, período vigente, invoice da liberação e compatibilidade com `qoro_premium_denial(uuid,text)` do TISS quando instalada. Qualquer recusa SQL prevalece. Sem a função na versão anterior, mantém a proteção da aplicação; ausência/má formação de resultado não significa permissão.
+- Entradas inbound e ferramentas de IA, processador de jobs proativos e criação/renovação de checkout Asaas de paciente: verificam o gate antes de leitura operacional/ferramenta/chamada externa. Histórico, conciliação e correções não são apagados ou transformados em venda.
 - `src/lib/trial-access/policy.ts`: valores, rótulos e erros seguros.
 - `src/lib/trial-access/index.ts`: leitura por tenant, preflight das integrações e liberação privilegiada.
 - `src/contexts/billing/schema.ts`: tipos das duas tabelas novas.

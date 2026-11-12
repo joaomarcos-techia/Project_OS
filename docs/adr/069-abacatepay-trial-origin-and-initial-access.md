@@ -1,16 +1,16 @@
 # ADR-069 — origem financeira, trial e primeiro período de acesso
 
-Status: decisão técnica para a candidata Sandbox, 08/11/2026. O founder delegou a escolha da âncora mais segura; não autorizou ativação em produção. A [ADR-068](068-abacatepay-upgrade-policy.md) registra o upgrade no próximo ciclo pago.
+Status: candidata Sandbox, decisão inicial de 08/11/2026, atualizada pela decisão expressa do founder em 12/11: permitir contratação durante o trial. Sem autorização de ativação em produção. A [ADR-068](068-abacatepay-upgrade-policy.md) registra o upgrade no próximo ciclo pago.
 
 ## Jornada e período
 
 O cadastro confirmado cria o tenant e um trial Qoro de 14 dias exatos desde `Auth.created_at`. Não cria cliente, checkout ou assinatura externa. Um claim pseudônimo e transacional impede reiniciar a avaliação com outro Auth para o mesmo beneficiário; ele não concede acesso entre contas. Convites, legados e drafts que já iniciaram cobrança Asaas mantêm sua jornada original.
 
-Após o trial, o titular abre um checkout mensal com o preço resolvido no servidor e produto correspondente. A primeira ativação exige consulta autenticada à loja, assinatura, checkout e lista de assinaturas daquele checkout: conta, ambiente, cliente, produto único, quantidade, moeda, valor integral, estado pago e ausência de trial nativo precisam corresponder ao snapshot persistido. Outra assinatura/cliente no mesmo checkout impede a concessão automática. Redirecionamento e `ACTIVE` isolado não provam pagamento.
+Durante ou após o trial, o titular pode abrir um checkout mensal com o preço resolvido no servidor e produto correspondente. Contratar antes do prazo é opcional; não há cobrança por iniciar a avaliação. A primeira ativação exige consulta autenticada à loja, assinatura, checkout e lista de assinaturas daquele checkout: conta, ambiente, cliente, produto único, quantidade, moeda, valor integral, estado pago e ausência de trial nativo precisam corresponder ao snapshot persistido. Outra assinatura/cliente no mesmo checkout impede a concessão automática. Redirecionamento e `ACTIVE` isolado não provam pagamento.
 
-O primeiro mês de **acesso do Qoro** começa em `subscription.createdAt` retornado pelo provedor, somente depois da confirmação financeira acima. O mês é de calendário, com ajuste do último dia. Timestamp ausente, futuro, anterior ao fim do trial ou cujo primeiro mês já terminou vai para revisão. Não usar `updatedAt`, data de recebimento do webhook ou data atual para renovar um pagamento antigo. Esse período **não afirma qual será o próximo vencimento na AbacatePay**: o GET documentado não garante essa data.
+O primeiro mês de **acesso do Qoro** começa em `subscription.createdAt` retornado pelo provedor, somente depois da confirmação financeira acima. O mês é de calendário, com ajuste do último dia. Para a primeira conversão, a data mínima passa a ser a criação original no Auth, comprovada pelo claim privado da mesma clínica/titular/trial. Timestamp ausente, futuro, anterior a essa origem ou cujo primeiro mês já terminou vai para revisão. Não usar `updatedAt`, data de recebimento do webhook ou data atual para renovar um pagamento antigo. A recontratação mantém a restrição da ADR-070: somente após o fim do período pago anterior. O calendário interno não deve ser apresentado como vencimento confirmado pelo provedor. A documentação atual do GET já informa campos de período/próxima cobrança; eles são tratados pelos leitores de renovação, sem substituir a prova financeira.
 
-Exemplo: trial termina em 20/11; titular contrata e paga em 22/11; a assinatura externa é criada em 22/11. O Qoro reconhece o primeiro mês desde 22/11, após verificar o pagamento. Não abre outro trial nem apresenta 22/12 como vencimento confirmado pelo provedor.
+Exemplo: trial termina em 20/11; titular contrata e paga em 15/11; a assinatura externa é criada em 15/11. O Qoro reconhece o primeiro mês desde 15/11, após verificar o pagamento, sem esperar 20/11. Contratar em 22/11 continua permitido, sem abrir outro trial. Nenhuma data interna é apresentada como vencimento externo sem readback correspondente.
 
 ## Persistência e privilégio
 

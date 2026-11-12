@@ -6,6 +6,7 @@
  * falha indeterminada vira `creation_unknown` e nunca retry cego.
  */
 import { env } from '@/lib/env';
+import { assertOperationalModuleAccess } from '@/lib/entitlements';
 import { buildApplicationUrl, resolvePreviewCallbackOrigin } from '@/lib/http/application-url';
 import { metrics } from '@/lib/observability/metrics';
 import {
@@ -198,6 +199,7 @@ export async function createInitialHostedCheckout(input: {
   paymentMethod?: 'pix' | 'credit_card' | null;
   installmentCount?: number | null;
 }): Promise<CreateHostedCheckoutOutcome> {
+  await assertOperationalModuleAccess(input.clinicId, 'patient_payments');
   if (
     !supportsHostedCheckoutCondition(input.paymentMethod ?? null, input.installmentCount ?? null)
   ) {
@@ -257,6 +259,7 @@ export async function renewRemainderHostedCheckout(input: {
   candidate: RemainderCheckoutRenewalCandidate;
   now?: Date;
 }): Promise<RenewHostedCheckoutOutcome> {
+  await assertOperationalModuleAccess(input.clinicId, 'patient_payments');
   if (
     !supportsHostedCheckoutCondition(
       input.candidate.requestedPaymentMethod,

@@ -267,16 +267,22 @@ test('confirmed identity -> free trial -> server quota gates -> optional hosted 
     }
     stages.push('desktop_mobile_subscription');
     if (input.E2E_ABACATEPAY_EXPIRED === 'false') {
-      await expect(page.getByRole('button', { name: 'Contratar assinatura' })).toHaveCount(0);
-      const denied = await page.evaluate(async () => {
+      await expect(page.getByRole('button', { name: 'Contratar assinatura' })).toBeEnabled();
+      await expect(
+        page.getByText('Você pode conhecer o sistema sem cartão ou contratar agora.', {
+          exact: false,
+        }),
+      ).toBeVisible();
+      // Do not create an optional checkout just to inspect a still-unpaid trial.
+      const invalid = await page.evaluate(async () => {
         const response = await fetch('/api/billing/checkout', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: '{}',
+          body: JSON.stringify({ amount: 1, doctors: 6 }),
         });
         return { status: response.status, body: await response.json() };
       });
-      expect(denied).toEqual({ status: 409, body: { error: 'trial_active' } });
+      expect(invalid).toEqual({ status: 400, body: { error: 'invalid_body' } });
       await page.goto(new URL('/configuracoes/whatsapp', origin.origin).toString());
       await expect(
         page.getByText('WhatsApp disponível após o pagamento', { exact: true }),
@@ -285,7 +291,7 @@ test('confirmed identity -> free trial -> server quota gates -> optional hosted 
       await expect(
         page.getByText('Asaas disponível após o pagamento', { exact: true }),
       ).toBeVisible();
-      stages.push('active_trial_checkout_and_integrations_blocked');
+      stages.push('active_trial_optional_conversion_and_unpaid_integrations_blocked');
     } else {
       await expect(page.getByText('Contratação pendente', { exact: true })).toBeVisible();
       const adulterated = await page.evaluate(async () => {

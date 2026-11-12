@@ -4,10 +4,22 @@ import { createHash, createHmac, randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 
 import { readMigrations, startScratchSchema } from './scratch-schema';
+import { loadTissProofInputs } from './abacatepay-tiss-input';
 
+const tissProof = process.env.QORO_TISS_REF ? await loadTissProofInputs() : null;
 const cluster = await startScratchSchema({ port: 55491 });
 assert.equal(new URL(cluster.url).hostname, '127.0.0.1');
 const sql = cluster.sql;
+try {
+  if (tissProof) {
+    await sql.begin(async (tx) => {
+      for (const migration of tissProof.sources) await tx.unsafe(migration.body);
+    });
+  }
+} catch (error) {
+  await cluster.stop();
+  throw error;
+}
 Object.assign(process.env, {
   NODE_ENV: 'test',
   DATABASE_URL: cluster.url,
@@ -45,6 +57,9 @@ const { hashEmail } = await import('../../src/lib/auth/email-hash');
 const { provisionFreeSignupTrialTx: provision } =
   await import('../../src/contexts/onboarding/internal/signup-free-trial');
 const { assertClinicCanWriteTx } = await import('../../src/lib/tenant-access');
+const { getOperationalModuleAccessTx, getOperationalModuleAccess } =
+  await import('../../src/lib/entitlements');
+const { withTenant } = await import('../../src/lib/db/tenant');
 const { applyInitialAbacatePayPaymentTx, reconcileMissingAbacatePayInitialPayment } =
   await import('../../src/contexts/billing/internal/abacatepay-processing');
 type Evidence = import('../../src/lib/payments/abacatepay/initial-payment').InitialPaymentEvidence;
@@ -82,6 +97,10 @@ const run = (identity: Awaited<ReturnType<typeof seed>>) =>
   dbAdmin.transaction((tx) => provision(tx, identity));
 let failure: unknown;
 try {
+  // Supabase-managed baseline, verified READ ONLY in DEV on 12/11. The
+  // standalone scaffold has no default table grants. Model only these two
+  // existing read privileges, never change runtime RLS or grant write access.
+  await sql`GRANT SELECT(id,status) ON public.clinics TO authenticated`;
   // Activate only local catalogue entries, as the current DEV offer does.
   await sql`UPDATE public.plans SET ativo=true WHERE code IN ('consultorio_2026','clinica_2026_2')`;
   const identity = await seed();
@@ -576,15 +595,23 @@ try {
       assert.equal(firstCheckout.checkoutUrl, 'https://app.abacatepay.com/pay/bill_http1');
     },
   );
-  await check('active trial cannot originate checkout or call provider', async () => {
-    const before = fixtureHttpCalls;
-    await assert.rejects(
-      createDeferredSubscriptionCheckout({ clinicId }),
-      (error: unknown) =>
-        error instanceof Error && 'code' in error && error.code === 'trial_active',
-    );
-    assert.equal(fixtureHttpCalls, before);
-  });
+  await check(
+    'an active trial has no operational entitlement or invoice before conversion',
+    async () => {
+      const before = fixtureHttpCalls;
+      for (const feature of ['patient_payments', 'ai_agents', 'health_insurance'] as const) {
+        const decision = await dbAdmin.transaction((tx) =>
+          getOperationalModuleAccessTx(tx, clinicId, feature),
+        );
+        assert.deepEqual(decision, { allowed: false, reason: 'payment_required' });
+        assert.deepEqual(await getOperationalModuleAccess(clinicId, feature), decision);
+      }
+      const [invoices] =
+        await sql`SELECT count(*)::int n FROM public.invoices WHERE clinic_id=${clinicId}::uuid`;
+      assert.equal(invoices?.n, 0);
+      assert.equal(fixtureHttpCalls, before);
+    },
+  );
   const body = JSON.stringify({
     id: 'log_http_initial',
     event: 'subscription.completed',
@@ -1055,18 +1082,121 @@ try {
       assert.equal(networkCalls, 0);
     },
   );
+  await check(
+    'early trial conversion uses one checkout, verified webhook and atomic premium release',
+    async () => {
+      const postsBefore = postCalls;
+      const first = await createDeferredSubscriptionCheckout({ clinicId });
+      const second = await createDeferredSubscriptionCheckout({ clinicId });
+      assert.deepEqual(first, second);
+      assert.equal(postCalls, postsBefore + 1);
+      const checkoutId = `bill_http${postCalls}`;
+      const remote = external.get(checkoutId);
+      assert.ok(remote);
+      assert.equal(
+        (
+          await withTenant(clinicId, (tx) =>
+            getOperationalModuleAccessTx(tx, clinicId, 'ai_agents'),
+          )
+        ).allowed,
+        false,
+      );
+      const [before] =
+        await sql`SELECT trial_ends_at FROM public.subscriptions WHERE clinic_id=${clinicId}::uuid`;
+      assert.ok(before?.trial_ends_at > new Date());
+      remote.paid = true;
+      const payload = JSON.stringify({
+        id: 'log_http_early_trial',
+        event: 'subscription.completed',
+        apiVersion: 2,
+        devMode: true,
+        data: {
+          subscription: { id: `subs_http${postCalls}` },
+          checkout: { id: checkoutId },
+          customer: { id: `cust_http${postCalls}` },
+          payment: { id: `char_http${postCalls}` },
+        },
+      });
+      const notification = () =>
+        new Request(
+          `https://qoro.example/api/webhooks/abacatepay?webhookSecret=${process.env.ABACATEPAY_WEBHOOK_SECRET}`,
+          {
+            method: 'POST',
+            body: payload,
+            headers: {
+              'X-Webhook-Signature': createHmac('sha256', publicKey)
+                .update(payload)
+                .digest('base64'),
+            },
+          },
+        );
+      assert.equal((await webhook(notification())).status, 202);
+      assert.equal((await webhook(notification())).status, 200);
+      for (const feature of ['patient_payments', 'ai_agents'] as const) {
+        assert.deepEqual(
+          await withTenant(clinicId, (tx) => getOperationalModuleAccessTx(tx, clinicId, feature)),
+          { allowed: true },
+        );
+        assert.deepEqual(await getOperationalModuleAccess(clinicId, feature), { allowed: true });
+      }
+      assert.deepEqual(
+        await withTenant(clinicId, (tx) =>
+          getOperationalModuleAccessTx(tx, clinicId, 'health_insurance'),
+        ),
+        { allowed: false, reason: 'module_unavailable' },
+      );
+      const [after] = await sql`SELECT s.trial_ends_at,s.current_period_start,
+      (SELECT count(*)::int FROM public.invoices i WHERE i.clinic_id=s.clinic_id AND i.status='paid') invoices
+      FROM public.subscriptions s WHERE s.clinic_id=${clinicId}::uuid`;
+      assert.equal(after?.invoices, 1);
+      assert.equal(after?.trial_ends_at.toISOString(), before?.trial_ends_at.toISOString());
+      assert.ok(after?.current_period_start < before?.trial_ends_at);
+      assert.equal(networkCalls, 0);
+    },
+  );
+  await check('tenant-scoped entitlement cannot borrow another paid clinic', async () => {
+    assert.deepEqual(await getOperationalModuleAccess(clinicId, 'ai_agents'), { allowed: true });
+    const decision = await withTenant(paid.clinicId, (tx) =>
+      getOperationalModuleAccessTx(tx, clinicId, 'ai_agents'),
+    );
+    assert.deepEqual(decision, { allowed: false, reason: 'subscription_required' });
+    assert.equal(networkCalls, 0);
+  });
 } catch (error) {
   failure = error;
 } finally {
   globalThis.fetch = originalFetch;
   await mkdir('dist', { recursive: true });
   await writeFile(
-    'dist/signup-free-trial-db.json',
+    tissProof
+      ? `dist/signup-free-trial-tiss-${String(tissProof.lastIndex).padStart(4, '0')}-db.json`
+      : 'dist/signup-free-trial-db.json',
     JSON.stringify(
       {
         observedAt: new Date().toISOString(),
         environment: 'loopback_synthetic',
         migrations: (await readMigrations()).length,
+        ...(tissProof
+          ? {
+              tissHead: tissProof.head,
+              tissSources: tissProof.sources.map(({ idx, when, tag, sha256 }) => ({
+                idx,
+                when,
+                tag,
+                sha256,
+              })),
+              combinedMigrationCount: tissProof.ordered.length,
+              tissSourceAccess: tissProof.sourceAccess,
+            }
+          : {}),
+        managedBaselineGrants: {
+          table: 'public.clinics',
+          columns: ['id', 'status'],
+          privilege: 'SELECT',
+          role: 'authenticated',
+          provenance: 'DEV read-only column privileges checked 2026-11-12',
+          appliedOnlyToLoopbackScaffold: true,
+        },
         results,
         networkCalls,
         fixtureHttpCalls,

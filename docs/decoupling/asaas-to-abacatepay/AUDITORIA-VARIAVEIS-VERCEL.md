@@ -1,5 +1,19 @@
 # Auditoria das variáveis Vercel — integração financeira
 
+## Estado operacional atual — 12/11/2026
+
+| Etapa | Preview financeiro | Production |
+| --- | --- | --- |
+| Configurado | Variáveis específicas da branch e mapa dos cinco produtos Sandbox existentes | Nome `ABACATEPAY_API_KEY` e escopo confirmados; erro de grafia removido |
+| Verificado | Conta/recursos Sandbox e fingerprint DEV comprovados nas provas anteriores | Somente nomes/escopos, com `decrypt=false`; validade, permissões e revogação anterior não verificadas |
+| Integrado | Runtime Sandbox, bindings, inbox e cinco contratações iniciais | Composição live não implementada; presença da chave não a habilita |
+| Testado | Cinco pagamentos iniciais reais Sandbox; incrementos locais/CI descritos no relatório | Nenhum teste com credencial live, webhook live ou transação real nesta autorização |
+| Ativado | Sandbox restrito à candidata; recuperação nova ainda depende de SQL coordenado | **Não ativado; NO-GO financeiro** |
+
+Não é necessário cadastrar novamente a API key. Nenhum valor live foi lido, copiado ou usado nesta rodada. As tabelas datadas abaixo são inventários históricos, não afirmações de ausência atual. `QORO_TISS_WORKTREE`/`QORO_TISS_REF` são entradas locais dos ensaios, não variáveis de Vercel. O novo gate de trial não requer segredo/flag nova nem alteração de CI/deploy.
+
+Na futura composição live, os consumidores de chave, loja, produtos, webhook e cohort precisam ser implementados/revisados antes de definir sua configuração final. Os nomes `ABACATEPAY_SANDBOX_*` não devem receber produtos reais. Não inventar uma variável `_PROD` que o runtime não consome. Endpoint V2 oficial é `https://api.abacatepay.com/v2`; credencial e prova de ambiente devem concordar, sem depender só do hostname. [Sequência de preparação e ativação](PLANO-FINAL-GO-LIVE-ABACATEPAY.md#preparação-live-executável--1211-sem-ativação).
+
 **Confirmação posterior em 11/11, 21:14 UTC:** após o titular informar a correção, uma nova consulta de nomes/escopos confirmou **`ABACATEPAY_API_KEY` presente em Production** e nenhuma declaração com o nome `ABACATEPAY_API_KAY`. A configuração específica do Preview financeiro continua presente. Consulta com `decrypt=false`, sem ler valores, testar a chave live, modificar configuração ou fazer redeploy. A substituição/revogação da credencial anterior não foi auditada. Isso encerra a pendência de grafia, não os gates da composição live. A leitura anterior abaixo fica preservada como histórico; o novo readback está em `productionCredentialCorrection` da evidência canônica.
 
 **Atualização em 11/11, 21:03 UTC:** o founder informou aprovação da conta AbacatePay e cadastro da chave live, sem redeploy. A leitura autenticada de nomes/escopos (`decrypt=false`) encontrou **`ABACATEPAY_API_KAY` em Production**, com erro de grafia; **`ABACATEPAY_API_KEY` estava ausente nesse ambiente no momento da leitura**. O código consome `KEY`, não `KAY`. Não foi lido ou copiado nenhum valor, corrigida configuração ou feito deployment. Depois do aviso, o founder informou que substituirá a credencial e corrigirá o nome; essa intenção ainda não é confirmação da alteração. As linhas da auditoria de 10/11 abaixo continuam históricas. A evidência atual está no campo `productionCredentialUpdate` de [recuperacao-financeira-20261111.json](evidencias/recuperacao-financeira-20261111.json).

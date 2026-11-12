@@ -20,6 +20,24 @@ afterEach(() => {
 });
 
 describe('deferred subscription controls', () => {
+  it('offers conversion during trial once, without treating pending checkout as paid', async () => {
+    const assign = vi.spyOn(window.location, 'assign').mockImplementation(() => undefined);
+    const fetcher = vi.fn().mockResolvedValue(
+      Response.json({
+        state: 'checkout_pending',
+        checkoutUrl: 'https://app.abacatepay.com/pay/bill_trial',
+      }),
+    );
+    vi.stubGlobal('fetch', fetcher);
+    render(<DeferredSubscription {...baseline} trialActive />);
+    expect(screen.getByText(/contratar agora/)).toBeTruthy();
+    const button = screen.getByRole('button', { name: 'Contratar assinatura' });
+    fireEvent.click(button);
+    fireEvent.click(button);
+    await waitFor(() => expect(assign).toHaveBeenCalledOnce());
+    expect(fetcher).toHaveBeenCalledOnce();
+    expect(screen.queryByText('Pagamento confirmado')).toBeNull();
+  });
   it('explains authenticated pending activation without promising payment or offering another checkout', () => {
     const reload = vi.spyOn(window.location, 'reload').mockImplementation(() => undefined);
     const fetcher = vi.fn();
@@ -188,10 +206,11 @@ describe('deferred subscription controls', () => {
     expect(screen.getByText(/Se já pagou, não faça outra assinatura/)).toBeTruthy();
     expect(screen.queryByText(/Nenhuma cobrança inicial foi criada/)).toBeNull();
   });
-  it('shows free trial and no checkout while the absolute deadline is active', () => {
+  it('preserves the absolute free-trial deadline while offering optional early conversion', () => {
     render(<DeferredSubscription {...baseline} trialActive />);
     expect(screen.getByText('Avaliação sem cartão')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Contratar assinatura' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Contratar assinatura' })).toBeTruthy();
+    expect(screen.getByText(/sem aguardar o fim da avaliação/)).toBeTruthy();
   });
   it('does not offer another subscription after initial payment', () => {
     render(<DeferredSubscription {...baseline} paid paidPeriodActive billingStatus="active" />);

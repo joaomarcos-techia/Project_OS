@@ -42,6 +42,7 @@ import { schedulingApiV1 } from '@/contexts/scheduling';
 import { paymentsApiV1 } from '@/contexts/payments';
 /* eslint-enable boundaries/element-types */
 import { metrics } from '@/lib/observability/metrics';
+import { getOperationalModuleAccess } from '@/lib/entitlements';
 import { BACKOFF_FAIL, backoffDelayMs } from '@/lib/outbox/backoff';
 
 import { decideAfterRefusal, refusalReason } from '../domain/resend';
@@ -91,6 +92,17 @@ async function processOne(job: ClaimedJob, tzCache: Map<string, string>): Promis
     return 'failed';
   }
   const payload = parsed.data;
+  const access = await getOperationalModuleAccess(
+    clinicId,
+    type === 'deposit_link' || type === 'remainder_link' || type === 'dunning'
+      ? 'patient_payments'
+      : 'ai_agents',
+  );
+  if (!access.allowed) {
+    await repo.cancel(clinicId, id, leaseToken, access.reason);
+    metrics.emit('proactive.job.cancelled', { ...log, reason: access.reason });
+    return 'cancelled';
+  }
   const patientId = (payload as { patientId: string }).patientId;
   // O fuso da clínica serve ao prazo (dias-calendário locais) e ao template.
   const tz = await resolveTz(clinicId, tzCache);

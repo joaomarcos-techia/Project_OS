@@ -4,6 +4,19 @@ import { initialAbacatePayAccessPeriod as period } from './abacatepay-period';
 
 const trialEndsAt = new Date('2026-01-01T12:30:00.000Z');
 describe('Qoro monthly access anchored to verified subscription creation', () => {
+  it('allows a verified conversion during trial, bounded by the original Auth creation', () => {
+    const input = {
+      trialEndsAt,
+      notBefore: new Date('2025-12-18T12:30:00Z'),
+      now: new Date('2025-12-20T12:30:00Z'),
+    };
+    expect(period({ ...input, subscriptionCreatedAt: '2025-12-20T12:30:00Z' })).toEqual({
+      start: new Date('2025-12-20T12:30:00Z'),
+      end: new Date('2026-01-20T12:30:00Z'),
+    });
+    expect(period({ ...input, subscriptionCreatedAt: '2025-12-18T12:29:59Z' })).toBeNull();
+    expect(period({ ...input, subscriptionCreatedAt: '2025-12-20T12:30:01Z' })).toBeNull();
+  });
   it('preserves the original instant and calendar-month boundary on delayed receipt', () => {
     expect(
       period({

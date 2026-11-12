@@ -1,6 +1,6 @@
 # Homologação financeira AbacatePay — Qoro
 
-**Leitura atual:** [seção 43 — alerta entregue e composição SQL fixada na 0149](#43-alerta-entregue-e-composição-sql-fixada-na-0149--11112026). As cinco compras iniciais permanecem homologadas. A resposta do suporte já foi recebida; não reenviar solicitação nem repetir pagamentos. Os checkpoints anteriores são históricos e não descrevem necessariamente a implementação mais recente.
+**Leitura atual:** [seção 44 — trial definitivo e composição com0151](#44-trial-definitivo-e-composição-com-0151--12112026). As cinco compras iniciais permanecem homologadas. A resposta do suporte já foi recebida; não reenviar solicitação nem repetir pagamentos. Os checkpoints anteriores são históricos e não descrevem necessariamente a implementação mais recente.
 
 Iniciado em **09/11/2026**, antes das alterações desta rodada. **As seções 1–8 preservam o checkpoint H0 anterior à implementação; as seções 9–25 registram o fechamento diferencial.** Referência para futura ativação, **não autorização de Produção**. Este relatório consolida os [planos existentes](PLANO-MESTRE-MIGRACAO-ASAAS-ABACATEPAY.md), o [diário](PLANO-EXECUCAO-CONTINUIDADE.md), a [renovação](PLANO-CONTINUIDADE-RENOVACAO-E-HOMOLOGACAO.md) e a [matriz financeira](MATRIZ-CENARIOS-E-TESTES.md); não os substitui por regras comerciais novas.
 
@@ -831,3 +831,53 @@ Depois do push, o founder informou aprovação da conta AbacatePay e chave de pr
 Após o titular informar a alteração, o readback de nomes/escopos às **21:14 UTC** confirmou `ABACATEPAY_API_KEY` em Production e ausência do nome incorreto. O Preview específico da branch mantém sua declaração. Nenhum valor foi solicitado ou testado com a API live; não se afirma que a credencial seja válida ou que a chave anterior tenha sido revogada. Nenhum redeploy ou configuração foi executado pela automação.
 
 A execução [43100201006](https://github.com/joaomarcos-techia/Project_OS/actions/runs/43100201006), no SHA `e8309aee`, começou depois da espera por infraestrutura: **7.016 testes passaram**, mas a execução **reprovou no inventário de segurança desatualizado**. A causa é o registro gerado das leituras de ambiente dos scripts alterados no harness, não uma permissão pendente ou chave de produção. O diff revisado contém somente duas leituras de ambiente adicionais e suas referências de linha; o inventário foi regenerado e o gate local passou, sem remover verificações ou relaxar guards. Build e E2E dessa execução não rodaram após a falha; o build Vercel do mesmo SHA ficou READY, sem substituir os demais gates. O resultado da CI do commit corretivo será registrado no PR53; a falha desta execução permanece como evidência e não deve ser atribuída ao incidente de fila.
+
+## 44. Trial definitivo e composição com 0151 — 12/11/2026
+
+### Implementação efetiva
+
+Base preservada `c0db176a96d7eec1cf394a9e2a6cffe3f3c02342`, CI43101832867 aprovada com7016 testes/22E2E semSKIP. `main` continua `5620a0987ec53db7d7358728eb7d457d9d373df3`. A aprovação dessa baseline não foi transferida para o incremento.
+
+- `src/lib/entitlements/`: política compartilhada da aplicação para cobranças de pacientes e agentes, lendo estado autoritativo, plano, período/carência existente e invoice positiva paga da mesma clínica/assinatura. Trial vigente/expirado, ausência de liberação, contrato suspenso/cancelado, plano desconhecido ou período inválido negam operação. Legados ativos não recebem inscrição retroativa. TISS retorna indisponibilidade operacional mesmo após pagamento.
+- Inbound de IA é recusado antes de ler/persistir o turno ou chamar modelo/ferramentas; registry revalida na transação da ferramenta. Jobs proativos verificam assinatura antes de procurar contato/template ou enviar, incluindo réguas de cobrança. Criação e renovação de checkout Asaas de paciente recusam antes do claim e de GET/POST externo. Histórico, refund/conciliação e obrigações existentes não são apagados.
+- Checkout SaaS permanece permitido **durante ou após** o trial, opcionalmente. Removido o erro obsoleto `trial_active`. A primeira ativação exige pagamento integral confirmado; o limite inferior do período é o Auth original do claim vinculado à clínica/titular. Nenhum novo trial, concessão por pendência ou extensão pela data de chegada do webhook. Recontratação continua só após o período pago anterior. Valores mensais e regras de mudanças no próximo ciclo pago permanecem iguais.
+- Interface explica contratação antecipada, indisponibilidade dos módulos e limites após pagamento. O E2E autenticado foi atualizado para a nova expectativa sem criar checkout só para inspecionar trial. Essa variante de Preview com trial ativo **não foi reexecutada externamente**; happy-dom/unidades e PostgreSQL não são apresentados como essa prova.
+
+### Integração com TISS sem misturar as branches
+
+Durante a rodada, a0151 deixou de ser rascunho e foi publicada no PR55, SHA **`2a70788046752df4c8b349b871a089bc432a8609`**. O executor não teve acesso ao agente de outra thread: a coordenação verificável foi por leitura do contrato/fonte Git e preparação do manifesto, sem alegar troca direta de mensagens.
+
+O adapter da aplicação consulta `public.qoro_premium_denial(uuid,text)` na mesma transação quando a função existe, traduzindo `patient_payments` para `patient_charges`. Recusa SQL sempre prevalece; retorno ausente/malformado não autoriza. Na versão N-1 sem0151, o gate da aplicação continua operando. Os testes exercitaram a função real da0151 e o escopo de tenant, além da ausência dela. Ainda falta revisão/integração final dos dois PRs; não declarar merge de código TISS ou política operacional final aprovado.
+
+O helper de inputs passou a aceitar o snapshot revisado até0151. Lê SQL por `git show`, confere identidade dos blobs/histórico comum e ordem/timestamps; não copia migrations para a branch financeira. A proposta reproduzível está em `scripts/security/abacatepay-tiss-composition.ts`, com manifesto em `dist/abacatepay-tiss-composition.json`: posição financeira depois da cauda TISS acordada, **sem número/journal reservado**. Os testes não eliminam a necessidade de aprovação específica para DEV.
+
+Readback somente leitura em **12/11,04:09 UTC**: DEV144 entradas;0143 exata aplicada;0144–0151 ausentes, sem conflitos de timestamp; coluna candidata financeira ausente. A0151 tem hash LF `a0e446dbce4121c538c4a3e206a406e0977d5d1729ed14b03417a3937b71ae0b`. Candidato financeiro inalterado, hash LF `5a1c7bd1a6f073972d7010998703d6f26667ee133f404dd358153fc5e2164b1a`. Nenhuma escrita DEV/Production ou no worktree TISS.
+
+### Evidência de validação e limites
+
+| Prova | Resultado executado | Recorte |
+| --- | --- | --- |
+| Decisão comercial, ferramentas, jobs, Asaas, período e UI | 142/142 testes dirigidos PASS | I/O simulado/happy-dom; antes dos últimos ajustes dos harnesses/E2E |
+| Suíte integral local anterior ao último adapter SQL | 7056/7056 PASS | Não atribuída ao incremento final; CI própria obrigatória |
+| Trial sem TISS | 49/49 PASS | PostgreSQL real,143 migrations, HTTP de provedor controlado, zero rede externa |
+| Trial com TISS0151 | 49/49 PASS | PostgreSQL real,152 migrations, função SQL real + tenant/paid invoice/contratação antecipada |
+| Composição SQL até0151 | 33/33 PASS | Duas ordens, rollback, índices/constraints/RLS/funções/gatilhos, contratos/dados anteriores preservados |
+| Recuperação financeira com TISS0151 | 120/120 PASS | Mesmo catálogo de cenários financeiros, concorrência, falhas de invoice/período/cota, retry e fechamento; não120 pagamentos |
+| TypeScript e lint integral | PASS local | Incremento da aplicação; scripts finais e inventário revistos antes do commit |
+| Build, E2E público, cobertura e segurança do commit final | Resultado próprio nos checks do PR53 | Não substituir por CI da baseline, build Vercel ou mocks |
+| Cinco primeiras compras Sandbox | Homologação anterior preservada | Sem novo pagamento/checkout nesta rodada |
+| Renovação temporal e fechamento remoto | PARTIAL, sem nova prova externa | Nenhuma operação irreversível/autorização financeira presumida |
+
+Os snapshots, comandos, horários e hashes estão no campo `trialEntitlementsFollowup` da [evidência canônica](evidencias/recuperacao-financeira-20261111.json). Não somar suítes sobrepostas como novas provas externas. Os testes SQL de até0150 continuam válidos para aquele snapshot;0151 foi ensaiada separadamente por alterar o comportamento comercial.
+
+Um primeiro ensaio de entitlement com `withTenant` encontrou falta de SELECT em `clinics` no scaffold local. A leitura somente leitura DEV comprovou os privilégios existentes. O harness passou a modelar apenas SELECT(id,status) para authenticated, só no cluster loopback; nenhuma permissão real foi criada, RLS foi preservada e leitura cruzada continuou negada. As expectativas antigas de UI e fixtures pagas dos testes foram ajustadas à decisão aprovada, sem retirar asserções de segurança.
+
+### Operação e configuração
+
+API key Production **configurada por nome/escopo**, não testada nem ativada. Sem leitura do segredo, chamada live, alteração de variável ou redeploy. Inventário diferencia Configurado → Verificado → Integrado → Testado → Ativado. Não pedir novamente a variável já cadastrada. Sentry Preview (probe414eb196) e jornada normal MFA permanecem PASS; não repetidos.
+
+Corrigido o runbook que exigia um bill distinto em toda renovação: a documentação atual admite checkout original com **novo payment.id** e correlação autoritativa de receipt/período/extrato. O estado PAID do primeiro checkout nunca comprova outro ciclo. A recuperação sem evento é GET-only e depende do candidato; não inserir evento artificial nem cobrar de novo. A documentação/CLI e a resposta do suporte continuam sem acelerador de renovação recorrente: limitação externa/temporal, não nova reprovação de código.
+
+### Decisão de prontidão
+
+**NO-GO AbacatePay Production.** Implementado/testado localmente não equivale a homologado externamente, ativado ou publicado. Faltam: acordo/journal final do SQL e autorização DEV; homologação externa de fechamento/readbacks e renovação ou tratamento formal de risco; composição live ainda deliberadamente ausente; responsáveis/capacidade e gates Production; CI verde do commit entregue. O [plano live](PLANO-FINAL-GO-LIVE-ABACATEPAY.md#preparação-live-executável--1211-sem-ativação) separa tarefas técnicas, futuras autorizações e provas externas. Nenhum merge, nova cobrança, refund, alteração de contrato, ativação TISS ou publicação foi executado.

@@ -1,6 +1,6 @@
 # Operação e recuperação AbacatePay
 
-Atualizado em 11/11/2026. Executável somente na candidata Sandbox do PR #53. Não usar em Produção. Não substituir o gateway de uma assinatura Asaas nem modificar pagamentos de pacientes. A [seção 9](#9-recuperação-sem-webhook-fechamento-e-integração-de-schema) descreve o novo código; a [seção 10](#10-ações-humanas-que-continuam-necessárias) contém as ações humanas ainda não comprovadas. O SQL candidato não foi aplicado ao DEV compartilhado.
+Atualizado em 12/11/2026. Executável somente na candidata Sandbox do PR #53. Não usar em Produção. Não substituir o gateway de uma assinatura Asaas nem modificar pagamentos de pacientes. A [seção 11](#11-trial-entitlements-e-composição-com-0151--1211) registra a decisão definitiva de trial e o snapshot TISS atual; as seções anteriores preservam a cronologia. O SQL candidato não foi aplicado ao DEV compartilhado. Sentry Preview e jornada normal MFA já passaram; não repetir probes/login para esses gates.
 
 ## 1. Detectar e abrir incidente
 
@@ -15,10 +15,10 @@ Responsável proposto: financeiro pelo vínculo e valor; engenharia pelo process
 ## 2. Conferir a prova no provedor
 
 1. Abra o [painel AbacatePay](https://app.abacatepay.com/) da loja correta, explicitamente em Sandbox. Não crie nova cobrança, refund, portal ou cancelamento para investigar.
-2. Correlacione o `subscription.id`, cliente, checkout original e geração com o binding já registrado. Para renovação, o `checkout.id` deve ser o **bill da renovação**, e o `payment.id` deve corresponder ao `paymentIntentId` do extrato. Não reutilize o bill inicial PAID para estender acesso.
+2. Correlacione o `subscription.id`, cliente, checkout e geração com o binding já registrado. A documentação atual permite o mesmo `checkout.id` original nas renovações. Exija **um novo `payment.id`**, correspondente ao `paymentIntentId` do extrato, com prova inequívoca de receipt, valor e período. Não exigir um bill diferente, nem usar apenas o estado PAID do checkout inicial para estender acesso. Os formatos antigos só são aceitos quando o leitor comprova a mesma obrigação, sem aproximar datas/valores.
 3. Confira moeda, valor integral, produto/plano, ciclo, estado financeiro e eventual refund/disputa. Valores ou datas parecidos não identificam uma obrigação. `ACTIVE` sozinho não confirma pagamento.
 4. Guarde a evidência no registro protegido do incidente. O campo da tela recebe só o identificador desse registro; ele não valida a existência do ticket nem substitui o readback remoto.
-5. Sem evento original, o suporte confirmou que **não existe histórico de cobranças por assinatura**. Solicite ao canal já aberto a entrega/reentrega autenticada do evento original e a correlação oficial dos IDs. Não invente endpoint de replay nem reconstrua um webhook manualmente a partir de valor/data. A documentação pública lista criar/listar/buscar/excluir webhooks, sem API de reenvio comprovada.
+5. Sem evento original, a recuperação GET-only da seção 9 pode conciliar o período atual somente com cliente, assinatura, receipt, valor e período exatos. Ela depende do schema candidato e não foi ativada no DEV/Production. Não existe histórico completo de cobranças por assinatura comprovado. Se faltar correlação ou o ciclo for antigo/ambíguo, manter revisão e solicitar ao canal já aberto a entrega/reentrega autenticada do evento original e a correlação oficial. Não invente endpoint de replay nem reconstrua webhook a partir de valor/data.
 
 ## 3. Uma nova leitura de evento em revisão
 
@@ -56,7 +56,7 @@ Usar quando o evento original já foi recebido e autenticado, mas sua prova aind
 
 O cron atual é **diário às 09:00 UTC**, não horário. Nenhuma configuração de agenda foi alterada. O monitor novo processa até **10 contratos por chamada**, com backoff de uma hora, orçamento local de 7 segundos, timeout SQL de 5 segundos e lock de 2 segundos. Parada pelo orçamento marca lote adiado; o próximo lote retoma pela auditoria. O monitor remoto existente inspeciona até 3 gerações por chamada. Em cohort maior que esses limites, não existe SLA de detecção em 24 horas comprovado. O cron preserva seu orçamento de 35 segundos para iniciar trabalho AbacatePay e não inicia GET após esgotá-lo.
 
-Antes do piloto, definir volume, capacidade, responsável e alerta externo; comprovar recebimento de erro sintético sem dados de clientes. Em 11/11 um probe sintético foi aceito pela ingestão Sentry, mas o recebimento da notificação pelo responsável continua sem comprovação; ver seção 8. Alertas de cobertura adiada também usam captura Sentry sanitizada, sem garantir roteamento do serviço externo.
+Antes do piloto, definir volume, capacidade, responsável e alerta Production. Em 11/11 o founder confirmou o recebimento do probe Preview específico 414eb196, além do teste de canal; esse gate Preview está concluído. Não repetir o probe nem atribuir essa prova ao roteamento/SLA de Production. Alertas de cobertura adiada também usam captura Sentry sanitizada.
 
 ## 6. Contenção e rollback
 
@@ -237,3 +237,39 @@ Os painéis externos não foram inspecionados em sessão autenticada nesta rodad
 ### 10.3 Aprovações técnicas que ainda não são comandos para o founder
 
 Depois da coordenação com TISS e do diff/hash definitivos, aprovar ou rejeitar o schema financeiro **somente no DEV**. Separadamente, aprovar o fechamento de uma fixture Sandbox já paga para comprovar os readbacks posteriores. A engenharia executará as operações e a limpeza autorizada. Não editar journal, rodar SQL, deletar checkout ou pagar links antigos manualmente. Production, merge e credenciais reais continuam fora da autorização.
+
+## 11. Trial, entitlements e composição com 0151 — 12/11
+
+**Regra vigente da candidata.** Avaliação de 14 dias desde o Auth original, com as cotas anteriores. Asaas de pacientes e agentes de IA são recusados pelo gate comercial no backend enquanto não houver pagamento verificado; WhatsApp/conexão Asaas/convites continuam sob os bloqueios existentes. TISS permanece indisponível operacionalmente nesta branch. Leitura histórica e processamento financeiro de reconciliação não são apagados/bloqueados como se fossem novas vendas.
+
+O titular pode contratar durante ou após o trial. Um clique abre o checkout correspondente ao catálogo; cliques repetidos reutilizam o journal. Criar checkout, voltar ao app ou receber evento sem readback financeiro válido não libera módulos. Na conversão antecipada, o primeiro período começa na contratação confirmada, não no fim dos 14 dias. O claim privado comprova a origem Auth; a avaliação nunca reinicia. Uma recontratação continua impedida até acabar o período pago anterior.
+
+### Reproduzir somente em banco local descartável
+
+Os comandos abaixo não aplicam SQL ao DEV. Só usar o SHA completo revisado; o helper rejeita outro histórico comum/ordem e não importa arquivos em edição. Na pasta financeira:
+
+```powershell
+Set-Location 'C:\dev\Qoro_billing_abacatepay_20261107'
+$env:QORO_TISS_WORKTREE = 'C:/dev/Qoro_convenios_tiss_20261110'
+$env:QORO_TISS_REF = '2a70788046752df4c8b349b871a089bc432a8609'
+node node_modules/tsx/dist/cli.mjs --conditions=react-server scripts/security/abacatepay-tiss-composition.ts
+node node_modules/tsx/dist/cli.mjs --conditions=react-server scripts/security/abacatepay-tiss-schema-db.ts
+node node_modules/tsx/dist/cli.mjs --conditions=react-server scripts/security/signup-free-trial-db.ts
+node node_modules/tsx/dist/cli.mjs --conditions=react-server scripts/security/abacatepay-renewal-db.ts
+Remove-Item Env:QORO_TISS_WORKTREE,Env:QORO_TISS_REF -ErrorAction SilentlyContinue
+```
+
+Resultados de 12/11: **33/33 composição SQL**, **49/49 trial/entitlements**, **120/120 financeiros**, sem rede externa ou escrita remota. Resultados em `dist/abacatepay-tiss-0151-schema-db.json`, `dist/signup-free-trial-tiss-0151-db.json`, `dist/abacatepay-renewal-tiss-0151-db.json`; snapshot versionado na evidência canônica. A suíte de trial sem TISS também passou 49/49, cobrindo a compatibilidade N/N-1. Não somar números sobrepostos como novos cenários externos.
+
+O gate central usa a mesma transação/escopo da clínica e consulta `qoro_premium_denial(uuid,text)` quando presente. `patient_payments` é traduzido para o nome SQL `patient_charges`. Qualquer recusa SQL vence; resultado ausente/malformado falha, sem autorização implícita. A proteção da aplicação acrescenta período/invoice e indisponibilidade operacional; ela não substitui permissões, flags ou autorização de liberar TISS. A fusão final dos controles ainda precisa de revisão dos dois PRs, não foi simulada como merge TypeScript concluído.
+
+### Sequência proposta antes de qualquer aplicação compartilhada
+
+1. Congelar/acordar a cauda TISS. O snapshot ensaiado termina na **0151**, SHA acima; arquivo 0151 com SHA256 `a0e446dbce4121c538c4a3e206a406e0977d5d1729ed14b03417a3937b71ae0b`.
+2. Preservar 0000–0143 já registradas no DEV. Leitura somente leitura de 12/11, 04:09 UTC: 144 entradas, 0143 com hash/timestamp exatos; 0144–0151 ausentes, sem conflito, candidato financeiro ausente. Revalidar antes da janela.
+3. Propor o candidato financeiro **depois da cauda TISS acordada**, sem reservar 0152 nem editar journal agora. Seu SHA256 normalizado LF é `5a1c7bd1a6f073972d7010998703d6f26667ee133f404dd358153fc5e2164b1a`. Número e `when` definitivos dependem do histórico congelado; não inserir timestamp anterior ao último aplicado.
+4. Revisar o diff/journal composto e repetir somente os gates afetados pelos inputs finais. Novo SQL TISS posterior à 0151 invalida a aprovação automática da composição, não as provas históricas.
+5. Apresentar a sequência/hashes finais para **aprovação específica do DEV**. Só então executar preflight, backup aprovado, transação com `lock_timeout`/`statement_timeout` e postflight dos contratos, RLS/grants, índices/constraints/funções, isolamento e gate de trial.
+6. Interromper por qualquer drift, conflito de timestamp, lock, invariantes ou recusa de permissão inesperada. Reverter a transação falha; após commit, recuperação por correção à frente/backup aprovado. Não apagar ledger/histórico nem inventar DOWN.
+
+**Nenhuma ação humana ou pagamento novo é necessário para repetir os gates já aprovados.** Dependências restantes são acordo do schema final, autorização da aplicação compartilhada, prova externa de renovação/fechamento e implementação/revisão da composição live. A variável live já cadastrada não dispensa nenhuma dessas etapas.

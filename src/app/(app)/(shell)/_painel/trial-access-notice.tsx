@@ -9,8 +9,9 @@ export function TrialAccessNotice({ snapshot }: { snapshot: TrialAccessSnapshot 
   return (
     <Alert variant="info" title="Avaliação do sistema">
       <p>
-        WhatsApp, conexão com Asaas e convites de equipe serão liberados após a confirmação do
-        pagamento da assinatura.
+        Durante os 14 dias de avaliação, você pode conhecer o sistema. WhatsApp, cobranças de
+        pacientes pelo Asaas, convênios, agentes de IA e convites de equipe não podem ser usados
+        operacionalmente. A contratação está disponível a qualquer momento.
       </p>
       <ul className="mt-2 flex flex-wrap gap-x-5 gap-y-1" aria-label="Uso da avaliação">
         {Object.entries(TRIAL_RESOURCE_LIMITS).map(([metric, definition]) => (
@@ -25,7 +26,8 @@ export function TrialAccessNotice({ snapshot }: { snapshot: TrialAccessSnapshot 
       <p className="mt-2">
         As cotas são totais da avaliação; excluir ou cancelar não devolve a cota. Receitas e outros
         documentos compartilham o limite de 15. Após pagar, permanecem as vagas de médicos e equipe
-        do plano.
+        do plano. Cada recurso também exige as permissões e a disponibilidade do módulo; pagar não
+        libera módulos ainda em desenvolvimento.
       </p>
       <Link href="/configuracoes/assinatura" className="mt-2 inline-block underline">
         Ver minha assinatura

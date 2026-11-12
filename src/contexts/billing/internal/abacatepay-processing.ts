@@ -44,6 +44,7 @@ const bindingSchema = z.object({
   external_subscription_id: z.string().nullable(),
   billing_status: z.enum(['trial', 'active', 'past_due', 'cancelled']),
   trial_ends_at: z.coerce.date(),
+  auth_created_at: z.coerce.date(),
 });
 export type InitialPaymentApplication = 'applied' | 'duplicate' | 'review';
 
@@ -72,12 +73,15 @@ export async function applyInitialAbacatePayPaymentTx(
       await tx.execute(sql`
     SELECT a.id::text account_id,b.subscription_id::text,b.clinic_id::text,s.price_id::text,
       pr.amount::text,i.amount_minor::text,i.product_id,b.external_customer_id,
-      b.external_subscription_id,s.billing_status,s.trial_ends_at
+      b.external_subscription_id,s.billing_status,s.trial_ends_at,t.auth_created_at
     FROM billing_gateway.bindings b JOIN billing_gateway.accounts a ON a.id=b.account_id
     JOIN public.subscriptions s ON s.id=b.subscription_id AND s.clinic_id=b.clinic_id
     JOIN public.prices pr ON pr.id=s.price_id
     JOIN billing_gateway.checkout_intents i ON i.subscription_id=s.id AND i.clinic_id=s.clinic_id
       AND i.account_id=a.id AND i.price_id=s.price_id
+    JOIN public.trial_access_policies ta ON ta.subscription_id=s.id AND ta.clinic_id=s.clinic_id
+    JOIN billing_gateway.trial_claims t ON t.auth_user_id=ta.owner_user_id
+      AND t.clinic_id=s.clinic_id AND t.trial_ends_at=s.trial_ends_at
     WHERE a.provider='abacatepay' AND a.environment='sandbox'
       AND a.external_account_id=${evidence.account.accountId}
       AND b.external_checkout_id=${evidence.checkoutId} AND s.billing_provider='abacatepay'
@@ -104,6 +108,7 @@ export async function applyInitialAbacatePayPaymentTx(
   const period = initialAbacatePayAccessPeriod({
     subscriptionCreatedAt: evidence.subscriptionCreatedAt,
     trialEndsAt: binding.trial_ends_at,
+    notBefore: binding.auth_created_at,
     now: new Date(),
   });
   if (!period) return 'review';

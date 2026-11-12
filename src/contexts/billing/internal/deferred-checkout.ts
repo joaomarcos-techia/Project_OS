@@ -68,9 +68,7 @@ const contractSchema = z.object({
   billing_cycle: z.literal('monthly'),
   billing_status: z.enum(['trial', 'active', 'past_due', 'cancelled']),
   cancel_at_period_end: z.boolean(),
-  trial_ends_at: z.coerce.date(),
   released_at: z.coerce.date().nullable(),
-  trial_active: z.boolean(),
 });
 
 export class DeferredCheckoutError extends Error {
@@ -78,7 +76,6 @@ export class DeferredCheckoutError extends Error {
     readonly code:
       | 'unavailable'
       | 'not_eligible'
-      | 'trial_active'
       | 'already_paid'
       | 'cancelled'
       | 'reconcile_required',
@@ -116,7 +113,7 @@ export async function createDeferredSubscriptionCheckout(input: { clinicId: stri
     SELECT s.id::text subscription_id,s.clinic_id::text,a.id::text account_id,
       a.external_account_id,a.provider,a.environment,b.external_subscription_id,
       pr.id::text price_id,p.code plan_code,pr.amount::text,pr.currency,pr.billing_cycle,
-      s.billing_status,s.cancel_at_period_end,s.trial_ends_at,ta.released_at,(s.trial_ends_at > now()) trial_active
+      s.billing_status,s.cancel_at_period_end,ta.released_at
     FROM public.subscriptions s JOIN public.plans p ON p.id=s.plan_id
     JOIN public.prices pr ON pr.id=s.price_id
     JOIN billing_gateway.bindings b ON b.subscription_id=s.id AND b.clinic_id=s.clinic_id
@@ -153,7 +150,7 @@ export async function createDeferredSubscriptionCheckout(input: { clinicId: stri
   ) {
     throw new DeferredCheckoutError('already_paid');
   }
-  if (contract.trial_active) throw new DeferredCheckoutError('trial_active');
+  // The owner may convert during evaluation; this creates a checkout, never access.
   const code = z.enum(OFFER_2026_PLAN_CODES).safeParse(contract.plan_code);
   const configuredProductId = code.success ? productMap[code.data] : undefined;
   if (!configuredProductId) throw new DeferredCheckoutError('unavailable');

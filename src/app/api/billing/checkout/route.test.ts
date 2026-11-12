@@ -33,7 +33,7 @@ beforeEach(() => {
   });
 });
 
-describe('post-trial checkout HTTP boundary (unit doubles)', () => {
+describe('subscription checkout HTTP boundary (unit doubles)', () => {
   it('resolves tenant exclusively from fresh server authorization', async () => {
     const result = await POST(request());
     expect(result.status).toBe(200);
@@ -61,7 +61,7 @@ describe('post-trial checkout HTTP boundary (unit doubles)', () => {
     expect((await POST(request(' '.repeat(257)))).status).toBe(413);
     expect(mocks.checkout).not.toHaveBeenCalled();
   });
-  it.each(['trial_active', 'already_paid', 'cancelled', 'reconcile_required'] as const)(
+  it.each(['not_eligible', 'already_paid', 'cancelled', 'reconcile_required'] as const)(
     'returns safe state %s without changing provider',
     async (code) => {
       mocks.checkout.mockRejectedValue(new DeferredCheckoutError(code));

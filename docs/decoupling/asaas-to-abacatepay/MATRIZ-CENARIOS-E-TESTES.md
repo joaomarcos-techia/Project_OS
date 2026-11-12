@@ -253,3 +253,22 @@ A CI de `b6965447` concluiu na tentativa 2 com 7.005 testes e 22 E2E/zero SKIP. 
 | CI | Baseline b18407c3:7016 testes +22 E2E/zeroSKIP | Novo incremento tem CI própria no PR53 |
 
 Os erros iniciais da fixture (slug longo e savepoint mal utilizado) foram corrigidos no harness, sem relaxar guards de produto. Fechamento real de fixture, renovação externa e composição live seguem pendentes. Não repetir pagamento inicial, probe entregue ou jornada normal MFA aprovada; recuperação/incidentes de acesso continuam separados.
+
+## Trial definitivo e contrato SQL0151 — 12/11/2026
+
+Estado atual em [relatório §44](RELATORIO-HOMOLOGACAO-FINAL.md#44-trial-definitivo-e-composição-com-0151--12112026). As cinco compras iniciais permanecem homologadas, sem repetição. Sentry Preview e MFA normal já passaram. Os checkpoints anteriores continuam históricos.
+
+| Requisito | Evidência executada | Estado / limite |
+| --- | --- | --- |
+| Trial dia1/dia14/expirado, pendente/cancelado/período vencido/plano desconhecido | Policy/adapter unitários e PostgreSQL143/152 migrations | PASS local; nenhuma conta real alterada |
+| Checkout SaaS durante o trial | UI e contrato server, journal, webhook autenticado, invoice e período atômicos | PASS unidade/PG49; não é nova compra externa nem nova jornada autenticada Preview |
+| Bloqueio Asaas antes de provedor | Hosted checkout inicial/renovação recusados antes de claim e GET/POST; jobs de cobrança cancelados | PASS testes dirigidos com I/O controlado |
+| IA inbound/ferramenta/worker | Decisão central antes de turno, revalidação transacional da ferramenta e jobs antes de contato/template/send | PASS testes dirigidos; flags/permissões existentes não removidas |
+| Trial → pago | Mesma invoice positiva paga/same tenant/subscription e liberação; checkout pendente nunca concede | PASS PG49 com função SQL real0151 e N-1 sem função |
+| TISS não operacional no trial | SQL0151 recusa enable/appointment e active sem release; wrapper preso à sessão/core privado | PASS entre33 verificações SQL |
+| Pagamento não ativa TISS não liberado | App retorna module_unavailable, preservando a decisão operacional | PASS local; integração/revisão final dos PRs ainda necessária |
+| Composição candidato + TISS0151 |33 checks, duas ordens/rollback, catálogo/contratos/recebíveis/gatilhos/RLS preservados | PASS local no snapshot2a707880; sem journal ou aplicação DEV |
+| Recuperação/cotas/idempotência com0151 |120 checks financeiros reais de PG/HTTP controlado | PASS local; zero rede externa; não equivale a renovação externa |
+| CI final/build/E2E público | Checks próprios do SHA no PR53 | Só considerar PASS após a execução correspondente; não herdar baseline |
+
+Próxima dependência de banco: acordar cauda final/número/timestamp, refazer preflight de hashes e obter aprovação específica DEV. Nenhum pagamento novo precisa ser solicitado para estes resultados. Fechamento externo, renovação real e composição live continuam gates independentes.

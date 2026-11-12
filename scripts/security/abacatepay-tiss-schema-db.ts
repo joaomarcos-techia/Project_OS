@@ -160,7 +160,11 @@ async function sharedTableChecks(
     '23514',
   );
   assert.deepEqual(await usage(), before);
-  passed('insurance full charge refused without consuming trial quota');
+  passed(
+    proof.lastIndex >= 151
+      ? 'insurance full charge refused even for a verified paid contract'
+      : 'insurance full charge refused without consuming trial quota',
+  );
   const [coverage] = await tx`INSERT INTO public.hi_appointment_coverages
     (clinic_id,appointment_id,patient_id,insurer_id,created_via,created_by)
     VALUES(${f.clinicId}::uuid,${appointmentId}::uuid,${f.patientId}::uuid,${insurer.id}::uuid,'user',${f.ownerId}::uuid) RETURNING id`;
@@ -207,6 +211,82 @@ async function sharedTableChecks(
   });
   passed('tenant cannot read another clinic gap or private recovery provenance');
 }
+async function premiumChecks(tx: ScratchTransaction, trial: Fixture, paid: Fixture, order: string) {
+  const passed = (name: string) => checks.push({ name: `${order}: 0151 ${name}`, status: 'PASS' });
+  for (const feature of ['patient_charges', 'ai_agents', 'health_insurance']) {
+    const [denied] =
+      await tx`SELECT public.qoro_premium_denial_for(${trial.clinicId}::uuid,${feature}) reason`;
+    assert.equal(denied?.reason, 'trial');
+    const [allowed] =
+      await tx`SELECT public.qoro_premium_denial_for(${paid.clinicId}::uuid,${feature}) reason`;
+    assert.equal(allowed?.reason, null);
+  }
+  passed('all three commercial decisions distinguish trial and verified paid contract');
+  const [before] =
+    await tx`SELECT count(*)::int n FROM public.hi_clinic_settings WHERE clinic_id=${trial.clinicId}::uuid`;
+  await rejectsSql(
+    tx,
+    (nested) => nested`INSERT INTO public.hi_clinic_settings
+    (clinic_id,enabled,enabled_at,enabled_by,provider_kind,cnes_status)
+    VALUES(${trial.clinicId}::uuid,true,now(),${trial.ownerId}::uuid,'PJ','none_declared')`,
+    '23514',
+  );
+  const [after] =
+    await tx`SELECT count(*)::int n FROM public.hi_clinic_settings WHERE clinic_id=${trial.clinicId}::uuid`;
+  assert.deepEqual(after, before);
+  passed('trial cannot enable TISS by direct SQL and leaves no setting');
+  await rejectsSql(
+    tx,
+    (nested) => nested`UPDATE public.appointments SET billing_mode='convenio'
+    WHERE id=${trial.appointmentId}::uuid`,
+    '23514',
+  );
+  passed('trial cannot convert an appointment to insurance');
+  try {
+    await tx.savepoint(async (nested) => {
+      await nested`UPDATE public.subscriptions SET billing_status='active' WHERE clinic_id=${trial.clinicId}::uuid`;
+      const [row] =
+        await nested`SELECT public.qoro_premium_denial_for(${trial.clinicId}::uuid,'ai_agents') reason`;
+      assert.equal(row?.reason, 'payment_pending');
+      throw new RollbackProof();
+    });
+  } catch (error) {
+    if (!(error instanceof RollbackProof)) throw error;
+  }
+  passed('an active status without invoice release cannot bypass commercial denial');
+  await tx.savepoint(async (scoped) => {
+    await scoped`SET LOCAL ROLE authenticated`;
+    await scoped`SELECT set_config('app.current_clinic',${paid.clinicId},true)`;
+    const [row] =
+      await scoped`SELECT public.qoro_premium_denial(${paid.clinicId}::uuid,'patient_charges') reason`;
+    assert.equal(row?.reason, null);
+    await rejectsSql(
+      scoped,
+      (nested) =>
+        nested`SELECT public.qoro_premium_denial(${trial.clinicId}::uuid,'patient_charges')`,
+      '42501',
+    );
+    await rejectsSql(
+      scoped,
+      (nested) =>
+        nested`SELECT public.qoro_premium_denial_for(${paid.clinicId}::uuid,'patient_charges')`,
+      '42501',
+    );
+    await scoped`RESET ROLE`;
+  });
+  passed('session wrapper is tenant-bound and core is not callable by authenticated');
+  await tx.savepoint(async (scoped) => {
+    await scoped`SET LOCAL ROLE anon`;
+    await rejectsSql(
+      scoped,
+      (nested) =>
+        nested`SELECT public.qoro_premium_denial(${paid.clinicId}::uuid,'patient_charges')`,
+      '42501',
+    );
+    await scoped`RESET ROLE`;
+  });
+  passed('anonymous role cannot inspect commercial access');
+}
 let failure: unknown;
 try {
   for (const order of ['financial_then_tiss', 'tiss_then_financial'] as const) {
@@ -245,7 +325,12 @@ try {
           name: `${order}: legacy and AbacatePay contracts invoices and private receivables preserved`,
           status: 'PASS',
         });
-        await sharedTableChecks(tx, trial, current, order);
+        if (proof.lastIndex >= 151) {
+          await premiumChecks(tx, trial, current, order);
+          // 0151 intentionally forbids operational TISS in trial; exercise the
+          // existing coverage/receivable protections with the verified paid fixture.
+          await sharedTableChecks(tx, current, trial, order);
+        } else await sharedTableChecks(tx, trial, current, order);
         throw new RollbackProof();
       });
     } catch (error) {

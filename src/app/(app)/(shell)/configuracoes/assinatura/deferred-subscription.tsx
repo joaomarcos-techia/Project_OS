@@ -151,11 +151,9 @@ export function DeferredSubscription(props: Props) {
         return;
       }
       setMessage(
-        code === 'trial_active'
-          ? 'Sua avaliação ainda está em andamento. A contratação fica disponível ao final do prazo.'
-          : code === 'reconcile_required'
-            ? 'Já existe uma tentativa em confirmação. Não crie outra cobrança; atualize esta página em alguns minutos.'
-            : 'Não foi possível abrir a contratação agora. Nenhuma liberação foi aplicada. Tente novamente em instantes.',
+        code === 'reconcile_required'
+          ? 'Já existe uma tentativa em confirmação. Não crie outra cobrança; atualize esta página em alguns minutos.'
+          : 'Não foi possível abrir a contratação agora. Nenhuma liberação foi aplicada. Tente novamente em instantes.',
       );
     } catch {
       setMessage(
@@ -192,7 +190,7 @@ export function DeferredSubscription(props: Props) {
       ) : props.paid && props.paidPeriodActive ? (
         <Alert variant="success" title="Pagamento confirmado">
           As restrições temporárias da avaliação foram removidas. Os limites do seu plano continuam
-          valendo.
+          valendo. Cada módulo depende das permissões e da sua disponibilidade operacional.
         </Alert>
       ) : props.paid ? (
         <Alert variant="warning" title="Renovação em verificação">
@@ -218,7 +216,7 @@ export function DeferredSubscription(props: Props) {
           }).format(new Date(props.trialEndsAt))}{' '}
           (Brasília).{' '}
           {props.trialActive
-            ? 'Nenhuma cobrança é criada durante a avaliação. A contratação fica disponível ao final do prazo.'
+            ? 'Você pode conhecer o sistema sem cartão ou contratar agora. Cobranças de pacientes, convênios e agentes de IA exigem pagamento confirmado, plano e módulo disponíveis. Ao contratar, o período pago começa na contratação confirmada, sem aguardar o fim da avaliação.'
             : 'Após concluir o checkout, aguarde a confirmação do pagamento. Se já pagou, não faça outra assinatura. A escrita e as integrações serão liberadas após essa confirmação.'}
         </Alert>
       )}
@@ -227,16 +225,12 @@ export function DeferredSubscription(props: Props) {
           Atualizar confirmação
         </Button>
       ) : null}
-      {!props.paid &&
-      !props.trialActive &&
-      !props.activationPending &&
-      props.checkoutAvailable === false ? (
+      {!props.paid && !props.activationPending && props.checkoutAvailable === false ? (
         <Alert variant="info" title="Contratação temporariamente indisponível">
           Novas contratações estão pausadas. Seus dados e tentativas anteriores foram preservados.
         </Alert>
       ) : null}
       {!props.paid &&
-      !props.trialActive &&
       !props.activationPending &&
       props.checkoutAvailable !== false &&
       props.billingStatus !== 'cancelled' ? (

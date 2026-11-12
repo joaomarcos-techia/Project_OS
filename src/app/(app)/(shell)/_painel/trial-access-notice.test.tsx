@@ -12,6 +12,9 @@ describe('trial usage notice', () => {
     expect(html).toContain('15/15');
     expect(html).toContain('WhatsApp');
     expect(html).toContain('Asaas');
+    expect(html).toContain('convênios');
+    expect(html).toContain('agentes de IA');
+    expect(html).toContain('pagar não');
     expect(html).toContain('convites de equipe');
     expect(html).toContain('excluir ou cancelar não devolve a cota');
     expect(html).toContain('href="/configuracoes/assinatura"');
