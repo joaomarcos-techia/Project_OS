@@ -18,7 +18,7 @@ vi.mock('@/contexts/health-insurance/actions', () => {
   return {
     answerAppealAction: a(), approveGuideAction: a(), cancelGuideAction: a(), createAppealAction: a(), decideGlossAction: a(),
     fileAppealAction: a(), exportAppealXmlAction: a(), reconcileGuideAction: a(), returnGuideAction: a(), reverseAllocationAction: a(), reviewGuideAction: a(),
-    allocatePaymentAction: a(), createBatchAction: a(), recordBatchProtocolAction: a(), recordGlossAction: a(), recordPaymentAction: a(),
+    allocatePaymentAction: a(), createBatchAction: a(), recordBatchProtocolAction: a(), recordGlossAction: a(), recordPaymentAction: a(), importStatementAction: a(),
   };
 });
 vi.mock('./_lib/access', async (orig) => {

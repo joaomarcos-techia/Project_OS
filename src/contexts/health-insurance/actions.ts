@@ -30,6 +30,7 @@ import * as batches from './internal/batch-service';
 import { readBatchGuidesAudited } from './internal/guide-access';
 import { approveConsultaGuide } from './internal/guide-issuance';
 import * as acct from './internal/insurance-account-service';
+import { importOperatorStatement, StatementImportError, type StatementImportResult } from './internal/statement-import-service';
 import { loadXmllintValidator } from './tiss/xml/xsd-validator';
 
 export type ActionResult<T = null> = { ok: true; data: T } | { ok: false; error: string };
@@ -66,6 +67,7 @@ function messageOf(error: unknown): string {
     const first = error.details.find((d) => d.includes(': '))?.split(': ').slice(1).join(': ');
     return first ? `${error.message}: ${first}` : error.message;
   }
+  if (error instanceof StatementImportError) return error.message;
   if (error instanceof TissStorageError) return 'O armazenamento de arquivos está indisponível agora. Tente de novo em instantes.';
   const e = error as { code?: string; cause?: { code?: string; message?: string } };
   const code = e.code ?? e.cause?.code;
@@ -429,3 +431,29 @@ export async function reconcileGuideAction(input: { guideId: string; version: nu
   });
 }
 
+
+/**
+ * Importação de demonstrativo da operadora (P9.5): análise de conta ou pagamento, em XML TISS.
+ * O arquivo é conferido (estrutura, hash, XSD, operadora, clínica, lote, protocolo, guia)
+ * antes de qualquer efeito; o que não confere volta como divergência, sem ser aplicado.
+ */
+export async function importStatementAction(form: FormData): Promise<ActionResult<StatementImportResult>> {
+  return run(async () => {
+    const ctx = await gate();
+    const d = z.object({ insurerId: uuid, receivedOn: day }).parse({ insurerId: form.get('insurerId'), receivedOn: form.get('receivedOn') });
+    const file = form.get('file');
+    if (!(file instanceof File) || file.size === 0) throw new StatementImportError('Escolha o arquivo XML do demonstrativo.', 'FILE_MISSING');
+    if (file.size > 16 * 1024 * 1024) throw new StatementImportError('O arquivo passa de 16 MB.', 'SIZE');
+    return importOperatorStatement(
+      { store: supabaseTissObjectStore(), validateXsd: loadXmllintValidator() },
+      {
+        clinicId: ctx.clinicId,
+        insurerId: d.insurerId,
+        bytes: new Uint8Array(await file.arrayBuffer()),
+        actorUserId: ctx.userId,
+        requestContext: await requestContext(),
+        receivedOn: d.receivedOn,
+      },
+    );
+  });
+}

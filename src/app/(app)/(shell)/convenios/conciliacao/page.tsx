@@ -2,19 +2,21 @@ import Link from 'next/link';
 
 import { EmptyState } from '@/components/ui/empty-state';
 import { PanelCard } from '@/components/ui/panel-card';
-import { listInsurerPayments, listOpenGuidesForAllocation } from '@/contexts/health-insurance/queries';
+import { importStatementAction } from '@/contexts/health-insurance/actions';
+import { listInsurerPayments, listInsurers, listOpenGuidesForAllocation } from '@/contexts/health-insurance/queries';
 
 import { brl, ConveniosHeader, conveniosAccess, shortDate } from '../_lib/access';
-import { AllocateForm } from '../_lib/batch-ui';
+import { AllocateForm, StatementImportForm } from '../_lib/batch-ui';
 
 export const dynamic = 'force-dynamic';
 
 export default async function ConciliacaoPage() {
   const access = await conveniosAccess('Conciliação');
   if (!access.ok) return access.view;
-  const [payments, guides] = await Promise.all([
+  const [payments, guides, insurers] = await Promise.all([
     listInsurerPayments(access.clinicId),
     access.canManage ? listOpenGuidesForAllocation(access.clinicId) : Promise.resolve([]),
+    access.canManage ? listInsurers(access.clinicId) : Promise.resolve([]),
   ]);
   const pending = payments.filter((p) => p.unreconciledCents > 0);
 
@@ -25,6 +27,11 @@ export default async function ConciliacaoPage() {
         description="Dinheiro recebido das operadoras e a guia de cada parte. Só entra no financeiro da clínica o que estiver alocado a uma guia."
         crumbs={[{ label: 'Conciliação' }]}
       />
+      {access.canManage ? (
+        <PanelCard title="Importar demonstrativo da operadora" regionLabel="Importar demonstrativo" className="mb-(--sp-4)">
+          <StatementImportForm insurers={insurers} action={importStatementAction} />
+        </PanelCard>
+      ) : null}
       <PanelCard title="Recebido sem conciliar" regionLabel="Pagamentos sem conciliar">
         {pending.length === 0 ? (
           <EmptyState variant="compact" title="Nada para conciliar" description="Todo pagamento registrado está alocado às guias." />

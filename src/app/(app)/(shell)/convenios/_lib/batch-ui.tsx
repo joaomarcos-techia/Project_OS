@@ -354,3 +354,91 @@ export function AllocateForm({ paymentId, unreconciledCents, guides }: { payment
     </form>
   );
 }
+
+type ImportSummary = {
+  kind: 'analysis' | 'payment';
+  numeroDemonstrativo: string;
+  batches: Array<{ number: string; glosses: number; payments: number }>;
+  divergences: Array<{ code: string; message: string }>;
+  alreadyImported: boolean;
+};
+
+/** Importar demonstrativo XML da operadora (análise de conta ou pagamento). */
+export function StatementImportForm({
+  insurers,
+  action,
+}: {
+  insurers: Array<{ id: string; name: string }>;
+  action: (form: FormData) => Promise<{ ok: true; data: ImportSummary } | { ok: false; error: string }>;
+}) {
+  const id = useId();
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [result, setResult] = useState<ImportSummary | null>(null);
+  if (insurers.length === 0) return <p className="text-(length:--fs-sm) text-fg-muted">Nenhuma operadora cadastrada.</p>;
+  return (
+    <div className="flex flex-col gap-(--sp-3)">
+      <form
+        className="grid gap-(--sp-2) md:grid-cols-[1fr_1fr_1fr_auto] md:items-end"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const fd = new FormData(e.currentTarget);
+          start(async () => {
+            const r = await action(fd);
+            if (!r.ok) {
+              toast.error(r.error);
+              return;
+            }
+            setResult(r.data);
+            toast.success(r.data.alreadyImported ? 'Demonstrativo já importado: nada novo aplicado' : 'Demonstrativo importado');
+            router.refresh();
+          });
+        }}
+      >
+        <Field label="Operadora" htmlFor={`${id}-i`} required>
+          <Select id={`${id}-i`} name="insurerId" defaultValue={insurers[0]!.id}>
+            {insurers.map((i) => (
+              <option key={i.id} value={i.id}>
+                {i.name}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Recebido em" htmlFor={`${id}-d`} required>
+          <Input id={`${id}-d`} name="receivedOn" type="date" defaultValue={today()} required />
+        </Field>
+        <Field label="Arquivo XML (TISS 4.03.00)" htmlFor={`${id}-f`} required>
+          <Input id={`${id}-f`} name="file" type="file" accept=".xml,application/xml,text/xml" required />
+        </Field>
+        <Button type="submit" disabled={pending}>
+          {pending ? 'Conferindo…' : 'Importar'}
+        </Button>
+      </form>
+      {result ? (
+        <div className="rounded-(--r-md) border border-border p-(--sp-3) text-(length:--fs-sm)" role="status">
+          <p className="font-medium">
+            {result.kind === 'analysis' ? 'Análise de conta' : 'Pagamento'} {result.numeroDemonstrativo}
+            {result.alreadyImported ? ' — já importado antes' : ''}
+          </p>
+          <ul className="mt-1">
+            {result.batches.map((b) => (
+              <li key={b.number}>
+                Lote {b.number}: {b.glosses} glosa(s), {b.payments} pagamento(s)
+              </li>
+            ))}
+          </ul>
+          {result.divergences.length > 0 ? (
+            <>
+              <p className="mt-2 font-medium text-warning-700">Divergências (nada aplicado nesses pontos):</p>
+              <ul className="list-disc pl-5">
+                {result.divergences.map((d, i) => (
+                  <li key={`${d.code}-${i}`}>{d.message}</li>
+                ))}
+              </ul>
+            </>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
