@@ -8,6 +8,7 @@ import { createAbacatePayReadClient } from '@/lib/payments/abacatepay/reader';
 import { createAbacatePayNegativePaymentReader } from '@/lib/payments/abacatepay/negative-payment';
 import type { ManagementDatabase } from './abacatepay-management';
 import { recordBillingEvent } from './subscriptions';
+const READBACK_BUDGET_MS = 20_000;
 
 const eventSchema = z.object({
   account_id: z.uuid(),
@@ -34,7 +35,11 @@ const contextSchema = z.object({
 });
 
 /** Saves a bound readback beside an authenticated notification, never a fabricated financial transition. */
-export async function readAbacatePayNegativeEvent(database: ManagementDatabase, eventId: string) {
+export async function readAbacatePayNegativeEvent(
+  database: ManagementDatabase,
+  eventId: string,
+  deadlineMs = Date.now() + READBACK_BUDGET_MS,
+) {
   const [event] = z
     .array(eventSchema)
     .max(1)
@@ -83,6 +88,7 @@ export async function readAbacatePayNegativeEvent(database: ManagementDatabase, 
     apiKey: env.ABACATEPAY_API_KEY,
     environment: 'sandbox' as const,
     timeoutMs: 2000,
+    deadlineMs,
   };
   const read = createAbacatePayReadClient(config);
   if ((await read.readStore()).id !== env.ABACATEPAY_STORE_ID) return null;

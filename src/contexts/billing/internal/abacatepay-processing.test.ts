@@ -23,6 +23,7 @@ vi.mock('@/lib/observability/capture', () => ({ captureBackgroundError: mocks.ca
 vi.mock('./subscriptions', () => ({ markInvoicePaid: vi.fn(), recordBillingEvent: mocks.record }));
 import {
   reconcileAbacatePayInbox,
+  reconcileAbacatePayInboxTick,
   reconcileMissingAbacatePayInitialPayment,
 } from './abacatepay-processing';
 
@@ -131,8 +132,95 @@ describe('missing initial webhook recovery (unit DB double)', () => {
     );
   });
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.useRealTimers();
+});
+
+describe('minute inbox tick', () => {
+  it('keeps Production disabled without touching the database or provider', async () => {
+    mocks.runtime.mockReturnValue(false);
+    expect(await reconcileAbacatePayInboxTick()).toEqual({
+      scanned: 0,
+      applied: 0,
+      review: 0,
+      deferred: false,
+    });
+    expect(mocks.execute).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+  it('stops an empty queue after one attempt', async () => {
+    expect((await reconcileAbacatePayInboxTick()).scanned).toBe(0);
+    expect(mocks.execute).toHaveBeenCalledOnce();
+  });
+  it('propagates persistence failure to the scheduled error boundary', async () => {
+    mocks.execute.mockRejectedValueOnce(new Error('Synthetic inbox unavailable'));
+    await expect(reconcileAbacatePayInboxTick()).rejects.toThrow('Synthetic inbox unavailable');
+  });
+  it('caps busy work and resumes it on a later tick', async () => {
+    mocks.execute.mockResolvedValue([
+      {
+        account_id: '11111111-1111-4111-8111-111111111111',
+        event_id: 'log_synthetic_unknown',
+        event_type: 'unsupported.synthetic',
+        lease_token: '22222222-2222-4222-8222-222222222222',
+        external_subscription_id: null,
+        external_checkout_id: null,
+        external_customer_id: null,
+        attempts: 1,
+        attempt_limit: 10,
+        received_at: new Date(),
+      },
+    ]);
+    expect(await reconcileAbacatePayInboxTick()).toEqual({
+      scanned: 10,
+      applied: 0,
+      review: 0,
+      deferred: true,
+    });
+    expect((await reconcileAbacatePayInboxTick()).scanned).toBe(10);
+    expect(mocks.execute).toHaveBeenCalledTimes(40);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+  it('does not admit a second item after the admission window', async () => {
+    vi.useFakeTimers();
+    mocks.execute.mockImplementation(async () => {
+      vi.setSystemTime(Date.now() + 16_000);
+      return [
+        {
+          account_id: '11111111-1111-4111-8111-111111111111',
+          event_id: 'log_synthetic_unknown',
+          event_type: 'unsupported.synthetic',
+          lease_token: '22222222-2222-4222-8222-222222222222',
+          external_subscription_id: null,
+          external_checkout_id: null,
+          external_customer_id: null,
+          attempts: 1,
+          attempt_limit: 10,
+          received_at: new Date(),
+        },
+      ];
+    });
+    expect(await reconcileAbacatePayInboxTick()).toEqual({
+      scanned: 1,
+      applied: 0,
+      review: 0,
+      deferred: true,
+    });
+    expect(mocks.execute).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe('leased AbacatePay worker recovery (unit DB double)', () => {
+  it('does not claim a lease when its caller deadline has expired', async () => {
+    expect(await reconcileAbacatePayInbox({ deadlineMs: Date.now() - 1 })).toEqual({
+      scanned: 0,
+      applied: 0,
+      review: 0,
+    });
+    expect(mocks.execute).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
+  });
   it.each(['applied', 'duplicate'])(
     'alerts late activation once for %s outcome without logging provider data',
     async (outcome) => {

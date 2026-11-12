@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-const mocks = vi.hoisted(() => ({ run: vi.fn(), recovery: vi.fn(), heartbeat: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  run: vi.fn(),
+  recovery: vi.fn(),
+  inbox: vi.fn(),
+  heartbeat: vi.fn(),
+}));
 vi.mock('./handlers', () => ({}));
 vi.mock('@/lib/db/schema', () => ({}));
 vi.mock('@/lib/cron-heartbeat', () => ({ recordHeartbeat: mocks.heartbeat }));
@@ -9,6 +14,7 @@ vi.mock('@/lib/http/cron', () => ({
 vi.mock('@/lib/outbox/worker', () => ({ runOutboxOnce: mocks.run }));
 vi.mock('@/contexts/billing/internal/abacatepay-processing', () => ({
   reconcileAbacatePayRecoveryTick: mocks.recovery,
+  reconcileAbacatePayInboxTick: mocks.inbox,
 }));
 import { GET } from './route';
 const request = () => new Request('https://qoro.example/api/cron/outbox');
@@ -16,12 +22,14 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.run.mockResolvedValue({ processed: 2 });
   mocks.recovery.mockResolvedValue({ scanned: 0 });
+  mocks.inbox.mockResolvedValue({ scanned: 0 });
 });
 describe('existing outbox minute tick', () => {
   it('preserves response shape and gives financial recovery a bounded independent budget', async () => {
     const started = Date.now();
     expect(await (await GET(request())).json()).toEqual({ ok: true, processed: 2 });
     expect(mocks.recovery).toHaveBeenCalledWith(expect.any(Number));
+    expect(mocks.inbox).toHaveBeenCalledOnce();
     const deadline = mocks.recovery.mock.calls[0]?.[0];
     expect(deadline).toBeGreaterThanOrEqual(started + 35_000);
     expect(deadline).toBeLessThanOrEqual(Date.now() + 35_000);
@@ -64,6 +72,11 @@ describe('existing outbox minute tick', () => {
     expect(release).toBeDefined();
     release?.();
     await expect(pending).rejects.toThrow('Synthetic financial failure');
+    expect(mocks.heartbeat).not.toHaveBeenCalled();
+  });
+  it('propagates an inbox failure without declaring a successful tick', async () => {
+    mocks.inbox.mockRejectedValueOnce(new Error('Synthetic inbox failure'));
+    await expect(GET(request())).rejects.toThrow('Synthetic inbox failure');
     expect(mocks.heartbeat).not.toHaveBeenCalled();
   });
 });

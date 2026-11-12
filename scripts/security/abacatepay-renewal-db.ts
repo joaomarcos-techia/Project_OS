@@ -67,7 +67,7 @@ const { closeConsumedAbacatePayCheckout: closeCheckout } =
   await import('../../src/contexts/billing/internal/abacatepay-checkout-closure');
 const { recordAbacatePayRecurringPaymentTx } =
   await import('../../src/contexts/billing/internal/abacatepay-recurring-observations');
-const { reconcileAbacatePayInbox } =
+const { reconcileAbacatePayInbox, reconcileAbacatePayInboxTick } =
   await import('../../src/contexts/billing/internal/abacatepay-processing');
 const { createPostgresGatewayInbox } = await import('../../src/lib/payments/saas/postgres-store');
 const { POST: webhook } = await import('../../src/app/api/webhooks/abacatepay/route');
@@ -3069,6 +3069,40 @@ try {
         await sql`SELECT payload->>'evidenceLevel' level,payload->>'checkoutStatus' status
       FROM public.billing_events WHERE clinic_id=${f.clinicId}::uuid AND type='subscription.financial.notification_checked'`;
       assert.deepEqual(proof, { level: 'refund_debit_verified', status: null });
+    },
+  );
+  await check(
+    'OPS minute inbox tick drains bounded oldest batches and isolates another store',
+    async () => {
+      const ids = Array.from({ length: 21 }, () => `log_tick_${randomUUID()}`);
+      const [owned] = await sql`SELECT id FROM billing_gateway.accounts WHERE provider='abacatepay'
+      AND environment='sandbox' AND external_account_id=${account.accountId}`;
+      assert.ok(owned);
+      await sql`INSERT INTO billing_gateway.event_inbox(account_id,event_id,event_type,payload_hash,received_at)
+      SELECT ${owned.id}::uuid,value,'unsupported.synthetic',${'a'.repeat(64)},'2000-01-01'::timestamptz
+      FROM jsonb_array_elements_text(${sql.json(ids)}::jsonb)`;
+      const [foreign] =
+        await sql`INSERT INTO billing_gateway.accounts(provider,environment,external_account_id)
+      VALUES('abacatepay','sandbox',${`store_tick_${randomUUID()}`}) RETURNING id`;
+      assert.ok(foreign);
+      const foreignId = `log_tick_foreign_${randomUUID()}`;
+      await sql`INSERT INTO billing_gateway.event_inbox(account_id,event_id,event_type,payload_hash,received_at)
+      VALUES(${foreign.id}::uuid,${foreignId},'unsupported.synthetic',${'b'.repeat(64)},'1999-01-01')`;
+      const before = await state(first),
+        calls = fixtureHttpCalls;
+      for (const ignored of [10, 20]) {
+        const tick = await reconcileAbacatePayInboxTick();
+        assert.equal(tick.scanned, 10);
+        assert.equal(tick.deferred, true);
+        const [count] = await sql`SELECT count(*)::int n FROM billing_gateway.event_inbox
+        WHERE event_id IN(SELECT jsonb_array_elements_text(${sql.json(ids)}::jsonb)) AND state='ignored'`;
+        assert.equal(count?.n, ignored);
+      }
+      const [other] = await sql`SELECT state,attempts FROM billing_gateway.event_inbox
+      WHERE account_id=${foreign.id}::uuid AND event_id=${foreignId}`;
+      assert.deepEqual(other, { state: 'received', attempts: 0 });
+      assert.deepEqual(await state(first), before);
+      assert.equal(fixtureHttpCalls, calls);
     },
   );
   assert.equal(networkCalls, 0);

@@ -33,6 +33,7 @@ import { DUNNING_READONLY_DAYS } from './dunning';
 import { toCents, toReaisString } from './money';
 import { markInvoicePaid, recordBillingEvent } from './subscriptions';
 import { recoverAbacatePayCheckout } from './abacatepay-checkout-recovery';
+const READBACK_BUDGET_MS = 20_000;
 
 export interface ManagementDatabase extends BillingGatewaySql {
   transaction<T>(work: (tx: Tx) => Promise<T>): Promise<T>;
@@ -151,8 +152,8 @@ export async function getAbacatePayManagementContext(
     );
   return row ?? null;
 }
-async function verifyStopped(context: Context) {
-  const read = createAbacatePayReadClient(config());
+async function verifyStopped(context: Context, deadlineMs = Date.now() + READBACK_BUDGET_MS) {
+  const read = createAbacatePayReadClient({ ...config(), deadlineMs });
   if ((await read.readStore()).id !== context.external_account_id)
     throw new AbacatePayManagementError('reconcile_required');
   const remote = await read.readSubscription(context.external_subscription_id);
@@ -608,6 +609,7 @@ export async function recoverAbacatePayRecontract(
 export async function reconcileAbacatePayCancellation(
   database: ManagementDatabase,
   externalSubscriptionId?: string,
+  deadlineMs = Date.now() + READBACK_BUDGET_MS,
 ) {
   const idle = { scanned: 0, confirmed: 0, review: 0 };
   if (
@@ -651,7 +653,7 @@ export async function reconcileAbacatePayCancellation(
   if (!current || current.external_subscription_id !== row.external_subscription_id)
     return { ...idle, scanned: 1 };
   try {
-    if (!(await verifyStopped(current))) return { ...idle, scanned: 1, review: 1 };
+    if (!(await verifyStopped(current, deadlineMs))) return { ...idle, scanned: 1, review: 1 };
     await confirmCancellation(database, current);
     return { ...idle, scanned: 1, confirmed: 1 };
   } catch {

@@ -48,6 +48,9 @@ const bindingSchema = z.object({
   auth_created_at: z.coerce.date(),
 });
 export type InitialPaymentApplication = 'applied' | 'duplicate' | 'review';
+const INBOX_TICK_LIMIT = 10;
+const INBOX_ADMISSION_WINDOW_MS = 15_000;
+const INBOX_TICK_BUDGET_MS = 35_000;
 
 /** Keep the scheduled entrypoint behind the existing privileged billing seam. */
 export async function reconcileAbacatePayRecoveryTick(deadlineMs: number) {
@@ -56,6 +59,28 @@ export async function reconcileAbacatePayRecoveryTick(deadlineMs: number) {
     deadlineMs,
     reconcileMissingAbacatePayInitialPayment,
   );
+}
+
+/** Reuse the daily reconciler's admission window on the existing minute tick.
+ * A first read may use 20s; later items start only within the first 15s.
+ */
+export async function reconcileAbacatePayInboxTick() {
+  const result = { scanned: 0, applied: 0, review: 0, deferred: false };
+  const startedAt = Date.now();
+  for (let index = 0; index < INBOX_TICK_LIMIT; index++) {
+    if (index > 0 && Date.now() - startedAt >= INBOX_ADMISSION_WINDOW_MS) {
+      result.deferred = true;
+      break;
+    }
+    const next = await reconcileAbacatePayInbox({ deadlineMs: startedAt + INBOX_TICK_BUDGET_MS });
+    result.scanned += next.scanned;
+    result.applied += next.applied;
+    result.review += next.review;
+    if (next.scanned === 0) break;
+    if (index === INBOX_TICK_LIMIT - 1) result.deferred = true;
+  }
+  metrics.emit('billing.abacatepay.inbox_tick', result);
+  return result;
 }
 
 /**
@@ -199,7 +224,9 @@ const READBACK_BUDGET_MS = 20_000;
 const ACTIVATION_REVIEW_AFTER_MS = 120_000;
 
 /** One bounded event per invocation. Leased work survives process interruption. */
-export async function reconcileAbacatePayInbox(input: { eventId?: string } = {}): Promise<{
+export async function reconcileAbacatePayInbox(
+  input: { eventId?: string; deadlineMs?: number } = {},
+): Promise<{
   applied: number;
   review: number;
   scanned: number;
@@ -212,6 +239,11 @@ export async function reconcileAbacatePayInbox(input: { eventId?: string } = {})
     return { applied: 0, review: 0, scanned: 0 };
   }
   const startedAt = Date.now();
+  const deadline = Math.min(
+    startedAt + READBACK_BUDGET_MS,
+    input.deadlineMs === undefined ? Infinity : z.number().int().positive().parse(input.deadlineMs),
+  );
+  if (deadline - startedAt < 2000) return { applied: 0, review: 0, scanned: 0 };
   const token = randomUUID();
   const eventId =
     input.eventId === undefined ? null : z.string().min(1).max(200).parse(input.eventId);
@@ -308,7 +340,11 @@ export async function reconcileAbacatePayInbox(input: { eventId?: string } = {})
     return { applied: 0, review: 1, scanned: 1 };
   }
   if (event.event_type === 'subscription.cancelled' && event.external_subscription_id) {
-    const result = await reconcileAbacatePayCancellation(dbAdmin, event.external_subscription_id);
+    const result = await reconcileAbacatePayCancellation(
+      dbAdmin,
+      event.external_subscription_id,
+      deadline,
+    );
     await finish(
       result.confirmed ? 'applied' : 'review',
       result.confirmed ? 'renewal_cancellation_verified' : 'cancellation_requires_review',
@@ -327,6 +363,7 @@ export async function reconcileAbacatePayInbox(input: { eventId?: string } = {})
         account,
         event.event_id,
         env.ABACATEPAY_API_KEY,
+        deadline,
       );
       if (result.state !== 'paid') {
         const retry = result.state === 'pending' && event.attempts < event.attempt_limit;
@@ -377,7 +414,7 @@ export async function reconcileAbacatePayInbox(input: { eventId?: string } = {})
     ].includes(event.event_type)
   ) {
     try {
-      const evidence = await readAbacatePayNegativeEvent(dbAdmin, event.event_id);
+      const evidence = await readAbacatePayNegativeEvent(dbAdmin, event.event_id, deadline);
       if (!evidence) {
         await finish('review', 'negative_event_binding_requires_review');
         return { applied: 0, review: 1, scanned: 1 };
@@ -430,7 +467,7 @@ export async function reconcileAbacatePayInbox(input: { eventId?: string } = {})
       environment: 'sandbox' as const,
       timeoutMs: 2000,
       readAttempts: 2 as const,
-      deadlineMs: startedAt + READBACK_BUDGET_MS,
+      deadlineMs: deadline,
     };
     const read = createAbacatePayReadClient(config);
     const remote = await read.readSubscription(event.external_subscription_id);

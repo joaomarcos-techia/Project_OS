@@ -36,6 +36,7 @@ import { assertTargetPlanCapacity } from './plan-changes';
 import { BILLING_EVENTS } from '../events';
 import { toPlanCode } from './subscriptions';
 import { createPersistentAbacatePayStatementReader } from './abacatepay-statement-scan';
+const READBACK_BUDGET_MS = 20_000;
 
 const contextSchema = z.object({
   account_id: z.uuid(),
@@ -145,6 +146,7 @@ export async function readAbacatePayRenewalForEvent(
   account: BillingAccount,
   eventId: string,
   apiKey: string,
+  deadlineMs = Date.now() + READBACK_BUDGET_MS,
 ): Promise<RecurringPaymentRead> {
   if (!(await recurringSchemaReady(database))) return { state: 'review' };
   const context = await contextForAbacatePayRenewalSource(database, account, eventId);
@@ -153,6 +155,7 @@ export async function readAbacatePayRenewalForEvent(
     apiKey,
     environment: 'sandbox',
     timeoutMs: 2000,
+    deadlineMs,
   });
   const original = context.checkout_id === context.origin_checkout_id;
   const snapshot = original
@@ -171,6 +174,7 @@ export async function readAbacatePayRenewalForEvent(
       apiKey,
       environment: 'sandbox',
       timeoutMs: 2000,
+      deadlineMs,
     },
     fetch,
     {
