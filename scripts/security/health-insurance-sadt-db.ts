@@ -9,10 +9,12 @@
  * autorização uma vez) → conferência → emissão (snapshot cifrado, regras TISS) → lote →
  * XML validado no XSD oficial.
  *
- *   TISS_XMLLINT_WASM_DIR=… NODE_OPTIONS=--conditions=react-server npx tsx scripts/security/health-insurance-sadt-db.ts
+ *   TISS_XMLLINT_WASM_DIR=… NODE_OPTIONS="--import ./scripts/security/server-only-hook.mjs" npx tsx --tsconfig tsconfig.scripts.json scripts/security/health-insurance-sadt-db.ts
+ *   (sem `--conditions=react-server`: o PDF da prova 10 usa o @react-pdf como no runtime; ver o hook)
  */
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import { writeFileSync } from 'node:fs';
 
 import { readDevOrderChain } from './dev-order-chain';
 import { startScratchSchema } from './scratch-schema';
@@ -393,6 +395,103 @@ try {
   const cols = (await sql`select column_name from information_schema.columns where table_name like 'hi_sadt_request%'`).map((c) => String(c.column_name));
   assert.ok(!cols.some((c) => /cid|prontuario|diagn/iu.test(c)), cols.join(','));
   pass('9. histórico só de inclusão (rascunho → aguardando → parcialmente autorizada); nenhuma coluna de CID, diagnóstico ou prontuário');
+
+  // ── 10. Documento oficial do pedido à operadora (P6.2) ──────────────
+  const doc = await import('../../src/contexts/health-insurance/internal/sadt-request-document');
+  const fileAccess = await import('../../src/contexts/health-insurance/internal/tiss-file-access');
+  const rc = { ip: null, userAgent: null, requestId: 'harness-sadt-doc' };
+  const card = (membershipId: string) => ({ membershipId, cardNumber: SYNTHETIC_CARD, auditEventId: randomUUID() });
+  const docDeps = { store, validateXsd: xsd, now: () => new Date('2026-11-12T15:00:00Z'), software: { name: 'Qoro', version: 'harness' } };
+  const p10 = await patientWithCard(B, 'documento');
+  const r10 = await createRequest(B, p10, [{ code: CODE_IND, quantity: 3 }, { code: CODE_GRP, quantity: 1 }]);
+  await asUser(B, async (tx) => req.setClinicalIndicationInTx(tx, { clinicId: B.clinicId, requestId: r10, version: await version(r10), text: 'Psicoterapia semanal indicada pela profissional.', actorUserId: B.doctorId }));
+  assert.equal((await check(B, r10)).kind, 'awaiting_authorization');
+  const [authRow] = await sql`select authorization_id, request_number from public.hi_sadt_requests where id = ${r10}::uuid`;
+  // XSD indisponível: nada é gravado (nem objeto, nem registro).
+  const before10 = objects.size;
+  await assert.rejects(
+    () => doc.exportSadtRequestDocument({ ...docDeps, validateXsd: null }, { clinicId: B.clinicId, requestId: r10, card: card(p10.membershipId), newborn: false, actorUserId: B.doctorId, requestContext: rc }),
+    (e: Error & { layer?: string }) => e.layer === 'unavailable',
+  );
+  assert.equal(objects.size, before10);
+  // Carteirinha de outra pessoa: recusada antes de gerar.
+  await assert.rejects(
+    () => doc.exportSadtRequestDocument(docDeps, { clinicId: B.clinicId, requestId: r10, card: card(p2.membershipId), newborn: false, actorUserId: B.doctorId, requestContext: rc }),
+    (e: Error & { layer?: string }) => e.layer === 'card',
+  );
+  // Duas gerações simultâneas: uma gera, a outra encontra; exatamente 2 arquivos (XML + PDF).
+  const both = await Promise.all([0, 1].map(() =>
+    doc.exportSadtRequestDocument(docDeps, { clinicId: B.clinicId, requestId: r10, card: card(p10.membershipId), newborn: false, actorUserId: B.doctorId, requestContext: rc })));
+  assert.deepEqual(both.map((o) => o.kind).sort(), ['already_exported', 'exported']);
+  const files10 = await sql`select id, kind, media_type, content_sha256, storage_ref from public.hi_files where authorization_id = ${String(authRow!.authorization_id)}::uuid order by kind`;
+  assert.deepEqual(files10.map((f) => `${f.kind}:${f.media_type}`), ['authorization_request_pdf:application/pdf', 'authorization_request_xml:application/xml']);
+  // Guardado CIFRADO: nada de PDF, XML, carteirinha nem indicação em claro no armazenamento.
+  for (const f of files10) {
+    const raw = Buffer.from(objects.get(String(f.storage_ref))!).toString('utf8');
+    assert.ok(!raw.includes('%PDF') && !raw.includes('solicitacaoSP-SADT') && !raw.includes(SYNTHETIC_CARD) && !raw.includes('Psicoterapia semanal'));
+  }
+  const readFile = (clinic: Clinic, fileId: string) =>
+    asUser(clinic, (tx) => fileAccess.readTissFileCoreInTx(tx, store, { clinicId: clinic.clinicId, fileId, userId: clinic.doctorId, purpose: 'download_arquivo', requestContext: rc }));
+  const pdfRow = files10.find((f) => f.kind === 'authorization_request_pdf')!;
+  const xmlRow = files10.find((f) => f.kind === 'authorization_request_xml')!;
+  const pdfRead = await readFile(B, String(pdfRow.id));
+  const xmlRead = await readFile(B, String(xmlRow.id));
+  if (pdfRead?.outcome !== 'granted' || xmlRead?.outcome !== 'granted') throw new Error('leitura do documento negada');
+  assert.ok(pdfRead.bytes.subarray(0, 5).toString('latin1') === '%PDF-' && pdfRead.bytes.length > 2_000);
+  assert.equal(pdfRead.fileName, `solicitacao-sp-sadt-${String(authRow!.request_number)}.pdf`);
+  if (process.env.EVIDENCE_DIR) {
+    // Só dados sintéticos (paciente, carteirinha e clínica do harness): para conferência visual.
+    writeFileSync(`${process.env.EVIDENCE_DIR}/solicitacao-sp-sadt-sintetica.pdf`, pdfRead.bytes);
+    writeFileSync(`${process.env.EVIDENCE_DIR}/solicitacao-sp-sadt-sintetica.xml`, xmlRead.bytes);
+  }
+  const xmlText = xmlRead.bytes.toString('latin1');
+  // O XML guardado passa no XSD oficial de novo, com o número, a carteirinha lida e a indicação do solicitante; sem execução nem CID.
+  assert.equal((await xsd({ fileName: 'reler.xml', bytes: xmlRead.bytes })).valid, true);
+  for (const needle of ['SOLICITACAO_PROCEDIMENTOS', `numeroGuiaPrestador>${String(authRow!.request_number)}<`, `numeroCarteira>${SYNTHETIC_CARD}<`, 'Psicoterapia semanal indicada pela profissional.', 'quantidadeSolicitada>3<', 'quantidadeSolicitada>1<', 'tipoEtapaAutorizacao>1<']) {
+    assert.ok(xmlText.includes(needle), needle);
+  }
+  assert.ok(!/dadosExecutante|CID|diagnostico/iu.test(xmlText));
+  // Congelado: mudar o cadastro depois NÃO muda o documento; gerar de novo devolve o mesmo.
+  await sql`update public.patients set nome = 'Nome Alterado Depois' where id = ${p10.patientId}::uuid`;
+  await sql`update public.hi_professional_profiles set council_number = '999999' where clinic_id = ${B.clinicId}::uuid and professional_id = ${B.doctorId}::uuid`;
+  const again = await doc.exportSadtRequestDocument(docDeps, { clinicId: B.clinicId, requestId: r10, card: card(p10.membershipId), newborn: false, actorUserId: B.doctorId, requestContext: rc });
+  assert.deepEqual(again, { kind: 'already_exported', pdfFileId: String(pdfRow.id), xmlFileId: String(xmlRow.id) });
+  const reread = await readFile(B, String(pdfRow.id));
+  assert.equal(reread?.outcome === 'granted' ? reread.contentSha256 : null, String(pdfRow.content_sha256));
+  assert.equal((await sql`select count(*)::int n from public.hi_files where authorization_id = ${String(authRow!.authorization_id)}::uuid`)[0]!.n, 2);
+  // Adulterado no armazenamento: nunca entregue, e a leitura fica auditada.
+  const pdfRef = String(pdfRow.storage_ref);
+  const original = objects.get(pdfRef)!;
+  objects.set(pdfRef, Buffer.concat([Buffer.from(original), Buffer.from('x')]));
+  assert.equal((await readFile(B, String(pdfRow.id)))?.outcome, 'integrity_failed');
+  objects.set(pdfRef, original);
+  const audits = await sql`select after->>'outcome' as outcome from public.audit_events where resource_type = 'hi_file' and resource_id = ${String(pdfRow.id)} order by created_at`;
+  assert.deepEqual(audits.map((a) => a.outcome), ['granted', 'granted', 'integrity_failed']);
+  const [exportAudit] = await sql`select after from public.audit_events where action = ${doc.SADT_REQUEST_DOCUMENT_ACTION} and resource_id = ${r10}`;
+  const exportAfter = JSON.stringify(exportAudit!.after);
+  assert.ok(!exportAfter.includes(SYNTHETIC_CARD) && !exportAfter.includes('Psicoterapia') && exportAfter.includes('"xsd":"valid"'));
+  // Outra clínica: não encontra a solicitação nem lê o arquivo.
+  assert.equal(await doc.findSadtRequestDocument(A.clinicId, r10, A.doctorId), null);
+  assert.equal(await readFile(A, String(pdfRow.id)), null);
+  assert.deepEqual(await doc.findSadtRequestDocument(B.clinicId, r10, B.doctorId), { state: 'ready', pdfFileId: String(pdfRow.id), xmlFileId: String(xmlRow.id) });
+  // Sem autorização exigida (r1, pronta) não há pedido à operadora.
+  assert.deepEqual(await doc.findSadtRequestDocument(A.clinicId, r1, A.doctorId), { state: 'no_authorization' });
+  await assert.rejects(
+    () => doc.exportSadtRequestDocument(docDeps, { clinicId: A.clinicId, requestId: r1, card: card(p1.membershipId), newborn: false, actorUserId: A.doctorId, requestContext: rc }),
+    (e: Error & { layer?: string }) => e.layer === 'state',
+  );
+  // Assinatura suspensa (D24): não GERA documento novo, mas o já gerado continua legível (preservação).
+  const p10b = await patientWithCard(B, 'documento-suspenso');
+  const r10b = await createRequest(B, p10b, [{ code: CODE_IND, quantity: 1 }]);
+  assert.equal((await check(B, r10b)).kind, 'awaiting_authorization');
+  await sql`update public.subscriptions set billing_status = 'past_due', current_period_start = now() - interval '40 days',
+      current_period_end = now() - interval '10 days', grace_period_until = now() - interval '3 days' where clinic_id = ${B.clinicId}::uuid`;
+  await assert.rejects(
+    () => doc.exportSadtRequestDocument(docDeps, { clinicId: B.clinicId, requestId: r10b, card: card(p10b.membershipId), newborn: false, actorUserId: B.doctorId, requestContext: rc }),
+    (e: Error & { constraint_name?: string }) => e.name === 'PremiumAccessError' || e.constraint_name === 'qoro_premium_health_insurance',
+  );
+  assert.equal((await readFile(B, String(pdfRow.id)))?.outcome, 'granted');
+  pass('10. documento oficial do pedido (P6.2): XML SOLICITACAO_PROCEDIMENTOS validado no XSD + PDF do modelo oficial, cifrados e ligados à autorização; geração única sob concorrência; congelado (cadastro alterado depois não muda nada); adulterado nunca é entregue e fica auditado; outra clínica não vê; sem autorização exigida não há pedido; XSD indisponível não grava; carteirinha errada recusada; suspensa não gera, mas lê o que já existe');
 
   console.log(`\nOK — ${passed} provas: solicitação SP/SADT persistida e SP/SADT automática ponta a ponta (até o XML validado no XSD).`);
 } finally {

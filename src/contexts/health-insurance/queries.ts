@@ -792,6 +792,8 @@ export interface SadtRequestDetail extends SadtRequestListRow {
   guides: Array<{ id: string; number: string; status: string; totalValueCents: number; sessions: number }>;
   /** Atendimentos de convênio do paciente ainda sem sessão SP/SADT ligada (para ligar ao item). */
   linkableAppointments: Array<{ id: string; scheduledAt: string | null; status: string }>;
+  /** Documento oficial do pedido à operadora (P6.2): arquivos congelados vivos, se gerados. */
+  document: { pdfFileId: string | null; xmlFileId: string | null; generatedAt: string | null } | null;
 }
 
 export async function getSadtRequestDetail(clinicId: string, requestId: string): Promise<SadtRequestDetail | null> {
@@ -840,10 +842,21 @@ export async function getSadtRequestDetail(clinicId: string, requestId: string):
                               WHERE c.clinic_id = ap.clinic_id AND c.appointment_id = ap.id AND c.sadt_request_item_id IS NOT NULL)
            ORDER BY ap.scheduled_at LIMIT 50`,
     )) as unknown as Row[];
-    return { r, items, events, guides, linkable };
+    const docs = r.authorization_id
+      ? ((await tx.execute(
+          sql`SELECT f.id, f.kind, f.created_at FROM public.hi_files f
+               WHERE f.clinic_id = ${clinicId}::uuid AND f.authorization_id = ${String(r.authorization_id)}::uuid
+                 AND f.kind IN ('authorization_request_pdf', 'authorization_request_xml')
+                 AND NOT EXISTS (SELECT 1 FROM public.hi_files n WHERE n.clinic_id = f.clinic_id AND n.supersedes_file_id = f.id)
+               ORDER BY f.created_at DESC`,
+        )) as unknown as Row[])
+      : null;
+    return { r, items, events, guides, linkable, docs };
   });
   if (!found) return null;
-  const { r, items, events, guides, linkable } = found;
+  const { r, items, events, guides, linkable, docs } = found;
+  const pdf = docs?.find((f) => f.kind === 'authorization_request_pdf');
+  const xml = docs?.find((f) => f.kind === 'authorization_request_xml');
   const itemRows: SadtRequestItemRow[] = items.map((i) => ({
     id: String(i.id),
     sequence: n(i.sequence),
@@ -897,6 +910,9 @@ export async function getSadtRequestDetail(clinicId: string, requestId: string):
     events: events.map((e) => ({ from: s(e.from_status), to: String(e.to_status), note: s(e.note), at: iso(e.created_at), via: String(e.created_via) })),
     guides: guides.map((g) => ({ id: String(g.id), number: String(g.number), status: String(g.status), totalValueCents: n(g.total_value_cents), sessions: n(g.sessions) })),
     linkableAppointments: linkable.map((a) => ({ id: String(a.id), scheduledAt: iso(a.scheduled_at), status: String(a.status) })),
+    document: docs
+      ? { pdfFileId: pdf ? String(pdf.id) : null, xmlFileId: xml ? String(xml.id) : null, generatedAt: pdf ? iso(pdf.created_at) : null }
+      : null,
   };
 }
 

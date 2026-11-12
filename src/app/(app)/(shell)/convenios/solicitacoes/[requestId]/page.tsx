@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { Alert } from '@/components/ui/alert';
+import { buttonVariants } from '@/components/ui/button';
 import { PanelCard } from '@/components/ui/panel-card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableWrap } from '@/components/ui/table';
 import {
@@ -9,11 +10,12 @@ import {
   cancelSadtRequestItemAction,
   completeSadtRequestAction,
   denySadtRequestAction,
+  exportSadtRequestDocumentAction,
 } from '@/contexts/health-insurance/actions';
 import { getSadtRequestDetail } from '@/contexts/health-insurance/queries';
 
 import { brl, ConveniosHeader, conveniosAccess, shortDate } from '../../_lib/access';
-import { Actions, TextAction } from '../../_lib/action-ui';
+import { ActionButton, Actions, TextAction } from '../../_lib/action-ui';
 import { AuthorizationForm, CARE_TYPES, CheckRequestButton, IndicationForm, LinkSessionForm } from '../../_lib/sadt-ui';
 import { GuideStatusBadge, SADT_STATUS, SadtStatusBadge } from '../../_lib/status';
 
@@ -21,6 +23,8 @@ export const dynamic = 'force-dynamic';
 
 const OPEN = ['draft', 'checked', 'awaiting_authorization', 'ready'];
 const ACCEPTS_SESSIONS = ['awaiting_authorization', 'authorized', 'partially_authorized', 'ready'];
+/** Estados em que o pedido à operadora pode ganhar o documento oficial (mesma lista do serviço). */
+const DOCUMENT_STATES = ['awaiting_authorization', 'authorized', 'partially_authorized', 'denied'];
 const dateTime = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' }) : '—';
 
@@ -128,6 +132,38 @@ export default async function SolicitacaoPage({ params }: { params: Promise<{ re
             <div><dt className="text-fg-muted">Autorizada em</dt><dd>{shortDate(r.authorization.authorizedOn)}</dd></div>
             {r.authorization.denialReason ? <div className="col-span-2"><dt className="text-fg-muted">Motivo da negativa</dt><dd>{r.authorization.denialReason}</dd></div> : null}
           </dl>
+        </PanelCard>
+      ) : null}
+
+      {r.document ? (
+        <PanelCard title="Documento oficial do pedido" regionLabel="Documento oficial do pedido à operadora" className="mt-(--sp-4)">
+          {r.document.pdfFileId ? (
+            <div className="flex flex-wrap items-center gap-(--sp-2) text-(length:--fs-sm)">
+              <span className="text-fg-muted">
+                Gerado em {dateTime(r.document.generatedAt)}: XML validado no XSD da ANS e PDF no modelo oficial, guardados como foram gerados.
+              </span>
+              <a href={`/financeiro/convenios/solicitacoes/${r.id}/pdf`} target="_blank" rel="noopener" className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
+                Abrir PDF
+              </a>
+              {m && r.document.xmlFileId ? (
+                <a href={`/financeiro/convenios/arquivos/${r.document.xmlFileId}`} className={buttonVariants({ variant: 'ghost', size: 'sm' })}>
+                  Baixar XML (TISS)
+                </a>
+              ) : null}
+            </div>
+          ) : (
+            <div className="flex flex-col gap-(--sp-2) text-(length:--fs-sm)">
+              <p className="text-fg-muted">
+                O documento oficial ainda não foi gerado. Ele sai da solicitação conferida, com a carteirinha lida para a autorização, e fica guardado como foi gerado.
+              </p>
+              {m && DOCUMENT_STATES.includes(r.status) ? (
+                <Actions>
+                  <ActionButton label="Gerar documento oficial" success="Documento gerado e validado no XSD" variant="primary" action={exportSadtRequestDocumentAction.bind(null, { requestId: r.id })} />
+                  <ActionButton label="Gerar (recém-nascido na carteirinha do responsável)" success="Documento gerado e validado no XSD" action={exportSadtRequestDocumentAction.bind(null, { requestId: r.id, newborn: true })} />
+                </Actions>
+              ) : null}
+            </div>
+          )}
         </PanelCard>
       ) : null}
 

@@ -7,6 +7,7 @@ import 'server-only';
 
 export { GuideAccessError } from './internal/guide-access';
 export { renderIssuedGuidePdf, type IssuedGuidePdf } from './internal/guide-pdf';
+export { findSadtRequestDocument, type SadtRequestDocumentLookup } from './internal/sadt-request-document';
 export {
   readTissFile,
   TissFileIntegrityError,

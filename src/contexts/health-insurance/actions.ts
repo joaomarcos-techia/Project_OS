@@ -30,6 +30,8 @@ import { supabaseTissObjectStore, TissStorageError } from '@/lib/storage/tiss-fi
 import { AppealXmlError, exportAppealXml } from './internal/appeal-xml-service';
 import * as batches from './internal/batch-service';
 import { readBatchGuidesAudited } from './internal/guide-access';
+import { readMembershipCardNumberAudited } from './internal/membership-access';
+import type { SadtRequestDocumentOutcome } from './internal/sadt-request-document';
 import { CopayChargeError, requestCopayCharge, syncCopayChargeTx } from './internal/copay-charge-service';
 import { CoverageInputError, recordAppointmentCoverage } from './internal/coverage-service';
 import { approveConsultaGuide } from './internal/guide-issuance';
@@ -74,6 +76,12 @@ function messageOf(error: unknown): string {
     return first ? `${error.message}: ${first}` : error.message;
   }
   if (error instanceof StatementImportError) return error.message;
+  if (error instanceof Error && error.name === 'SadtRequestDocumentError') {
+    const details = (error as Error & { details?: string[] }).details ?? [];
+    const first = details.find((d) => d.includes(': '))?.split(': ').slice(1).join(': ');
+    const msg = error.message.charAt(0).toUpperCase() + error.message.slice(1);
+    return first ? `${msg}: ${first}` : msg;
+  }
   if (error instanceof sadt.SadtRequestError || error instanceof CoverageInputError || error instanceof payouts.InsurancePayoutError || error instanceof CopayChargeError) {
     return error.message.charAt(0).toUpperCase() + error.message.slice(1);
   }
@@ -517,7 +525,7 @@ export async function checkSadtRequestAction(
       careType: z.string().regex(/^\d{2}$/u).nullable().optional(),
       consultationType: z.string().regex(/^[1-4]$/u).nullable().optional(),
     }).parse(input);
-    return write('health_insurance.sadt_request.checked', { type: 'hi_sadt_request', id: d.requestId }, async (tx, ctx) => {
+    const outcome = await write('health_insurance.sadt_request.checked', { type: 'hi_sadt_request', id: d.requestId }, async (tx, ctx) => {
       const out = await sadt.checkSadtRequestInTx(tx, {
         clinicId: ctx.clinicId,
         requestId: d.requestId,
@@ -532,6 +540,54 @@ export async function checkSadtRequestAction(
       }
       return out.kind;
     });
+    if (outcome !== 'awaiting_authorization') return outcome;
+    // Pedido à operadora: o documento oficial (XML + PDF) é congelado logo depois da conferência.
+    // Falha aqui não desfaz a conferência: a página mostra "gerar documento" para tentar de novo.
+    try {
+      await generateSadtRequestDocument(d.requestId, false);
+      return 'awaiting_authorization';
+    } catch {
+      return 'awaiting_authorization:documento_pendente';
+    }
+  });
+}
+
+/** Versão do build no rodapé dos documentos (rastreabilidade do software, req. 36). */
+const BUILD = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 12) ?? null;
+
+/**
+ * Documento oficial do pedido de autorização SP/SADT (P6.2): carteirinha pela via auditada
+ * (finalidade "autorização"), XML validado no XSD + PDF do modelo oficial, congelados e
+ * cifrados. Idempotente: gerar de novo devolve o que já existe.
+ */
+async function generateSadtRequestDocument(requestId: string, newborn: boolean): Promise<SadtRequestDocumentOutcome> {
+  const ctx = await gate();
+  const membershipId = await withTenant(
+    ctx.clinicId,
+    async (tx) => {
+      const rows = (await tx.execute(sql`
+        SELECT membership_id FROM public.hi_sadt_requests
+         WHERE clinic_id = ${ctx.clinicId}::uuid AND id = ${requestId}::uuid`)) as unknown as Array<{ membership_id: string }>;
+      return rows[0]?.membership_id ?? null;
+    },
+    ctx.userId,
+  );
+  if (!membershipId) throw new sadt.SadtRequestError('solicitação inexistente nesta clínica', 'not_found');
+  const card = await readMembershipCardNumberAudited(ctx.clinicId, membershipId, 'autorizacao', 'solicitacao_sadt_documento');
+  if (!card) throw new sadt.SadtRequestError('a carteirinha da solicitação não está nesta clínica', 'not_found');
+  // Import sob demanda: o renderizador de PDF não entra no grafo de toda página que usa as ações.
+  const { exportSadtRequestDocument } = await import('./internal/sadt-request-document');
+  return exportSadtRequestDocument(
+    { store: supabaseTissObjectStore(), validateXsd: loadXmllintValidator(), software: { name: 'Qoro', version: BUILD } },
+    { clinicId: ctx.clinicId, requestId, card, newborn, actorUserId: ctx.userId, requestContext: await requestContext() },
+  );
+}
+
+export async function exportSadtRequestDocumentAction(input: { requestId: string; newborn?: boolean }): Promise<ActionResult<string>> {
+  return run(async () => {
+    const d = z.object({ requestId: uuid, newborn: z.boolean().default(false) }).parse(input);
+    const out = await generateSadtRequestDocument(d.requestId, d.newborn);
+    return out.pdfFileId;
   });
 }
 

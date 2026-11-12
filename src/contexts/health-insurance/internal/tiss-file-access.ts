@@ -28,12 +28,21 @@ import { withTenant } from '@/lib/db/tenant';
 import { metrics } from '@/lib/observability/metrics';
 import { TissStorageError, type TissObjectStore, type TissStoredObject } from '@/lib/storage/tiss-files';
 
-import { hiBatches, hiFiles } from '../schema-clinic';
+import { hiBatches, hiFiles, hiSadtRequests } from '../schema-clinic';
 
 const sha256 = (b: Uint8Array | string) => createHash('sha256').update(b).digest('hex');
 
-/** Tipos de arquivo guardados que a clínica pode baixar (o PDF da guia é gerado sob demanda). */
-export const TISS_DOWNLOADABLE_KINDS = ['batch_xml', 'batch_return', 'gloss_appeal_xml'] as const;
+/**
+ * Tipos de arquivo guardados que a clínica pode baixar (o PDF da guia é gerado sob demanda do
+ * snapshot). O pedido de autorização SP/SADT (P6.2) é congelado na geração: XML e PDF guardados.
+ */
+export const TISS_DOWNLOADABLE_KINDS = [
+  'batch_xml',
+  'batch_return',
+  'gloss_appeal_xml',
+  'authorization_request_xml',
+  'authorization_request_pdf',
+] as const;
 export type TissDownloadableKind = (typeof TISS_DOWNLOADABLE_KINDS)[number];
 
 export const TISS_FILE_READ_ACTION = 'health_insurance.file.read';
@@ -117,7 +126,7 @@ export async function readTissFileCoreInTx(
     resourceId: file.id,
     before: null,
     // Sem referência do armazenamento, conteúdo nem dado pessoal.
-    after: { kind, purpose: args.purpose, batchId: file.batchId, appealId: file.appealId, outcome },
+    after: { kind, purpose: args.purpose, batchId: file.batchId, appealId: file.appealId, authorizationId: file.authorizationId, outcome },
     requestContext: args.requestContext,
   });
   if (outcome !== 'granted') {
@@ -139,6 +148,14 @@ export async function readTissFileCoreInTx(
       kind === 'batch_xml' ? `lote-${b?.number ?? 'x'}.${ext}` : `retorno-lote-${b?.number ?? 'x'}-${file.id.slice(0, 8)}.${ext}`;
   } else if (file.appealId) {
     fileName = `recurso-glosa-${file.appealId.slice(0, 8)}.xml`;
+  } else if (file.authorizationId) {
+    // Pedido de autorização SP/SADT: o número da solicitação no prestador (sem dado pessoal).
+    const [r] = await tx
+      .select({ number: hiSadtRequests.requestNumber })
+      .from(hiSadtRequests)
+      .where(and(eq(hiSadtRequests.clinicId, args.clinicId), eq(hiSadtRequests.authorizationId, file.authorizationId)))
+      .limit(1);
+    fileName = `solicitacao-sp-sadt-${r?.number ?? file.id.slice(0, 8)}.${file.mediaType === 'application/pdf' ? 'pdf' : 'xml'}`;
   }
   return {
     outcome: 'granted',
