@@ -841,7 +841,7 @@ Base preservada `c0db176a96d7eec1cf394a9e2a6cffe3f3c02342`, CI43101832867 aprova
 - `src/lib/entitlements/`: política compartilhada da aplicação para cobranças de pacientes e agentes, lendo estado autoritativo, plano, período/carência existente e invoice positiva paga da mesma clínica/assinatura. Trial vigente/expirado, ausência de liberação, contrato suspenso/cancelado, plano desconhecido ou período inválido negam operação. Legados ativos não recebem inscrição retroativa. TISS retorna indisponibilidade operacional mesmo após pagamento.
 - Inbound de IA é recusado antes de ler/persistir o turno ou chamar modelo/ferramentas; registry revalida na transação da ferramenta. Jobs proativos verificam assinatura antes de procurar contato/template ou enviar, incluindo réguas de cobrança. Criação e renovação de checkout Asaas de paciente recusam antes do claim e de GET/POST externo. Histórico, refund/conciliação e obrigações existentes não são apagados.
 - Checkout SaaS permanece permitido **durante ou após** o trial, opcionalmente. Removido o erro obsoleto `trial_active`. A primeira ativação exige pagamento integral confirmado; o limite inferior do período é o Auth original do claim vinculado à clínica/titular. Nenhum novo trial, concessão por pendência ou extensão pela data de chegada do webhook. Recontratação continua só após o período pago anterior. Valores mensais e regras de mudanças no próximo ciclo pago permanecem iguais.
-- Interface explica contratação antecipada, indisponibilidade dos módulos e limites após pagamento. O E2E autenticado foi atualizado para a nova expectativa sem criar checkout só para inspecionar trial. Essa variante de Preview com trial ativo **não foi reexecutada externamente**; happy-dom/unidades e PostgreSQL não são apresentados como essa prova.
+- Interface explica contratação antecipada, indisponibilidade dos módulos e limites após pagamento. O E2E autenticado foi atualizado para a nova expectativa sem criar checkout só para inspecionar trial. A variante de trial ativo foi posteriormente executada no Preview do código `4b666cc0`: **1/1 PASS**, Chromium, desktop/celular, com a fixture antiga ainda não paga. Login real, assinatura, CTA habilitado, corpo adulterado recusado e telas de integração bloqueadas; nenhuma criação de identidade/checkout/invoice. A prova preserva o prazo/contrato antes e depois, sem clicar no CTA para gerar nova obrigação. Não é novo pagamento externo.
 
 ### Integração com TISS sem misturar as branches
 
@@ -864,7 +864,7 @@ Readback somente leitura em **12/11,04:09 UTC**: DEV144 entradas;0143 exata apli
 | Composição SQL até0151 | 33/33 PASS | Duas ordens, rollback, índices/constraints/RLS/funções/gatilhos, contratos/dados anteriores preservados |
 | Recuperação financeira com TISS0151 | 120/120 PASS | Mesmo catálogo de cenários financeiros, concorrência, falhas de invoice/período/cota, retry e fechamento; não120 pagamentos |
 | TypeScript e lint integral | PASS local | Incremento da aplicação; scripts finais e inventário revistos antes do commit |
-| Build, E2E público, cobertura e segurança do commit final | Resultado próprio nos checks do PR53 | Não substituir por CI da baseline, build Vercel ou mocks |
+| Build, E2E público, cobertura e segurança do código4b666cc0 | CI43154102122 PASS:7061 testes e22 E2E/zeroSKIP | Snyk/Semgrep PASS; acompanhamento do commit documental nos checks do PR53 |
 | Cinco primeiras compras Sandbox | Homologação anterior preservada | Sem novo pagamento/checkout nesta rodada |
 | Renovação temporal e fechamento remoto | PARTIAL, sem nova prova externa | Nenhuma operação irreversível/autorização financeira presumida |
 
@@ -881,3 +881,11 @@ Corrigido o runbook que exigia um bill distinto em toda renovação: a documenta
 ### Decisão de prontidão
 
 **NO-GO AbacatePay Production.** Implementado/testado localmente não equivale a homologado externamente, ativado ou publicado. Faltam: acordo/journal final do SQL e autorização DEV; homologação externa de fechamento/readbacks e renovação ou tratamento formal de risco; composição live ainda deliberadamente ausente; responsáveis/capacidade e gates Production; CI verde do commit entregue. O [plano live](PLANO-FINAL-GO-LIVE-ABACATEPAY.md#preparação-live-executável--1211-sem-ativação) separa tarefas técnicas, futuras autorizações e provas externas. Nenhum merge, nova cobrança, refund, alteração de contrato, ativação TISS ou publicação foi executado.
+
+### Verificação posterior do código publicado no PR
+
+A [CI43154102122](https://github.com/joaomarcos-techia/Project_OS/actions/runs/43154102122) aprovou o código `4b666cc07c8cdb1597c4d56b74f9ca27155b191b`: **7061 testes/22 E2E/zeroSKIP**, build, cobertura, tipos/lint/arquitetura, inventário, isolamento e fronteiras. Snyk e Semgrep também passaram; Agent Review ignorado não equivale a revisão independente. Preview imutável READY com SHA/branch conferidos.
+
+O teste adicional autenticado usou a fixture sintética existente de08/11, sem criar outra conta. PASS1/1 em43,3s (53,4s total), sem erro de browser. Readbacks de12/11,04:26 e04:33UTC preservaram identidade, contrato, trial até22/11, nenhum binding remoto, zero invoices/operações. Login real altera metadados de sessão Auth; não é classificado como operação Auth somente leitura. Os primeiros preflights locais falharam antes do navegador; CLI Vercel autenticada e certificados do Windows via `--use-system-ca` resolveram o operador, sem desabilitar TLS, mudar app/Vercel ou relaxar o fingerprint DEV.
+
+Esta atualização posterior altera somente documentação/evidência. O resultado completo do código acima fica preservado, e os checks obrigatórios do novo SHA documental continuam no PR53. Nenhuma suíte financeira externa foi repetida.

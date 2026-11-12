@@ -273,3 +273,5 @@ O gate central usa a mesma transação/escopo da clínica e consulta `qoro_premi
 6. Interromper por qualquer drift, conflito de timestamp, lock, invariantes ou recusa de permissão inesperada. Reverter a transação falha; após commit, recuperação por correção à frente/backup aprovado. Não apagar ledger/histórico nem inventar DOWN.
 
 **Nenhuma ação humana ou pagamento novo é necessário para repetir os gates já aprovados.** Dependências restantes são acordo do schema final, autorização da aplicação compartilhada, prova externa de renovação/fechamento e implementação/revisão da composição live. A variável live já cadastrada não dispensa nenhuma dessas etapas.
+
+**Verificação posterior do código4b666cc0:** CI43154102122 PASS7061/22E2E semSKIP, build/segurança/isolamento; E2E autenticado ativo PASS1/1 no Preview, desktop/celular, usando fixture antiga sem nova conta/checkout/invoice. Readbacks antes/depois preservados. A autenticação de teste não é leitura pura do Auth. Não repetir a prova para fechar gates já aprovados; consultar os checks do PR53 para o commit documental posterior.

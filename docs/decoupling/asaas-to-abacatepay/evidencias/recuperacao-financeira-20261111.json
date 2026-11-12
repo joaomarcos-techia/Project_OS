@@ -4003,6 +4003,166 @@
     "productionWrites": 0,
     "sharedDevWrites": 0,
     "otherWorktreeWrites": 0,
-    "journalWrites": 0
+    "journalWrites": 0,
+    "postCommitVerification": {
+      "observedAt": "2026-11-12T04:34:47.024Z",
+      "sha": "4b666cc07c8cdb1597c4d56b74f9ca27155b191b",
+      "ci": {
+        "observedAt": "2026-11-12T04:32:35.728Z",
+        "status": "PASS",
+        "runId": "43154102122",
+        "sha": "4b666cc07c8cdb1597c4d56b74f9ca27155b191b",
+        "url": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/43154102122",
+        "unitPassed": 7061,
+        "publicE2E": {
+          "passed": 22,
+          "skipped": 0
+        },
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/checkout@v4",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run pnpm/action-setup@v4",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/setup-node@v4",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Install dependencies",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Prod dependency audit gate (high+)",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Typecheck",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Lint",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Arch check (madge — circular deps)",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Arch DB check (AST connection-origin guard)",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Migration safety gate (anti-destructive)",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Observability drift gate (docs ⇔ vercel.json ⇔ eventos)",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Handler registry gate (catalog ⇔ registry)",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Test + coverage gate",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Security inventory (AST and explicit guard review)",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Two-tenant isolation (temporary local Postgres)",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Build",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Client bundle secrets and local HTTP boundaries",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Install Playwright browser (chromium)",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "E2E gate (superfície pública, sem credencial)",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Upload E2E report on failure",
+            "status": "completed",
+            "conclusion": "skipped"
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success"
+          }
+        ],
+        "productionWrites": 0
+      },
+      "activeTrialPreview": {
+        "status": "PASS",
+        "preview": "https://project-dsdahyhks-clinic-os-v2-s-projects.vercel.app",
+        "evidence": {
+          "runId": "541be174-af71-4691-bd12-b1334acd1cf7",
+          "userId": "f2c24650-34f5-41d6-baa0-d0714cd28981",
+          "status": "PASS",
+          "stages": [
+            "real_browser_login",
+            "database_origin_absolute_deadline_and_no_initial_provider_operation",
+            "desktop_mobile_subscription",
+            "active_trial_optional_conversion_and_unpaid_integrations_blocked"
+          ],
+          "retention": "retained_until_financial_reconciliation; never delete on test timeout",
+          "scope": "Auth confirmed administratively; no proof of signup email delivery or external payment",
+          "browserErrorClasses": [],
+          "clinicId": "9cc10ae7-50aa-4e9e-bc9f-2eadd2c40844",
+          "subscriptionId": "5fefa897-7f69-4b6c-913c-a75ffb009fff"
+        },
+        "beforeObservedAt": "2026-11-12T04:26:06.885Z",
+        "afterObservedAt": "2026-11-12T04:33:54.708Z",
+        "sameIdentityAndBusinessContract": true,
+        "invoicesAfter": 0,
+        "financialOperationsAfter": 0,
+        "newIdentity": false,
+        "newCheckout": false,
+        "payment": false,
+        "authSessionActivity": "Real login of an existing marked synthetic fixture; not a read-only Auth operation",
+        "preflightFailures": "Old local operator auth/TLS failed before browser action. Authenticated Vercel CLI and Node system CAs resolved the operator; no TLS bypass or app/security change."
+      },
+      "scope": "Same application and E2E source as the code SHA. Follow-up commit updates documentation/evidence only; its own required checks remain on PR53."
+    }
   }
 }

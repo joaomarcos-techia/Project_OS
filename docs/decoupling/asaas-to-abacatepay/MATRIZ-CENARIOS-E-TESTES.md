@@ -261,7 +261,7 @@ Estado atual em [relatório §44](RELATORIO-HOMOLOGACAO-FINAL.md#44-trial-defini
 | Requisito | Evidência executada | Estado / limite |
 | --- | --- | --- |
 | Trial dia1/dia14/expirado, pendente/cancelado/período vencido/plano desconhecido | Policy/adapter unitários e PostgreSQL143/152 migrations | PASS local; nenhuma conta real alterada |
-| Checkout SaaS durante o trial | UI e contrato server, journal, webhook autenticado, invoice e período atômicos | PASS unidade/PG49; não é nova compra externa nem nova jornada autenticada Preview |
+| Checkout SaaS durante o trial | UI e contrato server, journal, webhook autenticado, invoice e período atômicos | PASS unidade/PG49 e1/1 E2E autenticado no Preview4b666cc0, desktop/celular, fixture antiga preservada; sem nova compra |
 | Bloqueio Asaas antes de provedor | Hosted checkout inicial/renovação recusados antes de claim e GET/POST; jobs de cobrança cancelados | PASS testes dirigidos com I/O controlado |
 | IA inbound/ferramenta/worker | Decisão central antes de turno, revalidação transacional da ferramenta e jobs antes de contato/template/send | PASS testes dirigidos; flags/permissões existentes não removidas |
 | Trial → pago | Mesma invoice positiva paga/same tenant/subscription e liberação; checkout pendente nunca concede | PASS PG49 com função SQL real0151 e N-1 sem função |
@@ -269,6 +269,6 @@ Estado atual em [relatório §44](RELATORIO-HOMOLOGACAO-FINAL.md#44-trial-defini
 | Pagamento não ativa TISS não liberado | App retorna module_unavailable, preservando a decisão operacional | PASS local; integração/revisão final dos PRs ainda necessária |
 | Composição candidato + TISS0151 |33 checks, duas ordens/rollback, catálogo/contratos/recebíveis/gatilhos/RLS preservados | PASS local no snapshot2a707880; sem journal ou aplicação DEV |
 | Recuperação/cotas/idempotência com0151 |120 checks financeiros reais de PG/HTTP controlado | PASS local; zero rede externa; não equivale a renovação externa |
-| CI final/build/E2E público | Checks próprios do SHA no PR53 | Só considerar PASS após a execução correspondente; não herdar baseline |
+| CI do código/build/E2E público | CI43154102122,4b666cc0:7061 testes/22E2E semSKIP | PASS; commit documental tem acompanhamento próprio no PR53 |
 
 Próxima dependência de banco: acordar cauda final/número/timestamp, refazer preflight de hashes e obter aprovação específica DEV. Nenhum pagamento novo precisa ser solicitado para estes resultados. Fechamento externo, renovação real e composição live continuam gates independentes.
