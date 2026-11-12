@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 234 actions (0 inline); 65 métodos em 61 handlers; 56 props com referência de action; 626 acessos diretos a process.env; 9 nomes NEXT_PUBLIC.
+Contagem: 234 actions (0 inline); 65 métodos em 61 handlers; 56 props com referência de action; 631 acessos diretos a process.env; 9 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -798,6 +798,11 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/hi-r38-ledger-trigger-bench.ts:32`                         | `CLINICS`                              | `process.env.CLINICS`                                                       |
 | `scripts/security/hi-r38-ledger-trigger-bench.ts:33`                         | `WORKERS`                              | `process.env.WORKERS`                                                       |
 | `scripts/security/hi-r38-ledger-trigger-bench.ts:34`                         | `PER_WORKER`                           | `process.env.PER_WORKER`                                                    |
+| `scripts/security/hi-tail-apply-rehearsal.ts:21`                             | `ROWS`                                 | `process.env.ROWS`                                                          |
+| `scripts/security/hi-xsd-queue-bench.ts:14`                                  | `LEVELS`                               | `process.env.LEVELS`                                                        |
+| `scripts/security/hi-xsd-queue-bench.ts:15`                                  | `SMALL_N`                              | `process.env.SMALL_N`                                                       |
+| `scripts/security/hi-xsd-queue-bench.ts:16`                                  | `LARGE_N`                              | `process.env.LARGE_N`                                                       |
+| `scripts/security/hi-xsd-queue-bench.ts:17`                                  | `TISS_XMLLINT_WASM_DIR`                | `process.env.TISS_XMLLINT_WASM_DIR`                                         |
 | `scripts/security/local-build.ts:76`                                         | `<dynamic>`                            | `process.env[key]`                                                          |
 | `scripts/security/local-build.ts:76`                                         | `<dynamic>`                            | `process.env[key]`                                                          |
 | `scripts/security/local-build.ts:101`                                        | `CI`                                   | `process.env.CI`                                                            |
