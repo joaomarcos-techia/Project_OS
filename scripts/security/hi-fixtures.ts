@@ -182,10 +182,10 @@ export async function loadHiFixtures(sql: Sql, deps: FixtureDeps) {
     });
 
   /** Lote real até "em análise" na operadora, com um demonstrativo de análise registrado. */
-  async function sentBatch(c: Clinic, n: number, opts: { insurerId?: string } = {}) {
+  async function sentBatch(c: Clinic, n: number, opts: { insurerId?: string; protocol?: string } = {}) {
     const guides: string[] = [];
     for (let i = 0; i < n; i++) guides.push(await c.approvedGuide(opts.insurerId));
-    const batchId = await createBatch(c, guides, opts);
+    const batchId = await createBatch(c, guides, opts.insurerId ? { insurerId: opts.insurerId } : {});
     const out = await exportBatch(c, batchId);
     if (out.kind !== 'exported') throw new Error(`lote não exportado: ${out.kind}`);
     const exported = await batchVersion(batchId);
@@ -193,7 +193,7 @@ export async function loadHiFixtures(sql: Sql, deps: FixtureDeps) {
       batches.markBatchSentInTx(tx, { clinicId: c.clinicId, batchId, version: exported, channel: 'manual', sentOn: '2026-11-11', evidence: 'Enviado pelo portal da operadora, comprovante sintético' }),
     );
     v = await asUser(c, (tx) =>
-      batches.recordBatchProtocolInTx(tx, { clinicId: c.clinicId, batchId, version: v, protocol: `PROT-${batchId.slice(0, 8)}`, receivedOn: '2026-11-11', evidenceSha256: sha(`recibo-${batchId}`) }),
+      batches.recordBatchProtocolInTx(tx, { clinicId: c.clinicId, batchId, version: v, protocol: opts.protocol ?? `PROT-${batchId.slice(0, 8)}`, receivedOn: '2026-11-11', evidenceSha256: sha(`recibo-${batchId}`) }),
     );
     await asUser(c, (tx) => batches.markBatchUnderReviewInTx(tx, { clinicId: c.clinicId, batchId, version: v }));
     const analysisReturn = await asUser(c, (tx) =>

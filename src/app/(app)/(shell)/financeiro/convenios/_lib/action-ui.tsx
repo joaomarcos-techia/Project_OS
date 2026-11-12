@@ -169,11 +169,16 @@ export function AppealForm({
           </label>
         ))}
       </fieldset>
-      <Field label="Justificativa" htmlFor={`${id}-j`} hint="Escrita por você: o Qoro não gera justificativa de recurso." required>
-        <Textarea id={`${id}-j`} value={text} onChange={(e) => setText(e.target.value)} rows={5} maxLength={4000} />
+      <Field
+        label="Justificativa"
+        htmlFor={`${id}-j`}
+        hint={`Escrita por você: o Qoro não gera justificativa de recurso. ${text.trim().length}/500 — o XML oficial (TISS) aceita até 500 caracteres; o portal da operadora pode aceitar mais.`}
+        required
+      >
+        <Textarea id={`${id}-j`} value={text} onChange={(e) => setText(e.target.value)} rows={5} maxLength={2000} />
       </Field>
       <div className="flex gap-(--sp-2)">
-        <Button type="submit" size="sm" disabled={pending || chosen.length === 0 || text.trim().length < 30}>
+        <Button type="submit" size="sm" disabled={pending || chosen.length === 0 || text.trim().length < 20}>
           {pending ? 'Aguarde…' : 'Salvar recurso'}
         </Button>
         <Button type="button" size="sm" variant="ghost" onClick={() => setOpen(false)}>

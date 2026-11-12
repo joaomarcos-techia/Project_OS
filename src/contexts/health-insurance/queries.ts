@@ -304,6 +304,8 @@ export interface AppealRow {
   filedOn: string | null;
   answeredOn: string | null;
   glossIds: string[];
+  /** XML oficial do recurso já gerado (P9.7), para download auditado. */
+  xmlFileId: string | null;
   createdAt: string | null;
 }
 
@@ -370,6 +372,8 @@ export async function getGuideDetail(clinicId: string, guideId: string): Promise
     )) as unknown as Row[];
     const appeals = (await tx.execute(
       sql`SELECT ap.id, ap.status, ap.version, ap.protocol_number, ap.filed_on, ap.answered_on, ap.created_at,
+                 (SELECT f.id FROM public.hi_files f WHERE f.clinic_id = ap.clinic_id AND f.appeal_id = ap.id
+                   AND f.kind = 'gloss_appeal_xml' ORDER BY f.created_at DESC LIMIT 1) AS xml_file_id,
                  coalesce(array_agg(it.gloss_id::text) FILTER (WHERE it.gloss_id IS NOT NULL), '{}') AS gloss_ids
             FROM public.hi_gloss_appeals ap
             LEFT JOIN public.hi_gloss_appeal_items it ON it.clinic_id = ap.clinic_id AND it.appeal_id = ap.id
@@ -458,6 +462,7 @@ export async function getGuideDetail(clinicId: string, guideId: string): Promise
         filedOn: s(r.filed_on),
         answeredOn: s(r.answered_on),
         glossIds: (r.gloss_ids as string[]) ?? [],
+        xmlFileId: s(r.xml_file_id),
         createdAt: iso(r.created_at),
       })),
       receivable: lanc

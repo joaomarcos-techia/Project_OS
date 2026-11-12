@@ -17,7 +17,7 @@ vi.mock('@/contexts/health-insurance/actions', () => {
   const a = () => Object.assign(vi.fn(), { bind: () => vi.fn() });
   return {
     answerAppealAction: a(), approveGuideAction: a(), cancelGuideAction: a(), createAppealAction: a(), decideGlossAction: a(),
-    fileAppealAction: a(), reconcileGuideAction: a(), returnGuideAction: a(), reverseAllocationAction: a(), reviewGuideAction: a(),
+    fileAppealAction: a(), exportAppealXmlAction: a(), reconcileGuideAction: a(), returnGuideAction: a(), reverseAllocationAction: a(), reviewGuideAction: a(),
     allocatePaymentAction: a(), createBatchAction: a(), recordBatchProtocolAction: a(), recordGlossAction: a(), recordPaymentAction: a(),
   };
 });

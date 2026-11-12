@@ -11,6 +11,7 @@ import {
   cancelGuideAction,
   createAppealAction,
   decideGlossAction,
+  exportAppealXmlAction,
   fileAppealAction,
   reconcileGuideAction,
   returnGuideAction,
@@ -221,6 +222,16 @@ export default async function GuiaPage({ params }: { params: Promise<{ guideId: 
                     {a.filedOn ? <span className="text-fg-muted">enviado em {shortDate(a.filedOn)}</span> : null}
                     {a.answeredOn ? <span className="text-fg-muted">respondido em {shortDate(a.answeredOn)}</span> : null}
                   </div>
+                  <Actions>
+                    {m && a.status === 'draft' && !a.xmlFileId ? (
+                      <ActionButton label="Gerar XML do recurso (TISS)" success="XML do recurso gerado e validado no XSD" action={exportAppealXmlAction.bind(null, { appealId: a.id })} />
+                    ) : null}
+                    {a.xmlFileId ? (
+                      <a href={`/financeiro/convenios/arquivos/${a.xmlFileId}`} className={buttonVariants({ variant: 'ghost', size: 'sm' })}>
+                        Baixar XML do recurso
+                      </a>
+                    ) : null}
+                  </Actions>
                   {m && a.status === 'draft' ? <FileAppealForm appealId={a.id} version={a.version} action={fileAppealAction} /> : null}
                   {m && a.status === 'filed' ? (
                     <AnswerAppealForm

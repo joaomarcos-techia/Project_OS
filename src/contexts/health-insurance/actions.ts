@@ -25,6 +25,7 @@ import { withTenant } from '@/lib/db/tenant';
 import { premiumAccessErrorFrom, premiumDenialMessage } from '@/lib/premium-access';
 import { supabaseTissObjectStore, TissStorageError } from '@/lib/storage/tiss-files';
 
+import { AppealXmlError, exportAppealXml } from './internal/appeal-xml-service';
 import * as batches from './internal/batch-service';
 import { readBatchGuidesAudited } from './internal/guide-access';
 import { approveConsultaGuide } from './internal/guide-issuance';
@@ -60,6 +61,11 @@ function messageOf(error: unknown): string {
   if (error instanceof z.ZodError) return error.issues[0]?.message ?? 'Dados inválidos.';
   if (error instanceof acct.InsuranceAccountError) return error.message;
   if (error instanceof batches.BatchExportError) return error.message;
+  if (error instanceof AppealXmlError) {
+    // Pendências do padrão TISS: mensagem humana do validador, sem dado pessoal.
+    const first = error.details.find((d) => d.includes(': '))?.split(': ').slice(1).join(': ');
+    return first ? `${error.message}: ${first}` : error.message;
+  }
   if (error instanceof TissStorageError) return 'O armazenamento de arquivos está indisponível agora. Tente de novo em instantes.';
   const e = error as { code?: string; cause?: { code?: string; message?: string } };
   const code = e.code ?? e.cause?.code;
@@ -289,7 +295,12 @@ export async function decideGlossAction(input: z.input<typeof GlossDecision>): P
   });
 }
 
-const Appeal = z.object({ guideId: uuid, glossIds: z.array(uuid).min(1), justification: z.string().trim().min(30, 'A justificativa do recurso precisa explicar o motivo (mínimo de 30 caracteres).').max(4000), idempotencyKey: key });
+const Appeal = z.object({
+  guideId: uuid,
+  glossIds: z.array(uuid).min(1),
+  justification: z.string().trim().min(20, 'A justificativa do recurso precisa explicar o motivo (mínimo de 20 caracteres).').max(2000, 'A justificativa aceita até 2.000 caracteres.'),
+  idempotencyKey: key,
+});
 
 /** Recurso: a justificativa é sempre de uma pessoa (nunca gerada). */
 export async function createAppealAction(input: z.input<typeof Appeal>): Promise<ActionResult<string>> {
@@ -306,8 +317,11 @@ const FileAppeal = z.object({ appealId: uuid, version, filedOn: day, protocol: z
 export async function fileAppealAction(input: z.input<typeof FileAppeal>): Promise<ActionResult<null>> {
   return run(async () => {
     const d = FileAppeal.parse(input);
-    await write('health_insurance.appeal.filed', { type: 'hi_gloss_appeal', id: d.appealId }, (tx, ctx) =>
-      acct.fileAppealInTx(tx, {
+    await write('health_insurance.appeal.filed', { type: 'hi_gloss_appeal', id: d.appealId }, async (tx, ctx) => {
+      // O XML oficial gerado para este recurso (se houver) fica anexado à apresentação.
+      const [file] = (await tx.execute(sql`SELECT id FROM public.hi_files WHERE clinic_id = ${ctx.clinicId}::uuid
+          AND appeal_id = ${d.appealId}::uuid AND kind = 'gloss_appeal_xml' ORDER BY created_at DESC LIMIT 1`)) as unknown as Array<{ id: string }>;
+      return acct.fileAppealInTx(tx, {
         clinicId: ctx.clinicId,
         appealId: d.appealId,
         version: d.version,
@@ -315,9 +329,23 @@ export async function fileAppealAction(input: z.input<typeof FileAppeal>): Promi
         filedOn: d.filedOn,
         ...(d.protocol ? { protocol: d.protocol } : {}),
         ...(d.evidence ? { evidence: d.evidence } : {}),
-      }),
-    );
+        ...(file ? { fileId: file.id } : {}),
+      });
+    });
     return null;
+  });
+}
+
+/** XML oficial do recurso (P9.7), do registro do recurso em preparo; validado no XSD e guardado cifrado. */
+export async function exportAppealXmlAction(input: { appealId: string }): Promise<ActionResult<string>> {
+  return run(async () => {
+    const { appealId } = z.object({ appealId: uuid }).parse(input);
+    const ctx = await gate();
+    const out = await exportAppealXml(
+      { store: supabaseTissObjectStore(), validateXsd: loadXmllintValidator() },
+      { clinicId: ctx.clinicId, appealId, actorUserId: ctx.userId, requestContext: await requestContext() },
+    );
+    return out.fileId;
   });
 }
 
