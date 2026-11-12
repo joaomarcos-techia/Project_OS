@@ -39,7 +39,7 @@ function table(model: OfficialModel, fields: readonly PrintFieldSpec[]): string 
 const doc = `# PDFs oficiais das guias TISS — mapeamento campo a campo
 
 > Gerado por \`scripts/tiss/print/mapping-doc.ts\` a partir de \`src/contexts/health-insurance/tiss/print/fields.ts\` e do
-> modelo oficial extraído (\`data/tiss/modelos/202511/\`). Não editar à mão.
+> modelo oficial extraído (\`src/contexts/health-insurance/tiss/print/models/\`). Não editar à mão.
 
 **Fonte oficial:** Padrão TISS — Componente de Conteúdo e Estrutura 202511 (zip SHA-256
 \`${CONSULTA_MODEL.source.zipSha256}\`; PDF \`${CONSULTA_MODEL.source.pdfSha256}\`). Guia de Consulta: modelo na p. ${CONSULTA_MODEL.source.page},

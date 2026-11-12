@@ -3,7 +3,7 @@
  * dos modelos impressos da Guia de Consulta (p. 469) e da Guia SP/SADT (p. 520):
  * rótulos dos campos com posição e as caixas (retângulos) da página, em pontos,
  * origem no canto superior esquerdo. O resultado fica versionado em
- * `data/tiss/modelos/202511/` e é a referência dos testes de conformidade do PDF
+ * `src/contexts/health-insurance/tiss/print/models/` e é a referência dos testes de conformidade do PDF
  * gerado pelo Qoro (P7.6/P8.5/P13.7): nada de "parecido com o padrão".
  *
  * O PDF não é versionado (é da ANS, ~7 MB); o SHA-256 dele e do zip oficial ficam no
@@ -18,7 +18,7 @@ import path from 'node:path';
 const PDF = process.env.TISS_CONTEUDO_PDF;
 if (!PDF) throw new Error('defina TISS_CONTEUDO_PDF com o PDF oficial do Conteúdo e Estrutura 202511');
 const ZIP_SHA256 = '6a720ed27da8397fef584e30d794aa56f18906d253ccdf460c30b1019a3a4d3b'; // B.10
-const OUT = path.join(process.cwd(), 'data/tiss/modelos/202511');
+const OUT = path.join(process.cwd(), 'src/contexts/health-insurance/tiss/print/models');
 
 const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
 const bytes = new Uint8Array(readFileSync(PDF));

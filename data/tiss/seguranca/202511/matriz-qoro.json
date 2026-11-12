@@ -1,6 +1,6 @@
 {
   "componente": "Segurança e Privacidade 202511",
-  "avaliadoEm": "2026-11-11",
+  "avaliadoEm": "2026-11-12",
   "legenda": {
     "atende": "atendido, com evidência no código ou na infraestrutura",
     "parcial": "atendido em parte; lacuna descrita",
@@ -72,8 +72,8 @@
     },
     {
       "id": 36,
-      "situacao": "lacuna",
-      "evidencia": "nome do software, fornecedor e versão não aparecem nas telas nem nas impressões (S7 aprovado; aguarda a branch de UI)"
+      "situacao": "parcial",
+      "evidencia": "PDFs oficiais das guias TISS imprimem no rodapé o nome do software, o número da guia, a revisão e o início do SHA-256 do snapshot (tiss/print/layout.ts, 12/11); faltam o nome do fornecedor, a versão do build ligada à rota de impressão (P12.7) e as telas (S7, branch de UI)"
     },
     {
       "id": 37,
@@ -153,7 +153,7 @@
     {
       "id": 57,
       "situacao": "parcial",
-      "evidencia": "audit_events em toda mutação; leitura auditada no prontuário e na carteirinha (membership-access.ts); falta leitura auditada de guia e lote"
+      "evidencia": "audit_events em toda mutação; leitura auditada com finalidade do prontuário, da carteirinha (membership-access.ts), do conteúdo emitido da guia, inclusive a impressão do PDF (guide-access.ts, operação guide_pdf) e do XML do lote (readBatchXmlInTx); faltam as leituras de cadastro e listagens fora do módulo"
     },
     {
       "id": 58,
@@ -263,7 +263,7 @@
     {
       "id": 85,
       "situacao": "parcial",
-      "evidencia": "leitura de carteirinha com finalidade e auditoria fail-closed; faltam guia, lote e a imutabilidade de 180 dias da audit_events (S5)"
+      "evidencia": "leitura de carteirinha, guia emitida (tela, PDF, lote, faturamento) e XML do lote com usuário ou serviço, data, dado acessado, operação e finalidade declarada, auditoria fail-closed (guide-access.ts, batch-service.ts); falta a imutabilidade de 180 dias da audit_events (S5) e a disponibilização ao titular"
     },
     {
       "id": 86,

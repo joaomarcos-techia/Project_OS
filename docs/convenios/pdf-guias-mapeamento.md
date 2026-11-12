@@ -1,7 +1,7 @@
 # PDFs oficiais das guias TISS — mapeamento campo a campo
 
 > Gerado por `scripts/tiss/print/mapping-doc.ts` a partir de `src/contexts/health-insurance/tiss/print/fields.ts` e do
-> modelo oficial extraído (`data/tiss/modelos/202511/`). Não editar à mão.
+> modelo oficial extraído (`src/contexts/health-insurance/tiss/print/models/`). Não editar à mão.
 
 **Fonte oficial:** Padrão TISS — Componente de Conteúdo e Estrutura 202511 (zip SHA-256
 `6a720ed27da8397fef584e30d794aa56f18906d253ccdf460c30b1019a3a4d3b`; PDF `d96ab600aa82e936738b81d18381305bde79b0aa5ede285b5b1cd6376c213d9a`). Guia de Consulta: modelo na p. 469,

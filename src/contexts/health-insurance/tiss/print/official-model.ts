@@ -8,8 +8,8 @@
  * dado versionado, não de coordenadas digitadas à mão. Assim a conformidade com o
  * modelo é verificável por teste (P13.7), não por impressão de "parecido".
  */
-import consultaJson from '../../../../../data/tiss/modelos/202511/consulta-p469.json';
-import spSadtJson from '../../../../../data/tiss/modelos/202511/sp-sadt-p520.json';
+import consultaJson from './models/consulta-p469.json';
+import spSadtJson from './models/sp-sadt-p520.json';
 
 export interface ModelLabel {
   text: string;

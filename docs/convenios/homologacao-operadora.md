@@ -78,6 +78,18 @@ continua sendo a prova interna e de validadores (P13).
 | H10 | Recurso de glosa | glosa do H9 | recurso aceito pelo canal da operadora | protocolo do recurso |
 | H11 | Pagamento integral e parcial | demonstrativo de pagamento | recebível da operadora conciliado; paciente nunca cobrado pelo valor da operadora | demonstrativo + financeiro |
 | H12 | Coparticipação confirmada | regra da pergunta 15 | cobrança ao paciente só do valor confirmado | registro de confirmação |
+| H13 | Guia de Consulta impressa (PDF oficial, modelo da p. 469) | guia emitida | operadora aceita o impresso na contingência e na conferência de assinatura | PDF + aceite da operadora |
+| H14 | SP/SADT de solicitação impressa (modelo da p. 520) | solicitação registrada | operadora autoriza a partir do impresso; devolve senha e quantidade autorizada | PDF + autorização registrada |
+| H15 | Clínica piloto com assinatura paga e ativa (D24) | assinatura liberada pelo #53 | o módulo é ligado pela habilitação controlada; nenhum recurso premium em clínica em trial | estado da assinatura + registro da habilitação |
+
+### 4.1 O que já pode ser testado sem operadora (12/11)
+
+| Item | Onde | Situação |
+| --- | --- | --- |
+| XML de lote, solicitação SP/SADT e recurso de glosa contra o XSD oficial (dois motores) | corpus `c1`/`c2`, harness de lotes | provado internamente; **não é homologação** |
+| PDF oficial da Consulta e da SP/SADT (cobrança e solicitação) contra o modelo da ANS | `tiss/print/print.test.ts`, `scripts/tiss/print/visual-check.ts` | provado internamente (posição dos rótulos, campos, paginação); aceite da operadora pendente (H13, H14) |
+| Bloqueio comercial do trial | `health-insurance-premium-gate-db.ts`, cadeia unida com o #53 | provado em Postgres descartável |
+| Protocolo, retorno, glosa, recurso e pagamento | só com operadora e clínica piloto | dependem de credenciais e de demonstrativo real (H8–H11) |
 
 ## 5. Registro de cada execução
 
