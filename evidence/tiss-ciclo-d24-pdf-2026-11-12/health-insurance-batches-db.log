@@ -1,8 +1,8 @@
-# health-insurance-batches-db.ts — Postgres 17 descartável; árvore de trabalho sobre 6b101e89 (código do ciclo D24, ver README)
+# health-insurance-batches-db.ts — Postgres 17 descartável; árvore de trabalho sobre 2a707880 (PDFs oficiais, ver README)
 PASS: lote com 1 guia: XML dos snapshots aprovados passa no XSD oficial (xmllint-wasm), regras, hash e codificação; o arquivo fica CIFRADO (sem carteirinha nem nome em claro), com SHA-256 conferido na leitura e acesso auditado
 PASS: arquivo adulterado no armazenamento: a leitura confere o SHA-256 do cifrado e recusa (nenhum XML apresentado como emitido sem integridade)
 PASS: lote com 3 guias: contagens (3 guias, 3 procedimentos) e total (R$ 450) coerentes entre guias, banco e XML
-PASS: lote com 100 guias exportado e válido no XSD (388 ms do lote ao arquivo); 101 guias recusado pelo banco
+PASS: lote com 100 guias exportado e válido no XSD (1024 ms do lote ao arquivo); 101 guias recusado pelo banco
 PASS: mistura recusada: outra operadora, outro tipo de guia, versão TISS diferente no conteúdo, guia repetida no pedido, guia já em lote ativo e guia fora de "aprovada"
 PASS: exportação concorrente (3 ao mesmo tempo): 1 exporta, as outras não geram nada (2 recusadas, 0 viram "já exportado"); 1 arquivo e 1 objeto
 PASS: falhas: XSD reprovado, validador ausente, gravação do arquivo e banco caindo depois da gravação → o lote continua "preparado", sem arquivo, sem número de transação consumido; a compensação remove o objeto; se ela falhar, sobra só um objeto cifrado sem referência (métrica), nunca um "exportado" sem arquivo; corrigido, exporta

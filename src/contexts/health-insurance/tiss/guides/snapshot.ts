@@ -6,8 +6,15 @@
  * SHA-256 seja reproduzível: o hash gravado no banco é conferido em toda leitura
  * (`internal/guide-access.ts`). O conteúdo tem a carteirinha, então só vai ao
  * banco cifrado por clínica (`encryptForTenant`); este módulo é puro e não cifra.
+ *
+ * `print` (opcional, desde 12/11): o que só existe no impresso (nome do
+ * beneficiário, nome do contratado…), congelado na emissão para o PDF oficial.
+ * Fica FORA de `data`: o XML nunca o lê. Snapshot sem `print` não gera PDF
+ * (nada é reconstruído do cadastro atual); a guia é reemitida.
  */
 import { createHash } from 'node:crypto';
+
+import { assertGuidePrintData, GuidePrintError, type GuidePrintData } from '../print/print-data';
 
 import type { ConsultaGuideData } from './consulta';
 import type { SpSadtGuideData } from './sp-sadt';
@@ -21,6 +28,7 @@ export type GuideSnapshotContent =
       tissVersion: '4.03.00';
       terminologyVersion: string;
       data: ConsultaGuideData;
+      print?: GuidePrintData;
     }
   | {
       schema: typeof GUIDE_SNAPSHOT_SCHEMA;
@@ -28,6 +36,7 @@ export type GuideSnapshotContent =
       tissVersion: '4.03.00';
       terminologyVersion: string;
       data: SpSadtGuideData;
+      print?: GuidePrintData;
     };
 
 export class GuideSnapshotError extends Error {
@@ -96,6 +105,14 @@ export function parseVerifiedGuideSnapshot(
     parsed.data === null
   ) {
     throw new GuideSnapshotError('formato de snapshot desconhecido');
+  }
+  if (parsed.print !== undefined) {
+    try {
+      assertGuidePrintData(parsed.print);
+    } catch (e) {
+      if (e instanceof GuidePrintError) throw new GuideSnapshotError(`bloco de impressão inválido: ${e.message}`);
+      throw e;
+    }
   }
   return parsed as GuideSnapshotContent;
 }

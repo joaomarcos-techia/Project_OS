@@ -43,6 +43,7 @@ import {
 import { assembleConsultaGuide } from '../tiss/assembly/consulta-assembler';
 import type { ContractLine } from '../tiss/assembly/contract-selection';
 import { serializeGuideSnapshot, type GuideSnapshotContent } from '../tiss/guides/snapshot';
+import { assertGuidePrintData, GuidePrintError, type GuidePrintData } from '../tiss/print/print-data';
 import { inMemoryLookup } from '../tiss/terminology/lookup';
 import type { TerminologyTerm } from '../tiss/terminology/official-sheet';
 import type { GuideIssue } from '../tiss/validation/common';
@@ -281,12 +282,36 @@ export async function issueConsultaGuide(
   });
   if (errors.length > 0) throw new GuideIssuanceError('a guia não passa na validação TISS', errors);
 
+  // Dados que só existem no impresso (P7.6), congelados AGORA com o resto da guia:
+  // o PDF nunca relê o cadastro atual (o paciente pode mudar de nome depois).
+  const [names] = await tx.execute<{ patient_nome: string | null; clinic_nome: string | null }>(sql`
+    SELECT (SELECT p.nome FROM public.patients p WHERE p.clinic_id = ${clinicId}::uuid AND p.id = ${g.patientId}::uuid) AS patient_nome,
+           (SELECT c.nome FROM public.clinics c WHERE c.id = ${clinicId}::uuid) AS clinic_nome`);
+  const print: GuidePrintData = {
+    schema: 'qoro.hi.guide-print/1',
+    beneficiarioNome: names?.patient_nome?.trim() ?? '',
+    nomeSocial: null,
+    contratadoNome: (settings.contractorName ?? names?.clinic_nome ?? '').trim(),
+    operadoraNome: insurer.name?.trim() || null,
+  };
+  try {
+    assertGuidePrintData(print);
+  } catch (e) {
+    if (e instanceof GuidePrintError) {
+      throw new GuideIssuanceError(`dado obrigatório do impresso: ${e.message}`, [
+        { code: 'PRINT_DATA_INVALID', field: 'impresso', message: e.message, owner: 'gestor' },
+      ]);
+    }
+    throw e;
+  }
+
   const content: GuideSnapshotContent = {
     schema: 'qoro.hi.guide-snapshot/1',
     guideType: 'consulta',
     tissVersion: '4.03.00',
     terminologyVersion: g.terminologyVersion,
     data: assembly.guide,
+    print,
   };
   const { json, sha256 } = serializeGuideSnapshot(content);
   const contentEncrypted = await encryptForTenant(clinicId, json);

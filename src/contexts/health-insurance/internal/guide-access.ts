@@ -124,6 +124,8 @@ export interface GuideContentRead {
   revision: number;
   status: ApprovedSnapshotRow['status'];
   content: GuideSnapshotContent;
+  /** SHA-256 do snapshot conferido nesta leitura (rastreabilidade do PDF e do XML). */
+  contentSha256: string;
   auditEventId: string;
 }
 
@@ -268,6 +270,7 @@ async function readCore(
           revision: row.snapshotRevision ?? row.revision,
           status: row.status,
           content,
+          contentSha256: row.contentSha256!,
           auditEventId,
         });
       }

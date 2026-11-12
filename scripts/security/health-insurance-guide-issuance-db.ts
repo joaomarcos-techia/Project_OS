@@ -182,6 +182,41 @@ try {
     'emissão: monta, valida, cifra (sem a carteirinha em claro no banco) e aprova; o leitor auditado decifra e o SHA-256 confere',
   );
 
+  // ── PDF oficial (P7.6): sai do snapshot emitido, nunca do cadastro atual ──
+  // A diagramação (pura) é a mesma que alimenta o PDF; a renderização em si é provada no vitest
+  // (print.test.ts), porque este harness roda com a condição react-server do Next.
+  const { layoutGuide } = await import('../../src/contexts/health-insurance/tiss/print/layout');
+  const { consultaPrintView } = await import('../../src/contexts/health-insurance/tiss/print/values');
+  type Content = NonNullable<typeof read>['content'];
+  const printOf = (content: Content) => {
+    assert.ok(content.print, 'o snapshot emitido leva o bloco de impressão');
+    return content.print;
+  };
+  const p1 = printOf(read!.content);
+  assert.deepEqual(
+    [p1.beneficiarioNome, p1.contratadoNome, p1.operadoraNome, p1.nomeSocial],
+    ['Paciente Sintético', 'Clínica A', 'Operadora Um', null],
+  );
+  assert.ok(!JSON.stringify(read!.content.data).includes('Paciente Sintético'), 'o nome não entra no dado do XML');
+  const renderText = async (content: Content) => {
+    const view = consultaPrintView(content.data as Parameters<typeof consultaPrintView>[0], printOf(content));
+    const layout = layoutGuide(view, { guideNumber: '1', revision: 1, snapshotSha256: issued.sha256, software: { name: 'Qoro', version: null } });
+    return layout.pages[0]!.flatMap((op) => (op.t === 'text' ? [op.text] : [])).join(' | ');
+  };
+  const before = await renderText(read!.content);
+  assert.ok(before.includes('Paciente Sintético') && before.includes('Clínica A') && before.includes(CARD));
+  // O cadastro muda depois da emissão: o PDF da guia emitida continua o mesmo.
+  await sql`update public.patients set nome = 'Nome Trocado Depois' where clinic_id = ${A.clinicId}::uuid`;
+  await sql`update public.clinics set nome = 'Razão Social Nova' where id = ${A.clinicId}::uuid`;
+  const [again] = await systemRead(A.clinicId, [g1]);
+  const after = await renderText(again!.content);
+  assert.ok(after.includes('Paciente Sintético') && !after.includes('Nome Trocado Depois') && !after.includes('Razão Social Nova'));
+  await sql`update public.patients set nome = 'Paciente Sintético' where clinic_id = ${A.clinicId}::uuid`;
+  await sql`update public.clinics set nome = 'Clínica A' where id = ${A.clinicId}::uuid`;
+  pass(
+    'PDF oficial: a emissão congela no snapshot cifrado o que só existe no papel (nome do beneficiário, do contratado e da operadora), fora do dado do XML; renomear paciente e clínica depois não muda o PDF da guia emitida',
+  );
+
   // ── Concorrência: duas emissões, um snapshot ─────────────────────────
   const g2 = await A.newGuide('2026-11-20');
   const both = await Promise.allSettled([issue(A, g2), issue(A, g2)]);
@@ -254,8 +289,8 @@ try {
   assert.equal(denied, 1);
   const audits =
     await sql`select after::text as a from public.audit_events where action like 'health_insurance.guide.%'`;
-  // 1 leitura concedida + 1 falha de integridade + 1 negação (outra clínica).
-  assert.equal(audits.length, 3);
+  // 2 leituras concedidas (a 2ª, a do PDF depois da troca de nome) + 1 falha de integridade + 1 negação (outra clínica).
+  assert.equal(audits.length, 4);
   for (const r of audits) {
     assert.ok(!String(r.a).includes(CARD), 'auditoria com carteirinha');
     assert.ok(!String(r.a).includes(issued.sha256), 'auditoria com hash do conteúdo');

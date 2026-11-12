@@ -19,3 +19,23 @@ NODE_OPTIONS=--conditions=react-server npx tsx scripts/security/health-insurance
 NODE_OPTIONS=--conditions=react-server npx tsx scripts/security/health-insurance-union-chain-db.ts e8309aee
 TISS_XMLLINT_WASM_DIR=<pasta com node_modules/xmllint-wasm> NODE_OPTIONS=--conditions=react-server npx tsx scripts/security/health-insurance-batches-db.ts
 ```
+
+## PDFs oficiais (P7.6 Consulta, P8.5 SP/SADT, P13.7 conformidade) — 12/11
+
+| Arquivo | O que mostra |
+| --- | --- |
+| `pdf-visual/index.html` | lado a lado: página oficial da ANS (p. 469 e p. 520) e a folha gerada pelo Qoro, com dados sintéticos |
+| `pdf-visual/report.json` | medidas por caso: desvio máximo dos rótulos em relação ao modelo (pt), rótulos faltando, valores fora da caixa, campos enviados à folha de continuação |
+| `pdf-visual/*.pdf` | os PDFs gerados (Consulta; SP/SADT cobrança com 2 e 12 itens; solicitação; indicação clínica de 500 caracteres) |
+| `health-insurance-guide-issuance-db.log` | 7/7: a emissão real congela no snapshot cifrado o bloco do impresso (nome do beneficiário, do contratado, da operadora), fora do XML; renomear paciente e clínica depois não muda o PDF |
+| `health-insurance-batches-db.log` | 14/14 depois da mudança da emissão |
+
+Resultado das medidas: nos 5 casos, desvio 0 pt, 0 rótulo faltando, 0 valor fora da caixa; só a indicação clínica de
+500 caracteres vai à folha de continuação (texto integral), como esperado.
+
+Reproduzir:
+
+```bash
+TISS_CONTEUDO_PDF="<…>/Padrão TISS_Componente de Conteúdo e Estrutura_202511.pdf" npx tsx scripts/tiss/print/visual-check.ts <pasta>
+npx tsx scripts/tiss/print/mapping-doc.ts --check
+```
