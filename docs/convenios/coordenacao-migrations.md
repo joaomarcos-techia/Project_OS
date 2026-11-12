@@ -15,21 +15,22 @@ em `b6965447`, `feat/convenios-tiss-20261110`) e do `drizzle.__drizzle_migration
 | 0000–0135 | `main` | `main`, #53, #55 | sim | **não** |
 | 0136–0142 | #53 (trial e SaaS AbacatePay) | só no #53 | **sim** (hash e `created_at` = `when` do journal do #53) | **não** |
 | 0143 `tiss_catalog` | #55 | só no #55 | **sim** (última linha do DEV, `created_at` 1794330000000 = 10/11 17:00 UTC) | **não** |
-| 0144 `hi_clinic_setup` | #55 | só no #55 | não (só ensaio com ROLLBACK) | sim, pelo #55, no rebase |
-| 0145 `hi_memberships` | #55 | só no #55 | não | sim, pelo #55 |
-| 0146 `hi_authorizations` | #55 | só no #55 | não | sim, pelo #55 |
-| 0147 `hi_guides` | #55 | só no #55 | não | sim, pelo #55 |
-| 0148 `hi_coverage_copay` | #55 | só no #55 | não | sim, pelo #55 |
-| 0149 `hi_billing_gaps` | #55 | só no #55 | não | sim, pelo #55 |
-| 0150 `hi_batches` | #55 | só no #55 | não | sim, pelo #55 |
-| 0151 `hi_premium_gate` | #55 (D24: bloqueio comercial do trial) | só no #55 | não | sim, pelo #55 |
-| 0152 `hi_glosses_payments` | #55: glosas (6 estados), recursos, pagamentos, conta da guia; decisão comercial com período e carência | só no #55 | não | sim, pelo #55 |
-| 0153 `hi_ledger_bridge` | #55: ponte da conta da guia com `lancamentos`/`payment_transactions` (candidata; plano em `aplicacao-0153.md`) | só no #55 | não | sim, pelo #55 |
-| 0154 `hi_premium_period_evidence` | #55: D24-b (regras de período do #53 no banco) e D24-c (`period_unverified`, visão administrativa) | só no #55 | não | sim, pelo #55 |
-| 0155 `ledger_payment_sum_by_clinic` | #55, **função compartilhada** (R38, autorizada pelo fundador em 12/11): soma de pagamentos do gatilho do livro pela clínica; só `CREATE OR REPLACE FUNCTION`, sem tabela, índice ou lock | só no #55 | não | sim, pelo #55 |
-| 0156 `hi_sadt_requests` | #55: solicitação SP/SADT, regra de agrupamento por operadora, vínculo do atendimento ao item | só no #55 | não | sim, pelo #55 |
-| 0157 `hi_professional_payouts` | #55: repasse de convênio (só LÊ `professional_payout_rules`) | só no #55 | não | sim, pelo #55 |
-| 0158 `hi_copay_charge` | #55: estado da cobrança da coparticipação (só LÊ `patient_charges`) | só no #55 | não | sim, pelo #55 |
+| 0144 `hi_clinic_setup` | #55 | só no #55 | **sim, 12/11 22:28 UTC** (cauda numa transação, `aplicacao-0153.md` §11) | sim, pelo #55, no rebase |
+| 0145 `hi_memberships` | #55 | só no #55 | **sim, 12/11 22:28 UTC** (cauda numa transação, `aplicacao-0153.md` §11) | sim, pelo #55 |
+| 0146 `hi_authorizations` | #55 | só no #55 | **sim, 12/11 22:28 UTC** (cauda numa transação, `aplicacao-0153.md` §11) | sim, pelo #55 |
+| 0147 `hi_guides` | #55 | só no #55 | **sim, 12/11 22:28 UTC** (cauda numa transação, `aplicacao-0153.md` §11) | sim, pelo #55 |
+| 0148 `hi_coverage_copay` | #55 | só no #55 | **sim, 12/11 22:28 UTC** (cauda numa transação, `aplicacao-0153.md` §11) | sim, pelo #55 |
+| 0149 `hi_billing_gaps` | #55 | só no #55 | **sim, 12/11 22:28 UTC** (cauda numa transação, `aplicacao-0153.md` §11) | sim, pelo #55 |
+| 0150 `hi_batches` | #55 | só no #55 | **sim, 12/11 22:28 UTC** (cauda numa transação, `aplicacao-0153.md` §11) | sim, pelo #55 |
+| 0151 `hi_premium_gate` | #55 (D24: bloqueio comercial do trial) | só no #55 | **sim, 12/11 22:28 UTC** (cauda numa transação, `aplicacao-0153.md` §11) | sim, pelo #55 |
+| 0152 `hi_glosses_payments` | #55: glosas (6 estados), recursos, pagamentos, conta da guia; decisão comercial com período e carência | só no #55 | **sim, 12/11 22:28 UTC** (cauda numa transação, `aplicacao-0153.md` §11) | sim, pelo #55 |
+| 0153 `hi_ledger_bridge` | #55: ponte da conta da guia com `lancamentos`/`payment_transactions` (candidata; plano em `aplicacao-0153.md`) | só no #55 | **sim, 12/11 22:28 UTC** (cauda numa transação, `aplicacao-0153.md` §11) | sim, pelo #55 |
+| 0154 `hi_premium_period_evidence` | #55: D24-b (regras de período do #53 no banco) e D24-c (`period_unverified`, visão administrativa) | só no #55 | **sim, 12/11 22:28 UTC** (cauda numa transação, `aplicacao-0153.md` §11) | sim, pelo #55 |
+| 0155 `ledger_payment_sum_by_clinic` | #55, **função compartilhada** (R38, autorizada pelo fundador em 12/11): soma de pagamentos do gatilho do livro pela clínica; só `CREATE OR REPLACE FUNCTION`, sem tabela, índice ou lock | só no #55 | **sim, 12/11 22:28 UTC** (cauda numa transação, `aplicacao-0153.md` §11) | sim, pelo #55 |
+| 0156 `hi_sadt_requests` | #55: solicitação SP/SADT, regra de agrupamento por operadora, vínculo do atendimento ao item | só no #55 | **sim, 12/11 22:28 UTC** (cauda numa transação, `aplicacao-0153.md` §11) | sim, pelo #55 |
+| 0157 `hi_professional_payouts` | #55: repasse de convênio (só LÊ `professional_payout_rules`) | só no #55 | **sim, 12/11 22:28 UTC** (cauda numa transação, `aplicacao-0153.md` §11) | sim, pelo #55 |
+| 0158 `hi_copay_charge` | #55: estado da cobrança da coparticipação (só LÊ `patient_charges`) | só no #55 | **sim, 12/11 22:28 UTC** (cauda numa transação, `aplicacao-0153.md` §11) | sim, pelo #55 |
+| 0159 (reservada) | #53: candidata financeira `saas_period_snapshot` (dono: agente do #53); `when` > 1795036973857 | só na pasta de candidatas do #53 | não (aplicação pelo agente do #53 quando o SQL for definitivo) | — |
 | 0153 (candidata) | #55: ponte com o livro financeiro (P1.10: `lancamentos` da operadora, `write_off`) | ainda não existe; exige validação com dados do DEV (D23) | não | — |
 
 - O DEV tem **144 linhas** em `drizzle.__drizzle_migrations`, a última é a 0143 do convênio. As 0136–0142 do #53 vêm
@@ -166,4 +167,18 @@ existir, por consulta dinâmica: aplica sozinha na cadeia do #55 e, na ordem do 
 - **0156–0158** só criam objetos `hi_*` e funções próprias; nenhuma toca tabela do #53. Leem `professional_payout_rules` e `patient_charges` (Qoro), sem alterar.
 - **Composição:** a cauda 0144→0158 seguida da candidata do #53 aplica inteira na ordem do DEV (`hi-tail-apply-rehearsal.ts`, 1 M de linhas); a candidata entra como **0159**, `when` maior que o da 0158 (decisão conjunta).
 - **Mensagem ao agente do #53:** a função `validate_payment_transaction_insert` agora parte da 0155; o caminho Asaas de convênio é só o da coparticipação confirmada (`paymentsApiV1.createCopayCheckout`), e a varredura de saldo continua só para particular.
+
+## 10. Aplicação no DEV (12/11, noite 3): 0144–0158 aplicadas; 0159 reservada ao #53
+
+- **Aplicadas no DEV** pela orientação de autorização executiva do fundador (seção 2): 0144 → 0158, numa transação
+  só (migrador do Drizzle pelo aplicador guardado), 108,9 s, 0 sessões esperando lock, pós-voo 16/16. Ledger do DEV:
+  **159 linhas, última 0158** (`created_at` 1795036973857). Registro completo: `aplicacao-0153.md` §11.
+- **#53** em `52de7ada`: sem migration nova; a candidata ganhou `statement_scans`/`statement_scan_items` (schema
+  `billing_gateway`, sem tocar tabela do convênio). Composição ensaiada pelo MIGRADOR REAL com a candidata como 0159
+  (`hi-dev-migrator-rehearsal.ts`, prova 6) e segunda execução sem reaplicar.
+- **Numeração congelada para a composição:** a cauda do convênio termina na **0158**. A **0159** fica para a candidata
+  do #53 (decisão do fundador, seção 3), com `when` maior que 1795036973857. **Nenhuma migration nova do convênio
+  entra no journal antes de a 0159 do #53 estar no journal dele** (o migrador do Drizzle só olha o `when` da última
+  linha aplicada: uma 0159 com `when` menor que o de uma 0160 já aplicada seria pulada em silêncio).
+- **Readback do #53:** as leituras de DEV do #53 que esperavam 144 linhas passam a ver 159 (0144–0158 do #55).
 

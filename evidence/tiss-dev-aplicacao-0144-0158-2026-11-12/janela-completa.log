@@ -1,0 +1,44 @@
+== PRE 2026-11-12T22:26:11Z
+OK  ledger 144 linhas, última = 0143
+OK  nenhuma linha da cauda no ledger
+OK  arquivos sem linha = 6 diferenças históricas + 0144–0158
+OK  6 linhas históricas com hash antigo
+OK  _schema_version só com 0143
+OK  sem created_at duplicado
+OK  colunas novas ausentes
+OK  validate_payment_transaction_insert = 0073
+OK  R38: 0 linhas do livro com clínica divergente
+OK  nenhuma transação longa (>1 min)
+OK  nenhum DDL ativo
+pre DEV: APROVADO
+== APPLY 2026-11-12T22:27:03Z
+[launcher] variáveis no ambiente do aplicador: APPDATA, ComSpec, DATABASE_URL, HOMEDRIVE, HOMEPATH, LOCALAPPDATA, NODE_ENV, NUMBER_OF_PROCESSORS, OS, PATH, PATHEXT, PROCESSOR_ARCHITECTURE, Path, SYSTEMROOT, SystemRoot, TEMP, TMP, USERPROFILE, windir
+[migrate:dev-limited] 2026-11-12T22:27:08.071Z alvo: postgresql://postgres.pqhkirrszzpwezdaqrai:***@aws-1-us-west-1.pooler.supabase.com:5432/postgres?sslmode=require
+[migrate:dev-limited] 2026-11-12T22:27:09.929Z ledger antes: 144 linhas, última 1794330000000 (0143_tiss_catalog)
+[migrate:dev-limited] 2026-11-12T22:27:09.930Z pendentes (15): 0144_hi_clinic_setup, 0145_hi_memberships, 0146_hi_authorizations, 0147_hi_guides, 0148_hi_coverage_copay, 0149_hi_billing_gaps, 0150_hi_batches, 0151_hi_premium_gate, 0152_hi_glosses_payments, 0153_hi_ledger_bridge, 0154_hi_premium_period_evidence, 0155_ledger_payment_sum_by_clinic, 0156_hi_sadt_requests, 0157_hi_professional_payouts, 0158_hi_copay_charge
+[migrate:dev-limited] 2026-11-12T22:27:10.453Z sessão: lock_timeout=2s statement_timeout=1min
+[migrate:dev-limited] 2026-11-12T22:28:59.522Z ledger depois: 159 linhas, última 1795036973857 (0158_hi_copay_charge) em 108882 ms
+[migrate:dev-limited] 2026-11-12T22:28:59.524Z ok
+[launcher] aplicador terminou com código 0 em 114487 ms
+[observador] 53 amostras (2 s); máx. sessões esperando lock: 0; maior espera: 0 s; amostras com AccessExclusive do migrador: 50
+apply rc=0
+== POST 2026-11-12T22:29:02Z
+OK  ledger 159 linhas, última = 0158
+OK  ledger: 144 linhas anteriores preservadas
+OK  cauda inteira no ledger
+OK  arquivos sem linha = só as 6 históricas
+OK  when do ledger = journal
+OK  _schema_version 0143–0158
+OK  colunas novas presentes
+OK  0155 aplicada (soma pela clínica)
+OK  CHECKs todos validados
+OK  RLS + FORCE + política em toda tabela hi_*
+OK  nenhum atendimento mudou de modalidade
+OK  nenhum lançamento com valor de convênio
+OK  hi_ledger_drift vazio
+OK  contagens iguais ao pré-voo
+OK  dados existentes intocados (md5 das colunas originais)
+OK  R38: 0 linhas com clínica divergente
+post DEV: APROVADO
+post rc=0
+done

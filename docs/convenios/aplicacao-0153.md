@@ -156,6 +156,27 @@ compartilhadas) ou do backup da plataforma (decisão do fundador).
 | Pré-voo, execução, pós-voo, registro | agente do #55, com o fundador acompanhando |
 | Decisão de parar, completar ou reverter | fundador |
 
+## 11. Execução no DEV (12/11/2026, noite 3) — APLICADA
+
+Evidências: `evidence/tiss-dev-aplicacao-0144-0158-2026-11-12/`. Executor: agente do #55; código `ff47e6b8`
+(migrations idênticas às de `120e8195`); #53 em `52de7ada` (sem migration nova, candidata fora do journal); `main`
+`5620a098`; UI `e47ec2f0`.
+
+| Etapa | Resultado |
+| --- | --- |
+| Identidade | `postgres.pqhkirrszzpwezdaqrai` (DEV), pooler de sessão 5432, Postgres 17.6; nenhuma credencial de produção no ambiente do aplicador (só PATH/sistema + `DATABASE_URL`) |
+| Concorrência | nenhum outro agente ativo (`ListAgents`); no banco, nenhum DDL ativo. Às 22:12 UTC havia uma leitura longa de outra sessão (`postgres` via Supavisor, 345 `AccessShare`, ~3 min): a janela ESPEROU até ela terminar sozinha |
+| Backup da janela | estrutura `public`+`drizzle` (610 KB), dados das 3 tabelas compartilhadas (32 KB), ledger (13 KB); restaurado no ensaio com md5 das linhas IGUAL ao do DEV; sha256 no manifesto |
+| Ensaio (migrador real, equivalente ao DEV) | 8/8 (`hi-dev-migrator-rehearsal.ts`): CLI aplica exatamente 0144–0158 (5,8 s local), segunda execução sem efeito, dados intocados, reversão byte a byte, aplicador = CLI, candidata do #53 (`52de7ada`) como 0159 |
+| Pré-voo final (22:26 UTC) | APROVADO (11/11): ledger 144/0143, 6 diferenças históricas conhecidas + cauda pendente, md5 da função = 0073, R38 0 divergentes, sem transação longa nem DDL |
+| Aplicação (22:27:10 → 22:28:59 UTC) | **108,9 s**, uma transação, `lock_timeout` 2 s / `statement_timeout` 60 s; ledger 144 → **159**, última `0158_hi_copay_charge`; observador (53 amostras, 2 s): **0 sessões esperando lock** |
+| Pós-voo (22:29 UTC) | APROVADO (16/16): 144 linhas anteriores preservadas, 15 versões, 3 colunas, CHECKs validados, RLS+FORCE+política nas 40 tabelas `hi_*`, 0 atendimento fora de particular, 0 lançamento de convênio, `hi_ledger_drift` vazio, contagens e md5 dos dados existentes IGUAIS, função do livro com a soma pela clínica (R38) |
+| Agregado para o #53 (D24-c) | `qoro_subscription_period_audit`: 12 assinaturas `verified_period` |
+
+**Estado do DEV agora:** 159 linhas no ledger, última 0158 (`created_at` 1795036973857). A candidata do #53 entra
+como **0159** com `when` > 1795036973857, aplicada pelo agente dele quando o SQL for definitivo (seção 3 da
+orientação de 12/11). Nenhuma clínica real habilitada; nenhuma linha `hi_*` criada pela janela.
+
 ## 10. Provas
 
 - `scripts/security/hi-dev-migrator-rehearsal.ts` — o MIGRADOR REAL (CLI e aplicador guardado) num Postgres
