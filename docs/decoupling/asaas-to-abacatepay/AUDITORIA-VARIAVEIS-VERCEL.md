@@ -188,3 +188,7 @@ Nenhuma variável Production foi lida pelo valor ou alterada nesta execução. A
 | ABACATEPAY_WEBHOOK_SECRET | Segredo do webhook Sandbox | Segredo próprio de live, no cofre; nunca copiar do Sandbox |
 
 As variáveis ABACATEPAY_SANDBOX_PLAN_PRODUCTS e ABACATEPAY_SANDBOX_PROBE_PRODUCT_ID permanecem para testes. O produto de atestação live vem do catálogo aprovado; não há nova variável de probe live. Não copiar valores, habilitar modalidade anual ou redeployar Production com base nesta tabela. Uma configuração Production exige novo deployment e os gates da janela; uma chave presente não representa recorrência liberada.
+
+## Readback nominal atual —12/11, após DEV160
+
+Leitura Vercel com decrypt=false, sem valores/alterações: Production tem o nome `ABACATEPAY_API_KEY`; faltam os nomes de composição live (`ABACATEPAY_ENVIRONMENT`, `ABACATEPAY_STORE_ID`, `ABACATEPAY_PLAN_PRODUCTS`, `ABACATEPAY_WEBHOOK_SECRET`, seleção/cohort/flag próprios). Isso é consistente com a integração ainda desativada. Não é necessário configurar novamente a chave já presente, nem usar seu valor para esta homologação. O deployment Production permanece dpl_2gHasgxKuWkFY8ct1w56VLeHDhQP/SHA5620a098. O Preview deefdf4722 passou no caminho autenticado com a configuração Sandbox existente. Uma presença nominal não prova permissões da chave, catálogo, webhook, saldo ou operação live. Preparar esses itens em futura janela autorizada, com segredos próprios; nenhuma cópia DEV→Production. Fonte sanitizada: executiveFollowup.vercelNamesAndProductionState.

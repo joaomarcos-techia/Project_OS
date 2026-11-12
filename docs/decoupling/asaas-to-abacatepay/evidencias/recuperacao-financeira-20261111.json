@@ -17550,8 +17550,1680 @@
       "unit": 7124,
       "e2e": 22,
       "skips": 0,
-      "newCode": "PENDING_OWN_CI"
+      "newCode": "PENDING_OWN_CI",
+      "failedAttempt": {
+        "commit": "efdf472299c16ac8b75797d5b24df9cbfcde977c",
+        "runId": "43323224785",
+        "passed": 7138,
+        "failed": 1,
+        "reason": "Admin empty-state test still expected previous Sandbox-only wording; assertion updated with access/button protection preserved",
+        "targetedRetestPassed": 5
+      }
     },
-    "productionWrites": 0
+    "productionWrites": 0,
+    "devApplied": {
+      "startedAt": "2026-11-12T22:48:38.307Z",
+      "target": "pqhkirrszzpwezdaqrai",
+      "mode": "authorized_apply",
+      "financialCommit": "efdf472299c16ac8b75797d5b24df9cbfcde977c",
+      "tissHead": "62edb485ccb6592ccb981c1cabe9df66ed7708d6",
+      "financialSqlSha256": "eb00a4e3dd45f89e7eef4dc2c95c577e7932f1f2131d5bfb4ff8f5e4570f5c74",
+      "productionWrites": 0,
+      "applied": true,
+      "sessionLimits": {
+        "lt": "2s",
+        "st": "15s"
+      },
+      "before": {
+        "historyEntries": 159,
+        "invariants": {
+          "orphan_contracts": 3,
+          "cross_tenant_invoices": 0,
+          "duplicate_cycles": 0
+        },
+        "tableFingerprints": [
+          {
+            "relation": "auth.audit_log_entries",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "auth.custom_oauth_providers",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "auth.flow_state",
+            "rows": 5,
+            "fingerprint": "5f8a98dec85b8e17dc10a4e30d56210c"
+          },
+          {
+            "relation": "auth.identities",
+            "rows": 29,
+            "fingerprint": "f67ac90f50b0363380ab8c1c58f4fd70"
+          },
+          {
+            "relation": "auth.instances",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "auth.mfa_amr_claims",
+            "rows": 255,
+            "fingerprint": "be622e84ef1cc555d8f9e456013e059b"
+          },
+          {
+            "relation": "auth.mfa_challenges",
+            "rows": 94,
+            "fingerprint": "5a820fa770e58c714c0e9860be37ee56"
+          },
+          {
+            "relation": "auth.mfa_factors",
+            "rows": 3,
+            "fingerprint": "4608f2cb4587f490b696812048db7c78"
+          },
+          {
+            "relation": "auth.mfa_recovery_code_sets",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "auth.mfa_recovery_codes",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "auth.oauth_authorizations",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "auth.oauth_client_states",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "auth.oauth_clients",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "auth.oauth_consents",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "auth.one_time_tokens",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "auth.refresh_tokens",
+            "rows": 324,
+            "fingerprint": "f28985f0fda0affb5f2fe38bcae5ce46"
+          },
+          {
+            "relation": "auth.saml_providers",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "auth.saml_relay_states",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "auth.schema_migrations",
+            "rows": 82,
+            "fingerprint": "1eb2804a784ec0d5a31ae885c617e37b"
+          },
+          {
+            "relation": "auth.scim_tokens",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "auth.scim_users",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "auth.sessions",
+            "rows": 251,
+            "fingerprint": "3e342419efb762159a3922d7176e9c9b"
+          },
+          {
+            "relation": "auth.sso_domains",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "auth.sso_providers",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "auth.users",
+            "rows": 29,
+            "fingerprint": "a144a051df2a2784548e99950472dd91"
+          },
+          {
+            "relation": "auth.webauthn_challenges",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "auth.webauthn_credentials",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "billing_gateway.accounts",
+            "rows": 1,
+            "fingerprint": "792d8bb98cbfa580e0dbcf970f4fc7f2"
+          },
+          {
+            "relation": "billing_gateway.bindings",
+            "rows": 7,
+            "fingerprint": "c22c71637a8bd12c78b1058b61ce4f51"
+          },
+          {
+            "relation": "billing_gateway.cancellations",
+            "rows": 1,
+            "fingerprint": "d43ed2319f208254b97e4e3522e9a9f7"
+          },
+          {
+            "relation": "billing_gateway.checkout_intents",
+            "rows": 6,
+            "fingerprint": "83dff18ce641bc2fbfc5493d8610188d"
+          },
+          {
+            "relation": "billing_gateway.event_inbox",
+            "rows": 6,
+            "fingerprint": "5b743b9b1e5ee7880c59d4b698ef7925"
+          },
+          {
+            "relation": "billing_gateway.operations",
+            "rows": 7,
+            "fingerprint": "1c81489c672047c173350e7f2383427f"
+          },
+          {
+            "relation": "billing_gateway.paid_checkouts",
+            "rows": 6,
+            "fingerprint": "159831c384e4a59af376da49b8f16bf0"
+          },
+          {
+            "relation": "billing_gateway.plan_changes",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "billing_gateway.recontracts",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "billing_gateway.recurring_access_periods",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "billing_gateway.recurring_payment_observations",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "billing_gateway.review_replays",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "billing_gateway.trial_claims",
+            "rows": 7,
+            "fingerprint": "17d471492262d981ab25c62e7099a03f"
+          },
+          {
+            "relation": "public._reserved_slugs",
+            "rows": 22,
+            "fingerprint": "ae0185fd11615fe4984fefab28c57d30"
+          },
+          {
+            "relation": "public.ai_agent_failures",
+            "rows": 8,
+            "fingerprint": "984fcafa88b787f672755cc95db9bd73"
+          },
+          {
+            "relation": "public.ai_clinic_config",
+            "rows": 28,
+            "fingerprint": "594bab643fa77785a774a1285fa4a789"
+          },
+          {
+            "relation": "public.ai_conversations",
+            "rows": 12,
+            "fingerprint": "ba80fcf6f8f313624cb466b50dd38333"
+          },
+          {
+            "relation": "public.ai_handoff_queue",
+            "rows": 13,
+            "fingerprint": "c147b58b90bbc2b2f7b682973226fe7d"
+          },
+          {
+            "relation": "public.ai_messages",
+            "rows": 218,
+            "fingerprint": "71ce3a1094037189bd847f3efcb90eb2"
+          },
+          {
+            "relation": "public.ai_messages_2026_06",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.ai_messages_2026_07",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.ai_messages_2026_08",
+            "rows": 60,
+            "fingerprint": "a6b7d4807bc8929eac71c23ca17c37c7"
+          },
+          {
+            "relation": "public.ai_messages_2026_09",
+            "rows": 6,
+            "fingerprint": "82b8f5f2d30f08efb72d01d039a4bc88"
+          },
+          {
+            "relation": "public.ai_messages_2026_10",
+            "rows": 137,
+            "fingerprint": "d74d48296dda59154a33cb26f9c70d51"
+          },
+          {
+            "relation": "public.ai_messages_2026_11",
+            "rows": 15,
+            "fingerprint": "64ec8c02e76bbfa76a5b2f2640a6b0db"
+          },
+          {
+            "relation": "public.ai_messages_2026_12",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.ai_messages_2027_01",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.ai_messages_2027_02",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.ai_messages_2027_03",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.ai_messages_2027_04",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.ai_messages_2027_05",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.ai_messages_default",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.ai_pending_actions",
+            "rows": 11,
+            "fingerprint": "201e4868e3bb744589b891d094a8f02f"
+          },
+          {
+            "relation": "public.ai_proactive_jobs",
+            "rows": 9,
+            "fingerprint": "7dc1d660b626bbf68688294d6c86f465"
+          },
+          {
+            "relation": "public.annual_prepayments",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.appointment_corrections",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.appointment_import_batches",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.appointment_resource_reservations",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.appointment_state_log",
+            "rows": 56,
+            "fingerprint": "0a1c40f90ce73b930a704e46a965c329"
+          },
+          {
+            "relation": "public.appointments",
+            "rows": 39,
+            "fingerprint": "593e816300ace99c21b65d70cdb7928b"
+          },
+          {
+            "relation": "public.audit_events",
+            "rows": 742,
+            "fingerprint": "1922037df60398fe0e87a78fd348ae9f"
+          },
+          {
+            "relation": "public.audit_events_2026_05",
+            "rows": 9,
+            "fingerprint": "7971908b44526b05b4af4f670385eb05"
+          },
+          {
+            "relation": "public.audit_events_2026_06",
+            "rows": 85,
+            "fingerprint": "c77f9f0da785ac79a56bf0d433482866"
+          },
+          {
+            "relation": "public.audit_events_2026_07",
+            "rows": 41,
+            "fingerprint": "f4252985d06df144dd88439923adee6e"
+          },
+          {
+            "relation": "public.audit_events_2026_08",
+            "rows": 97,
+            "fingerprint": "3acafcff5c55c69ceef1ca984c9204f0"
+          },
+          {
+            "relation": "public.audit_events_2026_09",
+            "rows": 146,
+            "fingerprint": "84dcd5ae438ffd35dbc88d2c44482cd0"
+          },
+          {
+            "relation": "public.audit_events_2026_10",
+            "rows": 255,
+            "fingerprint": "b3bb4659ff457c649cab204315b147e4"
+          },
+          {
+            "relation": "public.audit_events_2026_11",
+            "rows": 109,
+            "fingerprint": "a419ca2ce68c4a3323c199bafe4f4392"
+          },
+          {
+            "relation": "public.audit_events_2026_12",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.audit_events_2027_01",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.audit_events_2027_02",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.audit_events_2027_03",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.audit_events_2027_04",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.audit_events_2027_05",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.audit_events_2028_05",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.audit_events_default",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.billing_customers",
+            "rows": 17,
+            "fingerprint": "d98c29ea6d2d03da825f2b9273858fba"
+          },
+          {
+            "relation": "public.billing_events",
+            "rows": 59,
+            "fingerprint": "c5bafff67905895a795aacfcae63e36f"
+          },
+          {
+            "relation": "public.billing_reconciliation_runs",
+            "rows": 14,
+            "fingerprint": "0827d930f6c51080647da76bbc67ce81"
+          },
+          {
+            "relation": "public.cash_flow_daily",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.checkout_sessions",
+            "rows": 12,
+            "fingerprint": "75f5cfbc0a2d9271e542c91860b4ff46"
+          },
+          {
+            "relation": "public.clinic_deposit_policy",
+            "rows": 2,
+            "fingerprint": "a28bce52779c3973ade8b8bde60ffd46"
+          },
+          {
+            "relation": "public.clinic_financial_policies",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.clinic_financial_policy_versions",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.clinic_holidays",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.clinic_invites",
+            "rows": 16,
+            "fingerprint": "7ddda4badde96ce97ecd7ad8dcdf295e"
+          },
+          {
+            "relation": "public.clinic_payment_accounts",
+            "rows": 2,
+            "fingerprint": "d924e026de34d02892a7bf2233aeff95"
+          },
+          {
+            "relation": "public.clinic_payment_pricing_policies",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.clinic_units",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.clinic_whatsapp_numbers",
+            "rows": 15,
+            "fingerprint": "eef1fe29c7ec729672e20c90cea90bc6"
+          },
+          {
+            "relation": "public.clinics",
+            "rows": 31,
+            "fingerprint": "1e0f9c9a4e65ae5fa151d16e10d613cf"
+          },
+          {
+            "relation": "public.collection_cases",
+            "rows": 5,
+            "fingerprint": "9f40879678da3311c0a0c066e283c3ed"
+          },
+          {
+            "relation": "public.cron_heartbeats",
+            "rows": 14,
+            "fingerprint": "e865f68c5ecfff952905cb9c621abcc0"
+          },
+          {
+            "relation": "public.doctor_absences",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.doctor_availability",
+            "rows": 37,
+            "fingerprint": "9d770b5e2db7486e4c21de917407c938"
+          },
+          {
+            "relation": "public.faturamento_pendencias",
+            "rows": 1,
+            "fingerprint": "dd780e34c2264f3368fb1eb341488d4e"
+          },
+          {
+            "relation": "public.feedback_history",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.feedback_suggestions",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.hi_account_events",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.hi_appointment_coverages",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.hi_authorization_attachments",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.hi_authorization_consumptions",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.hi_authorization_events",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.hi_authorization_items",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.hi_authorizations",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.hi_batch_events",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.hi_batch_guides",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.hi_batch_returns",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.hi_batches",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.hi_billing_gap_events",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.hi_billing_gaps",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.hi_clinic_settings",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.hi_contract_imports",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.hi_copayments",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.hi_counters",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.hi_credentials",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.hi_files",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.hi_gloss_appeal_items",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.hi_gloss_appeals",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.hi_glosses",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.hi_guide_events",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.hi_guide_items",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.hi_guide_snapshots",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.hi_guides",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.hi_insurer_credentials",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.hi_insurers",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.hi_ledger_entries",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.hi_memberships",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.hi_payment_allocations",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.hi_payments",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.hi_payout_movements",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.hi_payouts",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.hi_plans",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.hi_procedure_contracts",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.hi_professional_profiles",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.hi_sadt_request_events",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.hi_sadt_request_items",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.hi_sadt_requests",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.idempotency_keys",
+            "rows": 560,
+            "fingerprint": "0a0227dab7bd5a5703c288c11146aa12"
+          },
+          {
+            "relation": "public.impersonation_sessions",
+            "rows": 8,
+            "fingerprint": "ec1e4ffc2914776de6d923ce7b1118c1"
+          },
+          {
+            "relation": "public.inbound_messages_orphaned",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.inbound_messages_raw",
+            "rows": 107,
+            "fingerprint": "43dd77a5a631f0f14899a436ae23b843"
+          },
+          {
+            "relation": "public.invoice_items",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.invoices",
+            "rows": 20,
+            "fingerprint": "75b16ebf51227f2f63bbc184c9e0c7b7"
+          },
+          {
+            "relation": "public.lancamentos",
+            "rows": 28,
+            "fingerprint": "da26388264397ef9a228a5128cb2c727"
+          },
+          {
+            "relation": "public.lgpd_request_history",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.lgpd_requests",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.login_attempts",
+            "rows": 1001,
+            "fingerprint": "c7a685c43fe641615c1ec74dcbc0b9b8"
+          },
+          {
+            "relation": "public.medical_documents",
+            "rows": 11,
+            "fingerprint": "136964e086854ea101146a6f55039b3a"
+          },
+          {
+            "relation": "public.onboarding_progress",
+            "rows": 4,
+            "fingerprint": "8ae6d4a2fa2061fa59291f15b015c8ea"
+          },
+          {
+            "relation": "public.outbound_messages",
+            "rows": 107,
+            "fingerprint": "4b90d39271fc906024522b9b941740d9"
+          },
+          {
+            "relation": "public.outbox",
+            "rows": 955,
+            "fingerprint": "848fb3cbb61b3d9e7471627bb9b628cc"
+          },
+          {
+            "relation": "public.patient_addresses",
+            "rows": 3,
+            "fingerprint": "af0288d8d81c36305e9cf9ed35922a2b"
+          },
+          {
+            "relation": "public.patient_charges",
+            "rows": 9,
+            "fingerprint": "7375a731c979010ff38b7f6c15f00968"
+          },
+          {
+            "relation": "public.patient_checkout_generations",
+            "rows": 8,
+            "fingerprint": "cc26f39fa51ccad383e4b9a76b57c7ee"
+          },
+          {
+            "relation": "public.patient_clinical_data",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.patient_consent_decisions",
+            "rows": 7,
+            "fingerprint": "b6876273100c90093dc06678b3df5cc3"
+          },
+          {
+            "relation": "public.patient_consents",
+            "rows": 8,
+            "fingerprint": "64c690b50797e4f22a169ba5f6d9c01e"
+          },
+          {
+            "relation": "public.patient_credit_adjustments",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.patient_credits",
+            "rows": 6,
+            "fingerprint": "1b6ace3de1c7bd58cde7042c54dcf283"
+          },
+          {
+            "relation": "public.patient_emergency_contacts",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.patient_merges",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.patient_payment_customers",
+            "rows": 1,
+            "fingerprint": "3c455329ec8d4790f5be7bd520981ef6"
+          },
+          {
+            "relation": "public.patient_refund_intents",
+            "rows": 1,
+            "fingerprint": "1ed26f32d2e076d8fba9285d7b1ac344"
+          },
+          {
+            "relation": "public.patient_relationships",
+            "rows": 1,
+            "fingerprint": "858c0dbd642dc86ea173602952110256"
+          },
+          {
+            "relation": "public.patient_webhook_events",
+            "rows": 47,
+            "fingerprint": "3776421f79c28436084d07847d45613e"
+          },
+          {
+            "relation": "public.patients",
+            "rows": 29,
+            "fingerprint": "d51702c0f1fb22b9b745ff646814d7c8"
+          },
+          {
+            "relation": "public.payment_attempts",
+            "rows": 12,
+            "fingerprint": "209a6270c8eacbb5744f024d46596159"
+          },
+          {
+            "relation": "public.payment_methods",
+            "rows": 6,
+            "fingerprint": "c8ae2a57758e0900efc465e71fa361bf"
+          },
+          {
+            "relation": "public.payment_proofs",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.payment_transactions",
+            "rows": 14,
+            "fingerprint": "62866dfeeab3de1ef876d18f20b45459"
+          },
+          {
+            "relation": "public.permissions",
+            "rows": 28,
+            "fingerprint": "2a5fd3b027ebc5a225fb99c8fa261cdf"
+          },
+          {
+            "relation": "public.plan_limits",
+            "rows": 14,
+            "fingerprint": "bed6ce05ba52d503dfa667716fef1c78"
+          },
+          {
+            "relation": "public.plan_seat_limits",
+            "rows": 5,
+            "fingerprint": "818edfd75259b0de74bf0db03b0f5469"
+          },
+          {
+            "relation": "public.plans",
+            "rows": 9,
+            "fingerprint": "cdbaa31344bd1e83e53536457b8f5616"
+          },
+          {
+            "relation": "public.platform_announcements",
+            "rows": 1,
+            "fingerprint": "2a926dc6d5c86040105dc971fb20a061"
+          },
+          {
+            "relation": "public.platform_settings",
+            "rows": 3,
+            "fingerprint": "7d3f974ebd7ae5cd27d4a8bdb07e5572"
+          },
+          {
+            "relation": "public.prescription_templates",
+            "rows": 4,
+            "fingerprint": "1e1632651bb41ff3bac4a92bbce96935"
+          },
+          {
+            "relation": "public.prescriptions",
+            "rows": 12,
+            "fingerprint": "c6abfa487a6342f6e51817da51a00747"
+          },
+          {
+            "relation": "public.prices",
+            "rows": 24,
+            "fingerprint": "33538fda37e7b1da35cebc92c278613c"
+          },
+          {
+            "relation": "public.procedure_history",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.procedure_payment_prices",
+            "rows": 2,
+            "fingerprint": "965b73b415032a0bdb1b5e7080b5cdbb"
+          },
+          {
+            "relation": "public.procedures",
+            "rows": 10,
+            "fingerprint": "79a38b3228b56e0da91dc02ac8fa3966"
+          },
+          {
+            "relation": "public.processed_webhooks",
+            "rows": 282,
+            "fingerprint": "0f870a03f0b363a58a1b372eea3b7a81"
+          },
+          {
+            "relation": "public.professional_payout_reviews",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.professional_payout_rules",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.professional_payouts",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.profiles",
+            "rows": 26,
+            "fingerprint": "c01cf4425958f056f0f79ff41353fcf2"
+          },
+          {
+            "relation": "public.prontuario_versions",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.prontuarios",
+            "rows": 21,
+            "fingerprint": "03afc648093cb17d487b468ac28d59b3"
+          },
+          {
+            "relation": "public.provider_status_events_raw",
+            "rows": 286,
+            "fingerprint": "3deee0835836c261e18d09e4a2216756"
+          },
+          {
+            "relation": "public.recurrence_series",
+            "rows": 1,
+            "fingerprint": "75cfeadb557fdf2b2740b8b0561ea6b1"
+          },
+          {
+            "relation": "public.role_permissions",
+            "rows": 84,
+            "fingerprint": "2a65339a494f9cb5a794ce7b35044ba6"
+          },
+          {
+            "relation": "public.schedulable_resources",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.setup_fees",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.signup_email_delivery_events",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.signup_recovery_grants",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.signup_sessions",
+            "rows": 56,
+            "fingerprint": "68b207e74a04db1fbc1b8c14daced70a"
+          },
+          {
+            "relation": "public.subscription_change_requests",
+            "rows": 6,
+            "fingerprint": "c6cbc299e432165df72a822e0a891009"
+          },
+          {
+            "relation": "public.subscription_history",
+            "rows": 15,
+            "fingerprint": "584c306a1c21b51676f215a99a077b0b"
+          },
+          {
+            "relation": "public.subscriptions",
+            "rows": 17,
+            "fingerprint": "1e98fb98bea7e7171a0411588683e73a"
+          },
+          {
+            "relation": "public.super_admin_actions",
+            "rows": 93,
+            "fingerprint": "c765226d95dfcbfa348dda2f91ee1709"
+          },
+          {
+            "relation": "public.suppliers",
+            "rows": 1,
+            "fingerprint": "5def0188b838502a416bd04434eb1c1a"
+          },
+          {
+            "relation": "public.suppression_list",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.system_metrics_daily",
+            "rows": 6,
+            "fingerprint": "62d8d3e0a37c373601ac41d1f604471b"
+          },
+          {
+            "relation": "public.tenant_provisioning",
+            "rows": 12,
+            "fingerprint": "4a26fe48b03a8f564df57c891dc21e61"
+          },
+          {
+            "relation": "public.tiss_schema_versions",
+            "rows": 1,
+            "fingerprint": "3aea57a8734ba78efdd23b32996a1377"
+          },
+          {
+            "relation": "public.tiss_terminology_versions",
+            "rows": 1,
+            "fingerprint": "40c0b28d7f394db3ff06c658a312d3bf"
+          },
+          {
+            "relation": "public.tiss_terms",
+            "rows": 7331,
+            "fingerprint": "ee9dec3c805f6bd39b3392e82ab06cd6"
+          },
+          {
+            "relation": "public.trial_access_policies",
+            "rows": 7,
+            "fingerprint": "8ef27ed909d0b35db669babdafe42cac"
+          },
+          {
+            "relation": "public.trial_resource_usage",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.usage_counter_ledger",
+            "rows": 19,
+            "fingerprint": "3e2f48f3e1df6612b726a955a3c1f28c"
+          },
+          {
+            "relation": "public.usage_metrics",
+            "rows": 9,
+            "fingerprint": "560caa6dd94489738398bb749fd79214"
+          },
+          {
+            "relation": "public.user_permission_overrides",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.waiting_queue_entries",
+            "rows": 10,
+            "fingerprint": "2f9d3f5e010d5e2969c3ccf84e170707"
+          },
+          {
+            "relation": "public.waitlist_entries",
+            "rows": 0,
+            "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          {
+            "relation": "public.whatsapp_business_app_echoes",
+            "rows": 1,
+            "fingerprint": "5944390c7b786bc69a206e2ebdd7892a"
+          }
+        ]
+      },
+      "backup": {
+        "sha256": "c499ab2d6f81830256e74c636c2ccae0b08f6e8319dd95d4ccaed891de2a26e7",
+        "decryptionVerified": true
+      },
+      "activity": {
+        "long_transactions": 0,
+        "active_ddl": 0,
+        "waitingLocks": 0,
+        "advisoryLock": true
+      },
+      "migrationMs": 2256.550000000003,
+      "security": [
+        {
+          "relname": "renewal_api_readbacks",
+          "secured": true,
+          "tenant_read": false,
+          "service_delete": false
+        },
+        {
+          "relname": "statement_scan_items",
+          "secured": true,
+          "tenant_read": false,
+          "service_delete": false
+        },
+        {
+          "relname": "statement_scans",
+          "secured": true,
+          "tenant_read": false,
+          "service_delete": false
+        }
+      ],
+      "repeatedMigrator": "no_change",
+      "after": {
+        "historyEntries": 160,
+        "invariants": {
+          "orphan_contracts": 3,
+          "cross_tenant_invoices": 0,
+          "duplicate_cycles": 0
+        },
+        "existingTableCount": 224,
+        "existingDataPreserved": true
+      },
+      "status": "PASS",
+      "finishedAt": "2026-11-12T22:49:01.626Z"
+    },
+    "previewPaidRegression": {
+      "observedAt": "2026-11-12T22:54:01.509Z",
+      "sha": "efdf472299c16ac8b75797d5b24df9cbfcde977c",
+      "preview": "https://project-jag1hizd8-clinic-os-v2-s-projects.vercel.app",
+      "exitCode": 0,
+      "status": "PASS",
+      "scope": "Existing paid synthetic clinic, login, DB readback, desktop/mobile and denied repeated checkout; no new checkout/payment",
+      "journey": {
+        "runId": "0613b289-8d22-473f-bd3b-1058efc62833",
+        "userId": "a9376036-f69b-4dc9-b6c9-c1b6e7be66cf",
+        "status": "PASS",
+        "stages": [
+          "real_browser_login",
+          "paid_domain_records_verified",
+          "paid_ui_1440",
+          "paid_ui_390",
+          "paid_checkout_repeat_denied",
+          "paid_whatsapp_gate_released",
+          "paid_asaas_gate_released",
+          "real_sandbox_webhook_invoice_receipt_and_paid_ui",
+          "paid_checkout_repeat_denied_and_integration_invite_gates_released"
+        ],
+        "retention": "retained_until_financial_reconciliation; never delete on test timeout",
+        "scope": "Real Sandbox simulation, authenticated webhook, invoice and readbacks; no real charge",
+        "browserErrorClasses": [],
+        "clinicId": "414c7484-1c7a-44b3-b3f4-4a139d01dc2e",
+        "subscriptionId": "4efcec8c-f4c3-4b77-95e3-b704e03f613a"
+      },
+      "productionWrites": 0,
+      "newCheckouts": 0,
+      "newPayments": 0,
+      "historicalManifestChanged": false
+    },
+    "previewPipeline": {
+      "startedAt": "2026-11-12T22:56:39.118Z",
+      "sha": "efdf472299c16ac8b75797d5b24df9cbfcde977c",
+      "preview": "https://project-jag1hizd8-clinic-os-v2-s-projects.vercel.app",
+      "status": "PASS",
+      "scope": "Operator-signed synthetic duplicate of existing paid fixture; not an externally emitted provider webhook, no new checkout/payment",
+      "http": [
+        {
+          "label": "missing_webhook_auth",
+          "status": 401,
+          "ms": 705
+        },
+        {
+          "label": "invalid_integrity_signature",
+          "status": 401,
+          "ms": 402
+        },
+        {
+          "label": "concurrent_duplicate",
+          "status": 503,
+          "ms": 1416
+        },
+        {
+          "label": "first_valid",
+          "status": 202,
+          "ms": 4023
+        },
+        {
+          "label": "late_duplicate",
+          "status": 200,
+          "ms": 742
+        }
+      ],
+      "productionWrites": 0,
+      "eventId": "evt_qoro_preview_cb91455a2855496586575c3c144aefeb",
+      "inbox": {
+        "state": "applied",
+        "attempts": 1,
+        "outcome_code": "initial_payment_already_consumed",
+        "lease_released": true
+      },
+      "existingFinancialRecordsPreserved": true,
+      "syntheticInboxRows": 1,
+      "finishedAt": "2026-11-12T22:56:49.264Z"
+    },
+    "paidCheckoutClosure": {
+      "startedAt": "2026-11-12T23:03:25.355Z",
+      "mode": "authorized_sandbox_closure",
+      "scope": {
+        "subscriptionId": "db312491-f70f-4c9e-8c9f-6b0c723038b6",
+        "clinicId": "8396c7d0-d7f0-483e-b861-02cb237640f8",
+        "checkoutId": "bill_WDnCdCcreJeqUyz65paa4WXt",
+        "externalSubscriptionId": "subs_Y2gsQkh2jCcU5KGa00ReptHn",
+        "amountMinor": 19700
+      },
+      "externalPayments": 0,
+      "productionWrites": 0,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/v2/stores/get",
+          "status": 200,
+          "ms": 991
+        },
+        {
+          "method": "GET",
+          "path": "/v2/products/get",
+          "status": 200,
+          "ms": 395
+        },
+        {
+          "method": "GET",
+          "path": "/v2/subscriptions/get",
+          "status": 200,
+          "ms": 673
+        },
+        {
+          "method": "GET",
+          "path": "/v2/subscriptions/checkouts/get",
+          "status": 200,
+          "ms": 864
+        },
+        {
+          "method": "GET",
+          "path": "/v2/subscriptions/list",
+          "status": 200,
+          "ms": 837
+        },
+        {
+          "method": "GET",
+          "path": "/v2/bank-statement/list",
+          "status": 200,
+          "ms": 722
+        },
+        {
+          "method": "GET",
+          "path": "/v2/stores/get",
+          "status": 200,
+          "ms": 409
+        },
+        {
+          "method": "GET",
+          "path": "/v2/products/get",
+          "status": 200,
+          "ms": 387
+        },
+        {
+          "method": "GET",
+          "path": "/v2/subscriptions/checkouts/get",
+          "status": 200,
+          "ms": 398
+        },
+        {
+          "method": "GET",
+          "path": "/v2/subscriptions/get",
+          "status": 200,
+          "ms": 392
+        },
+        {
+          "method": "GET",
+          "path": "/v2/subscriptions/list",
+          "status": 200,
+          "ms": 388
+        },
+        {
+          "method": "POST",
+          "path": "/v2/subscriptions/checkouts/delete",
+          "status": 200,
+          "ms": 573
+        },
+        {
+          "method": "GET",
+          "path": "/v2/subscriptions/get",
+          "status": 200,
+          "ms": 389
+        },
+        {
+          "method": "GET",
+          "path": "/v2/subscriptions/list",
+          "status": 200,
+          "ms": 391
+        },
+        {
+          "method": "GET",
+          "path": "/v2/subscriptions/get",
+          "status": 200,
+          "ms": 409
+        },
+        {
+          "method": "GET",
+          "path": "/v2/bank-statement/list",
+          "status": 200,
+          "ms": 395
+        },
+        {
+          "method": "GET",
+          "path": "/v2/subscriptions/checkouts/get",
+          "status": 200,
+          "ms": 408
+        }
+      ],
+      "before": {
+        "provider": {
+          "id": "subs_Y2gsQkh2jCcU5KGa00ReptHn",
+          "checkoutId": "bill_WDnCdCcreJeqUyz65paa4WXt",
+          "customerId": "cust_fwKdBn1WsGKgUEFBSnhBcyhW",
+          "amount": 19700,
+          "status": "ACTIVE",
+          "method": "CARD",
+          "devMode": true,
+          "trialEndsAt": null,
+          "createdAt": "2026-11-11T10:19:49.065Z",
+          "currentPeriodStart": "2026-11-11",
+          "currentPeriodEnd": "2026-12-11",
+          "nextChargeAt": "2026-12-11"
+        },
+        "checkout": {
+          "id": "bill_WDnCdCcreJeqUyz65paa4WXt",
+          "frequency": "SUBSCRIPTION",
+          "customerId": "cust_fwKdBn1WsGKgUEFBSnhBcyhW",
+          "amount": 19700,
+          "status": "PAID",
+          "devMode": true,
+          "paidAmount": 19700,
+          "items": [
+            {
+              "id": "prod_NTxhdRJzM0cG5MgDeeF54RL2",
+              "quantity": 1
+            }
+          ]
+        },
+        "linkedSubscriptions": ["subs_Y2gsQkh2jCcU5KGa00ReptHn"],
+        "receipts": [
+          {
+            "id": "tran_pfUec6C6k6Lx4gWCNmz4JTZT",
+            "paymentIntentId": "card_sntPzUNyqBxebHNpexdzGqPK",
+            "checkoutId": "bill_WDnCdCcreJeqUyz65paa4WXt"
+          }
+        ],
+        "local": [
+          {
+            "subscription": "febea39dba200b0c526bb2f9a33edb42",
+            "invoices": "33e06c7759e9cf76b707a858335d32d4",
+            "quota_release": "0a654a91514688c5ded05a0db6589937"
+          }
+        ]
+      },
+      "result": {
+        "checkoutId": "bill_WDnCdCcreJeqUyz65paa4WXt",
+        "subscriptionId": "subs_Y2gsQkh2jCcU5KGa00ReptHn",
+        "customerId": "cust_fwKdBn1WsGKgUEFBSnhBcyhW",
+        "productId": "prod_NTxhdRJzM0cG5MgDeeF54RL2",
+        "amountMinor": 19700,
+        "closed": true
+      },
+      "repeatedResult": {
+        "checkoutId": "bill_WDnCdCcreJeqUyz65paa4WXt",
+        "subscriptionId": "subs_Y2gsQkh2jCcU5KGa00ReptHn",
+        "customerId": "cust_fwKdBn1WsGKgUEFBSnhBcyhW",
+        "productId": "prod_NTxhdRJzM0cG5MgDeeF54RL2",
+        "amountMinor": 19700,
+        "closed": true
+      },
+      "after": {
+        "localUnchanged": true,
+        "subscriptionUnchanged": true,
+        "receiptsUnchanged": true,
+        "repeatAddedPosts": 0
+      },
+      "checkoutGetAfter": "still_readable",
+      "status": "PASS",
+      "finishedAt": "2026-11-12T23:03:40.758Z",
+      "providerPosts": 1
+    },
+    "postClosureReadback": {
+      "observedAt": "2026-11-12T23:08:40.493Z",
+      "providerMutations": 0,
+      "productionWrites": 0,
+      "checkout": {
+        "status": "PAID",
+        "devMode": true,
+        "fieldNames": [
+          "id",
+          "externalId",
+          "url",
+          "amount",
+          "paidAmount",
+          "platformFee",
+          "items",
+          "status",
+          "methods",
+          "frequency",
+          "coupons",
+          "devMode",
+          "customerId",
+          "returnUrl",
+          "completionUrl",
+          "receiptUrl",
+          "metadata",
+          "createdAt",
+          "updatedAt",
+          "trialDays",
+          "trialEndsAt",
+          "nextChargeAt",
+          "card",
+          "customerFee",
+          "interest",
+          "fine",
+          "dueDate",
+          "upSellProductId",
+          "installmentsCount",
+          "payerInformation"
+        ],
+        "deleted": null,
+        "deletedAt": null
+      },
+      "listing": {
+        "found": false,
+        "pages": 1,
+        "complete": true
+      },
+      "publicLinkHttp": 200,
+      "publicLinkSignals": [],
+      "paymentAttempted": false,
+      "status": "PASS_API_DELETION_AND_READBACK",
+      "publicLinkPaymentAcceptance": "NOT_TESTED_no_payment_attempt"
+    },
+    "syntheticLateEventAfterClosure": {
+      "startedAt": "2026-11-12T23:05:41.275Z",
+      "sha": "efdf472299c16ac8b75797d5b24df9cbfcde977c",
+      "preview": "https://project-jag1hizd8-clinic-os-v2-s-projects.vercel.app",
+      "status": "PASS",
+      "scope": "Operator-signed synthetic late completed event after real paid checkout closure; not an external provider event, no new checkout/payment",
+      "http": [
+        {
+          "label": "missing_webhook_auth",
+          "status": 401,
+          "ms": 3154
+        },
+        {
+          "label": "invalid_integrity_signature",
+          "status": 401,
+          "ms": 557
+        },
+        {
+          "label": "concurrent_duplicate",
+          "status": 503,
+          "ms": 1590
+        },
+        {
+          "label": "first_valid",
+          "status": 202,
+          "ms": 3735
+        },
+        {
+          "label": "late_duplicate",
+          "status": 200,
+          "ms": 754
+        }
+      ],
+      "productionWrites": 0,
+      "eventId": "evt_qoro_preview_f1b2a0c376ee45bcaa768ffc2ef7c5a7",
+      "inbox": {
+        "state": "applied",
+        "attempts": 1,
+        "outcome_code": "initial_payment_already_consumed",
+        "lease_released": true
+      },
+      "existingFinancialRecordsPreserved": true,
+      "syntheticInboxRows": 1,
+      "finishedAt": "2026-11-12T23:05:54.272Z"
+    },
+    "closedLinkBrowser": {
+      "observedAt": "2026-11-12T23:12:48.457Z",
+      "scope": "Read-only closed Sandbox checkout UI; no fields filled or payment submitted",
+      "blockedNonReadRequests": 1,
+      "payments": 0,
+      "visibleLabels": ["Não encontramos este link"],
+      "cardInputs": 0,
+      "urlHost": "app.abacatepay.com",
+      "closedMessage": true,
+      "browserChallenge": false,
+      "status": "PASS_CLOSED_MESSAGE"
+    },
+    "vercelNamesAndProductionState": {
+      "observedAt": "2026-11-12T23:13:43.712Z",
+      "status": "PASS_READ_ONLY_METADATA",
+      "productionDeployment": {
+        "id": "dpl_2gHasgxKuWkFY8ct1w56VLeHDhQP",
+        "sha": "5620a0987ec53db7d7358728eb7d457d9d373df3"
+      },
+      "variables": [
+        {
+          "name": "ABACATEPAY_API_KEY",
+          "target": ["production"],
+          "gitBranch": null,
+          "type": "sensitive"
+        },
+        {
+          "name": "ABACATEPAY_API_KEY",
+          "target": ["preview"],
+          "gitBranch": null,
+          "type": "sensitive"
+        },
+        {
+          "name": "ABACATEPAY_WEBHOOK_SECRET",
+          "target": ["preview"],
+          "gitBranch": "feat/billing-abacatepay-20261107",
+          "type": "encrypted"
+        },
+        {
+          "name": "ABACATEPAY_SANDBOX_PLAN_PRODUCTS",
+          "target": ["preview"],
+          "gitBranch": "feat/billing-abacatepay-20261107",
+          "type": "encrypted"
+        },
+        {
+          "name": "ABACATEPAY_SANDBOX_PROBE_PRODUCT_ID",
+          "target": ["preview"],
+          "gitBranch": "feat/billing-abacatepay-20261107",
+          "type": "encrypted"
+        },
+        {
+          "name": "ABACATEPAY_STORE_ID",
+          "target": ["preview"],
+          "gitBranch": "feat/billing-abacatepay-20261107",
+          "type": "encrypted"
+        },
+        {
+          "name": "ABACATEPAY_API_KEY",
+          "target": ["preview"],
+          "gitBranch": "feat/billing-abacatepay-20261107",
+          "type": "encrypted"
+        },
+        {
+          "name": "SAAS_SIGNUP_PROVIDER",
+          "target": ["preview"],
+          "gitBranch": "feat/billing-abacatepay-20261107",
+          "type": "encrypted"
+        },
+        {
+          "name": "UPSTASH_REDIS_REST_TOKEN",
+          "target": ["preview"],
+          "gitBranch": null,
+          "type": "sensitive"
+        },
+        {
+          "name": "UPSTASH_REDIS_REST_URL",
+          "target": ["preview"],
+          "gitBranch": null,
+          "type": "sensitive"
+        },
+        {
+          "name": "UPSTASH_REDIS_REST_TOKEN",
+          "target": ["production"],
+          "gitBranch": null,
+          "type": "sensitive"
+        },
+        {
+          "name": "UPSTASH_REDIS_REST_URL",
+          "target": ["production"],
+          "gitBranch": null,
+          "type": "sensitive"
+        },
+        {
+          "name": "CRON_SECRET",
+          "target": ["production", "preview"],
+          "gitBranch": null,
+          "type": "sensitive"
+        }
+      ],
+      "valuesRead": false,
+      "configurationWrites": 0,
+      "productionWrites": 0
+    },
+    "disposableRedisCleanup": {
+      "status": "PASS",
+      "name": "qoro-executive-closure-redis-20261112",
+      "labelVerified": true,
+      "stoppedAfterUse": true,
+      "autoRemove": true,
+      "otherContainersChanged": 0
+    }
   }
 }

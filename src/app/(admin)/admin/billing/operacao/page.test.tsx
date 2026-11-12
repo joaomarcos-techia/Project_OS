@@ -25,7 +25,9 @@ describe('operator review screen', () => {
   it('shows the runtime restriction without exposing an actionable form', async () => {
     render(await BillingOperationsPage());
     expect(
-      screen.getByText('Operação disponível somente no ambiente Sandbox autorizado.'),
+      screen.getByText(
+        'Operação financeira indisponível neste ambiente ou sem configuração autorizada.',
+      ),
     ).toBeTruthy();
     expect(screen.queryByRole('button')).toBeNull();
   });
