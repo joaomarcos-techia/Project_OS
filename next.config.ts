@@ -10,6 +10,16 @@ import { AUTH_CONFIRM_CONTENT_SECURITY_POLICY } from './src/lib/http/auth-confir
 import { SIGNUP_RECOVERY_CONTENT_SECURITY_POLICY } from './src/lib/http/signup-recovery-bridge';
 import { CLINIC_LOGO_ACTION_BODY_SIZE_LIMIT } from './src/lib/storage/clinic-logo-policy';
 
+/** Arquivos do validador XSD TISS lidos do disco em tempo de execução (P9.2). */
+export const TISS_XSD_TRACE_FILES = [
+  './node_modules/xmllint-wasm/package.json',
+  './node_modules/xmllint-wasm/xmllint-node.js',
+  './node_modules/xmllint-wasm/xmllint.wasm',
+  './src/contexts/health-insurance/tiss/schemas/4.03.00/*',
+];
+/** Rotas (e páginas com server actions) que validam XML TISS. */
+export const TISS_XSD_ROUTES = ['/api/health/tiss-xsd', '/financeiro/convenios/**'];
+
 /** Política base, exportada para o teste de não-regressão do Embedded Signup. */
 export const CONTENT_SECURITY_POLICY = buildContentSecurityPolicy(
   undefined,
@@ -45,7 +55,17 @@ export const nextConfig: NextConfig = {
   // @react-pdf/renderer (C7) usa o reconciler React + yoga-layout (WASM) — pesado
   // e incompatível com bundling do Next. Externalizar mantém o render server-side
   // (Node runtime) sem inflar o bundle nem quebrar o build.
-  serverExternalPackages: ['p-limit', '@react-pdf/renderer'],
+  // xmllint-wasm (P9.2, D7): o validador XSD TISS sobe um worker_thread a partir do
+  // arquivo do pacote e lê o `.wasm` ao lado dele; empacotado pelo webpack, perderia os dois.
+  serverExternalPackages: ['p-limit', '@react-pdf/renderer', 'xmllint-wasm'],
+  // O motor XSD é carregado por caminho em tempo de execução (não por import estático),
+  // então o rastreamento de arquivos da Vercel não o enxergaria sozinho: o worker, o
+  // `.wasm` e os XSD oficiais (com o MANIFEST de SHA-256) entram explicitamente em cada
+  // rota que valida XML TISS. Sem eles, o validador fica indisponível e a exportação é
+  // RECUSADA (fail closed); a rota /api/health/tiss-xsd prova a presença no build.
+  outputFileTracingIncludes: Object.fromEntries(
+    TISS_XSD_ROUTES.map((route) => [route, TISS_XSD_TRACE_FILES]),
+  ),
   // ADR-031 (redução de telas): rotas de form/nível de navegação aposentadas —
   // criação/assinatura viraram Drawer/Dialog com query param deep-linkable.
   // Redirects centralizados aqui para links salvos não quebrarem.

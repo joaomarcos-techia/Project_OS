@@ -19,11 +19,11 @@ import 'server-only';
 
 import { createHash, randomUUID } from 'node:crypto';
 
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 
 import type { RequestContext } from '@/lib/audit/types';
 import { logAudit } from '@/lib/audit/log';
-import { decryptForTenant, encryptForTenant } from '@/lib/crypto/encryption';
+import { encryptForTenant } from '@/lib/crypto/encryption';
 import type { Tx } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
 import { metrics } from '@/lib/observability/metrics';
@@ -35,36 +35,88 @@ import {
   hiBatches,
   hiFiles,
   hiGuideItems,
+  hiGuideSnapshots,
   hiGuides,
   hiInsurers,
   type HiGuideType,
   type HiProviderIdKind,
 } from '../schema-clinic';
+import { tissTerminologyVersions, tissTerms } from '../schema';
 import { buildLoteGuiasMessage, type LoteGuiasInput } from '../tiss/messages/lote-guias';
-import type { GuideSnapshotContent } from '../tiss/guides/snapshot';
-import { validateLoteGuias } from '../tiss/validation/batch-validator';
+import { serializeGuideSnapshot, type GuideSnapshotContent } from '../tiss/guides/snapshot';
+import { inMemoryLookup, type TerminologyLookup } from '../tiss/terminology/lookup';
+import { TISS_SUPPORTED_VERSION, validateLoteGuias } from '../tiss/validation/batch-validator';
+import { procedureCodesOf, recheckProcedureCodes } from '../tiss/validation/terminology-recheck';
 import { checkTissEncoding } from '../tiss/xml/encoding-check';
+import { checkTissEnvelope } from '../tiss/xml/envelope-check';
 import { verifyEpilogueHash } from '../tiss/xml/hash-verify';
-import type { TissSchemaValidator } from '../tiss/xml/xsd-validator';
+import { XsdEngineError, type TissSchemaValidator } from '../tiss/xml/xsd-validator';
 
 import { allocateTissNumber } from './numbering';
 
 export interface BatchDeps {
   store: TissObjectStore;
-  /** Sem validador XSD a exportação é recusada (D7: entra no app na P9.2). */
+  /** Sem validador XSD a exportação é recusada (o app usa `loadXmllintValidator()`, P9.2). */
   validateXsd: TissSchemaValidator | null;
   now?: () => Date;
 }
 
+export type BatchExportLayer =
+  | 'integrity'
+  | 'terminology'
+  | 'structure'
+  | 'xsd'
+  | 'internal'
+  | 'hash'
+  | 'encoding'
+  | 'content'
+  | 'state'
+  | 'unavailable';
+
 export class BatchExportError extends Error {
   constructor(
     message: string,
-    readonly layer: 'xsd' | 'internal' | 'hash' | 'encoding' | 'content' | 'state' | 'unavailable',
+    readonly layer: BatchExportLayer,
     readonly details: string[] = [],
   ) {
     super(message);
     this.name = 'BatchExportError';
   }
+}
+
+export const BATCH_EXPORTED_ACTION = 'health_insurance.batch.exported';
+
+/** Tabela 22 (TUSS) da versão em que cada guia foi emitida, só com os códigos usados. */
+async function loadTussLookups(
+  tx: Tx,
+  uses: ReturnType<typeof procedureCodesOf>,
+): Promise<Map<string, TerminologyLookup>> {
+  const byVersion = new Map<string, Set<string>>();
+  for (const u of uses) {
+    if (u.table !== '22') continue;
+    byVersion.set(u.terminologyVersion, (byVersion.get(u.terminologyVersion) ?? new Set()).add(u.code));
+  }
+  const out = new Map<string, TerminologyLookup>();
+  for (const [version, codes] of byVersion) {
+    const [v] = await tx
+      .select({ id: tissTerminologyVersions.id })
+      .from(tissTerminologyVersions)
+      .where(eq(tissTerminologyVersions.version, version))
+      .limit(1);
+    if (!v) continue;
+    const rows = await tx
+      .select({
+        code: tissTerms.code,
+        term: tissTerms.term,
+        startsOn: tissTerms.startsOn,
+        endsOn: tissTerms.endsOn,
+        implantationEndsOn: tissTerms.implantationEndsOn,
+      })
+      .from(tissTerms)
+      .where(and(eq(tissTerms.versionId, v.id), eq(tissTerms.tableCode, '22'), inArray(tissTerms.code, [...codes])));
+    out.set(version, inMemoryLookup(version, { '22': rows }));
+  }
+  return out;
 }
 
 const sha256 = (b: Uint8Array | string) => createHash('sha256').update(b).digest('hex');
@@ -109,10 +161,16 @@ export type ExportOutcome =
 export interface ExportArgs {
   clinicId: string;
   batchId: string;
-  /** Conteúdo decifrado pela leitura AUDITADA (guide-access), um por guia do lote. */
+  /**
+   * Conteúdo decifrado pela leitura AUDITADA (guide-access), um por guia do lote. A
+   * exportação recalcula o SHA-256 canônico de cada um e compara com o do snapshot gravado.
+   */
   contents: ReadonlyArray<{ guideId: string; revision: number; content: GuideSnapshotContent }>;
   actorUserId: string | null;
+  requestContext?: RequestContext;
 }
+
+const SYSTEM_CONTEXT: RequestContext = { ip: null, userAgent: null, requestId: 'health-insurance.batch-export' };
 
 /** Cadastro da operadora → elemento do cabeçalho `identificacaoPrestador` (XSD). */
 const ORIGIN_KIND = {
@@ -161,9 +219,28 @@ export async function exportBatchInTx(tx: Tx, deps: BatchDeps, args: ExportArgs)
     .innerJoin(hiGuides, and(eq(hiGuides.clinicId, hiBatchGuides.clinicId), eq(hiGuides.id, hiBatchGuides.guideId)))
     .where(and(eq(hiBatchGuides.clinicId, clinicId), eq(hiBatchGuides.batchId, batchId), eq(hiBatchGuides.active, true)))
     .orderBy(asc(hiGuides.number));
+  // Passo 1 — versão aprovada: exatamente as guias e revisões ativas do lote.
   const byId = new Map(args.contents.map((c) => [c.guideId, c]));
   if (members.length !== args.contents.length || members.some((m) => byId.get(m.guideId)?.revision !== m.revision)) {
     throw new BatchExportError('o conteúdo lido não corresponde às guias e revisões do lote', 'content');
+  }
+  // Passo 2 — integridade: o conteúdo é o do snapshot gravado na emissão (SHA-256 do JSON
+  // canônico, recalculado aqui), nunca outra revisão nem conteúdo alterado ou montado.
+  const snaps = await tx
+    .select({ guideId: hiGuideSnapshots.guideId, revision: hiGuideSnapshots.revision, sha: hiGuideSnapshots.contentSha256 })
+    .from(hiGuideSnapshots)
+    .where(and(eq(hiGuideSnapshots.clinicId, clinicId), inArray(hiGuideSnapshots.guideId, members.map((m) => m.guideId))));
+  const tampered = members.filter((m) => {
+    const snap = snaps.find((s) => s.guideId === m.guideId && s.revision === m.revision);
+    return !snap || snap.sha !== serializeGuideSnapshot(byId.get(m.guideId)!.content).sha256;
+  });
+  if (tampered.length > 0) {
+    metrics.emit('insurance.xml.validation_failed', { layer: 'integrity' });
+    throw new BatchExportError(
+      'o conteúdo de guia do lote não confere com o snapshot aprovado',
+      'integrity',
+      tampered.map((m) => `guia ${m.number}`),
+    );
   }
   const contents = members.map((m) => byId.get(m.guideId)!.content);
   if (contents.some((c) => c.guideType !== batch.guideType || c.tissVersion !== batch.tissVersion)) {
@@ -208,28 +285,47 @@ export async function exportBatchInTx(tx: Tx, deps: BatchDeps, args: ExportArgs)
           },
   };
 
-  // Camadas de validação: nada é gravado se uma falhar.
+  // Camadas de validação: nada é gravado se uma falhar, e nada é corrigido em silêncio.
+  const fail = (layer: BatchExportLayer, message: string, details: string[] = []): never => {
+    metrics.emit('insurance.xml.validation_failed', { layer });
+    throw new BatchExportError(message, layer, details);
+  };
+  // Passo 4 — regras semânticas do lote (operadora, quantidade, versão, numeração, datas).
   const internal = validateLoteGuias(input);
-  if (internal.length > 0) {
-    metrics.emit('insurance.xml.validation_failed', { layer: 'internal' });
-    throw new BatchExportError('o lote não passa nas regras internas', 'internal', internal.map((i) => i.code));
+  if (internal.length > 0) fail('internal', 'o lote não passa nas regras internas', internal.map((i) => i.code));
+  // Passo 5 — códigos TUSS na terminologia da emissão, vigentes na data de realização.
+  const uses = procedureCodesOf(contents);
+  const lookups = await loadTussLookups(tx, uses);
+  const tuss = recheckProcedureCodes(uses, (v) => lookups.get(v) ?? null);
+  if (tuss.length > 0) fail('terminology', 'há procedimento com código TUSS inexistente ou fora de vigência', tuss.map((i) => i.message));
+  // Passo 3 — o XML sai dos snapshots aprovados (o gerador recusa texto fora do ISO-8859-1).
+  let built: ReturnType<typeof buildLoteGuiasMessage>;
+  try {
+    built = buildLoteGuiasMessage(input);
+  } catch (e) {
+    return fail('internal', 'o gerador recusou o conteúdo do lote', [e instanceof Error ? e.message.slice(0, 200) : 'erro']);
   }
-  const built = buildLoteGuiasMessage(input);
-  const encoding = checkTissEncoding(built.bytes);
-  if (encoding) {
-    metrics.emit('insurance.xml.validation_failed', { layer: 'encoding' });
-    throw new BatchExportError('codificação inválida', 'encoding', [encoding]);
-  }
+  // Passo 7 — estrutura: sem DTD, raiz e namespace oficiais, versão do padrão.
+  const envelope = checkTissEnvelope(built.bytes, { version: TISS_SUPPORTED_VERSION, maxBytes: 16 * 1024 * 1024 });
+  if (envelope.length > 0) fail('structure', 'a estrutura da mensagem TISS não confere', envelope.map((p) => p.code));
+  // Passo 8 — hash do epílogo recalculado do próprio texto.
   const hash = verifyEpilogueHash(built.bytes);
-  if (!hash.matches || hash.computed !== built.hash) {
-    metrics.emit('insurance.xml.validation_failed', { layer: 'hash' });
-    throw new BatchExportError('hash do epílogo não confere', 'hash');
+  if (!hash.matches || hash.computed !== built.hash) fail('hash', 'hash do epílogo não confere');
+  // Passos 6 e 9 — XSD oficial (obrigatoriedade, tipos, tamanhos, ordem). Falha do motor = recusa.
+  let xsd: Awaited<ReturnType<TissSchemaValidator>>;
+  try {
+    xsd = await deps.validateXsd({ fileName: `lote-${batch.number}.xml`, bytes: built.bytes });
+  } catch (e) {
+    return fail(
+      'unavailable',
+      'o validador XSD não concluiu a validação: o lote não é exportado sem ela; tente de novo',
+      [e instanceof XsdEngineError ? e.reason : 'engine_failure'],
+    );
   }
-  const xsd = await deps.validateXsd({ fileName: `lote-${batch.number}.xml`, bytes: built.bytes });
-  if (!xsd.valid) {
-    metrics.emit('insurance.xml.validation_failed', { layer: 'xsd' });
-    throw new BatchExportError('o XML não passa no XSD oficial da ANS', 'xsd', xsd.errors);
-  }
+  if (!xsd.valid) fail(xsd.stage === 'envelope' ? 'structure' : 'xsd', 'o XML não passa no XSD oficial da ANS', xsd.errors);
+  // Passo 10 — codificação final dos bytes que serão gravados.
+  const encoding = checkTissEncoding(built.bytes);
+  if (encoding) fail('encoding', 'codificação inválida', [encoding]);
   const items = await tx
     .select({ guideId: hiGuideItems.guideId })
     .from(hiGuideItems)
@@ -249,11 +345,16 @@ export async function exportBatchInTx(tx: Tx, deps: BatchDeps, args: ExportArgs)
 
   const contentSha256 = sha256(built.bytes);
   const validation = {
-    xsd: 'valid',
+    snapshotIntegrity: 'valid',
     internal: 'valid',
+    terminology: 'valid',
+    structure: 'valid',
     hash: 'valid',
+    xsd: 'valid',
     encoding: 'valid',
     engine: xsd.engine,
+    schemaSetSha256: xsd.schemaSetSha256 ?? null,
+    xsdMs: xsd.ms === undefined ? null : Math.round(xsd.ms),
     guides: members.length,
     items: xmlItems,
   };
@@ -286,6 +387,17 @@ export async function exportBatchInTx(tx: Tx, deps: BatchDeps, args: ExportArgs)
     tx,
     sql`SELECT public.hi_batch_export(${clinicId}::uuid, ${batchId}::uuid, ${validatedVersion}, ${fileId}::uuid) AS v`,
   );
+  // Passo 13 — auditoria da exportação, na MESMA transação (sem conteúdo nem dado pessoal).
+  await logAudit(tx, {
+    clinicId,
+    userId: args.actorUserId,
+    action: BATCH_EXPORTED_ACTION,
+    resourceType: 'hi_batch',
+    resourceId: batchId,
+    before: { status: 'prepared' },
+    after: { status: 'exported', fileId, contentSha256, epilogueHash: built.hash, version, ...validation },
+    requestContext: args.requestContext ?? SYSTEM_CONTEXT,
+  });
   metrics.emit('insurance.batch.exported', { guides: members.length, items: xmlItems });
   return { kind: 'exported', fileId, contentSha256, epilogueHash: built.hash, version };
 }
@@ -319,56 +431,8 @@ export async function exportBatch(deps: BatchDeps, args: ExportArgs): Promise<Ex
   }
 }
 
-// ── Leitura do arquivo: integridade conferida e acesso auditado ──────────
-
-export class BatchFileIntegrityError extends Error {
-  constructor(readonly fileId: string) {
-    super('arquivo do lote não confere com o SHA-256 registrado');
-    this.name = 'BatchFileIntegrityError';
-  }
-}
-
-export const BATCH_FILE_READ_ACTION = 'health_insurance.batch_file.read';
-
-export async function readBatchXmlInTx(
-  tx: Tx,
-  store: TissObjectStore,
-  args: { clinicId: string; batchId: string; userId: string | null; requestContext: RequestContext },
-): Promise<{ fileId: string; bytes: Buffer; contentSha256: string } | null> {
-  const [batch] = await tx
-    .select({ fileId: hiBatches.fileId })
-    .from(hiBatches)
-    .where(and(eq(hiBatches.clinicId, args.clinicId), eq(hiBatches.id, args.batchId)))
-    .limit(1);
-  if (!batch?.fileId) return null;
-  const [file] = await tx
-    .select()
-    .from(hiFiles)
-    .where(and(eq(hiFiles.clinicId, args.clinicId), eq(hiFiles.id, batch.fileId)))
-    .limit(1);
-  if (!file) return null;
-  const cipher = await store.get(file.storageRef);
-  let bytes: Buffer | null = null;
-  if (sha256(cipher) === file.ciphertextSha256) {
-    bytes = Buffer.from(await decryptForTenant(args.clinicId, Buffer.from(cipher).toString('utf8')), 'base64');
-  }
-  const ok = bytes !== null && sha256(bytes) === file.contentSha256;
-  await logAudit(tx, {
-    clinicId: args.clinicId,
-    userId: args.userId,
-    action: BATCH_FILE_READ_ACTION,
-    resourceType: 'hi_file',
-    resourceId: file.id,
-    before: null,
-    after: { batchId: args.batchId, kind: file.kind, outcome: ok ? 'granted' : 'integrity_failed' },
-    requestContext: args.requestContext,
-  });
-  if (!ok) {
-    metrics.emit('insurance.file.integrity_failed', { kind: file.kind });
-    throw new BatchFileIntegrityError(file.id);
-  }
-  return { fileId: file.id, bytes: bytes!, contentSha256: file.contentSha256 };
-}
+// Leitura do arquivo do lote (integridade e auditoria): ./tiss-file-access.ts.
+export { BATCH_FILE_READ_ACTION, BatchFileIntegrityError, readBatchXmlInTx } from './tiss-file-access';
 
 // ── 4–7. Envio, protocolo, análise, retorno, processado; reprocessar e cancelar ──
 

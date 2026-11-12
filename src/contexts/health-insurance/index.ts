@@ -23,3 +23,5 @@ export {
   reconcileInsuranceBilling,
   type InsuranceReconcileSummary,
 } from './internal/billing-reconcile';
+// P9.2 — prontidão do validador XSD no runtime do app (rota /api/health/tiss-xsd e CI).
+export { tissXsdSelfCheck, type TissXsdSelfCheck } from './tiss/xml/self-check';

@@ -45,12 +45,14 @@ const { createConsultaGuideForAppointment } =
 const { issueConsultaGuide } = await import('../../src/contexts/health-insurance/internal/guide-issuance');
 const { readGuidesAsSystem } = await import('../../src/contexts/health-insurance/internal/guide-access');
 const svc = await import('../../src/contexts/health-insurance/internal/batch-service');
-const { loadXmllintValidator } = await import('../../src/contexts/health-insurance/tiss/xml/xsd-validator');
+const fileAccess = await import('../../src/contexts/health-insurance/internal/tiss-file-access');
+const { TissStorageError } = await import('../../src/lib/storage/tiss-files');
+const { loadXmllintValidator, XsdEngineError } = await import('../../src/contexts/health-insurance/tiss/xml/xsd-validator');
 const { hiBatches } = await import('../../src/contexts/health-insurance/schema-clinic');
 const { PremiumAccessError, premiumAccessErrorFrom } = await import('../../src/lib/premium-access');
 
 const xsd = loadXmllintValidator();
-if (!xsd) throw new Error('xmllint-wasm não encontrado: defina TISS_XMLLINT_WASM_DIR');
+if (!xsd) throw new Error('validador XSD do app indisponível (xmllint-wasm do package.json; fora do CI, TISS_XMLLINT_WASM_DIR)');
 
 const SYS = '00000000-0000-0000-0000-0000000000aa';
 const CARD = '0081234500012345'; // sintético
@@ -71,21 +73,27 @@ const sha = (b: Uint8Array | string) => createHash('sha256').update(b).digest('h
 
 /** Armazenamento em memória com falhas injetáveis (o de produção é o bucket privado). */
 const objects = new Map<string, Uint8Array>();
+const createdAt = new Map<string, Date>();
 const faults = { put: false, remove: false };
 const store = {
   async put(ref: string, bytes: Uint8Array) {
     if (faults.put) throw new Error('falha injetada na gravação do arquivo');
     if (objects.has(ref)) throw new Error('objeto já existe (sem sobrescrita)');
     objects.set(ref, bytes);
+    createdAt.set(ref, new Date());
   },
   async get(ref: string) {
     const b = objects.get(ref);
-    if (!b) throw new Error('objeto inexistente');
+    // Igual ao adaptador do Supabase: objeto ausente é "not_found", não erro genérico.
+    if (!b) throw new TissStorageError('get', 'Object not found', 'not_found');
     return b;
   },
   async remove(ref: string) {
     if (faults.remove) throw new Error('falha injetada na compensação');
     objects.delete(ref);
+  },
+  async list(clinicId: string) {
+    return [...objects.keys()].filter((r) => r.startsWith(`${clinicId}/`)).map((ref) => ({ ref, createdAt: createdAt.get(ref) ?? null }));
   },
 };
 const deps = { store, validateXsd: xsd };
@@ -252,7 +260,14 @@ try {
   );
   const [auditRead] = await sql`select action, after->>'outcome' as outcome from public.audit_events where resource_id = ${file1!.id}`;
   assert.deepEqual([auditRead!.action, auditRead!.outcome], ['health_insurance.batch_file.read', 'granted']);
-  pass('lote com 1 guia: XML dos snapshots aprovados passa no XSD oficial (xmllint-wasm), regras, hash e codificação; o arquivo fica CIFRADO (sem carteirinha nem nome em claro), com SHA-256 conferido na leitura e acesso auditado');
+  const [auditExport] = await sql`select after from public.audit_events where action = 'health_insurance.batch.exported' and resource_id = ${b1}`;
+  const exportAfter = auditExport!.after as Record<string, unknown>;
+  assert.deepEqual(
+    [exportAfter.fileId, exportAfter.contentSha256, exportAfter.xsd, exportAfter.terminology, exportAfter.structure, exportAfter.snapshotIntegrity, exportAfter.engine, typeof exportAfter.schemaSetSha256],
+    [r1.file_id, r1.content_sha256, 'valid', 'valid', 'valid', 'valid', 'xmllint-wasm@5.3.0', 'string'],
+  );
+  assert.ok(!JSON.stringify(exportAfter).includes(CARD) && !JSON.stringify(exportAfter).includes('Paciente Sint'));
+  pass('lote com 1 guia: os 13 passos (snapshot íntegro, regras, TUSS, estrutura, hash, XSD oficial no xmllint-wasm do app, codificação, arquivo, SHA-256, auditoria da exportação sem dado pessoal); o arquivo fica CIFRADO (sem carteirinha nem nome em claro), com SHA-256 conferido na leitura e acesso auditado');
 
   // Adulteração do objeto armazenado: leitura recusada e auditada.
   const tampered = Buffer.from(stored);
@@ -261,6 +276,40 @@ try {
   await assert.rejects(() => inTenant(A, (tx) => svc.readBatchXmlInTx(tx, store, { clinicId: A.clinicId, batchId: b1, userId: A.doctorId, requestContext: audit })), svc.BatchFileIntegrityError);
   objects.set(file1!.storage_ref as string, stored);
   pass('arquivo adulterado no armazenamento: a leitura confere o SHA-256 do cifrado e recusa (nenhum XML apresentado como emitido sem integridade)');
+
+  // ── 1b. P12.7: download auditado, arquivo ausente, órfãos e descarte controlado ──
+  {
+    const ref1 = file1!.storage_ref as string;
+    const readArgs = { clinicId: A.clinicId, fileId: file1!.id as string, userId: A.doctorId, purpose: 'download_arquivo' as const, requestContext: audit };
+    const ok = await fileAccess.readTissFile(store, readArgs);
+    assert.deepEqual([ok!.kind, ok!.fileName, ok!.mediaType, sha(ok!.bytes) === ok!.contentSha256], ['batch_xml', `lote-${r1.number}.xml`, 'application/xml', true]);
+    // Conhecer o ID não basta: outra clínica não acha o arquivo (mesma resposta de inexistente).
+    assert.equal(await fileAccess.readTissFile(store, { ...readArgs, clinicId: B.clinicId, userId: B.doctorId }), null);
+    // Adulterado e ausente: recusados, e a auditoria da FALHA fica gravada (não some no rollback).
+    objects.set(ref1, Buffer.from('lixo'));
+    await assert.rejects(() => fileAccess.readTissFile(store, readArgs), fileAccess.TissFileIntegrityError);
+    objects.delete(ref1);
+    await assert.rejects(() => fileAccess.readTissFile(store, readArgs), fileAccess.TissFileMissingError);
+    const outcomes = (await sql`select after->>'outcome' as o from public.audit_events where action = 'health_insurance.file.read' and resource_id = ${file1!.id} order by created_at`).map((r) => r.o);
+    assert.deepEqual(outcomes, ['granted', 'integrity_failed', 'missing']);
+    // Consistência: o registro sem objeto aparece como AUSENTE (nunca corrigido sozinho);
+    // um objeto sem registro antigo é órfão; recente fica (pode ser uma exportação em curso).
+    const orphanOld = `${A.clinicId}/${randomUUID()}`;
+    const orphanNew = `${A.clinicId}/${randomUUID()}`;
+    objects.set(orphanOld, Buffer.from('cifrado-sem-registro'));
+    createdAt.set(orphanOld, new Date(Date.now() - 3 * 86_400_000));
+    objects.set(orphanNew, Buffer.from('cifrado-recente'));
+    createdAt.set(orphanNew, new Date());
+    const dry = await fileAccess.reconcileTissStorage(store, { clinicId: A.clinicId });
+    assert.deepEqual([dry.missing.map((m) => m.fileId), dry.orphans, dry.recentOrphans, dry.discarded, objects.has(orphanOld)], [[file1!.id], [orphanOld], 1, 0, true]);
+    const applied = await fileAccess.reconcileTissStorage(store, { clinicId: A.clinicId, discardOrphans: true });
+    assert.deepEqual([applied.discarded, objects.has(orphanOld), objects.has(orphanNew)], [1, false, true]);
+    objects.delete(orphanNew);
+    objects.set(ref1, stored);
+    const [{ n: filesLeft }] = (await sql`select count(*)::int as n from public.hi_files where id = ${file1!.id}::uuid`) as unknown as [{ n: number }];
+    assert.equal(filesLeft, 1);
+    pass('P12.7: download pelo servidor com integridade e auditoria (finalidade registrada); outra clínica não acha o arquivo pelo ID; adulterado e ausente recusados com a auditoria da falha GRAVADA; conferência acha registro sem objeto (crítico, nada corrigido sozinho) e órfão; descarte remove só órfão fora da carência, nunca arquivo registrado');
+  }
 
   // ── 2. Várias guias ─────────────────────────────────────────────────
   const several = [await A.approvedGuide(), await A.approvedGuide(), await A.approvedGuide()];
@@ -297,9 +346,10 @@ try {
       const wrong = contents.map((c) => ({ ...c, content: { ...c.content, tissVersion: '4.01.00' } as never }));
       await svc.exportBatch(deps, { clinicId: A.clinicId, batchId: b, contents: wrong, actorUserId: A.doctorId });
     },
-    (e: unknown) => e instanceof svc.BatchExportError && e.layer === 'content',
+    // Conteúdo alterado (versão TISS) não confere com o SHA-256 do snapshot: passo 2 da exportação.
+    (e: unknown) => e instanceof svc.BatchExportError && e.layer === 'integrity',
   );
-  pass('mistura recusada: outra operadora, outro tipo de guia, versão TISS diferente no conteúdo, guia repetida no pedido, guia já em lote ativo e guia fora de "aprovada"');
+  pass('mistura recusada: outra operadora, outro tipo de guia, versão TISS diferente no conteúdo (não confere com o snapshot), guia repetida no pedido, guia já em lote ativo e guia fora de "aprovada"');
 
   // ── 5. Exportação concorrente ───────────────────────────────────────
   const bc = await create(A, [await A.approvedGuide(), await A.approvedGuide()]);
@@ -344,6 +394,38 @@ try {
   await exportIt(A, bf);
   assert.equal((await batchRow(bf)).status, 'exported');
   pass('falhas: XSD reprovado, validador ausente, gravação do arquivo e banco caindo depois da gravação → o lote continua "preparado", sem arquivo, sem número de transação consumido; a compensação remove o objeto; se ela falhar, sobra só um objeto cifrado sem referência (métrica), nunca um "exportado" sem arquivo; corrigido, exporta');
+
+  // ── 6b. P9.2: passos novos do pipeline ──────────────────────────────
+  const bp = await create(A, [await A.approvedGuide()]);
+  const txBeforeP = (await sql`select last_value::int as n from public.hi_counters where clinic_id = ${A.clinicId}::uuid and kind = 'transaction'`)[0]!.n as number;
+  // (2) conteúdo adulterado depois da leitura (carteirinha trocada): não confere com o snapshot.
+  const contentsP = await contentsOf(A, bp);
+  const forged = contentsP.map((c) => ({ ...c, content: JSON.parse(JSON.stringify(c.content).replace(CARD, '0'.repeat(CARD.length))) as typeof c.content }));
+  await assert.rejects(() => svc.exportBatch(deps, { clinicId: A.clinicId, batchId: bp, contents: forged, actorUserId: A.doctorId }),
+    (e: unknown) => e instanceof svc.BatchExportError && e.layer === 'integrity' && e.details.length === 1);
+  // (5) código TUSS que deixou de valer antes da data do atendimento: recusa, nada corrigido.
+  await sql`update public.tiss_terms set ends_on = '2011-01-01' where table_code = '22' and code = '10101012'`;
+  await assert.rejects(() => exportIt(A, bp), (e: unknown) => e instanceof svc.BatchExportError && e.layer === 'terminology' && /10101012/u.test(e.details[0] ?? ''));
+  await sql`update public.tiss_terms set ends_on = null where table_code = '22' and code = '10101012'`;
+  // (9) motor XSD que falha EM EXECUÇÃO (timeout, memória, fila cheia, WASM): recusa, nunca "válido".
+  for (const reason of ['timeout', 'memory', 'busy', 'engine_failure'] as const) {
+    await assert.rejects(
+      () => exportIt(A, bp, { store, validateXsd: async () => { throw new XsdEngineError(reason, 'falha injetada'); } }),
+      (e: unknown) => e instanceof svc.BatchExportError && e.layer === 'unavailable' && e.details[0] === reason,
+    );
+  }
+  // Recusa na estrutura (envelope do motor) vira camada "structure", não "xsd".
+  await assert.rejects(
+    () => exportIt(A, bp, { store, validateXsd: async () => ({ valid: false, stage: 'envelope', errors: ['NAMESPACE: …'], engine: 'falso' }) }),
+    (e: unknown) => e instanceof svc.BatchExportError && e.layer === 'structure',
+  );
+  const rp = await batchRow(bp);
+  const txAfterP = (await sql`select last_value::int as n from public.hi_counters where clinic_id = ${A.clinicId}::uuid and kind = 'transaction'`)[0]!.n as number;
+  const [{ n: filesBp }] = (await sql`select count(*)::int as n from public.hi_files where batch_id = ${bp}::uuid`) as unknown as [{ n: number }];
+  assert.deepEqual([rp.status, rp.file_id, filesBp, txAfterP], ['prepared', null, 0, txBeforeP]);
+  await exportIt(A, bp);
+  assert.equal((await batchRow(bp)).status, 'exported');
+  pass('pipeline P9.2: conteúdo adulterado depois da leitura (passo 2), TUSS fora de vigência na data (passo 5), estrutura recusada (passo 7) e motor XSD falhando em execução por timeout, memória, fila cheia ou WASM (passo 9) → recusado, nada gravado, nenhum número consumido; restabelecido, exporta');
 
   // ── 7. Reprocessamento antes do envio ──────────────────────────────
   const rr0 = await batchRow(bf);
@@ -463,7 +545,7 @@ try {
   assert.equal(eLate.kind, 'exported');
   pass('assinatura cancelada: lote novo, exportação, validação direta no banco e envio são barrados com a mensagem comercial; protocolo, análise, retorno e processado do lote JÁ ENVIADO entram; o XML emitido continua legível (auditado); nada é apagado; regularizada, o lote preparado exporta');
 
-  console.log(`\nOK — ${passed}/14 provas da P1.9 (0150) em Postgres descartável, XSD oficial pelo xmllint-wasm.`);
+  console.log(`\nOK — ${passed}/16 provas da P1.9 (0150), do pipeline P9.2 e da P12.7 em Postgres descartável, XSD oficial pelo motor do app (xmllint-wasm 5.3.0).`);
 } finally {
   await cluster.stop();
 }
