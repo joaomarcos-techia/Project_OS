@@ -12,6 +12,7 @@ import { sql } from 'drizzle-orm';
 
 import { withTenant } from '@/lib/db/tenant';
 
+import { listCopayChargesTx } from './internal/copay-charge-service';
 import { listInsurancePayoutPositionsTx, type InsurancePayoutPosition } from './internal/insurance-payout-service';
 
 import type { GuideIssue } from './tiss/validation/common';
@@ -981,3 +982,7 @@ export async function listInsurancePayouts(clinicId: string): Promise<{ rows: In
   });
 }
 
+/** Coparticipações confirmadas e a situação da cobrança (P10.5). */
+export async function listCopayCharges(clinicId: string) {
+  return withTenant(clinicId, (tx) => listCopayChargesTx(tx, clinicId));
+}

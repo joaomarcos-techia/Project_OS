@@ -2,10 +2,11 @@ import Link from 'next/link';
 
 import { EmptyState } from '@/components/ui/empty-state';
 import { PanelCard } from '@/components/ui/panel-card';
-import { importStatementAction } from '@/contexts/health-insurance/actions';
-import { listInsurerPayments, listInsurers, listOpenGuidesForAllocation } from '@/contexts/health-insurance/queries';
+import { importStatementAction, requestCopayChargeAction, syncCopayChargeAction } from '@/contexts/health-insurance/actions';
+import { listCopayCharges, listInsurerPayments, listInsurers, listOpenGuidesForAllocation } from '@/contexts/health-insurance/queries';
 
 import { brl, ConveniosHeader, conveniosAccess, shortDate } from '../_lib/access';
+import { ActionButton } from '../_lib/action-ui';
 import { AllocateForm, StatementImportForm } from '../_lib/batch-ui';
 
 export const dynamic = 'force-dynamic';
@@ -13,10 +14,11 @@ export const dynamic = 'force-dynamic';
 export default async function ConciliacaoPage() {
   const access = await conveniosAccess('Conciliação');
   if (!access.ok) return access.view;
-  const [payments, guides, insurers] = await Promise.all([
+  const [payments, guides, insurers, copays] = await Promise.all([
     listInsurerPayments(access.clinicId),
     access.canManage ? listOpenGuidesForAllocation(access.clinicId) : Promise.resolve([]),
     access.canManage ? listInsurers(access.clinicId) : Promise.resolve([]),
+    listCopayCharges(access.clinicId),
   ]);
   const pending = payments.filter((p) => p.unreconciledCents > 0);
 
@@ -70,6 +72,32 @@ export default async function ConciliacaoPage() {
                   <Link href={`/convenios/lotes?status=`} className="text-fg-muted hover:underline">
                     lote {p.batchNumber}
                   </Link>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        )}
+      </PanelCard>
+
+      <PanelCard title="Coparticipações do paciente" regionLabel="Coparticipações" className="mt-(--sp-4)">
+        <p className="mb-(--sp-2) text-(length:--fs-sm) text-fg-muted">
+          Só a coparticipação confirmada é cobrada do paciente, nunca o valor do atendimento. Sem conta Asaas ativa, receba no Caixa.
+        </p>
+        {copays.length === 0 ? (
+          <p className="text-(length:--fs-sm) text-fg-muted">Nenhuma coparticipação confirmada.</p>
+        ) : (
+          <ul className="flex flex-col gap-(--sp-2) text-(length:--fs-sm)">
+            {copays.map((c) => (
+              <li key={c.id} className="flex flex-wrap items-center gap-(--sp-2)">
+                <span>{c.patientName}</span>
+                <span className="text-fg-muted">{shortDate(c.scheduledAt)}</span>
+                <span className="tabular-nums">{brl(c.chargeableCents)}</span>
+                <span>{{"confirmed":"confirmada, a cobrar","charged":"cobrança enviada","paid":"paga","refunded":"estornada"}[c.status as 'confirmed'] ?? c.status}</span>
+                {access.canManage && c.status === 'confirmed' ? (
+                  <ActionButton label="Gerar link de cobrança" success="Pedido registrado" action={requestCopayChargeAction.bind(null, { copaymentId: c.id })} />
+                ) : null}
+                {access.canManage && c.status === 'charged' ? (
+                  <ActionButton label="Atualizar situação" success="Situação atualizada" variant="ghost" action={syncCopayChargeAction.bind(null, { copaymentId: c.id })} />
                 ) : null}
               </li>
             ))}

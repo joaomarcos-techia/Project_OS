@@ -23,11 +23,14 @@ import { PERMISSIONS } from '@/lib/auth/permissions';
 import { AuthError, requireCachedPermission, requireClinicId, requireUser } from '@/lib/auth/tenant-context';
 import { withTenant } from '@/lib/db/tenant';
 import { premiumAccessErrorFrom, premiumDenialMessage } from '@/lib/premium-access';
+// eslint-disable-next-line boundaries/element-types -- paymentsApiV1 é a API pública do Pagamentos (M14): o único caminho Asaas do convênio é o da coparticipação.
+import { paymentsApiV1 } from '@/contexts/payments/api';
 import { supabaseTissObjectStore, TissStorageError } from '@/lib/storage/tiss-files';
 
 import { AppealXmlError, exportAppealXml } from './internal/appeal-xml-service';
 import * as batches from './internal/batch-service';
 import { readBatchGuidesAudited } from './internal/guide-access';
+import { CopayChargeError, requestCopayCharge, syncCopayChargeTx } from './internal/copay-charge-service';
 import { CoverageInputError, recordAppointmentCoverage } from './internal/coverage-service';
 import { approveConsultaGuide } from './internal/guide-issuance';
 import * as acct from './internal/insurance-account-service';
@@ -71,7 +74,7 @@ function messageOf(error: unknown): string {
     return first ? `${error.message}: ${first}` : error.message;
   }
   if (error instanceof StatementImportError) return error.message;
-  if (error instanceof sadt.SadtRequestError || error instanceof CoverageInputError || error instanceof payouts.InsurancePayoutError) {
+  if (error instanceof sadt.SadtRequestError || error instanceof CoverageInputError || error instanceof payouts.InsurancePayoutError || error instanceof CopayChargeError) {
     return error.message.charAt(0).toUpperCase() + error.message.slice(1);
   }
   if (error instanceof TissStorageError) return 'O armazenamento de arquivos está indisponível agora. Tente de novo em instantes.';
@@ -773,3 +776,54 @@ export async function setPayoutEligibilityAction(input: { eligibility: string })
     return null;
   });
 }
+
+// ── Coparticipação: cobrança Asaas da coparticipação CONFIRMADA (P10.5) ──
+
+const COPAY_OUTCOME: Record<string, string> = {
+  created: 'Link de cobrança da coparticipação criado.',
+  existing: 'A coparticipação já tem cobrança; nada novo foi criado.',
+  no_account: 'A clínica não tem conta Asaas ativa; receba no Caixa.',
+  no_identity: 'O paciente não tem CPF válido para a cobrança; receba no Caixa.',
+  below_minimum: 'Valor abaixo do mínimo do gateway; receba no Caixa.',
+  no_balance: 'Não há saldo a cobrar nesta coparticipação.',
+  above_confirmed: 'O saldo não confere com o valor confirmado; nada foi cobrado.',
+  account_paused: 'A conta Asaas da clínica está pausada.',
+};
+
+export async function requestCopayChargeAction(input: { copaymentId: string }): Promise<ActionResult<string>> {
+  return run(async () => {
+    const d = z.object({ copaymentId: uuid }).parse(input);
+    const ctx = await gate();
+    const out = await requestCopayCharge(
+      { createCheckout: (i) => paymentsApiV1.createCopayCheckout(i) },
+      { clinicId: ctx.clinicId, copaymentId: d.copaymentId, actorUserId: ctx.userId },
+    );
+    const rc = await requestContext();
+    await withTenant(
+      ctx.clinicId,
+      (tx) =>
+        logAudit(tx, {
+          clinicId: ctx.clinicId,
+          userId: ctx.userId,
+          action: 'health_insurance.copay.charge_requested',
+          resourceType: 'hi_copayment',
+          resourceId: d.copaymentId,
+          before: null,
+          after: { result: out.outcome, status: out.status, amountCents: out.amountCents },
+          requestContext: rc,
+        }),
+      ctx.userId,
+    );
+    return COPAY_OUTCOME[out.outcome] ?? `Situação: ${out.status}.`;
+  });
+}
+
+export async function syncCopayChargeAction(input: { copaymentId: string }): Promise<ActionResult<string>> {
+  return run(async () => {
+    const d = z.object({ copaymentId: uuid }).parse(input);
+    return write('health_insurance.copay.charge_synced', { type: 'hi_copayment', id: d.copaymentId }, (tx, ctx) =>
+      syncCopayChargeTx(tx, ctx.clinicId, d.copaymentId),
+    );
+  });
+}
+
