@@ -56,3 +56,11 @@ Decisão futura só entra aqui quando adotada na implementação. Uma ideia desc
 [ADR-067](067-cotas-temporarias-de-avaliacao.md): cotas cumulativas e bloqueio de integrações/convites até pagamento verificado. Accepted local em 08/11/2026; 0136 não aplicada remotamente; contratos existentes preservados.
 
 ADR-061 permanece reservada ao perfil WhatsApp de Qoro v2 §33; não foi criada nesta fatia.
+
+### Faturamento SaaS AbacatePay candidato
+
+| Decisão | Estado | Documento |
+| --- | --- | --- |
+| Origem Auth do trial e prova financeira antes de liberar acesso; cache incremental privado e retomável, separado por finalidade | Candidata Sandbox, testes locais; sem composição live ou autorização de aplicação do SQL adicional | [ADR-069](069-abacatepay-trial-origin-and-initial-access.md) |
+| Upgrade/cota somente na próxima renovação paga; cancelamento preserva período e nova contratação só após seu fim | Candidatas Sandbox; contratos Asaas existentes preservados | [ADR-068](068-abacatepay-upgrade-policy.md), [ADR-070](070-abacatepay-cancellation-and-recontract.md) |
+| Evento negativo preserva período pago e exige revisão humana, sem refund automático | Candidata Sandbox, política aprovada; validação externa separada | [ADR-071](071-abacatepay-refunds-and-review.md) |
