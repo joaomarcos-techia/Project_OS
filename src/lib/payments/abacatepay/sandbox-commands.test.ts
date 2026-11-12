@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { TestCommandJournal } from '../../test/command-journal';
-import { createAbacatePaySandboxCommands } from './sandbox-commands';
+import { createAbacatePayCommands, createAbacatePaySandboxCommands } from './sandbox-commands';
 
 const operationId = '7c719853-d7e5-4302-b3ef-295559a8f8c7';
 const productInput = {
@@ -22,7 +22,7 @@ const checkoutInput = {
 };
 const subscriptionInput = { operationId, subscriptionId: 'subs_test', customerId: 'cust_test' };
 
-function setup(consumedOrigin = false) {
+function setup(consumedOrigin = false, environment: 'sandbox' | 'production' = 'sandbox') {
   const scenario: {
     storeId: string;
     devMode: boolean;
@@ -73,7 +73,7 @@ function setup(consumedOrigin = false) {
       if (url.pathname.endsWith('/subscriptions/checkouts/delete')) {
         expect(url.searchParams.get('id')).toBe('bill_test');
         scenario.closed = true;
-        return envelope({ id: 'bill_test', devMode: true });
+        return envelope({ id: 'bill_test', devMode: scenario.devMode });
       }
       if (url.pathname.endsWith('/change-plan'))
         return envelope({
@@ -90,7 +90,7 @@ function setup(consumedOrigin = false) {
           id: 'subs_test',
           customerId: 'cust_test',
           status: 'CANCELLED',
-          devMode: true,
+          devMode: scenario.devMode,
         });
       }
     }
@@ -131,7 +131,7 @@ function setup(consumedOrigin = false) {
             amount: scenario.subscriptionAmount,
             status: scenario.subscriptionStatus,
             method: 'CARD',
-            devMode: true,
+            devMode: scenario.devMode,
             trialEndsAt: null,
           },
           ...(scenario.extraSubscription
@@ -143,7 +143,7 @@ function setup(consumedOrigin = false) {
                   amount: 19700,
                   status: 'ACTIVE',
                   method: 'CARD',
-                  devMode: true,
+                  devMode: scenario.devMode,
                   trialEndsAt: null,
                 },
               ]
@@ -159,7 +159,7 @@ function setup(consumedOrigin = false) {
         amount: scenario.subscriptionAmount,
         status: scenario.subscriptionStatus,
         method: 'CARD',
-        devMode: true,
+        devMode: scenario.devMode,
         trialEndsAt: null,
         ...(scenario.subscriptionCycle === undefined
           ? {}
@@ -167,8 +167,9 @@ function setup(consumedOrigin = false) {
       });
     throw new Error('Unexpected fixture request');
   });
-  const client = createAbacatePaySandboxCommands(
-    { apiKey: 'fixture-key', storeId: 'store_test', probeProductId: 'prod_probe' },
+  scenario.devMode = environment === 'sandbox';
+  const client = createAbacatePayCommands(
+    { apiKey: 'fixture-key', storeId: 'store_test', probeProductId: 'prod_probe', environment },
     journal,
     fetcher,
     consumedOrigin
@@ -183,6 +184,50 @@ function setup(consumedOrigin = false) {
   const posts = () => fetcher.mock.calls.filter((call) => call[1]?.method === 'POST');
   return { scenario, journal, fetcher, client, posts };
 }
+
+describe('explicit live commands with synthetic transport only', () => {
+  it('creates one journaled live checkout with false devMode and no Sandbox metadata', async () => {
+    const { client, scenario, posts } = setup(false, 'production');
+    scenario.trialDays = null;
+    const input = { ...checkoutInput, expectedNativeTrialDays: null };
+    await expect(client.createSubscriptionCheckout(input)).resolves.toMatchObject({
+      environment: 'production',
+      state: 'pending',
+    });
+    await client.createSubscriptionCheckout(input);
+    expect(posts()).toHaveLength(1);
+    const body: unknown = JSON.parse(String(posts()[0]?.[1]?.body));
+    expect(body).toMatchObject({
+      metadata: { qoroReference: input.externalId },
+      methods: ['CARD'],
+    });
+    expect(body).not.toHaveProperty('metadata.qoroSandboxReference');
+  });
+  it('refuses a Sandbox product before any live mutation', async () => {
+    const { client, scenario, posts } = setup(false, 'production');
+    scenario.devMode = true;
+    await expect(client.createSubscriptionCheckout(checkoutInput)).rejects.toThrow();
+    expect(posts()).toHaveLength(0);
+  });
+  it('cancels a live recurrence once after confirmed mode readbacks', async () => {
+    const { client, posts } = setup(false, 'production');
+    await expect(client.cancelSubscription(subscriptionInput)).resolves.toMatchObject({
+      recurrence: 'stopped',
+    });
+    await client.cancelSubscription(subscriptionInput);
+    expect(posts()).toHaveLength(1);
+  });
+  it('keeps the Sandbox compatibility factory unable to consume live resources', async () => {
+    const f = setup(false, 'production');
+    const client = createAbacatePaySandboxCommands(
+      { apiKey: 'fixture-key', storeId: 'store_test', probeProductId: 'prod_probe' },
+      f.journal,
+      f.fetcher,
+    );
+    await expect(client.cancelSubscription(subscriptionInput)).rejects.toThrow();
+    expect(f.posts()).toHaveLength(0);
+  });
+});
 
 describe('AbacatePay commands isolated to Sandbox', () => {
   const closeInput = {

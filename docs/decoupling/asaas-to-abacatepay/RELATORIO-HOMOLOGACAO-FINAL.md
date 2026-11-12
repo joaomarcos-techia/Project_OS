@@ -1,6 +1,6 @@
 # Homologação financeira AbacatePay — Qoro
 
-**Checkpoint mais recente: seção 48 — inbox de minuto, estornos e TISS até 0158.** Consulte também a matriz G01–G28; as seções anteriores preservam evidências datadas.
+**Checkpoint mais recente: seção 49 — aprovação executiva, inputs fixados e preparação live.** Consulte também a matriz G01–G28; as seções anteriores preservam evidências datadas.
 
 **Leitura atual:** [seção 44 — trial definitivo e composição com0151](#44-trial-definitivo-e-composição-com-0151--12112026). As cinco compras iniciais permanecem homologadas. A resposta do suporte já foi recebida; não reenviar solicitação nem repetir pagamentos. Os checkpoints anteriores são históricos e não descrevem necessariamente a implementação mais recente.
 
@@ -1025,3 +1025,19 @@ Antes de uma varredura global, o lote confere o produto de prova configurado e e
 **CI/Preview:** a [CI 43294439503](https://github.com/joaomarcos-techia/Project_OS/actions/runs/43294439503) do b235413d aprovou 7.110 testes e 22 E2E sem SKIP, build, cobertura, segurança e isolamento; Semgrep/Snyk/Preview também passaram. Esse SHA precede inbox e estornos deste checkpoint e não aprova automaticamente o código posterior. No mesmo Preview, três verificações HTTP reais passaram: outbox 401, billing-reconcile 401, admin 307 para login. O primeiro harness esperava um campo JSON incorreto; foi ajustado ao contrato existente error=unauthorized, sem mudar o produto. É prova de fronteira anônima, não de Redis/provedor. O resultado dos checks do último SHA deve ser conferido no PR #53.
 
 **Restante:** composição live explícita e revisão final do pacote compartilhado; prova autenticada do transporte/Redis e capacidade HTTP/worker no ambiente-alvo; renovação externa e readbacks pós-fechamento sob autorização específica; responsáveis e aceites operacionais/comerciais. O leitor de estornos já não é uma pendência de implementação incremental. As cinco compras iniciais não foram repetidas, fechadas ou canceladas. Production permanece NO-GO e o PR continua draft.
+
+## 49. Aprovação executiva e composição live preparada — 12/11/2026
+
+Escopo novo: cadeia TISS completa 0144–0158 + sucessora financeira no DEV autorizada expressamente após esclarecer a dependência do journal único; fechamento de uma fixture Sandbox autorizado; remoção do auxiliar autorizada sob preflight; preparação live autorizada. Migrations Production não estão autorizadas por essa permissão DEV. O rollout continua condicionado a todos os gates, sem GO presumido.
+
+O código candidato já suporta composição live explícita, catálogo separado e devMode=false, mantendo os wrappers Sandbox estritos, os bindings de contratos e o kill switch independente dos consumidores. Conta/ambiente são vinculados na persistência e nos readbacks. Não foi usada a credencial live. Asaas legado, pacientes, preços, cotas e trial permanecem.
+
+Provas locais: 125 cenários financeiros PostgreSQL; 22 de scanner (10 mil registros por finalidade); 41 de compatibilidade SQL; 50 de trial; 9 de migrator real, incluindo lock concorrente/SQLSTATE55P03 e rollback das 16 entradas pendentes. No ensaio local, a aplicação durou 10,21s; a transação bloqueada durou 15,05s incluindo as migrations precedentes, com timeout de lock de 2s no statement bloqueado. São medições de laboratório, sem estimativa garantida para DEV/Production. TypeScript e lint direcionado passaram; a CI própria do novo código será conferida no PR.
+
+O [manifesto executável de inputs](migrations/release-manifest.json) fixa os bytes SQL revisados em TISS120e8195 e a financeira0159. O HEAD TISS avançou para62edb485 somente com ferramentas/evidências operacionais; hashes0143–0158 idênticos. A leitura atual confirmou que o agente TISS já aplicou0144–0158: DEV159 entradas, somente0159 pendente. O pacote composto usa o journal real do Drizzle e preserva as seis diferenças históricas conhecidas; não há inserção manual de histórico compartilhado. O backup DEV local foi cifrado com AES256/GPG, protegido por ACL e verificado por decifragem. Aplicação DEV e resultados externos serão registrados separadamente depois de efetivamente executados.
+
+O auxiliar run-scale-preview-redis foi removido após confirmação de identidade/time, zero env/Git/domínio personalizado/Marketplace/crons, um deployment READY, nenhuma referência em configurações de C:/dev e seis GETs sem resposta2xx desde sua criação. A consulta posterior confirmou ausência. O Qoro manteve Production no SHA5620a098 e app/landing responderam200. Sem uso de flag para ignorar a confirmação de DELETE: a confirmação normal da CLI foi executada dentro da autorização específica.
+
+A documentação oficial de assinaturas consultada em12/11 agora descreve um checkout por cliente e nextChargeAt. Isso difere do retorno histórico do suporte. Não foram removidos os controles de binding/quarentena nem declarada garantia externa com base apenas nessa alteração documental. Renovação natural e consultas depois do fechamento continuam exigindo evidência própria.
+
+O aplicador guardado `scripts/security/abacatepay-dev-release.ts` passou em preflight read-only no DEV:159 entradas,224 tabelas comparadas por hashes sem dados expostos,3 contratos órfãos históricos preservados, zero invoices cruzadas e zero ciclos duplicados. Usa SET de sessão verificado (Supavisor ignora parâmetros de inicialização), migrator oficial, lock_timeout2s e statement_timeout15s. A execução de escrita ainda será registrada após commit dos inputs e nova conferência.

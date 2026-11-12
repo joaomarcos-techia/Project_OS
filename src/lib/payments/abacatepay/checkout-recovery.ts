@@ -36,7 +36,7 @@ const checkoutSchema = z.object({
   externalId: z.string(),
   url: hostedUrl,
   frequency: z.literal('SUBSCRIPTION'),
-  devMode: z.literal(true),
+  devMode: z.boolean(),
   amount: z.number().int().nonnegative().refine(Number.isSafeInteger),
   status: z.enum(['PENDING', 'PAID', 'EXPIRED', 'CANCELLED', 'REFUNDED']),
   paidAmount: z.number().int().nonnegative().refine(Number.isSafeInteger).nullable(),
@@ -59,7 +59,7 @@ export type RecoveredCheckout = {
   checkoutId: string;
   externalId: string;
   amountMinor: number;
-  environment: 'sandbox';
+  environment: BillingAccount['environment'];
   state: 'pending';
   checkoutUrl: string;
 };
@@ -71,11 +71,7 @@ export function createAbacatePayCheckoutRecoveryReader(
   fetcher: typeof fetch = fetch,
 ) {
   const account = billingAccountSchema.parse(accountInput);
-  if (
-    account.provider !== 'abacatepay' ||
-    account.environment !== 'sandbox' ||
-    config.environment !== 'sandbox'
-  )
+  if (account.provider !== 'abacatepay' || account.environment !== config.environment)
     throw new GatewayReadError('environment_mismatch');
   const read = createAbacatePayReadClient(config, fetcher);
   const request = createAbacatePayTransport(config, fetcher);
@@ -109,6 +105,8 @@ export function createAbacatePayCheckoutRecoveryReader(
           await request({ method: 'GET', path: '/subscriptions/checkouts/list', params }),
         );
         for (const item of response.data) {
+          if (item.devMode !== (account.environment === 'sandbox'))
+            throw new GatewayReadError('environment_mismatch');
           if (ids.has(item.id)) throw new GatewayReadError('pagination_invalid');
           ids.add(item.id);
           if (item.externalId !== expected.externalId || candidate)
@@ -133,6 +131,8 @@ export function createAbacatePayCheckoutRecoveryReader(
             params: new URLSearchParams({ id: selectedId }),
           }),
         ).data;
+        if (candidate.devMode !== (account.environment === 'sandbox'))
+          throw new GatewayReadError('environment_mismatch');
         if (candidate.id !== selectedId || candidate.externalId !== expected.externalId)
           throw new GatewayReadError('binding_mismatch');
         const parameters = {
@@ -160,7 +160,7 @@ export function createAbacatePayCheckoutRecoveryReader(
             checkoutId: candidate.id,
             externalId: expected.externalId,
             amountMinor: expected.expectedAmountMinor,
-            environment: 'sandbox',
+            environment: account.environment,
             state: 'pending',
             checkoutUrl: candidate.url,
           },

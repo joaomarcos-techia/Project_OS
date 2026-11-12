@@ -1,3 +1,4 @@
+import { abacatePayEnvironment, abacatePayProbeProductId } from '@/lib/payments/saas/acquisition';
 import 'server-only';
 
 import { createHash, randomUUID } from 'node:crypto';
@@ -9,8 +10,8 @@ import type { Tx } from '@/lib/db';
 import { env } from '@/lib/env';
 import { metrics } from '@/lib/observability/metrics';
 import {
-  assertAbacatePaySandboxRuntime,
-  isAbacatePaySandboxRuntime,
+  assertAbacatePayRuntime,
+  isAbacatePayRuntime,
   abacatePayCheckoutAllowed,
 } from '@/lib/payments/saas/acquisition';
 import { billingResourceKey } from '@/lib/payments/saas/contracts';
@@ -18,7 +19,7 @@ import {
   createPostgresGatewayOperationJournal,
   type BillingGatewaySql,
 } from '@/lib/payments/saas/postgres-store';
-import { createAbacatePaySandboxCommands } from '@/lib/payments/abacatepay/sandbox-commands';
+import { createAbacatePayCommands } from '@/lib/payments/abacatepay/sandbox-commands';
 import { createAbacatePayReadClient } from '@/lib/payments/abacatepay/reader';
 import { CommandOperationError } from '@/lib/payments/saas/command-operation';
 import type { RecoveredCheckout } from '@/lib/payments/abacatepay/checkout-recovery';
@@ -88,23 +89,19 @@ const recontractSchema = z.object({
 });
 const READ_TIMEOUT_MS = 2000;
 function config() {
-  assertAbacatePaySandboxRuntime();
-  if (
-    !env.ABACATEPAY_API_KEY ||
-    !env.ABACATEPAY_STORE_ID ||
-    !env.ABACATEPAY_SANDBOX_PROBE_PRODUCT_ID
-  )
+  assertAbacatePayRuntime();
+  if (!env.ABACATEPAY_API_KEY || !env.ABACATEPAY_STORE_ID || !abacatePayProbeProductId())
     throw new AbacatePayManagementError('unavailable');
   return {
     apiKey: env.ABACATEPAY_API_KEY,
     storeId: env.ABACATEPAY_STORE_ID,
-    probeProductId: env.ABACATEPAY_SANDBOX_PROBE_PRODUCT_ID,
-    environment: 'sandbox' as const,
+    probeProductId: abacatePayProbeProductId(),
+    environment: abacatePayEnvironment(),
     timeoutMs: READ_TIMEOUT_MS,
   };
 }
 export async function abacatePayManagementReady(database: BillingGatewaySql): Promise<boolean> {
-  if (!isAbacatePaySandboxRuntime() || !env.ABACATEPAY_STORE_ID) return false;
+  if (!isAbacatePayRuntime() || !env.ABACATEPAY_STORE_ID) return false;
   const [row] = z
     .array(z.object({ ready: z.boolean() }))
     .length(1)
@@ -144,7 +141,7 @@ export async function getAbacatePayManagementContext(
     LEFT JOIN billing_gateway.cancellations c ON c.account_id=a.id
       AND c.external_subscription_id=coalesce(r.external_subscription_id,b.external_subscription_id)
     WHERE s.clinic_id=${clinicId}::uuid AND s.billing_provider='abacatepay' AND s.asaas_subscription_id IS NULL
-      AND a.provider='abacatepay' AND a.environment='sandbox' AND a.external_account_id=${env.ABACATEPAY_STORE_ID}
+      AND a.provider='abacatepay' AND a.environment=${abacatePayEnvironment()} AND a.external_account_id=${env.ABACATEPAY_STORE_ID}
       AND s.current_period_start IS NOT NULL AND s.current_period_end IS NOT NULL
       AND coalesce(r.external_subscription_id,b.external_subscription_id) IS NOT NULL
     ${lock ? sql`FOR UPDATE OF s,b` : sql``}
@@ -258,7 +255,7 @@ export async function requestAbacatePayCancellation(
   if (!(await verifyStopped(current))) {
     const account = {
       provider: 'abacatepay',
-      environment: 'sandbox',
+      environment: abacatePayEnvironment(),
       accountId: current.external_account_id,
     } as const;
     const journal = createPostgresGatewayOperationJournal(
@@ -272,7 +269,7 @@ export async function requestAbacatePayCancellation(
       database,
     );
     try {
-      await createAbacatePaySandboxCommands(settings, journal).cancelSubscription({
+      await createAbacatePayCommands(settings, journal).cancelSubscription({
         operationId: randomUUID(),
         subscriptionId: current.external_subscription_id,
         customerId: current.external_customer_id,
@@ -369,7 +366,7 @@ export async function createAbacatePayRecontractCheckout(
   });
   const account = {
     provider: 'abacatepay',
-    environment: 'sandbox',
+    environment: abacatePayEnvironment(),
     accountId: current.external_account_id,
   } as const;
   const journal = createPostgresGatewayOperationJournal(
@@ -384,7 +381,7 @@ export async function createAbacatePayRecontractCheckout(
   );
   let checkout: RecoveredCheckout;
   try {
-    checkout = await createAbacatePaySandboxCommands(settings, journal).createSubscriptionCheckout({
+    checkout = await createAbacatePayCommands(settings, journal).createSubscriptionCheckout({
       operationId: randomUUID(),
       externalId: `qoro-recontract-${reserved.id}`,
       productId: reserved.product_id,
@@ -441,7 +438,7 @@ export async function applyAbacatePayRecontractPaymentTx(
 ): Promise<'applied' | 'duplicate' | 'review'> {
   if (
     evidence.account.provider !== 'abacatepay' ||
-    evidence.account.environment !== 'sandbox' ||
+    !['sandbox', 'production'].includes(evidence.account.environment) ||
     evidence.currency !== 'BRL' ||
     evidence.state !== 'paid' ||
     evidence.recurrence !== 'running' ||
@@ -458,7 +455,7 @@ export async function applyAbacatePayRecontractPaymentTx(
       r.price_id::text,r.product_id,r.amount_minor::text,r.external_checkout_id,r.external_customer_id,r.external_subscription_id,r.invoice_id
     FROM billing_gateway.recontracts r JOIN billing_gateway.accounts a ON a.id=r.account_id
     JOIN public.subscriptions s ON s.id=r.subscription_id AND s.clinic_id=r.clinic_id
-    WHERE a.provider='abacatepay' AND a.environment='sandbox' AND a.external_account_id=${evidence.account.accountId}
+    WHERE a.provider='abacatepay' AND a.environment=${evidence.account.environment} AND a.external_account_id=${evidence.account.accountId}
       AND r.external_checkout_id=${evidence.checkoutId} AND s.billing_provider='abacatepay' AND s.asaas_subscription_id IS NULL
     FOR UPDATE OF s,r`),
     );
@@ -531,7 +528,7 @@ export async function recoverAbacatePayRecontract(
 ) {
   const idle = { applied: 0, duplicate: 0, review: 0, scanned: 0 };
   if (
-    !isAbacatePaySandboxRuntime() ||
+    !isAbacatePayRuntime() ||
     !env.ABACATEPAY_API_KEY ||
     !env.ABACATEPAY_STORE_ID ||
     !(await abacatePayManagementReady(database))
@@ -548,7 +545,7 @@ export async function recoverAbacatePayRecontract(
     FROM billing_gateway.recontracts r JOIN billing_gateway.accounts a ON a.id=r.account_id
     LEFT JOIN LATERAL (SELECT max(e.created_at) checked_at FROM public.billing_events e
       WHERE e.clinic_id=r.clinic_id AND e.type='subscription.recontract.checked' AND e.payload->>'contractId'=r.id::text) checked ON true
-    WHERE a.provider='abacatepay' AND a.environment='sandbox' AND a.external_account_id=${env.ABACATEPAY_STORE_ID}
+    WHERE a.provider='abacatepay' AND a.environment=${abacatePayEnvironment()} AND a.external_account_id=${env.ABACATEPAY_STORE_ID}
       AND r.external_checkout_id IS NOT NULL AND r.invoice_id IS NULL AND (${clinicId}::uuid IS NULL OR r.clinic_id=${clinicId}::uuid)
       AND (${clinicId}::uuid IS NOT NULL OR checked.checked_at IS NULL OR checked.checked_at < now()-interval '1 hour')
     ORDER BY checked.checked_at NULLS FIRST,r.created_at LIMIT 1`),
@@ -577,7 +574,7 @@ export async function recoverAbacatePayRecontract(
     )
       throw new AbacatePayManagementError('reconcile_required');
     const evidence = await createAbacatePayInitialPaymentReader(
-      { provider: 'abacatepay', environment: 'sandbox', accountId: settings.storeId },
+      { provider: 'abacatepay', environment: abacatePayEnvironment(), accountId: settings.storeId },
       settings,
     ).readInitialPayment({
       subscriptionId: remote.id,
@@ -613,7 +610,7 @@ export async function reconcileAbacatePayCancellation(
 ) {
   const idle = { scanned: 0, confirmed: 0, review: 0 };
   if (
-    !isAbacatePaySandboxRuntime() ||
+    !isAbacatePayRuntime() ||
     !env.ABACATEPAY_API_KEY ||
     !env.ABACATEPAY_STORE_ID ||
     !(await abacatePayManagementReady(database))
@@ -636,7 +633,7 @@ export async function reconcileAbacatePayCancellation(
     LEFT JOIN LATERAL (SELECT max(e.created_at) checked_at FROM public.billing_events e
       WHERE e.clinic_id=c.clinic_id AND e.type='subscription.cancellation.checked'
         AND e.payload->>'externalSubscriptionId'=c.external_subscription_id) checked ON true
-    WHERE a.provider='abacatepay' AND a.environment='sandbox' AND a.external_account_id=${env.ABACATEPAY_STORE_ID}
+    WHERE a.provider='abacatepay' AND a.environment=${abacatePayEnvironment()} AND a.external_account_id=${env.ABACATEPAY_STORE_ID}
       AND (${externalId}::text IS NULL OR c.external_subscription_id=${externalId})
       AND (${externalId}::text IS NOT NULL OR c.confirmed_at IS NULL)
       AND (${externalId}::text IS NOT NULL OR checked.checked_at IS NULL OR checked.checked_at < now()-interval '1 hour')
@@ -675,7 +672,7 @@ export async function reconcileAbacatePayManagement(database: ManagementDatabase
     SELECT DISTINCT s.clinic_id::text FROM public.subscriptions s
     JOIN billing_gateway.bindings b ON b.subscription_id=s.id JOIN billing_gateway.accounts a ON a.id=b.account_id
     WHERE s.billing_provider='abacatepay' AND s.cancel_at_period_end AND s.billing_status<>'cancelled'
-      AND s.current_period_end <= now() AND a.provider='abacatepay' AND a.environment='sandbox'
+      AND s.current_period_end <= now() AND a.provider='abacatepay' AND a.environment=${abacatePayEnvironment()}
       AND a.external_account_id=${env.ABACATEPAY_STORE_ID} LIMIT 10`),
     );
   for (const row of rows)

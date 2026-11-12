@@ -1,3 +1,4 @@
+import { abacatePayEnvironment } from '@/lib/payments/saas/acquisition';
 import 'server-only';
 
 import { randomUUID } from 'node:crypto';
@@ -8,7 +9,7 @@ import { dbAdmin, type Tx } from '@/lib/db';
 import { env } from '@/lib/env';
 import { metrics } from '@/lib/observability/metrics';
 import { captureBackgroundError } from '@/lib/observability/capture';
-import { isAbacatePaySandboxRuntime } from '@/lib/payments/saas/acquisition';
+import { isAbacatePayRuntime } from '@/lib/payments/saas/acquisition';
 import { billingResourceKey, GatewayReadError } from '@/lib/payments/saas/contracts';
 import { createAbacatePayReadClient } from '@/lib/payments/abacatepay/reader';
 import {
@@ -93,7 +94,7 @@ export async function applyInitialAbacatePayPaymentTx(
 ): Promise<InitialPaymentApplication> {
   if (
     evidence.account.provider !== 'abacatepay' ||
-    evidence.account.environment !== 'sandbox' ||
+    !['sandbox', 'production'].includes(evidence.account.environment) ||
     evidence.currency !== 'BRL' ||
     evidence.state !== 'paid' ||
     evidence.recurrence !== 'running' ||
@@ -117,7 +118,7 @@ export async function applyInitialAbacatePayPaymentTx(
     JOIN public.trial_access_policies ta ON ta.subscription_id=s.id AND ta.clinic_id=s.clinic_id
     JOIN billing_gateway.trial_claims t ON t.auth_user_id=ta.owner_user_id
       AND t.clinic_id=s.clinic_id AND t.trial_ends_at=s.trial_ends_at
-    WHERE a.provider='abacatepay' AND a.environment='sandbox'
+    WHERE a.provider='abacatepay' AND a.environment=${evidence.account.environment}
       AND a.external_account_id=${evidence.account.accountId}
       AND b.external_checkout_id=${evidence.checkoutId} AND s.billing_provider='abacatepay'
       AND pr.billing_cycle='monthly' AND pr.currency='BRL'
@@ -234,7 +235,7 @@ export async function reconcileAbacatePayInbox(
 }> {
   if (!env.ABACATEPAY_STORE_ID || !env.ABACATEPAY_API_KEY)
     return { applied: 0, review: 0, scanned: 0 };
-  if (!isAbacatePaySandboxRuntime()) {
+  if (!isAbacatePayRuntime()) {
     metrics.emit('billing.abacatepay.reconcile_disabled', { reason: 'runtime_guard' });
     return { applied: 0, review: 0, scanned: 0 };
   }
@@ -259,7 +260,7 @@ export async function reconcileAbacatePayInbox(
       LEFT JOIN LATERAL (SELECT authorized_attempt FROM billing_gateway.review_replays r
         WHERE r.account_id=i.account_id AND r.event_id=i.event_id
         ORDER BY authorized_attempt DESC LIMIT 1) replay ON true
-      WHERE a.provider='abacatepay' AND a.environment='sandbox' AND a.external_account_id=${env.ABACATEPAY_STORE_ID}
+      WHERE a.provider='abacatepay' AND a.environment=${abacatePayEnvironment()} AND a.external_account_id=${env.ABACATEPAY_STORE_ID}
         AND (${eventId}::text IS NULL OR i.event_id=${eventId})
         AND i.attempts <= coalesce(replay.authorized_attempt,${MAX_ATTEMPTS})
         AND ((i.state='received' AND (i.processed_at IS NULL OR
@@ -282,7 +283,7 @@ export async function reconcileAbacatePayInbox(
         .parse(
           await dbAdmin.execute(sql`SELECT i.state FROM billing_gateway.event_inbox i
           JOIN billing_gateway.accounts a ON a.id=i.account_id
-          WHERE a.provider='abacatepay' AND a.environment='sandbox'
+          WHERE a.provider='abacatepay' AND a.environment=${abacatePayEnvironment()}
             AND a.external_account_id=${env.ABACATEPAY_STORE_ID} AND i.event_id=${eventId}`),
         );
       // Do not acknowledge a concurrent lease as if the financial effect had
@@ -355,7 +356,7 @@ export async function reconcileAbacatePayInbox(
     try {
       const account = {
         provider: 'abacatepay',
-        environment: 'sandbox',
+        environment: abacatePayEnvironment(),
         accountId: env.ABACATEPAY_STORE_ID,
       } as const;
       const result = await readAbacatePayRenewalForEvent(
@@ -464,7 +465,7 @@ export async function reconcileAbacatePayInbox(
     }
     const config = {
       apiKey: env.ABACATEPAY_API_KEY,
-      environment: 'sandbox' as const,
+      environment: abacatePayEnvironment(),
       timeoutMs: 2000,
       readAttempts: 2 as const,
       deadlineMs: deadline,
@@ -557,7 +558,7 @@ export async function reconcileAbacatePayInbox(
     }
     const account = {
       provider: 'abacatepay',
-      environment: 'sandbox',
+      environment: abacatePayEnvironment(),
       accountId: env.ABACATEPAY_STORE_ID,
     } as const;
     const evidence = await createAbacatePayInitialPaymentReader(account, config).readInitialPayment(
@@ -631,8 +632,7 @@ export async function reconcileMissingAbacatePayInitialPayment(
   review: number;
 }> {
   const idle = { scanned: 0, applied: 0, duplicate: 0, review: 0 };
-  if (!env.ABACATEPAY_STORE_ID || !env.ABACATEPAY_API_KEY || !isAbacatePaySandboxRuntime())
-    return idle;
+  if (!env.ABACATEPAY_STORE_ID || !env.ABACATEPAY_API_KEY || !isAbacatePayRuntime()) return idle;
   const subscriptionId =
     input.subscriptionId === undefined ? null : z.uuid().parse(input.subscriptionId);
   const deadline = Math.min(
@@ -666,7 +666,7 @@ export async function reconcileMissingAbacatePayInitialPayment(
     WHERE s.billing_provider='abacatepay' AND s.billing_status='trial' AND s.asaas_subscription_id IS NULL
       AND t.released_at IS NULL
       AND b.external_checkout_id IS NOT NULL AND b.external_subscription_id IS NULL
-      AND a.provider='abacatepay' AND a.environment='sandbox' AND a.external_account_id=${env.ABACATEPAY_STORE_ID}
+      AND a.provider='abacatepay' AND a.environment=${abacatePayEnvironment()} AND a.external_account_id=${env.ABACATEPAY_STORE_ID}
       AND (${subscriptionId}::uuid IS NULL OR s.id=${subscriptionId}::uuid)
       AND (${subscriptionId}::uuid IS NOT NULL OR checked.checked_at IS NULL OR checked.checked_at < now()-interval '5 minutes')
     ORDER BY checked.checked_at NULLS FIRST,i.created_at LIMIT 1
@@ -684,13 +684,13 @@ export async function reconcileMissingAbacatePayInitialPayment(
   try {
     const config = {
       apiKey: env.ABACATEPAY_API_KEY,
-      environment: 'sandbox' as const,
+      environment: abacatePayEnvironment(),
       timeoutMs: 2000,
       deadlineMs: deadline,
     };
     const account = {
       provider: 'abacatepay',
-      environment: 'sandbox',
+      environment: abacatePayEnvironment(),
       accountId: env.ABACATEPAY_STORE_ID,
     } as const;
     const read = createAbacatePayReadClient(config);

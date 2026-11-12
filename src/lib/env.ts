@@ -124,16 +124,21 @@ const EnvSchema = z
     // Candidate acquisition only; never reroutes existing obligations.
     SAAS_SIGNUP_PROVIDER: z.preprocess(
       emptyToUndefined,
-      z.enum(['asaas', 'abacatepay_sandbox']).default('asaas'),
+      z.enum(['asaas', 'abacatepay_sandbox', 'abacatepay_production']).default('asaas'),
     ),
     ABACATEPAY_API_KEY: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+    ABACATEPAY_ENVIRONMENT: z.preprocess(
+      emptyToUndefined,
+      z.enum(['sandbox', 'production']).optional(),
+    ),
+    ABACATEPAY_PLAN_PRODUCTS: z.preprocess(emptyToUndefined, z.string().max(4096).optional()),
     // Acquisition only; never stops webhooks, reconciliation or cancellation.
     ABACATEPAY_NEW_CHECKOUTS_ENABLED: z.preprocess(
       emptyToUndefined,
       z
         .enum(['true', 'false'])
         .optional()
-        .transform((v) => v !== 'false'),
+        .transform((v) => (v === undefined ? undefined : v === 'true')),
     ),
     // An explicitly empty cohort must fail closed, not become an omitted cohort.
     ABACATEPAY_CHECKOUT_CLINIC_IDS: z.string().max(4096).optional(),

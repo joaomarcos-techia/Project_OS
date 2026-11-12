@@ -1,3 +1,8 @@
+import {
+  abacatePayEnvironment,
+  abacatePayPlanProducts,
+  abacatePayProbeProductId,
+} from '@/lib/payments/saas/acquisition';
 import 'server-only';
 
 import { randomUUID } from 'node:crypto';
@@ -8,11 +13,11 @@ import { dbAdmin } from '@/lib/db';
 import { env } from '@/lib/env';
 import { buildApplicationUrl, resolvePreviewCallbackOrigin } from '@/lib/http/application-url';
 import {
-  assertAbacatePaySandboxRuntime,
+  assertAbacatePayRuntime,
   abacatePayCheckoutAllowed,
 } from '@/lib/payments/saas/acquisition';
 import { createPostgresGatewayOperationJournal } from '@/lib/payments/saas/postgres-store';
-import { createAbacatePaySandboxCommands } from '@/lib/payments/abacatepay/sandbox-commands';
+import { createAbacatePayCommands } from '@/lib/payments/abacatepay/sandbox-commands';
 import { createAbacatePayReadClient } from '@/lib/payments/abacatepay/reader';
 import { CommandOperationError } from '@/lib/payments/saas/command-operation';
 import type { RecoveredCheckout } from '@/lib/payments/abacatepay/checkout-recovery';
@@ -59,7 +64,7 @@ const contractSchema = z.object({
   account_id: z.uuid(),
   external_account_id: z.string().regex(/^store_[A-Za-z0-9_-]+$/),
   provider: z.literal('abacatepay'),
-  environment: z.literal('sandbox'),
+  environment: z.enum(['sandbox', 'production']),
   external_subscription_id: z.string().nullable(),
   price_id: z.uuid(),
   plan_code: z.string(),
@@ -86,12 +91,8 @@ export class DeferredCheckoutError extends Error {
 }
 
 export async function createDeferredSubscriptionCheckout(input: { clinicId: string }) {
-  assertAbacatePaySandboxRuntime();
-  if (
-    !env.ABACATEPAY_API_KEY ||
-    !env.ABACATEPAY_STORE_ID ||
-    !env.ABACATEPAY_SANDBOX_PROBE_PRODUCT_ID
-  ) {
+  assertAbacatePayRuntime();
+  if (!env.ABACATEPAY_API_KEY || !env.ABACATEPAY_STORE_ID || !abacatePayProbeProductId()) {
     throw new DeferredCheckoutError('unavailable');
   }
   const clinicId = z.uuid().parse(input.clinicId);
@@ -101,7 +102,7 @@ export async function createDeferredSubscriptionCheckout(input: { clinicId: stri
   const callbackUrl = buildApplicationUrl(callbackOrigin, '/configuracoes/assinatura');
   let productMap: z.infer<typeof productMapSchema>;
   try {
-    productMap = productMapSchema.parse(JSON.parse(env.ABACATEPAY_SANDBOX_PLAN_PRODUCTS ?? '{}'));
+    productMap = productMapSchema.parse(JSON.parse(abacatePayPlanProducts() ?? '{}'));
   } catch {
     throw new DeferredCheckoutError('unavailable');
   }
@@ -120,7 +121,7 @@ export async function createDeferredSubscriptionCheckout(input: { clinicId: stri
     JOIN billing_gateway.accounts a ON a.id=b.account_id
     JOIN public.trial_access_policies ta ON ta.subscription_id=s.id AND ta.clinic_id=s.clinic_id
     WHERE s.clinic_id=${clinicId}::uuid AND s.asaas_subscription_id IS NULL
-      AND a.provider='abacatepay' AND a.environment='sandbox'
+      AND a.provider='abacatepay' AND a.environment=${abacatePayEnvironment()}
   `),
     );
   const contract = rows[0];
@@ -179,7 +180,7 @@ export async function createDeferredSubscriptionCheckout(input: { clinicId: stri
   const productId = intent.product_id;
   const account = {
     provider: 'abacatepay',
-    environment: 'sandbox',
+    environment: abacatePayEnvironment(),
     accountId: contract.external_account_id,
   } as const;
   // The business key is independent of the browser's click/request identifier.
@@ -193,11 +194,12 @@ export async function createDeferredSubscriptionCheckout(input: { clinicId: stri
     },
     dbAdmin,
   );
-  const commands = createAbacatePaySandboxCommands(
+  const commands = createAbacatePayCommands(
     {
+      environment: abacatePayEnvironment(),
       apiKey: env.ABACATEPAY_API_KEY,
       storeId: contract.external_account_id,
-      probeProductId: env.ABACATEPAY_SANDBOX_PROBE_PRODUCT_ID,
+      probeProductId: abacatePayProbeProductId(),
     },
     journal,
   );
@@ -242,7 +244,7 @@ export async function createDeferredSubscriptionCheckout(input: { clinicId: stri
   // the webhook or a financial review is still pending.
   const read = createAbacatePayReadClient({
     apiKey: env.ABACATEPAY_API_KEY,
-    environment: 'sandbox',
+    environment: abacatePayEnvironment(),
     timeoutMs: 2000,
   });
   if ((await read.readStore()).id !== contract.external_account_id)
@@ -280,7 +282,7 @@ const overviewSchema = z.object({
 export async function getDeferredSubscriptionOverview(clinicId: string) {
   if (!env.ABACATEPAY_STORE_ID) return null;
   z.uuid().parse(clinicId);
-  assertAbacatePaySandboxRuntime();
+  assertAbacatePayRuntime();
   // N/N-1 compatibility: deployments with the additive schema absent are still
   // entirely Asaas. Do not change those callers or silently create a binding.
   const [schema] = z
@@ -306,7 +308,7 @@ export async function getDeferredSubscriptionOverview(clinicId: string) {
     JOIN billing_gateway.accounts a ON a.id=b.account_id
     JOIN public.trial_access_policies ta ON ta.subscription_id=s.id AND ta.clinic_id=s.clinic_id
     WHERE s.clinic_id=${clinicId}::uuid AND a.provider='abacatepay'
-      AND a.environment='sandbox' AND a.external_account_id=${env.ABACATEPAY_STORE_ID}
+      AND a.environment=${abacatePayEnvironment()} AND a.external_account_id=${env.ABACATEPAY_STORE_ID}
       AND s.billing_provider='abacatepay'
   `),
     );

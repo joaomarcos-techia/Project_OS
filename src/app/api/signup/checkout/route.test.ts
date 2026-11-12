@@ -34,7 +34,10 @@ vi.mock('@/contexts/onboarding', () => ({
   resolveReadyOwnedSignupOnboarding: mocks.resolve,
   provisionFreeSignupTrial: mocks.freeTrial,
 }));
-vi.mock('@/lib/payments/saas/acquisition', () => ({ deferredSaasSignupEnabled: mocks.deferred }));
+vi.mock(import('@/lib/payments/saas/acquisition'), async (importOriginal) => ({
+  ...(await importOriginal()),
+  deferredSaasSignupEnabled: mocks.deferred,
+}));
 vi.mock('@/lib/payments/asaas', () => ({
   asaasProvider: { getCustomer: mocks.getCustomer },
 }));

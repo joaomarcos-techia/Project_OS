@@ -1,3 +1,4 @@
+import { abacatePayEnvironment } from '@/lib/payments/saas/acquisition';
 import 'server-only';
 
 import { sql } from 'drizzle-orm';
@@ -48,7 +49,7 @@ export async function readAbacatePayNegativeEvent(
       await database.execute(sql`SELECT account_id::text,event_id,event_type,subscription_id::text,clinic_id::text,
     external_subscription_id,external_checkout_id,external_customer_id,received_at FROM billing_gateway.event_inbox
     WHERE event_id=${eventId} AND account_id IN(SELECT id FROM billing_gateway.accounts WHERE provider='abacatepay'
-      AND environment='sandbox' AND external_account_id=${env.ABACATEPAY_STORE_ID})`),
+      AND environment=${abacatePayEnvironment()} AND external_account_id=${env.ABACATEPAY_STORE_ID})`),
     );
   if (!event || !env.ABACATEPAY_API_KEY || !env.ABACATEPAY_STORE_ID) return null;
   const [context] = z
@@ -87,7 +88,7 @@ export async function readAbacatePayNegativeEvent(
   if (!context) return null;
   const config = {
     apiKey: env.ABACATEPAY_API_KEY,
-    environment: 'sandbox' as const,
+    environment: abacatePayEnvironment(),
     timeoutMs: 2000,
     deadlineMs,
   };
@@ -102,7 +103,11 @@ export async function readAbacatePayNegativeEvent(
   const refund =
     event.event_type === 'checkout.refunded'
       ? await createAbacatePayNegativePaymentReader(
-          { provider: 'abacatepay', environment: 'sandbox', accountId: env.ABACATEPAY_STORE_ID },
+          {
+            provider: 'abacatepay',
+            environment: abacatePayEnvironment(),
+            accountId: env.ABACATEPAY_STORE_ID,
+          },
           config,
           fetch,
           context.external_checkout_id === context.origin_checkout_id
@@ -115,7 +120,7 @@ export async function readAbacatePayNegativeEvent(
             : undefined,
           createPersistentAbacatePayRefundReader(database, {
             provider: 'abacatepay',
-            environment: 'sandbox',
+            environment: abacatePayEnvironment(),
             accountId: env.ABACATEPAY_STORE_ID,
           }),
         ).readRefund({

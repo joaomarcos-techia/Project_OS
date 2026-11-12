@@ -152,11 +152,7 @@ export function createAbacatePayNegativePaymentReader(
   statementReader: RefundStatementReader = readRefundStatement,
 ) {
   billingAccountSchema.parse(account);
-  if (
-    account.provider !== 'abacatepay' ||
-    account.environment !== 'sandbox' ||
-    config.environment !== 'sandbox'
-  )
+  if (account.provider !== 'abacatepay' || account.environment !== config.environment)
     throw new GatewayReadError('environment_mismatch');
   const read = createAbacatePayReadClient(config, fetcher),
     request = createAbacatePayTransport(config, fetcher);

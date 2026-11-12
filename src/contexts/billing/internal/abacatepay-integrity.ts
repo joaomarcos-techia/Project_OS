@@ -1,3 +1,4 @@
+import { abacatePayEnvironment } from '@/lib/payments/saas/acquisition';
 import 'server-only';
 
 import { createHash, randomUUID } from 'node:crypto';
@@ -6,7 +7,7 @@ import { z } from 'zod';
 import { env } from '@/lib/env';
 import { captureBackgroundError } from '@/lib/observability/capture';
 import { metrics } from '@/lib/observability/metrics';
-import { isAbacatePaySandboxRuntime } from '@/lib/payments/saas/acquisition';
+import { isAbacatePayRuntime } from '@/lib/payments/saas/acquisition';
 import { GatewayReadError } from '@/lib/payments/saas/contracts';
 import type { BillingGatewaySql } from '@/lib/payments/saas/postgres-store';
 import { createAbacatePayCheckoutIntegrityReader } from '@/lib/payments/abacatepay/checkout-integrity';
@@ -62,7 +63,7 @@ async function candidate(
     LEFT JOIN LATERAL (SELECT max(e.created_at) checked_at FROM public.billing_events e
       WHERE e.clinic_id=s.clinic_id AND e.type='subscription.recurrence.checked'
         AND e.payload->>'generationId'=g.generation_id::text) checked ON true
-    WHERE a.provider='abacatepay' AND a.environment='sandbox' AND a.external_account_id=${env.ABACATEPAY_STORE_ID}
+    WHERE a.provider='abacatepay' AND a.environment=${abacatePayEnvironment()} AND a.external_account_id=${env.ABACATEPAY_STORE_ID}
       AND s.billing_provider='abacatepay' AND s.asaas_subscription_id IS NULL
       AND (${input.checkoutId}::text IS NULL OR g.checkout_id=${input.checkoutId})
       AND (${input.generationId ?? null}::uuid IS NULL OR g.generation_id=${input.generationId ?? null}::uuid)
@@ -170,8 +171,7 @@ export async function reconcileAbacatePayIntegrity(
   input: { checkoutId?: string; deadlineMs?: number; maxCandidates?: number } = {},
 ) {
   const idle = { scanned: 0, reviews: 0, failed: 0, deferred: false };
-  if (!isAbacatePaySandboxRuntime() || !env.ABACATEPAY_API_KEY || !env.ABACATEPAY_STORE_ID)
-    return idle;
+  if (!isAbacatePayRuntime() || !env.ABACATEPAY_API_KEY || !env.ABACATEPAY_STORE_ID) return idle;
   const checkoutId =
     input.checkoutId === undefined
       ? null
@@ -225,10 +225,14 @@ export async function reconcileAbacatePayIntegrity(
       const observation = await createAbacatePayCheckoutIntegrityReader(
         {
           provider: 'abacatepay',
-          environment: 'sandbox',
+          environment: abacatePayEnvironment(),
           accountId: env.ABACATEPAY_STORE_ID,
         },
-        { apiKey: env.ABACATEPAY_API_KEY, environment: 'sandbox', timeoutMs: READ_TIMEOUT_MS },
+        {
+          apiKey: env.ABACATEPAY_API_KEY,
+          environment: abacatePayEnvironment(),
+          timeoutMs: READ_TIMEOUT_MS,
+        },
       ).inspect({
         checkoutId: reserved.checkout_id,
         subscriptionId: reserved.external_subscription_id,

@@ -17,7 +17,10 @@ vi.mock('@/lib/db', () => ({
   dbAdmin: { execute: mocks.execute, transaction: mocks.transaction },
 }));
 vi.mock('@/lib/env', () => ({ env: mocks.env }));
-vi.mock('@/lib/payments/saas/acquisition', () => ({ isAbacatePaySandboxRuntime: mocks.runtime }));
+vi.mock(import('@/lib/payments/saas/acquisition'), async (importOriginal) => ({
+  ...(await importOriginal()),
+  isAbacatePayRuntime: mocks.runtime,
+}));
 vi.mock('@/lib/observability/metrics', () => ({ metrics: { emit: mocks.emit } }));
 vi.mock('@/lib/observability/capture', () => ({ captureBackgroundError: mocks.capture }));
 vi.mock('./subscriptions', () => ({ markInvoicePaid: vi.fn(), recordBillingEvent: mocks.record }));

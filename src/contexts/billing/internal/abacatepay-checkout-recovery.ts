@@ -1,3 +1,4 @@
+import { abacatePayEnvironment } from '@/lib/payments/saas/acquisition';
 import 'server-only';
 
 import { sql } from 'drizzle-orm';
@@ -6,7 +7,7 @@ import { z } from 'zod';
 import type { Tx } from '@/lib/db';
 import { env } from '@/lib/env';
 import { metrics } from '@/lib/observability/metrics';
-import { isAbacatePaySandboxRuntime } from '@/lib/payments/saas/acquisition';
+import { isAbacatePayRuntime } from '@/lib/payments/saas/acquisition';
 import type { BillingGatewaySql } from '@/lib/payments/saas/postgres-store';
 import {
   createAbacatePayCheckoutRecoveryReader,
@@ -69,7 +70,7 @@ async function contextFor(
       JOIN billing_gateway.operations o ON o.account_id=a.id AND o.subscription_id=s.id AND o.clinic_id=s.clinic_id
         AND o.kind='recontract_checkout' AND o.business_key='recontract:'||r.id::text
       WHERE s.id=${subscriptionId}::uuid AND s.clinic_id=${clinicId}::uuid AND r.id=${recontractId}::uuid
-        AND a.provider='abacatepay' AND a.environment='sandbox' AND a.external_account_id=${env.ABACATEPAY_STORE_ID}
+        AND a.provider='abacatepay' AND a.environment=${abacatePayEnvironment()} AND a.external_account_id=${env.ABACATEPAY_STORE_ID}
         AND s.billing_provider='abacatepay' AND s.asaas_subscription_id IS NULL AND s.price_id=r.price_id
         AND s.cancel_at_period_end AND c.confirmed_at IS NOT NULL AND c.paid_period_end<=now()
         AND s.current_period_end=c.paid_period_end AND r.invoice_id IS NULL
@@ -95,7 +96,7 @@ async function contextFor(
       AND o.kind='create_checkout' AND o.business_key='initial:'||i.price_id::text
     WHERE s.id=${subscriptionId}::uuid AND s.clinic_id=${clinicId}::uuid
       AND s.billing_provider='abacatepay' AND s.asaas_subscription_id IS NULL
-      AND a.provider='abacatepay' AND a.environment='sandbox' AND a.external_account_id=${env.ABACATEPAY_STORE_ID}
+      AND a.provider='abacatepay' AND a.environment=${abacatePayEnvironment()} AND a.external_account_id=${env.ABACATEPAY_STORE_ID}
       AND s.price_id=i.price_id AND NOT s.cancel_at_period_end
       AND s.billing_status IN ('trial','active','past_due')
       AND NOT EXISTS(SELECT 1 FROM billing_gateway.recontracts r WHERE r.subscription_id=s.id)
@@ -112,7 +113,7 @@ export async function recoverAbacatePayCheckout(
   | { state: 'recovered'; result: RecoveredCheckout }
   | { state: 'pending' | 'review' | 'not_eligible' }
 > {
-  if (!isAbacatePaySandboxRuntime() || !env.ABACATEPAY_API_KEY || !env.ABACATEPAY_STORE_ID)
+  if (!isAbacatePayRuntime() || !env.ABACATEPAY_API_KEY || !env.ABACATEPAY_STORE_ID)
     return { state: 'not_eligible' };
   const before = await contextFor(
     database,
@@ -123,8 +124,12 @@ export async function recoverAbacatePayCheckout(
   );
   if (!before) return { state: 'not_eligible' };
   const discovered = await createAbacatePayCheckoutRecoveryReader(
-    { provider: 'abacatepay', environment: 'sandbox', accountId: before.external_account_id },
-    { apiKey: env.ABACATEPAY_API_KEY, environment: 'sandbox', timeoutMs: 2000 },
+    {
+      provider: 'abacatepay',
+      environment: abacatePayEnvironment(),
+      accountId: before.external_account_id,
+    },
+    { apiKey: env.ABACATEPAY_API_KEY, environment: abacatePayEnvironment(), timeoutMs: 2000 },
   ).discover({
     externalId: before.recontract_id
       ? `qoro-recontract-${before.recontract_id}`
@@ -138,7 +143,7 @@ export async function recoverAbacatePayCheckout(
   if (before.prior_subscription_id) {
     const prior = await createAbacatePayReadClient({
       apiKey: env.ABACATEPAY_API_KEY,
-      environment: 'sandbox',
+      environment: abacatePayEnvironment(),
       timeoutMs: 2000,
     }).readSubscription(before.prior_subscription_id);
     if (
@@ -173,7 +178,7 @@ export async function recoverAbacatePayCheckout(
           checkoutId: z.string(),
           externalId: z.string(),
           amountMinor: z.number(),
-          environment: z.literal('sandbox'),
+          environment: z.enum(['sandbox', 'production']),
           state: z.literal('pending'),
           checkoutUrl: z.string(),
         })
@@ -207,7 +212,7 @@ export async function recoverAbacatePayCheckout(
 export async function reconcileAbacatePayUnknownCheckout(
   database: RecoveryDatabase,
 ): Promise<void> {
-  if (!isAbacatePaySandboxRuntime() || !env.ABACATEPAY_API_KEY || !env.ABACATEPAY_STORE_ID) return;
+  if (!isAbacatePayRuntime() || !env.ABACATEPAY_API_KEY || !env.ABACATEPAY_STORE_ID) return;
   const [candidate] = z
     .array(
       z.object({
@@ -228,7 +233,7 @@ export async function reconcileAbacatePayUnknownCheckout(
     LEFT JOIN LATERAL(SELECT max(e.created_at) checked_at FROM public.billing_events e
       WHERE e.clinic_id=o.clinic_id AND e.type='subscription.checkout.recovery_checked'
         AND e.payload->>'operationId'=o.operation_id::text) checked ON true
-    WHERE a.provider='abacatepay' AND a.environment='sandbox' AND a.external_account_id=${env.ABACATEPAY_STORE_ID}
+    WHERE a.provider='abacatepay' AND a.environment=${abacatePayEnvironment()} AND a.external_account_id=${env.ABACATEPAY_STORE_ID}
       AND s.billing_provider='abacatepay' AND s.asaas_subscription_id IS NULL
       AND (o.kind='create_checkout' OR (o.kind='recontract_checkout' AND r.id IS NOT NULL)) AND o.state IN ('running','unknown')
       AND (checked.checked_at IS NULL OR checked.checked_at<now()-interval '1 hour')

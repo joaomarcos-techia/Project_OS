@@ -1,3 +1,4 @@
+import { abacatePayEnvironment } from '@/lib/payments/saas/acquisition';
 import 'server-only';
 
 import { and, eq, gt, isNotNull, isNull, lte, sql } from 'drizzle-orm';
@@ -93,7 +94,7 @@ export async function provisionFreeSignupTrialTx(
         JOIN billing_gateway.accounts a ON a.id=b.account_id
         JOIN public.subscriptions s ON s.id=b.subscription_id AND s.clinic_id=b.clinic_id
         WHERE b.clinic_id=${profile.clinicId}::uuid AND a.provider='abacatepay'
-          AND a.environment='sandbox' AND a.external_account_id=${identity.storeId}
+          AND a.environment=${abacatePayEnvironment()} AND a.external_account_id=${identity.storeId}
           AND s.asaas_subscription_id IS NULL`),
     );
     return bound.length === 1
@@ -193,10 +194,10 @@ export async function provisionFreeSignupTrialTx(
           'trial_subscription_missing',
         );
       await innerTx.execute(sql`INSERT INTO billing_gateway.accounts(provider,environment,external_account_id)
-      VALUES('abacatepay','sandbox',${identity.storeId}) ON CONFLICT DO NOTHING`);
+      VALUES('abacatepay',${abacatePayEnvironment()},${identity.storeId}) ON CONFLICT DO NOTHING`);
       await innerTx.execute(sql`INSERT INTO billing_gateway.bindings(subscription_id,clinic_id,account_id)
       SELECT ${sub.id}::uuid,${clinicId}::uuid,id FROM billing_gateway.accounts
-      WHERE provider='abacatepay' AND environment='sandbox' AND external_account_id=${identity.storeId}`);
+      WHERE provider='abacatepay' AND environment=${abacatePayEnvironment()} AND external_account_id=${identity.storeId}`);
       await innerTx.execute(sql`INSERT INTO billing_gateway.trial_claims
       (auth_user_id,email_hash,clinic_id,auth_created_at,trial_ends_at)
       VALUES(${identity.userId}::uuid,${beneficiaryHash},${clinicId}::uuid,

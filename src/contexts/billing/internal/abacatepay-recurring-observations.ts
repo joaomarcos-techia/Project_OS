@@ -63,7 +63,7 @@ export async function recordAbacatePayRecurringPaymentTx(
   const evidence = parsed.data;
   if (
     evidence.account.provider !== 'abacatepay' ||
-    evidence.account.environment !== 'sandbox' ||
+    !['sandbox', 'production'].includes(evidence.account.environment) ||
     evidence.amountMinor !== evidence.paidAmountMinor
   )
     return 'review';
@@ -106,7 +106,7 @@ export async function recordAbacatePayRecurringPaymentTx(
       AND change.product_id=${evidence.productId} AND change.amount_minor=${evidence.amountMinor}
       AND (change.invoice_id IS NOT NULL OR change.from_price_id=s.price_id)
       ORDER BY change.requested_at DESC,change.id DESC LIMIT 1) pc ON true
-    WHERE a.provider='abacatepay' AND a.environment='sandbox' AND a.external_account_id=${evidence.account.accountId}
+    WHERE a.provider='abacatepay' AND a.environment=${evidence.account.environment} AND a.external_account_id=${evidence.account.accountId}
       AND s.billing_provider='abacatepay' AND s.asaas_subscription_id IS NULL
       AND (${source.kind === 'webhook'} OR e.proof_hash=${abacatePayRenewalProofHash(evidence)})
       AND (e.subscription_id IS NULL OR e.subscription_id=b.subscription_id)

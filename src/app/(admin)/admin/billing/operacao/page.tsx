@@ -16,7 +16,7 @@ export default async function BillingOperationsPage() {
         description="Revisão operacional restrita. Uma nova leitura não substitui a comprovação do pagamento."
       />
       {!operations ? (
-        <p>Operação disponível somente no ambiente Sandbox autorizado.</p>
+        <p>Operação financeira indisponível neste ambiente ou sem configuração autorizada.</p>
       ) : (
         <div className="flex flex-col gap-4">
           <PanelCard title="Fila de eventos">

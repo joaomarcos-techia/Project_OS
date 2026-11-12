@@ -1,10 +1,11 @@
+import { abacatePayEnvironment, abacatePayProbeProductId } from '@/lib/payments/saas/acquisition';
 import 'server-only';
 import { z } from 'zod';
 
 import { env } from '@/lib/env';
 import { metrics } from '@/lib/observability/metrics';
 import { createAbacatePayTransport } from '@/lib/payments/abacatepay/transport';
-import { isAbacatePaySandboxRuntime } from '@/lib/payments/saas/acquisition';
+import { isAbacatePayRuntime } from '@/lib/payments/saas/acquisition';
 import {
   GatewayReadError,
   parseBillingValue,
@@ -33,13 +34,12 @@ export async function reconcileAbacatePayRecoveryBatch(
   }>,
 ) {
   const result = { scanned: 0, applied: 0, failed: 0, review: 0, deferred: false, pages: 0 };
-  if (!isAbacatePaySandboxRuntime() || !env.ABACATEPAY_API_KEY || !env.ABACATEPAY_STORE_ID)
-    return result;
+  if (!isAbacatePayRuntime() || !env.ABACATEPAY_API_KEY || !env.ABACATEPAY_STORE_ID) return result;
   if (!Number.isSafeInteger(deadlineMs)) throw new Error('Invalid recovery deadline');
   if (Date.now() + MIN_READ_BUDGET_MS >= deadlineMs) return { ...result, deferred: true };
   // Store IDs can be shared between modes. Attest the configured test resource
   // before a global bank-statement read; a local account label is not proof.
-  const probeId = env.ABACATEPAY_SANDBOX_PROBE_PRODUCT_ID;
+  const probeId = abacatePayProbeProductId();
   if (!probeId) throw new GatewayReadError('environment_mismatch');
   const probeRequest = createAbacatePayTransport({
     apiKey: env.ABACATEPAY_API_KEY,
@@ -58,7 +58,7 @@ export async function reconcileAbacatePayRecoveryBatch(
       params: new URLSearchParams({ id: probeId }),
     }),
   );
-  if (probe.data.id !== probeId || !probe.data.devMode)
+  if (probe.data.id !== probeId || probe.data.devMode !== (abacatePayEnvironment() === 'sandbox'))
     throw new GatewayReadError('environment_mismatch');
   const initialDeadline = Math.min(deadlineMs, Date.now() + 8000);
   for (let i = 0; i < MAX_INITIALS && Date.now() + 2000 < initialDeadline; i++) {
@@ -72,7 +72,11 @@ export async function reconcileAbacatePayRecoveryBatch(
   const scanDeadline = Math.min(deadlineMs, Date.now() + PAGE_BUDGET_MS);
   const scan = await advanceAbacatePayStatementScans(
     database,
-    { provider: 'abacatepay', environment: 'sandbox', accountId: env.ABACATEPAY_STORE_ID },
+    {
+      provider: 'abacatepay',
+      environment: abacatePayEnvironment(),
+      accountId: env.ABACATEPAY_STORE_ID,
+    },
     createAbacatePayTransport({
       apiKey: env.ABACATEPAY_API_KEY,
       storeId: env.ABACATEPAY_STORE_ID,

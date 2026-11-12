@@ -67,7 +67,7 @@ export async function lockAbacatePayRenewalSubscription(
       JOIN public.subscriptions s ON s.id=b.subscription_id AND s.clinic_id=b.clinic_id
       WHERE true
         AND s.billing_provider='abacatepay' AND s.asaas_subscription_id IS NULL
-        AND a.provider='abacatepay' AND a.environment='sandbox'
+        AND a.provider='abacatepay' AND a.environment=${account.environment}
         AND a.external_account_id=${account.accountId}
         AND (e.subscription_id IS NULL OR e.subscription_id=s.id)
         AND (e.clinic_id IS NULL OR e.clinic_id=s.clinic_id)

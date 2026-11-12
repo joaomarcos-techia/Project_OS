@@ -16,8 +16,9 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock('@/lib/env', () => ({ env: mocks.env }));
 vi.mock('@/lib/observability/metrics', () => ({ metrics: { emit: mocks.emit } }));
-vi.mock('@/lib/payments/saas/acquisition', () => ({
-  isAbacatePaySandboxRuntime: () => mocks.sandbox,
+vi.mock(import('@/lib/payments/saas/acquisition'), async (importOriginal) => ({
+  ...(await importOriginal()),
+  isAbacatePayRuntime: () => mocks.sandbox,
 }));
 vi.mock('@/lib/payments/abacatepay/transport', () => ({
   createAbacatePayTransport: mocks.transport,

@@ -11,7 +11,10 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 vi.mock('@/lib/env', () => ({ env: mocks.env }));
-vi.mock('@/lib/payments/saas/acquisition', () => ({ deferredSaasSignupEnabled: mocks.enabled }));
+vi.mock(import('@/lib/payments/saas/acquisition'), async (importOriginal) => ({
+  ...(await importOriginal()),
+  deferredSaasSignupEnabled: mocks.enabled,
+}));
 vi.mock('@/lib/auth/supabase-server', () => ({
   createServerClient: async () => ({ auth: { getUser: mocks.getUser } }),
 }));

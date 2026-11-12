@@ -5,6 +5,7 @@ import { sql, type SQL } from 'drizzle-orm';
 import { z } from 'zod';
 import { captureBackgroundError } from '@/lib/observability/capture';
 import { metrics } from '@/lib/observability/metrics';
+import { abacatePayEnvironment } from '@/lib/payments/saas/acquisition';
 import {
   billingAccountSchema,
   GatewayReadError,
@@ -86,7 +87,8 @@ export async function abacatePayStatementScanReady(database: BillingGatewaySql) 
 async function accountId(database: BillingGatewaySql, accountInput: BillingAccount) {
   const account = billingAccountSchema.parse(accountInput);
   if (account.provider !== 'abacatepay') throw new GatewayReadError('binding_mismatch');
-  if (account.environment !== 'sandbox') throw new GatewayReadError('environment_mismatch');
+  if (account.environment !== abacatePayEnvironment())
+    throw new GatewayReadError('environment_mismatch');
   const [row] = z
     .array(z.object({ id: z.uuid() }))
     .max(1)

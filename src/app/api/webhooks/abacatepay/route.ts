@@ -1,8 +1,9 @@
+import { abacatePayEnvironment } from '@/lib/payments/saas/acquisition';
 import { dbAdmin } from '@/lib/db';
 import { env } from '@/lib/env';
 import { metrics } from '@/lib/observability/metrics';
 import { captureBackgroundError } from '@/lib/observability/capture';
-import { assertAbacatePaySandboxRuntime } from '@/lib/payments/saas/acquisition';
+import { assertAbacatePayRuntime } from '@/lib/payments/saas/acquisition';
 import { createPostgresGatewayInbox } from '@/lib/payments/saas/postgres-store';
 import { createAbacatePayWebhookHandler } from '@/lib/payments/abacatepay/webhook-handler';
 import { reconcileAbacatePayInbox } from '@/contexts/billing/internal/abacatepay-processing';
@@ -13,12 +14,12 @@ export const dynamic = 'force-dynamic';
 export async function POST(request: Request): Promise<Response> {
   // This route cannot be enabled for production by merely adding an API key.
   try {
-    assertAbacatePaySandboxRuntime();
+    assertAbacatePayRuntime();
     if (!env.ABACATEPAY_STORE_ID || !env.ABACATEPAY_WEBHOOK_SECRET)
       throw new Error('Missing webhook configuration');
     const account = {
       provider: 'abacatepay',
-      environment: 'sandbox',
+      environment: abacatePayEnvironment(),
       accountId: env.ABACATEPAY_STORE_ID,
     } as const;
     const persistence = createPostgresGatewayInbox(account, dbAdmin);

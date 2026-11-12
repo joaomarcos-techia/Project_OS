@@ -124,7 +124,31 @@ try {
     session.release();
   }
   const options = { migrationsFolder };
+  const blocker = await cluster.sql.reserve();
+  const blockedStarted = performance.now();
+  try {
+    await blocker`BEGIN`;
+    await blocker`LOCK TABLE billing_gateway.operations IN ACCESS SHARE MODE`;
+    await assert.rejects(migrate(database, options), (error: unknown) => {
+      let cause = error;
+      for (let depth = 0; depth < 5 && cause instanceof Error; depth++) {
+        if ('code' in cause && cause.code === '55P03') return true;
+        cause = cause.cause;
+      }
+      return false;
+    });
+  } finally {
+    await blocker`ROLLBACK`;
+    blocker.release();
+  }
+  const blockedMigrationMs = performance.now() - blockedStarted;
+  const [rolledBack] = await cluster.sql`SELECT count(*)::int n FROM drizzle.__drizzle_migrations`;
+  assert.equal(rolledBack?.n, 144);
+  assert.deepEqual(await fingerprint(), before);
+  assert.deepEqual(await historyFingerprint(), historyBefore);
+  const migrationStarted = performance.now();
   await migrate(database, options);
+  const migrationMs = performance.now() - migrationStarted;
   assert.deepEqual(await fingerprint(), before);
   const [history] =
     await cluster.sql`SELECT count(*)::int count,max(created_at)::text last FROM drizzle.__drizzle_migrations`;
@@ -155,6 +179,13 @@ try {
     status: 'PASS',
     environment: 'loopback_synthetic',
     tissHead: proof.head,
+    migrationMs,
+    lockFailure: {
+      sqlstate: '55P03',
+      timeoutMs: 2000,
+      observedMs: blockedMigrationMs,
+      historyRowsAfterRollback: rolledBack.n,
+    },
     checks: [
       `review-only journal has ${expectedEntries} consecutive entries and increasing timestamps`,
       'proposed financial SQL equals the reviewed candidate hash',
@@ -164,6 +195,7 @@ try {
       'all 144 baseline history entries including six historical applied hashes remain unchanged',
       'exact generated postflight SQL executes',
       'RLS forced and sensitive grants refused',
+      'competing reader lock times out and rolls back every pending migration and history entry before retry',
     ],
     repositoryJournalWrites: 0,
     scratchJournalEntries: expectedEntries,

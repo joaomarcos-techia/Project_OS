@@ -40,6 +40,8 @@ const REPO_ROOT = process.cwd();
 const DB_ORIGIN = 'src/lib/db/index.ts';
 
 const ALLOWED_POSTGRES_IMPORTS = new Set([
+  // Exact DEV ref, frozen hashes, read-only default; one reviewed migrator session.
+  'scripts/security/abacatepay-dev-release.ts',
   'src/lib/db/index.ts',
   // Cluster temporário próprio, loopback fixo e data_directory conferido antes do DDL.
   'scripts/security/tenant-isolation.ts',
@@ -60,7 +62,10 @@ const ALLOWED_POSTGRES_IMPORTS = new Set([
   // DATABASE_URL_PROD após opt-in explícito e gera backup antes da transação.
   'scripts/reset-prod-data.ts',
 ]);
-const ALLOWED_DRIZZLE_PG_IMPORTS = new Set(['src/lib/db/index.ts']);
+const ALLOWED_DRIZZLE_PG_IMPORTS = new Set([
+  'src/lib/db/index.ts',
+  'scripts/security/abacatepay-dev-release.ts',
+]);
 const ALLOWED_DB_VALUE_IMPORTS: Record<string, Set<string>> = {
   db: new Set(['src/lib/db/tenant.ts']),
   dbAdmin: new Set([

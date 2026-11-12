@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 200 actions (0 inline); 66 métodos em 62 handlers; 19 props com referência de action; 511 acessos diretos a process.env; 10 nomes NEXT_PUBLIC.
+Contagem: 200 actions (0 inline); 66 métodos em 62 handlers; 19 props com referência de action; 513 acessos diretos a process.env; 10 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -279,7 +279,7 @@ O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase
 | `src/app/api/signup/sessions/route.ts:63#POST`                       | NEW                     | public-signup-rate-limit-risk-and-cap                                           | `src/app/api/signup/sessions/route.ts:108#createSignupSession`                                                                                                               |
 | `src/app/api/signup/sessions/verify/route.ts:30#POST`                | NEW                     | origin-limit-cookie-email-code-expiry-attempts-cas                              | `src/app/api/signup/sessions/verify/route.ts:67#confirmSignupEmailCode`                                                                                                      |
 | `src/app/api/signup/verificacao/route.ts:25#POST`                    | NEW                     | closed-signup-expiry-origin-rate-limit-provider-proof-no-session                | `src/app/api/signup/verificacao/route.ts:55#verifySignupTurnstileProbe`                                                                                                      |
-| `src/app/api/webhooks/abacatepay/route.ts:13#POST`                   | NEW                     | abacatepay-secret-hmac-durable-inbox                                            | `src/app/api/webhooks/abacatepay/route.ts:26#createAbacatePayWebhookHandler`                                                                                                 |
+| `src/app/api/webhooks/abacatepay/route.ts:14#POST`                   | NEW                     | abacatepay-secret-hmac-durable-inbox                                            | `src/app/api/webhooks/abacatepay/route.ts:27#createAbacatePayWebhookHandler`                                                                                                 |
 | `src/app/api/webhooks/asaas/patient/[ref]/route.ts:68#POST`          | asaas-tenant-token      | asaas-tenant-token                                                              | `src/app/api/webhooks/asaas/patient/[ref]/route.ts:108#safeEqual` → `src/lib/payments/asaas/index.ts:1482#safeEqual`                                                         |
 | `src/app/api/webhooks/asaas/route.ts:96#POST`                        | asaas-shared-token      | asaas-shared-token                                                              | `src/app/api/webhooks/asaas/route.ts:116#asaasProvider.validateWebhookToken`                                                                                                 |
 | `src/app/api/webhooks/meta/route.ts:78#GET`                          | meta-handshake-token    | meta-handshake-token                                                            | `src/app/api/webhooks/meta/route.ts:91#safeEqual`                                                                                                                            |
@@ -349,7 +349,7 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `src/lib/auth/supabase-session-cookie.ts:5`                | `NODE_ENV`                             | `process.env.NODE_ENV`                                                      |
 | `src/lib/db/index.ts:39`                                   | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                                          |
 | `src/lib/db/index.ts:53`                                   | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                                          |
-| `src/lib/env.ts:517`                                       | `<object>`                             | `process.env`                                                               |
+| `src/lib/env.ts:522`                                       | `<object>`                             | `process.env`                                                               |
 | `src/lib/impersonation/index.ts:64`                        | `NODE_ENV`                             | `process.env.NODE_ENV`                                                      |
 | `src/middleware.ts:82`                                     | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
 | `src/middleware.ts:88`                                     | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
@@ -590,6 +590,8 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/abacatepay-composition-checks-db.ts:79`  | `<object>`                             | `process.env`                                                               |
 | `scripts/security/abacatepay-composition-checks-db.ts:88`  | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                                                    |
 | `scripts/security/abacatepay-composition-checks-db.ts:89`  | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
+| `scripts/security/abacatepay-dev-release.ts:99`            | `QORO_TISS_WORKTREE`                   | `process.env.QORO_TISS_WORKTREE`                                            |
+| `scripts/security/abacatepay-dev-release.ts:118`           | `QORO_LOCAL_ENV_FILE`                  | `process.env.QORO_LOCAL_ENV_FILE`                                           |
 | `scripts/security/abacatepay-rate-db.ts:10`                | `<object>`                             | `process.env`                                                               |
 | `scripts/security/abacatepay-rate-db.ts:16`                | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                                                    |
 | `scripts/security/abacatepay-rate-db.ts:17`                | `QORO_DOCKER_BIN`                      | `process.env.QORO_DOCKER_BIN`                                               |
@@ -598,12 +600,12 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/abacatepay-renewal-db.ts:47`             | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                                                    |
 | `scripts/security/abacatepay-renewal-db.ts:48`             | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
 | `scripts/security/abacatepay-renewal-db.ts:209`            | `QORO_ABACATEPAY_SCALE`                | `process.env.QORO_ABACATEPAY_SCALE`                                         |
-| `scripts/security/abacatepay-renewal-db.ts:533`            | `ABACATEPAY_WEBHOOK_SECRET`            | `process.env.ABACATEPAY_WEBHOOK_SECRET`                                     |
-| `scripts/security/abacatepay-renewal-db.ts:545`            | `QORO_ABACATEPAY_SCALE`                | `process.env.QORO_ABACATEPAY_SCALE`                                         |
+| `scripts/security/abacatepay-renewal-db.ts:536`            | `ABACATEPAY_WEBHOOK_SECRET`            | `process.env.ABACATEPAY_WEBHOOK_SECRET`                                     |
+| `scripts/security/abacatepay-renewal-db.ts:548`            | `QORO_ABACATEPAY_SCALE`                | `process.env.QORO_ABACATEPAY_SCALE`                                         |
 | `scripts/security/abacatepay-scale-proof.ts:8`             | `QORO_ABACATEPAY_SCALE_CONCURRENCY`    | `process.env.QORO_ABACATEPAY_SCALE_CONCURRENCY`                             |
 | `scripts/security/abacatepay-statement-scan-db.ts:10`      | `<object>`                             | `process.env`                                                               |
-| `scripts/security/abacatepay-statement-scan-db.ts:20`      | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
-| `scripts/security/abacatepay-statement-scan-db.ts:21`      | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                                                    |
+| `scripts/security/abacatepay-statement-scan-db.ts:21`      | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
+| `scripts/security/abacatepay-statement-scan-db.ts:22`      | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                                                    |
 | `scripts/security/abacatepay-tiss-composition.ts:34`       | `QORO_TISS_WORKTREE`                   | `process.env.QORO_TISS_WORKTREE`                                            |
 | `scripts/security/abacatepay-tiss-input.ts:23`             | `QORO_TISS_WORKTREE`                   | `process.env.QORO_TISS_WORKTREE`                                            |
 | `scripts/security/abacatepay-tiss-input.ts:24`             | `QORO_TISS_REF`                        | `process.env.QORO_TISS_REF`                                                 |

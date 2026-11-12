@@ -83,12 +83,12 @@ const { listAbacatePayReviews: listReviews, authorizeAbacatePayReplayTx: authori
 const { getAbacatePayOperations } =
   await import('../../src/app/(admin)/admin/_lib/repositories/abacatepay-operations.repo');
 type Evidence = import('../../src/lib/payments/saas/recurring-payment').RecurringPaymentEvidence;
-const account = {
+let account: import('../../src/lib/payments/saas/contracts').BillingAccount = {
   provider: 'abacatepay',
   environment: 'sandbox',
   accountId: 'store_synthetic',
-} as const;
-const inbox = createPostgresGatewayInbox(account, dbAdmin);
+};
+let inbox = createPostgresGatewayInbox(account, dbAdmin);
 const results: { name: string; status: 'PASS' | 'FAIL' }[] = [];
 async function check(name: string, run: () => Promise<void>) {
   try {
@@ -274,7 +274,10 @@ function installHttpFixture(
       if (options.close === 'timeout') throw new Error('Synthetic closure timeout');
       return Response.json({
         success: true,
-        data: { id: f.evidence.originCheckoutId, devMode: true },
+        data: {
+          id: f.evidence.originCheckoutId,
+          devMode: f.evidence.account.environment === 'sandbox',
+        },
       });
     }
     assert.equal(init?.method, 'GET');
@@ -289,7 +292,7 @@ function installHttpFixture(
           ? 'CANCELLED'
           : (options.status ?? 'ACTIVE'),
       method: 'CARD',
-      devMode: true,
+      devMode: f.evidence.account.environment === 'sandbox',
       trialEndsAt: null,
       createdAt: f.anchor.toISOString(),
       ...(options.providerPeriod
@@ -311,7 +314,7 @@ function installHttpFixture(
           externalId: 'local-renewal',
           price: options.amountMinor ?? 39700,
           currency: 'BRL',
-          devMode: true,
+          devMode: f.evidence.account.environment === 'sandbox',
           cycle: options.cycle ?? 'MONTHLY',
           trialDays: null,
         };
@@ -341,7 +344,7 @@ function installHttpFixture(
           amount: 39700,
           paidAmount: 39700,
           status: 'PAID',
-          devMode: true,
+          devMode: f.evidence.account.environment === 'sandbox',
           items: [{ id: 'prod_synthetic', quantity: 1 }],
           createdAt: f.evidence.chargeCreatedAt,
         };
@@ -3105,6 +3108,99 @@ try {
       assert.equal(fixtureHttpCalls, calls);
     },
   );
+  const { env: runtimeEnv } = await import('../../src/lib/env');
+  const savedAccount = account,
+    savedInbox = inbox;
+  const savedRuntime = {
+    NODE_ENV: runtimeEnv.NODE_ENV,
+    VERCEL_ENV: runtimeEnv.VERCEL_ENV,
+    ABACATEPAY_ENVIRONMENT: runtimeEnv.ABACATEPAY_ENVIRONMENT,
+    ABACATEPAY_PLAN_PRODUCTS: runtimeEnv.ABACATEPAY_PLAN_PRODUCTS,
+    SAAS_SIGNUP_PROVIDER: runtimeEnv.SAAS_SIGNUP_PROVIDER,
+  };
+  try {
+    account = { ...account, environment: 'production' };
+    inbox = createPostgresGatewayInbox(account, dbAdmin);
+    Object.assign(runtimeEnv, {
+      NODE_ENV: 'production',
+      VERCEL_ENV: 'production',
+      ABACATEPAY_ENVIRONMENT: 'production',
+      SAAS_SIGNUP_PROVIDER: 'abacatepay_production',
+      ABACATEPAY_PLAN_PRODUCTS: runtimeEnv.ABACATEPAY_SANDBOX_PLAN_PRODUCTS,
+    });
+    await check(
+      'LIVE synthetic trial creates a Production binding, never a Sandbox fallback',
+      async () => {
+        const f = await seed(-3600000, 'clinica_2026_2', false);
+        const [bound] = await sql`SELECT a.environment FROM billing_gateway.bindings b
+        JOIN billing_gateway.accounts a ON a.id=b.account_id WHERE b.subscription_id=${f.subscription_id}::uuid`;
+        assert.equal(bound?.environment, 'production');
+        const { applyInitialAbacatePayPaymentTx } =
+          await import('../../src/contexts/billing/internal/abacatepay-processing');
+        const payment = {
+          account,
+          subscriptionId: f.evidence.subscriptionId,
+          customerId: f.evidence.customerId,
+          checkoutId: f.evidence.originCheckoutId,
+          amountMinor: 39700,
+          paidAmountMinor: 39700,
+          currency: 'BRL' as const,
+          state: 'paid' as const,
+          rawStatus: 'PAID',
+          settlement: 'unknown' as const,
+          subscriptionCreatedAt: new Date().toISOString(),
+          recurrence: 'running' as const,
+        };
+        const beforePayment = await state(f);
+        assert.equal(
+          await dbAdmin.transaction((tx) =>
+            applyInitialAbacatePayPaymentTx(tx, { ...payment, account: savedAccount }),
+          ),
+          'review',
+        );
+        assert.deepEqual(await state(f), beforePayment);
+        const applications = await Promise.all(
+          Array.from({ length: 8 }, () =>
+            dbAdmin.transaction((tx) => applyInitialAbacatePayPaymentTx(tx, payment)),
+          ),
+        );
+        assert.equal(applications.filter((v) => v === 'applied').length, 1);
+        assert.equal((await state(f)).invoices, 1);
+        assert.equal((await state(f)).billing_status, 'active');
+      },
+    );
+    await check(
+      'LIVE synthetic renewal applies once and refuses a Sandbox account for the same store',
+      async () => {
+        const f = await seed();
+        await accept(f);
+        const bad = { ...f.evidence, account: savedAccount };
+        const before = await state(f);
+        assert.equal(await apply(f, bad), 'review');
+        assert.deepEqual(await state(f), before);
+        const outcomes = await Promise.all(Array.from({ length: 8 }, () => apply(f)));
+        assert.equal(outcomes.filter((result) => result === 'applied').length, 1);
+        assert.equal((await state(f)).invoices, 2);
+        assert.equal((await state(f)).cycles, 1);
+      },
+    );
+    await check(
+      'LIVE private review retains actor, account binding and replay authorization',
+      async () => {
+        const f = await reviewFixture();
+        const result = await queue(await approvalInput(f));
+        assert.ok(result);
+        const [count] = await sql`SELECT count(*)::int n FROM billing_gateway.review_replays
+        WHERE account_id=${f.account_id}::uuid AND event_id=${f.eventId}`;
+        assert.equal(count?.n, 1);
+        assert.equal((await state(f)).invoices, 1);
+      },
+    );
+  } finally {
+    account = savedAccount;
+    inbox = savedInbox;
+    Object.assign(runtimeEnv, savedRuntime);
+  }
   assert.equal(networkCalls, 0);
 } catch (error) {
   failure = error;

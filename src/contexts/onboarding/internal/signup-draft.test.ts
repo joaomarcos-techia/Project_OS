@@ -20,7 +20,10 @@ vi.mock('@/lib/env', () => ({ env: mocks.env }));
 vi.mock('@/lib/db', () => ({
   dbAdmin: { select: mocks.select, transaction: mocks.transaction },
 }));
-vi.mock('@/lib/payments/saas/acquisition', () => ({ deferredSaasSignupEnabled: mocks.deferred }));
+vi.mock(import('@/lib/payments/saas/acquisition'), async (importOriginal) => ({
+  ...(await importOriginal()),
+  deferredSaasSignupEnabled: mocks.deferred,
+}));
 vi.mock('@/lib/auth/supabase-server', () => ({
   createServerClient: async () => ({ auth: { getUser: mocks.getUser } }),
 }));

@@ -172,3 +172,19 @@ Metadata conferida novamente em 12/11 às 19:52 UTC, com `decrypt=false`: os tr�
 ## Continuidade do inbox e scanner de estornos
 
 Não há nome novo de configuração. A mesma variável ABACATEPAY_SANDBOX_PROBE_PRODUCT_ID já auditada é obrigatória para atestar o modo antes da varredura global; ausência, id divergente ou devMode=false interrompem o lote antes do extrato. Isso evita confiar apenas no id de loja. Não cadastrar a chave live nessa branch nem relaxar a atestação. O snapshot SQL revisado avançou até0158/120e8195; o candidato permanece fora do journal e não aplicado.
+
+## Composição live preparada após aprovação executiva — 12/11
+
+Nenhuma variável Production foi lida pelo valor ou alterada nesta execução. ABACATEPAY_API_KEY já existe; não precisa de outro nome na Vercel. As seguintes configurações têm agora consumidor no código candidato, para uma futura janela autorizada:
+
+| Nome | Preview/Sandbox | Production futura |
+| --- | --- | --- |
+| ABACATEPAY_ENVIRONMENT | sandbox ou ausente | production, explícito |
+| SAAS_SIGNUP_PROVIDER | abacatepay_sandbox | abacatepay_production somente para aquisição aprovada |
+| ABACATEPAY_PLAN_PRODUCTS | Não usado | JSON com os cinco produtos mensais reais aprovados; nenhum ID Sandbox |
+| ABACATEPAY_NEW_CHECKOUTS_ENABLED | Ausente preserva o comportamento Sandbox; false pausa | true explícito e lista de clínicas válida; false pausa novas obrigações |
+| ABACATEPAY_CHECKOUT_CLINIC_IDS | Lista opcional para o cohort Sandbox | Lista obrigatória, UUIDs únicos, no máximo 100 |
+| ABACATEPAY_STORE_ID | Loja atestada por recurso devMode=true | Loja atestada por recurso devMode=false |
+| ABACATEPAY_WEBHOOK_SECRET | Segredo do webhook Sandbox | Segredo próprio de live, no cofre; nunca copiar do Sandbox |
+
+As variáveis ABACATEPAY_SANDBOX_PLAN_PRODUCTS e ABACATEPAY_SANDBOX_PROBE_PRODUCT_ID permanecem para testes. O produto de atestação live vem do catálogo aprovado; não há nova variável de probe live. Não copiar valores, habilitar modalidade anual ou redeployar Production com base nesta tabela. Uma configuração Production exige novo deployment e os gates da janela; uma chave presente não representa recorrência liberada.

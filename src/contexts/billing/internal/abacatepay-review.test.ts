@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const m = vi.hoisted(() => ({ runtime: vi.fn(), execute: vi.fn() }));
-vi.mock('@/lib/payments/saas/acquisition', () => ({ isAbacatePaySandboxRuntime: m.runtime }));
+vi.mock(import('@/lib/payments/saas/acquisition'), async (importOriginal) => ({
+  ...(await importOriginal()),
+  isAbacatePayRuntime: m.runtime,
+}));
 vi.mock('@/lib/env', () => ({ env: { ABACATEPAY_STORE_ID: 'store_synthetic' } }));
 import { abacatePayReplayInput, listAbacatePayReviews } from './abacatepay-review';
 beforeEach(() => {

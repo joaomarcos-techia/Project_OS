@@ -1,3 +1,4 @@
+import { abacatePayEnvironment } from '@/lib/payments/saas/acquisition';
 import 'server-only';
 
 import { createHash } from 'node:crypto';
@@ -5,7 +6,7 @@ import { sql } from 'drizzle-orm';
 import { z } from 'zod';
 import type { Tx } from '@/lib/db';
 import { env } from '@/lib/env';
-import { isAbacatePaySandboxRuntime } from '@/lib/payments/saas/acquisition';
+import { isAbacatePayRuntime } from '@/lib/payments/saas/acquisition';
 import type { BillingGatewaySql } from '@/lib/payments/saas/postgres-store';
 
 const reviewRow = z.object({
@@ -51,7 +52,7 @@ function fingerprint(row: ReviewRow) {
     .digest('hex');
 }
 function enabled() {
-  return isAbacatePaySandboxRuntime() && Boolean(env.ABACATEPAY_STORE_ID);
+  return isAbacatePayRuntime() && Boolean(env.ABACATEPAY_STORE_ID);
 }
 async function reviews(database: BillingGatewaySql, key?: { accountId: string; eventId: string }) {
   if (!enabled()) return [];
@@ -69,7 +70,7 @@ async function reviews(database: BillingGatewaySql, key?: { accountId: string; e
           AND r.subscription_id=b.subscription_id AND r.clinic_id=b.clinic_id
           AND r.external_subscription_id=e.external_subscription_id AND r.external_customer_id=e.external_customer_id))
     JOIN public.subscriptions s ON s.id=b.subscription_id AND s.clinic_id=b.clinic_id
-    WHERE a.provider='abacatepay' AND a.environment='sandbox' AND a.external_account_id=${env.ABACATEPAY_STORE_ID}
+    WHERE a.provider='abacatepay' AND a.environment=${abacatePayEnvironment()} AND a.external_account_id=${env.ABACATEPAY_STORE_ID}
       AND s.billing_provider='abacatepay' AND s.asaas_subscription_id IS NULL AND e.state='review'
       AND e.event_type IN ('subscription.completed','subscription.renewed','subscription.cancelled',
         'subscription.payment_failed','checkout.refunded','checkout.disputed','checkout.lost')

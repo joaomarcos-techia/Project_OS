@@ -1,3 +1,4 @@
+import { abacatePayEnvironment } from '@/lib/payments/saas/acquisition';
 import 'server-only';
 
 import { createHash } from 'node:crypto';
@@ -6,7 +7,7 @@ import { z } from 'zod';
 import { env } from '@/lib/env';
 import { captureBackgroundError } from '@/lib/observability/capture';
 import { metrics } from '@/lib/observability/metrics';
-import { isAbacatePaySandboxRuntime } from '@/lib/payments/saas/acquisition';
+import { isAbacatePayRuntime } from '@/lib/payments/saas/acquisition';
 import type { ManagementDatabase } from './abacatepay-management';
 import { recordBillingEvent } from './subscriptions';
 
@@ -26,7 +27,7 @@ const candidateSchema = z.object({
 /** A local overdue period is an incident, never evidence that a renewal was paid or lost. */
 export async function observeAbacatePayRenewals(database: ManagementDatabase) {
   const idle = { scanned: 0, due: 0, opened: 0, resolved: 0, deferred: false };
-  if (!isAbacatePaySandboxRuntime() || !env.ABACATEPAY_STORE_ID) return idle;
+  if (!isAbacatePayRuntime() || !env.ABACATEPAY_STORE_ID) return idle;
   const deadline = Date.now() + SCAN_BUDGET_MS;
   const result = await database.transaction(async (tx) => {
     await tx.execute(sql`SET LOCAL lock_timeout='2s'`);
@@ -55,7 +56,7 @@ export async function observeAbacatePayRenewals(database: ManagementDatabase) {
       LEFT JOIN LATERAL (SELECT max(e.created_at) checked_at FROM public.billing_events e
         WHERE e.clinic_id=s.clinic_id AND e.type='subscription.renewal_watch.checked'
           AND e.payload->>'subscriptionId'=s.id::text) checked ON true
-      WHERE a.provider='abacatepay' AND a.environment='sandbox' AND a.external_account_id=${env.ABACATEPAY_STORE_ID}
+      WHERE a.provider='abacatepay' AND a.environment=${abacatePayEnvironment()} AND a.external_account_id=${env.ABACATEPAY_STORE_ID}
         AND s.billing_provider='abacatepay' AND s.asaas_subscription_id IS NULL
         AND s.current_period_end IS NOT NULL
         AND coalesce(r.external_subscription_id,b.external_subscription_id) IS NOT NULL

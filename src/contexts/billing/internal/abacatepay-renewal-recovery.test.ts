@@ -16,7 +16,10 @@ vi.mock('@/lib/env', () => ({
     ABACATEPAY_STORE_ID: 'store_synthetic',
   },
 }));
-vi.mock('@/lib/payments/saas/acquisition', () => ({ isAbacatePaySandboxRuntime: m.runtime }));
+vi.mock(import('@/lib/payments/saas/acquisition'), async (importOriginal) => ({
+  ...(await importOriginal()),
+  isAbacatePayRuntime: m.runtime,
+}));
 vi.mock('@/lib/observability/capture', () => ({ captureBackgroundError: m.capture }));
 vi.mock('@/lib/observability/metrics', () => ({ metrics: { emit: m.emit } }));
 vi.mock('@/lib/payments/abacatepay/reader', () => ({

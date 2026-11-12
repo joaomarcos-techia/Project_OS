@@ -127,3 +127,44 @@ ALTER TABLE billing_gateway.statement_scan_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE billing_gateway.statement_scan_items FORCE ROW LEVEL SECURITY;
 REVOKE ALL ON billing_gateway.statement_scans,billing_gateway.statement_scan_items FROM PUBLIC,anon,authenticated,service_role,qoro_runtime;
 GRANT SELECT,INSERT,UPDATE ON billing_gateway.statement_scans,billing_gateway.statement_scan_items TO service_role;
+
+-- Same private review authorization for explicitly bound live accounts.
+CREATE OR REPLACE FUNCTION billing_gateway.validate_review_replay() RETURNS trigger
+LANGUAGE plpgsql SET search_path=pg_catalog,billing_gateway AS $$
+DECLARE event_row billing_gateway.event_inbox; replay_count integer;
+BEGIN
+  SELECT * INTO event_row FROM billing_gateway.event_inbox
+    WHERE account_id=NEW.account_id AND event_id=NEW.event_id FOR UPDATE;
+  IF NOT FOUND OR event_row.state<>'review' OR event_row.attempts<>NEW.expected_attempts
+    OR event_row.payload_hash<>NEW.payload_hash
+    OR event_row.event_type NOT IN ('subscription.completed','subscription.renewed','subscription.cancelled',
+      'subscription.payment_failed','checkout.refunded','checkout.disputed','checkout.lost')
+    OR (event_row.subscription_id IS NOT NULL AND
+      ROW(event_row.subscription_id,event_row.clinic_id) IS DISTINCT FROM ROW(NEW.subscription_id,NEW.clinic_id)) THEN
+    RAISE EXCEPTION 'Review snapshot changed' USING ERRCODE='23514',CONSTRAINT='gateway_review_snapshot';
+  END IF;
+  IF NOT EXISTS(SELECT 1 FROM public.profiles p WHERE p.id=NEW.requested_by
+      AND p.role='super_admin' AND p.clinic_id IS NULL AND p.ativo AND p.deleted_at IS NULL)
+    OR NOT EXISTS(SELECT 1 FROM billing_gateway.accounts a
+      JOIN billing_gateway.bindings b ON b.account_id=a.id
+      JOIN public.subscriptions s ON s.id=b.subscription_id AND s.clinic_id=b.clinic_id
+      WHERE a.id=NEW.account_id AND a.provider='abacatepay' AND a.environment IN ('sandbox','production')
+        AND s.billing_provider='abacatepay' AND s.asaas_subscription_id IS NULL
+        AND b.subscription_id=NEW.subscription_id AND b.clinic_id=NEW.clinic_id
+        AND ((b.external_subscription_id=event_row.external_subscription_id
+          AND b.external_customer_id=event_row.external_customer_id)
+          OR EXISTS(SELECT 1 FROM billing_gateway.recontracts r WHERE r.account_id=a.id
+            AND r.subscription_id=s.id AND r.clinic_id=s.clinic_id
+            AND r.external_subscription_id=event_row.external_subscription_id
+            AND r.external_customer_id=event_row.external_customer_id))) THEN
+    RAISE EXCEPTION 'Review operator or binding invalid' USING ERRCODE='23514',CONSTRAINT='gateway_review_actor_binding';
+  END IF;
+  SELECT count(*) INTO replay_count FROM billing_gateway.review_replays
+    WHERE account_id=NEW.account_id AND event_id=NEW.event_id AND created_at>now()-interval '24 hours';
+  IF replay_count>=3 THEN
+    RAISE EXCEPTION 'Review replay daily limit reached' USING ERRCODE='23514',CONSTRAINT='gateway_review_daily_limit';
+  END IF;
+  NEW.created_at:=clock_timestamp();
+  RETURN NEW;
+END;
+$$;

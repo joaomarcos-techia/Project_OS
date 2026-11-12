@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+vi.mock('@/lib/payments/saas/acquisition', () => ({ abacatePayEnvironment: () => 'sandbox' }));
 import { PgDialect } from 'drizzle-orm/pg-core';
 import { createHash } from 'node:crypto';
 import type { SQL } from 'drizzle-orm';

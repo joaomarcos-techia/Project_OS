@@ -1,3 +1,8 @@
+import {
+  abacatePayEnvironment,
+  abacatePayPlanProducts,
+  abacatePayProbeProductId,
+} from '@/lib/payments/saas/acquisition';
 import 'server-only';
 import { readConsumedAbacatePayCheckout } from './abacatepay-checkout-closure';
 
@@ -6,12 +11,12 @@ import { sql } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { env } from '@/lib/env';
-import { assertAbacatePaySandboxRuntime } from '@/lib/payments/saas/acquisition';
+import { assertAbacatePayRuntime } from '@/lib/payments/saas/acquisition';
 import {
   createPostgresGatewayOperationJournal,
   type BillingGatewaySql,
 } from '@/lib/payments/saas/postgres-store';
-import { createAbacatePaySandboxCommands } from '@/lib/payments/abacatepay/sandbox-commands';
+import { createAbacatePayCommands } from '@/lib/payments/abacatepay/sandbox-commands';
 
 import { OFFER_2026_PLAN_CODES } from '../proposed-offer';
 import { getAbacatePayManagementContext, type ManagementDatabase } from './abacatepay-management';
@@ -92,13 +97,13 @@ export async function requestAbacatePayPlanChange(
     targetPlanId: string;
   },
 ) {
-  assertAbacatePaySandboxRuntime();
+  assertAbacatePayRuntime();
   for (const id of [input.clinicId, input.requestedBy, input.contractId, input.targetPlanId])
     z.uuid().parse(id);
   if (
     !env.ABACATEPAY_API_KEY ||
     !env.ABACATEPAY_STORE_ID ||
-    !env.ABACATEPAY_SANDBOX_PROBE_PRODUCT_ID ||
+    !abacatePayProbeProductId() ||
     !(await abacatePayPlanChangesReady(database))
   )
     throw new AbacatePayPlanChangeError('unavailable');
@@ -106,7 +111,7 @@ export async function requestAbacatePayPlanChange(
   try {
     mapping = z
       .partialRecord(z.enum(OFFER_2026_PLAN_CODES), z.string().regex(/^prod_[A-Za-z0-9_-]+$/))
-      .parse(JSON.parse(env.ABACATEPAY_SANDBOX_PLAN_PRODUCTS ?? '{}'));
+      .parse(JSON.parse(abacatePayPlanProducts() ?? '{}'));
   } catch {
     throw new AbacatePayPlanChangeError('unavailable');
   }
@@ -177,7 +182,7 @@ export async function requestAbacatePayPlanChange(
   });
   const account = {
     provider: 'abacatepay',
-    environment: 'sandbox',
+    environment: abacatePayEnvironment(),
     accountId: env.ABACATEPAY_STORE_ID,
   } as const;
   const journal = createPostgresGatewayOperationJournal(
@@ -196,11 +201,12 @@ export async function requestAbacatePayPlanChange(
     storeId: env.ABACATEPAY_STORE_ID,
   });
   if (!consumed) throw new AbacatePayPlanChangeError('reconcile_required');
-  const commands = createAbacatePaySandboxCommands(
+  const commands = createAbacatePayCommands(
     {
+      environment: abacatePayEnvironment(),
       apiKey: env.ABACATEPAY_API_KEY,
       storeId: env.ABACATEPAY_STORE_ID,
-      probeProductId: env.ABACATEPAY_SANDBOX_PROBE_PRODUCT_ID,
+      probeProductId: abacatePayProbeProductId(),
     },
     journal,
     fetch,
@@ -260,7 +266,7 @@ export async function getAbacatePayPlanChangeOverview(
     .safeParse(
       (() => {
         try {
-          return JSON.parse(env.ABACATEPAY_SANDBOX_PLAN_PRODUCTS ?? '{}');
+          return JSON.parse(abacatePayPlanProducts() ?? '{}');
         } catch {
           return null;
         }

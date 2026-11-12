@@ -144,6 +144,46 @@ const manifest = {
   databaseWrites: 0,
   otherWorktreeWrites: 0,
 };
+// A frozen manifest identifies reviewed inputs; it does not execute migrations.
+// Old snapshots remain reproducible as review-only packages.
+const frozenPath = 'docs/decoupling/asaas-to-abacatepay/migrations/release-manifest.json';
+let frozenMatch = false;
+try {
+  const frozen = z
+    .object({
+      version: z.literal(1),
+      tissHead: z.string().regex(/^[a-f0-9]{40}$/),
+      financialSql: z.object({ sha256: z.string().regex(/^[a-f0-9]{64}$/) }),
+      financialEntry: z.object({ idx: z.number().int(), tag: z.string(), when: z.number().int() }),
+      productionAuthorized: z.literal(false),
+    })
+    .parse(JSON.parse(await readFile(frozenPath, 'utf8')));
+  if (frozen.tissHead === proof.head) {
+    assert.equal(frozen.financialSql.sha256, sha256(candidate), 'Frozen financial SQL changed');
+    assert.deepEqual(frozen.financialEntry, {
+      idx: proposal?.idx,
+      tag: proposal?.tag,
+      when: proposal?.when,
+    });
+    frozenMatch = true;
+  }
+} catch (error) {
+  if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error;
+}
+const releaseManifest = {
+  ...manifest,
+  status: frozenMatch ? 'FROZEN_FOR_AUTHORIZED_DEV_PREFLIGHT' : manifest.status,
+  frozenMatch,
+  frozenManifest: frozenMatch ? frozenPath : null,
+  journalProposal:
+    frozenMatch && manifest.journalProposal
+      ? { ...manifest.journalProposal, state: 'FROZEN_REVIEWED_INPUTS_DEV_ONLY' }
+      : manifest.journalProposal,
+  financialCandidate: {
+    ...manifest.financialCandidate,
+    journalEntry: frozenMatch ? proposal : null,
+  },
+};
 await mkdir('dist', { recursive: true });
 if (proposal) {
   const directory = `${releaseDirectory}/drizzle/migrations`;
@@ -213,5 +253,8 @@ SELECT count(*) contracts_without_active_owner FROM public.subscriptions s WHERE
 COMMIT;
 `,
 );
-await writeFile('dist/abacatepay-tiss-composition.json', JSON.stringify(manifest, null, 2) + '\n');
-console.log(JSON.stringify(manifest));
+await writeFile(
+  'dist/abacatepay-tiss-composition.json',
+  JSON.stringify(releaseManifest, null, 2) + '\n',
+);
+console.log(JSON.stringify(releaseManifest));

@@ -1,3 +1,4 @@
+import { abacatePayEnvironment } from '@/lib/payments/saas/acquisition';
 import 'server-only';
 
 import { eq, sql } from 'drizzle-orm';
@@ -77,7 +78,11 @@ async function contextForAbacatePayRenewalSource(
   sourceInput: string | AbacatePayRenewalSource,
 ): Promise<Context | null> {
   const source = parseAbacatePayRenewalSource(sourceInput);
-  if (!source || account.provider !== 'abacatepay' || account.environment !== 'sandbox')
+  if (
+    !source ||
+    account.provider !== 'abacatepay' ||
+    !['sandbox', 'production'].includes(account.environment)
+  )
     return null;
   const [context] = z
     .array(contextSchema)
@@ -115,7 +120,7 @@ async function contextForAbacatePayRenewalSource(
       ORDER BY pc.requested_at DESC,pc.id DESC LIMIT 1) applied ON true
     LEFT JOIN billing_gateway.plan_changes pending ON pending.account_id=a.id AND pending.subscription_id=s.id AND pending.clinic_id=s.clinic_id
       AND pending.external_subscription_id=e.external_subscription_id AND pending.invoice_id IS NULL AND pending.from_price_id=s.price_id
-    WHERE a.provider='abacatepay' AND a.environment='sandbox' AND a.external_account_id=${account.accountId}
+    WHERE a.provider='abacatepay' AND a.environment=${account.environment} AND a.external_account_id=${account.accountId}
       AND s.billing_provider='abacatepay' AND s.asaas_subscription_id IS NULL
       AND e.external_checkout_id IS NOT NULL AND e.external_payment_id IS NOT NULL AND e.external_customer_id IS NOT NULL
       AND (e.subscription_id IS NULL OR e.subscription_id=s.id) AND (e.clinic_id IS NULL OR e.clinic_id=s.clinic_id)
@@ -153,7 +158,7 @@ export async function readAbacatePayRenewalForEvent(
   if (!context) return { state: 'review' };
   const read = createAbacatePayReadClient({
     apiKey,
-    environment: 'sandbox',
+    environment: abacatePayEnvironment(),
     timeoutMs: 2000,
     deadlineMs,
   });
@@ -172,7 +177,7 @@ export async function readAbacatePayRenewalForEvent(
     account,
     {
       apiKey,
-      environment: 'sandbox',
+      environment: abacatePayEnvironment(),
       timeoutMs: 2000,
       deadlineMs,
     },

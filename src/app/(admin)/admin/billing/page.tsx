@@ -57,7 +57,7 @@ export default async function BillingPage() {
       />
 
       <Link href="/admin/billing/operacao" className="mb-4 inline-block underline">
-        Conciliação AbacatePay Sandbox
+        Conciliação AbacatePay
       </Link>
 
       <div className="grid grid-cols-2 gap-(--sp-4) lg:grid-cols-3 2xl:grid-cols-5">

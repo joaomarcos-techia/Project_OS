@@ -43,11 +43,7 @@ export function createAbacatePayCheckoutIntegrityReader(
   fetcher: typeof fetch = fetch,
 ) {
   const account = billingAccountSchema.parse(accountInput);
-  if (
-    account.provider !== 'abacatepay' ||
-    account.environment !== 'sandbox' ||
-    config.environment !== 'sandbox'
-  )
+  if (account.provider !== 'abacatepay' || account.environment !== config.environment)
     throw new GatewayReadError('environment_mismatch');
   const read = createAbacatePayReadClient(config, fetcher),
     request = createAbacatePayTransport(config, fetcher);
@@ -72,7 +68,8 @@ export function createAbacatePayCheckoutIntegrityReader(
           await request({ method: 'GET', path: '/subscriptions/list', params }),
         );
         for (const item of response.data) {
-          if (!item.devMode) throw new GatewayReadError('environment_mismatch');
+          if (item.devMode !== (account.environment === 'sandbox'))
+            throw new GatewayReadError('environment_mismatch');
           if (item.checkoutId !== input.checkoutId) throw new GatewayReadError('binding_mismatch');
           const previous = seen.get(item.id);
           if (previous) throw new GatewayReadError('pagination_invalid');

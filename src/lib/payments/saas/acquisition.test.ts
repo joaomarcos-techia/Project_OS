@@ -7,12 +7,18 @@ const config = vi.hoisted(() => ({
   ABACATEPAY_STORE_ID: undefined as string | undefined,
   ABACATEPAY_NEW_CHECKOUTS_ENABLED: true,
   ABACATEPAY_CHECKOUT_CLINIC_IDS: undefined as string | undefined,
+  ABACATEPAY_ENVIRONMENT: undefined as 'sandbox' | 'production' | undefined,
+  ABACATEPAY_PLAN_PRODUCTS: undefined as string | undefined,
 }));
 vi.mock('@/lib/env', () => ({ env: config }));
 import {
   deferredSaasSignupEnabled,
   isAbacatePaySandboxRuntime,
   abacatePayCheckoutAllowed,
+  abacatePayEnvironment,
+  abacatePayProbeProductId,
+  abacatePayPlanProducts,
+  isAbacatePayRuntime,
 } from './acquisition';
 
 afterEach(() => {
@@ -22,11 +28,74 @@ afterEach(() => {
   config.ABACATEPAY_STORE_ID = undefined;
   config.ABACATEPAY_NEW_CHECKOUTS_ENABLED = true;
   config.ABACATEPAY_CHECKOUT_CLINIC_IDS = undefined;
+  config.ABACATEPAY_ENVIRONMENT = undefined;
+  config.ABACATEPAY_PLAN_PRODUCTS = undefined;
 });
 
 describe('deferred acquisition composition', () => {
   const clinic = '11111111-1111-4111-8111-111111111111';
   const other = '22222222-2222-4222-8222-222222222222';
+  function live() {
+    Object.assign(config, {
+      SAAS_SIGNUP_PROVIDER: 'abacatepay_production',
+      ABACATEPAY_ENVIRONMENT: 'production',
+      NODE_ENV: 'production',
+      VERCEL_ENV: 'production',
+      ABACATEPAY_STORE_ID: 'store_live_fixture',
+      ABACATEPAY_PLAN_PRODUCTS: '{"consultorio_2026":"prod_live_fixture"}',
+      ABACATEPAY_CHECKOUT_CLINIC_IDS: clinic,
+    });
+  }
+  it('requires explicit live composition and keeps Sandbox helpers strict', () => {
+    live();
+    expect(abacatePayEnvironment()).toBe('production');
+    expect(deferredSaasSignupEnabled()).toBe(true);
+    expect(isAbacatePaySandboxRuntime()).toBe(false);
+    expect(abacatePayCheckoutAllowed(clinic)).toBe(true);
+    expect(abacatePayCheckoutAllowed(other)).toBe(false);
+    expect(abacatePayProbeProductId()).toBe('prod_live_fixture');
+    expect(abacatePayPlanProducts()).toBe(config.ABACATEPAY_PLAN_PRODUCTS);
+  });
+  it('pauses live acquisitions while preserving bound consumers', () => {
+    live();
+    config.ABACATEPAY_NEW_CHECKOUTS_ENABLED = false;
+    config.SAAS_SIGNUP_PROVIDER = 'asaas';
+    expect(abacatePayCheckoutAllowed(clinic)).toBe(false);
+    expect(deferredSaasSignupEnabled()).toBe(false);
+    expect(isAbacatePayRuntime()).toBe(true);
+  });
+  it('requires a live cohort even with an enabled acquisition flag', () => {
+    live();
+    config.ABACATEPAY_CHECKOUT_CLINIC_IDS = undefined;
+    expect(abacatePayCheckoutAllowed(clinic)).toBe(false);
+  });
+  it.each(['preview', undefined])('never permits live in a non-Production runtime %s', (vercel) => {
+    live();
+    config.VERCEL_ENV = vercel;
+    expect(isAbacatePayRuntime()).toBe(false);
+    expect(abacatePayCheckoutAllowed(clinic)).toBe(false);
+    expect(deferredSaasSignupEnabled).toThrow('configuration unavailable');
+  });
+  it.each(['abacatepay_sandbox', 'abacatepay_production'])(
+    'rejects mismatched acquisition selection %s',
+    (provider) => {
+      live();
+      config.SAAS_SIGNUP_PROVIDER = provider;
+      if (provider === 'abacatepay_production') {
+        config.ABACATEPAY_ENVIRONMENT = undefined;
+        config.VERCEL_ENV = 'preview';
+      }
+      expect(deferredSaasSignupEnabled).toThrow('configuration unavailable');
+    },
+  );
+  it.each([undefined, '{}', '{"consultorio_2026":"bad"}', 'not json'])(
+    'never falls back to a Sandbox probe/catalog for missing live catalog %s',
+    (catalog) => {
+      live();
+      config.ABACATEPAY_PLAN_PRODUCTS = catalog;
+      expect(abacatePayProbeProductId).toThrow('configuration unavailable');
+    },
+  );
   it('stops new checkouts without stopping existing consumers or deferred trial routing', () => {
     Object.assign(config, {
       SAAS_SIGNUP_PROVIDER: 'abacatepay_sandbox',

@@ -16,6 +16,7 @@ Object.assign(process.env, {
   NEXT_PUBLIC_SUPABASE_URL: 'https://test.supabase.co',
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_synthetic_scan',
   LOG_LEVEL: 'error',
+  ABACATEPAY_STORE_ID: 'store_scan_synthetic',
 });
 delete process.env.DATABASE_URL_PROD;
 delete process.env.VERCEL_ENV;
@@ -292,7 +293,7 @@ try {
     );
     await assert.rejects(
       reader(dbAdmin, { ...account, environment: 'production' })(request, criteria(9999)),
-      (e: unknown) => e instanceof GatewayReadError && e.code === 'binding_mismatch',
+      (e: unknown) => e instanceof GatewayReadError && e.code === 'environment_mismatch',
     );
   });
   await check('new records before a saved cursor are found on the next refresh', async () => {

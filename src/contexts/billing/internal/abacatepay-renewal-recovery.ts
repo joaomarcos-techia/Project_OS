@@ -1,3 +1,4 @@
+import { abacatePayEnvironment } from '@/lib/payments/saas/acquisition';
 import 'server-only';
 
 import { randomUUID } from 'node:crypto';
@@ -7,7 +8,7 @@ import type { Tx } from '@/lib/db';
 import { env } from '@/lib/env';
 import { captureBackgroundError } from '@/lib/observability/capture';
 import { metrics } from '@/lib/observability/metrics';
-import { isAbacatePaySandboxRuntime } from '@/lib/payments/saas/acquisition';
+import { isAbacatePayRuntime } from '@/lib/payments/saas/acquisition';
 import { GatewayReadError } from '@/lib/payments/saas/contracts';
 import type { BillingGatewaySql } from '@/lib/payments/saas/postgres-store';
 import type { RecurringPaymentEvidence } from '@/lib/payments/saas/recurring-payment';
@@ -95,7 +96,7 @@ async function candidate(
       AND e.type='subscription.renewal_recovery.checked'
       AND e.payload->>'externalSubscriptionId'=coalesce(r.external_subscription_id,b.external_subscription_id)
       ORDER BY e.created_at DESC,e.id DESC LIMIT 1) checked ON true
-    WHERE a.provider='abacatepay' AND a.environment='sandbox' AND a.external_account_id=${env.ABACATEPAY_STORE_ID}
+    WHERE a.provider='abacatepay' AND a.environment=${abacatePayEnvironment()} AND a.external_account_id=${env.ABACATEPAY_STORE_ID}
       AND s.billing_provider='abacatepay' AND s.asaas_subscription_id IS NULL AND pr.billing_cycle='monthly'
       AND coalesce(r.external_subscription_id,b.external_subscription_id) IS NOT NULL
       AND (s.billing_status IN ('active','past_due') OR (${subscriptionId}::uuid IS NOT NULL AND s.billing_status='cancelled'))
@@ -162,7 +163,7 @@ async function runMissingRenewalRecovery(
     deferred: false,
   };
   if (
-    !isAbacatePaySandboxRuntime() ||
+    !isAbacatePayRuntime() ||
     !env.ABACATEPAY_API_KEY ||
     !env.ABACATEPAY_STORE_ID ||
     !(await abacatePayRenewalRecoveryReady(database))
@@ -197,12 +198,12 @@ async function runMissingRenewalRecovery(
   result.scanned = 1;
   const account = {
     provider: 'abacatepay',
-    environment: 'sandbox',
+    environment: abacatePayEnvironment(),
     accountId: env.ABACATEPAY_STORE_ID,
   } as const;
   const config = {
     apiKey: env.ABACATEPAY_API_KEY,
-    environment: 'sandbox',
+    environment: abacatePayEnvironment(),
     timeoutMs: READ_TIMEOUT_MS,
     readAttempts: 2,
     deadlineMs: deadline,

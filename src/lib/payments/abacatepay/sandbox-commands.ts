@@ -9,7 +9,7 @@ import {
   opaqueBillingId,
   parseBillingValue,
 } from '../saas/contracts';
-import { createAbacatePayReadClient } from './reader';
+import { createAbacatePayReadClient, type AbacatePayReadConfig } from './reader';
 import { createAbacatePayTransport } from './transport';
 
 const prefixedId = (prefix: string) => opaqueBillingId.refine((id) => id.startsWith(prefix));
@@ -73,12 +73,12 @@ const closeResult = z
     closed: z.literal(true),
   })
   .strict();
-const productResult = z.object({
+const productResultShape = z.object({
   id: prefixedId('prod_'),
   externalId,
   price: amount,
   currency: z.literal('BRL'),
-  devMode: z.literal(true),
+  devMode: z.boolean(),
   cycle,
   trialDays: z.number().int().min(1).max(90).nullable(),
 });
@@ -92,11 +92,11 @@ const hostedUrl = z.url().refine((value) => {
     ['app.abacatepay.com', 'pay.abacatepay.com'].includes(url.hostname)
   );
 });
-const checkoutResult = z.object({
+const checkoutResultShape = z.object({
   checkoutId: prefixedId('bill_'),
   externalId,
   amountMinor: z.number().int().nonnegative(),
-  environment: z.literal('sandbox'),
+  environment: z.enum(['sandbox', 'production']),
   state: z.literal('pending'),
   checkoutUrl: hostedUrl,
 });
@@ -114,14 +114,14 @@ const cancelResult = z.object({
   recurrence: z.literal('stopped'),
 });
 const createdId = z.object({ success: z.literal(true), data: z.object({ id: opaqueBillingId }) });
-const checkoutDetails = z.object({
+const checkoutDetailsShape = z.object({
   success: z.literal(true),
   data: z.object({
     id: prefixedId('bill_'),
     frequency: z.literal('SUBSCRIPTION'),
     externalId,
     amount: z.number().int().nonnegative(),
-    devMode: z.literal(true),
+    devMode: z.boolean(),
     status: z.literal('PENDING'),
     customerId: z.null(),
     url: hostedUrl,
@@ -136,14 +136,14 @@ function inputValue<T>(schema: z.ZodType<T>, value: unknown): T {
 }
 
 /**
- * Sandbox homologation only. No production mode, active composition, customer
- * creation, payment simulation, grant or gateway fallback is exposed.
+ * Explicit account composition. No customer creation, payment simulation,
+ * access grant or gateway fallback is exposed.
  * Closing a consumed checkout is explicit, journaled and never retried.
  * Every attempted command requires a durable journal and a fresh environment
  * read. Product/checkout creation does not claim a subscription exists or is paid.
  */
-export function createAbacatePaySandboxCommands(
-  config: { apiKey: string; storeId: string; probeProductId: string; timeoutMs?: number },
+export function createAbacatePayCommands(
+  config: AbacatePayReadConfig & { storeId: string; probeProductId: string | undefined },
   journal: CommandOperationJournal,
   fetcher: typeof fetch = fetch,
   consumedOrigin?: {
@@ -155,12 +155,20 @@ export function createAbacatePaySandboxCommands(
 ) {
   const account = inputValue(billingAccountSchema, {
     provider: 'abacatepay',
-    environment: 'sandbox',
+    environment: config.environment,
     accountId: config.storeId,
   });
   const probeProductId = inputValue(prefixedId('prod_'), config.probeProductId);
   if (!account.accountId.startsWith('store_')) throw new GatewayReadError('invalid_input');
-  const read = createAbacatePayReadClient({ ...config, environment: 'sandbox' }, fetcher);
+  const expectedDevMode = account.environment === 'sandbox';
+  const productResult = productResultShape.extend({ devMode: z.literal(expectedDevMode) });
+  const checkoutResult = checkoutResultShape.extend({
+    environment: z.literal(account.environment),
+  });
+  const checkoutDetails = checkoutDetailsShape.extend({
+    data: checkoutDetailsShape.shape.data.extend({ devMode: z.literal(expectedDevMode) }),
+  });
+  const read = createAbacatePayReadClient(config, fetcher);
   const request = createAbacatePayTransport(config, fetcher);
 
   async function attest(): Promise<void> {
@@ -240,7 +248,7 @@ export function createAbacatePaySandboxCommands(
               success: z.literal(true),
               data: z.object({
                 id: prefixedId('bill_'),
-                devMode: z.literal(true),
+                devMode: z.literal(expectedDevMode),
               }),
             }),
             await request({
@@ -327,7 +335,10 @@ export function createAbacatePaySandboxCommands(
             items: [{ id: product.id, quantity: 1 }],
             methods: ['CARD'],
             externalId: input.externalId,
-            metadata: { qoroSandboxReference: input.externalId },
+            metadata:
+              account.environment === 'sandbox'
+                ? { qoroSandboxReference: input.externalId }
+                : { qoroReference: input.externalId },
             retryPolicy: { maxRetry: 3, retryEvery: 1 },
             ...(input.returnUrl ? { returnUrl: input.returnUrl } : {}),
             ...(input.completionUrl ? { completionUrl: input.completionUrl } : {}),
@@ -354,7 +365,7 @@ export function createAbacatePaySandboxCommands(
             checkoutId: details.id,
             externalId: details.externalId,
             amountMinor: details.amount,
-            environment: 'sandbox',
+            environment: account.environment,
             state: 'pending',
             checkoutUrl: details.url,
           });
@@ -462,7 +473,7 @@ export function createAbacatePaySandboxCommands(
                 id: prefixedId('subs_'),
                 customerId: prefixedId('cust_'),
                 status: z.literal('CANCELLED'),
-                devMode: z.literal(true),
+                devMode: z.literal(expectedDevMode),
               }),
             }),
             await request({
@@ -490,4 +501,24 @@ export function createAbacatePaySandboxCommands(
       });
     },
   };
+}
+
+/** Compatibility seam: a Sandbox caller can never opt into live through config. */
+export function createAbacatePaySandboxCommands(
+  config: { apiKey: string; storeId: string; probeProductId: string; timeoutMs?: number },
+  journal: CommandOperationJournal,
+  fetcher: typeof fetch = fetch,
+  consumedOrigin?: {
+    subscriptionId: string;
+    customerId: string;
+    checkoutId: string;
+    productId: string;
+  },
+) {
+  return createAbacatePayCommands(
+    { ...config, environment: 'sandbox' },
+    journal,
+    fetcher,
+    consumedOrigin,
+  );
 }

@@ -15,7 +15,10 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock('@/lib/env', () => ({ env: mocks.env }));
 vi.mock('@/lib/db', () => ({ dbAdmin: {} }));
-vi.mock('@/lib/payments/saas/acquisition', () => ({ assertAbacatePaySandboxRuntime: mocks.guard }));
+vi.mock(import('@/lib/payments/saas/acquisition'), async (importOriginal) => ({
+  ...(await importOriginal()),
+  assertAbacatePayRuntime: mocks.guard,
+}));
 vi.mock('@/lib/payments/saas/postgres-store', async (importOriginal) => {
   const actual = await importOriginal<typeof PostgresStore>();
   return {
