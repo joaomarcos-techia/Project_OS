@@ -21412,5 +21412,163 @@
     "productionDecision": "NO_GO: compatible release/schema/consumer not authorized; R1-R4 not accepted; final TISS composition must treat R51",
     "otherWorktreeWrites": 0,
     "productionWrites": 0
+  },
+  "finalConsolidation20261113": {
+    "observedAt": "2026-11-13T21:37:54.616Z",
+    "baseline": {
+      "financial": "1078332d2808bb4cd5393f7659774c9e4707619c",
+      "tiss": "a04a153586d6557bb0cd71306516a6e978dc4375",
+      "ui": "e47ec2f0101cd7b9b220d1c72f94495fe4ee8073"
+    },
+    "early01": {
+      "homologation": "PASS_SANDBOX_INITIAL_EARLY_CONVERSION",
+      "proofKey": "earlyPaymentAndHydration20261113",
+      "newPayments": 0,
+      "newFixtures": 0,
+      "closureRepeated": false
+    },
+    "renewalObservation": {
+      "observedAt": "2026-11-13T21:21:11.148Z",
+      "runId": "d2d0e84d-059b-4b29-9074-f3305a3fc97f",
+      "verifiedInitialRuntimeSha": "dc95caa4eb15827049f27d2e7e6c00994017f17d",
+      "environment": "sandbox",
+      "observationStatus": "PASS",
+      "state": "awaiting_next_cycle",
+      "providerStatus": "ACTIVE",
+      "officialNextChargeDate": "2026-12-13",
+      "qoroPaidPeriodEnd": "2026-12-13T17:44:27.418Z",
+      "nextChargeDateInferred": false,
+      "closureConfirmed": true,
+      "recordedCycles": 0,
+      "externalTemporalRenewal": "PARTIAL",
+      "accessEffect": "none",
+      "providerMutations": 0,
+      "databaseWrites": 0,
+      "cycles": [],
+      "inbox": [
+        {
+          "type": "subscription.completed",
+          "state": "applied",
+          "count": 1
+        }
+      ],
+      "newCheckouts": 0,
+      "paymentsExecuted": 0,
+      "nextAction": "retain_fixture_and_observe_natural_cycle"
+    },
+    "closureAndLifecycle": {
+      "environment": "loopback_synthetic",
+      "status": "PASS",
+      "checks": 131,
+      "externalNetworkCalls": 0,
+      "newCases": [
+        {
+          "name": "LIVE failure during pre-command reads is quarantined without POST or starving the next paid link",
+          "status": "PASS"
+        },
+        {
+          "name": "LIVE a worker crash after reservation never replays its command or blocks a later generation",
+          "status": "PASS"
+        }
+      ],
+      "proofSha256": "aaa3c16bab1e555e6e39d6f19c8ff73063a24f83a360371ab423a82857b14f33",
+      "initialRun": "FAIL: Docker Engine stopped; no external command; 131-check retest PASS after starting installed runtime",
+      "liveCommands": 0
+    },
+    "r51": {
+      "deployment": "dpl_HvDg8AxSmmuGCuLQy747iycWP5JK",
+      "sha": "a04a153586d6557bb0cd71306516a6e978dc4375",
+      "comparison": {
+        "status": "COMPLETE",
+        "cases": 17,
+        "bufferedLoads": 4,
+        "errors": [
+          {
+            "width": 390,
+            "buffered": true,
+            "action": "direct",
+            "categories": [
+              "react418_hydration"
+            ]
+          }
+        ]
+      },
+      "instrumented": {
+        "status": "COMPLETE",
+        "cases": 13,
+        "captures": 0
+      },
+      "rootCause": "NOT_ESTABLISHED",
+      "parentNodeReproduced": false,
+      "ownerAcknowledgement": "NOT_OBSERVED",
+      "sharedDashboardRisk": "NOT_PROVEN_ISOLATED_TO_TISS"
+    },
+    "composition": {
+      "observedAt": "2026-11-13T21:19:51.444Z",
+      "financial": "1078332d2808bb4cd5393f7659774c9e4707619c",
+      "tiss": "a04a153586d6557bb0cd71306516a6e978dc4375",
+      "frozenSqlRef": "4d0ed1d5c8a81ab9f66e026f4f36c6e4520a7269",
+      "projectedTree": "bcde4b55844128f8e9aa25671133638f005b12d8",
+      "directory": "dist/abacatepay-code-1078332d-a04a1535",
+      "conflicts": [
+        "docs/security/acoes.md",
+        "drizzle/migrations/meta/_journal.json",
+        "scripts/arch-db-check.ts"
+      ],
+      "patches": [
+        "tiss-ledger-integration.patch",
+        "tiss-composition-harness.patch"
+      ],
+      "journalEntries": 160,
+      "financialSqlSha256": "eb00a4e3dd45f89e7eef4dc2c95c577e7932f1f2131d5bfb4ff8f5e4570f5c74",
+      "mergePerformed": false,
+      "databaseWrites": 0,
+      "otherWorktreeWrites": 0,
+      "state": "EXPORTED_REQUIRES_TYPES_LINT_BUILD_AND_REGRESSION",
+      "preview": {
+        "status": "CREATED",
+        "id": "dpl_9gRnLSXHFpqdkLV74F1CCqMV3s6x",
+        "url": "https://project-j0oqx6f43-clinic-os-v2-s-projects.vercel.app",
+        "target": "preview",
+        "source": "1078332d+a04a1535",
+        "previewVariables": [
+          "ABACATEPAY_API_KEY",
+          "ABACATEPAY_STORE_ID",
+          "ABACATEPAY_SANDBOX_PROBE_PRODUCT_ID",
+          "ABACATEPAY_SANDBOX_PLAN_PRODUCTS",
+          "ABACATEPAY_WEBHOOK_SECRET"
+        ],
+        "productionVariablesRead": 0,
+        "productionWrites": 0,
+        "persistentVariablesChanged": 0,
+        "newCheckoutsEnabled": false
+      },
+      "validation": "SEE_CURRENT_PR_CHECKS_AND_FOLLOWUP_EVIDENCE"
+    },
+    "vercelAudit": {
+      "observedAt": "2026-11-13T21:33:30.280Z",
+      "mode": "metadata_only_decrypt_false_no_values_requested_or_persisted",
+      "variables": 57,
+      "valuesExposed": false,
+      "configurationChanges": 0
+    },
+    "production": {
+      "observedAt": "2026-11-13T21:28:00.558Z",
+      "scope": "Read-only public Production alias metadata; no environment values",
+      "deploymentId": "dpl_2gHasgxKuWkFY8ct1w56VLeHDhQP",
+      "sha": "5620a0987ec53db7d7358728eb7d457d9d373df3",
+      "branch": "main",
+      "target": "production",
+      "readyState": "READY",
+      "productionWrites": 0
+    },
+    "riskAcceptance": {
+      "R1": false,
+      "R2": false,
+      "R3": false,
+      "R4": false
+    },
+    "productionDecision": "NO_GO",
+    "otherWorktreeWrites": 0
   }
 }

@@ -21,7 +21,7 @@ assert.equal(git('rev-parse', financial).trim(), financial);
 assert.equal(git('rev-parse', tiss).trim(), tiss);
 const manifest = z
   .object({
-    tissHead: z.literal(tiss),
+    tissHead: z.string().regex(/^[a-f0-9]{40}$/),
     financialSql: z.object({ sha256: z.string() }),
   })
   .parse(
@@ -32,10 +32,18 @@ const manifest = z
       ),
     ),
   );
+// A later source release can reuse the frozen SQL only if the entire migration
+// tree is identical. Never rewrite the approved manifest to follow a moving PR.
+git('merge-base', '--is-ancestor', manifest.tissHead, tiss);
+assert.equal(
+  git('diff', '--name-only', manifest.tissHead, tiss, '--', 'drizzle/migrations').trim(),
+  '',
+  'TISS schema changed after the frozen release; coordinate a new manifest first',
+);
 const inputs = z
   .object({
     frozenMatch: z.literal(true),
-    source: z.object({ tissRef: z.literal(tiss) }),
+    source: z.object({ tissRef: z.literal(manifest.tissHead) }),
     journalProposal: z.object({
       directory: z.string().regex(/^dist\/abacatepay-tiss-release-158-[a-f0-9]{8}$/),
     }),
@@ -126,6 +134,7 @@ const report = {
   observedAt: new Date().toISOString(),
   financial,
   tiss,
+  frozenSqlRef: manifest.tissHead,
   projectedTree: tree,
   directory: relative,
   conflicts,

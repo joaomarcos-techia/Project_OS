@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 200 actions (0 inline); 66 métodos em 62 handlers; 19 props com referência de action; 532 acessos diretos a process.env; 10 nomes NEXT_PUBLIC.
+Contagem: 200 actions (0 inline); 66 métodos em 62 handlers; 19 props com referência de action; 536 acessos diretos a process.env; 10 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -410,6 +410,10 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/abacatepay-checkout-operator.ts:426`              | `<object>`                             | `process.env`                                                               |
 | `scripts/abacatepay-checkout-operator.ts:552`              | `<dynamic>`                            | `process.env[key]`                                                          |
 | `scripts/abacatepay-checkout-operator.ts:552`              | `<dynamic>`                            | `process.env[key]`                                                          |
+| `scripts/abacatepay-observe-renewal.ts:54`                 | `LOCALAPPDATA`                         | `process.env.LOCALAPPDATA`                                                  |
+| `scripts/abacatepay-observe-renewal.ts:64`                 | `<object>`                             | `process.env`                                                               |
+| `scripts/abacatepay-observe-renewal.ts:72`                 | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
+| `scripts/abacatepay-observe-renewal.ts:73`                 | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                                                    |
 | `scripts/abacatepay-readonly-check.ts:17`                  | `ABACATEPAY_API_KEY`                   | `process.env.ABACATEPAY_API_KEY`                                            |
 | `scripts/abacatepay-sandbox-draft.ts:74`                   | `LOCALAPPDATA`                         | `process.env.LOCALAPPDATA`                                                  |
 | `scripts/activate-offer-extras-preview-dev.ts:20`          | `E2E_OFFER_DEV_ACTIVATION`             | `process.env.E2E_OFFER_DEV_ACTIVATION`                                      |

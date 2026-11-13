@@ -1,6 +1,6 @@
 # Operação e recuperação AbacatePay
 
-**Checkpoint operacional vigente: fechamento/rotação/piloto13/11 ao final e relatório§53.** Seções antigas são evidência histórica, não ordens para repetir aplicação DEV ou pagamentos.
+**Checkpoint vigente: observação de renovação abaixo e relatório§56. EARLY-01 já paga e encerrada; não repetir create, fechamento ou pagamento.** Seções antigas são evidência histórica, não ordens para repetir aplicação DEV ou pagamentos.
 
 ## Incremento operacional de12/11 — contenção e escala
 
@@ -533,3 +533,30 @@ Após o fechamento, o GET do checkout apagado pode não estar disponível. Porta
 Idempotência desta geração: reapresentação interna dos mesmos IDs/hash retornou duplicate; worker e recuperação não reaplicaram nada; snapshot inalterado. Não se fez replay HTTP assinado do provedor nem falha artificial no banco compartilhado. As provas isoladas dessas falhas continuam referenciadas no relatório.
 
 Incidente R51 permanece aberto: erro #418 reproduzido no dashboard da Preview TISS a04a1535, sem demonstrar Production afetada. Não suprimir erros. A correção de ambiente Sentry já existe no PR53 e precisa ser preservada na composição com o PR55; a causa de hidratação exige investigação própria. As 22 verificações de navegação/logout na Preview financeira sem pageerror são uma amostra, não prova de eliminação do R51.
+
+## Observação segura da próxima renovação EARLY-01 — vigente em13/11
+
+**Apenas para o operador técnico. Não pagar, recriar, fechar novamente ou cancelar esta fixture.** O código abaixo usa somente GET do provedor e transações SQL READ ONLY. Não precisa abrir navegador, descriptografar a senha de teste ou copiar chaves. Usa a chave **Sandbox** já existente no arquivo local; recusa Production e qualquer manifesto não verificado.
+
+No PowerShell, execute estas duas linhas separadamente:
+
+```powershell
+Set-Location 'C:\dev\Qoro_billing_abacatepay_20261107'
+node --use-env-proxy --use-system-ca --conditions=react-server --import tsx scripts/abacatepay-observe-renewal.ts --session next-checkout-earlypayment-20261113
+```
+
+Resultado comprovado13/11: `observationStatus=PASS`, `state=awaiting_next_cycle`, `officialNextChargeDate=2026-12-13`, `recordedCycles=0`, `closureConfirmed=true`. O período Qoro termina13/12 às17:44:27.418UTC; **a API informou só a data da cobrança, sem garantir horário ou sucesso**. O relatório sanitizado fica em `dist/abacatepay-renewal-observation-d2d0e84d-059b-4b29-9074-f3305a3fc97f.json`; o manifesto privado original não muda.
+
+Agenda proposta: executar uma leitura em12/12, outra em13/12 e após a chegada de evento/aviso. Não instalar tarefa recorrente nem depender de processo permanente para conceder acesso. Os crons reais de inbox/watch/scanner são a automação do produto e precisam estar publicados/operacionais no ambiente autorizado; o observador é uma prova separada. A existência de cron no repositório/Preview não prova execução agendada em Production.
+
+| Resultado | Ação segura |
+|---|---|
+| `awaiting_next_cycle` | Preservar fixture e aguardar; ACTIVE/data futura não são renovação paga |
+| `due_unobserved` (saída2) | Verificar inbox/recibo/extrato pelos fluxos existentes; abrir incidente no canal configurado; não prorrogar acesso manualmente |
+| `renewal_recorded_requires_external_review` | Conferir novo payment.id, invoice paga, período, cota e prova do provider/statement. Registrar observação natural separada da simulação; o observador não concede PASS temporal sozinho |
+| `recurrence_stopped` | Conferir cancelamento documentado, manter direitos até o fim pago; não reativar ou pagar por conta própria |
+| `review_required` / `BLOCKED` | Conferir motivo sanitizado e vínculos. Se mudança concorrente, repetir **somente leitura**. Nunca executar create/POST por causa de erro do observador |
+
+Se houver webhook tardio ou ausente, usar a recuperação/inbox e revisão com MFA já documentadas neste runbook, preservando conta/ambiente/payment.id/ciclo. Não inserir comprovantes manualmente, alterar datas, zerar tentativas ou reaplicar um evento applied. Refund/disputa preservam acesso até fim pago e exigem revisão, conforme decisão comercial anterior.
+
+Fechamento automático:131 cenários PostgreSQL PASS no incremento, incluindo crash e falha antes do POST sem duplicidade. Limite atual1geração/tick, deadline20s; reserva running/unknown exige revisão e não é retomada às cegas. Backlog10 consome no mínimo10ticks elegíveis; monitorar idade da fila, operações pendentes, heartbeat outbox, Redis/429/circuito e entrega do alerta. Isso não é SLA de Vercel/AbacatePay. Nenhuma regra/canal Sentry comprovado precisa ser configurado ou testado de novo por este incremento.

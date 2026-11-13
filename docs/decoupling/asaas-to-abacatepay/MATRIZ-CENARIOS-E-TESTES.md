@@ -460,3 +460,24 @@ Substitui apenas o estado corrente acima; histórico preservado. Evidência: rel
 | G20 | PASS código dc95caa4 | CI43457077686:7161 testes/22E2E semSKIP;17 testes de observabilidade repetidos PASS. Conferir checks do commit documental final |
 | UI/Sentry R51 | FAIL reproduzido; causa PARTIAL | #418 no dashboard TISS a04a1535; não reproduzido nas repetições do SHA exato. Financeiro dc95:22 verificações de navegação/logout sem pageerror. Mapeamento Sentry corrigido no PR53, ainda ausente do PR55 |
 | G21/G22/G24/G26–G28 | Preservados; NO-GO live | Nenhum SQL/runtime/deploy alterado nesta rodada; composição final deve incluir classificação Sentry correta e tratar R51. Sem novo pagamento solicitado |
+
+### Consolidação vigente — relatório56
+
+Esta tabela substitui somente o checkpoint corrente; as evidências anteriores e as cinco compras iniciais ficam preservadas. Não pedir outro pagamento EARLY-01.
+
+| Gates | Estado e ambiente | Evidência / requisito restante |
+|---|---|---|
+|G01–G07|PASS Sandbox/local delimitado|Cinco contratações e EARLY-01 preservadas; nenhuma compra repetida ou segundo trial. Cotas1médico/3administrativos da fixture paga|
+|G08/G09|PASS técnico local; PARTIAL externo|Observador read-only novo: próxima cobrança oficial13/12/2026, ACTIVE, zero ciclo; só observar o ciclo natural pode ampliar a prova externa|
+|G10|PASS anterior preservado|Scanner/cursor PostgreSQL sem novo SQL; não confundir com scanner publicado em Production|
+|G11/G14|PASS local131 checks; closure Sandbox anterior PASS|Novos testes de crash e falha pré-comando sem POST/replay, outra geração prossegue. Automático Production NOT RUN; R1 não aceito|
+|G12/G13/G23|PASS local; PARTIAL externo|Ciclo de vida incluído nos131; sem alterar cotas antes de renovação paga nem simular estorno externo como real|
+|G15/G16|PASS isolado preservado; PARTIAL alvo|Sem novo SLA.1closure/tick e20s de deadline;10links exigem no mínimo10ticks. Redis/429/backlog e scheduler precisam de observação autorizada|
+|G17/G18|PASS anterior preservado|Sem novo tenant/conta, sem repetir MFA, sem desabilitar isolamento|
+|G19|PASS canais anterior; PARTIAL financeiro live|Alertas Preview e ed622a74 já entregues; nenhum probe repetido. Consumidor/cron live ainda não implantados|
+|G20|Baseline1078332d CI PASS; incremento conforme checks do HEAD|67 dirigidos e tipos/lint PASS; CI/build do incremento são provas próprias, não herança automática de7161/22|
+|G21/G22|Composição atual exportada; validação conforme evidência|Financeiro1078332d+TISSa04a1535, SQL idêntico à cauda aprovada; nenhuma migration reaplicada. Preview dpl_9gRnLSXHFpqdkLV74F1CCqMV3s6x criado não significa homologado|
+|G24|PARTIAL; ativação depende de janela|Catálogo/segredo preparados; Production5620a098 preservada, sem webhook ativo para endpoint incompatível|
+|G25|PASS histórico preservado|Auxiliar Vercel removido anteriormente com GET404; nenhuma nova remoção, custo residual não medido|
+|G26/G27/G28|BLOCKED D / NO-GO live|Faltam responsáveis/cohort, tratamento expresso deR1–R4 e autorização Production. Nenhuma cobrança real ou merge|
+|UI/R51|FAIL reproduzido / causa PARTIAL|Novo#418 em carga mobile TISS com resposta coletada integralmente;16cargas+logout.13casos instrumentados sem reprodução não encerram o incidente compartilhado|

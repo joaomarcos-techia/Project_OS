@@ -3324,6 +3324,53 @@ try {
       },
     );
     await check(
+      'LIVE failure during pre-command reads is quarantined without POST or starving the next paid link',
+      async () => {
+        const failed = await seed(),
+          posts = closurePosts,
+          before = await state(failed);
+        installHttpFixture(failed, { fail: true, close: 'success' });
+        await assert.rejects(
+          () => reconcileAbacatePayLiveCheckoutClosures(dbAdmin, Date.now() + 20000),
+          { code: 'operation_unknown' },
+        );
+        assert.equal(closurePosts, posts);
+        assert.deepEqual(await state(failed), before);
+        const next = await seed();
+        installHttpFixture(next, { close: 'success' });
+        assert.deepEqual(
+          await reconcileAbacatePayLiveCheckoutClosures(dbAdmin, Date.now() + 20000),
+          { scanned: 1, closed: 1 },
+        );
+        assert.equal(closurePosts - posts, 1);
+        const [reserved] = await sql`SELECT state FROM billing_gateway.operations
+          WHERE subscription_id=${failed.subscription_id}::uuid AND kind='close_paid_checkout'`;
+        assert.equal(reserved?.state, 'unknown');
+      },
+    );
+    await check(
+      'LIVE a worker crash after reservation never replays its command or blocks a later generation',
+      async () => {
+        const crashed = await seed(),
+          posts = closurePosts,
+          before = await state(crashed);
+        await sql`INSERT INTO billing_gateway.operations(account_id,operation_id,subscription_id,clinic_id,kind,business_key,request_hash,state)
+          VALUES(${crashed.account_id}::uuid,${randomUUID()}::uuid,${crashed.subscription_id}::uuid,
+          ${crashed.clinicId}::uuid,'close_paid_checkout',${crashed.evidence.originCheckoutId},${'a'.repeat(64)},'running')`;
+        const next = await seed();
+        installHttpFixture(next, { close: 'success' });
+        assert.deepEqual(
+          await reconcileAbacatePayLiveCheckoutClosures(dbAdmin, Date.now() + 20000),
+          { scanned: 1, closed: 1 },
+        );
+        assert.equal(closurePosts - posts, 1);
+        assert.deepEqual(await state(crashed), before);
+        const [reserved] = await sql`SELECT state FROM billing_gateway.operations
+          WHERE subscription_id=${crashed.subscription_id}::uuid AND kind='close_paid_checkout'`;
+        assert.equal(reserved?.state, 'running');
+      },
+    );
+    await check(
       'LIVE synthetic renewal applies once and refuses a Sandbox account for the same store',
       async () => {
         const f = await seed();

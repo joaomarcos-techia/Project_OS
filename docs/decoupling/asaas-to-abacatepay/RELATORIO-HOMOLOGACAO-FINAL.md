@@ -1,8 +1,8 @@
-> **Estado corrente — janela técnica13/11 concluída:** catálogo live5/5, cinco configurações novas com checkoutsfalse e alerta Production ed622a74 entregue. Release/migrations/checkout live não executados; endpoint financeiro atual404. Fixture de conversão antecipada preparada sem checkout. Ver relatório§54 e authorizedWindowHomologation no JSON canônico. Os checkpoints anteriores são históricos.
+> **Estado corrente: seção 56. EARLY-01 homologada, paga e encerrada no Sandbox; não repetir a compra.** Observador de renovação implementado e executado sem escritas: próxima cobrança oficial13/12/2026, zero ciclos novos. Fechamento/renovação131 checks PostgreSQL PASS. R51 reproduzido novamente no TISS. Production sem novo release/migration/ativação financeira. Seções anteriores são histórico, não pagamentos ou comandos pendentes.
 
 # Homologação financeira AbacatePay — Qoro
 
-**Checkpoint corrente: seção 53 — composição atual, fechamento automático live preparado, rotação e piloto.** As seções anteriores são histórico. Os resultados externos iniciais permanecem válidos; a renovação natural não recebeu PASS.
+**Checkpoint corrente: seção 56 — consolidação após EARLY-01.** Os resultados externos iniciais permanecem válidos; a renovação natural não recebeu PASS.
 
 Iniciado em **09/11/2026**, antes das alterações desta rodada. **As seções 1–8 preservam o checkpoint H0 anterior à implementação; as seções 9–25 registram o fechamento diferencial.** Referência para futura ativação, **não autorização de Produção**. Este relatório consolida os [planos existentes](PLANO-MESTRE-MIGRACAO-ASAAS-ABACATEPAY.md), o [diário](PLANO-EXECUCAO-CONTINUIDADE.md), a [renovação](PLANO-CONTINUIDADE-RENOVACAO-E-HOMOLOGACAO.md) e a [matriz financeira](MATRIZ-CENARIOS-E-TESTES.md); não os substitui por regras comerciais novas.
 
@@ -1328,3 +1328,39 @@ Sentry API de issue/latest retornou401; os sourcemaps pareados aos main-app chun
 EARLY-01: **PASS delimitado** para pagamento antecipado, aplicação real, período, cotas, UI e idempotência; fechamento Sandbox controlado comprovado. Automático live e renovação externa permanecem PARTIAL. R51: **FAIL de hidratação reproduzido / causa PARTIAL**, com encaminhamento ao PR55; `parentNode` atual não foi reproduzido. Dados detalhados, comandos e separação das provas no JSON canônico, chave `earlyPaymentAndHydration20261113`.
 
 Nenhuma migration, mudança de runtime/configuração/CI, contrato real, merge, deploy Production ou nova cobrança real nesta rodada. Quatro remoções anteriores de vídeos continuam fora do commit. PR53 e PR55 em draft. **NO-GO para ativação financeira em Production** até consumidor/schema compatíveis, R1–R4 tratados, responsáveis/cohort definidos e autorização específica; a composição final também deve tratar o R51. Não pedir novo pagamento para repetir EARLY-01.
+
+## 56. Consolidação EARLY-01 e observação reutilizável — 13/11/2026
+
+Baseline confirmado: PR53 OPEN/draft em1078332d, CI43505580904 SUCCESS com7161 testes/22E2E semSKIP; PR55 OPEN/draft ema04a153586d6557bb0cd71306516a6e978dc4375. Os quatro vídeos removidos anteriormente foram preservados fora dos commits. **EARLY-01 é PASS de contratação antecipada Sandbox** no runtime dc95caa4: o conjunto financeiro e as22 navegações do§55 permanecem congelados. Nenhuma compra, conta, cobrança, closure ou ativação foi repetida.
+
+### A. Observador real de renovação, sem mutações
+
+Implementados `scripts/abacatepay-observe-renewal.ts` e a classificação testada em `scripts/abacatepay-renewal-observation.ts`. Reutilizam manifesto verificado, marker do usuário sintético, loja por hash, vínculo completo, conexão DEV guardada, client central e reader Sandbox. Apenas GET e transações REPEATABLE READ/READ ONLY; sem senha, sessão de navegador, comando financeiro, replay ou alteração de direitos. A observação antes/depois dos GETs precisa ser idêntica; alteração concorrente exige repetir somente a leitura.
+
+Execução real em21:21:11UTC: ACTIVE/CARD, próxima cobrança oficial `2026-12-13`, período Qoro até `2026-12-13T17:44:27.418Z`, closure confirmada, zero ciclos novos, um completed aplicado. Resultado `awaiting_next_cycle`; data oficial não foi inferida do período do app. **Isso não comprova que a renovação ocorrerá nem antecipa PASS externo.** O observador identifica duplicidade/inconsistência de receipts/invoices, acesso estendido sem ciclo e status desconhecido como revisão. Ciclo registrado localmente ainda exige conferência externa; não substitui os readers financeiros/worker existentes.67 testes do observador/manifesto PASS, incluindo15 casos novos. Nenhuma variável de serviço nova.
+
+### B. Fechamento automático:131 checks PostgreSQL PASS
+
+O harness existente recebeu dois cenários: falha nos GETs anteriores ao comando, sem POST e sem bloquear outro link pago; crash com reserva running preservada, sem novo POST para aquela obrigação e sem impedir outra geração. Rodaram funções reais, journal/CAS e Redis Docker, PostgreSQL migrado e HTTP de provedor sintético: **131/131 PASS, zero rede externa**. Falha de readback após reserva fica unknown para revisão; não se promete retry automático quando não há garantia de ausência de efeito. Assinatura/invoice/período permaneceram intactos.
+
+O primeiro ensaio interrompeu antes desses cenários porque o Docker Engine estava desligado; foi iniciado o Docker existente, sem instalação/configuração nova. Reteste integral passou. O PASS é de execução automática **local com ambiente live sintético**, não de command live. Mantidos limite1closure/tick, deadline20s e nenhum processo permanente. Capacidade máxima de admissão1/minuto, quando o scheduler e demais dependências funcionam, não é SLA; pico10 exige ao menos10ticks e requisições/limites reais podem ampliar a fila. Não aumentar concorrência pelo resultado sintético.
+
+**Divergência documental externa:** em13/11 a [referência atual de assinaturas](https://docs.abacatepay.com/pages/cobrar/assinaturas) passou a afirmar que o checkout pago não aceita outro pagamento. Isso contradiz a resposta anterior do suporte registrada no projeto. Não tratar a mudança textual como prova do comportamento da loja/versão, nem retirar closure/inbox/tenant guards. R1 continua residual sem aceite; nenhuma segunda compra para sondar o link.
+
+### C. R51: reprodução adicional, sem patch especulativo
+
+No mesmo TISS a04a1535:16 cargas/recargas+logout,1440/390,pt-BR/Tóquio, uma ocorrência de#418 na carga mobile com resposta HTML integralmente coletada antes da entrega pelo Playwright. As demais12 entregas preservaram streaming normal; isso não isola a causa nem desliga o parser do navegador. Ensaio seguinte com debugger pausando exceções:12 cargas mobile+logout, zero falhas/capturas. Não reproduzido parentNode. A instrumentação pode mudar o timing; ausência nessa amostra não encerra o incidente. Nenhum conteúdo clínico, HTML bruto, cookie ou senha foi guardado.
+
+Não é possível classificar R51 como exclusivamente TISS apenas pelo host: dashboard/shell também são usados pela operação essencial. Os22 casos financeiros anteriores sem erro não provam ausência de regressão compartilhada. O encaminhamento ao PR55 está publicado, mas não houve resposta/novo HEAD até a conferência. Sourcemaps/API permanecem nas limitações descritas no§55. Dono: responsável TISS/UI para seu release; engenharia financeira para a composição. Sem worktree paralelo alterado ou correção concorrente.
+
+### D. Composição e configuração
+
+Nova exportação isolada: financeiro1078332d + TISSa04a1535. A árvore SQL TISS permanece idêntica à cauda congelada4d0ed1d; o exportador passou a aceitar somente descendentes com **zero diff em toda a árvore de migrations**, mantendo o manifesto aprovado intacto. Os três conflitos conhecidos foram resolvidos só na cópia pelo procedimento existente. Não há novo SQL ou reaplicação0159. Trabalho TISS ainda não commitado foi excluído da composição.
+
+Preview composto criado com aquisição desligada: `dpl_9gRnLSXHFpqdkLV74F1CCqMV3s6x`, [origem imutável](https://project-j0oqx6f43-clinic-os-v2-s-projects.vercel.app). Criação não equivale a READY ou homologação; conferir os resultados do build e navegação do checkpoint de evidências. A tipagem local da cópia foi interrompida por pressão de memória do host; não foi contada como PASS. Tipos/lint do incremento financeiro passaram. Inventário oficial regenerado:536 referências, zero guard/variável pública/teste de rota pendente. Build/CI do commit final devem ser conferidos nos [checks do PR53](https://github.com/joaomarcos-techia/Project_OS/pull/53/checks); o baseline7161 não é atribuído ao incremento sem executar.
+
+Production lida em21:28UTC: mesmo deployment dpl_2gHasgxKuWkFY8ct1w56VLeHDhQP, SHA5620a098, READY. Nenhuma variável, webhook, dado, contrato, deployment ou migration Production alterado. Catálogo/segredo/alerta live anteriores preservados; consumidor, journal composto e cron financeiro ainda dependem da janela autorizada. Não apontar entrega ativa para endpoint ausente.
+
+### E. Decisão de prontidão
+
+GO limitado às provas Sandbox iniciais/EARLY-01 e aos ensaios locais indicados. R1–R4 não aceitos. Renovação natural e mudança de cota efetivada em ciclo seguinte permanecem PARTIAL externo; manter fixture. Próximos atos humanos: decisão delimitada de riscos e responsáveis/cohort do piloto **depois** dos gates de composição/R51, mais autorização específica para Production. Não há novo pagamento Sandbox solicitado.
