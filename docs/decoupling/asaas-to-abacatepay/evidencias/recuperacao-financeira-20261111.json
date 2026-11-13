@@ -21569,6 +21569,207 @@
       "R4": false
     },
     "productionDecision": "NO_GO",
-    "otherWorktreeWrites": 0
+    "otherWorktreeWrites": 0,
+    "followup": {
+      "observedAt": "2026-11-13T22:23:29.309Z",
+      "financialCodeSha": "c2431ab79a34e52c58650f578654d5771e43db06",
+      "financialRuntimeDiffSinceEarly01": {
+        "sourceChanged": false,
+        "packageChanged": false,
+        "sqlChanged": false,
+        "addedSourceTests": 2
+      },
+      "toolingFix": {
+        "status": "PASS",
+        "reason": "zero-context patch inserted a harness assertion inside SQL after TISS source moved",
+        "failedPreview": "dpl_4dk5QKXViGyPtSwU9mcr4cEtCxyg",
+        "correction": "context-required patches plus TypeScript syntax gate before export",
+        "unitTests": 3,
+        "syntheticScheduleCollision": "deterministic sequence replaces random fixture slot only in composition harness patch",
+        "otherWorktreeChanges": 0
+      },
+      "composition": {
+        "observedAt": "2026-11-13T22:10:24.419Z",
+        "financial": "c2431ab79a34e52c58650f578654d5771e43db06",
+        "tiss": "30126efff8aec0aa8284fceb908e3e49e0a892da",
+        "frozenSqlRef": "4d0ed1d5c8a81ab9f66e026f4f36c6e4520a7269",
+        "projectedTree": "e1dff476c15ec5b871cf56569c30d40a1d830a76",
+        "directory": "dist/abacatepay-code-c2431ab7-30126eff",
+        "conflicts": [
+          "docs/security/acoes.md",
+          "drizzle/migrations/meta/_journal.json",
+          "scripts/arch-db-check.ts"
+        ],
+        "patches": [
+          "tiss-ledger-integration.patch",
+          "tiss-composition-harness.patch"
+        ],
+        "journalEntries": 160,
+        "financialSqlSha256": "eb00a4e3dd45f89e7eef4dc2c95c577e7932f1f2131d5bfb4ff8f5e4570f5c74",
+        "mergePerformed": false,
+        "databaseWrites": 0,
+        "otherWorktreeWrites": 0,
+        "state": "BUILD_AND_DIRECTED_REGRESSION_AND_STRICT_BROWSER_PASS",
+        "preview": {
+          "status": "CREATED",
+          "id": "dpl_4kk22srPhRSRBZAq4aCmE1F8A5i3",
+          "url": "https://project-9tgdeqhy2-clinic-os-v2-s-projects.vercel.app",
+          "target": "preview",
+          "source": "c2431ab7+30126eff",
+          "previewVariables": [
+            "ABACATEPAY_API_KEY",
+            "ABACATEPAY_STORE_ID",
+            "ABACATEPAY_SANDBOX_PROBE_PRODUCT_ID",
+            "ABACATEPAY_SANDBOX_PLAN_PRODUCTS",
+            "ABACATEPAY_WEBHOOK_SECRET"
+          ],
+          "productionVariablesRead": 0,
+          "productionWrites": 0,
+          "persistentVariablesChanged": 0,
+          "newCheckoutsEnabled": false,
+          "readyState": "READY",
+          "metadataPinsVerified": true,
+          "signedRuntimeDevProof": true
+        },
+        "regression": {
+          "unitTestsPassed": 778,
+          "testFilesPassed": 51,
+          "preexistingXmlCorpusSkipped": 3,
+          "newSkippedTests": 0,
+          "credentialPostgresChecks": 7,
+          "coveragePostgresChecks": 13,
+          "providerMutations": 0,
+          "sharedDevMigrations": 0,
+          "productionMigrations": 0,
+          "logHashes": {
+            "units": "25e921a6ac1b52c5fddc0adbc4a4ebfea0d99841e14991c530752df44cb2040f",
+            "credentials": "fcb95f1814a1b7d3f0035989e0ea6eb779d77e1786f54ddd56e3449d12af99ea",
+            "coverage": "dd6d6f5dce4be1c6779e3726b4675744d76b1bbe6faf0432fa49c041d96de90e"
+          }
+        },
+        "browser": {
+          "status": "PASS",
+          "cases": 26,
+          "authenticatedDashboardNavigations": 20,
+          "paidSubscriptionReads": 4,
+          "logoutGuards": 2,
+          "widths": [
+            1440,
+            390
+          ],
+          "timezones": [
+            "Asia/Tokyo",
+            "America/Sao_Paulo"
+          ],
+          "locale": "pt-BR",
+          "pageErrors": 0,
+          "assertions": [
+            "expected route",
+            "tenant shell",
+            "visible main h1",
+            "single html/body",
+            "no error boundary",
+            "no overflow",
+            "paid state",
+            "logout denial"
+          ],
+          "newFixtures": 0,
+          "newCheckouts": 0,
+          "payments": 0,
+          "proofSha256": "6a37f63becec9a4e8630dcb6c9daa7cbbe26698bb318e2b649e9aaff0329294f",
+          "provesRareHydrationBugResolved": false,
+          "provesAuthenticatedTissJourney": false
+        }
+      },
+      "browserEvidenceCorrection": {
+        "original107PlusA04": {
+          "observations": 26,
+          "pageErrors": 0,
+          "headingsNotReadyAtCapture": 4,
+          "classification": "navigation observations only; not 26 fully ready page assertions"
+        },
+        "correctedC243Plus061": {
+          "status": "BLOCKED",
+          "completedPaidReads": 1,
+          "reason": "TimeoutError; no product root cause established"
+        },
+        "initialC243Plus301": {
+          "observations": 26,
+          "headingsNotReadyAtCapture": 1,
+          "classification": "superseded by strict readiness retest; original retained"
+        }
+      },
+      "r51AdditionalExperiments": {
+        "cacheEnabled": {
+          "cases": 15,
+          "errors": 0
+        },
+        "throwBreakpoint": {
+          "cases": 17,
+          "captures": 0,
+          "errors": 0
+        },
+        "reproduced418StillOpen": true,
+        "parentNodeReproduced": false,
+        "rootCause": "NOT_ESTABLISHED",
+        "ownerAcknowledgement": "NOT_OBSERVED",
+        "handoff": "https://github.com/joaomarcos-techia/Project_OS/pull/55#issuecomment-6866090429",
+        "sharedDashboardIsolation": "NOT_PROVEN",
+        "suppressionAdded": false
+      },
+      "ci": {
+        "codeSha": "c2431ab79a34e52c58650f578654d5771e43db06",
+        "runId": "43516219770",
+        "conclusion": "SUCCESS",
+        "url": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/43516219770",
+        "testFilesPassed": 634,
+        "testsPassed": 7179,
+        "e2ePassed": 22,
+        "e2eSkipped": 0,
+        "semgrep": "SUCCESS",
+        "snyk": "SUCCESS",
+        "finalDocumentationCommit": "SEE_PR_CHECKS",
+        "logSha256": "4dc766796d1e1b9664c98de22d2c3cac22597eedaad1f9f5f32905aa0d549cc5",
+        "vercel": "SUCCESS"
+      },
+      "providerContractDrift": {
+        "checkedAt": "2026-11-13",
+        "subscriptionReference": "https://docs.abacatepay.com/pages/cobrar/assinaturas",
+        "webhookReference": "https://docs.abacatepay.com/pages/webhooks/events/subscriptions",
+        "documentsNowSayPaidLinkCannotBeRepaid": true,
+        "documentsNowUseOriginalCheckoutInRenewals": true,
+        "differsFromHistoricalSupport": true,
+        "runtimeSupportsBothCheckoutShapesWithAuthoritativePaymentProof": true,
+        "newExternalFinancialProof": false,
+        "riskAcceptanceChanged": false
+      },
+      "liveReadback": {
+        "status": "BLOCKED_NETWORK_TIMEOUT",
+        "httpResponseReceived": false,
+        "catalogRevalidated": false,
+        "earlierAuthorizedCatalogProofPreserved": true,
+        "mutations": 0
+      },
+      "production": {
+        "observedAt": "2026-11-13T22:22:29.2972266Z",
+        "deploymentId": "dpl_2gHasgxKuWkFY8ct1w56VLeHDhQP",
+        "sha": "5620a0987ec53db7d7358728eb7d457d9d373df3",
+        "branch": "main",
+        "target": "production",
+        "readyState": "READY",
+        "productionWrites": 0
+      },
+      "newPayments": 0,
+      "newFixtures": 0,
+      "otherWorktreeWrites": 0,
+      "technicalDecision": "PASS_PROVEN_BILLING_SCOPES; SHARED_HYDRATION_GATE_OPEN",
+      "productionDecision": "NO_GO",
+      "riskAcceptance": {
+        "R1": false,
+        "R2": false,
+        "R3": false,
+        "R4": false
+      }
+    }
   }
 }

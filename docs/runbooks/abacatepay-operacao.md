@@ -560,3 +560,13 @@ Agenda proposta: executar uma leitura em12/12, outra em13/12 e após a chegada d
 Se houver webhook tardio ou ausente, usar a recuperação/inbox e revisão com MFA já documentadas neste runbook, preservando conta/ambiente/payment.id/ciclo. Não inserir comprovantes manualmente, alterar datas, zerar tentativas ou reaplicar um evento applied. Refund/disputa preservam acesso até fim pago e exigem revisão, conforme decisão comercial anterior.
 
 Fechamento automático:131 cenários PostgreSQL PASS no incremento, incluindo crash e falha antes do POST sem duplicidade. Limite atual1geração/tick, deadline20s; reserva running/unknown exige revisão e não é retomada às cegas. Backlog10 consome no mínimo10ticks elegíveis; monitorar idade da fila, operações pendentes, heartbeat outbox, Redis/429/circuito e entrega do alerta. Isso não é SLA de Vercel/AbacatePay. Nenhuma regra/canal Sentry comprovado precisa ser configurado ou testado de novo por este incremento.
+
+### Pin atual de composição — execução local, não publicação
+
+Em13/11 a cópia revisada é financeiro `c2431ab79a34e52c58650f578654d5771e43db06` + TISS `30126efff8aec0aa8284fceb908e3e49e0a892da`. Diretório `dist/abacatepay-code-c2431ab7-30126eff`, Preview [dpl_4kk22srPhRSRBZAq4aCmE1F8A5i3](https://project-9tgdeqhy2-clinic-os-v2-s-projects.vercel.app), build READY e aquisição fechada. As exportações mais antigas deste documento são históricas. Não fazer merge/publicar por esses comandos. O estado completo está no relatório§56G e no checkpoint canônico.
+
+O exportador exige patches com contexto e checagem sintática antes de concluir. Não usar `--unidiff-zero`: a evolução do harness TISS já causou inserção dentro de template SQL. Se um patch não casar, interromper e revisar o diff; não aceitar deslocamento por número de linha nem ignorar erros. Checagem sintática não substitui tipos/lint/build e regressão.
+
+O navegador de composição deve aguardar o conteúdo esperado, além do shell, e reprovar qualquer pageerror. A observação antiga de26 navegações sem erro não comprovava h1 pronto em todas as capturas; preservada e corrigida no relatório. A conta EARLY-01 retida já serve ao readback pago; não criar conta ou pagar novamente para testar navegação.
+
+As referências atuais do provedor divergem de respostas históricas sobre uso único do checkout e ID original nas renovações. Preservar closure, inbox e correlação por novo payment.id/período/receipt. Não retirar controles por mudança de texto da documentação. Nova cobrança, API avulsa ou data artificial não substitui observação natural do segundo ciclo.

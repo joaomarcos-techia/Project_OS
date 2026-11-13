@@ -1,8 +1,8 @@
-> **Estado corrente — janela técnica13/11 concluída:** catálogo live5/5, cinco configurações novas com checkoutsfalse e alerta Production ed622a74 entregue. Release/migrations/checkout live não executados; endpoint financeiro atual404. Fixture de conversão antecipada preparada sem checkout. Ver relatório§54 e authorizedWindowHomologation no JSON canônico. Os checkpoints anteriores são históricos.
+> **Estado corrente — consolidação13/11, relatório§56:** EARLY-01 paga, ativada e encerrada pelo operador no Sandbox, sem nova compra pendente. Janela técnica anterior: catálogo live5/5, cinco configurações novas com checkoutsfalse e alerta Production ed622a74 entregue. Release/migrations/checkout live não executados; endpoint financeiro publicado ainda404. Novo inventário somente de nomes/escopos:57 referências, zero alteração. Os checkpoints anteriores são históricos.
 
 # Auditoria das variáveis Vercel — integração financeira
 
-**Estado vigente: checkpoint13/11 ao final.** Produção não foi configurada; há um nome novo opcional apenas para rotação de segredo. Afirmações antigas de ausência de variáveis novas são históricas.
+**Estado vigente: checkpoint13/11 ao final.** A janela técnica anterior salvou cinco configurações Production com aquisição desativada; isso não publicou consumidores nem autorizou nova obrigação. Afirmações antigas de ausência de variáveis/configuração live são históricas.
 
 ## Estado operacional atual — 12/11/2026
 

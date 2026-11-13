@@ -475,8 +475,8 @@ Esta tabela substitui somente o checkpoint corrente; as evidências anteriores e
 |G15/G16|PASS isolado preservado; PARTIAL alvo|Sem novo SLA.1closure/tick e20s de deadline;10links exigem no mínimo10ticks. Redis/429/backlog e scheduler precisam de observação autorizada|
 |G17/G18|PASS anterior preservado|Sem novo tenant/conta, sem repetir MFA, sem desabilitar isolamento|
 |G19|PASS canais anterior; PARTIAL financeiro live|Alertas Preview e ed622a74 já entregues; nenhum probe repetido. Consumidor/cron live ainda não implantados|
-|G20|Baseline1078332d CI PASS; incremento conforme checks do HEAD|67 dirigidos e tipos/lint PASS; CI/build do incremento são provas próprias, não herança automática de7161/22|
-|G21/G22|Composição atual exportada; validação conforme evidência|Financeiro1078332d+TISSa04a1535, SQL idêntico à cauda aprovada; nenhuma migration reaplicada. Preview dpl_9gRnLSXHFpqdkLV74F1CCqMV3s6x criado não significa homologado|
+|G20|PASS CI do código c2431ab7; checks documentais no PR|Run43516219770:7179/634 e22E2E semSKIP, build/tipos/lint/segurança. Semgrep/Snyk/Vercel PASS|
+|G21/G22|PASS build, regressões e navegador do pin|Financeiroc2431ab7+TISS30126eff; journal160/hash SQL preservados; Preview dpl_4kk22srPhRSRBZAq4aCmE1F8A5i3 READY.778 testes/3SKIP antigos,7 credenciamento e13 cobertura PostgreSQL PASS.26 verificações estritas desktop/mobile/Tóquio/SãoPaulo sem erro. Nenhum SQL remoto; R51 não encerrado por amostragem|
 |G24|PARTIAL; ativação depende de janela|Catálogo/segredo preparados; Production5620a098 preservada, sem webhook ativo para endpoint incompatível|
 |G25|PASS histórico preservado|Auxiliar Vercel removido anteriormente com GET404; nenhuma nova remoção, custo residual não medido|
 |G26/G27/G28|BLOCKED D / NO-GO live|Faltam responsáveis/cohort, tratamento expresso deR1–R4 e autorização Production. Nenhuma cobrança real ou merge|
