@@ -21,11 +21,12 @@ type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'soft';
 function useRunner() {
   const router = useRouter();
   const [pending, start] = useTransition();
-  const runAction = (fn: () => Promise<ActionResult<unknown>>, success: string, after?: () => void) =>
+  const runAction = (fn: () => Promise<ActionResult<unknown>>, success: string, after?: () => void, describe = false) =>
     start(async () => {
       const r = await fn();
       if (r.ok) {
-        toast.success(success);
+        // `describe`: a ação devolve o resultado em texto (ex.: cobrança não criada e por quê).
+        toast.success(success, describe && typeof r.data === 'string' ? r.data : undefined);
         after?.();
         router.refresh();
       } else {
@@ -41,15 +42,18 @@ export function ActionButton({
   success,
   action,
   variant = 'secondary',
+  describe = false,
 }: {
   label: string;
   success: string;
   action: () => Promise<ActionResult<unknown>>;
   variant?: Variant;
+  /** Mostra o texto devolvido pela ação junto do aviso (o resultado real, não só "pedido feito"). */
+  describe?: boolean;
 }) {
   const { pending, runAction } = useRunner();
   return (
-    <Button type="button" size="sm" variant={variant} disabled={pending} onClick={() => runAction(action, success)}>
+    <Button type="button" size="sm" variant={variant} disabled={pending} onClick={() => runAction(action, success, undefined, describe)}>
       {pending ? 'Aguarde…' : label}
     </Button>
   );

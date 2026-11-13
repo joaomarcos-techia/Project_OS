@@ -497,12 +497,14 @@ test('gestora: lote → XML validado no XSD → enviado → protocolo → em an�
   if (await has('Gerar e validar XML')) {
     await s.page.getByRole('button', { name: 'Gerar e validar XML' }).click();
     await toast(s.page, 'XML gerado e validado');
+    await visit(s, journey.batchUrl!);
   }
   if (await has('Marcar como enviado')) {
     await s.page.getByRole('button', { name: 'Marcar como enviado' }).click();
     await s.page.getByLabel('Como o lote foi enviado').fill('Enviado pelo portal da operadora sintética, comprovante de teste');
     await s.page.getByRole('button', { name: 'Confirmar' }).click();
-    await toast(s.page, /enviado/iu);
+    await toast(s.page, 'Envio registrado');
+    await visit(s, journey.batchUrl!);
   }
   if (await has('Registrar protocolo')) {
     await s.page.getByRole('button', { name: 'Registrar protocolo' }).click();
@@ -516,6 +518,7 @@ test('gestora: lote → XML validado no XSD → enviado → protocolo → em an�
     });
     await s.page.getByRole('button', { name: 'Registrar', exact: true }).click();
     await toast(s.page, 'Protocolo registrado');
+    await visit(s, journey.batchUrl!);
   }
   await s.page.getByRole('button', { name: 'Operadora iniciou a análise' }).click();
   await toast(s.page, 'Lote em análise');
@@ -542,7 +545,7 @@ test('gestora: glosa parcial → análise → contestação → recurso com XML 
     await s.page.getByLabel('Código da glosa (tabela 38)').fill('1705');
     await s.page.getByLabel('Valor glosado (R$)').fill('30,00');
     await s.page.getByRole('button', { name: 'Registrar', exact: true }).click();
-    await toast(s.page, /glosa/iu);
+    await toast(s.page, 'Glosa registrada');
     expect(await visit(s, journey.guideUrl!)).toBe(200);
   }
   await act('Analisar', 'Glosa em análise');
@@ -659,7 +662,7 @@ test('coparticipação: recepção confere R$ 45,00, gestora confirma; só esse 
   await expect(s.page.getByText('R$ 45,00').first()).toBeVisible();
   await s.page.getByRole('button', { name: 'Gerar link de cobrança' }).first().click();
   // Sem conta Asaas ativa nesta clínica sintética: nada é cobrado, receba no Caixa.
-  await toast(s.page, /conta Asaas|Pedido registrado/u);
+  await toast(s.page, 'A clínica não tem conta Asaas ativa; receba no Caixa.');
   if (SHOTS) await s.page.screenshot({ path: `${SHOTS}/cfg-13-coparticipacao.png`, fullPage: true });
   expect(s.errors).toEqual([]);
   await s.context.close();

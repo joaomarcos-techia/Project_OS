@@ -121,10 +121,10 @@ export default async function ConciliacaoPage() {
                 <span className="tabular-nums">{brl(c.chargeableCents)}</span>
                 <span>{{"confirmed":"confirmada, a cobrar","charged":"cobrança enviada","paid":"paga","refunded":"estornada"}[c.status as 'confirmed'] ?? c.status}</span>
                 {access.canManage && c.status === 'confirmed' ? (
-                  <ActionButton label="Gerar link de cobrança" success="Pedido registrado" action={requestCopayChargeAction.bind(null, { copaymentId: c.id })} />
+                  <ActionButton describe label="Gerar link de cobrança" success="Pedido de cobrança processado" action={requestCopayChargeAction.bind(null, { copaymentId: c.id })} />
                 ) : null}
                 {access.canManage && c.status === 'charged' ? (
-                  <ActionButton label="Atualizar situação" success="Situação atualizada" variant="ghost" action={syncCopayChargeAction.bind(null, { copaymentId: c.id })} />
+                  <ActionButton describe label="Atualizar situação" success="Situação atualizada" variant="ghost" action={syncCopayChargeAction.bind(null, { copaymentId: c.id })} />
                 ) : null}
               </li>
             ))}
