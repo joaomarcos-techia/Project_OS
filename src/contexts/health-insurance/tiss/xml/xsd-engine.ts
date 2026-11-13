@@ -70,6 +70,25 @@ export interface XsdEngineOptions {
   maxConcurrency?: number;
   /** Validações esperando vaga (padrão 32); acima disso, `busy`. */
   maxQueue?: number;
+  /**
+   * R41: workers PERSISTENTES com o `.wasm` compilado uma vez e uma instância NOVA (memória e
+   * estado novos) por validação. Padrão ligado; `false` (ou `TISS_XSD_POOL=off`) volta ao
+   * worker novo por validação — chave de desligamento operacional.
+   */
+  pooled?: boolean;
+  /** Validações por worker antes de reciclá-lo (padrão 200). */
+  maxJobsPerWorker?: number;
+  /** Worker ocioso é encerrado depois disto (padrão 60 s); o processo nunca fica preso a ele. */
+  idleMs?: number;
+}
+
+/** Contadores do pool (observabilidade e prova de reaproveitamento). */
+export interface XsdPoolStats {
+  spawned: number;
+  jobs: number;
+  recycled: number;
+  discarded: number;
+  live: number;
 }
 
 export interface XsdValidation {
@@ -91,6 +110,8 @@ export interface TissXsdEngine {
   readonly schemaVersion: string;
   readonly schemaSetSha256: string;
   validate(xml: { bytes: Uint8Array }): Promise<XsdValidation>;
+  /** Contadores do pool (null com o pool desligado). */
+  poolStats(): XsdPoolStats | null;
 }
 
 interface InputFile {
@@ -158,7 +179,7 @@ export function loadSchemaSet(schemaDir: string): SchemaSet {
 }
 
 /** Localiza o worker do pacote e confere versão e SHA-256 (o `.wasm` fica ao lado dele). */
-export function resolveXmllint(packageDir?: string): { workerPath: string; version: string } {
+export function resolveXmllint(packageDir?: string): { workerPath: string; version: string; wasm: Buffer } {
   const bases = [packageDir ?? process.cwd()];
   // Só fora de produção: worktrees de desenvolvimento podem apontar para uma instalação isolada.
   if (!packageDir && process.env.NODE_ENV !== 'production' && process.env.TISS_XMLLINT_WASM_DIR) {
@@ -187,7 +208,8 @@ export function resolveXmllint(packageDir?: string): { workerPath: string; versi
     if (version !== XMLLINT_PIN.version || sha256(wasm) !== XMLLINT_PIN.wasmSha256 || sha256(worker) !== XMLLINT_PIN.workerSha256) {
       throw new XsdEngineError('integrity', `xmllint-wasm ${version} não confere com a versão aprovada (${XMLLINT_PIN.version})`);
     }
-    return { workerPath: path.join(dir, 'xmllint-node.js'), version };
+    // Os bytes CONFERIDOS seguem junto: o pool compila exatamente estes (sem reler o arquivo).
+    return { workerPath: path.join(dir, 'xmllint-node.js'), version, wasm };
   }
   throw new XsdEngineError('unavailable', 'xmllint-wasm não está instalado no app');
 }
@@ -255,6 +277,184 @@ export function runXmllintWorker(
   });
 }
 
+
+/**
+ * Worker PERSISTENTE (R41). Carrega a fábrica Emscripten do pacote (o mesmo `xmllint-node.js`
+ * conferido por SHA-256) e, a cada validação, cria uma INSTÂNCIA NOVA do módulo já compilado
+ * (`instantiateWasm`), com memória nova: nada de uma validação sobrevive para a próxima (nem
+ * entre clínicas). Os XSD chegam uma vez (`workerData`); cada job traz só o XML. Saída do
+ * parser não vai para o log. Mensagens com chave própria (a do pacote é ignorada).
+ */
+const POOL_WORKER_SOURCE = [
+  "const { parentPort, workerData } = require('node:worker_threads');",
+  'const factory = require(workerData.modulePath);',
+  "parentPort.on('message', (job) => {",
+  "  if (!job || job.k !== 'qoro-xsd') return;",
+  "  let stderr = '';",
+  '  let done = false;',
+  "  const reply = (exitCode) => { if (done) return; done = true; parentPort.postMessage({ k: 'qoro-xsd', id: job.id, exitCode, stderr }); };",
+  '  let memory;',
+  "  try { memory = new WebAssembly.Memory({ initial: job.initialMemory, maximum: job.maxMemory }); }",
+  "  catch (e) { stderr = 'out of memory'; reply(9); return; }",
+  '  factory({',
+  '    inputFiles: [{ fileName: job.xmlName, contents: job.xml }, ...workerData.schemaFiles],',
+  '    arguments: job.args,',
+  '    wasmMemory: memory,',
+  '    print() {},',
+  "    printErr(text) { stderr += text + '\\n'; },",
+  '    onExit(code) { reply(code); },',
+  "    onAbort(reason) { stderr += 'WASM Abort: ' + reason; reply(-1); },",
+  '    instantiateWasm(imports, receive) {',
+  '      WebAssembly.instantiate(workerData.wasmModule, imports).then((inst) => receive(inst, workerData.wasmModule), () => reply(-2));',
+  '      return {};',
+  '    },',
+  '  }).catch(() => reply(-2));',
+  '});',
+].join('\n');
+
+interface PoolJobPayload {
+  xml: Uint8Array;
+  args: string[];
+  initialMemory: number;
+  maxMemory: number;
+}
+
+interface PooledWorker {
+  worker: Worker;
+  jobs: number;
+  idleTimer: ReturnType<typeof setTimeout> | null;
+  current: {
+    id: number;
+    resolve: (o: WorkerOutcome) => void;
+    reject: (e: Error) => void;
+    timer: ReturnType<typeof setTimeout>;
+  } | null;
+}
+
+/**
+ * Pool de workers persistentes com limites claros: no máximo um job por worker (o semáforo do
+ * motor limita quantos ao mesmo tempo); prazo por job (estourou = worker ENCERRADO e descartado);
+ * heap JS limitado por worker; erro, saída inesperada ou abort = worker descartado; reciclagem
+ * depois de N jobs; worker ocioso encerrado (e `unref`: nunca segura o processo). Nenhum estado
+ * de negócio aqui: perder a instância (serverless) só custa a subida de outro worker.
+ */
+export class XsdWorkerPool {
+  private readonly idle: PooledWorker[] = [];
+  private readonly live = new Set<PooledWorker>();
+  private nextId = 1;
+  private readonly counters = { spawned: 0, jobs: 0, recycled: 0, discarded: 0 };
+
+  constructor(
+    private readonly opts: {
+      source: string;
+      workerData: Record<string, unknown>;
+      heapMb: number;
+      timeoutMs: number;
+      maxJobsPerWorker: number;
+      idleMs: number;
+    },
+  ) {}
+
+  stats(): XsdPoolStats {
+    return { ...this.counters, live: this.live.size };
+  }
+
+  private spawn(): PooledWorker {
+    const worker = new Worker(this.opts.source, {
+      eval: true,
+      workerData: this.opts.workerData,
+      resourceLimits: { maxOldGenerationSizeMb: this.opts.heapMb, maxYoungGenerationSizeMb: 16 },
+      // stdout/stderr do worker NÃO vão para o log do processo (o parser pode ecoar conteúdo).
+      stdout: true,
+      stderr: true,
+    });
+    worker.unref();
+    const pw: PooledWorker = { worker, jobs: 0, idleTimer: null, current: null };
+    this.counters.spawned += 1;
+    this.live.add(pw);
+    worker.on('message', (data: { k?: string; id?: number; exitCode?: number; stderr?: string }) => {
+      const job = pw.current;
+      if (!job || !data || data.k !== 'qoro-xsd' || data.id !== job.id) return;
+      clearTimeout(job.timer);
+      pw.current = null;
+      pw.jobs += 1;
+      const exitCode = Number(data.exitCode);
+      // Abort ou falha da instância: o job falha e o worker sai do pool (estado incerto).
+      if (exitCode < 0) this.discard(pw);
+      else this.release(pw);
+      job.resolve({ exitCode, stderr: String(data.stderr ?? '') });
+    });
+    worker.on('error', (error: Error & { code?: string }) => {
+      const job = pw.current;
+      this.discard(pw);
+      if (job) {
+        clearTimeout(job.timer);
+        job.reject(
+          error.code === 'ERR_WORKER_OUT_OF_MEMORY'
+            ? new XsdEngineError('memory', 'validação XSD excedeu o limite de memória do worker')
+            : new XsdEngineError('engine_failure', 'o motor XSD falhou ao iniciar ou executar'),
+        );
+      }
+    });
+    worker.on('exit', () => {
+      const job = pw.current;
+      this.discard(pw);
+      if (job) {
+        clearTimeout(job.timer);
+        job.reject(new XsdEngineError('engine_failure', 'o motor XSD terminou sem resultado'));
+      }
+    });
+    return pw;
+  }
+
+  private release(pw: PooledWorker): void {
+    if (!this.live.has(pw)) return;
+    if (pw.jobs >= this.opts.maxJobsPerWorker) {
+      this.counters.recycled += 1;
+      this.discard(pw);
+      return;
+    }
+    pw.idleTimer = setTimeout(() => this.discard(pw), this.opts.idleMs);
+    pw.idleTimer.unref();
+    this.idle.push(pw);
+  }
+
+  private discard(pw: PooledWorker): void {
+    if (!this.live.delete(pw)) return;
+    this.counters.discarded += 1;
+    if (pw.idleTimer) clearTimeout(pw.idleTimer);
+    const i = this.idle.indexOf(pw);
+    if (i >= 0) this.idle.splice(i, 1);
+    pw.current = null;
+    void pw.worker.terminate().catch(() => undefined);
+  }
+
+  run(payload: PoolJobPayload): Promise<WorkerOutcome> {
+    const pw = this.idle.pop() ?? this.spawn();
+    if (pw.idleTimer) {
+      clearTimeout(pw.idleTimer);
+      pw.idleTimer = null;
+    }
+    this.counters.jobs += 1;
+    const id = this.nextId++;
+    return new Promise<WorkerOutcome>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        // Prazo estourado: o worker é ENCERRADO (pode estar preso no parser) e descartado.
+        pw.current = null;
+        this.discard(pw);
+        reject(new XsdEngineError('timeout', `validação XSD excedeu ${this.opts.timeoutMs} ms`));
+      }, this.opts.timeoutMs);
+      pw.current = { id, resolve, reject, timer };
+      pw.worker.postMessage({ k: 'qoro-xsd', id, xmlName: XML_NAME, ...payload });
+    });
+  }
+
+  /** Encerra todos os workers (testes e desligamento). */
+  close(): void {
+    for (const pw of [...this.live]) this.discard(pw);
+  }
+}
+
 class Semaphore {
   private active = 0;
   private readonly waiting: Array<() => void> = [];
@@ -286,7 +486,7 @@ class Semaphore {
  */
 export function createTissXsdEngine(opts: XsdEngineOptions = {}): TissXsdEngine {
   const schemas = loadSchemaSet(opts.schemaDir ?? path.join(process.cwd(), TISS_SCHEMA_DIR));
-  const { workerPath, version } = resolveXmllint(opts.packageDir);
+  const { workerPath, version, wasm } = resolveXmllint(opts.packageDir);
   const timeoutMs = opts.timeoutMs ?? 30_000;
   const maxXmlBytes = opts.maxXmlBytes ?? 16 * 1024 * 1024;
   const maxMemoryPages = opts.maxMemoryPages ?? 2048;
@@ -294,9 +494,31 @@ export function createTissXsdEngine(opts: XsdEngineOptions = {}): TissXsdEngine 
   const gate = new Semaphore(opts.maxConcurrency ?? 2, opts.maxQueue ?? 32);
   const engine = `xmllint-wasm@${version}`;
   const base = { engine, schemaVersion: schemas.version, schemaSetSha256: schemas.sha256 };
+  const pooled = opts.pooled ?? process.env.TISS_XSD_POOL !== 'off';
+  // O módulo é compilado UMA vez, sob demanda, dos bytes já conferidos por SHA-256.
+  let pool: Promise<XsdWorkerPool> | null = null;
+  let poolReady: XsdWorkerPool | null = null;
+  const getPool = (): Promise<XsdWorkerPool> =>
+    (pool ??= WebAssembly.compile(new Uint8Array(wasm))
+      .then((wasmModule) => {
+        poolReady = new XsdWorkerPool({
+          source: POOL_WORKER_SOURCE,
+          workerData: { modulePath: workerPath, wasmModule, schemaFiles: [schemas.entry, ...schemas.preload] },
+          heapMb,
+          timeoutMs,
+          maxJobsPerWorker: opts.maxJobsPerWorker ?? 200,
+          idleMs: opts.idleMs ?? 60_000,
+        });
+        return poolReady;
+      })
+      .catch((error: unknown) => {
+        pool = null;
+        throw new XsdEngineError('engine_failure', `o .wasm do motor não compilou: ${error instanceof Error ? error.message.slice(0, 80) : 'erro'}`);
+      }));
 
   return {
     ...base,
+    poolStats: () => (poolReady ? poolReady.stats() : pooled ? { spawned: 0, jobs: 0, recycled: 0, discarded: 0, live: 0 } : null),
     async validate({ bytes }) {
       const started = performance.now();
       const envelope = checkTissEnvelope(bytes, { version: schemas.version, maxBytes: maxXmlBytes });
@@ -312,17 +534,21 @@ export function createTissXsdEngine(opts: XsdEngineOptions = {}): TissXsdEngine 
       }
       await gate.acquire();
       try {
-        const out = await runXmllintWorker(
-          workerPath,
-          {
-            [MESSAGE_KEY]: true,
-            inputFiles: [{ fileName: XML_NAME, contents: bytes }, schemas.entry, ...schemas.preload],
-            args: ['--schema', schemas.entry.fileName, '--noout', '--nonet', XML_NAME],
-            initialMemory: Math.min(256, maxMemoryPages),
-            maxMemory: maxMemoryPages,
-          },
-          { timeoutMs, heapMb },
-        );
+        const args = ['--schema', schemas.entry.fileName, '--noout', '--nonet', XML_NAME];
+        const initialMemory = Math.min(256, maxMemoryPages);
+        const out = pooled
+          ? await (await getPool()).run({ xml: bytes, args, initialMemory, maxMemory: maxMemoryPages })
+          : await runXmllintWorker(
+              workerPath,
+              {
+                [MESSAGE_KEY]: true,
+                inputFiles: [{ fileName: XML_NAME, contents: bytes }, schemas.entry, ...schemas.preload],
+                args,
+                initialMemory,
+                maxMemory: maxMemoryPages,
+              },
+              { timeoutMs, heapMb },
+            );
         const ms = performance.now() - started;
         if (out.exitCode === 0) return { ...base, valid: true, stage: 'xsd', errors: [], lines: [], ms };
         const diag = parseDiagnostics(out.stderr);

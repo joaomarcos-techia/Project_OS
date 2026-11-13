@@ -265,3 +265,52 @@ describe('falhas de carga: sem motor íntegro, nada é validado (fail closed)', 
     await expect(runXmllintWorker(ignored, {}, limits)).rejects.toMatchObject({ reason: 'engine_failure' });
   }, 60_000);
 });
+
+describe('R41: pool de workers persistentes (wasm compilado 1×, instância nova por validação)', () => {
+  it('reaproveita o worker: 12 validações em sequência sobem 1 worker só', async () => {
+    const pooled = createTissXsdEngine({ maxConcurrency: 1 });
+    for (let i = 0; i < 12; i++) expect((await pooled.validate({ bytes: validBytes() })).valid).toBe(true);
+    expect(pooled.poolStats()).toMatchObject({ spawned: 1, jobs: 12, live: 1, discarded: 0 });
+  }, 60_000);
+
+  it('isolamento: inválido entre válidos não contamina o seguinte (instância e memória novas)', async () => {
+    const pooled = createTissXsdEngine({ maxConcurrency: 1 });
+    const ok = validBytes();
+    const bad = latin1(ok.toString('latin1').replace(/<ans:codigoProcedimento>[^<]*</u, '<ans:codigoProcedimento>12345678901<'));
+    const seq = [ok, bad, ok, bad, bad, ok];
+    const out: boolean[] = [];
+    for (const bytes of seq) out.push((await pooled.validate({ bytes })).valid);
+    expect(out).toEqual([true, false, true, false, false, true]);
+    expect(pooled.poolStats()!.spawned).toBe(1);
+  }, 60_000);
+
+  it('timeout DESCARTA o worker preso; a validação seguinte sobe outro e passa', async () => {
+    const pooled = createTissXsdEngine({ maxConcurrency: 1, timeoutMs: 5 });
+    await expect(pooled.validate({ bytes: bigSadt(30) })).rejects.toMatchObject({ reason: 'timeout' });
+    expect(pooled.poolStats()).toMatchObject({ discarded: 1, live: 0 });
+    const relaxed = createTissXsdEngine({ maxConcurrency: 1 });
+    expect((await relaxed.validate({ bytes: validBytes() })).valid).toBe(true);
+  }, 60_000);
+
+  it('reciclagem: depois de N validações o worker é trocado (memória do processo não acumula)', async () => {
+    const pooled = createTissXsdEngine({ maxConcurrency: 1, maxJobsPerWorker: 3 });
+    for (let i = 0; i < 7; i++) expect((await pooled.validate({ bytes: validBytes() })).valid).toBe(true);
+    expect(pooled.poolStats()).toMatchObject({ spawned: 3, recycled: 2, jobs: 7 });
+  }, 60_000);
+
+  it('concorrência limitada: 2 por processo sobem no máximo 2 workers e os resultados não se misturam', async () => {
+    const pooled = createTissXsdEngine({ maxConcurrency: 2, maxQueue: 50 });
+    const ok = validBytes();
+    const bad = latin1(ok.toString('latin1').replace(/<ans:codigoProcedimento>[^<]*</u, '<ans:codigoProcedimento>12345678901<'));
+    const inputs = Array.from({ length: 10 }, (_, i) => (i % 3 === 0 ? bad : ok));
+    const results = await Promise.all(inputs.map((bytes) => pooled.validate({ bytes })));
+    expect(results.map((r) => r.valid)).toEqual(inputs.map((_, i) => i % 3 !== 0));
+    expect(pooled.poolStats()!.spawned).toBeLessThanOrEqual(2);
+  }, 60_000);
+
+  it('chave de desligamento: pooled=false volta ao worker novo por validação (sem pool)', async () => {
+    const legacy = createTissXsdEngine({ pooled: false });
+    expect((await legacy.validate({ bytes: validBytes() })).valid).toBe(true);
+    expect(legacy.poolStats()).toBeNull();
+  }, 60_000);
+});

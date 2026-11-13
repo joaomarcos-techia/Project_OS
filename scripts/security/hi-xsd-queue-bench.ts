@@ -15,6 +15,8 @@ const LEVELS = (process.env.LEVELS ?? '1,2,4,8').split(',').map(Number);
 const SMALL_N = Number(process.env.SMALL_N ?? 48);
 const LARGE_N = Number(process.env.LARGE_N ?? 16);
 const packageDir = process.env.TISS_XMLLINT_WASM_DIR;
+/** R41: compara o worker novo por validação (off) com o pool persistente (on). */
+const MODES = (process.env.POOL ?? "off,on").split(",").map((m) => m.trim() === "on");
 
 const small = buildLoteGuiasMessage(consultaBatch([consultaGuide(1)])).bytes;
 const large = buildLoteGuiasMessage(
@@ -26,9 +28,10 @@ const pct = (xs: number[], p: number) => {
   return Math.round(s[Math.min(s.length - 1, Math.floor((p / 100) * s.length))]!);
 };
 
-async function run(label: string, bytes: Buffer, n: number, concurrency: number) {
-  const engine = createTissXsdEngine({ maxConcurrency: concurrency, maxQueue: 10_000, ...(packageDir ? { packageDir } : {}) });
-  // Tempo de validação sem disputa (base da espera na fila).
+async function run(label: string, bytes: Buffer, n: number, concurrency: number, pooled: boolean) {
+  const engine = createTissXsdEngine({ maxConcurrency: concurrency, maxQueue: 10_000, pooled, ...(packageDir ? { packageDir } : {}) });
+  // Primeira validação: fria (no pool, compila o wasm e sobe o worker); depois, sem disputa.
+  const cold = (await engine.validate({ bytes })).ms;
   const solo = (await engine.validate({ bytes })).ms;
   let maxRss = 0;
   let maxHeap = 0;
@@ -56,8 +59,10 @@ async function run(label: string, bytes: Buffer, n: number, concurrency: number)
   const wall = performance.now() - t0;
   clearInterval(sampler);
   const row = {
+    pool: pooled ? "on" : "off",
     lote: label,
     concorrencia: concurrency,
+    friaMs: Math.round(cold),
     validacoes: n,
     porSegundo: Math.round((n / wall) * 1000 * 10) / 10,
     soloMs: Math.round(solo),
@@ -69,6 +74,7 @@ async function run(label: string, bytes: Buffer, n: number, concurrency: number)
     heapMaxMb: Math.round(maxHeap / 1024 / 1024),
     erros: errors,
     invalidos: invalid,
+    workers: engine.poolStats()?.spawned ?? null,
   };
   console.log(JSON.stringify(row));
   return row;
@@ -76,6 +82,8 @@ async function run(label: string, bytes: Buffer, n: number, concurrency: number)
 
 const rows = [];
 console.log(JSON.stringify({ smallBytes: small.length, largeBytes: large.length, cpus: (await import('node:os')).cpus().length }));
-for (const c of LEVELS) rows.push(await run('1 guia', small, SMALL_N, c));
-for (const c of LEVELS) rows.push(await run('100 guias × 30 itens', large, LARGE_N, c));
+for (const pooled of MODES) {
+  for (const c of LEVELS) rows.push(await run('1 guia', small, SMALL_N, c, pooled));
+  for (const c of LEVELS) rows.push(await run('100 guias × 30 itens', large, LARGE_N, c, pooled));
+}
 console.log(`\nOK — ${rows.length} medições (${LEVELS.join('/')} validações simultâneas por processo).`);
