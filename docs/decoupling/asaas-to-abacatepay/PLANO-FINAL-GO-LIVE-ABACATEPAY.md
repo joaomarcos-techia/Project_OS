@@ -1,3 +1,5 @@
+> **Estado corrente — janela técnica13/11 concluída:** catálogo live5/5, cinco configurações novas com checkoutsfalse e alerta Production ed622a74 entregue. Release/migrations/checkout live não executados; endpoint financeiro atual404. Fixture de conversão antecipada preparada sem checkout. Ver relatório§54 e authorizedWindowHomologation no JSON canônico. Os checkpoints anteriores são históricos.
+
 > Checkpoint de fechamento: relatório§51. CI04a4fd73 PASS7.139+22E2E e checks externos verdes; DEV160 e fechamento Sandbox comprovados. A composição de código é uma cópia isolada, sem merge; o incidente RSC CARE_TYPES do PR55 segue confirmado e deve ser fechado pelo responsável TISS antes de GO conjunto. Production permanece NO-GO.
 
 # Fechamento operacional da AbacatePay — 10/11/2026
@@ -285,3 +287,33 @@ Rollback de código só para versão compatível com schema aditivo e bindings e
 Esse retorno não autoriza por si só merge/deploy/migration/cobrança. A janela e a primeira operação financeira live exigem autorização específica após os gates. **GO técnico, operacional e comercial continuam decisões separadas.**
 
 **Resultado final de preparação:** código1703b3f2 com CI43416581923SUCCESS (7147 testes/22E2E semSKIP), composto com4d0ed1d5:tipos/lint/build,836 testes e3 SKIP antigos, UI paga1440/390PASS. Perfil piloto local10 clínicas/duas partidas frias por tick zerou backlog em201,87s e recuperou pagamento sem webhook; isso não é ciclo financeiro externo nem piloto live. Evidência e campos de origem no relatório§53/JSON canônico. GO técnico delimitado à candidata; NO-GO operacional live/comercial até decisões e configurações desta seção.
+
+
+## Execução autorizada13/11 e próxima fase, sem release
+
+A janela11:48:44–12:06:43 de Fortaleza concluiu catálogo5/5, cinco variáveis Production com checkoutsfalse e entrega do alertaed622a74. O responsável foi o founder disponível no chat/Sentry. Nenhum dado clínico/financeiro de clientes, release, contrato ou checkout foi alterado. O404 do endpoint é impeditivo de ativar webhook/consumidor, não motivo para publicar implicitamente. Evidências e rollback restrito estão no [relatório54](RELATORIO-HOMOLOGACAO-FINAL.md#54-homologação-final-previewsandbox--r1-a-r4--janela-de-13112026).
+
+### Pagamento Sandbox mínimo, condicionado a “posso pagar”
+
+EARLY-01 está provisionada e passou pela UI desktop/mobile sem checkout. Plano Consultório19700, trial até27/11 15:12:42.157UTC, run d2d0e84d-059b-4b29-9074-f3305a3fc97f. A finalidade nova é pagar DURANTE o trial e comprovar sua conversão antecipada; não repetir as cinco compras iniciais como se isso validasse renovação.
+
+1. Só ao receber “posso pagar”, conferir preflight de modo/loja/produto/hash/devRuntime, fixture/zerointent ou recuperar intent existente. O operador deve executar create sobre o MESMO manifesto. O browser real abre o hosted checkout; apresentar só o link retornado e validado. Sem usar API direta do provedor para pular a jornada.
+2. Aguardar pagamento humano Sandbox. Poll GETs/readback independentemente do relato; nenhuma atualização manual de status. Validar completed/inbox/HMAC, assinatura/customer/product, uma invoice paga/attempt/receipt, período e release das cotas, novo login/UI. Se o evento não chegar, executar a conciliação implementada e registrar sua proveniência separadamente.
+3. Comprovar replay/duplicata sem novo efeito. Usar somente esta nova geração na operação de fechamento Sandbox já implementada, depois de confirmar seus vínculos; não encerrar as cinco retidas. Não pagar duas vezes o link. Timeout/unknown preserva journal e bloqueia replay cego. Guardar readbacks/recibo sem dados de cartão.
+4. Reter fixture até encerramento da conciliação/observação de ciclo; não cancelar assinatura nem apagar dados por timeout. Nenhum cleanup remoto irreversível é presumido por falha de teste.
+
+### Ficha obrigatória antes de qualquer piloto real
+
+|Campo|Estado a preencher pelo responsável, sem segredos|
+|---|---|
+|Clínica inicial/consentimento/UUID|Não selecionados; não inferir a partir dos testes|
+|Titular e contato autorizado|A definir em canal privado|
+|Plano/valor mensal/trial explicado|Um dos cinco homologados; validar no servidor|
+|Responsável financeiro|Nome/função e disponibilidade|
+|Plantão técnico e substituto|Nome/função e horários de cobertura|
+|Canal de incidente e escalonamento|Sentry Production/chat comprovados na janela; confirmar cobertura do piloto|
+|Critérios de parada|Tenant cruzado, duplicata, acesso sem prova, fila crescente, ausência de alerta/cobertura|
+|Revisão de risco R1–R4 e data|Sem aceite; renovação natural não observada|
+|Autorização release/migrations/primeira operação real|Não concedida nesta rodada|
+
+O calendário de renovação externo e o change-plan efetivado no próximo ciclo continuam pendentes. Não há novo simulador de assinatura encontrado no índice/CLI oficiais13/11. Manter monitoramento e observação das fixtures pagas; payload representativo nunca recebe rótulo de prova financeira externa. Não aceitar risco pelo founder.

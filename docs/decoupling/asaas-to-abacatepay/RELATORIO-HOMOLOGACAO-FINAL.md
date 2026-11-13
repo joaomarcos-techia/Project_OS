@@ -1,3 +1,5 @@
+> **Estado corrente — janela técnica13/11 concluída:** catálogo live5/5, cinco configurações novas com checkoutsfalse e alerta Production ed622a74 entregue. Release/migrations/checkout live não executados; endpoint financeiro atual404. Fixture de conversão antecipada preparada sem checkout. Ver relatório§54 e authorizedWindowHomologation no JSON canônico. Os checkpoints anteriores são históricos.
+
 # Homologação financeira AbacatePay — Qoro
 
 **Checkpoint corrente: seção 53 — composição atual, fechamento automático live preparado, rotação e piloto.** As seções anteriores são histórico. Os resultados externos iniciais permanecem válidos; a renovação natural não recebeu PASS.
@@ -1187,3 +1189,71 @@ Composição exportada1703b3f2 +TISS4d0ed1d5, árvore projetada adbaee2de72aae63
 Readback final de Production continua dpl_2gHasgxKuWkFY8ct1w56VLeHDhQP/SHA5620a098, sem ler valores ou alterar configurações. Auxiliar404 preservado. Nenhuma migration compartilhada, envio, cobrança real, merge ou contrato modificado. Os quatro vídeos removidos previamente continuam fora dos commits.
 
 **Decisão final desta preparação:** GO técnico **delimitado ao código e composição comprovados**; não é Production Ready integral. NO-GO operacional live e comercial até configurar catálogo/loja/webhook/cron/alertas próprios na janela autorizada, nomear responsáveis/cohort, tratar formalmente R1–R4 e obter autorização de publicação/cobrança. A observação natural de um novo ciclo ainda é PARTIAL externo. Não há novo pagamento Sandbox ou instalação solicitado ao founder.
+
+
+## 54. HOMOLOGAÇÃO FINAL PREVIEW/SANDBOX — R1 A R4 — janela de 13/11/2026
+
+### A. Production: configuração concluída; consumidor ainda não publicado
+
+Janela autorizada e encerrada em **13/11, 11:48:44–12:06:43, America/Fortaleza**. Founder confirmou disponibilidade, responsabilidade operacional e canal Sentry Production/chat. Projeto Vercel project-os, prj_GYB0Y9e02ka9jurpJvF6m0feH3eZ, time team_ml9fFeF262JqUMwFB6Vy61Cj. O deployment dpl_2gHasgxKuWkFY8ct1w56VLeHDhQP/SHA5620a098 permaneceu inalterado. Nenhuma migration, publicação, checkout live, assinatura, cobrança ou mudança de contrato.
+
+A loja live store_EsLPwdCKpH4aSD3TcrYBZWMC (qoro.dev) respondeu autenticada. Antes: zero produtos/zero webhooks. Foram criados cinco produtos exclusivos live e uma segunda listagem independente confirmou **devMode=false, BRL, MONTHLY, ACTIVE, sem trial nativo**. A fonte dos valores é quoteProposedOffer, sem nova condição comercial:
+
+| Plano | Médicos | Administrativos incluídos | Centavos | Produto live |
+|---|---:|---:|---:|---|
+|Consultório|1|3|19700|prod_SsBGWnFA5Qk1dED3DLRkzSDT|
+|Clínica|2|3|39700|prod_4sn4YU2Q3P3jbXs3a6UXMgzd|
+|Clínica|3|3|54400|prod_CXMmb0y0FJHRDFDsy0Lj4MAW|
+|Clínica|4|3|69100|prod_pNectEHBe356SAystDzmMJbD|
+|Clínica|5|3|83800|prod_YtHhRgEbMxLZasE5KsqS4s3c|
+
+Vercel Production recebeu somente cinco nomes antes ausentes: ABACATEPAY_ENVIRONMENT=production, ABACATEPAY_STORE_ID, ABACATEPAY_PLAN_PRODUCTS, ABACATEPAY_WEBHOOK_SECRET e ABACATEPAY_NEW_CHECKOUTS_ENABLED=false. O segredo é exclusivo live, salvo como sensitive na Vercel e com DPAPI/ACL privada local, sem valor neste documento. Chave API e variáveis anteriores preservadas; SAAS_SIGNUP_PROVIDER não foi alterado; cohort live não selecionado. Configuração salva **não atualiza deployments existentes**. [Vercel](https://vercel.com/docs/environment-variables).
+
+**Bloqueio comprovado, não bug novo:** a release Production atual não contém /api/webhooks/abacatepay; POST inválido retornou404. A API de criação do webhook não documenta campo para criá-lo desativado. Por isso nenhum webhook live foi cadastrado/ativado, nem consumidor/cron declarado operacional. A autorização exclui release e migrations; será necessário aprová-los numa janela posterior antes da entrega live. Não apontar pagamentos para o404. [Contrato oficial de webhook](https://docs.abacatepay.com/pages/webhooks/create).
+
+**Alerta Production PASS:** um único evento sintético ed622a74, sem paciente/pagamento, foi aceito HTTP200 às12:00:45 de Fortaleza; founder confirmou a notificação correspondente. Não se atribui ao probe a prova de instrumentação financeira ainda não publicada. A API administrativa Sentry retornou401 nas alternativas oficiais e o navegador não pôde determinar a URL com segurança; nenhuma regra anterior foi editada.
+
+Rollback desta configuração: conferir metadata/IDs no JSON canônico e remover **somente** as cinco entradas recém-criadas, se ainda inalteradas. Não apagar chave API, outras variáveis, webhooks de terceiros ou produtos; manter catálogo sem consumidor não cria cobranças. Não houve deployment para reverter. Um release futuro com pagamentos exige rollback próprio compatível com bindings e histórico, nunca restauração automática sobre pagamentos novos.
+
+### B. Homologação independente de pagamento executada
+
+O operador reconhecia apenas143/144 migrations e importava transporte antes de vincular o ambiente DEV. Agora confere hashes/when exatos do prefixo0136–0142 e da cauda revisada0143–0159, contra o manifesto congelado e SQL financeiro; rejeita parcial, drift e migration desconhecida. Não aplica/copía SQL nem altera TISS. Importação passa a ocorrer após os guards DEV. GETs têm retentativa limitada; POST desconhecido não recebe replay cego. Processos filhos preservam apenas os flags de proxy/CA autorizados, sem desativar TLS.
+
+Nova ação stage prepara a contratação antecipada mantendo Auth real da fixture e trial absoluto14dias, executa login e a jornada real de escolha de plano, e exige zero checkout/operation/invoice/receipt e nenhuma liberação paga. A fixture ficou pronta:
+
+- Run d2d0e84d-059b-4b29-9074-f3305a3fc97f; clínica8b12f2da-b881-4409-815f-a18ec71fd1c6; assinatura1c21ff83-9e46-4eee-bffa-d19aa2be9135.
+- Preview imutável https://project-agdxvdvv9-clinic-os-v2-s-projects.vercel.app; SHA f493dccc. O runtime financeiro não mudou neste incremento, apenas tooling/testes/documentação.
+- Trial termina27/11/2026 15:12:42.157 UTC, exatamente14dias desde Auth, sem envelhecimento artificial nesta fixture.
+- **PASS** login, resumo1–5 médicos em1440/390, um clique para iniciar trial, persistência, assinatura desktop/mobile, botão de contratação opcional e integrações WhatsApp/Asaas bloqueadas. Zero erro de browser; zero checkout/pagamento novo. Auth foi confirmado administrativamente: não é nova prova de entrega de e-mail.
+- Credencial sintética permanece em DPAPI/ACL privada; não enviar por chat. Fixture retida e retomável, sem limpeza por timeout. A mesma identidade foi usada após falhas transitórias de leitura; nenhuma duplicata criada.
+
+**R4 adicional PASS:** perfil small em PostgreSQL migrado/Redis Docker/HTTP reais locais, provedor sintético. Uma clínica: p50/p95/p99 de ingresso duplicado3528,62ms; três clínicas:1532,32/1815,63/1815,63ms, backlog1→0 em5502,77ms. Zero ciclo duplicado/invoice cruzada,31GETs sintéticos,64 comandos Redis, pico amostrado7conexões/95,24MiB no processo. Amostras1/3 não são estimativa estatística nem SLA. Quatro503 foram backpressure intencional e recuperado. Provas anteriores10/100/500/1000 e falhas/leases preservadas, sem repetir cargas.
+
+### C. Matriz de pagamento mínimo preparado — nenhum link criado
+
+| ID | Risco/jornada | Por que precisa de pagamento novo | Fixture e produto | Valor / ambiente | Evento e verificação esperados | Reuso / irreversibilidade / fim |
+|---|---|---|---|---|---|---|
+|EARLY-01|R3 conversão antes do fim do trial; suporte à provaR1 na mesma geração|As cinco compras anteriores provam contratação inicial; não comprovam esta fixture com14dias ainda vigentes e retirada antecipada das restrições|Run/clínica acima; Consultório; produto Sandbox já validado pelo servidor|R$197 mensal, somente Sandbox|subscription.completed autêntico + GETs; uma invoice paga/attempt/receipt, binding correto, período pago, cotas e gates/UI após novo login|Reutilizar mesma conta/intent; criar só após founder dizer “posso pagar”; pagar uma vez. Reter até conciliar. Fechamento remoto somente após prova integral, na geração identificada, sem cancelar assinatura automaticamente|
+
+Não repetir197/397/544/691/838 como nova bateria básica. Renovação natural/change-plan/refund/disputa sem simulador não são resolvidos com outro checkout inicial. Não há valor inventado, link placeholder ou autorização de cobrança live. Antes de criar EARLY-01, repetir apenas preflight temporal (origem/loja/modo/produto/hash/checkout inexistente); criar pelo botão real do Preview, nunca diretamente pela API do provedor. A aplicação/operador fazem readback; não depender só de “paguei”. Se houver configuração alterada ou intent existente, reconciliar e reutilizar, não criar outra fixture.
+
+### D. Riscos: prova delimitada e observação externa
+
+|Risco|Prova preservada/ampliada|Estado residual / ação|
+|---|---|---|
+|R1 reutilização/fechamento|Uma closure Sandbox externa já comprovada; journal/CAS, duplicata, concorrência, timeout/unknown e automático live cobertos nos129PG; catálogo/secret live agora preparados|PARTIAL externo. O link não é nativamente de uso único. Não pagar novamente um link já pago. Consumidor automático Production depende do release autorizado; a janela pagamento→fechamento permanece risco não aceito|
+|R2 renovação/conciliação|Receipts, eventos atrasados/ausentes/duplicados, calendário e ambiguidade nos129PG; scanner e recuperação reais locais; fixture paga retida|PARTIAL externo. Índice/CLI oficial revistos13/11: não foi localizado simulador de renovação de assinatura, apenas pagamento transparente. Manter observação do ciclo real; payload sintético não é cobrança externa. [CLI](https://docs.abacatepay.com/pages/cli/overview)|
+|R3 ciclo de vida|Cancelamento/recontratação, próxima cota só no ciclo pago, trial/expiração/falhas/transação/negativos cobertos localmente; EARLY-01 preparada sem pagamento|PARTIAL externo. Pagar EARLY-01 após autorização específica; mudança de cota efetiva em renovação e refund/disputa continuam dependentes de eventos suportados. Sem estorno/cobrança real ou cancelamento de fixture retida|
+|R4 capacidade/operação|1/3 adicionais PASS;10/ticks frios/Redis/DB/429/circuito/lease e100/500/1000 preservados; alerta live agora entregue|PASS isolado/PARTIAL alvo. Não mede scheduler/custo/capacidade do provedor/Vercel. Piloto live1→3→10 continua proposto, não ativado|
+
+Nenhum R1–R4 foi aceito implicitamente. A confirmação do responsável da janela técnica não nomeia responsáveis/cohort do piloto comercial.
+
+### E. Qualidade e limites
+
+PASS7.161 testes/632 arquivos;64 dirigidos após alterações do operador, tipos/lint registrados. Os resultados de build/CI do commit final serão acrescentados abaixo após execução; o PASS7147/22E2E do baseline f493dccc continua preservado, sem ser atribuído antecipadamente ao incremento. O teste real de stage acima é separado da suíte pública. O primeiro build local encontrou UNABLE_TO_VERIFY_LEAF_SIGNATURE nas fontes externas; não flexibilizar certificados nem chamar isso de bug financeiro.
+
+### F. Próxima decisão
+
+A fixture de trial e as observações estão prontas; nenhum link foi criado. Consumidores/webhook live não podem ser fechados sem release/migrations especificamente autorizados. Ainda falta confirmar os gates do commit final. Não declarar Production Ready nem iniciar piloto, merge, migração de contratos, TISS/IA ou cobrança real. Depois de todos os gates de preparação, o founder poderá dizer “posso pagar” para gerar **somente EARLY-01**. Nenhuma compra adicional resolve artificialmente uma renovação futura.
+
+**Validação local adicional:** o primeiro build também esgotou o heap padrão de2GiB. O reteste com CA confiável do Windows/4GiB foi cancelado por pressão de memória do host, sem mudança de CI/build do repositório. Um teste que inicia subprocesso atingiu20s sob essa carga; o reteste serial **64/64 PASS** manteve o timeout e os guards. Tipos e lint PASS. Build/22E2E públicos devem ser confirmados pela CI do commit deste incremento antes da conclusão.

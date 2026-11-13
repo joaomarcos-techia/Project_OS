@@ -14,6 +14,8 @@ import {
   previewOrigin,
   readSession,
   readCheckoutRequiredMigrations,
+  readReviewedCheckoutMigrations,
+  checkoutScenario,
   saveSession,
   sessionSchema,
   withSessionLock,
@@ -117,6 +119,63 @@ describe('checkout operator environment and immutable preparation', () => {
     expect(entries[0]?.tag).toBe('0136_trial_resource_limits');
     expect(entries[6]?.tag).toBe('0142_saas_review_replays');
     expect(new Set(entries.map((entry) => entry.hash)).size).toBe(7);
+  });
+  it('recognizes every exact reviewed migration through 0159, without accepting a partial tail', async () => {
+    const reviewed = await readReviewedCheckoutMigrations();
+    expect(reviewed).toHaveLength(17);
+    expect(reviewed[0]?.tag).toBe('0143_tiss_catalog');
+    expect(reviewed.at(-1)?.tag).toBe('0159_saas_period_snapshot');
+    const tail = reviewed.map((entry) => ({ hash: entry.hash, created_at: String(entry.when) }));
+    expect(
+      assertCheckoutDevHistory(160, [...appliedMigrations, ...tail], requiredMigrations, reviewed),
+    ).toEqual({ migrations: 160, parallelMigrations: reviewed.map((entry) => entry.tag) });
+    expect(() =>
+      assertCheckoutDevHistory(
+        159,
+        [...appliedMigrations, ...tail.slice(0, -1)],
+        requiredMigrations,
+        reviewed,
+      ),
+    ).toThrow('Incomplete');
+    expect(() =>
+      assertCheckoutDevHistory(
+        161,
+        [...appliedMigrations, ...tail, { hash: 'f'.repeat(64), created_at: '1795036973859' }],
+        requiredMigrations,
+        reviewed,
+      ),
+    ).toThrow();
+    expect(() =>
+      assertCheckoutDevHistory(
+        160,
+        [...appliedMigrations, ...tail.slice(0, -1), { ...tail.at(-1), hash: 'f'.repeat(64) }],
+        requiredMigrations,
+        reviewed,
+      ),
+    ).toThrow();
+  });
+  it('preserves old expired-trial manifests and pins early-payment scenarios', () => {
+    expect(checkoutScenario(sessionSchema.parse(sample))).toBe('expired_trial');
+    const staged = sessionSchema.parse({
+      ...sample,
+      scenario: 'early_payment',
+      phase: 'trial_ready',
+      userId: sample.planId,
+    });
+    expect(checkoutScenario(staged)).toBe('early_payment');
+    expect(staged.checkoutId).toBeNull();
+    expect(() => assertSamePreparation(staged, { ...staged, scenario: 'expired_trial' })).toThrow(
+      'scenario',
+    );
+    expect(sessionSchema.safeParse({ ...sample, scenario: 'invented' }).success).toBe(false);
+    expect(
+      sessionSchema.safeParse({
+        ...staged,
+        checkoutId: 'bill_synthetic',
+        url: 'https://pay.abacatepay.com/synthetic',
+      }).success,
+    ).toBe(false);
+    expect(sessionSchema.safeParse({ ...staged, scenario: 'expired_trial' }).success).toBe(false);
   });
   const rawSnapshot = {
     subscription_id: sample.planId,

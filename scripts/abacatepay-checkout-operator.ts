@@ -8,7 +8,6 @@ import { parseArgs } from 'node:util';
 import { parse } from 'dotenv';
 import { z } from 'zod';
 
-import { createAbacatePayReadClient } from '../src/lib/payments/abacatepay/reader';
 import { GatewayReadError } from '../src/lib/payments/saas/contracts';
 import { initialAbacatePayAccessPeriod } from '../src/contexts/billing/internal/abacatepay-period';
 import {
@@ -17,6 +16,7 @@ import {
   BILLING_BRANCH,
   checkoutUrl,
   checkoutSnapshotSchema,
+  checkoutScenario,
   DEV_REF,
   entryPlan,
   expectedAmount,
@@ -24,6 +24,7 @@ import {
   previewOrigin,
   readSession,
   readCheckoutRequiredMigrations,
+  readReviewedCheckoutMigrations,
   saveSession,
   withSessionLock,
   type CheckoutSession,
@@ -55,10 +56,14 @@ async function main(): Promise<void> {
       'settings-file': { type: 'string', default: 'C:/dev/ClinicaOS_V2/.env.local' },
       session: { type: 'string', default: 'next-checkout-20261110' },
       plan: { type: 'string', default: 'clinica_2026_2' },
+      scenario: { type: 'string', default: 'expired_trial' },
     },
     strict: true,
   });
-  const action = z.enum(['preflight', 'prepare', 'create', 'verify']).parse(values.action);
+  const action = z.enum(['preflight', 'prepare', 'stage', 'create', 'verify']).parse(values.action);
+  const scenario = z.enum(['expired_trial', 'early_payment']).parse(values.scenario);
+  if (action === 'stage')
+    assert.equal(scenario, 'early_payment', 'Staging never creates a checkout');
   const origin = previewOrigin.parse(values.preview);
   const plan = entryPlan.parse(values.plan);
   const slot = z
@@ -87,6 +92,7 @@ async function main(): Promise<void> {
   function vercel(endpoint: string): unknown {
     return JSON.parse(
       execFileSync(process.execPath, [cli, 'api', endpoint, '--raw'], {
+        env: { ...process.env, NODE_OPTIONS: '--use-system-ca' },
         windowsHide: true,
         encoding: 'utf8',
         stdio: ['ignore', 'pipe', 'pipe'],
@@ -164,7 +170,24 @@ async function main(): Promise<void> {
     .parse(await adminProbe.json());
   assert.equal(adminUser.id, retainedIdentity.userId);
   assert.equal(adminUser.user_metadata.qoro_fixture_run, retainedIdentity.runId);
-  const reader = createAbacatePayReadClient({ apiKey, environment: 'sandbox', timeoutMs: 30_000 });
+  // The transport validates the application's environment at import time. Bind
+  // only the guarded DEV settings before importing it; never inherit live DB.
+  Object.assign(process.env, {
+    NODE_ENV: 'test',
+    DATABASE_URL: databaseUrl,
+    DATABASE_URL_RUNTIME: databaseUrl,
+    SUPABASE_PROJECT_ENV: 'dev',
+    NEXT_PUBLIC_SUPABASE_URL: `https://${DEV_REF}.supabase.co`,
+    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_synthetic_operator_import_only',
+  });
+  delete process.env.DATABASE_URL_PROD;
+  const { createAbacatePayReadClient } = await import('../src/lib/payments/abacatepay/reader');
+  const reader = createAbacatePayReadClient({
+    apiKey,
+    environment: 'sandbox',
+    timeoutMs: 30_000,
+    readAttempts: 2,
+  });
   stage = 'sandbox_store';
   const store = await reader.readStore();
   const catalog = z
@@ -269,20 +292,12 @@ async function main(): Promise<void> {
   assert.equal(denied.status, 401);
   // One-shot process only. Bind the canonical pool before its first import;
   // never introduce a new driver origin or inherit a production connection.
-  Object.assign(process.env, {
-    NODE_ENV: 'test',
-    DATABASE_URL: databaseUrl,
-    DATABASE_URL_RUNTIME: databaseUrl,
-    SUPABASE_PROJECT_ENV: 'dev',
-    NEXT_PUBLIC_SUPABASE_URL: `https://${DEV_REF}.supabase.co`,
-    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_synthetic_operator_import_only',
-  });
-  delete process.env.DATABASE_URL_PROD;
   const { dbAdmin } = await import('../src/lib/db');
   const sql = dbAdmin.$client;
   try {
     stage = 'dev_schema_and_catalog';
     const requiredMigrations = await readCheckoutRequiredMigrations();
+    const reviewedMigrations = await readReviewedCheckoutMigrations();
     let verifiedHistory: ReturnType<typeof assertCheckoutDevHistory> | undefined;
     const price = await sql.begin(async (tx) => {
       await tx`SET TRANSACTION READ ONLY`;
@@ -296,7 +311,12 @@ async function main(): Promise<void> {
       const history = await tx`SELECT hash,created_at::text FROM drizzle.__drizzle_migrations
         WHERE created_at >= ${Math.min(...requiredMigrations.map((entry) => entry.when))}
         ORDER BY created_at,id`;
-      verifiedHistory = assertCheckoutDevHistory(journal?.n, history, requiredMigrations);
+      verifiedHistory = assertCheckoutDevHistory(
+        journal?.n,
+        history,
+        requiredMigrations,
+        reviewedMigrations,
+      );
       stage = 'dev_sandbox_account';
       const [account] = await tx`SELECT count(*)::int n FROM billing_gateway.accounts
         WHERE provider='abacatepay' AND environment='sandbox' AND external_account_id=${store.id}`;
@@ -319,6 +339,7 @@ async function main(): Promise<void> {
       planId: price.plan_id,
       productId: products[plan],
       amountMinor: expectedAmount(plan),
+      scenario,
     };
     const preflight = {
       status: 'PASS',
@@ -435,7 +456,7 @@ async function main(): Promise<void> {
         );
         return;
       }
-      if (action === 'create' && !session.userId) {
+      if ((action === 'create' || action === 'stage') && !session.userId) {
         stage = 'fixture_identity';
         const found =
           await sql`SELECT id::text,raw_user_meta_data->>'qoro_fixture_run' marker FROM auth.users WHERE email=${email}`;
@@ -480,11 +501,11 @@ async function main(): Promise<void> {
       assert.ok(session.userId, 'No fixture identity: request creation first');
       const userId = session.userId;
       const [identity] =
-        await sql`SELECT email,email_confirmed_at,raw_user_meta_data->>'qoro_fixture_run' marker FROM auth.users WHERE id=${userId}::uuid`;
+        await sql`SELECT email,created_at,email_confirmed_at,raw_user_meta_data->>'qoro_fixture_run' marker FROM auth.users WHERE id=${userId}::uuid`;
       assert.equal(identity?.email, email);
       assert.equal(identity?.marker, session.runId);
       assert.ok(identity?.email_confirmed_at);
-      if (action === 'create' && session.phase === 'auth_ready') {
+      if ((action === 'create' || action === 'stage') && session.phase === 'auth_ready') {
         stage = 'synthetic_draft';
         const pepper = z
           .string()
@@ -496,8 +517,9 @@ async function main(): Promise<void> {
           const profile = await tx`SELECT id FROM public.profiles WHERE id=${userId}::uuid`;
           assert.equal(profile.length, 0, 'Never move the clock on a provisioned account');
           // Only this identified synthetic identity, before provisioning, simulates an expired trial.
-          await tx`UPDATE auth.users SET created_at=${new Date(Date.parse(session.createdAt) - 15 * 86_400_000).toISOString()}::timestamptz
-            WHERE id=${userId}::uuid AND email=${email} AND raw_user_meta_data->>'qoro_fixture_run'=${session.runId}`;
+          if (checkoutScenario(session) === 'expired_trial')
+            await tx`UPDATE auth.users SET created_at=${new Date(Date.parse(session.createdAt) - 15 * 86_400_000).toISOString()}::timestamptz
+              WHERE id=${userId}::uuid AND email=${email} AND raw_user_meta_data->>'qoro_fixture_run'=${session.runId}`;
           await tx`INSERT INTO public.signup_sessions(token_hash,status,idle_expires_at,absolute_expires_at,consumed_at,auth_user_id,
             owner_name,clinic_name,email_hash,accepted_at,answered_at,professionals_band,weekly_appointments_band,current_tooling,discovery_source,selected_plan_id)
             VALUES(${session.draftTokenHash},'email_verified',now()+interval '50 minutes',now()+interval '60 minutes',now(),${userId}::uuid,
@@ -508,7 +530,7 @@ async function main(): Promise<void> {
           assert.equal(draft?.token_hash, session.draftTokenHash);
           assert.equal(draft?.selected_plan_id, session.planId);
         });
-        session.phase = 'checkout_started';
+        session.phase = action === 'stage' ? 'trial_staging' : 'checkout_started';
         await saveSession(directory, session);
       }
       async function browser(paid: boolean): Promise<void> {
@@ -540,12 +562,16 @@ async function main(): Promise<void> {
           E2E_ABACATEPAY_EMAIL: email,
           E2E_ABACATEPAY_PASSWORD: password(),
           E2E_ABACATEPAY_PLAN: plan,
-          E2E_ABACATEPAY_EXPIRED: 'true',
+          E2E_ABACATEPAY_EXPIRED: String(checkoutScenario(session) === 'expired_trial'),
           E2E_ABACATEPAY_EXPECT_PAID: String(paid),
+          E2E_ABACATEPAY_CREATE_OPTIONAL_CHECKOUT: String(action === 'create'),
         });
         const result = spawnSync(
           process.execPath,
           [
+            ...process.execArgv.filter((flag) =>
+              ['--use-env-proxy', '--use-system-ca'].includes(flag),
+            ),
             'node_modules/@playwright/test/cli.js',
             'test',
             'e2e/abacatepay-trial-preview.spec.ts',
@@ -561,6 +587,31 @@ async function main(): Promise<void> {
           },
         );
         // Raw Playwright output can contain form values: never persist/print it.
+        if (result.status !== 0) {
+          const diagnostics = `${result.stdout ?? ''}\n${result.stderr ?? ''}`;
+          const categories = [
+            ['module_not_found', /Cannot find (?:module|package)|ERR_MODULE_NOT_FOUND/],
+            ['environment_validation', /Invalid environment variables/],
+            ['no_tests_found', /No tests found/],
+            ['browser_missing', /Executable doesn't exist|playwright install/],
+            ['test_assertion', /expect\(|AssertionError|Test timeout/],
+          ] as const;
+          await writeFile(
+            path.join(directory, 'browser-diagnostic.json'),
+            JSON.stringify(
+              {
+                exitCode: result.status,
+                signal: result.signal,
+                categories: categories
+                  .filter(([, pattern]) => pattern.test(diagnostics))
+                  .map(([name]) => name),
+                rawOutputRetained: false,
+              },
+              null,
+              2,
+            ),
+          );
+        }
         assert.equal(
           result.status,
           0,
@@ -591,7 +642,54 @@ async function main(): Promise<void> {
       }
       stage = 'checkout_or_verification';
       let local = await snapshot();
+      if (action === 'stage') {
+        assert.equal(session.checkoutId, null);
+        assert.equal(session.url, null);
+        assert.ok(['trial_staging', 'trial_ready'].includes(session.phase));
+        if (local) {
+          assert.equal(local.external_checkout_id, null);
+          assert.equal(local.operations, 0);
+          assert.equal(local.released_at, null);
+        }
+        await browser(false);
+        local = await snapshot();
+        assert.ok(local);
+        assert.equal(local.external_checkout_id, null);
+        assert.equal(local.external_subscription_id, null);
+        assert.equal(local.operations, 0);
+        assert.equal(local.invoices, 0);
+        assert.equal(local.receipts, 0);
+        assert.equal(local.billing_status, 'trial');
+        assert.equal(local.released_at, null);
+        assert.ok(local.trial_end.getTime() > Date.now());
+        session.phase = 'trial_ready';
+        await saveSession(directory, session);
+        console.log(
+          JSON.stringify({
+            status: 'PASS',
+            stage: 'trial_staged_without_checkout',
+            runId: session.runId,
+            clinicId: local.clinic_id,
+            trialEnd: local.trial_end.toISOString(),
+            newCheckouts: 0,
+            financialOperations: 0,
+            scenario: checkoutScenario(session),
+          }),
+        );
+        return;
+      }
       if (action === 'create' && !local?.external_checkout_id) {
+        if (checkoutScenario(session) === 'early_payment') {
+          assert.ok(
+            local && local.trial_end.getTime() > Date.now(),
+            'Stage an unexpired trial before its early-payment checkout',
+          );
+          assert.equal(local.operations, 0);
+          assert.equal(local.invoices, 0);
+          assert.equal(local.released_at, null);
+        }
+        session.phase = 'checkout_started';
+        await saveSession(directory, session);
         await browser(false);
         local = await snapshot();
       }
@@ -661,6 +759,7 @@ async function main(): Promise<void> {
       const expectedPeriod = initialAbacatePayAccessPeriod({
         subscriptionCreatedAt: remote.createdAt ?? null,
         trialEndsAt: local.trial_end,
+        notBefore: z.coerce.date().parse(identity.created_at),
         now: new Date(),
       });
       assert.ok(expectedPeriod);

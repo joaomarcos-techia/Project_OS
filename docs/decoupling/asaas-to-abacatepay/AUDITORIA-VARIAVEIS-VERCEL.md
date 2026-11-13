@@ -1,3 +1,5 @@
+> **Estado corrente — janela técnica13/11 concluída:** catálogo live5/5, cinco configurações novas com checkoutsfalse e alerta Production ed622a74 entregue. Release/migrations/checkout live não executados; endpoint financeiro atual404. Fixture de conversão antecipada preparada sem checkout. Ver relatório§54 e authorizedWindowHomologation no JSON canônico. Os checkpoints anteriores são históricos.
+
 # Auditoria das variáveis Vercel — integração financeira
 
 **Estado vigente: checkpoint13/11 ao final.** Produção não foi configurada; há um nome novo opcional apenas para rotação de segredo. Afirmações antigas de ausência de variáveis novas são históricas.
@@ -216,3 +218,14 @@ O Preview composto usa a mesma configuração Sandbox da branch financeira como 
 A documentação oficial do [Sentry](https://docs.sentry.io/platforms/javascript/guides/nextjs/configuration/releases/) confirma SENTRY_RELEASE para associar release e sourcemaps. Esse override é somente do Preview de composição; não altera a identificação normal dos deployments Git nem configura Production. Presença/tag em bundle não comprova entrega ou simbolicação no painel. O probe414eb196 já comprovado não será repetido.
 
 **Pacote final verificado:** deployment dpl_Ag4mvsaUTPHbX6hhxbFKdg6etLgR, https://project-gepwnmxih-clinic-os-v2-s-projects.vercel.app, fontes1703b3f2+4d0ed1d5. BuildREADY e UI paga desktop/mobilePASS;18 bundles confirmam Sentrypreview e release qoro-financial-1703b3f2-tiss-4d0ed1d5. Nenhum valor Production lido, variável persistente modificada ou segredo rotacionado. A modalidade live continua não configurada; a tabela de nomes existentes e o nome opcional de rotação acima são suficientes para a futura janela, sem nova chave/probe live.
+
+
+## Configuração live efetivamente preparada — 13/11, janela encerrada
+
+Substitui a pendência nominal histórica de catálogo/loja/segredo. Foram adicionadas somente Production: ABACATEPAY_ENVIRONMENT=production, ABACATEPAY_STORE_ID, ABACATEPAY_PLAN_PRODUCTS (cinco produtos live), ABACATEPAY_WEBHOOK_SECRET (sensitive, exclusivo) e ABACATEPAY_NEW_CHECKOUTS_ENABLED=false. Não houve leitura/cópia de segredo DEV para live, alteração de APIkey ou de SAAS_SIGNUP_PROVIDER; cohort ainda não existe. Nenhum novo deployment. IDs das cinco entradas para rollback e produtos reais estão em authorizedWindowHomologation do JSON canônico/relatório54.
+
+O valor de ABACATEPAY_API_KEY_PROD foi lido exclusivamente do arquivo local autorizado, em memória, para GET de loja/catálogo e POST de criação dos cinco produtos não financeiros; não foi logado nem enviado à Vercel. ABACATEPAY_API_KEY de Production, já cadastrada pelo founder, foi preservada sem leitura de valor. Segredo novo protegido por DPAPI CurrentUser/ACL privada e pela Vercel; essa cópia local não é um cofre portável entre perfis Windows.
+
+Production permanece na release5620a098, sem endpoint AbacatePay (404). Assim, não foi criado webhook live; a API não documenta criação inativa. Antes de registrar endpoint é obrigatório release/schema compatível e autorização específica. Não alterar flagtrue nem selector/cohort até GO separado. [Criação oficial de webhook](https://docs.abacatepay.com/pages/webhooks/create), [variáveis Vercel](https://vercel.com/docs/environment-variables).
+
+Sandbox/Preview permaneceu com seus próprios produtos/credenciais. A fixture EARLY-01 usa o Preview financeiro imutávelf493dccc e cotação19700 do servidor. Se a origem do webhook/deployment mudar, o operador deve bloquear e reconciliar o manifesto antes de emitir um intent; não copiar segredo live para corrigir Preview.

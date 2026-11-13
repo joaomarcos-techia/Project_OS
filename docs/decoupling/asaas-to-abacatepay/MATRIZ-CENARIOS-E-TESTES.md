@@ -1,3 +1,5 @@
+> **Estado corrente — janela técnica13/11 concluída:** catálogo live5/5, cinco configurações novas com checkoutsfalse e alerta Production ed622a74 entregue. Release/migrations/checkout live não executados; endpoint financeiro atual404. Fixture de conversão antecipada preparada sem checkout. Ver relatório§54 e authorizedWindowHomologation no JSON canônico. Os checkpoints anteriores são históricos.
+
 # Cenários financeiros e nível real de validação
 
 **Matriz vigente: fechamento live e piloto, 13/11, relatório§53.** Tabelas anteriores são histórico; usar a última seção para a decisão atual.
@@ -424,3 +426,23 @@ Substitui estados correntes anteriores, preservando histórico. SHA base finance
 | G28 | Production | NO-GO C/D | Nenhum merge/deploy/DDL/contrato real nesta rodada | Production intocada | G08/G19/G24/G26/G27; Founder/operação | Autorizar janela só depois dos gates |
 
 **GO técnico delimitado** ao código1703b3f2 e pacote composto aprovado; confirmar checks próprios do HEAD documental. **NO-GO operacional live, comercial e de Production.** Não repetir compras iniciais, MFA ou alerta comprovados. A proposta de piloto não é autorização para ativá-lo.
+
+
+## Delta corrente G01–G28 — janela técnica13/11, relatório54
+
+As linhas abaixo substituem apenas os estados citados; os demais G01–G28 e suas evidências permanecem. Fonte: authorizedWindowHomologation no JSON canônico.
+
+|Gate|Estado corrente|Evidência / próxima ação|
+|---|---|---|
+|G01/G02/G07|PASS preservado + trial real Preview sem checkout|Nova EARLY-01:14dias desde Auth, zero liberação paga e WhatsApp/Asaas bloqueados; conversão antecipada ainda aguarda pagamento|
+|G03/G11|PASS local/closure externa anterior; PARTIAL automático live|Não repetir closure anterior; consumer Production ainda ausente,404; sem publicar nesta rodada|
+|G04–G06|Cinco compras anteriores PASS preservado|Sem novo checkout/pagamento; EARLY-01 tem objetivo adicional distinto|
+|G08/G09/G12/G13/G23|PARTIAL externo|Sem acelerador de renovação localizado; manter fixtures e calendário; novo checkout inicial não supre novo ciclo|
+|G15/G16|PASS isolado ampliado; PARTIAL alvo|Coortes1/3 HTTP/Redis/PG passaram sem invariantes quebradas; manter10/100/500/1000 anteriores, sem SLA/custo externo|
+|G19|PASS entrega Preview e Production; PARTIAL consumidores financeiros live|ed622a74 aceito200 e recebido pelo founder; não comprova código ainda não implantado|
+|G20|7161/632 locais PASS; CI do novo commit a conferir|64 dirigidos/tipos/lint; registrar build/CI reais, sem herdar baseline|
+|G21/G22|PASS preservado, nenhuma migration nova|Operador agora aceita somente cauda congelada160 e recusa drift; fontesruntime/TISS não mudaram|
+|G24|PREPARADO parcialmente executado|Catálogo5 e cinco variáveis salvas; checkoutsfalse; segredo exclusivo. Webhook/cron dependem de release autorizado|
+|G26|Janela técnica encerrada; piloto BLOCKED D|Founder e canal disponíveis na janela; clínica/financeiro/plantão/substituto do piloto não selecionados|
+|G27|BLOCKED D|Nenhum aceite de R1–R4 ou autorização financeira real|
+|G28|NO-GO de ativação comercial|Configuração live mudou com autorização; release5620a098/contratos/banco preservados. Publicação/migrations/piloto não autorizados|

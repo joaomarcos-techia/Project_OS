@@ -35,6 +35,7 @@ test('confirmed identity -> free trial -> server quota gates -> optional hosted 
       E2E_ABACATEPAY_PLAN: entryPlan,
       E2E_ABACATEPAY_EXPIRED: z.enum(['true', 'false']),
       E2E_ABACATEPAY_EXPECT_PAID: z.enum(['true', 'false']).default('false'),
+      E2E_ABACATEPAY_CREATE_OPTIONAL_CHECKOUT: z.enum(['true', 'false']).default('false'),
     })
     .parse(process.env);
   const origin = new URL(input.E2E_BASE_URL);
@@ -299,8 +300,15 @@ test('confirmed identity -> free trial -> server quota gates -> optional hosted 
         page.getByText('Asaas disponível após o pagamento', { exact: true }),
       ).toBeVisible();
       stages.push('active_trial_optional_conversion_and_unpaid_integrations_blocked');
-    } else {
-      await expect(page.getByText('Contratação pendente', { exact: true })).toBeVisible();
+    }
+    if (
+      input.E2E_ABACATEPAY_EXPIRED === 'true' ||
+      input.E2E_ABACATEPAY_CREATE_OPTIONAL_CHECKOUT === 'true'
+    ) {
+      await page.goto(new URL('/configuracoes/assinatura', origin.origin).toString());
+      const trialTitle =
+        input.E2E_ABACATEPAY_EXPIRED === 'true' ? 'Contratação pendente' : 'Avaliação sem cartão';
+      await expect(page.getByText(trialTitle, { exact: true })).toBeVisible();
       const adulterated = await page.evaluate(async () => {
         const response = await fetch('/api/billing/checkout', {
           method: 'POST',
@@ -326,7 +334,7 @@ test('confirmed identity -> free trial -> server quota gates -> optional hosted 
       const hostedUrl = page.url();
       await page.goto(new URL('/configuracoes/assinatura', origin.origin).toString());
       await page.reload();
-      await expect(page.getByText('Contratação pendente', { exact: true })).toBeVisible();
+      await expect(page.getByText(trialTitle, { exact: true })).toBeVisible();
       const resumed = await page.evaluate(async () => {
         const response = await fetch('/api/billing/checkout', {
           method: 'POST',

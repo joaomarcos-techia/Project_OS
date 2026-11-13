@@ -494,3 +494,28 @@ Os dois comandos apenas projetam arquivos em dist e usam git show/merge-tree; n�
 Para validar um export novo, instale as mesmas dependências do lockfile, sem copiar .env; execute nele types/lint e regressões afetadas. Neste Windows, o tsc do pacote atingiu o heap padrão2GiB e passou com **node --max-old-space-size=4096 node_modules/typescript/bin/tsc --noEmit**. Foi somente parâmetro de processo local; não foi modificado tsconfig, CI, build, versão, teste ou política de segurança. O build remoto e o login/readback/UI1440/390 do pacote também passaram. Falta de memória não deve ser registrada como erro TypeScript nem como PASS sem o reteste.
 
 O Preview de composição não herda overrides restritos à branch apenas por metadata. Seus cinco valores Sandbox precisam ser resolvidos por acesso autorizado e aplicados apenas em memória ao deployment, como nesta rodada; nenhum valor Production é permitido. Conferir source metadata e release antes de usar a fixture já paga. O Preview não gera cron automático; o perfil pilot chama o seam real em dois processos frios com intervalo60s, sem se apresentar como medição do scheduler Vercel.
+
+## Janela técnica 13/11 encerrada e EARLY-01 preparada
+
+**Já executado, não repetir:** catálogo live 5/5 (mensalidades R$ 197/397/544/691/838), cinco nomes Production com checkouts desativados, segredo exclusivo e alerta sintético Production `ed622a74` recebido. Janela 11:48:44–12:06:43, America/Fortaleza. Release `5620a098` preservada; endpoint financeiro 404. Nenhum webhook live cadastrado, migration, checkout live ou contrato alterado. Ver relatório §54/JSON canônico para antes/depois e IDs de rollback. Configuração salva não altera deployment antigo.
+
+**Sandbox preparado:** run `d2d0e84d-059b-4b29-9074-f3305a3fc97f`, clínica `8b12f2da-b881-4409-815f-a18ec71fd1c6`, assinatura `1c21ff83-9e46-4eee-bffa-d19aa2be9135`. Trial de 14 dias desde Auth, até 27/11 às 15:12:42.157 UTC. E2E real PASS em 1440/390; zero checkout, invoice, operação e liberação paga. Senha sintética protegida com DPAPI; nenhum envio de e-mail. Não reconstruir a conta nem repetir os cinco pagamentos iniciais.
+
+### Próxima autorização: somente “posso pagar”
+
+O comando abaixo é **para a engenharia após essa mensagem**, não uma solicitação para o founder executá-lo agora. O operador confere ambiente/loja/produtos/branch/hashes DEV antes de qualquer mutação. Se houver checkout, faz readback e reutiliza; não cria outro intent. Entregar somente o link realmente devolvido pelo Qoro.
+
+```powershell
+Set-Location 'C:\dev\Qoro_billing_abacatepay_20261107'
+node --use-env-proxy --use-system-ca --conditions=react-server --import tsx scripts/abacatepay-checkout-operator.ts --action create --preview https://project-agdxvdvv9-clinic-os-v2-s-projects.vercel.app --vercel-cli C:/Users/joaom/AppData/Local/npm-cache/_npx/67eb4586ca667318/node_modules/vercel/dist/vc.js --plan consultorio_2026 --scenario early_payment --session next-checkout-earlypayment-20261113
+```
+
+Após pagamento humano Sandbox, usar os mesmos argumentos com **--action verify**, sem trocar session/origin/plan. Consultar o provedor antes de declarar pago; evento completed e efeito local são conferidos separadamente. Exigir uma invoice/attempt/receipt, binding correto, período pago, cotas e UI. Se a rede falhar, preservar manifesto e retomar; nunca limpar por timeout. A ativação antecipada usa Auth como limite inferior do período, sem exigir que o trial termine.
+
+Se o Preview/webhook mudar de release, o preflight bloqueia antes do checkout. Reconciliar origem/manifesto e comprovar novamente ausência de operação; não ignorar o guard, copiar segredo live ou criar outra fixture. Não pagar duas vezes o mesmo link. O pagamento não ativa TISS automaticamente nem autoriza conectar integrações reais durante o teste.
+
+### Riscos e encerramento
+
+R1: closure automática live e consumidores exigem release compatível autorizado; não ativar endpoint 404. R2: renovação natural e R3: mudança efetivada em novo ciclo não possuem acelerador localizado no Sandbox em 13/11. Coortes locais 1/3 passaram e complementam 10/100/500/1000 preservadas; não representam capacidade remota. Nenhum risco R1–R4 foi aceito.
+
+Para reverter a configuração desta janela, conferir IDs no JSON e remover somente as cinco entradas criadas, se inalteradas. Manter API key, variáveis anteriores e produtos intactos. Não apagar webhook compartilhado nem parar consumidores existentes. O segredo está protegido pelo Windows CurrentUser e na Vercel sensitive; não é uma cópia de DEV. A ficha de responsáveis/cohort do piloto real permanece no plano; disponibilidade nesta janela não equivale a plantão permanente.

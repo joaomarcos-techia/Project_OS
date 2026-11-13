@@ -55,11 +55,70 @@ export async function readCheckoutRequiredMigrations(): Promise<CheckoutRequired
   );
 }
 
+/** Recognize only the immutable, already-authorized shared DEV release tail.
+ * No SQL is copied, applied or inferred from a migration count.
+ */
+export async function readReviewedCheckoutMigrations(): Promise<CheckoutRequiredMigration[]> {
+  const manifest = z
+    .object({
+      devProjectRef: z.literal(DEV_REF),
+      financialEntry: z.object({
+        idx: z.literal(159),
+        tag: z.literal('0159_saas_period_snapshot'),
+        when: z.number().int().positive(),
+      }),
+      financialSql: z.object({
+        file: z.literal(
+          'docs/decoupling/asaas-to-abacatepay/migrations/saas_period_snapshot.candidate.sql',
+        ),
+        sha256: migrationHash,
+      }),
+      tissDependencies: z
+        .array(
+          z.object({
+            idx: z.number().int(),
+            tag: migrationEntry.shape.tag,
+            when: migrationEntry.shape.when,
+            sha256: migrationHash,
+          }),
+        )
+        .length(15),
+    })
+    .parse(
+      JSON.parse(
+        await readFile(
+          'docs/decoupling/asaas-to-abacatepay/migrations/release-manifest.json',
+          'utf8',
+        ),
+      ),
+    );
+  for (const [index, entry] of manifest.tissDependencies.entries())
+    if (entry.idx !== index + 144 || !entry.tag.startsWith(`${entry.idx}_`.padStart(5, '0')))
+      throw new Error('Reviewed DEV migration order differs');
+  const actual = createHash('sha256')
+    .update((await readFile(manifest.financialSql.file, 'utf8')).replaceAll('\r\n', '\n'))
+    .digest('hex');
+  if (actual !== manifest.financialSql.sha256) throw new Error('Frozen financial SQL differs');
+  const entries = [
+    REVIEWED_PARALLEL_DEV_MIGRATION,
+    ...manifest.tissDependencies.map((entry) => ({
+      tag: entry.tag,
+      when: entry.when,
+      hash: entry.sha256,
+    })),
+    { tag: manifest.financialEntry.tag, when: manifest.financialEntry.when, hash: actual },
+  ];
+  if (entries.some((entry, index) => index > 0 && entry.when <= entries[index - 1]!.when))
+    throw new Error('Reviewed DEV migration timestamps differ');
+  return entries;
+}
+
 /** Preserve the required financial prefix; reject unreviewed shared-DEV drift. */
 export function assertCheckoutDevHistory(
   historyCount: number,
   rows: unknown,
   requiredInput: CheckoutRequiredMigration[],
+  reviewedInput?: CheckoutRequiredMigration[],
 ): { migrations: number; parallelMigrations: string[] } {
   const required = z
     .array(migrationEntry)
@@ -78,11 +137,16 @@ export function assertCheckoutDevHistory(
     if (actual?.hash !== entry.hash) throw new Error('Required checkout migration differs');
   }
   const extras = applied.filter((row) => !requiredTimes.has(row.created_at));
+  const reviewed =
+    reviewedInput === undefined
+      ? [REVIEWED_PARALLEL_DEV_MIGRATION]
+      : z.array(migrationEntry).length(17).parse(reviewedInput);
+  if (reviewedInput !== undefined && extras.length !== reviewed.length)
+    throw new Error('Incomplete reviewed DEV release');
   if (
     extras.some(
       (row) =>
-        row.created_at !== String(REVIEWED_PARALLEL_DEV_MIGRATION.when) ||
-        row.hash !== REVIEWED_PARALLEL_DEV_MIGRATION.hash,
+        !reviewed.some((entry) => row.created_at === String(entry.when) && row.hash === entry.hash),
     )
   )
     throw new Error('Unreviewed parallel DEV migration');
@@ -90,7 +154,9 @@ export function assertCheckoutDevHistory(
     throw new Error('Unexpected DEV migration count');
   return {
     migrations: historyCount,
-    parallelMigrations: extras.map(() => REVIEWED_PARALLEL_DEV_MIGRATION.tag),
+    parallelMigrations: extras.map(
+      (row) => reviewed.find((entry) => String(entry.when) === row.created_at)!.tag,
+    ),
   };
 }
 export const entryPlan = z.enum(OFFER_2026_PLAN_CODES);
@@ -156,10 +222,13 @@ export const sessionSchema = z
     planId: z.uuid(),
     productId: prefixed('prod'),
     amountMinor: z.number().int().positive(),
+    scenario: z.enum(['expired_trial', 'early_payment']).optional(),
     phase: z.enum([
       'prepared',
       'auth_started',
       'auth_ready',
+      'trial_staging',
+      'trial_ready',
       'checkout_started',
       'awaiting_payment',
       'verified',
@@ -178,12 +247,22 @@ export const sessionSchema = z
     if (value.phase !== 'prepared' && value.phase !== 'auth_started' && !value.userId)
       context.addIssue({ code: 'custom', message: 'Missing fixture identity' });
     if (
+      (value.phase === 'trial_staging' || value.phase === 'trial_ready') &&
+      (value.scenario !== 'early_payment' || value.checkoutId !== null || value.url !== null)
+    )
+      context.addIssue({ code: 'custom', message: 'Staged trial cannot contain a checkout' });
+    if (
       (value.phase === 'awaiting_payment' || value.phase === 'verified') &&
       (!value.checkoutId || !value.url)
     )
       context.addIssue({ code: 'custom', message: 'Missing checkout correlation' });
   });
 export type CheckoutSession = z.infer<typeof sessionSchema>;
+export function checkoutScenario(
+  session: Pick<CheckoutSession, 'scenario'>,
+): 'expired_trial' | 'early_payment' {
+  return session.scenario ?? 'expired_trial';
+}
 export function expectedAmount(plan: z.infer<typeof entryPlan>): number {
   const quote = quoteProposedOffer(OFFER_2026_PLAN_CODES.indexOf(plan) + 1);
   if (!quote) throw new Error('Unsupported checkout plan');
@@ -204,9 +283,11 @@ export function assertSamePreparation(
   saved: CheckoutSession,
   current: Pick<
     CheckoutSession,
-    'origin' | 'sha' | 'storeHash' | 'plan' | 'planId' | 'productId' | 'amountMinor'
+    'origin' | 'sha' | 'storeHash' | 'plan' | 'planId' | 'productId' | 'amountMinor' | 'scenario'
   >,
 ): void {
+  if (checkoutScenario(saved) !== checkoutScenario(current))
+    throw new Error('Prepared fixture scenario changed; reconcile before continuing');
   for (const key of [
     'origin',
     'sha',
