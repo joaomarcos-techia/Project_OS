@@ -1,5 +1,7 @@
 # Operação e recuperação AbacatePay
 
+**Checkpoint operacional vigente: fechamento/rotação/piloto13/11 ao final e relatório§53.** Seções antigas são evidência histórica, não ordens para repetir aplicação DEV ou pagamentos.
+
 ## Incremento operacional de12/11 — contenção e escala
 
 Estado corrente: [relatório §48](../decoupling/asaas-to-abacatepay/RELATORIO-HOMOLOGACAO-FINAL.md#48-inbox-de-minuto-estornos-e-tiss-até-0158--12112026), [matriz G01–G28](../decoupling/asaas-to-abacatepay/MATRIZ-CENARIOS-E-TESTES.md#matriz-corrente-g01g28--scanner-incremental-12112026) e seção final deste runbook. Nenhum comando autoriza DEV compartilhado ou Production. As provas e instruções explicitamente históricas abaixo não substituem este checkpoint.
@@ -445,3 +447,31 @@ Preview composto atual: https://project-m6qti314r-clinic-os-v2-s-projects.vercel
 6. Uma prova de renovação futura exige evento/receipt de um novo ciclo, invoice única, período único, cota correspondente, UI, duplicata recusada e alerta/reconciliação consistentes. Consulta de data futura e fixtures não encerram esse aceite.
 
 Interromper novas aquisições por: vínculo cruzado, duplicidade financeira, recibo sem proveniência, drift de contrato legado, ativação sem comprovação, worker/alerta sem cobertura ou backlog sem recuperação. Desligar aquisição não apaga obrigações nem autoriza rollback destrutivo. Preservar inbox/invoices/readbacks/journal e corrigir à frente se o release anterior não suporta os bindings.
+
+## Operação preparada — fechamento live, watch e rotação,13/11
+
+Checkpoint corrente: relatório§53 e dossiê de decisão no plano final. TISS bf59cbc3, SQL sem delta desde e144; DEV160/0159 apenas conferido. O gerador scripts/security/abacatepay-code-composition.ts exporta fontes imutáveis, resolve apenas os três conflitos conhecidos, aplica os patches revisados e registra inputs; nunca mescla branches ou escreve no worktree TISS. Executar antes o gerador SQL com os refs completos do manifesto. Se a exportação já existir, ele recusa substituí-la; preserve a prova e use outro par de SHAs revisado, sem remover pastas às cegas.
+
+### Fechamento após pagamento e cobertura de renovação
+
+O consumidor preparado fecha **somente checkout live comprovadamente pago**, com invoice/vínculo/loja/modo/assinatura/cliente/produto/valor conferidos, journal at-most-once e audit idempotente. Atéuma geração por tick, orçamento20s, independente da flag de aquisição. Não cancela a recorrência nem reverte acesso/invoice. Sandbox continua exclusivamente no operador manual anterior: não fecha as cinco fixtures retidas. Operação running/unknown fica em revisão, sem novo POST; concorrência in_progress não é tratada como nova autorização de executar. Falha autenticada gera alerta e não registra heartbeat saudável.
+
+O observador de período também participa do cron de minuto, além da conferência diária existente: o gate por assinatura/hora, locks e fingerprint impedem alertas/audit duplicados. É uma detecção de divergência para revisão, sem conceder período provisório. Ver limites/backoff/cohort e regras de parada no plano de piloto. Alteração do código só chega a Production depois do GO; nenhum cron remoto foi chamado para produzir evidência.
+
+### Rotação planejada do segredo, sem perda intencional de pendências
+
+1. Abrir janela de rotação e conferir captura de alertas; pausar novas aquisições com flagfalse e novo deployment, mantendo consumidores. Guardar segredo atual e novo no cofre com acesso restrito; não enviar valores por chat/terminal visível.
+2. Configurar o novo ABACATEPAY_WEBHOOK_SECRET e, na variável opcional ABACATEPAY_WEBHOOK_PREVIOUS_SECRET, JSON privado com secret antigo e expiresAt UTC absoluto de no máximo24h. Verificar antes em Preview. Criar novo deployment e comprovar que ambas as autenticações previstas são aceitas com HMAC e mesmo inbox; nada libera acesso por segredo apenas.
+3. No painel/API oficiais, apontar o webhook para o novo segredo durante a sobreposição, preservando o mesmo endpoint e eventos. A API documentada expõe criar/listar/consultar/excluir; não existe update comprovado. Se for necessário criar outra configuração, registrar ambos IDs e aceitar duplicatas idempotentemente. **Não excluir o anterior enquanto houver entregas pendentes:** a documentação informa que a exclusão as descarta. Não imprimir URLs com webhookSecret.
+4. Conferir logs e inbox do destinatário para o segredo novo, pendências do anterior e ausência de duplicação financeira. Se a janela não for suficiente, interromper a rotação e decidir formalmente a transição; não manter segredo anterior indefinidamente nem estender datas automaticamente. A rotina de reconciliação continua como contingência, sem substituir prova financeira ausente.
+5. No prazo absoluto, o antigo é recusado401, inclusive sem redeployment. Depois de drenar/conferir a configuração anterior, retirar o JSON antigo na Vercel por novo deployment, remover a configuração obsoleta somente com autorização própria e arquivar a evidência sanitizada. A chave API não participa dessa rotação e não deve ser recriada.
+
+Teste unitário controla o relógio e prova aceitação atual/anterior, HMAC inválido, deduplicação e recusa na expiração; isso não é uma rotação operacional já executada no provedor. Nunca copiar o segredo do Sandbox para live.
+
+### Recuperação operacional e significado do ensaio
+
+O modo QORO_ABACATEPAY_OPERATIONAL_PROFILE=pilot usa10 clínicas sintéticas, Redis/PG isolados, dois processos frios e ticks separados por60s reais. A fixture de indisponibilidade72h deve ter pagamento/período históricos coerentes com received_at: envelhecer só o evento e deixar o pagamento no futuro é corretamente recusado. O ensaio não antecipa lease/backoff nem comprova renovação externa. A perda de resposta HTTP permite redelivery limitado de ECONNRESET/UND_ERR_SOCKET e exige inbox durável/finais únicos. Consultar a evidência para o resultado efetivamente medido; falha do harness não recebe PASS por documentação.
+
+O harness financeiro completo agora usa Redis Docker isolado nos cenários de comando com contexto live sintético. Isso preserva a exigência de coordenação, sem introduzir bypass Production. Não carregar chave live. O provider HTTP continua sintético e o banco exclusivamente loopback.
+
+Auxiliar run-scale-preview-redis: GET do ID exato retornou404 em13/11 10:35UTC; limpeza anterior concluída. Não tentar excluí-lo novamente nem usar buscas amplas para apagar outros projetos. QoroProduction permaneceu no5620a098.

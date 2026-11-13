@@ -223,3 +223,63 @@ Antes de solicitar janela: CI do SHA final, fonte integrada revisada, capacidade
 Na futura janela autorizada: fechar aquisição e, se o plano exigir, cadastro por novo deployment; provar bloqueio; preflight do histórico Production contra o pacote imutável/backup; aplicar somente cauda autorizada com timeouts/stop; postflight/contratos/último titular/RLS; deployment do código compatível; webhook e consumidores ativos antes de emitir checkout; liberar só cohort; smoke e conferência financeira sem criar cobrança não autorizada; observar fila/alertas; expandir apenas com nova decisão. Não migrar contratos Asaas nem habilitar TISS por consequência do pagamento.
 
 **Decisões separadas:** GO técnico condicionado à CI final e pacote de fonte fixado; NO-GO operacional live enquanto configuração e validação/risco externo faltarem; NO-GO comercial sem autorização de cobrar/migrar. Nada neste documento autoriza merge, deploy, migration ou cobrança Production nesta rodada.
+
+## Dossiê de decisão e piloto executável — 13/11/2026
+
+Este é o checkpoint corrente; as seções anteriores são histórico, não instruções para repetir operações. Fontes fixadas: PR53 na revisão deste incremento, base16d9062b; PR55 4d0ed1d5c8a81ab9f66e026f4f36c6e4520a7269; runtime idêntico a bf59cbc3. Não incluir arquivos locais do outro agente. Nenhum GO live é concedido por este documento.
+
+### Evidência e lacuna externa
+
+As cinco compras iniciais Sandbox e o fechamento/readback de uma fixture foram comprovados e não serão repetidos. O GET atual da assinatura fornece currentPeriodStart/currentPeriodEnd/nextChargeAt quando presentes; o código os valida e não usa o PAID do checkout original como renovação. O provedor não oferece aceleração do ciclo recorrente no Dev mode nem um histórico completo de faturas por subs_. O evento, receipt e extrato precisam identificar a obrigação correta. Consulta de vencimento futuro, evento sintético, teste em memória ou alteração de relógio não provam transcurso mensal.
+
+| Risco residual | Evidência / consequência | Probabilidade e impacto | Controles e condição de encerramento |
+| --- | --- | --- | --- |
+|R1 Reutilização do link|Checkout não é individual por garantia nativa. Fechamento automático preparado para gerações live comprovadamente pagas, uma por tick; não cancela a assinatura. Existe janela antes do fechamento e resultados unknown que não podem ser reenviados.|Probabilidade não quantificável com cinco compras sintéticas. Cada duplicata pode criar uma obrigação remota adicional de R$197–838 por ciclo; não representa dinheiro já cobrado nesta rodada.|Journal durável, produto/loja/modo/cliente/assinatura verificados, uma tentativa, audit idempotente e alertas. Unknown/running exigem leitura e revisão, sem segundo POST. Encerrar com evidência live autorizada de fechamento/histórico e acompanhamento da janela; não alegar uso único absoluto.|
+|R2 Renovação paga sem evento|Receipts de cartão + scanner e recuperação GET-only são testados localmente. Nenhum novo ciclo externo observado. Pode haver cliente pago sem atualização local ou evidência ambígua.|Ocorrência desconhecida; impacto alto em continuidade e suporte. Não estimar perda média ou percentual com esta amostra.|Inbox/lease, calendário original, valor/cliente/loja/ciclo, transação invoice/período/cota, revisão e retry. Encerrar após renovação externa + prova equivalente de recuperação ou aceite formal delimitado para piloto.|
+|R3 Falha/alteração/estorno/disputa externa|Fixtures cobrem eventos fora de ordem, mudança só na renovação paga, falha e reversão. Não existe simulador para todo o ciclo recorrente.|Probabilidade desconhecida. Mudança errada de acesso, cobrança ou cota é impacto alto. Reembolso/disputa preserva o período pago e vai à revisão, conforme decisão aprovada.|Não aplicar cota antecipada; não usar evento como comprovação isolada; não emitir refund/cancelamento por inferência. Observar os eventos reais autorizados e encerrar evidência por cenário.|
+|R4 Capacidade e operação|Carga isolada100/500/1000 preservada; teste novo do piloto usa ticks reais e dois processos. Não certifica provedor, Vercel, Redis gerenciado ou toda a reconstrução de desastre.|Sem base para SLA ou probabilidade numérica. Uma indisponibilidade prolongada aumenta fila e tempo de atualização.|Cohort mínimo, controles por loja, deadlines, backoff/circuito, MFA, alerta, plantão e recuperação. Expansão depende de métricas e aceite operacional; não inferir capacidade100 do limite da allowlist.|
+
+Nenhum R1–R4 está aceito por este texto. O aceite anterior de backup sem PITR é independente. Recomendação: piloto somente após fechar configuração live e gates abaixo; aceitar, se desejado, a ausência de observação mensal como risco **delimitado**, nunca declarar renovação homologada. Alternativa sem esse aceite: manter AbacatePay live fechada e aguardar o ciclo Sandbox retido.
+
+### População, elegibilidade e expansão propostas
+
+1. Começar com **uma clínica nova e consentida**, escolhida nominalmente pelo founder; nunca selecionar por consulta automática nem migrar legado. Admite qualquer um dos cinco planos mensais já homologados. Sem contratação anual nova, sem liberação automática de TISS e sem alteração das condições de Asaas/pacientes.
+2. Exigir titular e contato operacional conhecidos, plano/preço corretos, trial e pagamento explicados, disponibilidade para suporte e critérios de incidente acordados. Não exigir do cliente pagamentos de teste.
+3. A lista ABACATEPAY_CHECKOUT_CLINIC_IDS controla a aquisição por clínica. O teto100 do código é validação de configuração, não capacidade aprovada. Proposta: uma clínica → até3 após ativações/readbacks/alertas íntegros e decisão do responsável; até10 somente após recuperação e ciclo externo comprovados ou aceite adicional expresso. Nenhuma expansão automática.
+4. Nomear titular financeiro, plantão técnico e substituto; informar canal e horário de cobertura. Sem responsáveis concretos, NO-GO operacional. A engenharia não inventa nomes ou disponibilidade24h.
+
+### Controles, indicadores e limites
+
+- Tick existente de minuto: inbox até10 eventos, admissão15s/orçamento35s; recuperação35s compartilhando páginas e contratos; fechamento live atéuma geração paga/tick com orçamento20s; watch de renovação DB limitado e idempotente. Tudo roda junto ao outbox com allSettled; falha não gera heartbeat de sucesso. Não muda vercel.json, planos ou custos. O Preview não recebe cron automático; Vercel não reexecuta uma invocação fracassada, e é a próxima agenda que retoma o trabalho.
+- Redis coordena a loja entre instâncias com espaçamento20ms (teto teórico50 admissões/s), cooldown de429 e circuito. Esse teto é inferior ao limite documentado100 req/s por loja e não equivale a vazão real, pois cada obrigação usa várias leituras. Na indisponibilidade Redis, falhar fechado e preservar evento; não desativar coordenação para liberar aquisição.
+- Pools máximos por instância: runtime6, admin8, worker2. Multiplicação serverless importa: a soma nominal16N não é consumo garantido nem capacidade contratada do pooler. Observar conexões/espera/latência antes de aumentar concorrência ou contratar capacidade.
+- Alvos de contenção propostos para piloto, não SLA: alerta se heartbeat ausente por3 minutos, evento recebido não resolvido com idade acima de5 minutos ou qualquer review/unknown financeiro; conter aquisições se fila cresce por três ticks ou há pagamento sem invoice/período/cota correto. Medir confirmação→aplicação e revisar esses limiares com o operador antes de abrir. Backoff/circuito e falha prolongada podem ultrapassar5 minutos; não prometer tempo máximo absoluto.
+- Custo por volume não foi convertido em R$ sem medição/plano: contabilizar invocações, CPU/duração, comandos Redis, páginas/leituras provedor, DB e alertas. A prova isolada registra contadores, não fatura de serviços gerenciados. Não aumentar plano/limite automaticamente.
+
+### Preparação da janela, sem execução agora
+
+| Ordem | Ação / saída verificável | Responsável |
+| --- | --- | --- |
+|1|Fixar SHAs finais53/55, checks, composição exportada e hashes SQL; rever apenas o delta se o proprietário avançar depois.|Engenharia|
+|2|Conferir backup/restore e risco RPO/RTO vigente, sem repetir restore já comprovado nem contratar PITR. Novo backup pré-janela deve preservar fatos financeiros recentes.|Engenharia/operação|
+|3|Catalogar cinco produtos mensais live: IDs reais, preços19700/39700/54400/69100/83800, BRL, MONTHLY, sem trial nativo, devMode=false e loja correta. Não usar IDs Sandbox nem preencher por suposição.|Operador autorizado na futura janela|
+|4|Preparar segredo live no cofre e webhook HTTPS https://app.qoro.dev/api/webhooks/abacatepay, eventos relevantes e autenticação. APIkey Production já existe: preservar. Não expor URL com query secreta.|Engenharia/operação|
+|5|Fechar aquisição e, se exigido pelo rollout, cadastro, com novo deployment; provar o bloqueio. Variável não muda deployment antigo.|Engenharia na janela autorizada|
+|6|Ler histórico Production, comparar cada when/hash com pacote, aplicar só cauda autorizada após backup/lock preflight; postflight de contratos/último titular/RLS/índices. DEV160 não autoriza reaplicação nem Production.|Engenharia com autorização específica|
+|7|Publicar release compatível, consumers e cron; conferir ambiente/release Sentry e destinatário Production. Uma regra Preview entregue não comprova canal Production.|Engenharia/operação|
+|8|Só depois de aceite dos riscos e GO comercial, inserir a clínica consentida no cohort, liberar aquisição por novo deployment e validar jornada real autorizada. Não criar uma cobrança adicional para testar.|Founder + operação|
+|9|Verificar checkout→pagamento→inbox→invoice→período/cota→UI, fechamento e histórico, duplicatas e ausência de drift Asaas/TISS. Registrar receipt/IDs sanitizados, nunca cartão/tokens/paciente.|Engenharia/financeiro|
+
+### Incidente, interrupção e rollback
+
+Parar aquisição (flagfalse + novo deployment), sem parar recebimento/scanners/obrigações emitidas, diante de duplicata remota, tenant cruzado, ativação sem prova, perda de histórico, falha de segurança ou ausência de cobertura operacional. Kill switch não cancela contratos e não invalida links já emitidos. O fechamento automático só atua sobre geração paga comprovada; links ainda pendentes exigem decisão/ação específica, nunca apagar todos os webhooks ou cancelar assinaturas para conter.
+
+Para unknown de fechamento: abrir incidente com o operation ID privado e código sanitizado; consultar somente o checkout/assinatura/loja vinculados e a listagem autenticada. Não reenviar DELETE por404 ou timeout. Manter acesso pago; usar a evidência do journal e envolver suporte/engenharia se não for possível comprovar o resultado. Não editar a invoice nem marcar unknown como confirmado por relato.
+
+Rollback de código só para versão compatível com schema aditivo e bindings existentes. Se a anterior não consome AbacatePay, manter aquisição parada e corrigir à frente. Não executar DOWN nem restaurar banco sobre pagamentos recentes automaticamente. Reabrir somente após invariantes, fila/alertas e autorização de contenção resolvidas.
+
+### Modelo de decisão humana, sem segredos
+
+`Riscos R1–R4: [aceito com limites / não aceito / discutir item]; clínica inicial: [identificador a definir em canal autorizado]; financeiro: [responsável]; plantão/substituto: [responsáveis e cobertura]; cohort inicial:1; limites/controles: [aprovados/ajustes].`
+
+Esse retorno não autoriza por si só merge/deploy/migration/cobrança. A janela e a primeira operação financeira live exigem autorização específica após os gates. **GO técnico, operacional e comercial continuam decisões separadas.**

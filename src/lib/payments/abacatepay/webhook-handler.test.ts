@@ -37,7 +37,7 @@ function request(body = JSON.stringify(event), suppliedSecret = secret, signatur
     },
   );
 }
-function setup() {
+function setup(previousSecret?: string) {
   const accept = vi
     .fn<(_: { eventId: string }, hash: string) => Promise<'accepted' | 'duplicate'>>()
     .mockResolvedValue('accepted');
@@ -45,6 +45,7 @@ function setup() {
   const handler = createAbacatePayWebhookHandler({
     account,
     expectedSecret: secret,
+    ...(previousSecret === undefined ? {} : { previousSecret }),
     inbox: { account, accept },
     onFailure,
   });
@@ -52,6 +53,43 @@ function setup() {
 }
 
 describe('composable AbacatePay receiver (unit persistence double)', () => {
+  it('accepts rotation overlap, then rejects the old secret at absolute expiry without disabling the current one', async () => {
+    const old = 'synthetic-old-receiver-secret-at-least-32-chars';
+    const expiry = Date.now() + 3600000;
+    const { handler, accept } = setup(
+      JSON.stringify({ secret: old, expiresAt: new Date(expiry).toISOString() }),
+    );
+    expect((await handler(request(undefined, old))).status).toBe(202);
+    accept.mockResolvedValueOnce('duplicate');
+    expect((await handler(request())).status).toBe(200);
+    expect(accept.mock.calls[0]).toEqual(accept.mock.calls[1]);
+    const now = vi.spyOn(Date, 'now').mockReturnValue(expiry);
+    try {
+      expect((await handler(request(undefined, old))).status).toBe(401);
+      expect((await handler(request())).status).toBe(202);
+      expect(accept).toHaveBeenCalledTimes(3);
+    } finally {
+      now.mockRestore();
+    }
+  });
+  it('does not let the previous secret bypass the HMAC check', async () => {
+    const old = 'synthetic-old-receiver-secret-at-least-32-chars';
+    const { handler, accept } = setup(
+      JSON.stringify({ secret: old, expiresAt: new Date(Date.now() + 3600000).toISOString() }),
+    );
+    expect((await handler(request(undefined, old, 'invalid-signature'))).status).toBe(401);
+    expect(accept).not.toHaveBeenCalled();
+  });
+  it.each([
+    'invalid-json',
+    JSON.stringify({ secret, expiresAt: 'invalid' }),
+    JSON.stringify({
+      secret: 'synthetic-old-receiver-secret-at-least-32-chars',
+      expiresAt: '2099-01-01T00:00:00.000Z',
+    }),
+  ])('refuses invalid or unbounded rotation without exposing values', (raw) => {
+    expect(() => setup(raw)).toThrow('SaaS billing gateway: invalid_input');
+  });
   it('queues only after persistence and stores IDs/hash instead of raw body/PII/status', async () => {
     const { handler, accept } = setup();
     const body = JSON.stringify(event);

@@ -24,6 +24,8 @@ type Failure =
   | 'content_conflict'
   | 'persistence_failed';
 const MAX_BYTES = 262_144;
+const MAX_ROTATION_OVERLAP_MS = 24 * 60 * 60 * 1000;
+const secretSchema = z.string().min(32).max(1024).regex(/^\S+$/);
 const response = (status: number, body: object) =>
   Response.json(body, {
     status,
@@ -38,6 +40,7 @@ const response = (status: number, body: object) =>
 export function createAbacatePayWebhookHandler(config: {
   account: BillingAccount;
   expectedSecret: string;
+  previousSecret?: string;
   inbox: AbacatePayInbox;
   onFailure: (reason: Failure) => void;
 }) {
@@ -55,6 +58,24 @@ export function createAbacatePayWebhookHandler(config: {
     throw new GatewayReadError('invalid_input');
   }
   const expectedSecret = config.expectedSecret;
+  let previous: { secret: string; expiresAt: number } | undefined;
+  if (config.previousSecret !== undefined) {
+    try {
+      const parsed = z
+        .object({ secret: secretSchema, expiresAt: z.iso.datetime() })
+        .strict()
+        .parse(JSON.parse(config.previousSecret));
+      const expiresAt = Date.parse(parsed.expiresAt);
+      if (
+        expiresAt > Date.now() + MAX_ROTATION_OVERLAP_MS ||
+        safeEqual(parsed.secret, expectedSecret)
+      )
+        throw new GatewayReadError('invalid_input');
+      previous = { secret: parsed.secret, expiresAt };
+    } catch {
+      throw new GatewayReadError('invalid_input');
+    }
+  }
   const expectedEnvironment = account.data.environment;
   const accept = config.inbox.accept.bind(config.inbox);
   const onFailure = config.onFailure;
@@ -66,11 +87,17 @@ export function createAbacatePayWebhookHandler(config: {
       );
     const secrets = new URL(request.url).searchParams.getAll('webhookSecret');
     const suppliedSecret = secrets[0] ?? null;
+    const activeMatch = suppliedSecret && safeEqual(expectedSecret, suppliedSecret);
+    const previousMatch =
+      suppliedSecret &&
+      previous &&
+      Date.now() < previous.expiresAt &&
+      safeEqual(previous.secret, suppliedSecret);
     if (
       secrets.length !== 1 ||
       !suppliedSecret ||
       suppliedSecret.length > 1024 ||
-      !safeEqual(expectedSecret, suppliedSecret)
+      (!activeMatch && !previousMatch)
     ) {
       onFailure('authentication_failed');
       return response(401, { error: 'unauthorized' });
@@ -91,7 +118,7 @@ export function createAbacatePayWebhookHandler(config: {
         rawBody: body,
         signature: request.headers.get('X-Webhook-Signature'),
         suppliedSecret,
-        expectedSecret,
+        expectedSecret: activeMatch ? expectedSecret : (previous?.secret ?? expectedSecret),
         expectedEnvironment,
       });
     } catch (error) {

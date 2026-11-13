@@ -27,11 +27,12 @@ type Worker = (input?: {
 }) => Promise<{ applied: number; review: number; scanned: number; retry?: boolean }>;
 type Dependencies<F extends Fixture> = {
   sql: ScratchCluster['sql'];
-  seed: () => Promise<F>;
+  seed: (endOffsetMs?: number, discovery?: boolean) => Promise<F>;
   handlerFor: (fixture: F) => typeof fetch;
   notification: (fixture: F) => Request;
   webhook: (request: Request) => Promise<Response>;
   worker: Worker;
+  recovery: (deadlineMs: number) => Promise<unknown>;
   originalFetch: typeof fetch;
   redis: Awaited<ReturnType<typeof startOperationalRedis>>;
   databaseProxy: Awaited<ReturnType<typeof startOperationalDatabaseProxy>>;
@@ -111,6 +112,7 @@ async function parallel<T>(items: T[], concurrency: number, task: (item: T) => P
 }
 
 export async function runAbacatePayOperationalProof<F extends Fixture>(d: Dependencies<F>) {
+  const pilot = process.env.QORO_ABACATEPAY_OPERATIONAL_PROFILE === 'pilot';
   const fixtures: F[] = [],
     handlers = new Map<string, typeof fetch>();
   const rows: { createdAt: string }[] = [],
@@ -194,8 +196,8 @@ export async function runAbacatePayOperationalProof<F extends Fixture>(d: Depend
         sampling = undefined;
       });
   }, 100);
-  const seed = async () => {
-    const f = await d.seed(),
+  const seed = async (endOffsetMs?: number, discovery = false) => {
+    const f = await d.seed(endOffsetMs, discovery),
       handler = d.handlerFor(f);
     for (const id of [
       f.evidence.subscriptionId,
@@ -252,6 +254,11 @@ export async function runAbacatePayOperationalProof<F extends Fixture>(d: Depend
     return { elapsedMs: performance.now() - start, applied: processed, remaining: await pending() };
   };
   let interrupted: ReturnType<typeof spawn> | undefined;
+  const tickWorkers = new Set<ReturnType<typeof spawn>>();
+  const coldStarts: number[] = [];
+  const scheduledTicks: unknown[] = [];
+  let scheduledRecoveryMs: number | undefined;
+  let transportRetries = 0;
   try {
     const auth = await seed();
     assert.equal(await deliver(auth, true), 401);
@@ -364,8 +371,14 @@ export async function runAbacatePayOperationalProof<F extends Fixture>(d: Depend
       timeoutMs: 500,
     });
     mode = 'unavailable';
-    for (let attempt = 0; attempt < 5; attempt++)
+    const failuresBefore = providerStatuses[503] ?? 0;
+    for (let attempt = 0; (providerStatuses[503] ?? 0) - failuresBefore < 5; attempt++) {
+      assert.ok(attempt < 25, 'Five provider failures were not observed');
       await assert.rejects(() => faultReader.readStore());
+      // Admission can reject locally before HTTP. Count real HTTP503 responses,
+      // rather than treating every rejected attempt as a provider failure.
+      await delay(50);
+    }
     mode = 'ok';
     const blocked = await circuit.admit();
     assert.equal(blocked.allowed, false);
@@ -407,11 +420,162 @@ export async function runAbacatePayOperationalProof<F extends Fixture>(d: Depend
       'Actual runtime DB TCP loss fails HTTP closed; redelivery after restored network recovers',
     );
 
-    for (const [size, concurrency] of [
-      [100, 1],
-      [500, 2],
-      [1000, 4],
-    ] as const) {
+    if (pilot) {
+      const { env } = await import('../../src/lib/env');
+      const { abacatePayCheckoutAllowed, isAbacatePayRuntime } =
+        await import('../../src/lib/payments/saas/acquisition');
+      const outageAgeMs = 72 * 3600000;
+      const batch = await Promise.all(
+        Array.from({ length: 10 }, () => seed(-outageAgeMs - 120000)),
+      );
+      fixtures.push(...batch);
+      const [firstClinic] = batch;
+      assert.ok(firstClinic);
+      env.ABACATEPAY_CHECKOUT_CLINIC_IDS = batch.map((f) => f.clinicId).join(',');
+      env.ABACATEPAY_NEW_CHECKOUTS_ENABLED = true;
+      assert.ok(abacatePayCheckoutAllowed(firstClinic.clinicId));
+      assert.equal(abacatePayCheckoutAllowed(auth.clinicId), false);
+      env.ABACATEPAY_NEW_CHECKOUTS_ENABLED = false;
+      process.env.ABACATEPAY_NEW_CHECKOUTS_ENABLED = 'false';
+      assert.equal(abacatePayCheckoutAllowed(firstClinic.clinicId), false);
+      assert.ok(isAbacatePayRuntime());
+      results.push(
+        'Pilot cohort admits only ten synthetic clinics; acquisition kill switch preserves consumers',
+      );
+
+      d.redis.pause();
+      await parallel(batch, 2, async (f) => {
+        for (let attempt = 0; ; attempt++) {
+          try {
+            // A lost response may have persisted the first delivery; its retry
+            // then legitimately returns duplicate200 while Redis is unavailable.
+            assert.ok([200, 503].includes(await deliver(f)));
+            break;
+          } catch (error) {
+            const reset =
+              error instanceof TypeError &&
+              z.object({ code: z.enum(['ECONNRESET', 'UND_ERR_SOCKET']) }).safeParse(error.cause)
+                .success;
+            if (!reset || attempt >= 2) throw error;
+            transportRetries++;
+            await delay(100);
+          }
+        }
+      });
+      const [queued] = await d.sql`SELECT count(*)::int n FROM billing_gateway.event_inbox
+        WHERE event_id IN(SELECT jsonb_array_elements_text(${d.sql.json(batch.map((f) => f.eventId))}::jsonb))
+        AND state='received'`;
+      assert.equal(queued?.n, batch.length);
+      d.redis.resume();
+      // Historical fixture: payment/period were seeded 72h in the past, before
+      // this receive time. Never place a future payment before an old receipt.
+      // Retry/backoff and leases still use real time and are not bypassed.
+      await d.sql`UPDATE billing_gateway.event_inbox SET received_at=now()-interval '72 hours'
+        WHERE event_id IN(SELECT jsonb_array_elements_text(${d.sql.json(batch.map((f) => f.eventId))}::jsonb))`;
+      const scheduledStart = performance.now();
+      const coldTick = async () => {
+        const started = performance.now();
+        const child = spawn(
+          process.execPath,
+          [
+            '--import',
+            'tsx',
+            '--conditions=react-server',
+            'scripts/security/abacatepay-operational-worker.ts',
+            '--tick',
+          ],
+          {
+            cwd: process.cwd(),
+            env: { ...process.env, QORO_OPERATIONAL_PROVIDER_URL: provider.url },
+            stdio: ['ignore', 'pipe', 'pipe'],
+            windowsHide: true,
+          },
+        );
+        tickWorkers.add(child);
+        let ready = false,
+          output = '';
+        child.stdout?.on('data', (chunk: Buffer) => {
+          output += chunk.toString('utf8');
+          if (!ready && output.includes('qoro_operational_worker_ready')) {
+            ready = true;
+            coldStarts.push(performance.now() - started);
+          }
+          if (output.length > 262144) child.kill();
+        });
+        const timer = setTimeout(() => child.kill(), 55000);
+        const exit = await new Promise<number | null>((resolve, reject) => {
+          child.once('error', reject);
+          child.once('exit', resolve);
+        }).finally(() => {
+          clearTimeout(timer);
+          tickWorkers.delete(child);
+        });
+        assert.equal(exit, 0, 'Isolated cold tick failed; raw output suppressed');
+        const line = output
+          .split('\n')
+          .find((value) => value.includes('qoro_operational_worker_result'));
+        assert.ok(line);
+        return z
+          .object({
+            result: z.object({
+              scanned: z.number(),
+              applied: z.number(),
+              review: z.number(),
+              deferred: z.boolean(),
+            }),
+          })
+          .parse(JSON.parse(line)).result;
+      };
+      for (let tick = 0; ; tick++) {
+        assert.ok(
+          performance.now() - scheduledStart < 480000,
+          'Scheduled pilot recovery exceeded eight minutes',
+        );
+        if (tick) await delay(Math.max(0, scheduledStart + tick * 60000 - performance.now()));
+        const before = await pending();
+        const outcomes = await Promise.all([coldTick(), coldTick()]);
+        const remaining = await pending();
+        scheduledTicks.push({
+          tick,
+          elapsedMs: performance.now() - scheduledStart,
+          before,
+          remaining,
+          outcomes,
+        });
+        console.log(JSON.stringify({ stage: 'pilot_scheduled_tick', tick, before, remaining }));
+        if (!remaining) break;
+      }
+      scheduledRecoveryMs = performance.now() - scheduledStart;
+      for (const f of batch) {
+        const [effect] = await d.sql`SELECT
+          (SELECT count(*)::int FROM public.invoices WHERE subscription_id=${f.subscription_id}::uuid) invoices,
+          (SELECT count(*)::int FROM billing_gateway.recurring_access_periods WHERE subscription_id=${f.subscription_id}::uuid) cycles`;
+        assert.equal(effect?.invoices, 2);
+        assert.equal(effect.cycles, 1);
+      }
+      results.push(
+        'Ten queued renewals recovered after simulated 72h outage age by actual minute ticks in two cold processes; no backoff bypass',
+      );
+      const missing = await seed(undefined, true);
+      await d.recovery(Date.now() + 35000);
+      const [recovered] = await d.sql`SELECT
+        (SELECT count(*)::int FROM public.invoices WHERE subscription_id=${missing.subscription_id}::uuid) invoices,
+        (SELECT count(*)::int FROM billing_gateway.recurring_access_periods WHERE subscription_id=${missing.subscription_id}::uuid) cycles`;
+      assert.equal(recovered?.invoices, 2);
+      assert.equal(recovered.cycles, 1);
+      assert.equal(await pending(), 0);
+      results.push(
+        'Missing webhook recovered through the real scheduled recovery seam while acquisition remained paused',
+      );
+    }
+    for (const [size, concurrency] of pilot
+      ? []
+      : [
+          [100, 1],
+          [500, 2],
+          [1000, 4],
+        ]) {
+      assert.ok(size && concurrency);
       await parallel(
         Array.from({ length: size - fixtures.length }, (_, i) => i),
         4,
@@ -453,14 +617,16 @@ export async function runAbacatePayOperationalProof<F extends Fixture>(d: Depend
     }
     assert.equal(blockedRequests, 0);
     if (sampleError) throw sampleError;
-    results.push(
-      '100/500/1000 clinics through actual HTTP receiver, Redis admission and leased DB workers',
-    );
+    if (!pilot)
+      results.push(
+        '100/500/1000 clinics through actual HTTP receiver, Redis admission and leased DB workers',
+      );
     const report = {
       status: 'PASS',
       startedAt,
       finishedAt: new Date().toISOString(),
       environment: 'isolated_loopback',
+      profile: pilot ? 'pilot' : 'scale',
       source: {
         financial: process.env.QORO_FINANCIAL_REF ?? 'working_tree',
         tiss: process.env.QORO_TISS_REF,
@@ -473,10 +639,24 @@ export async function runAbacatePayOperationalProof<F extends Fixture>(d: Depend
         'Sentry delivery reuses prior Preview channel proof; this harness measures application metrics',
       ],
       results,
+      pilot: pilot
+        ? {
+            clinics: 10,
+            simultaneousColdProcesses: 2,
+            coldStart: distribution(coldStarts),
+            tickIntervalMs: 60000,
+            simulatedOutageAgeHours: 72,
+            scheduledTicks,
+            scheduledRecoveryMs,
+            wallClockRenewalObserved: false,
+            newAcquisitionPaused: true,
+          }
+        : null,
       runs,
       providerReads,
       providerStatuses,
       receiverStatuses,
+      transportRetries,
       redis: d.redis.stats(),
       blockedRequests,
       peaks: {
@@ -488,11 +668,12 @@ export async function runAbacatePayOperationalProof<F extends Fixture>(d: Depend
       productionWrites: 0,
     };
     await writeFile(
-      'dist/abacatepay-operational-http.json',
+      pilot ? 'dist/abacatepay-pilot-http.json' : 'dist/abacatepay-operational-http.json',
       JSON.stringify(report, null, 2) + '\n',
     );
   } finally {
     if (interrupted) interrupted.kill();
+    for (const child of tickWorkers) child.kill();
     clearInterval(timer);
     await sampling;
     await receiver.stop();

@@ -3,6 +3,8 @@ const mocks = vi.hoisted(() => ({
   run: vi.fn(),
   recovery: vi.fn(),
   inbox: vi.fn(),
+  closures: vi.fn(),
+  watch: vi.fn(),
   heartbeat: vi.fn(),
 }));
 vi.mock('./handlers', () => ({}));
@@ -15,6 +17,8 @@ vi.mock('@/lib/outbox/worker', () => ({ runOutboxOnce: mocks.run }));
 vi.mock('@/contexts/billing/internal/abacatepay-processing', () => ({
   reconcileAbacatePayRecoveryTick: mocks.recovery,
   reconcileAbacatePayInboxTick: mocks.inbox,
+  reconcileAbacatePayCheckoutClosuresTick: mocks.closures,
+  reconcileAbacatePayRenewalWatchTick: mocks.watch,
 }));
 import { GET } from './route';
 const request = () => new Request('https://qoro.example/api/cron/outbox');
@@ -23,6 +27,8 @@ beforeEach(() => {
   mocks.run.mockResolvedValue({ processed: 2 });
   mocks.recovery.mockResolvedValue({ scanned: 0 });
   mocks.inbox.mockResolvedValue({ scanned: 0 });
+  mocks.closures.mockResolvedValue({ scanned: 0, closed: 0 });
+  mocks.watch.mockResolvedValue({ scanned: 0 });
 });
 describe('existing outbox minute tick', () => {
   it('preserves response shape and gives financial recovery a bounded independent budget', async () => {
@@ -30,6 +36,8 @@ describe('existing outbox minute tick', () => {
     expect(await (await GET(request())).json()).toEqual({ ok: true, processed: 2 });
     expect(mocks.recovery).toHaveBeenCalledWith(expect.any(Number));
     expect(mocks.inbox).toHaveBeenCalledOnce();
+    expect(mocks.closures).toHaveBeenCalledWith(expect.any(Number));
+    expect(mocks.watch).toHaveBeenCalledOnce();
     const deadline = mocks.recovery.mock.calls[0]?.[0];
     expect(deadline).toBeGreaterThanOrEqual(started + 35_000);
     expect(deadline).toBeLessThanOrEqual(Date.now() + 35_000);
@@ -77,6 +85,16 @@ describe('existing outbox minute tick', () => {
   it('propagates an inbox failure without declaring a successful tick', async () => {
     mocks.inbox.mockRejectedValueOnce(new Error('Synthetic inbox failure'));
     await expect(GET(request())).rejects.toThrow('Synthetic inbox failure');
+    expect(mocks.heartbeat).not.toHaveBeenCalled();
+  });
+  it('reports a closure failure without marking the cron healthy', async () => {
+    mocks.closures.mockRejectedValueOnce(new Error('Synthetic closure failure'));
+    await expect(GET(request())).rejects.toThrow('Synthetic closure failure');
+    expect(mocks.heartbeat).not.toHaveBeenCalled();
+  });
+  it('reports renewal coverage failure through the cron alert boundary', async () => {
+    mocks.watch.mockRejectedValueOnce(new Error('Synthetic coverage failure'));
+    await expect(GET(request())).rejects.toThrow('Synthetic coverage failure');
     expect(mocks.heartbeat).not.toHaveBeenCalled();
   });
 });

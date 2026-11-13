@@ -132,6 +132,11 @@ const EnvSchema = z
       z.enum(['sandbox', 'production']).optional(),
     ),
     ABACATEPAY_PLAN_PRODUCTS: z.preprocess(emptyToUndefined, z.string().max(4096).optional()),
+    // Optional bounded rotation window; JSON is validated by the receiver.
+    ABACATEPAY_WEBHOOK_PREVIOUS_SECRET: z.preprocess(
+      emptyToUndefined,
+      z.string().max(2048).optional(),
+    ),
     // Acquisition only; never stops webhooks, reconciliation or cancellation.
     ABACATEPAY_NEW_CHECKOUTS_ENABLED: z.preprocess(
       emptyToUndefined,

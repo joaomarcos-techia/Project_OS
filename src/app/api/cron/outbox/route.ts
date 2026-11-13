@@ -21,11 +21,13 @@ import { runOutboxOnce } from '@/lib/outbox/worker';
 import {
   reconcileAbacatePayRecoveryTick,
   reconcileAbacatePayInboxTick,
+  reconcileAbacatePayCheckoutClosuresTick,
+  reconcileAbacatePayRenewalWatchTick,
 } from '@/contexts/billing/internal/abacatepay-processing';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-// Vercel Pro plan caps at 60s per cron invocation.
+// Application budget. Verify the platform plan separately; this is not its quota.
 export const maxDuration = 60;
 
 // `errorEvent: 'worker.error'` foge do padrão `<domínio>.error` das outras
@@ -36,18 +38,22 @@ export const GET = withCron(
   { job: 'outbox', route: 'outbox', errorEvent: 'worker.error' },
   async () => {
     // Reuse the existing minute tick without changing vercel.json. This branch
-    // still refuses Production. Independent work runs beside the outbox rather
-    // than consuming the daily Asaas reconciler's remaining time budget.
-    const [outbox, recovery, inbox] = await Promise.allSettled([
+    // selects its explicit environment. Independent work runs beside the outbox
+    // rather than consuming the daily Asaas reconciler's remaining time budget.
+    const [outbox, recovery, inbox, closures, watch] = await Promise.allSettled([
       runOutboxOnce(),
       reconcileAbacatePayRecoveryTick(Date.now() + 35_000),
       reconcileAbacatePayInboxTick(),
+      reconcileAbacatePayCheckoutClosuresTick(Date.now() + 20_000),
+      reconcileAbacatePayRenewalWatchTick(),
     ]);
-    // Await both bounded jobs before reporting failure. An early financial
+    // Await all independent jobs before reporting failure. An early financial
     // rejection must not abandon an independent outbox write at HTTP teardown.
     if (outbox.status === 'rejected') throw outbox.reason;
     if (recovery.status === 'rejected') throw recovery.reason;
     if (inbox.status === 'rejected') throw inbox.reason;
+    if (closures.status === 'rejected') throw closures.reason;
+    if (watch.status === 'rejected') throw watch.reason;
     const summary = outbox.value;
     await recordHeartbeat('outbox', 'success', summary);
     return Response.json({ ok: true, ...summary }, { status: 200 });

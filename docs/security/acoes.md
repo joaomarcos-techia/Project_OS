@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 200 actions (0 inline); 66 métodos em 62 handlers; 19 props com referência de action; 526 acessos diretos a process.env; 10 nomes NEXT_PUBLIC.
+Contagem: 200 actions (0 inline); 66 métodos em 62 handlers; 19 props com referência de action; 531 acessos diretos a process.env; 10 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -241,7 +241,7 @@ O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase
 | `src/app/api/cron/financial-reconcile/route.ts:53#GET`               | cron-token              | cron-token                                                                      | `src/app/api/cron/financial-reconcile/route.ts:53#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                  |
 | `src/app/api/cron/invites-cleanup/route.ts:31#GET`                   | cron-token              | cron-token                                                                      | `src/app/api/cron/invites-cleanup/route.ts:31#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                      |
 | `src/app/api/cron/metrics-rollup/route.ts:108#GET`                   | cron-token              | cron-token                                                                      | `src/app/api/cron/metrics-rollup/route.ts:108#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                      |
-| `src/app/api/cron/outbox/route.ts:35#GET`                            | cron-token              | cron-token                                                                      | `src/app/api/cron/outbox/route.ts:35#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                               |
+| `src/app/api/cron/outbox/route.ts:37#GET`                            | cron-token              | cron-token                                                                      | `src/app/api/cron/outbox/route.ts:37#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                               |
 | `src/app/api/cron/patient-hard-delete/route.ts:50#GET`               | cron-token              | cron-token                                                                      | `src/app/api/cron/patient-hard-delete/route.ts:50#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                  |
 | `src/app/api/cron/payments-account-closure/route.ts:38#GET`          | NEW                     | cron-token                                                                      | `src/app/api/cron/payments-account-closure/route.ts:38#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                             |
 | `src/app/api/cron/payments-deposit/route.ts:50#GET`                  | cron-token              | cron-token                                                                      | `src/app/api/cron/payments-deposit/route.ts:50#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                     |
@@ -349,7 +349,7 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `src/lib/auth/supabase-session-cookie.ts:5`                | `NODE_ENV`                             | `process.env.NODE_ENV`                                                      |
 | `src/lib/db/index.ts:39`                                   | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                                          |
 | `src/lib/db/index.ts:53`                                   | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                                          |
-| `src/lib/env.ts:522`                                       | `<object>`                             | `process.env`                                                               |
+| `src/lib/env.ts:527`                                       | `<object>`                             | `process.env`                                                               |
 | `src/lib/impersonation/index.ts:64`                        | `NODE_ENV`                             | `process.env.NODE_ENV`                                                      |
 | `src/middleware.ts:82`                                     | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
 | `src/middleware.ts:88`                                     | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
@@ -587,21 +587,26 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/abacatepay-checkout-recovery-db.ts:19`   | `<object>`                             | `process.env`                                                               |
 | `scripts/security/abacatepay-checkout-recovery-db.ts:43`   | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                                                    |
 | `scripts/security/abacatepay-checkout-recovery-db.ts:44`   | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
+| `scripts/security/abacatepay-code-composition.ts:15`       | `QORO_FINANCIAL_REF`                   | `process.env.QORO_FINANCIAL_REF`                                            |
+| `scripts/security/abacatepay-code-composition.ts:19`       | `QORO_TISS_REF`                        | `process.env.QORO_TISS_REF`                                                 |
 | `scripts/security/abacatepay-composition-checks-db.ts:79`  | `<object>`                             | `process.env`                                                               |
 | `scripts/security/abacatepay-composition-checks-db.ts:88`  | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                                                    |
 | `scripts/security/abacatepay-composition-checks-db.ts:89`  | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
 | `scripts/security/abacatepay-dev-release.ts:99`            | `QORO_TISS_WORKTREE`                   | `process.env.QORO_TISS_WORKTREE`                                            |
 | `scripts/security/abacatepay-dev-release.ts:118`           | `QORO_LOCAL_ENV_FILE`                  | `process.env.QORO_LOCAL_ENV_FILE`                                           |
-| `scripts/security/abacatepay-operational-proof.ts:295`     | `ABACATEPAY_WEBHOOK_SECRET`            | `process.env.ABACATEPAY_WEBHOOK_SECRET`                                     |
-| `scripts/security/abacatepay-operational-proof.ts:317`     | `<object>`                             | `process.env`                                                               |
-| `scripts/security/abacatepay-operational-proof.ts:465`     | `QORO_FINANCIAL_REF`                   | `process.env.QORO_FINANCIAL_REF`                                            |
-| `scripts/security/abacatepay-operational-proof.ts:466`     | `QORO_TISS_REF`                        | `process.env.QORO_TISS_REF`                                                 |
-| `scripts/security/abacatepay-operational-worker.ts:3`      | `QORO_ABACATEPAY_OPERATIONAL`          | `process.env.QORO_ABACATEPAY_OPERATIONAL`                                   |
-| `scripts/security/abacatepay-operational-worker.ts:4`      | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
-| `scripts/security/abacatepay-operational-worker.ts:5`      | `ABACATEPAY_ENVIRONMENT`               | `process.env.ABACATEPAY_ENVIRONMENT`                                        |
-| `scripts/security/abacatepay-operational-worker.ts:7`      | `ABACATEPAY_API_KEY`                   | `process.env.ABACATEPAY_API_KEY`                                            |
-| `scripts/security/abacatepay-operational-worker.ts:10`     | `QORO_OPERATIONAL_PROVIDER_URL`        | `process.env.QORO_OPERATIONAL_PROVIDER_URL`                                 |
-| `scripts/security/abacatepay-operational-worker.ts:12`     | `UPSTASH_REDIS_REST_URL`               | `process.env.UPSTASH_REDIS_REST_URL`                                        |
+| `scripts/security/abacatepay-operational-proof.ts:115`     | `QORO_ABACATEPAY_OPERATIONAL_PROFILE`  | `process.env.QORO_ABACATEPAY_OPERATIONAL_PROFILE`                           |
+| `scripts/security/abacatepay-operational-proof.ts:302`     | `ABACATEPAY_WEBHOOK_SECRET`            | `process.env.ABACATEPAY_WEBHOOK_SECRET`                                     |
+| `scripts/security/abacatepay-operational-proof.ts:324`     | `<object>`                             | `process.env`                                                               |
+| `scripts/security/abacatepay-operational-proof.ts:439`     | `ABACATEPAY_NEW_CHECKOUTS_ENABLED`     | `process.env.ABACATEPAY_NEW_CHECKOUTS_ENABLED`                              |
+| `scripts/security/abacatepay-operational-proof.ts:489`     | `<object>`                             | `process.env`                                                               |
+| `scripts/security/abacatepay-operational-proof.ts:631`     | `QORO_FINANCIAL_REF`                   | `process.env.QORO_FINANCIAL_REF`                                            |
+| `scripts/security/abacatepay-operational-proof.ts:632`     | `QORO_TISS_REF`                        | `process.env.QORO_TISS_REF`                                                 |
+| `scripts/security/abacatepay-operational-worker.ts:4`      | `QORO_ABACATEPAY_OPERATIONAL`          | `process.env.QORO_ABACATEPAY_OPERATIONAL`                                   |
+| `scripts/security/abacatepay-operational-worker.ts:5`      | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
+| `scripts/security/abacatepay-operational-worker.ts:6`      | `ABACATEPAY_ENVIRONMENT`               | `process.env.ABACATEPAY_ENVIRONMENT`                                        |
+| `scripts/security/abacatepay-operational-worker.ts:8`      | `ABACATEPAY_API_KEY`                   | `process.env.ABACATEPAY_API_KEY`                                            |
+| `scripts/security/abacatepay-operational-worker.ts:11`     | `QORO_OPERATIONAL_PROVIDER_URL`        | `process.env.QORO_OPERATIONAL_PROVIDER_URL`                                 |
+| `scripts/security/abacatepay-operational-worker.ts:13`     | `UPSTASH_REDIS_REST_URL`               | `process.env.UPSTASH_REDIS_REST_URL`                                        |
 | `scripts/security/abacatepay-rate-db.ts:10`                | `<object>`                             | `process.env`                                                               |
 | `scripts/security/abacatepay-rate-db.ts:16`                | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                                                    |
 | `scripts/security/abacatepay-rate-db.ts:17`                | `QORO_DOCKER_BIN`                      | `process.env.QORO_DOCKER_BIN`                                               |
@@ -612,9 +617,9 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/abacatepay-renewal-db.ts:58`             | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
 | `scripts/security/abacatepay-renewal-db.ts:59`             | `ABACATEPAY_API_KEY_PROD`              | `process.env.ABACATEPAY_API_KEY_PROD`                                       |
 | `scripts/security/abacatepay-renewal-db.ts:61`             | `<object>`                             | `process.env`                                                               |
-| `scripts/security/abacatepay-renewal-db.ts:227`            | `QORO_ABACATEPAY_SCALE`                | `process.env.QORO_ABACATEPAY_SCALE`                                         |
-| `scripts/security/abacatepay-renewal-db.ts:554`            | `ABACATEPAY_WEBHOOK_SECRET`            | `process.env.ABACATEPAY_WEBHOOK_SECRET`                                     |
-| `scripts/security/abacatepay-renewal-db.ts:602`            | `QORO_ABACATEPAY_SCALE`                | `process.env.QORO_ABACATEPAY_SCALE`                                         |
+| `scripts/security/abacatepay-renewal-db.ts:228`            | `QORO_ABACATEPAY_SCALE`                | `process.env.QORO_ABACATEPAY_SCALE`                                         |
+| `scripts/security/abacatepay-renewal-db.ts:557`            | `ABACATEPAY_WEBHOOK_SECRET`            | `process.env.ABACATEPAY_WEBHOOK_SECRET`                                     |
+| `scripts/security/abacatepay-renewal-db.ts:619`            | `QORO_ABACATEPAY_SCALE`                | `process.env.QORO_ABACATEPAY_SCALE`                                         |
 | `scripts/security/abacatepay-scale-proof.ts:8`             | `QORO_ABACATEPAY_SCALE_CONCURRENCY`    | `process.env.QORO_ABACATEPAY_SCALE_CONCURRENCY`                             |
 | `scripts/security/abacatepay-statement-scan-db.ts:10`      | `<object>`                             | `process.env`                                                               |
 | `scripts/security/abacatepay-statement-scan-db.ts:21`      | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |

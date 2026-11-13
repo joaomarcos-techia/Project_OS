@@ -27,6 +27,11 @@ export async function POST(request: Request): Promise<Response> {
     const accepted = await createAbacatePayWebhookHandler({
       account,
       expectedSecret: env.ABACATEPAY_WEBHOOK_SECRET,
+      ...(env.ABACATEPAY_WEBHOOK_PREVIOUS_SECRET === undefined
+        ? {}
+        : {
+            previousSecret: env.ABACATEPAY_WEBHOOK_PREVIOUS_SECRET,
+          }),
       inbox: {
         account,
         async accept(notification, hash) {

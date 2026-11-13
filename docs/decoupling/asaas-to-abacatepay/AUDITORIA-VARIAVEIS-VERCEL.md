@@ -1,5 +1,7 @@
 # Auditoria das variáveis Vercel — integração financeira
 
+**Estado vigente: checkpoint13/11 ao final.** Produção não foi configurada; há um nome novo opcional apenas para rotação de segredo. Afirmações antigas de ausência de variáveis novas são históricas.
+
 ## Estado operacional atual — 12/11/2026
 
 | Etapa | Preview financeiro | Production |
@@ -200,3 +202,15 @@ A configuração correta foi comprovada em dpl_7DwFaKuAJxSrbHAUGNUdJeQnhmDW, htt
 Lição comprovada: deployment manual de uma composição sem Git tracking da branch não herda automaticamente os overrides restritos à branch só porque a metadata githubCommitRef foi informada. Dois builds READY não eram prova de configuração funcional; o primeiro gerou Sentry7845728659 e o teste pago falhou. A versão configurada passou no browser e no readback. Em nova composição, revisar escopo/nomes antes, manter envs apenas em memória e usar somente valores Preview autorizados. Não usar env pull, desproteger segredo sensível, copiar .env ou chave real para corrigir isso.
 
 Para Production futura, **não há nome novo**: a tabela live anterior continua válida. A ABACATEPAY_API_KEY existente deve ser preservada; os produtos reais, loja atestada, segredo live, selector/ambiente, cohort e kill switch precisam de configuração e validação na janela específica. Novo deployment é necessário para incorporar variáveis. Nenhum desses passos foi executado em Production nesta rodada.
+
+## Preparação live e rotação — checkpoint13/11
+
+Leitura nominal, decrypt=false, 10:35 UTC: Production conserva ABACATEPAY_API_KEY, Redis e CRON_SECRET; o deployment continua dpl_2gHasgxKuWkFY8ct1w56VLeHDhQP/SHA5620a098. Não foram lidos valores Production nem criada outra chave. Loja/catálogo/segredo live, ambiente/selector e cohort/flag ainda precisam de configuração na janela autorizada. Não inferir operação live pela presença da APIkey.
+
+Nenhum ID de produto live foi inventado. O contrato preparado exige o mapa com consultorio_2026 e clinica_2026_2/_3/_4/_5 para produtos reais de19700/39700/54400/69100/83800 centavos, BRL, MONTHLY, sem trial nativo e devMode=false. O servidor continua resolvendo preço/cota, e o trial pertence ao Auth/Qoro. ABACATEPAY_SANDBOX_PLAN_PRODUCTS nunca é fallback live.
+
+Há **um nome opcional novo e justificado**, somente para rotação segura: ABACATEPAY_WEBHOOK_PREVIOUS_SECRET. Seu valor é JSON privado com os campos secret e expiresAt (ISO UTC absoluto). O receiver limita a sobreposição a24h, mantém HMAC, conta/ambiente e deduplicação, e recusa o segredo antigo no prazo exato. Não é necessário configurar esse nome no primeiro lançamento; não é NEXT_PUBLIC e não deve aparecer em Git, screenshot ou chat. Nenhuma configuração real foi aplicada nesta rodada.
+
+O Preview composto usa a mesma configuração Sandbox da branch financeira como overrides privados por deployment, aquisiçõesfalse e SENTRY_RELEASE de composição para identificar os dois inputs. Um primeiro export de16d9062b+bf59 continha metadata customizada antiga, apesar do código correto; não usá-la como prova do SHA. O Preview rastreável seguinte corrigiu os dois campos e recebeu a release qoro-financial-16d9062b-tiss-bf59cbc3. O release candidate final precisa carregar o SHA financeiro novo e o pin TISS, conforme registro canônico. Não declarar um merge inexistente como SHA Git.
+
+A documentação oficial do [Sentry](https://docs.sentry.io/platforms/javascript/guides/nextjs/configuration/releases/) confirma SENTRY_RELEASE para associar release e sourcemaps. Esse override é somente do Preview de composição; não altera a identificação normal dos deployments Git nem configura Production. Presença/tag em bundle não comprova entrega ou simbolicação no painel. O probe414eb196 já comprovado não será repetido.

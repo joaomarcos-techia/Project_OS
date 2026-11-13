@@ -19681,5 +19681,281 @@
       "prettier": "PASS changed TypeScript files",
       "diffReview": "Focused changes; four unrelated preexisting deleted videos excluded"
     }
+  },
+  "liveFinalization": {
+    "observedAt": "2026-11-13T11:21:10.186Z",
+    "financialBase": "16d9062b677e59d0d6363c6e39b74ce85114ab8a",
+    "tiss": "4d0ed1d5c8a81ab9f66e026f4f36c6e4520a7269",
+    "implementationHashesLF": {
+      "scripts/security/abacatepay-code-composition.ts": "a135f7dcc8b2c990da3371873845098a5e6199a86955e740cc596362217aad43",
+      "scripts/security/abacatepay-operational-proof.ts": "fc88ff2ca260fdc06336c351bfd7ecab51f9910587532aca9d51aa05c909e086",
+      "scripts/security/abacatepay-operational-worker.ts": "9dfa797a43288032531e228be822e601d9a0af52eb6837c6184a1fc97c425e24",
+      "scripts/security/abacatepay-renewal-db.ts": "0c8154023c880cd53f6fb8651ca0d6c2e258a5f923c171e2bb6376f975be384f",
+      "src/app/api/cron/outbox/route.ts": "a7df6cd26b59cbb9bd6ffdda4286061a8fe3a5425614ab830689fc857e1f68e0",
+      "src/app/api/cron/outbox/route.test.ts": "5e4b6a248698ccafa7117b57e64763a0941ed20f38d089d9896110f3d852fbc9",
+      "src/app/api/webhooks/abacatepay/route.ts": "4a61896b65f642616c49391600c8a6afd65318736c02813cbf283c9b3de14d48",
+      "src/contexts/billing/internal/abacatepay-checkout-closure.ts": "9f86a4f99f297dfb1ffaaa15e29460efe5c91885cd543cb4882ae30e53a43d4f",
+      "src/contexts/billing/internal/abacatepay-processing.ts": "cec174ec2ea4f21ad22c4071e09dc7b5abac1fe372b0f6e7bdecdb9ee844fdaa",
+      "src/lib/env.ts": "386fb8c88b7ef34d3514e6dca210a4a3ac97c827f6abca79f622a824c04fa173",
+      "src/lib/payments/abacatepay/webhook-handler.ts": "fa03f48284e8cc6302ace43f5096672826fa4af31b64907c02e79ef95378b61e",
+      "src/lib/payments/abacatepay/webhook-handler.test.ts": "029d7c476ec5563d38350d3874e29f37e9ed23e052fd16cebeb7084feddbf393"
+    },
+    "sourceDelta": {
+      "runtimeReviewedThrough": "bf59cbc3d105a51cdf2dc9d066d0b24a256bcff3",
+      "laterPinnedCommit": "4d0ed1d5",
+      "laterDelta": "Only tests, fixture and documentation; no src, drizzle, package or lockfile delta",
+      "uncommittedOwnerFilesExcluded": true
+    },
+    "readOnlyDev": {
+      "entriesBefore": 160,
+      "entriesAfter": 160,
+      "migrationApplied": false,
+      "relations": 45,
+      "fingerprintsUnchanged": 227,
+      "crossTenantInvoices": 0,
+      "duplicateCycles": 0,
+      "ownerlessDevContracts": {
+        "tissFixtures": 3,
+        "historical": 3,
+        "changed": 0
+      }
+    },
+    "localValidation": {
+      "typecheck": "PASS",
+      "lint": "PASS",
+      "directedUnit": {
+        "files": 5,
+        "passed": 106,
+        "skipped": 0
+      },
+      "financialPg": {
+        "checks": 129,
+        "externalCalls": 0,
+        "fixtureHttpCalls": 752,
+        "includes": "125 previous plus four live synthetic checkout closure checks"
+      },
+      "drizzle": {
+        "checks": 9,
+        "entries": "144 ->160 ->160",
+        "sharedWrites": 0
+      },
+      "tissDb": {
+        "configuration": 13,
+        "asyncBatch": 10,
+        "premiumGate": 11,
+        "unionChain": 10
+      },
+      "initialComposedUnit": {
+        "passed": 734,
+        "failed": 1,
+        "skipped": 3,
+        "reason": "XSD memory-fault diagnostic timed out first under parallel host load; fail-closed intact",
+        "serialRetest": {
+          "passed": 23,
+          "failed": 0
+        },
+        "finalComposedRegression": "PENDING_FINAL_EXPORT"
+      },
+      "prettier": "PASS changed TypeScript",
+      "architecture": "PASS 1801 files"
+    },
+    "operationalPilot": {
+      "status": "PASS",
+      "startedAt": "2026-11-13T11:15:42.076Z",
+      "finishedAt": "2026-11-13T11:20:36.021Z",
+      "environment": "isolated_loopback",
+      "profile": "pilot",
+      "source": {
+        "financial": "16d9062b+live-finalization",
+        "tiss": "4d0ed1d5c8a81ab9f66e026f4f36c6e4520a7269"
+      },
+      "scope": "Node HTTP adapter of real receiver and worker; real Docker Redis with local REST bridge; real migrated PostgreSQL; synthetic provider HTTP",
+      "exclusions": [
+        "Not Vercel capacity or production SLA",
+        "No external renewal or payment",
+        "Sentry delivery reuses prior Preview channel proof; this harness measures application metrics"
+      ],
+      "results": [
+        "HTTP missing HMAC refused before persistence",
+        "Real Redis paused/recovered; durable event applied once and duplicate HTTP 200",
+        "HTTP provider 429/Retry-After defers inbox; retry recovers without financial duplication",
+        "Five actual provider HTTP 503s open the shared Redis circuit; blocked request makes no provider call",
+        "Owned worker killed after reservation; actual 60-second lease expiry, restart applies once; circuit recovered",
+        "DB network outage: sender timed out without a successful acknowledgment",
+        "Actual runtime DB TCP loss fails HTTP closed; redelivery after restored network recovers",
+        "Pilot cohort admits only ten synthetic clinics; acquisition kill switch preserves consumers",
+        "Ten queued renewals recovered after simulated 72h outage age by actual minute ticks in two cold processes; no backoff bypass",
+        "Missing webhook recovered through the real scheduled recovery seam while acquisition remained paused"
+      ],
+      "pilot": {
+        "clinics": 10,
+        "simultaneousColdProcesses": 2,
+        "coldStart": {
+          "samples": 8,
+          "p50Ms": 6938.799200000009,
+          "p95Ms": 19318.800099999993,
+          "p99Ms": 19318.800099999993
+        },
+        "tickIntervalMs": 60000,
+        "simulatedOutageAgeHours": 72,
+        "scheduledTicks": [
+          {
+            "tick": 0,
+            "elapsedMs": 10575.402300000002,
+            "before": 10,
+            "remaining": 10,
+            "outcomes": [
+              {
+                "scanned": 5,
+                "applied": 0,
+                "review": 0,
+                "deferred": false
+              },
+              {
+                "scanned": 5,
+                "applied": 0,
+                "review": 0,
+                "deferred": false
+              }
+            ]
+          },
+          {
+            "tick": 1,
+            "elapsedMs": 69627.4605,
+            "before": 10,
+            "remaining": 4,
+            "outcomes": [
+              {
+                "scanned": 5,
+                "applied": 3,
+                "review": 0,
+                "deferred": false
+              },
+              {
+                "scanned": 5,
+                "applied": 3,
+                "review": 0,
+                "deferred": false
+              }
+            ]
+          },
+          {
+            "tick": 2,
+            "elapsedMs": 126936.07040000001,
+            "before": 4,
+            "remaining": 1,
+            "outcomes": [
+              {
+                "scanned": 2,
+                "applied": 1,
+                "review": 0,
+                "deferred": false
+              },
+              {
+                "scanned": 2,
+                "applied": 2,
+                "review": 0,
+                "deferred": false
+              }
+            ]
+          },
+          {
+            "tick": 3,
+            "elapsedMs": 201871.47110000002,
+            "before": 1,
+            "remaining": 0,
+            "outcomes": [
+              {
+                "scanned": 0,
+                "applied": 0,
+                "review": 0,
+                "deferred": false
+              },
+              {
+                "scanned": 1,
+                "applied": 1,
+                "review": 0,
+                "deferred": false
+              }
+            ]
+          }
+        ],
+        "scheduledRecoveryMs": 201872.71170000004,
+        "wallClockRenewalObserved": false,
+        "newAcquisitionPaused": true
+      },
+      "runs": [],
+      "providerReads": 187,
+      "providerStatuses": {
+        "200": 181,
+        "429": 1,
+        "503": 5
+      },
+      "receiverStatuses": {
+        "200": 2,
+        "401": 1,
+        "503": 14
+      },
+      "transportRetries": 0,
+      "redis": {
+        "commands": 446,
+        "rejected": 11
+      },
+      "blockedRequests": 0,
+      "peaks": {
+        "rssBytes": 212541440,
+        "databaseConnections": 14,
+        "lockWaiters": 7
+      },
+      "cpuMicroseconds": {
+        "user": 7406000,
+        "system": 5062000
+      },
+      "productionWrites": 0
+    },
+    "baselineCi": {
+      "sha": "16d9062b",
+      "run": "43405698379",
+      "state": "SUCCESS",
+      "tests": 7140,
+      "e2e": 22,
+      "skippedE2e": 0
+    },
+    "finalCi": {
+      "state": "PENDING_FINAL_COMMIT"
+    },
+    "liveConfiguration": {
+      "configured": false,
+      "productionKeyValueRead": false,
+      "productIdsInvented": false,
+      "secretRotated": false,
+      "optionalRotationVariable": "ABACATEPAY_WEBHOOK_PREVIOUS_SECRET",
+      "maximumOverlapHours": 24,
+      "automaticClosurePrepared": true,
+      "minuteRenewalWatchPrepared": true
+    },
+    "productionReadback": {
+      "observedAt": "2026-11-13T10:35:28.566Z",
+      "sha": "5620a0987ec53db7d7358728eb7d457d9d373df3",
+      "deployment": "dpl_2gHasgxKuWkFY8ct1w56VLeHDhQP",
+      "valuesRead": false,
+      "changes": 0,
+      "auxiliaryExactProjectGetStatus": 404
+    },
+    "pilotProposal": {
+      "cohortInitial": 1,
+      "expansion": "up to3 by decision; up to10 only after cycle proof or additional formal risk approval",
+      "activated": false,
+      "risksAccepted": false,
+      "technical": "CONDITIONAL_FINAL_CI_AND_COMPOSED_PREVIEW",
+      "operational": "NO_GO",
+      "commercial": "NO_GO"
+    },
+    "productionWrites": 0,
+    "sharedDevWrites": 0,
+    "otherWorktreeWrites": 0,
+    "newCheckouts": 0,
+    "newPayments": 0,
+    "newExternalCheckoutClosures": 0
   }
 }

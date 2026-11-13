@@ -65,6 +65,7 @@ if (operationalRedis)
     UPSTASH_REDIS_REST_TOKEN: operationalRedis.token,
   });
 const originalFetch = globalThis.fetch;
+let liveClosureRedis: Awaited<ReturnType<typeof startOperationalRedis>> | undefined;
 let networkCalls = 0,
   fixtureHttpCalls = 0,
   closurePosts = 0;
@@ -81,11 +82,11 @@ const { applyAbacatePayRenewalTx } =
   await import('../../src/contexts/billing/internal/abacatepay-renewals');
 const { reconcileAbacatePayMissingRenewal: recoverRenewal } =
   await import('../../src/contexts/billing/internal/abacatepay-renewal-recovery');
-const { closeConsumedAbacatePayCheckout: closeCheckout } =
+const { closeConsumedAbacatePayCheckout: closeCheckout, reconcileAbacatePayLiveCheckoutClosures } =
   await import('../../src/contexts/billing/internal/abacatepay-checkout-closure');
 const { recordAbacatePayRecurringPaymentTx } =
   await import('../../src/contexts/billing/internal/abacatepay-recurring-observations');
-const { reconcileAbacatePayInbox, reconcileAbacatePayInboxTick } =
+const { reconcileAbacatePayInbox, reconcileAbacatePayInboxTick, reconcileAbacatePayRecoveryTick } =
   await import('../../src/contexts/billing/internal/abacatepay-processing');
 const { createPostgresGatewayInbox } = await import('../../src/lib/payments/saas/postgres-store');
 const { POST: webhook } = await import('../../src/app/api/webhooks/abacatepay/route');
@@ -280,8 +281,10 @@ function installHttpFixture(
 ) {
   let closed = options.deletedCheckout ?? false;
   globalThis.fetch = async (target, init) => {
-    fixtureHttpCalls++;
     const url = new URL(target instanceof Request ? target.url : String(target));
+    if (liveClosureRedis && url.origin === new URL(liveClosureRedis.url).origin)
+      return originalFetch(target, init);
+    fixtureHttpCalls++;
     assert.equal(url.origin, 'https://api.abacatepay.com');
     if (init?.method === 'POST') {
       assert.ok(options.close);
@@ -575,16 +578,30 @@ if (operational) {
     const { runAbacatePayOperationalProof } = await import('./abacatepay-operational-proof');
     await runAbacatePayOperationalProof({
       sql,
-      seed,
+      async seed(endOffsetMs, discovery = false) {
+        const f = await seed(endOffsetMs);
+        if (discovery)
+          f.evidence = {
+            ...f.evidence,
+            checkoutId: f.evidence.originCheckoutId,
+            chargeCreatedAt: f.evidence.confirmedAt,
+            providerPeriodStart: f.end.toISOString().slice(0, 10),
+            providerPeriodEnd: month(f.anchor, 2).toISOString().slice(0, 10),
+          };
+        return f;
+      },
       notification,
       webhook,
       worker: reconcileAbacatePayInbox,
+      recovery: reconcileAbacatePayRecoveryTick,
       originalFetch,
       redis: operationalRedis,
       databaseProxy: operationalDatabase,
       handlerFor(f) {
         const previous = globalThis.fetch;
-        installHttpFixture(f);
+        const start = f.evidence.providerPeriodStart,
+          end = f.evidence.providerPeriodEnd;
+        installHttpFixture(f, start && end ? { providerPeriod: { start, end } } : {});
         const handler = globalThis.fetch;
         globalThis.fetch = previous;
         return handler;
@@ -3171,8 +3188,21 @@ try {
     ABACATEPAY_ENVIRONMENT: runtimeEnv.ABACATEPAY_ENVIRONMENT,
     ABACATEPAY_PLAN_PRODUCTS: runtimeEnv.ABACATEPAY_PLAN_PRODUCTS,
     SAAS_SIGNUP_PROVIDER: runtimeEnv.SAAS_SIGNUP_PROVIDER,
+    ABACATEPAY_NEW_CHECKOUTS_ENABLED: runtimeEnv.ABACATEPAY_NEW_CHECKOUTS_ENABLED,
+    UPSTASH_REDIS_REST_URL: runtimeEnv.UPSTASH_REDIS_REST_URL,
+    UPSTASH_REDIS_REST_TOKEN: runtimeEnv.UPSTASH_REDIS_REST_TOKEN,
   };
+  await check('LIVE automatic closure never operates on preserved Sandbox fixtures', async () => {
+    const posts = closurePosts;
+    assert.deepEqual(await reconcileAbacatePayLiveCheckoutClosures(dbAdmin, Date.now() + 20000), {
+      scanned: 0,
+      closed: 0,
+    });
+    assert.equal(closurePosts, posts);
+  });
+  let livePaid: Fixture | undefined;
   try {
+    liveClosureRedis = await startOperationalRedis();
     account = { ...account, environment: 'production' };
     inbox = createPostgresGatewayInbox(account, dbAdmin);
     Object.assign(runtimeEnv, {
@@ -3181,11 +3211,14 @@ try {
       ABACATEPAY_ENVIRONMENT: 'production',
       SAAS_SIGNUP_PROVIDER: 'abacatepay_production',
       ABACATEPAY_PLAN_PRODUCTS: runtimeEnv.ABACATEPAY_SANDBOX_PLAN_PRODUCTS,
+      UPSTASH_REDIS_REST_URL: liveClosureRedis.url,
+      UPSTASH_REDIS_REST_TOKEN: liveClosureRedis.token,
     });
     await check(
       'LIVE synthetic trial creates a Production binding, never a Sandbox fallback',
       async () => {
         const f = await seed(-3600000, 'clinica_2026_2', false);
+        livePaid = f;
         const [bound] = await sql`SELECT a.environment FROM billing_gateway.bindings b
         JOIN billing_gateway.accounts a ON a.id=b.account_id WHERE b.subscription_id=${f.subscription_id}::uuid`;
         assert.equal(bound?.environment, 'production');
@@ -3224,6 +3257,73 @@ try {
       },
     );
     await check(
+      'LIVE paid link closes once under concurrent ticks even while acquisition is paused',
+      async () => {
+        assert.ok(livePaid);
+        const f = livePaid,
+          posts = closurePosts,
+          before = await state(f);
+        runtimeEnv.ABACATEPAY_NEW_CHECKOUTS_ENABLED = false;
+        installHttpFixture(f, { close: 'success' });
+        const outcomes = await Promise.allSettled(
+          Array.from({ length: 4 }, () =>
+            reconcileAbacatePayLiveCheckoutClosures(dbAdmin, Date.now() + 20000),
+          ),
+        );
+        assert.ok(
+          outcomes.some((value) => value.status === 'fulfilled' && value.value.closed === 1),
+          `No closure completed: ${outcomes.map((value) => (value.status === 'fulfilled' ? 'fulfilled' : value.reason instanceof Error ? value.reason.name : 'unknown')).join(',')}`,
+        );
+        assert.equal(closurePosts - posts, 1);
+        assert.deepEqual(await state(f), before);
+        const [audit] =
+          await sql`SELECT count(*)::int n FROM public.billing_events WHERE clinic_id=${f.clinicId}::uuid
+        AND type='subscription.checkout.closed' AND payload->>'checkoutId'=${f.evidence.originCheckoutId}`;
+        assert.equal(audit?.n, 1);
+        assert.deepEqual(
+          await reconcileAbacatePayLiveCheckoutClosures(dbAdmin, Date.now() + 20000),
+          { scanned: 0, closed: 0 },
+        );
+      },
+    );
+    await check(
+      'LIVE unknown closure is quarantined without a second POST or a paid-access rollback',
+      async () => {
+        const f = await seed(),
+          posts = closurePosts,
+          before = await state(f);
+        installHttpFixture(f, { close: 'timeout' });
+        await assert.rejects(
+          () => reconcileAbacatePayLiveCheckoutClosures(dbAdmin, Date.now() + 20000),
+          { code: 'operation_unknown' },
+        );
+        assert.deepEqual(
+          await reconcileAbacatePayLiveCheckoutClosures(dbAdmin, Date.now() + 20000),
+          { scanned: 0, closed: 0 },
+        );
+        assert.equal(closurePosts - posts, 1);
+        assert.deepEqual(await state(f), before);
+      },
+    );
+    await check(
+      'LIVE unpaid generation and expired closure budget never issue a provider command',
+      async () => {
+        await seed(-120000, 'clinica_2026_2', false);
+        const posts = closurePosts,
+          calls = fixtureHttpCalls;
+        assert.deepEqual(
+          await reconcileAbacatePayLiveCheckoutClosures(dbAdmin, Date.now() + 20000),
+          { scanned: 0, closed: 0 },
+        );
+        assert.deepEqual(await reconcileAbacatePayLiveCheckoutClosures(dbAdmin, Date.now()), {
+          scanned: 0,
+          closed: 0,
+        });
+        assert.equal(closurePosts, posts);
+        assert.equal(fixtureHttpCalls, calls);
+      },
+    );
+    await check(
       'LIVE synthetic renewal applies once and refuses a Sandbox account for the same store',
       async () => {
         const f = await seed();
@@ -3254,6 +3354,8 @@ try {
     account = savedAccount;
     inbox = savedInbox;
     Object.assign(runtimeEnv, savedRuntime);
+    await liveClosureRedis?.stop();
+    liveClosureRedis = undefined;
   }
   assert.equal(networkCalls, 0);
 } catch (error) {

@@ -33,6 +33,8 @@ import {
   recordAbacatePayNegativeEventTx,
 } from './abacatepay-negative-events';
 import { reconcileAbacatePayRecoveryBatch } from './abacatepay-recovery-batch';
+import { reconcileAbacatePayLiveCheckoutClosures } from './abacatepay-checkout-closure';
+import { observeAbacatePayRenewals } from './abacatepay-renewal-watch';
 
 const bindingSchema = z.object({
   account_id: z.uuid(),
@@ -60,6 +62,14 @@ export async function reconcileAbacatePayRecoveryTick(deadlineMs: number) {
     deadlineMs,
     reconcileMissingAbacatePayInitialPayment,
   );
+}
+
+export async function reconcileAbacatePayCheckoutClosuresTick(deadlineMs: number) {
+  return reconcileAbacatePayLiveCheckoutClosures(dbAdmin, deadlineMs);
+}
+
+export async function reconcileAbacatePayRenewalWatchTick() {
+  return observeAbacatePayRenewals(dbAdmin);
 }
 
 /** Reuse the daily reconciler's admission window on the existing minute tick.

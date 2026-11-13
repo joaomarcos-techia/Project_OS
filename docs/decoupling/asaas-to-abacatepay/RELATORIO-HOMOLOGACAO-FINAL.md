@@ -1,8 +1,6 @@
 # Homologação financeira AbacatePay — Qoro
 
-**Checkpoint mais recente: seção 51 — CI final aprovada, composição de código isolada e incidente TISS classificado.** Consulte também a matriz G01–G28; as seções anteriores preservam evidências datadas.
-
-**Leitura atual:** [seção 44 — trial definitivo e composição com0151](#44-trial-definitivo-e-composição-com-0151--12112026). As cinco compras iniciais permanecem homologadas. A resposta do suporte já foi recebida; não reenviar solicitação nem repetir pagamentos. Os checkpoints anteriores são históricos e não descrevem necessariamente a implementação mais recente.
+**Checkpoint corrente: seção 53 — composição atual, fechamento automático live preparado, rotação e piloto.** As seções anteriores são histórico. Os resultados externos iniciais permanecem válidos; a renovação natural não recebeu PASS.
 
 Iniciado em **09/11/2026**, antes das alterações desta rodada. **As seções 1–8 preservam o checkpoint H0 anterior à implementação; as seções 9–25 registram o fechamento diferencial.** Referência para futura ativação, **não autorização de Produção**. Este relatório consolida os [planos existentes](PLANO-MESTRE-MIGRACAO-ASAAS-ABACATEPAY.md), o [diário](PLANO-EXECUCAO-CONTINUIDADE.md), a [renovação](PLANO-CONTINUIDADE-RENOVACAO-E-HOMOLOGACAO.md) e a [matriz financeira](MATRIZ-CENARIOS-E-TESTES.md); não os substitui por regras comerciais novas.
 
@@ -1137,3 +1135,43 @@ Trial14 dias desde Auth permanece com cotas e sem integrações operacionais/con
 - **NO-GO comercial:** nenhuma autorização nesta rodada para cobrar clientes reais, migrar contratos, aplicar Production, fazer merge ou deploy.
 
 A chave ABACATEPAY_API_KEY já existe em Production e não deve ser recriada nem usada neste ensaio. A próxima decisão humana é a avaliação do risco residual de renovação e do piloto proposto; isso não substitui os preflights técnicos da futura janela. A CI e o SHA definitivos devem ser conferidos no PR53 antes de qualquer GO, sem atribuir7139 testes da baseline a este diff.
+
+## 53. Composição atual, fechamento live preparado e piloto — 13/11/2026
+
+Este checkpoint substitui as decisões correntes anteriores. Base financeira16d9062b mais este incremento; TISS fixado em4d0ed1d5c8a81ab9f66e026f4f36c6e4520a7269. O intervalo e144→bf59 acrescenta configuração, coparticipação, exportação assíncrona delegada e ajustes mobile; bf59→4d0 altera somente testes, fixtures e documentação, sem runtime, SQL, schema, journal ou dependências. Os arquivos em edição do proprietário não foram importados. Fonte e resultados finais estão em liveFinalization no [registro canônico](evidencias/recuperacao-financeira-20261111.json).
+
+### A. Desenvolvimento e integração
+
+Implementado um export de composição reproduzível em scripts/security/abacatepay-code-composition.ts: recebe dois SHAs completos, usa objetos Git imutáveis, admite somente os três conflitos conhecidos, aplica patches revisados e journal160/0159 de hash congelado, regenera inventário e recusa sobrescrever um export anterior. Não faz merge, não escreve em outro worktree nem em banco. O pacote composto precisa passar por tipos/lint/build/regressão próprios; a projeção por si só não é validação.
+
+DEV auditado somente por leitura:160 entradas,0159 já aplicada e não reaplicada;45 relações financeiras/TISS,227 fingerprints preservados durante a auditoria, sem invoices cruzadas ou ciclos duplicados. A contagem corrente de contratos DEV sem titular ativo é **seis: três fixtures TISS e três registros históricos**, corrigindo a fotografia anterior de cinco. Nenhum vínculo foi inventado ou alterado. Não inferir desse DEV a existência de órfão em Production.
+
+PostgreSQL descartável: **129/129 verificações financeiras**, sem I/O externo; inclui as125 anteriores e quatro novas provas de fechamento live sintético. Composição SQL/journal:9/9 no migrator real,144→160, segunda execução noop e rollback em lock. Na composição bf59 foram aprovados os harnesses configuração13, lote assíncrono10, premium11 e cadeia10. Os demais testes compartilhados permanecem nas evidências anteriores, pois seus arquivos não mudaram. O novo delta4d0 não altera runtime/DDL e não exige repetir carga financeira TISS.
+
+### B. Financeiro e consumidores live preparados
+
+A lacuna operacional encontrada era o fechamento disponível somente pelo operador Sandbox. A candidata agora seleciona, no cron já existente, **uma geração live paga por tick**, exige invoice integral, binding, loja, cliente, assinatura e produto corretos, atesta devMode=false, usa journal durável e registra auditoria idempotente. Nenhuma transação de banco atravessa HTTP. Timeout fica unknown e não repete DELETE; a assinatura e o período pago não são revertidos. As cinco fixtures Sandbox retidas não são encerradas automaticamente. A janela entre pagamento e fechamento ainda é risco R1; não existe promessa de link absolutamente de uso único.
+
+O watch de renovação passou a integrar o mesmo tick de minuto, junto à recuperação/inbox/outbox e ao fechamento. Os cinco trabalhos independentes são aguardados com allSettled; falha impede heartbeat de sucesso. Não houve alteração de agenda, vercel.json, plano ou variável persistente nem contratação. O custo das leituras adicionais no ambiente-alvo ainda não foi medido. O Preview não recebe cron automático. O ensaio local chama as mesmas funções do runtime, sem afirmar que mediu o scheduler remoto.
+
+As cinco compras197/397/544/691/838 e a prova externa de fechamento/readbacks continuam preservadas. Nenhuma compra, pagamento, refund ou cancelamento externo novo foi executado. Renovação natural, change-plan efetivado em novo ciclo e eventos negativos não simuláveis permanecem PARTIAL externo. O [dossiê de risco/piloto](PLANO-FINAL-GO-LIVE-ABACATEPAY.md#dossiê-de-decisão-e-piloto-executável--13112026) separa probabilidade desconhecida de impacto alto e propõe critérios de observação/aceite, sem retirar requisito ou aceitar risco pelo founder.
+
+### C. Segurança e rotação
+
+Foi preparado ABACATEPAY_WEBHOOK_PREVIOUS_SECRET, opcional e privado: JSON com secret e expiresAt UTC absoluto, sobreposição máxima24h, comparação segura e HMAC obrigatória. O segredo anterior expira no instante configurado; o atual continua válido. Conta, modo, hash e inbox únicos não foram flexibilizados. Cinco testes novos cobrem sobreposição, duplicata entre os dois segredos, expiração exata, assinatura inválida e configuração inválida. **106/106 testes dirigidos** em cinco arquivos passaram; tipos/lint e gates finais têm registro próprio. Nenhuma rotação de provedor real ou variável Production foi executada.
+
+Production foi conferida nominalmente, sem ler valores: deployment dpl_2gHasgxKuWkFY8ct1w56VLeHDhQP/SHA5620a098 preservado. A APIkey já existe; catálogo/loja/segredo live, seletor/ambiente e cohort/flag ainda não foram configurados. O auxiliar exato retornou404 e não foi removido novamente. Quatro deleções preexistentes de vídeos foram excluídas dos commits desta revisão.
+
+### D. Escala e resiliência
+
+A carga100/500/1000 já aprovada foi preservada, sem repetição. O perfil novo pilot usa10 clínicas sintéticas, HTTP/HMAC reais locais, Redis Docker real, PostgreSQL migrado e dois workers filhos com ticks reais de60s. A idade de72h é simulada coerentemente nos eventos, pagamentos e períodos; não representa três dias realmente aguardados. Backoff/leases usam relógio real. Pane de Redis/banco,429, circuito503 e worker morto continuam exercitados. A prova de pagamento sem webhook usa receipt, período e checkout original coerentes, não ACTIVE isolado.
+
+Tentativas reprovadas foram mantidas nos logs locais: uma fixture antiga associava evento de72h a pagamento de hoje e foi corretamente recusada; outra não fornecia período/checkout da descoberta e foi para revisão. Corrigiram-se apenas dados sintéticos. Um teste XSD de injeção de memória atingiu primeiro o timeout sob execução paralela; o reteste serial23/23 passou sem modificar o teste ou o guard TISS. A execução composta final e os resultados operacionais completos são vinculados ao pacote no JSON; não herdam o PASS de um código anterior.
+
+### E. Operação, piloto e decisão
+
+Proposta executável: uma clínica nova consentida, depois até3 mediante conferência e decisão, até10 apenas com prova de ciclo ou aceite adicional. Cohort explícito e flag de aquisição não param obrigações emitidas. Limiares propostos, responsáveis, cobertura, leitura de invoice/período/cota, critérios de parada e rollback compatível estão no dossiê/runbook; não são SLA ou autorização. Sem nomes reais de operação, configuração live e aprovação de risco/janela, não há piloto autorizado.
+
+**GO técnico condicionado** aos checks do commit final e ao pacote composto fixado. **NO-GO operacional live** até catálogo/webhook/consumidores/alertas/responsáveis/risco preparados e autorizados. **NO-GO comercial e de Production:** nenhum merge, deploy, DDL, cobrança ou migração de contrato real autorizado nesta rodada. Asaas de pacientes, contratos legados, anuais existentes, descontos e gates TISS permanecem preservados. A próxima ação humana é decidir o risco residual e a população/responsáveis do piloto após receber as evidências finais; não repetir pagamento, MFA ou alerta já comprovados.
+
+**Resultado operacional final:** PASS,13/11 11:15:42–11:20:36 UTC. Dez eventos de idade simulada72h recuperados em4 ticks,10→10→4→1→0,201,87s; dois processos frios por tick,8 partidas, p50 de inicialização6,94s/p95 19,32s. Pagamento sem webhook recuperado uma vez pelo seam real de recuperação, sem evento fabricado.187 GETs sintéticos,446 comandos Redis,14 conexões DB máximas amostradas, memória do processo principal202,7MiB. As14 respostas503 foram falhas/backpressure intencionais e não uma taxa zero de erro. Sem retentativa de transporte no run final, sem acesso externo. Não mede capacidade serverless, RTO completo, tempo real de72h ou renovação temporal externa.

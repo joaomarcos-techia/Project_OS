@@ -1,5 +1,7 @@
 # Cenários financeiros e nível real de validação
 
+**Matriz vigente: fechamento live e piloto, 13/11, relatório§53.** Tabelas anteriores são histórico; usar a última seção para a decisão atual.
+
 **Decisão corrente: [matriz G01–G28](#matriz-corrente-g01g28--scanner-incremental-12112026).** As cinco compras iniciais abaixo continuam homologadas; não equivalem à aprovação de produção.
 
 ## Recorte atual — cinco primeiras contratações (11/11/2026)
@@ -385,3 +387,40 @@ Esta tabela substitui os estados correntes anteriores, sem apagar o histórico. 
 | G28 | Production | NO-GO — C/D | Sem merge/deploy/migration/contrato real nesta rodada |
 
 **GO técnico condicionado** aos checks do commit final e à composição fixada/revisada. **NO-GO operacional live e comercial.** O TISS permanece desligado para clínicas reais; o avanço posterior do proprietário não é automaticamente coberto por estas provas. Não reexecutar as cinco compras, MFA ou alerta já comprovados.
+
+## Matriz vigente G01–G28 — fechamento live e piloto, 13/11/2026
+
+Substitui estados correntes anteriores, preservando histórico. SHA base financeiro16d9062b + incremento desta seção; pin TISS4d0ed1d5 (runtime igual a bf59). O commit e os hashes LF do incremento, os resultados finais e o Preview estão em liveFinalization do [JSON canônico](evidencias/recuperacao-financeira-20261111.json). O SHA do documento não é apresentado como SHA de um merge que não ocorreu. Toda linha usa esse pacote salvo quando marca evidência histórica. A engenharia executa as validações técnicas; C é evento externo e D é decisão humana.
+
+| Gate | Área | Estado | Evidência | Ambiente | Risco / responsável | Próxima ação |
+|---|---|---|---|---|---|---|
+| G01 | Trial desde Auth | PASS local | PG de trial50 e129 financeiro; datas absolutas preservadas | Local/DEV | Regressão de release; Engenharia | Conferir pós-voo; sem novo trial |
+| G02 | Entitlements | PASS local/composto | Gates SQL/runtime/worker; premium11, invoices reais sintéticas | Local composto | Não habilitar TISS por pagamento; Engenharia | Manter módulo condicionado à liberação |
+| G03 | Checkout único por operação | PASS delimitado | Cinco compras históricas, journal/CAS/concorrência;106 testes dirigidos | Sandbox/Preview/local | Reuso do link R1; Engenharia | Fechamento automático preparado; monitorar live autorizado |
+| G04 | Pagamento inicial | PASS Sandbox | 197/397/544/691/838 preservados, sem repetição | Sandbox histórico | Não prova ciclo seguinte; Financeiro | Não criar novas compras de teste |
+| G05 | Ativação atômica | PASS local/Sandbox | 129 PG; invoice/período/cota na mesma transação | Local + iniciais Sandbox | Evidência ausente não concede; Engenharia | Pós-voo na janela |
+| G06 | Invoice | PASS local/Sandbox | Constraints/rollback/duplicata e129 PG | Local + iniciais Sandbox | Uma obrigação por ciclo; Engenharia | Preservar ledger e trilha |
+| G07 | Cotas | PASS inicial/local | 1–5 médicos e release só após invoice paga | Local/Sandbox | Nova cota só na renovação; Engenharia | G13 separado |
+| G08 | Renovação externa | PARTIAL C/D | Calendário/readers/129 PG; suporte sem acelerador | Local; externo NOT RUN | Impacto alto/probabilidade desconhecida; Founder/provedor | Ciclo natural ou aceite formal delimitado |
+| G09 | Sem webhook | PARTIAL externo | Receipts/scanner/API provenance/transação; perfil pilot | Local isolado | Ambiguidade vai à revisão; Engenharia/provedor | Observar novo ciclo externo quando disponível |
+| G10 | Scanner durável | PASS local + DEV | 22 checks e >10.000 movimentos/finalidade;160 entradas DEV | Local/DEV leitura | Capacidade remota distinta; Engenharia | Conferir cron/cursor no piloto autorizado |
+| G11 | Fechamento/readback | PASS externo delimitado + local | Sandbox anterior fechado; novo automático live129 PG:1POST/1audit/unknown sem replay | Sandbox anterior/local sintético | Janela pré-fechamento R1; Engenharia/operação | Sem encerrar fixtures retidas; prova live só autorizada |
+| G12 | Cancelar/recontratar | PASS local; PARTIAL externo | 129 PG e evidências anteriores; acesso até fim pago | Local/Sandbox anterior | Cancelamento remoto irreversível; Financeiro | Nova contratação só após período; observar negativos |
+| G13 | Upgrade/downgrade | PASS local; PARTIAL externo | Cota agendada só no ciclo pago; rollback/capacidade | Local | Sem proporcional separado; Engenharia/provedor | Ciclo change-plan natural ou risco formal |
+| G14 | Concorrência | PASS isolado | 129 PG; workers/Redis/leases reais, audit idempotente | Local | Host gerenciado ainda não certificado; Engenharia | Preservar no pacote composto |
+| G15 | Escala | PASS isolado; PARTIAL alvo | 100/500/1000 anteriores, perfil10/ticks frios adicionais | Local isolado | Sem SLA Vercel/provedor; Operação | Piloto1→3→10 proposto, não ativado |
+| G16 | Rate limit/circuito | PASS isolado/Preview saudável | Redis real;429/cinco503/pane/retry e106 testes dirigidos | Local/Preview histórico | Não derrubar Redis compartilhado; Engenharia | Monitorar consumo/conexões no alvo autorizado |
+| G17 | Multi-tenant | PASS local + leitura DEV | RLS/loja/cliente/ambiente;45 relações/227 fingerprints | Local/DEV leitura | Nenhum vínculo artificial; Engenharia | CI isolamento + pós-voo |
+| G18 | MFA | PASS Preview histórico | Founder confirmou login/TOTP/logout/novo login | Preview | Recuperação do fator distinta; Operação | Preservar prova; não repetir jornada normal |
+| G19 | Alertas/observação | PASS Preview; PARTIAL live | 414eb196 entregue; watch agora no tick existente; cron falho sem heartbeat | Preview/local | Canal/live/responsáveis; Operação | Ensaiar regra live somente em janela autorizada |
+| G20 | CI final | PENDING SHA final | Baseline16d9062b:7140/22semSKIP; incremento exige checks próprios | GitHub Actions | Não herdar baseline; Engenharia | Conferir CI/Semgrep/Snyk/Vercel final |
+| G21 | SQL/journal | PASS DEV/local | 160 entradas,0159 hash congelado;Drizzle9/9;no reapply | DEV leitura/local | Seis hashes históricos não reescritos; Engenharia | Preflight específico Production em janela |
+| G22 | Composição TISS | PASS delta local; pacote final em validação | 4d0ed1d5 fixado;bf59:config13/export10/premium11/cadeia10;patches/journal160 | Export descartável | UI TISS específica pertence PR55; Engenharia/TISS | Build/tipos/lint/regressão da fonte final |
+| G23 | Homologação externa | PARTIAL C/D | Cinco iniciais/closure/MFA/alerta preservados | Sandbox/Preview | Renovação natural/eventos sem simulador; Provedor/founder | Não repetir compras para substituir ciclo |
+| G24 | Rollout/rollback | PREPARADO; PARTIAL live | Catálogo/ambiente/cohort/flag, consumers e rotação bounded; dossiê executável | Código/local | Configuração real e janela; Engenharia/operação | Não usar chave live nem publicar agora |
+| G25 | Auxiliar Vercel | PASS histórico | GET404 projeto exato;Production5620a098 preservada | Vercel leitura | Custos residuais não medidos; Operação | Sem nova remoção |
+| G26 | GO operacional | BLOCKED D | Proposta de cohort/responsáveis/controles no dossiê | Documento | Faltam nomes/cobertura/configuração; Founder/operação | Definir clínica consentida e responsáveis |
+| G27 | GO comercial/risco | BLOCKED D | R1–R4 explicitados sem aceite; preços/regras preservados | Documento | Nenhuma autorização para cobrar/migrar; Founder/financeiro | Aprovar ou rejeitar risco delimitado |
+| G28 | Production | NO-GO C/D | Nenhum merge/deploy/DDL/contrato real nesta rodada | Production intocada | G08/G19/G24/G26/G27; Founder/operação | Autorizar janela só depois dos gates |
+
+**GO técnico condicionado** à CI final e ao pacote composto. **NO-GO operacional live, comercial e de Production.** Não repetir compras iniciais, MFA ou alerta comprovados. A proposta de piloto não é autorização para ativá-lo.
