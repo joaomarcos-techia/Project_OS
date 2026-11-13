@@ -41,7 +41,11 @@ export interface CopayChargeDeps {
   }): Promise<{ outcome: string; amount: number | null }>;
 }
 
-export async function syncCopayChargeTx(tx: Tx, clinicId: string, copaymentId: string): Promise<string> {
+export async function syncCopayChargeTx(
+  tx: Tx,
+  clinicId: string,
+  copaymentId: string,
+): Promise<string> {
   const rows = (await tx.execute(
     sql`SELECT public.hi_copay_sync_charge(${clinicId}::uuid, ${copaymentId}::uuid) AS status`,
   )) as unknown as Array<{ status: string }>;
@@ -65,21 +69,41 @@ export async function requestCopayCharge(
       if (!c) throw new CopayChargeError('coparticipação inexistente nesta clínica', 'not_found');
       if (c.status === 'charged' || c.status === 'paid') return { already: c.status } as const;
       if (c.status !== 'confirmed') {
-        throw new CopayChargeError(`só se cobra coparticipação confirmada (estado: ${c.status})`, 'not_confirmed');
+        throw new CopayChargeError(
+          `só se cobra coparticipação confirmada (estado: ${c.status})`,
+          'not_confirmed',
+        );
       }
       const chargeable = Number(c.chargeableCents ?? 0);
-      if (!(chargeable > 0)) throw new CopayChargeError('coparticipação sem valor a cobrar', 'zero');
+      if (!(chargeable > 0))
+        throw new CopayChargeError('coparticipação sem valor a cobrar', 'zero');
       const [l] = (await tx.execute(sql`
         SELECT valor, valor_pago, status::text AS status FROM public.lancamentos
-         WHERE clinic_id = ${clinicId}::uuid AND appointment_id = ${c.appointmentId}::uuid AND tipo = 'receber' LIMIT 1`)) as unknown as Array<{ valor: string; valor_pago: string; status: string }>;
-      if (!l) throw new CopayChargeError('o recebível da coparticipação ainda não existe; tente em instantes', 'no_receivable');
+         WHERE clinic_id = ${clinicId}::uuid AND appointment_id = ${c.appointmentId}::uuid AND tipo = 'receber' LIMIT 1`)) as unknown as Array<{
+        valor: string;
+        valor_pago: string;
+        status: string;
+      }>;
+      if (!l)
+        throw new CopayChargeError(
+          'o recebível da coparticipação ainda não existe; tente em instantes',
+          'no_receivable',
+        );
       const valueCents = Math.round(Number(l.valor) * 100);
       if (valueCents !== chargeable) {
-        throw new CopayChargeError('o recebível não confere com a coparticipação confirmada; nada foi cobrado', 'mismatch');
+        throw new CopayChargeError(
+          'o recebível não confere com a coparticipação confirmada; nada foi cobrado',
+          'mismatch',
+        );
       }
       const balanceCents = valueCents - Math.round(Number(l.valor_pago) * 100);
       if (balanceCents <= 0) throw new CopayChargeError('a coparticipação já foi paga', 'paid');
-      return { appointmentId: c.appointmentId, patientId: c.patientId, chargeable, balanceCents } as const;
+      return {
+        appointmentId: c.appointmentId,
+        patientId: c.patientId,
+        chargeable,
+        balanceCents,
+      } as const;
     },
     actorUserId,
   );
@@ -96,8 +120,16 @@ export async function requestCopayCharge(
     // Defesa em profundidade: nunca deveria acontecer (o Pagamentos confere o teto).
     throw new CopayChargeError('o gateway recebeu valor acima do confirmado', 'above_confirmed');
   }
-  const status = await withTenant(clinicId, (tx) => syncCopayChargeTx(tx, clinicId, copaymentId), actorUserId);
-  return { outcome: out.outcome, status, amountCents: out.amount === null ? null : Math.round(out.amount * 100) };
+  const status = await withTenant(
+    clinicId,
+    (tx) => syncCopayChargeTx(tx, clinicId, copaymentId),
+    actorUserId,
+  );
+  return {
+    outcome: out.outcome,
+    status,
+    amountCents: out.amount === null ? null : Math.round(out.amount * 100),
+  };
 }
 
 /** Coparticipações confirmadas ou em cobrança, para a tela. */
@@ -118,7 +150,8 @@ export async function listCopayChargesTx(tx: Tx, clinicId: string) {
     receivedCents: Number(r.received_cents ?? 0),
     appointmentId: String(r.appointment_id),
     patientName: String(r.patient_name ?? ''),
-    scheduledAt: r.scheduled_at instanceof Date ? r.scheduled_at.toISOString() : String(r.scheduled_at ?? ''),
+    scheduledAt:
+      r.scheduled_at instanceof Date ? r.scheduled_at.toISOString() : String(r.scheduled_at ?? ''),
     chargeStatus: r.charge_status ? String(r.charge_status) : null,
     hasLink: r.has_link === true,
   }));
@@ -138,7 +171,9 @@ export async function syncCopayForAppointment(
     const [c] = await tx
       .select({ id: hiCopayments.id, status: hiCopayments.status })
       .from(hiCopayments)
-      .where(and(eq(hiCopayments.clinicId, clinicId), eq(hiCopayments.appointmentId, appointmentId)))
+      .where(
+        and(eq(hiCopayments.clinicId, clinicId), eq(hiCopayments.appointmentId, appointmentId)),
+      )
       .limit(1);
     if (!c || !['confirmed', 'charged', 'paid'].includes(c.status)) return null;
     const after = await syncCopayChargeTx(tx, clinicId, c.id);
@@ -160,7 +195,13 @@ export async function reconcileCopayCharges(
   opts: { deadlineAt?: number; now?: () => number } = {},
 ): Promise<CopaySyncSummary> {
   const now = opts.now ?? Date.now;
-  const summary: CopaySyncSummary = { candidates: candidates.length, changed: 0, unchanged: 0, failed: 0, skippedForBudget: 0 };
+  const summary: CopaySyncSummary = {
+    candidates: candidates.length,
+    changed: 0,
+    unchanged: 0,
+    failed: 0,
+    skippedForBudget: 0,
+  };
   for (const [index, c] of candidates.entries()) {
     if (opts.deadlineAt !== undefined && now() >= opts.deadlineAt) {
       summary.skippedForBudget = candidates.length - index;

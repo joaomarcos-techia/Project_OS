@@ -23,7 +23,9 @@ import type { WorkerTickSummary } from '@/lib/outbox/types';
 import type { OutboxSelection } from '@/lib/outbox/worker';
 
 /** Roda os eventos pedidos agora (dentro de um `after` já aberto). */
-export async function runOutboxSelectionsNow(selections: readonly OutboxSelection[]): Promise<WorkerTickSummary> {
+export async function runOutboxSelectionsNow(
+  selections: readonly OutboxSelection[],
+): Promise<WorkerTickSummary> {
   await import('./handlers');
   await import('@/lib/db/schema');
   const { runOutboxEventsNow } = await import('@/lib/outbox/worker');

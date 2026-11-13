@@ -22,7 +22,12 @@ type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'soft';
 function useRunner() {
   const router = useRouter();
   const [pending, start] = useTransition();
-  const runAction = (fn: () => Promise<ActionResult<unknown>>, success: string, after?: () => void, describe = false) =>
+  const runAction = (
+    fn: () => Promise<ActionResult<unknown>>,
+    success: string,
+    after?: () => void,
+    describe = false,
+  ) =>
     start(async () => {
       const r = await fn();
       if (r.ok) {
@@ -54,7 +59,13 @@ export function ActionButton({
 }) {
   const { pending, runAction } = useRunner();
   return (
-    <Button type="button" size="sm" variant={variant} disabled={pending} onClick={() => runAction(action, success, undefined, describe)}>
+    <Button
+      type="button"
+      size="sm"
+      variant={variant}
+      disabled={pending}
+      onClick={() => runAction(action, success, undefined, describe)}
+    >
       {pending ? 'Aguarde…' : label}
     </Button>
   );
@@ -102,23 +113,47 @@ export function TextAction<T extends Record<string, unknown>>({
       className="flex w-full flex-col gap-(--sp-2) rounded-(--r-md) border border-border p-(--sp-3)"
       onSubmit={(e) => {
         e.preventDefault();
-        const input = { ...base, [field]: text.trim(), ...(extra ? { [extra.field]: date } : {}) } as unknown as T;
-        runAction(() => action(input), success, () => {
-          setOpen(false);
-          setText('');
-        });
+        const input = {
+          ...base,
+          [field]: text.trim(),
+          ...(extra ? { [extra.field]: date } : {}),
+        } as unknown as T;
+        runAction(
+          () => action(input),
+          success,
+          () => {
+            setOpen(false);
+            setText('');
+          },
+        );
       }}
     >
       <Field label={fieldLabel} htmlFor={`${id}-text`} {...(hint ? { hint } : {})} required>
-        <Textarea id={`${id}-text`} value={text} onChange={(e) => setText(e.target.value)} rows={3} maxLength={500} />
+        <Textarea
+          id={`${id}-text`}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          rows={3}
+          maxLength={500}
+        />
       </Field>
       {extra ? (
         <Field label={extra.label} htmlFor={`${id}-date`} required>
-          <Input id={`${id}-date`} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          <Input
+            id={`${id}-date`}
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+          />
         </Field>
       ) : null}
       <div className="flex gap-(--sp-2)">
-        <Button type="submit" size="sm" variant={variant === 'danger' ? 'danger' : 'primary'} disabled={pending || text.trim().length < minLength}>
+        <Button
+          type="submit"
+          size="sm"
+          variant={variant === 'danger' ? 'danger' : 'primary'}
+          disabled={pending || text.trim().length < minLength}
+        >
           {pending ? 'Aguarde…' : 'Confirmar'}
         </Button>
         <Button type="button" size="sm" variant="ghost" onClick={() => setOpen(false)}>
@@ -137,7 +172,12 @@ export function AppealForm({
 }: {
   guideId: string;
   glosses: Array<{ id: string; label: string }>;
-  action: (input: { guideId: string; glossIds: string[]; justification: string; idempotencyKey: string }) => Promise<ActionResult<unknown>>;
+  action: (input: {
+    guideId: string;
+    glossIds: string[];
+    justification: string;
+    idempotencyKey: string;
+  }) => Promise<ActionResult<unknown>>;
 }) {
   const id = useId();
   const [open, setOpen] = useState(false);
@@ -158,17 +198,26 @@ export function AppealForm({
       className="flex flex-col gap-(--sp-2) rounded-(--r-md) border border-border p-(--sp-3)"
       onSubmit={(e) => {
         e.preventDefault();
-        runAction(() => action({ guideId, glossIds: chosen, justification: text.trim(), idempotencyKey: key }), 'Recurso preparado', () => setOpen(false));
+        runAction(
+          () =>
+            action({ guideId, glossIds: chosen, justification: text.trim(), idempotencyKey: key }),
+          'Recurso preparado',
+          () => setOpen(false),
+        );
       }}
     >
       <fieldset className="flex flex-col gap-1">
-        <legend className="text-(length:--fs-sm) font-medium">Glosas contestadas neste recurso</legend>
+        <legend className="text-(length:--fs-sm) font-medium">
+          Glosas contestadas neste recurso
+        </legend>
         {glosses.map((g) => (
           <label key={g.id} className="flex items-center gap-2 text-(length:--fs-sm)">
             <input
               type="checkbox"
               checked={chosen.includes(g.id)}
-              onChange={(e) => setChosen((c) => (e.target.checked ? [...c, g.id] : c.filter((x) => x !== g.id)))}
+              onChange={(e) =>
+                setChosen((c) => (e.target.checked ? [...c, g.id] : c.filter((x) => x !== g.id)))
+              }
             />
             {g.label}
           </label>
@@ -180,10 +229,20 @@ export function AppealForm({
         hint={`Escrita por você: o Qoro não gera justificativa de recurso. ${text.trim().length}/500 — o XML oficial (TISS) aceita até 500 caracteres; o portal da operadora pode aceitar mais.`}
         required
       >
-        <Textarea id={`${id}-j`} value={text} onChange={(e) => setText(e.target.value)} rows={5} maxLength={2000} />
+        <Textarea
+          id={`${id}-j`}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          rows={5}
+          maxLength={2000}
+        />
       </Field>
       <div className="flex gap-(--sp-2)">
-        <Button type="submit" size="sm" disabled={pending || chosen.length === 0 || text.trim().length < 20}>
+        <Button
+          type="submit"
+          size="sm"
+          disabled={pending || chosen.length === 0 || text.trim().length < 20}
+        >
           {pending ? 'Aguarde…' : 'Salvar recurso'}
         </Button>
         <Button type="button" size="sm" variant="ghost" onClick={() => setOpen(false)}>
@@ -202,7 +261,13 @@ export function FileAppealForm({
 }: {
   appealId: string;
   version: number;
-  action: (input: { appealId: string; version: number; filedOn: string; protocol?: string; evidence?: string }) => Promise<ActionResult<unknown>>;
+  action: (input: {
+    appealId: string;
+    version: number;
+    filedOn: string;
+    protocol?: string;
+    evidence?: string;
+  }) => Promise<ActionResult<unknown>>;
 }) {
   const id = useId();
   const [open, setOpen] = useState(false);
@@ -223,7 +288,14 @@ export function FileAppealForm({
       onSubmit={(e) => {
         e.preventDefault();
         runAction(
-          () => action({ appealId, version, filedOn: date, ...(protocol.trim() ? { protocol: protocol.trim() } : {}), ...(evidence.trim() ? { evidence: evidence.trim() } : {}) }),
+          () =>
+            action({
+              appealId,
+              version,
+              filedOn: date,
+              ...(protocol.trim() ? { protocol: protocol.trim() } : {}),
+              ...(evidence.trim() ? { evidence: evidence.trim() } : {}),
+            }),
           'Envio do recurso registrado',
           () => setOpen(false),
         );
@@ -233,13 +305,32 @@ export function FileAppealForm({
         <Input id={`${id}-d`} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
       </Field>
       <Field label="Protocolo da operadora" htmlFor={`${id}-p`}>
-        <Input id={`${id}-p`} value={protocol} onChange={(e) => setProtocol(e.target.value)} maxLength={60} />
+        <Input
+          id={`${id}-p`}
+          value={protocol}
+          onChange={(e) => setProtocol(e.target.value)}
+          maxLength={60}
+        />
       </Field>
-      <Field label="Ou: como foi enviado (sem protocolo)" htmlFor={`${id}-e`} hint="Ex.: portal da operadora, e-mail ao setor de recursos, com data e hora.">
-        <Textarea id={`${id}-e`} value={evidence} onChange={(e) => setEvidence(e.target.value)} rows={2} maxLength={500} />
+      <Field
+        label="Ou: como foi enviado (sem protocolo)"
+        htmlFor={`${id}-e`}
+        hint="Ex.: portal da operadora, e-mail ao setor de recursos, com data e hora."
+      >
+        <Textarea
+          id={`${id}-e`}
+          value={evidence}
+          onChange={(e) => setEvidence(e.target.value)}
+          rows={2}
+          maxLength={500}
+        />
       </Field>
       <div className="flex gap-(--sp-2)">
-        <Button type="submit" size="sm" disabled={pending || (!protocol.trim() && evidence.trim().length < 10)}>
+        <Button
+          type="submit"
+          size="sm"
+          disabled={pending || (!protocol.trim() && evidence.trim().length < 10)}
+        >
           {pending ? 'Aguarde…' : 'Registrar'}
         </Button>
         <Button type="button" size="sm" variant="ghost" onClick={() => setOpen(false)}>
@@ -260,7 +351,13 @@ export function AnswerAppealForm({
   appealId: string;
   version: number;
   glosses: Array<{ id: string; label: string; amountCents: number }>;
-  action: (input: { appealId: string; version: number; answeredOn: string; items: Array<{ glossId: string; acceptedCents: number }>; note?: string }) => Promise<ActionResult<unknown>>;
+  action: (input: {
+    appealId: string;
+    version: number;
+    answeredOn: string;
+    items: Array<{ glossId: string; acceptedCents: number }>;
+    note?: string;
+  }) => Promise<ActionResult<unknown>>;
 }) {
   const id = useId();
   const [open, setOpen] = useState(false);
@@ -279,15 +376,27 @@ export function AnswerAppealForm({
       className="flex flex-col gap-(--sp-2) rounded-(--r-md) border border-border p-(--sp-3)"
       onSubmit={(e) => {
         e.preventDefault();
-        const items = glosses.map((g) => ({ glossId: g.id, acceptedCents: toCents(values[g.id] ?? '0') || 0 }));
-        runAction(() => action({ appealId, version, answeredOn: date, items }), 'Resposta registrada', () => setOpen(false));
+        const items = glosses.map((g) => ({
+          glossId: g.id,
+          acceptedCents: toCents(values[g.id] ?? '0') || 0,
+        }));
+        runAction(
+          () => action({ appealId, version, answeredOn: date, items }),
+          'Resposta registrada',
+          () => setOpen(false),
+        );
       }}
     >
       <Field label="Data da resposta" htmlFor={`${id}-d`} required>
         <Input id={`${id}-d`} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
       </Field>
       {glosses.map((g) => (
-        <Field key={g.id} label={`Aceito pela operadora — ${g.label}`} htmlFor={`${id}-${g.id}`} hint="Valor revertido a favor da clínica (0 = recurso negado).">
+        <Field
+          key={g.id}
+          label={`Aceito pela operadora — ${g.label}`}
+          htmlFor={`${id}-${g.id}`}
+          hint="Valor revertido a favor da clínica (0 = recurso negado)."
+        >
           <Input
             id={`${id}-${g.id}`}
             inputMode="decimal"

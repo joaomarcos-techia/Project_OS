@@ -32,4 +32,9 @@ export {
   type CopaySyncSummary,
 } from './internal/copay-charge-service';
 // P9.2 — prontidão do validador XSD no runtime do app (rota /api/health/tiss-xsd e CI).
-export { tissXsdLimitsProbe, tissXsdSelfCheck, type TissXsdLimitsProbe, type TissXsdSelfCheck } from './tiss/xml/self-check';
+export {
+  tissXsdLimitsProbe,
+  tissXsdSelfCheck,
+  type TissXsdLimitsProbe,
+  type TissXsdSelfCheck,
+} from './tiss/xml/self-check';

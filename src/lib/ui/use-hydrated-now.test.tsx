@@ -24,7 +24,9 @@ function NaiveWait() {
 
 function SafeWait() {
   const now = useHydratedNow(30_000);
-  return <p>{now === null ? 'aguardando' : `aguardando há ${Math.floor((now - SINCE) / 60_000)} min`}</p>;
+  return (
+    <p>{now === null ? 'aguardando' : `aguardando há ${Math.floor((now - SINCE) / 60_000)} min`}</p>
+  );
 }
 
 async function serverThenClient(node: React.ReactElement, skewMs: number) {
@@ -68,4 +70,3 @@ describe('R51 — hidratação com relógios diferentes', () => {
     expect(text).toBe('aguardando há 5 min');
   });
 });
-

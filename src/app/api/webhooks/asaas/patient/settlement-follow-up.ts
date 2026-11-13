@@ -31,13 +31,22 @@ export interface SettlementOutcome {
 }
 
 /** O passo em si (exportado para a prova em banco descartável com o worker real). */
-export async function settleChargeNow(clinicId: string, providerPaymentId: string): Promise<SettlementOutcome | null> {
+export async function settleChargeNow(
+  clinicId: string,
+  providerPaymentId: string,
+): Promise<SettlementOutcome | null> {
   const charge = await findPaidChargeByProviderPayment(clinicId, providerPaymentId);
   if (!charge) return null;
   const summary = await runOutboxSelectionsNow([
     { eventType: PAYMENTS_EVENTS.CHARGE_PAID, idempotencyKeys: [`charge-paid:${charge.chargeId}`] },
-    { eventType: PAYMENTS_EVENTS.CREDIT_GRANTED, idempotencyKeys: [`credit-granted:${charge.chargeId}`] },
-    { eventType: FINANCIAL_EVENTS.LANCAMENTO_PAID, idempotencyKeys: [`patient-credit-applied:${charge.chargeId}`] },
+    {
+      eventType: PAYMENTS_EVENTS.CREDIT_GRANTED,
+      idempotencyKeys: [`credit-granted:${charge.chargeId}`],
+    },
+    {
+      eventType: FINANCIAL_EVENTS.LANCAMENTO_PAID,
+      idempotencyKeys: [`patient-credit-applied:${charge.chargeId}`],
+    },
   ]);
   const copay = await syncCopayForAppointment(clinicId, charge.appointmentId);
   const outcome = {

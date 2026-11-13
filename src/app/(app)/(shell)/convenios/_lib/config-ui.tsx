@@ -38,11 +38,20 @@ import {
   updateMembershipAction,
   type ConfigResult,
 } from '@/contexts/health-insurance/config-actions';
-import type { ContractLineView, InsurerDetail, MembershipView, SchedulingCard } from '@/contexts/health-insurance/config-queries';
+import type {
+  ContractLineView,
+  InsurerDetail,
+  MembershipView,
+  SchedulingCard,
+} from '@/contexts/health-insurance/config-queries';
 
 import { toCents } from './batch-ui';
 
-type Run = (fn: () => Promise<ConfigResult<unknown>>, success: string, after?: (data: unknown) => void) => void;
+type Run = (
+  fn: () => Promise<ConfigResult<unknown>>,
+  success: string,
+  after?: (data: unknown) => void,
+) => void;
 
 function useRun(): { pending: boolean; run: Run } {
   const router = useRouter();
@@ -81,7 +90,15 @@ function Box({ children, onSubmit }: { children: ReactNode; onSubmit: () => void
   );
 }
 
-function Toggle({ label, children, variant = 'secondary' }: { label: string; children: (close: () => void) => ReactNode; variant?: 'primary' | 'secondary' }) {
+function Toggle({
+  label,
+  children,
+  variant = 'secondary',
+}: {
+  label: string;
+  children: (close: () => void) => ReactNode;
+  variant?: 'primary' | 'secondary';
+}) {
   const [open, setOpen] = useState(false);
   if (!open) {
     return (
@@ -93,7 +110,15 @@ function Toggle({ label, children, variant = 'secondary' }: { label: string; chi
   return <>{children(() => setOpen(false))}</>;
 }
 
-function Actions({ pending, onCancel, submit = 'Salvar' }: { pending: boolean; onCancel?: () => void; submit?: string }) {
+function Actions({
+  pending,
+  onCancel,
+  submit = 'Salvar',
+}: {
+  pending: boolean;
+  onCancel?: () => void;
+  submit?: string;
+}) {
   return (
     <div className="flex flex-wrap gap-(--sp-2)">
       <Button type="submit" size="sm" disabled={pending}>
@@ -113,38 +138,70 @@ function Actions({ pending, onCancel, submit = 'Salvar' }: { pending: boolean; o
 export function ProviderIdentityForm({
   initial,
 }: {
-  initial: { providerKind: 'PF' | 'PJ' | null; contractorName: string | null; cnesStatus: 'unknown' | 'has' | 'none_declared'; cnes: string | null };
+  initial: {
+    providerKind: 'PF' | 'PJ' | null;
+    contractorName: string | null;
+    cnesStatus: 'unknown' | 'has' | 'none_declared';
+    cnes: string | null;
+  };
 }) {
   const id = useId();
   const [providerKind, setKind] = useState<'PF' | 'PJ' | ''>(initial.providerKind ?? '');
   const [contractorName, setName] = useState(initial.contractorName ?? '');
-  const [cnesStatus, setCnesStatus] = useState(initial.cnesStatus === 'unknown' ? '' : initial.cnesStatus);
+  const [cnesStatus, setCnesStatus] = useState(
+    initial.cnesStatus === 'unknown' ? '' : initial.cnesStatus,
+  );
   const [cnes, setCnes] = useState(initial.cnes ?? '');
   const { pending, run } = useRun();
   return (
     <Box
       onSubmit={() => {
-        if (!providerKind) return toast.error('Escolha se a clínica fatura como pessoa jurídica ou física.');
+        if (!providerKind)
+          return toast.error('Escolha se a clínica fatura como pessoa jurídica ou física.');
         if (!cnesStatus) return toast.error('Informe o CNES ou declare que a clínica não tem.');
         run(
-          () => saveProviderIdentityAction({ providerKind, contractorName, cnesStatus: cnesStatus as 'has' | 'none_declared', cnes: cnesStatus === 'has' ? cnes : null }),
+          () =>
+            saveProviderIdentityAction({
+              providerKind,
+              contractorName,
+              cnesStatus: cnesStatus as 'has' | 'none_declared',
+              cnes: cnesStatus === 'has' ? cnes : null,
+            }),
           'Identificação do prestador salva.',
         );
       }}
     >
       <div className="grid gap-(--sp-3) sm:grid-cols-2">
         <Field label="Fatura como" htmlFor={`${id}-kind`} required>
-          <Select id={`${id}-kind`} value={providerKind} onChange={(e) => setKind(e.target.value as 'PF' | 'PJ' | '')}>
+          <Select
+            id={`${id}-kind`}
+            value={providerKind}
+            onChange={(e) => setKind(e.target.value as 'PF' | 'PJ' | '')}
+          >
             <option value="">Selecione…</option>
             <option value="PJ">Pessoa jurídica (clínica)</option>
             <option value="PF">Pessoa física (profissional)</option>
           </Select>
         </Field>
-        <Field label="Nome do contratado" htmlFor={`${id}-name`} hint="Como consta no contrato com as operadoras (até 70 caracteres)." required>
-          <Input id={`${id}-name`} value={contractorName} maxLength={70} onChange={(e) => setName(e.target.value)} />
+        <Field
+          label="Nome do contratado"
+          htmlFor={`${id}-name`}
+          hint="Como consta no contrato com as operadoras (até 70 caracteres)."
+          required
+        >
+          <Input
+            id={`${id}-name`}
+            value={contractorName}
+            maxLength={70}
+            onChange={(e) => setName(e.target.value)}
+          />
         </Field>
         <Field label="CNES" htmlFor={`${id}-cnes-status`} required>
-          <Select id={`${id}-cnes-status`} value={cnesStatus} onChange={(e) => setCnesStatus(e.target.value as 'has' | 'none_declared' | '')}>
+          <Select
+            id={`${id}-cnes-status`}
+            value={cnesStatus}
+            onChange={(e) => setCnesStatus(e.target.value as 'has' | 'none_declared' | '')}
+          >
             <option value="">Selecione…</option>
             <option value="has">A clínica tem CNES</option>
             <option value="none_declared">Declaro que a clínica não tem CNES</option>
@@ -152,12 +209,21 @@ export function ProviderIdentityForm({
         </Field>
         {cnesStatus === 'has' ? (
           <Field label="Número do CNES" htmlFor={`${id}-cnes`} hint="7 dígitos." required>
-            <Input id={`${id}-cnes`} value={cnes} inputMode="numeric" maxLength={7} onChange={(e) => setCnes(e.target.value)} />
+            <Input
+              id={`${id}-cnes`}
+              value={cnes}
+              inputMode="numeric"
+              maxLength={7}
+              onChange={(e) => setCnes(e.target.value)}
+            />
           </Field>
         ) : null}
       </div>
       {cnesStatus === 'none_declared' ? (
-        <p className="text-(length:--fs-xs) text-fg-muted">Sem CNES, a guia leva o código de ausência do padrão TISS (9999999), como a ANS prevê para quem declara não ter.</p>
+        <p className="text-(length:--fs-xs) text-fg-muted">
+          Sem CNES, a guia leva o código de ausência do padrão TISS (9999999), como a ANS prevê para
+          quem declara não ter.
+        </p>
       ) : null}
       <Actions pending={pending} />
     </Box>
@@ -176,7 +242,13 @@ function InsurerFields({
   providerHint,
 }: {
   id: string;
-  v: { name: string; registroAns: string; providerIdKind: ProviderKind; providerIdValue: string; sadtGrouping: 'per_session' | 'per_request' };
+  v: {
+    name: string;
+    registroAns: string;
+    providerIdKind: ProviderKind;
+    providerIdValue: string;
+    sadtGrouping: 'per_session' | 'per_request';
+  };
   set: (patch: Partial<typeof v>) => void;
   ansLocked?: boolean;
   providerHint?: string;
@@ -184,23 +256,74 @@ function InsurerFields({
   return (
     <div className="grid gap-(--sp-3) sm:grid-cols-2">
       <Field label="Nome da operadora" htmlFor={`${id}-name`} required>
-        <Input id={`${id}-name`} value={v.name} maxLength={120} onChange={(e) => set({ name: e.target.value })} />
+        <Input
+          id={`${id}-name`}
+          value={v.name}
+          maxLength={120}
+          onChange={(e) => set({ name: e.target.value })}
+        />
       </Field>
-      <Field label="Registro ANS" htmlFor={`${id}-ans`} hint={ansLocked ? 'Só muda enquanto a operadora está em rascunho.' : '6 dígitos, como no contrato ou no cadastro da ANS.'} required>
-        <Input id={`${id}-ans`} value={v.registroAns} inputMode="numeric" maxLength={6} disabled={ansLocked} onChange={(e) => set({ registroAns: e.target.value })} />
+      <Field
+        label="Registro ANS"
+        htmlFor={`${id}-ans`}
+        hint={
+          ansLocked
+            ? 'Só muda enquanto a operadora está em rascunho.'
+            : '6 dígitos, como no contrato ou no cadastro da ANS.'
+        }
+        required
+      >
+        <Input
+          id={`${id}-ans`}
+          value={v.registroAns}
+          inputMode="numeric"
+          maxLength={6}
+          disabled={ansLocked}
+          onChange={(e) => set({ registroAns: e.target.value })}
+        />
       </Field>
       <Field label="Identificação do prestador na operadora" htmlFor={`${id}-pkind`} required>
-        <Select id={`${id}-pkind`} value={v.providerIdKind} onChange={(e) => set({ providerIdKind: e.target.value as ProviderKind })}>
+        <Select
+          id={`${id}-pkind`}
+          value={v.providerIdKind}
+          onChange={(e) => set({ providerIdKind: e.target.value as ProviderKind })}
+        >
           <option value="codigoPrestadorNaOperadora">Código do prestador na operadora</option>
           <option value="cnpjContratado">CNPJ do contratado</option>
           <option value="cpfContratado">CPF do contratado</option>
         </Select>
       </Field>
-      <Field label={v.providerIdKind === 'cnpjContratado' ? 'CNPJ' : v.providerIdKind === 'cpfContratado' ? 'CPF' : 'Código do prestador'} htmlFor={`${id}-pvalue`} {...(providerHint ? { hint: providerHint } : {})} required>
-        <Input id={`${id}-pvalue`} value={v.providerIdValue} maxLength={18} onChange={(e) => set({ providerIdValue: e.target.value })} />
+      <Field
+        label={
+          v.providerIdKind === 'cnpjContratado'
+            ? 'CNPJ'
+            : v.providerIdKind === 'cpfContratado'
+              ? 'CPF'
+              : 'Código do prestador'
+        }
+        htmlFor={`${id}-pvalue`}
+        {...(providerHint ? { hint: providerHint } : {})}
+        required
+      >
+        <Input
+          id={`${id}-pvalue`}
+          value={v.providerIdValue}
+          maxLength={18}
+          onChange={(e) => set({ providerIdValue: e.target.value })}
+        />
       </Field>
-      <Field label="Sessões SP/SADT" htmlFor={`${id}-group`} hint="Regra da operadora para guias de sessões.">
-        <Select id={`${id}-group`} value={v.sadtGrouping} onChange={(e) => set({ sadtGrouping: e.target.value === 'per_request' ? 'per_request' : 'per_session' })}>
+      <Field
+        label="Sessões SP/SADT"
+        htmlFor={`${id}-group`}
+        hint="Regra da operadora para guias de sessões."
+      >
+        <Select
+          id={`${id}-group`}
+          value={v.sadtGrouping}
+          onChange={(e) =>
+            set({ sadtGrouping: e.target.value === 'per_request' ? 'per_request' : 'per_session' })
+          }
+        >
           <option value="per_session">Uma guia por sessão</option>
           <option value="per_request">Sessões da mesma solicitação na mesma guia</option>
         </Select>
@@ -212,14 +335,31 @@ function InsurerFields({
 export function NewInsurerForm() {
   const id = useId();
   const router = useRouter();
-  const [v, setV] = useState({ name: '', registroAns: '', providerIdKind: 'codigoPrestadorNaOperadora' as ProviderKind, providerIdValue: '', sadtGrouping: 'per_session' as 'per_session' | 'per_request' });
+  const [v, setV] = useState({
+    name: '',
+    registroAns: '',
+    providerIdKind: 'codigoPrestadorNaOperadora' as ProviderKind,
+    providerIdValue: '',
+    sadtGrouping: 'per_session' as 'per_session' | 'per_request',
+  });
   const { pending, run } = useRun();
   return (
     <Toggle label="Nova operadora" variant="primary">
       {(close) => (
-        <Box onSubmit={() => run(() => createInsurerAction(v), 'Operadora cadastrada em rascunho.', (insurerId) => router.push(`/convenios/configuracao/operadoras/${String(insurerId)}`))}>
+        <Box
+          onSubmit={() =>
+            run(
+              () => createInsurerAction(v),
+              'Operadora cadastrada em rascunho.',
+              (insurerId) => router.push(`/convenios/configuracao/operadoras/${String(insurerId)}`),
+            )
+          }
+        >
           <InsurerFields id={id} v={v} set={(p) => setV((cur) => ({ ...cur, ...p }))} />
-          <p className="text-(length:--fs-xs) text-fg-muted">A operadora nasce em rascunho. Confira os dados, cadastre os procedimentos contratados e ative-a para usar no agendamento.</p>
+          <p className="text-(length:--fs-xs) text-fg-muted">
+            A operadora nasce em rascunho. Confira os dados, cadastre os procedimentos contratados e
+            ative-a para usar no agendamento.
+          </p>
           <Actions pending={pending} onCancel={close} submit="Cadastrar" />
         </Box>
       )}
@@ -240,13 +380,25 @@ export function InsurerEditForm({ insurer }: { insurer: InsurerDetail['insurer']
   return (
     <Toggle label="Editar dados">
       {(close) => (
-        <Box onSubmit={() => run(() => updateInsurerAction({ ...v, insurerId: insurer.id }), 'Dados da operadora atualizados.', close)}>
+        <Box
+          onSubmit={() =>
+            run(
+              () => updateInsurerAction({ ...v, insurerId: insurer.id }),
+              'Dados da operadora atualizados.',
+              close,
+            )
+          }
+        >
           <InsurerFields
             id={id}
             v={v}
             set={(p) => setV((cur) => ({ ...cur, ...p }))}
             ansLocked={insurer.status !== 'draft'}
-            {...(insurer.providerIdKind === 'cpfContratado' ? { providerHint: 'Por segurança o CPF não é mostrado: digite-o de novo para salvar.' } : {})}
+            {...(insurer.providerIdKind === 'cpfContratado'
+              ? {
+                  providerHint: 'Por segurança o CPF não é mostrado: digite-o de novo para salvar.',
+                }
+              : {})}
           />
           <Actions pending={pending} onCancel={close} />
         </Box>
@@ -255,14 +407,31 @@ export function InsurerEditForm({ insurer }: { insurer: InsurerDetail['insurer']
   );
 }
 
-const STATUS_ACTIONS: Record<string, Array<{ to: 'active' | 'suspended' | 'archived'; label: string; confirm?: string }>> = {
+const STATUS_ACTIONS: Record<
+  string,
+  Array<{ to: 'active' | 'suspended' | 'archived'; label: string; confirm?: string }>
+> = {
   draft: [
     { to: 'active', label: 'Ativar operadora' },
-    { to: 'archived', label: 'Arquivar', confirm: 'Arquivar o rascunho? Ele pode ser reativado depois.' },
+    {
+      to: 'archived',
+      label: 'Arquivar',
+      confirm: 'Arquivar o rascunho? Ele pode ser reativado depois.',
+    },
   ],
   active: [
-    { to: 'suspended', label: 'Suspender', confirm: 'Suspender a operadora? Ela some do agendamento; guias, contratos e carteirinhas ficam.' },
-    { to: 'archived', label: 'Arquivar', confirm: 'Arquivar a operadora? Nada é apagado; ela some do agendamento e dos cadastros novos.' },
+    {
+      to: 'suspended',
+      label: 'Suspender',
+      confirm:
+        'Suspender a operadora? Ela some do agendamento; guias, contratos e carteirinhas ficam.',
+    },
+    {
+      to: 'archived',
+      label: 'Arquivar',
+      confirm:
+        'Arquivar a operadora? Nada é apagado; ela some do agendamento e dos cadastros novos.',
+    },
   ],
   suspended: [
     { to: 'active', label: 'Reativar' },
@@ -279,9 +448,24 @@ export function InsurerStatusActions({ insurerId, status }: { insurerId: string;
     <div className="flex flex-wrap items-center gap-(--sp-2)">
       {actions.map((a) =>
         confirming === a.to ? (
-          <div key={a.to} className="flex flex-wrap items-center gap-(--sp-2) rounded-(--r-md) border border-border p-(--sp-2)">
+          <div
+            key={a.to}
+            className="flex flex-wrap items-center gap-(--sp-2) rounded-(--r-md) border border-border p-(--sp-2)"
+          >
             <span className="text-(length:--fs-sm)">{a.confirm}</span>
-            <Button type="button" size="sm" variant="danger" disabled={pending} onClick={() => run(() => setInsurerStatusAction({ insurerId, status: a.to }), 'Situação da operadora atualizada.', () => setConfirming(null))}>
+            <Button
+              type="button"
+              size="sm"
+              variant="danger"
+              disabled={pending}
+              onClick={() =>
+                run(
+                  () => setInsurerStatusAction({ insurerId, status: a.to }),
+                  'Situação da operadora atualizada.',
+                  () => setConfirming(null),
+                )
+              }
+            >
               Confirmar
             </Button>
             <Button type="button" size="sm" variant="ghost" onClick={() => setConfirming(null)}>
@@ -295,7 +479,14 @@ export function InsurerStatusActions({ insurerId, status }: { insurerId: string;
             size="sm"
             variant={a.to === 'active' ? 'primary' : 'secondary'}
             disabled={pending}
-            onClick={() => (a.confirm ? setConfirming(a.to) : run(() => setInsurerStatusAction({ insurerId, status: a.to }), 'Situação da operadora atualizada.'))}
+            onClick={() =>
+              a.confirm
+                ? setConfirming(a.to)
+                : run(
+                    () => setInsurerStatusAction({ insurerId, status: a.to }),
+                    'Situação da operadora atualizada.',
+                  )
+            }
           >
             {a.label}
           </Button>
@@ -324,7 +515,12 @@ export function NewPlanForm({ insurerId }: { insurerId: string }) {
                   insurerId,
                   name,
                   operatorCode: operatorCode || null,
-                  category: (category || null) as 'ambulatorial' | 'hospitalar' | 'referencia' | 'outro' | null,
+                  category: (category || null) as
+                    | 'ambulatorial'
+                    | 'hospitalar'
+                    | 'referencia'
+                    | 'outro'
+                    | null,
                 }),
               'Plano cadastrado.',
               () => {
@@ -337,13 +533,27 @@ export function NewPlanForm({ insurerId }: { insurerId: string }) {
         >
           <div className="grid gap-(--sp-3) sm:grid-cols-3">
             <Field label="Nome do plano" htmlFor={`${id}-name`} required>
-              <Input id={`${id}-name`} value={name} maxLength={120} onChange={(e) => setName(e.target.value)} />
+              <Input
+                id={`${id}-name`}
+                value={name}
+                maxLength={120}
+                onChange={(e) => setName(e.target.value)}
+              />
             </Field>
             <Field label="Código na operadora (opcional)" htmlFor={`${id}-code`}>
-              <Input id={`${id}-code`} value={operatorCode} maxLength={40} onChange={(e) => setCode(e.target.value)} />
+              <Input
+                id={`${id}-code`}
+                value={operatorCode}
+                maxLength={40}
+                onChange={(e) => setCode(e.target.value)}
+              />
             </Field>
             <Field label="Segmentação (opcional)" htmlFor={`${id}-cat`}>
-              <Select id={`${id}-cat`} value={category} onChange={(e) => setCategory(e.target.value)}>
+              <Select
+                id={`${id}-cat`}
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+              >
                 <option value="">Não informada</option>
                 <option value="ambulatorial">Ambulatorial</option>
                 <option value="hospitalar">Hospitalar</option>
@@ -363,7 +573,18 @@ export function PlanStatusButton({ planId, status }: { planId: string; status: s
   const { pending, run } = useRun();
   const to = status === 'active' ? 'archived' : 'active';
   return (
-    <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={() => run(() => setPlanStatusAction({ planId, status: to }), to === 'archived' ? 'Plano arquivado.' : 'Plano reativado.')}>
+    <Button
+      type="button"
+      size="sm"
+      variant="ghost"
+      disabled={pending}
+      onClick={() =>
+        run(
+          () => setPlanStatusAction({ planId, status: to }),
+          to === 'archived' ? 'Plano arquivado.' : 'Plano reativado.',
+        )
+      }
+    >
       {to === 'archived' ? 'Arquivar' : 'Reativar'}
     </Button>
   );
@@ -411,7 +632,10 @@ function TermPicker({
   if (value) {
     return (
       <Field label={label} htmlFor={`${id}-picked`} required>
-        <div id={`${id}-picked`} className="flex flex-wrap items-center gap-(--sp-2) text-(length:--fs-sm)">
+        <div
+          id={`${id}-picked`}
+          className="flex flex-wrap items-center gap-(--sp-2) text-(length:--fs-sm)"
+        >
           <span className="font-medium tabular-nums">{value.code}</span>
           <span className="text-fg-muted">{value.term}</span>
           <Button type="button" size="sm" variant="ghost" onClick={() => onPick(null)}>
@@ -423,10 +647,20 @@ function TermPicker({
   }
   return (
     <Field label={label} htmlFor={`${id}-q`} hint={hint} required>
-      <Input id={`${id}-q`} value={q} placeholder="Código ou parte do nome" onChange={(e) => setQ(e.target.value)} autoComplete="off" />
+      <Input
+        id={`${id}-q`}
+        value={q}
+        placeholder="Código ou parte do nome"
+        onChange={(e) => setQ(e.target.value)}
+        autoComplete="off"
+      />
       {busy ? <p className="text-(length:--fs-xs) text-fg-muted">Buscando…</p> : null}
       {hits.length > 0 ? (
-        <ul className="mt-1 max-h-56 overflow-y-auto rounded-(--r-md) border border-border" role="listbox" aria-label={`Resultados da tabela ${table}`}>
+        <ul
+          className="mt-1 max-h-56 overflow-y-auto rounded-(--r-md) border border-border"
+          role="listbox"
+          aria-label={`Resultados da tabela ${table}`}
+        >
           {hits.map((h) => (
             <li key={h.code}>
               <button
@@ -447,7 +681,9 @@ function TermPicker({
           ))}
         </ul>
       ) : q.trim().length >= 2 && !busy ? (
-        <p className="text-(length:--fs-xs) text-fg-muted">Nada encontrado na tabela {table} carregada.</p>
+        <p className="text-(length:--fs-xs) text-fg-muted">
+          Nada encontrado na tabela {table} carregada.
+        </p>
       ) : null}
     </Field>
   );
@@ -471,7 +707,10 @@ function termsFromLine(l?: ContractLineView): TermsState {
     requiresAuthorization: l?.requiresAuthorization ?? false,
     copayKind: l?.copayKind ?? 'none',
     copayFixed: l ? brlInput(l.copayFixedCents) : '',
-    copayPercentage: l?.copayPercentage !== null && l?.copayPercentage !== undefined ? String(l.copayPercentage).replace('.', ',') : '',
+    copayPercentage:
+      l?.copayPercentage !== null && l?.copayPercentage !== undefined
+        ? String(l.copayPercentage).replace('.', ',')
+        : '',
     returnDays: l?.returnDays ? String(l.returnDays) : '',
     returnBillable: l?.returnBillable ?? false,
   };
@@ -492,46 +731,107 @@ function termsPayload(t: TermsState) {
     if (!(copayPercentage > 0)) return 'Informe o percentual da coparticipação.';
   }
   const returnDays = t.returnDays.trim() ? Number(t.returnDays) : null;
-  return { unitValueCents, requiresAuthorization: t.requiresAuthorization, copayKind: t.copayKind, copayFixedCents, copayPercentage, returnDays, returnBillable: t.returnBillable };
+  return {
+    unitValueCents,
+    requiresAuthorization: t.requiresAuthorization,
+    copayKind: t.copayKind,
+    copayFixedCents,
+    copayPercentage,
+    returnDays,
+    returnBillable: t.returnBillable,
+  };
 }
 
-function TermsFields({ id, t, set, guideType }: { id: string; t: TermsState; set: (p: Partial<TermsState>) => void; guideType: 'consulta' | 'sp_sadt' }) {
+function TermsFields({
+  id,
+  t,
+  set,
+  guideType,
+}: {
+  id: string;
+  t: TermsState;
+  set: (p: Partial<TermsState>) => void;
+  guideType: 'consulta' | 'sp_sadt';
+}) {
   return (
     <>
       <div className="grid gap-(--sp-3) sm:grid-cols-3">
         <Field label="Valor contratado (R$)" htmlFor={`${id}-value`} required>
-          <Input id={`${id}-value`} value={t.value} inputMode="decimal" placeholder="0,00" onChange={(e) => set({ value: e.target.value })} />
+          <Input
+            id={`${id}-value`}
+            value={t.value}
+            inputMode="decimal"
+            placeholder="0,00"
+            onChange={(e) => set({ value: e.target.value })}
+          />
         </Field>
         <Field label="Coparticipação" htmlFor={`${id}-copay`}>
-          <Select id={`${id}-copay`} value={t.copayKind} onChange={(e) => set({ copayKind: e.target.value as TermsState['copayKind'] })}>
+          <Select
+            id={`${id}-copay`}
+            value={t.copayKind}
+            onChange={(e) => set({ copayKind: e.target.value as TermsState['copayKind'] })}
+          >
             <option value="none">Não há</option>
             <option value="fixed">Valor fixo</option>
             <option value="percentage">Percentual</option>
           </Select>
         </Field>
         {t.copayKind === 'fixed' ? (
-          <Field label="Coparticipação (R$)" htmlFor={`${id}-cfix`} hint="Nunca acima do valor contratado." required>
-            <Input id={`${id}-cfix`} value={t.copayFixed} inputMode="decimal" placeholder="0,00" onChange={(e) => set({ copayFixed: e.target.value })} />
+          <Field
+            label="Coparticipação (R$)"
+            htmlFor={`${id}-cfix`}
+            hint="Nunca acima do valor contratado."
+            required
+          >
+            <Input
+              id={`${id}-cfix`}
+              value={t.copayFixed}
+              inputMode="decimal"
+              placeholder="0,00"
+              onChange={(e) => set({ copayFixed: e.target.value })}
+            />
           </Field>
         ) : t.copayKind === 'percentage' ? (
-          <Field label="Coparticipação (%)" htmlFor={`${id}-cpct`} hint="De 0,01 a 100, com até 2 casas." required>
-            <Input id={`${id}-cpct`} value={t.copayPercentage} inputMode="decimal" onChange={(e) => set({ copayPercentage: e.target.value })} />
+          <Field
+            label="Coparticipação (%)"
+            htmlFor={`${id}-cpct`}
+            hint="De 0,01 a 100, com até 2 casas."
+            required
+          >
+            <Input
+              id={`${id}-cpct`}
+              value={t.copayPercentage}
+              inputMode="decimal"
+              onChange={(e) => set({ copayPercentage: e.target.value })}
+            />
           </Field>
         ) : null}
       </div>
       <div className="grid gap-(--sp-3) sm:grid-cols-3">
         <label className="flex items-center gap-2 text-(length:--fs-sm)">
-          <Checkbox checked={t.requiresAuthorization} onCheckedChange={(c) => set({ requiresAuthorization: c === true })} />
+          <Checkbox
+            checked={t.requiresAuthorization}
+            onCheckedChange={(c) => set({ requiresAuthorization: c === true })}
+          />
           Exige autorização prévia da operadora
         </label>
         {guideType === 'consulta' ? (
           <>
             <Field label="Prazo de retorno (dias, opcional)" htmlFor={`${id}-ret`}>
-              <Input id={`${id}-ret`} value={t.returnDays} inputMode="numeric" maxLength={3} onChange={(e) => set({ returnDays: e.target.value })} />
+              <Input
+                id={`${id}-ret`}
+                value={t.returnDays}
+                inputMode="numeric"
+                maxLength={3}
+                onChange={(e) => set({ returnDays: e.target.value })}
+              />
             </Field>
             {t.returnDays.trim() ? (
               <label className="flex items-center gap-2 text-(length:--fs-sm)">
-                <Checkbox checked={t.returnBillable} onCheckedChange={(c) => set({ returnBillable: c === true })} />
+                <Checkbox
+                  checked={t.returnBillable}
+                  onCheckedChange={(c) => set({ returnBillable: c === true })}
+                />
                 Retorno dentro do prazo é faturável
               </label>
             ) : null}
@@ -542,7 +842,15 @@ function TermsFields({ id, t, set, guideType }: { id: string; t: TermsState; set
   );
 }
 
-export function NewContractLineForm({ insurerId, plans, procedures }: { insurerId: string; plans: InsurerDetail['plans']; procedures: InsurerDetail['procedures'] }) {
+export function NewContractLineForm({
+  insurerId,
+  plans,
+  procedures,
+}: {
+  insurerId: string;
+  plans: InsurerDetail['plans'];
+  procedures: InsurerDetail['procedures'];
+}) {
   const id = useId();
   const [guideType, setGuideType] = useState<'consulta' | 'sp_sadt'>('consulta');
   const [planId, setPlanId] = useState('');
@@ -587,16 +895,29 @@ export function NewContractLineForm({ insurerId, plans, procedures }: { insurerI
           }}
         >
           {procedures.length === 0 ? (
-            <Alert variant="warning">Cadastre antes o procedimento no catálogo da clínica (Configurações › Procedimentos); o agendamento usa o catálogo.</Alert>
+            <Alert variant="warning">
+              Cadastre antes o procedimento no catálogo da clínica (Configurações › Procedimentos);
+              o agendamento usa o catálogo.
+            </Alert>
           ) : null}
           <div className="grid gap-(--sp-3) sm:grid-cols-3">
             <Field label="Tipo de guia" htmlFor={`${id}-gt`} required>
-              <Select id={`${id}-gt`} value={guideType} onChange={(e) => setGuideType(e.target.value === 'sp_sadt' ? 'sp_sadt' : 'consulta')}>
+              <Select
+                id={`${id}-gt`}
+                value={guideType}
+                onChange={(e) =>
+                  setGuideType(e.target.value === 'sp_sadt' ? 'sp_sadt' : 'consulta')
+                }
+              >
                 <option value="consulta">Consulta</option>
                 <option value="sp_sadt">SP/SADT</option>
               </Select>
             </Field>
-            <Field label="Plano" htmlFor={`${id}-plan`} hint="Em branco = vale para todos os planos da operadora.">
+            <Field
+              label="Plano"
+              htmlFor={`${id}-plan`}
+              hint="Em branco = vale para todos os planos da operadora."
+            >
               <Select id={`${id}-plan`} value={planId} onChange={(e) => setPlanId(e.target.value)}>
                 <option value="">Todos os planos</option>
                 {activePlans.map((p) => (
@@ -607,7 +928,11 @@ export function NewContractLineForm({ insurerId, plans, procedures }: { insurerI
               </Select>
             </Field>
             <Field label="Procedimento do catálogo" htmlFor={`${id}-proc`} required>
-              <Select id={`${id}-proc`} value={procedureId} onChange={(e) => setProcedureId(e.target.value)}>
+              <Select
+                id={`${id}-proc`}
+                value={procedureId}
+                onChange={(e) => setProcedureId(e.target.value)}
+              >
                 <option value="">Selecione…</option>
                 {procedures.map((p) => (
                   <option key={p.id} value={p.id}>
@@ -617,19 +942,50 @@ export function NewContractLineForm({ insurerId, plans, procedures }: { insurerI
               </Select>
             </Field>
           </div>
-          <TermPicker id={`${id}-tuss`} table="22" label="Código TUSS (tabela 22)" hint="Busque pelo código ou pelo nome na terminologia oficial carregada." value={tuss} onPick={setTuss} />
-          <Field label="Descrição na guia (opcional)" htmlFor={`${id}-desc`} hint="Em branco = a descrição oficial da TUSS.">
-            <Input id={`${id}-desc`} value={description} maxLength={150} onChange={(e) => setDescription(e.target.value)} />
+          <TermPicker
+            id={`${id}-tuss`}
+            table="22"
+            label="Código TUSS (tabela 22)"
+            hint="Busque pelo código ou pelo nome na terminologia oficial carregada."
+            value={tuss}
+            onPick={setTuss}
+          />
+          <Field
+            label="Descrição na guia (opcional)"
+            htmlFor={`${id}-desc`}
+            hint="Em branco = a descrição oficial da TUSS."
+          >
+            <Input
+              id={`${id}-desc`}
+              value={description}
+              maxLength={150}
+              onChange={(e) => setDescription(e.target.value)}
+            />
           </Field>
           <div className="grid gap-(--sp-3) sm:grid-cols-2">
             <Field label="Início da vigência" htmlFor={`${id}-from`} required>
-              <Input id={`${id}-from`} type="date" value={validFrom} onChange={(e) => setFrom(e.target.value)} />
+              <Input
+                id={`${id}-from`}
+                type="date"
+                value={validFrom}
+                onChange={(e) => setFrom(e.target.value)}
+              />
             </Field>
             <Field label="Fim da vigência (opcional)" htmlFor={`${id}-until`}>
-              <Input id={`${id}-until`} type="date" value={validUntil} onChange={(e) => setUntil(e.target.value)} />
+              <Input
+                id={`${id}-until`}
+                type="date"
+                value={validUntil}
+                onChange={(e) => setUntil(e.target.value)}
+              />
             </Field>
           </div>
-          <TermsFields id={id} t={t} set={(p) => setT((cur) => ({ ...cur, ...p }))} guideType={guideType} />
+          <TermsFields
+            id={id}
+            t={t}
+            set={(p) => setT((cur) => ({ ...cur, ...p }))}
+            guideType={guideType}
+          />
           <Actions pending={pending} onCancel={close} submit="Cadastrar procedimento" />
         </Box>
       )}
@@ -637,7 +993,13 @@ export function NewContractLineForm({ insurerId, plans, procedures }: { insurerI
   );
 }
 
-export function ContractRevisionForm({ line, procedures }: { line: ContractLineView; procedures: InsurerDetail['procedures'] }) {
+export function ContractRevisionForm({
+  line,
+  procedures,
+}: {
+  line: ContractLineView;
+  procedures: InsurerDetail['procedures'];
+}) {
   const id = useId();
   const [mode, setMode] = useState<'new_period' | 'correct' | 'end'>('new_period');
   const [date, setDate] = useState(() => todayYmdIn());
@@ -657,24 +1019,53 @@ export function ContractRevisionForm({ line, procedures }: { line: ContractLineV
                 ? { mode, until: date, reason }
                 : mode === 'new_period'
                   ? { mode, from: date, terms: terms!, reason }
-                  : { mode, terms: terms!, description: null, procedureId: procedureId || line.procedureId || '', reason };
-            run(() => reviseContractLineAction({ lineId: line.id, revision }), 'Contrato atualizado; a versão anterior ficou no histórico.', close);
+                  : {
+                      mode,
+                      terms: terms!,
+                      description: null,
+                      procedureId: procedureId || line.procedureId || '',
+                      reason,
+                    };
+            run(
+              () => reviseContractLineAction({ lineId: line.id, revision }),
+              'Contrato atualizado; a versão anterior ficou no histórico.',
+              close,
+            );
           }}
         >
           <Field label="O que mudou" htmlFor={`${id}-mode`}>
-            <Select id={`${id}-mode`} value={mode} onChange={(e) => setMode(e.target.value as typeof mode)}>
-              <option value="new_period">Reajuste a partir de uma data (o passado mantém o valor antigo)</option>
+            <Select
+              id={`${id}-mode`}
+              value={mode}
+              onChange={(e) => setMode(e.target.value as typeof mode)}
+            >
+              <option value="new_period">
+                Reajuste a partir de uma data (o passado mantém o valor antigo)
+              </option>
               <option value="correct">Corrigir este item desde o início (erro de cadastro)</option>
               <option value="end">Encerrar a vigência</option>
             </Select>
           </Field>
           {mode !== 'correct' ? (
-            <Field label={mode === 'end' ? 'Último dia de vigência' : 'Vale a partir de'} htmlFor={`${id}-date`} required>
-              <Input id={`${id}-date`} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            <Field
+              label={mode === 'end' ? 'Último dia de vigência' : 'Vale a partir de'}
+              htmlFor={`${id}-date`}
+              required
+            >
+              <Input
+                id={`${id}-date`}
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+              />
             </Field>
           ) : (
             <Field label="Procedimento do catálogo" htmlFor={`${id}-proc`}>
-              <Select id={`${id}-proc`} value={procedureId} onChange={(e) => setProcedureId(e.target.value)}>
+              <Select
+                id={`${id}-proc`}
+                value={procedureId}
+                onChange={(e) => setProcedureId(e.target.value)}
+              >
                 {procedures.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.descricao}
@@ -683,14 +1074,39 @@ export function ContractRevisionForm({ line, procedures }: { line: ContractLineV
               </Select>
             </Field>
           )}
-          {mode !== 'end' ? <TermsFields id={id} t={t} set={(p) => setT((cur) => ({ ...cur, ...p }))} guideType={line.guideType} /> : null}
-          {mode === 'correct' ? (
-            <Alert variant="info">A correção vale para atendimentos que ainda não têm guia emitida. Guia emitida nunca muda.</Alert>
+          {mode !== 'end' ? (
+            <TermsFields
+              id={id}
+              t={t}
+              set={(p) => setT((cur) => ({ ...cur, ...p }))}
+              guideType={line.guideType}
+            />
           ) : null}
-          <Field label="Motivo" htmlFor={`${id}-reason`} hint="Fica no histórico do contrato (10 a 500 caracteres)." required>
-            <Textarea id={`${id}-reason`} value={reason} rows={2} maxLength={500} onChange={(e) => setReason(e.target.value)} />
+          {mode === 'correct' ? (
+            <Alert variant="info">
+              A correção vale para atendimentos que ainda não têm guia emitida. Guia emitida nunca
+              muda.
+            </Alert>
+          ) : null}
+          <Field
+            label="Motivo"
+            htmlFor={`${id}-reason`}
+            hint="Fica no histórico do contrato (10 a 500 caracteres)."
+            required
+          >
+            <Textarea
+              id={`${id}-reason`}
+              value={reason}
+              rows={2}
+              maxLength={500}
+              onChange={(e) => setReason(e.target.value)}
+            />
           </Field>
-          <Actions pending={pending || reason.trim().length < 10} onCancel={close} submit="Salvar nova versão" />
+          <Actions
+            pending={pending || reason.trim().length < 10}
+            onCancel={close}
+            submit="Salvar nova versão"
+          />
         </Box>
       )}
     </Toggle>
@@ -704,7 +1120,17 @@ export function ProfessionalProfileForm({
   councils,
   ufs,
 }: {
-  professional: { id: string; nome: string; profile: { council: string; councilNumber: string; councilUf: string; cbo: string; cboTerm: string | null } | null };
+  professional: {
+    id: string;
+    nome: string;
+    profile: {
+      council: string;
+      councilNumber: string;
+      councilUf: string;
+      cbo: string;
+      cboTerm: string | null;
+    } | null;
+  };
   councils: Array<{ code: string; term: string }>;
   ufs: Array<{ code: string; term: string; sigla: string | null }>;
 }) {
@@ -713,20 +1139,40 @@ export function ProfessionalProfileForm({
   const [council, setCouncil] = useState(p?.council ?? '');
   const [councilNumber, setNumber] = useState(p?.councilNumber ?? '');
   const [councilUf, setUf] = useState(p?.councilUf ?? '');
-  const [cbo, setCbo] = useState<{ code: string; term: string } | null>(p ? { code: p.cbo, term: p.cboTerm ?? '' } : null);
+  const [cbo, setCbo] = useState<{ code: string; term: string } | null>(
+    p ? { code: p.cbo, term: p.cboTerm ?? '' } : null,
+  );
   const { pending, run } = useRun();
   return (
-    <Toggle label={p ? 'Editar perfil TISS' : 'Cadastrar perfil TISS'} variant={p ? 'secondary' : 'primary'}>
+    <Toggle
+      label={p ? 'Editar perfil TISS' : 'Cadastrar perfil TISS'}
+      variant={p ? 'secondary' : 'primary'}
+    >
       {(close) => (
         <Box
           onSubmit={() => {
             if (!cbo) return toast.error('Escolha o CBO na tabela oficial.');
-            run(() => saveProfessionalProfileAction({ professionalId: professional.id, council, councilNumber, councilUf, cbo: cbo.code }), `Perfil TISS de ${professional.nome} salvo.`, close);
+            run(
+              () =>
+                saveProfessionalProfileAction({
+                  professionalId: professional.id,
+                  council,
+                  councilNumber,
+                  councilUf,
+                  cbo: cbo.code,
+                }),
+              `Perfil TISS de ${professional.nome} salvo.`,
+              close,
+            );
           }}
         >
           <div className="grid gap-(--sp-3) sm:grid-cols-3">
             <Field label="Conselho profissional" htmlFor={`${id}-council`} required>
-              <Select id={`${id}-council`} value={council} onChange={(e) => setCouncil(e.target.value)}>
+              <Select
+                id={`${id}-council`}
+                value={council}
+                onChange={(e) => setCouncil(e.target.value)}
+              >
                 <option value="">Selecione…</option>
                 {councils.map((c) => (
                   <option key={c.code} value={c.code}>
@@ -736,7 +1182,12 @@ export function ProfessionalProfileForm({
               </Select>
             </Field>
             <Field label="Número no conselho" htmlFor={`${id}-num`} required>
-              <Input id={`${id}-num`} value={councilNumber} maxLength={15} onChange={(e) => setNumber(e.target.value)} />
+              <Input
+                id={`${id}-num`}
+                value={councilNumber}
+                maxLength={15}
+                onChange={(e) => setNumber(e.target.value)}
+              />
             </Field>
             <Field label="UF do conselho" htmlFor={`${id}-uf`} required>
               <Select id={`${id}-uf`} value={councilUf} onChange={(e) => setUf(e.target.value)}>
@@ -749,7 +1200,14 @@ export function ProfessionalProfileForm({
               </Select>
             </Field>
           </div>
-          <TermPicker id={`${id}-cbo`} table="24" label="CBO (tabela 24)" hint="Especialidade do profissional na Classificação Brasileira de Ocupações." value={cbo} onPick={setCbo} />
+          <TermPicker
+            id={`${id}-cbo`}
+            table="24"
+            label="CBO (tabela 24)"
+            hint="Especialidade do profissional na Classificação Brasileira de Ocupações."
+            value={cbo}
+            onPick={setCbo}
+          />
           <Actions pending={pending} onCancel={close} />
         </Box>
       )}
@@ -759,9 +1217,20 @@ export function ProfessionalProfileForm({
 
 // ── Carteirinhas ─────────────────────────────────────────────────────────
 
-type InsurerOption = { id: string; name: string; status: string; plans: Array<{ id: string; name: string }> };
+type InsurerOption = {
+  id: string;
+  name: string;
+  status: string;
+  plans: Array<{ id: string; name: string }>;
+};
 
-export function NewMembershipForm({ patientId, insurers }: { patientId: string; insurers: InsurerOption[] }) {
+export function NewMembershipForm({
+  patientId,
+  insurers,
+}: {
+  patientId: string;
+  insurers: InsurerOption[];
+}) {
   const id = useId();
   const [insurerId, setInsurerId] = useState(insurers.length === 1 ? insurers[0]!.id : '');
   const [planId, setPlanId] = useState('');
@@ -772,7 +1241,12 @@ export function NewMembershipForm({ patientId, insurers }: { patientId: string; 
   const { pending, run } = useRun();
   const plans = insurers.find((i) => i.id === insurerId)?.plans ?? [];
   if (insurers.length === 0) {
-    return <Alert variant="warning">Nenhuma operadora cadastrada. Cadastre a operadora em Convênios › Configuração antes da carteirinha.</Alert>;
+    return (
+      <Alert variant="warning">
+        Nenhuma operadora cadastrada. Cadastre a operadora em Convênios › Configuração antes da
+        carteirinha.
+      </Alert>
+    );
   }
   return (
     <Toggle label="Nova carteirinha" variant="primary">
@@ -781,7 +1255,16 @@ export function NewMembershipForm({ patientId, insurers }: { patientId: string; 
           onSubmit={() => {
             if (!insurerId) return toast.error('Escolha a operadora.');
             run(
-              () => createMembershipAction({ patientId, insurerId, planId: planId || null, cardNumber, holderKind, validUntil: validUntil || null, preferred }),
+              () =>
+                createMembershipAction({
+                  patientId,
+                  insurerId,
+                  planId: planId || null,
+                  cardNumber,
+                  holderKind,
+                  validUntil: validUntil || null,
+                  preferred,
+                }),
               'Carteirinha cadastrada.',
               () => {
                 setNumber('');
@@ -792,7 +1275,14 @@ export function NewMembershipForm({ patientId, insurers }: { patientId: string; 
         >
           <div className="grid gap-(--sp-3) sm:grid-cols-2">
             <Field label="Operadora" htmlFor={`${id}-ins`} required>
-              <Select id={`${id}-ins`} value={insurerId} onChange={(e) => { setInsurerId(e.target.value); setPlanId(''); }}>
+              <Select
+                id={`${id}-ins`}
+                value={insurerId}
+                onChange={(e) => {
+                  setInsurerId(e.target.value);
+                  setPlanId('');
+                }}
+              >
                 <option value="">Selecione…</option>
                 {insurers.map((i) => (
                   <option key={i.id} value={i.id}>
@@ -803,8 +1293,15 @@ export function NewMembershipForm({ patientId, insurers }: { patientId: string; 
               </Select>
             </Field>
             <Field label="Plano (opcional)" htmlFor={`${id}-plan`}>
-              <Select id={`${id}-plan`} value={planId} disabled={plans.length === 0} onChange={(e) => setPlanId(e.target.value)}>
-                <option value="">{plans.length === 0 ? 'Operadora sem planos cadastrados' : 'Não informado'}</option>
+              <Select
+                id={`${id}-plan`}
+                value={planId}
+                disabled={plans.length === 0}
+                onChange={(e) => setPlanId(e.target.value)}
+              >
+                <option value="">
+                  {plans.length === 0 ? 'Operadora sem planos cadastrados' : 'Não informado'}
+                </option>
                 {plans.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
@@ -812,14 +1309,36 @@ export function NewMembershipForm({ patientId, insurers }: { patientId: string; 
                 ))}
               </Select>
             </Field>
-            <Field label="Número da carteirinha" htmlFor={`${id}-num`} hint="Guardado cifrado; depois aparece só o final." required>
-              <Input id={`${id}-num`} value={cardNumber} maxLength={30} autoComplete="off" onChange={(e) => setNumber(e.target.value)} />
+            <Field
+              label="Número da carteirinha"
+              htmlFor={`${id}-num`}
+              hint="Guardado cifrado; depois aparece só o final."
+              required
+            >
+              <Input
+                id={`${id}-num`}
+                value={cardNumber}
+                maxLength={30}
+                autoComplete="off"
+                onChange={(e) => setNumber(e.target.value)}
+              />
             </Field>
             <Field label="Validade (opcional)" htmlFor={`${id}-valid`}>
-              <Input id={`${id}-valid`} type="date" value={validUntil} onChange={(e) => setValid(e.target.value)} />
+              <Input
+                id={`${id}-valid`}
+                type="date"
+                value={validUntil}
+                onChange={(e) => setValid(e.target.value)}
+              />
             </Field>
             <Field label="Titularidade" htmlFor={`${id}-holder`}>
-              <Select id={`${id}-holder`} value={holderKind} onChange={(e) => setHolder(e.target.value === 'dependente' ? 'dependente' : 'titular')}>
+              <Select
+                id={`${id}-holder`}
+                value={holderKind}
+                onChange={(e) =>
+                  setHolder(e.target.value === 'dependente' ? 'dependente' : 'titular')
+                }
+              >
                 <option value="titular">Titular</option>
                 <option value="dependente">Dependente</option>
               </Select>
@@ -836,7 +1355,13 @@ export function NewMembershipForm({ patientId, insurers }: { patientId: string; 
   );
 }
 
-export function MembershipActions({ card, insurer }: { card: MembershipView; insurer: InsurerOption | undefined }) {
+export function MembershipActions({
+  card,
+  insurer,
+}: {
+  card: MembershipView;
+  insurer: InsurerOption | undefined;
+}) {
   const id = useId();
   const [revealed, setRevealed] = useState<string | null>(null);
   const [panel, setPanel] = useState<'none' | 'edit' | 'replace'>('none');
@@ -852,7 +1377,10 @@ export function MembershipActions({ card, insurer }: { card: MembershipView; ins
     <div className="flex flex-col gap-(--sp-2)">
       <div className="flex flex-wrap gap-(--sp-2)">
         {revealed ? (
-          <span className="rounded-(--r-sm) bg-surface-2 px-(--sp-2) py-1 font-mono text-(length:--fs-sm)" data-testid="card-number-revealed">
+          <span
+            className="rounded-(--r-sm) bg-surface-2 px-(--sp-2) py-1 font-mono text-(length:--fs-sm)"
+            data-testid="card-number-revealed"
+          >
             {revealed}
           </span>
         ) : (
@@ -873,14 +1401,35 @@ export function MembershipActions({ card, insurer }: { card: MembershipView; ins
           </Button>
         )}
         {card.status === 'active' && !card.isPreferred ? (
-          <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={() => run(() => setPreferredMembershipAction({ membershipId: card.id }), 'Carteirinha preferencial definida.')}>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            disabled={pending}
+            onClick={() =>
+              run(
+                () => setPreferredMembershipAction({ membershipId: card.id }),
+                'Carteirinha preferencial definida.',
+              )
+            }
+          >
             Tornar preferencial
           </Button>
         ) : null}
-        <Button type="button" size="sm" variant="ghost" onClick={() => setPanel(panel === 'edit' ? 'none' : 'edit')}>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          onClick={() => setPanel(panel === 'edit' ? 'none' : 'edit')}
+        >
           Validade e plano
         </Button>
-        <Button type="button" size="sm" variant="ghost" onClick={() => setPanel(panel === 'replace' ? 'none' : 'replace')}>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          onClick={() => setPanel(panel === 'replace' ? 'none' : 'replace')}
+        >
           Substituir número
         </Button>
         <Button
@@ -888,7 +1437,18 @@ export function MembershipActions({ card, insurer }: { card: MembershipView; ins
           size="sm"
           variant="ghost"
           disabled={pending}
-          onClick={() => run(() => setMembershipActiveAction({ membershipId: card.id, active: card.status !== 'active' }), card.status === 'active' ? 'Carteirinha desativada (fica no histórico).' : 'Carteirinha reativada.')}
+          onClick={() =>
+            run(
+              () =>
+                setMembershipActiveAction({
+                  membershipId: card.id,
+                  active: card.status !== 'active',
+                }),
+              card.status === 'active'
+                ? 'Carteirinha desativada (fica no histórico).'
+                : 'Carteirinha reativada.',
+            )
+          }
         >
           {card.status === 'active' ? 'Desativar' : 'Reativar'}
         </Button>
@@ -897,18 +1457,50 @@ export function MembershipActions({ card, insurer }: { card: MembershipView; ins
         <Box
           onSubmit={() =>
             panel === 'edit'
-              ? run(() => updateMembershipAction({ membershipId: card.id, planId: planId || null, holderKind, validUntil: validUntil || null }), 'Carteirinha atualizada.', () => setPanel('none'))
-              : run(() => replaceMembershipAction({ membershipId: card.id, cardNumber, planId: planId || null, holderKind, validUntil: validUntil || null }), 'Número substituído; a carteirinha anterior ficou no histórico.', () => setPanel('none'))
+              ? run(
+                  () =>
+                    updateMembershipAction({
+                      membershipId: card.id,
+                      planId: planId || null,
+                      holderKind,
+                      validUntil: validUntil || null,
+                    }),
+                  'Carteirinha atualizada.',
+                  () => setPanel('none'),
+                )
+              : run(
+                  () =>
+                    replaceMembershipAction({
+                      membershipId: card.id,
+                      cardNumber,
+                      planId: planId || null,
+                      holderKind,
+                      validUntil: validUntil || null,
+                    }),
+                  'Número substituído; a carteirinha anterior ficou no histórico.',
+                  () => setPanel('none'),
+                )
           }
         >
           <div className="grid gap-(--sp-3) sm:grid-cols-2">
             {panel === 'replace' ? (
               <Field label="Número novo" htmlFor={`${id}-num`} required>
-                <Input id={`${id}-num`} value={cardNumber} maxLength={30} autoComplete="off" onChange={(e) => setNumber(e.target.value)} />
+                <Input
+                  id={`${id}-num`}
+                  value={cardNumber}
+                  maxLength={30}
+                  autoComplete="off"
+                  onChange={(e) => setNumber(e.target.value)}
+                />
               </Field>
             ) : null}
             <Field label="Validade" htmlFor={`${id}-valid`}>
-              <Input id={`${id}-valid`} type="date" value={validUntil} onChange={(e) => setValid(e.target.value)} />
+              <Input
+                id={`${id}-valid`}
+                type="date"
+                value={validUntil}
+                onChange={(e) => setValid(e.target.value)}
+              />
             </Field>
             <Field label="Plano" htmlFor={`${id}-plan`}>
               <Select id={`${id}-plan`} value={planId} onChange={(e) => setPlanId(e.target.value)}>
@@ -921,13 +1513,23 @@ export function MembershipActions({ card, insurer }: { card: MembershipView; ins
               </Select>
             </Field>
             <Field label="Titularidade" htmlFor={`${id}-holder`}>
-              <Select id={`${id}-holder`} value={holderKind} onChange={(e) => setHolder(e.target.value === 'dependente' ? 'dependente' : 'titular')}>
+              <Select
+                id={`${id}-holder`}
+                value={holderKind}
+                onChange={(e) =>
+                  setHolder(e.target.value === 'dependente' ? 'dependente' : 'titular')
+                }
+              >
                 <option value="titular">Titular</option>
                 <option value="dependente">Dependente</option>
               </Select>
             </Field>
           </div>
-          <Actions pending={pending} onCancel={() => setPanel('none')} submit={panel === 'replace' ? 'Substituir' : 'Salvar'} />
+          <Actions
+            pending={pending}
+            onCancel={() => setPanel('none')}
+            submit={panel === 'replace' ? 'Substituir' : 'Salvar'}
+          />
         </Box>
       ) : null}
     </div>
@@ -965,7 +1567,8 @@ export function CoverageForm({
       alive = false;
     };
   }, [open, patientId]);
-  if (insurers.length === 0) return <span className="text-(length:--fs-xs) text-fg-muted">Sem operadora ativa</span>;
+  if (insurers.length === 0)
+    return <span className="text-(length:--fs-xs) text-fg-muted">Sem operadora ativa</span>;
   if (!open) {
     return (
       <Button type="button" size="sm" variant="secondary" onClick={() => setOpen(true)}>
@@ -980,7 +1583,14 @@ export function CoverageForm({
       onSubmit={() => {
         if (!insurerId) return toast.error('Escolha a operadora.');
         run(
-          () => recordAppointmentCoverageAction({ appointmentId, insurerId, planId: planId || null, membershipId: membershipId || null, guideType }),
+          () =>
+            recordAppointmentCoverageAction({
+              appointmentId,
+              insurerId,
+              planId: planId || null,
+              membershipId: membershipId || null,
+              guideType,
+            }),
           'Cobertura registrada.',
           () => setOpen(false),
         );
@@ -994,7 +1604,9 @@ export function CoverageForm({
             onChange={(e) => {
               const next = e.target.value;
               setInsurerId(next);
-              const pref = cards.find((c) => c.insurerId === next && c.preferred) ?? cards.find((c) => c.insurerId === next);
+              const pref =
+                cards.find((c) => c.insurerId === next && c.preferred) ??
+                cards.find((c) => c.insurerId === next);
               setMembershipId(pref?.id ?? '');
               setPlanId(pref?.planId ?? '');
             }}
@@ -1008,7 +1620,12 @@ export function CoverageForm({
           </Select>
         </Field>
         <Field label="Plano" htmlFor={`${id}-plan`}>
-          <Select id={`${id}-plan`} value={planId} disabled={plans.length === 0} onChange={(e) => setPlanId(e.target.value)}>
+          <Select
+            id={`${id}-plan`}
+            value={planId}
+            disabled={plans.length === 0}
+            onChange={(e) => setPlanId(e.target.value)}
+          >
             <option value="">Sem plano específico</option>
             {plans.map((p) => (
               <option key={p.id} value={p.id}>
@@ -1018,7 +1635,12 @@ export function CoverageForm({
           </Select>
         </Field>
         <Field label="Carteirinha" htmlFor={`${id}-card`}>
-          <Select id={`${id}-card`} value={membershipId} disabled={!insurerId} onChange={(e) => setMembershipId(e.target.value)}>
+          <Select
+            id={`${id}-card`}
+            value={membershipId}
+            disabled={!insurerId}
+            onChange={(e) => setMembershipId(e.target.value)}
+          >
             <option value="">Informar depois (fica pendente)</option>
             {insurerCards.map((c) => (
               <option key={c.id} value={c.id}>
@@ -1028,7 +1650,11 @@ export function CoverageForm({
           </Select>
         </Field>
         <Field label="Tipo de guia" htmlFor={`${id}-gt`}>
-          <Select id={`${id}-gt`} value={guideType} onChange={(e) => setGuideType(e.target.value === 'sp_sadt' ? 'sp_sadt' : 'consulta')}>
+          <Select
+            id={`${id}-gt`}
+            value={guideType}
+            onChange={(e) => setGuideType(e.target.value === 'sp_sadt' ? 'sp_sadt' : 'consulta')}
+          >
             <option value="consulta">Consulta</option>
             <option value="sp_sadt">SP/SADT</option>
           </Select>

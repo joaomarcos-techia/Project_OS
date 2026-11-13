@@ -5,5 +5,9 @@ import { QORO_DATE_TIME_ZONE } from '@/lib/format';
  * e o navegador (Brasília) escreviam horas diferentes e a hidratação acusava erro 418 (R51).
  */
 export function formatHora(iso: string, timeZone: string = QORO_DATE_TIME_ZONE): string {
-  return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone });
+  return new Date(iso).toLocaleTimeString('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone,
+  });
 }

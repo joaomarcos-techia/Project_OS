@@ -24,7 +24,8 @@ export function toCents(v: string): number {
   const n = t.includes(',') ? Number(t.replace(/\./gu, '').replace(',', '.')) : Number(t);
   return Number.isFinite(n) ? Math.round(n * 100) : Number.NaN;
 }
-const brl = (cents: number) => (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+const brl = (cents: number) =>
+  (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const today = () => todayYmdIn();
 
 function useSubmit() {
@@ -32,7 +33,11 @@ function useSubmit() {
   const [pending, start] = useTransition();
   return {
     pending,
-    submit: <T,>(fn: () => Promise<{ ok: true; data: T } | { ok: false; error: string }>, success: string, after?: (data: T) => void) =>
+    submit: <T,>(
+      fn: () => Promise<{ ok: true; data: T } | { ok: false; error: string }>,
+      success: string,
+      after?: (data: T) => void,
+    ) =>
       start(async () => {
         const r = await fn();
         if (!r.ok) {
@@ -50,28 +55,51 @@ function useSubmit() {
 export function NewBatchForm({
   candidates,
 }: {
-  candidates: Array<{ insurerId: string; name: string; guides: Array<{ id: string; number: string; guideType: string; patientName: string | null; totalValueCents: number }> }>;
+  candidates: Array<{
+    insurerId: string;
+    name: string;
+    guides: Array<{
+      id: string;
+      number: string;
+      guideType: string;
+      patientName: string | null;
+      totalValueCents: number;
+    }>;
+  }>;
 }) {
   const id = useId();
   const router = useRouter();
-  const [insurerId, setInsurerId] = useState(candidates.find((c) => c.guides.length > 0)?.insurerId ?? '');
+  const [insurerId, setInsurerId] = useState(
+    candidates.find((c) => c.guides.length > 0)?.insurerId ?? '',
+  );
   const [chosen, setChosen] = useState<string[]>([]);
   const [guideType, setGuideType] = useState<'consulta' | 'sp_sadt'>('consulta');
   const [key] = useState(() => uuidv4());
   const { pending, submit } = useSubmit();
   const current = candidates.find((c) => c.insurerId === insurerId);
   // Um lote tem um tipo de guia só (padrão TISS): Consulta ou SP/SADT.
-  const consulta = useMemo(() => (current?.guides ?? []).filter((g) => g.guideType === guideType), [current, guideType]);
-  const total = consulta.filter((g) => chosen.includes(g.id)).reduce((s, g) => s + g.totalValueCents, 0);
+  const consulta = useMemo(
+    () => (current?.guides ?? []).filter((g) => g.guideType === guideType),
+    [current, guideType],
+  );
+  const total = consulta
+    .filter((g) => chosen.includes(g.id))
+    .reduce((s, g) => s + g.totalValueCents, 0);
   if (!candidates.some((c) => c.guides.length > 0)) {
-    return <p className="text-(length:--fs-sm) text-fg-muted">Nenhuma guia aprovada esperando lote.</p>;
+    return (
+      <p className="text-(length:--fs-sm) text-fg-muted">Nenhuma guia aprovada esperando lote.</p>
+    );
   }
   return (
     <form
       className="flex flex-col gap-(--sp-3)"
       onSubmit={(e) => {
         e.preventDefault();
-        submit(() => createBatchAction({ insurerId, guideType, guideIds: chosen, idempotencyKey: key }), 'Lote montado', (batchId) => router.push(`/convenios/lotes/${batchId}`));
+        submit(
+          () => createBatchAction({ insurerId, guideType, guideIds: chosen, idempotencyKey: key }),
+          'Lote montado',
+          (batchId) => router.push(`/convenios/lotes/${batchId}`),
+        );
       }}
     >
       <Field label="Operadora" htmlFor={`${id}-ins`} required>
@@ -104,12 +132,16 @@ export function NewBatchForm({
         </Select>
       </Field>
       <fieldset className="flex max-h-72 flex-col gap-1 overflow-y-auto rounded-(--r-md) border border-border p-(--sp-2)">
-        <legend className="px-1 text-(length:--fs-sm) font-medium">{guideType === 'consulta' ? 'Guias de consulta aprovadas' : 'Guias SP/SADT aprovadas'}</legend>
+        <legend className="px-1 text-(length:--fs-sm) font-medium">
+          {guideType === 'consulta' ? 'Guias de consulta aprovadas' : 'Guias SP/SADT aprovadas'}
+        </legend>
         <label className="flex items-center gap-2 text-(length:--fs-sm) font-medium">
           <input
             type="checkbox"
             checked={consulta.length > 0 && chosen.length === Math.min(consulta.length, 100)}
-            onChange={(e) => setChosen(e.target.checked ? consulta.slice(0, 100).map((g) => g.id) : [])}
+            onChange={(e) =>
+              setChosen(e.target.checked ? consulta.slice(0, 100).map((g) => g.id) : [])
+            }
           />
           Todas (até 100)
         </label>
@@ -119,7 +151,9 @@ export function NewBatchForm({
               type="checkbox"
               checked={chosen.includes(g.id)}
               disabled={!chosen.includes(g.id) && chosen.length >= 100}
-              onChange={(e) => setChosen((c) => (e.target.checked ? [...c, g.id] : c.filter((x) => x !== g.id)))}
+              onChange={(e) =>
+                setChosen((c) => (e.target.checked ? [...c, g.id] : c.filter((x) => x !== g.id)))
+              }
             />
             <span className="tabular-nums">{g.number}</span>
             <span className="text-fg-muted">{g.patientName ?? ''}</span>
@@ -159,17 +193,44 @@ export function ProtocolForm({ batchId, version }: { batchId: string; version: n
         const fd = new FormData(e.currentTarget);
         fd.set('batchId', batchId);
         fd.set('version', String(version));
-        submit(() => recordBatchProtocolAction(fd), 'Protocolo registrado', () => setOpen(false));
+        submit(
+          () => recordBatchProtocolAction(fd),
+          'Protocolo registrado',
+          () => setOpen(false),
+        );
       }}
     >
-      <Field label="Protocolo da operadora" htmlFor={`${id}-p`} hint="Numérico, até 12 dígitos (padrão TISS; o recurso de glosa usa este número)." required>
-        <Input id={`${id}-p`} name="protocol" inputMode="numeric" pattern="[0-9]{1,12}" maxLength={12} required />
+      <Field
+        label="Protocolo da operadora"
+        htmlFor={`${id}-p`}
+        hint="Numérico, até 12 dígitos (padrão TISS; o recurso de glosa usa este número)."
+        required
+      >
+        <Input
+          id={`${id}-p`}
+          name="protocol"
+          inputMode="numeric"
+          pattern="[0-9]{1,12}"
+          maxLength={12}
+          required
+        />
       </Field>
       <Field label="Data do recebimento pela operadora" htmlFor={`${id}-d`} required>
         <Input id={`${id}-d`} name="receivedOn" type="date" defaultValue={today()} required />
       </Field>
-      <Field label="Recibo emitido pela operadora" htmlFor={`${id}-f`} hint="PDF ou imagem do comprovante; o Qoro registra a impressão digital (SHA-256) dele." required>
-        <Input id={`${id}-f`} name="receipt" type="file" accept="application/pdf,image/*" required />
+      <Field
+        label="Recibo emitido pela operadora"
+        htmlFor={`${id}-f`}
+        hint="PDF ou imagem do comprovante; o Qoro registra a impressão digital (SHA-256) dele."
+        required
+      >
+        <Input
+          id={`${id}-f`}
+          name="receipt"
+          type="file"
+          accept="application/pdf,image/*"
+          required
+        />
       </Field>
       <div className="flex gap-(--sp-2)">
         <Button type="submit" size="sm" disabled={pending}>
@@ -189,7 +250,15 @@ type GuideOption = { id: string; number: string; pendingCents: number };
  * Pagamento da operadora: valor, data e referência do demonstrativo. Sem alocação, o Qoro
  * rateia só se o valor for exatamente o saldo do lote; senão fica "não conciliado".
  */
-export function PaymentForm({ insurerId, batchId, guides }: { insurerId: string; batchId: string; guides: GuideOption[] }) {
+export function PaymentForm({
+  insurerId,
+  batchId,
+  guides,
+}: {
+  insurerId: string;
+  batchId: string;
+  guides: GuideOption[];
+}) {
   const id = useId();
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState('');
@@ -214,11 +283,22 @@ export function PaymentForm({ insurerId, batchId, guides }: { insurerId: string;
         e.preventDefault();
         const allocations =
           mode === 'guides'
-            ? guides.filter((g) => toCents(perGuide[g.id] ?? '') > 0).map((g) => ({ guideId: g.id, batchId, amountCents: toCents(perGuide[g.id]!) }))
+            ? guides
+                .filter((g) => toCents(perGuide[g.id] ?? '') > 0)
+                .map((g) => ({ guideId: g.id, batchId, amountCents: toCents(perGuide[g.id]!) }))
             : undefined;
         const amountCents = mode === 'guides' ? allocated : toCents(amount);
         submit(
-          () => recordPaymentAction({ insurerId, batchId, paidOn, amountCents, ...(ref.trim() ? { statementRef: ref.trim() } : {}), ...(allocations ? { allocations } : {}), idempotencyKey: key }),
+          () =>
+            recordPaymentAction({
+              insurerId,
+              batchId,
+              paidOn,
+              amountCents,
+              ...(ref.trim() ? { statementRef: ref.trim() } : {}),
+              ...(allocations ? { allocations } : {}),
+              idempotencyKey: key,
+            }),
           'Pagamento registrado',
           () => setOpen(false),
         );
@@ -226,42 +306,70 @@ export function PaymentForm({ insurerId, batchId, guides }: { insurerId: string;
     >
       <div className="flex gap-(--sp-3) text-(length:--fs-sm)">
         <label className="flex items-center gap-1">
-          <input type="radio" checked={mode === 'batch'} onChange={() => setMode('batch')} /> Valor do lote
+          <input type="radio" checked={mode === 'batch'} onChange={() => setMode('batch')} /> Valor
+          do lote
         </label>
         <label className="flex items-center gap-1">
-          <input type="radio" checked={mode === 'guides'} onChange={() => setMode('guides')} /> Por guia
+          <input type="radio" checked={mode === 'guides'} onChange={() => setMode('guides')} /> Por
+          guia
         </label>
       </div>
       {mode === 'batch' ? (
-        <Field label="Valor pago (R$)" htmlFor={`${id}-a`} hint="Rateado só se for exatamente o saldo do lote; senão fica para conciliar." required>
-          <Input id={`${id}-a`} inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0,00" />
+        <Field
+          label="Valor pago (R$)"
+          htmlFor={`${id}-a`}
+          hint="Rateado só se for exatamente o saldo do lote; senão fica para conciliar."
+          required
+        >
+          <Input
+            id={`${id}-a`}
+            inputMode="decimal"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="0,00"
+          />
         </Field>
       ) : (
         <fieldset className="flex max-h-64 flex-col gap-1 overflow-y-auto">
-          {guides.filter((g) => g.pendingCents > 0).map((g) => (
-            <label key={g.id} className="flex items-center gap-2 text-(length:--fs-sm)">
-              <span className="w-28 tabular-nums">Guia {g.number}</span>
-              <span className="w-32 text-fg-muted">saldo {brl(g.pendingCents)}</span>
-              <Input
-                aria-label={`Valor pago na guia ${g.number}`}
-                inputMode="decimal"
-                value={perGuide[g.id] ?? ''}
-                onChange={(e) => setPerGuide((v) => ({ ...v, [g.id]: e.target.value }))}
-                placeholder="0,00"
-              />
-            </label>
-          ))}
+          {guides
+            .filter((g) => g.pendingCents > 0)
+            .map((g) => (
+              <label key={g.id} className="flex items-center gap-2 text-(length:--fs-sm)">
+                <span className="w-28 tabular-nums">Guia {g.number}</span>
+                <span className="w-32 text-fg-muted">saldo {brl(g.pendingCents)}</span>
+                <Input
+                  aria-label={`Valor pago na guia ${g.number}`}
+                  inputMode="decimal"
+                  value={perGuide[g.id] ?? ''}
+                  onChange={(e) => setPerGuide((v) => ({ ...v, [g.id]: e.target.value }))}
+                  placeholder="0,00"
+                />
+              </label>
+            ))}
           <span className="text-(length:--fs-sm) font-medium">Total: {brl(allocated)}</span>
         </fieldset>
       )}
       <Field label="Data do pagamento" htmlFor={`${id}-d`} required>
-        <Input id={`${id}-d`} type="date" value={paidOn} onChange={(e) => setPaidOn(e.target.value)} />
+        <Input
+          id={`${id}-d`}
+          type="date"
+          value={paidOn}
+          onChange={(e) => setPaidOn(e.target.value)}
+        />
       </Field>
-      <Field label="Referência do demonstrativo" htmlFor={`${id}-r`} hint="O mesmo demonstrativo não entra duas vezes.">
+      <Field
+        label="Referência do demonstrativo"
+        htmlFor={`${id}-r`}
+        hint="O mesmo demonstrativo não entra duas vezes."
+      >
         <Input id={`${id}-r`} value={ref} onChange={(e) => setRef(e.target.value)} maxLength={60} />
       </Field>
       <div className="flex gap-(--sp-2)">
-        <Button type="submit" size="sm" disabled={pending || (mode === 'batch' ? !(toCents(amount) > 0) : allocated <= 0)}>
+        <Button
+          type="submit"
+          size="sm"
+          disabled={pending || (mode === 'batch' ? !(toCents(amount) > 0) : allocated <= 0)}
+        >
           {pending ? 'Aguarde…' : 'Registrar'}
         </Button>
         <Button type="button" size="sm" variant="ghost" onClick={() => setOpen(false)}>
@@ -294,7 +402,18 @@ export function GlossForm({ batchId, guides }: { batchId: string; guides: GuideO
       className="flex w-full flex-col gap-(--sp-2) rounded-(--r-md) border border-border p-(--sp-3)"
       onSubmit={(e) => {
         e.preventDefault();
-        submit(() => recordGlossAction({ batchId, guideId, code: code.trim(), amountCents: toCents(amount), idempotencyKey: key }), 'Glosa registrada', () => setOpen(false));
+        submit(
+          () =>
+            recordGlossAction({
+              batchId,
+              guideId,
+              code: code.trim(),
+              amountCents: toCents(amount),
+              idempotencyKey: key,
+            }),
+          'Glosa registrada',
+          () => setOpen(false),
+        );
       }}
     >
       <Field label="Guia" htmlFor={`${id}-g`} required>
@@ -307,13 +426,29 @@ export function GlossForm({ batchId, guides }: { batchId: string; guides: GuideO
         </Select>
       </Field>
       <Field label="Código da glosa (tabela 38)" htmlFor={`${id}-c`} required>
-        <Input id={`${id}-c`} value={code} onChange={(e) => setCode(e.target.value)} maxLength={4} inputMode="numeric" />
+        <Input
+          id={`${id}-c`}
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+          maxLength={4}
+          inputMode="numeric"
+        />
       </Field>
       <Field label="Valor glosado (R$)" htmlFor={`${id}-v`} required>
-        <Input id={`${id}-v`} inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0,00" />
+        <Input
+          id={`${id}-v`}
+          inputMode="decimal"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          placeholder="0,00"
+        />
       </Field>
       <div className="flex gap-(--sp-2)">
-        <Button type="submit" size="sm" disabled={pending || !/^\d{4}$/u.test(code.trim()) || !(toCents(amount) > 0)}>
+        <Button
+          type="submit"
+          size="sm"
+          disabled={pending || !/^\d{4}$/u.test(code.trim()) || !(toCents(amount) > 0)}
+        >
           {pending ? 'Aguarde…' : 'Registrar'}
         </Button>
         <Button type="button" size="sm" variant="ghost" onClick={() => setOpen(false)}>
@@ -325,7 +460,15 @@ export function GlossForm({ batchId, guides }: { batchId: string; guides: GuideO
 }
 
 /** Conciliação: alocar o dinheiro ainda não conciliado de um pagamento às guias. */
-export function AllocateForm({ paymentId, unreconciledCents, guides }: { paymentId: string; unreconciledCents: number; guides: Array<GuideOption & { batchId: string }> }) {
+export function AllocateForm({
+  paymentId,
+  unreconciledCents,
+  guides,
+}: {
+  paymentId: string;
+  unreconciledCents: number;
+  guides: Array<GuideOption & { batchId: string }>;
+}) {
   const [open, setOpen] = useState(false);
   const [perGuide, setPerGuide] = useState<Record<string, string>>({});
   const [key] = useState(() => uuidv4());
@@ -343,8 +486,18 @@ export function AllocateForm({ paymentId, unreconciledCents, guides }: { payment
       className="flex w-full flex-col gap-(--sp-2) rounded-(--r-md) border border-border p-(--sp-3)"
       onSubmit={(e) => {
         e.preventDefault();
-        const allocations = guides.filter((g) => toCents(perGuide[g.id] ?? '') > 0).map((g) => ({ guideId: g.id, batchId: g.batchId, amountCents: toCents(perGuide[g.id]!) }));
-        submit(() => allocatePaymentAction({ paymentId, allocations, idempotencyKey: key }), 'Pagamento alocado', () => setOpen(false));
+        const allocations = guides
+          .filter((g) => toCents(perGuide[g.id] ?? '') > 0)
+          .map((g) => ({
+            guideId: g.id,
+            batchId: g.batchId,
+            amountCents: toCents(perGuide[g.id]!),
+          }));
+        submit(
+          () => allocatePaymentAction({ paymentId, allocations, idempotencyKey: key }),
+          'Pagamento alocado',
+          () => setOpen(false),
+        );
       }}
     >
       <fieldset className="flex max-h-64 flex-col gap-1 overflow-y-auto">
@@ -352,7 +505,13 @@ export function AllocateForm({ paymentId, unreconciledCents, guides }: { payment
           <label key={g.id} className="flex items-center gap-2 text-(length:--fs-sm)">
             <span className="w-28 tabular-nums">Guia {g.number}</span>
             <span className="w-32 text-fg-muted">saldo {brl(g.pendingCents)}</span>
-            <Input aria-label={`Alocar à guia ${g.number}`} inputMode="decimal" value={perGuide[g.id] ?? ''} onChange={(e) => setPerGuide((v) => ({ ...v, [g.id]: e.target.value }))} placeholder="0,00" />
+            <Input
+              aria-label={`Alocar à guia ${g.number}`}
+              inputMode="decimal"
+              value={perGuide[g.id] ?? ''}
+              onChange={(e) => setPerGuide((v) => ({ ...v, [g.id]: e.target.value }))}
+              placeholder="0,00"
+            />
           </label>
         ))}
       </fieldset>
@@ -360,7 +519,11 @@ export function AllocateForm({ paymentId, unreconciledCents, guides }: { payment
         Alocando {brl(allocated)} de {brl(unreconciledCents)} disponíveis
       </span>
       <div className="flex gap-(--sp-2)">
-        <Button type="submit" size="sm" disabled={pending || allocated <= 0 || allocated > unreconciledCents}>
+        <Button
+          type="submit"
+          size="sm"
+          disabled={pending || allocated <= 0 || allocated > unreconciledCents}
+        >
           {pending ? 'Aguarde…' : 'Alocar'}
         </Button>
         <Button type="button" size="sm" variant="ghost" onClick={() => setOpen(false)}>
@@ -385,13 +548,16 @@ export function StatementImportForm({
   action,
 }: {
   insurers: Array<{ id: string; name: string }>;
-  action: (form: FormData) => Promise<{ ok: true; data: ImportSummary } | { ok: false; error: string }>;
+  action: (
+    form: FormData,
+  ) => Promise<{ ok: true; data: ImportSummary } | { ok: false; error: string }>;
 }) {
   const id = useId();
   const router = useRouter();
   const [pending, start] = useTransition();
   const [result, setResult] = useState<ImportSummary | null>(null);
-  if (insurers.length === 0) return <p className="text-(length:--fs-sm) text-fg-muted">Nenhuma operadora cadastrada.</p>;
+  if (insurers.length === 0)
+    return <p className="text-(length:--fs-sm) text-fg-muted">Nenhuma operadora cadastrada.</p>;
   return (
     <div className="flex flex-col gap-(--sp-3)">
       <form
@@ -406,7 +572,11 @@ export function StatementImportForm({
               return;
             }
             setResult(r.data);
-            toast.success(r.data.alreadyImported ? 'Demonstrativo já importado: nada novo aplicado' : 'Demonstrativo importado');
+            toast.success(
+              r.data.alreadyImported
+                ? 'Demonstrativo já importado: nada novo aplicado'
+                : 'Demonstrativo importado',
+            );
             router.refresh();
           });
         }}
@@ -424,16 +594,26 @@ export function StatementImportForm({
           <Input id={`${id}-d`} name="receivedOn" type="date" defaultValue={today()} required />
         </Field>
         <Field label="Arquivo XML (TISS 4.03.00)" htmlFor={`${id}-f`} required>
-          <Input id={`${id}-f`} name="file" type="file" accept=".xml,application/xml,text/xml" required />
+          <Input
+            id={`${id}-f`}
+            name="file"
+            type="file"
+            accept=".xml,application/xml,text/xml"
+            required
+          />
         </Field>
         <Button type="submit" disabled={pending}>
           {pending ? 'Conferindo…' : 'Importar'}
         </Button>
       </form>
       {result ? (
-        <div className="rounded-(--r-md) border border-border p-(--sp-3) text-(length:--fs-sm)" role="status">
+        <div
+          className="rounded-(--r-md) border border-border p-(--sp-3) text-(length:--fs-sm)"
+          role="status"
+        >
           <p className="font-medium">
-            {result.kind === 'analysis' ? 'Análise de conta' : 'Pagamento'} {result.numeroDemonstrativo}
+            {result.kind === 'analysis' ? 'Análise de conta' : 'Pagamento'}{' '}
+            {result.numeroDemonstrativo}
             {result.alreadyImported ? ' — já importado antes' : ''}
           </p>
           <ul className="mt-1">
@@ -445,7 +625,9 @@ export function StatementImportForm({
           </ul>
           {result.divergences.length > 0 ? (
             <>
-              <p className="mt-2 font-medium text-warning-700">Divergências (nada aplicado nesses pontos):</p>
+              <p className="mt-2 font-medium text-warning-700">
+                Divergências (nada aplicado nesses pontos):
+              </p>
               <ul className="list-disc pl-5">
                 {result.divergences.map((d, i) => (
                   <li key={`${d.code}-${i}`}>{d.message}</li>
