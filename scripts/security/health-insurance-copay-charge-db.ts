@@ -389,6 +389,9 @@ try {
     'processed',
     'processed',
   ]);
+  const [aud9] = await sql`select count(*)::int as n, max(after->>'source') as source from public.audit_events
+    where action = 'health_insurance.copay.synced_from_payment' and resource_id = ${c9.copaymentId} and user_id is null`;
+  assert.deepEqual([aud9!.n, aud9!.source], [1, 'payment_webhook']);
   pass(
     '9a. webhook pago (checkout de R$ 45): sem cron, o passo pós-resposta processa os 3 eventos da cobrança com os handlers reais — recebível "pago" com UM pagamento de R$ 45 e coparticipação "paga" (R$ 45 recebidos)',
   );
@@ -430,6 +433,9 @@ try {
     [(await statusOf(c9c.copaymentId)).status, sweep.failed, sweep2.candidates],
     ['paid', 0, 0],
   );
+  const [aud9c] = await sql`select count(*)::int as n, max(after->>'source') as source from public.audit_events
+    where action = 'health_insurance.copay.synced_from_payment' and resource_id = ${c9c.copaymentId}`;
+  assert.deepEqual([aud9c!.n, aud9c!.source], [1, 'reconcile']);
   pass(
     `9c. passo pós-resposta perdido: o cron do outbox dá a baixa e a varredura do financial-reconcile põe a coparticipação em "paga" (${sweep.changed} mudança); na volta seguinte não há candidato (idempotente)`,
   );

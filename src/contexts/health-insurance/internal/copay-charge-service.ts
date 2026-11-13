@@ -15,6 +15,7 @@
  */
 import { and, eq, sql } from 'drizzle-orm';
 
+import { logAudit } from '@/lib/audit/log';
 import type { Tx } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
 import { assertPremiumFeatureTx } from '@/lib/premium-access';
@@ -177,7 +178,37 @@ export async function syncCopayForAppointment(
       .limit(1);
     if (!c || !['confirmed', 'charged', 'paid'].includes(c.status)) return null;
     const after = await syncCopayChargeTx(tx, clinicId, c.id);
+    if (after !== c.status)
+      await auditAutomaticSync(tx, clinicId, c.id, c.status, after, 'payment_webhook');
     return { copaymentId: c.id, before: c.status, after };
+  });
+}
+
+/**
+ * A coparticipação mudou de situação sem uma pessoa (o dinheiro entrou ou saiu): fica na
+ * auditoria com ator de sistema e a origem (webhook do pagamento ou varredura do cron).
+ */
+async function auditAutomaticSync(
+  tx: Tx,
+  clinicId: string,
+  copaymentId: string,
+  before: string,
+  after: string,
+  source: 'payment_webhook' | 'reconcile',
+): Promise<void> {
+  await logAudit(tx, {
+    clinicId,
+    userId: null,
+    action: 'health_insurance.copay.synced_from_payment',
+    resourceType: 'hi_copayment',
+    resourceId: copaymentId,
+    before: { status: before },
+    after: { status: after, source },
+    requestContext: {
+      ip: null,
+      userAgent: null,
+      requestId: `health-insurance.copay-sync.${source}`,
+    },
   });
 }
 
@@ -215,7 +246,10 @@ export async function reconcileCopayCharges(
           .where(and(eq(hiCopayments.clinicId, c.clinicId), eq(hiCopayments.id, c.copaymentId)))
           .limit(1);
         if (!row) return false;
-        return (await syncCopayChargeTx(tx, c.clinicId, c.copaymentId)) !== row.status;
+        const after = await syncCopayChargeTx(tx, c.clinicId, c.copaymentId);
+        if (after === row.status) return false;
+        await auditAutomaticSync(tx, c.clinicId, c.copaymentId, row.status, after, 'reconcile');
+        return true;
       });
       if (moved) summary.changed += 1;
       else summary.unchanged += 1;
