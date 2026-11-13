@@ -182,7 +182,7 @@ function FinancialComposition({
 /**
  * Hoje em `YYYY-MM-DD` no fuso das datas do Qoro, para comparar com `dueDate`. Sem fuso
  * explícito o servidor (UTC) e o navegador (Brasília) discordavam depois das 21h e a
- * hidratação acusava #418 (R51).
+ * hidratação acusava erro 418 (R51).
  */
 function todayYmd(): string {
   return todayYmdIn();

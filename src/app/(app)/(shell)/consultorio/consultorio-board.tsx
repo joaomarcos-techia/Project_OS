@@ -91,7 +91,7 @@ export function ConsultorioBoard({
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   // Relógio: atualiza "tempo aguardando" sem refetch. `null` até montar (R51: o
-  // `Date.now()` do servidor e o do navegador diferem e a hidratação acusava #418).
+  // `Date.now()` do servidor e o do navegador diferem e a hidratação acusava erro 418).
   const now = useHydratedNow(30_000);
 
   const refetch = useCallback(async (): Promise<boolean> => {
