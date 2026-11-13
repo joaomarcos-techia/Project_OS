@@ -17,7 +17,7 @@ import { randomUUID } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 
 import { readDevOrderChain } from './dev-order-chain';
-import { startScratchSchema } from './scratch-schema';
+import { startScratchSchema, credentialAllPlans } from './scratch-schema';
 
 const chain = await readDevOrderChain();
 const cluster = await startScratchSchema({ port: 55522, maxConnections: 16, migrations: chain });
@@ -296,6 +296,8 @@ try {
   await sql`insert into public.profiles (id, clinic_id, nome, role, ativo) values (${otherDoc}::uuid, ${C.clinicId}::uuid, 'Dr. Outro Sintético', 'doctor', true)`;
   await sql`insert into public.hi_professional_profiles (clinic_id, professional_id, council, council_number, council_uf, cbo)
     values (${C.clinicId}::uuid, ${otherDoc}::uuid, '06', '54321', '35', '225125')`;
+  // P2.2: o segundo médico também precisa estar habilitado na operadora (PJ).
+  await credentialAllPlans(sql, C.clinicId);
   const apOther = await session(C, p4, i4!.id as string, '2026-11-10', otherDoc);
   await complete(C, apOther, p4.patientId, otherDoc);
   g4 = await guidesOfRequest(r4);

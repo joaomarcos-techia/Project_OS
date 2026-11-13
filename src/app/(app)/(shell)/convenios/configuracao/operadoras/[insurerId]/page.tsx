@@ -10,9 +10,12 @@ import { getInsurerDetail, INSURER_STATUS_LABELS, PROVIDER_ID_LABELS, type Contr
 import { brl, ConveniosHeader, conveniosAccess, shortDate } from '../../../_lib/access';
 import {
   ContractRevisionForm,
+  CredentialRevisionForm,
   InsurerEditForm,
+  InsurerRulesForm,
   InsurerStatusActions,
   NewContractLineForm,
+  NewCredentialForm,
   NewPlanForm,
   PlanStatusButton,
 } from '../../../_lib/config-ui';
@@ -37,6 +40,12 @@ const HISTORY_LABELS: Record<string, string> = {
   'health_insurance.config.contract_line_correct': 'Item do contrato corrigido',
   'health_insurance.config.contract_line_new_period': 'Reajuste a partir de uma data',
   'health_insurance.config.contract_line_end': 'Vigência encerrada',
+  'health_insurance.config.insurer_rules_updated': 'Regras da operadora alteradas',
+  'health_insurance.config.credential_created': 'Credenciamento registrado',
+  'health_insurance.config.credential_end': 'Vigência do credenciamento encerrada',
+  'health_insurance.config.credential_suspend': 'Credenciamento suspenso',
+  'health_insurance.config.credential_reactivate': 'Credenciamento reativado',
+  'health_insurance.config.credential_new_period': 'Nova vigência de credenciamento',
 };
 
 function copayText(l: ContractLineView): string {
@@ -136,6 +145,132 @@ export default async function OperadoraPage({ params }: { params: Promise<{ insu
                     {editable ? (
                       <TableCell>
                         <PlanStatusButton planId={p.id} status={p.status} />
+                      </TableCell>
+                    ) : null}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableWrap>
+        )}
+      </PanelCard>
+
+      <PanelCard title="Regras da operadora" regionLabel="Regras da operadora" className="mb-(--sp-4)">
+        <p className="mb-(--sp-3) text-(length:--fs-sm) text-fg-muted">
+          O que vem do padrão TISS não muda por operadora. Só o que está no contrato com a operadora é ajustável aqui, e
+          nenhum ajuste desliga uma validação obrigatória.
+        </p>
+        <TableWrap>
+          <Table data-testid="insurer-rules">
+            <TableHeader>
+              <TableRow>
+                <TableHead>Regra</TableHead>
+                <TableHead>Valor</TableHead>
+                <TableHead>Origem</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <TableRow>
+                <TableCell>Versão do padrão</TableCell>
+                <TableCell>TISS 4.03.00</TableCell>
+                <TableCell>Obrigatório pelo padrão</TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell>XML validado no esquema oficial (XSD) antes do envio</TableCell>
+                <TableCell>Sempre</TableCell>
+                <TableCell>Obrigatório pelo padrão</TableCell>
+              </TableRow>
+              <TableRow data-rule="max-guides" data-value={String(i.rules.maxGuidesPerBatch)}>
+                <TableCell>Máximo de guias por lote</TableCell>
+                <TableCell className="tabular-nums">{i.rules.maxGuidesPerBatch}</TableCell>
+                <TableCell>Padrão: até 100 · operadora pode exigir menos (contrato)</TableCell>
+              </TableRow>
+              <TableRow data-rule="professional" data-value={i.rules.requireProfessionalCredential ? 'yes' : 'no'}>
+                <TableCell>Profissional executante habilitado</TableCell>
+                <TableCell>{i.rules.requireProfessionalCredential ? 'Exigido' : 'Dispensado'}</TableCell>
+                <TableCell>Obrigatório por contrato</TableCell>
+              </TableRow>
+              <TableRow data-rule="deadline" data-value={String(i.rules.submissionDeadlineDays ?? '')}>
+                <TableCell>Prazo de envio depois do atendimento</TableCell>
+                <TableCell>{i.rules.submissionDeadlineDays ? `${i.rules.submissionDeadlineDays} dias` : 'Não registrado'}</TableCell>
+                <TableCell>Obrigatório por contrato</TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell>Agrupamento das sessões de SP/SADT</TableCell>
+                <TableCell>{i.sadtGrouping === 'per_request' ? 'Por solicitação' : 'Uma guia por sessão'}</TableCell>
+                <TableCell>Obrigatório por contrato</TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell>Transmissão</TableCell>
+                <TableCell>Portal da operadora (envio registrado no Qoro)</TableCell>
+                <TableCell>Configurável pela clínica · webservice da operadora depende de homologação externa</TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </TableWrap>
+        {editable ? (
+          <div className="mt-(--sp-3)">
+            <InsurerRulesForm insurerId={i.id} rules={i.rules} />
+          </div>
+        ) : null}
+      </PanelCard>
+
+      <PanelCard title="Credenciamento" regionLabel="Credenciamento" className="mb-(--sp-4)">
+        <p className="mb-(--sp-3) text-(length:--fs-sm) text-fg-muted">
+          Em que planos a clínica está credenciada nesta operadora, e de quando a quando. Sem credenciamento vigente na
+          data, o atendimento de convênio fica com pendência e a guia não sai.{' '}
+          {d.providerKind === 'PJ' && i.requireProfessionalCredential
+            ? 'Esta operadora exige também o profissional habilitado (clínica pessoa jurídica).'
+            : d.providerKind === 'PF'
+              ? 'A clínica fatura como pessoa física: o credenciamento da clínica é o do profissional.'
+              : 'Esta operadora dispensa a habilitação individual do profissional.'}
+        </p>
+        {editable ? (
+          <div className="mb-(--sp-3)">
+            <NewCredentialForm insurerId={i.id} plans={d.plans} professionals={d.professionals} />
+          </div>
+        ) : null}
+        {d.credentials.length === 0 ? (
+          <EmptyState
+            title="Nenhum credenciamento registrado"
+            description="Registre em que planos a clínica (e, se a operadora exigir, cada profissional) está credenciada."
+          />
+        ) : (
+          <TableWrap>
+            <Table data-testid="credentials">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Credenciado</TableHead>
+                  <TableHead>Plano</TableHead>
+                  <TableHead>Código</TableHead>
+                  <TableHead>Vigência</TableHead>
+                  <TableHead>Situação</TableHead>
+                  {editable ? <TableHead aria-label="Ações" /> : null}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {d.credentials.map((c) => (
+                  <TableRow
+                    key={c.id}
+                    data-testid="credential"
+                    data-target={c.professionalId ? 'professional' : 'clinic'}
+                    data-status={c.status}
+                    data-in-force={c.inForceToday ? 'yes' : 'no'}
+                  >
+                    <TableCell>{c.professionalName ? `Profissional: ${c.professionalName}` : 'A clínica'}</TableCell>
+                    <TableCell>{c.planName ?? 'Todos os planos'}</TableCell>
+                    <TableCell>{c.providerCode ?? '—'}</TableCell>
+                    <TableCell className="tabular-nums">
+                      {shortDate(c.validFrom)} a {c.validUntil ? shortDate(c.validUntil) : 'sem fim'}
+                    </TableCell>
+                    <TableCell>
+                      <Badge tone={c.status === 'suspended' ? 'amber' : c.inForceToday ? 'green' : 'gray'}>
+                        {c.status === 'suspended' ? 'Suspenso' : c.status === 'ended' ? 'Encerrado' : c.inForceToday ? 'Vigente' : 'Fora da vigência'}
+                      </Badge>
+                    </TableCell>
+                    {editable ? (
+                      <TableCell>
+                        {c.status !== 'ended' ? <CredentialRevisionForm credentialId={c.id} status={c.status} /> : null}
                       </TableCell>
                     ) : null}
                   </TableRow>

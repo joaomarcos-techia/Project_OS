@@ -41,6 +41,7 @@ import {
 import { selectEffectiveContract, type ContractLine } from '../tiss/assembly/contract-selection';
 import type { GuideIssue } from '../tiss/validation/common';
 
+import { credentialingIssuesTx } from './credentialing';
 import { allocateTissNumber } from './numbering';
 
 export class SadtRequestError extends Error {
@@ -371,6 +372,17 @@ export async function checkSadtRequestInTx(
     gi('CONSULTATION_TYPE_MISSING', 'atendimento.tipoConsulta', 'Tipo de atendimento consulta exige o tipo de consulta (tabela 52).', 'recepcao');
   }
   if (items.length === 0) gi('NO_ITEMS', 'procedimentos', 'A solicitação não tem procedimento ativo.', 'recepcao');
+  // Credenciamento (P2.2) na data da solicitação: a clínica no plano e, se a operadora exige,
+  // o profissional solicitante da casa (solicitante externo não é credenciado por esta clínica).
+  issues.push(
+    ...(await credentialingIssuesTx(tx, {
+      clinicId,
+      insurerId: r.insurerId,
+      planId: r.planId,
+      professionalId: r.requesterKind === 'internal' ? r.requesterProfessionalId : null,
+      date: r.requestedOn,
+    })),
+  );
 
   const lines = await contractLines(tx, clinicId, r.insurerId);
   const [tv] = await tx

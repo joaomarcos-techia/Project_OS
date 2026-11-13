@@ -14,6 +14,7 @@ import { withTenant } from '@/lib/db/tenant';
 import { getPremiumDenialTx, type PremiumDenial } from '@/lib/premium-access';
 
 import { listCopayChargesTx } from './internal/copay-charge-service';
+import { insurerRules } from './internal/insurer-rules';
 import { listInsurancePayoutPositionsTx, type InsurancePayoutPosition } from './internal/insurance-payout-service';
 
 import type { GuideIssue } from './tiss/validation/common';
@@ -610,29 +611,78 @@ export async function getBatchDetail(clinicId: string, batchId: string): Promise
   });
 }
 
+export interface BatchCandidateGuide {
+  id: string;
+  number: string;
+  guideType: string;
+  patientName: string | null;
+  totalValueCents: number;
+  /** Primeira data de atendimento da guia (`AAAA-MM-DD`). */
+  serviceDate: string | null;
+  /** P2.5: passou do prazo de envio do contrato (só quando a operadora tem prazo registrado). */
+  overdue: boolean;
+}
+
+export interface BatchCandidate {
+  insurerId: string;
+  name: string;
+  /** P2.5: máximo de guias por lote do contrato (padrão TISS: 100). */
+  maxGuidesPerBatch: number;
+  submissionDeadlineDays: number | null;
+  guides: BatchCandidateGuide[];
+}
+
 /** Operadoras ativas da clínica e as guias aprovadas prontas para lote, por operadora. */
-export async function listBatchCandidates(
-  clinicId: string,
-): Promise<Array<{ insurerId: string; name: string; guides: Array<{ id: string; number: string; guideType: string; patientName: string | null; totalValueCents: number }> }>> {
+export async function listBatchCandidates(clinicId: string): Promise<BatchCandidate[]> {
   return withTenant(clinicId, async (tx) => {
     const rows = (await tx.execute(
-      sql`SELECT i.id AS insurer_id, i.name, g.id, g.number, g.guide_type, g.total_value_cents, p.nome AS patient_name
+      sql`SELECT i.id AS insurer_id, i.name, i.settings, g.id, g.number, g.guide_type, g.total_value_cents, p.nome AS patient_name,
+                 (SELECT min(it.executed_on) FROM public.hi_guide_items it WHERE it.clinic_id = g.clinic_id AND it.guide_id = g.id)::text AS service_date,
+                 (now() AT TIME ZONE 'America/Sao_Paulo')::date::text AS today
             FROM public.hi_insurers i
             LEFT JOIN public.hi_guides g ON g.clinic_id = i.clinic_id AND g.insurer_id = i.id AND g.status = 'approved' AND g.live
             LEFT JOIN public.patients p ON p.clinic_id = g.clinic_id AND p.id = g.patient_id
            WHERE i.clinic_id = ${clinicId}::uuid AND i.status = 'active'
            ORDER BY i.name, g.number`,
     )) as unknown as Row[];
-    const out = new Map<string, { insurerId: string; name: string; guides: Array<{ id: string; number: string; guideType: string; patientName: string | null; totalValueCents: number }> }>();
+    const out = new Map<string, BatchCandidate>();
     for (const r of rows) {
       const k = String(r.insurer_id);
-      if (!out.has(k)) out.set(k, { insurerId: k, name: String(r.name), guides: [] });
+      if (!out.has(k)) {
+        const rules = insurerRules(r.settings);
+        out.set(k, {
+          insurerId: k,
+          name: String(r.name),
+          maxGuidesPerBatch: rules.maxGuidesPerBatch,
+          submissionDeadlineDays: rules.submissionDeadlineDays,
+          guides: [],
+        });
+      }
+      const c = out.get(k)!;
       if (r.id) {
-        out.get(k)!.guides.push({ id: String(r.id), number: String(r.number), guideType: String(r.guide_type), patientName: s(r.patient_name), totalValueCents: n(r.total_value_cents) });
+        const serviceDate = s(r.service_date);
+        const overdue =
+          c.submissionDeadlineDays !== null && serviceDate !== null && addDays(serviceDate, c.submissionDeadlineDays) < String(r.today);
+        c.guides.push({
+          id: String(r.id),
+          number: String(r.number),
+          guideType: String(r.guide_type),
+          patientName: s(r.patient_name),
+          totalValueCents: n(r.total_value_cents),
+          serviceDate,
+          overdue,
+        });
       }
     }
     return [...out.values()];
   });
+}
+
+/** `AAAA-MM-DD` + dias (calendário em UTC, sem fuso). */
+function addDays(ymd: string, days: number): string {
+  const d = new Date(`${ymd}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
 }
 
 // ── Conciliação ───────────────────────────────────────────────────────────

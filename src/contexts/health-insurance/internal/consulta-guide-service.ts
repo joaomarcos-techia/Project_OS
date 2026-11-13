@@ -44,6 +44,7 @@ import { planConsultaGuide } from '../tiss/assembly/consulta-assembler';
 import type { ContractLine } from '../tiss/assembly/contract-selection';
 import type { GuideIssue } from '../tiss/validation/common';
 
+import { credentialingIssuesTx } from './credentialing';
 import { allocateTissNumber } from './numbering';
 
 export interface CompletedAppointment {
@@ -266,6 +267,18 @@ async function deriveConsultaGuide(
       ),
     );
   }
+
+  // Credenciamento vigente na DATA do atendimento (P2.2): suspenso ou encerrado depois do
+  // agendamento também segura a guia antes da emissão.
+  extra.push(
+    ...(await credentialingIssuesTx(tx, {
+      clinicId,
+      insurerId: insurer.id,
+      planId: coverage.planId,
+      professionalId: ap.professionalId,
+      date: ap.date,
+    })),
+  );
 
   // Carteirinha: só liga a do mesmo paciente e da mesma operadora (o banco confere de novo).
   let membershipId: string | null = null;

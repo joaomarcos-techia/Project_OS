@@ -90,6 +90,11 @@ export async function loadHiFixtures(sql: Sql, deps: FixtureDeps) {
           (clinic_id, insurer_id, guide_type, table_code, procedure_code, description, procedure_id, unit_value_cents, valid_from, created_by)
         values (${clinicId}::uuid, ${row!.id}::uuid, 'consulta', '22', '10101012', 'Consulta em consultório', ${proc!.id}::uuid,
           ${valueCents}, '2026-01-01', ${SYS_ACTOR}::uuid)`;
+      // P2.2: credenciamento da clínica e habilitação da médica em TODOS os planos (escolha
+      // explícita da fixture), desde 2020: as provas que não são de credenciamento seguem iguais.
+      await sql`insert into public.hi_credentials (clinic_id, insurer_id, plan_id, professional_id, valid_from, status, created_by)
+        values (${clinicId}::uuid, ${row!.id}::uuid, null, null, '2020-01-01', 'active', ${SYS_ACTOR}::uuid),
+               (${clinicId}::uuid, ${row!.id}::uuid, null, ${doctorId}::uuid, '2020-01-01', 'active', ${SYS_ACTOR}::uuid)`;
       insurerIds.push(row!.id as string);
     }
     const insurerId = insurerIds[0]!;

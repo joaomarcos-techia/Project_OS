@@ -183,6 +183,14 @@ async function setup() {
         (${paga}::uuid, ${ins!.id}::uuid, 'sp_sadt', '22', '50000462', 'Sessão de psicoterapia em grupo', ${psico}::uuid, 8000, '2026-01-01', true, 'none', null, ${SYS}::uuid)`);
   }
   const insurerId = ins!.id;
+  // P2.2: credenciamento da clínica e habilitação da médica em todos os planos (escolha explícita
+  // da fixture), idempotente: só cria o que falta.
+  await exec(sql`
+    INSERT INTO public.hi_credentials (clinic_id, insurer_id, plan_id, professional_id, valid_from, status, created_by)
+    SELECT ${paga}::uuid, ${insurerId}::uuid, NULL, x.pro, '2026-01-01', 'active', ${SYS}::uuid
+      FROM (VALUES (NULL::uuid), (${medica}::uuid)) AS x(pro)
+     WHERE NOT EXISTS (SELECT 1 FROM public.hi_credentials c WHERE c.clinic_id = ${paga}::uuid AND c.insurer_id = ${insurerId}::uuid
+                         AND c.plan_id IS NULL AND c.professional_id IS NOT DISTINCT FROM x.pro AND c.status = 'active')`);
   await exec(sql`
     INSERT INTO public.professional_payout_rules (clinic_id, professional_id, procedure_id, kind, percentage, created_by)
     SELECT ${paga}::uuid, ${medica}::uuid, NULL, 'percentage', 40, ${gestor}::uuid

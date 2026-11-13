@@ -18,7 +18,7 @@
  */
 import 'server-only';
 
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 
 import type { Tx } from '@/lib/db';
 import { assertPremiumFeatureTx } from '@/lib/premium-access';
@@ -36,6 +36,7 @@ import {
   type HiGuideType,
 } from '../schema-clinic';
 import { selectEffectiveContract, type ContractLine } from '../tiss/assembly/contract-selection';
+import { credentialingIssuesTx } from './credentialing';
 import type { GuideIssue } from '../tiss/validation/common';
 
 export interface RecordCoverageInput {
@@ -130,6 +131,20 @@ export async function recordAppointmentCoverage(
       ),
     );
   }
+
+  // Credenciamento (P2.2): clínica no plano e na data; profissional quando a operadora exige.
+  const [appointment] = (await tx.execute(
+    sql`SELECT doctor_id::text AS doctor_id FROM public.appointments WHERE clinic_id = ${clinicId}::uuid AND id = ${input.appointmentId}::uuid`,
+  )) as unknown as Array<{ doctor_id: string | null }>;
+  issues.push(
+    ...(await credentialingIssuesTx(tx, {
+      clinicId,
+      insurerId: insurer.id,
+      planId: input.planId,
+      professionalId: appointment?.doctor_id ?? null,
+      date: input.appointmentDate,
+    })),
+  );
 
   // Carteirinha: só a do paciente e da operadora; inválida vira pendência, nunca é aceita em silêncio.
   let membershipId: string | null = null;

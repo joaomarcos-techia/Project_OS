@@ -16,6 +16,7 @@ import {
   recordGlossAction,
   recordPaymentAction,
 } from '@/contexts/health-insurance/actions';
+import type { BatchCandidate } from '@/contexts/health-insurance/queries';
 import { uuidv4 } from '@/lib/ui/uuid';
 
 /** '1.500,00' e '150,5' (pt-BR) ou '150.50': com vírgula, o ponto é milhar; sem vírgula, é decimal. */
@@ -52,21 +53,7 @@ function useSubmit() {
 }
 
 /** Lote novo: uma operadora, guias APROVADAS dela (máximo 100 por lote, regra do TISS). */
-export function NewBatchForm({
-  candidates,
-}: {
-  candidates: Array<{
-    insurerId: string;
-    name: string;
-    guides: Array<{
-      id: string;
-      number: string;
-      guideType: string;
-      patientName: string | null;
-      totalValueCents: number;
-    }>;
-  }>;
-}) {
+export function NewBatchForm({ candidates }: { candidates: BatchCandidate[] }) {
   const id = useId();
   const router = useRouter();
   const [insurerId, setInsurerId] = useState(
@@ -77,6 +64,8 @@ export function NewBatchForm({
   const [key] = useState(() => uuidv4());
   const { pending, submit } = useSubmit();
   const current = candidates.find((c) => c.insurerId === insurerId);
+  // P2.5: o contrato pode limitar o lote abaixo do teto do padrão (100).
+  const max = current?.maxGuidesPerBatch ?? 100;
   // Um lote tem um tipo de guia só (padrão TISS): Consulta ou SP/SADT.
   const consulta = useMemo(
     () => (current?.guides ?? []).filter((g) => g.guideType === guideType),
@@ -138,25 +127,30 @@ export function NewBatchForm({
         <label className="flex items-center gap-2 text-(length:--fs-sm) font-medium">
           <input
             type="checkbox"
-            checked={consulta.length > 0 && chosen.length === Math.min(consulta.length, 100)}
+            checked={consulta.length > 0 && chosen.length === Math.min(consulta.length, max)}
             onChange={(e) =>
-              setChosen(e.target.checked ? consulta.slice(0, 100).map((g) => g.id) : [])
+              setChosen(e.target.checked ? consulta.slice(0, max).map((g) => g.id) : [])
             }
           />
-          Todas (até 100)
+          Todas (até {max})
         </label>
         {consulta.map((g) => (
           <label key={g.id} className="flex items-center gap-2 text-(length:--fs-sm)">
             <input
               type="checkbox"
               checked={chosen.includes(g.id)}
-              disabled={!chosen.includes(g.id) && chosen.length >= 100}
+              disabled={!chosen.includes(g.id) && chosen.length >= max}
               onChange={(e) =>
                 setChosen((c) => (e.target.checked ? [...c, g.id] : c.filter((x) => x !== g.id)))
               }
             />
             <span className="tabular-nums">{g.number}</span>
             <span className="text-fg-muted">{g.patientName ?? ''}</span>
+            {g.overdue ? (
+              <span className="text-(length:--fs-xs) text-danger-600" data-testid="guide-overdue">
+                fora do prazo do contrato ({current?.submissionDeadlineDays} dias)
+              </span>
+            ) : null}
             <span className="ml-auto tabular-nums">{brl(g.totalValueCents)}</span>
           </label>
         ))}

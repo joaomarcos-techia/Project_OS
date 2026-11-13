@@ -26,7 +26,7 @@
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 
-import { startScratchSchema, grantPaidSubscription } from './scratch-schema';
+import { startScratchSchema, grantPaidSubscription, credentialAllPlans } from './scratch-schema';
 
 const cluster = await startScratchSchema({ port: 55508, maxConnections: 24 });
 const { sql } = cluster;
@@ -118,6 +118,7 @@ async function setupClinic(label: string) {
     const [ins] = await sql`insert into public.hi_insurers
         (clinic_id, name, registro_ans, provider_id_kind, provider_id_value, status, created_by)
       values (${clinicId}::uuid, ${name}, ${ans}, 'codigoPrestadorNaOperadora', 'TESTE001', 'active', ${SYS}::uuid) returning id`;
+    await credentialAllPlans(sql, clinicId);
     await sql`insert into public.hi_procedure_contracts
         (clinic_id, insurer_id, guide_type, table_code, procedure_code, description, procedure_id, unit_value_cents, valid_from, created_by)
       values (${clinicId}::uuid, ${ins!.id}::uuid, 'consulta', '22', '10101012', 'Consulta em consultório', ${proc!.id}::uuid,

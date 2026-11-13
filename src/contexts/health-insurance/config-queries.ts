@@ -13,11 +13,15 @@ import { sql } from 'drizzle-orm';
 
 import { withTenant } from '@/lib/db/tenant';
 
+import { insurerRules, type InsurerRules } from './internal/insurer-rules';
+
 type Row = Record<string, unknown>;
 const n = (v: unknown): number => (v === null || v === undefined ? 0 : Number(v));
 const s = (v: unknown): string | null => (v === null || v === undefined ? null : String(v));
-const iso = (v: unknown): string | null => (v instanceof Date ? v.toISOString() : v ? String(v) : null);
-const day = (v: unknown): string | null => (v instanceof Date ? v.toISOString().slice(0, 10) : v ? String(v).slice(0, 10) : null);
+const iso = (v: unknown): string | null =>
+  v instanceof Date ? v.toISOString() : v ? String(v) : null;
+const day = (v: unknown): string | null =>
+  v instanceof Date ? v.toISOString().slice(0, 10) : v ? String(v).slice(0, 10) : null;
 
 export const INSURER_STATUS_LABELS: Record<string, string> = {
   draft: 'Rascunho',
@@ -53,7 +57,10 @@ export function maskProviderId(kind: string, value: string): string {
   return value;
 }
 
-async function rows(tx: Parameters<Parameters<typeof withTenant>[1]>[0], q: ReturnType<typeof sql>): Promise<Row[]> {
+async function rows(
+  tx: Parameters<Parameters<typeof withTenant>[1]>[0],
+  q: ReturnType<typeof sql>,
+): Promise<Row[]> {
   return (await tx.execute(q)) as unknown as Row[];
 }
 
@@ -86,12 +93,20 @@ export interface InsuranceSetup {
     providerIdMasked: string;
     plans: number;
     liveLinesToday: number;
+    /** Credenciamentos da CLÍNICA vigentes hoje (P2.2). */
+    clinicCredentialsToday: number;
     activeCards: number;
   }>;
   professionals: Array<{
     id: string;
     nome: string;
-    profile: { council: string; councilNumber: string; councilUf: string; cbo: string; cboTerm: string | null } | null;
+    profile: {
+      council: string;
+      councilNumber: string;
+      councilUf: string;
+      cbo: string;
+      cboTerm: string | null;
+    } | null;
   }>;
   councils: Array<{ code: string; term: string }>;
   ufs: Array<{ code: string; term: string; sigla: string | null }>;
@@ -100,8 +115,14 @@ export interface InsuranceSetup {
 
 export async function getInsuranceSetup(clinicId: string): Promise<InsuranceSetup> {
   return withTenant(clinicId, async (tx) => {
-    const [st] = await rows(tx, sql`SELECT enabled, provider_kind, contractor_name, cnes_status, cnes FROM public.hi_clinic_settings WHERE clinic_id = ${clinicId}::uuid`);
-    const [tv] = await rows(tx, sql`SELECT version FROM public.tiss_terminology_versions ORDER BY version DESC LIMIT 1`);
+    const [st] = await rows(
+      tx,
+      sql`SELECT enabled, provider_kind, contractor_name, cnes_status, cnes FROM public.hi_clinic_settings WHERE clinic_id = ${clinicId}::uuid`,
+    );
+    const [tv] = await rows(
+      tx,
+      sql`SELECT version FROM public.tiss_terminology_versions ORDER BY version DESC LIMIT 1`,
+    );
     const terminologyVersion = s(tv?.version);
     const insurers = await rows(
       tx,
@@ -111,7 +132,11 @@ export async function getInsuranceSetup(clinicId: string): Promise<InsuranceSetu
                    WHERE c.clinic_id = i.clinic_id AND c.insurer_id = i.id
                      AND c.valid_from <= current_date AND (c.valid_until IS NULL OR c.valid_until >= current_date)
                      AND NOT EXISTS (SELECT 1 FROM public.hi_procedure_contracts x WHERE x.clinic_id = c.clinic_id AND x.supersedes_id = c.id))::int AS live_lines,
-                 (SELECT count(*) FROM public.hi_memberships m WHERE m.clinic_id = i.clinic_id AND m.insurer_id = i.id AND m.status = 'active')::int AS cards
+                 (SELECT count(*) FROM public.hi_memberships m WHERE m.clinic_id = i.clinic_id AND m.insurer_id = i.id AND m.status = 'active')::int AS cards,
+                 (SELECT count(*) FROM public.hi_credentials k
+                   WHERE k.clinic_id = i.clinic_id AND k.insurer_id = i.id AND k.professional_id IS NULL AND k.status = 'active'
+                     AND k.valid_from <= (now() AT TIME ZONE 'America/Sao_Paulo')::date
+                     AND (k.valid_until IS NULL OR k.valid_until >= (now() AT TIME ZONE 'America/Sao_Paulo')::date))::int AS clinic_credentials
             FROM public.hi_insurers i WHERE i.clinic_id = ${clinicId}::uuid
            ORDER BY CASE i.status WHEN 'active' THEN 0 WHEN 'draft' THEN 1 WHEN 'suspended' THEN 2 ELSE 3 END, i.name`,
     );
@@ -141,7 +166,7 @@ export async function getInsuranceSetup(clinicId: string): Promise<InsuranceSetu
       enabled: Boolean(st?.enabled),
       providerKind: (s(st?.provider_kind) as 'PF' | 'PJ' | null) ?? null,
       contractorName: s(st?.contractor_name),
-      cnesStatus: ((s(st?.cnes_status) ?? 'unknown') as InsuranceSetup['settings']['cnesStatus']),
+      cnesStatus: (s(st?.cnes_status) ?? 'unknown') as InsuranceSetup['settings']['cnesStatus'],
       cnes: s(st?.cnes),
     };
     const ins = insurers.map((r) => ({
@@ -153,19 +178,29 @@ export async function getInsuranceSetup(clinicId: string): Promise<InsuranceSetu
       providerIdMasked: maskProviderId(String(r.provider_id_kind), String(r.provider_id_value)),
       plans: n(r.plans),
       liveLinesToday: n(r.live_lines),
+      clinicCredentialsToday: n(r.clinic_credentials),
       activeCards: n(r.cards),
     }));
     const professionals = pros.map((r) => ({
       id: String(r.id),
       nome: String(r.nome),
       profile: r.council
-        ? { council: String(r.council), councilNumber: String(r.council_number), councilUf: String(r.council_uf), cbo: String(r.cbo), cboTerm: s(r.cbo_term) }
+        ? {
+            council: String(r.council),
+            councilNumber: String(r.council_number),
+            councilUf: String(r.council_uf),
+            cbo: String(r.cbo),
+            cboTerm: s(r.cbo_term),
+          }
         : null,
     }));
     const active = ins.filter((i) => i.status === 'active');
-    const identityOk = Boolean(settings.providerKind && settings.contractorName && settings.cnesStatus !== 'unknown');
+    const identityOk = Boolean(
+      settings.providerKind && settings.contractorName && settings.cnesStatus !== 'unknown',
+    );
     const missingPros = professionals.filter((p) => !p.profile);
     const withoutContract = active.filter((i) => i.liveLinesToday === 0);
+    const withoutCredential = active.filter((i) => i.clinicCredentialsToday === 0);
     const readiness: ReadinessItem[] = [
       {
         key: 'identity',
@@ -179,7 +214,10 @@ export async function getInsuranceSetup(clinicId: string): Promise<InsuranceSetu
         key: 'insurers',
         ok: active.length > 0,
         label: 'Operadora ativa',
-        detail: active.length > 0 ? `${active.length} operadora(s) ativa(s).` : 'Cadastre a operadora com o registro ANS e o código do prestador e ative-a.',
+        detail:
+          active.length > 0
+            ? `${active.length} operadora(s) ativa(s).`
+            : 'Cadastre a operadora com o registro ANS e o código do prestador e ative-a.',
       },
       {
         key: 'contracts',
@@ -191,6 +229,17 @@ export async function getInsuranceSetup(clinicId: string): Promise<InsuranceSetu
             : withoutContract.length === 0
               ? 'Toda operadora ativa tem procedimento contratado vigente.'
               : `Sem procedimento vigente hoje: ${withoutContract.map((i) => i.name).join(', ')}.`,
+      },
+      {
+        key: 'credentials',
+        ok: active.length > 0 && withoutCredential.length === 0,
+        label: 'Credenciamento vigente hoje',
+        detail:
+          active.length === 0
+            ? 'Depende de uma operadora ativa.'
+            : withoutCredential.length === 0
+              ? 'A clínica tem credenciamento vigente em toda operadora ativa.'
+              : `Sem credenciamento vigente da clínica: ${withoutCredential.map((i) => i.name).join(', ')}. Registre na página da operadora.`,
       },
       {
         key: 'professionals',
@@ -207,7 +256,9 @@ export async function getInsuranceSetup(clinicId: string): Promise<InsuranceSetu
         key: 'terminology',
         ok: Boolean(terminologyVersion),
         label: 'Terminologia TUSS',
-        detail: terminologyVersion ? `Competência ${terminologyVersion} carregada.` : 'A terminologia oficial não está carregada neste ambiente.',
+        detail: terminologyVersion
+          ? `Competência ${terminologyVersion} carregada.`
+          : 'A terminologia oficial não está carregada neste ambiente.',
         external: !terminologyVersion,
       },
       {
@@ -225,8 +276,12 @@ export async function getInsuranceSetup(clinicId: string): Promise<InsuranceSetu
       terminologyVersion,
       insurers: ins,
       professionals,
-      councils: domain.filter((r) => r.table_code === '26').map((r) => ({ code: String(r.code), term: String(r.term) })),
-      ufs: domain.filter((r) => r.table_code === '59').map((r) => ({ code: String(r.code), term: String(r.term), sigla: s(r.sigla) })),
+      councils: domain
+        .filter((r) => r.table_code === '26')
+        .map((r) => ({ code: String(r.code), term: String(r.term) })),
+      ufs: domain
+        .filter((r) => r.table_code === '59')
+        .map((r) => ({ code: String(r.code), term: String(r.term), sigla: s(r.sigla) })),
       readiness,
     };
   });
@@ -273,18 +328,54 @@ export interface InsurerDetail {
     providerIdEditable: string | null;
     sadtGrouping: 'per_session' | 'per_request';
     createdAt: string;
+    /** P2.2/P2.5: a operadora exige o profissional habilitado (padrão: exige). */
+    requireProfessionalCredential: boolean;
+    /** P2.5: regras contratuais da operadora (com os padrões que não presumem nada). */
+    rules: InsurerRules;
   };
-  plans: Array<{ id: string; name: string; operatorCode: string | null; category: string | null; status: string; cards: number }>;
+  /** Credenciamento da clínica e habilitação dos profissionais (P2.2), com o histórico das vigências. */
+  credentials: Array<{
+    id: string;
+    planId: string | null;
+    planName: string | null;
+    professionalId: string | null;
+    professionalName: string | null;
+    providerCode: string | null;
+    validFrom: string;
+    validUntil: string | null;
+    status: 'active' | 'suspended' | 'ended';
+    inForceToday: boolean;
+  }>;
+  /** Profissionais da clínica (alvo da habilitação). */
+  professionals: Array<{ id: string; nome: string }>;
+  providerKind: 'PF' | 'PJ' | null;
+  plans: Array<{
+    id: string;
+    name: string;
+    operatorCode: string | null;
+    category: string | null;
+    status: string;
+    cards: number;
+  }>;
   lines: ContractLineView[];
   procedures: Array<{ id: string; codigo: string; descricao: string }>;
-  history: Array<{ at: string; action: string; userName: string | null; resourceType: string; after: Record<string, unknown> | null }>;
+  history: Array<{
+    at: string;
+    action: string;
+    userName: string | null;
+    resourceType: string;
+    after: Record<string, unknown> | null;
+  }>;
 }
 
-export async function getInsurerDetail(clinicId: string, insurerId: string): Promise<InsurerDetail | null> {
+export async function getInsurerDetail(
+  clinicId: string,
+  insurerId: string,
+): Promise<InsurerDetail | null> {
   return withTenant(clinicId, async (tx) => {
     const [i] = await rows(
       tx,
-      sql`SELECT id::text AS id, name, registro_ans, status, provider_id_kind, provider_id_value, sadt_grouping, created_at
+      sql`SELECT id::text AS id, name, registro_ans, status, provider_id_kind, provider_id_value, sadt_grouping, settings, created_at
             FROM public.hi_insurers WHERE clinic_id = ${clinicId}::uuid AND id = ${insurerId}::uuid`,
     );
     if (!i) return null;
@@ -310,6 +401,29 @@ export async function getInsurerDetail(clinicId: string, insurerId: string): Pro
       tx,
       sql`SELECT id::text AS id, codigo, descricao FROM public.procedures WHERE clinic_id = ${clinicId}::uuid AND ativo ORDER BY descricao`,
     );
+    const creds = await rows(
+      tx,
+      sql`SELECT c.id::text AS id, c.plan_id::text AS plan_id, pl.name AS plan_name, c.professional_id::text AS professional_id,
+                 pf.nome AS professional_name, c.provider_code, c.valid_from, c.valid_until, c.status,
+                 (c.status = 'active' AND c.valid_from <= (now() AT TIME ZONE 'America/Sao_Paulo')::date
+                  AND (c.valid_until IS NULL OR c.valid_until >= (now() AT TIME ZONE 'America/Sao_Paulo')::date)) AS in_force
+            FROM public.hi_credentials c
+            LEFT JOIN public.hi_plans pl ON pl.clinic_id = c.clinic_id AND pl.id = c.plan_id
+            LEFT JOIN public.profiles pf ON pf.id = c.professional_id
+           WHERE c.clinic_id = ${clinicId}::uuid AND c.insurer_id = ${insurerId}::uuid
+           ORDER BY c.professional_id NULLS FIRST, pf.nome, pl.name NULLS FIRST, c.valid_from`,
+    );
+    const pros = await rows(
+      tx,
+      sql`SELECT p.id::text AS id, p.nome FROM public.profiles p
+           WHERE p.clinic_id = ${clinicId}::uuid AND p.ativo AND p.deleted_at IS NULL
+             AND (p.role = 'doctor' OR (p.role IN ('owner', 'gestor') AND p.crm IS NOT NULL AND btrim(p.crm) <> ''))
+           ORDER BY p.nome`,
+    );
+    const [cs] = await rows(
+      tx,
+      sql`SELECT provider_kind FROM public.hi_clinic_settings WHERE clinic_id = ${clinicId}::uuid`,
+    );
     const history = await rows(
       tx,
       sql`SELECT a.created_at, a.action, a.resource_type, a.after, pf.nome AS user_name
@@ -317,7 +431,7 @@ export async function getInsurerDetail(clinicId: string, insurerId: string): Pro
             LEFT JOIN public.profiles pf ON pf.id = a.user_id
            WHERE a.clinic_id = ${clinicId}::uuid
              AND ((a.resource_type = 'hi_insurer' AND a.resource_id = ${insurerId})
-               OR (a.resource_type IN ('hi_plan', 'hi_procedure_contract') AND a.after->>'insurerId' = ${insurerId}))
+               OR (a.resource_type IN ('hi_plan', 'hi_procedure_contract', 'hi_credential') AND a.after->>'insurerId' = ${insurerId}))
            ORDER BY a.created_at DESC LIMIT 100`,
     );
     const kind = String(i.provider_id_kind) as InsurerDetail['insurer']['providerIdKind'];
@@ -332,8 +446,31 @@ export async function getInsurerDetail(clinicId: string, insurerId: string): Pro
         providerIdEditable: kind === 'cpfContratado' ? null : String(i.provider_id_value),
         sadtGrouping: String(i.sadt_grouping) as 'per_session' | 'per_request',
         createdAt: iso(i.created_at) ?? '',
+        requireProfessionalCredential: insurerRules(i.settings).requireProfessionalCredential,
+        rules: insurerRules(i.settings),
       },
-      plans: plans.map((p) => ({ id: String(p.id), name: String(p.name), operatorCode: s(p.operator_code), category: s(p.category), status: String(p.status), cards: n(p.cards) })),
+      credentials: creds.map((c) => ({
+        id: String(c.id),
+        planId: s(c.plan_id),
+        planName: s(c.plan_name),
+        professionalId: s(c.professional_id),
+        professionalName: s(c.professional_name),
+        providerCode: s(c.provider_code),
+        validFrom: day(c.valid_from) ?? '',
+        validUntil: day(c.valid_until),
+        status: String(c.status) as 'active' | 'suspended' | 'ended',
+        inForceToday: c.in_force === true,
+      })),
+      professionals: pros.map((p) => ({ id: String(p.id), nome: String(p.nome) })),
+      providerKind: (cs?.provider_kind as 'PF' | 'PJ' | null | undefined) ?? null,
+      plans: plans.map((p) => ({
+        id: String(p.id),
+        name: String(p.name),
+        operatorCode: s(p.operator_code),
+        category: s(p.category),
+        status: String(p.status),
+        cards: n(p.cards),
+      })),
       lines: lines.map((c) => ({
         id: String(c.id_text),
         planId: s(c.plan_id),
@@ -359,7 +496,11 @@ export async function getInsurerDetail(clinicId: string, insurerId: string): Pro
         createdByName: s(c.created_by_name),
         live: c.superseded_by === null || c.superseded_by === undefined,
       })),
-      procedures: procedures.map((p) => ({ id: String(p.id), codigo: String(p.codigo), descricao: String(p.descricao) })),
+      procedures: procedures.map((p) => ({
+        id: String(p.id),
+        codigo: String(p.codigo),
+        descricao: String(p.descricao),
+      })),
       history: history.map((h) => ({
         at: iso(h.created_at) ?? '',
         action: String(h.action),
@@ -380,7 +521,10 @@ export interface PatientHit {
 }
 
 /** Busca por nome (mín. 2 letras), só pacientes ativos da clínica. */
-export async function searchPatientsForCards(clinicId: string, term: string): Promise<PatientHit[]> {
+export async function searchPatientsForCards(
+  clinicId: string,
+  term: string,
+): Promise<PatientHit[]> {
   const t = term.trim();
   if (t.length < 2) return [];
   const like = `%${t.replace(/[\\%_]/gu, (c) => `\\${c}`)}%`;
@@ -418,10 +562,18 @@ export interface PatientMemberships {
   patient: { id: string; nome: string };
   cards: MembershipView[];
   /** Operadoras que aceitam carteirinha nova (não arquivadas), com os planos ativos. */
-  insurers: Array<{ id: string; name: string; status: string; plans: Array<{ id: string; name: string }> }>;
+  insurers: Array<{
+    id: string;
+    name: string;
+    status: string;
+    plans: Array<{ id: string; name: string }>;
+  }>;
 }
 
-export async function getPatientMemberships(clinicId: string, patientId: string): Promise<PatientMemberships | null> {
+export async function getPatientMemberships(
+  clinicId: string,
+  patientId: string,
+): Promise<PatientMemberships | null> {
   return withTenant(clinicId, async (tx) => {
     const [p] = await rows(
       tx,
@@ -464,7 +616,12 @@ export async function getPatientMemberships(clinicId: string, patientId: string)
         replacedById: s(c.replaced_by_id),
         createdAt: iso(c.created_at) ?? '',
       })),
-      insurers: ins.map((i) => ({ id: String(i.id), name: String(i.name), status: String(i.status), plans: (i.plans as Array<{ id: string; name: string }>) ?? [] })),
+      insurers: ins.map((i) => ({
+        id: String(i.id),
+        name: String(i.name),
+        status: String(i.status),
+        plans: (i.plans as Array<{ id: string; name: string }>) ?? [],
+      })),
     };
   });
 }
@@ -478,11 +635,19 @@ export interface SchedulingInsuranceOptions {
 }
 
 /** `null` quando o schema de Convênios não existe no ambiente (nada muda na agenda). */
-export async function getSchedulingInsuranceOptions(clinicId: string): Promise<SchedulingInsuranceOptions | null> {
+export async function getSchedulingInsuranceOptions(
+  clinicId: string,
+): Promise<SchedulingInsuranceOptions | null> {
   return withTenant(clinicId, async (tx) => {
-    const [installed] = await rows(tx, sql`SELECT to_regclass('public.hi_clinic_settings') IS NOT NULL AS ok`);
+    const [installed] = await rows(
+      tx,
+      sql`SELECT to_regclass('public.hi_clinic_settings') IS NOT NULL AS ok`,
+    );
     if (!installed?.ok) return null;
-    const [st] = await rows(tx, sql`SELECT enabled FROM public.hi_clinic_settings WHERE clinic_id = ${clinicId}::uuid`);
+    const [st] = await rows(
+      tx,
+      sql`SELECT enabled FROM public.hi_clinic_settings WHERE clinic_id = ${clinicId}::uuid`,
+    );
     if (!st?.enabled) return { enabled: false, insurers: [] };
     const ins = await rows(
       tx,
@@ -492,7 +657,14 @@ export async function getSchedulingInsuranceOptions(clinicId: string): Promise<S
             FROM public.hi_insurers i WHERE i.clinic_id = ${clinicId}::uuid AND i.status = 'active'
            ORDER BY i.name`,
     );
-    return { enabled: true, insurers: ins.map((i) => ({ id: String(i.id), name: String(i.name), plans: (i.plans as Array<{ id: string; name: string }>) ?? [] })) };
+    return {
+      enabled: true,
+      insurers: ins.map((i) => ({
+        id: String(i.id),
+        name: String(i.name),
+        plans: (i.plans as Array<{ id: string; name: string }>) ?? [],
+      })),
+    };
   });
 }
 
@@ -506,7 +678,10 @@ export interface SchedulingCard {
 }
 
 /** Carteirinhas ATIVAS do paciente para escolher no agendamento (mascaradas). */
-export async function listPatientCardsForScheduling(clinicId: string, patientId: string): Promise<SchedulingCard[]> {
+export async function listPatientCardsForScheduling(
+  clinicId: string,
+  patientId: string,
+): Promise<SchedulingCard[]> {
   return withTenant(clinicId, async (tx) => {
     const r = await rows(
       tx,
@@ -516,7 +691,14 @@ export async function listPatientCardsForScheduling(clinicId: string, patientId:
            WHERE m.clinic_id = ${clinicId}::uuid AND m.patient_id = ${patientId}::uuid AND m.status = 'active'
            ORDER BY m.is_preferred DESC, m.created_at DESC`,
     );
-    return r.map((x) => ({ id: String(x.id), insurerId: String(x.insurer_id), planId: s(x.plan_id), last4: String(x.card_last4), validUntil: day(x.valid_until), preferred: Boolean(x.is_preferred) }));
+    return r.map((x) => ({
+      id: String(x.id),
+      insurerId: String(x.insurer_id),
+      planId: s(x.plan_id),
+      last4: String(x.card_last4),
+      validUntil: day(x.valid_until),
+      preferred: Boolean(x.is_preferred),
+    }));
   });
 }
 
@@ -530,11 +712,19 @@ export interface UpcomingInsuranceAppointment {
   patientName: string | null;
   doctorName: string | null;
   procedureName: string | null;
-  coverage: { status: string; insurerName: string; last4: string | null; issues: Array<{ code: string; message: string; owner: string }> } | null;
+  coverage: {
+    status: string;
+    insurerName: string;
+    last4: string | null;
+    issues: Array<{ code: string; message: string; owner: string }>;
+  } | null;
 }
 
 /** Atendimentos de convênio a partir de hoje (até 30), com a cobertura e as pendências. */
-export async function listUpcomingInsuranceAppointments(clinicId: string, limit = 30): Promise<UpcomingInsuranceAppointment[]> {
+export async function listUpcomingInsuranceAppointments(
+  clinicId: string,
+  limit = 30,
+): Promise<UpcomingInsuranceAppointment[]> {
   return withTenant(clinicId, async (tx) => {
     const r = await rows(
       tx,
@@ -567,7 +757,9 @@ export async function listUpcomingInsuranceAppointments(clinicId: string, limit 
             status: String(x.coverage_status),
             insurerName: String(x.insurer_name ?? ''),
             last4: s(x.card_last4),
-            issues: ((x.issues as Array<{ code: string; message: string; owner: string }>) ?? []).map((i) => ({ code: i.code, message: i.message, owner: i.owner })),
+            issues: (
+              (x.issues as Array<{ code: string; message: string; owner: string }>) ?? []
+            ).map((i) => ({ code: i.code, message: i.message, owner: i.owner })),
           }
         : null,
     }));
@@ -625,7 +817,11 @@ export interface BatchExportJob {
 }
 
 /** O job da versão atual do lote (chave `hi-batch-export:<lote>:v<versão>`), pela RLS da clínica. */
-export async function getBatchExportJob(clinicId: string, batchId: string, version: number): Promise<BatchExportJob | null> {
+export async function getBatchExportJob(
+  clinicId: string,
+  batchId: string,
+  version: number,
+): Promise<BatchExportJob | null> {
   return withTenant(clinicId, async (tx) => {
     const [r] = await rows(
       tx,
@@ -635,14 +831,24 @@ export async function getBatchExportJob(clinicId: string, batchId: string, versi
            ORDER BY created_at DESC LIMIT 1`,
     );
     if (!r) return null;
-    return { status: String(r.status), attempts: n(r.attempts), errorCode: s(r.error_code), createdAt: iso(r.created_at), processedAt: iso(r.processed_at) };
+    return {
+      status: String(r.status),
+      attempts: n(r.attempts),
+      errorCode: s(r.error_code),
+      createdAt: iso(r.created_at),
+      processedAt: iso(r.processed_at),
+    };
   });
 }
 
 // ── Busca nas tabelas oficiais (TUSS 22, CBO 24) ─────────────────────────
 
 /** Até 20 termos da competência mais recente, por código ou parte do texto. */
-export async function searchOfficialTerms(clinicId: string, table: '22' | '24', term: string): Promise<Array<{ code: string; term: string }>> {
+export async function searchOfficialTerms(
+  clinicId: string,
+  table: '22' | '24',
+  term: string,
+): Promise<Array<{ code: string; term: string }>> {
   const t = term.trim();
   if (t.length < 2) return [];
   const like = `%${t.replace(/[\\%_]/gu, (c) => `\\${c}`)}%`;

@@ -190,7 +190,7 @@ test('gestora: configura do zero — prestador, operadora, plano, contrato TUSS,
   const s = await login(browser, 'cfg-gestor');
   expect(await visit(s, '/convenios/configuracao', 'cfg-01-zerada')).toBe(200);
   // Clínica zerada: só a habilitação (Qoro) e a terminologia estão prontas.
-  for (const key of ['identity', 'insurers', 'contracts', 'professionals']) await expect(readiness(s.page, key)).toHaveAttribute('data-ok', 'false');
+  for (const key of ['identity', 'insurers', 'contracts', 'credentials', 'professionals']) await expect(readiness(s.page, key)).toHaveAttribute('data-ok', 'false');
   await expect(readiness(s.page, 'enabled')).toHaveAttribute('data-ok', 'true');
 
   // Prestador.
@@ -241,6 +241,31 @@ test('gestora: configura do zero — prestador, operadora, plano, contrato TUSS,
   await expect(s.page.getByTestId('insurer-status')).toHaveAttribute('data-status', 'active', { timeout: 30_000 });
   await visit(s, state.insurerUrl, 'cfg-02-operadora-ativa');
 
+  // Credenciamento (P2.2): operadora ativa e contratada, mas sem credenciamento a prontidão acusa.
+  await visit(s, '/convenios/configuracao');
+  await expect(readiness(s.page, 'contracts')).toHaveAttribute('data-ok', 'true');
+  await expect(readiness(s.page, 'credentials')).toHaveAttribute('data-ok', 'false');
+  await visit(s, state.insurerUrl);
+  await s.page.getByRole('button', { name: 'Registrar credenciamento' }).click();
+  // Sem plano escolhido a tela não presume "todos os planos".
+  await s.page.getByRole('button', { name: 'Registrar', exact: true }).click();
+  await toast(s.page, 'Escolha o plano credenciado (ou, de propósito, todos os planos).');
+  await s.page.getByRole('combobox', { name: /^Plano/u }).selectOption({ label: 'Plano Sintético Ambulatorial' });
+  await s.page.getByLabel('Código na operadora (opcional)').fill(`CR${RUN}`);
+  await s.page.getByLabel('Vale a partir de').fill('2026-01-01');
+  await s.page.getByRole('button', { name: 'Registrar', exact: true }).click();
+  await toast(s.page, 'Credenciamento registrado.');
+  // A médica habilitada no mesmo plano (clínica PJ: a operadora exige).
+  await s.page.getByRole('button', { name: 'Registrar credenciamento' }).click();
+  await s.page.getByRole('combobox', { name: /^Quem é credenciado/u }).selectOption({ label: 'Profissional: Dra. Sintética Configuração' });
+  await s.page.getByRole('combobox', { name: /^Plano/u }).selectOption({ label: 'Plano Sintético Ambulatorial' });
+  await s.page.getByLabel('Vale a partir de').fill('2026-01-01');
+  await s.page.getByRole('button', { name: 'Registrar', exact: true }).click();
+  await toast(s.page, 'Credenciamento registrado.');
+  await expect(s.page.getByTestId('credential')).toHaveCount(2, { timeout: 30_000 });
+  await expect(s.page.locator('[data-testid="credential"][data-in-force="yes"]')).toHaveCount(2);
+  await expect(s.page.getByTestId('insurer-history')).toContainText('Credenciamento registrado');
+
   // Perfil TISS da médica.
   await visit(s, '/convenios/configuracao');
   const row = s.page.getByTestId('professional-row').filter({ hasText: 'Dra. Sintética Configuração' });
@@ -254,7 +279,7 @@ test('gestora: configura do zero — prestador, operadora, plano, contrato TUSS,
   await toast(s.page, 'Perfil TISS de Dra. Sintética Configuração salvo.');
 
   await visit(s, '/convenios/configuracao', 'cfg-03-pronta');
-  for (const key of ['identity', 'insurers', 'contracts', 'professionals', 'terminology', 'enabled']) {
+  for (const key of ['identity', 'insurers', 'contracts', 'credentials', 'professionals', 'terminology', 'enabled']) {
     await expect(readiness(s.page, key)).toHaveAttribute('data-ok', 'true');
   }
   expectNoPageErrors(s);
@@ -279,6 +304,8 @@ test('recepção: cadastra o paciente e a carteirinha (número cifrado; completo
   await s.page.waitForURL(/paciente=/u);
   await s.page.getByRole('button', { name: 'Nova carteirinha' }).click();
   await s.page.getByLabel('Operadora').selectOption({ label: INSURER });
+  // O plano da carteirinha é o do credenciamento (P2.2): a agenda usa o plano da preferencial.
+  await s.page.getByRole('combobox', { name: /^Plano/u }).selectOption({ label: 'Plano Sintético Ambulatorial' });
   await s.page.getByLabel('Número da carteirinha').fill(CARD);
   await s.page.getByLabel('Validade (opcional)').fill('2027-12-31');
   await s.page.getByRole('button', { name: 'Cadastrar carteirinha' }).click();

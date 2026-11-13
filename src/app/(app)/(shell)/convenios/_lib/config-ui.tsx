@@ -19,6 +19,7 @@ import { toast } from '@/components/ui/use-toast';
 import { todayYmdIn } from '@/lib/format';
 import {
   createContractLineAction,
+  createCredentialAction,
   createInsurerAction,
   createMembershipAction,
   createPlanAction,
@@ -27,7 +28,9 @@ import {
   replaceMembershipAction,
   revealMembershipNumberAction,
   reviseContractLineAction,
+  reviseCredentialAction,
   saveProfessionalProfileAction,
+  saveInsurerRulesAction,
   saveProviderIdentityAction,
   searchOfficialTermsAction,
   setInsurerStatusAction,
@@ -1662,5 +1665,321 @@ export function CoverageForm({
       </div>
       <Actions pending={pending} onCancel={() => setOpen(false)} submit="Salvar cobertura" />
     </Box>
+  );
+}
+
+// ── Credenciamento por plano e vigência (P2.2) ───────────────────────────
+
+const ALL_PLANS = '__all__';
+
+/**
+ * Registrar o credenciamento da clínica (contratado) ou a habilitação de um profissional
+ * numa operadora. O plano é escolhido; "todos os planos" é uma opção EXPLÍCITA (nunca o
+ * padrão), porque estar credenciado na operadora não quer dizer estar em todos os planos.
+ */
+export function NewCredentialForm({
+  insurerId,
+  plans,
+  professionals,
+}: {
+  insurerId: string;
+  plans: Array<{ id: string; name: string; status: string }>;
+  professionals: Array<{ id: string; nome: string }>;
+}) {
+  const id = useId();
+  const [target, setTarget] = useState('clinic');
+  const [plan, setPlan] = useState('');
+  const [providerCode, setCode] = useState('');
+  const [validFrom, setFrom] = useState(() => todayYmdIn());
+  const [validUntil, setUntil] = useState('');
+  const { pending, run } = useRun();
+  const activePlans = plans.filter((p) => p.status === 'active');
+  return (
+    <Toggle label="Registrar credenciamento">
+      {(close) => (
+        <Box
+          onSubmit={() => {
+            if (!plan)
+              return toast.error(
+                'Escolha o plano credenciado (ou, de propósito, todos os planos).',
+              );
+            run(
+              () =>
+                createCredentialAction({
+                  insurerId,
+                  planId: plan === ALL_PLANS ? null : plan,
+                  allPlans: plan === ALL_PLANS,
+                  professionalId: target === 'clinic' ? null : target,
+                  providerCode: providerCode || null,
+                  validFrom,
+                  validUntil: validUntil || null,
+                }),
+              'Credenciamento registrado.',
+              () => {
+                setPlan('');
+                setCode('');
+                setUntil('');
+                close();
+              },
+            );
+          }}
+        >
+          <div className="grid gap-(--sp-3) sm:grid-cols-2">
+            <Field label="Quem é credenciado" htmlFor={`${id}-target`} required>
+              <Select
+                id={`${id}-target`}
+                value={target}
+                onChange={(e) => setTarget(e.target.value)}
+              >
+                <option value="clinic">A clínica (contratado)</option>
+                {professionals.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    Profissional: {p.nome}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field
+              label="Plano"
+              htmlFor={`${id}-plan`}
+              required
+              hint="Credenciamento na operadora não vale para todos os planos sem você dizer."
+            >
+              <Select id={`${id}-plan`} value={plan} onChange={(e) => setPlan(e.target.value)}>
+                <option value="">Escolha…</option>
+                {activePlans.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+                <option value={ALL_PLANS}>Todos os planos desta operadora</option>
+              </Select>
+            </Field>
+            <Field label="Código na operadora (opcional)" htmlFor={`${id}-code`}>
+              <Input
+                id={`${id}-code`}
+                value={providerCode}
+                maxLength={14}
+                onChange={(e) => setCode(e.target.value)}
+              />
+            </Field>
+            <div className="grid grid-cols-2 gap-(--sp-2)">
+              <Field label="Vale a partir de" htmlFor={`${id}-from`} required>
+                <Input
+                  id={`${id}-from`}
+                  type="date"
+                  value={validFrom}
+                  onChange={(e) => setFrom(e.target.value)}
+                />
+              </Field>
+              <Field label="Vale até (opcional)" htmlFor={`${id}-until`}>
+                <Input
+                  id={`${id}-until`}
+                  type="date"
+                  value={validUntil}
+                  onChange={(e) => setUntil(e.target.value)}
+                />
+              </Field>
+            </div>
+          </div>
+          <Actions pending={pending} onCancel={close} submit="Registrar" />
+        </Box>
+      )}
+    </Toggle>
+  );
+}
+
+type CredentialMode = 'end' | 'suspend' | 'reactivate' | 'new_period';
+const CREDENTIAL_MODE_LABEL: Record<CredentialMode, string> = {
+  end: 'Encerrar vigência',
+  suspend: 'Suspender',
+  reactivate: 'Reativar',
+  new_period: 'Nova vigência',
+};
+
+/** Encerrar, suspender, reativar ou abrir nova vigência — sempre com motivo; o histórico fica. */
+export function CredentialRevisionForm({
+  credentialId,
+  status,
+}: {
+  credentialId: string;
+  status: 'active' | 'suspended' | 'ended';
+}) {
+  const id = useId();
+  const [mode, setMode] = useState<CredentialMode | null>(null);
+  const [date, setDate] = useState(() => todayYmdIn());
+  const [until, setUntil] = useState('');
+  const [code, setCode] = useState('');
+  const [reason, setReason] = useState('');
+  const { pending, run } = useRun();
+  const modes: CredentialMode[] =
+    status === 'suspended' ? ['reactivate', 'end'] : ['end', 'suspend', 'new_period'];
+  if (!mode) {
+    return (
+      <div className="flex flex-wrap gap-(--sp-1)">
+        {modes.map((m) => (
+          <Button key={m} type="button" size="sm" variant="ghost" onClick={() => setMode(m)}>
+            {CREDENTIAL_MODE_LABEL[m]}
+          </Button>
+        ))}
+      </div>
+    );
+  }
+  const revision =
+    mode === 'end'
+      ? { mode, validUntil: date, reason }
+      : mode === 'new_period'
+        ? {
+            mode,
+            validFrom: date,
+            validUntil: until || null,
+            ...(code ? { providerCode: code } : {}),
+            reason,
+          }
+        : { mode, reason };
+  return (
+    <Box
+      onSubmit={() =>
+        run(
+          () => reviseCredentialAction({ credentialId, revision }),
+          'Credenciamento atualizado.',
+          () => {
+            setMode(null);
+            setReason('');
+          },
+        )
+      }
+    >
+      <p className="text-(length:--fs-sm) font-medium">{CREDENTIAL_MODE_LABEL[mode]}</p>
+      <div className="grid gap-(--sp-2) sm:grid-cols-3">
+        {mode === 'end' || mode === 'new_period' ? (
+          <Field
+            label={mode === 'end' ? 'Vale até' : 'Nova vigência a partir de'}
+            htmlFor={`${id}-date`}
+            required
+          >
+            <Input
+              id={`${id}-date`}
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+            />
+          </Field>
+        ) : null}
+        {mode === 'new_period' ? (
+          <>
+            <Field label="Até (opcional)" htmlFor={`${id}-until`}>
+              <Input
+                id={`${id}-until`}
+                type="date"
+                value={until}
+                onChange={(e) => setUntil(e.target.value)}
+              />
+            </Field>
+            <Field label="Novo código na operadora (opcional)" htmlFor={`${id}-code`}>
+              <Input
+                id={`${id}-code`}
+                value={code}
+                maxLength={14}
+                onChange={(e) => setCode(e.target.value)}
+              />
+            </Field>
+          </>
+        ) : null}
+      </div>
+      <Field label="Motivo" htmlFor={`${id}-reason`} required>
+        <Textarea
+          id={`${id}-reason`}
+          value={reason}
+          maxLength={300}
+          rows={2}
+          onChange={(e) => setReason(e.target.value)}
+        />
+      </Field>
+      <Actions pending={pending} onCancel={() => setMode(null)} submit="Confirmar" />
+    </Box>
+  );
+}
+
+// ── Regras da operadora (P2.5) ───────────────────────────────────────────
+
+/** Regras CONTRATUAIS da operadora. As do padrão TISS não aparecem aqui: não são configuráveis. */
+export function InsurerRulesForm({
+  insurerId,
+  rules,
+}: {
+  insurerId: string;
+  rules: InsurerDetail['insurer']['rules'];
+}) {
+  const id = useId();
+  const [requirePro, setRequirePro] = useState(rules.requireProfessionalCredential);
+  const [maxGuides, setMax] = useState(String(rules.maxGuidesPerBatch));
+  const [deadline, setDeadline] = useState(
+    rules.submissionDeadlineDays === null ? '' : String(rules.submissionDeadlineDays),
+  );
+  const { pending, run } = useRun();
+  return (
+    <Toggle label="Alterar regras do contrato">
+      {(close) => (
+        <Box
+          onSubmit={() => {
+            const max = Number(maxGuides);
+            const days = deadline.trim() === '' ? null : Number(deadline);
+            if (!Number.isInteger(max) || max < 1 || max > 100)
+              return toast.error('O máximo de guias por lote vai de 1 a 100.');
+            if (days !== null && (!Number.isInteger(days) || days < 1 || days > 365)) {
+              return toast.error('O prazo de envio vai de 1 a 365 dias (ou deixe em branco).');
+            }
+            run(
+              () =>
+                saveInsurerRulesAction({
+                  insurerId,
+                  requireProfessionalCredential: requirePro,
+                  maxGuidesPerBatch: max,
+                  submissionDeadlineDays: days,
+                }),
+              'Regras da operadora salvas.',
+              close,
+            );
+          }}
+        >
+          <label className="flex items-center gap-(--sp-2) text-(length:--fs-sm)">
+            <Checkbox
+              checked={requirePro}
+              onCheckedChange={(v) => setRequirePro(v === true)}
+              aria-label="A operadora exige o profissional habilitado"
+            />
+            A operadora exige o profissional executante habilitado (clínica pessoa jurídica)
+          </label>
+          <div className="grid gap-(--sp-3) sm:grid-cols-2">
+            <Field
+              label="Máximo de guias por lote"
+              htmlFor={`${id}-max`}
+              hint="O padrão TISS permite até 100; use menos só se o contrato exigir."
+            >
+              <Input
+                id={`${id}-max`}
+                inputMode="numeric"
+                value={maxGuides}
+                onChange={(e) => setMax(e.target.value)}
+              />
+            </Field>
+            <Field
+              label="Prazo de envio (dias depois do atendimento)"
+              htmlFor={`${id}-deadline`}
+              hint="Opcional; como consta no contrato."
+            >
+              <Input
+                id={`${id}-deadline`}
+                inputMode="numeric"
+                value={deadline}
+                onChange={(e) => setDeadline(e.target.value)}
+              />
+            </Field>
+          </div>
+          <Actions pending={pending} onCancel={close} submit="Salvar regras" />
+        </Box>
+      )}
+    </Toggle>
   );
 }

@@ -10,6 +10,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type * as PolicyModule from '@/lib/premium-access/policy';
 
 vi.mock('server-only', () => ({}));
+// P2.2: o credenciamento tem prova própria (credentialing.test.ts e o harness de banco); aqui ele
+// devolve pendências controladas sem entrar na sequência de consultas simuladas.
+const credentialing = vi.hoisted(() => ({
+  credentialingIssuesTx: vi.fn(async () => [] as unknown[]),
+}));
+vi.mock('./credentialing', () => credentialing);
 // D24: o gate comercial é provado contra o banco real (health-insurance-premium-gate-db.ts);
 // aqui ele responde "liberado" por padrão e "negado" no caso específico abaixo.
 const premium = vi.hoisted(() => ({ denial: null as null | 'trial' }));
@@ -170,7 +176,10 @@ describe('createConsultaGuideForAppointment — decisões', () => {
     premium.denial = 'trial';
     try {
       const f = fakeTx([]);
-      await expect(run(f.tx)).rejects.toMatchObject({ code: 'premium_feature_required', reason: 'trial' });
+      await expect(run(f.tx)).rejects.toMatchObject({
+        code: 'premium_feature_required',
+        reason: 'trial',
+      });
     } finally {
       premium.denial = null;
     }
@@ -260,6 +269,23 @@ describe('createConsultaGuideForAppointment — decisões', () => {
         ['PROVIDER_KIND_UNKNOWN', 'gestor'],
       ]);
     }
+  });
+
+  it('credenciamento ausente na data (P2.2): a guia nasce com a pendência do gestor', async () => {
+    credentialing.credentialingIssuesTx.mockResolvedValueOnce([
+      {
+        code: 'CREDENTIAL_CLINIC_MISSING',
+        field: 'contratado.credenciamento',
+        message: 'sem credenciamento',
+        owner: 'gestor',
+      },
+    ]);
+    const f = fakeTx([...fullPath(), ...created]);
+    const out = await run(f.tx);
+    expect(out).toMatchObject({ kind: 'created', status: 'pending_data' });
+    expect(out.kind === 'created' && out.issues.map((i) => [i.code, i.owner])).toEqual([
+      ['CREDENTIAL_CLINIC_MISSING', 'gestor'],
+    ]);
   });
 
   it('carteirinha de outro paciente não é ligada (vira "sem carteirinha")', async () => {

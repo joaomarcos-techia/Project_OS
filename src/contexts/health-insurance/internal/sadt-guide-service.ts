@@ -38,6 +38,8 @@ import {
 import { selectEffectiveContract, type ContractLine } from '../tiss/assembly/contract-selection';
 import type { GuideIssue } from '../tiss/validation/common';
 
+import { credentialingIssuesTx } from './credentialing';
+
 import type { CompletedAppointment } from './consulta-guide-service';
 import { allocateTissNumber } from './numbering';
 import { executedByItemTx } from './sadt-request-service';
@@ -161,6 +163,19 @@ export async function recordSadtExecutionForAppointment(
       'solicitacao',
       `A solicitação ${request.requestNumber ?? ''} não aceita sessões (estado: ${request.status}; procedimento: ${item.status}).`,
     );
+  }
+
+  // Credenciamento (P2.2) na data da sessão: a clínica no plano e o profissional executante
+  // (quando a operadora exige). Sem ele a sessão não vira guia — nunca se fatura presumindo.
+  const credential = await credentialingIssuesTx(tx, {
+    clinicId,
+    insurerId: request.insurerId,
+    planId: request.planId,
+    professionalId: ap.professionalId,
+    date: ap.date,
+  });
+  if (credential.length > 0) {
+    return { kind: 'blocked', reason: 'coverage_incomplete', owner: 'gestor', recovery: 'human', issues: credential };
   }
 
   // Saldo: o autorizado pela operadora (quando exige) ou o pedido (quando não exige).

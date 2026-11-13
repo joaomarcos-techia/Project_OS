@@ -49,6 +49,8 @@ import { TISS_SUPPORTED_VERSION, validateLoteGuias } from '../tiss/validation/ba
 import { procedureCodesOf, recheckProcedureCodes } from '../tiss/validation/terminology-recheck';
 import { checkTissEncoding } from '../tiss/xml/encoding-check';
 import { checkTissEnvelope } from '../tiss/xml/envelope-check';
+
+import { insurerRules } from './insurer-rules';
 import { verifyEpilogueHash } from '../tiss/xml/hash-verify';
 import { XsdEngineError, type TissSchemaValidator } from '../tiss/xml/xsd-validator';
 
@@ -72,6 +74,17 @@ export type BatchExportLayer =
   | 'content'
   | 'state'
   | 'unavailable';
+
+/** Regra contratual da operadora recusou o lote (P2.5); a mensagem já é para o usuário. */
+export class BatchRuleError extends Error {
+  constructor(
+    message: string,
+    readonly code: string,
+  ) {
+    super(message);
+    this.name = 'BatchRuleError';
+  }
+}
 
 export class BatchExportError extends Error {
   constructor(
@@ -141,6 +154,16 @@ export async function createBatchInTx(
 ): Promise<string> {
   // D24: operação nova de Convênios só com assinatura paga e ativa (o banco confere de novo).
   await assertPremiumFeatureTx(tx, args.clinicId, 'health_insurance');
+  // P2.5: o contrato pode limitar o lote abaixo do teto do padrão (100, conferido no banco).
+  const [ins] = await tx
+    .select({ settings: hiInsurers.settings })
+    .from(hiInsurers)
+    .where(and(eq(hiInsurers.clinicId, args.clinicId), eq(hiInsurers.id, args.insurerId)))
+    .limit(1);
+  const max = insurerRules(ins?.settings).maxGuidesPerBatch;
+  if (args.guideIds.length > max) {
+    throw new BatchRuleError(`O contrato desta operadora aceita até ${max} guias por lote; escolha no máximo ${max}.`, 'MAX_GUIDES');
+  }
   const ids = sql.join(
     args.guideIds.map((id) => sql`${id}::uuid`),
     sql`, `,

@@ -65,10 +65,51 @@ Ver é `view:financial` (a médica não vê). Tudo é conferido de novo no servi
   5. Só então vira recebível do paciente, pelo valor confirmado. No exemplo validado: R$ 45,00 sobre uma
      consulta de R$ 150,00.
 
+## Credenciamento por plano e vigência (P2.2)
+
+Na página da operadora, seção **Credenciamento**:
+- **quem** é credenciado: a clínica (contratado) ou um profissional;
+- **plano**: escolhido; "todos os planos desta operadora" só existe marcado de propósito (estar
+  credenciado na operadora não quer dizer estar em todos os planos);
+- **código na operadora** (opcional) e **vigência** (início obrigatório; vigências ativas do mesmo alvo
+  não se sobrepõem — o banco recusa);
+- mudanças preservam o histórico, sempre com motivo: **encerrar** (fecha a vigência numa data; o passado
+  segue coberto), **suspender/reativar**, **nova vigência** (a anterior fecha na véspera e nasce uma linha
+  nova). Nada é apagado; cada mudança vai para o histórico da operadora.
+
+Onde vale (serviços reais):
+- **agenda** (cobertura do atendimento): sem credenciamento vigente da clínica no plano e na data, a
+  cobertura fica com pendência que diz o porquê (suspenso, fora da vigência, só em outros planos);
+- **profissional**: clínica pessoa jurídica precisa do executante habilitado quando a operadora exige
+  (padrão: exige; dispensa é regra do contrato, abaixo); pessoa física: o credenciamento da clínica é o
+  do profissional;
+- **guia** (montagem e atualização antes da emissão), **sessão de SP/SADT** e **conferência da
+  solicitação** usam a mesma regra na data do atendimento ou da solicitação;
+- a **prontidão** da configuração mostra "Credenciamento vigente hoje" por operadora ativa.
+
+Prova: `scripts/security/health-insurance-credentials-db.ts` (7/7) e `credentialing.test.ts`.
+
+## Regras da operadora (P2.5)
+
+Seção **Regras da operadora**, com a origem de cada regra:
+
+| Regra | Origem | Onde é usada |
+|---|---|---|
+| TISS 4.03.00 e XML validado no XSD oficial | obrigatório pelo padrão (não configurável) | exportação do lote, recurso |
+| Máximo de guias por lote (1 a 100) | padrão até 100; menos só por contrato | montagem do lote: o serviço recusa acima; a tela limita "Todas (até N)" |
+| Profissional executante habilitado | contrato (padrão: exige) | credenciamento → cobertura, guia, SP/SADT |
+| Prazo de envio (dias depois do atendimento) | contrato (opcional) | montagem do lote marca a guia "fora do prazo do contrato" (não bloqueia: a decisão é da clínica com a operadora) |
+| Agrupamento SP/SADT | contrato | guia SP/SADT por sessão ou por solicitação |
+| Transmissão | configurável (portal) · webservice depende de homologação externa | envio registrado no Qoro |
+
+Nenhuma regra local desliga validação obrigatória do padrão. Código de validação, conector SOAP e
+credenciais da operadora seguem pendentes (dependem de homologação com operadora real).
+
 ## Trial e suspensão (D24, sem mudança de política)
 
 O bloqueio comercial do banco é a única decisão:
-- no trial, a clínica pode **preparar** o cadastro: prestador, operadora, plano, contrato e perfil;
+- no trial, a clínica pode **preparar** o cadastro: prestador, operadora, plano, contrato, credenciamento,
+  regras da operadora e perfil;
 - carteirinha, cobertura, guia, lote e confirmação da coparticipação são **operações novas** e são
   recusadas;
 - as telas mostram Convênios como recurso contratável.
@@ -77,14 +118,15 @@ O bloqueio comercial do banco é a única decisão:
 
 O evento da conclusão de atendimento de convênio (consultório → guia automática), o da coparticipação
 confirmada (→ recebível) e o pedido de XML em segundo plano (R45) são processados logo depois da
-resposta, só pelas chaves que o request publicou (`runOutboxEventsNow` via `after`). O cron do outbox
-continua sendo a garantia.
+resposta, só pelas chaves que o request publicou (`runOutboxEventsNow` via `after`). O mesmo vale para o
+webhook do pagamento do paciente: a baixa e a coparticipação "paga" andam logo depois do webhook
+(`settlement-follow-up.ts`), provado ao vivo no Asaas Sandbox em 13/11. O cron do outbox e o
+`financial-reconcile` continuam sendo a garantia.
 
 ## Ainda não coberto (com tarefa no plano)
 
-- Credenciamento por plano e vigência (P2.2, `hi_credentials`).
-- Configurações por operadora: código de validação, prazo de envio, conector SOAP e credenciais
-  cifradas (P2.5).
+- Configurações por operadora que dependem de operadora real: código de validação, conector SOAP e
+  credenciais cifradas (P2.5, parte externa).
 - Importação de tabela contratual por planilha (P2.7).
 - Aba "Convênios" na ficha do paciente e item de menu: dependem da branch de UI (P3.2, menu).
 - Trocar particular ↔ convênio de um atendimento já criado pela agenda (P4.3). Hoje: pela correção da

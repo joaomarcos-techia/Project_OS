@@ -248,3 +248,26 @@ export function connectScratch(url: string, max = 1): Sql {
   if (!/@(?:127\.0\.0\.1|localhost):\d+\//u.test(url)) throw new Error('só para o cluster local descartável');
   return postgres(url, { ssl: 'require', max, onnotice: () => undefined });
 }
+
+/**
+ * P2.2 — credencia a clínica e TODOS os médicos já cadastrados em todas as operadoras dela,
+ * em TODOS os planos (escolha explícita do teste), desde 2020. Para provas que não são de
+ * credenciamento seguirem iguais; idempotente (só cria o que falta). Chame depois de cadastrar
+ * a operadora e os profissionais.
+ */
+export async function credentialAllPlans(sql: Sql, clinicId: string): Promise<void> {
+  await sql`
+    insert into public.hi_credentials (clinic_id, insurer_id, plan_id, professional_id, valid_from, status, created_by)
+    select i.clinic_id, i.id, null, x.pro, '2020-01-01', 'active', '00000000-0000-4000-8000-0000000000c2'::uuid
+      from public.hi_insurers i
+      cross join (
+        select null::uuid as pro
+        union all
+        select p.id from public.profiles p where p.clinic_id = ${clinicId}::uuid and p.role = 'doctor'
+      ) x
+     where i.clinic_id = ${clinicId}::uuid
+       and not exists (
+         select 1 from public.hi_credentials c
+          where c.clinic_id = i.clinic_id and c.insurer_id = i.id and c.plan_id is null
+            and c.professional_id is not distinct from x.pro and c.status = 'active')`;
+}
