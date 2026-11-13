@@ -48,8 +48,8 @@ const command = process.argv[2];
 const expectedRef = arg('expected-ref');
 const accountsFile = arg('accounts');
 const outFile = arg('out');
-if (!['setup', 'cleanup'].includes(command ?? '') || !expectedRef || !accountsFile || !outFile) {
-  throw new Error('uso: setup|cleanup --expected-ref <ref> --accounts <arquivo> --out <ids.json>');
+if (!['setup', 'setup-config', 'cleanup'].includes(command ?? '') || !expectedRef || !accountsFile || !outFile) {
+  throw new Error('uso: setup|setup-config|cleanup --expected-ref <ref> --accounts <arquivo> --out <ids.json>');
 }
 const { databaseUrl } = assertDevContext();
 const u = new URL(databaseUrl);
@@ -261,6 +261,50 @@ async function setup() {
   console.log(`[hi-dev-e2e-fixture] ok: 3 clínicas, ${Object.keys(accounts).length} contas, ${patients.length} pacientes, ${guideIds.length} guias de Consulta em rascunho`);
 }
 
+/**
+ * Clínica ZERADA para provar R44 (configuração pela interface): só o que NÃO é cadastro
+ * da clínica — a clínica sintética, as contas, a assinatura paga e a habilitação
+ * operacional do módulo (decisão do Qoro, registrada com o ator de sistema). Nenhuma
+ * operadora, plano, contrato, perfil TISS, carteirinha, procedimento ou paciente: o E2E
+ * cadastra tudo pela interface. Rodar de novo zera o que o próprio E2E criou NESTA
+ * clínica sintética (conferida pelo slug), nunca em outra.
+ */
+async function setupConfig() {
+  const accounts: Record<string, { email: string; password: string; userId: string; clinic: string; role: string }> = {};
+  const clinicId = await clinic('e2e-hi-config', 'Clínica Sintética E2E Configuração');
+  const [own] = await exec<{ ok: boolean }>(sql`SELECT slug = 'e2e-hi-config' AS ok FROM public.clinics WHERE id = ${clinicId}::uuid`);
+  if (!own?.ok) throw new Error('clínica inesperada');
+  // Recomeço do zero (cascata leva contratos, planos, carteirinhas, coberturas e coparticipações).
+  await exec(sql`DELETE FROM public.appointments WHERE clinic_id = ${clinicId}::uuid`);
+  await exec(sql`DELETE FROM public.hi_professional_profiles WHERE clinic_id = ${clinicId}::uuid`);
+  await exec(sql`DELETE FROM public.hi_memberships WHERE clinic_id = ${clinicId}::uuid`);
+  await exec(sql`DELETE FROM public.hi_insurers WHERE clinic_id = ${clinicId}::uuid`);
+  await exec(sql`DELETE FROM public.patients WHERE clinic_id = ${clinicId}::uuid`);
+  await exec(sql`DELETE FROM public.procedures WHERE clinic_id = ${clinicId}::uuid`);
+  const add = async (key: string, role: string, nome: string) => {
+    const email = `e2e-hi-${key}@example.com`;
+    const pass = password();
+    const userId = await ensureUser(email, pass);
+    await profile(userId, clinicId, nome, role);
+    await exec(sql`UPDATE public.profiles SET invite_accepted_at = coalesce(invite_accepted_at, now()) WHERE id = ${userId}::uuid`);
+    accounts[key] = { email, password: pass, userId, clinic: 'config', role };
+    return userId;
+  };
+  await add('cfg-gestor', 'gestor', 'Gestora Sintética Configuração');
+  await add('cfg-recepcao', 'attendant', 'Recepção Sintética Configuração');
+  const medica = await add('cfg-medica', 'doctor', 'Dra. Sintética Configuração');
+  await subscription(clinicId, 'paid');
+  // Habilitação operacional (Qoro): módulo ligado; identificação do prestador VAZIA (a clínica preenche).
+  await exec(sql`
+    INSERT INTO public.hi_clinic_settings (clinic_id, enabled, enabled_at, enabled_by, cnes_status)
+    VALUES (${clinicId}::uuid, true, now(), ${SYS}::uuid, 'unknown')
+    ON CONFLICT (clinic_id) DO UPDATE SET enabled = true, enabled_at = now(), enabled_by = ${SYS}::uuid,
+      provider_kind = NULL, contractor_name = NULL, cnes = NULL, cnes_status = 'unknown'`);
+  writeFileSync(accountsFile!, JSON.stringify(accounts, null, 1));
+  writeFileSync(outFile!, JSON.stringify({ clinicId, medica }, null, 1));
+  console.log(`[hi-dev-e2e-fixture] ok: clínica e2e-hi-config zerada, ${Object.keys(accounts).length} contas, módulo habilitado; nada de convênio cadastrado`);
+}
+
 async function cleanup() {
   const admin = createAdminClient();
   const rows = await exec<{ id: string }>(sql`SELECT p.id::text AS id FROM public.profiles p JOIN public.clinics c ON c.id = p.clinic_id WHERE c.slug LIKE 'e2e-hi-%'`);
@@ -270,7 +314,7 @@ async function cleanup() {
   console.log(`[hi-dev-e2e-fixture] contas bloqueadas e módulo desligado nas clínicas e2e-hi-* (${rows.length} perfis)`);
 }
 
-(command === 'setup' ? setup() : cleanup())
+(command === 'setup' ? setup() : command === 'setup-config' ? setupConfig() : cleanup())
   .then(() => process.exit(0))
   .catch((e: unknown) => {
     const cause = (e as { cause?: { message?: string; detail?: string } })?.cause;

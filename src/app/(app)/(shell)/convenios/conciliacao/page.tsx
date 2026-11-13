@@ -3,22 +3,25 @@ import Link from 'next/link';
 import { EmptyState } from '@/components/ui/empty-state';
 import { PanelCard } from '@/components/ui/panel-card';
 import { importStatementAction, requestCopayChargeAction, syncCopayChargeAction } from '@/contexts/health-insurance/actions';
+import { listCopaysToReview } from '@/contexts/health-insurance/config-queries';
 import { listCopayCharges, listInsurerPayments, listInsurers, listOpenGuidesForAllocation } from '@/contexts/health-insurance/queries';
 
 import { brl, ConveniosHeader, conveniosAccess, shortDate } from '../_lib/access';
 import { ActionButton } from '../_lib/action-ui';
 import { AllocateForm, StatementImportForm } from '../_lib/batch-ui';
+import { CopayReview } from '../_lib/copay-ui';
 
 export const dynamic = 'force-dynamic';
 
 export default async function ConciliacaoPage() {
   const access = await conveniosAccess('Conciliação');
   if (!access.ok) return access.view;
-  const [payments, guides, insurers, copays] = await Promise.all([
+  const [payments, guides, insurers, copays, toReview] = await Promise.all([
     listInsurerPayments(access.clinicId),
     access.canManage ? listOpenGuidesForAllocation(access.clinicId) : Promise.resolve([]),
     access.canManage ? listInsurers(access.clinicId) : Promise.resolve([]),
     listCopayCharges(access.clinicId),
+    listCopaysToReview(access.clinicId),
   ]);
   const pending = payments.filter((p) => p.unreconciledCents > 0);
 
@@ -73,6 +76,30 @@ export default async function ConciliacaoPage() {
                     lote {p.batchNumber}
                   </Link>
                 ) : null}
+              </li>
+            ))}
+          </ul>
+        )}
+      </PanelCard>
+
+      <PanelCard title="Coparticipações a conferir" regionLabel="Coparticipações a conferir" className="mt-(--sp-4)">
+        <p className="mb-(--sp-2) text-(length:--fs-sm) text-fg-muted">
+          Calculadas na conclusão do atendimento pelo contrato. Nada é cobrado antes de conferir e confirmar; o paciente paga só a coparticipação, nunca o valor da consulta.
+        </p>
+        {toReview.length === 0 ? (
+          <p className="text-(length:--fs-sm) text-fg-muted">Nenhuma coparticipação aguardando conferência.</p>
+        ) : (
+          <ul className="flex flex-col divide-y divide-border text-(length:--fs-sm)">
+            {toReview.map((c) => (
+              <li key={c.id} className="flex flex-col gap-(--sp-2) py-(--sp-2)">
+                <div className="flex flex-wrap gap-(--sp-2)">
+                  <span className="font-medium">{c.patientName ?? 'Paciente'}</span>
+                  <span className="text-fg-muted">{shortDate(c.scheduledAt)} · {c.procedureName ?? ''}</span>
+                  <span className="tabular-nums">previsto {brl(c.expectedCents)}</span>
+                  {c.calculatedCents !== null ? <span className="tabular-nums">calculado {brl(c.calculatedCents)}</span> : null}
+                  {c.checkedCents !== null ? <span className="tabular-nums">conferido {brl(c.checkedCents)}</span> : null}
+                </div>
+                <CopayReview copay={c} canCheck={access.canEditPatients} canConfirm={access.canManage} />
               </li>
             ))}
           </ul>

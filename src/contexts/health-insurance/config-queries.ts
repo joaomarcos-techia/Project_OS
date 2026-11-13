@@ -574,6 +574,45 @@ export async function listUpcomingInsuranceAppointments(clinicId: string, limit 
   });
 }
 
+// ── Coparticipação a conferir e confirmar (P5.3) ─────────────────────────
+
+export interface CopayToReview {
+  id: string;
+  status: 'calculated' | 'checked';
+  patientName: string | null;
+  scheduledAt: string | null;
+  procedureName: string | null;
+  expectedCents: number;
+  calculatedCents: number | null;
+  checkedCents: number | null;
+}
+
+/** Coparticipações calculadas na conclusão e ainda não confirmadas (nada foi cobrado). */
+export async function listCopaysToReview(clinicId: string): Promise<CopayToReview[]> {
+  return withTenant(clinicId, async (tx) => {
+    const r = await rows(
+      tx,
+      sql`SELECT c.id::text AS id, c.status, pt.nome AS patient_name, a.scheduled_at, a.snapshot_procedure_name,
+                 c.expected_cents, c.calculated_cents, c.checked_cents
+            FROM public.hi_copayments c
+            LEFT JOIN public.appointments a ON a.id = c.appointment_id AND a.clinic_id = c.clinic_id
+            LEFT JOIN public.patients pt ON pt.id = c.patient_id AND pt.clinic_id = c.clinic_id
+           WHERE c.clinic_id = ${clinicId}::uuid AND c.status IN ('calculated', 'checked')
+           ORDER BY a.scheduled_at DESC NULLS LAST LIMIT 100`,
+    );
+    return r.map((x) => ({
+      id: String(x.id),
+      status: String(x.status) as 'calculated' | 'checked',
+      patientName: s(x.patient_name),
+      scheduledAt: iso(x.scheduled_at),
+      procedureName: s(x.snapshot_procedure_name),
+      expectedCents: n(x.expected_cents),
+      calculatedCents: x.calculated_cents === null ? null : n(x.calculated_cents),
+      checkedCents: x.checked_cents === null ? null : n(x.checked_cents),
+    }));
+  });
+}
+
 // ── Busca nas tabelas oficiais (TUSS 22, CBO 24) ─────────────────────────
 
 /** Até 20 termos da competência mais recente, por código ou parte do texto. */
