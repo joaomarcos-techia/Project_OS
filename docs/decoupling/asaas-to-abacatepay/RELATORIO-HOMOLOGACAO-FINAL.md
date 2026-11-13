@@ -1079,3 +1079,61 @@ Correção recomendada ao responsável do PR #55: constante em módulo compartil
 A URL afetada é de **Preview TISS**, apesar da tag Sentry production. No SHA 9b463168, client/server usam NODE_ENV como ambiente; a candidata financeira já diferencia VERCEL_ENV/NEXT_PUBLIC_VERCEL_ENV e tem testes dessa política. Não alterar Production para corrigir a classificação de um Preview. Nenhum erro financeiro AbacatePay é demonstrado por esses dois eventos.
 
 Smoke HTTP do build combinado: login 200 com shell Qoro/“Carregando acesso” e cron financeiro anônimo 401 (unauthorized), sem disparar processamento. É prova da fronteira HTTP, **não do login hidratado completo**; este já tem prova financeira no Preview efdf4722. O acesso foi pela CLI autenticada da Vercel e não comprova que o Preview seja público. O readback nominal final manteve Production no SHA 5620a098, sem alterações de configuração. **NO-GO da publicação conjunta permanece**, com as causas separadas na matriz.
+
+## 52. Reconciliação final com TISS e prova operacional — 13/11/2026
+
+Esta seção substitui os estados correntes da §51, preservando as evidências históricas. Inputs: financeiro `5144e6b5` mais o diff desta revisão; TISS `e14408d3d947ec426c36abd390d5f4c3002264c8`. Não houve merge, DDL compartilhado, alteração no worktree TISS, novo checkout, pagamento ou escrita em Production. O PR53 permanece draft. O registro verificável é `finalTissReconciliation` no [JSON canônico](evidencias/recuperacao-financeira-20261111.json).
+
+### A. Banco e integração
+
+Readback DEV em 13/11, 02:43 UTC: projeto `pqhkirrszzpwezdaqrai`, **160 entradas** Drizzle; 0144–0158 presentes e 0159 já aplicada, com when `1795036973858` e SHA256 LF `eb00a4e3dd45f89e7eef4dc2c95c577e7932f1f2131d5bfb4ff8f5e4570f5c74`. **Não reaplicada.** As seis diferenças históricas anteriores a 0144 continuam documentadas, sem reescrever hashes. Os SQLs 0143–0158 e schema do pin e144 não mudaram desde a aplicação DEV. Foram lidas definições de 45 relações financeiras/TISS: índices prontos/válidos, constraints validadas e segurança das tabelas privadas conferidos. Fingerprints de 227 tabelas preexistentes permaneceram iguais durante a auditoria. Zero invoice cruzada e zero ciclo duplicado.
+
+Os journals raiz das duas branches independentes não são iguais ao journal composto: financeiro termina em0142; TISS não inclui a faixa financeira0136–0142. O gerador/manifesto reproduz a união160 com os SQLs imutáveis e a0159 congelada; não é permitido substituir um journal aplicado para ocultar divergências. Os cinco contratos DEV sem titular ativo se dividem em **dois fixtures e2e-hi do proprietário TISS e três registros históricos**. Não foram alterados, atribuídos ou removidos. Isso não demonstra órfão equivalente em Production.
+
+Na cópia descartável composta: tipos, lint, arquitetura e build Next passaram; **711 testes TISS PASS e três SKIP preexistentes do corpus XML sem bytes por desenho**, sem novo SKIP. O teste estrito de journal passou7/7. PostgreSQL real: financeiro125; ledger18; glosas/pagamentos16; conciliação19; repasses12; coparticipação8; SP/SADT11; união10; gate premium11. São escopos distintos, não uma soma de casos únicos ou de pagamentos externos.
+
+Dois helpers de teste pressupunham a ausência da faixa financeira e usavam git relativo a uma subpasta; a fixture premium tentava liberar trial apenas mudando status. A composição foi ajustada **somente na cópia**: verifica igualdade dos SQLs antes de deduplicar e prova que status active sem pagamento continua negado, inserindo depois invoice sintética e passando pelo markInvoicePaid real. Patch revisável: [compatibilidade dos harnesses](migrations/tiss-composition-harness.patch). Nenhum guard comercial foi desativado.
+
+O responsável TISS publicou posteriormente `e2d0cf1f` (configuração/coparticipação) e mantém alterações locais em andamento. A leitura do delta commitado não encontrou alteração de SQL/schema/contexto billing. **Esta prova não homologa automaticamente esse código posterior**; a composição final de publicação deve fixar os SHAs escolhidos e revalidar só o delta afetado. Nenhum trabalho do outro agente foi copiado para sua branch.
+
+### B. Financeiro
+
+As cinco contratações iniciais Sandbox, o fechamento/readbacks, o MFA e a notificação414eb196 anteriores continuam válidos no escopo registrado. Nenhum pagamento foi repetido. Os125 checks financeiros e o scanner22 cobrem pagamentos, estornos, proveniência, idempotência, calendário, ausência de webhook e mais de10.000 movimentos por finalidade. A prova operacional nova usa provedor HTTP **sintético**, não comprova renovação externa.
+
+Renovação mensal natural, alteração de plano efetivada em uma renovação e os eventos negativos não simuláveis continuam **PARTIAL externo**. A resposta do suporte confirma que não existe acelerador de assinatura no Dev mode nem listagem de faturas por subs_. A configuração de vencimento futuro não é uma cobrança observada. Risco: extensão tardia de acesso ou necessidade de revisão financeira se a evidência externa estiver incompleta; impacto alto, probabilidade não quantificável com as amostras disponíveis. Controles: inbox durável, receipt por identidade, scanner com cursor/fencing, revisão explícita de ambiguidades, alerta/backlog e aquisições limitadas. Não houve aceite formal desse risco nesta rodada.
+
+### C. Infraestrutura e Preview
+
+O erro Sentry **7845728659**, Preview de13/11 03:02 UTC, foi reproduzido: o deployment composto não recebeu os cinco overrides Sandbox restritos à branch financeira. A ausência da configuração levou ao fallback legado e ao guard `provider_operation_unavailable`. Não era evidência de erro de cobrança em Production. A página agora apresenta estado específico de indisponibilidade, sem controles Asaas para AbacatePay; erros inesperados de banco continuam propagados. Teste de regressão:6/6.
+
+Preview corrigido: **https://project-m6qti314r-clinic-os-v2-s-projects.vercel.app**, deployment `dpl_7DwFaKuAJxSrbHAUGNUdJeQnhmDW`, READY. Foram resolvidos somente os cinco valores Preview da branch em memória e aplicados como overrides do deployment; nenhuma variável persistente ou Production foi alterada/lida pelo valor. Aquisições continuam fechadas. A clínica sintética já paga foi reutilizada: login real, readback, tela em1440/390px, cota5 médicos, recusa de checkout repetido e gates pagos passaram, sem erro de browser e sem nova compra. O503 exato de nova aquisição é esperado pelo kill switch false, não um pagamento falho.
+
+O TISS e144 contém a constante compartilhada que corrige CARE_TYPES e os ajustes XSD/WASM/pool; o build composto e os testes SP/SADT/XSD passaram. A prova de navegador TISS do responsável permanece vinculada ao seu código; **não foi repetida uma jornada TISS autenticada na composição**, pois as credenciais dos fixtures são do proprietário e o navegador conectado estava indisponível. Não resetar fixtures para conseguir essa prova. Isso continua gate do módulo TISS, operacionalmente desligado para clínicas reais, e não é licença para habilitá-lo por pagamento SaaS.
+
+O bundle composto inicial confirmou inicialização Sentry preview e nenhuma production; o evento real reportado também tem tag preview. Não foi criado novo alerta. A entrega414eb196 e MFA anteriores não foram refeitos. Source maps/alertas live ainda devem integrar a janela final.
+
+### D. Escala e falhas — infraestrutura local isolada
+
+Novo harness `QORO_ABACATEPAY_OPERATIONAL=1`: rota real de webhook através de HTTP Node loopback, HMAC real, Redis7.4 Docker com ponte REST local executando EVAL real, inbox/leases/worker do app e PostgreSQL migrado. Provedor HTTP sintético, sem chave real. Redis e banco foram de fato interrompidos e recuperados; worker filho foi encerrado após reservar e retomado após expiração **real de60s** do lease;429/Retry-After e cinco503 abriram o circuito; houve recuperação sem duplicação. Cache de extrato sintético teve apenas a idade de frescor controlada; períodos financeiros, vencimentos e leases não foram antecipados.
+
+| Clínicas / concorrência | Par de entregas por clínica: p50 / p95 / p99 | Vazão de pares/s | Backlog antes → depois | Drenagem |
+| --- | --- | --- | --- | --- |
+|100 /1|1195 /2569 /3116ms|0,79|1 →0|1,38s|
+|500 /2|807 /2303 /3839ms|2,28|39 →0|17,14s|
+|1000 /4|298 /1533 /2438ms|6,24|91 →0|82,49s|
+
+As coortes são progressivas e repetem os eventos já aplicados da rodada anterior: não comparar esses percentis como ganho causal ou1000 novas compras simultâneas. Foram6680 leituras ao provedor sintético,15564 comandos Redis, zero vínculo financeiro cruzado, zero ciclo duplicado e zero erro nas invariantes finais. HTTP:1201 respostas200,870 respostas202,1133 respostas503 por backpressure/falhas injetadas e uma401 intencional. Portanto não existe taxa de erro HTTP zero; a garantia provada é recuperação final idempotente dos eventos persistidos. Memória máxima amostrada do processo principal254MiB,13 conexões DB e3 waiters de lock; CPU do processo270s user/182s system. Contagem de waiters não mede duração de lock; o histórico de duração de transação está na prova de domínio anterior.
+
+**Limites:** isto não certifica Vercel, Redis gerenciado ou capacidade/latência real da AbacatePay, nem o RTO total. O worker local foi drenado até zerar e não equivale ao cron de minuto, batch10 e orçamento35s do ambiente publicado. O Preview não executa cron automaticamente. Recomenda-se piloto limitado a **até10 clínicas explicitamente listadas**, como limite operacional conservador sujeito a aprovação, sem promessa de SLA. Conferir inbox recebido/idade/retry/review e capacidade antes de expandir. A lista máxima100 do código é um teto de configuração, não capacidade certificada.
+
+### E. Segurança
+
+Trial14 dias desde Auth permanece com cotas e sem integrações operacionais/convites; pagamento comprovado libera somente recursos do plano, sem habilitar TISS ou IA indisponíveis. Foram preservados RLS, multi-tenant, HMAC, deadlines, circuitos, hashes e contratos Asaas. Nenhum segredo está nas evidências. Testes de carga não tocaram DEV compartilhado. Os quatro arquivos de vídeo previamente removidos do worktree financeiro foram preservados como alterações alheias e excluídos do commit.
+
+### F. Decisão de release
+
+- **GO técnico condicionado:** código financeiro e composição fixada e144 com provas locais/Preview positivas; confirmar CI do commit final deste incremento. A referência posterior do TISS requer revisão do delta antes de eventual publicação conjunta.
+- **NO-GO operacional live:** falta configurar/validar catálogo, loja, segredo/webhook, agenda, observabilidade Production, responsáveis e cohort; renovação externa depende de observação ou aceite formal específico.
+- **NO-GO comercial:** nenhuma autorização nesta rodada para cobrar clientes reais, migrar contratos, aplicar Production, fazer merge ou deploy.
+
+A chave ABACATEPAY_API_KEY já existe em Production e não deve ser recriada nem usada neste ensaio. A próxima decisão humana é a avaliação do risco residual de renovação e do piloto proposto; isso não substitui os preflights técnicos da futura janela. A CI e o SHA definitivos devem ser conferidos no PR53 antes de qualquer GO, sem atribuir7139 testes da baseline a este diff.

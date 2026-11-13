@@ -65,6 +65,17 @@ describe('AssinaturaPage', () => {
 
     await expect(AssinaturaPage()).rejects.toThrow('database unavailable');
   });
+  it('shows a safe unavailable state instead of exposing Asaas controls for an AbacatePay contract', async () => {
+    getPlanChangeOverview.mockRejectedValue(
+      new PlanChangeError('Provider management unavailable.', 'provider_operation_unavailable'),
+    );
+    render(await AssinaturaPage());
+    expect(screen.getByText('Gestão da assinatura temporariamente indisponível')).toBeTruthy();
+    expect(screen.getByText(/Nenhuma alteração de plano foi realizada/u)).toBeTruthy();
+    expect(screen.queryByText('Plano carregado')).toBeNull();
+    expect(screen.queryByText(/assinatura provisionada/u)).toBeNull();
+    expect(screen.queryByRole('button', { name: /Contratar|Alterar|Cancelar/ })).toBeNull();
+  });
   it('uses the persisted deferred origin without rendering Asaas management', async () => {
     getDeferredOverview.mockResolvedValue({
       planName: 'Clínica',

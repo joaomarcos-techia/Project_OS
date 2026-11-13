@@ -1,7 +1,7 @@
 {
   "version": 1,
   "status": "FROZEN_FOR_AUTHORIZED_DEV_PREFLIGHT",
-  "tissHead": "62edb485ccb6592ccb981c1cabe9df66ed7708d6",
+  "tissHead": "e14408d3d947ec426c36abd390d5f4c3002264c8",
   "financialBaseCommit": "52de7ada99b1556df673d4cd849181dba2243df5",
   "devProjectRef": "pqhkirrszzpwezdaqrai",
   "expectedInitialHistoryEntries": 144,
@@ -117,6 +117,9 @@
   },
   "productionAuthorized": false,
   "reviewedSqlTissHead": "120e8195e4ad267a64157239cb9bc0c22b432033",
-  "initialHistoryAlternatives": [144, 159],
-  "sourceRefresh": "TISS advanced only operational evidence/tools after the SQL freeze; all 0143-0158 hashes remain identical. Its owner applied 0144-0158 independently under founder authorization; verify actual DEV history and apply only missing successor."
+  "initialHistoryAlternatives": [
+    144,
+    159
+  ],
+  "sourceRefresh": "Code input updated to TISS e14408d3 for corrected RSC/XSD/pool and current regression. SQL 0143-0158 bytes/schema unchanged from the DEV application at 62edb485; 0159 was already applied and must not be reapplied."
 }

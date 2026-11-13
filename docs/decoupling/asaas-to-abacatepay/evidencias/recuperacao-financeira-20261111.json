@@ -19398,5 +19398,288 @@
       "configurationWrites": 0,
       "productionWrites": 0
     }
+  },
+  "finalTissReconciliation": {
+    "observedAt": "2026-11-13T02:43:25.217Z",
+    "financialSource": "5144e6b570990b35960f12b41088f037a124d2bb",
+    "tissSource": "e14408d3d947ec426c36abd390d5f4c3002264c8",
+    "mode": "read_only",
+    "sharedDev": {
+      "projectRef": "pqhkirrszzpwezdaqrai",
+      "status": "PASS",
+      "historyEntries": 160,
+      "reapplied0159": false,
+      "sqlSha256": "eb00a4e3dd45f89e7eef4dc2c95c577e7932f1f2131d5bfb4ff8f5e4570f5c74",
+      "catalogSha256": "2a9f8fc25d01c73c562c59ef6be423778340a225c162f74813bc898d2a371c52",
+      "catalogRelations": 45,
+      "invalidIndexes": 0,
+      "unvalidatedConstraints": 0,
+      "privateTableSecurity": [
+        {
+          "relname": "renewal_api_readbacks",
+          "secured": true,
+          "tenant_read": false,
+          "service_delete": false
+        },
+        {
+          "relname": "statement_scan_items",
+          "secured": true,
+          "tenant_read": false,
+          "service_delete": false
+        },
+        {
+          "relname": "statement_scans",
+          "secured": true,
+          "tenant_read": false,
+          "service_delete": false
+        }
+      ],
+      "existingTableCount": 227,
+      "existingDataPreserved": true,
+      "invariants": {
+        "orphan_contracts": 5,
+        "cross_tenant_invoices": 0,
+        "duplicate_cycles": 0
+      },
+      "orphans": {
+        "owner_tiss_fixtures": 2,
+        "other_dev": 3
+      },
+      "historicalExceptions": "The same six already documented pre-0144 hashes; no history rewriting"
+    },
+    "codeComposition": {
+      "tree": "e30b2912803fd9fe3a416baed293785c57829bc3",
+      "mergePerformed": false,
+      "firstDeployment": "dpl_J9ttGv9kCiapH7SjD2WsirWHrNNV",
+      "firstDeploymentStatus": "UI_FAIL_SAFE_PROVIDER_GUARD_WITH_BRANCH_ENV_MISSING",
+      "sentryIssue": "7845728659",
+      "environment": "preview",
+      "correctedDeployment": "dpl_7DwFaKuAJxSrbHAUGNUdJeQnhmDW",
+      "correctedPreview": "https://project-m6qti314r-clinic-os-v2-s-projects.vercel.app",
+      "correctedUi": {
+        "observedAt": "2026-11-13T09:47:02.877Z",
+        "sha": "5144e6b570990b35960f12b41088f037a124d2bb",
+        "preview": "https://project-m6qti314r-clinic-os-v2-s-projects.vercel.app",
+        "exitCode": 0,
+        "status": "PASS",
+        "scope": "Existing paid synthetic clinic, login, DB readback, desktop/mobile and denied repeated checkout; no new checkout/payment",
+        "journey": {
+          "runId": "0613b289-8d22-473f-bd3b-1058efc62833",
+          "userId": "a9376036-f69b-4dc9-b6c9-c1b6e7be66cf",
+          "status": "PASS",
+          "stages": [
+            "real_browser_login",
+            "paid_domain_records_verified",
+            "paid_ui_1440",
+            "paid_ui_390",
+            "paid_checkout_repeat_denied_by_acquisition_kill_switch",
+            "paid_whatsapp_gate_released",
+            "paid_asaas_gate_released",
+            "real_sandbox_webhook_invoice_receipt_and_paid_ui",
+            "paid_checkout_repeat_denied_and_integration_invite_gates_released"
+          ],
+          "retention": "retained_until_financial_reconciliation; never delete on test timeout",
+          "scope": "Real Sandbox simulation, authenticated webhook, invoice and readbacks; no real charge",
+          "browserErrorClasses": [],
+          "clinicId": "414c7484-1c7a-44b3-b3f4-4a139d01dc2e",
+          "subscriptionId": "4efcec8c-f4c3-4b77-95e3-b704e03f613a"
+        },
+        "failureDiagnostics": [],
+        "productionWrites": 0,
+        "newCheckouts": 0,
+        "newPayments": 0,
+        "historicalManifestChanged": false
+      },
+      "types": "PASS",
+      "build": "PASS",
+      "lint": "PASS",
+      "sharedTests": {
+        "status": "PASS_WITH_THREE_PREEXISTING_CORPUS_SKIPS",
+        "passed": 711,
+        "skipped": 3
+      },
+      "strictJournalTests": {
+        "passed": 7,
+        "skipped": 0
+      },
+      "financialPgChecks": 125,
+      "otherWorktreeWrites": 0,
+      "unrelatedPreexistingChangePreserved": true,
+      "sharedPostgresChecks": {
+        "ledgerBridge": 18,
+        "glossesPayments": 16,
+        "billingReconcile": 19,
+        "payout": 12,
+        "copayCharge": 8,
+        "sadt": 11,
+        "unionChain": 10,
+        "premiumGate": 11
+      },
+      "fixtureCorrections": "Review-only patch for immutable e14408d3 test helpers: anchor git at repository root, preserve matching financial SQL, and require actual synthetic paid invoice before trial entitlements",
+      "laterTissHeadObserved": "e2d0cf1f75879715d0a551582244ee975adf30b0",
+      "laterTissScope": "Two later UI/configuration/copay commits and current owner edits excluded; no SQL/schema/billing-context change in committed delta. This proof remains pinned to requested e14408d3, not a claim for later owner code."
+    },
+    "operationalProof": {
+      "status": "PASS",
+      "startedAt": "2026-11-13T03:16:42.568Z",
+      "finishedAt": "2026-11-13T03:31:37.279Z",
+      "environment": "isolated_loopback",
+      "source": {
+        "financial": "5144e6b5+operational-proof",
+        "tiss": "e14408d3d947ec426c36abd390d5f4c3002264c8"
+      },
+      "scope": "Node HTTP adapter of real receiver and worker; real Docker Redis with local REST bridge; real migrated PostgreSQL; synthetic provider HTTP",
+      "exclusions": [
+        "Not Vercel capacity or production SLA",
+        "No external renewal or payment",
+        "Sentry delivery reuses prior Preview channel proof; this harness measures application metrics"
+      ],
+      "results": [
+        "HTTP missing HMAC refused before persistence",
+        "Real Redis paused/recovered; durable event applied once and duplicate HTTP 200",
+        "HTTP provider 429/Retry-After defers inbox; retry recovers without financial duplication",
+        "Five actual provider HTTP 503s open the shared Redis circuit; blocked request makes no provider call",
+        "Owned worker killed after reservation; actual 60-second lease expiry, restart applies once; circuit recovered",
+        "DB network outage: sender timed out without a successful acknowledgment",
+        "Actual runtime DB TCP loss fails HTTP closed; redelivery after restored network recovers",
+        "100/500/1000 clinics through actual HTTP receiver, Redis admission and leased DB workers"
+      ],
+      "runs": [
+        {
+          "clinics": 100,
+          "concurrency": 1,
+          "duplicateHttpIngress": {
+            "samples": 100,
+            "p50Ms": 1195.102899999998,
+            "p95Ms": 2568.714800000016,
+            "p99Ms": 3116.317800000019,
+            "elapsedMs": 126829.60100000002,
+            "throughputPerSecond": 0.7884594701200707,
+            "concurrency": 1
+          },
+          "backlog": 1,
+          "recovery": {
+            "elapsedMs": 1377.6656000000658,
+            "applied": 1,
+            "remaining": 0
+          },
+          "state": {
+            "clinics": 104,
+            "crossed": 0,
+            "duplicate_cycles": 0
+          },
+          "financialInvariantErrors": 0
+        },
+        {
+          "clinics": 500,
+          "concurrency": 2,
+          "duplicateHttpIngress": {
+            "samples": 500,
+            "p50Ms": 807.1012000000337,
+            "p95Ms": 2303.059200000018,
+            "p99Ms": 3839.214900000021,
+            "elapsedMs": 219174.79940000002,
+            "throughputPerSecond": 2.2812841684754384,
+            "concurrency": 2
+          },
+          "backlog": 39,
+          "recovery": {
+            "elapsedMs": 17141.707399999956,
+            "applied": 39,
+            "remaining": 0
+          },
+          "state": {
+            "clinics": 504,
+            "crossed": 0,
+            "duplicate_cycles": 0
+          },
+          "financialInvariantErrors": 0
+        },
+        {
+          "clinics": 1000,
+          "concurrency": 4,
+          "duplicateHttpIngress": {
+            "samples": 1000,
+            "p50Ms": 297.73010000004433,
+            "p95Ms": 1532.5596999999834,
+            "p99Ms": 2438.207999999984,
+            "elapsedMs": 160258.98789999995,
+            "throughputPerSecond": 6.2398996343592925,
+            "concurrency": 4
+          },
+          "backlog": 91,
+          "recovery": {
+            "elapsedMs": 82493.58589999995,
+            "applied": 91,
+            "remaining": 0
+          },
+          "state": {
+            "clinics": 1004,
+            "crossed": 0,
+            "duplicate_cycles": 0
+          },
+          "financialInvariantErrors": 0
+        }
+      ],
+      "providerReads": 6680,
+      "providerStatuses": {
+        "200": 6674,
+        "429": 1,
+        "503": 5
+      },
+      "receiverStatuses": {
+        "200": 1201,
+        "202": 870,
+        "401": 1,
+        "503": 1133
+      },
+      "redis": {
+        "commands": 15564,
+        "rejected": 3
+      },
+      "blockedRequests": 0,
+      "peaks": {
+        "rssBytes": 266199040,
+        "databaseConnections": 13,
+        "lockWaiters": 3
+      },
+      "cpuMicroseconds": {
+        "user": 270000000,
+        "system": 182406000
+      },
+      "productionWrites": 0,
+      "interpretation": {
+        "cohorts": "Progressive 100/500/1000 with repeated previously applied events; latency samples cover a pair of simultaneous deliveries per clinic, not a single HTTP request",
+        "rateLimit": "1133 HTTP503 responses include intentional admission/backpressure and injected failures; all persisted fixtures recovered. Not zero HTTP error rate.",
+        "clock": "Only synthetic completed statement cache freshness reset for fixtures; no financial period, provider date or lease was advanced",
+        "capacity": "No Vercel/provider/hosted Redis capacity promise. REST bridge executes actual Redis EVAL; does not certify managed service behavior.",
+        "measurements": "RSS and CPU refer to parent process; lock-wait sample is a waiter count, not lock duration. Domain transaction-duration measurements remain in prior evidence."
+      }
+    },
+    "productionWrites": 0,
+    "paymentsCreated": 0,
+    "productionDecision": "NO_GO",
+    "completedAt": "2026-11-13T09:53:10.940Z",
+    "finalCi": {
+      "status": "PENDING_FINAL_COMMIT",
+      "baseline": "5144e6b570990b35960f12b41088f037a124d2bb",
+      "baselineRun": "43347369350",
+      "baselinePassed": 7139,
+      "baselineE2e": 22
+    },
+    "decisions": {
+      "technical": "CONDITIONAL_ON_FINAL_CI_AND_PINNED_COMPOSITION",
+      "operational": "NO_GO_LIVE_CONFIGURATION_EXTERNAL_RENEWAL_OR_FORMAL_RISK_TREATMENT",
+      "commercial": "NO_GO_NO_AUTHORIZATION_TO_CHARGE_OR_MIGRATE_REAL_CONTRACTS"
+    },
+    "finalLocalGates": {
+      "typecheck": 0,
+      "lint": 0,
+      "pageTests": 0,
+      "architecture": "PASS 1800 files",
+      "pageTestCount": 6,
+      "prettier": "PASS changed TypeScript files",
+      "diffReview": "Focused changes; four unrelated preexisting deleted videos excluded"
+    }
   }
 }

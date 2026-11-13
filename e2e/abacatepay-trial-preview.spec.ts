@@ -229,8 +229,15 @@ test('confirmed identity -> free trial -> server quota gates -> optional hosted 
         });
         return { status: response.status, body: await response.json() };
       });
-      expect(repeated).toEqual({ status: 409, body: { error: 'already_paid' } });
-      stages.push('paid_checkout_repeat_denied');
+      if (process.env.E2E_ABACATEPAY_EXPECT_CHECKOUT_UNAVAILABLE === 'true') {
+        // Dedicated composition Previews stop new obligations. This explicit
+        // expectation must match that deployment's reviewed kill switch.
+        expect(repeated).toEqual({ status: 503, body: { error: 'unavailable' } });
+        stages.push('paid_checkout_repeat_denied_by_acquisition_kill_switch');
+      } else {
+        expect(repeated).toEqual({ status: 409, body: { error: 'already_paid' } });
+        stages.push('paid_checkout_repeat_denied');
+      }
       await page.goto(new URL('/configuracoes/whatsapp', origin.origin).toString());
       await expect(
         page.getByText('WhatsApp disponível após o pagamento', { exact: true }),

@@ -408,3 +408,40 @@ Inputs: financeiro04a4fd7332795be9c83906c8edefffaa8b30137a eTISS9b463168f438f5ec
 O fechamento Sandbox já comprovado revelou currentPeriodStart2026-11-11/currentPeriodEnd2026-12-11/nextChargeAt2026-12-11 no GET da assinatura. Isso comprova a configuração/consulta futura, **não** uma renovação realizada. Não repetir checkout, pagamento, fechamento, MFA ou probe para obter esse mesmo resultado.
 
 **Build composto confirmado:** Preview exclusivo https://project-dnyxo3r3q-clinic-os-v2-s-projects.vercel.app, READY,5min35s. É um artefato de verificação com checkout bloqueado, não o destino de novas homologações de pagamento nem substituto do Preview financeiro do PR53. O snapshot contém o TISS9b463168 com incidente RSC conhecido; não usar o build verde para fechar esse incidente. O tsc local desse snapshot parou por heap2GB; Next remoto verificou tipos/lint sem desabilitar gates.
+
+## Checkpoint executável — 13/11, composição e144 e infra isolada
+
+Estado comprovado: DEV160/0159 já aplicada, apenas readback nesta rodada; catálogo45 relações e227 fingerprints preservados. Não executar migration novamente. Composição testada: financeiro5144e6b5 mais diff do incremento, TISS e14408d3. Mudanças posteriores do proprietário não estão automaticamente homologadas. Ver relatório§52 e finalTissReconciliation na evidência canônica.
+
+### Reproduzir somente quando o código afetado mudar
+
+No worktree financeiro, PowerShell, sem carregar .env nem usar chave real:
+
+```powershell
+Set-Location 'C:\dev\Qoro_billing_abacatepay_20261107'
+$env:QORO_TISS_WORKTREE = 'C:/dev/Qoro_convenios_tiss_20261110'
+$env:QORO_TISS_REF = 'e14408d3d947ec426c36abd390d5f4c3002264c8'
+$env:QORO_ABACATEPAY_OPERATIONAL = '1'
+$env:QORO_FINANCIAL_REF = (git rev-parse HEAD)
+node node_modules/tsx/dist/cli.mjs --conditions=react-server scripts/security/abacatepay-renewal-db.ts
+Remove-Item Env:QORO_ABACATEPAY_OPERATIONAL
+```
+
+Pré-requisitos: Docker Engine ativo, PostgreSQL local compatível com o helper scratch, porta55492 livre e dependências já instaladas. Esse comando cria somente banco descartável e Redis com label qoro.synthetic=billing-operational em loopback. Fonte do provedor é HTTP sintético; saída de êxito: dist/abacatepay-operational-http.json com status PASS. Redis é removido e cluster é parado pelo harness. Não reaproveitar esses dados, executar contra DEV, passar --env-file ou interpretar esse teste como renovação externa. Se houver falha, preservar o diagnóstico; não alterar status no banco para fazê-lo passar.
+
+A composição descartável usa merge-tree/export, journal gerado160, patches tiss-ledger-integration.patch e tiss-composition-harness.patch. Para aplicá-los a uma pasta aninhada no repositório, executar a partir da **raiz financeira** com --directory apontando para essa pasta; git apply dentro da subpasta pode ignorar paths que considera fora do prefixo. Usar --unidiff-zero nos dois patches e sempre verificar --check antes, confirmando que o arquivo foi realmente alterado. O segundo patch só adapta testes do SHA e144; não altera regras de TISS, dados, SQL ou worktree do proprietário.
+
+### Preview e falha de configuração
+
+Preview composto atual: https://project-m6qti314r-clinic-os-v2-s-projects.vercel.app/configuracoes/assinatura. Login/cota/readbacks/desktop/mobile passaram com fixture já paga. Novas aquisições ficam fechadas (503 esperado). Não criar/pagar checkout nessa URL. A mensagem de indisponibilidade de gestão é segura, mas **não equivale a configuração correta**: verificar os nomes/escopo Sandbox e o caminho pago antes de fechar incidente. Nunca habilitar controles Asaas para um binding AbacatePay para contornar a mensagem. A correção não altera contratos.
+
+### Monitorar eventual piloto, somente após autorização
+
+1. Fixar commits/checks, catálogo/live, loja atestada, segredo HMAC próprio, cohort aprovado e plantão. Não usar recursos Sandbox como live. A presença da APIkey não libera aquisições.
+2. Com aquisição parada, conferir recebimento/consumidores por binding, cron de minuto e scanner. Preview não recebe cron automático; operação Production só na janela autorizada, sem tick global no DEV para ensaiar.
+3. Medir idade do inbox, attempts, filas em received/processing/review, lease vencido, falha de ativação e scan pendente. Pagamento comprovado sem invoice/período/cota correto é incidente; aquisição deve parar sem parar reconciliação.
+4. Proposta conservadora de início: até10 clínicas listadas; nenhuma expansão automática. Rever com base na cobertura efetiva do cron/alertas e comportamento do provedor. Isso é proposta operacional, não capacidade garantida.
+5. Em renewal ausente/ambíguo, manter revisão explícita; confirmar payment.id, loja, cliente, valor, competência e obrigação pelo leitor/receipt/extrato suportados. Usar reprocessamento existente com MFA e audit. Nunca estender acesso por texto da IA, inventar vencimento ou fazer novo POST de cobrança para reconciliar.
+6. Uma prova de renovação futura exige evento/receipt de um novo ciclo, invoice única, período único, cota correspondente, UI, duplicata recusada e alerta/reconciliação consistentes. Consulta de data futura e fixtures não encerram esse aceite.
+
+Interromper novas aquisições por: vínculo cruzado, duplicidade financeira, recibo sem proveniência, drift de contrato legado, ativação sem comprovação, worker/alerta sem cobertura ou backlog sem recuperação. Desligar aquisição não apaga obrigações nem autoriza rollback destrutivo. Preservar inbox/invoices/readbacks/journal e corrigir à frente se o release anterior não suporta os bindings.

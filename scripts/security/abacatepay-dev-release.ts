@@ -252,6 +252,47 @@ try {
       assert.deepEqual(await history(), expected);
     }
     report.security = security;
+    const catalog = await sql`WITH target AS (
+      SELECT c.oid,n.nspname,c.relname,c.relrowsecurity,c.relforcerowsecurity
+      FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+      WHERE c.relkind='r' AND ((n.nspname='public' AND c.relname LIKE 'hi\\_%' ESCAPE '\\')
+        OR (n.nspname='billing_gateway' AND c.relname IN
+          ('operations','recurring_payment_observations','renewal_api_readbacks','statement_scans','statement_scan_items')))
+    ) SELECT nspname schema,relname relation,relrowsecurity rls,relforcerowsecurity forced_rls,
+      (SELECT jsonb_agg(jsonb_build_object('name',conname,'type',contype,'validated',convalidated,
+        'definition',pg_get_constraintdef(oid)) ORDER BY conname) FROM pg_constraint WHERE conrelid=t.oid) constraints,
+      (SELECT jsonb_agg(jsonb_build_object('name',tgname,'enabled',tgenabled,
+        'definition',pg_get_triggerdef(oid)) ORDER BY tgname) FROM pg_trigger WHERE tgrelid=t.oid AND NOT tgisinternal) triggers,
+      (SELECT jsonb_agg(jsonb_build_object('name',ci.relname,'valid',i.indisvalid,'ready',i.indisready,
+        'definition',pg_get_indexdef(i.indexrelid)) ORDER BY ci.relname)
+        FROM pg_index i JOIN pg_class ci ON ci.oid=i.indexrelid WHERE i.indrelid=t.oid) indexes
+      FROM target t ORDER BY nspname,relname`;
+    assert.ok(catalog.length > 20, 'Expected financial and TISS relations missing');
+    for (const relation of catalog) {
+      const indexes = z
+        .array(z.object({ valid: z.literal(true), ready: z.literal(true) }))
+        .nullable()
+        .parse(relation.indexes);
+      const constraints = z
+        .array(z.object({ validated: z.literal(true) }))
+        .nullable()
+        .parse(relation.constraints);
+      assert.ok(indexes && constraints, 'Expected indexes or constraints missing');
+    }
+    report.effectiveSchema = {
+      sha256: sha256(JSON.stringify(catalog)),
+      relations: catalog,
+      invalidIndexes: 0,
+      unvalidatedConstraints: 0,
+      financial0159Verified: true,
+      note: 'Catalog definitions, not row count alone. SQL source hashes and history checked separately.',
+    };
+    const [orphans] = await sql`SELECT
+      count(*) FILTER(WHERE c.slug LIKE 'e2e-hi-%')::int owner_tiss_fixtures,
+      count(*) FILTER(WHERE c.slug NOT LIKE 'e2e-hi-%')::int other_dev
+      FROM public.subscriptions s JOIN public.clinics c ON c.id=s.clinic_id
+      WHERE NOT EXISTS(SELECT 1 FROM public.profiles p WHERE p.clinic_id=s.clinic_id AND p.role='owner' AND p.ativo)`;
+    report.orphanClassification = orphans;
     report.repeatedMigrator = APPLY ? 'no_change' : 'not_run';
   }
   report.after = {

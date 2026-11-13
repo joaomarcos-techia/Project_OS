@@ -10,6 +10,14 @@ const tissProof = process.env.QORO_TISS_REF ? await loadTissProofInputs() : null
 const cluster = await startScratchSchema({ port: 55492 });
 assert.equal(new URL(cluster.url).hostname, '127.0.0.1');
 const sql = cluster.sql;
+const operational = process.env.QORO_ABACATEPAY_OPERATIONAL === '1';
+const { startOperationalRedis, startOperationalDatabaseProxy } =
+  await import('./abacatepay-operational-infra');
+const operationalRedis = operational ? await startOperationalRedis() : undefined;
+const operationalDatabase = operational
+  ? await startOperationalDatabaseProxy(cluster.url)
+  : undefined;
+const applicationUrl = operationalDatabase?.url ?? cluster.url;
 try {
   if (tissProof) {
     await sql.begin(async (tx) => {
@@ -18,13 +26,15 @@ try {
   }
 } catch (error) {
   await cluster.stop();
+  await operationalRedis?.stop();
+  await operationalDatabase?.stop();
   throw error;
 }
 Object.assign(process.env, {
   NODE_ENV: 'test',
-  DATABASE_URL: cluster.url,
-  DATABASE_URL_DEV: cluster.url,
-  DATABASE_URL_RUNTIME: cluster.url,
+  DATABASE_URL: applicationUrl,
+  DATABASE_URL_DEV: applicationUrl,
+  DATABASE_URL_RUNTIME: applicationUrl,
   SUPABASE_PROJECT_ENV: 'dev',
   NEXT_PUBLIC_SUPABASE_URL: 'https://test.supabase.co',
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_synthetic_renewal',
@@ -46,6 +56,14 @@ Object.assign(process.env, {
 });
 delete process.env.VERCEL_ENV;
 delete process.env.DATABASE_URL_PROD;
+delete process.env.ABACATEPAY_API_KEY_PROD;
+if (operationalRedis)
+  Object.assign(process.env, {
+    VERCEL_ENV: 'preview',
+    ABACATEPAY_ENVIRONMENT: 'sandbox',
+    UPSTASH_REDIS_REST_URL: operationalRedis.url,
+    UPSTASH_REDIS_REST_TOKEN: operationalRedis.token,
+  });
 const originalFetch = globalThis.fetch;
 let networkCalls = 0,
   fixtureHttpCalls = 0,
@@ -545,6 +563,42 @@ function notification(f: Fixture) {
   );
 }
 let failure: unknown;
+if (operational) {
+  assert.ok(operationalRedis && operationalDatabase);
+  try {
+    await sql`UPDATE public.plans SET ativo=true WHERE code IN ('clinica_2026_2','clinica_2026_3','clinica_2026_4','clinica_2026_5','consultorio_2026')`;
+    const candidate = await readFile(
+      'docs/decoupling/asaas-to-abacatepay/migrations/saas_period_snapshot.candidate.sql',
+      'utf8',
+    );
+    await sql.begin((tx) => tx.unsafe(candidate));
+    const { runAbacatePayOperationalProof } = await import('./abacatepay-operational-proof');
+    await runAbacatePayOperationalProof({
+      sql,
+      seed,
+      notification,
+      webhook,
+      worker: reconcileAbacatePayInbox,
+      originalFetch,
+      redis: operationalRedis,
+      databaseProxy: operationalDatabase,
+      handlerFor(f) {
+        const previous = globalThis.fetch;
+        installHttpFixture(f);
+        const handler = globalThis.fetch;
+        globalThis.fetch = previous;
+        return handler;
+      },
+    });
+    assert.equal(networkCalls, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+    await operationalDatabase.stop();
+    await operationalRedis.stop();
+    await cluster.stop();
+  }
+  process.exit(0);
+}
 if (process.env.QORO_ABACATEPAY_SCALE === '1') {
   try {
     await sql`UPDATE public.plans SET ativo=true WHERE code IN ('clinica_2026_2','clinica_2026_3','clinica_2026_4','clinica_2026_5','consultorio_2026')`;

@@ -348,3 +348,40 @@ Tipos de dependência: **A** engenharia; **B** ambiente; **C** validação exter
 | G28 | Aprovação Production | Preparação e rollout condicional autorizados; nenhuma migration Production autorizada pela etapa DEV | BLOCKED pelos gates restantes | C/D; Founder/Operação | Não executar rollout enquanto critérios obrigatórios pendentes |
 
 **Decisão: NO-GO de Production.** O scanner e a primeira contratação não eliminam os gates externos. A composição live explícita já está implementada e testada na candidata, sem credencial ou configuração Production alterada. Capacidade e falhas no ambiente-alvo continuam distintas das provas isoladas; o código operacional TISS pertence ao PR55. A busca de estornos agora usa checkpoints de finalidade própria, com isolamento dos comprovantes de cartão e atualização de movimentos sob identidade estável. O fallback N-1 de cinco páginas permanece somente sem o schema aprovado. Isso não equivale a comprovar externamente disputas ou outros eventos que o provedor não simula. Não alterar contratos/cotas nem usar cobranças adicionais para resolver divergências.
+
+## Matriz corrente G01–G28 — reconciliação e infra, 13/11/2026
+
+Esta tabela substitui os estados correntes anteriores, sem apagar o histórico. Fonte: [relatório§52](RELATORIO-HOMOLOGACAO-FINAL.md#52-reconciliação-final-com-tiss-e-prova-operacional--13112026) e `finalTissReconciliation` na evidência canônica. PASS local, Sandbox e externo são escopos distintos. Tipos A engenharia, B ambiente, C validação externa, D aprovação humana.
+
+| Gate | Área | Estado | Evidência / ação restante |
+| --- | --- | --- | --- |
+| G01 | Trial 14 dias desde Auth | PASS local | Provas anteriores50 e gates compostos; não reconta desde checkout |
+| G02 | Entitlements | PASS local/composto | Trial e status-only negam; invoice paga libera somente plano; TISS operacional separado |
+| G03 | Checkout idempotente | PASS Sandbox/Preview | Cinco compras preservadas; repetição recusada no Preview com aquisição pausada |
+| G04 | Pagamento confirmado | PASS Sandbox inicial | Sem nova transação nesta rodada; renovação é G08 |
+| G05 | Ativação | PASS local/Sandbox | Financeiro125, readback e UI paga1440/390px |
+| G06 | Invoice | PASS local/Sandbox | Uma obrigação, valor/vínculo corretos; carga sem duplicação |
+| G07 | Cotas | PASS contratação inicial | Cinco valores e variantes preservados; UI5 médicos conferida |
+| G08 | Renovação externa | PARTIAL — C | Não existe acelerador; aguardar ciclo ou aceite formal específico |
+| G09 | Recuperação sem webhook | PARTIAL externo; PASS local | Scanner/125/HTTP reais locais; novo ciclo externo não observado |
+| G10 | Scanner/cursor | PASS local + DEV schema | Mais de10.000 por finalidade, fencing/retry; sem volume no DEV compartilhado |
+| G11 | Fechamento/readbacks | PASS externo delimitado | Prova anterior preservada; não repetir fechamento/pagamento |
+| G12 | Cancelamento/recontratação | PASS local; PARTIAL externo | Período preservado/revisão; eventos não simuláveis não recebem PASS externo |
+| G13 | Upgrade/downgrade | PASS local; PARTIAL externo | Cota só em renovação paga; falta ciclo externo de alteração |
+| G14 | Concorrência | PASS local integrado | Leases/worker morto/restart, Redis/PG, zero ciclo/invoice cruzada |
+| G15 | Escala | PASS integridade isolada; PARTIAL capacidade alvo | Coortes100/500/1000, backlog0; não garante SLA Vercel/provedor |
+| G16 | Rate limit/circuito | PASS infra isolada + Preview saudável | 429/Retry-After, Redis pausado, cinco503/circuito e recuperação reais locais |
+| G17 | Multi-tenant | PASS local + readback DEV | RLS/constraints45relações; nenhum vínculo financeiro cruzado |
+| G18 | MFA | PASS Preview histórico | Confirmação anterior do founder preservada, sem mudança relevante |
+| G19 | Sentry/alertas | PASS Preview; PARTIAL live | 414eb196 entregue; tag preview confirmada; regras/cohort live pendentes |
+| G20 | CI do incremento | PENDING final commit | Baseline5144:7139/22 semSKIP; não atribuir ao novo código; conferir PR53 |
+| G21 | SQL/journal | PASS DEV | 160 entradas;0159 correta e não reaplicada;6 exceções históricas preservadas |
+| G22 | Compatibilidade TISS | PASS composição fixada; PARTIAL UI TISS final | e144 corrigido;125+regressões PG/build/tipos/lint/711; três SKIP corpus preexistentes; UI financeira PASS. Jornada TISS autenticada/delta posterior pertencem PR55 |
+| G23 | Homologação externa | PARTIAL — C/D | Cinco iniciais/fechamento/MFA/alerta preservados; ciclo natural pendente |
+| G24 | Rollout/rollback | PREPARADO; PARTIAL live | Catálogo/loja/webhook/cohort/agenda e janela faltam; consumers separados da aquisição |
+| G25 | Auxiliar Vercel | PASS histórico | Remoção anterior comprovada; nenhuma nova remoção |
+| G26 | Aprovação operacional | BLOCKED — D | Nomear responsáveis/cohort e aprovar cobertura/risco; proposta piloto até10 |
+| G27 | Aprovação comercial | BLOCKED — D | Nenhum aceite implícito de risco externo ou autorização para cobrar/migrar |
+| G28 | Production | NO-GO — C/D | Sem merge/deploy/migration/contrato real nesta rodada |
+
+**GO técnico condicionado** aos checks do commit final e à composição fixada/revisada. **NO-GO operacional live e comercial.** O TISS permanece desligado para clínicas reais; o avanço posterior do proprietário não é automaticamente coberto por estas provas. Não reexecutar as cinco compras, MFA ou alerta já comprovados.
