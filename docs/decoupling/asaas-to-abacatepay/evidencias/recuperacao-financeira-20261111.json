@@ -19754,10 +19754,25 @@
           "passed": 23,
           "failed": 0
         },
-        "finalComposedRegression": "PENDING_FINAL_EXPORT"
+        "finalComposedRegression": "PASS 836; three pre-existing skips"
       },
       "prettier": "PASS changed TypeScript",
-      "architecture": "PASS 1801 files"
+      "architecture": "PASS 1801 files",
+      "composedFinal": {
+        "typecheck": "PASS_WITH_LOCAL_4_GIB_HEAP",
+        "defaultHeapAttempt": "FAIL_ENVIRONMENT_NODE_2_GIB_HEAP_EXHAUSTED_NO_TYPESCRIPT_DIAGNOSTIC",
+        "lint": "PASS",
+        "unit": {
+          "files": 54,
+          "passed": 836,
+          "skipped": 3,
+          "failed": 0,
+          "skipReason": "Pre-existing XML corpus cases without bytes; unchanged"
+        },
+        "build": "PASS_VERCEL_READY",
+        "runtimeEquivalentLaterTiss": "82049a79743560dc742c22ecd84e24f8fa3ce5c0",
+        "laterDelta": "No src/drizzle/package/lockfile changes; does not import later docs or owner edits"
+      }
     },
     "operationalPilot": {
       "status": "PASS",
@@ -19922,7 +19937,22 @@
       "skippedE2e": 0
     },
     "finalCi": {
-      "state": "PENDING_FINAL_COMMIT"
+      "state": "SUCCESS_CODE_COMMIT",
+      "sha": "1703b3f2acfa4f31d1c74a3d1649d532bc1a4ecd",
+      "run": "43416581923",
+      "url": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/43416581923",
+      "tests": 7147,
+      "files": 631,
+      "e2e": 22,
+      "skippedE2e": 0,
+      "checks": {
+        "ci": "SUCCESS",
+        "semgrep": "SUCCESS",
+        "snyk": "SUCCESS",
+        "vercel": "SUCCESS",
+        "agentReview": "NEUTRAL_NOT_HUMAN_REVIEW"
+      },
+      "documentationFollowup": "Documentation-only commit carries final evidence; check its own PR HEAD checks before publication. No runtime changes after code SHA."
     },
     "liveConfiguration": {
       "configured": false,
@@ -19935,7 +19965,7 @@
       "minuteRenewalWatchPrepared": true
     },
     "productionReadback": {
-      "observedAt": "2026-11-13T10:35:28.566Z",
+      "observedAt": "2026-11-13T14:01:18.014Z",
       "sha": "5620a0987ec53db7d7358728eb7d457d9d373df3",
       "deployment": "dpl_2gHasgxKuWkFY8ct1w56VLeHDhQP",
       "valuesRead": false,
@@ -19947,7 +19977,7 @@
       "expansion": "up to3 by decision; up to10 only after cycle proof or additional formal risk approval",
       "activated": false,
       "risksAccepted": false,
-      "technical": "CONDITIONAL_FINAL_CI_AND_COMPOSED_PREVIEW",
+      "technical": "GO_SCOPED_TO_VERIFIED_CODE_AND_PINNED_COMPOSITION_NOT_PRODUCTION_READY",
       "operational": "NO_GO",
       "commercial": "NO_GO"
     },
@@ -19956,6 +19986,70 @@
     "otherWorktreeWrites": 0,
     "newCheckouts": 0,
     "newPayments": 0,
-    "newExternalCheckoutClosures": 0
+    "newExternalCheckoutClosures": 0,
+    "completedAt": "2026-11-13T14:02:55.441Z",
+    "codeCommit": "1703b3f2acfa4f31d1c74a3d1649d532bc1a4ecd",
+    "composedSource": {
+      "observedAt": "2026-11-13T11:23:24.102Z",
+      "financial": "1703b3f2acfa4f31d1c74a3d1649d532bc1a4ecd",
+      "tiss": "4d0ed1d5c8a81ab9f66e026f4f36c6e4520a7269",
+      "projectedTree": "adbaee2de72aae6366d871a4ad6c6dd83859d49e",
+      "directory": "dist/abacatepay-code-1703b3f2-4d0ed1d5",
+      "conflicts": [
+        "docs/security/acoes.md",
+        "drizzle/migrations/meta/_journal.json",
+        "scripts/arch-db-check.ts"
+      ],
+      "patches": ["tiss-ledger-integration.patch", "tiss-composition-harness.patch"],
+      "journalEntries": 160,
+      "financialSqlSha256": "eb00a4e3dd45f89e7eef4dc2c95c577e7932f1f2131d5bfb4ff8f5e4570f5c74",
+      "mergePerformed": false,
+      "databaseWrites": 0,
+      "otherWorktreeWrites": 0,
+      "state": "EXPORTED_REQUIRES_TYPES_LINT_BUILD_AND_REGRESSION"
+    },
+    "preview": {
+      "id": "dpl_Ag4mvsaUTPHbX6hhxbFKdg6etLgR",
+      "url": "https://project-gepwnmxih-clinic-os-v2-s-projects.vercel.app",
+      "source": "1703b3f2+4d0ed1d5",
+      "state": "READY",
+      "metadataVerified": true,
+      "acquisitionEnabled": false,
+      "productionVariablesRead": 0,
+      "persistentVariablesChanged": 0,
+      "paidUi": {
+        "status": "PASS",
+        "observedAt": "2026-11-13T11:30:06.605Z",
+        "stages": [
+          "real_browser_login",
+          "paid_domain_records_verified",
+          "paid_ui_1440",
+          "paid_ui_390",
+          "paid_checkout_repeat_denied_by_acquisition_kill_switch",
+          "paid_whatsapp_gate_released",
+          "paid_asaas_gate_released",
+          "real_sandbox_webhook_invoice_receipt_and_paid_ui",
+          "paid_checkout_repeat_denied_and_integration_invite_gates_released"
+        ],
+        "browserErrors": [],
+        "screenWidths": [1440, 390],
+        "newCheckouts": 0,
+        "newPayments": 0
+      },
+      "sentry": {
+        "observedAt": "2026-11-13T11:32:32.943Z",
+        "sha": "1703b3f2acfa4f31d1c74a3d1649d532bc1a4ecd",
+        "preview": "https://project-gepwnmxih-clinic-os-v2-s-projects.vercel.app",
+        "status": "PASS",
+        "scope": "Read-only emitted browser bundle: explicit Sentry init environment; not alert delivery",
+        "scriptCount": 18,
+        "releaseFound": 2,
+        "expectedRelease": "qoro-financial-1703b3f2-tiss-4d0ed1d5",
+        "previewInitializationFound": 1,
+        "productionInitializationFound": 0,
+        "providerCalls": 0,
+        "productionWrites": 0
+      }
+    }
   }
 }

@@ -475,3 +475,22 @@ O modo QORO_ABACATEPAY_OPERATIONAL_PROFILE=pilot usa10 clínicas sintéticas, Re
 O harness financeiro completo agora usa Redis Docker isolado nos cenários de comando com contexto live sintético. Isso preserva a exigência de coordenação, sem introduzir bypass Production. Não carregar chave live. O provider HTTP continua sintético e o banco exclusivamente loopback.
 
 Auxiliar run-scale-preview-redis: GET do ID exato retornou404 em13/11 10:35UTC; limpeza anterior concluída. Não tentar excluí-lo novamente nem usar buscas amplas para apagar outros projetos. QoroProduction permaneceu no5620a098.
+
+### Reproduzir somente o pacote de revisão, sem DDL/deploy
+
+Inputs usados nesta rodada: financeiro1703b3f2acfa4f31d1c74a3d1649d532bc1a4ecd e TISS4d0ed1d5c8a81ab9f66e026f4f36c6e4520a7269. Execute no worktree financeiro, não na main ou no worktree TISS:
+
+```powershell
+Set-Location 'C:\dev\Qoro_billing_abacatepay_20261107'
+$env:QORO_TISS_WORKTREE='C:/dev/Qoro_convenios_tiss_20261110'
+$env:QORO_TISS_REF='4d0ed1d5c8a81ab9f66e026f4f36c6e4520a7269'
+$env:QORO_FINANCIAL_REF='1703b3f2acfa4f31d1c74a3d1649d532bc1a4ecd'
+node node_modules/tsx/dist/cli.mjs scripts/security/abacatepay-tiss-composition.ts
+node node_modules/tsx/dist/cli.mjs scripts/security/abacatepay-code-composition.ts
+```
+
+Os dois comandos apenas projetam arquivos em dist e usam git show/merge-tree; não fazem merge nem migration. O segundo recusa sobrescrever o export existente. Nesse caso, leia composition-inputs.json e confira os dois SHAs/hash0159; preserve o pacote, não o apague para forçar reexecução. O journal160 gerado só pertence à composição, não substitui journals aplicados das branches por conveniência.
+
+Para validar um export novo, instale as mesmas dependências do lockfile, sem copiar .env; execute nele types/lint e regressões afetadas. Neste Windows, o tsc do pacote atingiu o heap padrão2GiB e passou com **node --max-old-space-size=4096 node_modules/typescript/bin/tsc --noEmit**. Foi somente parâmetro de processo local; não foi modificado tsconfig, CI, build, versão, teste ou política de segurança. O build remoto e o login/readback/UI1440/390 do pacote também passaram. Falta de memória não deve ser registrada como erro TypeScript nem como PASS sem o reteste.
+
+O Preview de composição não herda overrides restritos à branch apenas por metadata. Seus cinco valores Sandbox precisam ser resolvidos por acesso autorizado e aplicados apenas em memória ao deployment, como nesta rodada; nenhum valor Production é permitido. Conferir source metadata e release antes de usar a fixture já paga. O Preview não gera cron automático; o perfil pilot chama o seam real em dois processos frios com intervalo60s, sem se apresentar como medição do scheduler Vercel.

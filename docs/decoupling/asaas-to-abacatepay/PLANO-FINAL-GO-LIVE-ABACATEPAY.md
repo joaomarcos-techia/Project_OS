@@ -283,3 +283,5 @@ Rollback de código só para versão compatível com schema aditivo e bindings e
 `Riscos R1–R4: [aceito com limites / não aceito / discutir item]; clínica inicial: [identificador a definir em canal autorizado]; financeiro: [responsável]; plantão/substituto: [responsáveis e cobertura]; cohort inicial:1; limites/controles: [aprovados/ajustes].`
 
 Esse retorno não autoriza por si só merge/deploy/migration/cobrança. A janela e a primeira operação financeira live exigem autorização específica após os gates. **GO técnico, operacional e comercial continuam decisões separadas.**
+
+**Resultado final de preparação:** código1703b3f2 com CI43416581923SUCCESS (7147 testes/22E2E semSKIP), composto com4d0ed1d5:tipos/lint/build,836 testes e3 SKIP antigos, UI paga1440/390PASS. Perfil piloto local10 clínicas/duas partidas frias por tick zerou backlog em201,87s e recuperou pagamento sem webhook; isso não é ciclo financeiro externo nem piloto live. Evidência e campos de origem no relatório§53/JSON canônico. GO técnico delimitado à candidata; NO-GO operacional live/comercial até decisões e configurações desta seção.
