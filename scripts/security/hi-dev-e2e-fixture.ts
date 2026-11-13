@@ -266,23 +266,21 @@ async function setup() {
  * da clínica — a clínica sintética, as contas, a assinatura paga e a habilitação
  * operacional do módulo (decisão do Qoro, registrada com o ator de sistema). Nenhuma
  * operadora, plano, contrato, perfil TISS, carteirinha, procedimento ou paciente: o E2E
- * cadastra tudo pela interface. Rodar de novo zera o que o próprio E2E criou NESTA
- * clínica sintética (conferida pelo slug), nunca em outra.
+ * cadastra tudo pela interface.
+ *
+ * Cada execução cria uma clínica sintética NOVA (`e2e-hi-config-<marca>`) e move as contas
+ * para ela: nada é apagado. Guia emitida, arquivo, prontuário e lançamento das execuções
+ * anteriores ficam intactos (retenção; o banco também impede apagar), e as clínicas
+ * anteriores têm o módulo DESLIGADO (desligar não é operação nova no D24).
  */
 async function setupConfig() {
   const accounts: Record<string, { email: string; password: string; userId: string; clinic: string; role: string }> = {};
-  const clinicId = await clinic('e2e-hi-config', 'Clínica Sintética E2E Configuração');
-  const [own] = await exec<{ ok: boolean }>(sql`SELECT slug = 'e2e-hi-config' AS ok FROM public.clinics WHERE id = ${clinicId}::uuid`);
+  await exec(sql`UPDATE public.hi_clinic_settings SET enabled = false
+                  WHERE enabled AND clinic_id IN (SELECT id FROM public.clinics WHERE slug LIKE 'e2e-hi-config%')`);
+  const slug = `e2e-hi-config-${Date.now().toString(36)}`;
+  const clinicId = await clinic(slug, 'Clínica Sintética E2E Configuração');
+  const [own] = await exec<{ ok: boolean }>(sql`SELECT slug = ${slug} AS ok FROM public.clinics WHERE id = ${clinicId}::uuid`);
   if (!own?.ok) throw new Error('clínica inesperada');
-  // Recomeço do CONVÊNIO do zero (cascata leva contratos, planos, carteirinhas, coberturas e
-  // coparticipações). Paciente com prontuário e procedimento já referenciado ficam: o banco protege a
-  // retenção e o E2E cria os seus com nomes únicos.
-  await exec(sql`DELETE FROM public.appointments WHERE clinic_id = ${clinicId}::uuid`);
-  await exec(sql`DELETE FROM public.hi_professional_profiles WHERE clinic_id = ${clinicId}::uuid`);
-  await exec(sql`DELETE FROM public.hi_memberships WHERE clinic_id = ${clinicId}::uuid`);
-  await exec(sql`DELETE FROM public.hi_insurers WHERE clinic_id = ${clinicId}::uuid`);
-  // Pacientes e procedimentos NÃO são apagados: paciente com prontuário é protegido pelo banco
-  // (retenção) e o E2E sempre cria os seus com nomes únicos por execução.
   const add = async (key: string, role: string, nome: string) => {
     const email = `e2e-hi-${key}@example.com`;
     const pass = password();
@@ -312,7 +310,7 @@ async function setupConfig() {
       provider_kind = NULL, contractor_name = NULL, cnes = NULL, cnes_status = 'unknown'`);
   writeFileSync(accountsFile!, JSON.stringify(accounts, null, 1));
   writeFileSync(outFile!, JSON.stringify({ clinicId, medica }, null, 1));
-  console.log(`[hi-dev-e2e-fixture] ok: clínica e2e-hi-config com o convênio zerado, ${Object.keys(accounts).length} contas, módulo habilitado`);
+  console.log(`[hi-dev-e2e-fixture] ok: clínica nova ${slug} (nada de convênio cadastrado), ${Object.keys(accounts).length} contas, módulo habilitado; as anteriores ficaram intactas e desligadas`);
 }
 
 async function cleanup() {
