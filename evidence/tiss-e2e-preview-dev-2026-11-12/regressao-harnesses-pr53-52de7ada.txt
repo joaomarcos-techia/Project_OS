@@ -1,0 +1,17 @@
+union-chain rc=0 40s :: PASS: mesma decisão que o código REAL do #53 em 52de7ada (evaluateModuleAccess + a consulta dele) para cobrança de pacientes e Agentes de IA em 10 estados: a
+premium-gate rc=0 50s :: RESULT: 11/11 PASS
+payout rc=0 84s :: PASS: 12. outra clínica não lê nem movimenta o repasse; atendimento de convênio concluído pelo Scheduling → outbox → guia pronta → repasse criado soz
+copay-charge rc=0 44s :: PASS: 8. assinatura suspensa (dunning): cobrança recusada; outra clínica não cobra nem sincroniza a coparticipação; o runtime não forja referência de cob
+ledger-bridge rc=0 109s :: 18/18 cenários da ponte financeira (0153) passaram.
+glosses-payments rc=0 181s :: PASS: livro financeiro: nenhum lançamento particular criado em todo o ciclo; cada guia enviada tem UM recebível da operadora (0153); a guia substituída por f
+batches rc=0 124s :: PASS: assinatura cancelada: lote novo, exportação, validação direta no banco e envio são barrados com a mensagem comercial; protocolo, análise, retorno e 
+guides rc=0 15s :: PASS: excluir a clínica remove guias, itens, snapshots, histórico e arquivos dela (mesmo aprovados) e não toca nas outras
+billing-reconcile rc=0 36s :: PASS: LGPD: paciente só com pendência (sem guia) é excluído; a pendência fica sem dado pessoal, ligada ao atendimento anonimizado
+coverage rc=0 77s :: PASS: LGPD: paciente com guia é ANONIMIZADO (cadastro sem dado pessoal) e a guia fica, sem bloqueio silencioso; paciente só com cobertura é excluído por int
+clinic rc=0 20s :: PASS: excluir a clínica remove os dados de convênio dela (inclusive contratos) e não toca nas outras
+guide-issuance rc=0 17s :: PASS: outra clínica não lê (negado e registrado na clínica de quem tentou); a auditoria nunca leva carteirinha nem hash
+guide-service rc=0 16s :: PASS: falha do chamador desfaz a guia e devolve o número; a nova entrega cria normalmente
+appeal-xml rc=0 82s :: 6/6 provas do XML do recurso de glosa (P9.7) passaram.
+statement-import rc=0 93s :: 9/9 provas da importação de demonstrativos (P9.5) passaram.
+ui-data rc=0 78s :: 6/6 provas das leituras da interface passaram.
+DONE
