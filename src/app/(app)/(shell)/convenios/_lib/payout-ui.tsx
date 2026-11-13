@@ -20,6 +20,7 @@ import {
 import { uuidv4 } from '@/lib/ui/uuid';
 
 import { toCents } from './batch-ui';
+import { ELIGIBILITY_LABELS } from './constants';
 
 const brl = (c: number) => (c / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const today = () => new Date().toLocaleDateString('sv-SE');
@@ -43,11 +44,6 @@ function useSubmit() {
   };
 }
 
-export const ELIGIBILITY_LABELS: Record<string, string> = {
-  on_receipt: 'No recebimento (sobre o que a operadora pagou)',
-  on_approval: 'Na aprovação da guia (faturado menos glosa definitiva)',
-  on_completion: 'Na conclusão (antecipa sobre o contratado)',
-};
 
 export function PayoutPolicyForm({ eligibility }: { eligibility: string }) {
   const id = useId();

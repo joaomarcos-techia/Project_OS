@@ -9,6 +9,8 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/use-toast';
+
+import { CARE_TYPES } from './constants';
 import {
   checkSadtRequestAction,
   createSadtRequestAction,
@@ -21,14 +23,6 @@ import {
 const localToday = () => new Date().toLocaleDateString('sv-SE');
 
 /** Tabela 50 (tipo de atendimento): os usuais de clínica ambulatorial. */
-export const CARE_TYPES: ReadonlyArray<[string, string]> = [
-  ['03', 'Outras terapias'],
-  ['05', 'Exame ambulatorial'],
-  ['04', 'Consulta'],
-  ['13', 'Pequeno atendimento'],
-  ['02', 'Pequena cirurgia'],
-  ['06', 'Atendimento domiciliar'],
-];
 
 function useSubmit() {
   const router = useRouter();

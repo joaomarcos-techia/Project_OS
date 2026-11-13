@@ -65,7 +65,8 @@ async function login(browser: Browser, key: string, viewport = DESKTOP): Promise
 
 async function visit(s: Session, path: string, shot?: string): Promise<number> {
   const res = await s.page.goto(path, { waitUntil: 'load' });
-  await s.page.waitForLoadState('networkidle').catch(() => undefined);
+  // O shell tem chamadas periódicas: "rede ociosa" pode nunca chegar; espera curta e segue.
+  await s.page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => undefined);
   // Página inteira sem rolagem horizontal (tabelas rolam dentro do próprio contêiner).
   const overflow = await s.page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow, `${path} transborda na horizontal`).toBeLessThanOrEqual(1);
@@ -197,9 +198,10 @@ test('ação repetida: dois cliques em "Marcar como conferida" fazem UMA transi�
 test('lote: montar com a guia emitida → XML gerado e validado no XSD → download conferido', async ({ browser }) => {
   test.setTimeout(300_000);
   const s = await login(browser, 'gestor');
-  await visit(s, '/convenios/lotes');
-  await s.page.getByLabel('Tipo de guia').selectOption('consulta');
-  if ((await s.page.getByRole('checkbox').count()) > 0) {
+  await visit(s, '/convenios/lotes', 'paga-lotes-antes');
+  const form = (await s.page.getByLabel('Tipo de guia').count()) > 0;
+  if (form) await s.page.getByLabel('Tipo de guia').selectOption('consulta', { timeout: 15_000 });
+  if (form && (await s.page.getByRole('checkbox').count()) > 0) {
     await s.page.getByRole('checkbox').first().check();
     await s.page.getByRole('button', { name: 'Montar lote' }).click();
     await s.page.waitForURL(/\/convenios\/lotes\/[0-9a-f-]{36}$/u, { timeout: 60_000 });

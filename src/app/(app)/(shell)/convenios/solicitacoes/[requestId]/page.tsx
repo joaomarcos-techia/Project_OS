@@ -16,7 +16,8 @@ import { getSadtRequestDetail } from '@/contexts/health-insurance/queries';
 
 import { brl, ConveniosHeader, conveniosAccess, shortDate } from '../../_lib/access';
 import { ActionButton, Actions, TextAction } from '../../_lib/action-ui';
-import { AuthorizationForm, CARE_TYPES, CheckRequestButton, IndicationForm, LinkSessionForm } from '../../_lib/sadt-ui';
+import { CARE_TYPES } from '../../_lib/constants';
+import { AuthorizationForm, CheckRequestButton, IndicationForm, LinkSessionForm } from '../../_lib/sadt-ui';
 import { GuideStatusBadge, SADT_STATUS, SadtStatusBadge } from '../../_lib/status';
 
 export const dynamic = 'force-dynamic';

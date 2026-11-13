@@ -7,7 +7,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableWra
 import { listInsurancePayouts } from '@/contexts/health-insurance/queries';
 
 import { brl, ConveniosHeader, conveniosAccess, shortDate } from '../_lib/access';
-import { ELIGIBILITY_LABELS, PayoutActions, PayoutPolicyForm } from '../_lib/payout-ui';
+import { ELIGIBILITY_LABELS } from '../_lib/constants';
+import { PayoutActions, PayoutPolicyForm } from '../_lib/payout-ui';
 
 export const dynamic = 'force-dynamic';
 
