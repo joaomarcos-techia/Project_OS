@@ -2,19 +2,35 @@ diff --git a/src/contexts/health-insurance/migration-ledger.test.ts b/src/contex
 index eeab2980..0984659e 100644
 --- a/src/contexts/health-insurance/migration-ledger.test.ts
 +++ b/src/contexts/health-insurance/migration-ledger.test.ts
-@@ -21,0 +22,2 @@ import { describe, expect, it } from 'vitest';
+@@ -19,6 +19,8 @@ import { readFileSync } from 'node:fs';
+ import { resolve } from 'node:path';
+
+ import { describe, expect, it } from 'vitest';
 +import { createHash } from 'node:crypto';
 +import { z } from 'zod';
-@@ -57 +59,4 @@ const base = journal.entries.filter((e) => e.idx <= 135);
+
+ type Entry = { idx: number; when: number; tag: string };
+
+@@ -54,10 +56,13 @@ function orderProblems(entries: readonly Entry[]): string[] {
+ }
+
+ const base = journal.entries.filter((e) => e.idx <= 135);
 -const tiss = journal.entries.filter((e) => e.idx >= 136);
 +const financial = journal.entries.filter((e) => e.idx >= 136 && e.idx <= 142);
 +const tiss = journal.entries.filter((e) => e.idx >= 143 && e.idx <= 158);
 +const successor = journal.entries.filter((e) => e.idx >= 159);
 +const entryValue = ({ idx, when, tag }: Entry): Entry => ({ idx, when, tag });
-@@ -60 +65 @@ describe('ordem das migrations depois do merge do #53 (D22)', () => {
+
+ describe('ordem das migrations depois do merge do #53 (D22)', () => {
 -  it('esta branch só acrescenta a faixa do convênio, começando na 0143', () => {
 +  it('separa a cauda do convênio, começando na 0143, do financeiro aplicado', () => {
-@@ -68,0 +74,45 @@ describe('ordem das migrations depois do merge do #53 (D22)', () => {
+     expect(tiss.map((e) => e.idx)).toEqual(Array.from({ length: tiss.length }, (_, i) => 143 + i));
+     // Exceção única e nominal: a 0155 corrige a função compartilhada do livro (R38, autorizada
+     // pelo fundador em 12/11 nesta branch, porque redefine o corpo que a 0153 estendeu).
+@@ -66,12 +71,57 @@ describe('ordem das migrations depois do merge do #53 (D22)', () => {
+     ]);
+   });
+
 +  it('preserva a faixa financeira completa quando ela já está no journal, sem duplicá-la', () => {
 +    expect([0, PR53_APPLIED_IN_DEV.length]).toContain(financial.length);
 +    expect(financial.map(entryValue)).toEqual(financial.length ? PR53_APPLIED_IN_DEV : []);
@@ -60,9 +76,22 @@ index eeab2980..0984659e 100644
 +    expect(frozen.financialEntry.when).toBeGreaterThan(tiss.at(-1)!.when);
 +  });
 +
-@@ -74 +124 @@ describe('ordem das migrations depois do merge do #53 (D22)', () => {
+   it('a 0143 é a que está aplicada no DEV: mesmo número, nome e versão lógica', () => {
+     expect(tiss[0]).toMatchObject(TISS_0143_APPLIED_IN_DEV);
+   });
+
+   it('a união main + #53 + #55 passa no gate de ordem do #53', () => {
 -    expect(orderProblems([...base, ...PR53_APPLIED_IN_DEV, ...tiss])).toEqual([]);
 +    expect(orderProblems([...base, ...PR53_APPLIED_IN_DEV, ...tiss, ...successor])).toEqual([]);
-@@ -86 +136 @@ describe('ordem das migrations depois do merge do #53 (D22)', () => {
+   });
+
+   it('nenhuma migration do convênio "nasce no passado" em relação ao DEV', () => {
+@@ -83,7 +133,7 @@ describe('ordem das migrations depois do merge do #53 (D22)', () => {
+   it('uma migration nova do #53 com número da faixa do convênio quebraria a ordem', () => {
+     // Exemplo do risco: o #53 cria "0143_x" hoje (when atual) sem trazer a faixa do convênio.
+     const collision = { idx: 143, when: Date.UTC(2026, 10, 11, 15), tag: '0143_saas_example' };
 -    const union = [...base, ...PR53_APPLIED_IN_DEV, collision, ...tiss];
 +    const union = [...base, ...PR53_APPLIED_IN_DEV, collision, ...tiss, ...successor];
+     expect(orderProblems(union).length).toBeGreaterThan(0);
+   });
+ });

@@ -2,12 +2,21 @@ diff --git a/scripts/security/dev-order-chain.ts b/scripts/security/dev-order-ch
 index 225743a2..f6d5cb4a 100644
 --- a/scripts/security/dev-order-chain.ts
 +++ b/scripts/security/dev-order-chain.ts
-@@ -15 +15,3 @@ export const PR53_DEFAULT_REF = '8c591c8f';
+@@ -12,7 +12,9 @@ import { readMigrations } from './scratch-schema';
+
+ export const PR53_DEFAULT_REF = '8c591c8f';
+
 -const git = (...args: string[]) => execFileSync('git', args, { encoding: 'utf8', maxBuffer: 64 << 20 });
 +const repositoryRoot = execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim();
 +const git = (...args: string[]) =>
 +  execFileSync('git', ['-C', repositoryRoot, ...args], { encoding: 'utf8', maxBuffer: 64 << 20 });
-@@ -26 +28,10 @@ export async function readDevOrderChain(
+
+ export async function readDevOrderChain(
+   ref = process.env.PR53_REF ?? PR53_DEFAULT_REF,
+@@ -23,10 +25,19 @@ export async function readDevOrderChain(
+     .filter((f) => /^01(?:3[6-9]|4[0-2])_.*\.sql$/u.test(f));
+   assert.equal(pr53Files.length, 7, `esperava 0136–0142 no #53 (${ref}), achei ${pr53Files.join(',')}`);
+   const local = await readMigrations();
 -  assert.ok(!local.some((m) => /^01(?:3[6-9]|4[0-2])_/u.test(m.file)), 'a branch do convênio não deve ter 0136–0142');
 +  const added = pr53Files.map((file) => ({
 +    file,
@@ -19,19 +28,31 @@ index 225743a2..f6d5cb4a 100644
 +    if (existing)
 +      assert.equal(normalize(existing.body), normalize(entry.body), 'Financial migration drift');
 +  }
-@@ -29 +40 @@ export async function readDevOrderChain(
+   const chain = [
+     ...local,
 -    ...pr53Files.map((file) => ({ file, body: git('show', `${ref}:drizzle/migrations/${file}`) })),
 +    ...added.filter((entry) => !local.some((m) => m.file === entry.file)),
+   ].sort((a, b) => a.file.localeCompare(b.file));
+   chain.forEach((m, i) => assert.equal(Number(m.file.slice(0, 4)), i, `prefixo ${m.file} na posição ${i}`));
+   return chain;
 diff --git a/scripts/security/health-insurance-union-chain-db.ts b/scripts/security/health-insurance-union-chain-db.ts
 index 15ec736d..b6b1e3d8 100644
 --- a/scripts/security/health-insurance-union-chain-db.ts
 +++ b/scripts/security/health-insurance-union-chain-db.ts
-@@ -43 +43,3 @@ const REF = process.argv[2] ?? process.env.PR53_REF ?? '8c591c8f';
+@@ -40,17 +40,28 @@ import { sql as dsql } from 'drizzle-orm';
+ import { readMigrations, startScratchSchema } from './scratch-schema';
+
+ const REF = process.argv[2] ?? process.env.PR53_REF ?? '8c591c8f';
 -const git = (...args: string[]) => execFileSync('git', args, { encoding: 'utf8', maxBuffer: 64 << 20 });
 +const repositoryRoot = execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim();
 +const git = (...args: string[]) =>
 +  execFileSync('git', ['-C', repositoryRoot, ...args], { encoding: 'utf8', maxBuffer: 64 << 20 });
-@@ -50 +52,10 @@ const local = await readMigrations();
+ const pr53Files = git('ls-tree', '--name-only', REF, 'drizzle/migrations/')
+   .split('\n')
+   .map((l) => l.trim().replace(/^drizzle\/migrations\//u, ''))
+   .filter((f) => /^01(?:3[6-9]|4[0-2])_.*\.sql$/u.test(f));
+ assert.equal(pr53Files.length, 7, `esperava 0136–0142 no #53 (${REF}), achei ${pr53Files.join(',')}`);
+ const local = await readMigrations();
 -assert.ok(!local.some((m) => /^01(?:3[6-9]|4[0-2])_/u.test(m.file)), 'a branch do convênio não deve ter 0136–0142');
 +const added = pr53Files.map((file) => ({
 +  file,
@@ -43,23 +64,38 @@ index 15ec736d..b6b1e3d8 100644
 +  if (existing)
 +    assert.equal(normalize(existing.body), normalize(entry.body), 'Financial migration drift');
 +}
-@@ -53 +64 @@ const chain = [
+ const chain = [
+   ...local,
 -  ...pr53Files.map((file) => ({ file, body: git('show', `${REF}:drizzle/migrations/${file}`) })),
 +  ...added.filter((entry) => !local.some((m) => m.file === entry.file)),
+ ].sort((a, b) => a.file.localeCompare(b.file));
+ const prefixes = chain.map((m) => Number(m.file.slice(0, 4)));
+ prefixes.forEach((p, i) => assert.equal(p, i, `prefixo ${p} na posição ${i}`));
 diff --git a/scripts/security/health-insurance-premium-gate-db.ts b/scripts/security/health-insurance-premium-gate-db.ts
-index d9f69209..709166ca 100644
+index b132dbc5..47a016b1 100644
 --- a/scripts/security/health-insurance-premium-gate-db.ts
 +++ b/scripts/security/health-insurance-premium-gate-db.ts
-@@ -103 +102,0 @@ async function setupClinic(label: string, sub: SubState, clinicStatus = 'active'
+@@ -100,11 +100,15 @@ async function setupClinic(label: string, sub: SubState, clinicStatus = 'active'
+   await sql`insert into auth.users (id, email) values (${doctorId}::uuid, ${`${doctorId}@example.invalid`})`;
+   await sql`insert into public.clinics (id, slug, nome, status)
+     values (${clinicId}::uuid, ${`pg-${clinicId.slice(0, 8)}`}, ${`Clínica ${label}`}, ${clinicStatus}::clinic_status)`;
 -  await setSubscription(clinicId, sub);
-@@ -105,0 +105,4 @@ async function setupClinic(label: string, sub: SubState, clinicStatus = 'active'
+   await sql`insert into public.profiles (id, clinic_id, nome, role, ativo)
+     values (${doctorId}::uuid, ${clinicId}::uuid, 'Profissional sintético', 'doctor', true)`;
 +  const ownerId = randomUUID();
 +  await sql`insert into auth.users (id, email) values (${ownerId}::uuid, ${`${ownerId}@example.invalid`})`;
 +  await sql`insert into public.profiles (id, clinic_id, nome, role, ativo)
 +    values (${ownerId}::uuid, ${clinicId}::uuid, 'Titular sintético', 'owner', true)`;
-@@ -107,0 +111 @@ async function setupClinic(label: string, sub: SubState, clinicStatus = 'active'
+   const [proc] = await sql`insert into public.procedures (clinic_id, codigo, descricao, valor_padrao, duracao_padrao_min, ativo)
+     values (${clinicId}::uuid, 'CONS', 'Consulta sintética', 150, 30, true) returning id`;
 +  await setSubscription(clinicId, sub);
-@@ -424,0 +429,26 @@ try {
+   return { clinicId, doctorId, procedureId: proc!.id as string, label };
+ }
+ type Clinic = Awaited<ReturnType<typeof setupClinic>>;
+@@ -423,6 +427,32 @@ try {
+     await sql`update public.subscriptions set billing_status = 'active', trial_ends_at = null,
+         current_period_start = now(), current_period_end = now() + interval '30 days'
+       where clinic_id = ${c.clinicId}::uuid`;
 +    assert.equal(await denial(c.clinicId), 'payment_pending');
 +    const { dbAdmin } = await import('../../src/lib/db');
 +    const { invoices } = await import('../../src/contexts/billing/schema');
@@ -86,3 +122,27 @@ index d9f69209..709166ca 100644
 +        deferPeriodAdvance: true,
 +      });
 +    });
+     assert.equal(await denial(c.clinicId), null);
+     const ins = await enableInsurance(c);
+     const patientId = await newPatient(c);
+diff --git a/scripts/security/health-insurance-copay-charge-db.ts b/scripts/security/health-insurance-copay-charge-db.ts
+index 5e2005e7..6661543d 100644
+--- a/scripts/security/health-insurance-copay-charge-db.ts
++++ b/scripts/security/health-insurance-copay-charge-db.ts
+@@ -86,6 +86,7 @@ const deps = {
+ };
+
+ /** Atendimento de convênio com coparticipação de 30% confirmada (R$ 45 de R$ 150), pelo caminho real. */
++let copayFixtureSlot = 0;
+ async function confirmedCopay(c: Clinic, label: string, opts: { confirm?: boolean } = {}) {
+   // Procedimento com contrato próprio de coparticipação de 30% (o da fixture não tem).
+   let [proc] =
+@@ -107,7 +108,7 @@ async function confirmedCopay(c: Clinic, label: string, opts: { confirm?: boolea
+   const [ap] =
+     await sql`insert into public.appointments (clinic_id, doctor_id, patient_id, procedure_id, scheduled_at, duration_min, status, valor,
+       snapshot_procedure_name, snapshot_procedure_valor, snapshot_procedure_duracao_min, snapshot_doctor_nome, created_via, billing_mode)
+-    values (${c.clinicId}::uuid, ${c.doctorId}::uuid, ${pt!.id}::uuid, ${proc!.id}::uuid, ${'2026-11-11T12:00:00Z'}::timestamptz + ${Math.floor(Math.random() * 500)} * interval '31 minutes',
++    values (${c.clinicId}::uuid, ${c.doctorId}::uuid, ${pt!.id}::uuid, ${proc!.id}::uuid, ${'2026-11-11T12:00:00Z'}::timestamptz + ${++copayFixtureSlot} * interval '31 minutes',
+       30, 'agendado', 150, 'Consulta', 150, 30, 'Dra. Sintética', 'attendant', 'convenio') returning id`;
+   const appointmentId = ap!.id as string;
+   await withTenant(

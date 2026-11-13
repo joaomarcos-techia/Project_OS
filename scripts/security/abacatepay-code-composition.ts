@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto';
 import { access, copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
+import { assertCompositionPatchSyntax } from './composition-patch-syntax';
 
 const root = process.cwd();
 const git = (...args: string[]) =>
@@ -113,8 +114,17 @@ await writeFile(archPath, resolved);
 const patches = ['tiss-ledger-integration.patch', 'tiss-composition-harness.patch'];
 for (const patch of patches) {
   const file = `docs/decoupling/asaas-to-abacatepay/migrations/${patch}`;
-  git('apply', '--check', '--unidiff-zero', '--directory=' + relative, file);
-  git('apply', '--unidiff-zero', '--directory=' + relative, file);
+  // Context is mandatory: line-only insertions can land inside a SQL template
+  // after an independent branch adds a few lines, even when git apply succeeds.
+  git('apply', '--check', '--directory=' + relative, file);
+  git('apply', '--directory=' + relative, file);
+  const body = await readFile(file, 'utf8');
+  const targets = [...body.matchAll(/^\+\+\+ b\/(.+\.tsx?)$/gm)].map((match) => match[1]);
+  assert.ok(targets.length > 0, 'Composition patch has no TypeScript target');
+  for (const target of targets) {
+    assert.ok(target && !target.includes('..') && !path.isAbsolute(target));
+    assertCompositionPatchSyntax(target, await readFile(path.join(directory, target), 'utf8'));
+  }
 }
 // Regenerate, rather than choosing one side of the security inventory conflict.
 execFileSync(
