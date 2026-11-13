@@ -20,6 +20,8 @@ import { AuthorizationForm, CARE_TYPES, CheckRequestButton, IndicationForm, Link
 import { GuideStatusBadge, SADT_STATUS, SadtStatusBadge } from '../../_lib/status';
 
 export const dynamic = 'force-dynamic';
+/** Ações desta página validam XML no XSD oficial e/ou geram PDF (motor no próprio processo). */
+export const maxDuration = 60;
 
 const OPEN = ['draft', 'checked', 'awaiting_authorization', 'ready'];
 const ACCEPTS_SESSIONS = ['awaiting_authorization', 'authorized', 'partially_authorized', 'ready'];

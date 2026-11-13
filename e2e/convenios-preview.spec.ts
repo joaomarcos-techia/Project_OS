@@ -90,13 +90,31 @@ test('anônimo: Convênios e documentos exigem sessão', async ({ browser }) => 
   await context.close();
 });
 
-test('recepção sem financeiro: vê o aviso de acesso e não baixa documento (404)', async ({ browser }) => {
+test('médica (sem ver o financeiro): vê o aviso de acesso e não baixa documento (404)', async ({ browser }) => {
   test.setTimeout(120_000);
-  const s = await login(browser, 'recepcao');
-  await visit(s, '/convenios', 'recepcao-sem-acesso');
+  const s = await login(browser, 'medica');
+  await visit(s, '/convenios', 'medica-sem-acesso');
   await expect(s.page.getByText('Seu perfil não tem permissão para o faturamento de convênios.')).toBeVisible();
   const pdf = await s.context.request.get(`/financeiro/convenios/guias/${fx!.guideIds[0]}/pdf`);
   expect(pdf.status()).toBe(404);
+  expect((await s.context.request.get('/financeiro/convenios/solicitacoes/00000000-0000-4000-8000-000000000000/pdf')).status()).toBe(404);
+  expect(s.errors).toEqual([]);
+  await s.context.close();
+});
+
+test('recepção (vê, não gerencia o financeiro): telas abertas, nenhuma ação disponível', async ({ browser }) => {
+  test.setTimeout(150_000);
+  const s = await login(browser, 'recepcao');
+  expect(await visit(s, '/convenios', 'recepcao-painel')).toBe(200);
+  await expect(s.page.getByText('Seu perfil não tem permissão')).toHaveCount(0);
+  expect(await visit(s, `/convenios/guias/${fx!.guideIds[0]}`, 'recepcao-guia')).toBe(200);
+  for (const name of ['Marcar como conferida', 'Aprovar e emitir', 'Cancelar guia']) {
+    await expect(s.page.getByRole('button', { name })).toHaveCount(0);
+  }
+  expect(await visit(s, '/convenios/solicitacoes', 'recepcao-solicitacoes')).toBe(200);
+  await expect(s.page.getByRole('button', { name: 'Registrar solicitação' })).toHaveCount(0);
+  expect(await visit(s, '/convenios/lotes', 'recepcao-lotes')).toBe(200);
+  await expect(s.page.getByRole('button', { name: 'Montar lote' })).toHaveCount(0);
   expect(s.errors).toEqual([]);
   await s.context.close();
 });
@@ -181,9 +199,14 @@ test('lote: montar com a guia emitida → XML gerado e validado no XSD → downl
   const s = await login(browser, 'gestor');
   await visit(s, '/convenios/lotes');
   await s.page.getByLabel('Tipo de guia').selectOption('consulta');
-  await s.page.getByRole('checkbox').first().check();
-  await s.page.getByRole('button', { name: 'Montar lote' }).click();
-  await s.page.waitForURL(/\/convenios\/lotes\/[0-9a-f-]{36}$/u, { timeout: 60_000 });
+  if ((await s.page.getByRole('checkbox').count()) > 0) {
+    await s.page.getByRole('checkbox').first().check();
+    await s.page.getByRole('button', { name: 'Montar lote' }).click();
+    await s.page.waitForURL(/\/convenios\/lotes\/[0-9a-f-]{36}$/u, { timeout: 60_000 });
+  } else {
+    // Reexecução: a guia emitida já está num lote preparado (a fixture é a mesma).
+    await s.page.goto((await s.page.locator('a[href^="/convenios/lotes/"]').first().getAttribute('href'))!, { waitUntil: 'load' });
+  }
   await s.page.getByRole('button', { name: 'Gerar e validar XML' }).click();
   await toast(s.page, 'XML gerado e validado');
   await s.page.reload({ waitUntil: 'load' });

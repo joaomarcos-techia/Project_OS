@@ -19,6 +19,8 @@ import { GlossForm, PaymentForm, ProtocolForm } from '../../_lib/batch-ui';
 import { BatchStatusBadge, GuideStatusBadge } from '../../_lib/status';
 
 export const dynamic = 'force-dynamic';
+/** Ações desta página validam XML no XSD oficial e/ou geram PDF (motor no próprio processo). */
+export const maxDuration = 60;
 
 const RETURN_LABELS: Record<string, string> = {
   protocol_receipt: 'Recibo do protocolo',

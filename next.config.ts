@@ -18,7 +18,10 @@ export const TISS_XSD_TRACE_FILES = [
   './src/contexts/health-insurance/tiss/schemas/4.03.00/*',
 ];
 /** Rotas (e páginas com server actions) que validam XML TISS. */
-export const TISS_XSD_ROUTES = ['/api/health/tiss-xsd', '/financeiro/convenios/**'];
+// As telas de Convênios moraram em /financeiro/convenios e passaram para /convenios: as AÇÕES que
+// validam XML (exportar lote, XML do recurso, documento da solicitação) rodam na função da página
+// em /convenios/**, que também precisa do motor. Sem ele, o validador fica indisponível nela.
+export const TISS_XSD_ROUTES = ['/api/health/tiss-xsd', '/financeiro/convenios/**', '/convenios/**'];
 
 /** Política base, exportada para o teste de não-regressão do Embedded Signup. */
 export const CONTENT_SECURITY_POLICY = buildContentSecurityPolicy(

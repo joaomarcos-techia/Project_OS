@@ -25,6 +25,8 @@ import { ActionButton, Actions, AnswerAppealForm, AppealForm, FileAppealForm, Te
 import { GlossStatusBadge, GuideStatusBadge } from '../../_lib/status';
 
 export const dynamic = 'force-dynamic';
+/** Ações desta página validam XML no XSD oficial e/ou geram PDF (motor no próprio processo). */
+export const maxDuration = 60;
 
 const OPEN_GLOSS = ['informed', 'under_analysis', 'contested'];
 const ISSUED = ['approved', 'in_batch', 'exported', 'sent', 'under_review', 'paid', 'partially_paid', 'partially_glossed', 'fully_glossed', 'closed', 'replaced'];
