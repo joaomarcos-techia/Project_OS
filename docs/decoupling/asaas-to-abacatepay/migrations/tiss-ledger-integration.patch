@@ -1,0 +1,68 @@
+diff --git a/src/contexts/health-insurance/migration-ledger.test.ts b/src/contexts/health-insurance/migration-ledger.test.ts
+index eeab2980..0984659e 100644
+--- a/src/contexts/health-insurance/migration-ledger.test.ts
++++ b/src/contexts/health-insurance/migration-ledger.test.ts
+@@ -21,0 +22,2 @@ import { describe, expect, it } from 'vitest';
++import { createHash } from 'node:crypto';
++import { z } from 'zod';
+@@ -57 +59,4 @@ const base = journal.entries.filter((e) => e.idx <= 135);
+-const tiss = journal.entries.filter((e) => e.idx >= 136);
++const financial = journal.entries.filter((e) => e.idx >= 136 && e.idx <= 142);
++const tiss = journal.entries.filter((e) => e.idx >= 143 && e.idx <= 158);
++const successor = journal.entries.filter((e) => e.idx >= 159);
++const entryValue = ({ idx, when, tag }: Entry): Entry => ({ idx, when, tag });
+@@ -60 +65 @@ describe('ordem das migrations depois do merge do #53 (D22)', () => {
+-  it('esta branch só acrescenta a faixa do convênio, começando na 0143', () => {
++  it('separa a cauda do convênio, começando na 0143, do financeiro aplicado', () => {
+@@ -68,0 +74,45 @@ describe('ordem das migrations depois do merge do #53 (D22)', () => {
++  it('preserva a faixa financeira completa quando ela já está no journal, sem duplicá-la', () => {
++    expect([0, PR53_APPLIED_IN_DEV.length]).toContain(financial.length);
++    expect(financial.map(entryValue)).toEqual(financial.length ? PR53_APPLIED_IN_DEV : []);
++    const union = [...base, ...PR53_APPLIED_IN_DEV, ...tiss, ...successor];
++    expect(new Set(union.map((e) => e.idx)).size).toBe(union.length);
++    expect(union).toHaveLength(
++      base.length + PR53_APPLIED_IN_DEV.length + tiss.length + successor.length,
++    );
++  });
++
++  it('aceita somente a sucessora financeira congelada e confere seu SQL, sem ordenar o histórico', () => {
++    if (successor.length === 0) {
++      expect(journal.entries.at(-1)?.idx).toBe(158);
++      return;
++    }
++    const frozen = z
++      .object({
++        financialEntry: z.object({
++          idx: z.literal(159),
++          tag: z.literal('0159_saas_period_snapshot'),
++          when: z.number().int(),
++        }),
++        financialSql: z.object({ sha256: z.string().regex(/^[a-f0-9]{64}$/) }),
++        productionAuthorized: z.literal(false),
++      })
++      .parse(
++        JSON.parse(
++          readFileSync(
++            resolve(
++              process.cwd(),
++              'docs/decoupling/asaas-to-abacatepay/migrations/release-manifest.json',
++            ),
++            'utf8',
++          ),
++        ),
++      );
++    expect(successor.map(entryValue)).toEqual([frozen.financialEntry]);
++    const body = readFileSync(
++      resolve(process.cwd(), 'drizzle/migrations/' + frozen.financialEntry.tag + '.sql'),
++      'utf8',
++    ).replaceAll('\r\n', '\n');
++    expect(createHash('sha256').update(body).digest('hex')).toBe(frozen.financialSql.sha256);
++    expect(frozen.financialEntry.when).toBeGreaterThan(tiss.at(-1)!.when);
++  });
++
+@@ -74 +124 @@ describe('ordem das migrations depois do merge do #53 (D22)', () => {
+-    expect(orderProblems([...base, ...PR53_APPLIED_IN_DEV, ...tiss])).toEqual([]);
++    expect(orderProblems([...base, ...PR53_APPLIED_IN_DEV, ...tiss, ...successor])).toEqual([]);
+@@ -86 +136 @@ describe('ordem das migrations depois do merge do #53 (D22)', () => {
+-    const union = [...base, ...PR53_APPLIED_IN_DEV, collision, ...tiss];
++    const union = [...base, ...PR53_APPLIED_IN_DEV, collision, ...tiss, ...successor];

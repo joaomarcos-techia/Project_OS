@@ -17550,7 +17550,7 @@
       "unit": 7124,
       "e2e": 22,
       "skips": 0,
-      "newCode": "PENDING_OWN_CI",
+      "newCode": "PASS",
       "failedAttempt": {
         "commit": "efdf472299c16ac8b75797d5b24df9cbfcde977c",
         "runId": "43323224785",
@@ -17558,7 +17558,52 @@
         "failed": 1,
         "reason": "Admin empty-state test still expected previous Sandbox-only wording; assertion updated with access/button protection preserved",
         "targetedRetestPassed": 5
-      }
+      },
+      "validatedCommit": "04a4fd7332795be9c83906c8edefffaa8b30137a",
+      "runId": "43327683818",
+      "url": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/43327683818",
+      "unitPassed": 7139,
+      "unitTotal": 7139,
+      "e2ePassed": 22,
+      "e2eSkipped": 0,
+      "checks": [
+        {
+          "link": "https://vercel.com/github",
+          "name": "Vercel Preview Comments",
+          "state": "SUCCESS"
+        },
+        {
+          "link": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/43327683623/job/131564192316",
+          "name": "Aviso — mudança arquitetural sem ADR",
+          "state": "SUCCESS"
+        },
+        {
+          "link": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/43327683818/job/131564192421",
+          "name": "Lint + Typecheck + Test + Build",
+          "state": "SUCCESS"
+        },
+        {
+          "link": "https://vercel.com/github",
+          "name": "Vercel Agent Review",
+          "state": "NEUTRAL"
+        },
+        {
+          "link": "https://semgrep.dev/orgs/joaogestor_ia_personal_org/projects/6259773/scans/267765901",
+          "name": "semgrep-cloud-platform/scan",
+          "state": "SUCCESS"
+        },
+        {
+          "link": "https://vercel.com/clinic-os-v2-s-projects/project-os/Aduh8AhePcCRZiwjwXqjEQAFuXRb",
+          "name": "Vercel",
+          "state": "SUCCESS"
+        },
+        {
+          "link": "https://app.snyk.io/org/joaomarcos-techia/pr-checks/4c5bb7b1-d046-4d69-a4d6-734998a76441",
+          "name": "security/snyk (joaomarcos-techia)",
+          "state": "SUCCESS"
+        }
+      ],
+      "observedAt": "2026-11-13T01:29:29.402Z"
     },
     "productionWrites": 0,
     "devApplied": {
@@ -19224,6 +19269,134 @@
       "stoppedAfterUse": true,
       "autoRemove": true,
       "otherContainersChanged": 0
+    },
+    "codeComposition": {
+      "financialHead": "04a4fd7332795be9c83906c8edefffaa8b30137a",
+      "tissHead": "9b463168f438f5ec59d192351b2f96179e81d197",
+      "unresolvedMergeTree": "f747432246f026581cfcf5885b19a0be1f35c4d4",
+      "isolatedCopyOnly": true,
+      "actualBranchMerges": 0,
+      "otherWorktreeWrites": 0,
+      "sqlAndSchemaChangesSinceDevRelease": [],
+      "mechanicalConflicts": [
+        "docs/security/acoes.md",
+        "drizzle/migrations/meta/_journal.json",
+        "scripts/arch-db-check.ts"
+      ],
+      "testPatch": "../migrations/tiss-ledger-integration.patch",
+      "patchAppliesToPinnedSource": true,
+      "patchAppliedSourceMatchesTestedSnapshot": true,
+      "checks": {
+        "previousTissSnapshot": {
+          "head": "62edb485ccb6592ccb981c1cabe9df66ed7708d6",
+          "typecheckExitCode": 0,
+          "dbArchitecture": "PASS_1995_FILES",
+          "migrationTests": 36,
+          "failedPriorToTestHarnessFix": 4
+        },
+        "currentTissSnapshot": {
+          "head": "9b463168f438f5ec59d192351b2f96179e81d197",
+          "typecheckStandalone": "BLOCKED_LOCAL_HEAP_2GB",
+          "dbArchitecture": "PASS_1999_FILES",
+          "migrationTests": 36,
+          "buildTypecheck": "PASS_NEXT_PRODUCTION_BUILD_IN_PREVIEW",
+          "testPatchEslint": "PASS"
+        }
+      },
+      "localBuild": {
+        "status": "INCONCLUSIVE",
+        "notes": [
+          "Initial font TLS failure; system trust enabled only in disposable copy, never TLS bypass",
+          "Local composition retry stopped without success result; no test marked PASS"
+        ],
+        "productionSourceChanged": false
+      },
+      "preview": {
+        "id": "dpl_Ax33ANpMpfUoSsQWMJ2jUEafYCC9",
+        "url": "https://project-dnyxo3r3q-clinic-os-v2-s-projects.vercel.app",
+        "target": "preview",
+        "projectId": "prj_GYB0Y9e02ka9jurpJvF6m0feH3eZ",
+        "newCheckoutsEnabled": false,
+        "abacatePayEnvironment": "sandbox",
+        "status": "READY",
+        "firstAttempt": {
+          "id": "dpl_GPmK3PjhM7BYD4t9ARtbcaxQ8Hoi",
+          "status": "FAIL_UPLOAD_MANIFEST",
+          "error": "e2e/vercel-bypass excluded while referenced by Playwright config",
+          "productCodeChanged": false,
+          "correctedBy": "Retain tracked e2e source in upload; no config/test validation disabled"
+        },
+        "buildDurationMs": 335000,
+        "fullNextBuild": "PASS_COMPILATION_LINT_TYPES_STATIC_GENERATION_TRACING",
+        "knownRuntimeIncidentExcludedFromPass": "CARE_TYPES server/client boundary at pinned TISS9b463168; fix in progress in owner worktree",
+        "observedAt": "2026-11-13T01:41:17.567Z",
+        "httpSmoke": {
+          "observedAt": "2026-11-13T01:42:17.370Z",
+          "status": "PASS_HTTP_BOUNDARY_ONLY",
+          "loginShell": 200,
+          "loginRenderedText": "Carregando acesso",
+          "hydratedLoginForm": "NOT_RUN_IN_THIS_SMOKE",
+          "anonymousBillingCron": 401,
+          "cronProcessingStarted": false,
+          "vercelProtection": "Legitimate authenticated CLI bypass only; does not prove public accessibility",
+          "newPayments": 0,
+          "newAccounts": 0
+        }
+      },
+      "resolvedFilesSha256LF": {
+        "drizzle/migrations/meta/_journal.json": "92e7c5e2733d9e6fbbb14175179e6e40fdb5d429afb8a7f3a2880a3b62836b92",
+        "drizzle/migrations/0159_saas_period_snapshot.sql": "eb00a4e3dd45f89e7eef4dc2c95c577e7932f1f2131d5bfb4ff8f5e4570f5c74",
+        "scripts/arch-db-check.ts": "95d30a7dc3e007c8fa35e21141f36e21a1e97f63588dd8a535fcf642549d481f",
+        "docs/security/acoes.md": "9804a77442151c246d0b0dc254de0ffb2fba157f3656399093fa81afdff48a28",
+        "src/contexts/health-insurance/migration-ledger.test.ts": "f100cfabb281182aa8b6c10b9d8fc65d62974b7687d2b7e24d21ad19b09ffc83",
+        "src/lib/db/schema/index.ts": "ea9005ce23b56b051f4cd6de15f3152cd7f32127ad52123a406b1efd673ec2ad",
+        "next.config.ts": "23c4aa8b30961f5386e99865a1f4416000b28a5e126f9b7aa0a6db85428e349d",
+        "package.json": "9c567a6504457db9e407d4d1ce0295d4b9ed7f6d99d7a089edd7f32bf1658d92",
+        "pnpm-lock.yaml": "b15b176e45751a084cde21e07ae25fd171e83d8ed5a3414cd6807a03bc7812a6"
+      },
+      "patchFormat": "unified zero-context; apply requires --unidiff-zero and the pinned source",
+      "patchSourceSha256LF": "291b81305af5abf4057beacaba9a5fffec0842a10711559cc23d6d5adc5afddc",
+      "patchSha256": "39b9fb7d95ace3d85e9804f12dc89b8f39d71601a7a76df900575487487c80a0"
+    },
+    "tissRuntimeIncident": {
+      "observedAt": "2026-11-13T01:20:35Z",
+      "source": "Founder provided correlated Sentry events; source verified at release",
+      "release": "9b463168f438f5ec59d192351b2f96179e81d197",
+      "issueIds": ["7595411874", "7845618264"],
+      "traceId": "9b37e1ca2ab54e76becfdcc69358f5f1",
+      "digest": "2425313636",
+      "environmentByUrl": "preview",
+      "sentryEnvironmentTag": "production",
+      "rootCause": "Server Component calls CARE_TYPES.find on a value exported by a use-client module; server receives client reference instead of array",
+      "code": [
+        "src/app/(app)/(shell)/convenios/solicitacoes/[requestId]/page.tsx:43",
+        "src/app/(app)/(shell)/convenios/_lib/sadt-ui.tsx:1,24"
+      ],
+      "certainty": "CONFIRMED_SOURCE_AND_RUNTIME",
+      "fixOwner": "TISS PR55; no changes to its worktree by financial operator",
+      "recommendedFix": "Move CARE_TYPES into a shared module without use-client; import from server and client; verify actual Server Component rendering in production build",
+      "migrationRequired": false,
+      "financialImpact": "No AbacatePay failure evidenced by these events",
+      "status": "FAIL_TISS_RUNTIME_NOT_FIXED_IN_FINANCIAL_SCOPE",
+      "sentryTagCause": "In TISS9b463168, both client and server init set environment to NODE_ENV. Financial candidate already distinguishes Vercel target and has tests; no Production setting changed.",
+      "ownerWorkInProgress": {
+        "observedAt": "2026-11-13T01:38:39.468Z",
+        "method": "read-only git status and diff",
+        "constantSharedModule": "src/app/(app)/(shell)/convenios/_lib/constants.ts",
+        "serverImportUpdated": true,
+        "newBoundaryTestPresent": true,
+        "committedAndRuntimeValidated": false,
+        "otherWorktreeWritesByFinancialAgent": 0
+      }
+    },
+    "finalProductionReadback": {
+      "observedAt": "2026-11-13T01:40:07.500Z",
+      "productionDeployment": {
+        "id": "dpl_2gHasgxKuWkFY8ct1w56VLeHDhQP",
+        "sha": "5620a0987ec53db7d7358728eb7d457d9d373df3"
+      },
+      "configurationWrites": 0,
+      "productionWrites": 0
     }
   }
 }
