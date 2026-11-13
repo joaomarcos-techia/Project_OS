@@ -249,9 +249,10 @@ test('solicitação SP/SADT: registrar → conferir → documento oficial (PDF) 
   await visit(s, `/convenios/solicitacoes/${requestId}`, 'paga-solicitacao-documento');
 
   await s.page.getByRole('button', { name: 'Registrar autorização da operadora' }).click();
-  await s.page.getByLabel('Data da autorização').fill(new Date().toISOString().slice(0, 10));
+  // Data no fuso da clínica (a operadora respondeu hoje em São Paulo; em UTC já pode ser amanhã).
+  await s.page.getByLabel('Data da autorização').fill(new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date()));
   await s.page.getByLabel('Número da guia na operadora').fill(`E2E${Date.now() % 1e8}`);
-  await s.page.getByLabel('Senha').fill('SENHAE2E');
+  await s.page.getByLabel('Senha', { exact: true }).fill('SENHAE2E');
   await s.page.getByLabel(/\(pedido: 4\)/u).fill('2');
   await s.page.getByRole('button', { name: 'Confirmar' }).click();
   await toast(s.page, 'Autorização registrada');

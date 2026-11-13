@@ -480,6 +480,9 @@ try {
     () => doc.exportSadtRequestDocument(docDeps, { clinicId: A.clinicId, requestId: r1, card: card(p1.membershipId), newborn: false, actorUserId: A.doctorId, requestContext: rc }),
     (e: Error & { layer?: string }) => e.layer === 'state',
   );
+  // Data da resposta da operadora: nem no futuro (fuso da clínica) nem antes do pedido.
+  await assert.rejects(() => authorize(B, r10, [1, 1], { authorizedOn: '2099-01-01' }), /futuro/u);
+  await assert.rejects(() => authorize(B, r10, [1, 1], { authorizedOn: '2026-10-01' }), /anterior/u);
   // Assinatura suspensa (D24): não GERA documento novo, mas o já gerado continua legível (preservação).
   const p10b = await patientWithCard(B, 'documento-suspenso');
   const r10b = await createRequest(B, p10b, [{ code: CODE_IND, quantity: 1 }]);
@@ -491,7 +494,7 @@ try {
     (e: Error & { constraint_name?: string }) => e.name === 'PremiumAccessError' || e.constraint_name === 'qoro_premium_health_insurance',
   );
   assert.equal((await readFile(B, String(pdfRow.id)))?.outcome, 'granted');
-  pass('10. documento oficial do pedido (P6.2): XML SOLICITACAO_PROCEDIMENTOS validado no XSD + PDF do modelo oficial, cifrados e ligados à autorização; geração única sob concorrência; congelado (cadastro alterado depois não muda nada); adulterado nunca é entregue e fica auditado; outra clínica não vê; sem autorização exigida não há pedido; XSD indisponível não grava; carteirinha errada recusada; suspensa não gera, mas lê o que já existe');
+  pass('10. documento oficial do pedido (P6.2): XML SOLICITACAO_PROCEDIMENTOS validado no XSD + PDF do modelo oficial, cifrados e ligados à autorização; geração única sob concorrência; congelado (cadastro alterado depois não muda nada); adulterado nunca é entregue e fica auditado; outra clínica não vê; sem autorização exigida não há pedido; XSD indisponível não grava; carteirinha errada recusada; suspensa não gera, mas lê o que já existe; autorização com data no futuro ou antes do pedido é recusada');
 
   console.log(`\nOK — ${passed} provas: solicitação SP/SADT persistida e SP/SADT automática ponta a ponta (até o XML validado no XSD).`);
 } finally {

@@ -553,6 +553,17 @@ export async function recordSadtAuthorizationInTx(
       'evidence_required',
     );
   }
+  // A resposta já aconteceu: data da autorização no futuro (no fuso da clínica) ou antes do
+  // pedido é erro de digitação, nunca autorização. Achado do E2E de 12/11 (data em UTC).
+  const [today] = (await tx.execute(sql`
+    SELECT (now() AT TIME ZONE coalesce(c.timezone, 'America/Sao_Paulo'))::date::text AS d
+      FROM public.clinics c WHERE c.id = ${clinicId}::uuid`)) as unknown as Array<{ d: string }>;
+  if (today && input.authorizedOn > today.d) {
+    throw new SadtRequestError('a data da autorização está no futuro; use a data em que a operadora respondeu', 'invalid');
+  }
+  if (input.authorizedOn < r.requestedOn) {
+    throw new SadtRequestError('a data da autorização é anterior à da solicitação', 'invalid');
+  }
   if (input.operatorGuideNumber) {
     const [dup] = await tx
       .select({ id: hiAuthorizations.id })
