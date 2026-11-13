@@ -83,14 +83,45 @@ async function skewedPage(browser: Browser, key: string, viewport = DESKTOP): Pr
   return { context, page, errors };
 }
 
+/**
+ * Visita as rotas e, se uma delas acusar erro de página, anexa ao relatório o HTML que o
+ * servidor mandou, o DOM depois da hidratação e o contexto (rota, viewport, SHA esperado,
+ * id da requisição na Vercel, mensagens de console) — o bastante para comparar a estrutura
+ * e achar o componente. Sintético: a clínica e o paciente são de teste.
+ */
 async function sweep(browser: Browser, key: string, routes: string[], viewport = DESKTOP): Promise<string[]> {
   const s = await skewedPage(browser, key, viewport);
+  const consoleErrors: string[] = [];
+  s.page.on('console', (m) => {
+    if (m.type() === 'error') consoleErrors.push(m.text().slice(0, 400));
+  });
   for (const route of routes) {
+    const before = s.errors.length;
+    consoleErrors.length = 0;
     const res = await s.page.goto(route, { waitUntil: 'load' });
     expect(res?.status(), route).toBe(200);
+    const serverHtml = (await res?.text().catch(() => '')) ?? '';
     await s.page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => undefined);
     // A hidratação termina depois do load; dá tempo de o erro aparecer.
     await s.page.waitForTimeout(2_500);
+    if (s.errors.length > before) {
+      const tag = `${key}-${viewport.width}-${route.replace(/\W+/gu, '_')}`;
+      const info = test.info();
+      await info.attach(`r51-${tag}-server.html`, { body: serverHtml, contentType: 'text/html' });
+      await info.attach(`r51-${tag}-client.html`, { body: await s.page.content(), contentType: 'text/html' });
+      await info.attach(`r51-${tag}-contexto.json`, {
+        contentType: 'application/json',
+        body: JSON.stringify({
+          route,
+          viewport,
+          expectedSha: process.env.E2E_EXPECTED_SHA ?? null,
+          vercelRequestId: res?.headers()['x-vercel-id'] ?? null,
+          environment: 'preview (DEV)',
+          errors: s.errors.slice(before),
+          consoleErrors: [...consoleErrors],
+        }, null, 1),
+      });
+    }
   }
   await s.context.close();
   return s.errors;

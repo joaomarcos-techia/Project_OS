@@ -102,7 +102,7 @@ async function login(browser: Browser, key: string, viewport = DESKTOP): Promise
   const context = await browser.newContext({ viewport, extraHTTPHeaders: vercelBypassHeaders(), ...(cached ? { storageState: cached } : {}) });
   const page = await context.newPage();
   const errors: string[] = [];
-  // A rota entra na mensagem: o achado R51 (React #418) precisa dizer em que página apareceu.
+  // A rota entra na mensagem: um erro de página precisa dizer em que tela apareceu.
   page.on('pageerror', (e) => errors.push(e.message + ' @ ' + new URL(page.url()).pathname));
   if (cached) return { context, page, errors };
   await page.goto('/login', { waitUntil: 'load' });
@@ -115,15 +115,12 @@ async function login(browser: Browser, key: string, viewport = DESKTOP): Promise
 }
 
 /**
- * Nenhum erro de página. Única exceção, registrada no plano como R51: React #418 (hidratação),
- * intermitente e fora do código de convênio (apareceu no consultório e numa das recargas da
- * conciliação; a mesma página, na mesma execução, carregou sem ele). Cada ocorrência vai para o
- * log com a rota; qualquer outro erro continua reprovando.
+ * Nenhum erro de página, sem exceção. O React #418 (R51) foi corrigido na causa (hora sem fuso
+ * e `Date.now()` na renderização) e tem regressão própria (`hydration-r51-preview.spec.ts`);
+ * qualquer ocorrência volta a reprovar, com a rota na mensagem.
  */
 function expectNoPageErrors(s: Session): void {
-  const r51 = s.errors.filter((e) => e.includes('Minified React error #418'));
-  for (const e of r51) console.log('ACHADO R51: React #418 em ' + (e.split(' @ ')[1] ?? '?'));
-  expect(s.errors.filter((e) => !e.includes('Minified React error #418'))).toEqual([]);
+  expect(s.errors).toEqual([]);
 }
 
 async function visit(s: Session, path: string, shot?: string): Promise<number> {

@@ -63,8 +63,7 @@ test('gestora conecta a conta Asaas SANDBOX e gera a cobrança só da coparticip
   await expect(page.getByRole('button', { name: 'Gerar link de cobrança' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Atualizar situação' }).first().click();
   await expect(page.getByText(/Situação atualizada|Situação:/u).first()).toBeVisible({ timeout: 60_000 });
-  // R51 (React #418 intermitente, fora do convênio) vai para o log; qualquer outro erro reprova.
-  for (const e of errors.filter((x) => x.includes('Minified React error #418'))) console.log('ACHADO R51: ' + e.slice(0, 60));
-  expect(errors.filter((x) => !x.includes('Minified React error #418'))).toEqual([]);
+  // Nenhum erro de página, sem exceção (o #418 do R51 foi corrigido na causa).
+  expect(errors).toEqual([]);
   await context.close();
 });
