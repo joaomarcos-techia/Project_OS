@@ -26,7 +26,19 @@ import { encryptForTenant, hashForLookup } from '@/lib/crypto/encryption';
 import { dbAdmin } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
 
-import { assertDevContext } from '../_env';
+/**
+ * Guarda de DEV própria (o build isolado copia só `scripts/security` e `src`, então este
+ * arquivo não importa `scripts/_env.ts`): URL presente, com TLS, sem cara de produção, sem
+ * `SUPABASE_PROJECT_ENV=prod`, e do projeto que o operador nomeou.
+ */
+function assertDevContext(): { databaseUrl: string } {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) throw new Error('DATABASE_URL ausente');
+  if (process.env.SUPABASE_PROJECT_ENV === 'prod') throw new Error('SUPABASE_PROJECT_ENV=prod: recusado');
+  if (/(prod|production)/iu.test(new URL(databaseUrl).hostname)) throw new Error('host com cara de produção: recusado');
+  if (!databaseUrl.includes('sslmode=require')) throw new Error('DATABASE_URL sem sslmode=require');
+  return { databaseUrl };
+}
 
 const arg = (name: string) => {
   const i = process.argv.indexOf(`--${name}`);
