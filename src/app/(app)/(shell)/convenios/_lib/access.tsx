@@ -10,7 +10,14 @@ import { premiumDenialMessage, type PremiumDenial } from '@/lib/premium-access';
 import { ConveniosTabs } from './tabs';
 
 export type ConveniosAccess =
-  | { ok: true; clinicId: string; canManage: boolean; commercial: PremiumDenial | null }
+  | {
+      ok: true;
+      clinicId: string;
+      canManage: boolean;
+      /** Carteirinha: a recepção cadastra (editar paciente), sem gerenciar o financeiro. */
+      canEditPatients: boolean;
+      commercial: PremiumDenial | null;
+    }
   | { ok: false; view: ReactNode };
 
 /**
@@ -50,6 +57,7 @@ export async function conveniosAccess(title: string): Promise<ConveniosAccess> {
     ok: true,
     clinicId: user.clinicId,
     canManage: user.permissions.includes(PERMISSIONS.MANAGE_FINANCIAL),
+    canEditPatients: user.permissions.includes(PERMISSIONS.EDIT_PATIENT),
     // D24: a mesma decisão do banco que barra as ações, para a tela avisar antes.
     commercial: await getConveniosCommercialDenial(user.clinicId),
   };

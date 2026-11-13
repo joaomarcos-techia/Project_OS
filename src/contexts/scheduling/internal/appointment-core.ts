@@ -497,6 +497,7 @@ export async function insertScheduledAppointment(
         input.provenance?.createdVia ?? (actorType === 'ai_agent' ? 'ai_agent' : 'attendant'),
       urgencia: data.urgencia ?? false,
       observacoes: data.observacoes ?? null,
+      billingMode: data.billingMode ?? 'particular',
       recurrenceSeriesId: input.recurrence?.seriesId ?? null,
       recurrenceOccurrence: input.recurrence?.occurrence ?? null,
       importBatchId: input.provenance?.importBatchId ?? null,
@@ -725,6 +726,9 @@ export async function rescheduleCore(
             createdVia: actorType === 'ai_agent' ? 'ai_agent' : 'attendant',
             urgencia: old.urgencia,
             observacoes: old.observacoes,
+            // Remarcar não muda a forma de atendimento (convênio continua convênio; o banco
+            // confere a habilitação e o bloqueio comercial de novo).
+            billingMode: old.billingMode,
             createdBy: userId,
             rescheduledFromAppointmentId: old.id,
           })

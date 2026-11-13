@@ -27,6 +27,7 @@ import { toast } from '@/components/ui/use-toast';
 
 import { buscarPacientes, criarAtendimento, type CriarAtendimentoInput } from './actions';
 import type { AgendaData } from './data';
+import { emptyBilling, InsuranceBillingFields, type BillingValue } from './insurance-billing-fields';
 
 type Modo = 'agendar' | 'agora';
 
@@ -54,6 +55,7 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
   const [recurring, setRecurring] = useState(false);
   const [intervalWeeks, setIntervalWeeks] = useState('1');
   const [occurrences, setOccurrences] = useState('4');
+  const [billing, setBilling] = useState<BillingValue>(emptyBilling);
   const [error, setError] = useState<string | null>(null);
   const [salvando, startSalvar] = useTransition();
 
@@ -72,6 +74,7 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
     setRecurring(false);
     setIntervalWeeks('1');
     setOccurrences('4');
+    setBilling(emptyBilling());
     setError(null);
   }
 
@@ -84,6 +87,7 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
     if (modo === 'agendar' && (!date || !time)) {
       return setError('Informe data e hora.');
     }
+    if (billing.mode === 'convenio' && !billing.insurerId) return setError('Escolha a operadora do convênio.');
     const base = {
       patientId: paciente.id,
       procedureId,
@@ -91,6 +95,16 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
       urgencia,
       observacoes,
       resourceIds,
+      ...(billing.mode === 'convenio'
+        ? {
+            convenio: {
+              insurerId: billing.insurerId,
+              planId: billing.planId || null,
+              membershipId: billing.membershipId || null,
+              guideType: billing.guideType,
+            },
+          }
+        : {}),
     };
     const interval = Number(intervalWeeks);
     const count = Number(occurrences);
@@ -113,7 +127,18 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
 
     startSalvar(async () => {
       const res = await criarAtendimento(input);
-      if (res.ok) {
+      if (res.ok && res.coverage && (res.coverage.error || res.coverage.issues.length > 0)) {
+        // Convênio criado, mas a cobertura tem pendência: a recepção vê na hora o que falta.
+        toast.info(
+          'Atendimento de convênio criado com pendência',
+          res.coverage.error ?? res.coverage.issues[0],
+          8000,
+          '/convenios',
+        );
+        setOpen(false);
+        reset();
+        router.refresh();
+      } else if (res.ok) {
         toast.success(
           res.modo === 'agora' ? 'Encaixe criado' : 'Atendimento agendado',
           res.modo === 'agora'
@@ -182,7 +207,10 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
               <Combobox
                 id="appointment-patient"
                 value={paciente}
-                onSelect={setPaciente}
+                onSelect={(p) => {
+                  setPaciente(p);
+                  setBilling((b) => ({ ...b, membershipId: '' }));
+                }}
                 onSearch={async (term) =>
                   (await buscarPacientes(term)).map((p) => ({ id: p.id, label: p.nome }))
                 }
@@ -318,6 +346,13 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
                 </div>
               </Field>
             ) : null}
+
+            <InsuranceBillingFields
+              options={data.insurance}
+              patientId={paciente?.id ?? null}
+              value={billing}
+              onChange={setBilling}
+            />
 
             <label className="flex cursor-pointer items-center gap-2.5 text-(length:--fs-sm)">
               <Checkbox checked={urgencia} onCheckedChange={(v) => setUrgencia(v === true)} />

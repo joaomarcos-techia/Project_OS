@@ -20,6 +20,10 @@ import {
   listSchedulableResources,
   type RecurrenceSeriesSummary,
 } from '@/contexts/scheduling/queries';
+import {
+  getSchedulingInsuranceOptions,
+  type SchedulingInsuranceOptions,
+} from '@/contexts/health-insurance/config-queries';
 import { getClinicTimezone } from '@/contexts/tenancy/queries';
 import type { DepositStatus } from '@/components/ui/status-badge';
 import {
@@ -127,6 +131,11 @@ export interface AgendaData {
   tz: string;
   view: AgendaView;
   ymd: string;
+  /**
+   * ADR-072 (P4.4): opções da forma de atendimento "Convênio". Ausente/nulo = a clínica
+   * não usa convênio (ou o módulo não existe no ambiente) e o formulário fica como era.
+   */
+  insurance?: SchedulingInsuranceOptions | null;
 }
 
 const DEFAULT_TZ = 'America/Sao_Paulo';
@@ -303,6 +312,14 @@ export async function getAgendaData(query: AgendaQuery = { view: 'day' }): Promi
     atendimentoDesde: filaDe.get(a.id)?.startedAt ?? null,
   }));
 
+  // Convênio nunca derruba a agenda: falha na leitura = formulário sem a opção.
+  const insurance = user.permissions.includes(PERMISSIONS.EDIT_AGENDA)
+    ? await getSchedulingInsuranceOptions(clinicId).catch((error: unknown) => {
+        console.warn('[agenda] opções de convênio indisponíveis', error instanceof Error ? error.name : 'erro');
+        return null;
+      })
+    : null;
+
   const deliveryFailures = buildAgendaDeliveryFailures({
     failures,
     appointments: new Map<string, AgendaFailureAppointment>(failureAppts.map((a) => [a.id, a])),
@@ -329,5 +346,6 @@ export async function getAgendaData(query: AgendaQuery = { view: 'day' }): Promi
     tz,
     view: query.view,
     ymd,
+    insurance,
   };
 }
