@@ -62,7 +62,8 @@ interface Session {
 
 /**
  * Uma sessão por conta na execução: o login real acontece uma vez e o estado é reusado
- * (o Supabase limita tentativas por origem; 20 logins seguidos caem em "Muitas tentativas").
+ * (o login do Qoro limita 10 tentativas por IP e 5 por e-mail em 15 min, janela deslizante: este spec
+ * usa 5 logins; não rode outro spec autenticado na mesma janela).
  */
 const sessions = new Map<string, Awaited<ReturnType<BrowserContext['storageState']>>>();
 
@@ -327,7 +328,7 @@ test('outra clínica: operadora e paciente de outro tenant não aparecem (404 / 
   await p.context.close();
 });
 
-test('trial: a configuração aparece como recurso contratável e a carteirinha é recusada', async ({ browser }) => {
+test('trial: configuração e carteirinhas aparecem como recurso contratável (a recusa da carteirinha no trial é provada no harness)', async ({ browser }) => {
   test.setTimeout(150_000);
   const s = await login(browser, 'gestor-trial');
   expect(await visit(s, '/convenios/configuracao', 'cfg-07-trial')).toBe(200);

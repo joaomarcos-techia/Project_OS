@@ -30,7 +30,7 @@ em `b6965447`, `feat/convenios-tiss-20261110`) e do `drizzle.__drizzle_migration
 | 0156 `hi_sadt_requests` | #55: solicitação SP/SADT, regra de agrupamento por operadora, vínculo do atendimento ao item | só no #55 | **sim, 12/11 22:28 UTC** (cauda numa transação, `aplicacao-0153.md` §11) | sim, pelo #55 |
 | 0157 `hi_professional_payouts` | #55: repasse de convênio (só LÊ `professional_payout_rules`) | só no #55 | **sim, 12/11 22:28 UTC** (cauda numa transação, `aplicacao-0153.md` §11) | sim, pelo #55 |
 | 0158 `hi_copay_charge` | #55: estado da cobrança da coparticipação (só LÊ `patient_charges`) | só no #55 | **sim, 12/11 22:28 UTC** (cauda numa transação, `aplicacao-0153.md` §11) | sim, pelo #55 |
-| 0159 (reservada) | #53: candidata financeira `saas_period_snapshot` (dono: agente do #53); `when` > 1795036973857 | só na pasta de candidatas do #53 | não (aplicação pelo agente do #53 quando o SQL for definitivo) | — |
+| 0159 | #53: `saas_period_snapshot` (dono: agente do #53); sha256 `eb00a4e3…`, `when` 1795036973858 | no pacote congelado do #53 (`release-manifest.json`), fora do journal das branches | **sim** (pelo agente do #53; conferido por leitura do ledger em 13/11: 160 linhas, 0144–0158 com os hashes do #55) | — |
 | 0153 (candidata) | #55: ponte com o livro financeiro (P1.10: `lancamentos` da operadora, `write_off`) | ainda não existe; exige validação com dados do DEV (D23) | não | — |
 
 - O DEV tem **144 linhas** em `drizzle.__drizzle_migrations`, a última é a 0143 do convênio. As 0136–0142 do #53 vêm
@@ -182,3 +182,11 @@ existir, por consulta dinâmica: aplica sozinha na cadeia do #55 e, na ordem do 
   linha aplicada: uma 0159 com `when` menor que o de uma 0160 já aplicada seria pulada em silêncio).
 - **Readback do #53:** as leituras de DEV do #53 que esperavam 144 linhas passam a ver 159 (0144–0158 do #55).
 
+## 11. Conferência de 13/11: 0159 do #53 aplicada
+
+- Ledger do DEV lido só em leitura (`ledger-now.mjs`): **160 linhas**; 0144–0158 com os SHA-256 do #55; a 160ª é a
+  `0159_saas_period_snapshot` (sha256 `eb00a4e3dd45f89e7eef4dc2c95c577e7932f1f2131d5bfb4ff8f5e4570f5c74`, `when`
+  1795036973858), igual ao `release-manifest.json` do #53 (`5144e6b5`).
+- **Próxima migration do convênio:** número livre combinado com o #53 e `when` > 1795036973858. Nenhuma foi criada neste
+  ciclo: as telas de configuração, o R45 e a coparticipação usaram o schema já aplicado.
+- O journal do #55 continua sem a 0159 (ela vive no pacote do #53); a composição para produção segue o manifesto do #53.

@@ -293,6 +293,14 @@ async function setupConfig() {
   await add('cfg-gestor', 'gestor', 'Gestora Sintética Configuração');
   await add('cfg-recepcao', 'attendant', 'Recepção Sintética Configuração');
   const medica = await add('cfg-medica', 'doctor', 'Dra. Sintética Configuração');
+  // Agenda BASE da médica (cadastro da Agenda, não do convênio): sem disponibilidade o encaixe é
+  // recusado ("sem capacidade operacional"), como deve ser. Todos os dias, o dia inteiro.
+  for (let weekday = 0; weekday < 7; weekday++) {
+    await exec(sql`
+      INSERT INTO public.doctor_availability (clinic_id, doctor_id, weekday, start_time, end_time)
+      VALUES (${clinicId}::uuid, ${medica}::uuid, ${weekday}, '00:00', '23:59')
+      ON CONFLICT DO NOTHING`);
+  }
   await subscription(clinicId, 'paid');
   // Habilitação operacional (Qoro): módulo ligado; identificação do prestador VAZIA (a clínica preenche).
   await exec(sql`

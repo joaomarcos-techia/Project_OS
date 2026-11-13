@@ -21,6 +21,14 @@ const CLINICS = Number(process.env.CLINICS ?? 100);
 const GUIDES = Number(process.env.GUIDES ?? 2);
 const CONCURRENCY = Number(process.env.CONCURRENCY ?? 8);
 const FAIL_RATE = Number(process.env.STORAGE_FAIL_RATE ?? 0.05);
+/**
+ * FINANCIAL=1 (13/11, P5 da orientação): em vez do pagamento exato, o ciclo financeiro inteiro —
+ * glosa parcial na 1ª guia (definitiva nas clínicas pares, contestada nas ímpares), pagamento do
+ * saldo alocado por guia, estorno e realocação em 1 de cada 5 clínicas, e repasse de 40% sobre o
+ * recebido (sincronizar → autorizar → registrar).
+ */
+const FINANCIAL = process.env.FINANCIAL === '1';
+const GLOSS_CENTS = 4500;
 
 const cluster = await startScratchSchema({ port: 55519, maxConnections: CONCURRENCY * 3 + 4 });
 const { sql } = cluster;
@@ -34,6 +42,7 @@ process.env.CRYPTO_MASTER_KEY_V1 = Buffer.alloc(32, 7).toString('base64');
 process.env.CRYPTO_LOOKUP_SALT = Buffer.alloc(32, 9).toString('base64');
 
 const acct = await import('../../src/contexts/health-insurance/internal/insurance-account-service');
+const payouts = await import('../../src/contexts/health-insurance/internal/insurance-payout-service');
 const q = await import('../../src/contexts/health-insurance/queries');
 const { loadXmllintValidator } = await import('../../src/contexts/health-insurance/tiss/xml/xsd-validator');
 const { loadHiFixtures, GUIDE_VALUE_CENTS: VALUE } = await import('./hi-fixtures');
@@ -150,12 +159,60 @@ try {
   });
 
   // 5) Pagamento exato do lote (rateio + ponte com o livro), conciliações concorrentes.
-  await pool(clinics, CONCURRENCY, async (c) => {
-    const batchId = batchOf.get(c.clinicId)!;
-    await timed('pagamento_rateio_livro', () =>
-      fx.asUser(c, (tx) => acct.recordPaymentInTx(tx, { clinicId: c.clinicId, insurerId: c.insurerId, batchId, paidOn: '2026-11-11', amountCents: GUIDES * VALUE, source: 'manual', idempotencyKey: `carga-${randomUUID()}` })),
-    );
-  });
+  if (!FINANCIAL) {
+    await pool(clinics, CONCURRENCY, async (c) => {
+      const batchId = batchOf.get(c.clinicId)!;
+      await timed('pagamento_rateio_livro', () =>
+        fx.asUser(c, (tx) => acct.recordPaymentInTx(tx, { clinicId: c.clinicId, insurerId: c.insurerId, batchId, paidOn: '2026-11-11', amountCents: GUIDES * VALUE, source: 'manual', idempotencyKey: `carga-${randomUUID()}` })),
+      );
+    });
+  } else {
+    // 5F) Glosa → pagamento do saldo por guia → estorno/realocação → repasse.
+    await pool(clinics, CONCURRENCY, async (c, i) => {
+      const batchId = batchOf.get(c.clinicId)!;
+      const ids = guides.get(c.clinicId)!;
+      await sql`insert into public.professional_payout_rules (clinic_id, professional_id, procedure_id, kind, percentage, fixed_amount, effective_from)
+        values (${c.clinicId}::uuid, ${c.doctorId}::uuid, null, 'percentage', 40, null, '2020-01-01')`;
+      const glossId = await timed('glosa_registrada', () =>
+        fx.asUser(c, (tx) => acct.recordGlossInTx(tx, { clinicId: c.clinicId, batchId, guideId: ids[0]!, code: '1705', amountCents: GLOSS_CENTS, source: 'manual', idempotencyKey: `glosa-${randomUUID()}` })),
+      );
+      const gv = async () => Number((await sql`select version from public.hi_glosses where id = ${glossId}::uuid`)[0]!.version);
+      await timed('glosa_decidida', async () => {
+        const v1 = await gv();
+        await fx.asUser(c, (tx) => acct.transitionGlossInTx(tx, { clinicId: c.clinicId, glossId, version: v1, to: 'under_analysis' }));
+        const v2 = await gv();
+        await fx.asUser(c, (tx) =>
+          acct.transitionGlossInTx(tx, i % 2 === 0
+            ? { clinicId: c.clinicId, glossId, version: v2, to: 'definitive', reason: 'Conferido na carga sintética: a glosa procede' }
+            : { clinicId: c.clinicId, glossId, version: v2, to: 'contested' }),
+        );
+      });
+      const allocations = ids.map((g, k) => ({ guideId: g, batchId, amountCents: k === 0 ? VALUE - GLOSS_CENTS : VALUE }));
+      const paymentId = await timed('pagamento_por_guia', () =>
+        fx.asUser(c, (tx) => acct.recordPaymentInTx(tx, { clinicId: c.clinicId, insurerId: c.insurerId, batchId, paidOn: '2026-11-11', amountCents: GUIDES * VALUE - GLOSS_CENTS, source: 'manual', idempotencyKey: `carga-${randomUUID()}`, allocations })),
+      );
+      if (i % 5 === 0) {
+        await timed('estorno_realocacao', async () => {
+          const [alloc] = await sql`select id from public.hi_payment_allocations where payment_id = ${paymentId}::uuid and guide_id = ${ids[ids.length - 1]!}::uuid order by created_at desc limit 1`;
+          await fx.asUser(c, (tx) => acct.reversePaymentAllocationInTx(tx, { clinicId: c.clinicId, allocationId: String(alloc!.id), reason: 'Estorno sintético na carga: alocação refeita' }));
+          await fx.asUser(c, (tx) => acct.allocatePaymentInTx(tx, { clinicId: c.clinicId, paymentId, allocationKey: `realoc-${randomUUID()}`, allocations: [{ guideId: ids[ids.length - 1]!, batchId, amountCents: VALUE }] }));
+        });
+      }
+      await timed('repasse_sync_autoriza_registra', async () => {
+        await fx.asUser(c, (tx) => payouts.syncInsurancePayoutsTx(tx, c.clinicId, c.doctorId));
+        for (const p of await fx.asUser(c, (tx) => payouts.listInsurancePayoutPositionsTx(tx, c.clinicId))) {
+          if (p.pendingAuthorizationCents > 0) {
+            await fx.asUser(c, (tx) => payouts.authorizeInsurancePayoutTx(tx, { clinicId: c.clinicId, payoutId: p.payoutId, amountCents: p.pendingAuthorizationCents, idempotencyKey: `aut-${randomUUID()}`, actorUserId: c.doctorId }));
+          }
+        }
+        for (const p of await fx.asUser(c, (tx) => payouts.listInsurancePayoutPositionsTx(tx, c.clinicId))) {
+          if (p.dueCents > 0) {
+            await fx.asUser(c, (tx) => payouts.settleInsurancePayoutTx(tx, { clinicId: c.clinicId, payoutId: p.payoutId, amountCents: p.dueCents, paidOn: '2026-11-12', reference: null, idempotencyKey: `rep-${randomUUID()}`, actorUserId: c.doctorId }));
+          }
+        }
+      });
+    });
+  }
 
   // 6) Leituras da interface.
   await pool(clinics, CONCURRENCY, async (c) => {
@@ -175,7 +232,24 @@ try {
       (select count(*) from public.hi_ledger_drift)::int as drift,
       (select count(*) from public.hi_files where kind = 'batch_xml')::int as files,
       pg_size_pretty(pg_database_size(current_database())) as db_size`;
-  assert.deepEqual([check!.paid_guides, check!.paid_receivables, check!.drift, check!.files], [CLINICS * GUIDES, CLINICS * GUIDES, 0, CLINICS]);
+  let financial: Record<string, number> | null = null;
+  if (!FINANCIAL) {
+    assert.deepEqual([check!.paid_guides, check!.paid_receivables, check!.drift, check!.files], [CLINICS * GUIDES, CLINICS * GUIDES, 0, CLINICS]);
+  } else {
+    const [f] = await sql`select
+        (select count(*) from public.hi_glosses where status = 'definitive')::int as definitive,
+        (select count(*) from public.hi_glosses where status = 'contested')::int as contested,
+        (select coalesce(sum(amount_cents), 0) from public.hi_payout_movements where kind = 'settlement')::bigint as settled,
+        (select count(*) from public.hi_payment_allocations where reverses_id is not null)::int as reversed`;
+    financial = { definitiveGlosses: f!.definitive as number, contestedGlosses: f!.contested as number, payoutSettledCents: Number(f!.settled), reversedAllocations: f!.reversed as number };
+    // Livro = conta; um arquivo por lote; glosas no estado pedido; repasse = 40% do RECEBIDO (nunca do faturado).
+    assert.equal(check!.drift, 0);
+    assert.equal(check!.files, CLINICS);
+    assert.equal(financial.definitiveGlosses, Math.ceil(CLINICS / 2));
+    assert.equal(financial.contestedGlosses, Math.floor(CLINICS / 2));
+    assert.equal(financial.payoutSettledCents, CLINICS * Math.round(0.4 * (GUIDES * VALUE - GLOSS_CENTS)));
+    assert.equal(financial.reversedAllocations, Math.ceil(CLINICS / 5));
+  }
   assert.equal(objects.size, CLINICS);
 
   const ops = Object.fromEntries(
@@ -190,6 +264,7 @@ try {
     database: { maxConnections: maxConn, maxWaitingLocks, size: check!.db_size },
     process: { maxRssMb: Math.round(maxRss / 1024 / 1024) },
     integrity: { paidGuides: check!.paid_guides, paidReceivables: check!.paid_receivables, ledgerDrift: check!.drift, xmlFiles: check!.files },
+    ...(financial ? { financial } : {}),
   }, null, 2));
   console.log(`\nOK — ${CLINICS} clínicas × ${GUIDES} guias: ciclo completo íntegro (livro = conta, sem duplicidade) com ${injected} falhas de armazenamento injetadas e recuperadas.`);
 } finally {
