@@ -20429,8 +20429,8 @@
         "plan": "consultorio_2026",
         "amountMinor": 19700,
         "phase": "trial_ready",
-        "preview": "https://project-agdxvdvv9-clinic-os-v2-s-projects.vercel.app",
-        "runtimeSha": "f493dcccf656982fbbee40a9c87aeb54e4cda7c7",
+        "preview": "https://project-edr23fzoi-clinic-os-v2-s-projects.vercel.app",
+        "runtimeSha": "3b16386f256718cd13323471f26ef71e414f452a",
         "trialEndsAt": "2026-11-27T15:12:42.157Z",
         "authConfirmation": "administrative_synthetic_fixture_not_email_delivery_proof",
         "ui": {
@@ -20456,7 +20456,49 @@
         "invoiceCount": 0,
         "operationCount": 0,
         "paidReleaseAt": null,
-        "retention": "retain_until_reconciled_no_automatic_cleanup"
+        "retention": "retain_until_reconciled_no_automatic_cleanup",
+        "productId": "prod_NTxhdRJzM0cG5MgDeeF54RL2",
+        "initialPreview": {
+          "url": "https://project-agdxvdvv9-clinic-os-v2-s-projects.vercel.app",
+          "sha": "f493dcccf656982fbbee40a9c87aeb54e4cda7c7"
+        },
+        "manifestReconciliation": {
+          "observedAt": "2026-11-13T15:43:21.924Z",
+          "status": "PASS",
+          "scope": "local_staged_manifest_origin_and_sha_only",
+          "before": {
+            "origin": "https://project-agdxvdvv9-clinic-os-v2-s-projects.vercel.app",
+            "sha": "f493dcccf656982fbbee40a9c87aeb54e4cda7c7"
+          },
+          "after": {
+            "origin": "https://project-edr23fzoi-clinic-os-v2-s-projects.vercel.app",
+            "sha": "3b16386f256718cd13323471f26ef71e414f452a"
+          },
+          "runId": "d2d0e84d-059b-4b29-9074-f3305a3fc97f",
+          "clinicId": "8b12f2da-b881-4409-815f-a18ec71fd1c6",
+          "subscriptionId": "1c21ff83-9e46-4eee-bffa-d19aa2be9135",
+          "operations": 0,
+          "invoices": 0,
+          "checkouts": 0,
+          "databaseWrites": 0,
+          "providerWrites": 0
+        },
+        "uiAfterReconciliation": {
+          "runId": "d2d0e84d-059b-4b29-9074-f3305a3fc97f",
+          "userId": "7443e211-387f-488f-af8f-4419185a4bda",
+          "status": "PASS",
+          "stages": [
+            "real_browser_login",
+            "database_origin_absolute_deadline_and_no_initial_provider_operation",
+            "desktop_mobile_subscription",
+            "active_trial_optional_conversion_and_unpaid_integrations_blocked"
+          ],
+          "retention": "retained_until_financial_reconciliation; never delete on test timeout",
+          "scope": "Auth confirmed administratively; no proof of signup email delivery or external payment",
+          "browserErrorClasses": [],
+          "clinicId": "8b12f2da-b881-4409-815f-a18ec71fd1c6",
+          "subscriptionId": "1c21ff83-9e46-4eee-bffa-d19aa2be9135"
+        }
       }
     },
     "smallCohorts": {
@@ -20571,13 +20613,33 @@
       },
       "typecheck": "PASS",
       "lint": "PASS",
-      "build": "LOCAL_INITIAL_FAILED_TLS_AND_2_GIB_HEAP; SECOND_ATTEMPT_WINDOWS_CA_4_GIB_CANCELLED_DUE_HOST_MEMORY_PRESSURE; REMOTE_CI_REQUIRED",
-      "ci": "PENDING_NEW_COMMIT_CHECKS"
+      "build": {
+        "status": "PASS_VERCEL_READY",
+        "sha": "3b16386f256718cd13323471f26ef71e414f452a",
+        "deployment": "dpl_7iCXDyLzWtLCQViriZKrkz3rt92P",
+        "url": "https://project-edr23fzoi-clinic-os-v2-s-projects.vercel.app",
+        "local": "TLS_FAILURE_AND_2_GIB_HEAP_EXHAUSTED; 4_GIB_RETEST_CANCELLED_HOST_MEMORY; NO_TLS_WEAKENING_OR_CONFIG_CHANGE"
+      },
+      "ci": {
+        "codeSha": "3b16386f256718cd13323471f26ef71e414f452a",
+        "run": "43454379507",
+        "conclusion": "FAIL_STALE_GENERATED_SECURITY_INVENTORY",
+        "unitPassed": 7161,
+        "files": 632,
+        "coverageGate": "PASS",
+        "failedStep": "Security inventory (AST and explicit guard review)",
+        "fix": "Regenerated docs/security/acoes.md; reviewed only CLI environment-reference line changes and count531to532",
+        "localInventoryCheck": "PASS",
+        "unresolvedGuards": 0,
+        "unregisteredPublicVariables": 0,
+        "currentHeadChecks": "https://github.com/joaomarcos-techia/Project_OS/pull/53/checks"
+      }
     },
     "riskAcceptance": false,
     "productionFinancialCalls": 0,
     "productionDatabaseWrites": 0,
     "productionDeploymentChanges": 0,
-    "otherWorktreeWrites": 0
+    "otherWorktreeWrites": 0,
+    "runtimeDeltaFromPriorProvenComposition": "Only two src test files; no runtime, package, lockfile or SQL delta since 1703b3f2"
   }
 }

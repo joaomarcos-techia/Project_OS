@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 200 actions (0 inline); 66 métodos em 62 handlers; 19 props com referência de action; 531 acessos diretos a process.env; 10 nomes NEXT_PUBLIC.
+Contagem: 200 actions (0 inline); 66 métodos em 62 handlers; 19 props com referência de action; 532 acessos diretos a process.env; 10 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -402,13 +402,14 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/_env.ts:111`                                      | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                                          |
 | `scripts/_env.ts:174`                                      | `USER`                                 | `process.env.USER`                                                          |
 | `scripts/_env.ts:174`                                      | `USERNAME`                             | `process.env.USERNAME`                                                      |
-| `scripts/abacatepay-checkout-operator.ts:71`               | `LOCALAPPDATA`                         | `process.env.LOCALAPPDATA`                                                  |
-| `scripts/abacatepay-checkout-operator.ts:272`              | `<object>`                             | `process.env`                                                               |
-| `scripts/abacatepay-checkout-operator.ts:280`              | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
-| `scripts/abacatepay-checkout-operator.ts:360`              | `<object>`                             | `process.env`                                                               |
-| `scripts/abacatepay-checkout-operator.ts:405`              | `<object>`                             | `process.env`                                                               |
-| `scripts/abacatepay-checkout-operator.ts:530`              | `<dynamic>`                            | `process.env[key]`                                                          |
-| `scripts/abacatepay-checkout-operator.ts:530`              | `<dynamic>`                            | `process.env[key]`                                                          |
+| `scripts/abacatepay-checkout-operator.ts:76`               | `LOCALAPPDATA`                         | `process.env.LOCALAPPDATA`                                                  |
+| `scripts/abacatepay-checkout-operator.ts:95`               | `<object>`                             | `process.env`                                                               |
+| `scripts/abacatepay-checkout-operator.ts:175`              | `<object>`                             | `process.env`                                                               |
+| `scripts/abacatepay-checkout-operator.ts:183`              | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
+| `scripts/abacatepay-checkout-operator.ts:381`              | `<object>`                             | `process.env`                                                               |
+| `scripts/abacatepay-checkout-operator.ts:426`              | `<object>`                             | `process.env`                                                               |
+| `scripts/abacatepay-checkout-operator.ts:552`              | `<dynamic>`                            | `process.env[key]`                                                          |
+| `scripts/abacatepay-checkout-operator.ts:552`              | `<dynamic>`                            | `process.env[key]`                                                          |
 | `scripts/abacatepay-readonly-check.ts:17`                  | `ABACATEPAY_API_KEY`                   | `process.env.ABACATEPAY_API_KEY`                                            |
 | `scripts/abacatepay-sandbox-draft.ts:74`                   | `LOCALAPPDATA`                         | `process.env.LOCALAPPDATA`                                                  |
 | `scripts/activate-offer-extras-preview-dev.ts:20`          | `E2E_OFFER_DEV_ACTIVATION`             | `process.env.E2E_OFFER_DEV_ACTIVATION`                                      |
@@ -594,13 +595,13 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/abacatepay-composition-checks-db.ts:89`  | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
 | `scripts/security/abacatepay-dev-release.ts:99`            | `QORO_TISS_WORKTREE`                   | `process.env.QORO_TISS_WORKTREE`                                            |
 | `scripts/security/abacatepay-dev-release.ts:118`           | `QORO_LOCAL_ENV_FILE`                  | `process.env.QORO_LOCAL_ENV_FILE`                                           |
-| `scripts/security/abacatepay-operational-proof.ts:115`     | `QORO_ABACATEPAY_OPERATIONAL_PROFILE`  | `process.env.QORO_ABACATEPAY_OPERATIONAL_PROFILE`                           |
-| `scripts/security/abacatepay-operational-proof.ts:302`     | `ABACATEPAY_WEBHOOK_SECRET`            | `process.env.ABACATEPAY_WEBHOOK_SECRET`                                     |
-| `scripts/security/abacatepay-operational-proof.ts:324`     | `<object>`                             | `process.env`                                                               |
-| `scripts/security/abacatepay-operational-proof.ts:439`     | `ABACATEPAY_NEW_CHECKOUTS_ENABLED`     | `process.env.ABACATEPAY_NEW_CHECKOUTS_ENABLED`                              |
-| `scripts/security/abacatepay-operational-proof.ts:489`     | `<object>`                             | `process.env`                                                               |
-| `scripts/security/abacatepay-operational-proof.ts:631`     | `QORO_FINANCIAL_REF`                   | `process.env.QORO_FINANCIAL_REF`                                            |
-| `scripts/security/abacatepay-operational-proof.ts:632`     | `QORO_TISS_REF`                        | `process.env.QORO_TISS_REF`                                                 |
+| `scripts/security/abacatepay-operational-proof.ts:117`     | `QORO_ABACATEPAY_OPERATIONAL_PROFILE`  | `process.env.QORO_ABACATEPAY_OPERATIONAL_PROFILE`                           |
+| `scripts/security/abacatepay-operational-proof.ts:309`     | `ABACATEPAY_WEBHOOK_SECRET`            | `process.env.ABACATEPAY_WEBHOOK_SECRET`                                     |
+| `scripts/security/abacatepay-operational-proof.ts:331`     | `<object>`                             | `process.env`                                                               |
+| `scripts/security/abacatepay-operational-proof.ts:447`     | `ABACATEPAY_NEW_CHECKOUTS_ENABLED`     | `process.env.ABACATEPAY_NEW_CHECKOUTS_ENABLED`                              |
+| `scripts/security/abacatepay-operational-proof.ts:497`     | `<object>`                             | `process.env`                                                               |
+| `scripts/security/abacatepay-operational-proof.ts:645`     | `QORO_FINANCIAL_REF`                   | `process.env.QORO_FINANCIAL_REF`                                            |
+| `scripts/security/abacatepay-operational-proof.ts:646`     | `QORO_TISS_REF`                        | `process.env.QORO_TISS_REF`                                                 |
 | `scripts/security/abacatepay-operational-worker.ts:4`      | `QORO_ABACATEPAY_OPERATIONAL`          | `process.env.QORO_ABACATEPAY_OPERATIONAL`                                   |
 | `scripts/security/abacatepay-operational-worker.ts:5`      | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
 | `scripts/security/abacatepay-operational-worker.ts:6`      | `ABACATEPAY_ENVIRONMENT`               | `process.env.ABACATEPAY_ENVIRONMENT`                                        |

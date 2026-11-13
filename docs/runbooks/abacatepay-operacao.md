@@ -507,7 +507,9 @@ O comando abaixo é **para a engenharia após essa mensagem**, não uma solicita
 
 ```powershell
 Set-Location 'C:\dev\Qoro_billing_abacatepay_20261107'
-node --use-env-proxy --use-system-ca --conditions=react-server --import tsx scripts/abacatepay-checkout-operator.ts --action create --preview https://project-agdxvdvv9-clinic-os-v2-s-projects.vercel.app --vercel-cli C:/Users/joaom/AppData/Local/npm-cache/_npx/67eb4586ca667318/node_modules/vercel/dist/vc.js --plan consultorio_2026 --scenario early_payment --session next-checkout-earlypayment-20261113
+$qoroSessionPath = Join-Path $env:LOCALAPPDATA 'Qoro\SandboxBilling\next-checkout-earlypayment-20261113\session.json'
+$qoroPrepared = Get-Content -LiteralPath $qoroSessionPath -Raw | ConvertFrom-Json
+node --use-env-proxy --use-system-ca --conditions=react-server --import tsx scripts/abacatepay-checkout-operator.ts --action create --preview $qoroPrepared.origin --vercel-cli C:/Users/joaom/AppData/Local/npm-cache/_npx/67eb4586ca667318/node_modules/vercel/dist/vc.js --plan consultorio_2026 --scenario early_payment --session next-checkout-earlypayment-20261113
 ```
 
 Após pagamento humano Sandbox, usar os mesmos argumentos com **--action verify**, sem trocar session/origin/plan. Consultar o provedor antes de declarar pago; evento completed e efeito local são conferidos separadamente. Exigir uma invoice/attempt/receipt, binding correto, período pago, cotas e UI. Se a rede falhar, preservar manifesto e retomar; nunca limpar por timeout. A ativação antecipada usa Auth como limite inferior do período, sem exigir que o trial termine.
