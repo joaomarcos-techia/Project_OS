@@ -274,13 +274,15 @@ async function setupConfig() {
   const clinicId = await clinic('e2e-hi-config', 'Clínica Sintética E2E Configuração');
   const [own] = await exec<{ ok: boolean }>(sql`SELECT slug = 'e2e-hi-config' AS ok FROM public.clinics WHERE id = ${clinicId}::uuid`);
   if (!own?.ok) throw new Error('clínica inesperada');
-  // Recomeço do zero (cascata leva contratos, planos, carteirinhas, coberturas e coparticipações).
+  // Recomeço do CONVÊNIO do zero (cascata leva contratos, planos, carteirinhas, coberturas e
+  // coparticipações). Paciente com prontuário e procedimento já referenciado ficam: o banco protege a
+  // retenção e o E2E cria os seus com nomes únicos.
   await exec(sql`DELETE FROM public.appointments WHERE clinic_id = ${clinicId}::uuid`);
   await exec(sql`DELETE FROM public.hi_professional_profiles WHERE clinic_id = ${clinicId}::uuid`);
   await exec(sql`DELETE FROM public.hi_memberships WHERE clinic_id = ${clinicId}::uuid`);
   await exec(sql`DELETE FROM public.hi_insurers WHERE clinic_id = ${clinicId}::uuid`);
-  await exec(sql`DELETE FROM public.patients WHERE clinic_id = ${clinicId}::uuid`);
-  await exec(sql`DELETE FROM public.procedures WHERE clinic_id = ${clinicId}::uuid`);
+  // Pacientes e procedimentos NÃO são apagados: paciente com prontuário é protegido pelo banco
+  // (retenção) e o E2E sempre cria os seus com nomes únicos por execução.
   const add = async (key: string, role: string, nome: string) => {
     const email = `e2e-hi-${key}@example.com`;
     const pass = password();
@@ -310,7 +312,7 @@ async function setupConfig() {
       provider_kind = NULL, contractor_name = NULL, cnes = NULL, cnes_status = 'unknown'`);
   writeFileSync(accountsFile!, JSON.stringify(accounts, null, 1));
   writeFileSync(outFile!, JSON.stringify({ clinicId, medica }, null, 1));
-  console.log(`[hi-dev-e2e-fixture] ok: clínica e2e-hi-config zerada, ${Object.keys(accounts).length} contas, módulo habilitado; nada de convênio cadastrado`);
+  console.log(`[hi-dev-e2e-fixture] ok: clínica e2e-hi-config com o convênio zerado, ${Object.keys(accounts).length} contas, módulo habilitado`);
 }
 
 async function cleanup() {

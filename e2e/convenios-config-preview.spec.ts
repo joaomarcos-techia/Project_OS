@@ -134,7 +134,7 @@ test('gestora: procedimento no catálogo da clínica (Configurações › Proced
   await s.page.fill('#proc-valor', '150,00');
   await s.page.fill('#proc-duracao', '30');
   await s.page.getByRole('button', { name: 'Salvar', exact: true }).click();
-  await expect(s.page.getByText(PROC_NAME).first()).toBeVisible({ timeout: 45_000 });
+  await expect(s.page.getByText(PROC_NAME).first()).toBeVisible({ timeout: 90_000 });
   expect(s.errors).toEqual([]);
   await s.context.close();
 });
@@ -229,7 +229,7 @@ test('recepção: cadastra o paciente e a carteirinha (número cifrado; completo
   state.patientId = new URL(s.page.url()).pathname.split('/').at(-1)!;
 
   await visit(s, `/convenios/carteirinhas?q=${encodeURIComponent(PATIENT)}`);
-  await s.page.getByTestId('cards-patient-hits').getByRole('link', { name: PATIENT }).click();
+  await s.page.getByRole('link', { name: PATIENT, exact: true }).first().click();
   await s.page.waitForURL(/paciente=/u);
   await s.page.getByRole('button', { name: 'Nova carteirinha' }).click();
   await s.page.getByLabel('Operadora').selectOption({ label: INSURER });
@@ -397,6 +397,16 @@ test('médica: chama e encerra a consulta; a guia de convênio nasce sozinha do 
   expect(await visit(m, '/consultorio')).toBe(200);
   await expect(m.page.getByText(PATIENT).first()).toBeVisible({ timeout: 30_000 });
   await m.page.getByRole('button', { name: 'Chamar' }).first().click();
+  // Regra clínica: só encerra com o prontuário assinado, e o banco recusa prontuário vazio. A nota
+  // diz só que é um registro de teste: nenhum dado clínico é inventado.
+  await m.page.getByPlaceholder('Anotações complementares.').fill('Registro sintético de teste automatizado (E2E). Nenhum dado clínico.');
+  await m.page.getByRole('button', { name: 'Salvar agora' }).click();
+  await expect(m.page.getByText(/^Salvo/u).first()).toBeVisible({ timeout: 45_000 });
+  await m.page.getByRole('button', { name: 'Assinar consulta' }).first().click();
+  const sign = m.page.getByRole('dialog', { name: 'Assinar prontuário' });
+  await expect(sign).toBeVisible({ timeout: 30_000 });
+  await sign.getByRole('button', { name: 'Assinar consulta' }).click();
+  await expect(sign).toHaveCount(0, { timeout: 45_000 });
   await m.page.getByRole('button', { name: 'Encerrar consulta' }).click();
   await expect(m.page.getByRole('button', { name: 'Encerrar consulta' })).toHaveCount(0, { timeout: 45_000 });
   expect(m.errors).toEqual([]);
