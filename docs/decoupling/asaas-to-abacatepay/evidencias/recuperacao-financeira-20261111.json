@@ -21369,7 +21369,8 @@
           "files": 2
         },
         "historicalEventsChanged": false,
-        "newAlertsSent": 0
+        "newSyntheticProbesSent": 0,
+        "naturalSdkCaptureFromReproduction": "POSSIBLE; delivery not verified because administrative API returned401"
       },
       "runtime": {
         "next": "15.5.28",

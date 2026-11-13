@@ -1321,7 +1321,7 @@ Próximo experimento do responsável pela UI/TISS: estender `e2e/hydration-r51-p
 
 Leitura de bundles dos releases exato/atual TISS: 19 scripts por release, inicialização `production=1`, `preview=0`. Fonte: `src/instrumentation-client.ts` usa `NODE_ENV`, que também é production no build Preview. No Preview financeiro: 18 scripts, `preview=1`, `production=0`, SHA correspondente presente. A correção existente `a5984e23` usa `NEXT_PUBLIC_VERCEL_ENV`, com fallback local, e mantém `VERCEL_ENV` no server/edge. **17/17 testes** de ambiente/sanitização passaram nesta rodada. Não duplicada nem aplicada unilateralmente no worktree TISS.
 
-Sentry API de issue/latest retornou401; os sourcemaps pareados aos main-app chunks dos três deployments retornaram404. Não foram usados mapas de outro SHA nem declarada simbolicação completa. `$RS` é código inline de streaming; a classificação errada não é sua correção. O alerta Production `ed622a74` foi preservado; nenhum alerta novo, regra editada ou evento histórico alterado.
+Sentry API de issue/latest retornou401; os sourcemaps pareados aos main-app chunks dos três deployments retornaram404. Não foram usados mapas de outro SHA nem declarada simbolicação completa. `$RS` é código inline de streaming; a classificação errada não é sua correção. O alerta Production `ed622a74` foi preservado; nenhuma regra editada, novo probe deliberado ou evento histórico alterado. A reprodução do #418 pode gerar captura natural pelo SDK da Preview; sem acesso à API não se afirma ausência de novos eventos/notificações dessa captura.
 
 ### E. Decisão e próxima ação
 
