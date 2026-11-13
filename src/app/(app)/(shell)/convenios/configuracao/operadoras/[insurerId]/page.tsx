@@ -122,7 +122,7 @@ export default async function OperadoraPage({ params }: { params: Promise<{ insu
                   <TableHead>Segmentação</TableHead>
                   <TableHead>Situação</TableHead>
                   <TableHead className="text-right">Carteirinhas ativas</TableHead>
-                  {editable ? <TableHead><span className="sr-only">Ações</span></TableHead> : null}
+                  {editable ? <TableHead aria-label="Ações" /> : null}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -171,7 +171,7 @@ export default async function OperadoraPage({ params }: { params: Promise<{ insu
                   <TableHead className="text-right">Valor</TableHead>
                   <TableHead>Coparticipação</TableHead>
                   <TableHead>Autorização</TableHead>
-                  {editable ? <TableHead><span className="sr-only">Ações</span></TableHead> : null}
+                  {editable ? <TableHead aria-label="Ações" /> : null}
                 </TableRow>
               </TableHeader>
               <TableBody>

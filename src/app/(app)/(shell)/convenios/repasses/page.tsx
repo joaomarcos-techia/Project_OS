@@ -100,7 +100,7 @@ export default async function RepassesPage() {
                 <TableHead className="text-right">Autorizado</TableHead>
                 <TableHead className="text-right">Repassado</TableHead>
                 <TableHead className="text-right">Devido</TableHead>
-                {access.canManage ? <TableHead><span className="sr-only">Ações</span></TableHead> : null}
+                {access.canManage ? <TableHead aria-label="Ações" /> : null}
               </TableRow>
             </TableHeader>
             <TableBody>

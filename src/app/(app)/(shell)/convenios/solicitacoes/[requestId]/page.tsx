@@ -181,7 +181,7 @@ export default async function SolicitacaoPage({ params }: { params: Promise<{ re
                 <TableHead className="text-right">Autorizado</TableHead>
                 <TableHead className="text-right">Executado</TableHead>
                 <TableHead>Situação</TableHead>
-                {m ? <TableHead><span className="sr-only">Ações</span></TableHead> : null}
+                {m ? <TableHead aria-label="Ações" /> : null}
               </TableRow>
             </TableHeader>
             <TableBody>

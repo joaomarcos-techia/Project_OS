@@ -64,7 +64,7 @@ export default async function AtendimentosConvenioPage() {
                 <TableHead>Procedimento</TableHead>
                 <TableHead>Cobertura</TableHead>
                 <TableHead>O que falta</TableHead>
-                {canEditAgenda ? <TableHead><span className="sr-only">Ações</span></TableHead> : null}
+                {canEditAgenda ? <TableHead aria-label="Ações" /> : null}
               </TableRow>
             </TableHeader>
             <TableBody>

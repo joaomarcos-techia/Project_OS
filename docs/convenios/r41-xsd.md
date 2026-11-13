@@ -1,7 +1,7 @@
-# R41 — validador XSD: pool persistente (feito) e exportação assíncrona (desenho)
+# R41 — validador XSD: pool persistente e exportação assíncrona (R45)
 
-**Situação (12/11/2026, noite 3):** pool **implementado e testado** (`8b720c7c`); exportação assíncrona **não
-implementada** (desenho abaixo, depende de uma leitura delegada auditada).
+**Situação (13/11/2026):** pool **implementado e testado** (`8b720c7c`); exportação assíncrona
+**implementada e testada** (`779a5702`, seção 4), com leitura delegada auditada.
 
 ## 1. O gargalo
 
@@ -55,7 +55,42 @@ vCPUs e a memória da função na Vercel não foram medidos.
 **No navegador:** um lote foi montado, teve o XML gerado e validado no XSD **na Vercel** e o download foi
 conferido (`e2e/convenios-preview.spec.ts`).
 
-## 4. Exportação assíncrona (desenho; não implementada)
+## 4. Exportação assíncrona (R45) — implementada e testada em 13/11
+
+**Situação:** implementada (`779a5702`); harness `health-insurance-batch-export-async-db.ts` 10/10
+com o worker real do outbox; validação no Preview em `e2e/convenios-batch-async-preview.spec.ts`.
+
+Como ficou (sem DDL, sem infraestrutura nova):
+
+- **Pedido** (`_lib/batch-export-actions.ts`, `manage:financial` fresca, D24): publica
+  `health_insurance.batch.export_requested` `{ clinicId, batchId, version, requestedBy }` com a chave
+  `hi-batch-export:<lote>:v<versão>` na mesma transação da auditoria. O mesmo lote na mesma versão é um
+  job só. Logo depois da resposta, o job é processado pelas chaves exatas do request
+  (`runOutboxEventsNow` via `after`); o cron do outbox é a reserva.
+- **Leitura delegada** (`readBatchGuidesDelegated`, em `guide-access.ts`, o único módulo que decifra
+  snapshot):
+  - escopo mínimo: as guias ativas do lote pedido, lidas pela RLS da clínica (o worker não escolhe guias);
+  - autorização na execução: `manage:financial` efetiva de quem pediu, conferida de novo no banco
+    (`delegation-permission.ts`, só leitura, escopo fixo usuário+clínica+permissão; único ponto do
+    contexto com `dbAdmin`, na allowlist do ESLint e do arch-db-check);
+  - auditoria em nome de quem pediu, com o serviço e o job (`actor.kind = delegated`); negação também
+    auditada; a leitura de sistema comum não aceita a operação delegada.
+- **Execução** (`handlers/batch-export-requested.ts`, handler destacado): lote mudou ou foi cancelado →
+  o job caduca sem gerar nada; já exportado → `already_exported`; a exportação existente gera, valida no
+  XSD oficial, cifra e grava com compensação do objeto.
+- **Falhas:** regra, conteúdo, autorização (`access_permission_revoked`) e bloqueio comercial
+  (`premium_denied`) falham sem nova tentativa, com código; validador indisponível e armazenamento fora
+  são transitórios (nova tentativa com backoff); worker interrompido é devolvido à fila pelo zelador.
+- **Tela do lote:** "Gerar XML em segundo plano" e o estado (na fila, gerando, falhou com o motivo por
+  código, concluído). O texto técnico do erro nunca vai para a tela.
+
+Provas do harness: serviço não declarado recusado; outra clínica = não encontrado; quem pediu sem
+permissão negado na execução e auditado; caminho feliz com 2 leituras auditadas em nome de quem pediu;
+mesmo pedido = 1 job; replay e dois workers simultâneos = 1 arquivo; lote cancelado depois do pedido;
+XSD reprovado; armazenamento fora e de volta; assinatura suspensa depois do pedido; worker interrompido;
+backlog de 12 lotes (12 arquivos, ~2 s no worker local, concorrência 2).
+
+### Desenho original (12/11), mantido para histórico
 
 O desenho usa o outbox existente, sem infraestrutura nova e sem DDL.
 
