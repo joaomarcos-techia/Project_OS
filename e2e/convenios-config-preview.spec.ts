@@ -16,7 +16,7 @@
  *   E2E_HI_FIXTURE=<ids.json> [E2E_HI_SHOTS=<dir>] VERCEL_AUTOMATION_BYPASS_SECRET=… MAGIC_TOKEN_SECRET_DEV=… \
  *     npx playwright test e2e/convenios-config-preview.spec.ts
  */
-import { mkdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
 
@@ -28,6 +28,8 @@ const CFG_ACCOUNTS = process.env.E2E_HI_CFG_ACCOUNTS;
 const ACCOUNTS = process.env.E2E_HI_ACCOUNTS;
 const FIXTURE = process.env.E2E_HI_FIXTURE;
 const SHOTS = process.env.E2E_HI_SHOTS;
+/** Retomada: com E2E_RUN e E2E_HI_STATE, a execução reaproveita a marca e o estado salvo (rode as etapas pendentes com -g). */
+const STATE_FILE = process.env.E2E_HI_STATE;
 
 test.skip(!BASE || !CFG_ACCOUNTS || !ACCOUNTS || !FIXTURE, 'requer E2E_BASE_URL (Preview no DEV) e as fixtures e2e-hi');
 test.describe.configure({ mode: 'serial' });
@@ -45,7 +47,7 @@ if (SHOTS) mkdirSync(SHOTS, { recursive: true });
 const DESKTOP = { width: 1440, height: 900 };
 const MOBILE = { width: 390, height: 844 };
 /** Marca desta execução: nomes e códigos únicos, sempre sintéticos. */
-const RUN = Date.now().toString(36).slice(-5).toUpperCase();
+const RUN = process.env.E2E_RUN ?? Date.now().toString(36).slice(-5).toUpperCase();
 const PROC_CODE = `E2E${RUN}`;
 const PROC_NAME = `Consulta sintética ${RUN}`;
 const INSURER = `Operadora Sintética ${RUN}`;
@@ -58,7 +60,16 @@ const CARD = `0099${RUN.replace(/[^0-9]/gu, '7').padEnd(4, '7').slice(0, 4)}5566
  */
 const SLOT = ((n) => `${String(6 + Math.floor(n / 2)).padStart(2, '0')}:${n % 2 ? '30' : '00'}`)(Number.parseInt(RUN, 36) % 32);
 
-const state: { insurerUrl?: string; patientId?: string } = {};
+const saved = (STATE_FILE && process.env.E2E_RUN && existsSync(STATE_FILE) ? JSON.parse(readFileSync(STATE_FILE, 'utf8')) : {}) as {
+  state?: { insurerUrl?: string; patientId?: string };
+  journey?: { guideUrl?: string; guideNumber?: string; batchUrl?: string };
+};
+const state: { insurerUrl?: string; patientId?: string } = { ...saved.state };
+const journey: { guideUrl?: string; guideNumber?: string; batchUrl?: string } = { ...saved.journey };
+test.afterEach(() => {
+  if (STATE_FILE) writeFileSync(STATE_FILE, JSON.stringify({ run: RUN, state, journey }, null, 1));
+});
+console.log(`E2E_RUN=${RUN}`);
 
 interface Session {
   context: BrowserContext;
@@ -100,7 +111,17 @@ async function visit(s: Session, path: string, shot?: string): Promise<number> {
   return res?.status() ?? 0;
 }
 
-const toast = (page: Page, text: string | RegExp) => expect(page.getByText(text).first()).toBeVisible({ timeout: 45_000 });
+/** Espera o aviso de sucesso; registra todo aviso que aparecer no caminho (o de erro some em 6 s) para a falha dizer o motivo. */
+const toast = async (page: Page, text: string | RegExp) => {
+  const seen = new Set<string>();
+  const deadline = Date.now() + 45_000;
+  while (Date.now() < deadline) {
+    if (await page.getByText(text).first().isVisible().catch(() => false)) return;
+    for (const t of await page.getByRole('status').allInnerTexts().catch(() => [] as string[])) if (t.trim()) seen.add(t.trim());
+    await page.waitForTimeout(400);
+  }
+  throw new Error(`aviso esperado não apareceu (${String(text)}); avisos vistos: ${JSON.stringify([...seen])}`);
+};
 const readiness = (page: Page, key: string) => page.locator(`[data-readiness="${key}"]`);
 
 /** CPF sintético de formato válido (dígitos verificadores calculados), diferente a cada execução. */
@@ -362,7 +383,6 @@ test('celular: configuração, operadora, carteirinhas e atendimentos sem rolage
 
 // ── Da consulta ao repasse, na mesma clínica configurada pela interface ──────────────
 
-const journey: { guideUrl?: string; guideNumber?: string; batchUrl?: string } = {};
 
 test('gestora: regra de repasse da médica (40%) em Configurações › Pagamentos', async ({ browser }) => {
   test.setTimeout(150_000);
@@ -462,22 +482,41 @@ test('gestora: confere, aprova e emite a guia; o PDF oficial sai do documento co
 test('gestora: lote → XML validado no XSD → enviado → protocolo → em análise', async ({ browser }) => {
   test.setTimeout(300_000);
   const s = await login(browser, 'cfg-gestor');
-  expect(await visit(s, '/convenios/lotes')).toBe(200);
-  await s.page.getByLabel('Operadora').first().selectOption({ label: INSURER });
-  await s.page.getByText('Todas (até 100)').click();
-  await s.page.getByRole('button', { name: 'Montar lote' }).click();
-  await s.page.waitForURL(/\/convenios\/lotes\/[0-9a-f-]{36}$/u, { timeout: 60_000 });
-  journey.batchUrl = new URL(s.page.url()).pathname;
-  await s.page.getByRole('button', { name: 'Gerar e validar XML' }).click();
-  await toast(s.page, 'XML gerado e validado');
-  await s.page.getByRole('button', { name: 'Marcar como enviado' }).click();
-  await s.page.getByLabel('Como o lote foi enviado').fill('Enviado pelo portal da operadora sintética, comprovante de teste');
-  await s.page.getByRole('button', { name: 'Confirmar' }).click();
-  await toast(s.page, /enviado/iu);
-  await s.page.getByRole('button', { name: 'Registrar protocolo' }).click();
-  await s.page.getByLabel('Protocolo da operadora').fill(`PROT${RUN}`);
-  await s.page.getByRole('button', { name: 'Registrar', exact: true }).click();
-  await toast(s.page, 'Protocolo registrado');
+  const has = async (name: string) => (await s.page.getByRole('button', { name, exact: true }).count()) > 0;
+  if (!journey.batchUrl) {
+    expect(await visit(s, '/convenios/lotes')).toBe(200);
+    await s.page.getByLabel('Operadora').first().selectOption({ label: `${INSURER} (1 aprovadas)` });
+    await s.page.getByText('Todas (até 100)').click();
+    await s.page.getByRole('button', { name: 'Montar lote' }).click();
+    await s.page.waitForURL(/\/convenios\/lotes\/[0-9a-f-]{36}$/u, { timeout: 60_000 });
+    journey.batchUrl = new URL(s.page.url()).pathname;
+  } else {
+    // Retomada: o lote já existe; segue da etapa em que ele está.
+    expect(await visit(s, journey.batchUrl)).toBe(200);
+  }
+  if (await has('Gerar e validar XML')) {
+    await s.page.getByRole('button', { name: 'Gerar e validar XML' }).click();
+    await toast(s.page, 'XML gerado e validado');
+  }
+  if (await has('Marcar como enviado')) {
+    await s.page.getByRole('button', { name: 'Marcar como enviado' }).click();
+    await s.page.getByLabel('Como o lote foi enviado').fill('Enviado pelo portal da operadora sintética, comprovante de teste');
+    await s.page.getByRole('button', { name: 'Confirmar' }).click();
+    await toast(s.page, /enviado/iu);
+  }
+  if (await has('Registrar protocolo')) {
+    await s.page.getByRole('button', { name: 'Registrar protocolo' }).click();
+    // Protocolo TISS do lote: numérico, até 12 dígitos (o recurso de glosa o referencia como st_numerico12).
+    await s.page.getByLabel('Protocolo da operadora').fill(String(Date.now()).slice(-12));
+    // O recibo é obrigatório: PDF sintético mínimo, sem dado nenhum (o Qoro guarda só o SHA-256).
+    await s.page.getByLabel('Recibo emitido pela operadora').setInputFiles({
+      name: 'recibo-sintetico.pdf',
+      mimeType: 'application/pdf',
+      buffer: Buffer.from(`%PDF-1.4\n% recibo sintetico de teste ${RUN}\n%%EOF\n`),
+    });
+    await s.page.getByRole('button', { name: 'Registrar', exact: true }).click();
+    await toast(s.page, 'Protocolo registrado');
+  }
   await s.page.getByRole('button', { name: 'Operadora iniciou a análise' }).click();
   await toast(s.page, 'Lote em análise');
   if (SHOTS) await s.page.screenshot({ path: `${SHOTS}/cfg-09-lote-em-analise.png`, fullPage: true });
@@ -486,32 +525,45 @@ test('gestora: lote → XML validado no XSD → enviado → protocolo → em an�
 });
 
 test('gestora: glosa parcial → análise → contestação → recurso com XML no XSD → envio → resposta', async ({ browser }) => {
-  test.setTimeout(360_000);
+  test.setTimeout(420_000);
   const s = await login(browser, 'cfg-gestor');
-  expect(await visit(s, journey.batchUrl!)).toBe(200);
-  await s.page.getByRole('button', { name: 'Registrar glosa' }).click();
-  await s.page.getByLabel('Código da glosa (tabela 38)').fill('1705');
-  await s.page.getByLabel('Valor glosado (R$)').fill('30,00');
-  await s.page.getByRole('button', { name: 'Registrar', exact: true }).click();
-  await toast(s.page, /glosa/iu);
-
+  const has = async (name: string) => (await s.page.getByRole('button', { name, exact: true }).count()) > 0;
+  /** Cada decisão muda a versão da glosa: recarrega antes da próxima (senão o botão leva a versão antiga e o servidor recusa). */
+  const act = async (name: string, done: string | RegExp) => {
+    if (!(await has(name))) return;
+    await s.page.getByRole('button', { name, exact: true }).first().click();
+    await toast(s.page, done);
+    await visit(s, journey.guideUrl!);
+  };
   expect(await visit(s, journey.guideUrl!)).toBe(200);
-  await s.page.getByRole('button', { name: 'Analisar' }).click();
-  await toast(s.page, 'Glosa em análise');
-  await s.page.getByRole('button', { name: 'Contestar' }).click();
-  await toast(s.page, 'Glosa contestada');
-  await s.page.getByRole('button', { name: 'Preparar recurso' }).click();
-  await s.page.getByRole('checkbox').first().check();
-  await s.page.getByLabel('Justificativa').fill('Atendimento realizado conforme o contrato vigente na data; segue o registro sintético do atendimento.');
-  await s.page.getByRole('button', { name: 'Salvar recurso' }).click();
-  await toast(s.page, 'Recurso preparado');
-  await s.page.getByRole('button', { name: 'Gerar XML do recurso (TISS)' }).click();
-  await toast(s.page, 'XML do recurso gerado e validado no XSD');
-  await s.page.getByRole('button', { name: 'Registrar envio do recurso' }).click();
-  await s.page.getByLabel('Protocolo da operadora').fill(`REC${RUN}`);
-  await s.page.getByRole('button', { name: 'Registrar', exact: true }).click();
-  await toast(s.page, 'Envio do recurso registrado');
-  await s.page.getByRole('button', { name: 'Registrar resposta' }).click();
+  if ((await s.page.getByText('Código 1705').count()) === 0) {
+    expect(await visit(s, journey.batchUrl!)).toBe(200);
+    await s.page.getByRole('button', { name: 'Registrar glosa' }).click();
+    await s.page.getByLabel('Código da glosa (tabela 38)').fill('1705');
+    await s.page.getByLabel('Valor glosado (R$)').fill('30,00');
+    await s.page.getByRole('button', { name: 'Registrar', exact: true }).click();
+    await toast(s.page, /glosa/iu);
+    expect(await visit(s, journey.guideUrl!)).toBe(200);
+  }
+  await act('Analisar', 'Glosa em análise');
+  await act('Contestar', 'Glosa contestada');
+  if (await has('Preparar recurso')) {
+    await s.page.getByRole('button', { name: 'Preparar recurso' }).click();
+    await s.page.getByRole('checkbox').first().check();
+    await s.page.getByLabel('Justificativa').fill('Atendimento realizado conforme o contrato vigente na data; segue o registro sintético do atendimento.');
+    await s.page.getByRole('button', { name: 'Salvar recurso' }).click();
+    await toast(s.page, 'Recurso preparado');
+    await visit(s, journey.guideUrl!);
+  }
+  await act('Gerar XML do recurso (TISS)', 'XML do recurso gerado e validado no XSD');
+  if (await has('Registrar envio do recurso')) {
+    await s.page.getByRole('button', { name: 'Registrar envio do recurso' }).click();
+    await s.page.getByLabel('Protocolo da operadora').fill(`REC${RUN}`);
+    await s.page.getByRole('button', { name: 'Registrar', exact: true }).click();
+    await toast(s.page, 'Envio do recurso registrado');
+    await visit(s, journey.guideUrl!);
+  }
+  await s.page.getByRole('button', { name: 'Registrar resposta' }).first().click();
   await s.page.getByLabel(/Aceito pela operadora/u).first().fill('20,00');
   await s.page.getByRole('button', { name: 'Registrar resposta' }).last().click();
   await toast(s.page, 'Resposta registrada');

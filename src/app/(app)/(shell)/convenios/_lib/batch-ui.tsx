@@ -161,8 +161,8 @@ export function ProtocolForm({ batchId, version }: { batchId: string; version: n
         submit(() => recordBatchProtocolAction(fd), 'Protocolo registrado', () => setOpen(false));
       }}
     >
-      <Field label="Protocolo da operadora" htmlFor={`${id}-p`} required>
-        <Input id={`${id}-p`} name="protocol" maxLength={60} required />
+      <Field label="Protocolo da operadora" htmlFor={`${id}-p`} hint="Numérico, até 12 dígitos (padrão TISS; o recurso de glosa usa este número)." required>
+        <Input id={`${id}-p`} name="protocol" inputMode="numeric" pattern="[0-9]{1,12}" maxLength={12} required />
       </Field>
       <Field label="Data do recebimento pela operadora" htmlFor={`${id}-d`} required>
         <Input id={`${id}-d`} name="receivedOn" type="date" defaultValue={today()} required />

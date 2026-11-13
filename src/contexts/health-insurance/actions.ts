@@ -259,7 +259,13 @@ export async function recordBatchProtocolAction(form: FormData): Promise<ActionR
       .object({
         batchId: uuid,
         version: z.coerce.number().int().min(1),
-        protocol: z.string().trim().min(1, 'Informe o protocolo da operadora.').max(60),
+        // TISS 4.03: o recurso de glosa referencia este protocolo como `st_numerico12`. Aceitar
+        // outro formato aqui travaria o recurso do lote depois (achado no E2E de 13/11).
+        protocol: z
+          .string()
+          .trim()
+          .min(1, 'Informe o protocolo da operadora.')
+          .regex(/^\d{1,12}$/u, 'O protocolo TISS é numérico, com até 12 dígitos, como a operadora devolve no recibo do lote.'),
         receivedOn: day,
       })
       .parse({ batchId: form.get('batchId'), version: form.get('version'), protocol: form.get('protocol'), receivedOn: form.get('receivedOn') });
