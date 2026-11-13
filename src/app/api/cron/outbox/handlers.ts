@@ -48,6 +48,8 @@ import '@/contexts/scheduling/internal/handlers/financial-lancamento-created';
 // de convênio); coparticipação confirmada → recebível do paciente por esse valor.
 import '@/contexts/health-insurance/internal/handlers/insurance-completed';
 import '@/contexts/financial/internal/handlers/copay-confirmed';
+// R45: XML do lote em segundo plano, com a leitura delegada das guias do lote.
+import '@/contexts/health-insurance/internal/handlers/batch-export-requested';
 
 // C11 — AI Agent: messaging.inbound.received → turno de conversa (saga
 // multi-fase, LLM fora de TX — ADR-022). Idempotente via eventId checkpoints.

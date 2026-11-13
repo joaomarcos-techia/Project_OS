@@ -24,6 +24,8 @@
  */
 import 'server-only';
 
+import { sql } from 'drizzle-orm';
+
 import { logAudit } from '@/lib/audit/log';
 import { recordImpersonationAudit } from '@/lib/audit/impersonation-extra';
 import { requestContext } from '@/lib/audit/request-context-from-headers';
@@ -39,6 +41,7 @@ import {
   type GuideSnapshotContent,
 } from '../tiss/guides/snapshot';
 
+import { requesterStillHasPermission } from './delegation-permission';
 import { loadApprovedSnapshots, type ApprovedSnapshotRow } from './guide-snapshot-repo';
 
 /**
@@ -87,6 +90,12 @@ export const GUIDE_SYSTEM_OPERATIONS = {
     services: ['insurance-reconcile'],
   },
   operator_integration: { purpose: 'integracao_operadora', services: ['insurance-connector'] },
+  /**
+   * R45: XML do lote gerado em segundo plano. DELEGADA: só pelo `readBatchGuidesDelegated`
+   * (escopo = as guias ativas do lote pedido; auditoria em nome de quem pediu; permissão
+   * de quem pediu conferida de novo no banco na execução). Não serve para outra leitura.
+   */
+  delegated_batch_export: { purpose: 'exportacao_xml_delegada', services: ['insurance-batch-export'] },
 } as const satisfies Record<string, { purpose: string; services: readonly string[] }>;
 
 export type GuideUserOperation = keyof typeof GUIDE_USER_OPERATIONS;
@@ -104,7 +113,8 @@ export class GuideAccessError extends Error {
       | 'invalid_argument'
       | 'not_found'
       | 'not_emitted'
-      | 'service_not_allowed',
+      | 'service_not_allowed'
+      | 'permission_revoked',
   ) {
     super(message);
     this.name = 'GuideAccessError';
@@ -129,7 +139,16 @@ export interface GuideContentRead {
   auditEventId: string;
 }
 
-type Actor = { kind: 'user'; userId: string } | { kind: 'system'; service: string; jobId: string };
+type Actor =
+  | { kind: 'user'; userId: string }
+  | { kind: 'system'; service: string; jobId: string }
+  /** Worker agindo EM NOME de uma pessoa (R45): a auditoria fica no nome dela. */
+  | { kind: 'delegated'; service: string; jobId: string; onBehalfOf: string };
+
+/** Pessoa a quem o acesso é atribuído na auditoria (e na sessão do `withTenant`). */
+function auditUser(actor: Actor): string | null {
+  return actor.kind === 'user' ? actor.userId : actor.kind === 'delegated' ? actor.onBehalfOf : null;
+}
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
 /** Superfície: identificador de tela/rota, sem espaço nem dígito em sequência longa. */
@@ -155,9 +174,9 @@ function assertGuideIds(ids: readonly string[]): string[] {
 }
 
 function actorPayload(actor: Actor) {
-  return actor.kind === 'user'
-    ? { kind: 'user' as const }
-    : { kind: 'system' as const, service: actor.service, jobId: actor.jobId };
+  if (actor.kind === 'user') return { kind: 'user' as const };
+  if (actor.kind === 'delegated') return { kind: 'delegated' as const, service: actor.service, jobId: actor.jobId };
+  return { kind: 'system' as const, service: actor.service, jobId: actor.jobId };
 }
 
 interface OperationMeta {
@@ -181,7 +200,7 @@ async function logDenied(
       for (const guideId of guideIds) {
         await logAudit(tx, {
           clinicId,
-          userId: actor.kind === 'user' ? actor.userId : null,
+          userId: auditUser(actor),
           action: GUIDE_ACCESS_DENIED_ACTION,
           resourceType: 'hi_guide',
           resourceId: guideId,
@@ -191,7 +210,7 @@ async function logDenied(
         });
       }
     },
-    actor.kind === 'user' ? actor.userId : null,
+    auditUser(actor),
   );
 }
 
@@ -219,7 +238,7 @@ async function readCore(
         for (const guideId of guideIds) {
           await logAudit(tx, {
             clinicId,
-            userId: actor.kind === 'user' ? actor.userId : null,
+            userId: auditUser(actor),
             action: GUIDE_ACCESS_DENIED_ACTION,
             resourceType: 'hi_guide',
             resourceId: guideId,
@@ -250,7 +269,7 @@ async function readCore(
       for (const { row, content } of decoded) {
         const auditEventId = await logAudit(tx, {
           clinicId,
-          userId: actor.kind === 'user' ? actor.userId : null,
+          userId: auditUser(actor),
           action: GUIDE_CONTENT_VIEWED_ACTION,
           resourceType: 'hi_guide',
           resourceId: row.guideId,
@@ -276,7 +295,7 @@ async function readCore(
       }
       return { granted: reads };
     },
-    actor.kind === 'user' ? actor.userId : null,
+    auditUser(actor),
   ).catch(async (e: unknown) => {
     if (e instanceof GuideIntegrityError && integrityFailure) {
       // A transação da leitura foi desfeita; a falha de integridade fica registrada à parte.
@@ -285,7 +304,7 @@ async function readCore(
         (tx) =>
           logAudit(tx, {
             clinicId,
-            userId: actor.kind === 'user' ? actor.userId : null,
+            userId: auditUser(actor),
             action: GUIDE_INTEGRITY_FAILED_ACTION,
             resourceType: 'hi_guide',
             resourceId: integrityFailure,
@@ -293,7 +312,7 @@ async function readCore(
             after: { ...meta, outcome: 'denied', reason: 'integrity', actor: actorPayload(actor) },
             requestContext: context,
           }),
-        actor.kind === 'user' ? actor.userId : null,
+        auditUser(actor),
       ).catch(() => undefined);
     }
     throw e;
@@ -415,6 +434,10 @@ export async function readGuidesAsSystem(args: {
       'service_not_allowed',
     );
   }
+  if (args.operation === 'delegated_batch_export') {
+    // A delegada tem escopo e autorização próprios: só pelo readBatchGuidesDelegated.
+    throw new GuideAccessError('a exportação delegada usa readBatchGuidesDelegated', 'invalid_argument');
+  }
   assertSafeLabel('referência do job', args.jobId, REF);
   const guideIds = assertGuideIds(args.guideIds);
   const actor: Actor = { kind: 'system', service: args.service, jobId: args.jobId };
@@ -436,4 +459,60 @@ export async function readGuidesAsSystem(args: {
     },
     context,
   );
+}
+
+/**
+ * R45 — conteúdo das guias de UM lote para a exportação em segundo plano, lido pelo
+ * worker EM NOME de quem pediu. Diferenças em relação à leitura de sistema:
+ *  - escopo mínimo: as guias são as ativas DO LOTE pedido, lidas aqui pela RLS da
+ *    clínica (o worker não escolhe guias, nem de outro lote, nem de outra clínica);
+ *  - autorização NA EXECUÇÃO: quem pediu precisa continuar ativo nesta clínica e com
+ *    `manage:financial` efetivo no banco (papel e exceções individuais), não só no
+ *    momento do pedido; perdeu, a leitura é negada e registrada;
+ *  - auditoria em nome de quem pediu, com o serviço e o job (`actor.kind = delegated`).
+ * O resto é o núcleo de sempre: SHA-256 conferido, tudo ou nada, metadado só.
+ */
+export async function readBatchGuidesDelegated(args: {
+  clinicId: string;
+  batchId: string;
+  requestedBy: string;
+  service: string;
+  jobId: string;
+}): Promise<GuideContentRead[]> {
+  const operation = 'delegated_batch_export' as const;
+  const spec = GUIDE_SYSTEM_OPERATIONS[operation];
+  if (!(spec.services as readonly string[]).includes(args.service)) {
+    throw new GuideAccessError(`o serviço ${args.service} não executa ${operation}`, 'service_not_allowed');
+  }
+  if (!UUID.test(args.batchId) || !UUID.test(args.requestedBy) || !UUID.test(args.clinicId)) {
+    throw new GuideAccessError('referência inválida para a exportação delegada', 'invalid_argument');
+  }
+  assertSafeLabel('referência do job', args.jobId, REF);
+  const actor: Actor = { kind: 'delegated', service: args.service, jobId: args.jobId, onBehalfOf: args.requestedBy };
+  const context: RequestContext = {
+    ip: null,
+    userAgent: `delegated:${args.service}`,
+    requestId: args.jobId,
+    correlationId: UUID.test(args.jobId) ? args.jobId : null,
+  };
+  const meta: OperationMeta = { operation, purpose: spec.purpose, surface: `worker:${args.service}`, batchRef: args.batchId };
+
+  const members = (await withTenant(
+    args.clinicId,
+    (tx) =>
+      tx.execute(
+        sql`SELECT guide_id::text AS guide_id FROM public.hi_batch_guides
+             WHERE clinic_id = ${args.clinicId}::uuid AND batch_id = ${args.batchId}::uuid AND active`,
+      ),
+    args.requestedBy,
+  )) as unknown as Array<{ guide_id: string }>;
+  if (members.length === 0) throw new GuideAccessError('o lote não tem guias nesta clínica', 'not_found');
+  const guideIds = assertGuideIds(members.map((m) => m.guide_id));
+  // Autorização NA EXECUÇÃO (não só no pedido): papel e exceções atuais de quem pediu.
+  const allowed = await requesterStillHasPermission(args.clinicId, args.requestedBy, PERMISSIONS.MANAGE_FINANCIAL);
+  if (!allowed) {
+    await logDenied(args.clinicId, actor, meta, guideIds, 'permission_revoked', context).catch(() => undefined);
+    throw new GuideAccessError('quem pediu a exportação não tem mais permissão para o faturamento', 'permission_revoked');
+  }
+  return readCore(args.clinicId, guideIds, actor, meta, context);
 }

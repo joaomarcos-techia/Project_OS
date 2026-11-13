@@ -141,6 +141,10 @@ const ALLOWED_DB_VALUE_IMPORTS: Record<string, Set<string>> = {
     // Credencial profissional: `profiles` bloqueia UPDATE para authenticated (D31).
     // O comando estreito roda após o gate server-side, restringe id+clinic_id e audita.
     'src/contexts/identity/internal/professional-credential.ts',
+    // R45 (convênios): permissão efetiva de quem pediu a exportação em segundo plano
+    // (effective_permissions_v → role_permissions, invisível para authenticated).
+    // Só leitura, escopo fixo usuário+clínica+permissão, resposta booleana.
+    'src/contexts/health-insurance/internal/delegation-permission.ts',
     // I-11a (0042): auditoria de login via service_role (record_login_attempt SECURITY
     // DEFINER, D9) em vez de anon via PostgREST. Best-effort, nunca bloqueia o login.
     'src/lib/auth/login-audit.ts',

@@ -351,6 +351,10 @@ const config = [
       // A action já provou o ator; o comando fixa id+clinic_id, as colunas permitidas
       // e a auditoria na mesma tx. Irmão do lifecycle e do perfil da clínica.
       'src/contexts/identity/internal/professional-credential.ts',
+      // R45 (convênios): a exportação em segundo plano age em nome de quem pediu; a
+      // permissão efetiva dessa pessoa (effective_permissions_v lê role_permissions, que
+      // authenticated não vê) é conferida aqui, só leitura, escopo fixo usuário+clínica.
+      'src/contexts/health-insurance/internal/delegation-permission.ts',
       // I-11a (0042): auditoria de login roda por service_role (dbAdmin), não mais por
       // anon via PostgREST. record_login_attempt é SECURITY DEFINER (D9); dbAdmin tem
       // EXECUTE. Ponto ÚNICO e privilegiado — best-effort, nunca bloqueia o login.

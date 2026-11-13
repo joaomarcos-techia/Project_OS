@@ -613,6 +613,32 @@ export async function listCopaysToReview(clinicId: string): Promise<CopayToRevie
   });
 }
 
+// ── Exportação do lote em segundo plano (R45) ────────────────────────────
+
+export interface BatchExportJob {
+  status: 'pending' | 'processing' | 'processed' | 'failed' | string;
+  attempts: number;
+  /** Código do motivo (sem dado pessoal); o texto técnico do erro não vai para a tela. */
+  errorCode: string | null;
+  createdAt: string | null;
+  processedAt: string | null;
+}
+
+/** O job da versão atual do lote (chave `hi-batch-export:<lote>:v<versão>`), pela RLS da clínica. */
+export async function getBatchExportJob(clinicId: string, batchId: string, version: number): Promise<BatchExportJob | null> {
+  return withTenant(clinicId, async (tx) => {
+    const [r] = await rows(
+      tx,
+      sql`SELECT status::text AS status, attempts, error_code, created_at, processed_at FROM public.outbox
+           WHERE clinic_id = ${clinicId}::uuid AND event_type = 'health_insurance.batch.export_requested'
+             AND idempotency_key = ${`hi-batch-export:${batchId}:v${version}`}
+           ORDER BY created_at DESC LIMIT 1`,
+    );
+    if (!r) return null;
+    return { status: String(r.status), attempts: n(r.attempts), errorCode: s(r.error_code), createdAt: iso(r.created_at), processedAt: iso(r.processed_at) };
+  });
+}
+
 // ── Busca nas tabelas oficiais (TUSS 22, CBO 24) ─────────────────────────
 
 /** Até 20 termos da competência mais recente, por código ou parte do texto. */

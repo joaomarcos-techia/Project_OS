@@ -60,18 +60,27 @@ interface Session {
   errors: string[];
 }
 
+/**
+ * Uma sessão por conta na execução: o login real acontece uma vez e o estado é reusado
+ * (o Supabase limita tentativas por origem; 20 logins seguidos caem em "Muitas tentativas").
+ */
+const sessions = new Map<string, Awaited<ReturnType<BrowserContext['storageState']>>>();
+
 async function login(browser: Browser, key: string, viewport = DESKTOP): Promise<Session> {
   const account = accounts[key];
   if (!account) throw new Error(`conta ${key} ausente na fixture`);
-  const context = await browser.newContext({ viewport, extraHTTPHeaders: vercelBypassHeaders() });
+  const cached = sessions.get(key);
+  const context = await browser.newContext({ viewport, extraHTTPHeaders: vercelBypassHeaders(), ...(cached ? { storageState: cached } : {}) });
   const page = await context.newPage();
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
+  if (cached) return { context, page, errors };
   await page.goto('/login', { waitUntil: 'load' });
   await page.fill('#email', account.email);
   await page.fill('#password', account.password);
   await page.getByRole('button', { name: 'Entrar', exact: true }).click();
   await page.waitForURL((u) => !u.pathname.startsWith('/login'), { timeout: 60_000 });
+  sessions.set(key, await context.storageState());
   return { context, page, errors };
 }
 

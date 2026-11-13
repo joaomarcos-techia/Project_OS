@@ -11,16 +11,40 @@ import {
   markBatchSentAction,
   markBatchUnderReviewAction,
 } from '@/contexts/health-insurance/actions';
+import { getBatchExportJob } from '@/contexts/health-insurance/config-queries';
 import { getBatchDetail } from '@/contexts/health-insurance/queries';
 
 import { brl, ConveniosHeader, conveniosAccess, shortDate } from '../../_lib/access';
 import { ActionButton, Actions, TextAction } from '../../_lib/action-ui';
+import { requestBatchExportAction } from '../../_lib/batch-export-actions';
 import { GlossForm, PaymentForm, ProtocolForm } from '../../_lib/batch-ui';
 import { BatchStatusBadge, GuideStatusBadge } from '../../_lib/status';
 
 export const dynamic = 'force-dynamic';
 /** Ações desta página validam XML no XSD oficial e/ou geram PDF (motor no próprio processo). */
 export const maxDuration = 60;
+
+/** Estado do XML pedido em segundo plano (R45); o motivo vem por código, nunca o erro técnico. */
+const EXPORT_JOB: Record<string, string> = {
+  pending: 'na fila',
+  processing: 'gerando',
+  processed: 'concluído',
+  failed: 'falhou',
+};
+const EXPORT_ERROR: Record<string, string> = {
+  access_permission_revoked: 'quem pediu não tem mais permissão para o faturamento',
+  premium_denied: 'assinatura inativa',
+  export_structure: 'pendência na estrutura do padrão TISS',
+  export_terminology: 'código fora da terminologia TISS vigente',
+  export_xsd: 'o XML não passou no XSD oficial',
+  export_hash: 'o hash do arquivo não confere',
+  export_encoding: 'caractere fora da codificação do padrão',
+  export_content: 'o conteúdo das guias mudou; monte o lote de novo',
+  export_state: 'o lote mudou de etapa',
+  export_integrity: 'conteúdo emitido não confere com o registrado',
+  export_internal: 'cadastro da operadora incompleto',
+  integrity: 'conteúdo emitido não confere com o registrado',
+};
 
 const RETURN_LABELS: Record<string, string> = {
   protocol_receipt: 'Recibo do protocolo',
@@ -35,6 +59,7 @@ export default async function LotePage({ params }: { params: Promise<{ batchId: 
   const { batchId } = await params;
   if (!/^[0-9a-f-]{36}$/u.test(batchId)) notFound();
   const b = await getBatchDetail(access.clinicId, batchId);
+  const job = b && b.status === 'prepared' ? await getBatchExportJob(access.clinicId, b.id, b.version) : null;
   if (!b) notFound();
   const m = access.canManage;
   const ref = { batchId: b.id, version: b.version };
@@ -60,7 +85,7 @@ export default async function LotePage({ params }: { params: Promise<{ batchId: 
       <PanelCard title="Situação" regionLabel="Situação do lote">
         <dl className="grid grid-cols-2 gap-(--sp-2) text-(length:--fs-sm) md:grid-cols-4">
           <div><dt className="text-fg-muted">Etapa</dt><dd><BatchStatusBadge status={b.status} /></dd></div>
-          <div><dt className="text-fg-muted">XML</dt><dd>{b.fileId ? `validado no XSD oficial${xsd ? ` (${xsd})` : ''}` : 'ainda não gerado'}</dd></div>
+          <div><dt className="text-fg-muted">XML</dt><dd data-testid="batch-export-job" data-job={job?.status ?? 'none'}>{job && !b.fileId ? (EXPORT_JOB[job.status] ?? job.status) + (job.errorCode ? ' — ' + (EXPORT_ERROR[job.errorCode] ?? job.errorCode) : '') + ' · ' : null}{b.fileId ? `validado no XSD oficial${xsd ? ` (${xsd})` : ''}` : 'ainda não gerado'}</dd></div>
           <div><dt className="text-fg-muted">Envio</dt><dd>{b.sentOn ? `${shortDate(b.sentOn)}${b.sendEvidence ? ` — ${b.sendEvidence}` : ''}` : '—'}</dd></div>
           <div><dt className="text-fg-muted">Protocolo</dt><dd>{b.protocolNumber ? `${b.protocolNumber} (${shortDate(b.receivedOn)})` : '—'}</dd></div>
         </dl>
@@ -75,6 +100,9 @@ export default async function LotePage({ params }: { params: Promise<{ batchId: 
             <Actions>
               {b.status === 'prepared' ? (
                 <ActionButton label="Gerar e validar XML" success="XML gerado e validado" variant="primary" action={exportBatchAction.bind(null, { batchId: b.id })} />
+              ) : null}
+              {b.status === 'prepared' && (!job || job.status === 'failed') ? (
+                <ActionButton label="Gerar XML em segundo plano" success="XML do lote na fila" action={requestBatchExportAction.bind(null, { batchId: b.id, version: b.version })} />
               ) : null}
               {b.status === 'exported' ? (
                 <TextAction

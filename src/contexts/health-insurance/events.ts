@@ -14,6 +14,12 @@ export const HEALTH_INSURANCE_EVENTS = {
    * recebível do paciente por ESTE valor, nunca pelo valor cheio do atendimento.
    */
   COPAY_CONFIRMED: 'health_insurance.copay.confirmed',
+  /**
+   * Exportação do lote em segundo plano (R45): o worker gera o XML com a leitura
+   * DELEGADA das guias do lote (em nome de quem pediu, permissão conferida de novo na
+   * execução). Uma chave por lote e versão: o mesmo pedido nunca vira dois arquivos.
+   */
+  BATCH_EXPORT_REQUESTED: 'health_insurance.batch.export_requested',
 } as const;
 
 const uuid = z.string().uuid();
@@ -31,3 +37,15 @@ export const CopayConfirmedSchema = z.object({
 export type CopayConfirmedPayload = z.infer<typeof CopayConfirmedSchema>;
 
 registerEventSchema(HEALTH_INSURANCE_EVENTS.COPAY_CONFIRMED, CopayConfirmedSchema);
+
+export const BatchExportRequestedSchema = z.object({
+  clinicId: uuid,
+  batchId: uuid,
+  /** Versão do lote no pedido: se o lote mudar antes da execução, nada é exportado. */
+  version: z.number().int().positive(),
+  /** Quem pediu: a leitura e a auditoria são em nome desta pessoa. */
+  requestedBy: uuid,
+});
+export type BatchExportRequestedPayload = z.infer<typeof BatchExportRequestedSchema>;
+
+registerEventSchema(HEALTH_INSURANCE_EVENTS.BATCH_EXPORT_REQUESTED, BatchExportRequestedSchema);
