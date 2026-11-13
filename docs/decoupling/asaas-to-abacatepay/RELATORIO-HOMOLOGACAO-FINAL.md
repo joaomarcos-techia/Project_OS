@@ -1265,3 +1265,66 @@ A fixture de trial e as observações estão prontas; nenhum link foi criado. Co
 **CI3b16386f:** run43454379507 aprovou7.161 testes/632 arquivos e cobertura, tipos/lint/arquitetura; reprovou no documento gerado de inventário desatualizado. Regenerado docs/security/acoes.md pelo comando oficial e revisado:31linhas de diff, apenas referências dos scripts/contagem531→532, nenhum guard ou registro público removido. Check localPASS com0guard pendente/0variável pública sem registro/0teste de rota regredido. Semgrep/Snyk/VercelSUCCESS. Build e22E2E da CI completa do HEAD devem ser conferidos nos [checks atuais do PR53](https://github.com/joaomarcos-techia/Project_OS/pull/53/checks); não se apresenta a execução reprovada como sucesso integral.
 
 **Continuação após EARLY-01:** a mesma fixture nova poderá servir aos comandos nativos de mudança de plano no próximo ciclo, mediante conferência do contrato/API antes da mutação, conservando o período e a cota pagos atuais. As cinco fixtures anteriores não serão alteradas apenas para esse ensaio. Agendamento/readback remoto e aplicação numa renovação são provas distintas; o segundo continua dependente de ciclo real, não de outro checkout inicial.
+
+## 55. EARLY-01 paga e incidente de hidratação — 13/11/2026
+
+Este é o checkpoint corrente. Preserva a seção 54 como histórico: o founder autorizou expressamente a criação e depois realizou o pagamento. **Não criar nem pagar novamente EARLY-01.** O código executado foi `dc95caa4eb15827049f27d2e7e6c00994017f17d`, Preview `dpl_AFDdqxqM3a4Cs7v25SVC25ZUuk1F`, [origem imutável](https://project-7nu27u287-clinic-os-v2-s-projects.vercel.app). A [CI 43457077686](https://github.com/joaomarcos-techia/Project_OS/actions/runs/43457077686) concluiu SUCCESS: 7.161 testes/632 arquivos e 22 E2E sem SKIP, build, tipos, lint e segurança. Os checks próprios do commit documental posterior devem ser conferidos no PR; não atribuir antecipadamente o resultado do código a outro SHA.
+
+### A. Conversão antecipada: PASS externo Sandbox + banco + interface
+
+O preflight confirmou DEV `pqhkirrszzpwezdaqrai`, metadata Preview, loja e produtos com `devMode=true`, preço do servidor 19700, produto Consultório `prod_NTxhdRJzM0cG5MgDeeF54RL2`, webhook na mesma release e rejeição 401 de autenticação inválida. Antes do pagamento: trial, sem invoice/receipt/liberação paga; uma única operação de criação. Reutilizada a identidade sintética da seção 54; nenhum novo usuário e nenhuma repetição das cinco compras anteriores.
+
+| Registro | Evidência real |
+|---|---|
+| Checkout | `bill_KJRNEFgyUExtx4EKFwZA2WFk`, criado pela interface Qoro, R$ 197, Consultório/1 médico, somente Sandbox |
+| Assinatura remota | `subs_e1A14YHx3uK3sFWYPEJpna2F`, ACTIVE, CARD, `devMode=true`, sem trial nativo, cliente/produto/loja vinculados |
+| Pagamento | `card_bBQD4TCMWH4yRZ00YT2ubhZg`; checkout PAID, valor pago 19700 conferido no provedor antes do fechamento |
+| Webhook/inbox | `log_jaLBkPph3zryHCuUUcJPndXS`, `subscription.completed`, recebido 17:44:28.510671 UTC, aplicado 17:44:31.926163 UTC, uma tentativa |
+| Invoice | `98938ed5-b274-48bc-a22c-e03bac03ef7d`, uma invoice paga de R$ 197; uma payment_attempt confirmada e um paid_checkout |
+| Período Qoro | 13/11 17:44:27.418 UTC até 13/12 17:44:27.418 UTC; início anterior ao fim do trial de 27/11 15:12:42.157 UTC |
+| Liberação | `released_by_invoice_id` aponta para essa invoice; liberação 17:44:31.926163 UTC; cotas do plano: 1 médico e 3 administrativos |
+| UI paga | Login real, assinatura desktop 1440/celular 390, pagamento confirmado, nova contratação recusada 409/already_paid, gates temporários WhatsApp/Asaas e convite retirados; nenhum erro de página |
+
+O período acima é o calendário de **acesso do Qoro**, não uma afirmação sobre próximo débito no provedor. Autenticação do evento é requisito do endpoint que persistiu o inbox; o readback financeiro independente também conferiu valor e vínculos. Não é prova de liquidação em saldo nem de renovação mensal externa.
+
+Readback operacional posterior: **TISS habilitado=0, WhatsApp ativo=0, conta Asaas ativa=0, conversas de IA=0** nesta clínica sintética. Pagar retirou a restrição temporária; não conectou integrações, não iniciou IA e não habilitou TISS. Isso não substitui a homologação de todas as ações do PR55 nem concede direitos de outro plano/perfil.
+
+### B. Fechamento e idempotência: provas distintas
+
+Fechamento controlado **Sandbox** pelo seam existente `closeConsumedAbacatePayCheckout`: journal `close_paid_checkout=confirmed`, um evento `subscription.checkout.closed` às 17:57:23.677730 UTC. Leitura independente posterior: checkout ausente da listagem, assinatura ACTIVE preservada, invoice, comprovante, período e vínculos preservados. Nenhum cancelamento, estorno ou segundo pagamento.
+
+**Não foi fechamento automático Sandbox.** O código reserva fixtures Sandbox ao operador; o fechamento automático live continua coberto pelos ensaios PostgreSQL anteriores e depende de release autorizado. Ausência da listagem não demonstra, sozinha, que o link hospedado jamais aceitará outro pagador. R1 permanece delimitado, sem aceite implícito.
+
+Reapresentação interna dos mesmos IDs/hash ao inbox: `duplicate`. Worker direcionado ao mesmo evento: zero scanned/applied/review. Recuperação direcionada à assinatura já ativa: zero nova aplicação. Comparação integral de contrato, invoice, tentativa, receipt, inbox, operações e auditoria: inalterada. **Não foi replay HTTP HMAC externo** nem uma segunda entrega fabricada do provedor. Falha de cota, tenant incorreto, timeout, lease e rollback continuam com as provas isoladas anteriores; não foram induzidos no DEV compartilhado.
+
+Um assert inicial do harness falhou por representação temporal: importar Drizzle alterou os parsers do client de leitura, comparando `Date` truncado a milissegundos com timestamp textual contendo microssegundos. Corrigida a consulta do harness para comparar `timestamptz::text` desde o início; reteste PASS com mesmos registros. O fechamento já confirmado não foi repetido. Também ocorreram falhas transitórias `UND_ERR_SOCKET` em GETs locais; nenhuma retentativa cega de POST e nenhuma alteração de estado para encobri-las.
+
+### C. Issue 7730223576 / R51: FAIL reproduzido, causa raiz ainda aberta
+
+| Fonte | Ambiente/deployment confirmado | Resultado |
+|---|---|---|
+| Evento fornecido pelo founder | Preview TISS, SHA `60cd228c2d01dc218be58fbc93e34f957458c84a`, `dpl_GwhzTXoVX63JyiYXnKjx2Q8soVfp`, [release exata](https://project-cc1euw7yp-clinic-os-v2-s-projects.vercel.app) | Breadcrumb de #418 seguido de `$RS`/parentNode; não é evidência de Production afetada |
+| Preview TISS seguinte | SHA `a04a153586d6557bb0cd71306516a6e978dc4375`, `dpl_HvDg8AxSmmuGCuLQy747iycWP5JK`, [origem imutável](https://project-lpl2nfr41-clinic-os-v2-s-projects.vercel.app) | #418 reproduzido no dashboard, Chromium limpo, pt-BR/Tóquio/1440. HTTP200, h1/main presentes e sem error boundary após recuperação; 1 ocorrência em 7 navegações concluídas antes de um timeout do harness mobile |
+| Release exata, repetição | Mesmo `60cd228c` | 20 navegações + 2 verificações de logout em Tóquio/São Paulo, desktop/mobile, sem pageerror nessa amostra |
+| Ensaio instrumentado | Mesmo `60cd228c`, Chromium/CDP, 1500 kbps, latência 20 ms | 8 cargas/recargas + logout, sem falha capturada; não comprova eliminação nem origem |
+| Preview financeiro | `dc95caa4`, mesma conta EARLY-01 paga | 20 navegações + 2 verificações de logout, desktop/mobile e ambos os fusos, sem pageerror; checkout/ativação pagos também passaram separadamente |
+
+A primeira bateria adicional foi interrompida por seletor de navegação mobile antes de hidratar; o harness passou a esperar e abrir o menu real. Tentativas posteriores de login atingiram timeout, sem diagnóstico suficiente para atribuir ao produto. Não apagamos contadores, burlamos CAPTCHA ou alteramos o limiter. A execução final financeira, após intervalo natural, concluiu as 22 verificações. Resultados incompletos não foram contados como PASS.
+
+**Confirmado:** #418 indica divergência de hidratação ([React](https://react.dev/errors/418)); o helper inline `$RS` do React procura o segmento e o placeholder por ID, remove o contêiner temporário e insere seus filhos no pai do placeholder. Um `null` nessas buscas explica a classe `parentNode`; o nó/ID e a causa da remoção no evento original **não foram capturados**. A versão canary é vendorizada no Next App Router; o projeto fixa Next15.5.28 e React19.2.6. Nenhum upgrade/downgrade especulativo.
+
+**Hipóteses abertas:** corrida entre parser/hidratação/streaming e substituição da árvore após #418; cache/navegação concorrente; mutação externa do DOM. Há [relato upstream com assinatura semelhante](https://github.com/react/react/issues/37321), mas isso não prova a causa no Qoro nem autoriza aplicar o workaround ao scheduler. Fuso diferente é contexto de reprodução, não causa demonstrada. Datas do dashboard são produzidas em Server Components; não se concluiu que a correção de datas de outros componentes do PR55 resolveu este incidente.
+
+Próximo experimento do responsável pela UI/TISS: estender `e2e/hydration-r51-preview.spec.ts` para cargas com chunks quentes e rede fragmentada; capturar, no throw, fiber esperado, cursor de hidratação, `document.readyState` e IDs B:/P:/S: sem conteúdo clínico; comparar entrega streaming com resposta integral da mesma fixture. Preservar a recusa de qualquer pageerror. Nenhum `suppressHydrationWarning`, desligamento de SSR, tolerância ao #418 ou supressão do Sentry foi adicionado.
+
+### D. Classificação Sentry: correção já existente no PR53, pendente de composição no PR55
+
+Leitura de bundles dos releases exato/atual TISS: 19 scripts por release, inicialização `production=1`, `preview=0`. Fonte: `src/instrumentation-client.ts` usa `NODE_ENV`, que também é production no build Preview. No Preview financeiro: 18 scripts, `preview=1`, `production=0`, SHA correspondente presente. A correção existente `a5984e23` usa `NEXT_PUBLIC_VERCEL_ENV`, com fallback local, e mantém `VERCEL_ENV` no server/edge. **17/17 testes** de ambiente/sanitização passaram nesta rodada. Não duplicada nem aplicada unilateralmente no worktree TISS.
+
+Sentry API de issue/latest retornou401; os sourcemaps pareados aos main-app chunks dos três deployments retornaram404. Não foram usados mapas de outro SHA nem declarada simbolicação completa. `$RS` é código inline de streaming; a classificação errada não é sua correção. O alerta Production `ed622a74` foi preservado; nenhum alerta novo, regra editada ou evento histórico alterado.
+
+### E. Decisão e próxima ação
+
+EARLY-01: **PASS delimitado** para pagamento antecipado, aplicação real, período, cotas, UI e idempotência; fechamento Sandbox controlado comprovado. Automático live e renovação externa permanecem PARTIAL. R51: **FAIL de hidratação reproduzido / causa PARTIAL**, com encaminhamento ao PR55; `parentNode` atual não foi reproduzido. Dados detalhados, comandos e separação das provas no JSON canônico, chave `earlyPaymentAndHydration20261113`.
+
+Nenhuma migration, mudança de runtime/configuração/CI, contrato real, merge, deploy Production ou nova cobrança real nesta rodada. Quatro remoções anteriores de vídeos continuam fora do commit. PR53 e PR55 em draft. **NO-GO para ativação financeira em Production** até consumidor/schema compatíveis, R1–R4 tratados, responsáveis/cohort definidos e autorização específica; a composição final também deve tratar o R51. Não pedir novo pagamento para repetir EARLY-01.

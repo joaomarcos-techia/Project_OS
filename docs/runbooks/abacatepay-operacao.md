@@ -501,7 +501,7 @@ O Preview de composição não herda overrides restritos à branch apenas por me
 
 **Sandbox preparado:** run `d2d0e84d-059b-4b29-9074-f3305a3fc97f`, clínica `8b12f2da-b881-4409-815f-a18ec71fd1c6`, assinatura `1c21ff83-9e46-4eee-bffa-d19aa2be9135`. Trial de 14 dias desde Auth, até 27/11 às 15:12:42.157 UTC. E2E real PASS em 1440/390; zero checkout, invoice, operação e liberação paga. Senha sintética protegida com DPAPI; nenhum envio de e-mail. Não reconstruir a conta nem repetir os cinco pagamentos iniciais.
 
-### Próxima autorização: somente “posso pagar”
+### Histórico da criação EARLY-01 — já executada, não repetir
 
 O comando abaixo é **para a engenharia após essa mensagem**, não uma solicitação para o founder executá-lo agora. O operador confere ambiente/loja/produtos/branch/hashes DEV antes de qualquer mutação. Se houver checkout, faz readback e reutiliza; não cria outro intent. Entregar somente o link realmente devolvido pelo Qoro.
 
@@ -521,3 +521,15 @@ Se o Preview/webhook mudar de release, o preflight bloqueia antes do checkout. R
 R1: closure automática live e consumidores exigem release compatível autorizado; não ativar endpoint 404. R2: renovação natural e R3: mudança efetivada em novo ciclo não possuem acelerador localizado no Sandbox em 13/11. Coortes locais 1/3 passaram e complementam 10/100/500/1000 preservadas; não representam capacidade remota. Nenhum risco R1–R4 foi aceito.
 
 Para reverter a configuração desta janela, conferir IDs no JSON e remover somente as cinco entradas criadas, se inalteradas. Manter API key, variáveis anteriores e produtos intactos. Não apagar webhook compartilhado nem parar consumidores existentes. O segredo está protegido pelo Windows CurrentUser e na Vercel sensitive; não é uma cópia de DEV. A ficha de responsáveis/cohort do piloto real permanece no plano; disponibilidade nesta janela não equivale a plantão permanente.
+
+### Estado corrente EARLY-01 — pagamento e fechamento comprovados em 13/11
+
+**Não executar novamente create nem pagar o link antigo.** Checkout `bill_KJRNEFgyUExtx4EKFwZA2WFk`, assinatura remota `subs_e1A14YHx3uK3sFWYPEJpna2F`, R$197 Sandbox. Pagamento real Sandbox/completed/inbox/invoice/cotas/UI PASS; uma invoice paga e um receipt. Período Qoro13/11–13/12, conversão antes do trial terminar27/11. Prova e IDs completos no relatório §55/JSON canônico, sem credenciais.
+
+O fechamento foi realizado pelo operador no seam Sandbox, com journal/audit únicos e readback posterior. Assinatura ACTIVE e invoice preservadas. Esse comando não cancela recorrência. Fixtures Sandbox não entram no reconciliador automático live. Não chamar fechamento manual de automático nem ausência da listagem de prova de uso único do link.
+
+Após o fechamento, o GET do checkout apagado pode não estar disponível. Portanto o operador `verify`, que usa esse GET, não é o caminho para conferir de novo essa geração encerrada. Usar o receipt imutável/journal/audit, GET da assinatura e readback da invoice/período/cota; não criar outro checkout para substituir a prova. Credencial e manifesto ficam retidos com DPAPI/ACL privada; sem cleanup por timeout.
+
+Idempotência desta geração: reapresentação interna dos mesmos IDs/hash retornou duplicate; worker e recuperação não reaplicaram nada; snapshot inalterado. Não se fez replay HTTP assinado do provedor nem falha artificial no banco compartilhado. As provas isoladas dessas falhas continuam referenciadas no relatório.
+
+Incidente R51 permanece aberto: erro #418 reproduzido no dashboard da Preview TISS a04a1535, sem demonstrar Production afetada. Não suprimir erros. A correção de ambiente Sentry já existe no PR53 e precisa ser preservada na composição com o PR55; a causa de hidratação exige investigação própria. As 22 verificações de navegação/logout na Preview financeira sem pageerror são uma amostra, não prova de eliminação do R51.

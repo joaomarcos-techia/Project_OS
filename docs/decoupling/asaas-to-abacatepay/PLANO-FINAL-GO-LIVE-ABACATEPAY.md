@@ -317,3 +317,9 @@ EARLY-01 está provisionada e passou pela UI desktop/mobile sem checkout. Plano 
 |Autorização release/migrations/primeira operação real|Não concedida nesta rodada|
 
 O calendário de renovação externo e o change-plan efetivado no próximo ciclo continuam pendentes. Não há novo simulador de assinatura encontrado no índice/CLI oficiais13/11. Manter monitoramento e observação das fixtures pagas; payload representativo nunca recebe rótulo de prova financeira externa. Não aceitar risco pelo founder.
+
+### Atualização após o pagamento EARLY-01 — 13/11
+
+Pagamento antecipado Sandbox, aplicação, invoice/período/cotas/UI e idempotência PASS. Fechamento controlado dessa geração PASS, com assinatura preservada. Não repetir create/pagamento; usar os receipts retidos. Ver relatório §55/JSON canônico. Isso retira a pendência de pagar durante o trial; não substitui renovação externa ou prova automática live.
+
+A composição final precisa preservar a correção Sentry `NEXT_PUBLIC_VERCEL_ENV` do PR53. A Preview TISS a04a1535 ainda emite environment=production e reproduziu #418 no dashboard. R51 não está encerrado pelas correções de datas de outros componentes; coordenar com o proprietário do PR55, sem editar seu worktree. Não publicar um pacote composto como livre de erros conhecidos enquanto esse resultado não estiver tratado. Nenhuma autorização de rollout, migration, merge ou cobrança real é inferida deste checkpoint.

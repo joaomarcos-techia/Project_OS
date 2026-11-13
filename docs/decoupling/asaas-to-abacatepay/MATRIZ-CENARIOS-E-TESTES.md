@@ -446,3 +446,17 @@ As linhas abaixo substituem apenas os estados citados; os demais G01–G28 e sua
 |G26|Janela técnica encerrada; piloto BLOCKED D|Founder e canal disponíveis na janela; clínica/financeiro/plantão/substituto do piloto não selecionados|
 |G27|BLOCKED D|Nenhum aceite de R1–R4 ou autorização financeira real|
 |G28|NO-GO de ativação comercial|Configuração live mudou com autorização; release5620a098/contratos/banco preservados. Publicação/migrations/piloto não autorizados|
+
+### Checkpoint corrente — EARLY-01 paga, 13/11
+
+Substitui apenas o estado corrente acima; histórico preservado. Evidência: relatório §55 e JSON canônico `earlyPaymentAndHydration20261113`.
+
+| Gate | Estado | Prova e limite |
+|---|---|---|
+| G01/G02/G04–G07 | PASS EARLY-01 Sandbox/Preview | R$197 confirmados, completed aplicado, uma invoice/attempt/receipt, período13/11–13/12 antes do fim do trial, 1 médico/3 administrativos, UI1440/390; não habilitou TISS nem conectou integrações |
+| G03/G14/G17 | PASS delimitado | Inbox duplicate, worker/recuperação sem reaplicar, snapshot inalterado; recusa409 de nova contratação. Falhas/concorrência/cross-tenant isoladas anteriores preservadas, sem injeção no DEV compartilhado |
+| G11 | PASS fechamento Sandbox controlado; PARTIAL automático live | Um journal/audit, removido da listagem, assinatura/invoice preservadas. Não comprova invalidação absoluta do link ou fechamento automático no Sandbox |
+| G08/G09/G12/G13/G23 | PARTIAL externo preservado | Compra antecipada não demonstra renovação natural, novo ciclo com cota alterada ou evento negativo sem simulador |
+| G20 | PASS código dc95caa4 | CI43457077686:7161 testes/22E2E semSKIP;17 testes de observabilidade repetidos PASS. Conferir checks do commit documental final |
+| UI/Sentry R51 | FAIL reproduzido; causa PARTIAL | #418 no dashboard TISS a04a1535; não reproduzido nas repetições do SHA exato. Financeiro dc95:22 verificações de navegação/logout sem pageerror. Mapeamento Sentry corrigido no PR53, ainda ausente do PR55 |
+| G21/G22/G24/G26–G28 | Preservados; NO-GO live | Nenhum SQL/runtime/deploy alterado nesta rodada; composição final deve incluir classificação Sentry correta e tratar R51. Sem novo pagamento solicitado |

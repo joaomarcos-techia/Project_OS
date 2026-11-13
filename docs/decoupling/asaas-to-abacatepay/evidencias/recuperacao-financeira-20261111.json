@@ -20641,5 +20641,775 @@
     "productionDeploymentChanges": 0,
     "otherWorktreeWrites": 0,
     "runtimeDeltaFromPriorProvenComposition": "Only two src test files; no runtime, package, lockfile or SQL delta since 1703b3f2"
+  },
+  "earlyPaymentAndHydration20261113": {
+    "observedAt": "2026-11-13T20:46:04.222Z",
+    "runtimeSha": "dc95caa4eb15827049f27d2e7e6c00994017f17d",
+    "preview": "https://project-7nu27u287-clinic-os-v2-s-projects.vercel.app",
+    "scope": "Only EARLY-01 Sandbox; no repeated initial purchases; retained synthetic identity; no Production migration/deployment/financial call",
+    "financial": {
+      "verification": {
+        "status": "PASS",
+        "stage": "paid_webhook_database_and_ui",
+        "observedAt": "2026-11-13T17:48:04.165Z",
+        "runId": "d2d0e84d-059b-4b29-9074-f3305a3fc97f",
+        "sha": "dc95caa4eb15827049f27d2e7e6c00994017f17d",
+        "plan": "consultorio_2026",
+        "amountMinor": 19700,
+        "checkoutId": "bill_KJRNEFgyUExtx4EKFwZA2WFk",
+        "clinicId": "8b12f2da-b881-4409-815f-a18ec71fd1c6",
+        "subscriptionId": "1c21ff83-9e46-4eee-bffa-d19aa2be9135",
+        "providerSubscriptionId": "subs_e1A14YHx3uK3sFWYPEJpna2F",
+        "paidInvoices": 1,
+        "confirmedAttempts": 1,
+        "paidReceipts": 1,
+        "appliedCompletedEvents": 1,
+        "currentPeriodEnd": "2026-12-13T17:44:27.418Z",
+        "desktopMobile": [
+          1440,
+          390
+        ],
+        "automaticCleanup": false,
+        "productionWrites": 0
+      },
+      "trial": {
+        "authCreatedAt": "2026-11-13 15:12:42.157591+00",
+        "endsAt": "2026-11-27 15:12:42.157+00",
+        "releasedAt": "2026-11-13 17:44:31.926163+00",
+        "releasedByInvoice": "98938ed5-b274-48bc-a22c-e03bac03ef7d"
+      },
+      "provider": {
+        "id": "subs_e1A14YHx3uK3sFWYPEJpna2F",
+        "amount": 19700,
+        "status": "ACTIVE",
+        "method": "CARD",
+        "devMode": true,
+        "createdAt": "2026-11-13T17:44:27.418Z",
+        "trialEndsAt": null
+      },
+      "invoices": [
+        {
+          "id": "98938ed5-b274-48bc-a22c-e03bac03ef7d",
+          "status": "paid",
+          "total_amount": "197.00",
+          "paid_at": "2026-11-13 17:44:31.926163+00"
+        }
+      ],
+      "attempts": [
+        {
+          "id": "ce7a1f3a-0087-4b84-b56e-3c4b104c3ea2",
+          "status": "confirmed",
+          "provider": "abacatepay",
+          "provider_payment_id": "[\"abacatepay\",\"sandbox\",\"store_EsLPwdCKpH4aSD3TcrYBZWMC\",\"checkout\",\"bill_KJRNEFgyUExtx4EKFwZA2WFk\"]"
+        }
+      ],
+      "receipts": [
+        {
+          "checkout_id": "bill_KJRNEFgyUExtx4EKFwZA2WFk",
+          "invoice_id": "98938ed5-b274-48bc-a22c-e03bac03ef7d",
+          "period_start": "2026-11-13 17:44:27.418+00",
+          "period_end": "2026-12-13 17:44:27.418+00"
+        }
+      ],
+      "inbox": [
+        {
+          "event_id": "log_jaLBkPph3zryHCuUUcJPndXS",
+          "event_type": "subscription.completed",
+          "state": "applied",
+          "attempts": 1,
+          "external_subscription_id": "subs_e1A14YHx3uK3sFWYPEJpna2F",
+          "external_checkout_id": "bill_KJRNEFgyUExtx4EKFwZA2WFk",
+          "external_customer_id": "cust_fwKdBn1WsGKgUEFBSnhBcyhW",
+          "external_payment_id": "card_bBQD4TCMWH4yRZ00YT2ubhZg",
+          "received_at": "2026-11-13 17:44:28.510671+00",
+          "processed_at": "2026-11-13 17:44:31.926163+00"
+        }
+      ],
+      "seats": [
+        {
+          "doctors": 1,
+          "staff": 3
+        }
+      ],
+      "operationalModules": {
+        "observedAt": "2026-11-13T20:42:59.912Z",
+        "status": "PASS",
+        "enabled_tiss": 0,
+        "active_whatsapp": 0,
+        "active_asaas": 0,
+        "ai_conversations": 0,
+        "productionWrites": 0,
+        "connectedExternalServices": 0,
+        "operationalScope": "Paid fixture remains unconfigured: no automatic TISS activation, WhatsApp/Asaas connection or AI conversation; does not certify every privileged module action in PR55"
+      },
+      "paidUi": {
+        "runId": "d2d0e84d-059b-4b29-9074-f3305a3fc97f",
+        "userId": "7443e211-387f-488f-af8f-4419185a4bda",
+        "status": "PASS",
+        "stages": [
+          "real_browser_login",
+          "paid_domain_records_verified",
+          "paid_ui_1440",
+          "paid_ui_390",
+          "paid_checkout_repeat_denied",
+          "paid_whatsapp_gate_released",
+          "paid_asaas_gate_released",
+          "real_sandbox_webhook_invoice_receipt_and_paid_ui",
+          "paid_checkout_repeat_denied_and_integration_invite_gates_released"
+        ],
+        "retention": "retained_until_financial_reconciliation; never delete on test timeout",
+        "scope": "Real Sandbox simulation, authenticated webhook, invoice and readbacks; no real charge",
+        "browserErrorClasses": [],
+        "clinicId": "8b12f2da-b881-4409-815f-a18ec71fd1c6",
+        "subscriptionId": "1c21ff83-9e46-4eee-bffa-d19aa2be9135"
+      },
+      "idempotency": {
+        "observedAt": "2026-11-13T18:05:40.368Z",
+        "status": "PASS",
+        "duplicate": "duplicate",
+        "worker": {
+          "applied": 0,
+          "review": 0,
+          "scanned": 0
+        },
+        "recovery": {
+          "scanned": 0,
+          "applied": 0,
+          "duplicate": 0,
+          "review": 0
+        },
+        "unchanged": true,
+        "externalWebhookReplay": false,
+        "productionWrites": 0
+      },
+      "closure": {
+        "status": "PASS_OPERATOR_SANDBOX",
+        "automaticSandboxClosure": false,
+        "operation": {
+          "kind": "close_paid_checkout",
+          "state": "confirmed",
+          "result": {
+            "closed": true,
+            "productId": "prod_NTxhdRJzM0cG5MgDeeF54RL2",
+            "checkoutId": "bill_KJRNEFgyUExtx4EKFwZA2WFk",
+            "customerId": "cust_fwKdBn1WsGKgUEFBSnhBcyhW",
+            "amountMinor": 19700,
+            "subscriptionId": "subs_e1A14YHx3uK3sFWYPEJpna2F"
+          }
+        },
+        "audit": [
+          {
+            "type": "subscription.checkout.closed",
+            "created_at": "2026-11-13 17:57:23.67773+00"
+          }
+        ],
+        "listedCheckoutCount": 0,
+        "remoteSubscriptionAfterClosure": "ACTIVE",
+        "cancelled": false,
+        "absoluteHostedLinkInvalidation": "NOT_PROVEN_BY_A_SECOND_PAYMENT",
+        "liveAutomation": "PRESERVED_LOCAL_POSTGRES_PROOF_NOT_DEPLOYED"
+      },
+      "harnessCorrections": [
+        "Compared timestamptz as SQL text to preserve microseconds after Drizzle initializes parsers; no product state correction",
+        "Local GETs sometimes UND_ERR_SOCKET; no blind provider POST retry"
+      ],
+      "initialFivePurchasesRepeated": 0,
+      "newCheckouts": 1,
+      "humanSandboxPayments": 1,
+      "newAuthUsers": 0,
+      "productionWrites": 0
+    },
+    "hydration": {
+      "issueId": "7730223576",
+      "reportedRelease": "60cd228c2d01dc218be58fbc93e34f957458c84a",
+      "actualEnvironment": "preview",
+      "productionImpact": "NOT_ESTABLISHED",
+      "metadata": [
+        {
+          "id": "dpl_HvDg8AxSmmuGCuLQy747iycWP5JK",
+          "url": "project-lpl2nfr41-clinic-os-v2-s-projects.vercel.app",
+          "sha": "a04a153586d6557bb0cd71306516a6e978dc4375",
+          "branch": "feat/convenios-tiss-20261110",
+          "target": null,
+          "readyState": "READY",
+          "label": "current_tiss_alias"
+        },
+        {
+          "id": "dpl_GwhzTXoVX63JyiYXnKjx2Q8soVfp",
+          "url": "project-cc1euw7yp-clinic-os-v2-s-projects.vercel.app",
+          "sha": "60cd228c2d01dc218be58fbc93e34f957458c84a",
+          "branch": "feat/convenios-tiss-20261110",
+          "target": null,
+          "readyState": "READY",
+          "label": "incident_release"
+        },
+        {
+          "id": "dpl_AFDdqxqM3a4Cs7v25SVC25ZUuk1F",
+          "url": "project-7nu27u287-clinic-os-v2-s-projects.vercel.app",
+          "sha": "dc95caa4eb15827049f27d2e7e6c00994017f17d",
+          "branch": "feat/billing-abacatepay-20261107",
+          "target": null,
+          "readyState": "READY",
+          "label": "billing_preview"
+        }
+      ],
+      "reproduced": {
+        "status": "FAIL",
+        "source": "first clean Chromium run",
+        "completedNavigations": 7,
+        "errors": [
+          {
+            "deployment": "current_tiss_alias",
+            "sha": "a04a153586d6557bb0cd71306516a6e978dc4375",
+            "timezoneId": "Asia/Tokyo",
+            "locale": "pt-BR",
+            "width": 1440,
+            "action": "direct",
+            "http": 200,
+            "route": "/dashboard",
+            "hasH1": true,
+            "hasMain": true,
+            "errorBoundary": false,
+            "htmlCount": 1,
+            "bodyCount": 1,
+            "streamPlaceholders": 0,
+            "overflow": false,
+            "errors": [
+              {
+                "operation": "direct_1440",
+                "kind": "pageerror",
+                "category": "react418_hydration"
+              }
+            ]
+          }
+        ],
+        "incompleteStage": "current_tiss_alias_Asia/Tokyo_internal_390"
+      },
+      "exactReleaseAndBillingAttempt": {
+        "status": "BLOCKED",
+        "completedResults": 29,
+        "resultsByRelease": {
+          "60cd228c2d01dc218be58fbc93e34f957458c84a": 20,
+          "dc95caa4eb15827049f27d2e7e6c00994017f17d": 7
+        },
+        "pageErrors": 0,
+        "incompleteStage": "billing_preview_Asia/Tokyo_internal_390"
+      },
+      "instrumented": {
+        "status": "COMPLETE",
+        "completedResults": 9,
+        "pageErrors": 0,
+        "throwCaptures": 0,
+        "networkKbps": 1500,
+        "latencyMs": 20,
+        "debuggerEnabled": true,
+        "mutationObserverAdded": false,
+        "rootCauseProven": false
+      },
+      "financialBrowser": {
+        "status": "COMPLETE",
+        "metadata": {
+          "id": "dpl_AFDdqxqM3a4Cs7v25SVC25ZUuk1F",
+          "url": "project-7nu27u287-clinic-os-v2-s-projects.vercel.app",
+          "sha": "dc95caa4eb15827049f27d2e7e6c00994017f17d",
+          "branch": "feat/billing-abacatepay-20261107",
+          "target": null,
+          "readyState": "READY",
+          "label": "billing_preview"
+        },
+        "cases": [
+          {
+            "deployment": "billing_preview",
+            "sha": "dc95caa4eb15827049f27d2e7e6c00994017f17d",
+            "timezoneId": "Asia/Tokyo",
+            "locale": "pt-BR",
+            "width": 1440,
+            "action": "direct",
+            "http": 200,
+            "route": "/dashboard",
+            "hasH1": true,
+            "hasMain": true,
+            "errorBoundary": false,
+            "htmlCount": 1,
+            "bodyCount": 1,
+            "streamPlaceholders": 0,
+            "overflow": false,
+            "errors": []
+          },
+          {
+            "deployment": "billing_preview",
+            "sha": "dc95caa4eb15827049f27d2e7e6c00994017f17d",
+            "timezoneId": "Asia/Tokyo",
+            "locale": "pt-BR",
+            "width": 1440,
+            "action": "refresh",
+            "http": 200,
+            "route": "/dashboard",
+            "hasH1": true,
+            "hasMain": true,
+            "errorBoundary": false,
+            "htmlCount": 1,
+            "bodyCount": 1,
+            "streamPlaceholders": 0,
+            "overflow": false,
+            "errors": []
+          },
+          {
+            "deployment": "billing_preview",
+            "sha": "dc95caa4eb15827049f27d2e7e6c00994017f17d",
+            "timezoneId": "Asia/Tokyo",
+            "locale": "pt-BR",
+            "width": 1440,
+            "action": "internal",
+            "http": null,
+            "route": "/configuracoes/assinatura",
+            "hasH1": true,
+            "hasMain": true,
+            "errorBoundary": false,
+            "htmlCount": 1,
+            "bodyCount": 1,
+            "streamPlaceholders": 0,
+            "overflow": false,
+            "errors": []
+          },
+          {
+            "deployment": "billing_preview",
+            "sha": "dc95caa4eb15827049f27d2e7e6c00994017f17d",
+            "timezoneId": "Asia/Tokyo",
+            "locale": "pt-BR",
+            "width": 1440,
+            "action": "same_route",
+            "http": null,
+            "route": "/configuracoes/assinatura",
+            "hasH1": true,
+            "hasMain": true,
+            "errorBoundary": false,
+            "htmlCount": 1,
+            "bodyCount": 1,
+            "streamPlaceholders": 0,
+            "overflow": false,
+            "errors": []
+          },
+          {
+            "deployment": "billing_preview",
+            "sha": "dc95caa4eb15827049f27d2e7e6c00994017f17d",
+            "timezoneId": "Asia/Tokyo",
+            "locale": "pt-BR",
+            "width": 1440,
+            "action": "refresh_repeat",
+            "http": 200,
+            "route": "/configuracoes/assinatura",
+            "hasH1": true,
+            "hasMain": true,
+            "errorBoundary": false,
+            "htmlCount": 1,
+            "bodyCount": 1,
+            "streamPlaceholders": 0,
+            "overflow": false,
+            "errors": []
+          },
+          {
+            "deployment": "billing_preview",
+            "sha": "dc95caa4eb15827049f27d2e7e6c00994017f17d",
+            "timezoneId": "Asia/Tokyo",
+            "locale": "pt-BR",
+            "width": 390,
+            "action": "direct",
+            "http": 200,
+            "route": "/dashboard",
+            "hasH1": true,
+            "hasMain": true,
+            "errorBoundary": false,
+            "htmlCount": 1,
+            "bodyCount": 1,
+            "streamPlaceholders": 0,
+            "overflow": false,
+            "errors": []
+          },
+          {
+            "deployment": "billing_preview",
+            "sha": "dc95caa4eb15827049f27d2e7e6c00994017f17d",
+            "timezoneId": "Asia/Tokyo",
+            "locale": "pt-BR",
+            "width": 390,
+            "action": "refresh",
+            "http": 200,
+            "route": "/dashboard",
+            "hasH1": true,
+            "hasMain": true,
+            "errorBoundary": false,
+            "htmlCount": 1,
+            "bodyCount": 1,
+            "streamPlaceholders": 0,
+            "overflow": false,
+            "errors": []
+          },
+          {
+            "deployment": "billing_preview",
+            "sha": "dc95caa4eb15827049f27d2e7e6c00994017f17d",
+            "timezoneId": "Asia/Tokyo",
+            "locale": "pt-BR",
+            "width": 390,
+            "action": "internal",
+            "http": null,
+            "route": "/dashboard",
+            "hasH1": false,
+            "hasMain": true,
+            "errorBoundary": false,
+            "htmlCount": 1,
+            "bodyCount": 1,
+            "streamPlaceholders": 0,
+            "overflow": false,
+            "errors": []
+          },
+          {
+            "deployment": "billing_preview",
+            "sha": "dc95caa4eb15827049f27d2e7e6c00994017f17d",
+            "timezoneId": "Asia/Tokyo",
+            "locale": "pt-BR",
+            "width": 390,
+            "action": "same_route",
+            "http": null,
+            "route": "/dashboard",
+            "hasH1": true,
+            "hasMain": true,
+            "errorBoundary": false,
+            "htmlCount": 1,
+            "bodyCount": 1,
+            "streamPlaceholders": 0,
+            "overflow": false,
+            "errors": []
+          },
+          {
+            "deployment": "billing_preview",
+            "sha": "dc95caa4eb15827049f27d2e7e6c00994017f17d",
+            "timezoneId": "Asia/Tokyo",
+            "locale": "pt-BR",
+            "width": 390,
+            "action": "refresh_repeat",
+            "http": 200,
+            "route": "/dashboard",
+            "hasH1": true,
+            "hasMain": true,
+            "errorBoundary": false,
+            "htmlCount": 1,
+            "bodyCount": 1,
+            "streamPlaceholders": 0,
+            "overflow": false,
+            "errors": []
+          },
+          {
+            "deployment": "billing_preview",
+            "timezoneId": "Asia/Tokyo",
+            "action": "logout_protection",
+            "route": "/login",
+            "errors": []
+          },
+          {
+            "deployment": "billing_preview",
+            "sha": "dc95caa4eb15827049f27d2e7e6c00994017f17d",
+            "timezoneId": "America/Sao_Paulo",
+            "locale": "pt-BR",
+            "width": 1440,
+            "action": "direct",
+            "http": 200,
+            "route": "/dashboard",
+            "hasH1": true,
+            "hasMain": true,
+            "errorBoundary": false,
+            "htmlCount": 1,
+            "bodyCount": 1,
+            "streamPlaceholders": 0,
+            "overflow": false,
+            "errors": []
+          },
+          {
+            "deployment": "billing_preview",
+            "sha": "dc95caa4eb15827049f27d2e7e6c00994017f17d",
+            "timezoneId": "America/Sao_Paulo",
+            "locale": "pt-BR",
+            "width": 1440,
+            "action": "refresh",
+            "http": 200,
+            "route": "/dashboard",
+            "hasH1": true,
+            "hasMain": true,
+            "errorBoundary": false,
+            "htmlCount": 1,
+            "bodyCount": 1,
+            "streamPlaceholders": 0,
+            "overflow": false,
+            "errors": []
+          },
+          {
+            "deployment": "billing_preview",
+            "sha": "dc95caa4eb15827049f27d2e7e6c00994017f17d",
+            "timezoneId": "America/Sao_Paulo",
+            "locale": "pt-BR",
+            "width": 1440,
+            "action": "internal",
+            "http": null,
+            "route": "/dashboard",
+            "hasH1": false,
+            "hasMain": true,
+            "errorBoundary": false,
+            "htmlCount": 1,
+            "bodyCount": 1,
+            "streamPlaceholders": 0,
+            "overflow": false,
+            "errors": []
+          },
+          {
+            "deployment": "billing_preview",
+            "sha": "dc95caa4eb15827049f27d2e7e6c00994017f17d",
+            "timezoneId": "America/Sao_Paulo",
+            "locale": "pt-BR",
+            "width": 1440,
+            "action": "same_route",
+            "http": null,
+            "route": "/dashboard",
+            "hasH1": true,
+            "hasMain": true,
+            "errorBoundary": false,
+            "htmlCount": 1,
+            "bodyCount": 1,
+            "streamPlaceholders": 0,
+            "overflow": false,
+            "errors": []
+          },
+          {
+            "deployment": "billing_preview",
+            "sha": "dc95caa4eb15827049f27d2e7e6c00994017f17d",
+            "timezoneId": "America/Sao_Paulo",
+            "locale": "pt-BR",
+            "width": 1440,
+            "action": "refresh_repeat",
+            "http": 200,
+            "route": "/dashboard",
+            "hasH1": true,
+            "hasMain": true,
+            "errorBoundary": false,
+            "htmlCount": 1,
+            "bodyCount": 1,
+            "streamPlaceholders": 0,
+            "overflow": false,
+            "errors": []
+          },
+          {
+            "deployment": "billing_preview",
+            "sha": "dc95caa4eb15827049f27d2e7e6c00994017f17d",
+            "timezoneId": "America/Sao_Paulo",
+            "locale": "pt-BR",
+            "width": 390,
+            "action": "direct",
+            "http": 200,
+            "route": "/dashboard",
+            "hasH1": true,
+            "hasMain": true,
+            "errorBoundary": false,
+            "htmlCount": 1,
+            "bodyCount": 1,
+            "streamPlaceholders": 0,
+            "overflow": false,
+            "errors": []
+          },
+          {
+            "deployment": "billing_preview",
+            "sha": "dc95caa4eb15827049f27d2e7e6c00994017f17d",
+            "timezoneId": "America/Sao_Paulo",
+            "locale": "pt-BR",
+            "width": 390,
+            "action": "refresh",
+            "http": 200,
+            "route": "/dashboard",
+            "hasH1": true,
+            "hasMain": true,
+            "errorBoundary": false,
+            "htmlCount": 1,
+            "bodyCount": 1,
+            "streamPlaceholders": 0,
+            "overflow": false,
+            "errors": []
+          },
+          {
+            "deployment": "billing_preview",
+            "sha": "dc95caa4eb15827049f27d2e7e6c00994017f17d",
+            "timezoneId": "America/Sao_Paulo",
+            "locale": "pt-BR",
+            "width": 390,
+            "action": "internal",
+            "http": null,
+            "route": "/configuracoes/assinatura",
+            "hasH1": true,
+            "hasMain": true,
+            "errorBoundary": false,
+            "htmlCount": 1,
+            "bodyCount": 1,
+            "streamPlaceholders": 0,
+            "overflow": false,
+            "errors": []
+          },
+          {
+            "deployment": "billing_preview",
+            "sha": "dc95caa4eb15827049f27d2e7e6c00994017f17d",
+            "timezoneId": "America/Sao_Paulo",
+            "locale": "pt-BR",
+            "width": 390,
+            "action": "same_route",
+            "http": null,
+            "route": "/dashboard",
+            "hasH1": false,
+            "hasMain": true,
+            "errorBoundary": false,
+            "htmlCount": 1,
+            "bodyCount": 1,
+            "streamPlaceholders": 0,
+            "overflow": false,
+            "errors": []
+          },
+          {
+            "deployment": "billing_preview",
+            "sha": "dc95caa4eb15827049f27d2e7e6c00994017f17d",
+            "timezoneId": "America/Sao_Paulo",
+            "locale": "pt-BR",
+            "width": 390,
+            "action": "refresh_repeat",
+            "http": 200,
+            "route": "/dashboard",
+            "hasH1": true,
+            "hasMain": true,
+            "errorBoundary": false,
+            "htmlCount": 1,
+            "bodyCount": 1,
+            "streamPlaceholders": 0,
+            "overflow": false,
+            "errors": []
+          },
+          {
+            "deployment": "billing_preview",
+            "timezoneId": "America/Sao_Paulo",
+            "action": "logout_protection",
+            "route": "/login",
+            "errors": []
+          }
+        ],
+        "unhandledErrors": 0,
+        "scope": "Authenticated synthetic owner; desktop/mobile; Tokyo/Sao Paulo; direct/internal/same route/refresh/logout. Sample is not proof of global absence."
+      },
+      "sentry": {
+        "bundleReadback": {
+          "observedAt": "2026-11-13T18:08:52.525Z",
+          "status": "PASS",
+          "deployments": [
+            {
+              "label": "current_tiss_alias",
+              "sha": "a04a153586d6557bb0cd71306516a6e978dc4375",
+              "deploymentId": "dpl_HvDg8AxSmmuGCuLQy747iycWP5JK",
+              "origin": "https://project-lpl2nfr41-clinic-os-v2-s-projects.vercel.app",
+              "scriptCount": 19,
+              "previewInitialization": 0,
+              "productionInitialization": 1,
+              "shaFound": 2,
+              "sourceMapProbes": [
+                {
+                  "path": "/_next/static/chunks/main-app-7fdfb245e445b49b.js.map",
+                  "http": 404
+                }
+              ]
+            },
+            {
+              "label": "incident_release",
+              "sha": "60cd228c2d01dc218be58fbc93e34f957458c84a",
+              "deploymentId": "dpl_GwhzTXoVX63JyiYXnKjx2Q8soVfp",
+              "origin": "https://project-cc1euw7yp-clinic-os-v2-s-projects.vercel.app",
+              "scriptCount": 19,
+              "previewInitialization": 0,
+              "productionInitialization": 1,
+              "shaFound": 2,
+              "sourceMapProbes": [
+                {
+                  "path": "/_next/static/chunks/main-app-1833fe7f5307cf72.js.map",
+                  "http": 404
+                }
+              ]
+            },
+            {
+              "label": "billing_preview",
+              "sha": "dc95caa4eb15827049f27d2e7e6c00994017f17d",
+              "deploymentId": "dpl_AFDdqxqM3a4Cs7v25SVC25ZUuk1F",
+              "origin": "https://project-7nu27u287-clinic-os-v2-s-projects.vercel.app",
+              "scriptCount": 18,
+              "previewInitialization": 1,
+              "productionInitialization": 0,
+              "shaFound": 2,
+              "sourceMapProbes": [
+                {
+                  "path": "/_next/static/chunks/main-app-1a2efa229e9248e2.js.map",
+                  "http": 404
+                }
+              ]
+            }
+          ],
+          "productionWrites": 0
+        },
+        "api": [
+          {
+            "endpoint": "/issues/7730223576/",
+            "status": 401
+          },
+          {
+            "endpoint": "/issues/7730223576/events/latest/",
+            "status": 401
+          }
+        ],
+        "environmentFixAlreadyInPR53": "a5984e2316c596cb4228ae37daa47b1ef4036872",
+        "environmentFixMissingInPR55": true,
+        "tests": {
+          "passed": 17,
+          "files": 2
+        },
+        "historicalEventsChanged": false,
+        "newAlertsSent": 0
+      },
+      "runtime": {
+        "next": "15.5.28",
+        "declaredReact": "19.2.6",
+        "vendoredReactAndReactDom": "19.2.0-canary-0bdb9206-20250818"
+      },
+      "rootCause": "OPEN: parser/hydration/streaming race is a hypothesis; missing segment ID not captured",
+      "parentNodeReproduced": false,
+      "react418Reproduced": true,
+      "upstreamComparableReport": "https://github.com/react/react/issues/37321",
+      "sourceMapOfAnotherShaUsed": false,
+      "suppressionAdded": false,
+      "otherWorktreeModified": false,
+      "coordination": {
+        "pr": 55,
+        "comment": "https://github.com/joaomarcos-techia/Project_OS/pull/55#issuecomment-6864528856",
+        "otherWorktreeWrites": 0
+      }
+    },
+    "validation": {
+      "codeCi": {
+        "sha": "dc95caa4eb15827049f27d2e7e6c00994017f17d",
+        "run": "43457077686",
+        "conclusion": "SUCCESS",
+        "tests": 7161,
+        "files": 632,
+        "publicE2E": 22,
+        "skipped": 0
+      },
+      "targetedObservability": {
+        "tests": 17,
+        "files": 2,
+        "conclusion": "PASS"
+      },
+      "newRuntimeChanges": 0,
+      "newSql": 0,
+      "finalDocumentCommitChecks": "CHECK_PR53_CURRENT_HEAD"
+    },
+    "productionDecision": "NO_GO: compatible release/schema/consumer not authorized; R1-R4 not accepted; final TISS composition must treat R51",
+    "otherWorktreeWrites": 0,
+    "productionWrites": 0
   }
 }
