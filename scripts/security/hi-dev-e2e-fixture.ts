@@ -295,6 +295,8 @@ async function setupConfig() {
   const medica = await add('cfg-medica', 'doctor', 'Dra. Sintética Configuração');
   // Agenda BASE da médica (cadastro da Agenda, não do convênio): sem disponibilidade o encaixe é
   // recusado ("sem capacidade operacional"), como deve ser. Todos os dias, o dia inteiro.
+  // A disponibilidade é única por profissional: a da médica (que mudou de clínica) vem junto.
+  await exec(sql`UPDATE public.doctor_availability SET clinic_id = ${clinicId}::uuid WHERE doctor_id = ${medica}::uuid`);
   for (let weekday = 0; weekday < 7; weekday++) {
     await exec(sql`
       INSERT INTO public.doctor_availability (clinic_id, doctor_id, weekday, start_time, end_time)

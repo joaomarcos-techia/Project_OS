@@ -52,6 +52,12 @@ const INSURER = `Operadora Sintética ${RUN}`;
 const PATIENT = `Paciente Sintético Config ${RUN}`;
 const CARD = `0099${RUN.replace(/[^0-9]/gu, '7').padEnd(4, '7').slice(0, 4)}55664433`;
 
+/**
+ * Horário de amanhã único por execução (06:00–21:30, de meia em meia hora): a médica sintética é a
+ * mesma pessoa em todas as execuções e a agenda do profissional não aceita sobreposição.
+ */
+const SLOT = ((n) => `${String(6 + Math.floor(n / 2)).padStart(2, '0')}:${n % 2 ? '30' : '00'}`)(Number.parseInt(RUN, 36) % 32);
+
 const state: { insurerUrl?: string; patientId?: string } = {};
 
 interface Session {
@@ -264,7 +270,7 @@ test('recepção: agenda como CONVÊNIO e a cobertura nasce pronta, com copartic
   await s.page.locator('#appointment-procedure').selectOption({ label: PROC_NAME });
   await s.page.locator('#appointment-doctor').selectOption({ label: 'Dra. Sintética Configuração' });
   await s.page.locator('#appointment-date').fill(tomorrowSp());
-  await s.page.locator('#appointment-time').fill('10:00');
+  await s.page.locator('#appointment-time').fill(SLOT);
   await s.page.getByRole('radio', { name: 'Convênio' }).click();
   await s.page.locator('#appointment-insurer').selectOption({ label: INSURER });
   await expect(s.page.locator('#appointment-card option', { hasText: `final ${CARD.slice(-4)}` })).toHaveCount(1, { timeout: 30_000 });
