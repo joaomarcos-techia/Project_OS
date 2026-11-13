@@ -132,22 +132,9 @@ export async function recordAppointmentCoverage(
     );
   }
 
-  // Credenciamento (P2.2): clínica no plano e na data; profissional quando a operadora exige.
-  const [appointment] = (await tx.execute(
-    sql`SELECT doctor_id::text AS doctor_id FROM public.appointments WHERE clinic_id = ${clinicId}::uuid AND id = ${input.appointmentId}::uuid`,
-  )) as unknown as Array<{ doctor_id: string | null }>;
-  issues.push(
-    ...(await credentialingIssuesTx(tx, {
-      clinicId,
-      insurerId: insurer.id,
-      planId: input.planId,
-      professionalId: appointment?.doctor_id ?? null,
-      date: input.appointmentDate,
-    })),
-  );
-
   // Carteirinha: só a do paciente e da operadora; inválida vira pendência, nunca é aceita em silêncio.
   let membershipId: string | null = null;
+  let cardPlanId: string | null = null;
   if (input.membershipId) {
     const [card] = await tx
       .select({
@@ -156,6 +143,7 @@ export async function recordAppointmentCoverage(
         insurerId: hiMemberships.insurerId,
         status: hiMemberships.status,
         validUntil: hiMemberships.validUntil,
+        planId: hiMemberships.planId,
       })
       .from(hiMemberships)
       .where(and(eq(hiMemberships.clinicId, clinicId), eq(hiMemberships.id, input.membershipId)))
@@ -164,6 +152,7 @@ export async function recordAppointmentCoverage(
       throw new CoverageInputError('a carteirinha não é deste paciente nesta operadora');
     }
     membershipId = card.id;
+    cardPlanId = card.planId ?? null;
     if (card.status !== 'active') {
       issues.push(
         issue(
@@ -193,6 +182,24 @@ export async function recordAppointmentCoverage(
       ),
     );
   }
+
+  // Plano do atendimento: o escolhido, ou — sem escolha — o da própria carteirinha (o paciente é
+  // daquele plano; credenciamento e contrato são conferidos nele, nunca presumidos para todos).
+  const effectivePlanId = input.planId ?? cardPlanId;
+
+  // Credenciamento (P2.2): clínica no plano e na data; profissional quando a operadora exige.
+  const [appointment] = (await tx.execute(
+    sql`SELECT doctor_id::text AS doctor_id FROM public.appointments WHERE clinic_id = ${clinicId}::uuid AND id = ${input.appointmentId}::uuid`,
+  )) as unknown as Array<{ doctor_id: string | null }>;
+  issues.push(
+    ...(await credentialingIssuesTx(tx, {
+      clinicId,
+      insurerId: insurer.id,
+      planId: effectivePlanId,
+      professionalId: appointment?.doctor_id ?? null,
+      date: input.appointmentDate,
+    })),
+  );
 
   // Sessão SP/SADT: o item da solicitação manda no código TUSS e na autorização.
   let sadtItem: {
@@ -279,7 +286,7 @@ export async function recordAppointmentCoverage(
     const [tableCode, procedureCode] = codes[0]!.split(':') as [string, string];
     const selection = selectEffectiveContract(lines as ContractLine[], {
       insurerId: insurer.id,
-      planId: input.planId,
+      planId: effectivePlanId,
       guideType: input.guideType,
       tableCode,
       procedureCode,
@@ -375,7 +382,7 @@ export async function recordAppointmentCoverage(
   const values = {
     guideType: input.guideType,
     insurerId: insurer.id,
-    planId: input.planId,
+    planId: effectivePlanId,
     membershipId,
     contractLineId: line?.id ?? null,
     authorizationRequirement: requirement,

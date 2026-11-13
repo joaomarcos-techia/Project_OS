@@ -327,6 +327,11 @@ try {
   );
   const c3 = await coverage('2026-11-20');
   assert.deepEqual([c3.status, c3.codes], ['ready', []]);
+  // Sem plano escolhido na agenda, o plano é o da carteirinha (plano B): pronta e gravada no plano B.
+  const c3b = await coverage('2026-11-21', null);
+  assert.deepEqual([c3b.status, c3b.codes], ['ready', []]);
+  const [covPlan] = await sql`select plan_id::text as plan_id from public.hi_appointment_coverages where clinic_id = ${A.clinicId}::uuid order by created_at desc limit 1`;
+  assert.equal(covPlan!.plan_id, planB);
   pass(
     '2. agenda: credenciada só no plano A e atendimento no B → pendência "só em outros planos"; clínica no B sem a médica habilitada (PJ) → pendência do profissional; os dois → cobertura pronta',
   );

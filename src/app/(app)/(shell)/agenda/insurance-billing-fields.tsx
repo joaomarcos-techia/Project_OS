@@ -138,7 +138,11 @@ export function InsuranceBillingFields({
                   id="appointment-card"
                   value={value.membershipId}
                   disabled={!insurer || !patientId}
-                  onChange={(e) => onChange({ ...value, membershipId: e.target.value })}
+                  onChange={(e) => {
+                    // A carteirinha é de um plano: escolhê-la traz o plano dela (P2.2; o servidor confere de novo).
+                    const chosen = insurerCards.find((c) => c.id === e.target.value);
+                    onChange({ ...value, membershipId: e.target.value, planId: chosen?.planId ?? value.planId });
+                  }}
                 >
                   <option value="">Informar depois (fica pendente)</option>
                   {insurerCards.map((c) => (
