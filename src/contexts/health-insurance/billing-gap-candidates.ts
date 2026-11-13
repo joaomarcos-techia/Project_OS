@@ -94,3 +94,43 @@ function toEventState(status: string | null): HiBillingGapEventState {
       return 'not_checked';
   }
 }
+
+export interface CopaySyncCandidate {
+  clinicId: string;
+  copaymentId: string;
+}
+
+/**
+ * Coparticipações cuja situação ficou atrás do dinheiro (P10.5): cobrança criada e a
+ * coparticipação ainda "confirmada"; recebível pago e ela ainda "cobrada"; estorno
+ * integral registrado e ela ainda "paga". O webhook do paciente sincroniza logo depois
+ * da baixa; esta varredura é a garantia quando aquele passo falha ou demora (mesmo
+ * cuidado do scan acima: cross-tenant, só leitura, só ids, sem dado pessoal, com LIMIT).
+ * Cada candidato é sincronizado depois em `withTenant`, sob RLS, pela função do banco.
+ */
+export async function listCopaySyncCandidates(limit = 50): Promise<CopaySyncCandidate[]> {
+  const rows = await dbAdmin.transaction(async (tx) => {
+    await tx.execute(sql`RESET ROLE`);
+    return tx.execute<{ clinic_id: string; copayment_id: string }>(
+      sql`SELECT c.clinic_id::text AS clinic_id, c.id::text AS copayment_id
+            FROM hi_copayments c
+            LEFT JOIN lancamentos l
+              ON l.clinic_id = c.clinic_id AND l.appointment_id = c.appointment_id AND l.tipo = 'receber'
+            LEFT JOIN LATERAL (
+              SELECT coalesce(sum(t.amount) FILTER (WHERE t.kind = 'payment'), 0) AS paid,
+                     coalesce(sum(t.amount) FILTER (WHERE t.kind = 'refund'), 0) AS refunded
+                FROM payment_transactions t
+               WHERE t.clinic_id = c.clinic_id AND t.lancamento_id = l.id
+            ) m ON true
+           WHERE (c.status = 'confirmed' AND EXISTS (
+                    SELECT 1 FROM patient_charges pc
+                     WHERE pc.clinic_id = c.clinic_id AND pc.appointment_id = c.appointment_id
+                       AND pc.kind = 'remainder' AND pc.status::text IN ('pending', 'paid', 'refunded')))
+              OR (c.status = 'charged' AND l.status = 'pago')
+              OR (c.status = 'paid' AND m.refunded > 0 AND m.refunded >= m.paid)
+           ORDER BY c.updated_at ASC
+           LIMIT ${limit}`,
+    );
+  });
+  return rows.map((r) => ({ clinicId: r.clinic_id, copaymentId: r.copayment_id }));
+}

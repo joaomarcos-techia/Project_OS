@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   reconcileRefundIntentsForPayment: vi.fn(),
   classifyPatientPaymentRisk: vi.fn(),
   reconcilePatientPaymentRisk: vi.fn(),
+  scheduleSettlementFollowUp: vi.fn(),
 }));
 
 vi.mock('server-only', () => ({}));
@@ -33,6 +34,9 @@ vi.mock('@/lib/audit/request-context', () => ({
 vi.mock('@/lib/payments/account-store', () => ({ resolvePatientWebhookAccount: mocks.resolve }));
 vi.mock('@/contexts/payments/internal/charge-store', () => ({
   markDepositPaid: mocks.markDepositPaid,
+}));
+vi.mock('../settlement-follow-up', () => ({
+  scheduleSettlementFollowUp: mocks.scheduleSettlementFollowUp,
 }));
 vi.mock('@/contexts/payments/internal/excess-refund', () => ({
   reconcileRefundIntentsForPayment: mocks.reconcileRefundIntentsForPayment,
@@ -356,6 +360,8 @@ describe('conciliação', () => {
       providerInstallmentId: null,
       providerInstallmentNumber: null,
     });
+    // Baixa e coparticipação logo depois da resposta, pelo pagamento VERIFICADO (R49/P10.5).
+    expect(mocks.scheduleSettlementFollowUp).toHaveBeenCalledWith('clinic-1', 'pay_1');
   });
 
   it('CHECKOUT_PAID resolve a cobrança pela sessão antes de conciliar', async () => {
@@ -429,6 +435,15 @@ describe('conciliação', () => {
     const res = await POST(request(), params());
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ outcome: 'ignored' });
+    // O mesmo evento não reagenda nada.
+    expect(mocks.scheduleSettlementFollowUp).not.toHaveBeenCalled();
+  });
+
+  it('outra entrega do mesmo PAGAMENTO (evento novo) retoma a baixa que tenha ficado para trás', async () => {
+    mocks.markDepositPaid.mockResolvedValue('already_paid');
+    const res = await POST(request(), params());
+    expect(res.status).toBe(200);
+    expect(mocks.scheduleSettlementFollowUp).toHaveBeenCalledWith('clinic-1', 'pay_1');
   });
 
   it('pagamento de cobrança desconhecida responde 200 sem quebrar', async () => {
@@ -477,6 +492,7 @@ describe('conciliação', () => {
 
     await POST(request(), params());
     expect(mocks.markDepositPaid).not.toHaveBeenCalled();
+    expect(mocks.scheduleSettlementFollowUp).not.toHaveBeenCalled();
   });
 });
 

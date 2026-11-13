@@ -44,6 +44,8 @@ import {
   reconcilePatientPaymentRisk,
 } from '@/contexts/payments/internal/patient-payment-risk';
 
+import { scheduleSettlementFollowUp } from '../settlement-follow-up';
+
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -246,6 +248,11 @@ async function handlePatientWebhook(
       providerInstallmentNumber: payment.installmentNumber ?? null,
     });
     metrics.emit('payments.webhook.processed', { clinicId: account.clinicId, outcome });
+    // Baixa e coparticipação logo depois da resposta (o cron é a garantia). A reentrega
+    // (`already_paid`) agenda de novo: o que já rodou não repete, o que ficou para trás anda.
+    if (outcome === 'paid' || outcome === 'already_paid') {
+      scheduleSettlementFollowUp(account.clinicId, payment.paymentId);
+    }
     if (outcome === 'amount_mismatch') {
       metrics.emit('payments.webhook.amount_mismatch', { clinicId: account.clinicId });
     }

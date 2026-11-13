@@ -17,11 +17,19 @@ export {
 // P7.4 — reconcile "convênio sem guia" (chamado pelo cron financial-reconcile; C.7).
 export {
   listBillingGapCandidates,
+  listCopaySyncCandidates,
   type BillingGapCandidate,
+  type CopaySyncCandidate,
 } from './billing-gap-candidates';
 export {
   reconcileInsuranceBilling,
   type InsuranceReconcileSummary,
 } from './internal/billing-reconcile';
+// P10.5 — coparticipação acompanha a baixa do gateway (webhook do paciente) e o cron é a garantia.
+export {
+  reconcileCopayCharges,
+  syncCopayForAppointment,
+  type CopaySyncSummary,
+} from './internal/copay-charge-service';
 // P9.2 — prontidão do validador XSD no runtime do app (rota /api/health/tiss-xsd e CI).
 export { tissXsdLimitsProbe, tissXsdSelfCheck, type TissXsdLimitsProbe, type TissXsdSelfCheck } from './tiss/xml/self-check';

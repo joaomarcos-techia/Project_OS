@@ -11,10 +11,14 @@ const {
   withTenant,
   listBillingGapCandidates,
   reconcileInsuranceBilling,
+  listCopaySyncCandidates,
+  reconcileCopayCharges,
 } = vi.hoisted(
   () => ({
     listBillingGapCandidates: vi.fn(),
     reconcileInsuranceBilling: vi.fn(),
+    listCopaySyncCandidates: vi.fn(),
+    reconcileCopayCharges: vi.fn(),
     transactionMock: vi.fn(),
     execute: vi.fn(),
     emit: vi.fn(),
@@ -31,7 +35,12 @@ vi.mock('@/lib/cron-heartbeat', () => ({ recordHeartbeat }));
 vi.mock('@/lib/observability/metrics', () => ({ metrics: { emit } }));
 vi.mock('@/lib/outbox/publish', () => ({ publishEvent }));
 // O passo de convênio (P7.4) tem a própria prova em banco descartável; aqui só a costura com o cron.
-vi.mock('@/contexts/health-insurance', () => ({ listBillingGapCandidates, reconcileInsuranceBilling }));
+vi.mock('@/contexts/health-insurance', () => ({
+  listBillingGapCandidates,
+  reconcileInsuranceBilling,
+  listCopaySyncCandidates,
+  reconcileCopayCharges,
+}));
 vi.mock('@/contexts/financial', () => ({
   FINANCIAL_EVENTS: { FATURAMENTO_PENDENTE: 'financial.faturamento.pendente' },
   faturamentoPendencias: {},
@@ -45,6 +54,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   execute.mockResolvedValue([]);
   listBillingGapCandidates.mockResolvedValue([]);
+  listCopaySyncCandidates.mockResolvedValue([]);
+  reconcileCopayCharges.mockResolvedValue({ candidates: 0, changed: 0, unchanged: 0, failed: 0, skippedForBudget: 0 });
   reconcileInsuranceBilling.mockResolvedValue({
     candidates: 0,
     processed: 0,
@@ -112,6 +123,9 @@ describe('financial reconcile', () => {
       insuranceGuideReady: 0,
       insuranceGapOpen: 0,
       insuranceFailed: false,
+      copaySyncCandidates: 0,
+      copaySyncChanged: 0,
+      copaySyncFailed: false,
     });
   });
 
@@ -167,6 +181,9 @@ describe('financial reconcile', () => {
       insuranceGuideReady: 0,
       insuranceGapOpen: 0,
       insuranceFailed: false,
+      copaySyncCandidates: 0,
+      copaySyncChanged: 0,
+      copaySyncFailed: false,
     });
     expect(withTenant).not.toHaveBeenCalled();
     expect(publishEvent).not.toHaveBeenCalled();
@@ -255,6 +272,33 @@ describe('financial reconcile', () => {
       'financial-reconcile',
       'success',
       expect.objectContaining({ insuranceFailed: true, insuranceCandidates: 0 }),
+    );
+  });
+
+  it('coparticipação atrás do dinheiro (P10.5): sincroniza os candidatos e uma falha dela não derruba o cron', async () => {
+    const candidates = [{ clinicId: 'clinic-a', copaymentId: 'copay-1' }];
+    listCopaySyncCandidates.mockResolvedValue(candidates);
+    reconcileCopayCharges.mockResolvedValue({ candidates: 1, changed: 1, unchanged: 0, failed: 0, skippedForBudget: 0 });
+    const response = await GET(new Request('https://app.qoro.dev/api/cron/financial-reconcile'));
+    expect(response.status).toBe(200);
+    expect(listCopaySyncCandidates).toHaveBeenCalledWith(50);
+    expect(reconcileCopayCharges).toHaveBeenCalledWith(candidates, { deadlineAt: expect.any(Number) });
+    expect(recordHeartbeat).toHaveBeenCalledWith(
+      'financial-reconcile',
+      'success',
+      expect.objectContaining({ copaySyncCandidates: 1, copaySyncChanged: 1, copaySyncFailed: false }),
+    );
+
+    vi.clearAllMocks();
+    execute.mockResolvedValue([]);
+    listCopaySyncCandidates.mockRejectedValue(new TypeError('banco fora'));
+    const failed = await GET(new Request('https://app.qoro.dev/api/cron/financial-reconcile'));
+    expect(failed.status).toBe(200);
+    expect(emit).toHaveBeenCalledWith('insurance.copay_sync.error', { error: 'TypeError' });
+    expect(recordHeartbeat).toHaveBeenCalledWith(
+      'financial-reconcile',
+      'success',
+      expect.objectContaining({ copaySyncFailed: true, copaySyncCandidates: 0 }),
     );
   });
 });

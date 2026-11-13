@@ -21,7 +21,10 @@ import { sql } from 'drizzle-orm';
 import { FINANCIAL_EVENTS, faturamentoPendencias } from '@/contexts/financial';
 import {
   listBillingGapCandidates,
+  listCopaySyncCandidates,
+  reconcileCopayCharges,
   reconcileInsuranceBilling,
+  type CopaySyncSummary,
   type InsuranceReconcileSummary,
 } from '@/contexts/health-insurance';
 import { recordHeartbeat } from '@/lib/cron-heartbeat';
@@ -54,6 +57,7 @@ const PAYMENT_BACKSTOP_START_DEADLINE_MS = 30_000;
 // Convênio sem guia (P7.4): roda por último, só com orçamento sobrando, e nunca
 // derruba a obrigação primária deste cron (recebíveis do particular).
 const INSURANCE_LIMIT = 25;
+const COPAY_SYNC_LIMIT = 50;
 const INSURANCE_START_DEADLINE_MS = 45_000;
 const INSURANCE_END_DEADLINE_MS = 52_000;
 const GRACE = "interval '15 minutes'";
@@ -243,12 +247,30 @@ export const GET = withCron(
     } else {
       metrics.emit('insurance.reconcile.skipped_budget', {});
     }
+    // P10.5: coparticipação atrás do dinheiro (o webhook sincroniza logo; isto é a garantia).
+    let copaySync: CopaySyncSummary | null = null;
+    let copaySyncFailed = false;
+    if (Date.now() - startedAt < INSURANCE_START_DEADLINE_MS) {
+      try {
+        copaySync = await reconcileCopayCharges(await listCopaySyncCandidates(COPAY_SYNC_LIMIT), {
+          deadlineAt: startedAt + INSURANCE_END_DEADLINE_MS,
+        });
+      } catch (error) {
+        copaySyncFailed = true;
+        metrics.emit('insurance.copay_sync.error', {
+          error: error instanceof Error ? error.name : 'unknown',
+        });
+      }
+    }
     const runFields = {
       opened,
       insuranceCandidates: insurance?.candidates ?? 0,
       insuranceGuideReady: insurance?.guideReady ?? 0,
       insuranceGapOpen: insurance?.gapOpen ?? 0,
       insuranceFailed,
+      copaySyncCandidates: copaySync?.candidates ?? 0,
+      copaySyncChanged: copaySync?.changed ?? 0,
+      copaySyncFailed: copaySyncFailed || (copaySync?.failed ?? 0) > 0,
       clinics: byClinic.size,
       orphanCredits,
       orphanClinics: orphanClinicIds.size,

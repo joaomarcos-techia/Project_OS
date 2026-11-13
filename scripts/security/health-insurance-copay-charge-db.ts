@@ -33,6 +33,10 @@ const { recordAppointmentCoverage } = await import('../../src/contexts/health-in
 const { checkCopay, confirmCopay } = await import('../../src/contexts/health-insurance/internal/copay-service');
 const copay = await import('../../src/contexts/health-insurance/internal/copay-charge-service');
 const { createCopayCheckout } = await import('../../src/contexts/payments/internal/copay-checkout');
+const { markDepositPaid, findPaidChargeByProviderPayment } = await import('../../src/contexts/payments/internal/charge-store');
+const { settleChargeNow } = await import('../../src/app/api/webhooks/asaas/patient/settlement-follow-up');
+const { listCopaySyncCandidates } = await import('../../src/contexts/health-insurance/billing-gap-candidates');
+const { reconcileCopayCharges } = copay;
 const { loadHiFixtures, SYS_ACTOR } = await import('./hi-fixtures');
 
 const fx = await loadHiFixtures(sql, { store: { put: async () => {}, get: async () => new Uint8Array(), remove: async () => {} }, validateXsd: null as never });
@@ -183,6 +187,71 @@ try {
   await withTenant(A.clinicId, (tx) => copay.syncCopayChargeTx(tx, A.clinicId, c1.copaymentId), A.doctorId);
   assert.equal((await statusOf(c1.copaymentId)).status, 'refunded');
   pass('7. estorno integral no livro: a coparticipação fica "estornada" (o histórico de cobrança e pagamento fica)');
+
+  // ── 9. Webhook REAL → baixa e coparticipação logo depois da resposta (R49/P10.5) ─
+  // `markDepositPaid` real (o que a rota chama depois de ler o pagamento no Asaas) e o passo
+  // pós-resposta real (`settleChargeNow`: worker do outbox com os handlers reais + a função
+  // do banco), sem cron. Clínica própria: a 8 suspende a assinatura da A.
+  const C = await fx.setupClinic('Coparticipação C');
+  const paidVia = async (cp: { copaymentId: string; appointmentId: string }, tag: string) => {
+    await request(C, cp.copaymentId);
+    const [pc] = await sql`select id from public.patient_charges where appointment_id = ${cp.appointmentId}::uuid and kind = 'remainder'`;
+    await sql`insert into public.patient_checkout_generations (clinic_id, patient_charge_id, generation, external_reference, status, provider_checkout_id, checkout_url, expires_at, resolved_at)
+      values (${C.clinicId}::uuid, ${pc!.id}::uuid, 1, ${`copay:${tag}:${randomUUID()}`}, 'active', ${`chk_${tag}`}, ${`https://sandbox.asaas.invalid/c/${tag}`}, now() + interval '1 day', now())`;
+    return { chargeId: pc!.id as string, checkout: `chk_${tag}`, payment: `pay_${tag}` };
+  };
+  const deliver = (cp: { checkout: string; payment: string }, eventId: string, eventType = 'CHECKOUT_PAID') =>
+    markDepositPaid({
+      clinicId: C.clinicId, providerPaymentId: cp.payment, asaasEventId: eventId, eventType, paidAt: new Date(),
+      providerGrossAmount: 45, providerNetAmount: 44.01, billingType: 'PIX', checkoutSessionId: cp.checkout,
+      providerInstallmentId: null, providerInstallmentNumber: null,
+    });
+  const money = async (appointmentId: string) => {
+    const [l] = await sql`select id, valor_pago::text as pago, status from public.lancamentos where appointment_id = ${appointmentId}::uuid and tipo = 'receber'`;
+    const [{ n }] = (await sql`select count(*)::int as n from public.payment_transactions where lancamento_id = ${l!.id}::uuid and kind = 'payment'`) as unknown as [{ n: number }];
+    return { pago: l!.pago as string, status: l!.status as string, payments: n };
+  };
+  const c9 = await confirmedCopay(C, 'webhook');
+  const g9 = await paidVia(c9, 'c9');
+  assert.equal(await deliver(g9, 'evt_c9_1'), 'paid');
+  const before9 = await money(c9.appointmentId);
+  assert.deepEqual([before9.status, (await statusOf(c9.copaymentId)).status], ['pendente', 'charged']);
+  const s9 = await settleChargeNow(C.clinicId, g9.payment);
+  const after9 = await money(c9.appointmentId);
+  const st9 = await statusOf(c9.copaymentId);
+  assert.deepEqual([s9?.copay, after9.status, after9.pago, after9.payments, st9.status, st9.received], ['charged->paid', 'pago', '45.00', 1, 'paid', 4500]);
+  const pendingKeys = await sql`select idempotency_key, status::text as status from public.outbox
+    where idempotency_key in (${`charge-paid:${g9.chargeId}`}, ${`credit-granted:${g9.chargeId}`}, ${`patient-credit-applied:${g9.chargeId}`})`;
+  assert.deepEqual(pendingKeys.map((r) => r.status).sort(), ['processed', 'processed', 'processed']);
+  pass('9a. webhook pago (checkout de R$ 45): sem cron, o passo pós-resposta processa os 3 eventos da cobrança com os handlers reais — recebível "pago" com UM pagamento de R$ 45 e coparticipação "paga" (R$ 45 recebidos)');
+
+  // Duplicado (mesmo evento), outra entrega do mesmo pagamento e reprocessamento.
+  assert.equal(await deliver(g9, 'evt_c9_1'), 'ignored');
+  const second = await deliver(g9, 'evt_c9_2', 'PAYMENT_RECEIVED');
+  const s9b = await settleChargeNow(C.clinicId, g9.payment);
+  const again9 = await money(c9.appointmentId);
+  assert.deepEqual([again9.payments, again9.pago, (await statusOf(c9.copaymentId)).status, s9b?.processed], [1, '45.00', 'paid', 0]);
+  pass(`9b. webhook duplicado ("ignored"), outra entrega do mesmo pagamento ("${second}") e o passo pós-resposta repetido: nenhuma segunda baixa, nenhum evento reprocessado, coparticipação continua "paga"`);
+
+  // Passo pós-resposta perdido (falha/timeout do after): o cron é a garantia.
+  const c9c = await confirmedCopay(C, 'sem-pos-resposta');
+  const g9c = await paidVia(c9c, 'c9c');
+  assert.equal(await deliver(g9c, 'evt_c9c_1'), 'paid');
+  for (let i = 0; i < 4; i++) await runOutboxOnce({ batchSize: 50, parallelism: 1 });
+  assert.deepEqual([(await money(c9c.appointmentId)).status, (await statusOf(c9c.copaymentId)).status], ['pago', 'charged']);
+  const candidates = await listCopaySyncCandidates(50);
+  assert.ok(candidates.some((c) => c.copaymentId === c9c.copaymentId), 'candidato do cron');
+  assert.ok(!candidates.some((c) => c.copaymentId === c9.copaymentId), 'a já sincronizada não volta');
+  const sweep = await reconcileCopayCharges(candidates);
+  const sweep2 = await reconcileCopayCharges(await listCopaySyncCandidates(50));
+  assert.deepEqual([(await statusOf(c9c.copaymentId)).status, sweep.failed, sweep2.candidates], ['paid', 0, 0]);
+  pass(`9c. passo pós-resposta perdido: o cron do outbox dá a baixa e a varredura do financial-reconcile põe a coparticipação em "paga" (${sweep.changed} mudança); na volta seguinte não há candidato (idempotente)`);
+
+  // Outra clínica não acha a cobrança desta.
+  const B9 = await fx.setupClinic('Coparticipação D');
+  assert.equal(await findPaidChargeByProviderPayment(B9.clinicId, g9.payment), null);
+  assert.equal(await settleChargeNow(B9.clinicId, g9.payment), null);
+  pass('9d. o passo pós-resposta com o pagamento de outra clínica não encontra nada (RLS): nenhuma baixa cruzada');
 
   // ── 8. Assinatura suspensa, outra clínica e mutação direta ──────────
   const c8 = await confirmedCopay(A, 'suspensa');

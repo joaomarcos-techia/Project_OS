@@ -123,3 +123,64 @@ export async function listCopayChargesTx(tx: Tx, clinicId: string) {
     hasLink: r.has_link === true,
   }));
 }
+
+/**
+ * Depois da baixa do gateway: põe a coparticipação do atendimento na situação do
+ * dinheiro (cobrada → paga; paga → estornada), pela mesma função do banco do botão
+ * "Atualizar situação". Idempotente; `null` quando o atendimento não tem
+ * coparticipação em cobrança (particular, sinal, convênio sem coparticipação).
+ */
+export async function syncCopayForAppointment(
+  clinicId: string,
+  appointmentId: string,
+): Promise<{ copaymentId: string; before: string; after: string } | null> {
+  return withTenant(clinicId, async (tx) => {
+    const [c] = await tx
+      .select({ id: hiCopayments.id, status: hiCopayments.status })
+      .from(hiCopayments)
+      .where(and(eq(hiCopayments.clinicId, clinicId), eq(hiCopayments.appointmentId, appointmentId)))
+      .limit(1);
+    if (!c || !['confirmed', 'charged', 'paid'].includes(c.status)) return null;
+    const after = await syncCopayChargeTx(tx, clinicId, c.id);
+    return { copaymentId: c.id, before: c.status, after };
+  });
+}
+
+export interface CopaySyncSummary {
+  candidates: number;
+  changed: number;
+  unchanged: number;
+  failed: number;
+  skippedForBudget: number;
+}
+
+/** Garantia do cron (financial-reconcile): sincroniza cada candidato sob RLS, com teto de tempo. */
+export async function reconcileCopayCharges(
+  candidates: ReadonlyArray<{ clinicId: string; copaymentId: string }>,
+  opts: { deadlineAt?: number; now?: () => number } = {},
+): Promise<CopaySyncSummary> {
+  const now = opts.now ?? Date.now;
+  const summary: CopaySyncSummary = { candidates: candidates.length, changed: 0, unchanged: 0, failed: 0, skippedForBudget: 0 };
+  for (const [index, c] of candidates.entries()) {
+    if (opts.deadlineAt !== undefined && now() >= opts.deadlineAt) {
+      summary.skippedForBudget = candidates.length - index;
+      break;
+    }
+    try {
+      const moved = await withTenant(c.clinicId, async (tx) => {
+        const [row] = await tx
+          .select({ status: hiCopayments.status })
+          .from(hiCopayments)
+          .where(and(eq(hiCopayments.clinicId, c.clinicId), eq(hiCopayments.id, c.copaymentId)))
+          .limit(1);
+        if (!row) return false;
+        return (await syncCopayChargeTx(tx, c.clinicId, c.copaymentId)) !== row.status;
+      });
+      if (moved) summary.changed += 1;
+      else summary.unchanged += 1;
+    } catch {
+      summary.failed += 1;
+    }
+  }
+  return summary;
+}
