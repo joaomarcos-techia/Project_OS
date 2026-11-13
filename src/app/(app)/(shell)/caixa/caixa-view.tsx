@@ -29,7 +29,7 @@ import { BreakdownList } from '@/components/ui/breakdown-list';
 import { MetricStrip } from '@/components/ui/metric-strip';
 import { PanelCard } from '@/components/ui/panel-card';
 import { StatCard } from '@/components/ui/stat-card';
-import { formatBRL } from '@/lib/format';
+import { formatBRL, todayYmdIn } from '@/lib/format';
 import { uuidv4 } from '@/lib/ui/uuid';
 
 import { cancelLancamentoAction, confirmPaymentAction, createEstornoAction } from './actions';
@@ -162,10 +162,8 @@ export function CaixaView({
   // pendentes primeiro, parciais logo atrás (já têm parte do dinheiro dentro).
   const aReceber = [...pendentes, ...parciais];
   const aReceberCount = aReceber.length;
-  // `split('T')[0]` recorta a data do ISO. A guarda anti-truncamento do teste
-  // varre o fonte atras de corte fixo de lista, entao evitamos essa forma aqui
-  // mesmo o corte sendo de data — inclusive em comentario.
-  const hojeYmd = new Date().toISOString().split('T')[0]!;
+  // Hoje no fuso das datas do Qoro (o dia de UTC já virava às 21h de Brasília).
+  const hojeYmd = todayYmdIn();
   const vencidas = [...pendentes, ...parciais].filter(
     (item) => item.dueDate != null && item.dueDate < hojeYmd,
   ).length;

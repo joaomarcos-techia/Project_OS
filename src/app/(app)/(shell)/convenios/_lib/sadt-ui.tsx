@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/use-toast';
+import { todayYmdIn } from '@/lib/format';
 
 import { CARE_TYPES } from './constants';
 import {
@@ -20,7 +21,7 @@ import {
   type ActionResult,
 } from '@/contexts/health-insurance/actions';
 
-const localToday = () => new Date().toLocaleDateString('sv-SE');
+const localToday = () => todayYmdIn();
 
 /** Tabela 50 (tipo de atendimento): os usuais de clínica ambulatorial. */
 

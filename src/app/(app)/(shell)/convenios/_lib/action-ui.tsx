@@ -8,13 +8,14 @@ import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/use-toast';
+import { todayYmdIn } from '@/lib/format';
 import type { ActionResult } from '@/contexts/health-insurance/actions';
 import { uuidv4 } from '@/lib/ui/uuid';
 
 import { toCents } from './batch-ui';
 
-/** Data local (AAAA-MM-DD), não a de UTC: à noite, `toISOString` já seria amanhã. */
-const localToday = () => new Date().toLocaleDateString('sv-SE');
+/** Hoje (AAAA-MM-DD) no fuso das datas do Qoro: o mesmo no servidor e no navegador (R51). */
+const localToday = () => todayYmdIn();
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'soft';
 

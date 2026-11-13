@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/use-toast';
+import { todayYmdIn } from '@/lib/format';
 import {
   adjustInsurancePayoutAction,
   authorizeInsurancePayoutAction,
@@ -23,7 +24,7 @@ import { toCents } from './batch-ui';
 import { ELIGIBILITY_LABELS } from './constants';
 
 const brl = (c: number) => (c / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-const today = () => new Date().toLocaleDateString('sv-SE');
+const today = () => todayYmdIn();
 
 function useSubmit() {
   const router = useRouter();

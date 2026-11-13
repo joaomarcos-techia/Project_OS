@@ -8,6 +8,7 @@ import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { toast } from '@/components/ui/use-toast';
+import { todayYmdIn } from '@/lib/format';
 import {
   allocatePaymentAction,
   createBatchAction,
@@ -24,7 +25,7 @@ export function toCents(v: string): number {
   return Number.isFinite(n) ? Math.round(n * 100) : Number.NaN;
 }
 const brl = (cents: number) => (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-const today = () => new Date().toLocaleDateString('sv-SE');
+const today = () => todayYmdIn();
 
 function useSubmit() {
   const router = useRouter();

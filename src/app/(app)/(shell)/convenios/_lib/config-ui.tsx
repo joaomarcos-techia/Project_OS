@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/use-toast';
+import { todayYmdIn } from '@/lib/format';
 import {
   createContractLineAction,
   createInsurerAction,
@@ -548,7 +549,7 @@ export function NewContractLineForm({ insurerId, plans, procedures }: { insurerI
   const [procedureId, setProcedureId] = useState('');
   const [tuss, setTuss] = useState<{ code: string; term: string } | null>(null);
   const [description, setDescription] = useState('');
-  const [validFrom, setFrom] = useState(() => new Date().toLocaleDateString('sv-SE'));
+  const [validFrom, setFrom] = useState(() => todayYmdIn());
   const [validUntil, setUntil] = useState('');
   const [t, setT] = useState<TermsState>(termsFromLine());
   const { pending, run } = useRun();
@@ -639,7 +640,7 @@ export function NewContractLineForm({ insurerId, plans, procedures }: { insurerI
 export function ContractRevisionForm({ line, procedures }: { line: ContractLineView; procedures: InsurerDetail['procedures'] }) {
   const id = useId();
   const [mode, setMode] = useState<'new_period' | 'correct' | 'end'>('new_period');
-  const [date, setDate] = useState(() => new Date().toLocaleDateString('sv-SE'));
+  const [date, setDate] = useState(() => todayYmdIn());
   const [reason, setReason] = useState('');
   const [procedureId, setProcedureId] = useState(line.procedureId ?? '');
   const [t, setT] = useState<TermsState>(termsFromLine(line));
