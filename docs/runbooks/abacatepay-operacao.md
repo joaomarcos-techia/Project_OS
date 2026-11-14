@@ -10,7 +10,7 @@
 
 ```powershell
 $env:QORO_FINANCIAL_REF = (git rev-parse HEAD).Trim()
-node --conditions=react-server --import tsx scripts/security/abacatepay-saas-release.ts
+node --conditions=react-server --import tsx scripts/abacatepay-saas-release.ts
 Remove-Item Env:QORO_FINANCIAL_REF
 ```
 

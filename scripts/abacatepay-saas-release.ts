@@ -9,7 +9,7 @@ import { z } from 'zod';
 import {
   composeFrozenSaasJournal,
   readReviewedCheckoutMigrations,
-} from '../abacatepay-checkout-session';
+} from './abacatepay-checkout-session';
 
 const financial = z
   .string()

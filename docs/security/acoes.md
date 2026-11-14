@@ -415,6 +415,7 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/abacatepay-observe-renewal.ts:72`                 | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
 | `scripts/abacatepay-observe-renewal.ts:73`                 | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                                                    |
 | `scripts/abacatepay-readonly-check.ts:17`                  | `ABACATEPAY_API_KEY`                   | `process.env.ABACATEPAY_API_KEY`                                            |
+| `scripts/abacatepay-saas-release.ts:17`                    | `QORO_FINANCIAL_REF`                   | `process.env.QORO_FINANCIAL_REF`                                            |
 | `scripts/abacatepay-sandbox-draft.ts:74`                   | `LOCALAPPDATA`                         | `process.env.LOCALAPPDATA`                                                  |
 | `scripts/activate-offer-extras-preview-dev.ts:20`          | `E2E_OFFER_DEV_ACTIVATION`             | `process.env.E2E_OFFER_DEV_ACTIVATION`                                      |
 | `scripts/activate-offer-extras-preview-dev.ts:20`          | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                                          |
@@ -625,7 +626,6 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/abacatepay-renewal-db.ts:228`            | `QORO_ABACATEPAY_SCALE`                | `process.env.QORO_ABACATEPAY_SCALE`                                         |
 | `scripts/security/abacatepay-renewal-db.ts:557`            | `ABACATEPAY_WEBHOOK_SECRET`            | `process.env.ABACATEPAY_WEBHOOK_SECRET`                                     |
 | `scripts/security/abacatepay-renewal-db.ts:619`            | `QORO_ABACATEPAY_SCALE`                | `process.env.QORO_ABACATEPAY_SCALE`                                         |
-| `scripts/security/abacatepay-saas-release.ts:17`           | `QORO_FINANCIAL_REF`                   | `process.env.QORO_FINANCIAL_REF`                                            |
 | `scripts/security/abacatepay-scale-proof.ts:8`             | `QORO_ABACATEPAY_SCALE_CONCURRENCY`    | `process.env.QORO_ABACATEPAY_SCALE_CONCURRENCY`                             |
 | `scripts/security/abacatepay-statement-scan-db.ts:10`      | `<object>`                             | `process.env`                                                               |
 | `scripts/security/abacatepay-statement-scan-db.ts:21`      | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |

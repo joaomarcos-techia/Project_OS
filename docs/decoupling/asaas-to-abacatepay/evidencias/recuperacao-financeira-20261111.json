@@ -22274,6 +22274,24 @@
       "newDdlApplied": false,
       "sourceProofSha256": "d5793bf98b340f5dd381d10850efe7bb737a60d0e401bf5e0ee048f3c3f40796",
       "devProofSha256": "5b9eff38a0c07b97177eddf42a2002265329253b1abec25c5024d8161c066663"
+    },
+    "buildLocationCorrection": {
+      "failedRun": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/43552406377",
+      "failedSha": "db7ffed165fc5ae1f385e22289ca7d934d25509a",
+      "status": "FAIL_BUILD_ONLY",
+      "unitTestsPassed": 7190,
+      "testFilesPassed": 636,
+      "e2e": "NOT_RUN_AFTER_BUILD_FAILURE",
+      "cause": "New operator was copied under scripts/security but its parent helper was outside the isolated build allowlist",
+      "correction": "Move to scripts/abacatepay-saas-release.ts beside other financial operators, relative helper import adjusted",
+      "buildOrCiConfigurationChanged": false,
+      "testsDisabled": false,
+      "typecheck": "PASS",
+      "lint": "PASS",
+      "focusedTestsPassed": 70,
+      "focusedProofSha256": "36ff0e26b25af6ade46d624bc1504a8448da825c1c4f30825f70d89482fa26e0",
+      "failedLogSha256": "c55aa67f02505d41fa6580aa81223ba8e6e963f45ca1ec8405b41e7a550880ce",
+      "correctiveCI": "SEE_FINAL_PR53_SHA_CHECKS"
     }
   }
 }
