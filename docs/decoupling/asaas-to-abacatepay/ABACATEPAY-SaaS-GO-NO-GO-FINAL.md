@@ -6,9 +6,9 @@ Atualizado em **14/11/2026**, horário operacional **America/Sao_Paulo**. Docume
 
 **Recomendação: GO CONDICIONAL PARA DEPLOY FECHADO**, sujeito aos pontos de parada da seção F, sem autorização de execução. Não foi identificado defeito determinístico de billing que exija novo desenvolvimento antes dessa fase. Não é GO de consumidor live, aquisição, piloto ou expansão. Se os pré-requisitos não forem cumpridos, a execução continua NO-GO.
 
-**Condição operacional ainda não cumprida:** a CI do fechamento documental14414498 não iniciou nenhum step. O GitHub recusou o runner por problema de pagamento da conta ou limite de gastos. O check aparece FAILURE, mas a classificação técnica é **BLOCKED_AMBIENTE**, sem resultado de testes nessa execução. A CI7190/22 da baseline permanece válida para seu SHA; não substitui o check remoto final. Não houve alteração de orçamento, pagamento, runner, workflow ou proteção de branch para contornar esse gate.
+**CI recuperada em 14/11:** a tentativa2 do [run43589401561](https://github.com/joaomarcos-techia/Project_OS/actions/runs/43589401561), SHA **f94248ef**, executou e passou **7.190 testes/636 arquivos e22 E2E, sem SKIP**. Advisory43589401548 também passou. O titular informou que o uso está dentro da franquia; a CLI não tem acesso ao plano/faturamento, portanto não comprova assinatura Pro ou ausência de pendência financeira por API. O bloqueio anterior está superado pela execução real, sem alterar orçamento, runner ou workflow. As novas ferramentas/testes desta rodada exigem CI no novo SHA; o resultado final será registrado nos checks e no checkpoint do PR53.
 
-O runtime financeiro está congelado em **7208d5059aaaea502a153cff627856418dc45e6c**. Alterações desta rodada são documentação/evidências; nenhuma funcionalidade, preço, política, dependência ou configuração foi alterada. O SHA documental final e sua CI devem ser conferidos nos [checks do PR53](https://github.com/joaomarcos-techia/Project_OS/pull/53/checks); a CI anterior não se atribui a código posterior por inferência.
+O runtime financeiro está congelado em **7208d5059aaaea502a153cff627856418dc45e6c**. Nesta rodada foram acrescentados preflight somente leitura, ensaio descartável,16 testes de preflight e handoff/documentação. Nenhuma funcionalidade comercial, preço, política, dependência, SQL ou configuração foi alterada. O SHA final e sua CI devem ser conferidos nos [checks do PR53](https://github.com/joaomarcos-techia/Project_OS/pull/53/checks); a CI anterior não se atribui a código posterior por inferência.
 
 Vocabulário operacional: **aquisição** é permitir uma nova contratação; **consumidores** são os serviços que recebem e conciliam eventos de pagamentos existentes; **closure** é impedir novo pagamento pelo checkout já utilizado; **entitlements** são os direitos e limites do plano. Fechar aquisição não significa desligar esses serviços nem revogar acesso já pago.
 
@@ -38,11 +38,48 @@ Decisões humanas restantes: aceitar/rejeitar R1–R4 individualmente; escolher 
 
 Trilha detalhada: [evidência canônica](evidencias/recuperacao-financeira-20261111.json), chaves `earlyPaymentAndHydration20261113`, `finalConsolidation20261113`, `saasTissSeparation20261114` e `releaseCandidateClosure20261114`; [checkpoint7208d505](https://github.com/joaomarcos-techia/Project_OS/pull/53#issuecomment-6871381413). A tentativa inicial de observação14/11 falhou como `unavailable`; reteste com CA do Windows passou. A primeira chamada do ensaio161 ocorreu antes de terminar a cópia, não iniciou o banco e não conta como PASS; a execução completa posterior passou52.
 
-### Restrição externa de execução da CI
+### Restrição externa histórica da CI — superada nesta rodada
 
-A tentativa de [CI43588496105](https://github.com/joaomarcos-techia/Project_OS/actions/runs/43588496105),SHA14414498,foi recusada antes de iniciar o runner. O advisory43588496058 teve a mesma causa,ambos com zero steps. A anotação do GitHub aponta falha de pagamento ou limite de gastos; a causa financeira específica exige o titular,não foi inferida. Não repetir execuções enquanto a restrição persistir. Procedimento manual no início do runbook.
+A tentativa de [CI43588496105](https://github.com/joaomarcos-techia/Project_OS/actions/runs/43588496105),SHA14414498,foi recusada antes de iniciar o runner. O advisory43588496058 teve a mesma causa,ambos com zero steps. A anotação apontava falha de pagamento ou limite de gastos; a causa financeira específica não foi inferida. **Registro histórico, não bloqueio atual:** após o titular confirmar franquia disponível, os dois workflows existentes foram reexecutados em f94248ef e passaram. Não é necessário comprar outro plano ou repetir a ação manual de desbloqueio.
 
 Para reduzir a lacuna sem alterar o workflow, a verificação local do **14414498** executou novamente **7.190 testes/636 arquivos, zero SKIP**, TypeScript, lint, inventário de segurança e drift de observabilidade: **PASS**. Build Vercel, Semgrep e Snyk desse SHA: **SUCCESS**. E2E22 e as26 verificações anteriores de Preview foram preservados por identidade de fonte, não reexecutados nem atribuídos à CI bloqueada. O diff confirmou código/scripts/SQL/dependências/configuração idênticos a7208d505; a nova exportação tem os mesmos160 hashes SQL. Não se dispensa o gate remoto final por essa equivalência.
+
+### Fechamento diferencial de 14/11 — CI, preflight e ensaio136→160
+
+Evidência durável: `ciRecoveryAndReleaseFreeze20261114` no [registro canônico](evidencias/recuperacao-financeira-20261111.json). As provas anteriores permanecem preservadas.
+
+| Verificação | Estado | Evidência e limite |
+|---|---|---|
+| Actions/CI do ponto de partida | VALIDADO | f94248ef, tentativa2,7.190 testes e22 E2E sem SKIP; o upload condicional de relatório de falha foi dispensado por sucesso, não é teste ignorado |
+| Plano/billing GitHub | PARCIAL | Pro e franquia informados pelo titular; API sem escopo administrativo de cobrança. Não houve alteração financeira |
+| Freeze | VALIDADO | Runtime, SQL, preços, dependências e configuração preservados. Novos arquivos são tooling de validação e seus testes |
+| Production | VALIDADO como snapshot | Leitura14/11 19:57:30UTC:136 entradas,32 equivalências CRLF/LF e nenhuma divergência inexplicada; preflight repetido com pool central:136/24,quatro relações críticas com RLS forçado; zero escrita |
+| DEV | VALIDADO como snapshot |161 entradas; prefixo160 e seis variantes históricas conhecidas preservados;0159 intacta;0160 reconhecida;22 relações SaaS com RLS; zero invoice cruzada/ciclo duplicado |
+| Ensaio136→160 | VALIDADO local |16 verificações PostgreSQL;24 migrations reais pelo Drizzle; cinco contratos sintéticos Solo/Clínica/Pro/fundador/anual com todos os campos anteriores preservados; nenhum cliente real |
+| Falhas do pacote/preflight | VALIDADO local | SQL ausente, alterado e fora do journal; histórico ausente, hash, ordem, duplicidade; dependência ausente, objeto duplicado, RLS ou trigger desativado; rollback do migrator e segunda aplicação no-op |
+| Segurança pós-SQL | VALIDADO no ensaio |160 registros por ordem/hash,22 relações críticas com RLS forçado, triggers de origem, constraint de período, zero índice inválido; proteção do último titular e TISS operacionalmente desativado |
+| Entitlements/trial/compatibilidade0160 | VALIDADO controlado |52 verificações de compatibilidade existentes, sem alteração do runtime/SQL; novo ensaio confirma nenhum legado convertido à AbacatePay ou inscrito artificialmente em trial |
+| Backup e recuperação integral do serviço | PARCIAL | Provas históricas de banco/Storage não representam backup físico atual nem RTO completo Auth/Storage. Nenhum backup gerenciado foi restaurado nesta rodada |
+| UI e R51 | PARCIAL |[Handoff autocontido](HANDOFF-UI-BILLING-SaaS.md) preparado;14 testes existentes de ambiente/página preservados e passados. Leitura pelo agente e regressão depois do redesign ainda pendentes |
+| Webhook/consumidores live | PENDENTE | GET anterior retornou zero configurações; endpoint, autenticação e processamento precisam de três provas futuras distintas; nada ativado |
+
+O novo `scripts/abacatepay-release-preflight.ts` abre **REPEATABLE READ READ ONLY**, valida o pacote contra blobs Git aprovados e só consulta catálogos/journal. Não concede autorização, aplica DDL ou consulta prontuários. Aceita apenas equivalências LF/CRLF e seis hashes históricos previamente registrados no Git aprovado; não aprende um hash do destino para fazê-lo passar.
+
+O ensaio de `scripts/abacatepay-release-rehearsal-db.ts` usa SQL real0–135, scaffolding Supabase e contratos **sintéticos** em loopback; não é clone atual de Production nem ensaio do Auth gerenciado. Na execução final os24 passos levaram cerca de4,9s nesse ambiente, sem estimar duração ou locks de Production. O arquivo exportado aprovado permaneceu inalterado. Erros iniciais de slug e tipo bigint eram da fixture; foram corrigidos e a execução completa saiu0. O harness passou a usar o pool central, preservando o guard de arquitetura sem ampliar allowlist.
+
+**Limite importante:** o preflight é uma etapa operacional obrigatória, não um bloqueio embutido no migrator genérico nem uma reserva do banco. O migrator existente não compara todo o prefixo de hashes. Rodar a validação imediatamente antes, sob janela exclusiva autorizada; se journal/schema/artefato mudarem, parar e reconferir. Não editar o runner compartilhado, criar uma segunda história ou ignorar0160 para contornar divergência.
+
+#### Matriz exata de aplicação futura
+
+| Production atual → sequência | Schema e dependência | Prova | Risco e condição de GO |
+|---|---|---|---|
+| Prefixo0–135 →0136–0137 | Cotas temporárias e privilégios de serviço; sem inscrever legados em trial | Hash completo e ensaio136→160; trial/cotas anteriores | Revisar escrita concorrente; backup e preflight íntegros |
+| →0138–0142 | Bindings/intents, recontratação, observações, trocas agendadas e revisão privados | Mesma aplicação real; RLS/origem; testes financeiros preservados | Novas estruturas não migram contratos; não consumir antes do schema |
+| →0143–0158, blobs congelados4d0ed1d5 | Continuidade do journal compartilhado.0151/0154 incluem gate premium/período comercial; demais DDL criam estruturas de convênios que ficam desativadas | SQL/hash exatos, ensaios51/52 e novo136→160; `hi_clinic_settings.enabled=0` no novo ensaio | Dependência da sequência adotada, não de guias/lotes ou aprovação de operadora. Não remover, renumerar ou compor com HEAD TISS móvel |
+| →0159 | Snapshot de período, readbacks e checkpoint de extrato; hash `eb00a4e3dd45f89e7eef4dc2c95c577e7932f1f2131d5bfb4ff8f5e4570f5c74` | Postflight160: colunas, constraint validada, índices e22 relações críticas | DDL pode aguardar locks; parar por timeout/drift/sentinel; não tomar12,8s locais como SLA |
+|0160 no DEV → fora deste release | Hash conhecido `718190feffe57a0f0b7ceaf7c28686793209f0c0cb9f4b7bfd6480d4ac1ef306`; não muda a financeira159 | Compatibilidade52 preservada | Se aparecer em Production, o preflight bloqueia: nova revisão do pacote, sem apagar histórico |
+
+As24 entradas exatas, com tags/timestamps/hashes, estão no checkpoint canônico. O schema verificado é o conjunto crítico da financeira, **não equivalência completa de funções/policies de todo o Supabase**. Inspeção de locks, ausência de transações longas, backup cifrado recuperável e comparação sanitizada de contratos antes/depois continuam gates da janela futura. Sem teste atual de backup gerenciado não declarar recuperação total comprovada.
 
 ### Identificadores de EARLY-01 — sintéticos, não pagar novamente
 
@@ -153,7 +190,7 @@ Candidato:prefixo financeiro0–142 + SQL compartilhado143–158 + financeira159
 
 Produção tem136 entradas até0135. A comparação integral com o pacote aprovado reconheceu32 equivalências exatas CRLF/LF,sem divergência de ordem/timestamp ou SQL desconhecido. Não modificar os hashes gravados para normalizar quebras de linha. A lista exata pendente é **0136–0159,24 entradas**,com nomes/timestamps/hashes na chave `releaseCandidateClosure20261114.productionMetadata` da evidência canônica. A leitura inicial que comparava somente LF foi inconclusiva; a classificação pelos bytes CRLF resolveu a diferença sem alterar banco ou arquivo SQL. Esta conferência é um snapshot:repetir o preflight na janela e parar se o destino mudar.
 
-**Handoff UI/R51:**[relatório§55–57](RELATORIO-HOMOLOGACAO-FINAL.md) e prova canônica descrevem#418 raro reproduzido no dashboard mobile do Preview TISS;parentNode não reproduzido novamente;causa não estabelecida. Há26 checks estritos SaaS sem erro,sem supressão/SSR desativado. Dashboard/PainelShell/root layout são iguais entre7208d505 e main5620a098;apenas o layout do shell adiciona aviso de trial4linhas. Não há alteração visual ampla a fazer no PR53.
+**Handoff UI/R51:**o [documento para o agente de UI](HANDOFF-UI-BILLING-SaaS.md) reúne rotas, DTOs, estados, permissões, SSR e regressões. [Relatório§55–57](RELATORIO-HOMOLOGACAO-FINAL.md) e prova canônica descrevem#418 raro reproduzido no dashboard mobile do Preview TISS;parentNode não reproduzido novamente;causa não estabelecida. Há26 checks estritos SaaS sem erro,sem supressão/SSR desativado. Dashboard/PainelShell/root layout são iguais entre7208d505 e main5620a098;apenas o layout do shell adiciona aviso de trial4linhas. Não há alteração visual ampla a fazer no PR53.
 
 Rotas compartilhadas relevantes:`/dashboard`,`/configuracoes/assinatura` (PainelShell/layout global),`/admin/billing/operacao` (shell admin e root). Aquisição:`/cadastro/plano`,`/cadastro/pagamento` usam moldura pública;API de checkout/webhook não hidrata React;checkout hospedado é externo. Um erro global ainda pode afetar navegação,logo não o declarar exclusivo TISS. O agente UI lidera causa/fiber/árvore e SSR;financeiro regressa seleção/preço/checkout/retorno/assinatura/entitlements se esses componentes mudarem. Entrega do handoff no repositório não é confirmação de leitura. Novo layout não entra no candidato congelado sem diff,testes afetados e nova CI.
 
@@ -180,6 +217,38 @@ Usar o [runbook operacional, fases A–D](../../runbooks/abacatepay-operacao.md#
 GET autenticado:5produtos Qoro com preçosR$197/397/544/691/838,MONTHLY,devModefalse,sem trial nativo;cada plano inclui3administrativos. Não foram ofertados anual/segundo trial;isso não é auditoria de todo outro produto da loja. Lista de webhooks live:HTTP200,**zero configurações**. Correto manter sem entrega enquanto o consumer não foi publicado/autorizado.
 
 Metadados Vercel(decrypt=false):Production tem nomes API_KEY,STORE_ID,PLAN_PRODUCTS,WEBHOOK_SECRET,ENVIRONMENT,NEW_CHECKOUTS_ENABLED,Redis eCRON_SECRET;`SAAS_SIGNUP_PROVIDER` não aparece no escopoProduction observado. Os valores não foram lidos;presença não prova conteúdo,permissãoDELETE,saúde Redis ou funcionamento do consumer. Na futura B2 conferir seleção explícita `abacatepay_production`,ambienteproduction,catálogo/segredo live e base confiável. **Não copiar valores Sandbox.** Último estado preparado de aquisição éfalse;conferir valor efetivo no novo deployment autorizado.
+
+### Checklist de prontidão — implementação não equivale a operação live
+
+| Item | Estado verificável | Evidência / gate restante |
+|---|---|---|
+| Branch, diff, freeze, dependências | VALIDADO | PR53 draft; alterações limitadas a ferramentas/testes/docs; conferir SHA final nos checks |
+| CI/Vitest/E2E/build/tipos/lint/segurança/isolamento | VALIDADO em f94248ef; conferir novo HEAD |7.190/22,zero SKIP; novo teste local16; execução final obrigatória após commit |
+| PostgreSQL, entitlements/trial e compatibilidade | VALIDADO controlado |51/52 anteriores +16 do ensaio136→160; sem habilitar operação TISS |
+| Semgrep/Snyk/Vercel | VALIDADO no ponto de partida | Conferir checks no SHA novo; não inferir resultado do redesign |
+| Journal/hashes/pacote/schema crítico/RLS | VALIDADO como snapshot/ensaio |136 Production,161 DEV,160 candidato; preflight antes/depois obrigatório na janela |
+| Backup/restore/RPO/RTO atuais | PARCIAL | Histórico preservado; gate2 exige ponto de recuperação atual e destino autorizado; sem novo teste integral gerenciado |
+| Checkout/invoice/assinatura/período/cotas iniciais | VALIDADO Sandbox | Cinco cenários e EARLY-01 preservados; nenhuma compra repetida |
+| Inbox/dedup/scanner/reconcile/recuperação | VALIDADO controlado; PARCIAL live | Testes131 anteriores; alvo live ainda sem consumidores autorizados |
+| Closure/cancelamento/reembolso/troca/renovação | PARCIAL | N01–N17 e R1–R3; renovação natural13/12 ainda futura, sem inventar reativação AbacatePay |
+| Webhook live | PENDENTE | Zero configurações observadas; checklist de B2 separa registro, autenticidade/entrega e efeitos financeiros |
+| Catálogo mensal live | VALIDADO por GET |5 produtos MONTHLY,preços corretos,sem trial nativo; não prova contratação |
+| Consumidores/workers/cron/scanner/closure no alvo live | PENDENTE | Código e agenda preparados; B2 exige deployment autorizado, saúde, leases e processing reais |
+| Segredos, Redis, Sentry e alertas | PARCIAL | Nomes/escopos e entrega de alerta anteriores comprovados; conteúdo/saúde do deployment alvo conferidos na janela sem exposição |
+| Kill switch/allowlist | VALIDADO em testes; PENDENTE aplicação live |45 controles; desligar aquisição não desliga obrigações. Configuração exige GO e redeploy |
+| Plantão/consentimento/clínica/pagamento real | PENDENTE | A DEFINIR PELO RESPONSÁVEL; nenhuma obrigação financeira autorizada nesta rodada |
+| Código TISS/operadora/guias/lotes para SaaS | NÃO APLICÁVEL | Sem dependência funcional do módulo; SQL compartilhado congelado mantém continuidade do journal |
+| Handoff UI/SSR/Sentry ambiente | PARCIAL | Documento autocontido e14 testes existentes PASS; confirmação de leitura e regressão visual futura pendentes |
+| R51 global | PARCIAL |26 checks SaaS anteriores sem erro, mas variante rara não encerrada. Falha comercial reproduzida bloqueia |
+
+| Gate | Estado atual | Próxima ação autorizável |
+|---|---|---|
+|1 Candidato técnico | PARCIAL até CI do novo HEAD | Commit/push próprio, confirmar checks finais; sem reabrir regras financeiras |
+|2 Preparação Production / fase A | PARCIAL | Conferir backup atual, locks, secrets, rollback e responsáveis; revisão humana do pacote |
+|3 Deploy com aquisição fechada / B1 | PENDENTE | GO específico para configuração/SQL/deploy, com paradas e cadastro fechado comprovado |
+|4 Consumidores / B2 | PENDENTE | GO próprio; webhook e worker/cron/Redis/alertas comprovados antes de aquisição |
+|5 Primeira contratação / C | PENDENTE | R1–R4 tratados, clínica consentida, preço e autorização financeira explícitos |
+|6 Expansão / D | PENDENTE | Revisar prova do piloto e capacidade;1→3→10 não é progressão automática |
 
 ## G. Responsabilidades e formulário de decisão
 
@@ -215,7 +284,7 @@ Não enviar APIkey,senha,OTP,cartão ou dado de paciente. Risco pode ser rejeita
 
 1. **Desenvolvimento SaaS restante:**nenhum novo recurso ou correção determinística identificado nesta revisão;runtime congelado. Mudança futura apenas por defeito comprovado ou contrato compartilhado alterado.
 2. **Pronto sem prova externa suficiente:**closure automática live,renovação natural,mudanças de cota em renovação,negativos financeiros reais e capacidade do alvo. Controle/fixtures não substituem essa prova.
-3. **Deploy fechado:**não há defeito determinístico novo de billing identificado. Há bloqueio de ambiente:GitHub Actions recusou o runner por billing/limite;seus checks finais ainda precisam executar e passar. Depois exige autorização,preflight/backup/schema coerentes e desarme explícito dos consumers em B1;sem isso NO-GO. R51 continua revisão compartilhada,sem reprodução crítica no billing da amostra e sem proclamar correção global.
+3. **Deploy fechado:**não há defeito determinístico novo de billing identificado. Actions recuperado no ponto de partida; conferir CI do novo HEAD nos checks do PR53. Depois exige autorização,preflight/backup/schema coerentes e desarme explícito dos consumers em B1;sem isso NO-GO. R51 continua revisão compartilhada,sem reprodução crítica no billing da amostra e sem proclamar correção global.
 4. **Piloto financeiro:**sem aceiteR1–R4,clínica consentida,responsáveis,controle de aquisição,consumidores/endpoint/webhook/cron/Redis e alertas comprovados,não avançar. R51 que atingir navegação comercial crítica também interrompe o release.
 5. **Decisões agora:**formulário da seção G. Nenhum pagamento Sandbox/instalação/contratação adicional é solicitado.
 6. **Primeira ação após GO:**reconferir SHA/checks/target/obrigações e gerar/verificar backup cifrado no destino aprovado **se isso constar do escopo autorizado**;registrar preflight. Primeiro ponto de parada é antes de qualquer ajuste de env,DDL ou deployment se os pré-requisitos divergirem. Só ultrapassar cada parada com o GO correspondente;nenhuma janela foi iniciada nesta rodada.

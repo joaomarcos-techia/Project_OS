@@ -1,21 +1,39 @@
 # Operação e recuperação AbacatePay
 
-**Checkpoint vigente: [dossiê final do release candidate](../decoupling/asaas-to-abacatepay/ABACATEPAY-SaaS-GO-NO-GO-FINAL.md), relatório §58, 14/11/2026.** Runtime7208d505 congelado; documentação nova não altera código. DEV161 tem0160 aplicada por outra execução; compatibilidade52PASS. Production136 requer futuro preflight das24 entradas0136–0159 do pacote congelado160. EARLY-01 já paga e encerrada: não repetir criação, fechamento ou pagamento. SaaS não espera guias/glosas/R54/homologação de operadora. **Não há GO para configuração, migration, deploy, consumidor ou piloto live.** Seções antigas são histórico, não ordens de execução.
+**Checkpoint vigente: [dossiê final do release candidate](../decoupling/asaas-to-abacatepay/ABACATEPAY-SaaS-GO-NO-GO-FINAL.md), relatório §59, 14/11/2026.** Runtime7208d505, SQL e configuração congelados. Actions recuperado em f94248ef:7.190 testes/22 E2E sem SKIP; conferir novo HEAD nos checks. Ferramentas novas: preflight somente leitura e ensaio descartável136→160. DEV161 preserva0160; compatibilidade52PASS. Production136 requer as24 entradas0136–0159 do pacote aprovado160. EARLY-01 já paga e encerrada: não repetir pagamento. SaaS não espera guias/glosas/R54. **Não há GO para configuração, migration, deploy, consumidor ou piloto live.** Seções antigas são histórico, não ordens de execução.
 
 ## Fases vigentes A–D — piloto controlado
 
 Esta sequência prevalece sobre comandos e decisões históricas abaixo. Os nomes dos responsáveis e a clínica continuam **A DEFINIR PELO RESPONSÁVEL**. Cada autorização deve registrar SHA, ambiente, escopo, data/hora America/Sao_Paulo e responsável disponível. Nenhuma fase avança automaticamente.
 
-### Pendência do titular — GitHub Actions bloqueado antes do runner
+### GitHub Actions — desbloqueio concluído, não repetir compra
 
-**Objetivo:** liberar a execução dos checks remotos obrigatórios. O run43588496105,14414498,terminou FAILURE com zero steps; o advisory teve a mesma causa. A anotação aponta pagamento da conta ou limite de gastos,não erro de teste. Nenhum orçamento ou plano foi alterado pela engenharia.
+O bloqueio de14414498/zero steps é histórico. Após o titular informar Pro e uso dentro da franquia, as tentativas2 de CI43589401561 e advisory43589401548 passaram em **f94248ef**. Foram reexecutados workflows existentes, sem aumentar orçamento ou alterar runner/configuração. CLI não comprova billing por falta de escopo. Não há ação humana pendente de compra/desbloqueio. Para qualquer futuro SHA, conferir os checks correspondentes; um run anterior não valida alteração posterior. Se houver novo bloqueio financeiro, consultar o titular antes de gerar excedentes.
 
-1. Entre no GitHub com a conta proprietária `joaomarcos-techia`;abra [Settings → Billing and licensing](https://github.com/settings/billing). Apenas consultar não autoriza compra.
-2. Confira avisos de pagamento/conta bloqueada e o uso/orçamento de GitHub Actions. Não presuma que precise aumentar o limite:identifique primeiro o motivo mostrado. Qualquer pagamento/aumento de orçamento é decisão do titular.
-3. Se não houver saldo pendente,assinatura ou limite explicando o bloqueio,abra o [suporte oficial](https://support.github.com/) e informe repositório,link do run e que nenhum step iniciou. Não envie segredos. A [orientação oficial sobre conta bloqueada](https://docs.github.com/en/billing/how-tos/troubleshooting/locked-account) contempla revisão pelo suporte quando o painel não mostra problema resolvível.
-4. Depois de liberado,avise apenas `GitHub Actions liberado`;a engenharia reexecuta os checks do **HEAD final**,confere resultados e registra a evidência. Alternativamente,na aba Actions do run atual,use “Re-run all jobs” somente após a liberação.
+### Preflight verificável — pacote160 e alvo136
 
-**Resultado esperado:**runner inicia e todos os checks exigidos concluem no SHA correto. Verificações locais ou Vercel verde não substituem a CI remota. Até isso acontecer,manter draft e parar antes da fase B. Não há nova cobrança de cliente ou pagamento Sandbox solicitado.
+Executar somente a leitura abaixo na janela aprovada, com o **ambiente Production autorizado carregado por meio seguro**, sem imprimir variáveis. O script não carrega `.env.local` nem copia configuração DEV. Pré-requisitos: Node22, dependências existentes, Git com blobs congelados, pacote exportado e revisado, fingerprint do projeto aprovado, `SUPABASE_PROJECT_ENV=prod`, `DATABASE_URL_PROD` com TLS e credenciais corretas. As variáveis públicas exigidas por `src/lib/env` também precisam corresponder ao contexto autorizado.
+
+Na pasta do repositório financeiro, substitua os três campos entre `<...>` pelos dados revisados; não cole senhas no comando:
+
+```powershell
+Set-Location 'C:\dev\Qoro_billing_abacatepay_20261107'
+node --conditions=react-server --import tsx scripts/abacatepay-release-preflight.ts --release '<CAMINHO_ABSOLUTO_DO_PACOTE_APROVADO>' --ref '<SHA_COMPLETO_APROVADO>' --project '<REF_DO_PROJETO_PRODUCTION>' --phase before
+```
+
+Exige136 entradas exatas até0135 e devolve24 pendentes0136–0159, hashes e fingerprint. Confere4 relações críticas com RLS forçado e ausência de estruturas futuras sem journal. Saída `PASS_READ_ONLY_PREFLIGHT`, código0 e `productionWrites=0` **não autorizam aplicar SQL**. Qualquer `BLOCKED_PREFLIGHT`, schema parcial, novo sufixo, hash/ordem/timestamp desconhecido ou arquivo SQL extra/ausente implica parar. Não normalizar hashes gravados, apagar histórico ou aceitar um hash novo só porque está no destino.
+
+Este é um snapshot **REPEATABLE READ READ ONLY**, não reserva/lock do lançamento nem hook automático do migrator genérico. Conferir imediatamente antes da aplicação sob janela exclusiva; se outra execução mudar journal/schema/artefato entre as etapas, parar e repetir a revisão. O migrator existente mantém seu guard, backup, sentinel e advisory; ele não compara sozinho todo o prefixo de hashes.
+
+Depois da aplicação futura autorizada, usar o mesmo comando com `--phase after`. Exige160 entradas,22 relações críticas com RLS forçado, colunas/constraint de período, triggers de origem habilitados e índices válidos. Não é certificação completa do schema Supabase: comparar também contratos, preço/desconto, FKs, permissões e sinais de negócio previstos na fase B1.
+
+**Ensaio repetível, exclusivamente descartável:** o comando abaixo não usa URLs remotas; cria PostgreSQL próprio em loopback com SQL real, journal sintético136 e cinco contratos de teste. Não o executar para repetir pagamento ou restaurar Production. Repetir apenas se mudar SQL, preflight ou pressuposto de lançamento:
+
+```powershell
+node --conditions=react-server --import tsx scripts/abacatepay-release-rehearsal-db.ts --release '<CAMINHO_ABSOLUTO_DO_PACOTE_APROVADO>' --ref '<SHA_COMPLETO_APROVADO>'
+```
+
+Em14/11 passou16 verificações, aplicou24 migrations, preservou os campos dos cinco legados e recusou cenários negativos; arquivo de resultado `dist/abacatepay-release-rehearsal-db.json`. `realBackupRestored=false`: não confundir com clone do banco real, Auth gerenciado ou prova de RTO. Cluster encerra no `finally`; nenhum SQL aprovado é alterado.
 
 ### A — pré-voo, antes de qualquer alteração live
 
@@ -60,6 +78,23 @@ Após autorização explícita: conferir segredos live/loja/catálogo/allowlist 
 Validar endpoint HTTPS/secret/HMAC, persistência e isolamento da inbox, Redis, cron outbox/reconcile, leases, scanner, renewal-watch, closure e alertas. A lista live atual tem zero webhooks; somente configurar entrega ativa depois que o endpoint correto estiver publicado e autenticando. Não apontar eventos para404/503, nem interpretar presença de segredo como teste funcional. Testes não monetários live precisam estar no GO dessa fase.
 
 **PARADA B2:** sem saúde/observabilidade, conter aquisição; sem autorização específica de clínica/pagamento/R1–R4, não iniciar piloto. Consumidores operacionais não autorizam nova venda.
+
+### Checklist futuro do webhook live — não executar nesta rodada
+
+Estado conhecido da listagem autenticada live: **zero configurações**. Endpoint implementado, segredo existente e Sandbox aprovado não significam entrega live configurada. Registro, conectividade/autenticação e processamento financeiro são três provas separadas.
+
+1. **Versão/schema:** após GO de B1, conferir SHA do deployment em `app.qoro.dev`, pacote160 aprovado, postflight e saúde. Não entregar a Preview,404 ou runtime503. Se o endpoint não existir no código publicado, exige deploy autorizado; não criar um endpoint alternativo.
+2. **Ambiente/segredos:** com GO de B2, conferir loja live, API key live, catálogo mensal e `ABACATEPAY_ENVIRONMENT=production`; manter `ABACATEPAY_NEW_CHECKOUTS_ENABLED=false`. Credencial e `ABACATEPAY_WEBHOOK_SECRET` são exclusivos de Production. Valor secreto deve ter32–1024 caracteres sem espaços, conforme parser; não colocar URL com query no relatório, screenshot, log ou chat. Novo valor na Vercel exige novo deployment.
+3. **Destino/método:** configurar futuramente no painel oficial [AbacatePay](https://app.abacatepay.com/), área de webhooks, **POST HTTPS** para `https://app.qoro.dev/api/webhooks/abacatepay`. A query `webhookSecret` deve conter exatamente uma ocorrência do segredo esperado; cabeçalho `X-Webhook-Signature` valida o HMAC do corpo bruto. A chave pública de integridade do provedor sozinha não autentica remetente.
+4. **Eventos:** conferir a versão2 e habilitar a entrega dos eventos consumidos: `subscription.trial_started`, `subscription.completed`, `subscription.renewed`, `subscription.payment_failed`, `subscription.cancelled`, `checkout.refunded`, `checkout.disputed`, `checkout.lost`. Trial nativo não é ofertado; evento recebido não concede novo prazo. Não registrar eventos inventados nem criar prova financeira fictícia para testar URL. Eventos desconhecidos ficam auditáveis e não concedem direitos.
+5. **Prova1 — configuração:** após autorização de criação/ativação, registrar ID do webhook, ambiente/loja, host/path sem query, lista de eventos e estado; conferir por GET/readback. Não ativar entrega se o receptor ainda estiver desarmado. Essa prova não demonstra que chegou evento.
+6. **Prova2 — conectividade/autenticação:** com autorização para teste não monetário, conferir HTTPS, rejeição de segredo/assinatura ausente ou inválida e ambiente incorreto. Payload autêntico de teste, se disponível no painel, deve permanecer não financeiro/sem liberar direitos. Se não houver mecanismo oficial seguro, marcar entrega autêntica PENDENTE até evento real expressamente autorizado; não criar cobrança para preencher essa prova. Não usar logs de URL com segredo.
+7. **Prova3 — persistência/consumo:** conferir inbox durável, hash do evento, deduplicação, lease/tentativas, worker e auditoria. Primeiro recebimento pode responder202; duplicata200; autenticação401; corpo inválido400/413; conflito409; indisponibilidade de persistência503. Ver código/resultado específico, pois retries de conciliação podem responder503. **2xx da inbox não comprova invoice paga, período ou cota aplicada.** Conferir o efeito real somente para operação financeira autorizada e com readback do provedor.
+8. **Retries/recuperação:** distinguir retentativa de entrega do provedor da retentativa do worker local. Não afirmar prazo/SLA externo não conferido. O inbox preserva ID/hash, até10 tentativas locais, lease60s e backoff; replay administrativo exige superadmin/MFA, motivo e autorização. Timeout de POST remoto não autoriza novo POST cego. Pagamento confirmado sem webhook exige conciliação/scanner com prova própria, não avanço por statusACTIVE.
+9. **Operação:** cron outbox de minuto e reconcile diário, Redis/circuito, scanner, renewal-watch, closure, métricas e canal Sentry comprovados no deployment alvo. Provas antigas de entrega de alerta não atestam saúde atual; heartbeat e idade da fila precisam conferir. Logs somente com identificadores técnicos e estados sanitizados, sem dados clínicos/payload/segredos.
+10. **Parada:** manter aquisição fechada até GO específico de C. Autenticação falha, tenant/valor divergente, duplicidade, estado desconhecido, worker preso ou período inconsistente exigem conter novas vendas e acionar plantão, preservando obrigações existentes. Não cancelar/reembolsar/apagar ledger automaticamente.
+
+Campos de evidência: `SHA / UTC / ID webhook / host+path / eventos / HTTP / ID inbox / estado worker / readback / invoice+período+cota ou não aplicável / responsável`. Nenhum segredo. Conferir os contratos em `src/app/api/webhooks/abacatepay/route.ts`, `src/lib/payments/abacatepay/webhook.ts` e stores/handlers SaaS; não alterar endpoint para satisfazer o checklist.
 
 ### C — uma clínica assistida, somente após GO específico do piloto
 

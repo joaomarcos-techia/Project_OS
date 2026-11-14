@@ -23185,5 +23185,886 @@
         "humanAction": "Owner checks GitHub Billing and licensing or support; no budget or plan changed automatically"
       }
     ]
+  },
+  "ciRecoveryAndReleaseFreeze20261114": {
+    "observedAt": "2026-11-14T20:29:40.430Z",
+    "baseline": "f94248ef6842767b004f3d5eb1ac67e116920ac2",
+    "financialRuntime": "7208d5059aaaea502a153cff627856418dc45e6c",
+    "changeScope": "Read-only preflight, isolated rehearsal, tests and UI handoff; no runtime, SQL, config or dependency changes",
+    "github": {
+      "observedAt": "2026-11-14T20:15:55.364Z",
+      "headSha": "f94248ef6842767b004f3d5eb1ac67e116920ac2",
+      "attempt": 2,
+      "url": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/43589401561",
+      "status": "PASS",
+      "tests": 7190,
+      "files": 636,
+      "e2e": 22,
+      "skipped": 0,
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run pnpm/action-setup@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/setup-node@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Install dependencies",
+          "conclusion": "success"
+        },
+        {
+          "name": "Prod dependency audit gate (high+)",
+          "conclusion": "success"
+        },
+        {
+          "name": "Typecheck",
+          "conclusion": "success"
+        },
+        {
+          "name": "Lint",
+          "conclusion": "success"
+        },
+        {
+          "name": "Arch check (madge — circular deps)",
+          "conclusion": "success"
+        },
+        {
+          "name": "Arch DB check (AST connection-origin guard)",
+          "conclusion": "success"
+        },
+        {
+          "name": "Migration safety gate (anti-destructive)",
+          "conclusion": "success"
+        },
+        {
+          "name": "Observability drift gate (docs ⇔ vercel.json ⇔ eventos)",
+          "conclusion": "success"
+        },
+        {
+          "name": "Handler registry gate (catalog ⇔ registry)",
+          "conclusion": "success"
+        },
+        {
+          "name": "Test + coverage gate",
+          "conclusion": "success"
+        },
+        {
+          "name": "Security inventory (AST and explicit guard review)",
+          "conclusion": "success"
+        },
+        {
+          "name": "Two-tenant isolation (temporary local Postgres)",
+          "conclusion": "success"
+        },
+        {
+          "name": "Build",
+          "conclusion": "success"
+        },
+        {
+          "name": "Client bundle secrets and local HTTP boundaries",
+          "conclusion": "success"
+        },
+        {
+          "name": "Install Playwright browser (chromium)",
+          "conclusion": "success"
+        },
+        {
+          "name": "E2E gate (superfície pública, sem credencial)",
+          "conclusion": "success"
+        },
+        {
+          "name": "Upload E2E report on failure",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Post Run actions/setup-node@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run pnpm/action-setup@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success"
+        }
+      ],
+      "logSha256": "d1ac8c1ae628fb216e67e4281c62d5f51955da0878fe65a29fa8178f29913da0",
+      "plan": "Founder reports Pro and included usage; plan/billing endpoints inaccessible to existing CLI scopes",
+      "budgetChanges": 0,
+      "workflowChanges": 0,
+      "productionWrites": 0,
+      "advisory": {
+        "runId": 43589401548,
+        "attempt": 2,
+        "status": "PASS"
+      },
+      "finalHeadChecks": "Required after this commit; see final PR53 checkpoint, never inferred from baseline"
+    },
+    "productionMetadata": {
+      "observedAt": "2026-11-14T19:57:30.088Z",
+      "status": "PASS_METADATA_ONLY",
+      "target": "authorized_production_connection",
+      "scope": "read-only catalogs/history only; no patient or contract row read",
+      "transaction": "REPEATABLE READ READ ONLY",
+      "history": {
+        "entries": 136,
+        "last_timestamp": "1793804271309",
+        "last_hash": "ff1655034997a99667c9aade34d0f1c97b0fdde436a1f880e37501f0acf28119",
+        "approvedPrefixMatch": true,
+        "historicalDifferencesRecognized": 3,
+        "crlfEquivalent": 32,
+        "unexplainedDifferences": [],
+        "pending": [
+          {
+            "idx": 136,
+            "tag": "0136_trial_resource_limits",
+            "when": 1794096000000
+          },
+          {
+            "idx": 137,
+            "tag": "0137_trial_service_role_privileges",
+            "when": 1794168300000
+          },
+          {
+            "idx": 138,
+            "tag": "0138_saas_gateway_bindings",
+            "when": 1794171600000
+          },
+          {
+            "idx": 139,
+            "tag": "0139_saas_gateway_recontracts",
+            "when": 1794189600000
+          },
+          {
+            "idx": 140,
+            "tag": "0140_saas_recurring_payment_observations",
+            "when": 1794199882765
+          },
+          {
+            "idx": 141,
+            "tag": "0141_saas_scheduled_plan_changes",
+            "when": 1794222981810
+          },
+          {
+            "idx": 142,
+            "tag": "0142_saas_review_replays",
+            "when": 1794326400000
+          },
+          {
+            "idx": 143,
+            "tag": "0143_tiss_catalog",
+            "when": 1794330000000
+          },
+          {
+            "idx": 144,
+            "tag": "0144_hi_clinic_setup",
+            "when": 1794367436665
+          },
+          {
+            "idx": 145,
+            "tag": "0145_hi_memberships",
+            "when": 1794391493822
+          },
+          {
+            "idx": 146,
+            "tag": "0146_hi_authorizations",
+            "when": 1794395869610
+          },
+          {
+            "idx": 147,
+            "tag": "0147_hi_guides",
+            "when": 1794399173366
+          },
+          {
+            "idx": 148,
+            "tag": "0148_hi_coverage_copay",
+            "when": 1794405160338
+          },
+          {
+            "idx": 149,
+            "tag": "0149_hi_billing_gaps",
+            "when": 1794416643149
+          },
+          {
+            "idx": 150,
+            "tag": "0150_hi_batches",
+            "when": 1794418524711
+          },
+          {
+            "idx": 151,
+            "tag": "0151_hi_premium_gate",
+            "when": 1794432173857
+          },
+          {
+            "idx": 152,
+            "tag": "0152_hi_glosses_payments",
+            "when": 1794518573857
+          },
+          {
+            "idx": 153,
+            "tag": "0153_hi_ledger_bridge",
+            "when": 1794604973857
+          },
+          {
+            "idx": 154,
+            "tag": "0154_hi_premium_period_evidence",
+            "when": 1794691373857
+          },
+          {
+            "idx": 155,
+            "tag": "0155_ledger_payment_sum_by_clinic",
+            "when": 1794777773857
+          },
+          {
+            "idx": 156,
+            "tag": "0156_hi_sadt_requests",
+            "when": 1794864173857
+          },
+          {
+            "idx": 157,
+            "tag": "0157_hi_professional_payouts",
+            "when": 1794950573857
+          },
+          {
+            "idx": 158,
+            "tag": "0158_hi_copay_charge",
+            "when": 1795036973857
+          },
+          {
+            "idx": 159,
+            "tag": "0159_saas_period_snapshot",
+            "when": 1795036973858
+          }
+        ]
+      },
+      "relations": [
+        {
+          "schema": "public",
+          "name": "invoices",
+          "rls": true,
+          "forced": true
+        },
+        {
+          "schema": "public",
+          "name": "patient_charges",
+          "rls": true,
+          "forced": true
+        },
+        {
+          "schema": "public",
+          "name": "profiles",
+          "rls": true,
+          "forced": true
+        },
+        {
+          "schema": "public",
+          "name": "subscriptions",
+          "rls": true,
+          "forced": true
+        }
+      ],
+      "subscriptionColumns": [
+        {
+          "table_name": "subscriptions",
+          "column_name": "current_period_end"
+        },
+        {
+          "table_name": "subscriptions",
+          "column_name": "current_period_start"
+        },
+        {
+          "table_name": "subscriptions",
+          "column_name": "grace_period_until"
+        }
+      ],
+      "productionWrites": 0,
+      "providerCalls": 0
+    },
+    "productionPrefixPreflight": {
+      "status": "PASS_READ_ONLY_PREFLIGHT",
+      "financial": "14414498cbfad3276c8184de28e47785529d2512",
+      "phase": "before",
+      "targetFingerprint": "49e1c98a71abbbfe1e55cb4204a4ef814956e5c3e7f4925daddd727c30a6efe3",
+      "history": {
+        "applied": 136,
+        "pending": [
+          {
+            "idx": 136,
+            "tag": "0136_trial_resource_limits",
+            "when": 1794096000000,
+            "hash": "43bb658055c581eae20788c6df87d50fc16ec00e472a73da52500d4a22e2fe10"
+          },
+          {
+            "idx": 137,
+            "tag": "0137_trial_service_role_privileges",
+            "when": 1794168300000,
+            "hash": "e1515b18deebdfd1dac558d9f02d5024655e81ad3ea196ad38ed12e3f3e9aaa7"
+          },
+          {
+            "idx": 138,
+            "tag": "0138_saas_gateway_bindings",
+            "when": 1794171600000,
+            "hash": "22e4c7f622ee269d17b51b97238489d77d6cde5c385a765df8c613278219a69f"
+          },
+          {
+            "idx": 139,
+            "tag": "0139_saas_gateway_recontracts",
+            "when": 1794189600000,
+            "hash": "aa935cd0cadcf6156636f9c7c98fe6201bdba5c1384f556ff026ebb4eb95d4be"
+          },
+          {
+            "idx": 140,
+            "tag": "0140_saas_recurring_payment_observations",
+            "when": 1794199882765,
+            "hash": "98269c83b754785a7e9ecf0b2b4b142ff121cc22b56b8f3055575299ba8ca330"
+          },
+          {
+            "idx": 141,
+            "tag": "0141_saas_scheduled_plan_changes",
+            "when": 1794222981810,
+            "hash": "a13faef1aa291981c3e4c337cbde868225d9d1433bdeed8dd320fd7a74fdf5fd"
+          },
+          {
+            "idx": 142,
+            "tag": "0142_saas_review_replays",
+            "when": 1794326400000,
+            "hash": "410c61834e2a1eb1bf11331b71f7660205fa426b76d1a9fa566e6b13d7d3fb3d"
+          },
+          {
+            "idx": 143,
+            "tag": "0143_tiss_catalog",
+            "when": 1794330000000,
+            "hash": "9f9b483aaeff60a9ca4f5b182c3b071408a7d3eec9ecea7cfe8f98bcf602e807"
+          },
+          {
+            "idx": 144,
+            "tag": "0144_hi_clinic_setup",
+            "when": 1794367436665,
+            "hash": "b9ac6c7a0b335582f3bf69385a3b004cf9d0784955f27d7c3cd22776a4590589"
+          },
+          {
+            "idx": 145,
+            "tag": "0145_hi_memberships",
+            "when": 1794391493822,
+            "hash": "98425850e4c2dae613734aa337ce588df641e5c3b67476c055147cb9c82632c4"
+          },
+          {
+            "idx": 146,
+            "tag": "0146_hi_authorizations",
+            "when": 1794395869610,
+            "hash": "15cbf34c1439cc1d7a0ca4be40267729b44c1cdea1760d5090deb10288493cb6"
+          },
+          {
+            "idx": 147,
+            "tag": "0147_hi_guides",
+            "when": 1794399173366,
+            "hash": "a344a7e86074d90a4b13b007ef6f9e3357ac23e3b8bc43743158d131ca45238a"
+          },
+          {
+            "idx": 148,
+            "tag": "0148_hi_coverage_copay",
+            "when": 1794405160338,
+            "hash": "45f0b90b9307c5888e8e0ac61fab9685561f89a62cdf54ea60d2bd3becfdcb0b"
+          },
+          {
+            "idx": 149,
+            "tag": "0149_hi_billing_gaps",
+            "when": 1794416643149,
+            "hash": "56c0d5f29a409b65e0fe4fc1ac7512bbd8c979150c2252e375a375b85139d183"
+          },
+          {
+            "idx": 150,
+            "tag": "0150_hi_batches",
+            "when": 1794418524711,
+            "hash": "e7dc279a073501a4f2e03dd95ff9773564cbc690ea2591a3e94a03f9a273c992"
+          },
+          {
+            "idx": 151,
+            "tag": "0151_hi_premium_gate",
+            "when": 1794432173857,
+            "hash": "a0e446dbce4121c538c4a3e206a406e0977d5d1729ed14b03417a3937b71ae0b"
+          },
+          {
+            "idx": 152,
+            "tag": "0152_hi_glosses_payments",
+            "when": 1794518573857,
+            "hash": "f16efcaabf8ed205b102005883c8627d3f1037edbcd91908f1d700123720766a"
+          },
+          {
+            "idx": 153,
+            "tag": "0153_hi_ledger_bridge",
+            "when": 1794604973857,
+            "hash": "ebb976532db49b2d36947cd5c37724a6b6b9c85713e2f92818fcefc992b23378"
+          },
+          {
+            "idx": 154,
+            "tag": "0154_hi_premium_period_evidence",
+            "when": 1794691373857,
+            "hash": "3e493911867aa5cf1157ee083a451a9bd1f86a084f371d36da5312d08676925a"
+          },
+          {
+            "idx": 155,
+            "tag": "0155_ledger_payment_sum_by_clinic",
+            "when": 1794777773857,
+            "hash": "aecc5c2d0b7cf36a3dbdcf7331d4247077acf8c7466cbc853e2d40dc905e1d33"
+          },
+          {
+            "idx": 156,
+            "tag": "0156_hi_sadt_requests",
+            "when": 1794864173857,
+            "hash": "cdf3004b15a8a09d6e8f2065bf42be39a05b979eb4d12cd8a5ac1d32b492f860"
+          },
+          {
+            "idx": 157,
+            "tag": "0157_hi_professional_payouts",
+            "when": 1794950573857,
+            "hash": "f39a58d0401b3d221b03cbe0b41c9f4b530947d0f03b4b3564929e11349b5f15"
+          },
+          {
+            "idx": 158,
+            "tag": "0158_hi_copay_charge",
+            "when": 1795036973857,
+            "hash": "40cc90493b5abf980c209485c83451f33c4cfc5931b87f3af7653f2091af63a2"
+          },
+          {
+            "idx": 159,
+            "tag": "0159_saas_period_snapshot",
+            "when": 1795036973858,
+            "hash": "eb00a4e3dd45f89e7eef4dc2c95c577e7932f1f2131d5bfb4ff8f5e4570f5c74"
+          }
+        ],
+        "fingerprint": "1f2a641215d3e5328999acaf7028c46ab4782c7d596134d979bc31f9c50f91fc"
+      },
+      "schema": {
+        "requiredSecuredRelations": 4,
+        "scope": "Critical release objects only; not a full schema equivalence certification"
+      },
+      "transaction": "REPEATABLE READ READ ONLY",
+      "databaseWrites": 0,
+      "productionWrites": 0,
+      "providerCalls": 0,
+      "authorizationToApply": false
+    },
+    "devMetadata": {
+      "observedAt": "2026-11-14T19:57:24.293Z",
+      "status": "PASS",
+      "target": "pqhkirrszzpwezdaqrai",
+      "transaction": "REPEATABLE READ READ ONLY",
+      "sourceCodeHeadRequired": false,
+      "scope": "frozen160 prefix; candidate0160 from current TISS 1b09267edf93c50e1e692cad2e9241fa9a62af3e only if applied; no TISS runtime merge",
+      "currentTissSource": "1b09267edf93c50e1e692cad2e9241fa9a62af3e",
+      "candidate160Hash": "718190feffe57a0f0b7ceaf7c28686793209f0c0cb9f4b7bfd6480d4ac1ef306",
+      "candidate160Applied": true,
+      "historyEntries": 161,
+      "exactFrozenHistoryMatch": true,
+      "financial159Hash": "eb00a4e3dd45f89e7eef4dc2c95c577e7932f1f2131d5bfb4ff8f5e4570f5c74",
+      "tables": [
+        {
+          "schema": "billing_gateway",
+          "name": "accounts",
+          "rls": true,
+          "forced": true
+        },
+        {
+          "schema": "billing_gateway",
+          "name": "bindings",
+          "rls": true,
+          "forced": true
+        },
+        {
+          "schema": "billing_gateway",
+          "name": "cancellations",
+          "rls": true,
+          "forced": true
+        },
+        {
+          "schema": "billing_gateway",
+          "name": "checkout_intents",
+          "rls": true,
+          "forced": true
+        },
+        {
+          "schema": "billing_gateway",
+          "name": "event_inbox",
+          "rls": true,
+          "forced": true
+        },
+        {
+          "schema": "billing_gateway",
+          "name": "operations",
+          "rls": true,
+          "forced": true
+        },
+        {
+          "schema": "billing_gateway",
+          "name": "paid_checkouts",
+          "rls": true,
+          "forced": true
+        },
+        {
+          "schema": "billing_gateway",
+          "name": "plan_changes",
+          "rls": true,
+          "forced": true
+        },
+        {
+          "schema": "billing_gateway",
+          "name": "recontracts",
+          "rls": true,
+          "forced": true
+        },
+        {
+          "schema": "billing_gateway",
+          "name": "recurring_access_periods",
+          "rls": true,
+          "forced": true
+        },
+        {
+          "schema": "billing_gateway",
+          "name": "recurring_payment_observations",
+          "rls": true,
+          "forced": true
+        },
+        {
+          "schema": "billing_gateway",
+          "name": "renewal_api_readbacks",
+          "rls": true,
+          "forced": true
+        },
+        {
+          "schema": "billing_gateway",
+          "name": "review_replays",
+          "rls": true,
+          "forced": true
+        },
+        {
+          "schema": "billing_gateway",
+          "name": "statement_scan_items",
+          "rls": true,
+          "forced": true
+        },
+        {
+          "schema": "billing_gateway",
+          "name": "statement_scans",
+          "rls": true,
+          "forced": true
+        },
+        {
+          "schema": "billing_gateway",
+          "name": "trial_claims",
+          "rls": true,
+          "forced": true
+        },
+        {
+          "schema": "public",
+          "name": "hi_clinic_settings",
+          "rls": true,
+          "forced": true
+        },
+        {
+          "schema": "public",
+          "name": "invoices",
+          "rls": true,
+          "forced": true
+        },
+        {
+          "schema": "public",
+          "name": "payment_attempts",
+          "rls": true,
+          "forced": true
+        },
+        {
+          "schema": "public",
+          "name": "subscriptions",
+          "rls": true,
+          "forced": true
+        },
+        {
+          "schema": "public",
+          "name": "trial_access_policies",
+          "rls": true,
+          "forced": true
+        },
+        {
+          "schema": "public",
+          "name": "trial_resource_usage",
+          "rls": true,
+          "forced": true
+        }
+      ],
+      "triggers": [
+        {
+          "schema": "public",
+          "name": "appointments",
+          "trigger": "a0_hi_premium_appointment",
+          "function": "hi_premium_guard_appointment",
+          "definition_sha256": "340ba86416decbfdf7bdbc29363fdf59076cb2c51f678d6618b70180dd4d4432"
+        },
+        {
+          "schema": "public",
+          "name": "appointments",
+          "trigger": "appointments_billing_mode_guard",
+          "function": "hi_guard_appointment_billing_mode",
+          "definition_sha256": "2bfffca2aa1efdc41d83f993ed3d6de746ec3ef323202fb0268fa450bf5e0b56"
+        },
+        {
+          "schema": "public",
+          "name": "appointments",
+          "trigger": "appointments_commercial_snapshot_immutable",
+          "function": "block_appointment_commercial_snapshot_rewrite",
+          "definition_sha256": "01ac00601758ca8160279558ce8f59751ffd4b2b6821220c07cc22cb42ea4eae"
+        },
+        {
+          "schema": "public",
+          "name": "appointments",
+          "trigger": "appointments_validate_commercial_price_snapshot",
+          "function": "validate_appointment_commercial_price_snapshot",
+          "definition_sha256": "0e1462e9b264ff17389441aec045474428d989af361245735390b31e3d32132a"
+        },
+        {
+          "schema": "public",
+          "name": "appointments",
+          "trigger": "trg_appointment_recurrence_validate",
+          "function": "validate_appointment_recurrence",
+          "definition_sha256": "e5400de067efece1888e91dab29d3e3d89c45e7a37b5498888dc1f18fb408ba0"
+        },
+        {
+          "schema": "public",
+          "name": "appointments",
+          "trigger": "trg_appointments_snapshot_immutable",
+          "function": "enforce_appointment_snapshot_immutable",
+          "definition_sha256": "b025c14a99ae403313e898aa79f390ad900f47a8468014bcc99c93730ba413f1"
+        },
+        {
+          "schema": "public",
+          "name": "appointments",
+          "trigger": "trg_appointments_updated_at",
+          "function": "set_updated_at",
+          "definition_sha256": "c42f9a572ba5503f801a543ac106966d3fedb0b8ffa308ac9bba9217fa0ed49f"
+        },
+        {
+          "schema": "public",
+          "name": "appointments",
+          "trigger": "trg_appointments_validate_import_provenance",
+          "function": "validate_appointment_import_provenance",
+          "definition_sha256": "a6d0cb30e902c01657a6febb804a911309e19541d98d84195a768a29bee41d6b"
+        },
+        {
+          "schema": "public",
+          "name": "appointments",
+          "trigger": "trial_appointments",
+          "function": "enforce_trial_resource_limit",
+          "definition_sha256": "93c92e17e5a8d7abf90535d41d388e1626a848d4d916958572ec9cf3218a36cb"
+        },
+        {
+          "schema": "public",
+          "name": "invoices",
+          "trigger": "trg_invoices_updated_at",
+          "function": "set_updated_at",
+          "definition_sha256": "7cf188df973f86276c6befe86ec4bf416651de0fe7690eb7f380f0e5cce4155c"
+        },
+        {
+          "schema": "public",
+          "name": "lancamentos",
+          "trigger": "lancamentos_convenio_patient_guard",
+          "function": "hi_guard_convenio_patient_receivable",
+          "definition_sha256": "bd2c499150030801403255251f0ca7bf26932f65ea6b32372e29908ef9a5cd88"
+        },
+        {
+          "schema": "public",
+          "name": "lancamentos",
+          "trigger": "lancamentos_insurer_receivable_guard",
+          "function": "hi_guard_insurer_receivable",
+          "definition_sha256": "b593105ace0fd9f1d6395d2c8a9dc5957b56a3dda0d7ae6ee0b119b02cf7869e"
+        },
+        {
+          "schema": "public",
+          "name": "lancamentos",
+          "trigger": "trg_lancamentos_block_immutable",
+          "function": "block_lancamento_immutable_cols",
+          "definition_sha256": "6d11027e6a38113a919d4a66f95f633e6ad7d21f2c912d24db905843c4291e1e"
+        },
+        {
+          "schema": "public",
+          "name": "lancamentos",
+          "trigger": "trg_lancamentos_updated_at",
+          "function": "set_updated_at",
+          "definition_sha256": "74493aecb00147ad8b2ca7c77d524c01eaa1899344164478eb303f184f8cd890"
+        },
+        {
+          "schema": "public",
+          "name": "lancamentos",
+          "trigger": "trial_financial_entries",
+          "function": "enforce_trial_resource_limit",
+          "definition_sha256": "5d4991b3453bf37fb89a16fe7e5f73550c6f8d4ccaa091d21f642eeda8650ed5"
+        },
+        {
+          "schema": "public",
+          "name": "subscriptions",
+          "trigger": "enroll_new_subscription_trial_limits",
+          "function": "enroll_new_subscription_trial_limits",
+          "definition_sha256": "b4b4549d8ecdbafa2e33f229ad7629ebef9c34b6ab36451a8e28a0e0f6d7e2ac"
+        },
+        {
+          "schema": "public",
+          "name": "subscriptions",
+          "trigger": "subscription_check_gateway_origin",
+          "function": "assert_subscription_origin",
+          "definition_sha256": "f05b71e2d97c93706459a3fabb894a4398c358d3eef6cd84f9bed0ba0bb8ce4d"
+        },
+        {
+          "schema": "public",
+          "name": "subscriptions",
+          "trigger": "trg_subscriptions_bump_plan_claims",
+          "function": "bump_plan_claims_version",
+          "definition_sha256": "e9444bbd18c56a0779a78539c1f02684bb25f62cc42cafe41ac987c01cd03f85"
+        },
+        {
+          "schema": "public",
+          "name": "subscriptions",
+          "trigger": "trg_subscriptions_updated_at",
+          "function": "set_updated_at",
+          "definition_sha256": "a02c92ffb4b9714747cb8c5ff8e7da7644c3e372ab6cc6a70b1abcfb058ab4e6"
+        }
+      ],
+      "functions": [
+        {
+          "name": "qoro_plan_includes",
+          "definition_sha256": "2a1afeaafda0d47a0743c8e0900210fb1930c3286f5dff71b4276be9b389f2c8",
+          "references_tiss_tables": false
+        },
+        {
+          "name": "qoro_premium_denial",
+          "definition_sha256": "494d13e1d66305e2c25ac0d1958afea6b087467f41a209419bff61f10a6f3c41",
+          "references_tiss_tables": false
+        },
+        {
+          "name": "qoro_premium_denial_for",
+          "definition_sha256": "0e6bf2e42f8ea976f8bf28737f96b9e9e2700a51458cd955c6e7373c2df66af0",
+          "references_tiss_tables": false
+        }
+      ],
+      "integrity": {
+        "cross_tenant_invoices": 0,
+        "duplicate_cycles": 0,
+        "enabled_tiss_dev_clinics": 3
+      },
+      "productionWrites": 0,
+      "devWrites": 0,
+      "providerCalls": 0,
+      "migrationsApplied": 0
+    },
+    "rehearsal": {
+      "observedAt": "2026-11-14T20:27:52.402Z",
+      "status": "PASS",
+      "environment": "loopback_synthetic",
+      "financial": "14414498cbfad3276c8184de28e47785529d2512",
+      "migrationMs": 4895.043999999994,
+      "baselineEntries": 136,
+      "finalEntries": 160,
+      "pendingApplied": 24,
+      "results": [
+        "136 baseline passes exact history and critical schema preflight",
+        "missing SQL is rejected before opening any migration transaction",
+        "changed SQL hash is rejected against approved Git bytes",
+        "unjournaled SQL cannot be silently ignored",
+        "duplicate object is rejected and the real migrator rolls back",
+        "missing base dependency prevents preflight and real migration",
+        "real Drizzle applies exactly 0136-0159 and preserves every legacy contract field",
+        "160 postflight validates history, forced RLS, origin triggers and period constraints",
+        "second migrator run is a no-op",
+        "real history rejects missing without repairing it",
+        "real history rejects hash without repairing it",
+        "real history rejects order without repairing it",
+        "real history rejects duplicate without repairing it",
+        "disabled RLS fails postflight",
+        "disabled origin trigger fails postflight",
+        "last owner remains protected and TISS stays operationally disabled"
+      ],
+      "final": {
+        "history": {
+          "applied": 160,
+          "pending": [],
+          "fingerprint": "d0a7a012fb89f69e052420bfd60fc295c5f5eafdbbcc47c187c5fa5a8fdd7133"
+        },
+        "schema": {
+          "requiredSecuredRelations": 22,
+          "scope": "Critical release objects only; not a full schema equivalence certification"
+        },
+        "transaction": "REPEATABLE READ READ ONLY",
+        "databaseWrites": 0
+      },
+      "legacyFixtures": 5,
+      "realBackupRestored": false,
+      "approvedExportModified": false,
+      "baseline": "Real migration SQL and history-shaped metadata; synthetic contracts, not a clone of live data",
+      "providerCalls": 0,
+      "remoteWrites": 0,
+      "tissOperationsEnabled": 0
+    },
+    "tooling": {
+      "unitCases": 16,
+      "expectedFinalSuite": 7206,
+      "expectedFinalFiles": 637,
+      "e2eExpected": 22,
+      "sourceOfTruth": "Final CI logs",
+      "limitation": "Preflight is an explicit mandatory procedure, not a new hook or lock reservation in the shared migrator"
+    },
+    "ui": {
+      "document": "HANDOFF-UI-BILLING-SaaS.md",
+      "acknowledgement": "PENDING",
+      "reachableAgent": false,
+      "sharedEnvironmentAndPageTests": 14,
+      "redesignRequiredForBilling": false,
+      "r51": "PARTIAL; no global resolution claim"
+    },
+    "webhook": {
+      "intendedUrl": "https://app.qoro.dev/api/webhooks/abacatepay",
+      "method": "POST",
+      "observedLiveConfigurations": 0,
+      "liveActivated": false,
+      "proofRequired": [
+        "registered configuration",
+        "HTTPS and authentication",
+        "durable processing with financial readback"
+      ],
+      "runbook": "Checklist futuro do webhook live"
+    },
+    "risks": {
+      "R1": "PARTIAL",
+      "R2": "PARTIAL; official renewal 2026-12-13, not yet observed",
+      "R3": "PARTIAL",
+      "R4": "PARTIAL",
+      "humanAcceptance": false
+    },
+    "backups": {
+      "currentManagedRestoreVerified": false,
+      "fullServiceRtoMeasured": false,
+      "newRehearsalContainsRealData": false
+    },
+    "mutations": {
+      "productionWrites": 0,
+      "devWrites": 0,
+      "providerMutations": 0,
+      "payments": 0,
+      "workflowChanges": 0,
+      "budgetChanges": 0,
+      "otherWorktreeWrites": 0
+    }
   }
 }
