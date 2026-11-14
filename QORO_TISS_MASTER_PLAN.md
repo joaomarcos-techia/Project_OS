@@ -43,14 +43,14 @@
 | Fase atual | **P1 concluída**; P9 (lotes, XMLs, recurso) e P12 (armazenamento) validadas; ponte financeira (P1.10/P10.2/P10.3) pronta como candidata 0153; interface (P7.7/P9.9) implementada e testada; P9.5, P8.7/P6.2, P10.4 e P10.5 pendentes |
 | Tarefa em andamento | **R51** variante rara aberta (instrumentada); **P2.5** parte externa bloqueada por operadora real; menu Convênios aguardando a branch de UI (`ui/otimizacao-ui-final-20261114`, sem commits em 14/11); homologação do R54 no Sandbox preparada, aguardando autorização |
 | Última tarefa concluída | guarda de composição de migrations; ambiente do Sentry por deploy; P3.2 implementada e testada (E2E no Preview: pendente, ver o registro M de 14/11 (noite)) |
-| Progresso | **65 de 117 tarefas concluídas (55,6%)**: P0.1–P0.9, P1.1–P1.10, P4.5, P6.2, P7.1, P7.2, P7.3, P7.4, P7.6, P7.7, P8.1, P8.2, P8.3, P8.5, P8.7, P9.1, P9.2, P9.3, P9.5, P9.6, P9.7, P10.1, P10.2, P10.3, P10.4, P10.5, P12.7, P12.14, P13.1, P13.2, P13.3, P13.4, P13.7, P14.1, P15.7, P2.1, P2.3, P2.4, P2.6, P3.1, P4.1, P4.4, P9.8, P9.9, P2.2, P4.3, P2.7, P5.3. P10.5 **homologada no alcance do Asaas Sandbox** (13/11). P4.3, P2.7 **validadas no Preview DEV**. R54 provado em banco descartável com o Asaas simulado; **homologação de estorno no Sandbox não executada** (procedimento em docs/convenios/homologacao-r54-sandbox.md). P12.5 implementada e testada no alcance sem operadora (não contada: o acesso pelo adaptador depende da P6.4). Nada em produção; nenhuma homologação com operadora real. |
+| Progresso | **66 de 117 tarefas concluídas (56,4%)**: P0.1–P0.9, P1.1–P1.10, P4.5, P6.2, P7.1, P7.2, P7.3, P7.4, P7.6, P7.7, P8.1, P8.2, P8.3, P8.5, P8.7, P9.1, P9.2, P9.3, P9.5, P9.6, P9.7, P10.1, P10.2, P10.3, P10.4, P10.5, P12.7, P12.14, P13.1, P13.2, P13.3, P13.4, P13.7, P14.1, P15.7, P2.1, P2.3, P2.4, P2.6, P3.1, P4.1, P4.4, P9.8, P9.9, P2.2, P4.3, P2.7, P5.3, P12.1. P10.5 **homologada no alcance do Asaas Sandbox** (13/11). P4.3, P2.7 **validadas no Preview DEV**. R54 provado em banco descartável com o Asaas simulado; **homologação de estorno no Sandbox não executada** (procedimento em docs/convenios/homologacao-r54-sandbox.md). P12.5 implementada e testada no alcance sem operadora (não contada: o acesso pelo adaptador depende da P6.4). Nada em produção; nenhuma homologação com operadora real. |
 | CI oficial (GitHub Actions) | **Liberada em 14/11** (GitHub Pro; o job voltou a iniciar). `0d2aa4f3` reexecutado: **CI e ADR advisory verdes** (run 43591045113, 15 min 28 s, 25 passos). SHA final do ciclo: ver o registro M de 14/11 (noite). Até `1b09267e` verde; `e6e91139`…`a77e0aea` não iniciaram por cobrança (não reexecutados: a CI do HEAD cobre a mesma árvore e mais) |
 | Capacidades em produção | nenhuma (ver A.5) |
 | Testes aprovados | Ver o registro de 12/11 (tarde): suíte completa com cobertura e harnesses (bloqueio comercial 11/11, cadeia unida 10/10, ponte 18/18, glosas 16/16, lotes 16/16, bucket real 13/13, leituras da interface 6/6, XML do recurso 6/6, demais Convênios verdes) |
 | Bloqueios ativos | B4 (integração: #53 primeiro, depois reconciliar o #55, D22; **colisão de migrations**: ver o aviso abaixo), B5 (operadora e clínica piloto), B6 (retenção legal), B7 (Validador TISS para Windows: **instalação não autorizada**), **B10** (segurança ANS: direção do fundador para S1–S10 em 11/11; **nada ligado para usuários reais**), **B11** (AbacatePay: com o agente do #53; Asaas: sandbox ok) |
 | Decisões | D1–D12 aprovadas ou adotadas; D13–D17 adotadas no escopo delegado; D18 aprovada; D19 adotada e mantida, **com o ensaio no DEV substituído pela D23**; **D20 aprovada em direção técnica em 11/11** (arquivos cifrados em armazenamento privado; o alcance do requisito 56 segue em consulta formal); **D21** adotada; **D22 corrigida em 11/11** (L.1); **D23 do fundador em 11/11 (noite):** nenhum ensaio de DDL no DEV compartilhado sem aprovação específica |
 | Arquivos alterados | este documento; `docs/adr/072-convenios-e-tiss.md` (era 067); `src/contexts/health-insurance/**`; `src/lib/xlsx/**`; `src/lib/validation/cnpj.ts`, `document.ts`; `src/lib/masks.ts`; campos de CNPJ do perfil, fornecedores e `/join`; `scripts/tiss/**`; `data/tiss/**`; `evidence/tiss-validadores-2026-11-10/**`; `docs/architecture/*` |
-| Próxima ação exata | P12.1 (isolamento de todas as `hi_*` num gate), P12.2 (matriz de permissões por action), P14.2 (concorrência), P6.4 (porta do conector + adaptador manual; fecha o acesso à credencial da P12.5), P4.6 (retorno contratual) e P10.6 (Caixa separa paciente × operadora). Com a UI: entrada do menu (docs/convenios/menu-convenios.md) e revisão visual (docs/convenios/handoff-ui.md). Com o fundador: autorizar a homologação do R54 no Sandbox; confirmar o backup gerenciado no painel do Supabase ou gerar um token pessoal novo; decidir a leitura só leitura do ledger de produção (`db-migrate-prod.ts --check-composition`) |
+| Próxima ação exata | P12.2 (matriz de permissões por action), P14.2 (concorrência), P6.4 (porta do conector + adaptador manual; fecha o acesso à credencial da P12.5), P4.6 (retorno contratual) e P10.6 (Caixa separa paciente × operadora). Com a UI: entrada do menu (docs/convenios/menu-convenios.md) e revisão visual (docs/convenios/handoff-ui.md). Com o fundador: autorizar a homologação do R54 no Sandbox; confirmar o backup gerenciado no painel do Supabase ou gerar um token pessoal novo; decidir a leitura só leitura do ledger de produção (`db-migrate-prod.ts --check-composition`) |
 
 > **⚠ Risco de colisão de migrations (registrado em 11/11; leia antes de criar qualquer migration).**
 > - **Ledger real** (DEV, só leitura, conferido por SHA-256): 144 linhas. 0000–0135 da `main`; 0136–0142 do #53 (**aplicadas**); 0143 `tiss_catalog` do #55 (**aplicada**, última linha, `when` 1794330000000).
@@ -67,22 +67,22 @@
 
 | Item | Estado |
 | --- | --- |
-| HEAD | `2dbe2359` (`feat/convenios-tiss-20261110`) |
+| HEAD | commit da P12.1 sobre `8bc331e8` (`feat/convenios-tiss-20261110`) |
 | PR | #55 **draft**; sem merge; #53 também draft (`f94248ef`) |
 | GitHub Actions | liberado (GitHub Pro, 14/11); o token local não lê a cobrança (falta escopo `user`), por isso a prova é a execução |
-| Última CI aprovada | CI 43648393690 e ADR advisory 43648393682 verdes no `2dbe2359` (14/11, 17 min); `0d2aa4f3` reexecutado verde (43591045113) |
+| Última CI aprovada | `8bc331e8`: CI 43652860044 e ADR advisory verdes; `2dbe2359`: CI 43648393690 verde (17 min); `0d2aa4f3` reexecutado verde (43591045113). O SHA seguinte (P12.1) tem a CI acompanhada no PR |
 | Migrations | DEV 161 linhas (0159 do #53 e 0160 do #55 aplicadas); guarda de composição nos migradores; produção intocada, ledger de produção não lido |
 | Progresso | ver "Progresso" acima (contagem só de tarefas Concluídas) |
 | Jornada E2E | P3.2 no Preview pendente (ver o registro M de 14/11, noite) |
 | Dependências de outros agentes | UI: menu (entrada pronta), moldura das telas, causa do R51 no shell; AbacatePay: composição da 0159 no lançamento e D24 em Asaas/IA (P12.15) |
 | Riscos ativos | R51 (hidratação rara), R56 (composição até o lançamento), R57 (deriva histórica de hash), B5 (operadora), B6 (retenção), B7, B10 |
-| Próximo passo exato | P12.1 → P12.2 → P14.2 → P6.4 (classe A abaixo), em paralelo com a UI no menu |
+| Próximo passo exato | P12.2 → P14.2 → P6.4 (classe A abaixo), em paralelo com a UI no menu |
 
 **Classificação das tarefas abertas (14/11, noite).**
 
 - **A. Implementáveis agora (sem operadora, pagamento, produção, credencial de terceiro ou aprovação):**
-  - fundação e segurança: P1.12, P1.13 (interruptor por clínica, sem ligar para clínica real), P1.14, P12.1, P12.2,
-    P12.4, P12.6;
+  - fundação e segurança: P1.12, P1.13 (interruptor por clínica, sem ligar para clínica real), P1.14, P12.2, P12.4,
+    P12.6;
   - fluxos começados: P7.5, P8.6, P13.6, P12.13 (parte técnica);
   - regras e financeiro: P4.2, P4.6, P4.7, P5.1, P8.4, P9.10, P10.6;
   - autorizações sem conector: P6.1, P6.4 (porta + adaptador manual; fecha a P12.5), P6.6;
@@ -100,7 +100,7 @@
 
 **Ordem dentro da classe A** (critério do ciclo: risco financeiro, inconsistência clínica, segurança):
 
-1. P12.1 e P12.2, gates de isolamento e permissão por action;
+1. P12.2, matriz de permissão por action (a P12.1 foi concluída em 14/11, noite);
 2. P14.2, concorrência;
 3. P6.4, porta do conector, que fecha a P12.5;
 4. P4.6 (retorno contratual) e P10.6 (Caixa separa paciente × operadora);
@@ -1097,7 +1097,7 @@ Os números marcados com `*` são provisórios e devem ser reconferidos (E.5). P
 
 | ID (antigo) | Objetivo | Dependências | Aceite | Testes | Status |
 | --- | --- | --- | --- | --- | --- |
-| **P12.1** (T10.1) | isolamento de todas as tabelas `hi_*` | P1.x | zero linhas cruzadas | `security:tenant` | Pendente |
+| **P12.1** (T10.1) | isolamento de todas as tabelas `hi_*` | P1.x | zero linhas cruzadas | `security:tenant` | **Concluída (testada)** (14/11, noite): gate estático no CI (`tenant-isolation-gate.test.ts`: toda `hi_*` e `patient_external_refunds` com RLS habilitada e forçada e toda política, inclusive WITH CHECK, pelo predicado da clínica); catálogo real com a cadeia do DEV (`health-insurance-tenant-isolation-db.ts` 5/5: 41 tabelas, 42 políticas, `anon` sem privilégio, sem TRUNCATE, inserção com a clínica B pela sessão da A recusada em 41/41 sem nenhuma linha nascer — 20 pela RLS, 13 sem privilégio, 8 pelos gatilhos de guarda antes da RLS —, leitura da B invisível); leituras por fluxo nos harnesses de cada tabela |
 | **P12.2** (T10.2) | matriz de permissões por action e rota; negativos | P1.12 | financeiro sem anamnese; médico só os próprios | unitários, integração | Pendente |
 | **P12.3** (T10.3) | LGPD: exportação, anonimização e retenção (B6) | P3, P7 | decisão aprovada | testes LGPD | Pendente |
 | **P12.4** (T10.4) | auditoria completa | P2–P10 | 100% das actions | inventário | Pendente |
@@ -2676,6 +2676,9 @@ Um registro append-only sozinho **não** prova imutabilidade; os itens 1–3 sã
   - auditoria sem segredo; segredo nunca em log, resultado ou erro;
   - gate estático: ninguém decifra a credencial (unitários 7);
   - checklist C1–C10 da conexão em homologacao-operadora §2.1.
+- **P12.1 — isolamento de todas as tabelas (concluída):** gate estático no CI e catálogo real 5/5 (41 tabelas, 42
+  políticas, inserção cruzada recusada em 41/41 sem linha nascer; 8 recusas vêm dos gatilhos de guarda antes da RLS,
+  com a política conferida no catálogo).
 - **P2.2 — leituras privilegiadas:** gate permanente no vitest (`privileged-reads-gate.test.ts`); nenhuma leitura
   privilegiada nova no ciclo.
 - **R51:**
