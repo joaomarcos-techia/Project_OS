@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { access, copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { z } from 'zod';
@@ -17,6 +17,7 @@ const git = (...args: string[]) =>
     encoding: 'utf8',
     windowsHide: true,
     stdio: ['ignore', 'pipe', 'pipe'],
+    maxBuffer: 16 << 20,
   });
 assert.equal(git('rev-parse', financial).trim(), financial);
 assert.equal(git('cat-file', '-t', financial).trim(), 'commit');
@@ -27,31 +28,45 @@ assert.equal(
   git('show', `${financial}:${manifestPath}`).replaceAll('\r\n', '\n'),
 );
 const manifest = z
-  .object({ financialSql: z.object({ sha256: z.string() }) })
-  .parse(JSON.parse(manifestSource));
-const inputs = z
   .object({
-    frozenMatch: z.literal(true),
-    journalProposal: z.object({
-      directory: z.string().regex(/^dist\/abacatepay-tiss-release-158-[a-f0-9]{8}$/u),
+    tissHead: z.string().regex(/^[a-f0-9]{40}$/u),
+    financialEntry: z.object({
+      idx: z.literal(159),
+      version: z.literal('7'),
+      breakpoints: z.boolean(),
+      tag: z.literal('0159_saas_period_snapshot'),
+      when: z.number().int(),
     }),
+    financialSql: z.object({ file: z.string(), sha256: z.string() }),
   })
-  .parse(JSON.parse(await readFile('dist/abacatepay-tiss-composition.json', 'utf8')));
-const source = path.resolve(inputs.journalProposal.directory, 'drizzle/migrations');
-assert.ok(source.startsWith(path.resolve('dist') + path.sep));
-const journal = z
-  .object({
-    entries: z
-      .array(
-        z.object({
-          idx: z.number().int(),
-          tag: z.string().regex(/^\d{4}_[a-z0-9_]+$/u),
-          when: z.number().int(),
-        }),
-      )
-      .length(160),
-  })
-  .parse(JSON.parse(await readFile(path.join(source, 'meta/_journal.json'), 'utf8')));
+  .parse(JSON.parse(manifestSource));
+const journalSchema = z.object({
+  version: z.literal('7'),
+  dialect: z.literal('postgresql'),
+  entries: z.array(
+    z.object({
+      idx: z.number().int(),
+      version: z.literal('7'),
+      breakpoints: z.boolean(),
+      tag: z.string().regex(/^\d{4}_[a-z0-9_]+$/u),
+      when: z.number().int(),
+    }),
+  ),
+});
+const baseJournal = journalSchema.parse(
+  JSON.parse(git('show', `${financial}:drizzle/migrations/meta/_journal.json`)),
+);
+const sharedJournal = journalSchema.parse(
+  JSON.parse(git('show', `${manifest.tissHead}:drizzle/migrations/meta/_journal.json`)),
+);
+assert.equal(baseJournal.entries.length, 143);
+assert.equal(sharedJournal.entries.length, 159);
+assert.deepEqual(
+  sharedJournal.entries.slice(0, 143),
+  baseJournal.entries,
+  'Shared migration prefix changed',
+);
+const journal = { ...baseJournal, entries: [...sharedJournal.entries, manifest.financialEntry] };
 const reviewed = await readReviewedCheckoutMigrations();
 const relative = `dist/abacatepay-saas-${financial.slice(0, 8)}`;
 const directory = path.resolve(relative);
@@ -73,7 +88,12 @@ for (const [index, entry] of journal.entries.entries()) {
   assert.equal(entry.idx, index);
   if (index) assert.ok(entry.when > journal.entries[index - 1]!.when);
   const file = `${entry.tag}.sql`;
-  const body = (await readFile(path.join(source, file), 'utf8')).replaceAll('\r\n', '\n');
+  const body = git(
+    'show',
+    index === 159
+      ? `${financial}:${manifest.financialSql.file}`
+      : `${index < 143 ? financial : manifest.tissHead}:drizzle/migrations/${file}`,
+  ).replaceAll('\r\n', '\n');
   const hash = createHash('sha256').update(body).digest('hex');
   if (index < 143) {
     const original = (
@@ -86,12 +106,12 @@ for (const [index, entry] of journal.entries.entries()) {
     assert.equal(frozen.hash, hash);
     assert.equal(frozen.when, entry.when);
   }
-  await copyFile(path.join(source, file), path.join(directory, 'drizzle/migrations', file));
+  await writeFile(path.join(directory, 'drizzle/migrations', file), body);
   sqlProof.push({ tag: entry.tag, sha256: hash });
 }
-await copyFile(
-  path.join(source, 'meta/_journal.json'),
+await writeFile(
   path.join(directory, 'drizzle/migrations/meta/_journal.json'),
+  JSON.stringify(journal, null, 2) + '\n',
 );
 for (const omitted of [
   'src/contexts/health-insurance',
@@ -112,11 +132,12 @@ const report = {
   financial,
   directory: relative,
   sourceScope: 'financial_commit_only_no_tiss_code_merge',
-  sharedSqlSource: inputs.journalProposal.directory,
+  sharedSqlSource: manifest.tissHead,
   journalEntries: journal.entries.length,
   financialSqlSha256: manifest.financialSql.sha256,
   sqlProof,
   tissCodeHeadRequired: false,
+  tissWorktreeRequired: false,
   tissOperationalCodeIncluded: false,
   tissUiIncluded: false,
   mergePerformed: false,
