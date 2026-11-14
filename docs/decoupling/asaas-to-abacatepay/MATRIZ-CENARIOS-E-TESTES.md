@@ -1,4 +1,21 @@
-> **Estado corrente — janela técnica13/11 concluída:** catálogo live5/5, cinco configurações novas com checkoutsfalse e alerta Production ed622a74 entregue. Release/migrations/checkout live não executados; endpoint financeiro atual404. Fixture de conversão antecipada preparada sem checkout. Ver relatório§54 e authorizedWindowHomologation no JSON canônico. Os checkpoints anteriores são históricos.
+> **Estado corrente —14/11: candidato apenas SaaS, relatório§57.** Cinco compras iniciais e EARLY-01 preservadas, sem nova compra. Não depende das117tarefas TISS/R54. Build/navegador do Preview SaaS e provas PostgreSQL passaram; R51 compartilhado não foi declarado resolvido. Release/migrations/checkout live não executados. NO-GO operacional/comercial Production. Os checkpoints anteriores são históricos.
+
+## Delta vigente — separação SaaS/TISS,14/11/2026
+
+| Gate / responsabilidade | Estado e evidência | Limite |
+|---|---|---|
+| Fronteiras SaaS × pacientes × TISS | PASS:2 testes de imports, serviços/rotas/tabelas auditados; matriz no relatório§57A | Schema e direito comercial continuam compartilhados |
+| Falha de boot do registry/outbox | PASS:9 testes da rota, incluindo2 falhas de import; jobs SaaS concluem e a falha é propagada sem heartbeat falso | Não isola falha do DB/client/schema essencial |
+| SaaS sem TISS | PASS:51 checks PostgreSQL,143 migrations, sem tabelas/função TISS | Loopback sintético, zero rede externa |
+| SaaS com schema compartilhado | PASS:52 checks PostgreSQL,160 migrations, TISS desabilitado antes/depois de pagamentos | Não habilita módulo ou homologa operadora |
+| Journal parcial da branch TISS | PASS:7 testes; prefixo financeiro143 + cauda16 + sucessora159 =160 |152 entradas TISS terminam em158; preservar financeiras136–142 |
+| DEV/journal/RLS | PASS READ ONLY:160 hashes/timestamps,22 tabelas com RLS; zero ciclo duplicado/invoice cruzada |3 habilitações TISS DEV inventariadas, não modificadas nem atribuídas a produção |
+| UI SaaS isolada | PASS:26 verificações estritas,1440/390,Tóquio/SãoPaulo,4leituras pagas,2logout; zero Convênios/pageerror | Preview365b4287; não comprova ausência global da variante rara |
+| R51 compartilhado | PARTIAL:16 arquivos globais iguais entre financeiro/TISS; amostra SaaS sem erro | Dono do componente UI; não é gate das117tarefas ou R54 |
+| CI do novo HEAD | Conferir checks do PR53; local7183/635 PASS antes dos7 testes de journal, regressão final70 PASS | Não atribuir CI anterior ao novo commit |
+| Catálogo/alerta/contratos externos | Provas anteriores preservadas; zero mutação financeira nesta rodada | Renovação natural, closure live e R1–R4 continuam com os limites próprios |
+
+Fonte única: relatório§57 e chave `saasTissSeparation20261114` da evidência canônica. Próximo passo é concluir os checks finais e decisões delimitadas de rollout, não comprar novamente ou esperar todas as telas de Convênios.
 
 # Cenários financeiros e nível real de validação
 

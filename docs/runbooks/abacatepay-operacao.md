@@ -1,6 +1,28 @@
 # Operação e recuperação AbacatePay
 
-**Checkpoint vigente: observação de renovação abaixo e relatório§56. EARLY-01 já paga e encerrada; não repetir create, fechamento ou pagamento.** Seções antigas são evidência histórica, não ordens para repetir aplicação DEV ou pagamentos.
+**Checkpoint vigente: candidato apenas SaaS, relatório§57. EARLY-01 já paga e encerrada; não repetir create, fechamento ou pagamento.** SaaS não espera guias/glosas/R54/homologação de operadora. SQL congelado e UI compartilhada têm verificações próprias. Seções antigas são evidência histórica, não ordens para repetir aplicação DEV ou pagamentos.
+
+## Candidato SaaS independente — procedimento vigente de14/11
+
+**Responsabilidades:** AbacatePay cobra o SaaS Qoro e mantém `subscriptions`/`invoices`/ledger; Asaas continua cobrando pacientes por credencial da clínica; TISS mantém operadoras, guias, lotes, glosas, repasses e coparticipação Asaas. O contrato comercial é lido por `src/lib/entitlements` e pelo gate compartilhado; disponibilidade operacional continua separada. Pagamento não ativa `hi_clinic_settings.enabled`. Trial não opera pagamentos de pacientes, IA ou TISS. Não alterar contratos Asaas existentes.
+
+**Não usar os comandos históricos de composição abaixo como pré-requisito do release SaaS.** O pacote atual inclui código do financeiro e apenas a sequência SQL congelada compatível, sem código/menu/rotas TISS. Em PowerShell, na pasta `C:\dev\Qoro_billing_abacatepay_20261107`, para exportar um commit aprovado ainda não exportado:
+
+```powershell
+$env:QORO_FINANCIAL_REF = (git rev-parse HEAD).Trim()
+node --conditions=react-server --import tsx scripts/security/abacatepay-saas-release.ts
+Remove-Item Env:QORO_FINANCIAL_REF
+```
+
+Isso **não** migra banco, faz merge ou deploy. Gera `dist/abacatepay-saas-<sha8>` e `dist/abacatepay-saas-release.json`. Exige manifesto igual ao do commit e blobs Git congelados disponíveis; falha se o diretório já existe. Nessa situação confira seu `saas-release-inputs.json`, sem sobrescrever/apagar automaticamente. Não depende do worktree/HEAD TISS nem de um pacote antigo. Verifique160 entradas sequenciais, timestamps e hashes do manifesto;0159 deve manter `eb00a4e3dd45f89e7eef4dc2c95c577e7932f1f2131d5bfb4ff8f5e4570f5c74`. O journal TISS original tem152 entradas e omite136–142 financeiras: não o copie diretamente para substituir o prefixo.
+
+No export finald10e40af os160 SQL/journal equivalem aos do Preview365b4287; o runtime `src` também é igual, excluindo testes. O [Preview SaaS](https://project-2476wgjht-clinic-os-v2-s-projects.vercel.app) passou build e26 verificações estritas. Ensaios de trial/cotas/invoice:51 sem TISS,52 com schema compartilhado/TISS desabilitado; DEV160 confirmado somente leitura. Não reaplicar0159 no DEV. Não gerar migrations do modelo parcial do pacote: estruturas TISS existentes ficam preservadas; novos DDL exigem coordenação do journal.
+
+**Janela futura, ainda não autorizada:** checks do SHA final; revisão da UI compartilhada/R51 (sem gate das117tarefas); riscosR1–R4/cohort/responsáveis tratados; cadastro fechado por novo deployment; backup/preflight/contratos/hashes; SQL aprovado antes do consumidor; deployment com aquisição desligada; endpoint/HMAC/segredo/inbox/Redis/cron/scanner/watch/closure comprovados; só então webhook ativo e piloto allowlist. Usar seletores existentes, sem criar nomes alternativos: `SAAS_SIGNUP_PROVIDER=abacatepay_production`, `ABACATEPAY_ENVIRONMENT=production`, catálogo/loja/segredo live específicos. `ABACATEPAY_NEW_CHECKOUTS_ENABLED=false` até autorização e `ABACATEPAY_CHECKOUT_CLINIC_IDS` somente com UUIDs aprovados. Alteração exige novo deployment; não cria efeito em deployments anteriores. Nenhuma dessas configurações foi alterada nesta rodada.
+
+**Contenção/rollback:** desligar novas aquisições e restringir allowlist, preservando consumers e ledger de obrigações pagas. Nunca desligar processamento financeiro apenas por fechar novas vendas. Reverter código somente para versão compatível com o schema; sem DOWN destrutivo, migração automática de contratos, reembolso ou cancelamento. Monitorar fila/idade/leases/revisão e entrega no canal já comprovado, sem novo probe desnecessário. A observação natural de13/12 permanece READ ONLY; não antecipar calendário ou criar pagamento para declarar renovação.
+
+O boot do registry/handlers agora ocorre dentro de `runRegisteredOutbox`; recovery/inbox/closure/watch ainda executam se esse boot falhar. O cron aguarda os jobs e depois propaga a falha: alerta/erro não é ocultado e heartbeat de sucesso não é emitido. Isso não resolve indisponibilidade do banco/schema essencial nem o R51 de UI.
 
 ## Incremento operacional de12/11 — contenção e escala
 

@@ -21771,5 +21771,176 @@
         "R4": false
       }
     }
+  },
+  "saasTissSeparation20261114": {
+    "observedAt": "2026-11-14T03:32:38.428Z",
+    "financialCodeHead": "d10e40af426e5320b282d7abf76c6f203600d718",
+    "reportSection": 57,
+    "sourceScope": "SaaS code only; frozen shared SQL, no operational TISS code or worktree dependency",
+    "export": {
+      "source": "d10e40af426e5320b282d7abf76c6f203600d718",
+      "sharedSqlSource": "4d0ed1d5c8a81ab9f66e026f4f36c6e4520a7269",
+      "journalEntries": 160,
+      "financialSqlSha256": "eb00a4e3dd45f89e7eef4dc2c95c577e7932f1f2131d5bfb4ff8f5e4570f5c74",
+      "sqlHashesAndJournalEqualToProvenPackage": true,
+      "productionSourceFilesCompared": 1016,
+      "productionSourceByteEqualToProvenPreview": true,
+      "tissOperationalCodeIncluded": false,
+      "tissWorktreeRequired": false,
+      "mergePerformed": false,
+      "evidenceSha256": "3d1be14e4f1a28c12f49c4ad2666202d7aa4d95835a26103140857f979a3f055"
+    },
+    "implemented": [
+      "isolate outbox handler/catalog boot from independent SaaS jobs without suppressing errors",
+      "two architecture boundary tests",
+      "export frozen shared SQL from Git without TISS code merge",
+      "compose partial TISS journal while preserving financial migrations 0136-0142",
+      "validated local-only port selector and explicit shared-schema regression"
+    ],
+    "quality": {
+      "fullLocalTests": {
+        "passed": 7183,
+        "files": 635,
+        "beforeSevenNewJournalTests": true,
+        "evidenceSha256": "d36b5bd1fe1e08cb9dfbf146ebcf3a313cc466a6f10a2ce0a0ec4b709737746f"
+      },
+      "finalFocusedTests": {
+        "passed": 70,
+        "files": 4,
+        "evidenceSha256": "dad233f90c9bfc98e08bda2387b2ed860cc90dce02ac53910b7f979a431de721"
+      },
+      "typecheck": {
+        "status": "PASS",
+        "evidenceSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "lint": {
+        "status": "PASS",
+        "evidenceSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "finalCI": "SEE_FINAL_PR53_SHA_CHECKS; not inherited from prior commits"
+    },
+    "standalonePostgres": {
+      "observedAt": "2026-11-14T02:59:08.075Z",
+      "status": "PASS",
+      "migrations": 143,
+      "passed": 51,
+      "networkCalls": 0,
+      "evidenceSha256": "418393ae7d051d98a2df894a5e2c8dc57ae00c378f4321dc6a9c7ebb2672cef6"
+    },
+    "sharedPostgres": {
+      "observedAt": "2026-11-14T03:13:58.091Z",
+      "status": "PASS",
+      "migrations": 160,
+      "passed": 52,
+      "networkCalls": 0,
+      "tissEnabledBeforeAndAfterPaidSaas": false,
+      "evidenceSha256": "40b5990fdf895d30c552619a7c94dd6eb7bc8b4dbc977fa5e3dcdb0f671affb7"
+    },
+    "devReadback": {
+      "observedAt": "2026-11-14T02:52:51.979Z",
+      "status": "PASS",
+      "transaction": "REPEATABLE READ READ ONLY",
+      "historyEntries": 160,
+      "exactFrozenHistoryMatch": true,
+      "financial159Hash": "eb00a4e3dd45f89e7eef4dc2c95c577e7932f1f2131d5bfb4ff8f5e4570f5c74",
+      "rlsTables": 22,
+      "functions": [
+        {
+          "name": "qoro_plan_includes",
+          "definition_sha256": "2a1afeaafda0d47a0743c8e0900210fb1930c3286f5dff71b4276be9b389f2c8",
+          "references_tiss_tables": false
+        },
+        {
+          "name": "qoro_premium_denial",
+          "definition_sha256": "494d13e1d66305e2c25ac0d1958afea6b087467f41a209419bff61f10a6f3c41",
+          "references_tiss_tables": false
+        },
+        {
+          "name": "qoro_premium_denial_for",
+          "definition_sha256": "0e6bf2e42f8ea976f8bf28737f96b9e9e2700a51458cd955c6e7373c2df66af0",
+          "references_tiss_tables": false
+        }
+      ],
+      "integrity": {
+        "cross_tenant_invoices": 0,
+        "duplicate_cycles": 0,
+        "enabled_tiss_dev_clinics": 3
+      },
+      "devWrites": 0,
+      "migrationsApplied": 0,
+      "evidenceSha256": "5b1b9fe1e8cc29bb8c5f10b7fa40282fd14137a2c66e01c810479b856161c484"
+    },
+    "preview": {
+      "observedAt": "2026-11-14T03:18:42.861Z",
+      "financialSource": "365b428733409fa385a9a3ff92d3cd0e2e988a01",
+      "deploymentId": "dpl_FZEfTTKGuYurXsxPFvbBEtfZ5LWJ",
+      "url": "https://project-2476wgjht-clinic-os-v2-s-projects.vercel.app",
+      "build": "READY",
+      "status": "PASS",
+      "assertions": 26,
+      "dashboardNavigations": 20,
+      "paidSubscriptionReads": 4,
+      "logoutGuards": 2,
+      "widths": [
+        1440,
+        390
+      ],
+      "timezones": [
+        "Asia/Tokyo",
+        "America/Sao_Paulo"
+      ],
+      "tissNavigationLinks": 0,
+      "providerMutations": 0,
+      "newFixtures": 0,
+      "newPayments": 0,
+      "evidenceSha256": "f364a4049dfa3c22cb7cec8545a4061ffc5aa8fb18007715fc17be217b91d02b"
+    },
+    "r51": {
+      "comparedFinancialSource": "97e2c3067ad35ce487a426d966949f7391c37870",
+      "tissSource": "30126efff8aec0aa8284fceb908e3e49e0a892da",
+      "sharedFilesCompared": 16,
+      "byteEqual": true,
+      "deterministicFixesFromOtherOwnerNotRepeated": true,
+      "rareVariantRootCause": "NOT_ESTABLISHED",
+      "isolatedToTiss": false,
+      "saasBrowserSamplePassed": true,
+      "globalFixProven": false,
+      "owner": "shared UI component owner; SaaS participation limited to shared essential routes",
+      "tiss117TasksAreBillingGate": false,
+      "r54IsBillingGate": false,
+      "evidenceSha256": "18b71e70a6be4caf32a8c9e857d40c1001dc09ad930d6abea928fad0b44d9980"
+    },
+    "financialExternalProofs": {
+      "initialFivePurchasesPreserved": true,
+      "early01Preserved": true,
+      "closure131ChecksPreserved": true,
+      "newPurchases": 0,
+      "renewalNatural": "PARTIAL; observer prepared, next official date 2026-12-13; not a guaranteed payment",
+      "liveClosure": "NOT_RUN"
+    },
+    "writes": {
+      "production": 0,
+      "sharedDev": 0,
+      "otherWorktrees": 0,
+      "migrationsApplied": 0,
+      "financialProviderMutations": 0
+    },
+    "riskAcceptance": {
+      "R1": false,
+      "R2": false,
+      "R3": false,
+      "R4": false
+    },
+    "technicalDecision": "DOMAIN_RELEASE_CANDIDATE_READY_SUBJECT_TO_FINAL_CHECKS; shared UI rollout review remains; no TISS feature-completion gate",
+    "productionDecision": "NO_GO_OPERATIONAL_AND_COMMERCIAL; no publication authorization",
+    "productionReadback": {
+      "observedAt": "2026-11-14T03:32:35.058Z",
+      "id": "dpl_2gHasgxKuWkFY8ct1w56VLeHDhQP",
+      "target": "production",
+      "readyState": "READY",
+      "sha": "5620a0987ec53db7d7358728eb7d457d9d373df3",
+      "branch": "main",
+      "productionWrites": 0
+    }
   }
 }
