@@ -388,15 +388,20 @@ test('recepção: muda um atendimento PARTICULAR para CONVÊNIO pela agenda e vo
   await s.page.locator('#appointment-doctor').selectOption({ label: 'Dra. Sintética Configuração' });
   const done = s.page.getByText('Atendimento agendado').first();
   const clash = s.page.getByText('Já existe um atendimento nesse horário para este profissional.').first();
-  let when = slotFor(13);
+  // Regra do produto: um atendimento ativo por paciente e profissional no dia. O de convênio do
+  // passo anterior está em slotFor(0); este vai para OUTRO dia.
+  const sameDay = s.page.getByText('já tem um atendimento ativo com este profissional neste dia').first();
+  const taken = new Set([slotFor(0).date]);
+  const candidates = Array.from({ length: 40 }, (_, i) => slotFor(13 + i)).filter((c) => !taken.has(c.date));
+  let when = candidates[0]!;
   for (let attempt = 0; ; attempt += 1) {
-    when = slotFor(13 + attempt);
+    when = candidates[attempt]!;
     await s.page.locator('#appointment-date').fill(when.date);
     await s.page.locator('#appointment-time').fill(when.time);
     const answered = s.page.waitForResponse((r) => r.request().method() === 'POST' && r.request().headers()['next-action'] !== undefined, { timeout: 60_000 });
     await s.page.getByRole('button', { name: 'Agendar', exact: true }).click();
     await answered;
-    await expect(done.or(clash).first()).toBeVisible({ timeout: 30_000 });
+    await expect(done.or(clash).or(sameDay).first()).toBeVisible({ timeout: 30_000 });
     if (await done.isVisible().catch(() => false)) break;
     await s.page.waitForTimeout(1_500);
     if (await done.isVisible().catch(() => false)) break;

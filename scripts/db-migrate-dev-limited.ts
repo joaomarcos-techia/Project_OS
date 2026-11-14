@@ -73,6 +73,16 @@ async function main(): Promise<void> {
     entries: JournalEntry[];
   };
   const byWhen = new Map(journal.entries.map((e) => [String(e.when), e.tag]));
+  // A 0159 do #53 está aplicada no DEV fora do journal desta branch (coordenacao-migrations §11-12).
+  // Só é aceita como ponto de partida se o `created_at` E o nome informados baterem, explicitamente.
+  const external = arg('expect-from-external');
+  if (external) {
+    const m = /^(\d{13}):(\d{4}_[a-z0-9_]+)$/u.exec(external);
+    if (!m) throw new Error('--expect-from-external precisa de <when>:<tag>');
+    if (m[2] !== expectFrom) throw new Error('--expect-from-external deve nomear a mesma --expect-from');
+    if (byWhen.has(m[1]!)) throw new Error('--expect-from-external aponta para uma migration que está no journal');
+    byWhen.set(m[1]!, m[2]!);
+  }
 
   const sql = postgres(databaseUrl, {
     max: 1,

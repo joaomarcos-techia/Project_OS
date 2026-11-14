@@ -1,6 +1,14 @@
 /**
- * R38 — regressão financeira DIFERENCIAL da 0155 em Postgres DESCARTÁVEL (cadeia na ordem do
- * DEV: main → #53 0136–0142 → #55 0143–0154). Nunca no DEV compartilhado; só dados sintéticos.
+ * R38 — regressão financeira DIFERENCIAL da 0155 em Postgres DESCARTÁVEL (cadeia COMPLETA na ordem
+ * do DEV: main → #53 0136–0142 → #55 0143+, com a 0159 do #53). Nunca no DEV compartilhado; só
+ * dados sintéticos.
+ *
+ * R55 (14/11): até aqui a cadeia parava na 0154 para ter a função "antes", mas o roteiro roda o
+ * código ATUAL do app, que desde a 0156 grava colunas novas (`sadt_request_item_id` na cobertura) — o
+ * harness quebrou ali, sem relação com o livro. A 0155 só troca o CORPO de
+ * `validate_payment_transaction_insert()` (nenhuma migration posterior a redefine): agora o esquema é o
+ * completo e a diferença entre V0 e V1 é só esse corpo, reinstalado como a 0153 o deixou (V0) e como
+ * a 0155 o define (V1), pelos arquivos reais — a mesma técnica do `hi-r38-ledger-trigger-bench.ts`.
  *
  * O mesmo roteiro roda duas vezes, em clínicas novas: com a função atual (V0) e depois de
  * aplicar a 0155 pelo arquivo real (V1). A transcrição de cada operação (aceita ou o motivo
@@ -22,15 +30,22 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
-import { readDevOrderChain } from './dev-order-chain';
+import { functionText, readDevOrderChain } from './dev-order-chain';
 import { startScratchSchema } from './scratch-schema';
 
 const chain = await readDevOrderChain();
 const i0155 = chain.findIndex((m) => m.file.startsWith('0155_'));
 assert.ok(i0155 > 0, '0155 ausente da cadeia');
 const m0155 = readFileSync('drizzle/migrations/0155_ledger_payment_sum_by_clinic.sql', 'utf8');
+const fn0153 = functionText(chain.find((m) => m.file.startsWith('0153_'))!.body, 'validate_payment_transaction_insert');
+const fn0155 = functionText(m0155, 'validate_payment_transaction_insert');
+const REVOKE = 'REVOKE ALL ON FUNCTION public.validate_payment_transaction_insert() FROM PUBLIC, anon, authenticated';
+assert.ok(
+  !chain.slice(i0155 + 1).some((m) => m.body.includes('FUNCTION public.validate_payment_transaction_insert()')),
+  'nenhuma migration depois da 0155 redefine a função (senão V1 não seria a 0155)',
+);
 
-const cluster = await startScratchSchema({ port: 55521, maxConnections: 24, migrations: chain.slice(0, i0155) });
+const cluster = await startScratchSchema({ port: 55521, maxConnections: 24, migrations: chain });
 const { sql } = cluster;
 if (!/@(?:127\.0\.0\.1|localhost):55521\//u.test(cluster.url)) throw new Error('não é o cluster local');
 process.env.DATABASE_URL = cluster.url;
@@ -299,9 +314,14 @@ try {
   await sql`insert into public.tiss_terms (version_id, table_code, code, term, starts_on)
     select id, '22', '10101039', 'Consulta em pronto socorro', '2010-01-01' from public.tiss_terminology_versions where version = '202609'`;
 
+  // V0: o corpo como a 0153 o deixou (antes da 0155), no esquema completo.
+  await sql.unsafe(fn0153);
+  await sql.unsafe(REVOKE);
   const before = await runScenario('v0');
   const [fn0] = await sql`select md5(prosrc) as h from pg_proc where proname = 'validate_payment_transaction_insert'`;
-  await sql.unsafe(m0155);
+  // V1: o corpo da 0155, pelo arquivo real.
+  await sql.unsafe(fn0155);
+  await sql.unsafe(REVOKE);
   const [fn1] = await sql`select md5(prosrc) as h, prosrc from pg_proc where proname = 'validate_payment_transaction_insert'`;
   assert.notEqual(fn0!.h, fn1!.h, 'a 0155 trocou o corpo da função');
   assert.match(String(fn1!.prosrc), /WHERE clinic_id = NEW\.clinic_id\s+AND lancamento_id = NEW\.lancamento_id\s+AND kind = 'payment'/u);

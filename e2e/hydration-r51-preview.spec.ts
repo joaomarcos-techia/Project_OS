@@ -93,6 +93,32 @@ async function skewedPage(
     (globalThis as unknown as { Date: DateConstructor }).Date =
       SkewedDate as unknown as DateConstructor;
   }, SKEW_MS);
+  await context.addInitScript(() => {
+    const w = window as unknown as { __r51?: unknown[] };
+    w.__r51 = [];
+    const snap = (kind: string, message: string, stack: string | undefined) => {
+      const ids = (sel: string) =>
+        Array.from(document.querySelectorAll(sel))
+          .map((el) => el.id)
+          .slice(0, 40);
+      w.__r51!.push({
+        kind,
+        message: message.slice(0, 300),
+        stack: (stack ?? '').split('\n').slice(0, 12).join('\n'),
+        readyState: document.readyState,
+        sinceNavigationMs: Math.round(performance.now()),
+        // Segmentos do streaming ainda escondidos e placeholders sem conteúdo: o $RS do React
+        // procura estes pares por id; um órfão aqui é a assinatura da classe "parentNode".
+        pendingSegments: ids('div[hidden][id^="S:"]'),
+        suspensePlaceholders: ids('template[id^="B:"], template[id^="P:"]'),
+        scriptsInBody: document.body ? document.body.querySelectorAll('script').length : 0,
+      });
+    };
+    window.addEventListener('error', (e) => snap('error', String(e.message), e.error?.stack));
+    window.addEventListener('unhandledrejection', (e) =>
+      snap('rejection', String((e.reason as Error)?.message ?? e.reason), (e.reason as Error)?.stack),
+    );
+  });
   const page = await context.newPage();
   const errors: string[] = [];
   page.on('pageerror', (e) =>
@@ -146,6 +172,7 @@ async function sweep(
             environment: 'preview (DEV)',
             errors: s.errors.slice(before),
             consoleErrors: [...consoleErrors],
+            probe: await s.page.evaluate(() => (window as unknown as { __r51?: unknown[] }).__r51 ?? []),
           },
           null,
           1,
@@ -250,5 +277,46 @@ test('recepção: painel, agenda, caixa e conciliação, relógio adiantado e ou
     ...(await sweep(browser, 'cfg-recepcao', ['/caixa', '/agenda'], MOBILE)),
   ];
   console.log('R51 recepção: ' + JSON.stringify(errors));
+  expect(errors).toEqual([]);
+});
+
+test('estresse (R51): dashboard e conciliação recarregados com rede lenta e cache quente — sem #418', async ({
+  browser,
+}) => {
+  test.setTimeout(600_000);
+  const s = await skewedPage(browser, 'cfg-gestor');
+  const cdp = await s.context.newCDPSession(s.page);
+  await cdp.send('Network.enable');
+  const routes = ['/dashboard', '/convenios/conciliacao', '/dashboard', '/convenios/atendimentos'];
+  const errors: string[] = [];
+  const probes: unknown[] = [];
+  for (const [label, conditions] of [
+    ['rede lenta', { offline: false, latency: 250, downloadThroughput: 60_000, uploadThroughput: 30_000 }],
+    ['cache quente', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 }],
+  ] as const) {
+    await cdp.send('Network.emulateNetworkConditions', conditions);
+    for (let round = 0; round < 4; round++) {
+      for (const route of routes) {
+        const before = s.errors.length;
+        const res = await s.page.goto(route, { waitUntil: 'load', timeout: 120_000 });
+        expect(res?.status(), route).toBe(200);
+        await s.page.waitForTimeout(2_000);
+        if (s.errors.length > before) {
+          errors.push(...s.errors.slice(before).map((e) => `[${label}] ${e}`));
+          probes.push(await s.page.evaluate(() => (window as unknown as { __r51?: unknown[] }).__r51 ?? []));
+          await test.info().attach(`r51-estresse-${label.replace(/\W+/gu, '_')}-${route.replace(/\W+/gu, '_')}.html`, {
+            body: await s.page.content(),
+            contentType: 'text/html',
+          });
+        }
+      }
+    }
+  }
+  await test.info().attach('r51-estresse-sonda.json', {
+    contentType: 'application/json',
+    body: JSON.stringify({ errors, probes, loads: 2 * 4 * routes.length }, null, 1),
+  });
+  await s.context.close();
+  console.log(`R51 estresse: ${2 * 4 * routes.length} cargas; erros: ${JSON.stringify(errors)}`);
   expect(errors).toEqual([]);
 });

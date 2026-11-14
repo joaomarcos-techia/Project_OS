@@ -233,6 +233,31 @@ try {
   assert.equal(await files(b6.batchId), 0);
   pass('assinatura suspensa depois do pedido: bloqueio comercial (premium_denied), nenhum arquivo, lote preparado');
 
+  // ── 8a. P6: quem pediu foi desativado / excluído; clínica voltou a trial ──
+  // A leitura administrativa só responde sim/não para (pessoa, clínica, permissão), com
+  // `ativo` e `deleted_at` da view efetiva: pessoa desativada ou excluída depois do pedido
+  // não tem a permissão na execução.
+  for (const [label, off, on] of [
+    ['desativada', sql`update public.profiles set ativo = false where id = ${gA}::uuid`, sql`update public.profiles set ativo = true where id = ${gA}::uuid`],
+    ['excluída', sql`update public.profiles set deleted_at = now() where id = ${gA}::uuid`, sql`update public.profiles set deleted_at = null where id = ${gA}::uuid`],
+  ] as const) {
+    const bx = await newBatch(A);
+    await request(A, bx, gA);
+    await off;
+    await drain();
+    await on;
+    const row = await outboxRow(bx);
+    assert.deepEqual([row!.status, row!.error_code, await files(bx.batchId)], ['failed', 'access_permission_revoked', 0], label);
+  }
+  const bt = await newBatch(A);
+  await request(A, bt, gA);
+  await sql`update public.subscriptions set billing_status = 'trial' where clinic_id = ${A.clinicId}::uuid`;
+  await drain();
+  await sql`update public.subscriptions set billing_status = 'active' where clinic_id = ${A.clinicId}::uuid`;
+  const trialRow = await outboxRow(bt);
+  assert.deepEqual([trialRow!.status, trialRow!.error_code, await files(bt.batchId)], ['failed', 'premium_denied', 0]);
+  pass('P6: pessoa desativada ou excluída depois do pedido → negada na execução (access_permission_revoked); clínica de volta ao trial → bloqueio comercial (premium_denied); nenhum arquivo');
+
   // ── 8b. Worker interrompido no meio do job ─────────────────────────
   const b7 = await newBatch(A);
   await request(A, b7, gA);

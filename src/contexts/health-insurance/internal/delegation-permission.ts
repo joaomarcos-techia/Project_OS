@@ -8,8 +8,9 @@
  * usuário, uma clínica, uma permissão do catálogo, resposta booleana. Nada é escrito e
  * nenhum dado sai além do sim/não.
  *
- * Único ponto do contexto de convênios com `dbAdmin` (allowlist do ESLint e do
- * arch-db-check).
+ * Um dos dois pontos do contexto de convênios com `dbAdmin` (o outro é a varredura do
+ * cron em `billing-gap-candidates.ts`), ambos na allowlist do ESLint e do arch-db-check.
+ * Auditoria completa: docs/convenios/auditoria-leituras-privilegiadas.md (P6).
  */
 import 'server-only';
 

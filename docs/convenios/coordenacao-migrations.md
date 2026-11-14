@@ -191,7 +191,7 @@ existir, por consulta dinâmica: aplica sozinha na cadeia do #55 e, na ordem do 
   ciclo: as telas de configuração, o R45 e a coparticipação usaram o schema já aplicado.
 - O journal do #55 continua sem a 0159 (ela vive no pacote do #53); a composição para produção segue o manifesto do #53.
 
-## 12. 14/11: 0160 (R54, estorno feito direto no Asaas) — candidata, ainda não aplicada no DEV
+## 12. 14/11: 0160 (R54, estorno feito direto no Asaas) — APLICADA no DEV
 
 - **O quê:** `0160_patient_external_refunds` acrescenta o valor `external_refund` ao enum
   `patient_credit_adjustment_kind`, a coluna `patient_charges.refund_checked_at` (cursor da varredura, com índice
@@ -210,3 +210,20 @@ existir, por consulta dinâmica: aplica sozinha na cadeia do #55 e, na ordem do 
   critério do gate do #53 (idx contíguo, prefixo = posição, `when` crescente) e falha se a 0159 faltar.
   `dev-order-chain.ts` compõe a 0159 com os bytes aplicados (sha256 conferido, commit `97e2c306` do #53) quando a branch
   tem 0160+. O harness do R54 roda sobre essa cadeia.
+
+- **Aplicação no DEV (14/11, 04:26 UTC):**
+  - Pré-voo só leitura 5/5: 160 linhas, última a 0159 com o sha256 aplicado, 0160 ausente, sem transação longa nem
+    lock em `patient_charges`.
+  - Backup: `pg_dump` da estrutura (public, drizzle), dos dados de `patient_charges`,
+    `patient_credit_adjustments` e `payment_transactions` e do ledger, com sha256 no manifesto, guardado fora do
+    repositório. A listagem do backup gerenciado pela API do Supabase respondeu 401 (token local inválido), por
+    isso a verificação foi por restauração.
+  - Ensaio `payments-0160-restore-rehearsal.ts` 4/4: o dump restaura com o mesmo md5 do pré-voo; a 0160 aplica
+    sobre esses dados sem tocá-los; segunda execução idempotente; a reversão documentada desfaz.
+  - Coordenação: comentário no #53 com a regra de composição.
+  - Aplicador guardado `db-migrate-dev-limited.ts`, com a opção explícita `--expect-from-external` para partir da
+    0159 fora do journal: ensaio seco (1 pendente) e aplicação em 4,2 s, lock_timeout 2 s, zero sessões esperando
+    lock.
+  - Pós-voo 7/7: 161 linhas, última a 0160 com o sha256 do arquivo, penúltima a 0159 do #53; RLS forçada, 2
+    políticas, `authenticated` só SELECT/INSERT; dados intocados.
+  - Evidência: `evidence/tiss-ciclo-2026-11-14-estorno-modalidade-importacao/`.
