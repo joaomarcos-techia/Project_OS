@@ -6,7 +6,10 @@ import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { z } from 'zod';
-import { readReviewedCheckoutMigrations } from '../abacatepay-checkout-session';
+import {
+  composeFrozenSaasJournal,
+  readReviewedCheckoutMigrations,
+} from '../abacatepay-checkout-session';
 
 const financial = z
   .string()
@@ -59,14 +62,7 @@ const baseJournal = journalSchema.parse(
 const sharedJournal = journalSchema.parse(
   JSON.parse(git('show', `${manifest.tissHead}:drizzle/migrations/meta/_journal.json`)),
 );
-assert.equal(baseJournal.entries.length, 143);
-assert.equal(sharedJournal.entries.length, 159);
-assert.deepEqual(
-  sharedJournal.entries.slice(0, 143),
-  baseJournal.entries,
-  'Shared migration prefix changed',
-);
-const journal = { ...baseJournal, entries: [...sharedJournal.entries, manifest.financialEntry] };
+const journal = composeFrozenSaasJournal(baseJournal, sharedJournal, manifest.financialEntry);
 const reviewed = await readReviewedCheckoutMigrations();
 const relative = `dist/abacatepay-saas-${financial.slice(0, 8)}`;
 const directory = path.resolve(relative);

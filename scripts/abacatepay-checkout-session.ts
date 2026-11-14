@@ -26,6 +26,55 @@ const migrationEntry = z.object({
 });
 export type CheckoutRequiredMigration = z.infer<typeof migrationEntry>;
 
+const releaseJournalEntry = z.object({
+  idx: z.number().int().nonnegative(),
+  version: z.literal('7'),
+  breakpoints: z.boolean(),
+  when: z.number().int().positive(),
+  tag: migrationEntry.shape.tag,
+});
+const releaseJournal = z.object({
+  version: z.literal('7'),
+  dialect: z.literal('postgresql'),
+  entries: z.array(releaseJournalEntry),
+});
+
+/** Merge the frozen SQL histories, not the independently developed module code. */
+export function composeFrozenSaasJournal(
+  baseInput: unknown,
+  sharedInput: unknown,
+  successorInput: unknown,
+) {
+  const base = releaseJournal.parse(baseInput);
+  const shared = releaseJournal.parse(sharedInput);
+  const successor = releaseJournalEntry
+    .extend({ idx: z.literal(159), tag: z.literal('0159_saas_period_snapshot') })
+    .parse(successorInput);
+  if (
+    base.entries.length !== CHECKOUT_BASELINE_MIGRATIONS ||
+    base.entries.some((entry, index) => entry.idx !== index)
+  )
+    throw new Error('Financial migration prefix changed');
+  if (new Set(shared.entries.map((entry) => entry.idx)).size !== shared.entries.length)
+    throw new Error('Duplicate shared migration index');
+  for (const entry of shared.entries.filter((item) => item.idx < CHECKOUT_BASELINE_MIGRATIONS)) {
+    if (JSON.stringify(entry) !== JSON.stringify(base.entries[entry.idx]))
+      throw new Error('Shared migration prefix changed');
+  }
+  // The TISS branch can omit the seven financial entries136–142. Its array
+  // length is not its final index; retain the financial prefix unchanged.
+  const additions = shared.entries.filter((entry) => entry.idx >= CHECKOUT_BASELINE_MIGRATIONS);
+  if (
+    additions.length !== successor.idx - CHECKOUT_BASELINE_MIGRATIONS ||
+    additions.some((entry, index) => entry.idx !== CHECKOUT_BASELINE_MIGRATIONS + index)
+  )
+    throw new Error('Frozen shared migration tail changed');
+  const entries = [...base.entries, ...additions, successor];
+  if (entries.some((entry, index) => index > 0 && entry.when <= entries[index - 1]!.when))
+    throw new Error('Frozen migration timestamps changed');
+  return { ...base, entries };
+}
+
 export async function readCheckoutRequiredMigrations(): Promise<CheckoutRequiredMigration[]> {
   const journal = z
     .object({
