@@ -11,7 +11,12 @@ import { loadTissProofInputs } from './abacatepay-tiss-input';
 const tissProof = process.env.QORO_TISS_REF ? await loadTissProofInputs() : null;
 // Windows/WSL may reserve the default port. Override only this loopback proof;
 // never change system exclusions or point the harness at a shared database.
-const { values } = parseArgs({ options: { port: { type: 'string', default: '55491' } } });
+const { values } = parseArgs({
+  options: {
+    port: { type: 'string', default: '55491' },
+    'shared-schema': { type: 'boolean', default: false },
+  },
+});
 const port = z.coerce.number().int().min(1024).max(65535).parse(values.port);
 const cluster = await startScratchSchema({ port });
 assert.equal(new URL(cluster.url).hostname, '127.0.0.1');
@@ -109,7 +114,7 @@ try {
   await sql`GRANT SELECT(id,status) ON public.clinics TO authenticated`;
   // Activate only local catalogue entries, as the current DEV offer does.
   await sql`UPDATE public.plans SET ativo=true WHERE code IN ('consultorio_2026','clinica_2026_2')`;
-  if (!tissProof) {
+  if (!tissProof && !values['shared-schema']) {
     await check(
       'standalone SaaS does not require TISS tables or its shared commercial function',
       async () => {
@@ -117,6 +122,20 @@ try {
         to_regclass('public.hi_clinic_settings') IS NULL no_settings,
         to_regprocedure('public.qoro_premium_denial(uuid,text)') IS NULL no_tiss_gate`;
         assert.deepEqual(schema, { no_guides: true, no_settings: true, no_tiss_gate: true });
+      },
+    );
+  }
+  if (values['shared-schema']) {
+    await check(
+      'SaaS-only runtime accepts the shared TISS schema while its operations stay disabled',
+      async () => {
+        const [schema] = await sql`SELECT to_regclass('public.hi_guides') IS NOT NULL guides,
+        to_regclass('public.hi_clinic_settings') IS NOT NULL settings,
+        to_regprocedure('public.qoro_premium_denial(uuid,text)') IS NOT NULL shared_gate`;
+        assert.deepEqual(schema, { guides: true, settings: true, shared_gate: true });
+        const [flags] =
+          await sql`SELECT count(*)::int enabled FROM public.hi_clinic_settings WHERE enabled`;
+        assert.equal(flags?.enabled, 0);
       },
     );
   }
@@ -1219,6 +1238,16 @@ try {
       assert.deepEqual(state, { released: true, invoices: 1 });
     },
   );
+  if (values['shared-schema']) {
+    await check(
+      'confirmed SaaS payments never enable TISS operations in the shared schema',
+      async () => {
+        const [flags] =
+          await sql`SELECT count(*)::int enabled FROM public.hi_clinic_settings WHERE enabled`;
+        assert.equal(flags?.enabled, 0);
+      },
+    );
+  }
 } catch (error) {
   failure = error;
 } finally {
