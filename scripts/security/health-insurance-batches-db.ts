@@ -323,13 +323,32 @@ try {
   // ── 3. 100 guias e o limite ─────────────────────────────────────────
   const hundred: string[] = [];
   for (let i = 0; i < 101; i++) hundred.push(await A.approvedGuide());
-  await rejects('23514', () => create(A, hundred), /de 1 a 100/u);
+  // P2.5: o serviço recusa antes (teto do padrão e da regra da operadora, código MAX_GUIDES);
+  // a função do banco continua recusando acima de 100 quando chamada direto (defesa em profundidade).
+  await rejects('MAX_GUIDES', () => create(A, hundred), /no máximo 100/u);
+  await rejects(
+    '23514',
+    () =>
+      withTenant(
+        A.clinicId,
+        (tx) =>
+          tx.execute(
+            sqlTag`SELECT public.hi_batch_create(${A.clinicId}::uuid, ${A.ins1}::uuid, 'consulta',
+              ARRAY[${sqlTag.join(
+                hundred.map((id) => sqlTag`${id}::uuid`),
+                sqlTag`, `,
+              )}]::uuid[], ${randomUUID()}, NULL::uuid)`,
+          ),
+        A.doctorId,
+      ),
+    /de 1 a 100/u,
+  );
   const t0 = Date.now();
   const b100 = await create(A, hundred.slice(0, 100));
   await exportIt(A, b100);
   const r100 = await batchRow(b100);
   assert.deepEqual([r100.status, r100.guide_count, Number(r100.total_value_cents)], ['exported', 100, 1500000]);
-  pass(`lote com 100 guias exportado e válido no XSD (${Date.now() - t0} ms do lote ao arquivo); 101 guias recusado pelo banco`);
+  pass(`lote com 100 guias exportado e válido no XSD (${Date.now() - t0} ms do lote ao arquivo); 101 guias recusado pelo serviço (MAX_GUIDES) e pela função do banco chamada direto`);
 
   // ── 4. Misturas e duplicadas ────────────────────────────────────────
   const gOther = await A.approvedGuide(A.ins2);
