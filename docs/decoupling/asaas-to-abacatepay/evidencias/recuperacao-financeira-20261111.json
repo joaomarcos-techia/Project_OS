@@ -24066,5 +24066,42 @@
       "budgetChanges": 0,
       "otherWorktreeWrites": 0
     }
+  },
+  "releaseInventoryFollowup20261114": {
+    "observedAt": "2026-11-14T21:09:36.805Z",
+    "failedHead": "21e7e5871a794c27b01336bf39e91d0a2c5a9da7",
+    "runId": 43638406953,
+    "cause": "Generated security inventory omitted six environment references from the new operator scripts",
+    "unitAndCoverageStep": "PASS",
+    "buildAndE2E": "NOT RUN in this failed attempt",
+    "generator": "Existing scripts/security/inventory.ts --write; no scanner, guard, allowlist or workflow changes",
+    "reviewedDelta": {
+      "environmentReferencesBefore": 537,
+      "environmentReferencesAfter": 543,
+      "addedReferences": 6,
+      "actionsChanged": 0,
+      "routeMethodsChanged": 0,
+      "publicEnvironmentNamesChanged": 0
+    },
+    "generation": {
+      "actions": 200,
+      "routeMethods": 66,
+      "props": 19,
+      "processEnv": 543,
+      "nextPublic": 10,
+      "unresolved": [],
+      "publicEnv": {
+        "unregistered": [],
+        "stale": [],
+        "restricted": []
+      },
+      "routeTests": {
+        "missingForNew": [],
+        "regressed": []
+      }
+    },
+    "finalHeadCI": "Required on subsequent documentation commit; see final PR53 checkpoint",
+    "productionWrites": 0,
+    "providerCalls": 0
   }
 }

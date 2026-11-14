@@ -1490,6 +1490,8 @@ Verificação local14414498,justificada pelo bloqueio do runner: **7190 testes/6
 
 ## 59. Actions recuperado e fechamento136→160 —14/11/2026
 
+**Follow-up da CI:** o primeiro commit novo21e7e587 teve testes/cobertura PASS, mas o run43638406953 reprovou o inventário gerado desatualizado. Regenerado pelo comando existente `scripts/security/inventory.ts --write`; revisar somente novas referências de ambiente do preflight/harness. Zero superfície sem guard/variável pública sem registro/regressão de teste de rota no diagnóstico. Scanner, regras, allowlists e CI permanecem intactos. Build/E2E desse run foram interrompidos e não contam como PASS. O novo SHA precisa de execução completa; resultado nos checks e checkpoint final do PR53.
+
 - **CI oficial:** f94248ef, tentativa2 de43589401561,7.190 testes/636 arquivos e22 E2E sem SKIP; advisory43589401548 SUCCESS. Titular confirmou franquia incluída; plano/billing não são acessíveis aos escopos da CLI. Sem compra, orçamento ou workflow alterado.
 - **Lacuna corrigida no procedimento:** o migrator genérico não confere todo o prefixo aplicado. Novo preflight específico, somente leitura, valida Git/journal/SQL/hashes conhecidos e objetos críticos. Não altera o runner compartilhado nem repara histórico. Ainda exige janela exclusiva e reconferência se o alvo mudar.
 - **Ensaio isolado:** SQL real0–135 e cinco legados sintéticos; Drizzle aplicou24 entradas0136–0159, chegou a160, preservou todos os campos anteriores dos contratos e catálogo, segunda aplicação no-op.16 verificações PASS, incluindo arquivos/histórico inválidos, rollback por schema/dependência incompatível, RLS, triggers e último titular. Não é restore de backup real ou ensaio do Auth gerenciado.
