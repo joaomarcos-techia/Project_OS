@@ -6,6 +6,8 @@ Atualizado em **14/11/2026**, horário operacional **America/Sao_Paulo**. Docume
 
 **Recomendação: GO CONDICIONAL PARA DEPLOY FECHADO**, sujeito aos pontos de parada da seção F, sem autorização de execução. Não foi identificado defeito determinístico de billing que exija novo desenvolvimento antes dessa fase. Não é GO de consumidor live, aquisição, piloto ou expansão. Se os pré-requisitos não forem cumpridos, a execução continua NO-GO.
 
+**Condição operacional ainda não cumprida:** a CI do fechamento documental14414498 não iniciou nenhum step. O GitHub recusou o runner por problema de pagamento da conta ou limite de gastos. O check aparece FAILURE, mas a classificação técnica é **BLOCKED_AMBIENTE**, sem resultado de testes nessa execução. A CI7190/22 da baseline permanece válida para seu SHA; não substitui o check remoto final. Não houve alteração de orçamento, pagamento, runner, workflow ou proteção de branch para contornar esse gate.
+
 O runtime financeiro está congelado em **7208d5059aaaea502a153cff627856418dc45e6c**. Alterações desta rodada são documentação/evidências; nenhuma funcionalidade, preço, política, dependência ou configuração foi alterada. O SHA documental final e sua CI devem ser conferidos nos [checks do PR53](https://github.com/joaomarcos-techia/Project_OS/pull/53/checks); a CI anterior não se atribui a código posterior por inferência.
 
 Vocabulário operacional: **aquisição** é permitir uma nova contratação; **consumidores** são os serviços que recebem e conciliam eventos de pagamentos existentes; **closure** é impedir novo pagamento pelo checkout já utilizado; **entitlements** são os direitos e limites do plano. Fechar aquisição não significa desligar esses serviços nem revogar acesso já pago.
@@ -35,6 +37,12 @@ Decisões humanas restantes: aceitar/rejeitar R1–R4 individualmente; escolher 
 | Production,14/11 10:35UTC                                                                          | Mesmo deployment `dpl_2gHasgxKuWkFY8ct1w56VLeHDhQP`,main5620a098;catálogo live5/5 por GET                                                                           | Nenhum deploy/configuração/migration/contrato Production alterado                                          |
 
 Trilha detalhada: [evidência canônica](evidencias/recuperacao-financeira-20261111.json), chaves `earlyPaymentAndHydration20261113`, `finalConsolidation20261113`, `saasTissSeparation20261114` e `releaseCandidateClosure20261114`; [checkpoint7208d505](https://github.com/joaomarcos-techia/Project_OS/pull/53#issuecomment-6871381413). A tentativa inicial de observação14/11 falhou como `unavailable`; reteste com CA do Windows passou. A primeira chamada do ensaio161 ocorreu antes de terminar a cópia, não iniciou o banco e não conta como PASS; a execução completa posterior passou52.
+
+### Restrição externa de execução da CI
+
+A tentativa de [CI43588496105](https://github.com/joaomarcos-techia/Project_OS/actions/runs/43588496105),SHA14414498,foi recusada antes de iniciar o runner. O advisory43588496058 teve a mesma causa,ambos com zero steps. A anotação do GitHub aponta falha de pagamento ou limite de gastos; a causa financeira específica exige o titular,não foi inferida. Não repetir execuções enquanto a restrição persistir. Procedimento manual no início do runbook.
+
+Para reduzir a lacuna sem alterar o workflow, a verificação local do **14414498** executou novamente **7.190 testes/636 arquivos, zero SKIP**, TypeScript, lint, inventário de segurança e drift de observabilidade: **PASS**. Build Vercel, Semgrep e Snyk desse SHA: **SUCCESS**. E2E22 e as26 verificações anteriores de Preview foram preservados por identidade de fonte, não reexecutados nem atribuídos à CI bloqueada. O diff confirmou código/scripts/SQL/dependências/configuração idênticos a7208d505; a nova exportação tem os mesmos160 hashes SQL. Não se dispensa o gate remoto final por essa equivalência.
 
 ### Identificadores de EARLY-01 — sintéticos, não pagar novamente
 
@@ -207,7 +215,7 @@ Não enviar APIkey,senha,OTP,cartão ou dado de paciente. Risco pode ser rejeita
 
 1. **Desenvolvimento SaaS restante:**nenhum novo recurso ou correção determinística identificado nesta revisão;runtime congelado. Mudança futura apenas por defeito comprovado ou contrato compartilhado alterado.
 2. **Pronto sem prova externa suficiente:**closure automática live,renovação natural,mudanças de cota em renovação,negativos financeiros reais e capacidade do alvo. Controle/fixtures não substituem essa prova.
-3. **Deploy fechado:**não há impedimento determinístico novo de billing identificado. Exige autorização,preflight/backup/schema coerentes e desarme explícito dos consumers em B1;sem isso NO-GO. R51 permanece revisão compartilhada,sem reprodução crítica no billing da amostra e sem proclamar correção global.
+3. **Deploy fechado:**não há defeito determinístico novo de billing identificado. Há bloqueio de ambiente:GitHub Actions recusou o runner por billing/limite;seus checks finais ainda precisam executar e passar. Depois exige autorização,preflight/backup/schema coerentes e desarme explícito dos consumers em B1;sem isso NO-GO. R51 continua revisão compartilhada,sem reprodução crítica no billing da amostra e sem proclamar correção global.
 4. **Piloto financeiro:**sem aceiteR1–R4,clínica consentida,responsáveis,controle de aquisição,consumidores/endpoint/webhook/cron/Redis e alertas comprovados,não avançar. R51 que atingir navegação comercial crítica também interrompe o release.
 5. **Decisões agora:**formulário da seção G. Nenhum pagamento Sandbox/instalação/contratação adicional é solicitado.
 6. **Primeira ação após GO:**reconferir SHA/checks/target/obrigações e gerar/verificar backup cifrado no destino aprovado **se isso constar do escopo autorizado**;registrar preflight. Primeiro ponto de parada é antes de qualquer ajuste de env,DDL ou deployment se os pré-requisitos divergirem. Só ultrapassar cada parada com o GO correspondente;nenhuma janela foi iniciada nesta rodada.

@@ -6,6 +6,17 @@
 
 Esta sequência prevalece sobre comandos e decisões históricas abaixo. Os nomes dos responsáveis e a clínica continuam **A DEFINIR PELO RESPONSÁVEL**. Cada autorização deve registrar SHA, ambiente, escopo, data/hora America/Sao_Paulo e responsável disponível. Nenhuma fase avança automaticamente.
 
+### Pendência do titular — GitHub Actions bloqueado antes do runner
+
+**Objetivo:** liberar a execução dos checks remotos obrigatórios. O run43588496105,14414498,terminou FAILURE com zero steps; o advisory teve a mesma causa. A anotação aponta pagamento da conta ou limite de gastos,não erro de teste. Nenhum orçamento ou plano foi alterado pela engenharia.
+
+1. Entre no GitHub com a conta proprietária `joaomarcos-techia`;abra [Settings → Billing and licensing](https://github.com/settings/billing). Apenas consultar não autoriza compra.
+2. Confira avisos de pagamento/conta bloqueada e o uso/orçamento de GitHub Actions. Não presuma que precise aumentar o limite:identifique primeiro o motivo mostrado. Qualquer pagamento/aumento de orçamento é decisão do titular.
+3. Se não houver saldo pendente,assinatura ou limite explicando o bloqueio,abra o [suporte oficial](https://support.github.com/) e informe repositório,link do run e que nenhum step iniciou. Não envie segredos. A [orientação oficial sobre conta bloqueada](https://docs.github.com/en/billing/how-tos/troubleshooting/locked-account) contempla revisão pelo suporte quando o painel não mostra problema resolvível.
+4. Depois de liberado,avise apenas `GitHub Actions liberado`;a engenharia reexecuta os checks do **HEAD final**,confere resultados e registra a evidência. Alternativamente,na aba Actions do run atual,use “Re-run all jobs” somente após a liberação.
+
+**Resultado esperado:**runner inicia e todos os checks exigidos concluem no SHA correto. Verificações locais ou Vercel verde não substituem a CI remota. Até isso acontecer,manter draft e parar antes da fase B. Não há nova cobrança de cliente ou pagamento Sandbox solicitado.
+
 ### A — pré-voo, antes de qualquer alteração live
 
 1. Conferir HEAD/checks do PR53 e aprovação do pacote **apenas SaaS**. Runtime aprovado7208d505; exportação por `scripts/abacatepay-saas-release.ts`, SQL compartilhado congelado `4d0ed1d5c8a81ab9f66e026f4f36c6e4520a7269`,160 entradas. Não compor com o HEAD atual TISS. Conferir manifesto e hash0159; não gerar DDL pelo modelo parcial nem incorporar0160 automaticamente.

@@ -22308,8 +22308,12 @@
       "scope": "7208d505 only; final documentation SHA checks must be verified separately"
     },
     "finalDocumentationCI": {
-      "status": "SEE_FINAL_PR53_CHECKS",
-      "url": "https://github.com/joaomarcos-techia/Project_OS/pull/53/checks"
+      "status": "BLOCKED_ACCOUNT_BILLING_OR_SPENDING_LIMIT",
+      "observedSha": "14414498cbfad3276c8184de28e47785529d2512",
+      "url": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/43588496105",
+      "stepsExecuted": 0,
+      "finalHeadMustRunAfterAccountUnblocked": true,
+      "localResultsAreNotRemoteCI": true
     },
     "naturalRenewal": {
       "observedAt": "2026-11-14T10:34:13.841Z",
@@ -23009,6 +23013,177 @@
       "merges": 0,
       "deployments": 0,
       "migrations": 0
-    }
+    },
+    "remoteRunnerRestriction": {
+      "observedAt": "2026-11-14T11:14:29.791Z",
+      "head": "14414498cbfad3276c8184de28e47785529d2512",
+      "pr": {
+        "headRefOid": "14414498cbfad3276c8184de28e47785529d2512",
+        "isDraft": true,
+        "state": "OPEN"
+      },
+      "run": {
+        "conclusion": "failure",
+        "headSha": "14414498cbfad3276c8184de28e47785529d2512",
+        "jobs": [
+          {
+            "completedAt": "2026-11-14T11:07:19Z",
+            "conclusion": "failure",
+            "databaseId": 132428001248,
+            "name": "Lint + Typecheck + Test + Build",
+            "startedAt": "2026-11-14T11:07:18Z",
+            "status": "completed",
+            "steps": [],
+            "url": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/43588496105/job/132428001248"
+          }
+        ],
+        "status": "completed",
+        "url": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/43588496105"
+      },
+      "annotations": [
+        {
+          "level": "failure",
+          "message": "The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings"
+        },
+        {
+          "level": "notice",
+          "message": "\"The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748\""
+        }
+      ],
+      "status": "BLOCKED_ACCOUNT_BILLING_OR_SPENDING_LIMIT",
+      "stepsExecuted": 0,
+      "finalChecks": [
+        {
+          "link": "https://vercel.com/github",
+          "name": "Vercel Preview Comments",
+          "state": "SUCCESS"
+        },
+        {
+          "link": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/43588496058/job/132428001147",
+          "name": "Aviso — mudança arquitetural sem ADR",
+          "state": "FAILURE"
+        },
+        {
+          "link": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/43588496105/job/132428001248",
+          "name": "Lint + Typecheck + Test + Build",
+          "state": "FAILURE"
+        },
+        {
+          "link": "https://vercel.com/github",
+          "name": "Vercel Agent Review",
+          "state": "NEUTRAL"
+        },
+        {
+          "link": "https://semgrep.dev/orgs/joaogestor_ia_personal_org/projects/6259773/scans/268856415",
+          "name": "semgrep-cloud-platform/scan",
+          "state": "SUCCESS"
+        },
+        {
+          "link": "https://vercel.com/clinic-os-v2-s-projects/project-os/GGq9PhjyNvYuTgxz9HHkYwgEfuVq",
+          "name": "Vercel",
+          "state": "SUCCESS"
+        },
+        {
+          "link": "https://app.snyk.io/org/joaomarcos-techia/pr-checks/a8c9d108-47e6-4eac-bd3f-1752fc4e3ed1",
+          "name": "security/snyk (joaomarcos-techia)",
+          "state": "SUCCESS"
+        }
+      ],
+      "spendingChanges": 0,
+      "ciConfigurationChanges": 0,
+      "productionWrites": 0
+    },
+    "frozenSourceAndSqlProof": {
+      "observedAt": "2026-11-14T11:15:06.136Z",
+      "status": "PASS_IDENTITY_ONLY",
+      "baseline": "7208d5059aaaea502a153cff627856418dc45e6c",
+      "head": "14414498cbfad3276c8184de28e47785529d2512",
+      "applicationScriptsSqlDependenciesAndConfigurationUnchanged": true,
+      "sharedSqlSource": "4d0ed1d5c8a81ab9f66e026f4f36c6e4520a7269",
+      "journalEntries": 160,
+      "sqlProofSha256": "9db9d9e7c998545f99933c10ac34578b56b8bf079ae2d6bc8d64d94d0ebf43f1",
+      "exportedDirectory": "dist/abacatepay-saas-14414498",
+      "frozenRuntimeProofNotANewExecutionOfOldTests": true,
+      "productionWrites": 0,
+      "providerMutations": 0
+    },
+    "localFinalVerification": {
+      "observedAt": "2026-11-14T11:17:36.867Z",
+      "sha": "14414498cbfad3276c8184de28e47785529d2512",
+      "reason": "Final GitHub Actions runner not started due to account billing/spending restriction; local verification is not remote CI",
+      "results": [
+        {
+          "name": "vitest",
+          "command": "node node_modules/vitest/vitest.mjs run",
+          "startedAt": "2026-11-14T11:11:01.477Z",
+          "completedAt": "2026-11-14T11:16:11.651Z",
+          "exitCode": 0,
+          "status": "PASS",
+          "log": "dist/rc-final-vitest-14414498.log",
+          "logSha256": "47ed0f5f42da6d69f3cac899b49dee0a7a9e557a5a329687e5b20b732ce26a99",
+          "filesPassed": 636,
+          "testsPassed": 7190,
+          "skippedMentioned": false
+        },
+        {
+          "name": "typecheck",
+          "command": "node node_modules/typescript/bin/tsc --noEmit",
+          "startedAt": "2026-11-14T11:11:01.516Z",
+          "completedAt": "2026-11-14T11:12:12.449Z",
+          "exitCode": 0,
+          "status": "PASS",
+          "log": "dist/rc-final-typecheck-14414498.log",
+          "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "lint",
+          "command": "node node_modules/eslint/bin/eslint.js .",
+          "startedAt": "2026-11-14T11:12:12.532Z",
+          "completedAt": "2026-11-14T11:16:28.698Z",
+          "exitCode": 0,
+          "status": "PASS",
+          "log": "dist/rc-final-lint-14414498.log",
+          "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "observability",
+          "command": "node --import tsx scripts/check-observability-drift.ts",
+          "startedAt": "2026-11-14T11:16:28.702Z",
+          "completedAt": "2026-11-14T11:16:29.260Z",
+          "exitCode": 0,
+          "status": "PASS",
+          "log": "dist/rc-final-observability-14414498.log",
+          "logSha256": "49d7a5844a268122262b5592892a67978f6abd3c4d0a2854a7f463a6f119ea63"
+        },
+        {
+          "name": "inventory",
+          "command": "node --import tsx scripts/security/inventory.ts --check",
+          "startedAt": "2026-11-14T11:16:29.261Z",
+          "completedAt": "2026-11-14T11:16:46.400Z",
+          "exitCode": 0,
+          "status": "PASS",
+          "log": "dist/rc-final-inventory-14414498.log",
+          "logSha256": "95f36d586406a5b80f34938f137a1b6d2a0c4e075e1318c588a304dbc4377593"
+        }
+      ],
+      "freshE2E": "NOT_RUN: unchanged runtime; preserved baseline 22 and previous 26 strict Preview assertions; remote CI requirement not waived",
+      "build": {
+        "link": "https://vercel.com/clinic-os-v2-s-projects/project-os/GGq9PhjyNvYuTgxz9HHkYwgEfuVq",
+        "name": "Vercel",
+        "state": "SUCCESS"
+      },
+      "secretsScan": "PASS; added values not printed",
+      "relativeDocumentationLinks": 13,
+      "previousEvidencePreserved": true
+    },
+    "operationalBlockers": [
+      {
+        "type": "B_ENVIRONMENT",
+        "source": "GitHub check annotation",
+        "status": "BLOCKED",
+        "effect": "Mandatory final remote CI has not executed; no Production phase may begin",
+        "humanAction": "Owner checks GitHub Billing and licensing or support; no budget or plan changed automatically"
+      }
+    ]
   }
 }
