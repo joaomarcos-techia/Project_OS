@@ -134,6 +134,19 @@ async function login(browser: Browser, key: string, viewport = DESKTOP): Promise
   const errors: string[] = [];
   // A rota entra na mensagem: um erro de página precisa dizer em que tela apareceu.
   page.on('pageerror', (e) => errors.push(e.message + ' @ ' + new URL(page.url()).pathname));
+  // O Supabase gira o refresh token a cada renovação: um contexto que renovou a sessão invalida
+  // o token guardado no cache. Ao fechar, o cache passa a ter a sessão RENOVADA; sem isso, numa
+  // jornada mais lenta, o contexto seguinte da mesma conta caía no /login (14/11, passo 21).
+  const close = context.close.bind(context);
+  context.close = async (...args: Parameters<BrowserContext['close']>) => {
+    try {
+      const fresh = await context.storageState();
+      if (fresh.cookies.some((c) => c.name.startsWith('sb-'))) sessions.set(key, fresh);
+    } catch {
+      // contexto já encerrado: mantém o cache anterior
+    }
+    return close(...args);
+  };
   if (cached) return { context, page, errors };
   await page.goto('/login', { waitUntil: 'load' });
   await page.fill('#email', account.email);

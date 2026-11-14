@@ -39,17 +39,18 @@
 
 | Campo | Valor |
 | --- | --- |
-| Data da última atualização | 14/11/2026 (ciclo de estorno externo, modalidade e importação) |
+| Data da última atualização | 14/11/2026, noite (ciclo da retomada do GitHub Actions) |
 | Fase atual | **P1 concluída**; P9 (lotes, XMLs, recurso) e P12 (armazenamento) validadas; ponte financeira (P1.10/P10.2/P10.3) pronta como candidata 0153; interface (P7.7/P9.9) implementada e testada; P9.5, P8.7/P6.2, P10.4 e P10.5 pendentes |
-| Tarefa em andamento | **P2.5** parte externa bloqueada por operadora real (P12.5); **R51** variante rara aberta (sonda no erro, captura em JSON e rodada de estresse ativas); menu e ficha do paciente com a branch de UI |
-| Última tarefa concluída | **P9.2** (validado na Preview da Vercel em `61494392`), **P12.7** (bucket privado `tiss-files` criado no DEV e aceite 13/13 contra ele), **P9.7** (XML do recurso do registro, 6/6), **P1.10, P10.2, P10.3** (ponte com o livro, candidata 0153, 18/18 + ensaio de aplicação em 1 M linhas) — commits `61494392`…`54108d9e` |
-| Progresso | **65 de 117 tarefas concluídas (55,6%)**: P0.1–P0.9, P1.1–P1.10, P4.5, P6.2, P7.1, P7.2, P7.3, P7.4, P7.6, P7.7, P8.1, P8.2, P8.3, P8.5, P8.7, P9.1, P9.2, P9.3, P9.5, P9.6, P9.7, P10.1, P10.2, P10.3, P10.4, P10.5, P12.7, P12.14, P13.1, P13.2, P13.3, P13.4, P13.7, P14.1, P15.7, P2.1, P2.3, P2.4, P2.6, P3.1, P4.1, P4.4, P9.8, P9.9, P2.2, P4.3, P2.7, P5.3. P10.5 **homologada no alcance do Asaas Sandbox** (13/11). P4.3 e P2.7 **validadas no Preview DEV** (14/11, pela tela, na jornada). R54 resolvido no código e provado em banco descartável com o Asaas simulado; **sem homologação de estorno no Sandbox**. Nada em produção; nenhuma homologação com operadora real. |
+| Tarefa em andamento | **R51** variante rara aberta (instrumentada); **P2.5** parte externa bloqueada por operadora real; menu Convênios aguardando a branch de UI (`ui/otimizacao-ui-final-20261114`, sem commits em 14/11); homologação do R54 no Sandbox preparada, aguardando autorização |
+| Última tarefa concluída | guarda de composição de migrations; ambiente do Sentry por deploy; P3.2 implementada e testada (E2E no Preview: pendente, ver o registro M de 14/11 (noite)) |
+| Progresso | **65 de 117 tarefas concluídas (55,6%)**: P0.1–P0.9, P1.1–P1.10, P4.5, P6.2, P7.1, P7.2, P7.3, P7.4, P7.6, P7.7, P8.1, P8.2, P8.3, P8.5, P8.7, P9.1, P9.2, P9.3, P9.5, P9.6, P9.7, P10.1, P10.2, P10.3, P10.4, P10.5, P12.7, P12.14, P13.1, P13.2, P13.3, P13.4, P13.7, P14.1, P15.7, P2.1, P2.3, P2.4, P2.6, P3.1, P4.1, P4.4, P9.8, P9.9, P2.2, P4.3, P2.7, P5.3. P10.5 **homologada no alcance do Asaas Sandbox** (13/11). P4.3, P2.7 **validadas no Preview DEV**. R54 provado em banco descartável com o Asaas simulado; **homologação de estorno no Sandbox não executada** (procedimento em docs/convenios/homologacao-r54-sandbox.md). P12.5 implementada e testada no alcance sem operadora (não contada: o acesso pelo adaptador depende da P6.4). Nada em produção; nenhuma homologação com operadora real. |
+| CI oficial (GitHub Actions) | **Liberada em 14/11** (GitHub Pro; o job voltou a iniciar). `0d2aa4f3` reexecutado: **CI e ADR advisory verdes** (run 43591045113, 15 min 28 s, 25 passos). SHA final do ciclo: ver o registro M de 14/11 (noite). Até `1b09267e` verde; `e6e91139`…`a77e0aea` não iniciaram por cobrança (não reexecutados: a CI do HEAD cobre a mesma árvore e mais) |
 | Capacidades em produção | nenhuma (ver A.5) |
 | Testes aprovados | Ver o registro de 12/11 (tarde): suíte completa com cobertura e harnesses (bloqueio comercial 11/11, cadeia unida 10/10, ponte 18/18, glosas 16/16, lotes 16/16, bucket real 13/13, leituras da interface 6/6, XML do recurso 6/6, demais Convênios verdes) |
 | Bloqueios ativos | B4 (integração: #53 primeiro, depois reconciliar o #55, D22; **colisão de migrations**: ver o aviso abaixo), B5 (operadora e clínica piloto), B6 (retenção legal), B7 (Validador TISS para Windows: **instalação não autorizada**), **B10** (segurança ANS: direção do fundador para S1–S10 em 11/11; **nada ligado para usuários reais**), **B11** (AbacatePay: com o agente do #53; Asaas: sandbox ok) |
 | Decisões | D1–D12 aprovadas ou adotadas; D13–D17 adotadas no escopo delegado; D18 aprovada; D19 adotada e mantida, **com o ensaio no DEV substituído pela D23**; **D20 aprovada em direção técnica em 11/11** (arquivos cifrados em armazenamento privado; o alcance do requisito 56 segue em consulta formal); **D21** adotada; **D22 corrigida em 11/11** (L.1); **D23 do fundador em 11/11 (noite):** nenhum ensaio de DDL no DEV compartilhado sem aprovação específica |
 | Arquivos alterados | este documento; `docs/adr/072-convenios-e-tiss.md` (era 067); `src/contexts/health-insurance/**`; `src/lib/xlsx/**`; `src/lib/validation/cnpj.ts`, `document.ts`; `src/lib/masks.ts`; campos de CNPJ do perfil, fornecedores e `/join`; `scripts/tiss/**`; `data/tiss/**`; `evidence/tiss-validadores-2026-11-10/**`; `docs/architecture/*` |
-| Próxima ação exata | Regularizar o faturamento do GitHub Actions (os runs de `e6e91139` em diante não iniciaram: "recent account payments have failed"); P2.5 parte independente (credenciais cifradas por operadora, estados de conexão, contrato do conector com timeout e circuito); compor a correção de ambiente do Sentry do #53 (Preview sai como production); menu e aba de convênios com a branch de UI; homologação de estorno no Sandbox só com fixture descartável e autorização |
+| Próxima ação exata | P12.1 (isolamento de todas as `hi_*` num gate), P12.2 (matriz de permissões por action), P14.2 (concorrência), P6.4 (porta do conector + adaptador manual; fecha o acesso à credencial da P12.5), P4.6 (retorno contratual) e P10.6 (Caixa separa paciente × operadora). Com a UI: entrada do menu (docs/convenios/menu-convenios.md) e revisão visual (docs/convenios/handoff-ui.md). Com o fundador: autorizar a homologação do R54 no Sandbox; confirmar o backup gerenciado no painel do Supabase ou gerar um token pessoal novo; decidir a leitura só leitura do ledger de produção (`db-migrate-prod.ts --check-composition`) |
 
 > **⚠ Risco de colisão de migrations (registrado em 11/11; leia antes de criar qualquer migration).**
 > - **Ledger real** (DEV, só leitura, conferido por SHA-256): 144 linhas. 0000–0135 da `main`; 0136–0142 do #53 (**aplicadas**); 0143 `tiss_catalog` do #55 (**aplicada**, última linha, `when` 1794330000000).
@@ -61,6 +62,50 @@
 > - Nenhuma aplicação persistente no DEV até a ordem ser resolvida (D19, D22).
 
 ---
+
+### Checkpoint de 14/11/2026 (noite)
+
+| Item | Estado |
+| --- | --- |
+| HEAD | `2dbe2359` (`feat/convenios-tiss-20261110`) |
+| PR | #55 **draft**; sem merge; #53 também draft (`f94248ef`) |
+| GitHub Actions | liberado (GitHub Pro, 14/11); o token local não lê a cobrança (falta escopo `user`), por isso a prova é a execução |
+| Última CI aprovada | CI 43648393690 e ADR advisory 43648393682 verdes no `2dbe2359` (14/11, 17 min); `0d2aa4f3` reexecutado verde (43591045113) |
+| Migrations | DEV 161 linhas (0159 do #53 e 0160 do #55 aplicadas); guarda de composição nos migradores; produção intocada, ledger de produção não lido |
+| Progresso | ver "Progresso" acima (contagem só de tarefas Concluídas) |
+| Jornada E2E | P3.2 no Preview pendente (ver o registro M de 14/11, noite) |
+| Dependências de outros agentes | UI: menu (entrada pronta), moldura das telas, causa do R51 no shell; AbacatePay: composição da 0159 no lançamento e D24 em Asaas/IA (P12.15) |
+| Riscos ativos | R51 (hidratação rara), R56 (composição até o lançamento), R57 (deriva histórica de hash), B5 (operadora), B6 (retenção), B7, B10 |
+| Próximo passo exato | P12.1 → P12.2 → P14.2 → P6.4 (classe A abaixo), em paralelo com a UI no menu |
+
+**Classificação das tarefas abertas (14/11, noite).**
+
+- **A. Implementáveis agora (sem operadora, pagamento, produção, credencial de terceiro ou aprovação):**
+  - fundação e segurança: P1.12, P1.13 (interruptor por clínica, sem ligar para clínica real), P1.14, P12.1, P12.2,
+    P12.4, P12.6;
+  - fluxos começados: P7.5, P8.6, P13.6, P12.13 (parte técnica);
+  - regras e financeiro: P4.2, P4.6, P4.7, P5.1, P8.4, P9.10, P10.6;
+  - autorizações sem conector: P6.1, P6.4 (porta + adaptador manual; fecha a P12.5), P6.6;
+  - IA: P11.1 e P11.2, com a decisão D24 do #53 para IA;
+  - qualidade e documentação: P14.2, P14.3, P14.4, P14.5, P15.1, P15.2 (homologação interna no Preview), P15.5.
+- **B. Dependentes da UI** (contrato pronto em docs/convenios/handoff-ui.md): entrada do menu (R39), P3.3 (selo na
+  agenda), P5.2, P6.3, P12.11.
+- **C. Dependentes de homologação externa:** P2.5 (parte externa: C1–C10), P6.5, P9.4 (webservice), P15.3, P15.4.
+- **D. Dependentes de decisão humana:**
+  - P12.3 (B6), P12.8/P12.9 (S1–S4), P12.10 (S5), P12.12 (S8), P13.5 (B7), P15.6 (revisão financeira), P15.8,
+    P15.9;
+  - homologação do R54 no Sandbox (autorizar o pagamento de teste e o estorno);
+  - leitura só leitura do ledger de produção e confirmação do backup gerenciado;
+  - P12.15 é do dono do #53.
+
+**Ordem dentro da classe A** (critério do ciclo: risco financeiro, inconsistência clínica, segurança):
+
+1. P12.1 e P12.2, gates de isolamento e permissão por action;
+2. P14.2, concorrência;
+3. P6.4, porta do conector, que fecha a P12.5;
+4. P4.6 (retorno contratual) e P10.6 (Caixa separa paciente × operadora);
+5. P7.5, P8.6 e P13.6;
+6. P12.6, observabilidade.
 
 ## Protocolo de Retomada
 
@@ -948,7 +993,7 @@ Os números marcados com `*` são provisórios e devem ser reconferidos (E.5). P
 | **P2.2** (T2.2) | credenciamento da clínica e do profissional por plano e vigência; perfil TISS | P2.1 | `internal/credentials.ts`, `internal/professional-profile.ts` | sem perfil TISS vira pendência, não erro; sugestão a partir do CRM sempre confirmada | U1 | **Concluída (validada no Preview DEV)** (13/11, `061e9ad9`): credenciamento da clínica e habilitação do profissional por plano (ou "todos os planos" só de propósito) e vigência; encerrar/suspender/reativar/nova vigência com motivo e histórico; regra única na agenda (cobertura), guia (montagem e atualização), sessão SP/SADT e conferência da solicitação; harness 7/7, unitários, 8 harnesses ajustados; jornada E2E registra pela tela |
 | **P2.3** (T2.3) | contratos por procedimento: tipo de guia, TUSS vigente, valor, vigência, autorização, coparticipação e retorno | P2.1, P1.3 | `internal/procedure-contracts.ts` | TUSS inexistente ou fora de vigência recusado; alteração cria versão; histórico intacto | U2 | **Concluída (validada no Preview DEV)** (13/11): itens de contrato com TUSS da tabela 22 oficial vigente, valor, coparticipação (fixa ≤ valor; percentual 2 casas), autorização e retorno; append-only: reajuste a partir de uma data encerra a versão anterior na véspera (o passado mantém o preço — seleção real `selectEffectiveContract`), corrigir e encerrar criam versão; revisões simultâneas → uma vence; histórico |
 | **P2.4** (T2.4) | identificação do prestador; normalização de CNPJ alfanumérico; CNES ou declaração de ausência (9999999) | P2.1 | `internal/clinic-settings.ts` | CNPJ inválido vira pendência; 9999999 só com declaração; decidir com o fundador a troca do validador compartilhado (R16) | unitários | **Concluída (validada no Preview DEV)** (13/11): PJ/PF, nome do contratado (≤ 70), CNES de 7 dígitos ou declaração de ausência (9999999 só pela declaração); salvar nunca liga o módulo (habilitação é do Qoro) |
-| **P2.5** | configurações por operadora: versão TISS, código de validação, prazo de envio, tipo de identificação, conector, credenciais cifradas | P2.1 | `internal/insurer-settings.ts` | Zod; credencial nunca volta ao cliente | unitários, segurança | **Em execução (engenharia independente feita)** (14/11, `7782f55c`): regras contratuais usadas pelos serviços (13/11); credenciais da clínica por operadora cifradas, com rotação que revoga sem apagar, revogação e leitura que nunca devolve segredo (harness 5/5); contrato do conector (resultado, limite de tempo com aborto, retentativa só idempotente, circuito por operadora; transporte padrão recusa sempre — 5 unitários); painel "Conexão com a operadora". **Bloqueado por operadora real** (P12.5): endpoint, WSDL da versão TISS, certificado, código de validação e homologação |
+| **P2.5** | configurações por operadora: versão TISS, código de validação, prazo de envio, tipo de identificação, conector, credenciais cifradas | P2.1 | `internal/insurer-settings.ts` | Zod; credencial nunca volta ao cliente | unitários, segurança | **Em execução (engenharia independente feita)** (14/11, `7782f55c`; testes da ação em 14/11 noite): regras contratuais usadas pelos serviços; credenciais cifradas com rotação e revogação (harness 5/5, ações 7/7); contrato do conector (resultado, limite de tempo com aborto, retentativa só idempotente, circuito por operadora; transporte padrão recusa sempre — 5 unitários); painel "Conexão com a operadora". **Bloqueado por operadora real**: checklist da conexão (C1–C10) em docs/convenios/homologacao-operadora.md §2.1 |
 | **P2.6** (T2.5) | telas Configurações › Convênios no design system: lista, detalhe, gavetas, estados vazio, carregando e erro, histórico, confirmação de ação irreversível, termos explicados | P2.1–P2.5 | `configuracoes/convenios/*`, `settings-navigation.ts` | 375/768/1024/1440 sem rolagem lateral; acessível; só com permissão | componente, e2e, capturas | **Concluída (validada no Preview DEV)** (13/11): `/convenios/configuracao` (prontidão, prestador, operadoras, perfil TISS) e `/convenios/configuracao/operadoras/:id` (dados, situação, planos, contratos, versões, histórico); desktop e celular sem rolagem lateral (o E2E achou e corrigiu o transbordo do `sr-only`, `bf59cbc3`); só com permissão. Item de menu e atalho em Configurações dependem da branch de UI |
 | **P2.7** | importação de tabela contratual por planilha (CSV/XLSX), com pré-visualização, validação por linha e confirmação | P2.3 | `internal/contract-import.ts`, tela | linha inválida não entra; tudo auditado em `hi_contract_imports` | unitários, e2e | **Concluída (validada no Preview DEV)** (14/11, `c5841aa1`): CSV/XLSX (leitor próprio, fórmula nunca executada), prévia pela MESMA regra da tela numa transação desfeita, resultado por linha, política atômica mostrada antes, aplicação revalidada (efeito diferente da prévia desfaz), sha256 não aplica duas vezes, histórico; o item importado é usado pela cobertura; harness 9/9, unitários 7, E2E pela tela |
 
@@ -957,7 +1002,7 @@ Os números marcados com `*` são provisórios e devem ser reconferidos (E.5). P
 | ID (antigo) | Objetivo | Dependências | Arquivos | Aceite | Testes | Status |
 | --- | --- | --- | --- | --- | --- | --- |
 | **P3.1** (T3.1) | carteirinhas: vincular, editar (nova versão), desativar, preferencial | P1.5, P2.1 | `internal/memberships.ts` | edição não muda guia antiga; um preferencial | U9, integração | **Concluída (validada no Preview DEV)** (13/11): `/convenios/carteirinhas` — cadastro com número só cifrado + HMAC D21 (clínica:ANS:número) + final 4; substituição encadeada; validade/plano/titularidade; desativar/reativar; uma preferencial; número completo só pela leitura auditada (finalidade atendimento); trial recusado pelo D24 |
-| **P3.2** (T3.2) | aba "Convênios" na ficha | P3.1 | `pacientes/[id]/*` | número mascarado; completo só com `operate:convenios` e auditado | componente, e2e | **Em execução**: carteirinhas em Convênios › Carteirinhas (feito); a aba na ficha do paciente depende da branch de UI (a ficha está sendo reescrita) |
+| **P3.2** (T3.2) | aba "Convênios" na ficha | P3.1 | `pacientes/[id]/*` | número mascarado; completo só com `operate:convenios` e auditado | componente, e2e | **Implementada e testada** (14/11): aba na ficha (componente do módulo TISS, 3 trechos na ficha); harness 14/14, unitários 8 + página 6; passo E2E escrito (pendente, ver o registro M de 14/11 (noite)) |
 | **P3.3** | pendências pré-consulta na agenda do dia (carteirinha ausente ou vencida, autorização faltando, perfil TISS incompleto) | P3.1, P4.1 | agenda | lista de pendências com ação para resolver | componente, e2e | **Implementada e validada em parte** (13/11): `/convenios/atendimentos` lista os próximos atendimentos de convênio com a situação da cobertura e o que falta, e registra/corrige a cobertura (inclusive remarcado); o selo na própria agenda depende da branch de UI |
 
 ### P4 — Agendamento
@@ -1056,7 +1101,7 @@ Os números marcados com `*` são provisórios e devem ser reconferidos (E.5). P
 | **P12.2** (T10.2) | matriz de permissões por action e rota; negativos | P1.12 | financeiro sem anamnese; médico só os próprios | unitários, integração | Pendente |
 | **P12.3** (T10.3) | LGPD: exportação, anonimização e retenção (B6) | P3, P7 | decisão aprovada | testes LGPD | Pendente |
 | **P12.4** (T10.4) | auditoria completa | P2–P10 | 100% das actions | inventário | Pendente |
-| **P12.5** | credenciais de operadora: cifra, rotação, acesso só pelo adapter, nunca em log | P2.5 | teste de vazamento | segurança | Pendente |
+| **P12.5** | credenciais de operadora: cifra, rotação, acesso só pelo adapter, nunca em log | P2.5 | teste de vazamento | segurança | **Implementada e testada no alcance sem operadora** (14/11): cifra por clínica, rotação que revoga, revogação, leitura sem segredo, isolamento (harness 5/5); ação exige gerenciar o financeiro, auditoria sem o segredo, segredo nunca em log, resultado ou mensagem de erro (unitários 7); gate estático: só o módulo de credenciais toca a coluna e nenhum código decifra. Falta o acesso pelo adaptador homologado (P6.4/P6.5, B5) |
 | **P12.6** | observabilidade (C.14): métricas, logs, alertas, `insurance-reconcile`, dead letters | P7.4, P10.2 | métricas no `check:observability`; alerta disparando em teste | unitários + ensaio | Pendente |
 | **P12.7** | arquivos XML, PDF e comprovantes **em armazenamento privado** (D20 aprovada em 11/11), cifrados por clínica, gerados em memória, acesso só por rota autenticada e auditada, sem URL pública; metadados, SHA-256 e versão TISS no banco | P9.3, P6.1 | IDOR negativo; nenhum arquivo identificado fora de proteção; sem sobrescrita; retenção e descarte controlados (B6) | segurança | **Concluída; validada no DEV**: bucket privado `tiss-files` criado só no DEV (API de Storage, sem SQL/DDL, sem política pública) e aceite 13/13 contra ele; produção pendente de autorização |
 | **P12.8** | aderência ao **Componente de Segurança e Privacidade** da ANS (202511): análise transversal na **seção N** (fonte, matriz dos 53 requisitos vigentes, detalhamento de 81–85, 67, 41, 36, 42, 43, 69 e 77, arquitetura do "perfil de segurança TISS" e decisões S1–S9) | — | decisões S1–S9 aprovadas e cada obrigatório atendido ou com exceção decidida | testes por requisito (N.3) | **Em execução**: análise e matriz concluídas em 11/11 (`data/tiss/seguranca/202511/requisitos.json`); implementação global aguardando aprovação (B10) |
@@ -1811,11 +1856,14 @@ B1–B3 da rev.1 foram resolvidos pela diretriz de 10/11 (D1–D8).
 | R48 | `<span class="sr-only">` em cabeçalho de tabela escapa do contêiner e alarga a página no celular | média | ocorreu | **Corrigido** (13/11, `bf59cbc3`) em 4 telas; nome acessível por `aria-label` |
 | R49 | Preview e DEV não têm cron do outbox: a guia da conclusão, o recebível da coparticipação e o XML em segundo plano nunca saíam fora de produção | alta | ocorreu | **Mitigado** (13/11): processamento logo depois da resposta só pelas chaves do request (`runOutboxEventsNow` via `after`), cron como garantia |
 | R50 | remarcar um atendimento de convênio o transformava em particular (abria sinal e saldo cheio) | alta | ocorreu | **Corrigido** (13/11, `67c2dee6`): a remarcação mantém `billing_mode`; o banco confere habilitação e D24 |
-| R51 | React #418 (hidratação) | média | ocorreu | **Causa determinística corrigida** (13/11, `60cd228c`): reproduzido SEMPRE com relógio do navegador adiantado e fuso de Tóquio em `/consultorio` e `/caixa` — `Date.now()` na renderização ("aguardando há X min") e hora sem fuso explícito; corrigido com `useHydratedNow` e fuso explícito (`QORO_DATE_TIME_ZONE`/`todayYmdIn`), regressão de hidratação (vitest, com controle) e `e2e/hydration-r51-preview.spec.ts` (desktop e celular). A jornada voltou a reprovar qualquer erro de página. **Aberto**: variante HTML rara na conciliação (1 em 60+ cargas, não reproduz sob comando); instrumentada (HTML do servidor, DOM do cliente, rota, SHA). A branch de UI já corrige o fuso em conversas, consentimento, prontuário e auditoria **14/11:** o agente AbacatePay reproduziu 1 em 7 no dashboard do `a04a1535` (assinatura `$RS`/parentNode do streaming); a varredura ganhou sonda no momento do erro (pilha, readyState, segmentos S:/B:/P: sem conteúdo) e rodada de estresse (rede lenta + cache quente): 1 ocorrência em ~120 navegações (conciliação, gestora, desktop, argumento HTML = divergência de elemento) sem captura (o reporter list não gravava anexos; o lançador agora grava JSON); 2 repetições da gestora e 64 cargas de estresse limpas. Continua **aberto** |
+| R51 | React #418 (hidratação) | média | ocorreu | **Causa determinística corrigida** (13/11, `60cd228c`): reproduzido SEMPRE com relógio do navegador adiantado e fuso de Tóquio em `/consultorio` e `/caixa` — `Date.now()` na renderização ("aguardando há X min") e hora sem fuso explícito; corrigido com `useHydratedNow` e fuso explícito (`QORO_DATE_TIME_ZONE`/`todayYmdIn`), regressão de hidratação (vitest, com controle) e `e2e/hydration-r51-preview.spec.ts` (desktop e celular). A jornada voltou a reprovar qualquer erro de página. **Aberto**: variante HTML rara na conciliação (1 em 60+ cargas, não reproduz sob comando); instrumentada (HTML do servidor, DOM do cliente, rota, SHA). A branch de UI já corrige o fuso em conversas, consentimento, prontuário e auditoria **14/11:** o agente AbacatePay reproduziu 1 em 7 no dashboard do `a04a1535` (assinatura `$RS`/parentNode do streaming); a varredura ganhou sonda no momento do erro (pilha, readyState, segmentos S:/B:/P: sem conteúdo) e rodada de estresse (rede lenta + cache quente): 1 ocorrência em ~120 navegações (conciliação, gestora, desktop, argumento HTML = divergência de elemento) sem captura (o reporter list não gravava anexos; o lançador agora grava JSON); 2 repetições da gestora e 64 cargas de estresse limpas. Continua **aberto** **14/11 (noite):** ver o registro M; continua **aberto** |
 | R52 | o protocolo do lote aceitava texto livre, mas o recurso de glosa TISS 4.03 exige `numeroProtocolo` numérico de até 12 dígitos: o XML do recurso falhava no XSD depois | alta | ocorreu | **Corrigido** (13/11, `f364c6ec`): a action e o campo só aceitam de 1 a 12 dígitos |
 | R53 | "Gerar link de cobrança" da coparticipação sempre avisava "pedido registrado", mesmo quando nada era cobrado (clínica sem conta Asaas) | média | ocorreu | **Corrigido** (13/11, `e60df9e2`): o aviso mostra o resultado real (link criado ou "receba no Caixa") |
 | R54 | estorno feito direto no Asaas não era refletido no Qoro | média | ocorreu | **Resolvido no código** (14/11, `1b09267e`, 0160 aplicada no DEV): estornos DONE lidos com a chave da clínica (webhook ou varredura do financial-reconcile), atribuição contra as intenções confirmadas, idempotência pelo patamar acumulado (`patient_external_refunds`), compensação no livro ligada à baixa original, pendência, repasse suspenso, coparticipação estornada; revisão humana para disputa, intenção aberta e valor divergente. Provas: 14 + §10 da coparticipação + unitários. **Não homologado no Sandbox** |
 | R55 | `hi-r38-ledger-equivalence-db.ts` não rodava desde a 0156 | baixa | ocorreu | **Resolvido** (14/11): causa no teste (cadeia parada na 0154 com o código atual, que grava colunas da 0156); agora cadeia completa e a diferença V0/V1 é só o corpo da função (0153 × 0155), pelos arquivos reais; 4/4, 366 operações idênticas, mesmas asserções e tolerâncias |
+| R56 | composição de migrations entre #53 e #55: o Drizzle pularia em silêncio uma migration que chegue com `when` menor que a última aplicada (0159 × 0160) | alta | prevenido | **Mitigado com guarda automático** (14/11, noite): `src/lib/db/migration-composition.ts` + manifesto da fronteira (0136–0143, 0158–0160) nos migradores de produção e de DEV; prova com o migrador real em descartável (11/11) e contra o ledger do DEV (só leitura). Aberto até o lançamento coordenado: o ledger de produção não foi lido (consulta negada nesta sessão) |
+| R57 | deriva histórica de hash no ledger do DEV (6 migrations da `main` anteriores à 0136: 3 aplicadas em CRLF, 3 sem variante que bata) | baixa | ocorreu | Registrado como aviso, não bloqueio (o Drizzle nunca relê migrations aplicadas); hash estrito a partir da 0136 e em toda fixada. Conferir em produção pelo `--check-composition` antes do lançamento |
+| R58 | eventos do Preview no Sentry com `environment=production` | média | ocorreu | **Corrigido no #55** (14/11, noite) com o mesmo trecho do #53 (`68de428c`/`a5984e23`): `VERCEL_ENV` no servidor/edge e `NEXT_PUBLIC_VERCEL_ENV` no navegador; teste 8/8. Conferência do bundle do Preview no registro M |
 | R39 | a interface de Convênios não está no menu: a navegação está sendo reescrita na branch de UI (`ui/refactor-qoro-20261108`) | baixa | alta | acrescentar a entrada `/convenios` no `modules.ts` depois do merge dessa branch (uma linha) |
 | R40 | DEV e Preview sem as tabelas `hi_*` | alta | — | **Encerrado** (12/11, 22:28 UTC): cauda 0144–0158 aplicada no DEV (`aplicacao-0153.md` §11); telas validadas no Preview com a fixture sintética `e2e-hi-*` |
 
@@ -2583,3 +2631,62 @@ Um registro append-only sozinho **não** prova imutabilidade; os itens 1–3 sã
 - **Jornada:** 21/21 em 11,8 min no Preview c5841aa1, clínica sintética zerada, desktop e celular, sem tolerância a erro de página; inclui a troca de modalidade pela agenda (P4.3) e a importação por planilha (P2.7).
 - **Commit final do ciclo:** `a77e0aea (+ commit do plano)`.
 
+
+### 14/11/2026 (noite) — retomada do GitHub Actions, composição de migrations, Sentry, ficha do paciente
+
+- **Estado conferido antes:**
+  - #55 em `0d2aa4f3`, draft;
+  - #53 em `f94248ef`, draft, mergeável; journal até a 0142; a 0159 continua candidata com o mesmo sha256 `eb00a4e3…`;
+  - `main` em `5620a098`;
+  - DEV com 161 linhas.
+- **P0.1/P0.2 — GitHub Actions:**
+  - o fundador contratou o GitHub Pro. O token local não lê a cobrança (falta o escopo `user`), então a prova foi
+    pela execução: o `0d2aa4f3` reexecutado **iniciou** e terminou verde (CI 43591045113, 15 min 28 s, 25 passos;
+    ADR advisory verde);
+  - Actions habilitado no repositório (`allowed_actions: all`), repositório privado;
+  - nenhum limite ou configuração financeira foi alterado;
+  - SHA desta entrega: CI 43648393690 verde (17 min) no `2dbe2359`. O SHA final do ciclo está no fim desta entrada.
+- **P0.4 — composição 0159/0160:**
+  - guarda automático `src/lib/db/migration-composition.ts` + manifesto da fronteira (0136–0143, 0158–0160) nos
+    migradores de produção e de DEV (`e6a8f3b6`);
+  - prova com o migrador real em descartável 11/11; vitest 16;
+  - DEV só leitura: 11 fixadas com o hash fixado, sentinelas presentes, nenhum bloqueio com as exceções explícitas,
+    6 avisos de deriva histórica (R57);
+  - matriz #53 × #55 e pré-voo do lançamento em coordenacao-migrations §13; aviso no #53;
+  - o ledger de produção **não** foi lido: a consulta só leitura foi negada pelo controle de permissões da sessão.
+- **Backup gerenciado (§14):** o token pessoal `sbp_` local é recusado até em `/v1/projects` (401 "Invalid access
+  token"): revogado ou expirado. Não confirmado. Meio alternativo: painel do Supabase › Database › Backups, ou token
+  novo.
+- **P0.5 — Sentry:**
+  - trechos de observabilidade do #53 (`68de428c`/`a5984e23`) em `85cfc1c3`, teste 8/8;
+  - o bundle do navegador do Preview sai com `environment: "preview"` (`evidence/…/sentry-ambiente-preview.txt`);
+  - release e commit vêm do plugin de build na Vercel; `request_id` já é marcado em `capture.ts`.
+- **P1.3 — P3.2 aba Convênios na ficha** (`19a0c1de`):
+  - componente de servidor do TISS, só leitura, com estados pela decisão do banco;
+  - harness de configuração 14/14, unitários 8 + página 6;
+  - passo novo na jornada (desktop, celular, médica sem a aba).
+- **P1.2 — menu:** sem mudança no `modules.ts`. A branch de UI `ui/otimizacao-ui-final-20261114` não tinha commits
+  em 14/11. Inventário de telas, estados, permissões, `data-testid` e divisão de arquivos em
+  docs/convenios/handoff-ui.md; entrada pronta em docs/convenios/menu-convenios.md.
+- **P1.5 — R54:** procedimento de homologação no Sandbox em docs/convenios/homologacao-r54-sandbox.md, com as 10
+  respostas, fontes da documentação do Asaas e mínimo de R$ 5,00. **Não executado**: exige pagamento no checkout
+  (reCAPTCHA humano) e autorização do estorno. A cobrança de R$ 45 não foi tocada.
+- **P2.1 — operadora:**
+  - ações de credencial com permissão antes do banco;
+  - auditoria sem segredo; segredo nunca em log, resultado ou erro;
+  - gate estático: ninguém decifra a credencial (unitários 7);
+  - checklist C1–C10 da conexão em homologacao-operadora §2.1.
+- **P2.2 — leituras privilegiadas:** gate permanente no vitest (`privileged-reads-gate.test.ts`); nenhuma leitura
+  privilegiada nova no ciclo.
+- **R51:**
+  - código de cliente da conciliação revisado: nada que divirja entre servidor e navegador;
+  - a variante de elemento é compatível com o streaming do shell compartilhado (o agente do #53 viu `$RS`/parentNode
+    no dashboard). Responsabilidade principal da UI (handoff §7);
+  - continua **aberto**: frequência observada 1 em cerca de 120 navegações; sem nova captura neste ciclo.
+- **Gates locais** (estado do `2dbe2359`): todos verdes; vitest 656/656 arquivos, 7.113 testes.
+  - Uma rodada sob carga da máquina (a branch de UI rodava `next dev` e uma varredura com Chromium ao mesmo tempo)
+    teve 5 arquivos de UI fora do TISS reprovando por tempo, em 1.665 s;
+  - os 5 passaram isolados, e a rodada seguinte foi 656/656.
+- **Jornada E2E no Preview `2dbe2359`:** rodada 1: 20 passos verdes até a coparticipação (inclusive P4.3, P2.7, glosa, recurso, pagamento parcial, repasse), que caiu no /login porque a sessão em cache tinha envelhecido. O Supabase gira o refresh token; o harness agora grava a sessão renovada ao fechar o contexto, sem mudar asserção. Rodadas 2 e 3: Chromium travado no passo 3 sem memória livre (0,2 GB). **P3.2 não validada no Preview neste ciclo**
+- **Harnesses de banco:** não rodados de novo em lote neste ciclo (a máquina estava sem memória); rodados os afetados: configuração 14/14 (com a aba), composição 11/11; demais sem mudança de código no alcance deles desde o 24/24 do ciclo anterior
+- **SHA final do ciclo:** (este commit; ver git log).
