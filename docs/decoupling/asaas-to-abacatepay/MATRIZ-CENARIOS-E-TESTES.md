@@ -1,4 +1,4 @@
-> **Estado corrente —14/11: candidato apenas SaaS, relatório§57.** Cinco compras iniciais e EARLY-01 preservadas, sem nova compra. Não depende das117tarefas TISS/R54. Build/navegador do Preview SaaS e provas PostgreSQL passaram; R51 compartilhado não foi declarado resolvido. Release/migrations/checkout live não executados. NO-GO operacional/comercial Production. Os checkpoints anteriores são históricos.
+> **Estado corrente —14/11: release candidate congelado7208d505, relatório§58.** [Dossiê final A–H](ABACATEPAY-SaaS-GO-NO-GO-FINAL.md): R1–R4, matriz financeira N01–N17, observação13/12 e fases A–D. Nova compatibilidade PostgreSQL161 **52PASS**, controles locais **45PASS** e catálogo live5/5 por GET; nenhuma compra repetida. DEV161,produção136 com24 entradas0136–0159 pendentes. R1–R4 PARTIAL e sem aceite; R51 compartilhado permanece em revisão. Proposta de GO condicionado para deploy fechado não autoriza nenhuma operação. Produção inalterada; checkpoints abaixo são históricos.
 
 ## Delta vigente — separação SaaS/TISS,14/11/2026
 

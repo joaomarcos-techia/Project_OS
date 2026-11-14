@@ -22293,5 +22293,722 @@
       "failedLogSha256": "c55aa67f02505d41fa6580aa81223ba8e6e963f45ca1ec8405b41e7a550880ce",
       "correctiveCI": "SEE_FINAL_PR53_SHA_CHECKS"
     }
+  },
+  "releaseCandidateClosure20261114": {
+    "observedAt": "2026-11-14T11:04:22.657Z",
+    "scope": "Release candidate operational closure; documentation and evidence only; no new application or configuration change",
+    "frozenRuntime": "7208d5059aaaea502a153cff627856418dc45e6c",
+    "baselineCI": {
+      "url": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/43553549307",
+      "status": "PASS",
+      "tests": 7190,
+      "testFiles": 636,
+      "e2e": 22,
+      "skipped": 0,
+      "scope": "7208d505 only; final documentation SHA checks must be verified separately"
+    },
+    "finalDocumentationCI": {
+      "status": "SEE_FINAL_PR53_CHECKS",
+      "url": "https://github.com/joaomarcos-techia/Project_OS/pull/53/checks"
+    },
+    "naturalRenewal": {
+      "observedAt": "2026-11-14T10:34:13.841Z",
+      "runId": "d2d0e84d-059b-4b29-9074-f3305a3fc97f",
+      "verifiedInitialRuntimeSha": "dc95caa4eb15827049f27d2e7e6c00994017f17d",
+      "environment": "sandbox",
+      "observationStatus": "PASS",
+      "state": "awaiting_next_cycle",
+      "providerStatus": "ACTIVE",
+      "officialNextChargeDate": "2026-12-13",
+      "qoroPaidPeriodEnd": "2026-12-13T17:44:27.418Z",
+      "nextChargeDateInferred": false,
+      "closureConfirmed": true,
+      "recordedCycles": 0,
+      "externalTemporalRenewal": "PARTIAL",
+      "accessEffect": "none",
+      "providerMutations": 0,
+      "databaseWrites": 0,
+      "cycles": [],
+      "inbox": [
+        {
+          "type": "subscription.completed",
+          "state": "applied",
+          "count": 1
+        }
+      ],
+      "newCheckouts": 0,
+      "paymentsExecuted": 0,
+      "nextAction": "retain_fixture_and_observe_natural_cycle"
+    },
+    "liveCatalog": {
+      "observedAt": "2026-11-14T10:35:06.947Z",
+      "status": "PASS",
+      "scope": "authenticated GET only; catalog not activation readiness",
+      "storeSha256": "57c4bd55fe2644b1beee88005e1bc1af2792c91281c0f80d41c037d88dddbf3d",
+      "products": [
+        {
+          "id": "prod_SsBGWnFA5Qk1dED3DLRkzSDT",
+          "amountMinor": 19700,
+          "cycle": "MONTHLY",
+          "devMode": false,
+          "nativeTrial": false
+        },
+        {
+          "id": "prod_4sn4YU2Q3P3jbXs3a6UXMgzd",
+          "amountMinor": 39700,
+          "cycle": "MONTHLY",
+          "devMode": false,
+          "nativeTrial": false
+        },
+        {
+          "id": "prod_CXMmb0y0FJHRDFDsy0Lj4MAW",
+          "amountMinor": 54400,
+          "cycle": "MONTHLY",
+          "devMode": false,
+          "nativeTrial": false
+        },
+        {
+          "id": "prod_pNectEHBe356SAystDzmMJbD",
+          "amountMinor": 69100,
+          "cycle": "MONTHLY",
+          "devMode": false,
+          "nativeTrial": false
+        },
+        {
+          "id": "prod_YtHhRgEbMxLZasE5KsqS4s3c",
+          "amountMinor": 83800,
+          "cycle": "MONTHLY",
+          "devMode": false,
+          "nativeTrial": false
+        }
+      ],
+      "webhookReadHttp": 200,
+      "webhookCount": 0,
+      "deliveryTargets": [],
+      "providerMutations": 0,
+      "productionWrites": 0
+    },
+    "vercelMetadata": {
+      "observedAt": "2026-11-14T10:35:03.888Z",
+      "status": "PASS_READ_ONLY_METADATA",
+      "productionDeployment": {
+        "id": "dpl_2gHasgxKuWkFY8ct1w56VLeHDhQP",
+        "sha": "5620a0987ec53db7d7358728eb7d457d9d373df3"
+      },
+      "variables": [
+        {
+          "name": "ABACATEPAY_WEBHOOK_SECRET",
+          "target": [
+            "production"
+          ],
+          "gitBranch": null,
+          "type": "sensitive"
+        },
+        {
+          "name": "ABACATEPAY_NEW_CHECKOUTS_ENABLED",
+          "target": [
+            "production"
+          ],
+          "gitBranch": null,
+          "type": "encrypted"
+        },
+        {
+          "name": "ABACATEPAY_ENVIRONMENT",
+          "target": [
+            "production"
+          ],
+          "gitBranch": null,
+          "type": "encrypted"
+        },
+        {
+          "name": "ABACATEPAY_STORE_ID",
+          "target": [
+            "production"
+          ],
+          "gitBranch": null,
+          "type": "encrypted"
+        },
+        {
+          "name": "ABACATEPAY_PLAN_PRODUCTS",
+          "target": [
+            "production"
+          ],
+          "gitBranch": null,
+          "type": "encrypted"
+        },
+        {
+          "name": "ABACATEPAY_API_KEY",
+          "target": [
+            "production"
+          ],
+          "gitBranch": null,
+          "type": "sensitive"
+        },
+        {
+          "name": "ABACATEPAY_API_KEY",
+          "target": [
+            "preview"
+          ],
+          "gitBranch": null,
+          "type": "sensitive"
+        },
+        {
+          "name": "ABACATEPAY_WEBHOOK_SECRET",
+          "target": [
+            "preview"
+          ],
+          "gitBranch": "feat/billing-abacatepay-20261107",
+          "type": "encrypted"
+        },
+        {
+          "name": "ABACATEPAY_SANDBOX_PLAN_PRODUCTS",
+          "target": [
+            "preview"
+          ],
+          "gitBranch": "feat/billing-abacatepay-20261107",
+          "type": "encrypted"
+        },
+        {
+          "name": "ABACATEPAY_SANDBOX_PROBE_PRODUCT_ID",
+          "target": [
+            "preview"
+          ],
+          "gitBranch": "feat/billing-abacatepay-20261107",
+          "type": "encrypted"
+        },
+        {
+          "name": "ABACATEPAY_STORE_ID",
+          "target": [
+            "preview"
+          ],
+          "gitBranch": "feat/billing-abacatepay-20261107",
+          "type": "encrypted"
+        },
+        {
+          "name": "ABACATEPAY_API_KEY",
+          "target": [
+            "preview"
+          ],
+          "gitBranch": "feat/billing-abacatepay-20261107",
+          "type": "encrypted"
+        },
+        {
+          "name": "SAAS_SIGNUP_PROVIDER",
+          "target": [
+            "preview"
+          ],
+          "gitBranch": "feat/billing-abacatepay-20261107",
+          "type": "encrypted"
+        },
+        {
+          "name": "UPSTASH_REDIS_REST_TOKEN",
+          "target": [
+            "preview"
+          ],
+          "gitBranch": null,
+          "type": "sensitive"
+        },
+        {
+          "name": "UPSTASH_REDIS_REST_URL",
+          "target": [
+            "preview"
+          ],
+          "gitBranch": null,
+          "type": "sensitive"
+        },
+        {
+          "name": "UPSTASH_REDIS_REST_TOKEN",
+          "target": [
+            "production"
+          ],
+          "gitBranch": null,
+          "type": "sensitive"
+        },
+        {
+          "name": "UPSTASH_REDIS_REST_URL",
+          "target": [
+            "production"
+          ],
+          "gitBranch": null,
+          "type": "sensitive"
+        },
+        {
+          "name": "CRON_SECRET",
+          "target": [
+            "production",
+            "preview"
+          ],
+          "gitBranch": null,
+          "type": "sensitive"
+        }
+      ],
+      "valuesRead": false,
+      "configurationWrites": 0,
+      "productionWrites": 0
+    },
+    "productionMetadata": {
+      "observedAt": "2026-11-14T10:54:48.776Z",
+      "status": "PASS_METADATA_ONLY",
+      "target": "authorized_production_connection",
+      "scope": "read-only catalogs/history only; no patient or contract row read",
+      "transaction": "REPEATABLE READ READ ONLY",
+      "history": {
+        "entries": 136,
+        "last_timestamp": "1793804271309",
+        "last_hash": "ff1655034997a99667c9aade34d0f1c97b0fdde436a1f880e37501f0acf28119",
+        "approvedPrefixMatch": true,
+        "historicalDifferencesRecognized": 3,
+        "crlfEquivalent": 32,
+        "unexplainedDifferences": [],
+        "pending": [
+          {
+            "idx": 136,
+            "tag": "0136_trial_resource_limits",
+            "when": 1794096000000,
+            "sha256": "43bb658055c581eae20788c6df87d50fc16ec00e472a73da52500d4a22e2fe10"
+          },
+          {
+            "idx": 137,
+            "tag": "0137_trial_service_role_privileges",
+            "when": 1794168300000,
+            "sha256": "e1515b18deebdfd1dac558d9f02d5024655e81ad3ea196ad38ed12e3f3e9aaa7"
+          },
+          {
+            "idx": 138,
+            "tag": "0138_saas_gateway_bindings",
+            "when": 1794171600000,
+            "sha256": "22e4c7f622ee269d17b51b97238489d77d6cde5c385a765df8c613278219a69f"
+          },
+          {
+            "idx": 139,
+            "tag": "0139_saas_gateway_recontracts",
+            "when": 1794189600000,
+            "sha256": "aa935cd0cadcf6156636f9c7c98fe6201bdba5c1384f556ff026ebb4eb95d4be"
+          },
+          {
+            "idx": 140,
+            "tag": "0140_saas_recurring_payment_observations",
+            "when": 1794199882765,
+            "sha256": "98269c83b754785a7e9ecf0b2b4b142ff121cc22b56b8f3055575299ba8ca330"
+          },
+          {
+            "idx": 141,
+            "tag": "0141_saas_scheduled_plan_changes",
+            "when": 1794222981810,
+            "sha256": "a13faef1aa291981c3e4c337cbde868225d9d1433bdeed8dd320fd7a74fdf5fd"
+          },
+          {
+            "idx": 142,
+            "tag": "0142_saas_review_replays",
+            "when": 1794326400000,
+            "sha256": "410c61834e2a1eb1bf11331b71f7660205fa426b76d1a9fa566e6b13d7d3fb3d"
+          },
+          {
+            "idx": 143,
+            "tag": "0143_tiss_catalog",
+            "when": 1794330000000,
+            "sha256": "9f9b483aaeff60a9ca4f5b182c3b071408a7d3eec9ecea7cfe8f98bcf602e807"
+          },
+          {
+            "idx": 144,
+            "tag": "0144_hi_clinic_setup",
+            "when": 1794367436665,
+            "sha256": "b9ac6c7a0b335582f3bf69385a3b004cf9d0784955f27d7c3cd22776a4590589"
+          },
+          {
+            "idx": 145,
+            "tag": "0145_hi_memberships",
+            "when": 1794391493822,
+            "sha256": "98425850e4c2dae613734aa337ce588df641e5c3b67476c055147cb9c82632c4"
+          },
+          {
+            "idx": 146,
+            "tag": "0146_hi_authorizations",
+            "when": 1794395869610,
+            "sha256": "15cbf34c1439cc1d7a0ca4be40267729b44c1cdea1760d5090deb10288493cb6"
+          },
+          {
+            "idx": 147,
+            "tag": "0147_hi_guides",
+            "when": 1794399173366,
+            "sha256": "a344a7e86074d90a4b13b007ef6f9e3357ac23e3b8bc43743158d131ca45238a"
+          },
+          {
+            "idx": 148,
+            "tag": "0148_hi_coverage_copay",
+            "when": 1794405160338,
+            "sha256": "45f0b90b9307c5888e8e0ac61fab9685561f89a62cdf54ea60d2bd3becfdcb0b"
+          },
+          {
+            "idx": 149,
+            "tag": "0149_hi_billing_gaps",
+            "when": 1794416643149,
+            "sha256": "56c0d5f29a409b65e0fe4fc1ac7512bbd8c979150c2252e375a375b85139d183"
+          },
+          {
+            "idx": 150,
+            "tag": "0150_hi_batches",
+            "when": 1794418524711,
+            "sha256": "e7dc279a073501a4f2e03dd95ff9773564cbc690ea2591a3e94a03f9a273c992"
+          },
+          {
+            "idx": 151,
+            "tag": "0151_hi_premium_gate",
+            "when": 1794432173857,
+            "sha256": "a0e446dbce4121c538c4a3e206a406e0977d5d1729ed14b03417a3937b71ae0b"
+          },
+          {
+            "idx": 152,
+            "tag": "0152_hi_glosses_payments",
+            "when": 1794518573857,
+            "sha256": "f16efcaabf8ed205b102005883c8627d3f1037edbcd91908f1d700123720766a"
+          },
+          {
+            "idx": 153,
+            "tag": "0153_hi_ledger_bridge",
+            "when": 1794604973857,
+            "sha256": "ebb976532db49b2d36947cd5c37724a6b6b9c85713e2f92818fcefc992b23378"
+          },
+          {
+            "idx": 154,
+            "tag": "0154_hi_premium_period_evidence",
+            "when": 1794691373857,
+            "sha256": "3e493911867aa5cf1157ee083a451a9bd1f86a084f371d36da5312d08676925a"
+          },
+          {
+            "idx": 155,
+            "tag": "0155_ledger_payment_sum_by_clinic",
+            "when": 1794777773857,
+            "sha256": "aecc5c2d0b7cf36a3dbdcf7331d4247077acf8c7466cbc853e2d40dc905e1d33"
+          },
+          {
+            "idx": 156,
+            "tag": "0156_hi_sadt_requests",
+            "when": 1794864173857,
+            "sha256": "cdf3004b15a8a09d6e8f2065bf42be39a05b979eb4d12cd8a5ac1d32b492f860"
+          },
+          {
+            "idx": 157,
+            "tag": "0157_hi_professional_payouts",
+            "when": 1794950573857,
+            "sha256": "f39a58d0401b3d221b03cbe0b41c9f4b530947d0f03b4b3564929e11349b5f15"
+          },
+          {
+            "idx": 158,
+            "tag": "0158_hi_copay_charge",
+            "when": 1795036973857,
+            "sha256": "40cc90493b5abf980c209485c83451f33c4cfc5931b87f3af7653f2091af63a2"
+          },
+          {
+            "idx": 159,
+            "tag": "0159_saas_period_snapshot",
+            "when": 1795036973858,
+            "sha256": "eb00a4e3dd45f89e7eef4dc2c95c577e7932f1f2131d5bfb4ff8f5e4570f5c74"
+          }
+        ]
+      },
+      "relations": [
+        {
+          "schema": "public",
+          "name": "invoices",
+          "rls": true,
+          "forced": true
+        },
+        {
+          "schema": "public",
+          "name": "patient_charges",
+          "rls": true,
+          "forced": true
+        },
+        {
+          "schema": "public",
+          "name": "profiles",
+          "rls": true,
+          "forced": true
+        },
+        {
+          "schema": "public",
+          "name": "subscriptions",
+          "rls": true,
+          "forced": true
+        }
+      ],
+      "subscriptionColumns": [
+        {
+          "table_name": "subscriptions",
+          "column_name": "current_period_end"
+        },
+        {
+          "table_name": "subscriptions",
+          "column_name": "current_period_start"
+        },
+        {
+          "table_name": "subscriptions",
+          "column_name": "grace_period_until"
+        }
+      ],
+      "productionWrites": 0,
+      "providerCalls": 0
+    },
+    "devMetadata": {
+      "observedAt": "2026-11-14T10:35:35.764Z",
+      "transaction": "REPEATABLE READ READ ONLY",
+      "historyEntries": 161,
+      "prefix160Match": true,
+      "historicalDifferences": "Six previously classified differences preserved; no history rewritten",
+      "financial159Hash": "eb00a4e3dd45f89e7eef4dc2c95c577e7932f1f2131d5bfb4ff8f5e4570f5c74",
+      "applied160": true,
+      "sql160Hash": "718190feffe57a0f0b7ceaf7c28686793209f0c0cb9f4b7bfd6480d4ac1ef306",
+      "sql160Origin": "1b09267edf93c50e1e692cad2e9241fa9a62af3e",
+      "reviewedTissMetadataReference": "c5841aa110134e57c98ded82e0347751572af2a1",
+      "currentHeadNotAReleaseDependency": true,
+      "tables": [
+        {
+          "schema": "billing_gateway",
+          "name": "accounts",
+          "rls": true,
+          "forced": true
+        },
+        {
+          "schema": "billing_gateway",
+          "name": "bindings",
+          "rls": true,
+          "forced": true
+        },
+        {
+          "schema": "billing_gateway",
+          "name": "cancellations",
+          "rls": true,
+          "forced": true
+        },
+        {
+          "schema": "billing_gateway",
+          "name": "checkout_intents",
+          "rls": true,
+          "forced": true
+        },
+        {
+          "schema": "billing_gateway",
+          "name": "event_inbox",
+          "rls": true,
+          "forced": true
+        },
+        {
+          "schema": "billing_gateway",
+          "name": "operations",
+          "rls": true,
+          "forced": true
+        },
+        {
+          "schema": "billing_gateway",
+          "name": "paid_checkouts",
+          "rls": true,
+          "forced": true
+        },
+        {
+          "schema": "billing_gateway",
+          "name": "plan_changes",
+          "rls": true,
+          "forced": true
+        },
+        {
+          "schema": "billing_gateway",
+          "name": "recontracts",
+          "rls": true,
+          "forced": true
+        },
+        {
+          "schema": "billing_gateway",
+          "name": "recurring_access_periods",
+          "rls": true,
+          "forced": true
+        },
+        {
+          "schema": "billing_gateway",
+          "name": "recurring_payment_observations",
+          "rls": true,
+          "forced": true
+        },
+        {
+          "schema": "billing_gateway",
+          "name": "renewal_api_readbacks",
+          "rls": true,
+          "forced": true
+        },
+        {
+          "schema": "billing_gateway",
+          "name": "review_replays",
+          "rls": true,
+          "forced": true
+        },
+        {
+          "schema": "billing_gateway",
+          "name": "statement_scan_items",
+          "rls": true,
+          "forced": true
+        },
+        {
+          "schema": "billing_gateway",
+          "name": "statement_scans",
+          "rls": true,
+          "forced": true
+        },
+        {
+          "schema": "billing_gateway",
+          "name": "trial_claims",
+          "rls": true,
+          "forced": true
+        },
+        {
+          "schema": "public",
+          "name": "hi_clinic_settings",
+          "rls": true,
+          "forced": true
+        },
+        {
+          "schema": "public",
+          "name": "invoices",
+          "rls": true,
+          "forced": true
+        },
+        {
+          "schema": "public",
+          "name": "payment_attempts",
+          "rls": true,
+          "forced": true
+        },
+        {
+          "schema": "public",
+          "name": "subscriptions",
+          "rls": true,
+          "forced": true
+        },
+        {
+          "schema": "public",
+          "name": "trial_access_policies",
+          "rls": true,
+          "forced": true
+        },
+        {
+          "schema": "public",
+          "name": "trial_resource_usage",
+          "rls": true,
+          "forced": true
+        }
+      ],
+      "integrity": {
+        "cross_tenant_invoices": 0,
+        "duplicate_cycles": 0,
+        "enabled_tiss_dev_clinics": 3
+      },
+      "applicationWrites": 0,
+      "migrationsAppliedByThisRun": 0
+    },
+    "forwardCompatibility161": {
+      "directory": "C:\\dev\\Qoro_billing_abacatepay_20261107\\dist\\rc-forward-schema-161-20261114",
+      "source": "7208d5059aaaea502a153cff627856418dc45e6c",
+      "sharedTailSource": "c5841aa110134e57c98ded82e0347751572af2a1",
+      "entries": 161,
+      "addedSqlSha256": "718190feffe57a0f0b7ceaf7c28686793209f0c0cb9f4b7bfd6480d4ac1ef306",
+      "port": 59725,
+      "releaseCandidateSqlChanged": false,
+      "devWrites": 0,
+      "productionWrites": 0,
+      "observedAt": "2026-11-14T10:41:59.244Z",
+      "passed": 52,
+      "failed": 0,
+      "proofFile": "dist/rc-forward-schema-161-20261114/dist/signup-free-trial-db.json",
+      "proofSha256": "847bb07daea8b1befcaaf1667da80001a0fa0faa0667abbc62be2219f83e7e92",
+      "logSha256": "76f3d4b7ace86d04d60caee58caca4f9a6adf9ca1d4eeab20fe77bfb118d5111",
+      "networkCalls": 0,
+      "candidateRemainsFrozen160": true
+    },
+    "focusedTests": {
+      "command": "node node_modules/vitest/vitest.mjs run src/lib/payments/saas/acquisition.test.ts src/lib/payments/saas/acquisition-env.test.ts src/lib/payments/saas/renewal-observation.test.ts",
+      "passed": 45,
+      "files": 3,
+      "skipped": 0,
+      "status": "PASS",
+      "log": "dist/rc-operational-guards-tests.log",
+      "logSha256": "04e7ca915199d7a8915bf36a2ae98e85ea5afe253946c859b8bf8dc00dc5c585"
+    },
+    "frozenSqlSafety": {
+      "command": "node --import tsx scripts/check-migration-safety.ts",
+      "cwd": "dist/abacatepay-saas-7208d505",
+      "entries": 160,
+      "exitCode": 0,
+      "status": "PASS",
+      "logSha256": "6ecfa0bcdd344d2ff397d4566b658af53a6cb198e553f38fb53eda0131ceecf0"
+    },
+    "preservedExternalProofs": "Five initial Sandbox purchases plus EARLY-01; no repeat payment or new checkout",
+    "preservedControlledProofs": "131 PostgreSQL/Redis/synthetic provider checks; runtime unchanged",
+    "risks": {
+      "R1": {
+        "status": "PARTIAL",
+        "accepted": false,
+        "gap": "Automatic closure in the live store and concurrent payment guarantee not externally demonstrated"
+      },
+      "R2": {
+        "status": "PARTIAL",
+        "accepted": false,
+        "gap": "Natural renewal not yet occurred; official next date 2026-12-13"
+      },
+      "R3": {
+        "status": "PARTIAL",
+        "accepted": false,
+        "gap": "Real recurring negative events and new quota in external renewal not observed"
+      },
+      "R4": {
+        "status": "PARTIAL",
+        "accepted": false,
+        "gap": "Local capacity tests do not establish Vercel, Redis or provider production SLA"
+      },
+      "R51": {
+        "status": "PARTIAL",
+        "owner": "Shared UI lead, person A DEFINIR PELO RESPONSAVEL",
+        "billingSample": "26 strict Preview assertions PASS; not global closure",
+        "handoff": "Dossier and PR53 handoff available; acknowledgement not observed"
+      }
+    },
+    "rollout": {
+      "recommendation": "GO CONDICIONAL PARA DEPLOY FECHADO; not an execution authorization",
+      "execution": "NO_GO_UNTIL_EXPLICIT_PHASE_AUTHORIZATION",
+      "phases": [
+        "A readonly preflight",
+        "B1 closed deployment and exact SQL, consumers disarmed only if no live obligations",
+        "B2 consumers with acquisition closed",
+        "C one explicitly selected consenting clinic",
+        "D proposed 1 to 3 to 10 with separate approvals"
+      ],
+      "criticalDistinction": "Acquisition false does not disable consumers; preserve consumers of paid obligations",
+      "namedOwners": "A DEFINIR PELO RESPONSAVEL",
+      "selectedClinic": null,
+      "residualRisksAccepted": false
+    },
+    "diagnosticsResolvedWithoutProductChange": [
+      "First observer call unavailable; process-local Windows system CA retry passed",
+      "First local forward-schema invocation preceded copy completion; no database started; complete later invocation passed 52",
+      "First production comparison recognized LF only; exact CRLF classification resolved all differences without rewriting any SQL or remote history"
+    ],
+    "officialReferencesChecked20261114": [
+      "https://github.com/AbacatePay/documentation/blob/main/pages/subscriptions/checkouts-delete.mdx",
+      "https://github.com/AbacatePay/documentation/blob/main/pages/cobrar/assinaturas.mdx",
+      "https://docs.abacatepay.com/pages/webhooks/events/subscriptions",
+      "https://docs.abacatepay.com/pages/webhooks/events/checkout",
+      "https://docs.abacatepay.com/pages/notificacoes/webhooks"
+    ],
+    "mutations": {
+      "production": 0,
+      "dev": 0,
+      "provider": 0,
+      "newCheckouts": 0,
+      "payments": 0,
+      "newAccounts": 0,
+      "emails": 0,
+      "sentryProbes": 0,
+      "merges": 0,
+      "deployments": 0,
+      "migrations": 0
+    }
   }
 }

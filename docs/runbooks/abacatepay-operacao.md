@@ -1,6 +1,68 @@
 # Operação e recuperação AbacatePay
 
-**Checkpoint vigente: candidato apenas SaaS, relatório§57. EARLY-01 já paga e encerrada; não repetir create, fechamento ou pagamento.** SaaS não espera guias/glosas/R54/homologação de operadora. SQL congelado e UI compartilhada têm verificações próprias. Seções antigas são evidência histórica, não ordens para repetir aplicação DEV ou pagamentos.
+**Checkpoint vigente: [dossiê final do release candidate](../decoupling/asaas-to-abacatepay/ABACATEPAY-SaaS-GO-NO-GO-FINAL.md), relatório §58, 14/11/2026.** Runtime7208d505 congelado; documentação nova não altera código. DEV161 tem0160 aplicada por outra execução; compatibilidade52PASS. Production136 requer futuro preflight das24 entradas0136–0159 do pacote congelado160. EARLY-01 já paga e encerrada: não repetir criação, fechamento ou pagamento. SaaS não espera guias/glosas/R54/homologação de operadora. **Não há GO para configuração, migration, deploy, consumidor ou piloto live.** Seções antigas são histórico, não ordens de execução.
+
+## Fases vigentes A–D — piloto controlado
+
+Esta sequência prevalece sobre comandos e decisões históricas abaixo. Os nomes dos responsáveis e a clínica continuam **A DEFINIR PELO RESPONSÁVEL**. Cada autorização deve registrar SHA, ambiente, escopo, data/hora America/Sao_Paulo e responsável disponível. Nenhuma fase avança automaticamente.
+
+### A — pré-voo, antes de qualquer alteração live
+
+1. Conferir HEAD/checks do PR53 e aprovação do pacote **apenas SaaS**. Runtime aprovado7208d505; exportação por `scripts/abacatepay-saas-release.ts`, SQL compartilhado congelado `4d0ed1d5c8a81ab9f66e026f4f36c6e4520a7269`,160 entradas. Não compor com o HEAD atual TISS. Conferir manifesto e hash0159; não gerar DDL pelo modelo parcial nem incorporar0160 automaticamente.
+2. Conferir destino Supabase de produção por fingerprint, TLS e histórico completo, sem dados de pacientes nos logs. Snapshot14/11:136 entradas;32 diferenças de hash são equivalências CRLF/LF demonstradas, não drift a corrigir. Esperadas24 entradas pendentes0136–0159, na ordem/hashes da evidência canônica. **Parar** se faltar prefixo, houver timestamp/ordem/SQL inexplicado ou sufixo novo não revisado.
+3. Conferir backup cifrado recuperável, senha/chave em destino aprovado, acesso independente e procedimento de recuperação. Conferir Node22, `pg_dump`, `gpg`, espaço, conectividade e permissões. Não gravar dump em Git, CI pública ou destino não aprovado. Aceite anterior de perda entre backups não aceita R1–R4.
+4. Identificar se já há obrigações AbacatePay live. A ausência de `billing_gateway` no snapshot atual indica que o runtime novo não está aplicado, mas isso não dispensa conferir obrigações remotas na janela. **Nunca desligar consumidores de obrigações pagas para apenas conter aquisição.**
+5. Conferir nomes/escopos e origem dos segredos, catálogo mensal5/5, loja, endpoint confiável, Redis/cron, MFA e canal de incidente. Presença de variável não comprova valor ou saúde. Registrar responsável técnico/financeiro/suporte/plantão/substituto e revisão UI/R51 das rotas comerciais. Não copiar `.env.local` para o pacote nem segredos Sandbox para Production.
+6. Registrar backup/rollback, preflight e o GO exato para a próxima fase. **PARADA A:** sem responsável, autorização, backup verificável, schema conhecido ou rollback compatível, não executar env, SQL ou deploy.
+
+### B1 — schema e deploy fechado, somente após GO específico
+
+O GO deve cobrir explicitamente fechamento de cadastro por novo deployment, configurações necessárias, SQL exato e publicação do candidato. Se não cobrir, parar antes dessa operação. O cadastro fechado no deployment antigo deve ser comprovado antes da aplicação; alteração na Vercel não muda deployments existentes.
+
+**Aquisição fechada não significa consumidores desligados.** `ABACATEPAY_NEW_CHECKOUTS_ENABLED=false` preserva os consumidores. Para uma primeira B1 **sem qualquer obrigação live**, a proposta é deixar `ABACATEPAY_ENVIRONMENT` ausente e não selecionar aquisição AbacatePay no deployment autorizado; o guard existente fecha o runtime em Production sem ambiente explícito. Isso requer autorização de configuração e redeploy. Se já houver obrigação live, não usar esse desarme; revisar escopo/rollback antes de continuar.
+
+No terminal do operador autorizado, com segredos carregados pelo mecanismo aprovado e sem imprimi-los, somente na pasta do pacote exportado aprovado:
+
+```powershell
+Set-Location '<CAMINHO_ABSOLUTO_DO_PACOTE_APROVADO>'
+$env:NODE_ENV = 'production'
+$env:SUPABASE_PROJECT_ENV = 'prod'
+node --import tsx scripts/db-backup-prod.ts
+```
+
+Conferir saída0, arquivo cifrado, integridade, destino e capacidade de recuperação antes de prosseguir. **Sem isso, parar.** Somente com GO de SQL e preflight atual confirmado:
+
+```powershell
+node --import tsx scripts/db-migrate-prod.ts
+```
+
+O operador de migrations executa o guard SQL, cria backup e usa lock/advisory e sentinel. Não remover sentinel, editar histórico ou executar arquivos avulsos para forçar sucesso. Esperado: apenas0136–0159,24 entradas, e160 no total. O futuro alvo pode ter mudado: a diferença real deve conferir com o manifesto autorizado, não somente com a contagem.
+
+Depois do SQL, conferir hashes/ordem, RLS/FKs, contratos/preços/descontos/períodos anteriores, último titular e ausência de duplicação/cross-tenant. Registrar contagens/assinaturas sanitizadas antes/depois, nunca conteúdo clínico. Publicar o pacote SaaS aprovado somente com autorização; manter contratos e consumidores Asaas legados.
+
+Conferir cadastro bloqueado, login/MFA, rotas essenciais, assinatura/UI, logs, isolamento e ausência de consumo financeiro AbacatePay indevido. Webhook503 com runtime desarmado é esperado nessa B1 e **não** prova autenticação/HMAC. **PARADA B1:** não criar webhook ativo, checkout ou ativar consumidores. Não chamar esse deployment de piloto financeiro aprovado.
+
+### B2 — consumidores e entrega, com GO próprio e aquisição ainda fechada
+
+Após autorização explícita: conferir segredos live/loja/catálogo/allowlist e selecionar runtime `ABACATEPAY_ENVIRONMENT=production`; seleção de aquisição futura usa `SAAS_SIGNUP_PROVIDER=abacatepay_production`. Manter `ABACATEPAY_NEW_CHECKOUTS_ENABLED=false` e gerar novo deployment. Nenhuma chave/produto Sandbox é reaproveitada.
+
+Validar endpoint HTTPS/secret/HMAC, persistência e isolamento da inbox, Redis, cron outbox/reconcile, leases, scanner, renewal-watch, closure e alertas. A lista live atual tem zero webhooks; somente configurar entrega ativa depois que o endpoint correto estiver publicado e autenticando. Não apontar eventos para404/503, nem interpretar presença de segredo como teste funcional. Testes não monetários live precisam estar no GO dessa fase.
+
+**PARADA B2:** sem saúde/observabilidade, conter aquisição; sem autorização específica de clínica/pagamento/R1–R4, não iniciar piloto. Consumidores operacionais não autorizam nova venda.
+
+### C — uma clínica assistida, somente após GO específico do piloto
+
+O founder escolhe clínica/plano e registra consentimento, condições, responsáveis e aceite/rejeição separado R1–R4. Não escolher cliente por conta própria, migrar Asaas, cancelar contrato ou criar cobrança retroativa. Proposta: uma clínica e uma obrigação por vez, allowlist com um UUID aprovado; novo deployment para configuração autorizada.
+
+A pessoa autorizada conclui o pagamento. Correlacionar loja/checkout/customer/produto/valor/assinatura/geração, webhook autêntico, invoice/receipt/período/cota/UI e auditoria; conferir única assinatura e fechamento automático confirmado. Checkout pendente não libera direito pago. R1 externo só pode receber PASS com essa evidência, não por comando manual.
+
+**PARADA C:** desconhecido/duplicidade, tenant/valor divergente, falha de banco/Redis/autenticação, closure ou renovação sem prova além do limiar aprovado, erro de UI que impeça navegação comercial. Fechar novas aquisições e preservar o processamento das obrigações confirmadas; acionar técnico/financeiro, sem novo comando remoto cego.
+
+### D — expansão proposta, sem aprovação automática
+
+Proposta **1→3→10**. Cada transição exige aprovação e revisão de risco, notificações, fila/idade, conciliação, saúde do alvo e cobertura de renovação ou aceite delimitado. Limiares do dossiê são propostas, não SLAs configurados. Dez closures podem exigir pelo menos dez ticks elegíveis; revisar o limite do piloto1 antes de ampliar. Nunca expandir apenas porque a CI ficou verde.
+
+**Recuperação:** após uma obrigação paga, conter aquisição por novo deployment sem desligar o runtime/consumidores que conciliam seu pagamento. Preservar schema, inbox, invoices, receipts, períodos e contratos. Reverter app somente para versão compatível; preferir correção adiante quando uma versão anterior perder consumidores AbacatePay. Não executar DOWN, apagar ledger, restaurar sobre produção, estornar ou cancelar contratos automaticamente. Voltar código não desfaz cobrança.
 
 ## Candidato SaaS independente — procedimento vigente de14/11
 

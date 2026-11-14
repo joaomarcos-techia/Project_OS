@@ -1,8 +1,8 @@
-> **Estado corrente: seção57 — candidato SaaS independente de Convênios.** Código financeiro separado de guias/lotes/coparticipação; ensaios sem TISS e com schema compartilhado desabilitado passaram. EARLY-01 e as cinco compras continuam homologadas, sem repetição. R51 é uma pendência da UI compartilhada, não das117tarefas TISS. Production permanece NO-GO operacional/comercial, sem novo release/migration/ativação financeira. Seções anteriores preservam o histórico.
+> **Estado corrente: seção58 — [dossiê final do release candidate](ABACATEPAY-SaaS-GO-NO-GO-FINAL.md).** Runtime7208d505 congelado; esta rodada altera somente documentos/evidências. DEV161 compatível52PASS; controles45PASS; produção136,24 entradas0136–0159 pendentes do pacote aprovado160. Cinco compras e EARLY-01 preservadas; renovação natural13/12 PARTIAL. R1–R4 sem aceite; R51 compartilhado não declarado resolvido. Recomendação de GO condicionado para deploy fechado não autoriza sua execução. Nenhuma migration,configuração,consumidor ou publicação Production nesta rodada. Seções anteriores são histórico.
 
 # Homologação financeira AbacatePay — Qoro
 
-**Checkpoint corrente: seção 57 — candidato SaaS independente de Convênios.** Os resultados externos iniciais permanecem válidos; a renovação natural não recebeu PASS.
+**Checkpoint corrente: seção58 — release candidate congelado e riscos explícitos.** Os resultados externos iniciais permanecem válidos; a renovação natural não recebeu PASS. A versão final dos checks está no PR53 e não é inferida de uma CI anterior.
 
 Iniciado em **09/11/2026**, antes das alterações desta rodada. **As seções 1–8 preservam o checkpoint H0 anterior à implementação; as seções 9–25 registram o fechamento diferencial.** Referência para futura ativação, **não autorização de Produção**. Este relatório consolida os [planos existentes](PLANO-MESTRE-MIGRACAO-ASAAS-ABACATEPAY.md), o [diário](PLANO-EXECUCAO-CONTINUIDADE.md), a [renovação](PLANO-CONTINUIDADE-RENOVACAO-E-HOMOLOGACAO.md) e a [matriz financeira](MATRIZ-CENARIOS-E-TESTES.md); não os substitui por regras comerciais novas.
 
@@ -1457,3 +1457,26 @@ Readback DEV adicional em14/11 **03:42:06UTC**, justificado pelo novo DDL:160 en
 ### G. Build isolado: localização correta do utilitário
 
 A CI43552406377 de `db7ffed1` passou testes/cobertura, mas **reprovou o build isolado**: o allowlist de cópia inclui `scripts/security`, sem os utilitários financeiros da pasta superior. O novo exportador estava nessa subpasta e seu import do helper não existia no sandbox do build. Preview completo havia passado porque contém ambos. Correção focada: mover o exportador para `scripts/abacatepay-saas-release.ts`, junto dos outros operadores financeiros, ajustando o import e este runbook. Nenhuma regra de build/CI, exclusão de teste, tipo ou dependência foi alterada para contornar o erro. O build do SHA corretivo precisa passar nos próprios checks; o FAIL anterior fica preservado.
+
+## 58. Release candidate final, riscos e piloto controlado — 14/11/2026
+
+O [dossiê A–H](ABACATEPAY-SaaS-GO-NO-GO-FINAL.md) é o documento autossuficiente para decisão. O [runbook vigente](../../runbooks/abacatepay-operacao.md#fases-vigentes-ad--piloto-controlado) contém os passos e paradas A/B1/B2/C/D. Evidência nova anexada à chave `releaseCandidateClosure20261114` do JSON canônico, sem substituir provas anteriores. Runtime financeiro permanece7208d505; não houve alteração de fonte, regra comercial, configuração, schema compartilhado, TISS ou dependência nesta rodada.
+
+| Verificação diferencial | Resultado | Limitação preservada |
+|---|---|---|
+| HEAD/checks baseline7208d505 | CI43553549307 PASS7190/636,22E2E zero SKIP,Semgrep/Snyk/Vercel SUCCESS;Agent Review NEUTRAL | Conferir também a CI do SHA documental final nos checks do PR53 |
+| Observer Sandbox EARLY-01,10:34:13UTC | GET/READ ONLY PASS;próxima data oficial13/12/2026,fim Qoro17:44:27.418UTC;closure confirmada,zero novo ciclo | **R2 PARTIAL**,não renovar por ACTIVE;primeira tentativa indisponível,reteste com CA do Windows passou |
+| Catálogo live,10:35:06UTC | GET5/5,R$197/397/544/691/838,MONTHLY,sem segundo trial;webhooks HTTP200,quantidade0 | Não comprova consumers/permissãoDELETE/closure live;zero mutação |
+| Vercel,10:35:03UTC | Nomes/escopos/deployment lidos com `decrypt=false`,Production5620a098 inalterada | Valores não lidos;seleção de aquisição AbacatePay ausente no escopo Production observado |
+| DEV,10:35:35UTC |161 entradas,0160 reconhecida;prefixo160/0159 íntegros,22 tabelas RLS,zero invoice cruzada/ciclo duplicado |0160 aplicada por outra execução;nenhuma migration ou runtime TISS incorporado |
+| Compatibilidade0160 | PostgreSQL isolado,**52PASS**,161 migrations,10:41:59UTC;fonte7208d505+DDL0160 do blob congelado | Sem rede externa/produção;release continua SQL160,sem depender do HEAD PR55 |
+| Controles operacionais | **45PASS/3arquivos**,zero SKIP:aquisição/ambiente/observador;guard SQL do pacote160 saída0 | Não atribuir capacidade live ou prova externa a esses testes |
+| Prefixo Production,10:54:48UTC |136 entradas;32 hashes equivalentes CRLF/LF,ordem/timestamps coerentes,zero SQL desconhecido;quatro tabelas centrais com RLS forçado | Catálogos/histórico READ ONLY,sem linhas clínicas/contratuais;24 entradas0136–0159 pendentes |
+
+O primeiro comparador Production somente LF apontou diferenças ainda não classificadas. Comparação exata de bytes demonstrou CRLF equivalente; nenhum hash persistido ou arquivo SQL foi corrigido. O ensaio161 foi chamado uma vez antes de terminar a cópia e não iniciou o banco; a execução completa posterior passou52. Esses erros de preparação não são falhas financeiras nem provas aprovadas.
+
+**Decisão técnica:**GO CONDICIONAL PARA DEPLOY FECHADO como recomendação, sem execução autorizada. Não há novo defeito determinístico SaaS identificado que justifique prolongar o desenvolvimento. Piloto ainda exige aceite/rejeição individual R1–R4,clínica consentida,responsáveis,janela e consumidores/endpoint/cron/Redis/alertas efetivamente validados. R51 raro continua com o responsável da UI compartilhada;há26 checks SaaS anteriores sem erro,não encerramento global. Handoff documentado,sem afirmar leitura pelo outro agente.
+
+**Parada importante:** aquisiçãofalse não desliga consumidores. B1 sem obrigações live pode propor ambiente AbacatePay ausente por novo deployment autorizado;B2 autoriza separadamente runtime/consumidores com aquisição ainda fechada. Após obrigação paga,conter somente aquisição e preservar processamento/schema/histórico. Nenhuma dessas configurações foi executada aqui. RACI nominal e clínica continuam **A DEFINIR PELO RESPONSÁVEL**. Expansão1→3→10 é proposta,não regra automática.
+
+**Encerramento de escopo:** sem novo checkout,pagamento,conta,e-mail,probe Sentry,merge,DDL,deploy ou consumidor financeiro live. Quatro exclusões antigas de vídeos permanecem fora desta alteração e não serão incluídas no commit. Checks finais e SHA documental devem ser consultados no PR53; o resultado da baseline não se apresenta como execução de uma revisão posterior.
