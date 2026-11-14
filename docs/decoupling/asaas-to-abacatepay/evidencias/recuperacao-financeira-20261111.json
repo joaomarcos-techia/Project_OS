@@ -24103,5 +24103,117 @@
     "finalHeadCI": "Required on subsequent documentation commit; see final PR53 checkpoint",
     "productionWrites": 0,
     "providerCalls": 0
+  },
+  "technicalClosureAndDecision20261114": {
+    "observedAt": "2026-11-14T22:31:34.055Z",
+    "officialCI": {
+      "observedAt": "2026-11-14T22:26:47.951Z",
+      "runId": 43641356914,
+      "jobId": 132589427795,
+      "headSha": "25127abfeccd09f19b2decc5689ef901d8e8ce0f",
+      "url": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/43641356914",
+      "status": "PASS",
+      "tests": 7206,
+      "files": 637,
+      "e2e": 22,
+      "skipped": 0,
+      "logSha256": "52a6044bc55434990a50711b7e5a7356b0a0d201929a55373a5c481940af0320",
+      "proof": "Authenticated HTTPS run metadata and job log, certificate validation retained; no credential persisted or printed",
+      "productionWrites": 0
+    },
+    "checks": [
+      {
+        "link": "https://vercel.com/github",
+        "name": "Vercel Preview Comments",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/43641356944/job/132589427929",
+        "name": "Aviso — mudança arquitetural sem ADR",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/43641356914/job/132589427795",
+        "name": "Lint + Typecheck + Test + Build",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://vercel.com/github",
+        "name": "Vercel Agent Review",
+        "state": "NEUTRAL"
+      },
+      {
+        "link": "https://semgrep.dev/orgs/joaogestor_ia_personal_org/projects/6259773/scans/269008157",
+        "name": "semgrep-cloud-platform/scan",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://vercel.com/clinic-os-v2-s-projects/project-os/Dm7UTmPDAXuEdvidr4PUuMgovSqf",
+        "name": "Vercel",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://app.snyk.io/org/joaomarcos-techia/pr-checks/1065f6e3-f097-46a1-9dfa-e9ddf183acfb",
+        "name": "security/snyk (joaomarcos-techia)",
+        "state": "SUCCESS"
+      }
+    ],
+    "githubBilling": {
+      "ownerReported": "Pro, usage within included allowance",
+      "runnerExecution": "SUCCESS",
+      "billingAdministrativeAccess": false,
+      "budgetOrWorkflowChanges": false
+    },
+    "financialRuntimeFrozenAt": "7208d5059aaaea502a153cff627856418dc45e6c",
+    "scope": "Documentation and evidence closure only; no runtime, SQL, build, CI or deployment configuration changes",
+    "migrationEvidence": {
+      "entries": 160,
+      "pendingInProductionSnapshot": "0136-0159",
+      "pendingCount": 24,
+      "productionAppliedSnapshot": 136,
+      "devAppliedSnapshot": 161,
+      "tiss0160Included": false,
+      "replayRequiredThisRound": false,
+      "rehearsalChecks": 16,
+      "compatibilityChecksPreserved": 52,
+      "scopeLimit": "Existing same-SQL isolated proofs; not a new Production read or full disaster-recovery rehearsal"
+    },
+    "gates": {
+      "A": "VALIDATED on 25127abf; subsequent documentation HEAD checks required",
+      "B": "PREPARED, NOT AUTHORIZED",
+      "C": "PREPARED, NOT CONFIGURED OR ACTIVATED",
+      "D": "NOT AUTHORIZED",
+      "E": "NOT AUTHORIZED"
+    },
+    "risks": {
+      "R1": "PARTIAL, not accepted",
+      "R2": "PARTIAL, natural renewal 2026-12-13 still future, not accepted",
+      "R3": "PARTIAL, not accepted",
+      "R4": "PARTIAL, not accepted"
+    },
+    "uiHandoff": {
+      "path": "HANDOFF-UI-BILLING-SaaS.md",
+      "prepared": true,
+      "published": true,
+      "agentReadConfirmed": false,
+      "localIncident": "7590707702 forwarded to UI by owner; closed within billing scope absent new financial evidence",
+      "incidentInvestigationContinued": false,
+      "uiServerRestarted": false
+    },
+    "live": {
+      "webhookCount": 0,
+      "countIsHistoricalSnapshot": true,
+      "phasesAdvanced": false,
+      "registrationAuthenticatedDeliveryAndFinancialEffectAreSeparateProofs": true
+    },
+    "minimumHumanDecision": "Gate B only: approved SHA, window and available technical/operational responsible, conditional on current backup, preflight and rollback before any change; no consumer, purchase, pilot or risk acceptance implied",
+    "mutations": {
+      "productionSQL": 0,
+      "productionConfiguration": 0,
+      "productionDeployments": 0,
+      "liveWebhooks": 0,
+      "payments": 0,
+      "otherWorktrees": 0
+    }
   }
 }

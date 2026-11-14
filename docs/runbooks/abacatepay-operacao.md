@@ -1,14 +1,26 @@
 # Operação e recuperação AbacatePay
 
-**Checkpoint vigente: [dossiê final do release candidate](../decoupling/asaas-to-abacatepay/ABACATEPAY-SaaS-GO-NO-GO-FINAL.md), relatório §59, 14/11/2026.** Runtime7208d505, SQL e configuração congelados. Actions recuperado em f94248ef:7.190 testes/22 E2E sem SKIP; conferir novo HEAD nos checks. Ferramentas novas: preflight somente leitura e ensaio descartável136→160. DEV161 preserva0160; compatibilidade52PASS. Production136 requer as24 entradas0136–0159 do pacote aprovado160. EARLY-01 já paga e encerrada: não repetir pagamento. SaaS não espera guias/glosas/R54. **Não há GO para configuração, migration, deploy, consumidor ou piloto live.** Seções antigas são histórico, não ordens de execução.
+**Checkpoint vigente: [dossiê final do release candidate](../decoupling/asaas-to-abacatepay/ABACATEPAY-SaaS-GO-NO-GO-FINAL.md), 14/11/2026.** Runtime7208d505, SQL e configuração congelados. CI oficial25127abf: **7.206 testes e22 E2E sem SKIP**, SUCCESS; conferir checks de qualquer commit documental posterior. Pacote160 e ensaio136→160 preservados. Snapshots: DEV161 com0160; Production136 com24 entradas0136–0159 pendentes; compatibilidade52PASS. EARLY-01 já paga e encerrada: não repetir pagamento. SaaS não espera guias/glosas/R54 ou repaginação integral. **Não há GO para configuração, migration, deploy, consumidor ou piloto live.** Seções antigas são histórico, não ordens de execução.
 
-## Fases vigentes A–D — piloto controlado
+## Gates atuais A–E e fases operacionais — piloto controlado
+
+| Gate de decisão | Procedimento operacional deste runbook | Estado e autorização |
+|---|---|---|
+| A — candidato técnico | CI, segurança, composição, ensaios | VALIDADO no25127abf; novo commit documental exige checks próprios |
+| B — deploy controlado | Pré-voo A + schema/deploy fechado B1 | PREPARADO, NÃO AUTORIZADO; backup/preflight/rollback atuais e responsável/janela antes de executar |
+| C — ativação financeira live | B2: endpoint/webhook/inbox/consumidores/observabilidade | PREPARADO, NÃO CONFIGURADO/ATIVADO; GO próprio, sem aquisição |
+| D — primeira contratação real | C: piloto de uma clínica consentida | NÃO AUTORIZADO; R1–R4 tratados e autorização financeira explícita |
+| E — expansão | D: avaliação e ampliação do piloto | NÃO AUTORIZADO; cada ampliação tem decisão própria |
+
+As letras das fases antigas abaixo são nomes de procedimentos, não autorizações cumulativas. **Gate B não autoriza C/D/E.** Preparado, configurado, publicado, ativado e homologado são estágios distintos. Nenhuma operação live foi executada neste fechamento. O incidente local 7590707702 foi encaminhado pelo founder à UI; não reabrir aqui sem evidência financeira compartilhada, nem reiniciar seu servidor.
 
 Esta sequência prevalece sobre comandos e decisões históricas abaixo. Os nomes dos responsáveis e a clínica continuam **A DEFINIR PELO RESPONSÁVEL**. Cada autorização deve registrar SHA, ambiente, escopo, data/hora America/Sao_Paulo e responsável disponível. Nenhuma fase avança automaticamente.
 
 ### GitHub Actions — desbloqueio concluído, não repetir compra
 
-O bloqueio de14414498/zero steps é histórico. Após o titular informar Pro e uso dentro da franquia, as tentativas2 de CI43589401561 e advisory43589401548 passaram em **f94248ef**. Foram reexecutados workflows existentes, sem aumentar orçamento ou alterar runner/configuração. CLI não comprova billing por falta de escopo. Não há ação humana pendente de compra/desbloqueio. Para qualquer futuro SHA, conferir os checks correspondentes; um run anterior não valida alteração posterior. Se houver novo bloqueio financeiro, consultar o titular antes de gerar excedentes.
+O bloqueio de 14414498/zero steps é histórico. Após o titular informar Pro/franquia disponível, workflows existentes executaram. A [CI43641356914](https://github.com/joaomarcos-techia/Project_OS/actions/runs/43641356914), **25127abfeccd09f19b2decc5689ef901d8e8ce0f**, terminou SUCCESS com **7.206 testes/637 arquivos e 22 E2E sem SKIP**, logs lidos por HTTPS autenticado/TLS validado. TypeScript, lint, build, segurança e isolamento PostgreSQL passaram; os 16 checks do ensaio 136→160 e 52 de compatibilidade são provas locais separadas. SHA256 do log: `52a6044bc55434990a50711b7e5a7356b0a0d201929a55373a5c481940af0320`. Vercel/Semgrep/Snyk/advisory SUCCESS; Agent Review NEUTRAL não é aprovação humana. Nenhum orçamento, runner ou workflow alterado. A CLI não comprova billing por falta de escopo; não há nova compra solicitada. O commit documental posterior exige CI própria antes do checkpoint final. Se reaparecer bloqueio financeiro, registrar anotação/conta e consultar o titular antes de excedentes, sem inferir a causa financeira.
+
+**Próxima decisão mínima:** Gate B apenas, com SHA, janela definida e responsável técnico/operacional disponível, condicionado a backup recuperável, preflight e rollback antes de qualquer mudança. Clínica, pagamento e aceite R1–R4 para piloto não precisam ser preenchidos para aprovar somente deploy fechado. Se já existirem obrigações AbacatePay live, parar e revisar B1 antes de desarmar consumidores; não prejudicar pagamentos existentes.
 
 ### Preflight verificável — pacote160 e alvo136
 

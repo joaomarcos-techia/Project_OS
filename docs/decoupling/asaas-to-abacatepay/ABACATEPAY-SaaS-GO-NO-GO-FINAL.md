@@ -6,7 +6,9 @@ Atualizado em **14/11/2026**, horário operacional **America/Sao_Paulo**. Docume
 
 **Recomendação: GO CONDICIONAL PARA DEPLOY FECHADO**, sujeito aos pontos de parada da seção F, sem autorização de execução. Não foi identificado defeito determinístico de billing que exija novo desenvolvimento antes dessa fase. Não é GO de consumidor live, aquisição, piloto ou expansão. Se os pré-requisitos não forem cumpridos, a execução continua NO-GO.
 
-**CI recuperada em 14/11:** a tentativa2 do [run43589401561](https://github.com/joaomarcos-techia/Project_OS/actions/runs/43589401561), SHA **f94248ef**, executou e passou **7.190 testes/636 arquivos e22 E2E, sem SKIP**. Advisory43589401548 também passou. O titular informou que o uso está dentro da franquia; a CLI não tem acesso ao plano/faturamento, portanto não comprova assinatura Pro ou ausência de pendência financeira por API. O bloqueio anterior está superado pela execução real, sem alterar orçamento, runner ou workflow. As novas ferramentas/testes desta rodada exigem CI no novo SHA; o resultado final será registrado nos checks e no checkpoint do PR53.
+**CI oficial concluída e logs recuperados em 14/11:** o [run43641356914](https://github.com/joaomarcos-techia/Project_OS/actions/runs/43641356914), SHA **25127abfeccd09f19b2decc5689ef901d8e8ce0f**, terminou SUCCESS com **7.206 testes/637 arquivos e22 E2E, sem SKIP**. TypeScript, lint, build, cobertura, inventário, isolamento de dois tenants em PostgreSQL temporário, bundle e limites HTTP passaram no workflow oficial. Advisory, Vercel, Semgrep e Snyk também passaram; Agent Review NEUTRAL não é aprovação humana. A tentativa2 anterior em f94248ef passou7.190 testes/636 arquivos e22 E2E; não confundir suas contagens com as do candidato posterior. O titular informou Pro/franquia disponível; a API não tem escopo para comprovar billing ou ausência de toda pendência financeira. O bloqueio que impedia executar Actions foi superado pela execução real, sem alterar orçamento ou workflow. Alterações documentais posteriores exigem seus próprios checks; o SHA/checkpoint final fica no PR53.
+
+Os logs completos foram baixados por HTTPS autenticado, preservando validação TLS, sem persistir/exibir credencial. SHA256 do log oficial: `52a6044bc55434990a50711b7e5a7356b0a0d201929a55373a5c481940af0320`. A falta anterior de acesso aos logs não é mais uma lacuna de contagem. Evidência: `technicalClosureAndDecision20261114` no registro canônico. Os16 checks do ensaio136→160 e52 checks de compatibilidade continuam provas locais separadas; não foram atribuídos à CI como se ela os executasse.
 
 O runtime financeiro está congelado em **7208d5059aaaea502a153cff627856418dc45e6c**. Nesta rodada foram acrescentados preflight somente leitura, ensaio descartável,16 testes de preflight e handoff/documentação. Nenhuma funcionalidade comercial, preço, política, dependência, SQL ou configuração foi alterada. O SHA final e sua CI devem ser conferidos nos [checks do PR53](https://github.com/joaomarcos-techia/Project_OS/pull/53/checks); a CI anterior não se atribui a código posterior por inferência.
 
@@ -52,7 +54,7 @@ Evidência durável: `ciRecoveryAndReleaseFreeze20261114` no [registro canônico
 
 | Verificação | Estado | Evidência e limite |
 |---|---|---|
-| Actions/CI do ponto de partida | VALIDADO | f94248ef, tentativa2,7.190 testes e22 E2E sem SKIP; o upload condicional de relatório de falha foi dispensado por sucesso, não é teste ignorado |
+| Actions/CI do candidato | VALIDADO |25127abf,run43641356914,SUCCESS;7.206 testes/637 arquivos e22 E2E sem SKIP. O upload condicional de relatório de falha foi dispensado por sucesso, não é teste ignorado |
 | Plano/billing GitHub | PARCIAL | Pro e franquia informados pelo titular; API sem escopo administrativo de cobrança. Não houve alteração financeira |
 | Freeze | VALIDADO | Runtime, SQL, preços, dependências e configuração preservados. Novos arquivos são tooling de validação e seus testes |
 | Production | VALIDADO como snapshot | Leitura14/11 19:57:30UTC:136 entradas,32 equivalências CRLF/LF e nenhuma divergência inexplicada; preflight repetido com pool central:136/24,quatro relações críticas com RLS forçado; zero escrita |
@@ -99,6 +101,8 @@ As24 entradas exatas, com tags/timestamps/hashes, estão no checkpoint canônico
 | **R2 Renovação**        | Primeira compra e próxima data oficial;transições/idempotência/ACTIVE sem novo receipt testados;scanner/watch/observador | Ciclo natural ainda futuro                                                                | Não quantificável:primeiro aniversário ainda não ocorreu                                     | Atraso de acesso/conciliação, suporte ou cobrança sem evento processado               | Observar fixture natural;novo período só por prova;alertar vencimento/pendência;conciliação GET;ambiguidade em revisão      | Piloto antes do ciclo exige aceite;expansão não herda aceite                          | Aguardar ciclo ou aceitar piloto delimitado com plano de observação                       |
 | **R3 Negativos/trocas** | Cancelamento Sandbox comprovado;matriz controlada abaixo, leases/rollback/ciclo antigo/refund parcial/integral           | Refund/disputa/falha/novo preço em ciclo externo não observados                           | Não quantificável:sem simulador oficial desses eventos recorrentes conforme suporte recebido | Direitos ou saldos divergentes, cancelamento indevido se interpretados incorretamente | ADR068–071;prova financeira/readback;preservar período/invoice;revisão;sem ação monetária automática                        | Piloto exige aceite de lacunas;trocas/negativos não recebem PASS externo              | Aceitar/rejeitar lacunas e nomear financeiro;política aprovada não equivale a homologação |
 | **R4 Capacidade**       | Cargas locais1/3/10/100/500/1000;Redis atômico/backpressure;sem invariantes cruzadas;limites de lote/deadline            | Capacidade e latência Vercel/Redis/provedor da conta real                                 | Não quantificável:ambiente/volume externo ainda não medidos                                  | Fila,ativação/renovação atrasada,limite429 e suporte                                  | Começar1 clínica,sem novas aquisições até fechar cada obrigação;fila/idade/alertas;expandir só por decisão                  | Piloto1 exige aceite;3 e10 têm gates próprios                                         | Aprovar limite inicial e metas propostas;nenhum SLA garantido                             |
+
+**Garantias demonstradas, limitadas às provas indicadas:** R1 reserva/idempotência e quarentena de comandos ambíguos; R2 nenhum novo período por statusACTIVE sem prova financeira; R3 ciclo antigo não altera um novo período pago e negativos preservam histórico/revisão conforme política aprovada; R4 controles locais de concorrência, backpressure e isolamento. Nenhuma dessas garantias é prova de atomicidade, calendário, entrega, capacidade ou SLA do provedor live. Os quatro riscos continuam **PARTIAL, sem aceite**; preparação/deploy fechado não os transforma em aceitos para venda.
 
 ### R1 — o que é garantido e o que não é
 
@@ -245,12 +249,13 @@ Metadados Vercel(decrypt=false):Production tem nomes API_KEY,STORE_ID,PLAN_PRODU
 
 | Gate | Estado atual | Próxima ação autorizável |
 |---|---|---|
-|1 Candidato técnico | PARCIAL até CI do novo HEAD | Commit/push próprio, confirmar checks finais; sem reabrir regras financeiras |
-|2 Preparação Production / fase A | PARCIAL | Conferir backup atual, locks, secrets, rollback e responsáveis; revisão humana do pacote |
-|3 Deploy com aquisição fechada / B1 | PENDENTE | GO específico para configuração/SQL/deploy, com paradas e cadastro fechado comprovado |
-|4 Consumidores / B2 | PENDENTE | GO próprio; webhook e worker/cron/Redis/alertas comprovados antes de aquisição |
-|5 Primeira contratação / C | PENDENTE | R1–R4 tratados, clínica consentida, preço e autorização financeira explícitos |
-|6 Expansão / D | PENDENTE | Revisar prova do piloto e capacidade;1→3→10 não é progressão automática |
+| **A — candidato técnico** | VALIDADO em25127abf; conferir checks do fechamento documental | Código financeiro congelado; CI oficial, segurança, pacote e ensaios comprovados. Não autoriza operação Production |
+| **B — autorização de deploy controlado** | PREPARADO; NÃO AUTORIZADO | Engloba pré-voo operacional A e execução B1 abaixo: responsáveis/janela, backup, preflight atual, SQL0136–0159, rollback e deploy com cadastro/aquisição fechados e consumidores novos desarmados |
+| **C — ativação financeira live** | PREPARADO; NÃO CONFIGURADO/ATIVADO | Corresponde a B2: GO específico; registro do webhook, entrega autenticada e consumo são provas separadas. Nenhuma venda autorizada por esse gate |
+| **D — primeira contratação real** | PENDENTE; NÃO AUTORIZADO | Corresponde ao piloto operacional C: R1–R4 tratados, clínica consentida, preço e autorização financeira explícitos; uma obrigação por vez |
+| **E — expansão** | PENDENTE; NÃO AUTORIZADO | Corresponde a D operacional: avaliar piloto/capacidade e aprovar cada aumento.1→3→10 não é progressão automática |
+
+**As letras A–E acima são os gates de decisão atuais.** As fases operacionais históricas A/B1/B2/C/D permanecem apenas como nomes dos procedimentos; a equivalência explícita evita interpretar um GO de deploy como GO de consumidor ou cobrança. Preparado não significa configurado, publicado, ativado ou homologado. Nesta rodada nenhum desses estágios live avançou.
 
 ## G. Responsabilidades e formulário de decisão
 
@@ -277,16 +282,22 @@ R4: [aprovo piloto1 e limites propostos / ajustar / rejeito]
 Clínica/plano/consentimento: [identificador não secreto / A DEFINIR]
 Técnico/financeiro/suporte/plantão/substituto: [funções/nomes]
 Janela: [data,horário America/Sao_Paulo,duração]
-Escopo do próximo GO: [somente A / B1 / B2 / C],SHA e SQL autorizados
+Escopo do próximo GO: [Gate B deploy fechado / Gate C consumidores / Gate D contratação / Gate E expansão],SHA e SQL autorizados
 ```
 
-Não enviar APIkey,senha,OTP,cartão ou dado de paciente. Risco pode ser rejeitado sem gerar demanda fictícia de código;nesse caso aguarda a evidência externa correspondente. Aprovar B1 não aprova B2/C/D.
+Não enviar APIkey,senha,OTP,cartão ou dado de paciente. Risco pode ser rejeitado sem gerar demanda fictícia de código;nesse caso aguarda a evidência externa correspondente. Aprovar Gate B não aprova C/D/E. Para Gate B ainda não é necessário escolher clínica ou autorizar pagamento: esses dados pertencem ao Gate D.
+
+**Menor decisão para avançar:** aprovar ou rejeitar somente o Gate B, indicando SHA, janela America/Sao_Paulo e responsável técnico/operacional disponível, condicionado a backup recuperável, preflight atual e rollback conferidos antes de qualquer alteração. Se esses pré-requisitos falharem, parar sem SQL/deploy. Essa proposta não pressupõe aceiteR1–R4, contratação real, consumidor live ou consentimento de clínica.
 
 ## H. Respostas para o próximo gate
 
-1. **Desenvolvimento SaaS restante:**nenhum novo recurso ou correção determinística identificado nesta revisão;runtime congelado. Mudança futura apenas por defeito comprovado ou contrato compartilhado alterado.
-2. **Pronto sem prova externa suficiente:**closure automática live,renovação natural,mudanças de cota em renovação,negativos financeiros reais e capacidade do alvo. Controle/fixtures não substituem essa prova.
-3. **Deploy fechado:**não há defeito determinístico novo de billing identificado. Actions recuperado no ponto de partida; conferir CI do novo HEAD nos checks do PR53. Depois exige autorização,preflight/backup/schema coerentes e desarme explícito dos consumers em B1;sem isso NO-GO. R51 continua revisão compartilhada,sem reprodução crítica no billing da amostra e sem proclamar correção global.
-4. **Piloto financeiro:**sem aceiteR1–R4,clínica consentida,responsáveis,controle de aquisição,consumidores/endpoint/webhook/cron/Redis e alertas comprovados,não avançar. R51 que atingir navegação comercial crítica também interrompe o release.
-5. **Decisões agora:**formulário da seção G. Nenhum pagamento Sandbox/instalação/contratação adicional é solicitado.
-6. **Primeira ação após GO:**reconferir SHA/checks/target/obrigações e gerar/verificar backup cifrado no destino aprovado **se isso constar do escopo autorizado**;registrar preflight. Primeiro ponto de parada é antes de qualquer ajuste de env,DDL ou deployment se os pré-requisitos divergirem. Só ultrapassar cada parada com o GO correspondente;nenhuma janela foi iniciada nesta rodada.
+1. **Actions liberado?** Sim quanto à execução: o workflow oficial executou e terminou SUCCESS. Plano/franquia foram informados pelo titular; situação financeira completa não é verificável pela credencial CLI. Não solicitar nova compra.
+2. **CI verde no HEAD?** 25127abf: run43641356914, SUCCESS, 7.206 testes/637 arquivos e 22 E2E sem SKIP, logs efetivamente lidos. O commit documental de fechamento terá checks próprios, registrados no PR53 antes do relatório final.
+3. **Defeito determinístico restante?** Nenhum novo defeito de billing identificado nas provas vigentes. Isso não elimina R1–R4 nem presume ausência global de R51. Código financeiro continua congelado; não foi criada funcionalidade nova.
+4. **Migrations prontas?** Sim para futura janela: 24 entradas 0136–0159, 160 hashes aprovados, ensaio real 136→160, 16 checks e 52 de compatibilidade preservados. Production136/DEV161 são snapshots de 14/11; nenhum SQL Production executado nesta rodada. Reconfirmar alvo, histórico, locks, backup e pós-voo somente na janela autorizada; drift bloqueia.
+5. **Webhook seguro preparado?** Sim, checklist no runbook: SHA/schema/backup/secrets/endpoint; depois GO de consumidor/registro, autenticação, inbox/worker/cron/scanner/closure e observabilidade. Snapshot live: zero webhooks. Preparação não equivale a registro, entrega autêntica ou processamento financeiro.
+6. **Independente do TISS?** Sim do módulo funcional/repaginação e de aprovação de operadora. O pacote mantém dependências SQL compartilhadas congeladas, 0159 antes da futura 0160; não inclui código/menu/rota operacional TISS. 0160 fica fora deste release e intacta no DEV.
+7. **Handoff UI?** [Preparado e publicado](HANDOFF-UI-BILLING-SaaS.md): rotas, DTOs, estados, permissões, trial, entitlements, mensagens e regressões. Não comprova leitura pelo agente. Incidente local 7590707702 encaminhado pelo founder ao agente UI; encerrado neste escopo salvo nova evidência financeira, sem reiniciar servidor nem continuar investigação.
+8. **R1–R4 residuais?** Fechamento automático live; renovação natural 13/12/2026; negativos/troca efetiva no ciclo externo; capacidade do alvo. Todos PARTIAL e sem aceite; garantias, limites, impactos, mitigações e condições de GO na seção C.
+9. **O que impede o próximo GO?** Para Gate B: autorização específica, responsável/janela e pré-requisitos operacionais atuais de backup/preflight/rollback. Para Gate D somam-se consumidores/autenticação/alertas comprovados, clínica consentida, plano/preço, financeiro/suporte e tratamento expresso de R1–R4. Não esperar repaginação integral ou TISS117/117.
+10. **Menor decisão humana?** Somente Gate B conforme seção G, sem autorizar C/D/E. Após GO, reconferir SHA/checks/alvo/obrigações e backup/preflight antes de qualquer env/DDL/deploy. Nenhum pagamento Sandbox, instalação, serviço adicional ou início de janela foi solicitado/executado nesta rodada.
