@@ -31,7 +31,10 @@ const SHOTS = process.env.E2E_HI_SHOTS;
 /** Retomada: com E2E_RUN e E2E_HI_STATE, a execução reaproveita a marca e o estado salvo (rode as etapas pendentes com -g). */
 const STATE_FILE = process.env.E2E_HI_STATE;
 
-test.skip(!BASE || !CFG_ACCOUNTS || !ACCOUNTS || !FIXTURE, 'requer E2E_BASE_URL (Preview no DEV) e as fixtures e2e-hi');
+test.skip(
+  !BASE || !CFG_ACCOUNTS || !ACCOUNTS || !FIXTURE,
+  'requer E2E_BASE_URL (Preview no DEV) e as fixtures e2e-hi',
+);
 test.describe.configure({ mode: 'serial' });
 // Falha cedo: uma ação que não acha o elemento não deve consumir o tempo do teste inteiro.
 test.use({ actionTimeout: 45_000 });
@@ -39,9 +42,16 @@ test.use({ actionTimeout: 45_000 });
 type Account = { email: string; password: string; userId: string; clinic: string; role: string };
 const accounts: Record<string, Account> = {
   ...(ACCOUNTS ? (JSON.parse(readFileSync(ACCOUNTS, 'utf8')) as Record<string, Account>) : {}),
-  ...(CFG_ACCOUNTS ? (JSON.parse(readFileSync(CFG_ACCOUNTS, 'utf8')) as Record<string, Account>) : {}),
+  ...(CFG_ACCOUNTS
+    ? (JSON.parse(readFileSync(CFG_ACCOUNTS, 'utf8')) as Record<string, Account>)
+    : {}),
 };
-const other = FIXTURE ? (JSON.parse(readFileSync(FIXTURE, 'utf8')) as { insurerId: string; patients: Array<{ id: string }> }) : null;
+const other = FIXTURE
+  ? (JSON.parse(readFileSync(FIXTURE, 'utf8')) as {
+      insurerId: string;
+      patients: Array<{ id: string }>;
+    })
+  : null;
 if (SHOTS) mkdirSync(SHOTS, { recursive: true });
 
 const DESKTOP = { width: 1440, height: 900 };
@@ -52,7 +62,9 @@ const PROC_CODE = `E2E${RUN}`;
 const PROC_NAME = `Consulta sintética ${RUN}`;
 const INSURER = `Operadora Sintética ${RUN}`;
 const PATIENT = `Paciente Sintético Config ${RUN}`;
-const CARD = `0099${RUN.replace(/[^0-9]/gu, '7').padEnd(4, '7').slice(0, 4)}55664433`;
+const CARD = `0099${RUN.replace(/[^0-9]/gu, '7')
+  .padEnd(4, '7')
+  .slice(0, 4)}55664433`;
 
 /**
  * Data e horário do agendamento, variando por execução e por tentativa: a médica sintética é a
@@ -62,20 +74,34 @@ const CARD = `0099${RUN.replace(/[^0-9]/gu, '7').padEnd(4, '7').slice(0, 4)}5566
  */
 const RUN_N = Number.parseInt(RUN, 36);
 function slotFor(attempt: number): { date: string; time: string } {
-  const [y, m, d] = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' }).split('-').map(Number) as [number, number, number];
+  const [y, m, d] = new Date()
+    .toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' })
+    .split('-')
+    .map(Number) as [number, number, number];
   const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
   const span = Math.max(1, Math.min(7, lastDay - d));
-  const date = new Date(Date.UTC(y, m - 1, d + 1 + ((RUN_N + attempt) % span))).toISOString().slice(0, 10);
+  const date = new Date(Date.UTC(y, m - 1, d + 1 + ((RUN_N + attempt) % span)))
+    .toISOString()
+    .slice(0, 10);
   const n = (RUN_N * 7 + attempt * 11) % 32;
   return { date, time: `${String(6 + Math.floor(n / 2)).padStart(2, '0')}:${n % 2 ? '30' : '00'}` };
 }
 
-const saved = (STATE_FILE && process.env.E2E_RUN && existsSync(STATE_FILE) ? JSON.parse(readFileSync(STATE_FILE, 'utf8')) : {}) as {
+const saved = (
+  STATE_FILE && process.env.E2E_RUN && existsSync(STATE_FILE)
+    ? JSON.parse(readFileSync(STATE_FILE, 'utf8'))
+    : {}
+) as {
   state?: { insurerUrl?: string; patientId?: string };
   journey?: { guideUrl?: string; guideNumber?: string; batchUrl?: string; paymentStage?: number };
 };
 const state: { insurerUrl?: string; patientId?: string } = { ...saved.state };
-const journey: { guideUrl?: string; guideNumber?: string; batchUrl?: string; paymentStage?: number } = { ...saved.journey };
+const journey: {
+  guideUrl?: string;
+  guideNumber?: string;
+  batchUrl?: string;
+  paymentStage?: number;
+} = { ...saved.journey };
 const persist = () => {
   if (STATE_FILE) writeFileSync(STATE_FILE, JSON.stringify({ run: RUN, state, journey }, null, 1));
 };
@@ -99,7 +125,11 @@ async function login(browser: Browser, key: string, viewport = DESKTOP): Promise
   const account = accounts[key];
   if (!account) throw new Error(`conta ${key} ausente na fixture`);
   const cached = sessions.get(key);
-  const context = await browser.newContext({ viewport, extraHTTPHeaders: vercelBypassHeaders(), ...(cached ? { storageState: cached } : {}) });
+  const context = await browser.newContext({
+    viewport,
+    extraHTTPHeaders: vercelBypassHeaders(),
+    ...(cached ? { storageState: cached } : {}),
+  });
   const page = await context.newPage();
   const errors: string[] = [];
   // A rota entra na mensagem: um erro de página precisa dizer em que tela apareceu.
@@ -126,7 +156,9 @@ function expectNoPageErrors(s: Session): void {
 async function visit(s: Session, path: string, shot?: string): Promise<number> {
   const res = await s.page.goto(path, { waitUntil: 'load' });
   await s.page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => undefined);
-  const overflow = await s.page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  const overflow = await s.page.evaluate(
+    () => document.documentElement.scrollWidth - window.innerWidth,
+  );
   expect(overflow, `${path} transborda na horizontal`).toBeLessThanOrEqual(1);
   if (SHOTS && shot) await s.page.screenshot({ path: `${SHOTS}/${shot}.png`, fullPage: true });
   return res?.status() ?? 0;
@@ -137,17 +169,33 @@ const toast = async (page: Page, text: string | RegExp) => {
   const seen = new Set<string>();
   const deadline = Date.now() + 45_000;
   while (Date.now() < deadline) {
-    if (await page.getByText(text).first().isVisible().catch(() => false)) return;
-    for (const t of await page.getByRole('status').allInnerTexts().catch(() => [] as string[])) if (t.trim()) seen.add(t.trim());
+    if (
+      await page
+        .getByText(text)
+        .first()
+        .isVisible()
+        .catch(() => false)
+    )
+      return;
+    for (const t of await page
+      .getByRole('status')
+      .allInnerTexts()
+      .catch(() => [] as string[]))
+      if (t.trim()) seen.add(t.trim());
     await page.waitForTimeout(400);
   }
-  throw new Error(`aviso esperado não apareceu (${String(text)}); avisos vistos: ${JSON.stringify([...seen])}`);
+  throw new Error(
+    `aviso esperado não apareceu (${String(text)}); avisos vistos: ${JSON.stringify([...seen])}`,
+  );
 };
 const readiness = (page: Page, key: string) => page.locator(`[data-readiness="${key}"]`);
 
 /** CPF sintético de formato válido (dígitos verificadores calculados), diferente a cada execução. */
 function syntheticCpf(): string {
-  const base = Array.from({ length: 9 }, (_, i) => (Number(Date.now().toString().slice(-9)[i]) + i) % 10);
+  const base = Array.from(
+    { length: 9 },
+    (_, i) => (Number(Date.now().toString().slice(-9)[i]) + i) % 10,
+  );
   if (new Set(base).size === 1) base[0] = (base[0]! + 1) % 10;
   const dv = (digits: number[]) => {
     const sum = digits.reduce((acc, d, i) => acc + d * (digits.length + 1 - i), 0);
@@ -161,7 +209,10 @@ function syntheticCpf(): string {
 
 /** Dia 1º do mês seguinte (para o reajuste a partir de uma data). */
 function firstOfNextMonth(): string {
-  const [y, m] = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' }).split('-').map(Number) as [number, number];
+  const [y, m] = new Date()
+    .toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' })
+    .split('-')
+    .map(Number) as [number, number];
   return m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`;
 }
 
@@ -170,7 +221,9 @@ test('o Preview usa o projeto DEV (prova assinada antes de qualquer escrita)', a
   await assertPreviewRuntimeIsDev(BASE!);
 });
 
-test('gestora: procedimento no catálogo da clínica (Configurações › Procedimentos)', async ({ browser }) => {
+test('gestora: procedimento no catálogo da clínica (Configurações › Procedimentos)', async ({
+  browser,
+}) => {
   test.setTimeout(180_000);
   const s = await login(browser, 'cfg-gestor');
   expect(await visit(s, '/configuracoes/procedimentos')).toBe(200);
@@ -185,12 +238,15 @@ test('gestora: procedimento no catálogo da clínica (Configurações › Proced
   await s.context.close();
 });
 
-test('gestora: configura do zero — prestador, operadora, plano, contrato TUSS, ativação e perfil TISS', async ({ browser }) => {
+test('gestora: configura do zero — prestador, operadora, plano, contrato TUSS, ativação e perfil TISS', async ({
+  browser,
+}) => {
   test.setTimeout(420_000);
   const s = await login(browser, 'cfg-gestor');
   expect(await visit(s, '/convenios/configuracao', 'cfg-01-zerada')).toBe(200);
   // Clínica zerada: só a habilitação (Qoro) e a terminologia estão prontas.
-  for (const key of ['identity', 'insurers', 'contracts', 'credentials', 'professionals']) await expect(readiness(s.page, key)).toHaveAttribute('data-ok', 'false');
+  for (const key of ['identity', 'insurers', 'contracts', 'credentials', 'professionals'])
+    await expect(readiness(s.page, key)).toHaveAttribute('data-ok', 'false');
   await expect(readiness(s.page, 'enabled')).toHaveAttribute('data-ok', 'true');
 
   // Prestador.
@@ -199,7 +255,9 @@ test('gestora: configura do zero — prestador, operadora, plano, contrato TUSS,
   await s.page.getByRole('combobox', { name: 'CNES', exact: true }).selectOption('none_declared');
   await s.page.getByRole('button', { name: 'Salvar', exact: true }).first().click();
   await toast(s.page, 'Identificação do prestador salva.');
-  await expect(readiness(s.page, 'identity')).toHaveAttribute('data-ok', 'true', { timeout: 30_000 });
+  await expect(readiness(s.page, 'identity')).toHaveAttribute('data-ok', 'true', {
+    timeout: 30_000,
+  });
 
   // Operadora (rascunho) → detalhe.
   await s.page.getByRole('button', { name: 'Nova operadora' }).click();
@@ -207,7 +265,9 @@ test('gestora: configura do zero — prestador, operadora, plano, contrato TUSS,
   await s.page.getByLabel('Registro ANS').fill('999902');
   await s.page.getByLabel('Código do prestador').fill(`PREST${RUN}`);
   await s.page.getByRole('button', { name: 'Cadastrar', exact: true }).click();
-  await s.page.waitForURL(/\/convenios\/configuracao\/operadoras\/[0-9a-f-]{36}$/u, { timeout: 60_000 });
+  await s.page.waitForURL(/\/convenios\/configuracao\/operadoras\/[0-9a-f-]{36}$/u, {
+    timeout: 60_000,
+  });
   state.insurerUrl = new URL(s.page.url()).pathname;
   await expect(s.page.getByTestId('insurer-status')).toHaveAttribute('data-status', 'draft');
 
@@ -221,24 +281,34 @@ test('gestora: configura do zero — prestador, operadora, plano, contrato TUSS,
   await s.page.getByRole('button', { name: 'Novo procedimento contratado' }).click();
   await s.page.getByLabel('Procedimento do catálogo').selectOption({ label: PROC_NAME });
   await s.page.getByLabel('Código TUSS (tabela 22)').fill('10101012');
-  await s.page.getByRole('option', { name: /10101012/u }).first().click();
+  await s.page
+    .getByRole('option', { name: /10101012/u })
+    .first()
+    .click();
   await s.page.getByLabel('Valor contratado (R$)').fill('150,00');
   await s.page.getByRole('combobox', { name: 'Coparticipação', exact: true }).selectOption('fixed');
   await s.page.getByLabel('Coparticipação (R$)').fill('45,00');
   await s.page.getByRole('button', { name: 'Cadastrar procedimento' }).click();
   await toast(s.page, 'Procedimento contratado cadastrado.');
-  await expect(s.page.locator('[data-testid="contract-line"][data-code="10101012"]')).toHaveCount(1, { timeout: 30_000 });
+  await expect(s.page.locator('[data-testid="contract-line"][data-code="10101012"]')).toHaveCount(
+    1,
+    { timeout: 30_000 },
+  );
 
   // Código inexistente não aparece para escolher (nada fora da tabela oficial).
   await s.page.getByRole('button', { name: 'Novo procedimento contratado' }).click();
   await s.page.getByLabel('Código TUSS (tabela 22)').fill('99999999');
-  await expect(s.page.getByText('Nada encontrado na tabela 22 carregada.')).toBeVisible({ timeout: 20_000 });
+  await expect(s.page.getByText('Nada encontrado na tabela 22 carregada.')).toBeVisible({
+    timeout: 20_000,
+  });
   await s.page.getByRole('button', { name: 'Cancelar' }).last().click();
 
   // Ativar.
   await s.page.getByRole('button', { name: 'Ativar operadora' }).click();
   await toast(s.page, 'Situação da operadora atualizada.');
-  await expect(s.page.getByTestId('insurer-status')).toHaveAttribute('data-status', 'active', { timeout: 30_000 });
+  await expect(s.page.getByTestId('insurer-status')).toHaveAttribute('data-status', 'active', {
+    timeout: 30_000,
+  });
   await visit(s, state.insurerUrl, 'cfg-02-operadora-ativa');
 
   // Credenciamento (P2.2): operadora ativa e contratada, mas sem credenciamento a prontidão acusa.
@@ -250,15 +320,21 @@ test('gestora: configura do zero — prestador, operadora, plano, contrato TUSS,
   // Sem plano escolhido a tela não presume "todos os planos".
   await s.page.getByRole('button', { name: 'Registrar', exact: true }).click();
   await toast(s.page, 'Escolha o plano credenciado (ou, de propósito, todos os planos).');
-  await s.page.getByRole('combobox', { name: /^Plano/u }).selectOption({ label: 'Plano Sintético Ambulatorial' });
+  await s.page
+    .getByRole('combobox', { name: /^Plano/u })
+    .selectOption({ label: 'Plano Sintético Ambulatorial' });
   await s.page.getByLabel('Código na operadora (opcional)').fill(`CR${RUN}`);
   await s.page.getByLabel('Vale a partir de').fill('2026-01-01');
   await s.page.getByRole('button', { name: 'Registrar', exact: true }).click();
   await toast(s.page, 'Credenciamento registrado.');
   // A médica habilitada no mesmo plano (clínica PJ: a operadora exige).
   await s.page.getByRole('button', { name: 'Registrar credenciamento' }).click();
-  await s.page.getByRole('combobox', { name: /^Quem é credenciado/u }).selectOption({ label: 'Profissional: Dra. Sintética Configuração' });
-  await s.page.getByRole('combobox', { name: /^Plano/u }).selectOption({ label: 'Plano Sintético Ambulatorial' });
+  await s.page
+    .getByRole('combobox', { name: /^Quem é credenciado/u })
+    .selectOption({ label: 'Profissional: Dra. Sintética Configuração' });
+  await s.page
+    .getByRole('combobox', { name: /^Plano/u })
+    .selectOption({ label: 'Plano Sintético Ambulatorial' });
   await s.page.getByLabel('Vale a partir de').fill('2026-01-01');
   await s.page.getByRole('button', { name: 'Registrar', exact: true }).click();
   await toast(s.page, 'Credenciamento registrado.');
@@ -268,25 +344,40 @@ test('gestora: configura do zero — prestador, operadora, plano, contrato TUSS,
 
   // Perfil TISS da médica.
   await visit(s, '/convenios/configuracao');
-  const row = s.page.getByTestId('professional-row').filter({ hasText: 'Dra. Sintética Configuração' });
+  const row = s.page
+    .getByTestId('professional-row')
+    .filter({ hasText: 'Dra. Sintética Configuração' });
   await row.getByRole('button', { name: 'Cadastrar perfil TISS' }).click();
   await row.getByLabel('Conselho profissional').selectOption('06');
   await row.getByLabel('Número no conselho').fill('123456');
   await row.getByLabel('UF do conselho').selectOption('35');
   await row.getByLabel('CBO (tabela 24)').fill('225125');
-  await row.getByRole('option', { name: /225125/u }).first().click();
+  await row
+    .getByRole('option', { name: /225125/u })
+    .first()
+    .click();
   await row.getByRole('button', { name: 'Salvar', exact: true }).click();
   await toast(s.page, 'Perfil TISS de Dra. Sintética Configuração salvo.');
 
   await visit(s, '/convenios/configuracao', 'cfg-03-pronta');
-  for (const key of ['identity', 'insurers', 'contracts', 'credentials', 'professionals', 'terminology', 'enabled']) {
+  for (const key of [
+    'identity',
+    'insurers',
+    'contracts',
+    'credentials',
+    'professionals',
+    'terminology',
+    'enabled',
+  ]) {
     await expect(readiness(s.page, key)).toHaveAttribute('data-ok', 'true');
   }
   expectNoPageErrors(s);
   await s.context.close();
 });
 
-test('recepção: cadastra o paciente e a carteirinha (número cifrado; completo só auditado)', async ({ browser }) => {
+test('recepção: cadastra o paciente e a carteirinha (número cifrado; completo só auditado)', async ({
+  browser,
+}) => {
   test.setTimeout(300_000);
   const s = await login(browser, 'cfg-recepcao');
   await s.page.goto('/pacientes?novo=1');
@@ -294,7 +385,9 @@ test('recepção: cadastra o paciente e a carteirinha (número cifrado; completo
   await expect(drawer).toBeVisible({ timeout: 30_000 });
   await drawer.getByLabel('Nome', { exact: true }).first().fill(PATIENT);
   await drawer.getByLabel('CPF', { exact: true }).first().fill(syntheticCpf());
-  await drawer.getByLabel('E-mail', { exact: true }).fill(`e2e-hi-paciente-${RUN.toLowerCase()}@example.com`);
+  await drawer
+    .getByLabel('E-mail', { exact: true })
+    .fill(`e2e-hi-paciente-${RUN.toLowerCase()}@example.com`);
   await drawer.getByRole('button', { name: 'Criar paciente' }).click();
   await expect(s.page).toHaveURL(/\/pacientes\/[0-9a-f-]{36}(?:\?|$)/u, { timeout: 90_000 });
   state.patientId = new URL(s.page.url()).pathname.split('/').at(-1)!;
@@ -305,7 +398,9 @@ test('recepção: cadastra o paciente e a carteirinha (número cifrado; completo
   await s.page.getByRole('button', { name: 'Nova carteirinha' }).click();
   await s.page.getByLabel('Operadora').selectOption({ label: INSURER });
   // O plano da carteirinha é o do credenciamento (P2.2): a agenda usa o plano da preferencial.
-  await s.page.getByRole('combobox', { name: /^Plano/u }).selectOption({ label: 'Plano Sintético Ambulatorial' });
+  await s.page
+    .getByRole('combobox', { name: /^Plano/u })
+    .selectOption({ label: 'Plano Sintético Ambulatorial' });
   await s.page.getByLabel('Número da carteirinha').fill(CARD);
   await s.page.getByLabel('Validade (opcional)').fill('2027-12-31');
   await s.page.getByRole('button', { name: 'Cadastrar carteirinha' }).click();
@@ -327,7 +422,9 @@ test('recepção: cadastra o paciente e a carteirinha (número cifrado; completo
   await s.context.close();
 });
 
-test('recepção: agenda como CONVÊNIO e a cobertura nasce pronta, com coparticipação estimada', async ({ browser }) => {
+test('recepção: agenda como CONVÊNIO e a cobertura nasce pronta, com coparticipação estimada', async ({
+  browser,
+}) => {
   test.setTimeout(300_000);
   const s = await login(browser, 'cfg-recepcao');
   expect(await visit(s, '/agenda')).toBe(200);
@@ -335,28 +432,40 @@ test('recepção: agenda como CONVÊNIO e a cobertura nasce pronta, com copartic
   await s.page.locator('#appointment-patient').fill(PATIENT.slice(0, 12));
   await s.page.getByRole('option', { name: PATIENT }).first().click();
   await s.page.locator('#appointment-procedure').selectOption({ label: PROC_NAME });
-  await s.page.locator('#appointment-doctor').selectOption({ label: 'Dra. Sintética Configuração' });
+  await s.page
+    .locator('#appointment-doctor')
+    .selectOption({ label: 'Dra. Sintética Configuração' });
   const first = slotFor(0);
   await s.page.locator('#appointment-date').fill(first.date);
   await s.page.locator('#appointment-time').fill(first.time);
   await s.page.getByRole('radio', { name: 'Convênio' }).click();
   await s.page.locator('#appointment-insurer').selectOption({ label: INSURER });
   const card = `final ${CARD.slice(-4)} · válida até 31/12/2027 · preferencial`;
-  await expect(s.page.locator('#appointment-card option', { hasText: `final ${CARD.slice(-4)}` })).toHaveCount(1, { timeout: 30_000 });
+  await expect(
+    s.page.locator('#appointment-card option', { hasText: `final ${CARD.slice(-4)}` }),
+  ).toHaveCount(1, { timeout: 30_000 });
   await s.page.locator('#appointment-card').selectOption({ label: card });
-  if (SHOTS) await s.page.screenshot({ path: `${SHOTS}/cfg-05-agendamento-convenio.png`, fullPage: true });
+  if (SHOTS)
+    await s.page.screenshot({ path: `${SHOTS}/cfg-05-agendamento-convenio.png`, fullPage: true });
   // Horário ocupado por uma execução anterior (mesma médica) → o produto recusa, com razão; tenta o próximo.
   const done = s.page.getByText('Atendimento agendado').first();
-  const clash = s.page.getByText('Já existe um atendimento nesse horário para este profissional.').first();
+  const clash = s.page
+    .getByText('Já existe um atendimento nesse horário para este profissional.')
+    .first();
   for (let attempt = 0; ; attempt += 1) {
     if (attempt > 0) {
       const next = slotFor(attempt);
       await s.page.locator('#appointment-date').fill(next.date);
       await s.page.locator('#appointment-time').fill(next.time);
-      await expect(s.page.locator('#appointment-card option', { hasText: `final ${CARD.slice(-4)}` })).toHaveCount(1, { timeout: 30_000 });
+      await expect(
+        s.page.locator('#appointment-card option', { hasText: `final ${CARD.slice(-4)}` }),
+      ).toHaveCount(1, { timeout: 30_000 });
       await s.page.locator('#appointment-card').selectOption({ label: card });
     }
-    const answered = s.page.waitForResponse((r) => r.request().method() === 'POST' && r.request().headers()['next-action'] !== undefined, { timeout: 60_000 });
+    const answered = s.page.waitForResponse(
+      (r) => r.request().method() === 'POST' && r.request().headers()['next-action'] !== undefined,
+      { timeout: 60_000 },
+    );
     await s.page.getByRole('button', { name: 'Agendar', exact: true }).click();
     await answered;
     await expect(done.or(clash).first()).toBeVisible({ timeout: 30_000 });
@@ -365,7 +474,11 @@ test('recepção: agenda como CONVÊNIO e a cobertura nasce pronta, com copartic
     await s.page.waitForTimeout(1_500);
     if (await done.isVisible().catch(() => false)) break;
     expect(attempt, 'nenhum horário livre em 6 tentativas').toBeLessThan(5);
-    console.log('horário já ocupado por execução anterior (tentativa ' + (attempt + 1) + '); tentando o próximo');
+    console.log(
+      'horário já ocupado por execução anterior (tentativa ' +
+        (attempt + 1) +
+        '); tentando o próximo',
+    );
   }
 
   expect(await visit(s, '/convenios/atendimentos', 'cfg-06-atendimento-pronto')).toBe(200);
@@ -377,7 +490,9 @@ test('recepção: agenda como CONVÊNIO e a cobertura nasce pronta, com copartic
   await s.context.close();
 });
 
-test('recepção: muda um atendimento PARTICULAR para CONVÊNIO pela agenda e volta para particular (P4.3)', async ({ browser }) => {
+test('recepção: muda um atendimento PARTICULAR para CONVÊNIO pela agenda e volta para particular (P4.3)', async ({
+  browser,
+}) => {
   test.setTimeout(300_000);
   const s = await login(browser, 'cfg-recepcao');
   expect(await visit(s, '/agenda')).toBe(200);
@@ -385,20 +500,31 @@ test('recepção: muda um atendimento PARTICULAR para CONVÊNIO pela agenda e vo
   await s.page.locator('#appointment-patient').fill(PATIENT.slice(0, 12));
   await s.page.getByRole('option', { name: PATIENT }).first().click();
   await s.page.locator('#appointment-procedure').selectOption({ label: PROC_NAME });
-  await s.page.locator('#appointment-doctor').selectOption({ label: 'Dra. Sintética Configuração' });
+  await s.page
+    .locator('#appointment-doctor')
+    .selectOption({ label: 'Dra. Sintética Configuração' });
   const done = s.page.getByText('Atendimento agendado').first();
-  const clash = s.page.getByText('Já existe um atendimento nesse horário para este profissional.').first();
+  const clash = s.page
+    .getByText('Já existe um atendimento nesse horário para este profissional.')
+    .first();
   // Regra do produto: um atendimento ativo por paciente e profissional no dia. O de convênio do
   // passo anterior está em slotFor(0); este vai para OUTRO dia.
-  const sameDay = s.page.getByText('já tem um atendimento ativo com este profissional neste dia').first();
+  const sameDay = s.page
+    .getByText('já tem um atendimento ativo com este profissional neste dia')
+    .first();
   const taken = new Set([slotFor(0).date]);
-  const candidates = Array.from({ length: 40 }, (_, i) => slotFor(13 + i)).filter((c) => !taken.has(c.date));
+  const candidates = Array.from({ length: 40 }, (_, i) => slotFor(13 + i)).filter(
+    (c) => !taken.has(c.date),
+  );
   let when = candidates[0]!;
   for (let attempt = 0; ; attempt += 1) {
     when = candidates[attempt]!;
     await s.page.locator('#appointment-date').fill(when.date);
     await s.page.locator('#appointment-time').fill(when.time);
-    const answered = s.page.waitForResponse((r) => r.request().method() === 'POST' && r.request().headers()['next-action'] !== undefined, { timeout: 60_000 });
+    const answered = s.page.waitForResponse(
+      (r) => r.request().method() === 'POST' && r.request().headers()['next-action'] !== undefined,
+      { timeout: 60_000 },
+    );
     await s.page.getByRole('button', { name: 'Agendar', exact: true }).click();
     await answered;
     await expect(done.or(clash).or(sameDay).first()).toBeVisible({ timeout: 30_000 });
@@ -409,26 +535,40 @@ test('recepção: muda um atendimento PARTICULAR para CONVÊNIO pela agenda e vo
   }
   // O dia do atendimento particular, na agenda.
   expect(await visit(s, `/agenda?view=day&date=${when.date}`)).toBe(200);
-  const row = s.page.locator('tr[data-appointment-id]').filter({ hasText: PATIENT }).filter({ hasText: when.time }).first();
+  const row = s.page
+    .locator('tr[data-appointment-id]')
+    .filter({ hasText: PATIENT })
+    .filter({ hasText: when.time })
+    .first();
   await expect(row).toHaveAttribute('data-billing-mode', 'particular', { timeout: 30_000 });
   await row.getByTestId('billing-mode-open').click();
   const dialog = s.page.getByTestId('billing-mode-dialog');
   await dialog.locator('#appointment-insurer').selectOption({ label: INSURER });
-  await expect(dialog.locator('#appointment-card option', { hasText: `final ${CARD.slice(-4)}` })).toHaveCount(1, { timeout: 30_000 });
+  await expect(
+    dialog.locator('#appointment-card option', { hasText: `final ${CARD.slice(-4)}` }),
+  ).toHaveCount(1, { timeout: 30_000 });
   await dialog.locator('#appointment-card').selectOption({ index: 1 });
-  await dialog.getByRole('textbox', { name: /Motivo da troca/u }).fill('Paciente apresentou a carteirinha na recepção.');
-  if (SHOTS) await s.page.screenshot({ path: `${SHOTS}/cfg-05b-troca-para-convenio.png`, fullPage: true });
+  await dialog
+    .getByRole('textbox', { name: /Motivo da troca/u })
+    .fill('Paciente apresentou a carteirinha na recepção.');
+  if (SHOTS)
+    await s.page.screenshot({ path: `${SHOTS}/cfg-05b-troca-para-convenio.png`, fullPage: true });
   await s.page.getByTestId('billing-mode-submit').click();
   await toast(s.page, 'Forma de atendimento alterada');
   await expect(row).toHaveAttribute('data-billing-mode', 'convenio', { timeout: 30_000 });
   await expect(row.getByTestId('agenda-convenio-badge')).toContainText(INSURER);
   // Em Convênios › Atendimentos ele aparece com a cobertura registrada pela troca.
   expect(await visit(s, '/convenios/atendimentos')).toBe(200);
-  await expect(s.page.getByTestId('insurance-appointment').filter({ hasText: PATIENT }).first()).toBeVisible();
+  await expect(
+    s.page.getByTestId('insurance-appointment').filter({ hasText: PATIENT }).first(),
+  ).toBeVisible();
   // Volta para particular: a cobertura é encerrada (sem ser apagada) e nada é cobrado.
   expect(await visit(s, `/agenda?view=day&date=${when.date}`)).toBe(200);
   await row.getByTestId('billing-mode-open').click();
-  await s.page.getByTestId('billing-mode-dialog').getByRole('textbox', { name: /Motivo da troca/u }).fill('Paciente decidiu pagar particular.');
+  await s.page
+    .getByTestId('billing-mode-dialog')
+    .getByRole('textbox', { name: /Motivo da troca/u })
+    .fill('Paciente decidiu pagar particular.');
   await s.page.getByTestId('billing-mode-submit').click();
   await toast(s.page, 'Forma de atendimento alterada');
   await expect(row).toHaveAttribute('data-billing-mode', 'particular', { timeout: 30_000 });
@@ -437,44 +577,77 @@ test('recepção: muda um atendimento PARTICULAR para CONVÊNIO pela agenda e vo
   await s.context.close();
 });
 
-test('gestora: importa a tabela por planilha — prévia por linha, erro bloqueia, aplicação atômica, reenvio não duplica (P2.7)', async ({ browser }) => {
+test('gestora: importa a tabela por planilha — prévia por linha, erro bloqueia, aplicação atômica, reenvio não duplica (P2.7)', async ({
+  browser,
+}) => {
   test.setTimeout(240_000);
   const s = await login(browser, 'cfg-gestor');
   expect(await visit(s, state.insurerUrl!)).toBe(200);
   const panel = s.page.getByTestId('contract-import');
   await expect(panel).toBeVisible();
-  const header = 'tabela;codigo;descricao;tipo_guia;valor;vigencia_inicio;vigencia_fim;plano;exige_autorizacao;coparticipacao_tipo;coparticipacao_valor;retorno_dias;retorno_faturavel;procedimento_clinica';
-  const file = (name: string, rows: string[]) => ({ name, mimeType: 'text/csv', buffer: Buffer.from(`${header}\r\n${rows.join('\r\n')}\r\n`, 'utf8') });
+  const header =
+    'tabela;codigo;descricao;tipo_guia;valor;vigencia_inicio;vigencia_fim;plano;exige_autorizacao;coparticipacao_tipo;coparticipacao_valor;retorno_dias;retorno_faturavel;procedimento_clinica';
+  const file = (name: string, rows: string[]) => ({
+    name,
+    mimeType: 'text/csv',
+    buffer: Buffer.from(`${header}\r\n${rows.join('\r\n')}\r\n`, 'utf8'),
+  });
   // 1) Uma linha com erro (procedimento fora do catálogo): prévia mostra o motivo e NÃO deixa aplicar.
-  await panel.getByTestId('contract-import-file').setInputFiles(
-    file(`com-erro-${RUN}.csv`, [`22;10101012;;sp_sadt;99,00;01/01/2026;;;não;;;;;${PROC_CODE}`, '22;10101012;;sp_sadt;99,00;01/02/2026;;;não;;;;;NAO-EXISTE']),
-  );
+  await panel
+    .getByTestId('contract-import-file')
+    .setInputFiles(
+      file(`com-erro-${RUN}.csv`, [
+        `22;10101012;;sp_sadt;99,00;01/01/2026;;;não;;;;;${PROC_CODE}`,
+        '22;10101012;;sp_sadt;99,00;01/02/2026;;;não;;;;;NAO-EXISTE',
+      ]),
+    );
   await panel.getByTestId('contract-import-validate').click();
-  await expect(panel.getByTestId('contract-import-preview')).toHaveAttribute('data-status', 'rejected', { timeout: 60_000 });
-  await expect(panel.getByTestId('contract-import-row').filter({ hasText: 'não está no catálogo' })).toHaveCount(1);
+  await expect(panel.getByTestId('contract-import-preview')).toHaveAttribute(
+    'data-status',
+    'rejected',
+    { timeout: 60_000 },
+  );
+  await expect(
+    panel.getByTestId('contract-import-row').filter({ hasText: 'não está no catálogo' }),
+  ).toHaveCount(1);
   await expect(panel.getByTestId('contract-import-apply')).toBeDisabled();
   // 2) A planilha certa: prévia validada, aplicar, o item aparece no contrato.
-  const good = file(`tabela-${RUN}.csv`, [`22;10101012;;sp_sadt;99,00;01/01/2026;;;não;;;;;${PROC_CODE}`]);
+  const good = file(`tabela-${RUN}.csv`, [
+    `22;10101012;;sp_sadt;99,00;01/01/2026;;;não;;;;;${PROC_CODE}`,
+  ]);
   await panel.getByTestId('contract-import-file').setInputFiles(good);
   await panel.getByTestId('contract-import-validate').click();
-  await expect(panel.getByTestId('contract-import-preview')).toHaveAttribute('data-status', 'validated', { timeout: 60_000 });
+  await expect(panel.getByTestId('contract-import-preview')).toHaveAttribute(
+    'data-status',
+    'validated',
+    { timeout: 60_000 },
+  );
   await expect(panel.getByTestId('contract-import-row')).toHaveAttribute('data-action', 'create');
-  if (SHOTS) await s.page.screenshot({ path: `${SHOTS}/cfg-03b-importacao-previa.png`, fullPage: true });
+  if (SHOTS)
+    await s.page.screenshot({ path: `${SHOTS}/cfg-03b-importacao-previa.png`, fullPage: true });
   await panel.getByTestId('contract-import-apply').click();
   await toast(s.page, 'Tabela importada');
   expect(await visit(s, state.insurerUrl!)).toBe(200);
-  await expect(s.page.getByRole('region', { name: 'Contrato' }).getByText('SP/SADT').first()).toBeVisible();
+  await expect(
+    s.page.getByRole('region', { name: 'Contrato' }).getByText('SP/SADT').first(),
+  ).toBeVisible();
   // 3) Reenviar a mesma planilha: "sem mudança" e já aplicada — nada é duplicado.
   await s.page.getByTestId('contract-import-file').setInputFiles(good);
   await s.page.getByTestId('contract-import-validate').click();
-  await expect(s.page.getByTestId('contract-import-row')).toHaveAttribute('data-action', 'unchanged', { timeout: 60_000 });
+  await expect(s.page.getByTestId('contract-import-row')).toHaveAttribute(
+    'data-action',
+    'unchanged',
+    { timeout: 60_000 },
+  );
   await expect(s.page.getByTestId('contract-import-apply')).toBeDisabled();
   await expect(s.page.getByTestId('contract-import-history')).toContainText(`tabela-${RUN}.csv`);
   expectNoPageErrors(s);
   await s.context.close();
 });
 
-test('gestora: reajuste a partir de uma data cria versão; o passado não muda; histórico registrado', async ({ browser }) => {
+test('gestora: reajuste a partir de uma data cria versão; o passado não muda; histórico registrado', async ({
+  browser,
+}) => {
   test.setTimeout(240_000);
   const s = await login(browser, 'cfg-gestor');
   expect(await visit(s, state.insurerUrl!)).toBe(200);
@@ -486,28 +659,45 @@ test('gestora: reajuste a partir de uma data cria versão; o passado não muda; 
   await line.getByRole('button', { name: 'Salvar nova versão' }).click();
   await toast(s.page, 'Contrato atualizado');
   // Duas linhas vivas (a antiga encerrada na véspera e a nova vigência) e uma versão anterior.
-  await expect(s.page.locator('[data-testid="contract-line"][data-code="10101012"]')).toHaveCount(2, { timeout: 30_000 });
+  await expect(s.page.locator('[data-testid="contract-line"][data-code="10101012"]')).toHaveCount(
+    2,
+    { timeout: 30_000 },
+  );
   await expect(s.page.getByText('Versões anteriores (1)')).toBeVisible();
-  await expect(s.page.getByTestId('insurer-history')).toContainText('Reajuste a partir de uma data');
+  await expect(s.page.getByTestId('insurer-history')).toContainText(
+    'Reajuste a partir de uma data',
+  );
   // O atendimento de amanhã continua coberto pelo preço vigente na data dele.
   expect(await visit(s, '/convenios/atendimentos')).toBe(200);
-  await expect(s.page.getByTestId('insurance-appointment').filter({ hasText: PATIENT })).toHaveAttribute('data-coverage', 'ready');
+  await expect(
+    s.page.getByTestId('insurance-appointment').filter({ hasText: PATIENT }),
+  ).toHaveAttribute('data-coverage', 'ready');
   expectNoPageErrors(s);
   await s.context.close();
 });
 
-test('médica: sem ver o financeiro, não entra na configuração nem nas carteirinhas', async ({ browser }) => {
+test('médica: sem ver o financeiro, não entra na configuração nem nas carteirinhas', async ({
+  browser,
+}) => {
   test.setTimeout(120_000);
   const s = await login(browser, 'cfg-medica');
-  for (const path of ['/convenios/configuracao', '/convenios/carteirinhas', '/convenios/atendimentos']) {
+  for (const path of [
+    '/convenios/configuracao',
+    '/convenios/carteirinhas',
+    '/convenios/atendimentos',
+  ]) {
     await visit(s, path);
-    await expect(s.page.getByText('Seu perfil não tem permissão para o faturamento de convênios.')).toBeVisible();
+    await expect(
+      s.page.getByText('Seu perfil não tem permissão para o faturamento de convênios.'),
+    ).toBeVisible();
   }
   expectNoPageErrors(s);
   await s.context.close();
 });
 
-test('outra clínica: operadora e paciente de outro tenant não aparecem (404 / não encontrado)', async ({ browser }) => {
+test('outra clínica: operadora e paciente de outro tenant não aparecem (404 / não encontrado)', async ({
+  browser,
+}) => {
   test.setTimeout(120_000);
   const s = await login(browser, 'cfg-recepcao');
   expect(await visit(s, `/convenios/configuracao/operadoras/${other!.insurerId}`)).toBe(404);
@@ -520,18 +710,25 @@ test('outra clínica: operadora e paciente de outro tenant não aparecem (404 / 
   await p.context.close();
 });
 
-test('trial: configuração e carteirinhas aparecem como recurso contratável (a recusa da carteirinha no trial é provada no harness)', async ({ browser }) => {
+test('trial: configuração e carteirinhas aparecem como recurso contratável (a recusa da carteirinha no trial é provada no harness)', async ({
+  browser,
+}) => {
   test.setTimeout(150_000);
   const s = await login(browser, 'gestor-trial');
   expect(await visit(s, '/convenios/configuracao', 'cfg-07-trial')).toBe(200);
-  await expect(s.page.getByTestId('convenios-commercial-notice')).toHaveAttribute('data-denial', 'trial');
+  await expect(s.page.getByTestId('convenios-commercial-notice')).toHaveAttribute(
+    'data-denial',
+    'trial',
+  );
   expect(await visit(s, '/convenios/carteirinhas')).toBe(200);
   await expect(s.page.getByTestId('convenios-commercial-notice')).toBeVisible();
   expectNoPageErrors(s);
   await s.context.close();
 });
 
-test('celular: configuração, operadora, carteirinhas e atendimentos sem rolagem lateral', async ({ browser }) => {
+test('celular: configuração, operadora, carteirinhas e atendimentos sem rolagem lateral', async ({
+  browser,
+}) => {
   test.setTimeout(180_000);
   const s = await login(browser, 'cfg-gestor', MOBILE);
   for (const [path, shot] of [
@@ -548,12 +745,15 @@ test('celular: configuração, operadora, carteirinhas e atendimentos sem rolage
 
 // ── Da consulta ao repasse, na mesma clínica configurada pela interface ──────────────
 
-
-test('gestora: regra de repasse da médica (40%) em Configurações › Pagamentos', async ({ browser }) => {
+test('gestora: regra de repasse da médica (40%) em Configurações › Pagamentos', async ({
+  browser,
+}) => {
   test.setTimeout(150_000);
   const s = await login(browser, 'cfg-gestor');
   expect(await visit(s, '/configuracoes/pagamentos')).toBe(200);
-  await s.page.locator('#payout-professional').selectOption({ label: 'Dra. Sintética Configuração' });
+  await s.page
+    .locator('#payout-professional')
+    .selectOption({ label: 'Dra. Sintética Configuração' });
   await s.page.locator('#payout-kind').selectOption('percentage');
   await s.page.locator('#payout-value').fill('40');
   await s.page.getByRole('button', { name: 'Salvar regra' }).click();
@@ -571,18 +771,26 @@ test('recepção: encaixe de convênio (o paciente chegou agora)', async ({ brow
   await s.page.locator('#appointment-patient').fill(PATIENT.slice(0, 12));
   await s.page.getByRole('option', { name: PATIENT }).first().click();
   await s.page.locator('#appointment-procedure').selectOption({ label: PROC_NAME });
-  await s.page.locator('#appointment-doctor').selectOption({ label: 'Dra. Sintética Configuração' });
+  await s.page
+    .locator('#appointment-doctor')
+    .selectOption({ label: 'Dra. Sintética Configuração' });
   await s.page.getByRole('radio', { name: 'Convênio' }).click();
   await s.page.locator('#appointment-insurer').selectOption({ label: INSURER });
-  await expect(s.page.locator('#appointment-card option', { hasText: `final ${CARD.slice(-4)}` })).toHaveCount(1, { timeout: 30_000 });
-  await s.page.locator('#appointment-card').selectOption({ label: `final ${CARD.slice(-4)} · válida até 31/12/2027 · preferencial` });
+  await expect(
+    s.page.locator('#appointment-card option', { hasText: `final ${CARD.slice(-4)}` }),
+  ).toHaveCount(1, { timeout: 30_000 });
+  await s.page
+    .locator('#appointment-card')
+    .selectOption({ label: `final ${CARD.slice(-4)} · válida até 31/12/2027 · preferencial` });
   await s.page.getByRole('button', { name: 'Criar encaixe' }).click();
   await toast(s.page, 'Encaixe criado');
   expectNoPageErrors(s);
   await s.context.close();
 });
 
-test('médica: chama e encerra a consulta; a guia de convênio nasce sozinha do atendimento', async ({ browser }) => {
+test('médica: chama e encerra a consulta; a guia de convênio nasce sozinha do atendimento', async ({
+  browser,
+}) => {
   test.setTimeout(300_000);
   const m = await login(browser, 'cfg-medica');
   expect(await visit(m, '/consultorio')).toBe(200);
@@ -590,7 +798,9 @@ test('médica: chama e encerra a consulta; a guia de convênio nasce sozinha do 
   await m.page.getByRole('button', { name: 'Chamar' }).first().click();
   // Regra clínica: só encerra com o prontuário assinado, e o banco recusa prontuário vazio. A nota
   // diz só que é um registro de teste: nenhum dado clínico é inventado.
-  await m.page.getByPlaceholder('Anotações complementares.').fill('Registro sintético de teste automatizado (E2E). Nenhum dado clínico.');
+  await m.page
+    .getByPlaceholder('Anotações complementares.')
+    .fill('Registro sintético de teste automatizado (E2E). Nenhum dado clínico.');
   await m.page.getByRole('button', { name: 'Salvar agora' }).click();
   await expect(m.page.getByText(/^Salvo/u).first()).toBeVisible({ timeout: 45_000 });
   await m.page.getByRole('button', { name: 'Assinar consulta' }).first().click();
@@ -599,7 +809,9 @@ test('médica: chama e encerra a consulta; a guia de convênio nasce sozinha do 
   await sign.getByRole('button', { name: 'Assinar consulta' }).click();
   await expect(sign).toHaveCount(0, { timeout: 45_000 });
   await m.page.getByRole('button', { name: 'Encerrar consulta' }).click();
-  await expect(m.page.getByRole('button', { name: 'Encerrar consulta' })).toHaveCount(0, { timeout: 45_000 });
+  await expect(m.page.getByRole('button', { name: 'Encerrar consulta' })).toHaveCount(0, {
+    timeout: 45_000,
+  });
   expectNoPageErrors(m);
   await m.context.close();
 
@@ -624,7 +836,9 @@ test('médica: chama e encerra a consulta; a guia de convênio nasce sozinha do 
   await s.context.close();
 });
 
-test('gestora: confere, aprova e emite a guia; o PDF oficial sai do documento congelado', async ({ browser }) => {
+test('gestora: confere, aprova e emite a guia; o PDF oficial sai do documento congelado', async ({
+  browser,
+}) => {
   test.setTimeout(240_000);
   const s = await login(browser, 'cfg-gestor');
   expect(await visit(s, journey.guideUrl!)).toBe(200);
@@ -640,13 +854,19 @@ test('gestora: confere, aprova e emite a guia; o PDF oficial sai do documento co
   await s.context.close();
 });
 
-test('gestora: lote → XML validado no XSD → enviado → protocolo → em análise', async ({ browser }) => {
+test('gestora: lote → XML validado no XSD → enviado → protocolo → em análise', async ({
+  browser,
+}) => {
   test.setTimeout(300_000);
   const s = await login(browser, 'cfg-gestor');
-  const has = async (name: string) => (await s.page.getByRole('button', { name, exact: true }).count()) > 0;
+  const has = async (name: string) =>
+    (await s.page.getByRole('button', { name, exact: true }).count()) > 0;
   if (!journey.batchUrl) {
     expect(await visit(s, '/convenios/lotes')).toBe(200);
-    await s.page.getByLabel('Operadora').first().selectOption({ label: `${INSURER} (1 aprovadas)` });
+    await s.page
+      .getByLabel('Operadora')
+      .first()
+      .selectOption({ label: `${INSURER} (1 aprovadas)` });
     await s.page.getByText('Todas (até 100)').click();
     await s.page.getByRole('button', { name: 'Montar lote' }).click();
     await s.page.waitForURL(/\/convenios\/lotes\/[0-9a-f-]{36}$/u, { timeout: 60_000 });
@@ -662,7 +882,9 @@ test('gestora: lote → XML validado no XSD → enviado → protocolo → em an�
   }
   if (await has('Marcar como enviado')) {
     await s.page.getByRole('button', { name: 'Marcar como enviado' }).click();
-    await s.page.getByLabel('Como o lote foi enviado').fill('Enviado pelo portal da operadora sintética, comprovante de teste');
+    await s.page
+      .getByLabel('Como o lote foi enviado')
+      .fill('Enviado pelo portal da operadora sintética, comprovante de teste');
     await s.page.getByRole('button', { name: 'Confirmar' }).click();
     await toast(s.page, 'Envio registrado');
     await visit(s, journey.batchUrl!);
@@ -683,15 +905,19 @@ test('gestora: lote → XML validado no XSD → enviado → protocolo → em an�
   }
   await s.page.getByRole('button', { name: 'Operadora iniciou a análise' }).click();
   await toast(s.page, 'Lote em análise');
-  if (SHOTS) await s.page.screenshot({ path: `${SHOTS}/cfg-09-lote-em-analise.png`, fullPage: true });
+  if (SHOTS)
+    await s.page.screenshot({ path: `${SHOTS}/cfg-09-lote-em-analise.png`, fullPage: true });
   expectNoPageErrors(s);
   await s.context.close();
 });
 
-test('gestora: glosa parcial → análise → contestação → recurso com XML no XSD → envio → resposta', async ({ browser }) => {
+test('gestora: glosa parcial → análise → contestação → recurso com XML no XSD → envio → resposta', async ({
+  browser,
+}) => {
   test.setTimeout(420_000);
   const s = await login(browser, 'cfg-gestor');
-  const has = async (name: string) => (await s.page.getByRole('button', { name, exact: true }).count()) > 0;
+  const has = async (name: string) =>
+    (await s.page.getByRole('button', { name, exact: true }).count()) > 0;
   /** Cada decisão muda a versão da glosa: recarrega antes da próxima (senão o botão leva a versão antiga e o servidor recusa). */
   const act = async (name: string, done: string | RegExp) => {
     if (!(await has(name))) return;
@@ -714,7 +940,11 @@ test('gestora: glosa parcial → análise → contestação → recurso com XML 
   if (await has('Preparar recurso')) {
     await s.page.getByRole('button', { name: 'Preparar recurso' }).click();
     await s.page.getByRole('checkbox').first().check();
-    await s.page.getByLabel('Justificativa').fill('Atendimento realizado conforme o contrato vigente na data; segue o registro sintético do atendimento.');
+    await s.page
+      .getByLabel('Justificativa')
+      .fill(
+        'Atendimento realizado conforme o contrato vigente na data; segue o registro sintético do atendimento.',
+      );
     await s.page.getByRole('button', { name: 'Salvar recurso' }).click();
     await toast(s.page, 'Recurso preparado');
     await visit(s, journey.guideUrl!);
@@ -728,15 +958,21 @@ test('gestora: glosa parcial → análise → contestação → recurso com XML 
     await visit(s, journey.guideUrl!);
   }
   await s.page.getByRole('button', { name: 'Registrar resposta' }).first().click();
-  await s.page.getByLabel(/Aceito pela operadora/u).first().fill('20,00');
+  await s.page
+    .getByLabel(/Aceito pela operadora/u)
+    .first()
+    .fill('20,00');
   await s.page.getByRole('button', { name: 'Registrar resposta' }).last().click();
   await toast(s.page, 'Resposta registrada');
-  if (SHOTS) await s.page.screenshot({ path: `${SHOTS}/cfg-10-recurso-respondido.png`, fullPage: true });
+  if (SHOTS)
+    await s.page.screenshot({ path: `${SHOTS}/cfg-10-recurso-respondido.png`, fullPage: true });
   expectNoPageErrors(s);
   await s.context.close();
 });
 
-test('gestora: pagamento parcial → alocação → estorno → nova alocação; demonstrativo repetido recusado', async ({ browser }) => {
+test('gestora: pagamento parcial → alocação → estorno → nova alocação; demonstrativo repetido recusado', async ({
+  browser,
+}) => {
   test.setTimeout(420_000);
   const s = await login(browser, 'cfg-gestor');
   /** Etapas persistidas na hora (retomada não registra o pagamento duas vezes). */
@@ -748,7 +984,10 @@ test('gestora: pagamento parcial → alocação → estorno → nova alocação;
   const allocate = async () => {
     expect(await visit(s, '/convenios/conciliacao')).toBe(200);
     await s.page.getByRole('button', { name: 'Alocar às guias' }).first().click();
-    await s.page.getByLabel(/^Alocar à guia /u).first().fill('100,00');
+    await s.page
+      .getByLabel(/^Alocar à guia /u)
+      .first()
+      .fill('100,00');
     await s.page.getByRole('button', { name: 'Alocar', exact: true }).click();
     await toast(s.page, 'Pagamento alocado');
   };
@@ -766,7 +1005,9 @@ test('gestora: pagamento parcial → alocação → estorno → nova alocação;
     await s.page.getByLabel('Valor pago (R$)').fill('100,00');
     await s.page.getByLabel('Referência do demonstrativo').fill(`DEMO${RUN}`);
     await s.page.getByRole('button', { name: 'Registrar', exact: true }).click();
-    await expect(s.page.getByText(/já existe|já foi registrad|duas vezes/iu).first()).toBeVisible({ timeout: 45_000 });
+    await expect(s.page.getByText(/já existe|já foi registrad|duas vezes/iu).first()).toBeVisible({
+      timeout: 45_000,
+    });
   }
   if ((journey.paymentStage ?? 0) < 2) {
     await allocate();
@@ -775,7 +1016,10 @@ test('gestora: pagamento parcial → alocação → estorno → nova alocação;
   if ((journey.paymentStage ?? 0) < 3) {
     expect(await visit(s, journey.guideUrl!)).toBe(200);
     await s.page.getByRole('button', { name: 'Estornar' }).first().click();
-    await s.page.getByRole('textbox').last().fill('Estorno sintético: alocação feita na guia errada no teste');
+    await s.page
+      .getByRole('textbox')
+      .last()
+      .fill('Estorno sintético: alocação feita na guia errada no teste');
     await s.page.getByRole('button', { name: 'Confirmar' }).click();
     await toast(s.page, 'Pagamento estornado');
     reached(3);
@@ -789,7 +1033,9 @@ test('gestora: pagamento parcial → alocação → estorno → nova alocação;
   await s.context.close();
 });
 
-test('gestora: repasse de 40% sobre o recebido → autorizar → registrar o repasse', async ({ browser }) => {
+test('gestora: repasse de 40% sobre o recebido → autorizar → registrar o repasse', async ({
+  browser,
+}) => {
   test.setTimeout(240_000);
   const s = await login(browser, 'cfg-gestor');
   expect(await visit(s, '/convenios/repasses')).toBe(200);
@@ -801,14 +1047,20 @@ test('gestora: repasse de 40% sobre o recebido → autorizar → registrar o rep
   await s.page.getByRole('button', { name: 'Confirmar' }).click();
   await toast(s.page, 'Repasse autorizado');
   await visit(s, '/convenios/repasses');
-  await s.page.getByRole('row').filter({ hasText: PATIENT }).getByRole('button', { name: 'Registrar repasse' }).click();
+  await s.page
+    .getByRole('row')
+    .filter({ hasText: PATIENT })
+    .getByRole('button', { name: 'Registrar repasse' })
+    .click();
   await s.page.getByRole('button', { name: 'Confirmar' }).click();
   await toast(s.page, 'Repasse registrado');
   expectNoPageErrors(s);
   await s.context.close();
 });
 
-test('coparticipação: recepção confere R$ 45,00, gestora confirma; só esse valor vira cobrança do paciente', async ({ browser }) => {
+test('coparticipação: recepção confere R$ 45,00, gestora confirma; só esse valor vira cobrança do paciente', async ({
+  browser,
+}) => {
   test.setTimeout(300_000);
   const r = await login(browser, 'cfg-recepcao');
   expect(await visit(r, '/convenios/conciliacao')).toBe(200);
@@ -839,7 +1091,56 @@ test('coparticipação: recepção confere R$ 45,00, gestora confirma; só esse 
   await s.page.getByRole('button', { name: 'Gerar link de cobrança' }).first().click();
   // Sem conta Asaas ativa nesta clínica sintética: nada é cobrado, receba no Caixa.
   await toast(s.page, 'A clínica não tem conta Asaas ativa; receba no Caixa.');
-  if (SHOTS) await s.page.screenshot({ path: `${SHOTS}/cfg-13-coparticipacao.png`, fullPage: true });
+  if (SHOTS)
+    await s.page.screenshot({ path: `${SHOTS}/cfg-13-coparticipacao.png`, fullPage: true });
   expectNoPageErrors(s);
   await s.context.close();
+});
+
+test('ficha do paciente: aba Convênios com carteirinha mascarada, cobertura e guia; quem não vê o financeiro não tem a aba', async ({
+  browser,
+}) => {
+  test.setTimeout(240_000);
+  expect(state.patientId, 'paciente da jornada').toBeTruthy();
+  const s = await login(browser, 'cfg-gestor');
+  expect(await visit(s, `/pacientes/${state.patientId}?tab=convenios`)).toBe(200);
+  const tab = s.page.getByTestId('patient-insurance');
+  await expect(tab).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
+  await expect(s.page.getByRole('link', { name: 'Convênios', exact: true })).toHaveAttribute(
+    'aria-current',
+    'page',
+  );
+  const card = tab.getByTestId('patient-insurance-card').first();
+  await expect(card).toHaveAttribute('data-status', 'active');
+  await expect(card).toContainText(`•••• ${CARD.slice(-4)}`);
+  await expect(s.page.getByText(CARD)).toHaveCount(0);
+  await expect(tab.getByTestId('patient-insurance-coverage').first()).toBeVisible();
+  if (journey.guideNumber)
+    await expect(tab.getByTestId('patient-insurance-guides')).toContainText(journey.guideNumber);
+  // O único atalho de ação leva à tela de carteirinhas (com as validações de lá), não opera aqui.
+  await expect(s.page.getByRole('link', { name: 'Gerenciar carteirinhas' })).toHaveAttribute(
+    'href',
+    `/convenios/carteirinhas?paciente=${state.patientId}`,
+  );
+  if (SHOTS)
+    await s.page.screenshot({ path: `${SHOTS}/cfg-14-ficha-convenios.png`, fullPage: true });
+  expectNoPageErrors(s);
+  await s.context.close();
+
+  // Celular: a aba cabe sem rolagem lateral (o `visit` reprova overflow).
+  const m = await login(browser, 'cfg-gestor', MOBILE);
+  expect(await visit(m, `/pacientes/${state.patientId}?tab=convenios`)).toBe(200);
+  await expect(m.page.getByTestId('patient-insurance')).toHaveAttribute('data-state', 'ready', {
+    timeout: 30_000,
+  });
+  expectNoPageErrors(m);
+  await m.context.close();
+
+  // Médica: vê o paciente, não vê o financeiro → sem a aba; o deep-link cai na visão geral.
+  const d = await login(browser, 'cfg-medica');
+  expect(await visit(d, `/pacientes/${state.patientId}?tab=convenios`)).toBe(200);
+  await expect(d.page.getByTestId('patient-insurance')).toHaveCount(0);
+  await expect(d.page.getByRole('link', { name: 'Convênios', exact: true })).toHaveCount(0);
+  expectNoPageErrors(d);
+  await d.context.close();
 });

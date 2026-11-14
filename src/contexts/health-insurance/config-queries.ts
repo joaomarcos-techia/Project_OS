@@ -570,6 +570,40 @@ export interface PatientMemberships {
   }>;
 }
 
+/** Carteirinhas do paciente, mascaradas (só os 4 últimos), ativas primeiro. */
+async function membershipRows(
+  tx: Parameters<Parameters<typeof withTenant>[1]>[0],
+  clinicId: string,
+  patientId: string,
+): Promise<MembershipView[]> {
+  const cards = await rows(
+    tx,
+    sql`SELECT m.id::text AS id, m.insurer_id::text AS insurer_id, i.name AS insurer_name, i.status AS insurer_status,
+               m.plan_id::text AS plan_id, pl.name AS plan_name, m.card_last4, m.holder_kind, m.valid_until,
+               m.is_preferred, m.status, m.replaced_by_id::text AS replaced_by_id, m.created_at
+          FROM public.hi_memberships m
+          JOIN public.hi_insurers i ON i.clinic_id = m.clinic_id AND i.id = m.insurer_id
+          LEFT JOIN public.hi_plans pl ON pl.clinic_id = m.clinic_id AND pl.id = m.plan_id
+         WHERE m.clinic_id = ${clinicId}::uuid AND m.patient_id = ${patientId}::uuid
+         ORDER BY CASE m.status WHEN 'active' THEN 0 WHEN 'inactive' THEN 1 ELSE 2 END, m.is_preferred DESC, m.created_at DESC`,
+  );
+  return cards.map((c) => ({
+    id: String(c.id),
+    insurerId: String(c.insurer_id),
+    insurerName: String(c.insurer_name),
+    insurerStatus: String(c.insurer_status),
+    planId: s(c.plan_id),
+    planName: s(c.plan_name),
+    last4: String(c.card_last4),
+    holderKind: String(c.holder_kind) as 'titular' | 'dependente',
+    validUntil: day(c.valid_until),
+    isPreferred: Boolean(c.is_preferred),
+    status: String(c.status) as MembershipView['status'],
+    replacedById: s(c.replaced_by_id),
+    createdAt: iso(c.created_at) ?? '',
+  }));
+}
+
 export async function getPatientMemberships(
   clinicId: string,
   patientId: string,
@@ -580,17 +614,7 @@ export async function getPatientMemberships(
       sql`SELECT id::text AS id, nome FROM public.patients WHERE clinic_id = ${clinicId}::uuid AND id = ${patientId}::uuid AND deleted_at IS NULL`,
     );
     if (!p) return null;
-    const cards = await rows(
-      tx,
-      sql`SELECT m.id::text AS id, m.insurer_id::text AS insurer_id, i.name AS insurer_name, i.status AS insurer_status,
-                 m.plan_id::text AS plan_id, pl.name AS plan_name, m.card_last4, m.holder_kind, m.valid_until,
-                 m.is_preferred, m.status, m.replaced_by_id::text AS replaced_by_id, m.created_at
-            FROM public.hi_memberships m
-            JOIN public.hi_insurers i ON i.clinic_id = m.clinic_id AND i.id = m.insurer_id
-            LEFT JOIN public.hi_plans pl ON pl.clinic_id = m.clinic_id AND pl.id = m.plan_id
-           WHERE m.clinic_id = ${clinicId}::uuid AND m.patient_id = ${patientId}::uuid
-           ORDER BY CASE m.status WHEN 'active' THEN 0 WHEN 'inactive' THEN 1 ELSE 2 END, m.is_preferred DESC, m.created_at DESC`,
-    );
+    const cards = await membershipRows(tx, clinicId, patientId);
     const ins = await rows(
       tx,
       sql`SELECT i.id::text AS id, i.name, i.status,
@@ -601,21 +625,7 @@ export async function getPatientMemberships(
     );
     return {
       patient: { id: String(p.id), nome: String(p.nome) },
-      cards: cards.map((c) => ({
-        id: String(c.id),
-        insurerId: String(c.insurer_id),
-        insurerName: String(c.insurer_name),
-        insurerStatus: String(c.insurer_status),
-        planId: s(c.plan_id),
-        planName: s(c.plan_name),
-        last4: String(c.card_last4),
-        holderKind: String(c.holder_kind) as 'titular' | 'dependente',
-        validUntil: day(c.valid_until),
-        isPreferred: Boolean(c.is_preferred),
-        status: String(c.status) as MembershipView['status'],
-        replacedById: s(c.replaced_by_id),
-        createdAt: iso(c.created_at) ?? '',
-      })),
+      cards,
       insurers: ins.map((i) => ({
         id: String(i.id),
         name: String(i.name),
@@ -927,4 +937,148 @@ export type { InsurerCredentialView } from './internal/insurer-credentials';
 export async function listInsurerCredentials(clinicId: string, insurerId: string) {
   const { listInsurerCredentialsTx } = await import('./internal/insurer-credentials');
   return withTenant(clinicId, (tx) => listInsurerCredentialsTx(tx, clinicId, insurerId));
+}
+
+// ── Ficha do paciente: aba Convênios (P1.3 do ciclo de 14/11) ────────────
+
+export const AUTHORIZATION_STATUS_LABELS: Record<string, string> = {
+  draft: 'Rascunho',
+  requested: 'Solicitada',
+  pending_operator: 'Em análise na operadora',
+  authorized: 'Autorizada',
+  partially_authorized: 'Autorizada em parte',
+  denied: 'Negada',
+  expired: 'Vencida',
+  cancelled: 'Cancelada',
+};
+
+export interface PatientInsuranceOverview {
+  /** Módulo habilitado pelo Qoro nesta clínica. Desabilitado: só consulta do que já existe. */
+  enabled: boolean;
+  cards: MembershipView[];
+  /** Coberturas dos atendimentos (próximos primeiro, depois os recentes), sem dado clínico. */
+  coverages: Array<{
+    id: string;
+    appointmentId: string;
+    scheduledAt: string;
+    appointmentStatus: string;
+    insurerName: string;
+    planName: string | null;
+    guideType: string;
+    status: string;
+    authorizationRequirement: string;
+    issues: number;
+  }>;
+  guides: Array<{
+    id: string;
+    number: string;
+    guideType: string;
+    status: string;
+    insurerName: string;
+    totalValueCents: number;
+    createdAt: string;
+  }>;
+  /** Autorizações (sem senha: o ciphertext nunca sai daqui). */
+  authorizations: Array<{
+    id: string;
+    guideType: string;
+    status: string;
+    insurerName: string;
+    requestedOn: string | null;
+    authorizedOn: string | null;
+    passwordValidUntil: string | null;
+  }>;
+}
+
+export const PATIENT_INSURANCE_LIMITS = { coverages: 12, guides: 20, authorizations: 10 } as const;
+
+/**
+ * Tudo de Convênios de UM paciente, pela RLS da clínica da sessão. Só leitura: as ações
+ * continuam nas telas de Convênios (carteirinha, cobertura, guia), com as mesmas validações
+ * de credenciamento, assinatura e autorização. `null` = paciente inexistente nesta clínica.
+ */
+export async function getPatientInsuranceOverview(
+  clinicId: string,
+  patientId: string,
+): Promise<PatientInsuranceOverview | null> {
+  return withTenant(clinicId, async (tx) => {
+    const [p] = await rows(
+      tx,
+      sql`SELECT id FROM public.patients WHERE clinic_id = ${clinicId}::uuid AND id = ${patientId}::uuid AND deleted_at IS NULL`,
+    );
+    if (!p) return null;
+    const [st] = await rows(
+      tx,
+      sql`SELECT enabled FROM public.hi_clinic_settings WHERE clinic_id = ${clinicId}::uuid`,
+    );
+    const cards = await membershipRows(tx, clinicId, patientId);
+    const coverages = await rows(
+      tx,
+      sql`SELECT c.id::text AS id, c.appointment_id::text AS appointment_id, a.scheduled_at, a.status AS appointment_status,
+                 i.name AS insurer_name, pl.name AS plan_name, c.guide_type, c.status, c.authorization_requirement,
+                 jsonb_array_length(c.issues) AS issues
+            FROM public.hi_appointment_coverages c
+            JOIN public.appointments a ON a.clinic_id = c.clinic_id AND a.id = c.appointment_id
+            JOIN public.hi_insurers i ON i.clinic_id = c.clinic_id AND i.id = c.insurer_id
+            LEFT JOIN public.hi_plans pl ON pl.clinic_id = c.clinic_id AND pl.id = c.plan_id
+           WHERE c.clinic_id = ${clinicId}::uuid AND c.patient_id = ${patientId}::uuid
+           ORDER BY (a.scheduled_at >= now() AND c.status <> 'cancelled') DESC,
+                    CASE WHEN a.scheduled_at >= now() AND c.status <> 'cancelled' THEN a.scheduled_at END ASC,
+                    a.scheduled_at DESC
+           LIMIT ${PATIENT_INSURANCE_LIMITS.coverages}`,
+    );
+    const guides = await rows(
+      tx,
+      sql`SELECT g.id::text AS id, g.number, g.guide_type, g.status, i.name AS insurer_name, g.total_value_cents, g.created_at
+            FROM public.hi_guides g
+            JOIN public.hi_insurers i ON i.clinic_id = g.clinic_id AND i.id = g.insurer_id
+           WHERE g.clinic_id = ${clinicId}::uuid AND g.patient_id = ${patientId}::uuid
+           ORDER BY g.created_at DESC
+           LIMIT ${PATIENT_INSURANCE_LIMITS.guides}`,
+    );
+    const authorizations = await rows(
+      tx,
+      sql`SELECT au.id::text AS id, au.guide_type, au.status, i.name AS insurer_name, au.requested_on, au.authorized_on, au.password_valid_until
+            FROM public.hi_authorizations au
+            JOIN public.hi_memberships m ON m.clinic_id = au.clinic_id AND m.id = au.membership_id
+            JOIN public.hi_insurers i ON i.clinic_id = au.clinic_id AND i.id = au.insurer_id
+           WHERE au.clinic_id = ${clinicId}::uuid AND m.patient_id = ${patientId}::uuid
+           ORDER BY au.created_at DESC
+           LIMIT ${PATIENT_INSURANCE_LIMITS.authorizations}`,
+    );
+    return {
+      enabled: Boolean(st?.enabled),
+      cards,
+      coverages: coverages.map((c) => ({
+        id: String(c.id),
+        appointmentId: String(c.appointment_id),
+        scheduledAt: iso(c.scheduled_at) ?? '',
+        appointmentStatus: String(c.appointment_status),
+        insurerName: String(c.insurer_name),
+        planName: s(c.plan_name),
+        guideType: String(c.guide_type),
+        status: String(c.status),
+        authorizationRequirement: String(c.authorization_requirement),
+        issues: n(c.issues),
+      })),
+      guides: guides.map((g) => ({
+        id: String(g.id),
+        number: String(g.number),
+        guideType: String(g.guide_type),
+        status: String(g.status),
+        insurerName: String(g.insurer_name),
+        totalValueCents: n(g.total_value_cents),
+        createdAt: iso(g.created_at) ?? '',
+      })),
+      authorizations: authorizations.map((a) => ({
+        id: String(a.id),
+        guideType: String(a.guide_type),
+        status: String(a.status),
+        insurerName: String(a.insurer_name),
+        requestedOn: day(a.requested_on),
+        authorizedOn: day(a.authorized_on),
+        passwordValidUntil: day(a.password_valid_until),
+      })),
+    };
+  });
 }
