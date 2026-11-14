@@ -133,9 +133,17 @@ async function faturarAtendimento(ctx: {
   // do Payments.
   const creditos = await listAvailableCredits(tx, clinicId, payload.appointmentId);
   const valorBruto = round2(payload.valor);
+  // R54: só o que ainda está na conta. Um estorno parcial (feito no Asaas ou confirmado
+  // pelo Qoro) antes do atendimento já saiu do crédito em `unallocatedReversedAmount`;
+  // alocar o valor cheio daria baixa de dinheiro que voltou ao paciente.
   const { allocations, total: creditoAplicado } = allocateCreditsTo(
     valorBruto,
-    creditos.map((c) => ({ id: c.id, amount: Number(c.amount) })),
+    creditos
+      .map((c) => ({
+        id: c.id,
+        amount: round2(Number(c.amount) - Number(c.unallocatedReversedAmount ?? 0)),
+      }))
+      .filter((c) => c.amount > 0),
   );
   const status = statusAoCriar(valorBruto, creditoAplicado);
 

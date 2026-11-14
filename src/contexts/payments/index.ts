@@ -49,6 +49,8 @@ export type {
   PatientChargeFailedPayload,
   PatientChargePaidPayload,
   ExcessRefundConfirmedPayload,
+  ExternalRefundRecognizedPayload,
+  ExternalRefundReviewRequiredPayload,
   PatientPaymentRiskChangedPayload,
 } from './events';
 export type { PatientPaymentEconomicsReconciledPayload } from './events';

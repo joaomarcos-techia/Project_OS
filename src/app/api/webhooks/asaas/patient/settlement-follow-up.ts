@@ -58,6 +58,49 @@ export async function settleChargeNow(
   return outcome;
 }
 
+/**
+ * R54: depois de um estorno conciliado pelo webhook, processa LOGO o evento publicado
+ * (compensação no livro ou pendência de revisão) e põe a coparticipação, se houver, na
+ * situação do dinheiro (paga → estornada quando a devolução cobre o recebido). Antes, os
+ * eventos da própria baixa, caso ainda estejam pendentes: a compensação precisa do crédito.
+ */
+export async function settleRefundNow(input: {
+  clinicId: string;
+  chargeId: string;
+  appointmentId: string;
+  eventKey: string;
+  eventType:
+    | typeof PAYMENTS_EVENTS.EXTERNAL_REFUND_RECOGNIZED
+    | typeof PAYMENTS_EVENTS.EXTERNAL_REFUND_REVIEW_REQUIRED;
+}): Promise<SettlementOutcome> {
+  const summary = await runOutboxSelectionsNow([
+    { eventType: PAYMENTS_EVENTS.CHARGE_PAID, idempotencyKeys: [`charge-paid:${input.chargeId}`] },
+    {
+      eventType: PAYMENTS_EVENTS.CREDIT_GRANTED,
+      idempotencyKeys: [`credit-granted:${input.chargeId}`],
+    },
+    {
+      eventType: FINANCIAL_EVENTS.LANCAMENTO_PAID,
+      idempotencyKeys: [`patient-credit-applied:${input.chargeId}`],
+    },
+    { eventType: input.eventType, idempotencyKeys: [input.eventKey] },
+  ]);
+  const copay = await syncCopayForAppointment(input.clinicId, input.appointmentId);
+  const outcome = {
+    processed: summary.processed,
+    failed: summary.failed,
+    copay: copay ? `${copay.before}->${copay.after}` : 'none',
+  };
+  metrics.emit('payments.webhook.refund_follow_up', { clinicId: input.clinicId, ...outcome });
+  return outcome;
+}
+
+export function scheduleRefundFollowUp(input: Parameters<typeof settleRefundNow>[0]): void {
+  runAfterResponse('payments.webhook.refund', async () => {
+    await settleRefundNow(input);
+  });
+}
+
 export function scheduleSettlementFollowUp(clinicId: string, providerPaymentId: string): void {
   runAfterResponse('payments.webhook.settlement', async () => {
     await settleChargeNow(clinicId, providerPaymentId);

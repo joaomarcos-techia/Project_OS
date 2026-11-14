@@ -36,6 +36,16 @@ const PR53_APPLIED_IN_DEV: readonly Entry[] = [
   { idx: 141, when: 1794222981810, tag: '0141_saas_scheduled_plan_changes' },
   { idx: 142, when: 1794326400000, tag: '0142_saas_review_replays' },
 ];
+/**
+ * A 0159 do #53 (candidata no manifesto de composição dele, fora do journal da branch) está
+ * APLICADA no DEV desde 13/11 (sha256 eb00a4e3…, `created_at` = `when` abaixo). No merge ela entra
+ * no journal com idx 159; por isso a faixa do convênio pula do 158 para o 160 (R54, 0160).
+ */
+const PR53_0159_APPLIED_IN_DEV: Entry = {
+  idx: 159,
+  when: 1795036973858,
+  tag: '0159_saas_period_snapshot',
+};
 /** Última linha do DEV: o catálogo TISS. Número, conteúdo e versão lógica não mudam. */
 const TISS_0143_APPLIED_IN_DEV = { idx: 143, when: 1794330000000, tag: '0143_tiss_catalog' };
 
@@ -57,12 +67,17 @@ const base = journal.entries.filter((e) => e.idx <= 135);
 const tiss = journal.entries.filter((e) => e.idx >= 136);
 
 describe('ordem das migrations depois do merge do #53 (D22)', () => {
-  it('esta branch só acrescenta a faixa do convênio, começando na 0143', () => {
-    expect(tiss.map((e) => e.idx)).toEqual(Array.from({ length: tiss.length }, (_, i) => 143 + i));
-    // Exceção única e nominal: a 0155 corrige a função compartilhada do livro (R38, autorizada
-    // pelo fundador em 12/11 nesta branch, porque redefine o corpo que a 0153 estendeu).
+  it('esta branch só acrescenta a faixa do convênio, começando na 0143 (a 0159 é do #53)', () => {
+    const expected = Array.from({ length: tiss.length + 1 }, (_, i) => 143 + i).filter(
+      (idx) => idx !== 159,
+    );
+    expect(tiss.map((e) => e.idx)).toEqual(expected);
+    // Exceções nominais: a 0155 corrige a função compartilhada do livro (R38, autorizada pelo
+    // fundador em 12/11 nesta branch) e a 0160 guarda a evidência do estorno feito direto no
+    // Asaas (R54, autorizada no ciclo de 14/11: "criar migrations necessárias").
     expect(tiss.filter((e) => !/^01\d\d_(?:tiss|hi)_/u.test(e.tag)).map((e) => e.tag)).toEqual([
       '0155_ledger_payment_sum_by_clinic',
+      '0160_patient_external_refunds',
     ]);
   });
 
@@ -71,7 +86,20 @@ describe('ordem das migrations depois do merge do #53 (D22)', () => {
   });
 
   it('a união main + #53 + #55 passa no gate de ordem do #53', () => {
-    expect(orderProblems([...base, ...PR53_APPLIED_IN_DEV, ...tiss])).toEqual([]);
+    const union = [...base, ...PR53_APPLIED_IN_DEV, ...tiss, PR53_0159_APPLIED_IN_DEV].sort(
+      (a, b) => a.idx - b.idx,
+    );
+    expect(orderProblems(union)).toEqual([]);
+  });
+
+  it('sem a 0159 do #53 a união quebraria: a composição do merge precisa trazê-la', () => {
+    expect(orderProblems([...base, ...PR53_APPLIED_IN_DEV, ...tiss]).length).toBeGreaterThan(0);
+  });
+
+  it('migration do convênio depois da 0159 nasce DEPOIS do que o DEV já aplicou', () => {
+    for (const e of tiss.filter((x) => x.idx > 159)) {
+      expect(e.when).toBeGreaterThan(PR53_0159_APPLIED_IN_DEV.when);
+    }
   });
 
   it('nenhuma migration do convênio "nasce no passado" em relação ao DEV', () => {

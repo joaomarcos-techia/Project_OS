@@ -133,5 +133,7 @@ import '@/contexts/payments/internal/handlers/lancamento-paid';
 import '@/contexts/payments/internal/handlers/excess-refund-requested';
 import '@/contexts/financial/internal/handlers/excess-refund-confirmed';
 import '@/contexts/financial/internal/handlers/patient-payment-risk-changed';
+import '@/contexts/financial/internal/handlers/external-refund-recognized';
+import '@/contexts/financial/internal/handlers/external-refund-review-required';
 
 export {};

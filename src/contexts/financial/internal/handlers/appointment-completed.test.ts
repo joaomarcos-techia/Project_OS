@@ -241,6 +241,22 @@ describe('faturamento com sinal já pago (ADR-051 1.5b.2)', () => {
     );
   });
 
+  it('R54: crédito parcialmente estornado antes do atendimento aplica só o que ficou na conta', async () => {
+    mocks.listAvailableCredits.mockResolvedValue([
+      credito({ amount: '100.00', unallocatedReversedAmount: '40.00' }),
+      credito({ id: 'cred-2', amount: '50.00', unallocatedReversedAmount: '50.00' }),
+    ]);
+
+    await run();
+
+    expect(lancamento()).toMatchObject({ valor: '200.00', valorPago: '60.00', status: 'parcial' });
+    expect(mocks.allocateCredit).toHaveBeenCalledTimes(1);
+    expect(mocks.allocateCredit).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ creditId: 'cred-1', amount: 60 }),
+    );
+  });
+
   it('sem forma de pagamento no crédito, a baixa vai sem forma (não inventa)', async () => {
     mocks.listAvailableCredits.mockResolvedValue([credito({ paymentMethod: null })]);
 

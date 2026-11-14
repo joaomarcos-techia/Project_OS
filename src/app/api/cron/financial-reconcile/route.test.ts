@@ -13,20 +13,18 @@ const {
   reconcileInsuranceBilling,
   listCopaySyncCandidates,
   reconcileCopayCharges,
-} = vi.hoisted(
-  () => ({
-    listBillingGapCandidates: vi.fn(),
-    reconcileInsuranceBilling: vi.fn(),
-    listCopaySyncCandidates: vi.fn(),
-    reconcileCopayCharges: vi.fn(),
-    transactionMock: vi.fn(),
-    execute: vi.fn(),
-    emit: vi.fn(),
-    recordHeartbeat: vi.fn(),
-    publishEvent: vi.fn(),
-    withTenant: vi.fn(),
-  }),
-);
+} = vi.hoisted(() => ({
+  listBillingGapCandidates: vi.fn(),
+  reconcileInsuranceBilling: vi.fn(),
+  listCopaySyncCandidates: vi.fn(),
+  reconcileCopayCharges: vi.fn(),
+  transactionMock: vi.fn(),
+  execute: vi.fn(),
+  emit: vi.fn(),
+  recordHeartbeat: vi.fn(),
+  publishEvent: vi.fn(),
+  withTenant: vi.fn(),
+}));
 
 vi.mock('@/lib/http/cron', () => ({ withCron: (_options: unknown, handler: unknown) => handler }));
 vi.mock('@/lib/db', () => ({ dbAdmin: { transaction: transactionMock } }));
@@ -55,7 +53,13 @@ beforeEach(() => {
   execute.mockResolvedValue([]);
   listBillingGapCandidates.mockResolvedValue([]);
   listCopaySyncCandidates.mockResolvedValue([]);
-  reconcileCopayCharges.mockResolvedValue({ candidates: 0, changed: 0, unchanged: 0, failed: 0, skippedForBudget: 0 });
+  reconcileCopayCharges.mockResolvedValue({
+    candidates: 0,
+    changed: 0,
+    unchanged: 0,
+    failed: 0,
+    skippedForBudget: 0,
+  });
   reconcileInsuranceBilling.mockResolvedValue({
     candidates: 0,
     processed: 0,
@@ -82,8 +86,8 @@ describe('financial reconcile', () => {
       clinics: 0,
       paymentEconomicsReconciled: 0,
     });
-    expect(transactionMock).toHaveBeenCalledTimes(2);
-    expect(execute).toHaveBeenCalledTimes(7);
+    expect(transactionMock).toHaveBeenCalledTimes(3);
+    expect(execute).toHaveBeenCalledTimes(9);
 
     const statements = execute.mock.calls.map(([query]) => dialect.sqlToQuery(query as SQL).sql);
     expect(statements[0]).toMatch(/^RESET ROLE$/i);
@@ -99,6 +103,12 @@ describe('financial reconcile', () => {
     expect(statements[4]).toMatch(/economics_reconciled_at is null/i);
     expect(statements[5]).toMatch(/economics_reconciled_at IS NOT NULL/i);
     expect(statements[6]).toMatch(/payment_method_mismatch/i);
+    // R54: varredura do estorno externo, também com o papel restaurado e só identificadores.
+    expect(statements[7]).toMatch(/^RESET ROLE$/i);
+    expect(statements[8]).toMatch(/from patient_charges/i);
+    expect(statements[8]).toMatch(/status = 'paid'/i);
+    expect(statements[8]).toMatch(/refund_checked_at/i);
+    expect(statements[8]).not.toMatch(/amount|patient_id/i);
     expect(emit).toHaveBeenCalledWith('financial.reconcile.run', {
       opened: 0,
       clinics: 0,
@@ -119,6 +129,12 @@ describe('financial reconcile', () => {
       paymentAnomalySkipped: 0,
       paymentAnomalyFailed: 0,
       paymentBackstopSkippedForBudget: false,
+      externalRefundCandidates: 0,
+      externalRefundChecked: 0,
+      externalRefundRecorded: 0,
+      externalRefundReview: 0,
+      externalRefundDeferred: 0,
+      externalRefundFailed: false,
       insuranceCandidates: 0,
       insuranceGuideReady: 0,
       insuranceGapOpen: 0,
@@ -177,6 +193,12 @@ describe('financial reconcile', () => {
       paymentAnomalySkipped: 0,
       paymentAnomalyFailed: 0,
       paymentBackstopSkippedForBudget: false,
+      externalRefundCandidates: 0,
+      externalRefundChecked: 0,
+      externalRefundRecorded: 0,
+      externalRefundReview: 0,
+      externalRefundDeferred: 0,
+      externalRefundFailed: false,
       insuranceCandidates: 0,
       insuranceGuideReady: 0,
       insuranceGapOpen: 0,
@@ -278,15 +300,27 @@ describe('financial reconcile', () => {
   it('coparticipação atrás do dinheiro (P10.5): sincroniza os candidatos e uma falha dela não derruba o cron', async () => {
     const candidates = [{ clinicId: 'clinic-a', copaymentId: 'copay-1' }];
     listCopaySyncCandidates.mockResolvedValue(candidates);
-    reconcileCopayCharges.mockResolvedValue({ candidates: 1, changed: 1, unchanged: 0, failed: 0, skippedForBudget: 0 });
+    reconcileCopayCharges.mockResolvedValue({
+      candidates: 1,
+      changed: 1,
+      unchanged: 0,
+      failed: 0,
+      skippedForBudget: 0,
+    });
     const response = await GET(new Request('https://app.qoro.dev/api/cron/financial-reconcile'));
     expect(response.status).toBe(200);
     expect(listCopaySyncCandidates).toHaveBeenCalledWith(50);
-    expect(reconcileCopayCharges).toHaveBeenCalledWith(candidates, { deadlineAt: expect.any(Number) });
+    expect(reconcileCopayCharges).toHaveBeenCalledWith(candidates, {
+      deadlineAt: expect.any(Number),
+    });
     expect(recordHeartbeat).toHaveBeenCalledWith(
       'financial-reconcile',
       'success',
-      expect.objectContaining({ copaySyncCandidates: 1, copaySyncChanged: 1, copaySyncFailed: false }),
+      expect.objectContaining({
+        copaySyncCandidates: 1,
+        copaySyncChanged: 1,
+        copaySyncFailed: false,
+      }),
     );
 
     vi.clearAllMocks();

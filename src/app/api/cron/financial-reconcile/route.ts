@@ -34,6 +34,11 @@ import { withCron } from '@/lib/http/cron';
 import { metrics } from '@/lib/observability/metrics';
 import { publishEvent } from '@/lib/outbox/publish';
 
+import {
+  reconcileExternalRefundCandidates,
+  scanExternalRefundCandidates,
+  type ExternalRefundSweepSummary,
+} from './external-refund-sweep';
 import { ORPHAN_CREDIT_AGE_DAYS, scanOrphanCredits } from './orphan-credit-scan';
 import {
   reconcileQuarantinedPatientPayments,
@@ -54,6 +59,11 @@ const PAYMENT_ECONOMICS_LIMIT = 2;
 const PAYMENT_CORRECTION_LIMIT = 4;
 const PAYMENT_ANOMALY_LIMIT = 1;
 const PAYMENT_BACKSTOP_START_DEADLINE_MS = 30_000;
+// R54: estorno feito direto no Asaas com webhook perdido. Uma leitura por cobrança (duas
+// só quando há estorno DONE), cada uma com teto de 4 s, até o prazo abaixo.
+const EXTERNAL_REFUND_LIMIT = 10;
+const EXTERNAL_REFUND_START_DEADLINE_MS = 38_000;
+const EXTERNAL_REFUND_END_DEADLINE_MS = 44_000;
 // Convênio sem guia (P7.4): roda por último, só com orçamento sobrando, e nunca
 // derruba a obrigação primária deste cron (recebíveis do particular).
 const INSURANCE_LIMIT = 25;
@@ -230,6 +240,27 @@ export const GET = withCron(
         count: paymentEconomics.mismatched,
       });
     }
+    let externalRefunds: ExternalRefundSweepSummary | null = null;
+    let externalRefundsFailed = false;
+    if (Date.now() - startedAt < EXTERNAL_REFUND_START_DEADLINE_MS) {
+      try {
+        const candidates = await dbAdmin.transaction(async (tx) => {
+          // Mesmo bypass explícito das leituras acima: só identificadores, nada de valor.
+          await tx.execute(sql`RESET ROLE`);
+          return scanExternalRefundCandidates(tx, Math.min(limit, EXTERNAL_REFUND_LIMIT));
+        });
+        externalRefunds = await reconcileExternalRefundCandidates(candidates, {
+          deadlineAt: startedAt + EXTERNAL_REFUND_END_DEADLINE_MS,
+        });
+      } catch (error) {
+        externalRefundsFailed = true;
+        metrics.emit('financial.reconcile.external_refund_error', {
+          error: error instanceof Error ? error.name : 'unknown',
+        });
+      }
+    } else {
+      metrics.emit('financial.reconcile.external_refund_skipped_budget', {});
+    }
     let insurance: InsuranceReconcileSummary | null = null;
     let insuranceFailed = false;
     if (Date.now() - startedAt < INSURANCE_START_DEADLINE_MS) {
@@ -289,6 +320,12 @@ export const GET = withCron(
       paymentAnomalySkipped: paymentAnomalies.skipped,
       paymentAnomalyFailed: paymentAnomalies.failed,
       paymentBackstopSkippedForBudget,
+      externalRefundCandidates: externalRefunds?.candidates ?? 0,
+      externalRefundChecked: externalRefunds?.checked ?? 0,
+      externalRefundRecorded: externalRefunds?.recorded ?? 0,
+      externalRefundReview: externalRefunds?.review ?? 0,
+      externalRefundDeferred: externalRefunds?.deferred ?? 0,
+      externalRefundFailed: externalRefundsFailed || (externalRefunds?.failed ?? 0) > 0,
     };
     metrics.emit('financial.reconcile.run', runFields);
     await recordHeartbeat('financial-reconcile', 'success', runFields);

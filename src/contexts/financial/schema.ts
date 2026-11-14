@@ -82,6 +82,8 @@ export const patientCreditAdjustmentKind = pgEnum('patient_credit_adjustment_kin
   'excess_refund',
   'chargeback_loss',
   'cash_undone',
+  // R54 (0160): estorno feito direto no Asaas, sem intenção do Qoro.
+  'external_refund',
 ]);
 
 export const pendenciaStatus = pgEnum('pendencia_status', ['aberta', 'resolvida']);

@@ -190,3 +190,23 @@ existir, por consulta dinâmica: aplica sozinha na cadeia do #55 e, na ordem do 
 - **Próxima migration do convênio:** número livre combinado com o #53 e `when` > 1795036973858. Nenhuma foi criada neste
   ciclo: as telas de configuração, o R45 e a coparticipação usaram o schema já aplicado.
 - O journal do #55 continua sem a 0159 (ela vive no pacote do #53); a composição para produção segue o manifesto do #53.
+
+## 12. 14/11: 0160 (R54, estorno feito direto no Asaas) — candidata, ainda não aplicada no DEV
+
+- **O quê:** `0160_patient_external_refunds` acrescenta o valor `external_refund` ao enum
+  `patient_credit_adjustment_kind`, a coluna `patient_charges.refund_checked_at` (cursor da varredura, com índice
+  parcial) e a tabela só de inclusão `patient_external_refunds` (RLS forçada; runtime com SELECT/INSERT). Não toca
+  tabela, função nem gatilho do #53 (`billing_gateway`, `saas_*`, `subscriptions`).
+- **Número e `when`:** idx **160**, `when` **1795123373857** (> 1795036973858 da 0159 aplicada no DEV). A 0159 continua
+  do #53; o journal do #55 pula de 158 para 160.
+- **DEV:** sem risco de ordem. A 0159 já está aplicada, então a 0160 entra depois dela. A aplicação no DEV só acontece
+  com pré-voo, backup verificável e aviso no #53 (seção 2).
+- **Produção: a ordem de merge importa.** O migrador do Drizzle só aplica entradas com `when` maior que o da última
+  linha aplicada. Se o #55 (com a 0160) for publicado antes de a 0159 estar no journal da `main`, uma 0159 que chegue
+  depois, com `when` menor, seria **pulada em silêncio**. Regra para a composição: a 0159 do #53 entra no journal
+  **antes ou junto** da 0160, na mesma publicação. Se a ordem se inverter, a candidata do #53 precisa de número e `when`
+  novos, maiores que os da 0160. A decisão é do dono do #53.
+- **Prova:** `migration-ledger.test.ts` monta a união main + #53 (0136–0142 + 0159) + #55 (0143–0158 + 0160) pelo
+  critério do gate do #53 (idx contíguo, prefixo = posição, `when` crescente) e falha se a 0159 faltar.
+  `dev-order-chain.ts` compõe a 0159 com os bytes aplicados (sha256 conferido, commit `97e2c306` do #53) quando a branch
+  tem 0160+. O harness do R54 roda sobre essa cadeia.

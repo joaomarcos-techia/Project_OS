@@ -38,8 +38,10 @@ const copay = await import('../../src/contexts/health-insurance/internal/copay-c
 const { createCopayCheckout } = await import('../../src/contexts/payments/internal/copay-checkout');
 const { markDepositPaid, findPaidChargeByProviderPayment } =
   await import('../../src/contexts/payments/internal/charge-store');
-const { settleChargeNow } =
+const { settleChargeNow, settleRefundNow } =
   await import('../../src/app/api/webhooks/asaas/patient/settlement-follow-up');
+const { reconcileExternalRefund } =
+  await import('../../src/contexts/payments/internal/external-refund');
 const { listCopaySyncCandidates } =
   await import('../../src/contexts/health-insurance/billing-gap-candidates');
 const { reconcileCopayCharges } = copay;
@@ -389,7 +391,8 @@ try {
     'processed',
     'processed',
   ]);
-  const [aud9] = await sql`select count(*)::int as n, max(after->>'source') as source from public.audit_events
+  const [aud9] =
+    await sql`select count(*)::int as n, max(after->>'source') as source from public.audit_events
     where action = 'health_insurance.copay.synced_from_payment' and resource_id = ${c9.copaymentId} and user_id is null`;
   assert.deepEqual([aud9!.n, aud9!.source], [1, 'payment_webhook']);
   pass(
@@ -433,7 +436,8 @@ try {
     [(await statusOf(c9c.copaymentId)).status, sweep.failed, sweep2.candidates],
     ['paid', 0, 0],
   );
-  const [aud9c] = await sql`select count(*)::int as n, max(after->>'source') as source from public.audit_events
+  const [aud9c] =
+    await sql`select count(*)::int as n, max(after->>'source') as source from public.audit_events
     where action = 'health_insurance.copay.synced_from_payment' and resource_id = ${c9c.copaymentId}`;
   assert.deepEqual([aud9c!.n, aud9c!.source], [1, 'reconcile']);
   pass(
@@ -446,6 +450,70 @@ try {
   assert.equal(await settleChargeNow(B9.clinicId, g9.payment), null);
   pass(
     '9d. o passo pós-resposta com o pagamento de outra clínica não encontra nada (RLS): nenhuma baixa cruzada',
+  );
+
+  // ── 10. Estorno feito DIRETO no Asaas (R54) → coparticipação estornada ─────
+  // Reconhecimento real (`reconcileExternalRefund`, o que a rota chama depois de ler os
+  // estornos com a chave da clínica) + passo pós-resposta real (`settleRefundNow`).
+  const c10 = await confirmedCopay(C, 'estorno-externo');
+  const g10 = await paidVia(c10, 'c10');
+  assert.equal(await deliver(g10, 'evt_c10_1'), 'paid');
+  await settleChargeNow(C.clinicId, g10.payment);
+  assert.equal((await statusOf(c10.copaymentId)).status, 'paid');
+  const ext10 = await reconcileExternalRefund({
+    clinicId: C.clinicId,
+    providerPaymentId: g10.payment,
+    payment: { paymentId: g10.payment, status: 'REFUNDED', value: 45, deleted: false },
+    refunds: [{ refundId: null, status: 'DONE', value: 45 }],
+    source: 'webhook',
+    asaasEventId: 'evt_c10_ref',
+  });
+  assert.equal(ext10.outcome, 'recorded');
+  const s10 = await settleRefundNow({
+    clinicId: C.clinicId,
+    chargeId: ext10.chargeId!,
+    appointmentId: ext10.appointmentId!,
+    eventKey: ext10.eventKey!,
+    eventType: 'payments.patient_refund.external_recognized',
+  });
+  const st10 = await statusOf(c10.copaymentId);
+  const m10 = await money(c10.appointmentId);
+  const [n10] =
+    await sql`select count(*)::int as n from public.patient_charges where appointment_id = ${c10.appointmentId}::uuid`;
+  const [a10] = await sql`select count(*)::int as n from public.audit_events
+    where action = 'health_insurance.copay.synced_from_payment' and resource_id = ${c10.copaymentId} and after->>'status' = 'refunded'`;
+  assert.deepEqual(
+    [s10.copay, st10.status, st10.received, m10.status, m10.pago, m10.payments, n10!.n, a10!.n],
+    ['paid->refunded', 'refunded', 0, 'pendente', '0.00', 1, 1, 1],
+  );
+  // Estorno parcial no Asaas (R$ 15 de R$ 45): o recebível fica parcial e a coparticipação
+  // continua "paga" (a função do banco só estorna quando a devolução cobre o recebido).
+  const c10b = await confirmedCopay(C, 'estorno-parcial');
+  const g10b = await paidVia(c10b, 'c10b');
+  assert.equal(await deliver(g10b, 'evt_c10b_1'), 'paid');
+  await settleChargeNow(C.clinicId, g10b.payment);
+  const ext10b = await reconcileExternalRefund({
+    clinicId: C.clinicId,
+    providerPaymentId: g10b.payment,
+    payment: { paymentId: g10b.payment, status: 'RECEIVED', value: 45, deleted: false },
+    refunds: [{ refundId: null, status: 'DONE', value: 15 }],
+    source: 'webhook',
+    asaasEventId: 'evt_c10b_ref',
+  });
+  await settleRefundNow({
+    clinicId: C.clinicId,
+    chargeId: ext10b.chargeId!,
+    appointmentId: ext10b.appointmentId!,
+    eventKey: ext10b.eventKey!,
+    eventType: 'payments.patient_refund.external_recognized',
+  });
+  const m10b = await money(c10b.appointmentId);
+  assert.deepEqual(
+    [ext10b.outcome, m10b.status, m10b.pago, (await statusOf(c10b.copaymentId)).status],
+    ['recorded', 'parcial', '30.00', 'paid'],
+  );
+  pass(
+    '10. estorno feito direto no Asaas (R54): integral → baixa preservada + estorno no livro, recebível reaberto, coparticipação "estornada" pela função do banco (auditada) e NENHUMA cobrança nova; parcial (R$ 15) → recebível "parcial" (R$ 30) e coparticipação continua "paga"',
   );
 
   // ── 8. Assinatura suspensa, outra clínica e mutação direta ──────────
