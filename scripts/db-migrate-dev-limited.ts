@@ -14,6 +14,11 @@
  *    exata de pendentes (até `--expect-to`); qualquer diferença recusa sem escrever nada;
  *  - o migrador aplica TODAS as pendentes numa transação só: ou entram todas, ou nenhuma;
  *  - depois, confere que a última linha do ledger é `--expect-to` e que entraram só as esperadas.
+ *  - guarda de composição (src/lib/db/migration-composition.ts) antes e depois: journal contíguo,
+ *    fronteira 0158 → 0159 (#53) → 0160 (#55) com os hashes fixados, nada que o Drizzle pularia em
+ *    silêncio, ledger sem linha desconhecida e sentinelas coerentes. Exceções só com
+ *    `--expect-from-external` ou `--allow-external-applied`, e só para migrations FIXADAS de outra
+ *    branch (0136–0142 e 0159 do #53) que o ledger tem com o hash fixado;
  *  - `--dry-run`: só lê o ledger e lista as pendentes.
  *
  * Por que conexão própria e não `dbAdmin`: o mesmo motivo do `scripts/tiss/terminology/load.ts`
@@ -31,7 +36,10 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import postgres from 'postgres';
 
+import { MIGRATION_COMPOSITION_MANIFEST } from '@/lib/db/migration-composition.manifest';
+
 import { assertDevContext, redact } from './_env';
+import { allowExternalApplied, checkComposition } from './security/migration-composition-io';
 
 const MIGRATIONS = path.resolve('drizzle/migrations');
 const LOCK_TIMEOUT = process.env.MIGRATE_LOCK_TIMEOUT ?? '2s';
@@ -76,12 +84,16 @@ async function main(): Promise<void> {
   // A 0159 do #53 está aplicada no DEV fora do journal desta branch (coordenacao-migrations §11-12).
   // Só é aceita como ponto de partida se o `created_at` E o nome informados baterem, explicitamente.
   const external = arg('expect-from-external');
+  let externalTag: string | undefined;
   if (external) {
     const m = /^(\d{13}):(\d{4}_[a-z0-9_]+)$/u.exec(external);
     if (!m) throw new Error('--expect-from-external precisa de <when>:<tag>');
-    if (m[2] !== expectFrom) throw new Error('--expect-from-external deve nomear a mesma --expect-from');
-    if (byWhen.has(m[1]!)) throw new Error('--expect-from-external aponta para uma migration que está no journal');
+    if (m[2] !== expectFrom)
+      throw new Error('--expect-from-external deve nomear a mesma --expect-from');
+    if (byWhen.has(m[1]!))
+      throw new Error('--expect-from-external aponta para uma migration que está no journal');
     byWhen.set(m[1]!, m[2]!);
+    externalTag = m[2]!;
   }
 
   const sql = postgres(databaseUrl, {
@@ -92,6 +104,24 @@ async function main(): Promise<void> {
     onnotice: () => undefined,
   });
   try {
+    // Exceções só com pedido explícito, e só para fixadas de outra branch aplicadas com o hash fixado.
+    const allowances =
+      externalTag || process.argv.includes('--allow-external-applied')
+        ? await allowExternalApplied(sql, MIGRATION_COMPOSITION_MANIFEST, MIGRATIONS)
+        : [];
+    if (allowances.length > 0) log(`exceções externas: ${allowances.map((a) => a.tag).join(', ')}`);
+    const composition = async (moment: string) => {
+      const plan = await checkComposition({
+        folder: MIGRATIONS,
+        manifest: MIGRATION_COMPOSITION_MANIFEST,
+        sql,
+        allowances,
+      });
+      log(`composição ${moment}: ok, pendentes ${plan.pending.length}`);
+      for (const w of plan.warnings) log(`aviso ${w.code} ${w.subject}: ${w.detail}`);
+      return plan;
+    };
+    await composition('antes');
     const ledger = async () =>
       sql<{ n: number; last: string | null }[]>`
         select count(*)::int n, max(created_at)::text last from drizzle.__drizzle_migrations`;
@@ -132,6 +162,9 @@ async function main(): Promise<void> {
     log(`ledger depois: ${after?.n} linhas, última ${after?.last} (${afterTag}) em ${elapsed} ms`);
     if (afterTag !== expectTo || after!.n - before!.n !== pending.length) {
       throw new Error('o ledger depois da migração não é o esperado');
+    }
+    if ((await composition('depois')).pending.length > 0) {
+      throw new Error('sobrou migration pendente depois da aplicação');
     }
     log('ok');
   } finally {

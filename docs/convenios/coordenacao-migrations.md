@@ -227,3 +227,105 @@ existir, por consulta dinâmica: aplica sozinha na cadeia do #55 e, na ordem do 
   - Pós-voo 7/7: 161 linhas, última a 0160 com o sha256 do arquivo, penúltima a 0159 do #53; RLS forçada, 2
     políticas, `authenticated` só SELECT/INSERT; dados intocados.
   - Evidência: `evidence/tiss-ciclo-2026-11-14-estorno-modalidade-importacao/`.
+
+## 13. 14/11 (noite): guarda automático de composição (0136–0143 e 0158–0160)
+
+A regra da seção 12 deixou de ser só documento. O guarda recusa, antes de qualquer DDL, um journal ou um banco em que o
+Drizzle aplicaria fora de ordem ou pularia uma migration.
+
+- **Planejador puro:** `src/lib/db/migration-composition.ts`. Recebe o journal com o sha256 de cada arquivo (o mesmo
+  hash que o Drizzle grava), o ledger do banco, o manifesto e as sentinelas presentes. Devolve problemas, avisos e
+  pendentes.
+- **Manifesto:** `src/lib/db/migration-composition.manifest.ts`. Fixa por tag, idx, `when` e sha256 toda a fronteira
+  entre as branches:
+  - do #53: 0136–0142 e 0159, com os valores do journal do #53 e do `release-manifest.json` dele;
+  - do #55: 0143, 0158 e 0160.
+  - Cada uma declara de quem depende (0143 → 0142, 0159 → 0158, 0160 → 0159) e qual objeto só existe depois dela
+    (sentinela).
+- **Códigos que bloqueiam:**
+
+  | Código | Detecta |
+  | --- | --- |
+  | `JOURNAL_IDX_GAP` | Migration ausente (um problema por número que falta) |
+  | `JOURNAL_WHEN_ORDER` | Ordem incorreta no journal |
+  | `JOURNAL_IDX_MISMATCH` | idx diferente do prefixo do arquivo |
+  | `JOURNAL_DUPLICATE` | Entrada repetida |
+  | `JOURNAL_FILE_MISSING` | Entrada sem arquivo |
+  | `PINNED_HASH_MISMATCH` | Hash divergente do fixado |
+  | `PINNED_WHEN_MISMATCH` | Manifesto incompatível |
+  | `REQUIRED_MISSING` | Dependência não satisfeita |
+  | `DEPENDENCY_ORDER` | Dependência depois de quem precisa dela |
+  | `APPLIED_UNKNOWN` | Linha do ledger fora do journal |
+  | `APPLIED_HASH_MISMATCH` | Arquivo mudou depois de aplicado |
+  | `WOULD_SKIP` | O Drizzle pularia esta em silêncio |
+  | `SCHEMA_STATE` | Sentinela incoerente com o ledger |
+
+- **Hash estrito a partir da 0136 e em toda fixada.** Antes da 0136 a divergência é aviso. No DEV, 6 linhas antigas
+  da `main` (0033, 0037, 0051, 0071, 0093, 0124) têm hash diferente do arquivo atual:
+  - 3 batem com o mesmo arquivo em CRLF (aplicadas de um checkout Windows);
+  - 3 não batem com nenhuma variante de fim de linha.
+  - É história anterior às branches paralelas, e o Drizzle nunca relê essas migrations.
+- **Onde roda:**
+
+  | Caminho | Momento | Banco | Exceções |
+  | --- | --- | --- | --- |
+  | `db-migrate-prod.ts` | antes do backup | não (só journal) | nenhuma |
+  | `db-migrate-prod.ts` | dentro do lock, antes e depois do migrador | sim | nenhuma |
+  | `db-migrate-prod.ts --check-composition` | pré-voo, sem backup, sem lock, sem DDL | sim (só leitura) | nenhuma |
+  | `db-migrate-dev-limited.ts` | antes e depois | sim | as fixadas de outra branch (0136–0142, 0159), só se o ledger as tiver com o hash fixado e só com `--expect-from-external` ou `--allow-external-applied` |
+  | `db-migrate-dev.ts` | antes | não (só journal) | nenhuma |
+
+- **Provas:**
+  - `migration-composition.test.ts` (16): unidade de cada código e o journal real desta branch. SOZINHA ela é
+    recusada (faltam 0136–0142 e 0159); composta com as externas fixadas, passa; o ledger do DEV passa só com as
+    exceções explícitas; um banco que recebesse a 0160 antes da 0159 dá `WOULD_SKIP`.
+  - `scripts/security/migration-composition-db.ts` (11/11, Postgres descartável, migrador real `drizzle-kit migrate`):
+    1. composição incorreta recusada antes do DDL;
+    2. sem o guarda, o migrador aplica a 0160 e depois pula a 0159 saindo com sucesso;
+    3. o guarda acusa `WOULD_SKIP`, `SCHEMA_STATE`, `APPLIED_UNKNOWN` e `APPLIED_HASH_MISMATCH`;
+    4. composição correta aplica 0159 → 0160 e não reaplica;
+    5. hash e manifesto divergentes recusados sem banco.
+  - DEV, só leitura (14/11): 161 linhas; as 11 fixadas aplicadas com o hash fixado e sentinelas presentes. Com as
+    exceções do DEV, nenhum bloqueio, 0 pendentes e os 6 avisos históricos.
+- **Ledger de produção:** a consulta só leitura ao ledger de produção (para dimensionar a deriva histórica lá) foi
+  negada pelo controle de permissões desta sessão e não foi refeita. Antes do lançamento coordenado, quem tem a
+  autorização roda `db-migrate-prod.ts --check-composition` (só leitura) e confere os avisos.
+
+### Matriz de compatibilidade (#53 × #55 × 0159–0160)
+
+| Composição levada a um banco | O que o guarda faz | Resultado |
+| --- | --- | --- |
+| `main` atual (até 0135) | nada fixado presente | aplica normalmente |
+| #53 sozinho (0136–0142, 0159 ainda candidata) | 0136–0142 batem com o fixado | aplica; a 0159 só entra com a cauda TISS |
+| #55 sozinho (0143–0158 + 0160) | `JOURNAL_IDX_GAP` 0136–0142 e 0159, `REQUIRED_MISSING` 0142 e 0159 | **recusa antes do backup** |
+| #53 (0136–0142) + #55 sem a 0159 | `JOURNAL_IDX_GAP` e `REQUIRED_MISSING` 0159 | **recusa** |
+| #53 + #55 + 0159 com os bytes do `release-manifest` | nenhum problema | aplica 0159 → 0160 na mesma transação |
+| Banco que já recebeu a 0160 sem a 0159 | `WOULD_SKIP` 0159 | **recusa**; correção manual coordenada |
+| 0159 com bytes ou `when` diferentes do fixado | `PINNED_HASH_MISMATCH` ou `PINNED_WHEN_MISMATCH` | **recusa**; novo número/`when` é decisão do dono do #53 |
+
+### Pré-voo do lançamento coordenado (produção; nada disso foi executado)
+
+1. Journal da `main` composto com as fixadas, na ordem desta seção. Vitest `migration-composition.test.ts` atualizado
+   para a união (o teste "SOZINHA, a branch é recusada" muda de lado quando a composição entrar).
+2. `db-migrate-prod.ts --check-composition` só leitura. Esperado: nenhum bloqueio, pendentes conhecidos e avisos
+   históricos revisados.
+3. Backup gerenciado confirmado no painel do Supabase (Database › Backups) ou por um token pessoal válido. Não
+   confirmado nesta sessão (seção 14).
+4. Autorização formal do fundador para migrar produção. `db-migrate-prod.ts` repete o guarda dentro do lock e
+   confere que nada ficou pendente.
+
+## 14. Backup gerenciado do Supabase: por que o 401
+
+Diagnóstico de 14/11, só leitura, sem imprimir o token:
+
+- O `SUPABASE_ACCESS_TOKEN` local é um token pessoal no formato certo (`sbp_`, 44 caracteres). Esse é o tipo que a
+  Management API aceita.
+- `GET /v1/projects` responde **401 "Invalid access token"**. Essa rota não depende de projeto, escopo nem plano, então
+  o token foi revogado ou expirou. A causa não é projeto errado, escopo nem plano.
+- As consultas de backup (`GET /v1/projects/{ref}/database/backups`, DEV e produção) dão o mesmo 401.
+- **Meios de confirmar, por ação do titular da conta:**
+  - painel do Supabase › projeto › Database › Backups;
+  - ou gerar um token pessoal novo (Account › Access Tokens) e repetir a consulta só leitura
+    (`scratchpad/dev-apply/supabase-backup-probe.mjs`, fora do repositório).
+- **O que vale como prova hoje:** o backup lógico com restauração verificada no DEV (seção 12) prova o procedimento.
+  Ele não confirma o backup gerenciado de produção.
