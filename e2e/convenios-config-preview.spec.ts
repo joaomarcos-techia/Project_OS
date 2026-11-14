@@ -432,6 +432,43 @@ test('recepção: muda um atendimento PARTICULAR para CONVÊNIO pela agenda e vo
   await s.context.close();
 });
 
+test('gestora: importa a tabela por planilha — prévia por linha, erro bloqueia, aplicação atômica, reenvio não duplica (P2.7)', async ({ browser }) => {
+  test.setTimeout(240_000);
+  const s = await login(browser, 'cfg-gestor');
+  expect(await visit(s, state.insurerUrl!)).toBe(200);
+  const panel = s.page.getByTestId('contract-import');
+  await expect(panel).toBeVisible();
+  const header = 'tabela;codigo;descricao;tipo_guia;valor;vigencia_inicio;vigencia_fim;plano;exige_autorizacao;coparticipacao_tipo;coparticipacao_valor;retorno_dias;retorno_faturavel;procedimento_clinica';
+  const file = (name: string, rows: string[]) => ({ name, mimeType: 'text/csv', buffer: Buffer.from(`${header}\r\n${rows.join('\r\n')}\r\n`, 'utf8') });
+  // 1) Uma linha com erro (procedimento fora do catálogo): prévia mostra o motivo e NÃO deixa aplicar.
+  await panel.getByTestId('contract-import-file').setInputFiles(
+    file(`com-erro-${RUN}.csv`, [`22;10101012;;sp_sadt;99,00;01/01/2026;;;não;;;;;${PROC_CODE}`, '22;10101012;;sp_sadt;99,00;01/02/2026;;;não;;;;;NAO-EXISTE']),
+  );
+  await panel.getByTestId('contract-import-validate').click();
+  await expect(panel.getByTestId('contract-import-preview')).toHaveAttribute('data-status', 'rejected', { timeout: 60_000 });
+  await expect(panel.getByTestId('contract-import-row').filter({ hasText: 'não está no catálogo' })).toHaveCount(1);
+  await expect(panel.getByTestId('contract-import-apply')).toBeDisabled();
+  // 2) A planilha certa: prévia validada, aplicar, o item aparece no contrato.
+  const good = file(`tabela-${RUN}.csv`, [`22;10101012;;sp_sadt;99,00;01/01/2026;;;não;;;;;${PROC_CODE}`]);
+  await panel.getByTestId('contract-import-file').setInputFiles(good);
+  await panel.getByTestId('contract-import-validate').click();
+  await expect(panel.getByTestId('contract-import-preview')).toHaveAttribute('data-status', 'validated', { timeout: 60_000 });
+  await expect(panel.getByTestId('contract-import-row')).toHaveAttribute('data-action', 'create');
+  if (SHOTS) await s.page.screenshot({ path: `${SHOTS}/cfg-03b-importacao-previa.png`, fullPage: true });
+  await panel.getByTestId('contract-import-apply').click();
+  await toast(s.page, 'Tabela importada');
+  expect(await visit(s, state.insurerUrl!)).toBe(200);
+  await expect(s.page.getByRole('region', { name: 'Contrato' }).getByText('SP/SADT').first()).toBeVisible();
+  // 3) Reenviar a mesma planilha: "sem mudança" e já aplicada — nada é duplicado.
+  await s.page.getByTestId('contract-import-file').setInputFiles(good);
+  await s.page.getByTestId('contract-import-validate').click();
+  await expect(s.page.getByTestId('contract-import-row')).toHaveAttribute('data-action', 'unchanged', { timeout: 60_000 });
+  await expect(s.page.getByTestId('contract-import-apply')).toBeDisabled();
+  await expect(s.page.getByTestId('contract-import-history')).toContainText(`tabela-${RUN}.csv`);
+  expectNoPageErrors(s);
+  await s.context.close();
+});
+
 test('gestora: reajuste a partir de uma data cria versão; o passado não muda; histórico registrado', async ({ browser }) => {
   test.setTimeout(240_000);
   const s = await login(browser, 'cfg-gestor');

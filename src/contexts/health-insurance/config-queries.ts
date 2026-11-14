@@ -912,3 +912,12 @@ export async function listAgendaInsuranceStates(
     return out;
   });
 }
+
+// P2.7 — importação da tabela contratual: histórico, modelo e instruções para a tela.
+export {
+  listContractImports,
+  type ContractImportHistoryItem,
+  type ContractImportPreview,
+  type ContractImportRowResult,
+} from './internal/contract-import-service';
+export { CONTRACT_IMPORT_COLUMNS, contractImportTemplateCsv } from './internal/contract-import';

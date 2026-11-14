@@ -862,6 +862,8 @@ export async function createContractLineTx(
   clinicId: string,
   userId: string,
   input: ContractLineInput,
+  /** P2.7: a importação de planilha que criou o item (rastro; a tabela é só de inclusão). */
+  opts: { importId?: string | null } = {},
 ) {
   if (input.tableCode !== '22')
     fail(
@@ -914,6 +916,7 @@ export async function createContractLineTx(
       validFrom: input.validFrom,
       validUntil: input.validUntil,
       ...terms,
+      importId: opts.importId ?? null,
       createdBy: userId,
     })
     .returning({ id: hiProcedureContracts.id });
@@ -957,6 +960,8 @@ export async function reviseContractLineTx(
   userId: string,
   lineId: string,
   rev: ContractRevision,
+  /** P2.7: a importação de planilha que fez o reajuste (rastro nas linhas novas). */
+  opts: { importId?: string | null } = {},
 ) {
   const reason = rev.reason.trim();
   if (reason.length < 10 || reason.length > 500)
@@ -995,6 +1000,7 @@ export async function reviseContractLineTx(
     tableCode: cur.tableCode,
     procedureCode: cur.procedureCode,
     createdBy: userId,
+    importId: opts.importId ?? null,
   };
   const termsOf = (r: ContractRow) => ({
     unitValueCents: r.unitValueCents,

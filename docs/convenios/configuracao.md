@@ -151,5 +151,34 @@ webhook do pagamento do paciente: a baixa e a coparticipação "paga" andam logo
 
 - Configurações por operadora que dependem de operadora real: código de validação, conector SOAP e
   credenciais cifradas (P2.5, parte externa).
-- Importação de tabela contratual por planilha (P2.7).
 - Aba "Convênios" na ficha do paciente e item de menu: dependem da branch de UI (P3.2, menu).
+
+## Importação da tabela por planilha (P2.7)
+
+Na página da operadora, painel "Importar tabela por planilha" (quem gerencia o financeiro).
+
+- **Formato:** CSV (`;` ou `,`, UTF-8) ou XLSX, até 2 MB e 2.000 linhas. Há um modelo para baixar, com a
+  lista das colunas. As obrigatórias são `codigo`, `tipo_guia`, `valor`, `vigencia_inicio` e
+  `procedimento_clinica`. As opcionais: `tabela` (só 22), `descricao`, `vigencia_fim`, `plano`,
+  `exige_autorizacao`, `coparticipacao_tipo`/`coparticipacao_valor`, `retorno_dias` e `retorno_faturavel`.
+- **Escopo:** itens de contrato de uma operadora por planilha. Operadoras, planos e credenciamento não são
+  criados por planilha (o plano citado precisa existir e estar ativo).
+- **Leitura segura:** o XLSX passa pelo leitor próprio do Qoro, com limites de zip, e uma fórmula nunca é
+  executada (vale o valor em cache). Célula de texto com cara de fórmula (`=`, `+`, `-` ou `@` seguido de
+  letra) é recusada. O conteúdo é tratado só como dado.
+- **Prévia:** cada linha passa pelas mesmas funções da tela (TUSS da tabela oficial válido na data, plano
+  da operadora, catálogo da clínica, sobreposição, coparticipação), numa transação que é desfeita no fim.
+  Nenhum contrato muda na prévia. O resultado por linha é "novo item", "reajuste" (valor novo a partir de
+  uma data posterior: o item atual vale até a véspera), "sem mudança" ou "erro" com o motivo.
+- **Política: atômica.** Com qualquer erro, nada é aplicado; corrige a planilha e envia de novo. A política
+  aparece na tela antes de confirmar.
+- **Aplicar:** a mesma sequência, numa transação real, revalidada contra o estado atual. Se o efeito de
+  alguma linha mudou desde a prévia (outra pessoa mexeu no contrato), nada é aplicado e a importação fica
+  "com erros" pedindo nova prévia.
+- **Nada reescreve o passado:** a planilha não corrige item desde o início (isso é "Corrigir" na tela) nem
+  muda o fim de um item ("Encerrar"). Guias emitidas não mudam.
+- **Idempotência:** a mesma planilha (sha256) já aplicada nesta operadora não é aplicada de novo. Linha
+  igual ao item vigente é "sem mudança".
+- **Rastro:** cada importação fica em `hi_contract_imports` (arquivo, sha256, contagens, linhas
+  normalizadas e resultado por linha, sem dado pessoal). Os itens criados guardam `import_id`. Validar e
+  aplicar entram na auditoria. O painel mostra as importações anteriores.

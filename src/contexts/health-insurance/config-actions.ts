@@ -39,6 +39,13 @@ import * as cfg from './internal/config-service';
 import { CoverageInputError, recordAppointmentCoverage } from './internal/coverage-service';
 import { readMembershipCardNumberAudited } from './internal/membership-access';
 import { ModalityChangeError, changeAppointmentModalityTx } from './modality-change';
+import { CONTRACT_IMPORT_LIMITS, ContractImportFileError } from './internal/contract-import';
+import {
+  ContractImportError,
+  applyContractImport,
+  validateContractImport,
+  type ContractImportPreview,
+} from './internal/contract-import-service';
 
 export type ConfigResult<T = null> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -64,6 +71,8 @@ function messageOf(error: unknown): string {
   if (error instanceof z.ZodError) return error.issues[0]?.message ?? 'Dados inválidos.';
   if (error instanceof cfg.InsuranceConfigError) return error.message;
   if (error instanceof ModalityChangeError) return error.message;
+  if (error instanceof ContractImportFileError || error instanceof ContractImportError)
+    return error.message;
   if (error instanceof Error && error.name === 'BillingModeChangeError') return error.message;
   if (error instanceof CoverageInputError)
     return error.message.charAt(0).toUpperCase() + error.message.slice(1);
@@ -893,5 +902,60 @@ export async function changeAppointmentModalityAction(
         };
       },
     );
+  });
+}
+
+// ── Importação da tabela contratual por planilha (P2.7) ──────────────────
+
+/**
+ * Prévia: lê o CSV/XLSX, valida cada linha pela MESMA regra da tela numa transação desfeita e
+ * registra a importação (validada ou recusada) com o resultado por linha. Nenhum contrato muda.
+ */
+export async function validateContractImportAction(
+  formData: FormData,
+): Promise<ConfigResult<ContractImportPreview>> {
+  return run(async () => {
+    // Sessão e permissão ANTES de ler o arquivo.
+    const user = await requireUser();
+    await requireCachedPermission(MANAGE);
+    const clinicId = await requireClinicId();
+    const insurerId = uuid.parse(formData.get('insurerId'));
+    const file = formData.get('file');
+    if (!(file instanceof File)) {
+      throw new cfg.InsuranceConfigError('Escolha a planilha (.csv ou .xlsx).', 'IMPORT_FILE');
+    }
+    if (file.size > CONTRACT_IMPORT_LIMITS.maxBytes) {
+      throw new cfg.InsuranceConfigError(
+        'O arquivo passa de 2 MB. Divida em arquivos menores.',
+        'IMPORT_FILE',
+      );
+    }
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    return validateContractImport({
+      clinicId,
+      userId: user.userId,
+      insurerId,
+      fileName: file.name,
+      bytes,
+      requestContext: await requestContext(),
+    });
+  });
+}
+
+/** Aplica uma importação validada: tudo ou nada, revalidando contra o estado atual. */
+export async function applyContractImportAction(input: {
+  importId: string;
+}): Promise<ConfigResult<Awaited<ReturnType<typeof applyContractImport>>>> {
+  return run(async () => {
+    const user = await requireUser();
+    await requireCachedPermission(MANAGE);
+    const clinicId = await requireClinicId();
+    const importId = uuid.parse(input.importId);
+    return applyContractImport({
+      clinicId,
+      userId: user.userId,
+      importId,
+      requestContext: await requestContext(),
+    });
   });
 }

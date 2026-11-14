@@ -5,7 +5,15 @@ import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
 import { PanelCard } from '@/components/ui/panel-card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableWrap } from '@/components/ui/table';
-import { getInsurerDetail, INSURER_STATUS_LABELS, PROVIDER_ID_LABELS, type ContractLineView } from '@/contexts/health-insurance/config-queries';
+import {
+  CONTRACT_IMPORT_COLUMNS,
+  contractImportTemplateCsv,
+  getInsurerDetail,
+  INSURER_STATUS_LABELS,
+  listContractImports,
+  PROVIDER_ID_LABELS,
+  type ContractLineView,
+} from '@/contexts/health-insurance/config-queries';
 
 import { brl, ConveniosHeader, conveniosAccess, shortDate } from '../../../_lib/access';
 import {
@@ -19,6 +27,7 @@ import {
   NewPlanForm,
   PlanStatusButton,
 } from '../../../_lib/config-ui';
+import { ContractImportPanel } from '../../../_lib/contract-import-ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,6 +55,8 @@ const HISTORY_LABELS: Record<string, string> = {
   'health_insurance.config.credential_suspend': 'Credenciamento suspenso',
   'health_insurance.config.credential_reactivate': 'Credenciamento reativado',
   'health_insurance.config.credential_new_period': 'Nova vigência de credenciamento',
+  'health_insurance.config.contract_import_validated': 'Planilha de contrato validada',
+  'health_insurance.config.contract_import_applied': 'Planilha de contrato aplicada',
 };
 
 function copayText(l: ContractLineView): string {
@@ -69,6 +80,7 @@ export default async function OperadoraPage({ params }: { params: Promise<{ insu
   const live = d.lines.filter((l) => l.live);
   const history = d.lines.filter((l) => !l.live);
   const editable = access.canManage && i.status !== 'archived';
+  const imports = editable ? await listContractImports(access.clinicId, insurerId) : [];
 
   return (
     <>
@@ -372,6 +384,17 @@ export default async function OperadoraPage({ params }: { params: Promise<{ insu
           </details>
         ) : null}
       </PanelCard>
+
+      {editable ? (
+        <PanelCard title="Importar tabela por planilha" regionLabel="Importar tabela por planilha" className="mb-(--sp-4)">
+          <ContractImportPanel
+            insurerId={i.id}
+            templateCsv={contractImportTemplateCsv()}
+            columns={Object.entries(CONTRACT_IMPORT_COLUMNS).map(([name, c]) => ({ name, required: c.required, hint: c.hint }))}
+            history={imports}
+          />
+        </PanelCard>
+      ) : null}
 
       <PanelCard title="Histórico de alterações" regionLabel="Histórico de alterações" className="mb-(--sp-4)">
         {d.history.length === 0 ? (
