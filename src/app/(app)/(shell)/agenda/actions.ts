@@ -19,7 +19,9 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
+import { processOutboxSoon } from '@/app/api/cron/outbox/process-soon';
 import { getFailedJobChargeRef } from '@/contexts/ai-agent/queries';
+import { changeAppointmentModalityAction } from '@/contexts/health-insurance/config-actions';
 import {
   checkSchedulingChoice,
   recordSchedulingCoverage,
@@ -35,6 +37,7 @@ import {
   createWalkInAppointment,
   recoverAppointment,
 } from '@/contexts/scheduling/actions';
+import { SCHEDULING_EVENTS } from '@/contexts/scheduling';
 import { getProcedure, listAppointments } from '@/contexts/scheduling/queries';
 import { zonedWallToUtc } from '@/contexts/scheduling/slot-resolver';
 import { getClinicTimezone } from '@/contexts/tenancy/queries';
@@ -201,9 +204,16 @@ export async function criarAtendimento(
 
     const tz = (await getClinicTimezone(clinicId)) ?? 'America/Sao_Paulo';
     const ymdOf = (at: Date | string) =>
-      new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(at));
+      new Intl.DateTimeFormat('en-CA', {
+        timeZone: tz,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).format(new Date(at));
     // Cobertura logo depois da criação (o atendimento já nasceu como convênio).
-    const coverageFor = async (created: ReadonlyArray<{ id: string; scheduledAt: Date | string }>) =>
+    const coverageFor = async (
+      created: ReadonlyArray<{ id: string; scheduledAt: Date | string }>,
+    ) =>
       convenio
         ? {
             coverage: await recordSchedulingCoverage({
@@ -409,4 +419,23 @@ export async function copiarLinkDeCobrancaAction(jobId: string): Promise<CopiarL
     }
     return { ok: false, message: 'Não foi possível obter o link agora. Tente de novo.' };
   }
+}
+
+/**
+ * P4.3 — trocar particular ↔ convênio de um atendimento já criado (até a chegada). A regra e
+ * as recusas são do Convênios (`changeAppointmentModalityAction`); aqui, depois do commit, o
+ * `billing_mode_changed` é processado logo (o Payments anula o link particular aberto quando
+ * vira convênio). O cron do outbox continua sendo a garantia.
+ */
+export async function trocarFormaDeAtendimentoAction(
+  input: Parameters<typeof changeAppointmentModalityAction>[0],
+): ReturnType<typeof changeAppointmentModalityAction> {
+  const out = await changeAppointmentModalityAction(input);
+  if (out.ok) {
+    processOutboxSoon('agenda.billing_mode', [
+      { eventType: SCHEDULING_EVENTS.BILLING_MODE_CHANGED, idempotencyKeys: [out.data.eventKey] },
+    ]);
+    revalidatePath('/agenda');
+  }
+  return out;
 }

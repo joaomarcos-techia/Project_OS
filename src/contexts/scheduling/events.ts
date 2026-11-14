@@ -35,6 +35,11 @@ export const SCHEDULING_EVENTS = {
   CANCELLED: 'scheduling.appointment.cancelled',
   NO_SHOW: 'scheduling.appointment.no_show',
   RESCHEDULED: 'scheduling.appointment.rescheduled',
+  /**
+   * P4.3: a forma de atendimento (particular ↔ convênio) mudou antes da chegada. O
+   * Payments ouve (anula a cobrança particular ainda aberta quando vira convênio).
+   */
+  BILLING_MODE_CHANGED: 'scheduling.appointment.billing_mode_changed',
   CORRECTED: 'scheduling.appointment.corrected',
   DOCTOR_ABSENCE_CREATED: 'scheduling.doctor_absence.created',
   WAITLIST_OFFERED: 'scheduling.waitlist.offered',
@@ -190,6 +195,19 @@ export const AppointmentNoShowSchema = z.object({
 });
 export type AppointmentNoShowPayload = z.infer<typeof AppointmentNoShowSchema>;
 
+// --- billing_mode_changed (P4.3) -------------------------------------------
+export const AppointmentBillingModeChangedSchema = z.object({
+  appointmentId: uuid,
+  clinicId: uuid,
+  patientId: uuid.nullable(),
+  from: z.enum(['particular', 'convenio']),
+  to: z.enum(['particular', 'convenio']),
+  changedAt: z.string().datetime(),
+});
+export type AppointmentBillingModeChangedPayload = z.infer<
+  typeof AppointmentBillingModeChangedSchema
+>;
+
 // --- rescheduled (= cancel + create; lineage explícito) --------------------
 export const AppointmentRescheduledSchema = z.object({
   oldAppointmentId: uuid,
@@ -275,6 +293,7 @@ registerEventSchema(SCHEDULING_EVENTS.INSURANCE_COMPLETED, AppointmentInsuranceC
 registerEventSchema(SCHEDULING_EVENTS.CANCELLED, AppointmentCancelledSchema);
 registerEventSchema(SCHEDULING_EVENTS.NO_SHOW, AppointmentNoShowSchema);
 registerEventSchema(SCHEDULING_EVENTS.RESCHEDULED, AppointmentRescheduledSchema);
+registerEventSchema(SCHEDULING_EVENTS.BILLING_MODE_CHANGED, AppointmentBillingModeChangedSchema);
 registerEventSchema(SCHEDULING_EVENTS.CORRECTED, AppointmentCorrectedSchema);
 registerEventSchema(SCHEDULING_EVENTS.DOCTOR_ABSENCE_CREATED, DoctorAbsenceCreatedSchema);
 registerEventSchema(SCHEDULING_EVENTS.WAITLIST_OFFERED, WaitlistOfferedSchema);

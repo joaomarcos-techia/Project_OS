@@ -377,6 +377,61 @@ test('recepção: agenda como CONVÊNIO e a cobertura nasce pronta, com copartic
   await s.context.close();
 });
 
+test('recepção: muda um atendimento PARTICULAR para CONVÊNIO pela agenda e volta para particular (P4.3)', async ({ browser }) => {
+  test.setTimeout(300_000);
+  const s = await login(browser, 'cfg-recepcao');
+  expect(await visit(s, '/agenda')).toBe(200);
+  await s.page.getByRole('button', { name: 'Novo atendimento' }).click();
+  await s.page.locator('#appointment-patient').fill(PATIENT.slice(0, 12));
+  await s.page.getByRole('option', { name: PATIENT }).first().click();
+  await s.page.locator('#appointment-procedure').selectOption({ label: PROC_NAME });
+  await s.page.locator('#appointment-doctor').selectOption({ label: 'Dra. Sintética Configuração' });
+  const done = s.page.getByText('Atendimento agendado').first();
+  const clash = s.page.getByText('Já existe um atendimento nesse horário para este profissional.').first();
+  let when = slotFor(13);
+  for (let attempt = 0; ; attempt += 1) {
+    when = slotFor(13 + attempt);
+    await s.page.locator('#appointment-date').fill(when.date);
+    await s.page.locator('#appointment-time').fill(when.time);
+    const answered = s.page.waitForResponse((r) => r.request().method() === 'POST' && r.request().headers()['next-action'] !== undefined, { timeout: 60_000 });
+    await s.page.getByRole('button', { name: 'Agendar', exact: true }).click();
+    await answered;
+    await expect(done.or(clash).first()).toBeVisible({ timeout: 30_000 });
+    if (await done.isVisible().catch(() => false)) break;
+    await s.page.waitForTimeout(1_500);
+    if (await done.isVisible().catch(() => false)) break;
+    expect(attempt, 'nenhum horário livre em 6 tentativas').toBeLessThan(5);
+  }
+  // O dia do atendimento particular, na agenda.
+  expect(await visit(s, `/agenda?view=day&date=${when.date}`)).toBe(200);
+  const row = s.page.locator('tr[data-appointment-id]').filter({ hasText: PATIENT }).filter({ hasText: when.time }).first();
+  await expect(row).toHaveAttribute('data-billing-mode', 'particular', { timeout: 30_000 });
+  await row.getByTestId('billing-mode-open').click();
+  const dialog = s.page.getByTestId('billing-mode-dialog');
+  await dialog.locator('#appointment-insurer').selectOption({ label: INSURER });
+  await expect(dialog.locator('#appointment-card option', { hasText: `final ${CARD.slice(-4)}` })).toHaveCount(1, { timeout: 30_000 });
+  await dialog.locator('#appointment-card').selectOption({ index: 1 });
+  await dialog.getByRole('textbox', { name: /Motivo da troca/u }).fill('Paciente apresentou a carteirinha na recepção.');
+  if (SHOTS) await s.page.screenshot({ path: `${SHOTS}/cfg-05b-troca-para-convenio.png`, fullPage: true });
+  await s.page.getByTestId('billing-mode-submit').click();
+  await toast(s.page, 'Forma de atendimento alterada');
+  await expect(row).toHaveAttribute('data-billing-mode', 'convenio', { timeout: 30_000 });
+  await expect(row.getByTestId('agenda-convenio-badge')).toContainText(INSURER);
+  // Em Convênios › Atendimentos ele aparece com a cobertura registrada pela troca.
+  expect(await visit(s, '/convenios/atendimentos')).toBe(200);
+  await expect(s.page.getByTestId('insurance-appointment').filter({ hasText: PATIENT }).first()).toBeVisible();
+  // Volta para particular: a cobertura é encerrada (sem ser apagada) e nada é cobrado.
+  expect(await visit(s, `/agenda?view=day&date=${when.date}`)).toBe(200);
+  await row.getByTestId('billing-mode-open').click();
+  await s.page.getByTestId('billing-mode-dialog').getByRole('textbox', { name: /Motivo da troca/u }).fill('Paciente decidiu pagar particular.');
+  await s.page.getByTestId('billing-mode-submit').click();
+  await toast(s.page, 'Forma de atendimento alterada');
+  await expect(row).toHaveAttribute('data-billing-mode', 'particular', { timeout: 30_000 });
+  await expect(row.getByTestId('agenda-convenio-badge')).toHaveCount(0);
+  expectNoPageErrors(s);
+  await s.context.close();
+});
+
 test('gestora: reajuste a partir de uma data cria versão; o passado não muda; histórico registrado', async ({ browser }) => {
   test.setTimeout(240_000);
   const s = await login(browser, 'cfg-gestor');

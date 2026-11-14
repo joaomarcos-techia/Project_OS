@@ -15,7 +15,10 @@ import {
   rescheduleAppointment as rescheduleAction,
 } from './actions';
 import { SCHEDULING_EVENTS } from './events';
+import type { Tx } from '@/lib/db';
+
 import { createAppointmentCore, rescheduleCore, transitionCore } from './internal/appointment-core';
+import { changeBillingModeTx, type BillingModeChangeResult } from './internal/billing-mode-change';
 import {
   listDepositCandidates,
   lookupDepositCandidate,
@@ -136,6 +139,14 @@ export interface SchedulingApiV1 {
     input: RescheduleInput,
     idempotencyKey: string,
   ): Promise<AppointmentSummary>;
+  /**
+   * P4.3 — troca particular ↔ convênio até a chegada, NA TRANSAÇÃO de quem chama (o
+   * Convênios orquestra junto com a cobertura e as pré-condições financeiras). Aditivo (M14).
+   */
+  changeBillingModeTx(
+    tx: Tx,
+    input: Parameters<typeof changeBillingModeTx>[1],
+  ): Promise<BillingModeChangeResult>;
 
   // --- C12: AI Agent (ator de sistema 'ai_agent', sem request) -------------
   // Mesmos cores das Server Actions; a IA NÃO tem bypass. `idempotencyKey` é
@@ -191,6 +202,7 @@ export const schedulingApiV1: SchedulingApiV1 = {
   confirmAppointment: (id, idempotencyKey, reason) => confirmAction(id, idempotencyKey, reason),
   cancelAppointment: (id, idempotencyKey, reason) => cancelAction(id, idempotencyKey, reason),
   rescheduleAppointment: (id, input, idempotencyKey) => rescheduleAction(id, input, idempotencyKey),
+  changeBillingModeTx: (tx, input) => changeBillingModeTx(tx, input),
 
   scheduleAsAgent: (ctx, input, idempotencyKey) =>
     createAppointmentCore(

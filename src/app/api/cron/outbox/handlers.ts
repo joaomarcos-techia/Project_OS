@@ -47,6 +47,7 @@ import '@/contexts/scheduling/internal/handlers/financial-lancamento-created';
 // automática (o `completed` segue com o Financeiro, que não cobra o valor cheio
 // de convênio); coparticipação confirmada → recebível do paciente por esse valor.
 import '@/contexts/health-insurance/internal/handlers/insurance-completed';
+import '@/contexts/health-insurance/internal/handlers/appointment-rescheduled';
 import '@/contexts/financial/internal/handlers/copay-confirmed';
 // R45: XML do lote em segundo plano, com a leitura delegada das guias do lote.
 import '@/contexts/health-insurance/internal/handlers/batch-export-requested';
@@ -100,6 +101,7 @@ import '@/contexts/scheduling/internal/handlers/patient-charge-paid';
 // handler detached, preservando TX curta antes da chamada externa ao Asaas.
 import './appointment-no-show-handler';
 import '@/contexts/payments/internal/handlers/appointment-cancelled';
+import '@/contexts/payments/internal/handlers/appointment-billing-mode-changed';
 // Agendamento pela IA confirmado -> tenta criar o sinal sem aguardar o scan de 15 min.
 import '@/contexts/payments/internal/handlers/appointment-deposit-requested';
 // ADR-049 1.5 — desfecho da cobrança projetado na agenda (R3: o Payments publica,

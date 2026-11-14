@@ -38,6 +38,7 @@ import {
 import * as cfg from './internal/config-service';
 import { CoverageInputError, recordAppointmentCoverage } from './internal/coverage-service';
 import { readMembershipCardNumberAudited } from './internal/membership-access';
+import { ModalityChangeError, changeAppointmentModalityTx } from './modality-change';
 
 export type ConfigResult<T = null> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -62,6 +63,8 @@ function messageOf(error: unknown): string {
   if (premium) return premiumDenialMessage(premium.feature, premium.reason);
   if (error instanceof z.ZodError) return error.issues[0]?.message ?? 'Dados inválidos.';
   if (error instanceof cfg.InsuranceConfigError) return error.message;
+  if (error instanceof ModalityChangeError) return error.message;
+  if (error instanceof Error && error.name === 'BillingModeChangeError') return error.message;
   if (error instanceof CoverageInputError)
     return error.message.charAt(0).toUpperCase() + error.message.slice(1);
   const e = error as { code?: string; cause?: { code?: string; message?: string } };
@@ -799,6 +802,93 @@ export async function recordAppointmentCoverageAction(
             insurerId: d.insurerId,
             status: out.status,
             issues: out.issues.map((i) => i.code),
+          },
+        };
+      },
+    );
+  });
+}
+
+// ── Forma de atendimento de um atendimento já criado (P4.3) ──────────────
+
+const ModalityChange = z.object({
+  appointmentId: uuid,
+  to: z.enum(['particular', 'convenio']),
+  insurerId: optUuid,
+  planId: optUuid,
+  membershipId: optUuid,
+  guideType: z.enum(['consulta', 'sp_sadt']).default('consulta'),
+  reason: z
+    .string()
+    .trim()
+    .min(10, 'Diga o motivo da troca (10 a 500 caracteres).')
+    .max(500, 'O motivo tem no máximo 500 caracteres.'),
+  idempotencyKey: uuid,
+});
+
+/**
+ * Troca particular ↔ convênio pela agenda, até a chegada (P4.3). Pré-condições, troca da
+ * modalidade e cobertura (ou o cancelamento dela) numa transação, com auditoria. Devolve a chave
+ * do `billing_mode_changed` para a camada de app processar logo (o Payments anula o link
+ * particular aberto quando vira convênio).
+ */
+export async function changeAppointmentModalityAction(
+  input: z.input<typeof ModalityChange>,
+): Promise<
+  ConfigResult<{
+    from: 'particular' | 'convenio';
+    to: 'particular' | 'convenio';
+    coverageStatus: string | null;
+    issues: string[];
+    eventKey: string;
+  }>
+> {
+  return run(async () => {
+    const d = ModalityChange.parse(input);
+    if (d.to === 'convenio' && !d.insurerId) {
+      throw new cfg.InsuranceConfigError(
+        'Escolha a operadora (e, se houver, o plano e a carteirinha).',
+        'CHOICE_REQUIRED',
+      );
+    }
+    return write(
+      PERMISSIONS.EDIT_AGENDA,
+      'health_insurance.appointment.modality_changed',
+      'appointment',
+      async (tx, ctx) => {
+        const out = await changeAppointmentModalityTx(tx, {
+          clinicId: ctx.clinicId,
+          userId: ctx.userId,
+          appointmentId: d.appointmentId,
+          to: d.to,
+          choice:
+            d.to === 'convenio' && d.insurerId
+              ? {
+                  insurerId: d.insurerId,
+                  planId: d.planId ?? null,
+                  membershipId: d.membershipId ?? null,
+                  guideType: d.guideType,
+                }
+              : null,
+          reason: d.reason,
+          idempotencyKey: d.idempotencyKey,
+        });
+        return {
+          result: {
+            from: out.from,
+            to: out.to,
+            coverageStatus: out.coverageStatus,
+            issues: out.issues,
+            eventKey: out.eventKey,
+          },
+          resourceId: d.appointmentId,
+          before: { billingMode: out.from },
+          after: {
+            billingMode: out.to,
+            reason: d.reason,
+            insurerId: d.to === 'convenio' ? (d.insurerId ?? null) : null,
+            coverageId: out.coverageId,
+            coverageStatus: out.coverageStatus,
           },
         };
       },

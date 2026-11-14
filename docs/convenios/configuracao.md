@@ -20,6 +20,7 @@ A fixture `hi-dev-e2e-fixture.ts setup-config` só cria o que não é cadastro d
 | `/convenios/carteirinhas` | Busca do paciente; carteirinhas com só o final visível; cadastrar, substituir o número, validade e plano, desativar e reativar, preferencial; "Ver número" auditado (finalidade `atendimento`) | `edit:patient` (recepção) |
 | `/convenios/atendimentos` | Próximos atendimentos de convênio, situação da cobertura e o que falta; registrar ou corrigir a cobertura (inclusive de atendimento remarcado) | `edit:agenda` |
 | Agenda › Novo atendimento | Forma de atendimento Particular/Convênio (só com o módulo habilitado): operadora, plano, carteirinha (mascarada), tipo de guia | `edit:agenda` |
+| Agenda › linha do atendimento | Selo "Convênio · operadora" (azul = cobertura pronta, âmbar = pendência) e "Mudar para convênio"/"Mudar para particular" até a chegada, com motivo (P4.3) | `edit:agenda` |
 | Conciliação › Coparticipações a conferir | Conferir o valor calculado (recepção), confirmar o que cobrar (nunca acima do conferido) ou dispensar com motivo | conferir: `edit:patient`; confirmar e dispensar: `manage:financial` |
 
 Ver é `view:financial` (a médica não vê). Tudo é conferido de novo no servidor e no banco:
@@ -56,7 +57,30 @@ Ver é `view:financial` (a médica não vê). Tudo é conferido de novo no servi
     existe janela "particular" em que um sinal ou um link do saldo cheio possam ser pedidos.
   - Se a cobertura falhar, o atendimento continua convênio com a pendência visível. O paciente não é
     cobrado: o banco só aceita recebível de convênio pela coparticipação confirmada.
-  - Remarcar mantém a forma de atendimento. Antes, a remarcação o transformava em particular; corrigido.
+  - Remarcar mantém a forma de atendimento e **leva a cobertura**: a mesma operadora, plano e carteirinha
+    são registrados no novo horário (contrato, autorização e coparticipação rederivados para a nova data) e
+    a cobertura do antigo vira "cancelada", sem ser apagada. Se a escolha não servir mais (carteirinha
+    inativa, assinatura suspensa), o novo fica convênio com pendência, nunca particular.
+- **Trocar particular ↔ convênio de um atendimento já criado (P4.3).** Pela linha do atendimento na
+  agenda, até a chegada do paciente, com motivo na auditoria. Uma transação faz a troca da modalidade
+  (Scheduling), a cobertura e o evento `billing_mode_changed`. O backend recusa, mesmo chamado direto:
+  - depois da chegada: só pela correção do atendimento (o gatilho 0148 recusa de novo);
+  - guia viva para o atendimento: cancelar ou substituir a guia antes;
+  - coparticipação já calculada ou cobrada;
+  - para convênio, se o paciente já pagou (sinal ou saldo) ou se já existe recebível: o Caixa decide o
+    dinheiro antes (devolução pela clínica ou crédito); nada é devolvido nem cobrado sozinho;
+  - para convênio, sem o módulo, sem assinatura paga ativa, com operadora, plano ou carteirinha que não
+    servem (carteirinha de outro paciente é recusada).
+
+  Para convênio, o link particular ainda aberto (sinal ou saldo) é anulado no Asaas logo depois da
+  resposta. Se o paciente pagar nesse meio-tempo, o valor vai para a devolução pela clínica (D77). Para
+  particular, a cobertura vira "cancelada", com operadora, carteirinha e autorização no histórico (a
+  autorização não é consumida). A estimativa de coparticipação fica como está: nunca cobra e é
+  reaproveitada se o atendimento voltar a convênio. Nenhuma cobrança é criada pela troca; o recebível
+  particular nasce na conclusão. Trocar operadora, plano ou carteirinha de um atendimento que já é de
+  convênio continua sendo a correção da cobertura em Atendimentos. Trocar de profissional (correção
+  "transferir") não mexe na cobertura: a habilitação do novo profissional é conferida na montagem da
+  guia (P2.2).
 - **Coparticipação.**
   1. Estimada na cobertura.
   2. Calculada na conclusão.
@@ -129,5 +153,3 @@ webhook do pagamento do paciente: a baixa e a coparticipação "paga" andam logo
   credenciais cifradas (P2.5, parte externa).
 - Importação de tabela contratual por planilha (P2.7).
 - Aba "Convênios" na ficha do paciente e item de menu: dependem da branch de UI (P3.2, menu).
-- Trocar particular ↔ convênio de um atendimento já criado pela agenda (P4.3). Hoje: pela correção da
-  cobertura em Atendimentos.

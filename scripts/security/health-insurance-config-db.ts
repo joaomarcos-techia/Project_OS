@@ -53,6 +53,7 @@ const { decryptForTenant, hashForLookup } = await import('../../src/lib/crypto/e
 const { checkSchedulingChoice, recordSchedulingCoverage } = await import('../../src/contexts/health-insurance/scheduling-coverage');
 const { getInsuranceSetup, getInsurerDetail, getPatientMemberships, listUpcomingInsuranceAppointments } = await import('../../src/contexts/health-insurance/config-queries');
 const core = await import('../../src/contexts/scheduling/internal/appointment-core');
+const { carryCoverageOnRescheduleTx } = await import('../../src/contexts/health-insurance/modality-change');
 
 let passed = 0;
 const pass = (msg: string) => {
@@ -354,8 +355,13 @@ try {
   const [movedRow] = await sql`select billing_mode from public.appointments where id = ${moved.id}::uuid`;
   assert.equal(movedRow!.billing_mode, 'convenio');
   const pending = (await listUpcomingInsuranceAppointments(A.clinicId)).find((u) => u.appointmentId === moved.id);
-  assert.equal(pending?.coverage, null);
-  pass('remarcar mantém a forma de atendimento (convênio continua convênio) e o novo horário aparece "sem cobertura" para a recepção registrar — antes, a remarcação o transformava em particular');
+  assert.equal(pending?.coverage, null, 'antes do worker processar a remarcação, o novo ainda não tem cobertura');
+  // P4.3/R50: o handler da remarcação leva a mesma escolha para o novo horário.
+  const carried = await withTenant(A.clinicId, (tx) => carryCoverageOnRescheduleTx(tx, { clinicId: A.clinicId, oldAppointmentId: conv.id, newAppointmentId: moved.id }));
+  const [newCov] = await sql`select membership_id from public.hi_appointment_coverages where appointment_id = ${moved.id}::uuid`;
+  const [oldCov] = await sql`select status from public.hi_appointment_coverages where appointment_id = ${conv.id}::uuid`;
+  assert.deepEqual([carried.outcome, newCov?.membership_id, oldCov?.status], ['carried', m3, 'cancelled']);
+  pass('remarcar mantém a forma de atendimento (convênio continua convênio) e o handler da remarcação leva a MESMA carteirinha para o novo horário (a cobertura do antigo vira "cancelada") — antes, a remarcação o transformava em particular e depois o deixava sem cobertura');
 
   // Leituras das telas (RLS da clínica; número nunca decifrado na lista).
   const setup = await getInsuranceSetup(A.clinicId);

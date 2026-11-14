@@ -48,6 +48,7 @@ export type {
   AppointmentCancelledPayload,
   AppointmentNoShowPayload,
   AppointmentRescheduledPayload,
+  AppointmentBillingModeChangedPayload,
   AppointmentCorrectedPayload,
   DoctorAbsenceCreatedPayload,
   WaitlistOfferedPayload,

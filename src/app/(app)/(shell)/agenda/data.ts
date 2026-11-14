@@ -22,6 +22,8 @@ import {
 } from '@/contexts/scheduling/queries';
 import {
   getSchedulingInsuranceOptions,
+  listAgendaInsuranceStates,
+  type AgendaInsuranceState,
   type SchedulingInsuranceOptions,
 } from '@/contexts/health-insurance/config-queries';
 import { getClinicTimezone } from '@/contexts/tenancy/queries';
@@ -86,6 +88,10 @@ export interface AgendaAppt {
   filaDesde: string | null;
   /** Chamada para atendimento (ISO). Null enquanto não foi chamado. */
   atendimentoDesde: string | null;
+  /** Paciente do atendimento (null no encaixe sem cadastro): a troca para convênio usa as carteirinhas dele. */
+  patientId: string | null;
+  /** P4.3: forma de atendimento e cobertura (operadora, situação). Particular quando não há convênio. */
+  convenio: AgendaInsuranceState | null;
 }
 export interface ProcedureOption {
   id: string;
@@ -290,6 +296,17 @@ export async function getAgendaData(query: AgendaQuery = { view: 'day' }): Promi
   const doctorNameOf = new Map(doctors.map((doctor) => [doctor.id, doctor.nome]));
   const filaDe = new Map(fila.map((f) => [f.appointmentId, f]));
 
+  // Convênio nunca derruba a agenda: falha na leitura = sem o selo nem a troca de modalidade.
+  const insuranceStates: Record<string, AgendaInsuranceState> = await listAgendaInsuranceStates(
+    clinicId,
+    appts.map((a) => a.id),
+  ).catch((error: unknown) => {
+    console.warn(
+      '[agenda] modalidade de convênio indisponível',
+      error instanceof Error ? error.name : 'erro',
+    );
+    return {};
+  });
   const appointments: AgendaAppt[] = appts.map((a) => ({
     id: a.id,
     doctorId: a.doctorId,
@@ -310,12 +327,17 @@ export async function getAgendaData(query: AgendaQuery = { view: 'day' }): Promi
     criadoEm: a.createdAt,
     filaDesde: filaDe.get(a.id)?.queuedAt ?? null,
     atendimentoDesde: filaDe.get(a.id)?.startedAt ?? null,
+    patientId: a.patientId ?? null,
+    convenio: insuranceStates[a.id]?.mode === 'convenio' ? insuranceStates[a.id]! : null,
   }));
 
   // Convênio nunca derruba a agenda: falha na leitura = formulário sem a opção.
   const insurance = user.permissions.includes(PERMISSIONS.EDIT_AGENDA)
     ? await getSchedulingInsuranceOptions(clinicId).catch((error: unknown) => {
-        console.warn('[agenda] opções de convênio indisponíveis', error instanceof Error ? error.name : 'erro');
+        console.warn(
+          '[agenda] opções de convênio indisponíveis',
+          error instanceof Error ? error.name : 'erro',
+        );
         return null;
       })
     : null;

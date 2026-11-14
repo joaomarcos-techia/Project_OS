@@ -21,8 +21,13 @@ import { and, eq } from 'drizzle-orm';
 
 import { logAudit } from '@/lib/audit/log';
 import type { RequestContext } from '@/lib/audit/types';
+import type { Tx } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
-import { premiumAccessErrorFrom, premiumDenialMessage, getPremiumDenialTx } from '@/lib/premium-access';
+import {
+  premiumAccessErrorFrom,
+  premiumDenialMessage,
+  getPremiumDenialTx,
+} from '@/lib/premium-access';
 
 import { CoverageInputError, recordAppointmentCoverage } from './internal/coverage-service';
 import { hiClinicSettings, hiInsurers, hiMemberships, hiPlans } from './schema';
@@ -36,38 +41,61 @@ export interface SchedulingInsuranceChoice {
 }
 
 /** Mensagem para a recepção quando a escolha não serve; `null` = pode criar. */
-export async function checkSchedulingChoice(clinicId: string, patientId: string, choice: SchedulingInsuranceChoice): Promise<string | null> {
-  return withTenant(clinicId, async (tx) => {
-    const [st] = await tx.select({ enabled: hiClinicSettings.enabled }).from(hiClinicSettings).where(eq(hiClinicSettings.clinicId, clinicId)).limit(1);
-    if (!st?.enabled) return 'Convênios não está habilitado para esta clínica. Agende como particular ou fale com o suporte do Qoro.';
-    const denial = await getPremiumDenialTx(tx, clinicId, 'health_insurance');
-    if (denial) return premiumDenialMessage('health_insurance', denial);
-    const [ins] = await tx
-      .select({ status: hiInsurers.status })
-      .from(hiInsurers)
-      .where(and(eq(hiInsurers.clinicId, clinicId), eq(hiInsurers.id, choice.insurerId)))
+export async function checkSchedulingChoice(
+  clinicId: string,
+  patientId: string,
+  choice: SchedulingInsuranceChoice,
+): Promise<string | null> {
+  return withTenant(clinicId, (tx) => checkSchedulingChoiceTx(tx, clinicId, patientId, choice));
+}
+
+/** A mesma conferência dentro de uma transação já aberta (troca de modalidade, P4.3). */
+export async function checkSchedulingChoiceTx(
+  tx: Tx,
+  clinicId: string,
+  patientId: string,
+  choice: SchedulingInsuranceChoice,
+): Promise<string | null> {
+  const [st] = await tx
+    .select({ enabled: hiClinicSettings.enabled })
+    .from(hiClinicSettings)
+    .where(eq(hiClinicSettings.clinicId, clinicId))
+    .limit(1);
+  if (!st?.enabled)
+    return 'Convênios não está habilitado para esta clínica. Agende como particular ou fale com o suporte do Qoro.';
+  const denial = await getPremiumDenialTx(tx, clinicId, 'health_insurance');
+  if (denial) return premiumDenialMessage('health_insurance', denial);
+  const [ins] = await tx
+    .select({ status: hiInsurers.status })
+    .from(hiInsurers)
+    .where(and(eq(hiInsurers.clinicId, clinicId), eq(hiInsurers.id, choice.insurerId)))
+    .limit(1);
+  if (!ins) return 'Operadora não encontrada nesta clínica.';
+  if (ins.status !== 'active') return 'A operadora não está ativa no cadastro da clínica.';
+  if (choice.planId) {
+    const [p] = await tx
+      .select({ insurerId: hiPlans.insurerId, status: hiPlans.status })
+      .from(hiPlans)
+      .where(and(eq(hiPlans.clinicId, clinicId), eq(hiPlans.id, choice.planId)))
       .limit(1);
-    if (!ins) return 'Operadora não encontrada nesta clínica.';
-    if (ins.status !== 'active') return 'A operadora não está ativa no cadastro da clínica.';
-    if (choice.planId) {
-      const [p] = await tx
-        .select({ insurerId: hiPlans.insurerId, status: hiPlans.status })
-        .from(hiPlans)
-        .where(and(eq(hiPlans.clinicId, clinicId), eq(hiPlans.id, choice.planId)))
-        .limit(1);
-      if (!p || p.insurerId !== choice.insurerId || p.status !== 'active') return 'O plano escolhido não é desta operadora.';
-    }
-    if (choice.membershipId) {
-      const [m] = await tx
-        .select({ patientId: hiMemberships.patientId, insurerId: hiMemberships.insurerId, status: hiMemberships.status })
-        .from(hiMemberships)
-        .where(and(eq(hiMemberships.clinicId, clinicId), eq(hiMemberships.id, choice.membershipId)))
-        .limit(1);
-      if (!m || m.patientId !== patientId || m.insurerId !== choice.insurerId) return 'A carteirinha escolhida não é deste paciente nesta operadora.';
-      if (m.status !== 'active') return 'A carteirinha escolhida não está ativa.';
-    }
-    return null;
-  });
+    if (!p || p.insurerId !== choice.insurerId || p.status !== 'active')
+      return 'O plano escolhido não é desta operadora.';
+  }
+  if (choice.membershipId) {
+    const [m] = await tx
+      .select({
+        patientId: hiMemberships.patientId,
+        insurerId: hiMemberships.insurerId,
+        status: hiMemberships.status,
+      })
+      .from(hiMemberships)
+      .where(and(eq(hiMemberships.clinicId, clinicId), eq(hiMemberships.id, choice.membershipId)))
+      .limit(1);
+    if (!m || m.patientId !== patientId || m.insurerId !== choice.insurerId)
+      return 'A carteirinha escolhida não é deste paciente nesta operadora.';
+    if (m.status !== 'active') return 'A carteirinha escolhida não está ativa.';
+  }
+  return null;
 }
 
 export interface SchedulingCoverageOutcome {
@@ -121,12 +149,23 @@ export async function recordSchedulingCoverage(args: {
             resourceType: 'hi_appointment_coverage',
             resourceId: out.coverageId,
             before: null,
-            after: { appointmentId: ap.id, insurerId: args.choice.insurerId, status: out.status, issues: out.issues.map((i) => i.code), copayEstimated: out.copay !== null },
+            after: {
+              appointmentId: ap.id,
+              insurerId: args.choice.insurerId,
+              status: out.status,
+              issues: out.issues.map((i) => i.code),
+              copayEstimated: out.copay !== null,
+            },
             requestContext: args.requestContext,
           });
           first ??= { status: out.status, issues: out.issues.map((i) => i.message) };
         }
-        return { recorded: args.appointments.length, status: first?.status ?? null, issues: first?.issues ?? [], error: null };
+        return {
+          recorded: args.appointments.length,
+          status: first?.status ?? null,
+          issues: first?.issues ?? [],
+          error: null,
+        };
       },
       args.userId,
     );

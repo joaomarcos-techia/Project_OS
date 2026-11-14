@@ -865,3 +865,50 @@ export async function searchOfficialTerms(
     return r.map((x) => ({ code: String(x.code), term: String(x.term) }));
   });
 }
+
+/** P4.3: forma de atendimento e cobertura de cada atendimento mostrado na agenda. */
+export interface AgendaInsuranceState {
+  mode: 'particular' | 'convenio';
+  insurerName: string | null;
+  /** Situação da cobertura (`ready`, `incomplete`, `cancelled`…); `null` = sem cobertura. */
+  coverageStatus: string | null;
+}
+
+/**
+ * Lida por ids (os da página da agenda): só modalidade, nome da operadora e situação da
+ * cobertura — nada de carteirinha nem valor. Ambiente sem o schema de Convênios = vazio.
+ */
+export async function listAgendaInsuranceStates(
+  clinicId: string,
+  appointmentIds: readonly string[],
+): Promise<Record<string, AgendaInsuranceState>> {
+  const ids = appointmentIds.filter((id) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu.test(id),
+  );
+  if (ids.length === 0) return {};
+  return withTenant(clinicId, async (tx) => {
+    const [installed] = await rows(
+      tx,
+      sql`SELECT to_regclass('public.hi_appointment_coverages') IS NOT NULL AS ok`,
+    );
+    if (installed?.ok !== true) return {};
+    const list = await rows(
+      tx,
+      sql`SELECT a.id::text AS id, a.billing_mode, cv.status AS coverage_status, i.name AS insurer_name
+            FROM public.appointments a
+            LEFT JOIN public.hi_appointment_coverages cv ON cv.clinic_id = a.clinic_id AND cv.appointment_id = a.id
+            LEFT JOIN public.hi_insurers i ON i.clinic_id = cv.clinic_id AND i.id = cv.insurer_id
+           WHERE a.clinic_id = ${clinicId}::uuid
+             AND a.id = ANY(${`{${ids.join(',')}}`}::uuid[])`,
+    );
+    const out: Record<string, AgendaInsuranceState> = {};
+    for (const r of list) {
+      out[String(r.id)] = {
+        mode: String(r.billing_mode) === 'convenio' ? 'convenio' : 'particular',
+        insurerName: r.insurer_name ? String(r.insurer_name) : null,
+        coverageStatus: r.coverage_status ? String(r.coverage_status) : null,
+      };
+    }
+    return out;
+  });
+}
