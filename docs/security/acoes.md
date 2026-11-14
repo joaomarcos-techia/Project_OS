@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 266 actions (0 inline); 66 métodos em 62 handlers; 81 props com referência de action; 723 acessos diretos a process.env; 9 nomes NEXT_PUBLIC.
+Contagem: 266 actions (0 inline); 66 métodos em 62 handlers; 81 props com referência de action; 729 acessos diretos a process.env; 10 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -457,6 +457,7 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY`           | plataforma | Identificador público do widget Cloudflare Turnstile no browser.            | public-by-design | O browser precisa enviar a site key à Cloudflare para renderizar o desafio. Ela identifica o widget, mas não valida tokens; essa autoridade pertence à TURNSTILE_SECRET_KEY, lida apenas no servidor.                                                                        |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY_DEV`       | plataforma | Site key pública do Turnstile para o ambiente de desenvolvimento.           | public-by-design | Mesmo contrato público da chave canônica, segregado para que desenvolvimento não exercite o widget de produção.                                                                                                                                                              |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY_LOCAL`     | plataforma | Site key pública do Turnstile para localhost.                               | public-by-design | Mesmo contrato público da chave canônica, com precedência local explícita. A chave secreta correspondente não usa NEXT*PUBLIC*.                                                                                                                                              |
+| `NEXT_PUBLIC_VERCEL_ENV`                   | plataforma | Separar eventos Sentry do navegador entre Preview e Production.             | public-by-design | Metadata pública de ambiente adicionada pela Vercel para Next.js; contém somente development, preview ou production. Não identifica usuário nem concede acesso. Ausente em execução local, preserva NODE_ENV.                                                                |
 
 ## Acessos process.env (nomes, sem valores)
 
@@ -478,13 +479,14 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `src/contexts/health-insurance/tiss/xml/xsd-engine.ts:186`                   | `TISS_XMLLINT_WASM_DIR`                | `process.env.TISS_XMLLINT_WASM_DIR`                                         |
 | `src/contexts/health-insurance/tiss/xml/xsd-engine.ts:497`                   | `TISS_XSD_POOL`                        | `process.env.TISS_XSD_POOL`                                                 |
 | `src/instrumentation-client.ts:9`                                            | `NEXT_PUBLIC_SENTRY_DSN`               | `process.env.NEXT_PUBLIC_SENTRY_DSN`                                        |
+| `src/instrumentation-client.ts:15`                                           | `NEXT_PUBLIC_VERCEL_ENV`               | `process.env.NEXT_PUBLIC_VERCEL_ENV`                                        |
 | `src/instrumentation-client.ts:15`                                           | `NODE_ENV`                             | `process.env.NODE_ENV`                                                      |
 | `src/instrumentation.ts:4`                                                   | `NEXT_RUNTIME`                         | `process.env.NEXT_RUNTIME`                                                  |
 | `src/instrumentation.ts:8`                                                   | `NEXT_RUNTIME`                         | `process.env.NEXT_RUNTIME`                                                  |
 | `src/lib/auth/supabase-session-cookie.ts:5`                                  | `NODE_ENV`                             | `process.env.NODE_ENV`                                                      |
 | `src/lib/db/index.ts:39`                                                     | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                                          |
 | `src/lib/db/index.ts:53`                                                     | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                                          |
-| `src/lib/env.ts:473`                                                         | `<object>`                             | `process.env`                                                               |
+| `src/lib/env.ts:478`                                                         | `<object>`                             | `process.env`                                                               |
 | `src/lib/impersonation/index.ts:64`                                          | `NODE_ENV`                             | `process.env.NODE_ENV`                                                      |
 | `src/middleware.ts:82`                                                       | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
 | `src/middleware.ts:88`                                                       | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
@@ -580,10 +582,10 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/audit-partition-maintenance.ts:29`                                  | `AUDIT_MONTHS_AHEAD`                   | `process.env.AUDIT_MONTHS_AHEAD`                                            |
 | `scripts/auth-local-recovery-drill.ts:39`                                    | `AUTH_RECOVERY_LOCAL`                  | `process.env.AUTH_RECOVERY_LOCAL`                                           |
 | `scripts/check-handler-registry.ts:40`                                       | `NODE_ENV`                             | `process.env.NODE_ENV`                                                      |
-| `scripts/db-migrate-dev-limited.ts:37`                                       | `MIGRATE_LOCK_TIMEOUT`                 | `process.env.MIGRATE_LOCK_TIMEOUT`                                          |
-| `scripts/db-migrate-dev-limited.ts:38`                                       | `MIGRATE_STATEMENT_TIMEOUT`            | `process.env.MIGRATE_STATEMENT_TIMEOUT`                                     |
-| `scripts/db-migrate-dev.ts:22`                                               | `<object>`                             | `process.env`                                                               |
-| `scripts/db-migrate-prod.ts:172`                                             | `<object>`                             | `process.env`                                                               |
+| `scripts/db-migrate-dev-limited.ts:45`                                       | `MIGRATE_LOCK_TIMEOUT`                 | `process.env.MIGRATE_LOCK_TIMEOUT`                                          |
+| `scripts/db-migrate-dev-limited.ts:46`                                       | `MIGRATE_STATEMENT_TIMEOUT`            | `process.env.MIGRATE_STATEMENT_TIMEOUT`                                     |
+| `scripts/db-migrate-dev.ts:35`                                               | `<object>`                             | `process.env`                                                               |
+| `scripts/db-migrate-prod.ts:223`                                             | `<object>`                             | `process.env`                                                               |
 | `scripts/db-studio.ts:13`                                                    | `NODE_ENV`                             | `process.env.NODE_ENV`                                                      |
 | `scripts/db-studio.ts:23`                                                    | `<object>`                             | `process.env`                                                               |
 | `scripts/delete-test-clinics-prod.ts:159`                                    | `<dynamic>`                            | `process.env[name]`                                                         |
@@ -744,13 +746,13 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/health-insurance-billing-reconcile-db.ts:37`               | `CRYPTO_SECRET_BACKEND`                | `process.env.CRYPTO_SECRET_BACKEND`                                         |
 | `scripts/security/health-insurance-billing-reconcile-db.ts:38`               | `CRYPTO_MASTER_KEY_V1`                 | `process.env.CRYPTO_MASTER_KEY_V1`                                          |
 | `scripts/security/health-insurance-billing-reconcile-db.ts:39`               | `CRYPTO_LOOKUP_SALT`                   | `process.env.CRYPTO_LOOKUP_SALT`                                            |
-| `scripts/security/health-insurance-config-db.ts:41`                          | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
-| `scripts/security/health-insurance-config-db.ts:42`                          | `DATABASE_URL_RUNTIME`                 | `process.env.DATABASE_URL_RUNTIME`                                          |
-| `scripts/security/health-insurance-config-db.ts:43`                          | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
-| `scripts/security/health-insurance-config-db.ts:44`                          | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`                          |
-| `scripts/security/health-insurance-config-db.ts:45`                          | `CRYPTO_SECRET_BACKEND`                | `process.env.CRYPTO_SECRET_BACKEND`                                         |
-| `scripts/security/health-insurance-config-db.ts:46`                          | `CRYPTO_MASTER_KEY_V1`                 | `process.env.CRYPTO_MASTER_KEY_V1`                                          |
-| `scripts/security/health-insurance-config-db.ts:47`                          | `CRYPTO_LOOKUP_SALT`                   | `process.env.CRYPTO_LOOKUP_SALT`                                            |
+| `scripts/security/health-insurance-config-db.ts:42`                          | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
+| `scripts/security/health-insurance-config-db.ts:43`                          | `DATABASE_URL_RUNTIME`                 | `process.env.DATABASE_URL_RUNTIME`                                          |
+| `scripts/security/health-insurance-config-db.ts:44`                          | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
+| `scripts/security/health-insurance-config-db.ts:45`                          | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`                          |
+| `scripts/security/health-insurance-config-db.ts:46`                          | `CRYPTO_SECRET_BACKEND`                | `process.env.CRYPTO_SECRET_BACKEND`                                         |
+| `scripts/security/health-insurance-config-db.ts:47`                          | `CRYPTO_MASTER_KEY_V1`                 | `process.env.CRYPTO_MASTER_KEY_V1`                                          |
+| `scripts/security/health-insurance-config-db.ts:48`                          | `CRYPTO_LOOKUP_SALT`                   | `process.env.CRYPTO_LOOKUP_SALT`                                            |
 | `scripts/security/health-insurance-contract-import-db.ts:20`                 | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
 | `scripts/security/health-insurance-contract-import-db.ts:21`                 | `DATABASE_URL_RUNTIME`                 | `process.env.DATABASE_URL_RUNTIME`                                          |
 | `scripts/security/health-insurance-contract-import-db.ts:22`                 | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
@@ -944,6 +946,9 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/local-build.ts:76`                                         | `<dynamic>`                            | `process.env[key]`                                                          |
 | `scripts/security/local-build.ts:76`                                         | `<dynamic>`                            | `process.env[key]`                                                          |
 | `scripts/security/local-build.ts:101`                                        | `CI`                                   | `process.env.CI`                                                            |
+| `scripts/security/migration-composition-db.ts:45`                            | `PR53_REF`                             | `process.env.PR53_REF`                                                      |
+| `scripts/security/migration-composition-db.ts:46`                            | `PORT`                                 | `process.env.PORT`                                                          |
+| `scripts/security/migration-composition-db.ts:126`                           | `<object>`                             | `process.env`                                                               |
 | `scripts/security/offer-restored-backup-db.ts:34`                            | `<object>`                             | `process.env`                                                               |
 | `scripts/security/offer-restored-backup-db.ts:328`                           | `BACKUP_PASSPHRASE`                    | `process.env.BACKUP_PASSPHRASE`                                             |
 | `scripts/security/onboarding-progress-db.ts:44`                              | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
@@ -1181,7 +1186,9 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/turnstile-production-gate.ts:5`                                     | `TURNSTILE_SECRET_KEY`                 | `process.env.TURNSTILE_SECRET_KEY`                                          |
 | `sentry.edge.config.ts:9`                                                    | `NEXT_PUBLIC_SENTRY_DSN`               | `process.env.NEXT_PUBLIC_SENTRY_DSN`                                        |
 | `sentry.edge.config.ts:10`                                                   | `SENTRY_DSN`                           | `process.env.SENTRY_DSN`                                                    |
+| `sentry.edge.config.ts:16`                                                   | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                                                    |
 | `sentry.edge.config.ts:16`                                                   | `NODE_ENV`                             | `process.env.NODE_ENV`                                                      |
 | `sentry.server.config.ts:10`                                                 | `NEXT_PUBLIC_SENTRY_DSN`               | `process.env.NEXT_PUBLIC_SENTRY_DSN`                                        |
 | `sentry.server.config.ts:11`                                                 | `SENTRY_DSN`                           | `process.env.SENTRY_DSN`                                                    |
+| `sentry.server.config.ts:17`                                                 | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                                                    |
 | `sentry.server.config.ts:17`                                                 | `NODE_ENV`                             | `process.env.NODE_ENV`                                                      |

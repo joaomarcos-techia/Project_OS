@@ -32,6 +32,35 @@
 | R7 | Certificado ICP-Brasil, **se** a operadora exigir assinatura (a ANS classifica como *recomendado*, requisito 30 do Componente de Segurança) | clínica | a confirmar |
 | R8 | Orientação jurídica sobre retenção de guias e carteirinhas | jurídico | pendente (B6) |
 
+### 2.1 Conexão com a operadora (P2.5): o que falta para ligar o conector
+
+Pronto no Qoro, sem operadora (14/11):
+
+- credencial por operadora cifrada por clínica, com rotação e revogação; nunca volta à tela, ao log nem à auditoria;
+- contrato do conector com resultado tipado (aceito, recusado, indisponível, circuito aberto, não configurado);
+- limite de tempo com aborto da requisição;
+- nova tentativa só quando o transporte for idempotente;
+- circuito por operadora;
+- transporte padrão que **recusa sempre**. Sem homologação, nada sai.
+
+Para ligar a primeira operadora, a clínica e a operadora precisam informar:
+
+| # | Informação | Por que o conector precisa |
+| --- | --- | --- |
+| C1 | Endereço do webservice de **homologação** e de **produção** (e o WSDL de cada um) | O transporte não tem endereço padrão, e nenhum é inventado |
+| C2 | Versão TISS de cada ambiente | O XML e o envelope saem da versão declarada |
+| C3 | Forma de autenticação: usuário e senha no corpo, certificado cliente (mTLS) ou assinatura XAdES | Define o tipo de credencial (`webservice_login` ou `certificate`) |
+| C4 | Tipo de certificado, se houver (e-CNPJ ou e-CPF, A1 ou A3) e quem o guarda | A1 pode ser cifrado no Qoro; A3 exige outro desenho, a decidir |
+| C5 | Se o reenvio da mesma mensagem é idempotente do lado da operadora (mesmo protocolo) | Sem isso, nova tentativa automática fica desligada |
+| C6 | Tempo de resposta esperado, limite de requisições e janelas de manutenção | Calibra o limite de tempo e o circuito |
+| C7 | Códigos de erro e de recusa da operadora | Separa "recusado" (não repetir) de "indisponível" (tentar depois) |
+| C8 | Formato do protocolo de recebimento e como consultar a situação do lote | O lote só vira "enviado" com protocolo da operadora |
+| C9 | Carteirinhas e beneficiários **sintéticos** do ambiente de homologação | Nenhum documento real é enviado sem piloto e autorização |
+| C10 | Contato técnico e canal para registrar a evidência de cada cenário | Seção 5 deste documento |
+
+Até C1–C10 existirem, o estado do conector na tela é "não configurado", e os lotes seguem pelo envio manual
+registrado (canal, data, autor e comprovante).
+
 ## 3. Perguntas para a operadora (antes do primeiro envio)
 
 Cada resposta vira configuração da operadora (P2.5) ou registro em L.1 do plano. Sem resposta, o

@@ -94,3 +94,24 @@ O lint e o `arch:db-check` só permitem `dbAdmin` em arquivos listados com justi
   já é o mesmo, então é melhoria e não falha.
 - As varreduras do cron dependem do `CRON_SECRET`. Vazar o segredo permite acionar o cron, mas não ler o
   resultado (a resposta HTTP só traz contagens).
+
+## Gate permanente (14/11, noite)
+
+`src/contexts/health-insurance/privileged-reads-gate.test.ts` roda em toda execução do vitest, portanto no CI. Ele
+reprova:
+
+- arquivo novo com `dbAdmin.` em `src/contexts/health-insurance/**` ou `src/app/api/cron/financial-reconcile/**`;
+- uso a mais num arquivo já auditado. Hoje: `delegation-permission.ts` 1, `billing-gap-candidates.ts` 2,
+  `financial-reconcile/route.ts` 3; a 3ª é a transação em que roda `external-refund-sweep.ts`;
+- arquivo auditado que este documento deixe de citar.
+
+Para passar com um caminho novo: responder as 15 perguntas aqui, acrescentar a prova adversarial e só então
+atualizar a lista do teste.
+
+**Conferência do ciclo de 14/11 (noite): nenhuma leitura privilegiada nova.**
+
+- A aba Convênios da ficha do paciente (`getPatientInsuranceOverview`) lê por `withTenant`, com a RLS da clínica da
+  sessão. A prova de outra clínica receber "não encontrado" está em `health-insurance-config-db.ts`.
+- O guarda de composição de migrations (`scripts/security/migration-composition-io.ts`) lê só
+  `drizzle.__drizzle_migrations` e o catálogo (`to_regclass`/`to_regprocedure`). Roda nos migradores operados por
+  pessoa (`db-migrate-prod.ts`, `db-migrate-dev-limited.ts`), não no runtime do app, e não lê dado de clínica.
