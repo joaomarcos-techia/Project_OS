@@ -21920,10 +21920,11 @@
     },
     "writes": {
       "production": 0,
-      "sharedDev": 0,
       "otherWorktrees": 0,
       "migrationsApplied": 0,
-      "financialProviderMutations": 0
+      "financialProviderMutations": 0,
+      "sharedDevDirectApplicationOrSchemaWrites": 0,
+      "syntheticAuthSessionEffects": "Legitimate login/logout of retained fixture; session creation/revocation and possible Auth/audit metadata updates were not counted as direct application/schema writes"
     },
     "riskAcceptance": {
       "R1": false,
@@ -21941,6 +21942,338 @@
       "sha": "5620a0987ec53db7d7358728eb7d457d9d373df3",
       "branch": "main",
       "productionWrites": 0
+    },
+    "currentTissFollowup": {
+      "source": {
+        "observedAt": "2026-11-14T03:41:59.734Z",
+        "previous": "30126efff8aec0aa8284fceb908e3e49e0a892da",
+        "current": "1b09267edf93c50e1e692cad2e9241fa9a62af3e",
+        "sharedChanges": [
+          "drizzle/migrations/0160_patient_external_refunds.sql",
+          "drizzle/migrations/meta/_journal.json"
+        ],
+        "candidate160Hash": "718190feffe57a0f0b7ceaf7c28686793209f0c0cb9f4b7bfd6480d4ac1ef306",
+        "prefixSqlUnchanged": true,
+        "saasServicesEntitlementsTrialAndSharedUiUnchanged": true,
+        "candidate160TouchesSaasTablesOrFunctions": false,
+        "patientHandlersAndPatientFinancialSweepChanged": true,
+        "mergedIntoSaasCandidate": false,
+        "appliedByBillingAgent": false
+      },
+      "dev": {
+        "observedAt": "2026-11-14T03:42:06.539Z",
+        "status": "PASS",
+        "target": "pqhkirrszzpwezdaqrai",
+        "transaction": "REPEATABLE READ READ ONLY",
+        "sourceCodeHeadRequired": false,
+        "scope": "frozen160 prefix; candidate0160 from current TISS 1b09267edf93c50e1e692cad2e9241fa9a62af3e only if applied; no TISS runtime merge",
+        "currentTissSource": "1b09267edf93c50e1e692cad2e9241fa9a62af3e",
+        "candidate160Hash": "718190feffe57a0f0b7ceaf7c28686793209f0c0cb9f4b7bfd6480d4ac1ef306",
+        "candidate160Applied": false,
+        "historyEntries": 160,
+        "exactFrozenHistoryMatch": true,
+        "financial159Hash": "eb00a4e3dd45f89e7eef4dc2c95c577e7932f1f2131d5bfb4ff8f5e4570f5c74",
+        "tables": [
+          {
+            "schema": "billing_gateway",
+            "name": "accounts",
+            "rls": true,
+            "forced": true
+          },
+          {
+            "schema": "billing_gateway",
+            "name": "bindings",
+            "rls": true,
+            "forced": true
+          },
+          {
+            "schema": "billing_gateway",
+            "name": "cancellations",
+            "rls": true,
+            "forced": true
+          },
+          {
+            "schema": "billing_gateway",
+            "name": "checkout_intents",
+            "rls": true,
+            "forced": true
+          },
+          {
+            "schema": "billing_gateway",
+            "name": "event_inbox",
+            "rls": true,
+            "forced": true
+          },
+          {
+            "schema": "billing_gateway",
+            "name": "operations",
+            "rls": true,
+            "forced": true
+          },
+          {
+            "schema": "billing_gateway",
+            "name": "paid_checkouts",
+            "rls": true,
+            "forced": true
+          },
+          {
+            "schema": "billing_gateway",
+            "name": "plan_changes",
+            "rls": true,
+            "forced": true
+          },
+          {
+            "schema": "billing_gateway",
+            "name": "recontracts",
+            "rls": true,
+            "forced": true
+          },
+          {
+            "schema": "billing_gateway",
+            "name": "recurring_access_periods",
+            "rls": true,
+            "forced": true
+          },
+          {
+            "schema": "billing_gateway",
+            "name": "recurring_payment_observations",
+            "rls": true,
+            "forced": true
+          },
+          {
+            "schema": "billing_gateway",
+            "name": "renewal_api_readbacks",
+            "rls": true,
+            "forced": true
+          },
+          {
+            "schema": "billing_gateway",
+            "name": "review_replays",
+            "rls": true,
+            "forced": true
+          },
+          {
+            "schema": "billing_gateway",
+            "name": "statement_scan_items",
+            "rls": true,
+            "forced": true
+          },
+          {
+            "schema": "billing_gateway",
+            "name": "statement_scans",
+            "rls": true,
+            "forced": true
+          },
+          {
+            "schema": "billing_gateway",
+            "name": "trial_claims",
+            "rls": true,
+            "forced": true
+          },
+          {
+            "schema": "public",
+            "name": "hi_clinic_settings",
+            "rls": true,
+            "forced": true
+          },
+          {
+            "schema": "public",
+            "name": "invoices",
+            "rls": true,
+            "forced": true
+          },
+          {
+            "schema": "public",
+            "name": "payment_attempts",
+            "rls": true,
+            "forced": true
+          },
+          {
+            "schema": "public",
+            "name": "subscriptions",
+            "rls": true,
+            "forced": true
+          },
+          {
+            "schema": "public",
+            "name": "trial_access_policies",
+            "rls": true,
+            "forced": true
+          },
+          {
+            "schema": "public",
+            "name": "trial_resource_usage",
+            "rls": true,
+            "forced": true
+          }
+        ],
+        "triggers": [
+          {
+            "schema": "public",
+            "name": "appointments",
+            "trigger": "a0_hi_premium_appointment",
+            "function": "hi_premium_guard_appointment",
+            "definition_sha256": "340ba86416decbfdf7bdbc29363fdf59076cb2c51f678d6618b70180dd4d4432"
+          },
+          {
+            "schema": "public",
+            "name": "appointments",
+            "trigger": "appointments_billing_mode_guard",
+            "function": "hi_guard_appointment_billing_mode",
+            "definition_sha256": "2bfffca2aa1efdc41d83f993ed3d6de746ec3ef323202fb0268fa450bf5e0b56"
+          },
+          {
+            "schema": "public",
+            "name": "appointments",
+            "trigger": "appointments_commercial_snapshot_immutable",
+            "function": "block_appointment_commercial_snapshot_rewrite",
+            "definition_sha256": "01ac00601758ca8160279558ce8f59751ffd4b2b6821220c07cc22cb42ea4eae"
+          },
+          {
+            "schema": "public",
+            "name": "appointments",
+            "trigger": "appointments_validate_commercial_price_snapshot",
+            "function": "validate_appointment_commercial_price_snapshot",
+            "definition_sha256": "0e1462e9b264ff17389441aec045474428d989af361245735390b31e3d32132a"
+          },
+          {
+            "schema": "public",
+            "name": "appointments",
+            "trigger": "trg_appointment_recurrence_validate",
+            "function": "validate_appointment_recurrence",
+            "definition_sha256": "e5400de067efece1888e91dab29d3e3d89c45e7a37b5498888dc1f18fb408ba0"
+          },
+          {
+            "schema": "public",
+            "name": "appointments",
+            "trigger": "trg_appointments_snapshot_immutable",
+            "function": "enforce_appointment_snapshot_immutable",
+            "definition_sha256": "b025c14a99ae403313e898aa79f390ad900f47a8468014bcc99c93730ba413f1"
+          },
+          {
+            "schema": "public",
+            "name": "appointments",
+            "trigger": "trg_appointments_updated_at",
+            "function": "set_updated_at",
+            "definition_sha256": "c42f9a572ba5503f801a543ac106966d3fedb0b8ffa308ac9bba9217fa0ed49f"
+          },
+          {
+            "schema": "public",
+            "name": "appointments",
+            "trigger": "trg_appointments_validate_import_provenance",
+            "function": "validate_appointment_import_provenance",
+            "definition_sha256": "a6d0cb30e902c01657a6febb804a911309e19541d98d84195a768a29bee41d6b"
+          },
+          {
+            "schema": "public",
+            "name": "appointments",
+            "trigger": "trial_appointments",
+            "function": "enforce_trial_resource_limit",
+            "definition_sha256": "93c92e17e5a8d7abf90535d41d388e1626a848d4d916958572ec9cf3218a36cb"
+          },
+          {
+            "schema": "public",
+            "name": "invoices",
+            "trigger": "trg_invoices_updated_at",
+            "function": "set_updated_at",
+            "definition_sha256": "7cf188df973f86276c6befe86ec4bf416651de0fe7690eb7f380f0e5cce4155c"
+          },
+          {
+            "schema": "public",
+            "name": "lancamentos",
+            "trigger": "lancamentos_convenio_patient_guard",
+            "function": "hi_guard_convenio_patient_receivable",
+            "definition_sha256": "bd2c499150030801403255251f0ca7bf26932f65ea6b32372e29908ef9a5cd88"
+          },
+          {
+            "schema": "public",
+            "name": "lancamentos",
+            "trigger": "lancamentos_insurer_receivable_guard",
+            "function": "hi_guard_insurer_receivable",
+            "definition_sha256": "b593105ace0fd9f1d6395d2c8a9dc5957b56a3dda0d7ae6ee0b119b02cf7869e"
+          },
+          {
+            "schema": "public",
+            "name": "lancamentos",
+            "trigger": "trg_lancamentos_block_immutable",
+            "function": "block_lancamento_immutable_cols",
+            "definition_sha256": "6d11027e6a38113a919d4a66f95f633e6ad7d21f2c912d24db905843c4291e1e"
+          },
+          {
+            "schema": "public",
+            "name": "lancamentos",
+            "trigger": "trg_lancamentos_updated_at",
+            "function": "set_updated_at",
+            "definition_sha256": "74493aecb00147ad8b2ca7c77d524c01eaa1899344164478eb303f184f8cd890"
+          },
+          {
+            "schema": "public",
+            "name": "lancamentos",
+            "trigger": "trial_financial_entries",
+            "function": "enforce_trial_resource_limit",
+            "definition_sha256": "5d4991b3453bf37fb89a16fe7e5f73550c6f8d4ccaa091d21f642eeda8650ed5"
+          },
+          {
+            "schema": "public",
+            "name": "subscriptions",
+            "trigger": "enroll_new_subscription_trial_limits",
+            "function": "enroll_new_subscription_trial_limits",
+            "definition_sha256": "b4b4549d8ecdbafa2e33f229ad7629ebef9c34b6ab36451a8e28a0e0f6d7e2ac"
+          },
+          {
+            "schema": "public",
+            "name": "subscriptions",
+            "trigger": "subscription_check_gateway_origin",
+            "function": "assert_subscription_origin",
+            "definition_sha256": "f05b71e2d97c93706459a3fabb894a4398c358d3eef6cd84f9bed0ba0bb8ce4d"
+          },
+          {
+            "schema": "public",
+            "name": "subscriptions",
+            "trigger": "trg_subscriptions_bump_plan_claims",
+            "function": "bump_plan_claims_version",
+            "definition_sha256": "e9444bbd18c56a0779a78539c1f02684bb25f62cc42cafe41ac987c01cd03f85"
+          },
+          {
+            "schema": "public",
+            "name": "subscriptions",
+            "trigger": "trg_subscriptions_updated_at",
+            "function": "set_updated_at",
+            "definition_sha256": "a02c92ffb4b9714747cb8c5ff8e7da7644c3e372ab6cc6a70b1abcfb058ab4e6"
+          }
+        ],
+        "functions": [
+          {
+            "name": "qoro_plan_includes",
+            "definition_sha256": "2a1afeaafda0d47a0743c8e0900210fb1930c3286f5dff71b4276be9b389f2c8",
+            "references_tiss_tables": false
+          },
+          {
+            "name": "qoro_premium_denial",
+            "definition_sha256": "494d13e1d66305e2c25ac0d1958afea6b087467f41a209419bff61f10a6f3c41",
+            "references_tiss_tables": false
+          },
+          {
+            "name": "qoro_premium_denial_for",
+            "definition_sha256": "0e6bf2e42f8ea976f8bf28737f96b9e9e2700a51458cd955c6e7373c2df66af0",
+            "references_tiss_tables": false
+          }
+        ],
+        "integrity": {
+          "cross_tenant_invoices": 0,
+          "duplicate_cycles": 0,
+          "enabled_tiss_dev_clinics": 3
+        },
+        "productionWrites": 0,
+        "devWrites": 0,
+        "providerCalls": 0,
+        "migrationsApplied": 0
+      },
+      "handoff": "https://github.com/joaomarcos-techia/Project_OS/pull/55#issuecomment-6871160942",
+      "candidate160Merged": false,
+      "newDdlApplied": false,
+      "sourceProofSha256": "d5793bf98b340f5dd381d10850efe7bb737a60d0e401bf5e0ee048f3c3f40796",
+      "devProofSha256": "5b9eff38a0c07b97177eddf42a2002265329253b1abec25c5024d8161c066663"
     }
   }
 }
