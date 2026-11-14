@@ -6,9 +6,9 @@ const mocks = vi.hoisted(() => ({
   closures: vi.fn(),
   watch: vi.fn(),
   heartbeat: vi.fn(),
+  bootHandlers: vi.fn(),
+  bootCatalog: vi.fn(),
 }));
-vi.mock('./handlers', () => ({}));
-vi.mock('@/lib/db/schema', () => ({}));
 vi.mock('@/lib/cron-heartbeat', () => ({ recordHeartbeat: mocks.heartbeat }));
 vi.mock('@/lib/http/cron', () => ({
   withCron: (_options: unknown, handler: () => Promise<Response>) => handler,
@@ -23,7 +23,18 @@ vi.mock('@/contexts/billing/internal/abacatepay-processing', () => ({
 import { GET } from './route';
 const request = () => new Request('https://qoro.example/api/cron/outbox');
 beforeEach(() => {
+  vi.resetModules();
   vi.clearAllMocks();
+  mocks.bootHandlers.mockReset();
+  mocks.bootCatalog.mockReset();
+  vi.doMock('./handlers', () => {
+    mocks.bootHandlers();
+    return {};
+  });
+  vi.doMock('@/lib/db/schema', () => {
+    mocks.bootCatalog();
+    return {};
+  });
   mocks.run.mockResolvedValue({ processed: 2 });
   mocks.recovery.mockResolvedValue({ scanned: 0 });
   mocks.inbox.mockResolvedValue({ scanned: 0 });
@@ -53,7 +64,7 @@ describe('existing outbox minute tick', () => {
     );
     const pending = GET(request());
     expect(mocks.recovery).toHaveBeenCalledOnce();
-    expect(release).toBeDefined();
+    await vi.waitFor(() => expect(release).toBeDefined());
     release?.();
     await pending;
   });
@@ -74,8 +85,7 @@ describe('existing outbox minute tick', () => {
     const finished = vi.fn();
     const pending = GET(request());
     void pending.then(finished, finished);
-    await Promise.resolve();
-    await Promise.resolve();
+    await vi.waitFor(() => expect(release).toBeDefined());
     expect(finished).not.toHaveBeenCalled();
     expect(release).toBeDefined();
     release?.();
@@ -97,4 +107,46 @@ describe('existing outbox minute tick', () => {
     await expect(GET(request())).rejects.toThrow('Synthetic coverage failure');
     expect(mocks.heartbeat).not.toHaveBeenCalled();
   });
+  it.each(['bootHandlers', 'bootCatalog'] as const)(
+    'finishes SaaS jobs and reports a %s import failure without running a partial registry',
+    async (boot) => {
+      const failure = new Error('Synthetic independent module boot failure');
+      mocks[boot].mockImplementationOnce(() => {
+        throw failure;
+      });
+      const completed: string[] = [];
+      let finishRecovery: (() => void) | undefined;
+      mocks.recovery.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            finishRecovery = () => {
+              completed.push('recovery');
+              resolve();
+            };
+          }),
+      );
+      mocks.inbox.mockImplementationOnce(async () => {
+        completed.push('inbox');
+      });
+      mocks.closures.mockImplementationOnce(async () => {
+        completed.push('closures');
+      });
+      mocks.watch.mockImplementationOnce(async () => {
+        completed.push('watch');
+      });
+      const settled = vi.fn();
+      const pending = GET(request());
+      void pending.then(settled, settled);
+      await vi.waitFor(() => expect(mocks[boot]).toHaveBeenCalledOnce());
+      expect(settled).not.toHaveBeenCalled();
+      expect(mocks.run).not.toHaveBeenCalled();
+      expect(finishRecovery).toBeDefined();
+      finishRecovery?.();
+      // Vitest wraps a failing module factory; the original boot error survives
+      // as its cause and must reach the existing cron failure boundary.
+      await expect(pending).rejects.toMatchObject({ cause: failure });
+      expect(completed.sort()).toEqual(['closures', 'inbox', 'recovery', 'watch']);
+      expect(mocks.heartbeat).not.toHaveBeenCalled();
+    },
+  );
 });

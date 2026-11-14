@@ -2,12 +2,18 @@
 import assert from 'node:assert/strict';
 import { createHash, createHmac, randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
+import { parseArgs } from 'node:util';
+import { z } from 'zod';
 
 import { readMigrations, startScratchSchema } from './scratch-schema';
 import { loadTissProofInputs } from './abacatepay-tiss-input';
 
 const tissProof = process.env.QORO_TISS_REF ? await loadTissProofInputs() : null;
-const cluster = await startScratchSchema({ port: 55491 });
+// Windows/WSL may reserve the default port. Override only this loopback proof;
+// never change system exclusions or point the harness at a shared database.
+const { values } = parseArgs({ options: { port: { type: 'string', default: '55491' } } });
+const port = z.coerce.number().int().min(1024).max(65535).parse(values.port);
+const cluster = await startScratchSchema({ port });
 assert.equal(new URL(cluster.url).hostname, '127.0.0.1');
 const sql = cluster.sql;
 try {
@@ -103,6 +109,17 @@ try {
   await sql`GRANT SELECT(id,status) ON public.clinics TO authenticated`;
   // Activate only local catalogue entries, as the current DEV offer does.
   await sql`UPDATE public.plans SET ativo=true WHERE code IN ('consultorio_2026','clinica_2026_2')`;
+  if (!tissProof) {
+    await check(
+      'standalone SaaS does not require TISS tables or its shared commercial function',
+      async () => {
+        const [schema] = await sql`SELECT to_regclass('public.hi_guides') IS NULL no_guides,
+        to_regclass('public.hi_clinic_settings') IS NULL no_settings,
+        to_regprocedure('public.qoro_premium_denial(uuid,text)') IS NULL no_tiss_gate`;
+        assert.deepEqual(schema, { no_guides: true, no_settings: true, no_tiss_gate: true });
+      },
+    );
+  }
   const identity = await seed();
   const first = await run(identity);
   assert.ok(first.ok);

@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 200 actions (0 inline); 66 métodos em 62 handlers; 19 props com referência de action; 536 acessos diretos a process.env; 10 nomes NEXT_PUBLIC.
+Contagem: 200 actions (0 inline); 66 métodos em 62 handlers; 19 props com referência de action; 537 acessos diretos a process.env; 10 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -241,7 +241,7 @@ O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase
 | `src/app/api/cron/financial-reconcile/route.ts:53#GET`               | cron-token              | cron-token                                                                      | `src/app/api/cron/financial-reconcile/route.ts:53#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                  |
 | `src/app/api/cron/invites-cleanup/route.ts:31#GET`                   | cron-token              | cron-token                                                                      | `src/app/api/cron/invites-cleanup/route.ts:31#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                      |
 | `src/app/api/cron/metrics-rollup/route.ts:108#GET`                   | cron-token              | cron-token                                                                      | `src/app/api/cron/metrics-rollup/route.ts:108#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                      |
-| `src/app/api/cron/outbox/route.ts:37#GET`                            | cron-token              | cron-token                                                                      | `src/app/api/cron/outbox/route.ts:37#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                               |
+| `src/app/api/cron/outbox/route.ts:43#GET`                            | cron-token              | cron-token                                                                      | `src/app/api/cron/outbox/route.ts:43#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                               |
 | `src/app/api/cron/patient-hard-delete/route.ts:50#GET`               | cron-token              | cron-token                                                                      | `src/app/api/cron/patient-hard-delete/route.ts:50#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                  |
 | `src/app/api/cron/payments-account-closure/route.ts:38#GET`          | NEW                     | cron-token                                                                      | `src/app/api/cron/payments-account-closure/route.ts:38#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                             |
 | `src/app/api/cron/payments-deposit/route.ts:50#GET`                  | cron-token              | cron-token                                                                      | `src/app/api/cron/payments-deposit/route.ts:50#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                     |
@@ -625,6 +625,7 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/abacatepay-renewal-db.ts:228`            | `QORO_ABACATEPAY_SCALE`                | `process.env.QORO_ABACATEPAY_SCALE`                                         |
 | `scripts/security/abacatepay-renewal-db.ts:557`            | `ABACATEPAY_WEBHOOK_SECRET`            | `process.env.ABACATEPAY_WEBHOOK_SECRET`                                     |
 | `scripts/security/abacatepay-renewal-db.ts:619`            | `QORO_ABACATEPAY_SCALE`                | `process.env.QORO_ABACATEPAY_SCALE`                                         |
+| `scripts/security/abacatepay-saas-release.ts:14`           | `QORO_FINANCIAL_REF`                   | `process.env.QORO_FINANCIAL_REF`                                            |
 | `scripts/security/abacatepay-scale-proof.ts:8`             | `QORO_ABACATEPAY_SCALE_CONCURRENCY`    | `process.env.QORO_ABACATEPAY_SCALE_CONCURRENCY`                             |
 | `scripts/security/abacatepay-statement-scan-db.ts:10`      | `<object>`                             | `process.env`                                                               |
 | `scripts/security/abacatepay-statement-scan-db.ts:21`      | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
@@ -695,13 +696,13 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/signup-email-correction-db.ts:33`        | `MAGIC_TOKEN_SECRET`                   | `process.env.MAGIC_TOKEN_SECRET`                                            |
 | `scripts/security/signup-email-correction-db.ts:34`        | `LOGIN_HASH_PEPPER`                    | `process.env.LOGIN_HASH_PEPPER`                                             |
 | `scripts/security/signup-email-correction-db.ts:35`        | `LOG_LEVEL`                            | `process.env.LOG_LEVEL`                                                     |
-| `scripts/security/signup-free-trial-db.ts:9`               | `QORO_TISS_REF`                        | `process.env.QORO_TISS_REF`                                                 |
-| `scripts/security/signup-free-trial-db.ts:23`              | `<object>`                             | `process.env`                                                               |
-| `scripts/security/signup-free-trial-db.ts:46`              | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                                                    |
-| `scripts/security/signup-free-trial-db.ts:47`              | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
-| `scripts/security/signup-free-trial-db.ts:629`             | `ABACATEPAY_WEBHOOK_SECRET`            | `process.env.ABACATEPAY_WEBHOOK_SECRET`                                     |
-| `scripts/security/signup-free-trial-db.ts:1059`            | `ABACATEPAY_WEBHOOK_SECRET`            | `process.env.ABACATEPAY_WEBHOOK_SECRET`                                     |
-| `scripts/security/signup-free-trial-db.ts:1122`            | `ABACATEPAY_WEBHOOK_SECRET`            | `process.env.ABACATEPAY_WEBHOOK_SECRET`                                     |
+| `scripts/security/signup-free-trial-db.ts:11`              | `QORO_TISS_REF`                        | `process.env.QORO_TISS_REF`                                                 |
+| `scripts/security/signup-free-trial-db.ts:29`              | `<object>`                             | `process.env`                                                               |
+| `scripts/security/signup-free-trial-db.ts:52`              | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                                                    |
+| `scripts/security/signup-free-trial-db.ts:53`              | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
+| `scripts/security/signup-free-trial-db.ts:646`             | `ABACATEPAY_WEBHOOK_SECRET`            | `process.env.ABACATEPAY_WEBHOOK_SECRET`                                     |
+| `scripts/security/signup-free-trial-db.ts:1076`            | `ABACATEPAY_WEBHOOK_SECRET`            | `process.env.ABACATEPAY_WEBHOOK_SECRET`                                     |
+| `scripts/security/signup-free-trial-db.ts:1139`            | `ABACATEPAY_WEBHOOK_SECRET`            | `process.env.ABACATEPAY_WEBHOOK_SECRET`                                     |
 | `scripts/security/signup-kill-switch-browser.ts:54`        | `<object>`                             | `process.env`                                                               |
 | `scripts/security/signup-local-backend.ts:85`              | `<dynamic>`                            | `process.env[key]`                                                          |
 | `scripts/security/signup-local-backend.ts:85`              | `<dynamic>`                            | `process.env[key]`                                                          |

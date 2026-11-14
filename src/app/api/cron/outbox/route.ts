@@ -12,9 +12,6 @@
  *
  * Response shape mirrors `runOutboxOnce` summary; consumed by smoke-c4.
  */
-import './handlers';
-import '@/lib/db/schema';
-
 import { recordHeartbeat } from '@/lib/cron-heartbeat';
 import { withCron } from '@/lib/http/cron';
 import { runOutboxOnce } from '@/lib/outbox/worker';
@@ -30,6 +27,15 @@ export const dynamic = 'force-dynamic';
 // Application budget. Verify the platform plan separately; this is not its quota.
 export const maxDuration = 60;
 
+async function runRegisteredOutbox() {
+  // Handler boot belongs to the shared event worker, not to SaaS reconciliation.
+  // A module import failure must remain observable without preventing the other
+  // financial jobs from starting and finishing their independent transactions.
+  await import('@/lib/db/schema');
+  await import('./handlers');
+  return runOutboxOnce();
+}
+
 // `errorEvent: 'worker.error'` foge do padrão `<domínio>.error` das outras
 // rotas, e é DE PROPÓSITO: é o nome que as saved searches e o runbook já usam
 // para "a fila parou". Renomear para `cron.outbox.error` deixaria o alerta mais
@@ -41,7 +47,7 @@ export const GET = withCron(
     // selects its explicit environment. Independent work runs beside the outbox
     // rather than consuming the daily Asaas reconciler's remaining time budget.
     const [outbox, recovery, inbox, closures, watch] = await Promise.allSettled([
-      runOutboxOnce(),
+      runRegisteredOutbox(),
       reconcileAbacatePayRecoveryTick(Date.now() + 35_000),
       reconcileAbacatePayInboxTick(),
       reconcileAbacatePayCheckoutClosuresTick(Date.now() + 20_000),
