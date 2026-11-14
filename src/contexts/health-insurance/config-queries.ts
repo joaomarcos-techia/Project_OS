@@ -921,3 +921,10 @@ export {
   type ContractImportRowResult,
 } from './internal/contract-import-service';
 export { CONTRACT_IMPORT_COLUMNS, contractImportTemplateCsv } from './internal/contract-import';
+
+// P2.5 — credenciais da clínica na operadora: só tipo, situação e datas (nunca o segredo).
+export type { InsurerCredentialView } from './internal/insurer-credentials';
+export async function listInsurerCredentials(clinicId: string, insurerId: string) {
+  const { listInsurerCredentialsTx } = await import('./internal/insurer-credentials');
+  return withTenant(clinicId, (tx) => listInsurerCredentialsTx(tx, clinicId, insurerId));
+}

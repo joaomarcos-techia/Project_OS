@@ -38,6 +38,7 @@ import {
 import * as cfg from './internal/config-service';
 import { CoverageInputError, recordAppointmentCoverage } from './internal/coverage-service';
 import { readMembershipCardNumberAudited } from './internal/membership-access';
+import { revokeInsurerCredentialTx, saveInsurerCredentialTx } from './internal/insurer-credentials';
 import { ModalityChangeError, changeAppointmentModalityTx } from './modality-change';
 import { CONTRACT_IMPORT_LIMITS, ContractImportFileError } from './internal/contract-import';
 import {
@@ -957,5 +958,62 @@ export async function applyContractImportAction(input: {
       importId,
       requestContext: await requestContext(),
     });
+  });
+}
+
+// ── Credenciais da clínica na operadora (P2.5, engenharia sem operadora real) ──
+
+const InsurerCredential = z.object({
+  insurerId: uuid,
+  kind: z.enum(['webservice_login', 'certificate']),
+  username: z.string().trim().max(200).nullable().optional(),
+  secret: z.string().min(8, 'A senha/certificado precisa ter pelo menos 8 caracteres.').max(16_384),
+});
+
+/** Salva ou rotaciona (a anterior vira revogada). A auditoria nunca leva o segredo. */
+export async function saveInsurerCredentialAction(
+  input: z.input<typeof InsurerCredential>,
+): Promise<ConfigResult<{ rotated: boolean }>> {
+  return run(async () => {
+    const d = InsurerCredential.parse(input);
+    return write(
+      MANAGE,
+      'health_insurance.config.insurer_credential_saved',
+      'hi_insurer_credential',
+      async (tx, ctx) => {
+        const out = await saveInsurerCredentialTx(tx, {
+          clinicId: ctx.clinicId,
+          userId: ctx.userId,
+          insurerId: d.insurerId,
+          kind: d.kind,
+          username: d.username ?? null,
+          secret: d.secret,
+        });
+        return {
+          result: { rotated: out.rotated },
+          resourceId: out.credentialId,
+          after: { insurerId: d.insurerId, kind: d.kind, rotated: out.rotated },
+        };
+      },
+    );
+  });
+}
+
+export async function revokeInsurerCredentialAction(input: {
+  insurerId: string;
+  credentialId: string;
+}): Promise<ConfigResult<null>> {
+  return run(async () => {
+    const insurerId = uuid.parse(input.insurerId);
+    const credentialId = uuid.parse(input.credentialId);
+    return write(
+      MANAGE,
+      'health_insurance.config.insurer_credential_revoked',
+      'hi_insurer_credential',
+      async (tx, ctx) => {
+        await revokeInsurerCredentialTx(tx, { clinicId: ctx.clinicId, insurerId, credentialId });
+        return { result: null, resourceId: credentialId, after: { insurerId, status: 'revoked' } };
+      },
+    );
   });
 }

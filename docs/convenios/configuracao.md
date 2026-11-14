@@ -182,3 +182,21 @@ Na página da operadora, painel "Importar tabela por planilha" (quem gerencia o 
 - **Rastro:** cada importação fica em `hi_contract_imports` (arquivo, sha256, contagens, linhas
   normalizadas e resultado por linha, sem dado pessoal). Os itens criados guardam `import_id`. Validar e
   aplicar entram na auditoria. O painel mostra as importações anteriores.
+
+## Conexão com a operadora (P2.5, parte sem operadora real)
+
+Na página da operadora, painel "Conexão com a operadora" (quem gerencia o financeiro).
+
+- **Envio hoje:** o arquivo XML do lote, validado no XSD oficial, que a clínica baixa no Qoro e envia no
+  portal da operadora.
+- **Credenciais:** login do webservice ou certificado. São guardadas cifradas por clínica
+  (`hi_insurer_credentials`, 0144), com uma ativa por tipo. Guardar de novo é rotação: a anterior fica
+  "revogada" com a data, e nada é apagado. A tela mostra só tipo, situação e datas, nunca o segredo, o
+  usuário ou o texto cifrado. A auditoria registra tipo e rotação, sem o segredo.
+- **Conector** (`tiss/connector/connector.ts`): define o formato do resultado (aceito com protocolo,
+  recusado pela operadora, indisponível, circuito aberto, não configurado), o limite de tempo, a
+  retentativa só com transporte que a operadora deduplica, e um circuito por operadora (abre com falhas
+  seguidas e, depois do intervalo, deixa uma tentativa passar). O transporte padrão recusa sempre: sem
+  homologação, nada sai do Qoro por webservice.
+- **Bloqueado por operadora real (P12.5):** endereço do webservice, WSDL da versão TISS da operadora,
+  certificado, código de validação e homologação. Nenhum endpoint ou resposta de operadora foi inventado.

@@ -11,6 +11,7 @@ import {
   getInsurerDetail,
   INSURER_STATUS_LABELS,
   listContractImports,
+  listInsurerCredentials,
   PROVIDER_ID_LABELS,
   type ContractLineView,
 } from '@/contexts/health-insurance/config-queries';
@@ -27,6 +28,7 @@ import {
   NewPlanForm,
   PlanStatusButton,
 } from '../../../_lib/config-ui';
+import { InsurerConnectionPanel } from '../../../_lib/connection-ui';
 import { ContractImportPanel } from '../../../_lib/contract-import-ui';
 
 export const dynamic = 'force-dynamic';
@@ -57,6 +59,8 @@ const HISTORY_LABELS: Record<string, string> = {
   'health_insurance.config.credential_new_period': 'Nova vigência de credenciamento',
   'health_insurance.config.contract_import_validated': 'Planilha de contrato validada',
   'health_insurance.config.contract_import_applied': 'Planilha de contrato aplicada',
+  'health_insurance.config.insurer_credential_saved': 'Credencial da operadora guardada',
+  'health_insurance.config.insurer_credential_revoked': 'Credencial da operadora revogada',
 };
 
 function copayText(l: ContractLineView): string {
@@ -81,6 +85,7 @@ export default async function OperadoraPage({ params }: { params: Promise<{ insu
   const history = d.lines.filter((l) => !l.live);
   const editable = access.canManage && i.status !== 'archived';
   const imports = editable ? await listContractImports(access.clinicId, insurerId) : [];
+  const credentials = access.canManage ? await listInsurerCredentials(access.clinicId, insurerId) : [];
 
   return (
     <>
@@ -226,6 +231,12 @@ export default async function OperadoraPage({ params }: { params: Promise<{ insu
           </div>
         ) : null}
       </PanelCard>
+
+      {access.canManage ? (
+        <PanelCard title="Conexão com a operadora" regionLabel="Conexão com a operadora" className="mb-(--sp-4)">
+          <InsurerConnectionPanel insurerId={i.id} credentials={credentials} editable={editable} />
+        </PanelCard>
+      ) : null}
 
       <PanelCard title="Credenciamento" regionLabel="Credenciamento" className="mb-(--sp-4)">
         <p className="mb-(--sp-3) text-(length:--fs-sm) text-fg-muted">
