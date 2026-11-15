@@ -292,6 +292,10 @@ export async function setClinicalIndicationInTx(
   tx: Tx,
   args: { clinicId: string; requestId: string; version: number; text: string; actorUserId: string },
 ): Promise<number> {
+  // D24: a indicação prepara o que vai para a operadora, como o ajuste da Consulta (P4.6), que
+  // já é recusado em trial ou com a assinatura parada. Sem isto, a clínica suspensa editava a
+  // solicitação por esta action (achado de 15/11, noite; a conferência e o documento já barravam).
+  await assertPremiumFeatureTx(tx, args.clinicId, 'health_insurance');
   const r = await loadRequest(tx, args.clinicId, args.requestId);
   // Depois da resposta da operadora, o que foi enviado não muda ("pronta" = nada foi enviado).
   if (!['draft', 'checked', 'awaiting_authorization', 'ready'].includes(r.status)) {

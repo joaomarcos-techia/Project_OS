@@ -496,7 +496,16 @@ try {
     (e: Error & { constraint_name?: string }) => e.name === 'PremiumAccessError' || e.constraint_name === 'qoro_premium_health_insurance',
   );
   assert.equal((await readFile(B, String(pdfRow.id)))?.outcome, 'granted');
-  pass('10. documento oficial do pedido (P6.2): XML SOLICITACAO_PROCEDIMENTOS validado no XSD + PDF do modelo oficial, cifrados e ligados à autorização; geração única sob concorrência; congelado (cadastro alterado depois não muda nada); adulterado nunca é entregue e fica auditado; outra clínica não vê; sem autorização exigida não há pedido; XSD indisponível não grava; carteirinha errada recusada; suspensa não gera, mas lê o que já existe; autorização com data no futuro ou antes do pedido é recusada');
+  // Nem a indicação clínica muda com a assinatura parada (prepara o envio, como o ajuste da
+  // Consulta da P4.6); a que já estava gravada fica como estava.
+  const [indBefore] = await sql`select clinical_indication_encrypted as enc, version from public.hi_sadt_requests where id = ${r10b}::uuid`;
+  await assert.rejects(
+    () => asUser(B, async (tx) => req.setClinicalIndicationInTx(tx, { clinicId: B.clinicId, requestId: r10b, version: await version(r10b), text: 'Indicação com a assinatura parada.', actorUserId: B.doctorId })),
+    (e: Error) => e.name === 'PremiumAccessError',
+  );
+  const [indAfter] = await sql`select clinical_indication_encrypted as enc, version from public.hi_sadt_requests where id = ${r10b}::uuid`;
+  assert.deepEqual(indAfter, indBefore);
+  pass('10. documento oficial do pedido (P6.2): XML SOLICITACAO_PROCEDIMENTOS validado no XSD + PDF do modelo oficial, cifrados e ligados à autorização; geração única sob concorrência; congelado (cadastro alterado depois não muda nada); adulterado nunca é entregue e fica auditado; outra clínica não vê; sem autorização exigida não há pedido; XSD indisponível não grava; carteirinha errada recusada; suspensa não gera nem muda a indicação clínica, mas lê o que já existe; autorização com data no futuro ou antes do pedido é recusada');
 
   console.log(`\nOK — ${passed} provas: solicitação SP/SADT persistida e SP/SADT automática ponta a ponta (até o XML validado no XSD).`);
 } finally {
