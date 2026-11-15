@@ -119,7 +119,8 @@ export function ConsultaFieldsPanel({
       </dl>
       {issued ? (
         <p className="text-(length:--fs-sm) text-fg-muted">
-          Guia aprovada: vale o conteúdo emitido (PDF da guia). Para mudar, reabra a guia.
+          Guia aprovada: vale o conteúdo emitido (PDF da guia). Para mudar, use “Devolver para
+          correção”: a próxima emissão sai como nova revisão e a anterior fica no histórico.
         </p>
       ) : null}
       {editable && !open ? (

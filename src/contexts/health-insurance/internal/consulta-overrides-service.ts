@@ -81,7 +81,7 @@ export async function updateConsultaOverridesInTx(
   }
   if (!EDITABLE.has(g.status)) {
     throw new ConsultaOverridesError(
-      'Guia conferida não se edita: devolva para correção (ou reabra a aprovada) antes de ajustar os dados da consulta.',
+      'Esta guia já foi conferida e não aceita ajuste. Para mudar, use “Devolver para correção”: ela volta para edição e a próxima emissão sai como nova revisão.',
       'not_editable',
     );
   }

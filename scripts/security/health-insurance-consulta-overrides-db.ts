@@ -10,7 +10,7 @@
  * ISO-8859-1 sem tocar na guia; outra clínica não altera (RLS); depois da conferência o ajuste
  * não muda nem pelo serviço, nem pelo runtime, nem pelo superusuário (gatilho); a emissão usa o
  * ajuste e, sem ajuste, os padrões; reabrir volta a permitir o ajuste e a revisão 2 sai com o
- * conteúdo novo.
+ * conteúdo novo; em trial ou com a clínica suspensa o serviço recusa o ajuste (D24).
  *
  * Não toca DEV nem produção. Uso:
  *   NODE_OPTIONS=--conditions=react-server npx tsx scripts/security/health-insurance-consulta-overrides-db.ts
@@ -477,6 +477,33 @@ try {
   );
   pass(
     'reaberta: o ajuste volta a ser editável (tipo de consulta de volta ao padrão), e a revisão 2 sai com o conteúdo novo; a revisão 1 continua no histórico',
+  );
+
+  // ── 9. Trial e clínica suspensa: o ajuste é recurso pago (D24) ────────
+  const gT = await A.newGuide('2026-11-13'); // dia sem outra consulta da médica (a agenda recusa sobreposição)
+  const sT = await state(gT);
+  const premiumReason = async (p: Promise<unknown>): Promise<string> => {
+    try {
+      await p;
+      return 'aceitou';
+    } catch (e) {
+      return String((e as { reason?: string }).reason ?? (e as Error).message);
+    }
+  };
+  await sql`update public.subscriptions set billing_status = 'trial', trial_ends_at = now() + interval '10 days',
+      enforce_trial_deadline = true where clinic_id = ${A.clinicId}::uuid`;
+  const rTrial = await premiumReason(edit(A, gT, sT.version, { tipoConsulta: '4' }));
+  await sql`update public.subscriptions set billing_status = 'active', trial_ends_at = null,
+      enforce_trial_deadline = false where clinic_id = ${A.clinicId}::uuid`;
+  await sql`update public.clinics set status = 'suspended_readonly' where id = ${A.clinicId}::uuid`;
+  const rSuspended = await premiumReason(edit(A, gT, sT.version, { tipoConsulta: '4' }));
+  await sql`update public.clinics set status = 'active' where id = ${A.clinicId}::uuid`;
+  assert.deepEqual([rTrial, rSuspended], ['trial', 'clinic_suspended']);
+  assert.deepEqual(await state(gT), sT);
+  const rBack = await edit(A, gT, sT.version, { tipoConsulta: '4' });
+  assert.equal(rBack.changed, true);
+  pass(
+    'trial e clínica suspensa (D24): o serviço recusa o ajuste sem tocar na guia; com a assinatura paga e a clínica ativa de novo, o mesmo ajuste grava',
   );
 
   console.log(

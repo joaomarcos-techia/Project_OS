@@ -65,6 +65,7 @@ import {
   updateConsultaFieldsAction,
 } from './actions';
 import { ConsultaOverridesError } from './internal/consulta-overrides-service';
+import { notReviewedError } from './internal/issuance-common';
 
 /** Erro com o mesmo nome do da emissão (a ação reconhece pelo nome, como o BatchRuleError). */
 const issuanceError = (message: string, issues: Array<{ message: string }> = []) =>
@@ -125,16 +126,18 @@ describe('ações de Convênios', () => {
 
   it('aprovação concorrente: quem perde lê que a guia já foi aprovada (não "registro já existe" nem erro genérico)', async () => {
     m.approveConsultaGuide.mockRejectedValueOnce(
-      issuanceError('esta guia já foi aprovada e emitida (estado: approved); atualize a tela'),
+      issuanceError(notReviewedError('approved').message),
     );
     expect(await approveGuideAction({ guideId: GUIDE })).toEqual({
       ok: false,
-      error: 'Esta guia já foi aprovada e emitida (etapa: Aprovada); atualize a tela',
+      error:
+        'Esta guia já foi aprovada e emitida (etapa: Aprovada). Atualize a página para ver a situação mais recente',
     });
-    m.approveConsultaGuide.mockRejectedValueOnce(issuanceError('só se emite guia conferida (estado: ready_for_review)'));
+    m.approveConsultaGuide.mockRejectedValueOnce(issuanceError(notReviewedError('ready_for_review').message));
     expect(await approveGuideAction({ guideId: GUIDE })).toEqual({
       ok: false,
-      error: 'Só se emite guia conferida (etapa: Para conferir)',
+      error:
+        'Só se emite guia conferida (etapa: Para conferir). Atualize a página para ver a situação mais recente',
     });
   });
 

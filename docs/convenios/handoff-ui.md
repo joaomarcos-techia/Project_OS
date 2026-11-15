@@ -134,19 +134,44 @@ Etapas do `e2e/convenios-config-preview.spec.ts`, com dados sintéticos da fixtu
 - **Estado de erro de banco:** fica para a fronteira de erro da rota (`error.tsx`), que não se provoca no Preview sem
   injeção de falha.
 
-## 4.2 Dados da consulta na guia (P4.6, 15/11; ainda local)
+## 4.2 Dados da consulta na guia (P4.6, 15/11; 0161 aplicada no DEV)
 
-- **Onde:** painel "Dados da consulta" no detalhe da Guia de Consulta (`convenios/guias/[guideId]/page.tsx`), entre
-  "Situação/Pendências" e "Procedimentos". Componente do TISS: `convenios/_lib/consulta-fields-ui.tsx`
-  (`data-testid="consulta-fields"`). SP/SADT não mostra o painel.
+- **Rota afetada:** só `/convenios/guias/[guideId]` (detalhe da Guia de Consulta). Painel "Dados da consulta" entre
+  "Situação/Pendências" e "Procedimentos". SP/SADT não mostra o painel. Nenhuma rota nova.
+- **Arquivos do TISS** (a UI não precisa mexer para o fluxo funcionar):
+  - `convenios/_lib/consulta-fields-ui.tsx` (novo, cliente; `data-testid="consulta-fields"`);
+  - `convenios/guias/[guideId]/page.tsx` (o `PanelCard` do painel);
+  - `convenios/_lib/action-ui.tsx` (só passou a exportar `useRunner`);
+  - `src/contexts/health-insurance/guide-status-labels.ts` (novo; `queries.ts` reexporta `GUIDE_STATUS_LABELS`).
+  Componentes do design system já usados: `PanelCard`, `Button`, `Field`, `Select`, `Textarea`.
+- **Estados do painel:**
+
+  | Estado da guia | Gestor financeiro | Recepção (vê, não gerencia) | Médica (sem financeiro) |
+  | --- | --- | --- | --- |
+  | Falta dado / Para conferir | vê + botão "Ajustar dados da consulta" | vê, sem botão | a guia não abre |
+  | Conferida | vê, sem botão (ajuste congelado) | vê | a guia não abre |
+  | Aprovada em diante | vê + aviso "vale o conteúdo emitido (PDF)… use “Devolver para correção”" | vê + aviso | a guia não abre |
+
 - **Mostra:** regime, indicação de acidente, tipo de consulta, cobertura especial, saúde ocupacional e observação.
-  Campo sem ajuste aparece como "Padrão: 01 · Ambulatorial"; ajustado leva "(ajustado)"; opcional sem valor, "Não
-  informada".
-- **Edita:** só quem gerencia o financeiro e só com a guia em "Falta dado" ou "Para conferir". O botão "Ajustar dados
-  da consulta" abre o formulário: selects com as opções da terminologia da guia (a primeira opção é o padrão, ou "Não
-  informar") e a observação com contador de 500 caracteres. Guia aprovada mostra o aviso de que vale o PDF.
-- **A UI pode** trocar a moldura pelo design system. **Preserva:** o `data-testid`, os rótulos dos campos, o texto
-  "Ajustar dados da consulta" e o gate de edição (o servidor e o banco conferem de novo).
+  Campo sem ajuste aparece como "Padrão: 01 · Ambulatorial"; ajustado leva "(ajustado)" e `data-adjusted="true"`;
+  opcional sem valor, "Não informada".
+- **Formulário** (`<form aria-label="Ajustar dados da consulta">`): selects com as opções da terminologia da guia (a
+  primeira opção é o padrão, ou "Não informar"), observação com contador "N/500" e a ajuda "Não escreva diagnóstico
+  nem dado clínico", botões "Salvar dados da consulta" e "Voltar". Abre por teclado (Enter no botão).
+- **Mensagens novas:**
+  - sucesso: "Dados da consulta salvos";
+  - guia conferida: "Esta guia já foi conferida e não aceita ajuste. Para mudar, use “Devolver para correção”…";
+  - tela velha: "A guia mudou desde que a tela foi aberta. Atualize e tente de novo.";
+  - código fora da tabela ou da vigência: "… não está na tabela N da ANS …" / "… não estava vigente …";
+  - observação: "Observação: até 500 caracteres (padrão TISS)." e o aviso de ISO-8859-1;
+  - P14.2 (aprovar): "Esta guia já foi aprovada e emitida (etapa: Aprovada). Atualize a página para ver a situação
+    mais recente" e "Só se emite guia conferida (etapa: …). Atualize a página…".
+- **Regressão:** `convenios/page.test.tsx` (D11: botão para o gestor, sem botão na conferida e para quem só vê, sem
+  painel na SP/SADT), `actions.test.ts` (mensagens), `e2e/convenios-config-preview.spec.ts` (etapas "dados da
+  Consulta", "duas aprovações ao mesmo tempo" e "devolve a aprovada… revisão 2").
+- **A UI pode** trocar a moldura pelo design system. **Preserva:** o `data-testid`, `data-adjusted`, o `aria-label`
+  do formulário, os rótulos dos campos, os textos dos botões e o gate de edição (o servidor e o banco conferem de
+  novo).
 
 ## 5. Agenda: troca de modalidade (P4.3)
 

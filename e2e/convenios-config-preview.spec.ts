@@ -851,7 +851,81 @@ test('médica: chama e encerra a consulta; a guia de convênio nasce sozinha do 
   await s.context.close();
 });
 
-test('gestora: confere, aprova e emite a guia; o PDF oficial sai do documento congelado', async ({
+/** Observação sintética da P4.6 (vai no XML do lote; nada clínico). */
+const CONSULTA_NOTE = `Encaminhamento (teste sintético ${RUN}).`;
+const consultaPanel = (page: Page) => page.getByTestId('consulta-fields');
+const historyItems = (page: Page) =>
+  page.getByRole('region', { name: 'Histórico da guia' }).locator('li');
+
+test('gestora: dados da Consulta antes de conferir (P4.6) — padrões, ajuste por teclado, persistência, celular e papéis', async ({
+  browser,
+}) => {
+  test.setTimeout(300_000);
+  const s = await login(browser, 'cfg-gestor');
+  expect(await visit(s, journey.guideUrl!)).toBe(200);
+  const panel = consultaPanel(s.page);
+  await expect(panel).toBeVisible();
+  // Sem ajuste valem os padrões da D11 (regime 01, acidente 9, tipo 1): o painel não obriga mudança.
+  await expect(panel.getByText(/^Padrão: 01( · |$)/u)).toBeVisible();
+  await expect(panel.getByText(/^Padrão: 9( · |$)/u)).toBeVisible();
+  await expect(panel.getByText(/^Padrão: 1( · | \(|$)/u)).toBeVisible();
+  await expect(panel.locator('[data-adjusted="true"]')).toHaveCount(0);
+  await expect(s.page.getByRole('button', { name: 'Marcar como conferida' })).toBeVisible();
+  const eventsBefore = await historyItems(s.page).count();
+
+  // Teclado: o botão abre o formulário com Enter; as opções são as da terminologia da ANS.
+  const open = panel.getByRole('button', { name: 'Ajustar dados da consulta' });
+  await open.focus();
+  await s.page.keyboard.press('Enter');
+  const form = s.page.getByRole('form', { name: 'Ajustar dados da consulta' });
+  await expect(form).toBeVisible();
+  const tipo = form.getByLabel('Tipo de consulta');
+  await expect(tipo.locator('option[value="4"]')).toHaveCount(1); // código 4 da tabela 52 (terminologia da guia)
+  await tipo.selectOption('4');
+  await form.getByLabel('Observação').fill(CONSULTA_NOTE);
+  await expect(form.getByText(`${CONSULTA_NOTE.length}/500`)).toBeVisible();
+  await form.getByRole('button', { name: 'Salvar dados da consulta' }).click();
+  await toast(s.page, 'Dados da consulta salvos');
+
+  // Persistência: recarregada, a guia mostra o ajuste, a observação e um evento novo no histórico.
+  expect(await visit(s, journey.guideUrl!, 'cfg-08b-dados-consulta')).toBe(200);
+  await expect(panel.locator('[data-adjusted="true"]')).toHaveCount(1);
+  await expect(panel.getByText(/^4( · .+)? \(ajustado\)$/u)).toBeVisible();
+  await expect(panel.getByText(CONSULTA_NOTE)).toBeVisible();
+  await expect(historyItems(s.page)).toHaveCount(eventsBefore + 1);
+  // Sem pendência nova: a guia segue pronta para conferir.
+  await expect(s.page.getByRole('button', { name: 'Marcar como conferida' })).toBeVisible();
+  expectNoPageErrors(s);
+  await s.context.close();
+
+  // Celular: o painel cabe sem rolagem lateral (visit reprova transbordo).
+  const mobile = await login(browser, 'cfg-gestor', MOBILE);
+  expect(await visit(mobile, journey.guideUrl!, 'cfg-08c-dados-consulta-celular')).toBe(200);
+  await expect(consultaPanel(mobile.page).getByText(CONSULTA_NOTE)).toBeVisible();
+  expectNoPageErrors(mobile);
+  await mobile.context.close();
+
+  // Recepção vê o financeiro, mas não o gerencia: vê o ajuste, sem botão de ajuste nem de conferir.
+  const r = await login(browser, 'cfg-recepcao');
+  expect(await visit(r, journey.guideUrl!)).toBe(200);
+  await expect(consultaPanel(r.page).getByText(CONSULTA_NOTE)).toBeVisible();
+  await expect(r.page.getByRole('button', { name: 'Ajustar dados da consulta' })).toHaveCount(0);
+  await expect(r.page.getByRole('button', { name: 'Marcar como conferida' })).toHaveCount(0);
+  expectNoPageErrors(r);
+  await r.context.close();
+
+  // Médica (sem o financeiro): a guia não abre.
+  const m = await login(browser, 'cfg-medica');
+  await visit(m, journey.guideUrl!);
+  await expect(
+    m.page.getByText('Seu perfil não tem permissão para o faturamento de convênios.'),
+  ).toBeVisible();
+  await expect(m.page.getByTestId('consulta-fields')).toHaveCount(0);
+  expectNoPageErrors(m);
+  await m.context.close();
+});
+
+test('gestora: confere; duas aprovações ao mesmo tempo → uma emite, a outra lê que já foi aprovada (P14.2); PDF do documento congelado', async ({
   browser,
 }) => {
   test.setTimeout(240_000);
@@ -859,12 +933,116 @@ test('gestora: confere, aprova e emite a guia; o PDF oficial sai do documento co
   expect(await visit(s, journey.guideUrl!)).toBe(200);
   await s.page.getByRole('button', { name: 'Marcar como conferida' }).click();
   await toast(s.page, 'Guia conferida');
-  await s.page.getByRole('button', { name: 'Aprovar e emitir' }).click();
-  await toast(s.page, 'Guia aprovada e emitida');
+  // Conferida: o ajuste congela (sem botão) e continua o mesmo.
+  expect(await visit(s, journey.guideUrl!)).toBe(200);
+  await expect(
+    consultaPanel(s.page).getByRole('button', { name: 'Ajustar dados da consulta' }),
+  ).toHaveCount(0);
+  await expect(consultaPanel(s.page).locator('[data-adjusted="true"]')).toHaveCount(1);
+
+  // Duas abas da gestora com a guia conferida aprovam no mesmo instante.
+  const s2 = await login(browser, 'cfg-gestor');
+  expect(await visit(s2, journey.guideUrl!)).toBe(200);
+  const b1 = s.page.getByRole('button', { name: 'Aprovar e emitir' });
+  const b2 = s2.page.getByRole('button', { name: 'Aprovar e emitir' });
+  await expect(b1).toBeVisible();
+  await expect(b2).toBeVisible();
+  const outcome = async (page: Page): Promise<string> => {
+    const deadline = Date.now() + 60_000;
+    while (Date.now() < deadline) {
+      if (
+        await page
+          .getByText('Guia aprovada e emitida', { exact: true })
+          .first()
+          .isVisible()
+          .catch(() => false)
+      )
+        return 'emitida';
+      const conflict = page.getByText(
+        /Esta guia já foi aprovada e emitida \(etapa: [^)]+\)\. Atualize a página/u,
+      );
+      if (
+        await conflict
+          .first()
+          .isVisible()
+          .catch(() => false)
+      )
+        return 'já aprovada';
+      const other = await page
+        .getByRole('status')
+        .allInnerTexts()
+        .catch(() => [] as string[]);
+      if (other.some((t) => /Não foi possível|já existe/u.test(t)))
+        return `outro: ${other.join(' | ')}`;
+      await page.waitForTimeout(250);
+    }
+    return 'sem resposta';
+  };
+  await Promise.all([b1.click(), b2.click()]);
+  const results = await Promise.all([outcome(s.page), outcome(s2.page)]);
+  expect(results.sort()).toEqual(['emitida', 'já aprovada']);
+  await s2.context.close();
+
+  // O banco emitiu UMA vez: revisão 1, um único "Conferida → Aprovada" no histórico.
+  expect(await visit(s, journey.guideUrl!, 'cfg-08d-aprovada')).toBe(200);
+  await expect(
+    s.page
+      .getByRole('region', { name: 'Situação da guia' })
+      .getByText('Aprovada', { exact: true })
+      .first(),
+  ).toBeVisible();
+  await expect(historyItems(s.page).filter({ hasText: 'Conferida → Aprovada' })).toHaveCount(1);
+  await expect(
+    consultaPanel(s.page).getByText(/^Guia aprovada: vale o conteúdo emitido/u),
+  ).toBeVisible();
   const guideId = journey.guideUrl!.split('/').pop()!;
   const pdf = await s.context.request.get(`/financeiro/convenios/guias/${guideId}/pdf`);
   expect(pdf.status()).toBe(200);
   expect(pdf.headers()['content-type']).toContain('application/pdf');
+  expectNoPageErrors(s);
+  await s.context.close();
+});
+
+test('gestora: devolve a aprovada para correção, volta o tipo ao padrão e reemite como revisão 2 (P4.6)', async ({
+  browser,
+}) => {
+  test.setTimeout(240_000);
+  const s = await login(browser, 'cfg-gestor');
+  expect(await visit(s, journey.guideUrl!)).toBe(200);
+  await s.page.getByRole('button', { name: 'Devolver para correção' }).click();
+  await s.page
+    .getByLabel('O que precisa ser corrigido')
+    .fill('Operadora pediu o tipo de consulta padrão (teste sintético)');
+  await s.page.getByRole('button', { name: 'Confirmar' }).click();
+  await toast(s.page, 'Guia devolvida para correção');
+
+  // De volta à edição: o ajuste é editável de novo; o tipo volta ao padrão, a observação fica.
+  expect(await visit(s, journey.guideUrl!)).toBe(200);
+  const panel = consultaPanel(s.page);
+  await panel.getByRole('button', { name: 'Ajustar dados da consulta' }).click();
+  const form = s.page.getByRole('form', { name: 'Ajustar dados da consulta' });
+  await form.getByLabel('Tipo de consulta').selectOption('');
+  await form.getByRole('button', { name: 'Salvar dados da consulta' }).click();
+  await toast(s.page, 'Dados da consulta salvos');
+  expect(await visit(s, journey.guideUrl!)).toBe(200);
+  await expect(panel.locator('[data-adjusted="true"]')).toHaveCount(0);
+  await expect(panel.getByText(/^Padrão: 1( · | \(|$)/u)).toBeVisible();
+  await expect(panel.getByText(CONSULTA_NOTE)).toBeVisible();
+
+  await s.page.getByRole('button', { name: 'Marcar como conferida' }).click();
+  await toast(s.page, 'Guia conferida');
+  await s.page.getByRole('button', { name: 'Aprovar e emitir' }).click();
+  await toast(s.page, 'Guia aprovada e emitida');
+  // Revisão 2 emitida; a 1 continua no histórico (dois "Conferida → Aprovada").
+  expect(await visit(s, journey.guideUrl!, 'cfg-08e-revisao-2')).toBe(200);
+  const situation = s.page.getByRole('region', { name: 'Situação da guia' });
+  await expect(
+    situation.locator('dt', { hasText: 'Revisão' }).locator('xpath=following-sibling::dd[1]'),
+  ).toHaveText('2');
+  await expect(historyItems(s.page).filter({ hasText: 'Conferida → Aprovada' })).toHaveCount(2);
+  const guideId = journey.guideUrl!.split('/').pop()!;
+  const pdf = await s.context.request.get(`/financeiro/convenios/guias/${guideId}/pdf`);
+  expect(pdf.status()).toBe(200);
   expectNoPageErrors(s);
   await s.context.close();
 });
@@ -894,6 +1072,19 @@ test('gestora: lote → XML validado no XSD → enviado → protocolo → em an�
     await s.page.getByRole('button', { name: 'Gerar e validar XML' }).click();
     await toast(s.page, 'XML gerado e validado');
     await visit(s, journey.batchUrl!);
+    // P4.6: o XML leva a revisão 2 — tipo de volta ao padrão (1), regime 01, acidente 9 e a observação.
+    const href = await s.page.getByRole('link', { name: 'Baixar XML' }).getAttribute('href');
+    const file = await s.context.request.get(href!);
+    expect(file.status()).toBe(200);
+    const xml = (await file.body()).toString('latin1');
+    for (const [tag, value] of [
+      ['tipoConsulta', '1'],
+      ['regimeAtendimento', '01'],
+      ['indicacaoAcidente', '9'],
+      ['observacao', CONSULTA_NOTE],
+    ] as const) {
+      expect(xml, tag).toContain(`${tag}>${value}</`);
+    }
   }
   if (await has('Marcar como enviado')) {
     await s.page.getByRole('button', { name: 'Marcar como enviado' }).click();

@@ -59,8 +59,8 @@ const ISSUED_STATUSES = new Set([
 export function notReviewedError(status: string): GuideIssuanceError {
   return new GuideIssuanceError(
     ISSUED_STATUSES.has(status)
-      ? `esta guia já foi aprovada e emitida (estado: ${status}); atualize a tela`
-      : `só se emite guia conferida (estado: ${status})`,
+      ? `esta guia já foi aprovada e emitida (estado: ${status}). Atualize a página para ver a situação mais recente`
+      : `só se emite guia conferida (estado: ${status}). Atualize a página para ver a situação mais recente`,
   );
 }
 
