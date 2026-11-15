@@ -80,7 +80,7 @@ export function ConversationThread({
         <div className={styles.sla}>
           <Timer aria-hidden="true" size={16} />
           <span>
-            {prazoRelativo(thread.handoff.dueAt).replace('SLA vencido', 'SLA de resposta vencido')}
+            {prazoRelativo(thread.handoff.dueAt, new Date(), { longo: true })}
             {thread.window.lastInboundAt
               ? ` · o paciente aguarda desde ${hora(thread.window.lastInboundAt, timeZone)}`
               : ''}

@@ -119,7 +119,7 @@ export default async function ConversasPage({ searchParams }: { searchParams: Pr
         headline="Atendimento no WhatsApp"
         description={
           pulso.abertos > 0
-            ? `${pulso.abertos} aguardando humano${pulso.vencidos > 0 ? ` · ${pulso.vencidos} SLA vencido` : ''}`
+            ? `${pulso.abertos} aguardando humano${pulso.vencidos > 0 ? ` · ${pulso.vencidos} com prazo de atendimento vencido` : ''}`
             : 'Agente no WhatsApp e fila de atendimento humano'
         }
         search={
@@ -156,11 +156,11 @@ export default async function ConversasPage({ searchParams }: { searchParams: Pr
             <Select
               name="sla"
               defaultValue={overdueOnly ? 'overdue' : ''}
-              aria-label="Filtrar por SLA"
+              aria-label="Filtrar por prazo de atendimento"
               className="max-w-44"
             >
               <option value="">Todos os prazos</option>
-              <option value="overdue">SLA vencido</option>
+              <option value="overdue">Prazo vencido</option>
             </Select>
             <button type="submit" className={buttonVariants({ variant: 'secondary' })}>
               Filtrar

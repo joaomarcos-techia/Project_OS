@@ -126,7 +126,7 @@ function AssumePanel({
       {handoff ? (
         <Alert
           variant={handoff.overdue ? 'danger' : 'warning'}
-          title={handoff.overdue ? 'SLA vencido' : 'Aguardando responsável'}
+          title={handoff.overdue ? 'Prazo de atendimento vencido' : 'Aguardando responsável'}
         >
           {assignedToName
             ? `Atendimento atribuído a ${assignedToName}. Assumir agora transfere formalmente a responsabilidade para você.`

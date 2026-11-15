@@ -56,9 +56,14 @@ export function ConsentCard({
       <h2 className="mb-1 text-balance text-(length:--fs-h4) font-semibold">
         Consentimentos (LGPD)
       </h2>
+      {/* UX-014 — quem decide é o paciente; a equipe só registra a decisão dele.
+          O texto não torna válido um consentimento que não foi pedido: a regra de
+          cada finalidade (e a confirmação exigida para WhatsApp) continua no
+          servidor, igual. */}
       <p className="mb-4 text-pretty text-(length:--fs-xs) text-fg-muted">
-        Decisão vigente por finalidade. Cada alteração cria uma nova versão — o histórico é
-        preservado. Ter o telefone cadastrado não autoriza nem dispara mensagens por WhatsApp.
+        Registre aqui a decisão que o paciente tomou para cada finalidade. Cada registro cria uma
+        nova versão e o histórico fica guardado. Ter o telefone cadastrado não autoriza nem dispara
+        mensagens por WhatsApp.
       </p>
 
       {state.error ? (
@@ -108,14 +113,19 @@ export function ConsentCard({
                     Confirmo que o paciente autorizou esta finalidade pelo WhatsApp.
                   </label>
                 ) : null}
+                {/* "Conceder" dizia que a equipe concedia. A finalidade entra
+                    no nome acessível: seis botões iguais não dizem a qual
+                    linha cada um pertence (WCAG 2.4.6). O texto visível abre o
+                    nome (WCAG 2.5.3). */}
                 <Button
                   type="submit"
                   size="sm"
                   variant={p.granted ? 'ghost' : 'secondary'}
                   className="min-h-(--hit-target)"
+                  aria-label={`${p.granted ? 'Registrar revogação' : 'Registrar consentimento'}: ${p.label}`}
                   disabled={busy}
                 >
-                  {p.granted ? 'Revogar' : 'Conceder'}
+                  {p.granted ? 'Registrar revogação' : 'Registrar consentimento'}
                 </Button>
               </form>
             ) : null}

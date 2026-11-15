@@ -996,7 +996,7 @@ test.describe.serial('revisão humana do repasse (Preview + DEV, papéis reais)'
     expect(await decisions()).toEqual([]);
 
     await scheduling.getByRole('checkbox').check();
-    await scheduling.getByRole('button', { name: 'Conceder' }).click();
+    await scheduling.getByRole('button', { name: 'Registrar consentimento' }).click();
     await expect(scheduling.getByText('Concedido', { exact: true })).toBeVisible();
     expect(await decisions()).toEqual([
       { purpose: 'agendamento_whatsapp', granted: true, version: 1 },
@@ -1007,11 +1007,13 @@ test.describe.serial('revisão humana do repasse (Preview + DEV, papéis reais)'
     const stale = await owner.context().newPage();
     await stale.goto(`/pacientes/${patientId}`);
     const staleBilling = stale.locator('li').filter({ hasText: 'Cobrança por WhatsApp' });
-    await expect(staleBilling.getByRole('button', { name: 'Conceder' })).toBeVisible();
-    await scheduling.getByRole('button', { name: 'Revogar' }).click();
+    await expect(
+      staleBilling.getByRole('button', { name: 'Registrar consentimento' }),
+    ).toBeVisible();
+    await scheduling.getByRole('button', { name: 'Registrar revogação' }).click();
     await expect(scheduling.getByText('Não concedido')).toBeVisible();
     await staleBilling.getByRole('checkbox').check();
-    await staleBilling.getByRole('button', { name: 'Conceder' }).click();
+    await staleBilling.getByRole('button', { name: 'Registrar consentimento' }).click();
     await expect(staleBilling.getByText('Concedido', { exact: true })).toBeVisible();
     expect(await decisions()).toEqual([
       { purpose: 'agendamento_whatsapp', granted: false, version: 2 },

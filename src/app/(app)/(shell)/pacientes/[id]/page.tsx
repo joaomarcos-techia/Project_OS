@@ -174,7 +174,7 @@ export default async function PacienteDetailPage({
       <PageHeader
         crumbs={[{ label: 'Pacientes', href: '/pacientes' }, { label: p.nome }]}
         title={p.nome}
-        description="Visão operacional, histórico clínico e governança do cadastro."
+        description="Cadastro, histórico de atendimentos, consentimentos e pedidos LGPD do paciente."
         leading={
           <span
             aria-hidden="true"
