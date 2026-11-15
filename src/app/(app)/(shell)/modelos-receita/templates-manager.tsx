@@ -128,6 +128,7 @@ export function TemplatesManager({ initial }: { initial: PrescriptionTemplateSum
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
+          aria-label="Buscar modelo de receita"
           placeholder="Buscar por nome ou categoria"
           className="max-w-xs"
         />
