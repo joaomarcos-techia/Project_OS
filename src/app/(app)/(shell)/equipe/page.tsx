@@ -215,12 +215,17 @@ export default async function EquipePage({
         </div>
       </section>
       {/* UX-014 — era um cartão "Super admin 0 · fora do tenant". O acesso especial
-          continua dito, sem jargão: entrar e agir na conta da clínica só acontece
-          em sessão de suporte (impersonação, C15), e as alterações feitas nela
-          vão para a auditoria da clínica (`audit_events`, impersonation-extra). */}
+          continua dito, sem jargão e só com o que o código garante (revisto em 15/11):
+          a sessão de suporte (impersonação, C15) exige TOTP a cada início
+          (startImpersonationAction), expira em 1 hora (IMPERSONATION_TTL_SECONDS) e o
+          início é gravado na auditoria da plataforma na mesma transação
+          (`impersonate_start`). NÃO dizer que "toda alteração" fica na auditoria nem que
+          a sessão é o único acesso: nem toda mutação passa pelo caminho auditado, e o
+          console da plataforma lê conversas da IA fora de sessão (docs/otimização_ui_final.md, 33). */}
       <p className="mb-(--sp-4) text-(length:--fs-xs) text-fg-muted">
-        O suporte do Qoro não faz parte desta equipe. Para entrar na conta da clínica e agir nela,
-        usa uma sessão de suporte, e as alterações feitas nela ficam registradas na auditoria.
+        O suporte do Qoro não faz parte desta equipe. Para entrar na conta da clínica, ele abre uma
+        sessão de suporte, que exige verificação em duas etapas e dura no máximo 1 hora; o início de
+        cada sessão fica registrado na auditoria do Qoro.
       </p>
 
       <FilterBar className="qoro-toolbar">

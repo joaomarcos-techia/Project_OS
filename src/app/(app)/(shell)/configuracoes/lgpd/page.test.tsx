@@ -124,9 +124,10 @@ describe('LgpdOperationsPage', () => {
     expect(listLgpdRequestHistory).not.toHaveBeenCalled();
     expect(screen.getByRole('table')).toBeTruthy();
     expect(screen.getByText('Ana Souza')).toBeTruthy();
-    // UX-014: o prazo é o legal de resposta ao titular (15 dias), não "SLA".
-    expect(screen.getByText('Prazo legal vencido')).toBeTruthy();
+    // UX-014: prazo operacional de resposta ao titular (15 dias), sem "SLA" e sem "legal".
+    expect(screen.getByText('Prazo de resposta vencido')).toBeTruthy();
     expect(screen.queryByText(/SLA/)).toBeNull();
+    expect(screen.queryByText(/prazo legal/i)).toBeNull();
     expect(screen.queryByRole('heading', { name: 'Histórico de tratamento' })).toBeNull();
     expect(
       screen.getByRole('link', { name: 'Abrir solicitação de Ana Souza' }).getAttribute('href'),

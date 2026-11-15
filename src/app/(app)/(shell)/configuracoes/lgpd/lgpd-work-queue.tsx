@@ -59,11 +59,15 @@ function patientName(request: LgpdRequestDTO): string {
   return request.patientName ?? `Paciente ${request.patientId}`;
 }
 
+// UX-014 (revisto em 15/11): o prazo acompanhado é OPERACIONAL — 15 dias contados do pedido
+// (`due_at` = now() + 15 dias, LGPD_RESPONSE_SLA_DAYS), igual para exportação e exclusão —, e
+// se cumpre ao avisar o titular. A LGPD só fixa 15 dias para a declaração de acesso (art. 19,
+// II); chamá-lo de "prazo legal" afirmaria mais do que o sistema mede.
 function RequestStatus({ request }: { request: LgpdRequestDTO }) {
   const status = STATUS_META[request.status];
   return (
     <Badge tone={request.overdue ? 'red' : status.tone} dot>
-      {request.overdue ? 'Prazo legal vencido' : status.label}
+      {request.overdue ? 'Prazo de resposta vencido' : status.label}
     </Badge>
   );
 }
@@ -353,11 +357,11 @@ export function LgpdWorkQueue({
             </span>
             {overdueCount > 0 ? (
               <Badge tone="red" dot>
-                {overdueCount} com prazo legal vencido
+                {overdueCount} com prazo de resposta vencido
               </Badge>
             ) : (
               <Badge tone="green" dot>
-                Prazos legais em dia
+                Prazos de resposta em dia
               </Badge>
             )}
           </TableToolbar>
