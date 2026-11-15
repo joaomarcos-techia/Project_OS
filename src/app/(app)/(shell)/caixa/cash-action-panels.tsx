@@ -16,6 +16,7 @@ import { Select } from '@/components/ui/select';
 import { formatBRL } from '@/lib/format';
 
 import { outstandingBalance } from './caixa-money';
+import { cashItemTitle } from './cash-item-identity';
 
 export interface RefundInput {
   paymentId: string;
@@ -162,7 +163,7 @@ export function ConfirmPaymentPanel({
             size="sm"
             variant="ghost"
             className="ml-auto min-h-(--hit-target) text-danger-700"
-            aria-label={`Cancelar ${item.tipo === 'pagar' ? 'conta' : 'cobrança'} de ${item.tipo === 'pagar' ? item.descricao : (item.pacienteNome ?? 'Sem paciente vinculado')}`}
+            aria-label={`Cancelar ${item.tipo === 'pagar' ? 'conta' : 'cobrança'} de ${cashItemTitle(item)}`}
             onClick={onRequestCancel}
             disabled={pending}
           >

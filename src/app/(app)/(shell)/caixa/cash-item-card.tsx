@@ -21,6 +21,7 @@ import {
 } from './cash-action-panels';
 import { outstandingBalance } from './caixa-money';
 import type { CashPanelMode } from './caixa-types';
+import { cashItemDetail, cashItemTitle } from './cash-item-identity';
 import { PayoutReviewForm } from './payout-review-form';
 
 function FinancialComposition({
@@ -251,10 +252,9 @@ export function CashItemCard({
   const refundablePayments = paymentTransactions.filter(
     (transaction) => transaction.kind === 'payment' && transaction.refundableAmount > 0,
   );
-  const subject =
-    item.tipo === 'pagar' ? item.descricao : (item.pacienteNome ?? 'Sem paciente vinculado');
-  const detail =
-    item.tipo === 'pagar' ? 'Conta a pagar' : (item.snapshotProcedureName ?? item.descricao);
+  // UX-015: sem paciente, o título é a descrição; a ausência vai para o apoio.
+  const subject = cashItemTitle(item);
+  const detail = cashItemDetail(item);
   /*
     O catálogo guarda `cartao_credito`; a tela precisa de "Cartão de crédito".
     Mostrar o código cru vazava o identificador do banco para o operador, que

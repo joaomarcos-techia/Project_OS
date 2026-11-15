@@ -38,6 +38,7 @@ import {
 } from './cash-action-panels';
 import { outstandingBalance } from './caixa-money';
 import { CashItemCard } from './cash-item-card';
+import { cashItemDetail, cashItemTitle } from './cash-item-identity';
 import { LocalPager, paginateLocally } from './local-pagination';
 
 type Tone = NonNullable<Parameters<typeof badgeVariants>[0]>['tone'];
@@ -355,10 +356,9 @@ function ItemRows({
   const refundablePayments = paymentTransactions.filter(
     (transaction) => transaction.kind === 'payment' && transaction.refundableAmount > 0,
   );
-  const subject =
-    item.tipo === 'pagar' ? item.descricao : (item.pacienteNome ?? 'Sem paciente vinculado');
-  const detail =
-    item.tipo === 'pagar' ? 'Conta a pagar' : (item.snapshotProcedureName ?? item.descricao);
+  // UX-015: sem paciente, o título é a descrição; a ausência vai para o apoio.
+  const subject = cashItemTitle(item);
+  const detail = cashItemDetail(item);
   const actionLabel = item.tipo === 'pagar' ? 'Pagar' : 'Receber';
   const panelId = panelMode ? `cash-panel-${item.id}-${panelMode}` : undefined;
 
