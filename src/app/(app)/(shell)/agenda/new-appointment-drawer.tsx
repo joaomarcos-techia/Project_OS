@@ -26,6 +26,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/use-toast';
 
 import { buscarPacientes, criarAtendimento, type CriarAtendimentoInput } from './actions';
+import { QuickPatientForm } from './quick-patient-form';
 import type { AgendaData } from './data';
 import { todayYmd } from './range';
 
@@ -120,6 +121,8 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
   // Erros de campo (validação da tela) separados do erro do servidor (UX-005).
   const [fieldErrors, setFieldErrors] = useState<ErrosNovoAtendimento>({});
   const [formError, setFormError] = useState<string | null>(null);
+  // UX-006: cadastro rápido aberto dentro da gaveta (nada do agendamento se perde).
+  const [cadastrandoPaciente, setCadastrandoPaciente] = useState(false);
   const [salvando, startSalvar] = useTransition();
 
   const semProcedimentos = data.procedures.length === 0;
@@ -147,6 +150,7 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
     setOccurrences('4');
     setFieldErrors({});
     setFormError(null);
+    setCadastrandoPaciente(false);
   }
 
   function submit() {
@@ -281,15 +285,31 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
                   emptyLabel="Nenhum paciente encontrado."
                 />
               </Field>
-              {!paciente ? (
-                <Link
-                  href="/pacientes?novo=1"
-                  className="inline-block self-start text-(length:--fs-xs) text-link underline"
+              {/* UX-006: antes era um link para /pacientes que descartava tudo o que já
+                  estava preenchido aqui. Só aparece para quem pode cadastrar paciente. */}
+              {!paciente && !cadastrandoPaciente && data.canCreatePatient ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="self-start"
+                  onClick={() => setCadastrandoPaciente(true)}
                 >
                   Cadastrar novo paciente
-                </Link>
+                </Button>
               ) : null}
             </div>
+
+            {cadastrandoPaciente ? (
+              <QuickPatientForm
+                onCreated={(novo) => {
+                  setPaciente(novo);
+                  setCadastrandoPaciente(false);
+                  limparErro('paciente');
+                }}
+                onCancel={() => setCadastrandoPaciente(false)}
+              />
+            ) : null}
 
             {semProcedimentos ? (
               <Alert variant="warning">

@@ -116,6 +116,11 @@ export interface AgendaData {
    * ausente = sem permissão.
    */
   canManageProcedures?: boolean;
+  /**
+   * UX-006 — cadastro rápido de paciente dentro do novo agendamento. Espelha a
+   * permissão que o domínio exige (`create:patient`); o servidor confere de novo.
+   */
+  canCreatePatient?: boolean;
   appointments: AgendaAppt[];
   /** UX-003 — séries recorrentes presentes na faixa exibida. */
   recurrenceSeries: RecurrenceSeriesSummary[];
@@ -326,6 +331,7 @@ export async function getAgendaData(query: AgendaQuery = { view: 'day' }): Promi
     canEditAgenda: user.permissions.includes(PERMISSIONS.EDIT_AGENDA),
     canManageAvailability: user.permissions.includes(PERMISSIONS.MANAGE_AVAILABILITY),
     canManageProcedures: user.permissions.includes(PERMISSIONS.MANAGE_PROCEDURES),
+    canCreatePatient: user.permissions.includes(PERMISSIONS.CREATE_PATIENT),
     appointments,
     recurrenceSeries,
     procedures,

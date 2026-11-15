@@ -4,6 +4,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock('./actions', () => ({ buscarPacientes: vi.fn(), criarAtendimento: vi.fn() }));
+const quick = vi.hoisted(() => ({ criarPacienteRapido: vi.fn() }));
+vi.mock('./quick-patient-actions', () => ({ criarPacienteRapido: quick.criarPacienteRapido }));
 
 import { NewAppointmentDrawer, validarNovoAtendimento } from './new-appointment-drawer';
 import type { AgendaData } from './data';
@@ -132,6 +134,49 @@ describe('validarNovoAtendimento', () => {
     expect(
       validarNovoAtendimento({ ...valido, recurring: false, intervalWeeks: '0', occurrences: '1' }),
     ).toEqual({});
+  });
+});
+
+// UX-006: cadastrar paciente sem sair do agendamento nem perder o que já foi preenchido.
+describe('cadastro rápido de paciente no novo atendimento', () => {
+  it('sem permissão de cadastro, não oferece a opção', () => {
+    render(<NewAppointmentDrawer data={baseData} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Novo atendimento' }));
+
+    expect(screen.queryByRole('button', { name: 'Cadastrar novo paciente' })).toBeNull();
+  });
+
+  it('cadastra, seleciona o paciente e mantém o que já estava preenchido', async () => {
+    quick.criarPacienteRapido.mockResolvedValue({ ok: true, id: 'p-9', nome: 'Ana Souza' });
+    render(<NewAppointmentDrawer data={{ ...baseData, canCreatePatient: true }} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Novo atendimento' }));
+
+    fireEvent.change(screen.getByLabelText('Procedimento'), {
+      target: { value: '11111111-1111-4111-8111-111111111111' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Cadastrar novo paciente' }));
+    fireEvent.change(screen.getByLabelText(/^Nome/), { target: { value: 'Ana Souza' } });
+    fireEvent.change(screen.getByLabelText(/^CPF/), { target: { value: '52998224725' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Cadastrar e selecionar' }));
+
+    await waitFor(() =>
+      expect(screen.getByRole('group', { name: 'Paciente' }).textContent).toContain('Ana Souza'),
+    );
+    expect(screen.queryByRole('group', { name: 'Novo paciente' })).toBeNull();
+    expect((screen.getByLabelText('Procedimento') as HTMLSelectElement).value).toBe(
+      '11111111-1111-4111-8111-111111111111',
+    );
+  });
+
+  it('cancelar volta para a busca sem cadastrar ninguém', () => {
+    quick.criarPacienteRapido.mockClear();
+    render(<NewAppointmentDrawer data={{ ...baseData, canCreatePatient: true }} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Novo atendimento' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cadastrar novo paciente' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+
+    expect(screen.queryByRole('group', { name: 'Novo paciente' })).toBeNull();
+    expect(quick.criarPacienteRapido).not.toHaveBeenCalled();
   });
 });
 
