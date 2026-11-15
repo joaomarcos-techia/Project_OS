@@ -9,8 +9,9 @@ import { NewAppointmentDrawer } from './new-appointment-drawer';
 
 /**
  * Ações operacionais da agenda: uma primária e um menu para destinos ocasionais.
- * UX-012: no celular, "Lista de espera" e "Ausências médicas" entram no menu
- * "Mais ações" (eram três linhas de botões a 375 px); no computador, nada muda.
+ * UX-012: abaixo de 1024 px, "Lista de espera" e "Ausências médicas" entram no
+ * menu "Mais ações" (eram três linhas de botões a 375 px e duas a 768 px, medido
+ * em 15/11); no computador, nada muda.
  */
 export function AgendaPageActions({ data }: { data: AgendaData }) {
   const secondary: PageActionLink[] = [
@@ -32,6 +33,7 @@ export function AgendaPageActions({ data }: { data: AgendaData }) {
   return (
     <PageActions
       label="Ações da agenda"
+      dobraAbaixoDe="lg"
       secondary={secondary}
       overflow={[
         {

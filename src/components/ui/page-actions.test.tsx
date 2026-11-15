@@ -58,4 +58,21 @@ describe('PageActions', () => {
     expect(screen.queryByRole('button', { name: 'Mais ações' })).toBeNull();
     expect(screen.getByRole('link', { name: 'Exportar' })).toBeTruthy();
   });
+
+  it('com dobra em lg, as secundárias só voltam a ser botões a partir de 1024 px', async () => {
+    render(
+      <PageActions
+        label="Ações da tela"
+        dobraAbaixoDe="lg"
+        secondary={[{ href: '/a', label: 'Destino A' }]}
+      />,
+    );
+
+    expect(screen.getByRole('link', { name: 'Destino A' }).className).toContain('max-lg:hidden');
+    expect(screen.getByRole('button', { name: 'Mais ações' }).className).toContain('lg:hidden');
+    abrirMenu();
+    expect((await screen.findByRole('menuitem', { name: 'Destino A' })).className).toContain(
+      'lg:hidden',
+    );
+  });
 });

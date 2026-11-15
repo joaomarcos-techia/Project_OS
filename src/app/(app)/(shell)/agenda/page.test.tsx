@@ -99,6 +99,11 @@ describe('AgendaPage', () => {
     expect(screen.getByRole('link', { name: 'Ausências médicas' }).getAttribute('href')).toBe(
       '/agenda/ausencias',
     );
+    // Antes de abrir o menu: com ele aberto, o resto da página fica oculto ao
+    // leitor de tela (menu modal do Radix).
+    expect(screen.getByRole('link', { name: 'Lista de espera' }).className).toContain(
+      'max-lg:hidden',
+    );
 
     const menuTrigger = screen.getByRole('button', { name: 'Mais ações' });
     menuTrigger.focus();
@@ -107,16 +112,17 @@ describe('AgendaPage', () => {
     expect(
       (await screen.findByRole('menuitem', { name: 'Importar histórico' })).getAttribute('href'),
     ).toBe('/agenda/importar');
-    // UX-012: no celular os destinos do cabeçalho moram no mesmo menu (mesmo
-    // href); no computador esses itens somem e os botões ao lado continuam.
+    // UX-012: abaixo de 1024 px os destinos do cabeçalho moram no mesmo menu
+    // (mesmo href); a partir daí esses itens somem e os botões ao lado continuam.
+    // A Agenda dobra em `lg`: a 768 px os quatro controles ainda ocupavam 2 linhas.
     const espera = screen.getByRole('menuitem', { name: 'Lista de espera' });
     expect(espera.getAttribute('href')).toBe('/agenda/lista-espera');
-    expect(espera.className).toContain('md:hidden');
+    expect(espera.className).toContain('lg:hidden');
     expect(screen.getByRole('menuitem', { name: 'Ausências médicas' }).className).toContain(
-      'md:hidden',
+      'lg:hidden',
     );
-    expect(screen.getByRole('menuitem', { name: 'Importar histórico' }).className).not.toContain(
-      'md:hidden',
+    expect(screen.getByRole('menuitem', { name: 'Importar histórico' }).className).not.toMatch(
+      /(?:^|\s)(?:md|lg):hidden/u,
     );
 
     cleanup();
