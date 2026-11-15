@@ -2410,7 +2410,8 @@ svg:is(
   --warning-200: oklch(0.896 0.094 78);
   --warning-500: oklch(0.778 0.13 75);
   --warning-600: oklch(0.7 0.13 66);
-  --warning-700: oklch(0.56 0.11 58);
+  /* 0.54 (era 0.56): sobre --warning-50 dava 4,45:1, abaixo do AA de texto pequeno (ciclo 3, A-01). */
+  --warning-700: oklch(0.54 0.11 58);
 
   /* Danger (hue 27) */
   --danger-50: oklch(0.966 0.016 27);

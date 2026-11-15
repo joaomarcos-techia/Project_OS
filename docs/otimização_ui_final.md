@@ -969,12 +969,27 @@ leitor de tela anuncia "Mais ações".
 
 ### UX-014 — Linguagem interna exposta (P2)
 **Status:** APLICADO (14–15/11) — Conversas, Dashboard, ficha (subtítulo), consentimento LGPD, Equipe
-(`38fcf391`) e fila LGPD de Configurações (`f7f3e5eb`). Equipe: o suporte do Qoro saiu do resumo por
-papel (era "Super admin 0 · fora do tenant") e uma nota diz o acesso especial sem escondê-lo — entrar
-e agir na conta só em sessão de suporte, com as alterações na auditoria da clínica; o billing mexe
-em outras linhas do arquivo. Fila LGPD: "Prazo legal vencido" / "com prazo legal vencido" /
-"Prazos legais em dia" (mesmo prazo de 15 dias, `LGPD_RESPONSE_SLA_DAYS`); testes provam que "SLA"
-saiu da tela. Testes atualizados: `handoff-sla.test.ts` (filtro), `dashboard/page.test.tsx`
+(`38fcf391`) e fila LGPD de Configurações (`f7f3e5eb`), **textos revistos no ciclo 3 (`f3fd8648`)**.
+Equipe: o suporte do Qoro saiu do resumo por papel (era "Super admin 0 · fora do tenant"). A nota do
+ciclo 2 dizia que as alterações feitas na sessão de suporte "ficam registradas na auditoria" — **não
+comprovado para toda alteração** (várias Server Actions não passam pelo caminho auditado
+`idempotentMutation`/`auditedMutation`). Texto atual, só com o que o código garante: "Para entrar na
+conta da clínica, ele abre uma sessão de suporte, que exige verificação em duas etapas e dura no
+máximo 1 hora; o início de cada sessão fica registrado na auditoria do Qoro." Conferido: TOTP a cada
+início (`startImpersonationAction`), validade fixa de 3.600 s (`IMPERSONATION_TTL_SECONDS`, sessão
+só vale com `expires_at > now()`), `impersonate_start` gravado em `super_admin_actions` na mesma
+transação da sessão; `impersonate_stop` ao encerrar pelo botão (o vencimento por tempo não grava
+"stop"). Mutações pelo caminho auditado gravam `audit_events` da clínica com o id do suporte, na
+mesma transação, e a referência extra em `super_admin_actions` é best-effort. A nota não diz que a
+sessão é o único acesso: o console da plataforma lê conversas da IA fora dela (seção 33). Nenhuma
+permissão mudou. Fila LGPD: "Prazo de resposta vencido" / "com prazo de resposta vencido" / "Prazos de
+resposta em dia" (antes "prazo legal"). O sistema acompanha um prazo **operacional** — `due_at =
+now() + 15 dias` na criação (`LGPD_RESPONSE_SLA_DAYS`), o mesmo para exportação e exclusão, cumprido
+quando o titular é avisado (`requester_notified_at`); o próprio domínio o chama de "prazo operacional"
+(`docs/domains/patient-clinical-lgpd.md`). A LGPD fixa 15 dias só para a declaração de acesso (art.
+19, II); para exclusão remete a regulamento (art. 18, § 5º). Chamar o prazo de "legal" afirmaria mais
+do que o sistema mede. Prazo e política não mudaram. Testes provam que "SLA" e "prazo legal" saíram
+da tela. Testes atualizados: `handoff-sla.test.ts` (filtro), `dashboard/page.test.tsx`
 (pendência); e2e `payout-review-preview` e `production-patient-lifecycle-a` (nomes dos botões de
 consentimento, com a finalidade no nome acessível). Commit `80fa15b0`; unitários verdes (o nome
 acessível do botão de consentimento passou a vir de `aria-label`, com teste novo no
@@ -1014,7 +1029,12 @@ diz "Registrar R$ X"; o texto do painel diz "antes de registrar". Helper único
 `registerActionLabel` (cartão, tabela e painel). O texto da política de sinal em Configurações ›
 Pagamentos cita os nomes novos. Regras, permissões e a ação do servidor não mudaram. Testes: Caixa
 5 arquivos / 48 testes (inclui `cash-action-labels.test.ts`, novo) e Pagamentos; ESLint 0; `tsc` 0.
-e2e com os seletores novos em 10 specs (incluindo `production-convenio-payment-a`, avisado ao TISS).
+e2e com os seletores novos em **8** specs (contagem corrigida: não 10; incluindo
+`production-convenio-payment-a`, avisado ao TISS).
+**Ciclo 3 — invariante da chave (`f5388ec9`):** a chave de idempotência pertence à operação (o pedido
+exato) e só o sucesso a encerra; "em processamento" e erro genérico não a descartam mais; sem
+resposta, a tela diz que não conseguiu confirmar o resultado em vez de afirmar falha. Detalhe,
+casos e testes em 25.9.
 **Navegador (15/11 08h02, `caixa-probe.ts`, sem registrar nada):** em 1440 e 375 os botões são
 "Registrar recebimento", "Recebido em dinheiro" e "Registrar pagamento", sem nenhum nome antigo;
 o painel abriu com "Registrar R$ 95,00" e fechou em "Voltar"; um recebível sem paciente apareceu
@@ -1038,15 +1058,26 @@ dinheiro". **Riscos:** médio (financeiro; labels de negócio — registrar a de
 abatido do atendimento) e um registrado à mão na recepção aparecem iguais: só a forma ("Pix") e a
 hora. Quem fecha o caixa não sabe o que conferir na maquininha e o que já veio do provedor.
 
-**O que existe hoje (lido no código, 15/11):** `payment_transactions` tem `kind` (`payment`/`refund`),
-`amount`, `payment_method`, `occurred_at`, `original_payment_id`, `reason` e `created_by`. **Não há
-coluna de origem.** Quem grava pagamento: `financial/actions.ts` (registro manual no Caixa, com
-`created_by`), `financial/internal/credit-allocation.ts` (abate de crédito — o sinal pago pelo link
-—, sem `created_by`), `financial/internal/handlers/appointment-completed.ts` (conclusão do
-atendimento) e `financial/internal/provider-expense.ts` (taxas do provedor, em conta a pagar). Em
-`lancamentos`, `created_via` (`auto`/`manual`/`estorno`) diz como o **lançamento** nasceu, não como
-foi **pago**. Na branch do TISS o lançamento ganha `sourceHiGuideId` e `valorGlosado` (recebível de
-operadora).
+**O que existe hoje (lido no código, 15/11; inventário refeito no ciclo 3 por `git grep
+"insert(paymentTransactions)"` no `2761563c` e no head do TISS `0206d7d1`):** `payment_transactions`
+tem `kind` (`payment`/`refund`), `amount`, `payment_method`, `occurred_at`, `original_payment_id`,
+`reason` e `created_by`. **Não há coluna de origem.** O ciclo 2 listou 4 caminhos; são **6 pontos de
+escrita em 5 módulos**, os mesmos nas duas branches (o TISS não criou caminho novo):
+
+| # | Onde grava | `kind` | `created_by` | Origem comprovável hoje? |
+| --- | --- | --- | --- | --- |
+| 1 | `financial/actions.ts` `confirmPayment` (Caixa: registrar recebimento/pagamento) | `payment` | pessoa | Só no evento: o `LANCAMENTO_PAID` do outbox leva `source: 'manual'`; o livro não guarda |
+| 2 | `financial/actions.ts` `createEstorno` (Caixa: reembolsar) | `refund` | pessoa | Sim: `original_payment_id` + `reason` mostram que é estorno; quem fez está em `created_by` |
+| 3 | `internal/credit-allocation.ts` (sinal pago pelo link, abatido do lançamento) | `payment` | nulo | Só no evento: `source: 'gateway'` no outbox |
+| 4 | `internal/handlers/appointment-completed.ts` (baixa na conclusão do atendimento, usando créditos) | `payment` | nulo (worker) | Não |
+| 5 | `internal/patient-credit-adjustment.ts` (perda de crédito já alocado vira estorno) | `refund` | nulo | Parcial: `reason` + `original_payment_id` |
+| 6 | `internal/provider-expense.ts` (taxa do provedor, 2 pontos) | `payment` em conta a pagar | nulo | No **lançamento** (`source_patient_charge_id`/`source_event_id`), não na transação |
+
+Em `lancamentos`, `created_via` (`auto`/`manual`/`estorno`) diz como o **lançamento** nasceu, não
+como foi **pago**. O outbox não serve de fonte para a tela: é fila de eventos, com retenção própria, e
+cruzar por `transactionId` no payload seria frágil. Ele mostra, porém, que cada caminho **sabe** a
+própria origem na hora de gravar. Na branch do TISS o lançamento ganha `sourceHiGuideId` e
+`valorGlosado` (recebível de operadora).
 
 **Por que não dá para deduzir.** `created_by` nulo não prova "link do Asaas" (a conclusão do
 atendimento e as taxas também gravam sem usuário); a forma de pagamento não diz quem registrou.
@@ -1076,12 +1107,26 @@ recebível de convênio é identificado por `sourceHiGuideId` (TISS). Assinatura
 **Permissões.** Quem vê o Caixa (`view:financial` / `operate:caixa`) vê a origem; o nome de quem
 registrou segue a regra de nomes já usada na Atividade recente.
 
-**Impacto.** Migration aditiva (coluna nula + CHECK de valores) e escrita em 4–5 caminhos do domínio
-financeiro; DTO `PaymentTransactionSummary` ganha `source`; UI só lê. Nenhuma regra de cobrança muda.
+**Ausência de informação (ciclo 3).** Na linha da fila, histórico nulo fica **sem rótulo** (não
+polui a fila nem sugere origem). No detalhe da composição do atendimento aparece "Origem não
+registrada", nunca um palpite. Regras: não deduzir de `created_by` nulo (cobre os caminhos 3, 4, 5 e
+6); taxa do provedor nunca vira "registro no Caixa"; nome de operadora só do dado do TISS; histórico
+nunca é classificado em migração.
+
+**Impacto.** Migration **aditiva** (coluna `source text NULL` + CHECK dos valores fechados, sem
+backfill), com número combinado com #53 e #55 (o TISS já ocupa até 0161 e o #53 tem a 0136); não
+aplicar em DEV nem em Production sem autorização. Escrita nos 6 pontos acima; DTO
+`PaymentTransactionSummary` ganha `source`; UI só lê. Nenhuma regra de cobrança muda. **TISS e
+Payments:** o TISS define quando grava `tiss_remittance` (hoje o pagamento da operadora não passa por
+estes 6 pontos); Payments (Asaas da clínica) não muda, só o caminho 3 passa a gravar
+`deposit_credit`. **Billing SaaS (AbacatePay, #53):** sem impacto — a assinatura do Qoro não usa
+`payment_transactions`. **Permissões:** as do Caixa (`view:financial`/`operate:caixa`), sem
+permissão nova.
 
 **Testes.** Unitários por caminho (cada um grava o `source` certo); de banco (CHECK aceita só os
-valores fechados; linhas antigas nulas); de tela (rótulo por estado; nulo sem rótulo); e2e de
-Preview (sinal pago no sandbox aparece como "Sinal pago pelo link").
+valores fechados; linhas antigas nulas); de tela (rótulo por estado; nulo sem rótulo na fila e
+"Origem não registrada" no detalhe; nenhum rótulo derivado de `created_by`); e2e de Preview (sinal
+pago no sandbox aparece como "Sinal pago pelo link").
 
 **Responsáveis.** Contrato e escrita: agente/fundador do domínio financeiro (Payments); valor
 `tiss_remittance`: agente TISS; AbacatePay só se o contrato compartilhado mudar (não muda). UI:
@@ -1576,17 +1621,153 @@ commit desde então toca o consentimento, os repasses ou os planos).
 | Parcial / "Registrar o restante" | unitário `cash-action-labels.test.ts` (rótulo por estado) e domínio `payment-ledger.test.ts` ("acumula pagamentos parciais sem exceder o lançamento") | PASS (unitário); e2e só no `production-financial-lifecycle-a` (BLOQUEADO) |
 | Registro de pagamento (conta a pagar) | `caixa-view.test.tsx` ("Registrar pagamento" → "Registrar R$ 1.200,00") | PASS (componente) |
 | Dinheiro | `caixa-view.test.tsx` (painel só com dinheiro e saldo inteiro; "Restante em dinheiro" com sinal pago) e domínio ("dinheiro sempre vale, mas outro meio fora do combinado segue recusado") | PASS |
-| Tentativa duplicada | Preview teste 3 (mesma chave: "Pagamento em processamento — aguarde…"); cliente reusa a chave na repetição depois de queda de rede (`b3ce5501`) | PASS |
+| Tentativa duplicada | Preview teste 3 (mesma chave: "Pagamento em processamento — aguarde…"); cliente reusa a chave na repetição depois de queda de rede (`b3ce5501`). **Ciclo 3:** a resposta "em processamento" não encerra mais a operação (`f5388ec9`), e o duplo clique grava uma vez só (teste de componente) | PASS |
 | Sem permissão | `caixa-view.test.tsx` (sem `operate:caixa` não há botão) e Preview teste 3 (atendente e médico negados) | PASS |
 | Outra clínica | domínio ("falha fechado se o atendimento referenciado não pertence à clínica") e Preview teste 3 ("Repasse não encontrado nesta clínica") | PASS |
 | Registro já concluído | `caixa-view.test.tsx` (botões só em pendente/parcial) e domínio (pagamento não excede o lançamento) | PASS |
 | Cancelamento no painel | `caixa-view.test.tsx` ("Cancelar cobrança" dentro do painel) | PASS (componente) |
-| Falha de rede | **Defeito real encontrado e corrigido (commit `b3ce5501`):** antes, `run` não tinha `try/catch` e cada clique mandava chave de idempotência nova — queda de rede depois da gravação derrubava a tela na fronteira de erro e repetir um recebimento **parcial** podia gravar outro pagamento (o integral já era barrado: o domínio não paga além do lançamento). Agora a chave vale por tentativa do mesmo pedido: na exceção o painel avisa "A conexão caiu antes da confirmação. Tente de novo: se o registro já tiver sido feito, ele não será duplicado." e a repetição reusa a chave (o `idempotentMutation` devolve o resultado gravado); resposta definitiva do servidor encerra a tentativa. Vale também para cancelar e estornar. Nenhum código de servidor mudou | PASS (componente: `caixa-view.test.tsx` "queda de rede…" e "resposta definitiva…"); e2e de rede caída não existe |
+| Falha de rede | **Defeito real encontrado e corrigido (commit `b3ce5501`):** antes, `run` não tinha `try/catch` e cada clique mandava chave de idempotência nova — queda de rede depois da gravação derrubava a tela na fronteira de erro e repetir um recebimento **parcial** podia gravar outro pagamento (o integral já era barrado: o domínio não paga além do lançamento). Agora a chave vale por tentativa do mesmo pedido: na exceção o painel avisa "A conexão caiu antes da confirmação. Tente de novo: se o registro já tiver sido feito, ele não será duplicado." e a repetição reusa a chave (o `idempotentMutation` devolve o resultado gravado); resposta definitiva do servidor encerra a tentativa. Vale também para cancelar e estornar. Nenhum código de servidor mudou | PASS (componente: `caixa-view.test.tsx` "queda de rede…" e "resposta definitiva…"); e2e de rede caída não existe. **Ciclo 3: duas lacunas restantes fechadas em `f5388ec9`** (25.9) — os dois testes acima foram substituídos por 12 |
 
 Domínio financeiro inteiro: `src/contexts/financial` **34 arquivos, 262 testes, 0 falha** (15/11).
 Asserções negativas revisadas: as duas com nome antigo (`caixa-view.test.tsx`,
 `consent-card.test.tsx`) são guardas "o nome antigo não pode voltar", sempre ao lado da asserção
 positiva com o nome novo — nenhuma passa sozinha.
+
+### 25.9 Ciclo 3 — chave por operação, regressão no SHA funcional e specs bloqueados (15/11, 14h30–16h)
+
+**SHAs (7.1).** Commits do ciclo 2 por área (`git show --name-only`): runtime — `5f6967c2`,
+`b3ce5501`, `38fcf391`, `f7f3e5eb`, `26e55130`, `156178a0`; só teste — `506649bc`; só documento —
+`23d0c648`, `eb13a535`, `a15891e9`, `54654bcf`, `800c6f96`. `git diff 156178a0 800c6f96 -- . ':!docs'`
+é vazio: antes deste ciclo, o último commit que mudava o produto era o **`156178a0`** (o `a15891e9`
+é o mesmo código com documento). Neste ciclo, runtime: `f5388ec9` (Caixa), `f3fd8648` (textos de
+Equipe e LGPD) e `2761563c` (sessão morta → `/login`). **Último SHA funcional publicado: `2761563c`.**
+
+**Previews (7.2)** — API do GitHub (deployments e statuses), ambiente "Preview", estado "success":
+
+| SHA | Deployment | URL | Build |
+| --- | --- | --- | --- |
+| `800c6f96` (= código do `156178a0`) | 7806985571 | `project-1g6o4o1n1-…` | success |
+| `f3fd8648` | 7807590443 | `project-gzxd7h7hj-…` | 18:02:34Z → 18:05:07Z |
+| `2761563c` | 7807857708 | `project-qi08bl1tp-…` | 18:22:03Z → 18:24:47Z |
+
+Prova assinada sem login (`.tmp/ui-audit/runtime-proof.ts`, `requireSandboxAsaas`): **PASS** no
+`f3fd8648` e no `2761563c` — `environment=preview`, Auth e banco no projeto DEV, Asaas sandbox
+configurado. Logs de build e de runtime da Vercel **não** foram lidos (sem CLI nem token aqui).
+
+**Invariante da chave do Caixa (P0.3).** A revisão do `b3ce5501` contra o servidor achou lacunas
+reais:
+1. `IdempotencyInFlightError` (a mesma chave ainda executando) chega ao cliente como `{ ok: false,
+   code: 'retry' }` ("Pagamento em processamento…"). O cliente descartava a chave em qualquer `ok:
+   false`. Sequência: queda de rede → repetição recebe "em processamento" → terceira tentativa com
+   chave **nova** → se a primeira terminou, segundo pagamento parcial.
+2. O erro genérico (`code: 'error'`, "Não foi possível concluir a ação…") também descartava a chave
+   e afirmava falha. Mas ele pode seguir um COMMIT cuja confirmação se perdeu (conexão caída no
+   commit).
+3. A chave vivia num `ref` único. Registrar outro lançamento no meio, ou voltar a um valor já
+   tentado, perdia a chave do registro sem confirmação.
+
+**Correção (`f5388ec9`, só cliente, servidor intocado):** mapa `pedido → chave` na memória da página
+(pedido = JSON exato de lançamento, valor, forma e comprovante); só o **sucesso** encerra a operação.
+A recusa mantém a chave: a transação desfaz a reserva, e repetir só refaz a checagem. Sem resposta, ou
+com `error`, a tela diz: "Não conseguimos confirmar o resultado deste registro. Você pode tentar de
+novo com os mesmos dados: se ele já tiver sido feito, não será duplicado." A promessa vale só para os
+mesmos dados, que é o que a chave garante. `retry` mostra a mensagem do servidor e mantém a chave.
+Vale para registrar, cancelar e estornar.
+
+| Caso pedido | Teste (`caixa-view.test.tsx`, bloco "idempotência do registro") |
+| --- | --- |
+| Registro confirmado / parcial | "sucesso encerra a operação…" (R$ 50 de saldo parcial, duas vezes = dois registros legítimos) |
+| Resposta perdida depois de gravar | "resposta perdida depois de o servidor gravar…": servidor falso com a semântica do `idempotentMutation` grava 1 vez; a repetição devolve o guardado; **1 registro** |
+| Timeout antes da resposta | "timeout antes de qualquer resposta…" (`TimeoutError`) |
+| Repetição com a mesma chave | os três acima + "em processamento…" (3 chamadas, 1 chave) |
+| Falha definitiva do servidor | "recusa definitiva mostra o motivo…" |
+| Erro após envio | "erro inesperado depois do envio não vira 'falhou'…" |
+| Nova operação legítima | "sucesso encerra a operação…" |
+| Duplo clique / botão desabilitado | "duplo clique grava uma vez…" |
+| Cancelamento do painel | "fechar o painel e voltar ao mesmo registro…" |
+| Troca de lançamento | "registrar outro lançamento no meio…" |
+| Mudança de valor | "mudar o valor é outra operação…" |
+| Clínica diferente | "outra clínica é outra página…" (no servidor: Preview teste 3, mesma chave em outra clínica não grava) |
+| Cancelar cobrança | "cancelar cobrança segue a mesma regra…" |
+
+Contra a lógica anterior (`b3ce5501`, com só a mensagem trocada), **5 dos 12 falham**: em
+processamento, erro inesperado, outro lançamento no meio e voltar ao valor anterior, mais a recusa,
+que mudou de política (`evidence/2026-11-15/caixa/idempotencia-logica-antiga.log`). Os 12 passam
+isolados e em três repetições do bloco. Unitários do ciclo: Caixa 5 arquivos / **60**; domínio
+financeiro 34 / **262** (322, 0 falha, `caixa/vitest-caixa-financeiro-ciclo3.log`); `tsc` 0; ESLint 0.
+
+**O que a tela não resolve sozinha (lacuna de domínio, registrada e não implementada):**
+- Recarregar perde o mapa, de propósito: nada vai para o navegador. A tela recarregada mostra o que
+  o servidor gravou ("Registrar o restante" no parcial). Resta uma corrida: a 1ª requisição ainda
+  rodando no servidor quando a página recarrega → nova tentativa com chave nova pode duplicar um
+  parcial. Fechar isso exige contrato de servidor — por exemplo, `valorPagoEsperado` em
+  `confirmPayment`, recusando se o saldo mudou. Proposta para o domínio financeiro.
+- Sessão expirada: `requireUser` recusa antes da transação (`unauthenticated`), nada gravado. Sem
+  cookie, o middleware responde 307 ao POST da action (seção 33). O cliente lança e o Caixa mostra
+  "não conseguimos confirmar", sem fronteira de erro. Repetir é seguro, mas só funciona depois de
+  entrar de novo.
+- Trocar forma ou comprovante depois de uma falha sem resposta é **outra** operação (chave nova). Por
+  isso a mensagem pede os mesmos dados.
+- Validade da chave no servidor: 7 dias (`MUTATION_IDEM_TTL_SECONDS`), bem além da vida da página.
+
+**Regressão e2e (P0.4–P0.5).** Antes de cada rodada foram conferidos:
+- SHA e deployment (tabela acima) e prova assinada;
+- a fixture própria do spec (prefixo por `runId`, limpeza com conferência de resíduo);
+- 1 Chromium e 1 worker; memória livre de 0,56 a 0,82 GB;
+- a janela combinada com o TISS: sem jornada e sem login dele até 15 min depois do início.
+
+Timeouts **não** foram alterados.
+
+| Rodada | SHA / deployment | Executados | PASS | FAIL | Não rodaram | Causa |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 (15h06–15h15) | `f3fd8648` / `gzxd7h7hj` | 9 | 8 | 1 (teste 9) | 4 (10–13, serial) | Latência: "Salvar permissões (2)" respondeu `{"ok":true}` em **11,46 s** (11,43 s esperando o servidor); o teste espera 10 s pelo fechamento do diálogo |
+| 2 (15h25–15h37) | `2761563c` / `qi08bl1tp` | **13** | **13** | 0 | 0 | — (11,4 min; teste 9 em 27,7 s, teste 7 em 46,3 s; resíduo 0, limpeza ok, `runId` `bd69344e`) |
+
+**`payout-review-preview`: 13/13 PASS no último SHA funcional `2761563c`** (`e2e/payout-review-2761563c.log`
+e `.json`). Esse resultado vale para o `2761563c` e não se estende a SHAs anteriores nem posteriores.
+O 13/13 do `23d0c648` é de outro SHA.
+
+**Teste 7 (consentimento):** PASS na rodada 1 do `f3fd8648`. A falha do ciclo 2 (`a15891e9`) tinha
+a mesma assinatura do teste 9 de hoje: ação ainda em andamento aos 10 s (botões desabilitados), sem
+mensagem de erro. Não há trace dela, porque a rodada seguinte limpou `test-results`; a de hoje tem
+(`e2e/traces-f3fd8648/`). **Classificação do teste 9:** timeout do teste por latência do servidor no
+Preview. Não é regressão: a ação respondeu ok e o diálogo fecharia em seguida. Não é falha de
+autenticação. Causa da latência **indeterminada** (função fria, fila no pooler ou espera de lock):
+a 1ª gravação do mesmo teste levou 2,0 s; a 2ª, 11,4 s.
+
+**Specs `production-*` (P0.6) — BLOQUEADOS POR POLÍTICA.** Não executados. `playwright --list` no
+`2761563c`: **6 arquivos, 9 testes**, todos compilam (`e2e/list-production-2761563c.log`). Travas de
+cada spec, intocadas: `DATABASE_URL_PROD`, uma variável de autorização própria (`E2E_PRODUCTION_*`)
+e contas `E2E_TENANT_*`. Nenhum foi alterado neste ciclo. Cobertura alternativa existente:
+
+| Spec | Invariante | Coberto em DEV/Preview/unitário por | Lacuna |
+| --- | --- | --- | --- |
+| `production-financial-lifecycle-a` | recebimento integral, parcial, restante, pagamento | `payout-review` 1 (R$ 150 + reembolso R$ 50); domínio `payment-ledger` (parcial acumulado); Caixa (12 de idempotência) | parcial → restante ponta a ponta |
+| `production-financial-concurrency-a` | dois papéis registrando ao mesmo tempo | domínio (`FOR UPDATE` + transição pago→pago recusada); `payout-review` 3 (mesma chave) | concorrência real entre sessões |
+| `production-collection-case-a` | cobrança do agente em revisão humana | domínio `dunning-*` | tela ponta a ponta |
+| `production-convenio-payment-a` | recebível de convênio, coparticipação, glosa | suíte e jornada do TISS no Preview dele (dono do domínio) | integração UI × TISS só depois do rebase |
+| `production-authorized-mutations` | mutação autorizada e negada | `payout-review` 3 (atendente e médico negados), 5 (sessão encerrada), 13 (action direta negada) | — |
+| `production-role-journeys-a` (4) | jornadas por papel | `payout-review` (dono, financeiro, atendente, médico, outra clínica) | médico atende e assina (clínico) |
+
+**`mutation-flows` (P0.7) — BLOCKED: LOCAL ENVIRONMENT, mantido.** Medição das 14h32, sem `next dev`
+de pé:
+- memória: 0,72 GB livres de 7,69 GB; CPU 39%; disco C: 8,8 GB livres;
+- processos: node com 50 MB e chrome com 445 MB (13 processos, do app e do TISS);
+- banco: nenhum erro observado (a fixture foi criada e removida nas duas tentativas do ciclo 2);
+- concorrência: o TISS com 1 Chromium e sem `next dev`.
+
+O que esse estado ainda não comporta é o `next dev` com Turbopack compilando Login, Dashboard, Agenda e
+Caixa. Na tentativa das 13h: 0,01 GB livres e 3,9 GB em compressão de memória; Dashboard em 74 s,
+Agenda em 246 s, Caixa em 259 s; `/login` sem resposta em 180 s.
+
+Alternativas avaliadas:
+1. Mais RAM local: fora do alcance.
+2. Janela exclusiva: não basta, porque o limite é a RAM, não a concorrência.
+3. Build reaproveitado (`next build` + `next start`): o build local já se mostrou inviável pela RAM.
+4. Subconjunto: o spec é uma jornada só.
+5. Preview: o spec só aceita localhost (`assertDevContext`), e mexer na trava é proibido.
+
+Não rodei de novo, porque as condições não mudaram.
 
 ## 26. Riscos e decisões
 
@@ -1719,6 +1900,8 @@ Fatos já levantados:
 | Resultados (15/11) | O TISS aplicou a terminologia (helper `convenios/_lib/guide-label.ts`) e títulos nas 13 páginas de `convenios/**`; checou o P-10 no Preview `12ab24f6` (10/10 íntegro, ver 19.2). Arquivos em comum desta frente com a tip `4723ccad`: 4 (`new-appointment-drawer.tsx`, `agenda/data.ts`, `pacientes/[id]/page.tsx`, `caixa/cash-item-card.tsx` — só `subject`/`detail`) |
 | Caixa — handoff (15/11, `23d0c648`) | Arquivos: `caixa/cash-action-panels.tsx` (helper `registerActionLabel`, `cashActionLabel`, painel), `cash-item-card.tsx` (rótulo, atalho `ghost` + ícone, import de `Banknote`), `cash-queue.tsx`, `caixa-view.test.tsx` (só nomes), `cash-action-labels.test.ts` (novo), `configuracoes/pagamentos/deposit-policy-form.tsx` (+teste) e 8 specs e2e. Antes → depois: "Confirmar pagamento" → "Registrar recebimento"; "Receber saldo" → "Registrar o restante"; "Pagar" → "Registrar pagamento"; "Pagou em dinheiro" → "Recebido em dinheiro"; "Pagou o restante em dinheiro" → "Restante em dinheiro"; botão final `/Receber R\$/` → `/Registrar R\$/`. Comportamento: mesma `confirmPaymentAction`, mesmos painéis e gates (o TISS conferiu: opção "Convênio" intacta). Resolução combinada: em `cash-item-card.tsx` e `caixa-view.tsx` fica o "hoje" da UI (`ClinicTimeZoneProvider`); preservar do TISS `financeiro/page.tsx` (`valorGlosado`), a fixture de `caixa/page.test.tsx` e o `autoCapitalize` de `fornecedores-view.tsx` |
 | Specs `production-*` | Os 6 que mudaram de seletor exigem `DATABASE_URL_PROD` e travas de produção: **BLOQUEADOS** para os dois agentes até autorização expressa do fundador (Production NO-GO) |
+| **Simulação de merge (ciclo 3, 15/11 15h)** | `git merge-tree --write-tree` entre a UI (`800c6f96`) e o head do TISS (`0206d7d1`), só objetos, nenhum worktree tocado: **8 arquivos em conflito**, não os 5 anteriores (eles eram só os desta frente; a base v5 também conflita). Resolução proposta, enviada ao TISS (ele resolve no rebase; nada foi mexido na branch dele): **(1)** `caixa-view.tsx` e `cash-item-card.tsx` — "hoje" da clínica (`todayYmd(timeZone)`) contra o `todayYmdIn()` do R51: fica o da UI, que já evita o #418 com o fuso da clínica. Sai o `todayYmd()` local do cartão e, se ficarem sem uso, os imports `QORO_DATE_TIME_ZONE`/`todayYmdIn`. **(2)** `financeiro/page.tsx` — o **único conflito com regra financeira**: o saldo parcial fica com a fórmula do TISS, `l.valor - l.valorPago - l.valorGlosado`; da UI só o visual do Badge (`tone="amber" dot`). **(3)** `agenda/lista-espera/waitlist-manager.tsx`, `consultorio/format.ts` e `consultorio/waiting-card.tsx` — o mesmo tema de fuso. Em `waiting-card`, os dois ficam: `timeZone` (UI) e `now: number \| null` (R51 do relógio). **(4)** `agenda/new-appointment-drawer.tsx` — UX-005/006 da UI (`fieldErrors`, `formError`, cadastro rápido) junto com o faturamento de convênio do TISS (`BillingValue`); o `setError` dele vira `setFormError`/`fieldErrors`. **(5)** `drizzle/migrations/meta/_journal.json` — a 0136 do #53 (veio pela base v5) contra as 0143+ do TISS: conflito #53 × #55, não da UI |
+| Achados do TISS no ciclo 3 | (a) `requireUser()` no render vira "Algo deu errado" com a sessão morta → corrigido nesta frente em 17 páginas (`2761563c`, seção 33); (b) o middleware responde 307 ao POST de server action sem cookie → registrado na seção 33, sem correção (exige revisão de segurança); (c) contraste do Badge âmbar 4,44:1 → no shell v5 o par é `#7a4a00`/`#fff3d6` = 6,78:1 (escuro 9,17:1), e o `:root` base segue 4,45:1 (seção 33) |
 
 ### 31.I Intervenções UX-TISS (plano, 15/11)
 
@@ -1784,3 +1967,29 @@ os imports e as duas chamadas com limite de trial ficaram idênticos aos do bill
 **intacto** nesta branch — ele guarda um comentário com o nome antigo ("Pagou em dinheiro"); atualizar só o
 comentário na integração, por quem integrar, sem tocar no contrato. Contratos do billing (preços, cotas,
 checkout, entitlements, webhooks) não foram alterados.
+
+**Ciclo 3 (15/11) — ordem de integração e o que a UI deixou para o #53.**
+- A branch da UI tem 77 commits fora da `main`: 35 desta frente (sobre `e47ec2f0`) e 42 da base v5
+  (`ui/refactor-qoro-20261108`). Entre os da base estão **3 commits do #53**: `6cccfc01`, `35d09d4b`
+  (cotas do trial, **migration `0136_trial_resource_limits`**) e `311e5dd0`, que tocam 117 arquivos.
+  Os três são ancestrais do head atual do #53. Comparada com a `main`, a UI divide 124 arquivos com o
+  #53, sendo 82 fora de `docs/`. Por isso **a UI não pode entrar antes do #53**: levaria junto
+  billing e migration ainda não aprovados. Ordem segura: #53 → `main`; a UI rebaseia (os 3 commits
+  saem por já estarem na `main`); depois o #55 rebaseia sobre a UI.
+- `configuracoes/assinatura/page.tsx` ficou com `requireUser()` no render (o #53 muda a página).
+  Quem integrar troca por `requirePageUser()` (`src/lib/auth/page-guard.ts`); o contrato estático
+  em `page-guard.test.ts` mantém a exceção nomeada até lá.
+
+## 33. Achados de plataforma, segurança e acessibilidade (ciclo 3, 15/11)
+
+Fora do escopo desta frente, salvo onde está "corrigido". Nada aqui mexe em permissão, RLS,
+middleware ou regra financeira.
+
+| ID | Achado | Evidência | Risco | O que esta frente fez | Dono |
+| --- | --- | --- | --- | --- | --- |
+| S-01 | `/admin/conversas-ia` decifra e mostra o conteúdo das conversas da IA de qualquer clínica **fora de sessão de suporte**, e a leitura **não grava auditoria**: `conversations.repo.ts` `getDetail` → `decryptForTenant`; a página só chama `guardAdminAccess()` | código lido (15/11) | Privacidade/LGPD: acesso privilegiado a conteúdo que pode ter dado de saúde, sem trilha. Contraste: o prontuário grava `clinical.prontuario.viewed` na mesma transação | Nenhuma correção. A nota de Equipe não diz que a sessão de suporte é o único acesso | fundador / plataforma |
+| S-02 | `src/middleware.ts` responde 307 → `/login` a qualquer requisição sem cookie de sessão, inclusive o POST de Server Action. O cliente do Next lança e a fronteira de erro mostra "Algo deu errado…" (achado do TISS no Preview) | relato do TISS | Qualquer formulário depois de sair em outra aba vira erro aparente e vai para o Sentry | Caixa: a exceção cai no `catch` do `run` (mensagem de resultado desconhecido; repetir é seguro). Proposta, não aplicada: o middleware não redirecionar requisições com `next-action`, já que as actions exigem sessão por conta própria. **Exige revisão de segurança** e vale para todas as actions | fundador / plataforma |
+| S-03 | 17 páginas do shell liam o usuário com `requireUser()` no render. Sessão morta + Server Action dava "Algo deu errado" (OBS-001 reaberto) | mecanismo já documentado no Dashboard e no `page-guard`; o TISS reproduziu em Convênios | Erro 500 e Sentry numa revogação normal | **Corrigido (`2761563c`)**: `requirePageUser()` (mesmo `authenticate()`, redireciona) e contrato estático em `page-guard.test.ts`. `configuracoes/assinatura` fica para o #53 (seção 32) | UI (feito) |
+| A-01 | Badge e Alert âmbar: `--warning-700` sobre `--warning-50` no `:root` dava **4,45:1**, abaixo do AA de texto pequeno (4,5:1). O axe do TISS mediu 4,44:1 | cálculo a partir do `globals.css` | AA fora do shell v5 (console da plataforma, telas sem `data-qoro-tokens='app-v5'`) | **Corrigido**: `:root --warning-700` de `oklch(0.56 …)` para `oklch(0.54 0.11 58)` = 4,86:1 sobre o âmbar e 5,26:1 sobre o branco. No shell v5 o par já passava (6,78:1 claro, 9,17:1 escuro). Contrato em `src/app/contrast-tokens.test.ts` | UI (feito) |
+| P-15 | Latência de Server Action no Preview: "Salvar permissões (2)" levou 11,4 s na 2ª gravação (a 1ª, 2,0 s); o ciclo 2 teve a mesma assinatura no consentimento | trace `e2e/traces-f3fd8648/` | Testes de Preview reprovam por tempo sem regressão; a pessoa espera mais de 10 s sem retorno | Registrado; timeout **não** alterado. Precisa dos logs da Vercel/Supabase, não lidos aqui | plataforma |
+| P-13 | O `.env.local` do checkout principal tem credenciais Asaas de Production. Este worktree usa sandbox | ciclo 2 | Teste acidental com chave live | Mantido documentado. O bypass do Preview segue lido de lá, só no processo e sem imprimir. Forma autorizada proposta: o fundador grava `VERCEL_AUTOMATION_BYPASS_SECRET` no `.env.local` deste worktree (fora do Git), e as sondas deixam de ler o checkout principal | fundador |
