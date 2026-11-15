@@ -13,8 +13,10 @@
 ## ESTADO ATUAL DA EXECUÇÃO
 
 - **Ciclo 3 (15/11, 14h30–16h) — resumo para retomar:**
-  - **Código:** último SHA funcional `2761563c` (sessão morta → `/login`), seguido do `05e4378c`
-    (token âmbar e documento).
+  - **Código:** última mudança de lógica no `2761563c` (sessão morta → `/login`). Depois, só visual
+    e texto: `05e4378c` (token âmbar) e `5462c209` (alvo do "Criar conta" e descrição de
+    Documentos). O `464aa0ba` é só documento (inventário de segurança). HEAD publicado: `5462c209`
+    + documento.
   - **PR:** draft #56, só para a CI oficial. **Não fazer merge:** ele leva 3 commits do #53 (seção 32).
   - **e2e:** `payout-review-preview` **13/13 no `2761563c`** (25.9). No `f3fd8648`: 8 PASS, 1 FAIL por
     latência do Preview, 4 não executados.
@@ -1864,6 +1866,7 @@ prontuário" contradizia o botão e ocupava 2 das 4 linhas a 320 px; sem o botã
 | 15/11/2026 15h10–15h25 | OBS-001 (P2.3) | `requirePageUser()` em 17 páginas do shell; contrato estático; `assinatura` fica para o #53 | page-guard e páginas 47/47; `tsc` 0; ESLint 0 | `2761563c`; 33 (S-03) |
 | 15/11/2026 15h30–15h38 | A-01 (P1.8), documento | Token âmbar base 4,45 → 4,86:1; seções 25.9, 31.R, 32 e 33 | contraste 4/4 | `05e4378c` |
 | 15/11/2026 15h39 | P1.1 | PR draft #56 para a CI oficial (base `main`, sem merge); automações conferidas antes: CI com valores falsos, ADR (aviso), Vercel Preview, Snyk, Semgrep; nenhuma com efeito em Production | CI em andamento ao abrir | PR #56 |
+| 15/11/2026 15h45–15h56 | Sonda do ciclo 3, P1.7, inventário | Sonda de 1 login no `05e4378c` (25.10): Dashboard e Financeiro validados no Preview; "Criar conta" com 23 px → 24 px; descrição de Documentos coerente com o botão; inventário de segurança regenerado (P-15); A-02 registrado | Documentos e componentes compartilhados 74/74; contrato de alvos 4/4; `tsc` 0; ESLint 0; `inventory.ts --check` OK | `464aa0ba`, `5462c209` |
 
 ## 28. Pendências e bloqueios
 
@@ -2047,4 +2050,5 @@ middleware ou regra financeira.
 | S-03 | 17 páginas do shell liam o usuário com `requireUser()` no render. Sessão morta + Server Action dava "Algo deu errado" (OBS-001 reaberto) | mecanismo já documentado no Dashboard e no `page-guard`; o TISS reproduziu em Convênios | Erro 500 e Sentry numa revogação normal | **Corrigido (`2761563c`)**: `requirePageUser()` (mesmo `authenticate()`, redireciona) e contrato estático em `page-guard.test.ts`. `configuracoes/assinatura` fica para o #53 (seção 32) | UI (feito) |
 | A-01 | Badge e Alert âmbar: `--warning-700` sobre `--warning-50` no `:root` dava **4,45:1**, abaixo do AA de texto pequeno (4,5:1). O axe do TISS mediu 4,44:1 | cálculo a partir do `globals.css` | AA fora do shell v5 (console da plataforma, telas sem `data-qoro-tokens='app-v5'`) | **Corrigido**: `:root --warning-700` de `oklch(0.56 …)` para `oklch(0.54 0.11 58)` = 4,86:1 sobre o âmbar e 5,26:1 sobre o branco. No shell v5 o par já passava (6,78:1 claro, 9,17:1 escuro). Contrato em `src/app/contrast-tokens.test.ts` | UI (feito) |
 | P-20 | Latência de Server Action no Preview: "Salvar permissões (2)" levou 11,4 s na 2ª gravação (a 1ª, 2,0 s); o ciclo 2 teve a mesma assinatura no consentimento | trace `e2e/traces-f3fd8648/` | Testes de Preview reprovam por tempo sem regressão; a pessoa espera mais de 10 s sem retorno | Registrado; timeout **não** alterado. Precisa dos logs da Vercel/Supabase, não lidos aqui | plataforma |
+| A-02 | 8 das 17 gavetas e diálogos não têm descrição: novo atendimento, novo paciente, novo lançamento, fornecedores, convite da equipe, documento e receita do Consultório, nova clínica (admin). O Radix Dialog 1.1.18 põe `aria-describedby` com o id da descrição no conteúdo **sempre** (`dist/index.mjs`, linha 224), e sem `DialogDescription` a referência aponta para um id que não existe. Todas as 17 têm título | código lido (varredura estática, ciclo 3) | Leitor de tela não anuncia descrição nenhuma; o axe pode acusar a referência pendurada | Não corrigido agora: 3 desses arquivos são alterados pelo #55 ou pelo #53 (`new-appointment-drawer`, `prescription-drawer`, `fornecedores-view`). Correção: descrição curta e útil em cada uma, ou `aria-describedby={undefined}` quando não houver o que dizer. Validar no navegador (atributo e id) | UI, depois da integração |
 | P-13 | O `.env.local` do checkout principal tem credenciais Asaas de Production. Este worktree usa sandbox | ciclo 2 | Teste acidental com chave live | Mantido documentado. O bypass do Preview segue lido de lá, só no processo e sem imprimir. Forma autorizada proposta: o fundador grava `VERCEL_AUTOMATION_BYPASS_SECRET` no `.env.local` deste worktree (fora do Git), e as sondas deixam de ler o checkout principal | fundador |
