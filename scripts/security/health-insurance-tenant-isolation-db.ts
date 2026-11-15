@@ -28,11 +28,15 @@ const pass = (msg: string) => {
   console.log(`PASS: ${msg}`);
 };
 
+// `TENANT_ISOLATION_CHAIN=local` (passo obrigatório da CI): só as migrations desta branch, que
+// contêm todas as tabelas do módulo; o checkout raso da CI não tem o #53 para a cadeia do DEV.
+const CHAIN = process.env.TENANT_ISOLATION_CHAIN === 'local' ? 'local' : 'dev';
 const cluster = await startScratchSchema({
   port: Number(process.env.PORT ?? 55538),
   maxConnections: 4,
-  migrations: await readDevOrderChain(PR53_REF),
+  ...(CHAIN === 'dev' ? { migrations: await readDevOrderChain(PR53_REF) } : {}),
 });
+console.log(`cadeia de migrations: ${CHAIN === 'dev' ? `ordem do DEV (#53 em ${PR53_REF})` : 'só a desta branch'}`);
 const { sql } = cluster;
 const TENANT = /current_setting\('app\.current_clinic'|current_clinic_id\(\)/u;
 

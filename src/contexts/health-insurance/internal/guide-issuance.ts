@@ -66,11 +66,15 @@ export async function issueConsultaGuide(
   const { clinicId } = args;
   // D24: operação nova de Convênios só com assinatura paga e ativa (o banco confere de novo).
   await assertPremiumFeatureTx(tx, clinicId, 'health_insurance');
+  // P14.2 (G.7): a linha da guia fica travada até o fim da emissão. Duas aprovações simultâneas
+  // se enfileiram: a segunda lê a guia já aprovada e recebe o conflito com mensagem, em vez de
+  // esbarrar na unicidade do snapshot (erro cru 23505).
   const [g] = await tx
     .select()
     .from(hiGuides)
     .where(and(eq(hiGuides.clinicId, clinicId), eq(hiGuides.id, args.guideId)))
-    .limit(1);
+    .limit(1)
+    .for('update');
   if (!g) throw new GuideIssuanceError('guia inexistente nesta clínica');
   if (g.guideType !== 'consulta')
     throw new GuideIssuanceError('esta emissão é da Guia de Consulta');

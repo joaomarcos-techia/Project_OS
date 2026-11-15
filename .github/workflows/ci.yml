@@ -86,6 +86,9 @@ jobs:
       - name: Two-tenant isolation (temporary local Postgres)
         run: SECURITY_PG_BIN="$(pg_config --bindir)" pnpm security:tenant
 
+      - name: Convênios — isolamento de todas as tabelas do módulo (temporary local Postgres, P12.1)
+        run: SECURITY_PG_BIN="$(pg_config --bindir)" TENANT_ISOLATION_CHAIN=local pnpm security:tenant:convenios
+
       - name: Build
         run: pnpm security:build
         env:

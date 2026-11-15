@@ -53,11 +53,13 @@ export async function issueSpSadtGuide(
 ): Promise<{ snapshotId: string; revision: number; sha256: string }> {
   const { clinicId } = args;
   await assertPremiumFeatureTx(tx, clinicId, 'health_insurance');
+  // P14.2 (G.7): mesma trava da Guia de Consulta; aprovações simultâneas se enfileiram.
   const [g] = await tx
     .select()
     .from(hiGuides)
     .where(and(eq(hiGuides.clinicId, clinicId), eq(hiGuides.id, args.guideId)))
-    .limit(1);
+    .limit(1)
+    .for('update');
   if (!g) throw new GuideIssuanceError('guia inexistente nesta clínica');
   if (g.guideType !== 'sp_sadt') throw new GuideIssuanceError('esta emissão é da Guia SP/SADT');
   if (g.status !== 'reviewed') throw new GuideIssuanceError(`só se emite guia conferida (estado: ${g.status})`);
