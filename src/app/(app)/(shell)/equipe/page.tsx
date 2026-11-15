@@ -47,10 +47,13 @@ const ROLE_META: Record<Role, { label: string; tone: BadgeTone }> = {
   doctor: { label: 'Médico', tone: 'teal' },
   financial: { label: 'Financeiro', tone: 'amber' },
   attendant: { label: 'Recepção', tone: 'gray' },
-  super_admin: { label: 'Super admin', tone: 'red' },
+  // Papel da plataforma, não da clínica (UX-014): só aparece se um dia vier numa
+  // linha; o resumo por papel não o lista (ver a nota sob o resumo).
+  super_admin: { label: 'Suporte Qoro', tone: 'red' },
 };
 
-const ROLE_ORDER: Role[] = ['owner', 'gestor', 'doctor', 'financial', 'attendant', 'super_admin'];
+/** Papéis da clínica. O suporte do Qoro não é da equipe: fica na nota do resumo. */
+const ROLE_ORDER: Role[] = ['owner', 'gestor', 'doctor', 'financial', 'attendant'];
 
 /**
  * A nota sob cada contagem diz POR QUE ela é essa — é o que transforma um
@@ -62,7 +65,7 @@ function notaDoPapel(
   employees: { role: Role; nome: string; ativo: boolean; crm: string | null }[],
 ): string {
   const doPapel = employees.filter((e) => e.role === role);
-  if (doPapel.length === 0) return role === 'super_admin' ? 'fora do tenant' : 'nenhum';
+  if (doPapel.length === 0) return 'nenhum';
   const inativos = doPapel.filter((e) => !e.ativo).length;
   const semCredencial = doPapel.filter((e) => isPractitioner(e) && e.crm == null).length;
   if (inativos > 0) return `${inativos} inativo${inativos === 1 ? '' : 's'}`;
@@ -211,6 +214,14 @@ export default async function EquipePage({
           </small>
         </div>
       </section>
+      {/* UX-014 — era um cartão "Super admin 0 · fora do tenant". O acesso especial
+          continua dito, sem jargão: entrar e agir na conta da clínica só acontece
+          em sessão de suporte (impersonação, C15), e as alterações feitas nela
+          vão para a auditoria da clínica (`audit_events`, impersonation-extra). */}
+      <p className="mb-(--sp-4) text-(length:--fs-xs) text-fg-muted">
+        O suporte do Qoro não faz parte desta equipe. Para entrar na conta da clínica e agir nela,
+        usa uma sessão de suporte, e as alterações feitas nela ficam registradas na auditoria.
+      </p>
 
       <FilterBar className="qoro-toolbar">
         <form className="flex w-full min-w-0 items-center gap-(--sp-2) sm:w-68" role="search">
