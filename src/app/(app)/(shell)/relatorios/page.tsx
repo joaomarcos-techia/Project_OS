@@ -17,6 +17,7 @@ import { buttonVariants } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { LinkSegmented } from '@/components/ui/link-segmented';
 import { PanelCard } from '@/components/ui/panel-card';
+import { PageActions } from '@/components/ui/page-actions';
 import { PageHeader } from '@/components/ui/page-header';
 import {
   Table,
@@ -80,26 +81,27 @@ export default async function RelatoriosPage({
           />
         }
         actions={
-          <>
-            {canManagePayouts || canSeeOwnPayouts ? (
-              <Link
-                href="/relatorios/repasses"
-                prefetch={false}
-                className={buttonVariants({ variant: 'secondary' })}
+          // UX-012: no celular, "Ver repasses por mês" entra em "Mais ações" e o
+          // PDF fica à vista — eram duas linhas de botões a 375 px.
+          <PageActions
+            label="Ações dos relatórios"
+            secondary={
+              canManagePayouts || canSeeOwnPayouts
+                ? [{ href: '/relatorios/repasses', label: 'Ver repasses por mês', prefetch: false }]
+                : []
+            }
+            primary={
+              <a
+                href={`/relatorios/pdf?periodo=${period.key}`}
+                target="_blank"
+                rel="noopener"
+                className={buttonVariants()}
               >
-                Ver repasses por mês
-              </Link>
-            ) : null}
-            <a
-              href={`/relatorios/pdf?periodo=${period.key}`}
-              target="_blank"
-              rel="noopener"
-              className={buttonVariants()}
-            >
-              <FileDown aria-hidden="true" className="size-4" />
-              Exportar PDF
-            </a>
-          </>
+                <FileDown aria-hidden="true" className="size-4" />
+                Exportar PDF
+              </a>
+            }
+          />
         }
       />
 

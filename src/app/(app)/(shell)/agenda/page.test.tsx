@@ -91,7 +91,7 @@ describe('AgendaPage', () => {
     expect(within(actions).getByRole('button', { name: 'Novo atendimento' }).className).toContain(
       'min-h-(--hit-target)',
     );
-    expect(within(actions).getByRole('button', { name: 'Mais opções' })).toBeTruthy();
+    expect(within(actions).getByRole('button', { name: 'Mais ações' })).toBeTruthy();
   });
 
   it('mantém a importação no menu e oferece ausências somente com manage:availability', async () => {
@@ -100,13 +100,24 @@ describe('AgendaPage', () => {
       '/agenda/ausencias',
     );
 
-    const menuTrigger = screen.getByRole('button', { name: 'Mais opções' });
+    const menuTrigger = screen.getByRole('button', { name: 'Mais ações' });
     menuTrigger.focus();
     fireEvent.keyDown(menuTrigger, { key: 'Enter' });
 
     expect(
       (await screen.findByRole('menuitem', { name: 'Importar histórico' })).getAttribute('href'),
     ).toBe('/agenda/importar');
+    // UX-012: no celular os destinos do cabeçalho moram no mesmo menu (mesmo
+    // href); no computador esses itens somem e os botões ao lado continuam.
+    const espera = screen.getByRole('menuitem', { name: 'Lista de espera' });
+    expect(espera.getAttribute('href')).toBe('/agenda/lista-espera');
+    expect(espera.className).toContain('md:hidden');
+    expect(screen.getByRole('menuitem', { name: 'Ausências médicas' }).className).toContain(
+      'md:hidden',
+    );
+    expect(screen.getByRole('menuitem', { name: 'Importar histórico' }).className).not.toContain(
+      'md:hidden',
+    );
 
     cleanup();
     getAgendaData.mockResolvedValue({
@@ -118,7 +129,7 @@ describe('AgendaPage', () => {
 
     expect(screen.queryByRole('button', { name: 'Novo atendimento' })).toBeNull();
     expect(screen.queryByRole('link', { name: 'Ausências médicas' })).toBeNull();
-    fireEvent.pointerDown(screen.getByRole('button', { name: 'Mais opções' }), {
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'Mais ações' }), {
       button: 0,
       ctrlKey: false,
       pointerType: 'mouse',
