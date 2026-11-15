@@ -32,6 +32,12 @@ describe('QuickPatientForm', () => {
     expect(screen.getByLabelText('Telefone (opcional)')).toBeTruthy();
   });
 
+  it('ao abrir, leva o foco para o campo Nome', () => {
+    renderForm();
+
+    expect(document.activeElement).toBe(screen.getByLabelText(/Nome/));
+  });
+
   it('sem nome e CPF, mostra os erros e não chama o servidor', () => {
     renderForm();
     fireEvent.click(screen.getByRole('button', { name: 'Cadastrar e selecionar' }));

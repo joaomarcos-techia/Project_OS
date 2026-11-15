@@ -307,7 +307,13 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
                   setCadastrandoPaciente(false);
                   limparErro('paciente');
                 }}
-                onCancel={() => setCadastrandoPaciente(false)}
+                onCancel={() => {
+                  setCadastrandoPaciente(false);
+                  // Devolve o foco à busca de paciente, de onde a pessoa saiu.
+                  requestAnimationFrame(() =>
+                    document.getElementById('appointment-patient')?.focus(),
+                  );
+                }}
               />
             ) : null}
 

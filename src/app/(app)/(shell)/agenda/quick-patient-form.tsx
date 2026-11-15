@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -39,6 +39,12 @@ export function QuickPatientForm({
   const [salvando, setSalvando] = useState(false);
   // Uma chave por abertura: clique duplo ou nova tentativa devolvem o mesmo paciente.
   const chave = useRef<string>(uuidv4());
+  // O botão que abriu este formulário some ao abrir: sem isto o foco cairia no
+  // corpo da página e quem usa teclado ou leitor de tela se perderia.
+  const nomeRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    nomeRef.current?.focus();
+  }, []);
 
   function focarPrimeiro(lista: Partial<Record<Campo, string>>) {
     const primeiro = ORDEM.find((campo) => lista[campo]);
@@ -97,6 +103,7 @@ export function QuickPatientForm({
       {mensagem ? <Alert variant="danger">{mensagem}</Alert> : null}
       <Field label="Nome" htmlFor={ids.nome} error={erros.nome} required>
         <Input
+          ref={nomeRef}
           id={ids.nome}
           value={nome}
           autoComplete="off"
