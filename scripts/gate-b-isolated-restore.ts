@@ -256,7 +256,7 @@ async function main(): Promise<void> {
   let exitCodes: { gpg: number; psql: number };
   try {
     exitCodes = await streamIsolatedRestore(backup, passphrase, container, values.gpg, {
-      gpgHome: values['gpg-home'],
+      ...(values['gpg-home'] ? { gpgHome: values['gpg-home'] } : {}),
       signal: controller.signal,
     });
   } finally {

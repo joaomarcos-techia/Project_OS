@@ -25112,5 +25112,19 @@
     "otherWorktreesModified": false,
     "otherProcessesTerminated": false,
     "nextAction": "Coordinate sufficient existing local resources and verify host protection, or designate another approved existing machine; run synthetic Docker/GPG/PostgreSQL chain before asking for real-data B1-B."
+  },
+  "syntheticRecoveryOptionalFieldCorrection20261115": {
+    "observedAt": "2026-11-15T17:39:03.423Z",
+    "previousHead": "6838435f7d26e93a265ac4b99815e1bdd89861cd",
+    "previousCi": 43741996377,
+    "previousCiResult": "FAIL_TYPECHECK_EXACT_OPTIONAL_PROPERTY",
+    "correction": "Omit absent gpgHome property instead of explicitly supplying undefined; no cast or config relaxation",
+    "targetedTests": 47,
+    "realGpgTests": 7,
+    "realGpgFixtureDiscarded": true,
+    "recoveryOperatorSha256": "1ba4824c1d5035893112d0e05933685c1fcdd85748d23806ac739c6c84fe1b22",
+    "requiresOwnFullCI": true,
+    "financialRuntimeChanged": false,
+    "productionWrites": 0
   }
 }

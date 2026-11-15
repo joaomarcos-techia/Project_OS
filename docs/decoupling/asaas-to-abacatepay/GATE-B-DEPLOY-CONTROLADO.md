@@ -6,6 +6,8 @@
 
 ### GPG real — PASS no Windows
 
+Histórico da validação deste ciclo: CI43741996377 do6838435f interrompeu no TypeScript (`exactOptionalPropertyTypes`, campo gpgHome explicitamente undefined); corrigido para omitir a propriedade ausente, sem cast ou relaxamento do tipo. Os47 testes dirigidos passaram novamente. O SHA posterior exige sua própria CI completa; não reutilizar a execução interrompida como aprovação.
+
 Causa confirmada do bloqueio anterior: o GPG `2.4.9` incluído no Git é MSYS. Um `--homedir C:/Users/...` foi interpretado como caminho relativo ao worktree (`/c/dev/.../C:/Users/...`); o diretório inexistente impedia criar o keyring e conectar o agent. O primeiro erro de descritor também pertencia ao harness Windows. Não eram evidências de falha financeira. Não houve necessidade de instalar ferramenta, alterar o keyring do usuário ou enfraquecer criptografia.
 
 `gpgFileArgument` converte arquivos/home para `/c/...` somente quando o executável Windows explicitamente selecionado pertence ao runtime MSYS; GPG nativo e Linux mantêm seus caminhos. A ferramenta aceita `--gpg-home`, desabilita cache simétrico e configuração GPG implícita. Neste host, indicar **o executável absoluto**, fora do PATH observado: `C:\Program Files\Git\usr\bin\gpg.exe`. O diretório GPG deve ser novo, privado e exclusivo do ensaio, nunca o keyring pessoal.
