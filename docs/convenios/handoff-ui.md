@@ -294,3 +294,92 @@ O helper é `convenios/_lib/guide-label.ts`, com teste.
 
 **Títulos de página:** o gate `page-titles.test.ts` da UI (WCAG 2.4.2) exige `metadata.title` em toda página, sem
 "Qoro". As 13 páginas de Convênios já têm, desde `e552a692`.
+
+## 9. Atualização de 15/11 (tarde): estados comerciais, acessibilidade do painel, Caixa e arquivos em comum
+
+### 9.1 Menu Convênios (para a navegação global)
+
+Nada muda nas rotas do §2. O que a entrada do menu precisa respeitar:
+
+| Situação | Item no menu | O que a tela mostra | Quem decide |
+| --- | --- | --- | --- |
+| Perfil sem `view:financial` (médica) | não aparece | deep-link mostra "Sem acesso" | `conveniosAccess` |
+| Recepção (`view:financial`, sem `manage:financial`) | aparece | telas abertas, nenhuma ação | idem |
+| Gestor/dono/financeiro (`manage:financial`) | aparece | telas e ações | idem |
+| Trial ou sem plano | aparece | aviso "Convênios faz parte das assinaturas ativas"; **nenhuma ação** de guia (15/11) | `qoro_premium_denial` (D24) |
+| Assinatura parada / clínica suspensa | aparece | aviso "modo de consulta"; registros visíveis; ajustar/conferir/aprovar/devolver **somem**; cancelar, conciliar e a conta com a operadora seguem com o servidor decidindo | idem |
+| Módulo desabilitado | aparece | prontidão em `/convenios/configuracao` | `hi_clinic_settings.enabled` |
+
+Componentes: `convenios/_lib/access.tsx` (`conveniosAccess`, `ConveniosHeader`, `CommercialNotice`), `convenios/_lib/tabs.tsx`.
+Testes que a integração deve rodar: `convenios/page.test.tsx` (D24, permissões, D11), `e2e/convenios-preview.spec.ts`
+(anônimo, médica, recepção, trial, suspensa) e `e2e/convenios-guide-states-preview.spec.ts` (abaixo).
+
+### 9.2 Ficha do paciente
+
+Sem mudança desde o §4/§4.1. Na repaginação, conferir: 4 últimos dígitos da carteirinha (nunca o número completo), senha
+de autorização ausente (não sai do banco), estados `data-state` do §4, ordem das seções e a aba só com `view:financial`.
+
+### 9.3 Painel "Dados da consulta" (P4.6): o que mudou hoje
+
+- **Estados comerciais:** em trial ou com a assinatura parada, `editable` é falso mesmo para quem gerencia (antes o botão
+  aparecia e o servidor recusava no clique). Na página da guia, `operable = canManage && !commercial` governa ajustar,
+  "Marcar como conferida", "Aprovar e emitir" e "Devolver para correção".
+- **Servidor:** "Marcar como conferida" e "Devolver para correção" passaram a checar a decisão comercial (D24) na mesma
+  transação. Antes passavam com a clínica suspensa, porque o gatilho do banco em `hi_guides` só barra a criação.
+  Cancelar continua permitido (não gera cobrança; decisão registrada no plano para o fundador revisar).
+- **Foco (teclado e leitor de tela):** ao abrir, o foco vai para "Regime de atendimento"; ao voltar ou salvar, volta para
+  "Ajustar dados da consulta". Antes o foco caía no início da página, porque o botão e o formulário saem da tela.
+- **Recusa escrita na tela:** além do aviso flutuante, a recusa fica no formulário com `role="alert"` até o próximo envio.
+  `useRunner` ganhou o 5º parâmetro opcional `onError` (compatível com todas as chamadas).
+- **Dica ligada ao campo:** o limite de 500 caracteres e o aviso de CID são o `aria-describedby` da observação. O `hint`
+  do `Field` do design system não tem `id`; se a UI acrescentar um `id` ao hint, o TISS volta a usar o `hint`.
+- **Mensagem nova:** acesso desativado ou conta removida → "Seu acesso a esta clínica foi desativado. Fale com o
+  administrador da clínica." (antes dizia "Sua sessão terminou", e entrar de novo não resolvia).
+- **Seletores preservados:** os do §4.2, mais `role="alert"` dentro do formulário.
+
+### 9.4 Caixa (UX-015) e o E2E de convênio
+
+Análise do diff da UI (`23d0c648`), só leitura:
+
+| Botão antes | Botão agora | Ação no servidor | Permissão |
+| --- | --- | --- | --- |
+| "Confirmar pagamento" | "Registrar recebimento" | `confirmPaymentAction` (inalterada) | sem permissão, sem botão (igual) |
+| "Receber saldo" | "Registrar o restante" | idem | igual |
+| "Pagar" | "Registrar pagamento" | idem | igual |
+| "Pagou em dinheiro" / "Pagou o restante em dinheiro" | "Recebido em dinheiro" / "Restante em dinheiro" | idem, só dinheiro | igual |
+| "Receber R$ …" / "Pagar R$ …" (painel) | "Registrar R$ …" | idem | igual |
+
+- A forma de pagamento "Convênio" continua no seletor; nenhuma asserção financeira muda. A troca em
+  `e2e/production-convenio-payment-a.spec.ts` ("Confirmar pagamento" → "Registrar recebimento") é só de texto e está
+  na branch da UI; o #55 não toca esse spec. Ele exige Production (NO-GO) e não roda sem autorização expressa.
+- Nenhum spec de Convênios clica nesses botões.
+- **Rebase do Caixa:** em `caixa/cash-item-card.tsx` e `caixa/caixa-view.tsx` fica a versão da UI do "hoje"
+  (`ClinicTimeZoneProvider` + `todayYmd(timeZone)`, fuso da clínica vindo do servidor). Ela substitui a do TISS
+  (`todayYmdIn()`): as duas corrigem a mesma divergência servidor × navegador (R51). Fica também o `run` da UI com
+  try/catch e chave de idempotência por tentativa (`b3ce5501`). O TISS preserva `financeiro/page.tsx` (saldo parcial
+  desconta `valorGlosado`), a fixture de `caixa/page.test.tsx` (`valorGlosado`, `sourceHiGuideId`) e o
+  `autoCapitalize` de `financeiro/fornecedores/fornecedores-view.tsx`.
+
+### 9.5 Arquivos em comum (UI `eb13a535` × #55 com o trabalho de 15/11)
+
+19 arquivos (eram 18): `docs/adr/README.md`, `_journal.json`, `package.json`, `pnpm-lock.yaml`, agenda
+(`agenda-calendar.tsx`, `data.ts`, `lista-espera/waitlist-manager.tsx`, `new-appointment-drawer.tsx`), caixa
+(`caixa-view.tsx`, `caixa-view.test.tsx`, `cash-item-card.tsx`), consultório (`actions.ts`, `attending-panel.tsx`,
+`consultorio-board.tsx`, `format.ts`, `waiting-card.tsx`), `financeiro/page.tsx` e a ficha do paciente
+(`pacientes/[id]/page.tsx` e `page.test.tsx`). As regras do §8 valem; nenhum rebase foi feito agora.
+
+### 9.6 Títulos (achado de acessibilidade para o design system)
+
+O `PanelCard` renderiza o título como `<h4>` logo abaixo do `<h1>` da página: salto de nível em todas as telas que
+usam o componente. Na guia, as subseções "Glosas", "Recursos" e "Pagamentos recebidos" usam `<h3>` dentro do painel
+`<h4>`. O axe com as regras WCAG A/AA não reprova (a regra `heading-order` é de boas práticas), mas leitores de tela
+navegam por nível. Proposta: o `PanelCard` aceitar o nível (`as="h2"`) ou usar `<h2>`; o TISS acompanha as subseções da
+guia quando o design system decidir. Não alterado pelo TISS (componente da UI).
+
+### 9.7 Regressões complementares (`e2e/convenios-guide-states-preview.spec.ts`)
+
+Spec novo, 11 testes, contra o Preview no DEV, sem refazer a jornada: axe no painel, teclado e foco, celular, trial e
+suspensa no meio da sessão, sessão expirada, código adulterado, duplo clique e duas abas, pendência real, ação direta
+da recepção e de outra clínica, acesso desativado e controle positivo. A fixture é `hi-dev-e2e-fixture.ts setup-states`
+(3 guias novas na clínica `e2e-hi-paga`); os estados são trocados e restaurados por `set-state`/`set-active`.
+O `axe-core` vem do `eslint-config-next` (já no lockfile), sem pacote novo.

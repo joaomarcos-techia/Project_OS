@@ -17,7 +17,7 @@
  *     --expected-ref <ref DEV> --accounts <arquivo fora do repo> --out <ids.json>
  */
 import { randomBytes } from 'node:crypto';
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 
 import { sql } from 'drizzle-orm';
 
@@ -48,8 +48,16 @@ const command = process.argv[2];
 const expectedRef = arg('expected-ref');
 const accountsFile = arg('accounts');
 const outFile = arg('out');
-if (!['setup', 'setup-config', 'cleanup'].includes(command ?? '') || !expectedRef || !accountsFile || !outFile) {
-  throw new Error('uso: setup|setup-config|cleanup --expected-ref <ref> --accounts <arquivo> --out <ids.json>');
+/**
+ * Comandos das regressões de estado (P0.3 de 15/11), chamados pelo spec durante a execução:
+ *   setup-states --run <marca>                       três guias novas na clínica paga (duas para conferir, uma com pendência)
+ *   set-state --state paid|trial|suspended           estado comercial da clínica PAGA (só ela)
+ *   set-active --account <chave> --active true|false perfil ativo/desativado de uma conta e2e-hi-*
+ *   guide-state --guide <id>                         status, versão, ajuste e eventos (só leitura)
+ */
+const COMMANDS = ['setup', 'setup-config', 'cleanup', 'setup-states', 'set-state', 'set-active', 'guide-state'];
+if (!COMMANDS.includes(command ?? '') || !expectedRef || !accountsFile || !outFile) {
+  throw new Error(`uso: ${COMMANDS.join('|')} --expected-ref <ref> --accounts <arquivo> --out <ids.json>`);
 }
 const { databaseUrl } = assertDevContext();
 const u = new URL(databaseUrl);
@@ -383,7 +391,166 @@ async function cleanup() {
   console.log(`[hi-dev-e2e-fixture] contas bloqueadas e módulo desligado nas clínicas e2e-hi-* (${rows.length} perfis)`);
 }
 
-(command === 'setup' ? setup() : command === 'setup-config' ? setupConfig() : cleanup())
+// ── Regressões de estado (P0.3 de 15/11) ─────────────────────────────────────────────────────
+
+/** Só a clínica paga das regressões: os comandos abaixo nunca alteram outra clínica. */
+async function pagaClinic(): Promise<string> {
+  const [c] = await exec<{ id: string }>(sql`SELECT id::text AS id FROM public.clinics WHERE slug = 'e2e-hi-paga'`);
+  if (!c) throw new Error('clínica e2e-hi-paga ausente (rode setup antes)');
+  return c.id;
+}
+
+const pgCode = (e: unknown): string | undefined => {
+  const x = e as { code?: string; cause?: { code?: string } };
+  return x.code ?? x.cause?.code;
+};
+
+/**
+ * Três guias de Consulta NOVAS na clínica paga, pelo serviço real (cobertura antes do atendimento,
+ * atendimento concluído, guia montada): `ready1` e `ready2` para conferir e `pending1` com a
+ * carteirinha vencida (pendência real do validador). Idempotente pela marca da execução; dias de
+ * outubro/2026 que variam com a marca, porque a agenda da médica não aceita sobreposição.
+ */
+async function setupStates() {
+  const run = arg('run');
+  if (!run || !/^[A-Z0-9]{3,12}$/u.test(run)) throw new Error('--run <marca> obrigatório (A-Z e 0-9)');
+  const paga = await pagaClinic();
+  const accounts = JSON.parse(readFileSync(accountsFile!, 'utf8')) as Record<string, { userId: string; clinic: string }>;
+  const medica = accounts.medica?.clinic === 'paga' ? accounts.medica.userId : undefined;
+  const gestor = accounts.gestor?.clinic === 'paga' ? accounts.gestor.userId : undefined;
+  if (!medica || !gestor) throw new Error('contas medica/gestor da clínica paga ausentes no arquivo de contas');
+  const [tv] = await exec<{ version: string }>(sql`SELECT version FROM public.tiss_terminology_versions ORDER BY version DESC LIMIT 1`);
+  const [ids] = await exec<{ insurer: string | null; consulta: string | null }>(sql`
+    SELECT (SELECT id::text FROM public.hi_insurers WHERE clinic_id = ${paga}::uuid AND registro_ans = '999901') AS insurer,
+           (SELECT id::text FROM public.procedures WHERE clinic_id = ${paga}::uuid AND codigo = 'E2E-CONS') AS consulta`);
+  if (!tv || !ids?.insurer || !ids.consulta) throw new Error('clínica paga sem operadora/procedimento da fixture (rode setup antes)');
+  const insurerId = ids.insurer;
+  const consulta = ids.consulta;
+  const card = async (patientName: string, cardNumber: string | null) => {
+    const rows = await exec<{ patient: string; membership: string }>(sql`
+      SELECT p.id::text AS patient, m.id::text AS membership
+        FROM public.patients p JOIN public.hi_memberships m ON m.patient_id = p.id AND m.clinic_id = p.clinic_id
+       WHERE p.clinic_id = ${paga}::uuid AND p.nome = ${patientName}
+         AND (${cardNumber}::text IS NULL OR m.card_number_hash = ${cardNumber ? await hashForLookup(`${paga}:${cardNumber}`) : ''})
+       ORDER BY m.created_at LIMIT 1`);
+    if (!rows[0]) throw new Error(`carteirinha da fixture ausente (${patientName})`);
+    return rows[0];
+  };
+  const coverage = await import('../../src/contexts/health-insurance/internal/coverage-service');
+  const guides = await import('../../src/contexts/health-insurance/internal/consulta-guide-service');
+  const seed = [...run].reduce((acc, ch) => (acc * 31 + ch.charCodeAt(0)) % 997, 7);
+  const make = async (key: string, who: { patient: string; membership: string }, hour: string) => {
+    const tag = `e2e-hi:states-${run}-${key}`;
+    let [ap] = await exec<{ id: string; date: string }>(sql`
+      SELECT id::text AS id, to_char(scheduled_at AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS date
+        FROM public.appointments WHERE clinic_id = ${paga}::uuid AND observacoes = ${tag}`);
+    for (let attempt = 0; !ap && attempt < 40; attempt++) {
+      const date = new Date(Date.UTC(2026, 9, 1 + ((seed + attempt) % 30))).toISOString().slice(0, 10);
+      try {
+        [ap] = await exec<{ id: string; date: string }>(sql`
+          INSERT INTO public.appointments (clinic_id, doctor_id, patient_id, procedure_id, scheduled_at, duration_min, status, valor,
+            snapshot_procedure_name, snapshot_procedure_valor, snapshot_procedure_duracao_min, snapshot_doctor_nome, created_via, observacoes)
+          VALUES (${paga}::uuid, ${medica}::uuid, ${who.patient}::uuid, ${consulta}::uuid, ${`${date}T${hour}:00:00Z`}::timestamptz, 30,
+            'agendado'::appointment_status, 150, 'Sintético E2E', 150, 30, 'Dra. Sintética E2E', 'attendant', ${tag})
+          RETURNING id::text AS id, ${date}::text AS date`);
+      } catch (e) {
+        if (pgCode(e) !== '23P01') throw e; // horário ocupado: tenta o dia seguinte
+      }
+    }
+    if (!ap) throw new Error('sem horário livre para a médica sintética em outubro/2026');
+    const [st] = await exec<{ status: string }>(sql`SELECT status::text AS status FROM public.appointments WHERE id = ${ap.id}::uuid`);
+    if (st?.status === 'agendado') {
+      await withTenant(paga, (tx) => coverage.recordAppointmentCoverage(tx, {
+        clinicId: paga, appointmentId: ap!.id, patientId: who.patient, procedureId: consulta, appointmentDate: ap!.date, guideType: 'consulta',
+        insurerId, planId: null, membershipId: who.membership, authorizationId: null, actor: { kind: 'user', userId: gestor },
+      }), gestor);
+      await exec(sql`UPDATE public.appointments SET status = 'atendido' WHERE id = ${ap.id}::uuid`);
+    }
+    const out = await withTenant(paga, (tx) => guides.createConsultaGuideForAppointment(tx, {
+      clinicId: paga,
+      appointment: { id: ap!.id, patientId: who.patient, professionalId: medica, procedureId: consulta, date: ap!.date, billingMode: 'convenio' },
+      coverage: { insurerId, planId: null, membershipId: who.membership },
+      terminologyVersion: tv.version,
+      actor: { kind: 'automation' },
+    }), gestor);
+    const guideId = (out as { guideId?: string }).guideId;
+    if (!guideId) throw new Error(`guia não criada (${key})`);
+    const [g] = await exec<{ status: string }>(sql`SELECT status FROM public.hi_guides WHERE id = ${guideId}::uuid`);
+    return { id: guideId, status: g!.status, date: ap.date };
+  };
+  const out = {
+    clinicId: paga,
+    run,
+    guides: {
+      ready1: await make('ready-1', await card('Paciente Sintético E2E Um', null), '10'),
+      ready2: await make('ready-2', await card('Paciente Sintético E2E Dois', null), '11'),
+      pending1: await make('pending-1', await card('Paciente Sintético E2E Duas Carteirinhas', TAB_CARDS[1]!), '12'),
+    },
+  };
+  writeFileSync(outFile!, JSON.stringify(out, null, 1));
+  console.log(`[hi-dev-e2e-fixture] ok: 3 guias novas (${Object.values(out.guides).map((g) => g.status).join(', ')}) na clínica paga, marca ${run}`);
+}
+
+/** Estado comercial da clínica PAGA, no meio da execução (o spec restaura `paid` no fim). */
+async function setState() {
+  const state = arg('state');
+  const paga = await pagaClinic();
+  if (state === 'trial') {
+    await exec(sql`UPDATE public.subscriptions SET billing_status = 'trial', trial_ends_at = now() + interval '10 days',
+      enforce_trial_deadline = true WHERE clinic_id = ${paga}::uuid`);
+  } else if (state === 'suspended') {
+    await exec(sql`UPDATE public.clinics SET status = 'suspended_readonly', updated_at = now() WHERE id = ${paga}::uuid`);
+  } else if (state === 'paid') {
+    await exec(sql`UPDATE public.clinics SET status = 'active', updated_at = now() WHERE id = ${paga}::uuid`);
+    await exec(sql`UPDATE public.subscriptions SET billing_status = 'active', trial_ends_at = NULL, enforce_trial_deadline = false,
+      current_period_start = now() - interval '1 day', current_period_end = now() + interval '30 days', grace_period_until = NULL
+      WHERE clinic_id = ${paga}::uuid`);
+  } else {
+    throw new Error('--state paid|trial|suspended');
+  }
+  const [d] = await exec<{ denial: string | null }>(sql`SELECT public.qoro_premium_denial_for(${paga}::uuid, 'health_insurance') AS denial`);
+  console.log(`STATE ${JSON.stringify({ state, denial: d?.denial ?? null })}`);
+}
+
+/** Perfil ativo/desativado de uma conta e2e-hi-* (o spec reativa no fim). */
+async function setActive() {
+  const key = arg('account');
+  const active = arg('active');
+  if (!key || (active !== 'true' && active !== 'false')) throw new Error('--account <chave> --active true|false');
+  const accounts = JSON.parse(readFileSync(accountsFile!, 'utf8')) as Record<string, { userId: string }>;
+  const userId = accounts[key]?.userId;
+  if (!userId) throw new Error(`conta ${key} ausente no arquivo de contas`);
+  const rows = await exec<{ id: string }>(sql`
+    UPDATE public.profiles SET ativo = ${active === 'true'}, updated_at = now()
+     WHERE id = ${userId}::uuid AND clinic_id IN (SELECT id FROM public.clinics WHERE slug LIKE 'e2e-hi-%')
+    RETURNING id::text AS id`);
+  if (rows.length !== 1) throw new Error('perfil fora das clínicas e2e-hi-*: recusado');
+  console.log(`ACTIVE ${JSON.stringify({ account: key, active: active === 'true' })}`);
+}
+
+/** Só leitura: o que o banco diz da guia (prova de que uma recusa não mudou nada). */
+async function guideState() {
+  const id = arg('guide');
+  if (!id || !/^[0-9a-f-]{36}$/u.test(id)) throw new Error('--guide <uuid>');
+  const [g] = await exec<{ status: string; version: number; adjusted: boolean; events: number; revisions: number }>(sql`
+    SELECT g.status, g.version, (g.consulta_overrides IS NOT NULL) AS adjusted,
+           (SELECT count(*)::int FROM public.hi_guide_events e WHERE e.guide_id = g.id) AS events,
+           (SELECT count(*)::int FROM public.hi_guide_snapshots s WHERE s.guide_id = g.id) AS revisions
+      FROM public.hi_guides g JOIN public.clinics c ON c.id = g.clinic_id AND c.slug LIKE 'e2e-hi-%'
+     WHERE g.id = ${id}::uuid`);
+  if (!g) throw new Error('guia fora das clínicas e2e-hi-*');
+  console.log(`GUIDE_STATE ${JSON.stringify(g)}`);
+}
+
+const main =
+  command === 'setup' ? setup
+  : command === 'setup-config' ? setupConfig
+  : command === 'setup-states' ? setupStates
+  : command === 'set-state' ? setState
+  : command === 'set-active' ? setActive
+  : command === 'guide-state' ? guideState
+  : cleanup;
+main()
   .then(() => process.exit(0))
   .catch((e: unknown) => {
     const cause = (e as { cause?: { message?: string; detail?: string } })?.cause;
