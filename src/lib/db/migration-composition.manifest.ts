@@ -6,7 +6,8 @@
  * #53 0159 (`saas_period_snapshot`) → #55 0160 (R54). As 0136–0142 são as do journal do #53 (hash e
  * `created_at` iguais ao ledger do DEV desde 11/11). Os valores da 0158 e da 0159 são os do `release-manifest.json` do #53
  * (docs/decoupling/asaas-to-abacatepay/migrations/, tissDependencies e financialEntry/financialSql);
- * a 0159 está aplicada no DEV com esse hash e esse `created_at` desde 13/11, e a 0160 desde 14/11.
+ * a 0159 está aplicada no DEV com esse hash e esse `created_at` desde 13/11, a 0160 desde 14/11 e a
+ * 0161 (P4.6) desde 15/11.
  *
  * A cauda inteira do #55 (0143–0158) é fixada, não só as pontas: o release do #53 congela esses 16
  * arquivos a partir do commit `tissHead` do seu release-manifest.json (4d0ed1d5, conferido byte a
@@ -231,6 +232,16 @@ export const MIGRATION_COMPOSITION_MANIFEST: CompositionManifest = {
       owner: 'PR #55 (convênios)',
       requires: ['0159_saas_period_snapshot'],
       sentinel: 'relation:public.patient_external_refunds',
+    },
+    {
+      // P4.6 (ajustes da Guia de Consulta). Fixada ao ser aplicada no DEV (15/11, coordenacao-migrations §18).
+      tag: '0161_hi_guide_consulta_overrides',
+      idx: 161,
+      when: 1795209773857,
+      sha256: 'acd23a73e25109c14c1514f6995fbcd81182a51f7338c1bd6c63127f8d0265c5',
+      owner: 'PR #55 (convênios)',
+      requires: ['0160_patient_external_refunds'],
+      sentinel: 'function:public.hi_guide_guard_consulta_overrides()',
     },
   ],
 };

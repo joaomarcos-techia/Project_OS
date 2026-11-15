@@ -514,7 +514,7 @@ recusado.
     'qoro-migrate-composition-check'`.
   - Nada fica pela metade, porque nada é escrito.
 
-## 17. Migration 0161 (P4.6): candidata, só local e descartável (15/11, madrugada)
+## 17. Migration 0161 (P4.6): candidata, só local e descartável (15/11, madrugada; aplicada no DEV às 08h46, §18)
 
 - **O que é:** `0161_hi_guide_consulta_overrides` guarda os ajustes da Guia de Consulta antes da aprovação (D11). É
   só aditiva:
@@ -536,3 +536,64 @@ recusado.
   aprovação e a lista de guias no Preview.
 - **Reversão** (sem dado ainda): no cabeçalho da migration (DROP do gatilho, da função e da coluna; linha do
   `_schema_version`).
+
+## 18. 15/11: 0161 APLICADA no DEV (autorização específica do fundador)
+
+Autorização do fundador no prompt de 15/11: **só a 0161, só no DEV**, depois de pré-voo, backup e ensaio. Ordem
+cumprida: inspecionar → backup → ensaiar → aplicar → validar o banco → só então publicar o código.
+
+- **Identidade do alvo:** o lançador lê só `DATABASE_URL_DEV` do `.env.local` (sem carregá-lo no ambiente), recusa
+  URL com o ref de produção e troca para o pooler de sessão (5432). Projeto `pqhkirrszzpwezdaqrai` (us-west-1); o
+  de produção é outro ref (us-east-1). O aplicador roda com ambiente limpo: só variáveis de sistema e a URL do DEV.
+- **Inspeção da 0161:** só `hi_guides`. Coluna `jsonb` nula sem default (só catálogo, sem reescrever a tabela);
+  CHECK validado sobre as linhas existentes (todas nulas); função do gatilho sem SECURITY DEFINER e sem EXECUTE para
+  `anon`/`authenticated`; gatilho BEFORE UPDATE por linha; `GRANT UPDATE` só da coluna. Sem índice, sem política
+  nova, sem backfill. Locks: AccessExclusive em `hi_guides` durante a transação (ADD COLUMN e ADD CONSTRAINT), com
+  `lock_timeout` de 2 s. Nenhuma função, view ou gatilho existente depende da lista de colunas de `hi_guides` de um
+  jeito que a coluna nova quebre: as comparações genéricas `to_jsonb(NEW) - …` são de outras tabelas (cobertura,
+  itens); o histórico (`hi_guide_record_event`) passa a registrar o nome da coluna quando ela muda; as views
+  `hi_guide_accounts` e `hi_ledger_drift` listam colunas explícitas.
+- **Pré-voo só leitura (8/8, 07h58 e de novo às 08h46):**
+  - ledger com 161 linhas, a última a 0160 com o sha256 do arquivo e a penúltima a 0159 do #53 com o hash fixado;
+  - nada da 0161 no banco; sem transação longa nem lock em `hi_guides`;
+  - 10 guias (208 KiB), 9 revisões emitidas, 67 eventos e 10 itens; md5 iguais nas duas leituras;
+  - guarda de composição: só a 0161 pendente, nenhum bloqueio com as exceções do #53 e os 6 avisos históricos (§15).
+- **Backup (07h59, 10:59 UTC):** `pg_dump` da estrutura (public e drizzle), dos dados das 41 tabelas `hi_*` e de
+  `clinics` (FK do histórico) e do ledger, com sha256 no manifesto, guardado fora do repositório. O backup gerenciado
+  do Supabase segue sem verificação por API (token local inválido, §14): a garantia aqui é a restauração ensaiada.
+- **Ensaio por restauração (8/8, `scripts/security/hi-0161-restore-rehearsal.ts`, migrador real `drizzle-kit
+  migrate`):**
+  1. o backup restaura com o mesmo md5 do pré-voo, e o ledger restaurado tem 161 linhas;
+  2. o guarda de composição vê só a 0161;
+  3. com outra sessão segurando `hi_guides`, o migrador desiste no `lock_timeout` e nada muda (transação única);
+  4. liberado, aplica só a 0161 (ledger com o sha256 do arquivo);
+  5. nenhuma linha reescrita, e o CHECK é validado sobre as guias do DEV;
+  6. sobre as guias do DEV: na Consulta em edição o ajuste grava e o histórico registra só `consulta_overrides`;
+     nas 9 já emitidas o gatilho da 0161 recusa (55000); forma inválida recusada (23514);
+  7. a segunda execução do migrador não faz nada;
+  8. a reversão do cabeçalho mais a linha do ledger desfaz sem tocar os dados, e o migrador reaplica igual.
+- **Compatibilidade:**
+  - **código anterior:** os 26 testes de banco do commit publicado no Preview (`6dbc9a57`), sobre uma cadeia com a
+    0161, passam com o mesmo número de provas de antes. O harness de composição antigo conta 161 fixo e ficou de
+    fora; o da P4.6 não existe lá;
+  - **código novo:** `health-insurance-consulta-overrides-db.ts` 10/10 (a 10ª prova: trial e clínica suspensa
+    recusam o ajuste) e `health-insurance-concurrency-db.ts` 5/5;
+  - o código anterior nunca escreve a coluna nova; o novo lê a coluna. Só a ordem "0161 antes do código" importa, e
+    ela foi cumprida.
+- **Aplicação (08h46, `db-migrate-dev-limited.ts --expect-from 0160_patient_external_refunds --allow-external-applied
+  --expect-to 0161_hi_guide_consulta_overrides`):**
+  - ensaio seco antes, com 1 pendente;
+  - transação do migrador em 3,3 s, contando a latência do pooler;
+  - observador: 0 sessões esperando lock;
+  - composição depois: nada pendente.
+- **Pós-voo só leitura (13/13):**
+  - 162 linhas: a última é a 0161 com o sha256 do arquivo, a penúltima a 0160 e a 0159 do #53 continua com o hash
+    fixado;
+  - coluna, CHECK validado, função, gatilho e versão presentes; nenhuma guia com ajuste;
+  - RLS de `hi_guides` igual (mesmas políticas e permissões de tabela, +1 coluna com UPDATE);
+  - guias, revisões, eventos e itens com o mesmo md5 do pré-voo; a 0160 continua presente.
+- **Pino:** a 0161 entrou no manifesto de composição (idx 161, `when` 1795209773857, sha256 `acd23a73…`, depende da
+  0160, sentinela `function:public.hi_guide_guard_consulta_overrides()`). O aplicador conferiu o arquivo contra o pino
+  antes do DDL.
+- **Produção:** intocada. O pré-voo do lançamento coordenado continua esperando `pending=26 (0136 … 0161)` (§16).
+- **Evidência:** `evidence/tiss-ciclo-2026-11-15-0161-dev/`.

@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 267 actions (0 inline); 66 métodos em 62 handlers; 82 props com referência de action; 766 acessos diretos a process.env; 10 nomes NEXT_PUBLIC.
+Contagem: 267 actions (0 inline); 66 métodos em 62 handlers; 82 props com referência de action; 770 acessos diretos a process.env; 10 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -940,6 +940,10 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/health-insurance-union-chain-db.ts:66`                     | `CRYPTO_MASTER_KEY_V1`                 | `process.env.CRYPTO_MASTER_KEY_V1`                                          |
 | `scripts/security/health-insurance-union-chain-db.ts:67`                     | `CRYPTO_LOOKUP_SALT`                   | `process.env.CRYPTO_LOOKUP_SALT`                                            |
 | `scripts/security/hi-0153-apply-rehearsal.ts:22`                             | `ROWS`                                 | `process.env.ROWS`                                                          |
+| `scripts/security/hi-0161-restore-rehearsal.ts:37`                           | `PORT`                                 | `process.env.PORT`                                                          |
+| `scripts/security/hi-0161-restore-rehearsal.ts:38`                           | `BACKUP_DIR`                           | `process.env.BACKUP_DIR`                                                    |
+| `scripts/security/hi-0161-restore-rehearsal.ts:39`                           | `PRE_FLIGHT`                           | `process.env.PRE_FLIGHT`                                                    |
+| `scripts/security/hi-0161-restore-rehearsal.ts:79`                           | `<object>`                             | `process.env`                                                               |
 | `scripts/security/hi-dev-e2e-fixture.ts:35`                                  | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
 | `scripts/security/hi-dev-e2e-fixture.ts:37`                                  | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                                          |
 | `scripts/security/hi-dev-migrator-rehearsal.ts:43`                           | `SECURITY_PG_BIN`                      | `process.env.SECURITY_PG_BIN`                                               |

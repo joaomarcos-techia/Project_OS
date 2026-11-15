@@ -1,0 +1,172 @@
+{
+ "mode": "pre",
+ "at": "2026-11-15T11:46:12.102Z",
+ "code": {
+  "pr55": "b560b67e53e8f5b9048aea41690bf32a56a0cfe9"
+ },
+ "sha0160": "718190feffe57a0f0b7ceaf7c28686793209f0c0cb9f4b7bfd6480d4ac1ef306",
+ "sha0161": "acd23a73e25109c14c1514f6995fbcd81182a51f7338c1bd6c63127f8d0265c5",
+ "checks": [
+  {
+   "name": "ledger com 161 linhas e última = 0160 (when 1795123373857)",
+   "ok": true,
+   "detail": {
+    "n": 161,
+    "last": "1795123373857"
+   }
+  },
+  {
+   "name": "última linha tem o sha256 do arquivo da 0160",
+   "ok": true,
+   "detail": "718190feffe5"
+  },
+  {
+   "name": "penúltima é a 0159 do #53 com o sha256 fixado (eb00a4e3…)",
+   "ok": true,
+   "detail": "eb00a4e3dd45"
+  },
+  {
+   "name": "a 0161 ainda não existe (coluna, CHECK, função, gatilho, versão)",
+   "ok": true,
+   "detail": {
+    "has_col": false,
+    "has_chk": false,
+    "has_fn": false,
+    "has_trg": false,
+    "has_version": false,
+    "has_0160_version": true,
+    "has_0160_table": true
+   }
+  },
+  {
+   "name": "a 0160 está presente (tabela e versão)",
+   "ok": true,
+   "detail": {
+    "has_col": false,
+    "has_chk": false,
+    "has_fn": false,
+    "has_trg": false,
+    "has_version": false,
+    "has_0160_version": true,
+    "has_0160_table": true
+   }
+  },
+  {
+   "name": "hi_guides com RLS ligada e forçada",
+   "ok": true,
+   "detail": {
+    "rls": true,
+    "force": true,
+    "policies": [
+     "hi_guides_tenant_access"
+    ],
+    "auth_table_grants": [
+     "INSERT",
+     "SELECT"
+    ],
+    "auth_update_cols": 17
+   }
+  },
+  {
+   "name": "sem transação longa (> 60 s) no banco",
+   "ok": true,
+   "detail": 0
+  },
+  {
+   "name": "sem lock de outra sessão em hi_guides",
+   "ok": true,
+   "detail": 0
+  }
+ ],
+ "raw": {
+  "led": {
+   "n": 161,
+   "last": "1795123373857"
+  },
+  "tail": [
+   {
+    "hash": "718190feffe57a0f0b7ceaf7c28686793209f0c0cb9f4b7bfd6480d4ac1ef306",
+    "at": "1795123373857"
+   },
+   {
+    "hash": "eb00a4e3dd45f89e7eef4dc2c95c577e7932f1f2131d5bfb4ff8f5e4570f5c74",
+    "at": "1795036973858"
+   },
+   {
+    "hash": "40cc90493b5abf980c209485c83451f33c4cfc5931b87f3af7653f2091af63a2",
+    "at": "1795036973857"
+   }
+  ],
+  "r0159": "eb00a4e3dd45f89e7eef4dc2c95c577e7932f1f2131d5bfb4ff8f5e4570f5c74",
+  "obj": {
+   "has_col": false,
+   "has_chk": false,
+   "has_fn": false,
+   "has_trg": false,
+   "has_version": false,
+   "has_0160_version": true,
+   "has_0160_table": true
+  },
+  "triggers": [
+   "hi_aa_premium_guides:O",
+   "hi_guides_a_transition:O",
+   "hi_guides_b_refs:O",
+   "hi_guides_c_replacement:O",
+   "hi_guides_ledger_sync:O",
+   "hi_guides_z_event:O"
+  ],
+  "rls": {
+   "rls": true,
+   "force": true,
+   "policies": [
+    "hi_guides_tenant_access"
+   ],
+   "auth_table_grants": [
+    "INSERT",
+    "SELECT"
+   ],
+   "auth_update_cols": 17
+  },
+  "g": {
+   "n": 10,
+   "digest": "8f1c5e2b0c049a7153db64360e06a50c"
+  },
+  "byStatus": [
+   {
+    "t": "consulta",
+    "s": "exported",
+    "n": 2
+   },
+   {
+    "t": "consulta",
+    "s": "partially_glossed",
+    "n": 7
+   },
+   {
+    "t": "consulta",
+    "s": "ready_for_review",
+    "n": 1
+   }
+  ],
+  "snap": {
+   "n": 9,
+   "digest": "6af722d40c8a15bac8d35cdd9e3e6496"
+  },
+  "ev": {
+   "n": 67,
+   "digest": "511cdc9040e523ebb061c1f9e448a430"
+  },
+  "items": {
+   "n": 10,
+   "digest": "cf23336defdaf8aabd4b4e4e3e3590c7"
+  },
+  "sizeBytes": 212992,
+  "views": [
+   "hi_guide_accounts",
+   "hi_ledger_drift"
+  ],
+  "longTx": 0,
+  "guideLocks": 0,
+  "post": null
+ }
+}

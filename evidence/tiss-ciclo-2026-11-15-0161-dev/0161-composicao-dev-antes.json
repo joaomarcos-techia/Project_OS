@@ -1,0 +1,204 @@
+{
+  "ledgerRows": 161,
+  "lastAppliedAt": "1795123373857",
+  "pending": [
+    "0161_hi_guide_consulta_overrides"
+  ],
+  "warnings": [
+    "APPLIED_HASH_MISMATCH:0033_messaging_connection_status",
+    "APPLIED_HASH_MISMATCH:0037_profiles_invite_and_crm",
+    "APPLIED_HASH_MISMATCH:0051_ai_conversations_panel",
+    "APPLIED_HASH_MISMATCH:0071_runtime_role_timeouts",
+    "APPLIED_HASH_MISMATCH:0093_ai_clinic_config_convenios",
+    "APPLIED_HASH_MISMATCH:0124_offer_2026_trial_deadline"
+  ],
+  "problemsNoAllowance": [
+    "JOURNAL_IDX_GAP:0136_trial_resource_limits",
+    "JOURNAL_IDX_GAP:0137_trial_service_role_privileges",
+    "JOURNAL_IDX_GAP:0138_saas_gateway_bindings",
+    "JOURNAL_IDX_GAP:0139_saas_gateway_recontracts",
+    "JOURNAL_IDX_GAP:0140_saas_recurring_payment_observations",
+    "JOURNAL_IDX_GAP:0141_saas_scheduled_plan_changes",
+    "JOURNAL_IDX_GAP:0142_saas_review_replays",
+    "JOURNAL_IDX_GAP:0159_saas_period_snapshot",
+    "APPLIED_UNKNOWN:0136_trial_resource_limits",
+    "APPLIED_UNKNOWN:0137_trial_service_role_privileges",
+    "APPLIED_UNKNOWN:0138_saas_gateway_bindings",
+    "APPLIED_UNKNOWN:0139_saas_gateway_recontracts",
+    "APPLIED_UNKNOWN:0140_saas_recurring_payment_observations",
+    "APPLIED_UNKNOWN:0141_saas_scheduled_plan_changes",
+    "APPLIED_UNKNOWN:0142_saas_review_replays",
+    "APPLIED_UNKNOWN:0159_saas_period_snapshot",
+    "REQUIRED_MISSING:0136_trial_resource_limits",
+    "REQUIRED_MISSING:0137_trial_service_role_privileges",
+    "REQUIRED_MISSING:0138_saas_gateway_bindings",
+    "REQUIRED_MISSING:0139_saas_gateway_recontracts",
+    "REQUIRED_MISSING:0140_saas_recurring_payment_observations",
+    "REQUIRED_MISSING:0141_saas_scheduled_plan_changes",
+    "REQUIRED_MISSING:0142_saas_review_replays",
+    "REQUIRED_MISSING:0159_saas_period_snapshot"
+  ],
+  "allowances": [
+    "0136_trial_resource_limits",
+    "0137_trial_service_role_privileges",
+    "0138_saas_gateway_bindings",
+    "0139_saas_gateway_recontracts",
+    "0140_saas_recurring_payment_observations",
+    "0141_saas_scheduled_plan_changes",
+    "0142_saas_review_replays",
+    "0159_saas_period_snapshot"
+  ],
+  "blockingWithAllowances": [],
+  "pinnedCheck": [
+    {
+      "tag": "0136_trial_resource_limits",
+      "applied": true,
+      "hashOk": true,
+      "sentinel": true
+    },
+    {
+      "tag": "0137_trial_service_role_privileges",
+      "applied": true,
+      "hashOk": true,
+      "sentinel": "n/a"
+    },
+    {
+      "tag": "0138_saas_gateway_bindings",
+      "applied": true,
+      "hashOk": true,
+      "sentinel": true
+    },
+    {
+      "tag": "0139_saas_gateway_recontracts",
+      "applied": true,
+      "hashOk": true,
+      "sentinel": true
+    },
+    {
+      "tag": "0140_saas_recurring_payment_observations",
+      "applied": true,
+      "hashOk": true,
+      "sentinel": true
+    },
+    {
+      "tag": "0141_saas_scheduled_plan_changes",
+      "applied": true,
+      "hashOk": true,
+      "sentinel": true
+    },
+    {
+      "tag": "0142_saas_review_replays",
+      "applied": true,
+      "hashOk": true,
+      "sentinel": true
+    },
+    {
+      "tag": "0143_tiss_catalog",
+      "applied": true,
+      "hashOk": true,
+      "sentinel": true
+    },
+    {
+      "tag": "0144_hi_clinic_setup",
+      "applied": true,
+      "hashOk": true,
+      "sentinel": "n/a"
+    },
+    {
+      "tag": "0145_hi_memberships",
+      "applied": true,
+      "hashOk": true,
+      "sentinel": "n/a"
+    },
+    {
+      "tag": "0146_hi_authorizations",
+      "applied": true,
+      "hashOk": true,
+      "sentinel": "n/a"
+    },
+    {
+      "tag": "0147_hi_guides",
+      "applied": true,
+      "hashOk": true,
+      "sentinel": "n/a"
+    },
+    {
+      "tag": "0148_hi_coverage_copay",
+      "applied": true,
+      "hashOk": true,
+      "sentinel": "n/a"
+    },
+    {
+      "tag": "0149_hi_billing_gaps",
+      "applied": true,
+      "hashOk": true,
+      "sentinel": "n/a"
+    },
+    {
+      "tag": "0150_hi_batches",
+      "applied": true,
+      "hashOk": true,
+      "sentinel": "n/a"
+    },
+    {
+      "tag": "0151_hi_premium_gate",
+      "applied": true,
+      "hashOk": true,
+      "sentinel": "n/a"
+    },
+    {
+      "tag": "0152_hi_glosses_payments",
+      "applied": true,
+      "hashOk": true,
+      "sentinel": "n/a"
+    },
+    {
+      "tag": "0153_hi_ledger_bridge",
+      "applied": true,
+      "hashOk": true,
+      "sentinel": "n/a"
+    },
+    {
+      "tag": "0154_hi_premium_period_evidence",
+      "applied": true,
+      "hashOk": true,
+      "sentinel": "n/a"
+    },
+    {
+      "tag": "0155_ledger_payment_sum_by_clinic",
+      "applied": true,
+      "hashOk": true,
+      "sentinel": "n/a"
+    },
+    {
+      "tag": "0156_hi_sadt_requests",
+      "applied": true,
+      "hashOk": true,
+      "sentinel": "n/a"
+    },
+    {
+      "tag": "0157_hi_professional_payouts",
+      "applied": true,
+      "hashOk": true,
+      "sentinel": "n/a"
+    },
+    {
+      "tag": "0158_hi_copay_charge",
+      "applied": true,
+      "hashOk": true,
+      "sentinel": true
+    },
+    {
+      "tag": "0159_saas_period_snapshot",
+      "applied": true,
+      "hashOk": true,
+      "sentinel": true
+    },
+    {
+      "tag": "0160_patient_external_refunds",
+      "applied": true,
+      "hashOk": true,
+      "sentinel": true
+    }
+  ]
+}
