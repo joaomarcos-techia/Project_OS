@@ -4,8 +4,10 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { parseArgs } from 'node:util';
 
 import { z } from 'zod';
+import { extractReleaseArchive } from './release-archive';
 import {
   composeFrozenSaasJournal,
   readReviewedCheckoutMigrations,
@@ -64,7 +66,13 @@ const sharedJournal = journalSchema.parse(
 );
 const journal = composeFrozenSaasJournal(baseJournal, sharedJournal, manifest.financialEntry);
 const reviewed = await readReviewedCheckoutMigrations();
-const relative = `dist/abacatepay-saas-${financial.slice(0, 8)}`;
+const { values } = parseArgs({ options: { 'output-suffix': { type: 'string' } } });
+const suffix = z
+  .string()
+  .regex(/^[a-z0-9][a-z0-9-]{0,30}$/u)
+  .optional()
+  .parse(values['output-suffix']);
+const relative = `dist/abacatepay-saas-${financial.slice(0, 8)}${suffix ? '-' + suffix : ''}`;
 const directory = path.resolve(relative);
 assert.ok(directory.startsWith(path.resolve('dist') + path.sep));
 let exists = false;
@@ -78,7 +86,7 @@ assert.equal(exists, false, 'Export exists; preserve and inspect its recorded in
 await mkdir(directory);
 const archive = path.resolve(relative + '.tar');
 git('archive', '--format=tar', '--output=' + archive, financial);
-execFileSync('tar', ['-xf', archive, '-C', directory], { windowsHide: true });
+extractReleaseArchive(archive, directory);
 const sqlProof: { tag: string; sha256: string }[] = [];
 for (const [index, entry] of journal.entries.entries()) {
   assert.equal(entry.idx, index);

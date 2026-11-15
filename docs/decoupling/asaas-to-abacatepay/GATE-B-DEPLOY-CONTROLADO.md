@@ -1,5 +1,158 @@
 # Gate B — proposta de deploy técnico com aquisição fechada
 
+> **Checkpoint prevalente — 15/11/2026:** a execução foi separada em **B0, B1, B2 e B3**, sem autorização implícita entre eles. Somente B0 está autorizado. Os pedidos conjuntos e a janela de 15/11 abaixo são histórico, não uma autorização. O candidato financeiro continua exatamente `94f6da4aeb32b1ae7da856dc9afa105120ce6dd9`, CI `43666101807` aprovada (7.209 testes/637 arquivos/22 E2E, zero teste ignorado). Alterações posteriores são ferramentas de operação, testes e documentação, com checks próprios no PR. **Production NO-GO; B1/B2/B3, Gate C e Gate D não executados.**
+
+## B0 — resultado e limites da preparação de 15/11
+
+- HEAD e PR draft confirmados pela API do GitHub antes das alterações; nenhuma mudança posterior no código da aplicação, nas migrations, no manifesto congelado, nas regras financeiras, nos preços ou nas cotas.
+- **220 testes dirigidos/13 arquivos PASS**, incluindo 11 testes novos que usam os guards reais da composição Gate B em chamadas internas e HTTP. Banco, autorização e rede são doubles; isso não é um teste de Production ou do WAF real. A regressão adicional de extração UTF8 passou separadamente (1 teste).
+- **22 testes de ferramenta B1** já estão incluídos nos 220: confinamento, preservação dos bytes UTF8, senha fora de argv e rejeição de falha GPG/psql. São doubles de processo; não comprovam restauração Docker real.
+- O Docker está instalado, mas a consulta local retornou ausência do pipe do Engine. Não foi reinstalado ou iniciado sob pressão de memória. B1 exige Engine saudável e capacidade para o contêiner isolado; nenhuma restauração real foi executada.
+- Encontrado defeito de empacotamento, sem alterar billing: o bsdtar do Windows extraía nomes UTF8 do Git usando a página de código local. Corrigida a extração com `hdrcharset=UTF-8` no Windows, com regressão nativa. O novo export usa sufixo próprio e preserva o anterior.
+- [Atestado do pacote](migrations/release-artifact-94f6da4a.json): arquivo local `dist/qoro-saas-94f6da4a-gate-b0.tar`, SHA256 `3902f2007742df4016450eeaece806a8f2bc0b535631d33da9a5e691b59ce3f6`. Foram conferidos 2.593 arquivos fora das migrations contra seus blobs Git e 160 hashes SQL. A referência é imutável por conteúdo verificável, não armazenamento WORM. Não foi feito upload, assinatura privada ou novo build desse export.
+
+### Backup habilitado não equivale a B1 aprovado
+
+| Condição | Evidência atual |
+|---|---|
+| Serviço gerenciado habilitado | **Informado pelo titular em 15/11**; não tratar como desabilitado |
+| Última cópia, tipo, status e UTC | Não consultados nesta rodada; o inventário de 21–28/10 é histórico |
+| Plano e retenção | Última leitura organizacional: Pro. Se ainda for Pro, a documentação prevê sete dias de cópias diárias; reconfirmar o plano e a janela efetiva |
+| PITR | Não presumido e não será contratado/ativado |
+| Integridade/restore da cópia gerenciada atual | Não comprovados pelo botão Restore |
+| Restore lógico anterior | PASS histórico, preservado; não prova o ponto de recuperação atual |
+| Cópia adicional pré-implantação | Não criada. Proposta: dump lógico cifrado atual, com restauração isolada, sem snapshot gerenciado pago |
+
+Fontes verificadas em 15/11: [backups](https://supabase.com/docs/guides/platform/backups), [backup/restore lógico](https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore), [clone gerenciado](https://supabase.com/docs/guides/platform/clone-project). A cópia lógica não equivale a restaurar a cópia física gerenciada. Storage binário e configurações gerenciadas Auth não são comprovados pelo dump; seguem o runbook de recuperação separado. O changelog informa CLI v3 com mudança de comportamento; manter o CLI v2 já validado, sem upgrade automático.
+
+### Preflight: composição e diferenças históricas
+
+O pacote é a composição congelada de **160 entradas, índices 0000–0159**, não o journal da branch TISS nem uma seleção de arquivos por contagem. Production deve ter exatamente o prefixo de 136 entradas até 0135 antes da aplicação; pendentes 0136–0159. O campo `expectedInitialHistoryEntries=144` do manifesto original descreve a preparação DEV anterior, não uma autorização para usar 144 em Production. `readFrozenRelease` recompõe os inputs Git e o preflight de Production exige 136/160 nas fases before/after. A 0160 continua excluída.
+
+Reutilizadas, sem repetir o banco sintético completo, as 16 verificações do ensaio 136→160 e as 52 de compatibilidade. Nesta rodada passaram novamente os testes unitários de journal, composição e preflight, incluindo ausência, conteúdo/hash, ordem, timestamp, duplicação, prefixo parcial, entrada fora do journal e schema/RLS incompatível. O inventário de catálogo complementa esse preflight; não aprova automaticamente todo drift.
+
+As seis exceções históricas registradas no DEV foram conferidas contra os bytes Git de 94f6da4a:
+
+| Tags | Resultado e condição para B2 |
+|---|---|
+| 0033, 0037, 0071 | Hashes aplicados equivalem exatamente ao mesmo SQL com CRLF; não indicam mudança de DDL |
+| 0051, 0093, 0124 | Não equivalem ao LF/CRLF atual; não foi localizado corpo com o mesmo hash no histórico Git local consultado. A origem semântica não está comprovada apenas pelo checksum |
+
+O preflight reconhece pares históricos específicos de tag/timestamp/hash; isso não autoriza dispensar a comparação do schema. Em B2, se esses três hashes aparecerem em Production, exigir comparação do catálogo/restauração atual com o estado esperado e análise dos objetos afetados antes de B3. Não transformar exceção DEV em aceite genérico de drift, não editar o journal e não reaplicar migrations antigas para zerar alertas. **Se o schema ou o journal de Production divergirem do manifesto aprovado, interromper antes da primeira alteração.**
+
+### Inventário adversarial dos caminhos de aquisição
+
+| Caminho | Proteção no candidato | Limite da prova e teste B2 |
+|---|---|---|
+| `POST /api/signup/sessions` | `SIGNUP_ENABLED=false`, antes da criação | Incluir na regra temporária; confirmar evento WAF, não só HTTP |
+| `POST /api/signup/checkout` | Mesmo kill switch, inclusive sessão antiga; sem fornecedor antes do guard | Regressão existente preservada; negar antes da troca do deployment |
+| `POST /api/billing/checkout` | Autorização fresca/tenant do servidor; `createDeferredSubscriptionCheckout` exige runtime e allowlist | Não é coberto pela regra de dois paths. No candidato, runtime desarmado bloqueia antes de DB/provedor; verificar se existe no código publicado antes da troca |
+| Recontratação e reuso | `createAbacatePayRecontractCheckout` exige aquisição permitida; criação normal verifica runtime/coorte antes de recuperar link | Uma flag local não revoga um link externo já entregue. Inventariar links e obrigações em B2; ambiguidade interrompe B3 |
+| `POST /api/billing/plan-change` e chamadas internas | Guard de runtime; tenant/permissão e contrato validados | A flag de checkout sozinha não desliga gestão de contratos. A composição Gate B desarma o runtime somente se não houver obrigação live AbacatePay |
+| Server Actions em `/configuracoes/assinatura` | Gestão Asaas exige identidade/permissão fresca, tenant e origem persistida; contratos AbacatePay são rejeitados no ramo legado | Não estão cobertas pelo firewall de cadastro. Preservar gestão legítima Asaas, inclusive alterações financeiras já disponíveis; não equivale a zero atividade financeira global |
+| Webhook/cron/recuperação AbacatePay | Runtime desarmado antes de trabalho; quatro ticks permanecem no-op | Não desligar cron global, workers ou webhooks Asaas para conter nova venda |
+| `/api/signup/checkout/status`, callbacks, login e áreas clínicas | Recuperação de obrigação existente continua disponível | Nunca bloquear prefixo `/api/signup` nem todos os POSTs financeiros |
+
+No código auditado não há rewrite/alias de aquisição em `next.config.ts`, `vercel.json` ou middleware; o rewrite de documentação e o túnel Sentry não são aquisição. Os helpers internos não atravessam necessariamente o firewall; os guards permanecem obrigatórios. O adapter de baixo nível não é uma rota pública nem deve ser invocado fora das entradas privilegiadas inventariadas. Mudança de código no ramo publicado ou novo chamador exige nova revisão, não extrapolação da prova.
+
+**Regra WAF proposta, não criada:** Environment Production AND Method POST AND Route exata em `/api/signup/sessions`, `/api/signup/checkout` → Deny. Usar o campo de plataforma, não um teste de igualdade sobre cabeçalho HTTP enviado pelo cliente. A Vercel documenta Route após middleware e também seleção de Server Action; não presumir que uma regra de API protege todas as Actions. [Parâmetros oficiais](https://vercel.com/docs/vercel-firewall/vercel-waf/rule-configuration).
+
+**B2 testa sem risco de pagamento:** apenas requisições sem credencial válida de contratação, corpo vazio/inválido e cookie sintético sem identidade. Variar path canônico, barra final, query string, codificação/normalização, método, headers `Origin`, `Next-Action` e `x-matched-path`; observar qual rota foi resolvida e o ID da regra aplicada nos logs WAF. Redirecionamento/rejeição pelo framework é distinto de bloqueio pela regra. Confirmar que GET/HEAD e as rotas de status/callback/webhooks legados não são atingidos. Não usar conta de lead, sessão real pronta para pagar ou token válido para experimentar uma barreira ainda não comprovada. Nenhuma conta será criada só para essa prova.
+
+Sem correspondência inequívoca, com bypass/regra anterior conflitante ou rota alternativa publicada capaz de criar obrigação, B2 fica pendente e B3 não avança. Falha de WAF não pode abrir o backend candidato; falha de configuração do runtime fecha a operação. Não prometer disponibilidade do WAF nem seu comportamento fail-open/fail-closed sem observar o projeto real.
+
+### Matriz de preservação dos serviços
+
+| Serviço | Evidência disponível | Verificação futura sem fabricar pagamento |
+|---|---|---|
+| Asaas legado / pacientes | Código da aplicação idêntico ao RC; regressões e CI aprovadas preservadas | Origem/credenciais preservadas, leitura de estado e logs; sem cobrança nova de teste |
+| Outbox/cron/workers | Testes de cron dirigido PASS; quatro ticks AbacatePay no-op com guards reais | Heartbeats, filas e ausência de novo consumidor live; não disparar cron financeiro global manualmente |
+| Redis/inbox | Guard desarmado impede trabalho novo AbacatePay; testes de contrato anteriores preservados | Conectividade e idade de filas em leitura; não drenar/processar para provar saúde |
+| Auth/permissões/RLS | Regressões/isolamento da CI 94f6da4a preservados; HTTP usa tenant do servidor | Smoke legítimo após B3; doubles locais não comprovam MFA Production |
+| Entitlements/trial | Sem mudança de código/SQL, flags não removem períodos pagos nem reiniciam trial | Fingerprints anteriores/posteriores e leitura dos direitos; assinatura SaaS não libera TISS automaticamente |
+| Dashboard/recuperação paga | Build/CI do RC e teste de status de checkout preservados | Smoke após deployment, com obrigações anteriores intactas; sem novo lead/checkout |
+
+## Autorizações independentes — formulários prevalentes
+
+### Pedido 1 — B1: inventário, cópia atual e recuperação isolada
+
+**Alvo:** projeto Supabase de nome `qoro-prod`; REF exata deve ser confirmada pelo titular/painel antes de conectar. Nunca usar DEV `pqhkirrszzpwezdaqrai`. Não é necessário criar um novo token pessoal se o painel ou a sessão administrativa legítima já permitir a leitura.
+
+**B1-A, apenas metadados:** conferir no [Dashboard](https://supabase.com/dashboard/projects) → qoro-prod → Database → Backups o plano, tipo, UTC, status, retenção e janela disponível. Guardar só metadados, sem clicar Restore. API alternativa já documentada pelo Supabase: `GET /v1/projects/<REF_APROVADA>/database/backups` usando autenticação existente, sem token no comando/chat. Esta consulta Production não foi executada neste ciclo.
+
+**B1-B, autorização separada para dados reais:** se não houver cópia atual adequada já autorizada, criar dump lógico cifrado pelo helper existente e restaurar somente em contêiner local descartável. Não criar snapshot físico pago, novo projeto, PITR ou plano. Não afirmar custo de uso zero: conferir franquia/egress disponível antes da cópia e parar se exigir gasto não aprovado.
+
+O pedido B1 pode aprovar expressamente A+B em uma única resposta, sem uma segunda rodada só para confirmar as mesmas operações. Se a autorização abranger apenas metadados, não executar cópia ou restauração. Nenhuma das opções autoriza B2/B3.
+
+1. **Pré-condições:** B1-B explicitamente aprovado; REF/host/usuário/TLS/porta da conexão conferidos em memória contra o projeto correto; `NODE_ENV=production` e `SUPABASE_PROJECT_ENV=prod` somente no processo de backup; `DATABASE_URL_PROD`/`BACKUP_PASSPHRASE` carregados pelo mecanismo protegido existente. Verificar compatibilidade pg_dump/psql, destino com ACL restrita, criptografia do host e recursos Docker. Não imprimir URLs ou segredos.
+2. **Cópia cifrada fora do release:** criar diretório privado aprovado sob `%LOCALAPPDATA%\Qoro\Recovery\gate-b1-<ID_APROVADO>`. Executar o script por caminho absoluto, com cwd nesse diretório, para que `backups/` não entre no pacote de deployment. O loader absoluto é necessário porque o cofre não contém `node_modules`:
+
+```powershell
+# SOMENTE depois de B1-B e preflight local de destino/segredos aprovados.
+Push-Location $QoroRecoveryRoot
+try {
+  node --import file:///C:/dev/Qoro_billing_abacatepay_20261107/node_modules/tsx/dist/loader.mjs C:/dev/Qoro_billing_abacatepay_20261107/scripts/db-backup-prod.ts
+  if ($LASTEXITCODE -ne 0) { throw 'Backup falhou; parar B1' }
+} finally { Pop-Location }
+```
+
+3. **Sucesso da cópia:** exit codes, bytes, SHA256 do `.sql.gpg`, UTC e disponibilidade da chave. O helper usa pg_dump somente leitura e GPG em stream, sem SQL aberto em disco. Marcador final de dump não substitui restore. Não carregar variáveis/credenciais live no contêiner.
+4. **Destino isolado:** depois de validar Docker/imagem oficial, gerar nome `qoro-gate-b1-` + 12 caracteres hexadecimais e senha aleatória apenas de processo. Comando futuro, com `POSTGRES_PASSWORD` no ambiente do processo (não em argv):
+
+```powershell
+docker run -d --name $QoroB1Container --label qoro.recovery.scope=gate-b1 --network none --log-driver none --memory 2g --memory-swap 2g --tmpfs /var/lib/postgresql/data:rw,nosuid,size=1g --tmpfs /tmp:rw,nosuid,size=128m -e POSTGRES_PASSWORD public.ecr.aws/supabase/postgres:17.11.0.006 postgres -c cron.launch_active_jobs=off
+docker exec $QoroB1Container pg_isready -h 127.0.0.1 -U supabase_admin -d postgres
+```
+
+Conferir initdb finalizado, Vault 0.3.1, PostgreSQL 17.11, `SHOW cron.launch_active_jobs=off`, nenhum host port, mount persistente, app, worker ou saída de rede. O contêiner não é Supabase DEV compartilhado. Tmpfs e limite de swap do contêiner não provam proteção do pagefile/hibernação do host; verificar criptografia/política local antes de tratar dados reais. Se 1GiB de dados/2GiB de RAM não forem suficientes, parar e revisar capacidade antes de restaurar, sem aumentar silenciosamente limites.
+
+5. **Restauração estrita:** executar na raiz deste worktree, com senha do backup no processo e paths reais substituindo todos os placeholders. A ferramenta fica fora do candidato financeiro e não chama migrator:
+
+```powershell
+node --conditions=react-server --import tsx scripts/security/gate-b-isolated-restore.ts --authorize-local-real-data --backup '<COPIA_CIFRADA_APROVADA.sql.gpg>' --sha256 '<SHA256_APROVADO>' --container '<CONTAINER_APROVADO>' --release 'dist/abacatepay-saas-94f6da4a-b0-utf8' --ref '94f6da4aeb32b1ae7da856dc9afa105120ce6dd9' --evidence '<DESTINO_PRIVADO_NOVO.json>'
+```
+
+6. **Resultado esperado:** gpg=0, psql=0 com `ON_ERROR_STOP`, histórico/hash/ordem exatos do prefixo136, índices/constraints íntegros e inventário técnico. A ferramenta grava `LOCAL_RESTORE_COMPLETE_REQUIRES_MANIFEST_REVIEW`, nunca aprova B1 sozinha. Comparar inventário/schema com o manifesto da cópia e revisar diferenças de roles/grants (`--no-acl` não restaura todas as permissões), Storage e Auth gerenciado. O script histórico `offer-restored-backup-db.ts` exige outro snapshot e aplica migrations antigas; **não usar diretamente para este B1**. `restore:test` espera `.sql` aberto; não usá-lo como substituto protegido.
+7. **Falha/parada:** erro de origem, hash, versão, confinamento, privilégio, espaço, GPG/SQL ou paridade deixa B1 pendente; não eliminar partes do dump, não rodar migrations e não restaurar no projeto ativo. Guardar só estágio/códigos, sem linhas clínicas ou stderr bruto.
+8. **Retenção/recuperação:** original cifrado preservado, chave separada; proposta de reter a cópia até sete dias após B3, sem exclusão automática. Descarte do contêiner contém somente a cópia local e deve integrar a autorização B1-B: conferir nome/label antes de `docker rm -f <CONTAINER_APROVADO>`. Sem autorização de descarte, não escolher outro recurso para remover. Não excluir pastas já bloqueadas por política. RTO completo não medido; duração do drill será registrada, sem extrapolar SLA.
+
+**B1 não autoriza B2/B3.** Não houve consulta de backups gerenciados, dump atual, restauração real ou descarte neste ciclo.
+
+### Pedido 2 — B2: preflight em leitura e contenção, separados
+
+**B2-A, consultas read-only:** conexão do projeto Production exato, permissão atual de leitura de histórico/catálogos/contratos e observabilidade. Sem concessão de privilégios, PAT novo, DDL, processamento de filas ou configuração. Executar em janela exclusiva de mudanças de schema, com segredos somente de processo:
+
+```powershell
+node --conditions=react-server --import tsx scripts/abacatepay-release-preflight.ts --release 'dist/abacatepay-saas-94f6da4a-b0-utf8' --ref '94f6da4aeb32b1ae7da856dc9afa105120ce6dd9' --project '<REF_PRODUCTION_APROVADA>' --phase before
+psql -X --set=ON_ERROR_STOP=1 --no-align --tuples-only --file docs/decoupling/asaas-to-abacatepay/migrations/gate-b-catalog-readonly.sql
+```
+
+O primeiro exige `SUPABASE_PROJECT_ENV=prod`/`DATABASE_URL_PROD` conferidos. O segundo exige PGHOST/PGPORT/PGUSER/PGPASSWORD/PGDATABASE/PGSSLMODE e PGOPTIONS read-only para **o mesmo alvo**. Não colar senha/URI em argv. Conferir roles, grants, funções, policies, triggers, índices, dependências, fingerprints de contratos/preços e os três hashes históricos acima; inventariar obrigações AbacatePay e links externos. Reconfirmar DEV161 separadamente apenas como contexto, não como prova de Production. Observar locks, transações longas e saúde de filas sem executá-las. Critério de sucesso: prefixo136 exato,24 pendentes,sem0160 e nenhuma divergência não explicada. Resultado passa a expirar diante de qualquer mudança de schema/manifesto; repetir imediatamente antes de B3.
+
+**B2-B, alteração live — aprovação distinta:** snapshot protegido das flags e regras, instalar/conferir a regra proposta e aplicar flags apenas ao deployment explicitamente autorizado. Alterar variável não modifica deployments existentes; **B2 não autoriza redeploy**. A guarda corrigida só existe no candidato; o fechamento do código antigo depende da contenção WAF comprovada e dos links anteriores tratados. Confirmar quota/permissão, ID/prioridade/bypass/rotas resolvidas e preservação dos caminhos legados. Não aceitar a presença de chave ou uma resposta403 como prova suficiente. Testes seguros estão no inventário acima.
+
+Antes de B2-B/B3, combinar com os responsáveis UI/TISS uma janela sem outro merge/deploy/configuração Production. Isso é uma condição operacional a confirmar, não um mecanismo de freeze já instalado. Outro deployment ou alteração observada invalida o preflight e exige nova conferência; não editar a CI ou worktree alheio para impor esse controle.
+
+Em B2, identificar também o deployment/código que estiver realmente publicado. Se houver mudanças Production posteriores à base do candidato, comparar seu impacto e não sobrescrevê-las silenciosamente com o RC antigo. Uma composição adicional necessária exige baseline, testes e aprovação próprios; o estado atual da branch main não prova qual versão está servindo.
+
+**Reversão B2-B:** guardar ID/versão da única regra temporária e snapshot anterior. Remover/restaurar somente essa regra se aprovado e sem abrir aquisição; não mexer nas outras regras. Flags exigem novo deployment para surtir efeito, o que continua sob B3 ou autorização independente de recuperação. Se consumidores/obrigações AbacatePay live existirem, não desarmá-los: parar e repropor a composição. Falha de contenção mantém B3 NO-GO.
+
+### Pedido 3 — B3: migrations e deployment fechado
+
+- **Candidato financeiro:** SHA94f6da4a completo acima; archive/SHA256 do atestado. O HEAD posterior de ferramentas/documentos não substitui esse candidato e precisa de CI própria. Não usar o HEAD móvel de UI/TISS/main. Na extração Windows usar `hdrcharset=UTF-8`; conferir arquivo e manifesto antes de instalar dependências/build, sem copiar `.env`/sessão DEV.
+- **Pré-condições:** B1 aprovado com manifesto/recuperação; B2-A atual aprovado e B2-B comprovado, autorizações expressas de SQL/deployment, nomes dos responsáveis e rollback. Sem nova compra ou aceite R1–R4.
+- **Janela proposta, não reservada:** B1 em **16/11/2026 10h–11h**, America/Sao_Paulo, se houver autorização e recursos. B2 em janela própria após B1; B3 proposto para **17/11/2026 10h–11h**, condicionado aos gates anteriores, sem execução automática. Os60min de cada proposta são orçamento de planejamento, não RTO. A proposta15/11 não foi aprovada nem será executada por passagem de horário.
+- **Responsáveis técnico, operacional, financeiro quando aplicável, incidentes e rollback:** a definir pelo titular; o agente não representa automaticamente esses papéis.
+- **Ordem futura:** verificar hash e extrair duas cópias novas, fora dos worktrees Git: uma cópia SQL em diretório protegido de recuperação e outra cópia limpa só para deployment → revalidar B1/B2 → migrator a partir da cópia SQL160 → pós-voo160/contratos/RLS/índices → build/deploy da cópia limpa com flags fechadas → smoke não monetário/monitoramento → encerrar ainda fechado. Não publicar a pasta usada pelo migrator: ele cria backup cifrado em `backups/`, e essa cópia sensível não deve integrar o upload Vercel. Conferir o digest do conteúdo limpo antes do build/link; não confiar só em regras de ignore.
+- **Comando SQL futuro:** `node --import tsx scripts/db-migrate-prod.ts`, **com cwd na cópia SQL protegida**, dependências do lockfile disponíveis, ambiente Production carregado por processo e `.env` DEV ausente. O preflight não é hook automático desse comando. Revalidar imediatamente antes a partir do worktree de ferramentas, apontando `--release` para essa cópia; não usar o journal143 do worktree financeiro nem161 do DEV. Confirmar timeout no próprio processo migrator: o advisory lock da conexão auxiliar não garante limite da outra sessão. Sem timeout/observação de espera verificados, não iniciar.
+- **Pós-voo:** repetir preflight `--phase after` na composição aprovada;160 entradas exatas,sem0160, fingerprints/entitlements/roles/constraints sem perda. Qualquer diferença financeira, contrato alterado, índice inválido ou schema parcial interrompe antes do deployment.
+- **Concorrência legítima:** Asaas/cron continuam operando. Uma diferença entre fingerprints pode ser pagamento/renovação legítimos ocorridos entre leituras; correlacionar auditoria/eventos e registrar a explicação antes de avançar. Nunca reverter período pago ou apagar invoice para voltar ao hash anterior.
+- **Deployment futuro:** somente na cópia limpa, `vercel link --yes --project project-os --scope clinic-os-v2-s-projects` e `vercel deploy --prod --scope clinic-os-v2-s-projects`. Conferir identificação e variáveis antes de build, domínio/artefato e logs depois; não promover Preview com ambiente DEV, não fazer merge. Fora do Git, o deploy pode não apresentar SHA inferido: registrar o SHA financeiro, hash do pacote e ID do deployment na evidência operacional, sem atribuir o HEAD móvel do worktree como prova do código publicado. Estado financeiro novo continua desarmado.
+- **Sucesso:** serviço saudável, aquisição bloqueada, cron/Asaas/pacientes e acesso clínico preservados, zero efeito financeiro inesperado, evidências UTC e alertas operacionais. Não testar cobrança real.
+- **Interrupção:** backup inválido, drift, perda de saúde, barreira insuficiente, chamada financeira nova/ambígua ou ausência de responsável. Parar antes do próximo estágio e usar rollback por camada abaixo; sem DOWN, refund, exclusão de invoices ou remoção de períodos pagos.
+
+**B3 não inclui Gate C, Gate D ou expansão. R1–R4 continuam PARTIAL e sem aceite.** O próximo pedido útil é B1, não uma autorização conjunta para SQL, firewall e deploy.
+
 Preparado em 14/11/2026. **Preparação autorizada; execução NÃO autorizada. PR #53 draft. Production NO-GO.** Este procedimento complementa o [runbook](../../runbooks/abacatepay-operacao.md) e o [dossiê](ABACATEPAY-SaaS-GO-NO-GO-FINAL.md); não abre janela, aplica SQL ou aceita R1–R4.
 
 ## Candidato e correção indispensável

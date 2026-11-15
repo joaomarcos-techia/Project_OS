@@ -24378,5 +24378,239 @@
       "otherWorktrees": 0
     },
     "runbook": "GATE-B-DEPLOY-CONTROLADO.md"
+  },
+  "progressiveGateBPreparation20261115": {
+    "dateLocal": "2026-11-15",
+    "timezone": "America/Sao_Paulo",
+    "financialCandidate": "94f6da4aeb32b1ae7da856dc9afa105120ce6dd9",
+    "approvedCI": {
+      "run": 43666101807,
+      "tests": 7209,
+      "files": 637,
+      "e2e": 22,
+      "skippedTests": 0,
+      "evidenceReusedNotRerun": true
+    },
+    "sourceChanges": "Operational tools, tests and documents only; application financial runtime, SQL, prices and quotas unchanged",
+    "validationsExecuted": {
+      "focused": {
+        "tests": 220,
+        "files": 13,
+        "result": "PASS",
+        "log": "dist/gate-b0-focused.log"
+      },
+      "realGuardComposition": {
+        "newTests": 11,
+        "databaseAndAuthorizationDoubles": true,
+        "networkCalls": 0,
+        "result": "PASS"
+      },
+      "protectedRestoreTool": {
+        "newTests": 22,
+        "processDoublesOnly": true,
+        "actualDockerRestore": "NOT EXECUTED",
+        "result": "PASS_UNIT_ONLY"
+      },
+      "archiveUtf8Regression": {
+        "tests": 1,
+        "nativeGitAndTar": true,
+        "result": "PASS",
+        "log": "dist/gate-b0-archive-regression.log"
+      },
+      "unauthorizedRestoreCLI": {
+        "result": "PASS",
+        "exitCode": 1,
+        "dockerCalls": 0,
+        "actualDataRead": false
+      },
+      "newOperationalHead": "Exact HEAD and its own CI are recorded in final PR53 checkpoint; not covered by old SHA CI"
+    },
+    "archiveDefect": {
+      "before": "Windows bsdtar extracted an accented Git member using its local code page; full source attestation rejected the mismatched path",
+      "correction": "Explicit UTF8 header decoding on Windows, safe output suffix preserves previous export",
+      "affectsFinancialRuntime": false,
+      "previousExportRemovedOrOverwritten": false
+    },
+    "artifact": {
+      "observedAt": "2026-11-15T11:17:30.290Z",
+      "sourceRef": "94f6da4aeb32b1ae7da856dc9afa105120ce6dd9",
+      "approvedCI": 43666101807,
+      "approvedTests": 7209,
+      "approvedE2E": 22,
+      "artifact": "dist/qoro-saas-94f6da4a-gate-b0.tar",
+      "artifactSha256": "3902f2007742df4016450eeaece806a8f2bc0b535631d33da9a5e691b59ce3f6",
+      "artifactBytes": 234562048,
+      "treeSha256": "86de613d0ff86057a682e1da6ac837f3524564650d1e64b47874ad1c14b5d052",
+      "files": 2785,
+      "nonMigrationFilesEqualGitBlobs": 2593,
+      "sqlEntries": 160,
+      "pendingMigrations": "0136-0159",
+      "pendingCount": 24,
+      "excluded": "0160",
+      "sharedSqlRef": "4d0ed1d5c8a81ab9f66e026f4f36c6e4520a7269",
+      "operationalTissIncluded": false,
+      "noLocalEnvironmentRuntimeStateOrInstalledDependenciesAdded": true,
+      "exportedBuildExecutedThisRound": false,
+      "meaning": "Immutable local source package. Non-migration files equal approved Git blobs; SQL equals frozen composition. New production build and B1/B2/B3 approvals remain required.",
+      "productionWrites": 0
+    },
+    "backup": {
+      "managedServiceEnabled": "OWNER REPORTED 2026-11-15",
+      "latestCopyCurrentUTCTypeStatusAndRetention": "NOT QUERIED THIS CYCLE",
+      "plan": "Pro in earlier administrative readback; current plan must be reconfirmed",
+      "documentedProRetentionDays": 7,
+      "pitrAssumedOrActivated": false,
+      "currentManagedRestoreProved": false,
+      "currentLogicalBackupCreated": false,
+      "realRestoreExecuted": false,
+      "b1Proposal": "Read metadata first; separately approve logical encrypted copy and isolated restore, no paid snapshot/new project",
+      "docker": "Installed; Linux Engine pipe unavailable during non-invasive check",
+      "noInstallationOrRestartRequested": true,
+      "sourceManifestParityAndRolesStorageAuthReviewRequired": true,
+      "originalAndIndependentKeysNotDeletedOrRotated": true
+    },
+    "historicalHashes": [
+      {
+        "tag": "0033_messaging_connection_status",
+        "when": "1782272213408",
+        "appliedHash": "62ee45d29883c7c6902fff1263dfb11fb0a2eea3c58d42b6cc1d1ee673e09533",
+        "currentLfMatches": false,
+        "currentCrlfMatches": true,
+        "priorCrLfClassification": true,
+        "currentSqlModified": false,
+        "currentProductionVerified": false,
+        "historicalObjectFound": false
+      },
+      {
+        "tag": "0037_profiles_invite_and_crm",
+        "when": "1783272435137",
+        "appliedHash": "2c534ae3507d76b1f2719f906c5b5c16fecb02e143fcc27822d72c5058ddbcc0",
+        "currentLfMatches": false,
+        "currentCrlfMatches": true,
+        "priorCrLfClassification": true,
+        "currentSqlModified": false,
+        "currentProductionVerified": false,
+        "historicalObjectFound": false
+      },
+      {
+        "tag": "0051_ai_conversations_panel",
+        "when": "1784293573483",
+        "appliedHash": "69152b982938ae92519104adfe0b1e2902ebb0c2845085b61156070d40fd5f04",
+        "currentLfMatches": false,
+        "currentCrlfMatches": false,
+        "priorCrLfClassification": false,
+        "currentSqlModified": false,
+        "currentProductionVerified": false,
+        "historicalObjectFound": false
+      },
+      {
+        "tag": "0071_runtime_role_timeouts",
+        "when": "1784293593483",
+        "appliedHash": "bad37d1e907b4ed642df3633db2be54343e4ae9273c78d0f8876f83f1d0a878b",
+        "currentLfMatches": false,
+        "currentCrlfMatches": true,
+        "priorCrLfClassification": true,
+        "currentSqlModified": false,
+        "currentProductionVerified": false,
+        "historicalObjectFound": false
+      },
+      {
+        "tag": "0093_ai_clinic_config_convenios",
+        "when": "1788300900000",
+        "appliedHash": "4e9c4587de28fcb0c7d9b9ff919f612c19ba69ddee5954ffa39f9e7b76e102b7",
+        "currentLfMatches": false,
+        "currentCrlfMatches": false,
+        "priorCrLfClassification": false,
+        "currentSqlModified": false,
+        "currentProductionVerified": false,
+        "historicalObjectFound": false
+      },
+      {
+        "tag": "0124_offer_2026_trial_deadline",
+        "when": "1792368000002",
+        "appliedHash": "d924aa270afd13bd6528aaf200b1d53440f0a79e317755485458e6382e1a16d0",
+        "currentLfMatches": false,
+        "currentCrlfMatches": false,
+        "priorCrLfClassification": false,
+        "currentSqlModified": false,
+        "currentProductionVerified": false,
+        "historicalObjectFound": false
+      }
+    ],
+    "historicalHashConclusion": "0033/0037/0071 exactly CRLF-equivalent; 0051/0093/0124 not LF/CRLF-equivalent and no applied body found in consulted local Git history; B2 requires schema comparison, not blanket acceptance",
+    "migrationProtection": {
+      "package": "0136-0159",
+      "count": 24,
+      "totalEntries": 160,
+      "excluded": "0160",
+      "lastProductionSnapshot": 136,
+      "lastDevSnapshot": 161,
+      "newProductionReadback": false,
+      "originalManifest144Field": "Historical DEV precondition, not Production preflight count",
+      "readOnlyPreflight": "Requires exact 136 prefix before /160 after, hashes/timestamps/order/source SQL and critical schema; supplement catalog still mandatory",
+      "rehearsalChecksReused": 16,
+      "compatibilityChecksReused": 52,
+      "historicalSQLRewritten": false
+    },
+    "containment": {
+      "apiAndInternalCreationRuntimeGuardTested": true,
+      "existingSignupKillRegressionPreserved": true,
+      "temporaryWafConfigured": false,
+      "proposedWaf": "Production + POST + exact framework routes /api/signup/sessions and /api/signup/checkout -> Deny",
+      "notCoveredByTwoPathWaf": [
+        "authenticated /api/billing/checkout",
+        "plan-change API",
+        "legacy Server Actions",
+        "internal calls",
+        "provider-hosted links"
+      ],
+      "defenseInDepth": "Closed flags/cohort and runtime guards; WAF is transition supplement only",
+      "unsafeProbeForbidden": "No real pretenant/payment-ready user or financial token to test unproven WAF; use unauthenticated/synthetic-invalid identity and correlate rule logs",
+      "preserve": "Existing Asaas obligations/patient payments, shared cron, callbacks/status, auth/clinical access and existing entitlements",
+      "globalZeroFinancialActivityClaimed": false
+    },
+    "gates": {
+      "B0": "Executed within non-invasive local scope, limits recorded",
+      "B1": "Prepared, NOT AUTHORIZED; metadata, encrypted copy and real restore require explicit scope",
+      "B2A": "Prepared, NOT AUTHORIZED; read-only production preflight",
+      "B2B": "Prepared, NOT AUTHORIZED; firewall/flags, no redeployment implied",
+      "B3": "Prepared, NOT AUTHORIZED; requires B1/B2 and separate DDL/deploy GO",
+      "C": "NOT AUTHORIZED",
+      "D": "NOT AUTHORIZED",
+      "E": "NOT AUTHORIZED"
+    },
+    "proposals": {
+      "previous20261115Window": "Not approved or reserved; no execution by elapsed clock",
+      "B1": "2026-11-16 10:00-11:00 America/Sao_Paulo, unapproved planning budget",
+      "B3": "2026-11-17 10:00-11:00 America/Sao_Paulo, contingent/unapproved",
+      "owners": "Technical, operational, financial when applicable, incident and rollback roles to be named by owner",
+      "deploymentInput": "Separate clean deployment copy from protected SQL copy that creates backups; source package hash and deployment ID recorded, never infer current branch HEAD"
+    },
+    "risks": {
+      "R1": "PARTIAL, not accepted",
+      "R2": "PARTIAL, natural renewal2026-12-13 future, not accepted",
+      "R3": "PARTIAL, not accepted",
+      "R4": "PARTIAL, not accepted"
+    },
+    "coordination": {
+      "uiHandoffUpdated": true,
+      "receiptConfirmed": false,
+      "accessibleAgents": "root only",
+      "liveAsaasWithDev": "Reported by UI; source accepts supplied credential/baseURL. No secret inspected; no external monetary test; UI/Payments follow-up remains separate",
+      "tissWorktreeChanged": false,
+      "functionalTissIncluded": false
+    },
+    "mutations": {
+      "productionQueries": 0,
+      "productionSQL": 0,
+      "managedBackupReadsOrRestores": 0,
+      "productionConfigurations": 0,
+      "productionDeployments": 0,
+      "liveWebhooks": 0,
+      "paymentsOrRealSubscriptions": 0,
+      "otherWorktrees": 0,
+      "blockedFilesDeleted": 0
+    },
+    "runbook": "GATE-B-DEPLOY-CONTROLADO.md"
   }
 }

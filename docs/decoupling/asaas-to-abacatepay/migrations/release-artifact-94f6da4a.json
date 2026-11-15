@@ -1,0 +1,23 @@
+{
+  "observedAt": "2026-11-15T11:17:30.290Z",
+  "sourceRef": "94f6da4aeb32b1ae7da856dc9afa105120ce6dd9",
+  "approvedCI": 43666101807,
+  "approvedTests": 7209,
+  "approvedE2E": 22,
+  "artifact": "dist/qoro-saas-94f6da4a-gate-b0.tar",
+  "artifactSha256": "3902f2007742df4016450eeaece806a8f2bc0b535631d33da9a5e691b59ce3f6",
+  "artifactBytes": 234562048,
+  "treeSha256": "86de613d0ff86057a682e1da6ac837f3524564650d1e64b47874ad1c14b5d052",
+  "files": 2785,
+  "nonMigrationFilesEqualGitBlobs": 2593,
+  "sqlEntries": 160,
+  "pendingMigrations": "0136-0159",
+  "pendingCount": 24,
+  "excluded": "0160",
+  "sharedSqlRef": "4d0ed1d5c8a81ab9f66e026f4f36c6e4520a7269",
+  "operationalTissIncluded": false,
+  "noLocalEnvironmentRuntimeStateOrInstalledDependenciesAdded": true,
+  "exportedBuildExecutedThisRound": false,
+  "meaning": "Immutable local source package. Non-migration files equal approved Git blobs; SQL equals frozen composition. New production build and B1/B2/B3 approvals remain required.",
+  "productionWrites": 0
+}
