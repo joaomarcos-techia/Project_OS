@@ -12,44 +12,43 @@
 
 ## ESTADO ATUAL DA EXECUÇÃO
 
-- **Fase atual:** Fase 5 (implementação em lotes) com a auditoria da Fase 3 consolidada; P0 de
-  ambiente auditados (00.5). Fundador autorizou (14/11, noite) commits e push desta branch e o
-  UX-006 em DEV/Preview; Production segue NO-GO.
-- **Lote atual:** Lote 1 concluído e versionado: UX-001, UX-002, UX-005 (piloto), UX-006, UX-007,
-  UX-008, UX-009, UX-010, UX-017. Próximo: Lote 2 (validação no navegador + Dashboard, mobile,
-  humanização, Caixa).
-- **Último ID concluído:** UX-006 (`9710a207`); UX-017 completo (`4acd59f8`).
-- **ID em andamento:** nenhum.
-- **Último checkpoint:** 14/11/2026 ~23h — P0 auditados; 9 commits na branch.
-- **Commits (sobre `e47ec2f0`):** `06af3f84` UX-001 · `f8f26cf9` UX-002 · `099f339e` UX-005/007 ·
-  `4e39880f` UX-009 · `1df78a87` UX-010 · `15b060c1` UX-017 · `5d04e48f` UX-008 · `4acd59f8`
-  UX-017 (convite) · `9710a207` UX-006 · + o commit deste documento. Fora do Git: `.env.local`
-  (higienizado; Sentry desligado — 00.3), `.tmp/ui-audit/*` (scripts e evidências). Fora do
-  worktree: `C:\dev\ClinicaOS_V2\.claude\launch.json`.
-- **Testes executados (14/11):** regressão ampla 104 arquivos / 979 testes (antes de UX-010+);
-  UX-010/017: 19 arquivos / 169; UX-006: agenda + contratos 18 / 142; convite 1 / 11; ESLint 0 em
-  todos os arquivos tocados; `tsc --noEmit` 0 erro em três rodadas (25.2); `check:observability`
-  OK; `security:inventory --check` **falha** (pré-existente, P-15).
-- **Testes pendentes:** navegador: UX-006 (celular, teclado, 1 paciente sintético real), UX-010
-  (tela de erro), `/conversas`, `/configuracoes/pagamentos` e `/equipe` (P-10/P-11); NVDA manual;
-  suíte completa; e2e seguros (`login-and-navigation`, `authenticated-readonly-routes`).
-- **Bloqueios:** `/admin/*` exige super_admin com MFA; Convênios TISS na PR #55; trava do Asaas
-  depende do billing (P-13); limpeza de disco fora deste worktree depende do fundador (P-14).
-- **Riscos ativos:** conflitos de integração listados no P-16; `.env.local` principal com Asaas de
-  produção (00.5).
-- **Próxima ação exata:** (1) subir o servidor (00.3) e validar no navegador UX-006 (criar 1
-  paciente sintético "Teste UI Cadastro Rápido" na clínica "teste final"), UX-010 e as rotas de
-  P-10/P-11 com `.tmp/ui-audit/hydration-probe.ts` (10 cargas cada em 375 e 1440) e
-  `conversas-probe.ts`; (2) UX-011 Dashboard; (3) UX-014 humanização (Equipe, Conversas, Ficha,
-  LGPD); (4) UX-012 cabeçalho no celular; (5) UX-015 Caixa (só proposta até coordenar com a #55);
-  (6) UX-019 modelos de receita; (7) seção 31 TISS e handoff AbacatePay.
+- **Fase atual:** Fase 5 (implementação em lotes). Fundador autorizou commits e push desta branch
+  e o UX-006 em DEV/Preview; Production segue NO-GO.
+- **Lote atual:** Lote 2 **fechado e validado** (15/11, 03h45): UX-006 (foco e anúncio), UX-011
+  Dashboard, UX-014 humanização, UX-012 ações no celular (Agenda dobra em 1024 px, Relatórios em
+  768 px), UX-015 título do Caixa, UX-016 sem resumo em Conversas, UX-019 modelos de receita;
+  rodada de estabilidade (19.2) e checagem do P-10 em produção pelo TISS; handoffs TISS (31.R,
+  31.I) e AbacatePay (32) registrados.
+- **Último ID concluído:** UX-016. **Em andamento:** nenhum.
+- **Último checkpoint:** 15/11/2026 03h45 — servidor local no ar (porta 3100).
+- **Commits (sobre `e47ec2f0`):** Lote 1 — `06af3f84` UX-001 · `f8f26cf9` UX-002 · `099f339e`
+  UX-005/007 · `4e39880f` UX-009 · `1df78a87` UX-010 · `15b060c1` UX-017 · `5d04e48f` UX-008 ·
+  `4acd59f8` UX-017 (convite) · `9710a207` UX-006 · `12ab24f6` documento · `c75bf870` foco do
+  UX-006. Lote 2 — `36ab0f72` UX-006 · `646d17e5` UX-011 · `80fa15b0` UX-014 · `317dbcf5` UX-012 ·
+  `9c124823` UX-015 · `f5a2f414` UX-019 · `d98c7c03` UX-016 · `fa006527` UX-012 (dobra) · +
+  documento. Fora do Git: `.env.local` (higienizado; Sentry desligado — 00.3), `.tmp/ui-audit/*`.
+- **Testes executados (15/11):** 71 arquivos / 485 testes do Lote 2 (1 falha corrigida, depois
+  verde); reexecuções 68/68, 9/9, 64/64; ESLint 0 em todos os arquivos tocados; **`tsc --noEmit`
+  código 0, 0 erro** (duas rodadas); prettier OK. Navegador: `lote2-probe.ts` (1 login) e
+  `ux016-probe.ts`/`ux016b-probe.ts` — ver fichas.
+- **Testes pendentes:** NVDA manual; e2e seguros contra o servidor local (`authenticated-readonly-
+  routes` exige `E2E_USER_*`); CI do GitHub ao publicar.
+- **Bloqueios:** `/admin/*` exige super_admin com MFA; integração TISS depende do rebase do #55
+  (UI entra primeiro); AbacatePay depende do merge da #53; trava do Asaas (P-13) e limpeza de disco
+  fora deste worktree (P-14) dependem do fundador.
+- **Riscos ativos:** limite de login de 10 por IP a cada 15 min dividido com a jornada do TISS;
+  RAM da máquina (0,3–0,8 GB livres) — combinar janelas com o TISS antes de jornadas pesadas.
+- **Próxima ação exata:** (1) publicar a branch e acompanhar o Preview/CI; (2) UX-012 no Financeiro
+  depois do rebase do #55; (3) UX-TISS-001/005/006 depois do rebase; (4) UX-018 restante e
+  inventário de modais/drawers (P2.3–P2.4); (5) proposta de nomes do Caixa e nota de Equipe
+  dependem do fundador.
 - **Arquivos que devem ser lidos para continuar:** este documento; `docs/design/CONTRACT.md`;
-  `docs/design/COMPONENT-DECISIONS.md`; `docs/ui/PLANO-FINALIZACAO-REDESIGN-QORO.md`;
-  `src/components/ui/field.tsx`; `src/app/(app)/login/actions.ts`.
+  `docs/design/COMPONENT-DECISIONS.md`; `src/components/ui/field.tsx`;
+  `src/components/ui/page-actions.tsx`; o handoff do TISS (`git show
+  origin/feat/convenios-tiss-20261110:docs/convenios/handoff-ui.md`).
 - **Skills necessárias para a próxima ação:** R7 Impeccable (`operate`, `critique`, `audit`,
   `harden`, `clarify`), R4 `heuristic-evaluation`, `form-design`, `error-handling-ux`,
   `accessibility-audit`, R11 UX Writing (ver seção 04 para caminhos).
-
 ---
 
 ## 00. Instruções para retomada de contexto
@@ -71,12 +70,12 @@ investigue a divergência e registre a reconciliação na seção 27 antes de se
 | --- | --- |
 | Repositório | `joaomarcos-techia/Project_OS` (nome público do produto: **Qoro**; nome interno: ClinicaOS) |
 | Worktree deste trabalho | `C:\dev\Qoro_ui_otimizacao_final_20261114` |
-| Branch | `ui/otimizacao-ui-final-20261114` (sem upstream; nada publicado) |
+| Branch | `ui/otimizacao-ui-final-20261114` (publicada em `origin`, com upstream; cada push gera um Preview na Vercel, protegido pelo SSO) |
 | Base | `origin/ui/refactor-qoro-20261108` em `e47ec2f0` (redesign "Qoro App v5", 42 commits à frente da `main`, sem PR) |
 | `main` na data | `5620a098` (PR #54) |
 | Ordem de integração conhecida | PR #53 (billing AbacatePay, rascunho) → branch de UI → esta branch. A branch de UI carrega 3 commits do billing (`6cccfc01`, `35d09d4b`, `311e5dd0`) e só entra depois da #53 |
 | Convênios TISS | PR #55 (rascunho, "do not merge"), branch `feat/convenios-tiss-20261110`, worktree `C:\dev\Qoro_convenios_tiss_20261110`, **outro agente com trabalho não commitado**. Não tocar nesse worktree |
-| Commits e push | Só com pedido explícito do usuário |
+| Commits e push | Autorizados pelo fundador em 14/11 (noite) **só nesta branch**; merge e PR continuam dependendo dele |
 
 ### 00.3 Ambiente local seguro (como subir o app)
 
@@ -362,15 +361,15 @@ NÃO_APLICÁVEL. "Analisado" nunca vale como "validado".
 | T02–T05 Autenticação | ANALISADO | IMPLEMENTADO (UX-002) | ANALISADO | PLANEJADO (UX-003, UX-014) | IMPLEMENTADO (título) / PLANEJADO (UX-017, UX-018) | ANALISADO | IMPLEMENTADO (erro de serviço) | IMPLEMENTADO (unitários) |
 | T06–T12 Cadastro | BLOQUEADO (cadastro fechado no ambiente local) | NÃO_INICIADO | NÃO_INICIADO | NÃO_INICIADO | IMPLEMENTADO (título) | BLOQUEADO | ANALISADO (tela "indisponível") | NÃO_INICIADO |
 | T13–T14 Convite/ativação | ANALISADO (estados de erro) | ANALISADO | NÃO_INICIADO | PLANEJADO (UX-017) | PLANEJADO (UX-017) | ANALISADO | ANALISADO | NÃO_INICIADO |
-| T16 Dashboard | ANALISADO | PLANEJADO (UX-011) | ANALISADO | ANALISADO | PLANEJADO (UX-011, UX-018) | PLANEJADO (UX-011) | ANALISADO | NÃO_INICIADO |
-| T17–T20 Agenda | ANALISADO | IMPLEMENTADO (UX-005 piloto, UX-007) / PLANEJADO (UX-006) | ANALISADO | IMPLEMENTADO (aviso de sucesso) | IMPLEMENTADO (UX-001, UX-005) | PLANEJADO (UX-012) | IMPLEMENTADO | IMPLEMENTADO (unitários) |
+| T16 Dashboard | ANALISADO | IMPLEMENTADO (UX-011: pendências primeiro) | ANALISADO | IMPLEMENTADO (UX-014: prazo de atendimento) | IMPLEMENTADO (UX-011: `h1` e ordem do DOM) / ANALISADO (UX-018: exceção de espaçamento) | IMPLEMENTADO (UX-011: sem `order`) | ANALISADO | IMPLEMENTADO (unitários; navegador pendente) |
+| T17–T20 Agenda | ANALISADO | IMPLEMENTADO (UX-005 piloto, UX-007) / VALIDADO a 375 (UX-006) | ANALISADO | IMPLEMENTADO (aviso de sucesso; anúncio do cadastro rápido) | IMPLEMENTADO (UX-001, UX-005; foco depois do cadastro rápido) | IMPLEMENTADO (UX-012: "Mais ações") | IMPLEMENTADO | IMPLEMENTADO (unitários + sonda UX-006) |
 | T21 Consultório | ANALISADO (vazio) | NÃO_INICIADO (sem massa com fila do dia) | NÃO_INICIADO | ANALISADO | ANALISADO | ANALISADO | ANALISADO (vazio) | NÃO_INICIADO |
-| T22–T24 Pacientes/prontuário | ANALISADO | ANALISADO | ANALISADO | PLANEJADO (UX-014) | ANALISADO | ANALISADO | ANALISADO | NÃO_INICIADO |
-| T25–T26 Documentos | ANALISADO | ANALISADO | NÃO_INICIADO | ANALISADO | ANALISADO | ANALISADO | ANALISADO | NÃO_INICIADO |
-| T27–T29 Financeiro/Caixa | ANALISADO | PLANEJADO (UX-015) | ANALISADO | PLANEJADO (UX-015) | ANALISADO | ANALISADO | ANALISADO | NÃO_INICIADO |
-| T30–T31 Conversas | ANALISADO | VALIDADO no local (UX-009) | ANALISADO | PLANEJADO (UX-014) | ANALISADO | PLANEJADO (UX-016) | VALIDADO no local (UX-009) | IMPLEMENTADO (unitários + 3 sondas) |
-| T32–T33 Relatórios | ANALISADO | ANALISADO | ANALISADO | ANALISADO | ANALISADO | PLANEJADO (UX-012) | ANALISADO | NÃO_INICIADO |
-| T34 Equipe | ANALISADO | ANALISADO | NÃO_INICIADO | PLANEJADO (UX-014) | ANALISADO | ANALISADO | EM_ANALISE (hidratação 1× em 10, P-10) | NÃO_INICIADO |
+| T22–T24 Pacientes/prontuário | ANALISADO | ANALISADO | ANALISADO | IMPLEMENTADO (UX-014: subtítulo e consentimento) | IMPLEMENTADO (finalidade no nome do botão LGPD) | ANALISADO | ANALISADO | IMPLEMENTADO (e2e de consentimento ajustados) |
+| T25–T26 Documentos/Modelos | ANALISADO | IMPLEMENTADO (UX-019: erro no campo) | NÃO_INICIADO | IMPLEMENTADO (UX-019) | IMPLEMENTADO (UX-019: rótulos persistentes) | ANALISADO | ANALISADO | IMPLEMENTADO (unitários UX-019) |
+| T27–T29 Financeiro/Caixa | ANALISADO | ANALISADO (UX-015: ações mapeadas; nomes = proposta) | ANALISADO | IMPLEMENTADO (UX-015: título sem paciente) | ANALISADO | PLANEJADO (UX-012 no Financeiro, depois do rebase do #55) | ANALISADO | IMPLEMENTADO (unitário UX-015) |
+| T30–T31 Conversas | ANALISADO | VALIDADO no local (UX-009) | ANALISADO | IMPLEMENTADO (UX-014: prazo de atendimento) | ANALISADO | PLANEJADO (UX-016) | VALIDADO no local (UX-009); 4ª sonda sem `load` em 10 min (P-11) | IMPLEMENTADO (unitários + 4 sondas) |
+| T32–T33 Relatórios | ANALISADO | ANALISADO | ANALISADO | ANALISADO | ANALISADO | IMPLEMENTADO (UX-012: "Mais ações") | ANALISADO | IMPLEMENTADO (unitários existentes) |
+| T34 Equipe | ANALISADO | ANALISADO | NÃO_INICIADO | PROPOSTA (UX-014; arquivo do billing #53) | ANALISADO | ANALISADO | EM_ANALISE (P-10: `useId` do shell, 5× em 30 cargas; mecanismo comprovado) | NÃO_INICIADO |
 | T35–T46 Configurações | ANALISADO | ANALISADO | NÃO_INICIADO | ANALISADO | ANALISADO | ANALISADO | ANALISADO (Pagamentos: erro de conexão sob carga, 19.1) | NÃO_INICIADO |
 | T47 Ajuda | ANALISADO | ANALISADO | NÃO_APLICÁVEL | ANALISADO | ANALISADO | ANALISADO | ANALISADO | NÃO_INICIADO |
 | T48 Segurança da conta | ANALISADO | NÃO_INICIADO | NÃO_INICIADO | ANALISADO | ANALISADO | ANALISADO | NÃO_INICIADO | NÃO_INICIADO |
@@ -606,10 +605,11 @@ Linguagem interna ou técnica encontrada na interface (varredura e código, 14/1
 
 | Onde | Hoje | Proposta | Por quê |
 | --- | --- | --- | --- |
-| Equipe › contagem por papel | "Super admin 0 — fora do tenant" | remover o card (papel da plataforma não pertence à equipe da clínica) | "tenant" é jargão; o papel não é da clínica |
-| Conversas › prazo | "SLA vencido há 5 d" | "Esperando há 5 dias" (com o prazo combinado no detalhe) | "SLA" não é vocabulário da recepção |
-| Ficha › subtítulo | "Visão operacional, histórico clínico e governança do cadastro." | "Dados, histórico e documentos do paciente." | "governança" é jargão |
-| Ficha › LGPD | botão "Conceder" ao lado de "Tratamento de dados de saúde — Não consentido" | "Registrar consentimento" | quem consente é o paciente; a equipe registra |
+| Equipe › contagem por papel | "Super admin 0 — fora do tenant" | **PROPOSTA (não aplicada — `equipe/page.tsx` é alterado pelo billing #53):** trocar o cartão por uma nota fixa sob a contagem: "O suporte do Qoro só entra na conta da clínica em sessão de suporte, com aviso permanente na tela, e o que fizer nela fica na auditoria." | "tenant" é jargão e o papel não é da clínica; a nota diz o acesso especial que existe em vez de escondê-lo. Conferido no código: faixa permanente durante a impersonação (C15/OR-I9, `(shell)/layout.tsx`) e mutações gravadas em `audit_events` com o `user_id` do suporte e a clínica (`src/lib/audit/impersonation-extra.ts`); leitura não é auditada, por isso o texto fala do que ele "fizer". Conferir com o billing antes de aplicar |
+| Conversas › prazo | "SLA vencido há 5 d" | **APLICADO (UX-014):** "Prazo vencido há 5 d" / "Prazo vence em 9 min" na lista; "Prazo de atendimento vencido há …" na faixa da conversa e no alerta; filtro "Prazo vencido"; cabeçalho "N com prazo de atendimento vencido"; Dashboard "N com prazo de atendimento vencido" (era "com resposta atrasada") | o prazo (`ai_handoff_queue.due_at`, padrão `now() + 30 min`) começa quando a IA passa a conversa à equipe e só se cumpre quando ela volta ao agente (`returnToAgent` grava `resolved_at`). Responder não fecha o prazo, então "prazo de resposta" mudaria o sentido. O número de minutos não aparece no texto: é padrão do banco, não regra exibível |
+| Ficha › subtítulo | "Visão operacional, histórico clínico e governança do cadastro." | **APLICADO:** "Cadastro, histórico de atendimentos, consentimentos e pedidos LGPD do paciente." | diz o que se consulta e faz ali; a linha 177 fica fora dos trechos do TISS (#55) |
+| Ficha › LGPD | botão "Conceder" ao lado de "Tratamento de dados de saúde — Não consentido" | **APLICADO:** "Registrar consentimento" / "Registrar revogação", com a finalidade no nome acessível ("Registrar consentimento: Agendamento por WhatsApp"); texto do cartão: "Registre aqui a decisão que o paciente tomou para cada finalidade…" | quem consente é o paciente; a equipe registra. Nada muda na validade: a confirmação obrigatória das finalidades de WhatsApp (`optInConfirmed`) e as mensagens do servidor ("Consentimento registrado.", "Consentimento revogado.") seguem iguais. Base legal de cada finalidade não foi tocada |
+| LGPD (Configurações) › fila | "SLA vencido" (prazo legal de 15 dias, `LGPD_RESPONSE_SLA_DAYS`) | manter por ora; proposta: "Prazo legal vencido" | é prazo de lei, com teste de domínio (`lgpd-workflow.test.ts`) que procura o texto; trocar junto com o dono do LGPD |
 | Login (erro de credencial) | "Email ou senha inválidos." | "E-mail ou senha incorretos." | grafia do resto do produto (UX-003) |
 | Fronteira de erro | "Algo deu errado." | ver UX-010 | erro sem causa nem saída concreta |
 | `/convite` sem token | "Você foi convidado." + "Criar senha de acesso" antes de "Convite inválido ou expirado" | abrir pelo problema: "Este convite não vale mais" + o que fazer | a primeira frase contradiz o estado |
@@ -685,9 +685,15 @@ Larguras medidas: 320, 375, 768, 1024, 1440 (celular com `isMobile` + toque). **
 lateral** em 39 rotas. Padrões encontrados no celular:
 1. **Ações do cabeçalho empilham.** Agenda (Lista de espera, Ausências médicas, ⋮, Novo
    atendimento), Financeiro, Conversas, Documentos e Relatórios gastam de 2 a 3 linhas de botões
-   antes do conteúdo (25–35% da primeira tela a 375 px) → UX-012.
+   antes do conteúdo (25–35% da primeira tela a 375 px) → UX-012. **15/11:** Agenda e Relatórios
+   resolvidos — a 375 px a Agenda tem "Agenda", ⋮ e "Novo atendimento" numa linha só, e o menu
+   lista os três destinos (`evidence/2026-11-15/lote2/agenda-menu-375.png`); Conversas e
+   Documentos têm uma ação só (o que empilha é busca e filtro); Financeiro depois do rebase do #55.
 2. **Ordem do Dashboard.** No celular, os 4 indicadores (zerados num dia sem consultas) ocupam a
-   primeira tela; "Precisa de você" só aparece no fim dela → UX-011.
+   primeira tela; "Precisa de você" só aparece no fim dela → UX-011. **15/11:** resolvido — a 375
+   px "Precisa de você" vem logo depois do cabeçalho, na primeira tela, e a ordem visual é a do DOM
+   (`evidence/2026-11-15/lote2/dashboard-375.png`). Refinamento possível, não feito: indicadores em
+   2 colunas abaixo de 480 px (hoje 1 coluna, 4 cartões altos num dia zerado).
 3. **Avisos sobre o conteúdo.** O aviso de conversas à espera cobre o primeiro item da lista de
    Conversas a 375 px → UX-016.
 4. Menu: barra com marca, nome da clínica e "Menu" (gaveta com foco preso) — já validado no plano
@@ -795,6 +801,69 @@ título e `h1` corretos. Erros de console encontrados que **não** são da rota:
 `connect-src` ao buscar `data:,` (origem a identificar — P3, seção 15) e mensagens `%c%d` da
 proteção do Turnstile na tela de login. Nada aponta para o R51/#418.
 
+### 19.2 Rodada de estabilidade de 14/11, 22h47–23h30 (P1.3 e P1.4)
+
+Servidor desta frente reiniciado às ~22h45 (00.3), sem edição de código durante as medições.
+Todas as sondas são só de leitura, com a conta de UI no DEV; evidências em
+`.tmp/ui-audit/evidence/2026-11-14/` (fora do Git).
+
+| Rota | Sonda | Resultado | Leitura |
+| --- | --- | --- | --- |
+| `/equipe` 375 | `hydration-probe.ts` ×10 | 10/10 HTTP 200 e `load`; 5,6–20,5 s; **aviso de hidratação em 3 cargas** (4 avisos) | ver P-10 abaixo |
+| `/equipe` 1440 | `hydration-probe.ts` ×10 | 10/10 200; 5,8–10,6 s; **aviso em 2 cargas** | idem |
+| `/equipe` 1440 | `hydration-impact.ts` ×10 (abre o menu "Ações de …") | 10/10 200; 13,6–47,2 s; **0 avisos**; rótulo do menu íntegro 10/10; grupos do menu lateral íntegros 10/10 | a divergência é intermitente |
+| `/pacientes` 1440 | `hydration-impact.ts` ×10 | 10/10 200; 8,7–63,1 s; **aviso de hidratação em 1 carga**; grupos do menu lateral íntegros 10/10 | **não é exclusivo de `/equipe`**: o fenômeno é do shell (texto desta carga cortado em 300 caracteres pela sonda) |
+| `/configuracoes/pagamentos` 375 | `hydration-probe.ts` ×5 | 5/5 200; 12,0–31,4 s; sem `CONNECT_TIMEOUT`, sem aviso | classe (b) **não reproduzida** em 5 cargas |
+| `/conversas` 1440 | `conversas-probe.ts` (4ª) | **não chegou ao `load` em 10 min**; o servidor registrou `GET /conversas 200 in 179401ms` e, ao fechar o navegador, `Error: aborted` (`ECONNRESET`, digest `2313178152`) | 1ª visita depois do reinício (compilação a frio + dados); nenhum erro de banco no log |
+
+**P-10 — o aviso de hidratação do shell (visto em `/equipe` 5× em 30 cargas e em `/pacientes` 1×
+em 10), agora com o texto inteiro.** É divergência de `id`
+gerado por `useId`, não de texto (o #418 é de texto). Nas cargas afetadas o navegador calculou um
+caminho de árvore mais curto que o do servidor: menu lateral `aria-labelledby`/`id` dos grupos
+(`_R_b5rknelb_-grupo-N` no cliente × `_R_1d5rknelb_-grupo-N` no HTML) e o gatilho do menu "Ações de
+teste final" (`radix-_R_el95et5rkr5rknelb_` × `radix-_R_1ql4lrknejd5rknelb_`). O sufixo comum
+(`5rknelb`) põe a divergência **acima do `PainelShell`** (layout do shell), por isso pega o menu
+lateral e a página ao mesmo tempo. Nas cargas sem aviso, cliente e servidor batem
+(`_R_1d5rknelb_`). Efeito possível na carga afetada: o React mantém os atributos do servidor; o
+conteúdo de menu montado depois no cliente aponta para o `id` do cliente e perde o nome acessível.
+Não observado quebrado nas 10 cargas da sonda de impacto (nenhuma teve divergência).
+- **Comprovado:** o mecanismo (diff do React guardado em `hidratacao-equipe-*-x10.json`).
+- **Não comprovado:** a causa raiz. Hipótese principal: artefato do modo de desenvolvimento —
+  componente do shell suspendendo na hidratação enquanto o Turbopack ainda serve chunks (cargas de
+  5–47 s neste servidor). Hipótese alternativa: árvore não determinística acima do `PainelShell`.
+  O layout do shell (`(shell)/layout.tsx`) não tem ramo por `window`, data ou acaso; os irmãos do
+  `PainelShell` (`AnnouncementPopup`, `ImpersonationBanner`, `HandoffWatcher`, `ProductTour`)
+  dependem só da requisição. `SegmentViewNode`/`SegmentTrieNode` do Next 15.5.28 renderizam
+  sempre `[nó, filhos]`.
+- **Como fechar:** repetir a sonda de impacto num build de produção. O Preview da branch existe
+  (Vercel gera um por push; o de `12ab24f6` está verde), mas é protegido pelo SSO da Vercel (302
+  para `vercel.com/sso-api`). Build de produção local foi descartado: a máquina tem 50–450 MB de
+  RAM livre e o servidor de outros agentes roda nela.
+- **Checagem em produção (15/11, ~00h, feita pelo agente TISS com o acesso de automação dele, só
+  leitura, sem troca de credencial):** Preview `12ab24f6`, conta sintética "gestor" da clínica
+  `e2e-hi-paga` do DEV, desktop 1440, **10 cargas de `/equipe`**: o menu "Ações de …" abriu com
+  `aria-labelledby="radix-_R_1pl2npfkr5ubtb_"` e `document.getElementById` achou o gatilho **nas 10**;
+  console **sem** aviso de hidratação. Limites: um gatilho por carga, equipe pequena, só desktop, e
+  o React de produção não avisa divergência de atributo (por isso a checagem mediu o efeito, não o
+  aviso). **Leitura:** em produção o efeito não apareceu em 10 cargas; isso dá peso à hipótese de
+  artefato do modo de desenvolvimento, mas não a prova. P-10 segue aberto em prioridade baixa.
+
+**P-11 — travamentos de 10 min.** Em `/equipe`, 0 em 30 cargas nesta rodada (o caso isolado
+segue sem causa). Em `/conversas`, reproduzido o sintoma (sem `load` em 10 min) na primeira visita
+depois do reinício. O que o log mostra no mesmo intervalo:
+1. **Fontes do Google a cada requisição.** O Turbopack tenta baixar as 5 famílias do
+   `src/app/layout.tsx` (DM Sans, Hanken Grotesk, IBM Plex Mono, Inter, Manrope) e falha com
+   "There was an issue establishing a connection" — repetido antes de cada requisição registrada.
+   Da mesma máquina, o Node baixa a folha do Google Fonts (200 em 1,6–3,1 s) e o `curl` também
+   (200; TCP em 3,75 s, total 5,5 s). Leitura: o cliente HTTP do Turbopack (Rust) não usa o
+   `--use-system-ca` do Node e não aceita a interceptação HTTPS do Avast; o caminho de rede até o
+   Google é lento. Custo por requisição não medido. **Ambiente, não produto.**
+2. **Server actions lentas.** `POST /dashboard` (consulta da fila de handoff do `HandoffWatcher`)
+   entre 12,9 e 23,3 s cada.
+3. **Nenhum `CONNECT_TIMEOUT`, `statement_timeout` ou `lock_timeout`** no buffer do log.
+Hipóteses abertas (não comprovadas): espera por conexão no pool (máx. 6) com a página e as
+actions disputando; compilação a frio do Turbopack; tentativas de fonte somando latência.
+
 ## 20. Privacidade e confiança
 
 EM_ANALISE — roteiro de `dark-pattern-audit` (preço, trial, cancelamento, consentimento,
@@ -824,6 +893,39 @@ o botão. **Critérios:** texto novo; `ref` copiável; teste do componente atual
 texto antigo em `e2e/` e nos testes antes). **Riscos:** baixo.
 
 ### UX-011 — Dashboard pela próxima ação (P2)
+**Status:** IMPLEMENTADO, TESTADO e VALIDADO NO NAVEGADOR (commit `646d17e5`; sonda
+`lote2-probe.ts`, 15/11 03h20, DEV): `h1` = ["Dashboard"] em 1440 e 375; `headline` "Bom dia,
+teste final"; topo das regiões em 1440: Precisa de você 171 → Sala de espera 366 → Próximos e
+Turno 494 → Resumo financeiro 720 → Faturamento e Atividade 900; em 375 estritamente na ordem do
+DOM (273 → 606 → 1039 → 1265 → 1395 → 1795 → 2039); sem rolagem lateral; 0 erro de página. Fotos:
+`evidence/2026-11-15/lote2/dashboard-1440.png` e `dashboard-375.png`.
+**Como ficou:**
+- `<h1>` = "Dashboard" na barra de cima (`icon` + `title`), a saudação no `headline` (faixa
+  grande, `<p>`), a data e a hora de atualização na descrição — o mesmo padrão da Agenda e do
+  Caixa. Sem clínica: `<h1>` "Dashboard" + "Visão operacional". A trilha "Dashboard" saiu (o `<h1>`
+  ocupa o lugar dela com o mesmo texto).
+- Ordem no DOM, igual em qualquer largura: **Precisa de você** (só com pendência ou leitura
+  incerta, largura toda) → Primeiros passos → Agora no consultório (4 indicadores) → Próximos na
+  agenda + Consultas hoje → Resumo financeiro do dia (linha própria, só com `view:financial`) →
+  Faturamento recebido + Atividade recente → nota de ocupação.
+- Saiu a reordenação só visual do celular (`order: -4…-1` no CSS): Tab e leitor de tela seguiam
+  a ordem antiga (WCAG 1.3.2 e 2.4.3). Agora o DOM já vem na ordem de prioridade.
+- Itens de "Precisa de você", textos, destinos e gates de permissão iguais; a leitura financeira
+  continua condicionada a `view:financial` na query (AUTHZ-005). Única troca de texto: "com
+  resposta atrasada" → "com prazo de atendimento vencido" (UX-014).
+- Esqueleto (`loading.tsx`) com o mesmo cabeçalho e a ordem nova; `SkeletonText` novo em
+  `components/ui/skeleton.tsx` (brilho em `<span>`, porque `headline` e descrição são `<p>`).
+- Decisões registradas em `docs/design/COMPONENT-DECISIONS.md` (v5 e "Ações que mudaram de lugar").
+- Testes: `dashboard/page.test.tsx` 36/36 (novos: `h1` = "Dashboard" e saudação em `<p>`; sem
+  clínica; ordem do DOM de 7 regiões); `src/components/ui` 145 testes no total da rodada. e2e
+  ajustados sem afrouxar: `authenticated-readonly-routes` (`h1` "Dashboard"; antes já aceitava
+  "Visão operacional"), `onboarding-o7` (agora exige o nome) e `visual/ui-critical-routes` — este
+  exigia a saudação como `h1` justamente para reprovar o fallback SEM clínica; agora exige o `h1`
+  "Dashboard" **e** a saudação no `headline` (no fallback ele diz "Visão operacional"), mantendo a
+  mesma força.
+- **Não feito (proposta):** "pendências clínicas" e "pagamentos que exigem conferência" no "Precisa
+  de você" — não há fonte de dado hoje (exigiria consulta nova); "cobranças vencidas" já aparecem
+  no resumo financeiro e, como pendência permanente, cansariam o cartão. Decisão do fundador.
 **Arquivo:** `src/app/(app)/(shell)/dashboard/page.tsx` (709 linhas) e componentes da pasta.
 **Hoje:** saudação como `h1`; ordem Indicadores → Consultas hoje / Resumo financeiro → Próximos
 na agenda / **Precisa de você** → Faturamento / Atividade.
@@ -836,6 +938,25 @@ COMPONENT-DECISIONS antes); no celular, alertas antes dos indicadores.
 e2e de dashboard). **Validação:** fotos antes/depois em 1440 e 375; NVDA lê "Dashboard".
 
 ### UX-012 — Cabeçalho de página no celular (P2)
+**Status:** IMPLEMENTADO e VALIDADO em Agenda e Relatórios (commit `317dbcf5` + ajuste de 15/11).
+Navegador (15/11 03h20): Agenda e Relatórios com o cabeçalho em uma linha a 320 e 375 px (40 px de
+altura); menu a 375 com "Lista de espera", "Ausências médicas" e "Importar histórico", foco no menu
+ao abrir por teclado; a 1440 o menu só tem "Importar histórico". **Achado:** a 768 px a Agenda
+ainda ocupava 2 linhas (80 px), porque o corte em `md` mantinha os quatro controles. Ajuste:
+`PageActions` ganhou `dobraAbaixoDe` (`md` padrão, `lg` = 1024 px) e a Agenda dobra em `lg`; o menu
+ganhou `collisionPadding={8}` (encostava na borda esquerda a 375). Diagnóstico a 375 px (`evidence/2026-11-14/mini/cabecalhos-375.png`):
+Agenda com 3 linhas de botões, Relatórios com 2; Financeiro cabe em 375 mas quebra em 320;
+Conversas e Documentos têm uma ação só (o que empilha lá é busca e filtro, não ação).
+**Como ficou:** componente `components/ui/page-actions.tsx` (`PageActions`): `primary` à vista;
+`secondary` como botões a partir de 768 px e dentro de "Mais ações" (⋮, alvo de 44 px) abaixo disso;
+`overflow` sempre no menu. Só navegação entra no menu — ação com efeito fica à vista. Agenda:
+"Novo atendimento" à vista; "Lista de espera", "Ausências médicas" (só com
+`manage:availability`) e "Importar histórico" no menu. Relatórios: "Exportar PDF" à vista; "Ver
+repasses por mês" (mesmo gate de antes) no menu. Testes: `page-actions.test.tsx` (3, novo) e
+`agenda/page.test.tsx` (itens do menu com o mesmo `href`). Registro em COMPONENT-DECISIONS ("Ações
+que mudaram de lugar").
+**Fica para depois:** Financeiro (`financeiro/page.tsx` também é alterado pelo #55 — aplicar depois
+do rebase do TISS; hoje só quebra em 320 px).
 **Arquivos:** `src/components/ui/page-header.tsx`, `src/components/shared/shell-chrome.tsx`;
 telas: Agenda, Financeiro, Conversas, Documentos, Relatórios.
 **Depois:** abaixo de 768 px, só a ação principal fica visível; as secundárias vão para um menu
@@ -845,11 +966,46 @@ menu lista todas, com o mesmo destino e a mesma permissão. Registrar em COMPONE
 leitor de tela anuncia "Mais ações".
 
 ### UX-014 — Linguagem interna exposta (P2)
+**Status:** PARCIAL (14/11, ~23h45) — Conversas, Dashboard, ficha (subtítulo) e consentimento LGPD
+aplicados; Equipe só como proposta (arquivo do billing #53); LGPD de Configurações mantido (prazo
+legal, ver seção 10). Testes atualizados: `handoff-sla.test.ts` (filtro), `dashboard/page.test.tsx`
+(pendência); e2e `payout-review-preview` e `production-patient-lifecycle-a` (nomes dos botões de
+consentimento, com a finalidade no nome acessível). Commit `80fa15b0`; unitários verdes (o nome
+acessível do botão de consentimento passou a vir de `aria-label`, com teste novo no
+`consent-card.test.tsx`). **Navegador (15/11 03h20):** em `/conversas` nenhum "SLA" na tela, badges
+"Prazo vencido há 6 d", faixa "Prazo de atendimento vencido há 6 d · o paciente aguarda desde
+08:00", filtro "Filtrar por prazo de atendimento"; a conversa da foto já tinha sido assumida e
+respondida pela equipe e o prazo seguia vencido — prova de que "prazo de resposta" seria falso. Na
+ficha: subtítulo novo e botões "Registrar consentimento". Fotos `evidence/2026-11-15/lote2/`.
 Tabela da seção 10. Cada troca: `grep` do texto em `src/` e `e2e/` antes; atualizar testes que
 procuram o texto. O card "Super admin" em Equipe: confirmar no código se a contagem vem de uma
 lista de papéis (`ROLES`) e filtrar `super_admin` da exibição (sem mexer em permissão).
 
 ### UX-015 — Caixa: título e ações de pagamento claros (P2)
+**Status:** título APLICADO e conferido no navegador (commit `9c124823`; em `/caixa` a 1440 nenhum
+título "Sem paciente vinculado", foto `evidence/2026-11-15/lote2/caixa-1440.png`):
+`caixa/cash-item-identity.ts` (`cashItemTitle`,
+`cashItemDetail`) usado no cartão, na tabela e no nome acessível de "Cancelar cobrança". Sem
+paciente, o título é a descrição do lançamento (obrigatória no banco: `notNull` + mínimo 1) e "Sem
+paciente vinculado" vai para a linha de apoio (com o procedimento, se houver). Nenhum paciente é
+inventado nem associado. Teste novo (4). As linhas tocadas ficam fora dos trechos que o #55 muda no
+Caixa (`todayYmd`, imports e o horário do item pago).
+**Ações de pagamento — o que cada uma faz (lido no código, 14/11):**
+
+| Botão hoje | Abre | Executa | Sistema | Consequência financeira | Permissão | Confirmação |
+| --- | --- | --- | --- | --- | --- | --- |
+| "Confirmar pagamento" (pendente) / "Receber saldo" (parcial) | Painel "Receber lançamento": forma (a combinada + Dinheiro; sem combinada, o catálogo todo), valor (saldo, editável até o saldo), comprovante opcional | `confirmPaymentAction` → `confirmPayment` (domínio financeiro) | Livro do Qoro. **Não cria cobrança no Asaas nem cobra o paciente** | Lançamento vira pago/parcial; entra em "Recebido hoje". O servidor recusa forma diferente da combinada (dinheiro sempre aceito, decisão de 08/10) | `operate:caixa` ou `manage:financial`, revalidada no servidor | O painel é a conferência (valor e forma à vista); o botão final diz o valor ("Receber R$ X") |
+| "Pagou em dinheiro" / "Pagou o restante em dinheiro" | O mesmo painel, travado em Dinheiro, saldo inteiro | A mesma `confirmPaymentAction` com `dinheiro` | Livro do Qoro | Igual; o painel avisa que o link do restante deixa de valer (mecanismo não conferido nesta leitura) | Igual | Igual |
+| "Pagar" (conta a pagar) | Painel "Pagar lançamento" | `confirmPaymentAction` | Livro do Qoro | Registra que a clínica pagou; não move dinheiro | Igual | Igual |
+| "Reembolsar" | Painel de estorno | `createEstornoAction` | Livro do Qoro (a devolução em si é feita pela clínica no Asaas dela) | Registra o estorno | `refund:financial` | Painel com motivo |
+
+**Proposta de nomes e organização (não aplicada — mexe no mesmo cartão que o #55 e em rótulo
+financeiro; decisão do fundador):** "Registrar recebimento" (era "Confirmar pagamento", que soa como
+confirmar um pagamento on-line) e, ao lado, com peso menor e ícone de nota, "Recebido em dinheiro"
+(atalho); no parcial, "Registrar o restante" e "Restante em dinheiro"; em conta a pagar, "Registrar
+pagamento" (o botão não paga nada, registra). Origem visível na linha: "Pago pelo link (Asaas)"
+quando a baixa veio do webhook; "Convênio · operadora" para recebível de convênio (separação do
+TISS); a assinatura do Qoro (AbacatePay) continua fora do Caixa, só em Configurações › Assinatura.
 **Arquivos:** `src/app/(app)/(shell)/caixa/cash-item-card.tsx`, `caixa-view.tsx` (TISS também
 altera esses arquivos — coordenar, 31.R).
 **Depois:** título = descrição da cobrança quando não há paciente ("Sem paciente vinculado" vira
@@ -858,6 +1014,16 @@ pagamento"); proposta inicial "Registrar pagamento" (abre a escolha do meio) e "
 dinheiro". **Riscos:** médio (financeiro; labels de negócio — registrar a decisão).
 
 ### UX-016 — Aviso de conversas na própria tela de Conversas (P3)
+**Status:** IMPLEMENTADO e TESTADO (15/11): na carga em `/conversas` ou `/conversas/<id>` o
+observador não mostra o resumo "N conversas aguardam atendimento" (a lista e o contador do menu já
+mostram a fila); pedido NOVO continua avisando em qualquer tela; o contador segue publicado. A rota
+chega por `usePathname` num `ref`, sem reiniciar o ciclo de 20 s. Testes novos no
+`handoff-watcher.test.tsx` (4). Commit `d98c7c03`. **Navegador (15/11 03h41, 375 px, carga
+completa, espera de até 40 s pelo texto "aguarda(m) atendimento"):** em `/conversas` o resumo **não
+apareceu**; no Dashboard (controle) **apareceu** em ~10 s (`evidence/2026-11-15/ux016/ux016b.json`).
+Uma primeira medição saiu inválida (procurava `[data-sonner-toast]`, mas o app usa toast próprio
+em `components/ui/toaster.tsx`) e foi descartada. **Não feito:** mudar a posição dos toasts no celular — o `Toaster`
+é global e mover afeta todos os avisos do app (decisão de design à parte).
 **Arquivo:** `src/app/(app)/(shell)/_painel/handoff-watcher.tsx`.
 **Depois:** não mostrar o toast de resumo quando a rota atual já é `/conversas` (o badge e a
 lista já informam); no celular, toast acima da barra de navegação sem cobrir o primeiro item.
@@ -872,6 +1038,27 @@ cabeçalho passa a ser o problema e o alerta diz o que fazer (estado válido int
 `production-team-lifecycle` continua achando "Criar senha de acesso").
 
 ### UX-019 — Modelos de receita no padrão de formulário (P2)
+**Status:** IMPLEMENTADO, TESTADO e VALIDADO NO NAVEGADOR (commit `f5a2f414`; sonda de 15/11
+03h20, sem salvar nada): "Salvar" vazio mostrou "Dê um nome ao modelo." e "Adicione ao menos um
+medicamento." nos campos, com o foco em `tpl-nome`; rótulos persistentes lidos na tela ("Nome do
+modelo*", "Categoria (opcional)", "Medicamento 1*", "Dosagem", "Posologia", "Via", "Quantidade",
+"Observações (opcional)"). Fotos `evidence/2026-11-15/lote2/modelos-erros-1440.png` e
+`modelos-form-375.png`. Os nomes acessíveis de Editar/Duplicar/Excluir passaram a vir de
+`aria-label` (um `span` oculto punha espaço antes dos dois-pontos no nome calculado).
+**Como ficou:** `Field` com rótulo persistente em todos os campos ("Nome do modelo" obrigatório,
+"Categoria (opcional)", "Observações (opcional)"); tipo de receita no `Segmented` do DS
+(`radiogroup` "Tipo de receita", em vez de dois botões com cor fixa `bg-primary-600 text-white`);
+medicamentos num grupo "Medicamentos", cada linha com "Medicamento N" visível e nomes acessíveis
+"Dosagem N", "Posologia N", "Via N", "Quantidade N" (mesmo padrão da receita do Consultório);
+placeholders viraram exemplos; "remover" sublinhado virou botão "Remover medicamento N"; "+
+medicamento" virou "Adicionar medicamento". Erros no campo (padrão UX-005) em vez de toast: "Dê um
+nome ao modelo." e "Adicione ao menos um medicamento.", com foco no primeiro campo com erro. Lista
+em `Card` + `ul` com divisória (sai `cardblock`/`listrows`/`listrow`/`lr-*`), largura `max-w-190`
+(os mesmos 760 px, sem `style`), "1 medicamento"/"N medicamentos" em vez de "medicamento(s)",
+vazio diferente de busca sem resultado, e o nome do modelo no nome acessível de Editar, Duplicar e
+Excluir ("Editar: Amigdalite adulto"). `data-testid="prescription-template-row"`, textos de
+negócio, ações e as duas chamadas que o billing (#53) também altera ficaram intactos. Teste novo
+`templates-manager.test.tsx` (4); e2e `tenant-settings-screens` passou a preencher pelo rótulo.
 **Arquivo:** `src/app/(app)/(shell)/modelos-receita/templates-manager.tsx`.
 **Problema:** a tela ficou fora da migração: classes do DS antigo (`stack`, `cardblock`,
 `wrap-pad`), `style={{ maxWidth: 760 }}` (largura fixa fora dos tokens) e campos do formulário
@@ -1070,9 +1257,24 @@ recusado; e2e `authenticated-readonly-routes` e testes da agenda verdes.
 
 ### UX-006 — "Cadastrar novo paciente" sem perder o agendamento
 
-**Prioridade:** P1 · **Status:** IMPLEMENTADO e TESTADO (14/11/2026, commit `9710a207`; aprovado
-pelo fundador para DEV/Preview com o backend existente). Falta validar no navegador (celular,
-teclado, leitor de tela, criação real de 1 paciente sintético na clínica de teste).
+**Prioridade:** P1 · **Status:** IMPLEMENTADO, TESTADO e VALIDADO NO NAVEGADOR a 375 px (14/11/2026,
+commits `9710a207` e `c75bf870`; aprovado pelo fundador para DEV/Preview com o backend existente).
+**Validação no navegador (22h47, DEV, clínica "teste final", `.tmp/ui-audit/ux006-probe.ts`):** só
+teclado depois de abrir a gaveta; 1 paciente sintético "Teste UI Cadastro Rápido" com CPF válido
+gerado na hora (fica no DEV como dado de teste). Resultado: foco no Nome ao abrir ✔; Enter no CPF
+salvou o paciente sem enviar o agendamento ✔ (o botão "Trocar seleção" do paciente escolhido
+apareceu); o mesmo CPF de novo foi recusado no campo CPF ("Já existe um paciente com este CPF
+nesta clínica…") com o foco levado ao CPF ✔; gaveta fechada sem agendar ✔; 0 erros de página.
+Fotos: `evidence/2026-11-14/ux006/ux006-criado-375.png` (salvando) e `ux006-duplicado-375.png`.
+A leitura "paciente selecionado = falso" do JSON era corrida da sonda (leu o grupo do campo antes
+de salvar terminar); a sonda foi corrigida para esperar "Trocar seleção".
+**Achado da validação, corrigido (commit `36ab0f72`, validado a 1440 em 15/11 03h30: foco em
+`appointment-procedure`, anúncio "Cadastro de Teste UI Cadastro Rápido concluído e já selecionado
+neste atendimento.", 12,8 s até selecionar; +1 paciente sintético no DEV):** ao salvar, o formulário rápido some com o
+foco dentro dele e o foco caía no corpo da página. Agora o foco vai para "Procedimento" (ou
+"Profissional", se o catálogo estiver vazio) e uma região `status` anuncia "Cadastro de <nome>
+concluído e já selecionado neste atendimento." (concorda com "cadastro": o gênero da pessoa não é
+dado do formulário). Teste da gaveta estendido. Falta: NVDA manual e 1440 px.
 **Como ficou:** botão "Cadastrar novo paciente" (só com `create:patient`, flag
 `AgendaData.canCreatePatient`) abre `agenda/quick-patient-form.tsx` dentro da gaveta: Nome e CPF
 (obrigatórios pelas regras atuais) e Telefone opcional; "Cadastrar e selecionar" chama
@@ -1264,6 +1466,13 @@ Globais (prompt §30) e por intervenção (em cada ID). Formato de achado adotad
 | 14/11/2026 | P0.1–P0.4 | Auditoria de Asaas live, credenciais de produção, disco e Git (00.5); limpeza do meu `.next/cache/webpack` (17,73 → 17,89 GB livres) | — | 00.5 |
 | 14/11/2026 | Commits | `06af3f84` UX-001 · `f8f26cf9` UX-002 · `099f339e` UX-005/007 · `4e39880f` UX-009 · `1df78a87` UX-010 · `15b060c1` UX-017 · `5d04e48f` UX-008 · `4acd59f8` UX-017 (convite) · `9710a207` UX-006 | cada commit com seus testes verdes | `git log` |
 | 14/11/2026 | UX-017 (convite), UX-006 | Convite sem token abre pelo problema; cadastro rápido de paciente na gaveta | convite 11/11; agenda + contratos 18 arquivos, 142 testes; ESLint 0 | ver fichas |
+| 14/11/2026 22h47 | UX-006 (navegador) | Sonda a 375: foco, Enter salva, CPF duplicado recusado no campo, foco no erro, 0 erro de página; achado: foco perdido depois de salvar → corrigido (foco no próximo campo + anúncio) | sonda `ux006-probe.ts`; teste da gaveta estendido | `evidence/2026-11-14/ux006/` |
+| 14/11/2026 22h50–23h27 | P1.3/P1.4 | Rodada de estabilidade (19.2): P-10 com texto inteiro (`useId` do shell, intermitente, também em `/pacientes`); pagamentos 5/5 sem timeout; `/conversas` sem `load` em 10 min na 1ª carga; fontes do Google falhando no Turbopack | 50 cargas em 4 sondas | `evidence/2026-11-14/hidratacao-*`, `impacto-*`, `pagamentos-375-x5.json`, `conversas-probe-4.log` |
+| 14/11/2026 23h30 | UX-011 | Dashboard: `h1` "Dashboard", saudação no `headline`, "Precisa de você" primeiro no DOM, sem `order` no CSS, financeiro em linha própria, esqueleto alinhado; `SkeletonText` | `dashboard` + `components/ui`: 18 arquivos, 145 testes, 0 falha | ficha UX-011 |
+| 14/11/2026 23h40–00h | UX-014, UX-012, UX-015, UX-019 | Prazo de atendimento (Conversas e Dashboard); consentimento LGPD como registro da decisão do paciente; subtítulo da ficha; `PageActions` (Agenda, Relatórios); título do Caixa sem paciente; formulário de modelos de receita | 15/11 03h12: 71 arquivos, 485 testes — 1 falha (nome acessível com espaço antes dos dois-pontos por causa de `span` oculto) corrigida com `aria-label`; depois 68/68 e 9/9; ESLint 0 em 32 arquivos; **`tsc --noEmit` código 0, 0 erro** (3 erros de `exactOptionalPropertyTypes` corrigidos antes) | fichas e 31.R |
+| 15/11/2026 03h19 | Commits Lote 2 | `36ab0f72` UX-006 · `646d17e5` UX-011 · `80fa15b0` UX-014 · `317dbcf5` UX-012 · `9c124823` UX-015 · `f5a2f414` UX-019 | cada um com os testes acima verdes | `git log` |
+| 15/11/2026 03h20–03h45 | Navegador do Lote 2, UX-016, dobra da Agenda | Sonda `lote2-probe.ts` (Dashboard, Agenda, Relatórios, Conversas, modelos, Caixa, ficha, UX-006 a 1440); achado da Agenda a 768 px corrigido (`dobraAbaixoDe="lg"`, `collisionPadding`); UX-016 sem resumo em Conversas | 64/64; ESLint 0; `tsc` 0; navegador: Agenda 1 linha em 320–1440, menu a 8 px da borda, resumo ausente em Conversas e presente no Dashboard | `evidence/2026-11-15/` |
+| 15/11/2026 03h45 | Commits | `d98c7c03` UX-016 · `fa006527` UX-012 (dobra) | testes acima verdes | `git log` |
 
 ## 28. Pendências e bloqueios
 
@@ -1278,8 +1487,8 @@ Globais (prompt §30) e por intervenção (em cada ID). Formato de achado adotad
 | P-07 | **Sentry compartilhado recebe erros de desenvolvimento.** Arquivos: `sentry.server.config.ts`, `sentry.edge.config.ts`, `src/instrumentation-client.ts`. Contrato: DSN de reserva fixo no código + `environment: NODE_ENV` + `onRequestError = captureRequestError`. Evidência: INC-01 (evento `7590707702` veio do `localhost` deste worktree). Impacto: falsos incidentes (renders abortados pelo navegador, recarga do Turbopack) e Preview marcada como `production`. Proposta: DSN só por variável (sem reserva no código); `environment` a partir de `VERCEL_ENV` com `NODE_ENV` de reserva; filtrar `Error: aborted`/`ECONNRESET` de requisição cancelada pelo cliente. Regressões: produção continua reportando (variável presente na Vercel Production), testes de `sentry-scrub`. **Não alterado aqui:** os mesmos arquivos estão modificados no worktree do TISS e a #53 trata o ambiente do Sentry | coordenação | agente AbacatePay (#53) com o agente TISS |
 | P-08 | Ler o payload do evento `7590707702` (título, `transaction`, stack) para fechar a causa histórica do INC-01 | acesso ao Sentry | agente com acesso ao Sentry |
 | P-09 | Origem do `fetch('data:,')` bloqueado pela CSP (`connect-src`) visto nas sondas | descoberta | esta frente (Lote 2) |
-| P-10 | Aviso de hidratação de **atributo** em `/equipe` (375 px): 1× na varredura, 0× em 2 visitas seguidas (`hydration-probe.ts`); texto completo não capturado (a varredura corta em 300 caracteres). Rodar a sonda com mais repetições e guardar o diff | investigação | esta frente |
-| P-11 | `/equipe` não terminou de carregar em 10 min numa visita isolada (sem `GET /equipe` no log e sem erro), e carregou em ~11 s nas duas seguintes. Mesmo padrão de instabilidade de conexão do INC-01; sem causa isolada | investigação | esta frente |
+| P-10 | Aviso de hidratação do **shell**: divergência de `id` de `useId` acima do `PainelShell` (menu lateral e menus Radix), intermitente — `/equipe` 5× em 30 cargas, `/pacientes` 1× em 10 (19.2). Mecanismo comprovado; causa raiz não. Em produção (Preview `12ab24f6`, 10 cargas, checado pelo agente TISS) o efeito **não** apareceu: rótulo do menu íntegro 10/10, sem aviso. Prioridade baixa; reabrir se aparecer em produção ou em mais telas | investigação (baixa) | esta frente |
+| P-11 | Página sem `load` em 10 min: `/equipe` (1× na tarde, 0× em 30 cargas à noite) e `/conversas` (1ª visita depois do reinício: servidor levou 179 s, `ECONNRESET` ao fechar). Sem erro de banco no log; Turbopack falhando ao baixar as fontes do Google a cada requisição; server actions de 12–23 s. Hipóteses em 19.2 | investigação | esta frente |
 | P-12 | Massa de teste com fila do dia no Consultório e atendimentos de hoje na Agenda, para auditar esses estados com dados (escrita no DEV, clínica de teste) | aprovação | fundador |
 | P-13 | **Trava do Asaas de produção fora da Production** (00.5, P0.1): proposta pronta; aplicar no `env.ts` exige coordenação com a PR #53 | coordenação | agente do billing/payments |
 | P-14 | Limpeza de disco fora deste worktree (00.5, P0.3): `.next` de ~12 worktrees já na `main` (~16 GB), `dist` de 10,3 GB no worktree do billing, worktrees integrados | decisão | fundador (e agente do billing para o `dist`) |
@@ -1333,3 +1542,79 @@ Fatos já levantados:
 - **Pontos fortes já presentes:** o painel separa Faturado, Recebido, Glosa em aberto ("ainda pode
   ser revertida"), Glosa definitiva, A receber e Recebido sem conciliar; o lote diz "Enviar não é
   receber"; a conciliação diz "o paciente paga só a coparticipação, nunca o valor da consulta".
+
+### 31.R Coordenação com o agente TISS (registro)
+
+**14/11, 23h30–00h10.** Handoff lido: `docs/convenios/handoff-ui.md` na `feat/convenios-tiss-20261110`
+(`2d3c79e6`, só leitura via `git show`). Pontos fechados por mensagem entre as sessões:
+
+| Assunto | Combinado |
+| --- | --- |
+| Ordem de integração | A UI entra primeiro; o #55 rebaseia e resolve os arquivos em comum preservando os trechos do TISS (handoff §8). Se o #55 entrar antes, a UI faz o inverso |
+| Arquivos em comum **desta frente** | Só 3 (os "18" do handoff incluem a base de UI inteira): `agenda/new-appointment-drawer.tsx` (UX-005/006/007 + foco do cadastro rápido; preservar o bloco de modalidade/cobertura do TISS), `agenda/data.ts` (`canManageProcedures`, `canCreatePatient`), `pacientes/[id]/page.tsx` (só o subtítulo, fora dos três trechos da aba Convênios) |
+| Teste que vai reprovar no rebase do #55 | `src/app/page-titles.test.ts` (UX-008): toda `page.tsx` precisa de `metadata.title` (ou layout titulado na pasta), sem "Qoro" no título. As páginas de `convenios/**` precisam de título; sugestões enviadas |
+| Aba Convênios da ficha (§4) | A moldura pode mudar; `data-testid` (`patient-insurance` + `data-state`), os três trechos e a ordem carteirinhas → cobertura → autorizações → guias ficam |
+| Terminologia das guias (decisão de UX desta frente) | Forma longa em links, títulos, toasts, ficha, repasses e solicitações: "Guia de consulta nº 1", "Guia de SP/SADT nº 1". Forma curta só em tabela com coluna "Tipo": coluna "Guia" com "nº 1". Nunca "Consulta 1" sozinho (na clínica, "consulta" é o atendimento). Número sempre visível, como gravado. Aplicação nos arquivos do TISS, pelo TISS |
+| Janela de recursos | O TISS pediu ~30 min sem o `next dev` local para uma jornada E2E contra o Preview remoto (com 0–0,2 GB livres o Chromium dele trava). Servidor desta frente parado às 23h33; volta depois das 00h10 |
+| Hidratação (R51 × P-10) | O R51 é #418 (texto, conciliação, ~1 em 120 navegações), sem causa atribuída. O P-10 é divergência de atributo (`useId`) no shell. Em produção o React não avisa divergência de atributo; o efeito mensurável é menu Radix montado no cliente com `aria-labelledby` órfão. Pedido opcional ao TISS: conferir isso no Preview desta branch, só leitura, sem trocar credencial |
+| Resultados (15/11) | O TISS aplicou a terminologia (helper `convenios/_lib/guide-label.ts`) e títulos nas 13 páginas de `convenios/**`; checou o P-10 no Preview `12ab24f6` (10/10 íntegro, ver 19.2). Arquivos em comum desta frente com a tip `4723ccad`: 4 (`new-appointment-drawer.tsx`, `agenda/data.ts`, `pacientes/[id]/page.tsx`, `caixa/cash-item-card.tsx` — só `subject`/`detail`) |
+
+### 31.I Intervenções UX-TISS (plano, 15/11)
+
+Fonte: handoff do TISS (`docs/convenios/handoff-ui.md`, `2d3c79e6`/`6dbc9a57`). Tudo depende do rebase
+do #55 sobre esta branch; regra, validação, XML, cobertura e segurança continuam do TISS.
+
+| ID | O quê | Dono do arquivo | Estado |
+| --- | --- | --- | --- |
+| UX-TISS-001 | Item "Convênios" no menu lateral (grupo Gestão, depois de Financeiro, `view:financial`), pela entrada pronta em `docs/convenios/menu-convenios.md` | UI (`components/painel/modules`) | depois do rebase |
+| UX-TISS-002 | Navegação interna: as 9 abas planas viram 3 grupos (Faturamento: Atendimentos, Solicitações, Guias, Lotes · Financeiro: Conciliação, Repasses · Cadastros: Carteirinhas, Configuração). Mesmas rotas e `data-testid`; Glosas e Recursos seguem dentro da guia | UI propõe, TISS aprova (`_lib/tabs.tsx`) | proposta |
+| UX-TISS-003 | Terminologia única de guia ("Guia de consulta nº 1") | TISS | **feito pelo TISS** (`guide-label.ts`) |
+| UX-TISS-004 | Título por tela em `convenios/**` (UX-008) | TISS | **feito pelo TISS** (13 páginas) |
+| UX-TISS-005 | Aba Convênios da ficha: moldura do DS mantendo `patient-insurance` + `data-state` e a ordem carteirinhas → cobertura → autorizações → guias | UI (moldura) | depois do rebase |
+| UX-TISS-006 | Troca de modalidade na Agenda: mostrar modalidade atual e desejada, motivo, efeitos ("a cobrança pendente é cancelada"), restrições e a recusa do servidor como veio; só nos estados agendado/confirmado/chegou | UI (moldura), regra TISS | depois do rebase |
+| UX-TISS-007 | Importação de tabela contratual: upload, modelo de planilha, prévia por linha com erro por coluna e mensagem de aplicação "tudo ou nada"; a regra atômica não muda | UI (moldura) | depois do rebase |
+| UX-TISS-008 | Catálogo único dos 12 estados do módulo (sem permissão, não instalado, contratável, suspensa, desabilitado, vazio, carregando, erro, pendente, assíncrono, sucesso só depois da resposta, falha recuperável) com os componentes do DS | UI | depois do rebase |
+| UX-TISS-009 | Tabelas de guias e lotes no celular: coluna-chave fixa, ações em menu da linha, sem rolagem lateral da página | UI | depois do rebase |
+| UX-TISS-010 | Caixa: separar visualmente paciente × operadora (regra do TISS) com o título do UX-015 | UI + TISS | UX-015 feito; separação no rebase |
+| UX-TISS-011 | Consulta assistencial sem valores (médica vê cobertura e autorização sem ver o financeiro) | **decisão do fundador** (ampliação de acesso, classe D) | aberto |
+| UX-TISS-012 | R51 (#418 na conciliação, ~1 em 120): acompanhar com a instrumentação do TISS; se apontar componente compartilhado, a correção é da UI | TISS mede, UI corrige | sem ocorrência em 15/11 |
+
+---
+
+## 32. Assinatura AbacatePay (handoff da UI, P2.2)
+
+**Situação (15/11):** o agente AbacatePay não está com sessão ativa; o PR #53
+(`feat/billing-abacatepay-20261107`, tip `94f6da4a`) é a fonte. Esta branch já carrega 3 commits
+do billing (`TrialAccessNotice` e afins). Nada do billing foi alterado por esta frente.
+
+**Telas e componentes de UI que a #53 altera** (diff contra a `main` `5620a098`):
+
+| Superfície | Arquivo | Natureza |
+| --- | --- | --- |
+| Assinatura e avaliação | `configuracoes/assinatura/deferred-subscription.tsx` (+334), `assinatura/page.tsx` | contratação, renovação, cancelamento, troca de plano |
+| Escolha do plano no cadastro | `cadastro/plano/plan-selection-form.tsx` (+328), `cadastro/plano/page.tsx`, `components/shared/signup-frame.tsx` (+158) | plano, preço, ciclo |
+| Aviso de avaliação no shell | `(shell)/_painel/trial-access-notice.tsx`, `(shell)/layout.tsx` | trial |
+| Limites do trial | `procedimentos/procedures-manager.tsx`, `consultorio/prescription-drawer.tsx`, `modelos-receita/templates-manager.tsx`, `equipe/page.tsx`, `pagamentos/page.tsx`, `whatsapp/page.tsx` | cotas e gates |
+| Operação do billing (admin) | `admin/billing/operacao/*`, `admin/billing/page.tsx` | reprocessamento |
+
+**Estados que a tela de assinatura já distingue** (lidos na #53, todos vindos do servidor):
+"Avaliação sem cartão", "Contratação pendente", "Pagamento em verificação", "Pagamento confirmado",
+"Renovação em verificação", "Cancelamento em verificação", "Renovação cancelada", "Assinatura
+encerrada", "Contratação temporariamente indisponível", "Alteração agendada" / "Alteração em
+verificação", e mensagens de conexão interrompida que mandam atualizar a página em vez de repetir a
+cobrança ("Já existe uma tentativa em confirmação. Não crie outra cobrança…"). **Atende ao princípio
+do fundador:** nenhuma tela afirma pagamento confirmado antes do servidor confirmar.
+
+**O que a UI fará depois do merge da #53 (só moldura, sem regra):**
+1. Passar as telas acima pelo padrão de formulário (UX-001/005): `Field` em todo campo, erro no
+   campo, foco no primeiro inválido; o `<select>` "Selecione um plano" com rótulo persistente.
+2. Hierarquia por estado: o estado do pagamento vira o cabeçalho da seção (hoje são `Alert`s
+   empilhados); uma ação primária por estado; cancelar fica separado e com confirmação (já existe
+   "Cancelar a renovação?").
+3. Linguagem: manter os textos de estado (são contrato de verdade com o servidor); revisar só
+   jargão residual ("checkout" → "pagamento"), sem mudar sentido, valores, períodos ou cotas.
+4. Celular e acessibilidade: as 5 larguras; `Alert` de estado anunciado (`role="status"` para
+   verificação, `role="alert"` só para falha); alvos ≥ 24 px.
+5. Separação de sistemas na interface: assinatura do Qoro (AbacatePay) só em Configurações ›
+   Assinatura; cobrança de paciente (Asaas) no Caixa/Financeiro; convênios (TISS) em Convênios.
+**Bloqueio:** depende do merge da #53 e do rebase desta branch; nada a fazer antes sem o agente.
