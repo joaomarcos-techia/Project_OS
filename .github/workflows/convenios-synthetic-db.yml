@@ -72,13 +72,16 @@ jobs:
           SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55549 \
             pnpm exec tsx scripts/security/health-insurance-permission-matrix-db.ts
 
+      # Cada prova roda mesmo se a anterior falhar (evidência independente); o job falha se qualquer uma falhar.
       - name: SP/SADT — solicitação, automação e indicação clínica × D24
+        if: ${{ !cancelled() }}
         run: |
           SECURITY_PG_BIN="$(pg_config --bindir)" \
           NODE_OPTIONS="--import ./scripts/security/server-only-hook.mjs" \
             pnpm exec tsx --tsconfig tsconfig.scripts.json scripts/security/health-insurance-sadt-db.ts
 
       - name: Repasse do convênio — inclui o cancelamento da guia com repasse
+        if: ${{ !cancelled() }}
         run: |
           SECURITY_PG_BIN="$(pg_config --bindir)" NODE_OPTIONS=--conditions=react-server \
             pnpm exec tsx scripts/security/health-insurance-payout-db.ts

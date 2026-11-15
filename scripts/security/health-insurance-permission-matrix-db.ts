@@ -50,8 +50,11 @@ const EXPECTED_BUNDLE: Record<string, readonly NewCode[]> = {
   financial: ['view:convenios', 'view:faturamento_convenio', 'manage:faturamento_convenio'],
   doctor: ['view:convenios'],
 };
-const GRANULAR_PLAN = 'clinica_2026_2';
-const PLAIN_PLAN = 'consultorio_2026';
+// Planos legados do catálogo real: `clinica` tem permissões granulares (0133) e `solo` não. Os da
+// família 2026 têm teto de assentos (0122, `offer_2026_seat_limit`), e a prova precisa de vários
+// perfis por papel na mesma clínica; a matriz não depende do plano, só de ser granular ou não.
+const GRANULAR_PLAN = 'clinica';
+const PLAIN_PLAN = 'solo';
 
 const body = await readFile(CANDIDATE, 'utf8');
 // As três instruções do cabeçalho da candidata, com a mesma lista.

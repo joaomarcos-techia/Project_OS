@@ -549,11 +549,11 @@ try {
   assert.deepEqual(await snap11(), s11, 'tentativas de fora não tocam na solicitação');
   // Concorrência: duas edições com a mesma versão → uma grava, a outra recebe "mudou; recarregue".
   const v11 = await version(r11);
-  const both = await Promise.all([
+  const simultaneous = await Promise.all([
     outcome(setInd(A, A.clinicId, r11, v11, 'Primeira edição simultânea.')),
     outcome(setInd(A, A.clinicId, r11, v11, 'Segunda edição simultânea.')),
   ]);
-  assert.deepEqual([...both].sort(), ['aceitou', 'stale']);
+  assert.deepEqual([...simultaneous].sort(), ['aceitou', 'stale']);
   assert.equal(await version(r11), v11 + 1);
   // De volta à assinatura paga e ativa, a mesma pessoa grava de novo.
   assert.equal(await outcome(setInd(A, A.clinicId, r11, await version(r11), 'Indicação depois da regularização.')), 'aceitou');
