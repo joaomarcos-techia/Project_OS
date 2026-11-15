@@ -58,6 +58,7 @@ export function syntheticBuildEnvironment(
   home: string,
 ): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = {
+    NODE_ENV: 'production',
     HOME: home,
     TMPDIR: home,
     XDG_CACHE_HOME: path.join(home, 'cache'),

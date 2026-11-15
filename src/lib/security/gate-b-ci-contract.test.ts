@@ -13,6 +13,7 @@ describe('dedicated synthetic CI boundaries', () => {
   it('does not inherit Production, CI, provider or personal configuration credentials', () => {
     const env = syntheticBuildEnvironment(
       {
+        NODE_ENV: 'development',
         PATH: '/synthetic/bin',
         HOME: '/personal',
         DATABASE_URL_PROD: 'must-not-survive',

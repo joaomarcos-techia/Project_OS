@@ -480,7 +480,7 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/e2e-mutation-fixture.ts:206`                      | `E2E_USER_EMAIL`                       | `process.env.E2E_USER_EMAIL`                                                |
 | `scripts/e2e-paid-pause-ops.ts:54`                         | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
 | `scripts/e2e-paid-pause-ops.ts:55`                         | `ASAAS_BASE_URL`                       | `process.env.ASAAS_BASE_URL`                                                |
-| `scripts/gate-b-composed-build.ts:130`                    | `<object>`                             | `process.env`                                                               |
+| `scripts/gate-b-composed-build.ts:131`                     | `<object>`                             | `process.env`                                                               |
 | `scripts/gate-b-isolated-restore.ts:35`                    | `<dynamic>`                            | `process.env[key]`                                                          |
 | `scripts/gate-b-isolated-restore.ts:230`                   | `BACKUP_PASSPHRASE`                    | `process.env.BACKUP_PASSPHRASE`                                             |
 | `scripts/gemini-live-check.ts:50`                          | `GEMINI_API_KEY`                       | `process.env.GEMINI_API_KEY`                                                |
