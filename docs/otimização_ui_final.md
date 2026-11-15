@@ -19,14 +19,14 @@
   768 px), UX-015 título do Caixa, UX-016 sem resumo em Conversas, UX-019 modelos de receita;
   rodada de estabilidade (19.2) e checagem do P-10 em produção pelo TISS; handoffs TISS (31.R,
   31.I) e AbacatePay (32) registrados.
-- **Último ID concluído:** UX-016. **Em andamento:** nenhum.
+- **Último ID concluído:** UX-015 (nomes das ações do Caixa, D-07). **Em andamento:** nenhum.
 - **Último checkpoint:** 15/11/2026 03h45 — servidor local no ar (porta 3100).
 - **Commits (sobre `e47ec2f0`):** Lote 1 — `06af3f84` UX-001 · `f8f26cf9` UX-002 · `099f339e`
   UX-005/007 · `4e39880f` UX-009 · `1df78a87` UX-010 · `15b060c1` UX-017 · `5d04e48f` UX-008 ·
   `4acd59f8` UX-017 (convite) · `9710a207` UX-006 · `12ab24f6` documento · `c75bf870` foco do
   UX-006. Lote 2 — `36ab0f72` UX-006 · `646d17e5` UX-011 · `80fa15b0` UX-014 · `317dbcf5` UX-012 ·
   `9c124823` UX-015 · `f5a2f414` UX-019 · `d98c7c03` UX-016 · `fa006527` UX-012 (dobra) · +
-  documento. Fora do Git: `.env.local` (higienizado; Sentry desligado — 00.3), `.tmp/ui-audit/*`.
+  documento · `5f6967c2` UX-015 (nomes das ações do Caixa, aprovados pelo fundador em 15/11). Fora do Git: `.env.local` (higienizado; Sentry desligado — 00.3), `.tmp/ui-audit/*`.
 - **Testes executados (15/11):** 71 arquivos / 485 testes do Lote 2 (1 falha corrigida, depois
   verde); reexecuções 68/68, 9/9, 64/64; ESLint 0 em todos os arquivos tocados; **`tsc --noEmit`
   código 0, 0 erro** (duas rodadas); prettier OK. Navegador: `lote2-probe.ts` (1 login) e
@@ -40,8 +40,8 @@
   RAM da máquina (0,3–0,8 GB livres) — combinar janelas com o TISS antes de jornadas pesadas.
 - **Próxima ação exata:** (1) publicar a branch e acompanhar o Preview/CI; (2) UX-012 no Financeiro
   depois do rebase do #55; (3) UX-TISS-001/005/006 depois do rebase; (4) UX-018 restante e
-  inventário de modais/drawers (P2.3–P2.4); (5) proposta de nomes do Caixa e nota de Equipe
-  dependem do fundador.
+  inventário de modais/drawers (P2.3–P2.4); (5) nota de Equipe e origem do pagamento na linha do Caixa
+  dependem do fundador/dados.
 - **Arquivos que devem ser lidos para continuar:** este documento; `docs/design/CONTRACT.md`;
   `docs/design/COMPONENT-DECISIONS.md`; `src/components/ui/field.tsx`;
   `src/components/ui/page-actions.tsx`; o handoff do TISS (`git show
@@ -999,13 +999,26 @@ Caixa (`todayYmd`, imports e o horário do item pago).
 | "Pagar" (conta a pagar) | Painel "Pagar lançamento" | `confirmPaymentAction` | Livro do Qoro | Registra que a clínica pagou; não move dinheiro | Igual | Igual |
 | "Reembolsar" | Painel de estorno | `createEstornoAction` | Livro do Qoro (a devolução em si é feita pela clínica no Asaas dela) | Registra o estorno | `refund:financial` | Painel com motivo |
 
-**Proposta de nomes e organização (não aplicada — mexe no mesmo cartão que o #55 e em rótulo
-financeiro; decisão do fundador):** "Registrar recebimento" (era "Confirmar pagamento", que soa como
-confirmar um pagamento on-line) e, ao lado, com peso menor e ícone de nota, "Recebido em dinheiro"
-(atalho); no parcial, "Registrar o restante" e "Restante em dinheiro"; em conta a pagar, "Registrar
-pagamento" (o botão não paga nada, registra). Origem visível na linha: "Pago pelo link (Asaas)"
-quando a baixa veio do webhook; "Convênio · operadora" para recebível de convênio (separação do
-TISS); a assinatura do Qoro (AbacatePay) continua fora do Caixa, só em Configurações › Assinatura.
+**Nomes das ações — APLICADO (aprovado pelo fundador em 15/11/2026, commit `5f6967c2`):**
+"Registrar recebimento" (era "Confirmar pagamento", que soa como confirmar um pagamento on-line) e,
+ao lado, com peso menor (botão `ghost`) e ícone de nota, "Recebido em dinheiro" (atalho); no
+parcial, "Registrar o restante" e "Restante em dinheiro"; em conta a pagar, "Registrar pagamento"
+(o botão não paga nada, registra). O título do painel acompanha o botão da linha e o botão final
+diz "Registrar R$ X"; o texto do painel diz "antes de registrar". Helper único
+`registerActionLabel` (cartão, tabela e painel). O texto da política de sinal em Configurações ›
+Pagamentos cita os nomes novos. Regras, permissões e a ação do servidor não mudaram. Testes: Caixa
+5 arquivos / 48 testes (inclui `cash-action-labels.test.ts`, novo) e Pagamentos; ESLint 0; `tsc` 0.
+e2e com os seletores novos em 10 specs (incluindo `production-convenio-payment-a`, avisado ao TISS).
+**Navegador (15/11 08h02, `caixa-probe.ts`, sem registrar nada):** em 1440 e 375 os botões são
+"Registrar recebimento", "Recebido em dinheiro" e "Registrar pagamento", sem nenhum nome antigo;
+o painel abriu com "Registrar R$ 95,00" e fechou em "Voltar"; um recebível sem paciente apareceu
+como "Teste UI retorno vencido" com "Sem paciente vinculado" no apoio; 0 erro de página
+(`evidence/2026-11-15/caixa/`). Fica no `caixa-types.ts` um comentário com o nome antigo: o arquivo
+muda no billing (#53) e o ajuste vai na integração.
+**Ainda proposta (precisa de dado, não só de nome):** origem visível na linha — "Pago pelo link
+(Asaas)" quando a baixa veio do webhook; "Convênio · operadora" para recebível de convênio
+(separação do TISS); a assinatura do Qoro (AbacatePay) continua fora do Caixa, só em Configurações ›
+Assinatura.
 **Arquivos:** `src/app/(app)/(shell)/caixa/cash-item-card.tsx`, `caixa-view.tsx` (TISS também
 altera esses arquivos — coordenar, 31.R).
 **Depois:** título = descrição da cobrança quando não há paciente ("Sem paciente vinculado" vira
@@ -1443,6 +1456,7 @@ Globais (prompt §30) e por intervenção (em cada ID). Formato de achado adotad
 | D-04 | Não instalar skills de terceiros; ler como referência | Segurança (scripts/binários), persistência indevida de instruções | Instalar no ambiente do agente |
 | D-05 | Ambiente local com `.env.local` higienizado e `--use-system-ca` | Nada em produção; Avast intercepta TLS | Usar o `.env.local` principal (Asaas de produção) ou desligar TLS |
 | D-06 | Prompt mestre vale como aprovação do fundador para reestruturar apresentação e fluxos; mudar o **contrato** de design continua exigindo aprovação explícita | O contrato diz que mudar o contrato exige aprovação; o prompt autoriza redesenhar a experiência | Tratar o prompt como licença para mudar o contrato |
+| D-07 | Ações de pagamento do Caixa nomeadas pelo que registram ("Registrar recebimento", "Recebido em dinheiro", "Registrar o restante", "Restante em dinheiro", "Registrar pagamento") — **aprovado pelo fundador em 15/11/2026** | Nenhum botão cobra ou move dinheiro; "Confirmar pagamento" soava como confirmar um pagamento on-line (Asaas) e "Pagar" parecia pagar | Juntar os dois botões num só (o atalho do dinheiro é a ação mais usada na recepção) |
 
 | Risco | Prob. | Impacto | Mitigação |
 | --- | --- | --- | --- |
@@ -1473,6 +1487,7 @@ Globais (prompt §30) e por intervenção (em cada ID). Formato de achado adotad
 | 15/11/2026 03h19 | Commits Lote 2 | `36ab0f72` UX-006 · `646d17e5` UX-011 · `80fa15b0` UX-014 · `317dbcf5` UX-012 · `9c124823` UX-015 · `f5a2f414` UX-019 | cada um com os testes acima verdes | `git log` |
 | 15/11/2026 03h20–03h45 | Navegador do Lote 2, UX-016, dobra da Agenda | Sonda `lote2-probe.ts` (Dashboard, Agenda, Relatórios, Conversas, modelos, Caixa, ficha, UX-006 a 1440); achado da Agenda a 768 px corrigido (`dobraAbaixoDe="lg"`, `collisionPadding`); UX-016 sem resumo em Conversas | 64/64; ESLint 0; `tsc` 0; navegador: Agenda 1 linha em 320–1440, menu a 8 px da borda, resumo ausente em Conversas e presente no Dashboard | `evidence/2026-11-15/` |
 | 15/11/2026 03h45 | Commits | `d98c7c03` UX-016 · `fa006527` UX-012 (dobra) | testes acima verdes | `git log` |
+| 15/11/2026 08h10 | UX-015 (nomes, D-07) | Ações de pagamento do Caixa nomeadas pelo que registram; atalho do dinheiro com ícone e peso menor; texto da política de sinal e 10 specs e2e alinhados | Caixa 48/48, Pagamentos e contratos 83/83; ESLint 0; `tsc` 0; navegador em 1440 e 375 sem nomes antigos | `5f6967c2`; `evidence/2026-11-15/caixa/` |
 
 ## 28. Pendências e bloqueios
 
