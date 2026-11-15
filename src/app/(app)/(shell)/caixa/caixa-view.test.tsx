@@ -25,7 +25,11 @@ vi.mock('./actions', () => ({
   reviewProfessionalPayoutAction: vi.fn(),
 }));
 
-import { cancelLancamentoAction, reviewProfessionalPayoutAction } from './actions';
+import {
+  cancelLancamentoAction,
+  confirmPaymentAction,
+  reviewProfessionalPayoutAction,
+} from './actions';
 import { CaixaView, type FailedChargeItem, type ManualRefundItem } from './caixa-view';
 
 const METHODS = [{ code: 'pix', label: 'PIX' }];
@@ -135,6 +139,48 @@ describe('CaixaView — work queue, rótulos e RBAC', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Registrar pagamento' }));
     expect(screen.getByLabelText('Valor pago')).toBeTruthy();
     expect(screen.getByRole('button', { name: /Registrar R\$\s*1\.200,00/ })).toBeTruthy();
+  });
+
+  // Regressão de 15/11/2026 (docs/otimização_ui_final.md, 25.7): queda de rede depois
+  // de o servidor gravar não pode virar um segundo pagamento parcial.
+  it('queda de rede: avisa e a repetição do mesmo registro usa a mesma chave', async () => {
+    vi.mocked(confirmPaymentAction)
+      .mockReset()
+      .mockRejectedValueOnce(new Error('Failed to fetch'))
+      .mockResolvedValueOnce({ ok: true, data: item({ status: 'pago', valorPago: 200 }) });
+    render(<CaixaView {...base} pendentes={[item()]} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar recebimento' }));
+    fireEvent.click(screen.getByRole('button', { name: /Registrar R\$\s*200,00/ }));
+    expect(
+      await screen.findByText(/se o registro já tiver sido feito, ele não será duplicado/),
+    ).toBeTruthy();
+
+    const repetir = screen.getByRole('button', { name: /Registrar R\$\s*200,00/ });
+    await waitFor(() => expect((repetir as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(repetir);
+    await waitFor(() => expect(confirmPaymentAction).toHaveBeenCalledTimes(2));
+    const chaves = vi.mocked(confirmPaymentAction).mock.calls.map((call) => call[1]);
+    expect(chaves[0]).toBe(chaves[1]);
+  });
+
+  it('resposta definitiva do servidor encerra a tentativa: o próximo pedido usa chave nova', async () => {
+    vi.mocked(confirmPaymentAction)
+      .mockReset()
+      .mockResolvedValueOnce({ ok: false, code: 'VALIDATION', message: 'Valor acima do saldo.' })
+      .mockResolvedValueOnce({ ok: true, data: item({ status: 'pago', valorPago: 200 }) });
+    render(<CaixaView {...base} pendentes={[item()]} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar recebimento' }));
+    fireEvent.click(screen.getByRole('button', { name: /Registrar R\$\s*200,00/ }));
+    expect(await screen.findByText('Valor acima do saldo.')).toBeTruthy();
+
+    const repetir = screen.getByRole('button', { name: /Registrar R\$\s*200,00/ });
+    await waitFor(() => expect((repetir as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(repetir);
+    await waitFor(() => expect(confirmPaymentAction).toHaveBeenCalledTimes(2));
+    const chaves = vi.mocked(confirmPaymentAction).mock.calls.map((call) => call[1]);
+    expect(chaves[0]).not.toBe(chaves[1]);
   });
 
   it('oferece somente a forma comercial acordada no recebível do atendimento', () => {

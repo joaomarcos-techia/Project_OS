@@ -12,7 +12,7 @@ import {
   Wallet,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useMemo, useState, useTransition, type ReactNode } from 'react';
+import { useMemo, useRef, useState, useTransition, type ReactNode } from 'react';
 
 import { todayYmd, useClinicTimeZone } from './clinic-timezone';
 import { useRouter } from 'next/navigation';
@@ -106,10 +106,33 @@ export function CaixaView({
     [excessRefundStatuses],
   );
 
-  const run = (fn: () => Promise<ActionResult<unknown>>) => {
+  /*
+    Chave de idempotência POR TENTATIVA (UX-015, regressão de 15/11/2026). Antes,
+    cada clique mandava uma chave nova: se a rede caísse depois de o servidor
+    gravar, repetir o mesmo registro parcial criava um segundo pagamento. Agora,
+    enquanto o resultado é desconhecido (exceção de rede), a repetição do MESMO
+    pedido reusa a chave e o servidor devolve o resultado já gravado
+    (`idempotentMutation`). Resposta definitiva do servidor — sucesso ou recusa —
+    encerra a tentativa, e o pedido seguinte usa chave nova.
+  */
+  const tentativa = useRef<{ pedido: string; chave: string } | null>(null);
+
+  const run = (pedido: string, fn: (chave: string) => Promise<ActionResult<unknown>>) => {
     setError(null);
+    if (tentativa.current?.pedido !== pedido) tentativa.current = { pedido, chave: uuidv4() };
+    const chave = tentativa.current.chave;
     startTransition(async () => {
-      const result = await fn();
+      let result: ActionResult<unknown>;
+      try {
+        result = await fn(chave);
+      } catch {
+        // Sem resposta: não dá para afirmar se gravou. A chave fica para a repetição.
+        setError(
+          'A conexão caiu antes da confirmação. Tente de novo: se o registro já tiver sido feito, ele não será duplicado.',
+        );
+        return;
+      }
+      tentativa.current = null;
       if (!result.ok) {
         setError(result.message);
         return;
@@ -119,28 +142,28 @@ export function CaixaView({
     });
   };
 
-  const onConfirm = (item: CaixaItem, valorPago: number, method: string, comprovante: string) =>
-    run(() =>
-      confirmPaymentAction(
-        {
-          lancamentoId: item.id,
-          paymentMethod: method,
-          valorPago,
-          comprovante: comprovante.trim()
-            ? { type: 'comprovante', fileStoragePath: comprovante.trim() }
-            : null,
-        },
-        uuidv4(),
-      ),
-    );
+  const onConfirm = (item: CaixaItem, valorPago: number, method: string, comprovante: string) => {
+    const input = {
+      lancamentoId: item.id,
+      paymentMethod: method,
+      valorPago,
+      comprovante: comprovante.trim()
+        ? { type: 'comprovante' as const, fileStoragePath: comprovante.trim() }
+        : null,
+    };
+    run(`confirm:${JSON.stringify(input)}`, (chave) => confirmPaymentAction(input, chave));
+  };
 
   const onCancel = (item: CaixaItem) =>
-    run(() => cancelLancamentoAction({ lancamentoId: item.id }, uuidv4()));
+    run(`cancel:${item.id}`, (chave) => cancelLancamentoAction({ lancamentoId: item.id }, chave));
 
   const onEstorno = (
     item: CaixaItem,
     input: Omit<Parameters<typeof createEstornoAction>[0], 'lancamentoId'>,
-  ) => run(() => createEstornoAction({ lancamentoId: item.id, ...input }, uuidv4()));
+  ) => {
+    const pedido = { lancamentoId: item.id, ...input };
+    run(`estorno:${JSON.stringify(pedido)}`, (chave) => createEstornoAction(pedido, chave));
+  };
 
   const openPanel = (id: string, mode: CashPanelMode) =>
     setPanel((current) => (current?.id === id && current.mode === mode ? null : { id, mode }));
