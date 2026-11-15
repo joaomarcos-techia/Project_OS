@@ -222,6 +222,27 @@ comum**. Proposta, sem alterar a branch da UI:
 
 Os demais arquivos em comum vêm da base de UI (`ui/refactor-qoro-20261108`).
 
+**Atualização da UI (15/11, madrugada):** o Lote 2 (`36ab0f72..f5a2f414`, ainda local) sobe depois da validação no
+navegador. Contra a tip `4723ccad`, os arquivos em comum desta frente passam a ser 4:
+
+- os 3 acima;
+- `caixa/cash-item-card.tsx`: a UI troca só as linhas de `subject`/`detail` (~254–257) por `cashItemTitle`/
+  `cashItemDetail` (`caixa/cash-item-identity.ts`). O #55 mexe em outras linhas desse arquivo (import, `todayYmd`
+  com `todayYmdIn()` e `timeZone` no horário do item pago, R51), e a UI não as toca. Conferido no diff: sem
+  sobreposição de linhas.
+
+Seletores que o rebase do #55 herda, em arquivos fora do diff do #55 (não conflitam, mas os specs passam a usar o
+nome novo):
+
+- "Mais opções" da Agenda → "Mais ações";
+- "Conceder"/"Revogar" (consentimento) → "Registrar consentimento"/"Registrar revogação: <finalidade>". O
+  "Revogar" de `convenios/_lib/connection-ui.tsx` é outro controle (conexão com a operadora) e não muda;
+- `/modelos-receita`: rótulos "Nome do modelo" e "Medicamento 1";
+- Dashboard: o h1 é "Dashboard", e a saudação fica em `[data-slot="page-header-headline"]`.
+
+Nenhum spec de Convênios usa esses seletores. Depois do rebase, rodar `payout-review-preview`,
+`production-patient-lifecycle-a` e `clinical-standalone-documents` com a versão da UI.
+
 **Terminologia de guias** (decidida pela UI, aplicada pelo TISS em 14/11):
 
 - forma longa "Guia de consulta nº 1" / "Guia de SP/SADT nº 1" em links, títulos, avisos, ficha, repasses e
