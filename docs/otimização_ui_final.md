@@ -1026,6 +1026,61 @@ metadado); ações: confirmar o que cada uma faz antes de renomear (ler o fluxo 
 pagamento"); proposta inicial "Registrar pagamento" (abre a escolha do meio) e "Recebi em
 dinheiro". **Riscos:** médio (financeiro; labels de negócio — registrar a decisão).
 
+### UX-020 — Origem da movimentação no Caixa (especificação, P1.3 — PLANEJADO, não implementar sem contrato)
+
+**Problema.** Na fila do Caixa, um pagamento que entrou sozinho (o sinal pago pelo link do Asaas,
+abatido do atendimento) e um registrado à mão na recepção aparecem iguais: só a forma ("Pix") e a
+hora. Quem fecha o caixa não sabe o que conferir na maquininha e o que já veio do provedor.
+
+**O que existe hoje (lido no código, 15/11):** `payment_transactions` tem `kind` (`payment`/`refund`),
+`amount`, `payment_method`, `occurred_at`, `original_payment_id`, `reason` e `created_by`. **Não há
+coluna de origem.** Quem grava pagamento: `financial/actions.ts` (registro manual no Caixa, com
+`created_by`), `financial/internal/credit-allocation.ts` (abate de crédito — o sinal pago pelo link
+—, sem `created_by`), `financial/internal/handlers/appointment-completed.ts` (conclusão do
+atendimento) e `financial/internal/provider-expense.ts` (taxas do provedor, em conta a pagar). Em
+`lancamentos`, `created_via` (`auto`/`manual`/`estorno`) diz como o **lançamento** nasceu, não como
+foi **pago**. Na branch do TISS o lançamento ganha `sourceHiGuideId` e `valorGlosado` (recebível de
+operadora).
+
+**Por que não dá para deduzir.** `created_by` nulo não prova "link do Asaas" (a conclusão do
+atendimento e as taxas também gravam sem usuário); a forma de pagamento não diz quem registrou.
+Mostrar "Pago pelo link" a partir disso seria afirmar um fato financeiro sem fonte.
+
+**Dados necessários (contrato novo, do domínio financeiro).** Coluna `source` em
+`payment_transactions`, preenchida por quem grava, com valores fechados: `caixa_manual` (registro na
+recepção), `deposit_credit` (crédito do sinal pago pelo link), `appointment_completion`,
+`provider_fee`, `tiss_remittance` (quando o TISS registrar o pagamento da operadora), `import`.
+Linhas antigas ficam **nulas** — nunca preenchidas por inferência em migração.
+
+**Fontes de verdade.** O próprio caminho que grava o pagamento (cada um sabe de onde veio). O
+recebível de convênio é identificado por `sourceHiGuideId` (TISS). Assinatura do Qoro (AbacatePay)
+**não** passa pelo Caixa e não entra nesta lista.
+
+**Estados e exibição proposta (só quando `source` não for nulo).**
+
+| `source` | Rótulo na linha | Observação |
+| --- | --- | --- |
+| `caixa_manual` | "Registrado no Caixa por <nome>" | nome via `created_by` |
+| `deposit_credit` | "Sinal pago pelo link" | o provedor é o Asaas da clínica |
+| `appointment_completion` | "Abatido na conclusão do atendimento" | |
+| `tiss_remittance` | "Pago pela operadora · <operadora>" | só com o TISS integrado |
+| `import` | "Importado" | |
+| nulo (histórico) | nada | sem rótulo inventado |
+
+**Permissões.** Quem vê o Caixa (`view:financial` / `operate:caixa`) vê a origem; o nome de quem
+registrou segue a regra de nomes já usada na Atividade recente.
+
+**Impacto.** Migration aditiva (coluna nula + CHECK de valores) e escrita em 4–5 caminhos do domínio
+financeiro; DTO `PaymentTransactionSummary` ganha `source`; UI só lê. Nenhuma regra de cobrança muda.
+
+**Testes.** Unitários por caminho (cada um grava o `source` certo); de banco (CHECK aceita só os
+valores fechados; linhas antigas nulas); de tela (rótulo por estado; nulo sem rótulo); e2e de
+Preview (sinal pago no sandbox aparece como "Sinal pago pelo link").
+
+**Responsáveis.** Contrato e escrita: agente/fundador do domínio financeiro (Payments); valor
+`tiss_remittance`: agente TISS; AbacatePay só se o contrato compartilhado mudar (não muda). UI:
+apresentação, depois que o DTO existir. `caixa-types.ts` não foi tocado.
+
 ### UX-016 — Aviso de conversas na própria tela de Conversas (P3)
 **Status:** IMPLEMENTADO e TESTADO (15/11): na carga em `/conversas` ou `/conversas/<id>` o
 observador não mostra o resumo "N conversas aguardam atendimento" (a lista e o contador do menu já
@@ -1446,6 +1501,52 @@ Globais (prompt §30) e por intervenção (em cada ID). Formato de achado adotad
 - 25.6 Validação com usuários: plano de teste de usabilidade por papel (hipóteses da seção 08),
   sem pesquisa real disponível hoje.
 
+### 25.7 Regressão do Caixa — nomes das ações (UX-015, 15/11/2026)
+
+**Correção de contagem:** o commit `5f6967c2` alterou **8** arquivos de spec e2e (18 seletores), não
+10 como foi dito no relatório anterior.
+
+**Preview do SHA publicado (P0.1).** `23d0c648` → deployment Vercel `7802577686` (ambiente Preview,
+"Deployment has completed"), URL `project-fi5knxo5p-clinic-os-v2-s-projects.vercel.app`. Validação com
+`.tmp/ui-audit/preview-check.ts` (bypass de automação lido do `.env.local` principal só no processo,
+nunca impresso): **prova assinada PASS** — `environment=preview`, Auth e banco no projeto DEV,
+**Asaas sandbox configurado** (nenhuma configuração financeira live); login 200 e autenticado;
+Dashboard com `h1` "Dashboard" e "Precisa de você" como primeira região; `/caixa` só com os nomes
+novos; `/conversas` sem "SLA"; 0 erro de página e 0 erro de console. Evidência:
+`evidence/2026-11-15/preview/`. A CLI da Vercel não está instalada aqui: logs do build não foram
+lidos; o status "success" vem da API do GitHub.
+
+| Spec | O que exercita do Caixa | Onde roda | Resultado |
+| --- | --- | --- | --- |
+| `payout-review-preview` | teste 1: "Registrar recebimento" + "Registrar R$ 150,00" e reembolso; teste 3: atendente/médico negados, outra clínica e mesma chave de idempotência; teste 7: "Registrar consentimento"; teste 11: "Ver repasses por mês" (`PageActions`) | Preview `23d0c648` + DEV | **PASS 13/13** (2ª rodada, 10,0 min). 1ª rodada: 10 PASS, teste 11 **FAIL por tempo** (30,0 s, padrão do config, na 4ª sessão, com as verificações anteriores aprovadas), 12–13 não rodaram (modo serial) → teste 11 ganhou 120 s, o mesmo dos testes 9 e 12 (commit `506649bc`) |
+| `mutation-flows` | cria paciente, agenda, "Registrar recebimento" → "Registrar R$" → "Pago" | servidor local + DEV (`E2E_MUTATION=1`, fixture sintética com limpeza) | **BLOQUEADO (ambiente)** — 2 tentativas: login sem sair de `/login` em 30 s (compilação a frio); depois `/login` sem resposta em 180 s com **0,01 GB livres** e 3,9 GB em compressão de memória (aquecimento: Dashboard 74 s, Agenda 246 s, Caixa 259 s). Fixture criada e removida nas duas. O mesmo caminho do Caixa passou no teste 1 acima, no Preview |
+| `production-authorized-mutations` | "Registrar recebimento", `/Registrar R$/` | Production | **BLOQUEADO (política: Production NO-GO)** — exige `DATABASE_URL_PROD`/travas de produção. Compila e lista (`playwright --list`) |
+| `production-collection-case-a` | idem | Production | **BLOQUEADO (política)** — compila e lista |
+| `production-convenio-payment-a` | "Registrar recebimento" (fluxo de convênio) | Production | **BLOQUEADO (política)** — compila e lista; o TISS não alterou este spec |
+| `production-financial-concurrency-a` | dois papéis registrando ao mesmo tempo | Production | **BLOQUEADO (política)** — compila e lista |
+| `production-financial-lifecycle-a` | "Registrar pagamento", "Registrar recebimento", "Registrar o restante" | Production | **BLOQUEADO (política)** — compila e lista |
+| `production-role-journeys-a` | financeiro registra recebimento | Production | **BLOQUEADO (política)** — compila e lista |
+
+**Regressão financeira (P0.3) — onde cada caso está coberto:**
+
+| Caso | Evidência | Estado |
+| --- | --- | --- |
+| Recebimento integral | Preview: `payout-review` teste 1 (R$ 150) | PASS |
+| Parcial / "Registrar o restante" | unitário `cash-action-labels.test.ts` (rótulo por estado) e domínio `payment-ledger.test.ts` ("acumula pagamentos parciais sem exceder o lançamento") | PASS (unitário); e2e só no `production-financial-lifecycle-a` (BLOQUEADO) |
+| Registro de pagamento (conta a pagar) | `caixa-view.test.tsx` ("Registrar pagamento" → "Registrar R$ 1.200,00") | PASS (componente) |
+| Dinheiro | `caixa-view.test.tsx` (painel só com dinheiro e saldo inteiro; "Restante em dinheiro" com sinal pago) e domínio ("dinheiro sempre vale, mas outro meio fora do combinado segue recusado") | PASS |
+| Tentativa duplicada | Preview teste 3 (mesma chave: "Pagamento em processamento — aguarde…"); cliente reusa a chave na repetição depois de queda de rede (`b3ce5501`) | PASS |
+| Sem permissão | `caixa-view.test.tsx` (sem `operate:caixa` não há botão) e Preview teste 3 (atendente e médico negados) | PASS |
+| Outra clínica | domínio ("falha fechado se o atendimento referenciado não pertence à clínica") e Preview teste 3 ("Repasse não encontrado nesta clínica") | PASS |
+| Registro já concluído | `caixa-view.test.tsx` (botões só em pendente/parcial) e domínio (pagamento não excede o lançamento) | PASS |
+| Cancelamento no painel | `caixa-view.test.tsx` ("Cancelar cobrança" dentro do painel) | PASS (componente) |
+| Falha de rede | **Defeito real encontrado e corrigido (commit `b3ce5501`):** antes, `run` não tinha `try/catch` e cada clique mandava chave de idempotência nova — queda de rede depois da gravação derrubava a tela na fronteira de erro e repetir um recebimento **parcial** podia gravar outro pagamento (o integral já era barrado: o domínio não paga além do lançamento). Agora a chave vale por tentativa do mesmo pedido: na exceção o painel avisa "A conexão caiu antes da confirmação. Tente de novo: se o registro já tiver sido feito, ele não será duplicado." e a repetição reusa a chave (o `idempotentMutation` devolve o resultado gravado); resposta definitiva do servidor encerra a tentativa. Vale também para cancelar e estornar. Nenhum código de servidor mudou | PASS (componente: `caixa-view.test.tsx` "queda de rede…" e "resposta definitiva…"); e2e de rede caída não existe |
+
+Domínio financeiro inteiro: `src/contexts/financial` **34 arquivos, 262 testes, 0 falha** (15/11).
+Asserções negativas revisadas: as duas com nome antigo (`caixa-view.test.tsx`,
+`consent-card.test.tsx`) são guardas "o nome antigo não pode voltar", sempre ao lado da asserção
+positiva com o nome novo — nenhuma passa sozinha.
+
 ## 26. Riscos e decisões
 
 | ID | Decisão | Motivo | Alternativa descartada |
@@ -1488,6 +1589,7 @@ Globais (prompt §30) e por intervenção (em cada ID). Formato de achado adotad
 | 15/11/2026 03h20–03h45 | Navegador do Lote 2, UX-016, dobra da Agenda | Sonda `lote2-probe.ts` (Dashboard, Agenda, Relatórios, Conversas, modelos, Caixa, ficha, UX-006 a 1440); achado da Agenda a 768 px corrigido (`dobraAbaixoDe="lg"`, `collisionPadding`); UX-016 sem resumo em Conversas | 64/64; ESLint 0; `tsc` 0; navegador: Agenda 1 linha em 320–1440, menu a 8 px da borda, resumo ausente em Conversas e presente no Dashboard | `evidence/2026-11-15/` |
 | 15/11/2026 03h45 | Commits | `d98c7c03` UX-016 · `fa006527` UX-012 (dobra) | testes acima verdes | `git log` |
 | 15/11/2026 08h10 | UX-015 (nomes, D-07) | Ações de pagamento do Caixa nomeadas pelo que registram; atalho do dinheiro com ícone e peso menor; texto da política de sinal e 10 specs e2e alinhados | Caixa 48/48, Pagamentos e contratos 83/83; ESLint 0; `tsc` 0; navegador em 1440 e 375 sem nomes antigos | `5f6967c2`; `evidence/2026-11-15/caixa/` |
+| 15/11/2026 12h20–13h30 | Regressão do Caixa (25.7) | Preview `23d0c648` validado (prova assinada PASS, Asaas sandbox); `payout-review-preview` 13/13 no Preview (teste 11 com limite próprio, `506649bc`); `mutation-flows` BLOQUEADO por ambiente (0,01 GB livres); 6 `production-*` BLOQUEADOS por política; defeito de rede/idempotência corrigido (`b3ce5501`); especificação UX-020 (origem da movimentação) | Caixa 50/50; domínio financeiro 262/262; ESLint 0; `tsc` 0 | `evidence/2026-11-15/preview/`, `e2e/` |
 
 ## 28. Pendências e bloqueios
 
@@ -1573,6 +1675,8 @@ Fatos já levantados:
 | Janela de recursos | O TISS pediu ~30 min sem o `next dev` local para uma jornada E2E contra o Preview remoto (com 0–0,2 GB livres o Chromium dele trava). Servidor desta frente parado às 23h33; volta depois das 00h10 |
 | Hidratação (R51 × P-10) | O R51 é #418 (texto, conciliação, ~1 em 120 navegações), sem causa atribuída. O P-10 é divergência de atributo (`useId`) no shell. Em produção o React não avisa divergência de atributo; o efeito mensurável é menu Radix montado no cliente com `aria-labelledby` órfão. Pedido opcional ao TISS: conferir isso no Preview desta branch, só leitura, sem trocar credencial |
 | Resultados (15/11) | O TISS aplicou a terminologia (helper `convenios/_lib/guide-label.ts`) e títulos nas 13 páginas de `convenios/**`; checou o P-10 no Preview `12ab24f6` (10/10 íntegro, ver 19.2). Arquivos em comum desta frente com a tip `4723ccad`: 4 (`new-appointment-drawer.tsx`, `agenda/data.ts`, `pacientes/[id]/page.tsx`, `caixa/cash-item-card.tsx` — só `subject`/`detail`) |
+| Caixa — handoff (15/11, `23d0c648`) | Arquivos: `caixa/cash-action-panels.tsx` (helper `registerActionLabel`, `cashActionLabel`, painel), `cash-item-card.tsx` (rótulo, atalho `ghost` + ícone, import de `Banknote`), `cash-queue.tsx`, `caixa-view.test.tsx` (só nomes), `cash-action-labels.test.ts` (novo), `configuracoes/pagamentos/deposit-policy-form.tsx` (+teste) e 8 specs e2e. Antes → depois: "Confirmar pagamento" → "Registrar recebimento"; "Receber saldo" → "Registrar o restante"; "Pagar" → "Registrar pagamento"; "Pagou em dinheiro" → "Recebido em dinheiro"; "Pagou o restante em dinheiro" → "Restante em dinheiro"; botão final `/Receber R\$/` → `/Registrar R\$/`. Comportamento: mesma `confirmPaymentAction`, mesmos painéis e gates (o TISS conferiu: opção "Convênio" intacta). Resolução combinada: em `cash-item-card.tsx` e `caixa-view.tsx` fica o "hoje" da UI (`ClinicTimeZoneProvider`); preservar do TISS `financeiro/page.tsx` (`valorGlosado`), a fixture de `caixa/page.test.tsx` e o `autoCapitalize` de `fornecedores-view.tsx` |
+| Specs `production-*` | Os 6 que mudaram de seletor exigem `DATABASE_URL_PROD` e travas de produção: **BLOQUEADOS** para os dois agentes até autorização expressa do fundador (Production NO-GO) |
 
 ### 31.I Intervenções UX-TISS (plano, 15/11)
 
@@ -1633,3 +1737,8 @@ do fundador:** nenhuma tela afirma pagamento confirmado antes do servidor confir
 5. Separação de sistemas na interface: assinatura do Qoro (AbacatePay) só em Configurações ›
    Assinatura; cobrança de paciente (Asaas) no Caixa/Financeiro; convênios (TISS) em Convênios.
 **Bloqueio:** depende do merge da #53 e do rebase desta branch; nada a fazer antes sem o agente.
+**Arquivos compartilhados com a #53 (15/11):** `modelos-receita/templates-manager.tsx` (UX-019 mexeu na marcação;
+os imports e as duas chamadas com limite de trial ficaram idênticos aos do billing) e `caixa/caixa-types.ts`,
+**intacto** nesta branch — ele guarda um comentário com o nome antigo ("Pagou em dinheiro"); atualizar só o
+comentário na integração, por quem integrar, sem tocar no contrato. Contratos do billing (preços, cotas,
+checkout, entitlements, webhooks) não foram alterados.
