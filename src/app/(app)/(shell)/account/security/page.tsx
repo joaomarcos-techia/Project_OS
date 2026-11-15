@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { createServerClient } from '@/lib/auth/supabase-server';
@@ -12,6 +13,8 @@ import { PageHeader } from '@/components/ui/page-header';
 
 import { TotpSetupDialog } from './security-dialog';
 import { UnenrollForm } from './unenroll-form';
+
+export const metadata: Metadata = { title: 'Segurança da conta' };
 
 export const dynamic = 'force-dynamic';
 

@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 /** Rota direta preservada; reutiliza o mesmo histórico e atendimento da inbox. */
 import { notFound } from 'next/navigation';
 import { z } from 'zod';
@@ -11,6 +12,9 @@ import { identidadeDoContato } from '../contact-identity';
 import { ConversasNoAccess } from '../_components/no-access';
 import { ConversationAutoRefresh } from '../_components/conversation-auto-refresh';
 import { ConversationThread } from '../_components/conversation-thread';
+
+export const metadata: Metadata = { title: 'Conversa' };
+
 export const dynamic = 'force-dynamic';
 export default async function ConversaThreadPage({ params }: { params: Promise<{ id: string }> }) {
   const gate = await pageGate([PERMISSIONS.VIEW_CONVERSATIONS]);

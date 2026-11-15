@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 /**
  * /configuracoes/horarios — disponibilidade semanal por profissional + feriados.
  * Base da Agenda/slots (slot-resolver). Backend C6 pronto (config-actions, gate
@@ -13,6 +14,8 @@ import { Alert } from '@/components/ui/alert';
 import { PageHeader } from '@/components/ui/page-header';
 
 import { HorariosManager } from './horarios-manager';
+
+export const metadata: Metadata = { title: 'Horários de atendimento' };
 
 export const dynamic = 'force-dynamic';
 

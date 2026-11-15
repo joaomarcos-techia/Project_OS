@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { billingApiV1 } from '@/contexts/billing/api';
@@ -21,6 +22,8 @@ import { withQueryDeadline } from '@/lib/db/query-timeout';
 import { formatBRL } from '@/lib/format';
 
 import { adjacentMonth, buildMonthlyPayoutReport, resolveReportMonth } from './report';
+
+export const metadata: Metadata = { title: 'Repasses por mês' };
 
 export const dynamic = 'force-dynamic';
 

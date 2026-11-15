@@ -25,7 +25,7 @@ import { RestartTour } from './restart-tour';
 export const dynamic = 'force-dynamic';
 
 export const metadata = {
-  title: 'Central de ajuda | Qoro',
+  title: 'Central de ajuda',
   description:
     'Passo a passo para usar agenda, pacientes, WhatsApp, cobranças e gestão da sua clínica.',
 };

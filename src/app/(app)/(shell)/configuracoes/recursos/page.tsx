@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { Alert } from '@/components/ui/alert';
 import { PageHeader } from '@/components/ui/page-header';
 import { administersTeamSchedule } from '@/contexts/scheduling/internal/availability-scope';
@@ -6,6 +7,8 @@ import { PERMISSIONS } from '@/lib/auth/permissions';
 import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
 
 import { ResourcesManager } from './resources-manager';
+
+export const metadata: Metadata = { title: 'Salas e equipamentos' };
 
 export const dynamic = 'force-dynamic';
 

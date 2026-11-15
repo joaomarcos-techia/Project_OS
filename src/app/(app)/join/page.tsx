@@ -1,4 +1,7 @@
+import type { Metadata } from 'next';
 import { JoinEntry } from './join-entry';
+
+export const metadata: Metadata = { title: 'Ativar acesso' };
 
 export const dynamic = 'force-dynamic';
 

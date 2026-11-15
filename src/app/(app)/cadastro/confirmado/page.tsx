@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
@@ -28,6 +29,8 @@ import {
 
 import styles from '../cadastro.module.css';
 import { SignupPasswordForm } from './signup-password-form';
+
+export const metadata: Metadata = { title: 'E-mail confirmado' };
 
 export const dynamic = 'force-dynamic';
 

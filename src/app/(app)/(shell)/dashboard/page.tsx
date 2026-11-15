@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import {
   Banknote,
   CalendarDays,
@@ -43,6 +44,8 @@ import { WhatsappSendAlert, type WhatsappSendAlertData } from './_components/wha
 import { getActivationChecklist, getDashboard, getWhatsappSendAlert } from './data';
 import { dashboardDemoData } from './demo-data';
 import styles from './dashboard.module.css';
+
+export const metadata: Metadata = { title: 'Dashboard' };
 
 export const dynamic = 'force-dynamic';
 

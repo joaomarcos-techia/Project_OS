@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 /**
  * /configuracoes/procedimentos — catálogo de procedimentos da clínica (preço +
  * duração). É o que destrava a criação de atendimentos na Agenda para clínicas
@@ -11,6 +12,8 @@ import { Alert } from '@/components/ui/alert';
 import { PageHeader } from '@/components/ui/page-header';
 
 import { ProceduresManager } from './procedures-manager';
+
+export const metadata: Metadata = { title: 'Procedimentos' };
 
 export const dynamic = 'force-dynamic';
 

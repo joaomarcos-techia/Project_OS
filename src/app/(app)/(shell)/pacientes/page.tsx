@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 /**
  * /pacientes — list + search. Server component. No decryption (5.13): shows
  * nome/email only. Search is by name (ILIKE / trigram). Tenant scope comes from
@@ -35,6 +36,8 @@ import {
   type PatientListSearchParams,
 } from './patient-list-url';
 import { RestorePatientButton } from './restore-patient-button';
+
+export const metadata: Metadata = { title: 'Pacientes' };
 
 export const dynamic = 'force-dynamic';
 

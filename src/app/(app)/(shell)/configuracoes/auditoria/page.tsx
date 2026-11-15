@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 /**
  * /configuracoes/auditoria — export da trilha da PRÓPRIA clínica (RBAC-001).
  *
@@ -12,6 +13,8 @@ import { getClinicTimezone } from '@/contexts/tenancy/queries';
 import { addDaysToYmd, todayInTimeZone } from '@/lib/datetime/clinic-calendar';
 
 import { AuditExportForm } from './audit-export-form';
+
+export const metadata: Metadata = { title: 'Auditoria' };
 
 export const dynamic = 'force-dynamic';
 

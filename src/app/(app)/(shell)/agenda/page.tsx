@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 /**
  * /agenda — visões Mês / Semana / Dia (item 12). Navegação por URL
  * (`?view=&date=`); o servidor resolve a faixa (range.ts) e busca os
@@ -19,6 +20,8 @@ import { AgendaPageActions } from './agenda-page-actions';
 import { getAgendaData } from './data';
 import { DeliveryFailureStrip } from './delivery-failure-strip';
 import { isAgendaView } from './range';
+
+export const metadata: Metadata = { title: 'Agenda' };
 
 export const dynamic = 'force-dynamic';
 

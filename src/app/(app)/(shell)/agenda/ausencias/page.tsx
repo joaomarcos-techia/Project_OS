@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
@@ -32,6 +33,8 @@ import {
   parseDoctorAbsencePage,
   parseDoctorAbsencePeriod,
 } from './pagination';
+
+export const metadata: Metadata = { title: 'Ausências médicas' };
 
 export const dynamic = 'force-dynamic';
 

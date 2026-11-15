@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 /**
  * /configuracoes/perfil — dados da clínica para os documentos (nome/endereço/
  * telefone/CNPJ/CNES) + logo e cor do receituário (white-label do PDF, ADR-028).
@@ -12,6 +13,8 @@ import { PageHeader } from '@/components/ui/page-header';
 
 import { PerfilForm } from './perfil-form';
 import { ProfessionalCredentialForm } from './professional-credential-form';
+
+export const metadata: Metadata = { title: 'Perfil da clínica' };
 
 export const dynamic = 'force-dynamic';
 

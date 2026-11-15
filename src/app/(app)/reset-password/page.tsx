@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 /**
  * `/reset-password` — destino do link de recovery.
  *
@@ -37,6 +38,8 @@ import { RECOVERY_GRANT_COOKIE, readRecoveryGrant } from '@/lib/auth/recovery-gr
 import { createServerClient } from '@/lib/auth/supabase-server';
 
 import { ResetPasswordForm } from './reset-password-form';
+
+export const metadata: Metadata = { title: 'Nova senha' };
 
 export const dynamic = 'force-dynamic';
 

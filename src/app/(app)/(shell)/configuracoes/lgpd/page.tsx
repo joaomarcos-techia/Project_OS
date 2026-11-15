@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { Alert } from '@/components/ui/alert';
 import { PageHeader } from '@/components/ui/page-header';
 import { listEmployees } from '@/contexts/identity/queries';
@@ -12,6 +13,8 @@ import {
 } from '@/lib/auth/tenant-context';
 
 import { LgpdWorkQueue } from './lgpd-work-queue';
+
+export const metadata: Metadata = { title: 'Solicitações LGPD' };
 
 export const dynamic = 'force-dynamic';
 

@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 /**
  * /pacientes/[id] — HUB do paciente: Dados | Prontuários em abas (?tab=…),
  * sem navegar de tela. THE decryption happens here via
@@ -44,6 +45,8 @@ import { PatientDeathForm } from './patient-death-form';
 import { PatientProfileCard } from './patient-profile-card';
 import { PatientRelationshipsCard } from './patient-relationships-card';
 import { NovoProntuarioButton } from './prontuarios/novo-prontuario-button';
+
+export const metadata: Metadata = { title: 'Ficha do paciente' };
 
 export const dynamic = 'force-dynamic';
 

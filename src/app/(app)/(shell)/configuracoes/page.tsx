@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { Settings } from 'lucide-react';
 
 import { requireUser } from '@/lib/auth/tenant-context';
@@ -7,6 +8,8 @@ import { SettingsGroupSection } from './settings-category';
 import { loadChannelStatuses, loadGestaoStatuses, loadSettingsMetas } from './settings-data';
 import { visibleSettingsNavigation } from './settings-navigation';
 import styles from './settings.module.css';
+
+export const metadata: Metadata = { title: 'Configurações' };
 
 export const dynamic = 'force-dynamic';
 

@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { Alert } from '@/components/ui/alert';
 import { Card } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
@@ -5,6 +6,8 @@ import { PERMISSIONS } from '@/lib/auth/permissions';
 import { AuthError, requireFreshPermission, requireUser } from '@/lib/auth/tenant-context';
 
 import { HistoryImporter } from './history-importer';
+
+export const metadata: Metadata = { title: 'Importar histórico da agenda' };
 
 export const dynamic = 'force-dynamic';
 

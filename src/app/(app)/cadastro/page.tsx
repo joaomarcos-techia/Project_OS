@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import {
   PublicBlock,
   PublicHeading,
@@ -9,6 +10,8 @@ import { buttonVariants } from '@/components/ui/button';
 import { env } from '@/lib/env';
 
 import { SignupQuestions } from './signup-questions';
+
+export const metadata: Metadata = { title: 'Criar conta' };
 
 export const dynamic = 'force-dynamic';
 

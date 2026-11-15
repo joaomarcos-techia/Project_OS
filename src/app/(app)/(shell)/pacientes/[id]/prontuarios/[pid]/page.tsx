@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 /**
  * /pacientes/[id]/prontuarios/[pid] — editor do prontuário (auto-save 10s).
  * Deep-link clínico/auditável — esta rota PERMANECE (ADR-031). Assinatura em
@@ -20,6 +21,8 @@ import { DocumentDrawer } from '../../../../consultorio/document-drawer';
 import { PrescriptionDrawer } from '../../../../consultorio/prescription-drawer';
 import { ProntuarioEditor } from './prontuario-editor';
 import { SignProntuarioDialog } from './sign-prontuario-dialog';
+
+export const metadata: Metadata = { title: 'Prontuário' };
 
 export const dynamic = 'force-dynamic';
 

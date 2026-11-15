@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 /** Inbox renderizada no servidor: permissão antes de ler e decifrar qualquer contato. */
 import { MessagesSquare, SlidersHorizontal, Timer, MessageCircle } from 'lucide-react';
 import Link from 'next/link';
@@ -28,6 +29,8 @@ import { getClinicTimezone } from '@/contexts/tenancy/queries';
 
 import { ConversationThread } from './_components/conversation-thread';
 import styles from './conversations.module.css';
+
+export const metadata: Metadata = { title: 'Conversas IA' };
 
 export const dynamic = 'force-dynamic';
 type SP = { q?: string; status?: string; sla?: string; page?: string; conversation?: string };

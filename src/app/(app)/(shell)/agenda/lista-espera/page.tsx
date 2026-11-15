@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { Alert } from '@/components/ui/alert';
@@ -11,6 +12,8 @@ import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
 
 import { getAgendaData } from '../data';
 import { WaitlistManager } from './waitlist-manager';
+
+export const metadata: Metadata = { title: 'Lista de espera' };
 
 export const dynamic = 'force-dynamic';
 

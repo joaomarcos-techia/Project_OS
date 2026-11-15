@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { Lightbulb } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
@@ -8,6 +9,8 @@ import { listOwnFeedbackSuggestions } from '@/contexts/feedback/internal/suggest
 import { getClinicTimezone } from '@/contexts/tenancy/queries';
 
 import { FeedbackForm } from './feedback-form';
+
+export const metadata: Metadata = { title: 'Sugestões' };
 
 export const dynamic = 'force-dynamic';
 

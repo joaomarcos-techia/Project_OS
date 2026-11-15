@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 /**
  * /relatorios — painéis Solo: faturamento · no-show · ocupação (promessa do
  * plano base). Sem lib de gráfico (decisão): KPIs + barras CSS. Leitura
@@ -31,6 +32,8 @@ import { cn } from '@/lib/ui/cn';
 
 import { getRelatorios, PERIODS, resolvePeriod } from './data';
 import styles from './reports.module.css';
+
+export const metadata: Metadata = { title: 'Relatórios' };
 
 export const dynamic = 'force-dynamic';
 

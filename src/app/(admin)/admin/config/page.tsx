@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import {
   Clock,
@@ -29,6 +30,8 @@ import { jobsHealthRepository } from '../_lib/repositories/jobs-health.repo';
 import { retentionRepository } from '../_lib/repositories/retention.repo';
 import { AnnouncementForm, DeactivateAnnouncementButton } from './announcement-form';
 import { FlagToggle } from './operation-controls';
+
+export const metadata: Metadata = { title: 'Configurações da plataforma' };
 
 export const dynamic = 'force-dynamic';
 

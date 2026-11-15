@@ -42,7 +42,9 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Qoro',
+  // UX-008 (`docs/otimização_ui_final.md`): cada tela define só o próprio nome e
+  // a aba mostra "Agenda · Qoro" (WCAG 2.4.2). Sem título próprio, fica "Qoro".
+  title: { default: 'Qoro', template: '%s · Qoro' },
   description: 'O sistema operacional anti-vazamento da sua clínica.',
 };
 

@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { listSuppliers } from '@/contexts/financial/queries';
@@ -8,6 +9,8 @@ import { PERMISSIONS } from '@/lib/auth/permissions';
 import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
 
 import { FornecedoresView } from './fornecedores-view';
+
+export const metadata: Metadata = { title: 'Fornecedores' };
 
 export const dynamic = 'force-dynamic';
 

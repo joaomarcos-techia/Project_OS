@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 /**
  * /documentos — feed unificado de documentos clínicos (prescrições + atestados/
  * declarações/exames/encaminhamentos) da clínica. Server component; só leitura.
@@ -31,6 +32,8 @@ import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/compon
 import { documentosPageHref, parseDocumentosPage, type DocumentosSearchParams } from './pagination';
 import { NewClinicalDocumentDrawer } from './new-clinical-document-drawer';
 import styles from './documents.module.css';
+
+export const metadata: Metadata = { title: 'Documentos' };
 
 export const dynamic = 'force-dynamic';
 /**

@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { listPatientCards } from '@/contexts/patient/queries';
 import { billingApiV1 } from '@/contexts/billing/api';
 import { paymentsApiV1 } from '@/contexts/payments';
@@ -26,6 +27,8 @@ import { withQueryDeadline } from '@/lib/db/query-timeout';
 
 import { CaixaView } from './caixa-view';
 import { ClinicTimeZoneProvider } from './clinic-timezone';
+
+export const metadata: Metadata = { title: 'Caixa' };
 
 // Claims do usuário e o estado do caixa mudam por requisição.
 export const dynamic = 'force-dynamic';

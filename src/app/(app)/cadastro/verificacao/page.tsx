@@ -13,7 +13,10 @@ import { isSignupReleaseCheckAvailable } from '@/lib/security/signup-release-che
 import { SignupProtectionCheck } from './signup-protection-check';
 
 export const dynamic = 'force-dynamic';
-export const metadata: Metadata = { robots: { index: false, follow: false } };
+export const metadata: Metadata = {
+  title: 'Verificar proteção do cadastro',
+  robots: { index: false, follow: false },
+};
 
 export default function SignupProtectionCheckPage() {
   if (!isSignupReleaseCheckAvailable(env.SIGNUP_ENABLED)) notFound();

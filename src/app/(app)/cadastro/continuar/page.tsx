@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
 import {
@@ -10,6 +11,8 @@ import {
 import { resolveSignupDraftEntry } from '@/contexts/onboarding';
 
 import { ContinueSignupForm } from './continue-signup-form';
+
+export const metadata: Metadata = { title: 'Continuar cadastro' };
 
 export const dynamic = 'force-dynamic';
 
