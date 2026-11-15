@@ -695,7 +695,7 @@ e do journal (mesmo modelo da 0159 candidata do #53). Matriz e decisões em `mat
 | 11 | Backup do DEV | antes de aplicar: cópia lógica de `permissions`, `role_permissions`, `user_permission_overrides` e `profiles(id, claims_version)` em pasta privada local, com SHA-256 (mesmo procedimento da 0160/0161) |
 | 12 | Recuperação | as três instruções `DELETE` do cabeçalho, com o código de antes da P1.12-b no ar. Com a P1.12-b no ar, reverter o código primeiro. `claims_version` não volta (só sobe, e subir de novo é inofensivo) |
 | 13 | Critérios de interrupção | antes: ledger ≠ 162, última ≠ 0161/`acd23a73…`, catálogo ≠ 28, algum código novo já presente, md5 da visão ou do hook diferente do acima, gatilho ausente, janela de máquina ou de login ocupada. Durante: qualquer erro (a transação desfaz). Depois: pacotes, efetivas ou overrides diferentes do esperado → reversão |
-| 14 | Coordenação com a UI | a UI não toca `permissions.ts`, o diálogo da Equipe, `/convenios` nem o middleware (diff só leitura da branch da UI). A P1.12-b (portões, telas, catálogo TS, rótulos) sobe só depois da 0162 no DEV, em commits locais até lá (procedimento da 0161), e depois do rebase da UI |
+| 14 | Coordenação com a UI | a UI não toca `permissions.ts`, o diálogo de permissões (`equipe/member-row-actions.tsx`), `/convenios` nem o middleware (diff só leitura da branch da UI; reconferido em 15/11 noite em `2a6c54f8`: a UI mexe na **página** de Equipe, não no diálogo). A P1.12-b (portões, telas, catálogo TS, rótulos) sobe só depois da 0162 no DEV, em commits locais até lá (procedimento da 0161), e depois do rebase da UI |
 | 15 | AbacatePay isolado | a candidata só referencia as tabelas de autorização. Não entra no Gate B (0136–0159). No journal do #55 entra depois da 0161; o lançamento coordenado passa a esperar `pending=27` e o pacote SaaS segue com 24 |
 
 **Pedido de autorização (separado, para depois do ensaio verde):**
@@ -710,3 +710,50 @@ e do journal (mesmo modelo da 0159 candidata do #53). Matriz e decisões em `mat
 
 **Não autorizado e não feito:** aplicar a 0162 em qualquer banco persistente, editar o journal, mudar permissões
 efetivas, tocar no release do AbacatePay.
+
+## 21. 15/11 (noite, 2ª rodada): 0162 — ensaio sintético PASS; aplicação no DEV NÃO autorizada
+
+O notebook não roda mais Postgres nem build (decisão do fundador). As provas de banco passaram para o job
+`.github/workflows/convenios-synthetic-db.yml`, com as seguintes garantias:
+- Postgres descartável criado dentro do runner;
+- nenhum segredo, apenas `contents: read`, e o token é retirado do git antes da instalação;
+- sem artefato publicado, sem banco compartilhado e sem chamada externa;
+- dados 100% sintéticos.
+
+A cadeia é a do DEV: `readDevOrderChain` lê a 0136–0142 e a 0159 candidata do #53 por `git show` de commits fixos,
+só para leitura.
+
+**0162 SYNTHETIC REHEARSAL — PASS** (execução 43774430786, commit `fb9b0d75`; linhas em
+`evidence/tiss-ciclo-2026-11-15-noite/actions-43774430786-0162-e-repasse.txt`). As 12 provas:
+
+| # | Prova | Resultado |
+| --- | --- | --- |
+| 1 | catálogo 28 → 33, os cinco novos com descrição | PASS |
+| 2 | pacotes exatamente como a matriz; os de hoje intactos | PASS |
+| 3 | efetivas: ninguém perde código; cada papel ganha só o da matriz (com e sem plano granular) | PASS |
+| 4 | overrides R1–R4 levados; redundantes ignorados; **negativa vence**; sem plano granular nada muda | PASS |
+| 5 | `claims_version` incrementado em 18 perfis de clínica; super_admin intocado | PASS |
+| 6 | sem DDL: visão, hook, colunas, funções, gatilhos, políticas e GRANTs idênticos | PASS |
+| 7 | o hook real do token traz os códigos e o `claims_version` novo, abaixo do teto de 128 | PASS |
+| 8 | reaplicar não muda nada nem incrementa claims de novo | PASS |
+| 9 | o runtime continua sem escrever catálogo, pacotes e overrides (42501) | PASS |
+| 10 | reversão do cabeçalho devolve efetivas, overrides, pacotes e catálogo; o token renova | PASS |
+| 11 | a candidata só referencia as tabelas de autorização (fora do pacote SaaS 0136–0159) | PASS |
+| 12 | reaplicar depois da reversão: mesmo resultado, sem DDL | PASS |
+
+Ajuste feito antes da execução verde, sem afrouxar critério: a primeira execução (43773951874) parou antes da prova 1
+porque o harness criava mais perfis do que o teto de assentos dos planos 2026 permite (`offer_2026_seat_limit`). A
+prova passou a usar os planos legados `clinica` (granular) e `solo` (não granular), que têm preço e não têm teto. A
+matriz depende só de o plano ser granular ou não. Nenhuma asserção mudou.
+
+**Limites do ensaio:**
+- é Postgres descartável com a cadeia do DEV e dados sintéticos;
+- **não** equivale ao DEV compartilhado nem a produção;
+- não mede a contagem de overrides de produção (pede o pré-voo só leitura, não autorizado).
+
+**0162 DEV APPLICATION — NOT AUTHORIZED.** O DEV continua com 162 entradas, a última é a 0161. A candidata continua
+fora do journal. A P1.12-b (troca dos portões no código) não sobe antes da aplicação autorizada no DEV.
+
+**Pedido final (separado):** decidir D-1 a D-8 (matriz-permissoes-i2.md §8, com a revisão de D-3/D-5/D-6) e, então,
+autorizar a aplicação **só no DEV** pelo procedimento do §18 (pré-voo só leitura, backup, aplicador de uma entrada,
+pós-voo, entrada no journal com `when` = 0161 + 1 dia e pino no manifesto).

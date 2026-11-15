@@ -506,6 +506,54 @@ Dois pontos para o fundador confirmar:
   aceitável, ou o cancelamento de guia com repasse autorizado deve pedir confirmação explícita;
 - **(b)** o repasse do convênio também é "preservação" (D-6 da matriz).
 
+**Decisão do fundador (15/11, noite):**
+- comportamento atual mantido, sem ampliação;
+- **(a)** a compensação negativa **não** é processada automaticamente; pode virar pendência de revisão rastreável,
+  com decisão humana;
+- **(b)** repasse faturado, autorizado ou pago é obrigação preservada, o que não libera operação financeira nova com
+  a assinatura suspensa;
+- a política para repasses já autorizados ou pagos **não** está aprovada como definitiva.
+
+**Comportamento atual medido em banco** (`health-insurance-payout-db.ts`, prova 13; 13/13 no job sintético 43775580281):
+
+| Situação | Depois de cancelar a guia aprovada |
+| --- | --- |
+| A — sem repasse autorizado nem pago | elegível R$ 0,00 (`NO_LIVE_GUIDE`); nada devido; nada a revisar |
+| B — repasse autorizado (R$ 60), não pago | a obrigação **continua devida** (R$ 60); o excesso sobre o novo elegível aparece como pendente **−R$ 60** (visível); nova autorização recusada; nenhuma compensação automática |
+| C — repasse autorizado e pago (R$ 60) | o pagamento **fica registrado** (nada estornado); devido R$ 0; excesso **−R$ 60** visível |
+| Todas | nenhum recebível, nenhuma linha do livro (`hi_ledger_entries`) e nenhum caixa (`payment_transactions`); histórico da guia com o autor; movimentos do repasse inalterados |
+
+**Risco residual em B.** Como a obrigação autorizada continua devida, o pagamento dela ao profissional ainda pode ser
+registrado depois do cancelamento: o gatilho da 0157 limita o pagamento ao autorizado, não ao elegível. Isso é
+coerente com (b), mas a revisão humana pedida em (a) ainda não existe como passo do sistema.
+
+**Proposta (não implementada; muda o contrato do cancelamento, então espera decisão):**
+
+1. Identificar no servidor, antes de cancelar, se o atendimento da guia tem repasse com autorização (B) ou pagamento
+   (C), pela posição do repasse (uma fonte só, ao vivo).
+2. Calcular o impacto: autorizado, repassado e o excesso que vai aparecer.
+3. Na tela, mostrar uma confirmação explícita com esses números quando houver B ou C. Sem repasse (A), segue como
+   hoje.
+4. Registrar o motivo do cancelamento (já obrigatório) e, na auditoria, o impacto em números, sem dado de paciente.
+5. Preservar as obrigações: nada é estornado, apagado ou recalculado sem rastro. O histórico de movimentos é só de
+   inclusão (já é).
+6. Criar uma **pendência de revisão do repasse** (decisão humana: compensar por ajuste com motivo, pagar a obrigação
+   ou manter) visível no painel de repasses. Idempotente pelo atendimento: cancelar e recriar não duplica.
+7. Até a revisão: nenhuma autorização nova (já é assim) e, em B, o pagamento da obrigação passa a pedir que a
+   pendência esteja resolvida.
+
+   É a única mudança de regra, e por isso precisa de decisão. Mexe no serviço; não exige migration se a pendência
+   reutilizar `hi_billing_gaps`, e exige se tiver tabela própria.
+8. Nenhum dinheiro se move sozinho, nunca.
+
+**Testes previstos:**
+- A, B e C, como na prova 13;
+- B com a confirmação recusada: nada muda;
+- B confirmado: pendência criada uma vez e pagamento barrado até a revisão;
+- C: pendência criada e nada estornado;
+- concorrência: dois cancelamentos geram uma pendência só;
+- outra clínica não vê a pendência.
+
 ### 10.3 Middleware e server actions (S-02): diagnóstico consolidado com a UI
 
 Achado comum ao TISS (Preview, 15/11) e à UI (S-02). **O middleware não foi alterado.** Esta seção é a entrega
@@ -602,3 +650,31 @@ achado como S-02. Esta seção é a versão única do diagnóstico, para evitar 
 - A I.2 (P1.12) muda as telas de Convênios (valores escondidos da recepção; escopo próprio da médica). Isso entra
   **depois** do rebase e da 0162 no DEV, para não editar os mesmos arquivos nas duas branches.
 - Nada do worktree da UI foi tocado. Nenhum rebase foi feito neste ciclo: a máquina está reservada.
+
+## 11. 15/11 (noite, 2ª rodada): o que muda para a interface
+
+- **Módulo desligado (parecer em `modulo-desligado.md`):**
+  - com a assinatura paga e o módulo desligado, as operações que criam ou avançam trabalho TISS (conferir, devolver,
+    ajustar a Consulta, emitir, lotes, autorização, solicitação SP/SADT, cobertura, coparticipação) passam a ser
+    recusadas no servidor com uma mensagem própria: "Convênios está desligado nesta clínica. Para voltar a operar, a
+    gestão liga o módulo em Convênios › Configuração; os registros já feitos continuam disponíveis para consulta.";
+  - a tela já mostra "não habilitado" (E15), então nada novo na interface;
+  - se a navegação global da UI mostrar o menu Convênios com o módulo desligado, os botões recebem essa mensagem e
+    não o "Algo deu errado";
+  - cancelar, glosa, pagamento, recurso, repasse e leitura continuam.
+- **D-5 (via de assinatura sem valores):**
+  - quando o fundador decidir, a tela da guia ganha um botão "Via para assinatura" (PDF sem valores) para a recepção;
+  - o PDF completo e o XML ficam com quem vê o faturamento;
+  - até lá, nada muda na tela.
+- **S-02:** o pacote de testes para a frente de segurança da plataforma está em `handoff-s02-middleware-testes.md`.
+  O middleware não muda no #55. O tratamento local do executor de Convênios continua.
+- **Arquivos em comum (diff só leitura da UI em `2a6c54f8`, 15/11 noite):**
+  - fora do diff da UI: `permissions.ts`, o diálogo de permissões (`equipe/member-row-actions.tsx`, que a P1.12-b vai
+    alterar com os rótulos novos), `/convenios`, `src/lib/premium-access`, o contexto `health-insurance` e o
+    middleware;
+  - **dentro do diff:** a tela de Equipe (`equipe/page.tsx`, `equipe/layout.tsx`, `team.module.css`).
+    - Correção do §10.5/§20: eu tinha escrito "a tela de Equipe" como fora do diff. Só o diálogo está fora.
+    - A P1.12-b não precisa mexer em `equipe/page.tsx`. Se precisar, entra depois do rebase;
+  - também no diff: `financeiro/page.tsx` (conflito conhecido; o saldo parcial continua descontando a glosa) e a 0136
+    com o journal, que vieram do #53 pela base da UI e se resolvem pela composição, nunca à mão;
+  - reconferir de novo antes de integrar, porque a branch da UI anda.
