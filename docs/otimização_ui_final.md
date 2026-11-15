@@ -1512,6 +1512,19 @@ Globais (prompt §30) e por intervenção (em cada ID). Formato de achado adotad
 - 25.6 Validação com usuários: plano de teste de usabilidade por papel (hipóteses da seção 08),
   sem pesquisa real disponível hoje.
 
+### 25.8 Inventário de sobreposições (P2.3, 15/11/2026 — estático)
+
+Levantado por busca no código (`src/app`, sem testes); a auditoria item a item (teclado, foco ao abrir e
+fechar, nome, `Esc`, celular) segue pendente, salvo onde indicado.
+
+| Tipo | Quantidade | Onde | Base |
+| --- | --- | --- | --- |
+| Gaveta (`Drawer`) | 7 | novo atendimento (auditada: UX-005/006/007), documento e receita do Consultório, novo documento, convite da equipe, novo lançamento, novo paciente | Radix Dialog (foco preso, título obrigatório) |
+| Diálogo (`DialogContent`) | 10 | segurança da conta, correção de atendimento, série recorrente, assinatura (Consultório e prontuário), ações de convite e de membro, fornecedores, tour, nova clínica (admin) | Radix Dialog |
+| Confirmação (`ConfirmDialog`) | 6 | troca de plano, convite, membro, excluir paciente, LGPD, óbito | `components/ui/confirm-dialog` |
+| Ação destrutiva (`DestructiveAction`) | 2 | modelos de receita (auditado: UX-019), outra tela | `components/ui/destructive-action` (contrato em `destructive-actions-migration.test.ts`) |
+| Menu (`DropdownMenuContent`) | 2 | `PageActions` (auditado: UX-012, foco no menu ao abrir por teclado, folga de 8 px) e menus de linha | Radix DropdownMenu |
+
 ### 25.7 Regressão do Caixa — nomes das ações (UX-015, 15/11/2026)
 
 **Correção de contagem:** o commit `5f6967c2` alterou **8** arquivos de spec e2e (18 seletores), não
