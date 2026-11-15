@@ -65,6 +65,11 @@ main:has(> .split) {
   line-height: 1.5;
 }
 .foot a {
+  /* UX-018 (WCAG 2.5.8): 24 px de alvo mesmo com o texto de 13 px — a linha de
+     19,5 px ficava abaixo do mínimo e dependia da exceção de espaçamento. */
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
   color: var(--muted-foreground);
   text-decoration: underline;
   text-decoration-color: var(--border-2);

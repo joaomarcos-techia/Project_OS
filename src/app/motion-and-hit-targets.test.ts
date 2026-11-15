@@ -61,4 +61,15 @@ describe('fundação de movimento e alvos de interação', () => {
       expect(source).toContain("before:content-['']");
     }
   });
+
+  // UX-018 (docs/otimização_ui_final.md): os links legais do login tinham 19,5 px.
+  it('dá 24 px de alvo aos links do rodapé do login', () => {
+    const loginCss = readFileSync(
+      resolve(root, 'src/components/shared/login-frame.module.css'),
+      'utf8',
+    );
+    const regra = loginCss.match(/\.foot a \{[^}]*\}/)?.[0] ?? '';
+    expect(regra).toContain('min-height: 24px');
+    expect(regra).toContain('display: inline-flex');
+  });
 });
