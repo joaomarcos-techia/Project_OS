@@ -1211,6 +1211,10 @@ test.describe.serial('revisão humana do repasse (Preview + DEV, papéis reais)'
   test('11. relatório mensal mostra revisão ao médico e gestor, isolando perfil e tenant', async ({
     browser,
   }) => {
+    // Quatro sessões (dono, médico, atendente, outra clínica) e sete navegações no
+    // Preview: o padrão de 30 s do config estourou na 4ª sessão em 15/11/2026, com
+    // as verificações anteriores já aprovadas. Mesmo limite dos testes 9 e 12.
+    test.setTimeout(120_000);
     const month = saoPauloDate().slice(0, 7);
     const owner = sessions.has('owner') ? pageOf('owner') : await openSession(browser, 'owner');
     await owner.goto(`/relatorios/repasses?mes=${month}`);
