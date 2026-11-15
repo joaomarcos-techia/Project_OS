@@ -597,3 +597,62 @@ cumprida: inspecionar → backup → ensaiar → aplicar → validar o banco →
   antes do DDL.
 - **Produção:** intocada. O pré-voo do lançamento coordenado continua esperando `pending=26 (0136 … 0161)` (§16).
 - **Evidência:** `evidence/tiss-ciclo-2026-11-15-0161-dev/`.
+
+## 19. 15/11 (tarde): estado preservado, separação do Gate B e pedido para a P1.12
+
+**Estado do DEV (só leitura, 15/11 ~14h30):** 162 linhas no ledger; a última é a 0161 (`when` 1795209773857, hash
+`acd23a73…`, igual ao pino). Nenhuma migration nova neste ciclo; a 0159, a 0160 e a 0161 seguem como no §18. As
+correções do ciclo (conferência e devolução com a checagem D24, painel da guia, P6.1, P6.4) não pedem DDL.
+
+**Separação do pacote SaaS (Gate B do AbacatePay) e do TISS:**
+
+- O Gate B financeiro é 0136–0159 (24 entradas). A 0160 (estorno externo do paciente, R54) e a 0161 (P4.6) são do
+  #55 e **não entram** nesse pacote sem nova aprovação de composição.
+- O pré-voo do TISS espera `pending=26` (0136 … 0161) porque mede o lançamento coordenado com o #55. A diferença de 2
+  é esperada. Uma contagem não substitui o confronto de journal, hashes e manifesto: o pré-voo confere os três.
+- Nada do release do AbacatePay foi alterado pelo TISS.
+
+**P1.12 (permissões da matriz I.2): o que exige e por que não foi feita agora.**
+
+- **O que muda:** cinco códigos novos (`view:convenios`, `manage:convenios`, `operate:convenios`,
+  `view:faturamento_convenio`, `manage:faturamento_convenio`), pacotes por papel em `role_permissions` e incremento de
+  `claims_version` dos perfis afetados (o token renova e passa a trazer os códigos).
+- **Efeito de acesso:** hoje Convênios inteiro é `view:financial` (ver) e `manage:financial` (agir). Com a I.2:
+  - a recepção opera (carteirinha, cobertura, conferência) sem ver valores de faturamento;
+  - o financeiro fatura sem gerenciar o cadastro de operadoras;
+  - a médica vê só o necessário ao próprio atendimento (filtro no servidor).
+  É ampliação para uns e redução para outros: precisa da validação com os papéis que a I.2 prevê ("validar com os
+  papéis em P1.12").
+- **Composição:** a 0133 (#53) reescreve `effective_permissions_v` e invalida claims da família nova. A P1.12 mexe na
+  mesma visão e na mesma tabela de pacotes: precisa entrar depois do Gate B e com o manifesto de composição atualizado,
+  para não colidir com o lançamento do AbacatePay.
+- **Disciplina (a da 0161):** migration candidata provada em Postgres descartável com a cadeia do DEV, compatibilidade
+  com o código publicado, pino no manifesto, aplicador limitado, pré e pós-voo. **Aplicação no DEV só com autorização
+  específica.**
+
+**Pedido de autorização (P1.12), para decisão do fundador:**
+
+1. aprovar a matriz I.2 como está ou com ajustes por papel (em especial: recepção sem valores; médica só os próprios);
+2. autorizar a preparação da migration candidata 0162 (só local e descartável) e, depois de provada, a aplicação só
+   no DEV, sob o procedimento do §18;
+3. confirmar que a P1.12 entra depois do Gate B do AbacatePay (ordem de composição).
+
+A P12.2 (matriz de permissões por action e rota, com negativos) depende da P1.12. Já provado neste ciclo, com as
+permissões atuais: recepção e gestora de outra clínica chamando a server action do ajuste diretamente são recusadas
+(Preview, `e2e/convenios-guide-states-preview.spec.ts`).
+
+**Backup gerenciado (§14): evidência comum com o AbacatePay, sem duplicar a operação.**
+
+- O backup está ativado (informado pelo fundador). A pendência é a verificação operacional.
+- O agente do AbacatePay fez a consulta administrativa **B1-A** em 15/11 (worktree `Qoro_billing_abacatepay_20261107`,
+  commit `a13802e5`, `docs/decoupling/asaas-to-abacatepay/GATE-B-DEPLOY-CONTROLADO.md`, lido só para leitura):
+  - projeto identificado; cópias diárias visíveis (8 registros); **PITR desligado** (`pitr_enabled=false`);
+  - **não verificados:** plano, retenção contratual, integridade e restauração. Oito registros não provam oito dias de
+    retenção.
+- O TISS reutiliza essa evidência para o **mesmo projeto e a mesma data**, só no que ela cobre. A recuperação do TISS
+  **não** está homologada por isso: os dados de Convênios (guias, revisões, histórico, arquivos no armazenamento
+  privado) dependem também do Storage, que o dump lógico do B1-B não cobre (o próprio documento registra isso).
+- O TISS não executa nada sobre Production. Quando o B1-B for autorizado e executado pelo AbacatePay, o TISS pede a
+  inclusão destas conferências: contagem de `hi_guides`, `hi_guide_snapshots` e `hi_guide_events` restaurados, ledger
+  da migration igual ao de origem, e a lista de objetos do bucket `tiss-files` (só metadados) comparada com `hi_files`
+  e `hi_authorization_attachments`.

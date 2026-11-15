@@ -419,3 +419,17 @@ em conflito** (a lista de 19 do §9.5 é de arquivos tocados pelas duas branches
 
 Depois do rebase: `page.test.tsx` da ficha, testes de agenda, caixa e consultório, a jornada E2E do TISS e as
 regressões `convenios-guide-states-preview.spec.ts` (com o axe da página inteira voltando a exigir zero, §9.8).
+
+**Causa completa (15/11, ~15h20):** sem cookie de sessão, o `src/middleware.ts` redireciona com 307 para `/login`
+qualquer requisição, inclusive o POST da server action. O cliente do Next não entende essa resposta e lança dentro da
+transição, e a fronteira de erro mostrava "Algo deu errado". O `getCurrentUser()` do §9.9 cobre o caso do cookie
+presente e inválido. Para o cookie ausente (por exemplo, a pessoa saiu em outra aba), o executor de Convênios
+(`_lib/action-ui.tsx`) faz o seguinte:
+
+- pega a falha sem resposta;
+- consulta a rota atual sem seguir redirecionamento;
+- com redirecionamento ou 401, diz "Sua sessão terminou" e leva ao `/login`;
+- em qualquer outro caso, diz que não foi possível confirmar se a operação foi registrada.
+
+O middleware é código de plataforma e não foi alterado. A proposta de deixar passar as requisições com `next-action`
+(as actions já exigem sessão) foi registrada pela UI como achado para o fundador e pede revisão de segurança.
