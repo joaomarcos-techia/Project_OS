@@ -2,21 +2,29 @@ import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({ spawn: vi.fn() }));
+const mocks = vi.hoisted(() => ({ spawn: vi.fn(), execFileSync: vi.fn() }));
 vi.mock(import('node:child_process'), async (importOriginal) => ({
   ...(await importOriginal()),
   spawn: mocks.spawn,
+  execFileSync: mocks.execFileSync,
 }));
 import {
   assertRestoreConfinement,
+  localDockerHost,
   RESTORE_IMAGE,
   streamIsolatedRestore,
 } from '../../../scripts/gate-b-isolated-restore';
 
 const name = 'qoro-gate-b1-012345abcdef';
+const id = 'a'.repeat(64);
+const localHost =
+  process.platform === 'win32'
+    ? 'npipe:////./pipe/dockerDesktopLinuxEngine'
+    : 'unix:///var/run/docker.sock';
 function fixture() {
   return [
     {
+      Id: id,
       Name: '/' + name,
       State: { Running: true },
       Config: {
@@ -98,8 +106,51 @@ class ProcessDouble extends EventEmitter {
     this.emit('close', code);
   }
 }
-beforeEach(() => mocks.spawn.mockReset());
-afterEach(() => vi.useRealTimers());
+beforeEach(() => {
+  mocks.spawn.mockReset();
+  mocks.execFileSync.mockReset();
+  mocks.execFileSync.mockImplementation((_command: string, args: string[]) => {
+    if (args[0] === 'context' && args[1] === 'show') return 'desktop-linux';
+    if (args[0] === 'context' && args[1] === 'inspect')
+      return JSON.stringify({ Host: localHost, SkipTLSVerify: false });
+    if (args.includes('inspect')) return JSON.stringify(fixture());
+    throw new Error('Unexpected synthetic Docker invocation');
+  });
+  for (const key of ['DOCKER_HOST', 'DOCKER_CONTEXT', 'DOCKER_TLS_VERIFY', 'DOCKER_CERT_PATH'])
+    vi.stubEnv(key, '');
+});
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllEnvs();
+});
+
+describe('Docker destination guards (process doubles)', () => {
+  it.each(['DOCKER_HOST', 'DOCKER_CONTEXT', 'DOCKER_TLS_VERIFY', 'DOCKER_CERT_PATH'])(
+    'refuses %s before consulting Docker',
+    (key) => {
+      vi.stubEnv(key, 'unexpected');
+      expect(() => localDockerHost()).toThrow('Docker environment override');
+      expect(mocks.execFileSync).not.toHaveBeenCalled();
+    },
+  );
+  it.each(['ssh://remote.example', 'tcp://127.0.0.1:2375', 'tcp://production:2376'])(
+    'refuses a remote or unexpected endpoint: %s',
+    async (Host) => {
+      mocks.execFileSync
+        .mockReturnValueOnce('unexpected')
+        .mockReturnValueOnce(JSON.stringify({ Host, SkipTLSVerify: false }));
+      await expect(streamIsolatedRestore('synthetic.sql.gpg', 'synthetic', name)).rejects.toThrow(
+        'Unapproved Docker endpoint',
+      );
+      expect(mocks.spawn).not.toHaveBeenCalled();
+    },
+  );
+  it('requires a container ID rather than trusting its name alone', () => {
+    const containers = fixture();
+    Object.assign(containers[0]!, { Id: 'unexpected' });
+    expect(() => assertRestoreConfinement(containers, name)).toThrow();
+  });
+});
 
 describe('encrypted restore binary pipe and exit codes (process doubles, not Docker proof)', () => {
   function pipeline(gpgCode: number, psqlCode: number) {
@@ -129,6 +180,9 @@ describe('encrypted restore binary pipe and exit codes (process doubles, not Doc
     });
     expect(Buffer.concat(state.chunks)).toEqual(state.sql);
     expect(JSON.stringify(mocks.spawn.mock.calls)).not.toContain(passphrase);
+    expect(mocks.spawn.mock.calls[1]?.[1]).toEqual(
+      expect.arrayContaining(['--host', localHost, id]),
+    );
     expect(state.decrypt.kill).toHaveBeenCalled();
     expect(state.restore.kill).toHaveBeenCalled();
   });
@@ -206,5 +260,36 @@ describe('encrypted restore binary pipe and exit codes (process doubles, not Doc
     await rejected;
     expect(decrypt.kill).toHaveBeenCalled();
     expect(restore.kill).toHaveBeenCalled();
+  });
+
+  it('stops both children on cancellation and rejects even if they report zero', async () => {
+    const decrypt = new ProcessDouble(),
+      restore = new ProcessDouble();
+    for (const child of [decrypt, restore])
+      child.kill.mockImplementation(() => {
+        if (child.exitCode === null) child.complete(0);
+        return true;
+      });
+    const controller = new AbortController();
+    mocks.spawn.mockReturnValueOnce(decrypt).mockReturnValueOnce(restore);
+    const result = streamIsolatedRestore('synthetic.sql.gpg', 'synthetic', name, 'gpg', {
+      signal: controller.signal,
+    });
+    const rejected = expect(result).rejects.toThrow('Restore interrupted');
+    controller.abort();
+    await rejected;
+    expect(decrypt.kill).toHaveBeenCalled();
+    expect(restore.kill).toHaveBeenCalled();
+  });
+
+  it('does not start an already interrupted operation', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    await expect(
+      streamIsolatedRestore('synthetic.sql.gpg', 'synthetic', name, 'gpg', {
+        signal: controller.signal,
+      }),
+    ).rejects.toThrow();
+    expect(mocks.spawn).not.toHaveBeenCalled();
   });
 });

@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { execFileSync, spawn } from 'node:child_process';
-import { createReadStream } from 'node:fs';
+import { createReadStream, existsSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -15,6 +15,38 @@ const PGDATA = '/var/lib/postgresql/data';
 const containerName = z.string().regex(/^qoro-gate-b1-[a-f0-9]{12}$/u);
 let stage = 'input';
 
+/** Git for Windows ships an MSYS GPG, whose file arguments require /c/... paths. */
+export function gpgFileArgument(file: string, executable: string): string {
+  if (
+    process.platform === 'win32' &&
+    path.isAbsolute(executable) &&
+    existsSync(path.join(path.dirname(executable), 'msys-2.0.dll'))
+  ) {
+    const absolute = path.resolve(file).replaceAll('\\', '/');
+    assert.match(absolute, /^[a-z]:\//iu, 'MSYS recovery requires a local drive path');
+    return absolute.replace(/^([a-z]):\//iu, (_, drive: string) => `/${drive.toLowerCase()}/`);
+  }
+  return file;
+}
+
+/** Never send a dump to a daemon selected through a remote context or env override. */
+export function localDockerHost(): string {
+  for (const key of ['DOCKER_HOST', 'DOCKER_CONTEXT', 'DOCKER_TLS_VERIFY', 'DOCKER_CERT_PATH']) {
+    assert.ok(!process.env[key], 'Docker environment override must be removed before recovery');
+  }
+  const context = docker(['context', 'show']);
+  const endpoints: unknown = JSON.parse(
+    docker(['context', 'inspect', context, '--format', '{{json .Endpoints.docker}}']),
+  );
+  const endpoint = z.object({ Host: z.string(), SkipTLSVerify: z.literal(false) }).parse(endpoints);
+  const allowed =
+    process.platform === 'win32'
+      ? ['npipe:////./pipe/dockerDesktopLinuxEngine', 'npipe:////./pipe/docker_engine']
+      : ['unix:///var/run/docker.sock'];
+  assert.ok(allowed.includes(endpoint.Host), 'Unapproved Docker endpoint');
+  return endpoint.Host;
+}
+
 export class IsolatedRestoreExitError extends Error {
   constructor(
     readonly gpg: number,
@@ -25,11 +57,12 @@ export class IsolatedRestoreExitError extends Error {
   }
 }
 
-export function assertRestoreConfinement(input: unknown, expectedName: string): void {
+export function assertRestoreConfinement(input: unknown, expectedName: string): string {
   containerName.parse(expectedName);
   const [value] = z
     .array(
       z.object({
+        Id: z.string().regex(/^[a-f0-9]{64}$/u),
         Name: z.string(),
         State: z.object({ Running: z.literal(true) }),
         Config: z.object({
@@ -62,6 +95,7 @@ export function assertRestoreConfinement(input: unknown, expectedName: string): 
   assert.ok(value.Config.Cmd.includes('cron.launch_active_jobs=off'));
   const pgdata = value.Config.Env.find((entry) => entry.startsWith('PGDATA='))?.slice(7);
   assert.ok(pgdata === PGDATA || pgdata?.startsWith(PGDATA + '/'));
+  return value.Id;
 }
 
 function docker(args: string[], input?: string): string {
@@ -105,12 +139,22 @@ export async function streamIsolatedRestore(
   passphrase: string,
   container: string,
   gpg = 'gpg',
+  options: { gpgHome?: string; signal?: AbortSignal } = {},
 ): Promise<{ gpg: number; psql: number }> {
   containerName.parse(container);
   assert.ok(passphrase && !/[\r\n]/u.test(passphrase));
+  options.signal?.throwIfAborted();
+  const host = localDockerHost();
+  const id = assertRestoreConfinement(
+    JSON.parse(docker(['--host', host, 'inspect', container])),
+    container,
+  );
   const decrypt = spawn(
     gpg,
     [
+      '--no-options',
+      '--no-symkey-cache',
+      ...(options.gpgHome ? ['--homedir', gpgFileArgument(options.gpgHome, gpg)] : []),
       '--batch',
       '--quiet',
       '--no-tty',
@@ -119,11 +163,11 @@ export async function streamIsolatedRestore(
       '--passphrase-fd',
       '0',
       '--decrypt',
-      backup,
+      gpgFileArgument(path.resolve(backup), gpg),
     ],
     { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true },
   );
-  const restore = spawn('docker', psql(container), {
+  const restore = spawn('docker', ['--host', host, ...psql(id)], {
     stdio: ['pipe', 'pipe', 'pipe'],
     windowsHide: true,
   });
@@ -140,16 +184,22 @@ export async function streamIsolatedRestore(
   });
   decrypt.stdout.pipe(restore.stdin);
   decrypt.stdin.end(passphrase + '\n');
-  const timeout = setTimeout(() => {
+  let interrupted = false;
+  const stop = () => {
+    interrupted = true;
     decrypt.kill();
     restore.kill();
-  }, 120_000);
+  };
+  options.signal?.addEventListener('abort', stop, { once: true });
+  const timeout = setTimeout(stop, 120_000);
   try {
     const [gpgCode, psqlCode] = await finished;
     if (gpgCode !== 0 || psqlCode !== 0) throw new IsolatedRestoreExitError(gpgCode, psqlCode);
+    assert.ok(!interrupted, 'Restore interrupted or timed out');
     return { gpg: gpgCode, psql: psqlCode };
   } finally {
     clearTimeout(timeout);
+    options.signal?.removeEventListener('abort', stop);
     decrypt.kill();
     restore.kill();
   }
@@ -165,6 +215,7 @@ async function main(): Promise<void> {
       ref: { type: 'string' },
       evidence: { type: 'string' },
       gpg: { type: 'string', default: 'gpg' },
+      'gpg-home': { type: 'string' },
       'authorize-local-real-data': { type: 'boolean', default: false },
     },
   });
@@ -187,14 +238,31 @@ async function main(): Promise<void> {
   for await (const bytes of createReadStream(backup)) digest.update(bytes);
   assert.equal(digest.digest('hex'), expected, 'Encrypted backup hash differs');
   stage = 'confinement';
-  assertRestoreConfinement(JSON.parse(docker(['inspect', container])), container);
-  const query = (sql: string) => docker(psql(container), sql);
+  const host = localDockerHost();
+  const id = assertRestoreConfinement(
+    JSON.parse(docker(['--host', host, 'inspect', container])),
+    container,
+  );
+  const query = (sql: string) => docker(['--host', host, ...psql(id)], sql);
   assert.equal(query('SHOW cron.launch_active_jobs'), 'off');
   const actualDataDirectory = query('SHOW data_directory');
   assert.ok(actualDataDirectory === PGDATA || actualDataDirectory.startsWith(PGDATA + '/'));
   const startedAt = new Date().toISOString();
   stage = 'strict_restore';
-  const exitCodes = await streamIsolatedRestore(backup, passphrase, container, values.gpg);
+  const controller = new AbortController();
+  const interrupt = () => controller.abort();
+  process.once('SIGINT', interrupt);
+  process.once('SIGTERM', interrupt);
+  let exitCodes: { gpg: number; psql: number };
+  try {
+    exitCodes = await streamIsolatedRestore(backup, passphrase, container, values.gpg, {
+      gpgHome: values['gpg-home'],
+      signal: controller.signal,
+    });
+  } finally {
+    process.removeListener('SIGINT', interrupt);
+    process.removeListener('SIGTERM', interrupt);
+  }
   stage = 'history';
   const history: unknown = JSON.parse(
     query(
@@ -223,6 +291,8 @@ async function main(): Promise<void> {
     backupSha256: expected,
     image: RESTORE_IMAGE,
     container,
+    containerId: id,
+    dockerEndpoint: host,
     exitCodes,
     history: checkedHistory,
     integrity: checkedIntegrity,

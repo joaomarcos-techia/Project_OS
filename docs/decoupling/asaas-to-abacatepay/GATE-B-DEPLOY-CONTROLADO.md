@@ -1,5 +1,87 @@
 # Gate B — proposta de deploy técnico com aquisição fechada
 
+## Ensaio sintético e segurança — 15/11/2026, após B1-A
+
+**Checkpoint prevalente.** O titular reconheceu o B1-A administrativo e confirmou no painel os mesmos oito backups físicos abaixo, com a opção Restore. Nenhuma nova listagem ou leitura de dados era necessária para repetir essa evidência. Este ciclo autoriza correções das ferramentas, testes exclusivamente sintéticos, documentação e push no PR53. **B1-B real, B2-A/B, B3 e C/D/E continuam não autorizados; Production NO-GO.** R1–R4 permanecem PARTIAL, sem aceite.
+
+### GPG real — PASS no Windows
+
+Causa confirmada do bloqueio anterior: o GPG `2.4.9` incluído no Git é MSYS. Um `--homedir C:/Users/...` foi interpretado como caminho relativo ao worktree (`/c/dev/.../C:/Users/...`); o diretório inexistente impedia criar o keyring e conectar o agent. O primeiro erro de descritor também pertencia ao harness Windows. Não eram evidências de falha financeira. Não houve necessidade de instalar ferramenta, alterar o keyring do usuário ou enfraquecer criptografia.
+
+`gpgFileArgument` converte arquivos/home para `/c/...` somente quando o executável Windows explicitamente selecionado pertence ao runtime MSYS; GPG nativo e Linux mantêm seus caminhos. A ferramenta aceita `--gpg-home`, desabilita cache simétrico e configuração GPG implícita. Neste host, indicar **o executável absoluto**, fora do PATH observado: `C:\Program Files\Git\usr\bin\gpg.exe`. O diretório GPG deve ser novo, privado e exclusivo do ensaio, nunca o keyring pessoal.
+
+**Sete testes reais PASS** em `src/lib/security/gate-b-gpg-real.test.ts`, às **17:25 UTC**: AES256 em stream; descriptografia/bytes UTF8/hash; senha incorreta; adulteração; truncamento; encerramento real do processo; timeout; e asserção de ausência de SQL aberto persistente. A verificação de ausência de SQL faz parte dos sete casos. Senha aleatória sintética enviada pelo fd0, nunca argv/log; texto aberto apenas em memória. Fixture/keyring e agent exclusivos foram descartados sem exclusão recursiva. As duas pastas novas do diagnóstico também foram descartadas; scratches antigos e processos de outros agentes permaneceram intactos. Evidência local: `dist/gate-b-gpg-real.json`; resumo sanitizado no JSON de evidências do release.
+
+**Não confundir:** GPG real aprovado não é restauração PostgreSQL. A suite de confinamento tem **37 testes com doubles**, incluindo contexto remoto/override, contêiner inadequado, ID, portas/rede, cron, falha de processo, cancelamento e timeout. O restore completo continua **BLOCKED — INSUFFICIENT RESOURCES**. Interrupção com GPG real passou; Ctrl+C real sobre a cadeia GPG/Docker/psql no Windows ainda não foi executado.
+
+### Ferramenta e isolamento
+
+- O operador agora recusa `DOCKER_HOST`, `DOCKER_CONTEXT`, `DOCKER_TLS_VERIFY` e `DOCKER_CERT_PATH` não vazios; consulta o contexto, exige endpoint local conhecido e TLS não ignorado. Cada operação de dados usa `--host` fixo e o **ID completo** retornado pela inspeção, não apenas o nome. Windows: pipes locais aprovados; Linux: socket `/var/run/docker.sock`. Endpoints SSH/TCP, inclusive TCP de loopback, são recusados. Não basta nomear um daemon remoto como `desktop-linux`.
+- A inspeção continua exigindo imagem oficial fixada, label, rede `none`, nenhuma porta, logs `none`, nenhuma montagem persistente, PGDATA em tmpfs, swap do contêiner igual ao limite de RAM e cron desligado. O controle não demonstra proteção do swap do WSL/pagefile do host.
+- `AbortSignal`, SIGINT/SIGTERM no CLI e timeout encerram os dois filhos e impedem PASS, mesmo se ambos reportarem zero após o cancelamento. Erros SQL/GPG permanecem suprimidos; não há endpoint financeiro, aplicação Qoro, worker ou migrator nesse operador.
+- Correção localizada no operador de backup: `backupConnectionEnv` exige agora **`PGSSLMODE=verify-full`**, inclusive se uma URL sugerir modo mais fraco. A CA/cadeia e hostname da conexão real ainda precisam ser conferidos no futuro B1-B; a configuração não comprova handshake executado. CA ausente/inválida deve interromper, nunca voltar a `require`. [Contrato libpq oficial](https://www.postgresql.org/docs/17/libpq-ssl.html).
+- Os novos operadores devem ser executados da versão operacional aprovada, fora da pasta limpa de deployment. Não usar a cópia antiga do helper de backup dentro do export financeiro congelado, que ainda contém o comportamento histórico. Runtime financeiro, preços, cotas, SQL, CI/CD e configuração live não foram alterados.
+
+### Capacidade e segurança do host — medição deste ciclo
+
+| Verificação | Resultado observado | Consequência |
+|---|---|---|
+| RAM física | 7.877 MiB totais; 1.098 MiB livres inicialmente, 598 MiB em leitura posterior | Insuficiente para contêiner de 2 GiB mais Docker/Windows e agentes. Não iniciado |
+| Memória comprometida | 18.714 MiB de limite 25.285 MiB | Memória virtual disponível não substitui RAM protegida |
+| Disco C: | 8,8 GiB livres | Não reservar imagem/cache/build sem novo orçamento |
+| Disco/concorrência | Contador de ocupação 125%, leitura pontual; não é benchmark. 6 Node inicialmente, 18 em outra leitura; 15 Chrome; nenhum PostgreSQL | Não inferir SLA/identidade dos agentes; nenhum processo encerrado |
+| Docker | Client29.9.2; Engine sem pipe, contexto desktop-linux local, sem overrides | Não iniciar sob esse orçamento; volumes/caches do daemon não puderam ser inventariados |
+| Dependências | node_modules é junction já existente para Qoro_signup_email_fix_20261109/node_modules | Não remover, reinstalar ou alterar a junction compartilhada |
+| Pasta Recovery existente | Diretório sem junction; ACL herdada inclui leitura de CodexSandboxUsers | Não serve como prova de ACL privada de uma futura subpasta. Não inferir permissões de arquivos históricos nem alterá-los |
+| BitLocker | Consulta de status negada por falta de acesso administrativo | Proteção do volume NÃO VERIFICADA; nenhuma elevação/alteração executada |
+| Pagefile | `fsutil behavior query EncryptPagingFile`: **0, desabilitado**; pagefile17.408MiB | tmpfs não garante confidencialidade do texto paginado pelo host |
+| Hibernação | Disponível, com Inicialização Rápida | Exigir proteção verificável do volume/arquivo de hibernação antes de dados reais |
+| Compartilhamento/sync | Apenas shares administrativos padrão vistos; Recovery fora de OneDrive, sem reparse | Isso não comprova ausência de agentes de sync/backup de terceiros. Verificar destino final e política do responsável |
+| WSL swap | Não confirmado por configuração explícita consultável | Não presumir que `--memory-swap` do contêiner protege o VHD/swap do WSL |
+
+**Orçamento mínimo proposto, não capacidade demonstrada:** janela coordenada com pelo menos 4 GiB físicos livres antes do Engine (2 GiB contêiner + reserva inicial de 2 GiB para VM/overhead), mais margem confirmada após iniciar o Docker. Não aumentar limites automaticamente. Dimensionar disco a partir da imagem já presente, tamanho cifrado autorizado e orçamento de build; tmpfs inclui PGDATA, WAL e índices dentro dos 2 GiB. O tamanho real do banco não foi consultado neste escopo. Iniciar a fixture pequena somente se houver margem; parar se RAM livre cair abaixo de 1 GiB, houver swap/pressão inesperada, OOM, erro de disco ou isolamento divergente. Esses são limites operacionais conservadores propostos, não um teste de carga aprovado.
+
+**Alternativa recomendada:** janela na própria máquina, após os outros agentes voluntariamente liberarem recursos, com proteção do host comprovada. Se isso não for possível, outra máquina existente, identificada e aprovada pelo titular, com os mesmos controles, começando por dados sintéticos. Não há outra máquina autorizada identificada. Ambiente temporário externo fica apenas como proposta sujeita a localização/custo/segurança e autorização; nada foi contratado. Clone gerenciado não é alternativa automática: gera custo e pode iniciar jobs externos imediatamente. [Restrições oficiais do clone](https://supabase.com/docs/guides/platform/clone-project).
+
+### Checklist antes de qualquer cópia real — tudo obrigatório
+
+1. B1-B aprovado expressamente, com responsável técnico/operacional, janela e acesso à chave de recuperação designados; nenhuma inferência de autorização por este teste.
+2. Destino novo `%LOCALAPPDATA%\Qoro\Recovery\gate-b1b-<ID_APROVADO>` fora do Git/deployment, sem junction/sync/share não aprovado, ACL **protegida contra herança**, restrita ao titular/operador e contas de sistema autorizadas. Conferir ACL efetiva; não basta `mode:0600` no Windows. Cofre e passphrase recuperáveis pelo responsável; nenhuma cópia em argv/CI/relatório.
+3. Proteção verificável de disco, pagefile, hibernação, temporários e WSL/VHD/swap. `tmpfs`/log-driver none isoladamente não atendem este requisito. Não restaurar dados reais enquanto a proteção continuar desconhecida.
+4. Host/REF/porta/usuário exclusivamente do projeto aprovado; pg_dump compatível, CA oficial confiável e `verify-full` efetivo na mesma conexão do dump. Não imprimir URL. Não desabilitar TLS nem aceitar certificado incorreto. Conexão real NÃO testada neste ciclo.
+5. Recursos suficientes; Docker local fixado; imagem/ID/labels/rede/portas/mounts/log/swap/cron conferidos; nenhum gateway, app, worker ou migrator. Não iniciar serviços Supabase completos por conveniência.
+6. **Ensaio sintético completo real PASS primeiro**: fixture/journal/constraints/índices → pg_dump → GPG → SHA256 → stream → Docker/psql → comparação → erro/interrupção/descarte. Hash errado, truncamento/senha errada, conexão/processo/permissão, timeout, rede/porta/contexto inadequado e journal divergente devem falhar. Os casos GPG e doubles já executados não substituem essa cadeia.
+7. Preservar o original cifrado, registrar apenas metadados/hashes/exit codes; não criar SQL aberto. Aprovar retenção/descarte da nova cópia e contingência para chave indisponível. Interrupção preserva original e exige revisar/destruir somente o destino descartável autorizado.
+
+### Cobertura de recuperação: três evidências distintas
+
+O quadro diferencia cobertura documentada de prova executada. Os ensaios de outubro são **históricos**, não foram refeitos nem certificados como estado atual. Os backups físicos atuais foram somente listados; nenhum foi restaurado neste ciclo.
+
+| Componente | Backup físico gerenciado | Dump lógico proposto | Prova de recuperação existente | Lacuna |
+|---|---|---|---|---|
+| Schema PostgreSQL | Cobertura de banco documentada; oito COMPLETED | DDL dos schemas não excluídos | Restore public/auth histórico de outubro; não desta cópia | Restore físico atual e novo lógico não testados |
+| Dados de aplicação | Banco gerenciado, sem prova de conteúdo atual | Linhas dentro do snapshot do dump | Histórico de outubro | Estado atual/inventário/paridade pendentes de B1-B |
+| Journal | Tabela no banco, não inspecionada neste ciclo | Incluído se existente no schema não excluído | Prefixo e sequência sintéticos anteriores; fonte congelada160 | Prefixo Production136 é snapshot histórico; B2-A não autorizado |
+| Auth | Dados auth, não configuração integral do serviço | auth no mesmo snapshot de public | Restore SQL histórico; snapshot gerenciado Auth anterior documentado | Sessões/provedores/SMTP/redirects/chaves e serviço completo não comprovados por SQL |
+| Storage | Apenas metadados; **não binários** | storage excluído; nenhum binário | Ensaio de29/10:42/42 hashes, histórico documentado | Cobertura/rotina atual independente dos arquivos e vínculo com banco |
+| Roles e grants | Clone físico documenta roles/permissões; senhas customizadas não cobertas por backup diário | --no-owner/--no-acl: não recompõe todos os direitos/roles | Nenhuma prova integral atual | Inventário e reaplicação segura, sem supor grants equivalentes |
+| Vault | Clone físico transfere root key conforme documentação; restore atual não observado | vault/pgsodium excluídos; não transfere root key automaticamente | Nenhuma prova atual neste ciclo | Material criptográfico e acesso recuperável sob controle autorizado |
+| Realtime | Configuração externa/replicação exige tratamento próprio | realtime/_realtime excluídos | Nenhuma prova integral atual | Serviço, publicação/slots/configuração e teste separado |
+| Configuração externa | Não é backup de Vercel/Meta/Asaas/AbacatePay/SMTP | Fora do SQL | Runbooks/inventários históricos | Cofre, permissões e reconstrução operacional atual |
+| Segredos | Não presumir todos; API keys/Auth settings fora do clone; senhas customizadas excluídas | Não é cofre; colunas cifradas ainda dependem de suas chaves | Nenhuma recuperação integral atual | Chaves externas, responsáveis e contingência aprovados |
+
+[Cobertura/retenção oficiais de backups](https://supabase.com/docs/guides/platform/backups) e [limites do clone](https://supabase.com/docs/guides/platform/clone-project). Plano e retenção efetivos seguem **NÃO VERIFICADOS**. Conferência humana futura: Supabase Dashboard → organização `joaomarcos-techia's Org` (`srbucltkichbsehsirun`) → **Billing/Subscription**; confrontar com Database → Backups do `qoro-prod`, sem clicar Restore. Não solicitar novamente os oito registros. Nenhum PITR/recurso pago será ativado.
+
+### Build, proveniência, composição e pedido B1-B
+
+Preservada a evidência de15:34UTC do artefato: financeiro94f6da4a, empacotadores787276a1, SQL compartilhado4d0ed1d5, manifesto e160 hashes, 2.785 arquivos; TAR SHA256 `3902f2007742df4016450eeaece806a8f2bc0b535631d33da9a5e691b59ce3f6`. Não foi reconstruído/reverificado desnecessariamente. A versão dos operadores de recuperação passa a ser o **novo HEAD deste ciclo, com CI própria**; não atribuir à versão787 as novas correções. O TAR/deployment financeiro não foi modificado. Fonte financeira, operadores e build composto são evidências distintas.
+
+**Build específico do pacote composto: BLOCKED — INSUFFICIENT RESOURCES / NOT RUN.** Nenhuma variável live foi carregada para compilar, nenhuma dependência compartilhada foi reinstalada, nenhum deploy/CI/CD alterado. Executar em janela local com orçamento separado ou ambiente existente aprovado, com dependências do lock e configuração sintética/isolada; conferir SHA/manifesto/hash antes, preservar logs de build e identificar o artefato gerado. CI verde da fonte ou destes operadores não substitui o build do diretório composto.
+
+Pacote SaaS permanece **0136–0159**, 24 entradas sobre prefixo136 histórico;0160/0161 fora. Nenhuma leitura do ledger Production ou mudança de migration foi feita. Hashes0051/0093/0124 continuam exigindo catálogo em B2-A; não reescrever histórico. UI e TISS permanecem em seus worktrees, sem merge ou alteração. Handoff UI: [contratos financeiros](HANDOFF-UI-BILLING-SaaS.md); leitura pelo outro agente não confirmada. Risco de Asaas live com DEV continua tarefa separada de Payments/UI; nenhuma credencial foi lida/copiada ou chamada monetária executada aqui.
+
+**B1-B: NÃO APTO para solicitar execução com dados reais hoje.** Falta ensaio completo, capacidade, comprovação de proteção do host/destino e TLS efetivo; plano/retenção e responsáveis também pendentes. O pedido anterior abaixo permanece **rascunho condicional**, não autorização. Próxima ação concreta: janela de recursos para ensaio **sintético** e conferência administrativa do host, ou identificação de outra máquina existente aprovada. Depois do PASS, preencher B1-B com SHA operacional/CI final, máquina, destino/ACL/chave, escopo do novo dump lógico, responsáveis, janela, retenção e pontos de parada. Não apresentar isso como restauração do backup físico. B2/B3 permanecem preparados e não executados.
+
 ## B1-A — consulta administrativa de 15/11/2026
 
 **Escopo vigente:** somente B1-A autorizado e testes exclusivamente sintéticos. B0 reconhecido pelo titular. B1-B, B2-A/B, B3 e C/D/E continuam não autorizados. Os checkpoints abaixo são históricos quando conflitarem com esta seção. Não há janela reservada, restore real, dump, download, SQL Production, configuração ou deploy autorizado por esta consulta.

@@ -24949,5 +24949,168 @@
     },
     "preservedPriorBlocks": 41,
     "newHeadCI": "Required on resulting documentation/test commit; no prior CI attributed to new SHA"
+  },
+  "syntheticRecoveryPreparationB1B20261115": {
+    "observedAt": "2026-11-15T17:34:32.042Z",
+    "authorization": "Synthetic tests and recovery operator fixes only; no real-data B1-B, B2, B3 or Production",
+    "baseline": {
+      "operationalHead": "a13802e51df8e14ed02f321c126692ab1e05808a",
+      "ci": 43731400492,
+      "tests": 7248,
+      "testFiles": 640,
+      "e2e": 22,
+      "testSkips": 0
+    },
+    "currentHeadRequiresOwnCI": true,
+    "financialRuntimeFrozen": "94f6da4aeb32b1ae7da856dc9afa105120ce6dd9",
+    "ownerDashboardAttestation": {
+      "date": "2026-11-15",
+      "physicalBackupsVisible": 8,
+      "restoreOptionVisible": true,
+      "latestBackupId": 2273462739,
+      "latestAdministrativeUtc": "2026-11-15T09:14:14.727Z",
+      "reference": "backupMetadataOnlyB1A20261115",
+      "providerQueryRepeated": false,
+      "pitrEnabled": false,
+      "planAndContractualRetentionVerified": false,
+      "restoreOfManagedBackupPerformed": false
+    },
+    "gpg": {
+      "observedAt": "2026-11-15T17:32:55.835Z",
+      "finishedAt": "2026-11-15T17:32:59.789Z",
+      "status": "PASS",
+      "scope": "real GPG only; exclusively synthetic in-memory plaintext; NOT Docker/PostgreSQL restore",
+      "version": "gpg (GnuPG) 2.4.9",
+      "testsPassed": 7,
+      "testsExpected": 7,
+      "plaintextSha256": "da264558156ad192e813c27be0e32f2df28144a9987fc46db8b53b7d3a970861",
+      "plaintextFileCreated": false,
+      "ownFixtureDiscarded": true,
+      "networkCalls": 0,
+      "realDataRead": false,
+      "productionWrites": 0,
+      "passwordInArgv": false,
+      "rootCause": "Git MSYS GPG interpreted Windows C:/ absolute home as relative; MSYS /c/ paths restored agent startup",
+      "operatorSha256": "b7fbfc78c425f0957f77a8c5ba7adb3915f0fad1d9878a5bc0c453d5af2db742",
+      "ownDiagnosticDirectoriesDiscarded": 2,
+      "oldScratchDirectoriesTouched": false
+    },
+    "tests": {
+      "targeted": 47,
+      "files": 3,
+      "confinementAndPipelineDoubles": 37,
+      "realGpg": 7,
+      "tlsConnectionContract": 3,
+      "logSha256": "15b3d4580bb253fcb89e1e0b4c172893f96961035ffb8affd9c8a6c57924ce8f",
+      "notClaimed": [
+        "Docker/psql restore",
+        "Real Ctrl+C on Windows GPG/Docker/psql",
+        "Actual TLS handshake with Production",
+        "Physical backup restore"
+      ]
+    },
+    "operatorChanges": [
+      "MSYS GPG paths and explicit isolated GPG home",
+      "Reject Docker env overrides and non-local endpoints",
+      "Pin local daemon endpoint and exact inspected container ID",
+      "AbortSignal and SIGINT/SIGTERM cancel both children; timeout cannot succeed",
+      "Backup pg_dump environment enforces verify-full; no insecure fallback"
+    ],
+    "host": {
+      "totalPhysicalMiB": 7877,
+      "availablePhysicalMiBObserved": [
+        1098,
+        598
+      ],
+      "committedMiB": 18714,
+      "commitLimitMiB": 25285,
+      "freeDiskGiB": 8.8,
+      "dockerClient": "29.9.2",
+      "dockerEngine": "STOPPED_PIPE_MISSING",
+      "dockerContext": "desktop-linux",
+      "dockerEndpoint": "npipe:////./pipe/dockerDesktopLinuxEngine",
+      "dockerEndpointSkipTlsVerify": false,
+      "dockerOverridesPresent": false,
+      "postgresProcesses": 0,
+      "nodeProcessesObserved": [
+        6,
+        18
+      ],
+      "chromeProcesses": 15,
+      "sharedNodeModulesJunction": true,
+      "sharedDependenciesModified": false,
+      "dockerVolumesAndCachesInventoried": false,
+      "resourceBudgetSufficient": false
+    },
+    "dataProtection": {
+      "recoveryParentAclPrivateProven": false,
+      "recoveryParentHasInheritedSandboxReadAccess": true,
+      "newRealDataDirectoryCreated": false,
+      "bitlocker": "NOT_VERIFIED_ACCESS_DENIED",
+      "pagefileEncryptionEnabled": false,
+      "pagefileAllocatedMiB": 17408,
+      "hibernationAvailable": true,
+      "wslSwapProtection": "NOT_VERIFIED",
+      "syncOrBackupAgentExclusion": "NOT_VERIFIED",
+      "tlsSourceConnection": "NOT_TESTED",
+      "passwordsInLogs": false,
+      "realDataRead": false
+    },
+    "syntheticEndToEndRestore": {
+      "status": "BLOCKED_INSUFFICIENT_RESOURCES",
+      "dockerStarted": false,
+      "postgresStarted": false,
+      "realDatabaseUsed": false,
+      "fullChainTested": false
+    },
+    "composedPackageBuild": {
+      "status": "BLOCKED_INSUFFICIENT_RESOURCES_NOT_RUN",
+      "productionEnvironmentUsed": false,
+      "deploymentPerformed": false
+    },
+    "provenance": {
+      "evidenceReusedFrom": "backupMetadataOnlyB1A20261115 and release-artifact-94f6da4a.json",
+      "reconstructed": false,
+      "financialRef": "94f6da4aeb32b1ae7da856dc9afa105120ce6dd9",
+      "packagingToolsRef": "787276a1843eae25bb03252512f849d7013abe18",
+      "sharedSqlRef": "4d0ed1d5c8a81ab9f66e026f4f36c6e4520a7269",
+      "archiveSha256": "3902f2007742df4016450eeaece806a8f2bc0b535631d33da9a5e691b59ce3f6",
+      "files": 2785,
+      "sqlFiles": 160,
+      "newRecoveryOperatorsAreOutsideFrozenDeployPackage": true
+    },
+    "migrations": {
+      "package": "0136-0159",
+      "pending": 24,
+      "sourceJournal": 160,
+      "excluded": [
+        "0160",
+        "0161"
+      ],
+      "productionLedgerRead": false,
+      "productionSchemaRead": false,
+      "historicalHashReviewStillRequired": [
+        "0051",
+        "0093",
+        "0124"
+      ]
+    },
+    "gates": {
+      "B1A": "COMPLETE_METADATA_ONLY",
+      "B1B": "NOT_READY_NOT_AUTHORIZED",
+      "B2A": "NOT_AUTHORIZED_NOT_EXECUTED",
+      "B2B": "NOT_AUTHORIZED_NOT_EXECUTED",
+      "B3": "NOT_AUTHORIZED_NOT_EXECUTED",
+      "production": "NO_GO",
+      "R1": "PARTIAL_NOT_ACCEPTED",
+      "R2": "PARTIAL_NOT_ACCEPTED_NATURAL_RENEWAL_2026_12_13",
+      "R3": "PARTIAL_NOT_ACCEPTED",
+      "R4": "PARTIAL_NOT_ACCEPTED"
+    },
+    "productionWrites": 0,
+    "realFinancialOperations": 0,
+    "otherWorktreesModified": false,
+    "otherProcessesTerminated": false,
+    "nextAction": "Coordinate sufficient existing local resources and verify host protection, or designate another approved existing machine; run synthetic Docker/GPG/PostgreSQL chain before asking for real-data B1-B."
   }
 }
