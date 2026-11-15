@@ -1800,7 +1800,7 @@ Corrigido, a rodada das 15h48 completou sem nenhum erro de página nem de consol
 
 | Tela | Larguras | Resultado |
 | --- | --- | --- |
-| Login | 375, 1440 | `h1` "Entrar na Qoro"; ordem de Tab: logo → Criar conta → E-mail → Esqueci a senha → Senha → Mostrar senha → Entrar → Termos (segue a ordem visual); foco visível em todas as paradas; links do rodapé com 24 px; sem rolagem lateral. **Achado:** "Criar conta" com 23 px de altura → corrigido no commit seguinte (`.top p a` com 24 px; a foto do Preview fica para a próxima janela). Dois pares de controles focáveis se cruzam, sem identificação na sonda; o provável é o "Mostrar senha" dentro do campo de senha, que é intencional — conferir na próxima |
+| Login | 375, 1440 | `h1` "Entrar na Qoro"; ordem de Tab: logo → Criar conta → E-mail → Esqueci a senha → Senha → Mostrar senha → Entrar → Termos (segue a ordem visual); foco visível em todas as paradas; links do rodapé com 24 px; sem rolagem lateral. **Achado:** "Criar conta" com 23 px de altura → corrigido no `5462c209` (`.top p a` com 24 px) e **validado no Preview do HEAD `a1d64d11`: 24 px** (`evidence/2026-11-15/ciclo3-final/`). Dois pares de controles focáveis se cruzam, sem identificação na sonda; o provável é o "Mostrar senha" dentro do campo de senha, que é intencional — conferir na próxima |
 | Dashboard | 1440, 375 | `h1` "Dashboard". Ordem a 1440: Precisa de você (171) → Sala de espera (366) → Próximos / Turno (494) → Resumo financeiro (700) → Faturamento / Atividade (881). A 375, a mesma ordem, só que empilhada. **UX-011 validado no Preview** (antes, só no DEV local) |
 | Financeiro | 320, 375, 768, 1024, 1440 | Abaixo de 768: "Mais ações" + "Novo lançamento"; a partir de 768: "Fornecedores" + "Novo lançamento". Teclado: Enter abre, o foco vai ao menu, Esc fecha e devolve o foco ao gatilho. Mouse: os mesmos itens ao reabrir. Toque (`hasTouch`/`isMobile`): abre, com gatilho de 44 px. Sem rolagem lateral. **UX-012 do Financeiro validado no Preview.** O saldo parcial do TISS (`valorGlosado`) não está nesta branch; a fórmula fica com o TISS no rebase (31.R) |
 | Conversas | 320, 375, 768 | Cabeçalho de 368/342/279 px, em 4/4/2 linhas: busca, "Configurar o agente" (a única ação), 2 filtros e "Filtrar" |
@@ -1816,6 +1816,17 @@ não foi implementado. Feito agora: em Documentos, com o botão "Novo documento"
 passa a ser só "Receitas, atestados e outros documentos já emitidos." A frase "use o Consultório ou o
 prontuário" contradizia o botão e ocupava 2 das 4 linhas a 320 px; sem o botão, ela continua
 (`documentosDescription`, com teste).
+
+**Validação final (16h01, Preview `a1d64d11` = código do `5462c209`, 1 login, `final-probe.ts`):**
+- "Criar conta" com 24 px.
+- Documentos a 320 e 375: descrição curta, frase antiga ausente, botão "Novo documento" presente. O
+  cabeçalho tem 364 px nas duas larguras (antes, 406 e 385); sem rolagem lateral; 0 erro de página.
+- Prova assinada PASS no mesmo deployment.
+
+**Estabilidade (registro do TISS, 15/11 ~15h56):** uma ocorrência do #418 (variante HTML) em
+`/convenios/guias/<id>`, no teste de trial do TISS (aviso "Convênios faz parte das assinaturas
+ativas"). A repetição passou limpa. Sem causa atribuída, e vai para o acompanhamento do R51. Nas
+sondas da UI de hoje: 0 ocorrência. Isso não encerra a causa histórica.
 
 ## 26. Riscos e decisões
 
