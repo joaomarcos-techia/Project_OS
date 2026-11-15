@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { Settings } from 'lucide-react';
 
-import { requireUser } from '@/lib/auth/tenant-context';
+import { requirePageUser } from '@/lib/auth/page-guard';
 import { PageHeader } from '@/components/ui/page-header';
 
 import { SettingsGroupSection } from './settings-category';
@@ -26,7 +26,7 @@ export const dynamic = 'force-dynamic';
  * continua em cada rota de destino.
  */
 export default async function ConfiguracoesPage() {
-  const user = await requireUser();
+  const user = await requirePageUser();
   const groups = visibleSettingsNavigation(
     user.permissions,
     user.isSuperAdmin && user.aal === 'aal2',

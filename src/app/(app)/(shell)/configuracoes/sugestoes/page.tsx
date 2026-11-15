@@ -4,7 +4,8 @@ import { Lightbulb } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
-import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
+import { requirePageUser } from '@/lib/auth/page-guard';
+import { requireClinicId } from '@/lib/auth/tenant-context';
 import { listOwnFeedbackSuggestions } from '@/contexts/feedback/internal/suggestions';
 import { getClinicTimezone } from '@/contexts/tenancy/queries';
 
@@ -28,7 +29,7 @@ const STATUS: Record<
 };
 
 export default async function SugestoesPage() {
-  const user = await requireUser();
+  const user = await requirePageUser();
   const clinicId = await requireClinicId();
   const [suggestions, timeZone] = await Promise.all([
     listOwnFeedbackSuggestions(clinicId, user.userId),

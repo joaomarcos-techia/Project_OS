@@ -7,7 +7,8 @@ import type { Metadata } from 'next';
  */
 import { listProcedures } from '@/contexts/scheduling/queries';
 import { PERMISSIONS } from '@/lib/auth/permissions';
-import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
+import { requirePageUser } from '@/lib/auth/page-guard';
+import { requireClinicId } from '@/lib/auth/tenant-context';
 import { Alert } from '@/components/ui/alert';
 import { PageHeader } from '@/components/ui/page-header';
 
@@ -18,7 +19,7 @@ export const metadata: Metadata = { title: 'Procedimentos' };
 export const dynamic = 'force-dynamic';
 
 export default async function ProcedimentosPage() {
-  const user = await requireUser();
+  const user = await requirePageUser();
   const clinicId = await requireClinicId();
 
   if (!user.permissions.includes(PERMISSIONS.MANAGE_PROCEDURES)) {

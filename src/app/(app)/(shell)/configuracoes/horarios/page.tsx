@@ -9,7 +9,8 @@ import { listEmployees } from '@/contexts/identity/queries';
 import { administersTeamSchedule } from '@/contexts/scheduling/internal/availability-scope';
 import { listDoctorAvailability, listHolidays } from '@/contexts/scheduling/queries';
 import { PERMISSIONS } from '@/lib/auth/permissions';
-import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
+import { requirePageUser } from '@/lib/auth/page-guard';
+import { requireClinicId } from '@/lib/auth/tenant-context';
 import { Alert } from '@/components/ui/alert';
 import { PageHeader } from '@/components/ui/page-header';
 
@@ -20,7 +21,7 @@ export const metadata: Metadata = { title: 'Horários de atendimento' };
 export const dynamic = 'force-dynamic';
 
 export default async function HorariosPage() {
-  const user = await requireUser();
+  const user = await requirePageUser();
   const clinicId = await requireClinicId();
 
   if (!user.permissions.includes(PERMISSIONS.MANAGE_AVAILABILITY)) {

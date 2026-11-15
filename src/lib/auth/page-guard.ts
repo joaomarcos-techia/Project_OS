@@ -106,3 +106,21 @@ export async function resourceGate(
   const gate = await pageGate(perms);
   return gate.allowed ? { user: gate.user, clinicId: gate.clinicId } : null;
 }
+
+/**
+ * Usuário da página, sem lançar: o mesmo `authenticate()` de `requireUser()` (cache por
+ * request), mas sessão expirada, revogada ou desativada vira ida ao /login, não `AuthError`.
+ *
+ * POR QUÊ (OBS-001, reaberto em 15/11/2026): uma Server Action chamada com a sessão já morta
+ * faz o Next renderizar a página de novo na resposta. Se o render chama `requireUser()`, o
+ * `AuthError` ganha a corrida do `redirect('/login')` do layout e a tela vira "Algo deu
+ * errado" (erro 500 e Sentry). O Dashboard já evitava com `getCurrentUser()` + redirect; o
+ * agente TISS reproduziu o caso no Preview, em Convênios. É o substituto direto de
+ * `requireUser()` no render das páginas que não passam por `pageGate`. Server Actions e o
+ * core continuam com `requireUser()`: lá a sessão morta tem de virar erro de autorização.
+ */
+export async function requirePageUser(): Promise<CurrentUser> {
+  const result = await authenticate();
+  if (!result.ok) redirect('/login');
+  return result.identity;
+}

@@ -8,7 +8,8 @@ import { listPatientCards } from '@/contexts/patient/queries';
 import { listProcedures, listWaitlistEntries } from '@/contexts/scheduling/queries';
 import { getClinicTimezone } from '@/contexts/tenancy/queries';
 import { PERMISSIONS } from '@/lib/auth/permissions';
-import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
+import { requirePageUser } from '@/lib/auth/page-guard';
+import { requireClinicId } from '@/lib/auth/tenant-context';
 
 import { getAgendaData } from '../data';
 import { WaitlistManager } from './waitlist-manager';
@@ -18,7 +19,7 @@ export const metadata: Metadata = { title: 'Lista de espera' };
 export const dynamic = 'force-dynamic';
 
 export default async function ListaEsperaPage() {
-  const user = await requireUser();
+  const user = await requirePageUser();
   const clinicId = await requireClinicId();
   // AUTHZ-002 — a fila mostra paciente/profissional da agenda. Com
   // `view:agenda` negada o loader compartilhado devolveria roster vazio; negar

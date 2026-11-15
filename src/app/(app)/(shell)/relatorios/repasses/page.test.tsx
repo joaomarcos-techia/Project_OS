@@ -19,6 +19,12 @@ vi.mock('@/contexts/billing/api', () => ({
   billingApiV1: { hasAdvancedFinancialPolicies: mocks.hasAdvancedFinancialPolicies },
 }));
 vi.mock('next/link', () => ({ default: (props: ComponentProps<'a'>) => <a {...props} /> }));
+// A página lê o usuário por `requirePageUser` (sessão morta vai para /login, OBS-001). Aqui ele
+// delega ao `requireUser` simulado, para os cenários continuarem os mesmos; o redirecionamento
+// tem teste próprio em `src/lib/auth/page-guard.test.ts`.
+vi.mock('@/lib/auth/page-guard', () => ({
+  requirePageUser: async () => (await import('@/lib/auth/tenant-context')).requireUser(),
+}));
 vi.mock('@/lib/auth/tenant-context', () => ({
   requireUser: mocks.requireUser,
   requireClinicId: mocks.requireClinicId,

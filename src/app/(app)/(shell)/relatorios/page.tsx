@@ -11,7 +11,8 @@ import type { ReactNode } from 'react';
 
 import { billingApiV1 } from '@/contexts/billing/api';
 import { getCurrentPractitioner } from '@/contexts/identity/internal/practitioner';
-import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
+import { requirePageUser } from '@/lib/auth/page-guard';
+import { requireClinicId } from '@/lib/auth/tenant-context';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { buttonVariants } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -46,7 +47,7 @@ export default async function RelatoriosPage({
 }: {
   searchParams: Promise<{ periodo?: string }>;
 }) {
-  const user = await requireUser();
+  const user = await requirePageUser();
   const clinicId = await requireClinicId();
   const { periodo } = await searchParams;
   const period = resolvePeriod(periodo);

@@ -6,7 +6,8 @@ import { Alert } from '@/components/ui/alert';
 import { PageHeader } from '@/components/ui/page-header';
 import { buttonVariants } from '@/components/ui/button';
 import { PERMISSIONS } from '@/lib/auth/permissions';
-import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
+import { requirePageUser } from '@/lib/auth/page-guard';
+import { requireClinicId } from '@/lib/auth/tenant-context';
 
 import { FornecedoresView } from './fornecedores-view';
 
@@ -15,7 +16,7 @@ export const metadata: Metadata = { title: 'Fornecedores' };
 export const dynamic = 'force-dynamic';
 
 export default async function FornecedoresPage() {
-  const user = await requireUser();
+  const user = await requirePageUser();
   await requireClinicId();
 
   if (!user.permissions.includes(PERMISSIONS.VIEW_FINANCIAL) || !user.clinicId) {

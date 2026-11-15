@@ -7,7 +7,8 @@ import type { Metadata } from 'next';
 import { getProfessionalProfile } from '@/contexts/identity/queries';
 import { getClinicProfile } from '@/contexts/tenancy/queries';
 import { PERMISSIONS } from '@/lib/auth/permissions';
-import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
+import { requirePageUser } from '@/lib/auth/page-guard';
+import { requireClinicId } from '@/lib/auth/tenant-context';
 import { Alert } from '@/components/ui/alert';
 import { PageHeader } from '@/components/ui/page-header';
 
@@ -19,7 +20,7 @@ export const metadata: Metadata = { title: 'Perfil da clínica' };
 export const dynamic = 'force-dynamic';
 
 export default async function PerfilPage() {
-  const user = await requireUser();
+  const user = await requirePageUser();
   const clinicId = await requireClinicId();
 
   if (!user.permissions.includes(PERMISSIONS.MANAGE_SETTINGS)) {

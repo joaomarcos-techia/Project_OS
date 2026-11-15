@@ -17,7 +17,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { PERMISSIONS } from '@/lib/auth/permissions';
-import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
+import { requirePageUser } from '@/lib/auth/page-guard';
+import { requireClinicId } from '@/lib/auth/tenant-context';
 import { withQueryDeadline } from '@/lib/db/query-timeout';
 import { formatBRL } from '@/lib/format';
 
@@ -32,7 +33,7 @@ export default async function RepassesPage({
 }: {
   searchParams: Promise<{ mes?: string }>;
 }) {
-  const user = await requireUser();
+  const user = await requirePageUser();
   const clinicId = await requireClinicId();
   const canManagePayouts = user.permissions.includes(PERMISSIONS.MANAGE_FINANCIAL);
   const ownOnly = !canManagePayouts && (await getCurrentPractitioner());

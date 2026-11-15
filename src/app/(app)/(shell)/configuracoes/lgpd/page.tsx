@@ -5,12 +5,8 @@ import { listEmployees } from '@/contexts/identity/queries';
 import { listLgpdRequestHistory, listLgpdRequests } from '@/contexts/patient/queries';
 import { getClinicTimezone } from '@/contexts/tenancy/queries';
 import { PERMISSIONS } from '@/lib/auth/permissions';
-import {
-  AuthError,
-  requireClinicId,
-  requireFreshPermission,
-  requireUser,
-} from '@/lib/auth/tenant-context';
+import { requirePageUser } from '@/lib/auth/page-guard';
+import { AuthError, requireClinicId, requireFreshPermission } from '@/lib/auth/tenant-context';
 
 import { LgpdWorkQueue } from './lgpd-work-queue';
 
@@ -23,7 +19,7 @@ export default async function LgpdOperationsPage({
 }: {
   searchParams: Promise<{ solicitacao?: string }>;
 }) {
-  await requireUser();
+  await requirePageUser();
   // A lista contém dados de solicitações de titulares. Antes de qualquer query,
   // a negativa precisa ser uma tela segura — não uma exceção/Sentry esperada.
   try {

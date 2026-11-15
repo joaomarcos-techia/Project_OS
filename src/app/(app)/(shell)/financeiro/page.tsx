@@ -38,7 +38,8 @@ import {
 } from '@/components/ui/table';
 import { buttonVariants } from '@/components/ui/button';
 import { PERMISSIONS } from '@/lib/auth/permissions';
-import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
+import { requirePageUser } from '@/lib/auth/page-guard';
+import { requireClinicId } from '@/lib/auth/tenant-context';
 import { withQueryDeadline } from '@/lib/db/query-timeout';
 import { formatBRL } from '@/lib/format';
 import { cn } from '@/lib/ui/cn';
@@ -57,7 +58,7 @@ const isStatus = (v: string | undefined): v is LancamentoStatus =>
   v === 'pendente' || v === 'parcial' || v === 'pago' || v === 'cancelado' || v === 'estornado';
 
 export default async function FinanceiroPage({ searchParams }: { searchParams: Promise<SP> }) {
-  const user = await requireUser();
+  const user = await requirePageUser();
   await requireClinicId();
 
   if (!user.permissions.includes(PERMISSIONS.VIEW_FINANCIAL) || !user.clinicId) {

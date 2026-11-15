@@ -22,7 +22,8 @@ import type {
 import { Alert } from '@/components/ui/alert';
 import { PageHeader } from '@/components/ui/page-header';
 import { PERMISSIONS } from '@/lib/auth/permissions';
-import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
+import { requirePageUser } from '@/lib/auth/page-guard';
+import { requireClinicId } from '@/lib/auth/tenant-context';
 import { withQueryDeadline } from '@/lib/db/query-timeout';
 
 import { CaixaView } from './caixa-view';
@@ -34,7 +35,7 @@ export const metadata: Metadata = { title: 'Caixa' };
 export const dynamic = 'force-dynamic';
 
 export default async function CaixaPage() {
-  const user = await requireUser();
+  const user = await requirePageUser();
   await requireClinicId();
 
   if (!user.permissions.includes(PERMISSIONS.VIEW_FINANCIAL) || !user.clinicId) {

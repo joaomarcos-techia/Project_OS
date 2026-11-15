@@ -25,7 +25,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { PERMISSIONS } from '@/lib/auth/permissions';
-import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
+import { requirePageUser } from '@/lib/auth/page-guard';
+import { requireClinicId } from '@/lib/auth/tenant-context';
 
 import { DoctorAbsenceForm } from './doctor-absence-form';
 import {
@@ -41,7 +42,7 @@ export const dynamic = 'force-dynamic';
 type SP = { profissional?: string; periodo?: string; page?: string };
 
 export default async function DoctorAbsencesPage({ searchParams }: { searchParams: Promise<SP> }) {
-  const user = await requireUser();
+  const user = await requirePageUser();
   if (!user.permissions.includes(PERMISSIONS.MANAGE_AVAILABILITY)) {
     return (
       <Alert variant="warning" title="Sem permissão">

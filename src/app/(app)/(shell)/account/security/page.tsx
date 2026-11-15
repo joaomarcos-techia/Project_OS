@@ -3,7 +3,7 @@ import Link from 'next/link';
 
 import { createServerClient } from '@/lib/auth/supabase-server';
 import { listFactors } from '@/lib/auth/mfa';
-import { requireUser } from '@/lib/auth/tenant-context';
+import { requirePageUser } from '@/lib/auth/page-guard';
 import { mustHaveMFA } from '@/lib/auth/policies';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -24,7 +24,7 @@ interface PageProps {
 
 export default async function AccountSecurityPage({ searchParams }: PageProps) {
   const params = await searchParams;
-  const user = await requireUser();
+  const user = await requirePageUser();
   const supabase = await createServerClient();
   const factors = await listFactors(supabase);
   const verified = factors.filter((f) => f.status === 'verified');
