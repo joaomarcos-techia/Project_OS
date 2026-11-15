@@ -235,4 +235,24 @@ describe('HandoffWatcher — contador da sidebar', () => {
     await poll();
     expect(getByTestId('contador').textContent).toBe('0');
   });
+
+  // Incidente de /conversas (14/11/2026, docs/otimização_ui_final.md): a resposta
+  // chegou a levar 28 s e o intervalo é de 20 s.
+  it('não dispara outra consulta enquanto a anterior não voltou', async () => {
+    let release: (value: ReturnType<typeof ok>) => void = () => undefined;
+    mocks.fetchOpenHandoffs.mockImplementationOnce(
+      () => new Promise<ReturnType<typeof ok>>((resolve) => (release = resolve)),
+    );
+    mocks.fetchOpenHandoffs.mockResolvedValue(ok());
+    render(<HandoffWatcher />);
+    await tick();
+    await poll();
+    await poll();
+    expect(mocks.fetchOpenHandoffs).toHaveBeenCalledTimes(1);
+
+    release(ok());
+    await tick();
+    await poll();
+    expect(mocks.fetchOpenHandoffs).toHaveBeenCalledTimes(2);
+  });
 });

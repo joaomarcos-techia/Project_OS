@@ -39,9 +39,15 @@ export function HandoffWatcher() {
 
   useEffect(() => {
     let cancelled = false;
+    // Uma consulta por vez (incidente de /conversas, 14/11/2026 —
+    // `docs/otimização_ui_final.md`): com o servidor lento, a resposta levou até
+    // 28 s e o intervalo de 20 s disparava outra antes da anterior voltar,
+    // empilhando trabalho no mesmo pool de conexões da tela.
+    let inFlight = false;
 
     const check = async () => {
-      if (document.visibilityState !== 'visible') return;
+      if (document.visibilityState !== 'visible' || inFlight) return;
+      inFlight = true;
       let result;
       try {
         result = await fetchOpenHandoffs();
@@ -49,6 +55,8 @@ export function HandoffWatcher() {
         // Rede instável não pode virar toast de erro: quem atende não tem o que
         // fazer com isso, e o próximo ciclo tenta de novo.
         return;
+      } finally {
+        inFlight = false;
       }
       if (cancelled) return;
       if (!result.ok) {
