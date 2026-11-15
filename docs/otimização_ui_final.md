@@ -12,8 +12,21 @@
 
 ## ESTADO ATUAL DA EXECUÇÃO
 
-- **Fase atual:** Fase 5 (implementação em lotes). Fundador autorizou commits e push desta branch
-  e o UX-006 em DEV/Preview; Production segue NO-GO.
+- **Ciclo 3 (15/11, 14h30–16h) — resumo para retomar:**
+  - **Código:** último SHA funcional `2761563c` (sessão morta → `/login`), seguido do `05e4378c`
+    (token âmbar e documento).
+  - **PR:** draft #56, só para a CI oficial. **Não fazer merge:** ele leva 3 commits do #53 (seção 32).
+  - **e2e:** `payout-review-preview` **13/13 no `2761563c`** (25.9). No `f3fd8648`: 8 PASS, 1 FAIL por
+    latência do Preview, 4 não executados.
+  - **Caixa:** chave por operação (`f5388ec9`), com 12 testes novos; 5 deles reprovam na lógica antiga.
+  - **Textos:** Equipe e LGPD dizem só o que o código garante (`f3fd8648`).
+  - **Bloqueados:** os specs `production-*`, por política (9 testes listados), e o `mutation-flows`, pela
+    RAM.
+  - **Achados de plataforma (seção 33):** S-01, o console lê conversas da IA sem sessão de suporte e
+    sem auditoria; S-02, o middleware responde 307 ao POST de action sem cookie.
+  - **Conflitos UI × TISS:** 8 arquivos (31.R).
+- **Fase atual:** Fase 5 (implementação em lotes). O fundador autorizou commits e push desta branch,
+  o PR draft da UI para CI e o UX-006 em DEV/Preview. Production segue NO-GO.
 - **Lote atual:** Lote 2 **fechado e validado** (15/11, 03h45): UX-006 (foco e anúncio), UX-011
   Dashboard, UX-014 humanização, UX-012 ações no celular (Agenda dobra em 1024 px, Relatórios em
   768 px), UX-015 título do Caixa, UX-016 sem resumo em Conversas, UX-019 modelos de receita;
@@ -33,15 +46,22 @@
   `ux016-probe.ts`/`ux016b-probe.ts` — ver fichas.
 - **Testes pendentes:** NVDA manual; e2e seguros contra o servidor local (`authenticated-readonly-
   routes` exige `E2E_USER_*`); CI do GitHub ao publicar.
-- **Bloqueios:** `/admin/*` exige super_admin com MFA; integração TISS depende do rebase do #55
-  (UI entra primeiro); AbacatePay depende do merge da #53; trava do Asaas (P-13) e limpeza de disco
-  fora deste worktree (P-14) dependem do fundador.
+- **Bloqueios:**
+  - `/admin/*` exige super_admin com MFA.
+  - Ordem de integração revista no ciclo 3: **#53 → UI → #55**. A UI carrega 3 commits do #53, então
+    não entra antes dele (seção 32).
+  - Dependem do fundador: a trava do Asaas (P-13) e a limpeza de disco fora deste worktree (P-14).
 - **Riscos ativos:** limite de login de 10 por IP a cada 15 min dividido com a jornada do TISS;
   RAM da máquina (0,3–0,8 GB livres) — combinar janelas com o TISS antes de jornadas pesadas.
-- **Próxima ação exata:** (1) publicar a branch e acompanhar o Preview/CI; (2) UX-012 no Financeiro
-  depois do rebase do #55; (3) UX-TISS-001/005/006 depois do rebase; (4) UX-018 restante e
-  inventário de modais/drawers (P2.3–P2.4); (5) nota de Equipe e origem do pagamento na linha do Caixa
-  dependem do fundador/dados.
+- **Próxima ação exata (ciclo 3):**
+  1. Ler a CI do PR #56. Uma falha fora da UI fica registrada, sem corrigir o que é de outro PR; por
+     exemplo, a auditoria de dependência, que também reprova o #53 e o #55.
+  2. Rodar a sonda `.tmp/ui-audit/ciclo3-probe.ts` (1 login) no Preview do `05e4378c`: Financeiro
+     em 5 larguras, menu por teclado, mouse e toque, Dashboard, cabeçalhos de Conversas e Documentos e
+     o login.
+  3. Fazer a auditoria item a item de gavetas e diálogos (25.8).
+  4. UX-TISS-001/005/006 depois do rebase do #55.
+  5. Dependem do fundador: S-01, S-02, P-13/bypass e UX-020.
 - **Arquivos que devem ser lidos para continuar:** este documento; `docs/design/CONTRACT.md`;
   `docs/design/COMPONENT-DECISIONS.md`; `src/components/ui/field.tsx`;
   `src/components/ui/page-actions.tsx`; o handoff do TISS (`git show
@@ -1813,6 +1833,11 @@ Não rodei de novo, porque as condições não mudaram.
 | 15/11/2026 08h10 | UX-015 (nomes, D-07) | Ações de pagamento do Caixa nomeadas pelo que registram; atalho do dinheiro com ícone e peso menor; texto da política de sinal e 10 specs e2e alinhados | Caixa 48/48, Pagamentos e contratos 83/83; ESLint 0; `tsc` 0; navegador em 1440 e 375 sem nomes antigos | `5f6967c2`; `evidence/2026-11-15/caixa/` |
 | 15/11/2026 12h20–13h30 | Regressão do Caixa (25.7) | Preview `23d0c648` validado (prova assinada PASS, Asaas sandbox); `payout-review-preview` 13/13 no Preview (teste 11 com limite próprio, `506649bc`); `mutation-flows` BLOQUEADO por ambiente (0,01 GB livres); 6 `production-*` BLOQUEADOS por política; defeito de rede/idempotência corrigido (`b3ce5501`); especificação UX-020 (origem da movimentação) | Caixa 50/50; domínio financeiro 262/262; ESLint 0; `tsc` 0 | `evidence/2026-11-15/preview/`, `e2e/` |
 | 15/11/2026 13h30–14h | UX-014, UX-012, UX-018 | Equipe sem o cartão "Super admin" e com nota de acesso do suporte (`38fcf391`); fila LGPD com "prazo legal" (`f7f3e5eb`); Financeiro com `PageActions` (`26e55130`); links legais do login com 24 px (`156178a0`) | LGPD/Equipe 14/14; Financeiro 21/21; contrato de alvos 4/4; ESLint 0; `tsc` 0 | fichas |
+| 15/11/2026 14h30–15h05 | UX-015 (P0.3), UX-014 (P1.5) | Chave de idempotência por operação (só o sucesso encerra; "em processamento" e erro genérico mantêm a chave; mensagem de resultado desconhecido); textos de Equipe e LGPD restritos ao que o código garante | Caixa 60/60, financeiro 262/262 (322); LGPD/Equipe 14/14; 5 dos 12 testes novos reprovam na lógica antiga; `tsc` 0; ESLint 0 | `f5388ec9`, `f3fd8648`; 25.9 |
+| 15/11/2026 15h06–15h37 | Regressão e2e (P0.4–P0.5) | `payout-review-preview`: rodada 1 no `f3fd8648` com 8 PASS, 1 FAIL por latência (11,4 s) e 4 não executados; rodada 2 no `2761563c` com **13/13** | traces e JSON em `evidence/2026-11-15/e2e/` | 25.9 |
+| 15/11/2026 15h10–15h25 | OBS-001 (P2.3) | `requirePageUser()` em 17 páginas do shell; contrato estático; `assinatura` fica para o #53 | page-guard e páginas 47/47; `tsc` 0; ESLint 0 | `2761563c`; 33 (S-03) |
+| 15/11/2026 15h30–15h38 | A-01 (P1.8), documento | Token âmbar base 4,45 → 4,86:1; seções 25.9, 31.R, 32 e 33 | contraste 4/4 | `05e4378c` |
+| 15/11/2026 15h39 | P1.1 | PR draft #56 para a CI oficial (base `main`, sem merge); automações conferidas antes: CI com valores falsos, ADR (aviso), Vercel Preview, Snyk, Semgrep; nenhuma com efeito em Production | CI em andamento ao abrir | PR #56 |
 
 ## 28. Pendências e bloqueios
 
@@ -1832,8 +1857,12 @@ Não rodei de novo, porque as condições não mudaram.
 | P-12 | Massa de teste com fila do dia no Consultório e atendimentos de hoje na Agenda, para auditar esses estados com dados (escrita no DEV, clínica de teste) | aprovação | fundador |
 | P-13 | **Trava do Asaas de produção fora da Production** (00.5, P0.1): proposta pronta; aplicar no `env.ts` exige coordenação com a PR #53 | coordenação | agente do billing/payments |
 | P-14 | Limpeza de disco fora deste worktree (00.5, P0.3): `.next` de ~12 worktrees já na `main` (~16 GB), `dist` de 10,3 GB no worktree do billing, worktrees integrados | decisão | fundador (e agente do billing para o `dist`) |
-| P-15 | Regenerar `docs/security/acoes.md` (`inventory.ts --write`) no commit de integração depois da #53 — o portão `security:inventory --check` falha nesta branch desde a base (ações do billing) e agora inclui `criarPacienteRapido` (UX-006) | integração | esta frente, no merge |
-| P-16 | Conflitos previstos na integração com a #55: `agenda/new-appointment-drawer.tsx`, `agenda/data.ts`, `pacientes/[id]/page.tsx`; com a #53: `modelos-receita/templates-manager.tsx` | integração | esta frente + agentes TISS e billing |
+| P-15 | **Regenerado nesta branch no ciclo 3** (inventário sem nenhuma superfície `REVIEW_REQUIRED`; diff revisado: ações do trial vindas do #53, `criarPacienteRapido`, perfil do WhatsApp, rota de destino do cadastro e números de linha). Regenerar de novo depois de cada rebase. Texto original: regenerar `docs/security/acoes.md` (`inventory.ts --write`) no commit de integração depois da #53 — o portão `security:inventory --check` falha nesta branch desde a base (ações do billing) e agora inclui `criarPacienteRapido` (UX-006) | integração | esta frente, no merge |
+| P-16 | Conflitos na integração. Com a #55, simulados no ciclo 3 contra `0206d7d1`: **8 arquivos**, com a resolução proposta em 31.R; o de regra financeira é `financeiro/page.tsx`, que fica com `valorGlosado`. Com a #53: 124 arquivos em comum vindos dos 3 commits do billing na base; `modelos-receita/templates-manager.tsx` | integração | esta frente + agentes TISS e billing |
+| P-17 | S-01: leitura de conversas da IA no console da plataforma sem sessão de suporte e sem auditoria de leitura (33) | segurança/privacidade | fundador / plataforma |
+| P-18 | S-02: middleware com 307 no POST de Server Action sem cookie; proposta de não redirecionar `next-action` pede revisão de segurança (33) | plataforma | fundador / plataforma |
+| P-19 | Corrida residual do Caixa depois de recarregar a página com a 1ª requisição ainda no servidor; proposta `valorPagoEsperado` em `confirmPayment` (25.9) | contrato financeiro | domínio financeiro |
+| P-20 | Latência de Server Action no Preview, de 11,4 s (seção 33): precisa dos logs da Vercel/Supabase | observabilidade | plataforma |
 
 ## 29. Estado de execução
 
@@ -1991,5 +2020,5 @@ middleware ou regra financeira.
 | S-02 | `src/middleware.ts` responde 307 → `/login` a qualquer requisição sem cookie de sessão, inclusive o POST de Server Action. O cliente do Next lança e a fronteira de erro mostra "Algo deu errado…" (achado do TISS no Preview) | relato do TISS | Qualquer formulário depois de sair em outra aba vira erro aparente e vai para o Sentry | Caixa: a exceção cai no `catch` do `run` (mensagem de resultado desconhecido; repetir é seguro). Proposta, não aplicada: o middleware não redirecionar requisições com `next-action`, já que as actions exigem sessão por conta própria. **Exige revisão de segurança** e vale para todas as actions | fundador / plataforma |
 | S-03 | 17 páginas do shell liam o usuário com `requireUser()` no render. Sessão morta + Server Action dava "Algo deu errado" (OBS-001 reaberto) | mecanismo já documentado no Dashboard e no `page-guard`; o TISS reproduziu em Convênios | Erro 500 e Sentry numa revogação normal | **Corrigido (`2761563c`)**: `requirePageUser()` (mesmo `authenticate()`, redireciona) e contrato estático em `page-guard.test.ts`. `configuracoes/assinatura` fica para o #53 (seção 32) | UI (feito) |
 | A-01 | Badge e Alert âmbar: `--warning-700` sobre `--warning-50` no `:root` dava **4,45:1**, abaixo do AA de texto pequeno (4,5:1). O axe do TISS mediu 4,44:1 | cálculo a partir do `globals.css` | AA fora do shell v5 (console da plataforma, telas sem `data-qoro-tokens='app-v5'`) | **Corrigido**: `:root --warning-700` de `oklch(0.56 …)` para `oklch(0.54 0.11 58)` = 4,86:1 sobre o âmbar e 5,26:1 sobre o branco. No shell v5 o par já passava (6,78:1 claro, 9,17:1 escuro). Contrato em `src/app/contrast-tokens.test.ts` | UI (feito) |
-| P-15 | Latência de Server Action no Preview: "Salvar permissões (2)" levou 11,4 s na 2ª gravação (a 1ª, 2,0 s); o ciclo 2 teve a mesma assinatura no consentimento | trace `e2e/traces-f3fd8648/` | Testes de Preview reprovam por tempo sem regressão; a pessoa espera mais de 10 s sem retorno | Registrado; timeout **não** alterado. Precisa dos logs da Vercel/Supabase, não lidos aqui | plataforma |
+| P-20 | Latência de Server Action no Preview: "Salvar permissões (2)" levou 11,4 s na 2ª gravação (a 1ª, 2,0 s); o ciclo 2 teve a mesma assinatura no consentimento | trace `e2e/traces-f3fd8648/` | Testes de Preview reprovam por tempo sem regressão; a pessoa espera mais de 10 s sem retorno | Registrado; timeout **não** alterado. Precisa dos logs da Vercel/Supabase, não lidos aqui | plataforma |
 | P-13 | O `.env.local` do checkout principal tem credenciais Asaas de Production. Este worktree usa sandbox | ciclo 2 | Teste acidental com chave live | Mantido documentado. O bypass do Preview segue lido de lá, só no processo e sem imprimir. Forma autorizada proposta: o fundador grava `VERCEL_AUTOMATION_BYPASS_SECRET` no `.env.local` deste worktree (fora do Git), e as sondas deixam de ler o checkout principal | fundador |
