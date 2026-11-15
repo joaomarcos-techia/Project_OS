@@ -8,6 +8,11 @@
  * (docs/decoupling/asaas-to-abacatepay/migrations/, tissDependencies e financialEntry/financialSql);
  * a 0159 está aplicada no DEV com esse hash e esse `created_at` desde 13/11, e a 0160 desde 14/11.
  *
+ * A cauda inteira do #55 (0143–0158) é fixada, não só as pontas: o release do #53 congela esses 16
+ * arquivos a partir do commit `tissHead` do seu release-manifest.json (4d0ed1d5, conferido byte a
+ * byte em 14/11). Editar qualquer um deles aqui faria o lançamento do #53 levar à produção uma versão
+ * diferente da do #55, e o guarda só recusaria no lançamento do TISS; com o pino, a CI recusa já no PR.
+ *
  * Mudar um valor aqui é mudar uma migration já aplicada no DEV: só com nova coordenação
  * (docs/convenios/coordenacao-migrations.md).
  */
@@ -89,12 +94,124 @@ export const MIGRATION_COMPOSITION_MANIFEST: CompositionManifest = {
       sentinel: 'relation:public.tiss_terminology_versions',
     },
     {
+      tag: '0144_hi_clinic_setup',
+      idx: 144,
+      when: 1794367436665,
+      sha256: 'b9ac6c7a0b335582f3bf69385a3b004cf9d0784955f27d7c3cd22776a4590589',
+      owner: 'PR #55 (convênios)',
+      requires: ['0143_tiss_catalog'],
+    },
+    {
+      tag: '0145_hi_memberships',
+      idx: 145,
+      when: 1794391493822,
+      sha256: '98425850e4c2dae613734aa337ce588df641e5c3b67476c055147cb9c82632c4',
+      owner: 'PR #55 (convênios)',
+      requires: ['0144_hi_clinic_setup'],
+    },
+    {
+      tag: '0146_hi_authorizations',
+      idx: 146,
+      when: 1794395869610,
+      sha256: '15cbf34c1439cc1d7a0ca4be40267729b44c1cdea1760d5090deb10288493cb6',
+      owner: 'PR #55 (convênios)',
+      requires: ['0145_hi_memberships'],
+    },
+    {
+      tag: '0147_hi_guides',
+      idx: 147,
+      when: 1794399173366,
+      sha256: 'a344a7e86074d90a4b13b007ef6f9e3357ac23e3b8bc43743158d131ca45238a',
+      owner: 'PR #55 (convênios)',
+      requires: ['0146_hi_authorizations'],
+    },
+    {
+      tag: '0148_hi_coverage_copay',
+      idx: 148,
+      when: 1794405160338,
+      sha256: '45f0b90b9307c5888e8e0ac61fab9685561f89a62cdf54ea60d2bd3becfdcb0b',
+      owner: 'PR #55 (convênios)',
+      requires: ['0147_hi_guides'],
+    },
+    {
+      tag: '0149_hi_billing_gaps',
+      idx: 149,
+      when: 1794416643149,
+      sha256: '56c0d5f29a409b65e0fe4fc1ac7512bbd8c979150c2252e375a375b85139d183',
+      owner: 'PR #55 (convênios)',
+      requires: ['0148_hi_coverage_copay'],
+    },
+    {
+      tag: '0150_hi_batches',
+      idx: 150,
+      when: 1794418524711,
+      sha256: 'e7dc279a073501a4f2e03dd95ff9773564cbc690ea2591a3e94a03f9a273c992',
+      owner: 'PR #55 (convênios)',
+      requires: ['0149_hi_billing_gaps'],
+    },
+    {
+      tag: '0151_hi_premium_gate',
+      idx: 151,
+      when: 1794432173857,
+      sha256: 'a0e446dbce4121c538c4a3e206a406e0977d5d1729ed14b03417a3937b71ae0b',
+      owner: 'PR #55 (convênios)',
+      requires: ['0150_hi_batches'],
+    },
+    {
+      tag: '0152_hi_glosses_payments',
+      idx: 152,
+      when: 1794518573857,
+      sha256: 'f16efcaabf8ed205b102005883c8627d3f1037edbcd91908f1d700123720766a',
+      owner: 'PR #55 (convênios)',
+      requires: ['0151_hi_premium_gate'],
+    },
+    {
+      tag: '0153_hi_ledger_bridge',
+      idx: 153,
+      when: 1794604973857,
+      sha256: 'ebb976532db49b2d36947cd5c37724a6b6b9c85713e2f92818fcefc992b23378',
+      owner: 'PR #55 (convênios)',
+      requires: ['0152_hi_glosses_payments'],
+    },
+    {
+      tag: '0154_hi_premium_period_evidence',
+      idx: 154,
+      when: 1794691373857,
+      sha256: '3e493911867aa5cf1157ee083a451a9bd1f86a084f371d36da5312d08676925a',
+      owner: 'PR #55 (convênios)',
+      requires: ['0153_hi_ledger_bridge'],
+    },
+    {
+      tag: '0155_ledger_payment_sum_by_clinic',
+      idx: 155,
+      when: 1794777773857,
+      sha256: 'aecc5c2d0b7cf36a3dbdcf7331d4247077acf8c7466cbc853e2d40dc905e1d33',
+      owner: 'PR #55 (convênios)',
+      requires: ['0154_hi_premium_period_evidence'],
+    },
+    {
+      tag: '0156_hi_sadt_requests',
+      idx: 156,
+      when: 1794864173857,
+      sha256: 'cdf3004b15a8a09d6e8f2065bf42be39a05b979eb4d12cd8a5ac1d32b492f860',
+      owner: 'PR #55 (convênios)',
+      requires: ['0155_ledger_payment_sum_by_clinic'],
+    },
+    {
+      tag: '0157_hi_professional_payouts',
+      idx: 157,
+      when: 1794950573857,
+      sha256: 'f39a58d0401b3d221b03cbe0b41c9f4b530947d0f03b4b3564929e11349b5f15',
+      owner: 'PR #55 (convênios)',
+      requires: ['0156_hi_sadt_requests'],
+    },
+    {
       tag: '0158_hi_copay_charge',
       idx: 158,
       when: 1795036973857,
       sha256: '40cc90493b5abf980c209485c83451f33c4cfc5931b87f3af7653f2091af63a2',
       owner: 'PR #55 (convênios)',
-      requires: [],
+      requires: ['0157_hi_professional_payouts'],
       sentinel: 'function:public.hi_copay_sync_charge(uuid,uuid)',
     },
     {

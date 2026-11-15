@@ -79,6 +79,44 @@ export interface CompositionCheck {
   allowances?: readonly CompositionAllowance[];
 }
 
+/**
+ * Limites do pré-voo contra um banco real. `SET LOCAL` vale só dentro da transação: nada fica na
+ * sessão do pooler (o vazamento de `SET` de sessão já aconteceu em 29/09).
+ */
+export const READ_ONLY_CHECK_LIMITS = {
+  statementTimeout: '15s',
+  lockTimeout: '2s',
+  idleInTransactionTimeout: '30s',
+} as const;
+
+/** Rótulo da conexão do pré-voo (aparece em `pg_stat_activity`, para interromper com segurança). */
+export const READ_ONLY_CHECK_APPLICATION_NAME = 'qoro-migrate-composition-check';
+
+/**
+ * O guarda contra o banco-alvo DENTRO de uma transação `READ ONLY` aberta por quem chama
+ * (`client.begin('READ ONLY', (tx) => checkCompositionInReadOnlyTx(tx, ...))`).
+ *
+ * Fail-closed: confere `transaction_read_only = on` antes de qualquer leitura e recusa se não
+ * estiver; com isso o PRÓPRIO Postgres recusa qualquer escrita (SQLSTATE 25006), não só o código
+ * deste guarda. As únicas consultas são as de `readLedger` e `readPresentSentinels` (SELECT,
+ * `to_regclass`/`to_regprocedure`) e os `SET LOCAL` dos limites acima.
+ */
+export async function checkCompositionInReadOnlyTx(
+  tx: ReadOnlySql,
+  check: Omit<CompositionCheck, 'sql'>,
+): Promise<CompositionPlan> {
+  const [mode] = await tx.unsafe(`select current_setting('transaction_read_only') as ro`);
+  if (mode?.ro !== 'on') {
+    throw new Error('pré-voo de composição fora de transação READ ONLY: recusado');
+  }
+  await tx.unsafe(`set local statement_timeout = '${READ_ONLY_CHECK_LIMITS.statementTimeout}'`);
+  await tx.unsafe(`set local lock_timeout = '${READ_ONLY_CHECK_LIMITS.lockTimeout}'`);
+  await tx.unsafe(
+    `set local idle_in_transaction_session_timeout = '${READ_ONLY_CHECK_LIMITS.idleInTransactionTimeout}'`,
+  );
+  return checkComposition({ ...check, sql: tx });
+}
+
 /** Lê tudo, planeja e RECUSA (lança) se sobrar problema depois das exceções explícitas. */
 export async function checkComposition(check: CompositionCheck): Promise<CompositionPlan> {
   const journal = readJournalWithHashes(check.folder);

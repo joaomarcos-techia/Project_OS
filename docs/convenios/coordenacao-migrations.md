@@ -314,7 +314,61 @@ Drizzle aplicaria fora de ordem ou pularia uma migration.
 4. Autorização formal do fundador para migrar produção. `db-migrate-prod.ts` repete o guarda dentro do lock e
    confere que nada ficou pendente.
 
-## 14. Backup gerenciado do Supabase: por que o 401
+## 14. Backup gerenciado do Supabase: ativado, garantias a verificar
+
+**Estado em 14/11 (fim da noite):** o backup gerenciado está **ativado**, informado pelo responsável pelo projeto. Isso é diferente
+de uma verificação técnica: ninguém conferiu, nesta sessão, o tipo, a última execução, a retenção nem uma restauração.
+O status oficial **não** é "backup restaurável validado".
+
+**O que este agente conseguiu verificar em 14/11 (fim da noite), e por que não mais:**
+
+- Management API: o token pessoal local é recusado (401, diagnóstico abaixo). Pela orientação de 14/11 (fim da noite), nenhum token
+  novo foi pedido.
+- Painel do Supabase: esta sessão não tem acesso ao painel (nenhum navegador conectado com a conta do titular).
+- O cofre de credenciais do Windows: a leitura foi negada pelo controle de permissões e não foi tentada de novo.
+- Banco de produção: acesso não autorizado neste ciclo. Ele só daria sinais indiretos, como `pg_stat_archiver`, e não
+  substitui o painel.
+
+**O que a documentação oficial garante** ([Database Backups](https://supabase.com/docs/guides/platform/backups),
+lida em 14/11):
+
+- Backup diário nos planos Pro, Team e Enterprise, com retenção de 7, 14 e até 30 dias. O plano Free não tem.
+- Em Postgres `15.8.1.079` ou mais novo, o diário é físico.
+- PITR é um add-on (retenção de 7, 14 ou 28 dias; WAL a cada ~2 min, pior RPO de ~2 min). **Ativar o PITR desliga o
+  diário**: "backup ativado" não diz qual dos dois vale.
+- Restauração pelo painel, com confirmação. O projeto fica inacessível durante a restauração e a restauração
+  **sobrescreve** o banco atual. Para preservar o estado atual, restaurar num projeto novo.
+- Não entram no backup: objetos do Storage (só os metadados) e **senhas de papéis customizados**. Depois de uma
+  restauração, os papéis próprios do Qoro com login precisam ter a senha redefinida.
+- API: `GET /v1/projects/{ref}/database/backups` lista os backups; `POST .../restore-pitr` restaura (não usar sem
+  autorização).
+
+| Item | Estado | Evidência | Pendência |
+| --- | --- | --- | --- |
+| Backup ativado | Informado pelo responsável | Confirmação recebida em 14/11 (fim da noite) | Verificação técnica pelo painel (Database › Backups) |
+| Projeto e ambiente | A verificar | ref de produção conhecido localmente | Conferir que a tela é a do projeto de produção, não a do DEV |
+| Tipo (diário ou PITR) | A verificar | Docs: PITR desliga o diário | Painel: abas de backups agendados e de point in time |
+| Frequência | A verificar | Docs: diária, ou WAL contínuo com PITR | Idem |
+| Última execução e estado | A verificar | — | Data e estado do backup mais recente, no painel |
+| Retenção | A verificar | Docs: 7/14/30 dias por plano; PITR 7/14/28 | Plano e add-on contratados |
+| Restauração | Gerenciada: não validada. Lógica: validada no DEV | §12: dump lógico restaurado com o mesmo md5 do pré-voo (14/11), ensaio 4/4 | Ensaio do gerenciado planejado à parte (abaixo), só com autorização |
+| PITR | A verificar (não presumido) | — | Painel / add-ons |
+| Procedimento de recuperação | Oficial documentado | Docs acima | Runbook do Qoro: quem aprova, quem executa, senhas dos papéis, Storage, webhooks |
+| Permissões administrativas | Conhecidas em parte | A restauração é feita no painel por quem administra o projeto | Nomear quem executa |
+
+**Ensaio da restauração gerenciada (planejado, não executado):**
+
+- Restaurar num **projeto novo**, nunca sobre a produção, com a mesma organização e os mesmos controles de acesso.
+- Os dados clínicos não saem do Supabase: nenhum dump vai para máquina de desenvolvimento.
+- Conferir no restaurado:
+  - contagem por tabela;
+  - o ledger `drizzle.__drizzle_migrations`;
+  - RLS habilitada e forçada nas tabelas do módulo;
+  - login do papel de runtime depois de redefinir a senha.
+- Apagar o projeto ao fim, com registro.
+- Depende de autorização: envolve dado real e custo do projeto temporário.
+
+### 14.1 Por que o 401 (14/11)
 
 Diagnóstico de 14/11, só leitura, sem imprimir o token:
 
@@ -329,3 +383,132 @@ Diagnóstico de 14/11, só leitura, sem imprimir o token:
     (`scratchpad/dev-apply/supabase-backup-probe.mjs`, fora do repositório).
 - **O que vale como prova hoje:** o backup lógico com restauração verificada no DEV (seção 12) prova o procedimento.
   Ele não confirma o backup gerenciado de produção.
+
+## 15. Divergências históricas de hash no ledger do DEV (14/11, fim da noite)
+
+O guarda de composição avisa, sem bloquear, sobre 6 migrations antigas da `main` cujo hash registrado no ledger do DEV
+difere do arquivo atual. **Nada foi corrigido:** nenhum hash do ledger reescrito, nenhum arquivo editado.
+
+**Como foi classificado (só leitura):**
+
+- Hash aplicado: o registrado pelo #53 (`evidencias/recuperacao-financeira-20261111.json`), o mesmo do aviso do guarda
+  no DEV.
+- Para cada migration, foram comparados o arquivo atual em LF e em CRLF e todas as versões do histórico do git.
+- Quando nenhuma versão bate, o catálogo do DEV foi conferido numa transação `READ ONLY`: cada objeto que o arquivo
+  define existe como definido?
+
+| Migration | Hash no ledger | Hash do arquivo | Tipo | Diferença | Risco | Impacto em composições futuras |
+| --- | --- | --- | --- | --- | --- | --- |
+| 0033 `messaging_connection_status` | `62ee45d29883` | `5d4adf2be384` | Quebra de linha | Textual: aplicado com CRLF, conteúdo idêntico | Nenhum | Nenhum |
+| 0037 `profiles_invite_and_crm` | `2c534ae3507d` | `9846484ad215` | Quebra de linha | Textual: aplicado com CRLF, conteúdo idêntico | Nenhum | Nenhum |
+| 0051 `ai_conversations_panel` | `69152b982938` | `ea9e22ba96c1` | Conteúdo | Versão aplicada não está no git (2 versões testadas, LF e CRLF). Catálogo idêntico ao arquivo: coluna `ai_messages.sent_by_user_id uuid`, FK `ON DELETE RESTRICT`, 2 permissões, 7 vínculos de papel, linha de `_schema_version`. Sem efeito observável | Baixo | Nenhum |
+| 0071 `runtime_role_timeouts` | `bad37d1e907b` | `da6e590bd926` | Quebra de linha | Textual: aplicado com CRLF, conteúdo idêntico | Nenhum | Nenhum |
+| 0093 `ai_clinic_config_convenios` | `4e9c4587de28` | `92c284c71d95` | Conteúdo | Versão aplicada não está no git (2 versões testadas). Catálogo idêntico: `ai_clinic_config.convenios text[] NOT NULL DEFAULT ARRAY[]::text[]`. Sem efeito observável | Baixo | Nenhum |
+| 0124 `offer_2026_trial_deadline` | `d924aa270afd` | `a354f71adc49` | Conteúdo | Versão aplicada não está no git (1 versão). Catálogo idêntico: `subscriptions.enforce_trial_deadline boolean NOT NULL DEFAULT false` e a linha de `_schema_version`. Sem efeito observável | Baixo | Nenhum |
+
+**Atribuição:** as seis vêm da `main`, de antes do TISS. Último commit em cada arquivo:
+
+- 0033: `42cbef41` (27/06)
+- 0037: `2dda2c6e` (05/07)
+- 0051: `8f97f483` (20/07)
+- 0071: `e4bd4d93` (25/07)
+- 0093: `cff1d6e8` (30/08)
+- 0124: `75aa875b` (19/10)
+
+As três de conteúdo foram aplicadas no DEV a partir de uma versão anterior ao commit.
+
+**Impacto:**
+
+- **Migrador do Drizzle:** não compara o hash de migration aplicada, só o `created_at`. Nenhum efeito.
+- **Guarda de composição:** abaixo de `hashStrictFromIdx` (136) é aviso, e da 0136 em diante bloqueia. Nenhuma das seis
+  bloqueia.
+- **Release do #53** (`abacatepay-release-validation.ts`): aceita, para exatamente essas seis, o hash antes aplicado
+  (`acceptedHashes`). O ensaio no formato do DEV passa.
+- **Produção:** o ledger não foi lido. Se a produção tiver outra divergência abaixo da 0136, o pré-voo do #53 (que exige
+  136 linhas com hash aceito) recusa antes de migrar, falhando fechado. O guarda do TISS só avisaria. A leitura do
+  ledger de produção (§16) responde isso antes de qualquer lançamento.
+
+**Proposta:** nenhuma correção. Manter como aviso documentado e reavaliar só se o ledger de produção mostrar outra
+divergência; nesse caso, a decisão é coordenada entre os donos do #53 e do #55.
+
+## 16. Pré-voo só leitura do ledger de produção: análise e pedido de autorização (14/11, fim da noite)
+
+**Por que:**
+
+- O lançamento do #53 leva à produção 24 migrations: 0136–0159, com a cauda TISS 0143–0158 congelada do commit
+  `4d0ed1d5` do #55. Os 16 arquivos são idênticos, byte a byte, aos do HEAD atual (conferido no fim da noite de 14/11).
+- A 0160 do TISS fica para depois.
+- Ler o ledger de produção antes mostra se a base está mesmo em 0000–0135 com os hashes aceitos. Assim se evita drift
+  na integração.
+
+**Achado: o comando como estava não serviria.** Rodado do worktree do #55, `db-migrate-prod.ts --check-composition`
+recusa **antes de conectar**: o journal do #55 sozinho não tem as 0136–0142 nem a 0159, e o guarda falha fechado.
+
+O pré-voo agora lê um pacote **composto**. `scripts/security/compose-release-migrations.ts` monta, a partir do git:
+
+- main + #55, com as peças do #53 por `git show`;
+- a 0159 com o sha256 fixado;
+- o resultado passa pelo guarda antes de sair.
+
+O migrador aceita `--migrations-dir` **só** junto com `--check-composition`. Migrar de pasta fora do repositório é
+recusado.
+
+**O que o comando faz (código atual):**
+
+1. Só local, sem rede:
+   - confere que `MIGRATION_FAILED.md` não existe;
+   - roda a checagem de segurança das migrations (`DROP`/`TRUNCATE`);
+   - roda o guarda só no journal do pacote composto.
+2. Exige `SUPABASE_PROJECT_ENV=prod` e `DATABASE_URL_PROD`, ambos **na sessão do terminal**, nunca no `.env.local`.
+   Troca a porta 6543 pela 5432 (pooler de sessão).
+3. Abre **uma** conexão TLS: `max: 1`, `connect_timeout` de 15 s, `application_name = qoro-migrate-composition-check`.
+4. Faz `BEGIN READ ONLY` e confere `transaction_read_only = on`; se não estiver, recusa antes de ler. Depois,
+   `SET LOCAL statement_timeout = '15s'`, `lock_timeout = '2s'` e `idle_in_transaction_session_timeout = '30s'`.
+5. Consultas, todas `SELECT`:
+   - `to_regclass('drizzle.__drizzle_migrations')`;
+   - `select hash, created_at from drizzle.__drizzle_migrations`;
+   - uma `to_regclass`/`to_regprocedure` por sentinela do manifesto (10).
+6. Imprime: pendentes, avisos (hash histórico) ou o problema que bloquearia. Encerra a transação e a conexão.
+
+| Pergunta | Resposta |
+| --- | --- |
+| Estritamente leitura? | Sim. `BEGIN READ ONLY` imposto pelo servidor: qualquer escrita dá SQLSTATE 25006. O helper recusa rodar fora dessa transação. |
+| DDL implícito? | Não. Nenhum `CREATE`, nem do schema `drizzle`: se o ledger não existir, a leitura devolve vazio. |
+| Efeito colateral? | Nenhum no banco. Sem backup, sem `migrations.log`, sem `MIGRATION_FAILED.md`: a falha no modo de checagem só sai com código 1. |
+| Locks? | Sem advisory lock no modo de checagem. O `SELECT` do ledger toma `AccessShareLock`, que só conflita com `ACCESS EXCLUSIVE`; `lock_timeout` de 2 s. |
+| Altera o journal? | Não. O pacote composto é uma cópia numa pasta nova fora do repositório; o journal do repositório não é tocado. |
+| Segredos em log? | A URL sai com a senha mascarada (`redact`); hashes e tags não são segredo; nenhum dado de paciente é lido. |
+| Timeout e recursos | 1 conexão, 15 s por consulta, 2 s de lock, 30 s ocioso em transação, ~16 consultas. |
+
+**Prova em banco descartável** (`migration-composition-db.ts`, caso 6, 14/14 no fim da noite de 14/11):
+
+- papel **sem nenhum privilégio de escrita**: só `USAGE` nos esquemas e `SELECT` no ledger;
+- 16 consultas registradas, todas `SELECT` ou `SET LOCAL`;
+- ledger idêntico antes e depois;
+- fora de `READ ONLY` o helper recusa;
+- escrita em `READ ONLY` recusada pelo Postgres (25006), mesmo para superusuário;
+- o pacote do módulo de composição é idêntico ao pacote correto do harness.
+
+**Pedido de autorização (separado; este ciclo não autoriza):**
+
+- **Ambiente:** banco de produção, leitura do ledger e das sentinelas. Nada mais.
+- **Identidade:** a de `DATABASE_URL_PROD`, informada por você na sessão do terminal. O `READ ONLY` torna desnecessário
+  um papel novo; criar um papel só leitura em produção seria, ele mesmo, uma mudança em produção.
+- **Comando exato** (no worktree do #55, PowerShell):
+
+  ```powershell
+  node node_modules/tsx/dist/cli.mjs scripts/security/compose-release-migrations.ts --out $env:TEMP\qoro-release-composto
+  $env:SUPABASE_PROJECT_ENV = 'prod'; $env:DATABASE_URL_PROD = '<informada por você, com sslmode=require>'
+  node node_modules/tsx/dist/cli.mjs scripts/db-migrate-prod.ts --check-composition --migrations-dir $env:TEMP\qoro-release-composto\migrations
+  Remove-Item Env:DATABASE_URL_PROD; Remove-Item Env:SUPABASE_PROJECT_ENV
+  ```
+
+- **Resultado esperado**, se a produção estiver em 0000–0135:
+  - `composition check-only: ok, pending=25 (0136 … 0160)`;
+  - avisos só de hash histórico abaixo da 0136.
+- **Qualquer outro resultado** (linha desconhecida, hash divergente da 0136 em diante, `WOULD_SKIP`) é registrado e
+  levado aos donos do #53 e do #55, sem ação no banco.
+- **Interrupção:** Ctrl+C encerra o processo e a conexão; o servidor desfaz a transação de leitura.
+  - Se necessário, `pg_cancel_backend` na linha de `pg_stat_activity` com `application_name =
+    'qoro-migrate-composition-check'`.
+  - Nada fica pela metade, porque nada é escrito.

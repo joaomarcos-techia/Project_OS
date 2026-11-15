@@ -19,14 +19,17 @@
  *     aplica as duas, o guarda depois não vê pendência e as sentinelas existem; segunda execução
  *     não reaplica nada;
  *  5. sem banco: hash divergente da 0159 (PINNED_HASH_MISMATCH) e manifesto incompatível
- *     (PINNED_WHEN_MISMATCH) recusados.
+ *     (PINNED_WHEN_MISMATCH) recusados;
+ *  6. o pré-voo de produção (`--check-composition`) é só leitura: papel sem privilégio de escrita,
+ *     `BEGIN READ ONLY`, toda consulta registrada (só SELECT e SET LOCAL), ledger idêntico antes e
+ *     depois; fora de READ ONLY recusa; escrita em READ ONLY recusada pelo próprio Postgres (25006).
  *
  *   PR53_REF=<ref do #53> npx tsx scripts/security/migration-composition-db.ts
  */
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -39,8 +42,13 @@ import {
   readDevOrderChain,
   readPr53FinancialCandidate,
 } from './dev-order-chain';
-import { type ReadOnlySql, checkComposition } from './migration-composition-io';
-import { type ScratchCluster, startScratchSchema } from './scratch-schema';
+import {
+  type ReadOnlySql,
+  checkComposition,
+  checkCompositionInReadOnlyTx,
+} from './migration-composition-io';
+import { composeReleaseMigrations } from './compose-release-migrations';
+import { type ScratchCluster, connectScratch, startScratchSchema } from './scratch-schema';
 
 const PR53_REF = process.env.PR53_REF ?? 'origin/feat/billing-abacatepay-20261107';
 const PORT = Number(process.env.PORT ?? 55536);
@@ -251,6 +259,96 @@ try {
   drizzleMigrate(c2.url, right.config);
   assert.deepEqual(await ledgerCount(c2), after);
   pass('segunda execução não reaplica nada');
+
+  // ---------------------------------------------------------------- 6. pré-voo só leitura
+  // O mesmo caminho do `db-migrate-prod.ts --check-composition`: conexão única rotulada,
+  // `BEGIN READ ONLY` e `checkCompositionInReadOnlyTx`, aqui com um papel SEM privilégio de escrita
+  // (só USAGE nos esquemas e SELECT no ledger). Toda consulta enviada é registrada.
+  // O pacote do pré-voo vem do módulo de composição do lançamento: tem de ser byte a byte o
+  // pacote correto deste harness (mesmo journal, mesmos arquivos).
+  const releaseDir = mkdtempSync(path.join(os.tmpdir(), 'qoro-compose-release-'));
+  packages.push(releaseDir);
+  const release = await composeReleaseMigrations({ outDir: releaseDir, pr53Ref: PR53_REF });
+  assert.equal(release.entries, 161);
+  assert.equal(release.last, T0160);
+  const filesOf = (dir: string) =>
+    readdirSync(dir)
+      .filter((f) => f.endsWith('.sql'))
+      .sort()
+      .map((f) => `${f}:${sha(readFileSync(path.join(dir, f), 'utf8'))}`);
+  assert.deepEqual(filesOf(release.folder), filesOf(right.folder));
+  assert.equal(
+    readFileSync(path.join(release.folder, 'meta/_journal.json'), 'utf8'),
+    readFileSync(path.join(right.folder, 'meta/_journal.json'), 'utf8'),
+  );
+  pass(
+    'compose-release-migrations gera o pacote composto idêntico ao correto (journal e arquivos)',
+  );
+  const fingerprint = async () => {
+    const [r] = await c2.sql<{ f: string }[]>`
+      select md5(string_agg(id || ':' || hash || ':' || created_at, ',' order by id)) as f
+        from drizzle.__drizzle_migrations`;
+    return r!.f;
+  };
+  await c2.sql.unsafe(`create role qoro_check_ro login password 'scratch-only'`);
+  await c2.sql.unsafe(
+    `grant usage on schema drizzle, public, billing_gateway to qoro_check_ro;
+     grant select on drizzle.__drizzle_migrations to qoro_check_ro`,
+  );
+  const roUrl = new URL(c2.url);
+  roUrl.username = 'qoro_check_ro';
+  roUrl.password = 'scratch-only';
+  const ro = connectScratch(roUrl.toString());
+
+  try {
+    const before = await fingerprint();
+    const sent: string[] = [];
+    const roPlan = await ro.begin('READ ONLY', (tx) =>
+      checkCompositionInReadOnlyTx(
+        {
+          unsafe: (q: string, params?: unknown[]) => {
+            sent.push(q);
+            return tx.unsafe(q, params as never[]);
+          },
+        },
+        { folder: release.folder, manifest: MANIFEST },
+      ),
+    );
+    assert.deepEqual(roPlan.pending, []);
+    assert.deepEqual(roPlan.problems, []);
+    const kinds = sent.map((q) => q.trim().split(/\s+/u).slice(0, 2).join(' ').toLowerCase());
+    assert.ok(
+      kinds.every((k) => k.startsWith('select') || k.startsWith('set local')),
+      `consulta fora de SELECT/SET LOCAL: ${kinds.join(' | ')}`,
+    );
+    assert.equal(await fingerprint(), before);
+    pass(
+      `pré-voo só leitura (papel sem escrita, BEGIN READ ONLY): ${sent.length} consultas, todas SELECT ou SET LOCAL; ledger idêntico antes e depois`,
+    );
+    // Fail-closed: fora de transação READ ONLY o helper recusa antes de ler.
+    await assert.rejects(
+      checkCompositionInReadOnlyTx(ro, { folder: release.folder, manifest: MANIFEST }),
+      /fora de transação READ ONLY/u,
+    );
+    // O Postgres recusa escrita na transação READ ONLY mesmo para o superusuário (25006), e o papel
+    // do pré-voo não escreve nem fora dela (42501).
+    await assert.rejects(
+      c2.sql.begin('READ ONLY', (tx) =>
+        tx.unsafe(`insert into drizzle.__drizzle_migrations (hash, created_at) values ('x', 1)`),
+      ),
+      (e: { code?: string }) => e.code === '25006',
+    );
+    await assert.rejects(
+      ro.unsafe(`insert into drizzle.__drizzle_migrations (hash, created_at) values ('x', 1)`),
+      (e: { code?: string }) => e.code === '42501',
+    );
+    assert.equal(await fingerprint(), before);
+    pass(
+      'fora de READ ONLY o pré-voo recusa; escrita em READ ONLY recusada pelo Postgres (25006) e o papel do pré-voo sem privilégio (42501)',
+    );
+  } finally {
+    await ro.end({ timeout: 5 });
+  }
 
   // ---------------------------------------------------------------- 5. sem banco
   const mutated = buildPackage({ with0159: true, mutate0159: true });

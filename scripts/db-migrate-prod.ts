@@ -20,7 +20,9 @@
  *     row). Checked before the backup (journal only), again inside the advisory lock right before
  *     migrating (journal + ledger + sentinels) and once more after (nothing pending).
  *     `--check-composition` runs only the read-only guard (no backup, no lock, no DDL) — the
- *     preflight of a coordinated release (docs/convenios/coordenacao-migrations.md §13).
+ *     preflight of a coordinated release (docs/convenios/coordenacao-migrations.md §13 and §16).
+ *     Every guard read runs inside `BEGIN READ ONLY` with `SET LOCAL` statement/lock/idle timeouts
+ *     on a single labelled connection (`application_name`), so Postgres itself refuses any write.
  */
 import { execSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, writeFileSync, appendFileSync } from 'node:fs';
@@ -34,7 +36,11 @@ import { assertMigrationsSafe } from './check-migration-safety';
 import { assertProdContext, gitUserEmail, redact } from './_env';
 import { localBinCommand } from './_local-bin';
 import { takeEncryptedProdBackup } from './prod-encrypted-backup';
-import { checkComposition } from './security/migration-composition-io';
+import {
+  READ_ONLY_CHECK_APPLICATION_NAME,
+  checkComposition,
+  checkCompositionInReadOnlyTx,
+} from './security/migration-composition-io';
 
 const REPO_ROOT = process.cwd();
 const BACKUPS_DIR = resolve(REPO_ROOT, 'backups');
@@ -109,14 +115,23 @@ async function withAdvisoryLock<T>(databaseUrl: string, fn: () => Promise<T>): P
 async function guardComposition(
   databaseUrl: string,
   moment: 'before' | 'after' | 'check-only',
+  folder: string = MIGRATIONS_DIR,
 ): Promise<void> {
-  const client = postgres(databaseUrl, { ssl: 'require', prepare: false, max: 1 });
+  const client = postgres(databaseUrl, {
+    ssl: 'require',
+    prepare: false,
+    max: 1,
+    connect_timeout: 15,
+    idle_timeout: 5,
+    connection: { application_name: READ_ONLY_CHECK_APPLICATION_NAME },
+  });
   try {
-    const plan = await checkComposition({
-      folder: MIGRATIONS_DIR,
-      manifest: MIGRATION_COMPOSITION_MANIFEST,
-      sql: client,
-    });
+    const plan = await client.begin('READ ONLY', (tx) =>
+      checkCompositionInReadOnlyTx(tx, {
+        folder,
+        manifest: MIGRATION_COMPOSITION_MANIFEST,
+      }),
+    );
     console.log(
       `[migrate:prod] composition ${moment}: ok, pending=${plan.pending.length} (${plan.pending.join(', ') || 'none'})`,
     );
@@ -195,15 +210,24 @@ async function main(): Promise<void> {
   // Gap 1.3: pré-flight fail-closed — bloqueia DROP/TRUNCATE não-aprovado ANTES
   // de tocar prod (mesmo com backup, evitar o erro humano é mais barato).
   assertMigrationsSafe();
+  // Pré-voo de lançamento coordenado: `--migrations-dir` aponta o pacote COMPOSTO
+  // (scripts/security/compose-release-migrations.ts). Só vale com `--check-composition`: migrar de
+  // uma pasta fora do repositório nunca é aceito.
+  const checkOnly = process.argv.includes('--check-composition');
+  const dirFlag = process.argv.indexOf('--migrations-dir');
+  if (dirFlag >= 0 && !checkOnly) {
+    throw new Error('--migrations-dir só é aceito com --check-composition (nunca para migrar)');
+  }
+  const folder = dirFlag >= 0 ? resolve(process.argv[dirFlag + 1] ?? '') : MIGRATIONS_DIR;
   // Composição entre branches: sem banco ainda — recusa um journal sem a 0159 do #53 antes de
   // qualquer conexão ou backup.
-  await checkComposition({ folder: MIGRATIONS_DIR, manifest: MIGRATION_COMPOSITION_MANIFEST });
+  await checkComposition({ folder, manifest: MIGRATION_COMPOSITION_MANIFEST });
   const { databaseUrl: rawUrl } = assertProdContext();
   const migrateUrl = migrationUrl(rawUrl);
   console.log(`[migrate:prod] target (session pooler): ${redact(migrateUrl)}`);
-  if (process.argv.includes('--check-composition')) {
-    // Pré-voo de lançamento coordenado: só lê o ledger e as sentinelas; sem backup, sem lock, sem DDL.
-    await guardComposition(migrateUrl, 'check-only');
+  if (checkOnly) {
+    // Só lê o ledger e as sentinelas (BEGIN READ ONLY); sem backup, sem lock, sem DDL, sem arquivo.
+    await guardComposition(migrateUrl, 'check-only', folder);
     console.log('[migrate:prod] --check-composition: nothing applied.');
     return;
   }

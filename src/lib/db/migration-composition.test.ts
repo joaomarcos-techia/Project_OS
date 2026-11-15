@@ -243,6 +243,25 @@ describe('journal REAL desta branch', () => {
     }
   });
 
+  it('a cauda 0143–0158 do #55 (a que o release do #53 congela) está fixada inteira e encadeada', () => {
+    const tail = MIGRATION_COMPOSITION_MANIFEST.pinned.filter((p) => p.idx >= 143 && p.idx <= 158);
+    expect(tail.map((p) => p.idx)).toEqual(Array.from({ length: 16 }, (_, i) => 143 + i));
+    for (const [i, p] of tail.entries()) {
+      expect(journal.find((x) => x.tag === p.tag)?.sha256, p.tag).toBe(p.sha256);
+      if (i > 0) expect(p.requires, p.tag).toEqual([tail[i - 1]!.tag]);
+    }
+  });
+
+  it('editar uma migration do MEIO da cauda (0150) é recusado já no journal, antes de qualquer banco', () => {
+    const edited = composed().map((x) =>
+      x.idx === 150 ? { ...x, sha256: createHash('sha256').update('-- editada').digest('hex') } : x,
+    );
+    const plan = planComposition({ journal: edited, manifest: MIGRATION_COMPOSITION_MANIFEST });
+    expect(codes(plan)).toEqual([
+      `PINNED_HASH_MISMATCH:${journal.find((x) => x.idx === 150)!.tag}`,
+    ]);
+  });
+
   it('SOZINHA, a branch é recusada: faltam as 0136–0142 e a 0159 do #53 (nunca migrar assim)', () => {
     const plan = planComposition({ journal, manifest: MIGRATION_COMPOSITION_MANIFEST });
     expect(codes(plan)).toEqual([

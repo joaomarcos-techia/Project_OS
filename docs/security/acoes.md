@@ -585,7 +585,7 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/db-migrate-dev-limited.ts:45`                                       | `MIGRATE_LOCK_TIMEOUT`                 | `process.env.MIGRATE_LOCK_TIMEOUT`                                          |
 | `scripts/db-migrate-dev-limited.ts:46`                                       | `MIGRATE_STATEMENT_TIMEOUT`            | `process.env.MIGRATE_STATEMENT_TIMEOUT`                                     |
 | `scripts/db-migrate-dev.ts:35`                                               | `<object>`                             | `process.env`                                                               |
-| `scripts/db-migrate-prod.ts:223`                                             | `<object>`                             | `process.env`                                                               |
+| `scripts/db-migrate-prod.ts:247`                                             | `<object>`                             | `process.env`                                                               |
 | `scripts/db-studio.ts:13`                                                    | `NODE_ENV`                             | `process.env.NODE_ENV`                                                      |
 | `scripts/db-studio.ts:23`                                                    | `<object>`                             | `process.env`                                                               |
 | `scripts/delete-test-clinics-prod.ts:159`                                    | `<dynamic>`                            | `process.env[name]`                                                         |
@@ -948,9 +948,9 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/local-build.ts:76`                                         | `<dynamic>`                            | `process.env[key]`                                                          |
 | `scripts/security/local-build.ts:76`                                         | `<dynamic>`                            | `process.env[key]`                                                          |
 | `scripts/security/local-build.ts:101`                                        | `CI`                                   | `process.env.CI`                                                            |
-| `scripts/security/migration-composition-db.ts:45`                            | `PR53_REF`                             | `process.env.PR53_REF`                                                      |
-| `scripts/security/migration-composition-db.ts:46`                            | `PORT`                                 | `process.env.PORT`                                                          |
-| `scripts/security/migration-composition-db.ts:126`                           | `<object>`                             | `process.env`                                                               |
+| `scripts/security/migration-composition-db.ts:53`                            | `PR53_REF`                             | `process.env.PR53_REF`                                                      |
+| `scripts/security/migration-composition-db.ts:54`                            | `PORT`                                 | `process.env.PORT`                                                          |
+| `scripts/security/migration-composition-db.ts:134`                           | `<object>`                             | `process.env`                                                               |
 | `scripts/security/offer-restored-backup-db.ts:34`                            | `<object>`                             | `process.env`                                                               |
 | `scripts/security/offer-restored-backup-db.ts:328`                           | `BACKUP_PASSPHRASE`                    | `process.env.BACKUP_PASSPHRASE`                                             |
 | `scripts/security/onboarding-progress-db.ts:44`                              | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
