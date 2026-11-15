@@ -166,6 +166,12 @@ describe('cadastro rápido de paciente no novo atendimento', () => {
     expect((screen.getByLabelText('Procedimento') as HTMLSelectElement).value).toBe(
       '11111111-1111-4111-8111-111111111111',
     );
+    // O formulário rápido sumiu com o foco dentro dele: o foco segue para o
+    // próximo campo e a seleção é anunciada (sonda no navegador, 14/11).
+    await waitFor(() => expect(document.activeElement?.id).toBe('appointment-procedure'));
+    expect(screen.getByRole('status').textContent).toBe(
+      'Cadastro de Ana Souza concluído e já selecionado neste atendimento.',
+    );
   });
 
   it('cancelar volta para a busca sem cadastrar ninguém', () => {

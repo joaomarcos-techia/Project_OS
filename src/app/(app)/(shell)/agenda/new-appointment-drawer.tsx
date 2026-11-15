@@ -123,6 +123,8 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
   const [formError, setFormError] = useState<string | null>(null);
   // UX-006: cadastro rápido aberto dentro da gaveta (nada do agendamento se perde).
   const [cadastrandoPaciente, setCadastrandoPaciente] = useState(false);
+  // Anúncio da seleção feita pelo cadastro rápido (região `status` sempre montada).
+  const [avisoPaciente, setAvisoPaciente] = useState('');
   const [salvando, startSalvar] = useTransition();
 
   const semProcedimentos = data.procedures.length === 0;
@@ -151,6 +153,7 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
     setFieldErrors({});
     setFormError(null);
     setCadastrandoPaciente(false);
+    setAvisoPaciente('');
   }
 
   function submit() {
@@ -298,6 +301,9 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
                   Cadastrar novo paciente
                 </Button>
               ) : null}
+              <p role="status" className="sr-only">
+                {avisoPaciente}
+              </p>
             </div>
 
             {cadastrandoPaciente ? (
@@ -306,6 +312,20 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
                   setPaciente(novo);
                   setCadastrandoPaciente(false);
                   limparErro('paciente');
+                  // Concorda com "cadastro", não com a pessoa: o gênero dela
+                  // não é dado do formulário.
+                  setAvisoPaciente(
+                    `Cadastro de ${novo.label} concluído e já selecionado neste atendimento.`,
+                  );
+                  // O formulário rápido some com o foco dentro dele: sem isto o
+                  // foco cai no corpo da página. Segue para o próximo campo do
+                  // agendamento (Profissional, se o catálogo estiver vazio).
+                  requestAnimationFrame(() =>
+                    (
+                      document.getElementById('appointment-procedure') ??
+                      document.getElementById('appointment-doctor')
+                    )?.focus(),
+                  );
                 }}
                 onCancel={() => {
                   setCadastrandoPaciente(false);
