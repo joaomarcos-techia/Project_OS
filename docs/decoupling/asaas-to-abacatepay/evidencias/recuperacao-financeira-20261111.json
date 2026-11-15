@@ -26049,5 +26049,115 @@
       "gate": "security inventory",
       "cause": "The added environment access was listed, but generated document count remained545 instead of546. No guard, registry, scanner or baseline was weakened. Count corrected to observed AST result; final HEAD requires independent GREEN CI."
     }
+  },
+  "notebookExcludedAndAlternativeB1BPlanning20261115": {
+    "recordedAt": "2026-11-15T23:12:04.051Z",
+    "type": "documentation-only planning; no infrastructure, data operation or new synthetic run",
+    "ownerDecision": "DECISÃO DO RESPONSÁVEL: NOTEBOOK ATUAL DESCARTADO PARA RESTAURAÇÃO E BUILD PESADO.",
+    "acceptedBaseline": {
+      "head": "d3f27452b62ad631cfac8c4052c5785886768f16",
+      "pr": 53,
+      "draft": true,
+      "ci": 43769394816,
+      "ciConclusion": "success",
+      "tests": 7270,
+      "testFiles": 642,
+      "e2e": 22,
+      "skipped": 0,
+      "syntheticRun": 43768247372,
+      "restore": "PASS20 Linux",
+      "composedBuild": "PASS",
+      "repeated": false
+    },
+    "frozen": {
+      "financial": "94f6da4aeb32b1ae7da856dc9afa105120ce6dd9",
+      "tarSha256": "3902f2007742df4016450eeaece806a8f2bc0b535631d33da9a5e691b59ce3f6",
+      "files": 2785,
+      "sqlHashes": 160,
+      "pendingMigrations": "0136-0159",
+      "excluded": ["0160", "0161"],
+      "changed": false
+    },
+    "alternatives": {
+      "A": "Existing approved physical machine, if available; none identified",
+      "B": "Recommended conditionally: temporary private Linux VM with pre-data quarantine, approved location/access/encryption/keys/capacity/budget",
+      "C": "Not default-safe: physical clone can start outbound jobs before operators can disable them; incoming database restrictions are not egress containment",
+      "recommendationIsAuthorization": false,
+      "planningOnlyVMReserveUSD": {
+        "min": 5,
+        "max": 20,
+        "hoursAtMost": 24,
+        "quoted": false,
+        "approved": false
+      }
+    },
+    "approvalsSeparated": [
+      "environment provisioning and synthetic containment proof",
+      "B1-B exact real data scope and operations"
+    ],
+    "futureRequirements": [
+      "identified alternative host and region",
+      "responsibles",
+      "capacity",
+      "encrypted root and data storage",
+      "protected RAM, swap and temporary files",
+      "MFA and least privilege",
+      "recoverable separate key vault",
+      "pre-data network containment",
+      "verify-full TLS and source identity during approved window",
+      "retention and identified-resource disposal",
+      "regional cost quote and approved ceiling",
+      "strict restore and manifest review"
+    ],
+    "retentionProposalNotApproved": {
+      "operatingWindowHours": 4,
+      "vmHours": 24,
+      "encryptedCopyDaysAfterDrill": 7
+    },
+    "B1A": "Accepted physical backup inventory unchanged; current plan/contractual retention and physical recovery still unverified; no relisting",
+    "legacyWorkflow": {
+      "path": ".github/workflows/db-backup.yml",
+      "staticDesign": "Production dump and encrypted Actions artifact incompatible with latest no-real-data-in-Actions directive",
+      "triggered": false,
+      "changed": false,
+      "effectiveScheduleChecked": false,
+      "operationalDecisionRequired": "Replace Actions data handling without silently removing backup coverage; separate scope"
+    },
+    "executed": {
+      "localResourceMeasurement": false,
+      "localDocker": false,
+      "localHeavyBuild": false,
+      "realBackupReadOrDownload": false,
+      "productionSQL": false,
+      "realTLSConnection": false,
+      "externalInfrastructureCreated": false,
+      "productionMutation": false,
+      "otherWorktreeModified": false
+    },
+    "sources": [
+      "https://supabase.com/docs/guides/platform/clone-project",
+      "https://supabase.com/kb/troubleshooting/how-to-stop-pg_cron-jobs-from-running-on-a-restored-project-or-branch",
+      "https://supabase.com/docs/guides/platform/backups",
+      "https://supabase.com/docs/guides/platform/manage-your-usage/compute",
+      "https://supabase.com/docs/guides/platform/network-restrictions",
+      "https://aws.amazon.com/lightsail/pricing/",
+      "https://docs.aws.amazon.com/vpc/latest/userguide/vpc-security-groups.html",
+      "https://docs.aws.amazon.com/ebs/latest/userguide/how-ebs-encryption-works.html"
+    ],
+    "status": {
+      "syntheticRestore": "PASS - accepted prior run",
+      "composedBuild": "PASS - accepted prior run",
+      "B1BReal": "NOT READY / NOT AUTHORIZED",
+      "B2A": "NOT AUTHORIZED",
+      "B2B": "NOT AUTHORIZED",
+      "B3": "NOT AUTHORIZED",
+      "C": "NOT AUTHORIZED",
+      "D": "NOT AUTHORIZED",
+      "E": "NOT AUTHORIZED",
+      "risksR1R4": "PARTIAL / NOT ACCEPTED",
+      "naturalRenewal": "2026-12-13 future observation only",
+      "production": "NO-GO"
+    },
+    "finalDocumentationCI": "New documentation HEAD requires its own normal CI; final readback in PR53; dedicated heavy workflow not rerun"
   }
 }
