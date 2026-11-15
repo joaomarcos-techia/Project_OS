@@ -1213,6 +1213,12 @@ test('ficha do paciente: aba Convênios por teclado, outra clínica, vazio, duas
   // Número completo nunca aparece, nem o da vencida.
   await expect(g.page.getByText('0081234500022221')).toHaveCount(0);
   await expect(g.page.getByText('0081234500022222')).toHaveCount(0);
+  // Rótulo da guia (decisão de UX de 14/11): "Guia de consulta nº N", nunca "Consulta N" sozinho.
+  expect(await visit(g, `/pacientes/${other!.patients[0]!.id}?tab=convenios`)).toBe(200);
+  const withGuide = g.page.getByTestId('patient-insurance-guide').first();
+  await expect(withGuide.getByRole('link')).toHaveText(/^Guia de consulta nº \d+$/u, {
+    timeout: 30_000,
+  });
   expectNoPageErrors(g);
   await g.context.close();
 

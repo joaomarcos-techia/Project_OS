@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { Alert } from '@/components/ui/alert';
@@ -9,6 +10,8 @@ import { getInsuranceSetup, INSURER_STATUS_LABELS, PROVIDER_ID_LABELS } from '@/
 
 import { ConveniosHeader, conveniosAccess } from '../_lib/access';
 import { NewInsurerForm, ProfessionalProfileForm, ProviderIdentityForm } from '../_lib/config-ui';
+
+export const metadata: Metadata = { title: 'Configuração de convênios' };
 
 export const dynamic = 'force-dynamic';
 

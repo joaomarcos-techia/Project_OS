@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
@@ -23,6 +24,9 @@ import { getGuideDetail, GUIDE_STATUS_LABELS, ISSUE_OWNER_LABELS } from '@/conte
 import { brl, ConveniosHeader, conveniosAccess, shortDate } from '../../_lib/access';
 import { ActionButton, Actions, AnswerAppealForm, AppealForm, FileAppealForm, TextAction } from '../../_lib/action-ui';
 import { GlossStatusBadge, GuideStatusBadge } from '../../_lib/status';
+import { guideLabel } from '../../_lib/guide-label';
+
+export const metadata: Metadata = { title: 'Guia de convênio' };
 
 export const dynamic = 'force-dynamic';
 /** Ações desta página validam XML no XSD oficial e/ou geram PDF (motor no próprio processo). */
@@ -40,13 +44,13 @@ export default async function GuiaPage({ params }: { params: Promise<{ guideId: 
   if (!g) notFound();
   const m = access.canManage;
   const ref = { guideId: g.id, version: g.version };
-  const label = `${g.guideType === 'sp_sadt' ? 'SP/SADT' : 'Consulta'} ${g.number}`;
+  const label = guideLabel(g.guideType, g.number);
   const openGlosses = g.glosses.filter((x) => OPEN_GLOSS.includes(x.status) && !g.appeals.some((a) => ['draft', 'filed'].includes(a.status) && a.glossIds.includes(x.id)));
 
   return (
     <>
       <ConveniosHeader commercial={access.commercial}
-        title={`Guia ${label}`}
+        title={label}
         description={`${g.insurerName}${g.patientName ? ` · ${g.patientName}` : ''}`}
         crumbs={[{ label: 'Guias', href: '/convenios/guias' }, { label }]}
         actions={

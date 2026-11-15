@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { EmptyState } from '@/components/ui/empty-state';
@@ -8,6 +9,8 @@ import { BATCH_STATUS_LABELS, listBatchCandidates, listBatches } from '@/context
 import { brl, ConveniosHeader, conveniosAccess, shortDate } from '../_lib/access';
 import { NewBatchForm } from '../_lib/batch-ui';
 import { BatchStatusBadge } from '../_lib/status';
+
+export const metadata: Metadata = { title: 'Lotes de guias' };
 
 export const dynamic = 'force-dynamic';
 

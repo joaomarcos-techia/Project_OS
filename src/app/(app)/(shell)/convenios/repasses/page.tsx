@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { Alert } from '@/components/ui/alert';
@@ -9,6 +10,9 @@ import { listInsurancePayouts } from '@/contexts/health-insurance/queries';
 import { brl, ConveniosHeader, conveniosAccess, shortDate } from '../_lib/access';
 import { ELIGIBILITY_LABELS } from '../_lib/constants';
 import { PayoutActions, PayoutPolicyForm } from '../_lib/payout-ui';
+import { guideLabel } from '../_lib/guide-label';
+
+export const metadata: Metadata = { title: 'Repasses de convênio' };
 
 export const dynamic = 'force-dynamic';
 
@@ -108,7 +112,7 @@ export default async function RepassesPage() {
                 <TableRow key={r.payoutId}>
                   <TableCell>
                     {r.guideId ? (
-                      <Link href={`/convenios/guias/${r.guideId}`} className="hover:underline">Guia {r.guideNumber}</Link>
+                      <Link href={`/convenios/guias/${r.guideId}`} className="hover:underline">{guideLabel(r.guideType, r.guideNumber ?? '—')}</Link>
                     ) : '—'}
                     <div className="text-fg-muted">{r.patientName} · {shortDate(r.executedOn)}</div>
                   </TableCell>

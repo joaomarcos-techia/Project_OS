@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { Badge } from '@/components/ui/badge';
@@ -13,6 +14,8 @@ import { PERMISSIONS } from '@/lib/auth/permissions';
 
 import { ConveniosHeader, conveniosAccess } from '../_lib/access';
 import { CoverageForm } from '../_lib/config-ui';
+
+export const metadata: Metadata = { title: 'Atendimentos de convênio' };
 
 export const dynamic = 'force-dynamic';
 

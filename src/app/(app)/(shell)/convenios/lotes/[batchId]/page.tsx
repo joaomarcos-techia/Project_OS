@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
@@ -19,6 +20,8 @@ import { ActionButton, Actions, TextAction } from '../../_lib/action-ui';
 import { requestBatchExportAction } from '../../_lib/batch-export-actions';
 import { GlossForm, PaymentForm, ProtocolForm } from '../../_lib/batch-ui';
 import { BatchStatusBadge, GuideStatusBadge } from '../../_lib/status';
+
+export const metadata: Metadata = { title: 'Lote de guias' };
 
 export const dynamic = 'force-dynamic';
 /** Ações desta página validam XML no XSD oficial e/ou geram PDF (motor no próprio processo). */
@@ -64,7 +67,7 @@ export default async function LotePage({ params }: { params: Promise<{ batchId: 
   const m = access.canManage;
   const ref = { batchId: b.id, version: b.version };
   const atOperator = ['sent', 'received', 'under_review', 'processed'].includes(b.status);
-  const guideOptions = b.guides.map((g) => ({ id: g.id, number: g.number, pendingCents: g.pendingCents }));
+  const guideOptions = b.guides.map((g) => ({ id: g.id, number: g.number, pendingCents: g.pendingCents, guideType: b.guideType }));
   const xsd = (b.validation?.xsd as string | undefined) ?? null;
 
   return (

@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
@@ -19,6 +20,9 @@ import { ActionButton, Actions, TextAction } from '../../_lib/action-ui';
 import { CARE_TYPES } from '../../_lib/constants';
 import { AuthorizationForm, CheckRequestButton, IndicationForm, LinkSessionForm } from '../../_lib/sadt-ui';
 import { GuideStatusBadge, SADT_STATUS, SadtStatusBadge } from '../../_lib/status';
+import { guideLabel } from '../../_lib/guide-label';
+
+export const metadata: Metadata = { title: 'Solicitação de SP/SADT' };
 
 export const dynamic = 'force-dynamic';
 /** Ações desta página validam XML no XSD oficial e/ou geram PDF (motor no próprio processo). */
@@ -232,7 +236,7 @@ export default async function SolicitacaoPage({ params }: { params: Promise<{ re
           <ul className="flex flex-col gap-(--sp-2) text-(length:--fs-sm)">
             {r.guides.map((g) => (
               <li key={g.id} className="flex flex-wrap items-center gap-(--sp-2)">
-                <Link href={`/convenios/guias/${g.id}`} className="font-medium hover:underline">Guia {g.number}</Link>
+                <Link href={`/convenios/guias/${g.id}`} className="font-medium hover:underline">{guideLabel('sp_sadt', g.number)}</Link>
                 <GuideStatusBadge status={g.status} />
                 <span className="tabular-nums">{g.sessions} sessão(ões) · {brl(g.totalValueCents)}</span>
               </li>

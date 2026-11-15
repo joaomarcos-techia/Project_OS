@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { Badge } from '@/components/ui/badge';
@@ -16,6 +17,9 @@ import {
 
 import { brl, ConveniosHeader, conveniosAccess, shortDate } from '../_lib/access';
 import { GuideStatusBadge } from '../_lib/status';
+import { guideLabel } from '../_lib/guide-label';
+
+export const metadata: Metadata = { title: 'Guias de convênio' };
 
 export const dynamic = 'force-dynamic';
 
@@ -112,7 +116,7 @@ export default async function GuiasPage({ searchParams }: { searchParams: Search
                   <TableRow key={g.id}>
                     <TableCell>
                       <Link href={`/convenios/guias/${g.id}`} className="font-medium hover:underline">
-                        {g.guideType === 'sp_sadt' ? 'SP/SADT' : 'Consulta'} {g.number}
+                        {guideLabel(g.guideType, g.number)}
                       </Link>
                     </TableCell>
                     <TableCell>{g.patientName ?? '—'}</TableCell>

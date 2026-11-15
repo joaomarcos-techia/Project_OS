@@ -18,6 +18,7 @@ import {
 } from '@/contexts/health-insurance/actions';
 import type { BatchCandidate } from '@/contexts/health-insurance/queries';
 import { uuidv4 } from '@/lib/ui/uuid';
+import { guideLabel, guideShortLabel } from './guide-label';
 
 /** '1.500,00' e '150,5' (pt-BR) ou '150.50': com vírgula, o ponto é milhar; sem vírgula, é decimal. */
 export function toCents(v: string): number {
@@ -144,7 +145,7 @@ export function NewBatchForm({ candidates }: { candidates: BatchCandidate[] }) {
                 setChosen((c) => (e.target.checked ? [...c, g.id] : c.filter((x) => x !== g.id)))
               }
             />
-            <span className="tabular-nums">{g.number}</span>
+            <span className="tabular-nums">{guideShortLabel(g.number)}</span>
             <span className="text-fg-muted">{g.patientName ?? ''}</span>
             {g.overdue ? (
               <span className="text-(length:--fs-xs) text-danger-600" data-testid="guide-overdue">
@@ -238,7 +239,7 @@ export function ProtocolForm({ batchId, version }: { batchId: string; version: n
   );
 }
 
-type GuideOption = { id: string; number: string; pendingCents: number };
+type GuideOption = { id: string; number: string; pendingCents: number; guideType?: string | null };
 
 /**
  * Pagamento da operadora: valor, data e referência do demonstrativo. Sem alocação, o Qoro
@@ -329,10 +330,10 @@ export function PaymentForm({
             .filter((g) => g.pendingCents > 0)
             .map((g) => (
               <label key={g.id} className="flex items-center gap-2 text-(length:--fs-sm)">
-                <span className="w-28 tabular-nums">Guia {g.number}</span>
-                <span className="w-32 text-fg-muted">saldo {brl(g.pendingCents)}</span>
+                <span className="min-w-0 flex-1 tabular-nums">{guideLabel(g.guideType, g.number)}</span>
+                <span className="w-32 shrink-0 text-fg-muted">saldo {brl(g.pendingCents)}</span>
                 <Input
-                  aria-label={`Valor pago na guia ${g.number}`}
+                  aria-label={`Valor pago na ${guideLabel(g.guideType, g.number, { lowercase: true })}`}
                   inputMode="decimal"
                   value={perGuide[g.id] ?? ''}
                   onChange={(e) => setPerGuide((v) => ({ ...v, [g.id]: e.target.value }))}
@@ -414,7 +415,7 @@ export function GlossForm({ batchId, guides }: { batchId: string; guides: GuideO
         <Select id={`${id}-g`} value={guideId} onChange={(e) => setGuideId(e.target.value)}>
           {guides.map((g) => (
             <option key={g.id} value={g.id}>
-              {g.number} (saldo {brl(g.pendingCents)})
+              {guideLabel(g.guideType, g.number)} (saldo {brl(g.pendingCents)})
             </option>
           ))}
         </Select>
@@ -497,10 +498,10 @@ export function AllocateForm({
       <fieldset className="flex max-h-64 flex-col gap-1 overflow-y-auto">
         {guides.map((g) => (
           <label key={g.id} className="flex items-center gap-2 text-(length:--fs-sm)">
-            <span className="w-28 tabular-nums">Guia {g.number}</span>
-            <span className="w-32 text-fg-muted">saldo {brl(g.pendingCents)}</span>
+            <span className="min-w-0 flex-1 tabular-nums">{guideLabel(g.guideType, g.number)}</span>
+            <span className="w-32 shrink-0 text-fg-muted">saldo {brl(g.pendingCents)}</span>
             <Input
-              aria-label={`Alocar à guia ${g.number}`}
+              aria-label={`Alocar à ${guideLabel(g.guideType, g.number, { lowercase: true })}`}
               inputMode="decimal"
               value={perGuide[g.id] ?? ''}
               onChange={(e) => setPerGuide((v) => ({ ...v, [g.id]: e.target.value }))}

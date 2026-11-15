@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { Alert } from '@/components/ui/alert';
@@ -15,6 +16,8 @@ import {
 
 import { ConveniosHeader, conveniosAccess, shortDate } from '../_lib/access';
 import { MembershipActions, NewMembershipForm } from '../_lib/config-ui';
+
+export const metadata: Metadata = { title: 'Carteirinhas' };
 
 export const dynamic = 'force-dynamic';
 

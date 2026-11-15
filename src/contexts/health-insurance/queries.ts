@@ -729,12 +729,13 @@ export async function listInsurerPayments(clinicId: string, onlyUnreconciled = f
 /** Guias com saldo a receber (para alocar dinheiro ainda não conciliado), com o lote ativo de cada uma. */
 export async function listOpenGuidesForAllocation(
   clinicId: string,
-): Promise<Array<{ id: string; number: string; pendingCents: number; insurerId: string; batchId: string }>> {
+): Promise<Array<{ id: string; number: string; pendingCents: number; insurerId: string; batchId: string; guideType: string }>> {
   return withTenant(clinicId, async (tx) => {
     const rows = (await tx.execute(
-      sql`SELECT a.guide_id, a.number, a.pending_cents, a.insurer_id, bg.batch_id
+      sql`SELECT a.guide_id, a.number, a.pending_cents, a.insurer_id, bg.batch_id, b.guide_type
             FROM public.hi_guide_accounts a
             JOIN public.hi_batch_guides bg ON bg.clinic_id = a.clinic_id AND bg.guide_id = a.guide_id AND bg.active
+            JOIN public.hi_batches b ON b.clinic_id = bg.clinic_id AND b.id = bg.batch_id
            WHERE a.clinic_id = ${clinicId}::uuid AND a.pending_cents > 0 AND a.status <> 'closed'
            ORDER BY a.number LIMIT 500`,
     )) as unknown as Row[];
@@ -744,6 +745,7 @@ export async function listOpenGuidesForAllocation(
       pendingCents: n(r.pending_cents),
       insurerId: String(r.insurer_id),
       batchId: String(r.batch_id),
+      guideType: String(r.guide_type),
     }));
   });
 }
@@ -1023,6 +1025,7 @@ export interface InsurancePayoutRow extends InsurancePayoutPosition {
   professionalName: string;
   patientName: string;
   guideNumber: string | null;
+  guideType: string | null;
   executedOn: string | null;
 }
 
@@ -1031,7 +1034,7 @@ export async function listInsurancePayouts(clinicId: string): Promise<{ rows: In
     const positions = await listInsurancePayoutPositionsTx(tx, clinicId);
     const meta = positions.length
       ? ((await tx.execute(sql`
-          SELECT p.id AS payout_id, pr.nome AS professional_name, pt.nome AS patient_name, g.number AS guide_number, gi.executed_on
+          SELECT p.id AS payout_id, pr.nome AS professional_name, pt.nome AS patient_name, g.number AS guide_number, g.guide_type AS guide_type, gi.executed_on
             FROM public.hi_payouts p
             JOIN public.appointments a ON a.clinic_id = p.clinic_id AND a.id = p.appointment_id
             LEFT JOIN public.profiles pr ON pr.clinic_id = p.clinic_id AND pr.id = p.professional_id
@@ -1051,6 +1054,7 @@ export async function listInsurancePayouts(clinicId: string): Promise<{ rows: In
           professionalName: String(m?.professional_name ?? ''),
           patientName: String(m?.patient_name ?? ''),
           guideNumber: s(m?.guide_number),
+          guideType: s(m?.guide_type),
           executedOn: s(m?.executed_on),
         };
       }),

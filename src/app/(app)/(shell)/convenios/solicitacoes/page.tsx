@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { EmptyState } from '@/components/ui/empty-state';
@@ -8,6 +9,8 @@ import { getSadtRequestFormData, listSadtRequests } from '@/contexts/health-insu
 import { ConveniosHeader, conveniosAccess, shortDate } from '../_lib/access';
 import { NewSadtRequestForm } from '../_lib/sadt-ui';
 import { SADT_STATUS, SadtStatusBadge } from '../_lib/status';
+
+export const metadata: Metadata = { title: 'Solicitações de SP/SADT' };
 
 export const dynamic = 'force-dynamic';
 

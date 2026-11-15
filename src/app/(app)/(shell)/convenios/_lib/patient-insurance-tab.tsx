@@ -13,6 +13,7 @@ import Link from 'next/link';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
+import { guideLabel } from './guide-label';
 import { PanelCard } from '@/components/ui/panel-card';
 import {
   AUTHORIZATION_STATUS_LABELS,
@@ -285,9 +286,9 @@ export async function PatientInsuranceTab({
                   data-status={g.status}
                 >
                   <div className="flex min-w-0 flex-col">
-                    {/* Mesmo rótulo da lista de guias (tipo + número): é por ele que a equipe acha a guia. */}
+                    {/* Rótulo único das telas de Convênios (guide-label.ts): "Guia de consulta nº 1". */}
                     <Link href={`/convenios/guias/${g.id}`} className="font-medium hover:underline">
-                      {GUIDE_TYPE[g.guideType] ?? g.guideType} {g.number}
+                      {guideLabel(g.guideType, g.number)}
                     </Link>
                     <span className="text-(length:--fs-sm) text-fg-muted">
                       {g.insurerName} · {shortDate(g.createdAt)} · {brl(g.totalValueCents)}

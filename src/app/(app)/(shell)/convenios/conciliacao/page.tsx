@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { EmptyState } from '@/components/ui/empty-state';
@@ -10,6 +11,8 @@ import { brl, ConveniosHeader, conveniosAccess, shortDate } from '../_lib/access
 import { ActionButton } from '../_lib/action-ui';
 import { AllocateForm, StatementImportForm } from '../_lib/batch-ui';
 import { CopayReview } from '../_lib/copay-ui';
+
+export const metadata: Metadata = { title: 'Conciliação de convênios' };
 
 export const dynamic = 'force-dynamic';
 

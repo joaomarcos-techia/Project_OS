@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { Alert } from '@/components/ui/alert';
@@ -8,6 +9,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableWra
 import { getInsuranceOverview, ISSUE_OWNER_LABELS } from '@/contexts/health-insurance/queries';
 
 import { brl, ConveniosHeader, conveniosAccess } from './_lib/access';
+
+export const metadata: Metadata = { title: 'Convênios' };
 
 export const dynamic = 'force-dynamic';
 

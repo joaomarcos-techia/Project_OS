@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 
 import { Alert } from '@/components/ui/alert';
@@ -30,6 +31,8 @@ import {
 } from '../../../_lib/config-ui';
 import { InsurerConnectionPanel } from '../../../_lib/connection-ui';
 import { ContractImportPanel } from '../../../_lib/contract-import-ui';
+
+export const metadata: Metadata = { title: 'Operadora de convênio' };
 
 export const dynamic = 'force-dynamic';
 
