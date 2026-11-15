@@ -119,7 +119,16 @@ describe('interface de Convênios', () => {
       coberturaEspecial: [],
       saudeOcupacional: [],
     });
-    const editing = { ...guide, status: 'ready_for_review', terminologyVersion: '202609', consultaOverrides: { tipoConsulta: '4' } };
+    const adjusted = {
+      fromStatus: 'ready_for_review',
+      toStatus: 'ready_for_review',
+      changedFields: ['consulta_overrides'],
+      actorName: 'Gestora',
+      actorKind: 'user',
+      note: null,
+      createdAt: '2026-11-15T10:00:00Z',
+    };
+    const editing = { ...guide, status: 'ready_for_review', terminologyVersion: '202609', consultaOverrides: { tipoConsulta: '4' }, events: [adjusted] };
     m.getGuideDetail.mockResolvedValue(editing);
     m.conveniosAccess.mockResolvedValue({ ok: true, clinicId: 'c1', canManage: true });
     render(await GuiaPage({ params: Promise.resolve({ guideId: GUIDE }) }));
@@ -129,6 +138,10 @@ describe('interface de Convênios', () => {
     expect(panel.textContent).toContain('4 · Por encaminhamento (ajustado)');
     expect(panel.textContent).toContain('Não informada');
     expect(screen.getByRole('button', { name: 'Ajustar dados da consulta' })).toBeTruthy();
+    // Histórico: o ajuste diz o que mudou, não "Para conferir → Para conferir".
+    const history = screen.getByRole('region', { name: 'Histórico da guia' });
+    expect(history.textContent).toContain('Dados da consulta ajustados (etapa: Para conferir)');
+    expect(history.textContent).not.toContain('Para conferir → Para conferir');
     cleanup();
     // Conferida: o ajuste continua visível, mas não se edita (devolver para correção primeiro).
     m.getGuideDetail.mockResolvedValue({ ...editing, status: 'reviewed' });

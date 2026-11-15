@@ -22,7 +22,7 @@ import {
 } from '@/contexts/health-insurance/actions';
 import {
   getGuideDetail,
-  GUIDE_STATUS_LABELS,
+  guideEventLabel,
   ISSUE_OWNER_LABELS,
   listConsultaFieldOptions,
 } from '@/contexts/health-insurance/queries';
@@ -309,8 +309,7 @@ export default async function GuiaPage({ params }: { params: Promise<{ guideId: 
             {g.events.map((e, idx) => (
               <li key={`${e.createdAt}-${idx}`}>
                 <span className="text-fg-muted">{shortDate(e.createdAt)} · </span>
-                {e.fromStatus ? `${GUIDE_STATUS_LABELS[e.fromStatus] ?? e.fromStatus} → ` : ''}
-                {e.toStatus ? GUIDE_STATUS_LABELS[e.toStatus] ?? e.toStatus : 'alteração'}
+                {guideEventLabel(e)}
                 <span className="text-fg-muted"> · {e.actorName ?? (e.actorKind === 'system' ? 'Qoro (automático)' : 'usuário')}</span>
                 {e.note ? <span> — {e.note}</span> : null}
               </li>

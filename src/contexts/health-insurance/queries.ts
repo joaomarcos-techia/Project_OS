@@ -32,6 +32,7 @@ const s = (v: unknown): string | null => (v === null || v === undefined ? null :
 const iso = (v: unknown): string | null => (v instanceof Date ? v.toISOString() : v ? String(v) : null);
 
 export { GUIDE_STATUS_LABELS };
+export { guideEventLabel } from './guide-event-label';
 
 export const BATCH_STATUS_LABELS: Record<string, string> = {
   prepared: 'Preparado',
@@ -270,6 +271,8 @@ export interface GuideItemRow {
 export interface GuideEventRow {
   fromStatus: string | null;
   toStatus: string | null;
+  /** Nomes das colunas alteradas (o histórico do banco não grava valores). */
+  changedFields: string[];
   actorName: string | null;
   actorKind: string;
   note: string | null;
@@ -397,7 +400,7 @@ export async function getGuideDetail(clinicId: string, guideId: string): Promise
             FROM public.hi_guide_items WHERE clinic_id = ${clinicId}::uuid AND guide_id = ${guideId}::uuid ORDER BY sequence`,
     )) as unknown as Row[];
     const events = (await tx.execute(
-      sql`SELECT e.from_status, e.to_status, e.actor_kind, e.note, e.created_at, pr.nome AS actor_name
+      sql`SELECT e.from_status, e.to_status, e.changed_fields, e.actor_kind, e.note, e.created_at, pr.nome AS actor_name
             FROM public.hi_guide_events e
             LEFT JOIN public.profiles pr ON pr.id = e.actor_id AND pr.clinic_id = e.clinic_id
            WHERE e.clinic_id = ${clinicId}::uuid AND e.guide_id = ${guideId}::uuid ORDER BY e.created_at DESC LIMIT 100`,
@@ -472,6 +475,11 @@ export async function getGuideDetail(clinicId: string, guideId: string): Promise
       events: events.map((r) => ({
         fromStatus: s(r.from_status),
         toStatus: s(r.to_status),
+        changedFields: Array.isArray(r.changed_fields)
+          ? r.changed_fields.map(String)
+          : typeof r.changed_fields === 'string' // literal de array ('{a,b}') se o driver não tipar
+            ? r.changed_fields.replace(/^\{|\}$/gu, '').split(',').filter(Boolean)
+            : [],
         actorName: s(r.actor_name),
         actorKind: String(r.actor_kind),
         note: s(r.note),

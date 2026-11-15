@@ -893,6 +893,9 @@ test('gestora: dados da Consulta antes de conferir (P4.6) — padrões, ajuste p
   await expect(panel.getByText(/^4( · .+)? \(ajustado\)$/u)).toBeVisible();
   await expect(panel.getByText(CONSULTA_NOTE)).toBeVisible();
   await expect(historyItems(s.page)).toHaveCount(eventsBefore + 1);
+  await expect(
+    historyItems(s.page).filter({ hasText: 'Dados da consulta ajustados (etapa: Para conferir)' }),
+  ).toHaveCount(1);
   // Sem pendência nova: a guia segue pronta para conferir.
   await expect(s.page.getByRole('button', { name: 'Marcar como conferida' })).toBeVisible();
   expectNoPageErrors(s);
@@ -1436,6 +1439,24 @@ test('ficha do paciente: aba Convênios por teclado, outra clínica, vazio, duas
   await expect(susp.getByTestId('patient-insurance-card')).toContainText('•••• 2223');
   await expect(s.page.getByText('0081234500022223')).toHaveCount(0);
   await expect(s.page.getByRole('link', { name: 'Gerenciar carteirinhas' })).toHaveCount(0);
+  expectNoPageErrors(s);
+  await s.context.close();
+});
+
+test('histórico da guia: os ajustes dizem o que mudou; aprovações e devolução em ordem (P4.6, só leitura)', async ({
+  browser,
+}) => {
+  test.setTimeout(120_000);
+  const s = await login(browser, 'cfg-gestor');
+  expect(await visit(s, journey.guideUrl!, 'cfg-14-historico-guia')).toBe(200);
+  const items = historyItems(s.page);
+  // Dois ajustes da Consulta (antes da 1ª conferência e depois da devolução), duas aprovações, uma devolução.
+  await expect(
+    items.filter({ hasText: 'Dados da consulta ajustados (etapa: Para conferir)' }),
+  ).toHaveCount(2);
+  await expect(items.filter({ hasText: 'Para conferir → Para conferir' })).toHaveCount(0);
+  await expect(items.filter({ hasText: 'Conferida → Aprovada' })).toHaveCount(2);
+  await expect(items.filter({ hasText: 'Aprovada → Para conferir' })).toHaveCount(1);
   expectNoPageErrors(s);
   await s.context.close();
 });
