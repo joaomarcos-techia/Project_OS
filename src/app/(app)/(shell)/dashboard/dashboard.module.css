@@ -249,6 +249,13 @@
 }
 
 /* ---- Precisa de você: cada linha leva ao lugar onde a pendência se resolve ---- */
+/* Primeiro bloco da tela, na largura toda (UX-011). Contêiner próprio: a regra
+   que desce a ação para baixo do texto olha a largura do cartão. */
+.pendingCard {
+  min-width: 0;
+  container-type: inline-size;
+}
+
 .pending {
   display: flex;
   align-items: flex-start;
@@ -650,9 +657,10 @@
 
 /* Largura da área de conteúdo, não da janela: o trilho fixado muda quanto sobra. */
 @container dash (max-width: 855px) {
-  /* Empilhado, o que pede ação sobe. Só a ordem visual muda: o DOM segue o do
-     desktop. Sem o `flex` zerado, a base de 520/320 px da linha viraria ALTURA
-     nesta coluna. */
+  /* Empilhado, a ordem é a do DOM, igual à do desktop (UX-011): o que pede ação
+     já vem primeiro no código, então olho, Tab e leitor de tela percorrem a
+     mesma sequência — sem `order`, que mudava só o que se vê. Sem o `flex`
+     zerado, a base de 520/320 px da linha viraria ALTURA nesta coluna. */
   .row {
     display: contents;
   }
@@ -660,23 +668,6 @@
   .wide,
   .narrow {
     flex: 0 0 auto;
-  }
-
-  .body > :global([data-slot='activation-checklist']),
-  .setupCard {
-    order: -4;
-  }
-
-  .kpis {
-    order: -3;
-  }
-
-  .pendingCard {
-    order: -2;
-  }
-
-  .upcomingCard {
-    order: -1;
   }
 }
 

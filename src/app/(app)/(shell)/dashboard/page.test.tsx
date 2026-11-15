@@ -202,14 +202,53 @@ describe('DashboardPage', () => {
     expect(screen.getByRole('region', { name: 'Resumo financeiro' })).toBeTruthy();
   });
 
-  it('mantém o nome completo do usuário na saudação do cabeçalho', async () => {
+  // UX-011 — o leitor de tela precisa ouvir onde está; a saudação é complemento.
+  it('o h1 é o nome da tela e a saudação segue visível com o nome completo', async () => {
     render(await DashboardPage());
 
-    expect(
-      screen.getByRole('heading', {
-        name: /^(?:Bom dia|Boa tarde|Boa noite), Dr\. Matheus Silva$/u,
-      }),
-    ).toBeTruthy();
+    const titulos = screen.getAllByRole('heading', { level: 1 });
+    expect(titulos).toHaveLength(1);
+    expect(titulos[0]!.textContent).toBe('Dashboard');
+    const saudacao = screen.getByText(/^(?:Bom dia|Boa tarde|Boa noite), Dr\. Matheus Silva$/u);
+    expect(saudacao.tagName).toBe('P');
+  });
+
+  it('sem clínica, o h1 continua sendo o nome da tela', async () => {
+    getCurrentUser.mockResolvedValue({ ...currentUser([]), clinicId: null });
+
+    render(await DashboardPage());
+
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Dashboard');
+    expect(screen.getByText('Selecione uma clínica para ver o painel operacional.')).toBeTruthy();
+  });
+
+  // UX-011 — a ordem do DOM é a ordem de leitura em qualquer largura: o CSS não
+  // reordena mais os blocos no celular.
+  it('pendências vêm antes da ativação, dos indicadores, da agenda e do financeiro', async () => {
+    getCurrentUser.mockResolvedValue(
+      currentUser(['view:financial', 'view:audit', 'view:conversations']),
+    );
+    countOpenHandoffs.mockResolvedValue({ abertos: 2, vencidos: 1 });
+
+    const { container } = render(await DashboardPage());
+
+    const ordem = [
+      screen.getByRole('region', { name: 'Precisa de você' }),
+      screen.getByRole('region', { name: 'Sala de espera e atendimento' }),
+      screen.getByRole('region', { name: 'Próximos na agenda' }),
+      screen.getByRole('region', { name: 'Operação do turno' }),
+      screen.getByRole('region', { name: 'Resumo financeiro' }),
+      screen.getByRole('region', { name: 'Faturamento recebido' }),
+      screen.getByRole('region', { name: 'Atividade recente' }),
+    ];
+    for (let i = 1; i < ordem.length; i++) {
+      expect(
+        ordem[i - 1]!.compareDocumentPosition(ordem[i]!) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    }
+    const texto = container.textContent ?? '';
+    expect(texto.indexOf('Precisa de você')).toBeLessThan(texto.indexOf('Primeiros passos'));
+    expect(texto.indexOf('Primeiros passos')).toBeLessThan(texto.indexOf('Aguardando'));
   });
 
   it('mostra a prévia apenas ao usuário configurado, sem escrever ou ler métricas reais', async () => {
@@ -480,7 +519,7 @@ describe('DashboardPage', () => {
       const pendencias = regionOf('Precisa de você');
       expect(pendencias.getByText(FAILED)).toBeTruthy();
       expect(pendencias.getByText('2 conversas da IA precisam de alguém da equipe')).toBeTruthy();
-      expect(pendencias.getByText('1 com resposta atrasada')).toBeTruthy();
+      expect(pendencias.getByText('1 com prazo de atendimento vencido')).toBeTruthy();
     });
 
     it('sem a permissão, a leitura nem acontece e não há bloco de falha', async () => {

@@ -153,7 +153,9 @@ export default async function DashboardPage() {
   if (!user.clinicId) {
     return (
       <PageHeader
-        title="Visão operacional"
+        icon={<House aria-hidden="true" />}
+        title="Dashboard"
+        headline="Visão operacional"
         description="Selecione uma clínica para ver o painel operacional."
       />
     );
@@ -328,18 +330,13 @@ export default async function DashboardPage() {
 
   return (
     <>
+      {/* UX-011 — o `<h1>` é o nome da tela, na barra de cima (mesmo padrão da
+          Agenda e do Caixa): é o que o leitor de tela anuncia como destino. A
+          saudação segue grande, como complemento, sem ocupar o lugar do título. */}
       <PageHeader
-        crumbs={[
-          {
-            label: (
-              <>
-                <House aria-hidden="true" />
-                Dashboard
-              </>
-            ),
-          },
-        ]}
-        title={nomeCompleto ? `${periodo}, ${nomeCompleto}` : periodo}
+        icon={<House aria-hidden="true" />}
+        title="Dashboard"
+        headline={nomeCompleto ? `${periodo}, ${nomeCompleto}` : periodo}
         description={`${hojeTitulo} · atualizado às ${atualizadoEm}`}
         {...(demoMode
           ? {
@@ -357,19 +354,81 @@ export default async function DashboardPage() {
       />
 
       <div className={styles.body}>
-        {/* Antes do resto: enquanto a ativação não fecha, ela É a prioridade da
-            tela. Não polui o dashboard maduro porque o componente se remove
-            sozinho quando os passos terminam. */}
+        {/* UX-011 — primeiro bloco da tela, no DOM e no olho, em qualquer
+            largura: o que precisa de alguém vem antes dos números (antes ficava
+            depois dos indicadores e, no celular, só subia por `order` no CSS —
+            o leitor de tela e o Tab seguiam outra ordem). Ordem do resto:
+            ativação, operação agora, agenda, financeiro, histórico.
+            Pendências que valem interromper a leitura. Cada linha leva ao
+            lugar onde aquilo se resolve — nunca um aviso mudo. O cartão só
+            existe quando há pendência ou quando não deu para saber: vazio,
+            diria "nada a fazer" a quem talvez só não tenha permissão para
+            ver. */}
+        {pendencias > 0 || pendenciasIncertas ? (
+          <PanelCard
+            title="Precisa de você"
+            headingLevel={2}
+            regionLabel="Precisa de você"
+            {...(pendencias > 0
+              ? {
+                  count: (
+                    <span className="qoro-count" data-tone="danger">
+                      {pendencias}
+                    </span>
+                  ),
+                }
+              : {})}
+            flush
+            className={styles.pendingCard ?? ''}
+          >
+            {pendencias > 0 ? (
+              <ul className={styles.list}>
+                {hasWhatsappAlert ? <WhatsappSendAlert {...whatsappAlert} /> : null}
+                {showUnbilled ? (
+                  <PendingItem
+                    href="/caixa"
+                    tone="warning"
+                    icon={<TriangleAlert />}
+                    title={
+                      d.naoFaturados === 1
+                        ? '1 atendimento concluído hoje ainda não foi faturado'
+                        : `${d.naoFaturados} atendimentos concluídos hoje ainda não foram faturados`
+                    }
+                    cta="Abrir o Caixa"
+                  />
+                ) : null}
+                {handoff.abertos > 0 ? (
+                  <PendingItem
+                    href="/conversas"
+                    tone={handoff.vencidos > 0 ? 'danger' : 'info'}
+                    icon={<MessageCircle />}
+                    title={
+                      handoff.abertos === 1
+                        ? '1 conversa da IA precisa de alguém da equipe'
+                        : `${handoff.abertos} conversas da IA precisam de alguém da equipe`
+                    }
+                    // UX-014: o prazo da fila só se cumpre quando a conversa volta
+                    // ao agente — responder não basta. "Resposta atrasada" diria
+                    // outra coisa.
+                    {...(handoff.vencidos > 0
+                      ? { detail: `${handoff.vencidos} com prazo de atendimento vencido` }
+                      : {})}
+                    cta="Abrir Conversas IA"
+                  />
+                ) : null}
+              </ul>
+            ) : null}
+            {pendenciasIncertas ? <BlockUnavailable /> : null}
+          </PanelCard>
+        ) : null}
+
+        {/* Logo depois das pendências: enquanto a ativação não fecha, ela é a
+            próxima prioridade da tela. Não polui o dashboard maduro porque o
+            componente se remove sozinho quando os passos terminam. */}
         {demoMode ? null : checklistRead.ok ? (
           <ActivationChecklist data={checklistRead.value} dismissed={checklistDismissed} />
         ) : checklistDismissed ? null : (
-          <PanelCard
-            title="Primeiros passos"
-            headingLevel={2}
-            regionLabel="Primeiros passos"
-            flush
-            className={styles.setupCard ?? ''}
-          >
+          <PanelCard title="Primeiros passos" headingLevel={2} regionLabel="Primeiros passos" flush>
             <BlockUnavailable />
           </PanelCard>
         )}
@@ -422,106 +481,6 @@ export default async function DashboardPage() {
 
         <div className={styles.row}>
           <PanelCard
-            title="Consultas hoje"
-            headingLevel={2}
-            regionLabel="Operação do turno"
-            action={{ label: 'Abrir a agenda', href: '/agenda' }}
-            flush
-            className={styles.narrow ?? ''}
-          >
-            <div className={styles.turn}>
-              <p className={styles.turnTotal}>
-                <span className={styles.turnValue}>{d.consultasHoje}</span>
-                <span className={styles.muted}>no total ·</span>
-                <span className={styles.muted}>
-                  {plural(d.finalizadas, 'finalizada', 'finalizadas')}
-                </span>
-              </p>
-              {/* Dia sem consulta alguma: o total acima já diz tudo, e medidor
-                  vazio com seis linhas de "0" só repetiria. */}
-              {d.consultasHoje > 0 || d.cancelados > 0 ? (
-                <>
-                  <div className={styles.meter} role="img" aria-label={turnoDescricao}>
-                    {d.consultasHoje > 0 ? (
-                      turno
-                        .filter((t) => t.count > 0)
-                        .map((t) => (
-                          <span key={t.key} className={t.className} style={{ flexGrow: t.count }} />
-                        ))
-                    ) : (
-                      <span className={styles.meterEmpty} />
-                    )}
-                  </div>
-                  {/* Só visual (ver .legend): a leitura completa está no medidor. */}
-                  <ul className={styles.legend} aria-hidden="true">
-                    {turno.map((t) => (
-                      <li key={t.key} data-label={t.label} data-count={t.count}>
-                        <span className={cn(styles.swatch, t.className)} />
-                      </li>
-                    ))}
-                    <li data-label="Canceladas" data-count={d.cancelados}>
-                      <span className={cn(styles.swatch, styles.cancelled)} />
-                    </li>
-                  </ul>
-                </>
-              ) : null}
-            </div>
-          </PanelCard>
-
-          {canViewFinancial ? (
-            <PanelCard
-              title="Resumo financeiro do dia"
-              headingLevel={2}
-              regionLabel="Resumo financeiro"
-              action={{ label: 'Abrir o Financeiro', href: '/financeiro' }}
-              flush
-              className={cn(styles.wide, styles.clip)}
-            >
-              {flow ? (
-                <MetricStrip
-                  variant="joined"
-                  aria-label="Indicadores financeiros do dia"
-                  className={styles.finStrip}
-                >
-                  <StatCard
-                    label="A receber"
-                    value={formatBRL(flow.receber)}
-                    hint={
-                      <>
-                        <span>{plural(flow.contagens.receber, 'cobrança', 'cobranças')}</span>
-                        {flow.contagens.receberVencidos > 0 ? (
-                          <Badge tone="red" dot>
-                            {plural(flow.contagens.receberVencidos, 'vencida', 'vencidas')}
-                          </Badge>
-                        ) : null}
-                      </>
-                    }
-                  />
-                  <StatCard
-                    label="Recebido hoje"
-                    value={formatBRL(flow.recebidoHoje)}
-                    valueTone={flow.recebidoHoje > 0 ? 'positive' : 'default'}
-                    hint={plural(flow.contagens.recebimentos, 'recebimento', 'recebimentos')}
-                  />
-                  <StatCard
-                    label="Saldo do dia"
-                    value={formatBRL(flow.saldoHoje)}
-                    hint={
-                      flow.pagoHoje === 0
-                        ? 'Nenhuma saída hoje'
-                        : `Depois de ${formatBRL(flow.pagoHoje)} em saídas`
-                    }
-                  />
-                </MetricStrip>
-              ) : (
-                <BlockUnavailable />
-              )}
-            </PanelCard>
-          ) : null}
-        </div>
-
-        <div className={styles.row}>
-          <PanelCard
             title="Próximos na agenda"
             headingLevel={2}
             regionLabel="Próximos na agenda"
@@ -530,7 +489,7 @@ export default async function DashboardPage() {
               : {})}
             action={{ label: 'Ver o dia inteiro', href: '/agenda' }}
             flush
-            className={cn(styles.wide, styles.upcomingCard)}
+            className={styles.wide ?? ''}
           >
             {d.proximos.length === 0 ? (
               <EmptyState
@@ -580,66 +539,106 @@ export default async function DashboardPage() {
             )}
           </PanelCard>
 
-          {/* Pendências que valem interromper a leitura. Cada linha leva ao
-              lugar onde aquilo se resolve — nunca um aviso mudo. O cartão só
-              existe quando há pendência ou quando não deu para saber: vazio,
-              diria "nada a fazer" a quem talvez só não tenha permissão para
-              ver. */}
-          {pendencias > 0 || pendenciasIncertas ? (
-            <PanelCard
-              title="Precisa de você"
-              headingLevel={2}
-              regionLabel="Precisa de você"
-              {...(pendencias > 0
-                ? {
-                    count: (
-                      <span className="qoro-count" data-tone="danger">
-                        {pendencias}
-                      </span>
-                    ),
-                  }
-                : {})}
-              flush
-              className={cn(styles.narrow, styles.pendingCard)}
-            >
-              {pendencias > 0 ? (
-                <ul className={styles.list}>
-                  {hasWhatsappAlert ? <WhatsappSendAlert {...whatsappAlert} /> : null}
-                  {showUnbilled ? (
-                    <PendingItem
-                      href="/caixa"
-                      tone="warning"
-                      icon={<TriangleAlert />}
-                      title={
-                        d.naoFaturados === 1
-                          ? '1 atendimento concluído hoje ainda não foi faturado'
-                          : `${d.naoFaturados} atendimentos concluídos hoje ainda não foram faturados`
-                      }
-                      cta="Abrir o Caixa"
-                    />
-                  ) : null}
-                  {handoff.abertos > 0 ? (
-                    <PendingItem
-                      href="/conversas"
-                      tone={handoff.vencidos > 0 ? 'danger' : 'info'}
-                      icon={<MessageCircle />}
-                      title={
-                        handoff.abertos === 1
-                          ? '1 conversa da IA precisa de alguém da equipe'
-                          : `${handoff.abertos} conversas da IA precisam de alguém da equipe`
-                      }
-                      {...(handoff.vencidos > 0
-                        ? { detail: `${handoff.vencidos} com resposta atrasada` }
-                        : {})}
-                      cta="Abrir Conversas IA"
-                    />
-                  ) : null}
-                </ul>
+          <PanelCard
+            title="Consultas hoje"
+            headingLevel={2}
+            regionLabel="Operação do turno"
+            action={{ label: 'Abrir a agenda', href: '/agenda' }}
+            flush
+            className={styles.narrow ?? ''}
+          >
+            <div className={styles.turn}>
+              <p className={styles.turnTotal}>
+                <span className={styles.turnValue}>{d.consultasHoje}</span>
+                <span className={styles.muted}>no total ·</span>
+                <span className={styles.muted}>
+                  {plural(d.finalizadas, 'finalizada', 'finalizadas')}
+                </span>
+              </p>
+              {/* Dia sem consulta alguma: o total acima já diz tudo, e medidor
+                  vazio com seis linhas de "0" só repetiria. */}
+              {d.consultasHoje > 0 || d.cancelados > 0 ? (
+                <>
+                  <div className={styles.meter} role="img" aria-label={turnoDescricao}>
+                    {d.consultasHoje > 0 ? (
+                      turno
+                        .filter((t) => t.count > 0)
+                        .map((t) => (
+                          <span key={t.key} className={t.className} style={{ flexGrow: t.count }} />
+                        ))
+                    ) : (
+                      <span className={styles.meterEmpty} />
+                    )}
+                  </div>
+                  {/* Só visual (ver .legend): a leitura completa está no medidor. */}
+                  <ul className={styles.legend} aria-hidden="true">
+                    {turno.map((t) => (
+                      <li key={t.key} data-label={t.label} data-count={t.count}>
+                        <span className={cn(styles.swatch, t.className)} />
+                      </li>
+                    ))}
+                    <li data-label="Canceladas" data-count={d.cancelados}>
+                      <span className={cn(styles.swatch, styles.cancelled)} />
+                    </li>
+                  </ul>
+                </>
               ) : null}
-              {pendenciasIncertas ? <BlockUnavailable /> : null}
-            </PanelCard>
-          ) : null}
+            </div>
+          </PanelCard>
         </div>
+
+        {canViewFinancial ? (
+          <div className={styles.row}>
+            <PanelCard
+              title="Resumo financeiro do dia"
+              headingLevel={2}
+              regionLabel="Resumo financeiro"
+              action={{ label: 'Abrir o Financeiro', href: '/financeiro' }}
+              flush
+              className={cn(styles.wide, styles.clip)}
+            >
+              {flow ? (
+                <MetricStrip
+                  variant="joined"
+                  aria-label="Indicadores financeiros do dia"
+                  className={styles.finStrip}
+                >
+                  <StatCard
+                    label="A receber"
+                    value={formatBRL(flow.receber)}
+                    hint={
+                      <>
+                        <span>{plural(flow.contagens.receber, 'cobrança', 'cobranças')}</span>
+                        {flow.contagens.receberVencidos > 0 ? (
+                          <Badge tone="red" dot>
+                            {plural(flow.contagens.receberVencidos, 'vencida', 'vencidas')}
+                          </Badge>
+                        ) : null}
+                      </>
+                    }
+                  />
+                  <StatCard
+                    label="Recebido hoje"
+                    value={formatBRL(flow.recebidoHoje)}
+                    valueTone={flow.recebidoHoje > 0 ? 'positive' : 'default'}
+                    hint={plural(flow.contagens.recebimentos, 'recebimento', 'recebimentos')}
+                  />
+                  <StatCard
+                    label="Saldo do dia"
+                    value={formatBRL(flow.saldoHoje)}
+                    hint={
+                      flow.pagoHoje === 0
+                        ? 'Nenhuma saída hoje'
+                        : `Depois de ${formatBRL(flow.pagoHoje)} em saídas`
+                    }
+                  />
+                </MetricStrip>
+              ) : (
+                <BlockUnavailable />
+              )}
+            </PanelCard>
+          </div>
+        ) : null}
 
         {canViewFinancial || canAudit ? (
           <div className={styles.row}>
