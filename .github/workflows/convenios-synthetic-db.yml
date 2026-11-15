@@ -1,0 +1,84 @@
+name: Convênios — provas sintéticas de banco
+
+# Provas do módulo Convênios (TISS) em PostgreSQL DESCARTÁVEL criado dentro do próprio runner
+# (initdb no diretório temporário; some com a máquina). Por que existe: o notebook de
+# desenvolvimento não comporta Postgres nem build (decisão do fundador de 15/11/2026), e estas
+# provas não estavam em nenhum job.
+#
+# Limites (decisão do fundador para testes em CI):
+#   - dados 100% sintéticos, gerados pelos próprios harnesses; nenhum dado real do Qoro;
+#   - nenhum segredo: o job não referencia `secrets.*` nem `vars.*`, e roda sem `.env.local`;
+#   - nenhum banco compartilhado (DEV ou produção) e nenhuma migration fora do cluster descartável;
+#   - nenhum deploy, nenhum artefato publicado (nem dump), nenhuma chamada a Asaas, AbacatePay,
+#     operadora ou Supabase: o armazenamento dos arquivos é um mapa em memória do harness;
+#   - token do GitHub só de leitura, e retirado do git antes de instalar dependências.
+#
+# A cadeia "na ordem do DEV" lê as migrations 0136–0142 e a 0159 candidata do #53 por `git show`
+# de dois commits fixos (scripts/security/dev-order-chain.ts). Só leitura do repositório.
+
+# `push` na branch do #55 (não `pull_request`): o filtro de caminhos olha só os commits enviados,
+# então um push só de documentação não gasta minutos do Actions.
+on:
+  push:
+    branches: [feat/convenios-tiss-20261110]
+    paths:
+      - 'src/contexts/health-insurance/**'
+      - 'src/lib/premium-access/**'
+      - 'scripts/security/health-insurance-*-db.ts'
+      - 'scripts/security/hi-fixtures.ts'
+      - 'scripts/security/scratch-schema.ts'
+      - 'scripts/security/dev-order-chain.ts'
+      - 'drizzle/migrations/**'
+      - 'docs/convenios/migrations/**'
+      - '.github/workflows/convenios-synthetic-db.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: convenios-synthetic-db-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  synthetic-db:
+    name: Convênios — Postgres descartável (sintético)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      # O commit enviado, exatamente como está (a cadeia do DEV é a do #55, sem merge com a main).
+      - uses: actions/checkout@v4
+
+      - name: Commits do #53 lidos pela cadeia do DEV (só leitura) e retirada do token do git
+        run: |
+          git fetch --no-tags --depth=1 origin \
+            8c591c8f3d89b459a80c30bb36541eae1123861f \
+            97e2c3067ad35ce487a426d966949f7391c37870
+          git config --local --unset-all http.https://github.com/.extraheader || true
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.17.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: 0162 candidata — matriz de permissões I.2 (12 provas)
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55549 \
+            pnpm exec tsx scripts/security/health-insurance-permission-matrix-db.ts
+
+      - name: SP/SADT — solicitação, automação e indicação clínica × D24
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" \
+          NODE_OPTIONS="--import ./scripts/security/server-only-hook.mjs" \
+            pnpm exec tsx --tsconfig tsconfig.scripts.json scripts/security/health-insurance-sadt-db.ts
+
+      - name: Repasse do convênio — inclui o cancelamento da guia com repasse
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" NODE_OPTIONS=--conditions=react-server \
+            pnpm exec tsx scripts/security/health-insurance-payout-db.ts

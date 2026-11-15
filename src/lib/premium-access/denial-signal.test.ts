@@ -86,4 +86,25 @@ describe('premium.denied', () => {
     }
     expect(emit).toHaveBeenCalledTimes(3);
   });
+
+  it('falha na emissão não abre a operação nem troca o erro (telemetria não decide)', async () => {
+    emit.mockImplementation(() => {
+      throw new Error('EPIPE');
+    });
+    const error = await assertPremiumFeatureTx(txReturning('clinic_suspended'), CLINIC, 'health_insurance').catch(
+      (e: unknown) => e,
+    );
+    expect(error).toBeInstanceOf(PremiumAccessError);
+    expect((error as PremiumAccessError).reason).toBe('clinic_suspended');
+    const translated = premiumAccessErrorFrom(dbError('trial'));
+    expect(translated).toBeInstanceOf(PremiumAccessError);
+    expect(translated?.reason).toBe('trial');
+  });
+
+  it('motivo fora da lista vira o genérico (cardinalidade fechada: recurso × motivo × origem)', () => {
+    const translated = premiumAccessErrorFrom(dbError('qualquer coisa que o banco mandar'));
+    expect(translated?.reason).toBe('subscription_inactive');
+    const fields = emit.mock.calls[0]?.[1] as Record<string, string>;
+    expect(fields.reason).toBe('subscription_inactive');
+  });
 });

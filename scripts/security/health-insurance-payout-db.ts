@@ -286,6 +286,69 @@ try {
   assert.deepEqual([Number(autoPos!.forecast_cents), Number(autoPos!.eligible_cents)], [6000, 0]);
   pass(`12. outra clínica não lê nem movimenta o repasse; atendimento de convênio concluído pelo Scheduling → outbox → guia pronta → repasse criado sozinho (previsto R$ 60,00, elegível R$ 0,00); nenhum repasse particular criado ou alterado`);
 
+  // ── 13. Cancelar a guia com repasse (15/11 noite; decisão do fundador: (a) compensação negativa
+  //        NÃO é automática; (b) repasse autorizado ou pago é obrigação preservada) ─────────────
+  // Mede o comportamento ATUAL, sem mudar contrato: o cancelamento é o mesmo UPDATE da action
+  // (`cancelGuideAction`), na guia aprovada (antes do envio), com a política "na aprovação".
+  await sql`update public.hi_clinic_settings set payout_eligibility = 'on_approval' where clinic_id = ${C.clinicId}::uuid`;
+  const cancelGuide = async (guideId: string) => {
+    const [g] = await sql`select version from public.hi_guides where id = ${guideId}::uuid`;
+    await fx.asUser(C, (tx) =>
+      tx.execute(fx.sqlTag`update public.hi_guides set status = 'cancelled', cancel_reason = 'Guia emitida para o convênio errado',
+        cancelled_by = ${C.doctorId}::uuid where clinic_id = ${C.clinicId}::uuid and id = ${guideId}::uuid and version = ${Number(g!.version)}`),
+    );
+  };
+  const money = async (guideId: string) => {
+    const [r] = await sql`select
+        (select count(*)::int from public.lancamentos where source_hi_guide_id = ${guideId}::uuid) as receivables,
+        (select count(*)::int from public.hi_ledger_entries where guide_id = ${guideId}::uuid) as ledger,
+        (select count(*)::int from public.payment_transactions t join public.lancamentos l on l.id = t.lancamento_id
+          where l.source_hi_guide_id = ${guideId}::uuid) as cash`;
+    return [Number(r!.receivables), Number(r!.ledger), Number(r!.cash)];
+  };
+  const movements = async (payoutId: string) =>
+    (await sql`select kind, amount_cents from public.hi_payout_movements where payout_id = ${payoutId}::uuid order by created_at`).map(
+      (m) => `${String(m.kind)}:${Number(m.amount_cents)}`,
+    );
+  const cancelledEvent = async (guideId: string) =>
+    (await sql`select actor_id from public.hi_guide_events where guide_id = ${guideId}::uuid and to_status = 'cancelled'`).map((e) => String(e.actor_id));
+  // A — sem repasse autorizado nem pago.
+  const gA = await C.approvedGuide();
+  const pA = await payoutFor(C, gA);
+  await cancelGuide(gA);
+  const sA = await position(C, pA);
+  assert.deepEqual([sA.decision, sA.eligibleCents, sA.authorizedCents, sA.settledCents, sA.dueCents, sA.pendingAuthorizationCents],
+    ['NO_LIVE_GUIDE', 0, 0, 0, 0, 0]);
+  assert.deepEqual(await movements(pA), []);
+  // B — repasse AUTORIZADO (R$ 60), ainda não pago.
+  const gB = await C.approvedGuide();
+  const pB = await payoutFor(C, gB);
+  await authorize(C, pB, 6000);
+  await cancelGuide(gB);
+  const sB = await position(C, pB);
+  assert.deepEqual([sB.decision, sB.eligibleCents, sB.authorizedCents, sB.settledCents], ['NO_LIVE_GUIDE', 0, 6000, 0]);
+  // A obrigação autorizada continua devida (b); o excesso sobre o novo elegível fica VISÍVEL
+  // (pendente de autorização negativo) para a revisão humana (a). Nada é compensado sozinho.
+  assert.deepEqual([sB.dueCents, sB.pendingAuthorizationCents], [6000, -6000]);
+  assert.deepEqual(await movements(pB), ['authorization:6000']);
+  await rejects(() => authorize(C, pB, 1), /acima do elegível/u);
+  // C — repasse AUTORIZADO e PAGO (R$ 60).
+  const gCx = await C.approvedGuide();
+  const pCx = await payoutFor(C, gCx);
+  await authorize(C, pCx, 6000);
+  await settle(C, pCx, 6000);
+  await cancelGuide(gCx);
+  const sCx = await position(C, pCx);
+  assert.deepEqual([sCx.decision, sCx.eligibleCents, sCx.authorizedCents, sCx.settledCents, sCx.dueCents, sCx.pendingAuthorizationCents],
+    ['NO_LIVE_GUIDE', 0, 6000, 6000, 0, -6000]);
+  assert.deepEqual(await movements(pCx), ['authorization:6000', 'settlement:6000'], 'o pagamento registrado fica; nada é estornado');
+  // Nenhum dos três cancelamentos mexe no livro financeiro (a guia não foi enviada: não há recebível).
+  for (const g of [gA, gB, gCx]) {
+    assert.deepEqual(await money(g), [0, 0, 0]);
+    assert.deepEqual(await cancelledEvent(g), [C.doctorId], 'histórico com o autor');
+  }
+  pass('13. cancelar guia aprovada (política "na aprovação"): sem repasse → elegível R$ 0,00 e nada a revisar; repasse autorizado → a obrigação de R$ 60,00 continua devida e o excesso (−R$ 60,00) fica visível, sem compensação automática e sem nova autorização; repasse pago → o pagamento fica registrado (nada estornado) e o excesso (−R$ 60,00) visível; nenhum recebível, livro ou caixa tocado; histórico com o autor');
+
   console.log(`\nOK — ${passed} provas do repasse profissional de convênio (P10.4).`);
 } finally {
   await cluster.stop();

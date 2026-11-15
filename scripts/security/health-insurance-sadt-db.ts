@@ -507,6 +507,58 @@ try {
   assert.deepEqual(indAfter, indBefore);
   pass('10. documento oficial do pedido (P6.2): XML SOLICITACAO_PROCEDIMENTOS validado no XSD + PDF do modelo oficial, cifrados e ligados à autorização; geração única sob concorrência; congelado (cadastro alterado depois não muda nada); adulterado nunca é entregue e fica auditado; outra clínica não vê; sem autorização exigida não há pedido; XSD indisponível não grava; carteirinha errada recusada; suspensa não gera nem muda a indicação clínica, mas lê o que já existe; autorização com data no futuro ou antes do pedido é recusada');
 
+  // ── 11. Indicação clínica × situação comercial, clínica e concorrência (D24, 15/11 noite) ──
+  // O serviço é a última barreira (a action confere sessão, clínica e permissão antes; ver
+  // actions.test.ts). Aqui: a decisão comercial é lida NA HORA (mudança no meio da sessão),
+  // outra clínica e id adulterado não alcançam a linha, e duas edições simultâneas não se perdem.
+  const p11 = await patientWithCard(A, 'indicação D24');
+  const r11 = await createRequest(A, p11, [{ code: CODE_IND, quantity: 1 }]);
+  const setInd = (c: Clinic, clinicId: string, requestId: string, v: number, text: string) =>
+    asUser(c, (tx) => req.setClinicalIndicationInTx(tx, { clinicId, requestId, version: v, text, actorUserId: c.doctorId }));
+  const outcome = async (p: Promise<unknown>): Promise<string> => {
+    try {
+      await p;
+      return 'aceitou';
+    } catch (e) {
+      const err = e as { reason?: string; code?: string; message?: string; cause?: { code?: string } };
+      return String(err.reason ?? err.code ?? err.cause?.code ?? err.message);
+    }
+  };
+  const snap11 = async () =>
+    (await sql`select clinical_indication_encrypted as enc, clinical_indication_by as by, version, status from public.hi_sadt_requests where id = ${r11}::uuid`)[0];
+  assert.equal(await outcome(setInd(A, A.clinicId, r11, await version(r11), 'Psicoterapia semanal, clínica ativa.')), 'aceitou');
+  const s11 = await snap11();
+  // Mudança comercial no meio da sessão: a mesma pessoa, a mesma tela, a decisão é a do banco agora.
+  await sql`update public.subscriptions set billing_status = 'trial', trial_ends_at = now() + interval '10 days',
+      enforce_trial_deadline = true where clinic_id = ${A.clinicId}::uuid`;
+  const rTrial = await outcome(setInd(A, A.clinicId, r11, await version(r11), 'Indicação durante o trial.'));
+  await sql`update public.subscriptions set billing_status = 'active', trial_ends_at = null,
+      enforce_trial_deadline = false where clinic_id = ${A.clinicId}::uuid`;
+  await sql`update public.clinics set status = 'suspended_readonly' where id = ${A.clinicId}::uuid`;
+  const rSuspended = await outcome(setInd(A, A.clinicId, r11, await version(r11), 'Indicação com a clínica suspensa.'));
+  await sql`update public.clinics set status = 'active' where id = ${A.clinicId}::uuid`;
+  assert.deepEqual([rTrial, rSuspended], ['trial', 'clinic_suspended']);
+  assert.deepEqual(await snap11(), s11, 'recusa não toca na solicitação');
+  // Outra clínica (C, paga e ativa) não alcança a solicitação de A: pelo id, a RLS esconde a linha
+  // ("inexistente nesta clínica"); dizendo ser A, a própria consulta comercial recusa (42501: fora da
+  // clínica da sessão) antes de qualquer leitura.
+  const rOther = await outcome(setInd(C, C.clinicId, r11, await version(r11), 'Texto de outra clínica.'));
+  const rTampered = await outcome(setInd(C, A.clinicId, r11, await version(r11), 'Texto com a clínica adulterada.'));
+  const rUnknown = await outcome(setInd(A, A.clinicId, randomUUID(), 1, 'Solicitação que não existe.'));
+  assert.deepEqual([rOther, rTampered, rUnknown], ['not_found', '42501', 'not_found']);
+  assert.deepEqual(await snap11(), s11, 'tentativas de fora não tocam na solicitação');
+  // Concorrência: duas edições com a mesma versão → uma grava, a outra recebe "mudou; recarregue".
+  const v11 = await version(r11);
+  const both = await Promise.all([
+    outcome(setInd(A, A.clinicId, r11, v11, 'Primeira edição simultânea.')),
+    outcome(setInd(A, A.clinicId, r11, v11, 'Segunda edição simultânea.')),
+  ]);
+  assert.deepEqual([...both].sort(), ['aceitou', 'stale']);
+  assert.equal(await version(r11), v11 + 1);
+  // De volta à assinatura paga e ativa, a mesma pessoa grava de novo.
+  assert.equal(await outcome(setInd(A, A.clinicId, r11, await version(r11), 'Indicação depois da regularização.')), 'aceitou');
+  pass('11. indicação clínica (D24): ativa grava; trial e suspensa no meio da sessão recusam sem tocar na solicitação; outra clínica, clínica adulterada e id inexistente não alcançam a linha; duas edições simultâneas: uma grava, a outra recebe "recarregue"; regularizada, grava de novo');
+
   console.log(`\nOK — ${passed} provas: solicitação SP/SADT persistida e SP/SADT automática ponta a ponta (até o XML validado no XSD).`);
 } finally {
   await cluster.stop();

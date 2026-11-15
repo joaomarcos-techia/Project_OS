@@ -16,6 +16,7 @@ const m = vi.hoisted(() => ({
   revalidatePath: vi.fn(),
   approveConsultaGuide: vi.fn(),
   updateConsultaOverridesInTx: vi.fn(),
+  setClinicalIndicationInTx: vi.fn(),
 }));
 
 vi.mock('server-only', () => ({}));
@@ -58,8 +59,13 @@ vi.mock('./internal/insurance-account-service', () => {
   return { InsuranceAccountError, transitionGlossInTx: m.transitionGlossInTx, recordPaymentInTx: m.recordPaymentInTx };
 });
 vi.mock('./tiss/xml/xsd-validator', () => ({ loadXmllintValidator: () => null }));
+vi.mock('./internal/sadt-request-service', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  setClinicalIndicationInTx: m.setClinicalIndicationInTx,
+}));
 
 import { AuthError } from '@/lib/auth/tenant-context';
+import { PremiumAccessError } from '@/lib/premium-access';
 
 import {
   approveGuideAction,
@@ -68,6 +74,7 @@ import {
   recordPaymentAction,
   returnGuideAction,
   reviewGuideAction,
+  setSadtClinicalIndicationAction,
   updateConsultaFieldsAction,
 } from './actions';
 import { ConsultaOverridesError } from './internal/consulta-overrides-service';
@@ -230,5 +237,91 @@ describe('ações de Convênios', () => {
     const long = await updateConsultaFieldsAction({ guideId: GUIDE, version: 4, observacao: 'a'.repeat(501) });
     expect(long).toEqual({ ok: false, error: 'Observação: até 500 caracteres (padrão TISS).' });
     expect(m.updateConsultaOverridesInTx).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * Indicação clínica da SP/SADT: a única action com portão próprio (actions-gate.test.ts). Confere,
+ * no servidor, sessão, acesso ativo, clínica da sessão, permissão pelo tipo do solicitante e, no
+ * serviço, a situação comercial (D24, 15/11 noite) e a posse (só a solicitante interna; prova de
+ * banco em health-insurance-sadt-db.ts, seção 11).
+ */
+describe('indicação clínica da SP/SADT (portão próprio)', () => {
+  const REQ = '44444444-4444-4444-8444-444444444444';
+  const input = { requestId: REQ, version: 2, text: 'Psicoterapia semanal.' };
+  type Ctor = new (msg: string, code: string, status: number, reason: string) => Error;
+  const Err = AuthError as unknown as Ctor;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    m.requireUser.mockResolvedValue({ userId: 'u1' });
+    m.requireCachedPermission.mockResolvedValue(undefined);
+    m.requireClinicId.mockResolvedValue(CLINIC);
+    m.setClinicalIndicationInTx.mockResolvedValue(3);
+  });
+
+  it('sessão terminada ou acesso desativado: mensagem própria, nada é lido nem gravado', async () => {
+    m.requireUser.mockRejectedValueOnce(new Err('Autenticação necessária', 'unauthenticated', 401, 'TOKEN_INVALID'));
+    expect(await setSadtClinicalIndicationAction(input)).toEqual({
+      ok: false,
+      error: 'Sua sessão terminou. Entre de novo para continuar.',
+    });
+    m.requireUser.mockRejectedValueOnce(new Err('Acesso desativado.', 'unauthenticated', 401, 'USER_DISABLED'));
+    expect(await setSadtClinicalIndicationAction(input)).toEqual({
+      ok: false,
+      error: 'Seu acesso a esta clínica foi desativado. Fale com o administrador da clínica.',
+    });
+    expect(m.execute).not.toHaveBeenCalled();
+    expect(m.setClinicalIndicationInTx).not.toHaveBeenCalled();
+    expect(m.logAudit).not.toHaveBeenCalled();
+  });
+
+  it('solicitante interno exige a permissão clínica; externo, a de gestão; sem ela nada é gravado', async () => {
+    m.execute.mockResolvedValueOnce([{ requester_kind: 'internal' }]);
+    m.requireCachedPermission.mockRejectedValueOnce(new Err('negado', 'forbidden', 403, 'PERMISSION_DENIED'));
+    expect(await setSadtClinicalIndicationAction(input)).toEqual({
+      ok: false,
+      error: 'Seu perfil não tem permissão para esta operação de convênios.',
+    });
+    expect(m.requireCachedPermission).toHaveBeenLastCalledWith('create:prontuario');
+    m.execute.mockResolvedValueOnce([{ requester_kind: 'external' }]);
+    m.requireCachedPermission.mockRejectedValueOnce(new Err('negado', 'forbidden', 403, 'PERMISSION_DENIED'));
+    expect((await setSadtClinicalIndicationAction(input)).ok).toBe(false);
+    expect(m.requireCachedPermission).toHaveBeenLastCalledWith('manage:financial');
+    expect(m.setClinicalIndicationInTx).not.toHaveBeenCalled();
+    expect(m.logAudit).not.toHaveBeenCalled();
+  });
+
+  it('solicitação de outra clínica (ou id adulterado): "inexistente nesta clínica", sem consultar permissão nem gravar', async () => {
+    m.execute.mockResolvedValueOnce([]);
+    expect(await setSadtClinicalIndicationAction(input)).toEqual({
+      ok: false,
+      error: 'Solicitação inexistente nesta clínica.',
+    });
+    expect(m.requireCachedPermission).not.toHaveBeenCalled();
+    expect(m.setClinicalIndicationInTx).not.toHaveBeenCalled();
+  });
+
+  it('clínica suspensa ou em trial (recusa do serviço): mensagem comercial e nenhuma auditoria de sucesso', async () => {
+    m.execute.mockResolvedValueOnce([{ requester_kind: 'internal' }]);
+    m.setClinicalIndicationInTx.mockRejectedValueOnce(new PremiumAccessError('health_insurance', 'clinic_suspended'));
+    const r = await setSadtClinicalIndicationAction(input);
+    expect(r.ok).toBe(false);
+    expect(r.ok === false && r.error.startsWith('Convênios:')).toBe(true);
+    expect(m.logAudit).not.toHaveBeenCalled();
+  });
+
+  it('autorizada: grava com a clínica e a pessoa da sessão (não as do pedido) e audita sem o texto', async () => {
+    m.execute.mockResolvedValueOnce([{ requester_kind: 'internal' }]);
+    expect(await setSadtClinicalIndicationAction(input)).toEqual({ ok: true, data: null });
+    expect(m.setClinicalIndicationInTx).toHaveBeenCalledWith(expect.anything(), {
+      clinicId: CLINIC,
+      requestId: REQ,
+      version: 2,
+      text: 'Psicoterapia semanal.',
+      actorUserId: 'u1',
+    });
+    expect(m.logAudit).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(m.logAudit.mock.calls[0])).not.toContain('Psicoterapia');
   });
 });

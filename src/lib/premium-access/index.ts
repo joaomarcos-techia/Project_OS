@@ -52,7 +52,13 @@ const translated = new WeakMap<object, PremiumAccessError>();
 function signalPremiumDenial(error: PremiumAccessError, source: 'service' | 'database'): void {
   if (signalled.has(error)) return;
   signalled.add(error);
-  metrics.emit('premium.denied', { feature: error.feature, reason: error.reason, source });
+  // Telemetria nunca decide nada: se a emissão falhar (stdout fechado, serialização), a negativa
+  // segue a mesma, com a mesma mensagem. Falhar aqui não pode abrir a operação nem trocar o erro.
+  try {
+    metrics.emit('premium.denied', { feature: error.feature, reason: error.reason, source });
+  } catch {
+    // sem efeito: a recusa já está decidida pelo banco
+  }
 }
 
 /**
