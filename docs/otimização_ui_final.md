@@ -605,11 +605,11 @@ Linguagem interna ou técnica encontrada na interface (varredura e código, 14/1
 
 | Onde | Hoje | Proposta | Por quê |
 | --- | --- | --- | --- |
-| Equipe › contagem por papel | "Super admin 0 — fora do tenant" | **PROPOSTA (não aplicada — `equipe/page.tsx` é alterado pelo billing #53):** trocar o cartão por uma nota fixa sob a contagem: "O suporte do Qoro só entra na conta da clínica em sessão de suporte, com aviso permanente na tela, e o que fizer nela fica na auditoria." | "tenant" é jargão e o papel não é da clínica; a nota diz o acesso especial que existe em vez de escondê-lo. Conferido no código: faixa permanente durante a impersonação (C15/OR-I9, `(shell)/layout.tsx`) e mutações gravadas em `audit_events` com o `user_id` do suporte e a clínica (`src/lib/audit/impersonation-extra.ts`); leitura não é auditada, por isso o texto fala do que ele "fizer". Conferir com o billing antes de aplicar |
+| Equipe › contagem por papel | "Super admin 0 — fora do tenant" | **APLICADO (15/11, `38fcf391`) — texto final:** "O suporte do Qoro não faz parte desta equipe. Para entrar na conta da clínica e agir nela, usa uma sessão de suporte, e as alterações feitas nela ficam registradas na auditoria." (a proposta abaixo foi ajustada para não afirmar que a clínica vê a faixa, que aparece para quem dá suporte): trocar o cartão por uma nota fixa sob a contagem: "O suporte do Qoro só entra na conta da clínica em sessão de suporte, com aviso permanente na tela, e o que fizer nela fica na auditoria." | "tenant" é jargão e o papel não é da clínica; a nota diz o acesso especial que existe em vez de escondê-lo. Conferido no código: faixa permanente durante a impersonação (C15/OR-I9, `(shell)/layout.tsx`) e mutações gravadas em `audit_events` com o `user_id` do suporte e a clínica (`src/lib/audit/impersonation-extra.ts`); leitura não é auditada, por isso o texto fala do que ele "fizer". Conferir com o billing antes de aplicar |
 | Conversas › prazo | "SLA vencido há 5 d" | **APLICADO (UX-014):** "Prazo vencido há 5 d" / "Prazo vence em 9 min" na lista; "Prazo de atendimento vencido há …" na faixa da conversa e no alerta; filtro "Prazo vencido"; cabeçalho "N com prazo de atendimento vencido"; Dashboard "N com prazo de atendimento vencido" (era "com resposta atrasada") | o prazo (`ai_handoff_queue.due_at`, padrão `now() + 30 min`) começa quando a IA passa a conversa à equipe e só se cumpre quando ela volta ao agente (`returnToAgent` grava `resolved_at`). Responder não fecha o prazo, então "prazo de resposta" mudaria o sentido. O número de minutos não aparece no texto: é padrão do banco, não regra exibível |
 | Ficha › subtítulo | "Visão operacional, histórico clínico e governança do cadastro." | **APLICADO:** "Cadastro, histórico de atendimentos, consentimentos e pedidos LGPD do paciente." | diz o que se consulta e faz ali; a linha 177 fica fora dos trechos do TISS (#55) |
 | Ficha › LGPD | botão "Conceder" ao lado de "Tratamento de dados de saúde — Não consentido" | **APLICADO:** "Registrar consentimento" / "Registrar revogação", com a finalidade no nome acessível ("Registrar consentimento: Agendamento por WhatsApp"); texto do cartão: "Registre aqui a decisão que o paciente tomou para cada finalidade…" | quem consente é o paciente; a equipe registra. Nada muda na validade: a confirmação obrigatória das finalidades de WhatsApp (`optInConfirmed`) e as mensagens do servidor ("Consentimento registrado.", "Consentimento revogado.") seguem iguais. Base legal de cada finalidade não foi tocada |
-| LGPD (Configurações) › fila | "SLA vencido" (prazo legal de 15 dias, `LGPD_RESPONSE_SLA_DAYS`) | manter por ora; proposta: "Prazo legal vencido" | é prazo de lei, com teste de domínio (`lgpd-workflow.test.ts`) que procura o texto; trocar junto com o dono do LGPD |
+| LGPD (Configurações) › fila | "SLA vencido" (prazo legal de 15 dias, `LGPD_RESPONSE_SLA_DAYS`) | **APLICADO (15/11, `f7f3e5eb`):** "Prazo legal vencido", "com prazo legal vencido", "Prazos legais em dia" | é prazo de lei, com teste de domínio (`lgpd-workflow.test.ts`) que procura o texto; trocar junto com o dono do LGPD |
 | Login (erro de credencial) | "Email ou senha inválidos." | "E-mail ou senha incorretos." | grafia do resto do produto (UX-003) |
 | Fronteira de erro | "Algo deu errado." | ver UX-010 | erro sem causa nem saída concreta |
 | `/convite` sem token | "Você foi convidado." + "Criar senha de acesso" antes de "Convite inválido ou expirado" | abrir pelo problema: "Este convite não vale mais" + o que fazer | a primeira frase contradiz o estado |
@@ -955,8 +955,10 @@ Conversas e Documentos têm uma ação só (o que empilha lá é busca e filtro,
 repasses por mês" (mesmo gate de antes) no menu. Testes: `page-actions.test.tsx` (3, novo) e
 `agenda/page.test.tsx` (itens do menu com o mesmo `href`). Registro em COMPONENT-DECISIONS ("Ações
 que mudaram de lugar").
-**Fica para depois:** Financeiro (`financeiro/page.tsx` também é alterado pelo #55 — aplicar depois
-do rebase do TISS; hoje só quebra em 320 px).
+**Financeiro (15/11, commit `26e55130`):** `PageActions` com "Fornecedores" no menu abaixo de 768 px e
+"Novo lançamento" à vista (a 320 px eram 2 linhas). O #55 só mexe no bloco do saldo parcial desse
+arquivo (linha ~416), longe do cabeçalho. Testes do Financeiro 21/21; ESLint e `tsc` 0. Foto no
+navegador pendente da próxima janela.
 **Arquivos:** `src/components/ui/page-header.tsx`, `src/components/shared/shell-chrome.tsx`;
 telas: Agenda, Financeiro, Conversas, Documentos, Relatórios.
 **Depois:** abaixo de 768 px, só a ação principal fica visível; as secundárias vão para um menu
@@ -966,9 +968,13 @@ menu lista todas, com o mesmo destino e a mesma permissão. Registrar em COMPONE
 leitor de tela anuncia "Mais ações".
 
 ### UX-014 — Linguagem interna exposta (P2)
-**Status:** PARCIAL (14/11, ~23h45) — Conversas, Dashboard, ficha (subtítulo) e consentimento LGPD
-aplicados; Equipe só como proposta (arquivo do billing #53); LGPD de Configurações mantido (prazo
-legal, ver seção 10). Testes atualizados: `handoff-sla.test.ts` (filtro), `dashboard/page.test.tsx`
+**Status:** APLICADO (14–15/11) — Conversas, Dashboard, ficha (subtítulo), consentimento LGPD, Equipe
+(`38fcf391`) e fila LGPD de Configurações (`f7f3e5eb`). Equipe: o suporte do Qoro saiu do resumo por
+papel (era "Super admin 0 · fora do tenant") e uma nota diz o acesso especial sem escondê-lo — entrar
+e agir na conta só em sessão de suporte, com as alterações na auditoria da clínica; o billing mexe
+em outras linhas do arquivo. Fila LGPD: "Prazo legal vencido" / "com prazo legal vencido" /
+"Prazos legais em dia" (mesmo prazo de 15 dias, `LGPD_RESPONSE_SLA_DAYS`); testes provam que "SLA"
+saiu da tela. Testes atualizados: `handoff-sla.test.ts` (filtro), `dashboard/page.test.tsx`
 (pendência); e2e `payout-review-preview` e `production-patient-lifecycle-a` (nomes dos botões de
 consentimento, com a finalidade no nome acessível). Commit `80fa15b0`; unitários verdes (o nome
 acessível do botão de consentimento passou a vir de `aria-label`, com teste novo no
@@ -1138,6 +1144,11 @@ utilitários e tokens do v5; manter comportamento (salvar, duplicar, excluir) e 
 existente enfraquecido.
 
 ### UX-018 — Alvos de toque abaixo de 24 px (P3)
+**Status (15/11):** links legais do login com 24 px (`156178a0`, teste de contrato em
+`motion-and-hit-targets.test.ts`). Links de ação do Dashboard: com mouse, sozinhos no cabeçalho do
+cartão, cumprem a exceção de espaçamento do 2.5.8; com toque (`pointer: coarse`) o CSS do tenant já
+dá 44 px. Link da trilha "Configurações": único alvo da linha, também na exceção. Interruptor do sinal
+em Pagamentos (38×22): zona do billing, depois da #53.
 Links de ação do Dashboard e do rodapé do login, link do caminho de navegação; interruptor do
 sinal em Pagamentos (zona do billing — depois do merge da #53). Aumentar a área clicável (padding
 ou `min-h-(--hit-target)`), sem mudar o visual do texto.
@@ -1590,6 +1601,7 @@ positiva com o nome novo — nenhuma passa sozinha.
 | 15/11/2026 03h45 | Commits | `d98c7c03` UX-016 · `fa006527` UX-012 (dobra) | testes acima verdes | `git log` |
 | 15/11/2026 08h10 | UX-015 (nomes, D-07) | Ações de pagamento do Caixa nomeadas pelo que registram; atalho do dinheiro com ícone e peso menor; texto da política de sinal e 10 specs e2e alinhados | Caixa 48/48, Pagamentos e contratos 83/83; ESLint 0; `tsc` 0; navegador em 1440 e 375 sem nomes antigos | `5f6967c2`; `evidence/2026-11-15/caixa/` |
 | 15/11/2026 12h20–13h30 | Regressão do Caixa (25.7) | Preview `23d0c648` validado (prova assinada PASS, Asaas sandbox); `payout-review-preview` 13/13 no Preview (teste 11 com limite próprio, `506649bc`); `mutation-flows` BLOQUEADO por ambiente (0,01 GB livres); 6 `production-*` BLOQUEADOS por política; defeito de rede/idempotência corrigido (`b3ce5501`); especificação UX-020 (origem da movimentação) | Caixa 50/50; domínio financeiro 262/262; ESLint 0; `tsc` 0 | `evidence/2026-11-15/preview/`, `e2e/` |
+| 15/11/2026 13h30–14h | UX-014, UX-012, UX-018 | Equipe sem o cartão "Super admin" e com nota de acesso do suporte (`38fcf391`); fila LGPD com "prazo legal" (`f7f3e5eb`); Financeiro com `PageActions` (`26e55130`); links legais do login com 24 px (`156178a0`) | LGPD/Equipe 14/14; Financeiro 21/21; contrato de alvos 4/4; ESLint 0; `tsc` 0 | fichas |
 
 ## 28. Pendências e bloqueios
 
