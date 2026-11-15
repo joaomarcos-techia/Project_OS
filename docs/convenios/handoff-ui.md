@@ -433,3 +433,172 @@ presente e inválido. Para o cookie ausente (por exemplo, a pessoa saiu em outra
 
 O middleware é código de plataforma e não foi alterado. A proposta de deixar passar as requisições com `next-action`
 (as actions já exigem sessão) foi registrada pela UI como achado para o fundador e pede revisão de segurança.
+
+## 10. Atualização de 15/11 (noite): D24, cancelamento, middleware, acessibilidade e integração
+
+Ciclo sem navegador, sem servidor Next e sem build: a máquina está reservada à janela do AbacatePay. Tudo abaixo é
+leitura de código, banco descartável preparado e documentação.
+
+### 10.1 D24 como invariante do servidor (o que cada action confere)
+
+Toda escrita de Convênios confere, **no servidor e a cada chamada** (nada vem do navegador):
+
+1. **Identidade e sessão:** `requireUser` → `authenticate()` (JWT + `claims_version` comparado com o banco a cada
+   requisição, ADR-037; usuário desativado ou removido barrado antes).
+2. **Clínica:** `requireClinicId`.
+3. **Isolamento:** `withTenant` + RLS por clínica + `WHERE clinic_id`. Um id de outra clínica não resolve.
+4. **Papel e permissão:** `gate()` (`manage:financial`) ou o código próprio. As críticas (aprovar, exportar lote, ler
+   carteirinha, arquivo emitido) leem a permissão fresca do banco.
+5. **Situação comercial:** `assertPremiumFeatureTx` dentro da transação, mais os gatilhos da 0151/0152/0156 nas
+   inclusões.
+6. **Estado da guia:** máquina de estados no banco (`hi_guides_a_transition`); conteúdo congelado depois da
+   conferência.
+7. **Integridade:** versão otimista (conflito específico, nunca "erro genérico"); snapshot com hash; arquivo com
+   SHA-256.
+
+Isso cobre sessão iniciada antes da suspensão, segunda aba, link antigo, atualização atrasada e chamada direta: a
+decisão é tomada na hora, com o estado do banco.
+
+**Achados desta noite (corrigidos no código, prova de banco pendente da liberação da máquina):**
+
+- **A indicação clínica da solicitação SP/SADT não tinha a checagem comercial.** Uma clínica suspensa ainda editava a
+  indicação (o resto do envio já barrava). Agora `setClinicalIndicationInTx` recusa como o ajuste da Consulta (P4.6).
+  Prova nova no `health-insurance-sadt-db.ts` (seção 10).
+- **A negativa comercial não deixava rastro.** A de permissão vira a métrica `authz.denied` (SEC-050). A do D24 não
+  virava nada, porque a auditoria da operação morre no rollback. Agora toda negativa D24 emite `premium.denied`:
+  - só com `feature`, `reason` e `source` (serviço ou gatilho do banco);
+  - sem mensagem, clínica ou pessoa;
+  - uma vez por negativa.
+
+  Teste: `src/lib/premium-access/denial-signal.test.ts`. Nenhum evento falso de sucesso; retenção de auditoria
+  intocada.
+
+**Habilitação do módulo (item 7 do pedido):** a geração de guia (Consulta e SP/SADT) recusa com o módulo desligado.
+Conferir, aprovar e lotes **não** olham o interruptor. Desligar hoje significa "parar de gerar guias novas", e o que já
+existe pode ser concluído. Para decisão do fundador; nada foi alterado.
+
+### 10.2 Parecer: cancelar guia com a clínica suspensa
+
+Verificado no código e nas migrations (0147, 0151, 0152, 0153, 0157, 0158). Nada foi alterado.
+
+| # | Pergunta | Resposta verificada |
+| --- | --- | --- |
+| 1 | Estados que permitem cancelar | `pending_data`, `ready_for_review`, `reviewed`, `approved` (gatilho `hi_guides_a_transition`). Em lote, exportada, enviada, paga, glosada ou substituída: **não** |
+| 2 | Quem cancela | `manage:financial` (owner, gestor, financeiro). Na I.2: `manage:faturamento_convenio`, o mesmo conjunto |
+| 3 | Mexe no livro financeiro? | **Não.** O recebível da operadora só nasce quando a guia é **enviada** (`hi_ledger_sync_guide`); toda guia cancelável é anterior ao envio. O gatilho roda e devolve `not_billed` |
+| 4 | Cria cobrança ou estorno? | Não. Nada em `lancamentos`, `payment_transactions` ou Asaas |
+| 5 | Webhook? | Não |
+| 6 | Outbox? | Não. O cancelamento não publica evento |
+| 7 | Fala com a operadora? | Não. A guia nunca foi enviada; o conector padrão é manual (P6.4) |
+| 8 | Altera repasse? | **Indiretamente, sem mover dinheiro.** A posição do repasse é calculada ao vivo da guia viva do atendimento: sem guia viva, o elegível vai a zero (`NO_LIVE_GUIDE`). Se a clínica usa `on_approval` ou `on_completion` e o repasse já foi autorizado ou pago, aparece **devido negativo** (a compensar), e a compensação é humana, com motivo |
+| 9 | Coparticipação? | Não. A coparticipação é do atendimento, não da guia |
+| 10 | Efeito indireto? | Consumo de autorização SP/SADT não é estornado: é por sessão e idempotente, então uma guia nova da mesma sessão não consome de novo. A pendência `GUIDE_CANCELLED` aparece para o financeiro ("gere nova guia ou encerre com motivo") |
+| 11 | Cancela guia emitida? | Sim, a **aprovada** (emitida e ainda não em lote). O snapshot e a revisão ficam no histórico (nada se apaga) |
+| 12 | Auditoria | `health_insurance.guide.cancelled` em `audit_events` + linha no histórico (`hi_guide_events`, com os campos alterados e o ator); motivo obrigatório na guia; horário do banco |
+| 13 | Clínica suspensa | Permitido (0151: "continuam permitidos: … cancelar"). **Não é caminho para nada novo:** gerar guia nova, emitir, montar ou enviar lote e confirmar coparticipação seguem barrados pelos gatilhos e serviços |
+| 14 | Trial | Não há guia no trial (criar é barrado), então não há o que cancelar. Uma clínica com guias de um período pago e assinatura vencida cai no caso 13 |
+
+**Recomendação:** manter o cancelamento permitido com a assinatura suspensa, como a D24 já decidiu. Não há efeito
+financeiro direto, comunicação externa nem caminho para operação nova.
+
+Dois pontos para o fundador confirmar:
+- **(a)** o efeito indireto no repasse (devido negativo a compensar, nas políticas `on_approval` e `on_completion`) é
+  aceitável, ou o cancelamento de guia com repasse autorizado deve pedir confirmação explícita;
+- **(b)** o repasse do convênio também é "preservação" (D-6 da matriz).
+
+### 10.3 Middleware e server actions (S-02): diagnóstico consolidado com a UI
+
+Achado comum ao TISS (Preview, 15/11) e à UI (S-02). **O middleware não foi alterado.** Esta seção é a entrega
+pedida para a revisão de segurança da plataforma.
+
+**1. Causa técnica (Next 15.5.28, código lido em `node_modules/next`).**
+- O cliente do Next envia a server action por `fetch` POST com o cabeçalho `Next-Action`, seguindo redirecionamentos
+  (padrão do `fetch`).
+- Sem nenhum cookie de sessão, `src/middleware.ts` responde `NextResponse.redirect('/login')` (307) a qualquer rota
+  protegida, inclusive esse POST.
+- O navegador segue o 307 repetindo o POST em `/login` e recebe HTML.
+- O redutor da action (`server-action-reducer.js`) exige `content-type: text/x-component` ou o cabeçalho
+  `x-action-redirect`. Como não recebe nenhum dos dois, lança `An unexpected response was received from the server.`
+  (E394) dentro da transição, e a fronteira de erro mostra "Algo deu errado".
+- Com cookie presente e inválido, o middleware deixa passar, e a action recusa por conta própria (caso coberto no
+  §9.9).
+
+**2. Rotas afetadas.** Toda tela protegida com server action, para quem perdeu os cookies (saiu em outra aba, cookie
+expirado e removido pelo navegador, bloqueio de cookies). Ficam de fora:
+- as rotas públicas e `/auth/session-refresh`;
+- webhooks, cron e `api/health`, que estão fora do `matcher`.
+
+**3. Comportamento atual.**
+- **GET** sem cookie: 307 para `/login` (correto).
+- **POST de action** sem cookie: 307 → HTML → E394 → "Algo deu errado", salvo onde a tela pega a exceção:
+  - Convênios (`_lib/action-ui.tsx`): sonda a sessão e diz "Sua sessão terminou";
+  - Caixa da UI (`run`): "resultado desconhecido".
+- **POST de action com cookie expirado:** passa; `authenticate()` recusa; a action devolve a mensagem.
+
+**4. Alternativas.**
+
+| | O que muda | Prós | Contras |
+| --- | --- | --- | --- |
+| A | O middleware **não redireciona** POST com `Next-Action` sem cookie (`NextResponse.next()`) | A action recebe a requisição, `requireUser` recusa e a tela mostra a mensagem certa; o render seguinte da página faz o `redirect('/login')` do guarda (`requirePageUser`/`conveniosAccess`), que o Next traduz em `x-action-redirect` | Toda action passa a ser alcançável sem cookie no runtime Node. **Não muda a segurança:** o middleware só confere **presença** de cookie (não valida o JWT), e um cookie forjado já passa hoje. A autorização é sempre da action (`authenticate()`), coberta por `critical-actions.test.ts` e `actions-gate.test.ts`. Custo: requisição anônima chega ao Node (hoje chega com cookie falso) |
+| B | O middleware responde, para POST com `Next-Action` sem cookie, `401 text/plain` com a mensagem de sessão | O cliente lança `Error(texto)`: a mensagem fica certa | Continua lançando: sem `catch` na tela, a fronteira de erro aparece igual |
+| C | Nada no middleware; cada tela pega a falha (como Convênios e Caixa) | Zero mudança de plataforma | Cada formulário precisa repetir o tratamento; o que esquecer volta a "Algo deu errado" e ao Sentry |
+
+Também descartado: responder `x-action-redirect` pelo middleware, porque acopla a plataforma a um cabeçalho interno do
+Next, que muda entre versões.
+
+**5. Recomendação técnica:** A, com C mantido nas telas, por ser defensivo e barato.
+
+**6. Riscos de A:**
+- uma action sem `authenticate()`: hoje já ficaria exposta com cookie forjado; os guardas estáticos existem e devem
+  ser conferidos por varredura antes da troca;
+- uma página que renderiza sem guarda depois da action: o layout `(app)` já redireciona. Na branch da UI, o contrato
+  `page-guard.test.ts` cobre as 17 telas do shell (S-03, `2761563c`); em Convênios, `conveniosAccess` redireciona
+  desde 15/11;
+- rate limit: o login já tem limite por IP; as actions não têm, igual a hoje.
+
+CSRF não muda: a proteção de origem das server actions (Origin × Host) é do Next e independe do middleware.
+
+**7. Testes para A:**
+- `src/middleware.test.ts`:
+  - POST com `next-action` sem cookie → sem redirecionamento;
+  - GET sem cookie → 307 (igual);
+  - POST **sem** `next-action` sem cookie → 307 (igual);
+  - POST com `next-action` e cookie legado → expira o legado (igual);
+- varredura de que toda action exportada chama `authenticate()` (estender o `critical-actions`);
+- E2E no Preview: sair em outra aba e salvar → mensagem de sessão e `/login`, sem "Algo deu errado" e sem evento
+  novo no Sentry.
+
+**8. Impactos:**
+- Auth: nenhum na decisão de acesso.
+- Billing e pagamentos (AbacatePay e Asaas):
+  - webhooks e cron estão fora do `matcher`;
+  - o retorno `/?payment=` é GET público;
+  - as actions de assinatura exigem sessão por conta própria.
+
+**9. Responsável sugerido:** frente de segurança da plataforma, com revisão do fundador, num **PR separado** (o
+`src/middleware.ts` é comum a todas as branches). O TISS e a UI não alteram o arquivo; a UI já registrou o mesmo
+achado como S-02. Esta seção é a versão única do diagnóstico, para evitar duas correções.
+
+### 10.4 Acessibilidade e R51
+
+| Item | Validado em | Situação |
+| --- | --- | --- |
+| Painel "Dados da consulta": foco ao abrir e fechar, erro com `role="alert"`, dica ligada ao campo | unitário (7 testes) e Preview (axe e teclado, 12/12 no `a87fbded`) | preservado; nada mudou nesta noite |
+| Leitor de tela (NVDA, VoiceOver) | **não testado** | limitação registrada; não declaramos WCAG 2.2 AA |
+| Contraste do selo âmbar (4,44:1 no `:root`) | axe no Preview | a UI já corrigiu (A-01: `--warning-700` → `oklch(0.54 0.11 58)`, 4,86:1). **O TISS não faz uma segunda correção.** Depois da integração, o axe da página inteira volta a exigir zero exceções, com o token publicado |
+| Títulos (`PanelCard` em `h4` abaixo do `h1`; subseções da guia em `h3` dentro do `h4`) | leitura do código (§9.6); o axe com as regras A/AA não reprova (`heading-order` é boa prática) | impacto: quem navega por nível no leitor de tela pula do `h1` ao `h4`. Componente compartilhado: decisão do design system, conferindo os usos. O TISS não altera |
+| R51 (React #418 na guia) | 1 ocorrência no Preview em 15/11, sem reprodução na repetição | **aberto**. Causa não atribuída, traces preservados, sem tolerância nem SKIP |
+
+### 10.5 Integração com a repaginação
+
+- Ordem proposta pela UI: **#53 → #56 → #55**. Precisa ser validada pelos responsáveis. Não é autorização de merge.
+- Conflitos reais: os 8 do §9.10. A regra financeira inegociável é `financeiro/page.tsx`: o saldo parcial **continua
+  descontando a glosa** (`l.valor - l.valorPago - l.valorGlosado`).
+- Pendente da integração:
+  - menu Convênios na navegação global (§9.1);
+  - P10.6 (Caixa separa paciente × operadora; com a I.2, a recepção continua vendo no Caixa os recebimentos da
+    operadora: decidir lá, não em Convênios);
+  - axe da página inteira de volta a zero.
+- A I.2 (P1.12) muda as telas de Convênios (valores escondidos da recepção; escopo próprio da médica). Isso entra
+  **depois** do rebase e da 0162 no DEV, para não editar os mesmos arquivos nas duas branches.
+- Nada do worktree da UI foi tocado. Nenhum rebase foi feito neste ciclo: a máquina está reservada.

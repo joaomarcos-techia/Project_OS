@@ -656,3 +656,57 @@ permissões atuais: recepção e gestora de outra clínica chamando a server act
   inclusão destas conferências: contagem de `hi_guides`, `hi_guide_snapshots` e `hi_guide_events` restaurados, ledger
   da migration igual ao de origem, e a lista de objetos do bucket `tiss-files` (só metadados) comparada com `hi_files`
   e `hi_authorization_attachments`.
+
+## 20. 15/11 (noite): candidata 0162 (P1.12) preparada; pedido de autorização para o DEV
+
+**Estado do DEV (sonda só leitura, 15/11 ~20h, só contagens):**
+- ledger com 162 linhas; a última é a 0161 (`when` 1795209773857), como no §19;
+- catálogo com 28 códigos; nenhum dos cinco novos;
+- **nenhum** override individual;
+- perfis de clínica: owner 17, gestor 4, doctor 10, attendant 2, **financial 0**;
+- `effective_permissions_v` md5 `d55694e4…`; `custom_access_token_hook` md5 `192e4e4d…`;
+- gatilhos `trg_role_permissions_bump_claims_version` e `trg_overrides_bump_claims_version` presentes.
+
+Nada foi escrito.
+
+**Correção do §19:** o §19 dizia que a P1.12 "mexe na mesma visão" da 0133. Não mexe.
+- `effective_permissions_v` só agrega `role_permissions` e os overrides; a candidata é **só de inserções**:
+  catálogo, pacotes e herança de overrides.
+- Não tem DDL; a visão e o hook ficam idênticos (a prova 6 confere por impressão digital).
+- O risco de composição com o #53 cai para "ordem no journal".
+
+**A candidata.** `docs/convenios/migrations/0162_hi_permission_matrix.candidate.sql`, fora de `drizzle/migrations`
+e do journal (mesmo modelo da 0159 candidata do #53). Matriz e decisões em `matriz-permissoes-i2.md`.
+
+**Pré-requisitos pedidos pelo fundador antes de solicitar a aplicação no DEV:**
+
+| # | Item | Situação |
+| --- | --- | --- |
+| 1 | Matriz I.2 completa | pronta (`matriz-permissoes-i2.md` §3–§4), com 8 decisões (D-1 a D-8) |
+| 2 | Diff SQL | a candidata inteira (5 códigos, 16 linhas de pacote, herança R1–R4, `_schema_version`) |
+| 3 | Objetos afetados | escreve `permissions`, `role_permissions`, `user_permission_overrides`, `_schema_version`; `profiles.claims_version` muda pelos gatilhos da 0040; lê `profiles` |
+| 4 | RLS | nenhuma política muda. As tabelas de autorização seguem trancadas para o runtime (prova 9) |
+| 5 | Papéis | owner e gestor: os 5; recepção: ver e operar; financeiro: ver, ver faturamento, faturar; médica: ver (escopo próprio no servidor). Nada sai dos pacotes de hoje |
+| 6 | Clínicas | todo perfil de clínica renova o token uma vez. Overrides: só os que mudavam o acesso (DEV: zero; produção: desconhecido, pede pré-voo só leitura) |
+| 7 | Compatibilidade com a 0161 | independente; a cadeia de prova é a do DEV com a 0161 |
+| 8 | Código antigo do Preview | nada muda: `sanitizePermissions` descarta códigos desconhecidos do token; nenhum código lê os novos; teto de 128 longe (máx. 33) |
+| 9 | Ensaio descartável | **pendente**: harness `health-insurance-permission-matrix-db.ts` (12 provas) escrito, **não executado** (máquina reservada ao AbacatePay) |
+| 10 | Regressão | depois do ensaio: unitários da P1.12-b, `smoke-c3` e `dev-rbac-matrix` com o catálogo novo, P12.2 em banco descartável, Preview com conta `financial` sintética |
+| 11 | Backup do DEV | antes de aplicar: cópia lógica de `permissions`, `role_permissions`, `user_permission_overrides` e `profiles(id, claims_version)` em pasta privada local, com SHA-256 (mesmo procedimento da 0160/0161) |
+| 12 | Recuperação | as três instruções `DELETE` do cabeçalho, com o código de antes da P1.12-b no ar. Com a P1.12-b no ar, reverter o código primeiro. `claims_version` não volta (só sobe, e subir de novo é inofensivo) |
+| 13 | Critérios de interrupção | antes: ledger ≠ 162, última ≠ 0161/`acd23a73…`, catálogo ≠ 28, algum código novo já presente, md5 da visão ou do hook diferente do acima, gatilho ausente, janela de máquina ou de login ocupada. Durante: qualquer erro (a transação desfaz). Depois: pacotes, efetivas ou overrides diferentes do esperado → reversão |
+| 14 | Coordenação com a UI | a UI não toca `permissions.ts`, o diálogo da Equipe, `/convenios` nem o middleware (diff só leitura da branch da UI). A P1.12-b (portões, telas, catálogo TS, rótulos) sobe só depois da 0162 no DEV, em commits locais até lá (procedimento da 0161), e depois do rebase da UI |
+| 15 | AbacatePay isolado | a candidata só referencia as tabelas de autorização. Não entra no Gate B (0136–0159). No journal do #55 entra depois da 0161; o lançamento coordenado passa a esperar `pending=27` e o pacote SaaS segue com 24 |
+
+**Pedido de autorização (separado, para depois do ensaio verde):**
+1. decidir D-1 a D-8 da matriz;
+2. autorizar a aplicação da 0162 **só no DEV**, pelo procedimento do §18:
+   - pré-voo só leitura;
+   - backup;
+   - aplicador limitado a uma entrada;
+   - pós-voo;
+   - entrada no journal com `when` = 0161 + 1 dia e pino no manifesto depois de aplicada;
+3. só então, a P1.12-b (código) sobe no PR #55.
+
+**Não autorizado e não feito:** aplicar a 0162 em qualquer banco persistente, editar o journal, mudar permissões
+efetivas, tocar no release do AbacatePay.
