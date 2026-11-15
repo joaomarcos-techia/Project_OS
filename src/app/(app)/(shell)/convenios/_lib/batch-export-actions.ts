@@ -21,7 +21,8 @@ import { PERMISSIONS } from '@/lib/auth/permissions';
 import { AuthError, requireClinicId, requireFreshPermission, requireUser } from '@/lib/auth/tenant-context';
 import { withTenant } from '@/lib/db/tenant';
 import { publishEvent } from '@/lib/outbox/publish';
-import { premiumAccessErrorFrom, premiumDenialMessage, assertPremiumFeatureTx } from '@/lib/premium-access';
+import { ConveniosModuleDisabledError, assertConveniosOperableTx } from '@/contexts/health-insurance/internal/module-guard';
+import { premiumAccessErrorFrom, premiumDenialMessage } from '@/lib/premium-access';
 
 import { processOutboxSoon } from './outbox-now';
 
@@ -42,8 +43,8 @@ export async function requestBatchExportAction(input: { batchId: string; version
     const outcome = await withTenant(
       clinicId,
       async (tx) => {
-        // D24: pedir exportação é operação nova (o banco confere de novo ao exportar).
-        await assertPremiumFeatureTx(tx, clinicId, 'health_insurance');
+        // D24 + módulo ligado: pedir exportação é operação nova (o banco confere de novo ao exportar).
+        await assertConveniosOperableTx(tx, clinicId);
         const [b] = (await tx.execute(
           sql`SELECT status, version, (SELECT count(*) FROM public.hi_batch_guides g WHERE g.clinic_id = b.clinic_id AND g.batch_id = b.id AND g.active)::int AS guides
                 FROM public.hi_batches b WHERE b.clinic_id = ${clinicId}::uuid AND b.id = ${d.batchId}::uuid`,
@@ -80,6 +81,7 @@ export async function requestBatchExportAction(input: { batchId: string; version
     if (error instanceof AuthError) return { ok: false, error: 'Seu perfil não tem permissão para gerar o XML do lote.' };
     const premium = premiumAccessErrorFrom(error);
     if (premium) return { ok: false, error: premiumDenialMessage(premium.feature, premium.reason) };
+    if (error instanceof ConveniosModuleDisabledError) return { ok: false, error: error.message };
     return { ok: false, error: 'Não foi possível pedir a exportação agora. Tente de novo.' };
   }
 }

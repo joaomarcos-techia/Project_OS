@@ -34,6 +34,7 @@ import { schedulingApiV1 } from '@/contexts/scheduling';
 /* eslint-enable boundaries/element-types */
 
 import { CoverageInputError, recordAppointmentCoverage } from './internal/coverage-service';
+import { ConveniosModuleDisabledError } from './internal/module-guard';
 import { checkSchedulingChoiceTx, type SchedulingInsuranceChoice } from './scheduling-coverage';
 
 export type ModalityChangeCode =
@@ -286,7 +287,12 @@ export async function carryCoverageOnRescheduleTx(
     );
     coverageId = out.coverageId;
   } catch (error) {
-    if (!(error instanceof CoverageInputError) && !premiumAccessErrorFrom(error)) throw error;
+    if (
+      !(error instanceof CoverageInputError) &&
+      !(error instanceof ConveniosModuleDisabledError) &&
+      !premiumAccessErrorFrom(error)
+    )
+      throw error;
     outcome = 'left_pending';
   }
   // O antigo está cancelado: a cobertura dele muda só de situação (o gatilho 0148 permite).

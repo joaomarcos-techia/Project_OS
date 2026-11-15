@@ -30,6 +30,7 @@ import {
 } from '@/lib/premium-access';
 
 import { CoverageInputError, recordAppointmentCoverage } from './internal/coverage-service';
+import { ConveniosModuleDisabledError } from './internal/module-guard';
 import { hiClinicSettings, hiInsurers, hiMemberships, hiPlans } from './schema';
 
 export interface SchedulingInsuranceChoice {
@@ -173,9 +174,11 @@ export async function recordSchedulingCoverage(args: {
     const premium = premiumAccessErrorFrom(e);
     const error = premium
       ? premiumDenialMessage(premium.feature, premium.reason)
-      : e instanceof CoverageInputError
-        ? e.message.charAt(0).toUpperCase() + e.message.slice(1)
-        : 'A cobertura não foi registrada agora.';
+      : e instanceof ConveniosModuleDisabledError
+        ? e.message
+        : e instanceof CoverageInputError
+          ? e.message.charAt(0).toUpperCase() + e.message.slice(1)
+          : 'A cobertura não foi registrada agora.';
     return { recorded: 0, status: null, issues: [], error };
   }
 }

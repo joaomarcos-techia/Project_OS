@@ -16,7 +16,7 @@ import 'server-only';
 import { and, eq } from 'drizzle-orm';
 
 import type { Tx } from '@/lib/db';
-import { assertPremiumFeatureTx } from '@/lib/premium-access';
+import { assertConveniosOperableTx } from './module-guard';
 
 import { hiGuideItems, hiGuides } from '../schema-clinic';
 import {
@@ -62,7 +62,7 @@ export async function updateConsultaOverridesInTx(
 ): Promise<{ version: number; overrides: ConsultaOverrides | null; changed: boolean }> {
   const { clinicId } = args;
   // D24: operação de Convênios só com assinatura paga e ativa.
-  await assertPremiumFeatureTx(tx, clinicId, 'health_insurance');
+  await assertConveniosOperableTx(tx, clinicId);
   const [g] = await tx
     .select({
       guideType: hiGuides.guideType,

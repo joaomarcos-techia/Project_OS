@@ -28,7 +28,7 @@ import type { Tx } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
 import { metrics } from '@/lib/observability/metrics';
 import type { TissObjectStore } from '@/lib/storage/tiss-files';
-import { assertPremiumFeatureTx } from '@/lib/premium-access';
+import { assertConveniosOperableTx } from './module-guard';
 
 import {
   hiBatchGuides,
@@ -153,7 +153,7 @@ export async function createBatchInTx(
   },
 ): Promise<string> {
   // D24: operação nova de Convênios só com assinatura paga e ativa (o banco confere de novo).
-  await assertPremiumFeatureTx(tx, args.clinicId, 'health_insurance');
+  await assertConveniosOperableTx(tx, args.clinicId);
   // P2.5: o contrato pode limitar o lote abaixo do teto do padrão (100, conferido no banco).
   const [ins] = await tx
     .select({ settings: hiInsurers.settings })
@@ -259,7 +259,7 @@ function hhmmss(d: Date, tz: string): { date: string; time: string } {
 export async function exportBatchInTx(tx: Tx, deps: BatchDeps, args: ExportArgs): Promise<ExportOutcome> {
   const { clinicId, batchId } = args;
   // D24: operação nova de Convênios só com assinatura paga e ativa (o banco confere de novo).
-  await assertPremiumFeatureTx(tx, clinicId, 'health_insurance');
+  await assertConveniosOperableTx(tx, clinicId);
   const [batch] = await tx
     .select()
     .from(hiBatches)
@@ -505,7 +505,7 @@ export async function markBatchSentInTx(
   a: { clinicId: string; batchId: string; version: number; channel: 'manual' | 'connector'; sentOn: string; evidence: string },
 ): Promise<number> {
   // D24: operação nova de Convênios só com assinatura paga e ativa (o banco confere de novo).
-  await assertPremiumFeatureTx(tx, a.clinicId, 'health_insurance');
+  await assertConveniosOperableTx(tx, a.clinicId);
   return one<number>(
     tx,
     sql`SELECT public.hi_batch_mark_sent(${a.clinicId}::uuid, ${a.batchId}::uuid, ${a.version}, ${a.channel},

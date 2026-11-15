@@ -27,11 +27,8 @@ import {
   requireUser,
 } from '@/lib/auth/tenant-context';
 import { withTenant } from '@/lib/db/tenant';
-import {
-  assertPremiumFeatureTx,
-  premiumAccessErrorFrom,
-  premiumDenialMessage,
-} from '@/lib/premium-access';
+import { premiumAccessErrorFrom, premiumDenialMessage } from '@/lib/premium-access';
+import { ConveniosModuleDisabledError, assertConveniosOperableTx } from './internal/module-guard';
 // eslint-disable-next-line boundaries/element-types -- paymentsApiV1 é a API pública do Pagamentos (M14): o único caminho Asaas do convênio é o da coparticipação.
 import { paymentsApiV1 } from '@/contexts/payments/api';
 import { supabaseTissObjectStore, TissStorageError } from '@/lib/storage/tiss-files';
@@ -102,6 +99,7 @@ function messageOf(error: unknown): string {
   }
   const premium = premiumAccessErrorFrom(error);
   if (premium) return premiumDenialMessage(premium.feature, premium.reason);
+  if (error instanceof ConveniosModuleDisabledError) return error.message;
   if (error instanceof z.ZodError) return error.issues[0]?.message ?? 'Dados inválidos.';
   if (error instanceof acct.InsuranceAccountError) return error.message;
   if (error instanceof batches.BatchExportError) return error.message;
@@ -213,7 +211,7 @@ export async function reviewGuideAction(
         // D24: conferir prepara cobrança nova da operadora; em trial ou com a assinatura parada,
         // não. O gatilho do banco em `hi_guides` só barra a CRIAÇÃO da guia, por isso a
         // checagem fica aqui, na mesma transação (P0.3 de 15/11: antes passava com a clínica suspensa).
-        await assertPremiumFeatureTx(tx, ctx.clinicId, 'health_insurance');
+        await assertConveniosOperableTx(tx, ctx.clinicId); // D24 + módulo ligado (classe A)
         const rows =
           await tx.execute(sql`UPDATE public.hi_guides SET status = 'reviewed', reviewed_by = ${ctx.userId}::uuid
           WHERE clinic_id = ${ctx.clinicId}::uuid AND id = ${d.guideId}::uuid AND version = ${d.version} RETURNING id`);
@@ -280,7 +278,7 @@ export async function returnGuideAction(
       async (tx, ctx) => {
         // D24: devolver reabre a guia para nova emissão (operação nova); com a assinatura parada,
         // não. Cancelar continua permitido: não gera cobrança e encerra o que não será faturado.
-        await assertPremiumFeatureTx(tx, ctx.clinicId, 'health_insurance');
+        await assertConveniosOperableTx(tx, ctx.clinicId); // D24 + módulo ligado (classe A)
         const rows =
           await tx.execute(sql`UPDATE public.hi_guides SET status = 'ready_for_review', transition_note = ${d.note}
           WHERE clinic_id = ${ctx.clinicId}::uuid AND id = ${d.guideId}::uuid AND version = ${d.version} RETURNING id`);

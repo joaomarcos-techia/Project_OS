@@ -26,7 +26,7 @@ import { decryptForTenant, encryptForTenant } from '@/lib/crypto/encryption';
 import type { Tx } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
 import { metrics } from '@/lib/observability/metrics';
-import { assertPremiumFeatureTx } from '@/lib/premium-access';
+import { assertConveniosOperableTx } from './module-guard';
 import { TissStorageError, type TissObjectStore } from '@/lib/storage/tiss-files';
 
 import {
@@ -92,7 +92,7 @@ export async function requestManualAuthorizationTx(
   raw: z.input<typeof ManualRequestInput>,
 ): Promise<{ authorizationId: string }> {
   const input = ManualRequestInput.parse(raw);
-  await assertPremiumFeatureTx(tx, input.clinicId, 'health_insurance');
+  await assertConveniosOperableTx(tx, input.clinicId);
   const [card] = await tx
     .select({ id: hiMemberships.id })
     .from(hiMemberships)
@@ -166,7 +166,7 @@ export async function recordManualAuthorizationResponseTx(
 ): Promise<{ status: 'authorized' | 'partially_authorized' | 'denied' }> {
   const input = ManualResponseInput.parse(raw);
   const { clinicId } = input;
-  await assertPremiumFeatureTx(tx, clinicId, 'health_insurance');
+  await assertConveniosOperableTx(tx, clinicId);
   const [auth] = await tx
     .select({
       id: hiAuthorizations.id,

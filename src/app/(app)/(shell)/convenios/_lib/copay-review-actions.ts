@@ -16,6 +16,7 @@ import { z } from 'zod';
 
 import { HEALTH_INSURANCE_EVENTS } from '@/contexts/health-insurance';
 import { CopayStateError, checkCopay, confirmCopay, waiveCopay } from '@/contexts/health-insurance/internal/copay-service';
+import { ConveniosModuleDisabledError } from '@/contexts/health-insurance/internal/module-guard';
 import { logAudit } from '@/lib/audit/log';
 import { requestContext } from '@/lib/audit/request-context-from-headers';
 import { PERMISSIONS, type Permission } from '@/lib/auth/permissions';
@@ -36,6 +37,7 @@ function messageOf(error: unknown): string {
   }
   const premium = premiumAccessErrorFrom(error);
   if (premium) return premiumDenialMessage(premium.feature, premium.reason);
+  if (error instanceof ConveniosModuleDisabledError) return error.message;
   if (error instanceof z.ZodError) return error.issues[0]?.message ?? 'Dados inválidos.';
   if (error instanceof CopayStateError) return error.message.charAt(0).toUpperCase() + error.message.slice(1);
   const e = error as { code?: string; cause?: { code?: string; message?: string } };

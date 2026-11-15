@@ -38,6 +38,7 @@ import {
 import * as cfg from './internal/config-service';
 import { CoverageInputError, recordAppointmentCoverage } from './internal/coverage-service';
 import { readMembershipCardNumberAudited } from './internal/membership-access';
+import { ConveniosModuleDisabledError } from './internal/module-guard';
 import { revokeInsurerCredentialTx, saveInsurerCredentialTx } from './internal/insurer-credentials';
 import { ModalityChangeError, changeAppointmentModalityTx } from './modality-change';
 import { CONTRACT_IMPORT_LIMITS, ContractImportFileError } from './internal/contract-import';
@@ -69,6 +70,7 @@ function messageOf(error: unknown): string {
   }
   const premium = premiumAccessErrorFrom(error);
   if (premium) return premiumDenialMessage(premium.feature, premium.reason);
+  if (error instanceof ConveniosModuleDisabledError) return error.message;
   if (error instanceof z.ZodError) return error.issues[0]?.message ?? 'Dados inválidos.';
   if (error instanceof cfg.InsuranceConfigError) return error.message;
   if (error instanceof ModalityChangeError) return error.message;

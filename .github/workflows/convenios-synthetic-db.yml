@@ -75,13 +75,21 @@ jobs:
       # Cada prova roda mesmo se a anterior falhar (evidência independente); o job falha se qualquer uma falhar.
       - name: SP/SADT — solicitação, automação e indicação clínica × D24
         if: ${{ !cancelled() }}
+        # tsx direto: o `--import` em NODE_OPTIONS também valeria para o próprio pnpm e quebra o
+        # carregamento dele (visto na execução 43774430786).
         run: |
           SECURITY_PG_BIN="$(pg_config --bindir)" \
           NODE_OPTIONS="--import ./scripts/security/server-only-hook.mjs" \
-            pnpm exec tsx --tsconfig tsconfig.scripts.json scripts/security/health-insurance-sadt-db.ts
+            ./node_modules/.bin/tsx --tsconfig tsconfig.scripts.json scripts/security/health-insurance-sadt-db.ts
 
       - name: Repasse do convênio — inclui o cancelamento da guia com repasse
         if: ${{ !cancelled() }}
         run: |
           SECURITY_PG_BIN="$(pg_config --bindir)" NODE_OPTIONS=--conditions=react-server \
             pnpm exec tsx scripts/security/health-insurance-payout-db.ts
+
+      - name: Interruptor do módulo — classe A recusada, classe C preservada
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55551 NODE_OPTIONS=--conditions=react-server \
+            pnpm exec tsx scripts/security/health-insurance-module-switch-db.ts

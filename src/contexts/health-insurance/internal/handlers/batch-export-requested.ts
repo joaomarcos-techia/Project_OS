@@ -27,6 +27,7 @@ import { supabaseTissObjectStore, type TissObjectStore } from '@/lib/storage/tis
 
 import { HEALTH_INSURANCE_EVENTS, type BatchExportRequestedPayload } from '../../events';
 import { loadXmllintValidator } from '../../tiss/xml/xsd-validator';
+import { ConveniosModuleDisabledError } from '../module-guard';
 import { BatchExportError, exportBatch, type BatchDeps } from '../batch-service';
 import { GuideAccessError, GuideIntegrityError, readBatchGuidesDelegated } from '../guide-access';
 
@@ -103,6 +104,8 @@ export async function handleBatchExportRequested(
     return out.kind;
   } catch (e) {
     if (premiumAccessErrorFrom(e)) throw new PoisonPillError('assinatura inativa: a exportação do lote foi bloqueada', 'premium_denied');
+    // Módulo desligado entre o pedido e a execução: terminal, como a assinatura (não tenta de novo).
+    if (e instanceof ConveniosModuleDisabledError) throw new PoisonPillError('módulo Convênios desligado: a exportação do lote foi bloqueada', 'module_disabled');
     if (e instanceof BatchExportError) {
       if (e.layer === 'unavailable') throw e; // validador fora: tenta de novo
       throw new PoisonPillError(`exportação recusada (${e.layer}): ${e.message}`, `export_${e.layer}`);

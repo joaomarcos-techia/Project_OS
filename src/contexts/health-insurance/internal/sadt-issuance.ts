@@ -12,7 +12,7 @@ import { and, eq, inArray, sql } from 'drizzle-orm';
 
 import { encryptForTenant } from '@/lib/crypto/encryption';
 import type { Tx } from '@/lib/db';
-import { assertPremiumFeatureTx } from '@/lib/premium-access';
+import { assertConveniosOperableTx } from './module-guard';
 
 import {
   hiAuthorizationItems,
@@ -52,7 +52,7 @@ export async function issueSpSadtGuide(
   args: IssueArgs,
 ): Promise<{ snapshotId: string; revision: number; sha256: string }> {
   const { clinicId } = args;
-  await assertPremiumFeatureTx(tx, clinicId, 'health_insurance');
+  await assertConveniosOperableTx(tx, clinicId);
   // P14.2 (G.7): mesma trava da Guia de Consulta; aprovações simultâneas se enfileiram.
   const [g] = await tx
     .select()

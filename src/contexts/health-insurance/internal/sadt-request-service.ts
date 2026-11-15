@@ -24,7 +24,7 @@ import { z } from 'zod';
 
 import { decryptForTenant, encryptForTenant } from '@/lib/crypto/encryption';
 import type { Tx } from '@/lib/db';
-import { assertPremiumFeatureTx } from '@/lib/premium-access';
+import { assertConveniosOperableTx } from './module-guard';
 
 import { tissTerminologyVersions, tissTerms } from '../schema';
 import {
@@ -186,7 +186,7 @@ export async function createSadtRequestInTx(
   const input = CreateSadtRequestInput.parse(raw);
   const { clinicId } = input;
   // D24: solicitação é operação nova de Convênios (o banco confere de novo).
-  await assertPremiumFeatureTx(tx, clinicId, 'health_insurance');
+  await assertConveniosOperableTx(tx, clinicId);
 
   const [card] = await tx
     .select({ patientId: hiMemberships.patientId, insurerId: hiMemberships.insurerId, status: hiMemberships.status })
@@ -295,7 +295,7 @@ export async function setClinicalIndicationInTx(
   // D24: a indicação prepara o que vai para a operadora, como o ajuste da Consulta (P4.6), que
   // já é recusado em trial ou com a assinatura parada. Sem isto, a clínica suspensa editava a
   // solicitação por esta action (achado de 15/11, noite; a conferência e o documento já barravam).
-  await assertPremiumFeatureTx(tx, args.clinicId, 'health_insurance');
+  await assertConveniosOperableTx(tx, args.clinicId);
   const r = await loadRequest(tx, args.clinicId, args.requestId);
   // Depois da resposta da operadora, o que foi enviado não muda ("pronta" = nada foi enviado).
   if (!['draft', 'checked', 'awaiting_authorization', 'ready'].includes(r.status)) {
@@ -357,7 +357,7 @@ export async function checkSadtRequestInTx(
   },
 ): Promise<CheckOutcome> {
   const { clinicId } = args;
-  await assertPremiumFeatureTx(tx, clinicId, 'health_insurance');
+  await assertConveniosOperableTx(tx, clinicId);
   const r = await loadRequest(tx, clinicId, args.requestId);
   if (r.status !== 'draft') throw new SadtRequestError(`só se confere rascunho (estado: ${r.status})`, 'state');
   const careType = args.careType ?? r.careType;

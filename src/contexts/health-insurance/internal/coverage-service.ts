@@ -21,7 +21,7 @@ import 'server-only';
 import { and, eq, sql } from 'drizzle-orm';
 
 import type { Tx } from '@/lib/db';
-import { assertPremiumFeatureTx } from '@/lib/premium-access';
+import { assertConveniosOperableTx } from './module-guard';
 
 import {
   hiAppointmentCoverages,
@@ -101,7 +101,7 @@ export async function recordAppointmentCoverage(
 ): Promise<CoverageResult> {
   const { clinicId } = input;
   // D24: operação nova de Convênios só com assinatura paga e ativa (o banco confere de novo).
-  await assertPremiumFeatureTx(tx, clinicId, 'health_insurance');
+  await assertConveniosOperableTx(tx, clinicId);
   const issues: GuideIssue[] = [];
   if (input.correction && input.actor.kind !== 'user') {
     throw new CoverageInputError('a correção da cobertura é de um usuário');

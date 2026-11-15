@@ -31,7 +31,7 @@ import { encryptForTenant } from '@/lib/crypto/encryption';
 import type { Tx } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
 import { metrics } from '@/lib/observability/metrics';
-import { assertPremiumFeatureTx } from '@/lib/premium-access';
+import { assertConveniosOperableTx } from './module-guard';
 import type { TissObjectStore } from '@/lib/storage/tiss-files';
 
 import { tissTerminologyVersions } from '../schema';
@@ -262,7 +262,7 @@ export async function exportSadtRequestDocumentInTx(
     );
   }
   // Gerar é operação do módulo (não preservação): exige Convênios liberado.
-  await assertPremiumFeatureTx(tx, clinicId, 'health_insurance');
+  await assertConveniosOperableTx(tx, clinicId);
   if (args.card.membershipId !== request.membershipId) {
     return fail('card', 'a carteirinha lida não é a da solicitação');
   }

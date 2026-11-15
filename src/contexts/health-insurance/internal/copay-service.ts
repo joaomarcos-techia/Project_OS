@@ -18,7 +18,7 @@ import { and, eq } from 'drizzle-orm';
 
 import type { Tx } from '@/lib/db';
 import { publishEvent } from '@/lib/outbox/publish';
-import { assertPremiumFeatureTx } from '@/lib/premium-access';
+import { assertConveniosOperableTx } from './module-guard';
 
 import { HEALTH_INSURANCE_EVENTS } from '../events';
 import { hiCopayments } from '../schema-clinic';
@@ -111,7 +111,7 @@ export async function confirmCopay(
   },
 ): Promise<{ published: boolean }> {
   // D24: operação nova de Convênios só com assinatura paga e ativa (o banco confere de novo).
-  await assertPremiumFeatureTx(tx, args.clinicId, 'health_insurance');
+  await assertConveniosOperableTx(tx, args.clinicId);
   const row = await load(tx, args.clinicId, { id: args.copaymentId });
   if (!row) throw new CopayStateError('coparticipação inexistente nesta clínica');
   if (row.status !== 'checked') {

@@ -157,8 +157,11 @@ describe('ações de Convênios', () => {
   });
 
   it('conferência com versão desatualizada é recusada (outra pessoa mexeu na guia)', async () => {
-    // 1º: decisão comercial (liberado); 2º: o UPDATE com a versão antiga não acha a linha.
-    m.execute.mockResolvedValueOnce([{ denial: null }]).mockResolvedValueOnce([]);
+    // 1º: decisão comercial (liberado); 2º: módulo ligado; 3º: o UPDATE com a versão antiga não acha a linha.
+    m.execute
+      .mockResolvedValueOnce([{ denial: null }])
+      .mockResolvedValueOnce([{ enabled: true }])
+      .mockResolvedValueOnce([]);
     const r = await reviewGuideAction({ guideId: GUIDE, version: 3 });
     expect(r).toEqual({ ok: false, error: 'A guia mudou desde que a tela foi aberta. Atualize e confira de novo.' });
     expect(m.logAudit).not.toHaveBeenCalled();
@@ -178,6 +181,23 @@ describe('ações de Convênios', () => {
       const returned = await returnGuideAction({ guideId: GUIDE, version: 3, note: 'Corrigir o tipo de consulta.' });
       expect(returned.ok).toBe(false);
       expect(m.execute).toHaveBeenCalledTimes(2);
+    }
+    expect(m.logAudit).not.toHaveBeenCalled();
+  });
+
+  it('módulo desligado (assinatura ativa): conferir e devolver são recusados com a mensagem do módulo, sem tocar a guia', async () => {
+    const MODULE_OFF = /^Convênios está desligado nesta clínica\./u;
+    for (const settings of [[{ enabled: false }], []]) {
+      // Sem linha de configuração = nunca ligado (desligado por padrão).
+      m.execute.mockReset();
+      m.execute.mockResolvedValueOnce([{ denial: null }]).mockResolvedValueOnce(settings);
+      const reviewed = await reviewGuideAction({ guideId: GUIDE, version: 3 });
+      expect(reviewed.ok ? '' : reviewed.error).toMatch(MODULE_OFF);
+      expect(m.execute).toHaveBeenCalledTimes(2); // decisão comercial + interruptor; nenhum UPDATE
+      m.execute.mockResolvedValueOnce([{ denial: null }]).mockResolvedValueOnce(settings);
+      const returned = await returnGuideAction({ guideId: GUIDE, version: 3, note: 'Corrigir o tipo de consulta.' });
+      expect(returned.ok ? '' : returned.error).toMatch(MODULE_OFF);
+      expect(m.execute).toHaveBeenCalledTimes(4);
     }
     expect(m.logAudit).not.toHaveBeenCalled();
   });

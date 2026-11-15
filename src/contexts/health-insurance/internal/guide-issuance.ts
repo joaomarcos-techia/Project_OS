@@ -22,12 +22,14 @@ import 'server-only';
 
 import { and, eq, lt, max, ne, notInArray, sql } from 'drizzle-orm';
 
+import { logAudit } from '@/lib/audit/log';
+import { requestContext } from '@/lib/audit/request-context-from-headers';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { requireFreshPermission, requireUser } from '@/lib/auth/tenant-context';
 import { encryptForTenant } from '@/lib/crypto/encryption';
 import type { Tx } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
-import { assertPremiumFeatureTx } from '@/lib/premium-access';
+import { assertConveniosOperableTx } from './module-guard';
 
 import {
   hiAuthorizations,
@@ -66,7 +68,7 @@ export async function issueConsultaGuide(
 ): Promise<{ snapshotId: string; revision: number; sha256: string }> {
   const { clinicId } = args;
   // D24: operação nova de Convênios só com assinatura paga e ativa (o banco confere de novo).
-  await assertPremiumFeatureTx(tx, clinicId, 'health_insurance');
+  await assertConveniosOperableTx(tx, clinicId);
   // P14.2 (G.7): a linha da guia fica travada até o fim da emissão. Duas aprovações simultâneas
   // se enfileiram: a segunda lê a guia já aprovada e recebe o conflito com mensagem, em vez de
   // esbarrar na unicidade do snapshot (erro cru 23505).
@@ -296,10 +298,11 @@ export async function approveConsultaGuide(clinicId: string, guideId: string) {
   );
   if (!card) throw new GuideIssuanceError('carteirinha inexistente nesta clínica');
   const issue = head.guideType === 'sp_sadt' ? issueSpSadtGuide : issueConsultaGuide;
+  const rc = await requestContext();
   return withTenant(
     clinicId,
-    (tx) =>
-      issue(tx, {
+    async (tx) => {
+      const out = await issue(tx, {
         clinicId,
         guideId,
         card,
@@ -307,7 +310,24 @@ export async function approveConsultaGuide(clinicId: string, guideId: string) {
         professionalName: head.nome,
         actorUserId: user.userId,
         today: todayInTz(head.timezone),
-      }),
+      });
+      // Trilha unificada da clínica (P12.2, achado de 15/11): as demais transições da guia gravam
+      // em `audit_events` pelo `write()` das actions; a aprovação só ficava no histórico da guia.
+      // Na MESMA transação da emissão: sem o registro, não há aprovação. Só identificadores e o hash
+      // do snapshot — nada de carteirinha, paciente ou conteúdo da guia. A corrida de aprovação já é
+      // serializada na emissão (trava da P14.2): quem perde não chega aqui, então não duplica.
+      await logAudit(tx, {
+        clinicId,
+        userId: user.userId,
+        action: 'health_insurance.guide.approved',
+        resourceType: 'hi_guide',
+        resourceId: guideId,
+        before: null,
+        after: { guideType: head.guideType, revision: out.revision, snapshotSha256: out.sha256 },
+        requestContext: rc,
+      });
+      return out;
+    },
     user.userId,
   );
 }

@@ -229,6 +229,45 @@ com "preservação", mas a 0151 não o lista.
 | D-7 | Herança dos overrides (R1–R4) como está na candidata, incluindo a negativa de operar para quem tinha `manage:financial` negado? | sim. Ninguém ganha o que foi negado. A perda pequena (carteirinha do gestor com gerenciar negado) é revertida pela Equipe |
 | D-8 | Autorizar a aplicação da 0162 no DEV depois das provas descartáveis, pelo procedimento do §18 da coordenação? | sim, depois do ensaio verde e com a janela de máquina livre |
 
+**15/11 (noite, 2ª rodada): revisão de D-3, D-5 e D-6 depois da orientação do fundador.**
+
+- **D-6:** respondida pelo fundador. Repasse autorizado ou pago é obrigação **preservada**; a compensação negativa
+  **não** é automática e vira pendência de revisão humana. Isso não libera operação financeira nova com a assinatura
+  suspensa. Medição do comportamento atual: `health-insurance-payout-db.ts`, seção 13.
+- **D-3 (médica, carteirinha e cobertura). A recomendação mudou.**
+  - Numa clínica sem recepção, como uma clínica de 2 médicos, é a própria médica quem cadastra a carteirinha e
+    registra a cobertura no check-in. Tirar isso sem alternativa trava o atendimento.
+  - **Nova recomendação (opção B):** acesso limitado à **posse**, sem `operate:convenios` e sem valores.
+    - Cobertura e carteirinha só para os **próprios** atendimentos, ou seja, os do paciente que ela vai atender. A
+      regra é `appointments.doctor_id` = pessoa da sessão, conferida no servidor.
+    - Leitura do número completo da carteirinha só com a finalidade "atendimento" e auditada.
+  - **Opção A:** a I.2 literal, em que a médica perde as duas operações. Mais simples, mas trava a clínica sem
+    recepção.
+  - **Opção C:** manter como hoje (`edit:patient`/`edit:agenda`). Nesse caso a médica opera carteirinha e cobertura de
+    qualquer atendimento da clínica.
+  - **Testes da opção B:**
+    - a médica registra a cobertura do próprio atendimento;
+    - a médica é recusada no atendimento de outra profissional, tanto pela action direta quanto pelo id adulterado;
+    - a médica não vê valores.
+- **D-5 (recepção, PDF e XML). Recomendação mantida, com regra de transição.**
+  - **O que os arquivos contêm:**
+    - o PDF e o XML da guia têm o nome do beneficiário, o número da carteirinha, o código do procedimento e o
+      **valor** (`valorProcedimento` na Consulta; `valorUnitario`/`valorTotal` na SP/SADT);
+    - na SP/SADT entra também a **indicação clínica**, quando informada;
+    - o XML do lote junta tudo isso para várias guias.
+  - **O que a recepção precisa:** a via em papel da guia para a assinatura do paciente, quando a operadora exige.
+    Ela não precisa do XML.
+  - **Recomendação:**
+    1. gerar a **via de assinatura** (PDF sem valores) com `operate:convenios`;
+    2. só depois tirar da recepção o PDF completo;
+    3. o XML nunca vai para a recepção.
+  - **Até a via existir:** nada muda para a recepção. Ela continua com o PDF atual, sob leitura auditada. Assim o
+    documento necessário ao atendimento não é retirado sem alternativa.
+  - **Testes:**
+    - a via de assinatura não contém `valorProcedimento` nem valores;
+    - a recepção é recusada no XML e no PDF completo depois da troca;
+    - toda leitura gera um evento auditado.
+
 ## 9. Testes previstos
 
 - **Banco descartável** (a candidata):
