@@ -23,6 +23,7 @@ import { DataTable } from '@/components/ui/data-table';
 import { EmptyState } from '@/components/ui/empty-state';
 import { LinkSegmented } from '@/components/ui/link-segmented';
 import { MetricStrip } from '@/components/ui/metric-strip';
+import { PageActions } from '@/components/ui/page-actions';
 import { PageHeader } from '@/components/ui/page-header';
 import { StatCard } from '@/components/ui/stat-card';
 import { PaymentStatusBadge } from '@/components/ui/status-badge';
@@ -197,22 +198,27 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: P
           minute: '2-digit',
         }).format(new Date())}`}
         actions={
-          <>
-            <Link
-              href="/financeiro/fornecedores"
-              className={buttonVariants({ variant: 'secondary' })}
-            >
-              <Truck aria-hidden="true" className="size-4" />
-              Fornecedores
-            </Link>
-            {canManage ? (
-              <NewLancamentoDrawer
-                suppliers={suppliers}
-                methods={methods}
-                defaultOpen={novo === '1'}
-              />
-            ) : null}
-          </>
+          // UX-012: abaixo de 768 px "Fornecedores" entra em "Mais ações" e
+          // "Novo lançamento" fica à vista — a 320 px eram 2 linhas de botões.
+          <PageActions
+            label="Ações do financeiro"
+            secondary={[
+              {
+                href: '/financeiro/fornecedores',
+                label: 'Fornecedores',
+                icon: <Truck aria-hidden="true" className="size-4" />,
+              },
+            ]}
+            primary={
+              canManage ? (
+                <NewLancamentoDrawer
+                  suppliers={suppliers}
+                  methods={methods}
+                  defaultOpen={novo === '1'}
+                />
+              ) : null
+            }
+          />
         }
         controls={
           <>
