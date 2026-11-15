@@ -1,5 +1,105 @@
 # Gate B — proposta de deploy técnico com aquisição fechada
 
+## Diagnóstico nativo de RAM e decisões seguras — 15/11/2026
+
+**Checkpoint prevalente:** UI/TISS continuam pausados por informação do titular. Autorizados diagnóstico somente de leitura e parada graciosa apenas de processos próprios comprovadamente descartáveis. **Nenhum processo atendeu a esse critério**, portanto zero encerramentos. Não houve nova solicitação de pausa dos agentes, acesso a Production, reset, limpeza de cache, alteração de serviço, pagefile/hibernação ou redução do mínimo de4GiB. Os três documentos locais do ciclo anterior foram preservados; este diagnóstico completa a atualização documental para um único commit/push no PR53 solicitado pelo titular, sem alteração de código financeiro/SQL/CI.
+
+### Memória observada, sem atribuir variação à automação
+
+Dados obtidos por CIM/contadores nativos, processos pais/executáveis e `code --status`, **sem emitir linhas de comando completas ou títulos completos de janelas**. Os metadados locais estão em `dist/memory-diagnostic-native.json`, `dist/memory-editor-origin.json` e `dist/memory-diagnostic-final-resources.json`. O resumo versionado omite caminhos de executáveis/perfil e conteúdo de janelas.
+
+| Momento | RAM física disponível | Commit / limite | Disco C: livre |
+|---|---|---|---|
+| Início do diagnóstico,19:52UTC /16:52 Brasília | **1.378MiB /7.877MiB**; contador separado1.316MiB |12.223 /25.285MiB |10,84GiB |
+| Após inspeção,19:58:57UTC /16:58:57 Brasília | **1.644MiB**; contador separado1.618MiB |12.207 /25.285MiB |10,86GiB |
+
+Contadores coletados em instantes próximos, não snapshot atômico. A diferença de266MiB entre leituras é variação observada; **RAM comprovadamente recuperada por encerramentos nossos:0MiB**, pois não encerramos nenhum processo. Windows dispõe de memória virtual, mas isso não substitui4.096MiB físicos livres; na leitura final faltavam2.452MiB. Somar working sets pode contar páginas compartilhadas mais de uma vez; não prometer que fechar um grupo libera exatamente a soma mostrada.
+
+### Processos e classificação
+
+Valores aproximados do snapshot inicial. PIDs são históricos e devem ser revalidados antes de qualquer ação futura.
+
+| Processo/aplicativo | PID(s) | RAM residente aproximada | Origem identificada? | Classificação / ação |
+|---|---|---:|---|---|
+| VS Code,23 processos | Principal27708; maiores3128,25416,20240 |**1.190,6MiB** somados;908,6MiB de working set privado | Sim, árvore do VS Code; worktrees por janela não totalmente comprovados | **PEDIR AUTORIZAÇÃO** para fechar janelas extras; preservar sessão atual. Não encerrar o processo principal |
+| Janela/subprocesso Code3128 |3128 |476,7MiB | Filho do principal27708; sem atribuição confiável a TISS/UI | **PEDIR AUTORIZAÇÃO**; identificar a janela visualmente e salvar antes |
+| Janela Code25416 |25416 |230,5MiB | `code --status` reconheceu workspace local; não prova que pertence ao TISS/UI | **PEDIR AUTORIZAÇÃO**; fechar normalmente somente se o titular reconhecer e salvar |
+| Memory Compression |3208 |**1.071MiB** | Windows, filho de System4 | **PRESERVAR**; memória comprimida não é processo descartável |
+| Serviços Windows,93 svchost | Vários |631,7MiB somados | Sistema | **PRESERVAR**; não desligar serviços para forçar o teste |
+| WebView2,6 processos |25520 e filhos; pai SearchHost4936 |324,6MiB somados | Busca do Windows, não Chrome/Edge de teste | **PRESERVAR**; não encerrar por nome genérico |
+| Claude |27220 |106,7MiB | Extensão Claude/VS Code, pai20240; papel TISS/UI não comprovado | **PEDIR AUTORIZAÇÃO**; pode manter sessão de trabalho pausada |
+| Codex |28660,6352 |130MiB somados | Sessão ativa e infraestrutura do agente | **PRESERVAR**; encerrar interromperia o trabalho/ferramentas |
+| Node das ferramentas Codex/CUA |20468,22584,16032 |8,1MiB somados | Executável CUA e ancestrais Codex/node_repl | **PRESERVAR**; não são builds descartáveis comprovados |
+| Node Playwright test server |24200 |22,4MiB | Filho do extension host20240; listener somente local57890 | **PEDIR AUTORIZAÇÃO**; possível servidor de testes da IDE, sem atribuição comprovada ao TISS/UI |
+| Serviço de suporte WSL |5420 |4,3MiB | `wslservice.exe`, filho de services.exe; não é VM vmmem nem Engine Docker | **PRESERVAR**, não parar serviço global |
+| Chrome/Edge, Next/Vitest, PostgreSQL, Engine Docker/VM vmmem ativos | Nenhum identificado |— | Nenhum navegador headless, runtime Next/Vitest ou banco no snapshot | Nada desses grupos para encerrar |
+
+Os quatro Node somam **30,5MiB residentes**, não vários GiB. A memória privada comprometida desses Node é324,4MiB, parte possivelmente paginada/comprimida; não confundir com RAM física residente. O agente Codex soma130MiB nos dois executáveis, mais as ferramentas Node8,1MiB; o extension host compartilhado do VS Code não pode ser atribuído integralmente a esta conversa. Pools Windows observados: não paginado1.107MiB e paginado882MiB; são métricas do kernel, sem diagnóstico de vazamento, e não uma lista de processos que se deva matar.
+
+**Resíduos de UI/TISS:** não foi encontrado servidor Next, teste Vitest ou Chromium headless atribuível a esses agentes. O Playwright24200 é o único servidor Node local observado; não há prova de que seja lixo ou pertença a um dos dois. Sua parada isolada teria potencial de liberar apenas dezenas de MiB e pode interromper a infraestrutura de testes da IDE. Não propomos matá-lo automaticamente nem apagar arquivos. Nenhum processo recebeu classificação SEGURO PARA ENCERRAR; origens de sessão/worktree não comprovadas permanecem explicitamente desconhecidas.
+
+### Instruções práticas para o titular, por ordem
+
+1. **VS Code — salvar e fechar somente janelas extras que reconhecer.** Em cada janela, use **Arquivo → Salvar Tudo**; verifique terminais/testes em andamento. Feche pelo **X da própria janela**. Mantenha a janela desta conversa: o Codex ativo é filho do VS Code, portanto fechar tudo encerra também nossa sessão. A recuperação esperada é de centenas de MiB por janela/serviços associados, sem promessa de alcançar4GiB. Não usar “Finalizar tarefa” no Code27708 ou no extension host20240.
+2. **Claude27220 — preservar até decisão específica.** Se o titular reconhecer a sessão como descartável e salvar seu estado, pode encerrá-la pela própria extensão. Não há justificativa para perder trabalho só para tentar liberar cerca de107MiB; a pausa anterior não autorizava essa parada.
+3. **Playwright24200 — preservar por padrão.** Encerrar normalmente a sessão de testes/IDE correspondente é preferível a matar Node. Não indicar um botão/comando específico da extensão sem confirmação da interface. Se o titular pedir a parada pelo PID, conferir novamente identidade, porta, trabalho e autorização antes; o ganho de cerca de22MiB não resolve o déficit atual.
+4. **Windows/antivírus/WebView da busca — não mexer.** Não usar utilitários de “limpeza de RAM”, descarte forçado de working set, desativação de compressão, cache ou serviços. Isso pode trocar RAM por paginação ou interromper componentes, sem comprovar capacidade segura.
+
+### Alternativas se não houver4GiB livres
+
+| Alternativa | Avaliação concreta | Próxima autorização/condição |
+|---|---|---|
+| A — Local após fechar aplicativos | Menor mudança; fechar somente janelas extras salvas. Code inteiro soma1,19GiB aproximado e inclui nossa sessão; Node/Claude oferecem pouco. Não há recuperação segura automática comprovada que garanta os2,45GiB faltantes | Titular fecha apenas aplicações reconhecidas; medir novamente antes de Docker/build |
+| B — Reinicialização controlada | Pode liberar estados transitórios/kernel/compressão; não há garantia de atingir4GiB nem diagnóstico de vazamento. Encerra sessões, terminais e agentes | Proposta apenas: salvar todo trabalho, preservar relatórios/checkpoints e obter decisão expressa. Não reiniciado |
+| C — Outra máquina existente | Host com ao menos4GiB físicos disponíveis antes do Engine, espaço verificado para imagem/fixture/build e Docker local compatível. Mais RAM total oferece margem; nenhuma compra presumida. Começar somente com dados sintéticos e mesmos limites/isolamento | Identificar equipamento existente e aprová-lo; proteção para dados reais continua exigência separada |
+| D — CI existente para o build composto | Runner anterior comprovou build convencional; falta job para **TAR exato**. Um job isolado precisaria obter o arquivo por origem privada aprovada, conferir SHA256/manifesto, extrair e compilar sem harness extra/.env/segredos, usando apenas fixtures. Não substitui restore sintético nem B1-B real | Aprovação específica de diff de workflow, origem/conteúdo do TAR e orçamento. Não alterado/disparado job adicional |
+
+Inventário dos workflows conferido: `ci.yml`, `adr-check.yml`, `db-backup.yml`. A CI usa `security:build`, que modifica a cópia de fontes com harness; não prova o pacote composto. O único `workflow_dispatch` encontrado é o **backup de Production**: **não reutilizá-lo para este ensaio e não executá-lo**. A proposta de CI deve impedir deploy/financeiro, não receber secrets Production e não publicar conteúdo sensível em logs/artefatos. Nenhuma mudança de workflow ou upload do TAR foi realizado.
+
+**Resultado:** orçamento físico não atendido; **RESTORE SINTÉTICO BLOCKED / BUILD COMPOSTO BLOCKED / B1-B REAL NÃO APTO / Production NO-GO**. A inspeção não revelou processo próprio descartável que autorizasse liberar RAM automaticamente. Não iniciamos Docker, banco, GPG integrado ou build. Proteção do host/TLS/chave/plano/retenção/responsáveis continuam pendentes para dados reais, sem reabrir B1-A ou atribuir o bloqueio sintético a essas pendências. R1–R4 continuam PARTIAL e não aceitos. O titular decide a retomada dos outros agentes; não há carga pesada própria desta rodada para parar.
+
+## Retomada autorizada — capacidade insuficiente em 15/11/2026
+
+**Checkpoint prevalente:** o titular autorizou a janela **local e exclusivamente sintética** e informou que UI e TISS estão pausados. A autorização substitui o adiamento anterior; não foi solicitada nova pausa nem confirmação de leitura dos agentes. B1-B real, B2-A/B, B3, merge, deploy, migrations e financeiro live continuam não autorizados. PR53 OPEN/DRAFT, HEAD **`da1bd983cc01aac68c0adb032d5660c17ad6120d`**, CI43748000369 GREEN conferidos nesta rodada. Código financeiro e SQL não sofreram alteração; os checkpoints de validação anteriores continuam no seu alcance.
+
+### Recursos medidos depois da pausa informada
+
+| Medição em 15/11 | RAM física livre / total | Commit / limite | Disco C: livre | Processos observados |
+|---|---|---|---|---|
+| 19:20:57 UTC / 16:20:57 Brasília, início | **558 / 7.877 MiB** | 17.890 / 25.285 MiB | 10,61 GiB | 4 Node, 16 Chrome, zero PostgreSQL; sem Engine |
+| 19:22:37 UTC / 16:22:37 Brasília, reavaliação independente do build | **798 / 7.877 MiB** | 17.813 / 25.285 MiB | 10,61 GiB | 4 Node, 13 Chrome, zero PostgreSQL |
+| 19:27:02 UTC / 16:27:02 Brasília, após verificações leves | **810 / 7.877 MiB** | 17.273 / 25.285 MiB | 10,60 GiB | 4 Node, 13 Chrome, zero PostgreSQL/Docker Desktop |
+
+A pausa dos agentes é informação do responsável, não prova de memória liberada. Não existe medição imediatamente anterior à pausa; os 885MiB do ciclo anterior são históricos, não uma comparação controlada. A inspeção dos processos Node não identificou script pesado próprio descartável: havia processos associados a Codex, node_repl e VS Code/Playwright sem atribuição segura a este ensaio. Nenhum foi encerrado. Uma leitura pontual encontrou Memory Compression em1.454MiB, Chrome e VS Code entre os maiores working sets; isso indica pressão de memória, não atribui propriedade nem autoriza encerrar aplicações/serviços.
+
+**Docker — BLOCKED antes da inicialização:** o mínimo proposto continua **4.096MiB físicos livres**. Todas as leituras ficaram abaixo de1GiB. Client29.9.2, contexto desktop-linux e endpoint local `npipe:////./pipe/dockerDesktopLinuxEngine`, SkipTLSVerifyfalse, sem overrides Docker. `docker version` mostrou Client e Servernull, seguido de pipe ausente. Nenhuma tentativa de iniciar Engine/contêiner, instalar imagem ou inventariar caches/volumes do daemon parado. O tamanho disponível da imagem não pôde ser confirmado; não presumir que10,6GiB comportem qualquer download/cache. Junction `node_modules` compartilhada preservada.
+
+**Build — avaliado separadamente, BLOCKED antes da inicialização:** o Engine não consumia recursos e mesmo assim havia apenas798MiB livres na reavaliação. O build frio já documentado ultrapassa heap de2GiB; a CI existente reserva heap de até4GiB somente para o processo Next, além de workers/Windows. Essa configuração não mede consumo mínimo exato, mas não sustenta iniciar com menos de1GiB físico e pressão já observada. Não reduzir heap, usar swap ou trocar versões para forçar sucesso. Node22.23.4 e pnpm11.17.0 conferidos. Sem instalação de dependências, extração nova, `.next` ou build.
+
+### Preflight leve do artefato — PASS, sem alegar build
+
+Executado em **19:26:05 UTC / 16:26:05 Brasília**, duração1,582s, com processo Node de heap limitado a128MiB e hash por stream de64KiB. Evidência sanitizada: `dist/resumed-window-artifact-preflight.json`.
+
+- TAR original:234.562.048bytes, SHA256 **`3902f2007742df4016450eeaece806a8f2bc0b535631d33da9a5e691b59ce3f6`**, idêntico à atestação anterior; não reconstruído/alterado.
+- Os **2.785 nomes** listados coincidem com o inventário atestado, inclusive acentos. O leitor local inicial comparou incorretamente o prefixo `./` e a saída ANSI do tar Windows como UTF8. Ajustado **somente o helper ignorado em dist** para normalizar o prefixo e decodificar o listing conforme a página Windows1252 deste host; a comparação exata então passou. Não era corrupção do TAR, defeito de recuperação ou correção no código financeiro. Os bytes de arquivos obtidos com `tar -xOf` continuam decodificados como UTF8.
+-160 membros SQL,160 entradas de prova embutida;0160/0161 ausentes. Fontes financeira94f6da4a, empacotador787276a1 e compartilhada4d0ed1d5 preservadas. Manifesto congelado SHA256 **`bf2775be25ae3bdb2d58d52b99708a3d1ee32620425f1d98ac214a849185af5f`** confere com Git e HEAD.
+-A prova de bytes é o hash integral igual ao TAR anterior. Os160 corpos SQL não foram reextraídos/re-hasheados individualmente, nem houve extração em diretório novo. **Não equivale a build composto, execução SQL, restore PostgreSQL ou recuperação Supabase.**
+
+### Encerramento e classificação desta janela
+
+| Frente | Resultado observado |
+|---|---|
+| RESTORE SINTÉTICO | **BLOCKED — capacidade insuficiente antes de iniciar Docker.** pg_dump/GPG/PostgreSQL/psql da cadeia não executados; negativas e cancelamento integrados NOT TESTED |
+| BUILD COMPOSTO | **BLOCKED — capacidade insuficiente, avaliada independentemente.** Preflight de identidade PASS; Next não executado, sem exit code de build |
+| Limpeza | Zero contêineres, bancos, keyrings, diretórios de build ou processos pesados criados. Nada a descartar; apenas helpers/relatórios leves próprios em dist preservados. Nenhum processo alheio ou recurso histórico removido |
+| CI / alterações | Nenhuma correção de código versionado, nova dependência, configuração ou migration. CI verde do mesmo HEAD preservada; sem suíte repetida ou commit artificial para disparar outra CI. Novas evidências e checkpoints registrados localmente, revisados e ainda sem commit |
+| Host para dados reais | **NÃO APROVADO.** BitLocker/WSL/VHD/sync não verificados; EncryptPagingFile0 e hibernação disponíveis no diagnóstico anterior, não reconsultados agora. Não impedem dados sintéticos, mas não aprovar B1-B real por GPG/tmpfs/ACL |
+| B1-B REAL | **NÃO APTO PARA SOLICITAR AUTORIZAÇÃO**: faltam cadeia sintética integral, capacidade, proteção do host/destino, identidade TLS real, chave recuperável, responsáveis, retenção/descarte e GO específico |
+| B2-A / B2-B / B3 | Não autorizados e não executados; sem leitura de ledger/schema Production. Pacote0136–0159 preservado |
+| Production / R1–R4 | **NO-GO**; R1–R4 PARTIAL e não aceitos; renovação natural13/12 não antecipada |
+
+Não há carga pesada própria desta janela impedindo a retomada de UI/TISS; **o titular decide quando retomá-los**, sem reinício automático dessas sessões. A máquina continua sem capacidade demonstrada para este ensaio. Próxima ação concreta: disponibilizar ao menos4GiB físicos livres nesta máquina, sem encerrar processos desconhecidos, ou indicar outra máquina existente aprovada; então repetir apenas o preflight de recursos e executar a cadeia sintética autorizada, com build separado. Não pedir que os agentes sejam pausados novamente como se essa informação não tivesse sido fornecida. Plano/retenção efetivos e recuperação física Supabase continuam pendentes de conferência específica, sem repetir o B1-A ou acessar conteúdo real.
+
 ## Janela sintética preparada e adiada pelo titular — 15/11/2026
 
 **Decisão prevalente:** “Deixe a janela preparada para depois”. Não iniciar Docker, restore ou build pesado nesta rodada, nem pedir novamente a mesma pausa. A janela abaixo é somente local e sintética, sem data reservada; não autoriza B1-B real, B2, B3 ou qualquer alteração Production. Baseline anterior conferida: `c06608e3`, CI43744127028 GREEN, 7.266 testes/641 arquivos/22 E2E/zero SKIP. Nenhum GPG foi reensaiado localmente só para repetir esse resultado. O novo commit documental/ferramenta deve ter sua própria CI; consultar HEAD/checks do PR53.

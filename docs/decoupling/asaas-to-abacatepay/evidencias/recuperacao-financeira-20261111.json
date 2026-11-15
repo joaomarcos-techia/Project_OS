@@ -25243,5 +25243,448 @@
       "R1_R4": "PARTIAL_NOT_ACCEPTED"
     },
     "nextAction": "When owner resumes, coordinate resource window; synthetic full-chain restore first, composed release build separately; no real data before specific authorization and verified host protection"
+  },
+  "resumedSyntheticWindow20261115": {
+    "recordedAt": "2026-11-15T19:29:28.284Z",
+    "baselineHead": "da1bd983cc01aac68c0adb032d5660c17ad6120d",
+    "officialCi": 43748000369,
+    "ciResult": "GREEN_RECONFIRMED_SAME_HEAD",
+    "tests": 7266,
+    "testFiles": 641,
+    "e2e": 22,
+    "testSkips": false,
+    "authorization": {
+      "resumedByOwner": true,
+      "uiAndTissPausedReportedByOwner": true,
+      "furtherPauseRequested": false,
+      "exclusivelySyntheticLocalTests": true,
+      "realDataOrProductionAccessAuthorized": false
+    },
+    "initialResources": {
+      "observedAt": "2026-11-15T19:20:57.4978016Z",
+      "totalPhysicalMiB": 7877,
+      "freePhysicalMiB": 558,
+      "committedMiB": 17890,
+      "commitLimitMiB": 25285,
+      "freeDiskGiB": 10.61,
+      "nodeCount": 4,
+      "chromeCount": 16,
+      "postgresCount": 0
+    },
+    "independentBuildAssessment": {
+      "observedAt": "2026-11-15T19:22:37.5115897Z",
+      "freePhysicalMiB": 798,
+      "committedMiB": 17813,
+      "commitLimitMiB": 25285,
+      "freeDiskGiB": 10.61,
+      "dockerRunning": false,
+      "status": "BLOCKED_INSUFFICIENT_PHYSICAL_MEMORY",
+      "basis": "Documented cold Next build exceeds 2GiB heap; CI budgets 4GiB heap plus process/worker overhead. Less than 1GiB physical available with existing pressure is not sufficient.",
+      "versionChangesOrHeapReductionToForceBuild": false
+    },
+    "finalResources": {
+      "observedAt": "2026-11-15T19:27:02.8259083Z",
+      "totalPhysicalMiB": 7877,
+      "freePhysicalMiB": 810,
+      "committedMiB": 17273,
+      "commitLimitMiB": 25285,
+      "freeDiskGiB": 10.6,
+      "nodeCount": 4,
+      "chromeCount": 13,
+      "postgresCount": 0,
+      "dockerDesktopCount": 0,
+      "ownHeavyProcessStarted": false,
+      "containersCreated": 0,
+      "processesTerminated": 0,
+      "newBuildDirectories": 0
+    },
+    "docker": {
+      "clientVersion": "29.9.2",
+      "context": "desktop-linux",
+      "endpoint": "npipe:////./pipe/dockerDesktopLinuxEngine",
+      "skipTlsVerify": false,
+      "overridesPresent": false,
+      "server": "NOT_RUNNING_PIPE_MISSING",
+      "minimumFreePhysicalMiB": 4096,
+      "startAttempted": false,
+      "imagesOrVolumesInspected": false
+    },
+    "ownershipAndCleanup": {
+      "ownHeavyDisposableProcessIdentified": false,
+      "unknownProcessesTerminated": 0,
+      "othersProcessesOrWorktreesTouched": false,
+      "sharedNodeModulesJunctionChanged": false,
+      "containersCreated": 0,
+      "databasesCreated": 0,
+      "gpgHomesCreated": 0,
+      "buildDirectoriesCreated": 0,
+      "heavyProcessesStarted": 0,
+      "heavyProcessesRemainingFromThisRun": 0,
+      "syntheticDiscardRequired": false,
+      "preservedResources": "Only own lightweight helpers and sanitized reports in ignored dist; no dataset or key material",
+      "uiAndTissResumption": "Owner decides; no sessions resumed automatically"
+    },
+    "artifactPreflight": {
+      "observedAt": "2026-11-15T19:26:05.538Z",
+      "durationMs": 1582,
+      "status": "PASS_ARCHIVE_IDENTITY_AND_READONLY_PREFLIGHT_ONLY",
+      "financialRef": "94f6da4aeb32b1ae7da856dc9afa105120ce6dd9",
+      "packagingRef": "787276a1843eae25bb03252512f849d7013abe18",
+      "sharedSqlRef": "4d0ed1d5c8a81ab9f66e026f4f36c6e4520a7269",
+      "archiveSha256": "3902f2007742df4016450eeaece806a8f2bc0b535631d33da9a5e691b59ce3f6",
+      "bytes": 234562048,
+      "files": 2785,
+      "utf8NamesMatchPreviousAttestation": true,
+      "sqlEntries": 160,
+      "nativeWindowsTarListingEncoding": "windows-1252; ./ prefix normalized",
+      "sqlProofEntries": 160,
+      "frozenManifestSha256": "bf2775be25ae3bdb2d58d52b99708a3d1ee32620425f1d98ac214a849185af5f",
+      "excluded": ["0160", "0161"],
+      "freshExtraction": false,
+      "dependencyInstallation": false,
+      "nextBuildExecuted": false,
+      "sqlBodiesRehashedIndividually": false,
+      "scope": "Fresh full-archive hash proves identical bytes to prior attestation; member names and embedded SQL proof checked without extraction. Not a composed build or restore.",
+      "archiveModified": false,
+      "productionAccess": false
+    },
+    "localPreflightReaderDiagnostics": {
+      "initialComparison": "Local reader ERR_ASSERTION: ./ prefix and Windows ANSI tar listing were compared as raw UTF8. Not an archive integrity failure.",
+      "correction": "Normalize only leading ./ and decode native listing as windows-1252; member names must still exactly match prior attestation. File bytes decoded as UTF8.",
+      "correctedResult": "PASS",
+      "trackedCodeChanged": false
+    },
+    "syntheticRestore": {
+      "status": "BLOCKED",
+      "reason": "INSUFFICIENT_CAPACITY_BEFORE_DOCKER_START",
+      "pgDumpExecuted": false,
+      "gpgExecuted": false,
+      "dockerExecuted": false,
+      "postgresExecuted": false,
+      "psqlExecuted": false,
+      "schemaOrDataParityTested": false,
+      "negativeScenarios": "NOT_TESTED_INTEGRATED_CHAIN",
+      "realCancellation": "NOT_TESTED_INTEGRATED_CHAIN",
+      "priorGpgAndAclTestsRepeated": false
+    },
+    "composedBuild": {
+      "status": "BLOCKED",
+      "nextBuildExecuted": false,
+      "exitCode": null,
+      "reason": "INDEPENDENT_RESOURCE_ASSESSMENT_FAILED",
+      "freshExtraction": false,
+      "dependenciesInstalled": false,
+      "nodeVersion": "22.23.4",
+      "pnpmVersion": "11.17.0",
+      "productionEnvLoaded": false,
+      "archiveRebuiltOrModified": false
+    },
+    "hostProtection": {
+      "reassessedThisCycle": false,
+      "source": "Prior non-destructive host inspection retained",
+      "bitlocker": "NOT_VERIFIED_ACCESS_DENIED",
+      "encryptPagingFile": 0,
+      "hibernationAvailable": true,
+      "wslVhdSwap": "NOT_VERIFIED",
+      "syncPolicy": "NOT_VERIFIED",
+      "blocksSyntheticTests": false,
+      "realDataHostApproved": false,
+      "windowsSettingsChanged": false
+    },
+    "gates": {
+      "B1B": "NOT_READY_NOT_AUTHORIZED",
+      "B2A": "NOT_AUTHORIZED_NOT_EXECUTED",
+      "B2B": "NOT_AUTHORIZED_NOT_EXECUTED",
+      "B3": "NOT_AUTHORIZED_NOT_EXECUTED",
+      "production": "NO_GO",
+      "R1_R4": "PARTIAL_NOT_ACCEPTED"
+    },
+    "historicalEvidenceBlocksPreserved": 46,
+    "historicalEvidenceTextPreserved": true,
+    "financialRuntimeOrSqlChanged": false,
+    "productionAccess": false,
+    "providerCalls": 0,
+    "newCiTriggered": false,
+    "trackedCodeChanges": false,
+    "newCommitCreated": false,
+    "nextAction": "Provide at least 4GiB physical free memory on this machine or an approved existing alternative; then run authorized synthetic chain and composed build separately. No repeated request to pause UI/TISS."
+  },
+  "nativeMemoryOwnershipAudit20261115": {
+    "recordedAt": "2026-11-15T20:03:19.282Z",
+    "baselineHead": "da1bd983cc01aac68c0adb032d5660c17ad6120d",
+    "ownerReportsUiAndTissPaused": true,
+    "noAdditionalPauseRequested": true,
+    "initial": {
+      "observedAt": "2026-11-15T19:52:41.2398867Z",
+      "totalPhysicalMiB": 7877,
+      "freePhysicalMiB": 1378,
+      "availableCounterMiB": 1316,
+      "committedMiB": 12223,
+      "commitLimitMiB": 25285,
+      "freeDiskGiB": 10.84,
+      "nonPagedPoolMiB": 1107,
+      "pagedPoolMiB": 882
+    },
+    "final": {
+      "observedAt": "2026-11-15T19:58:57.5963344Z",
+      "freePhysicalMiB": 1644,
+      "availableCounterMiB": 1618,
+      "committedMiB": 12207,
+      "commitLimitMiB": 25285,
+      "freeDiskGiB": 10.86,
+      "processesTerminated": 0,
+      "ramRecoveredByTerminatingOwnProcessesMiB": 0,
+      "dockerStarted": false,
+      "buildStarted": false
+    },
+    "requiredFreePhysicalMiB": 4096,
+    "finalDeficitMiB": 2452,
+    "groups": [
+      {
+        "name": "Code.exe",
+        "count": 23,
+        "workingSetSumMiB": 1190.6,
+        "privateWorkingSetSumMiB": 908.6,
+        "privateCommitSumMiB": 3734.8
+      },
+      {
+        "name": "Memory Compression",
+        "count": 1,
+        "workingSetSumMiB": 1071,
+        "privateWorkingSetSumMiB": 1071,
+        "privateCommitSumMiB": 7.8
+      },
+      {
+        "name": "svchost.exe",
+        "count": 93,
+        "workingSetSumMiB": 631.7,
+        "privateWorkingSetSumMiB": 196.6,
+        "privateCommitSumMiB": 604.8
+      },
+      {
+        "name": "msedgewebview2.exe",
+        "count": 6,
+        "workingSetSumMiB": 324.6,
+        "privateWorkingSetSumMiB": 66.8,
+        "privateCommitSumMiB": 171.6
+      },
+      {
+        "name": "claude.exe",
+        "count": 1,
+        "workingSetSumMiB": 106.7,
+        "privateWorkingSetSumMiB": 90.5,
+        "privateCommitSumMiB": 643.4
+      },
+      {
+        "name": "codex.exe",
+        "count": 2,
+        "workingSetSumMiB": 130,
+        "privateWorkingSetSumMiB": 66,
+        "privateCommitSumMiB": 167.3
+      },
+      {
+        "name": "node.exe",
+        "count": 4,
+        "workingSetSumMiB": 30.5,
+        "privateWorkingSetSumMiB": 5.4,
+        "privateCommitSumMiB": 324.4
+      },
+      { "name": "chrome.exe", "count": 0, "workingSetSumMiB": 0 },
+      { "name": "msedge.exe", "count": 0, "workingSetSumMiB": 0 }
+    ],
+    "classifications": [
+      {
+        "pid": 27708,
+        "name": "Code.exe",
+        "parentPid": 17328,
+        "parentName": "explorer.exe",
+        "workingSetMiB": 77.9,
+        "privateWorkingSetMiB": 39.1,
+        "category": "ASK_AUTHORIZATION",
+        "note": "VS Code root; closing interrupts child agents. Preserve current session; close only saved, recognized extra windows."
+      },
+      {
+        "pid": 3128,
+        "name": "Code.exe",
+        "parentPid": 27708,
+        "parentName": "Code.exe",
+        "workingSetMiB": 476.7,
+        "privateWorkingSetMiB": 432.2,
+        "category": "ASK_AUTHORIZATION",
+        "note": "VS Code child; worktree/session not proven; no automatic termination."
+      },
+      {
+        "pid": 25416,
+        "name": "Code.exe",
+        "parentPid": 27708,
+        "parentName": "Code.exe",
+        "workingSetMiB": 230.5,
+        "privateWorkingSetMiB": 193.6,
+        "category": "ASK_AUTHORIZATION",
+        "note": "VS Code window identified, exact TISS/UI ownership not proven."
+      },
+      {
+        "pid": 20240,
+        "name": "Code.exe",
+        "parentPid": 27708,
+        "parentName": "Code.exe",
+        "workingSetMiB": 118.4,
+        "privateWorkingSetMiB": 92,
+        "category": "PRESERVE",
+        "note": "Shared extension host; parent of active Codex and Claude."
+      },
+      {
+        "pid": 27220,
+        "name": "claude.exe",
+        "parentPid": 20240,
+        "parentName": "Code.exe",
+        "workingSetMiB": 106.7,
+        "privateWorkingSetMiB": 90.5,
+        "category": "ASK_AUTHORIZATION",
+        "note": "Claude extension; may keep paused agent state; not identified specifically as TISS or UI."
+      },
+      {
+        "pid": 3208,
+        "name": "Memory Compression",
+        "parentPid": 4,
+        "parentName": "System",
+        "workingSetMiB": 1071,
+        "privateWorkingSetMiB": 1071,
+        "category": "PRESERVE",
+        "note": "Windows memory compression; not disposable cache process."
+      },
+      {
+        "pid": 25520,
+        "name": "msedgewebview2.exe",
+        "parentPid": 4936,
+        "parentName": "SearchHost.exe",
+        "workingSetMiB": 115.3,
+        "privateWorkingSetMiB": 19.8,
+        "category": "PRESERVE",
+        "note": "WebView2 parent is Windows SearchHost; not a test browser."
+      },
+      {
+        "pid": 28660,
+        "name": "codex.exe",
+        "parentPid": 20240,
+        "parentName": "Code.exe",
+        "workingSetMiB": 114.7,
+        "privateWorkingSetMiB": 63.1,
+        "category": "PRESERVE",
+        "note": "Active Codex agent."
+      },
+      {
+        "pid": 6352,
+        "name": "codex.exe",
+        "parentPid": 10612,
+        "parentName": "node_repl.exe",
+        "workingSetMiB": 15.3,
+        "privateWorkingSetMiB": 2.9,
+        "category": "PRESERVE",
+        "note": "Codex tooling runtime."
+      },
+      {
+        "pid": 20468,
+        "name": "node.exe",
+        "parentPid": 28660,
+        "parentName": "codex.exe",
+        "workingSetMiB": 1.4,
+        "privateWorkingSetMiB": 0.4,
+        "category": "PRESERVE",
+        "note": "CUA/tooling executable and Codex/node_repl ancestry; not disposable build."
+      },
+      {
+        "pid": 22584,
+        "name": "node.exe",
+        "parentPid": 10612,
+        "parentName": "node_repl.exe",
+        "workingSetMiB": 1.5,
+        "privateWorkingSetMiB": 0.4,
+        "category": "PRESERVE",
+        "note": "CUA/tooling executable and Codex/node_repl ancestry; not disposable build."
+      },
+      {
+        "pid": 16032,
+        "name": "node.exe",
+        "parentPid": 10612,
+        "parentName": "node_repl.exe",
+        "workingSetMiB": 5.2,
+        "privateWorkingSetMiB": 1.8,
+        "category": "PRESERVE",
+        "note": "CUA/tooling executable and Codex/node_repl ancestry; not disposable build."
+      },
+      {
+        "pid": 24200,
+        "name": "node.exe",
+        "parentPid": 20240,
+        "parentName": "Code.exe",
+        "workingSetMiB": 22.4,
+        "privateWorkingSetMiB": 2.8,
+        "category": "ASK_AUTHORIZATION",
+        "note": "Playwright test server under VS Code; specific agent/worktree unknown; stopping could interrupt IDE test service."
+      },
+      {
+        "pid": 5420,
+        "name": "wslservice.exe",
+        "parentPid": 1232,
+        "parentName": "services.exe",
+        "workingSetMiB": 4.3,
+        "privateWorkingSetMiB": 1.5,
+        "category": "PRESERVE",
+        "note": "WSL support service under services.exe; no VM/Engine running; do not stop system service."
+      }
+    ],
+    "ownSafelyDisposableProcessCount": 0,
+    "ownProcessesTerminated": 0,
+    "attributableRamRecoveredMiB": 0,
+    "observedAvailableRamChangeMiB": 266,
+    "observedChangeIsNotProofOfCleanup": true,
+    "sharedWorkingSetsMustNotBeSummedAsGuaranteedRecovery": true,
+    "runtimeCounts": {
+      "node": 4,
+      "chrome": 0,
+      "edge": 0,
+      "next": 0,
+      "vitest": 0,
+      "postgres": 0,
+      "headlessBrowser": 0,
+      "dockerBackend": 0,
+      "vmmem": 0
+    },
+    "testServer": {
+      "pid": 24200,
+      "localPort": 57890,
+      "loopbackOnlyObserved": true,
+      "parentPid": 20240,
+      "tissOrUiOwnership": "NOT_PROVEN"
+    },
+    "editorOriginCheck": { "cli": "STATUS_READ", "commandLinesOrWindowTitlesDisclosed": false },
+    "options": {
+      "local": "Save and close only recognized extra VS Code windows. Potential resident memory recovery is hundreds of MiB; no guarantee of 4GiB.",
+      "restart": "Proposal only; save all work/session checkpoints and obtain explicit decision; never automatic.",
+      "otherMachine": "Existing approved host with at least 4GiB physical free and verified image/fixture/build disk budget; same isolation; no purchase assumed.",
+      "ci": "No composed TAR build workflow exists. Requires approved workflow diff, private artifact source/content review and cost budget; no extra dispatch."
+    },
+    "workflowAudit": {
+      "files": ["ci.yml", "adr-check.yml", "db-backup.yml"],
+      "conventionalBuild": "security:build shadow copy adds harness; not the exact composed TAR",
+      "onlyManualDispatch": "Production backup; must not be repurposed or triggered for these tests",
+      "configurationChanges": false,
+      "manualDispatches": 0,
+      "artifactUploaded": false
+    },
+    "restoreSynthetic": "BLOCKED_INSUFFICIENT_PHYSICAL_MEMORY",
+    "composedBuild": "BLOCKED_INSUFFICIENT_PHYSICAL_MEMORY",
+    "realB1B": "NOT_READY_NOT_AUTHORIZED",
+    "B2_B3": "NOT_AUTHORIZED_NOT_EXECUTED",
+    "production": "NO_GO",
+    "R1_R4": "PARTIAL_NOT_ACCEPTED",
+    "newCodeChanges": false,
+    "financialRuntimeOrSqlChanged": false,
+    "productionAccess": false,
+    "windowsSettingsChanged": false,
+    "otherWorktreesOrFilesModified": false,
+    "previousLocalEvidenceBlocksPreserved": 47,
+    "previousCommittedEvidenceBlocksPreserved": 46
   }
 }
