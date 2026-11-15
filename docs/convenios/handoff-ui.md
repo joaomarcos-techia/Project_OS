@@ -104,6 +104,34 @@ clique. A tela só muda depois do `refresh`, com o estado lido de novo do banco.
   - `patient-insurance-state.test.ts` 8/8.
 - **Para a UI:** pode trocar a moldura (cards, densidade, ícones). Manter os `data-testid` acima e a ordem das seções:
   carteirinhas, cobertura, autorizações, guias.
+- **Rótulo da guia (14/11, fim da noite):** a aba passou a usar o mesmo rótulo da lista de guias, tipo + número ("Consulta 1",
+  "SP/SADT 1"). Antes dizia "Guia 1" e a jornada E2E pegou a diferença.
+- **Permissões revisadas (14/11, fim da noite):**
+  - A regra da aba é a do módulo inteiro: `conveniosAccess` exige `view:financial` em todas as telas de Convênios,
+    inclusive Carteirinhas ("ver Convênios = ver o financeiro"). A aba não amplia nem restringe nada.
+  - A regra se justifica pelo conteúdo: o histórico de guias mostra o valor de cada guia.
+  - **Necessidade a decidir, não implementada:** médica e equipe clínica podem precisar consultar cobertura e
+    autorização (por exemplo, a sessão de SP/SADT ainda sem senha) sem ver valores.
+  - Proposta: uma capacidade própria de consulta assistencial (carteirinha mascarada, cobertura, autorizações sem
+    senha, guias **sem valor**), separada de `view:financial`.
+  - Isso é ampliação de acesso e depende de decisão do responsável (classe D). Até lá, quem não vê o financeiro não
+    vê a aba.
+
+## 4.1 Validação no Preview (14/11, fim da noite)
+
+Etapas do `e2e/convenios-config-preview.spec.ts`, com dados sintéticos da fixture `hi-dev-e2e-fixture.ts setup`:
+
+- **Etapa 22:** gestora no desktop e no celular (carteirinha mascarada, cobertura, guia da jornada, atalho para
+  Carteirinhas); médica sem a aba.
+- **Etapa 23:**
+  - teclado: a aba é link focável, Enter abre;
+  - outra clínica: 404, sem a aba;
+  - paciente sem nada: `empty`;
+  - duas carteirinhas, uma vencida: "Vencida", as duas mascaradas;
+  - trial: `contractable`, sem atalho;
+  - suspensa: `read_only`, carteirinha em consulta, sem atalho.
+- **Estado de erro de banco:** fica para a fronteira de erro da rota (`error.tsx`), que não se provoca no Preview sem
+  injeção de falha.
 
 ## 5. Agenda: troca de modalidade (P4.3)
 
@@ -147,3 +175,36 @@ A UI pode melhorar o upload, o modelo de planilha, as mensagens e a apresentaç�
 Uma ocorrência rara de #418 na conciliação (divergência de elemento, 1 em cerca de 120 navegações) segue aberta e
 instrumentada (`e2e/hydration-r51-preview.spec.ts`). Se a causa estiver num componente compartilhado, a correção é da
 UI. O TISS repassa o HTML do servidor, o DOM e a pilha capturados quando houver nova ocorrência.
+
+- **14/11 (fim da noite):** nenhuma ocorrência nas 21 etapas da jornada no Preview. Todas as etapas reprovam qualquer erro de página,
+  inclusive pagamento parcial, estorno de alocação e repasse.
+- A hipótese do layout compartilhado **não está provada**. Sem reprodução, a causa não é atribuída a ninguém.
+- A branch de UI não altera Sentry nem instrumentação (conferido no diff do fim da noite de 14/11). O Preview continua rotulado
+  `preview`.
+
+## 8. Divisão de arquivos com a branch de UI (14/11, fim da noite)
+
+A branch `ui/otimizacao-ui-final-20261114` (`12ab24f6` publicado, `c75bf870` local) e o #55 alteram **18 arquivos em
+comum**. Proposta, sem alterar a branch da UI:
+
+| Área | Dono | O que o outro agente preserva |
+| --- | --- | --- |
+| `src/app/(app)/(shell)/convenios/**`, `src/contexts/health-insurance/**`, migrations, `scripts/security/**` | TISS | A UI pode mudar a moldura das telas de Convênios pelo design system, sem lógica nova; os `data-testid` ficam |
+| Shell, menu, layout, componentes de `src/components/ui/**` | UI | A entrada do menu Convênios (§2) com o gate `view:financial` |
+| `pacientes/[id]/page.tsx` e `page.test.tsx` (UI +42/−13, TISS +32/−4) | UI (moldura) | Os três trechos do TISS (§4): tipo `Tab` com `convenios`, link em `HubTabs` com `canViewInsurance`, render em `Suspense` |
+| `agenda/new-appointment-drawer.tsx` (UI +217/−53, TISS +37/−2), `agenda-calendar.tsx` | UI (moldura) | Modalidade e cobertura do convênio no agendamento, badge e diálogo da P4.3 (§5) |
+| `caixa/caixa-view.tsx`, `cash-item-card.tsx` | UI (moldura) | A separação paciente × operadora do Caixa |
+| `consultorio/*` | UI (moldura) | A guia que nasce do atendimento de convênio (P5) |
+| `financeiro/page.tsx` | UI (moldura) | Os números de convênio separados dos de particular |
+| `drizzle/migrations/meta/_journal.json`, `package.json`, `pnpm-lock.yaml` | Base de cada branch | Nada é editado à mão; a composição das migrations segue `coordenacao-migrations.md` |
+
+**Ordem sugerida:**
+
+- A UI entra primeiro, porque toca mais arquivos.
+- O #55 rebaseia e resolve os 18 arquivos preservando os trechos acima.
+- Depois roda o `page.test.tsx`, os testes de agenda e caixa e a jornada E2E inteira no Preview.
+- Se o #55 entrar antes, a UI faz o mesmo com os trechos do TISS.
+
+**Terminologia de guias** (para a revisão de linguagem da UI): hoje a lista de guias e a ficha usam "Consulta 1" e
+"SP/SADT 1"; repasses e solicitações usam "Guia 1"; o lote mostra só o número. Uma forma única é decisão de UX. O TISS
+só pede que o número da guia continue visível.

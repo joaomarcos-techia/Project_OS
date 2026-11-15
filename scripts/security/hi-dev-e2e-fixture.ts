@@ -59,6 +59,18 @@ const SYS = '00000000-0000-4000-8000-000000000001';
 const CARDS = ['0081234500012345', '0081234500012346', '0081234500012347'];
 /** CPFs sintéticos de formato válido (geradores públicos de teste), só nas clínicas e2e-hi-*. */
 const CPFS = ['52998224725', '11144477735', '98765432100'];
+/** P3.2: dígitos verificadores calculados sobre bases sintéticas fixas (idempotente entre execuções). */
+const cpfOf = (base: string) => {
+  const d = [...base].map(Number);
+  const dv = (xs: number[]) => {
+    const r = (xs.reduce((acc, x, i) => acc + x * (xs.length + 1 - i), 0) * 10) % 11;
+    return r === 10 ? 0 : r;
+  };
+  const d1 = dv(d);
+  return `${base}${d1}${dv([...d, d1])}`;
+};
+const TAB_CPFS = ['271828182', '314159265', '161803398', '141421356'].map(cpfOf);
+const TAB_CARDS = ['0081234500022221', '0081234500022222', '0081234500022223'];
 const exec = async <T = Record<string, unknown>>(q: ReturnType<typeof sql>) => (await dbAdmin.execute(q)) as unknown as T[];
 const password = () => `${randomBytes(18).toString('base64url')}Aa1!`;
 
@@ -216,6 +228,45 @@ async function setup() {
     patients.push({ id: p!.id, membershipId: m!.id, nome });
   }
 
+  // P3.2 (aba Convênios da ficha): um paciente por estado da aba, idempotente — sem nenhum
+  // registro (vazio), com duas carteirinhas sendo uma vencida, da clínica em trial (contratável)
+  // e da suspensa com carteirinha (consulta, sem operar). A suspensa recebe a operadora e a
+  // carteirinha ANTES do dunning do fim da fixture, como uma clínica que operou e depois parou.
+  const ensurePatient = async (clinicId: string, nome: string, cpf: string) => {
+    const [found] = await exec<{ id: string }>(sql`SELECT id::text AS id FROM public.patients WHERE clinic_id = ${clinicId}::uuid AND nome = ${nome}`);
+    if (found) return found.id;
+    const [r] = await exec<{ id: string }>(sql`
+      INSERT INTO public.patients (clinic_id, nome, cpf_encrypted, cpf_hash)
+      VALUES (${clinicId}::uuid, ${nome}, ${await encryptForTenant(clinicId, cpf)}, ${await hashForLookup(cpf)}) RETURNING id::text AS id`);
+    return r!.id;
+  };
+  const ensureCard = async (clinicId: string, patientId: string, insurer: string, card: string, validUntil: string | null) => {
+    const hash = await hashForLookup(`${clinicId}:${card}`);
+    const [found] = await exec<{ id: string }>(sql`SELECT id::text AS id FROM public.hi_memberships WHERE clinic_id = ${clinicId}::uuid AND card_number_hash = ${hash}`);
+    if (found) return found.id;
+    const [r] = await exec<{ id: string }>(sql`
+      INSERT INTO public.hi_memberships (clinic_id, patient_id, insurer_id, card_number_encrypted, card_number_hash, card_last4, valid_until, created_by)
+      VALUES (${clinicId}::uuid, ${patientId}::uuid, ${insurer}::uuid, ${await encryptForTenant(clinicId, card)}, ${hash}, ${card.slice(-4)},
+        ${validUntil}::date, ${SYS}::uuid)
+      RETURNING id::text AS id`);
+    return r!.id;
+  };
+  const emptyPatient = await ensurePatient(paga, 'Paciente Sintético E2E Sem Convênio', TAB_CPFS[0]!);
+  const multiPatient = await ensurePatient(paga, 'Paciente Sintético E2E Duas Carteirinhas', TAB_CPFS[1]!);
+  await ensureCard(paga, multiPatient, insurerId, TAB_CARDS[0]!, '2030-12-31');
+  await ensureCard(paga, multiPatient, insurerId, TAB_CARDS[1]!, '2026-01-31');
+  const trialPatient = await ensurePatient(trial, 'Paciente Sintético E2E Trial', TAB_CPFS[2]!);
+  let [insSusp] = await exec<{ id: string }>(sql`SELECT id::text AS id FROM public.hi_insurers WHERE clinic_id = ${suspensa}::uuid AND registro_ans = '999902'`);
+  if (!insSusp) {
+    [insSusp] = await exec<{ id: string }>(sql`
+      INSERT INTO public.hi_insurers (clinic_id, name, registro_ans, provider_id_kind, provider_id_value, status, sadt_grouping, created_by)
+      VALUES (${suspensa}::uuid, 'Operadora Sintética E2E Suspensa', '999902', 'codigoPrestadorNaOperadora', 'E2E0002', 'active', 'per_request', ${SYS}::uuid)
+      RETURNING id::text AS id`);
+  }
+  const suspensaPatient = await ensurePatient(suspensa, 'Paciente Sintético E2E Suspensa', TAB_CPFS[3]!);
+  await ensureCard(suspensa, suspensaPatient, insSusp!.id, TAB_CARDS[2]!, '2030-12-31');
+  const tabPatients = { empty: emptyPatient, multi: multiPatient, trial: trialPatient, suspensa: suspensaPatient };
+
   // Atendimentos de convênio: 2 consultas atendidas (guias de Consulta pelo serviço real) e
   // 2 sessões agendadas do paciente três (para ligar ao item de uma solicitação SP/SADT).
   const coverage = await import('../../src/contexts/health-insurance/internal/coverage-service');
@@ -265,7 +316,7 @@ async function setup() {
       current_period_end = now() - interval '10 days', grace_period_until = now() - interval '3 days' WHERE clinic_id = ${suspensa}::uuid`);
 
   writeFileSync(accountsFile!, JSON.stringify(accounts, null, 1));
-  writeFileSync(outFile!, JSON.stringify({ clinics: { paga, trial, suspensa }, insurerId, medica, gestor, patients: patients.map(({ id, membershipId }) => ({ id, membershipId })), appointments, guideIds, terminology: tv.version }, null, 1));
+  writeFileSync(outFile!, JSON.stringify({ clinics: { paga, trial, suspensa }, insurerId, medica, gestor, patients: patients.map(({ id, membershipId }) => ({ id, membershipId })), tabPatients, appointments, guideIds, terminology: tv.version }, null, 1));
   console.log(`[hi-dev-e2e-fixture] ok: 3 clínicas, ${Object.keys(accounts).length} contas, ${patients.length} pacientes, ${guideIds.length} guias de Consulta em rascunho`);
 }
 

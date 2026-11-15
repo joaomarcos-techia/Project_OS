@@ -50,6 +50,8 @@ const other = FIXTURE
   ? (JSON.parse(readFileSync(FIXTURE, 'utf8')) as {
       insurerId: string;
       patients: Array<{ id: string }>;
+      /** P3.2: um paciente por estado da aba Convênios (fixture `setup`). */
+      tabPatients?: { empty: string; multi: string; trial: string; suspensa: string };
     })
   : null;
 if (SHOTS) mkdirSync(SHOTS, { recursive: true });
@@ -1156,4 +1158,87 @@ test('ficha do paciente: aba Convênios com carteirinha mascarada, cobertura e g
   await expect(d.page.getByRole('link', { name: 'Convênios', exact: true })).toHaveCount(0);
   expectNoPageErrors(d);
   await d.context.close();
+});
+
+test('ficha do paciente: aba Convênios por teclado, outra clínica, vazio, duas carteirinhas (uma vencida), trial e suspensa', async ({
+  browser,
+}) => {
+  test.setTimeout(300_000);
+  const tp = other?.tabPatients;
+  expect(tp, 'fixture `setup` sem os pacientes da aba (rode a fixture atualizada)').toBeTruthy();
+  expect(state.patientId, 'paciente da jornada').toBeTruthy();
+
+  // Teclado: a aba é um link focável; Enter abre a aba, e o atalho também recebe foco.
+  const k = await login(browser, 'cfg-gestor');
+  expect(await visit(k, `/pacientes/${state.patientId}`)).toBe(200);
+  const tabLink = k.page.getByRole('link', { name: 'Convênios', exact: true });
+  await tabLink.focus();
+  await expect(tabLink).toBeFocused();
+  await k.page.keyboard.press('Enter');
+  await k.page.waitForURL((u) => u.searchParams.get('tab') === 'convenios', { timeout: 30_000 });
+  await expect(k.page.getByTestId('patient-insurance')).toHaveAttribute('data-state', 'ready', {
+    timeout: 30_000,
+  });
+  const manage = k.page.getByRole('link', { name: 'Gerenciar carteirinhas' });
+  await manage.focus();
+  await expect(manage).toBeFocused();
+  // Outra clínica: o paciente de outro tenant não existe para esta sessão (404, sem a aba).
+  expect(await visit(k, `/pacientes/${other!.patients[0]!.id}?tab=convenios`)).toBe(404);
+  await expect(k.page.getByTestId('patient-insurance')).toHaveCount(0);
+  expectNoPageErrors(k);
+  await k.context.close();
+
+  // Clínica paga da fixture: paciente sem nada (vazio) e paciente com duas carteirinhas.
+  const g = await login(browser, 'gestor');
+  expect(await visit(g, `/pacientes/${tp!.empty}?tab=convenios`, 'cfg-15-ficha-vazia')).toBe(200);
+  const empty = g.page.getByTestId('patient-insurance');
+  await expect(empty).toHaveAttribute('data-state', 'empty', { timeout: 30_000 });
+  await expect(empty.getByTestId('patient-insurance-card')).toHaveCount(0);
+  await expect(empty.getByText('Nenhuma carteirinha')).toBeVisible();
+  await expect(g.page.getByRole('link', { name: 'Gerenciar carteirinhas' })).toHaveAttribute(
+    'href',
+    `/convenios/carteirinhas?paciente=${tp!.empty}`,
+  );
+  expect(await visit(g, `/pacientes/${tp!.multi}?tab=convenios`, 'cfg-16-ficha-duas')).toBe(200);
+  const multi = g.page.getByTestId('patient-insurance');
+  await expect(multi).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
+  await expect(multi.getByTestId('patient-insurance-card')).toHaveCount(2);
+  const expiredCard = multi.locator('[data-testid="patient-insurance-card"][data-expired="true"]');
+  await expect(expiredCard).toHaveCount(1);
+  await expect(expiredCard).toContainText('Vencida');
+  await expect(expiredCard).toContainText('•••• 2222');
+  await expect(
+    multi.locator('[data-testid="patient-insurance-card"][data-expired="false"]'),
+  ).toContainText('•••• 2221');
+  // Número completo nunca aparece, nem o da vencida.
+  await expect(g.page.getByText('0081234500022221')).toHaveCount(0);
+  await expect(g.page.getByText('0081234500022222')).toHaveCount(0);
+  expectNoPageErrors(g);
+  await g.context.close();
+
+  // Trial: recurso contratável, sem registro nem atalho de operação.
+  const t = await login(browser, 'gestor-trial');
+  expect(await visit(t, `/pacientes/${tp!.trial}?tab=convenios`, 'cfg-17-ficha-trial')).toBe(200);
+  const trialTab = t.page.getByTestId('patient-insurance');
+  await expect(trialTab).toHaveAttribute('data-state', 'contractable', { timeout: 30_000 });
+  await expect(trialTab).toHaveAttribute('data-denial', 'trial');
+  await expect(t.page.getByRole('link', { name: 'Gerenciar carteirinhas' })).toHaveCount(0);
+  expectNoPageErrors(t);
+  await t.context.close();
+
+  // Suspensa (dunning): a carteirinha continua em consulta, mascarada, sem atalho de operação.
+  const s = await login(browser, 'gestor-suspensa');
+  expect(await visit(s, `/pacientes/${tp!.suspensa}?tab=convenios`, 'cfg-18-ficha-suspensa')).toBe(
+    200,
+  );
+  const susp = s.page.getByTestId('patient-insurance');
+  await expect(susp).toHaveAttribute('data-state', 'read_only', { timeout: 30_000 });
+  expect(['period_expired', 'clinic_suspended', 'subscription_inactive']).toContain(
+    await susp.getAttribute('data-denial'),
+  );
+  await expect(susp.getByTestId('patient-insurance-card')).toContainText('•••• 2223');
+  await expect(s.page.getByText('0081234500022223')).toHaveCount(0);
+  await expect(s.page.getByRole('link', { name: 'Gerenciar carteirinhas' })).toHaveCount(0);
+  expectNoPageErrors(s);
+  await s.context.close();
 });

@@ -285,12 +285,12 @@ export async function PatientInsuranceTab({
                   data-status={g.status}
                 >
                   <div className="flex min-w-0 flex-col">
+                    {/* Mesmo rótulo da lista de guias (tipo + número): é por ele que a equipe acha a guia. */}
                     <Link href={`/convenios/guias/${g.id}`} className="font-medium hover:underline">
-                      Guia {g.number}
+                      {GUIDE_TYPE[g.guideType] ?? g.guideType} {g.number}
                     </Link>
                     <span className="text-(length:--fs-sm) text-fg-muted">
-                      {g.insurerName} · {GUIDE_TYPE[g.guideType] ?? g.guideType} ·{' '}
-                      {shortDate(g.createdAt)} · {brl(g.totalValueCents)}
+                      {g.insurerName} · {shortDate(g.createdAt)} · {brl(g.totalValueCents)}
                     </span>
                   </div>
                   <GuideStatusBadge status={g.status} />

@@ -1,7 +1,25 @@
 # R54: procedimento de homologação do estorno externo no Asaas Sandbox
 
 **Estado:** preparado, **não executado**. Executar depende de autorização expressa do fundador (ver passo 0).
-**Data:** 14/11/2026.
+**Data:** 14/11/2026; pedido de autorização revisto no fim da noite de 14/11/2026.
+
+## Pedido de autorização (14/11, fim da noite)
+
+| Item | Proposta |
+| --- | --- |
+| Ambiente | Preview do #55 (banco DEV) e conta **Asaas Sandbox** da homologação (`ASAAS_CLINIC_SANDBOX_KEY`, prefixo `$aact_hmlg_`; o roteiro recusa qualquer outra chave). Nenhum dinheiro real. |
+| Fixture | Clínica sintética **nova** (`e2e-hi-r54-<data>`), paciente sintético novo, cliente Asaas Sandbox novo. Nada da cobrança de R$ 45 é reutilizado: o id dela é anotado no pré-voo e o roteiro para se encontrar o mesmo id. |
+| Valor | **R$ 10,00** (estorno parcial de R$ 4,00 e depois o restante). Mínimo do Asaas: R$ 5,00 pela central de ajuda (lida à tarde de 14/11; no fim da noite a página respondeu 403). O pré-voo reconfirma; se a criação recusar o valor, o roteiro para, sem tentar outro. |
+| Método | Cartão de crédito de teste do Sandbox (Visa 4539 6560 4839 2220), no **checkout hospedado** que o Qoro gera. |
+| Operações | 1) o Qoro cria **um** Checkout de R$ 10,00; 2) **você** paga no checkout; 3) o agente estorna R$ 4,00 e depois o restante, pela API com a chave Sandbox, simulando a clínica; 4) reentrega do webhook e varredura do cron. |
+| Intervenção humana | **Só o pagamento**: o checkout do Sandbox exige reCAPTCHA. O `POST /v3/payments/{id}/payWithCreditCard` existe e dispensaria o checkout, mas não serve aqui: o Qoro cria a cobrança de paciente como **Checkout** (`POST /v3/checkouts`), e o payment só passa a existir depois que alguém conclui o checkout. Pagar por fora do checkout seria outro fluxo, não o do R54. O agente não contorna captcha. |
+| Estados esperados | tabela do item 5 abaixo: `paid` com uma baixa → parcial (cobrança `paid`, 1 evidência, estorno ligado à baixa original, `valor_pago` −4,00) → total (`refunded`, 2 evidências, baixa original preservada); coparticipação `refunded` só quando estornos ≥ pago; repasse suspenso/sinalizado, nunca compensado sozinho; nenhuma cobrança nova ao paciente. |
+| Riscos | webhook indo a outro deploy (pré-voo confere `APP_BASE_URL` da branch); estorno pela API não é idempotente (antes de repetir, ler `GET /payments/{id}/refunds`); cobrança de R$ 45 afetada (conferida antes e depois, ids diferentes); evidência com dado pessoal (ids mascarados, nada de cartão nem CPF). |
+| Verificação | `GET /payments/{id}` e `/refunds` antes e depois; linhas de `patient_external_refunds`, `payment_transactions`, `patient_credit_adjustments`, `audit_events`; reentrega → `200` sem linha nova; cron → `externalRefundSkipped`; soma do livro = bruto − estornos `DONE`. |
+| Interrupção | Se qualquer passo divergir, o roteiro para e registra o estado; nada é desfeito automaticamente. Uma cobrança paga e não estornada fica como está no Sandbox (sem efeito real). |
+
+**Autorização necessária, em uma frase:** "Autorizo criar uma cobrança Sandbox de R$ 10,00 numa clínica sintética nova,
+que eu pagarei no checkout com o cartão de teste, e estorná-la em duas partes (R$ 4,00 e o restante) pela API Sandbox."
 
 O R54 está **implementado e validado localmente** (Postgres descartável com o Asaas simulado: 14 provas, ciclo de
 14/11). Isso **não** é homologação externa. A homologação prova o mesmo fluxo com o Asaas Sandbox de verdade: webhook
@@ -20,8 +38,10 @@ real, leitura real de `GET /payments/{id}/refunds` e a varredura do cron no Prev
    - Fonte: [Testando pagamento com cartão](https://docs.asaas.com/docs/testando-pagamento-com-cart%C3%A3o-de-cr%C3%A9dito).
 3. **Precisa de interação do fundador?** Sim, em dois pontos:
    - **(a) Pagar.** A cobrança de paciente do Qoro nasce no checkout hospedado do Asaas, e o checkout do Sandbox exige
-     reCAPTCHA humano (visto em 13/11). O Sandbox não tem endpoint para confirmar pagamento por API; a alternativa
-     documentada é o botão "Confirmar pagamento" no painel do Sandbox, também humano.
+     reCAPTCHA humano (visto em 13/11). Correção de 14/11 (fim da noite): o Asaas tem `POST /v3/payments/{id}/payWithCreditCard`
+     ([Pagar uma cobrança com cartão](https://docs.asaas.com/reference/pagar-uma-cobranca-com-cartao-de-credito)),
+     que processa na hora e não é idempotente. Mas ele exige um payment já existente, e o Checkout do Qoro só cria o
+     payment quando alguém o conclui. Para o fluxo real do R54, o pagamento continua humano.
    - **(b) Autorizar o estorno.** Mesmo no Sandbox ele é uma operação financeira nova. Quem estorna é a clínica no
      Asaas dela; esse é exatamente o caso do R54.
    - O agente pode executar o estorno pela API com a chave Sandbox da clínica sintética, simulando a clínica, **só
