@@ -47,6 +47,14 @@ export type ManualRefundItem = ManualRefundTask & { pacienteNome: string | null 
 
 const QUERY_RESULT_LIMIT = 100;
 
+/**
+ * Sem resposta, ou com o erro genérico do servidor, o registro pode ter sido
+ * gravado: a tela não afirma que falhou. A promessa de "não duplicar" só vale
+ * porque a repetição com os mesmos dados reusa a chave (ver `run`).
+ */
+const RESULTADO_DESCONHECIDO =
+  'Não conseguimos confirmar o resultado deste registro. Você pode tentar de novo com os mesmos dados: se ele já tiver sido feito, não será duplicado.';
+
 export function CaixaView({
   hoje,
   atualizadoEm,
@@ -107,36 +115,46 @@ export function CaixaView({
   );
 
   /*
-    Chave de idempotência POR TENTATIVA (UX-015, regressão de 15/11/2026). Antes,
-    cada clique mandava uma chave nova: se a rede caísse depois de o servidor
-    gravar, repetir o mesmo registro parcial criava um segundo pagamento. Agora,
-    enquanto o resultado é desconhecido (exceção de rede), a repetição do MESMO
-    pedido reusa a chave e o servidor devolve o resultado já gravado
-    (`idempotentMutation`). Resposta definitiva do servidor — sucesso ou recusa —
-    encerra a tentativa, e o pedido seguinte usa chave nova.
+    Chave de idempotência POR OPERAÇÃO (UX-015; regressões de 15/11/2026). A
+    operação é o pedido exato (lançamento, valor, forma, comprovante), e a chave
+    dela vale até o servidor CONFIRMAR o registro:
+
+    - sem resposta (queda de rede, timeout) ou erro inesperado (`error`): o
+      resultado é desconhecido. Repetir os mesmos dados manda a mesma chave, e o
+      servidor devolve o que já gravou (`idempotentMutation`) em vez de gravar
+      de novo;
+    - "em processamento" (`retry`): a primeira tentativa ainda roda no servidor.
+      Trocar a chave aqui abria a porta para um segundo pagamento parcial;
+    - recusa (validação, permissão, sessão, situação do lançamento): a transação
+      é desfeita junto com a reserva da chave, então repetir com ela só refaz a
+      mesma checagem, sem gravar nada a mais.
+
+    Por isso só o sucesso encerra a operação, e o mesmo pedido depois dele é um
+    registro novo, com chave nova. O mapa guarda uma chave por pedido: fechar o
+    painel ou registrar outro lançamento no meio não perde a chave do que ficou
+    sem confirmação. Ele vive só na memória da página, nada vai para o
+    navegador; ao recarregar, a tela mostra o que o servidor de fato gravou.
   */
-  const tentativa = useRef<{ pedido: string; chave: string } | null>(null);
+  const chavesEmAberto = useRef(new Map<string, string>());
 
   const run = (pedido: string, fn: (chave: string) => Promise<ActionResult<unknown>>) => {
     setError(null);
-    if (tentativa.current?.pedido !== pedido) tentativa.current = { pedido, chave: uuidv4() };
-    const chave = tentativa.current.chave;
+    const emAberto = chavesEmAberto.current;
+    const chave = emAberto.get(pedido) ?? uuidv4();
+    emAberto.set(pedido, chave);
     startTransition(async () => {
       let result: ActionResult<unknown>;
       try {
         result = await fn(chave);
       } catch {
-        // Sem resposta: não dá para afirmar se gravou. A chave fica para a repetição.
-        setError(
-          'A conexão caiu antes da confirmação. Tente de novo: se o registro já tiver sido feito, ele não será duplicado.',
-        );
+        setError(RESULTADO_DESCONHECIDO);
         return;
       }
-      tentativa.current = null;
       if (!result.ok) {
-        setError(result.message);
+        setError(result.code === 'error' ? RESULTADO_DESCONHECIDO : result.message);
         return;
       }
+      emAberto.delete(pedido);
       setPanel(null);
       router.refresh();
     });
