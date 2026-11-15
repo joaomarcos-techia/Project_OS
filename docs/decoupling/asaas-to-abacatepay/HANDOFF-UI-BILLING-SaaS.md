@@ -4,6 +4,10 @@ Atualizado em 14/11/2026. Documento autocontido para o agente de UI. O PR53 cont
 
 ## Responsabilidades e isolamento de trabalho
 
+**Atualização GateB14/11:** `POST /api/signup/checkout` passa a respeitar `SIGNUP_ENABLED=false` também para sessões anteriores. A UI deve preservar dados e exibir indisponibilidade503,sem fallback para outro provedor ou reinício. A rota de status continua reconciliando pagamento existente. [Proposta operacional e matriz](GATE-B-DEPLOY-CONTROLADO.md);baseline anterior10e5d43b preservada,novo SHA/CI no PR53. Não alterar flags,contratos ou worktree financeiro para facilitar o redesign.
+
+**Coordenação Payments/ambiente:** recebido o relato de chave Asaas live com banco DEV. O adapter desta baseline aceita a baseURL/credencial fornecidas; isso não é seleção segura pelo projeto do banco. Até o guard central de ambiente ser comprovado no trabalho UI/Payments, usar mocks ou contenção de saída aprovada nos testes e nunca gateway live. Não copiar/registrar a chave, não usar o kill switch AbacatePay para desligar cobrança de pacientes e não alterar contratos SaaS. Nenhum segredo foi inspecionado ou copiado, nem teste monetário realizado por esta revisão. A referência está publicada no PR #53; nenhum agente UI/TISS está acessível nesta árvore para confirmar leitura.
+
 O agente UI lidera design system, shell/layout, navegação, dashboard, responsividade, acessibilidade e apresentação da assinatura. Billing mantém checkout, preços, planos, cotas, trial, períodos, invoices, integrações, reconciliação e autorização financeira. TISS lidera suas telas exclusivas. Não editar o worktree de outro agente; usar branch e worktree próprios. Antes de alterar um componente compartilhado, informar arquivo/SHA, impacto e regressão planejada; não presumir autorização de merge.
 
 Referência funcional: runtime7208d505, sem redesign nos commits documentais14414498/f94248ef. Não importar esses commits como se contivessem o layout novo. Depois de integrar visualmente, comparar o diff de aplicação e executar as regressões abaixo no SHA resultante.

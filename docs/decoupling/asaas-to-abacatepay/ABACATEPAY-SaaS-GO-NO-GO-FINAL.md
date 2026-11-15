@@ -2,6 +2,10 @@
 
 Atualizado em **14/11/2026**, horário operacional **America/Sao_Paulo**. Documento autossuficiente para decisão; não autoriza nenhuma operação. **PR53 draft; Production NO-GO até autorização expressa.**
 
+> **Checkpoint Gate B prevalente:** [proposta executável, matriz e solicitação](GATE-B-DEPLOY-CONTROLADO.md). O titular reconheceu a baseline10e5d43b como GateA validado,sem autorizar Production. A preparação encontrou uma brecha determinística: sessão anterior alcançava `POST /api/signup/checkout` mesmo com `SIGNUP_ENABLED=false`. Dois testes reproduziram200 em vez de503;correção localizada e123 testes dirigidos PASS,com retorno de pagamento preservado. Este é um novo candidato de validação,cujo SHA/CI devem ser conferidos no checkpoint final do PR53. Não atribuir a aprovação do10e5d43b ao código posterior. SQL,preços,cotas,contratos e runtime restante preservados;160 hashes idênticos continuam sendo a referência. Apenas esta correção de fechamento excepciona o freeze,conforme autorização para defeitos que impedem GateB.
+>
+> GateB preparado,execução não autorizada:runtime AbacatePay desarmado e aquisição fechada,sem desligar cron/Asaas;barreira WAF de transição proposta requer GO explícito. Backup atual,restore,catálogo completo de schema/locks e valores efetivos são paradas da janela,não PASS desta rodada. R1–R4 sem aceite;nenhum SQL/configuração/financeiro Production executado. Afirmações de ausência de defeito e freeze integral abaixo descrevem o checkpoint anterior e não suprimem esta correção.
+
 ## A. Resumo executivo
 
 **Recomendação: GO CONDICIONAL PARA DEPLOY FECHADO**, sujeito aos pontos de parada da seção F, sem autorização de execução. Não foi identificado defeito determinístico de billing que exija novo desenvolvimento antes dessa fase. Não é GO de consumidor live, aquisição, piloto ou expansão. Se os pré-requisitos não forem cumpridos, a execução continua NO-GO.

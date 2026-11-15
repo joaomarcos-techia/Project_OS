@@ -24215,5 +24215,168 @@
       "payments": 0,
       "otherWorktrees": 0
     }
+  },
+  "gateBPreparation20261114": {
+    "dateLocal": "2026-11-14",
+    "timezone": "America/Sao_Paulo",
+    "approvedBaseline": "10e5d43b131cfd6852c5471f93151b8596690514",
+    "approvedCIRun": 43648783989,
+    "currentCandidate": "Exact corrected SHA and its own CI must be read from the final PR53 checkpoint; previous CI does not approve the new source",
+    "freezeException": {
+      "defect": "SIGNUP_ENABLED=false did not close POST /api/signup/checkout for a session created before the switch",
+      "reproducer": {
+        "failedBeforeFix": 2,
+        "receivedHTTP": 200,
+        "expectedHTTP": 503,
+        "providerNetworkCalls": 0
+      },
+      "correction": "Check existing signup kill switch before session, limiter or provider; paid checkout/status reconciliation remains available",
+      "source": "src/app/api/signup/checkout/route.ts",
+      "addedTests": 3,
+      "noFinancialContractPriceQuotaOrMigrationChange": true
+    },
+    "validationsExecutedThisRound": {
+      "focusedTests": {
+        "passed": 123,
+        "files": 6,
+        "log": "dist/gate-b-closed-acquisition-tests.log"
+      },
+      "typecheck": {
+        "result": "PASS",
+        "log": "dist/gate-b-typecheck.log"
+      },
+      "targetedLint": {
+        "result": "PASS",
+        "log": "dist/gate-b-lint.log"
+      },
+      "securityInventory": {
+        "result": "PASS",
+        "change": "Generated line pointer only",
+        "log": "dist/gate-b-inventory-recheck.log"
+      },
+      "catalogReadOnlySupplement": {
+        "checkedAt": "2026-11-15T01:42:04.845Z",
+        "status": "PASS",
+        "sqlFile": "docs/decoupling/asaas-to-abacatepay/migrations/gate-b-catalog-readonly.sql",
+        "sections": 9,
+        "checks": [
+          "catalog queries execute in read-only transaction",
+          "new function changes inventory",
+          "disabled RLS changes inventory",
+          "seven structural sections return to baseline after synthetic changes"
+        ],
+        "elapsedMs": 700,
+        "baseline": "136 real SQL files; synthetic scaffold; not a Production clone",
+        "providerCalls": 0,
+        "productionConnections": 0,
+        "clinicalRowsRead": 0,
+        "driftAutomaticallyApproved": false
+      },
+      "officialFinalCI": "Required on corrected commit; no result inferred from the approved baseline"
+    },
+    "reusedEvidenceNotReexecuted": {
+      "approvedCI": {
+        "tests": 7206,
+        "testFiles": 637,
+        "e2e": 22,
+        "skippedTests": 0
+      },
+      "package": {
+        "journalEntries": 160,
+        "pending": "0136-0159",
+        "count": 24,
+        "excluded": "0160",
+        "sharedSQLRef": "4d0ed1d5c8a81ab9f66e026f4f36c6e4520a7269"
+      },
+      "isolatedMigrationChecks": 16,
+      "compatibilityChecks": 52,
+      "paidSandboxScenarios": 5,
+      "productionHistorySnapshot": 136,
+      "devHistorySnapshot": 161,
+      "historyIsNotNewProductionReadback": true
+    },
+    "acquisitionClosedProposal": {
+      "signupEnabled": false,
+      "preserveSignupAuthAndIdentity": true,
+      "saasSignupProvider": "asaas or existing default",
+      "abacatepayNewCheckoutsEnabled": false,
+      "abacatepayCheckoutClinicIds": "",
+      "abacatepayEnvironment": "ABSENT in Vercel Production, runtime denies before provider/database work",
+      "sharedCronLegacyAsaasAndPatientPayments": "PRESERVED",
+      "transitionBarrier": {
+        "proposedRule": "qoro-gate-b-signup-closed",
+        "environment": "Production",
+        "method": "POST",
+        "action": "Deny",
+        "exactRoutes": [
+          "/api/signup/sessions",
+          "/api/signup/checkout"
+        ],
+        "configured": false,
+        "requiresSpecificGateBApproval": true,
+        "ruleQuotaPermissionsOrderAndNormalization": "Verify before DDL; stop if unsupported or requires a purchase"
+      },
+      "mandatoryStop": "Existing live AbacatePay obligation, reusable hosted checkout or insufficient transition containment requires review before disabling runtime or migrating"
+    },
+    "backup": {
+      "currentPreGateBBackupCreated": false,
+      "managedBackupCurrentIdentityAndRestoreVerified": false,
+      "previous20261028DocumentedPathPresent": false,
+      "historicalRealRestore": {
+        "evidence": "docs/quality/evidencias/offer-restored-backup-20261030.json",
+        "encryptedBackupSha256": "488e407815e36d42ea595ed599d7b7f925ad49434d4c6a449f2d4894acc4a992",
+        "result": "Historical PASS, not current recovery evidence",
+        "elapsedSecondsApproximate": 26.5,
+        "fullServiceRTOClaimed": false
+      },
+      "currentBackupStrictIsolatedRestoreAndManifest": "Mandatory stop before Production DDL; not waived by earlier RPO acceptance",
+      "gpgAvailableOutsidePath": true,
+      "gpgVersion": "2.4.9",
+      "clientCompatibility": "Local psql/pg_dump17.5 must be checked against target; official17.11 previously used for restrict compatibility",
+      "independentCopyOrKeyAvailabilityClaimed": false
+    },
+    "catalog": {
+      "file": "migrations/gate-b-catalog-readonly.sql",
+      "journalMigration": false,
+      "automatedFullSchemaDriftApproval": false,
+      "reviewAgainstApprovedBaselineRequired": true,
+      "noClinicalRowsOrFunctionBodiesPrinted": true
+    },
+    "gateB": {
+      "recommendation": "Ready to request conditional authorization only after corrected SHA CI is green; NOT authorized to execute",
+      "proposal": "2026-11-15 10:00-11:00 America/Sao_Paulo, unconfirmed planning budget not production SLA",
+      "technicalOperationalIncidentAndRollbackOwners": "TO BE NAMED BY OWNER",
+      "currentBackupSchemaSecretsFlagsLocksAndTransitionReadback": "Mandatory window evidence before DDL",
+      "noAutomaticMergeOrNextGate": true
+    },
+    "risks": {
+      "R1": "PARTIAL, not accepted",
+      "R2": "PARTIAL, natural renewal2026-12-13 not observed, not accepted",
+      "R3": "PARTIAL, not accepted",
+      "R4": "PARTIAL, not accepted"
+    },
+    "coordination": {
+      "uiHandoff": "HANDOFF-UI-BILLING-SaaS.md",
+      "agentReceiptConfirmed": false,
+      "liveAsaasWithDev": "Reported by UI; source accepts supplied credential/baseURL; no secret values inspected and no monetary test run",
+      "paymentsEnvironmentGuard": "Coordinate within UI/Payments ownership before unmocked development tests; no cross-worktree edit",
+      "functionalTissIncluded": false
+    },
+    "cleanup": {
+      "syntheticScratch": "qoro-scratch-schema-hQHtf0",
+      "postgresStopped": true,
+      "associatedProcesses": 0,
+      "recursiveDeletion": "Automatic approval review rejected: blocked by policy; no bypass attempted",
+      "optionalManualCleanupNotReleaseBlocker": true
+    },
+    "mutations": {
+      "productionSQL": 0,
+      "productionConfiguration": 0,
+      "productionDeployments": 0,
+      "liveWebhooks": 0,
+      "payments": 0,
+      "otherWorktrees": 0
+    },
+    "runbook": "GATE-B-DEPLOY-CONTROLADO.md"
   }
 }

@@ -1,5 +1,7 @@
 # Operação e recuperação AbacatePay
 
+> **Preparação Gate B — checkpoint prevalente14/11:** [matriz,backup/preflight,rollback e solicitação de autorização](../decoupling/asaas-to-abacatepay/GATE-B-DEPLOY-CONTROLADO.md). A baseline10e5d43b está preservada;foi reproduzida/corrigida a criação por sessão anterior com `SIGNUP_ENABLED=false`. A rota de criação agora fecha antes de banco/provedor;status de pagamento continua disponível.123 testes dirigidos,tipos e lint PASS;novo SHA exige CI própria. Não usar a CI anterior para o código corrigido. Este documento não executa GateB;barreira WAF proposta exige autorização específica,backup atual/restore e preflight são paradas antes de DDL. Nenhum segredo/configuração/SQL Production alterado.
+
 **Checkpoint vigente: [dossiê final do release candidate](../decoupling/asaas-to-abacatepay/ABACATEPAY-SaaS-GO-NO-GO-FINAL.md), 14/11/2026.** Runtime7208d505, SQL e configuração congelados. CI oficial25127abf: **7.206 testes e22 E2E sem SKIP**, SUCCESS; conferir checks de qualquer commit documental posterior. Pacote160 e ensaio136→160 preservados. Snapshots: DEV161 com0160; Production136 com24 entradas0136–0159 pendentes; compatibilidade52PASS. EARLY-01 já paga e encerrada: não repetir pagamento. SaaS não espera guias/glosas/R54 ou repaginação integral. **Não há GO para configuração, migration, deploy, consumidor ou piloto live.** Seções antigas são histórico, não ordens de execução.
 
 ## Gates atuais A–E e fases operacionais — piloto controlado

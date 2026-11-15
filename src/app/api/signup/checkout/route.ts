@@ -107,7 +107,9 @@ async function provisionLegacyActiveDraft(input: {
 }
 
 export async function POST(req: Request): Promise<Response> {
-  if (!env.SIGNUP_AUTH_ENABLED || !env.SIGNUP_IDENTITY_ENABLED) {
+  // Close new acquisition for sessions created before the kill switch too.
+  // Payment status/webhooks remain available to reconcile existing obligations.
+  if (!env.SIGNUP_ENABLED || !env.SIGNUP_AUTH_ENABLED || !env.SIGNUP_IDENTITY_ENABLED) {
     return json({ error: 'unavailable' }, 503);
   }
 

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   env: {
+    SIGNUP_ENABLED: true,
     SIGNUP_AUTH_ENABLED: true,
     SIGNUP_IDENTITY_ENABLED: true,
     APP_BASE_URL: 'https://app.qoro.test',
@@ -63,6 +64,7 @@ function request(init: { origin?: string; site?: string; body?: string } = {}): 
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.env.SIGNUP_ENABLED = true;
   mocks.env.SIGNUP_AUTH_ENABLED = true;
   mocks.env.SIGNUP_IDENTITY_ENABLED = true;
   mocks.deferred.mockReturnValue(false);
@@ -91,6 +93,24 @@ beforeEach(() => {
 });
 
 describe('POST /api/signup/checkout', () => {
+  it.each([false, true])(
+    'blocks an existing signup session while acquisition is closed (deferred=%s)',
+    async (deferred) => {
+      mocks.env.SIGNUP_ENABLED = false;
+      mocks.deferred.mockReturnValue(deferred);
+
+      const response = await POST(request());
+
+      expect(response.status).toBe(503);
+      expect(await response.json()).toEqual({ error: 'unavailable' });
+      expect(mocks.resolve).not.toHaveBeenCalled();
+      expect(mocks.writeLimit).not.toHaveBeenCalled();
+      expect(mocks.start).not.toHaveBeenCalled();
+      expect(mocks.freeTrial).not.toHaveBeenCalled();
+      expect(mocks.getCustomer).not.toHaveBeenCalled();
+    },
+  );
+
   it('starts the explicit free-trial journey without invoking either financial provider', async () => {
     mocks.deferred.mockReturnValue(true);
     const response = await POST(request());
