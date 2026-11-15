@@ -10,6 +10,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }) }));
 vi.mock('@/components/ui/use-toast', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
+import { sessionEnded } from './action-ui';
+import { SESSION_ENDED_MESSAGE, UNCONFIRMED_MESSAGE } from './constants';
 import { ConsultaFieldsPanel } from './consulta-fields-ui';
 
 const GUIDE = '22222222-2222-4222-8222-222222222222';
@@ -96,6 +98,85 @@ describe('painel Dados da consulta: foco, erro e dica', () => {
     );
     expect(screen.getByRole('form', { name: 'Ajustar dados da consulta' })).toBeTruthy();
     expect((screen.getByLabelText('Tipo de consulta') as HTMLSelectElement).value).toBe('4');
+  });
+
+  it('a action falha sem resposta e a sessão terminou: diz isso e leva ao login (nunca "Algo deu errado")', async () => {
+    const fetcher = vi.fn().mockResolvedValue({ type: 'opaqueredirect', status: 0 });
+    vi.stubGlobal('fetch', fetcher);
+    const assign = vi.fn();
+    const original = window.location;
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { ...original, pathname: '/convenios/guias/x', assign },
+    });
+    try {
+      render(
+        <ConsultaFieldsPanel
+          guideId={GUIDE}
+          version={3}
+          overrides={null}
+          options={options}
+          editable
+          issued={false}
+          action={vi
+            .fn()
+            .mockRejectedValue(new Error('An unexpected response was received from the server.'))}
+        />,
+      );
+      fireEvent.click(screen.getByRole('button', { name: 'Ajustar dados da consulta' }));
+      await act(async () => {
+        fireEvent.submit(screen.getByRole('form', { name: 'Ajustar dados da consulta' }));
+      });
+      expect(screen.getByRole('alert').textContent).toBe(SESSION_ENDED_MESSAGE);
+      expect(fetcher).toHaveBeenCalledWith(
+        '/convenios/guias/x',
+        expect.objectContaining({ method: 'HEAD', redirect: 'manual' }),
+      );
+      expect(assign).toHaveBeenCalledWith('/login');
+    } finally {
+      Object.defineProperty(window, 'location', { configurable: true, value: original });
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('a action falha sem resposta com a sessão de pé: não afirma sucesso nem fracasso, pede para atualizar', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ type: 'basic', status: 200 }));
+    try {
+      render(
+        <ConsultaFieldsPanel
+          guideId={GUIDE}
+          version={3}
+          overrides={null}
+          options={options}
+          editable
+          issued={false}
+          action={vi.fn().mockRejectedValue(new TypeError('Failed to fetch'))}
+        />,
+      );
+      fireEvent.click(screen.getByRole('button', { name: 'Ajustar dados da consulta' }));
+      await act(async () => {
+        fireEvent.submit(screen.getByRole('form', { name: 'Ajustar dados da consulta' }));
+      });
+      expect(screen.getByRole('alert').textContent).toBe(UNCONFIRMED_MESSAGE);
+      expect(screen.getByRole('form', { name: 'Ajustar dados da consulta' })).toBeTruthy();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('checagem de sessão: redirecionamento ou 401 = terminou; resposta normal ou falha de rede = não dá para afirmar', async () => {
+    expect(
+      await sessionEnded(vi.fn().mockResolvedValue({ type: 'opaqueredirect', status: 0 }) as never),
+    ).toBe(true);
+    expect(
+      await sessionEnded(vi.fn().mockResolvedValue({ type: 'basic', status: 401 }) as never),
+    ).toBe(true);
+    expect(
+      await sessionEnded(vi.fn().mockResolvedValue({ type: 'basic', status: 200 }) as never),
+    ).toBe(false);
+    expect(await sessionEnded(vi.fn().mockRejectedValue(new TypeError('offline')) as never)).toBe(
+      false,
+    );
   });
 
   it('sem permissão de ajuste não há botão nem formulário (a tela não oferece o que o servidor recusa)', () => {

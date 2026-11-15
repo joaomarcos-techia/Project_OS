@@ -13,11 +13,32 @@ import type { ActionResult } from '@/contexts/health-insurance/actions';
 import { uuidv4 } from '@/lib/ui/uuid';
 
 import { toCents } from './batch-ui';
+import { SESSION_ENDED_MESSAGE, UNCONFIRMED_MESSAGE } from './constants';
 
 /** Hoje (AAAA-MM-DD) no fuso das datas do Qoro: o mesmo no servidor e no navegador (R51). */
 const localToday = () => todayYmdIn();
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'soft';
+
+/**
+ * A action falhou SEM resposta dela (o `ActionResult` não chegou). Sem cookie de sessão, o middleware
+ * redireciona o POST da action para /login e o cliente do Next lança; antes, isso caía na fronteira
+ * de erro ("Algo deu errado"). Aqui se pergunta à rota atual, sem seguir redirecionamento: redirecionou
+ * (ou 401) = sessão terminou. Qualquer outra coisa = não dá para afirmar o que aconteceu.
+ */
+export async function sessionEnded(fetcher: typeof fetch = fetch): Promise<boolean> {
+  try {
+    const r = await fetcher(window.location.pathname, {
+      method: 'HEAD',
+      redirect: 'manual',
+      cache: 'no-store',
+      credentials: 'same-origin',
+    });
+    return r.type === 'opaqueredirect' || r.status === 401;
+  } catch {
+    return false;
+  }
+}
 
 export function useRunner() {
   const router = useRouter();
@@ -31,7 +52,21 @@ export function useRunner() {
     onError?: (message: string) => void,
   ) =>
     start(async () => {
-      const r = await fn();
+      let r: ActionResult<unknown>;
+      try {
+        r = await fn();
+      } catch {
+        // Nunca sucesso sem confirmação; nunca a tela genérica de erro para um estado esperado.
+        if (await sessionEnded()) {
+          toast.error(SESSION_ENDED_MESSAGE);
+          onError?.(SESSION_ENDED_MESSAGE);
+          window.location.assign('/login');
+          return;
+        }
+        toast.error(UNCONFIRMED_MESSAGE);
+        onError?.(UNCONFIRMED_MESSAGE);
+        return;
+      }
       if (r.ok) {
         // `describe`: a ação devolve o resultado em texto (ex.: cobrança não criada e por quê).
         toast.success(success, describe && typeof r.data === 'string' ? r.data : undefined);

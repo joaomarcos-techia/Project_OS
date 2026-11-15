@@ -21,3 +21,9 @@ export const ELIGIBILITY_LABELS: Record<string, string> = {
   on_approval: 'Na aprovação da guia (faturado menos glosa definitiva)',
   on_completion: 'Na conclusão (antecipa sobre o contratado)',
 };
+
+/** Ação que falhou sem resposta e a sessão não existe mais (o runner de `action-ui.tsx` leva ao login). */
+export const SESSION_ENDED_MESSAGE = 'Sua sessão terminou. Entre de novo para continuar.';
+/** Ação que falhou sem resposta com a sessão de pé: nunca afirmar sucesso nem fracasso. */
+export const UNCONFIRMED_MESSAGE =
+  'Não foi possível confirmar com o servidor se a operação foi registrada. Atualize a página para ver a situação mais recente antes de tentar de novo.';
