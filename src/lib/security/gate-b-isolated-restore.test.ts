@@ -11,7 +11,7 @@ import {
   assertRestoreConfinement,
   RESTORE_IMAGE,
   streamIsolatedRestore,
-} from '../../../scripts/security/gate-b-isolated-restore';
+} from '../../../scripts/gate-b-isolated-restore';
 
 const name = 'qoro-gate-b1-012345abcdef';
 function fixture() {

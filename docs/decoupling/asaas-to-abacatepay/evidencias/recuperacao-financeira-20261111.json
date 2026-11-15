@@ -24612,5 +24612,49 @@
       "blockedFilesDeleted": 0
     },
     "runbook": "GATE-B-DEPLOY-CONTROLADO.md"
+  },
+  "progressiveGateBIsolatedBuildCorrection20261115": {
+    "date": "2026-11-15",
+    "scope": "B0 tooling only; no application runtime, SQL or build configuration change",
+    "previousHead": "4d98d2324ff041dba6973b9828be8c9665707909",
+    "previousCI": {
+      "run": 43710102462,
+      "result": "FAIL",
+      "stage": "isolated Next build type check",
+      "testsSecurityIsolation": "PASS",
+      "e2e": "NOT RUN after build failure"
+    },
+    "deterministicCause": "scripts/security operator copied into isolated build while its root scripts/abacatepay-release-validation dependency was outside the existing copy",
+    "correction": "Move B1 operator to scripts/gate-b-isolated-restore.ts beside root operator dependencies; update test, command and generated inventory references",
+    "regression": {
+      "focusedTests": 34,
+      "files": 3,
+      "status": "PASS",
+      "dependencyClosure": {
+        "status": "PASS",
+        "filesChecked": 1028,
+        "reproducedPriorMissingDependency": [
+          {
+            "file": "scripts/security/gate-b-isolated-restore.ts",
+            "dependency": "scripts/abacatepay-release-validation.ts"
+          }
+        ],
+        "afterMoveMissingOwnedImports": [],
+        "buildCopyAndNextConfigChanged": false,
+        "scope": "Dependency closure of existing isolated-copy allowlist, applying Next existing test-diagnostic filter; not a substitute for full build",
+        "financialRuntimeChanged": false,
+        "productionWrites": 0
+      },
+      "fullNewHeadCI": "Required on resulting commit; prior CI is not reused"
+    },
+    "financialSource": "94f6da4aeb32b1ae7da856dc9afa105120ce6dd9",
+    "financialArtifactChanged": false,
+    "migrationPackageChanged": false,
+    "buildOrCIConfigurationChanged": false,
+    "gates": "B1, B2-A/B, B3, C, D and E remain NOT AUTHORIZED",
+    "productionQueries": 0,
+    "productionMutations": 0,
+    "actualBackupOrRestorePerformed": false,
+    "preservedPriorBlocks": 40
   }
 }

@@ -8,7 +8,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { z } from 'zod';
-import { assertReleaseHistory, readFrozenRelease } from '../abacatepay-release-validation';
+import { assertReleaseHistory, readFrozenRelease } from './abacatepay-release-validation';
 
 export const RESTORE_IMAGE = 'public.ecr.aws/supabase/postgres:17.11.0.006';
 const PGDATA = '/var/lib/postgresql/data';

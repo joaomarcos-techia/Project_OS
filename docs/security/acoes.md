@@ -480,6 +480,7 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/e2e-mutation-fixture.ts:206`                      | `E2E_USER_EMAIL`                       | `process.env.E2E_USER_EMAIL`                                                |
 | `scripts/e2e-paid-pause-ops.ts:54`                         | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
 | `scripts/e2e-paid-pause-ops.ts:55`                         | `ASAAS_BASE_URL`                       | `process.env.ASAAS_BASE_URL`                                                |
+| `scripts/gate-b-isolated-restore.ts:179`                   | `BACKUP_PASSPHRASE`                    | `process.env.BACKUP_PASSPHRASE`                                             |
 | `scripts/gemini-live-check.ts:50`                          | `GEMINI_API_KEY`                       | `process.env.GEMINI_API_KEY`                                                |
 | `scripts/load-signup-degraded.ts:111`                      | `LOAD_SIGNUP_CONFIRM`                  | `process.env.LOAD_SIGNUP_CONFIRM`                                           |
 | `scripts/load-signup-degraded.ts:118`                      | `UPSTASH_REDIS_REST_URL`               | `process.env.UPSTASH_REDIS_REST_URL`                                        |
@@ -642,7 +643,6 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/ai-handoff-reliability-db.ts:31`         | `<object>`                             | `process.env`                                                               |
 | `scripts/security/ai-handoff-reliability-db.ts:32`         | `<dynamic>`                            | `process.env[key]`                                                          |
 | `scripts/security/ai-handoff-reliability-db.ts:34`         | `<object>`                             | `process.env`                                                               |
-| `scripts/security/gate-b-isolated-restore.ts:179`          | `BACKUP_PASSPHRASE`                    | `process.env.BACKUP_PASSPHRASE`                                             |
 | `scripts/security/local-build.ts:98`                       | `<dynamic>`                            | `process.env[key]`                                                          |
 | `scripts/security/local-build.ts:98`                       | `<dynamic>`                            | `process.env[key]`                                                          |
 | `scripts/security/local-build.ts:128`                      | `CI`                                   | `process.env.CI`                                                            |
