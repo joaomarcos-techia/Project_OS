@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 200 actions (0 inline); 66 métodos em 62 handlers; 19 props com referência de action; 544 acessos diretos a process.env; 10 nomes NEXT_PUBLIC.
+Contagem: 200 actions (0 inline); 66 métodos em 62 handlers; 19 props com referência de action; 545 acessos diretos a process.env; 10 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -480,7 +480,8 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/e2e-mutation-fixture.ts:206`                      | `E2E_USER_EMAIL`                       | `process.env.E2E_USER_EMAIL`                                                |
 | `scripts/e2e-paid-pause-ops.ts:54`                         | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
 | `scripts/e2e-paid-pause-ops.ts:55`                         | `ASAAS_BASE_URL`                       | `process.env.ASAAS_BASE_URL`                                                |
-| `scripts/gate-b-isolated-restore.ts:179`                   | `BACKUP_PASSPHRASE`                    | `process.env.BACKUP_PASSPHRASE`                                             |
+| `scripts/gate-b-isolated-restore.ts:35`                    | `<dynamic>`                            | `process.env[key]`                                                          |
+| `scripts/gate-b-isolated-restore.ts:230`                   | `BACKUP_PASSPHRASE`                    | `process.env.BACKUP_PASSPHRASE`                                             |
 | `scripts/gemini-live-check.ts:50`                          | `GEMINI_API_KEY`                       | `process.env.GEMINI_API_KEY`                                                |
 | `scripts/load-signup-degraded.ts:111`                      | `LOAD_SIGNUP_CONFIRM`                  | `process.env.LOAD_SIGNUP_CONFIRM`                                           |
 | `scripts/load-signup-degraded.ts:118`                      | `UPSTASH_REDIS_REST_URL`               | `process.env.UPSTASH_REDIS_REST_URL`                                        |
@@ -568,7 +569,7 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/prod-data-api-authorization-check.ts:96`          | `E2E_USER_PASSWORD`                    | `process.env.E2E_USER_PASSWORD`                                             |
 | `scripts/prod-data-api-authorization-check.ts:106`         | `SUPABASE_SECRET_KEY_PROD`             | `process.env.SUPABASE_SECRET_KEY_PROD`                                      |
 | `scripts/prod-encrypted-backup.ts:30`                      | `<object>`                             | `process.env`                                                               |
-| `scripts/prod-encrypted-backup.ts:87`                      | `BACKUP_PASSPHRASE`                    | `process.env.BACKUP_PASSPHRASE`                                             |
+| `scripts/prod-encrypted-backup.ts:88`                      | `BACKUP_PASSPHRASE`                    | `process.env.BACKUP_PASSPHRASE`                                             |
 | `scripts/prod-storage-authorization-check.ts:92`           | `SUPABASE_SECRET_KEY_PROD`             | `process.env.SUPABASE_SECRET_KEY_PROD`                                      |
 | `scripts/recovery-b2-backup.ts:154`                        | `RECOVERY_EXPORT_PASSPHRASE`           | `process.env.RECOVERY_EXPORT_PASSPHRASE`                                    |
 | `scripts/recovery-b2-backup.ts:155`                        | `BACKUP_PASSPHRASE`                    | `process.env.BACKUP_PASSPHRASE`                                             |

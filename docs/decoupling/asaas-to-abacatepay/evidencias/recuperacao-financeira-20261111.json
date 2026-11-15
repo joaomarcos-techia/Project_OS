@@ -25126,5 +25126,37 @@
     "requiresOwnFullCI": true,
     "financialRuntimeChanged": false,
     "productionWrites": 0
+  },
+  "syntheticRecoveryInventoryRefresh20261115": {
+    "observedAt": "2026-11-15T17:58:46.613Z",
+    "previousHead": "30e358f1c89a6989c96a1f93ee076afe095c6602",
+    "previousCi": 43742311466,
+    "previousCiResult": "TYPE_LINT_UNIT_COVERAGE_PASS_THEN_GENERATED_INVENTORY_DRIFT",
+    "tests": 7266,
+    "testFiles": 641,
+    "realGpgTestsOnLinux": 7,
+    "correction": "Regenerate security inventory with the existing scanner; one Docker env access and two line references; scanner and baseline snapshot unchanged",
+    "inventory": {
+      "actions": 200,
+      "routeMethods": 66,
+      "props": 19,
+      "processEnv": 545,
+      "nextPublic": 10,
+      "unresolved": [],
+      "publicEnv": {
+        "unregistered": [],
+        "stale": [],
+        "restricted": []
+      },
+      "routeTests": {
+        "missingForNew": [],
+        "regressed": []
+      }
+    },
+    "localFirstAttempt": "512MiB bounded AST process OOM",
+    "localSuccessfulAttempt": "Existing scanner --write; OS environment allowlist; 1024MiB heap; exit 0",
+    "requiresOwnFullCI": true,
+    "applicationRuntimeOrSqlChanges": false,
+    "productionWrites": 0
   }
 }
