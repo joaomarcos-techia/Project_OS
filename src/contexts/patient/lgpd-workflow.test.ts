@@ -40,7 +40,9 @@ describe('LGPD operational workflow integration', () => {
   });
 
   it('expoe SLA, responsavel, historico e comunicacao na fila operacional', () => {
-    expect(lgpdUi).toContain('SLA vencido');
+    // UX-014: mesmo prazo legal (LGPD_RESPONSE_SLA_DAYS), dito sem "SLA" na tela.
+    expect(lgpdUi).toContain('Prazo legal vencido');
+    expect(lgpdUi).not.toContain('SLA vencido');
     expect(lgpdUi).toContain('Histórico de tratamento');
     expect(actions).toContain('export async function markLgpdRequesterNotified');
     expect(lgpdUi).toContain('notifyLgpdRequesterForm');

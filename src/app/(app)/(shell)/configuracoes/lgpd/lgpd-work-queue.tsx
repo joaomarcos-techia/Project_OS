@@ -63,7 +63,7 @@ function RequestStatus({ request }: { request: LgpdRequestDTO }) {
   const status = STATUS_META[request.status];
   return (
     <Badge tone={request.overdue ? 'red' : status.tone} dot>
-      {request.overdue ? 'SLA vencido' : status.label}
+      {request.overdue ? 'Prazo legal vencido' : status.label}
     </Badge>
   );
 }
@@ -353,11 +353,11 @@ export function LgpdWorkQueue({
             </span>
             {overdueCount > 0 ? (
               <Badge tone="red" dot>
-                {overdueCount} com SLA vencido
+                {overdueCount} com prazo legal vencido
               </Badge>
             ) : (
               <Badge tone="green" dot>
-                SLAs em dia
+                Prazos legais em dia
               </Badge>
             )}
           </TableToolbar>
