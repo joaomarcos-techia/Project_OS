@@ -1,5 +1,60 @@
 # Gate B — proposta de deploy técnico com aquisição fechada
 
+## Janela sintética preparada e adiada pelo titular — 15/11/2026
+
+**Decisão prevalente:** “Deixe a janela preparada para depois”. Não iniciar Docker, restore ou build pesado nesta rodada, nem pedir novamente a mesma pausa. A janela abaixo é somente local e sintética, sem data reservada; não autoriza B1-B real, B2, B3 ou qualquer alteração Production. Baseline anterior conferida: `c06608e3`, CI43744127028 GREEN, 7.266 testes/641 arquivos/22 E2E/zero SKIP. Nenhum GPG foi reensaiado localmente só para repetir esse resultado. O novo commit documental/ferramenta deve ter sua própria CI; consultar HEAD/checks do PR53.
+
+### Resultado novo: ACL Windows, somente fixture sintética
+
+`scripts/recovery/probe-private-directory.ps1` executado às **18:34:00 UTC**: **9 verificações PASS**, parser PowerShell PASS. Criou exclusivamente `acl-probe-<GUID>` sob `%LOCALAPPDATA%\Qoro\Recovery`, recusando ancestrais reparse, nomes/parent inválidos e reutilização de destino. ACL nova sem herança, com FullControl somente para a identidade executora; arquivo sintético herdou apenas essa regra e foi escrito/lido. Controles negativos recusaram ACL com herança não protegida e permissão adicional para Everyone. A ACL da pasta Recovery pai foi comparada antes/depois e permaneceu idêntica. Arquivo e pastas vazias próprios foram descartados por caminhos exatos, sem exclusão recursiva. **Nenhum backup ou diretório histórico foi aberto, alterado ou excluído.**
+
+Evidência local sanitizada: `dist/b1b-private-directory-probe.json`; resumo preservado no JSON de evidências existente. Repetição leve, quando necessária:
+
+```powershell
+Set-Location 'C:\dev\Qoro_billing_abacatepay_20261107'
+.\scripts\recovery\probe-private-directory.ps1
+```
+
+**Alcance:** DACL/proprietário/herança e leitura/escrita pela identidade atual foram verificados. Não foi realizado login com outra identidade para provar negação efetiva; privilégios administrativos de tomada de posse/backup não são eliminados pela DACL. ACL não comprova criptografia de disco/pagefile/hibernação/WSL, exclusão de sincronizadores, retenção de terceiros ou segurança de um futuro destino real. Nenhuma pasta de dados reais foi criada. Retenção da fixture: somente a duração do probe; descarte conferido.
+
+### Medição para planejar a retomada
+
+Leitura de **18:25:41 UTC**, não reserva de capacidade: **7.877 MiB físicos / 885 MiB livres**, comprometimento **18.217/25.285 MiB**, disco C: **8,71 GiB**. Oito processos Node, treze Chrome, zero PostgreSQL; contagem não atribui propriedade aos outros agentes. Client Docker29.9.2, contexto local desktop-linux, sem overrides; pipe do Engine ausente. Não iniciado, caches/volumes/tamanho real da imagem ainda não inventariados. Junction de dependências compartilhada preservada.
+
+`EncryptPagingFile=0` novamente observado; consulta BitLocker negada por falta de privilégio e hibernação disponível. WSL/VHD/swap e política de sync continuam não verificados. Não elevar privilégio, ativar BitLocker, modificar pagefile/hibernação ou alegar host aprovado para dados reais.
+
+### Roteiro da futura janela local — sintético primeiro, build depois
+
+**Coordenação preparada:** enviar aos responsáveis UI/TISS, quando o titular decidir retomar: “Preciso de um intervalo local para um único ensaio sintético de recuperação e, em seguida, um build isolado. Salvem o trabalho e pausem voluntariamente os builds/testes pesados e navegadores que vocês iniciaram. Avisem quando terminarem; ninguém encerrará processos ou alterará seus worktrees/junctions.” Nenhum desses agentes está acessível nesta árvore; não presumir recebimento. Data, participantes e duração ficam a combinar. Reservar inicialmente até 60 minutos como orçamento de planejamento, não como RTO medido; interromper/reagendar em vez de prolongar automaticamente.
+
+| Ordem | Ação futura e verificação | Ponto de parada |
+|---|---|---|
+| 1 | Confirmar retomada com titular/UI/TISS; medir RAM/commit/disco/processos, identificar somente os próprios recursos | Sem pausa acordada ou orçamento suficiente: não iniciar |
+| 2 | Proposta conservadora: pelo menos 4 GiB de RAM física livre antes do Engine; conferir margem de disco para imagem já existente, extração/build/logs sem limpeza alheia | Não tratar memória virtual como RAM nem aumentar limites para forçar execução |
+| 3 | Iniciar apenas Docker local; conferir Client+Server, contexto/endpoint e tamanho da imagem oficial fixada, volumes/cache por leitura; medir overhead e RAM novamente | Endpoint remoto, ausência da imagem com espaço insuficiente, RAM livre <1 GiB, OOM ou disco sem margem: parar |
+| 4 | Rodar probe ACL sintético, criar home GPG exclusivo, ambiente de processo com allowlist do SO; nenhum `.env`, URL, chave, app ou worker live | ACL/isolation divergentes ou segredo herdado: não criar fixture |
+| 5 | Criar fixture pequena apenas local, com schema, tabela pai/filha, FK, índice e journal **sintéticos**; usar contêiner(es) `--network none`, zero portas/mounts persistentes, logs none, tmpfs/limites e cron off do operador | Não usar DEV compartilhado nem executar migrations do release; fixture não representa o catálogo Production |
+| 6 | `pg_dump` real → GPG real em stream, sem SQL aberto; conferir exits, SHA256/bytes do cifrado e inventário antes; restaurar por stream em outro banco descartável isolado, com ID inspecionado | Saída não zero, hash/bytes divergentes, isolamento desconhecido ou qualquer vazamento impede PASS |
+| 7 | Comparar schema, dados sintéticos, journal, FKs e índices; executar senha/hash/arquivo incorretos, SQL inválido, interrupção real e timeout, registrando efeitos e exits | Processo sobrevivente ou destino parcialmente restaurado nunca recebe PASS; preservar o cifrado até diagnóstico |
+| 8 | Descartar somente contêineres/arquivos sintéticos identificados e verificar ausência; fechar seu agent GPG; medir duração/recursos | Não remover volumes/processos/diretórios por suposição; falha de descarte exige registrar recurso remanescente |
+| 9 | Depois do descarte e nova medição, iniciar **separadamente** o build do pacote composto conforme abaixo | Não executar build concorrente com o restore; se sem capacidade, manter NOT RUN |
+
+Os passos 5–8 descrevem o procedimento ainda a executar; **não constituem um harness integral validado**. O operador de B1-B real exige autorização e prefixo de journal136: não passar `--authorize-local-real-data` para contornar essa proteção com uma fixture pequena. Reusar seus helpers testados no ensaio sintético sem afirmar equivalência com recuperação Production. GPG7/7 e doubles37/37 anteriores continuam válidos no seu alcance, sem substituírem o teste integral futuro.
+
+### Build do pacote composto — roteiro e alternativa de CI
+
+1. Preservar o TAR existente e atestação `migrations/release-artifact-94f6da4a.json`: fonte financeira94f6da4a, empacotador787276a1, SQL compartilhado4d0ed1d5; TAR SHA256 `3902f2007742df4016450eeaece806a8f2bc0b535631d33da9a5e691b59ce3f6`. A prova de 2.785 arquivos/160 SQL é anterior, não uma nova execução nesta rodada.
+2. Na retomada, conferir hash do original e extrair em diretório **novo de build**, fora de Recovery, conferindo UTF8 e manifesto antes de compilar. Não reutilizar uma `.next` parcial, reconstruir o TAR sem motivo ou incluir0160/0161.
+3. Conferir Node22/pnpm11.17.0 e dependências do lock. Instalação/cache só no destino isolado; não reinstalar nem mudar `node_modules`/junction compartilhados. Dimensionar espaço antes. Cache incompleto ou incompatível é parada, não motivo para trocar versões/lock.
+4. Lançar `node <node_modules do destino>/next/dist/bin/next build` com cwd na extração íntegra e ambiente allowlist do SO + fixtures locais exigidas pelo schema de ambiente, conforme `scripts/security/local-build.ts`. Não executar esse helper diretamente como prova do pacote: ele copia uma seleção de fontes e injeta uma página harness, alterando o source compilado. Não herdar `.env`, segredos, Vercel/CI tokens, DSN ou endpoints externos reais. Conferir que as únicas variáveis de serviço são sintéticas; nenhum processo de aplicação/worker precisa iniciar.
+5. Preservar logs/exit code, duração, versões e vínculo aos hashes da entrada; comparar novamente os arquivos de entrada permitidos, separando saídas `.next` e dependências. Publicar apenas resumo sem valores de ambiente. `COMPOSED RELEASE BUILD — PASS` exige essa execução real; zero isolado com erro de ESLint também não basta. Nenhum build será publicado.
+
+**Alternativa examinada, não executada:** `.github/workflows/ci.yml` executa no checkout do PR, sem `workflow_dispatch`; seu passo Build usa `pnpm security:build`, que gera a cópia/harness acima. Portanto, mesmo verde, **não valida a extração composta**. Não há nesta configuração um job pronto para receber o TAR exato e executar esse build. Adaptar um job futuro exigiria diff específico/revisão de autorização de CI e limite de custos; nenhuma automação foi alterada nem execução adicional foi disparada para fingir essa prova. A CI obrigatória do PR continua independente.
+
+### Próxima decisão — somente quando retomar
+
+**Janela: PREPARADA / ADIADA PELO TITULAR. Restore sintético integral e build composto: NOT RUN, sem novos recursos iniciados. B1-B real: NÃO APTO e NÃO AUTORIZADO.** Antes de propor dados reais, faltam PASS integral sintético, capacidade e destino identificados, proteção verificável do host/temporários/WSL, procedimento recuperável de chave/TLS, responsáveis, retenção/descarte e aprovação específica. Consulta administrativa futura apenas por leitura: PowerShell elevado pelo titular → `manage-bde -status C:`; não ativar criptografia nem reenviar chave de recuperação. Plano/retenção efetivos do Supabase continuam pendentes, sem repetir a lista de oito backups. B2/B3 e R1–R4 não são liberados por esta preparação.
+
 ## Ensaio sintético e segurança — 15/11/2026, após B1-A
 
 **Checkpoint prevalente.** O titular reconheceu o B1-A administrativo e confirmou no painel os mesmos oito backups físicos abaixo, com a opção Restore. Nenhuma nova listagem ou leitura de dados era necessária para repetir essa evidência. Este ciclo autoriza correções das ferramentas, testes exclusivamente sintéticos, documentação e push no PR53. **B1-B real, B2-A/B, B3 e C/D/E continuam não autorizados; Production NO-GO.** R1–R4 permanecem PARTIAL, sem aceite.
