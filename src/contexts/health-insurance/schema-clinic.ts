@@ -28,6 +28,19 @@ import {
 import { tenantIdRef } from '@/contexts/tenancy';
 import { timestampsPattern, uuidPk } from '@/lib/db/types';
 
+/** Forma de `hi_guides.consulta_overrides` (0161); a regra está em `tiss/assembly/consulta-overrides.ts`. */
+type ConsultaOverridesJson = Partial<
+  Record<
+    | 'regimeAtendimento'
+    | 'indicacaoAcidente'
+    | 'tipoConsulta'
+    | 'coberturaEspecial'
+    | 'saudeOcupacional'
+    | 'observacao',
+    string
+  >
+>;
+
 const createdAt = () =>
   timestamp('created_at', { withTimezone: true })
     .notNull()
@@ -473,6 +486,11 @@ export const hiGuides = pgTable('hi_guides', {
     .notNull(),
   expectedValueCents: bigint('expected_value_cents', { mode: 'number' }),
   totalValueCents: bigint('total_value_cents', { mode: 'number' }).notNull(),
+  /**
+   * Ajustes da Consulta antes da aprovação (D11, 0161); nulo = só os padrões. Chave ausente =
+   * padrão. Só muda com a guia em edição (gatilho); o domínio é conferido na terminologia.
+   */
+  consultaOverrides: jsonb('consulta_overrides').$type<ConsultaOverridesJson>(),
   idempotencyKey: text('idempotency_key').notNull(),
   reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
   reviewedBy: uuid('reviewed_by'),

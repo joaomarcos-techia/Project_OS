@@ -48,6 +48,7 @@ import {
   freezePrintData,
   GuideIssuanceError,
   loadTerms,
+  notReviewedError,
   todayInTz,
   type IssueArgs,
 } from './issuance-common';
@@ -78,9 +79,7 @@ export async function issueConsultaGuide(
   if (!g) throw new GuideIssuanceError('guia inexistente nesta clínica');
   if (g.guideType !== 'consulta')
     throw new GuideIssuanceError('esta emissão é da Guia de Consulta');
-  if (g.status !== 'reviewed') {
-    throw new GuideIssuanceError(`só se emite guia conferida (estado: ${g.status})`);
-  }
+  if (g.status !== 'reviewed') throw notReviewedError(g.status);
   if (!g.membershipId || g.membershipId !== args.card.membershipId) {
     throw new GuideIssuanceError('a carteirinha lida não é a da guia');
   }
@@ -185,6 +184,9 @@ export async function issueConsultaGuide(
     appointment: { date: item.executedOn, previousConsultationDate: prev?.last ?? null },
     guideNumber: g.number,
     authorization: { operatorGuideNumber: auth?.operatorGuideNumber ?? null },
+    // D11 (P4.6): o que foi ajustado antes da conferência; sem ajuste, os padrões do montador.
+    // A guia está travada e conferida: o gatilho da 0161 não deixa o ajuste mudar depois disso.
+    ...(g.consultaOverrides ? { overrides: g.consultaOverrides } : {}),
   });
   if (assembly.decision === 'blocked') {
     throw new GuideIssuanceError('a guia conferida tem pendências', assembly.issues);

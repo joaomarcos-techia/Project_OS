@@ -134,6 +134,20 @@ Etapas do `e2e/convenios-config-preview.spec.ts`, com dados sintéticos da fixtu
 - **Estado de erro de banco:** fica para a fronteira de erro da rota (`error.tsx`), que não se provoca no Preview sem
   injeção de falha.
 
+## 4.2 Dados da consulta na guia (P4.6, 15/11; ainda local)
+
+- **Onde:** painel "Dados da consulta" no detalhe da Guia de Consulta (`convenios/guias/[guideId]/page.tsx`), entre
+  "Situação/Pendências" e "Procedimentos". Componente do TISS: `convenios/_lib/consulta-fields-ui.tsx`
+  (`data-testid="consulta-fields"`). SP/SADT não mostra o painel.
+- **Mostra:** regime, indicação de acidente, tipo de consulta, cobertura especial, saúde ocupacional e observação.
+  Campo sem ajuste aparece como "Padrão: 01 · Ambulatorial"; ajustado leva "(ajustado)"; opcional sem valor, "Não
+  informada".
+- **Edita:** só quem gerencia o financeiro e só com a guia em "Falta dado" ou "Para conferir". O botão "Ajustar dados
+  da consulta" abre o formulário: selects com as opções da terminologia da guia (a primeira opção é o padrão, ou "Não
+  informar") e a observação com contador de 500 caracteres. Guia aprovada mostra o aviso de que vale o PDF.
+- **A UI pode** trocar a moldura pelo design system. **Preserva:** o `data-testid`, os rótulos dos campos, o texto
+  "Ajustar dados da consulta" e o gate de edição (o servidor e o banco conferem de novo).
+
 ## 5. Agenda: troca de modalidade (P4.3)
 
 O redesign da agenda precisa manter:

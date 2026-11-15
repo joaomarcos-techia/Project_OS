@@ -19,7 +19,7 @@ const localToday = () => todayYmdIn();
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'soft';
 
-function useRunner() {
+export function useRunner() {
   const router = useRouter();
   const [pending, start] = useTransition();
   const runAction = (

@@ -16,6 +16,13 @@ import { getPremiumDenialTx, type PremiumDenial } from '@/lib/premium-access';
 import { listCopayChargesTx } from './internal/copay-charge-service';
 import { insurerRules } from './internal/insurer-rules';
 import { listInsurancePayoutPositionsTx, type InsurancePayoutPosition } from './internal/insurance-payout-service';
+import { GUIDE_STATUS_LABELS } from './guide-status-labels';
+import {
+  CONSULTA_CODE_FIELD_KEYS,
+  CONSULTA_CODE_FIELDS,
+  type ConsultaCodeField,
+  type ConsultaOverrides,
+} from './tiss/assembly/consulta-overrides';
 
 import type { GuideIssue } from './tiss/validation/common';
 
@@ -24,23 +31,7 @@ const n = (v: unknown): number => (v === null || v === undefined ? 0 : Number(v)
 const s = (v: unknown): string | null => (v === null || v === undefined ? null : String(v));
 const iso = (v: unknown): string | null => (v instanceof Date ? v.toISOString() : v ? String(v) : null);
 
-export const GUIDE_STATUS_LABELS: Record<string, string> = {
-  pending_data: 'Falta dado',
-  ready_for_review: 'Para conferir',
-  reviewed: 'Conferida',
-  approved: 'Aprovada',
-  in_batch: 'Em lote',
-  exported: 'XML gerado',
-  sent: 'Enviada',
-  under_review: 'Em análise',
-  paid: 'Paga',
-  partially_paid: 'Paga em parte',
-  partially_glossed: 'Glosada em parte',
-  fully_glossed: 'Glosada',
-  closed: 'Conciliada',
-  cancelled: 'Cancelada',
-  replaced: 'Substituída',
-};
+export { GUIDE_STATUS_LABELS };
 
 export const BATCH_STATUS_LABELS: Record<string, string> = {
   prepared: 'Preparado',
@@ -327,6 +318,9 @@ export interface GuideDetail extends GuideListRow {
   cancelReason: string | null;
   approvedAt: string | null;
   reviewedAt: string | null;
+  terminologyVersion: string | null;
+  /** Ajustes da Consulta antes da aprovação (D11); nulo = só os padrões. */
+  consultaOverrides: ConsultaOverrides | null;
   items: GuideItemRow[];
   events: GuideEventRow[];
   batchId: string | null;
@@ -343,6 +337,49 @@ export interface GuideDetail extends GuideListRow {
   allocations: AllocationRow[];
   appeals: AppealRow[];
   receivable: { status: string; valorPagoCents: number; valorGlosadoCents: number } | null;
+}
+
+export interface ConsultaFieldOption {
+  code: string;
+  term: string;
+}
+
+/**
+ * Opções dos dados da Consulta (D11) na terminologia DA GUIA: tabelas 36, 52, 75, 76 e 77, só os
+ * termos vigentes na data do atendimento (sem data: todos). Nada é inventado na tela: a lista é
+ * a da ANS carregada no banco.
+ */
+export async function listConsultaFieldOptions(
+  clinicId: string,
+  terminologyVersion: string,
+  date: string | null,
+): Promise<Record<ConsultaCodeField, ConsultaFieldOption[]>> {
+  const tableOf = Object.fromEntries(
+    CONSULTA_CODE_FIELD_KEYS.map((k) => [CONSULTA_CODE_FIELDS[k].table, k]),
+  ) as Record<string, ConsultaCodeField>;
+  const rows = await withTenant(clinicId, async (tx) =>
+    (await tx.execute(
+      sql`SELECT t.table_code, t.code, t.term, t.starts_on::text AS starts_on, t.ends_on::text AS ends_on
+            FROM public.tiss_terms t
+            JOIN public.tiss_terminology_versions v ON v.id = t.version_id
+           WHERE v.version = ${terminologyVersion}
+             AND t.table_code IN ('36', '52', '75', '76', '77')
+           ORDER BY t.table_code, t.code`,
+    )) as unknown as Row[],
+  );
+  const out = Object.fromEntries(CONSULTA_CODE_FIELD_KEYS.map((k) => [k, []])) as unknown as Record<
+    ConsultaCodeField,
+    ConsultaFieldOption[]
+  >;
+  for (const r of rows) {
+    const field = tableOf[String(r.table_code)];
+    if (!field) continue;
+    const startsOn = s(r.starts_on);
+    const endsOn = s(r.ends_on);
+    if (date && ((startsOn && date < startsOn) || (endsOn && date > endsOn))) continue;
+    out[field].push({ code: String(r.code), term: String(r.term) });
+  }
+  return out;
 }
 
 export async function getGuideDetail(clinicId: string, guideId: string): Promise<GuideDetail | null> {
@@ -415,6 +452,11 @@ export async function getGuideDetail(clinicId: string, guideId: string): Promise
       cancelReason: s(g.cancel_reason),
       approvedAt: iso(g.approved_at),
       reviewedAt: iso(g.reviewed_at),
+      terminologyVersion: s(g.terminology_version),
+      consultaOverrides:
+        g.consulta_overrides && typeof g.consulta_overrides === 'object' && !Array.isArray(g.consulta_overrides)
+          ? (g.consulta_overrides as ConsultaOverrides)
+          : null,
       batchId: batch ? String(batch.id) : null,
       batchStatus: batch ? String(batch.status) : null,
       items: items.map((r) => ({

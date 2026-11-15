@@ -15,9 +15,9 @@
  *     guarda acusa WOULD_SKIP nesse banco;
  *  3. estado de schema inesperado: a tabela da 0159 criada por fora → SCHEMA_STATE; linha do ledger
  *     desconhecida → APPLIED_UNKNOWN; hash aplicado alterado na 0160 → APPLIED_HASH_MISMATCH;
- *  4. composição CORRETA (outro cluster): o guarda aceita, pendentes = [0159, 0160]; o migrador
- *     aplica as duas, o guarda depois não vê pendência e as sentinelas existem; segunda execução
- *     não reaplica nada;
+ *  4. composição CORRETA (outro cluster): o guarda aceita, pendentes = [0159, 0160, e as do #55
+ *     depois da fronteira, como a 0161]; o migrador aplica todas, o guarda depois não vê pendência
+ *     e as sentinelas existem; segunda execução não reaplica nada;
  *  5. sem banco: hash divergente da 0159 (PINNED_HASH_MISMATCH) e manifesto incompatível
  *     (PINNED_WHEN_MISMATCH) recusados;
  *  6. o pré-voo de produção (`--check-composition`) é só leitura: papel sem privilégio de escrita,
@@ -76,6 +76,13 @@ const localJournal = JSON.parse(readFileSync('drizzle/migrations/meta/_journal.j
   dialect: string;
   entries: JournalEntry[];
 };
+/**
+ * Migrations do #55 DEPOIS da 0160 (fora da fronteira com o #53; a 0161 da P4.6 é a primeira). Elas
+ * entram nas contagens e nas pendências exatas abaixo: o pacote composto as leva junto.
+ */
+const afterFrontier = localJournal.entries.filter((e) => e.idx > 160).map((e) => e.tag);
+const lastTag = afterFrontier.at(-1) ?? T0160;
+const lastWhen = String(localJournal.entries.find((e) => e.tag === lastTag)!.when);
 const pr53Entries = (
   JSON.parse(git('show', `${PR53_REF}:drizzle/migrations/meta/_journal.json`)) as {
     entries: JournalEntry[];
@@ -206,8 +213,8 @@ try {
   // ---------------------------------------------------------------- 2. o perigo sem guarda
   drizzleMigrate(c1.url, wrong.config);
   const afterWrong = await ledgerCount(c1);
-  assert.equal(afterWrong.n, 160);
-  assert.equal(afterWrong.last, String(MANIFEST.pinned.find((p) => p.tag === T0160)!.when));
+  assert.equal(afterWrong.n, 160 + afterFrontier.length);
+  assert.equal(afterWrong.last, lastWhen);
   assert.equal(await relationExists(c1, 'public.patient_external_refunds'), true);
   drizzleMigrate(c1.url, right.config); // a 0159 chega depois: o migrador "passa"…
   assert.deepEqual(await ledgerCount(c1), afterWrong); // …e não aplica nada
@@ -239,12 +246,14 @@ try {
   const c2 = await startAt0158(PORT + 1);
   clusters.push(c2);
   const plan = await checkComposition({ folder: right.folder, manifest: MANIFEST, sql: asSql(c2) });
-  assert.deepEqual(plan.pending, [T0159, T0160]);
+  assert.deepEqual(plan.pending, [T0159, T0160, ...afterFrontier]);
   assert.deepEqual(plan.problems, []);
-  pass('composição correta: guarda aceita, pendentes = 0159 → 0160');
+  pass(
+    `composição correta: guarda aceita, pendentes = ${[T0159, T0160, ...afterFrontier].map((t) => t.slice(0, 4)).join(' → ')}`,
+  );
   drizzleMigrate(c2.url, right.config);
   const after = await ledgerCount(c2);
-  assert.equal(after.n, 161);
+  assert.equal(after.n, 161 + afterFrontier.length);
   assert.equal(await relationExists(c2, 'billing_gateway.renewal_api_readbacks'), true);
   assert.equal(await relationExists(c2, 'public.patient_external_refunds'), true);
   const planAfter = await checkComposition({
@@ -254,7 +263,7 @@ try {
   });
   assert.deepEqual(planAfter.pending, []);
   pass(
-    'migrador real aplica 0159 e 0160 (161 linhas), sentinelas presentes, guarda depois sem pendência',
+    `migrador real aplica 0159, 0160${afterFrontier.length ? ` e ${afterFrontier.map((t) => t.slice(0, 4)).join(', ')}` : ''} (${after.n} linhas), sentinelas presentes, guarda depois sem pendência`,
   );
   drizzleMigrate(c2.url, right.config);
   assert.deepEqual(await ledgerCount(c2), after);
@@ -269,8 +278,8 @@ try {
   const releaseDir = mkdtempSync(path.join(os.tmpdir(), 'qoro-compose-release-'));
   packages.push(releaseDir);
   const release = await composeReleaseMigrations({ outDir: releaseDir, pr53Ref: PR53_REF });
-  assert.equal(release.entries, 161);
-  assert.equal(release.last, T0160);
+  assert.equal(release.entries, 161 + afterFrontier.length);
+  assert.equal(release.last, lastTag);
   const filesOf = (dir: string) =>
     readdirSync(dir)
       .filter((f) => f.endsWith('.sql'))

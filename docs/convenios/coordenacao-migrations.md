@@ -504,7 +504,8 @@ recusado.
   ```
 
 - **Resultado esperado**, se a produção estiver em 0000–0135:
-  - `composition check-only: ok, pending=25 (0136 … 0160)`;
+  - `composition check-only: ok, pending=26 (0136 … 0161)` com a 0161 da P4.6 na branch (§17); sem ela, `pending=25
+    (0136 … 0160)`;
   - avisos só de hash histórico abaixo da 0136.
 - **Qualquer outro resultado** (linha desconhecida, hash divergente da 0136 em diante, `WOULD_SKIP`) é registrado e
   levado aos donos do #53 e do #55, sem ação no banco.
@@ -512,3 +513,26 @@ recusado.
   - Se necessário, `pg_cancel_backend` na linha de `pg_stat_activity` com `application_name =
     'qoro-migrate-composition-check'`.
   - Nada fica pela metade, porque nada é escrito.
+
+## 17. Migration 0161 (P4.6): candidata, só local e descartável (15/11, madrugada)
+
+- **O que é:** `0161_hi_guide_consulta_overrides` guarda os ajustes da Guia de Consulta antes da aprovação (D11). É
+  só aditiva:
+  - coluna `hi_guides.consulta_overrides` (jsonb, nula = padrões), com CHECK de forma (seis chaves, formato do
+    XSD 4.03.00, só na Consulta);
+  - gatilho `hi_guides_ab_consulta_overrides`, que congela a coluna depois da conferência, como o resto do conteúdo
+    (0147);
+  - `GRANT UPDATE (consulta_overrides)` ao runtime.
+- **Onde está provada:** `scripts/security/health-insurance-consulta-overrides-db.ts` (9/9 em Postgres descartável),
+  com o lote inteiro de harnesses de Convênios.
+- **Composição:** entra no journal do #55 depois da 0160 (`when` = 0160 + 1 dia). Não é fronteira com o #53, então não
+  ganha pino no manifesto enquanto não estiver aplicada em nenhum banco persistente; o pino entra quando for aplicada no
+  DEV, como as demais. O pacote composto do release passa a ter 162 entradas, e o pré-voo de produção espera
+  `pending=26` (§16).
+- **DEV:** **não aplicada.** Aplicar exige autorização específica (D23), depois do pré-voo de composição no DEV (só
+  leitura) e com a 0160 já aplicada (ela está).
+- **Push:** o código lê a coluna nova (o Drizzle lista as colunas da tabela em toda leitura de `hi_guides`), e o
+  Preview usa o DEV. Por isso os commits da P4.6 ficam **locais** até a 0161 estar no DEV: subir antes quebraria a
+  aprovação e a lista de guias no Preview.
+- **Reversão** (sem dado ainda): no cabeçalho da migration (DROP do gatilho, da função e da coluna; linha do
+  `_schema_version`).

@@ -31,7 +31,7 @@ import { assembleSpSadtGuide, type SadtProfessionalProfile } from '../tiss/assem
 import { serializeGuideSnapshot, type GuideSnapshotContent } from '../tiss/guides/snapshot';
 import { validateSpSadtGuide } from '../tiss/validation/sp-sadt-validator';
 
-import { freezePrintData, GuideIssuanceError, loadTerms, SP_SADT_DOMAIN_TABLES, type IssueArgs } from './issuance-common';
+import { freezePrintData, GuideIssuanceError, loadTerms, notReviewedError, SP_SADT_DOMAIN_TABLES, type IssueArgs } from './issuance-common';
 import { readAuthorizationPasswordTx, readClinicalIndicationTx } from './sadt-request-service';
 
 async function professional(tx: Tx, clinicId: string, userId: string | null): Promise<SadtProfessionalProfile | null> {
@@ -62,7 +62,7 @@ export async function issueSpSadtGuide(
     .for('update');
   if (!g) throw new GuideIssuanceError('guia inexistente nesta clínica');
   if (g.guideType !== 'sp_sadt') throw new GuideIssuanceError('esta emissão é da Guia SP/SADT');
-  if (g.status !== 'reviewed') throw new GuideIssuanceError(`só se emite guia conferida (estado: ${g.status})`);
+  if (g.status !== 'reviewed') throw notReviewedError(g.status);
   if (!g.membershipId || g.membershipId !== args.card.membershipId) {
     throw new GuideIssuanceError('a carteirinha lida não é a da guia');
   }

@@ -10,6 +10,7 @@ const m = vi.hoisted(() => ({
   conveniosAccess: vi.fn(),
   getInsuranceOverview: vi.fn(),
   getGuideDetail: vi.fn(),
+  listConsultaFieldOptions: vi.fn(),
 }));
 
 vi.mock('next/navigation', () => ({ usePathname: () => '/convenios', useSearchParams: () => new URLSearchParams(), useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }), notFound: () => { throw new Error('404'); } }));
@@ -19,6 +20,7 @@ vi.mock('@/contexts/health-insurance/actions', () => {
     answerAppealAction: a(), approveGuideAction: a(), cancelGuideAction: a(), createAppealAction: a(), decideGlossAction: a(),
     fileAppealAction: a(), exportAppealXmlAction: a(), reconcileGuideAction: a(), returnGuideAction: a(), reverseAllocationAction: a(), reviewGuideAction: a(),
     allocatePaymentAction: a(), createBatchAction: a(), recordBatchProtocolAction: a(), recordGlossAction: a(), recordPaymentAction: a(), importStatementAction: a(),
+    updateConsultaFieldsAction: a(),
   };
 });
 vi.mock('./_lib/access', async (orig) => {
@@ -27,7 +29,7 @@ vi.mock('./_lib/access', async (orig) => {
 });
 vi.mock('@/contexts/health-insurance/queries', async (orig) => {
   const real = await orig<typeof QueriesModule>();
-  return { ...real, getInsuranceOverview: m.getInsuranceOverview, getGuideDetail: m.getGuideDetail };
+  return { ...real, getInsuranceOverview: m.getInsuranceOverview, getGuideDetail: m.getGuideDetail, listConsultaFieldOptions: m.listConsultaFieldOptions };
 });
 vi.mock('@/lib/db/tenant', () => ({ withTenant: vi.fn() }));
 
@@ -107,5 +109,43 @@ describe('interface de Convênios', () => {
     render(await GuiaPage({ params: Promise.resolve({ guideId: GUIDE }) }));
     expect(screen.queryByRole('button', { name: 'Aprovar e emitir' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Cancelar guia' })).toBeNull();
+  });
+
+  it('D11: dados da consulta com padrão e ajuste; só quem gerencia ajusta, e só com a guia em edição', async () => {
+    m.listConsultaFieldOptions.mockResolvedValue({
+      regimeAtendimento: [{ code: '01', term: 'Ambulatorial' }, { code: '02', term: 'Emergência' }],
+      indicacaoAcidente: [{ code: '9', term: 'Não acidente' }],
+      tipoConsulta: [{ code: '1', term: 'Primeira consulta' }, { code: '4', term: 'Por encaminhamento' }],
+      coberturaEspecial: [],
+      saudeOcupacional: [],
+    });
+    const editing = { ...guide, status: 'ready_for_review', terminologyVersion: '202609', consultaOverrides: { tipoConsulta: '4' } };
+    m.getGuideDetail.mockResolvedValue(editing);
+    m.conveniosAccess.mockResolvedValue({ ok: true, clinicId: 'c1', canManage: true });
+    render(await GuiaPage({ params: Promise.resolve({ guideId: GUIDE }) }));
+    expect(m.listConsultaFieldOptions).toHaveBeenCalledWith('c1', '202609', '2026-11-10');
+    const panel = screen.getByTestId('consulta-fields');
+    expect(panel.textContent).toContain('Padrão: 01 · Ambulatorial');
+    expect(panel.textContent).toContain('4 · Por encaminhamento (ajustado)');
+    expect(panel.textContent).toContain('Não informada');
+    expect(screen.getByRole('button', { name: 'Ajustar dados da consulta' })).toBeTruthy();
+    cleanup();
+    // Conferida: o ajuste continua visível, mas não se edita (devolver para correção primeiro).
+    m.getGuideDetail.mockResolvedValue({ ...editing, status: 'reviewed' });
+    render(await GuiaPage({ params: Promise.resolve({ guideId: GUIDE }) }));
+    expect(screen.getByTestId('consulta-fields').textContent).toContain('(ajustado)');
+    expect(screen.queryByRole('button', { name: 'Ajustar dados da consulta' })).toBeNull();
+    cleanup();
+    // Quem só vê: nunca ajusta.
+    m.getGuideDetail.mockResolvedValue(editing);
+    m.conveniosAccess.mockResolvedValue({ ok: true, clinicId: 'c1', canManage: false });
+    render(await GuiaPage({ params: Promise.resolve({ guideId: GUIDE }) }));
+    expect(screen.queryByRole('button', { name: 'Ajustar dados da consulta' })).toBeNull();
+    cleanup();
+    // SP/SADT não tem estes dados.
+    m.getGuideDetail.mockResolvedValue({ ...editing, guideType: 'sp_sadt', consultaOverrides: null });
+    m.conveniosAccess.mockResolvedValue({ ok: true, clinicId: 'c1', canManage: true });
+    render(await GuiaPage({ params: Promise.resolve({ guideId: GUIDE }) }));
+    expect(screen.queryByTestId('consulta-fields')).toBeNull();
   });
 });

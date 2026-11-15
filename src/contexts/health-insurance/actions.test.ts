@@ -14,6 +14,8 @@ const m = vi.hoisted(() => ({
   transitionGlossInTx: vi.fn(),
   recordPaymentInTx: vi.fn(),
   revalidatePath: vi.fn(),
+  approveConsultaGuide: vi.fn(),
+  updateConsultaOverridesInTx: vi.fn(),
 }));
 
 vi.mock('server-only', () => ({}));
@@ -32,7 +34,16 @@ vi.mock('@/lib/db/tenant', () => ({ withTenant: async (_c: string, fn: (tx: unkn
 vi.mock('@/lib/storage/tiss-files', () => ({ supabaseTissObjectStore: () => ({}), TissStorageError: class extends Error {} }));
 vi.mock('./internal/batch-service', () => ({ createBatchInTx: m.createBatchInTx, BatchExportError: class extends Error {} }));
 vi.mock('./internal/guide-access', () => ({ readBatchGuidesAudited: vi.fn() }));
-vi.mock('./internal/guide-issuance', () => ({ approveConsultaGuide: vi.fn() }));
+vi.mock('./internal/guide-issuance', () => ({ approveConsultaGuide: m.approveConsultaGuide }));
+vi.mock('./internal/consulta-overrides-service', () => {
+  class ConsultaOverridesError extends Error {
+    constructor(message: string, readonly kind: string) {
+      super(message);
+      this.name = 'ConsultaOverridesError';
+    }
+  }
+  return { ConsultaOverridesError, updateConsultaOverridesInTx: m.updateConsultaOverridesInTx };
+});
 vi.mock('./internal/insurance-account-service', () => {
   class InsuranceAccountError extends Error {
     constructor(message: string, readonly kind: string) {
@@ -45,7 +56,19 @@ vi.mock('./tiss/xml/xsd-validator', () => ({ loadXmllintValidator: () => null })
 
 import { AuthError } from '@/lib/auth/tenant-context';
 
-import { createBatchAction, decideGlossAction, recordPaymentAction, reviewGuideAction } from './actions';
+import {
+  approveGuideAction,
+  createBatchAction,
+  decideGlossAction,
+  recordPaymentAction,
+  reviewGuideAction,
+  updateConsultaFieldsAction,
+} from './actions';
+import { ConsultaOverridesError } from './internal/consulta-overrides-service';
+
+/** Erro com o mesmo nome do da emissão (a ação reconhece pelo nome, como o BatchRuleError). */
+const issuanceError = (message: string, issues: Array<{ message: string }> = []) =>
+  Object.assign(new Error(message), { name: 'GuideIssuanceError', issues });
 
 const CLINIC = '11111111-1111-4111-8111-111111111111';
 const GUIDE = '22222222-2222-4222-8222-222222222222';
@@ -98,5 +121,60 @@ describe('ações de Convênios', () => {
     const r = await reviewGuideAction({ guideId: GUIDE, version: 3 });
     expect(r).toEqual({ ok: false, error: 'A guia mudou desde que a tela foi aberta. Atualize e confira de novo.' });
     expect(m.logAudit).not.toHaveBeenCalled();
+  });
+
+  it('aprovação concorrente: quem perde lê que a guia já foi aprovada (não "registro já existe" nem erro genérico)', async () => {
+    m.approveConsultaGuide.mockRejectedValueOnce(
+      issuanceError('esta guia já foi aprovada e emitida (estado: approved); atualize a tela'),
+    );
+    expect(await approveGuideAction({ guideId: GUIDE })).toEqual({
+      ok: false,
+      error: 'Esta guia já foi aprovada e emitida (etapa: Aprovada); atualize a tela',
+    });
+    m.approveConsultaGuide.mockRejectedValueOnce(issuanceError('só se emite guia conferida (estado: ready_for_review)'));
+    expect(await approveGuideAction({ guideId: GUIDE })).toEqual({
+      ok: false,
+      error: 'Só se emite guia conferida (etapa: Para conferir)',
+    });
+  });
+
+  it('emissão reprovada no validador mostra a primeira pendência', async () => {
+    m.approveConsultaGuide.mockRejectedValueOnce(
+      issuanceError('a guia não passa na validação TISS', [{ message: 'Tipo de consulta fora da tabela 52 da ANS.' }]),
+    );
+    expect(await approveGuideAction({ guideId: GUIDE })).toEqual({
+      ok: false,
+      error: 'A guia não passa na validação TISS: Tipo de consulta fora da tabela 52 da ANS.',
+    });
+  });
+
+  it('ajuste dos dados da Consulta (D11): permissão, campos ao serviço, auditoria e versão nova', async () => {
+    m.updateConsultaOverridesInTx.mockResolvedValueOnce({ version: 5, overrides: { tipoConsulta: '4' }, changed: true });
+    const r = await updateConsultaFieldsAction({ guideId: GUIDE, version: 4, tipoConsulta: '4', regimeAtendimento: '', observacao: null });
+    expect(r).toEqual({ ok: true, data: 5 });
+    expect(m.requireCachedPermission).toHaveBeenCalledWith('manage:financial');
+    expect(m.updateConsultaOverridesInTx).toHaveBeenCalledWith(expect.anything(), {
+      clinicId: CLINIC,
+      guideId: GUIDE,
+      version: 4,
+      input: { tipoConsulta: '4', regimeAtendimento: '', observacao: null },
+    });
+    expect(m.logAudit).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ action: 'health_insurance.guide.consulta_fields_updated', resourceId: GUIDE, after: { result: 5 } }),
+    );
+  });
+
+  it('ajuste recusado pelo serviço chega com a mensagem do serviço; entrada fora do formato nem chega a ele', async () => {
+    m.updateConsultaOverridesInTx.mockRejectedValueOnce(
+      new ConsultaOverridesError('Tipo de consulta: o código 7 não está na tabela 52 da ANS (terminologia 202609).', 'invalid'),
+    );
+    expect(await updateConsultaFieldsAction({ guideId: GUIDE, version: 4, tipoConsulta: '7' })).toEqual({
+      ok: false,
+      error: 'Tipo de consulta: o código 7 não está na tabela 52 da ANS (terminologia 202609).',
+    });
+    const long = await updateConsultaFieldsAction({ guideId: GUIDE, version: 4, observacao: 'a'.repeat(501) });
+    expect(long).toEqual({ ok: false, error: 'Observação: até 500 caracteres (padrão TISS).' });
+    expect(m.updateConsultaOverridesInTx).toHaveBeenCalledTimes(1);
   });
 });

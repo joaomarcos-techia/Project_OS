@@ -42,6 +42,11 @@ import {
   requestCopayCharge,
   syncCopayChargeTx,
 } from './internal/copay-charge-service';
+import { GUIDE_STATUS_LABELS } from './guide-status-labels';
+import {
+  ConsultaOverridesError,
+  updateConsultaOverridesInTx,
+} from './internal/consulta-overrides-service';
 import { CoverageInputError, recordAppointmentCoverage } from './internal/coverage-service';
 import { approveConsultaGuide } from './internal/guide-issuance';
 import * as acct from './internal/insurance-account-service';
@@ -69,6 +74,15 @@ async function gate(): Promise<{ clinicId: string; userId: string }> {
   await requireCachedPermission(PERMISSIONS.MANAGE_FINANCIAL);
   const clinicId = await requireClinicId();
   return { clinicId, userId: user.userId };
+}
+
+/** "só se emite guia conferida (estado: approved)" → "Só se emite guia conferida (etapa: Aprovada)". */
+function guideIssuanceMessage(raw: string): string {
+  const text = raw.replace(
+    /\(estado: ([a-z_]+)\)/u,
+    (_m, status: string) => `(etapa: ${GUIDE_STATUS_LABELS[status] ?? status})`,
+  );
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 /** Mensagem para o usuário: regra de negócio do banco fica; o resto vira mensagem genérica. */
@@ -115,6 +129,14 @@ function messageOf(error: unknown): string {
   }
   if (error instanceof TissStorageError)
     return 'O armazenamento de arquivos está indisponível agora. Tente de novo em instantes.';
+  // Emissão (P7.5/P14.2): a mensagem já é para o usuário e não leva dado pessoal; a etapa sai
+  // pelo nome da tela e a primeira pendência do validador vai junto.
+  if (error instanceof Error && error.name === 'GuideIssuanceError') {
+    const issues = (error as Error & { issues?: Array<{ message: string }> }).issues ?? [];
+    const msg = guideIssuanceMessage(error.message);
+    return issues[0] ? `${msg}: ${issues[0].message}` : msg;
+  }
+  if (error instanceof ConsultaOverridesError) return error.message;
   const e = error as { code?: string; cause?: { code?: string; message?: string } };
   const code = e.code ?? e.cause?.code;
   // Regras do banco (estado, versão, CHECK): a mensagem já é para o usuário e não leva dado pessoal.
@@ -191,6 +213,40 @@ export async function reviewGuideAction(
       },
     );
     return null;
+  });
+}
+
+const ConsultaFields = GuideRef.extend({
+  regimeAtendimento: z.string().max(2).nullish(),
+  indicacaoAcidente: z.string().max(1).nullish(),
+  tipoConsulta: z.string().max(1).nullish(),
+  coberturaEspecial: z.string().max(2).nullish(),
+  saudeOcupacional: z.string().max(2).nullish(),
+  observacao: z.string().max(500, 'Observação: até 500 caracteres (padrão TISS).').nullish(),
+});
+
+/**
+ * Ajusta os dados da Guia de Consulta (D11, P4.6) com a guia em edição. Campo vazio volta ao
+ * padrão. Devolve a versão nova da guia (a tela usa nas próximas ações).
+ */
+export async function updateConsultaFieldsAction(
+  input: z.input<typeof ConsultaFields>,
+): Promise<ActionResult<number>> {
+  return run(async () => {
+    const { guideId, version: v, ...fields } = ConsultaFields.parse(input);
+    return write(
+      'health_insurance.guide.consulta_fields_updated',
+      { type: 'hi_guide', id: guideId },
+      async (tx, ctx) =>
+        (
+          await updateConsultaOverridesInTx(tx, {
+            clinicId: ctx.clinicId,
+            guideId,
+            version: v,
+            input: fields,
+          })
+        ).version,
+    );
   });
 }
 

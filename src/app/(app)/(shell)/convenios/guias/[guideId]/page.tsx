@@ -18,11 +18,18 @@ import {
   returnGuideAction,
   reverseAllocationAction,
   reviewGuideAction,
+  updateConsultaFieldsAction,
 } from '@/contexts/health-insurance/actions';
-import { getGuideDetail, GUIDE_STATUS_LABELS, ISSUE_OWNER_LABELS } from '@/contexts/health-insurance/queries';
+import {
+  getGuideDetail,
+  GUIDE_STATUS_LABELS,
+  ISSUE_OWNER_LABELS,
+  listConsultaFieldOptions,
+} from '@/contexts/health-insurance/queries';
 
 import { brl, ConveniosHeader, conveniosAccess, shortDate } from '../../_lib/access';
 import { ActionButton, Actions, AnswerAppealForm, AppealForm, FileAppealForm, TextAction } from '../../_lib/action-ui';
+import { ConsultaFieldsPanel } from '../../_lib/consulta-fields-ui';
 import { GlossStatusBadge, GuideStatusBadge } from '../../_lib/status';
 import { guideLabel } from '../../_lib/guide-label';
 
@@ -33,6 +40,8 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 const OPEN_GLOSS = ['informed', 'under_analysis', 'contested'];
+/** Etapas em que o conteúdo da guia ainda se edita (0147/0161). */
+const EDITABLE = ['pending_data', 'ready_for_review'];
 const ISSUED = ['approved', 'in_batch', 'exported', 'sent', 'under_review', 'paid', 'partially_paid', 'partially_glossed', 'fully_glossed', 'closed', 'replaced'];
 
 export default async function GuiaPage({ params }: { params: Promise<{ guideId: string }> }) {
@@ -45,6 +54,11 @@ export default async function GuiaPage({ params }: { params: Promise<{ guideId: 
   const m = access.canManage;
   const ref = { guideId: g.id, version: g.version };
   const label = guideLabel(g.guideType, g.number);
+  // D11 (P4.6): opções da terminologia da própria guia, vigentes na data do atendimento.
+  const consultaOptions =
+    g.guideType === 'consulta' && g.terminologyVersion
+      ? await listConsultaFieldOptions(access.clinicId, g.terminologyVersion, g.items[0]?.executedOn ?? null)
+      : null;
   const openGlosses = g.glosses.filter((x) => OPEN_GLOSS.includes(x.status) && !g.appeals.some((a) => ['draft', 'filed'].includes(a.status) && a.glossIds.includes(x.id)));
 
   return (
@@ -120,6 +134,20 @@ export default async function GuiaPage({ params }: { params: Promise<{ guideId: 
           )}
         </PanelCard>
       </div>
+
+      {g.guideType === 'consulta' ? (
+        <PanelCard title="Dados da consulta" regionLabel="Dados da consulta" className="mt-(--sp-4)">
+          <ConsultaFieldsPanel
+            guideId={g.id}
+            version={g.version}
+            overrides={g.consultaOverrides}
+            options={consultaOptions}
+            editable={m && EDITABLE.includes(g.status)}
+            issued={ISSUED.includes(g.status)}
+            action={updateConsultaFieldsAction}
+          />
+        </PanelCard>
+      ) : null}
 
       <PanelCard title="Procedimentos" regionLabel="Procedimentos da guia" className="mt-(--sp-4)">
         <TableWrap>

@@ -37,6 +37,33 @@ export class GuideIssuanceError extends Error {
   }
 }
 
+/** Etapas em que a guia já foi aprovada e emitida (a revisão atual tem snapshot). */
+const ISSUED_STATUSES = new Set([
+  'approved',
+  'in_batch',
+  'exported',
+  'sent',
+  'under_review',
+  'paid',
+  'partially_paid',
+  'partially_glossed',
+  'fully_glossed',
+  'closed',
+  'replaced',
+]);
+
+/**
+ * Recusa de emissão fora de "conferida". Na aprovação concorrente (P14.2) quem perde lê a guia
+ * já aprovada: a mensagem diz isso, em vez de só citar a etapa.
+ */
+export function notReviewedError(status: string): GuideIssuanceError {
+  return new GuideIssuanceError(
+    ISSUED_STATUSES.has(status)
+      ? `esta guia já foi aprovada e emitida (estado: ${status}); atualize a tela`
+      : `só se emite guia conferida (estado: ${status})`,
+  );
+}
+
 /**
  * Tabelas de domínio pequenas que o validador da Consulta consulta inteiras
  * (conselho, indicação de acidente, tipo de consulta, UF, ausência de código de
